@@ -3,24 +3,23 @@ id: VideoAdapter
 title: VideoAdapter
 ---
 
-# Interface: VideoAdapter\<TModel, TProviderOptions, TModelProviderOptionsByName, TModelSizeByName\>
-
-Defined in: [packages/typescript/ai/src/activities/generateVideo/adapter.ts:35](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/generateVideo/adapter.ts#L35)
-
-**`Experimental`**
+Defined in: packages/ai/src/activities/generateVideo/adapter.ts:64
 
 Video adapter interface with pre-resolved generics.
 
 An adapter is created by a provider function: `provider('model')` → `adapter`
 All type resolution happens at the provider call site, not in this interface.
 
- Video generation is an experimental feature and may change.
-
 Generic parameters:
 - TModel: The specific model name (e.g., 'sora-2')
 - TProviderOptions: Provider-specific options (already resolved)
 - TModelProviderOptionsByName: Map from model name to its specific provider options
 - TModelSizeByName: Map from model name to its supported sizes
+- TModelInputModalitiesByName: Map from model name to the non-text prompt
+  modalities it accepts (constrains the `prompt` part types at compile time)
+- TModelDurationByName: Map from model name to its supported duration
+  union. Defaults to `Record<string, number>` so adapters that haven't
+  declared a map keep today's `duration?: number` typing.
 
 ## Type Parameters
 
@@ -38,7 +37,15 @@ Generic parameters:
 
 ### TModelSizeByName
 
-`TModelSizeByName` *extends* `Record`\<`string`, `string`\> = `Record`\<`string`, `string`\>
+`TModelSizeByName` *extends* `Record`\<`string`, `string` \| `undefined`\> = `Record`\<`string`, `string`\>
+
+### TModelInputModalitiesByName
+
+`TModelInputModalitiesByName` *extends* [`ModelInputModalitiesByName`](../type-aliases/ModelInputModalitiesByName.md) = [`ModelInputModalitiesByName`](../type-aliases/ModelInputModalitiesByName.md)
+
+### TModelDurationByName
+
+`TModelDurationByName` *extends* `Record`\<`string`, `string` \| `number` \| `undefined`\> = `Record`\<`string`, `number`\>
 
 ## Properties
 
@@ -48,11 +55,23 @@ Generic parameters:
 ~types: object;
 ```
 
-Defined in: [packages/typescript/ai/src/activities/generateVideo/adapter.ts:51](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/generateVideo/adapter.ts#L51)
+Defined in: packages/ai/src/activities/generateVideo/adapter.ts:94
 
 **`Internal`**
 
 Type-only properties for inference. Not assigned at runtime.
+
+#### modelDurationByName
+
+```ts
+modelDurationByName: TModelDurationByName;
+```
+
+#### modelInputModalitiesByName
+
+```ts
+modelInputModalitiesByName: TModelInputModalitiesByName;
+```
 
 #### modelProviderOptionsByName
 
@@ -74,15 +93,31 @@ providerOptions: TProviderOptions;
 
 ***
 
-### createVideoJob()
+### availableDurations
+
+```ts
+availableDurations: () => DurationOptions<TModelDurationByName[TModel]>;
+```
+
+Defined in: packages/ai/src/activities/generateVideo/adapter.ts:131
+
+Describe the durations this adapter's model accepts. Returns a tagged
+union so consumers can render UI / coerce input without provider-specific
+knowledge.
+
+#### Returns
+
+`DurationOptions`\<`TModelDurationByName`\[`TModel`\]\>
+
+***
+
+### createVideoJob
 
 ```ts
 createVideoJob: (options) => Promise<VideoJobResult>;
 ```
 
-Defined in: [packages/typescript/ai/src/activities/generateVideo/adapter.ts:61](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/generateVideo/adapter.ts#L61)
-
-**`Experimental`**
+Defined in: packages/ai/src/activities/generateVideo/adapter.ts:106
 
 Create a new video generation job.
 Returns a job ID that can be used to poll for status and retrieve the video.
@@ -91,7 +126,7 @@ Returns a job ID that can be used to poll for status and retrieve the video.
 
 ##### options
 
-[`VideoGenerationOptions`](VideoGenerationOptions.md)\<`TProviderOptions`, `TModelSizeByName`\[`TModel`\]\>
+[`VideoGenerationOptions`](VideoGenerationOptions.md)\<`TProviderOptions`, `TModelSizeByName`\[`TModel`\], `TModelDurationByName`\[`TModel`\]\>
 
 #### Returns
 
@@ -99,15 +134,41 @@ Returns a job ID that can be used to poll for status and retrieve the video.
 
 ***
 
-### getVideoStatus()
+### getVideo
+
+```ts
+getVideo: (jobId) => Promise<
+  | VideoUrlResult
+| VideoStreamResult>;
+```
+
+Defined in: packages/ai/src/activities/generateVideo/adapter.ts:124
+
+Get the finished video: a public URL when the provider has one, or the
+download stream for generation middleware to host. Call only after
+status is 'completed'.
+
+#### Parameters
+
+##### jobId
+
+`string`
+
+#### Returns
+
+`Promise`\<
+  \| [`VideoUrlResult`](VideoUrlResult.md)
+  \| [`VideoStreamResult`](VideoStreamResult.md)\>
+
+***
+
+### getVideoStatus
 
 ```ts
 getVideoStatus: (jobId) => Promise<VideoStatusResult>;
 ```
 
-Defined in: [packages/typescript/ai/src/activities/generateVideo/adapter.ts:68](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/generateVideo/adapter.ts#L68)
-
-**`Experimental`**
+Defined in: packages/ai/src/activities/generateVideo/adapter.ts:117
 
 Get the current status of a video generation job.
 
@@ -123,40 +184,13 @@ Get the current status of a video generation job.
 
 ***
 
-### getVideoUrl()
-
-```ts
-getVideoUrl: (jobId) => Promise<VideoUrlResult>;
-```
-
-Defined in: [packages/typescript/ai/src/activities/generateVideo/adapter.ts:74](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/generateVideo/adapter.ts#L74)
-
-**`Experimental`**
-
-Get the URL to download/view the generated video.
-Should only be called after status is 'completed'.
-
-#### Parameters
-
-##### jobId
-
-`string`
-
-#### Returns
-
-`Promise`\<[`VideoUrlResult`](VideoUrlResult.md)\>
-
-***
-
 ### kind
 
 ```ts
 readonly kind: "video";
 ```
 
-Defined in: [packages/typescript/ai/src/activities/generateVideo/adapter.ts:42](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/generateVideo/adapter.ts#L42)
-
-**`Experimental`**
+Defined in: packages/ai/src/activities/generateVideo/adapter.ts:78
 
 Discriminator for adapter kind - used to determine API shape
 
@@ -168,9 +202,7 @@ Discriminator for adapter kind - used to determine API shape
 readonly model: TModel;
 ```
 
-Defined in: [packages/typescript/ai/src/activities/generateVideo/adapter.ts:46](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/generateVideo/adapter.ts#L46)
-
-**`Experimental`**
+Defined in: packages/ai/src/activities/generateVideo/adapter.ts:89
 
 The model this adapter is configured for
 
@@ -182,8 +214,47 @@ The model this adapter is configured for
 readonly name: string;
 ```
 
-Defined in: [packages/typescript/ai/src/activities/generateVideo/adapter.ts:44](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/generateVideo/adapter.ts#L44)
-
-**`Experimental`**
+Defined in: packages/ai/src/activities/generateVideo/adapter.ts:80
 
 Adapter name identifier
+
+***
+
+### snapDuration
+
+```ts
+snapDuration: (input) => TModelDurationByName[TModel] | undefined;
+```
+
+Defined in: packages/ai/src/activities/generateVideo/adapter.ts:140
+
+Coerce `input` to the closest duration this model accepts.
+`input` may be seconds (`7`), a numeric string (`"7"`), a template
+(`"6s"`), or a keyword the model lists (`"auto"`).
+Returns `undefined` when the model has no duration field, or when
+`input` is a keyword that model does not list.
+
+#### Parameters
+
+##### input
+
+`string` \| `number`
+
+#### Returns
+
+`TModelDurationByName`\[`TModel`\] \| `undefined`
+
+***
+
+### supportsFileSources?
+
+```ts
+readonly optional supportsFileSources?: boolean;
+```
+
+Defined in: packages/ai/src/activities/generateVideo/adapter.ts:87
+
+Declares that this adapter can consume `{ type: 'file' }` content
+sources (provider Files API references). The activity dispatcher rejects
+file sources in preflight for adapters that don't declare this, so
+adapters written before the file arm existed fail closed.

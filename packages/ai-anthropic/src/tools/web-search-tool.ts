@@ -1,0 +1,93 @@
+import {
+  brandAnthropicProviderTool,
+  getAnthropicProviderToolMetadata,
+} from './anthropic-provider-tool'
+import type { WebSearchTool20250305 } from '@anthropic-ai/sdk/resources/messages'
+import type { ProviderTool, Tool } from '@tanstack/ai'
+
+export type WebSearchToolConfig = WebSearchTool20250305
+
+export type AnthropicWebSearchTool = ProviderTool<'anthropic', 'web_search'>
+
+const validateDomains = (tool: WebSearchToolConfig) => {
+  if (tool.allowed_domains && tool.blocked_domains) {
+    throw new Error(
+      'allowed_domains and blocked_domains cannot be used together.',
+    )
+  }
+}
+
+const validateUserLocation = (tool: WebSearchToolConfig) => {
+  const userLocation = tool.user_location
+  if (userLocation) {
+    if (
+      userLocation.city &&
+      (userLocation.city.length < 1 || userLocation.city.length > 255)
+    ) {
+      throw new Error(
+        'user_location.city must be between 1 and 255 characters.',
+      )
+    }
+    if (userLocation.country && userLocation.country.length !== 2) {
+      throw new Error('user_location.country must be exactly 2 characters.')
+    }
+    if (
+      userLocation.region &&
+      (userLocation.region.length < 1 || userLocation.region.length > 255)
+    ) {
+      throw new Error(
+        'user_location.region must be between 1 and 255 characters.',
+      )
+    }
+    if (
+      userLocation.timezone &&
+      (userLocation.timezone.length < 1 || userLocation.timezone.length > 255)
+    ) {
+      throw new Error(
+        'user_location.timezone must be between 1 and 255 characters.',
+      )
+    }
+  }
+}
+
+export function convertWebSearchToolToAdapterFormat(
+  tool: Tool,
+): WebSearchToolConfig {
+  // The factory stores the SDK config (`allowed_domains`, `max_uses`, …)
+  // on `metadata`. Vendor `WebSearchTool20250305` declares those fields as
+  // `T | null` (no `| undefined`) under exactOptionalPropertyTypes, so
+  // spread them only when present rather than passing explicit `undefined`.
+  const metadata = getAnthropicProviderToolMetadata(tool)
+  return {
+    name: 'web_search',
+    type: 'web_search_20250305',
+    ...(metadata?.allowed_domains !== undefined && {
+      allowed_domains: metadata.allowed_domains,
+    }),
+    ...(metadata?.blocked_domains !== undefined && {
+      blocked_domains: metadata.blocked_domains,
+    }),
+    ...(metadata?.max_uses !== undefined && { max_uses: metadata.max_uses }),
+    ...(metadata?.user_location !== undefined && {
+      user_location: metadata.user_location,
+    }),
+    ...(metadata?.cache_control !== undefined && {
+      cache_control: metadata.cache_control,
+    }),
+  }
+}
+
+export function webSearchTool(
+  config: WebSearchToolConfig,
+): AnthropicWebSearchTool {
+  validateDomains(config)
+  validateUserLocation(config)
+  return brandAnthropicProviderTool<AnthropicWebSearchTool>(
+    {
+      name: 'web_search',
+      description: '',
+      metadata: config,
+    },
+    'web_search',
+  )
+}

@@ -3,6 +3,7 @@ import {
   selectScenario,
   runTest,
   waitForTestComplete,
+  waitForExecutionComplete,
   waitForApproval,
   getMetadata,
   getEventLog,
@@ -22,6 +23,56 @@ import {
  */
 
 test.describe('Race Condition Tests', () => {
+  test('stop prevents a pending client tool from resuming', async ({
+    page,
+    testId,
+    aimockPort,
+  }) => {
+    const requestBodies: Array<any> = []
+    page.on('request', (request) => {
+      if (
+        request.url().includes('/api/tools-test') &&
+        request.method() === 'POST'
+      ) {
+        const body = request.postDataJSON()
+        if (body) requestBodies.push(body)
+      }
+    })
+
+    await selectScenario(page, 'client-tool-stop', testId, aimockPort)
+    await runTest(page)
+    await page.waitForFunction(() => {
+      const metadata = document.querySelector('#test-metadata')
+      return metadata?.getAttribute('data-execution-start-count') === '1'
+    })
+
+    await page.click('#stop-button')
+    await page.waitForFunction(() => {
+      const metadata = document.querySelector('#test-metadata')
+      return metadata?.getAttribute('data-execution-complete-count') === '1'
+    })
+    await page.waitForTimeout(250)
+
+    expect(requestBodies).toHaveLength(1)
+    const metadata = await getMetadata(page)
+    expect(metadata.isLoading).toBe('false')
+    expect(metadata.completeToolCount).toBe('0')
+
+    await page.click('#run-test-button')
+    await expect.poll(() => requestBodies.length).toBe(2)
+    expect(requestBodies[1]?.parentRunId).toBeUndefined()
+    expect(requestBodies[1]?.resume).toBeUndefined()
+    // The server answers the stopped call with "No result provided", so the
+    // second run ends by itself. The model asks for no new tool call, and the
+    // stopped tool does not run again (the event log resets on each send).
+    await expect
+      .poll(async () => (await getMetadata(page)).isLoading)
+      .toBe('false')
+    const after = await getMetadata(page)
+    expect(after.toolCallCount).toBe('1')
+    expect(after.executionStartCount).toBe('0')
+  })
+
   /**
    * This test catches the specific bug where two client tool calls in a row
    * would fail because the send of the second tool's result was blocked
@@ -32,6 +83,17 @@ test.describe('Race Condition Tests', () => {
     testId,
     aimockPort,
   }) => {
+    const requestBodies: Array<any> = []
+    page.on('request', (request) => {
+      if (
+        request.url().includes('/api/tools-test') &&
+        request.method() === 'POST'
+      ) {
+        const body = request.postDataJSON()
+        if (body) requestBodies.push(body)
+      }
+    })
+
     await selectScenario(page, 'sequential-client-tools', testId, aimockPort)
 
     const startTime = Date.now()
@@ -72,6 +134,16 @@ test.describe('Race Condition Tests', () => {
     expect(executionEvents[1]?.type).toBe('execution-complete')
     expect(executionEvents[2]?.type).toBe('execution-start')
     expect(executionEvents[3]?.type).toBe('execution-complete')
+
+    await expect(page.locator('#messages-json-content')).toContainText(
+      'Both notifications have been shown.',
+    )
+    expect(requestBodies).toHaveLength(3)
+    expect(requestBodies[0]?.resume).toBeUndefined()
+    expect(requestBodies[1]?.parentRunId).toBe(requestBodies[0]?.runId)
+    expect(requestBodies[1]?.resume).toHaveLength(1)
+    expect(requestBodies[2]?.parentRunId).toBe(requestBodies[1]?.runId)
+    expect(requestBodies[2]?.resume).toHaveLength(1)
 
     // If it takes too long (e.g., > 10 seconds), it might indicate blocking
     // (each tool takes ~50ms, so total should be well under 5 seconds)
@@ -197,6 +269,7 @@ test.describe('Race Condition Tests', () => {
 
     // Wait for completion - expect 2 tools (1 client + 1 approval)
     await waitForTestComplete(page, 20000, 2)
+    await waitForExecutionComplete(page, 'show_notification')
 
     // Verify flow completed
     const metadata = await getMetadata(page)
@@ -224,6 +297,7 @@ test.describe('Race Condition Tests', () => {
 
     // Wait for completion - expect 2 tools (1 approval + 1 client)
     await waitForTestComplete(page, 20000, 2)
+    await waitForExecutionComplete(page, 'show_notification')
 
     // Verify client tool also executed
     const metadata = await getMetadata(page)

@@ -1,0 +1,971 @@
+import type {
+  StandardJSONSchemaV1,
+  StandardSchemaV1,
+} from '@standard-schema/spec'
+import type {
+  ActivityRecord,
+  AgentLoopState,
+  EmitCustomEventOptions,
+  Interrupt,
+  JSONSchema,
+  ModelMessage,
+  ResolvedPromptCache,
+  UIMessage,
+  RunAgentResumeItem,
+  RunErrorEvent,
+  StreamChunk,
+  TanStackMessageMetadata,
+  TokenUsage,
+  Tool,
+  ToolCall,
+  ToolChoice,
+  FetchWrapper,
+} from '../../../types'
+import type { SystemPrompt } from '../../../system-prompts'
+import type { ToolApprovalResolution } from '../../../interrupts'
+import type { ReasoningRequest } from '../../../reasoning'
+import type {
+  GenericInterruptRequest,
+  InterruptDefinition,
+} from '../../../interrupt-definition'
+import type {
+  Capability,
+  CapabilityHandle,
+  CapabilityRegistry,
+} from './capabilities'
+
+/** A file change observed inside a sandbox during a chat run. */
+export interface SandboxFileEvent {
+  type: 'create' | 'change' | 'delete'
+  /** Absolute path inside the sandbox (under the workspace root). */
+  path: string
+  timestamp: number
+}
+
+/** The file event a sandbox hook receives: the serializable {@link SandboxFileEvent}
+ *  plus lazy, git-backed content accessors. Accessors compute on call, so a hook
+ *  that only reads `path`/`type` pays nothing. Never present on the serialized
+ *  `sandbox.file` CUSTOM chunk. */
+export interface SandboxFileHookEvent extends SandboxFileEvent {
+  /** Content at the session baseline (`''` for a new file or non-git workspace). */
+  before: () => Promise<string>
+  /** Current content (`''` when the event is a delete). */
+  after: () => Promise<string>
+  /** Unified patch vs the session baseline (synthesized add-patch when non-git). */
+  diff: () => Promise<string>
+}
+
+/**
+ * Sandbox file-event hooks a chat middleware can declare. Fire server-side for
+ * every file create/change/delete observed in the sandbox during the run.
+ */
+export interface ChatSandboxHooks<TContext = unknown> {
+  onFile?: (
+    ctx: ChatMiddlewareContext<TContext>,
+    e: SandboxFileHookEvent,
+  ) => void | Promise<void>
+  onFileCreate?: (
+    ctx: ChatMiddlewareContext<TContext>,
+    e: SandboxFileHookEvent,
+  ) => void | Promise<void>
+  onFileChange?: (
+    ctx: ChatMiddlewareContext<TContext>,
+    e: SandboxFileHookEvent,
+  ) => void | Promise<void>
+  onFileDelete?: (
+    ctx: ChatMiddlewareContext<TContext>,
+    e: SandboxFileHookEvent,
+  ) => void | Promise<void>
+}
+
+// ===========================
+// Middleware Context
+// ===========================
+
+/**
+ * Phase of the chat middleware lifecycle.
+ * - 'init': Initial config transform before the chat engine starts
+ * - 'beforeModel': Before each adapter chatStream call (per agent iteration)
+ * - 'afterModel': After each adapter chatStream call (per agent iteration)
+ * - 'modelStream': During model streaming
+ * - 'beforeTools': Before tool execution phase
+ * - 'afterTools': After tool execution phase
+ * - 'structuredOutput': During the final structured-output adapter call (set
+ *   for chunks from adapter.structuredOutputStream or the synthesized fallback)
+ */
+export type ChatMiddlewarePhase =
+  | 'init'
+  | 'beforeModel'
+  | 'afterModel'
+  | 'modelStream'
+  | 'beforeTools'
+  | 'afterTools'
+  | 'structuredOutput'
+
+export const INTERRUPT_BOUNDARY_PHASES = [
+  'beforeModel',
+  'afterModel',
+  'beforeTools',
+  'afterTools',
+] as const
+
+export type InterruptBoundaryPhase = (typeof INTERRUPT_BOUNDARY_PHASES)[number]
+
+export const INTERRUPT_TOOL_RESUMES = ['continue', 'cancel', 'stop'] as const
+
+export type InterruptToolResume = (typeof INTERRUPT_TOOL_RESUMES)[number]
+
+type AnyInterruptDefinition = InterruptDefinition<any, any, any, any>
+
+type InterruptResponse<TDefinition> =
+  TDefinition extends InterruptDefinition<any, any, infer TResponseSchema, any>
+    ? TResponseSchema extends StandardSchemaV1<any, infer TResponse>
+      ? TResponse
+      : TResponseSchema extends StandardJSONSchemaV1<any, infer TResponse>
+        ? TResponse
+        : unknown
+    : unknown
+
+export type GenericInterruptResolution<
+  TDefinition extends AnyInterruptDefinition,
+> = TDefinition extends AnyInterruptDefinition
+  ?
+      | {
+          readonly request: GenericInterruptRequest<TDefinition>
+          readonly status: 'resolved'
+          readonly response: InterruptResponse<TDefinition>
+        }
+      | {
+          readonly request: GenericInterruptRequest<TDefinition>
+          readonly status: 'cancelled'
+          readonly response?: never
+        }
+  : never
+
+export interface InterruptResolutionCollection<
+  TDefinitions extends AnyInterruptDefinition = AnyInterruptDefinition,
+> {
+  for: <
+    TDefinition extends ([TDefinitions] extends [never]
+      ? AnyInterruptDefinition
+      : TDefinitions),
+  >(
+    definition: TDefinition,
+  ) => ReadonlyArray<GenericInterruptResolution<TDefinition>>
+  all: {
+    (): ReadonlyArray<GenericInterruptResolution<TDefinitions>>
+    <const TSelected extends ReadonlyArray<TDefinitions>>(
+      ...definitions: TSelected
+    ): ReadonlyArray<GenericInterruptResolution<TSelected[number]>>
+  }
+}
+
+type BivariantInterruptResolutionHook<
+  TContext,
+  TDefinitions extends AnyInterruptDefinition,
+> = InterruptResolutionHookSignature<TContext, TDefinitions>['call']
+
+declare abstract class InterruptResolutionHookSignature<
+  TContext,
+  TDefinitions extends AnyInterruptDefinition,
+> {
+  abstract call(
+    ctx: ChatMiddlewareContext<TContext>,
+    resolutions: InterruptResolutionCollection<TDefinitions>,
+  ): InterruptResolutionResult | Promise<InterruptResolutionResult>
+}
+
+export type InterruptBoundaryResult<
+  TDefinitions extends AnyInterruptDefinition = AnyInterruptDefinition,
+> =
+  | undefined
+  | {
+      readonly interrupts: ReadonlyArray<GenericInterruptRequest<TDefinitions>>
+    }
+
+export type InterruptResolutionResult = void | {
+  readonly toolResume: InterruptToolResume
+}
+
+/**
+ * Stable context object passed to all middleware hooks.
+ * Created once per chat() invocation and shared across all hooks.
+ */
+export interface ChatMiddlewareContext<TContext = unknown> {
+  /** Unique identifier for this chat request */
+  requestId: string
+  /** Unique identifier for this stream */
+  streamId: string
+  /** AG-UI run identifier for correlating client and server events */
+  runId: string
+  /** Interrupted or parent run correlated with this continuation. */
+  parentRunId?: string
+  /**
+   * Set when this run is a subagent. The id on the child's `SUBAGENT_STARTED`
+   * and on every chunk it streams. Absent on a top-level run.
+   */
+  subagentRunId?: string
+  /** The agent name when this run is a subagent. */
+  subagentName?: string
+  /** The subagentRunId of the child that started this one, for a nested child. */
+  parentSubagentRunId?: string
+  /**
+   * Interrupt ids in `resume` that a subagent tool call of this run answers.
+   * This run does not answer them itself. They come from the subagent cards in
+   * the messages the client sent. `undefined` when no child is resumed, and
+   * for a router turn.
+   */
+  childResumeIds?: ReadonlySet<string>
+  /**
+   * AG-UI thread identifier — a stable per-conversation ID used to
+   * correlate client and server devtools events. It is the caller's
+   * `threadId`.
+   */
+  threadId: string
+  /** Current lifecycle phase */
+  phase: ChatMiddlewarePhase
+  /** Current agent loop iteration (0-indexed) */
+  iteration: number
+  /** Running count of chunks yielded so far */
+  chunkIndex: number
+  /**
+   * The `metadata.tanstack` of the current model call: source, stop reason,
+   * response id, and so on. It changes as chunks arrive. Each assistant
+   * message of the call gets a copy of it.
+   */
+  callMetadata: Readonly<TanStackMessageMetadata>
+  /** Abort signal from the chat request */
+  signal?: AbortSignal
+  /** Abort the chat run with a reason */
+  abort: (reason?: string) => void
+  /**
+   * Call the model again. Works only in `onModelError`, and throws in any
+   * other hook. `onConfig` runs again before the new call.
+   */
+  retry: () => void
+  /**
+   * Push a `CUSTOM` chunk onto the chat stream immediately.
+   * The engine yields it as soon as it can (including while `onConfig`
+   * is still awaiting work such as a summarize call). Durability then
+   * flushes the event on its own, unless you pass `{ batch: true }`.
+   */
+  emitCustomEvent: (
+    name: string,
+    value: Record<string, any>,
+    options?: EmitCustomEventOptions,
+  ) => void
+  /** Runtime context provided by chat() options */
+  context: TContext
+  /**
+   * Defer a non-blocking side-effect promise.
+   * Deferred promises do not block streaming and are awaited
+   * after the terminal hook (onFinish/onAbort/onError).
+   */
+  defer: (promise: Promise<unknown>) => void
+
+  // --- Provider / adapter info (immutable for the lifetime of the request) ---
+
+  /**
+   * Which activity this context describes — always `'chat'`. Present so the
+   * chat context structurally satisfies the base `GenerationMiddlewareContext`,
+   * letting an observe-only middleware authored against the base (e.g.
+   * `otelMiddleware`) run on both chat and media activities.
+   */
+  activity: 'chat'
+  /** Provider name (e.g., 'openai', 'anthropic') */
+  provider: string
+  /** Model identifier (e.g., 'gpt-5.5') */
+  model: string
+  /** Source of the chat invocation — always 'server' for server-side chat */
+  source: 'client' | 'server'
+  /** Whether the chat is streaming */
+  streaming: boolean
+
+  // --- Config-derived info (may update per-iteration via onConfig) ---
+
+  /** System prompts configured for this chat */
+  systemPrompts: Array<SystemPrompt>
+  /** Names of configured tools, if any */
+  toolNames?: Array<string>
+  /** Flattened generation options (metadata) */
+  options?: Record<string, unknown> | undefined
+  /** Provider-specific model options */
+  modelOptions?: Record<string, unknown> | undefined
+
+  // --- Computed info ---
+
+  /** Number of messages at the start of the request */
+  messageCount: number
+  /** Whether tools are configured */
+  hasTools: boolean
+
+  // --- Mutable per-iteration state ---
+
+  /** Current assistant message ID (changes per iteration) */
+  currentMessageId: string | null
+  /** Accumulated text content for the current iteration */
+  accumulatedContent: string
+
+  // --- References ---
+
+  /** Current messages array (read-only view) */
+  messages: ReadonlyArray<ModelMessage>
+  /**
+   * Frontend-only AG-UI activity sidecar. Never model input. Persistence
+   * writes this when an ActivityStore is configured. Optional so code that
+   * builds its own context keeps working; the engine always sets it.
+   */
+  activities?: ReadonlyArray<ActivityRecord>
+  /** Generate a unique ID with the given prefix */
+  createId: (prefix: string) => string
+  /**
+   * Capability bookkeeping for this request. Populated by middleware `setup`
+   * hooks (via `provide` accessors) and read by later middleware (via `get`
+   * accessors). Prefer the accessors returned by `createCapability` over using
+   * this directly. Orthogonal to `context` (the user runtime context).
+   */
+  capabilities: CapabilityRegistry
+  /**
+   * Read a provided capability by its handle. Equivalent to the handle's own
+   * `get` accessor (`getX(ctx)`); throws if the capability was never provided.
+   */
+  get: <TValue>(capability: Capability<TValue>) => TValue
+  /**
+   * Read a capability by its handle, returning `undefined` if it was never
+   * provided (never throws).
+   */
+  getOptional: <TValue>(capability: Capability<TValue>) => TValue | undefined
+  /**
+   * Provide a capability value. Equivalent to the handle's own `provide`
+   * accessor (`provideX(ctx, value)`). Typically called from `setup`.
+   */
+  provide: <TValue>(capability: Capability<TValue>, value: TValue) => void
+}
+
+// ===========================
+// Config passed to onConfig
+// ===========================
+
+/**
+ * Chat configuration that middleware can observe or transform.
+ * This is a subset of the chat engine's effective configuration
+ * that middleware is allowed to modify.
+ */
+export interface ChatMiddlewareConfig {
+  /** Canonical conversation history. Middleware and persistence read this. */
+  messages: Array<ModelMessage>
+  /**
+   * Frontend-only AG-UI activity sidecar. Persistence loads and saves this
+   * when an ActivityStore is configured. Never model input.
+   */
+  activities?: Array<ActivityRecord>
+  /** Provider-only context. Defaults to `messages` when it is not set. */
+  providerMessages?: Array<ModelMessage> | undefined
+  systemPrompts: Array<SystemPrompt>
+  tools: Array<Tool>
+  resume?: Array<RunAgentResumeItem> | undefined
+  resumeToolState?: ChatResumeToolState | undefined
+  metadata?: Record<string, unknown> | undefined
+  modelOptions?: Record<string, unknown> | undefined
+  /** How hard the model thinks at this call. A middleware can set or change it. */
+  reasoning?: ReasoningRequest | undefined
+  /**
+   * How the model uses the tools of the next model call. A returned value
+   * applies to that call only. The next call starts again from the `chat()`
+   * option. A call with no tools sends no tool choice.
+   */
+  toolChoice?: ToolChoice | undefined
+  /**
+   * The prompt cache of the next model call. A returned value stays until a
+   * middleware changes it.
+   */
+  promptCache?: ResolvedPromptCache | undefined
+  /**
+   * Wraps the fetch of the next model call. A returned wrapper chains inside
+   * the wrappers before it, so it does not replace them. It applies to that
+   * call only. The next call starts again from the `chat()` option.
+   */
+  wrapFetch?: FetchWrapper | undefined
+}
+
+/**
+ * Tool decisions reconstructed by server-side middleware from validated resume
+ * entries. This lets empty-message interrupt resumes continue tool execution
+ * without relying on client message history.
+ */
+export interface ChatResumeToolState {
+  approvals?: ReadonlyMap<string, ToolApprovalResolution> | undefined
+  clientToolResults?: ReadonlyMap<string, unknown> | undefined
+  clientToolErrors?: ReadonlyMap<string, string> | undefined
+  genericInterrupts?:
+    | ReadonlyMap<string, ChatResumeGenericResolution>
+    | undefined
+  /** Durable generic requests reconstructed by server middleware. */
+  genericInterruptRequests?:
+    | ReadonlyMap<
+        string,
+        GenericInterruptRequest<InterruptDefinition<any, any, any, any>>
+      >
+    | undefined
+  deniedToolResults?: ReadonlyMap<string, unknown> | undefined
+  cancelledToolCallIds?: ReadonlySet<string> | undefined
+}
+
+export type ChatResumeGenericResolution =
+  | { interruptId: string; status: 'resolved'; payload: unknown }
+  | { interruptId: string; status: 'cancelled'; payload?: never }
+
+/**
+ * Config passed to onStructuredOutputConfig.
+ *
+ * Mirrors ChatMiddlewareConfig minus `tools` and `toolChoice` (the final
+ * structured-output call is a single typed-response request, not an agentic
+ * loop — tools cannot be forwarded to it), plus the `outputSchema` being sent
+ * to the provider.
+ * Middleware may transform the schema (e.g., inject $defs, strip
+ * vendor-incompatible keywords) by returning a partial that includes
+ * `outputSchema`.
+ */
+export interface StructuredOutputMiddlewareConfig extends Omit<
+  ChatMiddlewareConfig,
+  'tools' | 'toolChoice'
+> {
+  /** JSON Schema being sent to the provider for structured output. */
+  outputSchema: JSONSchema
+}
+
+// ===========================
+// Tool Call Hook Context
+// ===========================
+
+/**
+ * Context provided to tool call hooks (onBeforeToolCall / onGuardToolCall /
+ * onAfterToolCall).
+ */
+export interface ToolCallHookContext {
+  /** The tool call being executed */
+  toolCall: ToolCall
+  /** The resolved tool definition, if found */
+  tool: Tool | undefined
+  /**
+   * Parsed arguments for the tool call, before the `inputSchema` check: no
+   * schema defaults or transforms yet, and possibly invalid. In
+   * `onGuardToolCall`, these are the final checked arguments.
+   */
+  args: unknown
+  /** Name of the tool */
+  toolName: string
+  /** ID of the tool call */
+  toolCallId: string
+}
+
+/**
+ * Decision returned from onBeforeToolCall.
+ * - undefined/void: continue with normal execution
+ * - { type: 'transformArgs', args }: replace args used for execution
+ * - { type: 'skip', result }: skip execution, use provided result
+ * - { type: 'abort', reason }: abort the entire chat run
+ */
+export type BeforeToolCallDecision =
+  | void
+  | undefined
+  | null
+  | { type: 'transformArgs'; args: unknown }
+  | { type: 'skip'; result: unknown }
+  | { type: 'abort'; reason?: string }
+
+/**
+ * Decision returned from onGuardToolCall. A guard cannot change the args.
+ * - undefined/void: allow the call. The next guard runs.
+ * - { type: 'skip', result }: deny the call. The tool does not run, and the
+ *   model gets `result`, as for an `onBeforeToolCall` skip.
+ * - { type: 'abort', reason }: abort the entire chat run
+ */
+export type GuardToolCallDecision =
+  | void
+  | undefined
+  | null
+  | { type: 'skip'; result: unknown }
+  | { type: 'abort'; reason?: string }
+
+/**
+ * Outcome information provided to onAfterToolCall.
+ */
+export interface AfterToolCallInfo {
+  /** The tool call that was executed */
+  toolCall: ToolCall
+  /** The resolved tool definition */
+  tool: Tool | undefined
+  /** Name of the tool */
+  toolName: string
+  /** ID of the tool call */
+  toolCallId: string
+  /** Whether the execution succeeded */
+  ok: boolean
+  /** Duration of tool execution in milliseconds */
+  duration: number
+  /** The result (if ok) or error (if not ok) */
+  result?: unknown
+  error?: unknown
+}
+
+/**
+ * Decision returned from onAfterToolCall.
+ * - undefined/void: keep the current result
+ * - { type: 'replaceResult', result }: use this result instead. The model and
+ *   the stream see it. The next middleware gets it as `info.result`. An error
+ *   result stays an error.
+ */
+export type AfterToolCallDecision = void | {
+  type: 'replaceResult'
+  result: unknown
+}
+
+// ===========================
+// Iteration Info
+// ===========================
+
+/**
+ * Information passed to onIteration at the start of each agent loop iteration.
+ */
+export interface IterationInfo {
+  /** 0-based iteration index */
+  iteration: number
+  /** The assistant message ID created for this iteration */
+  messageId: string
+}
+
+// ===========================
+// Tool Phase Complete Info
+// ===========================
+
+/**
+ * Aggregate information passed to onToolPhaseComplete after all tool calls
+ * in an iteration have been processed.
+ */
+export interface ToolPhaseCompleteInfo {
+  /** Tool calls that were assigned to the assistant message */
+  toolCalls: Array<ToolCall>
+  /** Completed tool results */
+  results: Array<{
+    toolCallId: string
+    toolName: string
+    result: unknown
+    duration?: number
+  }>
+  /** Tools that need user approval */
+  needsApproval: Array<{
+    toolCallId: string
+    toolName: string
+    input: unknown
+    approvalId: string
+  }>
+  /** Tools that need client-side execution */
+  needsClientExecution: Array<{
+    toolCallId: string
+    toolName: string
+    input: unknown
+  }>
+}
+
+// ===========================
+// Usage Info
+// ===========================
+
+/**
+ * Token usage statistics passed to the onUsage hook.
+ * Extracted from the RUN_FINISHED chunk when usage data is present.
+ *
+ * Includes optional provider-reported `cost`/`costDetails` (see {@link TokenUsage}).
+ * Kept as an interface extending `TokenUsage` to preserve declaration merging for
+ * this publicly exported type.
+ */
+export interface UsageInfo extends TokenUsage {}
+
+// ===========================
+// Terminal Hook Info
+// ===========================
+
+/**
+ * Information passed to onFinish.
+ */
+export interface FinishInfo {
+  /** The finish reason from the last model response */
+  finishReason: string | null
+  /** Total duration of the chat run in milliseconds */
+  duration: number
+  /** Final accumulated text content */
+  content: string
+  /** Final usage totals, if available (optionally including provider-reported cost) */
+  usage?: TokenUsage | undefined
+}
+
+/**
+ * Information passed to onAbort.
+ */
+export interface AbortInfo {
+  /** The reason for the abort, if provided */
+  reason?: string
+  /** Duration until abort in milliseconds */
+  duration: number
+  /**
+   * True only when the abort came from an explicit, out-of-band cancel (e.g. a
+   * cancel endpoint setting `RunRecord.cancelRequested`), never from a mere
+   * client disconnect.
+   *
+   * A disconnect and a user pressing "stop" are the SAME connection close on
+   * the wire, so consumers must not infer intent from an abort alone. Middleware
+   * that tears down expensive resources reads this to distinguish "the viewer
+   * left, keep going" from "the user wants this stopped". Populated from the
+   * abort reason: `true` exactly when the run was aborted with `RUN_CANCEL_REASON`
+   * (matched with `===`, so an arbitrary error message can never be read as a
+   * deliberate cancel), `false` for every other abort. The durable channel is
+   * separate — middleware that must also catch a cancel recorded on a different
+   * host reads `RunRecord.cancelRequested` in addition to this flag.
+   */
+  cancelRequested?: boolean
+}
+
+/**
+ * Information passed to onError.
+ */
+export interface ErrorInfo {
+  /** The error that caused the failure */
+  error: unknown
+  /** Duration until error in milliseconds */
+  duration: number
+}
+
+/**
+ * Saves subagent runs while a router owns the turn.
+ * `withPersistence` sets this. `chat()` calls it. Apps do not.
+ */
+export interface RoutedSubagentPersistence {
+  start: (input: {
+    threadId: string
+    runId: string
+    messages: ReadonlyArray<UIMessage | ModelMessage>
+    /**
+     * The run's resume entries: answers to earlier child interrupts, plus any
+     * the parent answers itself.
+     */
+    resume?: ReadonlyArray<RunAgentResumeItem>
+  }) => Promise<void>
+  chunk: (input: {
+    threadId: string
+    runId: string
+    chunk: StreamChunk
+  }) => Promise<void>
+  finish: (input: { threadId: string; runId: string }) => Promise<void>
+  /** The run stopped because a child waits for outside input. */
+  suspend?: (input: {
+    threadId: string
+    runId: string
+    interrupts: ReadonlyArray<Interrupt>
+  }) => Promise<void>
+  abort: (input: {
+    threadId: string
+    runId: string
+    error?: unknown
+  }) => Promise<void>
+}
+
+// ===========================
+// Middleware Interface
+// ===========================
+
+/**
+ * Chat middleware interface.
+ *
+ * All hooks are optional. Middleware is composed in array order:
+ * - `onConfig`: config piped through middlewares in order (first transform influences later)
+ * - `onChunk`: each output chunk is fed into the next middleware in order
+ *
+ * @example Logging middleware
+ * ```ts
+ * const loggingMiddleware: ChatMiddleware = {
+ *   name: 'logging',
+ *   onStart(ctx) { console.log('Chat started', ctx.requestId) },
+ *   onChunk(ctx, chunk) { console.log('Chunk:', chunk.type) },
+ *   onFinish(ctx, info) { console.log('Done:', info.duration, 'ms') },
+ * }
+ * ```
+ *
+ * @example Redaction middleware
+ * ```ts
+ * const redactionMiddleware: ChatMiddleware = {
+ *   name: 'redaction',
+ *   onChunk(ctx, chunk) {
+ *     if (chunk.type === 'TEXT_MESSAGE_CONTENT') {
+ *       return { ...chunk, delta: redact(chunk.delta) }
+ *     }
+ *   },
+ * }
+ * ```
+ */
+export interface ChatMiddleware<
+  TContext = unknown,
+  TInterruptDefinitions extends AnyInterruptDefinition = never,
+> {
+  /** Optional name for debugging and identification */
+  name?: string
+
+  /**
+   * Present when this middleware stores subagent runs.
+   * The router calls it. An app does not set it.
+   */
+  routedSubagentPersistence?: RoutedSubagentPersistence
+
+  /**
+   * Called at a lifecycle boundary. Return interrupt requests to pause the run.
+   * Requests from every middleware in the same boundary form one batch.
+   */
+  onInterruptBoundary?: (
+    ctx: ChatMiddlewareContext<TContext> & { phase: InterruptBoundaryPhase },
+  ) =>
+    | InterruptBoundaryResult<TInterruptDefinitions>
+    | Promise<InterruptBoundaryResult<TInterruptDefinitions>>
+
+  /**
+   * Called on a continuation run after the client answers registered interrupts.
+   * Return `toolResume` to decide whether pending tools continue, cancel, or stop.
+   */
+  onInterruptResolution?: BivariantInterruptResolutionHook<
+    TContext,
+    TInterruptDefinitions
+  >
+
+  /**
+   * Capabilities this middleware requires. `chat()` validates that some
+   * middleware (or the adapter) provides each one; unsatisfied requirements are
+   * a compile-time error (array coverage / builder) and a runtime error before
+   * the adapter runs.
+   */
+  requires?: ReadonlyArray<CapabilityHandle>
+
+  /**
+   * Capabilities this middleware provides. Each declared capability MUST be
+   * provided (via its `provide` accessor) inside `setup`, or `chat()` throws
+   * after the setup phase.
+   */
+  provides?: ReadonlyArray<CapabilityHandle>
+
+  /**
+   * Capabilities this middleware uses if present but does not require.
+   * Non-gating: never causes a validation error. Read with
+   * `getX(ctx, { optional: true })`.
+   */
+  optionalRequires?: ReadonlyArray<CapabilityHandle>
+
+  /**
+   * Provisioning hook. Runs FIRST — before `onConfig` (init) — across all
+   * middleware in array order. Use it to call `provide` accessors so later
+   * middleware (`onConfig` onward) can consume the capabilities. Receives the
+   * stable context; does NOT receive the mutable config.
+   */
+  setup?: (ctx: ChatMiddlewareContext<TContext>) => void | Promise<void>
+
+  /**
+   * Called to observe or transform the chat configuration.
+   * Called at init and at the beginning of each agent iteration.
+   *
+   * Return a partial config to merge with the current config, or void to pass through.
+   * Only the fields you return are overwritten — everything else is preserved.
+   */
+  onConfig?: (
+    ctx: ChatMiddlewareContext<TContext>,
+    config: ChatMiddlewareConfig,
+  ) =>
+    | void
+    | null
+    | Partial<ChatMiddlewareConfig>
+    | Promise<void | null | Partial<ChatMiddlewareConfig>>
+
+  /**
+   * Called at the start of the final structured-output call (when the chat
+   * was invoked with outputSchema). Pipes through middleware in order, like
+   * onConfig, but with access to the JSON Schema being sent to the provider.
+   *
+   * Return a partial to shallow-merge into the current config, or void to
+   * pass through.
+   *
+   * Fires BEFORE onConfig at the structured-output boundary. onConfig also
+   * re-fires at the same boundary with ctx.phase === 'structuredOutput',
+   * receiving the post-onStructuredOutputConfig view of the config (minus
+   * outputSchema). Use onConfig for general-purpose transforms that apply
+   * to every adapter call; use this hook when you need to transform the
+   * outputSchema or apply structured-output-specific behavior.
+   */
+  onStructuredOutputConfig?: (
+    ctx: ChatMiddlewareContext<TContext>,
+    config: StructuredOutputMiddlewareConfig,
+  ) =>
+    | void
+    | null
+    | Partial<StructuredOutputMiddlewareConfig>
+    | Promise<void | null | Partial<StructuredOutputMiddlewareConfig>>
+
+  /**
+   * Called when the chat run starts (after initial onConfig).
+   */
+  onStart?: (ctx: ChatMiddlewareContext<TContext>) => void | Promise<void>
+
+  /**
+   * Called at the start of each agent loop iteration, after a new assistant message ID
+   * is created. Use this to observe iteration boundaries.
+   */
+  onIteration?: (
+    ctx: ChatMiddlewareContext<TContext>,
+    info: IterationInfo,
+  ) => void | Promise<void>
+
+  /**
+   * Called when the engine is deciding whether to start another agent-loop
+   * iteration (after a tool phase or between model turns).
+   *
+   * Return `false` to stop further iterations. Return `true`, `void`, or
+   * `undefined` to allow continuation. Combined with AND semantics across
+   * middleware and with `agentLoopStrategy` — any `false` stops the loop.
+   *
+   * Does not abort the run: the stream finishes normally with the current
+   * messages. Use `ctx.abort()` only when you need a hard abort.
+   *
+   * Receives the same {@link AgentLoopState} passed to strategies
+   * (`iterationCount`, `toolCallCount`, `lastTurnToolCallCount`, etc.).
+   */
+  onShouldContinue?: (
+    ctx: ChatMiddlewareContext<TContext>,
+    state: AgentLoopState,
+  ) => boolean | void | Promise<boolean | void>
+
+  /**
+   * Called when the adapter sends a `RUN_ERROR` before any output of the
+   * model call. The error does not reach `onChunk` or the caller yet. An
+   * exception that the adapter throws goes to `onError`, not here.
+   *
+   * Call `ctx.retry()` to call the model again. Then `onConfig` runs again
+   * (phase `beforeModel`), so the middleware can change the request first,
+   * and the failed call is dropped from the stream. Without `ctx.retry()`,
+   * the error goes on as usual. A model call retries at most 2 times this
+   * way. The structured-output call is not retried.
+   */
+  onModelError?: (
+    ctx: ChatMiddlewareContext<TContext>,
+    error: RunErrorEvent,
+  ) => void | Promise<void>
+
+  /**
+   * Called for every chunk yielded by chat().
+   * Can observe, transform, expand, or drop chunks.
+   *
+   * @returns void (pass through), chunk (replace), chunk[] (expand), null (drop)
+   */
+  onChunk?: (
+    ctx: ChatMiddlewareContext<TContext>,
+    chunk: StreamChunk,
+  ) =>
+    | void
+    | StreamChunk
+    | Array<StreamChunk>
+    | null
+    | Promise<void | StreamChunk | Array<StreamChunk> | null>
+
+  /**
+   * Called before a server tool runs and before a client tool is sent to the
+   * client. Not called while the call waits for approval.
+   * Can observe, transform args, skip execution, or abort the run.
+   * The tool's `inputSchema` checks the args after this hook.
+   */
+  onBeforeToolCall?: (
+    ctx: ChatMiddlewareContext<TContext>,
+    hookCtx: ToolCallHookContext,
+  ) => BeforeToolCallDecision | Promise<BeforeToolCallDecision>
+
+  /**
+   * The guard tier. Called for every tool call, just before a server tool
+   * runs and before a client tool is sent to the client. Not called while
+   * the call waits for approval.
+   *
+   * It runs after all `onBeforeToolCall` hooks and after the `inputSchema`
+   * check, so `hookCtx.args` holds the final checked args that the tool gets.
+   * It also runs for calls that `onBeforeToolCall` let through unchanged.
+   *
+   * It is not first-win. The guard of each middleware runs in order, until
+   * one returns a decision. Use it for checks that must not be skipped, such
+   * as permissions.
+   */
+  onGuardToolCall?: (
+    ctx: ChatMiddlewareContext<TContext>,
+    hookCtx: ToolCallHookContext,
+  ) => GuardToolCallDecision | Promise<GuardToolCallDecision>
+
+  /**
+   * Called after a tool execution completes (success or failure).
+   * Return `{ type: 'replaceResult', result }` to change the result that the
+   * model and the stream see. Middleware run in order. Each one sees the
+   * result of the one before it.
+   *
+   * Also called for a tool call that did not run because the output limit
+   * cut its answer. Then `ok` is false, and `error` is an `Error` with the
+   * code `'max_tokens'`.
+   */
+  onAfterToolCall?: (
+    ctx: ChatMiddlewareContext<TContext>,
+    info: AfterToolCallInfo,
+  ) => AfterToolCallDecision | Promise<AfterToolCallDecision>
+
+  /**
+   * Called after all tool calls in an iteration have been processed.
+   * Provides aggregate data about tool execution results, approvals, and client tools.
+   */
+  onToolPhaseComplete?: (
+    ctx: ChatMiddlewareContext<TContext>,
+    info: ToolPhaseCompleteInfo,
+  ) => void | Promise<void>
+
+  /**
+   * Called when usage data is available from a RUN_FINISHED chunk.
+   * Called once per model iteration that reports usage.
+   */
+  onUsage?: (
+    ctx: ChatMiddlewareContext<TContext>,
+    usage: UsageInfo,
+  ) => void | Promise<void>
+
+  /**
+   * Called when the chat run completes normally.
+   * Exactly one of onFinish/onAbort/onError will be called per run.
+   */
+  onFinish?: (
+    ctx: ChatMiddlewareContext<TContext>,
+    info: FinishInfo,
+  ) => void | Promise<void>
+
+  /**
+   * Called when the chat run is aborted.
+   * Exactly one of onFinish/onAbort/onError will be called per run.
+   */
+  onAbort?: (
+    ctx: ChatMiddlewareContext<TContext>,
+    info: AbortInfo,
+  ) => void | Promise<void>
+
+  /**
+   * Called when the chat run encounters an unhandled error.
+   * Exactly one of onFinish/onAbort/onError will be called per run.
+   */
+  onError?: (
+    ctx: ChatMiddlewareContext<TContext>,
+    info: ErrorInfo,
+  ) => void | Promise<void>
+
+  /**
+   * Sandbox file-event hooks. Fire when a sandbox provided by `withSandbox` is
+   * active during the run and a file is created/changed/deleted. Server-side.
+   */
+  sandbox?: ChatSandboxHooks<TContext>
+}
+
+/** A `ChatMiddleware` with a permissive context — for use as a constraint. */
+/** A permissive middleware constraint that retains the definition parameter. */
+export type AnyChatMiddleware = ChatMiddleware<any, any>

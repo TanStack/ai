@@ -6,6 +6,7 @@ import {
   getMetadata,
   getEventLog,
   getToolCalls,
+  getMessages,
 } from './helpers'
 
 /**
@@ -19,6 +20,48 @@ import {
  */
 
 test.describe('Client Tool E2E Tests', () => {
+  test('invalid client-tool input retries then runs the interrupt', async ({
+    page,
+    testId,
+    aimockPort,
+  }) => {
+    const requests: Array<string> = []
+    page.on('request', (request) => {
+      if (
+        request.method() === 'POST' &&
+        request.url().includes('/api/tools-test')
+      ) {
+        requests.push(request.url())
+      }
+    })
+
+    await selectScenario(page, 'invalid-client-tool-retry', testId, aimockPort)
+    await runTest(page)
+    await waitForTestComplete(page, 15000, 2)
+
+    const metadata = await getMetadata(page)
+    expect(requests).toHaveLength(2)
+    expect(metadata.executionCompleteCount).toBe('1')
+
+    const toolCalls = await getToolCalls(page)
+    expect(toolCalls).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ state: 'error' }),
+        expect.objectContaining({
+          name: 'show_notification',
+          state: 'complete',
+        }),
+      ]),
+    )
+
+    const responseText = (await getMessages(page))
+      .flatMap((message) => message.parts)
+      .filter((part) => part.type === 'text')
+      .map((part) => part.content)
+      .join(' ')
+    expect(responseText).toContain('Recovered after client tool input retry.')
+  })
+
   test('single client tool executes and completes', async ({
     page,
     testId,
@@ -44,6 +87,46 @@ test.describe('Client Tool E2E Tests', () => {
     expect(startEvents.length).toBeGreaterThanOrEqual(1)
     expect(completeEvents.length).toBeGreaterThanOrEqual(1)
     expect(startEvents[0]?.toolName).toBe('show_notification')
+  })
+
+  test('client tool preserves reasoning through continuation', async ({
+    page,
+    testId,
+    aimockPort,
+  }) => {
+    await selectScenario(page, 'client-tool-reasoning', testId, aimockPort)
+    await runTest(page)
+    await waitForTestComplete(page)
+
+    const messages = await getMessages(page)
+    const toolCallMessage = messages.find(
+      (message) =>
+        message.role === 'assistant' &&
+        message.parts.some(
+          (part) =>
+            part.type === 'tool-call' && part.name === 'show_notification',
+        ),
+    )
+
+    expect(toolCallMessage?.parts).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          type: 'thinking',
+          content:
+            'I should show a notification before confirming it was displayed.',
+        }),
+      ]),
+    )
+
+    const followUpText = messages
+      .flatMap((message) => message.parts)
+      .filter((part) => part.type === 'text')
+      .map((part) => part.content)
+      .join(' ')
+
+    expect(followUpText).toContain(
+      'The notification has been shown after reasoning.',
+    )
   })
 
   test('sequential client tools execute in order', async ({

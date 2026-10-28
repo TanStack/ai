@@ -1,0 +1,1225 @@
+import type {
+  MidConversationChannels,
+  Modality,
+  ModelReasoning,
+} from '@tanstack/ai'
+import type { ModelReasoningCapability } from '@tanstack/ai/adapter-internals'
+import type {
+  AnthropicCacheControlOptions,
+  AnthropicContainerOptions,
+  AnthropicContextManagementOptions,
+  AnthropicFallbackOptions,
+  AnthropicMCPOptions,
+  AnthropicMaxTokensOptions,
+  AnthropicSamplingOptions,
+  AnthropicServiceTierOptions,
+  AnthropicStopSequencesOptions,
+  AnthropicToolChoiceOptions,
+} from './text/text-provider-options'
+
+// Reasoning shapes: the levels a model has for `chat({ reasoning })`, and
+// the provider value to send for each. Each model points at one of them.
+const BUDGET_LOW_TO_HIGH = {
+  levels: { low: 'low', medium: 'medium', high: 'high' },
+  budget: true,
+} as const
+const BUDGET_LOW_TO_HIGH_MAX = {
+  levels: { low: 'low', medium: 'medium', high: 'high', max: 'max' },
+  budget: true,
+} as const
+const BUDGET_OFF_TO_HIGH = {
+  levels: {
+    off: 'off',
+    minimal: 'minimal',
+    low: 'low',
+    medium: 'medium',
+    high: 'high',
+  },
+  budget: true,
+} as const
+const EFFORT_LOW_TO_MAX = {
+  levels: {
+    low: 'low',
+    medium: 'medium',
+    high: 'high',
+    xhigh: 'xhigh',
+    max: 'max',
+  },
+  budget: false,
+} as const
+const EFFORT_NONE_LOW_TO_MAX = {
+  levels: {
+    off: 'none',
+    low: 'low',
+    medium: 'medium',
+    high: 'high',
+    xhigh: 'xhigh',
+    max: 'max',
+  },
+  budget: false,
+} as const
+
+interface ModelMeta<
+  TProviderOptions = unknown,
+  TToolCapabilities = unknown,
+  TMessageCapabilities = unknown,
+> {
+  name: string
+  id: string
+  supports: {
+    input: Array<'text' | 'image' | 'audio' | 'video' | 'document'>
+    /**
+     * The mid-conversation channels (from pi 0.87.1): added tools use the
+     * `mid-conversation-tool-changes-2026-07-01` beta, and added prompts go
+     * in a mid-conversation `system` message.
+     */
+    mid_conversation_channels?: MidConversationChannels
+    extended_thinking?: boolean
+    adaptive_thinking?: boolean
+    priority_tier?: boolean
+    /**
+     * `false`: the model rejects a forced tool (`any` or a named `tool`) on
+     * every request, with or without thinking. Absent: it accepts one.
+     */
+    forced_tool_choice?: false
+    /**
+     * Computer use has three kinds, one for each version that a model
+     * accepts: `computer_use` (`computer_20241022` and `computer_20250124`),
+     * `computer_use_20251124`, and `computer_toolset`
+     * (`computer_toolset_20260801`). `computer` is the generic tool from
+     * `@tanstack/ai-computer-use`. Every model with a computer version has it.
+     */
+    tools?: Array<
+      | 'web_search'
+      | 'web_fetch'
+      | 'code_execution'
+      | 'computer'
+      | 'computer_use'
+      | 'computer_use_20251124'
+      | 'computer_toolset'
+      | 'bash'
+      | 'text_editor'
+      | 'memory'
+    >
+  }
+  context_window?: number
+  max_output_tokens?: number
+  knowledge_cutoff?: string
+  pricing: {
+    input: {
+      normal: number
+      cached?: number
+    }
+    output: {
+      normal: number
+    }
+  }
+  /**
+   * Type-level description of which provider options this model supports.
+   */
+  providerOptions?: TProviderOptions
+  /**
+   * Type-level description of which tool capabilities this model supports.
+   */
+  toolCapabilities?: TToolCapabilities
+  /**
+   * Type-level description of which message/input capabilities this model supports.
+   */
+  messageCapabilities?: TMessageCapabilities
+  /** The model's data for `chat({ reasoning })`. None: it does not reason. */
+  reasoning?: ModelReasoning
+}
+
+// Claude Opus 4.6 accepts adaptive thinking alongside the deprecated
+// budget-based extended thinking, and still accepts sampling parameters.
+const CLAUDE_OPUS_4_6 = {
+  name: 'claude-opus-4-6',
+  id: 'claude-opus-4-6',
+  context_window: 200_000,
+  max_output_tokens: 128_000,
+  knowledge_cutoff: '2025-05-01',
+  pricing: {
+    input: {
+      normal: 5,
+    },
+    output: {
+      normal: 25,
+    },
+  },
+  supports: {
+    input: ['text', 'image', 'document'],
+    extended_thinking: true,
+    adaptive_thinking: true,
+    priority_tier: true,
+    tools: [
+      'web_search',
+      'web_fetch',
+      'code_execution',
+      'computer',
+      'computer_use_20251124',
+      'bash',
+      'text_editor',
+      'memory',
+    ],
+  },
+  reasoning: BUDGET_LOW_TO_HIGH_MAX,
+} as const satisfies ModelMeta<
+  AnthropicCacheControlOptions &
+    AnthropicContainerOptions &
+    AnthropicContextManagementOptions &
+    AnthropicMCPOptions &
+    AnthropicServiceTierOptions &
+    AnthropicStopSequencesOptions &
+    AnthropicToolChoiceOptions &
+    AnthropicSamplingOptions
+>
+
+const CLAUDE_OPUS_4_5 = {
+  name: 'claude-opus-4-5',
+  id: 'claude-opus-4-5',
+  context_window: 200_000,
+  max_output_tokens: 32_000,
+  knowledge_cutoff: '2025-11-01',
+  pricing: {
+    input: {
+      normal: 15,
+    },
+    output: {
+      normal: 75,
+    },
+  },
+  supports: {
+    input: ['text', 'image', 'document'],
+    extended_thinking: true,
+    priority_tier: true,
+    tools: [
+      'web_search',
+      'web_fetch',
+      'code_execution',
+      'computer',
+      'computer_use_20251124',
+      'bash',
+      'text_editor',
+      'memory',
+    ],
+  },
+  reasoning: BUDGET_LOW_TO_HIGH,
+} as const satisfies ModelMeta<
+  AnthropicCacheControlOptions &
+    AnthropicContainerOptions &
+    AnthropicContextManagementOptions &
+    AnthropicMCPOptions &
+    AnthropicServiceTierOptions &
+    AnthropicStopSequencesOptions &
+    AnthropicToolChoiceOptions &
+    AnthropicSamplingOptions
+>
+
+// Claude Sonnet 4.6 accepts adaptive thinking alongside the deprecated
+// budget-based extended thinking, and still accepts sampling parameters.
+const CLAUDE_SONNET_4_6 = {
+  name: 'claude-sonnet-4-6',
+  id: 'claude-sonnet-4-6',
+  context_window: 1_000_000,
+  max_output_tokens: 64_000,
+  knowledge_cutoff: '2025-08-01',
+  pricing: {
+    input: {
+      normal: 3,
+    },
+    output: {
+      normal: 15,
+    },
+  },
+  supports: {
+    input: ['text', 'image', 'document'],
+    extended_thinking: true,
+    adaptive_thinking: true,
+    priority_tier: true,
+    tools: [
+      'web_search',
+      'web_fetch',
+      'code_execution',
+      'computer',
+      'computer_use_20251124',
+      'bash',
+      'text_editor',
+      'memory',
+    ],
+  },
+  reasoning: BUDGET_LOW_TO_HIGH_MAX,
+} as const satisfies ModelMeta<
+  AnthropicCacheControlOptions &
+    AnthropicContainerOptions &
+    AnthropicContextManagementOptions &
+    AnthropicMCPOptions &
+    AnthropicServiceTierOptions &
+    AnthropicStopSequencesOptions &
+    AnthropicToolChoiceOptions &
+    AnthropicSamplingOptions
+>
+
+const CLAUDE_SONNET_4_5 = {
+  name: 'claude-sonnet-4-5',
+  id: 'claude-sonnet-4-5',
+  context_window: 200_000,
+  max_output_tokens: 64_000,
+  knowledge_cutoff: '2025-09-29',
+  pricing: {
+    input: {
+      normal: 3,
+    },
+    output: {
+      normal: 15,
+    },
+  },
+  supports: {
+    input: ['text', 'image', 'document'],
+    extended_thinking: true,
+    priority_tier: true,
+    tools: [
+      'web_search',
+      'web_fetch',
+      'code_execution',
+      'computer',
+      'computer_use',
+      'bash',
+      'text_editor',
+      'memory',
+    ],
+  },
+  reasoning: BUDGET_OFF_TO_HIGH,
+} as const satisfies ModelMeta<
+  AnthropicCacheControlOptions &
+    AnthropicContainerOptions &
+    AnthropicContextManagementOptions &
+    AnthropicMCPOptions &
+    AnthropicServiceTierOptions &
+    AnthropicStopSequencesOptions &
+    AnthropicToolChoiceOptions &
+    AnthropicSamplingOptions
+>
+
+const CLAUDE_HAIKU_4_5 = {
+  name: 'claude-haiku-4-5',
+  id: 'claude-haiku-4-5',
+  context_window: 200_000,
+  max_output_tokens: 64_000,
+  knowledge_cutoff: '2025-10-01',
+  pricing: {
+    input: {
+      normal: 1,
+    },
+    output: {
+      normal: 5,
+    },
+  },
+  supports: {
+    input: ['text', 'image', 'document'],
+    extended_thinking: true,
+    priority_tier: true,
+    tools: [
+      'web_search',
+      'web_fetch',
+      'code_execution',
+      'computer',
+      'computer_use',
+      'bash',
+      'text_editor',
+      'memory',
+    ],
+  },
+  reasoning: BUDGET_OFF_TO_HIGH,
+} as const satisfies ModelMeta<
+  AnthropicCacheControlOptions &
+    AnthropicContainerOptions &
+    AnthropicContextManagementOptions &
+    AnthropicMCPOptions &
+    AnthropicServiceTierOptions &
+    AnthropicStopSequencesOptions &
+    AnthropicToolChoiceOptions &
+    AnthropicSamplingOptions
+>
+
+// Claude Opus 4.7 removed budget-based extended thinking and the sampling
+// parameters (`temperature`, `top_p`, `top_k`) — sending either returns a
+// 400. Use adaptive thinking with `output_config.effort` instead.
+const CLAUDE_OPUS_4_7 = {
+  name: 'claude-opus-4-7',
+  id: 'claude-opus-4-7',
+  context_window: 1_000_000,
+  max_output_tokens: 128_000,
+  supports: {
+    input: ['text', 'image', 'document'],
+    extended_thinking: false,
+    adaptive_thinking: true,
+    priority_tier: true,
+    tools: [
+      'web_search',
+      'web_fetch',
+      'code_execution',
+      'computer',
+      'computer_use_20251124',
+      'bash',
+      'text_editor',
+      'memory',
+    ],
+  },
+  pricing: {
+    input: {
+      normal: 5,
+      cached: 0.5,
+    },
+    output: {
+      normal: 25,
+    },
+  },
+  reasoning: EFFORT_LOW_TO_MAX,
+} as const satisfies ModelMeta<
+  AnthropicCacheControlOptions &
+    AnthropicContainerOptions &
+    AnthropicContextManagementOptions &
+    AnthropicMCPOptions &
+    AnthropicServiceTierOptions &
+    AnthropicStopSequencesOptions &
+    AnthropicToolChoiceOptions &
+    AnthropicMaxTokensOptions
+>
+
+// Claude Opus 4.8 keeps the same request surface as Opus 4.7: adaptive
+// thinking only (budget_tokens 400s), no sampling parameters.
+const CLAUDE_OPUS_4_8 = {
+  name: 'claude-opus-4-8',
+  id: 'claude-opus-4-8',
+  context_window: 1_000_000,
+  max_output_tokens: 128_000,
+  supports: {
+    input: ['text', 'image', 'document'],
+    mid_conversation_channels: { tools: true, systemPrompts: true },
+    extended_thinking: false,
+    adaptive_thinking: true,
+    priority_tier: true,
+    tools: [
+      'web_search',
+      'web_fetch',
+      'code_execution',
+      'computer',
+      'computer_use_20251124',
+      'computer_toolset',
+      'bash',
+      'text_editor',
+      'memory',
+    ],
+  },
+  pricing: {
+    input: {
+      normal: 5,
+      cached: 0.5,
+    },
+    output: {
+      normal: 25,
+    },
+  },
+  reasoning: EFFORT_LOW_TO_MAX,
+} as const satisfies ModelMeta<
+  AnthropicCacheControlOptions &
+    AnthropicContainerOptions &
+    AnthropicContextManagementOptions &
+    AnthropicMCPOptions &
+    AnthropicServiceTierOptions &
+    AnthropicStopSequencesOptions &
+    AnthropicToolChoiceOptions &
+    AnthropicMaxTokensOptions
+>
+
+// Claude Fable 5: thinking is always on — the only accepted explicit
+// `thinking` config is `{type: 'adaptive'}` (disabled/budget_tokens 400),
+// and the sampling parameters (`temperature`, `top_p`, `top_k`) are
+// rejected. Its provider options therefore use the adaptive-only thinking
+// shape and `max_tokens` without the sampling knobs.
+const CLAUDE_FABLE_5 = {
+  name: 'claude-fable-5',
+  id: 'claude-fable-5',
+  context_window: 1_000_000,
+  max_output_tokens: 128_000,
+  supports: {
+    input: ['text', 'image', 'document'],
+    mid_conversation_channels: { tools: true, systemPrompts: true },
+    extended_thinking: false,
+    adaptive_thinking: true,
+    priority_tier: true,
+    tools: [
+      'web_search',
+      'web_fetch',
+      'code_execution',
+      'computer',
+      'computer_use_20251124',
+      'computer_toolset',
+      'bash',
+      'text_editor',
+      'memory',
+    ],
+  },
+  pricing: {
+    input: {
+      normal: 10,
+      cached: 1,
+    },
+    output: {
+      normal: 50,
+    },
+  },
+  reasoning: EFFORT_LOW_TO_MAX,
+} as const satisfies ModelMeta<
+  AnthropicCacheControlOptions &
+    AnthropicContainerOptions &
+    AnthropicContextManagementOptions &
+    AnthropicFallbackOptions &
+    AnthropicMCPOptions &
+    AnthropicServiceTierOptions &
+    AnthropicStopSequencesOptions &
+    AnthropicToolChoiceOptions &
+    AnthropicMaxTokensOptions
+>
+
+// Claude Sonnet 5: adaptive thinking is the default (omitting `thinking`
+// runs adaptive); `{type: 'disabled'}` opts out, but the manual
+// `{type: 'enabled', budget_tokens}` shape and non-default sampling
+// parameters (`temperature`, `top_p`, `top_k`) are rejected with a 400.
+// No Priority Tier. $2/$10 per MTok is the standard price.
+const CLAUDE_SONNET_5 = {
+  name: 'claude-sonnet-5',
+  id: 'claude-sonnet-5',
+  context_window: 1_000_000,
+  max_output_tokens: 128_000,
+  supports: {
+    input: ['text', 'image', 'document'],
+    extended_thinking: false,
+    adaptive_thinking: true,
+    tools: [
+      'web_search',
+      'web_fetch',
+      'code_execution',
+      'computer',
+      'computer_use_20251124',
+      'computer_toolset',
+      'bash',
+      'text_editor',
+      'memory',
+    ],
+  },
+  pricing: {
+    input: {
+      normal: 2,
+      cached: 0.2,
+    },
+    output: {
+      normal: 10,
+    },
+  },
+  reasoning: EFFORT_NONE_LOW_TO_MAX,
+} as const satisfies ModelMeta<
+  AnthropicCacheControlOptions &
+    AnthropicContainerOptions &
+    AnthropicContextManagementOptions &
+    AnthropicMCPOptions &
+    AnthropicServiceTierOptions &
+    AnthropicStopSequencesOptions &
+    AnthropicToolChoiceOptions &
+    AnthropicMaxTokensOptions
+>
+
+/**
+ * Model ids accepted by the Anthropic text adapter.
+ *
+ * Every id here resolves against the first-party Anthropic API
+ * (`GET /v1/models/{id}`). Retired models (Claude 3.x, Sonnet 3.7,
+ * Opus 4 / Sonnet 4, Opus 4.1) and the `-fast` variant ids (fast mode is
+ * requested via the `speed` parameter, not a model id) were removed after
+ * Anthropic turned them off.
+ */
+const CLAUDE_OPUS_5 = {
+  name: 'claude-opus-5',
+  id: 'claude-opus-5',
+  context_window: 1_000_000,
+  max_output_tokens: 128_000,
+  supports: {
+    input: ['text', 'image', 'document'],
+    mid_conversation_channels: { tools: true, systemPrompts: true },
+    tools: [
+      'web_search',
+      'web_fetch',
+      'code_execution',
+      'computer',
+      'computer_use_20251124',
+      'computer_toolset',
+      'bash',
+      'text_editor',
+      'memory',
+    ],
+  },
+  pricing: {
+    input: {
+      normal: 5,
+      cached: 0.5,
+    },
+    output: {
+      normal: 25,
+    },
+  },
+  reasoning: EFFORT_LOW_TO_MAX,
+} as const satisfies ModelMeta<
+  AnthropicContainerOptions &
+    AnthropicContextManagementOptions &
+    AnthropicFallbackOptions &
+    AnthropicMCPOptions &
+    AnthropicServiceTierOptions &
+    AnthropicStopSequencesOptions &
+    AnthropicToolChoiceOptions &
+    AnthropicSamplingOptions
+>
+
+const CLAUDE_FABLE_5_1 = {
+  name: 'claude-fable-5-1',
+  id: 'claude-fable-5-1',
+  context_window: 1_000_000,
+  max_output_tokens: 128_000,
+  supports: {
+    input: ['text', 'image', 'document'],
+    forced_tool_choice: false,
+    mid_conversation_channels: { tools: true, systemPrompts: true },
+    tools: [
+      'web_search',
+      'web_fetch',
+      'code_execution',
+      'computer',
+      'computer_use_20251124',
+      'computer_toolset',
+      'bash',
+      'text_editor',
+      'memory',
+    ],
+  },
+  pricing: {
+    input: {
+      normal: 10,
+      cached: 0.25,
+    },
+    output: {
+      normal: 50,
+    },
+  },
+  reasoning: EFFORT_LOW_TO_MAX,
+} as const satisfies ModelMeta<
+  AnthropicCacheControlOptions &
+    AnthropicContainerOptions &
+    AnthropicContextManagementOptions &
+    AnthropicFallbackOptions &
+    AnthropicMCPOptions &
+    AnthropicServiceTierOptions &
+    AnthropicStopSequencesOptions &
+    AnthropicToolChoiceOptions &
+    AnthropicMaxTokensOptions
+>
+
+const CLAUDE_OPUS_5_5 = {
+  name: 'claude-opus-5-5',
+  id: 'claude-opus-5-5',
+  context_window: 1_000_000,
+  max_output_tokens: 128_000,
+  supports: {
+    input: ['text', 'image', 'document'],
+    forced_tool_choice: false,
+    mid_conversation_channels: { tools: true, systemPrompts: true },
+    // Computer use only through `computer_toolset_20260801`.
+    tools: [
+      'web_search',
+      'web_fetch',
+      'code_execution',
+      'computer',
+      'computer_toolset',
+      'bash',
+      'text_editor',
+      'memory',
+    ],
+  },
+  pricing: {
+    input: {
+      normal: 4,
+      cached: 0.2,
+    },
+    output: {
+      normal: 20,
+    },
+  },
+  reasoning: EFFORT_LOW_TO_MAX,
+} as const satisfies ModelMeta<
+  AnthropicCacheControlOptions &
+    AnthropicContainerOptions &
+    AnthropicContextManagementOptions &
+    AnthropicFallbackOptions &
+    AnthropicMCPOptions &
+    AnthropicServiceTierOptions &
+    AnthropicStopSequencesOptions &
+    AnthropicToolChoiceOptions &
+    AnthropicSamplingOptions
+>
+
+// Claude Sonnet 5.5: adaptive thinking is the default. `{type: 'disabled'}`
+// and the manual `{type: 'enabled', budget_tokens}` shape return a 400, and
+// so do non-default sampling parameters (`temperature`, `top_p`, `top_k`).
+// Its provider options therefore use the adaptive-only thinking shape and
+// `max_tokens` without the sampling knobs.
+const CLAUDE_SONNET_5_5 = {
+  name: 'claude-sonnet-5-5',
+  id: 'claude-sonnet-5-5',
+  context_window: 1_000_000,
+  max_output_tokens: 128_000,
+  supports: {
+    input: ['text', 'image', 'document'],
+    forced_tool_choice: false,
+    extended_thinking: false,
+    adaptive_thinking: true,
+    // Computer use only through `computer_toolset_20260801`.
+    tools: [
+      'web_search',
+      'web_fetch',
+      'code_execution',
+      'computer',
+      'computer_toolset',
+      'bash',
+      'text_editor',
+      'memory',
+    ],
+  },
+  pricing: {
+    input: {
+      normal: 2,
+      cached: 0.1,
+    },
+    output: {
+      normal: 10,
+    },
+  },
+  reasoning: EFFORT_LOW_TO_MAX,
+} as const satisfies ModelMeta<
+  AnthropicCacheControlOptions &
+    AnthropicContainerOptions &
+    AnthropicContextManagementOptions &
+    AnthropicFallbackOptions &
+    AnthropicMCPOptions &
+    AnthropicServiceTierOptions &
+    AnthropicStopSequencesOptions &
+    AnthropicToolChoiceOptions &
+    AnthropicMaxTokensOptions
+>
+
+// Claude Haiku 5.5: `disabled` thinking 400s at xhigh/max (the types cannot
+// say so). Pricing is the <=100K-token tier.
+const CLAUDE_HAIKU_5_5 = {
+  name: 'claude-haiku-5-5',
+  id: 'claude-haiku-5-5',
+  context_window: 1_000_000,
+  max_output_tokens: 128_000,
+  supports: {
+    input: ['text', 'image', 'document'],
+    extended_thinking: false,
+    adaptive_thinking: true,
+    // Computer use only through `computer_toolset_20260801`.
+    tools: [
+      'web_search',
+      'web_fetch',
+      'code_execution',
+      'computer',
+      'computer_toolset',
+      'bash',
+      'text_editor',
+      'memory',
+    ],
+  },
+  pricing: {
+    input: {
+      normal: 0.1,
+      cached: 0.01,
+    },
+    output: {
+      normal: 0.5,
+    },
+  },
+  reasoning: EFFORT_NONE_LOW_TO_MAX,
+} as const satisfies ModelMeta<
+  AnthropicCacheControlOptions &
+    AnthropicContainerOptions &
+    AnthropicContextManagementOptions &
+    AnthropicMCPOptions &
+    AnthropicServiceTierOptions &
+    AnthropicStopSequencesOptions &
+    AnthropicToolChoiceOptions &
+    AnthropicMaxTokensOptions
+>
+
+export const ANTHROPIC_MODELS = [
+  CLAUDE_HAIKU_5_5.id,
+  CLAUDE_SONNET_5_5.id,
+  CLAUDE_OPUS_5_5.id,
+  CLAUDE_FABLE_5_1.id,
+  CLAUDE_OPUS_5.id,
+  CLAUDE_OPUS_4_6.id,
+  CLAUDE_OPUS_4_5.id,
+  CLAUDE_SONNET_4_6.id,
+  CLAUDE_SONNET_4_5.id,
+  CLAUDE_HAIKU_4_5.id,
+
+  CLAUDE_OPUS_4_7.id,
+  CLAUDE_OPUS_4_8.id,
+
+  CLAUDE_FABLE_5.id,
+  CLAUDE_SONNET_5.id,
+] as const
+
+/**
+ * Claude chat models on Vertex AI / Gemini Enterprise Agent Platform.
+ * This list is the Google partner catalog, not the full Anthropic API catalog.
+ * Source: https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/partner-models/use-partner-models
+ */
+export const ANTHROPIC_VERTEX_CHAT_MODELS = [
+  CLAUDE_OPUS_5.id,
+  CLAUDE_SONNET_5.id,
+  CLAUDE_FABLE_5.id,
+  CLAUDE_OPUS_4_8.id,
+  CLAUDE_OPUS_4_7.id,
+  CLAUDE_OPUS_4_6.id,
+  CLAUDE_SONNET_4_6.id,
+  CLAUDE_OPUS_4_5.id,
+  CLAUDE_SONNET_4_5.id,
+  CLAUDE_HAIKU_4_5.id,
+] as const
+
+export type AnthropicVertexChatModel =
+  (typeof ANTHROPIC_VERTEX_CHAT_MODELS)[number]
+
+/**
+ * Fallback `max_tokens` ceiling for a model whose metadata carries no
+ * `max_output_tokens` (e.g. an unrecognized model id). Anthropic's Messages
+ * API *requires* `max_tokens`, so the adapter must always send a value. 64K is
+ * the output ceiling of the current mainstream Claude tier (Sonnet/Haiku 4.5),
+ * so it's a sane default for an unknown — almost certainly modern — model and
+ * avoids silently truncating long generations (issue #849). Recognized models
+ * use their exact `max_output_tokens` from {@link ANTHROPIC_MODEL_MAX_OUTPUT_TOKENS}
+ * (e.g. 128K for Opus), so this fallback only ever applies to ids not in the
+ * map.
+ */
+export const ANTHROPIC_DEFAULT_MAX_OUTPUT_TOKENS = 64_000
+
+/**
+ * Runtime lookup of each model's maximum output-token ceiling, keyed by model
+ * id. Lets the text adapter default the required `max_tokens` request field to
+ * the model's real ceiling when the caller doesn't specify one, rather than a
+ * low constant that truncates responses mid-stream (issue #849).
+ *
+ * Kept in sync with {@link ANTHROPIC_MODELS} by `scripts/sync-provider-models.ts`
+ * — when that script adds a model it also inserts the model's `max_output_tokens`
+ * here, so a freshly-synced model resolves to its real ceiling rather than the
+ * fallback above.
+ */
+const ANTHROPIC_MODEL_MAX_OUTPUT_TOKENS: Record<string, number> = {
+  [CLAUDE_OPUS_4_6.id]: CLAUDE_OPUS_4_6.max_output_tokens,
+  [CLAUDE_OPUS_4_5.id]: CLAUDE_OPUS_4_5.max_output_tokens,
+  [CLAUDE_SONNET_4_6.id]: CLAUDE_SONNET_4_6.max_output_tokens,
+  [CLAUDE_SONNET_4_5.id]: CLAUDE_SONNET_4_5.max_output_tokens,
+  [CLAUDE_HAIKU_4_5.id]: CLAUDE_HAIKU_4_5.max_output_tokens,
+  [CLAUDE_OPUS_4_7.id]: CLAUDE_OPUS_4_7.max_output_tokens,
+  [CLAUDE_OPUS_4_8.id]: CLAUDE_OPUS_4_8.max_output_tokens,
+  [CLAUDE_FABLE_5.id]: CLAUDE_FABLE_5.max_output_tokens,
+  [CLAUDE_SONNET_5.id]: CLAUDE_SONNET_5.max_output_tokens,
+  [CLAUDE_OPUS_5.id]: CLAUDE_OPUS_5.max_output_tokens,
+  [CLAUDE_FABLE_5_1.id]: CLAUDE_FABLE_5_1.max_output_tokens,
+  [CLAUDE_OPUS_5_5.id]: CLAUDE_OPUS_5_5.max_output_tokens,
+  [CLAUDE_SONNET_5_5.id]: CLAUDE_SONNET_5_5.max_output_tokens,
+  [CLAUDE_HAIKU_5_5.id]: CLAUDE_HAIKU_5_5.max_output_tokens,
+}
+
+/**
+ * Largest `max_tokens` the Anthropic SDK permits on a **non-streaming**
+ * request. The SDK refuses to make a non-streaming call it estimates could
+ * exceed its 10-minute timeout, computed as
+ * `(60min * max_tokens) / 128_000 > 10min` — i.e. it throws
+ * `"Streaming is required for operations that may take longer than 10 minutes"`
+ * once `max_tokens > 128_000 * 10 / 60 ≈ 21_333`
+ * (`@anthropic-ai/sdk`'s `calculateNonstreamingTimeout`). The text adapter's
+ * only non-streaming call is the forced-tool `structuredOutput()` request, so
+ * its defaulted ceiling must stay at or below this; the streaming chat path
+ * keeps the model's full {@link getAnthropicDefaultMaxTokens} ceiling. We sit
+ * just under the boundary (`21_333` would round-trip to exactly 10min). This
+ * caps only the *default* — an explicit oversized `max_tokens` from the caller
+ * still surfaces the SDK's "use streaming" error, which is the correct signal.
+ */
+export const ANTHROPIC_MAX_NONSTREAMING_TOKENS = 21_000
+
+/**
+ * Resolve the default `max_tokens` for a model: its known `max_output_tokens`
+ * ceiling, or {@link ANTHROPIC_DEFAULT_MAX_OUTPUT_TOKENS} for unknown models.
+ * Callers that pass an explicit `max_tokens` bypass this entirely.
+ *
+ * Pass `stream: false` for non-streaming requests (the `structuredOutput()`
+ * path): the result is then clamped to {@link ANTHROPIC_MAX_NONSTREAMING_TOKENS}
+ * so the defaulted ceiling doesn't trip the SDK's non-streaming 10-minute guard
+ * (issue #849). Streaming requests (the default) are unaffected and get the
+ * model's full ceiling.
+ */
+export function getAnthropicDefaultMaxTokens(
+  model: string,
+  { stream = true }: { stream?: boolean } = {},
+): number {
+  const ceiling =
+    ANTHROPIC_MODEL_MAX_OUTPUT_TOKENS[model] ??
+    ANTHROPIC_DEFAULT_MAX_OUTPUT_TOKENS
+  return stream ? ceiling : Math.min(ceiling, ANTHROPIC_MAX_NONSTREAMING_TOKENS)
+}
+
+/**
+ * Anthropic models that support combining `tools` + JSON-Schema-constrained
+ * output in a single streaming Messages request (per issue #605). GA'd
+ * 2026-01-29 for Claude 4.5+ via `output_format` on the beta messages
+ * endpoint. Older Claude models still need the forced-tool-use workaround
+ * in `structuredOutput`.
+ */
+export const ANTHROPIC_COMBINED_TOOLS_AND_SCHEMA_MODELS = new Set<string>([
+  CLAUDE_HAIKU_5_5.id,
+  CLAUDE_SONNET_5_5.id,
+  CLAUDE_OPUS_4_5.id,
+  CLAUDE_OPUS_4_6.id,
+  CLAUDE_OPUS_4_7.id,
+  CLAUDE_OPUS_4_8.id,
+  CLAUDE_OPUS_5.id,
+  CLAUDE_FABLE_5.id,
+  CLAUDE_FABLE_5_1.id,
+  CLAUDE_OPUS_5_5.id,
+  CLAUDE_SONNET_5.id,
+  CLAUDE_SONNET_4_5.id,
+  CLAUDE_SONNET_4_6.id,
+  CLAUDE_HAIKU_4_5.id,
+])
+
+/**
+ * The mid-conversation channels of each model, from
+ * `supports.mid_conversation_channels`. An unknown id gives `undefined`, so
+ * the adapter has no channels.
+ */
+export const ANTHROPIC_MODEL_MID_CONVERSATION_CHANNELS: Readonly<
+  Record<string, MidConversationChannels>
+> = {
+  [CLAUDE_OPUS_4_8.id]: CLAUDE_OPUS_4_8.supports.mid_conversation_channels,
+  [CLAUDE_OPUS_5.id]: CLAUDE_OPUS_5.supports.mid_conversation_channels,
+  [CLAUDE_OPUS_5_5.id]: CLAUDE_OPUS_5_5.supports.mid_conversation_channels,
+  [CLAUDE_FABLE_5.id]: CLAUDE_FABLE_5.supports.mid_conversation_channels,
+  [CLAUDE_FABLE_5_1.id]: CLAUDE_FABLE_5_1.supports.mid_conversation_channels,
+}
+
+// const ANTHROPIC_IMAGE_MODELS = [] as const
+// const ANTHROPIC_EMBEDDING_MODELS = [] as const
+// const ANTHROPIC_AUDIO_MODELS = [] as const
+// const ANTHROPIC_VIDEO_MODELS = [] as const
+
+export type AnthropicChatModel = (typeof ANTHROPIC_MODELS)[number]
+// Manual type map for per-model provider options
+// Models are differentiated by which thinking shapes and sampling
+// parameters the API accepts.
+export type AnthropicChatModelProviderOptionsByName = {
+  // 4.6 generation: adaptive thinking plus the deprecated budget-based
+  // shape; sampling parameters still accepted.
+  [CLAUDE_OPUS_4_6.id]: AnthropicCacheControlOptions &
+    AnthropicContainerOptions &
+    AnthropicContextManagementOptions &
+    AnthropicMCPOptions &
+    AnthropicServiceTierOptions &
+    AnthropicStopSequencesOptions &
+    AnthropicToolChoiceOptions &
+    AnthropicSamplingOptions
+  [CLAUDE_SONNET_4_6.id]: AnthropicCacheControlOptions &
+    AnthropicContainerOptions &
+    AnthropicContextManagementOptions &
+    AnthropicMCPOptions &
+    AnthropicServiceTierOptions &
+    AnthropicStopSequencesOptions &
+    AnthropicToolChoiceOptions &
+    AnthropicSamplingOptions
+
+  // Pre-4.6 models: budget-based extended thinking and sampling parameters.
+  [CLAUDE_OPUS_4_5.id]: AnthropicCacheControlOptions &
+    AnthropicContainerOptions &
+    AnthropicContextManagementOptions &
+    AnthropicMCPOptions &
+    AnthropicServiceTierOptions &
+    AnthropicStopSequencesOptions &
+    AnthropicToolChoiceOptions &
+    AnthropicSamplingOptions
+  [CLAUDE_SONNET_4_5.id]: AnthropicCacheControlOptions &
+    AnthropicContainerOptions &
+    AnthropicContextManagementOptions &
+    AnthropicMCPOptions &
+    AnthropicServiceTierOptions &
+    AnthropicStopSequencesOptions &
+    AnthropicToolChoiceOptions &
+    AnthropicSamplingOptions
+  [CLAUDE_HAIKU_4_5.id]: AnthropicCacheControlOptions &
+    AnthropicContainerOptions &
+    AnthropicContextManagementOptions &
+    AnthropicMCPOptions &
+    AnthropicServiceTierOptions &
+    AnthropicStopSequencesOptions &
+    AnthropicToolChoiceOptions &
+    AnthropicSamplingOptions
+
+  // Opus 4.7/4.8: adaptive thinking (or explicit disable), no
+  // budget_tokens, no sampling parameters — see the constants above.
+  [CLAUDE_OPUS_4_7.id]: AnthropicCacheControlOptions &
+    AnthropicContainerOptions &
+    AnthropicContextManagementOptions &
+    AnthropicMCPOptions &
+    AnthropicServiceTierOptions &
+    AnthropicStopSequencesOptions &
+    AnthropicToolChoiceOptions &
+    AnthropicMaxTokensOptions
+  [CLAUDE_OPUS_4_8.id]: AnthropicCacheControlOptions &
+    AnthropicContainerOptions &
+    AnthropicContextManagementOptions &
+    AnthropicMCPOptions &
+    AnthropicServiceTierOptions &
+    AnthropicStopSequencesOptions &
+    AnthropicToolChoiceOptions &
+    AnthropicMaxTokensOptions
+
+  // Claude Fable 5: thinking always on (adaptive-only config); sampling
+  // parameters removed — see the CLAUDE_FABLE_5 constant above.
+  [CLAUDE_FABLE_5.id]: AnthropicCacheControlOptions &
+    AnthropicContainerOptions &
+    AnthropicContextManagementOptions &
+    AnthropicFallbackOptions &
+    AnthropicMCPOptions &
+    AnthropicServiceTierOptions &
+    AnthropicStopSequencesOptions &
+    AnthropicToolChoiceOptions &
+    AnthropicMaxTokensOptions
+  // Claude Sonnet 5: adaptive thinking by default, explicit disable
+  // allowed; no budget_tokens, no sampling parameters — see the
+  // CLAUDE_SONNET_5 constant above.
+  [CLAUDE_SONNET_5.id]: AnthropicCacheControlOptions &
+    AnthropicContainerOptions &
+    AnthropicContextManagementOptions &
+    AnthropicMCPOptions &
+    AnthropicServiceTierOptions &
+    AnthropicStopSequencesOptions &
+    AnthropicToolChoiceOptions &
+    AnthropicMaxTokensOptions
+  [CLAUDE_OPUS_5.id]: AnthropicContainerOptions &
+    AnthropicContextManagementOptions &
+    AnthropicFallbackOptions &
+    AnthropicMCPOptions &
+    AnthropicServiceTierOptions &
+    AnthropicStopSequencesOptions &
+    AnthropicToolChoiceOptions &
+    AnthropicSamplingOptions
+  [CLAUDE_FABLE_5_1.id]: AnthropicCacheControlOptions &
+    AnthropicContainerOptions &
+    AnthropicContextManagementOptions &
+    AnthropicFallbackOptions &
+    AnthropicMCPOptions &
+    AnthropicServiceTierOptions &
+    AnthropicStopSequencesOptions &
+    AnthropicToolChoiceOptions &
+    AnthropicMaxTokensOptions
+  [CLAUDE_OPUS_5_5.id]: AnthropicCacheControlOptions &
+    AnthropicContainerOptions &
+    AnthropicContextManagementOptions &
+    AnthropicFallbackOptions &
+    AnthropicMCPOptions &
+    AnthropicServiceTierOptions &
+    AnthropicStopSequencesOptions &
+    AnthropicToolChoiceOptions &
+    AnthropicSamplingOptions
+  // Claude Sonnet 5.5: adaptive-only thinking config, no sampling
+  // parameters — see the CLAUDE_SONNET_5_5 constant above.
+  [CLAUDE_SONNET_5_5.id]: AnthropicCacheControlOptions &
+    AnthropicContainerOptions &
+    AnthropicContextManagementOptions &
+    AnthropicFallbackOptions &
+    AnthropicMCPOptions &
+    AnthropicServiceTierOptions &
+    AnthropicStopSequencesOptions &
+    AnthropicToolChoiceOptions &
+    AnthropicMaxTokensOptions
+  // Claude Haiku 5.5: adaptive or disabled thinking, no budget_tokens, no
+  // sampling parameters.
+  [CLAUDE_HAIKU_5_5.id]: AnthropicCacheControlOptions &
+    AnthropicContainerOptions &
+    AnthropicContextManagementOptions &
+    AnthropicMCPOptions &
+    AnthropicServiceTierOptions &
+    AnthropicStopSequencesOptions &
+    AnthropicToolChoiceOptions &
+    AnthropicMaxTokensOptions
+}
+
+export type AnthropicChatModelToolCapabilitiesByName = {
+  [CLAUDE_OPUS_4_6.id]: typeof CLAUDE_OPUS_4_6.supports.tools
+  [CLAUDE_OPUS_4_5.id]: typeof CLAUDE_OPUS_4_5.supports.tools
+  [CLAUDE_SONNET_4_6.id]: typeof CLAUDE_SONNET_4_6.supports.tools
+  [CLAUDE_SONNET_4_5.id]: typeof CLAUDE_SONNET_4_5.supports.tools
+  [CLAUDE_HAIKU_4_5.id]: typeof CLAUDE_HAIKU_4_5.supports.tools
+  [CLAUDE_OPUS_4_7.id]: typeof CLAUDE_OPUS_4_7.supports.tools
+  [CLAUDE_OPUS_4_8.id]: typeof CLAUDE_OPUS_4_8.supports.tools
+  [CLAUDE_FABLE_5.id]: typeof CLAUDE_FABLE_5.supports.tools
+  [CLAUDE_SONNET_5.id]: typeof CLAUDE_SONNET_5.supports.tools
+  [CLAUDE_OPUS_5.id]: typeof CLAUDE_OPUS_5.supports.tools
+  [CLAUDE_FABLE_5_1.id]: typeof CLAUDE_FABLE_5_1.supports.tools
+  [CLAUDE_OPUS_5_5.id]: typeof CLAUDE_OPUS_5_5.supports.tools
+  [CLAUDE_SONNET_5_5.id]: typeof CLAUDE_SONNET_5_5.supports.tools
+  [CLAUDE_HAIKU_5_5.id]: typeof CLAUDE_HAIKU_5_5.supports.tools
+}
+
+/**
+ * Runtime map from chat model name to its tool kinds, for the text adapter.
+ * `satisfies` keeps it equal to {@link AnthropicChatModelToolCapabilitiesByName}.
+ * An unknown name gives `undefined`.
+ */
+export const ANTHROPIC_MODEL_TOOLS: Readonly<
+  Record<string, ReadonlyArray<string>>
+> = {
+  [CLAUDE_OPUS_4_6.id]: CLAUDE_OPUS_4_6.supports.tools,
+  [CLAUDE_OPUS_4_5.id]: CLAUDE_OPUS_4_5.supports.tools,
+  [CLAUDE_SONNET_4_6.id]: CLAUDE_SONNET_4_6.supports.tools,
+  [CLAUDE_SONNET_4_5.id]: CLAUDE_SONNET_4_5.supports.tools,
+  [CLAUDE_HAIKU_4_5.id]: CLAUDE_HAIKU_4_5.supports.tools,
+  [CLAUDE_OPUS_4_7.id]: CLAUDE_OPUS_4_7.supports.tools,
+  [CLAUDE_OPUS_4_8.id]: CLAUDE_OPUS_4_8.supports.tools,
+  [CLAUDE_FABLE_5.id]: CLAUDE_FABLE_5.supports.tools,
+  [CLAUDE_SONNET_5.id]: CLAUDE_SONNET_5.supports.tools,
+  [CLAUDE_OPUS_5.id]: CLAUDE_OPUS_5.supports.tools,
+  [CLAUDE_FABLE_5_1.id]: CLAUDE_FABLE_5_1.supports.tools,
+  [CLAUDE_OPUS_5_5.id]: CLAUDE_OPUS_5_5.supports.tools,
+  [CLAUDE_SONNET_5_5.id]: CLAUDE_SONNET_5_5.supports.tools,
+  [CLAUDE_HAIKU_5_5.id]: CLAUDE_HAIKU_5_5.supports.tools,
+} satisfies AnthropicChatModelToolCapabilitiesByName
+
+/**
+ * Type-only map from chat model name to its supported input modalities.
+ * All Anthropic Claude models support text, image, and document (PDF) input.
+ * Used by the core AI types to constrain ContentPart types based on the selected model.
+ * Note: These must be inlined as readonly arrays (not typeof) because the model
+ * constants are not exported and typeof references don't work in .d.ts files
+ * when consumed by external packages.
+ *
+ * @see https://docs.anthropic.com/claude/docs/vision
+ * @see https://docs.anthropic.com/claude/docs/pdf-support
+ */
+export type AnthropicModelInputModalitiesByName = {
+  [CLAUDE_OPUS_4_6.id]: typeof CLAUDE_OPUS_4_6.supports.input
+  [CLAUDE_OPUS_4_5.id]: typeof CLAUDE_OPUS_4_5.supports.input
+  [CLAUDE_SONNET_4_6.id]: typeof CLAUDE_SONNET_4_6.supports.input
+  [CLAUDE_SONNET_4_5.id]: typeof CLAUDE_SONNET_4_5.supports.input
+  [CLAUDE_HAIKU_4_5.id]: typeof CLAUDE_HAIKU_4_5.supports.input
+  [CLAUDE_OPUS_4_7.id]: typeof CLAUDE_OPUS_4_7.supports.input
+  [CLAUDE_OPUS_4_8.id]: typeof CLAUDE_OPUS_4_8.supports.input
+  [CLAUDE_FABLE_5.id]: typeof CLAUDE_FABLE_5.supports.input
+  [CLAUDE_SONNET_5.id]: typeof CLAUDE_SONNET_5.supports.input
+  [CLAUDE_OPUS_5.id]: typeof CLAUDE_OPUS_5.supports.input
+  [CLAUDE_FABLE_5_1.id]: typeof CLAUDE_FABLE_5_1.supports.input
+  [CLAUDE_OPUS_5_5.id]: typeof CLAUDE_OPUS_5_5.supports.input
+  [CLAUDE_SONNET_5_5.id]: typeof CLAUDE_SONNET_5_5.supports.input
+  [CLAUDE_HAIKU_5_5.id]: typeof CLAUDE_HAIKU_5_5.supports.input
+}
+
+/**
+ * Runtime map from chat model name to its supported input modalities, for the
+ * text adapter's `inputModalities`. `satisfies` keeps it equal to
+ * {@link AnthropicModelInputModalitiesByName}. An unknown name gives `undefined`.
+ */
+export const ANTHROPIC_MODEL_INPUT_MODALITIES: Readonly<
+  Record<string, ReadonlyArray<Modality>>
+> = {
+  [CLAUDE_OPUS_4_6.id]: CLAUDE_OPUS_4_6.supports.input,
+  [CLAUDE_OPUS_4_5.id]: CLAUDE_OPUS_4_5.supports.input,
+  [CLAUDE_SONNET_4_6.id]: CLAUDE_SONNET_4_6.supports.input,
+  [CLAUDE_SONNET_4_5.id]: CLAUDE_SONNET_4_5.supports.input,
+  [CLAUDE_HAIKU_4_5.id]: CLAUDE_HAIKU_4_5.supports.input,
+  [CLAUDE_OPUS_4_7.id]: CLAUDE_OPUS_4_7.supports.input,
+  [CLAUDE_OPUS_4_8.id]: CLAUDE_OPUS_4_8.supports.input,
+  [CLAUDE_FABLE_5.id]: CLAUDE_FABLE_5.supports.input,
+  [CLAUDE_SONNET_5.id]: CLAUDE_SONNET_5.supports.input,
+  [CLAUDE_OPUS_5.id]: CLAUDE_OPUS_5.supports.input,
+  [CLAUDE_FABLE_5_1.id]: CLAUDE_FABLE_5_1.supports.input,
+  [CLAUDE_OPUS_5_5.id]: CLAUDE_OPUS_5_5.supports.input,
+  [CLAUDE_SONNET_5_5.id]: CLAUDE_SONNET_5_5.supports.input,
+  [CLAUDE_HAIKU_5_5.id]: CLAUDE_HAIKU_5_5.supports.input,
+} satisfies AnthropicModelInputModalitiesByName
+
+/**
+ * The chat models that reject a forced tool (`any` or a named `tool`) on
+ * every request. Derived from `supports.forced_tool_choice`. Thinking also
+ * blocks a forced tool, so the text adapter checks that per request.
+ */
+export const ANTHROPIC_NO_FORCED_TOOL_MODELS: ReadonlySet<string> = new Set(
+  [
+    CLAUDE_OPUS_4_6,
+    CLAUDE_OPUS_4_5,
+    CLAUDE_SONNET_4_6,
+    CLAUDE_SONNET_4_5,
+    CLAUDE_HAIKU_4_5,
+    CLAUDE_OPUS_4_7,
+    CLAUDE_OPUS_4_8,
+    CLAUDE_FABLE_5,
+    CLAUDE_SONNET_5,
+    CLAUDE_OPUS_5,
+    CLAUDE_FABLE_5_1,
+    CLAUDE_OPUS_5_5,
+    CLAUDE_SONNET_5_5,
+    CLAUDE_HAIKU_5_5,
+  ]
+    .filter((model) => 'forced_tool_choice' in model.supports)
+    .map((model) => model.id),
+)
+
+// Reasoning
+//
+// Each model's `reasoning` field holds its data for `chat({ reasoning })`: the
+// levels it has, with the provider value for each, and whether it takes a
+// thinking token budget. The data comes from models.dev. The generator that
+// writes it comes with the model catalog later. Until then, the sync scripts
+// keep these fields as they are.
+
+const ANTHROPIC_REASONING = {
+  [CLAUDE_OPUS_4_6.id]: CLAUDE_OPUS_4_6.reasoning,
+  [CLAUDE_OPUS_4_5.id]: CLAUDE_OPUS_4_5.reasoning,
+  [CLAUDE_SONNET_4_6.id]: CLAUDE_SONNET_4_6.reasoning,
+  [CLAUDE_SONNET_4_5.id]: CLAUDE_SONNET_4_5.reasoning,
+  [CLAUDE_HAIKU_4_5.id]: CLAUDE_HAIKU_4_5.reasoning,
+  [CLAUDE_OPUS_4_7.id]: CLAUDE_OPUS_4_7.reasoning,
+  [CLAUDE_OPUS_4_8.id]: CLAUDE_OPUS_4_8.reasoning,
+  [CLAUDE_FABLE_5.id]: CLAUDE_FABLE_5.reasoning,
+  [CLAUDE_SONNET_5.id]: CLAUDE_SONNET_5.reasoning,
+  [CLAUDE_OPUS_5.id]: CLAUDE_OPUS_5.reasoning,
+  [CLAUDE_FABLE_5_1.id]: CLAUDE_FABLE_5_1.reasoning,
+  [CLAUDE_OPUS_5_5.id]: CLAUDE_OPUS_5_5.reasoning,
+  [CLAUDE_SONNET_5_5.id]: CLAUDE_SONNET_5_5.reasoning,
+  [CLAUDE_HAIKU_5_5.id]: CLAUDE_HAIKU_5_5.reasoning,
+}
+
+/**
+ * Each chat model's reasoning levels, and whether it takes a token budget,
+ * for `chat({ reasoning })`. Derived from the `reasoning` field. A model
+ * that is not here does not reason.
+ */
+export type AnthropicModelReasoningByName = {
+  [K in keyof typeof ANTHROPIC_REASONING]: ModelReasoningCapability<
+    (typeof ANTHROPIC_REASONING)[K]
+  >
+}
+
+/**
+ * Runtime map from chat model name to its reasoning data, for the text adapter.
+ * An unknown name gives `undefined`: the adapter sends no reasoning field.
+ */
+export const ANTHROPIC_MODEL_REASONING: Readonly<
+  Record<string, ModelReasoning>
+> = ANTHROPIC_REASONING

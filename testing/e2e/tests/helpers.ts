@@ -1,4 +1,52 @@
-import { expect, type Page } from '@playwright/test'
+import { expect } from '@playwright/test'
+import type { APIRequestContext, Page } from '@playwright/test'
+
+declare global {
+  interface Window {
+    __e2eLoadingSeen?: boolean
+    __e2eLoadingObserver?: MutationObserver
+  }
+}
+
+/** Call right before an action that starts a run. Records in the page whether
+ *  the loading indicator showed after this call, so `waitForResponse` also
+ *  sees a run that started and ended before Playwright looked. */
+async function markRunStart(page: Page) {
+  await page.evaluate(() => {
+    window.__e2eLoadingSeen = false
+    if (window.__e2eLoadingObserver) return
+    window.__e2eLoadingObserver = new MutationObserver(() => {
+      if (
+        !window.__e2eLoadingSeen &&
+        document.querySelector('[data-testid="loading-indicator"]')
+      ) {
+        window.__e2eLoadingSeen = true
+      }
+    })
+    window.__e2eLoadingObserver.observe(document.body, {
+      childList: true,
+      subtree: true,
+    })
+  })
+}
+
+const HYDRATION_ERROR = /hydration failed|hydrated but|server rendered html/i
+
+/** Collect React hydration errors from page errors and console errors. Call
+ *  before the reload you want to check, then assert the list stays empty. */
+export function collectHydrationErrors(page: Page): Array<string> {
+  const errors: Array<string> = []
+  page.on('pageerror', (error) => {
+    if (HYDRATION_ERROR.test(error.message)) errors.push(error.message)
+  })
+  page.on('console', (message) => {
+    const text = message.text()
+    if (message.type() === 'error' && HYDRATION_ERROR.test(text)) {
+      errors.push(text)
+    }
+  })
+  return errors
+}
 
 export function featureUrl(
   provider: string,
@@ -14,44 +62,96 @@ export function featureUrl(
 
 export async function sendMessage(page: Page, text: string) {
   const input = page.getByTestId('chat-input')
-  await input.click()
-  await input.fill(text)
-  // Dispatch an input event to trigger React's onChange for controlled inputs
-  await input.dispatchEvent('input', { bubbles: true })
-  await page
-    .getByTestId('send-button')
-    .click({ timeout: 5000 })
-    .catch(async (err) => {
-      // Only retry if button was disabled (fill() didn't trigger React onChange)
-      const isDisabled = await page.getByTestId('send-button').isDisabled()
-      if (!isDisabled) throw err
-      await input.clear()
-      await input.pressSequentially(text, { delay: 30 })
-      await page.getByTestId('send-button').click()
-    })
+  const button = page.getByTestId('send-button')
+  // A fill that lands before hydration never reaches React state, so the send
+  // button stays disabled. Clear and refill until the button turns on. Do not
+  // wait on one long click timeout: that cost ~5s on the first send of almost
+  // every test in CI.
+  await expect(async () => {
+    await input.fill('')
+    await input.fill(text)
+    await expect(button).toBeEnabled({ timeout: 500 })
+  }).toPass({ timeout: 15_000 })
+  await markRunStart(page)
+  await button.click()
 }
 
+/** Types a prompt and attaches an image; attaching auto-sends. Retries until
+ *  the user bubble renders — the inline comment below explains why. */
 export async function sendMessageWithImage(
   page: Page,
   text: string,
   imagePath: string,
 ) {
   const input = page.getByTestId('chat-input')
-  await input.click()
-  await input.pressSequentially(text, { delay: 30 })
-  // Wait for React state to settle before attaching file
-  await page.waitForTimeout(200)
-  await page.getByTestId('image-attachment-input').setInputFiles(imagePath)
+  const fileInput = page.getByTestId('image-attachment-input')
+  const userMessages = page.getByTestId('user-message')
+
+  // Attaching the image auto-sends, using the prompt currently in the chat
+  // input, and the matched aimock fixture keys on the exact user text. A
+  // *controlled* React input is fragile here under CPU load (CI, parallel
+  // workers) in two ways: typing char-by-char can drop characters, leaving a
+  // truncated value like "cribe this image" (which 404s as "No fixture
+  // matched" → empty `chatStream fatal`); and the attach's onChange can land
+  // before the typed value is committed, dispatching nothing at all. So drive
+  // the interaction to its observable outcome — the user bubble rendering —
+  // retrying both the typing and the attach until the send actually fires with
+  // the full prompt. A redundant re-attach is harmless: the client ignores a
+  // second send while the first is still streaming.
+  await markRunStart(page)
+  await expect(async () => {
+    await input.click()
+    await input.fill('')
+    await input.pressSequentially(text, { delay: 15 })
+    // Confirm the full prompt is committed before attaching.
+    expect(await input.inputValue()).toBe(text)
+    // Reset the selection so re-attaching the same path re-fires onChange.
+    await fileInput.setInputFiles([])
+    await fileInput.setInputFiles(imagePath)
+    await expect(userMessages.first()).toBeVisible({ timeout: 2_000 })
+  }).toPass({ timeout: 15_000, intervals: [250, 500, 1000] })
+}
+
+/** Types a prompt and attaches a PDF; attaching auto-sends. Retries until the
+ *  user bubble renders (same fragile-controlled-input problem as
+ *  sendMessageWithImage — see the comment there). */
+export async function sendMessageWithDocument(
+  page: Page,
+  text: string,
+  documentPath: string,
+) {
+  const input = page.getByTestId('chat-input')
+  const fileInput = page.getByTestId('document-attachment-input')
+  const userMessages = page.getByTestId('user-message')
+
+  // Same retry-to-observable-outcome pattern as sendMessageWithImage above.
+  await markRunStart(page)
+  await expect(async () => {
+    await input.click()
+    await input.fill('')
+    await input.pressSequentially(text, { delay: 15 })
+    expect(await input.inputValue()).toBe(text)
+    await fileInput.setInputFiles([])
+    await fileInput.setInputFiles(documentPath)
+    await expect(userMessages.first()).toBeVisible({ timeout: 2_000 })
+  }).toPass({ timeout: 15_000, intervals: [250, 500, 1000] })
 }
 
 export async function waitForResponse(page: Page, timeout = 15_000) {
-  try {
-    await page
-      .getByTestId('loading-indicator')
-      .waitFor({ state: 'visible', timeout: 5_000 })
-  } catch {
-    // Loading may have already finished
-  }
+  // Wait for the run to start. A fast mocked run can start and end before
+  // Playwright looks, so also accept the markRunStart record. Without that
+  // record (for example after a reload), this waits up to 5s as before.
+  await page
+    .waitForFunction(
+      () =>
+        window.__e2eLoadingSeen === true ||
+        document.querySelector('[data-testid="loading-indicator"]') !== null,
+      undefined,
+      { timeout: 5_000 },
+    )
+    .catch(() => {
+      // Loading may have already finished
+    })
   await page
     .getByTestId('loading-indicator')
     .waitFor({ state: 'hidden', timeout })
@@ -100,10 +200,12 @@ export async function getStructuredOutput(page: Page): Promise<string> {
 }
 
 export async function approveToolCall(page: Page, toolName: string) {
+  await markRunStart(page)
   await page.getByTestId(`approve-button-${toolName}`).click()
 }
 
 export async function denyToolCall(page: Page, toolName: string) {
+  await markRunStart(page)
   await page.getByTestId(`deny-button-${toolName}`).click()
 }
 
@@ -139,36 +241,39 @@ export async function getTranscriptionResult(page: Page): Promise<string> {
   return page.getByTestId('transcription-result').innerText()
 }
 
-export async function fillPrompt(page: Page, text: string) {
-  const input = page.getByTestId('prompt-input')
-  await input.click()
-  await input.fill(text)
-  await input.dispatchEvent('input', { bubbles: true })
-  // If fill() didn't trigger React onChange, fall back to pressSequentially
+async function fillControlledGenerateInput(
+  page: Page,
+  testId: 'prompt-input' | 'text-input',
+  text: string,
+) {
+  // Hydrate first. Waiting for networkidle after fill used to remount the
+  // controlled input empty, so generate-button stayed disabled for 30s.
+  await page.waitForLoadState('networkidle')
+  const input = page.getByTestId(testId)
   const btn = page.getByTestId('generate-button')
-  if (await btn.isDisabled()) {
-    await input.clear()
-    await input.pressSequentially(text, { delay: 30 })
-  }
+  await expect(async () => {
+    await input.click()
+    await input.fill(text)
+    await input.dispatchEvent('input', { bubbles: true })
+    if (await btn.isDisabled()) {
+      await input.clear()
+      await input.pressSequentially(text, { delay: 20 })
+    }
+    await expect(btn).toBeEnabled({ timeout: 2_000 })
+  }).toPass({ timeout: 15_000, intervals: [250, 500, 1000] })
+}
+
+export async function fillPrompt(page: Page, text: string) {
+  await fillControlledGenerateInput(page, 'prompt-input', text)
 }
 
 export async function fillTextInput(page: Page, text: string) {
-  const input = page.getByTestId('text-input')
-  await input.click()
-  await input.fill(text)
-  await input.dispatchEvent('input', { bubbles: true })
-  // If fill() didn't trigger React onChange, fall back to pressSequentially
-  const btn = page.getByTestId('generate-button')
-  if (await btn.isDisabled()) {
-    await input.clear()
-    await input.pressSequentially(text, { delay: 30 })
-  }
+  await fillControlledGenerateInput(page, 'text-input', text)
 }
 
-export async function clickGenerate(page: Page) {
-  // Wait for full page load (including hydration scripts)
-  await page.waitForLoadState('networkidle')
-  const btn = page.getByTestId('generate-button')
+export async function clickGenerate(page: Page, testId = 'generate-button') {
+  const btn = page.getByTestId(testId)
+  await expect(btn).toBeEnabled()
   await btn.click()
   // Verify the click actually triggered React — status should leave 'idle'
   // If still idle after a short wait, the click missed hydration; retry
@@ -177,7 +282,6 @@ export async function clickGenerate(page: Page) {
       timeout: 3_000,
     })
   } catch {
-    // Retry click — hydration likely wasn't complete on first attempt
     await btn.click()
   }
 }
@@ -186,4 +290,21 @@ export async function waitForGenerationComplete(page: Page, timeout = 30_000) {
   await expect(page.getByTestId('generation-status')).toHaveText('complete', {
     timeout,
   })
+}
+
+/**
+ * Open a thread of the `/api/harness-protocol` route and start no turn. The
+ * host has access, so a read of a thread with no index entry is 404 and
+ * opens nothing. A setting change opens the thread.
+ */
+export async function openHarnessThread(
+  request: APIRequestContext,
+  headers: Record<string, string>,
+  threadId: string,
+) {
+  const response = await request.post('/api/harness-protocol/control', {
+    headers: { ...headers, 'content-type': 'application/json' },
+    data: { threadId, input: { op: 'config', key: 'tone', value: 'plain' } },
+  })
+  expect(await response.json()).toMatchObject({ status: 'accepted' })
 }

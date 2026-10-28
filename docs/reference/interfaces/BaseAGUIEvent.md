@@ -3,15 +3,12 @@ id: BaseAGUIEvent
 title: BaseAGUIEvent
 ---
 
-# Interface: BaseAGUIEvent
-
-Defined in: [packages/typescript/ai/src/types.ts:794](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L794)
+Defined in: packages/ai/src/types.ts:1557
 
 Base structure for AG-UI events.
-Extends @ag-ui/core BaseEvent with TanStack AI additions.
+Extends @ag-ui/core BaseEvent. TanStack extras ride in `metadata`.
 
 @ag-ui/core provides: `type`, `timestamp?`, `rawEvent?`
-TanStack AI adds: `model?`
 
 ## Extends
 
@@ -20,17 +17,23 @@ TanStack AI adds: `model?`
 ## Indexable
 
 ```ts
-[k: string]: unknown
+[key: string]: unknown
 ```
 
 ## Properties
 
-### model?
+### metadata?
 
 ```ts
-optional model: string;
+optional metadata?: Record<string, any>;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:796](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L796)
+Defined in: packages/ai/src/types.ts:1558
 
-Model identifier for multi-model support
+Extra information attached to this event.
+
+#### Overrides
+
+```ts
+AGUIBaseEvent.metadata
+```

@@ -3,25 +3,41 @@ id: ClientTool
 title: ClientTool
 ---
 
-# Interface: ClientTool\<TInput, TOutput, TName\>
-
-Defined in: [packages/typescript/ai/src/activities/chat/tools/tool-definition.ts:24](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/tools/tool-definition.ts#L24)
+Defined in: packages/ai/src/activities/chat/tools/tool-definition.ts:108
 
 Marker type for client-side tools
+
+## Extends
+
+- `ToolApprovalCapabilityMarker`\<`TNeedsApproval`, `TApprovalSchema`\>
 
 ## Type Parameters
 
 ### TInput
 
-`TInput` *extends* [`SchemaInput`](../type-aliases/SchemaInput.md) = [`SchemaInput`](../type-aliases/SchemaInput.md)
+`TInput` *extends* [`SchemaInput`](../type-aliases/SchemaInput.md) \| `undefined` = `undefined`
 
 ### TOutput
 
-`TOutput` *extends* [`SchemaInput`](../type-aliases/SchemaInput.md) = [`SchemaInput`](../type-aliases/SchemaInput.md)
+`TOutput` *extends* [`SchemaInput`](../type-aliases/SchemaInput.md) \| `undefined` = `undefined`
 
 ### TName
 
 `TName` *extends* `string` = `string`
+
+### TContext
+
+`TContext` = `unknown`
+
+### TNeedsApproval
+
+`TNeedsApproval` *extends* `boolean` = `false`
+
+### TApprovalSchema
+
+`TApprovalSchema` *extends* 
+  \| [`ApprovalSchemaConfig`](../type-aliases/ApprovalSchemaConfig.md)
+  \| `undefined` = `undefined`
 
 ## Properties
 
@@ -31,7 +47,45 @@ Marker type for client-side tools
 __toolSide: "client";
 ```
 
-Defined in: [packages/typescript/ai/src/activities/chat/tools/tool-definition.ts:29](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/tools/tool-definition.ts#L29)
+Defined in: packages/ai/src/activities/chat/tools/tool-definition.ts:119
+
+***
+
+### \[toolApprovalCapability\]?
+
+```ts
+readonly optional [toolApprovalCapability]?: object;
+```
+
+Defined in: packages/ai/src/activities/chat/tools/tool-definition.ts:26
+
+#### approvalSchema
+
+```ts
+approvalSchema: TApprovalSchema;
+```
+
+#### needsApproval
+
+```ts
+needsApproval: TNeedsApproval;
+```
+
+#### Inherited from
+
+```ts
+ToolApprovalCapabilityMarker.[toolApprovalCapability]
+```
+
+***
+
+### approvalSchema?
+
+```ts
+optional approvalSchema?: TApprovalSchema;
+```
+
+Defined in: packages/ai/src/activities/chat/tools/tool-definition.ts:130
 
 ***
 
@@ -41,60 +95,57 @@ Defined in: [packages/typescript/ai/src/activities/chat/tools/tool-definition.ts
 description: string;
 ```
 
-Defined in: [packages/typescript/ai/src/activities/chat/tools/tool-definition.ts:31](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/tools/tool-definition.ts#L31)
+Defined in: packages/ai/src/activities/chat/tools/tool-definition.ts:121
 
 ***
 
-### execute()?
+### execute?
 
 ```ts
-optional execute: (args) => 
-  | InferSchemaType<TOutput>
-| Promise<InferSchemaType<TOutput>>;
+optional execute?: ToolExecuteFunction<TInput, TOutput, TContext>;
 ```
 
-Defined in: [packages/typescript/ai/src/activities/chat/tools/tool-definition.ts:37](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/tools/tool-definition.ts#L37)
+Defined in: packages/ai/src/activities/chat/tools/tool-definition.ts:135
 
-#### Parameters
+***
 
-##### args
+### execution?
 
-[`InferSchemaType`](../type-aliases/InferSchemaType.md)\<`TInput`\>
+```ts
+optional execution?: "task";
+```
 
-#### Returns
-
-  \| [`InferSchemaType`](../type-aliases/InferSchemaType.md)\<`TOutput`\>
-  \| `Promise`\<[`InferSchemaType`](../type-aliases/InferSchemaType.md)\<`TOutput`\>\>
+Defined in: packages/ai/src/activities/chat/tools/tool-definition.ts:131
 
 ***
 
 ### inputSchema?
 
 ```ts
-optional inputSchema: TInput;
+optional inputSchema?: TInput;
 ```
 
-Defined in: [packages/typescript/ai/src/activities/chat/tools/tool-definition.ts:32](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/tools/tool-definition.ts#L32)
+Defined in: packages/ai/src/activities/chat/tools/tool-definition.ts:127
 
 ***
 
 ### lazy?
 
 ```ts
-optional lazy: boolean;
+optional lazy?: boolean;
 ```
 
-Defined in: [packages/typescript/ai/src/activities/chat/tools/tool-definition.ts:35](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/tools/tool-definition.ts#L35)
+Defined in: packages/ai/src/activities/chat/tools/tool-definition.ts:132
 
 ***
 
 ### metadata?
 
 ```ts
-optional metadata: Record<string, unknown>;
+optional metadata?: Record<string, unknown>;
 ```
 
-Defined in: [packages/typescript/ai/src/activities/chat/tools/tool-definition.ts:36](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/tools/tool-definition.ts#L36)
+Defined in: packages/ai/src/activities/chat/tools/tool-definition.ts:134
 
 ***
 
@@ -104,24 +155,34 @@ Defined in: [packages/typescript/ai/src/activities/chat/tools/tool-definition.ts
 name: TName;
 ```
 
-Defined in: [packages/typescript/ai/src/activities/chat/tools/tool-definition.ts:30](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/tools/tool-definition.ts#L30)
+Defined in: packages/ai/src/activities/chat/tools/tool-definition.ts:120
 
 ***
 
 ### needsApproval?
 
 ```ts
-optional needsApproval: boolean;
+optional needsApproval?: TNeedsApproval;
 ```
 
-Defined in: [packages/typescript/ai/src/activities/chat/tools/tool-definition.ts:34](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/tools/tool-definition.ts#L34)
+Defined in: packages/ai/src/activities/chat/tools/tool-definition.ts:129
 
 ***
 
 ### outputSchema?
 
 ```ts
-optional outputSchema: TOutput;
+optional outputSchema?: TOutput;
 ```
 
-Defined in: [packages/typescript/ai/src/activities/chat/tools/tool-definition.ts:33](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/tools/tool-definition.ts#L33)
+Defined in: packages/ai/src/activities/chat/tools/tool-definition.ts:128
+
+***
+
+### replay?
+
+```ts
+optional replay?: "safe" | "never";
+```
+
+Defined in: packages/ai/src/activities/chat/tools/tool-definition.ts:133

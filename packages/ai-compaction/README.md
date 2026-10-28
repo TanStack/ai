@@ -1,0 +1,167 @@
+<div align="center">
+  <picture>
+    <source
+      media="(prefers-color-scheme: dark)"
+      srcset="https://tanstack.com/api/readme/ai.png?theme=dark"
+    />
+    <source
+      media="(prefers-color-scheme: light)"
+      srcset="https://tanstack.com/api/readme/ai.png"
+    />
+    <img
+      src="https://tanstack.com/api/readme/ai.png"
+      alt="TanStack AI"
+      width="900"
+    />
+  </picture>
+</div>
+
+<br />
+
+# @tanstack/ai-compaction
+
+Context-window compaction as a `chat()` middleware. When the working message set
+grows past `maxTokens`, `withCompaction` runs a pluggable **strategy** that
+rewrites provider context. It runs before every model call, so compaction is
+incremental and rolling. The canonical transcript and system prompt stay
+unchanged.
+
+```bash
+npm install @tanstack/ai-compaction
+```
+
+## Quick start
+
+The default strategy (`evictOldest`) drops the oldest messages and keeps the
+recent ones.
+
+```ts
+import { chat } from '@tanstack/ai'
+import { withCompaction } from '@tanstack/ai-compaction'
+
+chat({
+  adapter,
+  messages,
+  threadId: 'thread-1',
+  middleware: [withCompaction({ maxTokens: 100_000 })],
+})
+```
+
+## Strategies
+
+Pass `strategy` to change how the history shrinks. Three are built in.
+
+| Strategy                | What it does                                            | Cost                                              |
+| ----------------------- | ------------------------------------------------------- | ------------------------------------------------- |
+| `evictOldest` (default) | Drop the oldest messages, leave a marker                | No extra model call                               |
+| `summarizeOldest`       | Replace the oldest messages with an LLM summary         | One summarize call (up to two with `cut: 'turn'`) |
+| `clearToolResults`      | Stub the content of old tool results, keep the messages | No extra model call                               |
+
+```ts
+import {
+  withCompaction,
+  evictOldest,
+  summarizeOldest,
+  clearToolResults,
+} from '@tanstack/ai-compaction'
+
+// Tune how much recent history to keep.
+withCompaction({
+  maxTokens: 100_000,
+  strategy: evictOldest({ keepRecentTokens: 40_000 }),
+})
+
+// Summarize instead of dropping. `summarize` gets the messages being removed.
+withCompaction({
+  maxTokens: 100_000,
+  strategy: summarizeOldest({ summarize: (msgs) => summarizeToText(msgs) }),
+})
+
+// Best for agent loops: stub old tool output, keep the messages in place.
+withCompaction({
+  maxTokens: 100_000,
+  strategy: clearToolResults({ keepRecentToolResults: 5 }),
+})
+```
+
+### Combine them
+
+`composeStrategies` runs strategies in order and escalates: it stops once the
+result is back under `maxTokens`. Put the cheap one first.
+
+```ts
+import {
+  withCompaction,
+  composeStrategies,
+  clearToolResults,
+  evictOldest,
+} from '@tanstack/ai-compaction'
+
+// Clear old tool output first; only drop old messages if that isn't enough.
+withCompaction({
+  maxTokens: 100_000,
+  strategy: composeStrategies(clearToolResults(), evictOldest()),
+})
+```
+
+### Write your own
+
+A strategy gets the messages and the budget, and returns the rewritten messages
+(or `null` to change nothing). It runs when the count is over `maxTokens`, and when `compactNext` forces it. Then the count can be under `maxTokens`.
+
+```ts
+import type { CompactionStrategy } from '@tanstack/ai-compaction'
+
+const keepLastOnly: CompactionStrategy = (messages) =>
+  messages.length <= 1 ? null : messages.slice(-1)
+
+withCompaction({
+  maxTokens: 100_000,
+  strategy: keepLastOnly,
+  strategyKey: 'keep-last-v1',
+})
+```
+
+## Options
+
+### `withCompaction`
+
+| Option            | Default         | What it does                                                                                                                                                                      |
+| ----------------- | --------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `maxTokens`       | (required)      | Compact when the token count passes this.                                                                                                                                         |
+| `strategy`        | `evictOldest()` | How to shrink the messages.                                                                                                                                                       |
+| `estimateTokens`  | chars / 4       | Per-message token estimate. Swap in a real tokenizer for accuracy.                                                                                                                |
+| `strategyKey`     | built-in key    | Stable checkpoint identity. Set it for custom strategies or estimators.                                                                                                           |
+| `onCompact`       | (none)          | Observe each compaction (`before`, `after`, `messagesBefore`, `messagesAfter`, `reason`, `usage`, `error`).                                                                       |
+| `countTokens`     | `'estimate'`    | `'usage'`: count with the usage the provider reported for the last call, plus an estimate of the messages after it.                                                               |
+| `auto`            | `true`          | `false`: do not compact when the count passes `maxTokens`. `compactNext`, the overflow retry, and the `contextWindow` check still compact.                                        |
+| `contextWindow`   | (none)          | The model's context window. With `countTokens: 'usage'` and `durable: true` on a host with a session log, the check after the last model call compacts when the usage is over it. |
+| `durable`         | `false`         | On a host that provides `LogRecordsCapability`, write each compaction as a session log record.                                                                                    |
+| `continueOnError` | `false`         | When the strategy throws, send the messages without compaction instead of failing the run.                                                                                        |
+| `background`      | (none)          | `{ atTokens }`: prepare the summary when the count passes `atTokens`, and apply it at the next run. `atTokens` must be below `maxTokens`.                                         |
+
+When a model call fails with `CONTEXT_OVERFLOW_CODE`, `withCompaction` compacts and calls the model again in the same run, once per model call.
+
+`withCompaction` returns a middleware with `compactNext(threadId)`. Call it to compact at the next model call on that thread, even under `maxTokens`.
+
+### Strategy options
+
+| Strategy           | Options                                                                                                      |
+| ------------------ | ------------------------------------------------------------------------------------------------------------ |
+| `evictOldest`      | `keepRecentTokens` (default `maxTokens / 2`), `marker`                                                       |
+| `summarizeOldest`  | `summarize` (required), `keepRecentTokens`, `summaryRole` (default `assistant`), `cut` (default `'message'`) |
+| `clearToolResults` | `keepRecentToolResults` (default `3`), `stub`                                                                |
+
+`conversationSummarizer({ adapter })` gives a ready `summarize` function with a structured prompt. When an older summary exists, it updates that summary.
+
+The token estimate is a rough `chars / 4` heuristic, good enough to trigger on,
+not exact. Pass `estimateTokens` if you need provider-accurate counts.
+
+When `withPersistence` provides a metadata store, compaction saves a validated
+checkpoint automatically. The next request reuses the compacted prefix and adds
+new canonical messages. Without metadata, compaction remains stateless.
+
+TanStack AI DevTools has a Compaction tab with started, state, and ended
+events, before/after counts, and dropped vs sent message previews. Those
+stats ride the chat stream as `compaction:started`, `compaction:state`, and
+`compaction:ended` CUSTOM events.

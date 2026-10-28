@@ -3,13 +3,11 @@ id: realtimeToken
 title: realtimeToken
 ---
 
-# Function: realtimeToken()
-
 ```ts
 function realtimeToken(options): Promise<RealtimeToken>;
 ```
 
-Defined in: [packages/typescript/ai/src/realtime/index.ts:33](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/realtime/index.ts#L33)
+Defined in: packages/ai/src/realtime/index.ts:29
 
 Generate a realtime token using the provided adapter.
 
@@ -36,15 +34,9 @@ Promise resolving to a RealtimeToken
 import { realtimeToken } from '@tanstack/ai'
 import { openaiRealtimeToken } from '@tanstack/ai-openai'
 
-// Server function (TanStack Start example)
-export const getRealtimeToken = createServerFn()
-  .handler(async () => {
-    return realtimeToken({
-      adapter: openaiRealtimeToken({
-        model: 'gpt-4o-realtime-preview',
-        voice: 'alloy',
-        instructions: 'You are a helpful assistant...',
-      }),
-    })
-  })
+// On the server (e.g. inside a server route or framework server
+// function), mint an ephemeral token for the client:
+const token = await realtimeToken({
+  adapter: openaiRealtimeToken({ model: 'gpt-realtime-2.1' }),
+})
 ```

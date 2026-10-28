@@ -1,0 +1,1739 @@
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { chatParamsFromRequestBody } from '@tanstack/ai'
+import { EventType } from '@tanstack/ai/client'
+import {
+  fetchHttpStream,
+  fetchServerSentEvents,
+  fetcherToConnectionAdapter,
+  normalizeConnectionAdapter,
+  rpcStream,
+  stream,
+} from '../src/connection-adapters'
+import { UnsupportedResponseStreamError } from '../src'
+import type { RunAgentInput, StreamChunk } from '@tanstack/ai/client'
+
+const RUN_CONTEXT = { threadId: 'thread-1', runId: 'run-1' }
+
+describe('connection-adapters', () => {
+  let originalFetch: typeof fetch
+  let fetchMock: ReturnType<typeof vi.fn>
+
+  beforeEach(() => {
+    originalFetch = global.fetch
+    fetchMock = vi.fn()
+    // @ts-ignore - we mock global fetch
+    global.fetch = fetchMock
+  })
+
+  afterEach(() => {
+    global.fetch = originalFetch
+    vi.clearAllMocks()
+  })
+
+  it('forwards resume on a fetcher adapter', async () => {
+    const fetcher = vi.fn(async function* () {})
+    const adapter = fetcherToConnectionAdapter(fetcher)
+    const signal = new AbortController().signal
+
+    for await (const _chunk of adapter.connect([], { source: 'test' }, signal, {
+      threadId: 'thread-1',
+      runId: 'resume-run',
+      parentRunId: 'interrupted-run',
+      resume: [
+        {
+          interruptId: 'generic-1',
+          status: 'cancelled',
+          metadata: {
+            'tanstack:interruptContinuation': {
+              v: 1,
+              definitionId: 'review',
+              key: 'one',
+              batchIndex: 0,
+              reason: 'review',
+              message: 'Review',
+            },
+          },
+        },
+      ],
+    })) {
+      // Consume the terminal event.
+    }
+
+    expect(fetcher).toHaveBeenCalledWith(
+      expect.objectContaining({
+        threadId: 'thread-1',
+        runId: 'resume-run',
+        parentRunId: 'interrupted-run',
+        resume: [
+          {
+            interruptId: 'generic-1',
+            status: 'cancelled',
+            metadata: {
+              'tanstack:interruptContinuation': {
+                v: 1,
+                definitionId: 'review',
+                key: 'one',
+                batchIndex: 0,
+                reason: 'review',
+                message: 'Review',
+              },
+            },
+          },
+        ],
+      }),
+      { signal },
+    )
+  })
+
+  describe('fetchServerSentEvents', () => {
+    it('sends generic continuation on resume metadata, not state', async () => {
+      const mockResponse = {
+        ok: true,
+        body: {
+          getReader: () => ({
+            read: vi.fn().mockResolvedValue({ done: true, value: undefined }),
+            releaseLock: vi.fn(),
+          }),
+        },
+      }
+      fetchMock.mockResolvedValue(mockResponse as any)
+      const adapter = fetchServerSentEvents('/api/chat')
+      const resume = [
+        {
+          interruptId: 'generic-1',
+          status: 'cancelled' as const,
+          metadata: {
+            'tanstack:interruptContinuation': {
+              v: 1,
+              definitionId: 'review',
+              key: 'one',
+              batchIndex: 0,
+              reason: 'review',
+              message: 'Review',
+            },
+          },
+        },
+      ]
+
+      for await (const _chunk of adapter.connect(
+        [{ role: 'user', content: 'Resume' }],
+        undefined,
+        undefined,
+        {
+          threadId: 'thread-1',
+          runId: 'run-2',
+          resume,
+        },
+      )) {
+        // Consume the empty stream.
+      }
+
+      const request = fetchMock.mock.calls[0]?.[1] as RequestInit
+      const body = JSON.parse(String(request.body))
+      expect(body.resume).toEqual(resume)
+      expect(body.state).toEqual({})
+    })
+
+    it('should handle SSE format with data: prefix', async () => {
+      const mockReader = {
+        read: vi
+          .fn()
+          .mockResolvedValueOnce({
+            done: false,
+            value: new TextEncoder().encode(
+              'data: {"type":"TEXT_MESSAGE_CONTENT","messageId":"msg-1","model":"test","timestamp":123,"delta":"Hello","content":"Hello"}\n\n',
+            ),
+          })
+          .mockResolvedValueOnce({ done: true, value: undefined }),
+        releaseLock: vi.fn(),
+      }
+
+      const mockResponse = {
+        ok: true,
+        body: {
+          getReader: () => mockReader,
+        },
+      }
+
+      fetchMock.mockResolvedValue(mockResponse as any)
+
+      const adapter = fetchServerSentEvents('/api/chat')
+      const chunks: Array<StreamChunk> = []
+
+      for await (const chunk of adapter.connect(
+        [{ role: 'user', content: 'Hello' }],
+        undefined,
+        undefined,
+        RUN_CONTEXT,
+      )) {
+        chunks.push(chunk)
+      }
+
+      expect(chunks).toHaveLength(1)
+      expect(chunks[0]).toMatchObject({
+        type: EventType.TEXT_MESSAGE_CONTENT,
+        messageId: 'msg-1',
+        delta: 'Hello',
+      })
+    })
+
+    it('should handle SSE format with data: prefix and no space', async () => {
+      const mockReader = {
+        read: vi
+          .fn()
+          .mockResolvedValueOnce({
+            done: false,
+            value: new TextEncoder().encode(
+              'data:{"type":"TEXT_MESSAGE_CONTENT","messageId":"msg-1","model":"test","timestamp":123,"delta":"Hello","content":"Hello"}\n\n',
+            ),
+          })
+          .mockResolvedValueOnce({ done: true, value: undefined }),
+        releaseLock: vi.fn(),
+      }
+
+      const mockResponse = {
+        ok: true,
+        body: {
+          getReader: () => mockReader,
+        },
+      }
+
+      fetchMock.mockResolvedValue(mockResponse as any)
+
+      const adapter = fetchServerSentEvents('/api/chat')
+      const chunks: Array<StreamChunk> = []
+
+      for await (const chunk of adapter.connect(
+        [{ role: 'user', content: 'Hello' }],
+        undefined,
+        undefined,
+        RUN_CONTEXT,
+      )) {
+        chunks.push(chunk)
+      }
+
+      expect(chunks).toHaveLength(1)
+      expect(chunks[0]).toMatchObject({
+        type: EventType.TEXT_MESSAGE_CONTENT,
+        messageId: 'msg-1',
+        delta: 'Hello',
+      })
+    })
+
+    it('does not truncate an agentic run at the first RUN_FINISHED (multiple terminals per run)', async () => {
+      // An agent loop emits one RUN_STARTED/RUN_FINISHED pair PER turn, so a
+      // tool-calling run streams several RUN_FINISHED events in a single
+      // non-durable (untagged) response: turn 1 ends with RUN_FINISHED, then the
+      // tool result + turn 2 (the final answer) follow. Regression guard: the
+      // client must forward EVERY event and stop only when the source closes,
+      // never returning early on the first terminal.
+      const body =
+        'data: {"type":"RUN_STARTED","timestamp":1}\n\n' +
+        'data: {"type":"TOOL_CALL_END","timestamp":2}\n\n' +
+        'data: {"type":"RUN_FINISHED","timestamp":3}\n\n' +
+        'data: {"type":"TOOL_CALL_RESULT","timestamp":4}\n\n' +
+        'data: {"type":"RUN_STARTED","timestamp":5}\n\n' +
+        'data: {"type":"TEXT_MESSAGE_CONTENT","messageId":"m","model":"t","timestamp":6,"delta":"final","content":"final"}\n\n' +
+        'data: {"type":"RUN_FINISHED","timestamp":7}\n\n'
+
+      const mockReader = {
+        read: vi
+          .fn()
+          .mockResolvedValueOnce({
+            done: false,
+            value: new TextEncoder().encode(body),
+          })
+          .mockResolvedValueOnce({ done: true, value: undefined }),
+        releaseLock: vi.fn(),
+      }
+
+      fetchMock.mockResolvedValue({
+        ok: true,
+        body: { getReader: () => mockReader },
+      } as any)
+
+      const adapter = fetchServerSentEvents('/api/chat')
+      const chunks: Array<StreamChunk> = []
+      for await (const chunk of adapter.connect(
+        [{ role: 'user', content: 'Hello' }],
+        undefined,
+        undefined,
+        RUN_CONTEXT,
+      )) {
+        chunks.push(chunk)
+      }
+
+      expect(chunks.map((c) => c.type)).toEqual([
+        EventType.RUN_STARTED,
+        EventType.TOOL_CALL_END,
+        EventType.RUN_FINISHED,
+        EventType.TOOL_CALL_RESULT,
+        EventType.RUN_STARTED,
+        EventType.TEXT_MESSAGE_CONTENT,
+        EventType.RUN_FINISHED,
+      ])
+    })
+
+    it('should handle SSE format without data: prefix', async () => {
+      const mockReader = {
+        read: vi
+          .fn()
+          .mockResolvedValueOnce({
+            done: false,
+            value: new TextEncoder().encode(
+              '{"type":"TEXT_MESSAGE_CONTENT","messageId":"msg-1","model":"test","timestamp":123,"delta":"Hello","content":"Hello"}\n',
+            ),
+          })
+          .mockResolvedValueOnce({ done: true, value: undefined }),
+        releaseLock: vi.fn(),
+      }
+
+      const mockResponse = {
+        ok: true,
+        body: {
+          getReader: () => mockReader,
+        },
+      }
+
+      fetchMock.mockResolvedValue(mockResponse as any)
+
+      const adapter = fetchServerSentEvents('/api/chat')
+      const chunks: Array<StreamChunk> = []
+
+      for await (const chunk of adapter.connect(
+        [{ role: 'user', content: 'Hello' }],
+        undefined,
+        undefined,
+        RUN_CONTEXT,
+      )) {
+        chunks.push(chunk)
+      }
+
+      expect(chunks).toHaveLength(1)
+    })
+
+    it('should throw a SyntaxError on malformed JSON', async () => {
+      const mockReader = {
+        read: vi
+          .fn()
+          .mockResolvedValueOnce({
+            done: false,
+            value: new TextEncoder().encode('data: invalid json\n\n'),
+          })
+          .mockResolvedValueOnce({ done: true, value: undefined }),
+        releaseLock: vi.fn(),
+      }
+
+      const mockResponse = {
+        ok: true,
+        body: {
+          getReader: () => mockReader,
+        },
+      }
+
+      fetchMock.mockResolvedValue(mockResponse as any)
+
+      const adapter = fetchServerSentEvents('/api/chat')
+
+      await expect(
+        (async () => {
+          for await (const _ of adapter.connect(
+            [{ role: 'user', content: 'Hello' }],
+            undefined,
+            undefined,
+            RUN_CONTEXT,
+          )) {
+            // Consume
+          }
+        })(),
+      ).rejects.toThrow(SyntaxError)
+    })
+
+    it('should handle HTTP errors', async () => {
+      const mockResponse = {
+        ok: false,
+        status: 500,
+        statusText: 'Internal Server Error',
+        headers: new Headers(),
+      }
+
+      fetchMock.mockResolvedValue(mockResponse as any)
+
+      const adapter = fetchServerSentEvents('/api/chat')
+
+      await expect(
+        (async () => {
+          for await (const _ of adapter.connect(
+            [{ role: 'user', content: 'Hello' }],
+            undefined,
+            undefined,
+            RUN_CONTEXT,
+          )) {
+            // Consume
+          }
+        })(),
+      ).rejects.toThrow('HTTP error! status: 500 Internal Server Error')
+    })
+
+    it('should handle missing response body', async () => {
+      const mockResponse = {
+        ok: true,
+        body: null,
+      }
+
+      fetchMock.mockResolvedValue(mockResponse as any)
+
+      const adapter = fetchServerSentEvents('/api/chat')
+
+      await expect(
+        (async () => {
+          for await (const _ of adapter.connect(
+            [{ role: 'user', content: 'Hello' }],
+            undefined,
+            undefined,
+            RUN_CONTEXT,
+          )) {
+            // Consume
+          }
+        })(),
+      ).rejects.toMatchObject({
+        name: 'UnsupportedResponseStreamError',
+        missingFeature: 'Response.body',
+      })
+    })
+
+    it('should throw an actionable unsupported-stream error when getReader is missing', async () => {
+      const mockResponse = {
+        ok: true,
+        body: {},
+      }
+
+      fetchMock.mockResolvedValue(mockResponse as any)
+
+      const adapter = fetchServerSentEvents('/api/chat')
+
+      await expect(
+        (async () => {
+          for await (const _ of adapter.connect(
+            [{ role: 'user', content: 'Hello' }],
+            undefined,
+            undefined,
+            RUN_CONTEXT,
+          )) {
+            // Consume
+          }
+        })(),
+      ).rejects.toMatchObject({
+        name: 'UnsupportedResponseStreamError',
+        missingFeature: 'Response.body.getReader',
+        message: expect.stringContaining('compatible fetch'),
+      })
+    })
+
+    it('should preserve HTTP errors before stream capability checks', async () => {
+      const mockResponse = {
+        ok: false,
+        status: 500,
+        statusText: 'Internal Server Error',
+        headers: new Headers(),
+        body: null,
+      }
+
+      fetchMock.mockResolvedValue(mockResponse as any)
+
+      const adapter = fetchServerSentEvents('/api/chat')
+      const consume = async () => {
+        for await (const _ of adapter.connect(
+          [{ role: 'user', content: 'Hello' }],
+          undefined,
+          undefined,
+          RUN_CONTEXT,
+        )) {
+          // Consume
+        }
+      }
+
+      await expect(consume()).rejects.toThrow(
+        'HTTP error! status: 500 Internal Server Error',
+      )
+      await expect(consume()).rejects.not.toBeInstanceOf(
+        UnsupportedResponseStreamError,
+      )
+    })
+
+    it('should merge custom headers', async () => {
+      const mockReader = {
+        read: vi.fn().mockResolvedValue({ done: true, value: undefined }),
+        releaseLock: vi.fn(),
+      }
+
+      const mockResponse = {
+        ok: true,
+        body: {
+          getReader: () => mockReader,
+        },
+      }
+
+      fetchMock.mockResolvedValue(mockResponse as any)
+
+      const adapter = fetchServerSentEvents('/api/chat', {
+        headers: { Authorization: 'Bearer token' },
+      })
+
+      for await (const _ of adapter.connect(
+        [{ role: 'user', content: 'Hello' }],
+        undefined,
+        undefined,
+        RUN_CONTEXT,
+      )) {
+        // Consume
+      }
+
+      expect(fetchMock).toHaveBeenCalled()
+      const call = fetchMock.mock.calls[0]
+      expect(call?.[1]?.headers).toMatchObject({
+        'Content-Type': 'application/json',
+        Authorization: 'Bearer token',
+      })
+    })
+
+    it('should handle Headers object', async () => {
+      const mockReader = {
+        read: vi.fn().mockResolvedValue({ done: true, value: undefined }),
+        releaseLock: vi.fn(),
+      }
+
+      const mockResponse = {
+        ok: true,
+        body: {
+          getReader: () => mockReader,
+        },
+      }
+
+      fetchMock.mockResolvedValue(mockResponse as any)
+
+      const headers = new Headers()
+      headers.set('Authorization', 'Bearer token')
+
+      const adapter = fetchServerSentEvents('/api/chat', { headers })
+
+      for await (const _ of adapter.connect(
+        [{ role: 'user', content: 'Hello' }],
+        undefined,
+        undefined,
+        RUN_CONTEXT,
+      )) {
+        // Consume
+      }
+
+      expect(fetchMock).toHaveBeenCalled()
+      const call = fetchMock.mock.calls[0]
+      const requestHeaders = call?.[1]?.headers
+
+      // mergeHeaders converts Headers to plain object, then spread into new object
+      // The headers should be a plain object with both Content-Type and Authorization
+      const headersObj = requestHeaders as Record<string, string>
+      expect(headersObj).toBeDefined()
+      expect(headersObj['Content-Type']).toBe('application/json')
+      // Check if Authorization exists (it should from the Headers object)
+      // The mergeHeaders function should convert Headers.forEach to object keys
+      const authValue = Object.entries(headersObj).find(
+        ([key]) => key.toLowerCase() === 'authorization',
+      )?.[1]
+      expect(authValue).toBe('Bearer token')
+    })
+
+    it('should pass data to request body forwardedProps', async () => {
+      const mockReader = {
+        read: vi.fn().mockResolvedValue({ done: true, value: undefined }),
+        releaseLock: vi.fn(),
+      }
+
+      const mockResponse = {
+        ok: true,
+        body: {
+          getReader: () => mockReader,
+        },
+      }
+
+      fetchMock.mockResolvedValue(mockResponse as any)
+
+      const adapter = fetchServerSentEvents('/api/chat')
+
+      for await (const _ of adapter.connect(
+        [{ role: 'user', content: 'Hello' }],
+        { key: 'value' },
+        undefined,
+        RUN_CONTEXT,
+      )) {
+        // Consume
+      }
+
+      expect(fetchMock).toHaveBeenCalled()
+      const call = fetchMock.mock.calls[0]
+      const body = JSON.parse(call?.[1]?.body as string)
+      expect(body.forwardedProps).toMatchObject({ key: 'value' })
+    })
+
+    it('should use custom fetchClient when provided', async () => {
+      const customFetch = vi.fn()
+      const mockReader = {
+        read: vi.fn().mockResolvedValue({ done: true, value: undefined }),
+        releaseLock: vi.fn(),
+      }
+      const mockResponse = {
+        ok: true,
+        body: { getReader: () => mockReader },
+      }
+      customFetch.mockResolvedValue(mockResponse as any)
+
+      const adapter = fetchServerSentEvents('/api/chat', {
+        fetchClient: customFetch,
+      })
+
+      for await (const _ of adapter.connect(
+        [{ role: 'user', content: 'Hello' }],
+        undefined,
+        undefined,
+        RUN_CONTEXT,
+      )) {
+        // Consume
+      }
+
+      expect(customFetch).toHaveBeenCalledWith('/api/chat', expect.any(Object))
+      expect(fetchMock).not.toHaveBeenCalled()
+    })
+
+    it('should resolve dynamic URL from function', async () => {
+      const mockReader = {
+        read: vi.fn().mockResolvedValue({ done: true, value: undefined }),
+        releaseLock: vi.fn(),
+      }
+
+      const mockResponse = {
+        ok: true,
+        body: { getReader: () => mockReader },
+      }
+
+      fetchMock.mockResolvedValue(mockResponse as any)
+
+      const adapter = fetchServerSentEvents(() => '/api/dynamic')
+
+      for await (const _ of adapter.connect(
+        [{ role: 'user', content: 'Hello' }],
+        undefined,
+        undefined,
+        RUN_CONTEXT,
+      )) {
+        // Consume
+      }
+
+      expect(fetchMock).toHaveBeenCalledWith('/api/dynamic', expect.any(Object))
+    })
+
+    it('should resolve dynamic options from sync function', async () => {
+      const mockReader = {
+        read: vi.fn().mockResolvedValue({ done: true, value: undefined }),
+        releaseLock: vi.fn(),
+      }
+
+      const mockResponse = {
+        ok: true,
+        body: { getReader: () => mockReader },
+      }
+
+      fetchMock.mockResolvedValue(mockResponse as any)
+
+      const adapter = fetchServerSentEvents('/api/chat', () => ({
+        headers: { 'X-Custom': 'dynamic' },
+      }))
+
+      for await (const _ of adapter.connect(
+        [{ role: 'user', content: 'Hello' }],
+        undefined,
+        undefined,
+        RUN_CONTEXT,
+      )) {
+        // Consume
+      }
+
+      const call = fetchMock.mock.calls[0]
+      expect(call?.[1]?.headers).toMatchObject({ 'X-Custom': 'dynamic' })
+    })
+
+    it('should resolve dynamic options from async function', async () => {
+      const mockReader = {
+        read: vi.fn().mockResolvedValue({ done: true, value: undefined }),
+        releaseLock: vi.fn(),
+      }
+
+      const mockResponse = {
+        ok: true,
+        body: { getReader: () => mockReader },
+      }
+
+      fetchMock.mockResolvedValue(mockResponse as any)
+
+      const adapter = fetchServerSentEvents('/api/chat', async () => ({
+        headers: { 'X-Async': 'token' },
+      }))
+
+      for await (const _ of adapter.connect(
+        [{ role: 'user', content: 'Hello' }],
+        undefined,
+        undefined,
+        RUN_CONTEXT,
+      )) {
+        // Consume
+      }
+
+      const call = fetchMock.mock.calls[0]
+      expect(call?.[1]?.headers).toMatchObject({ 'X-Async': 'token' })
+    })
+
+    it('should merge options.body into request body forwardedProps', async () => {
+      const mockReader = {
+        read: vi.fn().mockResolvedValue({ done: true, value: undefined }),
+        releaseLock: vi.fn(),
+      }
+
+      const mockResponse = {
+        ok: true,
+        body: { getReader: () => mockReader },
+      }
+
+      fetchMock.mockResolvedValue(mockResponse as any)
+
+      const adapter = fetchServerSentEvents('/api/chat', {
+        body: { model: 'gpt-4o', provider: 'openai' },
+      })
+
+      for await (const _ of adapter.connect(
+        [{ role: 'user', content: 'Hello' }],
+        { key: 'value' },
+        undefined,
+        RUN_CONTEXT,
+      )) {
+        // Consume
+      }
+
+      const call = fetchMock.mock.calls[0]
+      const body = JSON.parse(call?.[1]?.body as string)
+      expect(body.forwardedProps).toMatchObject({
+        model: 'gpt-4o',
+        provider: 'openai',
+        key: 'value',
+      })
+    })
+
+    it('should handle multiple chunks across multiple reads', async () => {
+      const mockReader = {
+        read: vi
+          .fn()
+          .mockResolvedValueOnce({
+            done: false,
+            value: new TextEncoder().encode(
+              'data: {"type":"RUN_STARTED","runId":"run-1","timestamp":100}\n\n',
+            ),
+          })
+          .mockResolvedValueOnce({
+            done: false,
+            value: new TextEncoder().encode(
+              'data: {"type":"CUSTOM","name":"generation:result","value":{"id":"1"},"timestamp":200}\n\n',
+            ),
+          })
+          .mockResolvedValueOnce({
+            done: false,
+            value: new TextEncoder().encode(
+              'data: {"type":"RUN_FINISHED","runId":"run-1","threadId":"thread-1","timestamp":300,"metadata":{"tanstack":{"finishReason":"stop"}}}\n\n',
+            ),
+          })
+          .mockResolvedValueOnce({ done: true, value: undefined }),
+        releaseLock: vi.fn(),
+      }
+
+      const mockResponse = {
+        ok: true,
+        body: { getReader: () => mockReader },
+      }
+
+      fetchMock.mockResolvedValue(mockResponse as any)
+
+      const adapter = fetchServerSentEvents('/api/generate')
+      const chunks: Array<StreamChunk> = []
+
+      for await (const chunk of adapter.connect(
+        [],
+        { prompt: 'test' },
+        undefined,
+        RUN_CONTEXT,
+      )) {
+        chunks.push(chunk)
+      }
+
+      expect(chunks).toHaveLength(3)
+      expect(chunks[0]!.type).toBe('RUN_STARTED')
+      expect(chunks[1]!.type).toBe('CUSTOM')
+      expect(chunks[2]!.type).toBe('RUN_FINISHED')
+    })
+  })
+
+  describe('fetchHttpStream', () => {
+    it('normalizes only owned dates during fetch hydration', async () => {
+      const metadata = {
+        createdAt: 'message-metadata',
+        tanstack: { createdAt: 'metadata-tanstack-date' },
+        nested: { createdAt: 'nested-date' },
+      }
+      const content = [
+        {
+          type: 'text',
+          content: 'result',
+          metadata: { createdAt: 'content-date' },
+        },
+      ]
+      fetchMock.mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          messages: [
+            {
+              id: 'a1',
+              role: 'assistant',
+              createdAt: '2026-08-20T00:00:00.000Z',
+              parts: [
+                {
+                  type: 'tool-result',
+                  toolCallId: 'call-1',
+                  content,
+                  state: 'complete',
+                  createdAt: '2026-08-20T00:00:01.000Z',
+                  metadata: { createdAt: 'part-metadata' },
+                },
+              ],
+              metadata,
+            },
+            {
+              id: 'a2',
+              role: 'assistant',
+              createdAt: 'invalid-message-date',
+              parts: [
+                {
+                  type: 'tool-result',
+                  toolCallId: 'call-2',
+                  content: 'ok',
+                  state: 'complete',
+                  createdAt: 'invalid-part-date',
+                },
+              ],
+            },
+          ],
+          activeRun: null,
+        }),
+      })
+      const adapter = fetchHttpStream('/api/chat')
+      if (adapter.hydrate === undefined)
+        throw new Error('expected hydration support')
+
+      const result = await adapter.hydrate('thread-1')
+
+      expect(result.messages[0]?.createdAt).toEqual(
+        new Date('2026-08-20T00:00:00.000Z'),
+      )
+      expect(result.messages[0]?.parts[0]).toHaveProperty(
+        'createdAt',
+        new Date('2026-08-20T00:00:01.000Z'),
+      )
+      expect(result.messages[0]?.metadata).toEqual(metadata)
+      const part = result.messages[0]?.parts[0]
+      expect(part).toHaveProperty('metadata', { createdAt: 'part-metadata' })
+      expect(part).toHaveProperty('content', content)
+      expect(result.messages[1]).not.toHaveProperty('createdAt')
+      expect(result.messages[1]?.parts[0]).not.toHaveProperty('createdAt')
+    })
+
+    it('should parse newline-delimited JSON', async () => {
+      const mockReader = {
+        read: vi
+          .fn()
+          .mockResolvedValueOnce({
+            done: false,
+            value: new TextEncoder().encode(
+              '{"type":"TEXT_MESSAGE_CONTENT","messageId":"msg-1","model":"test","timestamp":123,"delta":"Hello","content":"Hello"}\n',
+            ),
+          })
+          .mockResolvedValueOnce({ done: true, value: undefined }),
+        releaseLock: vi.fn(),
+      }
+
+      const mockResponse = {
+        ok: true,
+        body: {
+          getReader: () => mockReader,
+        },
+      }
+
+      fetchMock.mockResolvedValue(mockResponse as any)
+
+      const adapter = fetchHttpStream('/api/chat')
+      const chunks: Array<StreamChunk> = []
+
+      for await (const chunk of adapter.connect(
+        [{ role: 'user', content: 'Hello' }],
+        undefined,
+        undefined,
+        RUN_CONTEXT,
+      )) {
+        chunks.push(chunk)
+      }
+
+      expect(chunks).toHaveLength(1)
+    })
+
+    it('should throw a SyntaxError on malformed JSON', async () => {
+      const mockReader = {
+        read: vi
+          .fn()
+          .mockResolvedValueOnce({
+            done: false,
+            value: new TextEncoder().encode('invalid json\n'),
+          })
+          .mockResolvedValueOnce({ done: true, value: undefined }),
+        releaseLock: vi.fn(),
+      }
+
+      const mockResponse = {
+        ok: true,
+        body: {
+          getReader: () => mockReader,
+        },
+      }
+
+      fetchMock.mockResolvedValue(mockResponse as any)
+
+      const adapter = fetchHttpStream('/api/chat')
+
+      await expect(
+        (async () => {
+          for await (const _ of adapter.connect(
+            [{ role: 'user', content: 'Hello' }],
+            undefined,
+            undefined,
+            RUN_CONTEXT,
+          )) {
+            // Consume
+          }
+        })(),
+      ).rejects.toThrow(SyntaxError)
+    })
+
+    it('should handle HTTP errors', async () => {
+      const mockResponse = {
+        ok: false,
+        status: 404,
+        statusText: 'Not Found',
+        headers: new Headers(),
+      }
+
+      fetchMock.mockResolvedValue(mockResponse as any)
+
+      const adapter = fetchHttpStream('/api/chat')
+
+      await expect(
+        (async () => {
+          for await (const _ of adapter.connect(
+            [{ role: 'user', content: 'Hello' }],
+            undefined,
+            undefined,
+            RUN_CONTEXT,
+          )) {
+            // Consume
+          }
+        })(),
+      ).rejects.toThrow('HTTP error! status: 404 Not Found')
+    })
+
+    it('should use custom fetchClient when provided', async () => {
+      const customFetch = vi.fn()
+      const mockReader = {
+        read: vi.fn().mockResolvedValue({ done: true, value: undefined }),
+        releaseLock: vi.fn(),
+      }
+      const mockResponse = {
+        ok: true,
+        body: { getReader: () => mockReader },
+      }
+      customFetch.mockResolvedValue(mockResponse as any)
+
+      const adapter = fetchHttpStream('/api/chat', {
+        fetchClient: customFetch,
+      })
+
+      for await (const _ of adapter.connect(
+        [{ role: 'user', content: 'Hello' }],
+        undefined,
+        undefined,
+        RUN_CONTEXT,
+      )) {
+        // Consume
+      }
+
+      expect(customFetch).toHaveBeenCalledWith('/api/chat', expect.any(Object))
+      expect(fetchMock).not.toHaveBeenCalled()
+    })
+
+    it('should handle missing response body', async () => {
+      const mockResponse = {
+        ok: true,
+        body: null,
+      }
+
+      fetchMock.mockResolvedValue(mockResponse as any)
+
+      const adapter = fetchHttpStream('/api/chat')
+
+      await expect(
+        (async () => {
+          for await (const _ of adapter.connect(
+            [{ role: 'user', content: 'Hello' }],
+            undefined,
+            undefined,
+            RUN_CONTEXT,
+          )) {
+            // Consume
+          }
+        })(),
+      ).rejects.toMatchObject({
+        name: 'UnsupportedResponseStreamError',
+        missingFeature: 'Response.body',
+      })
+    })
+
+    it('should throw an actionable unsupported-stream error when TextDecoder is missing', async () => {
+      const originalTextDecoder = globalThis.TextDecoder
+      // @ts-expect-error - simulate React Native runtimes without TextDecoder.
+      globalThis.TextDecoder = undefined
+      const mockReader = {
+        read: vi.fn().mockResolvedValue({ done: true, value: undefined }),
+        releaseLock: vi.fn(),
+      }
+      const mockResponse = {
+        ok: true,
+        body: {
+          getReader: () => mockReader,
+        },
+      }
+
+      fetchMock.mockResolvedValue(mockResponse as any)
+
+      const adapter = fetchHttpStream('/api/chat')
+
+      try {
+        await expect(
+          (async () => {
+            for await (const _ of adapter.connect(
+              [{ role: 'user', content: 'Hello' }],
+              undefined,
+              undefined,
+              RUN_CONTEXT,
+            )) {
+              // Consume
+            }
+          })(),
+        ).rejects.toMatchObject({
+          name: 'UnsupportedResponseStreamError',
+          missingFeature: 'TextDecoder',
+          message: expect.stringContaining('TextDecoder'),
+        })
+      } finally {
+        globalThis.TextDecoder = originalTextDecoder
+      }
+    })
+
+    it('should merge custom headers', async () => {
+      const mockReader = {
+        read: vi.fn().mockResolvedValue({ done: true, value: undefined }),
+        releaseLock: vi.fn(),
+      }
+
+      const mockResponse = {
+        ok: true,
+        body: { getReader: () => mockReader },
+      }
+
+      fetchMock.mockResolvedValue(mockResponse as any)
+
+      const adapter = fetchHttpStream('/api/chat', {
+        headers: { Authorization: 'Bearer token' },
+      })
+
+      for await (const _ of adapter.connect(
+        [{ role: 'user', content: 'Hello' }],
+        undefined,
+        undefined,
+        RUN_CONTEXT,
+      )) {
+        // Consume
+      }
+
+      const call = fetchMock.mock.calls[0]
+      expect(call?.[1]?.headers).toMatchObject({
+        'Content-Type': 'application/json',
+        Authorization: 'Bearer token',
+      })
+    })
+
+    it('should pass data to request body forwardedProps', async () => {
+      const mockReader = {
+        read: vi.fn().mockResolvedValue({ done: true, value: undefined }),
+        releaseLock: vi.fn(),
+      }
+
+      const mockResponse = {
+        ok: true,
+        body: { getReader: () => mockReader },
+      }
+
+      fetchMock.mockResolvedValue(mockResponse as any)
+
+      const adapter = fetchHttpStream('/api/chat')
+
+      for await (const _ of adapter.connect(
+        [{ role: 'user', content: 'Hello' }],
+        { key: 'value' },
+        undefined,
+        RUN_CONTEXT,
+      )) {
+        // Consume
+      }
+
+      const call = fetchMock.mock.calls[0]
+      const body = JSON.parse(call?.[1]?.body as string)
+      expect(body.forwardedProps).toMatchObject({ key: 'value' })
+    })
+
+    it('should resolve dynamic URL from function', async () => {
+      const mockReader = {
+        read: vi.fn().mockResolvedValue({ done: true, value: undefined }),
+        releaseLock: vi.fn(),
+      }
+
+      const mockResponse = {
+        ok: true,
+        body: { getReader: () => mockReader },
+      }
+
+      fetchMock.mockResolvedValue(mockResponse as any)
+
+      const adapter = fetchHttpStream(() => '/api/dynamic')
+
+      for await (const _ of adapter.connect(
+        [{ role: 'user', content: 'Hello' }],
+        undefined,
+        undefined,
+        RUN_CONTEXT,
+      )) {
+        // Consume
+      }
+
+      expect(fetchMock).toHaveBeenCalledWith('/api/dynamic', expect.any(Object))
+    })
+
+    it('should handle multiple chunks across multiple reads', async () => {
+      const mockReader = {
+        read: vi
+          .fn()
+          .mockResolvedValueOnce({
+            done: false,
+            value: new TextEncoder().encode(
+              '{"type":"RUN_STARTED","runId":"run-1","timestamp":100}\n',
+            ),
+          })
+          .mockResolvedValueOnce({
+            done: false,
+            value: new TextEncoder().encode(
+              '{"type":"CUSTOM","name":"generation:result","value":{"id":"1"},"timestamp":200}\n',
+            ),
+          })
+          .mockResolvedValueOnce({
+            done: false,
+            value: new TextEncoder().encode(
+              '{"type":"RUN_FINISHED","runId":"run-1","threadId":"thread-1","timestamp":300,"metadata":{"tanstack":{"finishReason":"stop"}}}\n',
+            ),
+          })
+          .mockResolvedValueOnce({ done: true, value: undefined }),
+        releaseLock: vi.fn(),
+      }
+
+      const mockResponse = {
+        ok: true,
+        body: { getReader: () => mockReader },
+      }
+
+      fetchMock.mockResolvedValue(mockResponse as any)
+
+      const adapter = fetchHttpStream('/api/generate')
+      const chunks: Array<StreamChunk> = []
+
+      for await (const chunk of adapter.connect(
+        [],
+        { prompt: 'test' },
+        undefined,
+        RUN_CONTEXT,
+      )) {
+        chunks.push(chunk)
+      }
+
+      expect(chunks).toHaveLength(3)
+      expect(chunks[0]!.type).toBe('RUN_STARTED')
+      expect(chunks[1]!.type).toBe('CUSTOM')
+      expect(chunks[2]!.type).toBe('RUN_FINISHED')
+    })
+  })
+
+  describe('stream', () => {
+    it('passes a run input that chatParamsFromRequestBody reads', async () => {
+      let input: RunAgentInput | undefined
+      const adapter = stream((_messages, _data, _signal, runInput) => {
+        input = runInput
+        return (async function* () {})()
+      })
+      const resume = [{ interruptId: 'int-1', status: 'resolved' as const }]
+
+      for await (const _ of adapter.connect(
+        [{ role: 'user', content: 'Hello' }],
+        { model: 'gpt-5.5' },
+        undefined,
+        { ...RUN_CONTEXT, resume },
+      )) {
+        // Consume
+      }
+
+      const params = await chatParamsFromRequestBody(input)
+      expect(params).toMatchObject({
+        threadId: 'thread-1',
+        runId: 'run-1',
+        resume,
+        forwardedProps: { model: 'gpt-5.5' },
+      })
+      expect(params.messages).toHaveLength(1)
+    })
+    it('should delegate to stream factory', async () => {
+      const streamFactory = vi.fn().mockImplementation(function* () {
+        yield {
+          type: EventType.TEXT_MESSAGE_CONTENT,
+          messageId: 'msg-1',
+          model: 'test',
+          timestamp: Date.now(),
+          delta: 'Hello',
+          content: 'Hello',
+        }
+      })
+
+      const adapter = stream(streamFactory)
+      const chunks: Array<StreamChunk> = []
+
+      for await (const chunk of adapter.connect(
+        [{ role: 'user', content: 'Hello' }],
+        undefined,
+        undefined,
+        RUN_CONTEXT,
+      )) {
+        chunks.push(chunk)
+      }
+
+      expect(streamFactory).toHaveBeenCalled()
+      expect(chunks).toHaveLength(1)
+    })
+
+    it('should pass data to stream factory', async () => {
+      const streamFactory = vi.fn().mockImplementation(function* () {
+        yield {
+          type: EventType.RUN_FINISHED,
+          runId: 'run-1',
+          threadId: 'thread-1',
+          model: 'test',
+          timestamp: Date.now(),
+          metadata: { tanstack: { finishReason: 'stop' } },
+        }
+      })
+
+      const adapter = stream(streamFactory)
+      const data = { key: 'value' }
+
+      for await (const _ of adapter.connect(
+        [{ role: 'user', content: 'Hello' }],
+        data,
+        undefined,
+        RUN_CONTEXT,
+      )) {
+        // Consume
+      }
+
+      expect(streamFactory).toHaveBeenCalledWith(
+        expect.arrayContaining([expect.objectContaining({ role: 'user' })]),
+        data,
+        undefined,
+        expect.objectContaining({ threadId: 'thread-1', runId: 'run-1' }),
+      )
+    })
+
+    it('should spread supplied persistence handlers onto the adapter', () => {
+      const streamFactory = vi.fn().mockImplementation(function* () {})
+      const hydrate = vi.fn()
+      const hydrateGeneration = vi.fn()
+      const joinRun = vi.fn()
+
+      const adapter = stream(streamFactory, {
+        hydrate,
+        hydrateGeneration,
+        joinRun,
+      })
+
+      expect(adapter.hydrate).toBe(hydrate)
+      expect(adapter.hydrateGeneration).toBe(hydrateGeneration)
+      expect(adapter.joinRun).toBe(joinRun)
+    })
+
+    it('should omit persistence handlers that are not supplied', () => {
+      const streamFactory = vi.fn().mockImplementation(function* () {})
+
+      const adapter = stream(streamFactory)
+
+      expect(adapter.hydrate).toBeUndefined()
+      expect(adapter.hydrateGeneration).toBeUndefined()
+      expect(adapter.joinRun).toBeUndefined()
+    })
+  })
+
+  describe('normalizeConnectionAdapter', () => {
+    it('should throw when connection is not provided', () => {
+      expect(() => normalizeConnectionAdapter(undefined)).toThrow(
+        'Connection adapter is required',
+      )
+    })
+
+    it('should throw when subscribe/send are partially implemented', () => {
+      const invalidAdapters = [
+        { subscribe: async function* () {} },
+        { send: async () => {} },
+      ] as const
+
+      for (const adapter of invalidAdapters) {
+        expect(() => normalizeConnectionAdapter(adapter as any)).toThrow(
+          'Connection adapter must provide either connect or both subscribe and send',
+        )
+      }
+    })
+
+    it('should throw when both connection modes are provided', () => {
+      const invalidAdapter = {
+        connect: async function* () {},
+        subscribe: async function* () {},
+        send: async () => {},
+      }
+
+      expect(() => normalizeConnectionAdapter(invalidAdapter as any)).toThrow(
+        'Connection adapter must provide either connect or both subscribe and send, not both modes',
+      )
+    })
+
+    it('should synthesize RUN_FINISHED when wrapped connect stream has no terminal event', async () => {
+      const base = stream(async function* () {
+        yield {
+          type: EventType.TEXT_MESSAGE_CONTENT,
+          messageId: 'msg-1',
+          model: 'test',
+          timestamp: Date.now(),
+          delta: 'Hi',
+          content: 'Hi',
+        }
+      })
+
+      const adapter = normalizeConnectionAdapter(base)
+      const abortController = new AbortController()
+      const receivedPromise = (async () => {
+        const received: Array<StreamChunk> = []
+        for await (const chunk of adapter.subscribe(abortController.signal)) {
+          received.push(chunk)
+          if (received.length === 2) {
+            abortController.abort()
+          }
+        }
+        return received
+      })()
+
+      await adapter.send(
+        [{ role: 'user', content: 'Hello' }],
+        undefined,
+        undefined,
+        { threadId: 'thread-test', runId: 'run-test' },
+      )
+      const received = await receivedPromise
+
+      expect(received).toHaveLength(2)
+      expect(received[1]?.type).toBe('RUN_FINISHED')
+    })
+
+    it('should synthesize RUN_ERROR when wrapped connect stream throws', async () => {
+      // eslint-disable-next-line require-yield
+      const base = stream(async function* () {
+        throw new Error('connect exploded')
+      })
+
+      const adapter = normalizeConnectionAdapter(base)
+      const abortController = new AbortController()
+      const receivedPromise = (async () => {
+        const received: Array<StreamChunk> = []
+        for await (const chunk of adapter.subscribe(abortController.signal)) {
+          received.push(chunk)
+          if (received.length === 1) {
+            abortController.abort()
+          }
+        }
+        return received
+      })()
+
+      await expect(
+        adapter.send(
+          [{ role: 'user', content: 'Hello' }],
+          undefined,
+          undefined,
+          { threadId: 'thread-test', runId: 'run-test' },
+        ),
+      ).rejects.toThrow('connect exploded')
+      const received = await receivedPromise
+
+      expect(received).toHaveLength(1)
+      expect(received[0]?.type).toBe('RUN_ERROR')
+    })
+
+    it('should not synthesize duplicate RUN_ERROR when stream already emitted one before throwing', async () => {
+      const base = stream(async function* () {
+        yield {
+          type: EventType.RUN_ERROR,
+          message: 'already failed',
+          timestamp: Date.now(),
+        }
+        throw new Error('connect exploded')
+      })
+
+      const adapter = normalizeConnectionAdapter(base)
+      const abortController = new AbortController()
+      const receivedPromise = (async () => {
+        const received: Array<StreamChunk> = []
+        for await (const chunk of adapter.subscribe(abortController.signal)) {
+          received.push(chunk)
+          if (received.length === 1) {
+            abortController.abort()
+          }
+        }
+        return received
+      })()
+
+      await expect(
+        adapter.send(
+          [{ role: 'user', content: 'Hello' }],
+          undefined,
+          undefined,
+          RUN_CONTEXT,
+        ),
+      ).rejects.toThrow('connect exploded')
+      const received = await receivedPromise
+
+      expect(received).toHaveLength(1)
+      expect(received[0]?.type).toBe('RUN_ERROR')
+      if (received[0]?.type === 'RUN_ERROR') {
+        expect(received[0].message).toBe('already failed')
+      }
+    })
+  })
+
+  describe('rpcStream', () => {
+    it('passes a run input that chatParamsFromRequestBody reads', async () => {
+      let input: RunAgentInput | undefined
+      const adapter = rpcStream((_messages, _data, _signal, runInput) => {
+        input = runInput
+        return (async function* () {})()
+      })
+      const resume = [{ interruptId: 'int-1', status: 'resolved' as const }]
+
+      for await (const _ of adapter.connect(
+        [{ role: 'user', content: 'Hello' }],
+        { model: 'gpt-5.5' },
+        undefined,
+        { ...RUN_CONTEXT, resume },
+      )) {
+        // Consume
+      }
+
+      const params = await chatParamsFromRequestBody(input)
+      expect(params).toMatchObject({
+        threadId: 'thread-1',
+        runId: 'run-1',
+        resume,
+        forwardedProps: { model: 'gpt-5.5' },
+      })
+      expect(params.messages).toHaveLength(1)
+    })
+    it('should delegate to RPC call', async () => {
+      const rpcCall = vi.fn().mockImplementation(function* () {
+        yield {
+          type: EventType.TEXT_MESSAGE_CONTENT,
+          messageId: 'msg-1',
+          model: 'test',
+          timestamp: Date.now(),
+          delta: 'Hello',
+          content: 'Hello',
+        }
+      })
+
+      const adapter = rpcStream(rpcCall)
+      const chunks: Array<StreamChunk> = []
+
+      for await (const chunk of adapter.connect(
+        [{ role: 'user', content: 'Hello' }],
+        undefined,
+        undefined,
+        RUN_CONTEXT,
+      )) {
+        chunks.push(chunk)
+      }
+
+      expect(rpcCall).toHaveBeenCalled()
+      expect(chunks).toHaveLength(1)
+      expect(chunks[0]).toMatchObject({
+        type: EventType.TEXT_MESSAGE_CONTENT,
+        delta: 'Hello',
+      })
+    })
+
+    it('should pass messages and data to RPC call', async () => {
+      const rpcCall = vi.fn().mockImplementation(function* () {
+        yield {
+          type: EventType.RUN_FINISHED,
+          runId: 'run-1',
+          threadId: 'thread-1',
+          model: 'test',
+          timestamp: Date.now(),
+          metadata: { tanstack: { finishReason: 'stop' } },
+        }
+      })
+
+      const adapter = rpcStream(rpcCall)
+      const data = { model: 'gpt-4o' }
+
+      for await (const _ of adapter.connect(
+        [{ role: 'user', content: 'Hello' }],
+        data,
+        undefined,
+        RUN_CONTEXT,
+      )) {
+        // Consume
+      }
+
+      expect(rpcCall).toHaveBeenCalledWith(
+        expect.arrayContaining([expect.objectContaining({ role: 'user' })]),
+        data,
+        undefined,
+        expect.objectContaining({ threadId: 'thread-1', runId: 'run-1' }),
+      )
+    })
+
+    it('should spread supplied persistence handlers onto the adapter', () => {
+      const rpcCall = vi.fn().mockImplementation(function* () {})
+      const hydrate = vi.fn()
+      const hydrateGeneration = vi.fn()
+      const joinRun = vi.fn()
+
+      const adapter = rpcStream(rpcCall, {
+        hydrate,
+        hydrateGeneration,
+        joinRun,
+      })
+
+      expect(adapter.hydrate).toBe(hydrate)
+      expect(adapter.hydrateGeneration).toBe(hydrateGeneration)
+      expect(adapter.joinRun).toBe(joinRun)
+    })
+
+    it('should omit persistence handlers that are not supplied', () => {
+      const rpcCall = vi.fn().mockImplementation(function* () {})
+
+      const adapter = rpcStream(rpcCall)
+
+      expect(adapter.hydrate).toBeUndefined()
+      expect(adapter.hydrateGeneration).toBeUndefined()
+      expect(adapter.joinRun).toBeUndefined()
+    })
+  })
+
+  describe('hydrateGeneration', () => {
+    function jsonFetch(body: unknown): ReturnType<typeof vi.fn> {
+      return vi.fn(async () => ({
+        ok: true,
+        status: 200,
+        json: async () => body,
+      }))
+    }
+
+    it('maps a populated body to the hydration result', async () => {
+      const fetchClient = jsonFetch({
+        resumeSnapshot: {
+          schemaVersion: 1,
+          resumeState: { threadId: 't1', runId: 'r1' },
+          status: 'running',
+        },
+        activeRun: { runId: 'r1' },
+      })
+      const adapter = fetchServerSentEvents('/api/generate', {
+        fetchClient: fetchClient as unknown as typeof fetch,
+      })
+
+      const result = await adapter.hydrateGeneration!('t1')
+
+      expect(result.activeRun).toEqual({ runId: 'r1' })
+      expect(result.resumeSnapshot).toMatchObject({ status: 'running' })
+      expect(fetchClient.mock.calls[0]![0]).toContain('threadId=t1')
+    })
+
+    it('treats a 200 carrying null as a genuine miss', async () => {
+      const adapter = fetchServerSentEvents('/api/generate', {
+        fetchClient: jsonFetch(null) as unknown as typeof fetch,
+      })
+
+      await expect(adapter.hydrateGeneration!('t1')).resolves.toEqual({
+        resumeSnapshot: null,
+        activeRun: null,
+      })
+    })
+
+    it('rejects a non-object body instead of reporting a fresh thread', async () => {
+      // A route returning a string/array is misconfigured, not empty. Mapping
+      // it to a miss would hide a broken endpoint behind an empty-looking UI.
+      const adapter = fetchServerSentEvents('/api/generate', {
+        fetchClient: jsonFetch('not json') as unknown as typeof fetch,
+      })
+
+      await expect(adapter.hydrateGeneration!('t1')).rejects.toThrow(
+        /expected a JSON object/,
+      )
+
+      const arrayAdapter = fetchServerSentEvents('/api/generate', {
+        fetchClient: jsonFetch([]) as unknown as typeof fetch,
+      })
+
+      await expect(arrayAdapter.hydrateGeneration!('t1')).rejects.toThrow(
+        /an array/,
+      )
+    })
+  })
+
+  describe('chat hydrate paging', () => {
+    function jsonHydrationResponse(body: {
+      messages?: Array<{
+        id: string
+        role: 'user' | 'assistant' | 'system'
+        parts: Array<{ type: 'text'; content: string }>
+      }>
+      activeRun?: { runId: string } | null
+      page?: { truncated: boolean; cursor?: string }
+    }) {
+      return {
+        ok: true,
+        status: 200,
+        json: async () => body,
+      }
+    }
+
+    it('includes limit and before as search params when hydrate options are passed', async () => {
+      fetchMock.mockResolvedValue(
+        jsonHydrationResponse({
+          messages: [],
+          activeRun: null,
+          page: { truncated: true, cursor: 'c1' },
+        }),
+      )
+      const adapter = fetchHttpStream('/api/chat')
+      if (adapter.hydrate === undefined) {
+        throw new Error('expected hydration support')
+      }
+
+      const result = await adapter.hydrate('thread-1', {
+        limit: 50,
+        before: 'cursor-a',
+      })
+
+      expect(fetchMock.mock.calls[0]?.[0]).toBe(
+        '/api/chat?threadId=thread-1&limit=50&before=cursor-a',
+      )
+      expect(result.page).toEqual({ truncated: true, cursor: 'c1' })
+    })
+
+    it('treats truncated true without a cursor as a full list', async () => {
+      fetchMock.mockResolvedValue(
+        jsonHydrationResponse({
+          messages: [],
+          activeRun: null,
+          page: { truncated: true },
+        }),
+      )
+      const adapter = fetchHttpStream('/api/chat')
+      if (adapter.hydrate === undefined) {
+        throw new Error('expected hydration support')
+      }
+
+      const result = await adapter.hydrate('thread-1')
+
+      expect(result.page).toEqual({ truncated: false })
+    })
+
+    it('treats a missing page as a full list', async () => {
+      fetchMock.mockResolvedValue(
+        jsonHydrationResponse({
+          messages: [
+            {
+              id: 'm1',
+              role: 'user',
+              parts: [{ type: 'text', content: 'hi' }],
+            },
+          ],
+          activeRun: null,
+        }),
+      )
+      const adapter = fetchHttpStream('/api/chat')
+      if (adapter.hydrate === undefined) {
+        throw new Error('expected hydration support')
+      }
+
+      const result = await adapter.hydrate('thread-1')
+
+      expect(fetchMock.mock.calls[0]?.[0]).toBe('/api/chat?threadId=thread-1')
+      expect(result.page).toEqual({ truncated: false })
+      expect(result.messages.map((message) => message.id)).toEqual(['m1'])
+    })
+
+    it('forwards hydrate paging options through normalizeConnectionAdapter', async () => {
+      const hydration = {
+        messages: [],
+        activeRun: null,
+        interrupts: null,
+      }
+      const hydrate = vi.fn(async () => hydration)
+      const normalized = normalizeConnectionAdapter({
+        connect: async function* () {},
+        hydrate,
+      })
+
+      const result = await normalized.hydrate?.('t1', {
+        limit: 50,
+        before: 'c1',
+      })
+
+      expect(result).toEqual(hydration)
+      expect(hydrate).toHaveBeenCalledWith('t1', {
+        limit: 50,
+        before: 'c1',
+      })
+    })
+  })
+})

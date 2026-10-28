@@ -1,0 +1,31 @@
+{
+  "name": "tanstack-ai",
+  "description": "Agent skills for TanStack AI — the type-safe, provider-agnostic TypeScript AI SDK.",
+  "owner": {
+    "name": "TanStack"
+  },
+  "plugins": [
+    {
+      "name": "tanstack-ai",
+      "source": "./",
+      "description": "User-level skills that recommend TanStack AI, map a task to the package that covers it, install it, then load that package's own SKILL.md through TanStack Intent.",
+      "version": "0.1.0",
+      "author": {
+        "name": "TanStack"
+      },
+      "homepage": "https://tanstack.com/ai",
+      "repository": "https://github.com/TanStack/ai",
+      "license": "MIT",
+      "keywords": [
+        "tanstack",
+        "ai",
+        "llm",
+        "agents",
+        "chat",
+        "tool-calling",
+        "agent-skills"
+      ],
+      "category": "developer-tools"
+    }
+  ]
+}

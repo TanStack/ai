@@ -1,0 +1,1447 @@
+import { finishToolCallArguments } from '../../../utilities/tool-call-arguments'
+import { normalizeToolResult } from '../../../utilities/tool-result'
+import { tanstackMetadata } from '../../../utilities/merge-metadata'
+import { isProviderExecutedToolCall } from '../../../utilities/provider-executed'
+import { mergeStreams } from '../../../utilities/merge-streams'
+import { validateToolInput } from './input-validation'
+import type { AdapterYieldChunk } from '../../../utilities/adapter-yield-chunk'
+import {
+  StandardSchemaValidationError,
+  isStandardSchema,
+  parseWithStandardSchema,
+  validateWithStandardSchema,
+} from './schema-converter'
+import type { ToolApprovalResolution } from '../../../interrupts'
+import type {
+  AnyTool,
+  ContentPart,
+  CustomEvent,
+  EmitCustomEventOptions,
+  Interrupt,
+  ModelMessage,
+  RunFinishedEvent,
+  StreamChunk,
+  TextOptions,
+  Tool,
+  ToolCall,
+  ToolCallArgsEvent,
+  ToolCallEndEvent,
+  ToolCallStartEvent,
+  ToolExecutionContext,
+  ToolInputResponse,
+  ToolResultOutcome,
+  ToolOutputState,
+} from '../../../types'
+import type {
+  AfterToolCallDecision,
+  AfterToolCallInfo,
+  BeforeToolCallDecision,
+  GuardToolCallDecision,
+} from '../middleware/types'
+import type { McpResourceReadResult } from '../mcp/types'
+import type {
+  ContextFromTool,
+  DefinedContext,
+  MergeContext,
+  UnionToIntersection,
+} from '../runtime-context-types'
+
+function safeJsonParse(value: string): unknown {
+  try {
+    return JSON.parse(value)
+  } catch {
+    return value
+  }
+}
+
+/** Marks the synthetic tool that runs a subagent. */
+export const SUBAGENT_TOOL = Symbol.for('tanstack.ai.subagentTool')
+
+/** Set on the tool context of a subagent tool. Streams a child chunk live. */
+export const EMIT_STREAM_CHUNK = Symbol.for('tanstack.ai.emitStreamChunk')
+
+/** What a subagent tool's `execute` returns. */
+export interface SubagentToolOutcome {
+  subagentRunId: string
+  text: string
+  /**
+   * The child's typed result: the value a promise `run` resolved to, or the
+   * `RUN_FINISHED.result` of a child stream. When set, the parent model gets
+   * this instead of the child's text.
+   */
+  result?: unknown
+  error?: string
+  /** Set when the child stopped for outside input. The tool call stays open. */
+  interrupts?: Array<Interrupt>
+  /**
+   * The model gets `subagentRunId` in the result: it can continue the child
+   * (`sessionId`, with a persistence store) or a background child. Else the
+   * id stays in the subagent events only.
+   */
+  keepRunId?: true
+}
+
+function isSubagentTool(tool: AnyTool): boolean {
+  return (tool as { [SUBAGENT_TOOL]?: true })[SUBAGENT_TOOL] === true
+}
+
+/** Longest string a subagent result sends to the parent model unchanged. */
+const MODEL_RESULT_MAX_STRING = 2048
+
+/**
+ * A copy of a subagent result that is safe to send to the parent model.
+ * A string longer than {@link MODEL_RESULT_MAX_STRING} (for example a base64
+ * image) becomes a short note, so one image result cannot fill the context.
+ * The full result still travels on `SUBAGENT_FINISHED` for the UI.
+ */
+export function compactForModel(value: unknown, depth = 0): unknown {
+  if (typeof value === 'string') {
+    return value.length > MODEL_RESULT_MAX_STRING
+      ? `[omitted ${value.length} characters]`
+      : value
+  }
+  if (depth > 20 || typeof value !== 'object' || value === null) return value
+  if (Array.isArray(value)) {
+    return value.map((item) => compactForModel(item, depth + 1))
+  }
+  // A Date, a typed array, or another class instance stays as it is.
+  const proto: unknown = Object.getPrototypeOf(value)
+  if (proto !== Object.prototype && proto !== null) return value
+  return Object.fromEntries(
+    Object.entries(value).map(([key, item]) => [
+      key,
+      compactForModel(item, depth + 1),
+    ]),
+  )
+}
+
+/**
+ * MCP Apps metadata attached to a server tool at discovery (see
+ * `@tanstack/ai-mcp` discovery + `MCPManager.discover()`).
+ *
+ * - `uiResourceUri` / `serverId` are stamped by ai-mcp at tool discovery.
+ * - `readResource` is bound by `MCPManager.discover()` (the one site that has
+ *   both the tool and its originating source) so the resource can be eagerly
+ *   read at the emit site. Under `chat()`-managed MCP lifecycle
+ *   (`connection:'close'`), the MCP source is not disposed until the run
+ *   drains, so `readResource` is still live at this emit point. Note: a caller
+ *   who closes the MCP source early (outside `chat()`'s managed lifecycle)
+ *   degrades fail-soft — `readResource` may reject, the widget is absent, but
+ *   the tool result still flows to the model.
+ *   `@tanstack/ai` never imports `@tanstack/ai-mcp`; this travels structurally
+ *   on the tool.
+ */
+interface McpToolAppMeta {
+  uiResourceUri?: string
+  serverId?: string
+  /** Server-native (unprefixed) MCP tool name — used as the renderer's toolName. */
+  serverToolName?: string
+  readResource?: (uri: string) => Promise<McpResourceReadResult>
+}
+
+function readMcpAppMeta(tool: AnyTool): McpToolAppMeta | undefined {
+  const meta = (tool.metadata as { mcp?: McpToolAppMeta } | undefined)?.mcp
+  return meta
+}
+
+/**
+ * Eagerly read a tool's linked `ui://` resource (MCP Apps) and emit a
+ * `ui-resource` CUSTOM event so the client can render the widget. The model
+ * still receives the normal text tool-result; the widget rides alongside and
+ * never enters model input.
+ *
+ * Fail-soft: any read error logs a warning and emits nothing — it never throws,
+ * so the normal tool-result still flows and a broken widget cannot break the run.
+ */
+async function emitUiResourceIfLinked<TContext>(
+  tool: AnyTool,
+  context: ToolExecutionContext<TContext>,
+): Promise<void> {
+  const mcp = readMcpAppMeta(tool)
+  const uiUri = mcp?.uiResourceUri
+  if (!uiUri || !mcp.readResource) return
+
+  // The try covers ONLY the fallible read — keep `emitCustomEvent` out of it so
+  // an exception from the emit path can't be mislabeled as a read failure.
+  let matched: McpResourceReadResult['contents'][number] | undefined
+  try {
+    const res = await mcp.readResource(uiUri)
+    // Emit ONLY the content whose uri matches the requested `uiUri`. A source
+    // can return unrelated contents; falling back to `contents[0]` would risk
+    // rendering a widget that doesn't correspond to the linked resource. This
+    // is a display widget — a mismatched resource is worse than none, so if no
+    // content matches we fail-soft (warn + return) rather than emit.
+    matched = res.contents.find((c) => c.uri === uiUri)
+  } catch (err) {
+    // fail-soft — the text tool-result already flows; a broken widget must
+    // not break the run.
+    console.warn(`[mcp-apps] failed to read ui resource ${uiUri}:`, err)
+    return
+  }
+  if (!matched) {
+    console.warn(
+      `[mcp-apps] ui resource ${uiUri} returned no content matching that uri; not emitting`,
+    )
+    return
+  }
+  // NOTE: `toolCallId` is intentionally NOT set here — it is stamped onto
+  // every emitted event by the `executeToolCalls` context wrapper, so the
+  // UIResourceEvent.value.toolCallId / UIResourcePart.toolCallId contract is
+  // still satisfied downstream.
+  context.emitCustomEvent('ui-resource', {
+    resource: {
+      uri: matched.uri,
+      mimeType: matched.mimeType ?? 'text/html',
+      text: matched.text,
+      blob: matched.blob,
+    },
+    serverId: mcp.serverId,
+    toolName: mcp.serverToolName ?? tool.name,
+    meta: undefined,
+  })
+}
+
+/**
+ * Optional middleware hooks for tool execution.
+ * When provided, these callbacks are invoked before/after each tool execution.
+ */
+export interface ToolExecutionMiddlewareHooks {
+  onBeforeToolCall?: (
+    toolCall: ToolCall,
+    tool: Tool | undefined,
+    args: unknown,
+  ) => Promise<BeforeToolCallDecision>
+  /** Runs on the final checked args, just before the call runs. */
+  onGuardToolCall?: (
+    toolCall: ToolCall,
+    tool: Tool | undefined,
+    args: unknown,
+  ) => Promise<GuardToolCallDecision>
+  onAfterToolCall?: (info: AfterToolCallInfo) => Promise<AfterToolCallDecision>
+}
+
+/**
+ * Error thrown when middleware decides to abort the chat run during tool execution.
+ */
+export class MiddlewareAbortError extends Error {
+  constructor(reason: string) {
+    super(reason)
+    this.name = 'MiddlewareAbortError'
+  }
+}
+
+// The leaf context-inference primitives (ContextFromTool, MergeContext,
+// UnionToIntersection, DefinedContext) are shared with the chat activity
+// options layer — see ../runtime-context-types.
+type RequiredContextFromToolUnion<T> = T extends unknown
+  ? undefined extends ContextFromTool<T>
+    ? never
+    : ContextFromTool<T>
+  : never
+
+type ContextFromToolUnion<T> = [
+  UnionToIntersection<DefinedContext<ContextFromTool<T>>>,
+] extends [never]
+  ? unknown
+  : [RequiredContextFromToolUnion<T>] extends [never]
+    ? UnionToIntersection<DefinedContext<ContextFromTool<T>>> | undefined
+    : UnionToIntersection<DefinedContext<ContextFromTool<T>>>
+
+type ContextFromTools<TTools> = TTools extends readonly [
+  infer THead,
+  ...infer TTail,
+]
+  ? MergeContext<ContextFromTool<THead>, ContextFromTools<TTail>>
+  : TTools extends ReadonlyArray<infer TTool>
+    ? ContextFromToolUnion<TTool>
+    : unknown
+
+type ExecuteToolsContextArgs<TContext> = undefined extends TContext
+  ? [userContext?: TContext]
+  : [userContext: TContext]
+
+/**
+ * Manages tool call accumulation and execution for the chat() method's automatic tool execution loop.
+ *
+ * Responsibilities:
+ * - Accumulates streaming tool call events (ID, name, arguments)
+ * - Validates tool calls (filters out incomplete ones)
+ * - Executes tool `execute` functions with parsed arguments
+ * - Emits `TOOL_CALL_END` events for client visibility
+ * - Returns tool result messages for conversation history
+ *
+ * This class is used internally by the AI.chat() method to handle the automatic
+ * tool execution loop. It can also be used independently for custom tool execution logic.
+ *
+ * @example
+ * ```typescript
+ * const manager = new ToolCallManager(tools);
+ *
+ * // During streaming, accumulate tool calls
+ * for await (const chunk of stream) {
+ *   if (chunk.type === 'TOOL_CALL_START') {
+ *     manager.addToolCallStartEvent(chunk);
+ *   } else if (chunk.type === 'TOOL_CALL_ARGS') {
+ *     manager.addToolCallArgsEvent(chunk);
+ *   }
+ * }
+ *
+ * // After stream completes, execute tools
+ * if (manager.hasToolCalls()) {
+ *   const toolResults = yield* manager.executeTools(finishEvent);
+ *   messages = [...messages, ...toolResults];
+ *   manager.clear();
+ * }
+ * ```
+ */
+export class ToolCallManager<
+  TToolsOrContext = ReadonlyArray<AnyTool>,
+  TContext = TToolsOrContext extends ReadonlyArray<AnyTool>
+    ? ContextFromTools<TToolsOrContext>
+    : TToolsOrContext,
+> {
+  private readonly toolCallsMap = new Map<number, ToolCall>()
+  private readonly tools: TToolsOrContext extends ReadonlyArray<AnyTool>
+    ? TToolsOrContext
+    : ReadonlyArray<AnyTool>
+
+  constructor(
+    tools: TToolsOrContext extends ReadonlyArray<AnyTool>
+      ? TToolsOrContext
+      : ReadonlyArray<AnyTool>,
+  ) {
+    this.tools = tools
+  }
+
+  /**
+   * Add a TOOL_CALL_START event to begin tracking a tool call (AG-UI)
+   */
+  addToolCallStartEvent(event: ToolCallStartEvent): void {
+    // AG-UI's TOOL_CALL_START carries no index, and a non-first-party or
+    // malformed producer can send a second START for a toolCallId that is
+    // already tracked. Without this guard, a repeat with the same index
+    // overwrites the slot (wiping any TOOL_CALL_ARGS already accumulated),
+    // and a repeat with a missing/different index inserts a duplicate row
+    // that getToolCalls() returns twice, running the tool twice.
+    for (const toolCall of this.toolCallsMap.values()) {
+      if (toolCall.id === event.toolCallId) return
+    }
+    const index = (event as AdapterYieldChunk).index ?? this.toolCallsMap.size
+    const name = event.toolCallName
+    this.toolCallsMap.set(index, {
+      id: event.toolCallId,
+      type: 'function',
+      function: {
+        name,
+        arguments: '',
+      },
+      ...(event.metadata !== undefined && { metadata: event.metadata }),
+    })
+  }
+
+  /**
+   * Add a TOOL_CALL_ARGS event to accumulate arguments (AG-UI)
+   */
+  addToolCallArgsEvent(event: ToolCallArgsEvent): void {
+    const extra = event as AdapterYieldChunk
+    for (const [, toolCall] of this.toolCallsMap.entries()) {
+      if (toolCall.id === event.toolCallId) {
+        if (typeof extra.args === 'string' && extra.args !== '') {
+          toolCall.function.arguments = extra.args
+        } else {
+          toolCall.function.arguments += event.delta
+        }
+        break
+      }
+    }
+  }
+
+  /**
+   * Complete a tool call with its final input
+   * Called when TOOL_CALL_END is received
+   */
+  completeToolCall(
+    event: ToolCallEndEvent,
+  ): { args: string; input: unknown } | undefined {
+    for (const toolCall of this.toolCallsMap.values()) {
+      if (toolCall.id !== event.toolCallId) continue
+      const final = finishToolCallArguments(toolCall.function.arguments, event)
+      toolCall.function.arguments = final.args
+      return final
+    }
+    return undefined
+  }
+
+  /**
+   * Check if there are any complete tool calls to execute
+   */
+  hasToolCalls(): boolean {
+    return this.getToolCalls().length > 0
+  }
+
+  /**
+   * Get all complete tool calls (filtered for valid ID and name)
+   */
+  getToolCalls(): Array<ToolCall> {
+    return Array.from(this.toolCallsMap.values()).filter(
+      (tc) => tc.id && tc.function.name && tc.function.name.trim().length > 0,
+    )
+  }
+
+  /**
+   * Execute all tool calls and return tool result messages
+   * Yields TOOL_CALL_END events for streaming
+   * @param finishEvent - RUN_FINISHED event from the stream
+   */
+  async *executeTools(
+    finishEvent: RunFinishedEvent,
+    ...contextArgs: ExecuteToolsContextArgs<TContext>
+  ): AsyncGenerator<AdapterYieldChunk, Array<ModelMessage>, void> {
+    const toolCallsArray = this.getToolCalls()
+    const toolResults: Array<ModelMessage> = []
+    const hasRuntimeContext = contextArgs.length > 0
+    const userContext = contextArgs[0]
+
+    for (const toolCall of toolCallsArray) {
+      const tool = this.tools.find((t) => t.name === toolCall.function.name)
+
+      let toolResultContent: string | Array<ContentPart>
+      let toolResultState: ToolOutputState | undefined
+      // Holds the parsed/validated execution output before serialization.
+      // Stays `undefined` when the tool has no `execute` (client-only
+      // tools) or when execution throws.
+      let toolOutput: unknown
+      if (tool?.execute) {
+        try {
+          // Parse arguments (normalize null/non-object to {} for empty tool_use blocks)
+          let args: unknown
+          try {
+            const argsString = toolCall.function.arguments.trim() || '{}'
+            const parsed = JSON.parse(argsString)
+            args = parsed && typeof parsed === 'object' ? parsed : {}
+          } catch (parseError) {
+            throw new Error(
+              `Failed to parse tool arguments as JSON: ${toolCall.function.arguments}`,
+            )
+          }
+
+          args = await validateToolInput(tool.inputSchema, args, tool.name)
+
+          // Execute the tool
+          const executionContext = {
+            toolCallId: toolCall.id,
+            threadId: finishEvent.threadId,
+            context: userContext,
+            emitCustomEvent: () => {},
+          } as ToolExecutionContext<TContext>
+          let result = hasRuntimeContext
+            ? await tool.execute(args, executionContext)
+            : await tool.execute(args)
+
+          // Validate output against outputSchema if provided (for Standard
+          // Schema compliant schemas). Unlike the previous implementation we
+          // intentionally validate `undefined`/`null` results too, so a tool
+          // whose schema forbids them surfaces a validation error instead of
+          // silently passing — the schema itself decides whether they're valid.
+          if (tool.outputSchema && isStandardSchema(tool.outputSchema)) {
+            try {
+              result = parseWithStandardSchema(tool.outputSchema, result)
+            } catch (validationError: unknown) {
+              const message =
+                validationError instanceof Error
+                  ? validationError.message
+                  : 'Validation failed'
+              throw new Error(
+                `Output validation failed for tool ${tool.name}: ${message}`,
+              )
+            }
+          }
+
+          toolOutput = result
+          toolResultContent = normalizeToolResult(result)
+        } catch (error: unknown) {
+          // If tool execution fails, add error message
+          const message =
+            error instanceof Error ? error.message : 'Unknown error'
+          toolResultContent = `Error executing tool: ${message}`
+          toolResultState = 'output-error'
+        }
+      } else {
+        // Tool doesn't have execute function, add placeholder
+        toolResultContent = `Tool ${toolCall.function.name} does not have an execute function`
+      }
+
+      // Emit TOOL_CALL_END event
+      yield {
+        type: 'TOOL_CALL_END',
+        toolCallId: toolCall.id,
+        toolCallName: toolCall.function.name,
+        model: (() => {
+          const model = tanstackMetadata(finishEvent)?.model
+          return typeof model === 'string' ? model : undefined
+        })(),
+        timestamp: Date.now(),
+        // Typed parsed output (undefined for failed exec / client-only tools).
+        ...(toolOutput !== undefined ? { output: toolOutput } : {}),
+        result: toolResultContent,
+        ...(toolResultState !== undefined && { state: toolResultState }),
+      }
+
+      // Add tool result message
+      toolResults.push({
+        role: 'tool',
+        content: toolResultContent,
+        toolCallId: toolCall.id,
+      })
+    }
+
+    return toolResults
+  }
+
+  /**
+   * Clear the tool calls map for the next iteration
+   */
+  clear(): void {
+    this.toolCallsMap.clear()
+  }
+}
+
+export interface ToolResult {
+  toolCallId: string
+  toolName: string
+  result: any
+  state?: 'output-available' | 'output-error'
+  /** Set when the user or middleware cancelled or denied the tool call; state is output-error. */
+  outcome?: ToolResultOutcome
+  /** Duration of tool execution in milliseconds (only for server-executed tools) */
+  duration?: number
+  /**
+   * Parsed tool input (after JSON parse + optional Standard Schema validation).
+   * Parsed tool input after JSON parse + optional Standard Schema validation.
+   */
+  input?: unknown
+  /**
+   * Parsed tool output before wire serialization. Surfaced on engine-emitted
+   * `TOOL_CALL_END` events so consumers can read typed `output` without
+   * re-parsing `result`. Undefined on error paths and when execution is skipped.
+   */
+  output?: unknown
+}
+
+export interface ApprovalRequest {
+  toolCallId: string
+  toolName: string
+  input: any
+  approvalId: string
+}
+
+export interface ClientToolRequest {
+  toolCallId: string
+  toolName: string
+  input: any
+}
+
+/** Form or sampling input that paused a server tool. */
+export interface McpInputRequest {
+  toolCallId: string
+  toolName: string
+  kind: 'form' | 'sampling'
+  request: unknown
+  /**
+   * The interrupt reason. Default: `'mcp_input'`. An empty reason, and a
+   * reason that clients read as another kind of interrupt, use the default.
+   */
+  reason?: string
+}
+
+export interface McpInputRequiredThrow {
+  name: 'MCPInputRequiredError'
+  kind: 'form' | 'sampling'
+  request: unknown
+  reason?: unknown
+}
+
+/** Reasons that clients read as another kind of interrupt. */
+const RESERVED_INTERRUPT_REASONS = new Set(['tanstack:client_tool_execution'])
+
+/** The reason a thrown input request names, when it can use it. */
+export function inputRequestReason(reason: unknown) {
+  return typeof reason === 'string' &&
+    reason !== '' &&
+    !RESERVED_INTERRUPT_REASONS.has(reason)
+    ? reason
+    : undefined
+}
+
+export function isMcpInputRequired(
+  value: unknown,
+): value is McpInputRequiredThrow {
+  if (typeof value !== 'object' || value === null) return false
+  if (!('name' in value) || value.name !== 'MCPInputRequiredError') {
+    return false
+  }
+  if (!('kind' in value)) return false
+  const kindIsFormOrSampling =
+    value.kind === 'form' || value.kind === 'sampling'
+  if (!kindIsFormOrSampling) return false
+  return 'request' in value
+}
+
+export interface ToolResumeExecutionState {
+  clientToolErrors?: ReadonlyMap<string, string>
+  deniedToolResults?: ReadonlyMap<string, unknown>
+  cancelledToolCallIds?: ReadonlySet<string>
+  /** Answers to `mcp_input` interrupts, by tool call id. */
+  inputResponses?: ReadonlyMap<string, ToolInputResponse>
+}
+
+export function approvalResolution(
+  approvals: ReadonlyMap<string, ToolApprovalResolution>,
+  toolCallId: string,
+): ToolApprovalResolution | undefined {
+  return approvals.get(toolCallId) ?? approvals.get(`approval_${toolCallId}`)
+}
+
+function isApproved(resolution: ToolApprovalResolution): boolean {
+  return typeof resolution === 'boolean' ? resolution : resolution.approved
+}
+
+function editedApprovalArgs(
+  resolution: ToolApprovalResolution,
+): unknown | undefined {
+  return typeof resolution === 'object' && resolution.approved
+    ? resolution.editedArgs
+    : undefined
+}
+
+function deniedApprovalResult(resolution: ToolApprovalResolution): unknown {
+  return typeof resolution === 'object' && !resolution.approved
+    ? (resolution.payload ?? { error: 'User declined tool execution' })
+    : { error: 'User declined tool execution' }
+}
+
+export interface ExecuteToolCallsResult {
+  /** Tool results ready to send to LLM */
+  results: Array<ToolResult>
+  /** Tools that need user approval before execution */
+  needsApproval: Array<ApprovalRequest>
+  /** Tools that need client-side execution */
+  needsClientExecution: Array<ClientToolRequest>
+  /** Server tools that paused for MCP form or sampling input */
+  inputRequired: Array<McpInputRequest>
+  /** Interrupts raised by subagents that run as tools */
+  subagentInterrupts: Array<Interrupt>
+}
+
+/**
+ * Helper that runs a tool execution promise while polling for pending custom events.
+ * Yields any custom events that are emitted during execution, then returns the
+ * execution result.
+ */
+async function* executeWithEventPolling<T>(
+  executionPromise: Promise<T>,
+  pendingEvents: Array<CustomEvent | StreamChunk>,
+): AsyncGenerator<CustomEvent | StreamChunk, T, void> {
+  // Use an object to track mutable state across the async boundary
+  const state = { done: false, result: undefined as T }
+  const executionWithFlag = executionPromise.then((r) => {
+    state.done = true
+    state.result = r
+    return r
+  })
+
+  while (!state.done) {
+    // Wait for either the execution to complete or a short timeout
+    await Promise.race([
+      executionWithFlag,
+      new Promise((resolve) => setTimeout(resolve, 10)),
+    ])
+
+    // Flush any pending events
+    let event: CustomEvent | StreamChunk | undefined
+    while ((event = pendingEvents.shift()) !== undefined) {
+      yield event
+    }
+  }
+
+  // Final flush in case events were emitted right at completion
+  let event: CustomEvent | StreamChunk | undefined
+  while ((event = pendingEvents.shift()) !== undefined) {
+    yield event
+  }
+
+  return state.result
+}
+
+/**
+ * Push a tool result, then run the onAfterToolCall hook. A `replaceResult`
+ * decision sets the pushed result, so the model and the stream see it.
+ * The state does not change: an error result stays an error.
+ */
+async function pushResultAndRunAfterHook(
+  results: Array<ToolResult>,
+  entry: ToolResult,
+  info: AfterToolCallInfo,
+  middlewareHooks?: ToolExecutionMiddlewareHooks,
+) {
+  results.push(entry)
+  const decision = await middlewareHooks?.onAfterToolCall?.(info)
+  if (decision?.type === 'replaceResult') entry.result = decision.result
+}
+
+/**
+ * Apply a middleware onBeforeToolCall decision.
+ * Returns the (possibly transformed) input if execution should proceed,
+ * or undefined if the tool call was skipped (result already pushed).
+ * Throws MiddlewareAbortError if the decision is 'abort'.
+ */
+async function applyBeforeToolCallDecision(
+  toolCall: ToolCall,
+  tool: Tool,
+  input: unknown,
+  toolName: string,
+  middlewareHooks: ToolExecutionMiddlewareHooks,
+  results: Array<ToolResult>,
+): Promise<{ proceed: true; input: unknown } | { proceed: false }> {
+  if (!middlewareHooks.onBeforeToolCall) {
+    return { proceed: true, input }
+  }
+
+  const decision = await middlewareHooks.onBeforeToolCall(toolCall, tool, input)
+  return applyToolCallDecision(
+    decision,
+    toolCall,
+    tool,
+    input,
+    toolName,
+    middlewareHooks,
+    results,
+  )
+}
+
+/**
+ * Apply an onBeforeToolCall or onGuardToolCall decision.
+ * Returns the input to run with, or proceed false when the call was skipped
+ * (result already pushed). Throws MiddlewareAbortError on 'abort'.
+ */
+async function applyToolCallDecision(
+  decision: BeforeToolCallDecision | GuardToolCallDecision,
+  toolCall: ToolCall,
+  tool: Tool,
+  input: unknown,
+  toolName: string,
+  middlewareHooks: ToolExecutionMiddlewareHooks,
+  results: Array<ToolResult>,
+): Promise<{ proceed: true; input: unknown } | { proceed: false }> {
+  if (!decision) {
+    return { proceed: true, input }
+  }
+
+  if (decision.type === 'abort') {
+    throw new MiddlewareAbortError(decision.reason || 'Aborted by middleware')
+  }
+
+  if (decision.type === 'skip') {
+    // One parsed value: the hook sees the same value that is pushed.
+    const skipResult =
+      typeof decision.result === 'string'
+        ? safeJsonParse(decision.result)
+        : (decision.result ?? null)
+    await pushResultAndRunAfterHook(
+      results,
+      { toolCallId: toolCall.id, toolName, result: skipResult, duration: 0 },
+      {
+        toolCall,
+        tool,
+        toolName,
+        toolCallId: toolCall.id,
+        ok: true,
+        duration: 0,
+        result: skipResult,
+      },
+      middlewareHooks,
+    )
+    return { proceed: false }
+  }
+
+  return decision.type === 'transformArgs'
+    ? { proceed: true, input: decision.args }
+    : { proceed: true, input }
+}
+
+/**
+ * Execute a server-side tool with event polling, output validation, and middleware hooks.
+ * Yields CustomEvent chunks during execution and pushes the result to the results array.
+ */
+export async function* executeServerTool<TContext = unknown>(
+  toolCall: ToolCall,
+  tool: AnyTool,
+  toolName: string,
+  input: unknown,
+  context: ToolExecutionContext<TContext>,
+  pendingEvents: Array<CustomEvent | StreamChunk>,
+  results: Array<ToolResult>,
+  middlewareHooks?: ToolExecutionMiddlewareHooks,
+  inputRequired?: Array<McpInputRequest>,
+  subagentInterrupts?: Array<Interrupt>,
+): AsyncGenerator<CustomEvent | StreamChunk, void, void> {
+  const startTime = Date.now()
+  try {
+    if (!tool.execute) {
+      throw new Error(`Tool ${toolName} has no execute() implementation`)
+    }
+    const subagent = isSubagentTool(tool)
+    if (subagent) {
+      Object.assign(context, {
+        [EMIT_STREAM_CHUNK]: (chunk: StreamChunk) => pendingEvents.push(chunk),
+      })
+    }
+    const executionPromise = Promise.resolve(tool.execute(input, context))
+    let result = yield* executeWithEventPolling(executionPromise, pendingEvents)
+    const duration = Date.now() - startTime
+
+    if (subagent) {
+      const outcome = result as SubagentToolOutcome
+      if (outcome.interrupts?.length) {
+        // The child waits for outside input. Leave the call open so the
+        // resume run executes it again and continues the same child.
+        subagentInterrupts?.push(...outcome.interrupts)
+        return
+      }
+      const runId = outcome.keepRunId
+        ? { subagentRunId: outcome.subagentRunId }
+        : {}
+      const modelResult = outcome.error
+        ? { ...runId, error: outcome.error }
+        : {
+            ...runId,
+            // A string result is also the child's text: the model gets all of it.
+            result:
+              outcome.result === undefined || typeof outcome.result === 'string'
+                ? outcome.text
+                : compactForModel(outcome.result),
+          }
+      await pushResultAndRunAfterHook(
+        results,
+        {
+          toolCallId: toolCall.id,
+          toolName,
+          result: modelResult,
+          input,
+          output: modelResult,
+          duration,
+          ...(outcome.error ? { state: 'output-error' as const } : {}),
+        },
+        {
+          toolCall,
+          tool,
+          toolName,
+          toolCallId: toolCall.id,
+          duration,
+          ...(outcome.error
+            ? { ok: false as const, error: new Error(outcome.error) }
+            : { ok: true as const, result: modelResult }),
+        },
+        middlewareHooks,
+      )
+      return
+    }
+
+    // MCP Apps: if this tool links a ui:// resource, eagerly read it and queue
+    // a `ui-resource` CUSTOM event. The MCP source stays live until the run
+    // drains (MCPManager's `connection:'close'` policy disposes on completion),
+    // so `readResource` is callable here. Fail-soft: a read error warns and
+    // emits nothing — the text result still flows.
+    await emitUiResourceIfLinked(tool, context)
+
+    // Flush remaining events (including any queued ui-resource event)
+    let pendingEvent: CustomEvent | StreamChunk | undefined
+    while ((pendingEvent = pendingEvents.shift()) !== undefined) {
+      yield pendingEvent
+    }
+
+    // Validate output against outputSchema if provided. Validates
+    // `undefined`/`null` too — the schema decides whether they're valid.
+    if (tool.outputSchema && isStandardSchema(tool.outputSchema)) {
+      result = parseWithStandardSchema(tool.outputSchema, result)
+    }
+
+    const finalResult =
+      typeof result === 'string' ? safeJsonParse(result) : (result ?? null)
+
+    await pushResultAndRunAfterHook(
+      results,
+      {
+        toolCallId: toolCall.id,
+        toolName,
+        result: finalResult,
+        input,
+        output: finalResult,
+        duration,
+      },
+      {
+        toolCall,
+        tool,
+        toolName,
+        toolCallId: toolCall.id,
+        ok: true,
+        duration,
+        result: finalResult,
+      },
+      middlewareHooks,
+    )
+  } catch (error: unknown) {
+    const duration = Date.now() - startTime
+
+    // Flush remaining events
+    let pendingEvent: CustomEvent | StreamChunk | undefined
+    while ((pendingEvent = pendingEvents.shift()) !== undefined) {
+      yield pendingEvent
+    }
+
+    if (error instanceof MiddlewareAbortError) {
+      throw error
+    }
+
+    // Same shape as MCPInputRequiredError. Pause instead of a tool error.
+    if (isMcpInputRequired(error)) {
+      if (!inputRequired) throw error
+      const reason = inputRequestReason(error.reason)
+      inputRequired.push({
+        toolCallId: toolCall.id,
+        toolName,
+        kind: error.kind,
+        request: error.request,
+        ...(reason !== undefined ? { reason } : {}),
+      })
+      return
+    }
+
+    const message = error instanceof Error ? error.message : 'Unknown error'
+    await pushResultAndRunAfterHook(
+      results,
+      {
+        toolCallId: toolCall.id,
+        toolName,
+        result: { error: message },
+        input,
+        state: 'output-error',
+        duration,
+      },
+      {
+        toolCall,
+        tool,
+        toolName,
+        toolCallId: toolCall.id,
+        ok: false,
+        duration,
+        error,
+      },
+      middlewareHooks,
+    )
+  }
+}
+
+async function buildClientToolResult(
+  toolCallId: string,
+  toolName: string,
+  tool: AnyTool,
+  rawResult: unknown,
+  input?: unknown,
+  errorText?: string,
+): Promise<ToolResult> {
+  if (errorText !== undefined) {
+    return {
+      toolCallId,
+      toolName,
+      result: { error: errorText },
+      input,
+      state: 'output-error',
+    }
+  }
+
+  try {
+    let result = rawResult
+    if (tool.outputSchema && isStandardSchema(tool.outputSchema)) {
+      const validation = await validateWithStandardSchema<unknown>(
+        tool.outputSchema,
+        result,
+      )
+      if (!validation.success) {
+        throw new StandardSchemaValidationError(validation.issues)
+      }
+      result = validation.data
+    }
+
+    const parsed =
+      typeof result === 'string' ? safeJsonParse(result) : (result ?? null)
+    return {
+      toolCallId,
+      toolName,
+      result: parsed,
+      input,
+      output: parsed,
+    }
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'Validation failed'
+    return {
+      toolCallId,
+      toolName,
+      result: { error: message },
+      input,
+      state: 'output-error',
+    }
+  }
+}
+
+/**
+ * Execute tool calls based on their configuration.
+ * Yields CustomEvent chunks during tool execution for real-time progress updates.
+ *
+ * Handles three cases:
+ * 1. Client tools (no execute) - request client to execute
+ * 2. Server tools with approval - check approval before executing
+ * 3. Normal server tools - execute immediately
+ *
+ * @param toolCalls - Tool calls from the LLM
+ * @param tools - Available tools with their configurations
+ * @param threadId - The thread id of the run. Each server tool gets it on
+ *   its context.
+ * @param approvals - Map keyed by toolCallId (or `approval_${toolCallId}`) → ToolApprovalResolution
+ * @param clientResults - Map of client-side execution results (toolCallId -> result)
+ * @param createCustomEventChunk - Factory to create CustomEvent chunks (optional)
+ * @param toolExecution - `'parallel'` (default) prepares every call in call
+ *   order, then starts the server tools together. `'sequential'` runs one
+ *   call at a time. Results come back in call order either way.
+ * @param repairToolInput - How an input that fails the final check is
+ *   repaired: the built-in repair (default), none (`false`), or a function.
+ * @param capabilities - The run's capability readers. Each server tool gets
+ *   them on its context as `get` and `getOptional`.
+ */
+export async function* executeToolCalls<TContext = unknown>(
+  toolCalls: Array<ToolCall>,
+  tools: ReadonlyArray<AnyTool>,
+  threadId: string,
+  approvals: Map<string, ToolApprovalResolution> = new Map(),
+  clientResults: Map<string, any> = new Map(),
+  createCustomEventChunk?: (
+    eventName: string,
+    value: Record<string, any>,
+    options?: EmitCustomEventOptions,
+  ) => CustomEvent,
+  middlewareHooks?: ToolExecutionMiddlewareHooks,
+  userContext?: TContext,
+  abortSignal?: AbortSignal,
+  resumeState?: ToolResumeExecutionState,
+  toolExecution: NonNullable<TextOptions['toolExecution']> = 'parallel',
+  repairToolInput?: TextOptions['repairToolInput'],
+  capabilities?: Pick<ToolExecutionContext, 'get' | 'getOptional'>,
+): AsyncGenerator<CustomEvent | StreamChunk, ExecuteToolCallsResult, void> {
+  const results: Array<ToolResult> = []
+  const needsApproval: Array<ApprovalRequest> = []
+  const needsClientExecution: Array<ClientToolRequest> = []
+  const inputRequired: Array<McpInputRequest> = []
+
+  // Create tool lookup map
+  const toolMap = new Map<string, AnyTool>()
+  for (const tool of tools) {
+    toolMap.set(tool.name, tool)
+  }
+
+  const runsInOrder = toolExecution === 'sequential'
+  // Parallel mode collects the server runs here. `mergeStreams` starts them
+  // together after the loop.
+  const runs: Array<AsyncGenerator<CustomEvent | StreamChunk, void, void>> = []
+  // Errors thrown by a run or a before-hook. They are rethrown only after every
+  // started tool has finished, so no tool outlives the batch.
+  const failures: Array<unknown> = []
+  // Each call's subagent interrupts, so they come back in call order.
+  const interruptsByCall = new Map<string, Array<Interrupt>>()
+
+  // A tool that has not started when the run aborts never starts. It gets an
+  // error result, so every call of the batch still has a result.
+  async function* runServerTool(
+    toolCall: ToolCall,
+    tool: AnyTool,
+    toolName: string,
+    input: unknown,
+    context: ToolExecutionContext<TContext>,
+    pendingEvents: Array<CustomEvent | StreamChunk>,
+  ): AsyncGenerator<CustomEvent | StreamChunk, void, void> {
+    try {
+      if (abortSignal?.aborted) {
+        await pushResultAndRunAfterHook(
+          results,
+          {
+            toolCallId: toolCall.id,
+            toolName,
+            result: { error: 'Operation aborted' },
+            input,
+            state: 'output-error',
+            duration: 0,
+          },
+          {
+            toolCall,
+            tool,
+            toolName,
+            toolCallId: toolCall.id,
+            ok: false,
+            duration: 0,
+            error: new Error('Operation aborted'),
+          },
+          middlewareHooks,
+        )
+        return
+      }
+      const interrupts: Array<Interrupt> = []
+      interruptsByCall.set(toolCall.id, interrupts)
+      yield* executeServerTool(
+        toolCall,
+        tool,
+        toolName,
+        input,
+        context,
+        pendingEvents,
+        results,
+        middlewareHooks,
+        inputRequired,
+        interrupts,
+      )
+    } catch (error) {
+      failures.push(error)
+    }
+  }
+
+  // Batch gating: when any tool in the batch still needs an approval decision,
+  // defer all execution so side effects don't happen before the user decides.
+  const hasPendingApprovals = toolCalls.some((tc) => {
+    const t = toolMap.get(tc.function.name)
+    return (
+      t?.needsApproval &&
+      approvalResolution(approvals, tc.id) === undefined &&
+      !resumeState?.cancelledToolCallIds?.has(tc.id)
+    )
+  })
+  // The calls that the gating holds back.
+  const held: Array<ToolCall> = []
+
+  for (const toolCall of toolCalls) {
+    // Provider-executed tools (Anthropic web_search / web_fetch) already ran
+    // inside the provider response and carry their result on the call's
+    // metadata. They have no execute() and must not become client requests.
+    if (isProviderExecutedToolCall(toolCall)) continue
+
+    const tool = toolMap.get(toolCall.function.name)
+    const toolName = toolCall.function.name
+
+    if (!tool) {
+      // Unknown tool - return error
+      results.push({
+        toolCallId: toolCall.id,
+        toolName,
+        result: { error: `Unknown tool: ${toolName}` },
+        state: 'output-error',
+      })
+      continue
+    }
+
+    // Skip non-pending tools while approvals are outstanding. A client tool
+    // with no approval, or an approved one, is still sent to the client.
+    if (hasPendingApprovals) {
+      const resolution = approvalResolution(approvals, toolCall.id)
+      const isPendingApproval = tool.needsApproval && resolution === undefined
+      const isClientRequest =
+        !tool.execute &&
+        (!tool.needsApproval ||
+          (resolution !== undefined && isApproved(resolution)))
+      if (!isPendingApproval && !isClientRequest) {
+        held.push(toolCall)
+        continue
+      }
+    }
+
+    if (resumeState?.cancelledToolCallIds?.has(toolCall.id)) {
+      results.push({
+        toolCallId: toolCall.id,
+        toolName,
+        result: { error: 'Tool execution cancelled' },
+        state: 'output-error',
+        outcome: 'cancelled',
+      })
+      continue
+    }
+
+    // Parse arguments
+    let input: unknown = {}
+    const argsStr = toolCall.function.arguments.trim() || '{}'
+    if (argsStr) {
+      try {
+        const parsed = JSON.parse(argsStr)
+        // Normalize null/non-object to {} (e.g. Anthropic empty tool_use blocks)
+        input = parsed && typeof parsed === 'object' ? parsed : {}
+      } catch {
+        results.push({
+          toolCallId: toolCall.id,
+          toolName,
+          result: {
+            error: `Failed to parse tool arguments as JSON: ${argsStr}`,
+          },
+          input,
+          state: 'output-error',
+        })
+        continue
+      }
+    }
+    // The input that the model sent, to tell later edits apart from it.
+    const sentInput = JSON.stringify(input)
+
+    const resolution = tool.needsApproval
+      ? approvalResolution(approvals, toolCall.id)
+      : undefined
+    // A call that waits for approval shows its checked input. Middleware
+    // runs only once the call is approved.
+    const needsPreview = tool.needsApproval && resolution === undefined
+    if (resolution !== undefined && !isApproved(resolution)) {
+      // User declined
+      results.push({
+        toolCallId: toolCall.id,
+        toolName,
+        result:
+          resumeState?.deniedToolResults?.get(toolCall.id) ??
+          deniedApprovalResult(resolution),
+        input,
+        state: 'output-error',
+        outcome: 'denied',
+      })
+      continue
+    }
+    if (resolution !== undefined) {
+      input = editedApprovalArgs(resolution) ?? input
+    }
+    // A client tool whose result came back already ran with the input that
+    // the hook and the check gave it before dispatch. Checking the raw model
+    // input again would drop a real result.
+    const clientError = resumeState?.clientToolErrors?.get(toolCall.id)
+    if (
+      !tool.execute &&
+      (clientResults.has(toolCall.id) || clientError !== undefined)
+    ) {
+      results.push(
+        await buildClientToolResult(
+          toolCall.id,
+          toolName,
+          tool,
+          clientResults.get(toolCall.id),
+          input,
+          clientError,
+        ),
+      )
+      continue
+    }
+
+    if (!needsPreview && middlewareHooks) {
+      let decision: Awaited<ReturnType<typeof applyBeforeToolCallDecision>>
+      try {
+        decision = await applyBeforeToolCallDecision(
+          toolCall,
+          tool,
+          input,
+          toolName,
+          middlewareHooks,
+          results,
+        )
+      } catch (error) {
+        // The calls prepared so far still run, as they would one at a time.
+        failures.push(error)
+        break
+      }
+      if (!decision.proceed) continue
+      input = decision.input
+    }
+
+    // The final check, after approval edits and middleware: invalid input
+    // becomes a tool error, and the checked value is what runs.
+    try {
+      input = await validateToolInput(
+        tool.inputSchema,
+        input,
+        toolName,
+        typeof repairToolInput === 'function'
+          ? (failed, error) =>
+              repairToolInput({ tool, toolCall, input: failed, error })
+          : repairToolInput,
+      )
+    } catch (error) {
+      // The model sees its own arguments, never values that middleware put
+      // in. They stay out of the error, so tracing does not record them.
+      // When an edit or middleware changed the input, the model is told so,
+      // so it does not retry the same valid call.
+      let changed: boolean
+      try {
+        changed = JSON.stringify(input) !== sentInput
+      } catch {
+        changed = true
+      }
+      const message = `${
+        error instanceof Error ? error.message : 'Validation failed'
+      }\nReceived arguments: ${argsStr}${
+        changed
+          ? '\nAn approval edit or middleware changed these arguments before the check. The changed input failed the check.'
+          : ''
+      }`
+      await pushResultAndRunAfterHook(
+        results,
+        {
+          toolCallId: toolCall.id,
+          toolName,
+          result: { error: message },
+          input,
+          state: 'output-error',
+          duration: 0,
+        },
+        {
+          toolCall,
+          tool,
+          toolName,
+          toolCallId: toolCall.id,
+          ok: false,
+          duration: 0,
+          error,
+        },
+        // A preview call runs no hooks.
+        needsPreview ? undefined : middlewareHooks,
+      )
+      continue
+    }
+    if (needsPreview) {
+      needsApproval.push({
+        toolCallId: toolCall.id,
+        toolName,
+        input,
+        approvalId: `approval_${toolCall.id}`,
+      })
+      continue
+    }
+
+    // The guard tier sees the final checked input. It always runs, also
+    // when an onBeforeToolCall decision came first, and cannot change it.
+    if (middlewareHooks?.onGuardToolCall) {
+      let guard: Awaited<ReturnType<typeof applyToolCallDecision>>
+      try {
+        guard = await applyToolCallDecision(
+          await middlewareHooks.onGuardToolCall(toolCall, tool, input),
+          toolCall,
+          tool,
+          input,
+          toolName,
+          middlewareHooks,
+          results,
+        )
+      } catch (error) {
+        failures.push(error)
+        break
+      }
+      if (!guard.proceed) continue
+    }
+
+    // Create a ToolExecutionContext for this tool call with event emission
+    const pendingEvents: Array<CustomEvent | StreamChunk> = []
+    const inputResponse = resumeState?.inputResponses?.get(toolCall.id)
+    const context = {
+      toolCallId: toolCall.id,
+      context: userContext,
+      abortSignal,
+      threadId,
+      ...capabilities,
+      ...(inputResponse !== undefined ? { inputResponse } : {}),
+      emitCustomEvent: (
+        eventName: string,
+        value: Record<string, any>,
+        options?: EmitCustomEventOptions,
+      ) => {
+        if (createCustomEventChunk) {
+          pendingEvents.push(
+            createCustomEventChunk(
+              eventName,
+              {
+                ...value,
+                toolCallId: toolCall.id,
+              },
+              options,
+            ),
+          )
+        }
+      },
+    } as ToolExecutionContext<TContext>
+
+    // Client-side tool (no execute function), approved or with no approval
+    if (!tool.execute) {
+      needsClientExecution.push({ toolCallId: toolCall.id, toolName, input })
+      continue
+    }
+
+    // Server tool, approved or with no approval
+    const run = runServerTool(
+      toolCall,
+      tool,
+      toolName,
+      input,
+      context,
+      pendingEvents,
+    )
+    if (!runsInOrder) {
+      runs.push(run)
+      continue
+    }
+    yield* run
+    if (failures.length > 0) break
+  }
+
+  yield* mergeStreams(runs)
+  if (failures.length > 0) throw failures[0]
+
+  // No approval waits after all: each held-back call's preview failed its
+  // check or its arguments. The held calls run now, so each call has a result.
+  let heldInterrupts: Array<Interrupt> = []
+  if (held.length > 0 && needsApproval.length === 0) {
+    const rest = yield* executeToolCalls(
+      held,
+      tools,
+      threadId,
+      approvals,
+      clientResults,
+      createCustomEventChunk,
+      middlewareHooks,
+      userContext,
+      abortSignal,
+      resumeState,
+      toolExecution,
+      repairToolInput,
+      capabilities,
+    )
+    results.push(...rest.results)
+    needsClientExecution.push(...rest.needsClientExecution)
+    inputRequired.push(...rest.inputRequired)
+    heldInterrupts = rest.subagentInterrupts
+  }
+
+  // Parallel tools finish in any order. The model gets the results, input
+  // requests, and interrupts in the order it made the calls.
+  const callOrder = new Map(toolCalls.map((tc, index) => [tc.id, index]))
+  const byCallOrder = (a: { toolCallId: string }, b: { toolCallId: string }) =>
+    (callOrder.get(a.toolCallId) ?? 0) - (callOrder.get(b.toolCallId) ?? 0)
+  results.sort(byCallOrder)
+  needsClientExecution.sort(byCallOrder)
+  inputRequired.sort(byCallOrder)
+
+  return {
+    results,
+    needsApproval,
+    needsClientExecution,
+    inputRequired,
+    subagentInterrupts: [
+      ...toolCalls.flatMap((tc) => interruptsByCall.get(tc.id) ?? []),
+      ...heldInterrupts,
+    ],
+  }
+}

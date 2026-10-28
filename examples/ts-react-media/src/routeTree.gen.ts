@@ -10,33 +10,53 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as ApiMarbleSplatRouteImport } from './routes/api.marble-splat'
+import { Route as ApiFalProxyRouteImport } from './routes/api.fal.proxy'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiMarbleSplatRoute = ApiMarbleSplatRouteImport.update({
+  id: '/api/marble-splat',
+  path: '/api/marble-splat',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiFalProxyRoute = ApiFalProxyRouteImport.update({
+  id: '/api/fal/proxy',
+  path: '/api/fal/proxy',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/api/marble-splat': typeof ApiMarbleSplatRoute
+  '/api/fal/proxy': typeof ApiFalProxyRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/api/marble-splat': typeof ApiMarbleSplatRoute
+  '/api/fal/proxy': typeof ApiFalProxyRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/api/marble-splat': typeof ApiMarbleSplatRoute
+  '/api/fal/proxy': typeof ApiFalProxyRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/'
+  fullPaths: '/' | '/api/marble-splat' | '/api/fal/proxy'
   fileRoutesByTo: FileRoutesByTo
-  to: '/'
-  id: '__root__' | '/'
+  to: '/' | '/api/marble-splat' | '/api/fal/proxy'
+  id: '__root__' | '/' | '/api/marble-splat' | '/api/fal/proxy'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  ApiMarbleSplatRoute: typeof ApiMarbleSplatRoute
+  ApiFalProxyRoute: typeof ApiFalProxyRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -48,11 +68,27 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/marble-splat': {
+      id: '/api/marble-splat'
+      path: '/api/marble-splat'
+      fullPath: '/api/marble-splat'
+      preLoaderRoute: typeof ApiMarbleSplatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/fal/proxy': {
+      id: '/api/fal/proxy'
+      path: '/api/fal/proxy'
+      fullPath: '/api/fal/proxy'
+      preLoaderRoute: typeof ApiFalProxyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  ApiMarbleSplatRoute: ApiMarbleSplatRoute,
+  ApiFalProxyRoute: ApiFalProxyRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

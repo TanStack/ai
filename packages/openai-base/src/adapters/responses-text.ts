@@ -1,0 +1,3403 @@
+import {
+  CONTEXT_OVERFLOW_CODE,
+  EventType,
+  fileReferenceFor,
+  isFileSource,
+  normalizeSystemPrompts,
+  unsupportedFileSourceError,
+} from '@tanstack/ai'
+import { BaseTextAdapter } from '@tanstack/ai/adapters'
+import {
+  hashToolCallId,
+  orderedAssistantBlocks,
+  resolveReasoning,
+  splitMidConversationChanges,
+  toRunErrorPayload,
+  toRetryAfterMs,
+  toRunErrorDetails,
+  toRunErrorRawEvent,
+  transformMessagesForReplay,
+} from '@tanstack/ai/adapter-internals'
+import { generateId } from '@tanstack/ai-utils'
+import { clientFor, extractRequestOptions } from '../utils/request-options'
+import type { Fetch } from '../utils/request-options'
+import {
+  makeStructuredOutputCompatibleWithMap,
+  warnStrictFallback,
+} from '../utils/schema-converter'
+import { createToolInputNormalizer } from '../utils/tool-input-normalizer'
+import type {
+  OpenAIBaseTextAdapterOptions,
+  StructuredOutputCompatibility,
+} from '../utils/schema-converter'
+import { buildResponsesUsage } from '../usage'
+import {
+  explicitJsonObject,
+  withJsonModePrompt,
+} from '../utils/json-object-mode'
+import { toResponsesToolChoice } from '../tools/tool-choice'
+import { getOpenAIProviderToolKind } from '../tools/openai-provider-tool'
+import { resolveComputerUseTool } from '../tools/computer-use-tool'
+import { convertToolsToResponsesFormat } from './responses-tool-converter'
+import {
+  hostedShellCallIds,
+  readUserExecutedCall,
+  userToolRequestItem,
+  userToolResultItem,
+} from './responses-user-tools'
+import type { OpenAIUserToolName } from './responses-user-tools'
+import type OpenAI from 'openai'
+import type {
+  StructuredOutputOptions,
+  StructuredOutputResult,
+} from '@tanstack/ai/adapters'
+import type {
+  Response,
+  ResponseComputerToolCallOutputScreenshot,
+  ResponseCreateParams,
+  ResponseFunctionCallOutputItem,
+  ResponseFunctionWebSearch,
+  ResponseInput,
+  ResponseInputContent,
+  ResponseOutputMessage,
+  ResponseOutputText,
+  ResponseStreamEvent,
+  Tool as ResponsesTool,
+} from 'openai/resources/responses/responses'
+import type {
+  ContentPart,
+  DefaultMessageMetadataByModality,
+  Modality,
+  ModelMessage,
+  AdapterYieldChunk,
+  ProviderExecutedToolMetadata,
+  ProviderExecutedToolSource,
+  ModelReasoning,
+  ReasoningCapability,
+  TanStackMessageMetadata,
+  TextCompactOptions,
+  TextOptions,
+  TokenUsage,
+  AnyTool,
+  NormalizedSystemPrompt,
+} from '@tanstack/ai'
+
+// Base64 encoding of the '%PDF' file header — every PDF payload starts with
+// these bytes, so inline document data must begin with this prefix.
+const PDF_BASE64_MAGIC = 'JVBERi'
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null
+}
+
+function readURLCitation(
+  value: unknown,
+): ResponseOutputText.URLCitation | undefined {
+  if (!isRecord(value) || value.type !== 'url_citation') return undefined
+  if (
+    typeof value.url !== 'string' ||
+    typeof value.title !== 'string' ||
+    typeof value.start_index !== 'number' ||
+    typeof value.end_index !== 'number'
+  ) {
+    return undefined
+  }
+  return {
+    type: 'url_citation',
+    url: value.url,
+    title: value.title,
+    start_index: value.start_index,
+    end_index: value.end_index,
+  }
+}
+
+function readWebSearchCall(
+  value: unknown,
+): ResponseFunctionWebSearch | undefined {
+  if (!isRecord(value) || value.type !== 'web_search_call') return undefined
+  if (
+    typeof value.id !== 'string' ||
+    typeof value.status !== 'string' ||
+    !isRecord(value.action) ||
+    typeof value.action.type !== 'string'
+  ) {
+    return undefined
+  }
+  // oxlint-disable-next-line eslint-js/no-restricted-syntax -- the runtime guard above validates the stable fields while the SDK union preserves provider-specific action fields
+  return value as unknown as ResponseFunctionWebSearch
+}
+
+function collectWebSearchSources(
+  item: ResponseFunctionWebSearch,
+  citations: ReadonlyArray<ResponseOutputText.URLCitation>,
+): Array<ProviderExecutedToolSource> {
+  const sources = new Map<string, ProviderExecutedToolSource>()
+  const add = (url: unknown, title?: unknown) => {
+    if (typeof url !== 'string' || url.length === 0) return
+    const existing = sources.get(url)
+    if (existing) {
+      if (!existing.title && typeof title === 'string' && title.length > 0) {
+        existing.title = title
+      }
+      return
+    }
+    sources.set(url, {
+      url,
+      ...(typeof title === 'string' && title.length > 0 ? { title } : {}),
+    })
+  }
+
+  if (item.action.type === 'search') {
+    for (const source of item.action.sources ?? []) {
+      add(source.url)
+    }
+  }
+  for (const citation of citations) {
+    add(citation.url, citation.title)
+  }
+
+  return [...sources.values()]
+}
+
+/**
+ * The saved answer items of a message as Responses input, one per text
+ * block, each with its item `id` and `phase`. `undefined` when the message
+ * has no items or its blocks do not match them: then it replays as plain
+ * text. Another model's message never gets here with its items: the caller
+ * rebuilds it as plain text.
+ */
+function answerItems(
+  message: ModelMessage,
+  text: string,
+): ResponseInput | undefined {
+  const items: TanStackMessageMetadata['responseItems'] =
+    message.metadata?.tanstack?.responseItems
+  const texts = orderedAssistantBlocks(message)?.flatMap((block) =>
+    block.type === 'text' ? [block.text] : [],
+  ) ?? [text]
+  if (!items || items.length !== texts.length) return undefined
+  return items.map((item, index) => ({
+    type: 'message',
+    role: 'assistant',
+    id: item.id,
+    status: 'completed',
+    content: [
+      { type: 'output_text', text: texts[index] ?? '', annotations: [] },
+    ],
+    ...(item.phase === 'commentary' || item.phase === 'final_answer'
+      ? { phase: item.phase }
+      : {}),
+  }))
+}
+
+function packResponsesReasoningSignature(
+  id: string | undefined,
+  encryptedContent: string | undefined,
+): string | undefined {
+  if (!id && !encryptedContent) return undefined
+  return JSON.stringify({
+    ...(id ? { id } : {}),
+    ...(encryptedContent ? { encrypted_content: encryptedContent } : {}),
+  })
+}
+
+function unpackResponsesReasoningSignature(
+  signature: string,
+): { id?: string; encrypted_content?: string } | undefined {
+  try {
+    const parsed: unknown = JSON.parse(signature)
+    if (!isRecord(parsed)) return undefined
+    const id = typeof parsed.id === 'string' ? parsed.id : undefined
+    const encrypted_content =
+      typeof parsed.encrypted_content === 'string'
+        ? parsed.encrypted_content
+        : undefined
+    if (!id && !encrypted_content) return undefined
+    return {
+      ...(id ? { id } : {}),
+      ...(encrypted_content ? { encrypted_content } : {}),
+    }
+  } catch {
+    return undefined
+  }
+}
+
+function readReasoningItem(
+  item: unknown,
+): { id?: string; encrypted_content?: string } | undefined {
+  if (!isRecord(item) || item.type !== 'reasoning') return undefined
+  const id = typeof item.id === 'string' ? item.id : undefined
+  const encrypted_content =
+    typeof item.encrypted_content === 'string'
+      ? item.encrypted_content
+      : undefined
+  if (!id && !encrypted_content) return undefined
+  return {
+    ...(id ? { id } : {}),
+    ...(encrypted_content ? { encrypted_content } : {}),
+  }
+}
+
+/** The compaction item packed in a thinking signature, or `undefined`. */
+function readCompactionSignature(
+  signature: string,
+): { type: 'compaction'; id?: string; encrypted_content: string } | undefined {
+  try {
+    const parsed: unknown = JSON.parse(signature)
+    if (
+      !isRecord(parsed) ||
+      parsed.type !== 'compaction' ||
+      typeof parsed.encrypted_content !== 'string'
+    )
+      return undefined
+    return {
+      type: 'compaction',
+      ...(typeof parsed.id === 'string' ? { id: parsed.id } : {}),
+      encrypted_content: parsed.encrypted_content,
+    }
+  } catch {
+    return undefined
+  }
+}
+
+/** The texts of a list of output parts. */
+function partTexts(content: Array<unknown>): Array<string> {
+  return content.flatMap((part) =>
+    isRecord(part) && typeof part.text === 'string' ? [part.text] : [],
+  )
+}
+
+/**
+ * Map one item of a `/responses/compact` output to a message. The
+ * compaction item and reasoning items go in thinking signatures, so they
+ * go back to the same model as they are.
+ */
+function fromCompactedItem(
+  item: unknown,
+  metadata: { tanstack: TanStackMessageMetadata },
+): ModelMessage {
+  if (isRecord(item) && item.type === 'compaction') {
+    return {
+      role: 'assistant',
+      content: null,
+      thinking: [
+        {
+          content: '',
+          redacted: true,
+          signature: JSON.stringify({
+            type: 'compaction',
+            id: item.id,
+            encrypted_content: item.encrypted_content,
+          }),
+        },
+      ],
+      metadata,
+    }
+  }
+  const reasoning = readReasoningItem(item)
+  if (reasoning && isRecord(item)) {
+    const summary = Array.isArray(item.summary) ? partTexts(item.summary) : []
+    return {
+      role: 'assistant',
+      content: null,
+      thinking: [
+        {
+          content: summary.join('\n'),
+          signature: packResponsesReasoningSignature(
+            reasoning.id,
+            reasoning.encrypted_content,
+          ),
+        },
+      ],
+      metadata,
+    }
+  }
+  if (
+    isRecord(item) &&
+    item.type === 'message' &&
+    Array.isArray(item.content) &&
+    (item.role === 'user' || item.role === 'assistant')
+  ) {
+    if (item.role === 'assistant') {
+      return {
+        role: 'assistant',
+        content: partTexts(item.content).join(''),
+        metadata,
+      }
+    }
+    return {
+      role: 'user',
+      content: item.content.map((part): ContentPart => {
+        if (isRecord(part) && typeof part.text === 'string')
+          return { type: 'text', content: part.text }
+        if (isRecord(part) && part.type === 'input_image') {
+          if (typeof part.image_url === 'string')
+            return {
+              type: 'image',
+              source: { type: 'url', value: part.image_url },
+            }
+          if (typeof part.file_id === 'string')
+            return {
+              type: 'image',
+              source: { type: 'file', value: part.file_id },
+            }
+        }
+        if (isRecord(part) && part.type === 'input_file') {
+          if (typeof part.file_id === 'string')
+            return {
+              type: 'document',
+              source: { type: 'file', value: part.file_id },
+            }
+          if (typeof part.file_url === 'string')
+            return {
+              type: 'document',
+              source: { type: 'url', value: part.file_url },
+            }
+          if (
+            typeof part.file_data === 'string' &&
+            typeof part.filename === 'string'
+          )
+            return {
+              type: 'document',
+              source: {
+                type: 'data',
+                value: part.file_data,
+                mimeType: 'application/pdf',
+              },
+              metadata: { filename: part.filename },
+            }
+          // Audio leaves as input_file with file_data and no filename.
+          if (typeof part.file_data === 'string')
+            return {
+              type: 'audio',
+              source: {
+                type: 'data',
+                value: part.file_data,
+                mimeType: 'application/octet-stream',
+              },
+            }
+        }
+        // ponytail: other item types still throw. A throw with no HTTP
+        // status does not latch. Pass an item through when a real compact
+        // result holds one.
+        throw new Error(
+          `Cannot map a compacted ${isRecord(part) ? String(part.type) : 'part'} part.`,
+        )
+      }),
+    }
+  }
+  throw new Error('Cannot map a compacted output item.')
+}
+
+/**
+ * Provider-specific metadata that preserves the Responses API output item ID.
+ *
+ * Responses function calls have two identifiers: `call_id` correlates the
+ * function output with the call, while `id` identifies the output item itself.
+ * TanStack AI uses `call_id` as the canonical tool-call ID and carries the
+ * item ID here so stateless follow-up requests can replay both values.
+ */
+export interface OpenAIResponsesToolCallMetadata extends ProviderExecutedToolMetadata {
+  itemId?: string
+  /**
+   * The namespace of the called function. A tool that came through
+   * `additional_tools` has one, and the API needs it on the replayed call.
+   */
+  namespace?: string
+  /**
+   * Set for shell, local_shell, apply_patch, and computer calls the app must
+   * run.
+   */
+  openaiUserTool?: OpenAIUserToolName
+  /** Shell `action.max_output_length`, echoed on `shell_call_output`. */
+  maxOutputLength?: number | null
+  openai?: {
+    webSearchCall: ResponseFunctionWebSearch
+    urlCitations: Array<ResponseOutputText.URLCitation>
+    assistantMessage?: ResponseOutputMessage
+  }
+}
+
+/** The tool call metadata of a streamed `function_call` item. */
+function functionCallMetadata(item: {
+  id?: string
+  namespace?: string
+}): OpenAIResponsesToolCallMetadata {
+  return {
+    ...(item.id ? { itemId: item.id } : {}),
+    ...(item.namespace ? { namespace: item.namespace } : {}),
+  }
+}
+
+interface StreamedFunctionCallMetadata {
+  callId: string
+  index: number
+  name: string
+  started: boolean
+  ended?: boolean
+  pendingArguments?: string | undefined
+}
+
+/**
+ * The pre-2025-07 spec name for `response.reasoning_text.delta`. Removed from
+ * the openai SDK, but OpenAI-compatible providers frozen on the older spec
+ * (e.g. Amazon Bedrock's Mantle endpoint serving Gemma) still emit it.
+ */
+interface LegacyReasoningDeltaEvent {
+  type: 'response.reasoning.delta'
+  delta?: unknown
+}
+
+/**
+ * Shared implementation of the OpenAI Responses API. Holds the stream-event
+ * accumulator + AG-UI lifecycle and calls the OpenAI SDK directly. Subclasses
+ * (today: ai-openai) construct an OpenAI client with their provider-specific
+ * `baseURL` / headers and pass it in.
+ */
+export abstract class OpenAIBaseResponsesTextAdapter<
+  TModel extends string,
+  TProviderOptions extends Record<string, unknown> = Record<string, unknown>,
+  TInputModalities extends ReadonlyArray<Modality> = ReadonlyArray<Modality>,
+  TMessageMetadata extends DefaultMessageMetadataByModality =
+    DefaultMessageMetadataByModality,
+  TToolCapabilities extends ReadonlyArray<string> = ReadonlyArray<string>,
+  TReasoning extends ReasoningCapability = never,
+> extends BaseTextAdapter<
+  TModel,
+  TProviderOptions,
+  TInputModalities,
+  TMessageMetadata,
+  TToolCapabilities,
+  OpenAIResponsesToolCallMetadata,
+  never,
+  TReasoning
+> {
+  override readonly kind = 'text' as const
+  override readonly api: string = 'openai-responses'
+  readonly name: string
+  protected client: OpenAI
+
+  /**
+   * Token usage for a Responses result. `source` is the response that carried
+   * `usage`, so a subclass can read sibling fields such as provider metadata.
+   */
+  protected responsesTokenUsage(
+    usage: OpenAI.Responses.ResponseUsage | undefined | null,
+    _source?: unknown,
+  ): TokenUsage | undefined {
+    return buildResponsesUsage(usage)
+  }
+
+  private sourceMetadata(
+    model: string,
+    stopReason?: 'error' | 'aborted',
+  ): Record<string, unknown> {
+    return {
+      tanstack: {
+        source: { provider: this.provider ?? this.name, api: this.api, model },
+        ...(stopReason ? { stopReason } : {}),
+      },
+    }
+  }
+
+  /** See {@link OpenAIBaseTextAdapterOptions.strictFallbackWarning}. */
+  protected readonly strictFallbackWarning: boolean
+
+  /** The fetch that the adapter gave the client. */
+  private readonly baseFetch: Fetch | undefined
+
+  /**
+   * `options.fetch` must be the fetch that the client uses. A `wrapFetch`
+   * call wraps it.
+   */
+  constructor(
+    model: TModel,
+    name: string,
+    client: OpenAI,
+    options: OpenAIBaseTextAdapterOptions & { fetch?: Fetch | undefined } = {},
+  ) {
+    super({}, model)
+    this.name = name
+    this.client = client
+    this.strictFallbackWarning = options.strictFallbackWarning ?? true
+    this.baseFetch = options.fetch
+  }
+
+  /**
+   * A copy of the client that sends its requests through `fetch`. Override it
+   * when the SDK copy loses an option of your client.
+   */
+  protected withFetch(fetch: Fetch): OpenAI {
+    return this.client.withOptions({ fetch })
+  }
+
+  async *chatStream(
+    chatOptions: TextOptions<TProviderOptions>,
+  ): AsyncIterable<AdapterYieldChunk> {
+    // A portable computer tool becomes the native computer tool.
+    // The request and the stream both read the native tool.
+    const options = chatOptions.tools
+      ? {
+          ...chatOptions,
+          tools: chatOptions.tools.map((tool) => resolveComputerUseTool(tool)),
+        }
+      : chatOptions
+    // Key streamed state by output item ID because argument deltas reference
+    // `item_id`. The state separately retains `call_id`, which is the public
+    // tool-call ID and the correlation key for function_call_output.
+    const toolCallMetadata = new Map<string, StreamedFunctionCallMetadata>()
+
+    // AG-UI lifecycle tracking. Honor a caller-supplied `runId` so the
+    // emitted RUN_STARTED matches the id the caller keys
+    // durability by — e.g. a summarize run threading the client's runId through
+    // for mid-run reload resumability. Falls back to a generated id.
+    const aguiState = {
+      runId: options.runId ?? generateId(this.name),
+      threadId: options.threadId,
+      messageId: generateId(this.name),
+      hasEmittedRunStarted: false,
+    }
+
+    try {
+      // mapOptionsToRequest can throw on caller-side validation failures
+      // (empty user content, unsupported parts, webSearchTool() rejection in
+      // the OpenRouter override). Keep it inside the try so those failures
+      // surface as RUN_ERROR events instead of iterator throws.
+      const requestParams = this.mapOptionsToRequest(options)
+      options.logger.request(
+        `activity=chat provider=${this.name} model=${this.model} messages=${options.messages.length} tools=${options.tools?.length ?? 0} stream=true`,
+        { provider: this.name, model: this.model },
+      )
+      const response = await clientFor(
+        this.client,
+        options,
+        this.baseFetch,
+        (fetch) => this.withFetch(fetch),
+      ).responses.create(
+        {
+          ...requestParams,
+          stream: true,
+        },
+        extractRequestOptions(options.request),
+      )
+
+      yield* this.processStreamChunks(
+        response,
+        toolCallMetadata,
+        options,
+        aguiState,
+      )
+    } catch (error: unknown) {
+      // Narrow before logging: raw SDK errors can carry request metadata
+      // (including auth headers) which we must never surface to user loggers.
+      const errorPayload = this.runErrorPayload(
+        error,
+        `${this.name}.chatStream failed`,
+      )
+      const rawEvent = toRunErrorRawEvent(error)
+      const retryAfterMs = toRetryAfterMs(error)
+
+      // Emit RUN_STARTED if not yet emitted
+      if (!aguiState.hasEmittedRunStarted) {
+        aguiState.hasEmittedRunStarted = true
+        yield {
+          type: EventType.RUN_STARTED,
+          metadata: this.sourceMetadata(options.model),
+          runId: aguiState.runId,
+          threadId: aguiState.threadId,
+          model: options.model,
+          timestamp: Date.now(),
+          parentRunId: options.parentRunId,
+        }
+      }
+
+      // Emit AG-UI RUN_ERROR. Conditional `code` spread keeps the wire
+      // shape spec-compliant under `exactOptionalPropertyTypes`: AG-UI's
+      // `RunErrorEvent.code` is `string?` (absent vs explicit `undefined`
+      // matter), so we omit the key when there's no code.
+      yield {
+        type: EventType.RUN_ERROR,
+        metadata: this.sourceMetadata(
+          options.model,
+          this.isAbortError(error) ? 'aborted' : 'error',
+        ),
+        model: options.model,
+        timestamp: Date.now(),
+        message: errorPayload.message,
+        code: errorPayload.code,
+        // Forward the provider's structured error body when present (see
+        // toRunErrorRawEvent); omitted otherwise.
+        ...(rawEvent !== undefined && { rawEvent }),
+        ...(retryAfterMs !== undefined && { retryAfterMs }),
+        ...toRunErrorDetails(error),
+        error: {
+          message: errorPayload.message,
+          code: errorPayload.code,
+        },
+      }
+
+      options.logger.errors(`${this.name}.chatStream fatal`, {
+        error: errorPayload,
+        source: `${this.name}.chatStream`,
+      })
+    }
+  }
+
+  /**
+   * Generate structured output using the provider's native JSON Schema response format.
+   * Uses stream: false to get the complete response in one call.
+   *
+   * OpenAI-compatible Responses APIs have strict requirements for structured output:
+   * - All properties must be in the `required` array
+   * - Optional fields should have null added to their type union
+   * - additionalProperties must be false for all objects
+   *
+   * The outputSchema is already JSON Schema (converted in the ai layer).
+   * We apply provider-specific transformations for structured output compatibility.
+   */
+  async structuredOutput(
+    options: StructuredOutputOptions<TProviderOptions>,
+  ): Promise<StructuredOutputResult<unknown>> {
+    const { chatOptions, outputSchema } = options
+    const jsonMode = this.usesJsonObject(chatOptions)
+    const requestParams = this.mapOptionsToRequest(
+      jsonMode ? withJsonModePrompt(chatOptions, outputSchema) : chatOptions,
+    )
+    const textFormat = this.responsesStructuredFormat(jsonMode, outputSchema)
+
+    try {
+      // Strip streaming-only fields a subclass override of mapOptionsToRequest
+      // might have returned (parallel to chat-completions's structuredOutput
+      // cleanup) — sending stream_options to a non-streaming call is a 4xx.
+      const {
+        stream: _stream,
+        stream_options: _streamOptions,
+        ...cleanParams
+      } = requestParams as Record<string, unknown>
+      void _stream
+      void _streamOptions
+      chatOptions.logger.request(
+        `activity=structuredOutput provider=${this.name} model=${this.model} messages=${chatOptions.messages.length}`,
+        { provider: this.name, model: this.model },
+      )
+      const response = await clientFor(
+        this.client,
+        chatOptions,
+        this.baseFetch,
+        (fetch) => this.withFetch(fetch),
+      ).responses.create(
+        {
+          ...(cleanParams as Omit<ResponseCreateParams, 'stream'>),
+          stream: false,
+          text: {
+            format: textFormat,
+          },
+        },
+        extractRequestOptions(chatOptions.request),
+      )
+
+      // Extract text content from the response. `stream: false` narrows the
+      // SDK return type to `Response`, but the explicit annotation makes
+      // that contract local rather than relying on inference through the
+      // overloaded `client.responses.create` signature.
+      const rawText = this.extractTextFromResponse(response satisfies Response)
+
+      // Fail loud on empty content rather than letting it cascade into a
+      // confusing "Failed to parse JSON. Content: " error — the root cause
+      // (the model returned no text content for the structured request) is
+      // then visible in logs. Mirrors the chat-completions sibling.
+      if (rawText.length === 0) {
+        throw new Error(
+          `${this.name}.structuredOutput: response contained no content`,
+        )
+      }
+
+      // Parse the JSON response
+      let parsed: unknown
+      try {
+        parsed = JSON.parse(rawText)
+      } catch {
+        throw new Error(
+          `Failed to parse structured output as JSON. Content: ${rawText.slice(0, 200)}${rawText.length > 200 ? '...' : ''}`,
+        )
+      }
+
+      // Provider-specific post-parse shaping (default passthrough). Null-widening
+      // from strict mode is undone by the engine, not here.
+      const transformed = this.transformStructuredOutput(parsed)
+
+      // Surface usage so non-stream structured paths (and
+      // fallbackStructuredOutputStream) can forward tokens to middleware.
+      const usage = this.responsesTokenUsage(response.usage, response)
+      return {
+        data: transformed,
+        rawText,
+        ...(response.id ? { responseId: response.id } : {}),
+        ...(response.model ? { model: response.model } : {}),
+        ...(usage && { usage }),
+      }
+    } catch (error: unknown) {
+      // Narrow before logging: raw SDK errors can carry request metadata
+      // (including auth headers) which we must never surface to user loggers.
+      chatOptions.logger.errors(`${this.name}.structuredOutput fatal`, {
+        error: toRunErrorPayload(error, `${this.name}.structuredOutput failed`),
+        source: `${this.name}.structuredOutput`,
+      })
+      throw error
+    }
+  }
+
+  /**
+   * Stream structured output via the Responses API: single request with
+   * `text.format: json_schema` + `stream: true`. Consumes Responses-API
+   * events (`response.output_text.delta`, `response.reasoning_text.delta`,
+   * `response.reasoning_summary_text.delta`, the legacy
+   * `response.reasoning.delta`, `response.refusal.delta`,
+   * `response.completed`, `response.failed`) and re-emits the standard AG-UI
+   * lifecycle ending with `CUSTOM 'structured-output.complete'`.
+   *
+   * Tools are stripped (structured output is mutually exclusive with tool
+   * calls in this path). Reasoning text is accumulated and surfaced both as
+   * REASONING_* lifecycle events during the stream and on the terminal
+   * CUSTOM event's `value.reasoning`.
+   */
+  async *structuredOutputStream(
+    options: StructuredOutputOptions<TProviderOptions>,
+  ): AsyncIterable<AdapterYieldChunk> {
+    const { chatOptions, outputSchema } = options
+    const jsonMode = this.usesJsonObject(chatOptions)
+    const requestParams = this.mapOptionsToRequest(
+      jsonMode ? withJsonModePrompt(chatOptions, outputSchema) : chatOptions,
+    )
+    const textFormat = this.responsesStructuredFormat(jsonMode, outputSchema)
+
+    const aguiState = {
+      runId: generateId(this.name),
+      threadId: chatOptions.threadId,
+      messageId: generateId(this.name),
+      hasEmittedRunStarted: false,
+    }
+
+    let accumulatedContent = ''
+    let accumulatedReasoning = ''
+    let hasEmittedTextMessageStart = false
+    let reasoningMessageId: string | undefined
+    let hasClosedReasoning = false
+    let model: string = chatOptions.model
+    let responseId: string | undefined
+    let usage: OpenAI.Responses.Response['usage'] | undefined
+    let usageSource: unknown
+    let responseCompleted = false
+
+    const closeReasoning = function* (this: {
+      name: string
+    }): Generator<AdapterYieldChunk> {
+      if (reasoningMessageId && !hasClosedReasoning) {
+        hasClosedReasoning = true
+        yield {
+          type: EventType.REASONING_MESSAGE_END,
+          messageId: reasoningMessageId,
+          model,
+          timestamp: Date.now(),
+        }
+        yield {
+          type: EventType.REASONING_END,
+          messageId: reasoningMessageId,
+          model,
+          timestamp: Date.now(),
+        }
+        reasoningMessageId = undefined
+        hasClosedReasoning = false
+      }
+    }.bind(this)
+
+    const openReasoning = function* (this: {
+      name: string
+    }): Generator<AdapterYieldChunk> {
+      if (reasoningMessageId) return
+      reasoningMessageId = generateId(this.name)
+      yield {
+        type: EventType.REASONING_START,
+        messageId: reasoningMessageId,
+        model,
+        timestamp: Date.now(),
+      }
+      yield {
+        type: EventType.REASONING_MESSAGE_START,
+        messageId: reasoningMessageId,
+        role: 'reasoning' as const,
+        model,
+        timestamp: Date.now(),
+      }
+    }.bind(this)
+
+    try {
+      const { tools: _tools, ...cleanParams } = requestParams
+      void _tools
+
+      chatOptions.logger.request(
+        `activity=structuredOutputStream provider=${this.name} model=${this.model} messages=${chatOptions.messages.length}`,
+        { provider: this.name, model: this.model },
+      )
+
+      const stream: AsyncIterable<
+        ResponseStreamEvent | LegacyReasoningDeltaEvent
+      > = await clientFor(this.client, chatOptions, this.baseFetch, (fetch) =>
+        this.withFetch(fetch),
+      ).responses.create(
+        {
+          ...cleanParams,
+          stream: true,
+          text: {
+            format: textFormat,
+          },
+        },
+        extractRequestOptions(chatOptions.request),
+      )
+
+      for await (const chunk of stream) {
+        chatOptions.logger.provider(
+          `provider=${this.name} type=${chunk.type}`,
+          { provider: this.name, type: chunk.type },
+        )
+
+        if (!aguiState.hasEmittedRunStarted) {
+          aguiState.hasEmittedRunStarted = true
+          yield {
+            type: EventType.RUN_STARTED,
+            metadata: this.sourceMetadata(chatOptions.model),
+            runId: aguiState.runId,
+            threadId: aguiState.threadId,
+            model,
+            timestamp: Date.now(),
+            parentRunId: chatOptions.parentRunId,
+          }
+        }
+
+        if (
+          chunk.type === 'response.created' ||
+          chunk.type === 'response.in_progress'
+        ) {
+          const responseModel = (chunk as { response?: { model?: string } })
+            .response?.model
+          if (responseModel) model = responseModel
+          continue
+        }
+
+        if (chunk.type === 'response.refusal.delta') {
+          const delta =
+            typeof (chunk as { delta?: unknown }).delta === 'string'
+              ? (chunk as { delta: string }).delta
+              : ''
+          yield {
+            type: EventType.RUN_ERROR,
+            metadata: this.sourceMetadata(chatOptions.model),
+            runId: aguiState.runId,
+            model,
+            timestamp: Date.now(),
+            message: `Model refused: ${delta}`,
+            code: 'refusal',
+            error: { message: `Model refused: ${delta}`, code: 'refusal' },
+          }
+          return
+        }
+
+        if (
+          chunk.type === 'response.reasoning_text.delta' ||
+          chunk.type === 'response.reasoning_summary_text.delta' ||
+          chunk.type === 'response.reasoning.delta'
+        ) {
+          const raw = (chunk as { delta?: unknown }).delta
+          const reasoningDelta = Array.isArray(raw)
+            ? raw.join('')
+            : typeof raw === 'string'
+              ? raw
+              : ''
+          if (!reasoningDelta) continue
+          yield* openReasoning()
+          // openReasoning() guarantees reasoningMessageId is set on first call;
+          // TS can't see through the generator side-effect.
+          if (!reasoningMessageId) continue
+          accumulatedReasoning += reasoningDelta
+          yield {
+            type: EventType.REASONING_MESSAGE_CONTENT,
+            messageId: reasoningMessageId,
+            delta: reasoningDelta,
+            model,
+            timestamp: Date.now(),
+          }
+          continue
+        }
+
+        if (chunk.type === 'response.output_text.delta') {
+          const raw = (chunk as { delta?: unknown }).delta
+          const textDelta = Array.isArray(raw)
+            ? raw.join('')
+            : typeof raw === 'string'
+              ? raw
+              : ''
+          if (!textDelta) continue
+
+          yield* closeReasoning()
+
+          if (!hasEmittedTextMessageStart) {
+            hasEmittedTextMessageStart = true
+            yield {
+              type: EventType.TEXT_MESSAGE_START,
+              messageId: aguiState.messageId,
+              model,
+              timestamp: Date.now(),
+              role: 'assistant',
+            }
+          }
+          accumulatedContent += textDelta
+          yield {
+            type: EventType.TEXT_MESSAGE_CONTENT,
+            messageId: aguiState.messageId,
+            model,
+            timestamp: Date.now(),
+            delta: textDelta,
+            content: accumulatedContent,
+          }
+          continue
+        }
+
+        if (chunk.type === 'response.completed') {
+          responseCompleted = true
+          const response = chunk.response
+          if (response.id) responseId = response.id
+          if (response.usage) {
+            usage = response.usage
+            usageSource = response
+          }
+          if (response.model) model = response.model
+          // Terminal event: do not wait for the HTTP body to close (#1445).
+          break
+        }
+
+        if (chunk.type === 'response.failed') {
+          const response = (
+            chunk as {
+              response?: { error?: { message?: string; code?: string } }
+            }
+          ).response
+          const message =
+            response?.error?.message || 'Responses API stream failed'
+          const code = response?.error?.code
+          // Conditional `code` spread keeps the wire shape spec-compliant
+          // under `exactOptionalPropertyTypes` (see chatStream catch).
+          yield {
+            type: EventType.RUN_ERROR,
+            metadata: this.sourceMetadata(chatOptions.model),
+            runId: aguiState.runId,
+            model,
+            timestamp: Date.now(),
+            message,
+            ...(code !== undefined && { code }),
+            error: { message, ...(code !== undefined && { code }) },
+          }
+          return
+        }
+      }
+
+      yield* closeReasoning()
+
+      if (hasEmittedTextMessageStart) {
+        yield {
+          type: EventType.TEXT_MESSAGE_END,
+          messageId: aguiState.messageId,
+          model,
+          timestamp: Date.now(),
+        }
+      }
+
+      if (!responseCompleted) {
+        const message = 'Response stream ended before response.completed'
+        yield {
+          type: EventType.RUN_ERROR,
+          metadata: this.sourceMetadata(chatOptions.model),
+          runId: aguiState.runId,
+          model,
+          timestamp: Date.now(),
+          message,
+          code: 'incomplete-stream',
+          error: { message, code: 'incomplete-stream' },
+        }
+        return
+      }
+
+      if (accumulatedContent.length === 0) {
+        yield {
+          type: EventType.RUN_ERROR,
+          metadata: this.sourceMetadata(chatOptions.model),
+          runId: aguiState.runId,
+          model,
+          timestamp: Date.now(),
+          message: `${this.name}.structuredOutputStream: response contained no content`,
+          code: 'empty-response',
+          error: {
+            message: `${this.name}.structuredOutputStream: response contained no content`,
+            code: 'empty-response',
+          },
+        }
+        return
+      }
+
+      let parsed: unknown
+      try {
+        parsed = JSON.parse(accumulatedContent)
+      } catch {
+        yield {
+          type: EventType.RUN_ERROR,
+          metadata: this.sourceMetadata(chatOptions.model),
+          runId: aguiState.runId,
+          model,
+          timestamp: Date.now(),
+          message: `Failed to parse structured output as JSON. Content: ${accumulatedContent.slice(0, 200)}${accumulatedContent.length > 200 ? '...' : ''}`,
+          code: 'parse-error',
+          error: {
+            message: 'Failed to parse structured output as JSON',
+            code: 'parse-error',
+          },
+        }
+        return
+      }
+
+      // Route through the same hook as the non-streaming path (default
+      // passthrough). Engine un-widens nulls; the streaming path must not strip
+      // them blindly either.
+      const transformed = this.transformStructuredOutput(parsed)
+
+      yield {
+        type: EventType.CUSTOM,
+        name: 'structured-output.complete',
+        value: {
+          object: transformed,
+          raw: accumulatedContent,
+          ...(accumulatedReasoning ? { reasoning: accumulatedReasoning } : {}),
+        },
+        model,
+        timestamp: Date.now(),
+      }
+
+      yield {
+        type: EventType.RUN_FINISHED,
+        ...(responseId ? { responseId } : {}),
+        runId: aguiState.runId,
+        threadId: aguiState.threadId,
+        model,
+        timestamp: Date.now(),
+        finishReason: 'stop',
+        ...(usage && {
+          usage: this.responsesTokenUsage(usage, usageSource),
+        }),
+      }
+    } catch (error: unknown) {
+      if (!aguiState.hasEmittedRunStarted) {
+        aguiState.hasEmittedRunStarted = true
+        yield {
+          type: EventType.RUN_STARTED,
+          metadata: this.sourceMetadata(chatOptions.model),
+          runId: aguiState.runId,
+          threadId: aguiState.threadId,
+          model,
+          timestamp: Date.now(),
+          parentRunId: chatOptions.parentRunId,
+        }
+      }
+
+      const isAbort = this.isAbortError(error)
+      const errorPayload = this.runErrorPayload(
+        error,
+        `${this.name}.structuredOutputStream failed`,
+      )
+
+      // Conditional `code` spread keeps the wire shape spec-compliant under
+      // `exactOptionalPropertyTypes` (see chatStream catch).
+      const resolvedCode = isAbort ? 'aborted' : errorPayload.code
+      const rawEvent = isAbort ? undefined : toRunErrorRawEvent(error)
+      yield {
+        type: EventType.RUN_ERROR,
+        metadata: this.sourceMetadata(
+          chatOptions.model,
+          isAbort ? 'aborted' : 'error',
+        ),
+        runId: aguiState.runId,
+        model,
+        timestamp: Date.now(),
+        message: errorPayload.message,
+        ...(resolvedCode !== undefined && { code: resolvedCode }),
+        ...(rawEvent !== undefined && { rawEvent }),
+        error: {
+          message: errorPayload.message,
+          ...(resolvedCode !== undefined && { code: resolvedCode }),
+        },
+      }
+
+      chatOptions.logger.errors(`${this.name}.structuredOutputStream fatal`, {
+        error: errorPayload,
+        source: `${this.name}.structuredOutputStream`,
+      })
+    }
+  }
+
+  /**
+   * Compact the history with `POST /responses/compact`. The result holds
+   * the user messages and one encrypted compaction item. A result with no
+   * compaction item throws.
+   */
+  async compact(options: TextCompactOptions): Promise<Array<ModelMessage>> {
+    const prompts = normalizeSystemPrompts(options.systemPrompts)
+    const response = await clientFor(
+      this.client,
+      options,
+      this.baseFetch,
+      (fetch) => this.withFetch(fetch),
+    ).responses.compact(
+      {
+        model: options.model,
+        input: this.convertMessagesToInput(options.messages, options.model),
+        ...(prompts.length > 0 && {
+          instructions: prompts.map((p) => p.content).join('\n'),
+        }),
+      },
+      options.signal ? { signal: options.signal } : {},
+    )
+    if (!response.output.some((item) => item.type === 'compaction')) {
+      throw new Error('The compact result has no compaction item.')
+    }
+    const metadata = {
+      tanstack: {
+        source: {
+          provider: this.provider ?? this.name,
+          api: this.api,
+          model: options.model,
+        },
+      },
+    }
+    return response.output.map((item) => fromCompactedItem(item, metadata))
+  }
+
+  /**
+   * `toRunErrorPayload`, with `code` set to `CONTEXT_OVERFLOW_CODE` when the
+   * provider says the input does not fit in the model's context window.
+   */
+  protected runErrorPayload(
+    error: unknown,
+    fallbackMessage: string,
+  ): { message: string; code: string | undefined } {
+    const payload = toRunErrorPayload(error, fallbackMessage)
+    return this.isContextOverflow(payload)
+      ? { ...payload, code: CONTEXT_OVERFLOW_CODE }
+      : payload
+  }
+
+  /**
+   * True when a provider error says the input does not fit in the context
+   * window. OpenAI sends `code: 'context_length_exceeded'`. Override this for
+   * a provider that reports it another way.
+   */
+  protected isContextOverflow(error: {
+    message: string
+    code: string | undefined
+  }): boolean {
+    return error.code === 'context_length_exceeded'
+  }
+
+  /**
+   * Cross-SDK abort detection for `structuredOutputStream`. Mirrors the
+   * Chat Completions base; subclasses with proprietary error types override.
+   */
+  protected isAbortError(error: unknown): boolean {
+    if (!error || typeof error !== 'object') return false
+    const e = error as { name?: unknown; code?: unknown }
+    return (
+      e.name === 'APIUserAbortError' ||
+      e.name === 'AbortError' ||
+      e.code === 'ERR_CANCELED'
+    )
+  }
+
+  /**
+   * Strict conversion plus the inverse null-widening map for this request.
+   * Override this when schema conversion changes, so tool-input undo matches
+   * the wire schema.
+   */
+  protected makeStructuredOutputCompatibleWithMap(
+    schema: Record<string, any>,
+    originalRequired?: Array<string>,
+  ): StructuredOutputCompatibility {
+    return makeStructuredOutputCompatibleWithMap(schema, originalRequired)
+  }
+
+  /**
+   * Applies provider-specific transformations for structured output compatibility.
+   * Override `makeStructuredOutputCompatibleWithMap` when you need the inverse map
+   * to match the wire schema.
+   */
+  protected makeStructuredOutputCompatible(
+    schema: Record<string, any>,
+    originalRequired?: Array<string>,
+  ): Record<string, any> {
+    return this.makeStructuredOutputCompatibleWithMap(schema, originalRequired)
+      .schema
+  }
+
+  /**
+   * `true` when this model takes `json_object` and rejects strict
+   * `json_schema`. Subclasses answer from their model catalog. Default `false`.
+   */
+  protected modelPrefersJsonObject(_model: string): boolean {
+    return false
+  }
+
+  /** JSON mode when `modelOptions` sets it or the model catalog needs it. */
+  protected usesJsonObject(options: {
+    model: string
+    modelOptions?: unknown
+  }): boolean {
+    return (
+      explicitJsonObject(options.modelOptions) ||
+      this.modelPrefersJsonObject(options.model)
+    )
+  }
+
+  protected responsesStructuredFormat(
+    jsonMode: boolean,
+    schema: Record<string, any>,
+  ):
+    | { type: 'json_object' }
+    | {
+        type: 'json_schema'
+        name: string
+        schema: Record<string, any>
+        strict: true
+      } {
+    if (jsonMode) {
+      return { type: 'json_object' }
+    }
+    return {
+      type: 'json_schema',
+      name: 'structured_output',
+      schema: this.makeStructuredOutputCompatible(
+        schema,
+        Array.isArray(schema.required)
+          ? (schema.required as Array<string>)
+          : undefined,
+      ),
+      strict: true,
+    }
+  }
+
+  /**
+   * Final shaping pass applied to parsed structured-output JSON before it is
+   * returned to the caller. Default is a passthrough.
+   *
+   * Provider `null`s are no longer stripped here: strict-mode null-widening is
+   * now undone precisely by the engine (`undoNullWidening`, driven by the
+   * schema's null-widening map) the moment the result is captured, so a blind
+   * `transformNullsToUndefined` at the adapter would only destroy genuine
+   * `.nullable()` nulls. Subclasses may still override to remap or reshape the
+   * provider's structured output.
+   */
+  protected transformStructuredOutput(parsed: unknown): unknown {
+    return parsed
+  }
+
+  /**
+   * The model's reasoning data for `chat({ reasoning })`. The default is
+   * none, so the base sends no reasoning field. A subclass returns the
+   * model's entry from the reasoning map in its `model-meta.ts`.
+   */
+  protected modelReasoning(_model: string): ModelReasoning | undefined {
+    return undefined
+  }
+
+  /**
+   * Extract text content from a non-streaming Responses API response.
+   * Override this in subclasses for provider-specific response shapes.
+   */
+  protected extractTextFromResponse(response: Response): string {
+    let textContent = ''
+    let refusal: string | undefined
+    let sawMessageItem = false
+    const observedItemTypes = new Set<string>()
+
+    for (const item of response.output) {
+      observedItemTypes.add(item.type)
+      if (item.type === 'message') {
+        sawMessageItem = true
+        for (const part of item.content) {
+          // Cast off the discriminated union before the type discrimination
+          // so future SDK variants (e.g. `output_audio`, `output_image`) hit
+          // the explicit error path rather than being misreported as refusals
+          // when they get added to the union. Mirrors the streaming side's
+          // handleContentPart.
+          const partType = (part as { type: string }).type
+          if (partType === 'output_text') {
+            textContent += (part as { text?: string }).text ?? ''
+          } else if (partType === 'refusal') {
+            const refusalText = (part as { refusal?: string }).refusal
+            refusal = refusalText || refusal || 'Refused without explanation'
+          } else {
+            throw new Error(
+              `${this.name}.extractTextFromResponse: unsupported message content part type "${partType}"`,
+            )
+          }
+        }
+      }
+    }
+
+    // Surface refusals as an explicit error so callers don't see a generic
+    // "Failed to parse structured output as JSON. Content: " when the model
+    // refused for safety / content-policy reasons.
+    if (!textContent && refusal !== undefined) {
+      const err = new Error(`Model refused to respond: ${refusal}`)
+      ;(err as Error & { code?: string }).code = 'refusal'
+      throw err
+    }
+
+    // Response had items but none carried message text (e.g. only
+    // function_call or reasoning items). Surface that explicitly so a
+    // downstream structured-output caller doesn't see a misleading
+    // "Failed to parse JSON. Content: " from an empty string.
+    if (!textContent && response.output.length > 0 && !sawMessageItem) {
+      throw new Error(
+        `${this.name}.extractTextFromResponse: response.output contained items of type(s) [${[...observedItemTypes].sort().join(', ')}] but no message text — the model returned a non-text response`,
+      )
+    }
+
+    return textContent
+  }
+
+  /**
+   * Processes streamed chunks from the Responses API and yields AG-UI events.
+   * Override this in subclasses to handle provider-specific stream behavior.
+   *
+   * Handles the following event types:
+   * - response.created / response.incomplete / response.failed
+   * - response.output_text.delta
+   * - response.reasoning_text.delta
+   * - response.reasoning.delta (the legacy type used before response.reasoning_text.delta)
+   * - response.reasoning_summary_text.delta
+   * - response.content_part.added / response.content_part.done
+   * - response.output_item.added
+   * - response.function_call_arguments.delta / response.function_call_arguments.done
+   * - response.completed
+   * - error
+   */
+  protected async *processStreamChunks(
+    stream: AsyncIterable<ResponseStreamEvent | LegacyReasoningDeltaEvent>,
+    toolCallMetadata: Map<string, StreamedFunctionCallMetadata>,
+    options: TextOptions<TProviderOptions>,
+    aguiState: {
+      runId: string
+      threadId: string
+      messageId: string
+      hasEmittedRunStarted: boolean
+    },
+  ): AsyncIterable<AdapterYieldChunk> {
+    const normalizeToolInput = createToolInputNormalizer(
+      options.tools,
+      (schema, required) =>
+        this.makeStructuredOutputCompatibleWithMap(schema, required),
+    )
+    let accumulatedContent = ''
+
+    // Track if we've been streaming deltas to avoid duplicating content from done events
+    let hasStreamedContentDeltas = false
+    let hasStreamedReasoningDeltas = false
+
+    // Preserve response metadata across events
+    let model: string = options.model
+    let responseId: string | undefined
+
+    // AG-UI lifecycle tracking
+    let hasEmittedTextMessageStart = false
+    let reasoningMessageId: string | undefined
+    let reasoningItemId: string | undefined
+    let reasoningEncryptedContent: string | undefined
+    let closedReasoningMessageId: string | undefined
+    let hasClosedReasoning = false
+    // Track whether we've emitted a terminal RUN_FINISHED so the
+    // end-of-stream fallback below knows to synthesise one when the upstream
+    // cuts off without a response.completed event.
+    let runFinishedEmitted = false
+
+    const providerWebSearchCalls = new Map<
+      string,
+      {
+        item: ResponseFunctionWebSearch
+        index: number
+        started: boolean
+      }
+    >()
+    const webSearchCitations: Array<ResponseOutputText.URLCitation> = []
+
+    const adapterName = this.name
+    const emitModel = () => model || options.model
+
+    const recordProviderWebSearchCall = (value: unknown, index: number) => {
+      const item = readWebSearchCall(value)
+      if (!item) return
+      const existing = providerWebSearchCalls.get(item.id)
+      if (existing) {
+        existing.item = item
+        existing.index = index
+      } else {
+        providerWebSearchCalls.set(item.id, {
+          item,
+          index,
+          started: false,
+        })
+      }
+    }
+
+    const emitProviderWebSearchCalls = function* (
+      assistantMessage?: ResponseOutputMessage,
+      completedOnly = false,
+    ): Generator<AdapterYieldChunk> {
+      for (const entry of providerWebSearchCalls.values()) {
+        if (
+          entry.started ||
+          (completedOnly && entry.item.status !== 'completed')
+        ) {
+          continue
+        }
+
+        // Citations belong to the whole response. Give a call only the
+        // citations whose URL is in its own action.sources.
+        // ponytail: exact URL match; normalize URLs if the two ever differ.
+        const callUrls = new Set(
+          entry.item.action.type === 'search'
+            ? (entry.item.action.sources ?? []).map((source) => source.url)
+            : [],
+        )
+        const citations = webSearchCitations.filter((citation) =>
+          callUrls.has(citation.url),
+        )
+        const metadata: OpenAIResponsesToolCallMetadata = {
+          itemId: entry.item.id,
+          providerExecuted: true,
+          sources: collectWebSearchSources(entry.item, citations),
+          openai: {
+            webSearchCall: entry.item,
+            urlCitations: citations,
+            ...(assistantMessage ? { assistantMessage } : {}),
+          },
+        }
+
+        entry.started = true
+        yield {
+          type: EventType.TOOL_CALL_START,
+          toolCallId: entry.item.id,
+          toolCallName: 'web_search',
+          parentMessageId: aguiState.messageId,
+          model: emitModel(),
+          timestamp: Date.now(),
+          index: entry.index,
+          metadata,
+        }
+        yield {
+          type: EventType.TOOL_CALL_END,
+          toolCallId: entry.item.id,
+          toolCallName: 'web_search',
+          model: emitModel(),
+          timestamp: Date.now(),
+          input: entry.item.action,
+        }
+      }
+    }
+
+    const openReasoning = function* (): Generator<AdapterYieldChunk> {
+      if (reasoningMessageId) return
+      reasoningMessageId = generateId(adapterName)
+      const timestamp = Date.now()
+      const currentModel = emitModel()
+      yield {
+        type: EventType.REASONING_START,
+        messageId: reasoningMessageId,
+        model: currentModel,
+        timestamp,
+      }
+      yield {
+        type: EventType.REASONING_MESSAGE_START,
+        messageId: reasoningMessageId,
+        role: 'reasoning' as const,
+        model: currentModel,
+        timestamp,
+      }
+    }
+
+    const captureReasoningItem = (item: unknown) => {
+      const parsed = readReasoningItem(item)
+      if (!parsed) return
+      if (parsed.id) reasoningItemId = parsed.id
+      if (parsed.encrypted_content) {
+        reasoningEncryptedContent = parsed.encrypted_content
+      }
+    }
+
+    const closeReasoning = function* (): Generator<AdapterYieldChunk> {
+      if (!reasoningMessageId || hasClosedReasoning) return
+      hasClosedReasoning = true
+      const timestamp = Date.now()
+      const currentModel = emitModel()
+      const signature = packResponsesReasoningSignature(
+        reasoningItemId,
+        reasoningEncryptedContent,
+      )
+      yield {
+        type: EventType.REASONING_MESSAGE_END,
+        messageId: reasoningMessageId,
+        model: currentModel,
+        timestamp,
+      }
+      yield {
+        type: EventType.REASONING_END,
+        messageId: reasoningMessageId,
+        model: currentModel,
+        timestamp,
+      }
+      closedReasoningMessageId = reasoningMessageId
+      // The signature belongs to the reasoning message, so an AG-UI client
+      // finds that message by `entityId`.
+      if (signature) {
+        yield {
+          type: EventType.REASONING_ENCRYPTED_VALUE,
+          subtype: 'message' as const,
+          entityId: reasoningMessageId,
+          encryptedValue: signature,
+          model: currentModel,
+          timestamp,
+        }
+      }
+      reasoningMessageId = undefined
+      reasoningItemId = undefined
+      reasoningEncryptedContent = undefined
+      hasClosedReasoning = false
+    }
+
+    // A stateless stream (the ChatGPT plan route) can stream a tool call, then
+    // send `response.completed` with an empty `output`.
+    let streamedToolCall = false
+
+    // A stateless GitHub Copilot stream gives a new item id on each event of
+    // one output item. A new id joins the call with the same `call_id`, or,
+    // for an argument event that has no `call_id`, the same output index.
+    const trackedCall = (id: string, outputIndex: number, callId?: string) => {
+      const tracked =
+        toolCallMetadata.get(id) ??
+        [...toolCallMetadata.values()].find((metadata) =>
+          callId ? metadata.callId === callId : metadata.index === outputIndex,
+        )
+      if (tracked) toolCallMetadata.set(id, tracked)
+      return tracked
+    }
+
+    const userToolChunks = (
+      item: unknown,
+      outputIndex: number,
+      bareShell: boolean,
+    ): Array<AdapterYieldChunk> => {
+      const call = readUserExecutedCall(item, { bareShell })
+      if (!call || toolCallMetadata.get(call.callId)?.ended) return []
+      const tracked = toolCallMetadata.get(call.callId) ?? {
+        callId: call.callId,
+        index: outputIndex,
+        name: call.name,
+        started: false,
+      }
+      toolCallMetadata.set(call.callId, tracked)
+      tracked.started = true
+      tracked.ended = true
+      tracked.name = call.name
+      streamedToolCall = true
+      const timestamp = Date.now()
+      const modelName = model || options.model
+      const metadata: OpenAIResponsesToolCallMetadata = {
+        openaiUserTool: call.name,
+        ...(call.itemId ? { itemId: call.itemId } : {}),
+        ...(call.maxOutputLength !== undefined
+          ? { maxOutputLength: call.maxOutputLength }
+          : {}),
+      }
+      return [
+        {
+          type: EventType.TOOL_CALL_START,
+          toolCallId: call.callId,
+          toolCallName: call.name,
+          parentMessageId: aguiState.messageId,
+          model: modelName,
+          timestamp,
+          index: outputIndex,
+          metadata,
+        },
+        {
+          type: EventType.TOOL_CALL_END,
+          toolCallId: call.callId,
+          toolCallName: call.name,
+          model: modelName,
+          timestamp,
+          input: call.input,
+        },
+      ]
+    }
+
+    const emitReasoningDelta = function* (
+      text: string,
+    ): Generator<AdapterYieldChunk> {
+      if (!text) return
+      yield* openReasoning()
+      if (!reasoningMessageId) return
+      hasStreamedReasoningDeltas = true
+      yield {
+        type: EventType.REASONING_MESSAGE_CONTENT,
+        messageId: reasoningMessageId,
+        delta: text,
+        model: emitModel(),
+        timestamp: Date.now(),
+      }
+    }
+
+    try {
+      for await (const chunk of stream) {
+        options.logger.provider(`provider=${this.name} type=${chunk.type}`, {
+          provider: this.name,
+          type: chunk.type,
+        })
+
+        // Emit RUN_STARTED on first chunk
+        if (!aguiState.hasEmittedRunStarted) {
+          aguiState.hasEmittedRunStarted = true
+          yield {
+            type: EventType.RUN_STARTED,
+            metadata: this.sourceMetadata(options.model),
+            runId: aguiState.runId,
+            threadId: aguiState.threadId,
+            model: model || options.model,
+            timestamp: Date.now(),
+            parentRunId: options.parentRunId,
+          }
+        }
+
+        const handleContentPart = (contentPart: {
+          type: string
+          text?: string
+          refusal?: string
+        }): AdapterYieldChunk => {
+          if (contentPart.type === 'output_text') {
+            accumulatedContent += contentPart.text || ''
+            return {
+              type: EventType.TEXT_MESSAGE_CONTENT,
+              messageId: aguiState.messageId,
+              model: model || options.model,
+              timestamp: Date.now(),
+              delta: contentPart.text || '',
+              content: accumulatedContent,
+            }
+          }
+
+          // Either a real refusal or an unknown content_part type. Surface
+          // the part type in the error so unknown parts are debuggable
+          // instead of being misreported as "Unknown refusal".
+          const isRefusal = contentPart.type === 'refusal'
+          const message = isRefusal
+            ? contentPart.refusal || 'Refused without explanation'
+            : `Unsupported response content_part type: ${contentPart.type}`
+          const code = isRefusal ? 'refusal' : contentPart.type
+          return {
+            type: EventType.RUN_ERROR,
+            metadata: this.sourceMetadata(options.model),
+            model: model || options.model,
+            timestamp: Date.now(),
+            message,
+            code,
+            error: { message, code },
+          }
+        }
+
+        // Capture model metadata from any of these events (created starts
+        // the run; failed/incomplete signal terminal failure).
+        if (
+          chunk.type === 'response.created' ||
+          chunk.type === 'response.incomplete' ||
+          chunk.type === 'response.failed'
+        ) {
+          if (chunk.response.id) responseId = chunk.response.id
+          model = chunk.response.model
+        }
+
+        // response.created marks the start of a fresh run — safe to reset
+        // the per-run accumulators here.
+        if (chunk.type === 'response.created') {
+          hasStreamedContentDeltas = false
+          hasStreamedReasoningDeltas = false
+          hasEmittedTextMessageStart = false
+          reasoningMessageId = undefined
+          hasClosedReasoning = false
+          accumulatedContent = ''
+        }
+
+        // response.failed and response.incomplete are TERMINAL events for
+        // the current response. Close any open AG-UI message lifecycle FIRST
+        // so consumers tracking start/end pairs don't see an unbalanced
+        // TEXT_MESSAGE_START. Then surface the error and mark the run as
+        // finished so the post-loop synthetic terminal block doesn't emit
+        // a duplicate RUN_FINISHED on top of RUN_ERROR.
+        if (
+          chunk.type === 'response.failed' ||
+          chunk.type === 'response.incomplete'
+        ) {
+          if (chunk.type === 'response.incomplete') {
+            for (const [index, item] of (
+              chunk.response.output ?? []
+            ).entries()) {
+              recordProviderWebSearchCall(item, index)
+            }
+            yield* emitProviderWebSearchCalls(undefined, true)
+          }
+          yield* closeReasoning()
+          if (hasEmittedTextMessageStart) {
+            yield {
+              type: EventType.TEXT_MESSAGE_END,
+              messageId: aguiState.messageId,
+              model: chunk.response.model,
+              timestamp: Date.now(),
+            }
+            hasEmittedTextMessageStart = false
+          }
+          // Coalesce error + incomplete_details into a single RUN_ERROR
+          // payload — emitting two distinct events for one terminal upstream
+          // event would force consumers to handle a non-existent ordering.
+          const errorMessage =
+            chunk.response.error?.message ||
+            chunk.response.incomplete_details?.reason ||
+            (chunk.type === 'response.failed'
+              ? 'Response failed'
+              : 'Response ended incomplete')
+          const providerCode =
+            chunk.response.error?.code ??
+            (chunk.response.incomplete_details ? 'incomplete' : undefined) ??
+            undefined
+          const errorCode = this.isContextOverflow({
+            message: errorMessage,
+            code: providerCode,
+          })
+            ? CONTEXT_OVERFLOW_CODE
+            : providerCode
+          // Always emit RUN_ERROR for terminal failure events, even when the
+          // upstream omitted both `error` and `incomplete_details`. Skipping
+          // emission on a `response.incomplete` with no detail would let the
+          // post-loop synthetic block silently coerce the run to a clean
+          // `RUN_FINISHED { finishReason: 'stop' }` — masking the failure.
+          yield {
+            type: EventType.RUN_ERROR,
+            metadata: this.sourceMetadata(options.model),
+            model: chunk.response.model,
+            timestamp: Date.now(),
+            message: errorMessage,
+            ...(errorCode !== undefined && { code: errorCode }),
+            error: {
+              message: errorMessage,
+              ...(errorCode !== undefined && { code: errorCode }),
+            },
+          }
+          // RUN_ERROR is the terminal event for this run; stop processing
+          // any further chunks the iterator might still deliver.
+          runFinishedEmitted = true
+          return
+        }
+
+        // Handle output text deltas (token-by-token streaming)
+        // response.output_text.delta provides incremental text updates
+        if (chunk.type === 'response.output_text.delta' && chunk.delta) {
+          // Delta can be an array of strings or a single string
+          const textDelta = Array.isArray(chunk.delta)
+            ? chunk.delta.join('')
+            : typeof chunk.delta === 'string'
+              ? chunk.delta
+              : ''
+
+          if (textDelta) {
+            yield* closeReasoning()
+            // Emit TEXT_MESSAGE_START on first text content
+            if (!hasEmittedTextMessageStart) {
+              hasEmittedTextMessageStart = true
+              yield {
+                type: EventType.TEXT_MESSAGE_START,
+                messageId: aguiState.messageId,
+                model: model || options.model,
+                timestamp: Date.now(),
+                role: 'assistant',
+              }
+            }
+
+            accumulatedContent += textDelta
+            hasStreamedContentDeltas = true
+            yield {
+              type: EventType.TEXT_MESSAGE_CONTENT,
+              messageId: aguiState.messageId,
+              model: model || options.model,
+              timestamp: Date.now(),
+              delta: textDelta,
+              content: accumulatedContent,
+            }
+          }
+        }
+
+        // Handle reasoning deltas (token-by-token thinking/reasoning streaming)
+        // response.reasoning_text.delta provides incremental reasoning updates
+        if (
+          (chunk.type === 'response.reasoning_text.delta' ||
+            chunk.type === 'response.reasoning.delta') &&
+          chunk.delta
+        ) {
+          const reasoningDelta = Array.isArray(chunk.delta)
+            ? chunk.delta.join('')
+            : typeof chunk.delta === 'string'
+              ? chunk.delta
+              : ''
+          yield* emitReasoningDelta(reasoningDelta)
+        }
+
+        // Handle reasoning summary deltas (when using reasoning.summary option)
+        if (
+          chunk.type === 'response.reasoning_summary_text.delta' &&
+          chunk.delta
+        ) {
+          const summaryDelta =
+            typeof chunk.delta === 'string' ? chunk.delta : ''
+          yield* emitReasoningDelta(summaryDelta)
+        }
+
+        // handle content_part added events for text, reasoning and refusals
+        if (chunk.type === 'response.content_part.added') {
+          const contentPart = chunk.part
+          // The Responses API can announce a text part with an empty
+          // placeholder before putting the actual text only on the completed
+          // response. An empty placeholder is not streamed content and must
+          // not suppress the completion backstop below.
+          if (
+            (contentPart.type === 'output_text' ||
+              contentPart.type === 'reasoning_text') &&
+            !contentPart.text
+          ) {
+            continue
+          }
+          if (contentPart.type === 'reasoning_text') {
+            yield* emitReasoningDelta(contentPart.text || '')
+            continue
+          }
+          if (
+            contentPart.type === 'output_text' &&
+            !hasEmittedTextMessageStart
+          ) {
+            yield* closeReasoning()
+            hasEmittedTextMessageStart = true
+            yield {
+              type: EventType.TEXT_MESSAGE_START,
+              messageId: aguiState.messageId,
+              model: model || options.model,
+              timestamp: Date.now(),
+              role: 'assistant',
+            }
+          }
+          // Mark whichever stream we just emitted into so a subsequent
+          // `content_part.done` doesn't duplicate the same text. Without
+          // this flag, an `added` event carrying the full text followed by
+          // a matching `done` event would emit TEXT_MESSAGE_CONTENT twice.
+          if (contentPart.type === 'output_text') {
+            hasStreamedContentDeltas = true
+          }
+          const partChunk = handleContentPart(contentPart)
+          yield partChunk
+          // handleContentPart returns RUN_ERROR for refusals / unknown
+          // content_part types — those are terminal events. Don't keep
+          // processing more chunks (and don't let the post-loop synthetic
+          // block emit a second terminal event).
+          if (partChunk.type === 'RUN_ERROR') {
+            runFinishedEmitted = true
+            return
+          }
+        }
+
+        if (chunk.type === 'response.content_part.done') {
+          const contentPart = chunk.part
+
+          // Skip emitting chunks for content parts that we've already streamed via deltas
+          // The done event is just a completion marker, not new content
+          if (contentPart.type === 'output_text' && hasStreamedContentDeltas) {
+            // Content already accumulated from deltas, skip
+            continue
+          }
+          if (
+            contentPart.type === 'reasoning_text' &&
+            hasStreamedReasoningDeltas
+          ) {
+            // Reasoning already accumulated from deltas, skip
+            continue
+          }
+
+          // Upstreams that emit `content_part.done` without any preceding
+          // deltas (or `content_part.added`) still need a START event before
+          // CONTENT — otherwise consumers tracking start/end pairs see content
+          // without a start and never see an end. Emit the lifecycle opener
+          // for whichever stream this content_part belongs to before yielding
+          // the CONTENT chunk; the post-loop block emits the matching END.
+          if (contentPart.type === 'reasoning_text') {
+            yield* emitReasoningDelta(contentPart.text || '')
+            continue
+          }
+          if (
+            contentPart.type === 'output_text' &&
+            !hasEmittedTextMessageStart
+          ) {
+            yield* closeReasoning()
+            hasEmittedTextMessageStart = true
+            yield {
+              type: EventType.TEXT_MESSAGE_START,
+              messageId: aguiState.messageId,
+              model: model || options.model,
+              timestamp: Date.now(),
+              role: 'assistant',
+            }
+          }
+
+          // Only emit if we haven't been streaming deltas (e.g., for non-streaming responses)
+          const doneChunk = handleContentPart(contentPart)
+          yield doneChunk
+          if (doneChunk.type === 'RUN_ERROR') {
+            runFinishedEmitted = true
+            return
+          }
+        }
+
+        // handle output_item.added to capture function call metadata (name)
+        if (chunk.type === 'response.output_item.added') {
+          const item = chunk.item
+          if (item.type === 'web_search_call') {
+            recordProviderWebSearchCall(item, chunk.output_index)
+          }
+          if (item.type === 'reasoning') {
+            captureReasoningItem(item)
+            yield* openReasoning()
+          }
+          if (item.type === 'function_call' && item.id) {
+            // Track the item as soon as we see it so subsequent arg deltas
+            // aren't logged as orphans, but only emit TOOL_CALL_START when
+            // both id AND name are populated. Emitting START with an empty
+            // name would propagate into TOOL_CALL_END (which reads the same
+            // metadata) and route the tool call to whatever name happens to
+            // match `''` downstream — a silent misroute.
+            let metadata = trackedCall(
+              item.id,
+              chunk.output_index,
+              item.call_id,
+            )
+            if (!metadata) {
+              metadata = {
+                callId: item.call_id || item.id,
+                index: chunk.output_index,
+                name: item.name || '',
+                started: false,
+              }
+              toolCallMetadata.set(item.id, metadata)
+            } else {
+              if (item.call_id) metadata.callId = item.call_id
+              if (!metadata.name && item.name) {
+                // A later output_item.added for the same id finally carries
+                // the name. Update so the gated emission below can fire.
+                metadata.name = item.name
+              }
+            }
+            if (!metadata.started && metadata.name) {
+              yield {
+                type: EventType.TOOL_CALL_START,
+                toolCallId: metadata.callId,
+                toolCallName: metadata.name,
+                parentMessageId: aguiState.messageId,
+                model: model || options.model,
+                timestamp: Date.now(),
+                index: chunk.output_index,
+                metadata: functionCallMetadata(item),
+              }
+              metadata.started = true
+              streamedToolCall = true
+            }
+          }
+          yield* userToolChunks(item, chunk.output_index, false)
+        }
+
+        // Handle function call arguments delta (streaming). Drop the
+        // previously-emitted `args` field — it had inverted polarity
+        // (populated only when metadata was MISSING, i.e. when the
+        // matching TOOL_CALL_START hadn't fired) and the chat-completions
+        // adapter never emitted it, so it leaked partial deltas as
+        // pseudo-args only on the orphan path. Consumers should accumulate
+        // `delta` themselves.
+        //
+        // Guard with `metadata?.started`: the matching TOOL_CALL_START fires
+        // from `output_item.added`, and emitting TOOL_CALL_ARGS before that
+        // would violate the AG-UI lifecycle (ARGS without START). The .done
+        // handler below applies the same guard.
+        if (
+          chunk.type === 'response.function_call_arguments.delta' &&
+          chunk.delta
+        ) {
+          const metadata = trackedCall(chunk.item_id, chunk.output_index)
+          if (!metadata?.started) {
+            options.logger.errors(
+              `${this.name}.processStreamChunks orphan function_call_arguments.delta`,
+              {
+                source: `${this.name}.processStreamChunks`,
+                // No metadata yet, so the `call_id` is unknown here — only the
+                // output item id the delta referenced.
+                itemId: chunk.item_id,
+                rawDelta: chunk.delta,
+              },
+            )
+            continue
+          }
+          yield {
+            type: EventType.TOOL_CALL_ARGS,
+            toolCallId: metadata.callId,
+            model: model || options.model,
+            timestamp: Date.now(),
+            delta: chunk.delta,
+          }
+        }
+
+        if (chunk.type === 'response.function_call_arguments.done') {
+          const { item_id } = chunk
+
+          // Get the function name from metadata (captured in output_item.added)
+          const metadata = trackedCall(item_id, chunk.output_index)
+          // If the matching START was never emitted (the upstream sent an
+          // `output_item.added` without a name and no later event has filled
+          // it in yet), defer END until `output_item.done` or
+          // `response.completed` can backfill the name. We stash the raw
+          // arguments so the late emission has them. Emitting END without
+          // START would produce an unbalanced AG-UI lifecycle event
+          // downstream consumers can't pair.
+          if (!metadata?.started) {
+            if (metadata) {
+              metadata.pendingArguments = chunk.arguments
+            }
+            options.logger.errors(
+              `${this.name}.processStreamChunks deferring function_call_arguments.done — TOOL_CALL_START not yet emitted (waiting for name)`,
+              {
+                source: `${this.name}.processStreamChunks`,
+                ...(metadata && { toolCallId: metadata.callId }),
+                itemId: item_id,
+                rawArguments: chunk.arguments,
+              },
+            )
+            continue
+          }
+          // The output_item.done backstop may have already emitted END (when
+          // it arrived before args.done with a populated item.arguments).
+          // Skip so we never produce a duplicate close for the same id.
+          if (metadata.ended) continue
+          const name = metadata.name || ''
+          metadata.ended = true
+
+          // Parse arguments. Surface parse failures via the logger so a
+          // model emitting malformed JSON is debuggable instead of silently
+          // invoking the tool with {}.
+          let parsedInput: unknown = {}
+          if (chunk.arguments) {
+            try {
+              const parsed = JSON.parse(chunk.arguments)
+              parsedInput = normalizeToolInput(
+                name,
+                parsed && typeof parsed === 'object' ? parsed : {},
+              )
+            } catch (parseError) {
+              options.logger.errors(
+                `${this.name}.processStreamChunks tool-args JSON parse failed`,
+                {
+                  error: toRunErrorPayload(
+                    parseError,
+                    `tool ${name} (${metadata.callId}) returned malformed JSON arguments`,
+                  ),
+                  source: `${this.name}.processStreamChunks`,
+                  toolCallId: metadata.callId,
+                  itemId: item_id,
+                  toolName: name,
+                  rawArguments: chunk.arguments,
+                },
+              )
+              parsedInput = undefined
+            }
+          }
+
+          yield {
+            type: EventType.TOOL_CALL_END,
+            toolCallId: metadata.callId,
+            toolCallName: name,
+            model: model || options.model,
+            timestamp: Date.now(),
+            args: chunk.arguments,
+            ...(parsedInput !== undefined && { input: parsedInput }),
+          }
+        }
+
+        // `output_item.done` is the last point at which a function_call's
+        // name is guaranteed to be on the wire — it carries the fully-formed
+        // ResponseFunctionToolCall. Use it as a backstop to recover any
+        // tool call whose name was missing from `output_item.added` (and
+        // whose START + END therefore never fired).
+        if (chunk.type === 'response.output_item.done') {
+          const item = chunk.item
+          if (item.type === 'web_search_call') {
+            recordProviderWebSearchCall(item, chunk.output_index)
+          }
+          if (item.type === 'reasoning') {
+            captureReasoningItem(item)
+            yield* openReasoning()
+            // One response can carry several reasoning items (reason, search,
+            // reason again). Close each one at its end, so the next item opens
+            // its own step and does not overwrite this id and encrypted_content.
+            yield* closeReasoning()
+          }
+          if (item.type === 'function_call' && item.id) {
+            const metadata = trackedCall(
+              item.id,
+              chunk.output_index,
+              item.call_id,
+            ) ?? {
+              callId: item.call_id || item.id,
+              index: chunk.output_index,
+              name: item.name || '',
+              started: false,
+            }
+            if (!toolCallMetadata.has(item.id)) {
+              toolCallMetadata.set(item.id, metadata)
+            } else {
+              if (item.call_id) metadata.callId = item.call_id
+              if (!metadata.name && item.name) metadata.name = item.name
+            }
+            // Emit gated START if we now have a name and never started.
+            if (!metadata.started && metadata.name) {
+              yield {
+                type: EventType.TOOL_CALL_START,
+                toolCallId: metadata.callId,
+                toolCallName: metadata.name,
+                parentMessageId: aguiState.messageId,
+                model: model || options.model,
+                timestamp: Date.now(),
+                index: metadata.index,
+                metadata: functionCallMetadata(item),
+              }
+              metadata.started = true
+              streamedToolCall = true
+            }
+            // Emit END if we have args (either from a previously-deferred
+            // args.done OR from item.arguments) and haven't already ended.
+            const rawArgs =
+              typeof item.arguments === 'string' && item.arguments.length > 0
+                ? item.arguments
+                : metadata.pendingArguments
+            if (metadata.started && !metadata.ended && rawArgs !== undefined) {
+              const name = metadata.name || ''
+              let parsedInput: unknown = {}
+              if (rawArgs) {
+                try {
+                  const parsed = JSON.parse(rawArgs)
+                  parsedInput = normalizeToolInput(
+                    name,
+                    parsed && typeof parsed === 'object' ? parsed : {},
+                  )
+                } catch (parseError) {
+                  options.logger.errors(
+                    `${this.name}.processStreamChunks tool-args JSON parse failed (output_item.done backfill)`,
+                    {
+                      error: toRunErrorPayload(
+                        parseError,
+                        `tool ${name} (${metadata.callId}) returned malformed JSON arguments`,
+                      ),
+                      source: `${this.name}.processStreamChunks`,
+                      toolCallId: metadata.callId,
+                      itemId: item.id,
+                      toolName: name,
+                      rawArguments: rawArgs,
+                    },
+                  )
+                  parsedInput = undefined
+                }
+              }
+              yield {
+                type: EventType.TOOL_CALL_END,
+                toolCallId: metadata.callId,
+                toolCallName: name,
+                model: model || options.model,
+                timestamp: Date.now(),
+                args: rawArgs,
+                ...(parsedInput !== undefined && { input: parsedInput }),
+              }
+              metadata.ended = true
+              metadata.pendingArguments = undefined
+            }
+          }
+          yield* userToolChunks(item, chunk.output_index, false)
+        }
+
+        if (chunk.type === 'response.output_text.annotation.added') {
+          const citation = readURLCitation(chunk.annotation)
+          if (citation) webSearchCitations.push(citation)
+        }
+
+        if (chunk.type === 'response.completed') {
+          if (chunk.response.id) responseId = chunk.response.id
+          if (chunk.response.model) model = chunk.response.model
+          const responseOutput = Array.isArray(chunk.response.output)
+            ? chunk.response.output
+            : []
+          const assistantMessage = responseOutput.find(
+            (item): item is ResponseOutputMessage => item.type === 'message',
+          )
+          for (const [index, item] of responseOutput.entries()) {
+            if (item.type === 'web_search_call') {
+              recordProviderWebSearchCall(item, index)
+            }
+          }
+
+          // Some Responses API streams, notably reasoning-model responses,
+          // can omit text deltas and carry the successful final text only in
+          // response.completed.output. Recover that text so consumers never
+          // observe an empty result for a successful response.
+          const completedText = responseOutput
+            .flatMap((item) => (item.type === 'message' ? item.content : []))
+            .filter((part) => part.type === 'output_text')
+            .map((part) => part.text)
+            .join('')
+
+          if (accumulatedContent.length === 0 && completedText.length > 0) {
+            if (!hasEmittedTextMessageStart) {
+              hasEmittedTextMessageStart = true
+              yield {
+                type: EventType.TEXT_MESSAGE_START,
+                messageId: aguiState.messageId,
+                model: model || options.model,
+                timestamp: Date.now(),
+                role: 'assistant',
+              }
+            }
+
+            accumulatedContent = completedText
+            hasStreamedContentDeltas = true
+            yield {
+              type: EventType.TEXT_MESSAGE_CONTENT,
+              messageId: aguiState.messageId,
+              model: model || options.model,
+              timestamp: Date.now(),
+              delta: completedText,
+              content: accumulatedContent,
+            }
+          }
+
+          for (const item of responseOutput) {
+            captureReasoningItem(item)
+          }
+          // output_text already closed the streamed reasoning item. A second
+          // openReasoning() would emit an empty thinking part. Attach the
+          // completed item's id/blob to that reasoning message instead. Open only when
+          // this turn never started reasoning (encrypted-only output).
+          if (
+            !reasoningMessageId &&
+            (reasoningItemId || reasoningEncryptedContent)
+          ) {
+            const signature = packResponsesReasoningSignature(
+              reasoningItemId,
+              reasoningEncryptedContent,
+            )
+            if (closedReasoningMessageId && signature) {
+              yield {
+                type: EventType.REASONING_ENCRYPTED_VALUE,
+                subtype: 'message' as const,
+                entityId: closedReasoningMessageId,
+                encryptedValue: signature,
+                model: emitModel(),
+                timestamp: Date.now(),
+              }
+            } else if (!closedReasoningMessageId) {
+              yield* openReasoning()
+            }
+          }
+
+          // Final backstop for function_call lifecycle: if a function_call
+          // appears in `response.output[]` but was never matched by an
+          // output_item.added/done with a name, recover the missing START
+          // (and END if args were pending). Without this, a tool call could
+          // be silently dropped from the AG-UI stream while `hasFunctionCalls`
+          // below still routes the run's finishReason to 'tool_calls' —
+          // leaving consumers waiting for tool results they never saw start.
+          for (const [outputIndex, item] of responseOutput.entries()) {
+            if (item.type !== 'function_call' || !item.id) continue
+            const metadata = trackedCall(
+              item.id,
+              outputIndex,
+              item.call_id,
+            ) ?? {
+              callId: item.call_id || item.id,
+              index: outputIndex,
+              name: item.name || '',
+              started: false,
+            }
+            if (!toolCallMetadata.has(item.id)) {
+              toolCallMetadata.set(item.id, metadata)
+            } else {
+              if (item.call_id) metadata.callId = item.call_id
+              if (!metadata.name && item.name) metadata.name = item.name
+            }
+            if (!metadata.started && metadata.name) {
+              yield {
+                type: EventType.TOOL_CALL_START,
+                toolCallId: metadata.callId,
+                toolCallName: metadata.name,
+                parentMessageId: aguiState.messageId,
+                model: model || options.model,
+                timestamp: Date.now(),
+                index: metadata.index,
+                metadata: functionCallMetadata(item),
+              }
+              metadata.started = true
+              streamedToolCall = true
+            }
+            const rawArgs =
+              typeof item.arguments === 'string' && item.arguments.length > 0
+                ? item.arguments
+                : metadata.pendingArguments
+            if (metadata.started && !metadata.ended) {
+              const name = metadata.name || ''
+              let parsedInput: unknown = {}
+              if (rawArgs) {
+                try {
+                  const parsed = JSON.parse(rawArgs)
+                  parsedInput = normalizeToolInput(
+                    name,
+                    parsed && typeof parsed === 'object' ? parsed : {},
+                  )
+                } catch (parseError) {
+                  options.logger.errors(
+                    `${this.name}.processStreamChunks tool-args JSON parse failed (response.completed backfill)`,
+                    {
+                      error: toRunErrorPayload(
+                        parseError,
+                        `tool ${name} (${metadata.callId}) returned malformed JSON arguments`,
+                      ),
+                      source: `${this.name}.processStreamChunks`,
+                      toolCallId: metadata.callId,
+                      itemId: item.id,
+                      toolName: name,
+                      rawArguments: rawArgs,
+                    },
+                  )
+                  parsedInput = undefined
+                }
+              }
+              yield {
+                type: EventType.TOOL_CALL_END,
+                toolCallId: metadata.callId,
+                toolCallName: name,
+                model: model || options.model,
+                timestamp: Date.now(),
+                args: rawArgs,
+                ...(parsedInput !== undefined && { input: parsedInput }),
+              }
+              metadata.ended = true
+              metadata.pendingArguments = undefined
+            }
+          }
+
+          yield* emitProviderWebSearchCalls(assistantMessage)
+
+          const shellOutputs = hostedShellCallIds(responseOutput)
+          for (const [outputIndex, item] of responseOutput.entries()) {
+            if (
+              isRecord(item) &&
+              item.type === 'shell_call' &&
+              typeof item.call_id === 'string' &&
+              shellOutputs.has(item.call_id)
+            ) {
+              continue
+            }
+            yield* userToolChunks(item, outputIndex, true)
+          }
+
+          yield* closeReasoning()
+          // Emit TEXT_MESSAGE_END if we had text content
+          if (hasEmittedTextMessageStart) {
+            yield {
+              type: EventType.TEXT_MESSAGE_END,
+              messageId: aguiState.messageId,
+              model: model || options.model,
+              timestamp: Date.now(),
+            }
+            hasEmittedTextMessageStart = false
+          }
+
+          // Determine finish reason. Function-call output → tool_calls.
+          // Otherwise surface incomplete_details.reason when present so
+          // callers can distinguish length-limit / content-filter cutoffs
+          // from a clean stop, mirroring the chat-completions adapter.
+          // The Responses API's incomplete_details.reason ('max_output_tokens'
+          // | 'content_filter') maps to the AG-UI finishReason vocabulary:
+          // max_output_tokens → 'length', content_filter → 'content_filter'.
+          const hasFunctionCalls =
+            streamedToolCall ||
+            responseOutput.some((item) => {
+              if (!isRecord(item)) return false
+              if (item.type === 'function_call') return true
+              if (
+                item.type === 'shell_call' &&
+                typeof item.call_id === 'string' &&
+                shellOutputs.has(item.call_id)
+              ) {
+                return false
+              }
+              return readUserExecutedCall(item, { bareShell: true }) !== null
+            })
+          const incompleteReason = chunk.response.incomplete_details?.reason
+          const finishReason:
+            | 'tool_calls'
+            | 'length'
+            | 'content_filter'
+            | 'stop' = hasFunctionCalls
+            ? 'tool_calls'
+            : incompleteReason === 'max_output_tokens'
+              ? 'length'
+              : incompleteReason === 'content_filter'
+                ? 'content_filter'
+                : 'stop'
+
+          // Each answer item's id and phase, for a same-model replay. Only a
+          // model that sends a phase gets them: an OpenAI-compatible server
+          // keeps the plain-text replay.
+          const answers = responseOutput.flatMap((item) =>
+            item.type === 'message' && item.id
+              ? [{ id: item.id, ...(item.phase ? { phase: item.phase } : {}) }]
+              : [],
+          )
+          const responseItems = answers.some((item) => item.phase)
+            ? answers
+            : []
+          const reasoningItem = responseOutput.some(
+            (item) => item.type === 'reasoning',
+          )
+          const tanstack = {
+            ...(responseItems.length > 0 ? { responseItems } : {}),
+            ...(reasoningItem ? { reasoningItem } : {}),
+          }
+          yield {
+            type: EventType.RUN_FINISHED,
+            ...(responseId ? { responseId } : {}),
+            ...(Object.keys(tanstack).length > 0
+              ? { metadata: { tanstack } }
+              : {}),
+            runId: aguiState.runId,
+            threadId: aguiState.threadId,
+            model: model || options.model,
+            timestamp: Date.now(),
+            // Omit usage entirely when the provider reported none rather than
+            // emitting fabricated zeros (also satisfies exactOptionalPropertyTypes).
+            ...(chunk.response.usage && {
+              usage: this.responsesTokenUsage(
+                chunk.response.usage,
+                chunk.response,
+              ),
+            }),
+            finishReason,
+          }
+          runFinishedEmitted = true
+          // Terminal event: do not wait for the HTTP body to close (#1445).
+          return
+        }
+
+        if (chunk.type === 'error') {
+          // Conditional `code` spread keeps the wire shape spec-compliant
+          // under `exactOptionalPropertyTypes` (see chatStream catch).
+          const providerCode = chunk.code ?? undefined
+          const code = this.isContextOverflow({
+            message: chunk.message,
+            code: providerCode,
+          })
+            ? CONTEXT_OVERFLOW_CODE
+            : providerCode
+          yield {
+            type: EventType.RUN_ERROR,
+            metadata: this.sourceMetadata(options.model),
+            model: model || options.model,
+            timestamp: Date.now(),
+            message: chunk.message,
+            ...(code !== undefined && { code }),
+            error: {
+              message: chunk.message,
+              ...(code !== undefined && { code }),
+            },
+          }
+          // RUN_ERROR is terminal — don't let the synthetic RUN_FINISHED
+          // block fire after a top-level stream error event, and stop
+          // processing further chunks so no in-flight lifecycle events
+          // (TEXT_MESSAGE_CONTENT, TOOL_CALL_*) leak past the terminal
+          // error. Mirrors the `response.failed` / `response.incomplete`
+          // branches above which return after their RUN_ERROR emission.
+          runFinishedEmitted = true
+          return
+        }
+      }
+
+      // The stream ended without a terminal event (e.g. a truncated
+      // connection). Completion was never confirmed, so this is not a
+      // successful stop (#1447). The partial text was already emitted.
+      if (!runFinishedEmitted && aguiState.hasEmittedRunStarted) {
+        yield* emitProviderWebSearchCalls(undefined, true)
+        yield* closeReasoning()
+        if (hasEmittedTextMessageStart) {
+          yield {
+            type: EventType.TEXT_MESSAGE_END,
+            messageId: aguiState.messageId,
+            model: model || options.model,
+            timestamp: Date.now(),
+          }
+        }
+        const message = 'Response stream ended before response.completed'
+        yield {
+          type: EventType.RUN_ERROR,
+          metadata: this.sourceMetadata(options.model),
+          model: model || options.model,
+          timestamp: Date.now(),
+          message,
+          code: 'incomplete-stream',
+          error: { message, code: 'incomplete-stream' },
+        }
+      }
+    } catch (error: unknown) {
+      // Narrow before logging: raw SDK errors can carry request metadata
+      // (including auth headers) which we must never surface to user loggers.
+      const errorPayload = this.runErrorPayload(
+        error,
+        `${this.name}.processStreamChunks failed`,
+      )
+      const rawEvent = toRunErrorRawEvent(error)
+      const retryAfterMs = toRetryAfterMs(error)
+      options.logger.errors(`${this.name}.processStreamChunks fatal`, {
+        error: errorPayload,
+        source: `${this.name}.processStreamChunks`,
+      })
+      // Emit AG-UI RUN_ERROR with conditional `code` spread (see chatStream
+      // catch for the rationale). `rawEvent` carries the provider's structured
+      // error body when present.
+      yield {
+        type: EventType.RUN_ERROR,
+        metadata: this.sourceMetadata(
+          options.model,
+          this.isAbortError(error) ? 'aborted' : 'error',
+        ),
+        model: options.model,
+        timestamp: Date.now(),
+        message: errorPayload.message,
+        ...(errorPayload.code !== undefined && { code: errorPayload.code }),
+        ...(rawEvent !== undefined && { rawEvent }),
+        ...(retryAfterMs !== undefined && { retryAfterMs }),
+        ...toRunErrorDetails(error),
+        error: {
+          message: errorPayload.message,
+          ...(errorPayload.code !== undefined && { code: errorPayload.code }),
+        },
+      }
+    }
+  }
+
+  /**
+   * Maps common TextOptions to Responses API request format.
+   * Override this in subclasses to add provider-specific options.
+   */
+  protected mapOptionsToRequest(
+    options: TextOptions<TProviderOptions>,
+  ): Omit<ResponseCreateParams, 'stream'> {
+    const mid = this.midConversationRequest(options)
+    const input = this.convertMessagesToInput(
+      options.messages,
+      options.model,
+      mid?.items,
+    )
+
+    if (this.strictFallbackWarning) {
+      warnStrictFallback(options.tools, options.logger)
+    }
+    const tools = options.tools
+      ? this.convertTools(mid?.tools ?? options.tools)
+      : undefined
+
+    const modelOptions = options.modelOptions
+
+    // Native combined mode (issue #605): when the engine threads
+    // `outputSchema` through TextOptions, the adapter declared
+    // `supportsCombinedToolsAndSchema` and the schema is already JSON Schema
+    // (pre-converted at the activity boundary). Wire it into `text.format`
+    // alongside any `tools` — the Responses API supports both together and
+    // emits the schema-constrained text on the natural final turn.
+    // JSON mode is never combined (see `supportsCombinedToolsAndSchema`).
+    // A caller's own `json_object` reaches the request through the
+    // `modelOptions` spread.
+    const combinedSchema = this.usesJsonObject(options)
+      ? undefined
+      : (options.outputSchema as Record<string, unknown> | undefined)
+    const textFormat = combinedSchema
+      ? {
+          text: {
+            format: this.responsesStructuredFormat(false, combinedSchema),
+          },
+        }
+      : undefined
+
+    // `chat({ toolChoice })` is sent only when the request has tools. It goes
+    // before the `modelOptions` spread, so a `tool_choice` there wins.
+    const toolChoiceField =
+      tools?.length && options.toolChoice !== undefined
+        ? { tool_choice: toResponsesToolChoice(options.toolChoice) }
+        : undefined
+
+    // `modelOptions` is the sole sampling surface: `temperature`, `top_p`, and
+    // `max_output_tokens` live there (typed via OpenAISamplingOptions) and are
+    // spread first. Engine-managed fields (`model`, `metadata`, `instructions`,
+    // `input`, `tools`, `textFormat`) are layered on top afterward so they
+    // always win over any same-named key a caller happened to put in
+    // `modelOptions`.
+    const params: Omit<ResponseCreateParams, 'stream'> = {
+      ...toolChoiceField,
+      ...modelOptions,
+      model: options.model,
+      ...(options.metadata !== undefined && { metadata: options.metadata }),
+      ...(() => {
+        const prompts =
+          mid?.systemPrompts ?? normalizeSystemPrompts(options.systemPrompts)
+        if (prompts.length === 0) return {}
+        return { instructions: prompts.map((p) => p.content).join('\n') }
+      })(),
+      input,
+      // Conditional spread: `tools: undefined` would clobber any
+      // modelOptions.tools the caller set above.
+      ...(tools && tools.length > 0 && { tools }),
+      ...(textFormat ?? {}),
+    }
+    // `chat({ reasoning })`: the model's effort for the level, and a summary
+    // so the thinking text streams back. The SDK type does not list every
+    // provider's effort values, so the field goes on with Object.assign.
+    const reasoning = resolveReasoning(
+      options.reasoning,
+      this.modelReasoning(options.model),
+    )
+    if (reasoning?.value) {
+      Object.assign(params, {
+        reasoning: {
+          effort: reasoning.value,
+          ...(reasoning.summary && reasoning.level !== 'off'
+            ? { summary: 'auto' }
+            : {}),
+        },
+      })
+    }
+    return params
+  }
+
+  /**
+   * Converts the tools for the request. A subclass with its own tool
+   * converter overrides this, so the start set and the `additional_tools`
+   * items of a mid-conversation change use that converter too.
+   */
+  protected convertTools(tools: Array<AnyTool>): Array<ResponsesTool> {
+    return convertToolsToResponsesFormat(
+      tools,
+      this.makeStructuredOutputCompatible.bind(this),
+    )
+  }
+
+  /**
+   * Mid-conversation changes: the start tools for `tools`, the start prompts
+   * for `instructions`, and the input items of each change by message index.
+   * Undefined when the request stays as today: the adapter has no channels,
+   * the engine passed no changes, or the changes do not fit the current lists.
+   */
+  private midConversationRequest(options: TextOptions<TProviderOptions>):
+    | {
+        tools?: Array<AnyTool>
+        systemPrompts?: Array<NormalizedSystemPrompt>
+        items: Map<number, ResponseInput>
+      }
+    | undefined {
+    const channels = this.midConversationChannels
+    if (!channels || !options.midConversationChanges) return undefined
+    const split = splitMidConversationChanges({
+      changes: options.midConversationChanges,
+      tools: options.tools ?? [],
+      systemPrompts: normalizeSystemPrompts(options.systemPrompts),
+    })
+    if (!split) return undefined
+    // A provider tool (web search, MCP, ...) cannot go in `additional_tools`,
+    // so its request keeps the full `tools` list.
+    const toolChannel =
+      channels.tools &&
+      ![...split.startTools, ...split.addedTools].some(
+        (tool) => getOpenAIProviderToolKind(tool) !== undefined,
+      )
+    const items = new Map<number, ResponseInput>()
+    for (const [before, change] of split.at) {
+      const changeItems: ResponseInput = []
+      if (toolChannel && change.tools.length > 0) {
+        changeItems.push({
+          type: 'additional_tools',
+          role: 'developer',
+          tools: this.convertTools(change.tools),
+        })
+      }
+      if (channels.systemPrompts && change.systemPrompts.length > 0) {
+        changeItems.push({
+          role: 'developer',
+          content: change.systemPrompts.map((p) => p.content).join('\n'),
+        })
+      }
+      if (changeItems.length > 0) items.set(before, changeItems)
+    }
+    return {
+      ...(toolChannel && { tools: split.startTools }),
+      ...(channels.systemPrompts && {
+        systemPrompts: split.startSystemPrompts,
+      }),
+      items,
+    }
+  }
+
+  /**
+   * The OpenAI Responses API supports `tools` and `text.format: json_schema`
+   * together in a single streaming request (per issue #605). Subclasses
+   * that route to providers without this capability should override.
+   */
+  supportsCombinedToolsAndSchema(modelOptions?: unknown): boolean {
+    // JSON mode sends the schema as a system prompt on a separate
+    // structured-output request, not on the tool-calling turns.
+    return !this.usesJsonObject({ model: this.model, modelOptions })
+  }
+
+  /**
+   * Converts ModelMessage[] to Responses API ResponseInput format.
+   * Override this in subclasses for provider-specific message format quirks.
+   *
+   * Key differences from Chat Completions:
+   * - Tool results use `function_call_output` type (not `tool` role)
+   * - Assistant tool calls are `function_call` objects (not nested in `tool_calls`)
+   * - User content uses `input_text`, `input_image`, `input_file` types
+   * - System prompts go in `instructions`, not as messages
+   */
+  protected convertMessagesToInput(
+    messages: Array<ModelMessage>,
+    targetModel: string = this.model,
+    /** Items to send directly before `messages[index]`, or at the end. */
+    insertBefore?: ReadonlyMap<number, ResponseInput>,
+  ): ResponseInput {
+    // History from another model loses its signatures, and its tool IDs are
+    // rewritten to `call|item` IDs this API accepts. Each call stays paired.
+    const target = {
+      provider: this.provider ?? this.name,
+      api: this.api,
+      model: targetModel,
+    }
+    const itemIds = new Map<string, string>()
+    const usedCallIds = new Set<string>()
+    const usedItemIds = new Set<string>()
+    const normalizedCompositeIds = new Set<string>()
+    for (const message of messages) {
+      const source = message.metadata?.tanstack?.source
+      const sameSource =
+        !source ||
+        (source.provider === target.provider &&
+          source.api === target.api &&
+          source.model === target.model)
+      for (const call of message.toolCalls ?? []) {
+        if (sameSource) usedCallIds.add(call.id)
+        const metadata = call.metadata
+        const itemId =
+          metadata !== null &&
+          typeof metadata === 'object' &&
+          'itemId' in metadata &&
+          typeof metadata.itemId === 'string'
+            ? metadata.itemId
+            : undefined
+        if (itemId) itemIds.set(call.id, itemId)
+        if (sameSource && itemId) usedItemIds.add(itemId)
+      }
+    }
+    const normalizePart = (part: string) =>
+      part
+        .replace(/[^a-zA-Z0-9_-]/g, '_')
+        .slice(0, 64)
+        .replace(/_+$/, '')
+    const replay = transformMessagesForReplay(
+      messages,
+      target,
+      (id, { source, attempt }) => {
+        const [call = '', compositeItem] = id.split('|')
+        const item = compositeItem ?? itemIds.get(id)
+        let retry = attempt
+        let callId = normalizePart(
+          retry
+            ? `${call.slice(0, 48)}_${hashToolCallId(`${id}:${retry}`)}`
+            : call,
+        )
+        while (!callId || usedCallIds.has(callId)) {
+          retry++
+          callId = normalizePart(
+            `${call.slice(0, 48)}_${hashToolCallId(`${id}:${retry}`)}`,
+          )
+        }
+        usedCallIds.add(callId)
+        if (item === undefined) return callId
+        let itemId =
+          source &&
+          (source.provider !== target.provider || source.api !== target.api)
+            ? `fc_${hashToolCallId(item)}`
+            : normalizePart(item)
+        if (!itemId.startsWith('fc_')) itemId = normalizePart(`fc_${itemId}`)
+        if (itemId === 'fc') itemId = `fc_${hashToolCallId(item)}`
+        let itemRetry = attempt
+        while (usedItemIds.has(itemId)) {
+          itemRetry++
+          itemId = `fc_${hashToolCallId(`${item}:${itemRetry}`)}`
+        }
+        usedItemIds.add(itemId)
+        const composite = `${callId}|${itemId}`
+        normalizedCompositeIds.add(composite)
+        return composite
+      },
+    )
+    const callIdFor = (id: string) =>
+      normalizedCompositeIds.has(id) ? (id.split('|')[0] ?? id) : id
+    messages = replay.messages
+    const result: ResponseInput = []
+    // A reasoning item id may only appear once in `input`; replaying the same
+    // id twice fails with "Duplicate item found with id rs_...". Providers have
+    // been observed minting one id for two separate reasoning items, and a
+    // stored transcript can end up carrying it on two assistant messages.
+    const seenReasoningIds = new Set<string>()
+    const userToolCalls = new Map<
+      string,
+      {
+        id: string
+        function: { name: string; arguments: string }
+        metadata?: unknown
+      }
+    >()
+    // A failed computer call has no screenshot of its own, so it sends the
+    // newest one. A computer call output has no text, so the failure reasons
+    // go in one user message after the call outputs.
+    let lastScreenshot: ResponseComputerToolCallOutputScreenshot | undefined
+    const failures: Array<string> = []
+    const pushFailures = () => {
+      if (failures.length === 0) return
+      result.push({
+        type: 'message',
+        role: 'user',
+        content: [{ type: 'input_text', text: failures.splice(0).join('\n') }],
+      })
+    }
+
+    for (const [index, message] of messages.entries()) {
+      if (message.role !== 'tool') pushFailures()
+      result.push(...(insertBefore?.get(index) ?? []))
+      // Handle tool messages - convert to FunctionToolCallOutput
+      if (message.role === 'tool') {
+        const owner = message.toolCallId
+          ? userToolCalls.get(message.toolCallId)
+          : undefined
+        const error = message.error
+        const userOutput = owner
+          ? userToolResultItem(owner, message.content, {
+              screenshot: () => {
+                if (error !== undefined) {
+                  failures.push(`Computer call ${owner.id} failed: ${error}`)
+                  return lastScreenshot ?? { type: 'computer_screenshot' }
+                }
+                lastScreenshot = this.screenshotOf(message.content)
+                return lastScreenshot
+              },
+              failed: error !== undefined,
+            })
+          : null
+        if (userOutput) {
+          result.push(userOutput)
+          continue
+        }
+        const toolContent = message.content
+        // A model without image input gets no images from a tool result.
+        const parts = Array.isArray(toolContent)
+          ? toolContent.filter(
+              (part) =>
+                part.type !== 'image' ||
+                (this.inputModalities?.includes('image') ?? true),
+            )
+          : undefined
+        const output: string | Array<ResponseFunctionCallOutputItem> = parts
+          ? parts.length > 0 || parts.length === toolContent?.length
+            ? parts.map((part) => this.convertContentPartToInput(part))
+            : '(image omitted: this model has no image input)'
+          : typeof toolContent === 'string'
+            ? toolContent
+            : JSON.stringify(toolContent)
+        result.push({
+          type: 'function_call_output',
+          call_id: message.toolCallId ? callIdFor(message.toolCallId) : '',
+          output,
+        })
+        continue
+      }
+
+      // Handle assistant messages
+      if (message.role === 'assistant') {
+        const firstItem = result.length
+        const source = message.metadata?.tanstack?.source
+        const foreign =
+          source &&
+          (source.provider !== target.provider ||
+            source.api !== target.api ||
+            source.model !== target.model)
+        // Every reasoning item this message could contribute, and how many of
+        // them actually made it into `input` after de-duplication. Both counts
+        // are needed below to decide whether the function calls can still be
+        // paired with their reasoning.
+        let reasoningCandidates = 0
+        let emittedReasoning = 0
+        if (message.thinking) {
+          for (const thinking of message.thinking) {
+            if (!thinking.signature) continue
+            const compaction = readCompactionSignature(thinking.signature)
+            if (compaction) {
+              result.push(compaction)
+              continue
+            }
+            const packed = unpackResponsesReasoningSignature(thinking.signature)
+            if (!packed?.id) continue
+            reasoningCandidates++
+            if (seenReasoningIds.has(packed.id)) continue
+            seenReasoningIds.add(packed.id)
+            emittedReasoning++
+            result.push({
+              type: 'reasoning',
+              id: packed.id,
+              ...(packed.encrypted_content
+                ? { encrypted_content: packed.encrypted_content }
+                : {}),
+              summary: thinking.content
+                ? [{ type: 'summary_text', text: thinking.content }]
+                : [],
+            })
+          }
+        }
+
+        // The Responses API requires a persisted `function_call` item to sit
+        // directly after the reasoning item that produced it. A ModelMessage
+        // stores reasoning and tool calls as two flat arrays, so their original
+        // interleaving is gone: a message holding two or more reasoning items
+        // replays as reasoning A, reasoning B, call A, call B, and the request
+        // is rejected with "Item 'fc_...' of type 'function_call' was provided
+        // without its required 'reasoning' item: 'rs_...'". The same happens
+        // when this message's reasoning was dropped above as a duplicate.
+        //
+        // Sending the calls without their item id makes them fresh items that
+        // the API does not try to pair, which replays correctly. `call_id` is
+        // untouched, so the matching `function_call_output` still resolves.
+        // One reasoning item always lands adjacent to its calls, so those keep
+        // their ids and their prompt-cache hits. If any reasoning was dropped
+        // as a duplicate, a call may belong to it, so the ids go too. A message
+        // with no reasoning item keeps its ids only when its model call sent
+        // none: a reasoning model refuses a msg_/fc_ item without the
+        // reasoning item that made it, and a stored transcript can lose it.
+        const canPairReasoning =
+          (reasoningCandidates === 0 &&
+            message.metadata?.tanstack?.reasoningItem !== true) ||
+          (reasoningCandidates === 1 && emittedReasoning === 1)
+        const firstCall = result.length
+
+        // If the assistant message has tool calls, add them as FunctionToolCall objects
+        // Responses API expects arguments as a string (JSON string)
+        let rawAssistantMessage: ResponseOutputMessage | undefined
+        if (message.toolCalls && message.toolCalls.length > 0) {
+          for (const toolCall of message.toolCalls) {
+            const metadata = toolCall.metadata as
+              | OpenAIResponsesToolCallMetadata
+              | undefined
+            if (metadata?.providerExecuted) {
+              const webSearchCall = metadata.openai?.webSearchCall
+              // The raw ws_/msg_ items carry ids that must pair with their
+              // reasoning item, the same as function calls above. When they
+              // cannot pair, skip them and send the plain message with no id.
+              if (webSearchCall && canPairReasoning && !foreign) {
+                result.push(webSearchCall)
+                rawAssistantMessage ??= metadata.openai?.assistantMessage
+              }
+              continue
+            }
+
+            // Keep arguments as string for Responses API
+            const argumentsString =
+              typeof toolCall.function.arguments === 'string'
+                ? toolCall.function.arguments
+                : JSON.stringify(toolCall.function.arguments)
+            const replayItemId = normalizedCompositeIds.has(toolCall.id)
+              ? toolCall.id.split('|')[1]
+              : undefined
+            const replayMetadata = replayItemId
+              ? { ...metadata, itemId: replayItemId }
+              : toolCall.metadata
+            const replayCall = {
+              id: callIdFor(toolCall.id),
+              function: {
+                name: toolCall.function.name,
+                arguments: argumentsString,
+              },
+              ...(replayMetadata !== undefined
+                ? { metadata: replayMetadata }
+                : {}),
+            }
+            const userItem = userToolRequestItem(replayCall)
+            if (userItem) {
+              userToolCalls.set(toolCall.id, replayCall)
+              result.push(userItem)
+              continue
+            }
+            const itemId = replayItemId ?? metadata?.itemId
+
+            result.push({
+              type: 'function_call',
+              call_id: callIdFor(toolCall.id),
+              ...(itemId && canPairReasoning && { id: itemId }),
+              name: toolCall.function.name,
+              arguments: argumentsString,
+              // Without its namespace, the API cannot find an added tool.
+              ...(metadata?.namespace && { namespace: metadata.namespace }),
+            })
+          }
+        }
+
+        if (rawAssistantMessage) {
+          result.push(rawAssistantMessage)
+        } else if (message.content) {
+          // Add the assistant's text message if there is content
+          const contentStr = this.extractTextContent(message.content)
+          const items =
+            contentStr && canPairReasoning
+              ? answerItems(message, contentStr)
+              : undefined
+          // The model writes an answer item before its calls, so it goes
+          // back right after this message's reasoning.
+          if (items) result.splice(firstCall, 0, ...items)
+          else if (contentStr)
+            // Text must not sit between a call and its output (DeepSeek
+            // rejects that, #1792). With calls, it goes before this message's
+            // reasoning, so the reasoning stays directly before its calls.
+            result.splice(
+              result.length > firstCall ? firstItem : result.length,
+              0,
+              { type: 'message', role: 'assistant', content: contentStr },
+            )
+        }
+
+        // Another model's answer: plain text and calls in the order the
+        // model sent them. Its raw items are not sent.
+        if (foreign) {
+          const emitted = result.splice(firstItem)
+          const text = this.extractTextContent(message.content)
+          const blocks = orderedAssistantBlocks(message) ?? [
+            ...(text ? [{ type: 'text' as const, text }] : []),
+            ...(message.toolCalls ?? []).map((toolCall) => ({
+              type: 'tool-call' as const,
+              toolCall,
+            })),
+          ]
+          for (const block of blocks) {
+            if (block.type === 'text') {
+              result.push({
+                type: 'message',
+                role: 'assistant',
+                content: block.text,
+              })
+            } else if (block.type === 'tool-call') {
+              const callId = callIdFor(block.toolCall.id)
+              const item = emitted.find(
+                (item) => 'call_id' in item && item.call_id === callId,
+              )
+              if (item) result.push(item)
+            }
+          }
+        }
+        continue
+      }
+
+      // Handle user messages (default case) — support multimodal content
+      const contentParts = this.normalizeContent(message.content)
+      const inputContent: Array<ResponseInputContent> = []
+
+      for (const part of contentParts) {
+        inputContent.push(this.convertContentPartToInput(part))
+      }
+
+      if (inputContent.length === 0) {
+        // Fail loud rather than silently sending an empty user message —
+        // mirrors the chat-completions adapter, where a paid-but-empty
+        // request would mask the real intent (caller passed `null` content
+        // or a normalize step dropped everything).
+        throw new Error(
+          `User message for ${this.name} has no content parts. ` +
+            `Empty user messages would produce a paid request with no input; ` +
+            `provide at least one text/image/audio/document part or omit the message.`,
+        )
+      }
+
+      result.push({
+        type: 'message',
+        role: 'user',
+        content: inputContent,
+      })
+    }
+
+    pushFailures()
+    result.push(...(insertBefore?.get(messages.length) ?? []))
+    return result
+  }
+
+  /**
+   * The first image of a tool result, as a computer screenshot. It goes out
+   * with `detail: 'original'`, as in OpenAI's computer use guide, so the
+   * model sees the screen at full size. The SDK type has no `detail` yet.
+   *
+   * @throws Error when the result has no image. A computer call output
+   *   needs a screenshot.
+   */
+  private screenshotOf(
+    content: ModelMessage['content'],
+  ): ResponseComputerToolCallOutputScreenshot & { detail?: 'original' } {
+    const image = Array.isArray(content)
+      ? content.find((part) => part.type === 'image')
+      : undefined
+    const input = image ? this.convertContentPartToInput(image) : undefined
+    if (input?.type !== 'input_image' || (!input.image_url && !input.file_id)) {
+      throw new Error(
+        'The computer tool result has no screenshot. Return an image part from the computer tool.',
+      )
+    }
+    return {
+      type: 'computer_screenshot',
+      ...(input.image_url ? { image_url: input.image_url } : {}),
+      ...(input.file_id ? { file_id: input.file_id } : {}),
+      detail: 'original',
+    }
+  }
+
+  /**
+   * Converts a ContentPart to Responses API input content item.
+   * Handles text, image, audio, and document (PDF) content parts.
+   * Override this in subclasses for additional content types or provider-specific metadata.
+   */
+  protected convertContentPartToInput(part: ContentPart): ResponseInputContent {
+    switch (part.type) {
+      case 'text':
+        return {
+          type: 'input_text',
+          text: part.content,
+        }
+      case 'image': {
+        const imageMetadata = part.metadata as
+          | { detail?: 'auto' | 'low' | 'high' }
+          | undefined
+        if (isFileSource(part.source)) {
+          if (this.supportsFileSources !== true) {
+            throw unsupportedFileSourceError(this.name)
+          }
+          return {
+            type: 'input_image',
+            file_id: fileReferenceFor(part.source, this.name),
+            detail: imageMetadata?.detail || 'auto',
+          }
+        }
+        if (part.source.type === 'url') {
+          return {
+            type: 'input_image',
+            image_url: part.source.value,
+            detail: imageMetadata?.detail || 'auto',
+          }
+        }
+        // For base64 data, construct a data URI using the mimeType from
+        // source. Default to a generic octet-stream MIME if the source
+        // didn't supply one — letting `undefined` interpolate would produce
+        // an invalid URI like "data:undefined;base64,...".
+        const imageValue = part.source.value
+        const imageMime = part.source.mimeType || 'application/octet-stream'
+        const imageUrl = imageValue.startsWith('data:')
+          ? imageValue
+          : `data:${imageMime};base64,${imageValue}`
+        return {
+          type: 'input_image',
+          image_url: imageUrl,
+          detail: imageMetadata?.detail || 'auto',
+        }
+      }
+      case 'audio': {
+        if (isFileSource(part.source)) {
+          if (this.supportsFileSources !== true) {
+            throw unsupportedFileSourceError(this.name)
+          }
+          return {
+            type: 'input_file',
+            file_id: fileReferenceFor(part.source, this.name),
+          }
+        }
+        if (part.source.type === 'url') {
+          return {
+            type: 'input_file',
+            file_url: part.source.value,
+          }
+        }
+        // Wrap raw base64 in a data URL — `input_file` rejects bare base64
+        // payloads (matches the image branch above).
+        // Default the MIME if missing so we never interpolate `undefined`.
+        const audioValue = part.source.value
+        const audioMime = part.source.mimeType || 'application/octet-stream'
+        const audioFileData = audioValue.startsWith('data:')
+          ? audioValue
+          : `data:${audioMime};base64,${audioValue}`
+        return {
+          type: 'input_file',
+          file_data: audioFileData,
+        }
+      }
+
+      case 'document': {
+        const documentMetadata = part.metadata as
+          | { filename?: string; detail?: 'auto' | 'low' | 'high' }
+          | undefined
+        // Spread `detail` only when provided so the API applies its own
+        // default ('auto'). The Responses API accepts 'auto' | 'low' | 'high',
+        // but the pinned OpenAI SDK's `ResponseInputFile.detail` type still
+        // lists only 'low' | 'high' — cast so 'auto' (a valid API value) can
+        // pass through without a type error.
+        const documentDetail =
+          documentMetadata?.detail !== undefined
+            ? { detail: documentMetadata.detail as 'low' | 'high' }
+            : {}
+        if (isFileSource(part.source)) {
+          if (this.supportsFileSources !== true) {
+            throw unsupportedFileSourceError(this.name)
+          }
+          return {
+            type: 'input_file',
+            file_id: fileReferenceFor(part.source, this.name),
+            ...documentDetail,
+          }
+        }
+        if (part.source.type === 'url') {
+          // The Responses API fetches the PDF itself; filename and MIME
+          // type are inferred from the response.
+          return {
+            type: 'input_file',
+            file_url: part.source.value,
+            ...documentDetail,
+          }
+        }
+        // This adapter supports only PDF documents; anything else is
+        // rejected. MIME types are case-insensitive and can carry
+        // ;parameters (RFC 2045), so the type is normalized before comparing.
+        const documentValue = part.source.value
+        const documentMime = (
+          (part.source.mimeType || 'application/pdf').split(';')[0] ?? ''
+        )
+          .trim()
+          .toLowerCase()
+        if (documentMime !== 'application/pdf') {
+          throw new Error(
+            `${this.name} document parts only support application/pdf ` +
+              `(received ${documentMime})`,
+          )
+        }
+        // A pre-wrapped data URL carries its own media type — validate it too.
+        if (
+          documentValue.startsWith('data:') &&
+          !/^data:application\/pdf[;,]/i.test(documentValue)
+        ) {
+          throw new Error(
+            `${this.name} document parts only support application/pdf ` +
+              `(received data URL with non-PDF media type)`,
+          )
+        }
+        // Sniff the payload so a non-PDF labeled (or unlabeled) as PDF is
+        // caught locally instead of by an opaque provider 400. Only base64
+        // payloads are checked; a rare `data:` URL without `;base64` is left
+        // to the server.
+        const documentBase64 = documentValue.startsWith('data:')
+          ? /;base64,/i.test(documentValue)
+            ? documentValue.slice(documentValue.indexOf(',') + 1)
+            : ''
+          : documentValue
+        if (documentBase64 && !documentBase64.startsWith(PDF_BASE64_MAGIC)) {
+          throw new Error(
+            `${this.name} document parts only support application/pdf ` +
+              `(inline data does not start with the %PDF header)`,
+          )
+        }
+        // Wrap raw base64 in a data URL — `input_file` rejects bare base64
+        // payloads (matches the image and audio branches above).
+        const documentFileData = documentValue.startsWith('data:')
+          ? documentValue
+          : `data:${documentMime};base64,${documentValue}`
+        return {
+          type: 'input_file',
+          // The Responses API requires a filename alongside PDF `file_data`.
+          filename: documentMetadata?.filename || 'document.pdf',
+          file_data: documentFileData,
+          ...documentDetail,
+        }
+      }
+      case 'video':
+      default:
+        // OpenAI Responses API doesn't accept native video parts on this
+        // path — surface as explicit unsupported error so callers see the
+        // same message regardless of which content type leaked through.
+        throw new Error(`Unsupported content part type: ${part.type}`)
+    }
+  }
+
+  /**
+   * Normalizes message content to an array of ContentPart.
+   * Handles backward compatibility with string content.
+   */
+  protected normalizeContent(
+    content: string | null | undefined | Array<ContentPart>,
+  ): Array<ContentPart> {
+    if (content === null || content === undefined) {
+      return []
+    }
+    if (typeof content === 'string') {
+      return [{ type: 'text', content: content }]
+    }
+    return content
+  }
+
+  /**
+   * Extracts text content from a content value that may be string, null, or ContentPart array.
+   */
+  protected extractTextContent(
+    content: string | null | undefined | Array<ContentPart>,
+  ): string {
+    if (content === null || content === undefined) {
+      return ''
+    }
+    if (typeof content === 'string') {
+      return content
+    }
+    // It's an array of ContentPart
+    return content
+      .filter((p) => p.type === 'text')
+      .map((p) => p.content)
+      .join('')
+  }
+}

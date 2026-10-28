@@ -16,7 +16,7 @@ import {
 import { refreshComponent } from '@/lib/reports/refresh-component'
 import { evaluateWatchersForSignals } from '@/lib/reports/evaluate-watchers'
 
-export const Route = createFileRoute('/_reporting/api/report-event' as any)({
+export const Route = createFileRoute('/_reporting/api/report-event')({
   server: {
     handlers: {
       POST: async ({ request }) => {
@@ -69,7 +69,7 @@ export const Route = createFileRoute('/_reporting/api/report-event' as any)({
 
         const { createIsolateDriver } =
           await import('@/lib/create-isolate-driver')
-        const driver = await createIsolateDriver('node')
+        const driver = await createIsolateDriver()
         const effects: UIEffect[] = []
         const uiUpdates: UIUpdate[] = []
         const calledBindings: string[] = []

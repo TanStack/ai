@@ -1,0 +1,2120 @@
+import { describe, it, expect, beforeEach, vi } from 'vitest'
+import { z } from 'zod'
+import { CONTEXT_OVERFLOW_CODE, EventType, chat, summarize } from '@tanstack/ai'
+import { resolveDebugOption } from '@tanstack/ai/adapter-internals'
+import type { AdapterYieldChunk, Tool } from '@tanstack/ai'
+import {
+  Type,
+  type HarmBlockThreshold,
+  type HarmCategory,
+  type SafetySetting,
+} from '@google/genai'
+import { GeminiTextAdapter } from '../src/adapters/text'
+import { codeExecutionTool, googleSearchTool } from '../src/tools'
+import { createGeminiSummarize } from '../src/adapters/summarize'
+import type { GeminiTextProviderOptions } from '../src/adapters/text'
+import type { Schema } from '@google/genai'
+
+const mocks = vi.hoisted(() => {
+  return {
+    constructorSpy: vi.fn<(options: { apiKey: string }) => void>(),
+    generateContentSpy: vi.fn(),
+    generateContentStreamSpy: vi.fn(),
+    getGenerativeModelSpy: vi.fn(),
+  }
+})
+
+vi.mock('@google/genai', async () => {
+  const {
+    constructorSpy,
+    generateContentSpy,
+    generateContentStreamSpy,
+    getGenerativeModelSpy,
+  } = mocks
+
+  const actual = await vi.importActual<any>('@google/genai')
+  class MockGoogleGenAI {
+    public models = {
+      generateContent: generateContentSpy,
+      generateContentStream: generateContentStreamSpy,
+    }
+
+    public getGenerativeModel = getGenerativeModelSpy
+
+    public vertexai: boolean
+
+    constructor(options: { apiKey: string; vertexai?: boolean }) {
+      constructorSpy(options)
+      this.vertexai = options.vertexai === true
+    }
+  }
+
+  return {
+    GoogleGenAI: MockGoogleGenAI,
+    Type: actual.Type,
+    FinishReason: actual.FinishReason,
+  }
+})
+
+const createTextAdapter = () =>
+  new GeminiTextAdapter({ apiKey: 'test-key' }, 'gemini-2.5-pro')
+const createSummarizeAdapter = () =>
+  createGeminiSummarize('test-key', 'gemini-2.5-flash')
+
+const weatherTool: Tool = {
+  name: 'lookup_weather',
+  description: 'Return the weather for a location',
+}
+
+const createStream = (chunks: Array<Record<string, unknown>>) => {
+  return (async function* () {
+    for (const chunk of chunks) {
+      yield chunk
+    }
+  })()
+}
+
+const testLogger = resolveDebugOption(false)
+
+const cityJsonSchema = {
+  type: 'object',
+  properties: { city: { type: 'string' } },
+}
+
+const cityStreamChunks = [
+  {
+    candidates: [{ content: { parts: [{ text: '{"city":' }] } }],
+  },
+  {
+    candidates: [
+      {
+        content: { parts: [{ text: '"Madrid"}' }] },
+        finishReason: 'STOP',
+      },
+    ],
+    usageMetadata: { totalTokenCount: 4 },
+  },
+]
+
+const collectChunks = async (stream: AsyncIterable<AdapterYieldChunk>) => {
+  const chunks: Array<AdapterYieldChunk> = []
+  for await (const chunk of stream) {
+    chunks.push(chunk)
+  }
+  return chunks
+}
+
+const structuredCompleteEvent = (events: Array<AdapterYieldChunk>) =>
+  events.find(
+    (event) =>
+      event.type === EventType.CUSTOM &&
+      event.name === 'structured-output.complete',
+  )
+
+const runErrorEvent = (events: Array<AdapterYieldChunk>) =>
+  events.find((event) => event.type === EventType.RUN_ERROR)
+
+describe('GeminiAdapter through AI', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('maps provider options for chat streaming', async () => {
+    const streamChunks = [
+      {
+        candidates: [
+          {
+            content: {
+              parts: [{ text: 'Sunny skies ahead' }],
+            },
+            finishReason: 'STOP',
+          },
+        ],
+        usageMetadata: {
+          promptTokenCount: 3,
+          candidatesTokenCount: 1,
+          totalTokenCount: 4,
+        },
+      },
+    ]
+
+    mocks.generateContentStreamSpy.mockResolvedValue(createStream(streamChunks))
+
+    const adapter = createTextAdapter()
+
+    // Consume the stream to trigger the API call
+    for await (const _ of chat({
+      threadId: 'thread-1',
+      adapter,
+      messages: [{ role: 'user', content: 'How is the weather in Madrid?' }],
+      modelOptions: {
+        topK: 9,
+        temperature: 0.4,
+        topP: 0.8,
+        maxOutputTokens: 256,
+      },
+      tools: [weatherTool],
+    })) {
+      /* consume stream */
+    }
+
+    expect(mocks.generateContentStreamSpy).toHaveBeenCalledTimes(1)
+    const [payload] = mocks.generateContentStreamSpy.mock.calls[0]!
+    expect(payload.model).toBe('gemini-2.5-pro')
+    expect(payload.config).toMatchObject({
+      temperature: 0.4,
+      topP: 0.8,
+      maxOutputTokens: 256,
+      topK: 9,
+    })
+    expect(payload.config?.tools?.[0]?.functionDeclarations?.[0]?.name).toBe(
+      'lookup_weather',
+    )
+    expect(payload.contents).toEqual([
+      {
+        role: 'user',
+        parts: [{ text: 'How is the weather in Madrid?' }],
+      },
+    ])
+  })
+
+  it('reads sampling options (temperature, topP, maxOutputTokens) from modelOptions', async () => {
+    const streamChunks = [
+      {
+        candidates: [
+          {
+            content: { parts: [{ text: 'ok' }] },
+            finishReason: 'STOP',
+          },
+        ],
+        usageMetadata: { totalTokenCount: 1 },
+      },
+    ]
+
+    mocks.generateContentStreamSpy.mockResolvedValue(createStream(streamChunks))
+
+    const adapter = createTextAdapter()
+
+    for await (const _ of chat({
+      threadId: 'thread-1',
+      adapter,
+      messages: [{ role: 'user', content: 'hi' }],
+      modelOptions: {
+        temperature: 0.6,
+        topP: 0.95,
+        maxOutputTokens: 512,
+      },
+    })) {
+      /* consume stream */
+    }
+
+    expect(mocks.generateContentStreamSpy).toHaveBeenCalledTimes(1)
+    const [payload] = mocks.generateContentStreamSpy.mock.calls[0]!
+    expect(payload.config.temperature).toBe(0.6)
+    expect(payload.config.topP).toBe(0.95)
+    expect(payload.config.maxOutputTokens).toBe(512)
+  })
+
+  it("forwards the caller's abort signal as config.abortSignal (#1374)", async () => {
+    const streamChunks = [
+      {
+        candidates: [
+          { content: { parts: [{ text: 'ok' }] }, finishReason: 'STOP' },
+        ],
+        usageMetadata: { totalTokenCount: 1 },
+      },
+    ]
+
+    mocks.generateContentStreamSpy.mockResolvedValue(createStream(streamChunks))
+
+    const adapter = createTextAdapter()
+    const abortController = new AbortController()
+
+    for await (const _ of chat({
+      threadId: 'thread-1',
+      adapter,
+      messages: [{ role: 'user', content: 'hi' }],
+      abortController,
+    })) {
+      /* consume stream */
+    }
+
+    expect(mocks.generateContentStreamSpy).toHaveBeenCalledTimes(1)
+    const [payload] = mocks.generateContentStreamSpy.mock.calls[0]!
+    expect(payload.config.abortSignal).toBe(abortController.signal)
+  })
+
+  it('omits config.abortSignal when no abort controller is supplied', async () => {
+    const streamChunks = [
+      {
+        candidates: [
+          { content: { parts: [{ text: 'ok' }] }, finishReason: 'STOP' },
+        ],
+        usageMetadata: { totalTokenCount: 1 },
+      },
+    ]
+
+    mocks.generateContentStreamSpy.mockResolvedValue(createStream(streamChunks))
+
+    const adapter = createTextAdapter()
+
+    for await (const _ of chat({
+      threadId: 'thread-1',
+      adapter,
+      messages: [{ role: 'user', content: 'hi' }],
+    })) {
+      /* consume stream */
+    }
+
+    const [payload] = mocks.generateContentStreamSpy.mock.calls[0]!
+    expect(payload.config.abortSignal).toBeUndefined()
+  })
+
+  it('joins object-form systemPrompts into systemInstruction and drops foreign metadata', async () => {
+    const streamChunks = [
+      {
+        candidates: [
+          {
+            content: { parts: [{ text: 'ok' }] },
+            finishReason: 'STOP',
+          },
+        ],
+        usageMetadata: { totalTokenCount: 1 },
+      },
+    ]
+
+    mocks.generateContentStreamSpy.mockResolvedValue(createStream(streamChunks))
+
+    const adapter = createTextAdapter()
+
+    for await (const _ of chat({
+      threadId: 'thread-1',
+      adapter,
+      messages: [{ role: 'user', content: 'Hi' }],
+      systemPrompts: [
+        'plain',
+        { content: 'object-form' },
+        // `metadata` on a Gemini chat is `never` at the type level; the cast
+        // models a stale call site reaching the adapter via JS / `as any`.
+        // The adapter must still produce the expected systemInstruction
+        // string and never leak the foreign field anywhere on the payload.
+        // Under `exactOptionalPropertyTypes`, even the inner `as any` is
+        // rejected (an optional `never` field can't accept anything), so the
+        // whole entry is cast to model the bypass.
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        {
+          content: 'with-foreign-meta',
+          metadata: { cache_control: {} },
+        } as any,
+      ],
+    })) {
+      /* consume stream */
+    }
+
+    const [payload] = mocks.generateContentStreamSpy.mock.calls[0]!
+    expect(payload.config.systemInstruction).toBe(
+      'plain\nobject-form\nwith-foreign-meta',
+    )
+    // Foreign metadata never reaches the wire.
+    expect(JSON.stringify(payload)).not.toContain('cache_control')
+  })
+
+  it('maps every common and provider option into the Gemini payload', async () => {
+    const streamChunks = [
+      {
+        candidates: [
+          {
+            content: {
+              parts: [{ text: '' }],
+            },
+            finishReason: 'STOP',
+          },
+        ],
+        usageMetadata: undefined,
+      },
+    ]
+
+    mocks.generateContentStreamSpy.mockResolvedValue(createStream(streamChunks))
+
+    const safetySettings: SafetySetting[] = [
+      {
+        category: 'HARM_CATEGORY_HATE_SPEECH' as HarmCategory,
+        threshold: 'BLOCK_LOW_AND_ABOVE' as HarmBlockThreshold,
+      },
+    ]
+
+    const responseSchema: Schema = {
+      type: Type.OBJECT,
+      properties: {
+        summary: { type: Type.STRING },
+      },
+    }
+
+    const responseJsonSchema: Schema = {
+      type: Type.OBJECT,
+      properties: {
+        ok: { type: Type.BOOLEAN },
+      },
+    }
+
+    const providerOptions: GeminiTextProviderOptions = {
+      safetySettings,
+      temperature: 0.61,
+      topP: 0.37,
+      maxOutputTokens: 512,
+      stopSequences: ['<done>', '###'],
+      responseMimeType: 'application/json',
+      responseSchema,
+      responseJsonSchema,
+      responseModalities: ['TEXT'],
+      candidateCount: 2,
+      topK: 6,
+      seed: 7,
+      presencePenalty: 0.2,
+      frequencyPenalty: 0.4,
+      responseLogprobs: true,
+      logprobs: 3,
+      enableEnhancedCivicAnswers: true,
+      speechConfig: {
+        voiceConfig: {
+          prebuiltVoiceConfig: {
+            voiceName: 'Studio',
+          },
+        },
+      },
+      imageConfig: {
+        aspectRatio: '1:1',
+      },
+      cachedContent: 'cachedContents/weather-context',
+    } as const
+
+    const adapter = createTextAdapter()
+
+    // Consume the stream to trigger the API call
+    for await (const _ of chat({
+      threadId: 'thread-1',
+      adapter,
+      messages: [{ role: 'user', content: 'Provide structured response' }],
+      systemPrompts: ['Stay concise', 'Return JSON'],
+      modelOptions: providerOptions,
+      reasoning: { level: 'minimal', budgetTokens: 128 },
+    })) {
+      /* consume stream */
+    }
+
+    expect(mocks.generateContentStreamSpy).toHaveBeenCalledTimes(1)
+    const [payload] = mocks.generateContentStreamSpy.mock.calls[0]!
+    const config = payload.config
+
+    expect(config.temperature).toBe(0.61)
+    expect(config.topP).toBe(0.37)
+    expect(config.maxOutputTokens).toBe(512)
+    expect(config.cachedContent).toBe(providerOptions.cachedContent)
+    expect(config.safetySettings).toEqual(providerOptions.safetySettings)
+    expect(config.stopSequences).toEqual(providerOptions?.stopSequences)
+    expect(config.responseMimeType).toBe(providerOptions?.responseMimeType)
+    expect(config.responseSchema).toEqual(providerOptions?.responseSchema)
+    expect(config.responseJsonSchema).toEqual(
+      providerOptions?.responseJsonSchema,
+    )
+    expect(config.responseModalities).toEqual(
+      providerOptions?.responseModalities,
+    )
+    expect(config.candidateCount).toBe(providerOptions?.candidateCount)
+    expect(config.topK).toBe(providerOptions?.topK)
+    expect(config.seed).toBe(providerOptions?.seed)
+    expect(config.presencePenalty).toBe(providerOptions?.presencePenalty)
+    expect(config.frequencyPenalty).toBe(providerOptions?.frequencyPenalty)
+    expect(config.responseLogprobs).toBe(providerOptions?.responseLogprobs)
+    expect(config.logprobs).toBe(providerOptions?.logprobs)
+    expect(config.enableEnhancedCivicAnswers).toBe(
+      providerOptions?.enableEnhancedCivicAnswers,
+    )
+    expect(config.speechConfig).toEqual(providerOptions?.speechConfig)
+    expect(config.thinkingConfig).toEqual({
+      includeThoughts: true,
+      thinkingBudget: 128,
+    })
+    expect(config.imageConfig).toEqual(providerOptions?.imageConfig)
+  })
+
+  it('streams chat chunks using mapped provider config', async () => {
+    const streamChunks = [
+      {
+        candidates: [
+          {
+            content: {
+              parts: [{ text: 'Partly ' }],
+            },
+          },
+        ],
+      },
+      {
+        candidates: [
+          {
+            content: {
+              parts: [{ text: 'cloudy' }],
+            },
+            finishReason: 'STOP',
+          },
+        ],
+        usageMetadata: {
+          promptTokenCount: 4,
+          candidatesTokenCount: 2,
+          totalTokenCount: 6,
+        },
+      },
+    ]
+
+    mocks.generateContentStreamSpy.mockResolvedValue(createStream(streamChunks))
+
+    const adapter = createTextAdapter()
+    const received: AdapterYieldChunk[] = []
+    for await (const chunk of chat({
+      threadId: 'thread-1',
+      adapter,
+      messages: [{ role: 'user', content: 'Tell me a joke' }],
+      modelOptions: {
+        topK: 3,
+        temperature: 0.2,
+      },
+    })) {
+      received.push(chunk)
+    }
+
+    expect(mocks.generateContentStreamSpy).toHaveBeenCalledTimes(1)
+    const [streamPayload] = mocks.generateContentStreamSpy.mock.calls[0]!
+    expect(streamPayload.config?.topK).toBe(3)
+
+    // AG-UI events: RUN_STARTED, TEXT_MESSAGE_START, TEXT_MESSAGE_CONTENT..., TEXT_MESSAGE_END, RUN_FINISHED
+    expect(received[0]).toMatchObject({
+      type: 'RUN_STARTED',
+    })
+    expect(received[1]).toMatchObject({
+      type: 'TEXT_MESSAGE_START',
+      role: 'assistant',
+    })
+    const contentChunks = received.filter(
+      (c) => c.type === 'TEXT_MESSAGE_CONTENT',
+    )
+    expect(contentChunks).toHaveLength(2)
+    expect(contentChunks[0]).toMatchObject({
+      type: 'TEXT_MESSAGE_CONTENT',
+      delta: 'Partly ',
+    })
+    expect(contentChunks[1]).toMatchObject({
+      type: 'TEXT_MESSAGE_CONTENT',
+      delta: 'cloudy',
+    })
+    expect(received.find((c) => c.type === 'TEXT_MESSAGE_END')).toMatchObject({
+      type: 'TEXT_MESSAGE_END',
+    })
+    expect(received.at(-1)).toMatchObject({
+      type: 'RUN_FINISHED',
+    })
+  })
+
+  it('emits exactly one TOOL_CALL_START/TOOL_CALL_END per tool call when the final chunk carries both functionCall parts and finishReason UNEXPECTED_TOOL_CALL', async () => {
+    // The per-part loop already registers and emits events for functionCall
+    // parts on every chunk, including the final one. The UNEXPECTED_TOOL_CALL
+    // finish handling must not re-emit for those same parts.
+    const streamChunks = [
+      {
+        candidates: [
+          {
+            content: {
+              parts: [
+                {
+                  functionCall: {
+                    id: 'call_1',
+                    name: 'lookup_weather',
+                    args: { location: 'Berlin' },
+                  },
+                },
+                {
+                  functionCall: {
+                    name: 'lookup_weather',
+                    args: { location: 'Madrid' },
+                  },
+                },
+              ],
+            },
+            finishReason: 'UNEXPECTED_TOOL_CALL',
+          },
+        ],
+        usageMetadata: {
+          promptTokenCount: 4,
+          candidatesTokenCount: 2,
+          totalTokenCount: 6,
+        },
+      },
+    ]
+
+    mocks.generateContentStreamSpy.mockResolvedValue(createStream(streamChunks))
+
+    const adapter = createTextAdapter()
+    const received: AdapterYieldChunk[] = []
+    for await (const chunk of chat({
+      threadId: 'thread-1',
+      adapter,
+      messages: [{ role: 'user', content: 'What is the weather?' }],
+      tools: [weatherTool],
+    })) {
+      received.push(chunk)
+    }
+
+    const starts = received.filter((c) => c.type === 'TOOL_CALL_START')
+    const ends = received.filter((c) => c.type === 'TOOL_CALL_END')
+
+    // Two tool calls in the chunk: exactly one START and one END for each.
+    expect(starts).toHaveLength(2)
+    expect(ends).toHaveLength(2)
+
+    const startIds = starts.map((c) =>
+      c.type === 'TOOL_CALL_START' ? c.toolCallId : '',
+    )
+    const endIds = ends.map((c) =>
+      c.type === 'TOOL_CALL_END' ? c.toolCallId : '',
+    )
+    expect(new Set(startIds).size).toBe(2)
+    expect(startIds).toContain('call_1')
+    expect(endIds.sort()).toEqual(startIds.sort())
+  })
+
+  it.each([
+    { args: { count: 2 }, raw: '{"count":2}', input: { count: 2 } },
+    { args: '{"n": 1.50}', raw: '{"n": 1.50}', input: { n: 1.5 } },
+  ])(
+    'sends the raw function arguments $raw on TOOL_CALL_END',
+    async ({ args, raw, input }) => {
+      mocks.generateContentStreamSpy.mockResolvedValue(
+        createStream([
+          {
+            candidates: [
+              {
+                content: {
+                  parts: [
+                    { functionCall: { id: 'call_raw', name: 'inspect', args } },
+                  ],
+                },
+                finishReason: 'STOP',
+              },
+            ],
+          },
+        ]),
+      )
+
+      const chunks: Array<AdapterYieldChunk> = []
+      for await (const chunk of createTextAdapter().chatStream({
+        threadId: 'thread-1',
+        model: 'gemini-2.5-pro',
+        logger: testLogger,
+        messages: [{ role: 'user', content: 'Go' }],
+      })) {
+        chunks.push(chunk)
+      }
+
+      expect(chunks.find((c) => c.type === 'TOOL_CALL_END')).toMatchObject({
+        args: raw,
+        input,
+      })
+    },
+  )
+
+  it('sends malformed function arguments raw on TOOL_CALL_END with no input', async () => {
+    mocks.generateContentStreamSpy.mockResolvedValue(
+      createStream([
+        {
+          candidates: [
+            {
+              content: {
+                parts: [
+                  {
+                    functionCall: {
+                      id: 'call_bad',
+                      name: 'inspect',
+                      args: '{"a":',
+                    },
+                  },
+                ],
+              },
+              finishReason: 'STOP',
+            },
+          ],
+        },
+      ]),
+    )
+
+    const chunks: Array<AdapterYieldChunk> = []
+    for await (const chunk of createTextAdapter().chatStream({
+      threadId: 'thread-1',
+      model: 'gemini-2.5-pro',
+      logger: testLogger,
+      messages: [{ role: 'user', content: 'Go' }],
+    })) {
+      chunks.push(chunk)
+    }
+
+    const end = chunks.find((c) => c.type === 'TOOL_CALL_END')
+    expect(end).toMatchObject({ args: '{"a":' })
+    expect(end).not.toHaveProperty('input')
+  })
+
+  it('emits grounded web search sources and omits the provider call on the next turn', async () => {
+    const groundingMetadata = {
+      webSearchQueries: ['latest release'],
+      groundingChunks: [
+        {
+          web: {
+            uri: 'https://example.com/release',
+            title: 'Example release notes',
+          },
+        },
+      ],
+    }
+
+    mocks.generateContentStreamSpy.mockResolvedValueOnce(
+      createStream([
+        {
+          candidates: [
+            {
+              content: { parts: [{ text: 'Grounded' }] },
+              groundingMetadata,
+              finishReason: 'STOP',
+            },
+          ],
+          usageMetadata: { totalTokenCount: 2 },
+        },
+      ]),
+    )
+
+    const adapter = createTextAdapter()
+    const received: AdapterYieldChunk[] = []
+    for await (const chunk of chat({
+      threadId: 'thread-1',
+      adapter,
+      tools: [googleSearchTool()],
+      messages: [{ role: 'user', content: 'Find the latest release.' }],
+    })) {
+      received.push(chunk)
+    }
+
+    const providerStart = received.find(
+      (chunk) => chunk.type === 'TOOL_CALL_START',
+    )
+    expect(providerStart).toMatchObject({
+      toolCallName: 'google_search',
+      metadata: {
+        providerExecuted: true,
+        sources: [
+          {
+            url: 'https://example.com/release',
+            title: 'Example release notes',
+          },
+        ],
+        gemini: { groundingMetadata },
+      },
+    })
+    if (providerStart?.type !== 'TOOL_CALL_START') {
+      throw new Error('expected provider web search TOOL_CALL_START')
+    }
+
+    mocks.generateContentStreamSpy.mockResolvedValueOnce(
+      createStream([
+        {
+          candidates: [
+            {
+              content: { parts: [{ text: 'Follow-up' }] },
+              finishReason: 'STOP',
+            },
+          ],
+          usageMetadata: { totalTokenCount: 2 },
+        },
+      ]),
+    )
+
+    for await (const _ of adapter.chatStream({
+      model: 'gemini-2.5-pro',
+      messages: [
+        { role: 'user', content: 'Find the latest release.' },
+        {
+          role: 'assistant',
+          content: 'Grounded',
+          toolCalls: [
+            {
+              id: providerStart.toolCallId,
+              type: 'function',
+              function: { name: 'google_search', arguments: '{}' },
+              metadata: providerStart.metadata,
+            },
+          ],
+        },
+        { role: 'user', content: 'What did you find?' },
+      ],
+      logger: resolveDebugOption(false),
+    } as any)) {
+      // consume
+    }
+
+    const [followUpPayload] = mocks.generateContentStreamSpy.mock.calls[1]!
+    const modelTurn = followUpPayload.contents.find(
+      (content: any) => content.role === 'model',
+    )
+    expect(modelTurn).toBeDefined()
+    expect(modelTurn.parts).not.toContainEqual(
+      expect.objectContaining({ functionCall: expect.anything() }),
+    )
+  })
+
+  it('does not label non-search grounding as Google Search', async () => {
+    mocks.generateContentStreamSpy.mockResolvedValueOnce(
+      createStream([
+        {
+          candidates: [
+            {
+              content: { parts: [{ text: 'Retrieved' }] },
+              groundingMetadata: {
+                groundingChunks: [
+                  { retrievedContext: { uri: 'vertex://context/1' } },
+                ],
+              },
+              finishReason: 'STOP',
+            },
+          ],
+        },
+      ]),
+    )
+
+    const received: AdapterYieldChunk[] = []
+    for await (const chunk of chat({
+      threadId: 'thread-1',
+      adapter: createTextAdapter(),
+      messages: [{ role: 'user', content: 'Use the retrieved context.' }],
+      tools: [googleSearchTool()],
+    })) {
+      received.push(chunk)
+    }
+
+    expect(
+      received.filter(
+        (chunk) =>
+          chunk.type === 'TOOL_CALL_START' &&
+          chunk.toolCallName === 'google_search',
+      ),
+    ).toHaveLength(0)
+  })
+
+  describe('built-in tools beside function tools', () => {
+    const toolCallPart = {
+      toolCall: {
+        id: 'search_1',
+        toolType: 'GOOGLE_SEARCH_WEB',
+        args: { queries: ['utah news'] },
+      },
+      thoughtSignature: 'sig-search',
+    }
+    const toolResponsePart = {
+      toolResponse: {
+        id: 'search_1',
+        toolType: 'GOOGLE_SEARCH_WEB',
+        response: { search_suggestions: '<div></div>' },
+      },
+      thoughtSignature: 'sig-response',
+    }
+    const lookupTool: Tool = {
+      name: 'lookup_caucus',
+      description: 'Look up a caucus location',
+      execute: async () => ({ location: 'Library' }),
+    }
+    const textStream = () =>
+      createStream([
+        {
+          candidates: [
+            { content: { parts: [{ text: 'Done' }] }, finishReason: 'STOP' },
+          ],
+        },
+      ])
+
+    it('sets the flag and sends the built-in tool parts back in place', async () => {
+      mocks.generateContentStreamSpy
+        .mockResolvedValueOnce(
+          createStream([
+            {
+              candidates: [
+                {
+                  content: {
+                    parts: [
+                      toolCallPart,
+                      {
+                        functionCall: {
+                          id: 'call_1',
+                          name: 'lookup_caucus',
+                          args: { county: 'Salt Lake' },
+                        },
+                      },
+                      toolResponsePart,
+                    ],
+                  },
+                  finishReason: 'STOP',
+                },
+              ],
+            },
+          ]),
+        )
+        .mockResolvedValueOnce(textStream())
+
+      const received: Array<AdapterYieldChunk> = []
+      for await (const chunk of chat({
+        threadId: 'thread-1',
+        adapter: new GeminiTextAdapter(
+          { apiKey: 'test-key' },
+          'gemini-3.6-flash',
+        ),
+        tools: [googleSearchTool(), lookupTool],
+        messages: [{ role: 'user', content: 'Search and look up.' }],
+      })) {
+        received.push(chunk)
+      }
+
+      expect(mocks.generateContentStreamSpy).toHaveBeenCalledTimes(2)
+      const [firstPayload] = mocks.generateContentStreamSpy.mock.calls[0]!
+      expect(firstPayload.config.toolConfig).toEqual({
+        includeServerSideToolInvocations: true,
+      })
+      expect(
+        received.find(
+          (chunk) =>
+            chunk.type === 'TOOL_CALL_START' &&
+            chunk.toolCallName === 'google_search',
+        ),
+      ).toMatchObject({ metadata: { providerExecuted: true } })
+
+      const [secondPayload] = mocks.generateContentStreamSpy.mock.calls[1]!
+      const modelTurn = secondPayload.contents.find(
+        (content: any) => content.role === 'model',
+      )
+      expect(modelTurn.parts).toEqual([
+        toolCallPart,
+        {
+          functionCall: {
+            id: 'call_1',
+            name: 'lookup_caucus',
+            args: { county: 'Salt Lake' },
+          },
+        },
+        toolResponsePart,
+      ])
+    })
+
+    const functionCallPart = (id: string) => ({
+      functionCall: { id, name: 'lookup_caucus', args: { county: 'Utah' } },
+    })
+
+    it.each([
+      {
+        label: 'at the start',
+        parts: [
+          { text: 'Searching first.' },
+          toolCallPart,
+          toolResponsePart,
+          functionCallPart('call_1'),
+        ],
+      },
+      {
+        label: 'after a function call',
+        parts: [
+          functionCallPart('call_1'),
+          { text: 'Searching next.' },
+          toolCallPart,
+          toolResponsePart,
+          functionCallPart('call_2'),
+        ],
+      },
+    ])(
+      'sends built-in tool parts back after text $label',
+      async ({ parts }) => {
+        mocks.generateContentStreamSpy
+          .mockResolvedValueOnce(
+            createStream([
+              {
+                candidates: [{ content: { parts }, finishReason: 'STOP' }],
+              },
+            ]),
+          )
+          .mockResolvedValueOnce(textStream())
+
+        for await (const _ of chat({
+          threadId: 'thread-1',
+          adapter: new GeminiTextAdapter(
+            { apiKey: 'test-key' },
+            'gemini-3.6-flash',
+          ),
+          tools: [googleSearchTool(), lookupTool],
+          messages: [{ role: 'user', content: 'Search and look up.' }],
+        })) {
+          // consume
+        }
+
+        const [secondPayload] = mocks.generateContentStreamSpy.mock.calls[1]!
+        const modelTurn = secondPayload.contents.find(
+          (content: any) => content.role === 'model',
+        )
+        expect(modelTurn.parts).toEqual(parts)
+      },
+    )
+
+    it('sends code execution parts back beside a function tool', async () => {
+      const codePart = {
+        executableCode: { code: 'print(2**40)' },
+        thoughtSignature: 'sig-code',
+      }
+      const resultPart = {
+        codeExecutionResult: { output: '1099511627776' },
+        thoughtSignature: 'sig-result',
+      }
+      const callPart = {
+        functionCall: {
+          id: 'call_1',
+          name: 'lookup_caucus',
+          args: { county: 'Salt Lake' },
+        },
+      }
+      mocks.generateContentStreamSpy
+        .mockResolvedValueOnce(
+          createStream([
+            {
+              candidates: [
+                {
+                  content: { parts: [codePart, callPart, resultPart] },
+                  finishReason: 'STOP',
+                },
+              ],
+            },
+          ]),
+        )
+        .mockResolvedValueOnce(textStream())
+
+      for await (const _ of chat({
+        threadId: 'thread-1',
+        adapter: new GeminiTextAdapter(
+          { apiKey: 'test-key' },
+          'gemini-3.6-flash',
+        ),
+        tools: [codeExecutionTool(), lookupTool],
+        messages: [{ role: 'user', content: 'Compute and look up.' }],
+      })) {
+        // consume
+      }
+
+      const [secondPayload] = mocks.generateContentStreamSpy.mock.calls[1]!
+      const modelTurn = secondPayload.contents.find(
+        (content: any) => content.role === 'model',
+      )
+      expect(modelTurn.parts).toEqual([codePart, callPart, resultPart])
+    })
+
+    it('emits no provider call for a code run without function tools', async () => {
+      mocks.generateContentStreamSpy.mockResolvedValueOnce(
+        createStream([
+          {
+            candidates: [
+              {
+                content: {
+                  parts: [
+                    { executableCode: { code: 'print(2**40)' } },
+                    { codeExecutionResult: { output: '1099511627776' } },
+                    { text: '1099511627776' },
+                  ],
+                },
+                finishReason: 'STOP',
+              },
+            ],
+          },
+        ]),
+      )
+
+      const received: Array<AdapterYieldChunk> = []
+      for await (const chunk of chat({
+        threadId: 'thread-1',
+        adapter: new GeminiTextAdapter(
+          { apiKey: 'test-key' },
+          'gemini-3.6-flash',
+        ),
+        tools: [codeExecutionTool()],
+        messages: [{ role: 'user', content: 'Compute 2**40.' }],
+      })) {
+        received.push(chunk)
+      }
+
+      expect(
+        received.filter((chunk) => chunk.type === 'TOOL_CALL_START'),
+      ).toHaveLength(0)
+    })
+
+    it('does not set the flag on Vertex AI, where the SDK rejects it', async () => {
+      mocks.generateContentStreamSpy.mockResolvedValueOnce(textStream())
+
+      for await (const _ of chat({
+        threadId: 'thread-1',
+        adapter: new GeminiTextAdapter(
+          { vertexai: true, project: 'p', location: 'us-central1' },
+          'gemini-3.6-flash',
+        ),
+        tools: [googleSearchTool(), lookupTool],
+        messages: [{ role: 'user', content: 'Search and look up.' }],
+      })) {
+        // consume
+      }
+
+      const [payload] = mocks.generateContentStreamSpy.mock.calls[0]!
+      expect(payload.config.toolConfig).toBeUndefined()
+    })
+
+    it('throws on Vertex AI when the next step must send toolCall parts', async () => {
+      mocks.generateContentStreamSpy.mockResolvedValueOnce(
+        createStream([
+          {
+            candidates: [
+              {
+                content: {
+                  parts: [
+                    toolCallPart,
+                    {
+                      functionCall: {
+                        id: 'call_1',
+                        name: 'lookup_caucus',
+                        args: { county: 'Salt Lake' },
+                      },
+                    },
+                    toolResponsePart,
+                  ],
+                },
+                finishReason: 'STOP',
+              },
+            ],
+          },
+        ]),
+      )
+
+      await expect(async () => {
+        for await (const _ of chat({
+          threadId: 'thread-1',
+          adapter: new GeminiTextAdapter(
+            { vertexai: true, project: 'p', location: 'us-central1' },
+            'gemini-3.6-flash',
+          ),
+          tools: [googleSearchTool(), lookupTool],
+          messages: [{ role: 'user', content: 'Search and look up.' }],
+        })) {
+          // consume
+        }
+      }).rejects.toThrow(/toolCall or toolResponse/)
+      expect(mocks.generateContentStreamSpy).toHaveBeenCalledTimes(1)
+    })
+
+    it('sends code execution parts back on Vertex AI', async () => {
+      const codePart = { executableCode: { code: 'print(1)' } }
+      const resultPart = { codeExecutionResult: { output: '1' } }
+      const callPart = {
+        functionCall: {
+          id: 'call_1',
+          name: 'lookup_caucus',
+          args: { county: 'Salt Lake' },
+        },
+      }
+      mocks.generateContentStreamSpy
+        .mockResolvedValueOnce(
+          createStream([
+            {
+              candidates: [
+                {
+                  content: { parts: [codePart, callPart, resultPart] },
+                  finishReason: 'STOP',
+                },
+              ],
+            },
+          ]),
+        )
+        .mockResolvedValueOnce(textStream())
+
+      for await (const _ of chat({
+        threadId: 'thread-1',
+        adapter: new GeminiTextAdapter(
+          { vertexai: true, project: 'p', location: 'us-central1' },
+          'gemini-3.6-flash',
+        ),
+        tools: [codeExecutionTool(), lookupTool],
+        messages: [{ role: 'user', content: 'Compute and look up.' }],
+      })) {
+        // consume
+      }
+
+      const [secondPayload] = mocks.generateContentStreamSpy.mock.calls[1]!
+      const modelTurn = secondPayload.contents.find(
+        (content: any) => content.role === 'model',
+      )
+      expect(modelTurn.parts).toEqual([codePart, callPart, resultPart])
+      expect(secondPayload.config.toolConfig).toBeUndefined()
+    })
+  })
+
+  it('emits parentMessageId on tool-first tool calls matching the assistant message id', async () => {
+    // A functionCall part arrives before any text. parentMessageId must bind the
+    // tool call to the same assistant message id the eventual TEXT_MESSAGE_START
+    // uses so the message id stays stable mid-stream (#477).
+    const streamChunks = [
+      {
+        candidates: [
+          {
+            content: {
+              parts: [
+                {
+                  functionCall: {
+                    name: 'lookup_weather',
+                    args: { location: 'Berlin' },
+                  },
+                },
+              ],
+            },
+          },
+        ],
+      },
+      {
+        candidates: [
+          {
+            content: { parts: [{ text: 'It is sunny.' }] },
+            finishReason: 'STOP',
+          },
+        ],
+        usageMetadata: {
+          promptTokenCount: 4,
+          candidatesTokenCount: 7,
+          totalTokenCount: 11,
+        },
+      },
+    ]
+
+    mocks.generateContentStreamSpy.mockResolvedValue(createStream(streamChunks))
+
+    const adapter = createTextAdapter()
+    const received: AdapterYieldChunk[] = []
+    for await (const chunk of chat({
+      threadId: 'thread-1',
+      adapter,
+      messages: [{ role: 'user', content: 'What is the weather in Berlin?' }],
+      tools: [weatherTool],
+    })) {
+      received.push(chunk)
+    }
+
+    const textStart = received.find((c) => c.type === 'TEXT_MESSAGE_START')
+    const toolStart = received.find((c) => c.type === 'TOOL_CALL_START')
+
+    expect(textStart?.type).toBe('TEXT_MESSAGE_START')
+    expect(toolStart?.type).toBe('TOOL_CALL_START')
+    if (
+      textStart?.type === 'TEXT_MESSAGE_START' &&
+      toolStart?.type === 'TOOL_CALL_START'
+    ) {
+      expect(toolStart.parentMessageId).toBe(textStart.messageId)
+    }
+  })
+
+  it('merges consecutive user messages when tool results precede a follow-up user message', async () => {
+    const streamChunks = [
+      {
+        candidates: [
+          {
+            content: {
+              parts: [{ text: 'Here is a recommendation' }],
+            },
+            finishReason: 'STOP',
+          },
+        ],
+        usageMetadata: {
+          promptTokenCount: 10,
+          candidatesTokenCount: 5,
+          totalTokenCount: 15,
+        },
+      },
+    ]
+
+    mocks.generateContentStreamSpy.mockResolvedValue(createStream(streamChunks))
+
+    const adapter = createTextAdapter()
+
+    for await (const _ of chat({
+      threadId: 'thread-1',
+      adapter,
+      messages: [
+        { role: 'user', content: 'What is the weather in Berlin?' },
+        {
+          role: 'assistant',
+          content: 'Let me check.',
+          toolCalls: [
+            {
+              id: 'call_1',
+              type: 'function',
+              function: {
+                name: 'lookup_weather',
+                arguments: '{"location":"Berlin"}',
+              },
+            },
+          ],
+        },
+        { role: 'tool', toolCallId: 'call_1', content: '{"temp":72}' },
+        { role: 'user', content: 'What about Paris?' },
+      ],
+      tools: [weatherTool],
+    })) {
+      /* consume */
+    }
+
+    expect(mocks.generateContentStreamSpy).toHaveBeenCalledTimes(1)
+    const [payload] = mocks.generateContentStreamSpy.mock.calls[0]!
+
+    // Tool result (user) and follow-up user message should be merged
+    const roles = payload.contents.map((m: any) => m.role)
+    for (let i = 1; i < roles.length; i++) {
+      expect(roles[i]).not.toBe(roles[i - 1])
+    }
+
+    // Should have 3 messages: user, model, user (merged tool result + follow-up)
+    expect(payload.contents).toHaveLength(3)
+    expect(payload.contents[0].role).toBe('user')
+    expect(payload.contents[1].role).toBe('model')
+    expect(payload.contents[2].role).toBe('user')
+
+    // Last user message should contain functionResponse (no redundant text part
+    // for the tool result) and the follow-up user text
+    const lastParts = payload.contents[2].parts
+    const hasFunctionResponse = lastParts.some((p: any) => p.functionResponse)
+    const hasFollowUp = lastParts.some(
+      (p: any) => p.text === 'What about Paris?',
+    )
+    const hasToolResultText = lastParts.some(
+      (p: any) => p.text === '{"temp":72}',
+    )
+    expect(hasFunctionResponse).toBe(true)
+    expect(hasFollowUp).toBe(true)
+    expect(hasToolResultText).toBe(false)
+  })
+
+  it('handles full multi-turn with duplicate tool results and empty model message', async () => {
+    const streamChunks = [
+      {
+        candidates: [
+          {
+            content: {
+              parts: [{ text: 'Electric guitars available' }],
+            },
+            finishReason: 'STOP',
+          },
+        ],
+        usageMetadata: {
+          promptTokenCount: 20,
+          candidatesTokenCount: 5,
+          totalTokenCount: 25,
+        },
+      },
+    ]
+
+    mocks.generateContentStreamSpy.mockResolvedValue(createStream(streamChunks))
+
+    const adapter = createTextAdapter()
+
+    for await (const _ of chat({
+      threadId: 'thread-1',
+      adapter,
+      messages: [
+        { role: 'user', content: "what's a good acoustic guitar?" },
+        {
+          role: 'assistant',
+          content: null,
+          toolCalls: [
+            {
+              id: 'call_guitars',
+              type: 'function',
+              function: { name: 'getGuitars', arguments: '' },
+            },
+            {
+              id: 'call_recommend',
+              type: 'function',
+              function: {
+                name: 'recommendGuitar',
+                arguments: '{"id":7}',
+              },
+            },
+          ],
+        },
+        {
+          role: 'tool',
+          toolCallId: 'call_guitars',
+          content: '[{"id":7,"name":"Guitar"}]',
+        },
+        {
+          role: 'tool',
+          toolCallId: 'call_recommend',
+          content: '{"id":7}',
+        },
+        // Duplicate tool result (from client tool output)
+        {
+          role: 'tool',
+          toolCallId: 'call_recommend',
+          content: '{"id":7}',
+        },
+        // Empty assistant from client tool round-trip
+        { role: 'assistant', content: null },
+        // Follow-up
+        { role: 'user', content: "what's a good electric guitar?" },
+      ],
+      tools: [weatherTool],
+    })) {
+      /* consume */
+    }
+
+    expect(mocks.generateContentStreamSpy).toHaveBeenCalledTimes(1)
+    const [payload] = mocks.generateContentStreamSpy.mock.calls[0]!
+
+    // No consecutive same-role messages
+    const roles = payload.contents.map((m: any) => m.role)
+    for (let i = 1; i < roles.length; i++) {
+      expect(roles[i]).not.toBe(roles[i - 1])
+    }
+
+    // Should be 3 messages: user, model, user
+    expect(payload.contents).toHaveLength(3)
+
+    // Last user should have deduplicated functionResponses + follow-up text
+    // (no redundant text parts for tool results)
+    const lastParts = payload.contents[2].parts
+    const functionResponses = lastParts.filter((p: any) => p.functionResponse)
+    // 2 unique tool call IDs, not 3 (duplicate removed)
+    expect(functionResponses).toHaveLength(2)
+
+    const textParts = lastParts.filter((p: any) => p.text)
+    // Only the follow-up user message text, no tool result text parts
+    expect(textParts).toHaveLength(1)
+    expect(textParts[0].text).toBe("what's a good electric guitar?")
+  })
+
+  it('preserves both functionResponse parts when two parallel calls hit the same tool', async () => {
+    const streamChunks = [
+      {
+        candidates: [
+          {
+            content: {
+              parts: [{ text: '50 USD and 30 EUR logged' }],
+            },
+            finishReason: 'STOP',
+          },
+        ],
+        usageMetadata: {
+          promptTokenCount: 10,
+          candidatesTokenCount: 5,
+          totalTokenCount: 15,
+        },
+      },
+    ]
+
+    mocks.generateContentStreamSpy.mockResolvedValue(createStream(streamChunks))
+
+    const adapter = createTextAdapter()
+
+    for await (const _ of chat({
+      threadId: 'thread-1',
+      adapter,
+      messages: [
+        { role: 'user', content: 'log 50 USD and 30 EUR' },
+        {
+          role: 'assistant',
+          content: null,
+          toolCalls: [
+            {
+              id: 'call_1',
+              type: 'function',
+              function: {
+                name: 'lookupCurrency',
+                arguments: '{"query":"USD"}',
+              },
+            },
+            {
+              id: 'call_2',
+              type: 'function',
+              function: {
+                name: 'lookupCurrency',
+                arguments: '{"query":"EUR"}',
+              },
+            },
+          ],
+        },
+        { role: 'tool', toolCallId: 'call_1', content: '{"rate":1}' },
+        { role: 'tool', toolCallId: 'call_2', content: '{"rate":0.9}' },
+      ],
+      tools: [weatherTool],
+    })) {
+      /* consume */
+    }
+
+    const [payload] = mocks.generateContentStreamSpy.mock.calls[0]!
+    const lastMsg = payload.contents[payload.contents.length - 1]
+    const functionResponses = lastMsg.parts.filter(
+      (p: any) => p.functionResponse,
+    )
+
+    // Two parallel calls to the SAME tool ("lookupCurrency" twice) share a
+    // `name` but have distinct `id`s. Deduping by name (the old behavior)
+    // dropped one response, leaving Gemini with fewer response parts than
+    // call parts and a 400 on the next request.
+    expect(functionResponses).toHaveLength(2)
+    expect(
+      functionResponses.map((p: any) => p.functionResponse.id).sort(),
+    ).toEqual(['call_1', 'call_2'])
+  })
+
+  it('reads Part-level thoughtSignature from Gemini 3.x streaming response', async () => {
+    const thoughtSig = 'base64-encoded-thought-signature-xyz'
+
+    // Gemini 3.x emits thoughtSignature at the Part level, as a sibling of
+    // functionCall (per @google/genai Part type), not nested inside functionCall.
+    const firstStream = [
+      {
+        candidates: [
+          {
+            content: {
+              parts: [
+                {
+                  thoughtSignature: thoughtSig,
+                  functionCall: {
+                    id: 'fc_001',
+                    name: 'sum_tool',
+                    args: { numbers: [1, 2, 5] },
+                  },
+                },
+              ],
+            },
+            finishReason: 'STOP',
+          },
+        ],
+        usageMetadata: {
+          promptTokenCount: 10,
+          candidatesTokenCount: 5,
+          totalTokenCount: 15,
+        },
+      },
+    ]
+
+    const secondStream = [
+      {
+        candidates: [
+          {
+            content: { parts: [{ text: 'The sum is 8.' }] },
+            finishReason: 'STOP',
+          },
+        ],
+        usageMetadata: {
+          promptTokenCount: 20,
+          candidatesTokenCount: 5,
+          totalTokenCount: 25,
+        },
+      },
+    ]
+
+    mocks.generateContentStreamSpy
+      .mockResolvedValueOnce(createStream(firstStream))
+      .mockResolvedValueOnce(createStream(secondStream))
+
+    const adapter = createTextAdapter()
+
+    const sumTool: Tool = {
+      name: 'sum_tool',
+      description: 'Sums an array of numbers.',
+      execute: async (input: any) => ({
+        result: input.numbers.reduce((a: number, b: number) => a + b, 0),
+      }),
+    }
+
+    for await (const _ of chat({
+      threadId: 'thread-1',
+      adapter,
+      tools: [sumTool],
+      messages: [{ role: 'user', content: 'What is 1 + 2 + 5?' }],
+      reasoning: 'low',
+    })) {
+      /* consume stream */
+    }
+
+    expect(mocks.generateContentStreamSpy).toHaveBeenCalledTimes(2)
+
+    // Inspect the second call's payload (the turn that includes history)
+    const [secondPayload] = mocks.generateContentStreamSpy.mock.calls[1]!
+    const modelTurn = secondPayload.contents.find(
+      (c: any) => c.role === 'model',
+    )
+    expect(modelTurn).toBeDefined()
+
+    const functionCallPart = modelTurn.parts.find((p: any) => p.functionCall)
+    expect(functionCallPart).toBeDefined()
+    expect(functionCallPart.functionCall.name).toBe('sum_tool')
+    // thoughtSignature must be at the Part level, NOT nested in functionCall
+    expect(functionCallPart.thoughtSignature).toBe(thoughtSig)
+    expect(functionCallPart.functionCall.thoughtSignature).toBeUndefined()
+  })
+
+  it('ignores thoughtSignature nested inside functionCall (not part of @google/genai Part type)', async () => {
+    // The @google/genai SDK has never typed thoughtSignature on FunctionCall;
+    // it only exists on Part. A nested value should be ignored.
+    const firstStream = [
+      {
+        candidates: [
+          {
+            content: {
+              parts: [
+                {
+                  functionCall: {
+                    id: 'fc_nested',
+                    name: 'sum_tool',
+                    args: { numbers: [3, 4] },
+                    thoughtSignature: 'should-be-ignored',
+                  },
+                },
+              ],
+            },
+            finishReason: 'STOP',
+          },
+        ],
+        usageMetadata: {
+          promptTokenCount: 10,
+          candidatesTokenCount: 5,
+          totalTokenCount: 15,
+        },
+      },
+    ]
+
+    const secondStream = [
+      {
+        candidates: [
+          {
+            content: { parts: [{ text: 'The sum is 7.' }] },
+            finishReason: 'STOP',
+          },
+        ],
+        usageMetadata: {
+          promptTokenCount: 20,
+          candidatesTokenCount: 5,
+          totalTokenCount: 25,
+        },
+      },
+    ]
+
+    mocks.generateContentStreamSpy
+      .mockResolvedValueOnce(createStream(firstStream))
+      .mockResolvedValueOnce(createStream(secondStream))
+
+    const adapter = createTextAdapter()
+
+    const sumTool: Tool = {
+      name: 'sum_tool',
+      description: 'Sums an array of numbers.',
+      execute: async (input: any) => ({
+        result: input.numbers.reduce((a: number, b: number) => a + b, 0),
+      }),
+    }
+
+    for await (const _ of chat({
+      threadId: 'thread-1',
+      adapter,
+      tools: [sumTool],
+      messages: [{ role: 'user', content: 'What is 3 + 4?' }],
+    })) {
+      /* consume stream */
+    }
+
+    expect(mocks.generateContentStreamSpy).toHaveBeenCalledTimes(2)
+
+    const [secondPayload] = mocks.generateContentStreamSpy.mock.calls[1]!
+    const modelTurn = secondPayload.contents.find(
+      (c: any) => c.role === 'model',
+    )
+    expect(modelTurn).toBeDefined()
+
+    const functionCallPart = modelTurn.parts.find((p: any) => p.functionCall)
+    expect(functionCallPart).toBeDefined()
+    // No thoughtSignature should be emitted since none was at Part level
+    expect(functionCallPart.thoughtSignature).toBeUndefined()
+    expect(functionCallPart.functionCall.thoughtSignature).toBeUndefined()
+  })
+
+  it('uses function name (not toolCallId) in functionResponse and preserves the call id', async () => {
+    // First stream: model returns a function call with an explicit id
+    const firstStream = [
+      {
+        candidates: [
+          {
+            content: {
+              parts: [
+                {
+                  functionCall: {
+                    id: 'fc_001',
+                    name: 'lookup_weather',
+                    args: { location: 'Madrid' },
+                  },
+                },
+              ],
+            },
+            finishReason: 'STOP',
+          },
+        ],
+        usageMetadata: {
+          promptTokenCount: 5,
+          candidatesTokenCount: 3,
+          totalTokenCount: 8,
+        },
+      },
+    ]
+
+    const secondStream = [
+      {
+        candidates: [
+          {
+            content: { parts: [{ text: 'Sunny in Madrid!' }] },
+            finishReason: 'STOP',
+          },
+        ],
+        usageMetadata: {
+          promptTokenCount: 15,
+          candidatesTokenCount: 4,
+          totalTokenCount: 19,
+        },
+      },
+    ]
+
+    mocks.generateContentStreamSpy
+      .mockResolvedValueOnce(createStream(firstStream))
+      .mockResolvedValueOnce(createStream(secondStream))
+
+    const adapter = createTextAdapter()
+
+    const executableWeatherTool: Tool = {
+      name: 'lookup_weather',
+      description: 'Return the weather for a location',
+      execute: async () => ({ temp: 28, condition: 'sunny' }),
+    }
+
+    for await (const _ of chat({
+      threadId: 'thread-1',
+      adapter,
+      tools: [executableWeatherTool],
+      messages: [{ role: 'user', content: 'How is the weather in Madrid?' }],
+    })) {
+      /* consume stream */
+    }
+
+    expect(mocks.generateContentStreamSpy).toHaveBeenCalledTimes(2)
+
+    const [secondPayload] = mocks.generateContentStreamSpy.mock.calls[1]!
+    const userTurn = secondPayload.contents.find((c: any) =>
+      c.parts?.some((p: any) => p.functionResponse),
+    )
+    expect(userTurn).toBeDefined()
+
+    const funcResponsePart = userTurn.parts.find((p: any) => p.functionResponse)
+    expect(funcResponsePart).toBeDefined()
+    // name must be the actual function name, not a generated ID
+    expect(funcResponsePart.functionResponse.name).toBe('lookup_weather')
+    // id must be the original function call id from the model
+    expect(funcResponsePart.functionResponse.id).toBe('fc_001')
+  })
+
+  it('native combined mode (#605): wires outputSchema into responseSchema alongside tools on Gemini 3.x', async () => {
+    const finalJson = JSON.stringify({ city: 'Madrid', temp: 24 })
+    mocks.generateContentStreamSpy.mockResolvedValue(
+      createStream([
+        {
+          candidates: [
+            {
+              content: { parts: [{ text: finalJson }] },
+              finishReason: 'STOP',
+            },
+          ],
+          usageMetadata: { totalTokenCount: 5 },
+        },
+      ]),
+    )
+
+    const adapter = new GeminiTextAdapter(
+      { apiKey: 'test-key' },
+      'gemini-3.1-pro-preview',
+    )
+    expect(adapter.supportsCombinedToolsAndSchema()).toBe(true)
+
+    const ForecastSchema = z.object({
+      city: z.string(),
+      temp: z.number(),
+    })
+
+    const result = await chat({
+      threadId: 'thread-1',
+      adapter,
+      messages: [{ role: 'user', content: 'forecast Madrid' }],
+      tools: [weatherTool],
+      outputSchema: ForecastSchema,
+    })
+
+    expect(result).toEqual({ city: 'Madrid', temp: 24 })
+
+    expect(mocks.generateContentStreamSpy).toHaveBeenCalledTimes(1)
+    const [payload] = mocks.generateContentStreamSpy.mock.calls[0]!
+    expect(payload.model).toBe('gemini-3.1-pro-preview')
+    expect(payload.config).toMatchObject({
+      responseMimeType: 'application/json',
+      responseSchema: expect.objectContaining({ type: 'object' }),
+    })
+    // tools must still be forwarded — native combined mode is specifically
+    // about coexistence of tools + schema in one call.
+    expect(payload.config.tools?.[0]?.functionDeclarations?.[0]?.name).toBe(
+      'lookup_weather',
+    )
+    // No second generateContent call (the legacy structuredOutput finalization
+    // path is skipped).
+    expect(mocks.generateContentSpy).not.toHaveBeenCalled()
+  })
+
+  it('native combined mode (#605): Gemini 2.x stays on the legacy finalization path', () => {
+    const adapter = new GeminiTextAdapter(
+      { apiKey: 'test-key' },
+      'gemini-2.5-pro',
+    )
+    expect(adapter.supportsCombinedToolsAndSchema()).toBe(false)
+  })
+
+  it('streams structured output natively and completes before RUN_FINISHED', async () => {
+    mocks.generateContentStreamSpy.mockResolvedValue(
+      createStream(cityStreamChunks),
+    )
+
+    const events = await collectChunks(
+      createTextAdapter().structuredOutputStream({
+        chatOptions: {
+          threadId: 'thread-1',
+          model: 'gemini-2.5-pro',
+          messages: [{ role: 'user', content: 'Return a city' }],
+          logger: testLogger,
+        },
+        outputSchema: cityJsonSchema,
+      }),
+    )
+
+    const payload = mocks.generateContentStreamSpy.mock.calls[0]![0]
+    expect(payload.config).toMatchObject({
+      responseMimeType: 'application/json',
+      responseSchema: expect.objectContaining({ type: 'object' }),
+    })
+    expect(
+      events.filter((event) => event.type === 'TEXT_MESSAGE_CONTENT'),
+    ).toHaveLength(2)
+    const completeIndex = events.findIndex(
+      (event) =>
+        event.type === EventType.CUSTOM &&
+        event.name === 'structured-output.complete',
+    )
+    const finishedIndex = events.findIndex(
+      (event) => event.type === EventType.RUN_FINISHED,
+    )
+    expect(completeIndex).toBeGreaterThan(-1)
+    expect(completeIndex).toBeLessThan(finishedIndex)
+    const complete = structuredCompleteEvent(events)
+    expect(complete?.type).toBe(EventType.CUSTOM)
+    if (complete?.type === EventType.CUSTOM) {
+      expect(complete.value).toEqual({
+        object: { city: 'Madrid' },
+        raw: '{"city":"Madrid"}',
+      })
+    }
+  })
+
+  it('chat({ outputSchema, stream: true }) streams native JSON deltas', async () => {
+    mocks.generateContentStreamSpy.mockResolvedValue(
+      createStream(cityStreamChunks),
+    )
+
+    const events = await collectChunks(
+      chat({
+        threadId: 'thread-1',
+        adapter: createTextAdapter(),
+        messages: [{ role: 'user', content: 'Return a city' }],
+        outputSchema: z.object({ city: z.string() }),
+        stream: true,
+      }),
+    )
+
+    expect(
+      events.filter((event) => event.type === 'TEXT_MESSAGE_CONTENT').length,
+    ).toBeGreaterThanOrEqual(2)
+    expect(structuredCompleteEvent(events)).toBeDefined()
+  })
+
+  it('reports a MAX_TOKENS stop as truncation in structuredOutput', async () => {
+    mocks.generateContentSpy.mockResolvedValue({
+      candidates: [
+        {
+          content: { parts: [{ text: '{"city":' }] },
+          finishReason: 'MAX_TOKENS',
+        },
+      ],
+    })
+
+    await expect(
+      createTextAdapter().structuredOutput({
+        chatOptions: {
+          threadId: 'thread-1',
+          model: 'gemini-2.5-pro',
+          messages: [{ role: 'user', content: 'Return a city' }],
+          logger: testLogger,
+        },
+        outputSchema: cityJsonSchema,
+      }),
+    ).rejects.toThrow(/maximum token limit was reached/)
+  })
+
+  it('emits empty-response when the structured stream has no text', async () => {
+    mocks.generateContentStreamSpy.mockResolvedValue(
+      createStream([
+        {
+          candidates: [{ content: { parts: [] }, finishReason: 'STOP' }],
+        },
+      ]),
+    )
+
+    const events = await collectChunks(
+      createTextAdapter().structuredOutputStream({
+        chatOptions: {
+          threadId: 'thread-1',
+          model: 'gemini-2.5-pro',
+          messages: [{ role: 'user', content: 'Return a city' }],
+          logger: testLogger,
+        },
+        outputSchema: cityJsonSchema,
+      }),
+    )
+
+    const runError = runErrorEvent(events)
+    expect(runError?.type).toBe(EventType.RUN_ERROR)
+    if (runError?.type === EventType.RUN_ERROR) {
+      expect(runError.code).toBe('empty-response')
+    }
+    expect(structuredCompleteEvent(events)).toBeUndefined()
+  })
+
+  it('emits parse-error with a JSON snippet when the stream is not JSON', async () => {
+    mocks.generateContentStreamSpy.mockResolvedValue(
+      createStream([
+        {
+          candidates: [
+            {
+              content: { parts: [{ text: '{not valid json' }] },
+              finishReason: 'STOP',
+            },
+          ],
+        },
+      ]),
+    )
+
+    const events = await collectChunks(
+      createTextAdapter().structuredOutputStream({
+        chatOptions: {
+          threadId: 'thread-1',
+          model: 'gemini-2.5-pro',
+          messages: [{ role: 'user', content: 'Return a city' }],
+          logger: testLogger,
+        },
+        outputSchema: cityJsonSchema,
+      }),
+    )
+
+    const runError = runErrorEvent(events)
+    expect(runError?.type).toBe(EventType.RUN_ERROR)
+    if (runError?.type === EventType.RUN_ERROR) {
+      expect(runError.code).toBe('parse-error')
+      expect(runError.message).toContain('{not valid json')
+    }
+    expect(structuredCompleteEvent(events)).toBeUndefined()
+  })
+
+  it('emits truncated-stream when Gemini never sends a terminal event', async () => {
+    mocks.generateContentStreamSpy.mockResolvedValue(
+      createStream([
+        {
+          candidates: [{ content: { parts: [{ text: '{"city":' }] } }],
+        },
+      ]),
+    )
+
+    const events = await collectChunks(
+      createTextAdapter().structuredOutputStream({
+        chatOptions: {
+          threadId: 'thread-1',
+          model: 'gemini-2.5-pro',
+          messages: [{ role: 'user', content: 'Return a city' }],
+          logger: testLogger,
+        },
+        outputSchema: cityJsonSchema,
+      }),
+    )
+
+    const runError = runErrorEvent(events)
+    expect(runError?.type).toBe(EventType.RUN_ERROR)
+    if (runError?.type === EventType.RUN_ERROR) {
+      expect(runError.code).toBe('truncated-stream')
+    }
+    expect(structuredCompleteEvent(events)).toBeUndefined()
+  })
+
+  it('stamps RUN_FINISHED at emit time after structured-output.complete', async () => {
+    vi.useFakeTimers()
+    try {
+      vi.setSystemTime(1_000)
+      mocks.generateContentStreamSpy.mockResolvedValue(
+        createStream(cityStreamChunks),
+      )
+
+      const events: Array<AdapterYieldChunk> = []
+      for await (const event of createTextAdapter().structuredOutputStream({
+        chatOptions: {
+          threadId: 'thread-1',
+          model: 'gemini-2.5-pro',
+          messages: [{ role: 'user', content: 'Return a city' }],
+          logger: testLogger,
+        },
+        outputSchema: cityJsonSchema,
+      })) {
+        events.push(event)
+        vi.advanceTimersByTime(1)
+      }
+
+      const completeTs = structuredCompleteEvent(events)?.timestamp
+      const finishedTs = events.find(
+        (event) => event.type === EventType.RUN_FINISHED,
+      )?.timestamp
+      if (typeof completeTs !== 'number' || typeof finishedTs !== 'number') {
+        throw new Error('complete and finished events must carry timestamps')
+      }
+      expect(completeTs).toBeLessThanOrEqual(finishedTs)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('routes summarize() through the gemini chat-stream path', async () => {
+    const summaryText = 'Short and sweet.'
+    const streamChunks = [
+      {
+        candidates: [
+          {
+            content: { parts: [{ text: summaryText }] },
+            finishReason: 'STOP',
+          },
+        ],
+        usageMetadata: {
+          promptTokenCount: 10,
+          candidatesTokenCount: 5,
+          totalTokenCount: 15,
+        },
+      },
+    ]
+    mocks.generateContentStreamSpy.mockResolvedValueOnce(
+      createStream(streamChunks),
+    )
+
+    const adapter = createSummarizeAdapter()
+    const result = await summarize({
+      threadId: 'thread-1',
+      adapter,
+      text: 'A very long passage that needs to be shortened',
+      maxLength: 123,
+      style: 'paragraph',
+    })
+
+    expect(mocks.generateContentStreamSpy).toHaveBeenCalledTimes(1)
+    const [payload] = mocks.generateContentStreamSpy.mock.calls[0]!
+    expect(payload.model).toBe('gemini-2.5-flash')
+    expect(payload.config.systemInstruction).toContain(
+      'professional summarizer',
+    )
+    expect(payload.config.systemInstruction).toContain('paragraph format')
+    expect(payload.config.systemInstruction).toContain('123 tokens')
+    expect(result.summary).toBe(summaryText)
+  })
+})
+
+describe('Gemini adapter error handling', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it("forwards the provider's structured error body as RUN_ERROR.rawEvent", async () => {
+    const providerBody = { error: { code: 429, message: 'quota' } }
+    mocks.generateContentStreamSpy.mockRejectedValueOnce(
+      Object.assign(new Error('429'), providerBody),
+    )
+
+    const adapter = createTextAdapter()
+    const chunks: AdapterYieldChunk[] = []
+    for await (const chunk of adapter.chatStream({
+      threadId: 'thread-1',
+      model: 'gemini-2.5-pro',
+      messages: [{ role: 'user', content: 'hi' }],
+      logger: { request: () => {}, errors: () => {} } as any,
+    })) {
+      chunks.push(chunk)
+    }
+
+    const runError = chunks.find((c) => c.type === 'RUN_ERROR')
+    expect(runError).toBeDefined()
+    if (runError?.type === 'RUN_ERROR') {
+      // toRunErrorRawEvent picks up the `.error` object when present
+      expect(runError.rawEvent).toEqual(providerBody.error)
+    }
+  })
+
+  /** Runs one call that fails with an SDK error. Gives back its RUN_ERROR. */
+  async function runErrorFor(status: number, message: string) {
+    mocks.generateContentStreamSpy.mockRejectedValueOnce(
+      Object.assign(new Error(JSON.stringify({ error: { message } })), {
+        status,
+      }),
+    )
+    const chunks: AdapterYieldChunk[] = []
+    for await (const chunk of createTextAdapter().chatStream({
+      threadId: 'thread-1',
+      model: 'gemini-2.5-pro',
+      messages: [{ role: 'user', content: 'hi' }],
+      logger: { request: () => {}, errors: () => {} } as any,
+    })) {
+      chunks.push(chunk)
+    }
+    return chunks.find((c) => c.type === 'RUN_ERROR')
+  }
+
+  it('sets the context_overflow code on a context overflow', async () => {
+    const message =
+      'The input token count exceeds the maximum number of tokens allowed (1048576).'
+    const runError = await runErrorFor(400, message)
+    expect(runError).toMatchObject({ code: CONTEXT_OVERFLOW_CODE })
+    expect(runError?.message).toContain(message)
+  })
+
+  it('does not set it on a quota error that talks about tokens', async () => {
+    const runError = await runErrorFor(
+      429,
+      'Quota exceeded for metric: generate_content_paid_tier_input_token_count',
+    )
+    expect(runError?.type).toBe('RUN_ERROR')
+    expect(runError).not.toHaveProperty('code')
+  })
+
+  it('does not set it on another bad request', async () => {
+    const runError = await runErrorFor(400, 'Invalid JSON payload received.')
+    expect(runError).not.toHaveProperty('code')
+  })
+})

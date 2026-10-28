@@ -1,0 +1,39 @@
+<div align="center">
+  <picture>
+    <source
+      media="(prefers-color-scheme: dark)"
+      srcset="https://tanstack.com/api/readme/ai.png?theme=dark"
+    />
+    <source
+      media="(prefers-color-scheme: light)"
+      srcset="https://tanstack.com/api/readme/ai.png"
+    />
+    <img
+      src="https://tanstack.com/api/readme/ai.png"
+      alt="TanStack AI"
+      width="900"
+    />
+  </picture>
+</div>
+
+<br />
+
+# @tanstack/ai-claude-code
+
+Claude Code harness adapter for [TanStack AI](https://tanstack.com/ai) — run [Claude Code](https://docs.anthropic.com/en/docs/claude-code) (via `@anthropic-ai/claude-agent-sdk`) as a chat backend with local tool execution, stateful coding sessions, and TanStack tool bridging.
+
+```typescript
+import { chat } from '@tanstack/ai'
+import { claudeCodeText } from '@tanstack/ai-claude-code'
+
+const stream = chat({
+  adapter: claudeCodeText('claude-opus-4-8', {
+    cwd: '/path/to/project',
+    permissionMode: 'acceptEdits',
+  }),
+  messages: [{ role: 'user', content: 'Fix the failing test.' }],
+  threadId: 'thread-1',
+})
+```
+
+Server-only (Node). See the [Claude Code adapter docs](https://tanstack.com/ai/latest/docs/adapters/claude-code) for sessions, tool bridging, permissions, and limitations.

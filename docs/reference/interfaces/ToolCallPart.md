@@ -3,26 +3,30 @@ id: ToolCallPart
 title: ToolCallPart
 ---
 
-# Interface: ToolCallPart
+Defined in: packages/ai/src/types.ts:494
 
-Defined in: [packages/typescript/ai/src/types.ts:311](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L311)
+## Type Parameters
+
+### TMetadata
+
+`TMetadata` = `unknown`
 
 ## Properties
 
 ### approval?
 
 ```ts
-optional approval: object;
+optional approval?: object;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:318](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L318)
+Defined in: packages/ai/src/types.ts:510
 
 Approval metadata if tool requires user approval
 
 #### approved?
 
 ```ts
-optional approved: boolean;
+optional approved?: boolean;
 ```
 
 #### id
@@ -45,7 +49,7 @@ needsApproval: boolean;
 arguments: string;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:315](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L315)
+Defined in: packages/ai/src/types.ts:498
 
 ***
 
@@ -55,7 +59,39 @@ Defined in: [packages/typescript/ai/src/types.ts:315](https://github.com/TanStac
 id: string;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:313](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L313)
+Defined in: packages/ai/src/types.ts:496
+
+***
+
+### input?
+
+```ts
+optional input?: unknown;
+```
+
+Defined in: packages/ai/src/types.ts:507
+
+Parsed tool input. Set from the parsed arguments once they are complete
+(`state: 'input-complete'` and later). `undefined` while the raw
+`arguments` string is still streaming, and may stay `undefined` for a call
+that terminates in an error state — the raw `arguments` string is always
+available as a fallback. Typed per-tool on the client `ToolCallPart` (see
+`@tanstack/ai-client`); `unknown` on this base type.
+
+***
+
+### metadata?
+
+```ts
+optional metadata?: TMetadata;
+```
+
+Defined in: packages/ai/src/types.ts:521
+
+Provider-specific metadata that round-trips with the tool call.
+Typed per-adapter via `TToolCallMetadata`. May follow the
+[ProviderExecutedToolMetadata](ProviderExecutedToolMetadata.md) convention to mark provider-executed
+server tools (e.g. Anthropic `web_search`).
 
 ***
 
@@ -65,17 +101,17 @@ Defined in: [packages/typescript/ai/src/types.ts:313](https://github.com/TanStac
 name: string;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:314](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L314)
+Defined in: packages/ai/src/types.ts:497
 
 ***
 
 ### output?
 
 ```ts
-optional output: any;
+optional output?: any;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:324](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L324)
+Defined in: packages/ai/src/types.ts:516
 
 Tool execution output (for client tools or after approval)
 
@@ -87,7 +123,7 @@ Tool execution output (for client tools or after approval)
 state: ToolCallState;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:316](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L316)
+Defined in: packages/ai/src/types.ts:508
 
 ***
 
@@ -97,4 +133,4 @@ Defined in: [packages/typescript/ai/src/types.ts:316](https://github.com/TanStac
 type: "tool-call";
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:312](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L312)
+Defined in: packages/ai/src/types.ts:495

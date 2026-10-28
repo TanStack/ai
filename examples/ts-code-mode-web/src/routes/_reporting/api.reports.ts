@@ -11,6 +11,7 @@ import { allTools } from '@/lib/tools'
 import { CODE_MODE_SYSTEM_PROMPT, REPORTS_SYSTEM_PROMPT } from '@/lib/prompts'
 import { reportTools } from '@/lib/reports/tools'
 import { createReportBindings } from '@/lib/reports/create-report-bindings'
+import { maxTokensModelOptions } from '@/lib/max-tokens-model-options'
 
 type Provider = 'anthropic' | 'openai' | 'gemini' | 'zai'
 
@@ -38,20 +39,20 @@ let codeModeCache: {
 async function getCodeModeTools() {
   if (!codeModeCache) {
     const { createIsolateDriver } = await import('@/lib/create-isolate-driver')
-    const driver = await createIsolateDriver('node')
+    const driver = await createIsolateDriver()
     const { tool, systemPrompt } = createCodeMode({
       driver,
       tools: allTools,
       timeout: 60000,
       memoryLimit: 128,
-      getSkillBindings: async () => createReportBindings(),
+      getSnippetBindings: async () => createReportBindings(),
     })
     codeModeCache = { tool, systemPrompt }
   }
   return codeModeCache
 }
 
-export const Route = createFileRoute('/_reporting/api/reports' as any)({
+export const Route = createFileRoute('/_reporting/api/reports')({
   server: {
     handlers: {
       POST: async ({ request }) => {
@@ -62,7 +63,7 @@ export const Route = createFileRoute('/_reporting/api/reports' as any)({
 
         const abortController = new AbortController()
         const body = await request.json()
-        const { messages, data } = body
+        const { messages, forwardedProps: data } = body
 
         const provider: Provider = data?.provider || 'anthropic'
         const model: string | undefined = data?.model
@@ -72,6 +73,7 @@ export const Route = createFileRoute('/_reporting/api/reports' as any)({
 
         try {
           const stream = chat({
+            threadId: body.threadId,
             adapter,
             messages,
             tools: [tool, ...reportTools],
@@ -82,7 +84,7 @@ export const Route = createFileRoute('/_reporting/api/reports' as any)({
             ],
             agentLoopStrategy: maxIterations(20),
             abortController,
-            maxTokens: 8192,
+            modelOptions: maxTokensModelOptions(adapter, 8192),
           })
 
           const sseStream = toServerSentEventsStream(stream, abortController)

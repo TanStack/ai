@@ -2,181 +2,133 @@
 title: Anthropic
 id: anthropic-adapter
 order: 2
-description: "Use Anthropic Claude models with TanStack AI — Claude Sonnet 4.5, Claude Opus, and more via the @tanstack/ai-anthropic adapter."
+description: "Use Anthropic Claude models in TanStack AI with @tanstack/ai-anthropic: Claude Opus, Sonnet, Haiku, and Fable for chat, thinking, prompt caching, and tools."
 keywords:
   - tanstack ai
   - anthropic
   - claude
-  - claude sonnet 4.5
+  - claude fable 5
+  - claude sonnet 5
   - claude opus
   - adapter
   - llm
 ---
 
-The Anthropic adapter provides access to Claude models, including Claude Sonnet 4.5, Claude Opus 4.5, and more.
+The Anthropic adapter calls Claude for chat. It supports thinking, automatic prompt caching, and tools that Anthropic runs.
 
-## Installation
+## 1. Install
+
+<!-- ::start:tabs variant="package-manager" mode="install" -->
+
+react: @tanstack/ai-anthropic
+vue: @tanstack/ai-anthropic
+solid: @tanstack/ai-anthropic
+svelte: @tanstack/ai-anthropic
+preact: @tanstack/ai-anthropic
+angular: @tanstack/ai-anthropic
+vanilla: @tanstack/ai-anthropic
+octane: @tanstack/ai-anthropic
+
+<!-- ::end:tabs -->
+
+## 2. Set the API key
+
+Put the key in the environment of your server:
 
 ```bash
-npm install @tanstack/ai-anthropic
+ANTHROPIC_API_KEY=sk-ant-...
 ```
 
-## Basic Usage
+`anthropicText`, `anthropicSummarize`, and `anthropicFiles` use the first of these variables that is set:
+
+1. `ANTHROPIC_AUTH_TOKEN`: sent as a Bearer token. An `sk-ant-oat` token here turns on OAuth mode.
+2. `ANTHROPIC_OAUTH_TOKEN`: sent as a Bearer token, in OAuth mode.
+3. `ANTHROPIC_API_KEY`: sent as `x-api-key`.
+
+If none of them is set, these factories throw. To pass the credential in code, use `createAnthropicChat`. The `create*` factories never read a credential from the environment:
 
 ```typescript
-import { chat } from "@tanstack/ai";
-import { anthropicText } from "@tanstack/ai-anthropic";
-
-const stream = chat({
-  adapter: anthropicText("claude-sonnet-4-5"),
-  messages: [{ role: "user", content: "Hello!" }],
-});
-```
-
-## Basic Usage - Custom API Key
-
-```typescript
-import { chat } from "@tanstack/ai";
 import { createAnthropicChat } from "@tanstack/ai-anthropic";
 
-const adapter = createAnthropicChat(process.env.ANTHROPIC_API_KEY!, {
-  // ... your config options
-});
-
-const stream = chat({
-  adapter: adapter("claude-sonnet-4-5"),
-  messages: [{ role: "user", content: "Hello!" }],
-});
+const adapter = createAnthropicChat("claude-sonnet-5-5", process.env.ANTHROPIC_API_KEY!);
 ```
 
-## Configuration
+Got a Bearer or OAuth token? See [Bearer and OAuth tokens](./anthropic-advanced#bearer-and-oauth-tokens).
+
+## 3. Stream a chat from the server
 
 ```typescript
-import { createAnthropicChat, type AnthropicChatConfig } from "@tanstack/ai-anthropic";
-
-const config: Omit<AnthropicChatConfig, 'apiKey'> = {
-  baseURL: "https://api.anthropic.com", // Optional, for custom endpoints
-};
-
-const adapter = createAnthropicChat(process.env.ANTHROPIC_API_KEY!, config);
-```
- 
-
-## Example: Chat Completion
-
-```typescript
-import { chat, toServerSentEventsResponse } from "@tanstack/ai";
+import {
+  chat,
+  chatParamsFromRequest,
+  toServerSentEventsResponse,
+} from "@tanstack/ai";
 import { anthropicText } from "@tanstack/ai-anthropic";
 
 export async function POST(request: Request) {
-  const { messages } = await request.json();
+  const { messages, threadId, runId } = await chatParamsFromRequest(request);
 
   const stream = chat({
-    adapter: anthropicText("claude-sonnet-4-5"),
+    adapter: anthropicText("claude-sonnet-5-5"),
     messages,
+    threadId,
+    runId,
   });
 
   return toServerSentEventsResponse(stream);
 }
 ```
 
-## Example: With Tools
+## 4. Render the chat
 
-```typescript
-import { chat, toolDefinition } from "@tanstack/ai";
-import { anthropicText } from "@tanstack/ai-anthropic";
-import { z } from "zod";
+The client is the same for every provider. Point `useChat` at your route:
 
-const searchDatabaseDef = toolDefinition({
-  name: "search_database",
-  description: "Search the database",
-  inputSchema: z.object({
-    query: z.string(),
-  }),
-});
+```tsx
+import { useState } from "react";
+import { useChat, fetchServerSentEvents } from "@tanstack/ai-react";
 
-const searchDatabase = searchDatabaseDef.server(async ({ query }) => {
-  // Search database
-  return { results: [] };
-});
+export function Chat() {
+  const [input, setInput] = useState("");
+  const { messages, sendMessage } = useChat({
+    connection: fetchServerSentEvents("/api/chat"),
+    threadId: "support-chat",
+  });
 
-const stream = chat({
-  adapter: anthropicText("claude-sonnet-4-5"),
-  messages,
-  tools: [searchDatabase],
-});
-```
-
-## Model Options
-
-Anthropic supports various provider-specific options:
-
-```typescript
-const stream = chat({
-  adapter: anthropicText("claude-sonnet-4-5"),
-  messages,
-  modelOptions: {
-    max_tokens: 4096,
-    temperature: 0.7,
-    top_p: 0.9,
-    top_k: 40,
-    stop_sequences: ["END"],
-  },
-});
-```
-
-### Thinking (Extended Thinking)
-
-Enable extended thinking with a token budget. This allows Claude to show its reasoning process, which is streamed as `thinking` chunks:
-
-```typescript
-modelOptions: {
-  thinking: {
-    type: "enabled",
-    budget_tokens: 2048, // Maximum tokens for thinking
-  },
+  return (
+    <form
+      onSubmit={(event) => {
+        event.preventDefault();
+        sendMessage(input);
+        setInput("");
+      }}
+    >
+      {messages.map((message) => (
+        <p key={message.id}>
+          {message.parts
+            .map((part) => (part.type === "text" ? part.content : ""))
+            .join("")}
+        </p>
+      ))}
+      <input value={input} onChange={(event) => setInput(event.target.value)} />
+    </form>
+  );
 }
 ```
 
-**Note:** `max_tokens` must be greater than `budget_tokens`. The adapter automatically adjusts `max_tokens` if needed.
+For Vue, Solid, Svelte, Angular, and the other frameworks, see [Quick Start](../getting-started/quick-start#3-render-the-chat).
 
-### Prompt Caching
-
-Cache prompts for better performance and reduced costs:
-
-```typescript
-const stream = chat({
-  adapter: anthropicText("claude-sonnet-4-5"),
-  messages: [
-    {
-      role: "user",
-      content: [
-        {
-          type: "text",
-          content: "What is the capital of France?",
-          metadata: {
-            cache_control: {
-              type: "ephemeral",
-            },
-          },
-        },
-      ],
-    },
-  ],
-});
-```
+You now have a streaming Claude chat. [Tools](../tools/tools) and [Structured Outputs](../structured-outputs/overview) work the same as with every adapter.
 
 ## Summarization
-
-Anthropic supports text summarization:
 
 ```typescript
 import { summarize } from "@tanstack/ai";
 import { anthropicSummarize } from "@tanstack/ai-anthropic";
 
 const result = await summarize({
-  adapter: anthropicSummarize("claude-sonnet-4-5"),
+  adapter: anthropicSummarize("claude-sonnet-4-6"),
   text: "Your long text to summarize...",
+  threadId: "thread-1",
   maxLength: 100,
   style: "concise", // "concise" | "bullet-points" | "paragraph"
 });
@@ -184,74 +136,17 @@ const result = await summarize({
 console.log(result.summary);
 ```
 
-## Environment Variables
+## Files
 
-Set your API key in environment variables:
+`anthropicFiles` uploads media to the Anthropic Files API, so a message can point to the file. See [Files API](../advanced/files-api).
 
-```bash
-ANTHROPIC_API_KEY=sk-ant-...
-```
+## No image generation
 
-## API Reference
+Anthropic does not make images. For images, use [OpenAI](./openai) or [Gemini](./gemini).
 
-### `anthropicText(config?)`
+## Provider tools
 
-Creates an Anthropic chat adapter using environment variables.
-
-**Returns:** An Anthropic chat adapter instance.
-
-### `createAnthropicChat(apiKey, config?)`
-
-Creates an Anthropic chat adapter with an explicit API key.
-
-**Parameters:**
-
-- `apiKey` - Your Anthropic API key
-- `config.baseURL?` - Custom base URL (optional)
-
-**Returns:** An Anthropic chat adapter instance.
-
-### `anthropicSummarize(config?)`
-
-Creates an Anthropic summarization adapter using environment variables.
-
-**Returns:** An Anthropic summarize adapter instance.
-
-### `createAnthropicSummarize(apiKey, config?)`
-
-Creates an Anthropic summarization adapter with an explicit API key.
-
-**Parameters:**
-
-- `apiKey` - Your Anthropic API key
-- `config.baseURL?` - Custom base URL (optional)
-
-**Returns:** An Anthropic summarize adapter instance.
-
-## Limitations
-
-- **Image Generation**: Anthropic does not support image generation. Use OpenAI or Gemini for image generation.
-
-## Next Steps
-
-- [Getting Started](../getting-started/quick-start) - Learn the basics
-- [Tools Guide](../tools/tools) - Learn about tools
-- [Other Adapters](./openai) - Explore other providers
-
-## Provider Tools
-
-Anthropic exposes several native tools beyond user-defined function calls.
-Import them from `@tanstack/ai-anthropic/tools` and pass them into
-`chat({ tools: [...] })`.
-
-> For the full concept, a comparison matrix, and type-gating details, see
-> [Provider Tools](../tools/provider-tools.md).
-
-### `webSearchTool`
-
-Enables Claude to run Anthropic's native web search with inline citations.
-Scope the search with `allowed_domains` or `blocked_domains` (mutually
-exclusive); set `max_uses` to cap per-turn cost.
+Anthropic runs some tools itself, such as web search and a code sandbox. Import them from `@tanstack/ai-anthropic/tools` and add them to `tools`:
 
 ```typescript
 import { chat } from "@tanstack/ai";
@@ -259,8 +154,9 @@ import { anthropicText } from "@tanstack/ai-anthropic";
 import { webSearchTool } from "@tanstack/ai-anthropic/tools";
 
 const stream = chat({
-  adapter: anthropicText("claude-opus-4-6"),
+  adapter: anthropicText("claude-sonnet-5-5"),
   messages: [{ role: "user", content: "What's new in AI this week?" }],
+  threadId: "thread-1",
   tools: [
     webSearchTool({
       name: "web_search",
@@ -271,164 +167,198 @@ const stream = chat({
 });
 ```
 
-**Supported models:** every current Claude model. `claude-3-haiku` supports
-only `web_search` (not `web_fetch`). See [Provider Tools](../tools/provider-tools.md#which-models-support-which-tools).
+Tools that Anthropic runs:
 
-### `webFetchTool`
+- `webSearchTool`: search the web, with citations.
+- `webFetchTool`: read one URL.
+- `codeExecutionTool`: run code in a sandbox, also with hosted skills.
+- `memoryTool`: keep facts across turns.
 
-Lets Claude fetch the contents of a URL directly, useful when you want the
-model to read a specific page rather than run a search. Takes no required
-arguments — pass an optional config object to override defaults.
+Tools that your app runs when Claude asks:
 
-```typescript
-import { chat } from "@tanstack/ai";
-import { anthropicText } from "@tanstack/ai-anthropic";
-import { webFetchTool } from "@tanstack/ai-anthropic/tools";
+- `bashTool`: run shell commands.
+- `textEditorTool`: view and change files.
+- `computerUseTool`: control a virtual desktop.
+- `customTool`: a tool with an inline schema.
 
-const stream = chat({
-  adapter: anthropicText("claude-sonnet-4-5"),
-  messages: [{ role: "user", content: "Summarise https://example.com" }],
-  tools: [webFetchTool()],
-});
-```
+Each tool, with a full sample, is on [Anthropic: Advanced](./anthropic-advanced#provider-tools). For which models take which tool, see [Provider Tools](../tools/provider-tools.md).
 
-**Supported models:** Claude Sonnet 4.x and above. See [Provider Tools](../tools/provider-tools.md#which-models-support-which-tools).
+## Models and options
 
-### `codeExecutionTool`
+### Model options
 
-Gives Claude a sandboxed code-execution environment so it can run Python
-snippets, analyse data, and return results inline. Choose the version string
-that matches your desired API revision.
+Provider options go in `modelOptions`, with the Anthropic names:
 
 ```typescript
 import { chat } from "@tanstack/ai";
 import { anthropicText } from "@tanstack/ai-anthropic";
-import { codeExecutionTool } from "@tanstack/ai-anthropic/tools";
 
 const stream = chat({
-  adapter: anthropicText("claude-sonnet-4-5"),
-  messages: [{ role: "user", content: "Plot a histogram of [1,2,2,3,3,3]" }],
-  tools: [
-    codeExecutionTool({ name: "code_execution", type: "code_execution_20250825" }),
-  ],
+  adapter: anthropicText("claude-sonnet-5-5"),
+  messages: [{ role: "user", content: "Hello!" }],
+  threadId: "thread-1",
+  modelOptions: {
+    max_tokens: 4096,
+    stop_sequences: ["END"],
+  },
 });
 ```
 
-**Supported models:** Claude Sonnet 4.x and above. See [Provider Tools](../tools/provider-tools.md#which-models-support-which-tools).
+- The sampling options `temperature`, `top_p`, and `top_k` also go in `modelOptions`. Claude Sonnet 5, Claude Opus 4.7 and later, and the 5-generation models reject them. The types take them only on the models that accept them, for example `claude-sonnet-4-6`.
+- When you do not set `max_tokens`, the adapter sends the full output limit of the model. See [The `max_tokens` default](./anthropic-advanced#max_tokens-default).
+- Sampling options do not go at the root of `chat()`. See [Moving Sampling Options into modelOptions](../migration/sampling-options-to-model-options).
 
-### `computerUseTool`
+### Reasoning
 
-Allows Claude to observe a virtual desktop (screenshots) and interact with it
-via keyboard and mouse events. Provide the screen resolution so Claude can
-calculate accurate coordinates.
+Want Claude to think harder, or not at all? Set `reasoning` on `chat()`. The adapter turns the level into the right thinking fields for the model.
 
 ```typescript
 import { chat } from "@tanstack/ai";
 import { anthropicText } from "@tanstack/ai-anthropic";
-import { computerUseTool } from "@tanstack/ai-anthropic/tools";
 
 const stream = chat({
-  adapter: anthropicText("claude-sonnet-4-5"),
-  messages: [{ role: "user", content: "Open the browser and go to example.com" }],
-  tools: [
-    computerUseTool({
-      type: "computer_20250124",
-      name: "computer",
-      display_width_px: 1024,
-      display_height_px: 768,
-    }),
-  ],
+  adapter: anthropicText("claude-opus-5-5"),
+  messages: [{ role: "user", content: "Plan a database migration." }],
+  threadId: "thread-1",
+  reasoning: "xhigh",
 });
 ```
 
-**Supported models:** Claude Sonnet 3.5 and above. See [Provider Tools](../tools/provider-tools.md#which-models-support-which-tools).
+What goes to Anthropic:
 
-### `bashTool`
+- `off` sends `thinking: { type: "disabled" }` on the models with `off` in the table below. On a model without `off`, such as `claude-fable-5`, the types reject it. At run time, it moves to the lowest level that the model has.
+- Claude 4.6 and later get adaptive thinking and `output_config.effort`. With an `outputSchema`, the adapter adds `output_config.format` next to the effort.
+- Budget models get `thinking: { type: "enabled", budget_tokens }`. The level picks the budget, or you set it with `budgetTokens`. If `max_tokens` is below the budget, the adapter raises it.
+- `summary: false` sends `display: "omitted"`, so the thinking text does not stream.
 
-Provides Claude with a persistent bash shell session, letting it run arbitrary
-commands, install packages, or manipulate files on the host. Choose the type
-string that matches your API revision.
+The levels of each model:
+
+| Model | Levels | `budgetTokens` |
+| --- | --- | --- |
+| `claude-opus-5-5`, `claude-sonnet-5-5`, `claude-fable-5-1`, `claude-fable-5`, `claude-opus-5`, `claude-opus-4-8`, `claude-opus-4-7` | `low` to `max` | no |
+| `claude-haiku-5-5`, `claude-sonnet-5` | `off`, `low` to `max` | no |
+| `claude-opus-4-6`, `claude-sonnet-4-6` | `low`, `medium`, `high`, `max` | yes |
+| `claude-opus-4-5` | `low`, `medium`, `high` | yes |
+| `claude-haiku-4-5`, `claude-sonnet-4-5` | `off` to `high` | yes |
+
+A budget model with `budgetTokens`:
 
 ```typescript
 import { chat } from "@tanstack/ai";
 import { anthropicText } from "@tanstack/ai-anthropic";
-import { bashTool } from "@tanstack/ai-anthropic/tools";
 
 const stream = chat({
-  adapter: anthropicText("claude-sonnet-4-5"),
-  messages: [{ role: "user", content: "List all TypeScript files in src/" }],
-  tools: [bashTool({ name: "bash", type: "bash_20250124" })],
+  adapter: anthropicText("claude-haiku-4-5"),
+  messages: [{ role: "user", content: "Check this proof." }],
+  threadId: "thread-1",
+  reasoning: { level: "high", budgetTokens: 8000 },
 });
 ```
 
-**Supported models:** Claude Sonnet 3.5 and above. See [Provider Tools](../tools/provider-tools.md#which-models-support-which-tools).
+With an `outputSchema`, every model in `ANTHROPIC_MODELS` uses native structured output, so thinking stays on. A direct `structuredOutput()` call, or a model id that is not in that list, forces a tool. Claude cannot think while a tool is forced, so that call sends no thinking. See [Reasoning](../chat/reasoning) for the levels and the nearest-level rule.
 
-### `textEditorTool`
+### Models
 
-Gives Claude a structured text-editor interface for viewing and modifying files
-using `str_replace`, `create`, `view`, and `undo_edit` commands. Choose the
-type string for the API revision you target.
+Newest first. The package exports the full list as `ANTHROPIC_MODELS`.
+
+| Family | Models |
+| --- | --- |
+| Claude 5.5 | `claude-opus-5-5`, `claude-sonnet-5-5`, `claude-haiku-5-5` |
+| Claude 5 | `claude-fable-5-1`, `claude-fable-5`, `claude-opus-5`, `claude-sonnet-5` |
+| Claude 4 | `claude-opus-4-8`, `claude-opus-4-7`, `claude-opus-4-6`, `claude-sonnet-4-6`, `claude-opus-4-5`, `claude-sonnet-4-5`, `claude-haiku-4-5` |
+
+`adapter.inputModalities` lists the input kinds of the selected model. See [Check what a model accepts](../advanced/extend-adapter#check-what-a-model-accepts).
+
+
+### Refusal fallback
+
+Did Claude return an empty answer to a life-science or security question? A safety classifier on the newer models can decline a request. Set `fallbacks`, and the Claude API sends a declined request to another Claude model in the same call:
 
 ```typescript
-import { chat } from "@tanstack/ai";
+import { chat, toServerSentEventsResponse } from "@tanstack/ai";
 import { anthropicText } from "@tanstack/ai-anthropic";
-import { textEditorTool } from "@tanstack/ai-anthropic/tools";
 
-const stream = chat({
-  adapter: anthropicText("claude-sonnet-4-5"),
-  messages: [{ role: "user", content: "Fix the bug in src/index.ts" }],
-  tools: [
-    textEditorTool({ type: "text_editor_20250124", name: "str_replace_editor" }),
-  ],
-});
+export async function POST(request: Request) {
+  const { messages } = await request.json();
+
+  const stream = chat({
+    adapter: anthropicText("claude-opus-5-5"),
+    messages,
+    threadId: "thread-1",
+    modelOptions: { fallbacks: "default" },
+  });
+
+  return toServerSentEventsResponse(stream);
+}
 ```
 
-**Supported models:** Claude Sonnet 3.5 and above. See [Provider Tools](../tools/provider-tools.md#which-models-support-which-tools).
+What this does:
 
-### `memoryTool`
+- `"default"` uses the model that Anthropic recommends for the refusal category. A list, such as `[{ model: "claude-opus-4-8" }]`, names up to three models to try in order.
+- The adapter adds the `server-side-fallback-2026-07-01` beta header for you.
+- The fallback answer streams like any other answer. When text has already started, events before the `fallback` block name the model that declined. That includes `RUN_STARTED` and that first text segment. Events after the block name `to.model`.
+- When the classifier declines before any output, `message_start` already names the fallback model. `RUN_STARTED` uses that name too.
+- The types accept `fallbacks` on `claude-fable-5`, `claude-fable-5-1`, `claude-opus-5`, `claude-opus-5-5`, and `claude-sonnet-5-5`.
 
-Enables Claude to store and retrieve information across conversation turns
-using Anthropic's managed memory service. Call with no arguments to use
-default configuration.
+Some refusals still stand. For example, a category can have no recommended model, or the fallback model can be busy. Then the run ends with `finishReason: "content_filter"`, not with an error. The `rawEvent` of that `RUN_FINISHED` holds the Anthropic `stop_details`, with `category` and `explanation`.
 
-```typescript
-import { chat } from "@tanstack/ai";
-import { anthropicText } from "@tanstack/ai-anthropic";
-import { memoryTool } from "@tanstack/ai-anthropic/tools";
+Show the reason in the UI with `onChunk`:
 
-const stream = chat({
-  adapter: anthropicText("claude-sonnet-4-5"),
-  messages: [{ role: "user", content: "Remember that I prefer metric units" }],
-  tools: [memoryTool()],
-});
+```tsx
+import { useState } from "react";
+import { fetchServerSentEvents, useChat } from "@tanstack/ai-react";
+
+export function Chat() {
+  const [refusal, setRefusal] = useState<string | null>(null);
+
+  const { messages, sendMessage } = useChat({
+    connection: fetchServerSentEvents("/api/chat"),
+    threadId: "support-chat",
+    onChunk: (chunk) => {
+      if (chunk.type === "RUN_FINISHED" && chunk.finishReason === "content_filter") {
+        const details = chunk.rawEvent;
+        const category =
+          details &&
+          typeof details === "object" &&
+          "category" in details &&
+          typeof details.category === "string"
+            ? details.category
+            : "unknown";
+        setRefusal(`Claude declined this request (category: ${category}).`);
+      }
+    },
+  });
+
+  return (
+    <div>
+      {messages.map((message) => (
+        <p key={message.id}>
+          {message.parts.map((part) => (part.type === "text" ? part.content : null))}
+        </p>
+      ))}
+      {refusal && <p role="alert">{refusal}</p>}
+      <button onClick={() => sendMessage("Describe how CRISPR edits a gene.")}>Send</button>
+    </div>
+  );
+}
 ```
 
-**Supported models:** Claude Sonnet 4.x and above. See [Provider Tools](../tools/provider-tools.md#which-models-support-which-tools).
+Limits:
 
-### `customTool`
+- Fallback works only on the Claude API. Claude on Vertex does not have it.
+- `claude-haiku-5-5` has no fallback model, so its refusals always stand.
+- The adapter does not send the `fallback` content block back on the next turn. A refusal before any output is not affected.
 
-Creates a tool with an inline JSON Schema input definition instead of going
-through `toolDefinition()`. Useful when you need fine-grained control over the
-schema shape or want to add `cache_control`. Unlike branded provider tools,
-`customTool` returns a plain `Tool` and is accepted by any chat model.
+Now a declined request gets an answer from a fallback model. When no model can answer, your UI tells the user why.
 
-```typescript
-import { chat } from "@tanstack/ai";
-import { anthropicText } from "@tanstack/ai-anthropic";
-import { customTool } from "@tanstack/ai-anthropic/tools";
-import { z } from "zod";
+## Advanced
 
-const stream = chat({
-  adapter: anthropicText("claude-sonnet-4-5"),
-  messages: [{ role: "user", content: "Look up user 42" }],
-  tools: [
-    customTool(
-      "lookup_user",
-      "Look up a user by ID and return their profile",
-      z.object({ userId: z.number() }),
-    ),
-  ],
-});
-```
+These topics are on [Anthropic: Advanced](./anthropic-advanced):
 
-**Supported models:** all current Claude models. See [Provider Tools](../tools/provider-tools.md#which-models-support-which-tools).
+- Bearer and OAuth tokens, gateways, and your own Anthropic client.
+- Claude on Vertex AI.
+- The `max_tokens` default and prompt caching.
+- Every provider tool, with a full sample.
+- The API reference.
+
+To call Claude through a GitHub Copilot plan, see [GitHub Copilot](./openai-compatible-advanced#claude-models).

@@ -18,6 +18,7 @@ import {
 } from '@/components/reports/useReportSSE'
 import ChatInput from '@/components/ChatInput'
 import { Header } from '@/components'
+import { toolResultContentToString } from '@/lib/tool-result-content'
 import { applyUIEvent, applyUIUpdates } from '@/lib/reports/apply-event'
 import type {
   RefreshResult,
@@ -27,7 +28,7 @@ import type {
   UIUpdate,
 } from '@/lib/reports/types'
 
-export const Route = createFileRoute('/_banking-demo/banking-demo' as any)({
+export const Route = createFileRoute('/_banking-demo/banking-demo')({
   component: BankingDemoPage,
 })
 
@@ -135,7 +136,7 @@ function ToolCallDisplay({
 }
 
 // Messages component for chat transcript
-function Messages({ messages }: { messages: Array<UIMessage> }) {
+function Messages({ messages }: { messages: ReadonlyArray<UIMessage> }) {
   const containerRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -159,7 +160,7 @@ function Messages({ messages }: { messages: Array<UIMessage> }) {
         for (const p of message.parts) {
           if (p.type === 'tool-result') {
             toolResults.set(p.toolCallId, {
-              content: p.content,
+              content: toolResultContentToString(p.content),
               state: p.state,
               error: p.error,
             })
@@ -333,8 +334,9 @@ function BankingDemoPage() {
   }, [])
 
   const { messages, sendMessage, isLoading } = useChat({
+    threadId: 'banking-demo',
     connection: fetchServerSentEvents('/api/banking-demo'),
-    body,
+    forwardedProps: body,
     onCustomEvent: handleCustomEvent,
   })
 

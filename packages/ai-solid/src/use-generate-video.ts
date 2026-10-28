@@ -1,0 +1,317 @@
+import { VideoGenerationClient } from '@tanstack/ai-client'
+import { createVideoDevtoolsBridge } from '@tanstack/ai-client/devtools'
+import {
+  batch,
+  createEffect,
+  createSignal,
+  onCleanup,
+  onMount,
+  untrack,
+} from 'solid-js'
+import type { StreamChunk } from '@tanstack/ai'
+import type {
+  AIDevtoolsDisplayOptions,
+  ConnectConnectionAdapter,
+  GenerationClientState,
+  GenerationFetcher,
+  InferGenerationOutputFromReturn,
+  VideoGenerateInput,
+  VideoGenerateResult,
+  VideoStatusInfo,
+} from '@tanstack/ai-client'
+import type { ByokClient } from '@tanstack/ai-client/byok'
+import type { ProviderId } from '@tanstack/ai/byok'
+import type { Accessor } from 'solid-js'
+
+/**
+ * Options for the useGenerateVideo hook.
+ *
+ * @template TOutput - The transformed output type (defaults to VideoGenerateResult)
+ */
+export interface UseGenerateVideoOptions<TOutput = VideoGenerateResult> {
+  /** Connect-based adapter for streaming transport (server handles polling) */
+  connection?: ConnectConnectionAdapter
+  /** Direct async function that returns a completed video result */
+  fetcher?: GenerationFetcher<VideoGenerateInput, VideoGenerateResult>
+  /** Additional body parameters to send with connect-based adapter requests */
+  body?: Record<string, any>
+  /** Optional BYOK keyring. Keys go in `x-byok-*` headers, never the body. */
+  byok?: ByokClient
+  /** Optional provider id. If it returns a slug, only that key is sent. If no slug resolves (`byokProvider`, then `body.provider`), generate throws. */
+  byokProvider?: () => ProviderId | undefined
+  /** Display options for TanStack AI Devtools. */
+  devtools?: AIDevtoolsDisplayOptions
+  /**
+   * How this generation persists across reloads.
+   * - Omit / `false`: ephemeral, in-memory only.
+   * - `true`: server-driven — on mount the client hydrates the last generation
+   *   for its `threadId` from the server (needs a connection with a
+   *   `hydrateGeneration` handler) and repaints it; it never auto-starts a run.
+   */
+  persistence?: boolean
+  /**
+   * The **scope** this generation belongs to: a stable, app-chosen name for the
+   * slot successive runs fill — not a link to a chat conversation.
+   *
+   * The hook starts empty and produces many runs over its life; each gets its
+   * own `runId`, but all belong to one scope. Persistence keys on this, so
+   * derive it from your own domain and keep it identical across reloads (e.g.
+   * `` `video-${videoId}-start-frame` ``). It is also sent as the AG-UI thread
+   * id on the wire, which the protocol requires.
+   *
+   * Required. A generated id would change on every reload, so persistence
+   * would restore nothing.
+   */
+  threadId: string
+  /**
+   * Server-driven hydration handler for `persistence: true` when the
+   * connection doesn't carry one (e.g. alongside `fetcher`, or a `stream()` /
+   * `rpcStream()` adapter built without handlers) — typically a one-line
+   * server-function call. The connection's own handler takes precedence.
+   */
+  hydrateGeneration?: ConnectConnectionAdapter['hydrateGeneration']
+  /**
+   * Re-attach handler that replays a run still generating to completion on
+   * mount, when the connection doesn't carry one. Without it, a restored
+   * `running` snapshot surfaces as an (interrupted) error. The connection's
+   * own handler takes precedence.
+   */
+  joinRun?: ConnectConnectionAdapter['joinRun']
+  /**
+   * Callback when video generation completes. Can optionally return a transformed value.
+   *
+   * - Return a non-null value to transform and store it as the result
+   * - Return `null` to keep the previous result unchanged
+   * - Return nothing (`void`) to store the raw result as-is
+   */
+  onResult?: (result: VideoGenerateResult) => TOutput | null | void
+  /** Callback when an error occurs */
+  onError?: (error: Error) => void
+  /** Callback when progress is reported (0-100) */
+  onProgress?: (progress: number, message?: string) => void
+  /** Callback when a video job is created */
+  onJobCreated?: (jobId: string) => void
+  /** Callback on each status update */
+  onStatusUpdate?: (status: VideoStatusInfo) => void
+  /** Callback for each stream chunk (connect-based adapter mode only) */
+  onChunk?: (chunk: StreamChunk) => void
+}
+
+/**
+ * Return type for the useGenerateVideo hook.
+ *
+ * @template TOutput - The transformed output type (defaults to VideoGenerateResult)
+ */
+export interface UseGenerateVideoReturn<TOutput = VideoGenerateResult> {
+  /** Trigger video generation */
+  generate: (input: VideoGenerateInput) => Promise<void>
+  /** The final video result (with URL), or null */
+  result: Accessor<TOutput | null>
+  /** The current job ID, or null */
+  jobId: Accessor<string | null>
+  /** Current video generation status info, or null */
+  videoStatus: Accessor<VideoStatusInfo | null>
+  /** Whether generation/polling is in progress */
+  isLoading: Accessor<boolean>
+  /** Current error, if any */
+  error: Accessor<Error | undefined>
+  /** Current state of the generation */
+  status: Accessor<GenerationClientState>
+  /** Abort the current generation/polling */
+  stop: () => void
+  /** Clear all state and return to idle */
+  reset: () => void
+  /**
+   * The id of the generation job currently running, or `null` when nothing is in
+   * flight. Each call to `generate` is one job with its own id. Pass it to your
+   * own endpoint to cancel or poll the provider job — `stop()` only aborts the
+   * local stream, it does not stop work already running on the provider.
+   */
+  runId: Accessor<string | null>
+}
+
+/**
+ * Solid hook for generating videos using AI models.
+ *
+ * Video generation is asynchronous: a job is created, then polled for status
+ * until completion. This hook handles the full lifecycle.
+ *
+ * @example
+ * ```tsx
+ * import { useGenerateVideo } from '@tanstack/ai-solid'
+ * import { fetchServerSentEvents } from '@tanstack/ai-client'
+ *
+ * function VideoGenerator() {
+ *   const { generate, result, videoStatus, isLoading } = useGenerateVideo({
+ *     threadId: 'intro-video',
+ *     connection: fetchServerSentEvents('/api/generate/video'),
+ *     onStatusUpdate: (status) => console.log(`Progress: ${status.progress}%`),
+ *   })
+ *
+ *   return (
+ *     <div>
+ *       <button onClick={() => generate({ prompt: 'A flying car over a city' })}>
+ *         Generate Video
+ *       </button>
+ *       {isLoading() && videoStatus() && (
+ *         <p>Status: {videoStatus()!.status} ({videoStatus()!.progress}%)</p>
+ *       )}
+ *       {result() && <video src={result()!.url} controls />}
+ *     </div>
+ *   )
+ * }
+ * ```
+ */
+// `TTransformed` infers from the `onResult` return position so the callback
+// parameter is typed as `VideoGenerateResult` and `result` narrows to the
+// transform's return. See issue #848.
+export function useGenerateVideo<TTransformed = void>(
+  options: Omit<UseGenerateVideoOptions, 'onResult'> & {
+    onResult?: (result: VideoGenerateResult) => TTransformed
+  },
+): UseGenerateVideoReturn<
+  InferGenerationOutputFromReturn<VideoGenerateResult, TTransformed>
+> {
+  type TOutput = InferGenerationOutputFromReturn<
+    VideoGenerateResult,
+    TTransformed
+  >
+  const [result, setResult] = createSignal<TOutput | null>(null)
+  const [jobId, setJobId] = createSignal<string | null>(null)
+  const [videoStatus, setVideoStatus] = createSignal<VideoStatusInfo | null>(
+    null,
+  )
+  const [isLoading, setIsLoading] = createSignal(false)
+  const [error, setError] = createSignal<Error | undefined>(undefined)
+  const [status, setStatus] = createSignal<GenerationClientState>('idle')
+  const [runId, setRunId] = createSignal<string | null>(null)
+  let disposed = false
+
+  // Built once. `untrack` keeps the option reads below from subscribing
+  // construction to `options.persistence` / `options.devtools` /
+  // `options.body`: a re-run would build a second client
+  // and orphan the first (only the live one is disposed on cleanup). Later
+  // `options.body` changes are pushed through `updateOptions` instead.
+  const client = untrack((): VideoGenerationClient<TOutput> => {
+    // Conditional spread on `body`: VideoGenerationClientOptions.body
+    // is a strict optional; EOPT forbids passing `T | undefined`.
+    const baseOptions = {
+      body: options.body,
+      persistence: options.persistence,
+      threadId: options.threadId,
+      ...(options.hydrateGeneration !== undefined && {
+        hydrateGeneration: options.hydrateGeneration,
+      }),
+      ...(options.joinRun !== undefined && { joinRun: options.joinRun }),
+      ...(options.byok !== undefined && { byok: options.byok }),
+      byokProvider: () => options.byokProvider?.(),
+      devtoolsBridgeFactory: createVideoDevtoolsBridge,
+      devtools: {
+        ...options.devtools,
+        framework: 'solid',
+        hookName: 'useGenerateVideo',
+        outputKind: 'video' as const,
+      },
+      // The transform's raw return type (`TTransformed`) and the stored output
+      // (`TOutput`, with null/void/undefined stripped) are identical at runtime;
+      // the cast bridges the relationship that the conditional type hides.
+      onResult: ((r: VideoGenerateResult) => options.onResult?.(r)) as (
+        result: VideoGenerateResult,
+      ) => TOutput | null | void,
+      onError: (e: Error) => {
+        if (!disposed) options.onError?.(e)
+      },
+      onProgress: (p: number, m?: string) => {
+        if (!disposed) options.onProgress?.(p, m)
+      },
+      onChunk: (c: StreamChunk) => {
+        if (!disposed) options.onChunk?.(c)
+      },
+      onJobCreated: (id: string) => {
+        if (!disposed) options.onJobCreated?.(id)
+      },
+      onStatusUpdate: (s: VideoStatusInfo) => {
+        if (!disposed) options.onStatusUpdate?.(s)
+      },
+    }
+
+    if (options.connection) {
+      return new VideoGenerationClient<TOutput>({
+        ...baseOptions,
+        connection: options.connection,
+      })
+    }
+
+    if (options.fetcher) {
+      return new VideoGenerationClient<TOutput>({
+        ...baseOptions,
+        fetcher: options.fetcher,
+      })
+    }
+
+    throw new Error(
+      'useGenerateVideo requires either a connection or fetcher option',
+    )
+  })
+
+  const applySnapshot = () => {
+    const next = client.getSnapshot()
+    // One batch, so effects never see half of a snapshot.
+    batch(() => {
+      setResult(() => next.result)
+      setIsLoading(next.isLoading)
+      setError(next.error)
+      setStatus(next.status)
+      setRunId(next.runId)
+      setJobId(next.jobId)
+      setVideoStatus(next.videoStatus)
+    })
+  }
+  applySnapshot()
+  onCleanup(client.subscribe(applySnapshot))
+
+  // Sync body changes without recreating client
+  createEffect(() => {
+    const currentBody = options.body
+    client.updateOptions({
+      ...(currentBody !== undefined && { body: currentBody }),
+    })
+  })
+
+  // Mount devtools only. Generation runs are never auto-started on mount — a
+  // persisted snapshot is hydrated for display, never replayed.
+  onMount(() => {
+    client.mountDevtools()
+  })
+
+  // Cleanup on unmount: stop any in-flight requests and unregister devtools
+  onCleanup(() => {
+    disposed = true
+    client.dispose()
+  })
+
+  const generate = async (input: VideoGenerateInput) => {
+    await client.generate(input)
+  }
+
+  const stop = () => {
+    client.stop()
+  }
+
+  const reset = () => {
+    client.reset()
+  }
+
+  return {
+    generate,
+    result,
+    jobId,
+    videoStatus,
+    isLoading,
+    error,
+    status,
+    stop,
+    reset,
+    runId,
+  }
+}

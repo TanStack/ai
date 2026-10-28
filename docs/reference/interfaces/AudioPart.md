@@ -3,11 +3,13 @@ id: AudioPart
 title: AudioPart
 ---
 
-# Interface: AudioPart\<TMetadata\>
+Defined in: packages/ai/src/types.ts:297
 
-Defined in: [packages/typescript/ai/src/types.ts:202](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L202)
+Audio content part for multimodal messages. AG-UI `AudioPart` with typed metadata.
 
-Audio content part for multimodal messages.
+## Extends
+
+- `AudioPart`
 
 ## Type Parameters
 
@@ -22,31 +24,15 @@ Provider-specific metadata type
 ### metadata?
 
 ```ts
-optional metadata: TMetadata;
+optional metadata?: TMetadata;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:207](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L207)
+Defined in: packages/ai/src/types.ts:299
 
 Provider-specific metadata (e.g., format, sample rate)
 
-***
-
-### source
+#### Overrides
 
 ```ts
-source: ContentPartSource;
+AGUIAudioPart.metadata
 ```
-
-Defined in: [packages/typescript/ai/src/types.ts:205](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L205)
-
-Source of the audio content
-
-***
-
-### type
-
-```ts
-type: "audio";
-```
-
-Defined in: [packages/typescript/ai/src/types.ts:203](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L203)

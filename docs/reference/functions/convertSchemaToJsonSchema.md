@@ -3,13 +3,11 @@ id: convertSchemaToJsonSchema
 title: convertSchemaToJsonSchema
 ---
 
-# Function: convertSchemaToJsonSchema()
-
 ```ts
-function convertSchemaToJsonSchema(schema, options): JSONSchema | undefined;
+function convertSchemaToJsonSchema(schema, options?): JSONSchema | undefined;
 ```
 
-Defined in: [packages/typescript/ai/src/activities/chat/tools/schema-converter.ts:205](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/tools/schema-converter.ts#L205)
+Defined in: packages/ai/src/activities/chat/tools/schema-converter.ts:349
 
 Converts a Standard JSON Schema compliant schema or plain JSONSchema to JSON Schema format
 compatible with LLM providers.
@@ -25,11 +23,11 @@ If the input is already a plain JSONSchema object, it is returned as-is.
 
 ### schema
 
+[`SchemaInput`](../type-aliases/SchemaInput.md) \| `undefined`
+
 Standard JSON Schema compliant schema or plain JSONSchema object to convert
 
-[`SchemaInput`](../type-aliases/SchemaInput.md) | `undefined`
-
-### options
+### options?
 
 `ConvertSchemaOptions` = `{}`
 

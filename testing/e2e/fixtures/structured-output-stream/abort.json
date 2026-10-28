@@ -1,0 +1,14 @@
+{
+  "fixtures": [
+    {
+      "match": {
+        "userMessage": "[structured-stream-abort] recommend a guitar slowly"
+      },
+      "response": {
+        "content": "{\"name\":\"Fender Stratocaster\",\"price\":1299,\"reason\":\"Versatile tone and comfortable playability across many genres including blues rock jazz country and pop with a wide tonal palette\",\"rating\":5}"
+      },
+      "chunkSize": 2,
+      "streamingProfile": { "tps": 5 }
+    }
+  ]
+}

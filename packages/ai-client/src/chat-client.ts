@@ -1,0 +1,3745 @@
+import {
+  EventType,
+  StreamProcessor,
+  cloneAndDeepFreezeJson,
+  convertSchemaToJsonSchema,
+  generateMessageId,
+  isStandardSchema,
+  mergeMetadata,
+  normalizeToUIMessage,
+  restoreInboundChunk,
+  subagentInputOf,
+  tanstackMetadata,
+  validateWithStandardSchema,
+} from '@tanstack/ai/client'
+import {
+  ByokBlockedError,
+  ByokMissingError,
+  ByokUnresolvedProviderError,
+} from '@tanstack/ai/byok'
+import { byokFallbackProviderId } from './byok/client'
+import {
+  prepareResolvedByokHeaders,
+  resolveByokProviderId,
+} from './byok/resolve'
+import { createNoOpChatDevtoolsBridge } from './devtools-noop'
+import {
+  fetcherToConnectionAdapter,
+  getChunkRunId,
+  normalizeConnectionAdapter,
+} from './connection-adapters'
+import { ChatPersistor } from './client-persistor'
+import { ClearedStreamTracker } from './cleared-stream-tracker'
+import { normalizeMessagesDates } from './message-date-normalizer'
+import { InterruptManager } from './interrupt-manager'
+import type {
+  AnyClientTool,
+  ContentPart,
+  InterruptDefinition,
+  InterruptSubmissionError,
+  ModelMessage,
+  RunAgentResumeItem,
+  StreamChunk,
+} from '@tanstack/ai/client'
+import type { ByokClient } from './byok'
+import type {
+  ChatHydrateOptions,
+  ChatHydrationResult,
+  ConnectionAdapter,
+  SubscribeConnectionAdapter,
+} from './connection-adapters'
+import type {
+  ChatClientEventEmitter,
+  ChatClientRunEventContext,
+} from './events'
+import type {
+  AIDevtoolsChatSnapshot,
+  ChatDevtoolsBridge,
+  ChatDevtoolsBridgeOptions,
+} from './devtools'
+import {
+  createAtom,
+  freezeSnapshotMessages,
+  freezeSnapshotPart,
+  patchAtom,
+  subscribeAtom,
+} from './snapshot-atom'
+import type { Atom } from './snapshot-atom'
+import type {
+  BoundInterrupts,
+  ChatClientOptions,
+  ChatClientSnapshot,
+  ChatClientState,
+  ChatFetcher,
+  ChatInterruptState,
+  ResolvableChatInterrupt,
+  ChatPendingInterrupt,
+  ChatResumeSnapshot,
+  ChatResumeState,
+  ConnectionStatus,
+  MessagePart,
+  MultimodalContent,
+  QueueBusyReason,
+  QueueOption,
+  QueueStrategy,
+  QueuedMessage,
+  SendMessageOptions,
+  SubagentHandle,
+  ToolCallPart,
+  UIMessage,
+  WhenBusy,
+} from './types'
+import type {
+  InterruptManagerChangeSource,
+  InterruptManagerSubmission,
+} from './interrupt-manager'
+
+/** Internal queue entry — public {@link QueuedMessage} plus optional per-send body. */
+interface InternalQueuedMessage extends QueuedMessage {
+  body?: Record<string, any>
+}
+
+const STREAM_PROCESSING_BUDGET_MS = 8
+
+type SchedulerWithYield = {
+  yield?: () => Promise<void>
+}
+
+function yieldToHost(): Promise<void> {
+  const { scheduler } = globalThis as typeof globalThis & {
+    scheduler?: SchedulerWithYield
+  }
+  if (scheduler?.yield) return scheduler.yield()
+  return new Promise((resolve) => setTimeout(resolve, 0))
+}
+
+function assertUniqueInterruptDefinitions(
+  interrupts:
+    | ReadonlyArray<InterruptDefinition<any, any, any, any>>
+    | undefined,
+): void {
+  const ids = new Set<string>()
+  for (const interrupt of interrupts ?? []) {
+    if (ids.has(interrupt.id)) {
+      throw new Error(`Duplicate interrupt definition id: ${interrupt.id}`)
+    }
+    ids.add(interrupt.id)
+  }
+}
+
+type ChatClientUpdateOptionsWithoutContext<
+  TTools extends ReadonlyArray<AnyClientTool>,
+  TInterrupts extends ReadonlyArray<InterruptDefinition<any, any, any, any>> =
+    readonly [],
+> = {
+  connection?: ConnectionAdapter
+  fetcher?: ChatFetcher
+  forwardedProps?: Record<string, any>
+  byok?: ByokClient
+  byokProvider?: () => string | undefined
+  tools?: TTools
+  interrupts?: TInterrupts
+  queue?: QueueOption
+  onResponse?: (response?: Response) => void | Promise<void>
+  onChunk?: (chunk: StreamChunk) => void
+  onFinish?: (message: UIMessage) => void
+  onError?: (error: Error) => void
+  onSubscriptionChange?: (isSubscribed: boolean) => void
+  onConnectionStatusChange?: (status: ConnectionStatus) => void
+  onSessionGeneratingChange?: (isGenerating: boolean) => void
+  onHydratingChange?: (isHydrating: boolean) => void
+  onQueueChange?: (queue: Array<QueuedMessage>) => void
+  onResumeStateChange?: (
+    resumeState: ChatResumeState | null,
+    pendingInterrupts: BoundInterrupts<TTools, TInterrupts>,
+  ) => void
+  /**
+   * Fires whenever the id of the run in flight changes: the new id when a run
+   * starts (including a rejoin), `null` when it settles.
+   */
+  onRunIdChange?: (runId: string | null) => void
+  onInterruptStateChange?: (
+    state: ChatInterruptState<TTools, TInterrupts>,
+    context: { source: 'hydrate' | 'live' },
+  ) => void
+  onCustomEvent?: (
+    eventType: string,
+    data: unknown,
+    context: { toolCallId?: string },
+  ) => void
+}
+
+type ClientToolResult = {
+  toolCallId: string
+  tool: string
+  output: any
+  state?: 'output-available' | 'output-error'
+  errorText?: string
+}
+
+function resolveTransport(transport: {
+  connection?: ConnectionAdapter
+  fetcher?: ChatFetcher
+}): ConnectionAdapter {
+  const { connection, fetcher } = transport
+  if (connection && fetcher) {
+    throw new Error(
+      'ChatClient: pass either `connection` or `fetcher`, not both.',
+    )
+  }
+  if (connection) return connection
+  if (fetcher) return fetcherToConnectionAdapter(fetcher)
+  throw new Error('ChatClient: either `connection` or `fetcher` is required.')
+}
+
+function connectionDrainsOnSend(connection: ConnectionAdapter): boolean {
+  return 'connect' in connection
+}
+
+function isIntermediateToolTurn(chunk: StreamChunk): boolean {
+  if (chunk.type !== 'RUN_FINISHED') return false
+  if (chunk.outcome?.type === 'interrupt') return false
+  const extra = chunk as StreamChunk & { finishReason?: unknown }
+  if (extra.finishReason !== undefined) {
+    return extra.finishReason === 'tool_calls'
+  }
+  return tanstackMetadata(chunk)?.finishReason === 'tool_calls'
+}
+
+export interface NormalizedQueueConfig {
+  whenBusy: WhenBusy
+  drain: 'fifo' | 'batch'
+  onOverflow: 'reject' | 'drop-oldest'
+  maxSize?: number
+  strategy?: QueueStrategy
+}
+
+export function normalizeQueueOption(
+  option: QueueOption | undefined,
+): NormalizedQueueConfig {
+  const base: NormalizedQueueConfig = {
+    whenBusy: 'queue',
+    drain: 'fifo',
+    onOverflow: 'reject',
+  }
+  if (!option) return base
+  if (typeof option === 'string') return { ...base, whenBusy: option }
+  if (typeof option === 'function') return { ...base, strategy: option }
+
+  const maxSize = option.maxSize
+  if (maxSize !== undefined) {
+    if (!Number.isInteger(maxSize) || maxSize < 0) {
+      throw new Error(
+        'ChatClient: queue.maxSize must be a non-negative integer',
+      )
+    }
+  }
+
+  return {
+    whenBusy: option.whenBusy ?? 'queue',
+    drain: option.drain ?? 'fifo',
+    onOverflow: option.onOverflow ?? 'reject',
+    ...(maxSize !== undefined ? { maxSize } : {}),
+  }
+}
+
+/**
+ * Merge a run of queued messages into a single send for `drain: 'batch'`.
+ * All-string content is joined with newlines; mixed/multimodal content is
+ * flattened into a single `ContentPart` array. The last item's `body` wins.
+ * Object-form metadata is merged last-write-wins per key.
+ */
+function mergeQueuedMessages(items: Array<InternalQueuedMessage>): {
+  content: string | MultimodalContent
+  body?: Record<string, any>
+} {
+  const body = items.at(-1)?.body
+  const stringContents: Array<string> = []
+  for (const item of items) {
+    if (typeof item.content !== 'string') {
+      break
+    }
+    stringContents.push(item.content)
+  }
+  if (stringContents.length === items.length) {
+    return {
+      content: stringContents.join('\n'),
+      ...(body !== undefined ? { body } : {}),
+    }
+  }
+  const parts: Array<ContentPart> = []
+  let metadata: Record<string, any> | undefined
+  for (const item of items) {
+    if (typeof item.content === 'string') {
+      parts.push({ type: 'text', content: item.content })
+      continue
+    }
+    if (typeof item.content.content === 'string') {
+      parts.push({ type: 'text', content: item.content.content })
+    } else {
+      parts.push(...item.content.content)
+    }
+    metadata = mergeMetadata(metadata, item.content.metadata)
+  }
+  return {
+    content: {
+      content: parts,
+      ...(metadata !== undefined ? { metadata } : {}),
+    },
+    ...(body !== undefined ? { body } : {}),
+  }
+}
+
+/**
+ * Extract a boolean approval decision from an AG-UI resume payload, if present.
+ * Tool-approval resolutions carry `{ approved: boolean, ... }`; generic
+ * interrupt payloads do not.
+ */
+function readApprovalApproved(payload: unknown): boolean | undefined {
+  if (
+    payload === null ||
+    typeof payload !== 'object' ||
+    Array.isArray(payload)
+  ) {
+    return undefined
+  }
+  if (!('approved' in payload) || typeof payload.approved !== 'boolean') {
+    return undefined
+  }
+  return payload.approved
+}
+
+function readResumeState(
+  snapshot: ChatResumeSnapshot,
+): ChatResumeState | undefined {
+  const value: unknown = snapshot
+  if (
+    value === null ||
+    typeof value !== 'object' ||
+    !('resumeState' in value)
+  ) {
+    return undefined
+  }
+  const resumeState = value.resumeState
+  if (
+    resumeState === null ||
+    typeof resumeState !== 'object' ||
+    !('threadId' in resumeState) ||
+    typeof resumeState.threadId !== 'string' ||
+    resumeState.threadId.length === 0 ||
+    !('runId' in resumeState) ||
+    typeof resumeState.runId !== 'string' ||
+    resumeState.runId.length === 0
+  ) {
+    return undefined
+  }
+  return { threadId: resumeState.threadId, runId: resumeState.runId }
+}
+
+/**
+ * How long a reload rejoin waits for its first chunk before giving up. A durable
+ * backend keeps a from-start join open waiting for a producer; without this
+ * bound a stale pointer to an unknown/evicted run would pin the UI loading for
+ * the backend's full first-chunk deadline (tens of seconds). Kept short so the
+ * client decides "reachable or not" quickly.
+ */
+const REJOIN_CONNECT_DEADLINE_MS = 2000
+
+/**
+ * Chunk types that (re)build the assistant message on a rejoin. The hydrated
+ * in-flight partial is dropped only when one of these arrives — never on
+ * `RUN_STARTED` alone — so a rejoin that connects but delivers no content cannot
+ * leave an empty assistant bubble.
+ */
+const REJOIN_REBUILD_TRIGGERS = new Set<string>([
+  'TEXT_MESSAGE_START',
+  'TEXT_MESSAGE_CONTENT',
+  'TEXT_MESSAGE_CHUNK',
+  'REASONING_MESSAGE_CONTENT',
+  'REASONING_MESSAGE_CHUNK',
+  'TOOL_CALL_START',
+  'TOOL_CALL_CHUNK',
+  'MESSAGES_SNAPSHOT',
+  // Drop the hydrated card before this chunk creates it again. A subagent
+  // turn may have no parent text, so the text triggers arrive too late.
+  'SUBAGENT_STARTED',
+])
+
+function rebuildsAssistantMessage(chunk: StreamChunk): boolean {
+  if (chunk.type === 'REASONING_ENCRYPTED_VALUE') {
+    return (
+      chunk.subtype === 'message' &&
+      typeof chunk.encryptedValue === 'string' &&
+      chunk.encryptedValue.length > 0
+    )
+  }
+  return REJOIN_REBUILD_TRIGGERS.has(chunk.type)
+}
+
+type SubagentCard = Extract<UIMessage['parts'][number], { type: 'subagent' }>
+
+/**
+ * Snapshot messages are frozen, and a host can pass them back in
+ * (`setMessagesManually(snapshot.messages)`, `initialMessages`). The client
+ * writes subagent handles into message parts, nested cards included, so copy
+ * each frozen part down through subagent transcripts.
+ */
+function thawMessages(messages: ReadonlyArray<UIMessage>): Array<UIMessage> {
+  return messages.map((message) => ({
+    ...message,
+    parts: message.parts.map((part) => {
+      if (!Object.isFrozen(part)) return part
+      if (part.type !== 'subagent') return { ...part }
+      return {
+        ...part,
+        subagent: {
+          ...part.subagent,
+          messages: thawMessages(part.subagent.messages),
+        },
+      }
+    }),
+  }))
+}
+
+/** Every subagent card in the messages, nested cards included. */
+function collectSubagentParts(
+  messages: ReadonlyArray<UIMessage>,
+): Array<SubagentCard> {
+  const cards: Array<SubagentCard> = []
+  for (const message of messages) {
+    for (const part of message.parts) {
+      if (part.type !== 'subagent') continue
+      cards.push(part)
+      cards.push(...collectSubagentParts(part.subagent.messages))
+    }
+  }
+  return cards
+}
+
+function readSubagentRunId(chunk: StreamChunk) {
+  if ('subagentRunId' in chunk && typeof chunk.subagentRunId === 'string') {
+    return chunk.subagentRunId
+  }
+  return undefined
+}
+
+// Cap parent-chain walks so a cyclic replayed parentRunId cannot loop.
+const MAX_RUN_LINEAGE_DEPTH = 64
+
+/**
+ * A deep copy of plain data. Dates stay Dates. Function-valued properties are
+ * dropped.
+ */
+function copyForDevtools<T>(value: T): T
+function copyForDevtools(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(copyForDevtools)
+  if (value instanceof Date) return new Date(value.getTime())
+  if (value === null || typeof value !== 'object') return value
+  const out: Record<string, unknown> = {}
+  for (const [key, item] of Object.entries(value)) {
+    if (typeof item !== 'function') out[key] = copyForDevtools(item)
+  }
+  return out
+}
+
+export class ChatClient<
+  TTools extends ReadonlyArray<AnyClientTool> = any,
+  TContext = unknown,
+  TInterrupts extends ReadonlyArray<InterruptDefinition<any, any, any, any>> =
+    any,
+> {
+  private readonly processor: StreamProcessor
+  private readonly subagentHandles = new Map<string, SubagentHandle>()
+  private readonly stoppedSubagentIds = new Set<string>()
+  private connection: SubscribeConnectionAdapter
+  private readonly threadId: string
+  // Durable chat persistence (optional): messages + resume snapshot as one
+  // combined record, so a full page reload restores the transcript, rehydrates
+  // pending interrupts, and rejoins an in-flight run. Clear-during-stream
+  // suppression is always on via ClearedStreamTracker so `clear()` works
+  // without a storage adapter.
+  private readonly persistor?: ChatPersistor
+  private readonly clearedStreamTracker = new ClearedStreamTracker()
+  private readonly snapshotAtom: Atom<ChatClientSnapshot<TTools, TInterrupts>> =
+    createAtom<ChatClientSnapshot<TTools, TInterrupts>>({
+      messages: [],
+      status: 'ready',
+      isLoading: false,
+      error: undefined,
+      isSubscribed: false,
+      connectionStatus: 'disconnected',
+      sessionGenerating: false,
+      queue: [],
+      runId: null,
+      hasOlderMessages: false,
+      isHydrating: false,
+      interruptState: {
+        interrupts: Object.freeze([]),
+        interruptErrors: Object.freeze([]),
+        resuming: false,
+      } as ChatInterruptState<TTools, TInterrupts>,
+    })
+  // The snapshot atom is the only copy of this state. Setters patch it.
+  private get status() {
+    return this.snapshotAtom.get().status
+  }
+  private get isLoading() {
+    return this.snapshotAtom.get().isLoading
+  }
+  private get error() {
+    return this.snapshotAtom.get().error
+  }
+  private get isSubscribed() {
+    return this.snapshotAtom.get().isSubscribed
+  }
+  private get connectionStatus() {
+    return this.snapshotAtom.get().connectionStatus
+  }
+  private get sessionGenerating() {
+    return this.snapshotAtom.get().sessionGenerating
+  }
+  private get hasOlderMessages() {
+    return this.snapshotAtom.get().hasOlderMessages
+  }
+  private get isHydrating() {
+    return this.snapshotAtom.get().isHydrating
+  }
+  private get currentRunId() {
+    return this.snapshotAtom.get().runId
+  }
+  // Interrupt-resume tracking: the run/thread of the most recent interrupted
+  // run, so approvals/client-tool results can be sent back. Cleared when the
+  // run terminates. This is STATE (interrupt) resume, not delivery/cursor.
+  private lastResume: ChatResumeState | null = null
+  // Replay can deliver a parent pause after a descendant already finished.
+  private readonly runParents = new Map<string, string>()
+  private readonly supersededInterruptRunIds = new Set<string>()
+  // The in-flight run id already handed to `resumeInFlightRun`, so a persisted
+  // run is rejoined at most once even when both the sync read and the async
+  // hydrate surface the same resume pointer.
+  private rejoinedRunId: string | null = null
+  private readonly interruptManager: InterruptManager<TTools, TInterrupts>
+  private activeInterruptSubmission: InterruptManagerSubmission | undefined
+  private interruptSubmissionFailure:
+    | { errors: ReadonlyArray<InterruptSubmissionError> }
+    | undefined
+  private readonly joinedRunWaiters = new Map<string, () => void>()
+  // When set, the next streamResponse() continues this interrupted run instead
+  // of starting a fresh run (consumed once).
+  private pendingResumeParentRunId: string | null = null
+  private pendingResumeThreadId: string | null = null
+  private pendingResumeItems: Array<RunAgentResumeItem> | null = null
+  private activeResumeThreadId: string | null = null
+  private activeResumeRunId: string | null = null
+  private forwardedPropsOption: Record<string, any> = {}
+  private byok: ByokClient | undefined
+  private byokProvider: (() => string | undefined) | undefined
+  private context: TContext | undefined = undefined
+  private pendingMessageBody: Record<string, any> | undefined = undefined
+  private queueConfig: NormalizedQueueConfig
+  private messageQueue: Array<InternalQueuedMessage> = []
+  /**
+   * True from the moment `sendMessage` claims the client until its
+   * `streamResponse` settles. Closes the race where concurrent callers both
+   * see `isLoading === false`, both append a user message, and only one stream
+   * actually runs (leaving stranded user messages with no reply).
+   */
+  private sendInFlight = false
+  /**
+   * True while `drainQueue` is delivering queued messages. Concurrent
+   * `sendMessage` calls during a drain are treated as busy and follow
+   * `whenBusy` (default: queue).
+   */
+  private messageQueueDraining = false
+  /**
+   * Set by `whenBusy: 'interrupt'` so an in-progress FIFO drain loop stops
+   * before starting the next queued item (the interrupting send owns the client).
+   */
+  private stopMessageQueueDrain = false
+  /**
+   * Sync claim held for the duration of `deliverMessage` so concurrent
+   * deliverers cannot both append a user message before only one stream runs.
+   */
+  private deliverClaim = false
+  private abortController: AbortController | null = null
+  private readonly clientToolsRef: { current: Map<string, AnyClientTool> }
+  private readonly devtoolsBridge: ChatDevtoolsBridge
+  /**
+   * Alias for `this.events`. The bridge installs an
+   * emitter that auto-attaches run/thread context and auto-emits a
+   * snapshot after every event, so chat-client only ever calls
+   * `this.events.X(...)` exactly like it did before devtools landed.
+   */
+  private readonly events: ChatClientEventEmitter
+  private currentStreamId: string | null = null
+  private currentMessageId: string | null = null
+  private readonly postStreamActions: Array<() => Promise<void>> = []
+  // Track pending client tool executions to await them before stream finalization
+  private readonly pendingToolExecutions: Map<string, Promise<void>> = new Map()
+  private handingOverPendingToolCalls = false
+  private activeClientTools: Map<string, AnyClientTool> | null = null
+  private activeContext: TContext | undefined = undefined
+  // Flag to deduplicate continuation checks during action draining
+  private continuationPending = false
+  private subscriptionAbortController: AbortController | null = null
+  private processingResolve: (() => void) | null = null
+  /**
+   * `connect()` adapters push the full HTTP body into the subscribe queue, then
+   * wait until that queue is idle. After `send()` returns, every chunk from this
+   * request has been processed. Subscribe/send sockets do not drain that way.
+   */
+  private connectionDrainsOnSend = false
+  private errorReportedGeneration: number | null = null
+  private streamGeneration = 0
+  private continuationGeneration = 0
+  // Generation of the run that opened the current stream. Public
+  // `addToolResult` must use this, not the live counter: `stop()` increments
+  // the live counter, so a post-stop call would otherwise look current.
+  private streamContinuationGeneration = 0
+  // Tracks whether a queued checkForContinuation was skipped because
+  // continuationPending was true (chained approval scenario)
+  private continuationSkipped = false
+  private draining = false
+  private readonly activeRunIds = new Set<string>()
+  /** Latched by `dispose()`; stops any late async callback starting new work. */
+  private disposed = false
+  /** The error a failed mount hydration set, cleared by the next successful one. */
+  private hydrationError: Error | undefined
+  /** Whether a view is currently watching. See `attach` / `detach`. */
+  private tailing = false
+  /** `historyGeneration` of the mount hydration GET still in flight, if any. */
+  private hydrationInFlight: number | undefined
+  /** An async storage adapter is still reading the persisted transcript. */
+  private storeHydrating = false
+  /** Constructor inputs `attach()` needs on every re-attach, not just the first. */
+  private readonly rejoinRunId: string | null | undefined
+  private readonly cachesMessages: boolean
+  /**
+   * Newest-window size from `history.pageSize`. Only set when
+   * `persistence === true`.
+   */
+  private readonly historyPageSize: number | undefined
+  private olderMessagesCursor: string | undefined
+  private readonly knownServerMessageIds = new Set<string>()
+  private loadOlderMessagesInFlight = false
+  private historyGeneration = 0
+  private devtoolsMounted = false
+
+  private readonly callbacksRef: {
+    current: {
+      onResponse: (response?: Response) => void | Promise<void>
+      onChunk: (chunk: StreamChunk) => void
+      onFinish: (message: UIMessage) => void
+      onError: (error: Error) => void
+      onMessagesChange: (messages: Array<UIMessage>) => void
+      onLoadingChange: (isLoading: boolean) => void
+      onErrorChange: (error: Error | undefined) => void
+      onStatusChange: (status: ChatClientState) => void
+      onSubscriptionChange: (isSubscribed: boolean) => void
+      onConnectionStatusChange: (status: ConnectionStatus) => void
+      onSessionGeneratingChange: (isGenerating: boolean) => void
+      onHydratingChange: (isHydrating: boolean) => void
+      onQueueChange: (queue: Array<QueuedMessage>) => void
+      onResumeStateChange: (
+        resumeState: ChatResumeState | null,
+        pendingInterrupts: BoundInterrupts<TTools, TInterrupts>,
+      ) => void
+      onRunIdChange: (runId: string | null) => void
+      onInterruptStateChange: (
+        state: ChatInterruptState<TTools, TInterrupts>,
+        context: { source: 'hydrate' | 'live' },
+      ) => void
+      onCustomEvent: (
+        eventType: string,
+        data: unknown,
+        context: { toolCallId?: string },
+      ) => void
+    }
+  }
+
+  constructor(options: ChatClientOptions<TTools, TContext, TInterrupts>) {
+    assertUniqueInterruptDefinitions(options.interrupts)
+    // `threadId` is the wire, DevTools, and persistence identity. Checked at
+    // runtime too, because JS callers are not held to the type.
+    if (typeof options.threadId !== 'string' || options.threadId === '') {
+      throw new Error('ChatClient: threadId is required (a non-empty string).')
+    }
+    this.threadId = options.threadId
+    // `persistence` is `false`/omitted (ephemeral, in-memory), `true`
+    // (server-authoritative: cache nothing client-side, hydrate the thread from
+    // the server by `threadId` on mount), or a storage adapter
+    // (client-authoritative: cache the transcript plus resume pointer). Only the
+    // server-authoritative mode turns transcript caching off; that is what gates
+    // the mount hydration and keeps a client record from shadowing server history.
+    let cachesMessages = true
+    if (options.persistence === true) {
+      cachesMessages = false
+      this.historyPageSize = options.history?.pageSize
+    } else if (options.persistence) {
+      // A storage adapter: keep the combined record (transcript + resume pointer)
+      // in the browser. Persistence keys on `threadId` (the conversation
+      // identity) so a reload with the same `threadId` finds the same record.
+      this.persistor = new ChatPersistor(
+        options.persistence,
+        options.threadId,
+        (messages) => this.processor.setMessages(messages),
+        (snapshot) => this.applyPersistedResume(snapshot),
+      )
+      this.historyPageSize = undefined
+    } else {
+      this.historyPageSize = undefined
+    }
+    this.forwardedPropsOption = options.forwardedProps || {}
+    this.byok = options.byok
+    this.byokProvider = options.byokProvider
+    this.context = options.context
+    this.queueConfig = normalizeQueueOption(options.queue)
+    const transport = resolveTransport(options)
+    this.connectionDrainsOnSend = connectionDrainsOnSend(transport)
+    this.connection = normalizeConnectionAdapter(transport)
+
+    // Build client tools map
+    this.clientToolsRef = { current: new Map() }
+    if (options.tools) {
+      for (const tool of options.tools) {
+        this.clientToolsRef.current.set(tool.name, tool)
+      }
+    }
+
+    this.devtoolsBridge = (
+      options.devtoolsBridgeFactory ?? createNoOpChatDevtoolsBridge
+    )(this.buildDevtoolsBridgeOptions(options.devtools))
+    this.events = this.devtoolsBridge.events
+
+    this.callbacksRef = {
+      current: {
+        onResponse: options.onResponse || (() => {}),
+        onChunk: options.onChunk || (() => {}),
+        onFinish: options.onFinish || (() => {}),
+        onError: options.onError || (() => {}),
+        onMessagesChange: options.onMessagesChange || (() => {}),
+        onLoadingChange: options.onLoadingChange || (() => {}),
+        onErrorChange: options.onErrorChange || (() => {}),
+        onStatusChange: options.onStatusChange || (() => {}),
+        onSubscriptionChange: options.onSubscriptionChange || (() => {}),
+        onConnectionStatusChange:
+          options.onConnectionStatusChange || (() => {}),
+        onSessionGeneratingChange:
+          options.onSessionGeneratingChange || (() => {}),
+        onHydratingChange: options.onHydratingChange || (() => {}),
+        onQueueChange: options.onQueueChange || (() => {}),
+        onResumeStateChange: options.onResumeStateChange || (() => {}),
+        onRunIdChange: options.onRunIdChange || (() => {}),
+        onInterruptStateChange: options.onInterruptStateChange || (() => {}),
+        onCustomEvent: options.onCustomEvent || (() => {}),
+      },
+    }
+
+    this.interruptManager = new InterruptManager<TTools, TInterrupts>({
+      ...(options.tools !== undefined ? { tools: options.tools } : {}),
+      ...(options.interrupts !== undefined
+        ? { interrupts: options.interrupts }
+        : {}),
+      submit: (submission) => this.submitInterruptBatch(submission),
+      onChange: (source) => this.notifyResumeStateChange(source),
+    })
+
+    // In-memory rehydrate of interrupt descriptors (e.g. after a page reload
+    // when the host supplies a snapshot). Durable storage of that snapshot is
+    // a persistence-stack concern — not wired here.
+    if (options.initialResumeSnapshot) {
+      this.applyResumeSnapshot(options.initialResumeSnapshot)
+    }
+
+    // Create StreamProcessor with event handlers.
+    // Use conditional spreads so we don't pass `undefined` into
+    // `StreamProcessorOptions` fields under `exactOptionalPropertyTypes`.
+    const persistedState = this.persistor?.readInitial()
+    const syncPersistedState =
+      persistedState instanceof Promise ? undefined : persistedState
+    // A persistor exists only in client-authoritative mode, so a synchronously
+    // read record's transcript is the conversation; adopt it over host
+    // `initialMessages`. (Server-authoritative mode has no persistor and instead
+    // hydrates from the server on mount, keyed by threadId.)
+    const initialMessages = syncPersistedState
+      ? syncPersistedState.messages
+      : options.initialMessages && thawMessages(options.initialMessages)
+    // A durable snapshot read synchronously from storage wins over the
+    // in-memory `initialResumeSnapshot` fallback applied above. A snapshot with
+    // pending interrupts rehydrates the interrupt UI; a bare in-flight run is
+    // rejoined after the processor is ready (see `rejoinRunId` below).
+    let rejoinRunId: string | null = null
+    if (syncPersistedState?.resume) {
+      const snapshot = syncPersistedState.resume
+      const hasPendingInterrupts =
+        Array.isArray(snapshot.pendingInterrupts) &&
+        snapshot.pendingInterrupts.length > 0
+      if (hasPendingInterrupts) {
+        // Interrupts are run-scoped state, restored from the cached snapshot.
+        this.applyResumeSnapshot(snapshot)
+      } else if (snapshot.resumeState.runId) {
+        // A bare in-flight run pointer drives a client-authoritative rejoin.
+        rejoinRunId = snapshot.resumeState.runId
+      }
+    }
+    // A host-supplied `initialResumeSnapshot` carrying a bare in-flight run is
+    // rejoined too, not just its interrupts (which `applyResumeSnapshot` above
+    // already restored). This is how a server-authoritative app hands a FRESH
+    // client an in-flight run to tail — e.g. opening the thread on a second
+    // device / browser, where hydration reports the active run id but no local
+    // resume pointer exists. A run named by the persisted store wins.
+    if (!rejoinRunId && options.initialResumeSnapshot) {
+      const snapshot = options.initialResumeSnapshot
+      const hasPendingInterrupts =
+        Array.isArray(snapshot.pendingInterrupts) &&
+        snapshot.pendingInterrupts.length > 0
+      if (!hasPendingInterrupts && snapshot.resumeState.runId) {
+        rejoinRunId = snapshot.resumeState.runId
+      }
+    }
+
+    this.processor = new StreamProcessor({
+      ...(options.streamProcessor?.chunkStrategy
+        ? { chunkStrategy: options.streamProcessor.chunkStrategy }
+        : {}),
+      ...(initialMessages ? { initialMessages } : {}),
+      events: {
+        onMessagesChange: (messages) => {
+          // Restored or replaced messages bring their own cards. Give each one
+          // its live handle before anyone reads the messages.
+          this.syncSubagentHandles()
+          this.persistor?.notifyMessagesChanged(messages)
+          patchAtom(this.snapshotAtom, {
+            messages: freezeSnapshotMessages(
+              this.frozenMessages,
+              messages as Array<UIMessage<TTools>>,
+            ),
+          })
+          this.callbacksRef.current.onMessagesChange(messages)
+          // The bridge only snapshots on status changes, and the panel draws a
+          // child card from the snapshot, so without this the card would update
+          // only when the parent run ends.
+          this.queueDevtoolsSnapshot()
+        },
+        onStreamStart: () => {
+          this.setStatus('streaming')
+          const assistantMessageId =
+            this.processor.getCurrentAssistantMessageId()
+          if (!assistantMessageId) {
+            return
+          }
+          const messages = this.processor.getMessages()
+          const assistantMessage = messages.find(
+            (m: UIMessage) => m.id === assistantMessageId,
+          )
+          if (assistantMessage) {
+            this.currentMessageId = assistantMessage.id
+            this.events.messageAppended(
+              assistantMessage,
+              this.currentStreamId || undefined,
+            )
+          }
+        },
+        onStreamEnd: (message: UIMessage) => {
+          this.callbacksRef.current.onFinish(message)
+          this.setStatus('ready')
+          // Resolve the processing-complete promise so streamResponse can continue
+          this.resolveProcessing()
+        },
+        onError: (error: Error) => {
+          this.reportStreamError(error)
+        },
+        onTextUpdate: (messageId: string, content: string) => {
+          // Emit text update to devtools
+          if (this.currentStreamId) {
+            this.events.textUpdated(this.currentStreamId, messageId, content)
+          }
+        },
+        onThinkingUpdate: (messageId: string, content: string) => {
+          // Emit thinking update to devtools
+          if (this.currentStreamId) {
+            this.events.thinkingUpdated(
+              this.currentStreamId,
+              messageId,
+              content,
+              undefined,
+            )
+          }
+        },
+        onStructuredOutputChange: (args) => {
+          const streamId = this.devtoolsBridge.resolveStreamId()
+          const eventName =
+            args.phase === 'start'
+              ? 'structured-output:started'
+              : args.phase === 'complete'
+                ? 'structured-output:completed'
+                : args.phase === 'error'
+                  ? 'structured-output:errored'
+                  : 'structured-output:updated'
+
+          this.currentMessageId = args.messageId
+          this.events.structuredOutputChanged(
+            eventName,
+            streamId,
+            args.messageId,
+            {
+              status: args.status,
+              raw: args.raw,
+              ...(args.partial !== undefined ? { partial: args.partial } : {}),
+              ...(args.data !== undefined ? { data: args.data } : {}),
+              ...(args.reasoning !== undefined
+                ? { reasoning: args.reasoning }
+                : {}),
+              ...(args.errorMessage !== undefined
+                ? { errorMessage: args.errorMessage }
+                : {}),
+              ...(args.delta !== undefined ? { delta: args.delta } : {}),
+            },
+          )
+        },
+        onToolCallStateChange: (
+          messageId: string,
+          toolCallId: string,
+          state: string,
+          args: string,
+        ) => {
+          // Get the tool name from the messages
+          const messages = this.processor.getMessages()
+          const message = messages.find((m: UIMessage) => m.id === messageId)
+          const toolCallPart = message?.parts.find(
+            (p: MessagePart): p is ToolCallPart =>
+              p.type === 'tool-call' && p.id === toolCallId,
+          )
+          const toolName = toolCallPart?.name || 'unknown'
+
+          // Emit tool call state change to devtools
+          if (this.currentStreamId) {
+            this.events.toolCallStateChanged(
+              this.currentStreamId,
+              messageId,
+              toolCallId,
+              toolName,
+              state,
+              args,
+            )
+          }
+        },
+        onToolCall: (args: {
+          toolCallId: string
+          toolName: string
+          input: any
+        }) => {
+          // Handle client-side tool execution automatically
+          const clientTools =
+            this.activeClientTools ?? this.clientToolsRef.current
+          const clientTool = clientTools.get(args.toolName)
+          const executeFunc = clientTool?.execute
+          // A success RUN_FINISHED hands over calls that no approval step
+          // covered. A tool that needs approval does not run from there.
+          if (
+            this.handingOverPendingToolCalls &&
+            clientTool?.needsApproval === true
+          ) {
+            console.warn(
+              `[ChatClient] Did not run tool call ${args.toolCallId}: ${args.toolName} needs approval, and the server did not ask for it`,
+            )
+            return
+          }
+          if (executeFunc) {
+            const continuationGeneration = this.continuationGeneration
+            // Capture the run context at execution-start so a tool whose
+            // result lands AFTER the originating run finishes still reports
+            // back against the originating run, not whatever run is
+            // current when the result emits.
+            const runEventContext =
+              this.devtoolsBridge.getCurrentRunEventContext()
+            // Create and track the execution promise
+            const executionPromise = (async () => {
+              try {
+                const context =
+                  this.activeClientTools === null
+                    ? this.context
+                    : this.activeContext
+                const output = await executeFunc(args.input, {
+                  toolCallId: args.toolCallId,
+                  threadId: this.threadId,
+                  context: context as TContext,
+                  emitCustomEvent: () => {},
+                })
+                await this.addToolResultForClientTool(
+                  {
+                    toolCallId: args.toolCallId,
+                    tool: args.toolName,
+                    output,
+                    state: 'output-available',
+                  },
+                  clientTool,
+                  continuationGeneration,
+                  runEventContext,
+                )
+              } catch (error: any) {
+                await this.addToolResultForClientTool(
+                  {
+                    toolCallId: args.toolCallId,
+                    tool: args.toolName,
+                    output: null,
+                    state: 'output-error',
+                    errorText: error.message,
+                  },
+                  clientTool,
+                  continuationGeneration,
+                  runEventContext,
+                )
+              } finally {
+                // Remove from pending when complete
+                this.pendingToolExecutions.delete(args.toolCallId)
+              }
+            })()
+
+            // Track the pending execution
+            this.pendingToolExecutions.set(args.toolCallId, executionPromise)
+          }
+        },
+        onApprovalRequest: (args: {
+          toolCallId: string
+          toolName: string
+          input: any
+          approvalId: string
+        }) => {
+          const streamId = this.devtoolsBridge.resolveStreamId()
+          const messageIdForApproval =
+            this.findMessageIdForToolCall(args.toolCallId) ??
+            this.currentMessageId ??
+            ''
+
+          this.events.approvalRequested(
+            streamId,
+            messageIdForApproval,
+            args.toolCallId,
+            args.toolName,
+            args.input,
+            args.approvalId,
+          )
+        },
+        onCustomEvent: (
+          eventType: string,
+          data: unknown,
+          context: { toolCallId?: string },
+        ) => {
+          // Server-side memory middleware transports its state as a `memory:state`
+          // CUSTOM event (its own event bus never reaches this browser runtime).
+          // Route it to the devtools bridge here — the designated custom-event
+          // path — then still forward to the app's callback.
+          if (eventType === 'memory:state') {
+            this.devtoolsBridge.recordMemoryState(data)
+          }
+          if (
+            eventType === 'compaction:started' ||
+            eventType === 'compaction:state' ||
+            eventType === 'compaction:ended'
+          ) {
+            this.devtoolsBridge.recordCompactionEvent(eventType, data)
+          }
+          if (eventType === 'skills:state') {
+            this.devtoolsBridge.recordSkillsState(data)
+          }
+          this.callbacksRef.current.onCustomEvent(eventType, data, context)
+        },
+      },
+    })
+    // `initialMessages` do not fire a change event. Give their cards handles.
+    this.syncSubagentHandles()
+
+    const storeHydration = this.persistor?.hydrateAsync(persistedState)
+    if (storeHydration) {
+      this.storeHydrating = true
+      void storeHydration.finally(() => {
+        this.storeHydrating = false
+        this.syncIsHydrating()
+      })
+    }
+
+    this.rejoinRunId = rejoinRunId
+    this.cachesMessages = cachesMessages
+    // Server-authoritative mode loads the thread on the first `attach()`.
+    // Start as hydrating so the first render shows loading, not an empty thread.
+    this.snapshotAtom.set(
+      this.readSnapshot(
+        this.storeHydrating || (!cachesMessages && !!this.connection.hydrate),
+      ),
+    )
+    // NO TAILING HERE, deliberately. Constructing a client must not open a
+    // connection.
+    //
+    // A UI framework may build a client and then throw it away — React does it on
+    // every double-invoked render, and the discarded instance is never mounted, so
+    // nothing ever calls `detach()` or `dispose()` on it. When the constructor
+    // opened a stream, that stream became unreachable and held one of the browser's
+    // ~6 connections per origin until the page reloaded. Traced with CDP: connection
+    // ids 1374/1396/1428/1437 were still held after eight thread switches, and a
+    // later request waited 210 SECONDS for a free slot (`stallMs: 210752`).
+    //
+    // Guarding inside the client cannot fix that, because the leaking instance is
+    // the one the framework discarded — every guard runs on the instance it kept.
+    // Only "idle until a view attaches" makes a thrown-away client harmless.
+    //
+    // Callers therefore drive the lifecycle: `attach()` when a view mounts,
+    // `detach()` when it unmounts. Every framework wrapper in this repo does.
+  }
+
+  /**
+   * START TAILING: re-attach to an in-flight run so its chunks arrive here.
+   *
+   * Called by the constructor, and again by a UI wrapper every time its view
+   * mounts. Idempotent — attaching while already attached does nothing — so the
+   * constructor call and a wrapper's first mount cost one attach between them.
+   *
+   * Pairs with {@link detach}. The pair exists because tailing used to begin ONLY
+   * in the constructor, which meant a view could never stop tailing and then
+   * resume: unmount had to either keep the connection open or lose it for good.
+   * Keeping it open is what starved the page — a browser allows ~6 connections per
+   * origin, and one long-lived stream per view reaches that after a handful of
+   * views, after which every other request queues (measured: an in-page fetch took
+   * over two minutes while the same request from outside the browser took 17ms).
+   */
+  attach(): void {
+    if (this.disposed || this.tailing) return
+    this.tailing = true
+
+    // Full page reload with an in-flight run persisted (synchronous store):
+    // re-attach to it off the server's delivery-durability log so the stream
+    // finishes here. Async stores rejoin from `applyPersistedResume` once the
+    // hydrate resolves. Best-effort and non-blocking.
+    if (this.rejoinRunId) {
+      this.maybeRejoinInFlight(this.rejoinRunId)
+    }
+
+    // Server-authoritative (`persistence: true`): the client caches no transcript
+    // and no run pointer — it re-hydrates from the server on mount, keyed by the
+    // stable threadId. `hydrate` returns the stored transcript plus a cursor to
+    // any in-flight run, which is tailed via the same joinRun path. This is what
+    // makes reload AND a fresh device work with zero app glue (no loader/prop).
+    if (!this.cachesMessages && this.connection.hydrate) {
+      this.hydrateFromServer()
+    }
+  }
+
+  /**
+   * STOP TAILING: drop the connection, keep everything else.
+   *
+   * Called by a UI wrapper when its view unmounts. The transcript, the resume
+   * pointer and the run id all stay, so a later {@link attach} repaints instantly
+   * and re-tails from the durable log — nothing is lost, because the run keeps
+   * going server-side and its log holds every chunk.
+   *
+   * Deliberately NOT `dispose()`: this client is expected back. And deliberately
+   * not `stop()`, which means "the user ended this run" — detaching says only that
+   * nobody is watching right now.
+   *
+   * `rejoinedRunId` is cleared so the next `attach` can re-join the same run;
+   * without that reset the guard in {@link maybeRejoinInFlight} would treat the
+   * run as already joined and the view would come back silent.
+   */
+  detach(): void {
+    if (!this.tailing) return
+    // BEFORE the abort, because `resumeInFlightRun`'s cleanup reads it: a join
+    // aborted before its first chunk normally means "this run is unreachable" and
+    // clears the resume pointer. A detach is not that — the run is fine and we
+    // intend to come back — so the pointer must survive.
+    this.tailing = false
+    this.cancelInFlightStream({ setReadyStatus: true })
+    this.rejoinedRunId = null
+  }
+
+  private applyResumeSnapshot(snapshot: ChatResumeSnapshot): void {
+    const resumeState = readResumeState(snapshot)
+    if (resumeState === undefined) {
+      this.interruptManager.reset({ source: 'hydrate' })
+      return
+    }
+    this.lastResume = resumeState
+    const pendingInterrupts = Array.isArray(snapshot.pendingInterrupts)
+      ? snapshot.pendingInterrupts
+      : []
+    if (pendingInterrupts.length === 0) {
+      this.interruptManager.reset({ source: 'hydrate' })
+      return
+    }
+    const generation = this.interruptGeneration(pendingInterrupts)
+    this.interruptManager.hydrate(
+      {
+        threadId: resumeState.threadId,
+        interruptedRunId: resumeState.runId,
+        generation,
+        interrupts: pendingInterrupts,
+      },
+      'hydrate',
+    )
+  }
+
+  /**
+   * Apply a resume snapshot read from durable storage. Restores interrupt state,
+   * and for a bare in-flight run (no pending interrupts) also rejoins it. This is
+   * the async-store counterpart to the synchronous rejoin in the constructor:
+   * `applyResumeSnapshot` alone only handles interrupts, so an async store
+   * (`indexedDBPersistence`) would otherwise never rejoin a mid-stream run.
+   */
+  private applyPersistedResume(snapshot: ChatResumeSnapshot): void {
+    this.applyResumeSnapshot(snapshot)
+    const hasInterrupts =
+      Array.isArray(snapshot.pendingInterrupts) &&
+      snapshot.pendingInterrupts.length > 0
+    const runId = snapshot.resumeState?.runId
+    // A cached run pointer only reaches here through the persistor, which exists
+    // only in client-authoritative mode, so a bare in-flight run rejoins here.
+    // (Server-authoritative reconnect is resolved from the server by threadId in
+    // `hydrateFromServer`.)
+    if (!hasInterrupts && runId) {
+      this.maybeRejoinInFlight(runId)
+    }
+  }
+
+  /**
+   * Rejoin a persisted in-flight run, guarded so it fires at most once and never
+   * while another run is already active. Skipped when the connection is not
+   * resumable (`joinRun` absent), so a non-durable transport is a no-op.
+   */
+  private maybeRejoinInFlight(runId: string): void {
+    if (!this.connection.joinRun) return
+    // A client with no view attached must never open a connection. `tailing` is
+    // the load-bearing half: a view switch calls `detach()`, NOT `dispose()`, and
+    // an in-flight hydration resolves a moment later and lands right here — so
+    // guarding only on `disposed` let every switch open a fresh tail that nothing
+    // would ever abort. Measured with CDP: connection ids 1366/1397/1429/1460 were
+    // still held after eight switches, and a later request waited 97 SECONDS for a
+    // slot (`stallMs: 97691`).
+    if (this.disposed || !this.tailing) return
+    if (this.rejoinedRunId === runId) return
+    // A fresh send (or an already-running rejoin) owns the client; don't stomp it.
+    if (this.isLoading || this.abortController) return
+    this.rejoinedRunId = runId
+    this.resumeInFlightRun(runId)
+  }
+
+  /**
+   * Server-authoritative mount hydration (`persistence: true`). The client holds
+   * no transcript and no run pointer; on mount it asks the server — keyed by the
+   * stable threadId — for the stored transcript and whether a run is still
+   * generating. The transcript repaints immediately; an in-flight run is tailed
+   * through the same durability rejoin as a reload. Best-effort and
+   * non-blocking: a failure leaves the client empty rather than throwing, and a
+   * send that starts first owns the client (hydration then backs off).
+   */
+  private hydrateFromServer(): void {
+    const hydrate = this.connection.hydrate
+    if (!hydrate || this.isLoading || this.abortController || this.disposed) {
+      this.syncIsHydrating()
+      return
+    }
+    // A re-attach while the last GET is still out reuses that GET. React Strict
+    // Mode runs mount effects twice (attach, detach, attach), and the GET
+    // applies its result because a view is attached again when it returns.
+    if (this.hydrationInFlight === this.historyGeneration) return
+    const pageSize = this.historyPageSize
+    const hydrateOptions: ChatHydrateOptions | undefined =
+      pageSize === undefined ? undefined : { limit: pageSize }
+    // Settles only after the transcript is applied and any in-flight run is
+    // re-joined, so `isLoading` turns on before `isHydrating` turns off.
+    void (async () => {
+      let result: ChatHydrationResult
+      const generation = this.historyGeneration
+      this.hydrationInFlight = generation
+      this.syncIsHydrating()
+      // A send, a clear, or a newer load clears or replaces `hydrationInFlight`
+      // (see `supersedeHydration`). Then this result is stale.
+      const isCurrent = () =>
+        this.hydrationInFlight === generation &&
+        generation === this.historyGeneration
+      let current: boolean
+      try {
+        result = await hydrate(this.threadId, hydrateOptions)
+      } catch (cause) {
+        // Same staleness guard as the success path below: a failure from an
+        // older attempt must not touch the state of a newer one.
+        if (isCurrent()) this.failHydration(cause)
+        return
+      } finally {
+        current = isCurrent()
+        if (this.hydrationInFlight === generation) {
+          this.hydrationInFlight = undefined
+        }
+      }
+      if (!current) return
+      // NO VIEW IS WATCHING ANY MORE (it unmounted while this fetch was in
+      // flight). Applying anything now is pointless, and one thing is actively
+      // harmful: the branch below calls `maybeRejoinInFlight`, which opens a TAIL.
+      // A tail started here belongs to a view that has gone, so nothing will ever
+      // abort it, and a browser allows only ~6 connections per origin — so a
+      // handful of switches starve the page and every later request queues.
+      //
+      // `!this.tailing` is the case that actually bites: a switch calls `detach()`,
+      // not `dispose()`, so a `disposed`-only check let the leak straight through.
+      if (this.disposed || !this.tailing) return
+      // A send may have started while the fetch was in flight — don't stomp it.
+      if (this.isLoading || this.abortController) return
+      // A retry after a failed load succeeded: drop that failure, but not an
+      // error something else set since.
+      if (this.hydrationError && this.error === this.hydrationError) {
+        this.setError(undefined)
+        this.setStatus('ready')
+      }
+      this.hydrationError = undefined
+      this.applyHydrationPage(result.page)
+      if (result.messages.length > 0) {
+        const windowMessages = normalizeMessagesDates(result.messages)
+        this.processor.setMessages(windowMessages)
+        this.rememberServerMessageIds(windowMessages)
+      }
+      if (
+        result.interrupts &&
+        result.interrupts.pending.length > 0 &&
+        (!result.activeRun?.runId ||
+          result.activeRun.runId === result.interrupts.runId)
+      ) {
+        // Pending interrupt = the thread is paused awaiting a human decision, so
+        // there is nothing to tail (no chunks stream until it resolves). Restore
+        // the approval/wait from the SERVER — identical to reconstructing it from
+        // a resume snapshot — so the reload re-prompts the decision and the resume
+        // targets the run it paused. This is checked BEFORE `activeRun` on
+        // purpose: a run that just paused can momentarily still read as `running`
+        // on the server, so a racing hydrate reports both an `activeRun` cursor
+        // AND the pending interrupt. Tailing that "active" run would drop the
+        // approval card (and hang on a stream that never comes), so the interrupt
+        // wins over that same run. A DIFFERENT active run is the continuation
+        // that answered this interrupt: the server commits the answer only when
+        // that run finishes, so join it (see the `else` branch below).
+        this.applyResumeSnapshot({
+          resumeState: {
+            threadId: this.threadId,
+            runId: result.interrupts.runId,
+          },
+          pendingInterrupts: result.interrupts.pending,
+        })
+      } else if (result.activeRun?.runId) {
+        this.maybeRejoinInFlight(result.activeRun.runId)
+      }
+    })().finally(() => this.syncIsHydrating())
+  }
+
+  /**
+   * Surface a mount-hydration failure (`persistence: true`) on the observable
+   * fields, mirroring `GenerationClient.failHydration`, so "this thread failed
+   * to load" is distinguishable from "this thread has no messages" and the app
+   * can show an error / offer a retry. A genuine miss — the server having no
+   * record for a fresh thread — resolves normally and never reaches here; only a
+   * thrown transport / authorize-gate error does.
+   *
+   * Skipped when the view unmounted (`!tailing`) or a `sendMessage` took
+   * ownership while the hydrate GET was in flight, so a live run's state always
+   * wins over a stale mount-time failure — same guard as the success path above.
+   */
+  private failHydration(cause: unknown): void {
+    if (this.disposed || !this.tailing) return
+    if (this.isLoading || this.abortController) return
+    const error = cause instanceof Error ? cause : new Error(String(cause))
+    // Mirror the send path: a BYOK key that is missing / locked must still
+    // trigger the key-request flow on thread load, not just be reported.
+    if (error instanceof ByokMissingError) {
+      this.byok?.request(error.provider, 'missing')
+    }
+    if (error instanceof ByokBlockedError && error.reason === 'locked') {
+      this.byok?.request(error.provider, 'locked')
+    }
+    this.hydrationError = error
+    this.setStatus('error')
+    this.setError(error)
+    this.callbacksRef.current.onError(error)
+  }
+
+  mountDevtools(): void {
+    if (this.devtoolsMounted) {
+      return
+    }
+
+    this.devtoolsMounted = true
+    this.devtoolsBridge.mountWithTools(this.processor.getMessages().length)
+  }
+
+  /**
+   * Drain a runId-less RUN_ERROR that belongs to a cleared run the client is
+   * still tracking. The persistor owns the cleared-run bookkeeping; the client
+   * owns the active-run / session / processing state.
+   */
+  private drainIgnoredRunlessChunk(chunk: StreamChunk): void {
+    if (chunk.type !== 'RUN_ERROR') return
+    const runId = this.clearedStreamTracker.takeRunlessRunId()
+    if (!runId) return
+    this.activeRunIds.delete(runId)
+    this.setSessionGenerating(this.activeRunIds.size > 0)
+    this.resolveProcessing()
+  }
+
+  private retireIgnoredClearedTerminalChunk(chunk: StreamChunk): void {
+    if (chunk.type !== 'RUN_FINISHED' && chunk.type !== 'RUN_ERROR') return
+    const runId =
+      getChunkRunId(chunk) ?? this.clearedStreamTracker.takeRunlessRunId()
+    if (!runId) return
+    this.activeRunIds.delete(runId)
+    this.setSessionGenerating(this.activeRunIds.size > 0)
+    if (!getChunkRunId(chunk)) {
+      this.resolveProcessing()
+    }
+  }
+
+  private updateRunLifecycle(
+    chunk: StreamChunk,
+    options?: { resolveProcessing?: boolean },
+  ): void {
+    if (chunk.type === 'RUN_STARTED') {
+      const chunkRunId = getChunkRunId(chunk) ?? chunk.runId
+      const parentRunId =
+        'parentRunId' in chunk && typeof chunk.parentRunId === 'string'
+          ? chunk.parentRunId
+          : undefined
+      if (parentRunId) {
+        this.runParents.set(chunkRunId, parentRunId)
+        if (this.supersededInterruptRunIds.has(chunkRunId)) {
+          this.markLineageAnswered(parentRunId)
+        }
+      }
+      this.activeResumeThreadId =
+        'threadId' in chunk && typeof chunk.threadId === 'string'
+          ? chunk.threadId
+          : this.activeResumeThreadId
+      this.activeResumeRunId = chunkRunId
+      // Late RUN_STARTED for a run that already finished is replay, not a live
+      // turn. A new send can reuse a finished run id while isLoading is true.
+      const isAnsweredReplayStart =
+        this.supersededInterruptRunIds.has(chunkRunId) && !this.isLoading
+      if (!isAnsweredReplayStart) {
+        this.activeRunIds.add(chunkRunId)
+        this.clearedStreamTracker.onRunStarted(chunkRunId)
+        this.setSessionGenerating(true)
+      }
+      // Persist a live-run resume snapshot so a full page reload can rejoin this
+      // in-flight run via joinRun. Only a persistor writes it, and a persistor
+      // exists only in client-authoritative mode; server-authoritative reconnect
+      // is resolved from the server by threadId in `hydrateFromServer`, so no
+      // client-cached run pointer (which goes stale the moment a turn spans a
+      // second run) is ever written. Interrupt/terminal handling overwrites or
+      // clears it in observeInterruptState.
+      if (
+        this.persistor &&
+        this.connection.joinRun &&
+        !this.lastResume &&
+        !isAnsweredReplayStart
+      ) {
+        this.persistResumeSnapshot({
+          threadId: this.activeResumeThreadId ?? this.threadId,
+          runId: chunkRunId,
+        })
+      }
+      if (
+        this.lastResume &&
+        this.supersededInterruptRunIds.has(this.lastResume.runId)
+      ) {
+        this.lastResume = null
+        this.persistor?.persistResumeSnapshot(null)
+        this.interruptManager.reset()
+      }
+      return
+    }
+
+    if (chunk.type !== 'RUN_FINISHED' && chunk.type !== 'RUN_ERROR') {
+      return
+    }
+
+    const runId = getChunkRunId(chunk)
+    if (runId) {
+      this.activeRunIds.delete(runId)
+      this.clearedStreamTracker.onRunSettled(runId)
+    } else if (chunk.type === 'RUN_ERROR') {
+      // RUN_ERROR without runId is a session-level error; clear all runs.
+      this.activeRunIds.clear()
+      this.clearedStreamTracker.onSessionRunError()
+    }
+    this.setSessionGenerating(this.activeRunIds.size > 0)
+    const skipProcessingResolve =
+      chunk.type === 'RUN_FINISHED' && isIntermediateToolTurn(chunk)
+    if (options?.resolveProcessing !== false && !skipProcessingResolve) {
+      this.resolveProcessing()
+    }
+  }
+
+  /**
+   * Track interrupt state off the stream's terminal events. A RUN_FINISHED with
+   * an interrupt outcome records the pending interrupts + the run/thread to
+   * resume; any other terminal event for the tracked/current run clears that
+   * state. This is interrupt (state) resume — there is no delivery cursor.
+   */
+  private observeInterruptState(chunk: StreamChunk): void {
+    if (chunk.type !== 'RUN_FINISHED' && chunk.type !== 'RUN_ERROR') {
+      return
+    }
+
+    if (this.activeInterruptSubmission && chunk.type === 'RUN_ERROR') {
+      return
+    }
+    const runId = getChunkRunId(chunk)
+    const threadId =
+      'threadId' in chunk && typeof chunk.threadId === 'string'
+        ? chunk.threadId
+        : this.activeResumeThreadId
+
+    // Record answered lineage before hydrating a pause. Intermediate
+    // tool_calls RUN_FINISHED is a mid-turn handoff, not an answered pause.
+    if (
+      runId &&
+      !isIntermediateToolTurn(chunk) &&
+      (chunk.type === 'RUN_ERROR' ||
+        (chunk.type === 'RUN_FINISHED' && chunk.outcome?.type !== 'interrupt'))
+    ) {
+      this.markLineageAnswered(runId)
+    }
+
+    if (chunk.type === 'RUN_FINISHED' && chunk.outcome?.type === 'interrupt') {
+      // Track the REQUEST run id (what the client sent) so a resume targets the
+      // same run even when provider events carry their own run id.
+      const interruptedRunId =
+        this.currentRunId ?? runId ?? this.activeResumeRunId ?? ''
+      // Replay re-emits a pause that a continuation already answered.
+      if (
+        interruptedRunId &&
+        this.supersededInterruptRunIds.has(interruptedRunId)
+      ) {
+        return
+      }
+      this.lastResume = {
+        threadId: threadId ?? this.threadId,
+        runId: interruptedRunId,
+      }
+      this.interruptManager.hydrate(
+        {
+          threadId: this.lastResume.threadId,
+          interruptedRunId,
+          generation: this.interruptGeneration(chunk.outcome.interrupts),
+          interrupts: chunk.outcome.interrupts,
+        },
+        'live',
+      )
+      return
+    }
+
+    const isRunlessSessionError = chunk.type === 'RUN_ERROR' && !runId
+    const isTrackedRunTerminal = Boolean(
+      runId && this.lastResume?.runId === runId,
+    )
+    const isCurrentRunTerminal = Boolean(
+      (runId && this.currentRunId === runId) ||
+      (this.currentRunId && this.lastResume?.runId === this.currentRunId),
+    )
+    // Provider adapters sometimes stamp a different run id on continuation
+    // events than the client-generated request id. RUN_STARTED updates
+    // `activeResumeRunId`, so match that too.
+    const isActiveStreamRunTerminal = Boolean(
+      this.isLoading &&
+      runId &&
+      (runId === this.activeResumeRunId || runId === this.currentRunId),
+    )
+    const isCurrentStreamTerminal =
+      this.isLoading && chunk.type === 'RUN_FINISHED' && !runId
+    // A resume batch that finishes successfully (or with a non-interrupt
+    // terminal) must always clear pending interrupts — even when the provider
+    // run id does not correlate. Otherwise Approve works once but the UI
+    // keeps showing a stale prompt and blocks follow-up turns.
+    const isActiveInterruptSubmissionTerminal = Boolean(
+      this.activeInterruptSubmission &&
+      this.isLoading &&
+      chunk.type === 'RUN_FINISHED' &&
+      chunk.outcome?.type !== 'interrupt',
+    )
+    // Replay can deliver a parent pause after a descendant already finished,
+    // and this terminal's run id may not match lastResume.
+    const isLineageDescendantTerminal = Boolean(
+      this.lastResume &&
+      this.supersededInterruptRunIds.has(this.lastResume.runId),
+    )
+    if (
+      isRunlessSessionError ||
+      isTrackedRunTerminal ||
+      isCurrentRunTerminal ||
+      isActiveStreamRunTerminal ||
+      isCurrentStreamTerminal ||
+      isActiveInterruptSubmissionTerminal ||
+      isLineageDescendantTerminal
+    ) {
+      this.lastResume = null
+      // Run settled without an interrupt: drop the durable resume snapshot so a
+      // later reload does not try to rejoin a finished run.
+      this.persistor?.persistResumeSnapshot(null)
+      this.interruptManager.reset()
+      return
+    }
+    this.notifyResumeStateChange('live')
+  }
+
+  /** Walk parentRunId links and mark this run plus its ancestors as answered. */
+  private markLineageAnswered(runId: string): void {
+    let current: string | undefined = runId
+    let hops = 0
+    while (current !== undefined && hops < MAX_RUN_LINEAGE_DEPTH) {
+      if (this.supersededInterruptRunIds.has(current)) return
+      this.supersededInterruptRunIds.add(current)
+      current = this.runParents.get(current)
+      hops++
+    }
+  }
+
+  /**
+   * The interrupt-resume state for the active/interrupted run (its run/thread
+   * ids), or null when there is nothing to resume. Apps can persist this to
+   * resume interrupts across a full reload.
+   */
+  getResumeState(): ChatResumeState | null {
+    return this.lastResume ? { ...this.lastResume } : null
+  }
+
+  /**
+   * The id of the run this client has in flight — one it started via a send or
+   * rejoined via `joinRun` — or null when there is none. Unlike
+   * {@link getResumeState}, this tracks ordinary runs too, not only one that is
+   * interrupted or being resumed. A run another client started and that arrives
+   * over a live subscription is not this client's run and is not reported here.
+   */
+  getCurrentRunId(): string | null {
+    return this.currentRunId
+  }
+
+  private setCurrentRunId(runId: string | null): void {
+    if (this.currentRunId === runId) return
+    patchAtom(this.snapshotAtom, { runId })
+    this.callbacksRef.current.onRunIdChange(runId)
+  }
+
+  getInterruptState(): ChatInterruptState<TTools, TInterrupts> {
+    return this.interruptManager.getState()
+  }
+
+  getInterrupts(): BoundInterrupts<TTools, TInterrupts> {
+    return this.interruptManager.getInterrupts() as BoundInterrupts<
+      TTools,
+      TInterrupts
+    >
+  }
+
+  resolveInterrupts(approved: boolean): void
+  resolveInterrupts(
+    resolver: (
+      interrupt: ResolvableChatInterrupt<TTools, TInterrupts>,
+    ) => undefined,
+  ): void
+  resolveInterrupts(
+    resolution:
+      | boolean
+      | ((
+          interrupt: ResolvableChatInterrupt<TTools, TInterrupts>,
+        ) => undefined),
+  ): void {
+    // Branch so TypeScript can select the InterruptManager.resolve overloads.
+    if (typeof resolution === 'boolean') {
+      this.interruptManager.resolve(resolution)
+      return
+    }
+    this.interruptManager.resolve(resolution)
+  }
+
+  cancelInterrupts(): void {
+    this.interruptManager.cancel()
+  }
+
+  retryInterrupts(): void {
+    this.interruptManager.retry()
+  }
+
+  /** Unsafe low-level resume escape hatch. Prefer bound interrupt methods. */
+  resumeInterruptsUnsafe(
+    resume: Array<RunAgentResumeItem>,
+    state?: ChatResumeState,
+  ): Promise<boolean> {
+    const target = state ?? this.lastResume
+    if (!target) return Promise.resolve(false)
+    return this.resumeInterruptsUnsafeForGeneration(
+      resume,
+      target,
+      this.continuationGeneration,
+    )
+  }
+
+  private resumeInterruptsUnsafeForGeneration(
+    resume: Array<RunAgentResumeItem>,
+    target: ChatResumeState,
+    continuationGeneration: number,
+  ): Promise<boolean> {
+    if (continuationGeneration !== this.continuationGeneration) {
+      return Promise.resolve(false)
+    }
+    // Auto-executed client tools resolve during the parent stream's
+    // `pendingToolExecutions` wait — while `isLoading` is still true.
+    // Defer the child continuation until that stream settles so we do not
+    // race the parent cleanup or return a false "could not start" failure.
+    if (this.isLoading) {
+      return new Promise<boolean>((resolve, reject) => {
+        this.queuePostStreamAction(async () => {
+          try {
+            resolve(
+              await this.resumeInterruptsUnsafeForGeneration(
+                resume,
+                target,
+                continuationGeneration,
+              ),
+            )
+          } catch (error) {
+            reject(error)
+          }
+        })
+      })
+    }
+    this.pendingResumeThreadId = target.threadId
+    this.pendingResumeParentRunId = target.runId
+    this.pendingResumeItems = [...resume]
+    return this.streamResponse()
+  }
+
+  private async submitInterruptBatch(
+    submission: InterruptManagerSubmission,
+  ): Promise<void> {
+    const continuationGeneration = this.continuationGeneration
+    this.activeInterruptSubmission = submission
+    this.interruptSubmissionFailure = undefined
+    // Reflect approval decisions in the local message tree immediately so a
+    // follow-up turn does not re-serialize tool-calls still stuck in
+    // `approval-requested` (issue #532).
+    for (const resolution of submission.resolutions) {
+      const approved = readApprovalApproved(resolution.payload)
+      if (approved === undefined) continue
+      const approvalId = resolution.interruptId
+      this.processor.addToolApprovalResponse(approvalId, approved)
+    }
+    const resumed = await this.resumeInterruptsUnsafeForGeneration(
+      [...submission.resolutions],
+      {
+        threadId: submission.threadId,
+        runId: submission.interruptedRunId,
+      },
+      continuationGeneration,
+    ).finally(() => {
+      // Only clear if this resume still owns the client: `stop()` may have
+      // invalidated it while the submission was settling.
+      if (this.activeInterruptSubmission === submission) {
+        this.activeInterruptSubmission = undefined
+      }
+    })
+    if (continuationGeneration !== this.continuationGeneration) return
+    const failure = this.takeInterruptSubmissionFailure()
+    if (failure !== undefined) {
+      throw { errors: failure.errors }
+    }
+    if (!resumed) {
+      throw new Error('Interrupt continuation could not be started.')
+    }
+    // Belt-and-suspenders: if the continuation stream finished successfully
+    // but correlation failed to clear resume state, drop it now so the next
+    // user turn is not blocked by a stale interrupt prompt.
+    if (this.lastResume?.runId === submission.interruptedRunId) {
+      this.lastResume = null
+      this.interruptManager.reset()
+    }
+  }
+
+  private takeInterruptSubmissionFailure():
+    | { errors: ReadonlyArray<InterruptSubmissionError> }
+    | undefined {
+    const failure = this.interruptSubmissionFailure
+    this.interruptSubmissionFailure = undefined
+    return failure
+  }
+
+  private interruptGeneration(
+    interrupts: ReadonlyArray<ChatPendingInterrupt>,
+  ): number {
+    let generation: number | undefined
+    for (const interrupt of interrupts) {
+      const candidate: unknown =
+        interrupt.metadata?.['tanstack:interruptBinding']
+      if (
+        candidate === null ||
+        typeof candidate !== 'object' ||
+        !('generation' in candidate) ||
+        typeof candidate.generation !== 'number' ||
+        !Number.isInteger(candidate.generation) ||
+        candidate.generation < 0
+      ) {
+        return 0
+      }
+      if (generation !== undefined && generation !== candidate.generation) {
+        return 0
+      }
+      generation = candidate.generation
+    }
+    return generation ?? 0
+  }
+
+  private generateUniqueId(prefix: string): string {
+    return `${prefix}-${Date.now()}-${Math.random().toString(36).substring(7)}`
+  }
+
+  /** Frozen copies of unchanged messages and parts, keyed by the live object. */
+  private readonly frozenMessages = new WeakMap<object, object>()
+
+  private freezeSnapshotQueue(
+    queue: Array<QueuedMessage>,
+  ): ReadonlyArray<QueuedMessage> {
+    return Object.freeze(
+      queue.map((item) => {
+        if (typeof item.content !== 'object') return Object.freeze({ ...item })
+        const content = Array.isArray(item.content.content)
+          ? Object.freeze(
+              item.content.content.map((part) => freezeSnapshotPart(part)),
+            )
+          : item.content.content
+        return Object.freeze({
+          ...item,
+          content: Object.freeze({ ...item.content, content }),
+        })
+      }),
+    ) as ReadonlyArray<QueuedMessage>
+  }
+
+  /** The atom with messages, queue, and interrupt state read fresh. */
+  private readSnapshot(
+    isHydrating: boolean,
+  ): ChatClientSnapshot<TTools, TInterrupts> {
+    return Object.freeze({
+      ...this.snapshotAtom.get(),
+      messages: freezeSnapshotMessages(
+        this.frozenMessages,
+        this.processor.getMessages() as Array<UIMessage<TTools>>,
+      ),
+      queue: this.freezeSnapshotQueue(this.getQueue()),
+      isHydrating,
+      interruptState: this.interruptManager.getState(),
+    })
+  }
+
+  /**
+   * Subscribe to UI snapshot changes. Does not fire with the current value;
+   * read {@link getSnapshot} first.
+   *
+   * Named separately from {@link subscribe} (the live connection loop).
+   */
+  subscribeSnapshot = (listener: () => void): (() => void) =>
+    subscribeAtom(this.snapshotAtom, listener)
+
+  /**
+   * Current UI snapshot. The snapshot, `messages`, `queue`, and their entries
+   * are frozen copies. `interruptState` is the interrupt manager's own state.
+   */
+  getSnapshot = (): ChatClientSnapshot<TTools, TInterrupts> =>
+    this.snapshotAtom.get()
+
+  private setIsLoading(isLoading: boolean): void {
+    patchAtom(this.snapshotAtom, { isLoading })
+    this.callbacksRef.current.onLoadingChange(isLoading)
+    this.events.loadingChanged(isLoading)
+    if (isLoading) this.supersedeHydration()
+  }
+
+  /**
+   * A send or a clear now owns the transcript. A load that is still pending can
+   * no longer paint it (the generation guards drop its result), so it no longer
+   * counts as hydrating.
+   */
+  private supersedeHydration(): void {
+    this.hydrationInFlight = undefined
+    this.storeHydrating = false
+    this.syncIsHydrating()
+  }
+
+  private setStatus(status: ChatClientState): void {
+    patchAtom(this.snapshotAtom, { status })
+    this.callbacksRef.current.onStatusChange(status)
+    this.devtoolsBridge.emitSnapshot()
+  }
+
+  private setIsSubscribed(isSubscribed: boolean): void {
+    patchAtom(this.snapshotAtom, { isSubscribed })
+    this.callbacksRef.current.onSubscriptionChange(isSubscribed)
+    this.devtoolsBridge.emitSnapshot()
+  }
+
+  private setConnectionStatus(status: ConnectionStatus): void {
+    patchAtom(this.snapshotAtom, { connectionStatus: status })
+    this.callbacksRef.current.onConnectionStatusChange(status)
+    this.devtoolsBridge.emitSnapshot()
+  }
+
+  private syncIsHydrating(): void {
+    const isHydrating =
+      this.hydrationInFlight !== undefined || this.storeHydrating
+    if (this.isHydrating === isHydrating) return
+    patchAtom(this.snapshotAtom, { isHydrating })
+    this.callbacksRef.current.onHydratingChange(isHydrating)
+  }
+
+  private setSessionGenerating(isGenerating: boolean): void {
+    if (this.sessionGenerating === isGenerating) return
+    patchAtom(this.snapshotAtom, { sessionGenerating: isGenerating })
+    this.callbacksRef.current.onSessionGeneratingChange(isGenerating)
+    this.devtoolsBridge.emitSnapshot()
+  }
+
+  private notifyResumeStateChange(source: InterruptManagerChangeSource): void {
+    const resumeState = this.getResumeState()
+    // Capture state before invoking callbacks so a synchronous nested change
+    // cannot pair this publication's source with a later manager snapshot.
+    const interruptState = this.interruptManager.getState()
+    patchAtom(this.snapshotAtom, { interruptState })
+    // Persist (or clear) the durable resume snapshot so a full page reload can
+    // rehydrate pending interrupts and rejoin the run. Folded into the same
+    // persistence adapter that stores messages (one record per chat).
+    this.persistResumeSnapshot(resumeState)
+    this.callbacksRef.current.onResumeStateChange(
+      resumeState,
+      interruptState.interrupts,
+    )
+    this.callbacksRef.current.onInterruptStateChange(interruptState, { source })
+  }
+
+  /**
+   * Build the durable resume snapshot from the current resume state + pending
+   * interrupt descriptors and hand it to the persistor (null clears it).
+   */
+  private persistResumeSnapshot(resumeState: ChatResumeState | null): void {
+    if (!this.persistor) return
+    if (!resumeState) {
+      this.persistor.persistResumeSnapshot(null)
+      return
+    }
+    const descriptors = this.interruptManager.getDescriptors()
+    this.persistor.persistResumeSnapshot({
+      resumeState,
+      ...(descriptors.length > 0
+        ? { pendingInterrupts: [...descriptors] }
+        : {}),
+    })
+  }
+
+  private resetSessionGenerating(options?: {
+    preserveClearedStreamTracking?: boolean
+  }): void {
+    this.activeRunIds.clear()
+    if (!options?.preserveClearedStreamTracking) {
+      this.clearedStreamTracker.resetActiveRuns()
+    }
+    this.setSessionGenerating(false)
+  }
+
+  private setError(error: Error | undefined): void {
+    patchAtom(this.snapshotAtom, { error })
+    this.callbacksRef.current.onErrorChange(error)
+    this.events.errorChanged(error?.message || null)
+  }
+
+  private buildDevtoolsBridgeOptions(
+    devtools: ChatClientOptions['devtools'],
+  ): ChatDevtoolsBridgeOptions {
+    return {
+      hookId: this.threadId,
+      clientId: this.threadId,
+      threadId: this.threadId,
+      metadata: {
+        hookName: devtools?.hookName ?? 'useChat',
+        outputKind: devtools?.outputKind ?? 'chat',
+        ...(devtools?.framework ? { framework: devtools.framework } : {}),
+        ...(devtools?.name ? { name: devtools.name } : {}),
+      },
+      getSnapshot: () => this.getDevtoolsSnapshot(),
+      getTools: () => this.clientToolsRef.current.values(),
+      getMessages: () => this.processor.getMessages(),
+      setMessages: (messages: Array<UIMessage>) => {
+        this.processor.setMessages(messages)
+      },
+      addToolResult: (toolCallId, output, errorText) => {
+        this.processor.addToolResult(toolCallId, output, errorText)
+      },
+      generateId: (prefix) => this.generateUniqueId(prefix),
+    }
+  }
+
+  private getDevtoolsSnapshot(): AIDevtoolsChatSnapshot {
+    return {
+      // The devtools store keeps the objects it gets, and a subagent handle
+      // changes in place. A copy lets the panel see each new status and part.
+      messages: copyForDevtools(this.processor.getMessages()),
+      status: this.status,
+      isLoading: this.isLoading,
+      isSubscribed: this.isSubscribed,
+      connectionStatus: this.connectionStatus,
+      sessionGenerating: this.sessionGenerating,
+      activeRunIds: Array.from(this.activeRunIds),
+      queue: this.getQueue(),
+      ...(this.error ? { error: this.error.message } : {}),
+    }
+  }
+
+  private findMessageIdForToolCall(toolCallId: string): string | undefined {
+    const messages = this.processor.getMessages()
+    for (const message of messages) {
+      const match = message.parts.find(
+        (part: MessagePart): part is ToolCallPart =>
+          part.type === 'tool-call' && part.id === toolCallId,
+      )
+      if (match) return message.id
+    }
+    return undefined
+  }
+
+  private abortSubscriptionLoop(): void {
+    this.subscriptionAbortController?.abort()
+    this.subscriptionAbortController = null
+  }
+
+  private resolveProcessing(): void {
+    this.processingResolve?.()
+    this.processingResolve = null
+  }
+
+  private cancelInFlightStream(options?: {
+    setReadyStatus?: boolean
+    abortSubscription?: boolean
+  }): void {
+    this.abortController?.abort()
+    this.abortController = null
+    if (options?.abortSubscription) {
+      this.abortSubscriptionLoop()
+    }
+    this.resolveProcessing()
+    this.setIsLoading(false)
+    // Release deliver claim so an interrupting `deliverMessage` can append
+    // after abort (the superseded deliver's finally also clears the claim).
+    this.deliverClaim = false
+    if (options?.setReadyStatus) {
+      this.setStatus('ready')
+    }
+  }
+
+  private reportStreamError(error: Error): void {
+    const alreadyReported =
+      this.errorReportedGeneration === this.streamGeneration
+    this.setError(error)
+    // Preserve request-level error semantics even if a RUN_ERROR arrives
+    // slightly after loading flips false during stream teardown.
+    if (
+      this.isLoading ||
+      this.status === 'submitted' ||
+      this.status === 'streaming'
+    ) {
+      this.setStatus('error')
+    }
+    if (!alreadyReported) {
+      this.errorReportedGeneration = this.streamGeneration
+      this.callbacksRef.current.onError(error)
+    }
+  }
+
+  /**
+   * Start the background subscription loop.
+   */
+  private startSubscription(): void {
+    this.subscriptionAbortController = new AbortController()
+    const signal = this.subscriptionAbortController.signal
+
+    this.consumeSubscription(signal)
+      .catch((err) => {
+        if (err instanceof Error && err.name !== 'AbortError') {
+          this.setConnectionStatus('error')
+          this.resetSessionGenerating()
+          this.setIsSubscribed(false)
+          this.reportStreamError(err)
+        }
+        // Resolve pending processing so streamResponse doesn't hang
+        this.resolveProcessing()
+      })
+      .finally(() => {
+        // Ignore stale loops that were superseded by a restart.
+        if (this.subscriptionAbortController?.signal !== signal) {
+          return
+        }
+        this.subscriptionAbortController = null
+        if (!signal.aborted && this.isSubscribed) {
+          this.setIsSubscribed(false)
+          if (this.connectionStatus !== 'error') {
+            this.setConnectionStatus('disconnected')
+          }
+        }
+      })
+  }
+
+  /**
+   * Consume chunks from the connection subscription. Chunks are processed in
+   * order; the loop yields to the host after each processing budget.
+   */
+  private async consumeSubscription(signal: AbortSignal): Promise<void> {
+    const stream = this.connection.subscribe(signal)
+    let chunkProcessingTime = 0
+    for await (const chunk of stream) {
+      if (signal.aborted) break
+      const startedAt = performance.now()
+      this.processIncomingChunk(chunk)
+      chunkProcessingTime += performance.now() - startedAt
+      if (chunkProcessingTime < STREAM_PROCESSING_BUDGET_MS) continue
+      chunkProcessingTime = 0
+      // Skip the yield when the page is hidden. Browsers clamp timers there,
+      // and that wait paces stream pull.
+      if (typeof document !== 'undefined' && document.hidden) continue
+      await yieldToHost()
+    }
+  }
+
+  /**
+   * Re-attach to an in-flight run after a full page reload, replaying its stream
+   * from the server's delivery-durability log via `joinRun` (which returns the
+   * whole run so far, then tails live to completion).
+   *
+   * The log is the single source of truth for the run, so we rebuild the
+   * in-flight assistant bubble from it rather than trying to reconcile the
+   * server-hydrated partial with the replay: on the first chunk that actually
+   * (re)builds a message we drop the hydrated in-flight assistant, and the
+   * replay reconstructs one clean bubble. Dropping only on real content (not on
+   * `RUN_STARTED`) means a rejoin that connects but delivers nothing can never
+   * leave an empty bubble behind.
+   *
+   * Bounded connect: a durable backend keeps a from-start join open waiting for
+   * a producer, so a stale pointer to an unknown/evicted run would otherwise pin
+   * the UI in a loading state for the backend's full first-chunk deadline. We
+   * give up after {@link REJOIN_CONNECT_DEADLINE_MS} if no chunk arrives and
+   * clear the dead pointer so it does not retry on the next load.
+   *
+   * Replay chunks are processed WITHOUT the time-slice yield the live path uses,
+   * so the buffered prefix snaps in and only the genuinely-live tail streams at
+   * network speed — a reload looks like the run continued, not like it re-typed.
+   */
+  private resumeInFlightRun(runId: string): void {
+    const joinRun = this.connection.joinRun
+    if (!joinRun) return
+    const controller = new AbortController()
+    this.abortController = controller
+    this.setCurrentRunId(runId)
+    // Record the resume state in-memory BEFORE replaying. Otherwise the
+    // replayed `RUN_STARTED` (which carries the PROVIDER run id, not the
+    // client/durability-log run id the pointer is keyed by) trips the
+    // `!this.lastResume` guard in `updateRunLifecycle` and rewrites the
+    // persisted pointer with the provider id — so a SECOND reload would
+    // `joinRun` an id the log isn't keyed by and never re-attach.
+    this.lastResume = { threadId: this.threadId, runId }
+    this.streamContinuationGeneration = this.continuationGeneration
+    this.setIsLoading(true)
+    this.setStatus('streaming')
+    void (async () => {
+      let rebuilt = false
+      let attached = false
+      // Whether the join FAILED (a thrown non-abort error before any chunk), as
+      // opposed to merely not delivering in time. Only a failure proves the
+      // pointer dead — see the `finally`.
+      let refused = false
+      const connectTimer = setTimeout(() => {
+        if (!attached) controller.abort()
+      }, REJOIN_CONNECT_DEADLINE_MS)
+      try {
+        for await (const chunk of joinRun(runId, controller.signal)) {
+          if (controller.signal.aborted) break
+          if (!attached) {
+            attached = true
+            clearTimeout(connectTimer)
+          }
+          if (!rebuilt && rebuildsAssistantMessage(chunk)) {
+            rebuilt = true
+            this.dropTrailingInFlightAssistant()
+          }
+          this.processIncomingChunk(chunk)
+        }
+        // Same contract as `streamResponse`: client tools may finish (and
+        // queue a resume) while `isLoading` is still true. Wait for them
+        // before teardown so `drainPostStreamActions` below sees the queue.
+        if (this.pendingToolExecutions.size > 0) {
+          await Promise.all(this.pendingToolExecutions.values())
+        }
+      } catch (error) {
+        // Pre-attach failures (unknown/evicted run, connect deadline abort)
+        // stay soft: keep the restored transcript. Post-attach transport/parser
+        // failures are real stream errors and must surface so the UI is not
+        // left truncated and silent.
+        const isAbort =
+          error instanceof Error &&
+          (error.name === 'AbortError' || error.name === 'TimeoutError')
+        if (!attached && !isAbort) refused = true
+        if (attached && !isAbort) {
+          this.reportStreamError(
+            error instanceof Error ? error : new Error(String(error)),
+          )
+        }
+      } finally {
+        clearTimeout(connectTimer)
+        if (!attached && refused && this.tailing && !this.disposed) {
+          // The server REFUSED the join (unknown / evicted run): the pointer is
+          // dead. Clear it so it does not retry and re-pin the UI on the next
+          // load. The server's persisted transcript is still loaded.
+          //
+          // A connect-deadline abort (or an external abort) deliberately does
+          // NOT clear it: the run may simply not have produced yet — a durable
+          // run whose middleware is still booting a sandbox emits nothing for
+          // a while — and clearing on a timeout would permanently orphan a run
+          // that is still going. The pointer survives for the next load, which
+          // costs that load one more bounded connect attempt.
+          //
+          // `tailing`/`disposed` guard the same pointer from the other side: a
+          // DETACH aborts before the first chunk exactly like an unreachable run
+          // does, and a refusal that lands after the view is gone belongs to
+          // nobody. `refused` already spares the timeout case; these two spare
+          // the "no view is watching any more" case, so the pointer only ever
+          // dies for a client that is still looking at the run.
+          this.lastResume = null
+          this.persistor?.persistResumeSnapshot(null)
+        }
+        if (this.abortController === controller) {
+          this.abortController = null
+          this.setIsLoading(false)
+          if (this.status === 'streaming') this.setStatus('ready')
+          await this.drainPostStreamActions()
+        }
+      }
+    })()
+  }
+
+  /**
+   * Drop a hydrated, still-in-flight assistant turn so a resume replay can
+   * rebuild it cleanly. Only touches a trailing assistant message (the shape a
+   * reload-mid-stream leaves); a thread whose last turn is a user message (run
+   * never produced, or already settled) is left untouched.
+   */
+  private dropTrailingInFlightAssistant(): void {
+    const messages = this.processor.getMessages()
+    const last = messages[messages.length - 1]
+    if (last && last.role === 'assistant') {
+      this.processor.setMessages(messages.slice(0, -1))
+    }
+  }
+
+  private processIncomingChunk(chunk: StreamChunk): void {
+    chunk = restoreInboundChunk(chunk)
+    if (
+      chunk.type === 'RUN_ERROR' &&
+      this.isActiveInterruptSubmissionFailure(chunk)
+    ) {
+      const interruptErrors = tanstackMetadata(chunk)?.interruptErrors
+      this.interruptSubmissionFailure = {
+        errors: Array.isArray(interruptErrors) ? interruptErrors : [],
+      }
+    }
+    if (this.connectionStatus === 'connecting') {
+      this.setConnectionStatus('connected')
+    }
+    const shouldIgnore = this.clearedStreamTracker.shouldIgnoreChunk(chunk)
+    if (shouldIgnore) {
+      if (chunk.type === 'RUN_FINISHED' || chunk.type === 'RUN_ERROR') {
+        if (getChunkRunId(chunk)) {
+          this.updateRunLifecycle(chunk, { resolveProcessing: false })
+        } else {
+          this.drainIgnoredRunlessChunk(chunk)
+        }
+        this.retireIgnoredClearedTerminalChunk(chunk)
+        this.resolveJoinedRun(chunk)
+      }
+      return
+    }
+    this.callbacksRef.current.onChunk(chunk)
+    this.devtoolsBridge.observeChunk(chunk)
+    const attributedId = readSubagentRunId(chunk)
+    // A resumed child starts again under the same id, so its start lifts the stop.
+    if (attributedId && chunk.type === EventType.SUBAGENT_STARTED) {
+      this.stoppedSubagentIds.delete(attributedId)
+    }
+    if (attributedId && this.stoppedSubagentIds.has(attributedId)) {
+      this.updateRunLifecycle(chunk)
+      this.resolveJoinedRun(chunk)
+      return
+    }
+    this.handingOverPendingToolCalls =
+      chunk.type === 'RUN_FINISHED' && chunk.outcome?.type !== 'interrupt'
+    try {
+      this.processor.processChunk(chunk)
+    } finally {
+      this.handingOverPendingToolCalls = false
+    }
+    this.syncSubagentHandles()
+    this.updateRunLifecycle(chunk)
+    this.observeInterruptState(chunk)
+    this.resolveJoinedRun(chunk)
+  }
+
+  private isActiveInterruptSubmissionFailure(
+    chunk: Extract<StreamChunk, { type: 'RUN_ERROR' }>,
+  ): boolean {
+    const submission = this.activeInterruptSubmission
+    const errors = tanstackMetadata(chunk)?.interruptErrors
+    if (!submission || !Array.isArray(errors) || errors.length === 0) {
+      return false
+    }
+    const runId = getChunkRunId(chunk)
+    if (runId !== undefined && runId !== this.currentRunId) return false
+    if (
+      typeof chunk.threadId === 'string' &&
+      chunk.threadId !== submission.threadId
+    ) {
+      return false
+    }
+    return errors.every((error) => {
+      if (
+        error == null ||
+        typeof error !== 'object' ||
+        typeof error.threadId !== 'string' ||
+        typeof error.interruptedRunId !== 'string' ||
+        typeof error.generation !== 'number'
+      ) {
+        return false
+      }
+      return (
+        error.threadId === submission.threadId &&
+        error.interruptedRunId === submission.interruptedRunId &&
+        error.generation === submission.generation
+      )
+    })
+  }
+
+  private resolveJoinedRun(chunk: StreamChunk): void {
+    if (chunk.type !== 'RUN_FINISHED' && chunk.type !== 'RUN_ERROR') return
+    const runId = getChunkRunId(chunk)
+    if (runId === undefined) return
+    const resolve = this.joinedRunWaiters.get(runId)
+    if (resolve === undefined) return
+    this.joinedRunWaiters.delete(runId)
+    resolve()
+  }
+
+  /**
+   * Ensure subscription loop is running, starting it if needed.
+   */
+  private ensureSubscription(): void {
+    if (!this.isSubscribed) {
+      this.subscribe()
+      return
+    }
+    if (
+      !this.subscriptionAbortController ||
+      this.subscriptionAbortController.signal.aborted
+    ) {
+      this.subscribe({ restart: true })
+    }
+  }
+
+  /**
+   * Create a promise that resolves when onStreamEnd fires.
+   * Used by streamResponse to await processing completion.
+   */
+  private waitForProcessing(): Promise<void> {
+    // Resolve any stale promise (e.g., from a previous aborted request)
+    this.resolveProcessing()
+    return new Promise<void>((resolve) => {
+      this.processingResolve = resolve
+    })
+  }
+
+  /**
+   * Send a message and stream the response.
+   * Supports both simple string content and multimodal content (images, audio, video, documents).
+   *
+   * @param content - The message content. Can be:
+   *   - A simple string for text-only messages
+   *   - A MultimodalContent object with content array and optional custom ID
+   * @param body - Optional body parameters to merge into this request's
+   *               forwardedProps, over the forwardedProps option. Uses
+   *               shallow merge with per-message body taking priority.
+   * @param sendOptions - Per-call overrides. `{ whenBusy }` overrides the
+   *                      queue policy for this one send. `{ body }`
+   *                      shallow-merges with `body` and with the chat-level
+   *                      `forwardedProps`. `sendOptions.body` wins
+   *                      on key collisions. Framework hooks forward this
+   *                      object as their second argument.
+   *
+   * @example
+   * ```ts
+   * // Simple text message
+   * await client.sendMessage('Hello!')
+   *
+   * // Text message with custom body params
+   * await client.sendMessage('Hello!', { temperature: 0.7 })
+   *
+   * // Per-call whenBusy override
+   * await client.sendMessage('Urgent', undefined, { whenBusy: 'interrupt' })
+   *
+   * // Per-call body via options. Same effect as the positional arg.
+   * // This is the shape the framework hooks (`useChat`, `injectChat`) forward.
+   * await client.sendMessage('Hello!', undefined, { body: { temperature: 0.7 } })
+   *
+   * // Multimodal message with image
+   * await client.sendMessage({
+   *   content: [
+   *     { type: 'text', content: 'What is in this image?' },
+   *     { type: 'image', source: { type: 'url', value: 'https://example.com/photo.jpg' } }
+   *   ]
+   * })
+   *
+   * // Multimodal message with custom ID and body params
+   * await client.sendMessage(
+   *   {
+   *     content: [
+   *       { type: 'text', content: 'Describe this audio' },
+   *       { type: 'audio', source: { type: 'data', value: 'base64...' } }
+   *     ],
+   *     id: 'custom-message-id'
+   *   },
+   *   { model: 'gpt-5.5' }
+   * )
+   * ```
+   */
+  async sendMessage(
+    content: string | MultimodalContent,
+    body?: Record<string, any>,
+    sendOptions?: SendMessageOptions,
+  ): Promise<void> {
+    this.mountDevtools()
+    const emptyMessage = typeof content === 'string' && !content.trim()
+    if (emptyMessage) {
+      return
+    }
+    if (this.hasPendingInterrupts()) {
+      throw new Error(
+        'ChatClient: cannot send normal input while pending interrupts exist. Resolve the interrupts first.',
+      )
+    }
+
+    const resolvedBody = { ...body, ...sendOptions?.body }
+
+    if (this.isSendBusy()) {
+      const { action, id } = this.decideWhenBusy(content, sendOptions)
+      if (action === 'drop') {
+        return
+      }
+      if (action === 'queue') {
+        this.enqueueMessage(content, resolvedBody, id)
+        return
+      }
+      // 'interrupt': abort the current stream, then send now.
+      // Unlike stop(), does not flush already-queued messages — they drain
+      // after this interrupting send settles successfully.
+      // Claim sendInFlight *before* cancelling so a concurrent send cannot
+      // slip in between cancel and the deliver below.
+      this.stopMessageQueueDrain = true
+      this.sendInFlight = true
+      this.cancelInFlightStream({ setReadyStatus: true })
+      this.resetSessionGenerating()
+    } else {
+      this.sendInFlight = true
+    }
+
+    try {
+      await this.deliverMessage(content, resolvedBody)
+    } finally {
+      this.sendInFlight = false
+    }
+  }
+
+  /** True while interrupt descriptors still own continuation. */
+  private hasPendingInterrupts(): boolean {
+    return this.interruptManager.getDescriptors().length > 0
+  }
+
+  /** True while a stream is active, a send is claiming the client, or the queue is draining. */
+  private isSendBusy(): boolean {
+    return this.isLoading || this.sendInFlight || this.messageQueueDraining
+  }
+
+  private resolveBusyReason(): QueueBusyReason {
+    if (this.isLoading) return 'streaming'
+    if (this.messageQueueDraining) return 'draining'
+    return 'sendInFlight'
+  }
+
+  /**
+   * Append a user message and run the stream. Used by both direct sends and
+   * queue drains — callers are responsible for busy/queue policy.
+   *
+   * Claims delivery synchronously before appending so concurrent callers
+   * cannot both add a user message when only one stream can run.
+   */
+  private async deliverMessage(
+    content: string | MultimodalContent,
+    body?: Record<string, any>,
+  ): Promise<boolean> {
+    if (this.isLoading || this.deliverClaim) {
+      return false
+    }
+    this.deliverClaim = true
+    try {
+      const normalizedContent = this.normalizeMessageInput(content)
+      this.pendingMessageBody = body
+      const userMessage = this.processor.addUserMessage(
+        normalizedContent.content,
+        normalizedContent.id,
+        normalizedContent.metadata,
+      )
+      this.events.messageSent(userMessage.id, normalizedContent.content)
+      return await this.streamResponse()
+    } finally {
+      this.deliverClaim = false
+    }
+  }
+
+  /**
+   * Resolve the effective action for a send that arrives while busy.
+   * The returned `id` is the id that will be stored if the action is `queue`.
+   */
+  private decideWhenBusy(
+    content: string | MultimodalContent,
+    sendOptions?: SendMessageOptions,
+  ): { action: WhenBusy; id: string } {
+    const id = this.generateUniqueId('queued')
+    if (sendOptions?.whenBusy) {
+      return { action: sendOptions.whenBusy, id }
+    }
+    const { strategy, whenBusy } = this.queueConfig
+    if (strategy) {
+      const { action } = strategy({
+        pending: {
+          id,
+          content,
+          createdAt: Date.now(),
+        },
+        busyReason: this.resolveBusyReason(),
+        queued: this.getQueue(),
+      })
+      return { action, id }
+    }
+    return { action: whenBusy, id }
+  }
+
+  private enqueueMessage(
+    content: string | MultimodalContent,
+    body?: Record<string, any>,
+    id?: string,
+  ): void {
+    const { maxSize, onOverflow } = this.queueConfig
+    if (maxSize !== undefined && this.messageQueue.length >= maxSize) {
+      // maxSize 0 is a hard cap (never queue). drop-oldest cannot make room.
+      if (onOverflow === 'reject' || maxSize === 0) {
+        return
+      }
+      this.messageQueue.shift() // drop-oldest
+    }
+    this.messageQueue.push({
+      id: id ?? this.generateUniqueId('queued'),
+      content,
+      createdAt: Date.now(),
+      ...(body !== undefined ? { body } : {}),
+    })
+    this.emitQueueChange()
+  }
+
+  /**
+   * Normalize the message input to extract content, optional id, and
+   * optional metadata. String form has no metadata. Trims string content.
+   */
+  private normalizeMessageInput(input: string | MultimodalContent): {
+    content: string | Array<ContentPart>
+    id?: string
+    metadata?: Record<string, any>
+  } {
+    if (typeof input === 'string') {
+      return { content: input.trim() }
+    }
+    return {
+      content: input.content,
+      id: input.id,
+      ...(input.metadata !== undefined ? { metadata: input.metadata } : {}),
+    }
+  }
+
+  /**
+   * Append a message and stream the response
+   */
+  async append(message: UIMessage | ModelMessage): Promise<void> {
+    this.mountDevtools()
+    if (this.hasPendingInterrupts()) {
+      throw new Error(
+        'ChatClient: cannot append normal input while pending interrupts exist. Resolve the interrupts first.',
+      )
+    }
+    // Normalize the message to ensure it has id and createdAt
+    const normalizedMessage = normalizeToUIMessage(message, generateMessageId)
+
+    // Skip system messages - they're handled via systemPrompts, not UIMessages
+    if (normalizedMessage.role === 'system') {
+      return
+    }
+
+    // Activity is frontend-only. Keep it in the transcript; do not start a run.
+    if (normalizedMessage.role === 'activity') {
+      const uiMessage = normalizedMessage as UIMessage
+      this.events.messageAppended(uiMessage)
+      const messages = this.processor.getMessages()
+      this.processor.setMessages([...messages, uiMessage])
+      this.devtoolsBridge.emitSnapshot()
+      return
+    }
+
+    const uiMessage = normalizedMessage as UIMessage
+
+    // Emit message appended event
+    this.events.messageAppended(uiMessage)
+
+    // Add to messages
+    const messages = this.processor.getMessages()
+    this.processor.setMessages([...messages, uiMessage])
+    this.devtoolsBridge.emitSnapshot()
+
+    // If stream is in progress, queue the response for after it ends
+    if (this.isLoading) {
+      this.queuePostStreamAction(async () => {
+        await this.streamResponse()
+      })
+      return
+    }
+
+    await this.streamResponse()
+  }
+
+  /**
+   * Stream a response from the LLM.
+   * Returns true if the stream completed successfully, false on abort or error.
+   */
+  private async streamResponse(): Promise<boolean> {
+    // Guard against concurrent streams - if already loading, skip
+    if (this.isLoading) {
+      return false
+    }
+
+    // Track generation so a superseded stream's cleanup doesn't clobber the new one
+    const generation = ++this.streamGeneration
+    this.streamContinuationGeneration = this.continuationGeneration
+    // Native interrupt continuation is a fresh child run. The interrupted run
+    // is carried as parentRunId and the complete resolution batch as resume.
+    const resumeThreadId = this.pendingResumeThreadId
+    const resumeParentRunId = this.pendingResumeParentRunId
+    const resumeItems = this.pendingResumeItems
+    this.pendingResumeThreadId = null
+    this.pendingResumeParentRunId = null
+    this.pendingResumeItems = null
+    const runId = `run-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+    this.setCurrentRunId(runId)
+    this.activeResumeThreadId = resumeThreadId ?? this.threadId
+    this.activeResumeRunId = runId
+
+    this.setIsLoading(true)
+    // Hand off from deliverClaim to isLoading so nested drain can call
+    // deliverMessage after this stream settles (while the outer deliver
+    // is still on the stack).
+    this.deliverClaim = false
+    this.setStatus('submitted')
+    this.setError(undefined)
+    this.errorReportedGeneration = null
+    this.abortController = new AbortController()
+    // Capture the signal immediately so that a concurrent stop() or
+    // sendMessage() that reassigns this.abortController cannot cause
+    // connect() to receive a stale or null signal.
+    const signal = this.abortController.signal
+    // Reset pending tool executions for the new stream
+    this.pendingToolExecutions.clear()
+    let streamCompletedSuccessfully = false
+    let activeDevtoolsRunId: string | null = null
+    let runTerminalEventEmitted = false
+
+    try {
+      // Get UIMessages with parts (preserves approval state and client tool results).
+      // Activity is frontend-only — never send it as model input.
+      const messages = this.messagesForSend(this.processor.getMessages())
+      const clientTools = new Map(this.clientToolsRef.current)
+      const runtimeContext = this.context
+
+      // Call onResponse callback
+      await this.callbacksRef.current.onResponse()
+
+      // If the stream was cancelled during the onResponse await (e.g. stop()
+      // from a callback or unmount, or reload() superseding this stream),
+      // bail out before allocating waitForProcessing() — otherwise the
+      // resolveProcessing() that ran during cancellation is a no-op and the
+      // await processingComplete below would deadlock.
+      if (signal.aborted) {
+        return false
+      }
+
+      // Merge sources for the wire `forwardedProps` field (later spreads win):
+      //   1. The `forwardedProps` option.
+      //   2. Per-call body (`pendingMessageBody`: positional + sendOptions.body).
+      // The AG-UI standard `threadId` is sent at the wire's top level for
+      // run/conversation correlation, so we no longer auto-emit a separate
+      // `conversationId` here — `chat({ threadId })` server-side covers the
+      // same role for devtools/observability.
+      const mergedBody = {
+        ...this.forwardedPropsOption,
+        ...this.pendingMessageBody,
+      }
+
+      // Clear the pending message body after use
+      this.pendingMessageBody = undefined
+
+      // Generate stream ID — assistant message will be created by stream events
+      this.currentStreamId = this.generateUniqueId('stream')
+      this.devtoolsBridge.setCurrentStreamId(this.currentStreamId)
+      this.currentMessageId = null
+      this.activeClientTools = clientTools
+      this.activeContext = runtimeContext
+
+      // Reset processor stream state for new response — prevents stale
+      // messageStates entries (from a previous stream) from blocking
+      // creation of a new assistant message (e.g. after reload).
+      this.processor.prepareAssistantMessage()
+
+      // Ensure subscription loop is running
+      this.ensureSubscription()
+
+      // Set up promise that resolves when onStreamEnd fires
+      const processingComplete = this.waitForProcessing()
+
+      // Build per-send run context for AG-UI compliance
+      // Note: mergedBody already contains the merged this.body + pendingMessageBody
+      // (pendingMessageBody was cleared above, so we use mergedBody as forwardedProps)
+      // Convert each client tool's `inputSchema` (a Standard Schema:
+      // Zod, ArkType, Valibot, etc.) to JSON Schema for the wire. Foreign
+      // AG-UI servers consuming `RunAgentInput.tools[].parameters` expect
+      // JSON Schema; sending a Standard Schema instance directly would
+      // serialize to an unusable shape.
+      let byokHeaders: Record<string, string> | undefined
+      if (this.byok) {
+        const provider = resolveByokProviderId(
+          this.byokProvider,
+          mergedBody.provider,
+          byokFallbackProviderId(this.byok),
+        )
+        byokHeaders = await prepareResolvedByokHeaders(this.byok, provider)
+      }
+
+      const runContext = {
+        threadId: resumeThreadId ?? this.threadId,
+        runId,
+        ...(resumeParentRunId !== null
+          ? { parentRunId: resumeParentRunId }
+          : {}),
+        clientTools: Array.from(clientTools.values()).map((t) => ({
+          name: t.name,
+          description: t.description,
+          parameters: t.inputSchema
+            ? convertSchemaToJsonSchema(t.inputSchema)
+            : { type: 'object' },
+        })),
+        forwardedProps: { ...mergedBody },
+        ...(resumeItems ? { resume: resumeItems } : {}),
+        ...(byokHeaders ? { headers: byokHeaders } : {}),
+      }
+      this.devtoolsBridge.beginRun(runContext.runId, runContext.threadId)
+      activeDevtoolsRunId = runContext.runId
+      this.devtoolsBridge.emitRunLifecycle(
+        'run:created',
+        runContext.runId,
+        'created',
+      )
+      this.devtoolsBridge.emitRunLifecycle(
+        'run:started',
+        runContext.runId,
+        'started',
+      )
+      this.devtoolsBridge.emitSnapshot()
+
+      // Send through normalized connection (pushes chunks to subscription queue)
+      await this.connection.send(messages, mergedBody, signal, runContext)
+
+      // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- mutated asynchronously during await
+      if (generation !== this.streamGeneration || signal.aborted) {
+        return false
+      }
+
+      // connect() send() already waited until the subscribe queue was idle.
+      // Kick the processing wait so a stream that ends on tool_calls (no
+      // interrupt / stop) cannot hang. Subscribe/send sockets still wait for
+      // a request-ending terminal below.
+      if (this.connectionDrainsOnSend) {
+        this.resolveProcessing()
+      }
+
+      // Wait for subscription loop to finish processing all chunks
+      await processingComplete
+
+      // If this stream was superseded (e.g. by reload()), bail out —
+      // the new stream owns the processor and processingResolve now.
+      if (generation !== this.streamGeneration) {
+        return false
+      }
+
+      // A RUN_ERROR from the stream transitions status to error.
+      // Do not treat this stream as a successful completion.
+      if (this.status === 'error') {
+        if (activeDevtoolsRunId) {
+          this.devtoolsBridge.emitRunLifecycle(
+            'run:errored',
+            activeDevtoolsRunId,
+            'errored',
+            this.error ? { error: this.error.message } : {},
+          )
+          runTerminalEventEmitted = true
+        }
+        return false
+      }
+
+      // Wait for pending client tool executions
+      if (this.pendingToolExecutions.size > 0) {
+        await Promise.all(this.pendingToolExecutions.values())
+      }
+
+      // Finalize (idempotent — may already be done by RUN_FINISHED handler)
+      this.processor.finalizeStream()
+      streamCompletedSuccessfully = true
+    } catch (err: unknown) {
+      const error = err instanceof Error ? err : new Error(String(err))
+      if (error.name === 'AbortError') {
+        if (activeDevtoolsRunId) {
+          this.devtoolsBridge.emitRunLifecycle(
+            'run:cancelled',
+            activeDevtoolsRunId,
+            'cancelled',
+          )
+          runTerminalEventEmitted = true
+        }
+        return false
+      }
+      if (error instanceof ByokMissingError) {
+        this.byok?.request(error.provider, 'missing')
+      }
+      if (error instanceof ByokBlockedError && error.reason === 'locked') {
+        this.byok?.request(error.provider, 'locked')
+      }
+      if (generation === this.streamGeneration) {
+        this.reportStreamError(error)
+        if (activeDevtoolsRunId) {
+          this.devtoolsBridge.emitRunLifecycle(
+            'run:errored',
+            activeDevtoolsRunId,
+            'errored',
+            { error: error.message },
+          )
+          runTerminalEventEmitted = true
+        }
+      }
+      if (
+        generation === this.streamGeneration &&
+        (error instanceof ByokMissingError ||
+          error instanceof ByokBlockedError ||
+          error instanceof ByokUnresolvedProviderError)
+      ) {
+        throw error
+      }
+    } finally {
+      // Only clean up if this is still the active stream.
+      // A superseded stream (e.g. reload() started a new one) must not
+      // clobber the new stream's abortController or isLoading state.
+      if (generation === this.streamGeneration) {
+        this.currentStreamId = null
+        this.devtoolsBridge.setCurrentStreamId(null)
+        this.currentMessageId = null
+        this.setCurrentRunId(null)
+        this.activeClientTools = null
+        this.activeContext = undefined
+        this.abortController = null
+        this.setIsLoading(false)
+        this.pendingMessageBody = undefined // Ensure it's cleared even on error
+
+        if (activeDevtoolsRunId && !runTerminalEventEmitted) {
+          if (streamCompletedSuccessfully) {
+            this.devtoolsBridge.emitRunLifecycle(
+              'run:completed',
+              activeDevtoolsRunId,
+              'completed',
+            )
+          } else if (signal.aborted) {
+            this.devtoolsBridge.emitRunLifecycle(
+              'run:cancelled',
+              activeDevtoolsRunId,
+              'cancelled',
+            )
+          }
+        }
+
+        // Drain any actions that were queued while the stream was in progress
+        await this.drainPostStreamActions()
+
+        if (streamCompletedSuccessfully) {
+          this.rememberProcessorMessageIds()
+          if (this.status !== 'ready') {
+            // Terminal run, but onStreamEnd never fired: the processor had
+            // no assistant message to emit it for (e.g. a bare
+            // RUN_FINISHED{stop}, #421). The normal path already set
+            // 'ready', so this is a no-op.
+            this.setStatus('ready')
+          }
+          // Auto-send queued messages once the run fully settles. Skip if a
+          // drain loop is already walking the queue (avoids nested re-entry).
+          if (!this.messageQueueDraining) {
+            await this.drainQueue()
+          }
+        } else {
+          // Error/abort settle for the active generation: don't strand or
+          // later mis-order queued messages. A failed turn flushes the queue
+          // (consistent with stop()); it must NOT auto-drain into a likely
+          // broken endpoint.
+          this.flushQueue()
+        }
+      }
+    }
+
+    return streamCompletedSuccessfully
+  }
+
+  /**
+   * Start the client subscription loop.
+   * This controls the connection lifecycle independently from request lifecycle.
+   */
+  subscribe(options?: { restart?: boolean }): void {
+    const restart = options?.restart === true
+    if (this.isSubscribed && !restart) {
+      return
+    }
+
+    if (this.isSubscribed && restart) {
+      this.abortSubscriptionLoop()
+    }
+
+    this.setIsSubscribed(true)
+    this.setConnectionStatus('connecting')
+    this.startSubscription()
+  }
+
+  /**
+   * Unsubscribe and fully tear down live behavior.
+   * This aborts an in-flight request and the subscription loop.
+   */
+  unsubscribe(): void {
+    this.cancelInFlightStream({
+      setReadyStatus: true,
+      abortSubscription: true,
+    })
+    this.discardPendingSends()
+    this.resetSessionGenerating()
+    this.setIsSubscribed(false)
+    this.setConnectionStatus('disconnected')
+  }
+
+  /**
+   * Reload the last assistant message
+   */
+  async reload(): Promise<void> {
+    const messages = this.processor.getMessages()
+    if (messages.length === 0) return
+
+    // Find the last user message
+    const lastUserMessageIndex = messages.findLastIndex(
+      (m) => m.role === 'user',
+    )
+
+    if (lastUserMessageIndex === -1) return
+
+    // Cancel any active stream before reloading
+    if (this.isLoading) {
+      this.cancelInFlightStream()
+    }
+    // Discard pending follow-ups so "regenerate last answer" does not also
+    // auto-send messages that were typed during the previous stream.
+    this.discardPendingSends()
+
+    this.events.reloaded(lastUserMessageIndex)
+
+    // Remove all messages after the last user message
+    this.processor.removeMessagesAfter(lastUserMessageIndex)
+    this.devtoolsBridge.emitSnapshot()
+
+    // Resend
+    await this.streamResponse()
+  }
+
+  /**
+   * Stop the current stream
+   */
+  stop(): void {
+    // Invalidate deferred work from the stopped continuation.
+    // This aborts the local request. A durable server run keeps going.
+    this.continuationGeneration++
+    const hadLocalStream = this.abortController !== null
+    this.cancelInFlightStream({ setReadyStatus: true })
+    this.discardPendingSends()
+    this.lastResume = null
+    this.activeInterruptSubmission = undefined
+    this.interruptManager.reset()
+    if (hadLocalStream) {
+      this.resetSessionGenerating()
+    }
+    this.events.stopped()
+  }
+
+  /**
+   * Clear all messages
+   */
+  clear(): void {
+    const hadLocalStream = this.abortController !== null
+    this.clearedStreamTracker.snapshotClear({
+      messages: this.processor.getMessages(),
+      activeRunIds: this.activeRunIds,
+      currentRunId: this.currentRunId,
+    })
+    // Always cancel in-flight work so clear works without message persistence.
+    if (this.isLoading || hadLocalStream) {
+      this.cancelInFlightStream({ setReadyStatus: true })
+      this.resetSessionGenerating({ preserveClearedStreamTracking: true })
+    } else if (this.activeRunIds.size > 0) {
+      this.resetSessionGenerating({ preserveClearedStreamTracking: true })
+    }
+    // Suppress persisting the empty snapshot that clearMessages emits, then
+    // remove the stored conversation outright.
+    this.persistor?.beginClear()
+    this.processor.clearMessages()
+    this.resetHistoryPaging()
+    this.supersedeHydration()
+    this.discardPendingSends()
+    this.persistor?.remove()
+    this.stoppedSubagentIds.clear()
+    this.lastResume = null
+    this.interruptManager.reset()
+    this.pendingResumeThreadId = null
+    this.pendingResumeParentRunId = null
+    this.pendingResumeItems = null
+    this.setError(undefined)
+    this.events.messagesCleared()
+  }
+
+  /**
+   * Add the result of a client-side tool execution
+   */
+  async addToolResult(result: ClientToolResult): Promise<void> {
+    const clientTool = this.clientToolsRef.current.get(result.tool)
+    await this.addToolResultForClientTool(
+      result,
+      clientTool,
+      this.streamContinuationGeneration,
+    )
+  }
+
+  private async addToolResultForClientTool(
+    result: ClientToolResult,
+    clientTool: AnyClientTool | undefined,
+    continuationGeneration: number,
+    context?: ChatClientRunEventContext,
+  ): Promise<void> {
+    if (result.state !== 'output-error') {
+      try {
+        let output =
+          clientTool?.outputSchema && isStandardSchema(clientTool.outputSchema)
+            ? await this.validateClientToolOutput(clientTool, result.output)
+            : result.output
+        // Only an interrupt resume needs JSON output. The message-based
+        // continuation keeps the raw value.
+        if (
+          this.interruptManager
+            .getDescriptors()
+            .some((interrupt) => interrupt.toolCallId === result.toolCallId)
+        ) {
+          output = cloneAndDeepFreezeJson(output)
+        }
+        result = { ...result, output }
+      } catch (error: any) {
+        result = {
+          ...result,
+          output: null,
+          state: 'output-error',
+          errorText: error.message,
+        }
+      }
+    }
+
+    this.events.toolResultAdded(
+      result.toolCallId,
+      result.tool,
+      result.output,
+      result.state || 'output-available',
+      context,
+    )
+
+    if (continuationGeneration !== this.continuationGeneration) return
+
+    // Always update local message state so the tool-call part is terminal in
+    // the UI even when the AG-UI interrupt path owns server continuation.
+    this.processor.addToolResult(
+      result.toolCallId,
+      result.output,
+      result.state === 'output-error'
+        ? result.errorText || 'Tool execution failed'
+        : undefined,
+    )
+    this.devtoolsBridge.emitSnapshot()
+
+    const resolvedViaInterrupt =
+      result.state === 'output-error'
+        ? this.interruptManager.resolveClientToolError(
+            result.toolCallId,
+            result.errorText || 'Tool execution failed',
+          )
+        : this.interruptManager.resolveClientToolOutput(
+            result.toolCallId,
+            result.output,
+          )
+    if (resolvedViaInterrupt) {
+      // Interrupt manager stages/submits the resume batch (deferred until the
+      // parent stream settles when still loading). Skip the message-based
+      // continuation.
+      return
+    }
+
+    // If stream is in progress, queue continuation check for after it ends
+    if (this.isLoading) {
+      this.queuePostStreamAction(() =>
+        continuationGeneration === this.continuationGeneration
+          ? this.checkForContinuation()
+          : Promise.resolve(),
+      )
+      return
+    }
+
+    await this.checkForContinuation()
+  }
+
+  private async validateClientToolOutput(
+    clientTool: AnyClientTool,
+    output: unknown,
+  ): Promise<unknown> {
+    const validation = await validateWithStandardSchema<unknown>(
+      clientTool.outputSchema,
+      output,
+    )
+    if (!validation.success) {
+      throw new Error(
+        validation.issues.map((issue) => issue.message).join(', '),
+      )
+    }
+    return validation.data
+  }
+
+  /**
+   * Queue an action to be executed after the current stream ends
+   */
+  private queuePostStreamAction(action: () => Promise<void>): void {
+    const continuationGeneration = this.continuationGeneration
+    this.postStreamActions.push(async () => {
+      if (continuationGeneration !== this.continuationGeneration) return
+      await action()
+    })
+  }
+
+  /**
+   * Drain and execute all queued post-stream actions
+   */
+  private async drainPostStreamActions(): Promise<void> {
+    if (this.draining) return
+    this.draining = true
+    try {
+      let action: (() => Promise<void>) | undefined
+      while ((action = this.postStreamActions.shift()) !== undefined) {
+        await action()
+      }
+    } finally {
+      this.draining = false
+    }
+  }
+
+  /**
+   * Check if we should continue the flow and do so if needed
+   */
+  private async checkForContinuation(): Promise<void> {
+    // stop() bumps continuationGeneration without opening a new stream.
+    if (this.streamContinuationGeneration !== this.continuationGeneration) {
+      return
+    }
+    if (this.hasPendingInterrupts()) return
+
+    // Prevent duplicate continuation attempts
+    if (this.continuationPending || this.isLoading) {
+      this.continuationSkipped = true
+      return
+    }
+
+    if (this.shouldAutoSend()) {
+      this.continuationPending = true
+      this.continuationSkipped = false
+      let succeeded = false
+      try {
+        succeeded = await this.streamResponse()
+      } finally {
+        this.continuationPending = false
+      }
+      // If a queued check was skipped while continuationPending was true
+      // (e.g. a chained approval responded to during the stream), re-evaluate
+      // now that the flag is cleared. Only replay after a successful stream —
+      // aborted or errored streams should not trigger further continuation.
+      // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- mutated asynchronously during await
+      if (this.continuationSkipped && succeeded) {
+        this.continuationSkipped = false
+        await this.checkForContinuation()
+      }
+    }
+  }
+
+  /**
+   * Check if all tool calls are complete and we should auto-send.
+   * Requires that there is at least one tool call in the last assistant message;
+   * a text-only response has nothing to auto-send.
+   */
+  private shouldAutoSend(): boolean {
+    // A pending interrupt owns the next send. Auto-continuing after a
+    // completed server tool would start a sibling run and hide the card.
+    if (this.lastResume) return false
+    // Ownership follows the descriptors, not the submission handle. Generic
+    // interrupts settle the resume stream through a post-stream action that
+    // runs before `submitInterruptBatch`'s `finally` clears the handle, so
+    // gating on the handle alone would strand a frontend tool call that the
+    // native resume itself emitted (#1106).
+    if (this.activeInterruptSubmission && this.hasPendingInterrupts()) {
+      return false
+    }
+    if (this.interruptManager.getInterrupts().length > 0) return false
+    const messages = this.processor.getMessages()
+    const lastAssistant = messages.findLast(
+      (m: UIMessage) => m.role === 'assistant',
+    )
+    if (!lastAssistant) return false
+    const hasToolCalls = lastAssistant.parts.some(
+      (p: MessagePart) => p.type === 'tool-call',
+    )
+    if (!hasToolCalls) return false
+    return this.processor.areAllToolsComplete()
+  }
+
+  /**
+   * Get current messages
+   */
+  getMessages(): Array<UIMessage<TTools>> {
+    // StreamProcessor is untyped over client tools / output schema.
+    return this.processor.getMessages() as Array<UIMessage<TTools>>
+  }
+
+  getSubagents() {
+    return [...this.subagentHandles.values()]
+  }
+
+  private devtoolsSnapshotQueued = false
+
+  /** One devtools snapshot per microtask, however many chunks arrive. */
+  private queueDevtoolsSnapshot(): void {
+    if (this.devtoolsSnapshotQueued) return
+    this.devtoolsSnapshotQueued = true
+    queueMicrotask(() => {
+      this.devtoolsSnapshotQueued = false
+      this.devtoolsBridge.emitSnapshot()
+    })
+  }
+
+  private syncSubagentHandles(): void {
+    // The card metadata carries the checked input of an agent with
+    // `inputSchema`. The handle shows it as `input`.
+    // A card copied from a handle can hold an old `input`. Read it fresh.
+    const fieldsOf = (subagent: SubagentHandle) => {
+      const { input: _old, ...card } = subagent
+      const input = subagentInputOf(card.metadata)
+      return input === undefined ? card : { ...card, input }
+    }
+    // Every card, nested ones included, gets a handle.
+    const cards = collectSubagentParts(this.processor.getMessages())
+    const present = new Set(cards.map((part) => part.subagent.id))
+    // A card that left the messages (clear, reload) loses its handle.
+    for (const id of this.subagentHandles.keys()) {
+      if (!present.has(id)) this.subagentHandles.delete(id)
+    }
+    for (const part of cards) {
+      const id = part.subagent.id
+      const existing = this.subagentHandles.get(id)
+      if (existing) {
+        if (part.subagent === existing) continue
+        // Keep the same live object, with exactly the card's fields. The
+        // wire reads this object, so a field the card dropped goes too.
+        const { stop } = existing
+        for (const key of Object.keys(existing)) {
+          Reflect.deleteProperty(existing, key)
+        }
+        Object.assign(existing, fieldsOf(part.subagent), { stop })
+        part.subagent = existing
+        continue
+      }
+      const handle: SubagentHandle = {
+        ...fieldsOf(part.subagent),
+        stop: () => {
+          this.stopSubagent(id)
+        },
+      }
+      this.subagentHandles.set(id, handle)
+      part.subagent = handle
+    }
+  }
+
+  private stopSubagent(id: string): void {
+    const handle = this.subagentHandles.get(id)
+    if (!handle || handle.status !== 'running') return
+    this.stoppedSubagentIds.add(id)
+    this.processor.processChunk({
+      type: EventType.SUBAGENT_ERROR,
+      subagentRunId: id,
+      message: 'Stopped',
+      timestamp: Date.now(),
+    })
+    this.syncSubagentHandles()
+    handle.status = 'error'
+    handle.error = { message: 'Stopped' }
+    this.abortController?.abort()
+  }
+
+  /**
+   * True when the last hydrate or older-page response said more messages exist.
+   */
+  getHasOlderMessages() {
+    return this.hasOlderMessages
+  }
+
+  /**
+   * Fetch the next older window and put it in front of the painted messages.
+   *
+   * No-op when there is no older page, no cursor, or a page load is already
+   * running. A network failure rejects and leaves the painted messages as they
+   * are; {@link getHasOlderMessages} stays true.
+   */
+  async loadOlderMessages() {
+    const hydrate = this.connection.hydrate
+    if (hydrate === undefined) return
+    if (this.disposed) return
+    if (!this.hasOlderMessages) return
+    const cursor = this.olderMessagesCursor
+    if (cursor === undefined) return
+    if (this.loadOlderMessagesInFlight) return
+
+    const hydrateOptions: ChatHydrateOptions = { before: cursor }
+    if (this.historyPageSize !== undefined) {
+      hydrateOptions.limit = this.historyPageSize
+    }
+
+    this.loadOlderMessagesInFlight = true
+    const generation = this.historyGeneration
+    try {
+      const result = await hydrate(this.threadId, hydrateOptions)
+      if (this.disposed) return
+      if (generation !== this.historyGeneration) return
+      const olderMessages = normalizeMessagesDates(result.messages)
+      if (olderMessages.length === 0) {
+        throw new Error('Older page was empty')
+      }
+      this.applyHydrationPage(result.page)
+      this.processor.prependMessages(olderMessages)
+      this.rememberServerMessageIds(olderMessages)
+    } finally {
+      this.loadOlderMessagesInFlight = false
+    }
+  }
+
+  private setHasOlderMessages(hasOlderMessages: boolean) {
+    patchAtom(this.snapshotAtom, { hasOlderMessages })
+  }
+
+  private resetHistoryPaging() {
+    this.setHasOlderMessages(false)
+    this.olderMessagesCursor = undefined
+    this.knownServerMessageIds.clear()
+    this.historyGeneration++
+  }
+
+  private applyHydrationPage(page: ChatHydrationResult['page']) {
+    if (page?.truncated === true) {
+      this.setHasOlderMessages(true)
+      this.olderMessagesCursor = page.cursor
+      return
+    }
+    this.setHasOlderMessages(false)
+    this.olderMessagesCursor = undefined
+  }
+
+  private rememberServerMessageIds(messages: Array<UIMessage>) {
+    const ids = messages.map((message) => message.id)
+    for (const id of ids) {
+      this.knownServerMessageIds.add(id)
+    }
+  }
+
+  private rememberProcessorMessageIds() {
+    if (this.historyPageSize === undefined) return
+    this.rememberServerMessageIds(this.processor.getMessages())
+  }
+
+  private messagesForSend(messages: Array<UIMessage>) {
+    const forModel = messages.filter((message) => message.role !== 'activity')
+    if (this.historyPageSize === undefined) {
+      return forModel
+    }
+    const unknownMessages: Array<UIMessage> = []
+    for (const message of forModel) {
+      const isKnown = this.knownServerMessageIds.has(message.id)
+      if (isKnown) {
+        continue
+      }
+      unknownMessages.push(message)
+    }
+    if (unknownMessages.length > 0) {
+      return unknownMessages
+    }
+    // No new ids: reload has already dropped the old assistant, so this is
+    // `[lastUser]`. Resume/continue still has the assistant, so the cutoff is
+    // that assistant and the stored tool-call stays.
+    const lastUserIndex = forModel.findLastIndex(
+      (message) => message.role === 'user',
+    )
+    if (lastUserIndex === -1) {
+      return []
+    }
+    return forModel.slice(lastUserIndex)
+  }
+
+  /**
+   * True when an interrupt (or another direct send) claimed the client during
+   * a drain. Read via a method so cross-await mutations are not constant-folded
+   * by control-flow analysis.
+   */
+  private shouldAbortMessageQueueDrain(): boolean {
+    return this.isLoading || this.stopMessageQueueDrain
+  }
+
+  /**
+   * Deliver queued messages after a successful settle.
+   * - `batch`: merge everything currently queued into one send, looping so
+   *   messages enqueued during that batch stream are not stranded.
+   * - `fifo`: walk the queue in a loop, one stream at a time, until empty
+   *   (or until another send claims the client via interrupt).
+   *
+   * Uses `deliverMessage` directly so drains do not re-enter `sendMessage`'s
+   * busy/queue policy (which would re-queue items and strand the rest).
+   */
+  private async drainQueue(): Promise<void> {
+    // Note: do not gate on `sendInFlight`. Normal sends still hold
+    // `sendInFlight` while `streamResponse`'s finally invokes drain; blocking
+    // on it would permanently strand the queue.
+    if (
+      this.messageQueueDraining ||
+      this.isLoading ||
+      this.messageQueue.length === 0
+    ) {
+      return
+    }
+
+    this.messageQueueDraining = true
+    this.stopMessageQueueDrain = false
+    try {
+      if (this.queueConfig.drain === 'batch') {
+        while (this.messageQueue.length > 0) {
+          if (this.shouldAbortMessageQueueDrain()) {
+            return
+          }
+          const items = this.messageQueue.splice(0)
+          this.emitQueueChange()
+          const merged = mergeQueuedMessages(items)
+          const completed = await this.deliverMessage(
+            merged.content,
+            merged.body,
+          )
+          // Failed/aborted deliver flushes the rest of the queue in streamResponse.
+          if (!completed || this.shouldAbortMessageQueueDrain()) {
+            return
+          }
+        }
+        return
+      }
+
+      while (this.messageQueue.length > 0) {
+        // Interrupt (or a new direct send) claimed the client — stop draining;
+        // remaining items stay queued and will drain after that send settles.
+        if (this.shouldAbortMessageQueueDrain()) {
+          return
+        }
+        const next = this.messageQueue.shift()
+        if (next === undefined) {
+          return
+        }
+        this.emitQueueChange()
+        const completed = await this.deliverMessage(next.content, next.body)
+        // Failed/aborted deliver flushes the rest of the queue in streamResponse.
+        if (!completed || this.shouldAbortMessageQueueDrain()) {
+          return
+        }
+      }
+    } finally {
+      this.messageQueueDraining = false
+      this.stopMessageQueueDrain = false
+    }
+  }
+
+  /**
+   * Drop any in-flight send claim and discard pending queued messages
+   * (stop / error / clear / unsubscribe / reload).
+   */
+  private discardPendingSends(): void {
+    this.sendInFlight = false
+    this.flushQueue()
+  }
+
+  /**
+   * Get the current send queue (messages held while a stream was in flight).
+   */
+  getQueue(): Array<QueuedMessage> {
+    return this.messageQueue.map(({ id, content, createdAt }) => ({
+      id,
+      content,
+      createdAt,
+    }))
+  }
+
+  private emitQueueChange(): void {
+    const queue = this.getQueue()
+    patchAtom(this.snapshotAtom, { queue: this.freezeSnapshotQueue(queue) })
+    this.callbacksRef.current.onQueueChange(queue)
+    this.devtoolsBridge.emitSnapshot()
+  }
+
+  /**
+   * Remove a queued message by id before it drains.
+   */
+  cancelQueued(id: string): void {
+    const index = this.messageQueue.findIndex((m) => m.id === id)
+    if (index === -1) return
+    this.messageQueue.splice(index, 1)
+    this.emitQueueChange()
+  }
+
+  /**
+   * Discard all pending queued messages (stop / error / clear / unsubscribe /
+   * reload). Does not send them. Emits `onQueueChange([])` when anything was
+   * removed.
+   */
+  private flushQueue(): void {
+    if (this.messageQueue.length === 0) return
+    this.messageQueue = []
+    this.emitQueueChange()
+  }
+
+  /**
+   * Get loading state
+   */
+  getIsLoading(): boolean {
+    return this.isLoading
+  }
+
+  /**
+   * Get current status
+   */
+  getStatus(): ChatClientState {
+    return this.status
+  }
+
+  /**
+   * Get whether the subscription loop is active
+   */
+  getIsSubscribed(): boolean {
+    return this.isSubscribed
+  }
+
+  /**
+   * Get current connection lifecycle status
+   */
+  getConnectionStatus(): ConnectionStatus {
+    return this.connectionStatus
+  }
+
+  /**
+   * Whether the shared session is actively generating.
+   * Derived from stream run events (RUN_STARTED / RUN_FINISHED / RUN_ERROR).
+   * Unlike `isLoading` (request-local), this reflects shared generation
+   * activity visible to all subscribers (e.g. across tabs/devices).
+   */
+  getSessionGenerating(): boolean {
+    return this.sessionGenerating
+  }
+
+  /**
+   * Whether the client is rebuilding the chat from persistence: the server
+   * hydrate (`persistence: true`) or an async storage adapter. Turns false once
+   * the transcript is applied and any in-flight run is re-joined (from then on
+   * `isLoading` covers the stream), or when the load fails.
+   */
+  getIsHydrating(): boolean {
+    return this.isHydrating
+  }
+
+  /**
+   * Get current error
+   */
+  getError(): Error | undefined {
+    return this.error
+  }
+
+  /**
+   * Manually set messages
+   */
+  setMessagesManually(messages: ReadonlyArray<UIMessage<TTools>>): void {
+    this.processor.setMessages(thawMessages(messages))
+    this.devtoolsBridge.emitSnapshot()
+  }
+
+  /**
+   * Update options refs (for use in React hooks to avoid recreating client)
+   */
+  updateOptions(options: ChatClientUpdateOptionsWithoutContext<TTools>): void
+  updateOptions(
+    options: ChatClientUpdateOptionsWithoutContext<TTools> &
+      Pick<ChatClientOptions<TTools, TContext>, 'context'>,
+  ): void
+  updateOptions(
+    options: ChatClientUpdateOptionsWithoutContext<TTools> & {
+      context?: TContext | undefined
+    },
+  ): void {
+    if (options.connection !== undefined || options.fetcher !== undefined) {
+      const wasSubscribed = this.isSubscribed
+
+      if (this.isLoading) {
+        this.cancelInFlightStream({
+          setReadyStatus: true,
+          abortSubscription: true,
+        })
+      } else if (wasSubscribed) {
+        this.abortSubscriptionLoop()
+      }
+
+      this.resetSessionGenerating()
+      this.setIsSubscribed(false)
+      this.setConnectionStatus('disconnected')
+      const transport = resolveTransport({
+        connection: options.connection,
+        fetcher: options.fetcher,
+      })
+      this.connectionDrainsOnSend = connectionDrainsOnSend(transport)
+      this.connection = normalizeConnectionAdapter(transport)
+
+      if (wasSubscribed) {
+        this.subscribe()
+      }
+    }
+    // Passing `undefined` for `forwardedProps` leaves it unchanged; context
+    // is cleared when the key is present with an `undefined` value.
+    if (options.forwardedProps !== undefined) {
+      this.forwardedPropsOption = options.forwardedProps
+    }
+    if (options.byok !== undefined) {
+      this.byok = options.byok
+    }
+    if (options.byokProvider !== undefined) {
+      this.byokProvider = options.byokProvider
+    }
+    if ('context' in options) {
+      this.context = options.context
+    }
+    if (options.tools !== undefined) {
+      this.interruptManager.updateTools(options.tools)
+      this.clientToolsRef.current = new Map()
+      for (const tool of options.tools) {
+        this.clientToolsRef.current.set(tool.name, tool)
+      }
+      this.devtoolsBridge.notifyToolsChanged()
+    }
+    if (options.queue !== undefined) {
+      this.queueConfig = normalizeQueueOption(options.queue)
+    }
+    if (options.onResponse !== undefined) {
+      this.callbacksRef.current.onResponse = options.onResponse
+    }
+    if (options.onChunk !== undefined) {
+      this.callbacksRef.current.onChunk = options.onChunk
+    }
+    if (options.onFinish !== undefined) {
+      this.callbacksRef.current.onFinish = options.onFinish
+    }
+    if (options.onError !== undefined) {
+      this.callbacksRef.current.onError = options.onError
+    }
+    if (options.onSubscriptionChange !== undefined) {
+      this.callbacksRef.current.onSubscriptionChange =
+        options.onSubscriptionChange
+    }
+    if (options.onConnectionStatusChange !== undefined) {
+      this.callbacksRef.current.onConnectionStatusChange =
+        options.onConnectionStatusChange
+    }
+    if (options.onSessionGeneratingChange !== undefined) {
+      this.callbacksRef.current.onSessionGeneratingChange =
+        options.onSessionGeneratingChange
+    }
+    if (options.onHydratingChange !== undefined) {
+      this.callbacksRef.current.onHydratingChange = options.onHydratingChange
+    }
+    if (options.onQueueChange !== undefined) {
+      this.callbacksRef.current.onQueueChange = options.onQueueChange
+    }
+    if (options.onResumeStateChange !== undefined) {
+      this.callbacksRef.current.onResumeStateChange =
+        options.onResumeStateChange
+    }
+    if (options.onRunIdChange !== undefined) {
+      this.callbacksRef.current.onRunIdChange = options.onRunIdChange
+    }
+    if (options.onInterruptStateChange !== undefined) {
+      this.callbacksRef.current.onInterruptStateChange =
+        options.onInterruptStateChange
+    }
+    if (options.onCustomEvent !== undefined) {
+      this.callbacksRef.current.onCustomEvent = options.onCustomEvent
+    }
+  }
+
+  dispose(): void {
+    // FIRST, and latched: everything below is teardown, and an async callback that
+    // lands mid-teardown must not start new work. In particular a hydration fetch
+    // that resolves after this point must not open a tail — see `hydrateFromServer`.
+    this.disposed = true
+    // `unsubscribe()` below already aborts the in-flight stream (it calls
+    // `cancelInFlightStream({ abortSubscription: true })`), so disposal does drop
+    // an open tail. Verified by mutation: removing an extra abort here changes
+    // nothing, because unsubscribe covers it.
+    this.unsubscribe()
+    this.devtoolsBridge.dispose()
+    this.devtoolsMounted = false
+  }
+}

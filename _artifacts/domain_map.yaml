@@ -481,13 +481,13 @@ skills:
 
       - mistake: 'Not setting timeout for code execution'
         mechanism: 'LLM-generated code may contain infinite loops. Without a timeout, execution hangs indefinitely. The default timeout is 30s, but developers may override it to 0 or remove it.'
-        source: 'packages/typescript/ai-code-mode/src/'
+        source: 'packages/ai-code-mode/src/'
         priority: 'HIGH'
         status: 'active'
 
       - mistake: 'Using Node isolated-vm driver without checking platform compatibility'
         mechanism: 'isolated-vm requires native module compilation. On incompatible platforms (wrong Node version, missing build tools), it causes segfaults. The driver has a probe mechanism (probeIsolatedVm()) but skipProbe:true bypasses it.'
-        source: 'packages/typescript/ai-isolate-node/src/'
+        source: 'packages/ai-isolate-node/src/'
         priority: 'HIGH'
         status: 'active'
 

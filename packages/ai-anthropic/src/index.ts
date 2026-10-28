@@ -1,0 +1,65 @@
+// ============================================================================
+// New Tree-Shakeable Adapters (Recommended)
+// ============================================================================
+
+// Text (Chat) adapter - for chat/text completion
+export {
+  AnthropicTextAdapter,
+  anthropicText,
+  createAnthropicChat,
+  createAnthropicChatWithClient,
+  type AnthropicTextAdapterConfig,
+  type AnthropicTextConfig,
+  type AnthropicTextProviderOptions,
+} from './adapters/text'
+export type { AnthropicMessagesClient } from './utils/client'
+export type { AnthropicSystemPromptMetadata } from './text/text-provider-options'
+
+// Summarize - thin factory functions over @tanstack/ai's ChatStreamSummarizeAdapter
+export {
+  anthropicSummarize,
+  createAnthropicSummarize,
+  type AnthropicSummarizeConfig,
+  type AnthropicSummarizeModel,
+} from './adapters/summarize'
+
+// Files adapter - upload media to the Anthropic Files API (beta) by file_id
+export {
+  AnthropicFilesAdapter,
+  createAnthropicFiles,
+  anthropicFiles,
+  type AnthropicFilesConfig,
+} from './adapters/files'
+// ============================================================================
+// Type Exports
+// ============================================================================
+
+export type {
+  AnthropicChatModel,
+  AnthropicVertexChatModel,
+  AnthropicChatModelProviderOptionsByName,
+  AnthropicChatModelToolCapabilitiesByName,
+  AnthropicModelInputModalitiesByName,
+} from './model-meta'
+export {
+  ANTHROPIC_MODELS,
+  ANTHROPIC_VERTEX_CHAT_MODELS,
+  ANTHROPIC_COMBINED_TOOLS_AND_SCHEMA_MODELS,
+} from './model-meta'
+export type {
+  AnthropicTextMetadata,
+  AnthropicImageMetadata,
+  AnthropicDocumentMetadata,
+  AnthropicAudioMetadata,
+  AnthropicVideoMetadata,
+  AnthropicMessageMetadataByModality,
+} from './message-types'
+
+// Export tool conversion utilities
+export { convertToolsToProviderFormat } from './tools/tool-converter'
+
+// Export tool types
+export type { AnthropicTool, CustomToolConfig } from './tools/index'
+
+// Export provider usage types
+export type { AnthropicProviderUsageDetails } from './usage'

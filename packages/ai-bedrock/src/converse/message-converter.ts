@@ -1,0 +1,421 @@
+import {
+  hashToolCallId,
+  orderedAssistantBlocks,
+  transformMessagesForReplay,
+} from '@tanstack/ai/adapter-internals'
+import {
+  isFileSource,
+  normalizeSystemPrompts,
+  unsupportedFileSourceError,
+} from '@tanstack/ai'
+import type {
+  ContentPart,
+  ContentPartDataSource,
+  DocumentPart,
+  ImagePart,
+  ModelMessage,
+  SystemPrompt,
+  TextPart,
+} from '@tanstack/ai'
+import type {
+  ContentBlock,
+  Message,
+  SystemContentBlock,
+  ToolResultContentBlock,
+} from '@aws-sdk/client-bedrock-runtime'
+import type { DocumentType } from '@smithy/types'
+import type {
+  BedrockSystemPromptMetadata,
+  BedrockTextMetadata,
+} from '../message-types'
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+function base64ToBytes(b64: string): Uint8Array {
+  return new Uint8Array(Buffer.from(b64, 'base64'))
+}
+
+// AWS ToolResultContentBlock.image: Nova and Claude 3/4 ids only.
+// ponytail: id substring, not the image-input catalog (Llama accepts user images).
+function supportsToolResultImage(model: string | undefined): boolean {
+  return /amazon\.nova|anthropic\.claude-(?:3|(?:opus|sonnet|haiku)-4)/i.test(
+    model ?? '',
+  )
+}
+
+function imageFormat(mime: string): 'png' | 'jpeg' | 'gif' | 'webp' {
+  switch (mime) {
+    case 'image/png':
+      return 'png'
+    case 'image/jpeg':
+    case 'image/jpg':
+      return 'jpeg'
+    case 'image/gif':
+      return 'gif'
+    case 'image/webp':
+      return 'webp'
+    default:
+      throw new Error(
+        `Bedrock Converse: unsupported image MIME type "${mime}". Supported types: image/png, image/jpeg, image/gif, image/webp.`,
+      )
+  }
+}
+
+function documentFormat(
+  mime: string,
+): 'pdf' | 'csv' | 'doc' | 'docx' | 'xls' | 'xlsx' | 'html' | 'txt' | 'md' {
+  switch (mime) {
+    case 'application/pdf':
+      return 'pdf'
+    case 'text/csv':
+      return 'csv'
+    case 'application/msword':
+      return 'doc'
+    case 'application/vnd.openxmlformats-officedocument.wordprocessingml.document':
+      return 'docx'
+    case 'application/vnd.ms-excel':
+      return 'xls'
+    case 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet':
+      return 'xlsx'
+    case 'text/html':
+      return 'html'
+    case 'text/plain':
+      return 'txt'
+    case 'text/markdown':
+    case 'text/x-markdown':
+      return 'md'
+    default:
+      throw new Error(
+        `Bedrock Converse: unsupported document MIME type "${mime}". Supported types: pdf, csv, doc, docx, xls, xlsx, html, txt, md.`,
+      )
+  }
+}
+
+function stringContent(
+  content: string | null | undefined | Array<ContentPart>,
+): string {
+  if (content === null || content === undefined) return ''
+  if (typeof content === 'string') return content
+  return content
+    .filter((p): p is TextPart => p.type === 'text')
+    .map((p) => p.content)
+    .join('')
+}
+
+function isTextPart(p: ContentPart): p is TextPart {
+  return p.type === 'text'
+}
+
+function isImagePart(p: ContentPart): p is ImagePart {
+  return p.type === 'image'
+}
+
+function isDocumentPart(p: ContentPart): p is DocumentPart {
+  return p.type === 'document'
+}
+
+function isDataSource(
+  source: ImagePart['source'] | DocumentPart['source'],
+): source is ContentPartDataSource {
+  return source.type === 'data'
+}
+
+function contentPartToBlock(part: ContentPart, docIndex: number): ContentBlock {
+  if (isTextPart(part)) {
+    return { text: part.content }
+  }
+
+  if (isImagePart(part)) {
+    const { source } = part
+    if (isFileSource(source)) throw unsupportedFileSourceError('bedrock')
+    if (!isDataSource(source)) {
+      throw new Error(
+        'Bedrock Converse requires inline image bytes; URL image sources are not supported.',
+      )
+    }
+    return {
+      image: {
+        format: imageFormat(source.mimeType),
+        source: { bytes: base64ToBytes(source.value) },
+      },
+    }
+  }
+
+  if (isDocumentPart(part)) {
+    const { source } = part
+    if (isFileSource(source)) throw unsupportedFileSourceError('bedrock')
+    if (!isDataSource(source)) {
+      throw new Error(
+        'Bedrock Converse requires inline document bytes; URL document sources are not supported.',
+      )
+    }
+    return {
+      document: {
+        format: documentFormat(source.mimeType),
+        name: `document-${docIndex}`,
+        source: { bytes: base64ToBytes(source.value) },
+      },
+    }
+  }
+
+  // Fail loud for unsupported part types (audio, video, etc.)
+  throw new Error(
+    `Bedrock Converse does not support content part type "${String(part.type)}".`,
+  )
+}
+
+interface ConverseReplayContext {
+  model: string
+  provider?: string
+}
+
+function messageToBlocks(
+  msg: ModelMessage,
+  docCounter: { value: number },
+  context?: ConverseReplayContext,
+): Array<ContentBlock> {
+  const blocks: Array<ContentBlock> = []
+
+  if (msg.role === 'tool') {
+    if (!msg.toolCallId) {
+      throw new Error(
+        'Bedrock Converse: tool message is missing toolCallId. Every tool result must reference the tool use ID it is responding to.',
+      )
+    }
+    const textContent = stringContent(msg.content)
+    const content: Array<ToolResultContentBlock> = textContent
+      ? [{ text: textContent }]
+      : []
+    for (const part of Array.isArray(msg.content) ? msg.content : []) {
+      // Inline bytes on Nova and Claude 3/4 only. Skip the rest, as before.
+      if (
+        !supportsToolResultImage(context?.model) ||
+        !isImagePart(part) ||
+        !isDataSource(part.source)
+      )
+        continue
+      let image: ContentBlock['image']
+      try {
+        image = contentPartToBlock(part, 0).image
+      } catch {
+        continue
+      }
+      if (image) content.push({ image })
+    }
+    if (content.length === 0) content.push({ text: textContent })
+    blocks.push({
+      toolResult: {
+        toolUseId: msg.toolCallId,
+        content,
+        status: msg.error !== undefined ? 'error' : 'success',
+      },
+    })
+    return blocks
+  }
+
+  // Thinking goes back as reasoning blocks. Claude needs its signature, so
+  // unsigned Claude thinking goes back as text.
+  function appendThinking(
+    thinking: NonNullable<ModelMessage['thinking']>[number],
+  ): void {
+    if (thinking.redacted) {
+      if (thinking.signature)
+        blocks.push({
+          reasoningContent: {
+            redactedContent: base64ToBytes(thinking.signature),
+          },
+        })
+      return
+    }
+    const text = thinking.content
+    if (!text) return
+    const claude = /anthropic[./]claude/i.test(context?.model ?? '')
+    if (claude && !thinking.signature) blocks.push({ text })
+    else
+      blocks.push({
+        reasoningContent: {
+          reasoningText: {
+            text,
+            ...(claude && thinking.signature
+              ? { signature: thinking.signature }
+              : {}),
+          },
+        },
+      })
+  }
+  const ordered =
+    msg.role === 'assistant' ? orderedAssistantBlocks(msg) : undefined
+  if (ordered) {
+    for (const block of ordered) {
+      if (block.type === 'thinking') appendThinking(block.thinking)
+      else if (block.type === 'tool-call')
+        blocks.push(toolUseBlock(block.toolCall))
+      else blocks.push({ text: block.text })
+    }
+    return blocks
+  }
+  if (msg.role === 'assistant')
+    for (const thinking of msg.thinking ?? []) appendThinking(thinking)
+
+  // Map content field to text/image/document blocks
+  if (typeof msg.content === 'string') {
+    if (msg.content !== '') {
+      blocks.push({ text: msg.content })
+    }
+  } else if (Array.isArray(msg.content)) {
+    for (const part of msg.content) {
+      const docIndex = isDocumentPart(part) ? ++docCounter.value : 0
+      blocks.push(contentPartToBlock(part, docIndex))
+      if (isTextPart(part)) {
+        const { cachePoint } = (part.metadata ?? {}) as BedrockTextMetadata
+        if (cachePoint) blocks.push({ cachePoint })
+      }
+    }
+  }
+  // null → no text blocks
+
+  // Append toolUse blocks for assistant tool calls. Malformed JSON stays in
+  // the history next to its tool error, so it goes out as `{}`. Non-object
+  // arguments signal a real upstream problem and throw (the adapter's catch
+  // surfaces it as a RUN_ERROR).
+  if (msg.role === 'assistant' && msg.toolCalls) {
+    for (const call of msg.toolCalls) blocks.push(toolUseBlock(call))
+  }
+
+  return blocks
+}
+
+function toolUseBlock(
+  call: NonNullable<ModelMessage['toolCalls']>[number],
+): ContentBlock {
+  const rawArguments = call.function.arguments || '{}'
+  let parsed: unknown = {}
+  try {
+    parsed = JSON.parse(rawArguments)
+  } catch {
+    // The tool result already told the model the arguments were malformed.
+  }
+  if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    throw new Error(
+      `Bedrock Converse: tool call "${call.function.name}" arguments must be a JSON object, got ${Array.isArray(parsed) ? 'array' : typeof parsed}.`,
+    )
+  }
+  return {
+    toolUse: {
+      toolUseId: call.id,
+      name: call.function.name,
+      input: parsed as DocumentType,
+    },
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Public API
+// ---------------------------------------------------------------------------
+
+/**
+ * Convert TanStack AI messages + system prompts into the Converse API format.
+ *
+ * - System prompts are lifted into `SystemContentBlock[]`; a prompt whose
+ *   `metadata.cachePoint` is set is followed by a `cachePoint` block.
+ * - `tool` role messages are remapped to `user` role `toolResult` blocks.
+ * - Consecutive messages with the same Converse role are merged (Converse
+ *   requires strict user/assistant alternation).
+ */
+export function toConverseMessages(
+  messages: Array<ModelMessage>,
+  systemPrompts?: Array<SystemPrompt>,
+  context?: ConverseReplayContext,
+): { system: Array<SystemContentBlock>; messages: Array<Message> } {
+  // Build system blocks (uses normalizeSystemPrompts for runtime validation)
+  const system: Array<SystemContentBlock> =
+    normalizeSystemPrompts<BedrockSystemPromptMetadata>(systemPrompts).flatMap(
+      (p) =>
+        p.metadata?.cachePoint
+          ? [{ text: p.content }, { cachePoint: p.metadata.cachePoint }]
+          : [{ text: p.content }],
+    )
+
+  // Convert each ModelMessage to a Converse Message, merging same-role pairs
+  const converseMessages: Array<Message> = []
+  // Global document counter: ensures every document block across all messages
+  // gets a unique name, preventing Bedrock ValidationException for duplicate names.
+  const docCounter = { value: 0 }
+
+  // History from another model loses its signatures, and its tool IDs are
+  // rewritten to the shape Converse accepts. Each call stays paired.
+  const replay = transformMessagesForReplay(
+    messages,
+    context
+      ? {
+          provider: context.provider ?? 'amazon-bedrock',
+          api: 'bedrock-converse-stream',
+          model: context.model,
+        }
+      : undefined,
+    (id, { foreign, attempt }) => {
+      if (!foreign && attempt === 0) return id
+      const clean = id.replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 64)
+      return attempt === 0
+        ? clean
+        : clean.slice(0, 47) +
+            '_' +
+            hashToolCallId(id + ':' + attempt).slice(0, 16)
+    },
+  )
+  for (const msg of replay.messages) {
+    // Map TanStack roles to Converse roles
+    const converseRole: 'user' | 'assistant' =
+      msg.role === 'assistant' ? 'assistant' : 'user'
+
+    const blocks = messageToBlocks(msg, docCounter, context)
+
+    // Skip messages that produce no content blocks (e.g. assistant with
+    // null content and no toolCalls). Pushing an empty-content message to
+    // Converse triggers a ValidationException.
+    if (blocks.length === 0) continue
+
+    const last = converseMessages[converseMessages.length - 1]
+    if (last && last.role === converseRole) {
+      // Merge into the previous message's content array
+      last.content = [...(last.content ?? []), ...blocks]
+    } else {
+      converseMessages.push({ role: converseRole, content: blocks })
+    }
+  }
+
+  return { system, messages: converseMessages }
+}
+
+/**
+ * Write the `toolUse` and `toolResult` blocks as text blocks. Bedrock rejects
+ * these blocks in a request with no `toolConfig`, so a request with no tools
+ * sends its tool history this way.
+ */
+export function toolBlocksToText(messages: Array<Message>): Array<Message> {
+  return messages.map((message) => ({
+    ...message,
+    content: message.content?.flatMap((block): Array<ContentBlock> => {
+      if (block.toolUse) {
+        const { toolUseId, name, input } = block.toolUse
+        return [
+          {
+            text: `[Tool call ${toolUseId} ${name}(${JSON.stringify(input)})]`,
+          },
+        ]
+      }
+      if (block.toolResult) {
+        const { toolUseId, content = [] } = block.toolResult
+        const text = content.map((part) => part.text ?? '').join('')
+        // Keep the images of the result as image blocks after the text.
+        const images = content.flatMap((part) =>
+          part.image ? [{ image: part.image }] : [],
+        )
+        return [{ text: `[Tool result ${toolUseId}: ${text}]` }, ...images]
+      }
+      return [block]
+    }),
+  }))
+}

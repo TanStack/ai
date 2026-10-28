@@ -3,9 +3,7 @@ id: AudioGenerationOptions
 title: AudioGenerationOptions
 ---
 
-# Interface: AudioGenerationOptions\<TProviderOptions\>
-
-Defined in: [packages/typescript/ai/src/types.ts:1274](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1274)
+Defined in: packages/ai/src/types.ts:2473
 
 Options for audio generation (music, sound effects, etc.).
 These are the common options supported across providers.
@@ -18,13 +16,27 @@ These are the common options supported across providers.
 
 ## Properties
 
+### abortSignal?
+
+```ts
+optional abortSignal?: AbortSignal;
+```
+
+Defined in: packages/ai/src/types.ts:2495
+
+Effective abort signal composed by the activity from caller `abortSignal`
+and/or `timeout`. Adapters should forward this to the provider SDK when
+supported. Request-specific — never store on a global client config.
+
+***
+
 ### duration?
 
 ```ts
-optional duration: number;
+optional duration?: number;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:1282](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1282)
+Defined in: packages/ai/src/types.ts:2481
 
 Desired duration in seconds
 
@@ -36,7 +48,7 @@ Desired duration in seconds
 logger: InternalLogger;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:1290](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1290)
+Defined in: packages/ai/src/types.ts:2489
 
 Internal logger threaded from the generateAudio() entry point. Adapters
 must call logger.request() before the SDK call and logger.errors() in
@@ -50,7 +62,7 @@ catch blocks.
 model: string;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:1278](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1278)
+Defined in: packages/ai/src/types.ts:2477
 
 The model to use for audio generation
 
@@ -59,10 +71,10 @@ The model to use for audio generation
 ### modelOptions?
 
 ```ts
-optional modelOptions: TProviderOptions;
+optional modelOptions?: TProviderOptions;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:1284](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1284)
+Defined in: packages/ai/src/types.ts:2483
 
 Model-specific options for audio generation
 
@@ -74,6 +86,6 @@ Model-specific options for audio generation
 prompt: string;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:1280](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1280)
+Defined in: packages/ai/src/types.ts:2479
 
 Text description of the desired audio

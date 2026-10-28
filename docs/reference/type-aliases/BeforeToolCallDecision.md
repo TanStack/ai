@@ -3,8 +3,6 @@ id: BeforeToolCallDecision
 title: BeforeToolCallDecision
 ---
 
-# Type Alias: BeforeToolCallDecision
-
 ```ts
 type BeforeToolCallDecision = 
   | void
@@ -24,7 +22,7 @@ type BeforeToolCallDecision =
 };
 ```
 
-Defined in: [packages/typescript/ai/src/activities/chat/middleware/types.ts:143](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/middleware/types.ts#L143)
+Defined in: packages/ai/src/activities/chat/middleware/types.ts:453
 
 Decision returned from onBeforeToolCall.
 - undefined/void: continue with normal execution

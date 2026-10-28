@@ -1,439 +1,223 @@
 ---
 title: Approval Flow Processing Architecture
 id: approval-flow-processing
-description: "Internal architecture of TanStack AI's tool approval system — state machine, streaming protocol, concurrency control, and chained approval mechanics."
+description: "How a TanStack AI tool approval pauses a run, how the client resumes it, and what the server checks before the tool runs."
 keywords:
   - tanstack ai
   - approval flow
-  - tool approval
-  - architecture
+  - interrupts
   - state machine
-  - streaming protocol
-  - internals
-  - concurrency
+  - persistence
 ---
 
-# Approval Flow Processing Architecture
+This page lists each step from the model tool call to the tool result, after a person approves the call.
 
-> Internal architecture reference for the tool approval system in TanStack AI.
-> Covers the full lifecycle from stream event to continuation, with emphasis on
-> concurrency control and the chained approval mechanism.
+An approval is an interrupt. The run stops before the tool executes and ends with an `interrupt` outcome. The client sends the decision in a new run. The server checks that decision and then runs the tool.
 
----
+For the public guide, see [Interrupts](../interrupts/overview). This page shows the internals.
 
-## Table of Contents
+## Set up an approval
 
-1. [Overview](#overview)
-2. [Component Responsibilities](#component-responsibilities)
-3. [Type System](#type-system)
-4. [State Machine](#state-machine)
-5. [Single Approval Lifecycle](#single-approval-lifecycle)
-6. [Chained Approvals and Continuation Control](#chained-approvals-and-continuation-control)
-7. [Stream Event Protocol](#stream-event-protocol)
-8. [Key Source Files](#key-source-files)
+1. Mark the tool with `needsApproval: true`:
 
----
+```ts
+// tools.ts
+import { toolDefinition } from '@tanstack/ai'
+import { z } from 'zod'
 
-## Overview
+const projects = new Map([['demo', { name: 'Demo project' }]])
 
-The approval flow allows tools marked with `needsApproval: true` to pause
-execution until the user explicitly approves or denies the action. This
-creates a human-in-the-loop checkpoint for sensitive operations (sending
-emails, making purchases, deleting data).
+export const deleteProjectDefinition = toolDefinition({
+  name: 'delete_project',
+  description: 'Delete a project permanently',
+  inputSchema: z.object({ projectId: z.string() }),
+  outputSchema: z.object({ deleted: z.boolean() }),
+  needsApproval: true,
+})
 
-The flow spans three layers:
-
-```mermaid
-flowchart TD
-    A[Server - TextEngine]
-    B[StreamProcessor]
-    C[ChatClient]
-
-    A -- "AG-UI stream · SSE / HTTP" --> B
-    B -- "events" --> C
+export const deleteProject = deleteProjectDefinition.server(async ({ projectId }) => {
+  return { deleted: projects.delete(projectId) }
+})
 ```
 
-| Layer | Responsibility |
-|-------|----------------|
-| **Server (TextEngine)** | `chat()` detects `needsApproval` → emits CUSTOM `approval-requested` instead of executing the tool |
-| **StreamProcessor** | Receives CUSTOM chunk → `updateToolCallApproval()` → fires `onApprovalRequest` callback |
-| **ChatClient** | Exposes `addToolApprovalResponse()` → updates message state → triggers `checkForContinuation()` → sends new stream |
+2. Pass `parentRunId` and `resume` from the request to `chat()`:
 
-Framework hooks (`useChat` in React, Solid, Vue, Svelte) delegate to
-`ChatClient`, which owns all concurrency and continuation logic.
+```ts
+// app/api/chat/route.ts
+import {
+  chat,
+  chatParamsFromRequest,
+  toServerSentEventsResponse,
+} from '@tanstack/ai'
+import { openaiText } from '@tanstack/ai-openai'
+import { deleteProject } from './tools'
 
----
+export async function POST(request: Request) {
+  const params = await chatParamsFromRequest(request)
+  const stream = chat({
+    adapter: openaiText('gpt-6.1-sol'),
+    messages: params.messages,
+    threadId: params.threadId,
+    runId: params.runId,
+    parentRunId: params.parentRunId,
+    ...(params.resume ? { resume: params.resume } : {}),
+    tools: [deleteProject],
+  })
 
-## Component Responsibilities
-
-### TextEngine (server)
-
-- Runs the agent loop: calls the LLM adapter, accumulates tool calls, executes
-  tools, and re-invokes the adapter with results.
-- When a tool has `needsApproval: true`, the engine emits a
-  `CUSTOM { name: "approval-requested" }` event instead of executing the tool.
-- The stream ends with `RUN_FINISHED { finishReason: "tool_calls" }` so the
-  client knows tools are pending.
-
-### StreamProcessor (`packages/typescript/ai/src/activities/chat/stream/processor.ts`)
-
-- Single source of truth for `UIMessage[]` state.
-- On `approval-requested` custom event:
-  1. Calls `updateToolCallApproval()` to set the tool-call part's state to
-     `approval-requested` and attach approval metadata.
-  2. Fires `onApprovalRequest` so the ChatClient can emit devtools events.
-- On `addToolApprovalResponse(approvalId, approved)`:
-  1. Calls `updateToolCallApprovalResponse()` to set state to
-     `approval-responded` and record `approval.approved`.
-- Provides `areAllToolsComplete()` which the ChatClient uses to decide whether
-  to auto-continue the conversation.
-
-### ChatClient (`packages/typescript/ai-client/src/chat-client.ts`)
-
-- Owns the streaming lifecycle (`streamResponse`), post-stream action queue,
-  and continuation control flags.
-- Exposes `addToolApprovalResponse()` as the public API for responding to
-  approval requests.
-- Manages two critical flags for continuation:
-  - `continuationPending` — prevents concurrent `streamResponse` calls.
-  - `continuationSkipped` — detects when a queued continuation check was
-    suppressed by `continuationPending` and needs re-evaluation.
-
-### Framework Hooks (React `useChat`, Solid `useChat`, etc.)
-
-- Wrap `ChatClient` methods in framework-specific reactive primitives.
-- Expose `addToolApprovalResponse` directly to the component.
-- No approval-specific logic beyond delegation.
-
----
-
-## Type System
-
-### ToolCallState
-
-```typescript
-type ToolCallState =
-  | 'awaiting-input'       // TOOL_CALL_START received, no arguments yet
-  | 'input-streaming'      // Partial arguments being received
-  | 'input-complete'       // All arguments received (TOOL_CALL_END)
-  | 'approval-requested'   // Waiting for user approval
-  | 'approval-responded'   // User has approved or denied
-```
-
-### ToolCallPart (approval-relevant fields)
-
-```typescript
-interface ToolCallPart {
-  type: 'tool-call'
-  id: string               // Unique tool call ID
-  name: string             // Tool name
-  arguments: string        // JSON string of arguments
-  state: ToolCallState
-
-  approval?: {
-    id: string             // Unique approval ID (NOT the toolCallId)
-    needsApproval: boolean // Always true when present
-    approved?: boolean     // undefined until user responds
-  }
-
-  output?: any             // Set after execution (client tools)
+  return toServerSentEventsResponse(stream)
 }
 ```
 
-### Key distinction: approval ID vs tool call ID
+3. Render the pending interrupts from `useChat`:
 
-The `approval.id` is a separate identifier generated per approval request.
-All user-facing APIs (`addToolApprovalResponse`) use the **approval ID**,
-not the tool call ID. This allows the system to correlate approval responses
-even when multiple tools share similar call IDs across different messages.
+```tsx group=approval-ui
+import type { ItemInterruptError } from '@tanstack/ai'
+import { fetchServerSentEvents, useChat } from '@tanstack/ai-react'
+import { deleteProjectDefinition } from './tools'
 
----
+export function ApprovalQueue() {
+  const chat = useChat({
+    threadId: 'project-thread',
+    connection: fetchServerSentEvents('/api/chat'),
+    tools: [deleteProjectDefinition] as const,
+  })
 
-## State Machine
-
-```mermaid
-flowchart TD
-    S1[awaiting-input]
-    S2[input-streaming]
-    S3[input-complete]
-    S4[approval-requested]
-    S5([execute directly])
-    S6[approval-responded]
-    S7([execute tool])
-    S8([cancelled])
-
-    S1 -- "TOOL_CALL_START" --> S2
-    S2 -- "TOOL_CALL_ARGS" --> S3
-    S3 -- "TOOL_CALL_END · needsApproval: true" --> S4
-    S3 -- "TOOL_CALL_END · needsApproval: false" --> S5
-    S4 -- "addToolApprovalResponse()" --> S6
-    S6 -- "approved: true" --> S7
-    S6 -- "approved: false" --> S8
-```
-
-### Terminal states for `areAllToolsComplete()`
-
-A tool call is considered complete (and eligible for auto-continuation) when
-any of the following is true:
-
-1. `state === 'approval-responded'` — user approved or denied
-2. `output !== undefined && !approval` — client tool finished (no approval flow)
-3. A corresponding `tool-result` part exists — server tool finished
-
----
-
-## Single Approval Lifecycle
-
-Step-by-step flow for a single tool requiring approval:
-
-### 1. Server emits approval request during stream
-
-```
-TOOL_CALL_START   { toolCallId: "tc-1", toolName: "send_email" }
-TOOL_CALL_ARGS    { toolCallId: "tc-1", delta: '{"to":"..."}' }
-TOOL_CALL_END     { toolCallId: "tc-1" }
-CUSTOM            { name: "approval-requested", value: {
-                      toolCallId: "tc-1",
-                      toolName: "send_email",
-                      input: { to: "..." },
-                      approval: { id: "appr-1", needsApproval: true }
-                  }}
-RUN_FINISHED      { finishReason: "tool_calls" }
-```
-
-### 2. StreamProcessor processes the CUSTOM chunk
-
-```
-handleCustomEvent():
-  1. updateToolCallApproval(messages, messageId, "tc-1", "appr-1")
-     → Sets part.state = "approval-requested"
-     → Sets part.approval = { id: "appr-1", needsApproval: true }
-  2. emitMessagesChange()
-  3. fires onApprovalRequest({ toolCallId, toolName, input, approvalId })
-```
-
-### 3. Stream ends, ChatClient processes
-
-```
-streamResponse() finally block:
-  1. setIsLoading(false)
-  2. drainPostStreamActions() → (nothing queued)
-  3. streamCompletedSuccessfully check:
-     lastPart is tool-call (not tool-result) → no auto-continue
-  → Returns to caller (sendMessage resolves)
-```
-
-The conversation is now paused. The UI renders the approval prompt.
-
-### 4. User approves
-
-```
-addToolApprovalResponse({ id: "appr-1", approved: true }):
-  1. processor.addToolApprovalResponse("appr-1", true)
-     → updateToolCallApprovalResponse():
-       part.approval.approved = true
-       part.state = "approval-responded"
-  2. isLoading is false → call checkForContinuation() directly
-```
-
-### 5. Continuation
-
-```
-checkForContinuation():
-  1. continuationPending = false, isLoading = false → proceed
-  2. shouldAutoSend() → areAllToolsComplete():
-     part.state === "approval-responded" → true
-  3. continuationPending = true
-  4. streamResponse() → new stream to server with approval in messages
-  5. Server sees approval, executes tool, returns result + LLM response
-  6. continuationPending = false
-```
-
----
-
-## Chained Approvals and Continuation Control
-
-The most complex scenario: a continuation stream produces **another** tool call
-that also needs approval, and the user responds to it while the stream is still
-active.
-
-### The Problem
-
-```
-Timeline:
-─────────────────────────────────────────────────────────────
-
-1. User approves tool A
-   └─ checkForContinuation() sets continuationPending = true
-   └─ streamResponse() starts (stream 2)
-
-2. Stream 2 produces tool B needing approval
-   └─ approval-requested chunk processed
-   └─ UI shows approval prompt for tool B
-
-3. User approves tool B WHILE stream 2 is still active
-   └─ addToolApprovalResponse():
-      └─ processor state updated (approval-responded)
-      └─ isLoading is true → queues checkForContinuation
-
-4. Stream 2 ends
-   └─ streamResponse() finally block:
-      └─ setIsLoading(false)
-      └─ drainPostStreamActions():
-         └─ Runs queued checkForContinuation()
-         └─ BUT continuationPending is STILL TRUE (from step 1)
-         └─ *** EARLY RETURN — approval swallowed ***
-   └─ Returns to step 1's checkForContinuation()
-   └─ continuationPending = false
-
-5. Nobody re-checks → tool B's approval is lost
-```
-
-### The Solution: `continuationSkipped` Flag
-
-Two flags work together to handle this:
-
-- **`continuationPending`** — prevents concurrent `streamResponse()` calls.
-  Set to `true` when entering `checkForContinuation`'s streaming path, cleared
-  in the `finally` block.
-
-- **`continuationSkipped`** — set to `true` whenever `checkForContinuation()`
-  returns early due to `continuationPending` or `isLoading` being true.
-  Checked after `continuationPending` is cleared to trigger a re-evaluation.
-
-```typescript
-private async checkForContinuation(): Promise<void> {
-  if (this.continuationPending || this.isLoading) {
-    this.continuationSkipped = true   // ← Mark that a check was suppressed
-    return
-  }
-
-  if (this.shouldAutoSend()) {
-    this.continuationPending = true
-    this.continuationSkipped = false  // ← Reset before entering stream
-    try {
-      await this.streamResponse()
-    } finally {
-      this.continuationPending = false
-    }
-    // If a check was skipped during the stream, re-evaluate now
-    if (this.continuationSkipped) {
-      this.continuationSkipped = false
-      await this.checkForContinuation()  // ← Recurse safely
-    }
-  }
+  return (
+    <section>
+      {chat.interrupts.map((interrupt) => (
+        <article key={interrupt.id}>
+          <p>Approval required: {interrupt.reason}</p>
+          {interrupt.kind === 'tool-approval' ? (
+            <button onClick={() => interrupt.resolveInterrupt(true)}>
+              Approve
+            </button>
+          ) : null}
+          <button onClick={() => interrupt.cancel()}>Cancel</button>
+          {interrupt.errors.map((error: ItemInterruptError) => (
+            <p key={`${error.code}:${error.path?.join('.') ?? ''}`}>
+              {error.message}
+            </p>
+          ))}
+        </article>
+      ))}
+    </section>
+  )
 }
 ```
 
-### Why the recursion is safe
+Ask the model to delete the `demo` project. The Approve button shows. Click it, and the tool runs.
 
-The recursion terminates because:
+This route needs no server storage. The browser sends the full message history back with the decision, and the engine rebuilds the paused call from it.
 
-1. **`continuationSkipped` is only set when a real check was suppressed.** After
-   the final stream (e.g., a text-only response), no new approvals arrive, so
-   `continuationSkipped` stays `false` and the recursion stops.
+## How it works
 
-2. **`shouldAutoSend()` returns `false` when tools are still pending approval.**
-   If a new approval arrives that hasn't been responded to yet, `areAllToolsComplete()`
-   returns `false` and the method exits without streaming.
+One approval goes through these steps:
 
-3. **Each recursion level sets `continuationPending = true`**, preventing any
-   concurrent checks from entering the streaming path.
+1. The model emits a tool call. On the client, the tool-call part reaches `approval-requested`.
+2. The run ends with `RUN_FINISHED`, and `outcome.type` is `'interrupt'`.
+3. `useChat` shows a bound item in `interrupts`. While an interrupt waits, `useChat` rejects normal input, so no second branch starts.
+4. The UI calls `resolveInterrupt(...)` or `cancel()`. One item submits at once. A batch waits for a valid draft for each item.
+5. The next request has a fresh `runId`, the interrupted `parentRunId`, and the exact AG-UI `resume` array.
+6. The server checks the full set. Then the engine continues the tool call.
 
-### Corrected Timeline
+Each layer has one job:
 
-```
-Timeline (with fix):
-─────────────────────────────────────────────────────────────
+| Layer | Job |
+| --- | --- |
+| Tool definition | Declares `needsApproval: true` for a sensitive operation. |
+| Chat engine | Stops before the tool executes and emits the interrupt outcome. |
+| Chat client | Binds descriptors to typed methods, stages drafts, and submits one exact resume batch. |
+| Application UI | Explains the operation and calls `resolveInterrupt`, `cancel`, or the root batch controls. |
+| Delivery adapter | Optional. Replays SSE events by opaque offsets that the adapter owns. |
 
-1. User approves tool A
-   └─ checkForContinuation() [OUTER]
-   └─ continuationPending = true, continuationSkipped = false
-   └─ streamResponse() starts (stream 2)
+## Advanced
 
-2. Stream 2 produces tool B, user approves during stream
-   └─ Queues checkForContinuation as post-stream action
+### The interrupt terminal event
 
-3. Stream 2 ends
-   └─ drainPostStreamActions():
-      └─ checkForContinuation(): continuationPending is true
-         └─ continuationSkipped = true  ← MARKED
-         └─ returns early
-   └─ Back in OUTER: continuationPending = false
+A run that needs user input ends with one canonical event:
 
-4. OUTER checks continuationSkipped → true
-   └─ continuationSkipped = false
-   └─ Recurses into checkForContinuation() [INNER]
-   └─ shouldAutoSend() → true (tool B is approval-responded)
-   └─ continuationPending = true
-   └─ streamResponse() → stream 3 (final text response)
-   └─ continuationPending = false
-   └─ continuationSkipped is false → no further recursion
-
-5. Done. All three streams completed correctly.
-```
-
----
-
-## Stream Event Protocol
-
-### Approval-related AG-UI events
-
-These are `CUSTOM` events emitted by the TextEngine, not by adapters directly.
-
-#### `approval-requested`
-
-Emitted when a tool with `needsApproval: true` has its arguments finalized.
-
-```typescript
-{
-  type: 'CUSTOM',
-  name: 'approval-requested',
-  value: {
-    toolCallId: string,    // ID of the tool call
-    toolName: string,      // Name of the tool
-    input: any,            // Parsed arguments
-    approval: {
-      id: string,          // Unique approval ID
-      needsApproval: true
-    }
-  }
+```ts
+const interruptTerminal = {
+  type: 'RUN_FINISHED',
+  runId: 'run-1',
+  threadId: 'thread-1',
+  timestamp: Date.now(),
+  outcome: {
+    type: 'interrupt',
+    interrupts: [
+      {
+        id: 'approval-1',
+        reason: 'tool_call',
+        toolCallId: 'call-1',
+        responseSchema: {
+          oneOf: [
+            { type: 'object', properties: { approved: { const: true } } },
+            { type: 'object', properties: { approved: { const: false } } },
+          ],
+        },
+      },
+    ],
+  },
 }
 ```
 
-**Processor handling:** `handleCustomEvent()` → `updateToolCallApproval()` →
-`onApprovalRequest` callback.
+This event stream is the only native approval event stream. It works without persistence.
 
-#### Relation to other tool events
+- **With server state persistence**, the server stores the complete descriptor and binding batch before it exposes the terminal event.
+- **With SSE delivery durability**, the adapter gives each delivered event an opaque resume offset. This is a separate layer.
 
-A complete approval tool call in the stream looks like:
+If your code uses custom approval events, see [Migrate to AG-UI interrupts](../interrupts/migration).
 
+### Descriptor to continuation pipeline
+
+The rule is **descriptor, then validate all, then continuation, then history**:
+
+1. The engine builds public descriptors and bindings. The output includes `MESSAGES_SNAPSHOT`, an optional `STATE_SNAPSHOT`, and the interrupt `RUN_FINISHED` terminal.
+2. The client binds a descriptor only when it matches the tool registry of the client. The match covers reason, tool identity, call ID, schema hashes, interrupted run, and generation. An untrusted descriptor becomes `generic`. It does not get a typed tool resolver.
+3. Item methods check and stage local drafts. The submit boundary holds each pending interrupt ID exactly once.
+4. The client submits a fresh run with the full current message history, the interrupted `parentRunId`, and the complete resume batch.
+5. The server checks **all** payloads, edited inputs, outputs, hashes, and correlation before it executes anything. It rebuilds the expected batch from the history that the client sent and from its current tool definitions.
+6. Resumed tool calls emit results only. They do not replay synthetic tool-call start or argument events. The successful history belongs to the continuation run.
+
+The server rebuilds the batch from history that the client sends. So ephemeral mode does not give replay, exactly-once, restart, or cross-instance guarantees. The server checks the message history, but it is still input from the client.
+
+### Resolve a batch
+
+When several interrupts wait, stage every resolution in one synchronous root callback:
+
+```tsx group=approval-ui
+function ResolveAll({ approved }: { approved: boolean }) {
+  const chat = useChat({
+    threadId: 'project-thread',
+    connection: fetchServerSentEvents('/api/chat'),
+    tools: [deleteProjectDefinition] as const,
+  })
+
+  return (
+    <button
+      onClick={() =>
+        void chat.resolveInterrupts((interrupt) => {
+          if (interrupt.kind === 'tool-approval') {
+            if (approved) {
+              interrupt.resolveInterrupt(true)
+            } else {
+              interrupt.resolveInterrupt(false)
+            }
+            return
+          }
+          interrupt.cancel()
+        })
+      }
+    >
+      Resolve all
+    </button>
+  )
+}
 ```
-TOOL_CALL_START     → creates tool-call part (state: awaiting-input)
-TOOL_CALL_ARGS*     → accumulates arguments (state: input-streaming)
-TOOL_CALL_END       → finalizes arguments (state: input-complete)
-CUSTOM              → approval-requested (state: approval-requested)
-RUN_FINISHED        → finishReason: "tool_calls"
-```
 
-After the stream ends and the user responds, the ChatClient:
-1. Updates the tool-call part (state: `approval-responded`)
-2. Sends a new stream request with the full conversation (including approval)
-3. The server sees the approval and either executes or cancels the tool
+### State durability and delivery durability
 
----
+These are two different layers:
 
-## Key Source Files
-
-| File | Role |
-|------|------|
-| `packages/typescript/ai/src/types.ts` | `ToolCallState`, `ToolCallPart`, tool approval types |
-| `packages/typescript/ai/src/activities/chat/stream/processor.ts` | `handleCustomEvent()` (approval-requested), `areAllToolsComplete()`, `addToolApprovalResponse()` |
-| `packages/typescript/ai/src/activities/chat/stream/message-updaters.ts` | `updateToolCallApproval()`, `updateToolCallApprovalResponse()` |
-| `packages/typescript/ai-client/src/chat-client.ts` | `addToolApprovalResponse()`, `checkForContinuation()`, continuation flags |
-| `packages/typescript/ai-react/src/use-chat.ts` | React hook: exposes `addToolApprovalResponse` |
-| `packages/typescript/ai-solid/src/use-chat.ts` | Solid hook: exposes `addToolApprovalResponse` |
-| `packages/typescript/ai-vue/src/use-chat.ts` | Vue composable: exposes `addToolApprovalResponse` |
-| `packages/typescript/ai-svelte/src/create-chat.svelte.ts` | Svelte: exposes `addToolApprovalResponse` |
-| `packages/typescript/ai-client/tests/chat-client.test.ts` | Chained approval test (`describe('chained tool approvals')`) |
-| `packages/typescript/ai/docs/chat-architecture.md` | Internal stream processing architecture |
+- **State.** Interrupts run ephemerally. The engine rebuilds the paused call from the message history that the browser sends on the continuation request. Durable recovery is an optional layer, and approvals do not need it.
+- **Delivery.** Delivery durability makes the live byte stream replayable after a dropped connection. You configure it on `toServerSentEventsResponse`. It gives one opaque SSE id per chunk. It is not available for NDJSON. See [Resumable Streams](../resumable-streams/overview).

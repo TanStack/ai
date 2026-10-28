@@ -1,0 +1,15 @@
+# Self-improve plugin behavior knobs. Edit and commit per repo.
+correction_detection:
+  enabled: true
+  regex_strictness: loose # loose | strict
+coupling_detection:
+  enabled: true
+  regex_strictness: loose
+enforcement:
+  pre_push_block: true # false = warn only, do not block push
+curation:
+  default_interval_days: 30
+promotion:
+  auto_suggest_global: true
+  skill_improve_threshold: 3
+skills_repo: ~/.claude/skills

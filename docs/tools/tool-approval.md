@@ -2,7 +2,7 @@
 title: Tool Approval Flow
 id: tool-approval-flow
 order: 5
-description: "Require user approval before executing sensitive tools in TanStack AI — approval states, deny flows, and batched approvals with needsApproval."
+description: 'Make a tool wait for a yes from the user before it runs. Mark it with needsApproval, then show Approve and Deny buttons in your chat.'
 keywords:
   - tanstack ai
   - tool approval
@@ -13,240 +13,301 @@ keywords:
   - human-in-the-loop
 ---
 
-The tool approval flow allows you to require user approval before executing sensitive tools, giving users control over actions like sending emails, making purchases, or deleting data. Tools go through these states during approval:
+Set `needsApproval: true` on a tool that sends email, pays, or deletes data. The tool runs after a person approves the call.
 
-1. **`approval-requested`** - Waiting for user approval
-2. **`executing`** - Approved, now executing
-3. **`output-available`** - Execution completed
-4. **`output-error`** - Execution failed
-5. **`cancelled`** - User denied approval
+Add `needsApproval: true` to the tool. The run pauses before the tool runs. Your UI shows the call with Approve and Deny buttons. Then the run continues with the answer of the user.
 
-When a tool requires approval, the typical flow is:
+## Add an approval
 
-1. Model calls the tool
-2. Tool execution is paused
-3. User is prompted to approve or deny
-4. Tool executes (if approved) or is cancelled (if denied)
-5. Conversation continues with the result
+### 1. Mark the tool in a shared file
 
-## Enabling Approval
-
-Tools can be marked as requiring approval by setting `needsApproval: true` in the definition:
+The server and the browser both import this definition:
 
 ```typescript
-import { toolDefinition } from "@tanstack/ai";
-import { z } from "zod";
+// tools/definitions.ts
+import { toolDefinition } from '@tanstack/ai'
+import { z } from 'zod'
 
-// Step 1: Define tool with approval requirement
-const sendEmailDef = toolDefinition({
-  name: "send_email",
-  description: "Send an email to a recipient",
+export const sendEmailDef = toolDefinition({
+  name: 'send_email',
+  description: 'Send an email to a recipient',
   inputSchema: z.object({
-    to: z.string().email(),
+    to: z.string(),
     subject: z.string(),
     body: z.string(),
   }),
   outputSchema: z.object({
-    success: z.boolean(),
-    messageId: z.string(),
+    sent: z.boolean(),
   }),
-  needsApproval: true, // This tool requires approval
-});
-
-// Step 2: Create server implementation
-const sendEmail = sendEmailDef.server(async ({ to, subject, body }) => {
-  // Only executes if approved
-  await emailService.send({ to, subject, body });
-  return { success: true, messageId: "..." };
-});
+  needsApproval: true,
+})
 ```
 
-## Server-Side Approval
+### 2. Add the server function and forward the resume fields
 
-On the server, tools with `needsApproval: true` will pause execution and wait for approval:
+The answer of the user arrives in a second request. Forward `parentRunId` and `resume`, so `chat()` can rebuild the paused call:
 
 ```typescript
-import { chat, toServerSentEventsResponse } from "@tanstack/ai";
-import { openaiText } from "@tanstack/ai-openai";
-import { sendEmail } from "./tools";
+// api/chat.ts
+import {
+  chat,
+  chatParamsFromRequest,
+  toServerSentEventsResponse,
+  toolDefinition,
+} from '@tanstack/ai'
+import { openaiText } from '@tanstack/ai-openai'
+import { z } from 'zod'
+
+// The same definition as tools/definitions.ts. In your app, import it from that file.
+const sendEmailDef = toolDefinition({
+  name: 'send_email',
+  description: 'Send an email to a recipient',
+  inputSchema: z.object({
+    to: z.string(),
+    subject: z.string(),
+    body: z.string(),
+  }),
+  outputSchema: z.object({
+    sent: z.boolean(),
+  }),
+  needsApproval: true,
+})
+
+const sendEmail = sendEmailDef.server(async ({ to, subject }) => {
+  // This runs only after the user approves. Call your email service here.
+  console.log(`Sending "${subject}" to ${to}`)
+  return { sent: true }
+})
 
 export async function POST(request: Request) {
-  const { messages } = await request.json();
+  const params = await chatParamsFromRequest(request)
 
   const stream = chat({
-    adapter: openaiText("gpt-5.2"),
-    messages,
+    adapter: openaiText('gpt-6.1-sol'),
+    messages: params.messages,
+    threadId: params.threadId,
+    runId: params.runId,
+    parentRunId: params.parentRunId,
+    ...(params.resume ? { resume: params.resume } : {}),
     tools: [sendEmail],
-  });
+  })
 
-  return toServerSentEventsResponse(stream);
+  return toServerSentEventsResponse(stream)
 }
 ```
 
-## Client-Side Approval Handling
+### 3. Show the approval in your chat
 
-The client receives approval requests and can respond:
+Pass the definition to `useChat`, so `toolName` and `originalArgs` are typed. Pending approvals come in `interrupts`:
 
-```typescript
-import { useChat, fetchServerSentEvents } from "@tanstack/ai-react";
+```tsx
+// app/chat.tsx
+import { useState } from 'react'
+import { useChat, fetchServerSentEvents } from '@tanstack/ai-react'
+import { sendEmailDef } from '../tools/definitions'
 
-function ChatComponent() {
-  const { messages, sendMessage, addToolApprovalResponse } = useChat({
-    connection: fetchServerSentEvents("/api/chat"),
-  });
+export function Chat() {
+  const [input, setInput] = useState('')
+  const { messages, sendMessage, interrupts, resuming } = useChat({
+    connection: fetchServerSentEvents('/api/chat'),
+    threadId: 'support-chat',
+    tools: [sendEmailDef],
+  })
 
   return (
     <div>
       {messages.map((message) => (
         <div key={message.id}>
-          {message.parts.map((part) => {
-            // Check for approval requests
-            if (
-              part.type === "tool-call" &&
-              part.state === "approval-requested" &&
-              part.approval
-            ) {
-              return (
-                <div key={part.id} className="approval-prompt">
-                  <p>Approve: {part.name}</p>
-                  <pre>{JSON.stringify(part.arguments, null, 2)}</pre>
-                  <button
-                    onClick={() =>
-                      addToolApprovalResponse({
-                        id: part.approval!.id,
-                        approved: true,
-                      })
-                    }
-                  >
-                    Approve
-                  </button>
-                  <button
-                    onClick={() =>
-                      addToolApprovalResponse({
-                        id: part.approval!.id,
-                        approved: false,
-                      })
-                    }
-                  >
-                    Deny
-                  </button>
-                </div>
-              );
-            }
-            // ... render other parts
-          })}
+          {message.parts.map((part, index) =>
+            part.type === 'text' ? <p key={index}>{part.content}</p> : null,
+          )}
         </div>
       ))}
+
+      {interrupts.map((interrupt) =>
+        interrupt.kind === 'tool-approval' ? (
+          <div key={interrupt.id}>
+            <p>Send this email?</p>
+            <pre>{JSON.stringify(interrupt.originalArgs, null, 2)}</pre>
+            <button
+              disabled={!interrupt.canResolve || resuming}
+              onClick={() => interrupt.resolveInterrupt(true)}
+            >
+              Approve
+            </button>
+            <button
+              disabled={!interrupt.canResolve || resuming}
+              onClick={() => interrupt.resolveInterrupt(false)}
+            >
+              Deny
+            </button>
+          </div>
+        ) : null,
+      )}
+
+      <form
+        onSubmit={(event) => {
+          event.preventDefault()
+          void sendMessage(input)
+          setInput('')
+        }}
+      >
+        <input value={input} onChange={(event) => setInput(event.target.value)} />
+        <button type="submit">Send</button>
+      </form>
     </div>
-  );
+  )
 }
 ```
 
-## Approval UI Example
+- `canResolve` is `false` until the interrupt is ready.
+- `resuming` is `true` while an answer is on its way to the server.
 
-Here's a more complete approval UI component:
+Disable the buttons on both.
 
-```typescript
-function ApprovalPrompt({ part, onApprove, onDeny }) {
-  const args = JSON.parse(part.arguments);
+### 4. Try it
 
-  return (
-    <div className="border border-yellow-500 rounded-lg p-4 bg-yellow-50">
-      <div className="font-semibold mb-2">
-        🔒 Approval Required: {part.name}
-      </div>
-      <div className="text-sm text-gray-600 mb-4">
-        <pre className="bg-gray-100 p-2 rounded text-xs overflow-x-auto">
-          {JSON.stringify(args, null, 2)}
-        </pre>
-      </div>
-      <div className="flex gap-2">
-        <button
-          onClick={onApprove}
-          className="px-4 py-2 bg-green-600 text-white rounded-lg"
-        >
-          ✓ Approve
-        </button>
-        <button
-          onClick={onDeny}
-          className="px-4 py-2 bg-red-600 text-white rounded-lg"
-        >
-          ✗ Deny
-        </button>
-      </div>
-    </div>
-  );
-}
+Ask your chat "Email ada@example.com and say hello." The Approve and Deny buttons show the email.
+
+- Click **Approve**. Your server logs the email, and the model confirms that it sent it.
+- Click **Deny**. The tool does not run. The model gets a denied result and can tell the user.
+
+## How it works
+
+1. The model calls `send_email`.
+2. `chat()` sees `needsApproval: true`. It does not run the tool. It ends the run with an interrupt.
+3. `useChat` puts the pending call in `interrupts`.
+4. The user clicks a button. `resolveInterrupt` sends the answer to the server in a new request.
+5. `chat()` runs the tool if the user approved, or records a denied result. Then the model continues.
+
+No database is necessary. The browser sends the full message history back with the answer, so a stateless route can rebuild the paused call.
+
+For the full interrupt lifecycle, batch controls, generic interrupts, and recovery, see [Interrupts](../interrupts/overview) and [Tool Approval](../interrupts/tool-approval). To move from the 0.x approval APIs, see [Migrate to AG-UI interrupts](../interrupts/migration).
+
+## Advanced
+
+### Tool call states
+
+A tool call that needs approval moves through these `ToolCallState` values on the `tool-call` part:
+
+1. `awaiting-input`: the call started, with no arguments yet.
+2. `input-streaming`: the arguments arrive.
+3. `input-complete`: all arguments are in.
+4. `approval-requested`: the call waits for the user.
+5. `approval-responded`: the user approved or denied.
+
+When the result comes in, the call part gets `output`, and a sibling `tool-result` part shows `complete` or `error`. See [Tool Architecture](./tool-architecture#call-states).
+
+### Approve with a note, or deny with a reason
+
+An `approvalSchema` gives each answer its own typed data:
+
+```ts
+import { toolDefinition } from '@tanstack/ai'
+import { z } from 'zod'
+
+const transferDefinition = toolDefinition({
+  name: 'transfer',
+  description: 'Transfer funds',
+  needsApproval: true,
+  inputSchema: z.object({
+    amount: z.number().positive(),
+    recipient: z.string(),
+  }),
+  approvalSchema: {
+    approve: z.object({ note: z.string() }),
+    reject: z.object({ reason: z.string() }),
+  },
+})
 ```
 
-## Client Tools with Approval
+Put that data under `payload`. When the user approves, you can also replace the arguments in full with `editedArgs`. A rejection never takes edits:
 
-Client tools can also require approval:
+```ts ignore
+approval.resolveInterrupt(true, {
+  editedArgs: { amount: 12, recipient: 'Ada' },
+  payload: { note: 'Reviewed' },
+})
+
+approval.resolveInterrupt(false, {
+  payload: { reason: 'Policy limit' },
+})
+```
+
+`approvalSchema` needs `needsApproval: true`. Without it, `toolDefinition()` throws. If edited arguments do not fit `inputSchema`, the resume stops with an `invalid-edited-args` error.
+
+### Deny or cancel
+
+Deny and cancel are different:
+
+- `resolveInterrupt(false, ...)` records a rejection. The rejection can carry the `reject` payload.
+- `cancel()` takes no payload and does not use the `reject` schema.
+
+```ts ignore
+approval.cancel()
+```
+
+### Several approvals at once
+
+- One pending approval submits as soon as it has a valid answer.
+- Several pending approvals wait until all of them have valid answers. Then they submit together.
+- To answer several in one step, call `resolveInterrupts(...)` on the hook.
+
+See [Multiple Interrupts](../interrupts/multiple).
+
+### Approval on a client tool
+
+A client tool can also need approval. The approval interrupt is the same, so your UI does not change. After the user approves, the browser runs the `.client()` function:
 
 ```typescript
-// tools/definitions.ts
+import { toolDefinition } from '@tanstack/ai'
+import { z } from 'zod'
+import { useChat, fetchServerSentEvents } from '@tanstack/ai-react'
+
 const deleteLocalDataDef = toolDefinition({
-  name: "delete_local_data",
-  description: "Delete data from local storage",
+  name: 'delete_local_data',
+  description: 'Delete data from local storage',
   inputSchema: z.object({
     key: z.string(),
   }),
   outputSchema: z.object({
     deleted: z.boolean(),
   }),
-  needsApproval: true, // Requires approval even on client
-});
-
-// Client: Create implementation
-const deleteLocalData = deleteLocalDataDef.client((input) => {
-  // This will only execute after approval
-  localStorage.removeItem(input.key);
-  return { deleted: true };
-});
-
-const { messages, addToolApprovalResponse } = useChat({
-  connection: fetchServerSentEvents("/api/chat"),
-  tools: [deleteLocalData], // Automatic execution after approval
-});
-```
-
-## Example: E-commerce Purchase
-
-```typescript
-// Define tool with approval requirement
-const purchaseItemDef = toolDefinition({
-  name: "purchase_item",
-  description: "Purchase an item from the store",
-  inputSchema: z.object({
-    itemId: z.string(),
-    quantity: z.number(),
-    price: z.number(),
-  }),
-  outputSchema: z.object({
-    orderId: z.string(),
-    total: z.number(),
-  }),
   needsApproval: true,
-});
+})
 
-// Create server implementation
-const purchaseItem = purchaseItemDef.server(async ({ itemId, quantity, price }) => {
-  const order = await createOrder({ itemId, quantity, price });
-  return { orderId: order.id, total: price * quantity };
-});
+// Runs only after the user approves
+const deleteLocalData = deleteLocalDataDef.client((input) => {
+  localStorage.removeItem(input.key)
+  return { deleted: true }
+})
+
+const { messages, interrupts } = useChat({
+  connection: fetchServerSentEvents('/api/chat'),
+  threadId: 'support-chat',
+  tools: [deleteLocalData],
+})
 ```
 
-The user will see an approval prompt showing the item, quantity, and price before the purchase is made. The tool will only execute after the user approves.
+### Tell a denial from a failure
 
-## Best Practices
+A denied or cancelled tool result has `state: 'error'` and the wire state `output-error`. To tell it apart from a real tool failure, read `outcome` on the `tool-result` part:
 
-- **Use approval for sensitive operations** - Sending emails, making payments, deleting data
-- **Show clear information** - Display what the tool will do before approval
-- **Provide context** - Show tool arguments in a readable format
-- **Handle denial gracefully** - Don't break the conversation if a tool is denied
-- **Timeout handling** - Consider timeouts for approval requests
+- `'denied'`: the user or a middleware policy denied the call.
+- `'cancelled'`: the call was cancelled.
+- No `outcome`: a normal tool failure.
 
-## Next Steps
+```tsx ignore
+const denied = message.parts.some(
+  (part) => part.type === 'tool-result' && part.outcome === 'denied',
+)
+```
 
-- [Server Tools](./server-tools) - Learn about server-side tool execution
-- [Client Tools](./client-tools) - Learn about client-side tool execution
+Use `outcome`, not the error text. When a result is saved as a `ModelMessage`, the outcome goes in `metadata.tanstack.toolResultOutcome`, and it comes back on the UI part. The AG-UI interrupt resume path also sends the outcome and keeps the error content.
+
+### Tips for approval prompts
+
+- **Use approval for actions that you cannot undo.** Emails, payments, and deletes are good examples.
+- **Show what will happen.** Show the arguments in a form that a person can read, not raw JSON.
+- **Handle a denial.** Read `outcome` and show the user that nothing happened.
+- **Think about time limits.** A user can leave an approval open for a long time.

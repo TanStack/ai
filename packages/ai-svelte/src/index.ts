@@ -1,0 +1,156 @@
+export { createChat } from './create-chat.svelte'
+export { createChatHook } from './create-chat-hook'
+export { createByok } from './create-byok.svelte'
+export {
+  createPageWebMCPTools,
+  createRegisterWebMCPTools,
+} from './create-web-mcp-tools.svelte'
+export type {
+  CreatePageWebMCPToolsOptions,
+  CreateRegisterWebMCPToolsOptions,
+} from './create-web-mcp-tools.svelte'
+export type {
+  CreateChatOptions,
+  CreateChatReturn,
+  DeepPartial,
+  UIMessage,
+  ChatRequestBody,
+  QueuedMessage,
+  SendMessageOptions,
+  WhenBusy,
+  QueueConfig,
+  QueueStrategy,
+  QueueOption,
+} from './types'
+
+// Generation hooks
+export { createGeneration } from './create-generation.svelte'
+export type {
+  CreateGenerationOptions,
+  CreateGenerationReturn,
+} from './create-generation.svelte'
+
+export { createGenerateImage } from './create-generate-image.svelte'
+export type {
+  CreateGenerateImageOptions,
+  CreateGenerateImageReturn,
+} from './create-generate-image.svelte'
+
+export { createGenerateAudio } from './create-generate-audio.svelte'
+export type {
+  CreateGenerateAudioOptions,
+  CreateGenerateAudioReturn,
+} from './create-generate-audio.svelte'
+
+export { createGenerateSpeech } from './create-generate-speech.svelte'
+export type {
+  CreateGenerateSpeechOptions,
+  CreateGenerateSpeechReturn,
+} from './create-generate-speech.svelte'
+
+export { createTranscription } from './create-transcription.svelte'
+export type {
+  CreateTranscriptionOptions,
+  CreateTranscriptionReturn,
+} from './create-transcription.svelte'
+
+export { createSummarize } from './create-summarize.svelte'
+export type {
+  CreateSummarizeOptions,
+  CreateSummarizeReturn,
+} from './create-summarize.svelte'
+
+export { createGenerateVideo } from './create-generate-video.svelte'
+export type {
+  CreateGenerateVideoOptions,
+  CreateGenerateVideoReturn,
+} from './create-generate-video.svelte'
+
+export { createAudioRecorder } from './create-audio-recorder.svelte'
+export type {
+  CreateAudioRecorderOptions,
+  CreateAudioRecorderReturn,
+} from './create-audio-recorder.svelte'
+
+// Re-export from ai-client for convenience
+export {
+  AudioRecorder,
+  ChatClient,
+  InterruptManager,
+  RealtimeClient,
+  GenerationClient,
+  VideoGenerationClient,
+  GENERATION_EVENTS,
+  reconstructImageResult,
+  reconstructAudioResult,
+  reconstructSpeechResult,
+  reconstructTranscriptionResult,
+  reconstructSummarizeResult,
+  UnsupportedResponseStreamError,
+  createAIDevtoolsGenerationPreview,
+  StreamTruncatedError,
+  DurableStreamIncompleteError,
+  StreamReconnectLimitError,
+  uiMessageToModelMessages,
+  modelMessageToUIMessage,
+  modelMessagesToUIMessages,
+  convertMessagesToModelMessages,
+  normalizeToUIMessage,
+  generateMessageId,
+  StreamProcessor,
+  ImmediateStrategy,
+  PunctuationStrategy,
+  BatchStrategy,
+  WordBoundaryStrategy,
+  CompositeStrategy,
+  parsePartialJSON,
+  PartialJSONParser,
+  defaultJSONParser,
+  registerWebMCPTools,
+  getWebMCPTools,
+  subscribeWebMCPTools,
+  type GetWebMCPToolsOptions,
+  type SubscribeWebMCPToolsOptions,
+  type WebMCPPageTool,
+  createMcpAppBridge,
+  type McpAppBridge,
+  type CreateMcpAppBridgeOptions,
+  fetchServerSentEvents,
+  localStoragePersistence,
+  sessionStoragePersistence,
+  indexedDBPersistence,
+  StorageUnavailableError,
+  type ChatClientPersistence,
+  type ChatPersistedState,
+  type ChatPersistenceOption,
+  type ChatStorageAdapter,
+  type WebStoragePersistenceOptions,
+  type IndexedDBPersistenceOptions,
+  fetchHttpStream,
+  fetchJson,
+  xhrServerSentEvents,
+  xhrHttpStream,
+  stream,
+  rpcStream,
+  webSocket,
+  createChatClientOptions,
+  clientTools,
+  type ConnectionAdapter,
+  type ConnectConnectionAdapter,
+  type SubscribeConnectionAdapter,
+  type RunAgentInputContext,
+  type FetchConnectionOptions,
+  type FetchJsonOptions,
+  type XhrConnectionOptions,
+  type WebSocketConnectionOptions,
+  type InferChatMessages,
+  type GenerationClientState,
+  type ImageGenerateInput,
+  type AudioGenerateInput,
+  type SpeechGenerateInput,
+  type TranscriptionGenerateInput,
+  type SummarizeGenerateInput,
+  type VideoGenerateInput,
+  type VideoGenerateResult,
+  type VideoStatusInfo,
+} from '@tanstack/ai-client'

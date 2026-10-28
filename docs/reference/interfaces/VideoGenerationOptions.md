@@ -3,16 +3,10 @@ id: VideoGenerationOptions
 title: VideoGenerationOptions
 ---
 
-# Interface: VideoGenerationOptions\<TProviderOptions, TSize\>
-
-Defined in: [packages/typescript/ai/src/types.ts:1331](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1331)
-
-**`Experimental`**
+Defined in: packages/ai/src/types.ts:2590
 
 Options for video generation.
 These are the common options supported across providers.
-
- Video generation is an experimental feature and may change.
 
 ## Type Parameters
 
@@ -22,21 +16,40 @@ These are the common options supported across providers.
 
 ### TSize
 
-`TSize` *extends* `string` = `string`
+`TSize` *extends* `string` \| `undefined` = `string`
+
+### TDuration
+
+`TDuration` *extends* `string` \| `number` \| `undefined` = `number`
 
 ## Properties
+
+### abortSignal?
+
+```ts
+optional abortSignal?: AbortSignal;
+```
+
+Defined in: packages/ai/src/types.ts:2627
+
+Effective abort signal composed by the activity from caller `abortSignal`
+and/or `timeout`. Adapters should forward this to the provider SDK when
+supported. Request-specific — never store on a global client config.
+
+***
 
 ### duration?
 
 ```ts
-optional duration: number;
+optional duration?: TDuration;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:1342](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1342)
+Defined in: packages/ai/src/types.ts:2614
 
-**`Experimental`**
-
-Video duration in seconds
+Video duration. Adapters that declare a per-model duration map narrow
+this to that model's union (a number, `"8"`, or `"8s"`). Use
+`adapter.snapDuration(input)` to coerce a raw value. `input` may be
+seconds, a `"6s"` template, or `"auto"` when the model lists it.
 
 ***
 
@@ -46,9 +59,7 @@ Video duration in seconds
 logger: InternalLogger;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:1349](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1349)
-
-**`Experimental`**
+Defined in: packages/ai/src/types.ts:2621
 
 Internal logger threaded from the generateVideo() entry point. Adapters must
 call logger.request() before the SDK call and logger.errors() in catch blocks.
@@ -61,9 +72,7 @@ call logger.request() before the SDK call and logger.errors() in catch blocks.
 model: string;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:1336](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1336)
-
-**`Experimental`**
+Defined in: packages/ai/src/types.ts:2596
 
 The model to use for video generation
 
@@ -72,12 +81,10 @@ The model to use for video generation
 ### modelOptions?
 
 ```ts
-optional modelOptions: TProviderOptions;
+optional modelOptions?: TProviderOptions;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:1344](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1344)
-
-**`Experimental`**
+Defined in: packages/ai/src/types.ts:2616
 
 Model-specific options for video generation
 
@@ -86,25 +93,26 @@ Model-specific options for video generation
 ### prompt
 
 ```ts
-prompt: string;
+prompt: MediaPrompt;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:1338](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1338)
+Defined in: packages/ai/src/types.ts:2605
 
-**`Experimental`**
-
-Text description of the desired video
+Description of the desired video: a plain string, or an ordered array of
+content parts for image-conditioned generation. Image parts may carry
+`metadata.role` (`'start_frame' | 'end_frame' | 'reference' |
+'character'`) to disambiguate intent; adapters route them onto the
+provider-native request (e.g. OpenAI Sora `input_reference`, fal
+`image_url` / `end_image_url`) and throw at runtime if unsupported.
 
 ***
 
 ### size?
 
 ```ts
-optional size: TSize;
+optional size?: TSize;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:1340](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1340)
-
-**`Experimental`**
+Defined in: packages/ai/src/types.ts:2607
 
 Video size — format depends on the provider (e.g., "16:9", "1280x720")

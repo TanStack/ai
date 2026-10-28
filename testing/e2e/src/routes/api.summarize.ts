@@ -1,33 +1,173 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { summarize, toServerSentEventsResponse } from '@tanstack/ai'
 import { createOpenaiSummarize } from '@tanstack/ai-openai'
+import { openaiCompatible } from '@tanstack/ai-openai/compatible'
+import { ChatStreamSummarizeAdapter } from '@tanstack/ai/adapters'
 import { createAnthropicSummarize } from '@tanstack/ai-anthropic'
 import { createGeminiSummarize } from '@tanstack/ai-gemini'
+import { vertexSummarize } from '@tanstack/ai-vertex'
+import { vertexE2eAuthClient, vertexE2eConfig } from '@/lib/vertex-e2e'
 import { createOllamaSummarize } from '@tanstack/ai-ollama'
+import { createGroqSummarize } from '@tanstack/ai-groq'
 import { createGrokSummarize } from '@tanstack/ai-grok'
+import { grokVertexSummarize } from '@tanstack/ai-grok/vertex'
+import { createLLMGatewaySummarize } from '@tanstack/ai-llmgateway'
+import { createCloudflareSummarize } from '@tanstack/ai-cloudflare'
+import { createOpenRouterSummarize } from '@tanstack/ai-openrouter'
+import { createVercelGatewaySummarize } from '@tanstack/ai-vercel-gateway'
+import { createLovableSummarize } from '@tanstack/ai-lovable'
+import { createNeonSummarize } from '@tanstack/ai-neon'
+import { HTTPClient } from '@openrouter/sdk'
 import type { Provider } from '@/lib/types'
 
 const LLMOCK_BASE = process.env.LLMOCK_URL || 'http://127.0.0.1:4010'
-const LLMOCK_OPENAI = `${LLMOCK_BASE}/v1`
 const DUMMY_KEY = 'sk-e2e-test-dummy-key'
 
-function createSummarizeAdapter(provider: Provider) {
+function llmockBase(aimockPort?: number): string {
+  if (aimockPort) return `http://127.0.0.1:${aimockPort}`
+  return LLMOCK_BASE
+}
+
+function openaiUrl(aimockPort?: number): string {
+  return `${llmockBase(aimockPort)}/v1`
+}
+
+function testHeaders(testId?: string): Record<string, string> | undefined {
+  return testId ? { 'X-Test-Id': testId } : undefined
+}
+
+/**
+ * The OpenRouter SDK exposes no raw `headers` option, so test-bucket headers
+ * (`X-Test-Id`) are injected via an `HTTPClient` `beforeRequest` hook — the
+ * same pattern the OpenRouter wire-format routes use.
+ */
+function openRouterHttpClient(
+  headers?: Record<string, string>,
+): HTTPClient | undefined {
+  if (!headers) return undefined
+  const httpClient = new HTTPClient()
+  httpClient.addHook('beforeRequest', (req) => {
+    const next = new Request(req)
+    for (const [key, value] of Object.entries(headers)) {
+      next.headers.set(key, value)
+    }
+    return next
+  })
+  return httpClient
+}
+
+function createSummarizeAdapter(
+  provider: Provider,
+  aimockPort?: number,
+  testId?: string,
+) {
+  const headers = testHeaders(testId)
   const factories: Record<string, () => any> = {
+    'openai-compatible': () => {
+      const compatible = openaiCompatible({
+        name: 'custom-compatible',
+        baseURL: openaiUrl(aimockPort),
+        apiKey: DUMMY_KEY,
+        models: ['gpt-4o'],
+        defaultHeaders: headers,
+      })
+      return new ChatStreamSummarizeAdapter(compatible('gpt-4o'), 'gpt-4o')
+    },
     openai: () =>
-      createOpenaiSummarize('gpt-4o', DUMMY_KEY, { baseURL: LLMOCK_OPENAI }),
+      createOpenaiSummarize('gpt-4o', DUMMY_KEY, {
+        baseURL: openaiUrl(aimockPort),
+        defaultHeaders: headers,
+      }),
     anthropic: () =>
       createAnthropicSummarize('claude-sonnet-4-5', DUMMY_KEY, {
-        baseURL: LLMOCK_BASE,
+        baseURL: llmockBase(aimockPort),
+        defaultHeaders: headers,
       }),
     gemini: () =>
-      createGeminiSummarize(DUMMY_KEY, 'gemini-2.0-flash', {
-        httpOptions: { baseUrl: LLMOCK_BASE },
+      createGeminiSummarize(DUMMY_KEY, 'gemini-2.5-flash', {
+        baseURL: llmockBase(aimockPort),
+        defaultHeaders: headers,
       }),
-    ollama: () => createOllamaSummarize('mistral', LLMOCK_BASE),
+    vertex: () =>
+      vertexSummarize(
+        'gemini-2.5-flash',
+        vertexE2eConfig(llmockBase(aimockPort), headers),
+      ),
+    ollama: () => createOllamaSummarize('mistral', llmockBase(aimockPort)),
+    groq: () =>
+      createGroqSummarize('openai/gpt-oss-120b', DUMMY_KEY, {
+        baseURL: `${llmockBase(aimockPort)}/openai/v1`,
+        defaultHeaders: headers,
+      }),
     grok: () =>
-      createGrokSummarize('grok-3', DUMMY_KEY, { baseURL: LLMOCK_OPENAI }),
+      createGrokSummarize('grok-build-0.1', DUMMY_KEY, {
+        baseURL: openaiUrl(aimockPort),
+        defaultHeaders: headers,
+      }),
+    'vertex-grok': () =>
+      grokVertexSummarize('grok-4.3', {
+        project: 'e2e-project',
+        location: 'global',
+        baseURL: openaiUrl(aimockPort),
+        authClient: vertexE2eAuthClient(),
+        defaultHeaders: headers,
+      }),
+    llmgateway: () =>
+      createLLMGatewaySummarize('gpt-5.6-terra', DUMMY_KEY, {
+        baseURL: openaiUrl(aimockPort),
+        defaultHeaders: headers,
+      }),
+    cloudflare: () =>
+      createCloudflareSummarize('@cf/zai-org/glm-5.3-flash', {
+        accountId: 'e2e-account',
+        apiKey: DUMMY_KEY,
+        baseURL: openaiUrl(aimockPort),
+        defaultHeaders: headers,
+      }),
+    // Both OpenRouter provider rows use the OpenRouter summarize adapter:
+    // `createOpenRouterSummarize` wraps the OpenRouter chat-completions
+    // text adapter regardless of whether the caller selected the Chat
+    // Completions or Responses surface, so a single factory backs both
+    // matrix entries.
     openrouter: () =>
-      createOpenaiSummarize('gpt-4o', DUMMY_KEY, { baseURL: LLMOCK_OPENAI }),
+      createOpenRouterSummarize('openai/gpt-4o', DUMMY_KEY, {
+        serverURL: openaiUrl(aimockPort),
+        httpClient: openRouterHttpClient(headers),
+      }),
+    'openrouter-responses': () =>
+      createOpenRouterSummarize('openai/gpt-4o', DUMMY_KEY, {
+        serverURL: openaiUrl(aimockPort),
+        httpClient: openRouterHttpClient(headers),
+      }),
+    'vercel-gateway': () =>
+      createVercelGatewaySummarize('openai/gpt-5.5', DUMMY_KEY, {
+        baseURL: openaiUrl(aimockPort),
+        defaultHeaders: headers,
+      }),
+    lovable: () =>
+      createLovableSummarize('openai/gpt-5.5', DUMMY_KEY, {
+        baseURL: openaiUrl(aimockPort),
+        defaultHeaders: headers,
+      }),
+    // Neon's baseURL is the bare host; the adapter appends `/v1`.
+    neon: () =>
+      createNeonSummarize('gemini-3-8-flash', DUMMY_KEY, {
+        baseURL: llmockBase(aimockPort),
+        defaultHeaders: headers,
+      }),
+    'neon-anthropic': () =>
+      createNeonSummarize('claude-opus-5-5', DUMMY_KEY, {
+        baseURL: llmockBase(aimockPort),
+        defaultHeaders: headers,
+        fetch: (input, init) =>
+          fetch(String(input).replace('/anthropic/v1/', '/v1/'), init),
+      }),
+    'neon-responses': () =>
+      createNeonSummarize('gpt-6-1-sol', DUMMY_KEY, {
+        api: 'responses',
+        baseURL: llmockBase(aimockPort),
+        defaultHeaders: headers,
+      }),
   }
   return factories[provider]?.()
 }
@@ -38,10 +178,25 @@ export const Route = createFileRoute('/api/summarize')({
       POST: async ({ request }) => {
         await import('@/lib/llmock-server').then((m) => m.ensureLLMock())
         const body = await request.json()
-        const { text, provider, stream: shouldStream } = body
+        const data = body.forwardedProps ?? body
+        const {
+          text,
+          provider,
+          stream: shouldStream,
+          testId,
+          aimockPort,
+          maxLength,
+        } = data as {
+          text: string
+          provider: Provider
+          stream?: boolean
+          testId?: string
+          aimockPort?: number
+          maxLength?: number
+        }
 
         try {
-          const adapter = createSummarizeAdapter(provider)
+          const adapter = createSummarizeAdapter(provider, aimockPort, testId)
           if (!adapter) {
             return new Response(
               JSON.stringify({
@@ -50,22 +205,39 @@ export const Route = createFileRoute('/api/summarize')({
               { status: 400, headers: { 'Content-Type': 'application/json' } },
             )
           }
-          const result = summarize({
-            adapter,
-            text,
-            stream: shouldStream ?? true,
-          })
-
+          // Split into two branches so `summarize` returns the narrow
+          // type per call (`Promise<SummarizationResult>` vs
+          // `AsyncIterable<AGUIEvent>`) — the merged union return is not
+          // statically narrowable by a later `shouldStream === false`
+          // check on the result variable.
           if (shouldStream === false) {
-            const summary = await result
+            const summary = await summarize({
+              threadId: body.threadId ?? 'summarize',
+              adapter,
+              text,
+              maxLength,
+              stream: false,
+            })
             return new Response(JSON.stringify({ summary }), {
               headers: { 'Content-Type': 'application/json' },
             })
           }
-
-          return toServerSentEventsResponse(result)
-        } catch (error: any) {
-          return new Response(JSON.stringify({ error: error.message }), {
+          const stream = summarize({
+            threadId: body.threadId ?? 'summarize',
+            adapter,
+            text,
+            maxLength,
+            stream: true,
+          })
+          return toServerSentEventsResponse(stream)
+        } catch (error) {
+          console.error('[api.summarize] Error:', error)
+          if (error instanceof Error && error.name === 'AbortError') {
+            return new Response(null, { status: 499 })
+          }
+          const message =
+            error instanceof Error ? error.message : 'An error occurred'
+          return new Response(JSON.stringify({ error: message }), {
             status: 500,
             headers: { 'Content-Type': 'application/json' },
           })

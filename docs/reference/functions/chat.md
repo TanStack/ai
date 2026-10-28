@@ -3,20 +3,18 @@ id: chat
 title: chat
 ---
 
-# Function: chat()
-
 ```ts
-function chat<TAdapter, TSchema, TStream>(options): TextActivityResult<TSchema, TStream>;
+function chat<TAdapter, TSchema, TStream, TTools, TInterrupts, TContext, TMiddleware, TAgents>(options): TextActivityResult<TSchema, TStream, TTools>;
 ```
 
-Defined in: [packages/typescript/ai/src/activities/chat/index.ts:1512](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/index.ts#L1512)
+Defined in: packages/ai/src/activities/chat/index.ts:5864
 
 Text activity - handles agentic text generation, one-shot text generation, and agentic structured output.
 
 This activity supports four modes:
 1. **Streaming agentic text**: Stream responses with automatic tool execution
 2. **Streaming one-shot text**: Simple streaming request/response without tools
-3. **Non-streaming text**: Returns collected text as a string (stream: false)
+3. **Non-streaming text**: Returns a ChatResult with the text and every chunk (stream: false)
 4. **Agentic structured output**: Run tools, then return structured data
 
 ## Type Parameters
@@ -31,59 +29,100 @@ This activity supports four modes:
 
 ### TStream
 
-`TStream` *extends* `boolean` = `true`
+`TStream` *extends* `boolean` = `boolean`
+
+### TTools
+
+`TTools` *extends* 
+  \| readonly (
+  \| `Omit`\<[`Tool`](../interfaces/Tool.md)\<`any`, `any`, `any`, `any`\>, `"execute"`\> & `object` & `object`
+  \| [`ProviderTool`](../interfaces/ProviderTool.md)\<`string`, `TAdapter`\[`"~types"`\]\[`"toolCapabilities"`\]\[`number`\]\>)[]
+  \| `undefined` = 
+  \| readonly (
+  \| `Omit`\<[`Tool`](../interfaces/Tool.md)\<`any`, `any`, `any`, `any`\>, `"execute"`\> & `object` & `object`
+  \| [`ProviderTool`](../interfaces/ProviderTool.md)\<`string`, `TAdapter`\[`"~types"`\]\[`"toolCapabilities"`\]\[`number`\]\>)[]
+  \| `undefined`
+
+### TInterrupts
+
+`TInterrupts` *extends* readonly [`InterruptDefinition`](../interfaces/InterruptDefinition.md)\<`any`, `any`, `any`, `any`, `any`\>[] = \[\]
+
+### TContext
+
+`TContext` = `unknown`
+
+### TMiddleware
+
+`TMiddleware` *extends* `unknown`[] \| `undefined` = `undefined`
+
+### TAgents
+
+`TAgents` *extends* readonly [`DefinedAgent`](../interfaces/DefinedAgent.md)\<`string`, readonly `SubagentTool`[], [`SchemaInput`](../type-aliases/SchemaInput.md) \| `undefined`, readonly [`InterruptDefinition`](../interfaces/InterruptDefinition.md)\<`any`, `any`, `any`, `any`, `any`\>[], `any`, `unknown`, [`AgentProduces`](../type-aliases/AgentProduces.md) \| `undefined`\>[] = readonly [`DefinedAgent`](../interfaces/DefinedAgent.md)\<`string`, readonly `SubagentTool`[], [`SchemaInput`](../type-aliases/SchemaInput.md) \| `undefined`, readonly [`InterruptDefinition`](../interfaces/InterruptDefinition.md)\<`any`, `any`, `any`, `any`, `any`\>[], `any`, `unknown`, [`AgentProduces`](../type-aliases/AgentProduces.md) \| `undefined`\>[]
 
 ## Parameters
 
 ### options
 
-`TextActivityOptions`\<`TAdapter`, `TSchema`, `TStream`\>
+`TextActivityOptionsWithContext`\<`TAdapter`, `TSchema`, `TStream`, `TTools`, `TInterrupts`, `TContext`, `TMiddleware`, `TAgents`\>
 
 ## Returns
 
-`TextActivityResult`\<`TSchema`, `TStream`\>
+`TextActivityResult`\<`TSchema`, `TStream`, `TTools`\>
 
 ## Examples
+
+**Full agentic text (streaming with tools)**
 
 ```ts
 import { chat } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai'
 
 for await (const chunk of chat({
-  adapter: openaiText('gpt-4o'),
+  adapter: openaiText('gpt-5.5'),
   messages: [{ role: 'user', content: 'What is the weather?' }],
+  threadId,
   tools: [weatherTool]
 })) {
-  if (chunk.type === 'content') {
+  if (chunk.type === 'TEXT_MESSAGE_CONTENT') {
     console.log(chunk.delta)
   }
 }
 ```
 
+**One-shot text (streaming without tools)**
+
 ```ts
 for await (const chunk of chat({
-  adapter: openaiText('gpt-4o'),
-  messages: [{ role: 'user', content: 'Hello!' }]
+  adapter: openaiText('gpt-5.5'),
+  messages: [{ role: 'user', content: 'Hello!' }],
+  threadId,
 })) {
   console.log(chunk)
 }
 ```
 
+**Non-streaming text (stream: false)**
+
 ```ts
-const text = await chat({
-  adapter: openaiText('gpt-4o'),
+const { text, chunks } = await chat({
+  adapter: openaiText('gpt-5.5'),
   messages: [{ role: 'user', content: 'Hello!' }],
+  threadId,
   stream: false
 })
 // text is a string with the full response
+// chunks is every chunk the run produced, in order
 ```
+
+**Agentic structured output (tools + structured response)**
 
 ```ts
 import { z } from 'zod'
 
 const result = await chat({
-  adapter: openaiText('gpt-4o'),
+  adapter: openaiText('gpt-5.5'),
   messages: [{ role: 'user', content: 'Research and summarize the topic' }],
+  threadId,
   tools: [researchTool, analyzeTool],
   outputSchema: z.object({
     summary: z.string(),

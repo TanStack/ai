@@ -1,7 +1,8 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { generateVideo, toHttpResponse } from '@tanstack/ai'
 import { createVideoAdapter } from '@/lib/media-providers'
-import type { Provider } from '@/lib/types'
+import type { MediaPrompt } from '@tanstack/ai'
+import type { Feature, Provider } from '@/lib/types'
 
 export const Route = createFileRoute('/api/video/stream')({
   server: {
@@ -10,19 +11,26 @@ export const Route = createFileRoute('/api/video/stream')({
         await import('@/lib/llmock-server').then((m) => m.ensureLLMock())
         const abortController = new AbortController()
         const body = await request.json()
-        const data = body.data ?? body
-        const { prompt, provider, testId, aimockPort } = data as {
-          prompt: string
+        const data = body.forwardedProps ?? body
+        const { prompt, provider, testId, aimockPort, feature } = data as {
+          prompt: MediaPrompt
           provider: Provider
           testId?: string
           aimockPort?: number
+          feature?: Feature
         }
 
-        const adapter = createVideoAdapter(provider, aimockPort, testId)
+        const adapter = createVideoAdapter(
+          provider,
+          aimockPort,
+          testId,
+          feature,
+        )
 
         try {
           const stream = generateVideo({
             adapter,
+            threadId: body.threadId,
             prompt,
             stream: true,
             pollingInterval: 500,

@@ -28,14 +28,12 @@ let cachedDriver: IsolateDriver | null = null
 async function getDriver(): Promise<IsolateDriver> {
   if (!cachedDriver) {
     const { createIsolateDriver } = await import('@/lib/create-isolate-driver')
-    cachedDriver = await createIsolateDriver('node')
+    cachedDriver = await createIsolateDriver()
   }
   return cachedDriver
 }
 
-export const Route = createFileRoute(
-  '/_execute-prompt/api/execute-prompt' as any,
-)({
+export const Route = createFileRoute('/_execute-prompt/api/execute-prompt')({
   server: {
     handlers: {
       POST: async ({ request }) => {

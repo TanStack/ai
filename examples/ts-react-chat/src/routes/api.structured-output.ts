@@ -1,9 +1,96 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { chat } from '@tanstack/ai'
-import { openRouterText } from '@tanstack/ai-openrouter'
+import {
+  chat,
+  chatParamsFromRequestBody,
+  toServerSentEventsResponse,
+} from '@tanstack/ai'
+import { openaiChatCompletions, openaiText } from '@tanstack/ai-openai'
+import {
+  ANTHROPIC_COMBINED_TOOLS_AND_SCHEMA_MODELS,
+  anthropicText,
+} from '@tanstack/ai-anthropic'
+import {
+  GEMINI_COMBINED_TOOLS_AND_SCHEMA_MODELS,
+  geminiText,
+} from '@tanstack/ai-gemini'
+import { grokText } from '@tanstack/ai-grok'
+import { groqText } from '@tanstack/ai-groq'
+import {
+  openRouterResponsesText,
+  openRouterText,
+} from '@tanstack/ai-openrouter'
 import { z } from 'zod'
+import type {
+  AnyTextAdapter,
+  ChatMiddleware,
+  AdapterYieldChunk,
+  ReasoningRequest,
+} from '@tanstack/ai'
+import { EventType } from '@tanstack/ai'
 
-const GuitarRecommendationSchema = z.object({
+/**
+ * Diagnostic middleware that records which middleware phases observed chunks.
+ * Used here to verify PR #600 — middleware should now see chunks attributed
+ * to `phase === 'structuredOutput'` during the final structured-output call.
+ *
+ * Counts are exposed via:
+ *   - the JSON response (`_diagnostics` field) for non-streaming
+ *   - a trailing CUSTOM `phase-counts` event for streaming
+ */
+function phaseCounterMiddleware(): {
+  middleware: ChatMiddleware
+  snapshot: () => Record<string, number>
+} {
+  const counts: Record<string, number> = {}
+  return {
+    middleware: {
+      name: 'phase-counter',
+      onChunk(ctx) {
+        counts[ctx.phase] = (counts[ctx.phase] ?? 0) + 1
+      },
+    },
+    snapshot: () => ({ ...counts }),
+  }
+}
+
+/**
+ * Wrap a chat stream so it emits a trailing CUSTOM `phase-counts` event
+ * right before terminating, carrying the counter middleware's snapshot.
+ */
+async function* withTrailingPhaseCounts(
+  stream: AsyncIterable<AdapterYieldChunk>,
+  snapshot: () => Record<string, number>,
+  model: string,
+): AsyncIterable<AdapterYieldChunk> {
+  let yieldedCounts = false
+  for await (const chunk of stream) {
+    if (
+      chunk.type === EventType.RUN_FINISHED ||
+      chunk.type === EventType.RUN_ERROR
+    ) {
+      yieldedCounts = true
+      yield {
+        type: EventType.CUSTOM,
+        name: 'phase-counts',
+        value: snapshot(),
+        model,
+        timestamp: Date.now(),
+      }
+    }
+    yield chunk
+  }
+  if (!yieldedCounts) {
+    yield {
+      type: EventType.CUSTOM,
+      name: 'phase-counts',
+      value: snapshot(),
+      model,
+      timestamp: Date.now(),
+    }
+  }
+}
+
+export const GuitarRecommendationSchema = z.object({
   title: z.string().describe('Short headline for the recommendation'),
   summary: z.string().describe('One paragraph summary'),
   recommendations: z
@@ -21,28 +108,307 @@ const GuitarRecommendationSchema = z.object({
   nextSteps: z.array(z.string()).describe('Practical follow-up actions'),
 })
 
+export type GuitarRecommendation = z.infer<typeof GuitarRecommendationSchema>
+
+const PROVIDERS = [
+  'openai',
+  'openai-chat',
+  'anthropic',
+  'gemini',
+  'grok',
+  'groq',
+  'openrouter',
+  'openrouter-responses',
+] as const
+
+type Provider = (typeof PROVIDERS)[number]
+
+function isProvider(value: unknown): value is Provider {
+  return typeof value === 'string' && PROVIDERS.includes(value as Provider)
+}
+
+/**
+ * Synthetic suffixes the dropdown uses to opt the route into reasoning
+ * modes that aren't first-class on the wire (e.g. "Opus 4.7 with max
+ * adaptive thinking"). The suffix is stripped before reaching the
+ * adapter. Currently `:thinking-max` is the only one defined.
+ */
+function stripModelSuffix(model: string | undefined): string | undefined {
+  if (!model) return model
+  const colonIdx = model.indexOf(':')
+  return colonIdx === -1 ? model : model.slice(0, colonIdx)
+}
+
+function adapterFor(provider: Provider, model?: string): AnyTextAdapter {
+  const baseModel = stripModelSuffix(model)
+  switch (provider) {
+    case 'openai':
+      return openaiText((baseModel || 'gpt-5.2') as 'gpt-5.2')
+    case 'openai-chat':
+      // Same model surface as the Responses adapter, but talks to
+      // `/v1/chat/completions`. Useful for side-by-side comparison of
+      // streaming structured output across the two OpenAI wire formats.
+      return openaiChatCompletions((baseModel || 'gpt-4o') as 'gpt-4o')
+    case 'anthropic':
+      // Claude 4.5+ supports native combined tools + schema-constrained
+      // streaming (#605) via `output_config.format` on the beta Messages
+      // endpoint. Earlier models fall back to the forced-tool-use
+      // workaround in `structuredOutput` (no real streaming).
+      return anthropicText(
+        (baseModel || 'claude-sonnet-4-5') as 'claude-sonnet-4-5',
+      )
+    case 'gemini':
+      // Gemini 3.x supports native combined tools + schema-constrained
+      // streaming (#605) via `config.responseSchema` +
+      // `responseMimeType: 'application/json'` on a single
+      // `generateContentStream` call. Gemini 2.x is documented as brittle
+      // for the combination and falls back to the engine's legacy
+      // finalization path.
+      //
+      // Keep the default aligned with the dropdown's first entry.
+      return geminiText((baseModel || 'gemini-3.8-flash') as 'gemini-3.8-flash')
+    case 'grok':
+      return grokText((model || 'grok-build-0.1') as 'grok-build-0.1')
+    case 'groq':
+      return groqText((model || 'qwen/qwen3.8-27b') as 'qwen/qwen3.8-27b')
+    case 'openrouter':
+      return openRouterText(
+        (model || 'anthropic/claude-opus-4.6') as 'anthropic/claude-opus-4.6',
+      )
+    case 'openrouter-responses':
+      // OpenRouter Responses (beta) endpoint — same model surface as the
+      // chat-completions adapter, but routes through `/v1/responses`. This
+      // is what exercises `OpenRouterResponsesTextAdapter.structuredOutputStream`.
+      return openRouterResponsesText(
+        (model || 'anthropic/claude-opus-4.6') as 'anthropic/claude-opus-4.6',
+      )
+  }
+}
+
+// Per-provider reasoning, so reasoning models stream their thinking. Without
+// it, they reason silently and the UI never sees REASONING_* events.
+function reasoningFor(
+  provider: Provider,
+  model: string | undefined,
+): ReasoningRequest | undefined {
+  switch (provider) {
+    case 'openai':
+      // Only the reasoning models (gpt-5.x, o-series) take reasoning.
+      if (
+        model?.startsWith('gpt-5') ||
+        model?.startsWith('o3') ||
+        model?.startsWith('o4')
+      ) {
+        return { level: 'medium', summary: true }
+      }
+      return undefined
+    case 'anthropic': {
+      // Default: thinking off. Demo flows that just want streaming
+      // structured output shouldn't pay for reasoning tokens, and adaptive
+      // thinking can easily use the default `max_tokens` before the JSON
+      // finishes. The dropdown opts in via the synthetic `:thinking-max`
+      // suffix.
+      const baseModel = stripModelSuffix(model)
+      if (
+        !baseModel ||
+        !ANTHROPIC_COMBINED_TOOLS_AND_SCHEMA_MODELS.has(baseModel) ||
+        model?.endsWith(':thinking-max') !== true
+      ) {
+        return undefined
+      }
+      // Adaptive thinking decides from the prompt. For the short demo
+      // prompt, only `max` reliably makes the model think. Budget models
+      // get a small fixed budget.
+      return baseModel.startsWith('claude-opus-4-7')
+        ? { level: 'max', summary: true }
+        : { level: 'low', summary: true, budgetTokens: 1024 }
+    }
+    case 'gemini': {
+      // Only the Gemini 3.x combined-mode models, which take thinking
+      // levels.
+      const baseModel = stripModelSuffix(model)
+      if (
+        !baseModel ||
+        !GEMINI_COMBINED_TOOLS_AND_SCHEMA_MODELS.has(baseModel)
+      ) {
+        return undefined
+      }
+      return { level: 'high', summary: true }
+    }
+    case 'openrouter':
+    case 'openrouter-responses':
+      return { level: 'medium', summary: true }
+    default:
+      return undefined
+  }
+}
+
+// Groq's Chat Completions only streams `delta.reasoning` when
+// `reasoning_format: 'parsed'`. Required for gpt-oss / qwen3 / kimi-k2 to
+// emit reasoning during structured output (json_schema mode).
+function groqReasoningFormat(
+  provider: Provider,
+  model: string | undefined,
+): Record<string, unknown> | undefined {
+  if (
+    provider === 'groq' &&
+    (model?.startsWith('openai/gpt-oss') ||
+      model?.startsWith('qwen') ||
+      model?.startsWith('moonshotai/kimi'))
+  ) {
+    return { reasoning_format: 'parsed' }
+  }
+  return undefined
+}
+
+async function* structuredOutputResultStream(args: {
+  result: GuitarRecommendation
+  phaseCounts: Record<string, number>
+  threadId: string
+  runId: string
+  model: string
+}): AsyncIterable<AdapterYieldChunk> {
+  const messageId = `structured-output-${args.runId}`
+  const raw = JSON.stringify(args.result)
+  const timestamp = Date.now()
+
+  yield {
+    type: EventType.RUN_STARTED,
+    threadId: args.threadId,
+    runId: args.runId,
+    model: args.model,
+    timestamp,
+  }
+  yield {
+    type: EventType.CUSTOM,
+    name: 'structured-output.start',
+    value: { messageId },
+    model: args.model,
+    timestamp: Date.now(),
+  }
+  yield {
+    type: EventType.CUSTOM,
+    name: 'structured-output.complete',
+    value: { object: args.result, raw },
+    model: args.model,
+    timestamp: Date.now(),
+  }
+  yield {
+    type: EventType.CUSTOM,
+    name: 'phase-counts',
+    value: args.phaseCounts,
+    model: args.model,
+    timestamp: Date.now(),
+  }
+  yield {
+    type: EventType.RUN_FINISHED,
+    threadId: args.threadId,
+    runId: args.runId,
+    model: args.model,
+    timestamp: Date.now(),
+    finishReason: 'stop',
+  }
+}
+
 export const Route = createFileRoute('/api/structured-output')({
   server: {
     handlers: {
       POST: async ({ request }) => {
-        const body = await request.json()
-        const { prompt, model } = body as {
-          prompt: string
-          model?: string
+        if (request.signal.aborted) {
+          return new Response(null, { status: 499 })
+        }
+
+        const abortController = new AbortController()
+        const onAbort = () => abortController.abort()
+        request.signal.addEventListener('abort', onAbort, { once: true })
+        if (request.signal.aborted) {
+          onAbort()
+        }
+
+        let params: Awaited<ReturnType<typeof chatParamsFromRequestBody>>
+        try {
+          params = await chatParamsFromRequestBody(await request.json())
+        } catch (error) {
+          return new Response(
+            error instanceof Error ? error.message : 'Bad request',
+            { status: 400 },
+          )
         }
 
         try {
+          const providerValue = params.forwardedProps.provider
+          const resolvedProvider: Provider = isProvider(providerValue)
+            ? providerValue
+            : 'openrouter'
+          const model =
+            typeof params.forwardedProps.model === 'string'
+              ? params.forwardedProps.model
+              : undefined
+          const stream = params.forwardedProps.stream !== false
+          const adapter = adapterFor(resolvedProvider, model)
+          // Adaptive thinking on Claude 4.7 can chew through a few thousand
+          // tokens before the schema-constrained JSON even starts. The
+          // adapter's default `max_tokens` (1024) was producing truncated
+          // outputs ("response was cut off"). Bump for the
+          // `:thinking-max` variant so the reasoning + JSON both fit. We
+          // keep the budget modest (16k) for everyone else to avoid
+          // surprising bills on the demo. The cap now lives in provider-native
+          // `modelOptions` (Anthropic: `max_tokens`) — the generic root
+          // `maxTokens` was removed.
+          const wantsAnthropicMaxThinking =
+            resolvedProvider === 'anthropic' &&
+            model?.endsWith(':thinking-max') === true
+          const modelOptions = {
+            ...groqReasoningFormat(resolvedProvider, model),
+            ...(wantsAnthropicMaxThinking && { max_tokens: 16_000 }),
+          }
+          const reasoning = reasoningFor(resolvedProvider, model)
+          const counter = phaseCounterMiddleware()
+
+          if (stream) {
+            const streamIterable = chat({
+              adapter,
+              modelOptions: modelOptions as never,
+              reasoning,
+              messages: params.messages,
+              outputSchema: GuitarRecommendationSchema,
+              stream: true,
+              middleware: [counter.middleware],
+              threadId: params.threadId,
+              runId: params.runId,
+              abortController,
+            }) as AsyncIterable<AdapterYieldChunk>
+            const withCounts = withTrailingPhaseCounts(
+              streamIterable,
+              counter.snapshot,
+              adapter.model,
+            )
+            return toServerSentEventsResponse(withCounts, {
+              abortController,
+            })
+          }
+
           const result = await chat({
-            adapter: openRouterText(
-              (model || 'openai/gpt-5.2') as 'openai/gpt-5.2',
-            ),
-            messages: [{ role: 'user', content: prompt }],
+            adapter,
+            modelOptions: modelOptions as never,
+            reasoning,
+            messages: params.messages,
             outputSchema: GuitarRecommendationSchema,
+            middleware: [counter.middleware],
+            threadId: params.threadId,
+            runId: params.runId,
+            abortController,
           })
 
-          return new Response(JSON.stringify({ data: result }), {
-            headers: { 'Content-Type': 'application/json' },
+          const responseStream = structuredOutputResultStream({
+            result,
+            phaseCounts: counter.snapshot(),
+            threadId: params.threadId,
+            runId: params.runId,
+            model: adapter.model,
           })
+
+          return toServerSentEventsResponse(responseStream, { abortController })
         } catch (error: unknown) {
           const message =
             error instanceof Error ? error.message : 'An error occurred'
@@ -51,6 +417,8 @@ export const Route = createFileRoute('/api/structured-output')({
             status: 500,
             headers: { 'Content-Type': 'application/json' },
           })
+        } finally {
+          request.signal.removeEventListener('abort', onAbort)
         }
       },
     },

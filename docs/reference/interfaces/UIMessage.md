@@ -3,22 +3,29 @@ id: UIMessage
 title: UIMessage
 ---
 
-# Interface: UIMessage
-
-Defined in: [packages/typescript/ai/src/types.ts:354](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L354)
+Defined in: packages/ai/src/types.ts:787
 
 UIMessage - Domain-specific message format optimized for building chat UIs
-Contains parts that can be text, tool calls, or tool results
+Contains parts that can be text, tool calls, or tool results. Generic over
+the structured-output data type so `useChat({ outputSchema })`'s schema
+narrows `parts.find(p => p.type === 'structured-output').data` on the
+consumer side without manual casts.
+
+## Type Parameters
+
+### TData
+
+`TData` = `unknown`
 
 ## Properties
 
 ### createdAt?
 
 ```ts
-optional createdAt: Date;
+optional createdAt?: Date;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:358](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L358)
+Defined in: packages/ai/src/types.ts:791
 
 ***
 
@@ -28,24 +35,49 @@ Defined in: [packages/typescript/ai/src/types.ts:358](https://github.com/TanStac
 id: string;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:355](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L355)
+Defined in: packages/ai/src/types.ts:788
+
+***
+
+### metadata?
+
+```ts
+optional metadata?: Record<string, any>;
+```
+
+Defined in: packages/ai/src/types.ts:798
+
+Optional AG-UI metadata bag. TanStack writes the `tanstack` key.
+User keys stay at the top.
+
+***
+
+### name?
+
+```ts
+optional name?: string;
+```
+
+Defined in: packages/ai/src/types.ts:793
+
+Optional AG-UI sender name. Converters preserve it across wire and persist.
 
 ***
 
 ### parts
 
 ```ts
-parts: MessagePart[];
+parts: MessagePart<TData>[];
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:357](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L357)
+Defined in: packages/ai/src/types.ts:790
 
 ***
 
 ### role
 
 ```ts
-role: "user" | "assistant" | "system";
+role: "assistant" | "user" | "activity" | "system";
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:356](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L356)
+Defined in: packages/ai/src/types.ts:789

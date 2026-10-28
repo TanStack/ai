@@ -1,0 +1,56 @@
+import { test, expect } from './fixtures'
+
+interface StageResult {
+  imageCount?: number
+  error?: string
+}
+
+interface GeminiImageGaModelsResponse {
+  gaModelListed: boolean
+  gaModel: StageResult
+  nanoBanana21: StageResult
+}
+
+/**
+ * Regression coverage for #1104 (Gemini GA image model ids + per-model
+ * sizes). See `api.gemini-image-ga-models.ts` for the full mechanism and
+ * `geminiNativeImageMount` in `global-setup.ts` for the mock that makes it
+ * possible — aimock's `/v1beta/interactions` handler streams text and has no
+ * image branch, so this route/mount pair exists specifically to cover what
+ * aimock alone cannot. The route runs each model call as an independent
+ * stage, so each test below only depends on its own stage.
+ */
+test.describe('gemini — GA image model ids and per-model sizes (#1104)', () => {
+  test('gemini-3.1-flash-image is a listed GA id and generates an image', async ({
+    request,
+  }) => {
+    const res = await request.post('/api/gemini-image-ga-models')
+    expect(res.ok()).toBe(true)
+
+    const { gaModelListed, gaModel } =
+      (await res.json()) as GeminiImageGaModelsResponse
+
+    // Genuine runtime data, not a type check: `GeminiImageModels` is the
+    // package's exported `as const` array of supported image model ids.
+    // Nothing at runtime gates request routing on this array (the adapter
+    // sends every model to the Interactions API), so checking
+    // its contents is the only way to observe the id addition without a
+    // TypeScript compile step. Before #1104 the array only carried the
+    // shut-down `gemini-3.1-flash-image-preview` alias.
+    expect(gaModelListed).toBe(true)
+    expect(gaModel.error ?? null).toBeNull()
+    expect(gaModel.imageCount).toBe(1)
+  })
+
+  test('gemini-nano-banana-2.1 routes to Interactions with aspect_ratio and image_size (#1640)', async ({
+    request,
+  }) => {
+    const res = await request.post('/api/gemini-image-ga-models')
+    expect(res.ok()).toBe(true)
+
+    const { nanoBanana21 } = (await res.json()) as GeminiImageGaModelsResponse
+
+    expect(nanoBanana21.error ?? null).toBeNull()
+    expect(nanoBanana21.imageCount).toBe(1)
+  })
+})

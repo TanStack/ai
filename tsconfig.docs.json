@@ -1,0 +1,60 @@
+{
+  "$schema": "https://json.schemastore.org/tsconfig",
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "paths": {
+      "remix/ui": [
+        "./node_modules/.kiira/node_modules/remix/dist/ui.d.ts",
+        "./packages/ai-remix/node_modules/remix/dist/ui.d.ts"
+      ],
+      "remix/router": [
+        "./node_modules/.kiira/node_modules/remix/dist/fetch-router.d.ts",
+        "./packages/ai-remix/node_modules/remix/dist/fetch-router.d.ts"
+      ],
+      "remix/routes": [
+        "./node_modules/.kiira/node_modules/remix/dist/fetch-router/routes.d.ts",
+        "./packages/ai-remix/node_modules/remix/dist/fetch-router/routes.d.ts"
+      ],
+      "@remix-run/ui/jsx-runtime": [
+        "./node_modules/.kiira/node_modules/@remix-run/ui/dist/jsx-runtime.d.ts"
+      ],
+      "@tanstack/highlight/core": [
+        "./node_modules/.kiira/node_modules/@tanstack/highlight/dist/core.d.ts"
+      ],
+      "@tanstack/highlight/markdown": [
+        "./node_modules/.kiira/node_modules/@tanstack/highlight/dist/markdown.d.ts"
+      ],
+      "@tanstack/highlight/theme": [
+        "./node_modules/.kiira/node_modules/@tanstack/highlight/dist/theme.d.ts"
+      ],
+      "@tanstack/highlight/languages/*": [
+        "./node_modules/.kiira/node_modules/@tanstack/highlight/dist/languages/*.d.ts"
+      ],
+      "@tanstack/highlight/themes/*": [
+        "./node_modules/.kiira/node_modules/@tanstack/highlight/dist/themes/*.d.ts"
+      ],
+      "@fal-ai/client": [
+        "./node_modules/.kiira/node_modules/@fal-ai/client/src/index.d.ts",
+        "./examples/ts-react-media/node_modules/@fal-ai/client/src/index.d.ts"
+      ],
+      "@fal-ai/client/realtime": [
+        "./node_modules/.kiira/node_modules/@fal-ai/client/src/realtime/index.d.ts",
+        "./examples/ts-react-media/node_modules/@fal-ai/client/src/realtime/index.d.ts"
+      ],
+      "@upstash/agentkit-tanstack-ai/persistence": [
+        "./node_modules/.kiira/node_modules/@upstash/agentkit-tanstack-ai/dist/persistence.d.ts"
+      ],
+      "@upstash/agentkit-tanstack-ai/memory": [
+        "./node_modules/.kiira/node_modules/@upstash/agentkit-tanstack-ai/dist/memory.d.ts"
+      ],
+      "@/db": ["./packages/ai-persistence/skills-test/stubs/app-db.ts"],
+      "@/db/schema": [
+        "./packages/ai-persistence/skills-test/stubs/drizzle-sqlite-schema.ts"
+      ],
+      "@/lib/prisma": ["./packages/ai-persistence/skills-test/stubs/prisma.ts"],
+      "@prisma/client": [
+        "./packages/ai-persistence/skills-test/stubs/prisma-client.ts"
+      ]
+    }
+  }
+}

@@ -1,0 +1,26 @@
+{
+  "fixtures": [
+    {
+      "match": {
+        "userMessage": "[openrouter-retry-codes] say hello",
+        "sequenceIndex": 0
+      },
+      "response": {
+        "error": {
+          "message": "Rate limit exceeded",
+          "type": "rate_limit_error"
+        },
+        "status": 429
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[openrouter-retry-codes] say hello",
+        "sequenceIndex": 1
+      },
+      "response": {
+        "content": "Hello after retry"
+      }
+    }
+  ]
+}

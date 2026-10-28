@@ -1,0 +1,213 @@
+/**
+ * Gemini Video Generation Provider Options
+ *
+ * Covers two request paths behind the one video adapter:
+ * - Veo models — long-running operations via `:predictLongRunning`
+ *   (https://ai.google.dev/gemini-api/docs/video)
+ * - Gemini Omni Flash — background jobs via the Interactions API
+ *   (https://ai.google.dev/gemini-api/docs/omni)
+ */
+import { GEMINI_INTERACTIONS_VIDEO_MODELS } from '../model-meta'
+import type { DurationOptions } from '@tanstack/ai/adapters'
+import type { GenerateVideosConfig, Interactions } from '@google/genai'
+import type { GEMINI_VIDEO_MODELS } from '../model-meta'
+
+/**
+ * Model type for Gemini video generation (Veo + Omni Flash).
+ */
+export type GeminiVideoModel = (typeof GEMINI_VIDEO_MODELS)[number]
+
+/**
+ * Video models served by the Interactions API (Gemini Omni Flash) rather
+ * than Veo's `:predictLongRunning` operations flow.
+ */
+export type GeminiInteractionsVideoModel =
+  (typeof GEMINI_INTERACTIONS_VIDEO_MODELS)[number]
+
+/**
+ * Runtime guard for the Interactions-served video models.
+ */
+export function isInteractionsVideoModel(
+  model: GeminiVideoModel,
+): model is GeminiInteractionsVideoModel {
+  return (GEMINI_INTERACTIONS_VIDEO_MODELS as ReadonlyArray<string>).includes(
+    model,
+  )
+}
+
+/**
+ * Aspect ratios for Gemini video generation. Veo `size` is this union.
+ * Omni `size` also accepts an `aspectRatio_resolution` suffix
+ * (`'16:9_1080p'`), same template as grok / byteplus video.
+ */
+export type GeminiVideoSize = '16:9' | '9:16'
+
+/**
+ * Omni Flash output resolution. Used as the optional suffix on `size`
+ * (`'16:9_1080p'`). Default 720p when omitted.
+ */
+export type GeminiOmniVideoResolution = '360p' | '720p' | '1080p' | '4k'
+
+/**
+ * Omni Flash `size`: bare aspect ratio or `aspectRatio_resolution`.
+ */
+export type GeminiOmniVideoSize =
+  | GeminiVideoSize
+  | `${GeminiVideoSize}_${GeminiOmniVideoResolution}`
+
+/**
+ * Splits an Omni `size` into aspect ratio and optional resolution.
+ * `'16:9_1080p'` → `{ aspectRatio: '16:9', resolution: '1080p' }`.
+ * `'9:16'` → `{ aspectRatio: '9:16' }`.
+ */
+export function parseGeminiOmniVideoSize(
+  size: string,
+): { aspectRatio: string; resolution?: string } | undefined {
+  const match = /^(\d+:\d+)(?:_(.+))?$/.exec(size)
+  const [, aspectRatio, resolution] = match ?? []
+  if (aspectRatio === undefined) return undefined
+  return {
+    aspectRatio,
+    ...(resolution !== undefined && { resolution }),
+  }
+}
+
+/**
+ * Provider-specific options for Gemini Veo video generation.
+ *
+ * Derived from the SDK's `GenerateVideosConfig`, minus the fields the
+ * adapter manages itself:
+ * - `durationSeconds` — set via the typed top-level `duration` option
+ *   (use `adapter.snapDuration(seconds)` to coerce raw seconds)
+ * - `aspectRatio` — set via the top-level `size` option
+ * - `lastFrame` / `referenceImages` — set via image parts in the `prompt`
+ *   with `metadata.role: 'end_frame'` / `'reference'`
+ * - `httpOptions` / `abortSignal` — client-level transport concerns
+ */
+export type GeminiVideoProviderOptions = Omit<
+  GenerateVideosConfig,
+  | 'durationSeconds'
+  | 'aspectRatio'
+  | 'lastFrame'
+  | 'referenceImages'
+  | 'httpOptions'
+  | 'abortSignal'
+>
+
+/**
+ * Provider-specific options for Gemini Omni Flash video generation on the
+ * Interactions API.
+ *
+ * Derived from the SDK's `Interactions.CreateModelInteractionParamsNonStreaming`,
+ * minus the fields the adapter manages itself:
+ * - `model` / `input` — set from the adapter's model and the `prompt`
+ * - `stream` / `background` — the adapter always creates a background job
+ *   and polls it through the `generateVideo` jobs API
+ * - `response_modalities` / `response_format` — the adapter requests video
+ *   output and maps the top-level `size` option onto
+ *   `response_format.aspect_ratio` (and `response_format.resolution` when
+ *   the size carries a suffix) and `duration` onto
+ *   `response_format.duration`
+ * - `tools` / `response_mime_type` — not applicable to video generation
+ *
+ * Notable passthroughs:
+ * - `previous_interaction_id` — conversational video editing: chain a new
+ *   prompt onto a prior Omni interaction to refine its video
+ * - `generation_config.video_config.task` — pin the task mode
+ *   (`'text_to_video' | 'image_to_video' | 'reference_to_video' | 'edit'`)
+ *   instead of letting the model infer it
+ */
+export type GeminiOmniVideoProviderOptions = Omit<
+  Interactions.CreateModelInteractionParamsNonStreaming,
+  | 'model'
+  | 'input'
+  | 'stream'
+  | 'background'
+  | 'response_modalities'
+  | 'response_format'
+  | 'response_mime_type'
+  | 'tools'
+>
+
+/**
+ * Model-specific provider options mapping.
+ */
+export type GeminiVideoModelProviderOptionsByName = {
+  [TModel in GeminiVideoModel]: TModel extends GeminiInteractionsVideoModel
+    ? GeminiOmniVideoProviderOptions
+    : GeminiVideoProviderOptions
+}
+
+/**
+ * Model-specific size mapping. Veo is aspect ratio only. Omni accepts the
+ * `aspectRatio_resolution` template (`'16:9_1080p'`).
+ */
+export type GeminiVideoModelSizeByName = {
+  [TModel in GeminiVideoModel]: TModel extends GeminiInteractionsVideoModel
+    ? GeminiOmniVideoSize
+    : GeminiVideoSize
+}
+
+/**
+ * Per-model prompt input modalities. Every Veo model accepts image
+ * conditioning inputs (first frame, last frame, reference images) alongside
+ * the text prompt. Omni Flash additionally accepts video inputs (short
+ * reference clips / videos to edit).
+ */
+export type GeminiVideoModelInputModalitiesByName = {
+  [TModel in GeminiVideoModel]: TModel extends GeminiInteractionsVideoModel
+    ? readonly ['image', 'video']
+    : readonly ['image']
+}
+
+/**
+ * Per-model duration unions (seconds, as numbers — Veo's
+ * `parameters.durationSeconds` field is numeric; Omni Flash accepts a
+ * continuous 3–10 second range, fractional seconds included, so it stays
+ * `number` — the adapter rejects out-of-range values at job creation,
+ * against the range entry below).
+ */
+export type GeminiVideoModelDurationByName = {
+  'veo-3.1-generate-preview': 4 | 6 | 8
+  'veo-3.1-fast-generate-preview': 4 | 6 | 8
+  'veo-3.1-lite-generate-preview': 4 | 6 | 8
+  'gemini-omni-1.1-flash': number
+}
+
+/**
+ * Runtime duration table backing `availableDurations()` / `snapDuration()`.
+ *
+ * Veo values are curated from the official docs
+ * (https://ai.google.dev/gemini-api/docs/video) — the Gemini OpenAPI spec
+ * types the `:predictLongRunning` request's `parameters` as unconstrained,
+ * so it carries no per-model duration information to derive these from.
+ * Omni Flash's 3–10s range was verified against the live API
+ * (2026-07-02): `response_format.duration` takes a `"<seconds>s"` string,
+ * fractional values are accepted, out-of-range values are rejected with
+ * "minimum allowed 3s" / "maximum allowed 10s", and omitting it defaults
+ * to a 10-second clip.
+ */
+export const GEMINI_VIDEO_DURATIONS: {
+  readonly [TModel in GeminiVideoModel]: DurationOptions<
+    GeminiVideoModelDurationByName[TModel]
+  >
+} = {
+  'veo-3.1-generate-preview': { kind: 'discrete', values: [4, 6, 8] },
+  'veo-3.1-fast-generate-preview': { kind: 'discrete', values: [4, 6, 8] },
+  'veo-3.1-lite-generate-preview': { kind: 'discrete', values: [4, 6, 8] },
+  'gemini-omni-1.1-flash': {
+    kind: 'range',
+    min: 3,
+    max: 10,
+    unit: 'seconds',
+  },
+}
+
+/**
+ * Look up the duration options for a Gemini video model.
+ */
+export function getGeminiVideoDurationOptions<TModel extends GeminiVideoModel>(
+  model: TModel,
+): DurationOptions<GeminiVideoModelDurationByName[TModel]> {
+  return GEMINI_VIDEO_DURATIONS[model]
+}

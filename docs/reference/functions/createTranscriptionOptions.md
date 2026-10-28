@@ -3,13 +3,11 @@ id: createTranscriptionOptions
 title: createTranscriptionOptions
 ---
 
-# Function: createTranscriptionOptions()
-
 ```ts
 function createTranscriptionOptions<TAdapter, TStream>(options): TranscriptionActivityOptions<TAdapter, TStream>;
 ```
 
-Defined in: [packages/typescript/ai/src/activities/generateTranscription/index.ts:251](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/generateTranscription/index.ts#L251)
+Defined in: packages/ai/src/activities/generateTranscription/index.ts:362
 
 Create typed options for the generateTranscription() function without executing.
 

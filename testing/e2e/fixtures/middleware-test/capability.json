@@ -1,0 +1,10 @@
+{
+  "fixtures": [
+    {
+      "match": { "userMessage": "[capability] run test", "sequenceIndex": 0 },
+      "response": {
+        "content": "Hello from the assistant."
+      }
+    }
+  ]
+}

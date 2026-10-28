@@ -1,0 +1,1672 @@
+import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest'
+
+const { mockComplete } = vi.hoisted(() => ({
+  mockComplete: vi.fn<(...args: Array<unknown>) => unknown>(),
+}))
+
+vi.mock('@mistralai/mistralai', () => {
+  return {
+    Mistral: class {
+      chat = {
+        complete: (...args: Array<unknown>) => mockComplete(...args),
+      }
+      HTTPClient = class {}
+    },
+    HTTPClient: class {
+      addHook() {}
+    },
+  }
+})
+
+import type { AdapterYieldChunk, TextOptions, Tool } from '@tanstack/ai'
+import type { MistralTextProviderOptions } from '../src/adapters/text'
+
+const { chat, createChatOptions, maxIterations, toolDefinition } =
+  await import('@tanstack/ai')
+const { createMistralText, mistralText } = await import('../src/adapters/text')
+
+/**
+ * Builds chat options for tests. `chatStream`'s `TextOptions` requires fields
+ * (e.g. `logger`) that the adapter only consults when provided; the cast
+ * lets tests focus on the inputs they actually exercise without rebuilding
+ * a full options object on every call.
+ */
+function chatOpts(
+  opts: Partial<TextOptions<MistralTextProviderOptions>> & {
+    model: string
+    messages: Array<{
+      role: 'user' | 'assistant' | 'tool'
+      content: unknown
+      toolCallId?: string
+      toolCalls?: Array<unknown>
+    }>
+  },
+): TextOptions<MistralTextProviderOptions> {
+  return opts as unknown as TextOptions<MistralTextProviderOptions>
+}
+
+function toApiChunk(chunk: Record<string, unknown>): Record<string, unknown> {
+  const choices = (chunk.choices as Array<Record<string, unknown>>) ?? []
+  const result: Record<string, unknown> = {
+    id: chunk.id,
+    model: chunk.model,
+    object: 'chat.completion.chunk',
+    created: 0,
+    choices: choices.map((choice) => {
+      const delta = (choice.delta as Record<string, unknown>) ?? {}
+      const toolCalls = delta.toolCalls as
+        | Array<Record<string, unknown>>
+        | undefined
+      return {
+        index: choice.index ?? 0,
+        delta: {
+          role: delta.role,
+          content: delta.content,
+          ...(toolCalls ? { tool_calls: toolCalls } : {}),
+        },
+        finish_reason: choice.finishReason ?? null,
+      }
+    }),
+  }
+  if (chunk.usage) {
+    const u = chunk.usage as Record<string, unknown>
+    result.usage = {
+      prompt_tokens: u.promptTokens,
+      completion_tokens: u.completionTokens,
+      total_tokens: u.totalTokens,
+    }
+  }
+  return result
+}
+
+function setupMockStream(chunks: Array<Record<string, unknown>>) {
+  const sseBody =
+    chunks.map((c) => `data: ${JSON.stringify(toApiChunk(c))}`).join('\n\n') +
+    '\n\ndata: [DONE]\n\n'
+  vi.stubGlobal(
+    'fetch',
+    vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      body: new ReadableStream({
+        start(controller) {
+          controller.enqueue(new TextEncoder().encode(sseBody))
+          controller.close()
+        },
+      }),
+    }),
+  )
+  mockComplete.mockReset()
+}
+
+const weatherTool: Tool = {
+  name: 'lookup_weather',
+  description: 'Return the forecast for a location',
+  inputSchema: {
+    type: 'object',
+    properties: {
+      location: { type: 'string' },
+      mode: { type: 'string', enum: ['canary'] },
+      note: { type: ['string', 'null'] },
+    },
+    required: ['location'],
+  },
+}
+
+describe('Mistral adapters', () => {
+  afterEach(() => {
+    vi.unstubAllEnvs()
+    vi.unstubAllGlobals()
+  })
+
+  describe('Text adapter', () => {
+    beforeEach(() => {
+      vi.clearAllMocks()
+    })
+
+    it('creates a text adapter with explicit API key', () => {
+      const adapter = createMistralText('mistral-large-latest', 'test-api-key')
+
+      expect(adapter).toBeDefined()
+      expect(adapter.kind).toBe('text')
+      expect(adapter.name).toBe('mistral')
+      expect(adapter.model).toBe('mistral-large-latest')
+    })
+
+    it('creates a text adapter from environment variable', () => {
+      vi.stubEnv('MISTRAL_API_KEY', 'env-api-key')
+
+      const adapter = mistralText('ministral-8b-latest')
+
+      expect(adapter).toBeDefined()
+      expect(adapter.kind).toBe('text')
+      expect(adapter.model).toBe('ministral-8b-latest')
+    })
+
+    it('normalizes only strict-schema nulls in structured output', async () => {
+      mockComplete.mockReset().mockResolvedValue({
+        choices: [
+          {
+            message: {
+              content: JSON.stringify({ mode: null, note: null }),
+            },
+          },
+        ],
+      })
+      const adapter = createMistralText('mistral-large-latest', 'test-api-key')
+
+      const result = await adapter.structuredOutput({
+        chatOptions: chatOpts({
+          model: 'mistral-large-latest',
+          messages: [{ role: 'user', content: 'Return structured output' }],
+        }),
+        outputSchema: {
+          type: 'object',
+          properties: {
+            mode: { type: 'string', enum: ['canary'] },
+            note: { type: ['string', 'null'] },
+          },
+          required: [],
+        },
+      })
+
+      expect(result.data).toEqual({ note: null })
+      expect(mockComplete).toHaveBeenCalledWith(
+        expect.objectContaining({
+          responseFormat: {
+            type: 'json_schema',
+            jsonSchema: {
+              name: 'structured_output',
+              schemaDefinition: {
+                type: 'object',
+                properties: {
+                  mode: {
+                    type: ['string', 'null'],
+                    enum: ['canary', null],
+                  },
+                  note: { type: ['string', 'null'] },
+                },
+                required: ['mode', 'note'],
+                additionalProperties: false,
+              },
+              strict: true,
+            },
+          },
+        }),
+      )
+    })
+
+    it('preserves composed structured-output schemas in non-strict mode', async () => {
+      mockComplete.mockReset().mockResolvedValue({
+        choices: [{ message: { content: JSON.stringify({ value: null }) } }],
+      })
+      const adapter = createMistralText('mistral-large-latest', 'test-api-key')
+      const outputSchema = {
+        type: 'object',
+        properties: {
+          value: {
+            oneOf: [{ type: 'string' }, { type: 'null' }],
+          },
+        },
+        required: [],
+      }
+
+      const result = await adapter.structuredOutput({
+        chatOptions: chatOpts({
+          model: 'mistral-large-latest',
+          messages: [{ role: 'user', content: 'Return structured output' }],
+        }),
+        outputSchema,
+      })
+
+      expect(result.data).toEqual({ value: null })
+      expect(mockComplete).toHaveBeenCalledWith(
+        expect.objectContaining({
+          responseFormat: {
+            type: 'json_schema',
+            jsonSchema: {
+              name: 'structured_output',
+              schemaDefinition: outputSchema,
+              strict: false,
+            },
+          },
+        }),
+      )
+    })
+
+    it('reports a length stop as truncation in structured output', async () => {
+      mockComplete.mockReset().mockResolvedValue({
+        choices: [
+          { message: { content: '{"value":' }, finishReason: 'length' },
+        ],
+      })
+      const adapter = createMistralText('mistral-large-latest', 'test-api-key')
+
+      await expect(
+        adapter.structuredOutput({
+          chatOptions: chatOpts({
+            model: 'mistral-large-latest',
+            messages: [{ role: 'user', content: 'Return structured output' }],
+          }),
+          outputSchema: {
+            type: 'object',
+            properties: { value: { type: 'string' } },
+          },
+        }),
+      ).rejects.toThrow(/maximum token limit was reached/)
+    })
+
+    it('throws if MISTRAL_API_KEY is not set when using mistralText', () => {
+      vi.stubEnv('MISTRAL_API_KEY', '')
+
+      expect(() => mistralText('mistral-large-latest')).toThrow(
+        'MISTRAL_API_KEY is required',
+      )
+    })
+
+    it('allows custom serverURL override', () => {
+      const adapter = createMistralText(
+        'mistral-large-latest',
+        'test-api-key',
+        {
+          serverURL: 'https://custom.api.example.com',
+        },
+      )
+
+      expect(adapter).toBeDefined()
+    })
+  })
+})
+
+describe('Mistral AG-UI event emission', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  afterEach(() => {
+    vi.unstubAllEnvs()
+    vi.unstubAllGlobals()
+  })
+
+  it('emits RUN_STARTED as the first event', async () => {
+    const streamChunks = [
+      {
+        id: 'cmpl-123',
+        model: 'mistral-large-latest',
+        choices: [
+          {
+            index: 0,
+            delta: { content: 'Hello' },
+            finishReason: null,
+          },
+        ],
+      },
+      {
+        id: 'cmpl-123',
+        model: 'mistral-large-latest',
+        choices: [
+          {
+            index: 0,
+            delta: {},
+            finishReason: 'stop',
+          },
+        ],
+        usage: {
+          promptTokens: 5,
+          completionTokens: 1,
+          totalTokens: 6,
+        },
+      },
+    ]
+
+    setupMockStream(streamChunks)
+    const adapter = createMistralText('mistral-large-latest', 'test-api-key')
+    const chunks: Array<AdapterYieldChunk> = []
+
+    for await (const chunk of adapter.chatStream(
+      chatOpts({
+        model: 'mistral-large-latest',
+        messages: [{ role: 'user', content: 'Hello' }],
+      }),
+    )) {
+      chunks.push(chunk)
+    }
+
+    expect(chunks[0]?.type).toBe('RUN_STARTED')
+    if (chunks[0]?.type === 'RUN_STARTED') {
+      expect(chunks[0].runId).toBeDefined()
+      expect(chunks[0].model).toBe('mistral-large-latest')
+    }
+  })
+
+  it('posts the raw stream to baseURL with defaultHeaders', async () => {
+    setupMockStream([
+      {
+        id: 'cmpl-1',
+        model: 'mistral-large-latest',
+        choices: [{ index: 0, delta: {}, finishReason: 'stop' }],
+      },
+    ])
+    const adapter = createMistralText('mistral-large-latest', 'test-api-key', {
+      baseURL: 'https://gw.example/mistral/',
+      defaultHeaders: { 'X-Gateway': 'yes' },
+    })
+
+    for await (const _chunk of adapter.chatStream(
+      chatOpts({
+        model: 'mistral-large-latest',
+        messages: [{ role: 'user', content: 'Hello' }],
+      }),
+    )) {
+      // drain
+    }
+
+    const fetchMock = vi.mocked(globalThis.fetch)
+    const [url, init] = fetchMock.mock.calls[0]!
+    expect(url).toBe('https://gw.example/mistral/v1/chat/completions')
+    expect(init?.headers).toMatchObject({ 'X-Gateway': 'yes' })
+  })
+
+  it('emits TEXT_MESSAGE_START before TEXT_MESSAGE_CONTENT', async () => {
+    const streamChunks = [
+      {
+        id: 'cmpl-123',
+        model: 'mistral-large-latest',
+        choices: [
+          {
+            index: 0,
+            delta: { content: 'Hello' },
+            finishReason: null,
+          },
+        ],
+      },
+      {
+        id: 'cmpl-123',
+        model: 'mistral-large-latest',
+        choices: [
+          {
+            index: 0,
+            delta: {},
+            finishReason: 'stop',
+          },
+        ],
+        usage: {
+          promptTokens: 5,
+          completionTokens: 1,
+          totalTokens: 6,
+        },
+      },
+    ]
+
+    setupMockStream(streamChunks)
+    const adapter = createMistralText('mistral-large-latest', 'test-api-key')
+    const chunks: Array<AdapterYieldChunk> = []
+
+    for await (const chunk of adapter.chatStream(
+      chatOpts({
+        model: 'mistral-large-latest',
+        messages: [{ role: 'user', content: 'Hello' }],
+      }),
+    )) {
+      chunks.push(chunk)
+    }
+
+    const textStartIndex = chunks.findIndex(
+      (c) => c.type === 'TEXT_MESSAGE_START',
+    )
+    const textContentIndex = chunks.findIndex(
+      (c) => c.type === 'TEXT_MESSAGE_CONTENT',
+    )
+
+    expect(textStartIndex).toBeGreaterThan(-1)
+    expect(textContentIndex).toBeGreaterThan(-1)
+    expect(textStartIndex).toBeLessThan(textContentIndex)
+  })
+
+  it('emits TEXT_MESSAGE_END and RUN_FINISHED at the end', async () => {
+    const streamChunks = [
+      {
+        id: 'cmpl-123',
+        model: 'mistral-large-latest',
+        choices: [
+          {
+            index: 0,
+            delta: { content: 'Hello' },
+            finishReason: null,
+          },
+        ],
+      },
+      {
+        id: 'cmpl-123',
+        model: 'mistral-large-latest',
+        choices: [
+          {
+            index: 0,
+            delta: {},
+            finishReason: 'stop',
+          },
+        ],
+        usage: {
+          promptTokens: 5,
+          completionTokens: 1,
+          totalTokens: 6,
+        },
+      },
+    ]
+
+    setupMockStream(streamChunks)
+    const adapter = createMistralText('mistral-large-latest', 'test-api-key')
+    const chunks: Array<AdapterYieldChunk> = []
+
+    for await (const chunk of adapter.chatStream(
+      chatOpts({
+        model: 'mistral-large-latest',
+        messages: [{ role: 'user', content: 'Hello' }],
+      }),
+    )) {
+      chunks.push(chunk)
+    }
+
+    const textEndChunk = chunks.find((c) => c.type === 'TEXT_MESSAGE_END')
+    expect(textEndChunk).toBeDefined()
+
+    const runFinishedChunk = chunks.find((c) => c.type === 'RUN_FINISHED')
+    expect(runFinishedChunk).toBeDefined()
+    if (runFinishedChunk?.type === 'RUN_FINISHED') {
+      expect(runFinishedChunk.finishReason).toBe('stop')
+      expect(runFinishedChunk.usage).toMatchObject({
+        promptTokens: 5,
+        completionTokens: 1,
+        totalTokens: 6,
+      })
+    }
+  })
+
+  it('emits AG-UI tool call events', async () => {
+    const streamChunks = [
+      {
+        id: 'cmpl-456',
+        model: 'mistral-large-latest',
+        choices: [
+          {
+            index: 0,
+            delta: {
+              toolCalls: [
+                {
+                  index: 0,
+                  id: 'call_abc123',
+                  type: 'function',
+                  function: {
+                    name: 'lookup_weather',
+                    arguments: '{"location":',
+                  },
+                },
+              ],
+            },
+            finishReason: null,
+          },
+        ],
+      },
+      {
+        id: 'cmpl-456',
+        model: 'mistral-large-latest',
+        choices: [
+          {
+            index: 0,
+            delta: {
+              toolCalls: [
+                {
+                  index: 0,
+                  function: {
+                    arguments: '"Berlin","mode":null,"note":null}',
+                  },
+                },
+              ],
+            },
+            finishReason: null,
+          },
+        ],
+      },
+      {
+        id: 'cmpl-456',
+        model: 'mistral-large-latest',
+        choices: [
+          {
+            index: 0,
+            delta: {},
+            finishReason: 'tool_calls',
+          },
+        ],
+        usage: {
+          promptTokens: 10,
+          completionTokens: 5,
+          totalTokens: 15,
+        },
+      },
+    ]
+
+    setupMockStream(streamChunks)
+    const adapter = createMistralText('mistral-large-latest', 'test-api-key')
+    const chunks: Array<AdapterYieldChunk> = []
+
+    for await (const chunk of adapter.chatStream(
+      chatOpts({
+        model: 'mistral-large-latest',
+        messages: [{ role: 'user', content: 'Weather in Berlin?' }],
+        tools: [weatherTool],
+      }),
+    )) {
+      chunks.push(chunk)
+    }
+
+    const toolStartChunk = chunks.find((c) => c.type === 'TOOL_CALL_START')
+    expect(toolStartChunk).toBeDefined()
+    if (toolStartChunk?.type === 'TOOL_CALL_START') {
+      expect(toolStartChunk.toolCallId).toBe('call_abc123')
+      expect(toolStartChunk.toolCallName).toBe('lookup_weather')
+    }
+
+    const toolArgsChunks = chunks.filter((c) => c.type === 'TOOL_CALL_ARGS')
+    expect(toolArgsChunks.length).toBeGreaterThan(0)
+
+    const toolEndChunk = chunks.find((c) => c.type === 'TOOL_CALL_END')
+    expect(toolEndChunk).toBeDefined()
+    if (toolEndChunk?.type === 'TOOL_CALL_END') {
+      expect(toolEndChunk.toolCallId).toBe('call_abc123')
+      expect(toolEndChunk.toolCallName).toBe('lookup_weather')
+      expect(toolEndChunk.input).toEqual({
+        location: 'Berlin',
+        note: null,
+      })
+    }
+
+    const runFinishedChunk = chunks.find((c) => c.type === 'RUN_FINISHED')
+    expect(runFinishedChunk).toBeDefined()
+    if (runFinishedChunk?.type === 'RUN_FINISHED') {
+      expect(runFinishedChunk.finishReason).toBe('tool_calls')
+    }
+  })
+
+  it('normalizes strict optional nulls before server tool execution', async () => {
+    const responseStreams = [
+      [
+        {
+          id: 'cmpl-tool',
+          model: 'mistral-large-latest',
+          choices: [
+            {
+              index: 0,
+              delta: {
+                toolCalls: [
+                  {
+                    index: 0,
+                    id: 'call-tool',
+                    type: 'function',
+                    function: {
+                      name: 'ask_user',
+                      arguments: JSON.stringify({
+                        mode: null,
+                        question: 'Which option?',
+                        nullableNote: null,
+                      }),
+                    },
+                  },
+                ],
+              },
+              finishReason: null,
+            },
+          ],
+        },
+        {
+          id: 'cmpl-tool',
+          model: 'mistral-large-latest',
+          choices: [{ index: 0, delta: {}, finishReason: 'tool_calls' }],
+          usage: {
+            promptTokens: 10,
+            completionTokens: 5,
+            totalTokens: 15,
+          },
+        },
+      ],
+      [
+        {
+          id: 'cmpl-text',
+          model: 'mistral-large-latest',
+          choices: [
+            {
+              index: 0,
+              delta: { content: 'Tool executed.' },
+              finishReason: null,
+            },
+          ],
+        },
+        {
+          id: 'cmpl-text',
+          model: 'mistral-large-latest',
+          choices: [{ index: 0, delta: {}, finishReason: 'stop' }],
+          usage: {
+            promptTokens: 8,
+            completionTokens: 2,
+            totalTokens: 10,
+          },
+        },
+      ],
+    ]
+    let requestCount = 0
+    let firstRequestBody: unknown
+    let executedInput: unknown
+
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockImplementation(async (_input, init: RequestInit) => {
+        const chunks = responseStreams[requestCount]
+        requestCount++
+        if (!chunks) throw new Error('Unexpected Mistral request')
+
+        if (requestCount === 1 && typeof init.body === 'string') {
+          firstRequestBody = JSON.parse(init.body)
+        }
+        const sseBody =
+          chunks
+            .map((chunk) => `data: ${JSON.stringify(toApiChunk(chunk))}`)
+            .join('\n\n') + '\n\ndata: [DONE]\n\n'
+        return new Response(sseBody, {
+          headers: { 'Content-Type': 'text/event-stream' },
+        })
+      }),
+    )
+
+    const askUser = toolDefinition({
+      name: 'ask_user',
+      description: 'Ask the user to choose an option',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          mode: { type: 'string', enum: ['canary'] },
+          question: { type: 'string' },
+          nullableNote: {
+            anyOf: [{ type: 'string' }, { type: 'null' }],
+          },
+        },
+        required: ['question', 'nullableNote'],
+        additionalProperties: false,
+      },
+    }).server((input) => {
+      executedInput = input
+      return { accepted: true }
+    })
+    const adapter = createMistralText('mistral-large-latest', 'test-api-key')
+    const text: Array<string> = []
+
+    for await (const chunk of chat({
+      ...createChatOptions({ adapter }),
+      threadId: 'thread-1',
+      messages: [{ role: 'user', content: 'Ask me a question' }],
+      tools: [askUser],
+      agentLoopStrategy: maxIterations(3),
+    })) {
+      if (chunk.type === 'TEXT_MESSAGE_CONTENT') text.push(chunk.delta)
+    }
+
+    expect(firstRequestBody).toMatchObject({
+      tools: [
+        {
+          function: {
+            name: 'ask_user',
+            strict: true,
+            parameters: {
+              required: ['mode', 'question', 'nullableNote'],
+              properties: {
+                mode: {
+                  type: ['string', 'null'],
+                  enum: ['canary', null],
+                },
+                nullableNote: {
+                  anyOf: [{ type: 'string' }, { type: 'null' }],
+                },
+              },
+            },
+          },
+        },
+      ],
+    })
+    expect(executedInput).toEqual({
+      question: 'Which option?',
+      nullableNote: null,
+    })
+    expect(requestCount).toBe(2)
+    expect(text.join('')).toBe('Tool executed.')
+  })
+
+  it('emits RUN_ERROR on stream error', async () => {
+    const firstChunk = JSON.stringify({
+      id: 'cmpl-123',
+      model: 'mistral-large-latest',
+      choices: [{ index: 0, delta: { content: 'Hello' }, finish_reason: null }],
+    })
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        body: new ReadableStream({
+          start(controller) {
+            controller.enqueue(
+              new TextEncoder().encode(`data: ${firstChunk}\n\n`),
+            )
+            controller.error(new Error('Stream interrupted'))
+          },
+        }),
+      }),
+    )
+    mockComplete.mockReset()
+
+    const adapter = createMistralText('mistral-large-latest', 'test-api-key')
+    const chunks: Array<AdapterYieldChunk> = []
+    let thrownError: Error | undefined
+
+    try {
+      for await (const chunk of adapter.chatStream(
+        chatOpts({
+          model: 'mistral-large-latest',
+          messages: [{ role: 'user', content: 'Hello' }],
+        }),
+      )) {
+        chunks.push(chunk)
+      }
+    } catch (err) {
+      thrownError = err as Error
+    }
+
+    expect(thrownError).toBeDefined()
+    expect(thrownError?.message).toBe('Stream interrupted')
+
+    const runErrorChunk = chunks.find((c) => c.type === 'RUN_ERROR')
+    expect(runErrorChunk).toBeDefined()
+    if (runErrorChunk?.type === 'RUN_ERROR') {
+      expect(runErrorChunk.error?.message).toBe('Stream interrupted')
+    }
+  })
+
+  it('streams content with correct accumulated values', async () => {
+    const streamChunks = [
+      {
+        id: 'cmpl-stream',
+        model: 'mistral-large-latest',
+        choices: [
+          {
+            index: 0,
+            delta: { content: 'Hello ' },
+            finishReason: null,
+          },
+        ],
+      },
+      {
+        id: 'cmpl-stream',
+        model: 'mistral-large-latest',
+        choices: [
+          {
+            index: 0,
+            delta: { content: 'world' },
+            finishReason: null,
+          },
+        ],
+      },
+      {
+        id: 'cmpl-stream',
+        model: 'mistral-large-latest',
+        choices: [
+          {
+            index: 0,
+            delta: {},
+            finishReason: 'stop',
+          },
+        ],
+        usage: {
+          promptTokens: 5,
+          completionTokens: 2,
+          totalTokens: 7,
+        },
+      },
+    ]
+
+    setupMockStream(streamChunks)
+    const adapter = createMistralText('mistral-large-latest', 'test-api-key')
+    const chunks: Array<AdapterYieldChunk> = []
+
+    for await (const chunk of adapter.chatStream(
+      chatOpts({
+        model: 'mistral-large-latest',
+        messages: [{ role: 'user', content: 'Say hello' }],
+      }),
+    )) {
+      chunks.push(chunk)
+    }
+
+    const contentChunks = chunks.filter(
+      (c) => c.type === 'TEXT_MESSAGE_CONTENT',
+    )
+    expect(contentChunks.length).toBe(2)
+
+    const firstContent = contentChunks[0]
+    if (firstContent?.type === 'TEXT_MESSAGE_CONTENT') {
+      expect(firstContent.delta).toBe('Hello ')
+      expect(firstContent.content).toBe('Hello ')
+    }
+
+    const secondContent = contentChunks[1]
+    if (secondContent?.type === 'TEXT_MESSAGE_CONTENT') {
+      expect(secondContent.delta).toBe('world')
+      expect(secondContent.content).toBe('Hello world')
+    }
+  })
+
+  it('emits exactly one RUN_ERROR on stream error (no duplicates from inner+outer catch)', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        body: new ReadableStream({
+          start(controller) {
+            controller.enqueue(
+              new TextEncoder().encode(
+                `data: ${JSON.stringify(
+                  toApiChunk({
+                    id: 'cmpl-dup',
+                    model: 'mistral-large-latest',
+                    choices: [
+                      { index: 0, delta: { content: 'x' }, finishReason: null },
+                    ],
+                  }),
+                )}\n\n`,
+              ),
+            )
+            controller.error(new Error('boom'))
+          },
+        }),
+      }),
+    )
+
+    const adapter = createMistralText('mistral-large-latest', 'test-api-key')
+    const chunks: Array<AdapterYieldChunk> = []
+
+    try {
+      for await (const chunk of adapter.chatStream(
+        chatOpts({
+          model: 'mistral-large-latest',
+          messages: [{ role: 'user', content: 'Hi' }],
+        }),
+      )) {
+        chunks.push(chunk)
+      }
+    } catch {
+      // expected
+    }
+
+    const runErrors = chunks.filter((c) => c.type === 'RUN_ERROR')
+    expect(runErrors).toHaveLength(1)
+  })
+
+  it('flushes TEXT_MESSAGE_END and RUN_FINISHED when stream ends without finish_reason', async () => {
+    // Stream emits content, then [DONE] without ever sending a finish_reason
+    // chunk. Consumers must still receive matched lifecycle events.
+    const sseBody = `data: ${JSON.stringify(
+      toApiChunk({
+        id: 'cmpl-cut',
+        model: 'mistral-large-latest',
+        choices: [
+          { index: 0, delta: { content: 'partial' }, finishReason: null },
+        ],
+      }),
+    )}\n\ndata: [DONE]\n\n`
+
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        body: new ReadableStream({
+          start(controller) {
+            controller.enqueue(new TextEncoder().encode(sseBody))
+            controller.close()
+          },
+        }),
+      }),
+    )
+    mockComplete.mockReset()
+
+    const adapter = createMistralText('mistral-large-latest', 'test-api-key')
+    const chunks: Array<AdapterYieldChunk> = []
+
+    for await (const chunk of adapter.chatStream(
+      chatOpts({
+        model: 'mistral-large-latest',
+        messages: [{ role: 'user', content: 'Go' }],
+      }),
+    )) {
+      chunks.push(chunk)
+    }
+
+    const types: Array<string> = chunks.map((c) => c.type)
+    expect(types).toContain('TEXT_MESSAGE_START')
+    expect(types).toContain('TEXT_MESSAGE_END')
+    expect(types).toContain('RUN_FINISHED')
+    expect(types.indexOf('TEXT_MESSAGE_END')).toBeLessThan(
+      types.indexOf('RUN_FINISHED'),
+    )
+  })
+
+  it('replays buffered tool-call args when arguments arrive before id and name', async () => {
+    // First delta carries arguments fragment but no id/name; second delta
+    // brings id+name; third closes the call. Consumers tracking ARGS deltas
+    // must see the buffered prefix replayed once START is emitted.
+    setupMockStream([
+      {
+        id: 'cmpl-replay',
+        model: 'mistral-large-latest',
+        choices: [
+          {
+            index: 0,
+            delta: {
+              toolCalls: [
+                {
+                  index: 0,
+                  function: { arguments: '{"loc' },
+                },
+              ],
+            },
+            finishReason: null,
+          },
+        ],
+      },
+      {
+        id: 'cmpl-replay',
+        model: 'mistral-large-latest',
+        choices: [
+          {
+            index: 0,
+            delta: {
+              toolCalls: [
+                {
+                  index: 0,
+                  id: 'tc_1',
+                  function: { name: 'lookup_weather' },
+                },
+              ],
+            },
+            finishReason: null,
+          },
+        ],
+      },
+      {
+        id: 'cmpl-replay',
+        model: 'mistral-large-latest',
+        choices: [
+          {
+            index: 0,
+            delta: {
+              toolCalls: [
+                { index: 0, function: { arguments: 'ation":"Berlin"}' } },
+              ],
+            },
+            finishReason: 'tool_calls',
+          },
+        ],
+      },
+    ])
+
+    const adapter = createMistralText('mistral-large-latest', 'test-api-key')
+    const chunks: Array<AdapterYieldChunk> = []
+
+    for await (const chunk of adapter.chatStream(
+      chatOpts({
+        model: 'mistral-large-latest',
+        messages: [{ role: 'user', content: 'Weather in Berlin?' }],
+        tools: [weatherTool],
+      }),
+    )) {
+      chunks.push(chunk)
+    }
+
+    const argsChunks = chunks.filter((c) => c.type === 'TOOL_CALL_ARGS')
+    const concatenated = argsChunks
+      .map((c) =>
+        c.type === 'TOOL_CALL_ARGS' ? (c as { delta: string }).delta : '',
+      )
+      .join('')
+    expect(concatenated).toBe('{"location":"Berlin"}')
+
+    // The TOOL_CALL_END input must reflect the full JSON
+    const endChunk = chunks.find((c) => c.type === 'TOOL_CALL_END')
+    if (endChunk?.type === 'TOOL_CALL_END') {
+      expect(endChunk.input).toEqual({ location: 'Berlin' })
+    }
+  })
+
+  it('throws on malformed tool-call arguments rather than silently substituting {}', async () => {
+    setupMockStream([
+      {
+        id: 'cmpl-bad',
+        model: 'mistral-large-latest',
+        choices: [
+          {
+            index: 0,
+            delta: {
+              toolCalls: [
+                {
+                  index: 0,
+                  id: 'tc_bad',
+                  function: { name: 'lookup_weather', arguments: '{not json' },
+                },
+              ],
+            },
+            finishReason: 'tool_calls',
+          },
+        ],
+      },
+    ])
+
+    const adapter = createMistralText('mistral-large-latest', 'test-api-key')
+    let caught: Error | undefined
+    try {
+      for await (const _chunk of adapter.chatStream(
+        chatOpts({
+          model: 'mistral-large-latest',
+          messages: [{ role: 'user', content: 'x' }],
+          tools: [weatherTool],
+        }),
+      )) {
+        // drain
+      }
+    } catch (err) {
+      caught = err as Error
+    }
+
+    expect(caught).toBeDefined()
+    expect(caught?.message).toMatch(/Failed to parse tool call arguments/)
+    expect(caught?.message).toMatch(/lookup_weather/)
+  })
+
+  it('puts the raw argument string on TOOL_CALL_END', async () => {
+    setupMockStream([
+      {
+        id: 'cmpl-raw',
+        model: 'mistral-large-latest',
+        choices: [
+          {
+            index: 0,
+            delta: {
+              toolCalls: [
+                {
+                  index: 0,
+                  id: 'tc_raw',
+                  function: {
+                    name: 'lookup_weather',
+                    arguments: '{"location": "Berlin", ',
+                  },
+                },
+              ],
+            },
+            finishReason: null,
+          },
+        ],
+      },
+      {
+        id: 'cmpl-raw',
+        model: 'mistral-large-latest',
+        choices: [
+          {
+            index: 0,
+            delta: {
+              toolCalls: [{ index: 0, function: { arguments: '"n": 1.50}' } }],
+            },
+            finishReason: 'tool_calls',
+          },
+        ],
+      },
+    ])
+
+    const adapter = createMistralText('mistral-large-latest', 'test-api-key')
+    const chunks: Array<AdapterYieldChunk> = []
+    for await (const chunk of adapter.chatStream(
+      chatOpts({
+        model: 'mistral-large-latest',
+        messages: [{ role: 'user', content: 'Weather in Berlin?' }],
+        tools: [weatherTool],
+      }),
+    )) {
+      chunks.push(chunk)
+    }
+
+    const end = chunks.find((c) => c.type === 'TOOL_CALL_END')
+    expect(end).toMatchObject({
+      toolCallId: 'tc_raw',
+      args: '{"location": "Berlin", "n": 1.50}',
+      input: { location: 'Berlin' },
+    })
+  })
+
+  it('sends malformed raw arguments on TOOL_CALL_END without an input', async () => {
+    setupMockStream([
+      {
+        id: 'cmpl-bad',
+        model: 'mistral-large-latest',
+        choices: [
+          {
+            index: 0,
+            delta: {
+              toolCalls: [
+                {
+                  index: 0,
+                  id: 'tc_bad',
+                  function: { name: 'lookup_weather', arguments: '{"a":' },
+                },
+              ],
+            },
+            finishReason: 'tool_calls',
+          },
+        ],
+      },
+    ])
+
+    const adapter = createMistralText('mistral-large-latest', 'test-api-key')
+    const chunks: Array<AdapterYieldChunk> = []
+    await expect(
+      (async () => {
+        for await (const chunk of adapter.chatStream(
+          chatOpts({
+            model: 'mistral-large-latest',
+            messages: [{ role: 'user', content: 'x' }],
+            tools: [weatherTool],
+          }),
+        )) {
+          chunks.push(chunk)
+        }
+      })(),
+    ).rejects.toThrow(/Failed to parse tool call arguments/)
+
+    const end = chunks.find((c) => c.type === 'TOOL_CALL_END')
+    expect(end).toMatchObject({ toolCallId: 'tc_bad', args: '{"a":' })
+    expect(end).not.toHaveProperty('input')
+  })
+
+  it('sends stream_options.include_usage so Mistral returns usage on streaming', async () => {
+    let capturedBody: unknown
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (_url: string, init?: { body?: string }) => {
+        capturedBody = init?.body ? JSON.parse(init.body) : undefined
+        return {
+          ok: true,
+          status: 200,
+          body: new ReadableStream({
+            start(controller) {
+              controller.enqueue(new TextEncoder().encode('data: [DONE]\n\n'))
+              controller.close()
+            },
+          }),
+        }
+      }),
+    )
+    mockComplete.mockReset()
+
+    const adapter = createMistralText('mistral-large-latest', 'test-api-key')
+    for await (const _chunk of adapter.chatStream(
+      chatOpts({
+        model: 'mistral-large-latest',
+        messages: [{ role: 'user', content: 'Hi' }],
+      }),
+    )) {
+      // drain
+    }
+
+    expect(capturedBody).toMatchObject({
+      stream: true,
+      stream_options: { include_usage: true },
+    })
+  })
+
+  it('reads temperature and top_p from modelOptions when not set at top level', async () => {
+    let capturedBody: { temperature?: number; top_p?: number } | undefined
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (_url: string, init?: { body?: string }) => {
+        capturedBody = init?.body ? JSON.parse(init.body) : undefined
+        return {
+          ok: true,
+          status: 200,
+          body: new ReadableStream({
+            start(controller) {
+              controller.enqueue(new TextEncoder().encode('data: [DONE]\n\n'))
+              controller.close()
+            },
+          }),
+        }
+      }),
+    )
+    mockComplete.mockReset()
+
+    const adapter = createMistralText('mistral-large-latest', 'test-api-key')
+    for await (const _chunk of adapter.chatStream(
+      chatOpts({
+        model: 'mistral-large-latest',
+        messages: [{ role: 'user', content: 'Hi' }],
+        modelOptions: { temperature: 0.42, top_p: 0.9 },
+      }),
+    )) {
+      // drain
+    }
+
+    expect(capturedBody?.temperature).toBe(0.42)
+    expect(capturedBody?.top_p).toBe(0.9)
+  })
+
+  it('throws a clear error for unsupported content part types', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        body: new ReadableStream({
+          start(controller) {
+            controller.enqueue(new TextEncoder().encode('data: [DONE]\n\n'))
+            controller.close()
+          },
+        }),
+      }),
+    )
+    mockComplete.mockReset()
+
+    const adapter = createMistralText('mistral-large-latest', 'test-api-key')
+    let caught: Error | undefined
+    try {
+      for await (const _chunk of adapter.chatStream(
+        chatOpts({
+          model: 'mistral-large-latest',
+          messages: [
+            {
+              role: 'user',
+              content: [
+                {
+                  type: 'audio',
+                  source: { type: 'url', value: 'https://example.com/a.mp3' },
+                },
+              ],
+            },
+          ],
+        }),
+      )) {
+        // drain
+      }
+    } catch (err) {
+      caught = err as Error
+    }
+
+    expect(caught).toBeDefined()
+    expect(caught?.message).toMatch(
+      /Mistral text adapter does not support content part of type 'audio'/,
+    )
+  })
+
+  it('sends the images of a tool result as image chunks in the tool message', async () => {
+    let capturedBody:
+      | { messages: Array<{ role: string; content: unknown }> }
+      | undefined
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (_url: string, init?: { body?: string }) => {
+        capturedBody = init?.body ? JSON.parse(init.body) : undefined
+        return {
+          ok: true,
+          status: 200,
+          body: new ReadableStream({
+            start(controller) {
+              controller.enqueue(new TextEncoder().encode('data: [DONE]\n\n'))
+              controller.close()
+            },
+          }),
+        }
+      }),
+    )
+    mockComplete.mockReset()
+
+    const adapter = createMistralText('mistral-large-latest', 'test-api-key')
+    for await (const _chunk of adapter.chatStream(
+      chatOpts({
+        model: 'mistral-large-latest',
+        messages: [
+          { role: 'user', content: 'Take a screenshot' },
+          {
+            role: 'assistant',
+            content: '',
+            toolCalls: [
+              {
+                id: 'call12345',
+                type: 'function',
+                function: { name: 'screenshot', arguments: '{}' },
+              },
+            ],
+          },
+          {
+            role: 'tool',
+            toolCallId: 'call12345',
+            content: [
+              { type: 'text', content: 'The screenshot' },
+              {
+                type: 'image',
+                source: { type: 'url', value: 'https://example.com/s.png' },
+              },
+            ],
+          },
+        ],
+      }),
+    )) {
+      // drain
+    }
+
+    const toolMessage = capturedBody?.messages.find(
+      (message) => message.role === 'tool',
+    )
+    expect(toolMessage?.content).toEqual([
+      { type: 'text', text: 'The screenshot' },
+      { type: 'image_url', image_url: 'https://example.com/s.png' },
+    ])
+  })
+})
+
+describe('Mistral reasoning (magistral-* models)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  afterEach(() => {
+    vi.unstubAllEnvs()
+    vi.unstubAllGlobals()
+  })
+
+  it('emits REASONING_* events when delta.content contains thinking parts, before any TEXT_MESSAGE_*', async () => {
+    // Magistral streaming format: delta.content is an array containing
+    // `{ type: 'thinking', thinking: [{ type: 'text', text: '...' }] }`.
+    // We build the SSE body by hand because `toApiChunk` strips non-text parts.
+    const sseChunks: Array<Record<string, unknown>> = [
+      {
+        id: 'cmpl-think-1',
+        model: 'magistral-medium-latest',
+        object: 'chat.completion.chunk',
+        created: 0,
+        choices: [
+          {
+            index: 0,
+            delta: {
+              content: [
+                {
+                  type: 'thinking',
+                  thinking: [{ type: 'text', text: 'Let me think... ' }],
+                },
+              ],
+            },
+            finish_reason: null,
+          },
+        ],
+      },
+      {
+        id: 'cmpl-think-1',
+        model: 'magistral-medium-latest',
+        object: 'chat.completion.chunk',
+        created: 0,
+        choices: [
+          {
+            index: 0,
+            delta: {
+              content: [
+                {
+                  type: 'thinking',
+                  thinking: [{ type: 'text', text: 'the answer is 42.' }],
+                },
+              ],
+            },
+            finish_reason: null,
+          },
+        ],
+      },
+      {
+        id: 'cmpl-think-1',
+        model: 'magistral-medium-latest',
+        object: 'chat.completion.chunk',
+        created: 0,
+        choices: [
+          {
+            index: 0,
+            delta: { content: 'The answer is 42.' },
+            finish_reason: null,
+          },
+        ],
+      },
+      {
+        id: 'cmpl-think-1',
+        model: 'magistral-medium-latest',
+        object: 'chat.completion.chunk',
+        created: 0,
+        choices: [{ index: 0, delta: {}, finish_reason: 'stop' }],
+      },
+    ]
+
+    const sseBody =
+      sseChunks.map((c) => `data: ${JSON.stringify(c)}`).join('\n\n') +
+      '\n\ndata: [DONE]\n\n'
+
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        body: new ReadableStream({
+          start(controller) {
+            controller.enqueue(new TextEncoder().encode(sseBody))
+            controller.close()
+          },
+        }),
+      }),
+    )
+    mockComplete.mockReset()
+
+    const adapter = createMistralText('magistral-medium-latest', 'test-api-key')
+    const chunks: Array<AdapterYieldChunk> = []
+    for await (const chunk of adapter.chatStream(
+      chatOpts({
+        model: 'magistral-medium-latest',
+        messages: [{ role: 'user', content: 'What is the answer?' }],
+      }),
+    )) {
+      chunks.push(chunk)
+    }
+
+    const types: Array<string> = chunks.map((c) => c.type)
+
+    // Reasoning lifecycle is present and ordered correctly
+    expect(types).toContain('REASONING_START')
+    expect(types).toContain('REASONING_MESSAGE_START')
+    expect(types).toContain('REASONING_MESSAGE_CONTENT')
+    expect(types).toContain('REASONING_MESSAGE_END')
+    expect(types).toContain('REASONING_END')
+
+    expect(types.indexOf('REASONING_START')).toBeLessThan(
+      types.indexOf('REASONING_MESSAGE_CONTENT'),
+    )
+    // REASONING_END must precede TEXT_MESSAGE_START
+    expect(types.indexOf('REASONING_END')).toBeLessThan(
+      types.indexOf('TEXT_MESSAGE_START'),
+    )
+
+    // Reasoning content reassembles correctly
+    const reasoningDeltas = chunks.filter(
+      (c) => c.type === 'REASONING_MESSAGE_CONTENT',
+    )
+    const reasoningText = reasoningDeltas
+      .map((c) =>
+        c.type === 'REASONING_MESSAGE_CONTENT'
+          ? (c as { delta: string }).delta
+          : '',
+      )
+      .join('')
+    expect(reasoningText).toBe('Let me think... the answer is 42.')
+  })
+
+  it('emits REASONING_* events when the upstream uses delta.reasoning_content (OpenAI-compat / aimock format)', async () => {
+    // OpenAI-compatible deployments (DeepSeek, Groq for reasoning models,
+    // and the aimock test backend) stream reasoning via delta.reasoning_content
+    // rather than as a thinking content part. The adapter must accept both
+    // shapes for the e2e suite to run against aimock.
+    const sseChunks: Array<Record<string, unknown>> = [
+      {
+        id: 'cmpl-rc',
+        model: 'magistral-medium-latest',
+        object: 'chat.completion.chunk',
+        created: 0,
+        choices: [
+          {
+            index: 0,
+            delta: { reasoning_content: 'Considering options...' },
+            finish_reason: null,
+          },
+        ],
+      },
+      {
+        id: 'cmpl-rc',
+        model: 'magistral-medium-latest',
+        object: 'chat.completion.chunk',
+        created: 0,
+        choices: [
+          {
+            index: 0,
+            delta: { content: 'Final answer.' },
+            finish_reason: null,
+          },
+        ],
+      },
+      {
+        id: 'cmpl-rc',
+        model: 'magistral-medium-latest',
+        object: 'chat.completion.chunk',
+        created: 0,
+        choices: [{ index: 0, delta: {}, finish_reason: 'stop' }],
+      },
+    ]
+    const sseBody =
+      sseChunks.map((c) => `data: ${JSON.stringify(c)}`).join('\n\n') +
+      '\n\ndata: [DONE]\n\n'
+
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        body: new ReadableStream({
+          start(controller) {
+            controller.enqueue(new TextEncoder().encode(sseBody))
+            controller.close()
+          },
+        }),
+      }),
+    )
+    mockComplete.mockReset()
+
+    const adapter = createMistralText('magistral-medium-latest', 'test-api-key')
+    const chunks: Array<AdapterYieldChunk> = []
+    for await (const chunk of adapter.chatStream(
+      chatOpts({
+        model: 'magistral-medium-latest',
+        messages: [{ role: 'user', content: 'Decide.' }],
+      }),
+    )) {
+      chunks.push(chunk)
+    }
+
+    const types: Array<string> = chunks.map((c) => c.type)
+    expect(types).toContain('REASONING_MESSAGE_CONTENT')
+    expect(types.indexOf('REASONING_END')).toBeLessThan(
+      types.indexOf('TEXT_MESSAGE_START'),
+    )
+
+    const reasoningText = chunks
+      .filter((c) => c.type === 'REASONING_MESSAGE_CONTENT')
+      .map((c) =>
+        c.type === 'REASONING_MESSAGE_CONTENT'
+          ? (c as { delta: string }).delta
+          : '',
+      )
+      .join('')
+    expect(reasoningText).toBe('Considering options...')
+  })
+
+  it('closes reasoning lifecycle if the run finishes while still in thinking', async () => {
+    const sseChunks: Array<Record<string, unknown>> = [
+      {
+        id: 'cmpl-think-only',
+        model: 'magistral-medium-latest',
+        object: 'chat.completion.chunk',
+        created: 0,
+        choices: [
+          {
+            index: 0,
+            delta: {
+              content: [
+                {
+                  type: 'thinking',
+                  thinking: [{ type: 'text', text: 'pondering...' }],
+                },
+              ],
+            },
+            finish_reason: null,
+          },
+        ],
+      },
+      {
+        id: 'cmpl-think-only',
+        model: 'magistral-medium-latest',
+        object: 'chat.completion.chunk',
+        created: 0,
+        choices: [{ index: 0, delta: {}, finish_reason: 'stop' }],
+      },
+    ]
+    const sseBody =
+      sseChunks.map((c) => `data: ${JSON.stringify(c)}`).join('\n\n') +
+      '\n\ndata: [DONE]\n\n'
+
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        body: new ReadableStream({
+          start(controller) {
+            controller.enqueue(new TextEncoder().encode(sseBody))
+            controller.close()
+          },
+        }),
+      }),
+    )
+    mockComplete.mockReset()
+
+    const adapter = createMistralText('magistral-medium-latest', 'test-api-key')
+    const chunks: Array<AdapterYieldChunk> = []
+    for await (const chunk of adapter.chatStream(
+      chatOpts({
+        model: 'magistral-medium-latest',
+        messages: [{ role: 'user', content: 'Just think.' }],
+      }),
+    )) {
+      chunks.push(chunk)
+    }
+
+    const types: Array<string> = chunks.map((c) => c.type)
+    expect(types).toContain('REASONING_END')
+    expect(types).toContain('RUN_FINISHED')
+    expect(types.indexOf('REASONING_END')).toBeLessThan(
+      types.indexOf('RUN_FINISHED'),
+    )
+    // No TEXT_MESSAGE_START — the run was reasoning-only
+    expect(types).not.toContain('TEXT_MESSAGE_START')
+  })
+})

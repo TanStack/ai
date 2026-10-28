@@ -1,11 +1,15 @@
+import type { ClaudeMode } from '../../chat-server/chat-api'
+
 interface OnlineUsersProps {
-  onlineUsers: string[]
+  onlineUsers: Array<string>
   currentUsername: string | null
+  claudeMode?: ClaudeMode
 }
 
 export function OnlineUsers({
   onlineUsers,
   currentUsername,
+  claudeMode = 'passive',
 }: OnlineUsersProps) {
   return (
     <div className="bg-gray-800 p-6 rounded-lg border border-gray-600">
@@ -42,12 +46,19 @@ export function OnlineUsers({
       <div className="mt-4 pt-4 border-t border-gray-600">
         <h3 className="text-sm font-semibold text-white mb-2">How to use</h3>
         <div className="text-xs text-gray-400 space-y-1">
-          <p>
-            • Type <span className="text-blue-400">@Claude</span> to ask Claude
-            a question
-          </p>
+          <p>• Add/remove todos in the panel, or ask Claude to manage them</p>
+          {claudeMode === 'passive' ? (
+            <p>
+              • Type <span className="text-purple-400">@Claude</span> to add,
+              remove, or ask about todos
+            </p>
+          ) : (
+            <p>
+              • Active mode: Claude watches for todo intent (no{' '}
+              <span className="text-purple-400">@Claude</span> needed)
+            </p>
+          )}
           <p>• Messages are sent to all online users</p>
-          <p>• Claude responds in the chat</p>
         </div>
         <div className="mt-3 pt-3 border-t border-gray-700 text-xs text-gray-500 text-center">
           Real-time presence via Cap'n Web RPC

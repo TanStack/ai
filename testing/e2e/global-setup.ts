@@ -3,7 +3,13 @@ import fs from 'fs'
 import http from 'http'
 import path from 'path'
 import { fileURLToPath } from 'url'
+import { EventStreamCodec } from '@smithy/eventstream-codec'
 import type { Mountable } from '@copilotkit/aimock'
+
+declare global {
+  // Read back by global-teardown.ts, which Playwright runs in the same process.
+  var __aimock: LLMock | undefined
+}
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -36,16 +42,192 @@ export default async function globalSetup() {
   mock.mount('/v1/tts', grokTTSMount())
   mock.mount('/v1/stt', grokSTTMount())
 
+  // ElevenLabs TTS (/v1/text-to-speech/{voiceId}) and STT (/v1/speech-to-text)
+  // are not yet covered by aimock helpers (1.17 added /v1/sound-generation
+  // and /v1/music/* but not these). Mount them here following the grok
+  // pattern above.
+  mock.mount('/v1/text-to-speech', elevenLabsTTSMount())
+  mock.mount('/v1/speech-to-text', elevenLabsSTTMount())
+
+  // Gemini TTS hits the standard Gemini generateContent endpoint
+  // (POST /v1beta/models/{model}:generateContent) with
+  // responseModalities: ['AUDIO']. aimock's native Gemini audio helper derives
+  // the mime type from the fixture's `format`/`contentType`, so it can't emit
+  // the raw `audio/L16;codec=pcm;rate=24000` PCM that real Gemini TTS returns.
+  // Mount the TTS model's generateContent path directly so we can hand back
+  // PCM and exercise the adapter's PCM→WAV normalization. The path is specific
+  // to the TTS model, so it doesn't intercept Gemini chat/summarize requests.
+  mock.mount(
+    '/v1beta/models/gemini-3.1-flash-tts-preview:generateContent',
+    geminiTTSMount(),
+  )
+  // aimock's Gemini handler reads `parameters`, so it cannot validate the raw
+  // `parametersJsonSchema` field. A model-specific mount keeps this check from
+  // intercepting the other Gemini chat tests.
+  mock.mount(
+    '/v1beta/models/gemini-2.5-flash-lite:streamGenerateContent',
+    geminiJsonSchemaToolMount(),
+  )
+  // `chat({ reasoning })` wire check for Gemini: aimock's journal normalizes
+  // the body, so this mount checks `generationConfig.thinkingConfig` itself.
+  mock.mount('/reasoning-wire-gemini', geminiReasoningWireMount())
+  // Gemini Veo video generation. aimock does not mock the long-running
+  // `:predictLongRunning` + operations-polling pair Veo uses, so mount both
+  // here. Non-Veo paths
+  // under /v1beta/models (chat, images) return false and fall through to
+  // aimock's native Gemini handlers.
+  mock.mount('/v1beta/models', geminiVeoMount())
+
+  // Embedding endpoints aimock doesn't cover natively. OpenAI's
+  // /v1/embeddings IS covered natively (JSON fixture in fixtures/embedding/),
+  // but the other embedding providers need custom mounts:
+  //
+  // - Gemini: @google/genai posts to `{model}:batchEmbedContents` on the
+  //   MLDev (API-key) surface; aimock 1.34 only handles `:embedContent`.
+  //   Mounted on the same '/v1beta/models' prefix as the Veo mount above —
+  //   mounts are tried in order and each returns false for paths it doesn't
+  //   own, so both coexist and non-matching paths still fall through to
+  //   aimock's native Gemini handlers.
+  // - Ollama: the ollama SDK's `embed()` (POST /api/embed) expects the batch
+  //   `embeddings: number[][]` shape; aimock's native handler responds with
+  //   the legacy singular `embedding` field, which crashes the adapter.
+  // - Mistral: the Mistral SDK Zod-validates the /v1/embeddings response and
+  //   requires an `id` field aimock's OpenAI-format response builder omits.
+  //   The adapter under test points its serverURL at the '/mistral' prefix.
+  mock.mount('/v1beta/models', geminiBatchEmbedMount())
+  mock.mount('/api/embed', ollamaEmbedMount())
+  mock.mount('/mistral', mistralEmbeddingsMount())
+
+  // Gemini native image generation. The adapter posts to the Interactions
+  // API. This dedicated prefix leaves aimock's /v1beta/interactions handler
+  // free for the stateful text tests. One mount covers the #1104 size wire
+  // (response_format) and the modelOptions wire (safety_settings /
+  // thinking_level), plus a chained edit.
+  mock.mount('/gemini-image', geminiNativeImageMount())
+
+  // Gemini Omni Flash video generation (Interactions API). aimock handles
+  // synchronous text interactions natively, but not background video jobs
+  // (POST /v1beta/interactions with background:true → poll
+  // GET /v1beta/interactions/{id} → inline base64 mp4). The adapter under
+  // test points its baseUrl at this dedicated prefix so aimock's native
+  // interactions handling stays untouched for the stateful-interactions
+  // text tests.
+  mock.mount('/omni-video', geminiOmniVideoMount())
+
+  // Agentic video understanding (standard Gemini chat adapter). A video part
+  // with metadata.processing:'agentic' routes through the non-streaming
+  // interactions.create(), which reads `output_text`. aimock's native
+  // interactions handler defaults to streaming SSE (keyed off `stream !==
+  // false`), so it can't serve create(). This dedicated prefix returns a
+  // completed JSON interaction instead. See the video-understanding provider
+  // block in src/lib/providers.ts.
+  mock.mount('/vu-interactions', geminiVideoUnderstandingMount())
+
+  // Anthropic server_tool_use bug reproduction (issue #604). aimock can't
+  // natively synthesize `server_tool_use` / `web_fetch_tool_result` content
+  // blocks, so this mount hand-crafts the raw SSE Claude would emit when a
+  // client `tool_use` is followed by a `web_fetch` `server_tool_use` in the
+  // same response. The corresponding api.anthropic-bug-test.ts route points
+  // the Anthropic adapter here.
+  mock.mount('/anthropic-bug-test', anthropicServerToolBugMount())
+
+  // OpenRouter per-request cost capture. aimock's OpenAI-compatible chat
+  // helper doesn't synthesize OpenRouter's `usage.cost` / `usage.cost_details`,
+  // and crucially those land on a trailing usage-only chunk (choices: []) that
+  // arrives AFTER the finish_reason chunk. This mount hand-crafts that exact
+  // wire shape so the companion spec can assert cost reaches RUN_FINISHED.usage.
+  mock.mount('/openrouter-cost', openRouterCostMount())
+
+  // OpenAI-compatible detailed usage capture. aimock's chat helper doesn't
+  // synthesize `prompt_tokens_details` / `completion_tokens_details`, so this
+  // mount hand-crafts a chat-completion stream whose trailing usage chunk
+  // carries cached prompt tokens and reasoning completion tokens. The companion
+  // spec asserts those reach `RUN_FINISHED.usage` as the canonical
+  // `promptTokensDetails.cachedTokens` / `completionTokensDetails.reasoningTokens`.
+  mock.mount('/openai-usage-details', openaiUsageDetailsMount())
+  // Moonshot (Kimi) usage shape: `cached_tokens` at the root of `usage` and
+  // `cache_write_tokens` under `prompt_tokens_details`
+  // (https://platform.kimi.ai/docs/api/chat).
+  mock.mount(
+    '/moonshot-usage-details',
+    openaiUsageDetailsMount({
+      prompt_tokens: 1000,
+      completion_tokens: 50,
+      total_tokens: 1050,
+      cached_tokens: 800,
+      prompt_tokens_details: { cached_tokens: 800, cache_write_tokens: 150 },
+    }),
+  )
+
+  // Provider-executed web search responses need native Responses/Gemini wire
+  // items that aimock does not synthesize. These mounts feed the adapter E2E
+  // route deterministic search calls and grounding metadata.
+  // OpenAI Responses usage for a call that writes the prompt cache (#1734).
+  // aimock's native Responses helper cannot emit `input_tokens_details`.
+  mock.mount('/openai-responses-usage', openaiResponsesUsageMount())
+  mock.mount('/provider-search-openai', openaiProviderSearchMount())
+  mock.mount('/provider-search-gemini', geminiProviderSearchMount())
+  // Google Search beside a function tool on Gemini 3. Answers like the
+  // Gemini API: the flag is required, and the second step must send the
+  // signed toolCall/toolResponse parts back around the function call.
+  mock.mount('/gemini-server-tools', geminiServerToolsMount())
+
+  // Bedrock Converse prompt caching. aimock cannot replay the Converse
+  // `vnd.amazon.eventstream` protocol, so this mount encodes the frames itself
+  // and drives the real `@aws-sdk/client-bedrock-runtime` client. It reports
+  // which request sections ended with a `cachePoint` block and answers with
+  // Bedrock's cache usage counters; the companion spec asserts both.
+  mock.mount('/bedrock-converse-cache', bedrockConverseCacheMount())
+
+  // decide() usage on a failed answer mapping. aimock has no OpenAI Decisions
+  // endpoint, so this mount hand-crafts a `/v1/decisions` response with valid
+  // usage and a choice with no entry in `probabilities`. The companion spec
+  // asserts `decide()` rejects and still reports that usage.
+  mock.mount('/evaluate-usage-on-failure', evaluateUsageOnFailureMount())
+
+  // Failed evaluate requests. TypeSafe takes a path prefix, but the Vercel
+  // Gateway adapter keeps only the origin of its baseURL, so that mount sits on
+  // the real evaluate path. Both answer only requests carrying the
+  // `x-evaluate-http-status` header and fall through otherwise.
+  mock.mount('/evaluate-http-status', evaluateHttpStatusMount())
+  mock.mount('/v4/ai/evaluation-model', evaluateHttpStatusMount())
+
+  // aimock has no OpenAI Decisions API route, so this mount answers
+  // `/v1/decisions` with a refusal plus usage for the evaluate-refusal spec.
+  mock.mount('/evaluate-refusal', evaluateRefusalMount())
+
+  // BytePlus. Ark (chat, Seedream image, Seedance video) serves its whole data
+  // plane under /api/v3, and Seed Speech (TTS/ASR) mounts its own endpoints at
+  // the same prefix on a different host — which collapses onto one prefix here
+  // because every adapter points at this single mock. Chat and image are NOT
+  // handled by these mounts: aimock's compat-path normalizer rewrites
+  // `/api/v3/chat/completions` and `/api/v3/images/generations` to their /v1
+  // equivalents, so each mount returns false for anything it doesn't own and
+  // those two fall through to the native handlers. Mounts are matched by raw
+  // pathname *before* that normalization, so ordering here is safe.
+  // ElevenLabs voice design. aimock 1.34 has no /v1/text-to-voice routes at
+  // all — neither the design half nor the create half — so both are mounted
+  // here. Everything else under /v1 falls through to aimock's native handlers.
+  mock.mount('/v1/text-to-voice', elevenlabsVoiceMount())
+
+  mock.mount('/api/v3', byteplusSeedanceMount())
+  mock.mount('/api/v3', byteplusTTSMount())
+  mock.mount('/api/v3', byteplusASRMount())
+
   await mock.start()
   console.log(`[aimock] started on port 4010`)
-  ;(globalThis as any).__aimock = mock
+  globalThis.__aimock = mock
 }
 
 function registerMediaFixtures(mock: LLMock) {
-  // Transcription: onTranscription sets match.endpoint = "transcription"
+  // Transcription: onTranscription sets match.endpoint = "transcription".
+  // `duration` is only served on verbose_json responses (whisper-1's default
+  // mode) — the otel middleware spec asserts it surfaces as the
+  // self-describing `billed` usage on the transcription span.
   mock.onTranscription({
     transcription: {
       text: 'I would like to buy a Fender Stratocaster please',
+      duration: 2.4,
     },
   })
 
@@ -56,11 +238,27 @@ function registerMediaFixtures(mock: LLMock) {
   mock.onVideo('a guitar being played in a store', {
     video: {
       url: 'https://example.com/guitar-store.mp4',
-      duration: 10,
       id: 'video-job-e2e',
       status: 'completed',
     },
   })
+
+  // Image-to-video: the Sora adapter uploads the image part as
+  // `input_reference`, which makes the OpenAI SDK switch to a multipart
+  // POST /v1/videos. aimock 1.29 extracts the `prompt` form field from
+  // multipart bodies, so matching works the same as the JSON case above.
+  mock.onVideo('animate this product photo', {
+    video: {
+      url: 'https://example.com/product-animated.mp4',
+      id: 'video-job-i2v-e2e',
+      status: 'completed',
+    },
+  })
+
+  // ElevenLabs music (/v1/music/*) and SFX (/v1/sound-generation) are
+  // covered natively by aimock 1.17 — fixtures live under
+  // fixtures/audio-gen/ and fixtures/sound-effects/ and are loaded by the
+  // generic loadFixtureDir() loop above.
 }
 
 /**
@@ -71,6 +269,14 @@ function registerMediaFixtures(mock: LLMock) {
 const FAKE_MP3_BYTES = Buffer.from([
   0xff, 0xfb, 0x90, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
 ])
+
+/**
+ * Raw 16-bit little-endian PCM bytes. Gemini TTS returns audio as
+ * `audio/L16;codec=pcm;rate=24000` inlineData, which the adapter wraps in a
+ * RIFF/WAV header before handing it to the browser. The samples are arbitrary
+ * silence — the spec only asserts the `<audio>` element becomes visible.
+ */
+const FAKE_PCM_BYTES = Buffer.alloc(32)
 
 function grokTTSMount(): Mountable {
   return {
@@ -87,6 +293,178 @@ function grokTTSMount(): Mountable {
       res.setHeader('Content-Type', 'audio/mpeg')
       res.setHeader('Content-Length', String(FAKE_MP3_BYTES.length))
       res.end(FAKE_MP3_BYTES)
+      return true
+    },
+  }
+}
+
+function geminiTTSMount(): Mountable {
+  return {
+    async handleRequest(
+      req: http.IncomingMessage,
+      res: http.ServerResponse,
+      // aimock strips the mount prefix — pathname will be "/" for an exact match.
+      pathname: string,
+    ): Promise<boolean> {
+      if (pathname !== '/' || req.method !== 'POST') return false
+      await drainBody(req)
+      res.statusCode = 200
+      res.setHeader('Content-Type', 'application/json')
+      // Mirror the Gemini generateContent audio response shape: audio lands as
+      // a single `candidates[0].content.parts[0].inlineData` entry. The PCM
+      // mime type forces the adapter down its PCM→WAV wrapping path.
+      res.end(
+        JSON.stringify({
+          candidates: [
+            {
+              content: {
+                role: 'model',
+                parts: [
+                  {
+                    inlineData: {
+                      mimeType: 'audio/L16;codec=pcm;rate=24000',
+                      data: FAKE_PCM_BYTES.toString('base64'),
+                    },
+                  },
+                ],
+              },
+              finishReason: 'STOP',
+              index: 0,
+            },
+          ],
+          usageMetadata: {
+            promptTokenCount: 5,
+            candidatesTokenCount: 15,
+            totalTokenCount: 20,
+          },
+        }),
+      )
+      return true
+    },
+  }
+}
+
+function geminiJsonSchemaToolMount(): Mountable {
+  return {
+    async handleRequest(
+      req: http.IncomingMessage,
+      res: http.ServerResponse,
+      pathname: string,
+    ): Promise<boolean> {
+      if (pathname !== '/' || req.method !== 'POST') return false
+
+      const body = await readJsonRequestBody(req)
+      const tool = asRecord(
+        body && Array.isArray(body.tools) ? body.tools[0] : undefined,
+      )
+      const declaration = asRecord(
+        Array.isArray(tool?.functionDeclarations)
+          ? tool.functionDeclarations[0]
+          : undefined,
+      )
+      const schema = asRecord(declaration?.parametersJsonSchema)
+      const properties = asRecord(schema?.properties)
+      const unit = asRecord(properties?.unit)
+
+      if (
+        declaration?.name !== 'get_arktype_weather' ||
+        declaration?.parameters !== undefined ||
+        unit?.const !== 'celsius'
+      ) {
+        res.statusCode = 400
+        res.setHeader('Content-Type', 'application/json')
+        res.end(
+          JSON.stringify({
+            error: {
+              code: 400,
+              message: 'Expected parametersJsonSchema with unit const.',
+              status: 'INVALID_ARGUMENT',
+            },
+          }),
+        )
+        return true
+      }
+
+      res.statusCode = 200
+      res.setHeader('Content-Type', 'text/event-stream')
+      res.end(
+        `data: ${JSON.stringify({
+          candidates: [
+            {
+              content: {
+                role: 'model',
+                parts: [{ text: 'Schema accepted' }],
+              },
+              finishReason: 'STOP',
+              index: 0,
+            },
+          ],
+          usageMetadata: {
+            promptTokenCount: 1,
+            candidatesTokenCount: 1,
+            totalTokenCount: 2,
+          },
+        })}\n\n`,
+      )
+      return true
+    },
+  }
+}
+
+/**
+ * Answers a Gemini stream request only when `chat({ reasoning: { level:
+ * 'medium' } })` reached the wire as a medium thinking budget.
+ */
+function geminiReasoningWireMount(): Mountable {
+  return {
+    async handleRequest(
+      req: http.IncomingMessage,
+      res: http.ServerResponse,
+    ): Promise<boolean> {
+      if (req.method !== 'POST') return false
+      const body = await readJsonRequestBody(req)
+      const thinking = asRecord(
+        asRecord(body?.generationConfig)?.thinkingConfig,
+      )
+      if (
+        thinking?.includeThoughts !== true ||
+        thinking.thinkingBudget !== 8192 ||
+        thinking.thinkingLevel !== undefined
+      ) {
+        res.statusCode = 400
+        res.setHeader('Content-Type', 'application/json')
+        res.end(
+          JSON.stringify({
+            error: {
+              code: 400,
+              message: `Expected a thinking budget of 8192, got ${JSON.stringify(thinking)}.`,
+              status: 'INVALID_ARGUMENT',
+            },
+          }),
+        )
+        return true
+      }
+      res.statusCode = 200
+      res.setHeader('Content-Type', 'text/event-stream')
+      res.end(
+        `data: ${JSON.stringify({
+          candidates: [
+            {
+              content: {
+                role: 'model',
+                parts: [{ text: 'Thinking config accepted' }],
+              },
+              finishReason: 'STOP',
+              index: 0,
+            },
+          ],
+          usageMetadata: {
+            promptTokenCount: 1,
+            candidatesTokenCount: 1,
+            totalTokenCount: 2,
+          },
+        })}\n\n`,
+      )
       return true
     },
   }
@@ -121,6 +499,2103 @@ function grokSTTMount(): Mountable {
           ],
         }),
       )
+      return true
+    },
+  }
+}
+
+function elevenLabsTTSMount(): Mountable {
+  return {
+    async handleRequest(
+      req: http.IncomingMessage,
+      res: http.ServerResponse,
+      pathname: string,
+    ): Promise<boolean> {
+      // ElevenLabs TTS hits POST /v1/text-to-speech/{voiceId} or
+      // /v1/text-to-speech/{voiceId}/stream. After mount-prefix stripping
+      // pathname will be /{voiceId} or /{voiceId}/stream — accept any
+      // sub-path so we don't have to enumerate voice IDs.
+      if (req.method !== 'POST' || pathname === '/' || pathname === '')
+        return false
+      await drainBody(req)
+      const outputFormat = new URL(
+        req.url ?? '/',
+        'http://localhost',
+      ).searchParams.get('output_format')
+      const isPcm = outputFormat === 'pcm_44100'
+      const audio = isPcm ? FAKE_PCM_BYTES : FAKE_MP3_BYTES
+      res.statusCode = 200
+      res.setHeader('Content-Type', isPcm ? 'audio/pcm' : 'audio/mpeg')
+      res.setHeader('Content-Length', String(audio.length))
+      res.end(audio)
+      return true
+    },
+  }
+}
+
+function elevenLabsSTTMount(): Mountable {
+  return {
+    async handleRequest(
+      req: http.IncomingMessage,
+      res: http.ServerResponse,
+      pathname: string,
+    ): Promise<boolean> {
+      if (pathname !== '/' || req.method !== 'POST') return false
+      await drainBody(req)
+      res.statusCode = 200
+      res.setHeader('Content-Type', 'application/json')
+      // Scribe wire format is snake_case (the SDK converts to camelCase
+      // before handing the response to user code). Each word needs a
+      // `logprob` field per the SDK's runtime validation. Keep "Fender
+      // Stratocaster" so the existing transcription.spec.ts assertion
+      // passes for elevenlabs too.
+      res.end(
+        JSON.stringify({
+          language_code: 'en',
+          language_probability: 0.99,
+          text: 'I would like to buy a Fender Stratocaster please',
+          audio_duration_secs: 2.4,
+          words: [
+            { text: 'I', start: 0, end: 0.1, type: 'word', logprob: -0.01 },
+            {
+              text: 'would',
+              start: 0.1,
+              end: 0.3,
+              type: 'word',
+              logprob: -0.02,
+            },
+            {
+              text: 'like',
+              start: 0.3,
+              end: 0.5,
+              type: 'word',
+              logprob: -0.03,
+            },
+            { text: 'to', start: 0.5, end: 0.6, type: 'word', logprob: -0.01 },
+            { text: 'buy', start: 0.6, end: 0.8, type: 'word', logprob: -0.02 },
+            { text: 'a', start: 0.8, end: 0.9, type: 'word', logprob: -0.01 },
+            {
+              text: 'Fender',
+              start: 0.9,
+              end: 1.3,
+              type: 'word',
+              logprob: -0.04,
+            },
+            {
+              text: 'Stratocaster',
+              start: 1.3,
+              end: 2.0,
+              type: 'word',
+              logprob: -0.06,
+            },
+            {
+              text: 'please',
+              start: 2.0,
+              end: 2.4,
+              type: 'word',
+              logprob: -0.03,
+            },
+          ],
+        }),
+      )
+      return true
+    },
+  }
+}
+
+/**
+ * Mounts Gemini Veo's long-running video generation endpoints:
+ *
+ * - `POST /v1beta/models/{model}:predictLongRunning` — starts the job and
+ *   returns the operation name.
+ * - `GET /v1beta/models/{model}/operations/{id}` — polls the operation. The
+ *   mock completes immediately with the raw MLDev wire shape
+ *   (`response.generateVideoResponse.generatedSamples[0].video.uri`), which
+ *   the `@google/genai` SDK maps to `response.generatedVideos[0].video.uri`.
+ *
+ * Mirrors the openai `onVideo` fixture: same prompt-agnostic completed job,
+ * same target video URL.
+ */
+function geminiVeoMount(): Mountable {
+  const VIDEO_URL = 'https://example.com/guitar-store.mp4'
+  return {
+    async handleRequest(
+      req: http.IncomingMessage,
+      res: http.ServerResponse,
+      // aimock strips the mount prefix ('/v1beta/models') and any query
+      // string, so pathname looks like '/{model}:predictLongRunning' or
+      // '/{model}/operations/{id}'.
+      pathname: string,
+    ): Promise<boolean> {
+      const createMatch = pathname.match(/^\/([^/:]+):predictLongRunning$/)
+      if (createMatch && req.method === 'POST') {
+        await drainBody(req)
+        res.statusCode = 200
+        res.setHeader('Content-Type', 'application/json')
+        res.end(
+          JSON.stringify({
+            name: `models/${createMatch[1]}/operations/veo-job-e2e`,
+          }),
+        )
+        return true
+      }
+
+      const pollMatch = pathname.match(/^\/([^/:]+)\/operations\/([^/]+)$/)
+      if (pollMatch && req.method === 'GET') {
+        res.statusCode = 200
+        res.setHeader('Content-Type', 'application/json')
+        res.end(
+          JSON.stringify({
+            name: `models/${pollMatch[1]}/operations/${pollMatch[2]}`,
+            done: true,
+            response: {
+              generateVideoResponse: {
+                generatedSamples: [{ video: { uri: VIDEO_URL } }],
+              },
+            },
+          }),
+        )
+        return true
+      }
+
+      // Not a Veo path — fall through to aimock's native Gemini handlers.
+      return false
+    },
+  }
+}
+
+/**
+ * Deterministic 8-dimension embedding vector shared by the embedding mounts
+ * below and mirrored by the OpenAI JSON fixture in
+ * `fixtures/embedding/basic.json`. The embedding spec asserts each rendered
+ * vector reports exactly this dimension count.
+ */
+const EMBED_VECTOR = [0.1, -0.2, 0.3, -0.4, 0.5, -0.6, 0.7, -0.8]
+
+/**
+ * Mounts Gemini's `{model}:batchEmbedContents` endpoint. The @google/genai
+ * SDK's `models.embedContent()` posts to `:batchEmbedContents` on the MLDev
+ * (API-key) surface — even for a single input — but aimock 1.34 only models
+ * `:embedContent`. Returns one deterministic vector per request entry, in
+ * the raw MLDev wire shape (`embeddings[].values`) the SDK maps to
+ * `EmbedContentResponse.embeddings`.
+ *
+ * Shares the '/v1beta/models' mount prefix with geminiVeoMount; non-embed
+ * paths return false and fall through to the Veo mount / native handlers.
+ */
+function geminiBatchEmbedMount(): Mountable {
+  return {
+    async handleRequest(
+      req: http.IncomingMessage,
+      res: http.ServerResponse,
+      // aimock strips the mount prefix ('/v1beta/models') and any query
+      // string, so pathname looks like '/{model}:batchEmbedContents'.
+      pathname: string,
+    ): Promise<boolean> {
+      const match = pathname.match(/^\/([^/:]+):batchEmbedContents$/)
+      if (!match || req.method !== 'POST') return false
+      const bodyText = await readBody(req)
+      let count = 1
+      try {
+        const body = JSON.parse(bodyText) as { requests?: Array<unknown> }
+        if (Array.isArray(body.requests)) count = body.requests.length
+      } catch {
+        // Malformed body — respond with a single vector anyway.
+      }
+      res.statusCode = 200
+      res.setHeader('Content-Type', 'application/json')
+      res.end(
+        JSON.stringify({
+          embeddings: Array.from({ length: count }, () => ({
+            values: [...EMBED_VECTOR],
+          })),
+        }),
+      )
+      return true
+    },
+  }
+}
+
+/**
+ * A tiny (1x1) real PNG, base64-encoded. Only needs to be a valid inline
+ * image byte string — the #1104 spec asserts on `images.length`, not pixel
+ * content. Mirrors `FAKE_MP3_BYTES`/`FAKE_PCM_BYTES` above.
+ */
+const TINY_PNG_BASE64 =
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII='
+
+/**
+ * Rejects with a Gemini-shaped error envelope (`{ error: { code, message,
+ * status } }`) so a validation failure surfaces as the actual missing/extra
+ * field in the adapter's thrown error message, not a generic 500.
+ */
+function rejectGeminiRequest(res: http.ServerResponse, message: string): true {
+  res.statusCode = 400
+  res.setHeader('Content-Type', 'application/json')
+  res.end(
+    JSON.stringify({
+      error: { code: 400, message, status: 'INVALID_ARGUMENT' },
+    }),
+  )
+  return true
+}
+
+/**
+ * Mounts Gemini native image calls on the Interactions API for
+ * `gemini-3.1-flash-image` and `gemini-nano-banana-2.1`.
+ *
+ * The adapter posts `POST /v1beta/interactions` with `response_format.type`
+ * `image`. This mount reads that body so two specs can assert on the wire:
+ * - `/api/gemini-image-ga-models` checks `response_format.aspect_ratio` /
+ *   `image_size`
+ * - `/api/gemini-native-image-wire` checks snake_case `safety_settings` and
+ *   `generation_config.thinking_level`, then a chained edit that sends
+ *   `previous_interaction_id` and no image block
+ */
+function geminiNativeImageMount(): Mountable {
+  const NATIVE_IMAGE_MODELS = new Set([
+    'gemini-3.1-flash-image',
+    'gemini-nano-banana-2.1',
+  ])
+
+  // Coupled to the `size` values in api.gemini-image-ga-models.ts.
+  const EXPECTED_ASPECT_RATIO = '16:9'
+  const EXPECTED_FLASH_IMAGE_SIZE = '2K'
+  const CREATE_ID = 'int_e2e_create'
+  const EDIT_ID = 'int_e2e_edit'
+
+  // The body takes Interactions fields only. These camelCase fields of the
+  // older generateContent and predict request shapes must never reach it.
+  const ROOT_FORBIDDEN = [
+    'personGeneration',
+    'safetyFilterLevel',
+    'addWatermark',
+    'language',
+    'negativePrompt',
+    'outputMimeType',
+    'outputCompressionQuality',
+    'guidanceScale',
+    'enhancePrompt',
+    'includeSafetyAttributes',
+    'includeRaiReason',
+    'outputGcsUri',
+    'aspectRatio',
+    'generationConfig',
+    'imageConfig',
+    'safetySettings',
+    'thinkingConfig',
+    'systemInstruction',
+    'responseModalities',
+    'response_modalities',
+    'contents',
+    'thinking_budget',
+  ]
+  const GENERATION_FORBIDDEN = [
+    'thinking_budget',
+    'thinkingBudget',
+    'thinkingConfig',
+    'image_config',
+    'imageConfig',
+  ]
+
+  return {
+    async handleRequest(
+      req: http.IncomingMessage,
+      res: http.ServerResponse,
+      // aimock strips the mount prefix ('/gemini-image'), so pathname
+      // looks like '/v1beta/interactions'.
+      pathname: string,
+    ): Promise<boolean> {
+      if (pathname !== '/v1beta/interactions' || req.method !== 'POST') {
+        return false
+      }
+
+      const body = await readJsonRequestBody(req)
+      if (!body) {
+        return rejectGeminiRequest(res, 'Malformed JSON body.')
+      }
+
+      const model = body.model
+      if (typeof model !== 'string' || !NATIVE_IMAGE_MODELS.has(model)) {
+        return rejectGeminiRequest(
+          res,
+          `Unexpected image model ${JSON.stringify(model)}.`,
+        )
+      }
+
+      if (body.stream !== false) {
+        return rejectGeminiRequest(res, 'stream must be false.')
+      }
+
+      const format = asRecord(body.response_format)
+      if (!format || format.type !== 'image') {
+        return rejectGeminiRequest(res, 'response_format.type must be "image".')
+      }
+
+      const leaked = ROOT_FORBIDDEN.find((name) => name in body)
+      if (leaked) {
+        return rejectGeminiRequest(
+          res,
+          `Field "${leaked}" reached the Interactions image request.`,
+        )
+      }
+
+      const generationConfig = asRecord(body.generation_config)
+      const leakedGeneration = generationConfig
+        ? GENERATION_FORBIDDEN.find((name) => name in generationConfig)
+        : undefined
+      if (leakedGeneration) {
+        return rejectGeminiRequest(
+          res,
+          `Field "${leakedGeneration}" reached generation_config.`,
+        )
+      }
+
+      const previousId = body.previous_interaction_id
+      const isEdit = typeof previousId === 'string' && previousId.length > 0
+      const hasWireOptions =
+        Array.isArray(body.safety_settings) || generationConfig !== undefined
+
+      if (isEdit) {
+        if (inputHasImage(body.input)) {
+          return rejectGeminiRequest(
+            res,
+            'A chained edit must not resend an image block.',
+          )
+        }
+      } else if (hasWireOptions) {
+        const settings = body.safety_settings
+        const setting = Array.isArray(settings)
+          ? asRecord(settings[0])
+          : undefined
+        if (
+          !setting ||
+          setting.type !== 'dangerous_content' ||
+          setting.threshold !== 'block_only_high'
+        ) {
+          return rejectGeminiRequest(
+            res,
+            'safety_settings must be [{ type: "dangerous_content", threshold: "block_only_high" }].',
+          )
+        }
+        if (generationConfig?.thinking_level !== 'low') {
+          return rejectGeminiRequest(
+            res,
+            'generation_config.thinking_level must be "low".',
+          )
+        }
+      } else {
+        const aspectRatio = format.aspect_ratio
+        const imageSize = format.image_size
+        if (aspectRatio !== EXPECTED_ASPECT_RATIO) {
+          return rejectGeminiRequest(
+            res,
+            `${model}: response_format.aspect_ratio must be "${EXPECTED_ASPECT_RATIO}", got ${JSON.stringify(aspectRatio)}.`,
+          )
+        }
+        if (imageSize !== EXPECTED_FLASH_IMAGE_SIZE) {
+          return rejectGeminiRequest(
+            res,
+            `${model}: response_format.image_size must be "${EXPECTED_FLASH_IMAGE_SIZE}", got ${JSON.stringify(imageSize)}.`,
+          )
+        }
+      }
+
+      const image = {
+        type: 'image',
+        mime_type: 'image/png',
+        data: TINY_PNG_BASE64,
+      }
+      res.statusCode = 200
+      res.setHeader('Content-Type', 'application/json')
+      res.end(
+        JSON.stringify({
+          id: isEdit ? EDIT_ID : CREATE_ID,
+          object: 'interaction',
+          status: 'completed',
+          model,
+          output_image: image,
+          steps: [{ type: 'model_output', content: [image] }],
+          usage: {
+            total_input_tokens: 8,
+            total_output_tokens: 1290,
+            total_tokens: 1298,
+          },
+        }),
+      )
+      return true
+    },
+  }
+}
+
+function inputHasImage(input: unknown): boolean {
+  if (!Array.isArray(input)) return false
+  return input.some((block) => asRecord(block)?.type === 'image')
+}
+
+/**
+ * Mounts Ollama's batch embed endpoint (POST /api/embed). aimock's native
+ * handler answers with the legacy /api/embeddings shape (singular
+ * `embedding: number[]`), but the ollama SDK's `embed()` — which the
+ * @tanstack/ai-ollama embedding adapter uses — expects
+ * `embeddings: number[][]` with one vector per input.
+ */
+function ollamaEmbedMount(): Mountable {
+  return {
+    async handleRequest(
+      req: http.IncomingMessage,
+      res: http.ServerResponse,
+      // aimock strips the mount prefix — pathname will be "/" for an exact match.
+      pathname: string,
+    ): Promise<boolean> {
+      if (pathname !== '/' || req.method !== 'POST') return false
+      const bodyText = await readBody(req)
+      let model = 'nomic-embed-text'
+      let inputs: Array<string> = ['']
+      try {
+        const body = JSON.parse(bodyText) as {
+          model?: string
+          input?: string | Array<string>
+        }
+        if (body.model) model = body.model
+        inputs = Array.isArray(body.input) ? body.input : [body.input ?? '']
+      } catch {
+        // Malformed body — respond with a single vector anyway.
+      }
+      res.statusCode = 200
+      res.setHeader('Content-Type', 'application/json')
+      res.end(
+        JSON.stringify({
+          model,
+          embeddings: inputs.map(() => [...EMBED_VECTOR]),
+          prompt_eval_count: inputs.length * 3,
+        }),
+      )
+      return true
+    },
+  }
+}
+
+/**
+ * Mounts a Mistral-shaped embeddings endpoint under the '/mistral' prefix
+ * (the adapter under test sets serverURL to `<aimock>/mistral`, so the SDK
+ * posts to '/mistral/v1/embeddings'). aimock's native /v1/embeddings handler
+ * builds an OpenAI-format response without an `id`, which fails the Mistral
+ * SDK's Zod response validation (`EmbeddingResponse` requires `id`).
+ */
+function mistralEmbeddingsMount(): Mountable {
+  return {
+    async handleRequest(
+      req: http.IncomingMessage,
+      res: http.ServerResponse,
+      // aimock strips the mount prefix ('/mistral'), so pathname is
+      // '/v1/embeddings'.
+      pathname: string,
+    ): Promise<boolean> {
+      if (pathname !== '/v1/embeddings' || req.method !== 'POST') return false
+      const bodyText = await readBody(req)
+      let model = 'mistral-embed'
+      let inputs: Array<string> = ['']
+      try {
+        const body = JSON.parse(bodyText) as {
+          model?: string
+          input?: string | Array<string>
+        }
+        if (body.model) model = body.model
+        inputs = Array.isArray(body.input) ? body.input : [body.input ?? '']
+      } catch {
+        // Malformed body — respond with a single vector anyway.
+      }
+      res.statusCode = 200
+      res.setHeader('Content-Type', 'application/json')
+      res.end(
+        JSON.stringify({
+          id: 'embd-e2e',
+          object: 'list',
+          model,
+          usage: { prompt_tokens: 6, completion_tokens: 0, total_tokens: 6 },
+          data: inputs.map((_, index) => ({
+            object: 'embedding',
+            embedding: [...EMBED_VECTOR],
+            index,
+          })),
+        }),
+      )
+      return true
+    },
+  }
+}
+
+/**
+ * Mounts Gemini Omni Flash's Interactions-API video generation flow under a
+ * dedicated `/omni-video` prefix (the adapter under test sets its baseUrl to
+ * it, so requests land on `/omni-video/v1beta/interactions`):
+ *
+ * - `POST /v1beta/interactions` — creates the background job and returns an
+ *   `in_progress` interaction with an id.
+ * - `GET /v1beta/interactions/{id}` — polls the job. The mock completes
+ *   immediately with the raw wire shape: a `model_output` step carrying an
+ *   inline base64 `video` content block plus `output_tokens_by_modality`
+ *   usage, which the adapter maps to a `data:video/mp4;base64,…` URL.
+ */
+function geminiOmniVideoMount(): Mountable {
+  const JOB_ID = 'v1_omni-video-e2e'
+  // Minimal MP4-ish base64 payload — the spec only asserts the <video>
+  // element renders with the data: URL the adapter builds from it.
+  const VIDEO_BASE64 = 'AAAAIGZ0eXBpc29tAAACAGlzb21pc28y'
+  return {
+    async handleRequest(
+      req: http.IncomingMessage,
+      res: http.ServerResponse,
+      // aimock strips the mount prefix ('/omni-video') and any query
+      // string, so pathname looks like '/v1beta/interactions' or
+      // '/v1beta/interactions/{id}'.
+      pathname: string,
+    ): Promise<boolean> {
+      if (pathname === '/v1beta/interactions' && req.method === 'POST') {
+        await drainBody(req)
+        res.statusCode = 200
+        res.setHeader('Content-Type', 'application/json')
+        res.end(
+          JSON.stringify({
+            id: JOB_ID,
+            object: 'interaction',
+            status: 'in_progress',
+            model: 'gemini-omni-1.1-flash',
+          }),
+        )
+        return true
+      }
+
+      const pollMatch = pathname.match(/^\/v1beta\/interactions\/([^/]+)$/)
+      if (pollMatch && req.method === 'GET') {
+        res.statusCode = 200
+        res.setHeader('Content-Type', 'application/json')
+        res.end(
+          JSON.stringify({
+            id: pollMatch[1],
+            object: 'interaction',
+            status: 'completed',
+            model: 'gemini-omni-1.1-flash',
+            usage: {
+              total_input_tokens: 12,
+              total_output_tokens: 57920,
+              total_tokens: 57932,
+              output_tokens_by_modality: [{ modality: 'video', tokens: 57920 }],
+            },
+            steps: [
+              {
+                type: 'user_input',
+                content: [{ type: 'text', text: 'a guitar being played' }],
+              },
+              {
+                type: 'model_output',
+                content: [
+                  {
+                    type: 'video',
+                    mime_type: 'video/mp4',
+                    data: VIDEO_BASE64,
+                  },
+                ],
+              },
+            ],
+          }),
+        )
+        return true
+      }
+
+      return false
+    },
+  }
+}
+
+/**
+ * Mounts the agentic video-understanding interaction under a dedicated
+ * `/vu-interactions` prefix (the video-understanding provider points its baseUrl
+ * there). The standard Gemini adapter's agentic path calls the non-streaming
+ * `interactions.create()` and reads `output_text`; aimock's native handler
+ * would stream SSE instead. This returns a completed JSON interaction with the
+ * text the spec asserts on.
+ */
+function geminiVideoUnderstandingMount(): Mountable {
+  return {
+    async handleRequest(
+      req: http.IncomingMessage,
+      res: http.ServerResponse,
+      // aimock strips the mount prefix ('/vu-interactions'), so pathname
+      // looks like '/v1beta/interactions'.
+      pathname: string,
+    ): Promise<boolean> {
+      if (pathname !== '/v1beta/interactions' || req.method !== 'POST') {
+        return false
+      }
+      const body = await readJsonRequestBody(req)
+      const model =
+        typeof body?.model === 'string' ? body.model : 'gemini-3.7-flash'
+      res.statusCode = 200
+      res.setHeader('Content-Type', 'application/json')
+      res.end(
+        JSON.stringify({
+          id: 'aimock-vu-1',
+          object: 'interaction',
+          status: 'completed',
+          model,
+          output_text:
+            'The video shows a guitar being played in a music store. A ' +
+            'musician demonstrates the instrument with a bright, clear tone.',
+        }),
+      )
+      return true
+    },
+  }
+}
+
+/**
+ * Fake audio payloads keyed by Seed Speech's `audio_config.format`.
+ *
+ * The TTS adapter labels its result from the format it *requested*
+ * (`getContentType`), and it always sends `audio_config.format` explicitly —
+ * defaulting to `mp3` when the caller names no format. So the mount has to
+ * answer in whichever container the request asked for, or the adapter builds a
+ * mislabeled `data:` URI (mp3 bytes announced as `audio/wav`, say).
+ *
+ * Each payload is only as real as it needs to be: the specs assert that the
+ * `<audio>` element renders, not that it plays. `ogg_opus` is not exercised by
+ * any spec today — its magic bytes are a placeholder so an unexpected format
+ * still yields a plausible container rather than a silent mismatch.
+ */
+const FAKE_AUDIO_BY_FORMAT: Record<string, Buffer> = {
+  mp3: FAKE_MP3_BYTES,
+  wav: buildSilentWav(),
+  pcm: FAKE_PCM_BYTES,
+  ogg_opus: Buffer.from('OggS'),
+}
+
+/**
+ * Minimal RIFF/WAV container: a 44-byte header describing 16-bit mono PCM at
+ * 24 kHz, followed by silence.
+ */
+function buildSilentWav(): Buffer {
+  const samples = Buffer.alloc(64)
+  const header = Buffer.alloc(44)
+  header.write('RIFF', 0, 'ascii')
+  header.writeUInt32LE(36 + samples.length, 4)
+  header.write('WAVE', 8, 'ascii')
+  header.write('fmt ', 12, 'ascii')
+  header.writeUInt32LE(16, 16) // PCM chunk size
+  header.writeUInt16LE(1, 20) // format: PCM
+  header.writeUInt16LE(1, 22) // channels
+  header.writeUInt32LE(24000, 24) // sample rate
+  header.writeUInt32LE(24000 * 2, 28) // byte rate
+  header.writeUInt16LE(2, 32) // block align
+  header.writeUInt16LE(16, 34) // bits per sample
+  header.write('data', 36, 'ascii')
+  header.writeUInt32LE(samples.length, 40)
+  return Buffer.concat([header, samples])
+}
+
+/**
+ * Reads a mounted request body as a JSON object, or `undefined` when the body
+ * is absent, malformed, or not an object.
+ *
+ * The three BytePlus mounts below **validate** what the adapters send instead
+ * of draining it, which deliberately deviates from the `drainBody` house style
+ * every other mount in this file uses. The reason: BytePlus is the only
+ * provider in this suite with neither aimock fixtures nor record mode
+ * (aimock's `RecordProviderKey` union has no `byteplus` entry), so nothing
+ * else pins the request wire shape. With a canned 200, an adapter regression —
+ * a dropped `text_prompt`, a `speaker` that stopped nesting under
+ * `references`, an empty Seedance `content[]` — would still be answered
+ * successfully and the spec would pass green. A 400 turns that into a failing
+ * spec, which is the whole point of these mounts existing.
+ */
+async function readJsonRequestBody(
+  req: http.IncomingMessage,
+): Promise<Record<string, unknown> | undefined> {
+  const raw = await readBody(req)
+  try {
+    const parsed: unknown = JSON.parse(raw)
+    if (typeof parsed !== 'object' || parsed === null) return undefined
+    return parsed as Record<string, unknown>
+  } catch {
+    return undefined
+  }
+}
+
+/** Narrow an arbitrary JSON value to an object so nested fields can be read. */
+function asRecord(value: unknown): Record<string, unknown> | undefined {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+    return undefined
+  }
+  return value as Record<string, unknown>
+}
+
+/**
+ * Rejects with Ark's error envelope — `{ error: { code, message } }` with a
+ * dotted string code. Matching the real envelope means `bytePlusArkError`
+ * renders the reason into the thrown message, so a validation failure shows up
+ * in the spec output as the actual missing field.
+ */
+function rejectArkRequest(res: http.ServerResponse, message: string): true {
+  res.statusCode = 400
+  res.setHeader('Content-Type', 'application/json')
+  res.end(JSON.stringify({ error: { code: 'InvalidParameter', message } }))
+  return true
+}
+
+/**
+ * Rejects with Seed Speech's error envelope — a flat numeric `code` plus
+ * `message`, which is what `bytePlusVoiceError` parses.
+ */
+function rejectVoiceRequest(res: http.ServerResponse, message: string): true {
+  res.statusCode = 400
+  res.setHeader('Content-Type', 'application/json')
+  res.end(JSON.stringify({ code: 45000001, message }))
+  return true
+}
+
+/**
+ * Mounts BytePlus Seedance's asynchronous video task API:
+ *
+ * - `POST /api/v3/contents/generations/tasks` — submits the job, returns `{ id }`.
+ * - `GET  /api/v3/contents/generations/tasks/{id}` — polls it.
+ *
+ * aimock's native `/v1/videos` handling models OpenAI's job API, not Ark's, so
+ * this is hand-mocked. Every poll answers `succeeded`, matching the openai
+ * `onVideo` fixture and `geminiVeoMount` — the `fetcher` transport's
+ * `generateVideoFn` calls `getVideoJobStatus` exactly once after creating the
+ * job, so a mock that reports `running` first has no second poll to recover on.
+ * The queued/running branches of the adapter's status map are unit-tested.
+ *
+ * The success body mirrors a captured live task (see the Phase 0 probe notes):
+ * `content.video_url` plus `usage.completion_tokens`, `seed`, `resolution`,
+ * `ratio`, `duration`, the lowercase `framespersecond`, and `output_format`.
+ * `updated_at` matters — `getVideo` anchors its 24-hour `expiresAt` to it.
+ * The `model` is echoed back from the submitted task rather than hardcoded, so
+ * the poll response can't drift from what the adapter actually asked for.
+ *
+ * The create request is validated (see `readJsonRequestBody`): Ark requires a
+ * string `model` and a non-empty `content[]`, and answers `MissingParameter`
+ * without them — a live-probed behaviour worth preserving here, since an
+ * adapter that stopped building `content[]` would otherwise still get a job id.
+ *
+ * Anything that isn't a task path returns false so Ark's OpenAI-compatible
+ * chat and Seedream image requests reach aimock's native handlers.
+ */
+function byteplusSeedanceMount(): Mountable {
+  const VIDEO_URL = 'https://example.com/guitar-store.mp4'
+  const TASKS_PATH = '/contents/generations/tasks'
+  // Model per submitted task id, so the poll can echo what was requested.
+  const jobModels = new Map<string, string>()
+  let nextTaskId = 0
+
+  return {
+    async handleRequest(
+      req: http.IncomingMessage,
+      res: http.ServerResponse,
+      // aimock strips the mount prefix ('/api/v3'), so pathname looks like
+      // '/contents/generations/tasks' or '/contents/generations/tasks/{id}'.
+      pathname: string,
+    ): Promise<boolean> {
+      if (pathname === TASKS_PATH && req.method === 'POST') {
+        const body = await readJsonRequestBody(req)
+        if (!body) {
+          return rejectArkRequest(res, 'Malformed JSON body.')
+        }
+        if (typeof body.model !== 'string' || body.model.length === 0) {
+          return rejectArkRequest(res, 'MissingParameter: model.')
+        }
+        if (!Array.isArray(body.content) || body.content.length === 0) {
+          return rejectArkRequest(
+            res,
+            'MissingParameter: content must be a non-empty array.',
+          )
+        }
+
+        const id = `cgt-e2e-${++nextTaskId}`
+        jobModels.set(id, body.model)
+        res.statusCode = 200
+        res.setHeader('Content-Type', 'application/json')
+        res.end(JSON.stringify({ id }))
+        return true
+      }
+
+      const pollMatch = pathname.match(
+        /^\/contents\/generations\/tasks\/([^/]+)$/,
+      )
+      if (pollMatch && req.method === 'GET') {
+        const jobId = pollMatch[1]!
+        const nowSeconds = Math.floor(Date.now() / 1000)
+        res.statusCode = 200
+        res.setHeader('Content-Type', 'application/json')
+        res.end(
+          JSON.stringify({
+            id: jobId,
+            model: jobModels.get(jobId),
+            status: 'succeeded',
+            created_at: nowSeconds - 30,
+            updated_at: nowSeconds,
+            content: { video_url: VIDEO_URL },
+            usage: { completion_tokens: 39285, total_tokens: 39285 },
+            seed: 1234567890,
+            resolution: '480p',
+            ratio: '16:9',
+            duration: 5,
+            framespersecond: 24,
+            output_format: 'mp4',
+            service_tier: 'default',
+          }),
+        )
+        return true
+      }
+
+      // Not a Seedance path — fall through to aimock's compat-path
+      // normalization (Ark chat + Seedream image live under the same prefix).
+      return false
+    },
+  }
+}
+
+/**
+ * Mounts Seed Speech's synchronous TTS endpoint,
+ * `POST /api/v3/tts/create`.
+ *
+ * The request is validated against the decoded wire schema (see
+ * `readJsonRequestBody` for why these mounts validate at all). Three fields
+ * pin the shapes most likely to regress silently:
+ *
+ * - `text_prompt` — the synthesis field. There is no request-side `text`; that
+ *   belongs to the *other* endpoint (`/tts/unidirectional`), so a rename to
+ *   `text` is exactly the kind of drift worth catching.
+ * - `references[0].speaker` — the voice nests inside `references[]`. A
+ *   top-level `speaker` is ignored by the real server, which would otherwise
+ *   look like success here.
+ * - `audio_config.format` — always sent explicitly by the adapter.
+ *
+ * The response echoes that requested format's container (see
+ * `FAKE_AUDIO_BY_FORMAT`), because the adapter derives its result's content
+ * type from what it asked for, not from anything in this payload.
+ *
+ * The envelope is the documented one: a numeric `code` (0 on success), base64
+ * `audio`, `duration` / `original_duration` in **seconds**, and a temporary
+ * `url`. Note that a non-zero `code` can arrive on an HTTP 200 — the adapter
+ * rejects `code !== 0`, so this must send 0 for the success path to hold.
+ * `subtitle` is omitted: the adapter only asks for it via `enable_subtitle`,
+ * which this feature doesn't set.
+ */
+/**
+ * Build a plausible `subtitle` block for a synthesised prompt: one sentence
+ * per line (a dialogue prompt has one line per turn) and one word entry per
+ * whitespace-separated token, at a flat 400 ms each.
+ *
+ * Times are **milliseconds**, matching the real endpoint — the adapter is what
+ * converts them to the seconds the core `alignment` / `segments` use.
+ */
+function subtitleFor(textPrompt: string): {
+  sentences: Array<{ text: string; start_time: number; end_time: number }>
+  words: Array<{ text: string; start_time: number; end_time: number }>
+} {
+  const WORD_MS = 400
+  const sentences = []
+  const words = []
+  let cursor = 0
+  for (const line of textPrompt.split('\n')) {
+    // Strip the `@AudioN: ` speaker marker a dialogue prompt puts on each line.
+    const text = line.replace(/^@Audio\d+:\s*/, '')
+    const start = cursor
+    for (const word of text.split(/\s+/).filter(Boolean)) {
+      words.push({ text: word, start_time: cursor, end_time: cursor + WORD_MS })
+      cursor += WORD_MS
+    }
+    sentences.push({ text, start_time: start, end_time: cursor })
+  }
+  return { sentences, words }
+}
+
+function byteplusTTSMount(): Mountable {
+  return {
+    async handleRequest(
+      req: http.IncomingMessage,
+      res: http.ServerResponse,
+      pathname: string,
+    ): Promise<boolean> {
+      if (pathname !== '/tts/create' || req.method !== 'POST') return false
+
+      const body = await readJsonRequestBody(req)
+      if (!body) {
+        return rejectVoiceRequest(res, 'Malformed JSON body.')
+      }
+      if (typeof body.text_prompt !== 'string' || !body.text_prompt) {
+        return rejectVoiceRequest(
+          res,
+          'Missing text_prompt (note: the synthesis field is text_prompt, not text).',
+        )
+      }
+      const references = Array.isArray(body.references)
+        ? body.references
+        : undefined
+      const speaker = asRecord(references?.[0])?.speaker
+      if (typeof speaker !== 'string' || !speaker) {
+        return rejectVoiceRequest(
+          res,
+          'Missing references[0].speaker (the voice nests inside references[], not at the top level).',
+        )
+      }
+      const audioConfig = asRecord(body.audio_config)
+      const format = audioConfig?.format
+      if (typeof format !== 'string' || !(format in FAKE_AUDIO_BY_FORMAT)) {
+        return rejectVoiceRequest(
+          res,
+          `Missing or unsupported audio_config.format: ${String(format)}.`,
+        )
+      }
+
+      res.statusCode = 200
+      res.setHeader('Content-Type', 'application/json')
+      res.end(
+        JSON.stringify({
+          code: 0,
+          message: 'Success',
+          audio: FAKE_AUDIO_BY_FORMAT[format]!.toString('base64'),
+          duration: 2.4,
+          original_duration: 2.4,
+          url: `https://example.com/welcome-to-the-guitar-store.${format}`,
+          // Timings only come back when the caller opted in (core
+          // `timestamps: true` sets `enable_subtitle`).
+          // Subtitle times are MILLISECONDS even though `duration` above is
+          // seconds — the endpoint genuinely mixes units, so don't "fix" it.
+          ...(audioConfig?.enable_subtitle === true && {
+            subtitle: subtitleFor(body.text_prompt),
+          }),
+        }),
+      )
+      return true
+    },
+  }
+}
+
+/**
+ * Mounts ElevenLabs' two-step voice design API:
+ *
+ * - `POST /v1/text-to-voice/design` — returns candidate previews, each with a
+ *   `generated_voice_id` and base64 audio.
+ * - `POST /v1/text-to-voice` — promotes one candidate into a library voice.
+ *
+ * Like the BytePlus mounts, this **validates** rather than drains. There are no
+ * aimock fixtures for these routes, so a canned 200 would let an adapter
+ * regression — a dropped `voice_description`, a `generated_voice_id` that
+ * stopped coming from the chosen preview — pass green. A 400 turns it into a
+ * failing spec, which is why the mount exists.
+ */
+function elevenlabsVoiceMount(): Mountable {
+  return {
+    async handleRequest(
+      req: http.IncomingMessage,
+      res: http.ServerResponse,
+      pathname: string,
+    ): Promise<boolean> {
+      if (req.method !== 'POST') return false
+
+      if (pathname === '/design') {
+        const body = await readJsonRequestBody(req)
+        if (!body) return rejectElevenLabsRequest(res, 'Malformed JSON body.')
+        if (
+          typeof body.voice_description !== 'string' ||
+          !body.voice_description
+        ) {
+          return rejectElevenLabsRequest(
+            res,
+            'Missing voice_description — the design endpoint requires a prompt.',
+          )
+        }
+        if (body.model_id !== 'eleven_ttv_v3') {
+          return rejectElevenLabsRequest(
+            res,
+            `Unexpected model_id: ${String(body.model_id)}.`,
+          )
+        }
+
+        res.statusCode = 200
+        res.setHeader('Content-Type', 'application/json')
+        res.end(
+          JSON.stringify({
+            text: 'The quick brown fox jumps over the lazy dog.',
+            previews: [
+              {
+                generated_voice_id: 'e2e-preview-1',
+                audio_base_64: FAKE_MP3_BYTES.toString('base64'),
+                media_type: 'audio/mpeg',
+                duration_secs: 4.2,
+                language: 'en',
+              },
+              {
+                generated_voice_id: 'e2e-preview-2',
+                audio_base_64: FAKE_MP3_BYTES.toString('base64'),
+                media_type: 'audio/mpeg',
+                duration_secs: 4.1,
+                language: 'en',
+              },
+            ],
+          }),
+        )
+        return true
+      }
+
+      if (pathname === '' || pathname === '/') {
+        const body = await readJsonRequestBody(req)
+        if (!body) return rejectElevenLabsRequest(res, 'Malformed JSON body.')
+        if (typeof body.voice_name !== 'string' || !body.voice_name) {
+          return rejectElevenLabsRequest(res, 'Missing voice_name.')
+        }
+        // The saved voice must come from a preview the design call returned —
+        // catches an adapter that promotes the wrong candidate, or none.
+        if (body.generated_voice_id !== 'e2e-preview-1') {
+          return rejectElevenLabsRequest(
+            res,
+            `Expected the first preview to be promoted, got: ${String(
+              body.generated_voice_id,
+            )}.`,
+          )
+        }
+
+        res.statusCode = 200
+        res.setHeader('Content-Type', 'application/json')
+        res.end(
+          JSON.stringify({
+            voice_id: 'e2e-saved-voice',
+            name: body.voice_name,
+            category: 'generated',
+          }),
+        )
+        return true
+      }
+
+      return false
+    },
+  }
+}
+
+/** ElevenLabs' error envelope: `{ detail: { status, message } }`. */
+function rejectElevenLabsRequest(
+  res: http.ServerResponse,
+  message: string,
+): true {
+  res.statusCode = 400
+  res.setHeader('Content-Type', 'application/json')
+  res.end(JSON.stringify({ detail: { status: 'invalid_request', message } }))
+  return true
+}
+
+/**
+ * Mounts Seed Speech's synchronous ASR endpoint,
+ * `POST /api/v3/auc/bigmodel/recognize/flash`.
+ *
+ * The transcript matches the other providers' transcription mocks so
+ * `transcription.spec.ts` asserts the same "Fender Stratocaster" text for
+ * every provider. Wire timings are **milliseconds** (the adapter converts
+ * them to seconds), and the payload uses the nested `result` spelling rather
+ * than the flat aliases.
+ *
+ * The request is validated for an `audio.url` or `audio.data` (see
+ * `readJsonRequestBody`): the endpoint takes the clip one way or the other,
+ * and an adapter that sent neither would otherwise still get a transcript back
+ * and pass.
+ */
+function byteplusASRMount(): Mountable {
+  return {
+    async handleRequest(
+      req: http.IncomingMessage,
+      res: http.ServerResponse,
+      pathname: string,
+    ): Promise<boolean> {
+      if (
+        pathname !== '/auc/bigmodel/recognize/flash' ||
+        req.method !== 'POST'
+      ) {
+        return false
+      }
+
+      const body = await readJsonRequestBody(req)
+      if (!body) {
+        return rejectVoiceRequest(res, 'Malformed JSON body.')
+      }
+      const audio = asRecord(body.audio)
+      const hasUrl = typeof audio?.url === 'string' && audio.url.length > 0
+      const hasData = typeof audio?.data === 'string' && audio.data.length > 0
+      if (!hasUrl && !hasData) {
+        return rejectVoiceRequest(
+          res,
+          'Missing audio: exactly one of audio.url or audio.data is required.',
+        )
+      }
+
+      res.statusCode = 200
+      res.setHeader('Content-Type', 'application/json')
+      res.end(
+        JSON.stringify({
+          audio_info: { duration: 2400 },
+          result: {
+            text: 'I would like to buy a Fender Stratocaster please',
+            utterances: [
+              {
+                text: 'I would like to buy a Fender Stratocaster please',
+                start_time: 0,
+                end_time: 2400,
+                words: [
+                  { text: 'I', start_time: 0, end_time: 100 },
+                  { text: 'would', start_time: 100, end_time: 300 },
+                  { text: 'like', start_time: 300, end_time: 500 },
+                  { text: 'to', start_time: 500, end_time: 600 },
+                  { text: 'buy', start_time: 600, end_time: 800 },
+                  { text: 'a', start_time: 800, end_time: 900 },
+                  { text: 'Fender', start_time: 900, end_time: 1300 },
+                  { text: 'Stratocaster', start_time: 1300, end_time: 2000 },
+                  { text: 'please', start_time: 2000, end_time: 2400 },
+                ],
+              },
+            ],
+          },
+        }),
+      )
+      return true
+    },
+  }
+}
+
+/**
+ * Mounts Claude-shaped responses for server-tool regression coverage. The
+ * streaming response reproduces issue #604, while the request validator
+ * reproduces Anthropic's signed-thinking ordering check from issue #910.
+ *
+ * The first turn returns the mixed tool_use + server_tool_use response so the
+ * adapter can dispatch the client tool. The second turn (after the client
+ * tool result is fed back) returns a simple text completion so the agent
+ * loop can settle.
+ */
+function anthropicServerToolBugMount(): Mountable {
+  return {
+    async handleRequest(
+      req: http.IncomingMessage,
+      res: http.ServerResponse,
+      pathname: string,
+    ): Promise<boolean> {
+      // The Anthropic SDK posts to /v1/messages; query string (?beta=...)
+      // is stripped from `pathname` by aimock before dispatch.
+      if (req.method !== 'POST' || !pathname.startsWith('/v1/messages')) {
+        return false
+      }
+
+      const bodyText = await readBody(req)
+      type RequestBlock = {
+        type: string
+        text?: string
+        thinking?: string
+        signature?: string
+      }
+      type RequestMessage = {
+        role: string
+        content?: Array<RequestBlock> | string
+      }
+
+      let hasToolResult = false
+      let messages: Array<RequestMessage> = []
+      try {
+        const body = JSON.parse(bodyText) as {
+          messages?: Array<RequestMessage>
+        }
+        messages = body.messages ?? []
+        hasToolResult = messages.some(
+          (m) =>
+            Array.isArray(m.content) &&
+            m.content.some((c) => c.type === 'tool_result'),
+        )
+      } catch {
+        // Malformed body — fall through and emit the first-turn stream.
+      }
+
+      const thinkingOrderMarker = '[thinking-tool-order] continue'
+      const hasThinkingOrderMarker = messages.some((message) => {
+        if (message.role !== 'user') return false
+        if (typeof message.content === 'string') {
+          return message.content === thinkingOrderMarker
+        }
+        return message.content?.some(
+          (block) =>
+            block.type === 'text' && block.text === thinkingOrderMarker,
+        )
+      })
+      const hasThinkingOrderSignature = messages.some(
+        (message) =>
+          message.role === 'assistant' &&
+          Array.isArray(message.content) &&
+          message.content.some(
+            (block) =>
+              block.type === 'thinking' &&
+              (block.signature === 'signature-1' ||
+                block.signature === 'signature-2'),
+          ),
+      )
+      const validatesThinkingOrder =
+        hasThinkingOrderMarker || hasThinkingOrderSignature
+
+      if (validatesThinkingOrder) {
+        const assistantMessage = messages.find(
+          (message) =>
+            message.role === 'assistant' && Array.isArray(message.content),
+        )
+        const blocks = Array.isArray(assistantMessage?.content)
+          ? assistantMessage.content
+          : []
+        const blockTypes = blocks.map((block) => block.type)
+        const expectedBlockTypes = [
+          'thinking',
+          'server_tool_use',
+          'web_search_tool_result',
+          'thinking',
+          'tool_use',
+        ]
+        const thinkingBlocks = blocks.filter(
+          (block) => block.type === 'thinking',
+        )
+        const preservesOrder =
+          JSON.stringify(blockTypes) === JSON.stringify(expectedBlockTypes) &&
+          thinkingBlocks[0]?.thinking === 'First signed thinking block' &&
+          thinkingBlocks[0]?.signature === 'signature-1' &&
+          thinkingBlocks[1]?.thinking === 'Second signed thinking block' &&
+          thinkingBlocks[1]?.signature === 'signature-2'
+
+        if (!preservesOrder) {
+          res.statusCode = 400
+          res.setHeader('Content-Type', 'application/json')
+          res.end(
+            JSON.stringify({
+              type: 'error',
+              error: {
+                type: 'invalid_request_error',
+                message:
+                  'Signed thinking blocks were reordered relative to tool-use blocks',
+              },
+            }),
+          )
+          return true
+        }
+      }
+
+      const events = hasToolResult
+        ? buildFollowUpEvents()
+        : buildToolPlusServerToolEvents()
+
+      res.statusCode = 200
+      res.setHeader('Content-Type', 'text/event-stream')
+      res.setHeader('Cache-Control', 'no-cache')
+      res.setHeader('Connection', 'keep-alive')
+      for (const event of events) {
+        res.write(`event: ${event.type}\ndata: ${JSON.stringify(event)}\n\n`)
+      }
+      res.end()
+      return true
+    },
+  }
+}
+
+/**
+ * Emits an OpenAI-compatible chat-completion SSE stream that ends with a
+ * usage-only trailing chunk carrying OpenRouter's `cost` / `cost_details`.
+ * Snake_case on the wire is camelCased by the `@openrouter/sdk` parser, so the
+ * adapter sees `usage.cost` and `usage.costDetails.upstreamInferenceCost`.
+ */
+function openRouterCostMount(): Mountable {
+  return {
+    async handleRequest(
+      req: http.IncomingMessage,
+      res: http.ServerResponse,
+      pathname: string,
+    ): Promise<boolean> {
+      // The mount prefix (/openrouter-cost) is stripped before dispatch; the
+      // SDK posts to <serverURL>/chat/completions where serverURL ends in /v1.
+      if (
+        req.method !== 'POST' ||
+        !pathname.startsWith('/v1/chat/completions')
+      ) {
+        return false
+      }
+      await drainBody(req)
+
+      const base = {
+        id: 'chatcmpl-cost-e2e',
+        object: 'chat.completion.chunk',
+        // The @openrouter/sdk chunk schema requires a numeric `created`.
+        created: 1700000000,
+        model: 'openai/gpt-4o',
+      }
+      const chunks: Array<Record<string, unknown>> = [
+        {
+          ...base,
+          choices: [
+            {
+              index: 0,
+              delta: { role: 'assistant', content: 'Hi' },
+              finish_reason: null,
+            },
+          ],
+        },
+        {
+          ...base,
+          choices: [{ index: 0, delta: {}, finish_reason: 'stop' }],
+        },
+        // Trailing usage-only chunk — the whole point of the test. Field names
+        // mirror OpenRouter's CostDetails schema (camelCased by the SDK parser).
+        {
+          ...base,
+          choices: [],
+          usage: {
+            prompt_tokens: 11,
+            completion_tokens: 3,
+            total_tokens: 14,
+            cost: 0.0042,
+            cost_details: {
+              upstream_inference_completions_cost: 0.0026,
+              upstream_inference_cost: 0.0038,
+              upstream_inference_prompt_cost: 0.0012,
+            },
+          },
+        },
+      ]
+
+      res.statusCode = 200
+      res.setHeader('Content-Type', 'text/event-stream')
+      res.setHeader('Cache-Control', 'no-cache')
+      res.setHeader('Connection', 'keep-alive')
+      for (const chunk of chunks) {
+        res.write(`data: ${JSON.stringify(chunk)}\n\n`)
+      }
+      res.write('data: [DONE]\n\n')
+      res.end()
+      return true
+    },
+  }
+}
+
+/**
+ * Emits an OpenAI-compatible chat-completion SSE stream that ends with a
+ * usage-only chunk carrying `prompt_tokens_details` / `completion_tokens_details`.
+ * The shared `@tanstack/openai-base` extractor normalizes these into the
+ * canonical `TokenUsage` detail breakdowns, proving detailed usage survives
+ * end-to-end through the chat pipeline.
+ */
+function openaiUsageDetailsMount(
+  usage: Record<string, unknown> = {
+    prompt_tokens: 100,
+    completion_tokens: 50,
+    total_tokens: 150,
+    prompt_tokens_details: { cached_tokens: 80 },
+    completion_tokens_details: { reasoning_tokens: 30 },
+  },
+): Mountable {
+  return {
+    async handleRequest(
+      req: http.IncomingMessage,
+      res: http.ServerResponse,
+      pathname: string,
+    ): Promise<boolean> {
+      // The mount prefix is stripped before dispatch;
+      // the SDK posts to <serverURL>/chat/completions where serverURL ends /v1.
+      if (
+        req.method !== 'POST' ||
+        !pathname.startsWith('/v1/chat/completions')
+      ) {
+        return false
+      }
+      await drainBody(req)
+
+      const base = {
+        id: 'chatcmpl-usage-details-e2e',
+        object: 'chat.completion.chunk',
+        created: 1700000000,
+        model: 'gpt-4o',
+      }
+      const chunks: Array<Record<string, unknown>> = [
+        {
+          ...base,
+          choices: [
+            {
+              index: 0,
+              delta: { role: 'assistant', content: 'Hi' },
+              finish_reason: null,
+            },
+          ],
+        },
+        {
+          ...base,
+          choices: [{ index: 0, delta: {}, finish_reason: 'stop' }],
+        },
+        // Trailing usage-only chunk with detailed breakdowns — the point of the
+        // test. Mirrors OpenAI's `stream_options: { include_usage: true }` shape.
+        {
+          ...base,
+          choices: [],
+          usage,
+        },
+      ]
+
+      res.statusCode = 200
+      res.setHeader('Content-Type', 'text/event-stream')
+      res.setHeader('Cache-Control', 'no-cache')
+      res.setHeader('Connection', 'keep-alive')
+      for (const chunk of chunks) {
+        res.write(`data: ${JSON.stringify(chunk)}\n\n`)
+      }
+      res.write('data: [DONE]\n\n')
+      res.end()
+      return true
+    },
+  }
+}
+
+function openaiResponsesUsageMount(): Mountable {
+  return {
+    async handleRequest(
+      req: http.IncomingMessage,
+      res: http.ServerResponse,
+      pathname: string,
+    ): Promise<boolean> {
+      if (req.method !== 'POST' || pathname !== '/v1/responses') {
+        return false
+      }
+      await drainBody(req)
+
+      const message = {
+        id: 'msg_e2e_usage',
+        type: 'message',
+        role: 'assistant',
+        status: 'completed',
+        content: [{ type: 'output_text', text: 'Hi', annotations: [] }],
+      }
+      const events = [
+        {
+          type: 'response.output_text.delta',
+          item_id: 'msg_e2e_usage',
+          output_index: 0,
+          content_index: 0,
+          delta: 'Hi',
+        },
+        {
+          type: 'response.completed',
+          response: {
+            id: 'resp_e2e_usage',
+            object: 'response',
+            status: 'completed',
+            model: 'gpt-4o',
+            output: [message],
+            usage: {
+              input_tokens: 1941,
+              input_tokens_details: {
+                cached_tokens: 0,
+                cache_write_tokens: 1938,
+              },
+              output_tokens: 5,
+              output_tokens_details: { reasoning_tokens: 0 },
+              total_tokens: 1946,
+            },
+          },
+        },
+      ]
+
+      res.statusCode = 200
+      res.setHeader('Content-Type', 'text/event-stream')
+      res.setHeader('Cache-Control', 'no-cache')
+      for (const event of events) {
+        res.write(`data: ${JSON.stringify(event)}\n\n`)
+      }
+      res.write('data: [DONE]\n\n')
+      res.end()
+      return true
+    },
+  }
+}
+
+function openaiProviderSearchMount(): Mountable {
+  return {
+    async handleRequest(
+      req: http.IncomingMessage,
+      res: http.ServerResponse,
+      pathname: string,
+    ): Promise<boolean> {
+      if (req.method !== 'POST' || pathname !== '/v1/responses') {
+        return false
+      }
+
+      const body = asRecord(await readJsonRequestBody(req))
+      const include = body?.include
+      if (
+        !Array.isArray(include) ||
+        !include.includes('web_search_call.action.sources')
+      ) {
+        res.statusCode = 400
+        res.setHeader('Content-Type', 'application/json')
+        res.end(
+          JSON.stringify({
+            error: {
+              message: 'OpenAI web search sources were not requested.',
+            },
+          }),
+        )
+        return true
+      }
+
+      const webSearchCall = {
+        type: 'web_search_call',
+        id: 'ws_e2e_openai',
+        status: 'completed',
+        action: {
+          type: 'search',
+          queries: ['latest release'],
+          sources: [{ type: 'url', url: 'https://example.com/release' }],
+        },
+      }
+      const citation = {
+        type: 'url_citation',
+        url: 'https://example.com/release',
+        title: 'Example release notes',
+        start_index: 0,
+        end_index: 7,
+      }
+      const events = [
+        {
+          type: 'response.created',
+          response: {
+            id: 'resp_e2e_openai',
+            object: 'response',
+            status: 'in_progress',
+            model: 'gpt-4o',
+            output: [],
+          },
+        },
+        {
+          type: 'response.output_item.added',
+          output_index: 0,
+          item: { ...webSearchCall, status: 'searching' },
+        },
+        {
+          type: 'response.output_text.delta',
+          item_id: 'msg_e2e_openai',
+          output_index: 1,
+          content_index: 0,
+          delta: 'Grounded',
+        },
+        {
+          type: 'response.output_text.annotation.added',
+          item_id: 'msg_e2e_openai',
+          output_index: 1,
+          content_index: 0,
+          annotation_index: 0,
+          annotation: citation,
+        },
+        {
+          type: 'response.output_item.done',
+          output_index: 0,
+          item: webSearchCall,
+        },
+        {
+          type: 'response.completed',
+          response: {
+            id: 'resp_e2e_openai',
+            object: 'response',
+            status: 'completed',
+            model: 'gpt-4o',
+            output: [
+              webSearchCall,
+              {
+                id: 'msg_e2e_openai',
+                type: 'message',
+                role: 'assistant',
+                status: 'completed',
+                content: [
+                  {
+                    type: 'output_text',
+                    text: 'Grounded',
+                    annotations: [citation],
+                  },
+                ],
+              },
+            ],
+          },
+        },
+      ]
+
+      res.statusCode = 200
+      res.setHeader('Content-Type', 'text/event-stream')
+      res.setHeader('Cache-Control', 'no-cache')
+      for (const event of events) {
+        res.write(`data: ${JSON.stringify(event)}\n\n`)
+      }
+      res.write('data: [DONE]\n\n')
+      res.end()
+      return true
+    },
+  }
+}
+
+function geminiProviderSearchMount(): Mountable {
+  return {
+    async handleRequest(
+      req: http.IncomingMessage,
+      res: http.ServerResponse,
+      pathname: string,
+    ): Promise<boolean> {
+      if (
+        req.method !== 'POST' ||
+        !pathname.endsWith(':streamGenerateContent')
+      ) {
+        return false
+      }
+      await drainBody(req)
+
+      res.statusCode = 200
+      res.setHeader('Content-Type', 'text/event-stream')
+      res.setHeader('Cache-Control', 'no-cache')
+      res.end(
+        `data: ${JSON.stringify({
+          candidates: [
+            {
+              content: {
+                role: 'model',
+                parts: [{ text: 'Grounded' }],
+              },
+              groundingMetadata: {
+                webSearchQueries: ['latest release'],
+                groundingChunks: [
+                  {
+                    web: {
+                      uri: 'https://example.com/release',
+                      title: 'Example release notes',
+                    },
+                  },
+                ],
+              },
+              finishReason: 'STOP',
+              index: 0,
+            },
+          ],
+          usageMetadata: {
+            promptTokenCount: 1,
+            candidatesTokenCount: 1,
+            totalTokenCount: 2,
+          },
+        })}\n\n`,
+      )
+      return true
+    },
+  }
+}
+
+function geminiServerToolsMount(): Mountable {
+  const toolCall = {
+    toolCall: {
+      id: 'search_1',
+      toolType: 'GOOGLE_SEARCH_WEB',
+      args: { queries: ['caucus news'] },
+    },
+    thoughtSignature: 'c2lnLXNlYXJjaA==',
+  }
+  const functionCall = {
+    functionCall: {
+      id: 'call_1',
+      name: 'lookup_caucus',
+      args: { county: 'Salt Lake' },
+    },
+  }
+  const toolResponse = {
+    toolResponse: {
+      id: 'search_1',
+      toolType: 'GOOGLE_SEARCH_WEB',
+      response: { results: ['Caucus night is Tuesday'] },
+    },
+    thoughtSignature: 'c2lnLXJlc3BvbnNl',
+  }
+  return {
+    async handleRequest(
+      req: http.IncomingMessage,
+      res: http.ServerResponse,
+      pathname: string,
+    ): Promise<boolean> {
+      if (
+        req.method !== 'POST' ||
+        !pathname.endsWith(':streamGenerateContent')
+      ) {
+        return false
+      }
+      const body = await readJsonRequestBody(req)
+      if (
+        asRecord(body?.toolConfig)?.includeServerSideToolInvocations !== true
+      ) {
+        return rejectGeminiRequest(
+          res,
+          'Please enable tool_config.include_server_side_tool_invocations to use Built-in tools with Function calling.',
+        )
+      }
+      const contents = Array.isArray(body?.contents) ? body.contents : []
+      const modelTurn = contents
+        .map(asRecord)
+        .find((content) => content?.role === 'model')
+      const sent = Array.isArray(modelTurn?.parts)
+        ? modelTurn.parts.map(asRecord)
+        : []
+      let parts: Array<unknown>
+      if (!modelTurn) {
+        parts = [toolCall, functionCall, toolResponse]
+      } else if (
+        sent.length !== 3 ||
+        !sent[0]?.toolCall ||
+        sent[0].thoughtSignature !== toolCall.thoughtSignature ||
+        !sent[1]?.functionCall ||
+        !sent[2]?.toolResponse ||
+        sent[2].thoughtSignature !== toolResponse.thoughtSignature
+      ) {
+        return rejectGeminiRequest(
+          res,
+          'Function call is missing a thought_signature in functionCall parts.',
+        )
+      } else {
+        parts = [{ text: 'Caucus night is Tuesday at the library.' }]
+      }
+
+      res.statusCode = 200
+      res.setHeader('Content-Type', 'text/event-stream')
+      res.setHeader('Cache-Control', 'no-cache')
+      res.end(
+        `data: ${JSON.stringify({
+          candidates: [
+            {
+              content: { role: 'model', parts },
+              finishReason: 'STOP',
+              index: 0,
+            },
+          ],
+          usageMetadata: {
+            promptTokenCount: 1,
+            candidatesTokenCount: 1,
+            totalTokenCount: 2,
+          },
+        })}\n\n`,
+      )
+      return true
+    },
+  }
+}
+
+/**
+ * Mounts the OpenAI Decisions `/v1/decisions` response for the
+ * `evaluate-usage-on-failure` spec: valid usage, but a `queue` answer whose
+ * choice (`sales`) has no entry in `probabilities`, so `decide()` throws
+ * "missing probability for choice".
+ */
+function evaluateUsageOnFailureMount(): Mountable {
+  return {
+    async handleRequest(
+      req: http.IncomingMessage,
+      res: http.ServerResponse,
+      pathname: string,
+    ): Promise<boolean> {
+      if (req.method !== 'POST' || pathname !== '/v1/decisions') {
+        return false
+      }
+      await drainBody(req)
+      res.statusCode = 200
+      res.setHeader('Content-Type', 'application/json')
+      res.end(
+        JSON.stringify({
+          model: 'gpt-6-luna',
+          answers: [
+            {
+              type: 'choice',
+              name: 'queue',
+              choice: 'sales',
+              confidence: 0.9,
+              probabilities: [
+                { value: 'billing', probability: 0.6 },
+                { value: 'tech', probability: 0.4 },
+              ],
+            },
+          ],
+          usage: {
+            input_tokens: 42,
+            output_tokens: 7,
+            total_tokens: 49,
+          },
+        }),
+      )
+      return true
+    },
+  }
+}
+
+/**
+ * Answers an evaluate request with the HTTP status named in its
+ * `x-evaluate-http-status` header and a small JSON error body.
+ */
+function evaluateHttpStatusMount(): Mountable {
+  return {
+    async handleRequest(
+      req: http.IncomingMessage,
+      res: http.ServerResponse,
+    ): Promise<boolean> {
+      const status = Number(req.headers['x-evaluate-http-status'])
+      if (req.method !== 'POST' || !(status >= 400 && status <= 599)) {
+        return false
+      }
+      await drainBody(req)
+      res.statusCode = status
+      res.setHeader('Content-Type', 'application/json')
+      res.end(JSON.stringify({ error: 'rejected' }))
+      return true
+    },
+  }
+}
+
+/**
+ * Mounts the OpenAI Decisions `/v1/decisions` response with a `refusal` answer
+ * and billed usage. The OpenAI evaluate adapter turns it into an
+ * `EvaluateError` with code `refusal`.
+ */
+function evaluateRefusalMount(): Mountable {
+  return {
+    async handleRequest(
+      req: http.IncomingMessage,
+      res: http.ServerResponse,
+      pathname: string,
+    ): Promise<boolean> {
+      if (req.method !== 'POST' || pathname !== '/v1/decisions') {
+        return false
+      }
+      await drainBody(req)
+      res.statusCode = 200
+      res.setHeader('Content-Type', 'application/json')
+      res.end(
+        JSON.stringify({
+          model: 'gpt-6-luna',
+          answers: [{ type: 'refusal', name: 'refund' }],
+          usage: {
+            input_tokens: 40,
+            input_tokens_details: { cached_tokens: 0, cache_write_tokens: 0 },
+            output_tokens: 5,
+            output_tokens_details: { reasoning_tokens: 0 },
+            total_tokens: 45,
+          },
+        }),
+      )
+      return true
+    },
+  }
+}
+
+function buildToolPlusServerToolEvents(): Array<Record<string, unknown>> {
+  const messageId = 'msg_bug_604'
+  const model = 'claude-sonnet-4-5'
+  return [
+    {
+      type: 'message_start',
+      message: {
+        id: messageId,
+        type: 'message',
+        role: 'assistant',
+        content: [],
+        model,
+        stop_reason: null,
+        stop_sequence: null,
+        usage: { input_tokens: 10, output_tokens: 0 },
+      },
+    },
+    {
+      type: 'content_block_start',
+      index: 0,
+      content_block: {
+        type: 'tool_use',
+        id: 'toolu_client_weather',
+        name: 'lookup_weather',
+        input: {},
+      },
+    },
+    {
+      type: 'content_block_delta',
+      index: 0,
+      delta: {
+        type: 'input_json_delta',
+        partial_json: '{"location":"Berlin"}',
+      },
+    },
+    { type: 'content_block_stop', index: 0 },
+    {
+      type: 'content_block_start',
+      index: 1,
+      content_block: {
+        type: 'server_tool_use',
+        id: 'srvtoolu_web_fetch',
+        name: 'web_fetch',
+        input: {},
+      },
+    },
+    {
+      type: 'content_block_delta',
+      index: 1,
+      delta: {
+        type: 'input_json_delta',
+        partial_json: '{"url":"https://example.com"}',
+      },
+    },
+    { type: 'content_block_stop', index: 1 },
+    {
+      type: 'content_block_start',
+      index: 2,
+      content_block: {
+        type: 'web_fetch_tool_result',
+        tool_use_id: 'srvtoolu_web_fetch',
+        content: {
+          type: 'web_fetch_result',
+          url: 'https://example.com',
+          content: {
+            type: 'document',
+            source: { type: 'text', media_type: 'text/plain', data: 'ok' },
+          },
+          retrieved_at: '2026-01-01T00:00:00Z',
+        },
+      },
+    },
+    { type: 'content_block_stop', index: 2 },
+    {
+      type: 'message_delta',
+      delta: { stop_reason: 'tool_use', stop_sequence: null },
+      usage: { output_tokens: 20 },
+    },
+    { type: 'message_stop' },
+  ]
+}
+
+function buildFollowUpEvents(): Array<Record<string, unknown>> {
+  const messageId = 'msg_bug_604_followup'
+  const model = 'claude-sonnet-4-5'
+  return [
+    {
+      type: 'message_start',
+      message: {
+        id: messageId,
+        type: 'message',
+        role: 'assistant',
+        content: [],
+        model,
+        stop_reason: null,
+        stop_sequence: null,
+        usage: { input_tokens: 30, output_tokens: 0 },
+      },
+    },
+    {
+      type: 'content_block_start',
+      index: 0,
+      content_block: { type: 'text', text: '' },
+    },
+    {
+      type: 'content_block_delta',
+      index: 0,
+      delta: { type: 'text_delta', text: 'Berlin is sunny.' },
+    },
+    { type: 'content_block_stop', index: 0 },
+    {
+      type: 'message_delta',
+      delta: { stop_reason: 'end_turn', stop_sequence: null },
+      usage: { output_tokens: 5 },
+    },
+    { type: 'message_stop' },
+  ]
+}
+
+function readBody(req: http.IncomingMessage): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const chunks: Array<Buffer> = []
+    req.on('data', (c: Buffer) => chunks.push(c))
+    req.on('end', () => resolve(Buffer.concat(chunks).toString('utf8')))
+    req.on('error', reject)
+  })
+}
+
+/**
+ * Answers `POST /model/{modelId}/converse-stream` with a fixed Converse event
+ * stream. The text block carries a JSON report of where the request placed
+ * `cachePoint` blocks (tools, system, last message), and the trailing
+ * `metadata` event carries cache read/write counters as Bedrock returns them
+ * on a cache hit.
+ */
+function bedrockConverseCacheMount(): Mountable {
+  const utf8 = new TextEncoder()
+  const codec = new EventStreamCodec(
+    (bytes) => new TextDecoder().decode(bytes),
+    (text) => utf8.encode(text),
+  )
+  const frame = (eventType: string, payload: unknown): Buffer =>
+    Buffer.from(
+      codec.encode({
+        headers: {
+          ':event-type': { type: 'string', value: eventType },
+          ':message-type': { type: 'string', value: 'event' },
+          ':content-type': { type: 'string', value: 'application/json' },
+        },
+        body: utf8.encode(JSON.stringify(payload)),
+      }),
+    )
+  const endsWithCachePoint = (blocks: unknown): boolean => {
+    if (!Array.isArray(blocks) || blocks.length === 0) return false
+    const last: unknown = blocks[blocks.length - 1]
+    return typeof last === 'object' && last !== null && 'cachePoint' in last
+  }
+
+  return {
+    async handleRequest(
+      req: http.IncomingMessage,
+      res: http.ServerResponse,
+      pathname: string,
+    ): Promise<boolean> {
+      // The mount prefix (/bedrock-converse-cache) is stripped before dispatch.
+      if (
+        req.method !== 'POST' ||
+        !/\/model\/[^/]+\/converse-stream$/.test(pathname)
+      ) {
+        return false
+      }
+      const body = (await readJsonRequestBody(req)) ?? {}
+      const toolConfig = body.toolConfig as { tools?: unknown } | undefined
+      const messages = body.messages as Array<{ content?: unknown }> | undefined
+      const observed = {
+        tools: endsWithCachePoint(toolConfig?.tools),
+        system: endsWithCachePoint(body.system),
+        lastMessage: endsWithCachePoint(
+          messages?.[messages.length - 1]?.content,
+        ),
+      }
+
+      res.statusCode = 200
+      res.setHeader('Content-Type', 'application/vnd.amazon.eventstream')
+      res.write(frame('messageStart', { role: 'assistant' }))
+      res.write(
+        frame('contentBlockDelta', {
+          contentBlockIndex: 0,
+          delta: { text: JSON.stringify(observed) },
+        }),
+      )
+      res.write(frame('contentBlockStop', { contentBlockIndex: 0 }))
+      res.write(frame('messageStop', { stopReason: 'end_turn' }))
+      // Values from a real cache hit: inputTokens is the uncached remainder.
+      res.write(
+        frame('metadata', {
+          usage: {
+            inputTokens: 3,
+            outputTokens: 4,
+            totalTokens: 8416,
+            cacheReadInputTokens: 8409,
+            cacheWriteInputTokens: 0,
+          },
+          metrics: { latencyMs: 1 },
+        }),
+      )
+      res.end()
       return true
     },
   }

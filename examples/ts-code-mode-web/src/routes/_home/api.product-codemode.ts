@@ -9,12 +9,13 @@ import { geminiText } from '@tanstack/ai-gemini'
 import { zaiText } from '@tanstack/ai-zai'
 import {
   createAlwaysTrustedStrategy,
-  createSkillManagementTools,
-  createSkillsSystemPrompt,
-  skillsToTools,
-} from '@tanstack/ai-code-mode-skills'
-import { createFileSkillStorage } from '@tanstack/ai-code-mode-skills/storage'
-import type { AnyTextAdapter, ServerTool, StreamChunk } from '@tanstack/ai'
+  createSnippetManagementTools,
+  createSnippetsSystemPrompt,
+  snippetsToTools,
+} from '@tanstack/ai-code-mode-snippets'
+import { createFileSnippetStorage } from '@tanstack/ai-code-mode-snippets/storage'
+import { maxTokensModelOptions } from '@/lib/max-tokens-model-options'
+import type { AnyServerTool, AnyTextAdapter, StreamChunk } from '@tanstack/ai'
 import type { IsolateDriver } from '@tanstack/ai-code-mode'
 import { productTools } from '@/lib/tools/product-tools'
 
@@ -62,7 +63,7 @@ let codeModeCache: {
 async function getCodeModeTools() {
   if (!codeModeCache) {
     const { createIsolateDriver } = await import('@/lib/create-isolate-driver')
-    const driver = await createIsolateDriver('node')
+    const driver = await createIsolateDriver()
     const { tool, systemPrompt } = createCodeMode({
       driver,
       tools: productTools,
@@ -74,70 +75,70 @@ async function getCodeModeTools() {
   return codeModeCache
 }
 
-// --- Skills storage (lazy, only used when withSkills=true) ---
+// --- Snippets storage (lazy, only used when withSnippets=true) ---
 
 const __dirname = fileURLToPath(new URL('.', import.meta.url))
-const skillsDir = resolve(__dirname, '../../../.skills')
+const snippetsDir = resolve(__dirname, '../../../.snippets')
 const trustStrategy = createAlwaysTrustedStrategy()
-const skillStorage = createFileSkillStorage({
-  directory: skillsDir,
+const snippetStorage = createFileSnippetStorage({
+  directory: snippetsDir,
   trustStrategy,
 })
 
-let skillManagementToolsCache: ReturnType<
-  typeof createSkillManagementTools
+let snippetManagementToolsCache: ReturnType<
+  typeof createSnippetManagementTools
 > | null = null
 
-function getSkillManagementTools() {
-  if (!skillManagementToolsCache) {
-    skillManagementToolsCache = createSkillManagementTools({
-      storage: skillStorage,
+function getSnippetManagementTools() {
+  if (!snippetManagementToolsCache) {
+    snippetManagementToolsCache = createSnippetManagementTools({
+      storage: snippetStorage,
       trustStrategy,
     })
   }
-  return skillManagementToolsCache
+  return snippetManagementToolsCache
 }
 
-const SKILL_REGISTRATION_PROMPT = `## Skill Registration — MANDATORY
+const SNIPPET_REGISTRATION_PROMPT = `## Snippet Registration — MANDATORY
 
-After every successful \`execute_typescript\` call you MUST register the code as a reusable skill using \`register_skill\` — unless an identical skill already exists.
+After every successful \`execute_typescript\` call you MUST register the code as a reusable snippet using \`register_snippet\` — unless an identical snippet already exists.
 
 Rules:
 - \`name\`: descriptive snake_case (e.g. \`get_average_product_price\`)
 - \`code\`: the TypeScript code, parameterised with an \`input\` variable where useful
 - \`inputSchema\` / \`outputSchema\`: valid JSON Schema **strings**
-- If a skill with the same name exists, skip registration
+- If a snippet with the same name exists, skip registration
 
-This is not optional — skill registration is a core part of your workflow.`
+This is not optional — snippet registration is a core part of your workflow.`
 
-async function getSkillToolsAndPrompt(driver: IsolateDriver): Promise<{
-  skillTools: Array<ServerTool<any, any, any>>
-  skillsPrompt: string
+async function getSnippetToolsAndPrompt(driver: IsolateDriver): Promise<{
+  snippetTools: Array<AnyServerTool>
+  snippetsPrompt: string
 }> {
-  const allSkills = await skillStorage.loadAll()
-  const skillIndex = await skillStorage.loadIndex()
+  const allSnippets = await snippetStorage.loadAll()
+  const snippetIndex = await snippetStorage.loadIndex()
 
-  const skillTools =
-    allSkills.length > 0
-      ? skillsToTools({
-          skills: allSkills,
+  const snippetTools =
+    allSnippets.length > 0
+      ? snippetsToTools({
+          snippets: allSnippets,
           driver,
           tools: productTools,
-          storage: skillStorage,
+          storage: snippetStorage,
           timeout: 60000,
           memoryLimit: 128,
         })
       : []
 
-  const libraryPrompt = createSkillsSystemPrompt({
-    selectedSkills: allSkills,
-    totalSkillCount: skillIndex.length,
-    skillsAsTools: true,
+  const libraryPrompt = createSnippetsSystemPrompt({
+    selectedSnippets: allSnippets,
+    totalSnippetCount: snippetIndex.length,
+    snippetsAsTools: true,
   })
 
-  const skillsPrompt = libraryPrompt + '\n\n' + SKILL_REGISTRATION_PROMPT
+  const snippetsPrompt = libraryPrompt + '\n\n' + SNIPPET_REGISTRATION_PROMPT
 
-  return { skillTools, skillsPrompt }
+  return { snippetTools, snippetsPrompt }
 }
 
 // --- Instrumentation helper ---
@@ -191,7 +192,7 @@ function instrumentAdapter(adapter: AnyTextAdapter): {
 }
 
 function wrapWithTimingEvents(
-  stream: AsyncGenerator<StreamChunk>,
+  stream: AsyncIterable<StreamChunk>,
   adapter: AnyTextAdapter,
 ): AsyncGenerator<StreamChunk> {
   const requestStartTimeMs = Date.now()
@@ -234,11 +235,11 @@ export const Route = createFileRoute('/_home/api/product-codemode')({
 
         const abortController = new AbortController()
         const body = await request.json()
-        const { messages, data } = body
+        const { messages, forwardedProps: data } = body
 
         const provider: Provider = data?.provider || 'anthropic'
         const model: string | undefined = data?.model
-        const withSkills: boolean = data?.withSkills === true
+        const withSnippets: boolean = data?.withSnippets === true
 
         const rawAdapter = getAdapter(provider, model)
         const { adapter: instrumentedAdapter } = instrumentAdapter(rawAdapter)
@@ -250,28 +251,35 @@ export const Route = createFileRoute('/_home/api/product-codemode')({
             driver,
           } = await getCodeModeTools()
 
-          let tools: Array<ServerTool<any, any, any>> = [codeModeTool]
+          let tools: Array<AnyServerTool> = [codeModeTool]
           let systemPrompts = [PRODUCT_CODE_MODE_SYSTEM_PROMPT, codeModePrompt]
 
-          if (withSkills) {
-            const { skillTools, skillsPrompt } =
-              await getSkillToolsAndPrompt(driver)
-            tools = [codeModeTool, ...getSkillManagementTools(), ...skillTools]
+          if (withSnippets) {
+            const { snippetTools, snippetsPrompt } =
+              await getSnippetToolsAndPrompt(driver)
+            tools = [
+              codeModeTool,
+              ...getSnippetManagementTools(),
+              ...snippetTools,
+            ]
             systemPrompts = [
               PRODUCT_CODE_MODE_SYSTEM_PROMPT,
               codeModePrompt,
-              skillsPrompt,
+              snippetsPrompt,
             ]
           }
 
           const stream = chat({
+            threadId: body.threadId,
             adapter: instrumentedAdapter,
             messages,
             tools,
             systemPrompts,
             agentLoopStrategy: maxIterations(15),
             abortController,
-            maxTokens: 8192,
+            // Sampling lives in provider-native `modelOptions` now; map the
+            // generic cap to the resolved adapter's wire key.
+            modelOptions: maxTokensModelOptions(rawAdapter, 8192),
           })
 
           const instrumentedStream = wrapWithTimingEvents(stream, rawAdapter)

@@ -2,7 +2,7 @@
 title: Runtime Adapter Switching
 id: runtime-adapter-switching
 order: 6
-description: "Let users switch between LLM providers at runtime in TanStack AI while keeping full TypeScript type safety for each adapter's model options."
+description: "Let users pick the LLM provider at runtime. Each adapter keeps its types, and the chat history keeps working when the provider changes."
 keywords:
   - tanstack ai
   - runtime switching
@@ -12,75 +12,175 @@ keywords:
   - dynamic adapter
 ---
 
-# Runtime Adapter Switching with Type Safety
+One endpoint can call Claude for one turn and GPT for the next. The history stays typed across the switch.
 
-Learn how to build interfaces where users can switch between LLM providers at runtime while maintaining full TypeScript type safety.
+Keep a map of adapter factories on the server. The client sends the provider that the user picked, and the server picks the adapter from the map.
 
-## The Simple Approach
+## Quick setup
 
-With TanStack AI, the model is passed directly to the adapter factory function. This gives you full type safety and autocomplete at the point of definition:
+### 1. Pick the adapter on the server
 
 ```typescript
-import { chat, toServerSentEventsResponse } from '@tanstack/ai'
+// api/chat.ts
+import {
+  chat,
+  chatParamsFromRequest,
+  toServerSentEventsResponse,
+} from '@tanstack/ai'
 import { anthropicText } from '@tanstack/ai-anthropic'
 import { openaiText } from '@tanstack/ai-openai'
 
-type Provider = 'openai' | 'anthropic'
-
-// Define adapters with their models - autocomplete works here!
 const adapters = {
-  anthropic: () => anthropicText('claude-sonnet-4-5'),  // ✅ Autocomplete!
-  openai: () => openaiText('gpt-5.2'),  // ✅ Autocomplete!
+  anthropic: () => anthropicText('claude-sonnet-5-5'),
+  openai: () => openaiText('gpt-6.1-sol'),
 }
 
-// In your request handler:
-const provider: Provider = request.body.provider || 'openai'
+type Provider = keyof typeof adapters
 
-const stream = chat({
-  adapter: adapters[provider](),
-  messages,
-})
+function isProvider(value: unknown): value is Provider {
+  return value === 'anthropic' || value === 'openai'
+}
+
+export async function POST(request: Request) {
+  const params = await chatParamsFromRequest(request)
+  const requested = params.forwardedProps.provider
+  const provider: Provider = isProvider(requested) ? requested : 'openai'
+
+  const stream = chat({
+    adapter: adapters[provider](),
+    messages: params.messages,
+    threadId: params.threadId,
+  })
+
+  return toServerSentEventsResponse(stream)
+}
 ```
 
-## Why This Works
+### 2. Send the provider from the client
 
-Each adapter factory function accepts a model name as its first argument and returns a fully typed adapter:
+```tsx
+import { useState } from 'react'
+import { fetchServerSentEvents, useChat } from '@tanstack/ai-react'
+
+export function ProviderChat() {
+  const [provider, setProvider] = useState('anthropic')
+  const { sendMessage } = useChat({
+    connection: fetchServerSentEvents('/api/chat'),
+    threadId: 'support-chat',
+    forwardedProps: { provider },
+  })
+
+  return (
+    <>
+      <select
+        aria-label="Provider"
+        value={provider}
+        onChange={(event) => setProvider(event.target.value)}
+      >
+        <option value="anthropic">Claude</option>
+        <option value="openai">GPT</option>
+      </select>
+      <button onClick={() => sendMessage('Keep going')}>Send</button>
+    </>
+  )
+}
+```
+
+Switch the provider in the middle of a thread. The next answer comes from the new model, with the full history.
+
+## How it works
+
+The adapter factory takes the model name as its first argument. The adapter keeps the model, so `chat()` needs no separate `model` option.
+
+- You get autocomplete for the model name where you write the map.
+- A wrong model name is a compile error.
+- Each entry in the map keeps its own types, so you need no casts.
+
+Treat `forwardedProps` as client input. The `isProvider` check accepts only the names in your map.
+
+## Keep saved history when you switch
+
+You start a thread on Claude, then switch to GPT. The thinking signatures and tool call IDs of Claude mean nothing to OpenAI. If you send them as they are, the request fails.
+
+You do not have to fix this yourself. Keep the message metadata when you save and send the history. `chat()` does the rest. On the server, `chatParamsFromRequest` keeps the message metadata for you.
+
+Each assistant message records where it came from, in `metadata.tanstack.source`:
+
+```json
+{ "provider": "anthropic", "api": "anthropic-messages", "model": "claude-sonnet-5-5" }
+```
+
+When the next call goes to a different source, the adapter changes the request:
+
+- It drops signatures and redacted thinking.
+- It sends readable thinking as plain text.
+- It rewrites tool call IDs to the shape that the new API accepts. Each result keeps its call.
+- An OpenAI-compatible or OpenRouter adapter can know that the model has no image input. Then it sends no images from tool results. See [Images in Tool Results](./multimodal-content#images-in-tool-results).
+
+Each request also cleans the history:
+
+- An answer that failed or was aborted is left out, with its tool results.
+- A tool call with no result gets the result `No result provided`.
+
+All of this changes only the request. Your saved history stays the same. A message with no `source` counts as same-source, so its signatures go back as they are.
+
+## Advanced
+
+### The factory and the class
+
+The factory and the adapter class give the same adapter:
 
 ```typescript
-// These are equivalent:
-const adapter1 = openaiText('gpt-5.2')
-const adapter2 = new OpenAITextAdapter({ apiKey: process.env.OPENAI_API_KEY }, 'gpt-5.2')
+import { openaiText, OpenAITextAdapter } from '@tanstack/ai-openai'
+
+const adapter1 = openaiText('gpt-6.1-sol')
+const adapter2 = new OpenAITextAdapter(
+  { apiKey: process.env.OPENAI_API_KEY ?? '' },
+  'gpt-6.1-sol',
+)
 
 // The model is stored on the adapter
-console.log(adapter1.selectedModel) // 'gpt-5.2'
+console.log(adapter1.model) // 'gpt-6.1-sol'
 ```
 
-When you pass an adapter to `chat()`, it uses the model from `adapter.selectedModel`. This means:
+`chat()` reads the model from `adapter.model`.
 
-- **Full autocomplete** - When typing the model name, TypeScript knows valid options
-- **Type validation** - Invalid model names cause compile errors
-- **Clean code** - No separate `model` parameter needed
+### Replace a switch statement
 
-## Full Example
+Do you have a `switch` that sets an adapter and a model in two variables? Replace it with the map of factories from the quick setup. Each factory creates the adapter with its model, so the `chat()` call needs no casts.
 
-Here's a complete example showing a multi-provider chat API:
+### Full example with four providers
 
-```typescript
+A TanStack Start route that serves OpenAI, Anthropic, Gemini, and Ollama:
+
+```typescript ignore
 import { createFileRoute } from '@tanstack/react-router'
-import { chat, maxIterations, toServerSentEventsResponse } from '@tanstack/ai'
-import { openaiText } from '@tanstack/ai-openai'
+import {
+  chat,
+  chatParamsFromRequest,
+  toServerSentEventsResponse,
+} from '@tanstack/ai'
 import { anthropicText } from '@tanstack/ai-anthropic'
 import { geminiText } from '@tanstack/ai-gemini'
 import { ollamaText } from '@tanstack/ai-ollama'
+import { openaiText } from '@tanstack/ai-openai'
 
-type Provider = 'openai' | 'anthropic' | 'gemini' | 'ollama'
-
-// Define adapters with their models
 const adapters = {
-  anthropic: () => anthropicText('claude-sonnet-4-5'),
-  gemini: () => geminiText('gemini-2.0-flash-exp'),
+  anthropic: () => anthropicText('claude-sonnet-5-5'),
+  gemini: () => geminiText('gemini-3.8-flash'),
   ollama: () => ollamaText('mistral:7b'),
-  openai: () => openaiText('gpt-5.2'),
+  openai: () => openaiText('gpt-6.1-sol'),
+}
+
+type Provider = keyof typeof adapters
+
+function isProvider(value: unknown): value is Provider {
+  return (
+    value === 'anthropic' ||
+    value === 'gemini' ||
+    value === 'ollama' ||
+    value === 'openai'
+  )
 }
 
 export const Route = createFileRoute('/api/chat')({
@@ -88,16 +188,16 @@ export const Route = createFileRoute('/api/chat')({
     handlers: {
       POST: async ({ request }) => {
         const abortController = new AbortController()
-        const body = await request.json()
-        const { messages, data } = body
-
-        const provider: Provider = data?.provider || 'openai'
+        const params = await chatParamsFromRequest(request)
+        // `forwardedProps` is the AG-UI field that `useChat({ forwardedProps })` sets.
+        const requested = params.forwardedProps.provider
+        const provider: Provider = isProvider(requested) ? requested : 'openai'
 
         const stream = chat({
           adapter: adapters[provider](),
-          tools: [...],
-          systemPrompts: [...],
-          messages,
+          systemPrompts: ['You are a helpful assistant.'],
+          messages: params.messages,
+          threadId: params.threadId,
           abortController,
         })
 
@@ -108,96 +208,81 @@ export const Route = createFileRoute('/api/chat')({
 })
 ```
 
-## Using with Image Adapters
+### Image adapters
 
-The same pattern works for image generation:
+The same pattern works for image generation. Image adapters do not all accept the same shape of `size`, so each entry in the map carries its own `size`:
 
 ```typescript
 import { generateImage } from '@tanstack/ai'
-import { openaiImage } from '@tanstack/ai-openai'
 import { geminiImage } from '@tanstack/ai-gemini'
+import { openaiImage } from '@tanstack/ai-openai'
 
 const imageAdapters = {
-  openai: () => openaiImage('gpt-image-1'),
-  gemini: () => geminiImage('gemini-2.0-flash-preview-image-generation'),
+  openai: () => ({ adapter: openaiImage('gpt-image-2.5-sunburst'), size: '1024x1024' as const }),
+  gemini: () => ({ adapter: geminiImage('gemini-3.1-flash-image'), size: '16:9_4K' as const }),
 }
 
-// Usage
-const result = await generateImage({
-  adapter: imageAdapters[provider](),
-  prompt: 'A beautiful sunset over mountains',
-  size: '1024x1024',
-})
+export async function POST(request: Request) {
+  const body: unknown = await request.json()
+  const requested =
+    typeof body === 'object' && body !== null && 'provider' in body
+      ? body.provider
+      : undefined
+  const { adapter, size } =
+    requested === 'gemini' ? imageAdapters.gemini() : imageAdapters.openai()
+
+  const result = await generateImage({
+    adapter,
+    prompt: 'A beautiful sunset over mountains',
+    threadId: 'thread-1',
+    size,
+  })
+
+  return Response.json(result)
+}
 ```
 
-## Using with Summarize Adapters
+`size` is specific to the provider:
 
-And for summarization:
+- Gemini 3.x native image models take a `'<aspectRatio>_<tier>'` string, for example `'16:9_4K'`.
+- OpenAI and Imagen models take pixel dimensions, for example `'1024x1024'`.
+
+### Summarize adapters
+
+The same pattern works for summarization:
 
 ```typescript
 import { summarize } from '@tanstack/ai'
-import { openaiSummarize } from '@tanstack/ai-openai'
 import { anthropicSummarize } from '@tanstack/ai-anthropic'
+import { openaiSummarize } from '@tanstack/ai-openai'
 
-const summarizeAdapters = {
-  openai: () => openaiSummarize('gpt-5-mini'),
-  anthropic: () => anthropicSummarize('claude-sonnet-4-5'),
+type SummarizeProvider = 'openai' | 'anthropic'
+
+const summarizeAdapters: Record<
+  SummarizeProvider,
+  () => ReturnType<typeof openaiSummarize | typeof anthropicSummarize>
+> = {
+  openai: () => openaiSummarize('gpt-5.4-mini'),
+  anthropic: () => anthropicSummarize('claude-sonnet-5-5'),
 }
 
-// Usage
-const result = await summarize({
-  adapter: summarizeAdapters[provider](),
-  text: longDocument,
-  maxLength: 100,
-  style: 'concise',
-})
-```
+export async function POST(request: Request) {
+  const body: unknown = await request.json()
+  if (typeof body !== 'object' || body === null) {
+    return new Response('Bad request', { status: 400 })
+  }
+  const provider: SummarizeProvider =
+    'provider' in body && body.provider === 'anthropic' ? 'anthropic' : 'openai'
+  const text = 'text' in body && typeof body.text === 'string' ? body.text : ''
 
-## Migration from Switch Statements
+  const result = await summarize({
+    adapter: summarizeAdapters[provider](),
+    text,
+    threadId: 'thread-1',
+    maxLength: 100,
+    style: 'concise',
+  })
 
-If you have existing code using switch statements, here's how to migrate:
-
-### Before
-
-```typescript
-let adapter
-let model
-
-switch (provider) {
-  case 'anthropic':
-    adapter = anthropicText()
-    model = 'claude-sonnet-4-5'
-    break
-  case 'openai':
-  default:
-    adapter = openaiText()
-    model = 'gpt-5.2'
-    break
+  return Response.json(result)
 }
-
-const stream = chat({
-  adapter: adapter as any,
-  model: model as any,
-  messages,
-})
 ```
-
-### After
-
-```typescript
-const adapters = {
-  anthropic: () => anthropicText('claude-sonnet-4-5'),
-  openai: () => openaiText('gpt-5.2'),
-}
-
-const stream = chat({
-  adapter: adapters[provider](),
-  messages,
-})
-```
-
-The key changes:
-
-1. Replace the switch statement with an object of factory functions
-2. Each factory function creates an adapter with the model included
-3. No more `as any` casts - full type safety!

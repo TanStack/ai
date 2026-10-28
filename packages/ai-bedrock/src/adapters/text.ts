@@ -1,0 +1,133 @@
+import OpenAI from 'openai'
+import { OpenAIBaseChatCompletionsTextAdapter } from '@tanstack/openai-base'
+import {
+  isBedrockOpenAIContextOverflow,
+  withBedrockDefaults,
+} from '../utils/client'
+import {
+  BEDROCK_MODEL_INPUT_MODALITIES,
+  BEDROCK_MODEL_REASONING,
+} from '../model-meta'
+import type { Modality } from '@tanstack/ai'
+import type { BedrockClientConfig } from '../utils/client'
+import type { BedrockMessageMetadataByModality } from '../message-types'
+import type {
+  BedrockChatModels,
+  BedrockChatModelToolCapabilitiesByName,
+  BedrockModelReasoningByName,
+  ResolveInputModalities,
+  ResolveProviderOptions,
+} from '../model-meta'
+import type { OpenAIBaseTextAdapterOptions } from '@tanstack/openai-base'
+
+export interface BedrockTextConfig
+  extends BedrockClientConfig, OpenAIBaseTextAdapterOptions {}
+
+export type { ExternalTextProviderOptions as BedrockTextProviderOptions } from '../text/text-provider-options'
+
+/** The reasoning levels of a model, for `chat({ reasoning })`. `never`: none. */
+type ResolveReasoning<TModel extends string> =
+  TModel extends keyof BedrockModelReasoningByName
+    ? BedrockModelReasoningByName[TModel]
+    : never
+
+type ResolveToolCapabilities<TModel extends string> =
+  TModel extends keyof BedrockChatModelToolCapabilitiesByName
+    ? NonNullable<BedrockChatModelToolCapabilitiesByName[TModel]>
+    : readonly []
+
+/**
+ * Bedrock Chat Completions adapter. Drives Bedrock's OpenAI-compatible
+ * `/chat/completions` endpoint via the OpenAI SDK with a baseURL override
+ * (same pattern as ai-groq). Tool conversion, streaming, structured output,
+ * and the agent loop come from the base.
+ */
+export class BedrockTextAdapter<
+  TModel extends BedrockChatModels,
+  // Constraint mirrors ai-groq and the base, which parameterises
+  // `TProviderOptions extends Record<string, any>`. Our default
+  // `ResolveProviderOptions<TModel>` resolves to the `BedrockTextProviderOptions`
+  // interface, which (lacking an implicit index signature) `Record<string,
+  // unknown>` would reject but `Record<string, any>` accepts. This `any` is
+  // confined to the generic constraint (the established ai-groq pattern) — no
+  // value/shape `as` cast is introduced.
+  TProviderOptions extends Record<string, any> = ResolveProviderOptions<TModel>,
+  TInputModalities extends ReadonlyArray<Modality> =
+    ResolveInputModalities<TModel>,
+  TToolCapabilities extends ReadonlyArray<string> =
+    ResolveToolCapabilities<TModel>,
+> extends OpenAIBaseChatCompletionsTextAdapter<
+  TModel,
+  TProviderOptions,
+  TInputModalities,
+  BedrockMessageMetadataByModality,
+  TToolCapabilities,
+  ResolveReasoning<TModel>
+> {
+  override readonly kind = 'text' as const
+  override readonly name = 'bedrock' as const
+  override readonly provider = 'amazon-bedrock'
+  override readonly inputModalities = BEDROCK_MODEL_INPUT_MODALITIES[this.model]
+
+  constructor(config: BedrockTextConfig, model: TModel) {
+    // No `forced` -> honors config.endpoint ('runtime' default, 'mantle' allowed).
+    const options = withBedrockDefaults(config, undefined, model)
+    super(model, 'bedrock', new OpenAI(options), {
+      ...config,
+      fetch: options.fetch,
+    })
+  }
+
+  protected override isContextOverflow(error: {
+    message: string
+    code: string | undefined
+  }): boolean {
+    return (
+      super.isContextOverflow(error) || isBedrockOpenAIContextOverflow(error)
+    )
+  }
+
+  protected override modelReasoning(model: string) {
+    return BEDROCK_MODEL_REASONING[model]
+  }
+
+  /**
+   * Surface reasoning deltas (gpt-oss / Claude reasoning) the OpenAI-compatible
+   * way. Base types the chunk as `unknown`; narrow with runtime guards — no
+   * `as` casts, no `any`.
+   */
+  protected override extractReasoning(
+    chunk: unknown,
+  ): { text: string } | undefined {
+    return readDeltaReasoning(chunk)
+  }
+}
+
+/** Cast-free narrowing of a Chat Completions chunk's reasoning delta. */
+function readDeltaReasoning(chunk: unknown): { text: string } | undefined {
+  if (typeof chunk !== 'object' || chunk === null || !('choices' in chunk))
+    return undefined
+  if (!Array.isArray(chunk.choices)) return undefined
+  const choice: unknown = chunk.choices[0]
+  if (typeof choice !== 'object' || choice === null || !('delta' in choice))
+    return undefined
+  const delta = choice.delta
+  if (typeof delta !== 'object' || delta === null) return undefined
+  const raw =
+    'reasoning' in delta && typeof delta.reasoning === 'string'
+      ? delta.reasoning
+      : 'reasoning_content' in delta &&
+          typeof delta.reasoning_content === 'string'
+        ? delta.reasoning_content
+        : undefined
+  return raw && raw.length > 0 ? { text: raw } : undefined
+}
+
+/** Chat adapter with an explicit API key (low-level; the public branching factory delegates here). */
+export function createBedrockChat<TModel extends BedrockChatModels>(
+  model: TModel,
+  apiKey: string,
+  config?: Omit<BedrockTextConfig, 'apiKey'>,
+): BedrockTextAdapter<TModel> {
+  return new BedrockTextAdapter({ ...config, apiKey }, model)
+}

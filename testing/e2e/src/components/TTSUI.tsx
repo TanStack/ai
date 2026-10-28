@@ -5,7 +5,7 @@ import {
   fetchHttpStream,
 } from '@tanstack/ai-react'
 import { generateSpeechFn } from '@/lib/server-functions'
-import type { TTSResult } from '@tanstack/ai'
+import type { TTSResult, TTSTurn } from '@tanstack/ai'
 import type { Mode, Provider } from '@/lib/types'
 
 interface TTSUIProps {
@@ -15,8 +15,22 @@ interface TTSUIProps {
   aimockPort?: number
 }
 
+// ElevenLabs requires a voice on every TTS call. The other providers infer
+// one from their adapter config, so we only attach this when needed.
+const ELEVENLABS_DEFAULT_VOICE = '21m00Tcm4TlvDq8ikWAM'
+
+// Deliberately synthetic voice ids: the dialogue mounts only check that each
+// turn carries *a* voice, and fake-but-plausible provider ids get copied into
+// docs as if they were real.
+const DIALOGUE_TURNS: Array<TTSTurn> = [
+  { text: 'welcome to the guitar store', voice: 'e2e-voice-a' },
+  { text: 'what can I play for you', voice: 'e2e-voice-b' },
+]
+
 export function TTSUI({ provider, mode, testId, aimockPort }: TTSUIProps) {
   const [text, setText] = useState('')
+  const defaultVoice =
+    provider === 'elevenlabs' ? ELEVENLABS_DEFAULT_VOICE : undefined
 
   const connectionOptions = () => {
     const body = { provider, testId, aimockPort }
@@ -28,10 +42,17 @@ export function TTSUI({ provider, mode, testId, aimockPort }: TTSUIProps) {
       return { connection: fetchHttpStream('/api/tts/stream'), body }
     }
     return {
-      fetcher: async (input: { text: string; voice?: string }) => {
+      fetcher: async (input: {
+        text?: string
+        turns?: Array<TTSTurn>
+        timestamps?: boolean
+        voice?: string
+      }) => {
         return generateSpeechFn({
           data: {
             text: input.text,
+            turns: input.turns,
+            timestamps: input.timestamps,
             voice: input.voice,
             provider,
             aimockPort,
@@ -42,8 +63,10 @@ export function TTSUI({ provider, mode, testId, aimockPort }: TTSUIProps) {
     }
   }
 
-  const { generate, result, isLoading, error, status } =
-    useGenerateSpeech(connectionOptions())
+  const { generate, result, isLoading, error, status } = useGenerateSpeech({
+    threadId: testId ?? 'tts',
+    ...connectionOptions(),
+  })
 
   return (
     <div className="p-4 space-y-4">
@@ -57,8 +80,16 @@ export function TTSUI({ provider, mode, testId, aimockPort }: TTSUIProps) {
           className="flex-1 bg-gray-800 border border-gray-700 rounded px-3 py-2 text-sm"
         />
         <button
+          data-testid="generate-dialogue-button"
+          onClick={() => generate({ turns: DIALOGUE_TURNS, timestamps: true })}
+          disabled={isLoading}
+          className="px-4 py-2 bg-blue-500 text-white rounded text-sm font-medium disabled:opacity-50"
+        >
+          Generate dialogue
+        </button>
+        <button
           data-testid="generate-button"
-          onClick={() => generate({ text })}
+          onClick={() => generate({ text, voice: defaultVoice })}
           disabled={!text.trim() || isLoading}
           className="px-4 py-2 bg-orange-500 text-white rounded text-sm font-medium disabled:opacity-50"
         >
@@ -80,6 +111,17 @@ export function TTSUI({ provider, mode, testId, aimockPort }: TTSUIProps) {
         <div data-testid="generation-error" className="text-red-400 text-sm">
           {error.message}
         </div>
+      )}
+      {result?.alignment && (
+        <div data-testid="alignment-unit">{result.alignment.unit}</div>
+      )}
+      {result?.alignment && (
+        <div data-testid="alignment-end">
+          {result.alignment.endSeconds.at(-1)}
+        </div>
+      )}
+      {result?.segments && (
+        <div data-testid="segment-count">{result.segments.length}</div>
       )}
       {result && (
         <audio

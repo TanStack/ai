@@ -1,0 +1,163 @@
+// ============================================================================
+// New Tree-Shakeable Adapters (Recommended)
+// ============================================================================
+
+// Text (Chat) adapter - for chat/text completion (Responses API)
+export {
+  OpenAITextAdapter,
+  createOpenaiChat,
+  openaiText,
+  type OpenAITextConfig,
+  type OpenAITextProviderOptions,
+} from './adapters/text'
+
+// Text (Chat Completions) adapter - older `/v1/chat/completions` wire format
+export {
+  OpenAIChatCompletionsTextAdapter,
+  createOpenaiChatCompletions,
+  openaiChatCompletions,
+  type OpenAIChatCompletionsConfig,
+  type OpenAIChatCompletionsProviderOptions,
+} from './adapters/text-chat-completions'
+
+export {
+  AzureOpenAITextAdapter,
+  azureOpenaiText,
+  createAzureOpenaiText,
+  type AzureOpenAITextConfig,
+} from './adapters/azure-text'
+
+// Summarize - thin factory functions over @tanstack/ai's ChatStreamSummarizeAdapter
+export {
+  createOpenaiSummarize,
+  openaiSummarize,
+  type OpenAISummarizeConfig,
+} from './adapters/summarize'
+
+// Image adapter - for image generation
+export {
+  OpenAIImageAdapter,
+  createOpenaiImage,
+  openaiImage,
+  type OpenAIImageConfig,
+} from './adapters/image'
+export type {
+  OpenAIImageProviderOptions,
+  OpenAIImageModelProviderOptionsByName,
+} from './image/image-provider-options'
+
+// Video adapter - for video generation (experimental)
+export {
+  OpenAIVideoAdapter,
+  createOpenaiVideo,
+  openaiVideo,
+  type OpenAIVideoConfig,
+} from './adapters/video'
+export type {
+  OpenAIVideoProviderOptions,
+  OpenAIVideoModelProviderOptionsByName,
+  OpenAIVideoModelDurationByName,
+  OpenAIVideoSize,
+  OpenAIVideoSeconds,
+  OpenAIVideoDuration,
+} from './video/video-provider-options'
+
+// TTS adapter - for text-to-speech
+export {
+  OpenAITTSAdapter,
+  createOpenaiSpeech,
+  openaiSpeech,
+  type OpenAITTSConfig,
+} from './adapters/tts'
+export type {
+  OpenAITTSProviderOptions,
+  OpenAITTSVoice,
+  OpenAITTSFormat,
+} from './audio/tts-provider-options'
+
+// Transcription adapter - for speech-to-text
+export {
+  OpenAITranscriptionAdapter,
+  createOpenaiTranscription,
+  openaiTranscription,
+  type OpenAITranscriptionConfig,
+} from './adapters/transcription'
+export type { OpenAITranscriptionProviderOptions } from './audio/transcription-provider-options'
+
+// Embedding adapter - for embedding vectors
+export {
+  OpenAIEmbeddingAdapter,
+  createOpenaiEmbedding,
+  openaiEmbedding,
+  type OpenAIEmbeddingConfig,
+} from './adapters/embedding'
+export type { OpenAIEmbeddingProviderOptions } from './embedding/embedding-provider-options'
+
+// Evaluate adapter - for decide() via the Decisions API
+export {
+  OpenAIEvaluateAdapter,
+  createOpenaiDecider,
+  openaiDecider,
+  OPENAI_EVALUATE_MODELS,
+  type OpenAIEvaluateConfig,
+  type OpenAIEvaluateModel,
+} from './adapters/evaluate'
+
+// Files adapter - upload media to the OpenAI Files API and reference by file_id
+export {
+  OpenAIFilesAdapter,
+  createOpenaiFiles,
+  openaiFiles,
+  type OpenAIFilesConfig,
+} from './adapters/files'
+
+// ============================================================================
+// Type Exports
+// ============================================================================
+
+export type {
+  OpenAIChatModelProviderOptionsByName,
+  OpenAIChatModelToolCapabilitiesByName,
+  OpenAIModelInputModalitiesByName,
+  OpenAIChatModel,
+  OpenAIImageModel,
+  OpenAIVideoModel,
+  OpenAITTSModel,
+  OpenAITranscriptionModel,
+  OpenAIEmbeddingModel,
+  OpenAIEmbeddingModelProviderOptionsByName,
+  OpenAIEmbeddingModelInputModalitiesByName,
+} from './model-meta'
+export {
+  OPENAI_IMAGE_MODELS,
+  OPENAI_TTS_MODELS,
+  OPENAI_TRANSCRIPTION_MODELS,
+  OPENAI_EMBEDDING_MODELS,
+  OPENAI_VIDEO_MODELS,
+  OPENAI_CHAT_MODELS,
+} from './model-meta'
+export type {
+  OpenAITextMetadata,
+  OpenAIImageMetadata,
+  OpenAIAudioMetadata,
+  OpenAIVideoMetadata,
+  OpenAIDocumentMetadata,
+  OpenAIMessageMetadataByModality,
+} from './message-types'
+export type { OpenAIClientConfig } from './utils/client'
+
+// ============================================================================
+// Realtime (Voice) Adapters
+// ============================================================================
+
+export { openaiRealtimeToken, openaiRealtime } from './realtime/index'
+
+export type {
+  OpenAIRealtimeVoice,
+  OpenAIRealtimeModel,
+  OpenAIRealtimeTokenOptions,
+  OpenAIRealtimeOptions,
+  OpenAITurnDetection,
+  OpenAISemanticVADConfig,
+  OpenAIServerVADConfig,
+} from './realtime/index'

@@ -1,0 +1,316 @@
+import type {
+  DefaultMessageMetadataByModality,
+  JSONSchema,
+  MidConversationChannels,
+  Modality,
+  ModelMessage,
+  TextCompactOptions,
+  TextOptions,
+  TokenUsage,
+} from '../../types'
+import type { AdapterYieldChunk } from '../../utilities/adapter-yield-chunk'
+import type { CapabilityHandle } from './middleware/capabilities'
+import type { ReasoningCapability } from '../../reasoning'
+
+/**
+ * Configuration for adapter instances
+ */
+export interface TextAdapterConfig {
+  apiKey?: string
+  baseUrl?: string
+  timeout?: number
+  maxRetries?: number
+  headers?: Record<string, string>
+}
+
+/**
+ * Options for structured output generation.
+ *
+ * The internal logger is threaded through `chatOptions.logger` (inherited from
+ * `TextOptions`). Adapter implementations must call `logger.request()` before
+ * SDK calls, `logger.provider()` for each chunk received, and `logger.errors()`
+ * in catch blocks.
+ */
+export interface StructuredOutputOptions<TProviderOptions extends object> {
+  /** Text options for the request */
+  chatOptions: TextOptions<TProviderOptions>
+  /** JSON Schema for structured output - already converted from Zod in the ai layer */
+  outputSchema: JSONSchema
+}
+
+/**
+ * Result from structured output generation
+ */
+export interface StructuredOutputResult<T = unknown> {
+  /** The parsed data conforming to the schema */
+  data: T
+  /** The raw text response from the model before parsing */
+  rawText: string
+  /** Token usage information (if provided by the adapter) */
+  usage?: TokenUsage
+  /** Provider generation ID, when available. */
+  responseId?: string
+  /** Model reported by the provider. */
+  model?: string
+}
+
+/**
+ * Text adapter interface with pre-resolved generics.
+ *
+ * An adapter is created by a provider function: `provider('model')` → `adapter`
+ * All type resolution happens at the provider call site, not in this interface.
+ *
+ * Generic parameters:
+ * - TModel: The specific model name (e.g., 'gpt-4o')
+ * - TProviderOptions: Provider-specific options for this model (already resolved)
+ * - TInputModalities: Supported input modalities for this model (already resolved)
+ * - TMessageMetadata: Metadata types for content parts (already resolved)
+ * - TToolCapabilities: Tuple of tool-kind strings supported by this model, resolved from `supports.tools`
+ * - TToolCallMetadata: Metadata type that round-trips with tool calls (e.g. Gemini's `thoughtSignature`)
+ * - TSystemPromptMetadata: Provider-typed metadata accepted on each
+ *   `systemPrompts[i]` entry (e.g. Anthropic `cache_control`). Defaults to
+ *   `never` — adapters without per-prompt metadata reject the `metadata`
+ *   field at the call site.
+ */
+export interface TextAdapter<
+  TModel extends string,
+  TProviderOptions extends Record<string, any>,
+  TInputModalities extends ReadonlyArray<Modality>,
+  TMessageMetadataByModality extends DefaultMessageMetadataByModality,
+  TToolCapabilities extends ReadonlyArray<string> = ReadonlyArray<string>,
+  TToolCallMetadata = unknown,
+  TSystemPromptMetadata = never,
+  TReasoning extends ReasoningCapability = never,
+> {
+  /** Discriminator for adapter kind */
+  readonly kind: 'text'
+  /** Provider name identifier (e.g., 'openai', 'anthropic') */
+  readonly name: string
+  /** Wire API identity. Defaults to the adapter kind when omitted. */
+  readonly api?: string
+  /** Provider identity. Defaults to `name` when omitted. */
+  readonly provider?: string
+  /** The model this adapter is configured for */
+  readonly model: TModel
+
+  /**
+   * Capabilities this adapter requires at runtime. `chat()` validates that the
+   * configured middleware provides each one. Model adapters omit this; harness
+   * adapters (e.g. a future `claudeCode()`) declare e.g. `[sandboxCapability]`.
+   * Runtime access to capabilities from inside the adapter is not yet wired —
+   * this is the declaration/validation surface only.
+   */
+  readonly requires?: ReadonlyArray<CapabilityHandle>
+
+  /**
+   * Declares that this adapter can consume `{ type: 'file' }` content sources
+   * (provider Files API references). `chat()` rejects file sources in preflight
+   * for adapters that don't declare this, so an adapter written before the
+   * file arm existed fails closed instead of silently mis-mapping a reference
+   * onto its URL/data branch.
+   */
+  readonly supportsFileSources?: boolean
+
+  /**
+   * The input kinds the model reads, at runtime, from the provider's model
+   * metadata. `undefined` means not known. This mirrors the type-level
+   * `'~types'.inputModalities`, which has no runtime value. `| undefined`
+   * keeps model lookups assignable under `exactOptionalPropertyTypes`.
+   */
+  readonly inputModalities?: ReadonlyArray<Modality> | undefined
+
+  /**
+   * The mid-conversation channels of the model: tools and system prompts
+   * added between model calls can go out with no change to the cached prompt
+   * prefix. `chat()` passes `TextOptions.midConversationChanges` only when a
+   * channel is on. `undefined` means no channels. `| undefined` keeps the
+   * base class assignable under `exactOptionalPropertyTypes`.
+   */
+  readonly midConversationChannels?: MidConversationChannels | undefined
+
+  /**
+   * @internal Type-only properties for inference. Not assigned at runtime.
+   */
+  '~types': {
+    providerOptions: TProviderOptions
+    inputModalities: TInputModalities
+    messageMetadataByModality: TMessageMetadataByModality
+    toolCapabilities: TToolCapabilities
+    toolCallMetadata: TToolCallMetadata
+    systemPromptMetadata: TSystemPromptMetadata
+    /**
+     * The model's reasoning levels, for `chat({ reasoning })`. `never`: the
+     * model does not reason (or the adapter does not map `reasoning`), and
+     * the option is a type error. Optional, so an adapter written before this
+     * key existed still type-checks (and gets no `reasoning` option).
+     */
+    reasoning?: TReasoning
+  }
+
+  /**
+   * Stream text completions from the model
+   */
+  chatStream: (
+    options: TextOptions<TProviderOptions>,
+  ) => AsyncIterable<AdapterYieldChunk>
+
+  /**
+   * Generate structured output using the provider's native structured output API.
+   * This method uses stream: false and sends the JSON schema to the provider
+   * to ensure the response conforms to the expected structure.
+   *
+   * @param options - Structured output options containing chat options and JSON schema
+   * @returns Promise with the raw data (validation is done in the chat function)
+   */
+  structuredOutput: (
+    options: StructuredOutputOptions<TProviderOptions>,
+  ) => Promise<StructuredOutputResult<unknown>>
+
+  /**
+   * Stream structured output using the provider's native streaming structured
+   * output API (stream + response_format json_schema in a single request).
+   *
+   * Optional — adapters without native streaming JSON omit this method and the
+   * activity layer synthesizes a stream around the non-streaming
+   * `structuredOutput` call.
+   *
+   * Implementations must emit standard AG-UI lifecycle events (RUN_STARTED,
+   * TEXT_MESSAGE_*, RUN_FINISHED) carrying raw JSON text deltas, plus a final
+   * `CUSTOM` event named `structured-output.complete` whose `value` is
+   * `{ object, raw, reasoning? }`. Events must be timestamped when emitted so
+   * their timestamps follow stream order.
+   */
+  structuredOutputStream?: (
+    options: StructuredOutputOptions<TProviderOptions>,
+  ) => AsyncIterable<AdapterYieldChunk>
+
+  /**
+   * Compact the history with the provider's own compaction endpoint.
+   * Resolves to the history to send from the next call on. It can hold
+   * provider items that only this provider reads. Optional: adapters
+   * without native compaction omit it.
+   */
+  compact?: (options: TextCompactOptions) => Promise<Array<ModelMessage>>
+
+  /**
+   * Declares whether the adapter supports combining `tools` and a
+   * schema-constrained final answer in a single streaming request.
+   *
+   * When `true`, the engine wires `outputSchema` into the regular
+   * `chatStream()` call and skips the separate `runStructuredFinalization`
+   * round-trip. The model's natural final turn carries the
+   * schema-constrained JSON text and the engine harvests it from the agent
+   * loop's accumulated content.
+   *
+   * When `false`, `undefined`, or the method is omitted, the engine runs
+   * the agent loop without `outputSchema` and then issues a separate
+   * `structuredOutput` / `structuredOutputStream` call against the JSON
+   * schema for finalization (the legacy path).
+   *
+   * The method receives the per-call `modelOptions` so providers whose
+   * support depends on the resolved upstream model (e.g. OpenRouter) can
+   * answer per-request. Most adapters can return a constant.
+   */
+  supportsCombinedToolsAndSchema?: (
+    modelOptions?: TProviderOptions | undefined,
+  ) => boolean
+
+  /**
+   * Where native-combined structured output is taken from.
+   *
+   * - `'text'` (default when omitted): the agent loop's accumulated
+   *   assistant text is schema JSON. The engine parses it after the loop.
+   *   HTTP adapters use this.
+   * - `'event'`: the adapter emits `structured-output.complete` during
+   *   `chatStream`. The engine must not parse accumulated prose. Harness
+   *   adapters use this.
+   */
+  combinedStructuredOutputSource?: (
+    modelOptions?: TProviderOptions | undefined,
+  ) => 'text' | 'event'
+}
+
+/**
+ * A TextAdapter with any/unknown type parameters.
+ * Useful as a constraint in generic functions and interfaces.
+ */
+export type AnyTextAdapter = TextAdapter<any, any, any, any, any, any, any, any>
+
+/**
+ * Abstract base class for text adapters.
+ * Extend this class to implement a text adapter for a specific provider.
+ *
+ * Generic parameters match TextAdapter - all pre-resolved by the provider function.
+ */
+export abstract class BaseTextAdapter<
+  TModel extends string,
+  TProviderOptions extends Record<string, any>,
+  TInputModalities extends ReadonlyArray<Modality>,
+  TMessageMetadataByModality extends DefaultMessageMetadataByModality,
+  TToolCapabilities extends ReadonlyArray<string> = ReadonlyArray<string>,
+  TToolCallMetadata = unknown,
+  TSystemPromptMetadata = never,
+  TReasoning extends ReasoningCapability = never,
+> implements TextAdapter<
+  TModel,
+  TProviderOptions,
+  TInputModalities,
+  TMessageMetadataByModality,
+  TToolCapabilities,
+  TToolCallMetadata,
+  TSystemPromptMetadata,
+  TReasoning
+> {
+  readonly kind = 'text' as const
+  abstract readonly name: string
+  readonly api?: string = undefined
+  readonly provider?: string = undefined
+  readonly model: TModel
+  readonly requires?: ReadonlyArray<CapabilityHandle> = undefined
+  readonly supportsFileSources: boolean = false
+  /**
+   * Provider subclasses override this from their model metadata, for example
+   * `override readonly inputModalities = INPUT_BY_MODEL[this.model]`.
+   */
+  readonly inputModalities?: ReadonlyArray<Modality> | undefined = undefined
+  /**
+   * Provider subclasses override this from their model metadata, the same
+   * way as `inputModalities`. No channels by default.
+   */
+  readonly midConversationChannels?: MidConversationChannels | undefined =
+    undefined
+
+  // Type-only property - never assigned at runtime
+  declare '~types': {
+    providerOptions: TProviderOptions
+    inputModalities: TInputModalities
+    messageMetadataByModality: TMessageMetadataByModality
+    toolCapabilities: TToolCapabilities
+    toolCallMetadata: TToolCallMetadata
+    systemPromptMetadata: TSystemPromptMetadata
+    reasoning: TReasoning
+  }
+
+  protected config: TextAdapterConfig
+
+  constructor(config: TextAdapterConfig = {}, model: TModel) {
+    this.config = config
+    this.model = model
+  }
+
+  abstract chatStream(
+    options: TextOptions<TProviderOptions>,
+  ): AsyncIterable<AdapterYieldChunk>
+
+  /**
+   * Generate structured output using the provider's native structured output API.
+   * Concrete implementations should override this to use provider-specific structured output.
+   */
+  abstract structuredOutput(
+    options: StructuredOutputOptions<TProviderOptions>,
+  ): Promise<StructuredOutputResult<unknown>>
+
+  protected generateId(): string {
+    return `${this.name}-${Date.now()}-${Math.random().toString(36).substring(7)}`
+  }
+}

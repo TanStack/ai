@@ -1,0 +1,20 @@
+{
+  "fixtures": [
+    {
+      "match": {
+        "userMessage": "[harness-protocol] hello"
+      },
+      "response": {
+        "content": "Hello over the harness protocol."
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[harness-durable] run once"
+      },
+      "response": {
+        "content": "Stored once."
+      }
+    }
+  ]
+}

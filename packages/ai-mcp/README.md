@@ -1,0 +1,79 @@
+<div align="center">
+  <picture>
+    <source
+      media="(prefers-color-scheme: dark)"
+      srcset="https://tanstack.com/api/readme/ai.png?theme=dark"
+    />
+    <source
+      media="(prefers-color-scheme: light)"
+      srcset="https://tanstack.com/api/readme/ai.png"
+    />
+    <img
+      src="https://tanstack.com/api/readme/ai.png"
+      alt="TanStack AI"
+      width="900"
+    />
+  </picture>
+</div>
+
+<br />
+
+# @tanstack/ai-mcp
+
+Host-side Model Context Protocol (MCP) client for TanStack AI.
+
+Discover and run MCP server tools, resources, and prompts inside any TanStack AI `chat()` / agent loop — across any provider adapter — with optional generated TypeScript types (typed tool names and pool keys).
+
+## Features
+
+- `createMCPClient({ transport })` — connect to a single MCP server (Streamable HTTP, SSE, or stdio)
+- `createMCPClients({ ... })` — connect to many servers at once with auto-prefix collision avoidance
+- Auto-discovery (`client.tools()`) or explicit typed binding (`client.tools([toolDefinition(...)])`)
+- Per-client tool policy: `toolFilter` hides tools from the model, `needsApproval` asks before a tool runs
+- Automatic execution of MCP tools that require the experimental tasks flow
+- `@tanstack/ai-mcp/stdio` subpath — Node-only stdio transport, isolated so edge bundles stay clean
+- Bundled `tanstack-ai-mcp generate` CLI — introspects live servers and emits TypeScript types for `createMCPClient<MyServer>()`
+- `[Symbol.asyncDispose]` support — use `await using` for automatic cleanup
+- `@tanstack/ai-mcp/events` subpath — experimental MCP Events (SEP-3415) webhooks: `createMCPEventWebhook`, `inMemoryMCPEventStore`, `createMCPEventSecret`
+
+## Installation
+
+- A client app installs `@tanstack/ai-mcp` and `@modelcontextprotocol/client`.
+- A server app installs `@modelcontextprotocol/server`.
+
+```bash
+pnpm add @tanstack/ai-mcp @modelcontextprotocol/client
+```
+
+## Quick Start
+
+`createMCPClient` tries protocol `2026-07-28` first. If the server does not support that protocol, the client uses the 2025 initialize handshake.
+
+```ts
+import { createMCPClient } from '@tanstack/ai-mcp'
+import { chat } from '@tanstack/ai'
+import { openaiText } from '@tanstack/ai-openai/adapters'
+
+const mcp = await createMCPClient({
+  transport: { type: 'http', url: 'https://your-mcp-server.com/mcp' },
+})
+
+const stream = chat({
+  adapter: openaiText('gpt-5.5'),
+  messages: [{ role: 'user', content: 'What is the weather in Brooklyn?' }],
+  threadId: 'thread-1',
+  tools: await mcp.tools(),
+})
+
+// Tools execute lazily while the stream is consumed — close only after
+// the stream is fully drained (or hand lifecycle to chat() via the `mcp` option).
+for await (const chunk of stream) {
+  // handle StreamChunks, or return toServerSentEventsResponse(stream) instead
+}
+
+await mcp.close()
+```
+
+## License
+
+MIT

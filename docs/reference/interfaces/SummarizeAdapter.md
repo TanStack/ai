@@ -3,9 +3,7 @@ id: SummarizeAdapter
 title: SummarizeAdapter
 ---
 
-# Interface: SummarizeAdapter\<TModel, TProviderOptions\>
-
-Defined in: [packages/typescript/ai/src/activities/summarize/adapter.ts:28](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/summarize/adapter.ts#L28)
+Defined in: packages/ai/src/activities/summarize/adapter.ts:28
 
 Summarize adapter interface with pre-resolved generics.
 
@@ -34,7 +32,7 @@ Generic parameters:
 ~types: object;
 ```
 
-Defined in: [packages/typescript/ai/src/activities/summarize/adapter.ts:42](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/summarize/adapter.ts#L42)
+Defined in: packages/ai/src/activities/summarize/adapter.ts:42
 
 **`Internal`**
 
@@ -54,7 +52,7 @@ providerOptions: TProviderOptions;
 readonly kind: "summarize";
 ```
 
-Defined in: [packages/typescript/ai/src/activities/summarize/adapter.ts:33](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/summarize/adapter.ts#L33)
+Defined in: packages/ai/src/activities/summarize/adapter.ts:33
 
 Discriminator for adapter kind - used by generate() to determine API shape
 
@@ -66,7 +64,7 @@ Discriminator for adapter kind - used by generate() to determine API shape
 readonly model: TModel;
 ```
 
-Defined in: [packages/typescript/ai/src/activities/summarize/adapter.ts:37](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/summarize/adapter.ts#L37)
+Defined in: packages/ai/src/activities/summarize/adapter.ts:37
 
 The model this adapter is configured for
 
@@ -78,19 +76,19 @@ The model this adapter is configured for
 readonly name: string;
 ```
 
-Defined in: [packages/typescript/ai/src/activities/summarize/adapter.ts:35](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/summarize/adapter.ts#L35)
+Defined in: packages/ai/src/activities/summarize/adapter.ts:35
 
 Adapter name identifier
 
 ***
 
-### summarize()
+### summarize
 
 ```ts
 summarize: (options) => Promise<SummarizationResult>;
 ```
 
-Defined in: [packages/typescript/ai/src/activities/summarize/adapter.ts:49](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/summarize/adapter.ts#L49)
+Defined in: packages/ai/src/activities/summarize/adapter.ts:49
 
 Summarize the given text
 
@@ -98,7 +96,7 @@ Summarize the given text
 
 ##### options
 
-[`SummarizationOptions`](SummarizationOptions.md)
+[`SummarizationOptions`](SummarizationOptions.md)\<`TProviderOptions`\>
 
 #### Returns
 
@@ -106,13 +104,13 @@ Summarize the given text
 
 ***
 
-### summarizeStream()?
+### summarizeStream?
 
 ```ts
-optional summarizeStream: (options) => AsyncIterable<AGUIEvent>;
+optional summarizeStream?: (options) => AsyncIterable<AGUIEvent>;
 ```
 
-Defined in: [packages/typescript/ai/src/activities/summarize/adapter.ts:56](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/summarize/adapter.ts#L56)
+Defined in: packages/ai/src/activities/summarize/adapter.ts:58
 
 Stream summarization of the given text.
 Optional - if not implemented, the activity layer will fall back to
@@ -122,7 +120,7 @@ non-streaming summarize and yield the result as a single chunk.
 
 ##### options
 
-[`SummarizationOptions`](SummarizationOptions.md)
+[`SummarizationOptions`](SummarizationOptions.md)\<`TProviderOptions`\>
 
 #### Returns
 

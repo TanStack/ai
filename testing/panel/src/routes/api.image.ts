@@ -1,8 +1,9 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { generateImage, createImageOptions } from '@tanstack/ai'
+import { generateImage } from '@tanstack/ai'
 import { geminiImage } from '@tanstack/ai-gemini'
 import { openaiImage } from '@tanstack/ai-openai'
 import { openRouterImage } from '@tanstack/ai-openrouter'
+import type { AnyImageAdapter } from '@tanstack/ai'
 
 type Provider = 'openai' | 'gemini' | 'openrouter'
 
@@ -12,42 +13,34 @@ export const Route = createFileRoute('/api/image')({
       POST: async ({ request }) => {
         const body = await request.json()
         const { prompt, numberOfImages = 1, size = '1024x1024' } = body
-        const data = body.data || {}
+        const data = body.forwardedProps || {}
         const provider: Provider = data.provider || body.provider || 'openai'
 
         const defaultModels: Record<Provider, string> = {
           openai: 'gpt-image-1',
-          gemini: 'gemini-2.0-flash-preview-image-generation',
-          openrouter: 'google/gemini-3.1-flash-image-preview',
+          gemini: 'gemini-3.1-flash-image',
+          openrouter: 'google/gemini-3.1-flash-image',
         }
         const model: string =
           data.model || body.model || defaultModels[provider]
 
         try {
-          const adapterConfig = {
-            gemini: () =>
-              createImageOptions({
-                adapter: geminiImage(model as any),
-              }),
-            openai: () =>
-              createImageOptions({
-                adapter: openaiImage(model as any),
-              }),
-            openrouter: () =>
-              createImageOptions({
-                adapter: openRouterImage(model as any),
-              }),
+          const adapterConfig: Record<Provider, () => AnyImageAdapter> = {
+            gemini: () => geminiImage(model as any),
+            openai: () => openaiImage(model as any),
+            openrouter: () => openRouterImage(model as any),
           }
 
-          // Get typed adapter options using createImageOptions pattern
-          const options = adapterConfig[provider]()
+          // Select the provider's image adapter
+          const adapter = adapterConfig[provider]()
 
           console.log(
             `>> image generation with model: ${model} on provider: ${provider}`,
           )
 
           const result = await generateImage({
-            ...options,
+            threadId: 'panel-image',
+            adapter,
             prompt,
             numberOfImages,
             size,

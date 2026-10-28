@@ -1,0 +1,28 @@
+{
+  "fixtures": [
+    {
+      "match": {
+        "userMessage": "[multiturn-structured-1] pasta dinner for two under $15"
+      },
+      "response": {
+        "content": "{\"title\":\"Classic Spaghetti Pomodoro\",\"cuisine\":\"Italian\",\"servings\":2,\"estimatedCostUsd\":12,\"ingredients\":[{\"item\":\"spaghetti\",\"amount\":\"200 g\"},{\"item\":\"crushed tomatoes\",\"amount\":\"400 g\"},{\"item\":\"garlic\",\"amount\":\"2 cloves\"},{\"item\":\"parmesan\",\"amount\":\"30 g\"},{\"item\":\"olive oil\",\"amount\":\"2 tbsp\"}],\"steps\":[\"Boil salted water and cook pasta to al dente\",\"Saute garlic in olive oil until fragrant\",\"Add tomatoes and simmer for 10 minutes\",\"Toss pasta with sauce and finish with parmesan\"],\"tips\":[\"Save a cup of pasta water to loosen the sauce\"]}"
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[multiturn-structured-2] now make it vegan"
+      },
+      "response": {
+        "content": "{\"title\":\"Vegan Spaghetti Pomodoro\",\"cuisine\":\"Italian\",\"servings\":2,\"estimatedCostUsd\":11,\"ingredients\":[{\"item\":\"spaghetti\",\"amount\":\"200 g\"},{\"item\":\"crushed tomatoes\",\"amount\":\"400 g\"},{\"item\":\"garlic\",\"amount\":\"2 cloves\"},{\"item\":\"nutritional yeast\",\"amount\":\"2 tbsp\"},{\"item\":\"olive oil\",\"amount\":\"2 tbsp\"}],\"steps\":[\"Boil salted water and cook pasta to al dente\",\"Saute garlic in olive oil until fragrant\",\"Add tomatoes and simmer for 10 minutes\",\"Toss pasta with sauce and finish with nutritional yeast\"],\"tips\":[\"Nutritional yeast stands in for the parmesan's umami\"]}"
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[multiturn-structured-3] add a salad and make it gluten-free"
+      },
+      "response": {
+        "content": "{\"title\":\"Gluten-Free Spaghetti Pomodoro with Side Salad\",\"cuisine\":\"Italian\",\"servings\":2,\"estimatedCostUsd\":14,\"ingredients\":[{\"item\":\"gluten-free spaghetti\",\"amount\":\"200 g\"},{\"item\":\"crushed tomatoes\",\"amount\":\"400 g\"},{\"item\":\"garlic\",\"amount\":\"2 cloves\"},{\"item\":\"nutritional yeast\",\"amount\":\"2 tbsp\"},{\"item\":\"olive oil\",\"amount\":\"3 tbsp\"},{\"item\":\"mixed greens\",\"amount\":\"4 cups\"},{\"item\":\"cherry tomatoes\",\"amount\":\"1 cup\"},{\"item\":\"lemon\",\"amount\":\"1 wedge\"}],\"steps\":[\"Boil salted water and cook gluten-free pasta to al dente\",\"Saute garlic in olive oil until fragrant\",\"Add tomatoes and simmer for 10 minutes\",\"Toss pasta with sauce and finish with nutritional yeast\",\"Toss greens with cherry tomatoes, lemon, and remaining olive oil for the salad\"],\"tips\":[\"Rinse gluten-free pasta briefly after draining to remove excess starch\"]}"
+      }
+    }
+  ]
+}

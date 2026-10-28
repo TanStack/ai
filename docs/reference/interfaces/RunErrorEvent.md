@@ -3,60 +3,126 @@ id: RunErrorEvent
 title: RunErrorEvent
 ---
 
-# Interface: RunErrorEvent
-
-Defined in: [packages/typescript/ai/src/types.ts:840](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L840)
+Defined in: packages/ai/src/types.ts:1623
 
 Emitted when an error occurs during a run.
 
 @ag-ui/core provides: `message`, `code?`
-TanStack AI adds: `model?`, `error?` (deprecated nested form)
+Spec `usage[]` is provider/model token counts. Interrupt errors live in
+`metadata.tanstack.interruptErrors`.
 
 ## Extends
 
-- `RunErrorEvent`
-
-## Indexable
-
-```ts
-[k: string]: unknown
-```
+- `Pick`\<`AGUIRunErrorEvent`, `"message"` \| `"code"` \| `"timestamp"` \| `"rawEvent"`\>
 
 ## Properties
 
-### ~~error?~~
+### error?
 
 ```ts
-optional error: object;
+optional error?: object;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:847](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L847)
+Defined in: packages/ai/src/types.ts:1636
 
-#### ~~code?~~
+Nested payload kept for in-process / durability consumers.
+
+#### code?
 
 ```ts
-optional code: string;
+optional code?: string;
 ```
 
-#### ~~message~~
+#### message
 
 ```ts
 message: string;
 ```
 
-#### Deprecated
+***
 
-Use top-level `message` and `code` fields instead.
-Kept for backward compatibility.
+### metadata?
+
+```ts
+optional metadata?: object & Record<string, any>;
+```
+
+Defined in: packages/ai/src/types.ts:1643
+
+#### Type Declaration
+
+##### tanstack?
+
+```ts
+optional tanstack?: TanStackRunMetadata;
+```
 
 ***
 
 ### model?
 
 ```ts
-optional model: string;
+optional model?: string;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:842](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L842)
+Defined in: packages/ai/src/types.ts:1634
 
-Model identifier for multi-model support
+Restored on the client from `metadata.tanstack`.
+
+***
+
+### retryAfterMs?
+
+```ts
+optional retryAfterMs?: number;
+```
+
+Defined in: packages/ai/src/types.ts:1642
+
+How long the provider asks you to wait before a retry, in milliseconds.
+Adapters read it from the `retry-after-ms` or `retry-after` header.
+`chat()` moves it to `metadata.tanstack.retryAfterMs`.
+
+***
+
+### runId?
+
+```ts
+optional runId?: string;
+```
+
+Defined in: packages/ai/src/types.ts:1632
+
+Restored on the client from `metadata.tanstack`.
+
+***
+
+### threadId?
+
+```ts
+optional threadId?: string;
+```
+
+Defined in: packages/ai/src/types.ts:1630
+
+Restored on the client from `metadata.tanstack`.
+
+***
+
+### type
+
+```ts
+type: RUN_ERROR;
+```
+
+Defined in: packages/ai/src/types.ts:1627
+
+***
+
+### usage?
+
+```ts
+optional usage?: TokenUsage<ProviderUsageDetails> | TokenUsage[];
+```
+
+Defined in: packages/ai/src/types.ts:1628

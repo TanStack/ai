@@ -1,0 +1,150 @@
+import { expect, test } from './fixtures'
+
+/**
+ * Wire-format verification for `withCompaction`. Drives `/api/compaction-wire`,
+ * which sends a long history through `chat()` with a small `maxTokens` and
+ * captures the outgoing SDK request. The captured body must show the oldest
+ * message evicted, the compaction note injected, and the recent tail preserved.
+ */
+test.describe('withCompaction — wire format', () => {
+  test('evicts the old head, keeps the recent tail, injects a note', async ({
+    request,
+  }) => {
+    const response = await request.post('/api/compaction-wire')
+    expect(response.ok()).toBe(true)
+    const result = (await response.json()) as {
+      ok: boolean
+      error?: string
+      firstRequestBody: unknown
+      secondRequestBody: unknown
+      canonicalMessages: unknown
+      compactionCount: number
+    }
+    if (!result.ok) throw new Error(`Route failed: ${result.error}`)
+
+    const wire = JSON.stringify(result.firstRequestBody)
+    // Recent tail is preserved verbatim.
+    expect(wire).toContain('KEEP_ME_LAST')
+    // The dropped head was replaced by the eviction note.
+    expect(wire).toContain('omitted to save context')
+    // The oldest message is gone.
+    expect(wire).not.toContain('SECRET_ALPHA_ONE')
+
+    // Persistence keeps the canonical transcript, while a later request reuses
+    // the compacted checkpoint without compacting the same prefix again.
+    expect(JSON.stringify(result.canonicalMessages)).toContain(
+      'SECRET_ALPHA_ONE',
+    )
+    expect(JSON.stringify(result.secondRequestBody)).not.toContain(
+      'SECRET_ALPHA_ONE',
+    )
+    expect(result.compactionCount).toBe(1)
+  })
+
+  test('clearToolResults stubs old tool output and keeps the recent one', async ({
+    request,
+  }) => {
+    const response = await request.post('/api/compaction-wire?strategy=clear')
+    expect(response.ok()).toBe(true)
+    const result = (await response.json()) as {
+      ok: boolean
+      error?: string
+      firstRequestBody: unknown
+    }
+    if (!result.ok) throw new Error(`Route failed: ${result.error}`)
+
+    const wire = JSON.stringify(result.firstRequestBody)
+    // The most recent tool result is preserved verbatim.
+    expect(wire).toContain('KEEP_TOOL_BETA')
+    // The old tool result content is replaced by the stub.
+    expect(wire).toContain('tool output cleared')
+    // The old tool result content is gone.
+    expect(wire).not.toContain('SECRET_TOOL_ALPHA')
+  })
+
+  test('an empty summary fails the compaction and sends no request', async ({
+    request,
+  }) => {
+    const response = await request.post(
+      '/api/compaction-wire?strategy=empty-summary',
+    )
+    expect(response.ok()).toBe(true)
+    const result = (await response.json()) as {
+      ok: boolean
+      error?: string
+      requestCount?: number
+    }
+
+    // The history was not replaced with an empty summary and sent on.
+    expect(result.ok).toBe(false)
+    expect(result.error).toBe('The summarizer returned an empty summary.')
+    expect(result.requestCount).toBe(0)
+  })
+
+  test('native compaction posts to /responses/compact and replays its item', async ({
+    request,
+  }) => {
+    const response = await request.post('/api/compaction-wire?strategy=native')
+    expect(response.ok()).toBe(true)
+    const result = (await response.json()) as {
+      ok: boolean
+      error?: string
+      firstRequestBody: unknown
+      secondRequestBody: unknown
+      compactRequestBodies: Array<unknown>
+      compactionCount: number
+    }
+    if (!result.ok) throw new Error(`Route failed: ${result.error}`)
+
+    // One compaction call got the whole history.
+    expect(result.compactRequestBodies).toHaveLength(1)
+    expect(JSON.stringify(result.compactRequestBodies[0])).toContain(
+      'SECRET_ALPHA_ONE',
+    )
+    // The next model call sends the compacted history, with the encrypted
+    // item as it came back.
+    expect(result.firstRequestBody).toMatchObject({
+      input: [
+        { type: 'message', role: 'user' },
+        { type: 'compaction', id: 'cmp_e2e', encrypted_content: 'SEALED_E2E' },
+      ],
+    })
+    expect(JSON.stringify(result.firstRequestBody)).not.toContain(
+      'SECRET_ALPHA_ONE',
+    )
+    // The second run reuses the checkpoint and does not compact again.
+    expect(JSON.stringify(result.secondRequestBody)).toContain('SEALED_E2E')
+    expect(result.compactionCount).toBe(1)
+  })
+
+  test('native compaction with no compaction item falls back to the strategy', async ({
+    request,
+  }) => {
+    const response = await request.post(
+      '/api/compaction-wire?strategy=native-empty',
+    )
+    expect(response.ok()).toBe(true)
+    const result = (await response.json()) as {
+      ok: boolean
+      error?: string
+      firstRequestBody: unknown
+      compactRequestBodies: Array<unknown>
+      compactionErrors: Array<string>
+    }
+    if (!result.ok) throw new Error(`Route failed: ${result.error}`)
+
+    // Each run tries compact. A result with no item is not stored, so the
+    // next run tries again. evictOldest runs in its place.
+    expect(result.compactRequestBodies).toHaveLength(2)
+    expect(result.compactionErrors).toEqual([
+      'The compact result has no compaction item.',
+      'The compact result has no compaction item.',
+    ])
+    // evictOldest ran in its place.
+    const wire = JSON.stringify(result.firstRequestBody)
+    expect(wire).toContain('omitted to save context')
+    expect(wire).toContain('KEEP_ME_LAST')
+    expect(wire).not.toContain('SECRET_ALPHA_ONE')
+    expect(wire).not.toContain('SEALED_E2E')
+  })
+})

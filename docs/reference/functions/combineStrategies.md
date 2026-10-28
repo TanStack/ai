@@ -3,13 +3,11 @@ id: combineStrategies
 title: combineStrategies
 ---
 
-# Function: combineStrategies()
-
 ```ts
 function combineStrategies(strategies): AgentLoopStrategy;
 ```
 
-Defined in: [packages/typescript/ai/src/activities/chat/agent-loop-strategies.ts:79](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/agent-loop-strategies.ts#L79)
+Defined in: packages/ai/src/activities/chat/agent-loop-strategies.ts:85
 
 Creates a strategy that combines multiple strategies with AND logic
 All strategies must return true to continue
@@ -26,14 +24,14 @@ Array of strategies to combine
 
 [`AgentLoopStrategy`](../type-aliases/AgentLoopStrategy.md)
 
-AgentLoopStrategy that continues only if all strategies return true
+AgentLoopStrategy that continues only if all strategies agree
 
 ## Example
 
 ```typescript
 const stream = chat({
-  adapter: openaiText(),
-  model: "gpt-4o",
+  adapter: openaiText("gpt-6.1-sol"),
+  threadId: "thread-1",
   messages: [...],
   tools: [weatherTool],
   agentLoopStrategy: combineStrategies([

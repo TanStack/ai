@@ -3,13 +3,11 @@ id: generateImage
 title: generateImage
 ---
 
-# Function: generateImage()
-
 ```ts
 function generateImage<TAdapter, TStream>(options): ImageActivityResult<TStream>;
 ```
 
-Defined in: [packages/typescript/ai/src/activities/generateImage/index.ts:176](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/generateImage/index.ts#L176)
+Defined in: packages/ai/src/activities/generateImage/index.ts:249
 
 Image activity - generates images from text prompts.
 
@@ -19,7 +17,7 @@ Uses AI image generation models to create images based on natural language descr
 
 ### TAdapter
 
-`TAdapter` *extends* [`ImageAdapter`](../interfaces/ImageAdapter.md)\<`string`, `any`, `any`, `any`\>
+`TAdapter` *extends* [`ImageAdapter`](../interfaces/ImageAdapter.md)\<`string`, `any`, `any`, `any`, [`ModelInputModalitiesByName`](../type-aliases/ModelInputModalitiesByName.md)\>
 
 ### TStream
 
@@ -37,39 +35,48 @@ Uses AI image generation models to create images based on natural language descr
 
 ## Examples
 
+**Generate a single image**
+
 ```ts
 import { generateImage } from '@tanstack/ai'
 import { openaiImage } from '@tanstack/ai-openai'
 
 const result = await generateImage({
-  adapter: openaiImage('dall-e-3'),
-  prompt: 'A serene mountain landscape at sunset'
+  adapter: openaiImage('gpt-image-2.5-flare'),
+  prompt: 'A serene mountain landscape at sunset',
+  threadId,
 })
 
-console.log(result.images[0].url)
+console.log(result.images[0].b64Json)
 ```
+
+**Generate multiple images**
 
 ```ts
 const result = await generateImage({
-  adapter: openaiImage('dall-e-2'),
+  adapter: openaiImage('gpt-image-1-mini'),
   prompt: 'A cute robot mascot',
+  threadId,
   numberOfImages: 4,
-  size: '512x512'
+  size: '1024x1024'
 })
 
 result.images.forEach((image, i) => {
-  console.log(`Image ${i + 1}: ${image.url}`)
+  console.log(`Image ${i + 1}: ${image.b64Json}`)
 })
 ```
 
+**With provider-specific options**
+
 ```ts
 const result = await generateImage({
-  adapter: openaiImage('dall-e-3'),
+  adapter: openaiImage('gpt-image-2.5-flare'),
   prompt: 'A professional headshot photo',
+  threadId,
   size: '1024x1024',
   modelOptions: {
-    quality: 'hd',
-    style: 'natural'
+    quality: 'high',
+    background: 'transparent'
   }
 })
 ```

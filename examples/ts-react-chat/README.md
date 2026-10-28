@@ -39,6 +39,8 @@ An example chat application built with TanStack Start, TanStack Store, and **Tan
 OPENAI_API_KEY=your_openai_api_key
 ```
 
+No key? Open the key dialog and click **Continue with ChatGPT**. Start the app with `pnpm dev`, not `pnpm dev:vite`. `pnpm dev` also runs `scripts/serve-chatgpt-callback.mjs`, which sends the ChatGPT callback from `127.0.0.1` to `localhost`.
+
 ## Trying Out Lazy Tool Discovery
 
 This example includes three **lazy tools** — tools that are not sent to the LLM upfront. Instead, the LLM sees a `__lazy__tool__discovery__` tool that lists their names. When the LLM needs one, it discovers it first (getting the full description and schema), then calls it normally.
@@ -73,6 +75,20 @@ The lazy tools are: `compareGuitars`, `calculateFinancing`, and `searchGuitars`.
 - After discovery, the tool is called directly like any normal tool
 - In multi-turn conversations, previously discovered tools are usable immediately without re-discovery
 - If the LLM skips discovery, it gets an error and self-corrects
+
+## Generic interrupt playground
+
+Open `/generic-interrupts` to try first-party generic interrupts at each
+lifecycle phase:
+
+- `beforeModel`
+- `afterModel`
+- `beforeTools`
+- `afterTools`
+
+Pick a resume policy (`continue`, `cancel`, or `stop`). Each pause shows two
+typed cards (`reviewPlan` and `chooseAudience`). Resolve both, then watch the
+selected policy.
 
 ## ✨ Features
 
@@ -368,3 +384,118 @@ Files prefixed with `demo` can be safely deleted. They are there to provide a st
 # Learn More
 
 You can learn more about all of the offerings from TanStack in the [TanStack documentation](https://tanstack.com).
+
+## Persistent chat (`/persistent-chat`)
+
+A chat that survives a full page reload on both ends. The client writes the
+transcript to `localStorage` (via `localStoragePersistence`), so a reload
+restores the conversation instantly. The server writes the same transcript,
+run records, and interrupt state to SQLite with `withPersistence`, so it
+survives a server restart too — the DB lives at `.data/persistent-chat.db`
+(gitignored). The SQLite backend is `src/lib/sqlite-persistence.ts`, a
+self-contained `node:sqlite` store built on the `@tanstack/ai-persistence`
+core store contracts — a worked example of rolling your own adapter.
+
+Try it: send a message, wait for the reply, then reload the page. The
+conversation is still there. Needs `OPENAI_API_KEY` in `.env`.
+
+## Sandboxes — GitHub issue triage (`/sandboxes`)
+
+Pick a harness adapter (Claude Code, Codex, OpenCode) and a sandbox
+provider (Docker, local process, Vercel, Daytona, Railway), paste a GitHub **issue URL**,
+and the agent clones that repo into a sandbox, investigates read-only, and
+reports whether the bug is still relevant and its root cause — streaming tool
+calls and file activity live.
+
+### Providers
+
+- **Docker** — needs a running Docker daemon. The agent runs in a `node:22`
+  container; the harness CLI is installed on first create. Heavy investigations
+  can OOM the Docker VM (you'll see `exited with code 137`) — raise Docker
+  Desktop's memory (Settings → Resources) if so.
+- **Local process** — runs the chosen CLI directly on your host (no isolation;
+  dev only). On **Windows** the agent runs through git-bash/WSL `sh` (auto-located
+  from `git` on PATH; override with `TANSTACK_SANDBOX_SH`), since commands use
+  POSIX quoting — install Git for Windows, or set `TANSTACK_SANDBOX_SH`.
+- **Vercel** — `VERCEL_OIDC_TOKEN` (run `vercel env pull`), **or** `VERCEL_TOKEN`
+  - `VERCEL_TEAM_ID` + `VERCEL_PROJECT_ID`. (Token alone falls back to OIDC and
+    fails.) OIDC tokens are short-lived — re-pull when they expire.
+- **Daytona** — `DAYTONA_API_KEY`.
+- **Railway** — `RAILWAY_ENVIRONMENT_ID`, plus a project token in
+  `RAILWAY_TOKEN` **or** an account or workspace token in `RAILWAY_API_TOKEN`.
+
+### Harness keys
+
+Set the chosen harness's key in `.env.local` (read by the dev server):
+`ANTHROPIC_API_KEY` (Claude Code / OpenCode), `CODEX_API_KEY` (Codex).
+For **sandboxed** providers (Docker/Vercel/Daytona/Railway)
+the key is injected into the sandbox; for **local process** the host CLI uses
+your own host auth (the env key, or a `claude login`). Optional `GITHUB_TOKEN`
+for private repos / higher rate limits.
+
+### Use your Claude subscription instead of the API (no API billing)
+
+When running **Claude Code on the Local process provider**, tick **“use my
+subscription”** to bill your logged-in Claude Pro/Max account instead of the
+Anthropic API. It works by scrubbing `ANTHROPIC_API_KEY` from the spawned
+`claude`'s environment so the CLI falls back to your `claude login` credentials:
+
+```ts
+import { localProcessSandbox } from '@tanstack/ai-sandbox-local-process'
+
+// Drop env vars before spawning so the host CLI uses its own stored auth.
+localProcessSandbox({ scrubEnv: ['ANTHROPIC_API_KEY'] })
+```
+
+Requires `claude login` (a Pro/Max subscription) on the host. Only local-process
+can do this — sandboxed providers have no host login, so they always use an API
+key. (The `-p` headless flag is unrelated to billing; it's just streaming mode.)
+
+### Tool bridge & code mode
+
+The triage run passes two `chat()` tools to the harness to exercise the
+**sandbox tool bridge** (host tools, called by the agent running inside the
+sandbox). The system prompt forces both before any repo work, so a broken
+bridge is obvious:
+
+- `fetchIssueComments` — a normal server tool (host fetches the issue thread).
+- `searchRelatedIssues` — exposed via **code mode**: the agent calls
+  `execute_typescript`, and the generated code invokes
+  `external_searchRelatedIssues(...)` (run on a host isolate).
+
+The bridge is a **localhost** HTTP server, so it's only directly reachable from
+same-machine providers (**local process**, **Docker**). For **remote** cloud
+sandboxes (Daytona, Vercel, Railway) the agent can't dial your laptop — set
+`NGROK_AUTHTOKEN` and the example tunnels the bridge out over ngrok so the tools
+work there too (the per-run bearer token still gates every call). Without it,
+cloud runs skip the tools and do a plain triage. In production you wouldn't need
+ngrok — your orchestrator already has a public URL to advertise.
+
+Set keys in `.env.local`, then `pnpm dev` and open `/sandboxes`.
+
+## App Studio
+
+A small product page at `/app-studio` on top of portable snapshots. You describe an app. The
+agent scaffolds a TanStack Start app in a Docker sandbox, starts the preview
+server, and shows the live URL. After the first build:
+
+- **Fork chat** copies the checkpoint and conversation into a new thread.
+  Continue from that copy. The source thread stays unchanged.
+- **Compare two directions** creates two forks. Each fork gets a different
+  visual prompt. Pick **Keep variant A** or **Keep variant B** to continue
+  on that branch.
+
+Needs:
+
+- Docker running on the host
+- `XAI_API_KEY` in `.env.local` (Grok Build runs inside the sandbox)
+
+Stay on the page during the first build. The first run installs the CLI,
+scaffolds the app, and starts the preview. If you leave, the request aborts.
+
+The snapshot store is `src/lib/sqlite-persistence.ts` at
+`.data/app-studio.db` (gitignored). The server route is `/api/app-studio`.
+The fork route is `/api/app-studio-fork`.
+
+See [Branch From a Version](../../docs/sandbox/portable-snapshots-fork.md)
+for the `snapshots.fork` contract this page uses.

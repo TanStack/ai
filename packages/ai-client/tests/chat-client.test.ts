@@ -1,0 +1,4915 @@
+import { describe, expect, it, vi } from 'vitest'
+import { EventType, withTanstackMetadata } from '@tanstack/ai/client'
+import { ChatClient } from '../src/chat-client'
+import {
+  createCustomEventChunks,
+  createMockConnectionAdapter,
+  createPushableSubscribeConnection,
+  createTextChunks,
+  createThinkingChunks,
+  createToolCallChunks,
+} from './test-utils'
+import type {
+  ConnectConnectionAdapter,
+  ConnectionAdapter,
+} from '../src/connection-adapters'
+import type { ModelMessage, StreamChunk } from '@tanstack/ai/client'
+import type {
+  ChatClientPersistence,
+  ChatPersistedState,
+  UIMessage,
+} from '../src/types'
+
+describe('ChatClient', () => {
+  const persistedMessage: UIMessage = {
+    id: 'persisted-1',
+    role: 'user',
+    parts: [{ type: 'text', content: 'Persisted hello' }],
+    createdAt: new Date('2024-01-01T00:00:00.000Z'),
+  }
+
+  const initialMessage: UIMessage = {
+    id: 'initial-1',
+    role: 'user',
+    parts: [{ type: 'text', content: 'Initial hello' }],
+    createdAt: new Date('2024-01-02T00:00:00.000Z'),
+  }
+
+  function createPersistence(
+    storedMessages?: Array<UIMessage> | null,
+  ): ChatClientPersistence {
+    return {
+      getItem: vi.fn(() =>
+        storedMessages ? { messages: storedMessages } : storedMessages,
+      ),
+      setItem: vi.fn(),
+      removeItem: vi.fn(),
+    }
+  }
+
+  function createDeferred<T>() {
+    let resolve!: (value: T) => void
+    let reject!: (reason?: unknown) => void
+    const promise = new Promise<T>((promiseResolve, promiseReject) => {
+      resolve = promiseResolve
+      reject = promiseReject
+    })
+    return { promise, resolve, reject }
+  }
+
+  describe('constructor', () => {
+    it('should create a client with default options', () => {
+      const adapter = createMockConnectionAdapter()
+      const client = new ChatClient({
+        threadId: 'thread-1',
+        connection: adapter,
+      })
+
+      expect(client.getMessages()).toEqual([])
+      expect(client.getIsLoading()).toBe(false)
+      expect(client.getIsSubscribed()).toBe(false)
+      expect(client.getConnectionStatus()).toBe('disconnected')
+      expect(client.getError()).toBeUndefined()
+    })
+
+    it('exposes a UI snapshot that subscribeSnapshot notifies', () => {
+      const adapter = createMockConnectionAdapter()
+      const initialMessages: Array<UIMessage> = [
+        {
+          id: 'msg-1',
+          role: 'user',
+          parts: [{ type: 'text', content: 'Hello' }],
+          createdAt: new Date(),
+        },
+      ]
+      const client = new ChatClient({
+        threadId: 'thread-1',
+        connection: adapter,
+        initialMessages,
+      })
+
+      const snapshot = client.getSnapshot()
+      expect(snapshot.messages).toEqual(initialMessages)
+      expect(snapshot.status).toBe('ready')
+      expect(snapshot.isLoading).toBe(false)
+      expect(client.getSnapshot()).toBe(snapshot)
+
+      const listener = vi.fn()
+      const stop = client.subscribeSnapshot(listener)
+      client.setMessagesManually([])
+      expect(listener).toHaveBeenCalledTimes(1)
+      expect(client.getSnapshot().messages).toEqual([])
+      expect(client.getSnapshot()).not.toBe(snapshot)
+      stop()
+      client.setMessagesManually([
+        {
+          id: 'msg-2',
+          role: 'user',
+          parts: [{ type: 'text', content: 'After' }],
+        },
+      ])
+      expect(listener).toHaveBeenCalledTimes(1)
+    })
+
+    it('isolates nested message parts from callers and old snapshots', () => {
+      const adapter = createMockConnectionAdapter()
+      const source = {
+        type: 'url' as const,
+        value: 'https://example.com/a.png',
+      }
+      const client = new ChatClient({
+        threadId: 'thread-1',
+        connection: adapter,
+        initialMessages: [
+          {
+            id: 'msg-1',
+            role: 'user',
+            parts: [{ type: 'image', source }],
+            createdAt: new Date(),
+          },
+        ],
+      })
+      const oldSnapshot = client.getSnapshot()
+
+      source.value = 'https://example.com/changed.png'
+      expect(oldSnapshot.messages[0]?.parts[0]).toMatchObject({
+        source: { value: 'https://example.com/a.png' },
+      })
+      const publishedPart = oldSnapshot.messages[0]?.parts[0]
+      expect(Object.isFrozen(publishedPart)).toBe(true)
+      if (!publishedPart || !('source' in publishedPart)) {
+        throw new Error('Expected a message part with a source')
+      }
+      expect(Object.isFrozen(publishedPart.source)).toBe(true)
+    })
+
+    it('copies tool input, approval, and subagent transcripts', () => {
+      const input = { city: 'Paris', nested: { n: 1 } }
+      const approval = { id: 'ap-1', needsApproval: true }
+      const output = { ok: true }
+      const child = {
+        id: 'child-1',
+        role: 'assistant' as const,
+        parts: [{ type: 'text' as const, content: 'from child' }],
+      }
+      const client = new ChatClient({
+        threadId: 'thread-1',
+        connection: createMockConnectionAdapter(),
+        initialMessages: [
+          {
+            id: 'msg-1',
+            role: 'assistant',
+            parts: [
+              {
+                type: 'tool-call',
+                id: 'call-1',
+                name: 'lookup',
+                arguments: '{"city":"Paris"}',
+                state: 'input-complete',
+                input,
+                output,
+                approval,
+              },
+              {
+                type: 'tool-result',
+                toolCallId: 'call-1',
+                content: [{ type: 'text', content: 'done' }],
+                state: 'complete',
+              },
+              {
+                type: 'subagent',
+                subagent: {
+                  id: 'sub-1',
+                  name: 'researcher',
+                  status: 'finished',
+                  messages: [child],
+                },
+              },
+            ],
+          },
+        ],
+      })
+      const parts = client.getSnapshot().messages[0]?.parts
+      const toolCall = parts?.[0]
+      const toolResult = parts?.[1]
+      const subagentPart = parts?.[2]
+      if (
+        toolCall?.type !== 'tool-call' ||
+        toolResult?.type !== 'tool-result' ||
+        subagentPart?.type !== 'subagent' ||
+        !Array.isArray(toolResult.content)
+      ) {
+        throw new Error('Expected tool-call, tool-result, and subagent parts')
+      }
+
+      expect(Object.isFrozen(toolCall.input)).toBe(true)
+      expect(Object.isFrozen(toolCall.approval)).toBe(true)
+      expect(Object.isFrozen(toolCall.output)).toBe(true)
+      expect(Reflect.set(toolCall.input, 'city', 'London')).toBe(false)
+      if (!toolCall.approval) {
+        throw new Error('Expected tool-call approval')
+      }
+      expect(Reflect.set(toolCall.approval, 'approved', true)).toBe(false)
+      expect(input.city).toBe('Paris')
+      expect(approval).not.toHaveProperty('approved')
+      expect(Object.isFrozen(toolResult.content)).toBe(true)
+      expect(Object.isFrozen(toolResult.content[0])).toBe(true)
+
+      const publishedChild = subagentPart.subagent.messages[0]
+      expect(Object.isFrozen(subagentPart.subagent.messages)).toBe(true)
+      expect(publishedChild).not.toBe(child)
+      expect(Reflect.set(publishedChild?.parts ?? [], 'length', 0)).toBe(false)
+      expect(child.parts).toHaveLength(1)
+      const handle = client.getSubagents()[0]
+      expect(subagentPart.subagent).not.toBe(handle)
+      expect(subagentPart.subagent.stop).toBe(handle?.stop)
+    })
+
+    it('isolates messages published by normal updates', () => {
+      const client = new ChatClient({
+        threadId: 'thread-1',
+        connection: createMockConnectionAdapter(),
+      })
+      const oldSnapshot = client.getSnapshot()
+      const source = {
+        type: 'url' as const,
+        value: 'https://example.com/updated.png',
+      }
+
+      client.setMessagesManually([
+        {
+          id: 'updated-1',
+          role: 'user',
+          parts: [{ type: 'image', source }],
+        },
+      ])
+
+      const snapshot = client.getSnapshot()
+      const part = snapshot.messages[0]?.parts[0]
+      expect(snapshot).not.toBe(oldSnapshot)
+      expect(oldSnapshot.messages).toEqual([])
+      expect(Object.isFrozen(snapshot.messages)).toBe(true)
+      expect(Object.isFrozen(snapshot.messages[0])).toBe(true)
+      expect(Object.isFrozen(snapshot.messages[0]?.parts)).toBe(true)
+      expect(Object.isFrozen(part)).toBe(true)
+      expect(part).toMatchObject({ source })
+
+      if (!part || !('source' in part)) {
+        throw new Error('Expected a message part with a source')
+      }
+      const publishedSource = part.source
+      expect(Object.isFrozen(publishedSource)).toBe(true)
+      expect(Reflect.set(publishedSource, 'value', 'changed')).toBe(false)
+      expect(client.getMessages()[0]?.parts[0]).toMatchObject({ source })
+      expect(client.getSnapshot()).toBe(snapshot)
+    })
+
+    it('keeps the identity of unchanged messages across snapshots', async () => {
+      const client = new ChatClient({
+        threadId: 'thread-1',
+        connection: createMockConnectionAdapter({
+          chunks: createTextChunks('Hi there'),
+        }),
+        initialMessages: [
+          {
+            id: 'earlier-1',
+            role: 'user',
+            parts: [{ type: 'text', content: 'Earlier' }],
+          },
+        ],
+      })
+      const first = client.getSnapshot().messages[0]
+      const seen: Array<unknown> = []
+      const stop = client.subscribeSnapshot(() => {
+        seen.push(client.getSnapshot().messages[0])
+      })
+
+      await client.sendMessage('Hello')
+      stop()
+
+      const messages = client.getSnapshot().messages
+      expect(messages.length).toBeGreaterThan(2)
+      expect(seen.length).toBeGreaterThan(1)
+      for (const message of seen) {
+        expect(message).toBe(first)
+      }
+      expect(messages[0]).toBe(first)
+      expect(Object.isFrozen(first)).toBe(true)
+    })
+
+    it('should initialize with provided messages', () => {
+      const adapter = createMockConnectionAdapter()
+      const initialMessages: Array<UIMessage> = [
+        {
+          id: 'msg-1',
+          role: 'user',
+          parts: [{ type: 'text', content: 'Hello' }],
+          createdAt: new Date(),
+        },
+      ]
+
+      const client = new ChatClient({
+        threadId: 'thread-1',
+        connection: adapter,
+        initialMessages,
+      })
+
+      expect(client.getMessages()).toEqual(initialMessages)
+    })
+
+    it('should hydrate messages from persistence', () => {
+      const adapter = createMockConnectionAdapter()
+      const persistence = createPersistence([persistedMessage])
+
+      const client = new ChatClient({
+        connection: adapter,
+        threadId: 'chat-1',
+        persistence: persistence,
+      })
+
+      expect(persistence.getItem).toHaveBeenCalledWith('chat-1')
+      expect(client.getMessages()).toEqual([persistedMessage])
+    })
+
+    it('should hydrate messages from persistence.client', () => {
+      const adapter = createMockConnectionAdapter()
+      const persistence = createPersistence([persistedMessage])
+
+      const client = new ChatClient({
+        connection: adapter,
+        threadId: 'chat-1',
+        persistence: persistence,
+      })
+
+      expect(persistence.getItem).toHaveBeenCalledWith('chat-1')
+      expect(client.getMessages()).toEqual([persistedMessage])
+    })
+
+    it('should prefer persisted messages over initial messages', () => {
+      const adapter = createMockConnectionAdapter()
+      const persistence = createPersistence([persistedMessage])
+
+      const client = new ChatClient({
+        connection: adapter,
+        threadId: 'chat-1',
+        initialMessages: [initialMessage],
+        persistence: persistence,
+      })
+
+      expect(client.getMessages()).toEqual([persistedMessage])
+    })
+
+    it('should fall back to initial messages when persistence returns null', () => {
+      const adapter = createMockConnectionAdapter()
+      const persistence = createPersistence(null)
+
+      const client = new ChatClient({
+        connection: adapter,
+        threadId: 'chat-1',
+        initialMessages: [initialMessage],
+        persistence: persistence,
+      })
+
+      expect(client.getMessages()).toEqual([initialMessage])
+    })
+
+    it('should fall back to initial messages when persistence returns undefined', () => {
+      const adapter = createMockConnectionAdapter()
+      const persistence = createPersistence(undefined)
+
+      const client = new ChatClient({
+        connection: adapter,
+        threadId: 'chat-1',
+        initialMessages: [initialMessage],
+        persistence: persistence,
+      })
+
+      expect(client.getMessages()).toEqual([initialMessage])
+    })
+
+    it('should let persisted empty arrays override initial messages', () => {
+      const adapter = createMockConnectionAdapter()
+      const persistence = createPersistence([])
+
+      const client = new ChatClient({
+        connection: adapter,
+        threadId: 'chat-1',
+        initialMessages: [initialMessage],
+        persistence: persistence,
+      })
+
+      expect(client.getMessages()).toEqual([])
+    })
+
+    it('should hydrate from async persistence and notify message listeners', async () => {
+      const adapter = createMockConnectionAdapter()
+      const onMessagesChange = vi.fn()
+      const persistence = {
+        getItem: vi.fn(() => Promise.resolve({ messages: [persistedMessage] })),
+        setItem: vi.fn(),
+        removeItem: vi.fn(),
+      }
+
+      const client = new ChatClient({
+        connection: adapter,
+        threadId: 'chat-1',
+        initialMessages: [initialMessage],
+        onMessagesChange,
+        persistence: persistence,
+      })
+
+      expect(client.getMessages()).toEqual([initialMessage])
+
+      await vi.waitFor(() => {
+        expect(client.getMessages()).toEqual([persistedMessage])
+      })
+
+      expect(onMessagesChange).toHaveBeenCalledWith([persistedMessage])
+    })
+
+    it('should ignore async persistence hydration after local message changes', async () => {
+      const adapter = createMockConnectionAdapter()
+      const deferred = createDeferred<ChatPersistedState>()
+      const persistence = {
+        getItem: vi.fn(() => deferred.promise),
+        setItem: vi.fn(),
+        removeItem: vi.fn(),
+      }
+
+      const client = new ChatClient({
+        connection: adapter,
+        threadId: 'chat-1',
+        initialMessages: [initialMessage],
+        persistence: persistence,
+      })
+
+      client.setMessagesManually([
+        {
+          id: 'local-1',
+          role: 'user',
+          parts: [{ type: 'text', content: 'Local change' }],
+          createdAt: new Date('2024-01-03T00:00:00.000Z'),
+        },
+      ])
+
+      deferred.resolve({ messages: [persistedMessage] })
+      await new Promise((resolve) => setTimeout(resolve, 0))
+
+      expect(client.getMessages()).toEqual([
+        {
+          id: 'local-1',
+          role: 'user',
+          parts: [{ type: 'text', content: 'Local change' }],
+          createdAt: new Date('2024-01-03T00:00:00.000Z'),
+        },
+      ])
+    })
+
+    it('should keep current constructor behavior when persistence is omitted', () => {
+      const adapter = createMockConnectionAdapter()
+
+      const client = new ChatClient({
+        threadId: 'thread-1',
+        connection: adapter,
+        initialMessages: [initialMessage],
+      })
+
+      expect(client.getMessages()).toEqual([initialMessage])
+    })
+
+    it('should generate unique message ids', async () => {
+      const adapter = createMockConnectionAdapter({
+        chunks: createTextChunks('Response'),
+      })
+
+      const client1 = new ChatClient({
+        threadId: 'thread-1',
+        connection: adapter,
+      })
+
+      const client2 = new ChatClient({
+        threadId: 'thread-1',
+        connection: adapter,
+      })
+
+      // Message IDs are generated using generateMessageId() from @tanstack/ai
+      // Format: `msg-${Date.now()}-${random}`
+      await client1.sendMessage('Test')
+      await client2.sendMessage('Test')
+
+      const messages1 = client1.getMessages()
+      const messages2 = client2.getMessages()
+
+      // Both should have messages with valid IDs
+      expect(messages1.length).toBeGreaterThan(0)
+      expect(messages2.length).toBeGreaterThan(0)
+
+      // Both clients should generate message IDs with msg- prefix
+      const client1MessageId = messages1[0]?.id
+      expect(client1MessageId).toMatch(/^msg-/)
+
+      const client2MessageId = messages2[0]?.id
+      expect(client2MessageId).toMatch(/^msg-/)
+
+      // Message IDs should be unique between clients
+      expect(client1MessageId).not.toBe(client2MessageId)
+    })
+
+    it('should throw if neither connection nor fetcher is provided', () => {
+      expect(() => new ChatClient({ threadId: 'thread-1' } as any)).toThrow(
+        'either `connection` or `fetcher` is required',
+      )
+    })
+  })
+
+  describe('subscribe/send connection mode', () => {
+    function createSubscribeAdapter(chunksToSend: Array<StreamChunk>) {
+      let hasPendingSend = false
+      let wakeSubscriber: (() => void) | null = null
+      let removeAbortListener: (() => void) | null = null
+
+      const subscribe = vi.fn((signal?: AbortSignal) => {
+        return (async function* () {
+          while (!signal?.aborted) {
+            if (!hasPendingSend) {
+              await new Promise<void>((resolve) => {
+                removeAbortListener?.()
+                removeAbortListener = null
+                wakeSubscriber = resolve
+                const onAbort = () => resolve()
+                signal?.addEventListener('abort', onAbort, { once: true })
+                removeAbortListener = () => {
+                  signal?.removeEventListener('abort', onAbort)
+                }
+              })
+              continue
+            }
+
+            hasPendingSend = false
+            for (const chunk of chunksToSend) {
+              yield chunk
+            }
+          }
+          removeAbortListener?.()
+          removeAbortListener = null
+        })()
+      })
+
+      const send = vi.fn(async () => {
+        removeAbortListener?.()
+        removeAbortListener = null
+        hasPendingSend = true
+        wakeSubscriber?.()
+        wakeSubscriber = null
+      })
+
+      return { subscribe, send }
+    }
+
+    it('should use subscribe/send adapter mode', async () => {
+      const adapter = createSubscribeAdapter(
+        createTextChunks('From subscribe/send mode'),
+      )
+      const client = new ChatClient({
+        threadId: 'thread-1',
+        connection: adapter,
+      })
+
+      await client.sendMessage('Hello')
+
+      expect(adapter.subscribe).toHaveBeenCalled()
+      expect(adapter.send).toHaveBeenCalled()
+    })
+
+    it('returns a client that only watches to ready after each run ends', async () => {
+      // A second tab watches the thread and never sends, so nothing resets
+      // its processor between runs.
+      const threadId = 'thread-watch'
+      const run = (runId: string, answer: string): Array<StreamChunk> => {
+        const base = { threadId, runId, timestamp: 1 }
+        const messageId = `${runId}-answer`
+        return [
+          { ...base, type: EventType.RUN_STARTED },
+          {
+            type: EventType.TEXT_MESSAGE_START,
+            messageId,
+            role: 'assistant',
+            timestamp: 1,
+          },
+          {
+            type: EventType.TEXT_MESSAGE_CONTENT,
+            messageId,
+            delta: answer,
+            timestamp: 1,
+          },
+          { type: EventType.TEXT_MESSAGE_END, messageId, timestamp: 1 },
+          { ...base, type: EventType.RUN_FINISHED, finishReason: 'stop' },
+        ]
+      }
+      let fedAll!: () => void
+      // The feed reaches fedAll() only when the client asks for the chunk
+      // after the last one, so the client has handled every chunk.
+      const handledAll = new Promise<void>((resolve) => (fedAll = resolve))
+      const client = new ChatClient({
+        threadId,
+        connection: {
+          subscribe: (signal) =>
+            (async function* () {
+              yield* run('run-1', 'First answer.')
+              yield* run('run-2', 'Second answer.')
+              fedAll()
+              await new Promise((resolve) => {
+                signal?.addEventListener('abort', resolve, { once: true })
+              })
+            })(),
+          send: () => Promise.resolve(),
+        },
+      })
+
+      client.subscribe()
+      await handledAll
+      expect(JSON.stringify(client.getMessages())).toContain('Second answer.')
+      expect(client.getSessionGenerating()).toBe(false)
+      expect(client.getStatus()).toBe('ready')
+      client.unsubscribe()
+    })
+
+    it('should ignore native subscribe/send chunks from a cleared persisted request without runId', async () => {
+      let storedMessages: Array<UIMessage> | undefined
+      const releaseFirstResponse = createDeferred<void>()
+      const queuedChunks: Array<{
+        prompt: string
+        chunks: Array<StreamChunk>
+      }> = []
+      let wakeSubscriber: (() => void) | null = null
+      const adapter: ConnectionAdapter = {
+        subscribe: vi.fn((_signal?: AbortSignal) => {
+          return (async function* () {
+            while (true) {
+              if (queuedChunks.length === 0) {
+                await new Promise<void>((resolve) => {
+                  wakeSubscriber = resolve
+                })
+              }
+              const next = queuedChunks.shift()
+              if (!next) continue
+              if (next.prompt === 'A') {
+                const [started, ...remainingChunks] = next.chunks
+                if (started) {
+                  yield started
+                }
+                await releaseFirstResponse.promise
+                yield* remainingChunks
+                continue
+              }
+              yield* next.chunks
+            }
+          })()
+        }),
+        send: vi.fn(
+          async (
+            messages: Array<UIMessage> | Array<ModelMessage>,
+            _data,
+            _signal,
+            runContext,
+          ) => {
+            const prompt = messages
+              .flatMap((message) => ('parts' in message ? message.parts : []))
+              .find((part) => part.type === 'text')?.content
+
+            queuedChunks.push({
+              prompt: prompt ?? '',
+              chunks: [
+                {
+                  type: EventType.RUN_STARTED,
+                  threadId: runContext?.threadId ?? 'thread-1',
+                  runId: runContext?.runId ?? 'run-1',
+                  timestamp: Date.now(),
+                } as StreamChunk,
+                ...createTextChunks(
+                  prompt === 'A' ? 'stale A' : 'fresh B',
+                  prompt === 'A' ? 'msg-a' : 'msg-b',
+                ).map((chunk) => {
+                  if (chunk.type === 'TEXT_MESSAGE_CONTENT') return chunk
+                  if (chunk.type === 'RUN_FINISHED') {
+                    return {
+                      ...chunk,
+                      threadId: runContext?.threadId ?? chunk.threadId,
+                      runId: runContext?.runId ?? chunk.runId,
+                    } as StreamChunk
+                  }
+                  return chunk
+                }),
+              ],
+            })
+            wakeSubscriber?.()
+            wakeSubscriber = null
+          },
+        ),
+      }
+      const persistence = {
+        getItem: vi.fn(() => undefined),
+        setItem: vi.fn((_key: string, state: ChatPersistedState) => {
+          storedMessages = state.messages
+        }),
+        removeItem: vi.fn(() => {
+          storedMessages = undefined
+        }),
+      }
+      const client = new ChatClient({
+        connection: adapter,
+        threadId: 'chat-1',
+        persistence: persistence,
+      })
+
+      const firstSend = client.sendMessage('A')
+      await vi.waitFor(() => {
+        expect(client.getIsLoading()).toBe(true)
+      })
+
+      client.clear()
+      const secondSend = client.sendMessage('B')
+      releaseFirstResponse.resolve()
+      await firstSend
+      await secondSend
+
+      const finalText = client
+        .getMessages()
+        .flatMap((message) => message.parts)
+        .filter((part) => part.type === 'text')
+        .map((part) => part.content)
+        .join('')
+
+      expect(finalText).toContain('B')
+      expect(finalText).toContain('fresh B')
+      expect(finalText).not.toContain('A')
+      expect(finalText).not.toContain('stale A')
+      expect(storedMessages).toEqual(client.getMessages())
+      expect(
+        storedMessages
+          ?.flatMap((message) => message.parts)
+          .filter((part) => part.type === 'text')
+          .map((part) => part.content)
+          .join(''),
+      ).not.toContain('stale A')
+    })
+
+    it('should ignore already-started runless chunks from a cleared persisted request', async () => {
+      let storedMessages: Array<UIMessage> | undefined
+      const releaseStaleChunks = createDeferred<void>()
+      const staleChunksAttempted = createDeferred<void>()
+      let wakeSubscriber: (() => void) | null = null
+      let queued = false
+      const adapter: ConnectionAdapter = {
+        subscribe: vi.fn(
+          (_signal?: AbortSignal): AsyncIterable<StreamChunk> => {
+            return (async function* () {
+              while (true) {
+                if (!queued) {
+                  await new Promise<void>((resolve) => {
+                    wakeSubscriber = resolve
+                  })
+                }
+                queued = false
+                yield {
+                  type: EventType.RUN_STARTED,
+                  threadId: 'thread-1',
+                  runId: 'run-cleared',
+                  timestamp: Date.now(),
+                } as StreamChunk
+                await releaseStaleChunks.promise
+                yield {
+                  type: EventType.TEXT_MESSAGE_CONTENT,
+                  messageId: 'stale-message',
+                  timestamp: Date.now(),
+                  delta: 'stale content',
+                } as StreamChunk
+                staleChunksAttempted.resolve()
+                yield {
+                  type: EventType.RUN_FINISHED,
+                  threadId: 'thread-1',
+                  runId: 'run-cleared',
+                  timestamp: Date.now(),
+                } as StreamChunk
+              }
+            })()
+          },
+        ),
+        send: vi.fn(async () => {
+          queued = true
+          wakeSubscriber?.()
+          wakeSubscriber = null
+        }),
+      }
+      const persistence = {
+        getItem: vi.fn(() => undefined),
+        setItem: vi.fn((_key: string, state: ChatPersistedState) => {
+          storedMessages = state.messages
+        }),
+        removeItem: vi.fn(() => {
+          storedMessages = undefined
+        }),
+      }
+      const client = new ChatClient({
+        connection: adapter,
+        threadId: 'chat-1',
+        persistence: persistence,
+      })
+
+      const sendPromise = client.sendMessage('A')
+      await vi.waitFor(() => {
+        expect(client.getSessionGenerating()).toBe(true)
+      })
+
+      client.clear()
+      releaseStaleChunks.resolve()
+      await staleChunksAttempted.promise
+      await sendPromise
+
+      expect(client.getMessages()).toEqual([])
+      expect(storedMessages).toBeUndefined()
+      expect(client.getSessionGenerating()).toBe(false)
+      expect(client.getError()).toBeUndefined()
+    })
+
+    it('should keep fresh runless chunks after a clear when a fresh run starts before stale chunks drain', async () => {
+      let storedMessages: Array<UIMessage> | undefined
+      const releaseStaleChunks = createDeferred<void>()
+      const staleChunksAttempted = createDeferred<void>()
+      const queuedChunks: Array<{
+        prompt: string
+        chunks: Array<StreamChunk>
+      }> = []
+      let staleReleased = false
+      let wakeSubscriber: (() => void) | null = null
+      const wakeQueuedSubscriber = () => {
+        const wake = wakeSubscriber
+        wakeSubscriber = null
+        wake?.()
+      }
+      const adapter: ConnectionAdapter = {
+        subscribe: vi.fn(
+          (_signal?: AbortSignal): AsyncIterable<StreamChunk> => {
+            return (async function* () {
+              while (true) {
+                if (queuedChunks.length === 0) {
+                  await new Promise<void>((resolve) => {
+                    wakeSubscriber = resolve
+                  })
+                }
+                const freshIndex = queuedChunks.findIndex(
+                  (queued) => queued.prompt === 'B',
+                )
+                const next =
+                  freshIndex >= 0
+                    ? queuedChunks.splice(freshIndex, 1)[0]
+                    : queuedChunks.shift()
+                if (!next) continue
+                yield next.chunks[0]!
+                if (next.prompt === 'A' && !staleReleased) {
+                  queuedChunks.push({
+                    prompt: 'A-after-start',
+                    chunks: next.chunks.slice(1),
+                  })
+                  continue
+                }
+                if (next.prompt === 'A-after-start' && !staleReleased) {
+                  queuedChunks.push(next)
+                  await new Promise<void>((resolve) => {
+                    wakeSubscriber = resolve
+                  })
+                  continue
+                }
+                for (const chunk of next.chunks.slice(1)) {
+                  yield chunk
+                }
+                if (next.prompt === 'A-after-start') {
+                  staleChunksAttempted.resolve()
+                }
+              }
+            })()
+          },
+        ),
+        send: vi.fn(
+          async (
+            messages: Array<UIMessage> | Array<ModelMessage>,
+            _data,
+            _signal,
+            runContext,
+          ) => {
+            const prompt = messages
+              .flatMap((message) => ('parts' in message ? message.parts : []))
+              .find((part) => part.type === 'text')?.content
+            const messageId = prompt === 'A' ? 'stale-message' : 'fresh-message'
+            queuedChunks.push({
+              prompt: prompt ?? '',
+              chunks: [
+                {
+                  type: EventType.RUN_STARTED,
+                  threadId: runContext?.threadId ?? 'thread-1',
+                  runId:
+                    prompt === 'A'
+                      ? 'run-cleared'
+                      : (runContext?.runId ?? 'run-fresh'),
+                  timestamp: Date.now(),
+                } as StreamChunk,
+                {
+                  type: EventType.TEXT_MESSAGE_CONTENT,
+                  messageId,
+                  timestamp: Date.now(),
+                  delta: prompt === 'A' ? 'stale content' : 'fresh content',
+                } as StreamChunk,
+                {
+                  type: EventType.RUN_FINISHED,
+                  threadId: runContext?.threadId ?? 'thread-1',
+                  runId:
+                    prompt === 'A'
+                      ? 'run-cleared'
+                      : (runContext?.runId ?? 'run-fresh'),
+                  timestamp: Date.now(),
+                } as StreamChunk,
+              ],
+            })
+            wakeQueuedSubscriber()
+          },
+        ),
+      }
+      const persistence = {
+        getItem: vi.fn(() => undefined),
+        setItem: vi.fn((_key: string, state: ChatPersistedState) => {
+          storedMessages = state.messages
+        }),
+        removeItem: vi.fn(() => {
+          storedMessages = undefined
+        }),
+      }
+      const client = new ChatClient({
+        connection: adapter,
+        threadId: 'chat-1',
+        persistence: persistence,
+      })
+
+      const firstSend = client.sendMessage('A')
+      await vi.waitFor(() => {
+        expect(client.getSessionGenerating()).toBe(true)
+      })
+
+      client.clear()
+      const secondSend = client.sendMessage('B')
+      await secondSend
+      staleReleased = true
+      releaseStaleChunks.resolve()
+      wakeQueuedSubscriber()
+      await staleChunksAttempted.promise
+      firstSend.catch(() => {
+        // The stale request may have been superseded by the fresh send.
+      })
+
+      const finalText = client
+        .getMessages()
+        .flatMap((message) => message.parts)
+        .filter((part) => part.type === 'text')
+        .map((part) => part.content)
+        .join('')
+
+      expect(finalText).toContain('B')
+      expect(finalText).toContain('fresh content')
+      expect(finalText).not.toContain('A')
+      expect(finalText).not.toContain('stale content')
+      expect(storedMessages).toEqual(client.getMessages())
+    })
+
+    it('should keep fresh runless chunks after server-only clear drains an ignored terminal chunk', async () => {
+      const releaseStaleTerminal = createDeferred<void>()
+      const staleTerminalAttempted = createDeferred<void>()
+      const queuedChunks: Array<{
+        prompt: string
+        chunks: Array<StreamChunk>
+      }> = []
+      let wakeSubscriber: (() => void) | null = null
+      const wakeQueuedSubscriber = () => {
+        const wake = wakeSubscriber
+        wakeSubscriber = null
+        wake?.()
+      }
+      const adapter: ConnectionAdapter = {
+        subscribe: vi.fn(
+          (_signal?: AbortSignal): AsyncIterable<StreamChunk> => {
+            return (async function* () {
+              while (true) {
+                if (queuedChunks.length === 0) {
+                  await new Promise<void>((resolve) => {
+                    wakeSubscriber = resolve
+                  })
+                }
+                const next = queuedChunks.shift()
+                if (!next) continue
+                yield next.chunks[0]!
+                if (next.prompt === 'A') {
+                  await releaseStaleTerminal.promise
+                  yield* next.chunks.slice(1)
+                  staleTerminalAttempted.resolve()
+                  continue
+                }
+                yield* next.chunks.slice(1)
+              }
+            })()
+          },
+        ),
+        send: vi.fn(
+          async (
+            messages: Array<UIMessage> | Array<ModelMessage>,
+            _data,
+            _signal,
+            runContext,
+          ) => {
+            const prompt = messages
+              .flatMap((message) => ('parts' in message ? message.parts : []))
+              .find((part) => part.type === 'text')?.content
+
+            queuedChunks.push({
+              prompt: prompt ?? '',
+              chunks:
+                prompt === 'A'
+                  ? [
+                      {
+                        type: EventType.RUN_STARTED,
+                        threadId: runContext?.threadId ?? 'thread-1',
+                        runId: runContext?.runId ?? 'run-cleared',
+                        timestamp: Date.now(),
+                      } as StreamChunk,
+                      {
+                        type: EventType.RUN_FINISHED,
+                        threadId: runContext?.threadId ?? 'thread-1',
+                        runId: runContext?.runId ?? 'run-cleared',
+                        timestamp: Date.now(),
+                      } as StreamChunk,
+                    ]
+                  : createTextChunks(
+                      'fresh server-only response',
+                      'fresh-msg',
+                    ).map((chunk) => {
+                      if (chunk.type === 'RUN_FINISHED') {
+                        const { runId: _runId, ...withoutRunId } = chunk
+                        return withoutRunId as StreamChunk
+                      }
+                      return chunk
+                    }),
+            })
+            wakeQueuedSubscriber()
+          },
+        ),
+      }
+      // Clear-during-stream suppression is owned by ChatPersistor; enable it
+      // with a no-op message adapter (no durable resume storage on this branch).
+      const client = new ChatClient({
+        connection: adapter,
+        threadId: 'chat-1',
+        persistence: {
+          getItem: vi.fn(() => undefined),
+          setItem: vi.fn(),
+          removeItem: vi.fn(),
+        },
+      })
+
+      const firstSend = client.sendMessage('A')
+      await vi.waitFor(() => {
+        expect(client.getSessionGenerating()).toBe(true)
+      })
+
+      client.clear()
+      releaseStaleTerminal.resolve()
+      await staleTerminalAttempted.promise
+      await firstSend
+
+      const secondSend = client.sendMessage('B')
+
+      const getFinalText = () =>
+        client
+          .getMessages()
+          .flatMap((message) => message.parts)
+          .filter((part) => part.type === 'text')
+          .map((part) => part.content)
+          .join('')
+
+      await vi.waitFor(() => {
+        expect(getFinalText()).toContain('fresh server-only response')
+      })
+      await secondSend
+
+      const finalText = getFinalText()
+      expect(finalText).toContain('B')
+      expect(finalText).not.toContain('A')
+    })
+    it('should ignore stale messages snapshot after persisted clear', async () => {
+      let storedMessages: Array<UIMessage> | undefined
+      const releaseSnapshot = createDeferred<void>()
+      const snapshotAttempted = createDeferred<void>()
+      const adapter: ConnectionAdapter = {
+        async *connect(_messages, _data, _signal, runContext) {
+          yield {
+            type: EventType.RUN_STARTED,
+            threadId: runContext?.threadId ?? 'thread-1',
+            runId: runContext?.runId ?? 'run-1',
+            timestamp: Date.now(),
+          } as StreamChunk
+          await releaseSnapshot.promise
+          yield {
+            type: EventType.MESSAGES_SNAPSHOT,
+            messages: [
+              {
+                id: 'stale-assistant',
+                role: 'assistant',
+                content: 'stale snapshot',
+              },
+            ],
+          } as StreamChunk
+          snapshotAttempted.resolve()
+          yield {
+            type: EventType.RUN_FINISHED,
+            threadId: runContext?.threadId ?? 'thread-1',
+            runId: runContext?.runId ?? 'run-1',
+            timestamp: Date.now(),
+          } as StreamChunk
+        },
+      }
+      const persistence = {
+        getItem: vi.fn(() => undefined),
+        setItem: vi.fn((_key: string, state: ChatPersistedState) => {
+          storedMessages = state.messages
+        }),
+        removeItem: vi.fn(() => {
+          storedMessages = undefined
+        }),
+      }
+      const client = new ChatClient({
+        connection: adapter,
+        threadId: 'chat-1',
+        persistence: persistence,
+      })
+
+      const sendPromise = client.sendMessage('A')
+      await vi.waitFor(() => {
+        expect(client.getSessionGenerating()).toBe(true)
+      })
+
+      client.clear()
+      releaseSnapshot.resolve()
+      await snapshotAttempted.promise
+      await sendPromise
+
+      expect(client.getMessages()).toEqual([])
+      expect(storedMessages).toBeUndefined()
+    })
+
+    it('should ignore stale runless run error after persisted clear', async () => {
+      let storedMessages: Array<UIMessage> | undefined
+      const onError = vi.fn()
+      const releaseError = createDeferred<void>()
+      const errorAttempted = createDeferred<void>()
+      const adapter: ConnectionAdapter = {
+        async *connect(_messages, _data, _signal, runContext) {
+          yield {
+            type: EventType.RUN_STARTED,
+            threadId: runContext?.threadId ?? 'thread-1',
+            runId: runContext?.runId ?? 'run-1',
+            timestamp: Date.now(),
+          } as StreamChunk
+          await releaseError.promise
+          yield {
+            type: EventType.RUN_ERROR,
+            threadId: runContext?.threadId ?? 'thread-1',
+            timestamp: Date.now(),
+            message: 'stale failure',
+            error: { message: 'stale failure' },
+          } as StreamChunk
+          errorAttempted.resolve()
+        },
+      }
+      const persistence = {
+        getItem: vi.fn(() => undefined),
+        setItem: vi.fn((_key: string, state: ChatPersistedState) => {
+          storedMessages = state.messages
+        }),
+        removeItem: vi.fn(() => {
+          storedMessages = undefined
+        }),
+      }
+      const client = new ChatClient({
+        connection: adapter,
+        threadId: 'chat-1',
+        persistence: persistence,
+        onError,
+      })
+
+      const sendPromise = client.sendMessage('A')
+      await vi.waitFor(() => {
+        expect(client.getSessionGenerating()).toBe(true)
+      })
+
+      client.clear()
+      releaseError.resolve()
+      await errorAttempted.promise
+      await sendPromise
+
+      expect(client.getMessages()).toEqual([])
+      expect(client.getError()).toBeUndefined()
+      expect(client.getStatus()).toBe('ready')
+      expect(onError).not.toHaveBeenCalled()
+      expect(storedMessages).toBeUndefined()
+    })
+
+    it('should keep fresh native subscribe/send chunks when they arrive before stale cleared chunks', async () => {
+      let storedMessages: Array<UIMessage> | undefined
+      const releaseStaleResponse = createDeferred<void>()
+      let staleReleased = false
+      const queuedChunks: Array<{
+        prompt: string
+        chunks: Array<StreamChunk>
+      }> = []
+      let wakeSubscriber: (() => void) | null = null
+      const adapter: ConnectionAdapter = {
+        subscribe: vi.fn((_signal?: AbortSignal) => {
+          return (async function* () {
+            while (true) {
+              if (queuedChunks.length === 0) {
+                await new Promise<void>((resolve) => {
+                  wakeSubscriber = resolve
+                })
+              }
+              const freshIndex = queuedChunks.findIndex(
+                (queued) => queued.prompt !== 'A',
+              )
+              const next =
+                !staleReleased && freshIndex > 0
+                  ? queuedChunks.splice(freshIndex, 1)[0]
+                  : queuedChunks.shift()
+              if (!next) continue
+              if (next.prompt === 'A') {
+                if (!staleReleased) {
+                  queuedChunks.push(next)
+                  await new Promise<void>((resolve) => {
+                    wakeSubscriber = resolve
+                  })
+                  continue
+                }
+                await releaseStaleResponse.promise
+              }
+              yield* next.chunks
+            }
+          })()
+        }),
+        send: vi.fn(
+          async (
+            messages: Array<UIMessage> | Array<ModelMessage>,
+            _data,
+            _signal,
+            runContext,
+          ) => {
+            const prompt = messages
+              .flatMap((message) => ('parts' in message ? message.parts : []))
+              .find((part) => part.type === 'text')?.content
+            const messageId = prompt === 'A' ? 'msg-a' : 'msg-b'
+
+            queuedChunks.push({
+              prompt: prompt ?? '',
+              chunks: [
+                {
+                  type: EventType.RUN_STARTED,
+                  threadId: runContext?.threadId ?? 'thread-1',
+                  runId: runContext?.runId ?? `run-${messageId}`,
+                  timestamp: Date.now(),
+                } as StreamChunk,
+                ...createTextChunks(
+                  prompt === 'A' ? 'stale A' : 'fresh B',
+                  messageId,
+                ).map((chunk) => {
+                  if (chunk.type === 'TEXT_MESSAGE_CONTENT') return chunk
+                  if (chunk.type === 'RUN_FINISHED') {
+                    return {
+                      ...chunk,
+                      threadId: runContext?.threadId ?? chunk.threadId,
+                      runId: runContext?.runId ?? chunk.runId,
+                    } as StreamChunk
+                  }
+                  return chunk
+                }),
+              ],
+            })
+            wakeSubscriber?.()
+            wakeSubscriber = null
+          },
+        ),
+      }
+      const persistence = {
+        getItem: vi.fn(() => undefined),
+        setItem: vi.fn((_key: string, state: ChatPersistedState) => {
+          storedMessages = state.messages
+        }),
+        removeItem: vi.fn(() => {
+          storedMessages = undefined
+        }),
+      }
+      const client = new ChatClient({
+        connection: adapter,
+        threadId: 'chat-1',
+        persistence: persistence,
+      })
+
+      const firstSend = client.sendMessage('A')
+      await vi.waitFor(() => {
+        expect(client.getIsLoading()).toBe(true)
+      })
+
+      client.clear()
+      const secondSend = client.sendMessage('B')
+      await secondSend
+      staleReleased = true
+      releaseStaleResponse.resolve()
+      const wake = wakeSubscriber as (() => void) | null
+      wake?.()
+      wakeSubscriber = null
+      await vi.waitFor(() => {
+        expect(adapter.send).toHaveBeenCalledTimes(2)
+      })
+      firstSend.catch(() => {
+        // The stale request may already have been cancelled by clear().
+      })
+
+      const finalText = client
+        .getMessages()
+        .flatMap((message) => message.parts)
+        .filter((part) => part.type === 'text')
+        .map((part) => part.content)
+        .join('')
+
+      expect(finalText).toContain('B')
+      expect(finalText).toContain('fresh B')
+      expect(finalText).not.toContain('A')
+      expect(finalText).not.toContain('stale A')
+      expect(storedMessages).toEqual(client.getMessages())
+      expect(
+        storedMessages
+          ?.flatMap((message) => message.parts)
+          .filter((part) => part.type === 'text')
+          .map((part) => part.content)
+          .join(''),
+      ).toContain('fresh B')
+      expect(
+        storedMessages
+          ?.flatMap((message) => message.parts)
+          .filter((part) => part.type === 'text')
+          .map((part) => part.content)
+          .join(''),
+      ).not.toContain('stale A')
+    })
+
+    it('should ignore stale tool chunks by cleared parentMessageId after persisted clear', async () => {
+      const releaseToolChunks = createDeferred<void>()
+      const adapter: ConnectionAdapter = {
+        async *connect(_messages, _data, _signal, runContext) {
+          yield {
+            type: EventType.RUN_STARTED,
+            threadId: runContext?.threadId ?? 'thread-1',
+            runId: runContext?.runId ?? 'run-1',
+            timestamp: Date.now(),
+          } as StreamChunk
+          yield {
+            type: 'TEXT_MESSAGE_CONTENT',
+            messageId: 'assistant-a',
+            timestamp: Date.now(),
+            delta: '',
+            content: '',
+          } as StreamChunk
+          await releaseToolChunks.promise
+          yield {
+            type: 'TOOL_CALL_START',
+            toolCallId: 'stale-tool',
+            toolCallName: 'staleTool',
+            parentMessageId: 'assistant-a',
+            timestamp: Date.now(),
+            index: 0,
+          } as StreamChunk
+          yield {
+            type: 'TOOL_CALL_ARGS',
+            toolCallId: 'stale-tool',
+            timestamp: Date.now(),
+            delta: '{"stale":true}',
+          } as StreamChunk
+        },
+      }
+      const persistence = createPersistence(undefined)
+      const client = new ChatClient({
+        connection: adapter,
+        threadId: 'chat-1',
+        persistence: persistence,
+      })
+
+      const sendPromise = client.sendMessage('A')
+      await vi.waitFor(() => {
+        expect(
+          client.getMessages().some((message) => message.id === 'assistant-a'),
+        ).toBe(true)
+      })
+
+      client.clear()
+      releaseToolChunks.resolve()
+      await sendPromise
+
+      expect(client.getMessages()).toEqual([])
+      expect(persistence.setItem).not.toHaveBeenLastCalledWith(
+        'chat-1',
+        expect.arrayContaining([
+          expect.objectContaining({
+            id: 'assistant-a',
+            parts: expect.arrayContaining([
+              expect.objectContaining({ type: 'tool-call' }),
+            ]),
+          }),
+        ]),
+      )
+    })
+
+    it('should remember ignored stale runless message ids so child tool chunks are ignored after persisted clear', async () => {
+      const releaseToolChunks = createDeferred<void>()
+      const adapter: ConnectionAdapter = {
+        async *connect(_messages, _data, _signal, runContext) {
+          yield {
+            type: EventType.RUN_STARTED,
+            threadId: runContext?.threadId ?? 'thread-1',
+            runId: runContext?.runId ?? 'run-1',
+            timestamp: Date.now(),
+          } as StreamChunk
+          await releaseToolChunks.promise
+          yield {
+            type: EventType.TEXT_MESSAGE_CONTENT,
+            messageId: 'stale-runless-message',
+            timestamp: Date.now(),
+            delta: 'stale text',
+          } as StreamChunk
+          yield {
+            type: 'TOOL_CALL_START',
+            toolCallId: 'stale-child-tool',
+            toolCallName: 'staleTool',
+            parentMessageId: 'stale-runless-message',
+            timestamp: Date.now(),
+            index: 0,
+          } as StreamChunk
+          yield {
+            type: 'TOOL_CALL_ARGS',
+            toolCallId: 'stale-child-tool',
+            timestamp: Date.now(),
+            delta: '{"stale":true}',
+          } as StreamChunk
+        },
+      }
+      const persistence = createPersistence(undefined)
+      const client = new ChatClient({
+        connection: adapter,
+        threadId: 'chat-1',
+        persistence: persistence,
+      })
+
+      const sendPromise = client.sendMessage('A')
+      await vi.waitFor(() => {
+        expect(client.getSessionGenerating()).toBe(true)
+      })
+
+      client.clear()
+      releaseToolChunks.resolve()
+      await sendPromise
+
+      expect(client.getMessages()).toEqual([])
+      expect(persistence.setItem).not.toHaveBeenLastCalledWith(
+        'chat-1',
+        expect.arrayContaining([
+          expect.objectContaining({
+            id: 'stale-runless-message',
+          }),
+        ]),
+      )
+    })
+
+    it('should ignore stale runless tool starts without parentMessageId after persisted clear', async () => {
+      const releaseToolChunks = createDeferred<void>()
+      const adapter: ConnectionAdapter = {
+        async *connect(_messages, _data, _signal, runContext) {
+          yield {
+            type: EventType.RUN_STARTED,
+            threadId: runContext?.threadId ?? 'thread-1',
+            runId: runContext?.runId ?? 'run-1',
+            timestamp: Date.now(),
+          } as StreamChunk
+          await releaseToolChunks.promise
+          yield {
+            type: 'TOOL_CALL_START',
+            toolCallId: 'stale-parentless-tool',
+            toolCallName: 'staleTool',
+            timestamp: Date.now(),
+            index: 0,
+          } as StreamChunk
+          yield {
+            type: 'TOOL_CALL_ARGS',
+            toolCallId: 'stale-parentless-tool',
+            timestamp: Date.now(),
+            delta: '{"stale":true}',
+          } as StreamChunk
+        },
+      }
+      const persistence = createPersistence(undefined)
+      const client = new ChatClient({
+        connection: adapter,
+        threadId: 'chat-1',
+        persistence: persistence,
+      })
+
+      const sendPromise = client.sendMessage('A')
+      await vi.waitFor(() => {
+        expect(client.getSessionGenerating()).toBe(true)
+      })
+
+      client.clear()
+      releaseToolChunks.resolve()
+      await sendPromise
+
+      expect(client.getMessages()).toEqual([])
+      expect(persistence.setItem).not.toHaveBeenLastCalledWith(
+        'chat-1',
+        expect.arrayContaining([
+          expect.objectContaining({
+            parts: expect.arrayContaining([
+              expect.objectContaining({ type: 'tool-call' }),
+            ]),
+          }),
+        ]),
+      )
+    })
+
+    it('should reset session generation when a persisted clear ignores terminal chunks', async () => {
+      const releaseResponse = createDeferred<void>()
+      let wakeSubscriber: (() => void) | null = null
+      let queued = false
+      const adapter: ConnectionAdapter = {
+        subscribe: vi.fn(
+          (_signal?: AbortSignal): AsyncIterable<StreamChunk> => {
+            return (async function* () {
+              while (true) {
+                if (!queued) {
+                  await new Promise<void>((resolve) => {
+                    wakeSubscriber = resolve
+                  })
+                }
+                queued = false
+                yield {
+                  type: EventType.RUN_STARTED,
+                  threadId: 'thread-1',
+                  runId: 'run-1',
+                  timestamp: Date.now(),
+                } as StreamChunk
+                await releaseResponse.promise
+                yield {
+                  type: EventType.RUN_FINISHED,
+                  threadId: 'thread-1',
+                  runId: 'run-1',
+                  model: 'test',
+                  timestamp: Date.now(),
+                  metadata: { tanstack: { finishReason: 'stop' } },
+                } as StreamChunk
+              }
+            })()
+          },
+        ),
+        send: vi.fn(async () => {
+          queued = true
+          wakeSubscriber?.()
+          wakeSubscriber = null
+        }),
+      }
+      const client = new ChatClient({
+        connection: adapter,
+        threadId: 'chat-1',
+        persistence: createPersistence(),
+      })
+
+      const sendPromise = client.sendMessage('A')
+      await vi.waitFor(() => {
+        expect(client.getSessionGenerating()).toBe(true)
+      })
+
+      client.clear()
+      releaseResponse.resolve()
+      await sendPromise
+
+      expect(client.getSessionGenerating()).toBe(false)
+    })
+
+    it('should ignore live-only active run chunks after persisted clear and clean up session generation', async () => {
+      let storedMessages: Array<UIMessage> | undefined
+      const releaseAfterClear = createDeferred<void>()
+      const subscriberReady = createDeferred<() => void>()
+      const adapter: ConnectionAdapter = {
+        subscribe: vi.fn(
+          (_signal?: AbortSignal): AsyncIterable<StreamChunk> => {
+            return (async function* () {
+              await new Promise<void>((resolve) => {
+                subscriberReady.resolve(resolve)
+              })
+              yield {
+                type: EventType.RUN_STARTED,
+                threadId: 'thread-1',
+                runId: 'live-run-1',
+                timestamp: Date.now(),
+              } as StreamChunk
+              await releaseAfterClear.promise
+              yield {
+                type: EventType.TEXT_MESSAGE_START,
+                messageId: 'live-message-1',
+                role: 'assistant',
+              } as StreamChunk
+              yield {
+                type: EventType.TEXT_MESSAGE_CONTENT,
+                messageId: 'live-message-1',
+                delta: 'stale live content',
+              } as StreamChunk
+              yield {
+                type: EventType.RUN_FINISHED,
+                threadId: 'thread-1',
+                runId: 'live-run-1',
+                model: 'test',
+                timestamp: Date.now(),
+                metadata: { tanstack: { finishReason: 'stop' } },
+              } as StreamChunk
+            })()
+          },
+        ),
+        send: vi.fn(),
+      }
+      const persistence = {
+        getItem: vi.fn(() => undefined),
+        setItem: vi.fn((_key: string, state: ChatPersistedState) => {
+          storedMessages = state.messages
+        }),
+        removeItem: vi.fn(() => {
+          storedMessages = undefined
+        }),
+      }
+      const client = new ChatClient({
+        connection: adapter,
+        threadId: 'chat-1',
+        persistence: persistence,
+      })
+
+      client.subscribe()
+      const wakeSubscriber = await subscriberReady.promise
+      wakeSubscriber()
+      await vi.waitFor(() => {
+        expect(client.getSessionGenerating()).toBe(true)
+      })
+
+      client.clear()
+      releaseAfterClear.resolve()
+
+      await vi.waitFor(() => {
+        expect(client.getSessionGenerating()).toBe(false)
+      })
+      expect(client.getMessages()).toEqual([])
+      expect(storedMessages).toBeUndefined()
+    })
+
+    it('should not expose request generation metadata on public chunks or run context', async () => {
+      const onChunk = vi.fn()
+      const runContextSpy = vi.fn()
+      const client = new ChatClient({
+        threadId: 'thread-1',
+        connection: {
+          async *connect(_messages, _data, _abortSignal, runContext) {
+            runContextSpy(runContext)
+            yield* createTextChunks('Hello')
+          },
+        },
+        onChunk,
+      })
+
+      await client.sendMessage('Hello')
+
+      expect(runContextSpy).toHaveBeenCalled()
+      expect(runContextSpy.mock.calls[0]![0]).not.toHaveProperty(
+        'requestGeneration',
+      )
+      expect(onChunk).toHaveBeenCalled()
+      for (const [chunk] of onChunk.mock.calls) {
+        expect(Object.keys(chunk)).not.toContain('requestGeneration')
+        expect(chunk).not.toHaveProperty('requestGeneration')
+      }
+    })
+
+    it('should not add internal threadId or runId to public connect chunks', async () => {
+      const onChunk = vi.fn()
+      const client = new ChatClient({
+        threadId: 'thread-1',
+        connection: {
+          async *connect() {
+            yield {
+              type: EventType.TEXT_MESSAGE_CONTENT,
+              messageId: 'public-message',
+              timestamp: Date.now(),
+              delta: 'Hello',
+            } as StreamChunk
+          },
+        },
+        onChunk,
+      })
+
+      await client.sendMessage('Hello')
+
+      expect(onChunk).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: EventType.TEXT_MESSAGE_CONTENT,
+          messageId: 'public-message',
+        }),
+      )
+      for (const [chunk] of onChunk.mock.calls) {
+        if (chunk.type === EventType.TEXT_MESSAGE_CONTENT) {
+          expect(chunk).not.toHaveProperty('threadId')
+          expect(chunk).not.toHaveProperty('runId')
+        }
+      }
+    })
+
+    it('stop should not unsubscribe an active subscription', async () => {
+      const adapter = createSubscribeAdapter([
+        {
+          type: EventType.RUN_FINISHED,
+          runId: 'run-1',
+          threadId: 'thread-1',
+          model: 'test',
+          timestamp: Date.now(),
+          metadata: { tanstack: { finishReason: 'stop' } },
+        },
+      ])
+      const client = new ChatClient({
+        threadId: 'thread-1',
+        connection: adapter,
+      })
+
+      client.subscribe()
+      expect(client.getIsSubscribed()).toBe(true)
+      expect(client.getConnectionStatus()).toBe('connecting')
+
+      const sendPromise = client.sendMessage('Hello')
+      client.stop()
+      await sendPromise
+
+      expect(client.getIsSubscribed()).toBe(true)
+      client.unsubscribe()
+      expect(client.getIsSubscribed()).toBe(false)
+      expect(client.getConnectionStatus()).toBe('disconnected')
+    })
+
+    it('should re-subscribe on connection update when previously subscribed', () => {
+      const adapter1 = createSubscribeAdapter([])
+      const adapter2 = createSubscribeAdapter([])
+      const client = new ChatClient({
+        threadId: 'thread-1',
+        connection: adapter1,
+      })
+
+      client.subscribe()
+      expect(client.getIsSubscribed()).toBe(true)
+      expect(adapter1.subscribe).toHaveBeenCalledTimes(1)
+
+      client.updateOptions({ connection: adapter2 })
+
+      expect(client.getIsSubscribed()).toBe(true)
+      expect(adapter2.subscribe).toHaveBeenCalledTimes(1)
+    })
+
+    it('should emit subscription and connection lifecycle callbacks', async () => {
+      const adapter = createSubscribeAdapter(createTextChunks('callback flow'))
+      const subscriptionChanges: Array<boolean> = []
+      const connectionStatuses: Array<string> = []
+      const client = new ChatClient({
+        threadId: 'thread-1',
+        connection: adapter,
+        onSubscriptionChange: (isSubscribed) => {
+          subscriptionChanges.push(isSubscribed)
+        },
+        onConnectionStatusChange: (status) => {
+          connectionStatuses.push(status)
+        },
+      })
+
+      client.subscribe()
+      await client.sendMessage('Hello')
+      client.unsubscribe()
+
+      expect(subscriptionChanges).toEqual([true, false])
+      expect(connectionStatuses[0]).toBe('connecting')
+      expect(connectionStatuses).toContain('connected')
+      expect(connectionStatuses[connectionStatuses.length - 1]).toBe(
+        'disconnected',
+      )
+    })
+
+    it('subscribe should be idempotent without restart', () => {
+      const adapter = createSubscribeAdapter([])
+      const client = new ChatClient({
+        threadId: 'thread-1',
+        connection: adapter,
+      })
+
+      client.subscribe()
+      client.subscribe()
+
+      expect(adapter.subscribe).toHaveBeenCalledTimes(1)
+      expect(client.getIsSubscribed()).toBe(true)
+
+      client.unsubscribe()
+    })
+
+    it('subscribe with restart should start a new subscription loop', () => {
+      const adapter = createSubscribeAdapter([])
+      const client = new ChatClient({
+        threadId: 'thread-1',
+        connection: adapter,
+      })
+
+      client.subscribe()
+      client.subscribe({ restart: true })
+
+      expect(adapter.subscribe).toHaveBeenCalledTimes(2)
+      expect(client.getIsSubscribed()).toBe(true)
+      expect(client.getConnectionStatus()).toBe('connecting')
+
+      client.unsubscribe()
+    })
+
+    it('unsubscribe should be idempotent', () => {
+      const adapter = createSubscribeAdapter([])
+      const client = new ChatClient({
+        threadId: 'thread-1',
+        connection: adapter,
+      })
+
+      client.unsubscribe()
+      client.unsubscribe()
+
+      expect(client.getIsSubscribed()).toBe(false)
+      expect(client.getConnectionStatus()).toBe('disconnected')
+    })
+
+    it('unsubscribe should abort in-flight requests and disconnect', async () => {
+      const adapter = createSubscribeAdapter([
+        {
+          type: EventType.TEXT_MESSAGE_CONTENT,
+          messageId: 'msg-1',
+          timestamp: Date.now(),
+          delta: 'H',
+        },
+      ])
+      const client = new ChatClient({
+        threadId: 'thread-1',
+        connection: adapter,
+      })
+
+      client.subscribe()
+      const sendPromise = client.sendMessage('Hello')
+      await new Promise((resolve) => setTimeout(resolve, 10))
+      client.unsubscribe()
+
+      const completed = await Promise.race([
+        sendPromise.then(() => true),
+        new Promise<boolean>((resolve) =>
+          setTimeout(() => resolve(false), 500),
+        ),
+      ])
+
+      expect(completed).toBe(true)
+      expect(client.getIsLoading()).toBe(false)
+      expect(client.getIsSubscribed()).toBe(false)
+      expect(client.getConnectionStatus()).toBe('disconnected')
+    })
+
+    it('should not re-subscribe on connection update when not subscribed', () => {
+      const adapter1 = createSubscribeAdapter([])
+      const adapter2 = createSubscribeAdapter([])
+      const client = new ChatClient({
+        threadId: 'thread-1',
+        connection: adapter1,
+      })
+
+      client.updateOptions({ connection: adapter2 })
+
+      expect(client.getIsSubscribed()).toBe(false)
+      expect(client.getConnectionStatus()).toBe('disconnected')
+      expect(adapter2.subscribe).not.toHaveBeenCalled()
+    })
+
+    it('should expose connectionStatus error for subscription loop failures', async () => {
+      const connection = {
+        // eslint-disable-next-line require-yield
+        subscribe: async function* () {
+          throw new Error('subscription failed')
+        },
+        send: async () => {},
+      }
+      const client = new ChatClient({ threadId: 'thread-1', connection })
+
+      client.subscribe()
+      await new Promise((resolve) => setTimeout(resolve, 0))
+
+      expect(client.getIsSubscribed()).toBe(false)
+      expect(client.getConnectionStatus()).toBe('error')
+    })
+
+    it('should expose connectionStatus error when subscribe throws', async () => {
+      const connection = {
+        subscribe() {
+          throw new Error('subscription failed')
+        },
+        send: async () => {},
+      }
+      const client = new ChatClient({ threadId: 'thread-1', connection })
+
+      expect(() => client.subscribe()).not.toThrow()
+      await vi.waitFor(() => {
+        expect(client.getIsSubscribed()).toBe(false)
+        expect(client.getConnectionStatus()).toBe('error')
+      })
+    })
+
+    it('should remain pending without terminal run events', async () => {
+      const adapter = createSubscribeAdapter([
+        {
+          type: EventType.TEXT_MESSAGE_CONTENT,
+          messageId: 'msg-1',
+          timestamp: Date.now(),
+          delta: 'H',
+        },
+      ])
+      const client = new ChatClient({
+        threadId: 'thread-1',
+        connection: adapter,
+      })
+
+      const sendPromise = client.sendMessage('Hello')
+      const completed = await Promise.race([
+        sendPromise.then(() => true),
+        new Promise<boolean>((resolve) =>
+          setTimeout(() => resolve(false), 100),
+        ),
+      ])
+
+      expect(completed).toBe(false)
+
+      // Explicitly stop to unblock the in-flight request.
+      client.stop()
+      await sendPromise
+    })
+
+    describe('sessionGenerating', () => {
+      it('should be false initially', () => {
+        const adapter = createSubscribeAdapter([])
+        const client = new ChatClient({
+          threadId: 'thread-1',
+          connection: adapter,
+        })
+
+        expect(client.getSessionGenerating()).toBe(false)
+      })
+
+      it('should flip to true on RUN_STARTED and false on RUN_FINISHED', async () => {
+        const chunks: Array<StreamChunk> = [
+          {
+            type: EventType.RUN_STARTED,
+            runId: 'run-1',
+            threadId: 'thread-1',
+            timestamp: Date.now(),
+          },
+          {
+            type: EventType.TEXT_MESSAGE_CONTENT,
+            messageId: 'msg-1',
+            timestamp: Date.now(),
+            delta: 'Hi',
+          },
+          {
+            type: EventType.RUN_FINISHED,
+            runId: 'run-1',
+            threadId: 'thread-1',
+            model: 'test',
+            timestamp: Date.now(),
+            metadata: { tanstack: { finishReason: 'stop' } },
+          },
+        ]
+        const adapter = createSubscribeAdapter(chunks)
+        const generatingChanges: Array<boolean> = []
+        const client = new ChatClient({
+          threadId: 'thread-1',
+          connection: adapter,
+          onSessionGeneratingChange: (isGenerating) => {
+            generatingChanges.push(isGenerating)
+          },
+        })
+
+        await client.sendMessage('Hello')
+
+        expect(client.getSessionGenerating()).toBe(false)
+        expect(generatingChanges).toEqual([true, false])
+      })
+
+      it('should flip to false on RUN_ERROR', async () => {
+        const chunks: Array<StreamChunk> = [
+          {
+            type: EventType.RUN_STARTED,
+            runId: 'run-1',
+            threadId: 'thread-1',
+            timestamp: Date.now(),
+          },
+          {
+            type: EventType.RUN_ERROR,
+            message: 'something went wrong',
+            runId: 'run-1',
+            model: 'test',
+            timestamp: Date.now(),
+            error: { message: 'something went wrong' },
+          },
+        ]
+        const adapter = createSubscribeAdapter(chunks)
+        const generatingChanges: Array<boolean> = []
+        const client = new ChatClient({
+          threadId: 'thread-1',
+          connection: adapter,
+          onSessionGeneratingChange: (isGenerating) => {
+            generatingChanges.push(isGenerating)
+          },
+        })
+
+        await client.sendMessage('Hello')
+
+        expect(client.getSessionGenerating()).toBe(false)
+        expect(generatingChanges).toEqual([true, false])
+      })
+
+      it('should remain correct through subscribe/unsubscribe cycles', async () => {
+        const chunks: Array<StreamChunk> = [
+          {
+            type: EventType.RUN_STARTED,
+            runId: 'run-1',
+            threadId: 'thread-1',
+            timestamp: Date.now(),
+          },
+          {
+            type: EventType.TEXT_MESSAGE_CONTENT,
+            messageId: 'msg-1',
+            timestamp: Date.now(),
+            delta: 'Hi',
+          },
+          {
+            type: EventType.RUN_FINISHED,
+            runId: 'run-1',
+            threadId: 'thread-1',
+            model: 'test',
+            timestamp: Date.now(),
+            metadata: { tanstack: { finishReason: 'stop' } },
+          },
+        ]
+        const adapter = createSubscribeAdapter(chunks)
+        const client = new ChatClient({
+          threadId: 'thread-1',
+          connection: adapter,
+        })
+
+        // First cycle
+        await client.sendMessage('Hello')
+        expect(client.getSessionGenerating()).toBe(false)
+
+        // Unsubscribe
+        client.unsubscribe()
+        expect(client.getSessionGenerating()).toBe(false)
+      })
+
+      it('should reset on unsubscribe while generating', async () => {
+        let yieldedStart = false
+        const connection = {
+          subscribe: async function* (signal?: AbortSignal) {
+            while (!signal?.aborted) {
+              if (!yieldedStart) {
+                yieldedStart = true
+                yield {
+                  type: EventType.RUN_STARTED as const,
+                  runId: 'run-1',
+                  threadId: 'thread-1',
+                  timestamp: Date.now(),
+                }
+              }
+              await new Promise<void>((resolve) => {
+                const onAbort = () => resolve()
+                signal?.addEventListener('abort', onAbort, { once: true })
+              })
+            }
+          },
+          send: async () => {
+            // no-op; the subscribe generator yields RUN_STARTED on its own
+          },
+        }
+        const generatingChanges: Array<boolean> = []
+        const client = new ChatClient({
+          threadId: 'thread-1',
+          connection,
+          onSessionGeneratingChange: (isGenerating) => {
+            generatingChanges.push(isGenerating)
+          },
+        })
+
+        client.subscribe()
+        await new Promise((resolve) => setTimeout(resolve, 20))
+
+        expect(client.getSessionGenerating()).toBe(true)
+
+        client.unsubscribe()
+
+        expect(client.getSessionGenerating()).toBe(false)
+        expect(generatingChanges).toEqual([true, false])
+      })
+
+      it('should reset on connection adapter replacement', async () => {
+        let yieldedStart = false
+        const connection1 = {
+          subscribe: async function* (signal?: AbortSignal) {
+            while (!signal?.aborted) {
+              if (!yieldedStart) {
+                yieldedStart = true
+                yield {
+                  type: EventType.RUN_STARTED as const,
+                  runId: 'run-1',
+                  threadId: 'thread-1',
+                  timestamp: Date.now(),
+                }
+              }
+              await new Promise<void>((resolve) => {
+                const onAbort = () => resolve()
+                signal?.addEventListener('abort', onAbort, { once: true })
+              })
+            }
+          },
+          send: async () => {},
+        }
+        const connection2 = createSubscribeAdapter([])
+        const generatingChanges: Array<boolean> = []
+        const client = new ChatClient({
+          threadId: 'thread-1',
+          connection: connection1,
+          onSessionGeneratingChange: (isGenerating) => {
+            generatingChanges.push(isGenerating)
+          },
+        })
+
+        client.subscribe()
+        await new Promise((resolve) => setTimeout(resolve, 20))
+        expect(client.getSessionGenerating()).toBe(true)
+
+        client.updateOptions({ connection: connection2 })
+
+        expect(client.getSessionGenerating()).toBe(false)
+        expect(generatingChanges).toEqual([true, false])
+
+        client.unsubscribe()
+      })
+
+      it('should not emit duplicate callbacks on repeated same-state events', async () => {
+        const chunks: Array<StreamChunk> = [
+          {
+            type: EventType.RUN_STARTED,
+            runId: 'run-1',
+            threadId: 'thread-1',
+            timestamp: Date.now(),
+          },
+          {
+            type: EventType.RUN_STARTED,
+            runId: 'run-1',
+            threadId: 'thread-1',
+            timestamp: Date.now(),
+          },
+          {
+            type: EventType.TEXT_MESSAGE_CONTENT,
+            messageId: 'msg-1',
+            timestamp: Date.now(),
+            delta: 'Hi',
+          },
+          {
+            type: EventType.RUN_FINISHED,
+            runId: 'run-1',
+            threadId: 'thread-1',
+            model: 'test',
+            timestamp: Date.now(),
+            metadata: { tanstack: { finishReason: 'stop' } },
+          },
+          {
+            type: EventType.RUN_FINISHED,
+            runId: 'run-1',
+            threadId: 'thread-1',
+            model: 'test',
+            timestamp: Date.now(),
+            metadata: { tanstack: { finishReason: 'stop' } },
+          },
+        ]
+        const adapter = createSubscribeAdapter(chunks)
+        const generatingChanges: Array<boolean> = []
+        const client = new ChatClient({
+          threadId: 'thread-1',
+          connection: adapter,
+          onSessionGeneratingChange: (isGenerating) => {
+            generatingChanges.push(isGenerating)
+          },
+        })
+
+        await client.sendMessage('Hello')
+
+        expect(generatingChanges).toEqual([true, false])
+      })
+
+      it('should handle interleaved multi-run events from durable subscription', async () => {
+        const chunks: Array<StreamChunk> = [
+          {
+            type: EventType.RUN_STARTED,
+            runId: 'run-1',
+            threadId: 'thread-1',
+            timestamp: Date.now(),
+          },
+          {
+            type: EventType.TEXT_MESSAGE_CONTENT,
+            messageId: 'msg-1',
+            timestamp: Date.now(),
+            delta: 'A',
+          },
+          {
+            type: EventType.RUN_FINISHED,
+            runId: 'run-1',
+            threadId: 'thread-1',
+            model: 'test',
+            timestamp: Date.now(),
+            metadata: { tanstack: { finishReason: 'stop' } },
+          },
+        ]
+        const adapter = createSubscribeAdapter(chunks)
+        const generatingChanges: Array<boolean> = []
+        const client = new ChatClient({
+          threadId: 'thread-1',
+          connection: adapter,
+          onSessionGeneratingChange: (isGenerating) => {
+            generatingChanges.push(isGenerating)
+          },
+        })
+
+        await client.sendMessage('First')
+        expect(generatingChanges).toEqual([true, false])
+
+        await client.sendMessage('Second')
+        expect(generatingChanges).toEqual([true, false, true, false])
+      })
+
+      it('should stay true during concurrent runs until all finish', async () => {
+        const { connection, push } = createPushableSubscribeConnection()
+        const generatingChanges: Array<boolean> = []
+        const finishedRunIds: Array<string> = []
+        const client = new ChatClient({
+          threadId: 'thread-1',
+          connection,
+          onChunk: (chunk) => {
+            if (
+              chunk.type === EventType.RUN_FINISHED &&
+              'runId' in chunk &&
+              typeof chunk.runId === 'string'
+            ) {
+              finishedRunIds.push(chunk.runId)
+            }
+          },
+          onSessionGeneratingChange: (isGenerating) => {
+            generatingChanges.push(isGenerating)
+          },
+        })
+
+        client.subscribe()
+        await vi.waitFor(() => {
+          expect(client.getIsSubscribed()).toBe(true)
+        })
+
+        push(
+          {
+            type: EventType.RUN_STARTED,
+            runId: 'run-1',
+            threadId: 'thread-1',
+            timestamp: Date.now(),
+          },
+          {
+            type: EventType.RUN_STARTED,
+            runId: 'run-2',
+            threadId: 'thread-1',
+            timestamp: Date.now(),
+          },
+        )
+
+        await vi.waitFor(() => {
+          expect(client.getSessionGenerating()).toBe(true)
+        })
+
+        push({
+          type: EventType.RUN_FINISHED,
+          runId: 'run-1',
+          threadId: 'thread-1',
+          model: 'test',
+          timestamp: Date.now(),
+          metadata: { tanstack: { finishReason: 'stop' } },
+        })
+
+        await vi.waitFor(() => {
+          expect(finishedRunIds).toContain('run-1')
+        })
+        expect(client.getSessionGenerating()).toBe(true)
+
+        push({
+          type: EventType.RUN_FINISHED,
+          runId: 'run-2',
+          threadId: 'thread-1',
+          model: 'test',
+          timestamp: Date.now(),
+          metadata: { tanstack: { finishReason: 'stop' } },
+        })
+
+        await vi.waitFor(() => {
+          expect(client.getSessionGenerating()).toBe(false)
+        })
+        expect(generatingChanges).toEqual([true, false])
+
+        client.unsubscribe()
+      })
+
+      it('should process future live subscription chunks after persistence clear', async () => {
+        const { connection, push } = createPushableSubscribeConnection()
+        const persistence = createPersistence()
+        const client = new ChatClient({
+          connection,
+          threadId: 'chat-1',
+          persistence: persistence,
+        })
+
+        client.subscribe()
+        await vi.waitFor(() => {
+          expect(client.getIsSubscribed()).toBe(true)
+        })
+
+        client.clear()
+        push(...createTextChunks('future live', 'future-live'))
+
+        await vi.waitFor(() => {
+          expect(
+            client
+              .getMessages()
+              .flatMap((message) => message.parts)
+              .some(
+                (part) =>
+                  part.type === 'text' && part.content.includes('future live'),
+              ),
+          ).toBe(true)
+        })
+
+        client.unsubscribe()
+      })
+
+      it('should clear all runs on RUN_ERROR without runId', async () => {
+        const { connection, push } = createPushableSubscribeConnection()
+        const generatingChanges: Array<boolean> = []
+        const client = new ChatClient({
+          threadId: 'thread-1',
+          connection,
+          onSessionGeneratingChange: (isGenerating) => {
+            generatingChanges.push(isGenerating)
+          },
+        })
+
+        client.subscribe()
+        await vi.waitFor(() => {
+          expect(client.getIsSubscribed()).toBe(true)
+        })
+
+        push(
+          {
+            type: EventType.RUN_STARTED,
+            runId: 'run-1',
+            threadId: 'thread-1',
+            timestamp: Date.now(),
+          },
+          {
+            type: EventType.RUN_STARTED,
+            runId: 'run-2',
+            threadId: 'thread-1',
+            timestamp: Date.now(),
+          },
+        )
+
+        await vi.waitFor(() => {
+          expect(client.getSessionGenerating()).toBe(true)
+        })
+
+        push({
+          type: EventType.RUN_ERROR,
+          message: 'session crashed',
+          model: 'test',
+          timestamp: Date.now(),
+          error: { message: 'session crashed' },
+        })
+
+        await vi.waitFor(() => {
+          expect(client.getSessionGenerating()).toBe(false)
+        })
+        expect(generatingChanges).toEqual([true, false])
+
+        client.unsubscribe()
+      })
+
+      it('should reset on fatal subscription loop teardown', async () => {
+        let yieldedStart = false
+        const connection = {
+          subscribe: async function* (_signal?: AbortSignal) {
+            if (!yieldedStart) {
+              yieldedStart = true
+              yield {
+                type: EventType.RUN_STARTED as const,
+                runId: 'run-1',
+                threadId: 'thread-1',
+                timestamp: Date.now(),
+              }
+              await new Promise((resolve) => setTimeout(resolve, 10))
+            }
+            throw new Error('subscription failed')
+          },
+          send: async () => {},
+        }
+        const generatingChanges: Array<boolean> = []
+        const client = new ChatClient({
+          threadId: 'thread-1',
+          connection,
+          onSessionGeneratingChange: (isGenerating) => {
+            generatingChanges.push(isGenerating)
+          },
+        })
+
+        client.subscribe()
+        await new Promise((resolve) => setTimeout(resolve, 50))
+
+        expect(client.getSessionGenerating()).toBe(false)
+        expect(generatingChanges).toContain(true)
+        expect(generatingChanges[generatingChanges.length - 1]).toBe(false)
+      })
+    })
+  })
+
+  describe('sendMessage', () => {
+    it('should send a message and append it', async () => {
+      const chunks = createTextChunks('Hello, world!')
+      const adapter = createMockConnectionAdapter({ chunks })
+
+      const client = new ChatClient({
+        threadId: 'thread-1',
+        connection: adapter,
+      })
+
+      await client.sendMessage('Hello')
+
+      const messages = client.getMessages()
+      expect(messages.length).toBeGreaterThan(0)
+      expect(messages[0]?.role).toBe('user')
+      expect(messages[0]?.parts[0]).toEqual({
+        type: 'text',
+        content: 'Hello',
+      })
+    })
+
+    it('should create and return assistant message from stream chunks', async () => {
+      const chunks = createTextChunks('Hello, world!')
+      const adapter = createMockConnectionAdapter({ chunks })
+
+      const client = new ChatClient({
+        threadId: 'thread-1',
+        connection: adapter,
+      })
+
+      await client.sendMessage('Hello')
+
+      const messages = client.getMessages()
+
+      // Should have both user and assistant messages
+      expect(messages.length).toBeGreaterThanOrEqual(2)
+
+      // Find the assistant message created from chunks
+      const assistantMessage = messages.find((m) => m.role === 'assistant')
+      expect(assistantMessage).toBeDefined()
+
+      if (assistantMessage) {
+        // Verify the assistant message is readable and has content
+        expect(assistantMessage.id).toBeTruthy()
+        expect(assistantMessage.createdAt).toBeInstanceOf(Date)
+        expect(assistantMessage.parts.length).toBeGreaterThan(0)
+
+        // Verify it has text content from the chunks
+        const textPart = assistantMessage.parts.find((p) => p.type === 'text')
+        expect(textPart).toBeDefined()
+        if (textPart) {
+          expect(textPart.content).toBe('Hello, world!')
+        }
+      }
+    })
+
+    it('should not send empty messages', async () => {
+      const adapter = createMockConnectionAdapter()
+      const client = new ChatClient({
+        threadId: 'thread-1',
+        connection: adapter,
+      })
+
+      await client.sendMessage('')
+      await client.sendMessage('   ')
+
+      expect(client.getMessages().length).toBe(0)
+    })
+
+    it('should queue (not send immediately) a message sent while loading, then auto-send it once the stream settles', async () => {
+      const adapter = createMockConnectionAdapter({
+        chunks: createTextChunks('Response'),
+        chunkDelay: 100,
+      })
+      const client = new ChatClient({
+        threadId: 'thread-1',
+        connection: adapter,
+      })
+
+      const promise1 = client.sendMessage('First')
+      const promise2 = client.sendMessage('Second')
+
+      await Promise.all([promise1, promise2])
+
+      // The second send is queued (default `whenBusy: 'queue'`) rather than
+      // started concurrently, then auto-drains once the first stream settles
+      // — both end up sent, in order.
+      const userMessages = client.getMessages().filter((m) => m.role === 'user')
+      expect(userMessages.map((m) => m.parts[0])).toEqual([
+        { type: 'text', content: 'First' },
+        { type: 'text', content: 'Second' },
+      ])
+    })
+
+    it('isolates queue entries published by normal updates', async () => {
+      const client = new ChatClient({
+        threadId: 'thread-1',
+        connection: createMockConnectionAdapter({
+          chunks: createTextChunks('Response'),
+          chunkDelay: 100,
+        }),
+      })
+      const firstSend = client.sendMessage('First')
+      const oldSnapshot = client.getSnapshot()
+
+      await client.sendMessage({
+        content: [
+          {
+            type: 'image',
+            source: {
+              type: 'url',
+              value: 'https://example.com/queued.png',
+            },
+          },
+        ],
+      })
+
+      const snapshot = client.getSnapshot()
+      const queuedContent = snapshot.queue[0]?.content
+      expect(snapshot).not.toBe(oldSnapshot)
+      expect(oldSnapshot.queue).toEqual([])
+      expect(Object.isFrozen(snapshot.queue)).toBe(true)
+      expect(Object.isFrozen(snapshot.queue[0])).toBe(true)
+      expect(typeof queuedContent).toBe('object')
+      if (typeof queuedContent === 'object') {
+        expect(Object.isFrozen(queuedContent)).toBe(true)
+        expect(Object.isFrozen(queuedContent.content)).toBe(true)
+        const queuedPart = Array.isArray(queuedContent.content)
+          ? queuedContent.content[0]
+          : undefined
+        expect(Object.isFrozen(queuedPart)).toBe(true)
+        if (!queuedPart || !('source' in queuedPart)) {
+          throw new Error('Expected a queued content part with a source')
+        }
+        const publishedSource = queuedPart.source
+        expect(Object.isFrozen(publishedSource)).toBe(true)
+        expect(Reflect.set(publishedSource, 'value', 'changed')).toBe(false)
+      }
+      expect(client.getQueue()[0]?.content).toMatchObject({
+        content: [
+          {
+            source: { value: 'https://example.com/queued.png' },
+          },
+        ],
+      })
+      expect(client.getSnapshot()).toBe(snapshot)
+
+      await firstSend
+    })
+  })
+
+  describe('append', () => {
+    it('should append a UIMessage', async () => {
+      const chunks = createTextChunks('Response')
+      const adapter = createMockConnectionAdapter({ chunks })
+      const client = new ChatClient({
+        threadId: 'thread-1',
+        connection: adapter,
+      })
+
+      const message: UIMessage = {
+        id: 'user-1',
+        role: 'user',
+        parts: [{ type: 'text', content: 'Hello' }],
+        createdAt: new Date(),
+      }
+
+      await client.append(message)
+
+      const messages = client.getMessages()
+      expect(messages.length).toBeGreaterThan(0)
+      expect(messages[0]?.id).toBe('user-1')
+    })
+
+    it('should convert and append a ModelMessage', async () => {
+      const chunks = createTextChunks('Response')
+      const adapter = createMockConnectionAdapter({ chunks })
+      const client = new ChatClient({
+        threadId: 'thread-1',
+        connection: adapter,
+      })
+
+      await client.append({
+        role: 'user',
+        content: 'Hello from model',
+      })
+
+      const messages = client.getMessages()
+      expect(messages.length).toBeGreaterThan(0)
+      expect(messages[0]?.role).toBe('user')
+      expect(messages[0]?.parts[0]).toEqual({
+        type: 'text',
+        content: 'Hello from model',
+      })
+    })
+
+    it('should generate id and createdAt if missing', async () => {
+      const chunks = createTextChunks('Response')
+      const adapter = createMockConnectionAdapter({ chunks })
+      const client = new ChatClient({
+        threadId: 'thread-1',
+        connection: adapter,
+      })
+
+      const message: UIMessage = {
+        id: '',
+        role: 'user',
+        parts: [{ type: 'text', content: 'Hello' }],
+      }
+
+      await client.append(message)
+
+      const messages = client.getMessages()
+      expect(messages[0]?.id).toBeTruthy()
+      expect(messages[0]?.createdAt).toBeInstanceOf(Date)
+    })
+
+    it('keeps append pending through an intermediate tool_calls RUN_FINISHED until the interrupt', async () => {
+      const adapter: ConnectConnectionAdapter = {
+        async *connect(_messages, _data, _signal, ctx) {
+          const runId = ctx?.runId ?? 'run-1'
+          const threadId = ctx?.threadId ?? 'thread-1'
+          yield {
+            type: EventType.RUN_STARTED,
+            runId,
+            threadId,
+            timestamp: Date.now(),
+          }
+          yield {
+            type: EventType.RUN_FINISHED,
+            runId,
+            threadId,
+            timestamp: Date.now(),
+            metadata: { tanstack: { finishReason: 'tool_calls' } },
+          }
+          yield {
+            type: EventType.RUN_STARTED,
+            runId: 'provider-2',
+            threadId,
+            timestamp: Date.now(),
+          }
+          yield {
+            type: EventType.RUN_FINISHED,
+            runId: 'provider-2',
+            threadId,
+            timestamp: Date.now(),
+            outcome: {
+              type: 'interrupt',
+              interrupts: [{ id: 'interrupt-1', reason: 'client_tool_input' }],
+            },
+          }
+        },
+      }
+      const client = new ChatClient({
+        connection: adapter,
+        threadId: 'thread-1',
+      })
+
+      await client.append({
+        role: 'user',
+        content: 'Notify me',
+      })
+
+      expect(client.getInterrupts()).toEqual([
+        expect.objectContaining({ id: 'interrupt-1' }),
+      ])
+      expect(client.getResumeState()?.runId).toBeTruthy()
+    })
+
+    it('keeps append pending when intermediate tool_calls is a direct finishReason', async () => {
+      const adapter: ConnectConnectionAdapter = {
+        async *connect(_messages, _data, _signal, ctx) {
+          const runId = ctx?.runId ?? 'run-1'
+          const threadId = ctx?.threadId ?? 'thread-1'
+          yield {
+            type: EventType.RUN_STARTED,
+            runId,
+            threadId,
+            timestamp: Date.now(),
+          }
+          yield {
+            type: EventType.RUN_FINISHED,
+            runId,
+            threadId,
+            timestamp: Date.now(),
+            finishReason: 'tool_calls',
+          }
+          await Promise.resolve()
+          yield {
+            type: EventType.RUN_STARTED,
+            runId: 'provider-2',
+            threadId,
+            timestamp: Date.now(),
+          }
+          yield {
+            type: EventType.RUN_FINISHED,
+            runId: 'provider-2',
+            threadId,
+            timestamp: Date.now(),
+            outcome: {
+              type: 'interrupt',
+              interrupts: [
+                { id: 'interrupt-direct', reason: 'client_tool_input' },
+              ],
+            },
+          }
+        },
+      }
+      const client = new ChatClient({
+        connection: adapter,
+        threadId: 'thread-1',
+      })
+
+      await client.append({
+        role: 'user',
+        content: 'Notify me',
+      })
+
+      expect(client.getInterrupts()).toEqual([
+        expect.objectContaining({ id: 'interrupt-direct' }),
+      ])
+      expect(client.getResumeState()?.runId).toBeTruthy()
+    })
+  })
+
+  describe('reload', () => {
+    it('should reload from last user message', async () => {
+      const chunks = createTextChunks('Response')
+      const adapter = createMockConnectionAdapter({ chunks })
+      const client = new ChatClient({
+        threadId: 'thread-1',
+        connection: adapter,
+      })
+
+      await client.sendMessage('First')
+      await client.sendMessage('Second')
+
+      await client.reload()
+
+      // After reload, messages after the last user message are removed
+      // Then the last user message is resent, which triggers a new assistant response
+      const messagesAfter = client.getMessages()
+
+      // Should have the same user messages, plus a new assistant response
+      const userMessagesAfter = messagesAfter.filter((m) => m.role === 'user')
+      expect(userMessagesAfter.length).toBeGreaterThanOrEqual(2)
+
+      // The last user message should match what was resent
+      const lastUserMessageAfter =
+        userMessagesAfter[userMessagesAfter.length - 1]
+      expect(lastUserMessageAfter?.parts[0]).toEqual({
+        type: 'text',
+        content: 'Second',
+      })
+    })
+
+    it('should do nothing if no user messages', async () => {
+      const adapter = createMockConnectionAdapter()
+      const client = new ChatClient({
+        threadId: 'thread-1',
+        connection: adapter,
+      })
+
+      await client.reload()
+
+      expect(client.getMessages().length).toBe(0)
+    })
+
+    it('should do nothing if messages array is empty', async () => {
+      const adapter = createMockConnectionAdapter()
+      const client = new ChatClient({
+        threadId: 'thread-1',
+        connection: adapter,
+      })
+
+      await client.reload()
+
+      expect(client.getMessages().length).toBe(0)
+    })
+  })
+
+  describe('stop', () => {
+    it('should stop loading and abort request', async () => {
+      const chunks = createTextChunks('Long response that takes time')
+      const adapter = createMockConnectionAdapter({
+        chunks,
+        chunkDelay: 50,
+      })
+      const client = new ChatClient({
+        threadId: 'thread-1',
+        connection: adapter,
+      })
+
+      const appendPromise = client.append({
+        role: 'user',
+        content: 'Hello',
+      })
+
+      // Wait a bit then stop
+      await new Promise((resolve) => setTimeout(resolve, 10))
+      client.stop()
+
+      await appendPromise
+
+      expect(client.getIsLoading()).toBe(false)
+      expect(client.getStatus()).toBe('ready')
+    })
+  })
+
+  describe('clear', () => {
+    it('should clear all messages', async () => {
+      const chunks = createTextChunks('Response')
+      const adapter = createMockConnectionAdapter({ chunks })
+      const client = new ChatClient({
+        threadId: 'thread-1',
+        connection: adapter,
+      })
+
+      await client.sendMessage('Hello')
+
+      expect(client.getMessages().length).toBeGreaterThan(0)
+
+      client.clear()
+
+      expect(client.getMessages().length).toBe(0)
+      expect(client.getError()).toBeUndefined()
+    })
+
+    it('should remove persisted messages without saving an empty snapshot', async () => {
+      const chunks = createTextChunks('Response')
+      const adapter = createMockConnectionAdapter({ chunks })
+      const persistence = createPersistence()
+      const client = new ChatClient({
+        connection: adapter,
+        threadId: 'chat-1',
+        persistence: persistence,
+      })
+
+      await client.sendMessage('Hello')
+      vi.mocked(persistence.setItem).mockClear()
+
+      client.clear()
+
+      expect(persistence.removeItem).toHaveBeenCalledWith('chat-1')
+      expect(persistence.setItem).not.toHaveBeenCalled()
+    })
+
+    it('should abort an in-flight stream when persistence is omitted', async () => {
+      let abortSignal: AbortSignal | undefined
+      // Gate the chunks on a deferred (instead of a fixed timer) so they are
+      // released strictly after clear() runs — otherwise the assertion races
+      // the stream and is flaky on faster machines/CI.
+      const releaseChunks = createDeferred<void>()
+
+      const adapter: ConnectConnectionAdapter = {
+        async *connect(_messages, _data, signal) {
+          abortSignal = signal
+          await releaseChunks.promise
+          yield* createTextChunks('Delayed')
+        },
+      }
+      const client = new ChatClient({
+        threadId: 'thread-1',
+        connection: adapter,
+      })
+
+      const sendPromise = client.sendMessage('Hello')
+      await vi.waitFor(() => {
+        expect(abortSignal).toBeDefined()
+      })
+
+      client.clear()
+      expect(abortSignal?.aborted).toBe(true)
+
+      // Clear invalidates in-flight stream work even when message persistence
+      // is omitted, so delayed chunks cannot repopulate messages.
+      releaseChunks.resolve()
+      await sendPromise
+
+      expect(client.getMessages()).toEqual([])
+    })
+
+    it('should prevent delayed stream chunks from recreating messages after clear', async () => {
+      const adapter = createMockConnectionAdapter({
+        chunks: createTextChunks('Delayed'),
+        chunkDelay: 20,
+      })
+      const persistence = createPersistence()
+      const client = new ChatClient({
+        connection: adapter,
+        threadId: 'chat-1',
+        persistence: persistence,
+      })
+
+      const sendPromise = client.sendMessage('Hello')
+      await new Promise((resolve) => setTimeout(resolve, 5))
+
+      client.clear()
+      await sendPromise
+
+      expect(client.getMessages()).toEqual([])
+      expect(persistence.removeItem).toHaveBeenCalledWith('chat-1')
+      expect(persistence.setItem).not.toHaveBeenLastCalledWith(
+        'chat-1',
+        expect.arrayContaining([
+          expect.objectContaining({ role: 'assistant' }),
+        ]),
+      )
+    })
+
+    it('should not persist non-cooperative delayed chunks after clear removes storage', async () => {
+      const persistenceEvents: Array<string> = []
+      const persistence = {
+        getItem: vi.fn(() => undefined),
+        setItem: vi.fn(() => {
+          persistenceEvents.push('set')
+        }),
+        removeItem: vi.fn(() => {
+          persistenceEvents.push('remove')
+        }),
+      }
+      const adapter: ConnectConnectionAdapter = {
+        async *connect() {
+          await new Promise((resolve) => setTimeout(resolve, 10))
+          yield* createTextChunks('Delayed')
+        },
+      }
+      const client = new ChatClient({
+        connection: adapter,
+        threadId: 'chat-1',
+        persistence: persistence,
+      })
+
+      const sendPromise = client.sendMessage('Hello')
+      await new Promise((resolve) => setTimeout(resolve, 0))
+
+      client.clear()
+      await sendPromise
+
+      const removeIndex = persistenceEvents.indexOf('remove')
+      expect(removeIndex).toBeGreaterThanOrEqual(0)
+      expect(persistenceEvents.slice(removeIndex + 1)).not.toContain('set')
+      expect(client.getMessages()).toEqual([])
+      expect(persistence.removeItem).toHaveBeenCalledWith('chat-1')
+    })
+
+    it('should ignore cleared request chunks after persistence resumes for a new send', async () => {
+      let storedMessages: Array<UIMessage> | undefined
+      const releaseFirstResponse = createDeferred<void>()
+      const connection: ConnectConnectionAdapter = {
+        async *connect(messages) {
+          const userText = messages
+            .flatMap((message) => ('parts' in message ? message.parts : []))
+            .find((part) => part.type === 'text')?.content
+
+          if (userText === 'A') {
+            await releaseFirstResponse.promise
+            yield* createTextChunks('stale A', 'msg-a')
+            return
+          }
+
+          yield* createTextChunks('fresh B', 'msg-b')
+        },
+      }
+      const persistence = {
+        getItem: vi.fn(() => undefined),
+        setItem: vi.fn((_key: string, state: ChatPersistedState) => {
+          storedMessages = state.messages
+        }),
+        removeItem: vi.fn(() => {
+          storedMessages = undefined
+        }),
+      }
+      const client = new ChatClient({
+        connection,
+        threadId: 'chat-1',
+        persistence: persistence,
+      })
+
+      const firstSend = client.sendMessage('A')
+      await vi.waitFor(() => {
+        expect(client.getIsLoading()).toBe(true)
+      })
+
+      client.clear()
+      await client.sendMessage('B')
+      releaseFirstResponse.resolve()
+      await firstSend
+
+      const finalText = client
+        .getMessages()
+        .flatMap((message) => message.parts)
+        .filter((part) => part.type === 'text')
+        .map((part) => part.content)
+        .join('')
+
+      expect(finalText).toContain('B')
+      expect(finalText).toContain('fresh B')
+      expect(finalText).not.toContain('A')
+      expect(finalText).not.toContain('stale A')
+      expect(storedMessages).toEqual(client.getMessages())
+      expect(
+        storedMessages
+          ?.flatMap((message) => message.parts)
+          .filter((part) => part.type === 'text')
+          .map((part) => part.content)
+          .join(''),
+      ).not.toContain('stale A')
+    })
+
+    it('should ensure async setItem scheduled before clear cannot win after removeItem', async () => {
+      let storedMessages: Array<UIMessage> | undefined
+      const releaseSet = createDeferred<void>()
+      const persistence = {
+        getItem: vi.fn(() => undefined),
+        setItem: vi.fn(async (_key: string, state: ChatPersistedState) => {
+          await releaseSet.promise
+          storedMessages = state.messages
+        }),
+        removeItem: vi.fn(() => {
+          storedMessages = undefined
+        }),
+      }
+      const client = new ChatClient({
+        connection: createMockConnectionAdapter(),
+        threadId: 'chat-1',
+        persistence: persistence,
+      })
+
+      client.setMessagesManually([initialMessage])
+      client.clear()
+
+      releaseSet.resolve()
+      await vi.waitFor(() => {
+        expect(persistence.removeItem).toHaveBeenCalledWith('chat-1')
+      })
+
+      expect(storedMessages).toBeUndefined()
+    })
+  })
+
+  describe('persistence', () => {
+    it('should save message snapshots after sendMessage changes messages', async () => {
+      const chunks = createTextChunks('Response')
+      const adapter = createMockConnectionAdapter({ chunks })
+      const persistence = createPersistence()
+      const client = new ChatClient({
+        connection: adapter,
+        threadId: 'chat-1',
+        persistence: persistence,
+      })
+
+      await client.sendMessage('Hello')
+
+      expect(persistence.setItem).toHaveBeenCalled()
+      expect(persistence.setItem).toHaveBeenLastCalledWith('chat-1', {
+        messages: client.getMessages(),
+      })
+    })
+
+    it('should save message snapshots when messages are set manually', () => {
+      const adapter = createMockConnectionAdapter()
+      const persistence = createPersistence()
+      const client = new ChatClient({
+        connection: adapter,
+        threadId: 'chat-1',
+        persistence: persistence,
+      })
+
+      client.setMessagesManually([initialMessage])
+
+      expect(persistence.setItem).toHaveBeenCalledWith('chat-1', {
+        messages: [initialMessage],
+      })
+    })
+
+    it('should swallow async persistence write and remove failures', async () => {
+      const adapter = createMockConnectionAdapter({
+        chunks: createTextChunks('Hi'),
+      })
+      const persistence = {
+        getItem: vi.fn(() => undefined),
+        setItem: vi.fn(() => Promise.reject(new Error('set failed'))),
+        removeItem: vi.fn(() => Promise.reject(new Error('remove failed'))),
+      }
+      const client = new ChatClient({
+        connection: adapter,
+        threadId: 'chat-1',
+        persistence: persistence,
+      })
+
+      await client.sendMessage('Hello')
+      client.clear()
+      await new Promise((resolve) => setTimeout(resolve, 0))
+
+      expect(client.getMessages()).toEqual([])
+      expect(persistence.setItem).toHaveBeenCalled()
+      expect(persistence.removeItem).toHaveBeenCalledWith('chat-1')
+    })
+  })
+
+  describe('callbacks', () => {
+    it('should call onMessagesChange when messages update', async () => {
+      const chunks = createTextChunks('Response')
+      const adapter = createMockConnectionAdapter({ chunks })
+      const onMessagesChange = vi.fn()
+
+      const client = new ChatClient({
+        threadId: 'thread-1',
+        connection: adapter,
+        onMessagesChange,
+      })
+
+      await client.sendMessage('Hello')
+
+      expect(onMessagesChange).toHaveBeenCalled()
+      expect(onMessagesChange.mock.calls.length).toBeGreaterThan(0)
+    })
+
+    it('should preserve state updates and onMessagesChange when persistence throws', async () => {
+      const chunks = createTextChunks('Response')
+      const adapter = createMockConnectionAdapter({ chunks })
+      const onMessagesChange = vi.fn()
+      const persistence: ChatClientPersistence = {
+        getItem: vi.fn(() => {
+          throw new Error('get failed')
+        }),
+        setItem: vi.fn(() => {
+          throw new Error('set failed')
+        }),
+        removeItem: vi.fn(() => {
+          throw new Error('remove failed')
+        }),
+      }
+
+      const client = new ChatClient({
+        connection: adapter,
+        threadId: 'chat-1',
+        initialMessages: [initialMessage],
+        onMessagesChange,
+        persistence: persistence,
+      })
+
+      expect(client.getMessages()).toEqual([initialMessage])
+
+      await client.sendMessage('Hello')
+      expect(client.getMessages().length).toBeGreaterThan(1)
+      expect(onMessagesChange).toHaveBeenCalled()
+
+      expect(() => client.clear()).not.toThrow()
+      expect(client.getMessages()).toEqual([])
+    })
+
+    it('should call onLoadingChange when loading state changes', async () => {
+      const chunks = createTextChunks('Response')
+      const adapter = createMockConnectionAdapter({ chunks })
+      const onLoadingChange = vi.fn()
+
+      const client = new ChatClient({
+        threadId: 'thread-1',
+        connection: adapter,
+        onLoadingChange,
+      })
+
+      const promise = client.sendMessage('Hello')
+
+      // Should be called with true
+      expect(onLoadingChange).toHaveBeenCalledWith(true)
+
+      await promise
+
+      // Should be called with false
+      expect(onLoadingChange).toHaveBeenCalledWith(false)
+    })
+
+    it('should call onChunk for each chunk', async () => {
+      const chunks = createTextChunks('Hello')
+      const adapter = createMockConnectionAdapter({ chunks })
+      const onChunk = vi.fn()
+
+      const client = new ChatClient({
+        threadId: 'thread-1',
+        connection: adapter,
+        onChunk,
+      })
+
+      await client.sendMessage('Hello')
+
+      expect(onChunk).toHaveBeenCalled()
+      expect(onChunk.mock.calls.length).toBeGreaterThan(0)
+    })
+
+    it('restores finishReason and model onto onChunk RUN_FINISHED', async () => {
+      const chunks = createTextChunks('Hi')
+      const adapter = createMockConnectionAdapter({ chunks })
+      const onChunk = vi.fn()
+
+      const client = new ChatClient({
+        threadId: 'thread-1',
+        connection: adapter,
+        onChunk,
+      })
+
+      await client.sendMessage('Hello')
+
+      const finished = onChunk.mock.calls
+        .map(([chunk]) => chunk)
+        .find((chunk) => chunk.type === 'RUN_FINISHED')
+      expect(finished?.finishReason).toBe('stop')
+      expect(finished?.model).toBe('test')
+    })
+
+    it('should call onFinish when stream completes', async () => {
+      const chunks = createTextChunks('Response')
+      const adapter = createMockConnectionAdapter({ chunks })
+      const onFinish = vi.fn()
+
+      const client = new ChatClient({
+        threadId: 'thread-1',
+        connection: adapter,
+        onFinish,
+      })
+
+      await client.sendMessage('Hello')
+
+      expect(onFinish).toHaveBeenCalled()
+      const finishCall = onFinish.mock.calls[0]?.[0]
+      expect(finishCall?.role).toBe('assistant')
+    })
+
+    it('should call onError when error occurs', async () => {
+      const error = new Error('Connection failed')
+      const adapter = createMockConnectionAdapter({
+        shouldError: true,
+        error,
+      })
+      const onError = vi.fn()
+
+      const client = new ChatClient({
+        threadId: 'thread-1',
+        connection: adapter,
+        onError,
+      })
+
+      await client.sendMessage('Hello')
+
+      expect(onError).toHaveBeenCalled()
+      expect(onError).toHaveBeenCalledTimes(1)
+      expect(onError.mock.calls[0]![0]).toBeInstanceOf(Error)
+      expect(onError.mock.calls[0]![0].message).toBe('Connection failed')
+      expect(client.getError()).toBeInstanceOf(Error)
+      expect(client.getError()?.message).toBe('Connection failed')
+    })
+  })
+
+  describe('status', () => {
+    it('should transition through states during generation', async () => {
+      const chunks = createTextChunks('Response')
+      const adapter = createMockConnectionAdapter({
+        chunks,
+        chunkDelay: 20,
+      })
+      const statuses: Array<string> = []
+      const client = new ChatClient({
+        threadId: 'thread-1',
+        connection: adapter,
+        onStatusChange: (s) => statuses.push(s),
+      })
+
+      const promise = client.sendMessage('Test')
+
+      // Should leave ready state
+      expect(client.getStatus()).not.toBe('ready')
+
+      // Should be submitted or streaming
+      expect(['submitted', 'streaming']).toContain(client.getStatus())
+
+      await promise
+
+      expect(statuses).toContain('submitted')
+      expect(statuses).toContain('streaming')
+      expect(statuses[statuses.length - 1]).toBe('ready')
+    })
+  })
+
+  describe('tool calls', () => {
+    it('should handle tool calls from stream', async () => {
+      const chunks = createToolCallChunks([
+        { id: 'tool-1', name: 'get_weather', arguments: '{"city": "NYC"}' },
+      ])
+      const adapter = createMockConnectionAdapter({ chunks })
+      const client = new ChatClient({
+        threadId: 'thread-1',
+        connection: adapter,
+      })
+
+      await client.sendMessage("What's the weather?")
+
+      const messages = client.getMessages()
+      const assistantMessage = messages.find((m) => m.role === 'assistant')
+
+      expect(assistantMessage).toBeDefined()
+      if (assistantMessage) {
+        const toolCallPart = assistantMessage.parts.find(
+          (p) => p.type === 'tool-call',
+        )
+        expect(toolCallPart).toBeDefined()
+        if (toolCallPart) {
+          expect(toolCallPart.name).toBe('get_weather')
+        }
+      }
+    })
+
+    it('does not continue a server-owned client tool input error', async () => {
+      const execute = vi.fn()
+      const errorResult = JSON.stringify({
+        error: 'Input validation failed for tool show_notification',
+      })
+      const errorChunks: Array<StreamChunk> = [
+        {
+          type: EventType.TOOL_CALL_START,
+          toolCallId: 'tool-1',
+          toolCallName: 'show_notification',
+          timestamp: Date.now(),
+        },
+        {
+          type: EventType.TOOL_CALL_ARGS,
+          toolCallId: 'tool-1',
+          delta: '{"message":42,"type":"info"}',
+          timestamp: Date.now(),
+        },
+        {
+          type: EventType.TOOL_CALL_END,
+          toolCallId: 'tool-1',
+          input: { message: 42, type: 'info' },
+          timestamp: Date.now(),
+        },
+        withTanstackMetadata(
+          {
+            type: EventType.TOOL_CALL_RESULT,
+            toolCallId: 'tool-1',
+            messageId: 'tool-result-1',
+            content: errorResult,
+            role: 'tool',
+            timestamp: Date.now(),
+          },
+          { state: 'output-error' },
+        ) as StreamChunk,
+        withTanstackMetadata(
+          {
+            type: EventType.RUN_FINISHED,
+            runId: 'run-1',
+            threadId: 'thread-1',
+            timestamp: Date.now(),
+          },
+          { finishReason: 'tool_calls', model: 'test' },
+        ) as StreamChunk,
+      ]
+      let requestCount = 0
+      const adapter: ConnectConnectionAdapter = {
+        async *connect(_messages, _data, abortSignal) {
+          requestCount++
+          const chunks =
+            requestCount === 1
+              ? errorChunks
+              : createTextChunks('Unexpected continuation')
+          for (const chunk of chunks) {
+            if (abortSignal?.aborted) return
+            yield chunk
+          }
+        },
+      }
+      const client = new ChatClient({
+        threadId: 'thread-1',
+        connection: adapter,
+        tools: [
+          {
+            __toolSide: 'client' as const,
+            name: 'show_notification',
+            description: 'Show a notification',
+            execute,
+          },
+        ],
+      })
+
+      await client.sendMessage('Show a notification')
+
+      expect(requestCount).toBe(1)
+      expect(execute).not.toHaveBeenCalled()
+      expect(
+        client
+          .getMessages()
+          .flatMap((message) => message.parts)
+          .find((part) => part.type === 'tool-call' && part.id === 'tool-1'),
+      ).toEqual(expect.objectContaining({ state: 'error' }))
+    })
+
+    // Tests for legacy onToolCall removed - now using client tools with execute functions
+  })
+
+  describe('addToolResult', () => {
+    it('should add tool result and update message', async () => {
+      const chunks = createToolCallChunks([
+        { id: 'tool-1', name: 'test_tool', arguments: '{}' },
+      ])
+      const adapter = createMockConnectionAdapter({ chunks })
+      const client = new ChatClient({
+        threadId: 'thread-1',
+        connection: adapter,
+      })
+
+      await client.sendMessage('Test')
+
+      // Find the tool call
+      const messages = client.getMessages()
+      const assistantMessage = messages.find((m) => m.role === 'assistant')
+      const toolCallPart = assistantMessage?.parts.find(
+        (p) => p.type === 'tool-call',
+      )
+
+      if (toolCallPart) {
+        await client.addToolResult({
+          toolCallId: toolCallPart.id,
+          tool: toolCallPart.name,
+          output: { result: 'success' },
+        })
+
+        // Tool call should have output
+        const updatedMessages = client.getMessages()
+        const updatedAssistant = updatedMessages.find(
+          (m) => m.role === 'assistant',
+        )
+        const updatedToolCall = updatedAssistant?.parts.find(
+          (p) => p.type === 'tool-call' && p.id === toolCallPart.id,
+        )
+
+        if (updatedToolCall && updatedToolCall.type === 'tool-call') {
+          expect(updatedToolCall.output).toEqual({ result: 'success' })
+        }
+      }
+    })
+  })
+
+  describe('drain re-entrancy guard (fix #302)', () => {
+    it('should continue after multiple client tools complete in the same round', async () => {
+      // Round 1: two simultaneous tool calls (triggers the re-entrancy bug)
+      const round1Chunks = createToolCallChunks([
+        { id: 'tc-1', name: 'tool_one', arguments: '{}' },
+        { id: 'tc-2', name: 'tool_two', arguments: '{}' },
+      ])
+      // Round 2: final text response
+      const round2Chunks = createTextChunks('Done!', 'msg-2')
+
+      let callIndex = 0
+      const adapter: ConnectConnectionAdapter = {
+        async *connect(_messages, _data, abortSignal) {
+          callIndex++
+          const chunks = callIndex === 1 ? round1Chunks : round2Chunks
+          for (const chunk of chunks) {
+            if (abortSignal?.aborted) return
+            yield chunk
+          }
+        },
+      }
+
+      // Both tools execute immediately (synchronously resolve)
+      const client = new ChatClient({
+        threadId: 'thread-1',
+        connection: adapter,
+        tools: [
+          {
+            __toolSide: 'client' as const,
+            name: 'tool_one',
+            description: 'Tool one',
+            execute: async () => ({ result: 'one' }),
+          },
+          {
+            __toolSide: 'client' as const,
+            name: 'tool_two',
+            description: 'Tool two',
+            execute: async () => ({ result: 'two' }),
+          },
+        ],
+      })
+
+      // Send initial message — triggers round 1 (two tool calls, both auto-executed)
+      await client.sendMessage('Run both tools')
+
+      // Wait for loading to stop and the continuation (round 2) to complete
+      await vi.waitFor(
+        () => {
+          expect(client.getIsLoading()).toBe(false)
+          // Ensure round 2 actually fired
+          expect(callIndex).toBeGreaterThanOrEqual(2)
+        },
+        { timeout: 2000 },
+      )
+
+      // The final response "Done!" should appear in messages
+      const messages = client.getMessages()
+      const lastAssistant = [...messages]
+        .reverse()
+        .find((m) => m.role === 'assistant')
+      const textPart = lastAssistant?.parts.find((p) => p.type === 'text')
+      expect(textPart?.content).toBe('Done!')
+    })
+  })
+
+  describe('error handling', () => {
+    it('should set error state on connection failure', async () => {
+      const error = new Error('Network error')
+      const adapter = createMockConnectionAdapter({
+        shouldError: true,
+        error,
+      })
+      const client = new ChatClient({
+        threadId: 'thread-1',
+        connection: adapter,
+      })
+
+      await client.sendMessage('Hello')
+
+      expect(client.getError()).toBeInstanceOf(Error)
+      expect(client.getError()?.message).toBe('Network error')
+      expect(client.getStatus()).toBe('error')
+    })
+
+    it('should clear error on successful request', async () => {
+      const errorAdapter = createMockConnectionAdapter({
+        shouldError: true,
+        error: new Error('First error'),
+      })
+      const successAdapter = createMockConnectionAdapter({
+        chunks: createTextChunks('Success'),
+      })
+
+      const client = new ChatClient({
+        threadId: 'thread-1',
+        connection: errorAdapter,
+      })
+
+      await client.sendMessage('Fail')
+      expect(client.getError()).toBeDefined()
+      expect(client.getStatus()).toBe('error')
+
+      // Update connection via updateOptions
+      client.updateOptions({ connection: successAdapter })
+
+      await client.sendMessage('Success')
+      expect(client.getError()).toBeUndefined()
+      expect(client.getStatus()).not.toBe('error')
+    })
+
+    it('should not hang when connection is updated during an active stream', async () => {
+      const noTerminalAdapter = createMockConnectionAdapter({
+        chunks: [
+          {
+            type: EventType.TEXT_MESSAGE_CONTENT,
+            messageId: 'msg-1',
+            timestamp: Date.now(),
+            delta: 'H',
+          },
+        ],
+        chunkDelay: 50,
+      })
+      const replacementAdapter = createMockConnectionAdapter({
+        chunks: createTextChunks('replacement'),
+      })
+      const client = new ChatClient({
+        threadId: 'thread-1',
+        connection: noTerminalAdapter,
+      })
+
+      const sendPromise = client.sendMessage('Hello')
+      await new Promise((resolve) => setTimeout(resolve, 10))
+      client.updateOptions({ connection: replacementAdapter })
+
+      const completed = await Promise.race([
+        sendPromise.then(() => true),
+        new Promise<boolean>((resolve) =>
+          setTimeout(() => resolve(false), 500),
+        ),
+      ])
+
+      expect(completed).toBe(true)
+      expect(client.getIsLoading()).toBe(false)
+    })
+
+    it('should surface subscription loop failures without hanging', async () => {
+      const connection = {
+        // eslint-disable-next-line require-yield
+        subscribe: async function* () {
+          throw new Error('subscription exploded')
+        },
+        send: async () => {},
+      }
+      const onError = vi.fn()
+      const client = new ChatClient({
+        threadId: 'thread-1',
+        connection,
+        onError,
+      })
+
+      await client.sendMessage('Hello')
+
+      expect(onError).toHaveBeenCalledTimes(1)
+      expect(onError.mock.calls[0]?.[0]).toBeInstanceOf(Error)
+      expect(onError.mock.calls[0]?.[0].message).toBe('subscription exploded')
+      expect(client.getStatus()).toBe('error')
+    })
+  })
+
+  describe('devtools events', () => {
+    it('should emit text:message:created event when assistant message starts', async () => {
+      const chunks = createTextChunks('Hello, world!')
+      const adapter = createMockConnectionAdapter({ chunks })
+
+      const { aiEventClient } = await import('@tanstack/ai-event-client')
+      const emitSpy = vi.spyOn(aiEventClient, 'emit')
+
+      const client = new ChatClient({
+        threadId: 'thread-1',
+        connection: adapter,
+      })
+
+      await client.sendMessage('Hello')
+
+      // Find the message-created event for the assistant message
+      const messageCreatedCalls = emitSpy.mock.calls.filter(
+        ([eventName]) => eventName === 'text:message:created',
+      )
+
+      // Should have at least one call for the assistant message
+      const assistantCreatedCall = messageCreatedCalls.find(([, data]) => {
+        const payload = data as any
+        return payload && payload.role === 'assistant'
+      })
+      expect(assistantCreatedCall).toBeDefined()
+    })
+
+    it('should emit text:chunk:content events during streaming', async () => {
+      const chunks = createTextChunks('Hello, world!')
+      const adapter = createMockConnectionAdapter({ chunks })
+
+      const { aiEventClient } = await import('@tanstack/ai-event-client')
+      const emitSpy = vi.spyOn(aiEventClient, 'emit')
+
+      const client = new ChatClient({
+        threadId: 'thread-1',
+        connection: adapter,
+      })
+
+      await client.sendMessage('Hello')
+
+      // Find text-updated events
+      const textUpdatedCalls = emitSpy.mock.calls.filter(
+        ([eventName]) => eventName === 'text:chunk:content',
+      )
+
+      // Should have text update events
+      expect(textUpdatedCalls.length).toBeGreaterThan(0)
+    })
+
+    it('should emit tools:call:updated events for tool calls', async () => {
+      const chunks = createToolCallChunks([
+        { id: 'tool-1', name: 'getWeather', arguments: '{"city": "NYC"}' },
+      ])
+      const adapter = createMockConnectionAdapter({ chunks })
+
+      const { aiEventClient } = await import('@tanstack/ai-event-client')
+      const emitSpy = vi.spyOn(aiEventClient, 'emit')
+
+      const client = new ChatClient({
+        threadId: 'thread-1',
+        connection: adapter,
+      })
+
+      await client.sendMessage('What is the weather?')
+
+      // Find tool call events
+      const toolCallUpdatedCalls = emitSpy.mock.calls.filter(
+        ([eventName]) => eventName === 'tools:call:updated',
+      )
+
+      // Should have tool call events
+      expect(toolCallUpdatedCalls.length).toBeGreaterThan(0)
+    })
+
+    it('should emit text:chunk:thinking events for thinking content', async () => {
+      const chunks = createThinkingChunks(
+        'Let me think...',
+        'Here is my answer',
+      )
+      const adapter = createMockConnectionAdapter({ chunks })
+
+      const { aiEventClient } = await import('@tanstack/ai-event-client')
+      const emitSpy = vi.spyOn(aiEventClient, 'emit')
+
+      const client = new ChatClient({
+        threadId: 'thread-1',
+        connection: adapter,
+      })
+
+      await client.sendMessage('Hello')
+
+      // Find thinking events
+      const thinkingCalls = emitSpy.mock.calls.filter(
+        ([eventName]) => eventName === 'text:chunk:thinking',
+      )
+
+      // Should have thinking events
+      expect(thinkingCalls.length).toBeGreaterThan(0)
+    })
+  })
+
+  describe('multimodal sendMessage', () => {
+    it('should send a multimodal message with image content', async () => {
+      const chunks = createTextChunks('I see a cat in the image')
+      const adapter = createMockConnectionAdapter({ chunks })
+
+      const client = new ChatClient({
+        threadId: 'thread-1',
+        connection: adapter,
+      })
+
+      await client.sendMessage({
+        content: [
+          { type: 'text', content: 'What is in this image?' },
+          {
+            type: 'image',
+            source: { type: 'url', value: 'https://example.com/cat.jpg' },
+          },
+        ],
+      })
+
+      const messages = client.getMessages()
+      expect(messages.length).toBeGreaterThan(0)
+      expect(messages[0]?.role).toBe('user')
+      expect(messages[0]?.parts.length).toBe(2)
+      expect(messages[0]?.parts[0]).toEqual({
+        type: 'text',
+        content: 'What is in this image?',
+      })
+      expect(messages[0]?.parts[1]).toEqual({
+        type: 'image',
+        source: { type: 'url', value: 'https://example.com/cat.jpg' },
+      })
+    })
+
+    it('should send a multimodal message with audio content', async () => {
+      const chunks = createTextChunks('The audio says hello')
+      const adapter = createMockConnectionAdapter({ chunks })
+
+      const client = new ChatClient({
+        threadId: 'thread-1',
+        connection: adapter,
+      })
+
+      await client.sendMessage({
+        content: [
+          { type: 'text', content: 'Transcribe this audio' },
+          {
+            type: 'audio',
+            source: {
+              type: 'data',
+              value: 'base64AudioData',
+              mimeType: 'audio/mp3',
+            },
+          },
+        ],
+      })
+
+      const messages = client.getMessages()
+      expect(messages[0]?.parts[1]).toEqual({
+        type: 'audio',
+        source: {
+          type: 'data',
+          value: 'base64AudioData',
+          mimeType: 'audio/mp3',
+        },
+      })
+    })
+
+    it('should send a multimodal message with video content', async () => {
+      const chunks = createTextChunks('The video shows a sunset')
+      const adapter = createMockConnectionAdapter({ chunks })
+
+      const client = new ChatClient({
+        threadId: 'thread-1',
+        connection: adapter,
+      })
+
+      await client.sendMessage({
+        content: [
+          { type: 'text', content: 'Describe this video' },
+          {
+            type: 'video',
+            source: { type: 'url', value: 'https://example.com/video.mp4' },
+          },
+        ],
+      })
+
+      const messages = client.getMessages()
+      expect(messages[0]?.parts[1]).toEqual({
+        type: 'video',
+        source: { type: 'url', value: 'https://example.com/video.mp4' },
+      })
+    })
+
+    it('should send a multimodal message with document content', async () => {
+      const chunks = createTextChunks('The document discusses AI')
+      const adapter = createMockConnectionAdapter({ chunks })
+
+      const client = new ChatClient({
+        threadId: 'thread-1',
+        connection: adapter,
+      })
+
+      await client.sendMessage({
+        content: [
+          { type: 'text', content: 'Summarize this PDF' },
+          {
+            type: 'document',
+            source: {
+              type: 'data',
+              value: 'base64PdfData',
+              mimeType: 'application/pdf',
+            },
+          },
+        ],
+      })
+
+      const messages = client.getMessages()
+      expect(messages[0]?.parts[1]).toEqual({
+        type: 'document',
+        source: {
+          type: 'data',
+          value: 'base64PdfData',
+          mimeType: 'application/pdf',
+        },
+      })
+    })
+
+    it('should use custom message id when provided', async () => {
+      const chunks = createTextChunks('Response')
+      const adapter = createMockConnectionAdapter({ chunks })
+
+      const client = new ChatClient({
+        threadId: 'thread-1',
+        connection: adapter,
+      })
+
+      await client.sendMessage({
+        content: 'Hello',
+        id: 'custom-message-id-123',
+      })
+
+      const messages = client.getMessages()
+      expect(messages[0]?.id).toBe('custom-message-id-123')
+    })
+
+    it('should generate message id when not provided', async () => {
+      const chunks = createTextChunks('Response')
+      const adapter = createMockConnectionAdapter({ chunks })
+
+      const client = new ChatClient({
+        threadId: 'thread-1',
+        connection: adapter,
+      })
+
+      await client.sendMessage({
+        content: 'Hello',
+      })
+
+      const messages = client.getMessages()
+      expect(messages[0]?.id).toMatch(/^msg-/)
+    })
+
+    it('should allow empty content array', async () => {
+      const chunks = createTextChunks('Response')
+      const adapter = createMockConnectionAdapter({ chunks })
+
+      const client = new ChatClient({
+        threadId: 'thread-1',
+        connection: adapter,
+      })
+
+      await client.sendMessage({
+        content: [],
+      })
+
+      const messages = client.getMessages()
+      expect(messages.length).toBeGreaterThan(0)
+      expect(messages[0]?.parts).toEqual([])
+    })
+
+    it('should send string content as simple text message', async () => {
+      const chunks = createTextChunks('Response')
+      const adapter = createMockConnectionAdapter({ chunks })
+
+      const client = new ChatClient({
+        threadId: 'thread-1',
+        connection: adapter,
+      })
+
+      await client.sendMessage({
+        content: 'Hello world',
+      })
+
+      const messages = client.getMessages()
+      expect(messages[0]?.parts).toEqual([
+        { type: 'text', content: 'Hello world' },
+      ])
+    })
+
+    it('should merge per-message body with forwardedProps', async () => {
+      const chunks = createTextChunks('Response')
+      let capturedData: Record<string, any> | undefined
+      const adapter = createMockConnectionAdapter({
+        chunks,
+        onConnect: (_messages, data) => {
+          capturedData = data
+        },
+      })
+
+      const client = new ChatClient({
+        threadId: 'thread-1',
+        connection: adapter,
+        forwardedProps: { model: 'gpt-5.5', temperature: 0.7 },
+      })
+
+      await client.sendMessage('Hello', {
+        model: 'gpt-5.5',
+        maxTokens: 100,
+      })
+
+      // Per-message body should override base body
+      expect(capturedData?.['model']).toBe('gpt-5.5')
+      expect(capturedData?.['temperature']).toBe(0.7) // From base body
+      expect(capturedData?.['maxTokens']).toBe(100) // From per-message body
+    })
+
+    it('should merge sendOptions.body into the request (hook-style per-call body)', async () => {
+      const chunks = createTextChunks('Response')
+      let capturedData: Record<string, unknown> | undefined
+      const adapter = createMockConnectionAdapter({
+        chunks,
+        onConnect: (_messages, data) => {
+          capturedData = data
+        },
+      })
+
+      const client = new ChatClient({
+        threadId: 'thread-1',
+        connection: adapter,
+        forwardedProps: { model: 'gpt-5.5', temperature: 0.7 },
+      })
+
+      // Framework hooks call sendMessage(content, undefined, sendOptions),
+      // so `sendOptions.body` is their only per-call body channel.
+      await client.sendMessage('Hello', undefined, {
+        body: { model: 'gpt-6', maxTokens: 100 },
+      })
+
+      expect(capturedData?.['model']).toBe('gpt-6')
+      expect(capturedData?.['temperature']).toBe(0.7)
+      expect(capturedData?.['maxTokens']).toBe(100)
+    })
+
+    it('merges forwardedProps, positional body, and sendOptions.body with sendOptions.body winning conflicts', async () => {
+      const chunks = createTextChunks('Response')
+      let capturedData: Record<string, unknown> | undefined
+      const adapter = createMockConnectionAdapter({
+        chunks,
+        onConnect: (_messages, data) => {
+          capturedData = data
+        },
+      })
+
+      const client = new ChatClient({
+        threadId: 'thread-1',
+        connection: adapter,
+        forwardedProps: { a: 1, b: 1, c: 1 },
+      })
+
+      await client.sendMessage(
+        'Hello',
+        { b: 2, d: 2 },
+        { body: { c: 3, e: 3 } },
+      )
+
+      expect(capturedData?.['a']).toBe(1)
+      expect(capturedData?.['b']).toBe(2)
+      expect(capturedData?.['c']).toBe(3)
+      expect(capturedData?.['d']).toBe(2)
+      expect(capturedData?.['e']).toBe(3)
+    })
+
+    it('does not leak sendOptions.whenBusy onto the wire next to body', async () => {
+      const chunks = createTextChunks('Response')
+      let capturedData: Record<string, unknown> | undefined
+      const adapter = createMockConnectionAdapter({
+        chunks,
+        onConnect: (_messages, data) => {
+          capturedData = data
+        },
+      })
+
+      const client = new ChatClient({
+        threadId: 'thread-1',
+        connection: adapter,
+      })
+
+      await client.sendMessage('Hello', undefined, {
+        whenBusy: 'queue',
+        body: { attachmentIds: ['a1'] },
+      })
+
+      expect(capturedData?.['attachmentIds']).toEqual(['a1'])
+      expect(capturedData?.['whenBusy']).toBeUndefined()
+    })
+
+    it('reload does not replay a previous per-call body', async () => {
+      const captures: Array<Record<string, unknown> | undefined> = []
+      const adapter = createMockConnectionAdapter({
+        chunks: createTextChunks('Response'),
+        onConnect: (_messages, data) => {
+          captures.push(data)
+        },
+      })
+
+      const client = new ChatClient({
+        threadId: 'thread-1',
+        connection: adapter,
+        forwardedProps: { provider: 'openai' },
+      })
+
+      await client.sendMessage('Hello', undefined, {
+        body: { tag: 'once' },
+      })
+      await client.reload()
+
+      expect(captures).toHaveLength(2)
+      expect(captures[0]?.['tag']).toBe('once')
+      expect(captures[0]?.['provider']).toBe('openai')
+      expect(captures[1]?.['tag']).toBeUndefined()
+      expect(captures[1]?.['provider']).toBe('openai')
+    })
+
+    it('should accept forwardedProps option and merge into request body', async () => {
+      const chunks = createTextChunks('Response')
+      let capturedData: Record<string, any> | undefined
+      const adapter = createMockConnectionAdapter({
+        chunks,
+        onConnect: (_messages, data) => {
+          capturedData = data
+        },
+      })
+
+      const client = new ChatClient({
+        threadId: 'thread-1',
+        connection: adapter,
+        forwardedProps: { provider: 'openai', model: 'gpt-5.5' },
+      })
+
+      await client.sendMessage('Hello')
+
+      expect(capturedData?.['provider']).toBe('openai')
+      expect(capturedData?.['model']).toBe('gpt-5.5')
+    })
+
+    it('should not auto-emit `conversationId` in merged body (replaced by AG-UI threadId)', async () => {
+      const chunks = createTextChunks('Response')
+      let capturedData: Record<string, any> | undefined
+      const adapter = createMockConnectionAdapter({
+        chunks,
+        onConnect: (_messages, data) => {
+          capturedData = data
+        },
+      })
+
+      const client = new ChatClient({
+        threadId: 'thread-1',
+        connection: adapter,
+      })
+
+      await client.sendMessage('Hello')
+
+      // `conversationId` was the pre-AG-UI auto-emitted field. The client
+      // now emits `threadId` at the wire's top level instead; the legacy
+      // auto-emit was dropped to avoid duplicating the same identifier.
+      // User-set `forwardedProps.conversationId` would still pass through.
+      expect(capturedData?.['conversationId']).toBeUndefined()
+    })
+
+    it('should pass through user-set conversationId via forwardedProps', async () => {
+      const chunks = createTextChunks('Response')
+      let capturedData: Record<string, any> | undefined
+      const adapter = createMockConnectionAdapter({
+        chunks,
+        onConnect: (_messages, data) => {
+          capturedData = data
+        },
+      })
+
+      const client = new ChatClient({
+        threadId: 'thread-1',
+        connection: adapter,
+        forwardedProps: { conversationId: 'user-supplied' },
+      })
+
+      await client.sendMessage('Hello')
+
+      // Backward compat: a user explicitly setting `conversationId` (e.g.
+      // because their server still reads it) still works unchanged.
+      expect(capturedData?.['conversationId']).toBe('user-supplied')
+    })
+
+    it('should clear per-message body after request', async () => {
+      const chunks = createTextChunks('Response')
+      let capturedData: Record<string, any> | undefined
+      const adapter = createMockConnectionAdapter({
+        chunks,
+        onConnect: (_messages, data) => {
+          capturedData = data
+        },
+      })
+
+      const client = new ChatClient({
+        threadId: 'thread-1',
+        connection: adapter,
+        forwardedProps: { model: 'gpt-5.5' },
+      })
+
+      // First message with per-message body
+      await client.sendMessage('First', { temperature: 0.9 })
+      expect(capturedData?.['temperature']).toBe(0.9)
+
+      // Second message without per-message body should not have temperature
+      await client.sendMessage('Second')
+      expect(capturedData?.['temperature']).toBeUndefined()
+      expect(capturedData?.['model']).toBe('gpt-5.5')
+    })
+
+    it('should emit events with multimodal content', async () => {
+      const chunks = createTextChunks('Response')
+      const adapter = createMockConnectionAdapter({ chunks })
+
+      const { aiEventClient } = await import('@tanstack/ai-event-client')
+      const emitSpy = vi.spyOn(aiEventClient, 'emit')
+      emitSpy.mockClear() // Clear any previous calls
+
+      const client = new ChatClient({
+        threadId: 'thread-1',
+        connection: adapter,
+      })
+
+      await client.sendMessage({
+        content: [
+          { type: 'text', content: 'What is this?' },
+          {
+            type: 'image',
+            source: { type: 'url', value: 'https://example.com/img.jpg' },
+          },
+        ],
+      })
+
+      // Find message created events for user role
+      const userMessageCreatedCalls = emitSpy.mock.calls.filter(
+        ([eventName, data]) =>
+          eventName === 'text:message:created' &&
+          (data as any)?.role === 'user',
+      )
+
+      // Should have at least one user message created event
+      expect(userMessageCreatedCalls.length).toBeGreaterThan(0)
+
+      // The event should include the text content extracted from multimodal content
+      const userMessageEvent = userMessageCreatedCalls[0]
+      expect((userMessageEvent?.[1] as any)?.content).toBe('What is this?')
+    })
+  })
+
+  describe('custom events', () => {
+    it('should call onCustomEvent callback for arbitrary custom events', async () => {
+      const chunks = createCustomEventChunks([
+        {
+          name: 'progress-update',
+          value: { progress: 50, step: 'processing' },
+        },
+        {
+          name: 'tool-status',
+          value: { toolCallId: 'tc-1', status: 'running' },
+        },
+      ])
+      const adapter = createMockConnectionAdapter({ chunks })
+
+      const onCustomEvent = vi.fn()
+      const client = new ChatClient({
+        threadId: 'thread-1',
+        connection: adapter,
+        onCustomEvent,
+      })
+
+      await client.sendMessage('Hello')
+
+      expect(onCustomEvent).toHaveBeenCalledTimes(2)
+      expect(onCustomEvent).toHaveBeenNthCalledWith(
+        1,
+        'progress-update',
+        { progress: 50, step: 'processing' },
+        { toolCallId: undefined },
+      )
+      expect(onCustomEvent).toHaveBeenNthCalledWith(
+        2,
+        'tool-status',
+        { toolCallId: 'tc-1', status: 'running' },
+        { toolCallId: 'tc-1' },
+      )
+    })
+
+    it('should extract toolCallId from custom event data and pass in context', async () => {
+      const chunks = createCustomEventChunks([
+        {
+          name: 'external-api-call',
+          value: {
+            toolCallId: 'tc-123',
+            url: 'https://api.example.com',
+            method: 'POST',
+          },
+        },
+      ])
+      const adapter = createMockConnectionAdapter({ chunks })
+
+      const onCustomEvent = vi.fn()
+      const client = new ChatClient({
+        threadId: 'thread-1',
+        connection: adapter,
+        onCustomEvent,
+      })
+
+      await client.sendMessage('Test')
+
+      expect(onCustomEvent).toHaveBeenCalledWith(
+        'external-api-call',
+        {
+          toolCallId: 'tc-123',
+          url: 'https://api.example.com',
+          method: 'POST',
+        },
+        { toolCallId: 'tc-123' },
+      )
+    })
+
+    it('should handle custom events with no data', async () => {
+      const chunks = createCustomEventChunks([{ name: 'simple-notification' }])
+      const adapter = createMockConnectionAdapter({ chunks })
+
+      const onCustomEvent = vi.fn()
+      const client = new ChatClient({
+        threadId: 'thread-1',
+        connection: adapter,
+        onCustomEvent,
+      })
+
+      await client.sendMessage('Test')
+
+      expect(onCustomEvent).toHaveBeenCalledWith(
+        'simple-notification',
+        undefined,
+        { toolCallId: undefined },
+      )
+    })
+
+    it('should work when onCustomEvent is not provided', async () => {
+      const chunks = createCustomEventChunks([
+        { name: 'some-event', value: { info: 'test' } },
+      ])
+      const adapter = createMockConnectionAdapter({ chunks })
+
+      const client = new ChatClient({
+        threadId: 'thread-1',
+        connection: adapter,
+      })
+
+      // Should not throw error when onCustomEvent is undefined
+      await expect(client.sendMessage('Test')).resolves.not.toThrow()
+    })
+
+    it('should allow updating onCustomEvent via updateOptions', async () => {
+      const chunks = createCustomEventChunks([
+        { name: 'test-event', value: { value: 42 } },
+      ])
+      const adapter = createMockConnectionAdapter({ chunks })
+
+      const client = new ChatClient({
+        threadId: 'thread-1',
+        connection: adapter,
+      })
+
+      const onCustomEvent = vi.fn()
+      client.updateOptions({ onCustomEvent })
+
+      await client.sendMessage('Test')
+
+      expect(onCustomEvent).toHaveBeenCalledWith(
+        'test-event',
+        { value: 42 },
+        { toolCallId: undefined },
+      )
+    })
+
+    it('should handle multiple different custom events in sequence', async () => {
+      const chunks = createCustomEventChunks([
+        { name: 'step-1', value: { stage: 'init' } },
+        { name: 'step-2', value: { stage: 'process', toolCallId: 'tc-1' } },
+        { name: 'step-3', value: { stage: 'complete' } },
+      ])
+      const adapter = createMockConnectionAdapter({ chunks })
+
+      const onCustomEvent = vi.fn()
+      const client = new ChatClient({
+        threadId: 'thread-1',
+        connection: adapter,
+        onCustomEvent,
+      })
+
+      await client.sendMessage('Multi-step process')
+
+      expect(onCustomEvent).toHaveBeenCalledTimes(3)
+      expect(onCustomEvent).toHaveBeenNthCalledWith(
+        1,
+        'step-1',
+        { stage: 'init' },
+        { toolCallId: undefined },
+      )
+      expect(onCustomEvent).toHaveBeenNthCalledWith(
+        2,
+        'step-2',
+        { stage: 'process', toolCallId: 'tc-1' },
+        { toolCallId: 'tc-1' },
+      )
+      expect(onCustomEvent).toHaveBeenNthCalledWith(
+        3,
+        'step-3',
+        { stage: 'complete' },
+        { toolCallId: undefined },
+      )
+    })
+
+    it('should preserve event data exactly as received from stream', async () => {
+      const complexEventData = {
+        nested: { object: { with: 'values' } },
+        array: [1, 2, 3],
+        null_value: null,
+        boolean: true,
+        number: 42,
+      }
+
+      const chunks = createCustomEventChunks([
+        { name: 'complex-data-event', value: complexEventData },
+      ])
+      const adapter = createMockConnectionAdapter({ chunks })
+
+      const onCustomEvent = vi.fn()
+      const client = new ChatClient({
+        threadId: 'thread-1',
+        connection: adapter,
+        onCustomEvent,
+      })
+
+      await client.sendMessage('Complex data test')
+
+      expect(onCustomEvent).toHaveBeenCalledWith(
+        'complex-data-event',
+        complexEventData,
+        { toolCallId: undefined },
+      )
+
+      // Verify the data object is preserved exactly
+      const actualData = onCustomEvent.mock.calls[0]?.[1]
+      expect(actualData).toEqual(complexEventData)
+      expect(actualData.nested.object.with).toBe('values')
+      expect(actualData.array).toEqual([1, 2, 3])
+      expect(actualData.null_value).toBeNull()
+    })
+  })
+
+  describe('concurrent runs and reconnect correctness', () => {
+    it('concurrent runs should not produce duplicate messages or corrupt content', async () => {
+      const { connection, push } = createPushableSubscribeConnection()
+      const finishedRunIds: Array<string> = []
+      const client = new ChatClient({
+        threadId: 'thread-1',
+        connection,
+        onChunk: (chunk) => {
+          if (
+            chunk.type === EventType.RUN_FINISHED &&
+            'runId' in chunk &&
+            typeof chunk.runId === 'string'
+          ) {
+            finishedRunIds.push(chunk.runId)
+          }
+        },
+      })
+
+      client.subscribe()
+      await vi.waitFor(() => {
+        expect(client.getIsSubscribed()).toBe(true)
+      })
+
+      push(
+        {
+          type: EventType.RUN_STARTED,
+          runId: 'run-a',
+          threadId: 'thread-1',
+          timestamp: Date.now(),
+        },
+        {
+          type: EventType.TEXT_MESSAGE_START,
+          messageId: 'msg-a',
+          role: 'assistant',
+          timestamp: Date.now(),
+        },
+        {
+          type: EventType.TEXT_MESSAGE_CONTENT,
+          messageId: 'msg-a',
+          timestamp: Date.now(),
+          delta: 'Story: ',
+        },
+      )
+
+      await vi.waitFor(() => {
+        expect(
+          client.getMessages().some((message) => message.id === 'msg-a'),
+        ).toBe(true)
+      })
+
+      push(
+        {
+          type: EventType.RUN_STARTED,
+          runId: 'run-b',
+          threadId: 'thread-1',
+          timestamp: Date.now(),
+        },
+        {
+          type: EventType.TEXT_MESSAGE_START,
+          messageId: 'msg-b',
+          role: 'assistant',
+          timestamp: Date.now(),
+        },
+        {
+          type: EventType.TEXT_MESSAGE_CONTENT,
+          messageId: 'msg-b',
+          timestamp: Date.now(),
+          delta: 'Hi!',
+        },
+      )
+
+      await vi.waitFor(() => {
+        expect(
+          client.getMessages().some((message) => message.id === 'msg-b'),
+        ).toBe(true)
+      })
+
+      push({
+        type: EventType.RUN_FINISHED,
+        runId: 'run-b',
+        threadId: 'thread-1',
+        model: 'test',
+        timestamp: Date.now(),
+        metadata: { tanstack: { finishReason: 'stop' } },
+      })
+
+      await vi.waitFor(() => {
+        expect(finishedRunIds).toContain('run-b')
+      })
+
+      push({
+        type: EventType.TEXT_MESSAGE_CONTENT,
+        messageId: 'msg-a',
+        timestamp: Date.now(),
+        delta: 'once upon a time',
+      })
+
+      await vi.waitFor(() => {
+        const msgA = client
+          .getMessages()
+          .find((message) => message.id === 'msg-a')
+        expect(msgA?.parts[0]).toEqual({
+          type: 'text',
+          content: 'Story: once upon a time',
+        })
+      })
+
+      const messages = client.getMessages()
+      const msgB = messages.find((message) => message.id === 'msg-b')
+      expect(msgB?.parts[0]).toEqual({ type: 'text', content: 'Hi!' })
+      expect(messages.filter((message) => message.id === 'msg-a')).toHaveLength(
+        1,
+      )
+      expect(messages.filter((message) => message.id === 'msg-b')).toHaveLength(
+        1,
+      )
+
+      push({
+        type: EventType.RUN_FINISHED,
+        runId: 'run-a',
+        threadId: 'thread-1',
+        model: 'test',
+        timestamp: Date.now(),
+        metadata: { tanstack: { finishReason: 'stop' } },
+      })
+
+      await vi.waitFor(() => {
+        expect(client.getSessionGenerating()).toBe(false)
+      })
+      client.unsubscribe()
+    })
+
+    it('reconnect with initialMessages should not duplicate assistant message on content arrival', async () => {
+      const { connection, push } = createPushableSubscribeConnection()
+
+      const initialMessages: Array<UIMessage> = [
+        {
+          id: 'user-1',
+          role: 'user',
+          parts: [{ type: 'text', content: 'Tell me a story' }],
+          createdAt: new Date(),
+        },
+        {
+          id: 'asst-1',
+          role: 'assistant',
+          parts: [{ type: 'text', content: 'Once upon a ' }],
+          createdAt: new Date(),
+        },
+      ]
+
+      const client = new ChatClient({
+        threadId: 'thread-1',
+        connection,
+        initialMessages,
+      })
+
+      client.subscribe()
+      await vi.waitFor(() => {
+        expect(client.getIsSubscribed()).toBe(true)
+      })
+
+      push(
+        {
+          type: EventType.RUN_STARTED,
+          runId: 'run-1',
+          threadId: 'thread-1',
+          timestamp: Date.now(),
+        },
+        {
+          type: EventType.TEXT_MESSAGE_CONTENT,
+          messageId: 'asst-1',
+          timestamp: Date.now(),
+          delta: 'time...',
+        },
+        {
+          type: EventType.RUN_FINISHED,
+          runId: 'run-1',
+          threadId: 'thread-1',
+          model: 'test',
+          timestamp: Date.now(),
+          metadata: { tanstack: { finishReason: 'stop' } },
+        },
+      )
+
+      await vi.waitFor(() => {
+        const asstMsg = client
+          .getMessages()
+          .find((message) => message.id === 'asst-1')
+        expect(asstMsg?.parts[0]).toEqual({
+          type: 'text',
+          content: 'Once upon a time...',
+        })
+      })
+
+      expect(client.getMessages()).toHaveLength(2)
+
+      client.unsubscribe()
+    })
+  })
+
+  describe('activity messages', () => {
+    it('surfaces ACTIVITY_SNAPSHOT and ACTIVITY_DELTA through getMessages', async () => {
+      const adapter = createMockConnectionAdapter({
+        chunks: [
+          {
+            type: EventType.ACTIVITY_SNAPSHOT,
+            messageId: 'act-1',
+            activityType: 'SEARCH',
+            content: { query: 'tanstack' },
+            timestamp: Date.now(),
+          },
+          {
+            type: EventType.ACTIVITY_DELTA,
+            messageId: 'act-1',
+            activityType: 'SEARCH',
+            patch: [{ op: 'add', path: '/hits', value: 3 }],
+            timestamp: Date.now(),
+          },
+          ...createTextChunks('done', 'asst-1'),
+        ],
+      })
+      const onMessagesChange = vi.fn()
+      const client = new ChatClient({
+        threadId: 'thread-1',
+        connection: adapter,
+        onMessagesChange,
+      })
+      await client.sendMessage('search')
+
+      const activity = client.getMessages().find((m) => m.role === 'activity')
+      expect(activity?.id).toBe('act-1')
+      const part = activity?.parts[0]
+      expect(part?.type).toBe('activity')
+      if (part?.type !== 'activity') throw new Error('expected activity part')
+      expect(part.activityType).toBe('SEARCH')
+      expect(part.content).toEqual({ query: 'tanstack', hits: 3 })
+      expect(client.getMessages().some((m) => m.role === 'assistant')).toBe(
+        true,
+      )
+      expect(
+        onMessagesChange.mock.calls.some((call) =>
+          call[0]?.some((m: UIMessage) => m.role === 'activity'),
+        ),
+      ).toBe(true)
+    })
+
+    it('does not send activity messages as model input on the next turn', async () => {
+      const sent: Array<Array<UIMessage | ModelMessage>> = []
+      const adapter = createMockConnectionAdapter({
+        chunks: [
+          {
+            type: EventType.ACTIVITY_SNAPSHOT,
+            messageId: 'act-1',
+            activityType: 'SEARCH',
+            content: { query: 'x' },
+            timestamp: Date.now(),
+          },
+          ...createTextChunks('ok', 'asst-1'),
+        ],
+        onConnect: (messages) => {
+          sent.push(messages)
+        },
+      })
+      const client = new ChatClient({
+        threadId: 'thread-1',
+        connection: adapter,
+      })
+      await client.sendMessage('one')
+      await client.sendMessage('two')
+
+      expect(client.getMessages().some((m) => m.role === 'activity')).toBe(true)
+      expect(sent.length).toBeGreaterThanOrEqual(2)
+      const second = sent[1] ?? []
+      expect(second.some((m) => 'role' in m && m.role === 'activity')).toBe(
+        false,
+      )
+    })
+
+    it('keeps an appended activity message without starting a run', async () => {
+      const onConnect = vi.fn()
+      const adapter = createMockConnectionAdapter({ onConnect })
+      const client = new ChatClient({
+        threadId: 'thread-1',
+        connection: adapter,
+      })
+      await client.append({
+        id: 'act-1',
+        role: 'activity',
+        parts: [
+          { type: 'activity', activityType: 'PLAN', content: { steps: [] } },
+        ],
+      })
+      expect(onConnect).not.toHaveBeenCalled()
+      const activity = client.getMessages()[0]
+      expect(activity?.role).toBe('activity')
+      expect(activity?.parts[0]).toEqual({
+        type: 'activity',
+        activityType: 'PLAN',
+        content: { steps: [] },
+      })
+    })
+
+    it('exposes initial activity messages', () => {
+      const adapter = createMockConnectionAdapter()
+      const client = new ChatClient({
+        threadId: 'thread-1',
+        connection: adapter,
+        initialMessages: [
+          {
+            id: 'act-1',
+            role: 'activity',
+            parts: [
+              {
+                type: 'activity',
+                activityType: 'STATUS',
+                content: { ok: true },
+              },
+            ],
+          },
+        ],
+      })
+      expect(client.getMessages()[0]?.role).toBe('activity')
+    })
+
+    it('hydrates a mixed transcript from persistence and omits activity on send', async () => {
+      const mixed: Array<UIMessage> = [
+        { id: 'u1', role: 'user', parts: [{ type: 'text', content: 'hi' }] },
+        {
+          id: 'act-1',
+          role: 'activity',
+          parts: [
+            {
+              type: 'activity',
+              activityType: 'SEARCH',
+              content: { query: 'tanstack' },
+            },
+          ],
+        },
+        {
+          id: 'a1',
+          role: 'assistant',
+          parts: [{ type: 'text', content: 'ok' }],
+        },
+      ]
+      const sent: Array<Array<UIMessage | ModelMessage>> = []
+      const adapter = createMockConnectionAdapter({
+        onConnect: (messages) => {
+          sent.push(messages)
+        },
+      })
+      const persistence = createPersistence(mixed)
+      const client = new ChatClient({
+        connection: adapter,
+        threadId: 'chat-1',
+        persistence,
+      })
+
+      expect(client.getMessages().map((m) => m.role)).toEqual([
+        'user',
+        'activity',
+        'assistant',
+      ])
+      const activity = client.getMessages()[1]
+      expect(activity?.id).toBe('act-1')
+      expect(activity?.parts[0]).toEqual({
+        type: 'activity',
+        activityType: 'SEARCH',
+        content: { query: 'tanstack' },
+      })
+
+      await client.sendMessage('next')
+      expect(sent).toHaveLength(1)
+      expect(sent[0]?.some((m) => 'role' in m && m.role === 'activity')).toBe(
+        false,
+      )
+    })
+
+    it('keeps persisted activity when a later MESSAGES_SNAPSHOT omits it', async () => {
+      const mixed: Array<UIMessage> = [
+        { id: 'u1', role: 'user', parts: [{ type: 'text', content: 'hi' }] },
+        {
+          id: 'act-1',
+          role: 'activity',
+          parts: [
+            {
+              type: 'activity',
+              activityType: 'SEARCH',
+              content: { query: 'keep-me' },
+            },
+          ],
+        },
+        {
+          id: 'a1',
+          role: 'assistant',
+          parts: [{ type: 'text', content: 'ok' }],
+        },
+      ]
+      const adapter = createMockConnectionAdapter({
+        chunks: [
+          {
+            type: EventType.MESSAGES_SNAPSHOT,
+            messages: [
+              { id: 'u1', role: 'user', content: 'hi' },
+              { id: 'a1', role: 'assistant', content: 'ok' },
+            ],
+            timestamp: Date.now(),
+          },
+          ...createTextChunks('done', 'asst-1'),
+        ],
+      })
+      const client = new ChatClient({
+        connection: adapter,
+        threadId: 'chat-1',
+        persistence: createPersistence(mixed),
+      })
+      await client.sendMessage('next')
+
+      const activity = client.getMessages().find((m) => m.role === 'activity')
+      expect(activity?.id).toBe('act-1')
+      const part = activity?.parts[0]
+      expect(part?.type).toBe('activity')
+      if (part?.type !== 'activity') throw new Error('expected activity part')
+      expect(part.content).toEqual({ query: 'keep-me' })
+    })
+
+    it('hydrates activity from an inbound MESSAGES_SNAPSHOT ActivityMessage', async () => {
+      const adapter = createMockConnectionAdapter({
+        chunks: [
+          {
+            type: EventType.MESSAGES_SNAPSHOT,
+            messages: [
+              { id: 'u1', role: 'user', content: 'hi' },
+              {
+                id: 'act-1',
+                role: 'activity',
+                activityType: 'SEARCH',
+                content: { query: 'tanstack' },
+              },
+              { id: 'a1', role: 'assistant', content: 'done' },
+            ],
+            timestamp: Date.now(),
+          },
+          ...createTextChunks('done', 'asst-1'),
+        ],
+      })
+      const client = new ChatClient({
+        threadId: 'thread-1',
+        connection: adapter,
+      })
+      await client.sendMessage('hi')
+
+      const activity = client.getMessages().find((m) => m.role === 'activity')
+      expect(activity?.id).toBe('act-1')
+      const part = activity?.parts[0]
+      expect(part?.type).toBe('activity')
+      if (part?.type !== 'activity') throw new Error('expected activity part')
+      expect(part.activityType).toBe('SEARCH')
+      expect(part.content).toEqual({ query: 'tanstack' })
+    })
+  })
+})

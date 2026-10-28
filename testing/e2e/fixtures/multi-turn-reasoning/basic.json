@@ -1,0 +1,54 @@
+{
+  "fixtures": [
+    {
+      "match": {
+        "userMessage": "[multi-turn-reasoning] recommend a beginner guitar",
+        "sequenceIndex": 0
+      },
+      "response": {
+        "reasoning": "The user wants a beginner guitar recommendation. I should inspect inventory with getGuitars before recommending anything.",
+        "toolCalls": [
+          {
+            "name": "getGuitars",
+            "arguments": "{}"
+          }
+        ]
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[multi-turn-reasoning] recommend a beginner guitar",
+        "sequenceIndex": 1
+      },
+      "response": {
+        "reasoning": "The inventory shows several premium guitars. The Fender Stratocaster is the lowest-priced and most versatile choice for a beginner.",
+        "content": "I recommend the Fender Stratocaster for a beginner. It is the most affordable guitar in stock at $1,299 and is versatile enough for many styles."
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[multi-turn-reasoning-followup] compare cheapest and premium",
+        "sequenceIndex": 0
+      },
+      "response": {
+        "reasoning": "The user is asking a follow-up, and I should use the inventory tool again to compare the cheapest and premium options from current data.",
+        "toolCalls": [
+          {
+            "name": "getGuitars",
+            "arguments": "{}"
+          }
+        ]
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[multi-turn-reasoning-followup] compare cheapest and premium",
+        "sequenceIndex": 1
+      },
+      "response": {
+        "reasoning": "The Fender Stratocaster is cheapest at $1,299, while the Taylor 814ce is the most premium by price at $3,299.",
+        "content": "The cheapest option is the Fender Stratocaster at $1,299. The premium option is the Taylor 814ce at $3,299, which is an acoustic-electric with exceptional clarity."
+      }
+    }
+  ]
+}

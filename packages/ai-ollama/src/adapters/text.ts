@@ -1,0 +1,667 @@
+import {
+  EventType,
+  isFileSource,
+  normalizeSystemPrompts,
+  unsupportedFileSourceError,
+} from '@tanstack/ai'
+import {
+  resolveReasoning,
+  tanstackMetadata,
+  toRunErrorPayload,
+  toRunErrorRawEvent,
+} from '@tanstack/ai/adapter-internals'
+import { BaseTextAdapter } from '@tanstack/ai/adapters'
+import { buildOllamaUsage } from '../usage'
+import { createOllamaClient, generateId, getOllamaHostFromEnv } from '../utils'
+import { convertToolsToProviderFormat } from '../tools/tool-converter'
+import { OLLAMA_MODEL_REASONING, OLLAMA_TEXT_MODELS } from '../model-meta'
+import type { OllamaClientConfig } from '../utils/client'
+
+import type {
+  OllamaChatModelOptionsByName,
+  OllamaModelReasoningByName,
+} from '../model-meta'
+import type {
+  StructuredOutputOptions,
+  StructuredOutputResult,
+} from '@tanstack/ai/adapters'
+import type { InternalLogger } from '@tanstack/ai/adapter-internals'
+import type {
+  AbortableAsyncIterator,
+  ChatRequest,
+  ChatResponse,
+  Message,
+  Ollama,
+  Tool as OllamaTool,
+  ToolCall,
+} from 'ollama'
+import type {
+  AdapterYieldChunk,
+  ModelReasoning,
+  ReasoningRequest,
+  TextOptions,
+  Tool,
+} from '@tanstack/ai'
+
+export type OllamaTextModel =
+  | (typeof OLLAMA_TEXT_MODELS)[number]
+  | (string & {})
+
+/**
+ * Resolve model options for a specific model.
+ * If the model has explicit options in the map, use those; otherwise use base options.
+ */
+type ResolveModelOptions<TModel extends string> =
+  TModel extends keyof OllamaChatModelOptionsByName
+    ? OllamaChatModelOptionsByName[TModel]
+    : Omit<ChatRequest, 'think'>
+
+/**
+ * The reasoning levels of a model, for `chat({ reasoning })`. A model name
+ * that this package does not list gets the common on/off toggle. `never`: a
+ * listed model that does not reason.
+ */
+type ResolveReasoning<TModel extends string> =
+  TModel extends keyof OllamaModelReasoningByName
+    ? OllamaModelReasoningByName[TModel]
+    : TModel extends keyof OllamaChatModelOptionsByName
+      ? never
+      : { levels: 'off' | 'high'; budget: false }
+
+/** The on/off toggle for a model name this package does not list. */
+const UNLISTED_MODEL_REASONING: ModelReasoning = {
+  levels: { off: 'false', high: 'true' },
+  budget: false,
+}
+
+const LISTED_MODELS: ReadonlySet<string> = new Set(OLLAMA_TEXT_MODELS)
+
+/**
+ * Ollama's `think` for `chat({ reasoning })`: `true` or `false` for a model
+ * with the on/off toggle, the level name for gpt-oss. A listed model with no
+ * reasoning data sends nothing.
+ */
+function ollamaThink(
+  request: ReasoningRequest | undefined,
+  model: string,
+): { think?: boolean | 'low' | 'medium' | 'high' } {
+  const reasoning =
+    OLLAMA_MODEL_REASONING[model] ??
+    (LISTED_MODELS.has(model) ? undefined : UNLISTED_MODEL_REASONING)
+  const value = resolveReasoning(request, reasoning)?.value
+  if (value === 'true' || value === 'false') return { think: value === 'true' }
+  if (value === 'low' || value === 'medium' || value === 'high') {
+    return { think: value }
+  }
+  return {}
+}
+
+export interface OllamaTextAdapterOptions {
+  model?: OllamaTextModel
+  host?: string
+}
+
+/**
+ * Default input modalities for Ollama models
+ */
+type OllamaInputModalities = readonly ['text', 'image']
+
+/**
+ * Default message metadata for Ollama
+ */
+type OllamaMessageMetadataByModality = {
+  text: unknown
+  image: unknown
+  audio: unknown
+  video: unknown
+  document: unknown
+}
+
+/**
+ * Ollama Text/Chat Adapter
+ * A tree-shakeable chat adapter for Ollama
+ *
+ * Note: Ollama supports any model name as a string since models are loaded dynamically.
+ * The predefined OllamaTextModels are common models but any string is accepted.
+ */
+export class OllamaTextAdapter<TModel extends string> extends BaseTextAdapter<
+  TModel,
+  ResolveModelOptions<TModel>,
+  OllamaInputModalities,
+  OllamaMessageMetadataByModality,
+  ReadonlyArray<string>,
+  unknown,
+  never,
+  ResolveReasoning<TModel>
+> {
+  override readonly kind = 'text' as const
+  readonly name = 'ollama' as const
+  override readonly api = 'ollama' as const
+
+  private readonly client: Ollama
+  /** The config of the adapter's own client. An injected client has none. */
+  private readonly clientConfig: OllamaClientConfig | undefined
+
+  constructor(
+    hostOrClientOrConfig: string | Ollama | OllamaClientConfig | undefined,
+    model: TModel,
+  ) {
+    super({}, model)
+    if (
+      typeof hostOrClientOrConfig === 'string' ||
+      hostOrClientOrConfig === undefined
+    ) {
+      this.clientConfig = { host: hostOrClientOrConfig }
+      this.client = createOllamaClient(this.clientConfig)
+    } else if ('chat' in hostOrClientOrConfig) {
+      // Ollama client instance (has a chat method)
+      this.client = hostOrClientOrConfig
+    } else {
+      // OllamaClientConfig object
+      this.clientConfig = hostOrClientOrConfig
+      this.client = createOllamaClient(hostOrClientOrConfig)
+    }
+  }
+
+  /**
+   * Use a client for one call whose fetch carries the caller's abort signal
+   * and goes through `wrapFetch`. `ollama` takes no per-call signal, and its
+   * own stream signal only backs `abort()`, which this adapter never calls.
+   */
+  private clientFor(options: TextOptions) {
+    const { wrapFetch } = options
+    const signal = options.request?.signal ?? undefined
+    if (!this.clientConfig || (!wrapFetch && !signal)) return this.client
+    const send = wrapFetch ? wrapFetch(fetch) : fetch
+    return createOllamaClient(
+      this.clientConfig,
+      signal ? (input, init) => send(input, { ...init, signal }) : send,
+    )
+  }
+
+  async *chatStream(
+    options: TextOptions<ResolveModelOptions<TModel>>,
+  ): AsyncIterable<AdapterYieldChunk> {
+    const mappedOptions = this.mapCommonOptionsToOllama(options)
+    const { logger } = options
+    const source = { provider: 'ollama', api: this.api, model: options.model }
+    try {
+      logger.request(
+        `activity=chat provider=ollama model=${this.model} messages=${options.messages.length} tools=${options.tools?.length ?? 0} stream=true`,
+        { provider: 'ollama', model: this.model },
+      )
+      const response = await this.clientFor(options).chat({
+        ...mappedOptions,
+        stream: true,
+      })
+      for await (const chunk of this.processOllamaStreamChunks(
+        response,
+        options,
+        logger,
+      )) {
+        yield {
+          ...chunk,
+          metadata: {
+            ...chunk.metadata,
+            tanstack: { ...tanstackMetadata(chunk), source },
+          },
+        }
+      }
+    } catch (error: unknown) {
+      const errorPayload = toRunErrorPayload(
+        error,
+        'An unknown error occurred during the chat stream.',
+      )
+      const rawEvent = toRunErrorRawEvent(error)
+      logger.errors('ollama.chatStream fatal', {
+        error,
+        source: 'ollama.chatStream',
+      })
+      yield {
+        type: EventType.RUN_ERROR,
+        metadata: { tanstack: { source } },
+        model: options.model,
+        timestamp: Date.now(),
+        message: errorPayload.message,
+        code: errorPayload.code,
+        ...(rawEvent !== undefined && { rawEvent }),
+        error: {
+          message: errorPayload.message,
+          code: errorPayload.code,
+        },
+      }
+    }
+  }
+
+  /**
+   * Generate structured output using Ollama's JSON format option.
+   * Uses format: 'json' with the schema to ensure structured output.
+   * The outputSchema is already JSON Schema (converted in the ai layer).
+   */
+  async structuredOutput(
+    options: StructuredOutputOptions<ResolveModelOptions<TModel>>,
+  ): Promise<StructuredOutputResult<unknown>> {
+    const { chatOptions, outputSchema } = options
+    const { logger } = chatOptions
+
+    const mappedOptions = this.mapCommonOptionsToOllama(chatOptions)
+
+    try {
+      logger.request(
+        `activity=chat provider=ollama model=${this.model} messages=${chatOptions.messages.length} tools=${chatOptions.tools?.length ?? 0} stream=false`,
+        { provider: 'ollama', model: this.model },
+      )
+      // Make non-streaming request with JSON format
+      const response = await this.clientFor(chatOptions).chat({
+        ...mappedOptions,
+        stream: false,
+        format: outputSchema,
+      })
+
+      // A response cut off at the output cap is a truncated JSON document;
+      // report it before the parse error (issue #1426).
+      if (response.done_reason === 'length') {
+        throw new Error(
+          'ollama.structuredOutput: the response was cut off because the maximum token limit was reached (done_reason=length); raise modelOptions.options.num_predict',
+        )
+      }
+
+      const rawText = response.message.content
+
+      // Parse the JSON response
+      let parsed: unknown
+      try {
+        parsed = JSON.parse(rawText)
+      } catch {
+        throw new Error(
+          `Failed to parse structured output as JSON. Content: ${rawText.slice(0, 200)}${rawText.length > 200 ? '...' : ''}`,
+        )
+      }
+
+      return {
+        data: parsed,
+        rawText,
+        usage: buildOllamaUsage(response),
+      }
+    } catch (error: unknown) {
+      const err = error as Error
+      logger.errors('ollama.structuredOutput fatal', {
+        error,
+        source: 'ollama.structuredOutput',
+      })
+      throw new Error(
+        `Structured output generation failed: ${err.message || 'Unknown error occurred'}`,
+      )
+    }
+  }
+
+  private async *processOllamaStreamChunks(
+    stream: AbortableAsyncIterator<ChatResponse>,
+    options: TextOptions,
+    logger: InternalLogger,
+  ): AsyncIterable<AdapterYieldChunk> {
+    let accumulatedContent = ''
+    const toolCallsEmitted = new Set<string>()
+
+    // AG-UI lifecycle tracking
+    const runId = options.runId ?? generateId('run')
+    const threadId = options.threadId
+    const messageId = generateId('msg')
+    let reasoningMessageId: string | null = null
+    let hasClosedReasoning = false
+    let hasEmittedRunStarted = false
+    let hasEmittedTextMessageStart = false
+
+    for await (const chunk of stream) {
+      logger.provider(`provider=ollama`, { chunk })
+      // Emit RUN_STARTED on first chunk
+      if (!hasEmittedRunStarted) {
+        hasEmittedRunStarted = true
+        yield {
+          type: EventType.RUN_STARTED,
+          runId,
+          threadId,
+          model: chunk.model,
+          timestamp: Date.now(),
+          parentRunId: options.parentRunId,
+        }
+      }
+
+      const handleToolCall = (toolCall: ToolCall): Array<AdapterYieldChunk> => {
+        const actualToolCall = toolCall as ToolCall & {
+          id: string
+          function: { index: number }
+        }
+        const toolCallId =
+          actualToolCall.id || `${actualToolCall.function.name}_${Date.now()}`
+        const events: Array<AdapterYieldChunk> = []
+
+        // Emit TOOL_CALL_START if not already emitted for this tool call
+        if (!toolCallsEmitted.has(toolCallId)) {
+          toolCallsEmitted.add(toolCallId)
+          events.push({
+            type: EventType.TOOL_CALL_START,
+            toolCallId,
+            toolCallName: actualToolCall.function.name || '',
+            parentMessageId: messageId,
+            model: chunk.model,
+            timestamp: Date.now(),
+            index: actualToolCall.function.index,
+          })
+        }
+
+        // Serialize arguments to a string for the TOOL_CALL_ARGS event
+        let parsedInput: unknown
+        const argsStr =
+          typeof actualToolCall.function.arguments === 'string'
+            ? actualToolCall.function.arguments
+            : JSON.stringify(actualToolCall.function.arguments)
+        try {
+          const parsed = JSON.parse(argsStr)
+          parsedInput = parsed && typeof parsed === 'object' ? parsed : {}
+        } catch {
+          // Leave input out. Core reports the malformed raw args.
+          parsedInput = undefined
+        }
+
+        // Emit TOOL_CALL_ARGS with full args (Ollama doesn't stream args incrementally)
+        events.push({
+          type: EventType.TOOL_CALL_ARGS,
+          toolCallId,
+          model: chunk.model,
+          timestamp: Date.now(),
+          delta: argsStr,
+          args: argsStr,
+        })
+
+        // Emit TOOL_CALL_END
+        events.push({
+          type: EventType.TOOL_CALL_END,
+          toolCallId,
+          toolCallName: actualToolCall.function.name || '',
+          model: chunk.model,
+          timestamp: Date.now(),
+          args: argsStr,
+          ...(parsedInput !== undefined && { input: parsedInput }),
+        })
+
+        return events
+      }
+
+      if (chunk.done) {
+        if (chunk.message.tool_calls && chunk.message.tool_calls.length > 0) {
+          for (const toolCall of chunk.message.tool_calls) {
+            const events = handleToolCall(toolCall)
+            for (const event of events) {
+              yield event
+            }
+          }
+        }
+
+        // Close reasoning events if still open
+        if (reasoningMessageId && !hasClosedReasoning) {
+          hasClosedReasoning = true
+          yield {
+            type: EventType.REASONING_MESSAGE_END,
+            messageId: reasoningMessageId,
+            model: chunk.model,
+            timestamp: Date.now(),
+          }
+          yield {
+            type: EventType.REASONING_END,
+            messageId: reasoningMessageId,
+            model: chunk.model,
+            timestamp: Date.now(),
+          }
+        }
+
+        // Emit TEXT_MESSAGE_END if we had text content
+        if (hasEmittedTextMessageStart) {
+          yield {
+            type: EventType.TEXT_MESSAGE_END,
+            messageId,
+            model: chunk.model,
+            timestamp: Date.now(),
+          }
+        }
+
+        const finishUsage = buildOllamaUsage(chunk)
+        yield {
+          type: EventType.RUN_FINISHED,
+          runId,
+          threadId,
+          model: chunk.model,
+          timestamp: Date.now(),
+          finishReason: toolCallsEmitted.size > 0 ? 'tool_calls' : 'stop',
+          // usage is optional under exactOptionalPropertyTypes; omit the key
+          // entirely when Ollama reported no token counts.
+          ...(finishUsage && { usage: finishUsage }),
+        }
+        continue
+      }
+
+      if (chunk.message.content) {
+        // Close reasoning before text starts
+        if (reasoningMessageId && !hasClosedReasoning) {
+          hasClosedReasoning = true
+          yield {
+            type: EventType.REASONING_MESSAGE_END,
+            messageId: reasoningMessageId,
+            model: chunk.model,
+            timestamp: Date.now(),
+          }
+          yield {
+            type: EventType.REASONING_END,
+            messageId: reasoningMessageId,
+            model: chunk.model,
+            timestamp: Date.now(),
+          }
+        }
+
+        // Emit TEXT_MESSAGE_START on first text content
+        if (!hasEmittedTextMessageStart) {
+          hasEmittedTextMessageStart = true
+          yield {
+            type: EventType.TEXT_MESSAGE_START,
+            messageId,
+            model: chunk.model,
+            timestamp: Date.now(),
+            role: 'assistant',
+          }
+        }
+
+        accumulatedContent += chunk.message.content
+        yield {
+          type: EventType.TEXT_MESSAGE_CONTENT,
+          messageId,
+          model: chunk.model,
+          timestamp: Date.now(),
+          delta: chunk.message.content,
+          content: accumulatedContent,
+        }
+      }
+
+      if (chunk.message.tool_calls && chunk.message.tool_calls.length > 0) {
+        for (const toolCall of chunk.message.tool_calls) {
+          const events = handleToolCall(toolCall)
+          for (const event of events) {
+            yield event
+          }
+        }
+      }
+
+      if (chunk.message.thinking) {
+        // Emit REASONING start events on first thinking content
+        if (!reasoningMessageId) {
+          reasoningMessageId = generateId('msg')
+
+          // Spec REASONING events
+          yield {
+            type: EventType.REASONING_START,
+            messageId: reasoningMessageId,
+            model: chunk.model,
+            timestamp: Date.now(),
+          }
+          yield {
+            type: EventType.REASONING_MESSAGE_START,
+            messageId: reasoningMessageId,
+            role: 'reasoning' as const,
+            model: chunk.model,
+            timestamp: Date.now(),
+          }
+        }
+
+        // Spec REASONING content event
+        yield {
+          type: EventType.REASONING_MESSAGE_CONTENT,
+          messageId: reasoningMessageId,
+          delta: chunk.message.thinking,
+          model: chunk.model,
+          timestamp: Date.now(),
+        }
+      }
+    }
+  }
+
+  private convertToolsToOllamaFormat(
+    tools?: Array<Tool>,
+  ): Array<OllamaTool> | undefined {
+    return convertToolsToProviderFormat(tools)
+  }
+
+  private formatMessages(messages: TextOptions['messages']): Array<Message> {
+    return messages.map((msg) => {
+      let textContent = ''
+      const images: Array<string> = []
+
+      if (Array.isArray(msg.content)) {
+        for (const part of msg.content) {
+          if (part.type === 'text') {
+            textContent += part.content
+          } else if (part.type === 'image') {
+            if (isFileSource(part.source)) {
+              throw unsupportedFileSourceError(this.name)
+            }
+            images.push(part.source.value)
+          }
+        }
+      } else {
+        textContent = msg.content || ''
+      }
+
+      const hasToolCallId = msg.role === 'tool' && msg.toolCallId
+      return {
+        role: hasToolCallId ? 'tool' : msg.role,
+        content: hasToolCallId
+          ? typeof msg.content === 'string'
+            ? msg.content
+            : JSON.stringify(msg.content)
+          : textContent,
+        ...(images.length > 0 ? { images } : {}),
+        ...(msg.role === 'assistant' &&
+        msg.toolCalls &&
+        msg.toolCalls.length > 0
+          ? {
+              tool_calls: msg.toolCalls.map((toolCall) => {
+                let parsedArguments: Record<string, unknown> = {}
+                if (typeof toolCall.function.arguments === 'string') {
+                  try {
+                    parsedArguments = JSON.parse(
+                      toolCall.function.arguments,
+                    ) as Record<string, unknown>
+                  } catch {
+                    parsedArguments = {}
+                  }
+                } else {
+                  // ToolCall.function.arguments is typed as string; this
+                  // branch is a defensive runtime guard. Fall back to {} to
+                  // avoid an unsound cast that would let a non-record value
+                  // through.
+                  parsedArguments = {}
+                }
+
+                return {
+                  id: toolCall.id,
+                  type: toolCall.type,
+                  function: {
+                    name: toolCall.function.name,
+                    arguments: parsedArguments,
+                  },
+                }
+              }),
+            }
+          : {}),
+      }
+    })
+  }
+
+  private mapCommonOptionsToOllama(
+    options: TextOptions<ResolveModelOptions<TModel>>,
+  ): ChatRequest {
+    const model = options.model
+    const modelOptions = options.modelOptions
+
+    const formattedMessages = this.formatMessages(options.messages)
+
+    const prompts = normalizeSystemPrompts(options.systemPrompts)
+    if (prompts.length > 0) {
+      formattedMessages.unshift({
+        role: 'system',
+        content: prompts.map((p) => p.content).join('\n'),
+      })
+    }
+
+    const convertedTools = this.convertToolsToOllamaFormat(options.tools)
+
+    return {
+      model,
+      messages: formattedMessages,
+      // Sampling and runner params (temperature, top_p, num_predict, top_k,
+      // seed, penalties, etc.) live under the nested `options` key — the same
+      // shape the Ollama SDK's ChatRequest.options expects. Spreading a fresh
+      // object avoids aliasing the caller's modelOptions.options.
+      options: { ...modelOptions?.options },
+      // Request-level fields the nested modelOptions surface exposes
+      // (OllamaChatRequest): format / keep_alive / logprobs / top_logprobs.
+      // Read structurally and only forwarded when present. `stream` is set by
+      // the call sites (chatStream / structuredOutput), so it is not forwarded.
+      // `think` comes from `chat({ reasoning })`.
+      ...(modelOptions?.format !== undefined && {
+        format: modelOptions.format,
+      }),
+      ...(modelOptions?.keep_alive !== undefined && {
+        keep_alive: modelOptions.keep_alive,
+      }),
+      ...(modelOptions?.logprobs !== undefined && {
+        logprobs: modelOptions.logprobs,
+      }),
+      ...(modelOptions?.top_logprobs !== undefined && {
+        top_logprobs: modelOptions.top_logprobs,
+      }),
+      ...ollamaThink(options.reasoning, model),
+      ...(convertedTools !== undefined && { tools: convertedTools }),
+    }
+  }
+}
+
+/**
+ * Creates an Ollama chat adapter with explicit host and optional config.
+ * Type resolution happens here at the call site.
+ */
+export function createOllamaChat<TModel extends string>(
+  model: TModel,
+  hostOrConfig?: string | OllamaClientConfig,
+): OllamaTextAdapter<TModel> {
+  return new OllamaTextAdapter(hostOrConfig, model)
+}
+
+/**
+ * Creates an Ollama text adapter with host from environment.
+ * Type resolution happens here at the call site.
+ */
+export function ollamaText<TModel extends string>(
+  model: TModel,
+): OllamaTextAdapter<TModel> {
+  const host = getOllamaHostFromEnv()
+  return new OllamaTextAdapter(host, model)
+}

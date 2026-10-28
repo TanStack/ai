@@ -1,0 +1,1246 @@
+import { describe, expect, it, vi } from 'vitest'
+import {
+  EventType,
+  INTERRUPT_BINDING_VERSION,
+  convertSchemaToJsonSchema,
+  digestInterruptJson,
+  canonicalInterruptJson,
+  hashSchemaInput,
+  toolDefinition,
+} from '@tanstack/ai/client'
+import { z } from 'zod'
+import { ChatClient } from '../src/chat-client'
+import type {
+  ConnectConnectionAdapter,
+  RunAgentInputContext,
+} from '../src/connection-adapters'
+import type {
+  ModelMessage,
+  RunAgentResumeItem,
+  StreamChunk,
+} from '@tanstack/ai/client'
+import type { UIMessage } from '../src/types'
+
+/**
+ * Adapter that records each connect's runContext and yields scripted chunks.
+ * A script can be a function of the live `runContext` (so a test can emit a
+ * RUN_FINISHED carrying the same runId the client generated and passed in).
+ */
+interface ThrowingScript {
+  chunks: Array<StreamChunk>
+  error: Error
+}
+
+type ScriptResult = Array<StreamChunk> | ThrowingScript
+type Script =
+  | ScriptResult
+  | ((ctx: RunAgentInputContext | undefined) => ScriptResult)
+
+function recordingAdapter(scripts: Array<Script>) {
+  const contexts: Array<RunAgentInputContext | undefined> = []
+  const sentMessages: Array<Array<ModelMessage> | Array<UIMessage>> = []
+  let i = 0
+  const adapter: ConnectConnectionAdapter = {
+    // eslint-disable-next-line @typescript-eslint/require-await
+    async *connect(messages, _data, _signal, runContext) {
+      sentMessages.push(messages)
+      contexts.push(runContext)
+      const script = scripts[i]
+      i++
+      const result =
+        typeof script === 'function' ? script(runContext) : (script ?? [])
+      const chunks = Array.isArray(result) ? result : result.chunks
+      for (const c of chunks) yield c
+      if (!Array.isArray(result)) throw result.error
+    },
+  }
+  return { adapter, contexts, sentMessages }
+}
+
+async function createInterruptedClient(continuation: Script) {
+  const { adapter } = recordingAdapter([
+    (ctx) => [
+      {
+        type: EventType.RUN_STARTED,
+        runId: ctx?.runId ?? 'interrupted-run',
+        threadId: ctx?.threadId ?? 'thread-1',
+        timestamp: Date.now(),
+      },
+      {
+        type: EventType.RUN_FINISHED,
+        runId: ctx?.runId ?? 'interrupted-run',
+        threadId: ctx?.threadId ?? 'thread-1',
+        timestamp: Date.now(),
+        outcome: {
+          type: 'interrupt',
+          // A bound generic interrupt so resolveInterrupt() can drive resume.
+          interrupts: [
+            {
+              id: 'interrupt-1',
+              reason: 'confirmation',
+              metadata: {
+                'tanstack:interruptBinding': {
+                  v: INTERRUPT_BINDING_VERSION,
+                  kind: 'generic',
+                  interruptId: 'interrupt-1',
+                  interruptedRunId: ctx?.runId ?? 'interrupted-run',
+                  generation: 0,
+                  responseSchemaHash: 'none',
+                },
+              },
+            },
+          ],
+        },
+      },
+    ],
+    continuation,
+  ])
+  const client = new ChatClient({ connection: adapter, threadId: 'thread-1' })
+  await client.sendMessage('hi')
+  return client
+}
+
+function resolveGenericInterrupt(client: ChatClient): void {
+  const interrupt = client.getInterrupts()[0]
+  if (interrupt?.kind !== 'generic') {
+    throw new Error('Expected a generic interrupt')
+  }
+  interrupt.resolveInterrupt({ answer: 'continue' })
+}
+
+const text = (delta: string): StreamChunk => ({
+  type: EventType.TEXT_MESSAGE_CONTENT,
+  messageId: 'm1',
+  timestamp: Date.now(),
+  delta,
+})
+const runStarted: StreamChunk = {
+  type: EventType.RUN_STARTED,
+  runId: 'run-1',
+  threadId: 'thread-1',
+  timestamp: Date.now(),
+}
+
+describe('ChatClient resume', () => {
+  it('tracks the run/thread of an interrupted run', async () => {
+    const { adapter, contexts } = recordingAdapter([
+      [
+        runStarted,
+        text('a'),
+        text('b'),
+        {
+          type: EventType.RUN_FINISHED,
+          runId: 'run-1',
+          threadId: 'thread-1',
+          timestamp: Date.now(),
+          outcome: {
+            type: 'interrupt',
+            interrupts: [{ id: 'interrupt-1', reason: 'client_tool_input' }],
+          },
+        },
+      ],
+    ])
+    const client = new ChatClient({ threadId: 'thread-1', connection: adapter })
+    await client.append({
+      id: 'u1',
+      role: 'user',
+      parts: [{ type: 'text', content: 'hi' }],
+      createdAt: new Date(),
+    })
+
+    const state = client.getResumeState()
+    expect(state).not.toBeNull()
+    expect(state?.threadId).toBe('thread-1')
+    expect(state?.runId).toBe(contexts[0]?.runId)
+    expect(state).not.toHaveProperty('cursor')
+  })
+
+  it('clears resume state once the run finishes', async () => {
+    const { adapter } = recordingAdapter([
+      (ctx) => [
+        runStarted,
+        text('a'),
+        {
+          type: EventType.RUN_FINISHED,
+          runId: ctx?.runId ?? 'run-1',
+          threadId: 'thread-1',
+          timestamp: Date.now(),
+          metadata: { tanstack: { finishReason: 'stop' } },
+        },
+      ],
+    ])
+    const client = new ChatClient({ threadId: 'thread-1', connection: adapter })
+    await client.append({
+      id: 'u1',
+      role: 'user',
+      parts: [{ type: 'text', content: 'hi' }],
+      createdAt: new Date(),
+    })
+    expect(client.getResumeState()).toBeNull()
+  })
+
+  it('reports the current run id for an ordinary run and clears it on finish', async () => {
+    const seen: Array<string | null> = []
+    const { adapter, contexts } = recordingAdapter([
+      (ctx) => [
+        runStarted,
+        text('a'),
+        {
+          type: EventType.RUN_FINISHED,
+          runId: ctx?.runId ?? 'run-1',
+          threadId: 'thread-1',
+          timestamp: Date.now(),
+          metadata: { tanstack: { finishReason: 'stop' } },
+        },
+      ],
+    ])
+    const client = new ChatClient({
+      threadId: 'thread-1',
+      connection: adapter,
+      onRunIdChange: (runId) => seen.push(runId),
+    })
+    expect(client.getCurrentRunId()).toBeNull()
+
+    await client.append({
+      id: 'u1',
+      role: 'user',
+      parts: [{ type: 'text', content: 'hi' }],
+      createdAt: new Date(),
+    })
+
+    // A run with no interrupt leaves no resume state, but its id was still
+    // reported while it was in flight, then cleared when it settled.
+    expect(client.getResumeState()).toBeNull()
+    expect(client.getCurrentRunId()).toBeNull()
+    expect(seen).toEqual([contexts[0]?.runId, null])
+  })
+
+  it('preserves resume state and tracks pending interrupts on interrupt terminal', async () => {
+    const { adapter } = recordingAdapter([
+      (ctx) => [
+        {
+          type: EventType.RUN_STARTED,
+          runId: ctx?.runId ?? 'run-1',
+          threadId: ctx?.threadId ?? 'thread-1',
+          timestamp: Date.now(),
+        },
+        text('a'),
+        {
+          type: EventType.RUN_FINISHED,
+          runId: ctx?.runId ?? 'run-1',
+          threadId: ctx?.threadId ?? 'thread-1',
+          timestamp: Date.now(),
+          outcome: {
+            type: 'interrupt',
+            interrupts: [
+              {
+                id: 'interrupt-1',
+                reason: 'approval_required',
+                toolCallId: 'tool-1',
+                metadata: { kind: 'approval' },
+              },
+            ],
+          },
+        },
+      ],
+    ])
+    const client = new ChatClient({ connection: adapter, threadId: 'thread-1' })
+
+    await client.sendMessage('hi')
+
+    expect(client.getResumeState()).toEqual({
+      threadId: 'thread-1',
+      runId: expect.any(String),
+    })
+    expect(client.getInterrupts()).toEqual([
+      expect.objectContaining({ id: 'interrupt-1' }),
+    ])
+  })
+
+  it('resumeInterruptsUnsafe sends AG-UI resume entries with the interrupted run context', async () => {
+    const resumeItems: Array<RunAgentResumeItem> = [
+      {
+        interruptId: 'interrupt-1',
+        status: 'resolved',
+        payload: { approved: true },
+      },
+    ]
+    const { adapter, contexts } = recordingAdapter([
+      (ctx) => [
+        {
+          type: EventType.RUN_STARTED,
+          runId: ctx?.runId ?? 'run-1',
+          threadId: ctx?.threadId ?? 'thread-1',
+          timestamp: Date.now(),
+        },
+        text('a'),
+        {
+          type: EventType.RUN_FINISHED,
+          runId: ctx?.runId ?? 'run-1',
+          threadId: ctx?.threadId ?? 'thread-1',
+          timestamp: Date.now(),
+          outcome: {
+            type: 'interrupt',
+            interrupts: [
+              {
+                id: 'interrupt-1',
+                reason: 'approval_required',
+                metadata: { kind: 'approval' },
+              },
+            ],
+          },
+        },
+      ],
+      (ctx) => [
+        {
+          type: EventType.RUN_FINISHED,
+          runId: ctx?.runId ?? 'run-1',
+          threadId: ctx?.threadId ?? 'thread-1',
+          timestamp: Date.now(),
+          outcome: { type: 'success' },
+        },
+      ],
+    ])
+    const client = new ChatClient({ connection: adapter, threadId: 'thread-1' })
+
+    await client.sendMessage('hi')
+    const resumeState = client.getResumeState()
+    await client.resumeInterruptsUnsafe(resumeItems)
+
+    expect(contexts[1]?.threadId).toBe(resumeState?.threadId)
+    expect(contexts[1]?.runId).not.toBe(resumeState?.runId)
+    expect(contexts[1]?.parentRunId).toBe(resumeState?.runId)
+    expect(contexts[1]?.resume).toEqual(resumeItems)
+    expect(client.getInterrupts()).toEqual([])
+    expect(client.getResumeState()).toBeNull()
+  })
+
+  it('clears interrupts when a resumed provider run has a different run id', async () => {
+    const resumeItems: Array<RunAgentResumeItem> = [
+      {
+        interruptId: 'interrupt-1',
+        status: 'resolved',
+        payload: { approved: true },
+      },
+    ]
+    const { adapter, contexts } = recordingAdapter([
+      (ctx) => [
+        {
+          type: EventType.RUN_STARTED,
+          runId: ctx?.runId ?? 'run-1',
+          threadId: ctx?.threadId ?? 'thread-1',
+          timestamp: Date.now(),
+        },
+        {
+          type: EventType.RUN_FINISHED,
+          runId: ctx?.runId ?? 'run-1',
+          threadId: ctx?.threadId ?? 'thread-1',
+          timestamp: Date.now(),
+          outcome: {
+            type: 'interrupt',
+            interrupts: [{ id: 'interrupt-1', reason: 'client_tool_input' }],
+          },
+        },
+      ],
+      [
+        {
+          type: EventType.RUN_STARTED,
+          runId: 'provider-continuation-run',
+          threadId: 'thread-1',
+          timestamp: Date.now(),
+        },
+        {
+          type: EventType.RUN_FINISHED,
+          runId: 'provider-continuation-run',
+          threadId: 'thread-1',
+          timestamp: Date.now(),
+          outcome: { type: 'success' },
+        },
+      ],
+    ])
+    const client = new ChatClient({ connection: adapter, threadId: 'thread-1' })
+
+    await client.sendMessage('hi')
+    expect(client.getInterrupts()).toHaveLength(1)
+
+    await client.resumeInterruptsUnsafe(resumeItems)
+
+    expect(contexts[1]?.runId).not.toBe('provider-continuation-run')
+    expect(client.getResumeState()).toBeNull()
+    expect(client.getInterrupts()).toEqual([])
+  })
+
+  it('correlates a synthesized resume finish to the client request run', async () => {
+    const client = await createInterruptedClient([
+      {
+        type: EventType.RUN_STARTED,
+        runId: 'provider-continuation-run',
+        threadId: 'thread-1',
+        timestamp: Date.now(),
+      },
+    ])
+
+    resolveGenericInterrupt(client)
+
+    // Wait for the full settle — interrupts are hidden while status is
+    // `submitting`, so an empty list alone is not a terminal signal.
+    await vi.waitFor(() => {
+      expect(client.getInterrupts()).toEqual([])
+      expect(client.getResumeState()).toBeNull()
+      expect(client.getSessionGenerating()).toBe(false)
+    })
+  })
+
+  it('correlates a synthesized resume error to the client request run', async () => {
+    const client = await createInterruptedClient({
+      chunks: [
+        {
+          type: EventType.RUN_STARTED,
+          runId: 'provider-continuation-run',
+          threadId: 'thread-1',
+          timestamp: Date.now(),
+        },
+      ],
+      error: new Error('continuation transport failed'),
+    })
+
+    resolveGenericInterrupt(client)
+
+    await vi.waitFor(() => {
+      expect(client.getInterrupts()[0]?.status).toBe('error')
+      expect(client.getResumeState()).not.toBeNull()
+      expect(client.getSessionGenerating()).toBe(false)
+    })
+  })
+
+  it('resumeInterruptsUnsafe reconnects with the full current message history', async () => {
+    const resumeItems: Array<RunAgentResumeItem> = [
+      {
+        interruptId: 'interrupt-1',
+        status: 'resolved',
+        payload: { value: 'ok' },
+      },
+    ]
+    const { adapter, contexts, sentMessages } = recordingAdapter([
+      (ctx) => [
+        {
+          type: EventType.RUN_STARTED,
+          runId: ctx?.runId ?? 'run-1',
+          threadId: ctx?.threadId ?? 'thread-1',
+          timestamp: Date.now(),
+        },
+        text('a'),
+        {
+          type: EventType.RUN_FINISHED,
+          runId: ctx?.runId ?? 'run-1',
+          threadId: ctx?.threadId ?? 'thread-1',
+          timestamp: Date.now(),
+          outcome: {
+            type: 'interrupt',
+            interrupts: [{ id: 'interrupt-1', reason: 'client_tool_input' }],
+          },
+        },
+      ],
+      [],
+    ])
+    const client = new ChatClient({ connection: adapter, threadId: 'thread-1' })
+
+    await client.sendMessage('hi')
+    expect(sentMessages[0]).toHaveLength(1)
+
+    await client.resumeInterruptsUnsafe(resumeItems)
+
+    expect(contexts[1]?.resume).toEqual(resumeItems)
+    expect(sentMessages[1]).not.toEqual([])
+    expect(sentMessages[1]).toEqual(client.getMessages())
+  })
+
+  it('clears resume state and pending interrupts on a runless RUN_ERROR', async () => {
+    const { adapter } = recordingAdapter([
+      (ctx) => [
+        {
+          type: EventType.RUN_STARTED,
+          runId: ctx?.runId ?? 'run-1',
+          threadId: ctx?.threadId ?? 'thread-1',
+          timestamp: Date.now(),
+        },
+        text('a'),
+        {
+          type: EventType.RUN_FINISHED,
+          runId: ctx?.runId ?? 'run-1',
+          threadId: ctx?.threadId ?? 'thread-1',
+          timestamp: Date.now(),
+          outcome: {
+            type: 'interrupt',
+            interrupts: [{ id: 'interrupt-1', reason: 'client_tool_input' }],
+          },
+        },
+      ],
+      [
+        {
+          type: EventType.RUN_FINISHED,
+          runId: 'fresh-send-run',
+          threadId: 'thread-1',
+          timestamp: Date.now(),
+          outcome: { type: 'success' },
+        },
+      ],
+    ])
+    const client = new ChatClient({ connection: adapter, threadId: 'thread-1' })
+
+    await client.sendMessage('hi')
+    expect(client.getInterrupts()).toHaveLength(1)
+    ;(
+      client as unknown as {
+        observeInterruptState: (chunk: StreamChunk) => void
+      }
+    ).observeInterruptState({
+      type: EventType.RUN_ERROR,
+      message: 'session failed',
+      timestamp: Date.now(),
+    })
+
+    expect(client.getResumeState()).toBeNull()
+    expect(client.getInterrupts()).toEqual([])
+    await expect(client.sendMessage('fresh')).resolves.toBeUndefined()
+  })
+
+  it('blocks normal input while interrupts are pending', async () => {
+    const { adapter, contexts } = recordingAdapter([
+      (ctx) => [
+        {
+          type: EventType.RUN_STARTED,
+          runId: ctx?.runId ?? 'run-1',
+          threadId: ctx?.threadId ?? 'thread-1',
+          timestamp: Date.now(),
+        },
+        text('a'),
+        {
+          type: EventType.RUN_FINISHED,
+          runId: ctx?.runId ?? 'run-1',
+          threadId: ctx?.threadId ?? 'thread-1',
+          timestamp: Date.now(),
+          outcome: {
+            type: 'interrupt',
+            interrupts: [{ id: 'interrupt-1', reason: 'client_tool_input' }],
+          },
+        },
+      ],
+    ])
+    const client = new ChatClient({ threadId: 'thread-1', connection: adapter })
+
+    await client.sendMessage('hi')
+    await expect(client.sendMessage('blocked')).rejects.toThrow(
+      'pending interrupts',
+    )
+    await expect(
+      client.append({
+        id: 'u2',
+        role: 'user',
+        parts: [{ type: 'text', content: 'blocked' }],
+        createdAt: new Date(),
+      }),
+    ).rejects.toThrow('pending interrupts')
+
+    expect(contexts).toHaveLength(1)
+  })
+
+  it('keeps pending interrupts when an unrelated run finishes', async () => {
+    const { adapter, contexts } = recordingAdapter([
+      (ctx) => [
+        {
+          type: EventType.RUN_STARTED,
+          runId: ctx?.runId ?? 'run-a',
+          threadId: ctx?.threadId ?? 'thread-1',
+          timestamp: Date.now(),
+        },
+        text('a'),
+        {
+          type: EventType.RUN_FINISHED,
+          runId: ctx?.runId ?? 'run-a',
+          threadId: ctx?.threadId ?? 'thread-1',
+          timestamp: Date.now(),
+          outcome: {
+            type: 'interrupt',
+            interrupts: [{ id: 'interrupt-a', reason: 'client_tool_input' }],
+          },
+        },
+      ],
+    ])
+    const client = new ChatClient({ connection: adapter, threadId: 'thread-1' })
+
+    await client.sendMessage('hi')
+    expect(client.getInterrupts()).toHaveLength(1)
+    ;(
+      client as unknown as {
+        observeInterruptState: (chunk: StreamChunk) => void
+      }
+    ).observeInterruptState({
+      type: EventType.RUN_FINISHED,
+      runId: 'run-b',
+      threadId: 'thread-1',
+      timestamp: Date.now(),
+      outcome: { type: 'success' },
+    })
+
+    expect(client.getInterrupts()).toEqual([
+      expect.objectContaining({ id: 'interrupt-a' }),
+    ])
+    expect(client.getResumeState()?.runId).not.toBe('run-b')
+    await expect(client.sendMessage('blocked')).rejects.toThrow(
+      'pending interrupts',
+    )
+    expect(contexts).toHaveLength(1)
+  })
+
+  it('keeps pending interrupts when an unrelated run starts and finishes', async () => {
+    const { adapter, contexts } = recordingAdapter([
+      (ctx) => [
+        {
+          type: EventType.RUN_STARTED,
+          runId: ctx?.runId ?? 'run-a',
+          threadId: ctx?.threadId ?? 'thread-1',
+          timestamp: Date.now(),
+        },
+        text('a'),
+        {
+          type: EventType.RUN_FINISHED,
+          runId: ctx?.runId ?? 'run-a',
+          threadId: ctx?.threadId ?? 'thread-1',
+          timestamp: Date.now(),
+          outcome: {
+            type: 'interrupt',
+            interrupts: [{ id: 'interrupt-a', reason: 'client_tool_input' }],
+          },
+        },
+      ],
+    ])
+    const client = new ChatClient({ connection: adapter, threadId: 'thread-1' })
+
+    await client.sendMessage('hi')
+    const interruptedState = client.getResumeState()
+    expect(client.getInterrupts()).toHaveLength(1)
+    const internals = client as unknown as {
+      updateRunLifecycle: (chunk: StreamChunk) => void
+      observeInterruptState: (chunk: StreamChunk) => void
+    }
+    internals.updateRunLifecycle({
+      type: EventType.RUN_STARTED,
+      runId: 'run-b',
+      threadId: 'thread-1',
+      timestamp: Date.now(),
+    })
+    internals.observeInterruptState({
+      type: EventType.RUN_FINISHED,
+      runId: 'run-b',
+      threadId: 'thread-1',
+      timestamp: Date.now(),
+      outcome: { type: 'success' },
+    })
+
+    expect(client.getResumeState()).toEqual(interruptedState)
+    expect(client.getInterrupts()).toEqual([
+      expect.objectContaining({ id: 'interrupt-a' }),
+    ])
+    await expect(client.sendMessage('blocked')).rejects.toThrow(
+      'pending interrupts',
+    )
+    expect(contexts).toHaveLength(1)
+  })
+
+  it('keeps pending interrupts when an unrelated run errors', async () => {
+    const { adapter, contexts } = recordingAdapter([
+      (ctx) => [
+        {
+          type: EventType.RUN_STARTED,
+          runId: ctx?.runId ?? 'run-a',
+          threadId: ctx?.threadId ?? 'thread-1',
+          timestamp: Date.now(),
+        },
+        text('a'),
+        {
+          type: EventType.RUN_FINISHED,
+          runId: ctx?.runId ?? 'run-a',
+          threadId: ctx?.threadId ?? 'thread-1',
+          timestamp: Date.now(),
+          outcome: {
+            type: 'interrupt',
+            interrupts: [{ id: 'interrupt-a', reason: 'client_tool_input' }],
+          },
+        },
+      ],
+    ])
+    const client = new ChatClient({ connection: adapter, threadId: 'thread-1' })
+
+    await client.sendMessage('hi')
+    expect(client.getInterrupts()).toHaveLength(1)
+    ;(
+      client as unknown as {
+        observeInterruptState: (chunk: StreamChunk) => void
+      }
+    ).observeInterruptState({
+      type: EventType.RUN_ERROR,
+      runId: 'run-b',
+      message: 'unrelated failure',
+      timestamp: Date.now(),
+    })
+
+    expect(client.getInterrupts()).toEqual([
+      expect.objectContaining({ id: 'interrupt-a' }),
+    ])
+    await expect(
+      client.append({
+        id: 'u2',
+        role: 'user',
+        parts: [{ type: 'text', content: 'blocked' }],
+        createdAt: new Date(),
+      }),
+    ).rejects.toThrow('pending interrupts')
+    expect(contexts).toHaveLength(1)
+  })
+
+  it('clear removes resume state and pending interrupts', async () => {
+    const { adapter, contexts } = recordingAdapter([
+      (ctx) => [
+        {
+          type: EventType.RUN_STARTED,
+          runId: ctx?.runId ?? 'run-1',
+          threadId: ctx?.threadId ?? 'thread-1',
+          timestamp: Date.now(),
+        },
+        text('a'),
+        {
+          type: EventType.RUN_FINISHED,
+          runId: ctx?.runId ?? 'run-1',
+          threadId: ctx?.threadId ?? 'thread-1',
+          timestamp: Date.now(),
+          outcome: {
+            type: 'interrupt',
+            interrupts: [{ id: 'interrupt-1', reason: 'client_tool_input' }],
+          },
+        },
+      ],
+      [
+        {
+          type: EventType.RUN_FINISHED,
+          runId: 'fresh-send-run',
+          threadId: 'thread-1',
+          timestamp: Date.now(),
+          outcome: { type: 'success' },
+        },
+      ],
+      [
+        {
+          type: EventType.RUN_FINISHED,
+          runId: 'fresh-append-run',
+          threadId: 'thread-1',
+          timestamp: Date.now(),
+          outcome: { type: 'success' },
+        },
+      ],
+    ])
+    const seenResumeStates: Array<ReturnType<ChatClient['getResumeState']>> = []
+    const seenPendingInterrupts: Array<
+      ReturnType<ChatClient['getInterrupts']>
+    > = []
+    const client = new ChatClient({
+      connection: adapter,
+      threadId: 'thread-1',
+      onResumeStateChange: (resumeState, pendingInterrupts) => {
+        seenResumeStates.push(resumeState)
+        seenPendingInterrupts.push(pendingInterrupts)
+      },
+    })
+
+    await client.sendMessage('hi')
+    expect(client.getResumeState()).not.toBeNull()
+    expect(client.getInterrupts()).toHaveLength(1)
+
+    client.clear()
+
+    expect(client.getResumeState()).toBeNull()
+    expect(client.getInterrupts()).toEqual([])
+    expect(seenResumeStates.at(-1)).toBeNull()
+    expect(seenPendingInterrupts.at(-1)).toEqual([])
+    await expect(client.sendMessage('fresh')).resolves.toBeUndefined()
+    await expect(
+      client.append({
+        id: 'u2',
+        role: 'user',
+        parts: [{ type: 'text', content: 'fresh append' }],
+        createdAt: new Date(),
+      }),
+    ).resolves.toBeUndefined()
+    expect(contexts).toHaveLength(3)
+  })
+
+  it('auto-executed client tool during parent stream defers resume until isLoading clears', async () => {
+    const outputSchema = z.object({ answer: z.number() })
+    const lookup = toolDefinition({
+      name: 'lookup',
+      description: 'Look up',
+      inputSchema: z.object({ query: z.string() }),
+      outputSchema,
+    }).client(async () => ({ answer: 42 }))
+    const outputSchemaHash = hashSchemaInput(outputSchema)
+    const responseSchema = convertSchemaToJsonSchema(outputSchema) ?? {}
+    const responseSchemaHash = digestInterruptJson(
+      canonicalInterruptJson(responseSchema),
+    )
+
+    const contexts: Array<RunAgentInputContext | undefined> = []
+    let connectCount = 0
+    const adapter: ConnectConnectionAdapter = {
+      async *connect(_messages, _data, _signal, runContext) {
+        contexts.push(runContext)
+        connectCount++
+        if (connectCount === 1) {
+          const runId = runContext?.runId ?? 'run-1'
+          const threadId = runContext?.threadId ?? 'thread-1'
+          yield {
+            type: EventType.RUN_STARTED,
+            runId,
+            threadId,
+            timestamp: Date.now(),
+          }
+          yield {
+            type: EventType.TOOL_CALL_START,
+            toolCallId: 'tool-call-1',
+            toolCallName: 'lookup',
+            timestamp: Date.now(),
+          }
+          yield {
+            type: EventType.TOOL_CALL_ARGS,
+            toolCallId: 'tool-call-1',
+            delta: '{"query":"first"}',
+            timestamp: Date.now(),
+          }
+          yield {
+            type: EventType.RUN_FINISHED,
+            runId,
+            threadId,
+            timestamp: Date.now(),
+            outcome: {
+              type: 'interrupt',
+              interrupts: [
+                {
+                  id: 'client_tool_tool-call-1',
+                  reason: 'tanstack:client_tool_execution',
+                  toolCallId: 'tool-call-1',
+                  responseSchema,
+                  metadata: {
+                    kind: 'client_tool',
+                    toolName: 'lookup',
+                    input: { query: 'first' },
+                    'tanstack:interruptBinding': {
+                      kind: 'client-tool-execution',
+                      interruptId: 'client_tool_tool-call-1',
+                      interruptedRunId: runId,
+                      generation: 0,
+                      toolName: 'lookup',
+                      toolCallId: 'tool-call-1',
+                      outputSchemaHash,
+                      responseSchemaHash,
+                    },
+                  },
+                },
+              ],
+            },
+          }
+          return
+        }
+        yield {
+          type: EventType.RUN_STARTED,
+          runId: runContext?.runId ?? 'run-2',
+          threadId: runContext?.threadId ?? 'thread-1',
+          timestamp: Date.now(),
+        }
+        yield {
+          type: EventType.TEXT_MESSAGE_CONTENT,
+          messageId: 'm1',
+          timestamp: Date.now(),
+          delta: 'done',
+        }
+        yield {
+          type: EventType.RUN_FINISHED,
+          runId: runContext?.runId ?? 'run-2',
+          threadId: runContext?.threadId ?? 'thread-1',
+          timestamp: Date.now(),
+          metadata: { tanstack: { finishReason: 'stop' } },
+        }
+      },
+    }
+
+    const client = new ChatClient({
+      connection: adapter,
+      threadId: 'thread-1',
+      tools: [lookup],
+    })
+
+    await client.sendMessage('hi')
+    // Drain deferred post-stream resume + child run
+    for (let i = 0; i < 10 && connectCount < 2; i++) {
+      await new Promise((r) => setTimeout(r, 0))
+    }
+
+    expect(connectCount).toBe(2)
+    expect(contexts[1]?.parentRunId).toBe(contexts[0]?.runId)
+    expect(contexts[1]?.resume).toEqual([
+      {
+        interruptId: 'client_tool_tool-call-1',
+        status: 'resolved',
+        payload: { answer: 42 },
+      },
+    ])
+    expect(client.getInterruptState().interruptErrors).toEqual([])
+  })
+
+  it('resumes canonicalization failures as client-tool output errors', async () => {
+    const lookup = toolDefinition({
+      name: 'lookup',
+      description: 'Look up',
+      inputSchema: z.object({ query: z.string() }),
+    }).client(async () => ({ value: undefined }))
+    const outputSchemaHash = hashSchemaInput(lookup.outputSchema)
+    const responseSchema = {}
+    const responseSchemaHash = digestInterruptJson(
+      canonicalInterruptJson(responseSchema),
+    )
+    const { adapter, contexts } = recordingAdapter([
+      (ctx) => {
+        const runId = ctx?.runId ?? 'run-1'
+        const threadId = ctx?.threadId ?? 'thread-1'
+        return [
+          {
+            type: EventType.RUN_STARTED,
+            runId,
+            threadId,
+            timestamp: Date.now(),
+          },
+          {
+            type: EventType.TOOL_CALL_START,
+            toolCallId: 'tool-call-1',
+            toolCallName: 'lookup',
+            timestamp: Date.now(),
+          },
+          {
+            type: EventType.TOOL_CALL_ARGS,
+            toolCallId: 'tool-call-1',
+            delta: '{"query":"first"}',
+            timestamp: Date.now(),
+          },
+          {
+            type: EventType.RUN_FINISHED,
+            runId,
+            threadId,
+            timestamp: Date.now(),
+            outcome: {
+              type: 'interrupt',
+              interrupts: [
+                {
+                  id: 'client_tool_tool-call-1',
+                  reason: 'tanstack:client_tool_execution',
+                  toolCallId: 'tool-call-1',
+                  responseSchema,
+                  metadata: {
+                    kind: 'client_tool',
+                    toolName: 'lookup',
+                    input: { query: 'first' },
+                    'tanstack:interruptBinding': {
+                      v: INTERRUPT_BINDING_VERSION,
+                      kind: 'client-tool-execution',
+                      interruptId: 'client_tool_tool-call-1',
+                      interruptedRunId: runId,
+                      generation: 0,
+                      toolName: 'lookup',
+                      toolCallId: 'tool-call-1',
+                      outputSchemaHash,
+                      responseSchemaHash,
+                    },
+                  },
+                },
+              ],
+            },
+          },
+        ]
+      },
+      (ctx) => [
+        {
+          type: EventType.RUN_STARTED,
+          runId: ctx?.runId ?? 'run-2',
+          threadId: ctx?.threadId ?? 'thread-1',
+          timestamp: Date.now(),
+        },
+        text('continued'),
+        {
+          type: EventType.RUN_FINISHED,
+          runId: ctx?.runId ?? 'run-2',
+          threadId: ctx?.threadId ?? 'thread-1',
+          timestamp: Date.now(),
+          metadata: { tanstack: { finishReason: 'stop' } },
+        },
+      ],
+    ])
+    const client = new ChatClient({
+      connection: adapter,
+      threadId: 'thread-1',
+      tools: [lookup],
+    })
+
+    await client.sendMessage('hi')
+
+    await vi.waitFor(() => {
+      expect(contexts).toHaveLength(2)
+      expect(
+        client
+          .getMessages()
+          .some((message) =>
+            message.parts.some(
+              (part) => part.type === 'text' && part.content === 'continued',
+            ),
+          ),
+      ).toBe(true)
+    })
+    expect(contexts[1]?.resume).toEqual([
+      {
+        interruptId: 'client_tool_tool-call-1',
+        status: 'resolved',
+        payload: { error: expect.any(String) },
+        metadata: { tanstack: { state: 'output-error' } },
+      },
+    ])
+  })
+
+  it('continues a frontend tool call emitted by a native resume', async () => {
+    const lookup = toolDefinition({
+      name: 'lookup',
+      description: 'Look up',
+      inputSchema: z.object({ query: z.string() }),
+      outputSchema: z.object({ answer: z.number() }),
+    }).client(async () => ({ answer: 42 }))
+    const { adapter, contexts } = recordingAdapter([
+      // The initial run pauses on a native interrupt.
+      (ctx) => [
+        {
+          type: EventType.RUN_STARTED,
+          runId: ctx?.runId ?? 'interrupted-run',
+          threadId: ctx?.threadId ?? 'thread-1',
+          timestamp: Date.now(),
+        },
+        {
+          type: EventType.RUN_FINISHED,
+          runId: ctx?.runId ?? 'interrupted-run',
+          threadId: ctx?.threadId ?? 'thread-1',
+          timestamp: Date.now(),
+          outcome: {
+            type: 'interrupt',
+            interrupts: [
+              {
+                id: 'interrupt-1',
+                reason: 'confirmation',
+                metadata: {
+                  'tanstack:interruptBinding': {
+                    v: INTERRUPT_BINDING_VERSION,
+                    kind: 'generic',
+                    interruptId: 'interrupt-1',
+                    interruptedRunId: ctx?.runId ?? 'interrupted-run',
+                    generation: 0,
+                    responseSchemaHash: 'none',
+                  },
+                },
+              },
+            ],
+          },
+        },
+      ],
+      // The native resume emits a frontend tool call, not another interrupt.
+      (ctx) => [
+        {
+          type: EventType.RUN_STARTED,
+          runId: ctx?.runId ?? 'resume-run',
+          threadId: ctx?.threadId ?? 'thread-1',
+          timestamp: Date.now(),
+        },
+        {
+          type: EventType.TOOL_CALL_START,
+          toolCallId: 'frontend-tool-call',
+          toolCallName: 'lookup',
+          timestamp: Date.now(),
+        },
+        {
+          type: EventType.TOOL_CALL_ARGS,
+          toolCallId: 'frontend-tool-call',
+          delta: JSON.stringify({ query: 'answer' }),
+          timestamp: Date.now(),
+        },
+        {
+          type: EventType.RUN_FINISHED,
+          runId: ctx?.runId ?? 'resume-run',
+          threadId: ctx?.threadId ?? 'thread-1',
+          metadata: { tanstack: { finishReason: 'stop' } },
+          timestamp: Date.now(),
+        },
+      ],
+      // The tool result continues through an ordinary request.
+      (ctx) => [
+        {
+          type: EventType.RUN_STARTED,
+          runId: ctx?.runId ?? 'final-run',
+          threadId: ctx?.threadId ?? 'thread-1',
+          timestamp: Date.now(),
+        },
+        text('done'),
+        {
+          type: EventType.RUN_FINISHED,
+          runId: ctx?.runId ?? 'final-run',
+          threadId: ctx?.threadId ?? 'thread-1',
+          metadata: { tanstack: { finishReason: 'stop' } },
+          timestamp: Date.now(),
+        },
+      ],
+    ])
+    const client = new ChatClient({
+      connection: adapter,
+      threadId: 'thread-1',
+      tools: [lookup],
+    })
+
+    await client.sendMessage('hi')
+    resolveGenericInterrupt(client)
+
+    await vi.waitFor(() => {
+      expect(contexts).toHaveLength(3)
+      expect(
+        client
+          .getMessages()
+          .some((message) =>
+            message.parts.some(
+              (part) => part.type === 'text' && part.content === 'done',
+            ),
+          ),
+      ).toBe(true)
+    })
+    expect(contexts[1]?.resume).toEqual([
+      {
+        interruptId: 'interrupt-1',
+        status: 'resolved',
+        payload: { answer: 'continue' },
+      },
+    ])
+    expect(contexts[2]?.resume).toBeUndefined()
+    expect(contexts[2]?.parentRunId).toBeUndefined()
+  })
+
+  it('keeps native interrupt ownership when a sequential client tool resume fails', async () => {
+    const outputSchema = z.object({ answer: z.number() })
+    const lookup = toolDefinition({
+      name: 'lookup',
+      description: 'Look up',
+      inputSchema: z.object({ query: z.string() }),
+      outputSchema,
+    }).client(async ({ query }) => ({ answer: query === 'first' ? 42 : 43 }))
+    const outputSchemaHash = hashSchemaInput(outputSchema)
+    const responseSchema = convertSchemaToJsonSchema(outputSchema) ?? {}
+    const responseSchemaHash = digestInterruptJson(
+      canonicalInterruptJson(responseSchema),
+    )
+    const interrupt =
+      (toolCallId: string, query: string): Script =>
+      (ctx) => {
+        const runId = ctx?.runId ?? `run-${toolCallId}`
+        const threadId = ctx?.threadId ?? 'thread-1'
+        return [
+          {
+            type: EventType.RUN_STARTED,
+            runId,
+            threadId,
+            timestamp: Date.now(),
+          },
+          {
+            type: EventType.TOOL_CALL_START,
+            toolCallId,
+            toolCallName: 'lookup',
+            timestamp: Date.now(),
+          },
+          {
+            type: EventType.TOOL_CALL_ARGS,
+            toolCallId,
+            delta: JSON.stringify({ query }),
+            timestamp: Date.now(),
+          },
+          {
+            type: EventType.RUN_FINISHED,
+            runId,
+            threadId,
+            timestamp: Date.now(),
+            outcome: {
+              type: 'interrupt',
+              interrupts: [
+                {
+                  id: `client_tool_${toolCallId}`,
+                  reason: 'tanstack:client_tool_execution',
+                  toolCallId,
+                  responseSchema,
+                  metadata: {
+                    kind: 'client_tool',
+                    toolName: 'lookup',
+                    input: { query },
+                    'tanstack:interruptBinding': {
+                      kind: 'client-tool-execution',
+                      interruptId: `client_tool_${toolCallId}`,
+                      interruptedRunId: runId,
+                      generation: 0,
+                      toolName: 'lookup',
+                      toolCallId,
+                      outputSchemaHash,
+                      responseSchemaHash,
+                    },
+                  },
+                },
+              ],
+            },
+          },
+        ]
+      }
+
+    const { adapter, contexts } = recordingAdapter([
+      interrupt('tool-call-1', 'first'),
+      interrupt('tool-call-2', 'second'),
+      {
+        chunks: [],
+        error: new Error('resume failed'),
+      },
+    ])
+    const client = new ChatClient({
+      connection: adapter,
+      threadId: 'thread-1',
+      tools: [lookup],
+    })
+
+    await client.sendMessage('hi')
+    await vi.waitFor(() => {
+      expect(contexts).toHaveLength(3)
+      expect(client.getInterruptState().interruptErrors[0]?.code).toBe(
+        'transport',
+      )
+    })
+
+    expect(contexts[0]?.resume).toBeUndefined()
+    expect(contexts[1]?.parentRunId).toBe(contexts[0]?.runId)
+    expect(contexts[1]?.resume).toEqual([
+      {
+        interruptId: 'client_tool_tool-call-1',
+        status: 'resolved',
+        payload: { answer: 42 },
+      },
+    ])
+    expect(contexts[2]?.parentRunId).toBe(contexts[1]?.runId)
+    expect(contexts[2]?.resume).toEqual([
+      {
+        interruptId: 'client_tool_tool-call-2',
+        status: 'resolved',
+        payload: { answer: 43 },
+      },
+    ])
+  })
+})

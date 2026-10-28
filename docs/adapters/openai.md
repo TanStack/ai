@@ -2,150 +2,213 @@
 title: OpenAI
 id: openai-adapter
 order: 1
-description: "Use OpenAI models with TanStack AI — GPT-4o, GPT-5, DALL-E image generation, TTS, and Whisper transcription via @tanstack/ai-openai."
+description: "Use OpenAI models in TanStack AI with @tanstack/ai-openai: GPT chat, gpt-image images, speech, Whisper transcription, embeddings, and Sora video."
 keywords:
   - tanstack ai
   - openai
   - gpt-4o
   - gpt-5
-  - dall-e
+  - gpt-image
   - whisper
   - openai tts
   - adapter
   - chatgpt
 ---
 
-The OpenAI adapter provides access to OpenAI's models, including GPT-4o, GPT-5, image generation (DALL-E), text-to-speech (TTS), and audio transcription (Whisper).
+The OpenAI adapter calls GPT for chat, and it calls image, speech, transcription, embedding, and video models from the same package.
 
-## Installation
+Does your provider speak the OpenAI API, for example DeepSeek, Kimi, or a local vLLM server? Use the [OpenAI-Compatible adapter](./openai-compatible).
+
+## 1. Install
+
+<!-- ::start:tabs variant="package-manager" mode="install" -->
+
+react: @tanstack/ai-openai
+vue: @tanstack/ai-openai
+solid: @tanstack/ai-openai
+svelte: @tanstack/ai-openai
+preact: @tanstack/ai-openai
+angular: @tanstack/ai-openai
+vanilla: @tanstack/ai-openai
+octane: @tanstack/ai-openai
+
+<!-- ::end:tabs -->
+
+## 2. Set the API key
+
+Put the key in the environment of your server:
 
 ```bash
-npm install @tanstack/ai-openai
+OPENAI_API_KEY=sk-...
 ```
 
-## Basic Usage
+`openaiText` and the other short factories read `OPENAI_API_KEY`. To pass the key in code, use the `create*` factory of the same adapter:
 
 ```typescript
-import { chat } from "@tanstack/ai";
-import { openaiText } from "@tanstack/ai-openai";
-
-const stream = chat({
-  adapter: openaiText("gpt-5.2"),
-  messages: [{ role: "user", content: "Hello!" }],
-});
-```
-
-## Basic Usage - Custom API Key
-
-```typescript
-import { chat } from "@tanstack/ai";
 import { createOpenaiChat } from "@tanstack/ai-openai";
 
-const adapter = createOpenaiChat(process.env.OPENAI_API_KEY!, {
-  // ... your config options
-});
-
-const stream = chat({
-  adapter: adapter("gpt-5.2"),
-  messages: [{ role: "user", content: "Hello!" }],
-});
+const adapter = createOpenaiChat("gpt-6.1-sol", process.env.OPENAI_API_KEY!);
 ```
 
-## Configuration
+## 3. Stream a chat from the server
 
 ```typescript
-import { createOpenaiChat, type OpenAIChatConfig } from "@tanstack/ai-openai";
-
-const config: Omit<OpenAIChatConfig, 'apiKey'> = {
-  organization: "org-...", // Optional
-  baseURL: "https://api.openai.com/v1", // Optional, for custom endpoints
-};
-
-const adapter = createOpenaiChat(process.env.OPENAI_API_KEY!, config);
-```
- 
-## Example: Chat Completion
-
-```typescript
-import { chat, toServerSentEventsResponse } from "@tanstack/ai";
+import {
+  chat,
+  chatParamsFromRequest,
+  toServerSentEventsResponse,
+} from "@tanstack/ai";
 import { openaiText } from "@tanstack/ai-openai";
 
 export async function POST(request: Request) {
-  const { messages } = await request.json();
+  const { messages, threadId, runId } = await chatParamsFromRequest(request);
 
   const stream = chat({
-    adapter: openaiText("gpt-5.2"),
+    adapter: openaiText("gpt-6.1-sol"),
     messages,
+    threadId,
+    runId,
   });
 
   return toServerSentEventsResponse(stream);
 }
 ```
 
-## Example: With Tools
+## 4. Render the chat
 
-```typescript
-import { chat, toolDefinition } from "@tanstack/ai";
-import { openaiText } from "@tanstack/ai-openai";
-import { z } from "zod";
+The client is the same for every provider. Point `useChat` at your route:
 
-const getWeatherDef = toolDefinition({
-  name: "get_weather",
-  description: "Get the current weather",
-  inputSchema: z.object({
-    location: z.string(),
-  }),
-});
+```tsx
+import { useState } from "react";
+import { useChat, fetchServerSentEvents } from "@tanstack/ai-react";
 
-const getWeather = getWeatherDef.server(async ({ location }) => {
-  // Fetch weather data
-  return { temperature: 72, conditions: "sunny" };
-});
+export function Chat() {
+  const [input, setInput] = useState("");
+  const { messages, sendMessage } = useChat({
+    connection: fetchServerSentEvents("/api/chat"),
+    threadId: "support-chat",
+  });
 
-const stream = chat({
-  adapter: openaiText("gpt-5.2"),
-  messages,
-  tools: [getWeather],
-});
-```
-
-## Model Options
-
-OpenAI supports various provider-specific options:
-
-```typescript
-const stream = chat({
-  adapter: openaiText("gpt-5.2"),
-  messages,
-  modelOptions: {
-    temperature: 0.7,
-    max_tokens: 1000,
-    top_p: 0.9,
-    frequency_penalty: 0.5,
-    presence_penalty: 0.5,
-    stop: ["END"],
-  },
-});
-```
-
-### Reasoning
-
-Enable reasoning for models that support it (e.g., GPT-5, O3). This allows the model to show its reasoning process, which is streamed as `thinking` chunks:
-
-```typescript
-modelOptions: {
-  reasoning: {
-    effort: "medium", // "none" | "minimal" | "low" | "medium" | "high"
-    summary: "detailed", // "auto" | "detailed" (optional)
-  },
+  return (
+    <form
+      onSubmit={(event) => {
+        event.preventDefault();
+        sendMessage(input);
+        setInput("");
+      }}
+    >
+      {messages.map((message) => (
+        <p key={message.id}>
+          {message.parts
+            .map((part) => (part.type === "text" ? part.content : ""))
+            .join("")}
+        </p>
+      ))}
+      <input value={input} onChange={(event) => setInput(event.target.value)} />
+    </form>
+  );
 }
 ```
 
-When reasoning is enabled, the model's reasoning process is streamed separately from the response text and appears as a collapsible thinking section in the UI.
+For Vue, Solid, Svelte, Angular, and the other frameworks, see [Quick Start](../getting-started/quick-start#3-render-the-chat).
+
+You now have a streaming GPT chat. [Tools](../tools/tools) and [Structured Outputs](../structured-outputs/overview) work the same as with every adapter.
+
+## Images
+
+```typescript
+import { generateImage } from "@tanstack/ai";
+import { openaiImage } from "@tanstack/ai-openai";
+
+const result = await generateImage({
+  adapter: openaiImage("gpt-image-2.5-flare"),
+  prompt: "A futuristic cityscape at sunset",
+  threadId: "thread-1",
+  numberOfImages: 1,
+  size: "1024x1024",
+  modelOptions: {
+    quality: "high",
+  },
+});
+
+console.log(result.images);
+```
+
+`quality` takes `low`, `medium`, `high`, or `auto`. The `gpt-image-2.5` models also take `xhigh` and `max`. See [Image Generation](../media/image-generation).
+
+## Speech
+
+```typescript
+import { generateSpeech } from "@tanstack/ai";
+import { openaiSpeech } from "@tanstack/ai-openai";
+
+const result = await generateSpeech({
+  adapter: openaiSpeech("tts-1"),
+  text: "Hello, welcome to TanStack AI!",
+  threadId: "thread-1",
+  voice: "alloy",
+  format: "mp3",
+});
+
+// result.audio holds base64-encoded audio
+console.log(result.format); // "mp3"
+```
+
+- Voices: `alloy`, `ash`, `ballad`, `coral`, `echo`, `fable`, `nova`, `onyx`, `sage`, `shimmer`, `verse`.
+- `modelOptions.instructions` sets how the voice speaks. It does not work with `tts-1` or `tts-1-hd`.
+
+See [Text-to-Speech](../media/text-to-speech).
+
+## Transcription
+
+```typescript
+import { generateTranscription } from "@tanstack/ai";
+import { openaiTranscription } from "@tanstack/ai-openai";
+import { audioFile } from "./audio";
+
+const result = await generateTranscription({
+  adapter: openaiTranscription("whisper-1"),
+  audio: audioFile, // File object or base64 string
+  language: "en",
+  threadId: "thread-1",
+});
+
+console.log(result.text);
+```
+
+For speaker labels, use `gpt-4o-transcribe-diarize`. See [Speaker diarization](./openai-advanced#speaker-diarization).
+
+## Embeddings
+
+```typescript
+import { embed } from "@tanstack/ai";
+import { openaiEmbedding } from "@tanstack/ai-openai";
+
+const result = await embed({
+  adapter: openaiEmbedding("text-embedding-3-small"),
+  input: ["a red guitar", "a blue drum kit"],
+});
+
+console.log(result.embeddings[0]?.vector);
+console.log(result.usage?.promptTokens);
+```
+
+Both models (`text-embedding-3-small` and `text-embedding-3-large`) take the top-level `dimensions` option to make the vectors shorter:
+
+```typescript
+import { embed } from "@tanstack/ai";
+import { openaiEmbedding } from "@tanstack/ai-openai";
+
+const result = await embed({
+  adapter: openaiEmbedding("text-embedding-3-large"),
+  input: "a red guitar",
+  dimensions: 1024,
+});
+```
+
+See the [Embeddings guide](../embeddings.md).
 
 ## Summarization
-
-Summarize long text content:
 
 ```typescript
 import { summarize } from "@tanstack/ai";
@@ -154,6 +217,7 @@ import { openaiSummarize } from "@tanstack/ai-openai";
 const result = await summarize({
   adapter: openaiSummarize("gpt-5-mini"),
   text: "Your long text to summarize...",
+  threadId: "thread-1",
   maxLength: 100,
   style: "concise", // "concise" | "bullet-points" | "paragraph"
 });
@@ -161,202 +225,71 @@ const result = await summarize({
 console.log(result.summary);
 ```
 
-## Image Generation
+## Video
 
-Generate images with DALL-E:
+`openaiVideo` makes Sora videos with `sora-2` and `sora-2-pro`. See [Video Generation](../media/video-generation).
 
-```typescript
-import { generateImage } from "@tanstack/ai";
-import { openaiImage } from "@tanstack/ai-openai";
+## Realtime voice
 
-const result = await generateImage({
-  adapter: openaiImage("gpt-image-1"),
-  prompt: "A futuristic cityscape at sunset",
-  numberOfImages: 1,
-  size: "1024x1024",
-});
+`openaiRealtime` and `openaiRealtimeToken` run a live voice chat. See [Realtime Voice Chat](../media/realtime-chat).
 
-console.log(result.images);
-```
+## Files
 
-### Image Model Options
+`openaiFiles` uploads media to the OpenAI Files API, so a message can point to the file. See [Files API](../advanced/files-api).
+
+## Evaluate
+
+Sometimes you need an answer that your code can branch on, not chat text: a queue name, an urgency level, or a yes or no. Use `openaiDecider` with `decide()` to ask typed questions about one shared `state`. The adapter calls the OpenAI Decisions API (`/v1/decisions`):
 
 ```typescript
-const result = await generateImage({
-  adapter: openaiImage("gpt-image-1"),
-  prompt: "...",
-  modelOptions: {
-    quality: "hd", // "standard" | "hd"
-    style: "natural", // "natural" | "vivid"
-  },
-});
-```
+import { decide, choice, score, boolean } from "@tanstack/ai";
+import { openaiDecider } from "@tanstack/ai-openai";
 
-## Text-to-Speech
+const ticket = {
+  subject: "Charged twice for the same invoice",
+  body: "Please refund the extra payment.",
+};
 
-Generate speech from text:
-
-```typescript
-import { generateSpeech } from "@tanstack/ai";
-import { openaiTTS } from "@tanstack/ai-openai";
-
-const result = await generateSpeech({
-  adapter: openaiTTS("tts-1"),
-  text: "Hello, welcome to TanStack AI!",
-  voice: "alloy",
-  format: "mp3",
-});
-
-// result.audio contains base64-encoded audio
-console.log(result.format); // "mp3"
-```
-
-### TTS Voices
-
-Available voices: `alloy`, `echo`, `fable`, `onyx`, `nova`, `shimmer`, `ash`, `ballad`, `coral`, `sage`, `verse`
-
-### TTS Model Options
-
-```typescript
-const result = await generateSpeech({
-  adapter: openaiTTS("tts-1-hd"),
-  text: "High quality speech",
-  modelOptions: {
-    speed: 1.0, // 0.25 to 4.0
-  },
-});
-```
-
-## Transcription
-
-Transcribe audio to text:
-
-```typescript
-import { generateTranscription } from "@tanstack/ai";
-import { openaiTranscription } from "@tanstack/ai-openai";
-
-const result = await generateTranscription({
-  adapter: openaiTranscription("whisper-1"),
-  audio: audioFile, // File object or base64 string
-  language: "en",
-});
-
-console.log(result.text); // Transcribed text
-```
-
-### Transcription Model Options
-
-```typescript
-const result = await generateTranscription({
-  adapter: openaiTranscription("whisper-1"),
-  audio: audioFile,
-  modelOptions: {
-    response_format: "verbose_json", // Get timestamps
-    temperature: 0,
-    prompt: "Technical terms: API, SDK",
+const result = await decide({
+  adapter: openaiDecider("gpt-6-luna"),
+  state: ticket,
+  questions: {
+    queue: choice({
+      instructions: "Which team should handle this ticket?",
+      options: {
+        billing: "Payments, invoices, refunds",
+        tech: "Bugs, outages, integrations",
+        sales: "Pricing, upgrades, new accounts",
+      },
+    }),
+    urgency: score({
+      instructions: "How urgent is this ticket?",
+      levels: ["low", "medium", "high"],
+    }),
+    refund: boolean({
+      instructions: "Is the customer asking for a refund?",
+    }),
   },
 });
 
-// Access segments with timestamps
-console.log(result.segments);
+console.log(result.queue.value); // "billing"
+console.log(result.urgency.value); // "medium"
+console.log(result.refund.value); // true
+console.log(result.meta.usage);
 ```
 
-## Environment Variables
+`openaiDecider` reads `OPENAI_API_KEY`. To pass a key yourself, use `createOpenaiDecider("gpt-6-luna", "sk-...")`.
 
-Set your API key in environment variables:
+- `gpt-6-luna` is the only Decisions model.
+- An object `state` goes to OpenAI as JSON text.
+- If OpenAI refuses to answer a question, `decide()` throws an `EvaluateError` with `code: EVALUATE_REFUSAL_CODE`. The message names the question. The error also has the usage and the raw answers that came back, for example `{ type: 'noul', noul: 0.9 }` for a `boolean()` question. Narrow it with `isEvaluateError(error)`. See [Refused questions](../evaluate/evaluate#refused-questions).
+- `boolean()` questions work. The adapter adds the meaning of true and false to the instructions.
 
-```bash
-OPENAI_API_KEY=sk-...
-```
+See the [Evaluate guide](../evaluate/evaluate) for the question helpers, the result shape, abort, and middleware.
 
-## API Reference
+## Provider tools
 
-### `openaiText(config?)`
-
-Creates an OpenAI chat adapter using environment variables.
-
-**Returns:** An OpenAI chat adapter instance.
-
-### `createOpenaiChat(apiKey, config?)`
-
-Creates an OpenAI chat adapter with an explicit API key.
-
-**Parameters:**
-
-- `apiKey` - Your OpenAI API key
-- `config.organization?` - Organization ID (optional)
-- `config.baseURL?` - Custom base URL (optional)
-
-**Returns:** An OpenAI chat adapter instance.
-
-### `openaiSummarize(config?)`
-
-Creates an OpenAI summarization adapter using environment variables.
-
-**Returns:** An OpenAI summarize adapter instance.
-
-### `createOpenaiSummarize(apiKey, config?)`
-
-Creates an OpenAI summarization adapter with an explicit API key.
-
-**Returns:** An OpenAI summarize adapter instance.
-
-### `openaiImage(config?)`
-
-Creates an OpenAI image generation adapter using environment variables.
-
-**Returns:** An OpenAI image adapter instance.
-
-### `createOpenaiImage(apiKey, config?)`
-
-Creates an OpenAI image generation adapter with an explicit API key.
-
-**Returns:** An OpenAI image adapter instance.
-
-### `openaiTTS(config?)`
-
-Creates an OpenAI TTS adapter using environment variables.
-
-**Returns:** An OpenAI TTS adapter instance.
-
-### `createOpenaiTTS(apiKey, config?)`
-
-Creates an OpenAI TTS adapter with an explicit API key.
-
-**Returns:** An OpenAI TTS adapter instance.
-
-### `openaiTranscription(config?)`
-
-Creates an OpenAI transcription adapter using environment variables.
-
-**Returns:** An OpenAI transcription adapter instance.
-
-### `createOpenaiTranscription(apiKey, config?)`
-
-Creates an OpenAI transcription adapter with an explicit API key.
-
-**Returns:** An OpenAI transcription adapter instance.
-
-## Next Steps
-
-- [Getting Started](../getting-started/quick-start) - Learn the basics
-- [Tools Guide](../tools/tools) - Learn about tools
-- [Other Adapters](./anthropic) - Explore other providers
-
-## Provider Tools
-
-OpenAI exposes several native tools beyond user-defined function calls.
-Import them from `@tanstack/ai-openai/tools` and pass them into
-`chat({ tools: [...] })`.
-
-> For the full concept, a comparison matrix, and type-gating details, see
-> [Provider Tools](../tools/provider-tools.md).
-
-### `webSearchTool`
-
-Enables the model to run a web search and return grounded results with
-citations. Pass a `WebSearchToolConfig` object (typed from the OpenAI SDK)
-to configure the tool.
+OpenAI runs some tools itself, such as web search and a code sandbox. Import them from `@tanstack/ai-openai/tools` and add them to `tools`:
 
 ```typescript
 import { chat } from "@tanstack/ai";
@@ -364,243 +297,119 @@ import { openaiText } from "@tanstack/ai-openai";
 import { webSearchTool } from "@tanstack/ai-openai/tools";
 
 const stream = chat({
-  adapter: openaiText("gpt-5.2"),
+  adapter: openaiText("gpt-6.1-sol"),
   messages: [{ role: "user", content: "What's new in AI this week?" }],
+  threadId: "thread-1",
   tools: [webSearchTool({ type: "web_search" })],
 });
 ```
 
-**Supported models:** GPT-4o, GPT-5, and Responses API-capable models. See [Provider Tools](../tools/provider-tools.md#which-models-support-which-tools).
+Tools that OpenAI runs:
 
-### `webSearchPreviewTool`
+- `webSearchTool` and `webSearchPreviewTool`: search the web, with citations.
+- `fileSearchTool`: search your OpenAI vector stores.
+- `imageGenerationTool`: make images inside the chat.
+- `codeInterpreterTool`: run Python in a sandbox.
+- `mcpTool`: connect a remote MCP server.
 
-The preview variant of web search with additional options for controlling
-search context size and user location. Use this when you want fine-grained
-control over the search context sent to the model.
+Tools that your app runs when the model asks:
 
-```typescript
-import { chat } from "@tanstack/ai";
-import { openaiText } from "@tanstack/ai-openai";
-import { webSearchPreviewTool } from "@tanstack/ai-openai/tools";
+- `localShellTool` and `shellTool`: run shell commands.
+- `applyPatchTool`: apply a file diff.
+- `computerUseTool`: control a virtual desktop.
+- `customTool`: a Responses API tool with your own name and format.
 
-const stream = chat({
-  adapter: openaiText("gpt-5.2"),
-  messages: [{ role: "user", content: "Latest news about TypeScript" }],
-  tools: [
-    webSearchPreviewTool({
-      type: "web_search_preview_2025_03_11",
-      search_context_size: "high",
-    }),
-  ],
-});
-```
+Each tool, with a full sample, is on [OpenAI: Advanced](./openai-advanced#provider-tools). For which models take which tool, see [Provider Tools](../tools/provider-tools.md).
 
-**Supported models:** GPT-4o and above. See [Provider Tools](../tools/provider-tools.md#which-models-support-which-tools).
+## Models and options
 
-### `fileSearchTool`
+### Model options
 
-Searches OpenAI vector stores that you have pre-populated, letting the model
-retrieve relevant document chunks. Provide the `vector_store_ids` to search
-and optionally limit results with `max_num_results` (1–50).
+Provider options go in `modelOptions`. This includes the sampling options `temperature`, `top_p`, and `max_output_tokens`:
 
 ```typescript
 import { chat } from "@tanstack/ai";
 import { openaiText } from "@tanstack/ai-openai";
-import { fileSearchTool } from "@tanstack/ai-openai/tools";
 
 const stream = chat({
-  adapter: openaiText("gpt-5.2"),
-  messages: [{ role: "user", content: "What does the handbook say about PTO?" }],
-  tools: [
-    fileSearchTool({
-      type: "file_search",
-      vector_store_ids: ["vs_abc123"],
-      max_num_results: 5,
-    }),
-  ],
+  adapter: openaiText("gpt-4.1"),
+  messages: [{ role: "user", content: "Hello!" }],
+  threadId: "thread-1",
+  modelOptions: {
+    temperature: 0.7,
+    max_output_tokens: 1000,
+    top_p: 0.9,
+  },
 });
 ```
 
-**Supported models:** GPT-4o and above. See [Provider Tools](../tools/provider-tools.md#which-models-support-which-tools).
+- OpenAI rejects `temperature`, `top_p`, and `top_logprobs` on the reasoning models. `openaiText` drops the three options for these model ids:
+  - The `o` models (`o1`, `o3`, `o4-mini`, and so on).
+  - Every `gpt-5` and `gpt-6` model, except ids that end in `-chat-latest`.
+- When reasoning effort is `none` (`reasoning: "off"`), OpenAI accepts the three options, so `openaiText` keeps them.
+- With `openaiChatCompletions`, the token limit is `max_tokens`.
+- Sampling options do not go at the root of `chat()`. See [Moving Sampling Options into modelOptions](../migration/sampling-options-to-model-options).
 
-### `imageGenerationTool`
+### Reasoning
 
-Allows the model to generate images inline during a conversation using
-DALL-E/GPT-Image. Pass quality, size, and style options via the config object.
+Want GPT to think harder, or not at all? Set `reasoning` on `chat()`:
 
 ```typescript
 import { chat } from "@tanstack/ai";
 import { openaiText } from "@tanstack/ai-openai";
-import { imageGenerationTool } from "@tanstack/ai-openai/tools";
 
 const stream = chat({
-  adapter: openaiText("gpt-5.2"),
-  messages: [{ role: "user", content: "Draw a logo for my app" }],
-  tools: [
-    imageGenerationTool({
-      quality: "high",
-      size: "1024x1024",
-    }),
-  ],
+  adapter: openaiText("gpt-6.1-sol"),
+  messages: [{ role: "user", content: "Plan a database migration." }],
+  threadId: "thread-1",
+  reasoning: "xhigh",
 });
 ```
 
-**Supported models:** GPT-5 and GPT-Image-capable models. See [Provider Tools](../tools/provider-tools.md#which-models-support-which-tools).
+What goes to OpenAI:
 
-### `codeInterpreterTool`
+- `openaiText` and `azureOpenaiText`: `reasoning: { effort, summary: "auto" }`. The summary text streams as thinking parts. `summary: false` drops the summary.
+- `openaiChatCompletions`: `reasoning_effort`. No thinking text streams back.
+- `off` sends `effort: "none"` on the models that can stop thinking.
 
-Gives the model a sandboxed Python execution environment. The `container`
-field configures the execution environment; pass the full
-`CodeInterpreterToolConfig` object.
+The levels of each model:
 
-```typescript
-import { chat } from "@tanstack/ai";
-import { openaiText } from "@tanstack/ai-openai";
-import { codeInterpreterTool } from "@tanstack/ai-openai/tools";
+| Model | Levels |
+| --- | --- |
+| `gpt-6.1-sol`, `gpt-6.1-sol-pro`, `gpt-6-astra`, `gpt-6-astra-pro` | `low` to `max` |
+| `gpt-6-sol`, `gpt-6-luna`, the `gpt-5.6` models, and their `-pro` versions | `off`, `low` to `max` |
+| `gpt-5.5`, `gpt-5.4-mini`, `gpt-5.4-nano`, `gpt-5.4-image-2`, `gpt-5.2` | `off`, `low` to `xhigh` |
+| `gpt-5.5-pro`, `gpt-5.2-pro` | `medium`, `high`, `xhigh` |
+| `gpt-5.1` | `off`, `low`, `medium`, `high` |
+| `gpt-5`, `gpt-5-mini`, `gpt-5-nano` | `minimal` to `high` |
+| `gpt-chat-latest`, the `o` models, and the `codex` models | `low`, `medium`, `high` |
+| `gpt-5.2-chat-latest` | `medium` |
+| `gpt-5-pro` | `high` |
 
-const stream = chat({
-  adapter: openaiText("gpt-5.2"),
-  messages: [{ role: "user", content: "Analyse this CSV and plot a chart" }],
-  tools: [
-    codeInterpreterTool({ type: "code_interpreter", container: { type: "auto" } }),
-  ],
-});
-```
+The other models, such as `gpt-4.1` and `gpt-4o`, take no `reasoning`. See [Reasoning](../chat/reasoning).
 
-**Supported models:** GPT-4o and above. See [Provider Tools](../tools/provider-tools.md#which-models-support-which-tools).
+### Models
 
-### `mcpTool`
+Newest first. The package exports the full lists, for example `OPENAI_CHAT_MODELS`.
 
-Connects the model to a remote MCP (Model Context Protocol) server, exposing
-all its capabilities as callable tools. Provide either `server_url` or
-`connector_id` — not both.
+| Activity | Factory | Models |
+| --- | --- | --- |
+| Chat | `openaiText` | `gpt-6.1-sol`, `gpt-6-astra`, `gpt-6-sol`, `gpt-6-luna`, the `gpt-5.6` models, `gpt-5.5`, `gpt-4.1`, `gpt-4o`, the `o` models, and more |
+| Images | `openaiImage` | `gpt-image-2.5-flare`, `gpt-image-2.5-sunburst`, `gpt-image-2`, `gpt-image-1`, `gpt-image-1-mini` |
+| Speech | `openaiSpeech` | `tts-1`, `tts-1-hd`, `gpt-4o-mini-tts` |
+| Transcription | `openaiTranscription` | `whisper-1`, `gpt-4o-transcribe`, `gpt-4o-mini-transcribe`, `gpt-4o-transcribe-diarize` |
+| Embeddings | `openaiEmbedding` | `text-embedding-3-small`, `text-embedding-3-large` |
+| Video | `openaiVideo` | `sora-2`, `sora-2-pro` |
+| Evaluate | `openaiDecider` | `gpt-6-luna` |
 
-```typescript
-import { chat } from "@tanstack/ai";
-import { openaiText } from "@tanstack/ai-openai";
-import { mcpTool } from "@tanstack/ai-openai/tools";
+`adapter.inputModalities` lists the input kinds of the selected model. See [Check what a model accepts](../advanced/extend-adapter#check-what-a-model-accepts).
 
-const stream = chat({
-  adapter: openaiText("gpt-5.2"),
-  messages: [{ role: "user", content: "List my GitHub issues" }],
-  tools: [
-    mcpTool({
-      server_url: "https://mcp.example.com",
-      server_label: "github",
-    }),
-  ],
-});
-```
+## Advanced
 
-**Supported models:** GPT-4o and above. See [Provider Tools](../tools/provider-tools.md#which-models-support-which-tools).
+These topics are on [OpenAI: Advanced](./openai-advanced):
 
-### `computerUseTool`
-
-Lets the model observe a virtual desktop via screenshots and interact with
-it using keyboard and mouse events. Provide the display dimensions and the
-execution environment type.
-
-```typescript
-import { chat } from "@tanstack/ai";
-import { openaiText } from "@tanstack/ai-openai";
-import { computerUseTool } from "@tanstack/ai-openai/tools";
-
-const stream = chat({
-  adapter: openaiText("computer-use-preview"),
-  messages: [{ role: "user", content: "Open Chrome and navigate to example.com" }],
-  tools: [
-    computerUseTool({
-      type: "computer_use_preview",
-      display_width: 1024,
-      display_height: 768,
-      environment: "browser",
-    }),
-  ],
-});
-```
-
-**Supported models:** `computer-use-preview`. See [Provider Tools](../tools/provider-tools.md#which-models-support-which-tools).
-
-### `localShellTool`
-
-Provides the model with a local shell for executing system commands. Takes no
-arguments — the tool is enabled simply by including it in the `tools` array.
-
-```typescript
-import { chat } from "@tanstack/ai";
-import { openaiText } from "@tanstack/ai-openai";
-import { localShellTool } from "@tanstack/ai-openai/tools";
-
-const stream = chat({
-  adapter: openaiText("gpt-5.2"),
-  messages: [{ role: "user", content: "Run the test suite and summarise failures" }],
-  tools: [localShellTool()],
-});
-```
-
-**Supported models:** GPT-5.x and other agent-capable models. See [Provider Tools](../tools/provider-tools.md#which-models-support-which-tools).
-
-### `shellTool`
-
-A function-style shell tool that exposes shell execution as a structured
-function call. Takes no arguments.
-
-```typescript
-import { chat } from "@tanstack/ai";
-import { openaiText } from "@tanstack/ai-openai";
-import { shellTool } from "@tanstack/ai-openai/tools";
-
-const stream = chat({
-  adapter: openaiText("gpt-5.2"),
-  messages: [{ role: "user", content: "Count lines in all JS files" }],
-  tools: [shellTool()],
-});
-```
-
-**Supported models:** GPT-5.x and other agent-capable models. See [Provider Tools](../tools/provider-tools.md#which-models-support-which-tools).
-
-### `applyPatchTool`
-
-Lets the model apply unified-diff patches to modify files directly. Takes no
-arguments — include it in the `tools` array to enable patch application.
-
-```typescript
-import { chat } from "@tanstack/ai";
-import { openaiText } from "@tanstack/ai-openai";
-import { applyPatchTool } from "@tanstack/ai-openai/tools";
-
-const stream = chat({
-  adapter: openaiText("gpt-5.2"),
-  messages: [{ role: "user", content: "Fix the import paths in src/index.ts" }],
-  tools: [applyPatchTool()],
-});
-```
-
-**Supported models:** GPT-5.x and other agent-capable models. See [Provider Tools](../tools/provider-tools.md#which-models-support-which-tools).
-
-### `customTool`
-
-Defines a custom Responses API tool with an explicit name, description, and
-format. Use this when none of the structured tool types fits your use case.
-Unlike branded provider tools, `customTool` returns a plain `Tool` and is
-accepted by any chat model.
-
-```typescript
-import { chat } from "@tanstack/ai";
-import { openaiText } from "@tanstack/ai-openai";
-import { customTool } from "@tanstack/ai-openai/tools";
-
-const stream = chat({
-  adapter: openaiText("gpt-5.2"),
-  messages: [{ role: "user", content: "Look up order #1234" }],
-  tools: [
-    customTool({
-      type: "custom",
-      name: "lookup_order",
-      description: "Look up the status of a customer order by order ID",
-    }),
-  ],
-});
-```
-
-**Supported models:** all Responses API models. See [Provider Tools](../tools/provider-tools.md#which-models-support-which-tools).
+- The Chat Completions API (`openaiChatCompletions`) and Azure OpenAI.
+- Sign in with ChatGPT, so users pay with their ChatGPT plan.
+- Prompt caching, native compaction, and tools added during a conversation.
+- Every provider tool, with a full sample.
+- The configuration options and the API reference.

@@ -70,7 +70,7 @@ export async function refreshComponent(
 
   // Dynamic import to avoid RSC module runner issues
   const { createIsolateDriver } = await import('@/lib/create-isolate-driver')
-  const driver = await createIsolateDriver('node')
+  const driver = await createIsolateDriver()
 
   // Capture the result via a binding since isolate doesn't return async values properly
   let capturedResult: unknown = undefined

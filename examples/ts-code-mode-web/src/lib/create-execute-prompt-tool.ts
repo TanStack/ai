@@ -4,6 +4,7 @@
  */
 import { chat, toolDefinition } from '@tanstack/ai'
 import { z } from 'zod'
+import { maxTokensModelOptions } from './max-tokens-model-options'
 import type { AnyTextAdapter, ServerTool } from '@tanstack/ai'
 import type { CodeModeTool } from '@tanstack/ai-code-mode'
 
@@ -103,13 +104,16 @@ export function createExecutePromptTool(
     })
 
     const baseSystem = system ?? DEFAULT_SYSTEM
-    const text = await chat({
+    const { text } = await chat({
+      threadId: 'execute-prompt',
       adapter,
       systemPrompts: [baseSystem, inner.systemPrompt],
       messages: [{ role: 'user', content: prompt }],
       tools: innerChatToolList(inner),
       stream: false as const,
-      maxTokens,
+      // Sampling lives in provider-native `modelOptions` now; map the generic
+      // cap to the resolved adapter's wire key.
+      modelOptions: maxTokensModelOptions(adapter, maxTokens),
     })
 
     let data: unknown

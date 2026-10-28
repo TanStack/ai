@@ -6,6 +6,7 @@ import { geminiText } from '@tanstack/ai-gemini'
 import { zaiText } from '@tanstack/ai-zai'
 import type { AnyTextAdapter, StreamChunk } from '@tanstack/ai'
 import { productTools } from '@/lib/tools/product-tools'
+import { maxTokensModelOptions } from '@/lib/max-tokens-model-options'
 
 type Provider = 'anthropic' | 'openai' | 'gemini' | 'zai'
 
@@ -33,7 +34,7 @@ export const Route = createFileRoute('/_home/api/product-regular')({
 
         const abortController = new AbortController()
         const body = await request.json()
-        const { messages, data } = body
+        const { messages, forwardedProps: data } = body
 
         const provider: Provider = data?.provider || 'anthropic'
         const model: string | undefined = data?.model
@@ -85,6 +86,7 @@ export const Route = createFileRoute('/_home/api/product-regular')({
 
         try {
           const stream = chat({
+            threadId: body.threadId,
             adapter: instrumentedAdapter,
             messages,
             tools: [...productTools],
@@ -93,7 +95,7 @@ export const Route = createFileRoute('/_home/api/product-regular')({
             ],
             agentLoopStrategy: maxIterations(30),
             abortController,
-            maxTokens: 8192,
+            modelOptions: maxTokensModelOptions(adapter, 8192),
           })
 
           const requestStartTimeMs = Date.now()

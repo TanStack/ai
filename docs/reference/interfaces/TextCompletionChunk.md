@@ -3,9 +3,7 @@ id: TextCompletionChunk
 title: TextCompletionChunk
 ---
 
-# Interface: TextCompletionChunk
-
-Defined in: [packages/typescript/ai/src/types.ts:1156](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1156)
+Defined in: packages/ai/src/types.ts:2129
 
 ## Properties
 
@@ -15,17 +13,17 @@ Defined in: [packages/typescript/ai/src/types.ts:1156](https://github.com/TanSta
 content: string;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:1159](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1159)
+Defined in: packages/ai/src/types.ts:2132
 
 ***
 
 ### finishReason?
 
 ```ts
-optional finishReason: "length" | "stop" | "content_filter" | null;
+optional finishReason?: "length" | "stop" | "content_filter" | null;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:1161](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1161)
+Defined in: packages/ai/src/types.ts:2134
 
 ***
 
@@ -35,7 +33,7 @@ Defined in: [packages/typescript/ai/src/types.ts:1161](https://github.com/TanSta
 id: string;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:1157](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1157)
+Defined in: packages/ai/src/types.ts:2130
 
 ***
 
@@ -45,42 +43,24 @@ Defined in: [packages/typescript/ai/src/types.ts:1157](https://github.com/TanSta
 model: string;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:1158](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1158)
+Defined in: packages/ai/src/types.ts:2131
 
 ***
 
 ### role?
 
 ```ts
-optional role: "assistant";
+optional role?: "assistant";
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:1160](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1160)
+Defined in: packages/ai/src/types.ts:2133
 
 ***
 
 ### usage?
 
 ```ts
-optional usage: object;
+optional usage?: TokenUsage<ProviderUsageDetails>;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:1162](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1162)
-
-#### completionTokens
-
-```ts
-completionTokens: number;
-```
-
-#### promptTokens
-
-```ts
-promptTokens: number;
-```
-
-#### totalTokens
-
-```ts
-totalTokens: number;
-```
+Defined in: packages/ai/src/types.ts:2135

@@ -1,0 +1,1304 @@
+import type {
+  ActivityPart,
+  AnyClientTool,
+  ApprovalCapabilityOf,
+  ApprovalSchemaOf,
+  AudioPart,
+  BatchInterruptError,
+  ChunkStrategy,
+  ContentPart,
+  DocumentPart,
+  ImagePart,
+  InferSchemaType,
+  InterruptDefinition,
+  InferToolInput,
+  InferToolOutput,
+  InputSchemaOf,
+  Interrupt,
+  InterruptBinding,
+  ItemInterruptError,
+  ModelMessage,
+  NoSchema,
+  RunAgentResumeItem,
+  SchemaInput,
+  StreamChunk,
+  StructuredOutputPart,
+  SubagentHandleData,
+  SubagentStatus,
+  ToolResultOutcome,
+  UIResourcePart,
+  VideoPart,
+} from '@tanstack/ai/client'
+import type { ByokClient } from './byok'
+import type { ConnectionAdapter } from './connection-adapters'
+import type { AIDevtoolsClientMetadata } from './devtools'
+import type { ChatDevtoolsBridgeFactory } from './devtools-noop'
+
+export type { ActivityPart, StructuredOutputPart }
+
+export interface ChatResumeState {
+  threadId: string
+  runId: string
+}
+
+export type ChatPendingInterrupt = Interrupt
+
+/**
+ * The durable pointer a chat keeps for the run it may need to rejoin, plus any
+ * interrupt that run is waiting on.
+ *
+ * @internal
+ */
+export interface ChatResumeSnapshot {
+  resumeState: ChatResumeState
+  pendingInterrupts?: Array<ChatPendingInterrupt>
+}
+
+export type InterruptItemStatus =
+  | 'pending'
+  | 'validating'
+  | 'staged'
+  | 'submitting'
+  | 'error'
+
+export interface BoundInterruptBase {
+  readonly id: string
+  readonly interruptId: string
+  readonly reason: string
+  readonly message?: string
+  readonly responseSchema?: Readonly<Record<string, unknown>>
+  readonly expiresAt?: string
+  readonly metadata?: Readonly<Record<string, unknown>>
+  readonly threadId: string
+  readonly interruptedRunId: string
+  readonly generation: number
+  readonly status: InterruptItemStatus
+  readonly errors: ReadonlyArray<ItemInterruptError>
+  /**
+   * Whether the binding/schema allows resolution at hydrate time.
+   * Does not flip on submit/expiry — gate UI on `status`, `resuming`, and
+   * `errors` for those lifecycle states.
+   */
+  readonly canResolve: boolean
+  cancel: () => void
+  clearResolution: () => void
+}
+
+export interface GenericAGUIInterrupt extends BoundInterruptBase {
+  readonly kind: 'generic'
+  readonly binding: Readonly<Extract<InterruptBinding, { kind: 'generic' }>>
+  resolveInterrupt: (payload: unknown) => void
+}
+
+type InterruptResponseInput<TDefinition> =
+  TDefinition extends InterruptDefinition<any, any, infer TResponseSchema, any>
+    ? InferSchemaType<TResponseSchema>
+    : never
+
+type RegisteredGenericInterruptFor<
+  TDefinition extends InterruptDefinition<any, any, any, any>,
+> =
+  TDefinition extends InterruptDefinition<
+    infer TDefinitionId,
+    any,
+    any,
+    infer TPayload
+  >
+    ? BoundInterruptBase & {
+        readonly kind: 'generic'
+        readonly definitionId: TDefinitionId
+        readonly key: string
+        readonly payload: TPayload | undefined
+        readonly binding: Readonly<
+          Extract<InterruptBinding, { kind: 'generic' }> & {
+            definitionId: TDefinitionId
+            key: string
+            batchIndex: number
+          }
+        >
+        resolveInterrupt: (
+          response: InterruptResponseInput<TDefinition>,
+        ) => void
+      }
+    : never
+
+export type RegisteredGenericInterrupt<
+  TInterrupts extends ReadonlyArray<InterruptDefinition<any, any, any, any>>,
+> = TInterrupts[number] extends infer TDefinition
+  ? TDefinition extends InterruptDefinition<any, any, any, any>
+    ? RegisteredGenericInterruptFor<TDefinition>
+    : never
+  : never
+
+/** A bound generic interrupt for one `defineInterrupt()` definition. */
+export type GenericInterrupt<
+  TDefinition extends InterruptDefinition<any, any, any, any>,
+> = RegisteredGenericInterruptFor<TDefinition>
+
+/**
+ * An interrupt that arrived on the stream carrying no resume binding this
+ * client understands — no `tanstack:interruptBinding`, or one written at a
+ * protocol version we don't recognise.
+ *
+ * These are surfaced rather than hidden so a UI can show that the run is
+ * paused, but they are never resolvable here: something else owns them. A
+ * workflow engine's durable approval projected into the same AG-UI stream
+ * lands in this bucket, and resolving it through the chat resume path would
+ * send an answer no one is waiting for. Render it, or route it to whatever
+ * actually owns the pause.
+ */
+export interface UnboundInterrupt extends Omit<
+  BoundInterruptBase,
+  'cancel' | 'clearResolution'
+> {
+  readonly kind: 'unbound'
+  readonly binding?: undefined
+  readonly canResolve: false
+}
+
+type ApprovalBranchSchema<TTool, TBranch extends 'approve' | 'reject'> =
+  ApprovalSchemaOf<TTool> extends infer TApproval
+    ? TApproval extends { approve?: SchemaInput; reject?: SchemaInput }
+      ? Exclude<TApproval[TBranch], undefined>
+      : TApproval extends SchemaInput
+        ? TApproval
+        : never
+    : never
+
+type ApprovalEdits<TTool> =
+  InputSchemaOf<TTool> extends NoSchema
+    ? { editedArgs?: never }
+    : { editedArgs?: InferToolInput<TTool> }
+
+type ApprovalPayload<TSchema> = [TSchema] extends [never]
+  ? { payload?: never }
+  : TSchema extends SchemaInput
+    ? { payload: InferSchemaType<TSchema> }
+    : { payload?: never }
+
+type ApproveArguments<TTool> = [
+  ApprovalBranchSchema<TTool, 'approve'>,
+] extends [never]
+  ? InputSchemaOf<TTool> extends NoSchema
+    ? [options?: never]
+    : [options?: ApprovalEdits<TTool> & { payload?: never }]
+  : [
+      options: ApprovalEdits<TTool> &
+        ApprovalPayload<ApprovalBranchSchema<TTool, 'approve'>>,
+    ]
+
+type RejectArguments<TTool> = [ApprovalBranchSchema<TTool, 'reject'>] extends [
+  never,
+]
+  ? [options?: never]
+  : [
+      options: { editedArgs?: never } & ApprovalPayload<
+        ApprovalBranchSchema<TTool, 'reject'>
+      >,
+    ]
+
+export type ToolApprovalInterrupt<TTool extends AnyClientTool = AnyClientTool> =
+  TTool extends AnyClientTool
+    ? BoundInterruptBase & {
+        readonly kind: 'tool-approval'
+        readonly binding: Readonly<
+          Extract<InterruptBinding, { kind: 'tool-approval' }>
+        >
+        readonly toolName: TTool['name']
+        readonly toolCallId: string
+        readonly originalArgs: InferToolInput<TTool>
+        // A single generic call signature — not two overloads. Overloads break
+        // editor autocomplete: a half-typed options literal (e.g.
+        // `resolveInterrupt(true, { payload: {` ) satisfies neither overload,
+        // so TS resolves no signature and offers no contextual completions.
+        // Making `approved` a generic discriminant lets TS infer it from the
+        // first argument and pick the matching branch for the rest params, so
+        // `payload` / `editedArgs` / the correct schema's fields complete
+        // per-branch (a plain union-of-tuples would offer both branches'
+        // fields) while still enforcing the right shape.
+        resolveInterrupt: <TApproved extends boolean>(
+          approved: TApproved,
+          ...args: TApproved extends true
+            ? ApproveArguments<TTool>
+            : RejectArguments<TTool>
+        ) => void
+      }
+    : never
+
+type ApprovalInterrupts<TTools extends ReadonlyArray<AnyClientTool>> =
+  TTools[number] extends infer TTool
+    ? TTool extends AnyClientTool
+      ? ApprovalCapabilityOf<TTool> extends true
+        ? ToolApprovalInterrupt<TTool>
+        : never
+      : never
+    : never
+
+// Client tools resolve through their `.client()` implementation (auto-run) or
+// `addToolResult` — never as a bound interrupt. The `client-tool-execution`
+// pause is handled internally and is intentionally absent from this public
+// union.
+export type ChatInterrupt<
+  TTools extends ReadonlyArray<AnyClientTool> = ReadonlyArray<AnyClientTool>,
+  TInterrupts extends ReadonlyArray<InterruptDefinition<any, any, any, any>> =
+    readonly [],
+> =
+  | GenericAGUIInterrupt
+  | RegisteredGenericInterrupt<TInterrupts>
+  | UnboundInterrupt
+  | ApprovalInterrupts<TTools>
+
+export type ResolvableChatInterrupt<
+  TTools extends ReadonlyArray<AnyClientTool> = ReadonlyArray<AnyClientTool>,
+  TInterrupts extends ReadonlyArray<InterruptDefinition<any, any, any, any>> =
+    readonly [],
+> =
+  | GenericAGUIInterrupt
+  | RegisteredGenericInterrupt<TInterrupts>
+  | ApprovalInterrupts<TTools>
+
+export type BoundInterrupts<
+  TTools extends ReadonlyArray<AnyClientTool> = ReadonlyArray<AnyClientTool>,
+  TInterrupts extends ReadonlyArray<InterruptDefinition<any, any, any, any>> =
+    readonly [],
+> = ReadonlyArray<ChatInterrupt<TTools, TInterrupts>>
+
+export interface ChatInterruptState<
+  TTools extends ReadonlyArray<AnyClientTool> = ReadonlyArray<AnyClientTool>,
+  TInterrupts extends ReadonlyArray<InterruptDefinition<any, any, any, any>> =
+    readonly [],
+> {
+  readonly interrupts: BoundInterrupts<TTools, TInterrupts>
+  readonly interruptErrors: ReadonlyArray<BatchInterruptError>
+  readonly resuming: boolean
+}
+
+/**
+ * `messages` is the full UIMessage history (not a delta). `data` is the
+ * merged body — `ChatClientOptions.forwardedProps` plus any per-call data passed to
+ * `sendMessage(...)`. `threadId` / `runId` are the AG-UI correlation ids
+ * the chat client uses to track this turn — forward them to your server
+ * if it needs to correlate requests.
+ */
+export interface ChatFetcherInput {
+  messages: Array<UIMessage>
+  data?: Record<string, unknown>
+  threadId: string
+  runId: string
+  parentRunId?: string
+  resume?: Array<RunAgentResumeItem>
+}
+
+export interface ChatFetcherOptions {
+  /** Fires when `stop()` is called or the request is superseded. */
+  signal: AbortSignal
+  /** Extra request headers for this run (e.g. BYOK keys). */
+  headers?: Record<string, string>
+}
+
+/**
+ * Direct function that performs a chat request. Mirrors
+ * `GenerationFetcher`. Returns either a `Response` (SSE body parsed by the
+ * chat client) or an `AsyncIterable<StreamChunk>` (yielded directly). May
+ * return the value synchronously, as a `Promise`, or as an async generator
+ * (`async function*`) — the chat client awaits whichever shape is returned.
+ *
+ * @example
+ * ```ts
+ * useChat({
+ *   threadId,
+ *   fetcher: ({ messages }, { signal }) =>
+ *     chatFn({ data: { messages }, signal }),
+ * })
+ * ```
+ */
+export type ChatFetcher = (
+  input: ChatFetcherInput,
+  options: ChatFetcherOptions,
+) =>
+  | Response
+  | AsyncIterable<StreamChunk>
+  | Promise<Response | AsyncIterable<StreamChunk>>
+
+/**
+ * Distributive `Omit` — applies `Omit<O, K>` per branch of a union so
+ * discriminated unions survive omission. Plain `Omit` collapses unions
+ * into a single object shape, which would erase the `ChatTransport` XOR
+ * when framework hooks omit React-managed callbacks from
+ * `ChatClientOptions`.
+ */
+export type DistributedOmit<
+  TObject,
+  TKeys extends keyof any,
+> = TObject extends unknown ? Omit<TObject, TKeys> : never
+
+/**
+ * Discriminated union enforcing that exactly one of `connection` or
+ * `fetcher` is provided. Mirrors `GenerationTransport`.
+ */
+export type ChatTransport =
+  | { connection: ConnectionAdapter; fetcher?: never }
+  | { fetcher: ChatFetcher; connection?: never }
+
+/**
+ * Tool call states - track the lifecycle of a tool call
+ */
+export type ToolCallState =
+  | 'awaiting-input' // Received start but no arguments yet
+  | 'input-streaming' // Partial arguments received
+  | 'input-complete' // All arguments received
+  | 'approval-requested' // Waiting for user approval
+  | 'approval-responded' // User has approved/denied
+  | 'complete' // Result is complete
+  | 'error' // Tool execution failed (terminal)
+
+/**
+ * Tool result states - track the lifecycle of a tool result
+ */
+export type ToolResultState =
+  | 'streaming' // Placeholder for future streamed output
+  | 'complete' // Result is complete
+  | 'error' // Error occurred
+
+/**
+ * ChatClient state - track the lifecycle of a chat
+ */
+export type ChatClientState = 'ready' | 'submitted' | 'streaming' | 'error'
+
+/**
+ * UI snapshot published by {@link ChatClient.subscribeSnapshot} /
+ * {@link ChatClient.getSnapshot}.
+ */
+export interface ChatClientSnapshot<
+  TTools extends ReadonlyArray<AnyClientTool> = any,
+  TInterrupts extends ReadonlyArray<InterruptDefinition<any, any, any, any>> =
+    readonly [],
+> {
+  readonly messages: ReadonlyArray<UIMessage<TTools>>
+  readonly status: ChatClientState
+  readonly isLoading: boolean
+  readonly error: Error | undefined
+  readonly isSubscribed: boolean
+  readonly connectionStatus: ConnectionStatus
+  readonly sessionGenerating: boolean
+  readonly queue: ReadonlyArray<QueuedMessage>
+  readonly runId: string | null
+  /** True when the last hydrate or older-page response said more messages exist. */
+  readonly hasOlderMessages: boolean
+  /** True while a store or server load may still repaint the transcript. */
+  readonly isHydrating: boolean
+  readonly interruptState: ChatInterruptState<TTools, TInterrupts>
+}
+
+/**
+ * Connection lifecycle state for the subscription loop.
+ */
+export type ConnectionStatus =
+  | 'disconnected'
+  | 'connecting'
+  | 'connected'
+  | 'error'
+
+/**
+ * Multimodal content input for sending messages with rich media.
+ * Allows sending text, images, audio, video, and documents to the LLM.
+ *
+ * @example
+ * ```ts
+ * // Send an image with a question
+ * client.sendMessage({
+ *   content: [
+ *     { type: 'text', content: 'What is in this image?' },
+ *     { type: 'image', source: { type: 'url', value: 'https://example.com/photo.jpg' } }
+ *   ],
+ *   id: 'custom-message-id' // optional
+ * })
+ * ```
+ */
+export interface MultimodalContent {
+  /**
+   * The content of the message.
+   * Can be a simple string or an array of content parts for multimodal messages.
+   */
+  content: string | Array<ContentPart>
+  /**
+   * Optional custom ID for the message.
+   * If not provided, a unique ID will be generated.
+   */
+  id?: string
+  /**
+   * Optional AG-UI metadata bag copied onto the resulting UIMessage.
+   *
+   * @example
+   * ```ts
+   * await client.sendMessage({
+   *   content: 'Show me failed logins',
+   *   metadata: { author: { id: 'user-42', name: 'Dana' } },
+   * })
+   * ```
+   */
+  metadata?: Record<string, any>
+}
+
+/**
+ * Action taken when `sendMessage` is called while the client is busy
+ * (streaming, claiming a send, or draining the queue).
+ * - `queue`: hold the message; it auto-sends when the current run settles
+ *   **successfully**.
+ * - `drop`: ignore the send (promise still resolves; does not throw).
+ * - `interrupt`: abort the current stream and send immediately. Unlike
+ *   `stop()`, does **not** flush already-queued messages — they still drain
+ *   after the interrupting send settles successfully.
+ */
+export type WhenBusy = 'queue' | 'drop' | 'interrupt'
+
+/**
+ * Why the client is busy when a {@link QueueStrategy} runs.
+ * - `streaming` — an LLM stream is active (`isLoading`).
+ * - `sendInFlight` — a send has claimed the client but is not yet loading.
+ * - `draining` — the queue drain loop is delivering pending messages.
+ */
+export type QueueBusyReason = 'streaming' | 'sendInFlight' | 'draining'
+
+/**
+ * A user message held in the send queue while a stream is active.
+ * Rendered separately from `messages`; cancellable via `cancelQueued(id)`
+ * until it drains.
+ */
+export interface QueuedMessage {
+  id: string
+  content: string | MultimodalContent
+  createdAt: number
+}
+
+/**
+ * Declarative queue policy.
+ */
+export interface QueueConfig {
+  /**
+   * Action when the client is busy (streaming, claiming a send, or draining).
+   * Default `'queue'`.
+   */
+  whenBusy?: WhenBusy
+  /**
+   * How queued items leave the queue.
+   * - `'fifo'`: one at a time, in order (default).
+   * - `'batch'`: merge all queued items into one send when the run settles
+   *   successfully.
+   */
+  drain?: 'fifo' | 'batch'
+  /** Max queued items. Unlimited when omitted. `0` means never queue. */
+  maxSize?: number
+  /**
+   * Behavior when `maxSize` is reached. Default `'reject'`.
+   * `'reject'` silently discards the new send (does not throw);
+   * `'drop-oldest'` evicts the oldest queued item to make room.
+   * Only meaningful when `maxSize` is set.
+   */
+  onOverflow?: 'reject' | 'drop-oldest'
+}
+
+/**
+ * Escape hatch: decide the action for a single send. Drain stays FIFO for the
+ * function form (no `batch` via function). Per-call `sendOptions.whenBusy`
+ * overrides the strategy for that send.
+ *
+ * Actions match {@link WhenBusy}. Concurrent streams are not supported.
+ * `pending.id` is the id that will be stored if the action is `'queue'`
+ * (safe to pass to `cancelQueued`).
+ */
+export type QueueStrategy = (ctx: {
+  pending: QueuedMessage
+  busyReason: QueueBusyReason
+  queued: ReadonlyArray<QueuedMessage>
+}) => { action: WhenBusy }
+
+/** A `WhenBusy` shorthand, a full config, or a strategy function. */
+export type QueueOption = WhenBusy | QueueConfig | QueueStrategy
+
+/** Per-call overrides for `sendMessage`. */
+export interface SendMessageOptions {
+  /** Overrides the configured `whenBusy` for this one send. */
+  whenBusy?: WhenBusy
+  /**
+   * Extra JSON merged into this request's wire `forwardedProps`.
+   * Shallow merge: `{ ...chatBody, ...positionalBody, ...body }`.
+   * This field wins on key collisions.
+   *
+   * Framework hooks (`useChat`, `injectChat`, `createChat`) expose
+   * `sendMessage(content, options)` with no positional body, so this field
+   * is the per-call body channel on those surfaces.
+   */
+  body?: Record<string, any>
+}
+
+/**
+ * Message parts - building blocks of UIMessage
+ */
+export interface TextPart {
+  type: 'text'
+  content: string
+}
+
+/**
+ * Tool-call part for a bare `{ name }` tool, such as a server tool
+ * definition a subagent carries. No `approval` field.
+ */
+type ToolCallPartForNamedTool<T extends { name: string }> = {
+  type: 'tool-call'
+  id: string
+  name: T['name']
+  arguments: string
+  input?: InferToolInput<T>
+  state: ToolCallState
+  output?: InferToolOutput<T>
+}
+
+/**
+ * Helper type that creates a tool-call part for a specific tool.
+ * This is a conditional type to enable proper distribution over union types,
+ * creating a discriminated union where `name` is the discriminant.
+ */
+type ToolCallPartForTool<T> = T extends AnyClientTool
+  ? {
+      type: 'tool-call'
+      id: string
+      name: T['name']
+      arguments: string // JSON string (may be incomplete)
+      /** Parsed tool input (typed from inputSchema) */
+      input?: InferToolInput<T>
+      state: ToolCallState
+      /** Tool execution output (for client tools or after approval) */
+      output?: InferToolOutput<T>
+    } & (NonNullable<T['needsApproval']> extends true
+      ? {
+          /**
+           * Approval metadata — present only on tools defined with
+           * `needsApproval: true`. Populated once the call reaches
+           * `state: 'approval-requested'`. `needsApproval` is an optional
+           * property on the tool, so we index into it (rather than
+           * `T extends { needsApproval: true }`, which an optional property
+           * never satisfies) and strip `undefined` before comparing to `true`.
+           */
+          approval?: {
+            id: string // Unique approval ID
+            needsApproval: boolean // Always true if present
+            approved?: boolean // User's decision (undefined until responded)
+          }
+        }
+      : // Tools without `needsApproval: true` never carry an approval field.
+        // `& unknown` is a no-op intersection (adds nothing).
+        unknown)
+  : T extends { name: string }
+    ? ToolCallPartForNamedTool<T>
+    : never
+
+/**
+ * Fallback tool-call part type when tools are not typed
+ */
+type UntypedToolCallPart = {
+  type: 'tool-call'
+  id: string
+  name: string
+  arguments: string
+  input?: any
+  state: ToolCallState
+  approval?: {
+    id: string
+    needsApproval: boolean
+    approved?: boolean
+  }
+  output?: any
+}
+
+/**
+ * Tool call part that creates a proper discriminated union.
+ * When TTools is typed, checking `part.name === 'toolName'` will narrow
+ * `part.output` to the correct type for that tool.
+ *
+ * The discriminant is `name`, so code like:
+ * ```ts
+ * if (part.name === 'recommendGuitar') {
+ *   // part.output is now typed to the recommendGuitar tool's output
+ * }
+ * ```
+ */
+export type ToolCallPart<TTools extends ReadonlyArray<{ name: string }> = any> =
+  // Check if we have a concrete tools array (not 'any' or 'never')
+  [TTools] extends [never]
+    ? UntypedToolCallPart
+    : unknown extends TTools
+      ? UntypedToolCallPart
+      : TTools extends ReadonlyArray<infer Tool>
+        ? Tool extends { name: string }
+          ? ToolCallPartForTool<Tool>
+          : UntypedToolCallPart
+        : UntypedToolCallPart
+
+export interface ToolResultPart {
+  type: 'tool-result'
+  id?: string
+  name?: string
+  toolCallId: string
+  content: string | Array<ContentPart>
+  state: ToolResultState
+  /** Set when the user or middleware cancelled or denied the tool call; state remains `error`. */
+  outcome?: ToolResultOutcome
+  error?: string // Error message if state is "error"
+  metadata?: Record<string, unknown>
+  createdAt?: Date
+}
+
+export interface ThinkingPart {
+  type: 'thinking'
+  content: string
+}
+
+export type { SubagentStatus }
+
+export interface SubagentHandle extends SubagentHandleData {
+  /**
+   * Set by ChatClient on every card it holds, streamed, restored, or initial,
+   * nested cards included. Calling it marks the card `error` (`Stopped`),
+   * ignores that child's later chunks until the same child starts again, and
+   * aborts the local request, parent stream included. A durable server run
+   * keeps going.
+   */
+  stop?: () => void
+  /**
+   * The checked input of an agent with `inputSchema`: what the parent model
+   * wrote when it started this child. Set by ChatClient from the card.
+   */
+  input?: unknown
+}
+
+export interface SubagentPart {
+  type: 'subagent'
+  subagent: SubagentHandle
+}
+
+/**
+ * The slice of a server `defineAgent` result that the client reads for types.
+ * The client does not call `run`. Put tool definitions (from
+ * `toolDefinition`) in `tools` to type the child's tool calls and approvals.
+ */
+export type SubagentClientAgent = {
+  name: string
+  description?: string
+  tools?: ReadonlyArray<{ name: string }>
+  interrupts?: ReadonlyArray<InterruptDefinition<any, any, any, any>>
+  /** Types `part.subagent.input`. */
+  inputSchema?: unknown
+  outputSchema?: SchemaInput
+}
+
+type AgentToolList<TAgent> = TAgent extends { tools?: infer TTools }
+  ? [undefined] extends [TTools]
+    ? [TTools] extends [undefined]
+      ? any
+      : Exclude<TTools, undefined> extends ReadonlyArray<infer TTool>
+        ? [TTool] extends [never]
+          ? any
+          : Exclude<TTools, undefined>
+        : any
+    : TTools extends ReadonlyArray<infer TTool>
+      ? [TTool] extends [never]
+        ? any
+        : TTools
+      : any
+  : any
+
+type AgentOutputData<TAgent> = TAgent extends { outputSchema?: infer TSchema }
+  ? Exclude<TSchema, undefined> extends SchemaInput
+    ? [Exclude<TSchema, undefined>] extends [never]
+      ? unknown
+      : InferSchemaType<Exclude<TSchema, undefined>>
+    : unknown
+  : unknown
+
+// The card holds the checked value, so a Standard Schema gives its output type.
+type AgentInputData<TAgent> = TAgent extends { inputSchema?: infer TSchema }
+  ? [Exclude<TSchema, undefined>] extends [never]
+    ? undefined
+    : Exclude<TSchema, undefined> extends {
+          '~standard': { types?: { output: infer TOutput } }
+        }
+      ? TOutput
+      : Exclude<TSchema, undefined> extends SchemaInput
+        ? InferSchemaType<Exclude<TSchema, undefined>>
+        : unknown
+  : undefined
+
+/** One child handle. `name` is the discriminant. */
+export type SubagentHandleOf<TAgent extends SubagentClientAgent> = Omit<
+  SubagentHandle,
+  'name' | 'messages' | 'input'
+> & {
+  name: TAgent['name']
+  messages: Array<UIMessage<AgentToolList<TAgent>, AgentOutputData<TAgent>>>
+  /** Unset on a card saved before the input was kept. */
+  input?: AgentInputData<TAgent>
+}
+
+export type SubagentHandles<
+  TAgents extends ReadonlyArray<SubagentClientAgent> | undefined,
+> = [TAgents] extends [undefined]
+  ? SubagentHandle
+  : unknown extends TAgents
+    ? SubagentHandle
+    : TAgents extends ReadonlyArray<infer TAgent>
+      ? TAgent extends SubagentClientAgent
+        ? SubagentHandleOf<TAgent>
+        : SubagentHandle
+      : SubagentHandle
+
+export type SubagentPartOf<
+  TAgents extends ReadonlyArray<SubagentClientAgent> | undefined,
+> = [TAgents] extends [undefined]
+  ? SubagentPart
+  : unknown extends TAgents
+    ? SubagentPart
+    : {
+        type: 'subagent'
+        subagent: SubagentHandles<TAgents>
+      }
+
+export type MessagePart<
+  TTools extends ReadonlyArray<{ name: string }> = any,
+  TData = unknown,
+  TSubagents extends ReadonlyArray<SubagentClientAgent> | undefined = undefined,
+> =
+  | TextPart
+  | ImagePart
+  | AudioPart
+  | VideoPart
+  | DocumentPart
+  | ToolCallPart<TTools>
+  | ToolResultPart
+  | ThinkingPart
+  | ActivityPart
+  | StructuredOutputPart<TData>
+  | UIResourcePart
+  | SubagentPartOf<TSubagents>
+
+/**
+ * UIMessage - Domain-specific message format optimized for building chat UIs
+ * Contains parts that can be text, tool calls, or tool results.
+ *
+ * `TTools` narrows the tool-call/result part types based on the registered
+ * tools. `TData` is the schema-inferred type for any `structured-output` part
+ * on the message — defaulted to `unknown` so untyped consumers (the core
+ * stream processor, the wire converter) don't need to thread a schema generic
+ * everywhere; the hook layer (`useChat({ outputSchema })`) substitutes it on
+ * the public return so `m.parts.find(p => p.type === 'structured-output').data`
+ * is typed without manual casts.
+ */
+export interface UIMessage<
+  TTools extends ReadonlyArray<{ name: string }> = any,
+  TData = unknown,
+  TSubagents extends ReadonlyArray<SubagentClientAgent> | undefined = undefined,
+> {
+  id: string
+  role: 'system' | 'user' | 'assistant' | 'activity'
+  name?: string
+  parts: Array<MessagePart<TTools, TData, TSubagents>>
+  createdAt?: Date
+  /**
+   * Optional AG-UI metadata bag. TanStack writes the `tanstack` key.
+   * User keys stay at the top.
+   */
+  metadata?: Record<string, any>
+}
+
+/**
+ * A generic key/value storage adapter. `getItem` may be sync or async; the
+ * chat persistence layer treats every call as best-effort. The provided
+ * `localStoragePersistence` / `sessionStoragePersistence` / `indexedDBPersistence`
+ * factories return one of these, and `ChatStorageAdapter<ChatPersistedState>`
+ * is assignable to {@link ChatClientPersistence}.
+ */
+export interface ChatStorageAdapter<TValue> {
+  getItem: (
+    id: string,
+  ) => TValue | null | undefined | Promise<TValue | null | undefined>
+  setItem: (id: string, value: TValue) => void | Promise<void>
+  removeItem: (id: string) => void | Promise<void>
+}
+
+/**
+ * The single record a `ChatClientPersistence` adapter stores per chat. It folds
+ * the two things that must survive a full page reload into one blob under one
+ * key: the message transcript and the optional resume snapshot (which run to
+ * rejoin / which interrupts to rehydrate). One adapter, one key — see
+ * {@link ChatClientPersistence}.
+ */
+export interface ChatPersistedState<
+  TTools extends ReadonlyArray<AnyClientTool> = any,
+> {
+  messages: Array<UIMessage<TTools>>
+  /** Present while a run is in flight or paused on an interrupt; absent otherwise. */
+  resume?: ChatResumeSnapshot
+}
+
+/**
+ * Storage adapter for durable chat state. A single adapter persists both the
+ * message transcript and the resume snapshot as one {@link ChatPersistedState}
+ * record, so a full page reload restores the conversation AND can rejoin an
+ * in-flight run / rehydrate pending interrupts.
+ */
+export interface ChatClientPersistence<
+  TTools extends ReadonlyArray<AnyClientTool> = any,
+> {
+  getItem: (
+    id: string,
+  ) =>
+    | ChatPersistedState<TTools>
+    | null
+    | undefined
+    | Promise<ChatPersistedState<TTools> | null | undefined>
+  setItem: (
+    id: string,
+    state: ChatPersistedState<TTools>,
+  ) => void | Promise<void>
+  removeItem: (id: string) => void | Promise<void>
+}
+
+/**
+ * The `persistence` option for a chat.
+ *
+ * - `false` (default): ephemeral. Messages live in memory only; a reload starts
+ *   from empty.
+ * - `true`: server-authoritative. Nothing is cached in the browser. On mount the
+ *   client hydrates the thread from the server by its `threadId` (paints the
+ *   stored transcript and tails any run still generating), so a reload or the
+ *   same thread opened on another device both just resume. Requires a connection
+ *   with a `hydrate` handler.
+ * - a {@link ChatClientPersistence} adapter: client-authoritative. The combined
+ *   {@link ChatPersistedState} record (transcript plus resume pointer) is cached
+ *   in the browser and restored on reload with no network.
+ */
+export type ChatPersistenceOption<
+  TTools extends ReadonlyArray<AnyClientTool> = any,
+> = boolean | ChatClientPersistence<TTools>
+
+/**
+ * The `persistence` / `threadId` pairing for `ChatClient` and the chat hooks.
+ *
+ * `threadId` is always required. It is the conversation id for the wire,
+ * DevTools, and persistence. Use a stable id for each conversation, for
+ * example the id from your route or database.
+ *
+ * `history` is allowed only with `persistence: true`.
+ *
+ * Intersect this onto `ChatClientOptions`. Do not apply a later plain `Omit`
+ * to that type: it collapses the union and the `history` rule disappears. Use
+ * {@link DistributedOmit}.
+ */
+export type ChatPersistenceOptions<
+  TTools extends ReadonlyArray<AnyClientTool> = any,
+> =
+  | {
+      persistence: true
+      threadId: string
+      /**
+       * Newest-window size for server hydrate. Only with `persistence: true`.
+       * Without this, hydrate still loads the full thread.
+       */
+      history?: {
+        pageSize: number
+      }
+    }
+  | {
+      persistence?: ChatClientPersistence<TTools> | false | undefined
+      threadId: string
+      history?: never
+    }
+
+type IsUnknown<T> = unknown extends T
+  ? [T] extends [unknown]
+    ? true
+    : false
+  : false
+
+type KnownContext<T> = IsUnknown<T> extends true ? never : T
+
+type MergeContext<TLeft, TRight> = [TLeft] extends [never]
+  ? TRight
+  : [TRight] extends [never]
+    ? TLeft
+    : TLeft & TRight
+
+type UnionToIntersection<T> = [T] extends [never]
+  ? never
+  : (T extends unknown ? (value: T) => void : never) extends (
+        value: infer TIntersection,
+      ) => void
+    ? TIntersection
+    : never
+
+type DefinedContext<T> = Exclude<T, undefined>
+
+type ContextFromExecute<T> = T extends (...args: any) => any
+  ? NonNullable<Parameters<T>[1]> extends { context: infer TContext }
+    ? KnownContext<TContext>
+    : never
+  : never
+
+type ContextFromClientTool<T> = T extends AnyClientTool
+  ? T extends { execute?: infer TExecute }
+    ? ContextFromExecute<TExecute>
+    : never
+  : never
+
+type RequiredContextFromClientToolUnion<T> = T extends unknown
+  ? undefined extends ContextFromClientTool<T>
+    ? never
+    : ContextFromClientTool<T>
+  : never
+
+type ContextFromClientToolUnion<T> = [
+  UnionToIntersection<DefinedContext<ContextFromClientTool<T>>>,
+] extends [never]
+  ? never
+  : [RequiredContextFromClientToolUnion<T>] extends [never]
+    ? UnionToIntersection<DefinedContext<ContextFromClientTool<T>>> | undefined
+    : UnionToIntersection<DefinedContext<ContextFromClientTool<T>>>
+
+type ContextFromClientTools<TTools> =
+  IsUnknown<TTools> extends true
+    ? never
+    : TTools extends readonly [infer THead, ...infer TTail]
+      ? MergeContext<
+          ContextFromClientTool<THead>,
+          ContextFromClientTools<TTail>
+        >
+      : TTools extends ReadonlyArray<infer TItem>
+        ? ContextFromClientToolUnion<TItem>
+        : never
+
+export type InferredClientContext<TTools> = [
+  ContextFromClientTools<TTools>,
+] extends [never]
+  ? unknown
+  : ContextFromClientTools<TTools>
+
+export type ClientContextOptionFromTools<TTools, TContext> = [
+  ContextFromClientTools<TTools>,
+] extends [never]
+  ? { context?: TContext }
+  : undefined extends ContextFromClientTools<TTools>
+    ? { context?: TContext & ContextFromClientTools<TTools> }
+    : { context: TContext & ContextFromClientTools<TTools> }
+
+/**
+ * Base options for `ChatClient`, excluding the transport (`connection` or
+ * `fetcher`) which is supplied separately via `ChatTransport` so the XOR
+ * is preserved when composing the final `ChatClientOptions` type.
+ */
+export interface ChatClientBaseOptions<
+  TTools extends ReadonlyArray<AnyClientTool> = any,
+  TContext = unknown,
+  TInterrupts extends ReadonlyArray<InterruptDefinition<any, any, any, any>> =
+    readonly [],
+> {
+  /**
+   * Initial messages to populate the chat
+   */
+  initialMessages?: Array<UIMessage<TTools>>
+
+  /**
+   * Initial resumable run state, useful when rehydrating a persisted client
+   * after a full page reload. This restores the client-side interrupt
+   * descriptors needed to send AG-UI resume entries.
+   */
+  initialResumeSnapshot?: ChatResumeSnapshot
+
+  /**
+   * Arbitrary client-controlled JSON forwarded to the server in the
+   * AG-UI `RunAgentInput.forwardedProps` field. Use this for per-session
+   * options like provider/model selection or feature flags that the
+   * server endpoint should read.
+   */
+  forwardedProps?: Record<string, any>
+
+  /**
+   * Optional BYOK keyring. On each send the client prepares the resolved
+   * provider and stamps `x-byok-*` request headers. Keys never go in the body.
+   */
+  byok?: ByokClient
+
+  /**
+   * The agents you pass to `chat({ subagents: { agents } })`, for types only.
+   * The client does not call `run`. `createChatHook` from
+   * `@tanstack/ai-react/ui` requires a `subagentsComponents` entry for every
+   * agent name.
+   */
+  subagents?: ReadonlyArray<SubagentClientAgent>
+
+  /**
+   * Optional provider id for this chat. If it returns a provider slug,
+   * only that key is prepared and sent. Otherwise the merged `provider`
+   * from `forwardedProps`, `body`, and per-call `sendMessage` `body` is
+   * used. Later sources win. If no slug resolves, the send throws
+   * instead of attaching every stored key.
+   */
+  byokProvider?: () => string | undefined
+
+  /**
+   * Client-local runtime context passed to client tool implementations.
+   *
+   * This value is not serialized to the server. Use `forwardedProps` for
+   * explicit client-to-server handoff of serializable values.
+   */
+  context?: TContext
+
+  /**
+   * Callback when a response is received
+   */
+  onResponse?: (response?: Response) => void | Promise<void>
+
+  /**
+   * Callback when a stream chunk is received
+   */
+  onChunk?: (chunk: StreamChunk) => void
+
+  /**
+   * Callback when the response is finished
+   */
+  onFinish?: (message: UIMessage<TTools>) => void
+
+  /**
+   * Callback when an error occurs
+   */
+  onError?: (error: Error) => void
+
+  /**
+   * Callback when messages change. Receives the client's live array, not the
+   * frozen snapshot copy. Do not change it in place; use `setMessagesManually`.
+   */
+  onMessagesChange?: (messages: Array<UIMessage<TTools>>) => void
+
+  /**
+   * Callback when loading state changes
+   */
+  onLoadingChange?: (isLoading: boolean) => void
+
+  /**
+   * Callback when error state changes
+   */
+  onErrorChange?: (error: Error | undefined) => void
+
+  /**
+   * Callback when chat status changes
+   */
+  onStatusChange?: (status: ChatClientState) => void
+
+  /**
+   * Callback when subscription lifecycle changes.
+   * This is independent from request lifecycle (`isLoading`, `status`).
+   */
+  onSubscriptionChange?: (isSubscribed: boolean) => void
+
+  /**
+   * Callback when connection lifecycle changes.
+   */
+  onConnectionStatusChange?: (status: ConnectionStatus) => void
+
+  /**
+   * Callback when session generation activity changes.
+   * Derived from stream run events (RUN_STARTED / RUN_FINISHED / RUN_ERROR).
+   * Unlike `onLoadingChange` (request-local), this reflects shared generation
+   * activity visible to all subscribers (e.g. across tabs/devices).
+   */
+  onSessionGeneratingChange?: (isGenerating: boolean) => void
+
+  /**
+   * Callback when the client starts or stops rebuilding the chat from
+   * persistence (the server hydrate, or an async storage adapter). It turns
+   * false once the transcript is applied and any in-flight run is re-joined.
+   */
+  onHydratingChange?: (isHydrating: boolean) => void
+
+  /**
+   * Policy for messages sent while the client is busy (streaming, claiming
+   * a send, or draining the queue). Accepts a `WhenBusy` string, a
+   * `QueueConfig`, or a `QueueStrategy` function.
+   * Default: `{ whenBusy: 'queue', drain: 'fifo' }`.
+   * Queued items auto-send only after a **successful** settle; they are
+   * discarded on error/abort, `stop()`, `clear()`, `unsubscribe()`, and
+   * `reload()`.
+   */
+  queue?: QueueOption
+
+  /**
+   * Callback when the pending send queue changes (enqueue, cancel, drain,
+   * or flush). Receives a live array, not the frozen snapshot copy.
+   */
+  onQueueChange?: (queue: Array<QueuedMessage>) => void
+
+  /**
+   * Callback when resumable run state or pending interrupts change.
+   */
+  onResumeStateChange?: (
+    resumeState: ChatResumeState | null,
+    pendingInterrupts: BoundInterrupts<TTools, TInterrupts>,
+  ) => void
+
+  /**
+   * Callback when the id of the run this client has in flight changes: the new
+   * id when a run starts (a send, or a `joinRun` rejoin), `null` when it settles.
+   */
+  onRunIdChange?: (runId: string | null) => void
+
+  /**
+   * Callback when the immutable interrupt state snapshot changes.
+   * Snapshot restoration passes `{ source: 'hydrate' }`; streamed and
+   * client-initiated updates pass `{ source: 'live' }`.
+   */
+  onInterruptStateChange?: (
+    state: ChatInterruptState<TTools, TInterrupts>,
+    context: { source: 'hydrate' | 'live' },
+  ) => void
+
+  /**
+   * Callback when a custom event is received from a server-side tool.
+   * Custom events are emitted by tools using `context.emitCustomEvent()` during execution.
+   *
+   * @param eventType - The name of the custom event
+   * @param data - The event payload data
+   * @param context - Additional context including the toolCallId that emitted the event
+   */
+  onCustomEvent?: (
+    eventType: string,
+    data: unknown,
+    context: { toolCallId?: string },
+  ) => void
+
+  /**
+   * Client-side tools with execution logic
+   * When provided, tools with execute functions will be called automatically
+   */
+  tools?: TTools
+
+  /** First-party generic interrupts this client can type and resolve. */
+  interrupts?: TInterrupts
+
+  /**
+   * Devtools hook metadata for this client instance.
+   */
+  devtools?: Partial<AIDevtoolsClientMetadata>
+
+  /**
+   * Factory that constructs the devtools bridge. Default is a no-op
+   * factory, which keeps `@tanstack/ai-client/devtools` (the heavy
+   * bridge implementation) out of the main entry's bundle. Frameworks
+   * that need live devtools should pass the real factory from
+   * `@tanstack/ai-client/devtools`.
+   */
+  devtoolsBridgeFactory?: ChatDevtoolsBridgeFactory
+
+  /**
+   * Stream processing options (optional)
+   * Configure chunking strategy
+   */
+  streamProcessor?: {
+    /**
+     * Strategy for when to emit text updates
+     * Defaults to ImmediateStrategy (every chunk)
+     */
+    chunkStrategy?: ChunkStrategy
+  }
+}
+
+/**
+ * Options for `ChatClient`. Exactly one of `connection` or `fetcher` must be
+ * provided — the type-level XOR is enforced via `ChatTransport`. `threadId`
+ * is required. See {@link ChatPersistenceOptions}.
+ */
+export type ChatClientOptions<
+  TTools extends ReadonlyArray<AnyClientTool> = any,
+  TContext = InferredClientContext<TTools>,
+  TInterrupts extends ReadonlyArray<InterruptDefinition<any, any, any, any>> =
+    readonly [],
+> = DistributedOmit<
+  ChatClientBaseOptions<TTools, TContext, TInterrupts>,
+  'context'
+> &
+  ClientContextOptionFromTools<TTools, TContext> &
+  ChatTransport &
+  ChatPersistenceOptions<TTools>
+
+export interface ChatRequestBody {
+  messages: Array<ModelMessage>
+  data?: Record<string, any>
+}
+
+/**
+ * Create a typed array of client tools with proper type inference.
+ * This eliminates the need for `as const` when defining tool arrays.
+ *
+ * @example
+ * ```ts
+ * const tools = clientTools(
+ *   myTool1.client(() => result1),
+ *   myTool2.client(() => result2),
+ * )
+ *
+ * // tools is now properly typed as a tuple with literal tool names
+ * // This enables type narrowing when checking part.name === 'toolName'
+ * ```
+ */
+export function clientTools<const T extends Array<AnyClientTool>>(
+  ...tools: T
+): T {
+  return tools
+}
+
+/**
+ * Helper to create typed chat client options
+ * Use this to get proper type inference for messages
+ *
+ * @example
+ * ```ts
+ * const tools = clientTools(myTool1, myTool2)
+ *
+ * const chatOptions = createChatClientOptions({
+ *   connection: fetchServerSentEvents('/api/chat'),
+ *   threadId,
+ *   tools,
+ * })
+ *
+ * type MyMessages = InferChatMessages<typeof chatOptions>
+ * ```
+ */
+export function createChatClientOptions<
+  const TTools extends ReadonlyArray<AnyClientTool>,
+  TContext = InferredClientContext<TTools>,
+  const TInterrupts extends ReadonlyArray<
+    InterruptDefinition<any, any, any, any>
+  > = readonly [],
+>(
+  options: ChatClientOptions<TTools, TContext, TInterrupts>,
+): ChatClientOptions<TTools, TContext, TInterrupts> {
+  return options
+}
+
+/**
+ * Extract the message type from chat options
+ *
+ * @example
+ * ```ts
+ * const chatOptions = createChatClientOptions({
+ *   connection: fetchServerSentEvents('/api/chat'),
+ *   threadId,
+ *   tools: [myTool1, myTool2],
+ * })
+ *
+ * type MyMessages = InferChatMessages<typeof chatOptions>
+ * // MyMessages is now Array<UIMessage<[typeof myTool1, typeof myTool2]>>
+ * ```
+ */
+export type InferChatMessages<T> =
+  T extends ChatClientOptions<infer TTools, any>
+    ? Array<UIMessage<TTools>>
+    : never

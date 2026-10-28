@@ -1,0 +1,108 @@
+# Gemini Adapter Reference
+
+## Package
+
+```
+@tanstack/ai-gemini
+```
+
+## Adapter Factories
+
+| Factory           | Type      | Description                    |
+| ----------------- | --------- | ------------------------------ |
+| `geminiText`      | Text/Chat | Chat completions               |
+| `geminiImage`     | Image     | Image generation (Nano Banana) |
+| `geminiSpeech`    | TTS       | Text-to-speech (experimental)  |
+| `geminiSummarize` | Summarize | Text summarization             |
+
+## Import
+
+```typescript
+import { geminiText } from '@tanstack/ai-gemini'
+import { geminiImage } from '@tanstack/ai-gemini'
+```
+
+## Key Chat Models
+
+| Model                           | Max Input | Max Output | Notes                        |
+| ------------------------------- | --------- | ---------- | ---------------------------- |
+| `gemini-3.1-pro-preview`        | 1M        | 65K        | Latest flagship, thinking    |
+| `gemini-3-flash-preview`        | 1M        | 65K        | Fast, thinking, multimodal   |
+| `gemini-3.1-flash-lite`         | 1M        | 65K        | Budget GA, thinking          |
+| `gemini-3.1-flash-lite-preview` | 1M        | 65K        | Budget, still capable        |
+| `gemini-2.5-pro`                | 1M        | 65K        | Stable release, all features |
+| `gemini-2.5-flash`              | 1M        | 65K        | Fast stable release          |
+
+Most Gemini text models accept `text`, `image`, `audio`, `video`, and `document` input; `gemini-2.5-flash` accepts all of these except `document`.
+
+## Provider-Specific modelOptions
+
+```typescript
+import { chat } from '@tanstack/ai'
+import {
+  geminiText,
+  HarmBlockThreshold,
+  HarmCategory,
+} from '@tanstack/ai-gemini'
+
+const messages = [{ role: 'user' as const, content: 'Hello' }]
+
+chat({
+  adapter: geminiText('gemini-2.5-pro'),
+  messages,
+  threadId: 'thread-1',
+  // Thinking: a budget on Gemini 2.5, a level on Gemini 3
+  reasoning: { level: 'high', budgetTokens: 4096 },
+  modelOptions: {
+    // Safety settings
+    safetySettings: [
+      {
+        category: HarmCategory.HARM_CATEGORY_HATE_SPEECH,
+        threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
+      },
+    ],
+    // Tool config
+    toolConfig: {/* ToolConfig */},
+    // Structured output
+    responseMimeType: 'application/json',
+    responseSchema: {/* Schema */},
+    // Cached content
+    cachedContent: 'cachedContents/abc123',
+    // Response modalities
+    responseModalities: ['TEXT'],
+    // Sampling
+    temperature: 0.7,
+    topP: 0.9,
+    maxOutputTokens: 1000,
+    topK: 40,
+    seed: 42,
+    presencePenalty: 0.5,
+    frequencyPenalty: 0.5,
+    candidateCount: 1,
+    stopSequences: ['END'],
+  },
+})
+```
+
+## Environment Variable
+
+```
+GOOGLE_API_KEY  (preferred)
+GEMINI_API_KEY  (also accepted)
+```
+
+The adapter checks `GOOGLE_API_KEY` first, then falls back to `GEMINI_API_KEY`.
+Note: `GOOGLE_GENAI_API_KEY` does NOT work.
+
+## Gotchas
+
+- All Gemini models are multimodal (text, image, audio, video, document input).
+- Image generation models (`gemini-3-pro-image`, `gemini-3.1-flash-image`, etc.)
+  have smaller input limits (65K tokens) compared to text models (1M tokens).
+- Use the GA image ids: `gemini-3.1-flash-image`, `gemini-3-pro-image`, or
+  `gemini-3.1-flash-lite-image`. The `-preview` ids and `gemini-2.5-flash-image`
+  are not in the type union.
+- `chat({ reasoning })` sends `thinkingConfig.thinkingLevel` on Gemini 3 and
+  `thinkingConfig.thinkingBudget` on Gemini 2.5. Only Gemini 2.5 takes
+  `budgetTokens`.
+- `cachedContent` must follow the format `cachedContents/{id}`.

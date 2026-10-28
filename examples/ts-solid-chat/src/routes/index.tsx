@@ -3,10 +3,14 @@ import Send from 'lucide-solid/icons/send'
 import Square from 'lucide-solid/icons/square'
 import { fetchServerSentEvents, useChat } from '@tanstack/ai-solid'
 import { createChatClientOptions } from '@tanstack/ai-client'
-import { TextPart, ThinkingPart } from '@tanstack/ai-solid-ui'
+import { TextPart, ThinkingPart } from '@tanstack/ai-solid/ui'
 import { For, createSignal } from 'solid-js'
 
-import type { InferChatMessages, UIMessage } from '@tanstack/ai-client'
+import type {
+  BoundInterrupts,
+  InferChatMessages,
+  UIMessage,
+} from '@tanstack/ai-client'
 
 import type { JSXElement } from 'solid-js'
 import GuitarRecommendation from '@/components/example-GuitarRecommendation'
@@ -20,6 +24,7 @@ import {
 // Create typed chat options for type inference
 const chatOptions = createChatClientOptions({
   connection: fetchServerSentEvents('/api/chat'),
+  threadId: 'guitar-chat',
   tools: clientTools,
 })
 
@@ -35,143 +40,129 @@ function ChatInputArea(props: { children: JSXElement }) {
 }
 
 function Messages(props: {
-  messages: ChatMessages
-  addToolApprovalResponse: (response: {
-    id: string
-    approved: boolean
-  }) => Promise<void>
+  messages: Readonly<ChatMessages>
+  interrupts: BoundInterrupts<typeof clientTools>
 }) {
   return (
     <div class="flex-1 overflow-y-auto px-4 py-4">
       <For each={props.messages}>
-        {(message) => (
-          <div
-            class={`p-4 rounded-lg mb-2 ${
-              message.role === 'assistant'
-                ? 'bg-linear-to-r from-orange-500/5 to-red-600/5'
-                : 'bg-transparent'
-            }`}
-          >
-            <div class="flex items-start gap-4">
-              {message.role === 'assistant' ? (
-                <div class="w-8 h-8 rounded-lg bg-linear-to-r from-orange-500 to-red-600 flex items-center justify-center text-sm font-medium text-white shrink-0">
-                  AI
-                </div>
-              ) : (
-                <div class="w-8 h-8 rounded-lg bg-gray-700 flex items-center justify-center text-sm font-medium text-white shrink-0">
-                  U
-                </div>
-              )}
-              <div class="flex-1 min-w-0">
-                {/* Render parts in order */}
-                <For each={message.parts}>
-                  {(part, index) => {
-                    // Thinking part
-                    if (part.type === 'thinking') {
-                      // Check if thinking is complete (if there's a text part after)
-                      const isComplete = message.parts
-                        .slice(index() + 1)
-                        .some((p) => p.type === 'text')
-                      return (
-                        <div class="mt-2 mb-2">
-                          <ThinkingPart
-                            content={part.content}
-                            isComplete={isComplete}
-                            class="p-4 bg-gray-800/50 border border-gray-700/50 rounded-lg"
-                          />
-                        </div>
-                      )
-                    }
-
-                    if (part.type === 'text' && part.content) {
-                      return (
-                        <TextPart
-                          content={part.content}
-                          role={message.role}
-                          class="text-white prose dark:prose-invert max-w-none"
-                        />
-                      )
-                    }
-
-                    // Approval UI
-                    if (
-                      part.type === 'tool-call' &&
-                      part.state === 'approval-requested' &&
-                      part.approval
-                    ) {
-                      return (
-                        <div class="p-4 bg-yellow-500/10 border border-yellow-500/20 rounded-lg mt-2">
-                          <p class="text-white font-medium mb-2">
-                            🔒 Approval Required: {part.name}
-                          </p>
-                          <div class="text-gray-300 text-sm mb-3">
-                            <pre class="bg-gray-800 p-2 rounded text-xs overflow-x-auto">
-                              {JSON.stringify(
-                                JSON.parse(part.arguments),
-                                null,
-                                2,
-                              )}
-                            </pre>
-                          </div>
-                          <div class="flex gap-2">
-                            <button
-                              onClick={() =>
-                                props.addToolApprovalResponse({
-                                  id: part.approval!.id,
-                                  approved: true,
-                                })
-                              }
-                              class="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm font-medium transition-colors"
-                            >
-                              ✓ Approve
-                            </button>
-                            <button
-                              onClick={() =>
-                                props.addToolApprovalResponse({
-                                  id: part.approval!.id,
-                                  approved: false,
-                                })
-                              }
-                              class="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-medium transition-colors"
-                            >
-                              ✗ Deny
-                            </button>
-                          </div>
-                        </div>
-                      )
-                    }
-
-                    // Guitar recommendation card
-                    if (
-                      part.type === 'tool-call' &&
-                      part.name === 'recommendGuitar' &&
-                      part.output
-                    ) {
-                      try {
+        {(message) =>
+          message.role === 'activity' ? null : (
+            <div
+              class={`p-4 rounded-lg mb-2 ${
+                message.role === 'assistant'
+                  ? 'bg-linear-to-r from-orange-500/5 to-red-600/5'
+                  : 'bg-transparent'
+              }`}
+            >
+              <div class="flex items-start gap-4">
+                {message.role === 'assistant' ? (
+                  <div class="w-8 h-8 rounded-lg bg-linear-to-r from-orange-500 to-red-600 flex items-center justify-center text-sm font-medium text-white shrink-0">
+                    AI
+                  </div>
+                ) : (
+                  <div class="w-8 h-8 rounded-lg bg-gray-700 flex items-center justify-center text-sm font-medium text-white shrink-0">
+                    U
+                  </div>
+                )}
+                <div class="flex-1 min-w-0">
+                  {/* Render parts in order */}
+                  <For each={message.parts}>
+                    {(part, index) => {
+                      // Thinking part
+                      if (part.type === 'thinking') {
+                        // Check if thinking is complete (if there's a text part after)
+                        const isComplete = message.parts
+                          .slice(index() + 1)
+                          .some((p) => p.type === 'text')
                         return (
-                          <div class="mt-2">
-                            <GuitarRecommendation id={part.output.id} />
+                          <div class="mt-2 mb-2">
+                            <ThinkingPart
+                              content={part.content}
+                              isComplete={isComplete}
+                              class="p-4 bg-gray-800/50 border border-gray-700/50 rounded-lg"
+                            />
                           </div>
                         )
-                      } catch {
-                        return null
                       }
-                    }
 
-                    return null
-                  }}
-                </For>
+                      if (part.type === 'text' && part.content) {
+                        return (
+                          <TextPart
+                            content={part.content}
+                            role={
+                              message.role === 'activity'
+                                ? undefined
+                                : message.role
+                            }
+                            class="text-white prose dark:prose-invert max-w-none"
+                          />
+                        )
+                      }
+
+                      // Guitar recommendation card
+                      if (
+                        part.type === 'tool-call' &&
+                        part.name === 'recommendGuitar' &&
+                        part.output
+                      ) {
+                        try {
+                          return (
+                            <div class="mt-2">
+                              <GuitarRecommendation id={part.output.id} />
+                            </div>
+                          )
+                        } catch {
+                          return null
+                        }
+                      }
+
+                      return null
+                    }}
+                  </For>
+                </div>
               </div>
             </div>
-          </div>
-        )}
+          )
+        }
+      </For>
+      {/* Tool approvals render from the bound `interrupts` list. */}
+      <For each={props.interrupts}>
+        {(interrupt) =>
+          interrupt.kind === 'tool-approval' ? (
+            <div class="p-4 bg-yellow-500/10 border border-yellow-500/20 rounded-lg mt-2">
+              <p class="text-white font-medium mb-2">
+                🔒 Approval Required: {interrupt.toolName}
+              </p>
+              <div class="text-gray-300 text-sm mb-3">
+                <pre class="bg-gray-800 p-2 rounded text-xs overflow-x-auto">
+                  {JSON.stringify(interrupt.originalArgs, null, 2)}
+                </pre>
+              </div>
+              <div class="flex gap-2">
+                <button
+                  onClick={() => interrupt.resolveInterrupt(true)}
+                  class="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm font-medium transition-colors"
+                >
+                  ✓ Approve
+                </button>
+                <button
+                  onClick={() => interrupt.resolveInterrupt(false)}
+                  class="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-medium transition-colors"
+                >
+                  ✗ Deny
+                </button>
+              </div>
+            </div>
+          ) : null
+        }
       </For>
     </div>
   )
 }
 
 function DebugPanel(props: {
-  messages: Array<UIMessage>
+  messages: ReadonlyArray<UIMessage>
   chunks: Array<any>
   onClearChunks: () => void
 }) {
@@ -321,17 +312,12 @@ function ChatPage() {
     model: selectedModel().model,
   })
 
-  const { messages, sendMessage, isLoading, addToolApprovalResponse, stop } =
-    useChat({
-      connection: chatOptions.connection,
-      tools: clientTools,
-      get body() {
-        return bodyData()
-      },
-      onChunk: (chunk: any) => {
-        setChunks((prev) => [...prev, chunk])
-      },
-    })
+  const { messages, sendMessage, isLoading, interrupts, stop } = useChat({
+    ...chatOptions,
+    onChunk: (chunk: any) => {
+      setChunks((prev) => [...prev, chunk])
+    },
+  })
   const [input, setInput] = createSignal('')
 
   const clearChunks = () => setChunks([])
@@ -373,10 +359,7 @@ function ChatPage() {
           </div>
         </div>
 
-        <Messages
-          messages={messages()}
-          addToolApprovalResponse={addToolApprovalResponse}
-        />
+        <Messages messages={messages()} interrupts={interrupts()} />
 
         <ChatInputArea>
           <div class="space-y-3">

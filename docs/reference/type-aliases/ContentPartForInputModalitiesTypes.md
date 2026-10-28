@@ -3,15 +3,13 @@ id: ContentPartForInputModalitiesTypes
 title: ContentPartForInputModalitiesTypes
 ---
 
-# Type Alias: ContentPartForInputModalitiesTypes\<TInputModalitiesTypes\>
-
 ```ts
 type ContentPartForInputModalitiesTypes<TInputModalitiesTypes> = Extract<ContentPart<TInputModalitiesTypes["messageMetadataByModality"]["text"], TInputModalitiesTypes["messageMetadataByModality"]["image"], TInputModalitiesTypes["messageMetadataByModality"]["audio"], TInputModalitiesTypes["messageMetadataByModality"]["video"], TInputModalitiesTypes["messageMetadataByModality"]["document"]>, {
   type: TInputModalitiesTypes["inputModalities"][number];
 }>;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:258](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L258)
+Defined in: packages/ai/src/types.ts:344
 
 Helper type to filter ContentPart union to only include specific modalities.
 Used to constrain message content based on model capabilities.

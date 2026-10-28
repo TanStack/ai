@@ -13,8 +13,8 @@ interface ImageGenResult {
   model: string
   images: Array<GeneratedImage>
   usage?: {
-    inputTokens?: number
-    outputTokens?: number
+    promptTokens?: number
+    completionTokens?: number
     totalTokens?: number
   }
 }
@@ -23,16 +23,12 @@ const IMAGE_MODELS = [
   { value: 'openai/gpt-5-image-mini', label: 'OpenAI GPT-5 Image Mini' },
   { value: 'openai/gpt-5-image', label: 'OpenAI GPT-5 Image' },
   {
-    value: 'google/gemini-2.5-flash-image',
-    label: 'Gemini 2.5 Flash Image',
+    value: 'google/gemini-nano-banana-2.1',
+    label: 'Nano Banana 2.1',
   },
   {
-    value: 'google/gemini-2.5-flash-image-preview',
-    label: 'Gemini 2.5 Flash Image Preview',
-  },
-  {
-    value: 'google/gemini-3-pro-image-preview',
-    label: 'Gemini 3 Pro Image Preview',
+    value: 'google/gemini-3-pro-image',
+    label: 'Gemini 3 Pro Image (Nano Banana Pro)',
   },
 ] as const
 

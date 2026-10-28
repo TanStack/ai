@@ -1,0 +1,1764 @@
+import { OpenRouter } from '@openrouter/sdk'
+import {
+  EventType,
+  isFileSource,
+  normalizeSystemPrompts,
+  unsupportedFileSourceError,
+} from '@tanstack/ai'
+import { BaseTextAdapter } from '@tanstack/ai/adapters'
+import {
+  hashToolCallId,
+  resolveReasoning,
+  tanstackMetadata,
+  toRunErrorPayload,
+  toRunErrorRawEvent,
+  transformMessagesForReplay,
+} from '@tanstack/ai/adapter-internals'
+import { generateId } from '@tanstack/ai-utils'
+import { extractRequestOptions } from '../internal/request-options'
+import { clientForCall } from '../internal/wrap-fetch'
+import { makeStructuredOutputCompatible } from '../internal/schema-converter'
+import { openRouterSupportsCombinedToolsAndSchema } from '../internal/combined-tools-and-schema'
+import {
+  openRouterUsesJsonObject,
+  withJsonModePrompt,
+} from '../internal/json-object-mode'
+import {
+  OPENROUTER_MODEL_INPUT_MODALITIES,
+  OPENROUTER_MODEL_REASONING,
+} from '../model-meta'
+import { openRouterEffort } from '../internal/reasoning'
+import { addPromptCacheMarkers } from '../prompt-cache'
+import { convertToolsToProviderFormat } from '../tools'
+import { getOpenRouterApiKeyFromEnv } from '../utils'
+import { toOpenRouterRunErrorPayload } from '../utils/run-error'
+import { buildOpenRouterUsage } from '../usage'
+import { extractUsageCost } from './cost'
+import type { SDKOptions } from '@openrouter/sdk'
+import type {
+  ChatContentItems,
+  ChatContentText,
+  ChatMessages,
+  ChatRequest,
+  ChatRequestEffort,
+  ChatStreamChoice,
+  ChatStreamChunk,
+} from '@openrouter/sdk/models'
+import type {
+  StructuredOutputOptions,
+  StructuredOutputResult,
+} from '@tanstack/ai/adapters'
+import type {
+  ContentPart,
+  JSONSchema,
+  ModelMessage,
+  AdapterYieldChunk,
+  TextOptions,
+  ToolChoice,
+} from '@tanstack/ai'
+import type {
+  OPENROUTER_CHAT_MODELS,
+  OpenRouterChatModelToolCapabilitiesByName,
+  OpenRouterModelInputModalitiesByName,
+  OpenRouterModelOptionsByName,
+  OpenRouterModelReasoningByName,
+} from '../model-meta'
+import type {
+  ExternalTextProviderOptions,
+  OpenRouterSystemPromptMetadata,
+} from '../text/text-provider-options'
+import type {
+  OpenRouterImageMetadata,
+  OpenRouterMessageMetadataByModality,
+} from '../message-types'
+
+export interface OpenRouterConfig extends SDKOptions {
+  /**
+   * HTTP status codes the SDK retries using `retryConfig`, e.g.
+   * `['429', '5XX']`. The SDK only accepts this per call (default `['5XX']`),
+   * so the adapter forwards it to every `chat.send`.
+   */
+  retryCodes?: Array<string>
+}
+export type OpenRouterTextModels = (typeof OPENROUTER_CHAT_MODELS)[number]
+
+export type OpenRouterTextModelOptions = ExternalTextProviderOptions
+
+type ResolveProviderOptions<TModel extends string> =
+  TModel extends keyof OpenRouterModelOptionsByName
+    ? OpenRouterModelOptionsByName[TModel]
+    : OpenRouterTextModelOptions
+
+type ResolveInputModalities<TModel extends string> =
+  TModel extends keyof OpenRouterModelInputModalitiesByName
+    ? OpenRouterModelInputModalitiesByName[TModel]
+    : readonly ['text', 'image']
+
+type ResolveToolCapabilities<TModel extends string> =
+  TModel extends keyof OpenRouterChatModelToolCapabilitiesByName
+    ? NonNullable<OpenRouterChatModelToolCapabilitiesByName[TModel]>
+    : readonly []
+
+/**
+ * The reasoning levels of a model, for `chat({ reasoning })`. The chat
+ * request schema has no token budget field, so no model takes
+ * `budgetTokens` here. `never`: the model does not reason.
+ */
+type ResolveReasoning<TModel extends string> =
+  TModel extends keyof OpenRouterModelReasoningByName
+    ? {
+        levels: OpenRouterModelReasoningByName[TModel]['levels']
+        budget: false
+      }
+    : never
+
+/** Maps `chat({ toolChoice })` to the OpenRouter chat `toolChoice`. */
+function toOpenRouterChatToolChoice(
+  choice: ToolChoice,
+): NonNullable<ChatRequest['toolChoice']> {
+  if (typeof choice === 'string') return choice
+  return { type: 'function', function: { name: choice.name } }
+}
+
+/**
+ * OpenRouter Text (Chat) Adapter — standalone implementation that talks to
+ * OpenRouter's `/v1/chat/completions` endpoint via the `@openrouter/sdk` SDK.
+ *
+ * The wire format is OpenAI-Chat-Completions-compatible, but the SDK exposes
+ * the request/response in camelCase TS shapes (`toolCalls`, `finishReason`,
+ * `maxCompletionTokens`, `responseFormat: { jsonSchema: ... }`, etc.). This
+ * adapter operates directly in those camelCase shapes — there's no
+ * snake_case ↔ camelCase round-trip.
+ *
+ * Behaviour preserved from the pre-decoupling implementation:
+ *   - Provider routing surface (`provider`, `models`, `plugins`, `variant`,
+ *     `transforms`) passes through `modelOptions`.
+ *   - App attribution headers (`httpReferer`, `appTitle`) and base URL
+ *     overrides flow through the SDK `SDKOptions` constructor.
+ *   - `RequestAbortedError` from the SDK propagates up — `chatStream` wraps
+ *     unknown errors into a single RUN_ERROR event via `toRunErrorPayload`.
+ *   - Model variant suffixing (e.g. `:thinking`, `:free`) via
+ *     `modelOptions.variant`.
+ *   - OpenRouter-specific reasoning extraction (`delta.reasoningDetails`).
+ *   - OpenRouter preserves nulls in structured-output results
+ *     (`transformStructuredOutput` is a passthrough).
+ */
+export class OpenRouterTextAdapter<
+  TModel extends OpenRouterTextModels,
+  TToolCapabilities extends ReadonlyArray<string> =
+    ResolveToolCapabilities<TModel>,
+> extends BaseTextAdapter<
+  TModel,
+  ResolveProviderOptions<TModel>,
+  ResolveInputModalities<TModel>,
+  OpenRouterMessageMetadataByModality,
+  TToolCapabilities,
+  // TToolCallMetadata — OpenRouter has no tool-call metadata round-tripping.
+  unknown,
+  // TSystemPromptMetadata — narrows `systemPrompts[i].metadata` at the chat()
+  // call site so users get `cache_control` autocomplete.
+  OpenRouterSystemPromptMetadata,
+  ResolveReasoning<TModel>
+> {
+  override readonly kind = 'text' as const
+  readonly name = 'openrouter' as const
+  override readonly provider = 'openrouter'
+  override readonly api = 'openai-completions'
+  override readonly inputModalities =
+    OPENROUTER_MODEL_INPUT_MODALITIES[this.model]
+
+  protected orClient: OpenRouter
+  private readonly sdkOptions: SDKOptions
+  private readonly retryCodes: Array<string> | undefined
+
+  constructor(config: OpenRouterConfig, model: TModel) {
+    super({}, model)
+    const { retryCodes, ...sdkOptions } = config
+    this.sdkOptions = sdkOptions
+    this.orClient = new OpenRouter(sdkOptions)
+    this.retryCodes = retryCodes
+  }
+
+  async *chatStream(
+    options: TextOptions<ResolveProviderOptions<TModel>>,
+  ): AsyncIterable<AdapterYieldChunk> {
+    const source = {
+      provider: this.provider,
+      api: this.api,
+      model: options.model,
+    }
+    for await (const chunk of this.chatStreamRequest(options))
+      yield {
+        ...chunk,
+        metadata: {
+          ...chunk.metadata,
+          tanstack: { ...tanstackMetadata(chunk), source },
+        },
+      }
+  }
+
+  private async *chatStreamRequest(
+    options: TextOptions<ResolveProviderOptions<TModel>>,
+  ): AsyncIterable<AdapterYieldChunk> {
+    // AG-UI lifecycle tracking (mutable state object for ESLint compatibility)
+    const aguiState = {
+      runId: generateId(this.name),
+      threadId: options.threadId,
+      messageId: generateId(this.name),
+      hasEmittedRunStarted: false,
+    }
+
+    try {
+      // mapOptionsToRequest can throw (e.g. fail-loud guards in convertMessage
+      // for empty content or unsupported parts). Keep it inside the try so
+      // those failures surface as a single RUN_ERROR event, matching every
+      // other failure mode here — callers iterating chatStream then only need
+      // one error-handling path.
+      const chatRequest = this.mapOptionsToRequest(options)
+      options.logger.request(
+        `activity=chat provider=${this.name} model=${this.model} messages=${options.messages.length} tools=${options.tools?.length ?? 0} stream=true`,
+        { provider: this.name, model: this.model },
+      )
+      const reqOptions = extractRequestOptions(options.request)
+      const stream = await clientForCall(
+        this.orClient,
+        this.sdkOptions,
+        options.wrapFetch,
+      ).chat.send(
+        {
+          chatRequest: {
+            ...chatRequest,
+            stream: true,
+            // `includeUsage: false` drops `stream_options` from the wire body.
+            // OpenRouter `provider.requireParameters: true` needs this.
+            streamOptions:
+              chatRequest.streamOptions?.includeUsage === false
+                ? undefined
+                : { ...chatRequest.streamOptions, includeUsage: true },
+          },
+        },
+        {
+          ...(reqOptions.signal != null && { signal: reqOptions.signal }),
+          ...(reqOptions.headers && { headers: reqOptions.headers }),
+          ...(this.retryCodes && { retryCodes: this.retryCodes }),
+        },
+      )
+
+      yield* this.processStreamChunks(stream, options, aguiState)
+    } catch (error: unknown) {
+      // Narrow before logging: raw SDK errors can carry request metadata
+      // (including auth headers) which we must never surface to user loggers.
+      const errorPayload = toOpenRouterRunErrorPayload(
+        error,
+        `${this.name}.chatStream failed`,
+      )
+      const rawEvent = toRunErrorRawEvent(error)
+
+      // Emit RUN_STARTED if not yet emitted
+      if (!aguiState.hasEmittedRunStarted) {
+        aguiState.hasEmittedRunStarted = true
+        yield {
+          type: EventType.RUN_STARTED,
+          runId: aguiState.runId,
+          threadId: aguiState.threadId,
+          model: options.model,
+          timestamp: Date.now(),
+          parentRunId: options.parentRunId,
+        }
+      }
+
+      // Emit AG-UI RUN_ERROR. `rawEvent` carries the provider's structured
+      // error body (e.g. a pre-stream typed error's `.error` with provider
+      // metadata) when present; omitted otherwise.
+      yield {
+        type: EventType.RUN_ERROR,
+        model: options.model,
+        timestamp: Date.now(),
+        message: errorPayload.message,
+        code: errorPayload.code,
+        ...(rawEvent !== undefined && { rawEvent }),
+        error: {
+          message: errorPayload.message,
+          code: errorPayload.code,
+        },
+      }
+
+      options.logger.errors(`${this.name}.chatStream fatal`, {
+        error: errorPayload,
+        source: `${this.name}.chatStream`,
+      })
+    }
+  }
+
+  /**
+   * Generate structured output via OpenRouter's `responseFormat`. Uses
+   * `stream: false`. Default is strict `json_schema` from `outputSchema`.
+   * JSON mode is `modelOptions.responseFormat: { type: 'json_object' }`, or
+   * a catalog model that has a response format and no strict structured
+   * outputs. JSON mode adds the schema as a system prompt.
+   */
+  async structuredOutput(
+    options: StructuredOutputOptions<ResolveProviderOptions<TModel>>,
+  ): Promise<StructuredOutputResult<unknown>> {
+    const { chatOptions, outputSchema } = options
+    const jsonMode = openRouterUsesJsonObject(
+      chatOptions.model || this.model,
+      chatOptions.modelOptions,
+    )
+    const chatRequest = this.mapOptionsToRequest(
+      jsonMode ? withJsonModePrompt(chatOptions, outputSchema) : chatOptions,
+    )
+    const responseFormat = this.resolveStructuredResponseFormat(
+      jsonMode,
+      outputSchema,
+    )
+
+    try {
+      // Strip streamOptions which is only valid for streaming calls. Also
+      // remove the caller's responseFormat before adding the resolved
+      // structured-output format below.
+      const {
+        streamOptions: _streamOptions,
+        responseFormat: _responseFormat,
+        ...cleanParams
+      } = chatRequest
+      void _streamOptions
+      void _responseFormat
+      chatOptions.logger.request(
+        `activity=structuredOutput provider=${this.name} model=${this.model} messages=${chatOptions.messages.length}`,
+        { provider: this.name, model: this.model },
+      )
+      const reqOptions = extractRequestOptions(chatOptions.request)
+      const response = await clientForCall(
+        this.orClient,
+        this.sdkOptions,
+        chatOptions.wrapFetch,
+      ).chat.send(
+        {
+          chatRequest: {
+            ...cleanParams,
+            stream: false,
+            responseFormat,
+          },
+        },
+        {
+          ...(reqOptions.signal != null && { signal: reqOptions.signal }),
+          ...(reqOptions.headers && { headers: reqOptions.headers }),
+          ...(this.retryCodes && { retryCodes: this.retryCodes }),
+        },
+      )
+
+      // Extract text content from the response. Fail loud on empty content
+      // rather than letting it cascade into a JSON-parse error on '' — the
+      // root cause (the model returned no content for the structured request)
+      // is then visible in logs.
+      const choice = response.choices[0]
+
+      // A response cut off at the output cap is a truncated JSON document —
+      // or, for reasoning models, no content at all once the budget went to
+      // reasoning. Report it as truncation before the empty-content and
+      // parse errors, which would read like a schema failure (issue #1426).
+      if (choice?.finishReason === 'length') {
+        throw new Error(
+          `${this.name}.structuredOutput: the response was cut off because the maximum token limit was reached (finish_reason=length); raise maxCompletionTokens`,
+        )
+      }
+
+      const message = choice?.message
+      const rawText =
+        typeof message?.content === 'string' ? message.content : ''
+      if (rawText.length === 0) {
+        throw new Error(
+          `${this.name}.structuredOutput: response contained no content`,
+        )
+      }
+
+      // Parse the JSON response
+      let parsed: unknown
+      try {
+        parsed = JSON.parse(rawText)
+      } catch {
+        throw new Error(
+          `Failed to parse structured output as JSON. Content: ${rawText.slice(0, 200)}${rawText.length > 200 ? '...' : ''}`,
+        )
+      }
+
+      // OpenRouter override: pass nulls through unchanged (consumers that
+      // discriminate "field present but null" from "field absent" rely on
+      // this).
+      const transformed = this.transformStructuredOutput(parsed)
+
+      // Forward provider usage (tokens + OpenRouter cost) so middleware
+      // onFinish/onUsage and fallbackStructuredOutputStream see real cost.
+      // Matches the stream path and StructuredOutputResult.usage contract.
+      const baseUsage = buildOpenRouterUsage(response.usage)
+      return {
+        data: transformed,
+        rawText,
+        ...(response.id && { responseId: response.id }),
+        ...(response.model && { model: response.model }),
+        ...(baseUsage && {
+          usage: { ...baseUsage, ...extractUsageCost(response.usage) },
+        }),
+      }
+    } catch (error: unknown) {
+      // Narrow before logging: raw SDK errors can carry request metadata
+      // (including auth headers) which we must never surface to user loggers.
+      chatOptions.logger.errors(`${this.name}.structuredOutput fatal`, {
+        error: toRunErrorPayload(error, `${this.name}.structuredOutput failed`),
+        source: `${this.name}.structuredOutput`,
+      })
+      throw error
+    }
+  }
+
+  /**
+   * Streamed structured output: a single OpenRouter chat call with
+   * `stream: true` and the format from {@link resolveStructuredResponseFormat}.
+   * Emits AG-UI lifecycle events plus a terminal
+   * `CUSTOM { name: 'structured-output.complete' }` carrying the parsed
+   * object and raw JSON text.
+   *
+   * Mirrors the chat-completions structured-output stream from
+   * `@tanstack/openai-base`, adapted to OpenRouter's camelCase wire shape
+   * (`responseFormat` / `streamOptions: { includeUsage: true }`) and SDK
+   * call surface (`orClient.chat.send({ chatRequest })`). Reasoning flows
+   * through the existing `extractReasoningText` helper used by
+   * `processStreamChunks`; the final parsed JSON runs through
+   * {@link transformStructuredOutput} (null-preserving for OpenRouter).
+   */
+  async *structuredOutputStream(
+    options: StructuredOutputOptions<ResolveProviderOptions<TModel>>,
+  ): AsyncIterable<AdapterYieldChunk> {
+    const source = {
+      provider: this.provider,
+      api: this.api,
+      model: options.chatOptions.model,
+    }
+    for await (const chunk of this.structuredOutputRequestStream(options))
+      yield {
+        ...chunk,
+        metadata: {
+          ...chunk.metadata,
+          tanstack: { ...tanstackMetadata(chunk), source },
+        },
+      }
+  }
+
+  private async *structuredOutputRequestStream(
+    options: StructuredOutputOptions<ResolveProviderOptions<TModel>>,
+  ): AsyncIterable<AdapterYieldChunk> {
+    const { chatOptions, outputSchema } = options
+    const jsonMode = openRouterUsesJsonObject(
+      chatOptions.model || this.model,
+      chatOptions.modelOptions,
+    )
+    const chatRequest = this.mapOptionsToRequest(
+      jsonMode ? withJsonModePrompt(chatOptions, outputSchema) : chatOptions,
+    )
+    const responseFormat = this.resolveStructuredResponseFormat(
+      jsonMode,
+      outputSchema,
+    )
+
+    const aguiState = {
+      runId: generateId(this.name),
+      threadId: chatOptions.threadId,
+      messageId: generateId(this.name),
+      hasEmittedRunStarted: false,
+    }
+
+    let accumulatedContent = ''
+    let accumulatedReasoning = ''
+    let hasEmittedTextMessageStart = false
+    let reasoningMessageId: string | undefined
+    let hasClosedReasoning = false
+    let lastModel: string | undefined
+    let responseId: string | undefined
+    let finishReason: string | null | undefined
+    let lastUsage: ReturnType<typeof buildOpenRouterUsage>
+
+    const closeReasoningLifecycle = function* (this: {
+      name: string
+    }): Generator<AdapterYieldChunk> {
+      if (reasoningMessageId && !hasClosedReasoning) {
+        hasClosedReasoning = true
+        yield {
+          type: EventType.REASONING_MESSAGE_END,
+          messageId: reasoningMessageId,
+          model: lastModel || chatOptions.model,
+          timestamp: Date.now(),
+        }
+        yield {
+          type: EventType.REASONING_END,
+          messageId: reasoningMessageId,
+          model: lastModel || chatOptions.model,
+          timestamp: Date.now(),
+        }
+        reasoningMessageId = undefined
+        hasClosedReasoning = false
+      }
+    }.bind(this)
+
+    try {
+      // Strip streamOptions/tools/responseFormat from the base request before
+      // adding the resolved structured-output format. Structured output
+      // doesn't carry tools — keeping them can confuse strict-mode validation
+      // upstream. `streamOptions` is set again below (omitted when the caller
+      // sets `includeUsage: false`). (`stream` is already absent —
+      // `mapOptionsToRequest` returns `Omit<ChatRequest, 'stream'>`; we set it
+      // explicitly below.)
+      const {
+        streamOptions: _so,
+        tools: _t,
+        responseFormat: _responseFormat,
+        ...cleanParams
+      } = chatRequest
+      void _so
+      void _t
+      void _responseFormat
+
+      chatOptions.logger.request(
+        `activity=structuredOutputStream provider=${this.name} model=${this.model} messages=${chatOptions.messages.length}`,
+        { provider: this.name, model: this.model },
+      )
+
+      const reqOptions = extractRequestOptions(chatOptions.request)
+      const stream = await clientForCall(
+        this.orClient,
+        this.sdkOptions,
+        chatOptions.wrapFetch,
+      ).chat.send(
+        {
+          chatRequest: {
+            ...cleanParams,
+            stream: true,
+            streamOptions:
+              chatRequest.streamOptions?.includeUsage === false
+                ? undefined
+                : { includeUsage: true },
+            responseFormat,
+          },
+        },
+        {
+          ...(reqOptions.signal != null && { signal: reqOptions.signal }),
+          ...(reqOptions.headers && { headers: reqOptions.headers }),
+          ...(this.retryCodes && { retryCodes: this.retryCodes }),
+        },
+      )
+
+      for await (const chunk of stream) {
+        if (chunk.id) responseId = chunk.id
+        const choiceForLog = chunk.choices[0]
+        chatOptions.logger.provider(
+          `provider=${this.name} finishReason=${choiceForLog?.finishReason ?? 'none'} hasContent=${!!choiceForLog?.delta.content} hasUsage=${!!chunk.usage}`,
+          { provider: this.name, model: chunk.model },
+        )
+
+        if (chunk.model) lastModel = chunk.model
+        // Keep received usage for either terminal outcome, including parse and SDK errors.
+        const usage = buildOpenRouterUsage(chunk.usage)
+        if (usage) {
+          lastUsage = { ...usage, ...extractUsageCost(chunk.usage) }
+        }
+
+        if (!aguiState.hasEmittedRunStarted) {
+          aguiState.hasEmittedRunStarted = true
+          yield {
+            type: EventType.RUN_STARTED,
+            runId: aguiState.runId,
+            threadId: aguiState.threadId,
+            model: chunk.model || chatOptions.model,
+            timestamp: Date.now(),
+            parentRunId: chatOptions.parentRunId,
+          }
+        }
+
+        const reasoningText = extractReasoningText(chunk)
+        if (reasoningText) {
+          if (!reasoningMessageId) {
+            reasoningMessageId = generateId(this.name)
+            yield {
+              type: EventType.REASONING_START,
+              messageId: reasoningMessageId,
+              model: chunk.model || chatOptions.model,
+              timestamp: Date.now(),
+            }
+            yield {
+              type: EventType.REASONING_MESSAGE_START,
+              messageId: reasoningMessageId,
+              role: 'reasoning' as const,
+              model: chunk.model || chatOptions.model,
+              timestamp: Date.now(),
+            }
+          }
+          accumulatedReasoning += reasoningText
+          yield {
+            type: EventType.REASONING_MESSAGE_CONTENT,
+            messageId: reasoningMessageId,
+            delta: reasoningText,
+            model: chunk.model || chatOptions.model,
+            timestamp: Date.now(),
+          }
+        }
+
+        const choice = chunk.choices[0]
+        if (!choice) continue
+        if (choice.finishReason) finishReason = choice.finishReason
+
+        const deltaContent = choice.delta.content
+        if (deltaContent) {
+          yield* closeReasoningLifecycle()
+
+          if (!hasEmittedTextMessageStart) {
+            hasEmittedTextMessageStart = true
+            yield {
+              type: EventType.TEXT_MESSAGE_START,
+              messageId: aguiState.messageId,
+              model: chunk.model || chatOptions.model,
+              timestamp: Date.now(),
+              role: 'assistant',
+            }
+          }
+
+          accumulatedContent += deltaContent
+
+          yield {
+            type: EventType.TEXT_MESSAGE_CONTENT,
+            messageId: aguiState.messageId,
+            model: chunk.model || chatOptions.model,
+            timestamp: Date.now(),
+            delta: deltaContent,
+            content: accumulatedContent,
+          }
+        }
+      }
+
+      yield* closeReasoningLifecycle()
+
+      if (hasEmittedTextMessageStart) {
+        yield {
+          type: EventType.TEXT_MESSAGE_END,
+          messageId: aguiState.messageId,
+          model: lastModel || chatOptions.model,
+          timestamp: Date.now(),
+        }
+      }
+
+      // Same truncation check as `structuredOutput()`: report the token limit
+      // before the empty-content and parse errors (issue #1426).
+      if (finishReason === 'length') {
+        const message = `${this.name}.structuredOutputStream: the response was cut off because the maximum token limit was reached (finish_reason=length); raise maxCompletionTokens`
+        yield {
+          type: EventType.RUN_ERROR,
+          ...(lastUsage && { usage: lastUsage }),
+          runId: aguiState.runId,
+          model: lastModel || chatOptions.model,
+          timestamp: Date.now(),
+          message,
+          code: 'max_tokens',
+          error: { message, code: 'max_tokens' },
+        }
+        return
+      }
+
+      if (accumulatedContent.length === 0) {
+        yield {
+          type: EventType.RUN_ERROR,
+          ...(lastUsage && { usage: lastUsage }),
+          runId: aguiState.runId,
+          model: lastModel || chatOptions.model,
+          timestamp: Date.now(),
+          message: `${this.name}.structuredOutputStream: response contained no content`,
+          code: 'empty-response',
+          error: {
+            message: `${this.name}.structuredOutputStream: response contained no content`,
+            code: 'empty-response',
+          },
+        }
+        return
+      }
+
+      let parsed: unknown
+      try {
+        parsed = JSON.parse(accumulatedContent)
+      } catch {
+        yield {
+          type: EventType.RUN_ERROR,
+          ...(lastUsage && { usage: lastUsage }),
+          runId: aguiState.runId,
+          model: lastModel || chatOptions.model,
+          timestamp: Date.now(),
+          message: `Failed to parse structured output as JSON. Content: ${accumulatedContent.slice(0, 200)}${accumulatedContent.length > 200 ? '...' : ''}`,
+          code: 'parse-error',
+          error: {
+            message: 'Failed to parse structured output as JSON',
+            code: 'parse-error',
+          },
+        }
+        return
+      }
+
+      const transformed = this.transformStructuredOutput(parsed)
+
+      yield {
+        type: EventType.CUSTOM,
+        name: 'structured-output.complete',
+        value: {
+          object: transformed,
+          raw: accumulatedContent,
+          ...(accumulatedReasoning ? { reasoning: accumulatedReasoning } : {}),
+        },
+        model: lastModel || chatOptions.model,
+        timestamp: Date.now(),
+      }
+
+      yield {
+        type: EventType.RUN_FINISHED,
+        ...(responseId && { responseId }),
+        metadata: {
+          tanstack: {
+            ...(responseId && { responseId }),
+            ...(lastModel && { model: lastModel }),
+          },
+        },
+        runId: aguiState.runId,
+        threadId: aguiState.threadId,
+        model: lastModel || chatOptions.model,
+        timestamp: Date.now(),
+        finishReason: 'stop',
+        ...(lastUsage && { usage: lastUsage }),
+      }
+    } catch (error: unknown) {
+      if (!aguiState.hasEmittedRunStarted) {
+        aguiState.hasEmittedRunStarted = true
+        yield {
+          type: EventType.RUN_STARTED,
+          runId: aguiState.runId,
+          threadId: aguiState.threadId,
+          model: chatOptions.model,
+          timestamp: Date.now(),
+          parentRunId: chatOptions.parentRunId,
+        }
+      }
+
+      // OpenRouter SDK raises a proprietary `RequestAbortedError` on
+      // caller-initiated abort. Map it (plus the standard DOM `AbortError`)
+      // to `code: 'aborted'` so consumers can distinguish abort from a real
+      // upstream failure.
+      const errName =
+        error && typeof error === 'object'
+          ? ((error as { name?: unknown }).name ?? '')
+          : ''
+      const isAbort =
+        errName === 'AbortError' || errName === 'RequestAbortedError'
+      const errorPayload = toOpenRouterRunErrorPayload(
+        error,
+        `${this.name}.structuredOutputStream failed`,
+      )
+
+      const resolvedCode = isAbort ? 'aborted' : errorPayload.code
+      const rawEvent = isAbort ? undefined : toRunErrorRawEvent(error)
+      yield {
+        type: EventType.RUN_ERROR,
+        ...(lastUsage && { usage: lastUsage }),
+        runId: aguiState.runId,
+        model: lastModel || chatOptions.model,
+        timestamp: Date.now(),
+        message: errorPayload.message,
+        ...(resolvedCode !== undefined && { code: resolvedCode }),
+        ...(rawEvent !== undefined && { rawEvent }),
+        error: {
+          message: errorPayload.message,
+          ...(resolvedCode !== undefined && { code: resolvedCode }),
+        },
+      }
+
+      chatOptions.logger.errors(`${this.name}.structuredOutputStream fatal`, {
+        error: errorPayload,
+        source: `${this.name}.structuredOutputStream`,
+      })
+    }
+  }
+
+  /**
+   * Resolve the provider request format for a schema-bearing call.
+   *
+   * `json_object` in JSON mode. Every other call gets strict
+   * `json_schema` from `outputSchema`.
+   */
+  protected resolveStructuredResponseFormat(
+    jsonMode: boolean,
+    outputSchema: JSONSchema,
+  ): NonNullable<ChatRequest['responseFormat']> {
+    if (jsonMode) {
+      return { type: 'json_object' }
+    }
+
+    const jsonSchema = this.makeStructuredOutputCompatible(
+      outputSchema,
+      outputSchema.required,
+    )
+
+    return {
+      type: 'json_schema',
+      jsonSchema: {
+        name: 'structured_output',
+        schema: jsonSchema,
+        strict: true,
+      },
+    }
+  }
+
+  /**
+   * Applies provider-specific transformations for structured output compatibility.
+   */
+  protected makeStructuredOutputCompatible(
+    schema: Record<string, any>,
+    originalRequired?: Array<string>,
+  ): Record<string, any> {
+    return makeStructuredOutputCompatible(schema, originalRequired)
+  }
+
+  /**
+   * Final shaping pass applied to parsed structured-output JSON before it is
+   * returned to the caller. OpenRouter routes through a wide variety of
+   * upstream providers; some return `null` as a distinct sentinel ("the field
+   * exists, the value is null") rather than collapsing it to absent, so we
+   * passthrough and let the engine un-widen strict-mode nulls precisely. This
+   * now matches the base adapters' default — kept as an explicit override
+   * because OpenRouter extends `BaseTextAdapter` directly, not the OpenAI base.
+   */
+  protected transformStructuredOutput(parsed: unknown): unknown {
+    return parsed
+  }
+
+  /**
+   * Processes streamed chunks from OpenRouter's chat-completions API and
+   * yields AG-UI events. Reads the SDK's camelCase chunk shape directly
+   * (`delta.toolCalls`, `delta.reasoningDetails`, `chunk.usage.promptTokens`,
+   * `choice.finishReason`, etc.).
+   */
+  protected async *processStreamChunks(
+    stream: AsyncIterable<ChatStreamChunk>,
+    options: TextOptions<ResolveProviderOptions<TModel>>,
+    aguiState: {
+      runId: string
+      threadId: string
+      messageId: string
+      hasEmittedRunStarted: boolean
+    },
+  ): AsyncIterable<AdapterYieldChunk> {
+    let accumulatedContent = ''
+    let hasEmittedTextMessageStart = false
+    let lastModel: string | undefined
+    let responseId: string | undefined
+    // Track usage from any chunk that carries it. With
+    // `streamOptions: { includeUsage: true }` OpenRouter emits a terminal
+    // chunk whose `choices` is `[]` and only the `usage` field is populated;
+    // the earlier `finishReason` chunk does NOT include token counts. We must
+    // therefore defer RUN_FINISHED until the iterator is exhausted so we can
+    // pick up usage from the trailing chunk regardless of arrival order.
+    let lastUsage: ChatStreamChunk['usage'] | undefined
+    let pendingFinishReason: ChatStreamChoice['finishReason'] | undefined
+
+    // Track tool calls being streamed (arguments come in chunks).
+    const toolCallsInProgress = new Map<
+      number,
+      {
+        id: string
+        name: string
+        arguments: string
+        started: boolean // Track if TOOL_CALL_START has been emitted
+      }
+    >()
+
+    // Reasoning lifecycle (driven by inline reasoning extraction below).
+    let reasoningMessageId: string | undefined
+    let hasClosedReasoning = false
+    // Track whether ANY tool call lifecycle was actually completed across the
+    // entire stream. Lets us downgrade a `tool_calls` finishReason to `stop`
+    // when the upstream signalled tool calls but never produced a complete
+    // start/end pair — emitting RUN_FINISHED { finishReason: 'tool_calls' }
+    // with no matching TOOL_CALL_END would leave consumers waiting for tool
+    // results that never arrive.
+    let emittedAnyToolCallEnd = false
+    let streamErrorRetryAfterMs: number | undefined
+
+    try {
+      for await (const chunk of stream) {
+        if (chunk.id) responseId = chunk.id
+        const choiceForLog = chunk.choices[0]
+        options.logger.provider(
+          `provider=${this.name} finishReason=${choiceForLog?.finishReason ?? 'none'} hasContent=${!!choiceForLog?.delta.content} hasToolCalls=${!!choiceForLog?.delta.toolCalls} hasUsage=${!!chunk.usage}`,
+          { provider: this.name, model: chunk.model },
+        )
+
+        // Surface upstream errors so they can be routed to RUN_ERROR. Stream
+        // chunks may carry an `error` field (provider-side failures that
+        // happen mid-stream rather than as an SDK throw).
+        if (chunk.error) {
+          // Preserve the provider's structured error body on the thrown error
+          // so the RUN_ERROR catch can forward it as `rawEvent`. NOTE: the
+          // OpenRouter SDK parses each stream chunk's `error` through a strict
+          // schema (`{ code, message }`), so any `error.metadata` the gateway
+          // sent in-band is already stripped here — only pre-stream HTTP errors
+          // (caught in the outer catch) retain `error.metadata` via their typed
+          // error class's `.error` body.
+          //
+          // OpenRouter sent status 200 before the provider failed, so the SDK
+          // cannot retry this and there is no `Retry-After`. For a code the SDK
+          // would retry (`retryCodes`, default `5XX`), set `retryAfterMs` to
+          // its backoff `initialInterval` (default 500), so `chat({ retry })`
+          // can call the model again.
+          const status = String(chunk.error.code)
+          const retryConfig = this.sdkOptions.retryConfig
+          if (
+            retryConfig?.strategy !== 'none' &&
+            (this.retryCodes ?? ['5XX']).some((c) =>
+              /^[0-9]xx$/i.test(c) ? c[0] === status[0] : c === status,
+            )
+          ) {
+            streamErrorRetryAfterMs =
+              retryConfig?.backoff?.initialInterval ?? 500
+          }
+          throw Object.assign(
+            new Error(chunk.error.message || 'OpenRouter stream error'),
+            { code: chunk.error.code, rawEvent: chunk.error },
+          )
+        }
+
+        // Capture usage from any chunk (including the terminal usage-only
+        // chunk emitted when `streamOptions.includeUsage` is on).
+        if (chunk.usage) {
+          lastUsage = chunk.usage
+        }
+        if (chunk.model) {
+          lastModel = chunk.model
+        }
+
+        // Emit RUN_STARTED on the first chunk of any kind so callers see a
+        // run lifecycle even on streams that arrive entirely as usage-only
+        // (no choices). Without this, a usage-first stream would skip
+        // RUN_STARTED via `if (!choice) continue` below and the post-loop
+        // synthetic block would also skip RUN_FINISHED (it gates on
+        // `hasEmittedRunStarted`).
+        if (!aguiState.hasEmittedRunStarted) {
+          aguiState.hasEmittedRunStarted = true
+          yield {
+            type: EventType.RUN_STARTED,
+            runId: aguiState.runId,
+            threadId: aguiState.threadId,
+            model: chunk.model || options.model,
+            timestamp: Date.now(),
+            parentRunId: options.parentRunId,
+          }
+        }
+
+        // Reasoning content (OpenRouter emits this as `delta.reasoningDetails`).
+        // Run before reading choice/delta so reasoning-only chunks (no `choices`)
+        // still drive the REASONING_* lifecycle.
+        const reasoningText = extractReasoningText(chunk)
+        if (reasoningText) {
+          if (!reasoningMessageId) {
+            reasoningMessageId = generateId(this.name)
+            yield {
+              type: EventType.REASONING_START,
+              messageId: reasoningMessageId,
+              model: chunk.model || options.model,
+              timestamp: Date.now(),
+            }
+            yield {
+              type: EventType.REASONING_MESSAGE_START,
+              messageId: reasoningMessageId,
+              role: 'reasoning' as const,
+              model: chunk.model || options.model,
+              timestamp: Date.now(),
+            }
+          }
+          yield {
+            type: EventType.REASONING_MESSAGE_CONTENT,
+            messageId: reasoningMessageId,
+            delta: reasoningText,
+            model: chunk.model || options.model,
+            timestamp: Date.now(),
+          }
+        }
+
+        const choice = chunk.choices[0]
+
+        if (!choice) continue
+
+        const delta = choice.delta
+        const deltaContent = delta.content
+        const deltaToolCalls = delta.toolCalls
+
+        // Handle content delta
+        if (deltaContent) {
+          // Close reasoning before text starts so consumers see a clean
+          // REASONING_END before any TEXT_MESSAGE_START.
+          if (reasoningMessageId && !hasClosedReasoning) {
+            hasClosedReasoning = true
+            yield {
+              type: EventType.REASONING_MESSAGE_END,
+              messageId: reasoningMessageId,
+              model: chunk.model || options.model,
+              timestamp: Date.now(),
+            }
+            yield {
+              type: EventType.REASONING_END,
+              messageId: reasoningMessageId,
+              model: chunk.model || options.model,
+              timestamp: Date.now(),
+            }
+          }
+
+          // Emit TEXT_MESSAGE_START on first text content
+          if (!hasEmittedTextMessageStart) {
+            hasEmittedTextMessageStart = true
+            yield {
+              type: EventType.TEXT_MESSAGE_START,
+              messageId: aguiState.messageId,
+              model: chunk.model || options.model,
+              timestamp: Date.now(),
+              role: 'assistant',
+            }
+          }
+
+          accumulatedContent += deltaContent
+
+          // Emit AG-UI TEXT_MESSAGE_CONTENT
+          yield {
+            type: EventType.TEXT_MESSAGE_CONTENT,
+            messageId: aguiState.messageId,
+            model: chunk.model || options.model,
+            timestamp: Date.now(),
+            delta: deltaContent,
+            content: accumulatedContent,
+          }
+        }
+
+        // Handle tool calls - they come in as deltas (camelCase toolCalls)
+        if (deltaToolCalls) {
+          for (const toolCallDelta of deltaToolCalls) {
+            const index = toolCallDelta.index
+
+            // Initialize or update the tool call in progress
+            let toolCall = toolCallsInProgress.get(index)
+            if (!toolCall) {
+              toolCall = {
+                id: toolCallDelta.id || '',
+                name: toolCallDelta.function?.name || '',
+                arguments: '',
+                started: false,
+              }
+              toolCallsInProgress.set(index, toolCall)
+            }
+
+            // Update with any new data from the delta
+            if (toolCallDelta.id) {
+              toolCall.id = toolCallDelta.id
+            }
+            if (toolCallDelta.function?.name) {
+              toolCall.name = toolCallDelta.function.name
+            }
+            if (toolCallDelta.function?.arguments) {
+              toolCall.arguments += toolCallDelta.function.arguments
+            }
+
+            // Emit TOOL_CALL_START when we have id and name
+            if (toolCall.id && toolCall.name && !toolCall.started) {
+              toolCall.started = true
+              yield {
+                type: EventType.TOOL_CALL_START,
+                toolCallId: toolCall.id,
+                toolCallName: toolCall.name,
+                parentMessageId: aguiState.messageId,
+                model: chunk.model || options.model,
+                timestamp: Date.now(),
+                index,
+              }
+            }
+
+            // Emit TOOL_CALL_ARGS for argument deltas
+            if (toolCallDelta.function?.arguments && toolCall.started) {
+              yield {
+                type: EventType.TOOL_CALL_ARGS,
+                toolCallId: toolCall.id,
+                model: chunk.model || options.model,
+                timestamp: Date.now(),
+                delta: toolCallDelta.function.arguments,
+              }
+            }
+          }
+        }
+
+        // Handle finishReason. We DO emit TOOL_CALL_END and TEXT_MESSAGE_END
+        // here because the corresponding _START events have already fired,
+        // and tool execution downstream wants to begin as soon as possible.
+        // RUN_FINISHED is deferred until the iterator is fully exhausted so
+        // we can capture the trailing usage chunk that arrives AFTER this
+        // chunk when streamOptions.includeUsage is on.
+        if (choice.finishReason) {
+          if (
+            choice.finishReason === 'tool_calls' ||
+            toolCallsInProgress.size > 0
+          ) {
+            for (const [, toolCall] of toolCallsInProgress) {
+              // Skip tool calls that never emitted TOOL_CALL_START — emitting
+              // a stray TOOL_CALL_END here would violate AG-UI lifecycle
+              // (END without matching START) for partial deltas where the
+              // upstream never sent both id and name.
+              if (!toolCall.started) continue
+
+              // Parse arguments for TOOL_CALL_END. Surface parse failures via
+              // the logger so a model emitting malformed JSON for tool args
+              // is debuggable instead of silently invoking the tool with {}.
+              let parsedInput: unknown = {}
+              if (toolCall.arguments) {
+                try {
+                  const parsed: unknown = JSON.parse(toolCall.arguments)
+                  parsedInput =
+                    parsed && typeof parsed === 'object' ? parsed : {}
+                } catch (parseError) {
+                  options.logger.errors(
+                    `${this.name}.processStreamChunks tool-args JSON parse failed`,
+                    {
+                      error: toRunErrorPayload(
+                        parseError,
+                        `tool ${toolCall.name} (${toolCall.id}) returned malformed JSON arguments`,
+                      ),
+                      source: `${this.name}.processStreamChunks`,
+                      toolCallId: toolCall.id,
+                      toolName: toolCall.name,
+                      rawArguments: toolCall.arguments,
+                    },
+                  )
+                  parsedInput = undefined
+                }
+              }
+
+              // Emit AG-UI TOOL_CALL_END
+              yield {
+                type: EventType.TOOL_CALL_END,
+                toolCallId: toolCall.id,
+                toolCallName: toolCall.name,
+                model: chunk.model || options.model,
+                timestamp: Date.now(),
+                args: toolCall.arguments,
+                ...(parsedInput !== undefined && { input: parsedInput }),
+              }
+              emittedAnyToolCallEnd = true
+            }
+            // Clear tool-call state after emission so a subsequent
+            // `finishReason: 'stop'` chunk (or the post-loop synthetic
+            // block) doesn't see lingering entries and misreport the finish.
+            toolCallsInProgress.clear()
+          }
+
+          // Emit TEXT_MESSAGE_END if we had text content
+          if (hasEmittedTextMessageStart) {
+            yield {
+              type: EventType.TEXT_MESSAGE_END,
+              messageId: aguiState.messageId,
+              model: chunk.model || options.model,
+              timestamp: Date.now(),
+            }
+            hasEmittedTextMessageStart = false
+          }
+
+          // Remember the upstream finishReason; RUN_FINISHED is emitted at
+          // end-of-stream so we pick up the trailing usage-only chunk too.
+          pendingFinishReason = choice.finishReason
+        }
+      }
+
+      // Emit a single terminal RUN_FINISHED after the iterator is exhausted.
+      if (aguiState.hasEmittedRunStarted) {
+        // Close any started tool calls that never got finishReason.
+        for (const [, toolCall] of toolCallsInProgress) {
+          if (!toolCall.started) continue
+          let parsedInput: unknown = {}
+          if (toolCall.arguments) {
+            try {
+              const parsed: unknown = JSON.parse(toolCall.arguments)
+              parsedInput = parsed && typeof parsed === 'object' ? parsed : {}
+            } catch (parseError) {
+              options.logger.errors(
+                `${this.name}.processStreamChunks tool-args JSON parse failed (drain)`,
+                {
+                  error: toRunErrorPayload(
+                    parseError,
+                    `tool ${toolCall.name} (${toolCall.id}) returned malformed JSON arguments`,
+                  ),
+                  source: `${this.name}.processStreamChunks`,
+                  toolCallId: toolCall.id,
+                  toolName: toolCall.name,
+                  rawArguments: toolCall.arguments,
+                },
+              )
+              parsedInput = undefined
+            }
+          }
+          yield {
+            type: EventType.TOOL_CALL_END,
+            toolCallId: toolCall.id,
+            toolCallName: toolCall.name,
+            model: lastModel || options.model,
+            timestamp: Date.now(),
+            args: toolCall.arguments,
+            ...(parsedInput !== undefined && { input: parsedInput }),
+          }
+          emittedAnyToolCallEnd = true
+        }
+        toolCallsInProgress.clear()
+
+        // Make sure the text message lifecycle is closed even on early
+        // termination paths where finishReason never arrives.
+        if (hasEmittedTextMessageStart) {
+          yield {
+            type: EventType.TEXT_MESSAGE_END,
+            messageId: aguiState.messageId,
+            model: lastModel || options.model,
+            timestamp: Date.now(),
+          }
+        }
+
+        // Close any reasoning lifecycle that text never closed (no text
+        // content arrived, or the stream cut off before text started).
+        if (reasoningMessageId && !hasClosedReasoning) {
+          hasClosedReasoning = true
+          yield {
+            type: EventType.REASONING_MESSAGE_END,
+            messageId: reasoningMessageId,
+            model: lastModel || options.model,
+            timestamp: Date.now(),
+          }
+          yield {
+            type: EventType.REASONING_END,
+            messageId: reasoningMessageId,
+            model: lastModel || options.model,
+            timestamp: Date.now(),
+          }
+        }
+
+        // An unknown finishReason must not end the run as a success.
+        if (
+          pendingFinishReason &&
+          !['stop', 'length', 'content_filter', 'tool_calls', 'error'].includes(
+            pendingFinishReason,
+          )
+        ) {
+          const message = `Provider finish_reason: ${pendingFinishReason}`
+          yield {
+            type: EventType.RUN_ERROR,
+            runId: aguiState.runId,
+            model: lastModel || options.model,
+            timestamp: Date.now(),
+            message,
+            error: { message },
+          }
+          return
+        }
+
+        // Map upstream finishReason to AG-UI's narrower vocabulary while
+        // preserving the upstream value when it falls outside the AG-UI set.
+        // Use `tool_calls` only when a TOOL_CALL_END was actually emitted.
+        // OpenRouter emits 'error' as a finish reason for upstream errors;
+        // collapse to 'content_filter' (the closest AG-UI equivalent).
+        const finishReason:
+          | 'tool_calls'
+          | 'length'
+          | 'content_filter'
+          | 'stop' = emittedAnyToolCallEnd
+          ? 'tool_calls'
+          : pendingFinishReason === 'tool_calls'
+            ? 'stop'
+            : pendingFinishReason === 'length'
+              ? 'length'
+              : pendingFinishReason === 'content_filter' ||
+                  pendingFinishReason === 'error'
+                ? 'content_filter'
+                : 'stop'
+
+        const finalUsage = buildOpenRouterUsage(lastUsage)
+
+        yield {
+          type: EventType.RUN_FINISHED,
+          ...(responseId && { responseId }),
+          metadata: {
+            tanstack: {
+              ...(responseId && { responseId }),
+              ...(lastModel && { model: lastModel }),
+            },
+          },
+          runId: aguiState.runId,
+          threadId: aguiState.threadId,
+          model: lastModel || options.model,
+          timestamp: Date.now(),
+          ...(finalUsage && {
+            usage: { ...finalUsage, ...extractUsageCost(lastUsage) },
+          }),
+          finishReason,
+        }
+      }
+    } catch (error: unknown) {
+      // Narrow before logging: raw SDK errors can carry request metadata
+      // (including auth headers) which we must never surface to user loggers.
+      const errorPayload = toOpenRouterRunErrorPayload(
+        error,
+        `${this.name}.processStreamChunks failed`,
+      )
+      const rawEvent = toRunErrorRawEvent(error)
+      options.logger.errors(`${this.name}.processStreamChunks fatal`, {
+        error: errorPayload,
+        source: `${this.name}.processStreamChunks`,
+      })
+
+      // Emit AG-UI RUN_ERROR. `rawEvent` carries the provider's structured
+      // error body (e.g. the mid-stream `chunk.error` rethrown above) when
+      // present.
+      yield {
+        type: EventType.RUN_ERROR,
+        model: options.model,
+        timestamp: Date.now(),
+        message: errorPayload.message,
+        ...(errorPayload.code !== undefined && { code: errorPayload.code }),
+        ...(rawEvent !== undefined && { rawEvent }),
+        ...(streamErrorRetryAfterMs !== undefined && {
+          retryAfterMs: streamErrorRetryAfterMs,
+        }),
+        error: {
+          message: errorPayload.message,
+          ...(errorPayload.code !== undefined && { code: errorPayload.code }),
+        },
+      }
+    }
+  }
+
+  /**
+   * Build an OpenRouter `ChatRequest` (camelCase) from `TextOptions`. Applies
+   * `:variant` model suffixing and routes tools through OpenRouter's
+   * converter (function tools + branded web_search tool).
+   */
+  protected mapOptionsToRequest(
+    options: TextOptions<ResolveProviderOptions<TModel>>,
+  ): Omit<ChatRequest, 'stream'> {
+    // `variant` is OpenRouter metadata used only to build the `:variant` model
+    // suffix — it must NOT be spread into the request body. Destructure it out
+    // so the remaining sampling/provider options flow through `...restModelOptions`.
+    const { variant, ...restModelOptions } = (options.modelOptions ??
+      {}) as ExternalTextProviderOptions
+    const variantSuffix = variant ? `:${variant}` : ''
+    // `chat({ reasoning })`. `ChatRequestEffort` is an open enum, so a newer
+    // effort value still goes out.
+    const effort = openRouterEffort(
+      resolveReasoning(
+        options.reasoning,
+        OPENROUTER_MODEL_REASONING[options.model],
+      ),
+    )
+
+    const messages: Array<ChatMessages> = []
+    const systemPrompts =
+      normalizeSystemPrompts<OpenRouterSystemPromptMetadata>(
+        options.systemPrompts,
+      )
+    if (systemPrompts.length > 0) {
+      // When any system prompt carries a `cache_control` breakpoint, emit the
+      // system message as a structured content array so the directive rides on
+      // the wire (honoured by Anthropic-family routes). Otherwise keep the
+      // plain joined string — unchanged behaviour for every other caller.
+      const hasCacheControl = systemPrompts.some(
+        (p) => p.metadata?.cache_control,
+      )
+      messages.push({
+        role: 'system',
+        content: hasCacheControl
+          ? systemPrompts.map(
+              (p): ChatContentText => ({
+                type: 'text',
+                text: p.content,
+                ...(p.metadata?.cache_control && {
+                  cacheControl: p.metadata.cache_control,
+                }),
+              }),
+            )
+          : systemPrompts.map((p) => p.content).join('\n'),
+      })
+    }
+    // History from another model loses its signatures, and its tool IDs are
+    // rewritten to a shape the Chat Completions API accepts.
+    const replay = transformMessagesForReplay(
+      options.messages,
+      { provider: this.provider, api: this.api, model: options.model },
+      (id, { attempt }) => {
+        if (attempt > 0)
+          return `${
+            id
+              .split('|')[0]
+              ?.replace(/[^a-zA-Z0-9_-]/g, '_')
+              .slice(0, 31) || 'call'
+          }_${hashToolCallId(`${id}:${attempt}`).slice(0, 8)}`
+        if (id.includes('|')) {
+          const separator = id.indexOf('|')
+          const call = id.slice(0, separator).replace(/[^a-zA-Z0-9_-]/g, '_')
+          const item = id.slice(separator + 1).replace(/[^a-zA-Z0-9_-]/g, '_')
+          const combined = item ? `${call}_${item}` : call
+          return combined.length <= 40
+            ? combined
+            : `${call.slice(0, 31)}_${hashToolCallId(id).slice(0, 8)}`
+        }
+        return id.replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 40)
+      },
+    )
+    // Tool messages cannot carry images. The images of a run of tool results
+    // go in one user message after that run. Other media in a tool result is
+    // not sent.
+    const toolImages: Array<ChatContentItems> = []
+    for (const m of replay.messages) {
+      if (m.role !== 'tool' && toolImages.length > 0)
+        messages.push({ role: 'user', content: toolImages.splice(0) })
+      messages.push(this.convertMessage(m))
+      if (
+        m.role === 'tool' &&
+        Array.isArray(m.content) &&
+        (this.inputModalities?.includes('image') ?? true)
+      ) {
+        for (const part of m.content) {
+          const image = part.type === 'image' && this.convertContentPart(part)
+          if (image) toolImages.push(image)
+        }
+      }
+    }
+    if (toolImages.length > 0)
+      messages.push({ role: 'user', content: toolImages })
+
+    const tools = options.tools
+      ? convertToolsToProviderFormat(options.tools)
+      : undefined
+
+    // Attach json_schema only when outputSchema is set and the combined gate
+    // passes (every routed model is in the combined set, and not JSON mode).
+    const combinedOutputSchema: JSONSchema | undefined = options.outputSchema
+    const combinedSchema =
+      combinedOutputSchema &&
+      this.supportsCombinedToolsAndSchema(options.modelOptions)
+        ? this.makeStructuredOutputCompatible(
+            combinedOutputSchema,
+            combinedOutputSchema.required,
+          )
+        : undefined
+
+    // `chat({ toolChoice })` is sent only when the request has tools. It goes
+    // before the `modelOptions` spread, so a `toolChoice` there wins.
+    const toolChoiceField =
+      tools?.length && options.toolChoice !== undefined
+        ? { toolChoice: toOpenRouterChatToolChoice(options.toolChoice) }
+        : undefined
+
+    // `modelOptions` is the sole wire surface: callers set provider-native
+    // names (`temperature`, `topP`, `maxCompletionTokens`, `metadata`, etc.)
+    // there and they flow through the spread below. Root `metadata` is
+    // observability-only (middleware, devtools, event client) and must NOT be
+    // forwarded here — it may carry arbitrarily structured values while the
+    // SDK validates `chatRequest.metadata` as `Record<string, string>` (#735).
+    const request: Omit<ChatRequest, 'stream'> = {
+      ...toolChoiceField,
+      ...restModelOptions,
+      ...(effort && { reasoning: { effort: effort as ChatRequestEffort } }),
+      model: options.model + variantSuffix,
+      messages,
+      ...(tools && tools.length > 0 && { tools }),
+      ...(combinedSchema && {
+        responseFormat: {
+          type: 'json_schema' as const,
+          jsonSchema: {
+            name: 'structured_output',
+            schema: combinedSchema,
+            strict: true,
+          },
+        },
+      }),
+    }
+    return options.promptCache
+      ? addPromptCacheMarkers(request, options.promptCache)
+      : request
+  }
+
+  /**
+   * Combined mode is safe only when this model and every `modelOptions.models`
+   * fallback are in `OPENROUTER_COMBINED_TOOLS_AND_SCHEMA_MODELS`. JSON mode
+   * is never combined: the schema goes in a system prompt on a separate
+   * structured-output request, not on the tool-calling turns.
+   */
+  supportsCombinedToolsAndSchema(
+    modelOptions?: ResolveProviderOptions<TModel>,
+  ): boolean {
+    return (
+      !openRouterUsesJsonObject(this.model, modelOptions) &&
+      openRouterSupportsCombinedToolsAndSchema(this.model, modelOptions)
+    )
+  }
+
+  /**
+   * Convert a ModelMessage to OpenRouter's ChatMessages discriminated union
+   * (camelCase: `toolCallId`, `toolCalls`).
+   */
+  protected convertMessage(message: ModelMessage): ChatMessages {
+    if (message.role === 'tool') {
+      // For structured (Array<ContentPart>) tool results, extract the text
+      // content rather than JSON-stringifying the parts — sending the raw
+      // ContentPart shape (e.g. `[{"type":"text","content":"…"}]`) into the
+      // tool message's `content` field would feed the literal JSON of the
+      // parts back to the model instead of the tool's textual result.
+      // `mapOptionsToRequest` sends the images in a user message after the
+      // tool results.
+      const text = this.extractTextContent(message.content)
+      return {
+        role: 'tool',
+        content:
+          !text &&
+          Array.isArray(message.content) &&
+          message.content.some((part) => part.type === 'image')
+            ? (this.inputModalities?.includes('image') ?? true)
+              ? '(see attached image)'
+              : '(image omitted: this model has no image input)'
+            : text,
+        toolCallId: message.toolCallId || '',
+      }
+    }
+
+    if (message.role === 'assistant') {
+      // Stringify object-shaped tool-call arguments to match the SDK's
+      // `ChatToolCall.function.arguments: string` contract. Without this an
+      // assistant message that carries already-parsed args (common after a
+      // multi-turn run) would either serialise as `[object Object]` or be
+      // rejected by the SDK's Zod schema with an opaque validation error.
+      const toolCalls = message.toolCalls?.map((tc) => ({
+        ...tc,
+        function: {
+          name: tc.function.name,
+          arguments:
+            typeof tc.function.arguments === 'string'
+              ? tc.function.arguments
+              : JSON.stringify(tc.function.arguments),
+        },
+      }))
+      // Per the OpenAI-compatible Chat Completions contract, an assistant
+      // message that only carries tool_calls should have `content: null`
+      // rather than `content: ''` or `content: undefined`. For multi-part
+      // assistant content (Array<ContentPart>) we extract the text rather
+      // than JSON-stringifying the parts, which would otherwise leak the
+      // literal part shape into the next-turn prompt.
+      const textContent = this.extractTextContent(message.content)
+      const hasToolCalls = !!toolCalls && toolCalls.length > 0
+      return {
+        role: 'assistant',
+        content: hasToolCalls && !textContent ? null : textContent,
+        toolCalls,
+      }
+    }
+
+    // user — fail loud on empty and unsupported content. Silently sending an
+    // empty string would mask a real caller bug and produce a paid request
+    // with no input.
+    const contentParts = this.normalizeContent(message.content)
+    if (contentParts.length === 1 && contentParts[0]?.type === 'text') {
+      const text = contentParts[0].content
+      if (text.length === 0) {
+        throw new Error(
+          `User message for ${this.name} has empty text content. ` +
+            `Empty user messages would produce a paid request with no input; ` +
+            `provide non-empty content or omit the message.`,
+        )
+      }
+      return {
+        role: 'user',
+        content: text,
+      }
+    }
+
+    const parts: Array<ChatContentItems> = []
+    for (const part of contentParts) {
+      const converted = this.convertContentPart(part)
+      if (!converted) {
+        throw new Error(
+          `Unsupported content part type for ${this.name}: ${part.type}. ` +
+            `Override convertContentPart to handle this type, ` +
+            `or remove it from the message.`,
+        )
+      }
+      parts.push(converted)
+    }
+    if (parts.length === 0) {
+      throw new Error(
+        `User message for ${this.name} has no content parts. ` +
+          `Empty user messages would produce a paid request with no input; ` +
+          `provide at least one text/image/audio part or omit the message.`,
+      )
+    }
+    return {
+      role: 'user',
+      content: parts,
+    }
+  }
+
+  /** OpenRouter content-part converter (camelCase imageUrl/inputAudio/videoUrl). */
+  protected convertContentPart(part: ContentPart): ChatContentItems | null {
+    if (part.type === 'text') {
+      return { type: 'text', text: part.content }
+    }
+    // Narrow once so the branches below can only see url/data sources — a
+    // `{ type: 'file' }` reference has no `value` to mis-map. A part without
+    // a source (unknown/malformed type) falls through to the base's
+    // unsupported-content-part guard, matching the old default branch.
+    const source = (part as { source?: typeof part.source }).source
+    if (source === undefined) return null
+    if (isFileSource(source)) {
+      throw unsupportedFileSourceError(this.name)
+    }
+    switch (part.type) {
+      case 'image': {
+        const meta = part.metadata as OpenRouterImageMetadata | undefined
+        const value = source.value
+        // Default to `application/octet-stream` when the source didn't
+        // provide a MIME type — interpolating `undefined` into the URI
+        // ("data:undefined;base64,...") produces an invalid data URI the
+        // API rejects.
+        const imageMime = source.mimeType || 'application/octet-stream'
+        const url =
+          source.type === 'data' && !value.startsWith('data:')
+            ? `data:${imageMime};base64,${value}`
+            : value
+        return {
+          type: 'image_url',
+          imageUrl: { url, detail: meta?.detail || 'auto' },
+        }
+      }
+      case 'audio':
+        // OpenRouter's chat-completions `input_audio` shape carries
+        // `{ data, format }` where `data` is base64 — there's no URL
+        // variant on this wire. For URL-sourced audio, fall back to a
+        // text reference rather than feeding the literal URL into the
+        // base64 slot. The Responses adapter does have an `input_file`
+        // URL variant and routes URLs there directly — see
+        // `responses-text.ts`.
+        if (source.type === 'url') {
+          return {
+            type: 'text',
+            text: `[Audio: ${source.value}]`,
+          }
+        }
+        return {
+          type: 'input_audio',
+          inputAudio: { data: source.value, format: 'mp3' },
+        }
+      case 'video':
+        return {
+          type: 'video_url',
+          videoUrl: { url: source.value },
+        }
+      case 'document':
+        // The chat-completions SDK has no document_url type. For URL
+        // sources, surface a text reference so the model at least sees
+        // the link. For data sources, `source.value` is the raw
+        // base64 payload — inlining it into the prompt would blow the
+        // context window with megabytes of binary and leak the document
+        // content verbatim. Throw instead so the caller can either
+        // switch to the Responses adapter (which has proper input_file
+        // support for data documents) or strip the document before
+        // sending.
+        if (source.type === 'data') {
+          throw new Error(
+            `${this.name} chat-completions does not support inline (data) document content parts. ` +
+              `Use the Responses adapter (openRouterResponsesText) for document data, ` +
+              `or pass the document as a URL.`,
+          )
+        }
+        return {
+          type: 'text',
+          text: `[Document: ${source.value}]`,
+        }
+      default:
+        return null
+    }
+  }
+
+  /**
+   * Normalizes message content to an array of ContentPart.
+   * Handles backward compatibility with string content.
+   */
+  protected normalizeContent(
+    content: string | null | undefined | Array<ContentPart>,
+  ): Array<ContentPart> {
+    if (content === null || content === undefined) {
+      return []
+    }
+    if (typeof content === 'string') {
+      return [{ type: 'text', content: content }]
+    }
+    return content
+  }
+
+  /**
+   * Extracts text content from a content value that may be string, null, or ContentPart array.
+   */
+  protected extractTextContent(
+    content: string | null | undefined | Array<ContentPart>,
+  ): string {
+    if (content === null || content === undefined) {
+      return ''
+    }
+    if (typeof content === 'string') {
+      return content
+    }
+    return content
+      .filter((p) => p.type === 'text')
+      .map((p) => p.content)
+      .join('')
+  }
+}
+
+/**
+ * Flatten any reasoning deltas in a stream chunk into a single string.
+ * OpenRouter emits reasoning content via `delta.reasoningDetails`, a union of
+ * variants including `{ type: 'reasoning.text', text }` and
+ * `{ type: 'reasoning.summary', summary }`.
+ */
+function extractReasoningText(chunk: ChatStreamChunk): string {
+  let text = ''
+  for (const choice of chunk.choices) {
+    const details = (choice.delta as { reasoningDetails?: Array<unknown> })
+      .reasoningDetails
+    if (!Array.isArray(details)) continue
+    for (const detail of details) {
+      const d = detail as { type?: string; text?: unknown; summary?: unknown }
+      if (d.type === 'reasoning.text' && typeof d.text === 'string') {
+        text += d.text
+      } else if (
+        d.type === 'reasoning.summary' &&
+        typeof d.summary === 'string'
+      ) {
+        text += d.summary
+      }
+    }
+  }
+  return text
+}
+
+export function createOpenRouterText<TModel extends OpenRouterTextModels>(
+  model: TModel,
+  apiKey: string,
+  config?: Omit<OpenRouterConfig, 'apiKey'>,
+): OpenRouterTextAdapter<TModel, ResolveToolCapabilities<TModel>> {
+  return new OpenRouterTextAdapter({ apiKey, ...config }, model)
+}
+
+export function openRouterText<TModel extends OpenRouterTextModels>(
+  model: TModel,
+  config?: Omit<OpenRouterConfig, 'apiKey'>,
+): OpenRouterTextAdapter<TModel, ResolveToolCapabilities<TModel>> {
+  const apiKey = getOpenRouterApiKeyFromEnv()
+  return createOpenRouterText(model, apiKey, config)
+}

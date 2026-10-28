@@ -1,0 +1,313 @@
+import type {
+  AnyClientTool,
+  InterruptDefinition,
+  InferSchemaType,
+  ModelMessage,
+  RunAgentResumeItem,
+  SchemaInput,
+} from '@tanstack/ai'
+import type {
+  AIDevtoolsDisplayOptions,
+  BoundInterrupts,
+  ChatClientOptions,
+  ChatClientState,
+  ResolvableChatInterrupt,
+  ChatInterruptState,
+  ChatRequestBody,
+  ChatResumeState,
+  ClientContextOptionFromTools,
+  ConnectionStatus,
+  DistributedOmit,
+  InferredClientContext,
+  MultimodalContent,
+  QueueConfig,
+  QueueOption,
+  QueueStrategy,
+  QueuedMessage,
+  SendMessageOptions,
+  UIMessage,
+  WhenBusy,
+} from '@tanstack/ai-client'
+
+// Re-export types from ai-client
+export type {
+  ChatRequestBody,
+  MultimodalContent,
+  QueueConfig,
+  QueuedMessage,
+  QueueOption,
+  QueueStrategy,
+  SendMessageOptions,
+  UIMessage,
+  WhenBusy,
+}
+
+/**
+ * Recursive partial — every property and every nested array element is
+ * optional. Used to type the in-flight `partial` getter while a structured-
+ * output stream is still arriving.
+ */
+export type DeepPartial<T> =
+  T extends ReadonlyArray<infer U>
+    ? Array<DeepPartial<U>>
+    : T extends object
+      ? { [K in keyof T]?: DeepPartial<T[K]> }
+      : T
+
+/**
+ * Options for the createChat function.
+ *
+ * This extends ChatClientOptions but omits the state change callbacks that are
+ * managed internally by Svelte state:
+ * - `onMessagesChange` - Managed by Svelte state (exposed as `messages`)
+ * - `onLoadingChange` - Managed by Svelte state (exposed as `isLoading`)
+ * - `onErrorChange` - Managed by Svelte state (exposed as `error`)
+ * - `onStatusChange` - Managed by Svelte state (exposed as `status`)
+ *
+ * All other callbacks (onResponse, onChunk, onFinish, onError) are
+ * passed through to the underlying ChatClient and can be used for side effects.
+ *
+ * When `outputSchema` is supplied, the return adds typed `partial` and `final`
+ * reactive getters. The schema is used purely for type inference; server-side
+ * validation still runs against the schema passed to `chat({ outputSchema })`
+ * on the server route.
+ *
+ * Note: Connection changes will recreate the ChatClient instance.
+ * To update these options, remount the component or use a key prop.
+ */
+export type CreateChatOptions<
+  TTools extends ReadonlyArray<AnyClientTool> = any,
+  TSchema extends SchemaInput | undefined = undefined,
+  TContext = InferredClientContext<TTools>,
+  TInterrupts extends ReadonlyArray<InterruptDefinition<any, any, any, any>> =
+    readonly [],
+> = DistributedOmit<
+  ChatClientOptions<TTools, TContext, TInterrupts>,
+  | 'onMessagesChange'
+  | 'onLoadingChange'
+  | 'onErrorChange'
+  | 'onStatusChange'
+  | 'onSubscriptionChange'
+  | 'onConnectionStatusChange'
+  | 'onSessionGeneratingChange'
+  | 'onHydratingChange'
+  | 'onQueueChange'
+  | 'onResumeStateChange'
+  | 'onRunIdChange'
+  | 'context'
+  | 'devtools'
+> & {
+  live?: boolean
+  /** Display options for TanStack AI Devtools. */
+  devtools?: AIDevtoolsDisplayOptions
+  /**
+   * Standard-schema-compatible schema (Zod, Valibot, ArkType, or plain JSON
+   * Schema). Used to infer the shape of `partial` and `final`.
+   */
+  outputSchema?: TSchema
+} & ClientContextOptionFromTools<TTools, TContext>
+
+/**
+ * Discriminated return shape: when `outputSchema` is supplied, the return adds
+ * typed `partial` / `final` reactive getters; otherwise the return is
+ * unchanged.
+ */
+export type CreateChatReturn<
+  TTools extends ReadonlyArray<AnyClientTool> = any,
+  TSchema extends SchemaInput | undefined = undefined,
+  TContext = unknown,
+  TInterrupts extends ReadonlyArray<InterruptDefinition<any, any, any, any>> =
+    readonly [],
+> = BaseCreateChatReturn<
+  TTools,
+  TSchema extends SchemaInput ? InferSchemaType<TSchema> : unknown,
+  TContext,
+  TInterrupts
+> &
+  (TSchema extends SchemaInput
+    ? {
+        /**
+         * Live progressively-parsed structured output (reactive getter).
+         * Derived from the latest assistant message's structured-output part.
+         */
+        readonly partial: DeepPartial<InferSchemaType<TSchema>>
+        /**
+         * Final, schema-validated structured output (reactive getter). `null`
+         * until the latest assistant turn's structured-output part transitions
+         * to `complete`.
+         */
+        readonly final: InferSchemaType<TSchema> | null
+      }
+    : Record<never, never>)
+
+interface BaseCreateChatReturn<
+  TTools extends ReadonlyArray<AnyClientTool> = any,
+  TData = unknown,
+  TContext = unknown,
+  TInterrupts extends ReadonlyArray<InterruptDefinition<any, any, any, any>> =
+    readonly [],
+> {
+  /**
+   * Current messages in the conversation (reactive getter). When
+   * `outputSchema` is supplied, `messages[i].parts.find(p => p.type ===
+   * 'structured-output')` is typed by the schema — `data: T`,
+   * `partial: DeepPartial<T>`.
+   */
+  readonly messages: ReadonlyArray<UIMessage<TTools, TData>>
+
+  /**
+   * Send a message and get a response.
+   * Can be a simple string or multimodal content with images, audio, etc.
+   * Pass `{ whenBusy }` to override the queue policy for a single send, or
+   * `{ body }` to merge per-call JSON into this request's `forwardedProps`.
+   */
+  sendMessage: (
+    content: string | MultimodalContent,
+    options?: SendMessageOptions,
+  ) => Promise<void>
+
+  /**
+   * Pending messages queued while a stream is in flight.
+   */
+  readonly queue: ReadonlyArray<QueuedMessage>
+
+  /**
+   * Cancel a queued message before it drains. No-op if already sent.
+   */
+  cancelQueued: (id: string) => void
+
+  /**
+   * Append a message to the conversation
+   */
+  append: (message: ModelMessage | UIMessage<TTools, TData>) => Promise<void>
+
+  /**
+   * Add the result of a client-side tool execution
+   */
+  addToolResult: (result: {
+    toolCallId: string
+    tool: string
+    output: any
+    state?: 'output-available' | 'output-error'
+    errorText?: string
+  }) => Promise<void>
+
+  /**
+   * The id of the run this client has in flight — one it started or rejoined —
+   * or `null` when there is none (including while a run sits paused on an
+   * interrupt, waiting on approval).
+   *
+   * A run is one turn of the conversation, so this changes from turn to turn. A
+   * whole tool loop stays inside one run, while resuming after an interrupt
+   * continues the turn under a new id — so one user message can produce several
+   * run ids. Use it to talk to your own server about that run (cancel it, poll
+   * it, correlate a log line).
+   */
+  readonly runId: string | null
+  readonly interrupts: BoundInterrupts<TTools, TInterrupts>
+  readonly interruptErrors: ChatInterruptState<
+    TTools,
+    TInterrupts
+  >['interruptErrors']
+  readonly resuming: boolean
+  resolveInterrupts: {
+    (approved: boolean): void
+    (
+      resolver: (
+        interrupt: ResolvableChatInterrupt<TTools, TInterrupts>,
+      ) => undefined,
+    ): void
+  }
+  cancelInterrupts: () => void
+  retryInterrupts: () => void
+  resumeInterruptsUnsafe: (
+    resume: Array<RunAgentResumeItem>,
+    state?: ChatResumeState,
+  ) => Promise<boolean>
+
+  /**
+   * Reload the last assistant message
+   */
+  reload: () => Promise<void>
+
+  /**
+   * Stop the current response generation
+   */
+  stop: () => void
+
+  /**
+   * Dispose the chat client and unregister it from devtools.
+   */
+  dispose: () => void
+
+  /**
+   * Whether a response is currently being generated (reactive getter)
+   */
+  readonly isLoading: boolean
+
+  /**
+   * True when the last hydrate or older-page response said more messages exist
+   * (reactive getter).
+   */
+  readonly hasOlderMessages: boolean
+
+  /**
+   * Fetch the next older window and put it in front of the painted messages.
+   */
+  loadOlderMessages: () => Promise<void>
+
+  /**
+   * Current error, if any (reactive getter)
+   */
+  readonly error: Error | undefined
+
+  /**
+   * Set messages manually
+   */
+  setMessages: (messages: ReadonlyArray<UIMessage<TTools, TData>>) => void
+
+  /**
+   * Clear all messages
+   */
+  clear: () => void
+
+  /**
+   * Current generation status (reactive getter)
+   */
+  readonly status: ChatClientState
+  /**
+   * Whether the subscription loop is currently active (reactive getter)
+   */
+  readonly isSubscribed: boolean
+  /**
+   * Current connection lifecycle status (reactive getter)
+   */
+  readonly connectionStatus: ConnectionStatus
+  /**
+   * Whether the shared session is actively generating (reactive getter).
+   * Derived from stream run events (RUN_STARTED / RUN_FINISHED / RUN_ERROR).
+   * Unlike `isLoading` (request-local), this reflects shared generation
+   * activity visible to all subscribers (e.g. across tabs/devices).
+   */
+  readonly sessionGenerating: boolean
+  /**
+   * Whether the chat is being rebuilt from persistence (the server hydrate, or
+   * an async storage adapter). While it is true, show a loading state instead
+   * of an empty chat. It turns false when the transcript is in place and any
+   * in-flight run is re-joined. From then on `isLoading` covers the stream.
+   */
+  readonly isHydrating: boolean
+  /**
+   * Update the AG-UI `forwardedProps` sent with requests (e.g., for
+   * changing model selection or other client-driven options).
+   */
+  updateForwardedProps: (forwardedProps: Record<string, any>) => void
+  /**
+   * Update the client-local runtime context passed to client tool
+   * implementations. This value is not serialized to the server.
+   */
+  updateContext: (context: TContext) => void
+}
+
+// Note: createChatClientOptions and InferChatMessages are now in @tanstack/ai-client
+// and re-exported from there for convenience

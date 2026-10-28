@@ -1,0 +1,5232 @@
+import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest'
+import { OpenAIBaseResponsesTextAdapter } from '../src/adapters/responses-text'
+import { applyPatchTool } from '../src/tools/apply-patch-tool'
+import { localShellTool } from '../src/tools/local-shell-tool'
+import { shellTool } from '../src/tools/shell-tool'
+import type OpenAI from 'openai'
+import { EventType, chat } from '@tanstack/ai'
+import type { AdapterYieldChunk, ModelMessage, Tool } from '@tanstack/ai'
+import { resolveDebugOption } from '@tanstack/ai/adapter-internals'
+
+const testLogger = resolveDebugOption(false)
+
+// Declare mockCreate at module level
+let mockResponsesCreate: ReturnType<typeof vi.fn<(...args: Array<any>) => any>>
+
+/** Build a stub OpenAI client whose `responses.create` defers to the
+ *  module-level `mockResponsesCreate`. Reassigning the mock inside a test
+ *  still takes effect because the stub looks it up at call time. */
+function makeStubClient(): OpenAI {
+  return {
+    responses: {
+      create: (params: unknown, options: unknown) =>
+        mockResponsesCreate(params, options),
+    },
+  } as unknown as OpenAI
+}
+
+/**
+ * Concrete test subclass. The base now calls the OpenAI SDK directly, so the
+ * subclass just supplies a stub client whose `responses.create` routes into
+ * `mockResponsesCreate` for per-test setup.
+ */
+class TestResponsesAdapter extends OpenAIBaseResponsesTextAdapter<string> {
+  constructor(_config: unknown, model: string, name = 'openai-base-responses') {
+    super(model, name, makeStubClient())
+  }
+
+  convertInput(messages: Array<ModelMessage>) {
+    return this.convertMessagesToInput(messages)
+  }
+}
+
+// Helper to create async iterable from chunks
+function createAsyncIterable<T>(chunks: Array<T>): AsyncIterable<T> {
+  return {
+    [Symbol.asyncIterator]() {
+      let index = 0
+      return {
+        async next() {
+          if (index < chunks.length) {
+            return { value: chunks[index++]!, done: false }
+          }
+          return { value: undefined as T, done: true }
+        },
+      }
+    },
+  }
+}
+
+// Helper: yields the chunks, then never ends (the HTTP body stays open).
+// `state.returned` is true once the consumer releases the iterator.
+function createOpenAsyncIterable<T>(chunks: Array<T>) {
+  const state = { returned: false }
+  const iterable: AsyncIterable<T> = {
+    [Symbol.asyncIterator]() {
+      let index = 0
+      return {
+        next() {
+          if (index < chunks.length) {
+            return Promise.resolve({ value: chunks[index++]!, done: false })
+          }
+          return new Promise<IteratorResult<T>>(() => {})
+        },
+        return() {
+          state.returned = true
+          return Promise.resolve({ value: undefined as T, done: true })
+        },
+      }
+    },
+  }
+  return { iterable, state }
+}
+
+// Helper to setup the mock SDK client for streaming/non-streaming responses
+function setupMockResponsesClient(
+  streamChunks: Array<Record<string, unknown>>,
+  nonStreamResponse?: Record<string, unknown>,
+) {
+  mockResponsesCreate = vi.fn().mockImplementation((params) => {
+    if (params.stream) {
+      return Promise.resolve(createAsyncIterable(streamChunks))
+    }
+    return Promise.resolve(nonStreamResponse)
+  })
+}
+
+const testConfig = {
+  apiKey: 'test-api-key',
+  baseURL: 'https://api.test-provider.com/v1',
+}
+
+const weatherTool: Tool = {
+  name: 'lookup_weather',
+  description: 'Return the forecast for a location',
+}
+
+describe('strict fallback warning (#1213)', () => {
+  it('warns once per tool when its schema cannot be sent as strict', async () => {
+    setupMockResponsesClient([])
+    const warn = vi.fn()
+    const logger = resolveDebugOption({
+      logger: { debug: vi.fn(), info: vi.fn(), warn, error: vi.fn() },
+    })
+    const refTool: Tool = {
+      name: 'lookup_user',
+      description: 'Find a user',
+      inputSchema: {
+        type: 'object',
+        properties: { user: { $ref: '#/$defs/user' } },
+        required: ['user'],
+      },
+    }
+    const adapter = new TestResponsesAdapter(testConfig, 'test-model')
+
+    for (let i = 0; i < 2; i++) {
+      for await (const _ of adapter.chatStream({
+        threadId: 'thread-1',
+        logger,
+        model: 'test-model',
+        messages: [{ role: 'user', content: 'hi' }],
+        tools: [refTool, weatherTool],
+      })) {
+        // drain
+      }
+    }
+
+    expect(warn).toHaveBeenCalledTimes(1)
+    expect(warn.mock.calls[0]![0]).toContain('"lookup_user"')
+    expect(warn.mock.calls[0]![0]).toContain('$ref')
+  })
+})
+
+describe('OpenAIBaseResponsesTextAdapter', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  afterEach(() => {
+    vi.unstubAllEnvs()
+  })
+
+  describe('instantiation', () => {
+    it('creates an adapter with default name', () => {
+      const adapter = new TestResponsesAdapter(testConfig, 'test-model')
+
+      expect(adapter).toBeDefined()
+      expect(adapter.kind).toBe('text')
+      expect(adapter.name).toBe('openai-base-responses')
+      expect(adapter.model).toBe('test-model')
+    })
+
+    it('creates an adapter with custom name', () => {
+      const adapter = new TestResponsesAdapter(
+        testConfig,
+        'test-model',
+        'my-provider',
+      )
+
+      expect(adapter).toBeDefined()
+      expect(adapter.name).toBe('my-provider')
+    })
+
+    it('creates an adapter with custom baseURL', () => {
+      const adapter = new TestResponsesAdapter(
+        {
+          apiKey: 'test-key',
+          baseURL: 'https://custom.api.example.com/v1',
+        },
+        'custom-model',
+      )
+
+      expect(adapter).toBeDefined()
+      expect(adapter.model).toBe('custom-model')
+    })
+  })
+
+  describe('native combined tools + outputSchema mode (#605)', () => {
+    it('wires outputSchema into text.format alongside tools on the regular chatStream call', async () => {
+      const streamChunks = [
+        {
+          type: 'response.created',
+          response: {
+            id: 'resp-1',
+            model: 'test-model',
+            output: [],
+            usage: { input_tokens: 1, output_tokens: 1, total_tokens: 2 },
+          },
+        },
+        {
+          type: 'response.completed',
+          response: {
+            id: 'resp-1',
+            model: 'test-model',
+            output: [],
+            usage: { input_tokens: 1, output_tokens: 1, total_tokens: 2 },
+          },
+        },
+      ]
+
+      setupMockResponsesClient(streamChunks)
+      const adapter = new TestResponsesAdapter(testConfig, 'test-model')
+      expect(adapter.supportsCombinedToolsAndSchema()).toBe(true)
+
+      for await (const _ of adapter.chatStream({
+        threadId: 'thread-1',
+        logger: testLogger,
+        model: 'test-model',
+        messages: [{ role: 'user', content: 'Hello' }],
+        tools: [weatherTool],
+        outputSchema: {
+          type: 'object',
+          properties: { city: { type: 'string' } },
+          required: ['city'],
+        },
+      })) {
+        // drain
+      }
+
+      expect(mockResponsesCreate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          stream: true,
+          tools: expect.any(Array),
+          text: expect.objectContaining({
+            format: expect.objectContaining({
+              type: 'json_schema',
+              name: 'structured_output',
+              strict: true,
+              schema: expect.objectContaining({ type: 'object' }),
+            }),
+          }),
+        }),
+        expect.anything(),
+      )
+    })
+
+    it('omits text.format when outputSchema is not set', async () => {
+      const streamChunks = [
+        {
+          type: 'response.created',
+          response: {
+            id: 'resp-2',
+            model: 'test-model',
+            output: [],
+            usage: { input_tokens: 1, output_tokens: 1, total_tokens: 2 },
+          },
+        },
+        {
+          type: 'response.completed',
+          response: {
+            id: 'resp-2',
+            model: 'test-model',
+            output: [],
+            usage: { input_tokens: 1, output_tokens: 1, total_tokens: 2 },
+          },
+        },
+      ]
+
+      setupMockResponsesClient(streamChunks)
+      const adapter = new TestResponsesAdapter(testConfig, 'test-model')
+
+      for await (const _ of adapter.chatStream({
+        threadId: 'thread-1',
+        logger: testLogger,
+        model: 'test-model',
+        messages: [{ role: 'user', content: 'Hello' }],
+      })) {
+        // drain
+      }
+
+      const callArgs = mockResponsesCreate.mock.calls[0]![0] as Record<
+        string,
+        unknown
+      >
+      expect(callArgs.text).toBeUndefined()
+    })
+  })
+
+  describe('streaming event sequence', () => {
+    it('reports RUN_ERROR when the stream ends before response.completed (#1447)', async () => {
+      setupMockResponsesClient([
+        {
+          type: 'response.created',
+          response: {
+            id: 'resp-1',
+            model: 'test-model',
+            status: 'in_progress',
+          },
+        },
+        { type: 'response.output_text.delta', delta: 'The answer is ' },
+      ])
+      const chunks: Array<AdapterYieldChunk> = []
+      for await (const chunk of chat({
+        threadId: 'thread-1',
+        adapter: new TestResponsesAdapter(testConfig, 'test-model'),
+        messages: [{ role: 'user', content: 'Hello' }],
+      })) {
+        chunks.push(chunk)
+      }
+
+      const last = chunks.at(-1)
+      expect(last?.type).toBe('RUN_ERROR')
+      if (last?.type === 'RUN_ERROR') {
+        expect(last.code).toBe('incomplete-stream')
+      }
+      expect(chunks.some((c) => c.type === 'RUN_FINISHED')).toBe(false)
+      // The partial text still reaches the caller.
+      expect(
+        chunks.some(
+          (c) =>
+            c.type === 'TEXT_MESSAGE_CONTENT' && c.delta === 'The answer is ',
+        ),
+      ).toBe(true)
+    })
+
+    it('finishes chat() on response.completed without waiting for EOF (#1445)', async () => {
+      const { iterable, state } = createOpenAsyncIterable([
+        {
+          type: 'response.created',
+          response: {
+            id: 'resp-1',
+            model: 'test-model',
+            status: 'in_progress',
+          },
+        },
+        { type: 'response.output_text.delta', delta: 'OK' },
+        {
+          type: 'response.completed',
+          response: {
+            id: 'resp-1',
+            model: 'test-model',
+            status: 'completed',
+            output: [],
+            usage: { input_tokens: 1, output_tokens: 1, total_tokens: 2 },
+          },
+        },
+      ])
+      mockResponsesCreate = vi.fn().mockResolvedValue(iterable)
+      const chunks: Array<{ type: string }> = []
+      const run = (async () => {
+        for await (const chunk of chat({
+          threadId: 'thread-1',
+          adapter: new TestResponsesAdapter(testConfig, 'test-model'),
+          messages: [{ role: 'user', content: 'Hello' }],
+        })) {
+          chunks.push(chunk)
+        }
+        return 'finished'
+      })()
+      const outcome = await Promise.race([
+        run,
+        new Promise((resolve) => setTimeout(() => resolve('timeout'), 1000)),
+      ])
+
+      expect(outcome).toBe('finished')
+      expect(chunks.at(-1)?.type).toBe('RUN_FINISHED')
+      expect(state.returned).toBe(true)
+    })
+
+    it('emits RUN_STARTED as the first event', async () => {
+      const streamChunks = [
+        {
+          type: 'response.created',
+          response: {
+            id: 'resp-123',
+            model: 'test-model',
+            status: 'in_progress',
+          },
+        },
+        {
+          type: 'response.output_text.delta',
+          delta: 'Hello',
+        },
+        {
+          type: 'response.completed',
+          response: {
+            id: 'resp-123',
+            model: 'test-model',
+            status: 'completed',
+            output: [],
+            usage: {
+              input_tokens: 5,
+              output_tokens: 1,
+              total_tokens: 6,
+            },
+          },
+        },
+      ]
+
+      setupMockResponsesClient(streamChunks)
+      const adapter = new TestResponsesAdapter(testConfig, 'test-model')
+      const chunks: Array<AdapterYieldChunk> = []
+
+      for await (const chunk of adapter.chatStream({
+        threadId: 'thread-1',
+        logger: testLogger,
+        model: 'test-model',
+        messages: [{ role: 'user', content: 'Hello' }],
+      })) {
+        chunks.push(chunk)
+      }
+
+      expect(chunks[0]?.type).toBe('RUN_STARTED')
+      if (chunks[0]?.type === 'RUN_STARTED') {
+        expect(chunks[0].runId).toBeDefined()
+        expect(chunks[0].model).toBe('test-model')
+      }
+    })
+
+    it('emits TEXT_MESSAGE_START before TEXT_MESSAGE_CONTENT on output_text.delta', async () => {
+      const streamChunks = [
+        {
+          type: 'response.created',
+          response: {
+            id: 'resp-123',
+            model: 'test-model',
+            status: 'in_progress',
+          },
+        },
+        {
+          type: 'response.output_text.delta',
+          delta: 'Hello',
+        },
+        {
+          type: 'response.completed',
+          response: {
+            id: 'resp-123',
+            model: 'test-model',
+            status: 'completed',
+            output: [],
+            usage: {
+              input_tokens: 5,
+              output_tokens: 1,
+              total_tokens: 6,
+            },
+          },
+        },
+      ]
+
+      setupMockResponsesClient(streamChunks)
+      const adapter = new TestResponsesAdapter(testConfig, 'test-model')
+      const chunks: Array<AdapterYieldChunk> = []
+
+      for await (const chunk of adapter.chatStream({
+        threadId: 'thread-1',
+        logger: testLogger,
+        model: 'test-model',
+        messages: [{ role: 'user', content: 'Hello' }],
+      })) {
+        chunks.push(chunk)
+      }
+
+      const textStartIndex = chunks.findIndex(
+        (c) => c.type === 'TEXT_MESSAGE_START',
+      )
+      const textContentIndex = chunks.findIndex(
+        (c) => c.type === 'TEXT_MESSAGE_CONTENT',
+      )
+
+      expect(textStartIndex).toBeGreaterThan(-1)
+      expect(textContentIndex).toBeGreaterThan(-1)
+      expect(textStartIndex).toBeLessThan(textContentIndex)
+
+      const textStart = chunks[textStartIndex]
+      if (textStart?.type === 'TEXT_MESSAGE_START') {
+        expect(textStart.messageId).toBeDefined()
+        expect(textStart.role).toBe('assistant')
+      }
+    })
+
+    it('emits proper AG-UI event sequence: RUN_STARTED -> TEXT_MESSAGE_START -> TEXT_MESSAGE_CONTENT -> TEXT_MESSAGE_END -> RUN_FINISHED', async () => {
+      const streamChunks = [
+        {
+          type: 'response.created',
+          response: {
+            id: 'resp-123',
+            model: 'test-model',
+            status: 'in_progress',
+          },
+        },
+        {
+          type: 'response.output_text.delta',
+          delta: 'Hello world',
+        },
+        {
+          type: 'response.completed',
+          response: {
+            id: 'resp-123',
+            model: 'test-model',
+            status: 'completed',
+            output: [],
+            usage: {
+              input_tokens: 5,
+              output_tokens: 2,
+              total_tokens: 7,
+            },
+          },
+        },
+      ]
+
+      setupMockResponsesClient(streamChunks)
+      const adapter = new TestResponsesAdapter(testConfig, 'test-model')
+      const chunks: Array<AdapterYieldChunk> = []
+
+      for await (const chunk of adapter.chatStream({
+        threadId: 'thread-1',
+        logger: testLogger,
+        model: 'test-model',
+        messages: [{ role: 'user', content: 'Hello' }],
+      })) {
+        chunks.push(chunk)
+      }
+
+      // Verify proper AG-UI event sequence
+      const eventTypes = chunks.map((c) => c.type)
+
+      // Should start with RUN_STARTED
+      expect(eventTypes[0]).toBe('RUN_STARTED')
+
+      // Should have TEXT_MESSAGE_START before TEXT_MESSAGE_CONTENT
+      const textStartIndex = eventTypes.indexOf(EventType.TEXT_MESSAGE_START)
+      const textContentIndex = eventTypes.indexOf(
+        EventType.TEXT_MESSAGE_CONTENT,
+      )
+      expect(textStartIndex).toBeGreaterThan(-1)
+      expect(textContentIndex).toBeGreaterThan(textStartIndex)
+
+      // Should have TEXT_MESSAGE_END before RUN_FINISHED
+      const textEndIndex = eventTypes.indexOf(EventType.TEXT_MESSAGE_END)
+      const runFinishedIndex = eventTypes.indexOf(EventType.RUN_FINISHED)
+      expect(textEndIndex).toBeGreaterThan(-1)
+      expect(runFinishedIndex).toBeGreaterThan(textEndIndex)
+
+      // Verify RUN_FINISHED has proper data
+      const runFinishedChunk = chunks.find((c) => c.type === 'RUN_FINISHED')
+      if (runFinishedChunk?.type === 'RUN_FINISHED') {
+        expect(runFinishedChunk.finishReason).toBe('stop')
+        expect(runFinishedChunk.usage).toBeDefined()
+      }
+    })
+
+    it('emits TEXT_MESSAGE_END and RUN_FINISHED at the end with usage data', async () => {
+      const streamChunks = [
+        {
+          type: 'response.created',
+          response: {
+            id: 'resp-123',
+            model: 'test-model',
+            status: 'in_progress',
+          },
+        },
+        {
+          type: 'response.output_text.delta',
+          delta: 'Hello',
+        },
+        {
+          type: 'response.completed',
+          response: {
+            id: 'resp-123',
+            model: 'test-model',
+            status: 'completed',
+            output: [],
+            usage: {
+              input_tokens: 5,
+              output_tokens: 1,
+              total_tokens: 6,
+            },
+          },
+        },
+      ]
+
+      setupMockResponsesClient(streamChunks)
+      const adapter = new TestResponsesAdapter(testConfig, 'test-model')
+      const chunks: Array<AdapterYieldChunk> = []
+
+      for await (const chunk of adapter.chatStream({
+        threadId: 'thread-1',
+        logger: testLogger,
+        model: 'test-model',
+        messages: [{ role: 'user', content: 'Hello' }],
+      })) {
+        chunks.push(chunk)
+      }
+
+      const textEndChunk = chunks.find((c) => c.type === 'TEXT_MESSAGE_END')
+      expect(textEndChunk).toBeDefined()
+      if (textEndChunk?.type === 'TEXT_MESSAGE_END') {
+        expect(textEndChunk.messageId).toBeDefined()
+      }
+
+      const runFinishedChunk = chunks.find((c) => c.type === 'RUN_FINISHED')
+      expect(runFinishedChunk).toBeDefined()
+      if (runFinishedChunk?.type === 'RUN_FINISHED') {
+        expect(runFinishedChunk.runId).toBeDefined()
+        expect(runFinishedChunk.finishReason).toBe('stop')
+        expect(runFinishedChunk.usage).toMatchObject({
+          promptTokens: 5,
+          completionTokens: 1,
+          totalTokens: 6,
+        })
+      }
+    })
+
+    it('streams content with correct accumulated values', async () => {
+      const streamChunks = [
+        {
+          type: 'response.created',
+          response: {
+            id: 'resp-123',
+            model: 'test-model',
+            status: 'in_progress',
+          },
+        },
+        {
+          type: 'response.output_text.delta',
+          delta: 'Hello ',
+        },
+        {
+          type: 'response.output_text.delta',
+          delta: 'world',
+        },
+        {
+          type: 'response.completed',
+          response: {
+            id: 'resp-123',
+            model: 'test-model',
+            status: 'completed',
+            output: [],
+            usage: {
+              input_tokens: 5,
+              output_tokens: 2,
+              total_tokens: 7,
+            },
+          },
+        },
+      ]
+
+      setupMockResponsesClient(streamChunks)
+      const adapter = new TestResponsesAdapter(testConfig, 'test-model')
+      const chunks: Array<AdapterYieldChunk> = []
+
+      for await (const chunk of adapter.chatStream({
+        threadId: 'thread-1',
+        logger: testLogger,
+        model: 'test-model',
+        messages: [{ role: 'user', content: 'Say hello' }],
+      })) {
+        chunks.push(chunk)
+      }
+
+      // Check TEXT_MESSAGE_CONTENT events have correct accumulated content
+      const contentChunks = chunks.filter(
+        (c) => c.type === 'TEXT_MESSAGE_CONTENT',
+      )
+      expect(contentChunks.length).toBe(2)
+
+      const firstContent = contentChunks[0]
+      if (firstContent?.type === 'TEXT_MESSAGE_CONTENT') {
+        expect(firstContent.delta).toBe('Hello ')
+        expect(firstContent.content).toBe('Hello ')
+      }
+
+      const secondContent = contentChunks[1]
+      if (secondContent?.type === 'TEXT_MESSAGE_CONTENT') {
+        expect(secondContent.delta).toBe('world')
+        expect(secondContent.content).toBe('Hello world')
+      }
+    })
+  })
+
+  describe('reasoning/thinking tokens', () => {
+    it('emits REASONING_MESSAGE_CONTENT for reasoning_text.delta', async () => {
+      const streamChunks = [
+        {
+          type: 'response.created',
+          response: {
+            id: 'resp-123',
+            model: 'test-model',
+            status: 'in_progress',
+          },
+        },
+        {
+          type: 'response.reasoning_text.delta',
+          delta: 'Let me think about this...',
+        },
+        {
+          type: 'response.reasoning_text.delta',
+          delta: ' The answer is clear.',
+        },
+        {
+          type: 'response.output_text.delta',
+          delta: 'The answer is 42.',
+        },
+        {
+          type: 'response.completed',
+          response: {
+            id: 'resp-123',
+            model: 'test-model',
+            status: 'completed',
+            output: [],
+            usage: {
+              input_tokens: 10,
+              output_tokens: 20,
+              total_tokens: 30,
+            },
+          },
+        },
+      ]
+
+      setupMockResponsesClient(streamChunks)
+      const adapter = new TestResponsesAdapter(testConfig, 'test-model')
+      const chunks: Array<AdapterYieldChunk> = []
+
+      for await (const chunk of adapter.chatStream({
+        threadId: 'thread-1',
+        logger: testLogger,
+        model: 'test-model',
+        messages: [{ role: 'user', content: 'What is the meaning of life?' }],
+      })) {
+        chunks.push(chunk)
+      }
+
+      const types = chunks.map((c) => c.type)
+      const reasoningStart = types.indexOf(EventType.REASONING_START)
+      const reasoningMessageStart = types.indexOf(
+        EventType.REASONING_MESSAGE_START,
+      )
+      const reasoningMessageEnd = types.indexOf(EventType.REASONING_MESSAGE_END)
+      const reasoningEnd = types.indexOf(EventType.REASONING_END)
+      expect(reasoningStart).toBeGreaterThanOrEqual(0)
+      expect(reasoningMessageStart).toBeGreaterThan(reasoningStart)
+      expect(reasoningMessageEnd).toBeGreaterThan(reasoningMessageStart)
+      expect(reasoningEnd).toBeGreaterThan(reasoningMessageEnd)
+
+      const reasoningDeltas = chunks
+        .filter(
+          (
+            c,
+          ): c is Extract<
+            AdapterYieldChunk,
+            { type: 'REASONING_MESSAGE_CONTENT' }
+          > => c.type === 'REASONING_MESSAGE_CONTENT',
+        )
+        .map((c) => c.delta)
+      expect(reasoningDeltas).toEqual([
+        'Let me think about this...',
+        ' The answer is clear.',
+      ])
+
+      const textContent = chunks.filter(
+        (c) => c.type === 'TEXT_MESSAGE_CONTENT',
+      )
+      expect(textContent.length).toBe(1)
+    })
+
+    // response.reasoning.delta is the pre-2025-07 spec name for
+    // response.reasoning_text.delta; providers frozen on the older spec
+    // (e.g. Amazon Bedrock's Mantle endpoint serving Gemma) still emit it.
+    it('emits REASONING_MESSAGE_CONTENT for the legacy reasoning.delta', async () => {
+      const streamChunks = [
+        {
+          type: 'response.created',
+          response: {
+            id: 'resp-123',
+            model: 'test-model',
+            status: 'in_progress',
+          },
+        },
+        {
+          type: 'response.reasoning.delta',
+          delta: 'Let me think about this...',
+        },
+        {
+          type: 'response.reasoning.delta',
+          delta: ' The answer is clear.',
+        },
+        {
+          type: 'response.output_text.delta',
+          delta: 'The answer is 42.',
+        },
+        {
+          type: 'response.completed',
+          response: {
+            id: 'resp-123',
+            model: 'test-model',
+            status: 'completed',
+            output: [],
+            usage: {
+              input_tokens: 10,
+              output_tokens: 20,
+              total_tokens: 30,
+            },
+          },
+        },
+      ]
+
+      setupMockResponsesClient(streamChunks)
+      const adapter = new TestResponsesAdapter(testConfig, 'test-model')
+      const chunks: Array<AdapterYieldChunk> = []
+
+      for await (const chunk of adapter.chatStream({
+        threadId: 'thread-1',
+        logger: testLogger,
+        model: 'test-model',
+        messages: [{ role: 'user', content: 'What is the meaning of life?' }],
+      })) {
+        chunks.push(chunk)
+      }
+
+      const reasoningDeltas = chunks
+        .filter(
+          (
+            c,
+          ): c is Extract<
+            AdapterYieldChunk,
+            { type: 'REASONING_MESSAGE_CONTENT' }
+          > => c.type === 'REASONING_MESSAGE_CONTENT',
+        )
+        .map((c) => c.delta)
+      expect(reasoningDeltas).toEqual([
+        'Let me think about this...',
+        ' The answer is clear.',
+      ])
+
+      const types = chunks.map((c) => c.type)
+      const reasoningMessageEnd = types.indexOf(EventType.REASONING_MESSAGE_END)
+      expect(reasoningMessageEnd).toBeGreaterThan(
+        types.indexOf(EventType.REASONING_MESSAGE_START),
+      )
+
+      const textContent = chunks.filter(
+        (c) => c.type === 'TEXT_MESSAGE_CONTENT',
+      )
+      expect(textContent.length).toBe(1)
+    })
+
+    it('emits REASONING_MESSAGE_CONTENT for reasoning_summary_text.delta', async () => {
+      const streamChunks = [
+        {
+          type: 'response.created',
+          response: {
+            id: 'resp-123',
+            model: 'test-model',
+            status: 'in_progress',
+          },
+        },
+        {
+          type: 'response.reasoning_summary_text.delta',
+          delta: 'Summary of reasoning...',
+        },
+        {
+          type: 'response.output_text.delta',
+          delta: 'Final answer.',
+        },
+        {
+          type: 'response.completed',
+          response: {
+            id: 'resp-123',
+            model: 'test-model',
+            status: 'completed',
+            output: [],
+            usage: {
+              input_tokens: 5,
+              output_tokens: 2,
+              total_tokens: 7,
+            },
+          },
+        },
+      ]
+
+      setupMockResponsesClient(streamChunks)
+      const adapter = new TestResponsesAdapter(testConfig, 'test-model')
+      const chunks: Array<AdapterYieldChunk> = []
+
+      for await (const chunk of adapter.chatStream({
+        threadId: 'thread-1',
+        logger: testLogger,
+        model: 'test-model',
+        messages: [{ role: 'user', content: 'Explain' }],
+      })) {
+        chunks.push(chunk)
+      }
+
+      const reasoningContent = chunks.find(
+        (c) => c.type === 'REASONING_MESSAGE_CONTENT',
+      )
+      expect(reasoningContent).toBeDefined()
+      if (reasoningContent?.type === 'REASONING_MESSAGE_CONTENT') {
+        expect(reasoningContent.delta).toBe('Summary of reasoning...')
+      }
+    })
+  })
+
+  describe('tool call events', () => {
+    it('undoes strict null-widening before emitting the completed tool input', async () => {
+      const strictTool: Tool = {
+        name: 'ask_user',
+        description: 'Ask a question',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            question: { type: 'string' },
+            options: { type: 'array', items: { type: 'string' } },
+            nullableNote: { type: ['string', 'null'] },
+          },
+          required: ['question', 'nullableNote'],
+        },
+      }
+      const argumentsJson =
+        '{"question":"Which one?","options":null,"nullableNote":null}'
+      setupMockResponsesClient([
+        {
+          type: 'response.created',
+          response: {
+            id: 'resp-null-input',
+            model: 'test-model',
+            status: 'in_progress',
+          },
+        },
+        {
+          type: 'response.output_item.added',
+          output_index: 0,
+          item: {
+            type: 'function_call',
+            id: 'call-null-input',
+            name: 'ask_user',
+          },
+        },
+        {
+          type: 'response.function_call_arguments.delta',
+          item_id: 'call-null-input',
+          delta: argumentsJson,
+        },
+        {
+          type: 'response.function_call_arguments.done',
+          item_id: 'call-null-input',
+          arguments: argumentsJson,
+        },
+        {
+          type: 'response.completed',
+          response: {
+            id: 'resp-null-input',
+            model: 'test-model',
+            status: 'completed',
+            output: [
+              {
+                type: 'function_call',
+                id: 'call-null-input',
+                name: 'ask_user',
+                arguments: argumentsJson,
+              },
+            ],
+            usage: { input_tokens: 1, output_tokens: 1, total_tokens: 2 },
+          },
+        },
+      ])
+      const adapter = new TestResponsesAdapter(testConfig, 'test-model')
+      const chunks: Array<AdapterYieldChunk> = []
+
+      for await (const chunk of adapter.chatStream({
+        threadId: 'thread-1',
+        logger: testLogger,
+        model: 'test-model',
+        messages: [{ role: 'user', content: 'Ask me' }],
+        tools: [strictTool],
+      })) {
+        chunks.push(chunk)
+      }
+
+      const toolCallEnd = chunks.find((chunk) => chunk.type === 'TOOL_CALL_END')
+      if (toolCallEnd?.type !== 'TOOL_CALL_END') {
+        throw new Error('expected TOOL_CALL_END')
+      }
+      expect(toolCallEnd.input).toEqual({
+        question: 'Which one?',
+        nullableNote: null,
+      })
+    })
+
+    it('emits TOOL_CALL_START -> TOOL_CALL_ARGS -> TOOL_CALL_END', async () => {
+      const streamChunks = [
+        {
+          type: 'response.created',
+          response: {
+            id: 'resp-456',
+            model: 'test-model',
+            status: 'in_progress',
+          },
+        },
+        {
+          type: 'response.output_item.added',
+          output_index: 0,
+          item: {
+            type: 'function_call',
+            id: 'call_abc123',
+            name: 'lookup_weather',
+          },
+        },
+        {
+          type: 'response.function_call_arguments.delta',
+          item_id: 'call_abc123',
+          delta: '{"location":',
+        },
+        {
+          type: 'response.function_call_arguments.delta',
+          item_id: 'call_abc123',
+          delta: '"Berlin"}',
+        },
+        {
+          type: 'response.function_call_arguments.done',
+          item_id: 'call_abc123',
+          arguments: '{"location":"Berlin"}',
+        },
+        {
+          type: 'response.completed',
+          response: {
+            id: 'resp-456',
+            model: 'test-model',
+            status: 'completed',
+            output: [
+              {
+                type: 'function_call',
+                id: 'call_abc123',
+                name: 'lookup_weather',
+                arguments: '{"location":"Berlin"}',
+              },
+            ],
+            usage: {
+              input_tokens: 10,
+              output_tokens: 5,
+              total_tokens: 15,
+            },
+          },
+        },
+      ]
+
+      setupMockResponsesClient(streamChunks)
+      const adapter = new TestResponsesAdapter(testConfig, 'test-model')
+      const chunks: Array<AdapterYieldChunk> = []
+
+      for await (const chunk of adapter.chatStream({
+        threadId: 'thread-1',
+        logger: testLogger,
+        model: 'test-model',
+        messages: [{ role: 'user', content: 'Weather in Berlin?' }],
+        tools: [weatherTool],
+      })) {
+        chunks.push(chunk)
+      }
+
+      // Check AG-UI tool events
+      const toolStartChunk = chunks.find((c) => c.type === 'TOOL_CALL_START')
+      expect(toolStartChunk).toBeDefined()
+      if (toolStartChunk?.type === 'TOOL_CALL_START') {
+        expect(toolStartChunk.toolCallId).toBe('call_abc123')
+        expect(toolStartChunk.toolCallName).toBe('lookup_weather')
+        expect(toolStartChunk.index).toBe(0)
+      }
+
+      const toolArgsChunks = chunks.filter((c) => c.type === 'TOOL_CALL_ARGS')
+      expect(toolArgsChunks.length).toBe(2)
+      if (toolArgsChunks[0]?.type === 'TOOL_CALL_ARGS') {
+        expect(toolArgsChunks[0].delta).toBe('{"location":')
+      }
+      if (toolArgsChunks[1]?.type === 'TOOL_CALL_ARGS') {
+        expect(toolArgsChunks[1].delta).toBe('"Berlin"}')
+      }
+
+      const toolEndChunk = chunks.find((c) => c.type === 'TOOL_CALL_END')
+      expect(toolEndChunk).toBeDefined()
+      if (toolEndChunk?.type === 'TOOL_CALL_END') {
+        expect(toolEndChunk.toolCallId).toBe('call_abc123')
+        expect(toolEndChunk.toolCallName).toBe('lookup_weather')
+        expect(toolEndChunk.input).toEqual({ location: 'Berlin' })
+      }
+
+      // Check finish reason is tool_calls when output contains function_call items
+      const runFinishedChunk = chunks.find((c) => c.type === 'RUN_FINISHED')
+      if (runFinishedChunk?.type === 'RUN_FINISHED') {
+        expect(runFinishedChunk.finishReason).toBe('tool_calls')
+      }
+    })
+
+    it('emits provider-executed web search metadata with joined sources', async () => {
+      const webSearchCall = {
+        type: 'web_search_call',
+        id: 'ws_123',
+        status: 'completed',
+        action: {
+          type: 'search',
+          queries: ['latest release'],
+          sources: [{ type: 'url', url: 'https://example.com/release' }],
+        },
+      }
+      const citation = {
+        type: 'url_citation',
+        url: 'https://example.com/release',
+        title: 'Example release notes',
+        start_index: 0,
+        end_index: 7,
+      }
+
+      setupMockResponsesClient([
+        {
+          type: 'response.created',
+          response: {
+            id: 'resp-web-search',
+            model: 'test-model',
+            status: 'in_progress',
+          },
+        },
+        {
+          type: 'response.output_item.added',
+          output_index: 0,
+          item: { ...webSearchCall, status: 'searching' },
+        },
+        {
+          type: 'response.output_text.annotation.added',
+          item_id: 'msg-web-search',
+          output_index: 1,
+          content_index: 0,
+          annotation_index: 0,
+          annotation: citation,
+        },
+        {
+          type: 'response.output_item.done',
+          output_index: 0,
+          item: webSearchCall,
+        },
+        {
+          type: 'response.completed',
+          response: {
+            id: 'resp-web-search',
+            model: 'test-model',
+            status: 'completed',
+            output: [
+              webSearchCall,
+              {
+                id: 'msg-web-search',
+                type: 'message',
+                role: 'assistant',
+                status: 'completed',
+                content: [
+                  {
+                    type: 'output_text',
+                    text: 'Grounded',
+                    annotations: [citation],
+                  },
+                ],
+              },
+            ],
+            usage: { input_tokens: 1, output_tokens: 1, total_tokens: 2 },
+          },
+        },
+      ])
+
+      const chunks: Array<AdapterYieldChunk> = []
+      for await (const chunk of new TestResponsesAdapter(
+        testConfig,
+        'test-model',
+      ).chatStream({
+        threadId: 'thread-1',
+        logger: testLogger,
+        model: 'test-model',
+        messages: [{ role: 'user', content: 'Find the latest release.' }],
+      })) {
+        chunks.push(chunk)
+      }
+
+      const starts = chunks.filter((chunk) => chunk.type === 'TOOL_CALL_START')
+      const ends = chunks.filter((chunk) => chunk.type === 'TOOL_CALL_END')
+      expect(starts).toHaveLength(1)
+      expect(ends).toHaveLength(1)
+      expect(starts[0]).toMatchObject({
+        toolCallId: 'ws_123',
+        toolCallName: 'web_search',
+        metadata: {
+          providerExecuted: true,
+          sources: [
+            {
+              url: 'https://example.com/release',
+              title: 'Example release notes',
+            },
+          ],
+          openai: {
+            webSearchCall,
+            urlCitations: [citation],
+          },
+        },
+      })
+      expect(ends[0]).toMatchObject({
+        toolCallId: 'ws_123',
+        input: webSearchCall.action,
+      })
+    })
+
+    it('gives each web search only its own citations and its real output index', async () => {
+      const search = (id: string, url: string) => ({
+        type: 'web_search_call',
+        id,
+        status: 'completed',
+        action: { type: 'search', query: id, sources: [{ type: 'url', url }] },
+      })
+      const cite = (url: string) => ({
+        type: 'url_citation',
+        url,
+        title: `Title ${url}`,
+        start_index: 0,
+        end_index: 1,
+      })
+      const ws1 = search('ws_1', 'https://a.example/')
+      // ws_2 does not stream. It is only in response.completed, at index 1.
+      const ws2 = search('ws_2', 'https://b.example/')
+
+      setupMockResponsesClient([
+        {
+          type: 'response.created',
+          response: {
+            id: 'resp-2ws',
+            model: 'test-model',
+            status: 'in_progress',
+          },
+        },
+        { type: 'response.output_item.done', output_index: 0, item: ws1 },
+        {
+          type: 'response.output_text.annotation.added',
+          item_id: 'msg_1',
+          output_index: 2,
+          content_index: 0,
+          annotation_index: 0,
+          annotation: cite('https://a.example/'),
+        },
+        {
+          type: 'response.output_text.annotation.added',
+          item_id: 'msg_1',
+          output_index: 2,
+          content_index: 0,
+          annotation_index: 1,
+          annotation: cite('https://b.example/'),
+        },
+        {
+          type: 'response.completed',
+          response: {
+            id: 'resp-2ws',
+            model: 'test-model',
+            status: 'completed',
+            output: [
+              ws1,
+              ws2,
+              {
+                id: 'msg_1',
+                type: 'message',
+                role: 'assistant',
+                status: 'completed',
+                content: [
+                  { type: 'output_text', text: 'Two', annotations: [] },
+                ],
+              },
+            ],
+            usage: { input_tokens: 1, output_tokens: 1, total_tokens: 2 },
+          },
+        },
+      ])
+
+      const chunks: Array<AdapterYieldChunk> = []
+      for await (const chunk of new TestResponsesAdapter(
+        testConfig,
+        'test-model',
+      ).chatStream({
+        threadId: 'thread-1',
+        logger: testLogger,
+        model: 'test-model',
+        messages: [{ role: 'user', content: 'Search twice.' }],
+      })) {
+        chunks.push(chunk)
+      }
+
+      const starts = chunks.filter((chunk) => chunk.type === 'TOOL_CALL_START')
+      expect(starts).toMatchObject([
+        {
+          toolCallId: 'ws_1',
+          index: 0,
+          metadata: {
+            sources: [{ url: 'https://a.example/' }],
+            openai: { urlCitations: [cite('https://a.example/')] },
+          },
+        },
+        {
+          toolCallId: 'ws_2',
+          index: 1,
+          metadata: {
+            sources: [{ url: 'https://b.example/' }],
+            openai: { urlCitations: [cite('https://b.example/')] },
+          },
+        },
+      ])
+    })
+
+    it('emits parentMessageId on tool-first tool calls matching the assistant message id', async () => {
+      // Tool call arrives before any text. parentMessageId must bind the tool
+      // call to the same assistant message id the eventual TEXT_MESSAGE_START
+      // uses, so consumers don't see the message id change mid-stream (#477).
+      const streamChunks = [
+        {
+          type: 'response.created',
+          response: {
+            id: 'resp-tf',
+            model: 'test-model',
+            status: 'in_progress',
+          },
+        },
+        {
+          type: 'response.output_item.added',
+          output_index: 0,
+          item: {
+            type: 'function_call',
+            id: 'call_tf',
+            name: 'lookup_weather',
+          },
+        },
+        {
+          type: 'response.function_call_arguments.delta',
+          item_id: 'call_tf',
+          delta: '{"location":"Berlin"}',
+        },
+        {
+          type: 'response.function_call_arguments.done',
+          item_id: 'call_tf',
+          arguments: '{"location":"Berlin"}',
+        },
+        { type: 'response.output_text.delta', delta: 'It is sunny.' },
+        {
+          type: 'response.completed',
+          response: {
+            id: 'resp-tf',
+            model: 'test-model',
+            status: 'completed',
+            output: [
+              {
+                type: 'function_call',
+                id: 'call_tf',
+                name: 'lookup_weather',
+                arguments: '{"location":"Berlin"}',
+              },
+            ],
+            usage: { input_tokens: 10, output_tokens: 7, total_tokens: 17 },
+          },
+        },
+      ]
+
+      setupMockResponsesClient(streamChunks)
+      const adapter = new TestResponsesAdapter(testConfig, 'test-model')
+      const chunks: Array<AdapterYieldChunk> = []
+
+      for await (const chunk of adapter.chatStream({
+        threadId: 'thread-1',
+        logger: testLogger,
+        model: 'test-model',
+        messages: [{ role: 'user', content: 'Weather in Berlin?' }],
+        tools: [weatherTool],
+      })) {
+        chunks.push(chunk)
+      }
+
+      const textStart = chunks.find((c) => c.type === 'TEXT_MESSAGE_START')
+      const toolStart = chunks.find((c) => c.type === 'TOOL_CALL_START')
+
+      expect(textStart?.type).toBe('TEXT_MESSAGE_START')
+      expect(toolStart?.type).toBe('TOOL_CALL_START')
+      if (
+        textStart?.type === 'TEXT_MESSAGE_START' &&
+        toolStart?.type === 'TOOL_CALL_START'
+      ) {
+        expect(toolStart.parentMessageId).toBe(textStart.messageId)
+      }
+    })
+
+    it('handles multiple parallel tool calls', async () => {
+      const streamChunks = [
+        {
+          type: 'response.created',
+          response: {
+            id: 'resp-789',
+            model: 'test-model',
+            status: 'in_progress',
+          },
+        },
+        {
+          type: 'response.output_item.added',
+          output_index: 0,
+          item: {
+            type: 'function_call',
+            id: 'call_1',
+            name: 'lookup_weather',
+          },
+        },
+        {
+          type: 'response.output_item.added',
+          output_index: 1,
+          item: {
+            type: 'function_call',
+            id: 'call_2',
+            name: 'lookup_weather',
+          },
+        },
+        {
+          type: 'response.function_call_arguments.delta',
+          item_id: 'call_1',
+          delta: '{"location":"Berlin"}',
+        },
+        {
+          type: 'response.function_call_arguments.delta',
+          item_id: 'call_2',
+          delta: '{"location":"Paris"}',
+        },
+        {
+          type: 'response.function_call_arguments.done',
+          item_id: 'call_1',
+          arguments: '{"location":"Berlin"}',
+        },
+        {
+          type: 'response.function_call_arguments.done',
+          item_id: 'call_2',
+          arguments: '{"location":"Paris"}',
+        },
+        {
+          type: 'response.completed',
+          response: {
+            id: 'resp-789',
+            model: 'test-model',
+            status: 'completed',
+            output: [
+              {
+                type: 'function_call',
+                id: 'call_1',
+                name: 'lookup_weather',
+                arguments: '{"location":"Berlin"}',
+              },
+              {
+                type: 'function_call',
+                id: 'call_2',
+                name: 'lookup_weather',
+                arguments: '{"location":"Paris"}',
+              },
+            ],
+            usage: {
+              input_tokens: 10,
+              output_tokens: 10,
+              total_tokens: 20,
+            },
+          },
+        },
+      ]
+
+      setupMockResponsesClient(streamChunks)
+      const adapter = new TestResponsesAdapter(testConfig, 'test-model')
+      const chunks: Array<AdapterYieldChunk> = []
+
+      for await (const chunk of adapter.chatStream({
+        threadId: 'thread-1',
+        logger: testLogger,
+        model: 'test-model',
+        messages: [
+          {
+            role: 'user',
+            content: 'Weather in Berlin and Paris?',
+          },
+        ],
+        tools: [weatherTool],
+      })) {
+        chunks.push(chunk)
+      }
+
+      const toolStarts = chunks.filter((c) => c.type === 'TOOL_CALL_START')
+      expect(toolStarts.length).toBe(2)
+
+      const toolEnds = chunks.filter((c) => c.type === 'TOOL_CALL_END')
+      expect(toolEnds.length).toBe(2)
+
+      if (toolEnds[0]?.type === 'TOOL_CALL_END') {
+        expect(toolEnds[0].input).toEqual({ location: 'Berlin' })
+      }
+      if (toolEnds[1]?.type === 'TOOL_CALL_END') {
+        expect(toolEnds[1].input).toEqual({ location: 'Paris' })
+      }
+    })
+
+    it('uses call_id for tool correlation and preserves the item id as metadata', async () => {
+      const streamChunks = [
+        {
+          type: 'response.created',
+          response: {
+            id: 'resp-callid',
+            model: 'test-model',
+            status: 'in_progress',
+          },
+        },
+        {
+          type: 'response.output_item.added',
+          output_index: 0,
+          item: {
+            type: 'function_call',
+            id: 'fc_internal_001',
+            call_id: 'call_api_abc123',
+            name: 'lookup_weather',
+          },
+        },
+        {
+          type: 'response.function_call_arguments.delta',
+          item_id: 'fc_internal_001',
+          delta: '{"location":"Tokyo"}',
+        },
+        {
+          type: 'response.function_call_arguments.done',
+          item_id: 'fc_internal_001',
+          arguments: '{"location":"Tokyo"}',
+        },
+        {
+          type: 'response.completed',
+          response: {
+            id: 'resp-callid',
+            model: 'test-model',
+            status: 'completed',
+            output: [
+              {
+                type: 'function_call',
+                id: 'fc_internal_001',
+                call_id: 'call_api_abc123',
+                name: 'lookup_weather',
+                arguments: '{"location":"Tokyo"}',
+              },
+            ],
+            usage: {
+              input_tokens: 10,
+              output_tokens: 5,
+              total_tokens: 15,
+            },
+          },
+        },
+      ]
+
+      setupMockResponsesClient(streamChunks)
+      const adapter = new TestResponsesAdapter(testConfig, 'test-model')
+      const chunks: Array<AdapterYieldChunk> = []
+
+      for await (const chunk of adapter.chatStream({
+        threadId: 'thread-1',
+        logger: testLogger,
+        model: 'test-model',
+        messages: [{ role: 'user', content: 'Weather in Tokyo?' }],
+        tools: [weatherTool],
+      })) {
+        chunks.push(chunk)
+      }
+
+      // `call_id` correlates the eventual function_call_output. The separate
+      // output item ID is provider metadata that the agent loop carries into
+      // the next request so both opaque identifiers can be replayed.
+      const toolStart = chunks.find((c) => c.type === 'TOOL_CALL_START')
+      expect(toolStart).toBeDefined()
+      if (toolStart?.type === 'TOOL_CALL_START') {
+        expect(toolStart.toolCallId).toBe('call_api_abc123')
+        expect(toolStart.metadata).toEqual({ itemId: 'fc_internal_001' })
+      }
+
+      const toolArgs = chunks.filter((c) => c.type === 'TOOL_CALL_ARGS')
+      expect(toolArgs.length).toBeGreaterThan(0)
+      if (toolArgs[0]?.type === 'TOOL_CALL_ARGS') {
+        expect(toolArgs[0].toolCallId).toBe('call_api_abc123')
+      }
+
+      const toolEnd = chunks.find((c) => c.type === 'TOOL_CALL_END')
+      expect(toolEnd).toBeDefined()
+      if (toolEnd?.type === 'TOOL_CALL_END') {
+        expect(toolEnd.toolCallId).toBe('call_api_abc123')
+      }
+    })
+
+    it('does not emit TOOL_CALL_START until the item carries a name (no empty-name misroute)', async () => {
+      const streamChunks = [
+        {
+          type: 'response.created',
+          response: {
+            id: 'resp-x',
+            model: 'test-model',
+            status: 'in_progress',
+          },
+        },
+        // First added event lacks a name — should NOT emit TOOL_CALL_START
+        {
+          type: 'response.output_item.added',
+          output_index: 0,
+          item: { type: 'function_call', id: 'call_late_name' },
+        },
+        // Second added event for the same id finally carries the name
+        {
+          type: 'response.output_item.added',
+          output_index: 0,
+          item: {
+            type: 'function_call',
+            id: 'call_late_name',
+            name: 'lookup_weather',
+          },
+        },
+        {
+          type: 'response.function_call_arguments.done',
+          item_id: 'call_late_name',
+          arguments: '{"location":"NYC"}',
+        },
+        {
+          type: 'response.completed',
+          response: {
+            id: 'resp-x',
+            model: 'test-model',
+            status: 'completed',
+            output: [
+              {
+                type: 'function_call',
+                id: 'call_late_name',
+                name: 'lookup_weather',
+                arguments: '{"location":"NYC"}',
+              },
+            ],
+            usage: { input_tokens: 1, output_tokens: 1, total_tokens: 2 },
+          },
+        },
+      ]
+      setupMockResponsesClient(streamChunks)
+      const adapter = new TestResponsesAdapter(testConfig, 'test-model')
+      const chunks: Array<AdapterYieldChunk> = []
+      for await (const chunk of adapter.chatStream({
+        threadId: 'thread-1',
+        logger: testLogger,
+        model: 'test-model',
+        messages: [{ role: 'user', content: 'q' }],
+        tools: [weatherTool],
+      })) {
+        chunks.push(chunk)
+      }
+      const starts = chunks.filter((c) => c.type === 'TOOL_CALL_START')
+      expect(starts.length).toBe(1)
+      if (starts[0]?.type === 'TOOL_CALL_START') {
+        expect(starts[0].toolCallName).toBe('lookup_weather')
+      }
+      const end = chunks.find((c) => c.type === 'TOOL_CALL_END')
+      expect(end).toBeDefined()
+      if (end?.type === 'TOOL_CALL_END') {
+        expect(end.toolCallName).toBe('lookup_weather')
+      }
+    })
+
+    it('backfills tool call via output_item.done when name was missing from output_item.added', async () => {
+      // Some upstreams send `output_item.added` with no `name`, then carry
+      // the full function_call item (including name and arguments) in
+      // `output_item.done`. Without a backfill, the tool call would be
+      // silently dropped from the AG-UI stream.
+      const streamChunks = [
+        {
+          type: 'response.created',
+          response: {
+            id: 'resp-bf',
+            model: 'test-model',
+            status: 'in_progress',
+          },
+        },
+        {
+          type: 'response.output_item.added',
+          output_index: 0,
+          item: { type: 'function_call', id: 'fc_bf' },
+        },
+        // Orphan args deltas + done arrive before name is known.
+        {
+          type: 'response.function_call_arguments.delta',
+          item_id: 'fc_bf',
+          delta: '{"location":',
+        },
+        {
+          type: 'response.function_call_arguments.done',
+          item_id: 'fc_bf',
+          arguments: '{"location":"NYC"}',
+        },
+        // output_item.done finally carries the name + full arguments.
+        {
+          type: 'response.output_item.done',
+          output_index: 0,
+          item: {
+            type: 'function_call',
+            id: 'fc_bf',
+            name: 'lookup_weather',
+            arguments: '{"location":"NYC"}',
+          },
+        },
+        {
+          type: 'response.completed',
+          response: {
+            id: 'resp-bf',
+            model: 'test-model',
+            status: 'completed',
+            output: [
+              {
+                type: 'function_call',
+                id: 'fc_bf',
+                name: 'lookup_weather',
+                arguments: '{"location":"NYC"}',
+              },
+            ],
+            usage: { input_tokens: 1, output_tokens: 1, total_tokens: 2 },
+          },
+        },
+      ]
+      setupMockResponsesClient(streamChunks)
+      const adapter = new TestResponsesAdapter(testConfig, 'test-model')
+      const chunks: Array<AdapterYieldChunk> = []
+      for await (const chunk of adapter.chatStream({
+        threadId: 'thread-1',
+        logger: testLogger,
+        model: 'test-model',
+        messages: [{ role: 'user', content: 'q' }],
+        tools: [weatherTool],
+      })) {
+        chunks.push(chunk)
+      }
+      const starts = chunks.filter((c) => c.type === 'TOOL_CALL_START')
+      const ends = chunks.filter((c) => c.type === 'TOOL_CALL_END')
+      expect(starts).toHaveLength(1)
+      expect(ends).toHaveLength(1)
+      if (starts[0]?.type === 'TOOL_CALL_START') {
+        expect(starts[0].toolCallName).toBe('lookup_weather')
+      }
+      if (ends[0]?.type === 'TOOL_CALL_END') {
+        expect(ends[0].toolCallName).toBe('lookup_weather')
+        expect(ends[0].input).toEqual({ location: 'NYC' })
+      }
+    })
+
+    it('backfills tool call from response.completed.output[] when name never arrived mid-stream', async () => {
+      // Defense-in-depth backstop: if neither output_item.added nor
+      // output_item.done carried the name (very off-spec upstream), the
+      // function_call item in response.completed.output[] still has it.
+      const streamChunks = [
+        {
+          type: 'response.created',
+          response: {
+            id: 'resp-final',
+            model: 'test-model',
+            status: 'in_progress',
+          },
+        },
+        {
+          type: 'response.output_item.added',
+          output_index: 0,
+          item: { type: 'function_call', id: 'fc_final' },
+        },
+        {
+          type: 'response.function_call_arguments.done',
+          item_id: 'fc_final',
+          arguments: '{"location":"Berlin"}',
+        },
+        {
+          type: 'response.completed',
+          response: {
+            id: 'resp-final',
+            model: 'test-model',
+            status: 'completed',
+            output: [
+              {
+                type: 'function_call',
+                id: 'fc_final',
+                name: 'lookup_weather',
+                arguments: '{"location":"Berlin"}',
+              },
+            ],
+            usage: { input_tokens: 1, output_tokens: 1, total_tokens: 2 },
+          },
+        },
+      ]
+      setupMockResponsesClient(streamChunks)
+      const adapter = new TestResponsesAdapter(testConfig, 'test-model')
+      const chunks: Array<AdapterYieldChunk> = []
+      for await (const chunk of adapter.chatStream({
+        threadId: 'thread-1',
+        logger: testLogger,
+        model: 'test-model',
+        messages: [{ role: 'user', content: 'q' }],
+        tools: [weatherTool],
+      })) {
+        chunks.push(chunk)
+      }
+      const starts = chunks.filter((c) => c.type === 'TOOL_CALL_START')
+      const ends = chunks.filter((c) => c.type === 'TOOL_CALL_END')
+      expect(starts).toHaveLength(1)
+      expect(ends).toHaveLength(1)
+      if (ends[0]?.type === 'TOOL_CALL_END') {
+        expect(ends[0].toolCallName).toBe('lookup_weather')
+        expect(ends[0].input).toEqual({ location: 'Berlin' })
+      }
+    })
+
+    it('does not emit duplicate TOOL_CALL_END when output_item.done precedes args.done', async () => {
+      // Reverse ordering: output_item.done arrives with full arguments and
+      // emits START + END (sets ended=true), then a late args.done arrives
+      // for the same id. Without the metadata.ended guard, args.done would
+      // emit a second TOOL_CALL_END.
+      const streamChunks = [
+        {
+          type: 'response.created',
+          response: {
+            id: 'resp-rev',
+            model: 'test-model',
+            status: 'in_progress',
+          },
+        },
+        {
+          type: 'response.output_item.added',
+          output_index: 0,
+          item: {
+            type: 'function_call',
+            id: 'fc_rev',
+            name: 'lookup_weather',
+          },
+        },
+        {
+          type: 'response.output_item.done',
+          output_index: 0,
+          item: {
+            type: 'function_call',
+            id: 'fc_rev',
+            name: 'lookup_weather',
+            arguments: '{"location":"Tokyo"}',
+          },
+        },
+        {
+          type: 'response.function_call_arguments.done',
+          item_id: 'fc_rev',
+          arguments: '{"location":"Tokyo"}',
+        },
+        {
+          type: 'response.completed',
+          response: {
+            id: 'resp-rev',
+            model: 'test-model',
+            status: 'completed',
+            output: [
+              {
+                type: 'function_call',
+                id: 'fc_rev',
+                name: 'lookup_weather',
+                arguments: '{"location":"Tokyo"}',
+              },
+            ],
+            usage: { input_tokens: 1, output_tokens: 1, total_tokens: 2 },
+          },
+        },
+      ]
+      setupMockResponsesClient(streamChunks)
+      const adapter = new TestResponsesAdapter(testConfig, 'test-model')
+      const chunks: Array<AdapterYieldChunk> = []
+      for await (const chunk of adapter.chatStream({
+        threadId: 'thread-1',
+        logger: testLogger,
+        model: 'test-model',
+        messages: [{ role: 'user', content: 'q' }],
+        tools: [weatherTool],
+      })) {
+        chunks.push(chunk)
+      }
+      const starts = chunks.filter((c) => c.type === 'TOOL_CALL_START')
+      const ends = chunks.filter((c) => c.type === 'TOOL_CALL_END')
+      expect(starts).toHaveLength(1)
+      expect(ends).toHaveLength(1)
+    })
+  })
+
+  describe('raw tool arguments', () => {
+    type EndSite = 'arguments.done' | 'output_item.done' | 'response.completed'
+
+    // Each site emits TOOL_CALL_END from a different event. Without a name on
+    // output_item.added, args.done is deferred to a later backfill.
+    function rawArgsStream(
+      site: EndSite,
+      raw: string,
+    ): Array<Record<string, unknown>> {
+      const named = {
+        type: 'function_call',
+        id: 'fc_raw',
+        name: 'lookup_weather',
+      }
+      return [
+        {
+          type: 'response.created',
+          response: {
+            id: 'resp-raw',
+            model: 'test-model',
+            status: 'in_progress',
+          },
+        },
+        {
+          type: 'response.output_item.added',
+          output_index: 0,
+          item:
+            site === 'arguments.done'
+              ? named
+              : { type: 'function_call', id: 'fc_raw' },
+        },
+        {
+          type: 'response.function_call_arguments.done',
+          item_id: 'fc_raw',
+          arguments: raw,
+        },
+        ...(site === 'output_item.done'
+          ? [
+              {
+                type: 'response.output_item.done',
+                output_index: 0,
+                item: { ...named, arguments: raw },
+              },
+            ]
+          : []),
+        {
+          type: 'response.completed',
+          response: {
+            id: 'resp-raw',
+            model: 'test-model',
+            status: 'completed',
+            output: [{ ...named, arguments: raw }],
+            usage: { input_tokens: 1, output_tokens: 1, total_tokens: 2 },
+          },
+        },
+      ]
+    }
+
+    async function toolEnds(site: EndSite, raw: string) {
+      setupMockResponsesClient(rawArgsStream(site, raw))
+      const adapter = new TestResponsesAdapter(testConfig, 'test-model')
+      const chunks: Array<AdapterYieldChunk> = []
+      for await (const chunk of adapter.chatStream({
+        threadId: 'thread-1',
+        logger: testLogger,
+        model: 'test-model',
+        messages: [{ role: 'user', content: 'q' }],
+        tools: [weatherTool],
+      })) {
+        chunks.push(chunk)
+      }
+      return chunks.filter((chunk) => chunk.type === 'TOOL_CALL_END')
+    }
+
+    it.each<EndSite>([
+      'arguments.done',
+      'output_item.done',
+      'response.completed',
+    ])(
+      'sends the raw argument string as args on TOOL_CALL_END (%s)',
+      async (site) => {
+        const ends = await toolEnds(site, '{"n": 1.50}')
+        expect(ends).toHaveLength(1)
+        expect(ends[0]).toMatchObject({
+          toolCallId: 'fc_raw',
+          args: '{"n": 1.50}',
+          input: { n: 1.5 },
+        })
+      },
+    )
+
+    it.each<EndSite>([
+      'arguments.done',
+      'output_item.done',
+      'response.completed',
+    ])('sends malformed arguments as args with no input (%s)', async (site) => {
+      const ends = await toolEnds(site, '{"a":')
+      expect(ends).toHaveLength(1)
+      expect(ends[0]).toMatchObject({ toolCallId: 'fc_raw', args: '{"a":' })
+      expect(ends[0]).not.toHaveProperty('input')
+    })
+  })
+
+  describe('content_part events', () => {
+    it('emits TEXT_MESSAGE_START on content_part.added with output_text', async () => {
+      const streamChunks = [
+        {
+          type: 'response.created',
+          response: {
+            id: 'resp-123',
+            model: 'test-model',
+            status: 'in_progress',
+          },
+        },
+        {
+          type: 'response.content_part.added',
+          part: {
+            type: 'output_text',
+            text: 'It is sunny',
+          },
+        },
+        {
+          type: 'response.completed',
+          response: {
+            id: 'resp-123',
+            model: 'test-model',
+            status: 'completed',
+            output: [],
+            usage: {
+              input_tokens: 5,
+              output_tokens: 3,
+              total_tokens: 8,
+            },
+          },
+        },
+      ]
+
+      setupMockResponsesClient(streamChunks)
+      const adapter = new TestResponsesAdapter(testConfig, 'test-model')
+      const chunks: Array<AdapterYieldChunk> = []
+
+      for await (const chunk of adapter.chatStream({
+        threadId: 'thread-1',
+        logger: testLogger,
+        model: 'test-model',
+        messages: [{ role: 'user', content: 'Weather?' }],
+      })) {
+        chunks.push(chunk)
+      }
+
+      const eventTypes = chunks.map((c) => c.type)
+      expect(eventTypes).toContain('TEXT_MESSAGE_START')
+      expect(eventTypes).toContain('TEXT_MESSAGE_CONTENT')
+
+      // TEXT_MESSAGE_START should be before TEXT_MESSAGE_CONTENT
+      const startIdx = eventTypes.indexOf(EventType.TEXT_MESSAGE_START)
+      const contentIdx = eventTypes.indexOf(EventType.TEXT_MESSAGE_CONTENT)
+      expect(startIdx).toBeLessThan(contentIdx)
+    })
+
+    it('recovers final text from response.completed when no text was streamed', async () => {
+      const streamChunks = [
+        {
+          type: 'response.created',
+          response: {
+            id: 'resp-completed-text',
+            model: 'test-model',
+            status: 'in_progress',
+          },
+        },
+        {
+          type: 'response.content_part.added',
+          part: { type: 'output_text', text: '' },
+        },
+        {
+          type: 'response.completed',
+          response: {
+            id: 'resp-completed-text',
+            model: 'test-model',
+            status: 'completed',
+            output: [
+              {
+                id: 'msg-completed-text',
+                type: 'message',
+                role: 'assistant',
+                content: [
+                  {
+                    type: 'output_text',
+                    text: 'Recovered final answer',
+                    annotations: [],
+                  },
+                ],
+              },
+            ],
+            usage: { input_tokens: 5, output_tokens: 3, total_tokens: 8 },
+          },
+        },
+      ]
+
+      setupMockResponsesClient(streamChunks)
+      const adapter = new TestResponsesAdapter(testConfig, 'test-model')
+      const chunks: Array<AdapterYieldChunk> = []
+
+      for await (const chunk of adapter.chatStream({
+        threadId: 'thread-1',
+        logger: testLogger,
+        model: 'test-model',
+        messages: [{ role: 'user', content: 'Answer carefully' }],
+      })) {
+        chunks.push(chunk)
+      }
+
+      const contentChunks = chunks.filter(
+        (chunk) => chunk.type === EventType.TEXT_MESSAGE_CONTENT,
+      )
+      expect(contentChunks).toHaveLength(1)
+      expect(contentChunks[0]).toMatchObject({
+        delta: 'Recovered final answer',
+        content: 'Recovered final answer',
+      })
+
+      const eventTypes = chunks.map((chunk) => chunk.type)
+      const startIndex = eventTypes.indexOf(EventType.TEXT_MESSAGE_START)
+      const contentIndex = eventTypes.indexOf(EventType.TEXT_MESSAGE_CONTENT)
+      const endIndex = eventTypes.indexOf(EventType.TEXT_MESSAGE_END)
+      const finishedIndex = eventTypes.indexOf(EventType.RUN_FINISHED)
+      expect(startIndex).toBeGreaterThanOrEqual(0)
+      expect(contentIndex).toBeGreaterThan(startIndex)
+      expect(endIndex).toBeGreaterThan(contentIndex)
+      expect(finishedIndex).toBeGreaterThan(endIndex)
+    })
+
+    it('skips content_part.done when deltas were already streamed', async () => {
+      const streamChunks = [
+        {
+          type: 'response.created',
+          response: {
+            id: 'resp-123',
+            model: 'test-model',
+            status: 'in_progress',
+          },
+        },
+        {
+          type: 'response.output_text.delta',
+          delta: 'Hello',
+        },
+        {
+          type: 'response.output_text.delta',
+          delta: ' world',
+        },
+        {
+          type: 'response.content_part.done',
+          part: {
+            type: 'output_text',
+            text: 'Hello world',
+          },
+        },
+        {
+          type: 'response.completed',
+          response: {
+            id: 'resp-123',
+            model: 'test-model',
+            status: 'completed',
+            output: [],
+            usage: {
+              input_tokens: 5,
+              output_tokens: 2,
+              total_tokens: 7,
+            },
+          },
+        },
+      ]
+
+      setupMockResponsesClient(streamChunks)
+      const adapter = new TestResponsesAdapter(testConfig, 'test-model')
+      const chunks: Array<AdapterYieldChunk> = []
+
+      for await (const chunk of adapter.chatStream({
+        threadId: 'thread-1',
+        logger: testLogger,
+        model: 'test-model',
+        messages: [{ role: 'user', content: 'Hello' }],
+      })) {
+        chunks.push(chunk)
+      }
+
+      // Should only have 2 TEXT_MESSAGE_CONTENT events (from deltas), not 3
+      const contentChunks = chunks.filter(
+        (c) => c.type === 'TEXT_MESSAGE_CONTENT',
+      )
+      expect(contentChunks.length).toBe(2)
+    })
+
+    it('emits TEXT_MESSAGE_START before content when only content_part.done fires (no preceding deltas or added)', async () => {
+      const streamChunks = [
+        {
+          type: 'response.created',
+          response: {
+            id: 'resp-d',
+            model: 'test-model',
+            status: 'in_progress',
+          },
+        },
+        // No deltas, no content_part.added — only the done event.
+        {
+          type: 'response.content_part.done',
+          part: { type: 'output_text', text: 'whole message at once' },
+        },
+        {
+          type: 'response.completed',
+          response: {
+            id: 'resp-d',
+            model: 'test-model',
+            status: 'completed',
+            output: [],
+            usage: { input_tokens: 5, output_tokens: 3, total_tokens: 8 },
+          },
+        },
+      ]
+      setupMockResponsesClient(streamChunks)
+      const adapter = new TestResponsesAdapter(testConfig, 'test-model')
+      const chunks: Array<AdapterYieldChunk> = []
+      for await (const chunk of adapter.chatStream({
+        threadId: 'thread-1',
+        logger: testLogger,
+        model: 'test-model',
+        messages: [{ role: 'user', content: 'hi' }],
+      })) {
+        chunks.push(chunk)
+      }
+      const types = chunks.map((c) => c.type)
+      const startIdx = types.indexOf(EventType.TEXT_MESSAGE_START)
+      const contentIdx = types.indexOf(EventType.TEXT_MESSAGE_CONTENT)
+      const endIdx = types.indexOf(EventType.TEXT_MESSAGE_END)
+      expect(startIdx).toBeGreaterThanOrEqual(0)
+      expect(contentIdx).toBeGreaterThan(startIdx)
+      expect(endIdx).toBeGreaterThan(contentIdx)
+    })
+  })
+
+  describe('error handling', () => {
+    it('flushes completed web searches before RUN_ERROR on incomplete response', async () => {
+      const webSearchCall = {
+        type: 'web_search_call',
+        id: 'ws-incomplete',
+        status: 'completed',
+        action: {
+          type: 'search',
+          queries: ['latest release'],
+          sources: [{ type: 'url', url: 'https://example.com/release' }],
+        },
+      }
+      const streamChunks = [
+        {
+          type: 'response.created',
+          response: {
+            id: 'resp-incomplete',
+            model: 'test-model',
+            status: 'in_progress',
+          },
+        },
+        {
+          type: 'response.output_item.added',
+          output_index: 0,
+          item: { ...webSearchCall, status: 'searching' },
+        },
+        {
+          type: 'response.incomplete',
+          response: {
+            id: 'resp-incomplete',
+            model: 'test-model',
+            status: 'incomplete',
+            incomplete_details: { reason: 'max_output_tokens' },
+            output: [webSearchCall],
+          },
+        },
+      ]
+
+      setupMockResponsesClient(streamChunks)
+      const chunks: Array<AdapterYieldChunk> = []
+      for await (const chunk of new TestResponsesAdapter(
+        testConfig,
+        'test-model',
+      ).chatStream({
+        threadId: 'thread-1',
+        logger: testLogger,
+        model: 'test-model',
+        messages: [{ role: 'user', content: 'Find the latest release.' }],
+      })) {
+        chunks.push(chunk)
+      }
+
+      const toolStartIndex = chunks.findIndex(
+        (chunk) => chunk.type === EventType.TOOL_CALL_START,
+      )
+      const toolEndIndex = chunks.findIndex(
+        (chunk) => chunk.type === EventType.TOOL_CALL_END,
+      )
+      const runErrorIndex = chunks.findIndex(
+        (chunk) => chunk.type === EventType.RUN_ERROR,
+      )
+      expect(toolStartIndex).toBeGreaterThanOrEqual(0)
+      expect(toolEndIndex).toBeGreaterThan(toolStartIndex)
+      expect(runErrorIndex).toBeGreaterThan(toolEndIndex)
+      expect(
+        chunks.filter((chunk) => chunk.type === EventType.RUN_ERROR),
+      ).toHaveLength(1)
+      expect(chunks[toolStartIndex]).toMatchObject({
+        toolCallId: 'ws-incomplete',
+        metadata: {
+          providerExecuted: true,
+          sources: [{ url: 'https://example.com/release' }],
+          openai: { webSearchCall },
+        },
+      })
+    })
+
+    it('emits RUN_ERROR on stream error', async () => {
+      const streamChunks = [
+        {
+          type: 'response.created',
+          response: {
+            id: 'resp-123',
+            model: 'test-model',
+            status: 'in_progress',
+          },
+        },
+        {
+          type: 'response.output_text.delta',
+          delta: 'Hello',
+        },
+      ]
+
+      // Create an async iterable that throws mid-stream
+      const errorIterable = {
+        [Symbol.asyncIterator]() {
+          let index = 0
+          return {
+            async next() {
+              if (index < streamChunks.length) {
+                return { value: streamChunks[index++]!, done: false }
+              }
+              throw new Error('Stream interrupted')
+            },
+          }
+        },
+      }
+
+      mockResponsesCreate = vi.fn().mockResolvedValue(errorIterable)
+
+      const adapter = new TestResponsesAdapter(testConfig, 'test-model')
+      const chunks: Array<AdapterYieldChunk> = []
+
+      for await (const chunk of adapter.chatStream({
+        threadId: 'thread-1',
+        logger: testLogger,
+        model: 'test-model',
+        messages: [{ role: 'user', content: 'Hello' }],
+      })) {
+        chunks.push(chunk)
+      }
+
+      // Should emit RUN_ERROR
+      const runErrorChunk = chunks.find((c) => c.type === 'RUN_ERROR')
+      expect(runErrorChunk).toBeDefined()
+      if (runErrorChunk?.type === 'RUN_ERROR') {
+        expect(runErrorChunk.error!.message).toBe('Stream interrupted')
+      }
+    })
+
+    it('emits RUN_STARTED then RUN_ERROR when client.create throws', async () => {
+      mockResponsesCreate = vi
+        .fn()
+        .mockRejectedValue(new Error('API key invalid'))
+
+      const adapter = new TestResponsesAdapter(testConfig, 'test-model')
+      const chunks: Array<AdapterYieldChunk> = []
+
+      for await (const chunk of adapter.chatStream({
+        threadId: 'thread-1',
+        logger: testLogger,
+        model: 'test-model',
+        messages: [{ role: 'user', content: 'Hello' }],
+      })) {
+        chunks.push(chunk)
+      }
+
+      // Should have RUN_STARTED followed by RUN_ERROR
+      expect(chunks.length).toBe(2)
+      expect(chunks[0]?.type).toBe('RUN_STARTED')
+      expect(chunks[1]?.type).toBe('RUN_ERROR')
+      if (chunks[1]?.type === 'RUN_ERROR') {
+        expect(chunks[1].error!.message).toBe('API key invalid')
+      }
+    })
+
+    it('emits RUN_ERROR on response.failed event', async () => {
+      const streamChunks = [
+        {
+          type: 'response.failed',
+          response: {
+            id: 'resp-123',
+            model: 'test-model',
+            status: 'failed',
+            error: {
+              message: 'Content policy violation',
+              code: 'content_filter',
+            },
+          },
+        },
+      ]
+
+      setupMockResponsesClient(streamChunks)
+      const adapter = new TestResponsesAdapter(testConfig, 'test-model')
+      const chunks: Array<AdapterYieldChunk> = []
+
+      for await (const chunk of adapter.chatStream({
+        threadId: 'thread-1',
+        logger: testLogger,
+        model: 'test-model',
+        messages: [{ role: 'user', content: 'bad content' }],
+      })) {
+        chunks.push(chunk)
+      }
+
+      const errorChunk = chunks.find((c) => c.type === 'RUN_ERROR')
+      expect(errorChunk).toBeDefined()
+      if (errorChunk?.type === 'RUN_ERROR') {
+        expect(errorChunk.error!.message).toBe('Content policy violation')
+      }
+    })
+
+    it('emits RUN_ERROR on response.incomplete event', async () => {
+      const streamChunks = [
+        {
+          type: 'response.incomplete',
+          response: {
+            id: 'resp-123',
+            model: 'test-model',
+            status: 'incomplete',
+            incomplete_details: {
+              reason: 'max_output_tokens',
+            },
+          },
+        },
+      ]
+
+      setupMockResponsesClient(streamChunks)
+      const adapter = new TestResponsesAdapter(testConfig, 'test-model')
+      const chunks: Array<AdapterYieldChunk> = []
+
+      for await (const chunk of adapter.chatStream({
+        threadId: 'thread-1',
+        logger: testLogger,
+        model: 'test-model',
+        messages: [{ role: 'user', content: 'Write a long story' }],
+      })) {
+        chunks.push(chunk)
+      }
+
+      const errorChunks = chunks.filter((c) => c.type === 'RUN_ERROR')
+      expect(errorChunks.length).toBeGreaterThan(0)
+      const incompleteError = errorChunks.find(
+        (c) =>
+          c.type === 'RUN_ERROR' && c.error!.message === 'max_output_tokens',
+      )
+      expect(incompleteError).toBeDefined()
+    })
+
+    it('emits RUN_ERROR on error event type', async () => {
+      const streamChunks = [
+        {
+          type: 'response.created',
+          response: {
+            id: 'resp-123',
+            model: 'test-model',
+            status: 'in_progress',
+          },
+        },
+        {
+          type: 'error',
+          message: 'Rate limit exceeded',
+          code: 'rate_limit',
+        },
+      ]
+
+      setupMockResponsesClient(streamChunks)
+      const adapter = new TestResponsesAdapter(testConfig, 'test-model')
+      const chunks: Array<AdapterYieldChunk> = []
+
+      for await (const chunk of adapter.chatStream({
+        threadId: 'thread-1',
+        logger: testLogger,
+        model: 'test-model',
+        messages: [{ role: 'user', content: 'Hello' }],
+      })) {
+        chunks.push(chunk)
+      }
+
+      const errorChunk = chunks.find(
+        (c) =>
+          c.type === 'RUN_ERROR' && c.error!.message === 'Rate limit exceeded',
+      )
+      expect(errorChunk).toBeDefined()
+      if (errorChunk?.type === 'RUN_ERROR') {
+        expect(errorChunk.error!.code).toBe('rate_limit')
+      }
+    })
+
+    it("forwards the SDK error's `.error` body as RUN_ERROR.rawEvent", async () => {
+      const providerBody = {
+        type: 'insufficient_quota',
+        message: 'You exceeded your current quota',
+        code: 'insufficient_quota',
+      }
+      mockResponsesCreate = vi.fn().mockRejectedValue(
+        Object.assign(new Error('429 You exceeded your current quota'), {
+          status: 429,
+          error: providerBody,
+        }),
+      )
+
+      const adapter = new TestResponsesAdapter(testConfig, 'test-model')
+      const chunks: Array<AdapterYieldChunk> = []
+      for await (const chunk of adapter.chatStream({
+        threadId: 'thread-1',
+        logger: testLogger,
+        model: 'test-model',
+        messages: [{ role: 'user', content: 'Hello' }],
+      })) {
+        chunks.push(chunk)
+      }
+
+      const runError = chunks.find((c) => c.type === 'RUN_ERROR')
+      expect(runError).toBeDefined()
+      if (runError?.type === 'RUN_ERROR') {
+        expect(runError.rawEvent).toEqual(providerBody)
+      }
+    })
+
+    it('omits rawEvent when the error carries no provider body', async () => {
+      mockResponsesCreate = vi.fn().mockRejectedValue(new Error('network down'))
+
+      const adapter = new TestResponsesAdapter(testConfig, 'test-model')
+      const chunks: Array<AdapterYieldChunk> = []
+      for await (const chunk of adapter.chatStream({
+        threadId: 'thread-1',
+        logger: testLogger,
+        model: 'test-model',
+        messages: [{ role: 'user', content: 'Hello' }],
+      })) {
+        chunks.push(chunk)
+      }
+
+      const runError = chunks.find((c) => c.type === 'RUN_ERROR')
+      expect(runError).toBeDefined()
+      if (runError?.type === 'RUN_ERROR') {
+        expect(runError).not.toHaveProperty('rawEvent')
+      }
+    })
+  })
+
+  describe('structured output', () => {
+    it('generates structured output and parses JSON response', async () => {
+      const nonStreamResponse = {
+        output: [
+          {
+            type: 'message',
+            content: [
+              {
+                type: 'output_text',
+                text: '{"name":"Alice","age":30}',
+              },
+            ],
+          },
+        ],
+      }
+
+      setupMockResponsesClient([], nonStreamResponse)
+
+      const adapter = new TestResponsesAdapter(testConfig, 'test-model')
+
+      const result = await adapter.structuredOutput({
+        chatOptions: {
+          threadId: 'thread-1',
+          logger: testLogger,
+          model: 'test-model',
+          messages: [{ role: 'user', content: 'Give me a person object' }],
+        },
+        outputSchema: {
+          type: 'object',
+          properties: {
+            name: { type: 'string' },
+            age: { type: 'number' },
+          },
+          required: ['name', 'age'],
+        },
+      })
+
+      expect(result.data).toEqual({ name: 'Alice', age: 30 })
+      expect(result.rawText).toBe('{"name":"Alice","age":30}')
+
+      // Verify text.format was passed (Responses API format)
+      expect(mockResponsesCreate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          stream: false,
+          text: expect.objectContaining({
+            format: expect.objectContaining({
+              type: 'json_schema',
+              name: 'structured_output',
+              strict: true,
+            }),
+          }),
+        }),
+        expect.anything(),
+      )
+    })
+
+    it('sends text.format json_object and the schema as instructions when modelOptions sets json_object', async () => {
+      setupMockResponsesClient([], {
+        output: [
+          {
+            type: 'message',
+            content: [
+              {
+                type: 'output_text',
+                text: '{"name":"Alice","age":30}',
+              },
+            ],
+          },
+        ],
+      })
+
+      const adapter = new TestResponsesAdapter(testConfig, 'test-model')
+
+      await adapter.structuredOutput({
+        chatOptions: {
+          threadId: 'thread-1',
+          logger: testLogger,
+          model: 'test-model',
+          messages: [{ role: 'user', content: 'Give me a person' }],
+          modelOptions: { text: { format: { type: 'json_object' } } },
+        },
+        outputSchema: {
+          type: 'object',
+          properties: {
+            name: { type: 'string' },
+            age: { type: 'number' },
+          },
+          required: ['name', 'age'],
+        },
+      })
+
+      expect(mockResponsesCreate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          stream: false,
+          text: { format: { type: 'json_object' } },
+          instructions: expect.stringContaining('"required":["name","age"]'),
+        }),
+        expect.anything(),
+      )
+    })
+
+    it('forwards response.usage on structuredOutput', async () => {
+      setupMockResponsesClient([], {
+        output: [
+          {
+            type: 'message',
+            content: [
+              {
+                type: 'output_text',
+                text: '{"name":"Alice","age":30}',
+              },
+            ],
+          },
+        ],
+        usage: {
+          input_tokens: 9,
+          output_tokens: 4,
+          total_tokens: 13,
+        },
+      })
+
+      const adapter = new TestResponsesAdapter(testConfig, 'test-model')
+
+      const result = await adapter.structuredOutput({
+        chatOptions: {
+          threadId: 'thread-1',
+          logger: testLogger,
+          model: 'test-model',
+          messages: [{ role: 'user', content: 'Give me a person object' }],
+        },
+        outputSchema: {
+          type: 'object',
+          properties: {
+            name: { type: 'string' },
+            age: { type: 'number' },
+          },
+          required: ['name', 'age'],
+        },
+      })
+
+      expect(result.usage).toEqual({
+        promptTokens: 9,
+        completionTokens: 4,
+        totalTokens: 13,
+      })
+    })
+
+    it('passes provider nulls through unchanged (engine un-widens, not the adapter)', async () => {
+      const nonStreamResponse = {
+        output: [
+          {
+            type: 'message',
+            content: [
+              {
+                type: 'output_text',
+                text: '{"name":"Alice","nickname":null}',
+              },
+            ],
+          },
+        ],
+      }
+
+      setupMockResponsesClient([], nonStreamResponse)
+
+      const adapter = new TestResponsesAdapter(testConfig, 'test-model')
+
+      const result = await adapter.structuredOutput({
+        chatOptions: {
+          threadId: 'thread-1',
+          logger: testLogger,
+          model: 'test-model',
+          messages: [{ role: 'user', content: 'Give me a person object' }],
+        },
+        outputSchema: {
+          type: 'object',
+          properties: {
+            name: { type: 'string' },
+            nickname: { type: 'string' },
+          },
+          required: ['name'],
+        },
+      })
+
+      // The adapter no longer strips nulls — strict-mode null-widening is undone
+      // precisely by the engine, which holds the schema's widening map. A blind
+      // adapter-level strip would also destroy genuine `.nullable()` nulls.
+      expect((result.data as any).name).toBe('Alice')
+      expect((result.data as any).nickname).toBeNull()
+    })
+
+    it('throws on invalid JSON response', async () => {
+      const nonStreamResponse = {
+        output: [
+          {
+            type: 'message',
+            content: [
+              {
+                type: 'output_text',
+                text: 'not valid json',
+              },
+            ],
+          },
+        ],
+      }
+
+      setupMockResponsesClient([], nonStreamResponse)
+
+      const adapter = new TestResponsesAdapter(testConfig, 'test-model')
+
+      await expect(
+        adapter.structuredOutput({
+          chatOptions: {
+            threadId: 'thread-1',
+            logger: testLogger,
+            model: 'test-model',
+            messages: [{ role: 'user', content: 'Give me a person object' }],
+          },
+          outputSchema: {
+            type: 'object',
+            properties: {
+              name: { type: 'string' },
+            },
+            required: ['name'],
+          },
+        }),
+      ).rejects.toThrow('Failed to parse structured output as JSON')
+    })
+
+    it('fails loud when response has only message items with empty text', async () => {
+      const nonStreamResponse = {
+        output: [
+          {
+            type: 'message',
+            content: [{ type: 'output_text', text: '' }],
+          },
+        ],
+      }
+      setupMockResponsesClient([], nonStreamResponse)
+      const adapter = new TestResponsesAdapter(testConfig, 'test-model')
+      await expect(
+        adapter.structuredOutput({
+          chatOptions: {
+            threadId: 'thread-1',
+            logger: testLogger,
+            model: 'test-model',
+            messages: [{ role: 'user', content: 'q' }],
+          },
+          outputSchema: {
+            type: 'object',
+            properties: { name: { type: 'string' } },
+            required: ['name'],
+          },
+        }),
+      ).rejects.toThrow('response contained no content')
+    })
+
+    it('fails loud when response.output has only non-message items (function_call, reasoning)', async () => {
+      const nonStreamResponse = {
+        output: [
+          {
+            type: 'function_call',
+            id: 'fc_1',
+            call_id: 'call_1',
+            name: 'do_thing',
+            arguments: '{}',
+          },
+        ],
+      }
+      setupMockResponsesClient([], nonStreamResponse)
+      const adapter = new TestResponsesAdapter(testConfig, 'test-model')
+      await expect(
+        adapter.structuredOutput({
+          chatOptions: {
+            threadId: 'thread-1',
+            logger: testLogger,
+            model: 'test-model',
+            messages: [{ role: 'user', content: 'q' }],
+          },
+          outputSchema: {
+            type: 'object',
+            properties: { name: { type: 'string' } },
+            required: ['name'],
+          },
+        }),
+      ).rejects.toThrow(/function_call/)
+    })
+
+    it('throws on unknown message content_part type rather than misreporting as refusal', async () => {
+      const nonStreamResponse = {
+        output: [
+          {
+            type: 'message',
+            content: [{ type: 'output_audio', audio: 'base64data' }],
+          },
+        ],
+      }
+      setupMockResponsesClient([], nonStreamResponse)
+      const adapter = new TestResponsesAdapter(testConfig, 'test-model')
+      await expect(
+        adapter.structuredOutput({
+          chatOptions: {
+            threadId: 'thread-1',
+            logger: testLogger,
+            model: 'test-model',
+            messages: [{ role: 'user', content: 'q' }],
+          },
+          outputSchema: {
+            type: 'object',
+            properties: { name: { type: 'string' } },
+            required: ['name'],
+          },
+        }),
+      ).rejects.toThrow(/unsupported message content part type "output_audio"/)
+    })
+  })
+
+  describe('request mapping', () => {
+    it('maps options to Responses API payload format', async () => {
+      const streamChunks = [
+        {
+          type: 'response.created',
+          response: {
+            id: 'resp-123',
+            model: 'test-model',
+            status: 'in_progress',
+          },
+        },
+        {
+          type: 'response.completed',
+          response: {
+            id: 'resp-123',
+            model: 'test-model',
+            status: 'completed',
+            output: [],
+            usage: {
+              input_tokens: 5,
+              output_tokens: 1,
+              total_tokens: 6,
+            },
+          },
+        },
+      ]
+
+      setupMockResponsesClient(streamChunks)
+      const adapter = new TestResponsesAdapter(testConfig, 'test-model')
+
+      const chunks: Array<AdapterYieldChunk> = []
+      for await (const chunk of adapter.chatStream({
+        threadId: 'thread-1',
+        logger: testLogger,
+        model: 'test-model',
+        messages: [{ role: 'user', content: 'Hello' }],
+        // Sampling options now flow through modelOptions with provider-native
+        // wire names; the base no longer reads root temperature/topP/maxTokens.
+        modelOptions: {
+          temperature: 0.5,
+          top_p: 0.9,
+          max_output_tokens: 1024,
+        },
+        systemPrompts: ['Be helpful'],
+        tools: [weatherTool],
+      })) {
+        chunks.push(chunk)
+      }
+
+      expect(mockResponsesCreate).toHaveBeenCalledTimes(1)
+      const [payload] = mockResponsesCreate.mock.calls[0]!
+
+      // Verify Responses API field names
+      expect(payload).toMatchObject({
+        model: 'test-model',
+        temperature: 0.5,
+        top_p: 0.9,
+        max_output_tokens: 1024,
+        stream: true,
+        instructions: 'Be helpful',
+      })
+
+      // Responses API uses 'input' instead of 'messages'
+      expect(payload.input).toBeDefined()
+      expect(Array.isArray(payload.input)).toBe(true)
+
+      // Verify tools are included
+      expect(payload.tools).toBeDefined()
+      expect(Array.isArray(payload.tools)).toBe(true)
+      expect(payload.tools.length).toBe(1)
+      expect(payload.tools[0].type).toBe('function')
+      expect(payload.tools[0].name).toBe('lookup_weather')
+    })
+
+    it('converts user messages to input_text format', async () => {
+      const streamChunks = [
+        {
+          type: 'response.created',
+          response: {
+            id: 'resp-123',
+            model: 'test-model',
+            status: 'in_progress',
+          },
+        },
+        {
+          type: 'response.completed',
+          response: {
+            id: 'resp-123',
+            model: 'test-model',
+            status: 'completed',
+            output: [],
+            usage: {
+              input_tokens: 5,
+              output_tokens: 1,
+              total_tokens: 6,
+            },
+          },
+        },
+      ]
+
+      setupMockResponsesClient(streamChunks)
+      const adapter = new TestResponsesAdapter(testConfig, 'test-model')
+
+      const chunks: Array<AdapterYieldChunk> = []
+      for await (const chunk of adapter.chatStream({
+        threadId: 'thread-1',
+        logger: testLogger,
+        model: 'test-model',
+        messages: [{ role: 'user', content: 'Hello world' }],
+      })) {
+        chunks.push(chunk)
+      }
+
+      const [payload] = mockResponsesCreate.mock.calls[0]!
+      expect(payload.input).toEqual([
+        {
+          type: 'message',
+          role: 'user',
+          content: [{ type: 'input_text', text: 'Hello world' }],
+        },
+      ])
+    })
+
+    it('converts assistant messages with tool calls to function_call format', async () => {
+      const streamChunks = [
+        {
+          type: 'response.created',
+          response: {
+            id: 'resp-123',
+            model: 'test-model',
+            status: 'in_progress',
+          },
+        },
+        {
+          type: 'response.completed',
+          response: {
+            id: 'resp-123',
+            model: 'test-model',
+            status: 'completed',
+            output: [],
+            usage: {
+              input_tokens: 10,
+              output_tokens: 1,
+              total_tokens: 11,
+            },
+          },
+        },
+      ]
+
+      setupMockResponsesClient(streamChunks)
+      const adapter = new TestResponsesAdapter(testConfig, 'test-model')
+
+      const chunks: Array<AdapterYieldChunk> = []
+      for await (const chunk of adapter.chatStream({
+        threadId: 'thread-1',
+        logger: testLogger,
+        model: 'test-model',
+        messages: [
+          {
+            role: 'assistant',
+            content: 'Let me check',
+            toolCalls: [
+              {
+                id: 'call_123',
+                type: 'function',
+                function: {
+                  name: 'lookup_weather',
+                  arguments: '{"location":"Berlin"}',
+                },
+                metadata: { itemId: 'fc_123' },
+              },
+            ],
+          },
+          {
+            role: 'tool',
+            toolCallId: 'call_123',
+            content: '{"temp":72}',
+          },
+        ],
+      })) {
+        chunks.push(chunk)
+      }
+
+      const [payload] = mockResponsesCreate.mock.calls[0]!
+      // Should have function_call, message, and function_call_output
+      expect(payload.input).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            type: 'function_call',
+            id: 'fc_123',
+            call_id: 'call_123',
+            name: 'lookup_weather',
+            arguments: '{"location":"Berlin"}',
+          }),
+          expect.objectContaining({
+            type: 'message',
+            role: 'assistant',
+            content: 'Let me check',
+          }),
+          expect.objectContaining({
+            type: 'function_call_output',
+            call_id: 'call_123',
+            output: '{"temp":72}',
+          }),
+        ]),
+      )
+    })
+
+    it('replays provider-executed web search output items without a fake function call', () => {
+      const webSearchCall = {
+        type: 'web_search_call' as const,
+        id: 'ws_roundtrip',
+        status: 'completed' as const,
+        action: {
+          type: 'search' as const,
+          queries: ['latest release'],
+          sources: [
+            { type: 'url' as const, url: 'https://example.com/release' },
+          ],
+        },
+      }
+      const assistantMessage = {
+        id: 'msg_roundtrip',
+        type: 'message' as const,
+        role: 'assistant' as const,
+        status: 'completed' as const,
+        content: [
+          {
+            type: 'output_text' as const,
+            text: 'Grounded',
+            annotations: [],
+          },
+        ],
+      }
+
+      const input = new TestResponsesAdapter(
+        testConfig,
+        'test-model',
+      ).convertInput([
+        {
+          role: 'assistant',
+          content: 'Grounded',
+          toolCalls: [
+            {
+              id: 'ws_roundtrip',
+              type: 'function',
+              function: { name: 'web_search', arguments: '{}' },
+              metadata: {
+                itemId: 'ws_roundtrip',
+                providerExecuted: true,
+                sources: [{ url: 'https://example.com/release' }],
+                openai: {
+                  webSearchCall,
+                  urlCitations: [],
+                  assistantMessage,
+                },
+              },
+            },
+          ],
+        },
+      ])
+
+      expect(input).toEqual([webSearchCall, assistantMessage])
+    })
+
+    /**
+     * Regression tests for #1345.
+     *
+     * The Responses API requires a persisted `function_call` item to follow the
+     * reasoning item that produced it. A ModelMessage keeps reasoning and tool
+     * calls in two flat arrays, so a turn where the model reasoned more than
+     * once replays as reasoning A, reasoning B, call A, call B and the request
+     * is rejected with "Item 'fc_...' of type 'function_call' was provided
+     * without its required 'reasoning' item: 'rs_...'" — permanently, because
+     * the regrouped order is what gets stored.
+     */
+    const reasoningSignature = (id: string) =>
+      JSON.stringify({ id, encrypted_content: `enc-${id}` })
+
+    const completedOnly = (responseId: string) => [
+      {
+        type: 'response.created',
+        response: {
+          id: responseId,
+          model: 'test-model',
+          status: 'in_progress',
+        },
+      },
+      {
+        type: 'response.completed',
+        response: {
+          id: responseId,
+          model: 'test-model',
+          status: 'completed',
+          output: [],
+          usage: { input_tokens: 1, output_tokens: 1, total_tokens: 2 },
+        },
+      },
+    ]
+
+    const inputForMessages = async (messages: Array<ModelMessage>) => {
+      setupMockResponsesClient(completedOnly('resp-1'))
+      const adapter = new TestResponsesAdapter(testConfig, 'test-model')
+      for await (const _chunk of adapter.chatStream({
+        threadId: 'thread-1',
+        logger: testLogger,
+        model: 'test-model',
+        messages,
+      })) {
+        // drain
+      }
+      const [payload] = mockResponsesCreate.mock.calls[0]!
+      return payload.input as Array<Record<string, unknown>>
+    }
+
+    it('never puts assistant text between a function_call and its output (#1792)', async () => {
+      const input = await inputForMessages([
+        { role: 'user', content: 'hi' },
+        {
+          role: 'assistant',
+          content: 'Let me look that up.',
+          thinking: [{ content: '', signature: reasoningSignature('rs_A') }],
+          toolCalls: [
+            {
+              id: 'call_A',
+              type: 'function',
+              function: { name: 'lookup', arguments: '{}' },
+              metadata: { itemId: 'fc_A' },
+            },
+          ],
+        },
+        { role: 'tool', toolCallId: 'call_A', content: '{}' },
+      ] as Array<ModelMessage>)
+
+      expect(input.map((item) => item.type)).toEqual([
+        'message',
+        'message',
+        'reasoning',
+        'function_call',
+        'function_call_output',
+      ])
+      expect(input[1]).toEqual({
+        type: 'message',
+        role: 'assistant',
+        content: 'Let me look that up.',
+      })
+      // The reasoning still sits directly before its call, which keeps its id.
+      expect(input[3]).toHaveProperty('id', 'fc_A')
+    })
+
+    it('keeps the function_call item id when a single reasoning item pairs with it', async () => {
+      const input = await inputForMessages([
+        { role: 'user', content: 'hi' },
+        {
+          role: 'assistant',
+          content: '',
+          thinking: [{ content: '', signature: reasoningSignature('rs_A') }],
+          toolCalls: [
+            {
+              id: 'call_A',
+              type: 'function',
+              function: { name: 'lookup', arguments: '{}' },
+              metadata: { itemId: 'fc_A' },
+            },
+          ],
+        },
+        { role: 'tool', toolCallId: 'call_A', content: '{}' },
+      ] as Array<ModelMessage>)
+
+      expect(input.map((item) => item.type)).toEqual([
+        'message',
+        'reasoning',
+        'function_call',
+        'function_call_output',
+      ])
+      // rs_A sits directly before fc_A, so the pairing holds and the item id
+      // (which buys a prompt-cache hit) is kept.
+      expect(input[2]).toMatchObject({ id: 'fc_A', call_id: 'call_A' })
+    })
+
+    it('drops the function_call item ids when a turn carries two reasoning items', async () => {
+      const input = await inputForMessages([
+        { role: 'user', content: 'hi' },
+        {
+          role: 'assistant',
+          content: '',
+          thinking: [
+            { content: '', signature: reasoningSignature('rs_A') },
+            { content: '', signature: reasoningSignature('rs_B') },
+          ],
+          toolCalls: [
+            {
+              id: 'call_A',
+              type: 'function',
+              function: { name: 'lookup', arguments: '{}' },
+              metadata: { itemId: 'fc_A' },
+            },
+            {
+              id: 'call_B',
+              type: 'function',
+              function: { name: 'lookup', arguments: '{}' },
+              metadata: { itemId: 'fc_B' },
+            },
+          ],
+        },
+        { role: 'tool', toolCallId: 'call_A', content: '{}' },
+        { role: 'tool', toolCallId: 'call_B', content: '{}' },
+      ] as Array<ModelMessage>)
+
+      // Both reasoning items are still replayed, in order.
+      expect(input.filter((item) => item.type === 'reasoning')).toMatchObject([
+        { id: 'rs_A' },
+        { id: 'rs_B' },
+      ])
+
+      // Neither call can be adjacent to its own reasoning item any more, so
+      // both are sent as fresh items. call_id is untouched so the outputs
+      // still correlate.
+      const calls = input.filter((item) => item.type === 'function_call')
+      expect(calls).toHaveLength(2)
+      for (const call of calls) {
+        expect(call).not.toHaveProperty('id')
+      }
+      expect(calls.map((call) => call.call_id)).toEqual(['call_A', 'call_B'])
+      expect(
+        input
+          .filter((item) => item.type === 'function_call_output')
+          .map((item) => item.call_id),
+      ).toEqual(['call_A', 'call_B'])
+    })
+
+    it('skips the raw web search items when a turn carries two reasoning items', async () => {
+      const input = await inputForMessages([
+        { role: 'user', content: 'hi' },
+        {
+          role: 'assistant',
+          content: 'Grounded',
+          thinking: [
+            { content: '', signature: reasoningSignature('rs_A') },
+            { content: '', signature: reasoningSignature('rs_B') },
+          ],
+          toolCalls: [
+            {
+              id: 'ws_1',
+              type: 'function',
+              function: { name: 'web_search', arguments: '{}' },
+              metadata: {
+                itemId: 'ws_1',
+                providerExecuted: true,
+                openai: {
+                  webSearchCall: {
+                    type: 'web_search_call',
+                    id: 'ws_1',
+                    status: 'completed',
+                    action: { type: 'search', query: 'latest release' },
+                  },
+                  urlCitations: [],
+                  assistantMessage: {
+                    id: 'msg_1',
+                    type: 'message',
+                    role: 'assistant',
+                    status: 'completed',
+                    content: [
+                      {
+                        type: 'output_text',
+                        text: 'Grounded',
+                        annotations: [],
+                      },
+                    ],
+                  },
+                },
+              },
+            },
+            {
+              id: 'call_A',
+              type: 'function',
+              function: { name: 'lookup', arguments: '{}' },
+              metadata: { itemId: 'fc_A' },
+            },
+          ],
+        },
+        { role: 'tool', toolCallId: 'call_A', content: '{}' },
+      ] as Array<ModelMessage>)
+
+      // The ws_/msg_ ids cannot sit next to their reasoning item, so the raw
+      // items are skipped and the text goes out as a plain message with no id,
+      // before the reasoning so it never splits a call from its output.
+      expect(input.map((item) => item.type)).toEqual([
+        'message',
+        'message',
+        'reasoning',
+        'reasoning',
+        'function_call',
+        'function_call_output',
+      ])
+      expect(input[4]).not.toHaveProperty('id')
+      expect(input[1]).toEqual({
+        type: 'message',
+        role: 'assistant',
+        content: 'Grounded',
+      })
+    })
+
+    it('replays a reasoning id only once and unpairs the calls that lost it', async () => {
+      const input = await inputForMessages([
+        { role: 'user', content: 'hi' },
+        {
+          role: 'assistant',
+          content: '',
+          thinking: [{ content: '', signature: reasoningSignature('rs_A') }],
+          toolCalls: [
+            {
+              id: 'call_A',
+              type: 'function',
+              function: { name: 'lookup', arguments: '{}' },
+              metadata: { itemId: 'fc_A' },
+            },
+          ],
+        },
+        { role: 'tool', toolCallId: 'call_A', content: '{}' },
+        {
+          // Same reasoning id on a second assistant message. Sending it twice
+          // fails with "Duplicate item found with id rs_A".
+          role: 'assistant',
+          content: '',
+          thinking: [{ content: '', signature: reasoningSignature('rs_A') }],
+          toolCalls: [
+            {
+              id: 'call_B',
+              type: 'function',
+              function: { name: 'lookup', arguments: '{}' },
+              metadata: { itemId: 'fc_B' },
+            },
+          ],
+        },
+        { role: 'tool', toolCallId: 'call_B', content: '{}' },
+      ] as Array<ModelMessage>)
+
+      expect(input.filter((item) => item.type === 'reasoning')).toMatchObject([
+        { id: 'rs_A' },
+      ])
+
+      const calls = input.filter((item) => item.type === 'function_call')
+      expect(calls[0]).toMatchObject({ id: 'fc_A', call_id: 'call_A' })
+      // The second message's reasoning was deduplicated away, so its call has
+      // no reasoning item to pair with and must not claim its old item id.
+      expect(calls[1]).not.toHaveProperty('id')
+      expect(calls[1]).toMatchObject({ call_id: 'call_B' })
+    })
+
+    it('unpairs the calls when one of two reasoning items was deduplicated away', async () => {
+      const input = await inputForMessages([
+        { role: 'user', content: 'hi' },
+        {
+          role: 'assistant',
+          content: '',
+          thinking: [{ content: '', signature: reasoningSignature('rs_A') }],
+        },
+        {
+          // rs_A is a duplicate and is dropped; only rs_C is replayed here.
+          // A call made by rs_A would then have no adjacent reasoning.
+          role: 'assistant',
+          content: '',
+          thinking: [
+            { content: '', signature: reasoningSignature('rs_A') },
+            { content: '', signature: reasoningSignature('rs_C') },
+          ],
+          toolCalls: [
+            {
+              id: 'call_B',
+              type: 'function',
+              function: { name: 'lookup', arguments: '{}' },
+              metadata: { itemId: 'fc_B' },
+            },
+          ],
+        },
+        { role: 'tool', toolCallId: 'call_B', content: '{}' },
+      ] as Array<ModelMessage>)
+
+      const call = input.find((item) => item.type === 'function_call')
+      expect(call).not.toHaveProperty('id')
+      expect(call).toMatchObject({ call_id: 'call_B' })
+    })
+
+    /**
+     * End-to-end guard for the `call_id` / output-item-`id` split, covering
+     * every adapter that inherits this base (`@tanstack/ai-openai`,
+     * `@tanstack/ai-grok`, `@tanstack/ai-bedrock`, and the OpenAI-compatible
+     * adapter — none of them override `convertMessagesToInput`).
+     *
+     * Unlike the request-mapping test above, this drives the real `chat()`
+     * agent loop, so it proves the output item id actually survives the round
+     * trip: adapter -> TOOL_CALL_START metadata -> assistant ModelMessage ->
+     * adapter. Hand-building the assistant message would assume the very
+     * propagation that can break.
+     *
+     * This has to live here, in a unit test. The mock-based E2E suite cannot
+     * catch it: aimock maps an incoming `function_call.call_id` straight onto
+     * `tool_calls[].id`, so a request that uses the *wrong* id consistently in
+     * both the `function_call` and its `function_call_output` still correlates
+     * and still passes. Only a provider that knows the real item -> call_id
+     * mapping rejects it.
+     */
+    it('round-trips distinct output item and call IDs through a server tool', async () => {
+      const firstTurn = [
+        {
+          type: 'response.created',
+          response: {
+            id: 'resp-1',
+            model: 'test-model',
+            status: 'in_progress',
+          },
+        },
+        {
+          type: 'response.output_item.added',
+          output_index: 0,
+          item: {
+            type: 'function_call',
+            id: 'fc_item_1',
+            call_id: 'call_abc',
+            name: 'lookup_weather',
+            arguments: '',
+          },
+        },
+        {
+          type: 'response.function_call_arguments.done',
+          item_id: 'fc_item_1',
+          output_index: 0,
+          arguments: '{"location":"Berlin"}',
+        },
+        {
+          type: 'response.completed',
+          response: {
+            id: 'resp-1',
+            model: 'test-model',
+            status: 'completed',
+            output: [
+              {
+                type: 'function_call',
+                id: 'fc_item_1',
+                call_id: 'call_abc',
+                name: 'lookup_weather',
+                arguments: '{"location":"Berlin"}',
+              },
+            ],
+            usage: { input_tokens: 1, output_tokens: 1, total_tokens: 2 },
+          },
+        },
+      ]
+      const secondTurn = [
+        {
+          type: 'response.created',
+          response: {
+            id: 'resp-2',
+            model: 'test-model',
+            status: 'in_progress',
+          },
+        },
+        {
+          type: 'response.output_text.delta',
+          item_id: 'msg_1',
+          output_index: 0,
+          content_index: 0,
+          delta: 'Sunny',
+        },
+        {
+          type: 'response.completed',
+          response: {
+            id: 'resp-2',
+            model: 'test-model',
+            status: 'completed',
+            output: [],
+            usage: { input_tokens: 2, output_tokens: 1, total_tokens: 3 },
+          },
+        },
+      ]
+
+      mockResponsesCreate = vi
+        .fn()
+        .mockResolvedValueOnce(createAsyncIterable(firstTurn))
+        .mockResolvedValueOnce(createAsyncIterable(secondTurn))
+      const execute = vi.fn().mockReturnValue({ temperature: 72 })
+
+      for await (const _chunk of chat({
+        threadId: 'thread-1',
+        adapter: new TestResponsesAdapter(testConfig, 'test-model'),
+        messages: [{ role: 'user', content: 'How is the weather?' }],
+        tools: [{ ...weatherTool, execute }],
+      })) {
+        // consume both agent-loop turns
+      }
+
+      expect(execute).toHaveBeenCalledOnce()
+      expect(mockResponsesCreate).toHaveBeenCalledTimes(2)
+
+      const secondRequest = mockResponsesCreate.mock.calls[1]![0]
+      expect(secondRequest.input).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            type: 'function_call',
+            id: 'fc_item_1',
+            call_id: 'call_abc',
+          }),
+          expect.objectContaining({
+            type: 'function_call_output',
+            call_id: 'call_abc',
+          }),
+        ]),
+      )
+    })
+
+    it('replays a reasoning item before function_call on tool follow-up', async () => {
+      setupMockResponsesClient([
+        {
+          type: 'response.created',
+          response: {
+            id: 'resp-replay',
+            model: 'test-model',
+            status: 'in_progress',
+          },
+        },
+        {
+          type: 'response.completed',
+          response: {
+            id: 'resp-replay',
+            model: 'test-model',
+            status: 'completed',
+            output: [],
+            usage: { input_tokens: 1, output_tokens: 1, total_tokens: 2 },
+          },
+        },
+      ])
+      const adapter = new TestResponsesAdapter(testConfig, 'test-model')
+
+      for await (const _chunk of adapter.chatStream({
+        threadId: 'thread-1',
+        logger: testLogger,
+        model: 'test-model',
+        messages: [
+          {
+            role: 'assistant',
+            content: null,
+            thinking: [
+              {
+                content: 'pick a city',
+                signature: JSON.stringify({
+                  id: 'rs_required',
+                  encrypted_content: 'enc-blob',
+                }),
+              },
+            ],
+            toolCalls: [
+              {
+                id: 'call_123',
+                type: 'function',
+                function: {
+                  name: 'lookup_weather',
+                  arguments: '{"location":"Berlin"}',
+                },
+                metadata: { itemId: 'fc_123' },
+              },
+            ],
+          },
+          {
+            role: 'tool',
+            toolCallId: 'call_123',
+            content: '{"temp":72}',
+          },
+        ],
+      })) {
+        // consume the follow-up request
+      }
+
+      const [payload] = mockResponsesCreate.mock.calls[0]!
+      const input = payload.input as Array<{ type: string; id?: string }>
+      const reasoningIndex = input.findIndex(
+        (item) => item.type === 'reasoning' && item.id === 'rs_required',
+      )
+      const functionCallIndex = input.findIndex(
+        (item) => item.type === 'function_call' && item.id === 'fc_123',
+      )
+      expect(input[reasoningIndex]).toEqual({
+        type: 'reasoning',
+        id: 'rs_required',
+        encrypted_content: 'enc-blob',
+        summary: [{ type: 'summary_text', text: 'pick a city' }],
+      })
+      expect(functionCallIndex).toBeGreaterThan(reasoningIndex)
+    })
+
+    it('keeps one thinking step when encrypted reasoning arrives after output text', async () => {
+      setupMockResponsesClient([
+        {
+          type: 'response.created',
+          response: {
+            id: 'resp-rs-text',
+            model: 'test-model',
+            status: 'in_progress',
+          },
+        },
+        {
+          type: 'response.output_item.added',
+          output_index: 0,
+          item: { type: 'reasoning', id: 'rs_text_1' },
+        },
+        {
+          type: 'response.reasoning_text.delta',
+          delta: 'The user is asking for a beginner guitar recommendation.',
+        },
+        {
+          type: 'response.output_item.done',
+          output_index: 0,
+          item: {
+            type: 'reasoning',
+            id: 'rs_text_1',
+            summary: [
+              {
+                type: 'summary_text',
+                text: 'The user is asking for a beginner guitar recommendation.',
+              },
+            ],
+          },
+        },
+        {
+          type: 'response.output_text.delta',
+          item_id: 'msg_1',
+          output_index: 1,
+          content_index: 0,
+          delta: 'Fender Stratocaster',
+        },
+        {
+          type: 'response.completed',
+          response: {
+            id: 'resp-rs-text',
+            model: 'test-model',
+            status: 'completed',
+            output: [
+              {
+                type: 'reasoning',
+                id: 'rs_text_1',
+                encrypted_content: 'enc-after-text',
+                summary: [
+                  {
+                    type: 'summary_text',
+                    text: 'The user is asking for a beginner guitar recommendation.',
+                  },
+                ],
+              },
+              {
+                type: 'message',
+                id: 'msg_1',
+                role: 'assistant',
+                content: [{ type: 'output_text', text: 'Fender Stratocaster' }],
+              },
+            ],
+            usage: { input_tokens: 1, output_tokens: 1, total_tokens: 2 },
+          },
+        },
+      ])
+      const adapter = new TestResponsesAdapter(testConfig, 'test-model')
+      const chunks: Array<AdapterYieldChunk> = []
+
+      for await (const chunk of adapter.chatStream({
+        threadId: 'thread-1',
+        logger: testLogger,
+        model: 'test-model',
+        messages: [
+          {
+            role: 'user',
+            content: '[reasoning] recommend a guitar for a beginner',
+          },
+        ],
+      })) {
+        chunks.push(chunk)
+      }
+
+      expect(
+        chunks.filter((chunk) => chunk.type === EventType.REASONING_START),
+      ).toHaveLength(1)
+      const signedSteps = chunks.filter(
+        (chunk) =>
+          chunk.type === EventType.REASONING_ENCRYPTED_VALUE &&
+          chunk.encryptedValue.includes('enc-after-text'),
+      )
+      expect(signedSteps).toHaveLength(1)
+    })
+
+    it('ties each encrypted reasoning value to its reasoning message', async () => {
+      setupMockResponsesClient([
+        {
+          type: 'response.created',
+          response: {
+            id: 'resp-tie',
+            model: 'test-model',
+            status: 'in_progress',
+          },
+        },
+        {
+          type: 'response.output_item.added',
+          output_index: 0,
+          item: { type: 'reasoning', id: 'rs_tie' },
+        },
+        { type: 'response.reasoning_text.delta', delta: 'Thinking.' },
+        {
+          type: 'response.output_item.done',
+          output_index: 0,
+          item: {
+            type: 'reasoning',
+            id: 'rs_tie',
+            summary: [{ type: 'summary_text', text: 'Thinking.' }],
+          },
+        },
+        {
+          type: 'response.output_text.delta',
+          item_id: 'msg_1',
+          output_index: 1,
+          content_index: 0,
+          delta: 'Hi',
+        },
+        {
+          type: 'response.completed',
+          response: {
+            id: 'resp-tie',
+            model: 'test-model',
+            status: 'completed',
+            output: [
+              {
+                type: 'reasoning',
+                id: 'rs_tie',
+                encrypted_content: 'enc-tie',
+                summary: [{ type: 'summary_text', text: 'Thinking.' }],
+              },
+              {
+                type: 'message',
+                id: 'msg_1',
+                role: 'assistant',
+                content: [{ type: 'output_text', text: 'Hi' }],
+              },
+            ],
+            usage: { input_tokens: 1, output_tokens: 1, total_tokens: 2 },
+          },
+        },
+      ])
+
+      const chunks = []
+      for await (const chunk of chat({
+        threadId: 'thread-1',
+        adapter: new TestResponsesAdapter(testConfig, 'test-model'),
+        messages: [{ role: 'user', content: 'Hi' }],
+      })) {
+        chunks.push(chunk)
+      }
+
+      const reasoningIds = chunks.flatMap((c) =>
+        c.type === EventType.REASONING_MESSAGE_START ? [c.messageId] : [],
+      )
+      const targets = chunks.flatMap((c) =>
+        c.type === EventType.REASONING_ENCRYPTED_VALUE ? [c.entityId] : [],
+      )
+      expect(reasoningIds).toHaveLength(1)
+      expect(targets.length).toBeGreaterThan(0)
+      // An AG-UI client attaches the value to the message with this id.
+      expect(new Set(targets)).toEqual(new Set(reasoningIds))
+    })
+
+    it('round-trips encrypted reasoning with no reasoning text through a server tool', async () => {
+      const firstTurn = [
+        {
+          type: 'response.created',
+          response: {
+            id: 'resp-rs-empty-1',
+            model: 'test-model',
+            status: 'in_progress',
+          },
+        },
+        {
+          type: 'response.output_item.added',
+          output_index: 0,
+          item: {
+            type: 'reasoning',
+            id: 'rs_empty_1',
+          },
+        },
+        {
+          type: 'response.output_item.done',
+          output_index: 0,
+          item: {
+            type: 'reasoning',
+            id: 'rs_empty_1',
+            encrypted_content: 'enc-empty',
+            summary: [],
+          },
+        },
+        {
+          type: 'response.output_item.added',
+          output_index: 1,
+          item: {
+            type: 'function_call',
+            id: 'fc_empty_1',
+            call_id: 'call_empty',
+            name: 'lookup_weather',
+            arguments: '',
+          },
+        },
+        {
+          type: 'response.function_call_arguments.done',
+          item_id: 'fc_empty_1',
+          output_index: 1,
+          arguments: '{"location":"Berlin"}',
+        },
+        {
+          type: 'response.completed',
+          response: {
+            id: 'resp-rs-empty-1',
+            model: 'test-model',
+            status: 'completed',
+            output: [
+              {
+                type: 'reasoning',
+                id: 'rs_empty_1',
+                encrypted_content: 'enc-empty',
+                summary: [],
+              },
+              {
+                type: 'function_call',
+                id: 'fc_empty_1',
+                call_id: 'call_empty',
+                name: 'lookup_weather',
+                arguments: '{"location":"Berlin"}',
+              },
+            ],
+            usage: { input_tokens: 1, output_tokens: 1, total_tokens: 2 },
+          },
+        },
+      ]
+      const secondTurn = [
+        {
+          type: 'response.created',
+          response: {
+            id: 'resp-rs-empty-2',
+            model: 'test-model',
+            status: 'in_progress',
+          },
+        },
+        {
+          type: 'response.output_text.delta',
+          item_id: 'msg_1',
+          output_index: 0,
+          content_index: 0,
+          delta: 'Sunny',
+        },
+        {
+          type: 'response.completed',
+          response: {
+            id: 'resp-rs-empty-2',
+            model: 'test-model',
+            status: 'completed',
+            output: [],
+            usage: { input_tokens: 2, output_tokens: 1, total_tokens: 3 },
+          },
+        },
+      ]
+
+      mockResponsesCreate = vi
+        .fn()
+        .mockResolvedValueOnce(createAsyncIterable(firstTurn))
+        .mockResolvedValueOnce(createAsyncIterable(secondTurn))
+      const execute = vi.fn().mockReturnValue({ temperature: 72 })
+
+      for await (const _chunk of chat({
+        threadId: 'thread-1',
+        adapter: new TestResponsesAdapter(testConfig, 'test-model'),
+        messages: [{ role: 'user', content: 'How is the weather?' }],
+        tools: [{ ...weatherTool, execute }],
+      })) {
+        // consume both agent-loop turns
+      }
+
+      expect(execute).toHaveBeenCalledOnce()
+      expect(mockResponsesCreate).toHaveBeenCalledTimes(2)
+
+      const secondRequest = mockResponsesCreate.mock.calls[1]![0]
+      const input = secondRequest.input as Array<{ type: string; id?: string }>
+      const reasoningIndex = input.findIndex(
+        (item) => item.type === 'reasoning' && item.id === 'rs_empty_1',
+      )
+      const functionCallIndex = input.findIndex(
+        (item) => item.type === 'function_call' && item.id === 'fc_empty_1',
+      )
+      expect(input[reasoningIndex]).toEqual({
+        type: 'reasoning',
+        id: 'rs_empty_1',
+        encrypted_content: 'enc-empty',
+        summary: [],
+      })
+      expect(functionCallIndex).toBeGreaterThan(reasoningIndex)
+    })
+
+    it('keeps both reasoning items when the model reasons, searches, then reasons again', async () => {
+      const reasoningItem = (id: string) => ({
+        type: 'reasoning',
+        id,
+        encrypted_content: `enc-${id}`,
+        summary: [],
+      })
+      const output = [
+        reasoningItem('rs_search'),
+        {
+          type: 'web_search_call',
+          id: 'ws_1',
+          status: 'completed',
+          action: { type: 'search', query: 'guitar shops' },
+        },
+        reasoningItem('rs_call'),
+        {
+          type: 'function_call',
+          id: 'fc_1',
+          call_id: 'call_1',
+          name: 'lookup_weather',
+          arguments: '{"location":"Berlin"}',
+        },
+      ]
+      const firstTurn = [
+        {
+          type: 'response.created',
+          response: {
+            id: 'resp-ws-1',
+            model: 'test-model',
+            status: 'in_progress',
+          },
+        },
+        ...output.flatMap((item, outputIndex) => [
+          {
+            type: 'response.output_item.added',
+            output_index: outputIndex,
+            item: { ...item, encrypted_content: undefined },
+          },
+          {
+            type: 'response.output_item.done',
+            output_index: outputIndex,
+            item,
+          },
+        ]),
+        {
+          type: 'response.completed',
+          response: {
+            id: 'resp-ws-1',
+            model: 'test-model',
+            status: 'completed',
+            output,
+            usage: { input_tokens: 1, output_tokens: 1, total_tokens: 2 },
+          },
+        },
+      ]
+      const secondTurn = [
+        {
+          type: 'response.completed',
+          response: {
+            id: 'resp-ws-2',
+            model: 'test-model',
+            status: 'completed',
+            output: [],
+            usage: { input_tokens: 2, output_tokens: 1, total_tokens: 3 },
+          },
+        },
+      ]
+
+      mockResponsesCreate = vi
+        .fn()
+        .mockResolvedValueOnce(createAsyncIterable(firstTurn))
+        .mockResolvedValueOnce(createAsyncIterable(secondTurn))
+
+      for await (const _chunk of chat({
+        threadId: 'thread-1',
+        adapter: new TestResponsesAdapter(testConfig, 'test-model'),
+        messages: [{ role: 'user', content: 'How is the weather?' }],
+        tools: [{ ...weatherTool, execute: () => ({ temperature: 72 }) }],
+      })) {
+        // consume both agent-loop turns
+      }
+
+      // Before the fix, rs_call overwrote rs_search and the search went back
+      // with no reasoning item, which the API rejects with a 400.
+      const secondRequest = mockResponsesCreate.mock.calls[1]![0]
+      const input = secondRequest.input as Array<{ type: string; id?: string }>
+      expect(input.map((item) => item.id ?? item.type)).toEqual([
+        'message',
+        'rs_search',
+        'rs_call',
+        'function_call',
+        'function_call_output',
+      ])
+    })
+
+    it('round-trips encrypted reasoning with a function_call through a server tool', async () => {
+      const firstTurn = [
+        {
+          type: 'response.created',
+          response: {
+            id: 'resp-rs-1',
+            model: 'test-model',
+            status: 'in_progress',
+          },
+        },
+        {
+          type: 'response.output_item.added',
+          output_index: 0,
+          item: {
+            type: 'reasoning',
+            id: 'rs_item_1',
+          },
+        },
+        {
+          type: 'response.reasoning_text.delta',
+          delta: 'need the weather',
+        },
+        {
+          type: 'response.output_item.done',
+          output_index: 0,
+          item: {
+            type: 'reasoning',
+            id: 'rs_item_1',
+            encrypted_content: 'enc-blob',
+            summary: [{ type: 'summary_text', text: 'need the weather' }],
+          },
+        },
+        {
+          type: 'response.output_item.added',
+          output_index: 1,
+          item: {
+            type: 'function_call',
+            id: 'fc_item_1',
+            call_id: 'call_abc',
+            name: 'lookup_weather',
+            arguments: '',
+          },
+        },
+        {
+          type: 'response.function_call_arguments.done',
+          item_id: 'fc_item_1',
+          output_index: 1,
+          arguments: '{"location":"Berlin"}',
+        },
+        {
+          type: 'response.completed',
+          response: {
+            id: 'resp-rs-1',
+            model: 'test-model',
+            status: 'completed',
+            output: [
+              {
+                type: 'reasoning',
+                id: 'rs_item_1',
+                encrypted_content: 'enc-blob',
+                summary: [{ type: 'summary_text', text: 'need the weather' }],
+              },
+              {
+                type: 'function_call',
+                id: 'fc_item_1',
+                call_id: 'call_abc',
+                name: 'lookup_weather',
+                arguments: '{"location":"Berlin"}',
+              },
+            ],
+            usage: { input_tokens: 1, output_tokens: 1, total_tokens: 2 },
+          },
+        },
+      ]
+      const secondTurn = [
+        {
+          type: 'response.created',
+          response: {
+            id: 'resp-rs-2',
+            model: 'test-model',
+            status: 'in_progress',
+          },
+        },
+        {
+          type: 'response.output_text.delta',
+          item_id: 'msg_1',
+          output_index: 0,
+          content_index: 0,
+          delta: 'Sunny',
+        },
+        {
+          type: 'response.completed',
+          response: {
+            id: 'resp-rs-2',
+            model: 'test-model',
+            status: 'completed',
+            output: [],
+            usage: { input_tokens: 2, output_tokens: 1, total_tokens: 3 },
+          },
+        },
+      ]
+
+      mockResponsesCreate = vi
+        .fn()
+        .mockResolvedValueOnce(createAsyncIterable(firstTurn))
+        .mockResolvedValueOnce(createAsyncIterable(secondTurn))
+      const execute = vi.fn().mockReturnValue({ temperature: 72 })
+
+      for await (const _chunk of chat({
+        threadId: 'thread-1',
+        adapter: new TestResponsesAdapter(testConfig, 'test-model'),
+        messages: [{ role: 'user', content: 'How is the weather?' }],
+        tools: [{ ...weatherTool, execute }],
+      })) {
+        // consume both agent-loop turns
+      }
+
+      expect(execute).toHaveBeenCalledOnce()
+      expect(mockResponsesCreate).toHaveBeenCalledTimes(2)
+
+      const secondRequest = mockResponsesCreate.mock.calls[1]![0]
+      const input = secondRequest.input as Array<{ type: string; id?: string }>
+      const reasoningIndex = input.findIndex(
+        (item) => item.type === 'reasoning' && item.id === 'rs_item_1',
+      )
+      const functionCallIndex = input.findIndex(
+        (item) => item.type === 'function_call' && item.id === 'fc_item_1',
+      )
+      expect(input[reasoningIndex]).toEqual({
+        type: 'reasoning',
+        id: 'rs_item_1',
+        encrypted_content: 'enc-blob',
+        summary: [{ type: 'summary_text', text: 'need the weather' }],
+      })
+      expect(functionCallIndex).toBeGreaterThan(reasoningIndex)
+    })
+
+    it('converts a multimodal tool result to a structured function_call_output', async () => {
+      const streamChunks = [
+        {
+          type: 'response.created',
+          response: {
+            id: 'resp-mm-1',
+            model: 'test-model',
+            status: 'in_progress',
+          },
+        },
+        {
+          type: 'response.completed',
+          response: {
+            id: 'resp-mm-1',
+            model: 'test-model',
+            status: 'completed',
+            output: [],
+            usage: {
+              input_tokens: 10,
+              output_tokens: 1,
+              total_tokens: 11,
+            },
+          },
+        },
+      ]
+
+      setupMockResponsesClient(streamChunks)
+      const adapter = new TestResponsesAdapter(testConfig, 'test-model')
+
+      const chunks: Array<AdapterYieldChunk> = []
+      for await (const chunk of adapter.chatStream({
+        threadId: 'thread-1',
+        logger: testLogger,
+        model: 'test-model',
+        messages: [
+          { role: 'user', content: 'look' },
+          {
+            role: 'assistant',
+            content: '',
+            toolCalls: [
+              {
+                id: 'call_1',
+                type: 'function',
+                function: { name: 'shot', arguments: '{}' },
+              },
+            ],
+          },
+          {
+            role: 'tool',
+            toolCallId: 'call_1',
+            content: [
+              { type: 'text', content: 'screenshot' },
+              {
+                type: 'image',
+                source: { type: 'url', value: 'https://x/y.png' },
+              },
+            ],
+          },
+        ],
+      })) {
+        chunks.push(chunk)
+      }
+
+      const [payload] = mockResponsesCreate.mock.calls[0]!
+      const out = payload.input.find(
+        (i: any) => i.type === 'function_call_output',
+      )
+      expect(Array.isArray(out.output)).toBe(true)
+      expect(out.output).toEqual([
+        { type: 'input_text', text: 'screenshot' },
+        { type: 'input_image', image_url: 'https://x/y.png', detail: 'auto' },
+      ])
+    })
+  })
+
+  describe('document content parts (PDF input)', () => {
+    // A minimal one-page PDF.
+    const TINY_PDF_BASE64 = Buffer.from(
+      '%PDF-1.4\n1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj\n' +
+        '2 0 obj<</Type/Pages/Kids[3 0 R]/Count 1>>endobj\n' +
+        '3 0 obj<</Type/Page/Parent 2 0 R/MediaBox[0 0 200 200]>>endobj\n' +
+        'trailer<</Root 1 0 R>>\n%%EOF',
+    ).toString('base64')
+
+    // A payload that is not a PDF (no '%PDF' header).
+    const NOT_PDF_BASE64 = Buffer.from('hello, not a pdf').toString('base64')
+
+    const minimalStreamChunks = [
+      {
+        type: 'response.created',
+        response: {
+          id: 'resp-doc-1',
+          model: 'test-model',
+          status: 'in_progress',
+        },
+      },
+      {
+        type: 'response.completed',
+        response: {
+          id: 'resp-doc-1',
+          model: 'test-model',
+          status: 'completed',
+          output: [],
+          usage: { input_tokens: 10, output_tokens: 1, total_tokens: 11 },
+        },
+      },
+    ]
+
+    async function runChat(
+      content: Array<any>,
+    ): Promise<Array<AdapterYieldChunk>> {
+      setupMockResponsesClient(minimalStreamChunks)
+      const adapter = new TestResponsesAdapter(testConfig, 'test-model')
+      const chunks: Array<AdapterYieldChunk> = []
+      for await (const chunk of adapter.chatStream({
+        threadId: 'thread-1',
+        logger: testLogger,
+        model: 'test-model',
+        messages: [{ role: 'user', content }],
+      })) {
+        chunks.push(chunk)
+      }
+      return chunks
+    }
+
+    it('converts a base64 data source to input_file with a default filename', async () => {
+      await runChat([
+        {
+          type: 'document',
+          source: {
+            type: 'data',
+            value: TINY_PDF_BASE64,
+            mimeType: 'application/pdf',
+          },
+        },
+      ])
+
+      const [payload] = mockResponsesCreate.mock.calls[0]!
+      expect(payload.input[0].content).toEqual([
+        {
+          type: 'input_file',
+          filename: 'document.pdf',
+          file_data: `data:application/pdf;base64,${TINY_PDF_BASE64}`,
+        },
+      ])
+    })
+
+    it('uses metadata.filename when provided', async () => {
+      await runChat([
+        {
+          type: 'document',
+          source: {
+            type: 'data',
+            value: TINY_PDF_BASE64,
+            mimeType: 'application/pdf',
+          },
+          metadata: { filename: 'report.pdf' },
+        },
+      ])
+
+      const [payload] = mockResponsesCreate.mock.calls[0]!
+      expect(payload.input[0].content[0].filename).toBe('report.pdf')
+    })
+
+    it('passes an existing data URL through without double-wrapping', async () => {
+      const dataUrl = `data:application/pdf;base64,${TINY_PDF_BASE64}`
+      await runChat([
+        {
+          type: 'document',
+          source: { type: 'data', value: dataUrl, mimeType: 'application/pdf' },
+        },
+      ])
+
+      const [payload] = mockResponsesCreate.mock.calls[0]!
+      expect(payload.input[0].content[0].file_data).toBe(dataUrl)
+    })
+
+    it('converts a URL source to input_file with file_url only', async () => {
+      await runChat([
+        {
+          type: 'document',
+          source: { type: 'url', value: 'https://example.com/doc.pdf' },
+        },
+      ])
+
+      const [payload] = mockResponsesCreate.mock.calls[0]!
+      const part = payload.input[0].content[0]
+      expect(part).toEqual({
+        type: 'input_file',
+        file_url: 'https://example.com/doc.pdf',
+      })
+      expect(part).not.toHaveProperty('file_data')
+      expect(part).not.toHaveProperty('filename')
+    })
+
+    it('emits RUN_ERROR for a non-PDF document MIME type', async () => {
+      const chunks = await runChat([
+        {
+          type: 'document',
+          source: {
+            type: 'data',
+            value: TINY_PDF_BASE64,
+            mimeType: 'application/msword',
+          },
+        },
+      ])
+
+      const errorChunk = chunks.find((c) => c.type === 'RUN_ERROR')
+      expect(errorChunk).toBeDefined()
+      if (errorChunk?.type === 'RUN_ERROR') {
+        expect(errorChunk.message).toMatch(/only support application\/pdf/)
+        expect(errorChunk.message).toMatch(/application\/msword/)
+      }
+    })
+
+    it('emits RUN_ERROR for a data URL with a non-PDF media type', async () => {
+      const chunks = await runChat([
+        {
+          type: 'document',
+          source: {
+            type: 'data',
+            value: `data:image/png;base64,${TINY_PDF_BASE64}`,
+            mimeType: 'application/pdf',
+          },
+        },
+      ])
+
+      const errorChunk = chunks.find((c) => c.type === 'RUN_ERROR')
+      expect(errorChunk).toBeDefined()
+      if (errorChunk?.type === 'RUN_ERROR') {
+        expect(errorChunk.message).toMatch(/only support application\/pdf/)
+        expect(errorChunk.message).toMatch(/non-PDF media type/)
+      }
+    })
+
+    it('rejects a data URL whose media type merely extends application/pdf', async () => {
+      const chunks = await runChat([
+        {
+          type: 'document',
+          source: {
+            type: 'data',
+            value: `data:application/pdf+xml;base64,${TINY_PDF_BASE64}`,
+            mimeType: 'application/pdf',
+          },
+        },
+      ])
+
+      const errorChunk = chunks.find((c) => c.type === 'RUN_ERROR')
+      expect(errorChunk).toBeDefined()
+      if (errorChunk?.type === 'RUN_ERROR') {
+        expect(errorChunk.message).toMatch(/non-PDF media type/)
+      }
+    })
+
+    it('accepts case-insensitive PDF media types (RFC 2045)', async () => {
+      const dataUrl = `data:APPLICATION/PDF;base64,${TINY_PDF_BASE64}`
+      await runChat([
+        {
+          type: 'document',
+          source: { type: 'data', value: dataUrl, mimeType: 'Application/PDF' },
+        },
+      ])
+
+      const [payload] = mockResponsesCreate.mock.calls[0]!
+      expect(payload.input[0].content[0].file_data).toBe(dataUrl)
+    })
+
+    it('passes metadata.detail through on both source shapes', async () => {
+      await runChat([
+        {
+          type: 'document',
+          source: {
+            type: 'data',
+            value: TINY_PDF_BASE64,
+            mimeType: 'application/pdf',
+          },
+          metadata: { detail: 'high' },
+        },
+        {
+          type: 'document',
+          source: { type: 'url', value: 'https://example.com/doc.pdf' },
+          metadata: { detail: 'low' },
+        },
+      ])
+
+      const [payload] = mockResponsesCreate.mock.calls[0]!
+      expect(payload.input[0].content[0].detail).toBe('high')
+      expect(payload.input[0].content[1]).toEqual({
+        type: 'input_file',
+        file_url: 'https://example.com/doc.pdf',
+        detail: 'low',
+      })
+    })
+
+    it("passes detail: 'auto' through to the payload", async () => {
+      await runChat([
+        {
+          type: 'document',
+          source: {
+            type: 'data',
+            value: TINY_PDF_BASE64,
+            mimeType: 'application/pdf',
+          },
+          metadata: { detail: 'auto' },
+        },
+      ])
+
+      const [payload] = mockResponsesCreate.mock.calls[0]!
+      expect(payload.input[0].content[0].detail).toBe('auto')
+    })
+
+    it('omits detail when metadata does not provide it', async () => {
+      await runChat([
+        {
+          type: 'document',
+          source: {
+            type: 'data',
+            value: TINY_PDF_BASE64,
+            mimeType: 'application/pdf',
+          },
+        },
+      ])
+
+      const [payload] = mockResponsesCreate.mock.calls[0]!
+      expect(payload.input[0].content[0]).not.toHaveProperty('detail')
+    })
+
+    it('still rejects video content parts', async () => {
+      const chunks = await runChat([
+        {
+          type: 'video',
+          source: { type: 'url', value: 'https://example.com/clip.mp4' },
+        },
+      ])
+
+      const errorChunk = chunks.find((c) => c.type === 'RUN_ERROR')
+      expect(errorChunk).toBeDefined()
+      if (errorChunk?.type === 'RUN_ERROR') {
+        expect(errorChunk.message).toMatch(
+          /Unsupported content part type: video/,
+        )
+      }
+    })
+
+    it('keeps text and document parts in order within one message', async () => {
+      await runChat([
+        { type: 'text', content: 'summarize this' },
+        {
+          type: 'document',
+          source: {
+            type: 'data',
+            value: TINY_PDF_BASE64,
+            mimeType: 'application/pdf',
+          },
+        },
+      ])
+
+      const [payload] = mockResponsesCreate.mock.calls[0]!
+      expect(payload.input[0].content).toEqual([
+        { type: 'input_text', text: 'summarize this' },
+        {
+          type: 'input_file',
+          filename: 'document.pdf',
+          file_data: `data:application/pdf;base64,${TINY_PDF_BASE64}`,
+        },
+      ])
+    })
+
+    it('converts a document part inside a tool result', async () => {
+      setupMockResponsesClient(minimalStreamChunks)
+      const adapter = new TestResponsesAdapter(testConfig, 'test-model')
+      const chunks: Array<AdapterYieldChunk> = []
+      for await (const chunk of adapter.chatStream({
+        threadId: 'thread-1',
+        logger: testLogger,
+        model: 'test-model',
+        messages: [
+          { role: 'user', content: 'fetch the doc' },
+          {
+            role: 'assistant',
+            content: '',
+            toolCalls: [
+              {
+                id: 'call_doc',
+                type: 'function',
+                function: { name: 'fetch_doc', arguments: '{}' },
+              },
+            ],
+          },
+          {
+            role: 'tool',
+            toolCallId: 'call_doc',
+            content: [
+              { type: 'text', content: 'here it is' },
+              {
+                type: 'document',
+                source: {
+                  type: 'data',
+                  value: TINY_PDF_BASE64,
+                  mimeType: 'application/pdf',
+                },
+              },
+            ],
+          },
+        ],
+      })) {
+        chunks.push(chunk)
+      }
+
+      const [payload] = mockResponsesCreate.mock.calls[0]!
+      const out = payload.input.find(
+        (i: any) => i.type === 'function_call_output',
+      )
+      expect(out.output).toEqual([
+        { type: 'input_text', text: 'here it is' },
+        {
+          type: 'input_file',
+          filename: 'document.pdf',
+          file_data: `data:application/pdf;base64,${TINY_PDF_BASE64}`,
+        },
+      ])
+    })
+
+    it('emits RUN_ERROR for raw base64 without a mimeType that is not a PDF', async () => {
+      const chunks = await runChat([
+        {
+          type: 'document',
+          source: { type: 'data', value: NOT_PDF_BASE64 },
+        },
+      ])
+
+      const errorChunk = chunks.find((c) => c.type === 'RUN_ERROR')
+      expect(errorChunk).toBeDefined()
+      if (errorChunk?.type === 'RUN_ERROR') {
+        expect(errorChunk.message).toMatch(/only support application\/pdf/)
+        expect(errorChunk.message).toMatch(/%PDF/)
+      }
+    })
+
+    it('accepts raw base64 PDF data without a mimeType', async () => {
+      await runChat([
+        {
+          type: 'document',
+          source: { type: 'data', value: TINY_PDF_BASE64 },
+        },
+      ])
+
+      const [payload] = mockResponsesCreate.mock.calls[0]!
+      expect(payload.input[0].content).toEqual([
+        {
+          type: 'input_file',
+          filename: 'document.pdf',
+          file_data: `data:application/pdf;base64,${TINY_PDF_BASE64}`,
+        },
+      ])
+    })
+
+    it('emits RUN_ERROR for non-PDF data mislabeled as application/pdf', async () => {
+      const chunks = await runChat([
+        {
+          type: 'document',
+          source: {
+            type: 'data',
+            value: NOT_PDF_BASE64,
+            mimeType: 'application/pdf',
+          },
+        },
+      ])
+
+      const errorChunk = chunks.find((c) => c.type === 'RUN_ERROR')
+      expect(errorChunk).toBeDefined()
+      if (errorChunk?.type === 'RUN_ERROR') {
+        expect(errorChunk.message).toMatch(/only support application\/pdf/)
+        expect(errorChunk.message).toMatch(/%PDF/)
+      }
+    })
+
+    it('emits RUN_ERROR for a PDF data URL whose payload is not a PDF', async () => {
+      const chunks = await runChat([
+        {
+          type: 'document',
+          source: {
+            type: 'data',
+            value: `data:application/pdf;base64,${NOT_PDF_BASE64}`,
+            mimeType: 'application/pdf',
+          },
+        },
+      ])
+
+      const errorChunk = chunks.find((c) => c.type === 'RUN_ERROR')
+      expect(errorChunk).toBeDefined()
+      if (errorChunk?.type === 'RUN_ERROR') {
+        expect(errorChunk.message).toMatch(/only support application\/pdf/)
+        expect(errorChunk.message).toMatch(/%PDF/)
+      }
+    })
+  })
+
+  describe('user-executed shell and apply_patch calls', () => {
+    function completedResponse(output: Array<Record<string, unknown>>) {
+      return [
+        {
+          type: 'response.created',
+          response: {
+            id: 'resp-user-tool',
+            model: 'test-model',
+            status: 'in_progress',
+          },
+        },
+        {
+          type: 'response.completed',
+          response: {
+            id: 'resp-user-tool',
+            model: 'test-model',
+            status: 'completed',
+            output,
+            usage: { input_tokens: 1, output_tokens: 1, total_tokens: 2 },
+          },
+        },
+      ]
+    }
+
+    async function collect(output: Array<Record<string, unknown>>) {
+      setupMockResponsesClient(completedResponse(output))
+      const adapter = new TestResponsesAdapter(testConfig, 'test-model')
+      const chunks: Array<AdapterYieldChunk> = []
+      for await (const chunk of adapter.chatStream({
+        threadId: 'thread-1',
+        logger: testLogger,
+        model: 'test-model',
+        messages: [{ role: 'user', content: 'edit the file' }],
+        tools: [applyPatchTool(), shellTool(), localShellTool()],
+      })) {
+        chunks.push(chunk)
+      }
+      return chunks
+    }
+
+    it('surfaces an apply_patch_call and asks the app to run it', async () => {
+      const chunks = await collect([
+        {
+          type: 'apply_patch_call',
+          id: 'apc_1',
+          call_id: 'call_patch',
+          status: 'completed',
+          operation: {
+            type: 'update_file',
+            path: 'lib/fib.py',
+            diff: '@@\n-def fib\n+def fibonacci\n',
+          },
+        },
+      ])
+
+      const starts = chunks.filter((chunk) => chunk.type === 'TOOL_CALL_START')
+      const ends = chunks.filter((chunk) => chunk.type === 'TOOL_CALL_END')
+      expect(starts).toHaveLength(1)
+      expect(ends).toHaveLength(1)
+      expect(starts[0]).toMatchObject({
+        toolCallId: 'call_patch',
+        toolCallName: 'apply_patch',
+        metadata: { itemId: 'apc_1', openaiUserTool: 'apply_patch' },
+      })
+      expect(ends[0]).toMatchObject({
+        toolCallId: 'call_patch',
+        input: {
+          operation: {
+            type: 'update_file',
+            path: 'lib/fib.py',
+            diff: '@@\n-def fib\n+def fibonacci\n',
+          },
+        },
+      })
+      const finished = chunks.find((chunk) => chunk.type === 'RUN_FINISHED')
+      expect(finished).toMatchObject({ finishReason: 'tool_calls' })
+    })
+
+    it('surfaces a local shell call and ignores a hosted container shell', async () => {
+      const chunks = await collect([
+        {
+          type: 'shell_call',
+          id: 'sh_local',
+          call_id: 'call_local',
+          status: 'completed',
+          environment: { type: 'local' },
+          action: {
+            commands: ['echo hello'],
+            max_output_length: 4096,
+            timeout_ms: 1000,
+          },
+        },
+        {
+          type: 'shell_call',
+          id: 'sh_hosted',
+          call_id: 'call_hosted',
+          status: 'completed',
+          environment: { type: 'container_auto' },
+          action: {
+            commands: ['ls'],
+            max_output_length: null,
+            timeout_ms: null,
+          },
+        },
+      ])
+
+      const ends = chunks.filter((chunk) => chunk.type === 'TOOL_CALL_END')
+      expect(ends).toHaveLength(1)
+      expect(ends[0]).toMatchObject({
+        toolCallId: 'call_local',
+        toolCallName: 'shell',
+        input: {
+          commands: ['echo hello'],
+          max_output_length: 4096,
+          timeout_ms: 1000,
+        },
+      })
+    })
+
+    it('surfaces a shell call with no environment when the provider did not run it', async () => {
+      const chunks = await collect([
+        {
+          type: 'shell_call',
+          id: 'sh_bare',
+          call_id: 'call_bare',
+          status: 'completed',
+          action: {
+            commands: ['printf hello'],
+            max_output_length: null,
+            timeout_ms: null,
+          },
+        },
+      ])
+
+      const ends = chunks.filter((chunk) => chunk.type === 'TOOL_CALL_END')
+      expect(ends).toHaveLength(1)
+      expect(ends[0]).toMatchObject({
+        toolCallId: 'call_bare',
+        toolCallName: 'shell',
+      })
+    })
+
+    it('does not ask the app to re-run a shell call that already has output', async () => {
+      const chunks = await collect([
+        {
+          type: 'shell_call',
+          id: 'sh_done',
+          call_id: 'call_done',
+          status: 'completed',
+          action: {
+            commands: ['ls'],
+            max_output_length: null,
+            timeout_ms: null,
+          },
+        },
+        {
+          type: 'shell_call_output',
+          call_id: 'call_done',
+          output: [
+            {
+              stdout: 'a.ts\n',
+              stderr: '',
+              outcome: { type: 'exit', exit_code: 0 },
+            },
+          ],
+        },
+      ])
+
+      expect(chunks.some((chunk) => chunk.type === 'TOOL_CALL_END')).toBe(false)
+      const finished = chunks.find((chunk) => chunk.type === 'RUN_FINISHED')
+      expect(finished).toMatchObject({ finishReason: 'stop' })
+    })
+
+    it('surfaces a local_shell_call', async () => {
+      const chunks = await collect([
+        {
+          type: 'local_shell_call',
+          id: 'lsh_1',
+          call_id: 'call_lsh',
+          status: 'completed',
+          action: {
+            type: 'exec',
+            command: ['pwd'],
+            env: { HOME: '/tmp' },
+          },
+        },
+      ])
+
+      const ends = chunks.filter((chunk) => chunk.type === 'TOOL_CALL_END')
+      expect(ends).toHaveLength(1)
+      expect(ends[0]).toMatchObject({
+        toolCallId: 'call_lsh',
+        toolCallName: 'local_shell',
+        input: {
+          type: 'exec',
+          command: ['pwd'],
+          env: { HOME: '/tmp' },
+        },
+      })
+    })
+
+    it('does not emit the same user tool twice when output_item.done and response.completed both carry it', async () => {
+      setupMockResponsesClient([
+        {
+          type: 'response.created',
+          response: {
+            id: 'resp-once',
+            model: 'test-model',
+            status: 'in_progress',
+          },
+        },
+        {
+          type: 'response.output_item.done',
+          output_index: 0,
+          item: {
+            type: 'apply_patch_call',
+            id: 'apc_once',
+            call_id: 'call_once',
+            status: 'completed',
+            operation: { type: 'delete_file', path: 'old.ts' },
+          },
+        },
+        {
+          type: 'response.completed',
+          response: {
+            id: 'resp-once',
+            model: 'test-model',
+            status: 'completed',
+            output: [
+              {
+                type: 'apply_patch_call',
+                id: 'apc_once',
+                call_id: 'call_once',
+                status: 'completed',
+                operation: { type: 'delete_file', path: 'old.ts' },
+              },
+            ],
+            usage: { input_tokens: 1, output_tokens: 1, total_tokens: 2 },
+          },
+        },
+      ])
+      const adapter = new TestResponsesAdapter(testConfig, 'test-model')
+      const chunks: Array<AdapterYieldChunk> = []
+      for await (const chunk of adapter.chatStream({
+        threadId: 'thread-1',
+        logger: testLogger,
+        model: 'test-model',
+        messages: [{ role: 'user', content: 'delete old.ts' }],
+        tools: [applyPatchTool()],
+      })) {
+        chunks.push(chunk)
+      }
+      expect(
+        chunks.filter((chunk) => chunk.type === 'TOOL_CALL_END'),
+      ).toHaveLength(1)
+    })
+
+    it('replays apply_patch and shell results as Responses output items', async () => {
+      setupMockResponsesClient(completedResponse([]))
+      const adapter = new TestResponsesAdapter(testConfig, 'test-model')
+      const chunks: Array<AdapterYieldChunk> = []
+      for await (const chunk of adapter.chatStream({
+        threadId: 'thread-1',
+        logger: testLogger,
+        model: 'test-model',
+        messages: [
+          { role: 'user', content: 'edit and run' },
+          {
+            role: 'assistant',
+            content: null,
+            toolCalls: [
+              {
+                id: 'call_patch',
+                type: 'function',
+                function: {
+                  name: 'apply_patch',
+                  arguments: JSON.stringify({
+                    operation: {
+                      type: 'update_file',
+                      path: 'lib/fib.py',
+                      diff: '@@\n-a\n+b\n',
+                    },
+                  }),
+                },
+                metadata: { itemId: 'apc_1', openaiUserTool: 'apply_patch' },
+              },
+              {
+                id: 'call_local',
+                type: 'function',
+                function: {
+                  name: 'shell',
+                  arguments: JSON.stringify({
+                    commands: ['echo hello'],
+                    max_output_length: 4096,
+                    timeout_ms: null,
+                  }),
+                },
+                metadata: {
+                  itemId: 'sh_1',
+                  openaiUserTool: 'shell',
+                  maxOutputLength: 4096,
+                },
+              },
+            ],
+          },
+          {
+            role: 'tool',
+            toolCallId: 'call_patch',
+            content: JSON.stringify({
+              status: 'failed',
+              output: 'file not found',
+            }),
+          },
+          {
+            role: 'tool',
+            toolCallId: 'call_local',
+            content: JSON.stringify({
+              stdout: 'hello\n',
+              stderr: '',
+              outcome: { type: 'exit', exit_code: 0 },
+            }),
+          },
+        ],
+      })) {
+        chunks.push(chunk)
+      }
+
+      const [payload] = mockResponsesCreate.mock.calls[0]!
+      expect(payload.input).toEqual(
+        expect.arrayContaining([
+          {
+            type: 'apply_patch_call',
+            id: 'apc_1',
+            call_id: 'call_patch',
+            status: 'completed',
+            operation: {
+              type: 'update_file',
+              path: 'lib/fib.py',
+              diff: '@@\n-a\n+b\n',
+            },
+          },
+          {
+            type: 'shell_call',
+            id: 'sh_1',
+            call_id: 'call_local',
+            status: 'completed',
+            action: {
+              commands: ['echo hello'],
+              max_output_length: 4096,
+              timeout_ms: null,
+            },
+          },
+          {
+            type: 'apply_patch_call_output',
+            call_id: 'call_patch',
+            status: 'failed',
+            output: 'file not found',
+          },
+          {
+            type: 'shell_call_output',
+            call_id: 'call_local',
+            max_output_length: 4096,
+            output: [
+              {
+                stdout: 'hello\n',
+                stderr: '',
+                outcome: { type: 'exit', exit_code: 0 },
+              },
+            ],
+          },
+        ]),
+      )
+      expect(chunks.some((chunk) => chunk.type === 'RUN_ERROR')).toBe(false)
+    })
+
+    it('pauses chat() so the app can run apply_patch', async () => {
+      setupMockResponsesClient(
+        completedResponse([
+          {
+            type: 'apply_patch_call',
+            id: 'apc_chat',
+            call_id: 'call_chat',
+            status: 'completed',
+            operation: { type: 'delete_file', path: 'old.ts' },
+          },
+        ]),
+      )
+
+      const chunks: Array<AdapterYieldChunk> = []
+      for await (const chunk of chat({
+        threadId: 'thread-1',
+        adapter: new TestResponsesAdapter(testConfig, 'test-model'),
+        messages: [{ role: 'user', content: 'delete old.ts' }],
+        tools: [applyPatchTool()],
+      })) {
+        chunks.push(chunk)
+      }
+
+      expect(chunks.some((chunk) => chunk.type === 'RUN_ERROR')).toBe(false)
+      const start = chunks.find((chunk) => chunk.type === 'TOOL_CALL_START')
+      expect(start).toMatchObject({
+        toolCallName: 'apply_patch',
+        toolCallId: 'call_chat',
+      })
+      const end = chunks.find((chunk) => chunk.type === 'TOOL_CALL_END')
+      expect(end).toMatchObject({
+        toolCallId: 'call_chat',
+        input: { operation: { type: 'delete_file', path: 'old.ts' } },
+      })
+      const finished = chunks.find((chunk) => chunk.type === 'RUN_FINISHED')
+      expect(finished).toMatchObject({
+        outcome: { type: 'interrupt' },
+      })
+      expect(mockResponsesCreate).toHaveBeenCalledOnce()
+    })
+
+    async function pausedCallIds(
+      output: Array<Record<string, unknown>>,
+      tools: Array<Tool> = [applyPatchTool(), shellTool(), localShellTool()],
+    ) {
+      setupMockResponsesClient(completedResponse(output))
+      const chunks: Array<AdapterYieldChunk> = []
+      for await (const chunk of chat({
+        threadId: 'thread-1',
+        adapter: new TestResponsesAdapter(testConfig, 'test-model'),
+        messages: [{ role: 'user', content: 'edit the file' }],
+        tools,
+      })) {
+        chunks.push(chunk)
+      }
+      const finished = chunks.find((chunk) => chunk.type === 'RUN_FINISHED')
+      if (
+        finished?.type !== 'RUN_FINISHED' ||
+        finished.outcome?.type !== 'interrupt'
+      ) {
+        return []
+      }
+      return finished.outcome.interrupts.flatMap((interrupt) =>
+        interrupt.toolCallId ? [interrupt.toolCallId] : [],
+      )
+    }
+
+    it('pauses chat() for an apply_patch call and a bare shell call', async () => {
+      const ids = await pausedCallIds([
+        {
+          type: 'apply_patch_call',
+          id: 'apc_pair',
+          call_id: 'call_patch',
+          status: 'completed',
+          operation: { type: 'delete_file', path: 'old.ts' },
+        },
+        {
+          type: 'shell_call',
+          id: 'sh_pair',
+          call_id: 'call_shell',
+          status: 'completed',
+          action: {
+            commands: ['printf hello'],
+            max_output_length: null,
+            timeout_ms: null,
+          },
+        },
+      ])
+
+      expect(ids).toEqual(['call_patch', 'call_shell'])
+      expect(mockResponsesCreate).toHaveBeenCalledOnce()
+    })
+
+    it('pauses chat() for every bare shell call in one response', async () => {
+      const ids = await pausedCallIds([
+        {
+          type: 'shell_call',
+          id: 'sh_a',
+          call_id: 'call_a',
+          status: 'completed',
+          action: {
+            commands: ['printf a'],
+            max_output_length: null,
+            timeout_ms: null,
+          },
+        },
+        {
+          type: 'shell_call',
+          id: 'sh_b',
+          call_id: 'call_b',
+          status: 'completed',
+          action: {
+            commands: ['printf b'],
+            max_output_length: null,
+            timeout_ms: null,
+          },
+        },
+      ])
+
+      expect(ids).toEqual(['call_a', 'call_b'])
+      expect(mockResponsesCreate).toHaveBeenCalledOnce()
+    })
+
+    it('pauses chat() for a bare shell call and a function call', async () => {
+      const ids = await pausedCallIds(
+        [
+          {
+            type: 'shell_call',
+            id: 'sh_first',
+            call_id: 'call_shell',
+            status: 'completed',
+            action: {
+              commands: ['printf hello'],
+              max_output_length: null,
+              timeout_ms: null,
+            },
+          },
+          {
+            type: 'function_call',
+            id: 'fc_weather',
+            call_id: 'call_weather',
+            name: 'lookup_weather',
+            arguments: '{}',
+          },
+        ],
+        [shellTool(), weatherTool],
+      )
+
+      expect(ids).toEqual(['call_weather', 'call_shell'])
+      expect(mockResponsesCreate).toHaveBeenCalledOnce()
+    })
+  })
+
+  describe('subclassing', () => {
+    it('allows subclassing with custom name', () => {
+      class MyProviderAdapter extends OpenAIBaseResponsesTextAdapter<string> {
+        constructor(_apiKey: string, model: string) {
+          super(model, 'my-provider', makeStubClient())
+        }
+      }
+
+      const adapter = new MyProviderAdapter('test-key', 'my-model')
+      expect(adapter.name).toBe('my-provider')
+      expect(adapter.kind).toBe('text')
+      expect(adapter.model).toBe('my-model')
+    })
+  })
+})

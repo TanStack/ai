@@ -3,13 +3,11 @@ id: generateTranscription
 title: generateTranscription
 ---
 
-# Function: generateTranscription()
-
 ```ts
 function generateTranscription<TAdapter, TStream>(options): TranscriptionActivityResult<TStream>;
 ```
 
-Defined in: [packages/typescript/ai/src/activities/generateTranscription/index.ts:146](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/generateTranscription/index.ts#L146)
+Defined in: packages/ai/src/activities/generateTranscription/index.ts:192
 
 Transcription activity - converts audio to text.
 
@@ -37,6 +35,8 @@ Uses AI speech-to-text models to transcribe audio content.
 
 ## Examples
 
+**Transcribe an audio file**
+
 ```ts
 import { generateTranscription } from '@tanstack/ai'
 import { openaiTranscription } from '@tanstack/ai-openai'
@@ -44,17 +44,21 @@ import { openaiTranscription } from '@tanstack/ai-openai'
 const result = await generateTranscription({
   adapter: openaiTranscription('whisper-1'),
   audio: audioFile, // File, Blob, or base64 string
-  language: 'en'
+  language: 'en',
+  threadId,
 })
 
 console.log(result.text)
 ```
 
+**With verbose output for timestamps**
+
 ```ts
 const result = await generateTranscription({
   adapter: openaiTranscription('whisper-1'),
   audio: audioFile,
-  responseFormat: 'verbose_json'
+  responseFormat: 'verbose_json',
+  threadId,
 })
 
 result.segments?.forEach(segment => {
@@ -62,10 +66,13 @@ result.segments?.forEach(segment => {
 })
 ```
 
+**Streaming transcription result**
+
 ```ts
 for await (const chunk of generateTranscription({
   adapter: openaiTranscription('whisper-1'),
   audio: audioFile,
+  threadId,
   stream: true
 })) {
   console.log(chunk)

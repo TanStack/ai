@@ -2,7 +2,7 @@
 title: Tools
 id: tools
 order: 1
-description: "Define isomorphic AI tools in TanStack AI with toolDefinition() for type-safe server- and client-side function calling across any framework."
+description: "Give the model a function it can call. Define a tool with toolDefinition(), pass it to chat(), and the model can look up data and take actions."
 keywords:
   - tanstack ai
   - tools
@@ -14,336 +14,242 @@ keywords:
   - type safety
 ---
 
-Tools (also called "function calling") allow AI models to interact with external systems, APIs, or perform computations. TanStack AI provides an isomorphic tool system that enables type-safe, framework-agnostic tool definitions that work on both server and client.
+A tool is a function the model can call, such as a weather lookup or an order query. `chat()` runs the function and sends the result back.
 
-Tools enable your AI application to:
+You describe the function and its input. The model decides when to call it.
 
-- **Fetch data** from APIs or databases
-- **Perform calculations** or data transformations
-- **Interact with services** like email, calendars, or payment systems
-- **Execute client-side operations** like updating UI or local storage
-- **Create hybrid tools** that execute in both server and client contexts
+## Add your first tool
 
-> Looking for provider-native tools like Anthropic web search, OpenAI code
-> interpreter, or Gemini URL context? See [Provider Tools](./provider-tools.md).
+You need a working chat route first. If you do not have one, start with the [Quick Start](../getting-started/quick-start).
 
-## Framework Support
+### 1. Install Zod
 
-TanStack AI works with **any** JavaScript framework:
-- Next.js, Express, Remix, Fastify, etc.
-- React, Vue, Solid, Svelte, vanilla JS, etc.
+The tool input is a Zod schema. Any [Standard Schema](https://standardschema.dev) library or a plain JSON Schema also works.
 
-TanStack AI works with any JavaScript framework.
+<!-- ::start:tabs variant="package-manager" mode="install" -->
 
-## Isomorphic Tool Architecture
+react: zod
+vue: zod
+solid: zod
+svelte: zod
+preact: zod
+angular: zod
+octane: zod
+vanilla: zod
 
-TanStack AI uses a two-step tool definition process:
+<!-- ::end:tabs -->
 
-1. **Define once** with `toolDefinition()` - Creates a shared tool schema
-2. **Implement** with `.server()` or `.client()` - Add execution logic for each environment
+### 2. Define the tool and pass it to `chat()`
 
-This approach provides:
-
-- **Type Safety**: Full TypeScript inference from Zod schemas
-- **Code Reuse**: Define schemas once, use everywhere
-- **Flexibility**: Tools can execute on server, client, or both
-- **Schema Options**: Use Zod schemas or raw JSON Schema objects
-
-## Schema Options
-
-TanStack AI supports two ways to define tool schemas:
-
-### Option 1: Zod Schemas (Recommended)
-
-Zod schemas provide full TypeScript type inference and runtime validation:
+Open your chat route. Add the tool and put it in `tools`:
 
 ```typescript
+// api/chat.ts
+import {
+  chat,
+  chatParamsFromRequest,
+  toServerSentEventsResponse,
+  toolDefinition,
+} from "@tanstack/ai";
+import { openaiText } from "@tanstack/ai-openai";
 import { z } from "zod";
 
-const inputSchema = z.object({
-  location: z.string().meta({ description: "City name" }),
-  unit: z.enum(["celsius", "fahrenheit"]).optional(),
-});
-```
-
-### Option 2: JSON Schema Objects
-
-For cases where you already have JSON Schema definitions or prefer not to use Zod, you can pass raw JSON Schema objects directly:
-
-```typescript
-import type { JSONSchema } from "@tanstack/ai";
-
-const inputSchema: JSONSchema = {
-  type: "object",
-  properties: {
-    location: {
-      type: "string",
-      description: "City name",
-    },
-    unit: {
-      type: "string",
-      enum: ["celsius", "fahrenheit"],
-    },
-  },
-  required: ["location"],
-};
-```
-
-> **Note:** When using JSON Schema, TypeScript will infer `any` for input/output types since JSON Schema cannot provide compile-time type information. Zod schemas are recommended for full type safety.
-
-## Tool Definition
-
-Tools are defined using `toolDefinition()` from `@tanstack/ai`:
-
-```typescript
-import { toolDefinition } from "@tanstack/ai";
-import { z } from "zod";
-
-// Step 1: Define the tool schema
-const getWeatherDef = toolDefinition({
+const getWeather = toolDefinition({
   name: "get_weather",
-  description: "Get the current weather for a location",
+  description: "Get the current weather for a city",
   inputSchema: z.object({
-    location: z.string().meta({ description: "The city and state, e.g. San Francisco, CA" }),
-    unit: z.enum(["celsius", "fahrenheit"]).optional(),
+    city: z.string().meta({ description: "City name, for example Oslo" }),
   }),
   outputSchema: z.object({
+    city: z.string(),
     temperature: z.number(),
     conditions: z.string(),
-    location: z.string(),
   }),
+}).server(async ({ city }) => {
+  // Call a real weather API here.
+  return { city, temperature: 21, conditions: "sunny" };
 });
-
-// Step 2: Create a server implementation
-const getWeatherServer = getWeatherDef.server(async ({ location, unit }) => {
-  const response = await fetch(
-    `https://api.weather.com/v1/current?location=${location}&unit=${
-      unit || "fahrenheit"
-    }`
-  );
-  const data = await response.json();
-  return {
-    temperature: data.temperature,
-    conditions: data.conditions,
-    location: data.location,
-  };
-});
-```
-
-### Using JSON Schema
-
-If you prefer JSON Schema or have existing schema definitions:
-
-```typescript
-import { toolDefinition } from "@tanstack/ai";
-import type { JSONSchema } from "@tanstack/ai";
-
-// Define schemas using JSON Schema
-const inputSchema: JSONSchema = {
-  type: "object",
-  properties: {
-    location: {
-      type: "string",
-      description: "The city and state, e.g. San Francisco, CA",
-    },
-    unit: {
-      type: "string",
-      enum: ["celsius", "fahrenheit"],
-    },
-  },
-  required: ["location"],
-};
-
-const outputSchema: JSONSchema = {
-  type: "object",
-  properties: {
-    temperature: { type: "number" },
-    conditions: { type: "string" },
-    location: { type: "string" },
-  },
-  required: ["temperature", "conditions", "location"],
-};
-
-// Create the tool definition
-const getWeatherDef = toolDefinition({
-  name: "get_weather",
-  description: "Get the current weather for a location",
-  inputSchema,
-  outputSchema,
-});
-
-// Create server implementation (args is typed as `any` with JSON Schema)
-const getWeatherServer = getWeatherDef.server(async (args) => {
-  const { location, unit } = args;
-  const response = await fetch(
-    `https://api.weather.com/v1/current?location=${location}&unit=${unit || "fahrenheit"}`
-  );
-  return await response.json();
-});
-```
-
-## Using Tools in Chat
-
-### Server-Side
-
-```typescript
-import { chat, toServerSentEventsResponse } from "@tanstack/ai";
-import { openaiText } from "@tanstack/ai-openai";
-import { getWeatherDef } from "./tools";
 
 export async function POST(request: Request) {
-  const { messages } = await request.json();
-
-  // Create server implementation
-  const getWeather = getWeatherDef.server(async ({ location, unit }) => {
-    const response = await fetch(`https://api.weather.com/v1/current?...`);
-    return await response.json();
-  });
+  const { messages, threadId, runId } = await chatParamsFromRequest(request);
 
   const stream = chat({
-    adapter: openaiText("gpt-5.2"),
+    adapter: openaiText("gpt-6.1-sol"),
     messages,
-    tools: [getWeather], // Pass server tools
+    threadId,
+    runId,
+    tools: [getWeather],
   });
 
   return toServerSentEventsResponse(stream);
 }
 ```
 
-### Client-Side with Type Safety
+### 3. Ask a question that needs the tool
 
-```typescript
-import { useChat, fetchServerSentEvents } from "@tanstack/ai-react";
-import { 
-  clientTools, 
-  createChatClientOptions, 
-  type InferChatMessages 
-} from "@tanstack/ai-client";
-import { updateUIDef, saveToStorageDef } from "./tools";
+Your client code does not change. In your chat, ask "What is the weather in Oslo?"
 
-// Create client implementations
-const updateUI = updateUIDef.client((input) => {
-  // Update UI state
-  setNotification(input.message);
-  return { success: true };
-});
+The model calls `get_weather`, gets `21` and `sunny`, and answers with the weather. The assistant message now also has a `tool-call` part for the call. To show it in your UI, see [Tool Architecture](./tool-architecture).
 
-const saveToStorage = saveToStorageDef.client((input) => {
-  localStorage.setItem("data", JSON.stringify(input));
-  return { saved: true };
-});
+## How it works
 
-// Create typed tools array (no 'as const' needed!)
-const tools = clientTools(updateUI, saveToStorage);
+1. `chat()` sends the name, the description, and the input schema of each tool to the model.
+2. The model decides that it needs a tool. It sends a tool call with the input.
+3. `chat()` checks the input against your schema and runs your `.server()` function.
+4. `chat()` sends the result back to the model.
+5. The model writes its answer, or it calls another tool. This loop is the [agentic cycle](../chat/agentic-cycle).
 
-const textOptions = createChatClientOptions({
-  connection: fetchServerSentEvents("/api/chat"),
-  tools,
-});
+The description matters. The model reads it to decide when to call the tool, so say what the tool does and when to use it.
 
-// Infer message types for full type safety
-type ChatMessages = InferChatMessages<typeof textOptions>;
+`toolDefinition()` is shared code. Add `.server()` to run the tool on the server, or `.client()` to run it in the browser. The same definition works in any server framework and any UI framework.
 
-function ChatComponent() {
-  const { messages, sendMessage } = useChat(textOptions);
-  
-  // messages is now fully typed with tool names and outputs!
-  return <Messages messages={messages} />;
+## What to read next
+
+| You want to | Read |
+| --- | --- |
+| Read a database or call an API with a secret key | [Server Tools](./server-tools) |
+| Change the page, read `localStorage`, or use a browser API | [Client Tools](./client-tools) |
+| Ask the user before a tool runs | [Tool Approval Flow](./tool-approval) |
+| Use the provider's own web search or code runner | [Provider Tools](./provider-tools) |
+| Use the tools of an MCP server | [MCP Server Tools](./mcp) |
+| Keep a long tool list cheap | [Lazy Tool Discovery](./lazy-tool-discovery) |
+| Let browser agents call your client tools | [WebMCP Tools](./webmcp) |
+| Let the model write one program that calls many tools | [Code Mode](../code-mode/code-mode) |
+| Know how a tool call moves between model, server, and browser | [Tool Architecture](./tool-architecture) |
+
+## Advanced
+
+### Run tools one at a time
+
+When the model calls several server tools in one turn, they start at the same time. The model gets the results in the order of its calls. Some tools must not overlap, for example a tool that writes a file and a tool that runs the tests.
+
+Set `toolExecution: 'sequential'` on `chat()` to run the tools of each turn one at a time, in call order:
+
+```ts
+import { chat, toolDefinition } from '@tanstack/ai'
+import { openaiText } from '@tanstack/ai-openai'
+import { z } from 'zod'
+
+const writeFile = toolDefinition({
+  name: 'write_file',
+  description: 'Write a file',
+  inputSchema: z.object({ path: z.string(), content: z.string() }),
+}).server(async ({ path }) => ({ written: path }))
+
+const runTests = toolDefinition({
+  name: 'run_tests',
+  description: 'Run the test suite',
+  inputSchema: z.object({}),
+}).server(async () => ({ passed: true }))
+
+const stream = chat({
+  adapter: openaiText('gpt-6.1-sol'),
+  messages: [{ role: 'user', content: 'Fix the bug, then run the tests.' }],
+  threadId: 'thread-1',
+  tools: [writeFile, runTests],
+  toolExecution: 'sequential',
+})
+```
+
+This option does not change client tools. The client runs them as their calls arrive.
+
+### Choose when the model calls a tool
+
+Your weather assistant gives advice before it looks up the weather. Or you want a plain text answer, with no tool calls at all. Set `toolChoice`, and the model does what you ask.
+
+Make the model call `get_weather` first:
+
+```ts group=tool-choice
+import {
+  chat,
+  toServerSentEventsResponse,
+  toolDefinition,
+  type ChatMiddleware,
+} from '@tanstack/ai'
+import { openaiText } from '@tanstack/ai-openai'
+import { z } from 'zod'
+
+const getWeather = toolDefinition({
+  name: 'get_weather',
+  description: 'Get the current weather for a city',
+  inputSchema: z.object({ city: z.string() }),
+}).server(async ({ city }) => ({ city, temperature: 21 }))
+
+// Force the tool on the first model call only.
+const weatherFirst: ChatMiddleware = {
+  name: 'weather-first',
+  onConfig: (ctx) => {
+    if (ctx.phase === 'beforeModel' && ctx.iteration === 0) {
+      return { toolChoice: { type: 'tool', name: 'get_weather' } }
+    }
+  },
+}
+
+export async function POST(request: Request) {
+  const { messages, threadId } = await request.json()
+
+  const stream = chat({
+    adapter: openaiText('gpt-6.1-sol'),
+    messages,
+    threadId,
+    tools: [getWeather],
+    middleware: [weatherFirst],
+  })
+
+  return toServerSentEventsResponse(stream)
 }
 ```
 
-## Hybrid Tools
+The first model call must call `get_weather`. The next call goes back to the default, so the model answers with the forecast.
 
-Tools can be implemented for both server and client, enabling flexible execution patterns:
+Your client code does not change. `toolChoice` is a server option.
 
-```typescript
-// Define once
-const addToCartDef = toolDefinition({
-  name: "add_to_cart",
-  description: "Add item to shopping cart",
-  inputSchema: z.object({
-    itemId: z.string(),
-    quantity: z.number(),
-  }),
-  outputSchema: z.object({
-    success: z.boolean(),
-    cartId: z.string(),
-  }),
-  needsApproval: true,
-});
+#### The values
 
-// Server implementation - Store in database
-const addToCartServer = addToCartDef.server(async (input) => {
-  const cart = await db.carts.create({
-    data: { itemId: input.itemId, quantity: input.quantity },
-  });
-  return { success: true, cartId: cart.id };
-});
+| Value | What the model does |
+| --- | --- |
+| `'auto'` | It decides. |
+| `'none'` | It calls no tool. |
+| `'required'` | It must call a tool. |
+| `{ type: 'tool', name }` | It must call the tool with this name. |
 
-// Client implementation - Update local wishlist
-const addToCartClient = addToCartDef.client((input) => {
-  const wishlist = JSON.parse(localStorage.getItem("wishlist") || "[]");
-  wishlist.push(input.itemId);
-  localStorage.setItem("wishlist", JSON.stringify(wishlist));
-  return { success: true, cartId: "local" };
-});
+#### Set it for the whole run
+
+`chat({ toolChoice })` applies to every model call of the run. With `'required'` or a named tool, the model never writes a text answer. The run stops at the loop limit, after a tool result.
+
+For one lookup and nothing more, stop after one call:
+
+```ts group=tool-choice
+import { maxIterations } from '@tanstack/ai'
+
+const oneLookup = chat({
+  adapter: openaiText('gpt-6.1-sol'),
+  messages: [{ role: 'user', content: 'Weather in Oslo?' }],
+  threadId: 'thread-1',
+  tools: [getWeather],
+  toolChoice: 'required',
+  agentLoopStrategy: maxIterations(1),
+})
 ```
 
-On the server, pass the definition (for client execution) or server implementation:
+In `chat({ toolChoice: { type: 'tool', name } })`, your editor suggests the names of the tools that you pass. Any other string also works, for example the name of a provider tool.
 
-```typescript
-chat({
-  adapter: openaiText("gpt-5.2"),
-  messages,
-  tools: [addToCartDef], // Client will execute, or
-  tools: [addToCartServer], // Server will execute
-});
-```
+Do you need a text answer on the last call? Return `{ toolChoice: 'none' }` from a middleware. See [Change the tool choice of a call](../advanced/middleware#change-the-tool-choice-of-a-call).
 
-## Type Safety Benefits
+#### Rules for every adapter
 
-The isomorphic architecture provides complete type safety:
+- If the request has no tools, the adapter sends no tool choice.
+- A tool choice in `modelOptions` wins over `toolChoice`, for example `tool_choice` on OpenAI.
+- The adapter sends the name as you give it. It does not make sure that a tool has this name.
 
-```typescript
-// In your React component
-messages.forEach((message) => {
-  message.parts.forEach((part) => {
-    if (part.type === 'tool-call' && part.name === 'add_to_cart') {
-      // ✅ TypeScript knows part.name is literally 'add_to_cart'
-      // ✅ part.input is typed as { itemId: string, quantity: number }
-      // ✅ part.output is typed as { success: boolean, cartId: string } | undefined
-      
-      if (part.output) {
-        console.log(part.output.cartId); // ✅ Fully typed!
-      }
-    }
-  });
-});
-```
+#### Provider notes
 
-## Tool Execution Flow
+OpenAI, Grok, Groq, Mistral, OpenRouter, and the other OpenAI-compatible adapters send the value as it is. Some providers change it:
 
-1. **Model decides to call a tool** - Based on user input and tool descriptions
-2. **Tool is identified** - Server or client implementation
-3. **Tool executes** - Automatically on server or client
-4. **Result is returned** - To the model as a tool result message
-5. **Model continues** - Uses the result to generate a response
-
-## Tool States
-
-Tools go through different states during execution:
-
-- `awaiting-input` - Tool call received, waiting for arguments
-- `input-streaming` - Partial arguments being streamed
-- `input-complete` - All arguments received
-- `approval-requested` - Tool requires user approval (if `needsApproval: true`)
-- `approval-responded` - User has approved/denied
-
-> **Tip:** If your use case involves calling multiple tools with complex logic (filtering, aggregation, parallel calls), consider [Code Mode](../code-mode/code-mode) — it lets the LLM write a TypeScript program that orchestrates tools in a single execution instead of one tool call at a time.
-
-## Next Steps
-
-- [Server Tools](./server-tools) - Learn about server-side tool execution
-- [Client Tools](./client-tools) - Learn about client-side tool execution
-- [Tool Approval Flow](./tool-approval) - Implement approval workflows
-- [How Tools Work](./tool-architecture) - Deep dive into the tool architecture
+- **Claude** (Anthropic and Amazon Bedrock): some calls cannot force a tool. Then `'required'` and a named tool become `'auto'`.
+  - `claude-fable-5-1`, `claude-mythos-5-1`, `claude-opus-5-5`, and `claude-sonnet-5-5` never take a forced tool.
+  - No Claude model takes a forced tool while thinking is on. See [Reasoning](../chat/reasoning).
+- **Amazon Bedrock (Converse API)**: Converse has no `none` value, so `'none'` sends no tools. The tool calls in the history go out as text.
+- **Gemini**: the value becomes `functionCallingConfig` (`AUTO`, `NONE`, or `ANY`). A named tool is `ANY` with `allowedFunctionNames`. With only provider tools, such as Google Search, Gemini gets no tool config.
+- **Ollama**: Ollama has no tool choice. See [Ollama](../adapters/ollama#tool-choice).
+- **CLI-style adapters**: each page says which values work. See [Claude Code](../adapters/claude-code#tool-choice), [Codex](../adapters/codex#tool-choice), [OpenCode](../adapters/opencode#tool-choice), [Grok Build](../adapters/grok-build#tool-choice), and [ACP-compatible](../adapters/acp-compatible#tool-choice).

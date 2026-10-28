@@ -3,13 +3,11 @@ id: modelMessageToUIMessage
 title: modelMessageToUIMessage
 ---
 
-# Function: modelMessageToUIMessage()
-
 ```ts
 function modelMessageToUIMessage(modelMessage, id?): UIMessage;
 ```
 
-Defined in: [packages/typescript/ai/src/activities/chat/messages.ts:303](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/messages.ts#L303)
+Defined in: packages/ai/src/activities/chat/messages.ts:1074
 
 Convert a ModelMessage to UIMessage
 

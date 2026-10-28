@@ -3,72 +3,41 @@ id: ToolCallStartEvent
 title: ToolCallStartEvent
 ---
 
-# Interface: ToolCallStartEvent
-
-Defined in: [packages/typescript/ai/src/types.ts:894](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L894)
+Defined in: packages/ai/src/types.ts:1673
 
 Emitted when a tool call starts.
 
-@ag-ui/core provides: `toolCallId`, `toolCallName`, `parentMessageId?`
-TanStack AI adds: `model?`, `toolName` (deprecated alias), `index?`, `providerMetadata?`
+@ag-ui/core provides: `toolCallId`, `toolCallName`, `parentMessageId?`,
+`subagentRunId?`
 
 ## Extends
 
-- `ToolCallStartEvent`
-
-## Indexable
-
-```ts
-[k: string]: unknown
-```
+- `Omit`\<`AGUIToolCallStartEvent`, `"type"`\>
 
 ## Properties
 
-### index?
+### metadata?
 
 ```ts
-optional index: number;
+optional metadata?: Record<string, any>;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:903](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L903)
+Defined in: packages/ai/src/types.ts:1679
 
-Index for parallel tool calls
+Provider-specific metadata to carry into the ToolCall.
+
+#### Overrides
+
+```ts
+Omit.metadata
+```
 
 ***
 
-### model?
+### type
 
 ```ts
-optional model: string;
+type: "TOOL_CALL_START";
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:896](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L896)
-
-Model identifier for multi-model support
-
-***
-
-### providerMetadata?
-
-```ts
-optional providerMetadata: Record<string, unknown>;
-```
-
-Defined in: [packages/typescript/ai/src/types.ts:905](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L905)
-
-Provider-specific metadata to carry into the ToolCall
-
-***
-
-### ~~toolName~~
-
-```ts
-toolName: string;
-```
-
-Defined in: [packages/typescript/ai/src/types.ts:901](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L901)
-
-#### Deprecated
-
-Use `toolCallName` instead (from @ag-ui/core spec).
-Kept for backward compatibility.
+Defined in: packages/ai/src/types.ts:1677

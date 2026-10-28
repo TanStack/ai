@@ -22,9 +22,9 @@ Then open http://localhost:3010
 
 ## Creating Trace Files
 
-Trace files are automatically created when you use the chat interface with a `traceId`. The panel subscribes to `aiEventClient` events to record all stream activity.
+Trace files are automatically created when you use the chat interface with a `traceId`. The `api.chat` route wraps the adapter with `wrapAdapterForRecording`, which writes a `ChunkRecording` (see `src/lib/recording.ts`) to a file when the stream completes.
 
-You can also create trace files programmatically by subscribing to events:
+You can also create trace files programmatically by subscribing to `aiEventClient` events with `createEventRecording`, which reconstructs the same `ChunkRecording` (AG-UI `StreamChunk`s) from the devtools event stream:
 
 ```typescript
 import { createEventRecording } from '@/lib/recording'
@@ -36,14 +36,12 @@ const recording = createEventRecording('tmp/my-trace.json', 'my-trace-id')
 recording.stop()
 ```
 
-The recording utility automatically captures:
+Either path captures:
 
 - Stream chunks (content, tool calls, tool results, done, errors, thinking)
 - Final accumulated content
 - Tool calls and their results
 - Finish reason
-
-Or capture traces from the test panel and save them.
 
 ## Trace Format
 

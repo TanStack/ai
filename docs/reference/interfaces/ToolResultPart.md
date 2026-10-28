@@ -3,29 +3,81 @@ id: ToolResultPart
 title: ToolResultPart
 ---
 
-# Interface: ToolResultPart
-
-Defined in: [packages/typescript/ai/src/types.ts:327](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L327)
+Defined in: packages/ai/src/types.ts:524
 
 ## Properties
 
 ### content
 
 ```ts
-content: string;
+content: 
+  | string
+  | ContentPart<unknown, unknown, unknown, unknown, unknown>[];
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:330](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L330)
+Defined in: packages/ai/src/types.ts:529
+
+***
+
+### createdAt?
+
+```ts
+optional createdAt?: Date;
+```
+
+Defined in: packages/ai/src/types.ts:535
 
 ***
 
 ### error?
 
 ```ts
-optional error: string;
+optional error?: string;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:332](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L332)
+Defined in: packages/ai/src/types.ts:533
+
+***
+
+### id?
+
+```ts
+optional id?: string;
+```
+
+Defined in: packages/ai/src/types.ts:526
+
+***
+
+### metadata?
+
+```ts
+optional metadata?: Record<string, unknown>;
+```
+
+Defined in: packages/ai/src/types.ts:534
+
+***
+
+### name?
+
+```ts
+optional name?: string;
+```
+
+Defined in: packages/ai/src/types.ts:527
+
+***
+
+### outcome?
+
+```ts
+optional outcome?: ToolResultOutcome;
+```
+
+Defined in: packages/ai/src/types.ts:532
+
+Set when the user or middleware cancelled or denied the tool call; state remains `error`.
 
 ***
 
@@ -35,7 +87,7 @@ Defined in: [packages/typescript/ai/src/types.ts:332](https://github.com/TanStac
 state: ToolResultState;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:331](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L331)
+Defined in: packages/ai/src/types.ts:530
 
 ***
 
@@ -45,7 +97,7 @@ Defined in: [packages/typescript/ai/src/types.ts:331](https://github.com/TanStac
 toolCallId: string;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:329](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L329)
+Defined in: packages/ai/src/types.ts:528
 
 ***
 
@@ -55,4 +107,4 @@ Defined in: [packages/typescript/ai/src/types.ts:329](https://github.com/TanStac
 type: "tool-result";
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:328](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L328)
+Defined in: packages/ai/src/types.ts:525

@@ -3,11 +3,13 @@ id: DocumentPart
 title: DocumentPart
 ---
 
-# Interface: DocumentPart\<TMetadata\>
+Defined in: packages/ai/src/types.ts:315
 
-Defined in: [packages/typescript/ai/src/types.ts:226](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L226)
+Document content part for multimodal messages (e.g., PDFs). AG-UI `DocumentPart` with typed metadata.
 
-Document content part for multimodal messages (e.g., PDFs).
+## Extends
+
+- `DocumentPart`
 
 ## Type Parameters
 
@@ -22,31 +24,15 @@ Provider-specific metadata type (e.g., Anthropic's media_type)
 ### metadata?
 
 ```ts
-optional metadata: TMetadata;
+optional metadata?: TMetadata;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:231](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L231)
+Defined in: packages/ai/src/types.ts:317
 
 Provider-specific metadata (e.g., media_type for PDFs)
 
-***
-
-### source
+#### Overrides
 
 ```ts
-source: ContentPartSource;
+AGUIDocumentPart.metadata
 ```
-
-Defined in: [packages/typescript/ai/src/types.ts:229](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L229)
-
-Source of the document content
-
-***
-
-### type
-
-```ts
-type: "document";
-```
-
-Defined in: [packages/typescript/ai/src/types.ts:227](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L227)

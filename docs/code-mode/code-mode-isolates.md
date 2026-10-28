@@ -2,119 +2,214 @@
 title: Code Mode Isolate Drivers
 id: code-mode-isolates
 order: 4
-description: "Compare Code Mode sandbox drivers — Node isolated-vm, QuickJS WASM, and Cloudflare Workers — and choose the right runtime for your deployment."
+description: "Pick the sandbox that runs Code Mode for your server: Node isolated-vm, QuickJS WASM, QuickJS on Bun, Cloudflare Workers, Daytona, or E2B."
 keywords:
   - tanstack ai
   - code mode
   - isolate driver
   - isolated-vm
   - quickjs
+  - quickjs-bun
+  - bun
+  - bun:ffi
   - cloudflare workers
+  - daytona
+  - e2b
   - sandbox
   - secure execution
 ---
 
-Isolate drivers provide the secure sandbox runtimes that [Code Mode](./code-mode.md) uses to execute generated TypeScript. All drivers implement the same `IsolateDriver` interface, so you can swap them without changing any other code.
+Code Mode runs model-written code in a sandbox. The sandbox you can use depends on where the server runs.
 
-## Choosing a Driver
+An isolate driver is that sandbox. All drivers have the same `IsolateDriver` shape, so you change the driver in one line and keep the rest of your code.
 
-| | Node (`isolated-vm`) | QuickJS (WASM) | Cloudflare Workers |
-|---|---|---|---|
-| **Best for** | Server-side Node.js apps | Browsers, edge, portability | Edge deployments on Cloudflare |
-| **Performance** | Fast (V8 JIT) | Slower (interpreted) | Fast (V8 on Cloudflare edge) |
-| **Native deps** | Yes (C++ addon) | None | None |
-| **Browser support** | No | Yes | N/A |
-| **Memory limit** | Configurable | Configurable | N/A |
-| **Stack size limit** | N/A | Configurable | N/A |
-| **Setup** | `pnpm add` | `pnpm add` | Deploy a Worker first |
+## Pick a driver
 
----
+| Your server runs on | Driver | Package |
+| ------------------- | ------ | ------- |
+| Node.js | `createNodeIsolateDriver()` | `@tanstack/ai-isolate-node` |
+| Bun | `createQuickJSBunIsolateDriver()` | `@tanstack/ai-isolate-quickjs-bun` |
+| A browser, the edge, or anywhere without native addons | `createQuickJSIsolateDriver()` | `@tanstack/ai-isolate-quickjs` |
+| Any server, with code that runs on Cloudflare | `createCloudflareIsolateDriver()` | `@tanstack/ai-isolate-cloudflare` |
+| Any server, with code that runs in a full Linux sandbox | `createDaytonaIsolateDriver()` or `createE2BIsolateDriver()` | `@tanstack/ai-isolate-daytona` or `@tanstack/ai-isolate-e2b` |
 
-## Node.js Driver (`@tanstack/ai-isolate-node`)
+Then give the driver to `createCodeMode`. This example uses QuickJS:
 
-Uses V8 isolates via the [`isolated-vm`](https://github.com/laverdet/isolated-vm) native addon. This is the fastest option for server-side Node.js applications because generated code runs in the same V8 engine as the host, under JIT compilation, with no serialization overhead beyond tool call boundaries.
+```typescript ignore
+import { createCodeMode } from "@tanstack/ai-code-mode";
+import { createQuickJSIsolateDriver } from "@tanstack/ai-isolate-quickjs";
 
-### Installation
-
-```bash
-pnpm add @tanstack/ai-isolate-node
+const { tools, systemPrompt } = createCodeMode({
+  driver: createQuickJSIsolateDriver(),
+  tools: [fetchWeather],
+});
 ```
 
-`isolated-vm` is a native C++ addon and must be compiled for your platform. It requires Node.js 18 or later.
+Nothing else in your route changes.
 
-### Usage
+## Compare the drivers
+
+|                      | Node (`isolated-vm`)     | QuickJS (WASM)              | QuickJS Bun (`bun:ffi`)  | Cloudflare Workers             | Daytona                            | E2B |
+| -------------------- | ------------------------ | --------------------------- | ------------------------ | ------------------------------ | ---------------------------------- | --- |
+| **Best for**         | Node.js servers          | Browsers, edge, portability | Bun servers              | Edge deployments on Cloudflare | Full remote Linux sandboxes        | Remote E2B sandboxes |
+| **Speed**            | Fast (V8 JIT)            | Slower (interpreted)        | Fast (native QuickJS)    | Fast (V8 on Cloudflare edge)   | Fast (native runtime, remote call) | Fast (native Node, remote call) |
+| **Native deps**      | Yes (C++ addon)          | None                        | None (TinyCC at runtime) | None                           | None                               | None |
+| **Runs in a browser** | No                      | Yes                         | No (Bun only)            | N/A                            | No                                 | No |
+| **Memory limit**     | Yes                      | Yes                         | Yes                      | N/A                            | No                                 | Yes |
+| **Stack size limit** | N/A                      | Yes                         | Yes                      | N/A                            | N/A                                | N/A |
+| **Setup**            | `pnpm add`               | `pnpm add`                  | `bun add`                | Deploy a Worker first          | Create or pass a Daytona sandbox   | Create or pass an E2B sandbox |
+
+## Node.js driver
+
+`@tanstack/ai-isolate-node` runs the code in a V8 isolate with the [`isolated-vm`](https://github.com/laverdet/isolated-vm) native addon. It is the fastest choice on a Node.js server.
+
+<!-- ::start:tabs variant="package-manager" mode="install" -->
+
+react: @tanstack/ai-isolate-node
+vue: @tanstack/ai-isolate-node
+solid: @tanstack/ai-isolate-node
+svelte: @tanstack/ai-isolate-node
+preact: @tanstack/ai-isolate-node
+angular: @tanstack/ai-isolate-node
+vanilla: @tanstack/ai-isolate-node
+octane: @tanstack/ai-isolate-node
+
+<!-- ::end:tabs -->
+
+The package needs Node.js 22 or later. `isolated-vm` is a native C++ addon. It must be compiled for your platform.
 
 ```typescript
 import { createNodeIsolateDriver } from '@tanstack/ai-isolate-node'
 
 const driver = createNodeIsolateDriver({
-  memoryLimit: 128,   // MB
-  timeout: 30_000,    // ms
+  memoryLimit: 128, // MB
+  timeout: 30_000, // ms
 })
 ```
 
-### Options
+| Option        | Type      | Default | Description |
+| ------------- | --------- | ------- | ----------- |
+| `memoryLimit` | `number`  | `128`   | Largest heap for the V8 isolate, in MB. The execution stops if it goes over. |
+| `timeout`     | `number`  | `30000` | Longest wall-clock time for one execution, in ms. |
+| `skipProbe`   | `boolean` | `false` | Skips the compatibility probe for `isolated-vm`. If you made sure that the addon works on your Node.js version, you can set it. |
 
-| Option | Type | Default | Description |
-|--------|------|---------|-------------|
-| `memoryLimit` | `number` | `128` | Maximum heap size for the V8 isolate, in megabytes. Execution is terminated if this limit is exceeded. |
-| `timeout` | `number` | `30000` | Maximum wall-clock time per execution, in milliseconds. |
+## QuickJS driver
 
-### How it works
+`@tanstack/ai-isolate-quickjs` runs [QuickJS](https://bellard.org/quickjs/) compiled to WebAssembly. It has no native dependencies, so it runs anywhere JavaScript runs: Node.js, browsers, Deno, Bun, and Cloudflare Workers (with no separate Worker).
 
-Each `execute_typescript` call creates a fresh V8 isolate. Your tools are bridged into the isolate as async reference functions — when generated code calls `external_myTool(...)`, the call crosses the isolate boundary back into the host Node.js process, executes your tool implementation, and returns the result. Console output (`log`, `error`, `warn`, `info`) is captured and returned in the execution result. The isolate is destroyed after each call.
+<!-- ::start:tabs variant="package-manager" mode="install" -->
 
----
+react: @tanstack/ai-isolate-quickjs
+vue: @tanstack/ai-isolate-quickjs
+solid: @tanstack/ai-isolate-quickjs
+svelte: @tanstack/ai-isolate-quickjs
+preact: @tanstack/ai-isolate-quickjs
+angular: @tanstack/ai-isolate-quickjs
+vanilla: @tanstack/ai-isolate-quickjs
+octane: @tanstack/ai-isolate-quickjs
 
-## QuickJS Driver (`@tanstack/ai-isolate-quickjs`)
-
-Uses [QuickJS](https://bellard.org/quickjs/) compiled to WebAssembly via Emscripten. Because the sandbox is a WASM module, it has no native dependencies and runs anywhere JavaScript runs: Node.js, browsers, Deno, Bun, and Cloudflare Workers (without deploying a separate Worker).
-
-### Installation
-
-```bash
-pnpm add @tanstack/ai-isolate-quickjs
-```
-
-### Usage
+<!-- ::end:tabs -->
 
 ```typescript
 import { createQuickJSIsolateDriver } from '@tanstack/ai-isolate-quickjs'
 
 const driver = createQuickJSIsolateDriver({
-  memoryLimit: 128,     // MB
-  timeout: 30_000,      // ms
+  memoryLimit: 128, // MB
+  timeout: 30_000, // ms
+  maxStackSize: 524288, // bytes (512 KiB)
+  wasmLocation: '/assets/quickjs/emscripten-module.wasm',
+})
+```
+
+| Option         | Type     | Default  | Description |
+| -------------- | -------- | -------- | ----------- |
+| `memoryLimit`  | `number` | `128`    | Largest heap for the QuickJS VM, in MB. |
+| `timeout`      | `number` | `30000`  | Longest wall-clock time for one execution, in ms. |
+| `maxStackSize` | `number` | `524288` | Largest call stack, in bytes (512 KiB). Increase it for deep recursion. Decrease it to stop runaway recursion sooner. |
+| `wasmLocation` | `string` | none     | URL or path to load the QuickJS WASM binary from. If you leave it out, `quickjs-emscripten` uses its bundled binary. |
+
+To host the WASM binary yourself, for example on a CDN, serve the synchronous release binary that `@jitl/quickjs-wasmfile-release-sync/wasm` exports. Then set `wasmLocation` to its URL. For a URL on another origin, configure the host to allow cross-origin requests.
+
+QuickJS interprets JavaScript and does not JIT-compile it. Code with heavy computation runs slower than on the Node driver. Most generated scripts spend their time on `external_*` calls, so the difference is small.
+
+## QuickJS Bun driver
+
+`@tanstack/ai-isolate-quickjs-bun` runs QuickJS natively on [Bun](https://bun.sh/) through `bun:ffi`, with the [`quickjs-bun`](https://github.com/superpowerdotcom/quickjs-bun) package. Bun compiles the QuickJS C sources one time per process with its embedded TinyCC. You need no native dependencies and no build step. On Bun, it is the fastest sandbox for Code Mode.
+
+<!-- ::start:tabs variant="package-manager" mode="install" -->
+
+react: @tanstack/ai-isolate-quickjs-bun
+vue: @tanstack/ai-isolate-quickjs-bun
+solid: @tanstack/ai-isolate-quickjs-bun
+svelte: @tanstack/ai-isolate-quickjs-bun
+preact: @tanstack/ai-isolate-quickjs-bun
+angular: @tanstack/ai-isolate-quickjs-bun
+vanilla: @tanstack/ai-isolate-quickjs-bun
+octane: @tanstack/ai-isolate-quickjs-bun
+
+<!-- ::end:tabs -->
+
+The driver needs Bun 1.3.14 or later. On Node.js, it throws an error when it creates a context, so use the Node or QuickJS WASM driver there. On Windows, set the `QUICKJS_BUN_NATIVE_LIBRARY` environment variable to a prebuilt QuickJS dynamic library.
+
+```typescript
+import { createQuickJSBunIsolateDriver } from '@tanstack/ai-isolate-quickjs-bun'
+
+const driver = createQuickJSBunIsolateDriver({
+  memoryLimit: 128, // MB
+  timeout: 30_000, // ms
   maxStackSize: 524288, // bytes (512 KiB)
 })
 ```
 
-### Options
+| Option         | Type     | Default  | Description |
+| -------------- | -------- | -------- | ----------- |
+| `memoryLimit`  | `number` | `128`    | Largest heap for the QuickJS runtime, in MB. |
+| `timeout`      | `number` | `30000`  | Longest wall-clock time for one execution, in ms. |
+| `maxStackSize` | `number` | `524288` | Largest call stack, in bytes (512 KiB). Increase it for deep recursion. Decrease it to stop runaway recursion sooner. |
+| `maxToolCalls` | `number` | `1000`   | Most host tool calls in one execution. It stops untrusted code that fans out, for example `Promise.all` over a huge array. If the code goes over, the sandbox throws an error that the code can catch. |
 
-| Option | Type | Default | Description |
-|--------|------|---------|-------------|
-| `memoryLimit` | `number` | `128` | Maximum heap memory for the QuickJS VM, in megabytes. |
-| `timeout` | `number` | `30000` | Maximum wall-clock time per execution, in milliseconds. |
-| `maxStackSize` | `number` | `524288` | Maximum call stack size in bytes (default: 512 KiB). Increase for deeply recursive code; decrease to catch runaway recursion sooner. |
+On Bun, use this driver and not the WASM one. The asyncify bridge of `quickjs-emscripten` is not reliable for async tool calls under Bun.
 
-### How it works
+## Cloudflare Workers driver
 
-QuickJS WASM uses an asyncified execution model — the WASM module can pause while awaiting host async functions (your tools). Executions are serialized through a global queue to prevent concurrent WASM calls, which the asyncify model does not support. Fatal errors (memory exhaustion, stack overflow) are detected, the VM is disposed, and a structured error is returned. Console output is captured and returned with the result.
+`@tanstack/ai-isolate-cloudflare` runs the code in a [Cloudflare Worker](https://workers.cloudflare.com/). Your server sends the code to the Worker over HTTP. When the code calls a tool, the Worker asks your server, and your server runs the tool. Your tools stay on your server.
 
-> **Performance note:** QuickJS interprets JavaScript rather than JIT-compiling it, so compute-heavy scripts run slower than with the Node driver. For typical LLM-generated scripts that are mostly waiting on `external_*` tool calls, this difference is not significant.
+<!-- ::start:tabs variant="package-manager" mode="install" -->
 
----
+react: @tanstack/ai-isolate-cloudflare
+vue: @tanstack/ai-isolate-cloudflare
+solid: @tanstack/ai-isolate-cloudflare
+svelte: @tanstack/ai-isolate-cloudflare
+preact: @tanstack/ai-isolate-cloudflare
+angular: @tanstack/ai-isolate-cloudflare
+vanilla: @tanstack/ai-isolate-cloudflare
+octane: @tanstack/ai-isolate-cloudflare
 
-## Cloudflare Workers Driver (`@tanstack/ai-isolate-cloudflare`)
+<!-- ::end:tabs -->
 
-Runs generated code inside a [Cloudflare Worker](https://workers.cloudflare.com/) at the edge. Your application server sends code and tool schemas to the Worker via HTTP; the Worker executes the code and calls back when it needs a tool result. This keeps your tool implementations on your server while sandboxed execution happens on Cloudflare's global network.
+1. Add a `wrangler.toml` to your Worker project:
 
-### Installation
+```toml
+# wrangler.toml
+name = "code-mode-worker"
+main = "src/worker.ts"
+compatibility_date = "2026-05-01"
+compatibility_flags = ["nodejs_compat"]
 
-```bash
-pnpm add @tanstack/ai-isolate-cloudflare
+[[worker_loaders]]
+binding = "LOADER"
 ```
 
-### Usage
+2. Add the Worker entry. The package exports a ready-made Worker:
+
+```typescript
+// src/worker.ts
+export { default } from '@tanstack/ai-isolate-cloudflare/worker'
+```
+
+3. Run `wrangler dev` to test locally on `http://localhost:8787`, or run `wrangler deploy`.
+
+4. Point the driver at the Worker URL:
 
 ```typescript
 import { createCloudflareIsolateDriver } from '@tanstack/ai-isolate-cloudflare'
@@ -127,66 +222,161 @@ const driver = createCloudflareIsolateDriver({
 })
 ```
 
-### Options
+| Option          | Type     | Default | Description |
+| --------------- | -------- | ------- | ----------- |
+| `workerUrl`     | `string` | none    | Required. The full URL of the Worker. |
+| `authorization` | `string` | none    | A value that the driver sends as the `Authorization` header on each request. |
+| `timeout`       | `number` | `30000` | Longest wall-clock time for the full execution, tool round trips included, in ms. |
+| `maxToolRounds` | `number` | `10`    | Most tool-call rounds in one execution. It stops code that calls tools in a loop. |
+
+> [!WARNING]
+> The Worker runs any code that it gets. Protect the Worker with authentication, rate limits, and an allowed-origin list before you deploy it. The ready-made Worker does not check the `Authorization` header, so check it in your own Worker or use Cloudflare Access.
+
+The `worker_loader` binding works with `wrangler dev` on the Workers Free plan. To deploy, or to run `wrangler dev --remote`, you need the Workers Paid plan.
+
+## Daytona driver
+
+`@tanstack/ai-isolate-daytona` runs the code in a [Daytona](https://www.daytona.io/) sandbox with `sandbox.process.codeRun`. Your tools stay in your server process. The sandbox gets only the wrapped code and the tool results.
+
+<!-- ::start:tabs variant="package-manager" mode="install" -->
+
+react: @tanstack/ai-isolate-daytona @daytona/sdk
+vue: @tanstack/ai-isolate-daytona @daytona/sdk
+solid: @tanstack/ai-isolate-daytona @daytona/sdk
+svelte: @tanstack/ai-isolate-daytona @daytona/sdk
+preact: @tanstack/ai-isolate-daytona @daytona/sdk
+angular: @tanstack/ai-isolate-daytona @daytona/sdk
+vanilla: @tanstack/ai-isolate-daytona @daytona/sdk
+octane: @tanstack/ai-isolate-daytona @daytona/sdk
+
+<!-- ::end:tabs -->
+
+You need `@daytona/sdk` only if your app creates the sandboxes with the official Daytona SDK.
+
+```typescript
+import { Daytona } from '@daytona/sdk'
+import { createDaytonaIsolateDriver } from '@tanstack/ai-isolate-daytona'
+
+const daytona = new Daytona()
+const sandbox = await daytona.create({ language: 'typescript' })
+
+const driver = createDaytonaIsolateDriver({
+  sandbox,
+  timeout: 30_000,
+  maxToolRounds: 10,
+})
+```
 
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
-| `workerUrl` | `string` | — | **Required.** Full URL of the deployed Cloudflare Worker. |
-| `authorization` | `string` | — | Optional value sent as the `Authorization` header on every request. Use this to prevent unauthorized access to your Worker. |
-| `timeout` | `number` | `30000` | Maximum wall-clock time for the entire execution (including all tool round-trips), in milliseconds. |
-| `maxToolRounds` | `number` | `10` | Maximum number of tool-call/result cycles per execution. Prevents infinite loops when generated code calls tools in a loop. |
+| `sandbox` | `DaytonaSandboxLike` | none | Required. A Daytona sandbox that you own, or any object with `process.codeRun(code, params?, timeout?)`. |
+| `timeout` | `number` | `30000` | Longest wall-clock time for the full execution, replay rounds included, in ms. |
+| `maxToolRounds` | `number` | `10` | Most tool callback rounds between the sandbox and your server. It stops code that asks for tools in a loop. |
 
-### Deploying the Worker
+The sandbox must use a runtime that can run the JavaScript that Code Mode makes. Your app owns the sandbox lifecycle, file system, network, cleanup, and secret policy. A Code Mode context does not create or delete a Daytona sandbox.
 
-The package exports a ready-made Worker handler at `@tanstack/ai-isolate-cloudflare/worker`. Create a `wrangler.toml` and a worker entry file:
+## E2B driver
 
-```toml
-# wrangler.toml
-name = "code-mode-worker"
-main = "src/worker.ts"
-compatibility_date = "2024-01-01"
+`@tanstack/ai-isolate-e2b` runs the code as a `node` process in an [E2B](https://e2b.dev/) sandbox that your app creates. Your tools stay in your server process. The code runs one time, from start to finish.
 
-[unsafe]
-bindings = [{ name = "eval", type = "eval" }]
-```
+<!-- ::start:tabs variant="package-manager" mode="install" -->
+
+react: @tanstack/ai-isolate-e2b e2b
+vue: @tanstack/ai-isolate-e2b e2b
+solid: @tanstack/ai-isolate-e2b e2b
+svelte: @tanstack/ai-isolate-e2b e2b
+preact: @tanstack/ai-isolate-e2b e2b
+angular: @tanstack/ai-isolate-e2b e2b
+vanilla: @tanstack/ai-isolate-e2b e2b
+octane: @tanstack/ai-isolate-e2b e2b
+
+<!-- ::end:tabs -->
+
+Set `E2B_API_KEY` in your server environment. Then create a sandbox and give it to the driver:
 
 ```typescript
-// src/worker.ts
-export { default } from '@tanstack/ai-isolate-cloudflare/worker'
+import { Sandbox } from 'e2b'
+import { createE2BIsolateDriver } from '@tanstack/ai-isolate-e2b'
+
+const sandbox = await Sandbox.create()
+
+const driver = createE2BIsolateDriver({
+  sandbox,
+  timeout: 30_000,
+})
 ```
 
-Deploy:
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `sandbox` | `E2BSandboxLike` | none | Required. The E2B sandbox that runs the code, for example from `Sandbox.create()`. A sandbox from `@e2b/code-interpreter` also works. |
+| `timeout` | `number` | `30000` | Longest time for one execution, tool calls included, in ms. |
 
-```bash
-wrangler deploy
-```
+The `memoryLimit` of `createCodeMode` sets the heap limit of the `node` process.
 
-### How it works
+Your app owns these parts:
 
-The driver implements a request/response loop for tool execution:
+- **The sandbox lifecycle.** A context does not create, pause, or kill the sandbox.
+- **Who shares a sandbox.** All executions in one sandbox see the same files and network. Use one sandbox for each user or trusted scope.
+- **Secrets.** The driver sends no API key or server environment into the sandbox.
 
-```
-Driver (your server)              Worker (Cloudflare edge)
-─────────────────────             ─────────────────────────
-Send: code + tool schemas  ──────▶  Execute code
-                           ◀──────  Return: needs tool X with args Y
-Execute tool X locally
-Send: tool result          ──────▶  Resume execution
-                           ◀──────  Return: final result / needs tool Z
+## Advanced
+
+### How the Node driver works
+
+Each `execute_typescript` call creates a fresh V8 isolate. Your tools enter the isolate as async reference functions. When the code calls `external_myTool(...)`, the call crosses back into the host Node.js process, runs your tool, and returns the result. The driver captures the console output (`log`, `error`, `warn`, `info`) and returns it with the result. The isolate is destroyed after each call.
+
+The first call to `createNodeIsolateDriver` runs a probe in a subprocess. The probe finds a native addon that does not match your Node.js version, which can otherwise crash the process with a segfault. If the probe fails, the driver throws an error that tells you to use the QuickJS driver or a supported Node.js version.
+
+### How the QuickJS drivers work
+
+The WASM driver runs the synchronous WASM build. It bridges your async tools through QuickJS promises, so the WASM stack does not suspend. All contexts share one WASM module.
+
+The Bun driver gives each context its own native QuickJS runtime, with its own memory limit, stack size, and timeout. Contexts run independently.
+
+On both drivers, a fatal error (out of memory, stack overflow) disposes of the VM and returns a structured error. With the Bun driver, create a fresh context after a fatal error.
+
+### How the remote drivers call your tools
+
+The Cloudflare and Daytona drivers use a request and response loop. Your server runs the tools:
+
+```text
+Driver (your server)              Worker or sandbox
+--------------------              -----------------
+Send: code + tool schemas  ---->  Run the code
+                           <----  Return: needs tool X with args Y
+Run tool X locally
+Send: tool result          ---->  Continue
+                           <----  Return: final result, or needs tool Z
 ...repeat until done...
 ```
 
-Each round-trip adds network latency, so the `maxToolRounds` limit both prevents runaway scripts and caps the maximum number of cross-continent hops. Console output from all rounds is aggregated and returned in the final result.
+Each round trip adds network latency. `maxToolRounds` stops runaway scripts and caps the number of hops. The driver collects the console output from all rounds and returns it in the final result.
 
-> **Security:** The Worker requires `UNSAFE_EVAL` (local dev) or the `eval` unsafe binding (production) to execute arbitrary code. Restrict access using the `authorization` option or Cloudflare Access policies.
+The Daytona driver uses this loop with no parent Worker. It replays the code with the tool results that it has so far.
 
----
+The E2B driver keeps one `node` process alive for the full execution:
 
-## The `IsolateDriver` Interface
+```text
+Driver (your server)                 E2B sandbox
+--------------------                 -----------
+Start one node process    --------->  Run the generated code
+                          <---------  Tool call request (stdout)
+Run the tool locally
+Send the result (stdin)   --------->  Continue from the same point
+                          <---------  Final result
+```
 
-All three drivers satisfy this interface, exported from `@tanstack/ai-code-mode`:
+Because the process does not replay, side effects in the sandbox happen one time, also when the code calls many tools. A file write and an HTTP request are examples of such side effects.
 
-```typescript
+The E2B driver kills the process group on timeout, on `dispose()`, and after each execution. This includes processes that the code started, unless they moved to their own process group (`detached: true`). If the driver cannot confirm the kill after an execution, the result log records it, and the process can still run in the sandbox. `dispose()` does not throw. The sandbox template must have `node`, `setsid`, and `timeout`. The default E2B templates have them.
+
+### The `IsolateDriver` interface
+
+All drivers implement this interface from `@tanstack/ai-code-mode`. Implement it yourself to build a custom driver, for example on Docker or a Deno subprocess:
+
+```typescript ignore
+import type { NormalizedError, ToolBinding } from '@tanstack/ai-code-mode'
+
 interface IsolateDriver {
   createContext(config: IsolateConfig): Promise<IsolateContext>
 }
@@ -198,22 +388,14 @@ interface IsolateConfig {
 }
 
 interface IsolateContext {
-  execute(code: string): Promise<ExecutionResult>
+  execute<T = unknown>(code: string): Promise<ExecutionResult<T>>
   dispose(): Promise<void>
 }
 
 interface ExecutionResult<T = unknown> {
   success: boolean
   value?: T
-  logs: Array<string>
+  logs?: Array<string>
   error?: NormalizedError
 }
 ```
-
-You can implement this interface to build a custom driver — for example, a Docker-based sandbox or a Deno subprocess.
-
-## Next Steps
-
-- [Code Mode](./code-mode) — Core setup, API reference, and getting started guide
-- [Showing Code Mode in the UI](./client-integration) — Display execution progress in your React app
-- [Code Mode with Skills](./code-mode-with-skills) — Add persistent, reusable skill libraries

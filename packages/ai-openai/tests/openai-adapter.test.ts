@@ -1,0 +1,491 @@
+import { describe, it, expect, beforeEach, vi } from 'vitest'
+import { chat, type AdapterYieldChunk, type Tool } from '@tanstack/ai'
+import { resolveDebugOption } from '@tanstack/ai/adapter-internals'
+import { OpenAITextAdapter } from '../src/adapters/text'
+import { webSearchTool } from '../src/tools'
+import type { OpenAITextProviderOptions } from '../src/adapters/text'
+
+const createAdapter = <TModel extends 'gpt-4o-mini' | 'gpt-4o'>(
+  model: TModel,
+) => new OpenAITextAdapter({ apiKey: 'test-key' }, model)
+
+const toolArguments = JSON.stringify({ location: 'Berlin' })
+
+const weatherTool: Tool = {
+  name: 'lookup_weather',
+  description: 'Return the forecast for a location',
+}
+
+function createMockChatCompletionsStream(
+  chunks: Array<Record<string, unknown>>,
+): AsyncIterable<Record<string, unknown>> {
+  return {
+    async *[Symbol.asyncIterator]() {
+      for (const chunk of chunks) {
+        yield chunk
+      }
+    },
+  }
+}
+
+describe('strict fallback warning (#1213)', () => {
+  it('warns once per tool when its schema cannot be sent as strict', async () => {
+    const warn = vi.fn()
+    const logger = resolveDebugOption({
+      logger: { debug: vi.fn(), info: vi.fn(), warn, error: vi.fn() },
+    })
+    const refTool: Tool = {
+      name: 'lookup_user',
+      description: 'Find a user',
+      inputSchema: {
+        type: 'object',
+        properties: { user: { $ref: '#/$defs/user' } },
+        required: ['user'],
+      },
+    }
+    const adapter = createAdapter('gpt-4o-mini')
+    ;(adapter as any).client = {
+      responses: {
+        create: vi.fn(async () => createMockChatCompletionsStream([])),
+      },
+    }
+
+    for (let i = 0; i < 2; i++) {
+      for await (const _ of adapter.chatStream({
+        threadId: 'thread-1',
+        logger,
+        model: 'gpt-4o-mini',
+        messages: [{ role: 'user', content: 'hi' }],
+        tools: [refTool, weatherTool],
+      })) {
+        // drain
+      }
+    }
+
+    expect(warn).toHaveBeenCalledTimes(1)
+    expect(warn.mock.calls[0]![0]).toContain('"lookup_user"')
+    expect(warn.mock.calls[0]![0]).toContain('$ref')
+  })
+
+  it('does not warn when the config sets strictFallbackWarning: false', async () => {
+    const warn = vi.fn()
+    const logger = resolveDebugOption({
+      logger: { debug: vi.fn(), info: vi.fn(), warn, error: vi.fn() },
+    })
+    const refTool: Tool = {
+      name: 'lookup_user',
+      description: 'Find a user',
+      inputSchema: {
+        type: 'object',
+        properties: { user: { $ref: '#/$defs/user' } },
+        required: ['user'],
+      },
+    }
+    const adapter = new OpenAITextAdapter(
+      { apiKey: 'test-key', strictFallbackWarning: false },
+      'gpt-4o-mini',
+    )
+    ;(adapter as any).client = {
+      responses: {
+        create: vi.fn(async () => createMockChatCompletionsStream([])),
+      },
+    }
+
+    for await (const _ of adapter.chatStream({
+      threadId: 'thread-1',
+      logger,
+      model: 'gpt-4o-mini',
+      messages: [{ role: 'user', content: 'hi' }],
+      tools: [refTool],
+    })) {
+      // drain
+    }
+
+    expect(warn).not.toHaveBeenCalled()
+  })
+})
+
+describe('OpenAI adapter option mapping', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('maps options into the Responses API payload', async () => {
+    // Mock the Responses API event stream format
+    const mockStream = createMockChatCompletionsStream([
+      {
+        type: 'response.created',
+        response: {
+          id: 'resp-123',
+          model: 'gpt-4o-mini',
+          status: 'in_progress',
+          created_at: 1234567890,
+        },
+      },
+      {
+        type: 'response.content_part.added',
+        part: {
+          type: 'output_text',
+          text: 'It is sunny',
+        },
+      },
+      {
+        type: 'response.done',
+        response: {
+          id: 'resp-123',
+          model: 'gpt-4o-mini',
+          status: 'completed',
+          created_at: 1234567891,
+          usage: {
+            input_tokens: 12,
+            output_tokens: 4,
+          },
+        },
+      },
+    ])
+
+    const responsesCreate = vi.fn().mockResolvedValueOnce(mockStream)
+
+    const adapter = createAdapter('gpt-4o-mini')
+    // Replace the internal OpenAI SDK client with our mock
+    ;(adapter as any).client = {
+      responses: {
+        create: responsesCreate,
+      },
+    }
+
+    // Sampling options now live exclusively in `modelOptions` (provider-native
+    // wire names) rather than the root `temperature`/`topP`/`maxTokens` fields.
+    const modelOptions: OpenAITextProviderOptions = {
+      tool_choice: 'required',
+      temperature: 0.25,
+      top_p: 0.6,
+      max_output_tokens: 1024,
+    }
+
+    const chunks: AdapterYieldChunk[] = []
+    for await (const chunk of chat({
+      threadId: 'thread-1',
+      adapter,
+      systemPrompts: ['Stay concise'],
+      messages: [
+        { role: 'user', content: 'How is the weather?' },
+        {
+          role: 'assistant',
+          content: 'Let me check',
+          toolCalls: [
+            {
+              id: 'call_weather',
+              type: 'function',
+              function: { name: 'lookup_weather', arguments: toolArguments },
+            },
+          ],
+        },
+        { role: 'tool', toolCallId: 'call_weather', content: '{"temp":72}' },
+      ],
+      tools: [weatherTool],
+      metadata: { requestId: 'req-42' },
+      modelOptions,
+    })) {
+      chunks.push(chunk)
+    }
+
+    expect(responsesCreate).toHaveBeenCalledTimes(1)
+    const [payload] = responsesCreate.mock.calls[0]!
+
+    // Responses API uses different field names and structure
+    expect(payload).toMatchObject({
+      model: 'gpt-4o-mini',
+      temperature: 0.25,
+      top_p: 0.6,
+      max_output_tokens: 1024, // Responses API uses max_output_tokens instead of max_tokens
+      stream: true,
+      tool_choice: 'required', // From modelOptions
+      instructions: 'Stay concise', // systemPrompts join the Responses API `instructions` field
+    })
+
+    // Responses API uses 'input' instead of 'messages'
+    expect(payload.input).toBeDefined()
+
+    // Verify tools are included
+    expect(payload.tools).toBeDefined()
+    expect(Array.isArray(payload.tools)).toBe(true)
+    expect(payload.tools.length).toBeGreaterThan(0)
+    expect(payload.include).toBeUndefined()
+  })
+
+  it('requests encrypted reasoning only on reasoning models', async () => {
+    const mockStream = createMockChatCompletionsStream([
+      {
+        type: 'response.created',
+        response: {
+          id: 'resp-reasoning-include',
+          model: 'gpt-5.6-sol',
+          status: 'in_progress',
+          created_at: 1234567890,
+        },
+      },
+      {
+        type: 'response.completed',
+        response: {
+          id: 'resp-reasoning-include',
+          status: 'completed',
+          usage: { input_tokens: 1, output_tokens: 0 },
+        },
+      },
+    ])
+
+    const responsesCreate = vi.fn().mockResolvedValueOnce(mockStream)
+    const adapter = new OpenAITextAdapter({ apiKey: 'test-key' }, 'gpt-5.6-sol')
+    ;(adapter as any).client = {
+      responses: {
+        create: responsesCreate,
+      },
+    }
+
+    for await (const _chunk of chat({
+      threadId: 'thread-1',
+      adapter,
+      messages: [{ role: 'user', content: 'Hi' }],
+    })) {
+      // consume
+    }
+
+    const [payload] = responsesCreate.mock.calls[0]!
+    expect(payload.include).toEqual(['reasoning.encrypted_content'])
+  })
+
+  it('requests hosted web search sources while preserving caller include entries', async () => {
+    const mockStream = createMockChatCompletionsStream([
+      {
+        type: 'response.created',
+        response: {
+          id: 'resp-web-search-include',
+          model: 'gpt-4o-mini',
+          status: 'in_progress',
+        },
+      },
+      {
+        type: 'response.completed',
+        response: {
+          id: 'resp-web-search-include',
+          model: 'gpt-4o-mini',
+          status: 'completed',
+          output: [],
+        },
+      },
+    ])
+    const responsesCreate = vi.fn().mockResolvedValueOnce(mockStream)
+    const adapter = createAdapter('gpt-4o-mini')
+    ;(adapter as any).client = {
+      responses: {
+        create: responsesCreate,
+      },
+    }
+
+    for await (const _chunk of chat({
+      threadId: 'thread-1',
+      adapter,
+      messages: [{ role: 'user', content: 'Search the web.' }],
+      tools: [webSearchTool({ type: 'web_search' })],
+      modelOptions: { include: ['message.output_text.logprobs'] },
+    })) {
+      // consume
+    }
+
+    const [payload] = responsesCreate.mock.calls[0]!
+    expect(payload.include).toEqual([
+      'message.output_text.logprobs',
+      'web_search_call.action.sources',
+    ])
+  })
+
+  it('lets callers override the default reasoning include list', async () => {
+    const mockStream = createMockChatCompletionsStream([
+      {
+        type: 'response.created',
+        response: {
+          id: 'resp-include',
+          model: 'gpt-5.6-sol',
+          status: 'in_progress',
+          created_at: 1234567890,
+        },
+      },
+      {
+        type: 'response.completed',
+        response: {
+          id: 'resp-include',
+          status: 'completed',
+          usage: { input_tokens: 1, output_tokens: 0 },
+        },
+      },
+    ])
+
+    const responsesCreate = vi.fn().mockResolvedValueOnce(mockStream)
+    const adapter = new OpenAITextAdapter({ apiKey: 'test-key' }, 'gpt-5.6-sol')
+    ;(adapter as any).client = {
+      responses: {
+        create: responsesCreate,
+      },
+    }
+
+    for await (const _chunk of chat({
+      threadId: 'thread-1',
+      adapter,
+      messages: [{ role: 'user', content: 'Hi' }],
+      modelOptions: { include: [] },
+    })) {
+      // consume
+    }
+
+    const [payload] = responsesCreate.mock.calls[0]!
+    expect(payload.include).toEqual([])
+  })
+
+  it('accepts mixed string + object-form systemPrompts and joins .content into instructions', async () => {
+    const mockStream = createMockChatCompletionsStream([
+      {
+        type: 'response.created',
+        response: {
+          id: 'resp-mixed',
+          model: 'gpt-4o-mini',
+          status: 'in_progress',
+          created_at: 1234567890,
+        },
+      },
+      {
+        type: 'response.completed',
+        response: {
+          id: 'resp-mixed',
+          status: 'completed',
+          usage: { input_tokens: 1, output_tokens: 0 },
+        },
+      },
+    ])
+
+    const responsesCreate = vi.fn().mockResolvedValueOnce(mockStream)
+    const adapter = createAdapter('gpt-4o-mini')
+    ;(adapter as any).client = { responses: { create: responsesCreate } }
+
+    for await (const _ of chat({
+      threadId: 'thread-1',
+      adapter,
+      systemPrompts: [
+        'Plain string.',
+        // Object form (without metadata — OpenAI has no per-prompt metadata
+        // surface, so the `metadata` field is typed `never` and rejected
+        // at the call site).
+        { content: 'Structured.' },
+      ],
+      messages: [{ role: 'user', content: 'Hi' }],
+    })) {
+      // consume stream
+    }
+
+    const [payload] = responsesCreate.mock.calls[0]!
+    expect(payload.instructions).toBe('Plain string.\nStructured.')
+  })
+
+  it('forwards sampling options from modelOptions with OpenAI wire names', async () => {
+    const mockStream = createMockChatCompletionsStream([
+      {
+        type: 'response.created',
+        response: {
+          id: 'resp-sampling',
+          model: 'gpt-4o-mini',
+          status: 'in_progress',
+          created_at: 1234567890,
+        },
+      },
+      {
+        type: 'response.completed',
+        response: {
+          id: 'resp-sampling',
+          status: 'completed',
+          usage: { input_tokens: 1, output_tokens: 0 },
+        },
+      },
+    ])
+
+    const responsesCreate = vi.fn().mockResolvedValueOnce(mockStream)
+    const adapter = createAdapter('gpt-4o-mini')
+    ;(adapter as any).client = { responses: { create: responsesCreate } }
+
+    const modelOptions: OpenAITextProviderOptions = {
+      temperature: 0.3,
+      top_p: 0.9,
+      max_output_tokens: 256,
+    }
+
+    for await (const _ of chat({
+      threadId: 'thread-1',
+      adapter,
+      messages: [{ role: 'user', content: 'hi' }],
+      modelOptions,
+    })) {
+      // consume stream
+    }
+
+    const [payload] = responsesCreate.mock.calls[0]!
+    expect(payload.temperature).toBe(0.3)
+    expect(payload.top_p).toBe(0.9)
+    expect(payload.max_output_tokens).toBe(256)
+  })
+
+  it.each([
+    { reasoning: undefined, keepsSampling: false },
+    { reasoning: 'low', keepsSampling: false },
+    // OpenAI accepts sampling on gpt-6-sol / gpt-6-luna when effort is `none`.
+    { reasoning: 'off', keepsSampling: true },
+  ] as const)(
+    'sampling on gpt-6-sol with reasoning $reasoning: kept=$keepsSampling',
+    async ({ reasoning, keepsSampling }) => {
+      const model = 'gpt-6-sol'
+      const mockStream = createMockChatCompletionsStream([
+        {
+          type: 'response.created',
+          response: {
+            id: 'resp-gpt6-sampling',
+            model,
+            status: 'in_progress',
+            created_at: 1234567890,
+          },
+        },
+        {
+          type: 'response.completed',
+          response: {
+            id: 'resp-gpt6-sampling',
+            status: 'completed',
+            usage: { input_tokens: 1, output_tokens: 0 },
+          },
+        },
+      ])
+
+      const responsesCreate = vi.fn().mockResolvedValueOnce(mockStream)
+      const adapter = new OpenAITextAdapter({ apiKey: 'test-key' }, model)
+      ;(adapter as any).client = { responses: { create: responsesCreate } }
+
+      for await (const _ of chat({
+        adapter,
+        messages: [{ role: 'user', content: 'hi' }],
+        threadId: 'thread-1',
+        reasoning,
+        modelOptions: {
+          temperature: 0.7,
+          top_p: 0.9,
+          top_logprobs: 2,
+          max_output_tokens: 256,
+        },
+      })) {
+        // consume stream
+      }
+
+      const [payload] = responsesCreate.mock.calls[0]!
+      expect(payload.temperature).toBe(keepsSampling ? 0.7 : undefined)
+      expect(payload.top_p).toBe(keepsSampling ? 0.9 : undefined)
+      expect(payload.top_logprobs).toBe(keepsSampling ? 2 : undefined)
+      expect(payload.max_output_tokens).toBe(256)
+      expect(payload.include).toEqual(['reasoning.encrypted_content'])
+    },
+  )
+})

@@ -2,13 +2,19 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, createFileRoute } from '@tanstack/react-router'
 import {
   Braces,
+  Code2,
+  Database,
   FileAudio,
   FileText,
+  Github,
   Image,
   ImagePlus,
+  Layers,
   Mic,
   Music,
+  PauseCircle,
   Send,
+  Sparkles,
   Square,
   Video,
   X,
@@ -18,11 +24,25 @@ import rehypeRaw from 'rehype-raw'
 import rehypeSanitize from 'rehype-sanitize'
 import rehypeHighlight from 'rehype-highlight'
 import remarkGfm from 'remark-gfm'
-import { fetchServerSentEvents, useChat } from '@tanstack/ai-react'
+import {
+  fetchServerSentEvents,
+  useAudioRecorder,
+  useByok,
+  useChat,
+  useTranscription,
+} from '@tanstack/ai-react'
+import {
+  completeOpenRouterPkceIntoByok,
+  startOpenRouterPkceLogin,
+} from '@tanstack/ai-openrouter/pkce'
+import { refreshChatGptSignIn } from '@tanstack/ai-openai/siwc'
 import { clientTools } from '@tanstack/ai-client'
-import { ThinkingPart } from '@tanstack/ai-react-ui'
+import { ThinkingPart } from '@tanstack/ai-react/ui'
+import type { BoundInterrupts } from '@tanstack/ai-client'
 import type { UIMessage } from '@tanstack/ai-react'
 import type { ContentPart } from '@tanstack/ai'
+import type { GeminiInteractionsCustomEventValue } from '@tanstack/ai-gemini/experimental'
+import type { ProviderId } from '@tanstack/ai/byok'
 import type { ModelOption } from '@/lib/model-selection'
 import GuitarRecommendation from '@/components/example-GuitarRecommendation'
 import {
@@ -32,6 +52,8 @@ import {
   recommendGuitarToolDef,
 } from '@/lib/guitar-tools'
 import { DEFAULT_MODEL_OPTION, MODEL_OPTIONS } from '@/lib/model-selection'
+import { byok, getEnvKeyStatus, toByokProvider } from '@/lib/byok'
+import { ByokKeyDialog } from '@/components/ByokKeyDialog'
 
 /**
  * Generate a random message ID
@@ -73,6 +95,8 @@ const tools = clientTools(
   recommendGuitarToolClient,
 )
 
+type ChatTools = typeof tools
+
 function ChatInputArea({ children }: { children: React.ReactNode }) {
   return (
     <div className="border-t border-orange-500/10 bg-gray-900/80 backdrop-blur-sm">
@@ -83,27 +107,18 @@ function ChatInputArea({ children }: { children: React.ReactNode }) {
 
 function Messages({
   messages,
-  addToolApprovalResponse,
+  interrupts,
 }: {
-  messages: Array<UIMessage>
-  addToolApprovalResponse: (response: {
-    id: string
-    approved: boolean
-  }) => Promise<void>
+  messages: ReadonlyArray<UIMessage>
+  interrupts: BoundInterrupts<ChatTools>
 }) {
   const messagesContainerRef = useRef<HTMLDivElement>(null)
   const hasRenderablePart = (message: UIMessage): boolean => {
     return message.parts.some((part) => {
       if (part.type === 'thinking') return true
-      if (part.type === 'image') return true
+      // File-handle images have no local bytes or URL to show.
+      if (part.type === 'image' && part.source.type !== 'file') return true
       if (part.type === 'text' && part.content.trim()) return true
-      if (
-        part.type === 'tool-call' &&
-        part.state === 'approval-requested' &&
-        part.approval
-      ) {
-        return true
-      }
       if (
         part.type === 'tool-call' &&
         part.name === 'recommendGuitar' &&
@@ -121,9 +136,9 @@ function Messages({
       messagesContainerRef.current.scrollTop =
         messagesContainerRef.current.scrollHeight
     }
-  }, [visibleMessages])
+  }, [visibleMessages, interrupts.length])
 
-  if (!visibleMessages.length) {
+  if (!visibleMessages.length && interrupts.length === 0) {
     return (
       <div className="flex-1 overflow-y-auto px-4 py-8">
         <div className="max-w-2xl mx-auto space-y-6">
@@ -179,11 +194,74 @@ function Messages({
               <span className="text-sm text-gray-300">Video</span>
             </Link>
             <Link
+              to="/generations/persistent-generation"
+              className="flex flex-col items-center gap-2 p-4 bg-gray-800/50 border border-gray-700 rounded-lg hover:border-orange-500/40 hover:bg-gray-800 transition-colors"
+            >
+              <Database size={24} className="text-orange-400" />
+              <span className="text-sm text-gray-300">Persistence</span>
+            </Link>
+            <Link
               to="/generations/structured-output"
               className="flex flex-col items-center gap-2 p-4 bg-gray-800/50 border border-gray-700 rounded-lg hover:border-orange-500/40 hover:bg-gray-800 transition-colors"
             >
               <Braces size={24} className="text-orange-400" />
               <span className="text-sm text-gray-300">Structured</span>
+            </Link>
+            <Link
+              to="/generations/structured-chat"
+              className="flex flex-col items-center gap-2 p-4 bg-gray-800/50 border border-gray-700 rounded-lg hover:border-orange-500/40 hover:bg-gray-800 transition-colors"
+            >
+              <Braces size={24} className="text-orange-400" />
+              <span className="text-sm text-gray-300">Structured Chat</span>
+            </Link>
+            <Link
+              to="/generations/openrouter-combined"
+              className="flex flex-col items-center gap-2 p-4 bg-gray-800/50 border border-gray-700 rounded-lg hover:border-orange-500/40 hover:bg-gray-800 transition-colors"
+            >
+              <Layers size={24} className="text-orange-400" />
+              <span className="text-sm text-gray-300">OpenRouter Combined</span>
+            </Link>
+            <Link
+              to="/typesafe-tools"
+              className="flex flex-col items-center gap-2 p-4 bg-gray-800/50 border border-gray-700 rounded-lg hover:border-orange-500/40 hover:bg-gray-800 transition-colors"
+            >
+              <Code2 size={24} className="text-orange-400" />
+              <span className="text-sm text-gray-300">Type-Safe Tools</span>
+            </Link>
+            <Link
+              to="/interrupts"
+              className="flex flex-col items-center gap-2 p-4 bg-gray-800/50 border border-gray-700 rounded-lg hover:border-orange-500/40 hover:bg-gray-800 transition-colors"
+            >
+              <PauseCircle size={24} className="text-orange-400" />
+              <span className="text-sm text-gray-300">Interrupts Lab</span>
+            </Link>
+            <Link
+              to="/generic-interrupts"
+              className="flex flex-col items-center gap-2 p-4 bg-gray-800/50 border border-gray-700 rounded-lg hover:border-orange-500/40 hover:bg-gray-800 transition-colors"
+            >
+              <Sparkles size={24} className="text-orange-400" />
+              <span className="text-sm text-gray-300">Generic Interrupts</span>
+            </Link>
+            <Link
+              to="/sandboxes"
+              className="flex flex-col items-center gap-2 p-4 bg-gray-800/50 border border-gray-700 rounded-lg hover:border-orange-500/40 hover:bg-gray-800 transition-colors"
+            >
+              <Github size={24} className="text-orange-400" />
+              <span className="text-sm text-gray-300">Sandboxes</span>
+            </Link>
+            <Link
+              to="/repo-report"
+              className="flex flex-col items-center gap-2 p-4 bg-gray-800/50 border border-gray-700 rounded-lg hover:border-orange-500/40 hover:bg-gray-800 transition-colors"
+            >
+              <FileText size={24} className="text-orange-400" />
+              <span className="text-sm text-gray-300">Repo report</span>
+            </Link>
+            <Link
+              to="/app-studio"
+              className="flex flex-col items-center gap-2 p-4 bg-gray-800/50 border border-gray-700 rounded-lg hover:border-orange-500/40 hover:bg-gray-800 transition-colors"
+            >
+              <Layers size={24} className="text-orange-400" />
+              <span className="text-sm text-gray-300">App Studio</span>
             </Link>
           </div>
         </div>
@@ -196,6 +274,47 @@ function Messages({
       ref={messagesContainerRef}
       className="flex-1 overflow-y-auto px-4 py-4"
     >
+      {interrupts.map((interrupt) => {
+        if (interrupt.kind !== 'tool-approval') return null
+        return (
+          <div
+            key={interrupt.id}
+            className="p-4 bg-yellow-500/10 border border-yellow-500/20 rounded-lg mb-3"
+          >
+            <p className="text-white font-medium mb-2">
+              Approval required: {interrupt.toolName}
+            </p>
+            <div className="text-gray-300 text-sm mb-3">
+              <pre className="bg-gray-800 p-2 rounded text-xs overflow-x-auto">
+                {JSON.stringify(interrupt.originalArgs, null, 2)}
+              </pre>
+            </div>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => interrupt.resolveInterrupt(true)}
+                className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm font-medium transition-colors"
+              >
+                Approve
+              </button>
+              <button
+                type="button"
+                onClick={() => interrupt.resolveInterrupt(false)}
+                className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-medium transition-colors"
+              >
+                Deny
+              </button>
+              <button
+                type="button"
+                onClick={() => interrupt.cancel()}
+                className="px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white rounded-lg text-sm font-medium transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        )
+      })}
       {visibleMessages.map((message) => {
         return (
           <div
@@ -255,8 +374,9 @@ function Messages({
                     )
                   }
 
-                  // Render image parts
-                  if (part.type === 'image') {
+                  // Render image parts (file references have no local bytes
+                  // or URL to render, so only url/data sources get an <img>)
+                  if (part.type === 'image' && part.source.type !== 'file') {
                     const imageUrl =
                       part.source.type === 'url'
                         ? part.source.value
@@ -272,55 +392,13 @@ function Messages({
                     )
                   }
 
-                  // Approval UI
+                  // Tool approvals render from bound `interrupts` above
+                  // (resolveInterrupt). Skip legacy part.approval UI.
                   if (
                     part.type === 'tool-call' &&
-                    part.state === 'approval-requested' &&
-                    part.approval
+                    part.state === 'approval-requested'
                   ) {
-                    return (
-                      <div
-                        key={part.id}
-                        className="p-4 bg-yellow-500/10 border border-yellow-500/20 rounded-lg mt-2"
-                      >
-                        <p className="text-white font-medium mb-2">
-                          🔒 Approval Required: {part.name}
-                        </p>
-                        <div className="text-gray-300 text-sm mb-3">
-                          <pre className="bg-gray-800 p-2 rounded text-xs overflow-x-auto">
-                            {JSON.stringify(
-                              JSON.parse(part.arguments),
-                              null,
-                              2,
-                            )}
-                          </pre>
-                        </div>
-                        <div className="flex gap-2">
-                          <button
-                            onClick={() =>
-                              addToolApprovalResponse({
-                                id: part.approval!.id,
-                                approved: true,
-                              })
-                            }
-                            className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm font-medium transition-colors"
-                          >
-                            ✓ Approve
-                          </button>
-                          <button
-                            onClick={() =>
-                              addToolApprovalResponse({
-                                id: part.approval!.id,
-                                approved: false,
-                              })
-                            }
-                            className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-medium transition-colors"
-                          >
-                            ✗ Deny
-                          </button>
-                        </div>
-                      </div>
-                    )
+                    return null
                   }
 
                   // Guitar recommendation card
@@ -354,35 +432,162 @@ function ChatPage() {
     Array<{ id: string; base64: string; mimeType: string; preview: string }>
   >([])
   const fileInputRef = useRef<HTMLInputElement>(null)
+  // Session-scoped Gemini Interactions id — the server surfaces it via a
+  // `gemini.interactionId` CUSTOM event, and we send it back as
+  // `previous_interaction_id` on the next turn. State (not ref) so a
+  // forwardedProps change triggers `useChat` to re-sync the payload.
+  const [interactionId, setInteractionId] = useState<string | undefined>(
+    undefined,
+  )
+  const selectedProviderRef = useRef(selectedModel.provider)
+  selectedProviderRef.current = selectedModel.provider
+  const snapshot = useByok(byok)
+  const [envKeyStatus, setEnvKeyStatus] = useState<Record<string, boolean>>({})
+  const [keyDialog, setKeyDialog] = useState<{
+    open: boolean
+    provider: ProviderId | null
+  }>({ open: false, provider: null })
+  const [openRouterCompleting, setOpenRouterCompleting] = useState(false)
+  const [openRouterError, setOpenRouterError] = useState<string | null>(null)
 
-  const body = useMemo(
+  useEffect(() => {
+    void getEnvKeyStatus().then(setEnvKeyStatus)
+  }, [])
+
+  useEffect(() => {
+    setOpenRouterCompleting(true)
+    void completeOpenRouterPkceIntoByok(byok)
+      .catch((error: unknown) =>
+        setOpenRouterError(
+          error instanceof Error ? error.message : 'OpenRouter sign-in failed',
+        ),
+      )
+      .finally(() => setOpenRouterCompleting(false))
+  }, [])
+
+  // A ChatGPT sign-in token lasts an hour. Refresh it before it expires.
+  useEffect(() => {
+    const refresh = () => {
+      void refreshChatGptSignIn(byok).catch((error: unknown) =>
+        console.warn('ChatGPT token refresh failed', error),
+      )
+    }
+    refresh()
+    const timer = setInterval(refresh, 60_000)
+    return () => clearInterval(timer)
+  }, [])
+
+  useEffect(() => {
+    if (snapshot.prompt?.reason === 'missing') {
+      setKeyDialog({ open: true, provider: snapshot.prompt.provider })
+    }
+  }, [snapshot.prompt])
+
+  const activeByokId = toByokProvider(selectedModel.provider)
+
+  // Reset the interaction id whenever the user switches model/provider so
+  // we don't chain against a stale or wrong-model interaction. Messages
+  // are cleared too: the Gemini Interactions API can't replay history
+  // statelessly, so carrying messages from a different provider/model
+  // into a fresh interaction would surface as
+  // "cannot send prior conversation history on a fresh interaction".
+  useEffect(() => {
+    setInteractionId(undefined)
+    setMessages([])
+  }, [selectedModel.provider, selectedModel.model])
+
+  const forwardedProps = useMemo(
     () => ({
       provider: selectedModel.provider,
       model: selectedModel.model,
+      ...(selectedModel.provider === 'gemini-interactions' && interactionId
+        ? { previousInteractionId: interactionId }
+        : {}),
     }),
-    [selectedModel.provider, selectedModel.model],
+    [selectedModel.provider, selectedModel.model, interactionId],
   )
 
   const {
     messages,
+    setMessages,
     sendMessage,
     isLoading,
     error,
-    addToolApprovalResponse,
+    interrupts,
     stop,
   } = useChat({
+    threadId: 'guitar-chat',
     connection: fetchServerSentEvents('/api/tanchat'),
     tools,
-    body,
+    byok,
+    byokProvider: () => toByokProvider(selectedProviderRef.current),
+    forwardedProps,
     onCustomEvent: (eventType, data, context) => {
       console.log(
         `[CustomEvent] ${eventType}`,
         data,
         context.toolCallId ? `(tool call: ${context.toolCallId})` : '',
       )
+      if (eventType === 'gemini.interactionId') {
+        const value = data as
+          | GeminiInteractionsCustomEventValue<'gemini.interactionId'>
+          | undefined
+        if (value?.interactionId) setInteractionId(value.interactionId)
+      }
     },
   })
   const [input, setInput] = useState('')
+
+  // Voice input: record from the mic, transcribe via /api/transcribe, then drop
+  // the text into the composer for the user to review/edit/send. (Text chat
+  // models don't accept raw audio; transcription is the path that works.)
+  // `onResult`'s `r` infers as `TranscriptionResult` from the hook (no explicit
+  // type arg needed — the generation hooks' result-type inference handles it).
+  // Surface voice-input failures (permission denied, recorder error,
+  // transcription error) to the user rather than only logging them — a silent
+  // mic button is the worst outcome.
+  const [recordError, setRecordError] = useState<string | null>(null)
+
+  const { generate: transcribe, isLoading: isTranscribing } = useTranscription({
+    threadId: 'voice-input',
+    connection: fetchServerSentEvents('/api/transcribe'),
+    onResult: (r) => setInput((prev) => (prev ? `${prev} ${r.text}` : r.text)),
+    // A failed transcription (network/provider) is just as silent as a mic
+    // failure if only logged — surface it in the same banner below.
+    onError: (err) => {
+      console.error('[transcribe]', err)
+      setRecordError(
+        err instanceof Error ? err.message : 'Could not transcribe audio',
+      )
+    },
+  })
+  // Errors reach us by rejecting start()/stop(), so we handle them in the
+  // try/catch below — a single channel, not an additional `onError` callback.
+  const {
+    isRecording,
+    isSupported: micSupported,
+    start: startRecording,
+    stop: stopRecording,
+  } = useAudioRecorder()
+
+  const handleMicToggle = async () => {
+    try {
+      if (isRecording) {
+        const rec = await stopRecording()
+        // Strip the `;codecs=...` parameter so the provider gets a clean type.
+        const mimeType = rec.mimeType.split(';')[0]
+        await transcribe({ audio: `data:${mimeType};base64,${rec.base64}` })
+      } else {
+        setRecordError(null)
+        await startRecording()
+      }
+    } catch (err) {
+      console.error('[audio-recorder]', err)
+      setRecordError(
+        err instanceof Error ? err.message : 'Could not record audio',
+      )
+    }
+  }
 
   /**
    * Handle file selection for image attachment
@@ -512,6 +717,41 @@ function ChatPage() {
                 ))}
               </select>
             </div>
+            <ByokKeyDialog
+              open={keyDialog.open}
+              onOpenChange={(open) => setKeyDialog((s) => ({ ...s, open }))}
+              envStatus={envKeyStatus}
+              activeProvider={activeByokId}
+              highlightProvider={keyDialog.provider}
+              openRouter={{
+                onLogin: () => {
+                  setOpenRouterError(null)
+                  void startOpenRouterPkceLogin().catch((error: unknown) =>
+                    setOpenRouterError(
+                      error instanceof Error
+                        ? error.message
+                        : 'OpenRouter sign-in failed',
+                    ),
+                  )
+                },
+                completing: openRouterCompleting,
+                error: openRouterError,
+              }}
+            />
+            <Link
+              to="/interrupts"
+              className="flex items-center gap-2 px-4 py-2 rounded-lg bg-orange-500/10 border border-orange-500/20 text-orange-400 hover:bg-orange-500/20 transition-colors text-sm font-medium whitespace-nowrap"
+            >
+              <PauseCircle className="w-4 h-4" />
+              Interrupts Lab
+            </Link>
+            <Link
+              to="/generic-interrupts"
+              className="flex items-center gap-2 px-4 py-2 rounded-lg bg-orange-500/10 border border-orange-500/20 text-orange-400 hover:bg-orange-500/20 transition-colors text-sm font-medium whitespace-nowrap"
+            >
+              <Sparkles className="w-4 h-4" />
+              Generic Interrupts
+            </Link>
             <Link
               to="/generations/image"
               className="flex items-center gap-2 px-4 py-2 rounded-lg bg-orange-500/10 border border-orange-500/20 text-orange-400 hover:bg-orange-500/20 transition-colors text-sm font-medium whitespace-nowrap"
@@ -522,14 +762,24 @@ function ChatPage() {
           </div>
         </div>
 
-        <Messages
-          messages={messages}
-          addToolApprovalResponse={addToolApprovalResponse}
-        />
+        <Messages messages={messages} interrupts={interrupts} />
 
         {error && (
           <div className="mx-4 mt-2 p-3 bg-red-500/10 border border-red-500/30 rounded-lg text-red-400 text-sm">
             {error.message}
+          </div>
+        )}
+
+        {recordError && (
+          <div className="mx-4 mt-2 p-3 bg-red-500/10 border border-red-500/30 rounded-lg text-red-400 text-sm flex items-center justify-between gap-2">
+            <span>Voice input error: {recordError}</span>
+            <button
+              onClick={() => setRecordError(null)}
+              className="text-red-300 hover:text-red-200"
+              aria-label="Dismiss"
+            >
+              <X className="w-4 h-4" />
+            </button>
           </div>
         )}
 
@@ -588,6 +838,32 @@ function ChatPage() {
               >
                 <ImagePlus className="w-5 h-5" />
               </button>
+
+              {/* Mic / voice-input button */}
+              {micSupported && (
+                <button
+                  onClick={() => void handleMicToggle()}
+                  disabled={isLoading || isTranscribing}
+                  className={`p-3 transition-colors focus:outline-none disabled:text-gray-600 ${
+                    isRecording
+                      ? 'text-red-500 hover:text-red-400 animate-pulse'
+                      : 'text-gray-400 hover:text-orange-500'
+                  }`}
+                  title={
+                    isRecording
+                      ? 'Stop and transcribe'
+                      : isTranscribing
+                        ? 'Transcribing…'
+                        : 'Record voice input'
+                  }
+                >
+                  {isRecording ? (
+                    <Square className="w-5 h-5" />
+                  ) : (
+                    <Mic className="w-5 h-5" />
+                  )}
+                </button>
+              )}
 
               <div className="flex-1 relative">
                 <textarea

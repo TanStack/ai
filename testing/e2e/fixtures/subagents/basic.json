@@ -1,0 +1,257 @@
+{
+  "fixtures": [
+    {
+      "match": {
+        "userMessage": "[subagent-route] research squids",
+        "sequenceIndex": 0
+      },
+      "response": {
+        "reasoning": "Look up the facts first.",
+        "toolCalls": [
+          {
+            "name": "lookupFacts",
+            "arguments": "{\"topic\":\"squids\"}"
+          }
+        ]
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[subagent-route] research squids",
+        "sequenceIndex": 1
+      },
+      "response": {
+        "content": "Squids have three hearts."
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[subagent-approval] clean up the old logs",
+        "sequenceIndex": 0
+      },
+      "response": {
+        "toolCalls": [
+          {
+            "name": "deleteLogs",
+            "arguments": "{\"folder\":\"old\"}"
+          }
+        ]
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[subagent-approval] clean up the old logs",
+        "sequenceIndex": 1
+      },
+      "response": {
+        "content": "Deleted the old logs."
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[subagent-tool-approval] clean up the old logs",
+        "sequenceIndex": 0
+      },
+      "response": {
+        "toolCalls": [
+          {
+            "name": "cleaner",
+            "arguments": "{}"
+          }
+        ]
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[subagent-tool-approval] clean up the old logs",
+        "sequenceIndex": 1
+      },
+      "response": {
+        "toolCalls": [
+          {
+            "name": "deleteLogs",
+            "arguments": "{\"folder\":\"old\"}"
+          }
+        ]
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[subagent-tool-approval] clean up the old logs",
+        "sequenceIndex": 2
+      },
+      "response": {
+        "content": "Deleted the old logs."
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[subagent-tool-approval] clean up the old logs",
+        "sequenceIndex": 3
+      },
+      "response": {
+        "content": "Cleanup is done."
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[subagent-tool] research squids",
+        "sequenceIndex": 0
+      },
+      "response": {
+        "toolCalls": [
+          {
+            "name": "researcher",
+            "arguments": "{}"
+          }
+        ]
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[subagent-tool] research squids",
+        "sequenceIndex": 1
+      },
+      "response": {
+        "content": "Squids have three hearts."
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[subagent-tool] research squids",
+        "sequenceIndex": 2
+      },
+      "response": {
+        "content": "Research is done."
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[subagent-brief] compare squid facts",
+        "sequenceIndex": 0
+      },
+      "response": {
+        "toolCalls": [
+          {
+            "name": "researcher",
+            "arguments": "{\"task\":\"[subagent-brief-task] List two squid facts.\"}"
+          }
+        ]
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[subagent-brief-task] List two squid facts."
+      },
+      "response": {
+        "content": "Squids have three hearts and blue blood."
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[subagent-brief] compare squid facts",
+        "sequenceIndex": 1
+      },
+      "response": {
+        "content": "The comparison is ready."
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[subagent-result] price vendor a",
+        "sequenceIndex": 0
+      },
+      "response": {
+        "toolCalls": [
+          {
+            "name": "pricer",
+            "arguments": "{\"task\":\"[subagent-result-task] Price Vendor A.\"}"
+          }
+        ]
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[subagent-result-task] Price Vendor A."
+      },
+      "response": {
+        "content": "Vendor A costs 42 EUR."
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[subagent-result] price vendor a",
+        "sequenceIndex": 1
+      },
+      "response": {
+        "content": "Pricing is ready."
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[subagent-limits] research two topics",
+        "sequenceIndex": 0
+      },
+      "response": {
+        "toolCalls": [
+          {
+            "name": "researcher",
+            "arguments": "{\"task\":\"[subagent-limits-task] squids\"}"
+          },
+          {
+            "name": "researcher",
+            "arguments": "{\"task\":\"[subagent-limits-task] octopuses\"}"
+          }
+        ]
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[subagent-limits-task] squids"
+      },
+      "response": {
+        "content": "Squids have three hearts."
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[subagent-limits] research two topics",
+        "sequenceIndex": 1
+      },
+      "response": {
+        "content": "One topic is done."
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[subagent-keys] write a draft",
+        "sequenceIndex": 0
+      },
+      "response": {
+        "toolCalls": [
+          {
+            "name": "writer",
+            "arguments": "{\"task\":\"[subagent-keys-task] Write a draft.\"}"
+          }
+        ]
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[subagent-keys-task] Write a draft."
+      },
+      "response": {
+        "content": "The draft is written."
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[subagent-keys] write a draft",
+        "sequenceIndex": 1
+      },
+      "response": {
+        "content": "The writer is done."
+      }
+    }
+  ]
+}

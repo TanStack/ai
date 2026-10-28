@@ -1,0 +1,20 @@
+---
+id: InterruptBoundaryResult
+title: InterruptBoundaryResult
+---
+
+```ts
+type InterruptBoundaryResult<TDefinitions> = 
+  | undefined
+  | {
+  interrupts: ReadonlyArray<GenericInterruptRequest<TDefinitions>>;
+};
+```
+
+Defined in: packages/ai/src/activities/chat/middleware/types.ts:177
+
+## Type Parameters
+
+### TDefinitions
+
+`TDefinitions` *extends* `AnyInterruptDefinition` = `AnyInterruptDefinition`

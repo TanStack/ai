@@ -3,9 +3,7 @@ id: ProcessorResult
 title: ProcessorResult
 ---
 
-# Interface: ProcessorResult
-
-Defined in: [packages/typescript/ai/src/activities/chat/stream/types.ts:70](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/stream/types.ts#L70)
+Defined in: packages/ai/src/activities/chat/stream/types.ts:77
 
 Result from processing a stream
 
@@ -17,34 +15,34 @@ Result from processing a stream
 content: string;
 ```
 
-Defined in: [packages/typescript/ai/src/activities/chat/stream/types.ts:71](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/stream/types.ts#L71)
+Defined in: packages/ai/src/activities/chat/stream/types.ts:78
 
 ***
 
 ### finishReason?
 
 ```ts
-optional finishReason: string | null;
+optional finishReason?: string | null;
 ```
 
-Defined in: [packages/typescript/ai/src/activities/chat/stream/types.ts:74](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/stream/types.ts#L74)
+Defined in: packages/ai/src/activities/chat/stream/types.ts:81
 
 ***
 
 ### thinking?
 
 ```ts
-optional thinking: string;
+optional thinking?: string;
 ```
 
-Defined in: [packages/typescript/ai/src/activities/chat/stream/types.ts:72](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/stream/types.ts#L72)
+Defined in: packages/ai/src/activities/chat/stream/types.ts:79
 
 ***
 
 ### toolCalls?
 
 ```ts
-optional toolCalls: ToolCall[];
+optional toolCalls?: ToolCall<unknown>[];
 ```
 
-Defined in: [packages/typescript/ai/src/activities/chat/stream/types.ts:73](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/stream/types.ts#L73)
+Defined in: packages/ai/src/activities/chat/stream/types.ts:80

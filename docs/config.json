@@ -11,31 +11,150 @@
       "children": [
         {
           "label": "Overview",
-          "to": "getting-started/overview"
+          "to": "getting-started/overview",
+          "addedAt": "2026-04-15",
+          "updatedAt": "2026-10-22"
         },
         {
-          "label": "Quick Start: React",
-          "to": "getting-started/quick-start"
+          "label": "Quick Start",
+          "to": "getting-started/quick-start",
+          "addedAt": "2026-04-15",
+          "updatedAt": "2026-10-22"
         },
         {
-          "label": "Devtools",
-          "to": "getting-started/devtools"
-        },
-        {
-          "label": "Quick Start: Vue",
-          "to": "getting-started/quick-start-vue"
-        },
-        {
-          "label": "Quick Start: Svelte",
-          "to": "getting-started/quick-start-svelte"
+          "label": "Quick Start: React Native",
+          "to": "getting-started/quick-start-react-native",
+          "addedAt": "2026-05-28",
+          "updatedAt": "2026-10-22"
         },
         {
           "label": "Quick Start: Server Only",
-          "to": "getting-started/quick-start-server"
+          "to": "getting-started/quick-start-server",
+          "addedAt": "2026-04-15",
+          "updatedAt": "2026-10-22"
+        },
+        {
+          "label": "Devtools",
+          "to": "getting-started/devtools",
+          "addedAt": "2026-04-15",
+          "updatedAt": "2026-10-22"
         },
         {
           "label": "Agent Skills (TanStack Intent)",
-          "to": "getting-started/agent-skills"
+          "to": "getting-started/agent-skills",
+          "addedAt": "2026-04-17",
+          "updatedAt": "2026-10-22"
+        }
+      ],
+      "tab": "get-started"
+    },
+    {
+      "label": "Tutorials",
+      "tab": "tutorial",
+      "children": [
+        {
+          "label": "Basic Chat",
+          "to": "tutorials/basic-chat",
+          "addedAt": "2026-09-17",
+          "updatedAt": "2026-10-22"
+        },
+        {
+          "label": "Generate Image",
+          "to": "tutorials/generate-image",
+          "addedAt": "2026-09-17",
+          "updatedAt": "2026-10-22"
+        },
+        {
+          "label": "Streaming Structured Table",
+          "to": "tutorials/streaming-structured-table",
+          "addedAt": "2026-09-17",
+          "updatedAt": "2026-10-22"
+        },
+        {
+          "label": "Evaluate a ticket",
+          "to": "tutorials/evaluate",
+          "addedAt": "2026-09-18",
+          "updatedAt": "2026-10-22"
+        },
+        {
+          "label": "Subagents",
+          "to": "tutorials/subagents",
+          "addedAt": "2026-09-21",
+          "updatedAt": "2026-10-22"
+        },
+        {
+          "label": "Persisted subagents",
+          "to": "tutorials/subagents-persisted",
+          "addedAt": "2026-09-22",
+          "updatedAt": "2026-10-22"
+        },
+        {
+          "label": "Build an MCP Server",
+          "to": "tutorials/mcp-server",
+          "addedAt": "2026-09-22",
+          "updatedAt": "2026-10-22"
+        },
+        {
+          "label": "Computer Use",
+          "to": "tutorials/computer-use",
+          "addedAt": "2026-10-21",
+          "updatedAt": "2026-10-22"
+        },
+        {
+          "label": "Subscribe to MCP Events",
+          "to": "tutorials/mcp-events",
+          "addedAt": "2026-10-17"
+        }
+      ]
+    },
+    {
+      "label": "Examples",
+      "tab": "examples",
+      "children": [
+        {
+          "label": "Basic Chat",
+          "to": "framework/react/examples/basic-chat",
+          "addedAt": "2026-09-17"
+        },
+        {
+          "label": "Generate Image",
+          "to": "framework/react/examples/generate-image",
+          "addedAt": "2026-09-17"
+        },
+        {
+          "label": "Streaming Structured Table",
+          "to": "framework/react/examples/streaming-structured-table",
+          "addedAt": "2026-09-17"
+        },
+        {
+          "label": "Evaluate",
+          "to": "framework/react/examples/evaluate",
+          "addedAt": "2026-09-18"
+        },
+        {
+          "label": "Subagents",
+          "to": "framework/react/examples/subagents",
+          "addedAt": "2026-09-21"
+        },
+        {
+          "label": "Persisted subagents",
+          "to": "framework/react/examples/subagents-persisted",
+          "addedAt": "2026-09-22"
+        },
+        {
+          "label": "MCP Server",
+          "to": "framework/react/examples/mcp-server",
+          "addedAt": "2026-09-22"
+        },
+        {
+          "label": "Computer Use",
+          "to": "framework/react/examples/computer-use",
+          "addedAt": "2026-10-21"
+        },
+        {
+          "label": "MCP Events",
+          "to": "framework/react/examples/mcp-events",
+          "addedAt": "2026-10-17"
         }
       ]
     },
@@ -44,7 +163,171 @@
       "children": [
         {
           "label": "TanStack AI vs Vercel AI SDK",
-          "to": "comparison/vercel-ai-sdk"
+          "to": "comparison/vercel-ai-sdk",
+          "addedAt": "2026-04-15",
+          "updatedAt": "2026-10-22"
+        },
+        {
+          "label": "TanStack AI vs pi",
+          "to": "comparison/pi",
+          "addedAt": "2026-10-26"
+        }
+      ],
+      "tab": "get-started"
+    },
+    {
+      "label": "Chat & Streaming",
+      "children": [
+        {
+          "label": "Streaming",
+          "to": "chat/streaming",
+          "addedAt": "2026-04-15",
+          "updatedAt": "2026-10-22"
+        },
+        {
+          "label": "Stream Events",
+          "to": "chat/stream-events",
+          "addedAt": "2026-08-26",
+          "updatedAt": "2026-10-22"
+        },
+        {
+          "label": "Subagents",
+          "to": "chat/subagents",
+          "addedAt": "2026-09-21",
+          "updatedAt": "2026-10-22"
+        },
+        {
+          "label": "Subagents: Advanced",
+          "to": "chat/subagents-advanced",
+          "addedAt": "2026-10-21",
+          "updatedAt": "2026-10-22"
+        },
+        {
+          "label": "Agentic Cycle",
+          "to": "chat/agentic-cycle",
+          "addedAt": "2026-04-15",
+          "updatedAt": "2026-10-22"
+        },
+        {
+          "label": "Thinking & Reasoning",
+          "to": "chat/thinking-content",
+          "addedAt": "2026-04-15",
+          "updatedAt": "2026-10-22"
+        },
+        {
+          "label": "Reasoning",
+          "to": "chat/reasoning",
+          "addedAt": "2026-10-09",
+          "updatedAt": "2026-10-22"
+        },
+        {
+          "label": "Message Queue",
+          "to": "chat/queueing",
+          "addedAt": "2026-08-26",
+          "updatedAt": "2026-10-22"
+        }
+      ],
+      "tab": "guides"
+    },
+    {
+      "label": "Transports",
+      "tab": "guides",
+      "children": [
+        {
+          "label": "Overview",
+          "to": "transports/overview",
+          "addedAt": "2026-10-08",
+          "updatedAt": "2026-10-22"
+        },
+        {
+          "label": "Server-Sent Events",
+          "to": "transports/sse",
+          "addedAt": "2026-10-08",
+          "updatedAt": "2026-10-22"
+        },
+        {
+          "label": "HTTP Stream",
+          "to": "transports/http-stream",
+          "addedAt": "2026-10-08",
+          "updatedAt": "2026-10-22"
+        },
+        {
+          "label": "JSON",
+          "to": "transports/json",
+          "addedAt": "2026-10-08",
+          "updatedAt": "2026-10-22"
+        },
+        {
+          "label": "WebSockets",
+          "to": "transports/websockets",
+          "addedAt": "2026-10-08",
+          "updatedAt": "2026-10-22"
+        },
+        {
+          "label": "React Native",
+          "to": "transports/react-native",
+          "addedAt": "2026-10-08",
+          "updatedAt": "2026-10-22"
+        },
+        {
+          "label": "Server Functions",
+          "to": "transports/server-functions",
+          "addedAt": "2026-10-08",
+          "updatedAt": "2026-10-22"
+        },
+        {
+          "label": "Request Options",
+          "to": "transports/request-options",
+          "addedAt": "2026-10-08",
+          "updatedAt": "2026-10-22"
+        },
+        {
+          "label": "Custom Transports",
+          "to": "transports/custom",
+          "addedAt": "2026-10-08",
+          "updatedAt": "2026-10-22"
+        }
+      ]
+    },
+    {
+      "label": "Structured Outputs",
+      "tab": "guides",
+      "children": [
+        {
+          "label": "Overview",
+          "to": "structured-outputs/overview",
+          "addedAt": "2026-05-19",
+          "updatedAt": "2026-10-22"
+        },
+        {
+          "label": "One-Shot Extraction",
+          "to": "structured-outputs/one-shot",
+          "addedAt": "2026-05-19",
+          "updatedAt": "2026-10-22"
+        },
+        {
+          "label": "Streaming UIs",
+          "to": "structured-outputs/streaming",
+          "addedAt": "2026-05-19",
+          "updatedAt": "2026-10-22"
+        },
+        {
+          "label": "Multi-Turn Chat",
+          "to": "structured-outputs/multi-turn",
+          "addedAt": "2026-05-19",
+          "updatedAt": "2026-10-22"
+        },
+        {
+          "label": "With Tools",
+          "to": "structured-outputs/with-tools",
+          "addedAt": "2026-05-19",
+          "updatedAt": "2026-10-22"
+        },
+        {
+          "label": "Harness Agents",
+          "to": "structured-outputs/harnesses",
+          "addedAt": "2026-08-14",
+          "updatedAt": "2026-10-22"
         }
       ]
     },
@@ -53,77 +336,538 @@
       "children": [
         {
           "label": "Tools",
-          "to": "tools/tools"
-        },
-        {
-          "label": "Provider Tools",
-          "to": "tools/provider-tools"
-        },
-        {
-          "label": "Tool Architecture",
-          "to": "tools/tool-architecture"
+          "to": "tools/tools",
+          "addedAt": "2026-04-15",
+          "updatedAt": "2026-10-22"
         },
         {
           "label": "Server Tools",
-          "to": "tools/server-tools"
+          "to": "tools/server-tools",
+          "addedAt": "2026-04-15",
+          "updatedAt": "2026-10-22"
+        },
+        {
+          "label": "Server Tools: Advanced",
+          "to": "tools/server-tools-advanced",
+          "addedAt": "2026-10-21",
+          "updatedAt": "2026-10-22"
         },
         {
           "label": "Client Tools",
-          "to": "tools/client-tools"
+          "to": "tools/client-tools",
+          "addedAt": "2026-04-15",
+          "updatedAt": "2026-10-22"
+        },
+        {
+          "label": "WebMCP Tools",
+          "to": "tools/webmcp",
+          "addedAt": "2026-09-02",
+          "updatedAt": "2026-10-22"
+        },
+        {
+          "label": "Page WebMCP Tools in Chat",
+          "to": "tools/webmcp-page-tools",
+          "addedAt": "2026-09-23",
+          "updatedAt": "2026-10-22"
         },
         {
           "label": "Tool Approval Flow",
-          "to": "tools/tool-approval"
+          "to": "tools/tool-approval",
+          "addedAt": "2026-04-15",
+          "updatedAt": "2026-10-22"
+        },
+        {
+          "label": "Provider Tools",
+          "to": "tools/provider-tools",
+          "addedAt": "2026-04-21",
+          "updatedAt": "2026-10-22"
+        },
+        {
+          "label": "Provider Skills",
+          "to": "tools/provider-skills",
+          "addedAt": "2026-06-04",
+          "updatedAt": "2026-10-22"
         },
         {
           "label": "Lazy Tool Discovery",
-          "to": "tools/lazy-tool-discovery"
+          "to": "tools/lazy-tool-discovery",
+          "addedAt": "2026-04-15",
+          "updatedAt": "2026-10-22"
+        },
+        {
+          "label": "Tool Architecture",
+          "to": "tools/tool-architecture",
+          "addedAt": "2026-04-15",
+          "updatedAt": "2026-10-22"
+        }
+      ],
+      "tab": "guides"
+    },
+    {
+      "label": "Middleware",
+      "children": [
+        {
+          "label": "Middleware",
+          "to": "advanced/middleware",
+          "addedAt": "2026-04-15",
+          "updatedAt": "2026-10-22"
+        },
+        {
+          "label": "Middleware: Advanced",
+          "to": "advanced/middleware-advanced",
+          "addedAt": "2026-10-21",
+          "updatedAt": "2026-10-22"
+        },
+        {
+          "label": "Built-in Middleware",
+          "to": "advanced/built-in-middleware",
+          "addedAt": "2026-06-03",
+          "updatedAt": "2026-10-22"
+        },
+        {
+          "label": "Locks",
+          "to": "advanced/locks",
+          "addedAt": "2026-08-04",
+          "updatedAt": "2026-10-22"
+        },
+        {
+          "label": "OpenTelemetry",
+          "to": "advanced/otel",
+          "addedAt": "2026-05-08",
+          "updatedAt": "2026-10-22"
+        },
+        {
+          "label": "Compaction",
+          "to": "advanced/compaction",
+          "addedAt": "2026-08-24",
+          "updatedAt": "2026-10-22"
+        },
+        {
+          "label": "Compaction: Advanced",
+          "to": "advanced/compaction-advanced",
+          "addedAt": "2026-10-21",
+          "updatedAt": "2026-10-22"
+        }
+      ],
+      "tab": "guides"
+    },
+    {
+      "label": "UI",
+      "tab": "guides",
+      "children": [
+        {
+          "label": "React",
+          "to": "ui/react",
+          "addedAt": "2026-08-26",
+          "updatedAt": "2026-10-22"
+        },
+        {
+          "label": "Solid",
+          "to": "ui/solid",
+          "addedAt": "2026-08-26",
+          "updatedAt": "2026-10-22"
+        },
+        {
+          "label": "Vue",
+          "to": "ui/vue",
+          "addedAt": "2026-08-26",
+          "updatedAt": "2026-10-22"
+        },
+        {
+          "label": "Svelte",
+          "to": "ui/svelte",
+          "addedAt": "2026-08-26",
+          "updatedAt": "2026-10-22"
+        },
+        {
+          "label": "Preact",
+          "to": "ui/preact",
+          "addedAt": "2026-09-01",
+          "updatedAt": "2026-10-22"
+        },
+        {
+          "label": "Octane",
+          "to": "ui/octane",
+          "addedAt": "2026-09-01",
+          "updatedAt": "2026-10-22"
+        },
+        {
+          "label": "Remix",
+          "to": "ui/remix",
+          "addedAt": "2026-09-01",
+          "updatedAt": "2026-10-22"
+        },
+        {
+          "label": "Angular",
+          "to": "ui/angular",
+          "addedAt": "2026-09-01",
+          "updatedAt": "2026-10-22"
+        },
+        {
+          "label": "Custom Adapters",
+          "to": "ui/custom-adapters",
+          "addedAt": "2026-08-26",
+          "updatedAt": "2026-10-22"
+        },
+        {
+          "label": "Highlight markdown",
+          "to": "ui/markdown",
+          "addedAt": "2026-09-15",
+          "updatedAt": "2026-10-22"
         }
       ]
     },
     {
-      "label": "Chat & Streaming",
+      "label": "Chat UI Recipes",
+      "tab": "guides",
       "children": [
         {
-          "label": "Agentic Cycle",
-          "to": "chat/agentic-cycle"
+          "label": "Overview",
+          "to": "ui/recipes/index",
+          "tab": "guides",
+          "addedAt": "2026-08-31",
+          "updatedAt": "2026-10-22"
         },
         {
-          "label": "Streaming",
-          "to": "chat/streaming"
+          "label": "Chat with no tools",
+          "to": "ui/recipes/basic-chat",
+          "tab": "guides",
+          "addedAt": "2026-08-31",
+          "updatedAt": "2026-10-22"
         },
         {
-          "label": "Connection Adapters",
-          "to": "chat/connection-adapters"
+          "label": "Format a tool",
+          "to": "ui/recipes/format-a-tool",
+          "tab": "guides",
+          "addedAt": "2026-08-31",
+          "updatedAt": "2026-10-22"
         },
         {
-          "label": "Structured Outputs",
-          "to": "chat/structured-outputs"
+          "label": "Tool approval",
+          "to": "ui/recipes/tool-approval",
+          "tab": "guides",
+          "addedAt": "2026-08-31",
+          "updatedAt": "2026-10-22"
         },
         {
-          "label": "Thinking & Reasoning",
-          "to": "chat/thinking-content"
+          "label": "Custom interrupt",
+          "to": "ui/recipes/custom-interrupt",
+          "tab": "guides",
+          "addedAt": "2026-08-31",
+          "updatedAt": "2026-10-22"
+        },
+        {
+          "label": "Per-request context",
+          "to": "ui/recipes/request-context",
+          "tab": "guides",
+          "addedAt": "2026-08-31",
+          "updatedAt": "2026-10-22"
         }
       ]
     },
     {
-      "label": "Code Mode",
+      "label": "Interrupts",
+      "tab": "guides",
       "children": [
         {
-          "label": "Code Mode",
-          "to": "code-mode/code-mode"
+          "label": "Overview",
+          "to": "interrupts/overview",
+          "addedAt": "2026-08-04",
+          "updatedAt": "2026-10-22"
         },
         {
-          "label": "Showing Code Mode in the UI",
-          "to": "code-mode/client-integration"
+          "label": "Tool Approval",
+          "to": "interrupts/tool-approval",
+          "addedAt": "2026-08-04",
+          "updatedAt": "2026-10-22"
         },
         {
-          "label": "Code Mode with Skills",
-          "to": "code-mode/code-mode-with-skills"
+          "label": "Multiple Interrupts",
+          "to": "interrupts/multiple",
+          "addedAt": "2026-08-04",
+          "updatedAt": "2026-10-22"
         },
         {
-          "label": "Code Mode Isolate Drivers",
-          "to": "code-mode/code-mode-isolates"
+          "label": "Generic Interrupts",
+          "to": "interrupts/generic",
+          "addedAt": "2026-08-04",
+          "updatedAt": "2026-10-22"
+        },
+        {
+          "label": "Lifecycle Boundaries",
+          "to": "interrupts/boundaries",
+          "addedAt": "2026-08-13",
+          "updatedAt": "2026-10-22"
+        },
+        {
+          "label": "Apply Answers",
+          "to": "interrupts/apply-answers",
+          "addedAt": "2026-08-13",
+          "updatedAt": "2026-10-22"
+        },
+        {
+          "label": "Migration",
+          "to": "interrupts/migration",
+          "addedAt": "2026-08-04",
+          "updatedAt": "2026-10-22"
+        }
+      ]
+    },
+    {
+      "label": "MCP",
+      "children": [
+        {
+          "label": "MCP Server Tools",
+          "to": "tools/mcp",
+          "addedAt": "2026-06-05",
+          "updatedAt": "2026-10-22"
+        },
+        {
+          "label": "Managed MCP with chat()",
+          "to": "tools/mcp-managed",
+          "addedAt": "2026-06-05",
+          "updatedAt": "2026-10-22"
+        },
+        {
+          "label": "Manual MCP",
+          "to": "tools/mcp-manual",
+          "addedAt": "2026-06-05",
+          "updatedAt": "2026-10-22"
+        },
+        {
+          "label": "MCP Type Generation",
+          "to": "tools/mcp-codegen",
+          "addedAt": "2026-06-05",
+          "updatedAt": "2026-10-22"
+        },
+        {
+          "label": "MCP Client Input",
+          "to": "tools/mcp-input",
+          "addedAt": "2026-09-22",
+          "updatedAt": "2026-10-22"
+        },
+        {
+          "label": "MCP Server Tools: Advanced",
+          "to": "tools/mcp-advanced",
+          "addedAt": "2026-10-21"
+        },
+        {
+          "label": "MCP Events",
+          "to": "tools/mcp-events",
+          "addedAt": "2026-10-17"
+        },
+        {
+          "label": "MCP Apps",
+          "to": "mcp/apps",
+          "addedAt": "2026-06-24",
+          "updatedAt": "2026-10-22"
+        },
+        {
+          "label": "Serve Tools over HTTP",
+          "to": "mcp/server",
+          "addedAt": "2026-09-22",
+          "updatedAt": "2026-10-22"
+        },
+        {
+          "label": "Serve Resources and Prompts",
+          "to": "mcp/server-content",
+          "addedAt": "2026-09-22",
+          "updatedAt": "2026-10-22"
+        },
+        {
+          "label": "Ask for Input",
+          "to": "mcp/server-input",
+          "addedAt": "2026-09-22",
+          "updatedAt": "2026-10-22"
+        },
+        {
+          "label": "Draft Text from a Tool",
+          "to": "mcp/server-sample",
+          "addedAt": "2026-09-22",
+          "updatedAt": "2026-10-22"
+        },
+        {
+          "label": "MCP Server Tasks",
+          "to": "mcp/server-tasks",
+          "addedAt": "2026-09-22",
+          "updatedAt": "2026-10-22"
+        },
+        {
+          "label": "MCP Server Auth",
+          "to": "mcp/server-auth",
+          "addedAt": "2026-09-22",
+          "updatedAt": "2026-10-22"
+        },
+        {
+          "label": "MCP Server Sessions",
+          "to": "mcp/server-sessions",
+          "addedAt": "2026-09-22",
+          "updatedAt": "2026-10-22"
+        },
+        {
+          "label": "MCP Server on stdio",
+          "to": "mcp/server-stdio",
+          "addedAt": "2026-09-22",
+          "updatedAt": "2026-10-22"
+        }
+      ],
+      "tab": "guides"
+    },
+    {
+      "label": "Skills",
+      "children": [
+        {
+          "label": "Portable Agent Skills",
+          "to": "skills/agent-skills",
+          "addedAt": "2026-08-22",
+          "updatedAt": "2026-10-22"
+        },
+        {
+          "label": "Skill Sources",
+          "to": "skills/skill-sources",
+          "addedAt": "2026-08-22",
+          "updatedAt": "2026-10-22"
+        },
+        {
+          "label": "Write a Skill Source",
+          "to": "skills/writing-adapters",
+          "addedAt": "2026-08-22",
+          "updatedAt": "2026-10-22"
+        }
+      ],
+      "tab": "guides"
+    },
+    {
+      "label": "Resumable Streams",
+      "tab": "guides",
+      "children": [
+        {
+          "label": "Overview",
+          "to": "resumable-streams/overview",
+          "addedAt": "2026-08-04",
+          "updatedAt": "2026-10-22"
+        },
+        {
+          "label": "Advanced",
+          "to": "resumable-streams/advanced",
+          "addedAt": "2026-08-04",
+          "updatedAt": "2026-10-22"
+        },
+        {
+          "label": "WebSockets",
+          "to": "resumable-streams/websockets",
+          "addedAt": "2026-08-19",
+          "updatedAt": "2026-10-22"
+        },
+        {
+          "label": "Custom Durability Adapter",
+          "to": "resumable-streams/custom-adapter",
+          "addedAt": "2026-08-04",
+          "updatedAt": "2026-10-22"
+        }
+      ]
+    },
+    {
+      "label": "Persistence",
+      "tab": "guides",
+      "children": [
+        {
+          "label": "Overview",
+          "to": "persistence/overview",
+          "addedAt": "2026-08-04",
+          "updatedAt": "2026-10-22"
+        },
+        {
+          "label": "Chat Persistence",
+          "to": "persistence/chat-persistence",
+          "addedAt": "2026-08-04",
+          "updatedAt": "2026-10-22"
+        },
+        {
+          "label": "Chat Persistence: Advanced",
+          "to": "persistence/chat-persistence-advanced",
+          "addedAt": "2026-10-21",
+          "updatedAt": "2026-10-22"
+        },
+        {
+          "label": "Client Persistence",
+          "to": "persistence/client-persistence",
+          "addedAt": "2026-08-04",
+          "updatedAt": "2026-10-22"
+        },
+        {
+          "label": "Generation Persistence",
+          "to": "persistence/generation-persistence",
+          "addedAt": "2026-08-04",
+          "updatedAt": "2026-10-22"
+        },
+        {
+          "label": "Controls",
+          "to": "persistence/controls",
+          "addedAt": "2026-08-04",
+          "updatedAt": "2026-10-22"
+        },
+        {
+          "label": "Build Your Own Adapter",
+          "to": "persistence/build-your-own-adapter",
+          "addedAt": "2026-08-04",
+          "updatedAt": "2026-10-22"
+        },
+        {
+          "label": "Migrations",
+          "to": "persistence/migrations",
+          "addedAt": "2026-08-04",
+          "updatedAt": "2026-10-22"
+        }
+      ]
+    },
+    {
+      "label": "Persistence (Advanced)",
+      "tab": "guides",
+      "collapsible": true,
+      "defaultCollapsed": true,
+      "children": [
+        {
+          "label": "Id Map",
+          "to": "persistence/id-map",
+          "addedAt": "2026-08-04",
+          "updatedAt": "2026-10-22"
+        },
+        {
+          "label": "Keep Generated Files",
+          "to": "persistence/keep-generated-files",
+          "addedAt": "2026-08-04",
+          "updatedAt": "2026-10-22"
+        },
+        {
+          "label": "Build a Chat Adapter",
+          "to": "persistence/build-your-own-chat-adapter",
+          "addedAt": "2026-08-04",
+          "updatedAt": "2026-10-22"
+        },
+        {
+          "label": "Build a Generation Adapter",
+          "to": "persistence/build-your-own-generation-adapter",
+          "addedAt": "2026-08-04",
+          "updatedAt": "2026-10-22"
+        },
+        {
+          "label": "Build a Sandbox Adapter",
+          "to": "persistence/build-a-sandbox-adapter",
+          "addedAt": "2026-08-04",
+          "updatedAt": "2026-10-22"
+        },
+        {
+          "label": "Store Reference",
+          "to": "persistence/store-reference",
+          "addedAt": "2026-08-04",
+          "updatedAt": "2026-10-22"
+        },
+        {
+          "label": "How Persistence Works",
+          "to": "persistence/internals",
+          "addedAt": "2026-08-04",
+          "updatedAt": "2026-10-22"
         }
       ]
     },
@@ -132,35 +876,698 @@
       "children": [
         {
           "label": "Generations",
-          "to": "media/generations"
+          "to": "media/generations",
+          "addedAt": "2026-04-15",
+          "updatedAt": "2026-10-22"
         },
         {
           "label": "Realtime Voice Chat",
-          "to": "media/realtime-chat"
+          "to": "media/realtime-chat",
+          "addedAt": "2026-04-15",
+          "updatedAt": "2026-10-22"
         },
         {
           "label": "Text-to-Speech",
-          "to": "media/text-to-speech"
+          "to": "media/text-to-speech",
+          "addedAt": "2026-04-15",
+          "updatedAt": "2026-10-22"
         },
         {
           "label": "Transcription",
-          "to": "media/transcription"
+          "to": "media/transcription",
+          "addedAt": "2026-04-15",
+          "updatedAt": "2026-10-22"
+        },
+        {
+          "label": "Transcription: Advanced",
+          "to": "media/transcription-advanced",
+          "addedAt": "2026-10-21"
+        },
+        {
+          "label": "Voice Creation",
+          "to": "media/voice-creation",
+          "addedAt": "2026-09-16",
+          "updatedAt": "2026-10-22"
+        },
+        {
+          "label": "Audio Recording",
+          "to": "media/audio-recording",
+          "addedAt": "2026-06-23",
+          "updatedAt": "2026-10-22"
         },
         {
           "label": "Audio Generation",
-          "to": "media/audio-generation"
+          "to": "media/audio-generation",
+          "addedAt": "2026-04-23",
+          "updatedAt": "2026-10-22"
         },
         {
           "label": "Image Generation",
-          "to": "media/image-generation"
+          "to": "media/image-generation",
+          "addedAt": "2026-04-15",
+          "updatedAt": "2026-10-22"
+        },
+        {
+          "label": "Image Generation: Advanced",
+          "to": "media/image-generation-advanced",
+          "addedAt": "2026-10-21"
         },
         {
           "label": "Video Generation",
-          "to": "media/video-generation"
+          "to": "media/video-generation",
+          "addedAt": "2026-04-15",
+          "updatedAt": "2026-10-22"
+        },
+        {
+          "label": "Video Generation: Advanced",
+          "to": "media/video-generation-advanced",
+          "addedAt": "2026-10-21"
+        },
+        {
+          "label": "Live Generation",
+          "to": "media/live-generation",
+          "addedAt": "2026-09-04",
+          "updatedAt": "2026-10-22"
+        },
+        {
+          "label": "World Generation",
+          "to": "media/world-generation",
+          "addedAt": "2026-09-04",
+          "updatedAt": "2026-10-22"
         },
         {
           "label": "Generation Hooks",
-          "to": "media/generation-hooks"
+          "to": "media/generation-hooks",
+          "addedAt": "2026-04-15",
+          "updatedAt": "2026-10-22"
+        }
+      ],
+      "tab": "guides"
+    },
+    {
+      "label": "Embeddings",
+      "children": [
+        {
+          "label": "Embeddings",
+          "to": "embeddings",
+          "addedAt": "2026-07-10",
+          "updatedAt": "2026-10-22"
+        }
+      ],
+      "tab": "guides"
+    },
+    {
+      "label": "Reranking",
+      "children": [
+        {
+          "label": "Reranking",
+          "to": "rerank/rerank",
+          "addedAt": "2026-06-25",
+          "updatedAt": "2026-10-22"
+        }
+      ],
+      "tab": "guides"
+    },
+    {
+      "label": "Evaluate",
+      "children": [
+        {
+          "label": "Evaluate",
+          "to": "evaluate/evaluate",
+          "addedAt": "2026-09-18",
+          "updatedAt": "2026-10-22"
+        }
+      ],
+      "tab": "guides"
+    },
+    {
+      "label": "Code Mode",
+      "children": [
+        {
+          "label": "Code Mode",
+          "to": "code-mode/code-mode",
+          "addedAt": "2026-04-15",
+          "updatedAt": "2026-10-22"
+        },
+        {
+          "label": "Showing Code Mode in the UI",
+          "to": "code-mode/client-integration",
+          "addedAt": "2026-04-15",
+          "updatedAt": "2026-10-22"
+        },
+        {
+          "label": "Code Mode with Snippets",
+          "to": "code-mode/code-mode-with-snippets",
+          "addedAt": "2026-04-15",
+          "updatedAt": "2026-10-22"
+        },
+        {
+          "label": "Code Mode Isolate Drivers",
+          "to": "code-mode/code-mode-isolates",
+          "addedAt": "2026-04-15",
+          "updatedAt": "2026-10-22"
+        },
+        {
+          "label": "Lazy Tools",
+          "to": "code-mode/lazy-tools",
+          "addedAt": "2026-06-08",
+          "updatedAt": "2026-10-22"
+        }
+      ],
+      "tab": "guides"
+    },
+    {
+      "label": "Computer Use",
+      "children": [
+        {
+          "label": "Computer Use",
+          "to": "computer-use/computer-use",
+          "addedAt": "2026-10-20",
+          "updatedAt": "2026-10-22"
+        },
+        {
+          "label": "Drivers",
+          "to": "computer-use/drivers",
+          "addedAt": "2026-10-20",
+          "updatedAt": "2026-10-22"
+        },
+        {
+          "label": "Safety Checks",
+          "to": "computer-use/safety-checks",
+          "addedAt": "2026-10-20",
+          "updatedAt": "2026-10-22"
+        },
+        {
+          "label": "Custom Driver",
+          "to": "computer-use/custom-driver",
+          "addedAt": "2026-10-20",
+          "updatedAt": "2026-10-22"
+        }
+      ],
+      "tab": "guides"
+    },
+    {
+      "label": "Harness",
+      "tab": "guides",
+      "children": [
+        {
+          "label": "Build your first harness",
+          "to": "harness/overview",
+          "addedAt": "2026-10-13",
+          "updatedAt": "2026-10-22"
+        },
+        {
+          "label": "Host options",
+          "to": "harness/host-options",
+          "addedAt": "2026-10-20",
+          "updatedAt": "2026-10-22"
+        },
+        {
+          "label": "Send and show media",
+          "to": "harness/media",
+          "addedAt": "2026-10-13",
+          "updatedAt": "2026-10-20"
+        },
+        {
+          "label": "Connect clients",
+          "to": "harness/connect",
+          "addedAt": "2026-10-13",
+          "updatedAt": "2026-10-22"
+        },
+        {
+          "label": "Write a client in any language",
+          "to": "harness/protocol",
+          "addedAt": "2026-10-17",
+          "updatedAt": "2026-10-22"
+        },
+        {
+          "label": "Access and tenants",
+          "to": "harness/access",
+          "addedAt": "2026-10-17",
+          "updatedAt": "2026-10-22"
+        },
+        {
+          "label": "Run in the terminal",
+          "to": "harness/cli",
+          "addedAt": "2026-10-13",
+          "updatedAt": "2026-10-19"
+        },
+        {
+          "label": "Deploy a harness",
+          "to": "harness/deploy",
+          "addedAt": "2026-10-13",
+          "updatedAt": "2026-10-20"
+        },
+        {
+          "label": "Send inputs safely",
+          "to": "harness/inputs",
+          "addedAt": "2026-10-13",
+          "updatedAt": "2026-10-22"
+        },
+        {
+          "label": "Run a tool without a model",
+          "to": "harness/tool-runs",
+          "addedAt": "2026-10-15"
+        },
+        {
+          "label": "Durable sessions",
+          "to": "harness/durable-sessions",
+          "addedAt": "2026-10-13",
+          "updatedAt": "2026-10-22"
+        },
+        {
+          "label": "Run background work on workers",
+          "to": "harness/workers",
+          "addedAt": "2026-10-17",
+          "updatedAt": "2026-10-19"
+        },
+        {
+          "label": "List, rename, and fork sessions",
+          "to": "harness/sessions",
+          "addedAt": "2026-10-13",
+          "updatedAt": "2026-10-22"
+        },
+        {
+          "label": "Lifecycle and retention",
+          "to": "harness/lifecycle",
+          "addedAt": "2026-10-17",
+          "updatedAt": "2026-10-22"
+        },
+        {
+          "label": "Run side effects once",
+          "to": "harness/durable-tools",
+          "addedAt": "2026-10-13",
+          "updatedAt": "2026-10-20"
+        },
+        {
+          "label": "Wait for a person",
+          "to": "harness/waits",
+          "addedAt": "2026-10-18",
+          "updatedAt": "2026-10-21"
+        },
+        {
+          "label": "Build on the session log",
+          "to": "harness/session-log",
+          "addedAt": "2026-10-13",
+          "updatedAt": "2026-10-22"
+        },
+        {
+          "label": "Control how a turn ends",
+          "to": "harness/turn-control",
+          "addedAt": "2026-10-13",
+          "updatedAt": "2026-10-22"
+        },
+        {
+          "label": "Store settings per thread",
+          "to": "harness/thread-settings",
+          "addedAt": "2026-10-13",
+          "updatedAt": "2026-10-22"
+        },
+        {
+          "label": "Compact a long session",
+          "to": "harness/compaction",
+          "addedAt": "2026-10-13",
+          "updatedAt": "2026-10-22"
+        },
+        {
+          "label": "Fork and reset a thread",
+          "to": "harness/fork-and-reset",
+          "addedAt": "2026-10-13",
+          "updatedAt": "2026-10-18"
+        },
+        {
+          "label": "One log for a session tree",
+          "to": "harness/shared-logs",
+          "addedAt": "2026-10-13",
+          "updatedAt": "2026-10-20"
+        },
+        {
+          "label": "Write a plugin",
+          "to": "harness/plugins",
+          "addedAt": "2026-10-13",
+          "updatedAt": "2026-10-22"
+        },
+        {
+          "label": "Track usage and cost",
+          "to": "harness/usage",
+          "addedAt": "2026-10-13",
+          "updatedAt": "2026-10-18"
+        },
+        {
+          "label": "Ask before risky tool calls",
+          "to": "harness/permissions",
+          "addedAt": "2026-10-13",
+          "updatedAt": "2026-10-21"
+        },
+        {
+          "label": "Give your agent coding tools",
+          "to": "harness/coding-tools",
+          "addedAt": "2026-10-13",
+          "updatedAt": "2026-10-21"
+        },
+        {
+          "label": "Sandbox and extend the coding tools",
+          "to": "harness/coding-tools-backends",
+          "addedAt": "2026-10-13",
+          "updatedAt": "2026-10-22"
+        },
+        {
+          "label": "Run the coding tools for many threads",
+          "to": "harness/coding-workspaces",
+          "addedAt": "2026-10-18",
+          "updatedAt": "2026-10-21"
+        },
+        {
+          "label": "Undo a turn",
+          "to": "harness/snapshots",
+          "addedAt": "2026-10-13",
+          "updatedAt": "2026-10-22"
+        },
+        {
+          "label": "Build a coding agent",
+          "to": "harness/coding-agent",
+          "addedAt": "2026-10-13",
+          "updatedAt": "2026-10-18"
+        },
+        {
+          "label": "Delegate to coding agents",
+          "to": "harness/coding-agents",
+          "addedAt": "2026-10-13",
+          "updatedAt": "2026-10-18"
+        },
+        {
+          "label": "Switch between agent profiles",
+          "to": "harness/agents",
+          "addedAt": "2026-10-13",
+          "updatedAt": "2026-10-18"
+        },
+        {
+          "label": "Auth and connectors",
+          "to": "harness/auth",
+          "addedAt": "2026-10-13",
+          "updatedAt": "2026-10-19"
+        },
+        {
+          "label": "Share a thread between people",
+          "to": "harness/shared-threads",
+          "addedAt": "2026-10-13",
+          "updatedAt": "2026-10-22"
+        },
+        {
+          "label": "Connect model providers",
+          "to": "harness/provider-keys",
+          "addedAt": "2026-10-13",
+          "updatedAt": "2026-10-20"
+        },
+        {
+          "label": "Build your own UI",
+          "to": "harness/custom-ui",
+          "addedAt": "2026-10-13",
+          "updatedAt": "2026-10-22"
+        },
+        {
+          "label": "Code mode in a harness",
+          "to": "harness/code-mode",
+          "addedAt": "2026-10-13",
+          "updatedAt": "2026-10-21"
+        },
+        {
+          "label": "Work until a goal is met",
+          "to": "harness/goal",
+          "addedAt": "2026-10-13",
+          "updatedAt": "2026-10-18"
+        },
+        {
+          "label": "Run agents from a harness",
+          "to": "harness/subagents",
+          "addedAt": "2026-10-13",
+          "updatedAt": "2026-10-22"
+        },
+        {
+          "label": "Hand off a conversation",
+          "to": "harness/handoffs",
+          "addedAt": "2026-10-18",
+          "updatedAt": "2026-10-20"
+        },
+        {
+          "label": "Add skills",
+          "to": "harness/skills",
+          "addedAt": "2026-10-13",
+          "updatedAt": "2026-10-20"
+        },
+        {
+          "label": "Use MCP servers",
+          "to": "harness/mcp",
+          "addedAt": "2026-10-13",
+          "updatedAt": "2026-10-21"
+        },
+        {
+          "label": "Give your agent a computer",
+          "to": "harness/computer-use",
+          "addedAt": "2026-10-21"
+        },
+        {
+          "label": "Use from any MCP client",
+          "to": "harness/mcp-server",
+          "addedAt": "2026-10-13",
+          "updatedAt": "2026-10-18"
+        },
+        {
+          "label": "Use a harness from an editor (ACP)",
+          "to": "harness/acp",
+          "addedAt": "2026-10-13",
+          "updatedAt": "2026-10-18"
+        }
+      ]
+    },
+    {
+      "label": "Sandboxes",
+      "tab": "guides",
+      "children": [
+        {
+          "label": "Overview",
+          "to": "sandbox/overview",
+          "addedAt": "2026-06-16",
+          "updatedAt": "2026-10-22"
+        },
+        {
+          "label": "Quick Start",
+          "to": "sandbox/quick-start",
+          "addedAt": "2026-06-29",
+          "updatedAt": "2026-10-22"
+        },
+        {
+          "label": "Providers",
+          "to": "sandbox/providers",
+          "addedAt": "2026-06-29",
+          "updatedAt": "2026-10-22"
+        },
+        {
+          "label": "Harnesses",
+          "to": "sandbox/harnesses",
+          "addedAt": "2026-06-30",
+          "updatedAt": "2026-10-22"
+        },
+        {
+          "label": "Harness Auth",
+          "to": "sandbox/auth",
+          "addedAt": "2026-08-18",
+          "updatedAt": "2026-10-22"
+        },
+        {
+          "label": "Workspace",
+          "to": "sandbox/workspace",
+          "addedAt": "2026-06-29",
+          "updatedAt": "2026-10-22"
+        },
+        {
+          "label": "Tools",
+          "to": "sandbox/tools",
+          "addedAt": "2026-06-29",
+          "updatedAt": "2026-10-22"
+        },
+        {
+          "label": "Policy",
+          "to": "sandbox/policy",
+          "addedAt": "2026-06-29",
+          "updatedAt": "2026-10-22"
+        },
+        {
+          "label": "Lifecycle & Snapshots",
+          "to": "sandbox/lifecycle",
+          "addedAt": "2026-06-29",
+          "updatedAt": "2026-10-22"
+        },
+        {
+          "label": "Portable Snapshots",
+          "to": "sandbox/portable-snapshots",
+          "addedAt": "2026-08-14",
+          "updatedAt": "2026-10-22"
+        },
+        {
+          "label": "Keep Files After Reload",
+          "to": "sandbox/portable-snapshots-configure",
+          "addedAt": "2026-08-14",
+          "updatedAt": "2026-10-22"
+        },
+        {
+          "label": "Save a Named Version",
+          "to": "sandbox/portable-snapshots-save",
+          "addedAt": "2026-08-14",
+          "updatedAt": "2026-10-22"
+        },
+        {
+          "label": "Branch From a Version",
+          "to": "sandbox/portable-snapshots-fork",
+          "addedAt": "2026-08-14",
+          "updatedAt": "2026-10-22"
+        },
+        {
+          "label": "Send a Frozen File",
+          "to": "sandbox/portable-snapshots-artifacts",
+          "addedAt": "2026-08-14",
+          "updatedAt": "2026-10-22"
+        },
+        {
+          "label": "Let the Agent Save and Fork",
+          "to": "sandbox/portable-snapshots-tools",
+          "addedAt": "2026-08-14",
+          "updatedAt": "2026-10-22"
+        },
+        {
+          "label": "Pick Which Files to Keep",
+          "to": "sandbox/portable-snapshots-files",
+          "addedAt": "2026-08-18",
+          "updatedAt": "2026-10-22"
+        },
+        {
+          "label": "What a Snapshot Stores",
+          "to": "sandbox/portable-snapshots-safety",
+          "addedAt": "2026-08-14",
+          "updatedAt": "2026-10-22"
+        },
+        {
+          "label": "Instance Durability",
+          "to": "sandbox/durability",
+          "addedAt": "2026-08-04",
+          "updatedAt": "2026-10-22"
+        },
+        {
+          "label": "Durable Runs",
+          "to": "sandbox/durable-runs",
+          "addedAt": "2026-08-04",
+          "updatedAt": "2026-10-22"
+        },
+        {
+          "label": "Events",
+          "to": "sandbox/events",
+          "addedAt": "2026-06-29",
+          "updatedAt": "2026-10-22"
+        }
+      ]
+    },
+    {
+      "label": "Sandboxes (Advanced)",
+      "tab": "guides",
+      "collapsible": true,
+      "defaultCollapsed": true,
+      "children": [
+        {
+          "label": "Providers (Advanced)",
+          "to": "sandbox/providers-advanced",
+          "addedAt": "2026-10-21"
+        },
+        {
+          "label": "The Run Journal",
+          "to": "sandbox/journal",
+          "addedAt": "2026-08-04",
+          "updatedAt": "2026-10-22"
+        },
+        {
+          "label": "Run Journal Internals",
+          "to": "sandbox/journal-advanced",
+          "addedAt": "2026-10-21"
+        },
+        {
+          "label": "Takeover & Detached Runs",
+          "to": "sandbox/takeover",
+          "addedAt": "2026-08-04",
+          "updatedAt": "2026-10-22"
+        },
+        {
+          "label": "Takeover Internals",
+          "to": "sandbox/takeover-advanced",
+          "addedAt": "2026-10-21"
+        },
+        {
+          "label": "Reaping & Retention",
+          "to": "sandbox/reaping",
+          "addedAt": "2026-08-04",
+          "updatedAt": "2026-10-22"
+        },
+        {
+          "label": "Reaping Internals",
+          "to": "sandbox/reaping-advanced",
+          "addedAt": "2026-10-21"
+        },
+        {
+          "label": "Provisioning",
+          "to": "sandbox/provisioning",
+          "addedAt": "2026-06-29",
+          "updatedAt": "2026-10-22"
+        },
+        {
+          "label": "Observability",
+          "to": "sandbox/observability",
+          "addedAt": "2026-06-29",
+          "updatedAt": "2026-10-22"
+        },
+        {
+          "label": "Cloudflare (Edge)",
+          "to": "sandbox/cloudflare",
+          "addedAt": "2026-06-29",
+          "updatedAt": "2026-10-22"
+        },
+        {
+          "label": "Cloudflare Edge Details",
+          "to": "sandbox/cloudflare-advanced",
+          "addedAt": "2026-10-21"
+        }
+      ]
+    },
+    {
+      "label": "Memory",
+      "tab": "guides",
+      "children": [
+        {
+          "label": "Overview",
+          "to": "memory/overview",
+          "addedAt": "2026-08-04",
+          "updatedAt": "2026-10-22"
+        },
+        {
+          "label": "Quickstart",
+          "to": "memory/quickstart",
+          "addedAt": "2026-08-04",
+          "updatedAt": "2026-10-22"
+        },
+        {
+          "label": "Adapters",
+          "to": "memory/adapters",
+          "addedAt": "2026-08-04",
+          "updatedAt": "2026-10-22"
+        },
+        {
+          "label": "Custom Adapter",
+          "to": "memory/custom-adapter",
+          "addedAt": "2026-08-04",
+          "updatedAt": "2026-10-22"
+        },
+        {
+          "label": "Operating",
+          "to": "memory/operating",
+          "addedAt": "2026-08-04",
+          "updatedAt": "2026-10-22"
         }
       ]
     },
@@ -168,36 +1575,366 @@
       "label": "Advanced",
       "children": [
         {
-          "label": "Middleware",
-          "to": "advanced/middleware"
+          "label": "Runtime Context",
+          "to": "advanced/runtime-context",
+          "addedAt": "2026-06-01",
+          "updatedAt": "2026-10-22"
+        },
+        {
+          "label": "Bring Your Own Key",
+          "to": "advanced/byok",
+          "addedAt": "2026-08-18",
+          "updatedAt": "2026-10-22"
+        },
+        {
+          "label": "Keep Keys on the Server",
+          "to": "advanced/server-keys",
+          "addedAt": "2026-10-16",
+          "updatedAt": "2026-10-19"
         },
         {
           "label": "Debug Logging",
-          "to": "advanced/debug-logging"
-        },
-        {
-          "label": "Observability",
-          "to": "advanced/observability"
+          "to": "advanced/debug-logging",
+          "addedAt": "2026-04-22",
+          "updatedAt": "2026-10-22"
         },
         {
           "label": "Multimodal Content",
-          "to": "advanced/multimodal-content"
+          "to": "advanced/multimodal-content",
+          "addedAt": "2026-04-15",
+          "updatedAt": "2026-10-22"
+        },
+        {
+          "label": "Files API",
+          "to": "advanced/files-api",
+          "addedAt": "2026-09-11",
+          "updatedAt": "2026-10-22"
         },
         {
           "label": "Per-Model Type Safety",
-          "to": "advanced/per-model-type-safety"
+          "to": "advanced/per-model-type-safety",
+          "addedAt": "2026-04-15",
+          "updatedAt": "2026-10-22"
         },
         {
           "label": "Runtime Adapter Switching",
-          "to": "advanced/runtime-adapter-switching"
+          "to": "advanced/runtime-adapter-switching",
+          "addedAt": "2026-04-15",
+          "updatedAt": "2026-10-22"
         },
         {
           "label": "Tree-Shaking",
-          "to": "advanced/tree-shaking"
+          "to": "advanced/tree-shaking",
+          "addedAt": "2026-04-15",
+          "updatedAt": "2026-10-22"
         },
         {
           "label": "Extend Adapter",
-          "to": "advanced/extend-adapter"
+          "to": "advanced/extend-adapter",
+          "addedAt": "2026-04-15",
+          "updatedAt": "2026-10-22"
+        },
+        {
+          "label": "Extend Adapter: Advanced",
+          "to": "advanced/extend-adapter-advanced",
+          "addedAt": "2026-10-21"
+        },
+        {
+          "label": "Typed Pre-Configured Options",
+          "to": "advanced/typed-options",
+          "addedAt": "2026-05-25",
+          "updatedAt": "2026-10-22"
+        },
+        {
+          "label": "Test with a Fake Model",
+          "to": "advanced/testing",
+          "addedAt": "2026-10-09",
+          "updatedAt": "2026-10-22"
+        },
+        {
+          "label": "Prompt Caching",
+          "to": "advanced/prompt-caching",
+          "addedAt": "2026-10-09",
+          "updatedAt": "2026-10-22"
+        },
+        {
+          "label": "Mid-Conversation Changes",
+          "to": "advanced/mid-conversation-changes",
+          "addedAt": "2026-10-09",
+          "updatedAt": "2026-10-22"
+        },
+        {
+          "label": "Approval Flow Processing",
+          "to": "architecture/approval-flow-processing",
+          "addedAt": "2026-04-15",
+          "updatedAt": "2026-10-22"
+        }
+      ],
+      "tab": "guides"
+    },
+    {
+      "label": "Adapters",
+      "children": [
+        {
+          "label": "OpenAI",
+          "to": "adapters/openai",
+          "addedAt": "2026-04-15",
+          "updatedAt": "2026-10-22"
+        },
+        {
+          "label": "OpenAI: Advanced",
+          "to": "adapters/openai-advanced",
+          "addedAt": "2026-10-21",
+          "updatedAt": "2026-10-22"
+        },
+        {
+          "label": "Anthropic",
+          "to": "adapters/anthropic",
+          "addedAt": "2026-04-15",
+          "updatedAt": "2026-10-22"
+        },
+        {
+          "label": "Anthropic: Advanced",
+          "to": "adapters/anthropic-advanced",
+          "addedAt": "2026-10-21",
+          "updatedAt": "2026-10-22"
+        },
+        {
+          "label": "Google Gemini",
+          "to": "adapters/gemini",
+          "addedAt": "2026-04-15",
+          "updatedAt": "2026-10-22"
+        },
+        {
+          "label": "Google Gemini: Advanced",
+          "to": "adapters/gemini-advanced",
+          "addedAt": "2026-10-21",
+          "updatedAt": "2026-10-25"
+        },
+        {
+          "label": "Google Vertex AI",
+          "to": "adapters/vertex",
+          "addedAt": "2026-08-19",
+          "updatedAt": "2026-10-22"
+        },
+        {
+          "label": "Ollama",
+          "to": "adapters/ollama",
+          "addedAt": "2026-04-15",
+          "updatedAt": "2026-10-22"
+        },
+        {
+          "label": "Grok (xAI)",
+          "to": "adapters/grok",
+          "addedAt": "2026-04-15",
+          "updatedAt": "2026-10-22"
+        },
+        {
+          "label": "Groq",
+          "to": "adapters/groq",
+          "addedAt": "2026-04-15",
+          "updatedAt": "2026-10-22"
+        },
+        {
+          "label": "Mistral",
+          "to": "adapters/mistral",
+          "addedAt": "2026-06-30",
+          "updatedAt": "2026-10-22"
+        },
+        {
+          "label": "Cohere",
+          "to": "adapters/cohere",
+          "addedAt": "2026-06-25",
+          "updatedAt": "2026-10-22"
+        },
+        {
+          "label": "TypeSafe",
+          "to": "adapters/typesafe",
+          "addedAt": "2026-09-18",
+          "updatedAt": "2026-10-22"
+        },
+        {
+          "label": "Ollaya",
+          "to": "adapters/ollaya",
+          "addedAt": "2026-09-29",
+          "updatedAt": "2026-10-22"
+        },
+        {
+          "label": "ElevenLabs",
+          "to": "adapters/elevenlabs",
+          "addedAt": "2026-04-15",
+          "updatedAt": "2026-10-22"
+        },
+        {
+          "label": "fal.ai",
+          "to": "adapters/fal",
+          "addedAt": "2026-04-15",
+          "updatedAt": "2026-10-22"
+        },
+        {
+          "label": "Reactor",
+          "to": "adapters/reactor",
+          "addedAt": "2026-09-04",
+          "updatedAt": "2026-10-22"
+        },
+        {
+          "label": "World Labs",
+          "to": "adapters/worldlabs",
+          "addedAt": "2026-09-14",
+          "updatedAt": "2026-10-22"
+        },
+        {
+          "label": "OpenRouter Adapter",
+          "to": "adapters/openrouter",
+          "addedAt": "2026-04-15",
+          "updatedAt": "2026-10-22"
+        },
+        {
+          "label": "OpenRouter: Advanced",
+          "to": "adapters/openrouter-advanced",
+          "addedAt": "2026-10-21"
+        },
+        {
+          "label": "Perplexity Search",
+          "to": "adapters/perplexity",
+          "addedAt": "2026-08-13",
+          "updatedAt": "2026-10-22"
+        },
+        {
+          "label": "Vercel AI Gateway",
+          "to": "adapters/vercel-gateway",
+          "addedAt": "2026-08-12",
+          "updatedAt": "2026-10-22"
+        },
+        {
+          "label": "Lovable AI Gateway",
+          "to": "adapters/lovable",
+          "addedAt": "2026-08-24",
+          "updatedAt": "2026-10-22"
+        },
+        {
+          "label": "OpenAI-Compatible",
+          "to": "adapters/openai-compatible",
+          "addedAt": "2026-06-01",
+          "updatedAt": "2026-10-22"
+        },
+        {
+          "label": "OpenAI-Compatible: Advanced",
+          "to": "adapters/openai-compatible-advanced",
+          "addedAt": "2026-10-21"
+        },
+        {
+          "label": "LLM Gateway",
+          "to": "adapters/llmgateway",
+          "addedAt": "2026-07-29",
+          "updatedAt": "2026-10-22"
+        },
+        {
+          "label": "Cloudflare",
+          "to": "adapters/cloudflare",
+          "addedAt": "2026-09-03",
+          "updatedAt": "2026-10-22"
+        },
+        {
+          "label": "Neon AI Gateway",
+          "to": "adapters/neon",
+          "addedAt": "2026-10-21"
+        },
+        {
+          "label": "Claude Code",
+          "to": "adapters/claude-code",
+          "addedAt": "2026-06-12",
+          "updatedAt": "2026-10-22"
+        },
+        {
+          "label": "Codex",
+          "to": "adapters/codex",
+          "addedAt": "2026-06-12",
+          "updatedAt": "2026-10-22"
+        },
+        {
+          "label": "OpenCode",
+          "to": "adapters/opencode",
+          "addedAt": "2026-06-12",
+          "updatedAt": "2026-10-22"
+        },
+        {
+          "label": "Grok Build",
+          "to": "adapters/grok-build",
+          "addedAt": "2026-06-29",
+          "updatedAt": "2026-10-22"
+        },
+        {
+          "label": "ACP-Compatible",
+          "to": "adapters/acp-compatible",
+          "addedAt": "2026-06-30",
+          "updatedAt": "2026-10-22"
+        },
+        {
+          "label": "Amazon Bedrock",
+          "to": "adapters/bedrock",
+          "addedAt": "2026-06-25",
+          "updatedAt": "2026-10-22"
+        },
+        {
+          "label": "BytePlus",
+          "to": "adapters/byteplus",
+          "addedAt": "2026-08-04",
+          "updatedAt": "2026-10-22"
+        },
+        {
+          "label": "BytePlus: Advanced",
+          "to": "adapters/byteplus-advanced",
+          "addedAt": "2026-10-21"
+        }
+      ],
+      "tab": "adapters"
+    },
+    {
+      "label": "Community Adapters",
+      "tab": "adapters",
+      "children": [
+        {
+          "label": "Community Adapters Guide",
+          "to": "community-adapters/guide",
+          "addedAt": "2026-04-15",
+          "updatedAt": "2026-10-22"
+        },
+        {
+          "label": "Decart",
+          "to": "community-adapters/decart",
+          "addedAt": "2026-04-15",
+          "updatedAt": "2026-10-22"
+        },
+        {
+          "label": "Cencori",
+          "to": "community-adapters/cencori",
+          "addedAt": "2026-04-15",
+          "updatedAt": "2026-10-22"
+        },
+        {
+          "label": "Cloudflare",
+          "to": "community-adapters/cloudflare",
+          "addedAt": "2026-04-15",
+          "updatedAt": "2026-10-22"
+        },
+        {
+          "label": "Soniox",
+          "to": "community-adapters/soniox",
+          "addedAt": "2026-04-15",
+          "updatedAt": "2026-10-22"
+        },
+        {
+          "label": "Mynth",
+          "to": "community-adapters/mynth",
+          "addedAt": "2026-04-15",
+          "updatedAt": "2026-10-22"
+        },
+        {
+          "label": "Upstash",
+          "to": "community-adapters/upstash",
+          "addedAt": "2026-09-29",
+          "updatedAt": "2026-10-22"
         }
       ]
     },
@@ -205,117 +1942,143 @@
       "label": "Migration",
       "children": [
         {
+          "label": "Upgrade to 1.0",
+          "to": "migration/v1",
+          "addedAt": "2026-10-21",
+          "updatedAt": "2026-10-22"
+        },
+        {
           "label": "Migration Guide",
-          "to": "migration/migration"
+          "to": "migration/migration",
+          "addedAt": "2026-04-15",
+          "updatedAt": "2026-10-22"
         },
         {
           "label": "From Vercel AI SDK",
-          "to": "migration/migration-from-vercel-ai"
+          "to": "migration/migration-from-vercel-ai",
+          "addedAt": "2026-04-20",
+          "updatedAt": "2026-10-22"
+        },
+        {
+          "label": "Vercel AI SDK: full API mapping",
+          "to": "migration/migration-from-vercel-ai-advanced",
+          "addedAt": "2026-10-21"
+        },
+        {
+          "label": "AG-UI Client Compliance",
+          "to": "migration/ag-ui-compliance",
+          "addedAt": "2026-05-16",
+          "updatedAt": "2026-10-22"
+        },
+        {
+          "label": "Sampling â†’ modelOptions",
+          "to": "migration/sampling-options-to-model-options",
+          "addedAt": "2026-06-03",
+          "updatedAt": "2026-10-22"
+        },
+        {
+          "label": "Reasoning option",
+          "to": "migration/reasoning-option",
+          "addedAt": "2026-10-09",
+          "updatedAt": "2026-10-22"
+        },
+        {
+          "label": "TextPart markdown",
+          "to": "migration/text-part-markdown",
+          "addedAt": "2026-09-15",
+          "updatedAt": "2026-10-22"
+        },
+        {
+          "label": "MCP SDK packages",
+          "to": "migration/mcp-sdk",
+          "addedAt": "2026-09-22",
+          "updatedAt": "2026-10-22"
         }
-      ]
+      ],
+      "tab": "guides"
     },
     {
       "label": "API",
       "children": [
         {
           "label": "@tanstack/ai",
-          "to": "api/ai"
+          "to": "api/ai",
+          "addedAt": "2026-04-15",
+          "updatedAt": "2026-10-21"
         },
         {
           "label": "@tanstack/ai-client",
-          "to": "api/ai-client"
+          "to": "api/ai-client",
+          "addedAt": "2026-04-15",
+          "updatedAt": "2026-10-22"
         },
         {
           "label": "@tanstack/ai-react",
-          "to": "api/ai-react"
+          "to": "api/ai-react",
+          "addedAt": "2026-04-15",
+          "updatedAt": "2026-10-21"
         },
         {
           "label": "@tanstack/ai-solid",
-          "to": "api/ai-solid"
+          "to": "api/ai-solid",
+          "addedAt": "2026-04-15",
+          "updatedAt": "2026-10-21"
         },
         {
           "label": "@tanstack/ai-preact",
-          "to": "api/ai-preact"
+          "to": "api/ai-preact",
+          "addedAt": "2026-04-15",
+          "updatedAt": "2026-10-21"
         },
         {
           "label": "@tanstack/ai-vue",
-          "to": "api/ai-vue"
+          "to": "api/ai-vue",
+          "addedAt": "2026-04-15",
+          "updatedAt": "2026-10-21"
         },
         {
           "label": "@tanstack/ai-svelte",
-          "to": "api/ai-svelte"
+          "to": "api/ai-svelte",
+          "addedAt": "2026-04-15",
+          "updatedAt": "2026-10-21"
+        },
+        {
+          "label": "@tanstack/ai-angular",
+          "to": "api/ai-angular",
+          "addedAt": "2026-06-15",
+          "updatedAt": "2026-10-21"
+        },
+        {
+          "label": "@tanstack/ai-octane",
+          "to": "api/ai-octane",
+          "addedAt": "2026-08-21",
+          "updatedAt": "2026-10-21"
+        },
+        {
+          "label": "@tanstack/ai-remix",
+          "to": "api/ai-remix",
+          "addedAt": "2026-09-01",
+          "updatedAt": "2026-10-21"
         }
       ]
     },
     {
-      "label": "Adapters",
+      "label": "Protocol",
       "children": [
         {
-          "label": "OpenAI",
-          "to": "adapters/openai"
+          "label": "Event metadata",
+          "to": "protocol/metadata",
+          "addedAt": "2026-08-21",
+          "updatedAt": "2026-10-22"
         },
         {
-          "label": "Anthropic",
-          "to": "adapters/anthropic"
-        },
-        {
-          "label": "Google Gemini",
-          "to": "adapters/gemini"
-        },
-        {
-          "label": "Ollama",
-          "to": "adapters/ollama"
-        },
-        {
-          "label": "Grok (xAI)",
-          "to": "adapters/grok"
-        },
-        {
-          "label": "Groq",
-          "to": "adapters/groq"
-        },
-        {
-          "label": "ElevenLabs",
-          "to": "adapters/elevenlabs"
-        },
-        {
-          "label": "fal.ai",
-          "to": "adapters/fal"
-        },
-        {
-          "label": "OpenRouter Adapter",
-          "to": "adapters/openrouter"
+          "label": "Custom Events Reference",
+          "to": "protocol/custom-events",
+          "addedAt": "2026-07-03",
+          "updatedAt": "2026-10-22"
         }
-      ]
-    },
-    {
-      "label": "Community Adapters",
-      "children": [
-        {
-          "label": "Community Adapters Guide",
-          "to": "community-adapters/guide"
-        },
-        {
-          "label": "Decart",
-          "to": "community-adapters/decart"
-        },
-        {
-          "label": "Cencori",
-          "to": "community-adapters/cencori"
-        },
-        {
-          "label": "Cloudflare",
-          "to": "community-adapters/cloudflare"
-        },
-        {
-          "label": "Soniox",
-          "to": "community-adapters/soniox"
-        },
-        {
-          "label": "Mynth",
-          "to": "community-adapters/mynth"
-        }
-      ]
+      ],
+      "tab": "api"
     },
     {
       "label": "Class References",
@@ -324,43 +2087,53 @@
       "children": [
         {
           "label": "BaseAdapter",
-          "to": "reference/classes/BaseAdapter"
+          "to": "reference/classes/BaseAdapter",
+          "addedAt": "2026-04-15"
         },
         {
           "label": "BatchStrategy",
-          "to": "reference/classes/BatchStrategy"
+          "to": "reference/classes/BatchStrategy",
+          "addedAt": "2026-04-15"
         },
         {
           "label": "CompositeStrategy",
-          "to": "reference/classes/CompositeStrategy"
+          "to": "reference/classes/CompositeStrategy",
+          "addedAt": "2026-04-15"
         },
         {
           "label": "ImmediateStrategy",
-          "to": "reference/classes/ImmediateStrategy"
+          "to": "reference/classes/ImmediateStrategy",
+          "addedAt": "2026-04-15"
         },
         {
           "label": "PartialJSONParser",
-          "to": "reference/classes/PartialJSONParser"
+          "to": "reference/classes/PartialJSONParser",
+          "addedAt": "2026-04-15"
         },
         {
           "label": "PunctuationStrategy",
-          "to": "reference/classes/PunctuationStrategy"
+          "to": "reference/classes/PunctuationStrategy",
+          "addedAt": "2026-04-15"
         },
         {
           "label": "StreamProcessor",
-          "to": "reference/classes/StreamProcessor"
+          "to": "reference/classes/StreamProcessor",
+          "addedAt": "2026-04-15"
         },
         {
           "label": "ToolCallManager",
-          "to": "reference/classes/ToolCallManager"
+          "to": "reference/classes/ToolCallManager",
+          "addedAt": "2026-04-15"
         },
         {
           "label": "RealtimeClient",
-          "to": "reference/classes/RealtimeClient"
+          "to": "reference/classes/RealtimeClient",
+          "addedAt": "2026-04-15"
         },
         {
           "label": "WordBoundaryStrategy",
-          "to": "reference/classes/WordBoundaryStrategy"
+          "to": "reference/classes/WordBoundaryStrategy",
+          "addedAt": "2026-04-15"
         }
       ]
     },
@@ -371,87 +2144,109 @@
       "children": [
         {
           "label": "text",
-          "to": "reference/functions/text"
+          "to": "reference/functions/text",
+          "addedAt": "2026-04-15"
         },
         {
           "label": "textOptions",
-          "to": "reference/functions/textOptions"
+          "to": "reference/functions/textOptions",
+          "addedAt": "2026-04-15"
         },
         {
           "label": "combineStrategies",
-          "to": "reference/functions/combineStrategies"
+          "to": "reference/functions/combineStrategies",
+          "addedAt": "2026-04-15"
         },
         {
           "label": "convertMessagesToModelMessages",
-          "to": "reference/functions/convertMessagesToModelMessages"
+          "to": "reference/functions/convertMessagesToModelMessages",
+          "addedAt": "2026-04-15"
         },
         {
           "label": "convertZodToJsonSchema",
-          "to": "reference/functions/convertZodToJsonSchema"
+          "to": "reference/functions/convertZodToJsonSchema",
+          "addedAt": "2026-04-15"
         },
         {
           "label": "createReplayStream",
-          "to": "reference/functions/createReplayStream"
+          "to": "reference/functions/createReplayStream",
+          "addedAt": "2026-04-15"
         },
         {
           "label": "embedding",
-          "to": "reference/functions/embedding"
+          "to": "reference/functions/embedding",
+          "addedAt": "2026-04-15"
         },
         {
           "label": "generateMessageId",
-          "to": "reference/functions/generateMessageId"
+          "to": "reference/functions/generateMessageId",
+          "addedAt": "2026-04-15"
         },
         {
           "label": "maxIterations",
-          "to": "reference/functions/maxIterations"
+          "to": "reference/functions/maxIterations",
+          "addedAt": "2026-04-15"
         },
         {
           "label": "messages",
-          "to": "reference/functions/messages"
+          "to": "reference/functions/messages",
+          "addedAt": "2026-04-15"
         },
         {
           "label": "modelMessageToUIMessage",
-          "to": "reference/functions/modelMessageToUIMessage"
+          "to": "reference/functions/modelMessageToUIMessage",
+          "addedAt": "2026-04-15"
         },
         {
           "label": "modelMessagesToUIMessages",
-          "to": "reference/functions/modelMessagesToUIMessages"
+          "to": "reference/functions/modelMessagesToUIMessages",
+          "addedAt": "2026-04-15"
         },
         {
           "label": "normalizeToUIMessage",
-          "to": "reference/functions/normalizeToUIMessage"
+          "to": "reference/functions/normalizeToUIMessage",
+          "addedAt": "2026-04-15"
         },
         {
           "label": "parsePartialJSON",
-          "to": "reference/functions/parsePartialJSON"
+          "to": "reference/functions/parsePartialJSON",
+          "addedAt": "2026-04-15"
         },
         {
           "label": "summarize",
-          "to": "reference/functions/summarize"
+          "to": "reference/functions/summarize",
+          "addedAt": "2026-04-15"
         },
         {
           "label": "toServerSentEventsStream",
-          "to": "reference/functions/toServerSentEventsStream"
+          "to": "reference/functions/toServerSentEventsStream",
+          "addedAt": "2026-04-15"
         },
         {
           "label": "toServerSentEventsResponse",
-          "to": "reference/functions/toServerSentEventsResponse"
+          "to": "reference/functions/toServerSentEventsResponse",
+          "addedAt": "2026-04-15"
         },
         {
           "label": "toolDefinition",
-          "to": "reference/functions/toolDefinition"
+          "to": "reference/functions/toolDefinition",
+          "addedAt": "2026-04-15",
+          "updatedAt": "2026-07-14"
         },
         {
           "label": "uiMessageToModelMessages",
-          "to": "reference/functions/uiMessageToModelMessages"
+          "to": "reference/functions/uiMessageToModelMessages",
+          "addedAt": "2026-04-15"
         },
         {
           "label": "realtimeToken",
-          "to": "reference/functions/realtimeToken"
+          "to": "reference/functions/realtimeToken",
+          "addedAt": "2026-04-15"
         },
         {
           "label": "untilFinishReason",
-          "to": "reference/functions/untilFinishReason"
+          "to": "reference/functions/untilFinishReason",
+          "addedAt": "2026-04-15"
         }
       ]
     },
@@ -462,231 +2257,283 @@
       "children": [
         {
           "label": "AIAdapter",
-          "to": "reference/interfaces/AIAdapter"
+          "to": "reference/interfaces/AIAdapter",
+          "addedAt": "2026-04-15"
         },
         {
           "label": "AIAdapterConfig",
-          "to": "reference/interfaces/AIAdapterConfig"
+          "to": "reference/interfaces/AIAdapterConfig",
+          "addedAt": "2026-04-15"
         },
         {
           "label": "AgentLoopState",
-          "to": "reference/interfaces/AgentLoopState"
-        },
-        {
-          "label": "ApprovalRequestedStreamChunk",
-          "to": "reference/interfaces/ApprovalRequestedStreamChunk"
+          "to": "reference/interfaces/AgentLoopState",
+          "addedAt": "2026-04-15"
         },
         {
           "label": "AudioPart",
-          "to": "reference/interfaces/AudioPart"
+          "to": "reference/interfaces/AudioPart",
+          "addedAt": "2026-04-15"
         },
         {
           "label": "AudioVisualization",
-          "to": "reference/interfaces/AudioVisualization"
+          "to": "reference/interfaces/AudioVisualization",
+          "addedAt": "2026-04-15"
         },
         {
           "label": "BaseStreamChunk",
-          "to": "reference/interfaces/BaseStreamChunk"
+          "to": "reference/interfaces/BaseStreamChunk",
+          "addedAt": "2026-04-15"
         },
         {
           "label": "TextCompletionChunk",
-          "to": "reference/interfaces/TextCompletionChunk"
+          "to": "reference/interfaces/TextCompletionChunk",
+          "addedAt": "2026-04-15"
         },
         {
           "label": "TextOptions",
-          "to": "reference/interfaces/TextOptions"
+          "to": "reference/interfaces/TextOptions",
+          "addedAt": "2026-04-15"
         },
         {
           "label": "ChunkRecording",
-          "to": "reference/interfaces/ChunkRecording"
+          "to": "reference/interfaces/ChunkRecording",
+          "addedAt": "2026-04-15"
         },
         {
           "label": "ChunkStrategy",
-          "to": "reference/interfaces/ChunkStrategy"
+          "to": "reference/interfaces/ChunkStrategy",
+          "addedAt": "2026-04-15"
         },
         {
           "label": "ClientTool",
-          "to": "reference/interfaces/ClientTool"
+          "to": "reference/interfaces/ClientTool",
+          "addedAt": "2026-04-15"
         },
         {
           "label": "ContentPartSource",
-          "to": "reference/interfaces/ContentPartSource"
+          "to": "reference/interfaces/ContentPartSource",
+          "addedAt": "2026-04-15"
         },
         {
           "label": "ContentStreamChunk",
-          "to": "reference/interfaces/ContentStreamChunk"
+          "to": "reference/interfaces/ContentStreamChunk",
+          "addedAt": "2026-04-15"
         },
         {
           "label": "DefaultMessageMetadataByModality",
-          "to": "reference/interfaces/DefaultMessageMetadataByModality"
+          "to": "reference/interfaces/DefaultMessageMetadataByModality",
+          "addedAt": "2026-04-15"
         },
         {
           "label": "DocumentPart",
-          "to": "reference/interfaces/DocumentPart"
+          "to": "reference/interfaces/DocumentPart",
+          "addedAt": "2026-04-15"
         },
         {
           "label": "DoneStreamChunk",
-          "to": "reference/interfaces/DoneStreamChunk"
+          "to": "reference/interfaces/DoneStreamChunk",
+          "addedAt": "2026-04-15"
         },
         {
           "label": "EmbeddingOptions",
-          "to": "reference/interfaces/EmbeddingOptions"
+          "to": "reference/interfaces/EmbeddingOptions",
+          "addedAt": "2026-04-15"
         },
         {
           "label": "EmbeddingResult",
-          "to": "reference/interfaces/EmbeddingResult"
+          "to": "reference/interfaces/EmbeddingResult",
+          "addedAt": "2026-04-15"
         },
         {
           "label": "ErrorStreamChunk",
-          "to": "reference/interfaces/ErrorStreamChunk"
+          "to": "reference/interfaces/ErrorStreamChunk",
+          "addedAt": "2026-04-15"
         },
         {
           "label": "ImagePart",
-          "to": "reference/interfaces/ImagePart"
+          "to": "reference/interfaces/ImagePart",
+          "addedAt": "2026-04-15"
         },
         {
           "label": "InternalToolCallState",
-          "to": "reference/interfaces/InternalToolCallState"
+          "to": "reference/interfaces/InternalToolCallState",
+          "addedAt": "2026-04-15"
         },
         {
           "label": "JSONParser",
-          "to": "reference/interfaces/JSONParser"
+          "to": "reference/interfaces/JSONParser",
+          "addedAt": "2026-04-15"
         },
         {
           "label": "ModelMessage",
-          "to": "reference/interfaces/ModelMessage"
+          "to": "reference/interfaces/ModelMessage",
+          "addedAt": "2026-04-15"
         },
         {
           "label": "ProcessorResult",
-          "to": "reference/interfaces/ProcessorResult"
+          "to": "reference/interfaces/ProcessorResult",
+          "addedAt": "2026-04-15"
         },
         {
           "label": "ProcessorState",
-          "to": "reference/interfaces/ProcessorState"
+          "to": "reference/interfaces/ProcessorState",
+          "addedAt": "2026-04-15"
         },
         {
           "label": "RealtimeAdapter",
-          "to": "reference/interfaces/RealtimeAdapter"
+          "to": "reference/interfaces/RealtimeAdapter",
+          "addedAt": "2026-04-15"
         },
         {
           "label": "RealtimeClientOptions",
-          "to": "reference/interfaces/RealtimeClientOptions"
+          "to": "reference/interfaces/RealtimeClientOptions",
+          "addedAt": "2026-04-15"
         },
         {
           "label": "RealtimeConnection",
-          "to": "reference/interfaces/RealtimeConnection"
+          "to": "reference/interfaces/RealtimeConnection",
+          "addedAt": "2026-04-15"
         },
         {
           "label": "RealtimeMessage",
-          "to": "reference/interfaces/RealtimeMessage"
+          "to": "reference/interfaces/RealtimeMessage",
+          "addedAt": "2026-04-15"
         },
         {
           "label": "RealtimeSessionConfig",
-          "to": "reference/interfaces/RealtimeSessionConfig"
+          "to": "reference/interfaces/RealtimeSessionConfig",
+          "addedAt": "2026-04-15"
         },
         {
           "label": "RealtimeToken",
-          "to": "reference/interfaces/RealtimeToken"
+          "to": "reference/interfaces/RealtimeToken",
+          "addedAt": "2026-04-15"
         },
         {
           "label": "RealtimeTokenAdapter",
-          "to": "reference/interfaces/RealtimeTokenAdapter"
+          "to": "reference/interfaces/RealtimeTokenAdapter",
+          "addedAt": "2026-04-15"
         },
         {
           "label": "RealtimeTokenOptions",
-          "to": "reference/interfaces/RealtimeTokenOptions"
+          "to": "reference/interfaces/RealtimeTokenOptions",
+          "addedAt": "2026-04-15"
         },
         {
           "label": "ResponseFormat",
-          "to": "reference/interfaces/ResponseFormat"
+          "to": "reference/interfaces/ResponseFormat",
+          "addedAt": "2026-04-15"
         },
         {
           "label": "ServerTool",
-          "to": "reference/interfaces/ServerTool"
+          "to": "reference/interfaces/ServerTool",
+          "addedAt": "2026-04-15"
         },
         {
           "label": "StreamProcessorEvents",
-          "to": "reference/interfaces/StreamProcessorEvents"
+          "to": "reference/interfaces/StreamProcessorEvents",
+          "addedAt": "2026-04-15"
         },
         {
           "label": "StreamProcessorHandlers",
-          "to": "reference/interfaces/StreamProcessorHandlers"
+          "to": "reference/interfaces/StreamProcessorHandlers",
+          "addedAt": "2026-04-15"
         },
         {
           "label": "StreamProcessorOptions",
-          "to": "reference/interfaces/StreamProcessorOptions"
+          "to": "reference/interfaces/StreamProcessorOptions",
+          "addedAt": "2026-04-15"
         },
         {
           "label": "SummarizationOptions",
-          "to": "reference/interfaces/SummarizationOptions"
+          "to": "reference/interfaces/SummarizationOptions",
+          "addedAt": "2026-04-15"
         },
         {
           "label": "SummarizationResult",
-          "to": "reference/interfaces/SummarizationResult"
+          "to": "reference/interfaces/SummarizationResult",
+          "addedAt": "2026-04-15"
         },
         {
           "label": "TextPart",
-          "to": "reference/interfaces/TextPart"
+          "to": "reference/interfaces/TextPart",
+          "addedAt": "2026-04-15"
         },
         {
           "label": "ThinkingPart",
-          "to": "reference/interfaces/ThinkingPart"
+          "to": "reference/interfaces/ThinkingPart",
+          "addedAt": "2026-04-15"
         },
         {
           "label": "ThinkingStreamChunk",
-          "to": "reference/interfaces/ThinkingStreamChunk"
+          "to": "reference/interfaces/ThinkingStreamChunk",
+          "addedAt": "2026-04-15"
         },
         {
           "label": "Tool",
-          "to": "reference/interfaces/Tool"
+          "to": "reference/interfaces/Tool",
+          "addedAt": "2026-04-15"
         },
         {
           "label": "ToolCall",
-          "to": "reference/interfaces/ToolCall"
+          "to": "reference/interfaces/ToolCall",
+          "addedAt": "2026-04-15"
         },
         {
           "label": "ToolCallPart",
-          "to": "reference/interfaces/ToolCallPart"
+          "to": "reference/interfaces/ToolCallPart",
+          "addedAt": "2026-04-15"
         },
         {
           "label": "ToolCallStreamChunk",
-          "to": "reference/interfaces/ToolCallStreamChunk"
+          "to": "reference/interfaces/ToolCallStreamChunk",
+          "addedAt": "2026-04-15"
         },
         {
           "label": "ToolConfig",
-          "to": "reference/interfaces/ToolConfig"
+          "to": "reference/interfaces/ToolConfig",
+          "addedAt": "2026-04-15"
         },
         {
           "label": "ToolDefinition",
-          "to": "reference/interfaces/ToolDefinition"
+          "to": "reference/interfaces/ToolDefinition",
+          "addedAt": "2026-04-15"
         },
         {
           "label": "ToolDefinitionConfig",
-          "to": "reference/interfaces/ToolDefinitionConfig"
+          "to": "reference/interfaces/ToolDefinitionConfig",
+          "addedAt": "2026-04-15"
         },
         {
           "label": "ToolDefinitionInstance",
-          "to": "reference/interfaces/ToolDefinitionInstance"
+          "to": "reference/interfaces/ToolDefinitionInstance",
+          "addedAt": "2026-04-15"
         },
         {
           "label": "ToolInputAvailableStreamChunk",
-          "to": "reference/interfaces/ToolInputAvailableStreamChunk"
+          "to": "reference/interfaces/ToolInputAvailableStreamChunk",
+          "addedAt": "2026-04-15"
         },
         {
           "label": "ToolResultPart",
-          "to": "reference/interfaces/ToolResultPart"
+          "to": "reference/interfaces/ToolResultPart",
+          "addedAt": "2026-04-15"
         },
         {
           "label": "ToolResultStreamChunk",
-          "to": "reference/interfaces/ToolResultStreamChunk"
+          "to": "reference/interfaces/ToolResultStreamChunk",
+          "addedAt": "2026-04-15"
         },
         {
           "label": "UIMessage",
-          "to": "reference/interfaces/UIMessage"
+          "to": "reference/interfaces/UIMessage",
+          "addedAt": "2026-04-15"
         },
         {
           "label": "VideoPart",
-          "to": "reference/interfaces/VideoPart"
+          "to": "reference/interfaces/VideoPart",
+          "addedAt": "2026-04-15"
         }
       ]
     },
@@ -697,99 +2544,118 @@
       "children": [
         {
           "label": "AgentLoopStrategy",
-          "to": "reference/type-aliases/AgentLoopStrategy"
+          "to": "reference/type-aliases/AgentLoopStrategy",
+          "addedAt": "2026-04-15"
         },
         {
           "label": "AnyClientTool",
-          "to": "reference/type-aliases/AnyClientTool"
+          "to": "reference/type-aliases/AnyClientTool",
+          "addedAt": "2026-04-15"
         },
         {
           "label": "TextStreamOptionsForModel",
-          "to": "reference/type-aliases/TextStreamOptionsForModel"
+          "to": "reference/type-aliases/TextStreamOptionsForModel",
+          "addedAt": "2026-04-15"
         },
         {
           "label": "TextStreamOptionsUnion",
-          "to": "reference/type-aliases/TextStreamOptionsUnion"
+          "to": "reference/type-aliases/TextStreamOptionsUnion",
+          "addedAt": "2026-04-15"
         },
         {
           "label": "ConstrainedContent",
-          "to": "reference/type-aliases/ConstrainedContent"
+          "to": "reference/type-aliases/ConstrainedContent",
+          "addedAt": "2026-04-15"
         },
         {
           "label": "ConstrainedModelMessage",
-          "to": "reference/type-aliases/ConstrainedModelMessage"
+          "to": "reference/type-aliases/ConstrainedModelMessage",
+          "addedAt": "2026-04-15"
         },
         {
           "label": "ContentPart",
-          "to": "reference/type-aliases/ContentPart"
+          "to": "reference/type-aliases/ContentPart",
+          "addedAt": "2026-04-15"
         },
         {
           "label": "ContentPartForModalities",
-          "to": "reference/type-aliases/ContentPartForModalities"
+          "to": "reference/type-aliases/ContentPartForModalities",
+          "addedAt": "2026-04-15"
         },
         {
           "label": "ExtractModalitiesForModel",
-          "to": "reference/type-aliases/ExtractModalitiesForModel"
+          "to": "reference/type-aliases/ExtractModalitiesForModel",
+          "addedAt": "2026-04-15"
         },
         {
           "label": "ExtractModelsFromAdapter",
-          "to": "reference/type-aliases/ExtractModelsFromAdapter"
+          "to": "reference/type-aliases/ExtractModelsFromAdapter",
+          "addedAt": "2026-04-15"
         },
         {
           "label": "InferToolInput",
-          "to": "reference/type-aliases/InferToolInput"
+          "to": "reference/type-aliases/InferToolInput",
+          "addedAt": "2026-04-15"
         },
         {
           "label": "InferToolName",
-          "to": "reference/type-aliases/InferToolName"
+          "to": "reference/type-aliases/InferToolName",
+          "addedAt": "2026-04-15"
         },
         {
           "label": "InferToolOutput",
-          "to": "reference/type-aliases/InferToolOutput"
+          "to": "reference/type-aliases/InferToolOutput",
+          "addedAt": "2026-04-15"
         },
         {
           "label": "MessagePart",
-          "to": "reference/type-aliases/MessagePart"
+          "to": "reference/type-aliases/MessagePart",
+          "addedAt": "2026-04-15"
         },
         {
           "label": "RealtimeEvent",
-          "to": "reference/type-aliases/RealtimeEvent"
+          "to": "reference/type-aliases/RealtimeEvent",
+          "addedAt": "2026-04-15"
         },
         {
           "label": "RealtimeMessagePart",
-          "to": "reference/type-aliases/RealtimeMessagePart"
+          "to": "reference/type-aliases/RealtimeMessagePart",
+          "addedAt": "2026-04-15"
         },
         {
           "label": "RealtimeMode",
-          "to": "reference/type-aliases/RealtimeMode"
+          "to": "reference/type-aliases/RealtimeMode",
+          "addedAt": "2026-04-15"
         },
         {
           "label": "RealtimeStatus",
-          "to": "reference/type-aliases/RealtimeStatus"
+          "to": "reference/type-aliases/RealtimeStatus",
+          "addedAt": "2026-04-15"
         },
         {
           "label": "ModalitiesArrayToUnion",
-          "to": "reference/type-aliases/ModalitiesArrayToUnion"
+          "to": "reference/type-aliases/ModalitiesArrayToUnion",
+          "addedAt": "2026-04-15"
         },
         {
           "label": "Modality",
-          "to": "reference/type-aliases/Modality"
+          "to": "reference/type-aliases/Modality",
+          "addedAt": "2026-04-15"
         },
         {
           "label": "StreamChunk",
-          "to": "reference/type-aliases/StreamChunk"
-        },
-        {
-          "label": "StreamChunkType",
-          "to": "reference/type-aliases/StreamChunkType"
+          "to": "reference/type-aliases/StreamChunk",
+          "addedAt": "2026-04-15"
         },
         {
           "label": "ToolCallState",
-          "to": "reference/type-aliases/ToolCallState"
+          "to": "reference/type-aliases/ToolCallState",
+          "addedAt": "2026-04-15"
         },
         {
           "label": "ToolResultState",
-          "to": "reference/type-aliases/ToolResultState"
+          "to": "reference/type-aliases/ToolResultState",
+          "addedAt": "2026-04-15"
         }
       ]
     },
@@ -800,11 +2666,13 @@
       "children": [
         {
           "label": "aiEventClient",
-          "to": "reference/variables/aiEventClient"
+          "to": "reference/variables/aiEventClient",
+          "addedAt": "2026-04-15"
         },
         {
           "label": "defaultJSONParser",
-          "to": "reference/variables/defaultJSONParser"
+          "to": "reference/variables/defaultJSONParser",
+          "addedAt": "2026-04-15"
         }
       ]
     }

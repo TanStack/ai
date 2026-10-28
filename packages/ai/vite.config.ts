@@ -1,0 +1,48 @@
+import { defineConfig, mergeConfig } from 'vitest/config'
+import { tanstackViteConfig } from '@tanstack/vite-config'
+import packageJson from './package.json'
+
+const config = defineConfig({
+  test: {
+    name: packageJson.name,
+    dir: './',
+    watch: false,
+    globals: true,
+    environment: 'node',
+    include: ['tests/**/*.test.ts', 'src/**/*.test.ts'],
+    coverage: {
+      provider: 'v8',
+      reporter: ['text', 'json', 'html', 'lcov'],
+      exclude: [
+        'node_modules/',
+        'dist/',
+        'tests/',
+        '**/*.test.ts',
+        '**/*.config.ts',
+        '**/types.ts',
+      ],
+      include: ['src/**/*.ts'],
+    },
+  },
+})
+
+export default mergeConfig(
+  config,
+  tanstackViteConfig({
+    entry: [
+      './src/index.ts',
+      './src/client.ts',
+      './src/locks.ts',
+      './src/activities/index.ts',
+      './src/middlewares/index.ts',
+      './src/middlewares/otel.ts',
+      './src/adapter-internals.ts',
+      './src/testing.ts',
+      './src/byok.ts',
+      './src/byok/server.ts',
+    ],
+    srcDir: './src',
+    exclude: ['./src/**/*.test.ts'],
+    cjs: false,
+  }),
+)

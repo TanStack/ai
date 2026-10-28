@@ -2,7 +2,7 @@
 title: Cloudflare
 id: cloudflare-adapter
 order: 3
-description: "Use Cloudflare Workers AI and AI Gateway with TanStack AI for edge inference, caching, rate limiting, and unified billing across providers."
+description: "Use Cloudflare's own @cloudflare/tanstack-ai package for Workers AI models and AI Gateway routing, with caching, rate limits, and one bill across providers."
 keywords:
   - tanstack ai
   - cloudflare
@@ -14,29 +14,45 @@ keywords:
   - community adapter
 ---
 
-The Cloudflare adapter provides access to [Cloudflare Workers AI](https://developers.cloudflare.com/workers-ai/) models and [AI Gateway](https://developers.cloudflare.com/ai-gateway/) for routing requests to OpenAI, Anthropic, Gemini, Grok, and OpenRouter with caching, rate limiting, and unified billing.
+`@cloudflare/tanstack-ai` is the community Cloudflare package. It provides:
 
-## Installation
+- [Workers AI](https://developers.cloudflare.com/workers-ai/) models, which run on the Cloudflare network.
+- [AI Gateway](https://developers.cloudflare.com/ai-gateway/) routing to OpenAI, Anthropic, Gemini, Grok, and OpenRouter, with caching, rate limits, and one bill.
+
+Cloudflare maintains this package. TanStack AI also has its own Cloudflare adapter, `@tanstack/ai-cloudflare`. See the [Cloudflare adapter](../adapters/cloudflare) page.
+
+## 1. Install
+
+<!-- ::start:tabs variant="package-manager" mode="install" -->
+
+react: @cloudflare/tanstack-ai @tanstack/ai
+vue: @cloudflare/tanstack-ai @tanstack/ai
+solid: @cloudflare/tanstack-ai @tanstack/ai
+svelte: @cloudflare/tanstack-ai @tanstack/ai
+preact: @cloudflare/tanstack-ai @tanstack/ai
+angular: @cloudflare/tanstack-ai @tanstack/ai
+vanilla: @cloudflare/tanstack-ai @tanstack/ai
+octane: @cloudflare/tanstack-ai @tanstack/ai
+
+<!-- ::end:tabs -->
+
+## 2. Set up access
+
+Inside a Cloudflare Worker, use the `env.AI` binding. You need no API key.
+
+Outside a Worker, use the REST credentials. Put them in the environment of your server:
 
 ```bash
-npm install @cloudflare/tanstack-ai @tanstack/ai
+CLOUDFLARE_ACCOUNT_ID=your-account-id
+CLOUDFLARE_API_KEY=your-api-key
 ```
 
-For AI Gateway with third-party providers, install the provider SDKs you need:
-
-```bash
-npm install @tanstack/ai-openai       # For OpenAI via Gateway
-npm install @tanstack/ai-anthropic    # For Anthropic via Gateway
-npm install @tanstack/ai-gemini       # For Gemini via Gateway
-npm install @tanstack/ai-grok         # For Grok via Gateway
-npm install @tanstack/ai-openrouter   # For OpenRouter via Gateway
-```
-
-## Basic Usage
+## 3. Stream a chat
 
 ```typescript
 import { chat, toHttpResponse } from "@tanstack/ai";
 import { createWorkersAiChat } from "@cloudflare/tanstack-ai";
+import { env } from "./env";
 
 const adapter = createWorkersAiChat(
   "@cf/meta/llama-4-scout-17b-16e-instruct",
@@ -47,38 +63,13 @@ const response = chat({
   adapter,
   stream: true,
   messages: [{ role: "user", content: "Hello!" }],
+  threadId: "thread-1",
 });
 
-return toHttpResponse(response);
+const httpResponse = toHttpResponse(response);
 ```
 
-## Workers AI
-
-The simplest way to use AI in a Cloudflare Worker. No API keys needed when using the `env.AI` binding.
-
-### Chat
-
-```typescript
-import { chat, toHttpResponse } from "@tanstack/ai";
-import { createWorkersAiChat } from "@cloudflare/tanstack-ai";
-
-const adapter = createWorkersAiChat(
-  "@cf/meta/llama-4-scout-17b-16e-instruct",
-  { binding: env.AI },
-);
-
-const response = chat({
-  adapter,
-  stream: true,
-  messages: [{ role: "user", content: "Hello!" }],
-});
-
-return toHttpResponse(response);
-```
-
-### Chat with REST Credentials
-
-If you're not running inside a Worker, use account ID and API key instead:
+Return `httpResponse` from your Worker. Outside a Worker, pass the account ID and the API key:
 
 ```typescript
 import { createWorkersAiChat } from "@cloudflare/tanstack-ai";
@@ -92,11 +83,12 @@ const adapter = createWorkersAiChat(
 );
 ```
 
-### Image Generation
+## Images
 
 ```typescript
 import { generateImage } from "@tanstack/ai";
 import { createWorkersAiImage } from "@cloudflare/tanstack-ai";
+import { env } from "./env";
 
 const adapter = createWorkersAiImage(
   "@cf/stabilityai/stable-diffusion-xl-base-1.0",
@@ -106,18 +98,18 @@ const adapter = createWorkersAiImage(
 const result = await generateImage({
   adapter,
   prompt: "a cat in space",
+  threadId: "thread-1",
 });
 
-console.log(result.images[0].b64Json);
+console.log(result.images[0]?.b64Json);
 ```
 
-### Transcription (Speech-to-Text)
-
-Supports Whisper and Deepgram models:
+## Transcription
 
 ```typescript
 import { generateTranscription } from "@tanstack/ai";
 import { createWorkersAiTranscription } from "@cloudflare/tanstack-ai";
+import { env, audioArrayBuffer } from "./env";
 
 const adapter = createWorkersAiTranscription(
   "@cf/openai/whisper-large-v3-turbo",
@@ -127,19 +119,21 @@ const adapter = createWorkersAiTranscription(
 const result = await generateTranscription({
   adapter,
   audio: audioArrayBuffer,
+  threadId: "thread-1",
 });
 
 console.log(result.text);
 console.log(result.segments);
 ```
 
-Supported transcription models: `@cf/openai/whisper`, `@cf/openai/whisper-tiny-en`, `@cf/openai/whisper-large-v3-turbo`, `@cf/deepgram/nova-3`
+Transcription models: `@cf/openai/whisper`, `@cf/openai/whisper-tiny-en`, `@cf/openai/whisper-large-v3-turbo`, and `@cf/deepgram/nova-3`.
 
-### Text-to-Speech
+## Speech
 
 ```typescript
 import { generateSpeech } from "@tanstack/ai";
 import { createWorkersAiTts } from "@cloudflare/tanstack-ai";
+import { env } from "./env";
 
 const adapter = createWorkersAiTts("@cf/deepgram/aura-2-en", {
   binding: env.AI,
@@ -148,24 +142,27 @@ const adapter = createWorkersAiTts("@cf/deepgram/aura-2-en", {
 const result = await generateSpeech({
   adapter,
   text: "Hello world",
+  threadId: "thread-1",
 });
 
 console.log(result.audio);
 ```
 
-### Summarization
+## Summarization
 
 ```typescript
-import { summarize } from "@tanstack/ai";
+import { summarize, type AnySummarizeAdapter } from "@tanstack/ai";
 import { createWorkersAiSummarize } from "@cloudflare/tanstack-ai";
+import { env } from "./env";
 
-const adapter = createWorkersAiSummarize("@cf/facebook/bart-large-cnn", {
+const adapter: AnySummarizeAdapter = createWorkersAiSummarize("@cf/facebook/bart-large-cnn", {
   binding: env.AI,
 });
 
 const result = await summarize({
   adapter,
   text: "Long article here...",
+  threadId: "thread-1",
 });
 
 console.log(result.summary);
@@ -173,12 +170,13 @@ console.log(result.summary);
 
 ## AI Gateway
 
-Route AI requests through Cloudflare's AI Gateway for caching, rate limiting, and unified billing. Supports both Workers AI and third-party providers.
+Send requests through AI Gateway to get caching, rate limits, and one bill. It works for Workers AI and for other providers.
 
-### Workers AI through Gateway
+Workers AI through the gateway:
 
 ```typescript
 import { createWorkersAiChat } from "@cloudflare/tanstack-ai";
+import { env } from "./env";
 
 const adapter = createWorkersAiChat(
   "@cf/meta/llama-4-scout-17b-16e-instruct",
@@ -189,9 +187,22 @@ const adapter = createWorkersAiChat(
 );
 ```
 
-### Third-Party Providers through Gateway
+Other providers through the gateway. For other providers, also install their TanStack AI packages:
 
-Use the binding approach (recommended for Cloudflare Workers):
+<!-- ::start:tabs variant="package-manager" mode="install" -->
+
+react: @tanstack/ai-openai @tanstack/ai-anthropic @tanstack/ai-gemini @tanstack/ai-grok @tanstack/ai-openrouter
+vue: @tanstack/ai-openai @tanstack/ai-anthropic @tanstack/ai-gemini @tanstack/ai-grok @tanstack/ai-openrouter
+solid: @tanstack/ai-openai @tanstack/ai-anthropic @tanstack/ai-gemini @tanstack/ai-grok @tanstack/ai-openrouter
+svelte: @tanstack/ai-openai @tanstack/ai-anthropic @tanstack/ai-gemini @tanstack/ai-grok @tanstack/ai-openrouter
+preact: @tanstack/ai-openai @tanstack/ai-anthropic @tanstack/ai-gemini @tanstack/ai-grok @tanstack/ai-openrouter
+angular: @tanstack/ai-openai @tanstack/ai-anthropic @tanstack/ai-gemini @tanstack/ai-grok @tanstack/ai-openrouter
+vanilla: @tanstack/ai-openai @tanstack/ai-anthropic @tanstack/ai-gemini @tanstack/ai-grok @tanstack/ai-openrouter
+octane: @tanstack/ai-openai @tanstack/ai-anthropic @tanstack/ai-gemini @tanstack/ai-grok @tanstack/ai-openrouter
+
+<!-- ::end:tabs -->
+
+Install only the providers that you use. In a Worker, use the binding:
 
 ```typescript
 import {
@@ -201,6 +212,7 @@ import {
   createGrokChat,
   createOpenRouterChat,
 } from "@cloudflare/tanstack-ai";
+import { env } from "./env";
 
 const openai = createOpenAiChat("gpt-4o", {
   binding: env.AI.gateway("my-gateway-id"),
@@ -210,7 +222,7 @@ const anthropic = createAnthropicChat("claude-sonnet-4-5", {
   binding: env.AI.gateway("my-gateway-id"),
 });
 
-const grok = createGrokChat("grok-4", {
+const grok = createGrokChat("grok-4.3", {
   binding: env.AI.gateway("my-gateway-id"),
 });
 
@@ -219,7 +231,7 @@ const openrouter = createOpenRouterChat("openai/gpt-4o", {
 });
 ```
 
-Or use credentials for non-Worker environments:
+Outside a Worker, use the credentials:
 
 ```typescript
 import { createOpenAiChat } from "@cloudflare/tanstack-ai";
@@ -232,11 +244,14 @@ const adapter = createOpenAiChat("gpt-4o", {
 });
 ```
 
-### Cache Options
+### Cache options
 
-Both binding and credentials modes support cache configuration:
+The binding mode and the credentials mode both take cache options:
 
 ```typescript
+import { createOpenAiChat } from "@cloudflare/tanstack-ai";
+import { env } from "./env";
+
 const adapter = createOpenAiChat("gpt-4o", {
   binding: env.AI.gateway("my-gateway-id"),
   skipCache: false,
@@ -246,63 +261,46 @@ const adapter = createOpenAiChat("gpt-4o", {
 });
 ```
 
-## Configuration Modes
+## Models and options
 
-Workers AI supports four configuration modes:
+### Configuration modes
 
-| Mode | Config | Description |
+Workers AI has four modes:
+
+| Mode | Config | What it does |
 |------|--------|-------------|
-| Plain binding | `{ binding: env.AI }` | Direct access, no gateway |
-| Plain REST | `{ accountId, apiKey }` | REST API, no gateway |
-| Gateway binding | `{ binding: env.AI.gateway(id) }` | Through AI Gateway via binding |
-| Gateway REST | `{ accountId, gatewayId, ... }` | Through AI Gateway via REST |
+| Plain binding | `{ binding: env.AI }` | Direct access, no gateway. |
+| Plain REST | `{ accountId, apiKey }` | REST API, no gateway. |
+| Gateway binding | `{ binding: env.AI.gateway(id) }` | Through AI Gateway, with the binding. |
+| Gateway REST | `{ accountId, gatewayId, ... }` | Through AI Gateway, with REST. |
 
-Third-party providers (OpenAI, Anthropic, Gemini, Grok, OpenRouter) only support the gateway modes.
+Other providers (OpenAI, Anthropic, Gemini, Grok, OpenRouter) work only in the gateway modes.
 
-## Supported Capabilities
+### Capabilities
 
-| Provider | Chat | Summarize | Image Gen | Transcription | TTS |
+| Provider | Chat | Summarize | Images | Transcription | Speech |
 |----------|------|-----------|-----------|---------------|-----|
-| **Workers AI** | ✅ | ✅ | ✅ | ✅ | ✅ |
-| **OpenAI** | ✅ | ✅ | ✅ | ✅ | ✅ |
-| **Anthropic** | ✅ | ✅ | ❌ | ❌ | ❌ |
-| **Gemini** | ✅ | ✅ | ✅ | ❌ | ✅ |
-| **Grok** | ✅ | ✅ | ✅ | ❌ | ❌ |
-| **OpenRouter** | ✅ | ✅ | ✅ | ❌ | ❌ |
+| **Workers AI** | Yes | Yes | Yes | Yes | Yes |
+| **OpenAI** | Yes | Yes | Yes | Yes | Yes |
+| **Anthropic** | Yes | Yes | No | No | No |
+| **Gemini** | Yes | Yes | Yes | No | Yes |
+| **Grok** | Yes | Yes | Yes | No | No |
+| **OpenRouter** | Yes | Yes | Yes | No | No |
 
-## Environment Variables
+### Workers AI factories
 
-For the REST credential path (outside of Cloudflare Workers):
+- `createWorkersAiChat(model, config)`: chat and structured output.
+- `createWorkersAiImage(model, config)`: images.
+- `createWorkersAiTranscription(model, config)`: speech to text (Whisper, Deepgram).
+- `createWorkersAiTts(model, config)`: text to speech (Deepgram Aura).
+- `createWorkersAiSummarize(model, config)`: summarization (BART-large-CNN).
 
-```bash
-CLOUDFLARE_ACCOUNT_ID=your-account-id
-CLOUDFLARE_API_KEY=your-api-key
-```
+### Gateway provider factories
 
-When using the `env.AI` binding inside a Worker, no environment variables are needed.
+- OpenAI: `createOpenAiChat(model, config)`, `createOpenAiSummarize`, `createOpenAiImage`, `createOpenAiTranscription`, `createOpenAiTts`.
+- Anthropic: `createAnthropicChat(model, config)`, `createAnthropicSummarize`.
+- Gemini: `createGeminiChat(model, config)`, `createGeminiSummarize`, `createGeminiImage`, `createGeminiTts`.
+- Grok: `createGrokChat(model, config)`, `createGrokSummarize`, `createGrokImage`.
+- OpenRouter: `createOpenRouterChat(model, config)`, `createOpenRouterSummarize`, `createOpenRouterImage`.
 
-## API Reference
-
-### Workers AI
-
-- `createWorkersAiChat(model, config)` — Chat and structured output
-- `createWorkersAiImage(model, config)` — Image generation
-- `createWorkersAiTranscription(model, config)` — Speech-to-text (Whisper, Deepgram)
-- `createWorkersAiTts(model, config)` — Text-to-speech (Deepgram Aura)
-- `createWorkersAiSummarize(model, config)` — Summarization (BART-large-CNN)
-
-### Gateway Providers
-
-- `createOpenAiChat(model, config)` / `createOpenAiSummarize` / `createOpenAiImage` / `createOpenAiTranscription` / `createOpenAiTts`
-- `createAnthropicChat(model, config)` / `createAnthropicSummarize`
-- `createGeminiChat(model, config)` / `createGeminiSummarize` / `createGeminiImage` / `createGeminiTts`
-- `createGrokChat(model, config)` / `createGrokSummarize` / `createGrokImage`
-- `createOpenRouterChat(model, config)` / `createOpenRouterSummarize` / `createOpenRouterImage`
-
-## Next Steps
-
-- [Cloudflare Workers AI](https://developers.cloudflare.com/workers-ai/) — Workers AI documentation
-- [Cloudflare AI Gateway](https://developers.cloudflare.com/ai-gateway/) — AI Gateway documentation
-- [GitHub Repository](https://github.com/cloudflare/ai) — Source code and issues
-- [Streaming Guide](../chat/streaming) — Learn about streaming responses
-- [Tools Guide](../tools/tools) — Learn about tool calling
+The source and the issues are on [GitHub](https://github.com/cloudflare/ai).

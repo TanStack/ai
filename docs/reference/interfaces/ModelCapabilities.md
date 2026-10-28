@@ -1,0 +1,66 @@
+---
+id: ModelCapabilities
+title: ModelCapabilities
+---
+
+Defined in: packages/ai/src/extend-adapter.ts:41
+
+Capability bag accepted by the object form of `createModel`.
+
+## Type Parameters
+
+### TInput
+
+`TInput` *extends* `ReadonlyArray`\<[`Modality`](../type-aliases/Modality.md)\> = `ReadonlyArray`\<[`Modality`](../type-aliases/Modality.md)\>
+
+### TFeatures
+
+`TFeatures` *extends* `ReadonlyArray`\<`string`\> = `ReadonlyArray`\<`string`\>
+
+### TTools
+
+`TTools` *extends* `ReadonlyArray`\<`string`\> = `ReadonlyArray`\<`string`\>
+
+### TOptions
+
+`TOptions` = `unknown`
+
+## Properties
+
+### features?
+
+```ts
+optional features?: TFeatures;
+```
+
+Defined in: packages/ai/src/extend-adapter.ts:48
+
+***
+
+### input?
+
+```ts
+optional input?: TInput;
+```
+
+Defined in: packages/ai/src/extend-adapter.ts:47
+
+***
+
+### modelOptions?
+
+```ts
+optional modelOptions?: TOptions;
+```
+
+Defined in: packages/ai/src/extend-adapter.ts:50
+
+***
+
+### tools?
+
+```ts
+optional tools?: TTools;
+```
+
+Defined in: packages/ai/src/extend-adapter.ts:49

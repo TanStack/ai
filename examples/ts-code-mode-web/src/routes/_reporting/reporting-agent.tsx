@@ -26,6 +26,7 @@ import {
   usePersistedReports,
 } from '@/components/reports'
 import type { Report, UIEvent } from '@/lib/reports/types'
+import { toolResultContentToString } from '@/lib/tool-result-content'
 
 export const Route = createFileRoute('/_reporting/reporting-agent')({
   component: ReportingAgentPage,
@@ -222,7 +223,7 @@ function Messages({
   messages,
   toolCallEvents,
 }: {
-  messages: Array<UIMessage>
+  messages: ReadonlyArray<UIMessage>
   toolCallEvents: Map<string, Array<VMEvent>>
 }) {
   const messagesContainerRef = useRef<HTMLDivElement>(null)
@@ -251,7 +252,7 @@ function Messages({
         for (const p of message.parts) {
           if (p.type === 'tool-result') {
             toolResults.set(p.toolCallId, {
-              content: p.content,
+              content: toolResultContentToString(p.content),
               state: p.state,
               error: p.error,
             })
@@ -436,12 +437,12 @@ function EmptyState() {
 }
 
 // Calculate context sizes
-function calculateActualSize(messages: Array<UIMessage>): number {
+function calculateActualSize(messages: ReadonlyArray<UIMessage>): number {
   return new TextEncoder().encode(JSON.stringify(messages)).length
 }
 
 function calculateTheoreticalSize(
-  messages: Array<UIMessage>,
+  messages: ReadonlyArray<UIMessage>,
   toolCallEvents: Map<string, Array<VMEvent>>,
 ): number {
   let theoreticalSize = calculateActualSize(messages)
@@ -575,8 +576,9 @@ function ReportingAgentPage() {
   )
 
   const { messages, sendMessage, isLoading, stop } = useChat({
+    threadId: 'reporting-agent',
     connection: fetchServerSentEvents('/api/reports'),
-    body,
+    forwardedProps: body,
     onCustomEvent: handleCustomEvent,
   })
 

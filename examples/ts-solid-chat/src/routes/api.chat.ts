@@ -1,12 +1,11 @@
 import { createFileRoute } from '@tanstack/solid-router'
 import {
   chat,
-  createChatOptions,
+  chatParamsFromRequestBody,
   maxIterations,
+  mergeAgentTools,
   toServerSentEventsResponse,
 } from '@tanstack/ai'
-import { openaiText } from '@tanstack/ai-openai'
-import { ollamaText } from '@tanstack/ai-ollama'
 import { anthropicText } from '@tanstack/ai-anthropic'
 import { geminiText } from '@tanstack/ai-gemini'
 import { openRouterText } from '@tanstack/ai-openrouter'
@@ -54,81 +53,28 @@ export const Route = createFileRoute('/api/chat')({
 
         const abortController = new AbortController()
 
-        const { messages, data } = await request.json()
-        const provider: Provider = data?.provider || 'openai'
-        const model: string = data?.model || 'gpt-4o'
+        let params
+        try {
+          params = await chatParamsFromRequestBody(await request.json())
+        } catch (error) {
+          return new Response(
+            error instanceof Error ? error.message : 'Bad request',
+            { status: 400 },
+          )
+        }
 
         try {
-          const adapterConfig: Record<
-            Provider,
-            () => { adapter: AnyTextAdapter }
-          > = {
-            anthropic: () =>
-              createChatOptions({
-                adapter: anthropicText(
-                  (model || 'claude-sonnet-4-5') as 'claude-sonnet-4-5',
-                ),
-              }),
-            openrouter: () =>
-              createChatOptions({
-                adapter: openRouterText('openai/gpt-5.1'),
-                modelOptions: {
-                  reasoning: {
-                    effort: 'medium',
-                  },
-                },
-              }),
-            gemini: () =>
-              createChatOptions({
-                adapter: geminiText(
-                  (model || 'gemini-2.5-flash') as 'gemini-2.5-flash',
-                ),
-                modelOptions: {
-                  thinkingConfig: {
-                    includeThoughts: true,
-                    thinkingBudget: 100,
-                  },
-                },
-              }),
-            grok: () =>
-              createChatOptions({
-                adapter: grokText((model || 'grok-3') as 'grok-3'),
-                modelOptions: {},
-              }),
-            groq: () =>
-              createChatOptions({
-                adapter: groqText(
-                  (model ||
-                    'llama-3.3-70b-versatile') as 'llama-3.3-70b-versatile',
-                ),
-              }),
-            ollama: () =>
-              createChatOptions({
-                adapter: ollamaText((model || 'gpt-oss:120b') as 'gpt-oss:120b'),
-                modelOptions: { think: 'low', options: { top_k: 1 } },
-              }),
-            openai: () =>
-              createChatOptions({
-                adapter: openaiText((model || 'gpt-4o') as 'gpt-4o'),
-                modelOptions: {},
-              }),
-            zai: () =>
-              createChatOptions({
-                adapter: zaiText((model || 'glm-4.7') as 'glm-4.7', {
-                  coding: true,
-                }),
-                modelOptions: {},
-              }),
-          }
-
-          const options = adapterConfig[provider]()
-
+          const mergedTools = mergeAgentTools(serverTools, params.tools)
+          // Use the stream abort signal for proper cancellation handling
           const stream = chat({
-            ...options,
-            tools: serverTools,
+            adapter: anthropicText('claude-sonnet-4-5'),
+            tools: mergedTools,
             systemPrompts: [SYSTEM_PROMPT],
             agentLoopStrategy: maxIterations(20),
-            messages,
+            messages: params.messages,
+            threadId: params.threadId,
+            runId: params.runId,
+            reasoning: { level: 'high', budgetTokens: 10000 },
             abortController,
           })
 

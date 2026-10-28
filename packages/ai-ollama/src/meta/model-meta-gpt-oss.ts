@@ -1,0 +1,115 @@
+import type { ModelReasoningCapability } from '@tanstack/ai/adapter-internals'
+import type {
+  OllamaChatRequest,
+  OllamaChatRequestMessages,
+  OllamaChatRequestTools,
+  OllamaMessageThinking,
+  OllamaMessageTools,
+  OllamaModelMeta,
+} from './models-meta'
+
+// Reasoning shapes: the levels a model has for `chat({ reasoning })`, and
+// the provider value to send for each. Each model points at one of them.
+const EFFORT_LOW_TO_HIGH = {
+  levels: { low: 'low', medium: 'medium', high: 'high' },
+  budget: false,
+} as const
+
+const OPT_OSS_LATEST = {
+  name: 'gpt-oss:latest',
+  supports: {
+    input: ['text'],
+    output: ['text'],
+    capabilities: ['tools', 'thinking'],
+  },
+  size: '14gb',
+  context: 128_000,
+  reasoning: EFFORT_LOW_TO_HIGH,
+} as const satisfies OllamaModelMeta<
+  OllamaChatRequest &
+    OllamaChatRequestMessages<OllamaMessageTools & OllamaMessageThinking> &
+    OllamaChatRequestTools
+>
+
+const OPT_OSS_20b = {
+  name: 'gpt-oss:20b',
+  supports: {
+    input: ['text'],
+    output: ['text'],
+    capabilities: ['tools', 'thinking'],
+  },
+  size: '14gb',
+  context: 128_000,
+  reasoning: EFFORT_LOW_TO_HIGH,
+} as const satisfies OllamaModelMeta<
+  OllamaChatRequest &
+    OllamaChatRequestMessages<OllamaMessageTools & OllamaMessageThinking> &
+    OllamaChatRequestTools
+>
+
+const OPT_OSS_120b = {
+  name: 'gpt-oss:120b',
+  supports: {
+    input: ['text'],
+    output: ['text'],
+    capabilities: ['tools', 'thinking'],
+  },
+  size: '65gb',
+  context: 128_000,
+  reasoning: EFFORT_LOW_TO_HIGH,
+} as const satisfies OllamaModelMeta<
+  OllamaChatRequest &
+    OllamaChatRequestMessages<OllamaMessageTools & OllamaMessageThinking> &
+    OllamaChatRequestTools
+>
+
+export const GPT_OSS_MODELS = [
+  OPT_OSS_LATEST.name,
+  OPT_OSS_20b.name,
+  OPT_OSS_120b.name,
+] as const
+
+// const GPT_OSS_IMAGE_MODELS = [] as const
+
+// export const GPT_OSS_EMBEDDING_MODELS = [] as const
+
+// const GPT_OSS_AUDIO_MODELS = [] as const
+
+// const GPT_OSS_VIDEO_MODELS = [] as const
+
+// export type GptOssChatModels = (typeof GPT_OSS_MODELS)[number]
+
+// Manual type map for per-model provider options
+export type GptOssChatModelProviderOptionsByName = {
+  // Models with thinking and structured output support
+  [OPT_OSS_LATEST.name]: OllamaChatRequest &
+    OllamaChatRequestMessages<OllamaMessageTools & OllamaMessageThinking> &
+    OllamaChatRequestTools
+  [OPT_OSS_20b.name]: OllamaChatRequest &
+    OllamaChatRequestMessages<OllamaMessageTools & OllamaMessageThinking> &
+    OllamaChatRequestTools
+  [OPT_OSS_120b.name]: OllamaChatRequest &
+    OllamaChatRequestMessages<OllamaMessageTools & OllamaMessageThinking> &
+    OllamaChatRequestTools
+}
+
+export type GptOssModelInputModalitiesByName = {
+  // Models with text, image, audio, video (no document)
+  [OPT_OSS_LATEST.name]: typeof OPT_OSS_LATEST.supports.input
+  [OPT_OSS_20b.name]: typeof OPT_OSS_20b.supports.input
+  [OPT_OSS_120b.name]: typeof OPT_OSS_120b.supports.input
+}
+
+/** Each model's reasoning data at runtime. */
+export const GPT_OSS_MODEL_REASONING = {
+  [OPT_OSS_LATEST.name]: OPT_OSS_LATEST.reasoning,
+  [OPT_OSS_20b.name]: OPT_OSS_20b.reasoning,
+  [OPT_OSS_120b.name]: OPT_OSS_120b.reasoning,
+}
+
+/** Each model's reasoning levels, for `chat({ reasoning })`. */
+export type GptOssModelReasoningByName = {
+  [K in keyof typeof GPT_OSS_MODEL_REASONING]: ModelReasoningCapability<
+    (typeof GPT_OSS_MODEL_REASONING)[K]
+  >
+}

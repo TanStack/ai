@@ -1,5 +1,6 @@
 {
   "include": ["**/*.ts", "**/*.tsx"],
+  "exclude": ["node_modules", "src/routeTree.gen.ts"],
   "compilerOptions": {
     "target": "ES2022",
     "jsx": "preserve",

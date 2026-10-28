@@ -1,0 +1,145 @@
+// ============================================================================
+// New Tree-Shakeable Adapters (Recommended)
+// ============================================================================
+
+// Text (Chat) adapter - for chat/text completion
+export {
+  OpenRouterTextAdapter,
+  createOpenRouterText,
+  openRouterText,
+  type OpenRouterConfig,
+  type OpenRouterTextModelOptions,
+} from './adapters/text'
+
+// Responses (beta) adapter - for the OpenRouter beta Responses API
+export {
+  OpenRouterResponsesTextAdapter,
+  createOpenRouterResponsesText,
+  openRouterResponsesText,
+  type OpenRouterResponsesConfig,
+  type OpenRouterResponsesTextProviderOptions,
+} from './adapters/responses-text'
+
+// Summarize - thin factory functions over @tanstack/ai's ChatStreamSummarizeAdapter
+export {
+  createOpenRouterSummarize,
+  openRouterSummarize,
+  type OpenRouterSummarizeConfig,
+  type OpenRouterTextModels as OpenRouterSummarizeModel,
+} from './adapters/summarize'
+
+// Image adapter - for image generation
+export {
+  OpenRouterImageAdapter,
+  createOpenRouterImage,
+  openRouterImage,
+  type OpenRouterImageConfig,
+} from './adapters/image'
+export type {
+  OpenRouterImageProviderOptions,
+  OpenRouterImageModelProviderOptionsByName,
+  OpenRouterImageModelSizeByName,
+} from './image/image-provider-options'
+
+// Rerank adapter - document reranking via OpenRouter's /v1/rerank endpoint
+export {
+  OpenRouterRerankAdapter,
+  createOpenRouterRerank,
+  openRouterRerank,
+  type OpenRouterRerankConfig,
+} from './adapters/rerank'
+export {
+  OPENROUTER_RERANK_MODELS,
+  type OpenRouterRerankModel,
+  type KnownOpenRouterRerankModel,
+  type OpenRouterRerankProviderOptions,
+} from './rerank/rerank-provider-options'
+
+// Evaluate adapter - typed decisions via OpenRouter's /api/alpha/decisions endpoint
+export {
+  OpenRouterEvaluateAdapter,
+  createOpenRouterDecider,
+  openRouterDecider,
+  type OpenRouterEvaluateConfig,
+} from './adapters/evaluate'
+export {
+  OPENROUTER_EVALUATE_MODELS,
+  type OpenRouterEvaluateModel,
+  type KnownOpenRouterEvaluateModel,
+  type OpenRouterEvaluateProviderOptions,
+} from './evaluate/evaluate-provider-options'
+
+// Video adapter - for async video generation (POST /api/v1/videos)
+export {
+  OpenRouterVideoAdapter,
+  createOpenRouterVideo,
+  openRouterVideo,
+  type OpenRouterVideoConfig,
+} from './adapters/video'
+export type {
+  OpenRouterVideoModel,
+  OpenRouterVideoProviderOptions,
+  OpenRouterVideoModelProviderOptionsByName,
+  OpenRouterVideoModelSizeByName,
+  OpenRouterVideoModelInputModalitiesByName,
+  OpenRouterVideoModelDurationByName,
+} from './video/video-provider-options'
+
+// ============================================================================
+// Type Exports
+// ============================================================================
+
+export type {
+  OpenRouterModelOptionsByName,
+  OpenRouterModelInputModalitiesByName,
+  OpenRouterChatModelToolCapabilitiesByName,
+} from './model-meta'
+export { OPENROUTER_COMBINED_TOOLS_AND_SCHEMA_MODELS } from './model-meta'
+export type {
+  OpenRouterTextMetadata,
+  OpenRouterImageMetadata,
+  OpenRouterAudioMetadata,
+  OpenRouterVideoMetadata,
+  OpenRouterDocumentMetadata,
+  OpenRouterMessageMetadataByModality,
+  OpenRouterResponsesToolCallMetadata,
+} from './message-types'
+export type {
+  WebPlugin,
+  PluginResponseHealing,
+  PdfParserOptions,
+  PluginFileParser,
+  PluginModeration,
+  PluginAutoRouter,
+  Plugin,
+  ProviderPreferences,
+  StreamOptions,
+  ImageConfig,
+  OpenRouterSystemPromptMetadata,
+} from './text/text-provider-options'
+
+// ============================================================================
+// Utils Exports
+// ============================================================================
+
+export {
+  getOpenRouterApiKeyFromEnv,
+  generateId,
+  buildHeaders,
+  type OpenRouterClientConfig,
+} from './utils/client'
+
+// ============================================================================
+// Tool Exports
+// ============================================================================
+
+export { convertToolsToProviderFormat } from './tools/tool-converter'
+
+export type {
+  OpenRouterTool,
+  FunctionTool,
+  WebSearchToolConfig,
+} from './tools/index'
+
+// Export provider usage types
+export type { OpenRouterProviderUsageDetails } from './usage'

@@ -3,8 +3,6 @@ id: ContentPart
 title: ContentPart
 ---
 
-# Type Alias: ContentPart\<TTextMeta, TImageMeta, TAudioMeta, TVideoMeta, TDocumentMeta\>
-
 ```ts
 type ContentPart<TTextMeta, TImageMeta, TAudioMeta, TVideoMeta, TDocumentMeta> = 
   | TextPart<TTextMeta>
@@ -14,7 +12,7 @@ type ContentPart<TTextMeta, TImageMeta, TAudioMeta, TVideoMeta, TDocumentMeta> =
 | DocumentPart<TDocumentMeta>;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:241](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L241)
+Defined in: packages/ai/src/types.ts:327
 
 Union type for all multimodal content parts.
 

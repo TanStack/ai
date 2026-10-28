@@ -3,8 +3,6 @@ id: AIAdapter
 title: AIAdapter
 ---
 
-# Type Alias: AIAdapter
-
 ```ts
 type AIAdapter = 
   | AnyTextAdapter
@@ -13,9 +11,16 @@ type AIAdapter =
   | AnyAudioAdapter
   | AnyVideoAdapter
   | AnyTTSAdapter
-  | AnyTranscriptionAdapter;
+  | AnyVoiceAdapter
+  | AnyTranscriptionAdapter
+  | AnyEmbeddingAdapter
+  | AnyRerankAdapter
+  | AnyEvaluateAdapter
+  | AnyWorldAdapter
+  | AnyLiveVideoAdapter
+  | AnyFilesAdapter;
 ```
 
-Defined in: [packages/typescript/ai/src/activities/index.ts:169](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/index.ts#L169)
+Defined in: packages/ai/src/activities/index.ts:370
 
-Union of all adapter types that can be passed to chat()
+Union of all adapter types across every activity kind

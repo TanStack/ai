@@ -2,7 +2,7 @@
 title: Thinking & Reasoning
 id: thinking-content
 order: 5
-description: "Render reasoning tokens from thinking models (Claude extended thinking, OpenAI o-series) as streamed ThinkingPart in TanStack AI chat UIs."
+description: "Show the thinking of a reasoning model in your chat UI. The thinking streams as ThinkingPart entries in message.parts, in the order the model used."
 keywords:
   - tanstack ai
   - thinking
@@ -14,136 +14,169 @@ keywords:
   - ThinkingPart
 ---
 
-Some models expose their internal reasoning as "thinking" content -- Claude with extended thinking, OpenAI o-series models with reasoning, and others. TanStack AI captures this as `ThinkingPart` in messages, streamed to your UI in real-time alongside text and tool calls.
+A thinking part holds the text a reasoning model writes before the answer. Render it in order with the tool calls.
 
-Thinking content is **UI-only**. It is never sent back to the model in subsequent requests.
+TanStack AI streams the thinking as `ThinkingPart` entries in `message.parts`, next to the text and the tool calls.
 
-## How It Works
+## Quick setup
 
-When a model emits reasoning tokens, the adapter converts them into AG-UI `STEP_STARTED` and `STEP_FINISHED` events. The stream processor accumulates these into a single `ThinkingPart` on the assistant's `UIMessage`:
+### 1. Turn thinking on in the server route
+
+Set `reasoning` on `chat()`. It works the same on every provider:
 
 ```typescript
-interface ThinkingPart {
-  type: "thinking";
-  content: string;
+// api/chat.ts
+import {
+  chat,
+  chatParamsFromRequest,
+  toServerSentEventsResponse,
+} from "@tanstack/ai";
+import { anthropicText } from "@tanstack/ai-anthropic";
+
+export async function POST(request: Request) {
+  const { messages, threadId, runId } = await chatParamsFromRequest(request);
+
+  const stream = chat({
+    adapter: anthropicText("claude-sonnet-5-5"),
+    messages,
+    threadId,
+    runId,
+    reasoning: "high",
+  });
+
+  return toServerSentEventsResponse(stream);
 }
 ```
 
-The `ThinkingPart` appears in `UIMessage.parts` alongside `TextPart` and `ToolCallPart` entries. Each `STEP_FINISHED` event carries an incremental `delta` and the full accumulated `content`, so you always have both the latest token and the complete thinking so far.
+### 2. Render the thinking parts on the client
 
-## Enabling Thinking
-
-How you enable thinking depends on the provider.
-
-### Anthropic (Extended Thinking)
-
-Pass the `thinking` option in `providerOptions`. You must specify `budget_tokens` (minimum 1024):
-
-```typescript
-import { chat } from "@tanstack/ai";
-import { anthropicText } from "@tanstack/ai-anthropic";
-
-const stream = chat({
-  adapter: anthropicText("claude-sonnet-4-20250514"),
-  messages,
-  providerOptions: {
-    thinking: { type: "enabled", budget_tokens: 10000 },
-  },
-});
-```
-
-For Claude Opus 4.6 and later, you can use adaptive thinking, where the model decides how much to think:
-
-```typescript
-const stream = chat({
-  adapter: anthropicText("claude-opus-4-6-20250514"),
-  messages,
-  providerOptions: {
-    thinking: { type: "adaptive" },
-    effort: "high", // 'max' | 'high' | 'medium' | 'low'
-  },
-});
-```
-
-### OpenAI (Reasoning Models)
-
-OpenAI o-series models (o1, o3, o3-mini, o3-pro) perform reasoning automatically. You can control the depth with the `reasoning` option:
-
-```typescript
-import { chat } from "@tanstack/ai";
-import { openaiText } from "@tanstack/ai-openai";
-
-const stream = chat({
-  adapter: openaiText("o3-mini"),
-  messages,
-  providerOptions: {
-    reasoning: {
-      effort: "medium", // 'low' | 'medium' | 'high'
-      summary: "auto", // 'auto' | 'detailed'
-    },
-  },
-});
-```
-
-When `reasoning.summary` is set, the adapter streams reasoning summary text as thinking content. Without it, reasoning tokens are still used internally but may not be surfaced depending on the model.
-
-GPT-5 and later models also support reasoning when you set the `effort` to a non-`none` value:
-
-```typescript
-const stream = chat({
-  adapter: openaiText("gpt-5"),
-  messages,
-  providerOptions: {
-    reasoning: { effort: "high" },
-  },
-});
-```
-
-## Rendering in React
-
-Thinking parts appear in `message.parts` just like text and tool calls. A common pattern is to render them in a collapsible element so they don't dominate the UI:
+Put each thinking part in a box that the user can open:
 
 ```tsx
-function MessageContent({ message }) {
-  return (
-    <div>
-      {message.parts.map((part, idx) => {
+import { useChat, fetchServerSentEvents } from "@tanstack/ai-react";
+
+export function Chat() {
+  const { messages } = useChat({
+    connection: fetchServerSentEvents("/api/chat"),
+    threadId: "support-chat",
+  });
+
+  return messages.map((message) => (
+    <div key={message.id}>
+      {message.parts.map((part, index) => {
         if (part.type === "thinking") {
           return (
-            <details key={idx}>
+            <details key={index}>
               <summary>Thinking...</summary>
               <pre style={{ whiteSpace: "pre-wrap" }}>{part.content}</pre>
             </details>
           );
         }
         if (part.type === "text") {
-          return <p key={idx}>{part.content}</p>;
+          return <p key={index}>{part.content}</p>;
         }
         return null;
       })}
     </div>
-  );
+  ));
 }
 ```
 
-The [Quick Start](../getting-started/quick-start) guide shows a simpler inline pattern where thinking is rendered as italic text above the response.
+Ask a hard question. The thinking box fills first, then the answer streams below it.
 
-## Streaming Behavior
+Some models think without sending text back. For those models, the thinking part stays empty.
 
-Thinking content streams **before** the final text response. As reasoning tokens arrive, `ThinkingPart.content` accumulates token by token, the same way `TextPart.content` does for the response text.
+## How it works
 
-The typical streaming order is:
+The thinking streams before the answer. Its `content` grows token by token, the same as a text part.
 
-1. `STEP_STARTED` -- marks the beginning of a thinking block
-2. `STEP_FINISHED` (repeated) -- each carries a `delta` with the new token and `content` with the full thinking so far
-3. `TEXT_MESSAGE_START` -- the model begins its visible response
-4. `TEXT_MESSAGE_CONTENT` (repeated) -- the response text streams in
+The usual order of events:
 
-The stream processor handles all of this for you. If you use `useChat` from `@tanstack/ai-react` (or the Solid/Vue/Svelte equivalents), your `messages` array updates automatically with both thinking and text parts as they arrive.
+1. `REASONING_START` and `REASONING_MESSAGE_START` start the thinking.
+2. `REASONING_MESSAGE_CONTENT` events add tokens to `ThinkingPart.content`.
+3. `TEXT_MESSAGE_START` starts the visible answer.
+4. `TEXT_MESSAGE_CONTENT` events stream the answer text.
 
-## Next Steps
+`useChat` in every framework updates `messages` with both thinking parts and text parts while they arrive.
 
-- [Streaming](./streaming) -- Connection adapters and stream events
-- [Agentic Cycle](./agentic-cycle) -- How thinking interacts with tool-calling loops
-- [Anthropic Adapter](../adapters/anthropic) -- Full Anthropic provider options
-- [OpenAI Adapter](../adapters/openai) -- Full OpenAI provider options
+To see levels and token budgets, read [Reasoning](./reasoning).
+
+## Keep the thinking out of the UI
+
+If you want the model to think but do not want to show the text, set `summary: false`:
+
+```typescript
+import { chat } from "@tanstack/ai";
+import { openaiText } from "@tanstack/ai-openai";
+
+const stream = chat({
+  adapter: openaiText("gpt-6.1-sol"),
+  messages: [{ role: "user", content: "Plan a database migration." }],
+  threadId: "thread-1",
+  reasoning: { level: "high", summary: false },
+});
+```
+
+Then no thinking text streams.
+
+## Thinking and tool calls in order
+
+Claude can think, call a tool, think again, then call another tool. Your UI must show that order, not all the thinking in one block at the top.
+
+You get this order by default. `message.parts` keeps the order that the model used. For that answer, the part types are:
+
+```text
+thinking, tool-call, thinking, tool-call
+```
+
+What this means for your UI:
+
+- Each thinking block is its own `ThinkingPart`. Each one gets its own `REASONING_MESSAGE_END` and `REASONING_END`.
+- Text after a second thinking block starts a new text part. You get "A" and "B" as two parts, not "AB".
+- The render loop in the [Quick setup](#2-render-the-thinking-parts-on-the-client) already walks the parts in order. You do not need extra code.
+
+## Advanced
+
+### The `ThinkingPart` type
+
+This is the type in `@tanstack/ai`, which the server and stored messages use. The thinking part that `useChat` returns has only `type` and `content`.
+
+```typescript
+interface ThinkingPart {
+  type: "thinking";
+  content: string;
+  stepId?: string;
+  signature?: string;
+  redacted?: boolean;
+}
+```
+
+The thinking content comes from the `REASONING_*` events and from `REASONING_ENCRYPTED_VALUE`. `STEP_STARTED` and `STEP_FINISHED` carry only `stepName`. They do not carry thinking text.
+
+### Signed thinking
+
+Thinking without a signature stays in the UI. Signed thinking is a `ThinkingPart` with a `signature`. Anthropic extended thinking uses it.
+
+- The next request sends signed thinking back in the same order as the original response. This includes the order around provider-executed tools.
+- In the next request body, the signature goes on the spec field `encryptedValue` of the `role: "reasoning"` message.
+- In the stream, the signature arrives as a `REASONING_ENCRYPTED_VALUE` event.
+
+### Redacted thinking
+
+Claude can send a redacted thinking block. It is encrypted, so it has no text. It arrives as a `ThinkingPart` with:
+
+- `redacted: true`
+- an empty `content`
+- the encrypted data in `signature`
+
+Keep the part in your stored messages. The next request sends it back to Claude unchanged. In a UI, the part from `useChat` has an empty `content`. Show a short label such as "Thinking hidden" in place of the empty text.
+
+### The block order goes back to the model
+
+The stored message keeps a `blockOrder` map. The next request sends the blocks in the same order. Claude needs this, because it signs each thinking block against the blocks before it.
+
+Gemini, Mistral, and Bedrock Converse also send thinking back on the next request, for history from the same model. History from another model goes in as plain text. See [Keep saved history when you switch](../advanced/runtime-adapter-switching#keep-saved-history-when-you-switch).
+
+### Provider options
+
+For all provider options, see the [Anthropic adapter](../adapters/anthropic) and the [OpenAI adapter](../adapters/openai). To see how thinking fits into a tool loop, read [Agentic Cycle](./agentic-cycle).

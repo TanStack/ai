@@ -3,9 +3,7 @@ id: AgentLoopState
 title: AgentLoopState
 ---
 
-# Interface: AgentLoopState
-
-Defined in: [packages/typescript/ai/src/types.ts:631](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L631)
+Defined in: packages/ai/src/types.ts:1208
 
 State passed to agent loop strategy for determining whether to continue
 
@@ -17,7 +15,7 @@ State passed to agent loop strategy for determining whether to continue
 finishReason: string | null;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:637](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L637)
+Defined in: packages/ai/src/types.ts:1214
 
 Finish reason from the last response
 
@@ -29,9 +27,22 @@ Finish reason from the last response
 iterationCount: number;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:633](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L633)
+Defined in: packages/ai/src/types.ts:1210
 
-Current iteration count (0-indexed)
+Current iteration count (0-indexed). One iteration = one model turn.
+
+***
+
+### lastTurnToolCallCount
+
+```ts
+lastTurnToolCallCount: number;
+```
+
+Defined in: packages/ai/src/types.ts:1226
+
+Tool calls in the most recent batch — a live model turn or a
+pending/resume batch (0 when the last phase produced no tool calls).
 
 ***
 
@@ -44,6 +55,21 @@ messages: ModelMessage<
   | null>[];
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:635](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L635)
+Defined in: packages/ai/src/types.ts:1212
 
 Current messages array
+
+***
+
+### toolCallCount
+
+```ts
+toolCallCount: number;
+```
+
+Defined in: packages/ai/src/types.ts:1221
+
+Cumulative tool calls counted so far in this run (model-emitted during the
+agent loop, including ones skipped by middleware, and pending tools from
+the inbound message list when resumed). Not a recount of full message
+history; not model turns.

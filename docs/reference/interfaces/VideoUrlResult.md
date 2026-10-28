@@ -3,27 +3,41 @@ id: VideoUrlResult
 title: VideoUrlResult
 ---
 
-# Interface: VideoUrlResult
-
-Defined in: [packages/typescript/ai/src/types.ts:1385](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1385)
-
-**`Experimental`**
+Defined in: packages/ai/src/types.ts:2663
 
 Result containing the URL to a generated video.
 
- Video generation is an experimental feature and may change.
-
 ## Properties
+
+### artifacts?
+
+```ts
+optional artifacts?: PersistedArtifactRef[];
+```
+
+Defined in: packages/ai/src/types.ts:2677
+
+Persisted artifact references for generated assets, when available
+
+***
+
+### body?
+
+```ts
+optional body?: undefined;
+```
+
+Defined in: packages/ai/src/types.ts:2678
+
+***
 
 ### expiresAt?
 
 ```ts
-optional expiresAt: Date;
+optional expiresAt?: Date;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:1391](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1391)
-
-**`Experimental`**
+Defined in: packages/ai/src/types.ts:2669
 
 When the URL expires, if applicable
 
@@ -35,9 +49,7 @@ When the URL expires, if applicable
 jobId: string;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:1387](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1387)
-
-**`Experimental`**
+Defined in: packages/ai/src/types.ts:2665
 
 Job identifier
 
@@ -49,8 +61,20 @@ Job identifier
 url: string;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:1389](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1389)
-
-**`Experimental`**
+Defined in: packages/ai/src/types.ts:2667
 
 URL to the generated video
+
+***
+
+### usage?
+
+```ts
+optional usage?: TokenUsage<ProviderUsageDetails>;
+```
+
+Defined in: packages/ai/src/types.ts:2675
+
+Usage information for the completed generation, when the adapter can report
+it. For usage-based providers (e.g. fal) this carries `billed` — the real
+billed quantity paired with its unit — so consumers can compute exact cost.

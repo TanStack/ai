@@ -3,10 +3,14 @@ id: AGUIEvent
 title: AGUIEvent
 ---
 
-# Type Alias: AGUIEvent
-
 ```ts
 type AGUIEvent = 
+  | ActivitySnapshotEvent
+  | ActivityDeltaEvent
+  | RawEvent
+  | TextMessageChunkEvent
+  | ToolCallChunkEvent
+  | ReasoningMessageChunkEvent
   | RunStartedEvent
   | RunFinishedEvent
   | RunErrorEvent
@@ -28,9 +32,12 @@ type AGUIEvent =
   | ReasoningMessageContentEvent
   | ReasoningMessageEndEvent
   | ReasoningEndEvent
-  | ReasoningEncryptedValueEvent;
+  | ReasoningEncryptedValueEvent
+  | SubagentStartedEvent
+  | SubagentFinishedEvent
+  | SubagentErrorEvent;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:1124](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1124)
+Defined in: packages/ai/src/types.ts:2038
 
 Union of all AG-UI events.

@@ -3,33 +3,59 @@ id: CustomEvent
 title: CustomEvent
 ---
 
-# Interface: CustomEvent
-
-Defined in: [packages/typescript/ai/src/types.ts:1042](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1042)
+Defined in: packages/ai/src/types.ts:1754
 
 Custom event for extensibility.
 
-@ag-ui/core provides: `name`, `value`
-TanStack AI adds: `model?`
+@ag-ui/core provides: `name`, `value`, `subagentRunId?`
 
 ## Extends
 
-- `CustomEvent`
+- `Omit`\<`AGUICustomEvent`, `"type"`\>
 
-## Indexable
+## Extended by
 
-```ts
-[k: string]: unknown
-```
+- [`StructuredOutputCompleteEvent`](StructuredOutputCompleteEvent.md)
+- [`StructuredOutputStartEvent`](StructuredOutputStartEvent.md)
+- [`UIResourceEvent`](UIResourceEvent.md)
+- [`SandboxFileCustomEvent`](SandboxFileCustomEvent.md)
+- [`SandboxFileDiffEvent`](SandboxFileDiffEvent.md)
+- [`FileChangedEvent`](FileChangedEvent.md)
+- [`SessionIdEvent`](SessionIdEvent.md)
+- [`CodeModeExecutionStartedEvent`](CodeModeExecutionStartedEvent.md)
+- [`CodeModeConsoleEvent`](CodeModeConsoleEvent.md)
+- [`CodeModeExternalCallEvent`](CodeModeExternalCallEvent.md)
+- [`CodeModeExternalResultEvent`](CodeModeExternalResultEvent.md)
+- [`CodeModeExternalErrorEvent`](CodeModeExternalErrorEvent.md)
+- [`CodeModeSnippetCallEvent`](CodeModeSnippetCallEvent.md)
+- [`CodeModeSnippetResultEvent`](CodeModeSnippetResultEvent.md)
+- [`CodeModeSnippetErrorEvent`](CodeModeSnippetErrorEvent.md)
+- [`SnippetRegisteredEvent`](SnippetRegisteredEvent.md)
 
 ## Properties
 
-### model?
+### metadata?
 
 ```ts
-optional model: string;
+optional metadata?: Record<string, any>;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:1044](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1044)
+Defined in: packages/ai/src/types.ts:1756
 
-Model identifier for multi-model support
+Extra information attached to this event.
+
+#### Overrides
+
+```ts
+Omit.metadata
+```
+
+***
+
+### type
+
+```ts
+type: "CUSTOM";
+```
+
+Defined in: packages/ai/src/types.ts:1755

@@ -1,0 +1,23 @@
+{
+  "fixtures": [
+    {
+      "match": {
+        "userMessage": "[client-server-context] run test",
+        "sequenceIndex": 0
+      },
+      "response": {
+        "content": "I will read the server context derived from forwarded props.",
+        "toolCalls": [{ "name": "read_server_context", "arguments": "{}" }]
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[client-server-context] run test",
+        "sequenceIndex": 1
+      },
+      "response": {
+        "content": "The forwarded props were mapped into server runtime context."
+      }
+    }
+  ]
+}

@@ -17,6 +17,7 @@ import { parsePartialJSON } from '@tanstack/ai'
 import { fetchServerSentEvents, useChat } from '@tanstack/ai-react'
 import type { UIMessage } from '@tanstack/ai-react'
 import type { VMEvent, IsolateVM } from '@/components'
+import { getClientDefaultIsolateVM } from '@/lib/create-isolate-driver'
 import {
   CodeBlock,
   ExecutionResult,
@@ -27,6 +28,7 @@ import {
 } from '@/components'
 import { NpmDataSidebar } from '@/components/NpmDataSidebar'
 import { exportConversationToPdfTool } from '@/lib/tools/export-pdf-tool'
+import { toolResultContentToString } from '@/lib/tool-result-content'
 
 export const Route = createFileRoute('/_npm-github-chat/npm-github-chat')({
   component: CodeModePage,
@@ -215,7 +217,7 @@ function Messages({
   messages,
   toolCallEvents,
 }: {
-  messages: Array<UIMessage>
+  messages: ReadonlyArray<UIMessage>
   toolCallEvents: Map<string, Array<VMEvent>>
 }) {
   const messagesContainerRef = useRef<HTMLDivElement>(null)
@@ -254,7 +256,7 @@ function Messages({
         for (const p of message.parts) {
           if (p.type === 'tool-result') {
             toolResults.set(p.toolCallId, {
-              content: p.content,
+              content: toolResultContentToString(p.content),
               state: p.state,
               error: p.error,
             })
@@ -375,7 +377,7 @@ function Messages({
                         )}
                         {/* Show JavaScript VM when input is complete (executing or has output) */}
                         {isInputComplete &&
-                          (events.length > 0 || isExecuting) && (
+                          (events.length > 0 || isExecuting || hasError) && (
                             <JavaScriptVM
                               events={events}
                               isExecuting={isExecuting}
@@ -387,7 +389,20 @@ function Messages({
                             status={executionStatus}
                             result={parsedOutput?.result}
                             error={
-                              parsedOutput?.error?.message || toolResult?.error
+                              parsedOutput?.error?.message ||
+                              (typeof toolResult?.error === 'string'
+                                ? toolResult.error
+                                : undefined)
+                            }
+                            errorName={
+                              typeof parsedOutput?.error?.name === 'string'
+                                ? parsedOutput.error.name
+                                : undefined
+                            }
+                            errorStack={
+                              typeof parsedOutput?.error?.stack === 'string'
+                                ? parsedOutput.error.stack
+                                : undefined
                             }
                             logs={parsedOutput?.logs}
                           />
@@ -441,7 +456,7 @@ function Messages({
 }
 
 // Calculate context sizes for the chat metrics
-function calculateActualSize(messages: Array<UIMessage>): number {
+function calculateActualSize(messages: ReadonlyArray<UIMessage>): number {
   return new TextEncoder().encode(JSON.stringify(messages)).length
 }
 
@@ -449,7 +464,11 @@ function CodeModePage() {
   const [selectedModel, setSelectedModel] = useState<ModelOption>(
     MODEL_OPTIONS[0],
   )
-  const [selectedVM, setSelectedVM] = useState<IsolateVM>('node')
+  const [selectedVM, setSelectedVM] = useState<IsolateVM>(
+    // Prefer Bun native isolate when started with `pnpm dev:bun` /
+    // CODE_MODE_BUN=1 (see vite.config + getClientDefaultIsolateVM).
+    getClientDefaultIsolateVM,
+  )
   const [chatLayout, setChatLayout] = useState<
     'tools-data' | 'full' | 'tools' | 'data'
   >('tools-data')
@@ -479,7 +498,7 @@ function CodeModePage() {
   const npmDataIdCounter = useRef(0)
 
   // Ref to hold current messages for the client tool to access
-  const messagesRef = useRef<Array<UIMessage>>([])
+  const messagesRef = useRef<ReadonlyArray<UIMessage>>([])
 
   const body = useMemo(
     () => ({
@@ -662,8 +681,9 @@ function CodeModePage() {
   )
 
   const { messages, sendMessage, isLoading, stop } = useChat({
+    threadId: 'npm-github-chat',
     connection: fetchServerSentEvents('/api/codemode'),
-    body,
+    forwardedProps: body,
     onCustomEvent: handleCustomEvent,
     tools: [exportPdfClientTool],
   })

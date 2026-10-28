@@ -3,13 +3,11 @@ id: summarize
 title: summarize
 ---
 
-# Function: summarize()
-
 ```ts
 function summarize<TAdapter, TStream>(options): SummarizeActivityResult<TStream>;
 ```
 
-Defined in: [packages/typescript/ai/src/activities/summarize/index.ts:156](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/summarize/index.ts#L156)
+Defined in: packages/ai/src/activities/summarize/index.ts:210
 
 Summarize activity - generates summaries from text.
 
@@ -37,39 +35,51 @@ Supports both streaming and non-streaming modes.
 
 ## Examples
 
+**Basic summarization**
+
 ```ts
 import { summarize } from '@tanstack/ai'
 import { openaiSummarize } from '@tanstack/ai-openai'
 
 const result = await summarize({
   adapter: openaiSummarize('gpt-4o-mini'),
-  text: 'Long article text here...'
+  text: 'Long article text here...',
+  threadId,
 })
 
 console.log(result.summary)
 ```
 
+**Summarization with style**
+
 ```ts
 const result = await summarize({
   adapter: openaiSummarize('gpt-4o-mini'),
   text: 'Long article text here...',
+  threadId,
   style: 'bullet-points',
   maxLength: 100
 })
 ```
 
+**Focused summarization**
+
 ```ts
 const result = await summarize({
   adapter: openaiSummarize('gpt-4o-mini'),
   text: 'Long technical document...',
+  threadId,
   focus: ['key findings', 'methodology']
 })
 ```
+
+**Streaming summarization**
 
 ```ts
 for await (const chunk of summarize({
   adapter: openaiSummarize('gpt-4o-mini'),
   text: 'Long article text here...',
+  threadId,
   stream: true
 })) {
   if (chunk.type === 'content') {

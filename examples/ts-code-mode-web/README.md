@@ -6,8 +6,8 @@ TanStack AI Code Mode web example using React and TanStack Start.
 
 ### Prerequisites
 
-- Node.js >=18
-- pnpm@10.17.0
+- Node.js 24.8.0 (see the repo `.nvmrc`)
+- pnpm@11.9.0
 - Xcode Command Line Tools (macOS)
 
 ### Installation
@@ -71,11 +71,36 @@ Even after successfully compiling from source, `isolated-vm@6.1.0` crashes the s
 ## Development
 
 ```bash
-pnpm dev   # starts the Vite dev server on port 3001
+# Node (default) — Node isolate / QuickJS WASM / Cloudflare drivers
+pnpm dev   # http://localhost:3001
+
+# Bun — native QuickJS via bun:ffi (@tanstack/ai-isolate-quickjs-bun)
+pnpm dev:bun
+# equivalent:
+#   CODE_MODE_BUN=1 bun --bun vite dev --port 3001
 ```
+
+### Bun mode (`CODE_MODE_BUN=1`)
+
+When set (or when the process is Bun), this example:
+
+1. Defaults the isolate VM to **`quickjs-bun`** (sidebar + server routes that call `createIsolateDriver()`)
+2. Uses Nitro `preset: 'bun'` for the server build
+3. Keeps client `resolve.conditions` **without** `bun` (required so TanStack Router hydrates — see router-core `isServer` dual package)
+
+Optional overrides:
+
+| Env                                                           | Effect                                                       |
+| ------------------------------------------------------------- | ------------------------------------------------------------ |
+| `CODE_MODE_BUN=1`                                             | Bun defaults + Nitro bun preset (also set by `pnpm dev:bun`) |
+| `CODE_MODE_DEFAULT_VM=node\|quickjs\|quickjs-bun\|cloudflare` | Force default isolate regardless of Bun                      |
 
 ## Build
 
 ```bash
 pnpm build
+
+# Bun production build + run
+pnpm build:bun
+pnpm start:bun
 ```

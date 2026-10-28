@@ -1,13 +1,81 @@
 import { createFileRoute } from '@tanstack/react-router'
 import {
   chat,
+  chatParamsFromRequestBody,
+  createCapability,
+  EventType,
   maxIterations,
   toServerSentEventsResponse,
   toolDefinition,
 } from '@tanstack/ai'
-import type { ChatMiddleware } from '@tanstack/ai'
+import { otelMiddleware } from '@tanstack/ai/middlewares/otel'
+import { memoryMiddleware } from '@tanstack/ai-memory'
+import type { MemoryAdapter } from '@tanstack/ai-memory'
+import { clientContextToolDefinition } from '@/lib/middleware-test-tools'
+import {
+  getMemoryCapture,
+  recordMemoryConfig,
+  recordMemorySave,
+  resetMemoryCapture,
+} from '@/lib/memory-capture'
+import { SpanStatusCode } from '@opentelemetry/api'
 import { z } from 'zod'
+import type {
+  AnyTextAdapter,
+  ChatMiddleware,
+  StreamChunk,
+  Tool,
+} from '@tanstack/ai'
+import type {
+  AttributeValue,
+  Attributes,
+  Context,
+  Histogram,
+  Meter,
+  MetricOptions,
+  Span,
+  SpanContext,
+  SpanStatus,
+  Tracer,
+} from '@opentelemetry/api'
+import { guitarRecommendationSchema } from '@/lib/schemas'
+import {
+  getPhaseCapture,
+  recordGenericBoundary,
+  recordGenericPolicy,
+  recordGenericResolution,
+  recordGenericToolExecution,
+  recordOnError,
+  recordOnFinish,
+  recordPhase,
+  recordYieldedChunk,
+  resetPhaseCapture,
+} from '@/lib/phase-capture'
+import {
+  boundaryForScenario,
+  deleteReviewTool,
+  inspectReviewTool,
+  isGenericScenario,
+  renderReviewTool,
+  reviewPlan,
+  toolResumeForScenario,
+} from '@/lib/generic-middleware-interrupts'
+import type { GenericScenario } from '@/lib/generic-middleware-interrupts'
 import { createTextAdapter } from '@/lib/providers'
+import {
+  getOtelCapture,
+  recordOtelEvent,
+  recordOtelException,
+  recordOtelHistogram,
+  recordOtelSpan,
+  resetOtelCapture,
+} from '@/lib/otel-capture'
+
+// The otel capture endpoint is only useful during E2E runs. Gate both the
+// POST 'otel' mode and the GET capture fetch behind this flag so the route
+// cannot be used as an oracle in a production-like build.
+const OTEL_TEST_ENABLED =
+  process.env.E2E_TEST === '1' || process.env.NODE_ENV !== 'production'
 
 const weatherTool = toolDefinition({
   name: 'get_weather',
@@ -17,6 +85,60 @@ const weatherTool = toolDefinition({
   JSON.stringify({ city: args.city, temperature: 72, condition: 'sunny' }),
 )
 
+function createRunErrorAdapter(): AnyTextAdapter {
+  return {
+    kind: 'text',
+    name: 'run-error-test',
+    model: 'run-error-test',
+    '~types': {
+      providerOptions: {},
+      inputModalities: ['text'],
+      messageMetadataByModality: {},
+      toolCapabilities: [],
+      toolCallMetadata: undefined,
+      systemPromptMetadata: undefined,
+    },
+    async *chatStream(options): AsyncGenerator<StreamChunk> {
+      yield {
+        type: EventType.RUN_STARTED,
+        runId: options.runId ?? 'run-error-test',
+        threadId: options.threadId ?? 'run-error-test',
+        timestamp: Date.now(),
+      }
+      yield {
+        type: EventType.RUN_ERROR,
+        message: 'Provider failed',
+        code: 'provider_error',
+        timestamp: Date.now(),
+      }
+    },
+    structuredOutput: async () => ({ data: {}, rawText: '{}' }),
+  }
+}
+
+const runErrorBoundaryMiddleware: ChatMiddleware<unknown, typeof reviewPlan> = {
+  name: 'run-error-boundary',
+  onInterruptBoundary(ctx) {
+    if (ctx.phase !== 'afterModel') return
+    return {
+      interrupts: [
+        reviewPlan.interrupt({
+          key: 'run-error-review',
+          reason: 'review_required',
+          message: 'Review the response',
+          payload: { title: 'Run error review', boundary: ctx.phase },
+        }),
+      ],
+    }
+  },
+}
+
+/** The adapter's accumulated `content`. The AG-UI 1.0 event type omits it. */
+function accumulated(chunk: StreamChunk): string {
+  const content: unknown = Reflect.get(chunk, 'content')
+  return typeof content === 'string' ? content : ''
+}
+
 const chunkTransformMiddleware: ChatMiddleware = {
   name: 'chunk-transform',
   onChunk(_ctx, chunk) {
@@ -24,7 +146,7 @@ const chunkTransformMiddleware: ChatMiddleware = {
       return {
         ...chunk,
         delta: '[MW] ' + chunk.delta,
-        content: '[MW] ' + (chunk.content || ''),
+        content: '[MW] ' + accumulated(chunk),
       }
     }
     return chunk
@@ -44,6 +166,394 @@ const toolSkipMiddleware: ChatMiddleware = {
   },
 }
 
+const toolReplaceMiddleware: ChatMiddleware = {
+  name: 'tool-replace',
+  onAfterToolCall(_ctx, info) {
+    if (info.toolName !== 'get_weather') return
+    return {
+      type: 'replaceResult',
+      result: { replaced: true, reason: 'middleware' },
+    }
+  },
+}
+
+// Rewrites the args to a value the tool's inputSchema rejects. The final
+// input check runs after this hook, so the tool must not run.
+const toolBadArgsMiddleware: ChatMiddleware = {
+  name: 'tool-bad-args',
+  onBeforeToolCall(_ctx, hookCtx) {
+    if (hookCtx.toolName !== 'get_weather') return undefined
+    return { type: 'transformArgs' as const, args: { city: { name: 'NYC' } } }
+  },
+}
+
+// `tool-guard` mode: the first middleware rewrites the city, so
+// onBeforeToolCall is done. The guard still runs, sees the rewritten city,
+// and denies the call.
+const toolRewriteMiddleware: ChatMiddleware = {
+  name: 'tool-rewrite',
+  onBeforeToolCall(_ctx, hookCtx) {
+    if (hookCtx.toolName !== 'get_weather') return undefined
+    return { type: 'transformArgs' as const, args: { city: 'Blocked City' } }
+  },
+}
+
+const toolGuardMiddleware: ChatMiddleware = {
+  name: 'tool-guard',
+  onGuardToolCall(_ctx, hookCtx) {
+    const args = hookCtx.args
+    const city =
+      typeof args === 'object' && args !== null && 'city' in args
+        ? args.city
+        : undefined
+    if (hookCtx.toolName !== 'get_weather' || city !== 'Blocked City') return
+    return {
+      type: 'skip' as const,
+      result: JSON.stringify({ guarded: true, city }),
+    }
+  },
+}
+
+/**
+ * Capability provide/consume flow (`capability` mode).
+ *
+ * Exercises the server-side middleware capability primitive end-to-end:
+ *
+ * - `prefixCapability` is a typed handle created via `createCapability`. It is
+ *   simultaneously a `[get, provide]` tuple and the identity referenced in the
+ *   middleware `provides`/`requires` declarations.
+ * - `prefixProviderMiddleware` declares `provides: [prefixCapability]` and calls
+ *   `providePrefix(ctx, ...)` in `setup` — the hook that runs first, before any
+ *   `onConfig`/`onChunk`.
+ * - `prefixConsumerMiddleware` declares `requires: [prefixCapability]` and reads
+ *   the value with `getPrefix(ctx)` inside `onChunk`, using it to prefix every
+ *   text delta. The consumed value therefore shows up verbatim in the streamed
+ *   assistant text, which the spec asserts against the deterministic fixture.
+ */
+const prefixCapability = createCapability<string>()('capability-prefix')
+const [getPrefix, providePrefix] = prefixCapability
+
+const prefixProviderMiddleware: ChatMiddleware = {
+  name: 'prefix-provider',
+  provides: [prefixCapability],
+  setup(ctx) {
+    providePrefix(ctx, '[CAP]')
+  },
+}
+
+const prefixConsumerMiddleware: ChatMiddleware = {
+  name: 'prefix-consumer',
+  requires: [prefixCapability],
+  onChunk(ctx, chunk) {
+    if (chunk.type === 'TEXT_MESSAGE_CONTENT' && chunk.delta) {
+      const prefix = getPrefix(ctx)
+      return {
+        ...chunk,
+        delta: prefix + ' ' + chunk.delta,
+        content: prefix + ' ' + accumulated(chunk),
+      }
+    }
+    return chunk
+  },
+}
+
+/**
+ * Per-testId recorder used by `phase-recorder` mode.
+ *
+ * Captures every `ctx.phase` observed during `onChunk` and counts `onFinish`
+ * invocations. The capture is stored in a module-global keyed by `testId` so
+ * the page can fetch it via `GET /api/middleware-test?testId=...&kind=phase`
+ * after the run finishes.
+ *
+ * Why a factory: middleware closes over `captureId` so we don't have to thread
+ * a per-request shim through global state.
+ */
+function createPhaseRecorderMiddleware(captureId: string): ChatMiddleware {
+  return {
+    name: 'phase-recorder',
+    onChunk(ctx, chunk) {
+      recordPhase(captureId, ctx.phase)
+      return chunk
+    },
+    onFinish() {
+      recordOnFinish(captureId)
+    },
+    onError() {
+      recordOnError(captureId)
+    },
+  }
+}
+
+/**
+ * Wraps a chat stream so every chunk that leaves `chat()` (post-middleware)
+ * is recorded into the per-testId phase capture as a yielded chunk. Used by
+ * `phase-recorder` mode to let the spec assert what the consumer actually
+ * sees — distinct from what `onChunk` observes inside the middleware chain.
+ */
+async function* teeForPhaseCapture(
+  source: AsyncIterable<StreamChunk>,
+  captureId: string,
+): AsyncIterable<StreamChunk> {
+  let currentRunId: string | undefined
+  for await (const chunk of source) {
+    if (chunk.type === 'RUN_STARTED' && typeof chunk.runId === 'string') {
+      currentRunId = chunk.runId
+    }
+    const runId =
+      'runId' in chunk && typeof chunk.runId === 'string'
+        ? chunk.runId
+        : currentRunId
+    recordYieldedChunk(captureId, {
+      type: chunk.type,
+      ...(runId !== undefined ? { runId } : {}),
+      ...(chunk.type === 'RUN_FINISHED' && chunk.outcome
+        ? { outcomeType: chunk.outcome.type }
+        : {}),
+      ...(chunk.type === 'RUN_FINISHED' && chunk.outcome?.type === 'interrupt'
+        ? { interruptCount: chunk.outcome.interrupts.length }
+        : {}),
+    })
+    yield chunk
+  }
+}
+
+function lifecycleMiddlewareStack(
+  existing: Array<ChatMiddleware>,
+  extra: ChatMiddleware<unknown, typeof reviewPlan>,
+): Array<ChatMiddleware<unknown, typeof reviewPlan>> {
+  return [...existing, extra]
+}
+
+function createGenericLifecycleMiddleware(
+  captureId: string,
+  scenario: GenericScenario,
+): ChatMiddleware<unknown, typeof reviewPlan> {
+  const boundary = boundaryForScenario(scenario)
+  return {
+    name: 'generic-lifecycle',
+    onInterruptBoundary(ctx) {
+      if (ctx.phase !== boundary || ctx.parentRunId) return
+      recordGenericBoundary(captureId, { phase: ctx.phase, runId: ctx.runId })
+      return {
+        interrupts: [
+          reviewPlan.interrupt({
+            key: `${scenario}-review`,
+            reason: 'review_required',
+            message: `Review the plan at ${ctx.phase}`,
+            payload: { title: 'Middleware review plan', boundary: ctx.phase },
+          }),
+        ],
+      }
+    },
+    onInterruptResolution(_ctx, resolutions) {
+      for (const resolution of resolutions.for(reviewPlan)) {
+        recordGenericResolution(captureId, {
+          definitionId: resolution.request.definition.id,
+          status: resolution.status,
+          ...(resolution.status === 'resolved'
+            ? { response: resolution.response }
+            : {}),
+        })
+      }
+      const policy = toolResumeForScenario(scenario)
+      recordGenericPolicy(captureId, policy)
+      return { toolResume: policy }
+    },
+  }
+}
+
+function genericTools(captureId: string, scenario: GenericScenario) {
+  if (scenario === 'generic-after-tools') {
+    return [
+      inspectReviewTool.server(async ({ reviewId }) => {
+        recordGenericToolExecution(captureId, {
+          name: 'inspect_review',
+          side: 'server',
+        })
+        return { inspected: true, reviewId }
+      }),
+    ]
+  }
+  if (boundaryForScenario(scenario) !== 'beforeTools') return []
+  return [
+    deleteReviewTool.server(async ({ reviewId }) => {
+      recordGenericToolExecution(captureId, {
+        name: 'delete_review',
+        side: 'server',
+      })
+      return { deleted: true, reviewId }
+    }),
+    renderReviewTool.client(),
+  ]
+}
+
+/**
+ * Fake memory adapter for `memory` mode. `recall` unconditionally returns a
+ * known system-prompt block plus a memory tool (so the spec can assert both the
+ * prompt injection AND tool injection reach the model config), and `save`
+ * records that the deferred write ran. Deterministic — no real vendor, no
+ * cross-request state.
+ */
+const RECALL_MORE_TOOL: Tool = {
+  name: 'recall_more',
+  description: 'Look up additional long-term memory by query.',
+  inputSchema: { type: 'object', properties: {}, additionalProperties: false },
+}
+
+function createFakeMemoryAdapter(captureId: string): MemoryAdapter {
+  return {
+    id: 'fake-memory',
+    recall: async () => ({
+      systemPrompt: 'MEMORY: the user previously said they love TanStack.',
+      fragments: [{ text: 'the user loves TanStack', source: 'f1' }],
+      tools: [RECALL_MORE_TOOL],
+      toolGuidance: 'Use recall_more to look up additional memory when needed.',
+    }),
+    save: async () => {
+      recordMemorySave(captureId)
+      return [{ ok: true }]
+    },
+  }
+}
+
+/**
+ * Recorder placed AFTER `memoryMiddleware` so it observes the config the model
+ * actually sees — i.e. WITH the recalled system prompt + tools already merged
+ * in. Records that into the per-testId memory capture.
+ */
+function createMemoryConfigRecorder(captureId: string): ChatMiddleware {
+  return {
+    name: 'memory-config-recorder',
+    onConfig(ctx, config) {
+      if (ctx.phase !== 'init') return
+      recordMemoryConfig(captureId, {
+        systemPrompts: config.systemPrompts.map((p) =>
+          typeof p === 'string' ? p : p.content,
+        ),
+        toolNames: config.tools.map((t) => t.name),
+      })
+      return
+    },
+  }
+}
+
+// Minimal in-memory tracer/meter. Captures into a per-testId bucket so that
+// the Playwright spec can fetch the recorded state via GET after the stream
+// finishes. Not exported — only used to build otelMiddleware for the test.
+function createCaptureTracer(captureId: string): Tracer {
+  let spanSeq = 0
+  const tracer: Tracer = {
+    startSpan(name, options = {}, _ctx?: Context): Span {
+      const id = `span-${spanSeq++}`
+      const attrs: Record<string, AttributeValue> = {}
+      for (const [k, v] of Object.entries(options.attributes ?? {})) {
+        if (v !== undefined) attrs[k] = v
+      }
+      recordOtelSpan(captureId, {
+        id,
+        name,
+        kind: options.kind,
+        attributes: attrs,
+        status: SpanStatusCode.UNSET,
+        events: [],
+        exceptions: [],
+        ended: false,
+      })
+      const status: SpanStatus = { code: SpanStatusCode.UNSET }
+      let ended = false
+      const span: Span = {
+        spanContext(): SpanContext {
+          return { traceId: 'capture-trace', spanId: id, traceFlags: 1 }
+        },
+        setAttribute(key, value) {
+          attrs[key] = value
+          recordOtelSpan(captureId, { id, patch: { attributes: { ...attrs } } })
+          return span
+        },
+        setAttributes(next) {
+          for (const [k, v] of Object.entries(next)) {
+            attrs[k] = v as AttributeValue
+          }
+          recordOtelSpan(captureId, { id, patch: { attributes: { ...attrs } } })
+          return span
+        },
+        addEvent(eventName, eventAttrs) {
+          recordOtelEvent(captureId, id, {
+            name: eventName,
+            attributes: eventAttrs as Attributes | undefined,
+          })
+          return span
+        },
+        addLink() {
+          return span
+        },
+        addLinks() {
+          return span
+        },
+        setStatus(next) {
+          status.code = next.code
+          status.message = next.message
+          recordOtelSpan(captureId, {
+            id,
+            patch: { status: next.code, statusMessage: next.message },
+          })
+          return span
+        },
+        updateName(next) {
+          recordOtelSpan(captureId, { id, patch: { name: next } })
+          return span
+        },
+        end() {
+          ended = true
+          recordOtelSpan(captureId, { id, patch: { ended: true } })
+        },
+        isRecording() {
+          return !ended
+        },
+        recordException(exception, exceptionAttrs) {
+          recordOtelException(captureId, id, {
+            exception: String(
+              (exception as { message?: string } | undefined)?.message ??
+                exception,
+            ),
+            attributes: exceptionAttrs as Attributes | undefined,
+          })
+        },
+      }
+      return span
+    },
+    // Minimal implementation — our middleware never calls startActiveSpan.
+
+    startActiveSpan(...args: Array<any>) {
+      const fn = args[args.length - 1] as (span: Span) => unknown
+      const name = args[0] as string
+      const span = tracer.startSpan(name, {})
+      try {
+        return fn(span)
+      } finally {
+        span.end()
+      }
+    },
+  }
+  return tracer
+}
+
+function createCaptureMeter(captureId: string): Meter {
+  const histogram = (name: string, options?: MetricOptions): Histogram => ({
+    record(value: number, attributes?: Attributes) {
+      recordOtelHistogram(captureId, {
+        name,
+        value,
+        attributes,
+        unit: options?.unit,
+      })
+    },
+  })
+  return {
+    createHistogram: histogram,
+  } as any as Meter
+}
+
 export const Route = createFileRoute('/api/middleware-test')({
   server: {
     handlers: {
@@ -51,42 +561,215 @@ export const Route = createFileRoute('/api/middleware-test')({
         if (request.signal?.aborted) return new Response(null, { status: 499 })
         const abortController = new AbortController()
 
+        let params
         try {
-          const body = await request.json()
-          const messages = body.messages
-          const scenario = body.data?.scenario || 'basic-text'
-          const middlewareMode = body.data?.middlewareMode || 'none'
-          const testId: string | undefined =
-            typeof body.data?.testId === 'string' ? body.data.testId : undefined
-          const aimockPort: number | undefined =
-            body.data?.aimockPort != null
-              ? Number(body.data.aimockPort)
-              : undefined
-
-          const adapterOptions = createTextAdapter(
-            'openai',
-            undefined,
-            aimockPort,
-            testId,
+          params = await chatParamsFromRequestBody(await request.json())
+        } catch (error) {
+          return new Response(
+            error instanceof Error ? error.message : 'Bad request',
+            { status: 400 },
           )
+        }
 
-          const middleware: ChatMiddleware[] = []
+        const fp = params.forwardedProps
+        const scenario =
+          typeof fp.scenario === 'string' ? fp.scenario : 'basic-text'
+        const middlewareMode =
+          typeof fp.middlewareMode === 'string' ? fp.middlewareMode : 'none'
+        const testId: string | undefined =
+          typeof fp.testId === 'string' ? fp.testId : undefined
+        const aimockPort: number | undefined =
+          fp.aimockPort != null ? Number(fp.aimockPort) : undefined
+        // Provider/model overrides let the middleware E2E exercise both the
+        // native-combined-mode path (modern OpenAI / Claude 4.5+ — no
+        // `structuredOutput` phase, single combined call) and the legacy
+        // finalization path (Claude 3.7, etc. — `structuredOutput` phase
+        // fires). See #605.
+        const provider =
+          typeof fp.provider === 'string' ? fp.provider : 'openai'
+        const modelOverride =
+          typeof fp.model === 'string' ? fp.model : undefined
+
+        try {
+          const adapterOptions =
+            scenario === 'run-error'
+              ? { adapter: createRunErrorAdapter() }
+              : createTextAdapter(
+                  provider as Parameters<typeof createTextAdapter>[0],
+                  modelOverride,
+                  aimockPort,
+                  testId,
+                )
+
+          const middleware: Array<ChatMiddleware> = []
+          let genericLifecycleMiddleware:
+            | ChatMiddleware<unknown, typeof reviewPlan>
+            | undefined =
+            scenario === 'run-error' ? runErrorBoundaryMiddleware : undefined
+          const genericScenario = isGenericScenario(scenario)
+            ? scenario
+            : undefined
 
           if (middlewareMode === 'chunk-transform')
             middleware.push(chunkTransformMiddleware)
           if (middlewareMode === 'tool-skip')
             middleware.push(toolSkipMiddleware)
+          if (middlewareMode === 'tool-replace')
+            middleware.push(toolReplaceMiddleware)
+          if (middlewareMode === 'tool-bad-args')
+            middleware.push(toolBadArgsMiddleware)
+          if (middlewareMode === 'tool-guard')
+            middleware.push(toolRewriteMiddleware, toolGuardMiddleware)
+          if (middlewareMode === 'capability') {
+            // Order matters: the provider's setup() must run before the
+            // consumer reads the capability. Array order is preserved.
+            middleware.push(prefixProviderMiddleware, prefixConsumerMiddleware)
+          }
+          if (middlewareMode === 'phase-recorder') {
+            if (!testId) {
+              return new Response(
+                JSON.stringify({
+                  error: 'phase-recorder mode requires testId',
+                }),
+                {
+                  status: 400,
+                  headers: { 'Content-Type': 'application/json' },
+                },
+              )
+            }
+            resetPhaseCapture(testId)
+            middleware.push(createPhaseRecorderMiddleware(testId))
+          }
+          if (middlewareMode === 'generic-lifecycle') {
+            if (!testId || !genericScenario) {
+              return new Response(
+                JSON.stringify({
+                  error:
+                    'generic-lifecycle mode requires testId and a generic scenario',
+                }),
+                {
+                  status: 400,
+                  headers: { 'Content-Type': 'application/json' },
+                },
+              )
+            }
+            if (!params.parentRunId) resetPhaseCapture(testId)
+            genericLifecycleMiddleware = createGenericLifecycleMiddleware(
+              testId,
+              genericScenario,
+            )
+          }
+          if (middlewareMode === 'memory') {
+            if (!testId) {
+              return new Response(
+                JSON.stringify({ error: 'memory mode requires testId' }),
+                {
+                  status: 400,
+                  headers: { 'Content-Type': 'application/json' },
+                },
+              )
+            }
+            resetMemoryCapture(testId)
+            middleware.push(
+              memoryMiddleware({
+                adapter: createFakeMemoryAdapter(testId),
+                scope: { threadId: testId },
+              }),
+              createMemoryConfigRecorder(testId),
+            )
+          }
+          if (middlewareMode === 'otel') {
+            if (!OTEL_TEST_ENABLED) {
+              return new Response(null, { status: 404 })
+            }
+            if (!testId) {
+              return new Response(
+                JSON.stringify({ error: 'otel mode requires testId' }),
+                {
+                  status: 400,
+                  headers: { 'Content-Type': 'application/json' },
+                },
+              )
+            }
+            resetOtelCapture(testId)
+            middleware.push(
+              otelMiddleware({
+                tracer: createCaptureTracer(testId),
+                meter: createCaptureMeter(testId),
+                captureContent: true,
+              }),
+            )
+          }
 
-          const tools = scenario === 'with-tool' ? [weatherTool] : []
+          const tools =
+            genericScenario && testId
+              ? genericTools(testId, genericScenario)
+              : scenario === 'with-tool' || scenario === 'raw-tool-args'
+                ? [weatherTool]
+                : scenario === 'structured-client-tool-wait'
+                  ? [clientContextToolDefinition]
+                  : []
 
-          const stream = chat({
-            ...adapterOptions,
-            messages,
-            tools,
-            middleware,
-            agentLoopStrategy: maxIterations(10),
-            abortController,
-          })
+          // Structured scenarios bind the same guitar schema. The client-tool
+          // variant also passes an isomorphic tool definition so the first
+          // server invocation can stop at the browser-execution boundary.
+          const isStructured =
+            scenario === 'structured-output' ||
+            scenario === 'structured-output-stream' ||
+            scenario === 'structured-client-tool-wait'
+
+          const rawStream = isStructured
+            ? chat({
+                ...adapterOptions,
+                messages: params.messages,
+                tools,
+                middleware,
+                threadId: params.threadId,
+                runId: params.runId,
+                outputSchema: guitarRecommendationSchema,
+                stream: true,
+                abortController,
+              })
+            : genericLifecycleMiddleware
+              ? chat({
+                  ...adapterOptions,
+                  messages: params.messages,
+                  tools,
+                  middleware: lifecycleMiddlewareStack(
+                    middleware,
+                    genericLifecycleMiddleware,
+                  ),
+                  threadId: params.threadId,
+                  runId: params.runId,
+                  parentRunId: params.parentRunId,
+                  resume: params.resume,
+                  interrupts: [reviewPlan] as const,
+                  agentLoopStrategy: maxIterations(10),
+                  abortController,
+                })
+              : chat({
+                  ...adapterOptions,
+                  messages: params.messages,
+                  tools,
+                  middleware,
+                  threadId: params.threadId,
+                  runId: params.runId,
+                  parentRunId: params.parentRunId,
+                  resume: params.resume,
+                  interrupts: genericScenario ? [reviewPlan] : undefined,
+                  agentLoopStrategy: maxIterations(10),
+                  abortController,
+                })
+
+          // Tee the post-middleware stream when `phase-recorder` is active
+          // so the spec can assert on what the consumer ultimately sees
+          // (e.g. exactly one RUN_STARTED/RUN_FINISHED pair).
+          const stream =
+            (middlewareMode === 'phase-recorder' ||
+              middlewareMode === 'generic-lifecycle') &&
+            testId
+              ? teeForPhaseCapture(rawStream, testId)
+              : rawStream
 
           return toServerSentEventsResponse(stream, { abortController })
         } catch (error: any) {
@@ -99,6 +782,60 @@ export const Route = createFileRoute('/api/middleware-test')({
             headers: { 'Content-Type': 'application/json' },
           })
         }
+      },
+      GET: async ({ request }) => {
+        const url = new URL(request.url)
+        const testId = url.searchParams.get('testId')
+        const kind = url.searchParams.get('kind')
+
+        // Phase capture is independent of OTEL — keep it available without
+        // requiring the OTEL_TEST_ENABLED gate so that the structured-output
+        // middleware spec works under any harness build configuration.
+        if (kind === 'phase') {
+          if (!testId) {
+            return new Response(
+              JSON.stringify({ error: 'testId query param required' }),
+              {
+                status: 400,
+                headers: { 'Content-Type': 'application/json' },
+              },
+            )
+          }
+          return new Response(JSON.stringify(getPhaseCapture(testId)), {
+            headers: { 'Content-Type': 'application/json' },
+          })
+        }
+
+        // Memory capture — like phase capture, available without the OTEL gate.
+        if (kind === 'memory') {
+          if (!testId) {
+            return new Response(
+              JSON.stringify({ error: 'testId query param required' }),
+              { status: 400, headers: { 'Content-Type': 'application/json' } },
+            )
+          }
+          return new Response(JSON.stringify(getMemoryCapture(testId)), {
+            headers: { 'Content-Type': 'application/json' },
+          })
+        }
+
+        // OTEL capture remains gated — the GET cannot act as an oracle in a
+        // production-like build.
+        if (!OTEL_TEST_ENABLED) {
+          return new Response(null, { status: 404 })
+        }
+        if (!testId) {
+          return new Response(
+            JSON.stringify({ error: 'testId query param required' }),
+            {
+              status: 400,
+              headers: { 'Content-Type': 'application/json' },
+            },
+          )
+        }
+        return new Response(JSON.stringify(getOtelCapture(testId)), {
+          headers: { 'Content-Type': 'application/json' },
+        })
       },
     },
   },

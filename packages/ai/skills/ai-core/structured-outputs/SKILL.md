@@ -1,0 +1,670 @@
+---
+name: ai-core/structured-outputs
+description: >
+  Type-safe JSON schema responses from LLMs using outputSchema on chat()
+  and useChat(). Supports Zod, ArkType, and Valibot schemas. The adapter
+  handles provider-specific strategies transparently — never configure
+  structured output at the provider level. Pass stream:true alongside
+  outputSchema for incremental JSON deltas + a completed typed object
+  via the `structured-output.complete` event. Each successfully completed
+  structured-output run adds a typed `StructuredOutputPart` to message
+  history. partial/final derive from the most recent structured-output part
+  after the latest user message. convertSchemaToJsonSchema() for manual schema conversion.
+type: sub-skill
+library: tanstack-ai
+library_version: '0.42.0'
+sources:
+  - 'TanStack/ai:docs/structured-outputs/overview.md'
+  - 'TanStack/ai:docs/structured-outputs/one-shot.md'
+  - 'TanStack/ai:docs/structured-outputs/streaming.md'
+  - 'TanStack/ai:docs/structured-outputs/multi-turn.md'
+  - 'TanStack/ai:docs/structured-outputs/with-tools.md'
+  - 'TanStack/ai:docs/structured-outputs/harnesses.md'
+---
+
+# Structured Outputs
+
+> **Dependency note:** This skill builds on ai-core. Read it first for critical rules. The `useChat` patterns below build on ai-core/chat-experience — read that for the base hook surface, then come back here for the structured-output specifics.
+
+## Setup
+
+```typescript
+import { chat } from '@tanstack/ai'
+import { openaiText } from '@tanstack/ai-openai'
+import { z } from 'zod'
+
+const person = await chat({
+  adapter: openaiText('gpt-5.2'),
+  messages: [{ role: 'user', content: 'John Doe, 30' }],
+  threadId: 'thread-1',
+  outputSchema: z.object({
+    name: z.string(),
+    age: z.number(),
+  }),
+})
+
+person.name // string — fully typed, no cast
+person.age // number
+```
+
+When `outputSchema` is provided, `chat()` returns `Promise<InferSchemaType<TSchema>>` instead of `AsyncIterable<StreamChunk>`. The result is fully typed.
+
+Adding `stream: true` switches the return to `StructuredOutputStream<InferSchemaType<TSchema>>` — incremental JSON deltas plus a terminal validated object. See **Pattern 3** below for direct iteration, **Pattern 4** for the `useChat` shape on the client, **Pattern 5** for multi-turn structured chats, and **Pattern 6** for harness adapters.
+
+## Decision: which pattern fits
+
+| Building this                                                                                  | Use                                                              |
+| ---------------------------------------------------------------------------------------------- | ---------------------------------------------------------------- |
+| One prompt in → one typed object out (script, server endpoint, CLI)                            | Pattern 1 (basic) or 2 (nested)                                  |
+| A UI that fills in field by field as the model streams (progressive form, live card)           | Pattern 4 — `useChat({ outputSchema })`                          |
+| Direct iteration of the stream in Node or tests                                                | Pattern 3 — async iterable                                       |
+| Users iterate on a structured object across multiple turns (recipe builder, ticket refinement) | Pattern 5 — multi-turn structured chat                           |
+| Tools that gather info, then return a typed object                                             | Combine any of the above with `tools` — see ai-core/tool-calling |
+| A coding agent in a sandbox inspects files, then returns a typed object                        | Pattern 6 — harness `outputSchema`                               |
+
+## Core Patterns
+
+### Pattern 1: Basic structured output with Zod
+
+```typescript
+import { chat } from '@tanstack/ai'
+import { openaiText } from '@tanstack/ai-openai'
+import { z } from 'zod'
+
+const PersonSchema = z.object({
+  name: z.string().meta({ description: "The person's full name" }),
+  age: z.number().meta({ description: "The person's age in years" }),
+  email: z.string().email().meta({ description: 'Email address' }),
+})
+
+// chat() returns Promise<{ name: string; age: number; email: string }>
+const person = await chat({
+  adapter: openaiText('gpt-5.2'),
+  messages: [
+    {
+      role: 'user',
+      content:
+        'Extract the person info: John Doe is 30 years old, email john@example.com',
+    },
+  ],
+  threadId: 'thread-1',
+  outputSchema: PersonSchema,
+})
+
+console.log(person.name) // "John Doe"
+console.log(person.age) // 30
+console.log(person.email) // "john@example.com"
+```
+
+### Pattern 2: Complex nested schemas
+
+```typescript
+import { chat } from '@tanstack/ai'
+import { anthropicText } from '@tanstack/ai-anthropic'
+import { z } from 'zod'
+
+const CompanySchema = z.object({
+  name: z.string(),
+  founded: z.number().meta({ description: 'Year the company was founded' }),
+  headquarters: z.object({
+    city: z.string(),
+    country: z.string(),
+    address: z.string().optional(),
+  }),
+  employees: z.array(
+    z.object({
+      name: z.string(),
+      role: z.string(),
+      department: z.string(),
+    }),
+  ),
+  financials: z
+    .object({
+      revenue: z
+        .number()
+        .meta({ description: 'Annual revenue in millions USD' }),
+      profitable: z.boolean(),
+    })
+    .optional(),
+})
+
+const company = await chat({
+  adapter: anthropicText('claude-sonnet-4-5'),
+  messages: [
+    {
+      role: 'user',
+      content: 'Extract company info from this article: ...',
+    },
+  ],
+  threadId: 'thread-1',
+  outputSchema: CompanySchema,
+})
+
+// Full type safety on nested properties
+console.log(company.headquarters.city)
+console.log(company.employees[0]?.role)
+console.log(company.financials?.revenue)
+```
+
+### Pattern 3: Direct stream iteration
+
+Pass `stream: true` alongside `outputSchema` to get an async iterable of standard streaming chunks plus a completed typed object. Use this when you're a single process end-to-end — Node script, CLI, test, or a server endpoint that responds with one JSON blob. For the in-browser progressive-UI case, jump to Pattern 4 instead.
+
+```typescript group=person-stream
+import { chat } from '@tanstack/ai'
+import { openaiText } from '@tanstack/ai-openai'
+import { z } from 'zod'
+
+const PersonSchema = z.object({
+  name: z.string(),
+  age: z.number(),
+  email: z.string().email(),
+})
+
+const stream = chat({
+  adapter: openaiText('gpt-5.2'),
+  messages: [
+    { role: 'user', content: 'Extract: John Doe is 30, john@example.com' },
+  ],
+  threadId: 'thread-1',
+  outputSchema: PersonSchema,
+  stream: true,
+})
+
+for await (const chunk of stream) {
+  if (chunk.type === 'CUSTOM' && chunk.name === 'structured-output.complete') {
+    // Terminal event. `chunk.value.object` is complete and typed against the
+    // schema you passed in. Validate it in the consumer when required.
+    chunk.value.object.name // string
+    chunk.value.object.age // number
+    chunk.value.reasoning // string | undefined (thinking models only)
+  }
+}
+```
+
+The terminal event is a `CUSTOM` chunk: `{ type: 'CUSTOM', name: 'structured-output.complete', value: { object: T, raw: string, reasoning?: string } }`. The return type of `chat({ outputSchema, stream: true })` carries `T` through, so a plain discriminated narrow (`chunk.type === 'CUSTOM' && chunk.name === 'structured-output.complete'`) is enough — no type guard helper.
+
+**Adapter coverage for streaming:**
+
+| Adapter                                              | `outputSchema` + `stream: true`                                                                                                                       |
+| ---------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `@tanstack/ai-openai` (Responses + Chat Completions) | **Native combined mode (#605)** — schema wired into the regular `chatStream` call alongside `tools`; engine harvests JSON, no finalization round-trip |
+| `@tanstack/ai-anthropic` (Claude 4.5+ only)          | **Native combined mode (#605)** — `output_config.format` + `tools` in one beta Messages call. Older Claude models fall back                           |
+| `@tanstack/ai-gemini` (Gemini 3.x only)              | **Native combined mode (#605)** — `responseSchema` + `tools` in one `generateContentStream`. Gemini 2.x falls back                                    |
+| `@tanstack/ai-grok`                                  | **Native combined mode (#605)** — OpenAI Responses `text.format` + `tools` for grok-4.6, grok-4.5, grok-4.3, and grok-build-0.1                       |
+| `@tanstack/ai-openrouter`                            | Native single-request stream (legacy `structuredOutputStream` path; per-call combined-mode lookup is a follow-up)                                     |
+| `@tanstack/ai-groq`                                  | Legacy `structuredOutputStream` only (no tools — Groq's API rejects schema + tools + stream)                                                          |
+| `@tanstack/ai-bedrock`                               | Separate native `structuredOutputStream` finalization through Converse or an OpenAI-compatible API                                                    |
+| `@tanstack/ai-byteplus`                              | Native combined mode on supported models; unsupported models emit `RUN_ERROR`                                                                         |
+| `@tanstack/ai-cloudflare`                            | Native `structuredOutputStream` without tools; with tools, a separate finalization call (Workers AI models answer the tool turn in prose)             |
+| `@tanstack/ai-claude-code`                           | Combined + event source — `--json-schema` on the same harness turn. Read `useChat().final`. See Pattern 6.                                            |
+| `@tanstack/ai-codex`                                 | Combined + event source — `--output-schema` on the same harness turn. Read `useChat().final`. See Pattern 6.                                          |
+| `@tanstack/ai-opencode`                              | Combined + event source — prompt-and-parse. Read `useChat().final`. See Pattern 6.                                                                    |
+| `@tanstack/ai-grok-build`                            | Combined + event source — prompt-and-parse (ACP and streaming-json). Read `useChat().final` or the `structured-output` part. See Pattern 6.           |
+| `@tanstack/ai-acp` (`acpCompatible`)                 | Combined + event source — prompt-and-parse. Read `useChat().final` or the `structured-output` part. See Pattern 6.                                    |
+
+**JSON mode (`json_object`).** Some OpenRouter and Groq models reject strict `json_schema`. For those models the adapter sends `json_object` and adds the schema as a system prompt. The model is asked for the shape but is not held to it. A caller can force JSON mode with `modelOptions` (`responseFormat: { type: 'json_object' }` on OpenRouter, `response_format` on Groq and other OpenAI-base adapters). JSON mode is never combined with tools: the schema prompt goes only on the finalization call. Only `await chat({ outputSchema })` with a Standard Schema validates the reply, so prefer Zod/Valibot/ArkType over a plain JSON Schema on these models.
+| All other adapters (ollama, older Claude, Gemini 2.x) | Fallback: runs non-streaming `structuredOutput`, emits one `structured-output.complete` event |
+
+**Native-combined output vs separate finalization** is signaled by the adapter's
+optional `supportsCombinedToolsAndSchema(modelOptions)` method. When
+it returns `true`, the engine wires the JSON Schema into the regular
+`chatStream` call and harvests the final-turn text — middleware sees
+the run through `beforeModel` / `modelStream` as usual, and the
+`'structuredOutput'` middleware phase does **not** fire. When it
+returns `false` (or is omitted), the engine takes the legacy
+finalization path: agent loop, then a separate `structuredOutput` /
+`structuredOutputStream` call with `'structuredOutput'` phase tagging.
+
+Consumer code is identical across providers — always read the final object off `structured-output.complete`.
+
+### Pattern 4: useChat with outputSchema (progressive UI)
+
+Pass `outputSchema` to `useChat` and you get a `partial` field that fills in as JSON streams in, plus a `final` field that snaps to the completed typed object on the terminal event. No `onChunk` ceremony, no manual JSON accumulation, no `parsePartialJSON` calls.
+
+**Server** (same as Pattern 3, just behind an SSE endpoint):
+
+```typescript
+// app/api/extract-person/route.ts (or your framework's equivalent)
+import { chat, toServerSentEventsResponse } from '@tanstack/ai'
+import { openaiText } from '@tanstack/ai-openai'
+import { z } from 'zod'
+
+const PersonSchema = z.object({
+  name: z.string(),
+  age: z.number(),
+  email: z.string().email(),
+})
+
+export async function POST(request: Request) {
+  const { messages, threadId } = await request.json()
+  const stream = chat({
+    adapter: openaiText('gpt-5.2'),
+    messages,
+    threadId,
+    outputSchema: PersonSchema,
+    stream: true,
+  })
+  return toServerSentEventsResponse(stream)
+}
+```
+
+**Client:**
+
+```tsx
+import { useChat, fetchServerSentEvents } from '@tanstack/ai-react'
+import { z } from 'zod'
+
+const PersonSchema = z.object({
+  name: z.string(),
+  age: z.number(),
+  email: z.string().email(),
+})
+
+function PersonExtractor() {
+  const { sendMessage, isLoading, partial, final } = useChat({
+    connection: fetchServerSentEvents('/api/extract-person'),
+    threadId: 'support-42',
+    outputSchema: PersonSchema,
+  })
+
+  return (
+    <div>
+      <button
+        disabled={isLoading}
+        onClick={() => sendMessage('Extract: John Doe, 30, john@example.com')}
+      >
+        Extract
+      </button>
+      {/* `partial` fills in field by field while streaming. */}
+      <p>Name: {partial.name ?? '…'}</p>
+      <p>Age: {partial.age ?? '…'}</p>
+      <p>Email: {partial.email ?? '…'}</p>
+      {final && <pre>Completed: {JSON.stringify(final, null, 2)}</pre>}
+    </div>
+  )
+}
+```
+
+- `partial` is `DeepPartial<z.infer<typeof PersonSchema>>` — every property optional, every nested array element optional. Updated from `TEXT_MESSAGE_CONTENT` deltas.
+- `final` is `z.infer<typeof PersonSchema> | null` — populated when `structured-output.complete` arrives.
+- `outputSchema` in `useChat` is for client-side type inference. The streaming server path does not run Standard Schema validation; validate the completed object in the consumer when required.
+- Same shape works for non-streaming adapters: the fallback path emits one whole-JSON `TEXT_MESSAGE_CONTENT` then the terminal event, so `partial` populates and `final` snaps in the same render tick — same consumer code as the native-streaming providers, just without an intermediate field-by-field reveal.
+
+### Pattern 5: Multi-turn structured chat
+
+Each successfully completed structured-output run adds a typed `StructuredOutputPart` to an assistant message in `messages`. Old responses stay renderable; new completed runs produce new parts; history is preserved without manual state plumbing. This is what makes the recipe-builder shape ("now make it vegan") work.
+
+```tsx
+import { useChat, fetchServerSentEvents } from '@tanstack/ai-react'
+import type { StructuredOutputPart } from '@tanstack/ai-client'
+import { z } from 'zod'
+
+const RecipeSchema = z.object({
+  title: z.string(),
+  cuisine: z.string(),
+  servings: z.number(),
+  ingredients: z.array(z.object({ item: z.string(), amount: z.string() })),
+  steps: z.array(z.string()),
+})
+type Recipe = z.infer<typeof RecipeSchema>
+type RecipePart = StructuredOutputPart<Recipe>
+
+function RecipeBuilder() {
+  const { messages, sendMessage } = useChat({
+    outputSchema: RecipeSchema,
+    connection: fetchServerSentEvents('/api/recipes'),
+    threadId: 'support-42',
+  })
+
+  return (
+    <div>
+      {messages.map((m) => {
+        if (m.role === 'user') {
+          const text = m.parts
+            .filter((p) => p.type === 'text')
+            .map((p) => p.content)
+            .join('')
+          return <p key={m.id}>{text}</p>
+        }
+        if (m.role === 'assistant') {
+          // `data` is `Recipe` because the schema generic flows from
+          // `useChat({ outputSchema })` through `messages` to the part.
+          const part = m.parts.find(
+            (p): p is RecipePart => p.type === 'structured-output',
+          )
+          if (!part) return null
+          return <RecipeCard key={m.id} part={part} />
+        }
+        return null
+      })}
+      <button onClick={() => sendMessage('pasta for two')}>Cook</button>
+      <button onClick={() => sendMessage('now make it vegan')}>Modify</button>
+    </div>
+  )
+}
+
+function RecipeCard({ part }: { part: RecipePart }) {
+  // `data` lands on complete, `partial` fills in while streaming.
+  // Both are typed against the schema. No casts.
+  const recipe = part.data ?? part.partial
+  return <h3>{recipe?.title ?? 'Plating up…'}</h3>
+}
+```
+
+Key behaviors:
+
+- **Per-turn parts.** Each successfully completed structured-output run adds a structured-output assistant message with its own `StructuredOutputPart`. The separate-finalization path can also produce a plain-text assistant message before it. The previous turn's part is untouched — `messages.map(...)` renders the whole history.
+- **Typed by schema.** `messages[i].parts.find(p => p.type === 'structured-output').data` is typed as `Recipe` (no cast, no `unknown`). Works because `useChat<TSchema>` threads `InferSchemaType<TSchema>` down through `UIMessage<TTools, TData>` → `MessagePart<TTools, TData>` → `StructuredOutputPart<TData>`. **In `@tanstack/ai` core** the message types are single-generic (`UIMessage<TData>`); the tools generic lives in `@tanstack/ai-client` and the framework hook packages — import from your framework package or `ai-client`, not from `@tanstack/ai`.
+- **`partial` / `final` are derived.** The hook-level `partial` and `final` are NOT singleton state — they're derived from the latest structured-output part after the most recent user message. Between `sendMessage()` and the first chunk, `partial` reads `{}` and `final` reads `null` because no new structured-output part exists yet.
+- **Round-trip preserves history.** Completed structured-output parts remain on their UI messages and are mirrored into provider-facing assistant content using `part.raw`. Streaming and errored parts remain UI state but are excluded from model input.
+
+### Pattern 6: Harness adapters (Claude Code, Codex, OpenCode, Grok Build, ACP)
+
+Dedicated harness adapters honor `chat({ outputSchema })` on the same turn. Native harness tools still run. Read the object from `await chat()`, from `useChat().final`, or from the assistant `structured-output` part on `messages[].parts`. Do not parse assistant prose.
+
+A UI endpoint must pass `stream: true`. Without it, `chat()` returns a `Promise`, not SSE.
+
+```typescript
+import {
+  chat,
+  chatParamsFromRequest,
+  toServerSentEventsResponse,
+} from '@tanstack/ai'
+import { claudeCodeText } from '@tanstack/ai-claude-code'
+import {
+  createSecrets,
+  defineSandbox,
+  defineWorkspace,
+  githubRepo,
+  withSandbox,
+} from '@tanstack/ai-sandbox'
+import { dockerSandbox } from '@tanstack/ai-sandbox-docker'
+import { z } from 'zod'
+
+const sandbox = defineSandbox({
+  id: 'repo-report',
+  provider: dockerSandbox({ image: 'node:22' }),
+  workspace: defineWorkspace({
+    source: githubRepo({ repo: 'owner/app' }),
+    setup: ['npm install -g @anthropic-ai/claude-code --include=optional'],
+    secrets: createSecrets({
+      ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY ?? '',
+    }),
+  }),
+})
+
+const ReportSchema = z.object({
+  name: z.string(),
+  oneLiner: z.string(),
+})
+
+export async function POST(request: Request) {
+  const { messages, threadId, runId } = await chatParamsFromRequest(request)
+
+  const stream = chat({
+    adapter: claudeCodeText('claude-opus-4-8'),
+    messages,
+    threadId,
+    runId,
+    outputSchema: ReportSchema,
+    stream: true,
+    middleware: [withSandbox(sandbox)],
+  })
+  return toServerSentEventsResponse(stream)
+}
+```
+
+```tsx
+import { useChat, fetchServerSentEvents } from '@tanstack/ai-react'
+import { z } from 'zod'
+
+const ReportSchema = z.object({
+  name: z.string(),
+  oneLiner: z.string(),
+})
+
+function RepoReport() {
+  const { final, sendMessage } = useChat({
+    connection: fetchServerSentEvents('/api/repo-report'),
+    threadId: 'support-42',
+    outputSchema: ReportSchema,
+  })
+
+  return (
+    <div>
+      <button onClick={() => sendMessage('Describe this repo')}>Report</button>
+      {final && <h2>{final.name}</h2>}
+    </div>
+  )
+}
+```
+
+- Claude Code: `--json-schema`. Codex: `--output-schema`. OpenCode, Grok Build, and `acpCompatible`: prompt-and-parse.
+- `partial` stays empty until `structured-output.complete`.
+- Client tools and `needsApproval` fail fast. The harness cannot pause for a browser round-trip.
+- Render live work from `messages[].parts` (`thinking`, `tool-call`, `text`, `structured-output`). `final` is only the latest turn.
+- `withPersistence` stores the structured-output part. Distinct event ids become two assistant messages. A reused text id stays on one message. Hydrate with `reconstructChat`.
+- See [docs/structured-outputs/harnesses.md](https://github.com/TanStack/ai/blob/main/docs/structured-outputs/harnesses.md).
+
+## Common Mistakes
+
+### HIGH: Filtering `TextPart`s out of `useChat` renderers when using `outputSchema`
+
+Earlier versions of the library routed structured-output JSON deltas through `TextPart`, so renderers had to filter them out:
+
+```tsx group=recipe-renderer
+import { useChat, fetchServerSentEvents } from '@tanstack/ai-react'
+import { z } from 'zod'
+import { ReasoningView, ToolCallView, RecipeCard } from './views'
+
+const RecipeSchema = z.object({
+  title: z.string(),
+  steps: z.array(z.string()),
+})
+
+function useRecipeChat() {
+  return useChat({
+    connection: fetchServerSentEvents('/api/recipes'),
+    threadId: 'support-42',
+    outputSchema: RecipeSchema,
+  })
+}
+
+function ObsoleteRenderer() {
+  const { messages } = useRecipeChat()
+  const last = messages.at(-1)
+  // OBSOLETE — this guard was needed only because JSON used to land in a TextPart
+  return last?.parts.map((part, i) => {
+    if (part.type === 'text') return null // ❌ hides the structured JSON
+    return <pre key={i}>{JSON.stringify(part)}</pre>
+  })
+}
+```
+
+That hack is **gone**. With `outputSchema` set, `TEXT_MESSAGE_CONTENT` deltas now route into a dedicated `StructuredOutputPart` (with `raw`, `partial`, `data`, `status`, optional `errorMessage`). Render the structured part directly; let real `TextPart`s through.
+
+```tsx group=recipe-renderer
+function RecipeRenderer() {
+  const { messages } = useRecipeChat()
+  const last = messages.at(-1)
+  // CORRECT — find the structured-output part directly; let actual TextParts render
+  return last?.parts.map((part, i) => {
+    if (part.type === 'thinking')
+      return <ReasoningView key={i} text={part.content} />
+    if (part.type === 'tool-call') return <ToolCallView key={i} part={part} />
+    if (part.type === 'structured-output')
+      return <RecipeCard key={i} part={part} />
+    if (part.type === 'text') return <p key={i}>{part.content}</p> // ← real text, not JSON
+    return null
+  })
+}
+```
+
+If you still have an `if (part.type === 'text') return null` line in a structured-output renderer specifically for "hiding the JSON," delete it.
+
+Source: PR #577 — structured-output became a typed UIMessage part.
+
+### HIGH: Treating `partial` / `final` as sticky state across turns
+
+`partial` and `final` are **derived from the most recent structured-output part after the latest user message**, not a sticky hook-level slot. In a multi-turn chat:
+
+- Between `sendMessage()` and the first chunk, `partial` reads `{}` and `final` reads `null` (no structured-output part after the latest user message yet).
+- Once the latest turn completes, `partial === final`. Earlier turns' data is NOT in `partial` / `final` — it lives on the prior assistant messages' parts.
+
+To render history, walk `messages` directly (see Pattern 5). Use `partial` / `final` for a sticky summary of the **most recent** turn only.
+
+```tsx group=recipe-renderer
+function RecipeHistory() {
+  const { messages, final } = useRecipeChat()
+
+  return (
+    <>
+      {/* WRONG — `final` only reflects the latest turn; earlier recipes vanish from this view */}
+      {final && <h3>{final.title}</h3>}
+
+      {/* CORRECT for history — walk messages, render each structured-output part */}
+      {messages.map((m) => {
+        if (m.role !== 'assistant') return null
+        const part = m.parts.find((p) => p.type === 'structured-output')
+        return part ? <RecipeCard key={m.id} part={part} /> : null
+      })}
+    </>
+  )
+}
+```
+
+Source: PR #577 — partial/final derive from the most recent structured-output part after the latest user message.
+
+### HIGH: Parsing streaming JSON deltas yourself
+
+When iterating `chat({ outputSchema, stream: true })` directly (Pattern 3), the `TEXT_MESSAGE_CONTENT` chunks contain _partial_ JSON fragments — they are not valid JSON until the stream completes. Read the completed typed object from the terminal `structured-output.complete` event. Standard Schema validation remains the consumer's responsibility.
+
+```typescript group=person-stream
+// WRONG -- partial JSON, throws SyntaxError mid-stream, no schema validation
+for await (const chunk of stream) {
+  if (chunk.type === 'TEXT_MESSAGE_CONTENT') {
+    const obj = JSON.parse(chunk.delta) // ❌ partial, invalid
+  }
+}
+
+// CORRECT -- trust the terminal event
+for await (const chunk of stream) {
+  if (chunk.type === 'CUSTOM' && chunk.name === 'structured-output.complete') {
+    const result = chunk.value.object // ✅ complete and typed
+  }
+}
+```
+
+If you need progressive parsed state in a non-React environment, use a partial-JSON parser on the accumulated raw string at render time. Neither that partial state nor the terminal streaming event is Standard Schema validated. In `useChat`, progressive parsing is already done for you through the `partial` field from Pattern 4.
+
+Source: maintainer interview
+
+### HIGH: Trying to implement provider-specific structured output strategies
+
+The adapter already handles provider differences (OpenAI uses `response_format`, Anthropic uses tool-based extraction, Gemini uses `responseSchema`). Never configure this yourself.
+
+```typescript ignore
+// WRONG -- do not set provider-specific response format
+// (this does not compile: modelOptions has no response-format field)
+chat({
+  adapter,
+  messages,
+  threadId: 'thread-1',
+  modelOptions: {
+    responseFormat: { type: 'json_schema', json_schema: mySchema },
+  },
+})
+```
+
+```typescript
+// CORRECT -- just pass outputSchema, the adapter handles the rest
+import { chat } from '@tanstack/ai'
+import { openaiText } from '@tanstack/ai-openai'
+import { z } from 'zod'
+
+const person = await chat({
+  adapter: openaiText('gpt-5.2'),
+  messages: [{ role: 'user', content: 'John Doe, 30' }],
+  threadId: 'thread-1',
+  outputSchema: z.object({ name: z.string(), age: z.number() }),
+})
+```
+
+There is no scenario where you need to know the provider's strategy. Just pass `outputSchema` to `chat()`.
+
+Source: maintainer interview
+
+### HIGH: Passing raw objects instead of using the project's schema library
+
+Agents often generate raw JSON Schema objects or plain TypeScript types instead
+of using the schema validation library already in the project (Zod, ArkType,
+Valibot). Always check what the project uses and match it.
+
+```typescript
+import { chat } from '@tanstack/ai'
+import { openaiText } from '@tanstack/ai-openai'
+import { z } from 'zod'
+
+const adapter = openaiText('gpt-5.2')
+const messages = [{ role: 'user' as const, content: 'John Doe, 30' }]
+
+// WRONG -- raw schema object, no schema-library type inference (result is unknown)
+const untyped = await chat({
+  adapter,
+  messages,
+  threadId: 'thread-1',
+  outputSchema: {
+    type: 'object',
+    properties: {
+      name: { type: 'string' },
+      age: { type: 'number' },
+    },
+    required: ['name', 'age'],
+    additionalProperties: false,
+  },
+})
+
+// CORRECT -- use the project's schema library (e.g. Zod)
+const person = await chat({
+  adapter,
+  messages,
+  threadId: 'thread-1',
+  outputSchema: z.object({
+    name: z.string(),
+    age: z.number(),
+  }),
+})
+person.name // string
+```
+
+Using the project's schema library gives you TypeScript type inference and
+correct JSON Schema conversion automatically. The non-streaming
+`await chat({ outputSchema })` path also runs Standard Schema validation; the
+streaming path leaves validation to the consumer. Check `package.json` for
+`zod`, `arktype`, or `valibot` and use whichever is already installed.
+
+Source: maintainer interview
+
+## Middleware coverage
+
+On the separate-finalization path, the final structured-output adapter call
+runs through the middleware pipeline with
+`ctx.phase === 'structuredOutput'`. Use `onStructuredOutputConfig` to transform
+the JSON Schema or finalization config before that provider call.
+
+Native-combined output stays in the regular agent loop. Its chunks use
+`ctx.phase === 'modelStream'`, and `onStructuredOutputConfig` does not fire.
+
+On both paths, `onChunk` observes the `structured-output.complete` event,
+`onUsage` observes usage from the provider calls that ran, and `onFinish` fires
+once after the structured-output result is available. See
+[middleware skill](../middleware/SKILL.md).
+
+## Cross-References
+
+- See also: **ai-core/chat-experience/SKILL.md** — Base `useChat` surface; the structured-output additions documented here layer on top.
+- See also: **ai-core/adapter-configuration/SKILL.md** — Adapter handles structured-output strategy transparently.
+- See also: **ai-core/tool-calling/SKILL.md** — Combine `tools` with `outputSchema` for an agent loop that runs tools first and returns a typed object. Tool-approval and client-tool flows compose with structured runs without extra wiring; see [docs/structured-outputs/with-tools.md](https://github.com/TanStack/ai/blob/main/docs/structured-outputs/with-tools.md).
+- See also: [docs/structured-outputs/harnesses.md](https://github.com/TanStack/ai/blob/main/docs/structured-outputs/harnesses.md) — dedicated harness adapters and `useChat().final`.
+- See also: **ai-core/middleware/SKILL.md** — separate-finalization `onStructuredOutputConfig` / `structuredOutput` behavior and native-combined `modelStream` behavior.

@@ -1,0 +1,9 @@
+{
+  "generators": {
+    "react-app": {
+      "factory": "./src/generators/react-app/generator",
+      "schema": "./src/generators/react-app/schema.json",
+      "description": "Create a TanStack Start React chat app under examples/"
+    }
+  }
+}

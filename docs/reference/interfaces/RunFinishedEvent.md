@@ -3,75 +3,88 @@ id: RunFinishedEvent
 title: RunFinishedEvent
 ---
 
-# Interface: RunFinishedEvent
-
-Defined in: [packages/typescript/ai/src/types.ts:821](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L821)
+Defined in: packages/ai/src/types.ts:1601
 
 Emitted when a run completes successfully.
 
-@ag-ui/core provides: `threadId`, `runId`, `result?`
-TanStack AI adds: `model?`, `finishReason?`, `usage?`
+@ag-ui/core provides: `threadId`, `runId`, `result?`, `outcome?`
+Spec `usage[]` is provider/model token counts. TanStack leftovers live in
+`metadata.tanstack`.
 
 ## Extends
 
-- `RunFinishedEvent`
-
-## Indexable
-
-```ts
-[k: string]: unknown
-```
+- `Pick`\<`AGUIRunFinishedEvent`, `"threadId"` \| `"runId"` \| `"result"` \| `"outcome"` \| `"timestamp"` \| `"rawEvent"`\>
 
 ## Properties
 
 ### finishReason?
 
 ```ts
-optional finishReason: "length" | "stop" | "content_filter" | "tool_calls" | null;
+optional finishReason?: "length" | "stop" | "content_filter" | "tool_calls" | null;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:825](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L825)
+Defined in: packages/ai/src/types.ts:1612
 
-Why the generation stopped
+Restored on the client from `metadata.tanstack`.
+
+***
+
+### metadata?
+
+```ts
+optional metadata?: object & Record<string, any>;
+```
+
+Defined in: packages/ai/src/types.ts:1613
+
+#### Type Declaration
+
+##### tanstack?
+
+```ts
+optional tanstack?: TanStackRunMetadata;
+```
 
 ***
 
 ### model?
 
 ```ts
-optional model: string;
+optional model?: string;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:823](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L823)
+Defined in: packages/ai/src/types.ts:1608
 
-Model identifier for multi-model support
+Restored on the client from `metadata.tanstack`.
+
+***
+
+### responseId?
+
+```ts
+optional responseId?: string;
+```
+
+Defined in: packages/ai/src/types.ts:1610
+
+Provider generation ID. Restored from `metadata.tanstack`.
+
+***
+
+### type
+
+```ts
+type: RUN_FINISHED;
+```
+
+Defined in: packages/ai/src/types.ts:1605
 
 ***
 
 ### usage?
 
 ```ts
-optional usage: object;
+optional usage?: TokenUsage<ProviderUsageDetails> | TokenUsage[];
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:827](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L827)
-
-Token usage statistics
-
-#### completionTokens
-
-```ts
-completionTokens: number;
-```
-
-#### promptTokens
-
-```ts
-promptTokens: number;
-```
-
-#### totalTokens
-
-```ts
-totalTokens: number;
-```
+Defined in: packages/ai/src/types.ts:1606

@@ -13,12 +13,13 @@ import {
 import { AudioSparkline } from '@/components/AudioSparkline'
 import { useRealtime } from '@/lib/use-realtime'
 
-type Provider = 'openai' | 'elevenlabs' | 'grok'
+type Provider = 'openai' | 'elevenlabs' | 'gemini' | 'grok'
 type OutputMode = 'audio+text' | 'text-only' | 'audio-only'
 
 const PROVIDER_OPTIONS: Array<{ value: Provider; label: string }> = [
   { value: 'openai', label: 'OpenAI Realtime' },
   { value: 'elevenlabs', label: 'ElevenLabs' },
+  { value: 'gemini', label: 'Google Gemini' },
   { value: 'grok', label: 'Grok Voice Agent' },
 ]
 
@@ -29,6 +30,18 @@ const OUTPUT_MODE_OPTIONS: Array<{ value: OutputMode; label: string }> = [
   { value: 'audio+text', label: 'Audio + Text' },
   { value: 'text-only', label: 'Text Only' },
   { value: 'audio-only', label: 'Audio Only' },
+]
+
+const LANGUAGE_OPTIONS: Array<{ value: string; label: string }> = [
+  { value: '', label: 'Agent default' },
+  { value: 'en', label: 'English' },
+  { value: 'es', label: 'Spanish' },
+  { value: 'fr', label: 'French' },
+  { value: 'de', label: 'German' },
+  { value: 'it', label: 'Italian' },
+  { value: 'pt', label: 'Portuguese' },
+  { value: 'ja', label: 'Japanese' },
+  { value: 'zh', label: 'Chinese' },
 ]
 
 function outputModeToModalities(
@@ -48,7 +61,7 @@ function outputModeToModalities(
 
 function RealtimePage() {
   const [provider, setProvider] = useState<Provider>('openai')
-  const [agentId, setAgentId] = useState('')
+  const [language, setLanguage] = useState('')
   const [grokVoice, setGrokVoice] = useState<GrokVoice>('eve')
   const [textInput, setTextInput] = useState('')
   const [outputMode, setOutputMode] = useState<OutputMode>('audio+text')
@@ -77,7 +90,7 @@ function RealtimePage() {
     getOutputTimeDomainData,
   } = useRealtime({
     provider,
-    agentId,
+    language: language || undefined,
     voice: provider === 'grok' ? grokVoice : undefined,
     outputModalities: outputModeToModalities(outputMode),
     temperature,
@@ -232,20 +245,24 @@ function RealtimePage() {
                 </select>
               </div>
 
-              {/* ElevenLabs Agent ID (conditional) */}
+              {/* Language override (ElevenLabs only) */}
               {provider === 'elevenlabs' && (
                 <div>
                   <label className="text-sm text-gray-400 mb-1 block">
-                    Agent ID
+                    Language
                   </label>
-                  <input
-                    type="text"
-                    value={agentId}
-                    onChange={(e) => setAgentId(e.target.value)}
-                    placeholder="Your ElevenLabs Agent ID"
+                  <select
+                    value={language}
+                    onChange={(e) => setLanguage(e.target.value)}
                     disabled={status !== 'idle'}
-                    className="rounded-lg border border-orange-500/20 bg-gray-900 px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-orange-500/50 disabled:opacity-50 w-64"
-                  />
+                    className="rounded-lg border border-orange-500/20 bg-gray-900 px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-orange-500/50 disabled:opacity-50"
+                  >
+                    {LANGUAGE_OPTIONS.map((opt) => (
+                      <option key={opt.value} value={opt.value}>
+                        {opt.label}
+                      </option>
+                    ))}
+                  </select>
                 </div>
               )}
 
@@ -271,7 +288,9 @@ function RealtimePage() {
               )}
 
               {/* Output mode selector (OpenAI-compatible realtime) */}
-              {(provider === 'openai' || provider === 'grok') && (
+              {(provider === 'openai' ||
+                provider === 'gemini' ||
+                provider === 'grok') && (
                 <div>
                   <label className="text-sm text-gray-400 mb-1 block">
                     Output
@@ -294,7 +313,9 @@ function RealtimePage() {
               )}
 
               {/* Temperature slider */}
-              {(provider === 'openai' || provider === 'grok') && (
+              {(provider === 'openai' ||
+                provider === 'gemini' ||
+                provider === 'grok') && (
                 <div>
                   <label className="text-sm text-gray-400 mb-1 block">
                     Temp: {temperature.toFixed(1)}
@@ -350,7 +371,9 @@ function RealtimePage() {
         </div>
 
         {/* Tools indicator */}
-        {(provider === 'openai' || provider === 'grok') && (
+        {(provider === 'openai' ||
+          provider === 'gemini' ||
+          provider === 'grok') && (
           <div className="border-b border-orange-500/10 bg-gray-800/50 px-4 py-2">
             <div className="flex items-center gap-2 text-xs text-gray-400">
               <Wrench className="w-3 h-3" />
@@ -506,7 +529,9 @@ function RealtimePage() {
                 className="flex-1 rounded-lg border border-orange-500/20 bg-gray-800 px-4 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-orange-500/50"
               />
               {/* Image upload button (OpenAI-compatible realtime) */}
-              {(provider === 'openai' || provider === 'grok') && (
+              {(provider === 'openai' ||
+                provider === 'gemini' ||
+                provider === 'grok') && (
                 <>
                   <input
                     ref={imageInputRef}

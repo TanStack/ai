@@ -3,84 +3,52 @@ id: ToolCallEndEvent
 title: ToolCallEndEvent
 ---
 
-# Interface: ToolCallEndEvent
-
-Defined in: [packages/typescript/ai/src/types.ts:927](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L927)
+Defined in: packages/ai/src/types.ts:1694
 
 Emitted when a tool call completes.
 
-@ag-ui/core provides: `toolCallId`
-TanStack AI adds: `model?`, `toolCallName?`, `toolName?` (deprecated), `input?`, `result?`
+@ag-ui/core provides: `toolCallId`, `subagentRunId?`
 
 ## Extends
 
-- `ToolCallEndEvent`
-
-## Indexable
-
-```ts
-[k: string]: unknown
-```
+- `Omit`\<`AGUIToolCallEndEvent`, `"type"`\>
 
 ## Properties
 
 ### input?
 
 ```ts
-optional input: unknown;
+optional input?: unknown;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:938](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L938)
+Defined in: packages/ai/src/types.ts:1697
 
-Final parsed input arguments (TanStack AI internal)
+Parsed tool arguments when the adapter already parsed them.
 
 ***
 
-### model?
+### metadata?
 
 ```ts
-optional model: string;
+optional metadata?: Record<string, any>;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:929](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L929)
+Defined in: packages/ai/src/types.ts:1698
 
-Model identifier for multi-model support
+Extra information attached to this event.
+
+#### Overrides
+
+```ts
+Omit.metadata
+```
 
 ***
 
-### result?
+### type
 
 ```ts
-optional result: string;
+type: "TOOL_CALL_END";
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:940](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L940)
-
-Tool execution result (TanStack AI internal)
-
-***
-
-### toolCallName?
-
-```ts
-optional toolCallName: string;
-```
-
-Defined in: [packages/typescript/ai/src/types.ts:931](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L931)
-
-Name of the tool that completed
-
-***
-
-### ~~toolName?~~
-
-```ts
-optional toolName: string;
-```
-
-Defined in: [packages/typescript/ai/src/types.ts:936](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L936)
-
-#### Deprecated
-
-Use `toolCallName` instead.
-Kept for backward compatibility.
+Defined in: packages/ai/src/types.ts:1695

@@ -3,17 +3,25 @@ id: VideoJobResult
 title: VideoJobResult
 ---
 
-# Interface: VideoJobResult
-
-Defined in: [packages/typescript/ai/src/types.ts:1357](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1357)
-
-**`Experimental`**
+Defined in: packages/ai/src/types.ts:2633
 
 Result of creating a video generation job.
 
- Video generation is an experimental feature and may change.
-
 ## Properties
+
+### artifacts?
+
+```ts
+optional artifacts?: PersistedArtifactRef[];
+```
+
+Defined in: packages/ai/src/types.ts:2643
+
+Durable artifact references, when generation persistence with an artifact +
+blob store is wired. A submission has no video yet, so this only carries
+refs for persisted prompt INPUTS (e.g. a start frame).
+
+***
 
 ### jobId
 
@@ -21,9 +29,7 @@ Result of creating a video generation job.
 jobId: string;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:1359](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1359)
-
-**`Experimental`**
+Defined in: packages/ai/src/types.ts:2635
 
 Unique job identifier for polling status
 
@@ -35,8 +41,6 @@ Unique job identifier for polling status
 model: string;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:1361](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1361)
-
-**`Experimental`**
+Defined in: packages/ai/src/types.ts:2637
 
 Model used for generation

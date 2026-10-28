@@ -3,13 +3,11 @@ id: AgentLoopStrategy
 title: AgentLoopStrategy
 ---
 
-# Type Alias: AgentLoopStrategy()
-
 ```ts
 type AgentLoopStrategy = (state) => boolean;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:652](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L652)
+Defined in: packages/ai/src/types.ts:1243
 
 Strategy function that determines whether the agent loop should continue
 
@@ -30,6 +28,8 @@ true to continue looping, false to stop
 ## Example
 
 ```typescript
-// Continue for up to 5 iterations
+// Continue for up to 5 iterations (model turns, not tool calls)
 const strategy: AgentLoopStrategy = ({ iterationCount }) => iterationCount < 5;
+// Cap total tool calls across the run (or use middleware onShouldContinue)
+const byTools: AgentLoopStrategy = ({ toolCallCount }) => toolCallCount < 20;
 ```

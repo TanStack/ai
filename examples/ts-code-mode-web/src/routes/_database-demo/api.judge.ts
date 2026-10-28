@@ -29,7 +29,7 @@ Rate the candidate on two dimensions, each on a scale from 1 to 10 (10 = best):
 
 Provide a two sentence summary of your evaluation.`
 
-export const Route = createFileRoute('/_database-demo/api/judge' as any)({
+export const Route = createFileRoute('/_database-demo/api/judge')({
   server: {
     handlers: {
       POST: async ({ request }) => {
@@ -44,6 +44,7 @@ export const Route = createFileRoute('/_database-demo/api/judge' as any)({
           }
 
           const result = await chat({
+            threadId: 'report-judge',
             adapter,
             messages: [
               {
@@ -53,7 +54,8 @@ export const Route = createFileRoute('/_database-demo/api/judge' as any)({
             ],
             systemPrompts: [JUDGE_SYSTEM_PROMPT],
             outputSchema: judgeSchema,
-            maxTokens: 512,
+            // Sampling lives in provider-native `modelOptions` now (Anthropic: `max_tokens`).
+            modelOptions: { max_tokens: 512 },
           })
 
           return new Response(JSON.stringify(result), {

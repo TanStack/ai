@@ -1,0 +1,317 @@
+import { test, expect } from './fixtures'
+import type { Page } from '@playwright/test'
+import type { SubagentScenario } from '../src/lib/subagents-test'
+
+/** Click Run once the page hydrated. A click before hydration does nothing. */
+async function run(page: Page) {
+  await page.waitForLoadState('networkidle')
+  await expect(async () => {
+    await page.getByTestId('run').click()
+    await expect(page.getByTestId('message-count')).not.toHaveText('0', {
+      timeout: 2_000,
+    })
+  }).toPass({ timeout: 15_000 })
+}
+
+function open(
+  page: Page,
+  scenario: SubagentScenario,
+  testId: string,
+  aimockPort: number,
+) {
+  return page.goto(
+    `/subagents-test?scenario=${scenario}&testId=${encodeURIComponent(testId)}&aimockPort=${aimockPort}`,
+  )
+}
+
+test.describe('subagents', () => {
+  test('a routed child keeps its reasoning, tool call, and reply on its card', async ({
+    page,
+    testId,
+    aimockPort,
+  }) => {
+    await open(page, 'route', testId, aimockPort)
+    await run(page)
+
+    await expect(page.getByTestId('card-status-researcher')).toHaveText(
+      'finished',
+    )
+    const card = page.getByTestId('card-researcher')
+    await expect(card).toContainText('thinking:Look up the facts first.')
+    await expect(card).toContainText('tool:lookupFacts')
+    await expect(card).toContainText('result:')
+    await expect(card).toContainText('text:Squids have three hearts.')
+    // Nothing from the child lands on the parent message.
+    await expect(page.getByTestId('parent-part-types')).toHaveText('subagent')
+  })
+
+  test('a child approval pauses the run, then the same child finishes', async ({
+    page,
+    testId,
+    aimockPort,
+  }) => {
+    await open(page, 'approval', testId, aimockPort)
+    await run(page)
+
+    await expect(page.getByTestId('card-status-cleaner')).toHaveText(
+      'suspended',
+    )
+    await expect(page.getByTestId('card-cleaner')).toContainText(
+      'tool:deleteLogs:approval-requested',
+    )
+
+    await page.getByTestId('approve-deleteLogs').click()
+
+    await expect(page.getByTestId('card-status-cleaner')).toHaveText('finished')
+    const card = page.getByTestId('card-cleaner')
+    await expect(card).toContainText('result:')
+    await expect(card).toContainText('text:Deleted the old logs.')
+    await expect(page.getByTestId('approve-deleteLogs')).toHaveCount(0)
+    // One card: the resume continued the same child.
+    await expect(page.getByTestId('card-cleaner')).toHaveCount(1)
+  })
+
+  test('with persistence, a child of a tool call resumes after its approval', async ({
+    page,
+    testId,
+    aimockPort,
+  }) => {
+    await open(page, 'tool-approval', testId, aimockPort)
+    await run(page)
+
+    await expect(page.getByTestId('card-status-cleaner')).toHaveText(
+      'suspended',
+    )
+    await page.getByTestId('approve-deleteLogs').click()
+
+    await expect(page.getByTestId('card-status-cleaner')).toHaveText('finished')
+    await expect(page.getByTestId('card-cleaner')).toContainText(
+      'text:Deleted the old logs.',
+    )
+    await expect(page.getByTestId('parent-text')).toHaveText('Cleanup is done.')
+  })
+
+  test('a card overrides the kit widgets for its own parts', async ({
+    page,
+    testId,
+    aimockPort,
+  }) => {
+    await page.goto(
+      `/subagents-ui-test?testId=${encodeURIComponent(testId)}&aimockPort=${aimockPort}`,
+    )
+    await run(page)
+
+    const card = page.getByTestId('card-researcher')
+    await expect(card.getByTestId('root-text')).toHaveText(
+      'Squids have three hearts.',
+    )
+    // The card's own thinking widget, not the root one.
+    await expect(card.getByTestId('card-thinking')).toHaveText(
+      'Look up the facts first.',
+    )
+    await expect(card.getByTestId('root-thinking')).toHaveCount(0)
+    // No card override for the tool, so the root widget renders it.
+    await expect(card.getByTestId('root-tool')).toContainText('lookupFacts:')
+  })
+
+  test('without a router the model starts the child and reads its result', async ({
+    page,
+    request,
+    testId,
+    aimockPort,
+  }) => {
+    await open(page, 'tool', testId, aimockPort)
+    await run(page)
+
+    await expect(page.getByTestId('parent-text')).toHaveText(
+      'Research is done.',
+    )
+    await expect(page.getByTestId('card-status-researcher')).toHaveText(
+      'finished',
+    )
+    await expect(page.getByTestId('card-researcher')).toContainText(
+      'text:Squids have three hearts.',
+    )
+
+    const journal = await request.get(
+      `http://127.0.0.1:${aimockPort}/v1/_requests`,
+    )
+    const entries = (await journal.json()) as Array<{
+      headers?: Record<string, string>
+      body?: {
+        messages?: Array<{ role?: string; content?: string | null }>
+      } | null
+    }>
+    const parentRequest = entries.find(
+      (entry) =>
+        entry.headers?.['x-test-id'] === testId &&
+        entry.body?.messages?.some((message) => message.role === 'tool'),
+    )
+    const toolMessage = parentRequest?.body?.messages?.find(
+      (message) => message.role === 'tool',
+    )
+
+    expect(toolMessage?.content).toBe(
+      JSON.stringify({ result: 'Squids have three hearts.' }),
+    )
+  })
+
+  test('the parent model writes the brief the child runs on', async ({
+    page,
+    testId,
+    aimockPort,
+  }) => {
+    await open(page, 'brief', testId, aimockPort)
+    await run(page)
+
+    await expect(page.getByTestId('parent-text')).toHaveText(
+      'The comparison is ready.',
+    )
+    await expect(page.getByTestId('card-status-researcher')).toHaveText(
+      'finished',
+    )
+    // The child's fixture matches only the brief. A child that got the
+    // transcript instead would get no reply.
+    await expect(page.getByTestId('card-researcher')).toContainText(
+      'text:Squids have three hearts and blue blood.',
+    )
+    // The card keeps the checked input the parent model wrote.
+    await expect(page.getByTestId('card-input-researcher')).toHaveText(
+      JSON.stringify({ task: '[subagent-brief-task] List two squid facts.' }),
+    )
+  })
+
+  test('a child whose run resolves to a string reports it to the parent', async ({
+    page,
+    testId,
+    aimockPort,
+  }) => {
+    await open(page, 'result', testId, aimockPort)
+    await run(page)
+
+    await expect(page.getByTestId('parent-text')).toHaveText(
+      'Pricing is ready.',
+    )
+    await expect(page.getByTestId('card-status-pricer')).toHaveText('finished')
+    await expect(page.getByTestId('card-pricer')).toContainText(
+      'text:Vendor A costs 42 EUR.',
+    )
+  })
+
+  test('subagents.limits refuses a call past maxCalls with a tool error', async ({
+    page,
+    request,
+    testId,
+    aimockPort,
+  }) => {
+    await open(page, 'limits', testId, aimockPort)
+    await run(page)
+
+    await expect(page.getByTestId('parent-text')).toHaveText(
+      'One topic is done.',
+    )
+    await expect(page.getByTestId('card-researcher')).toHaveCount(1)
+    await expect(page.getByTestId('card-researcher')).toContainText(
+      'text:Squids have three hearts.',
+    )
+
+    const journal = await request.get(
+      `http://127.0.0.1:${aimockPort}/v1/_requests`,
+    )
+    const entries = (await journal.json()) as Array<{
+      headers?: Record<string, string>
+      body?: {
+        messages?: Array<{ role?: string; content?: string | null }>
+      } | null
+    }>
+    const toolMessages = entries
+      .filter((entry) => entry.headers?.['x-test-id'] === testId)
+      .flatMap((entry) => entry.body?.messages ?? [])
+      .filter((message) => message.role === 'tool')
+    expect(
+      toolMessages.some((message) =>
+        message.content?.includes('subagent limit reached (maxCalls 1)'),
+      ),
+    ).toBe(true)
+  })
+
+  test('an agent tool continues a child by its sessionId', async ({
+    page,
+    testId,
+    aimockPort,
+  }) => {
+    await open(page, 'session', testId, aimockPort)
+    await run(page)
+
+    // The parent model runs a third time only after the second call gave it
+    // the child's result.
+    await expect(page.getByTestId('parent-text')).toHaveText(
+      'Both notes are ready.',
+    )
+    await expect(page.getByTestId('card-status-researcher')).toHaveText(
+      'finished',
+    )
+    const card = page.getByTestId('card-researcher')
+    await expect(card).toContainText('text:Squids have three hearts.')
+    // The second call has no prompt, so the child's last user message is the
+    // task it stored from the first call. Only that fixture gives this reply.
+    // A child that did not get its earlier messages would get no reply.
+    await expect(card).toContainText('text:Squids also have blue blood.')
+    // One card: the second call continued the same child.
+    await expect(card).toHaveCount(1)
+  })
+
+  test('subagents.keys gives the child its key', async ({
+    page,
+    request,
+    testId,
+    aimockPort,
+  }) => {
+    await open(page, 'keys', testId, aimockPort)
+    await run(page)
+
+    await expect(page.getByTestId('parent-text')).toHaveText(
+      'The writer is done.',
+    )
+    await expect(page.getByTestId('card-writer')).toContainText(
+      'text:The draft is written.',
+    )
+
+    const journal = await request.get(
+      `http://127.0.0.1:${aimockPort}/v1/_requests`,
+    )
+    const entries = (await journal.json()) as Array<{
+      headers?: Record<string, string>
+      body?: {
+        messages?: Array<{ role?: string; content?: string | null }>
+      } | null
+    }>
+    const child = entries.find(
+      (entry) =>
+        entry.headers?.['x-test-id'] === testId &&
+        entry.body?.messages?.some((message) =>
+          message.content?.includes('[subagent-keys-task]'),
+        ),
+    )
+    expect(child?.headers?.['x-e2e-authorization']).toBe(
+      'Bearer sk-e2e-subagent-key',
+    )
+  })
+
+  test('the router gives the child its input', async ({
+    page,
+    testId,
+    aimockPort,
+  }) => {
+    await open(page, 'routed-brief', testId, aimockPort)
+    await run(page)
+
+    await expect(page.getByTestId('card-status-researcher')).toHaveText(
+      'finished',
+    )
+    // The child's fixture matches only the task from the router pick.
+    await expect(page.getByTestId('card-researcher')).toContainText(
+      'text:Squids have three hearts and blue blood.',
+    )
+  })
+})

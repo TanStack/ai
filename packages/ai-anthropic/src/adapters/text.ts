@@ -1,0 +1,2443 @@
+import {
+  CONTEXT_OVERFLOW_CODE,
+  EventType,
+  fileReferenceFor,
+  isFileSource,
+  normalizeSystemPrompts,
+} from '@tanstack/ai'
+import {
+  REDACTED_THINKING_ID_PREFIX,
+  orderedAssistantBlocks,
+  splitMidConversationChanges,
+  toRetryAfterMs,
+  toRunErrorDetails,
+  toRunErrorRawEvent,
+  transformMessagesForReplay,
+} from '@tanstack/ai/adapter-internals'
+import { BaseTextAdapter } from '@tanstack/ai/adapters'
+import { convertToolsToProviderFormat } from '../tools/tool-converter'
+import { getAnthropicProviderToolKind } from '../tools/anthropic-provider-tool'
+import {
+  COMPUTER_TOOL_NAME,
+  convertComputerUseToolToAdapterFormat,
+  isComputerToolset,
+  joinComputerToolsetCall,
+  resolveComputerUseTool,
+  splitComputerToolsetCall,
+} from '../tools/computer-use-tool'
+import {
+  readCodeExecutionConfig,
+  readCodeExecutionSkills,
+} from '../tools/code-execution-tool'
+import { validateTextProviderOptions } from '../text/text-provider-options'
+import { anthropicThinking } from '../text/reasoning'
+import {
+  ANTHROPIC_DEFERRED_TOOL_PLACEHOLDER_NAME,
+  applyAnthropicPromptCache,
+} from '../prompt-cache'
+import { buildAnthropicUsage } from '../usage'
+import {
+  createAnthropicClient,
+  generateId,
+  getAnthropicCredentialFromEnv,
+  resolveAnthropicAuth,
+} from '../utils/client'
+import {
+  ANTHROPIC_COMBINED_TOOLS_AND_SCHEMA_MODELS,
+  ANTHROPIC_MODEL_INPUT_MODALITIES,
+  ANTHROPIC_MODEL_MID_CONVERSATION_CHANNELS,
+  ANTHROPIC_MODEL_REASONING,
+  ANTHROPIC_NO_FORCED_TOOL_MODELS,
+  getAnthropicDefaultMaxTokens,
+} from '../model-meta'
+import type {
+  ANTHROPIC_MODELS,
+  AnthropicChatModelProviderOptionsByName,
+  AnthropicChatModelToolCapabilitiesByName,
+  AnthropicModelInputModalitiesByName,
+  AnthropicModelReasoningByName,
+} from '../model-meta'
+import type {
+  StructuredOutputOptions,
+  StructuredOutputResult,
+} from '@tanstack/ai/adapters'
+import type { InternalLogger } from '@tanstack/ai/adapter-internals'
+import type {
+  ServerToolUseBlockParam,
+  TextBlockParam,
+  ThinkingBlockParam,
+  ToolUseBlockParam,
+  WebFetchToolResultBlockParam,
+  WebSearchToolResultBlockParam,
+} from '@anthropic-ai/sdk/resources/messages'
+import type {
+  BetaBase64ImageSource,
+  BetaBase64PDFSource,
+  BetaContentBlockParam,
+  BetaFileDocumentSource,
+  BetaFileImageSource,
+  BetaImageBlockParam,
+  BetaMessageParam,
+  BetaRequestDocumentBlock,
+  BetaTextBlockParam,
+  BetaTool,
+  BetaURLImageSource,
+  BetaURLPDFSource,
+} from '@anthropic-ai/sdk/resources/beta/messages'
+import type Anthropic_SDK from '@anthropic-ai/sdk'
+import type { AnthropicBeta } from '@anthropic-ai/sdk/resources/beta/beta'
+import type {
+  AnyTool,
+  ContentPart,
+  FetchWrapper,
+  MidConversationChannels,
+  Modality,
+  ModelMessage,
+  AdapterYieldChunk,
+  NormalizedSystemPrompt,
+  TextOptions,
+  ToolChoice,
+  ToolCall,
+} from '@tanstack/ai'
+import type {
+  AnthropicSystemPromptMetadata,
+  ExternalTextProviderOptions,
+  InternalTextProviderOptions,
+} from '../text/text-provider-options'
+import type {
+  AnthropicDocumentMetadata,
+  AnthropicImageMetadata,
+  AnthropicMessageMetadataByModality,
+  AnthropicTextMetadata,
+} from '../message-types'
+import type {
+  AnthropicClientConfig,
+  AnthropicMessagesClient,
+} from '../utils/client'
+import type { ComputerUseSingleToolConfig } from '../tools/computer-use-tool'
+
+/**
+ * The block type carried by an Anthropic provider-executed (server) tool's
+ * stored result. Mirrors the `*_tool_result` block emitted by the streaming
+ * API so it can be replayed verbatim into a later turn.
+ */
+type AnthropicServerToolResultBlockType =
+  | 'web_search_tool_result'
+  | 'web_fetch_tool_result'
+
+/**
+ * Anthropic payload stashed on a provider-executed tool call's `metadata`
+ * (under the `anthropic` key, alongside `providerExecuted: true`). Holds enough
+ * to reconstruct the original `server_tool_use` + `*_tool_result` blocks so the
+ * model still sees prior `web_search` / `web_fetch` evidence on the next turn.
+ */
+interface AnthropicServerToolMetadata {
+  serverToolType: ServerToolUseBlockParam['name']
+  resultBlockType: AnthropicServerToolResultBlockType
+  /** Raw result block content, preserved verbatim from the stream. */
+  result: unknown
+}
+
+/**
+ * Narrow an opaque tool-call `metadata` to {@link AnthropicServerToolMetadata}
+ * when it follows the provider-executed convention, else `null`.
+ */
+function readAnthropicServerToolMetadata(
+  metadata: unknown,
+): AnthropicServerToolMetadata | null {
+  if (typeof metadata !== 'object' || metadata === null) return null
+  const outer = metadata as { providerExecuted?: unknown; anthropic?: unknown }
+  if (outer.providerExecuted !== true) return null
+  const inner = outer.anthropic
+  if (typeof inner !== 'object' || inner === null) return null
+  const { serverToolType, resultBlockType, result } = inner as {
+    serverToolType?: unknown
+    resultBlockType?: unknown
+    result?: unknown
+  }
+  if (
+    typeof serverToolType !== 'string' ||
+    (resultBlockType !== 'web_search_tool_result' &&
+      resultBlockType !== 'web_fetch_tool_result')
+  ) {
+    return null
+  }
+  return {
+    // Validated as a string above; widen back to the SDK's tool-name union.
+    serverToolType: serverToolType as ServerToolUseBlockParam['name'],
+    resultBlockType,
+    result,
+  }
+}
+
+/**
+ * Reconstruct the `*_tool_result` block param from stored server-tool metadata.
+ * The `result` content is opaque round-trip data, asserted to the SDK's param
+ * content type at this single boundary.
+ */
+function buildServerToolResultBlock(
+  toolUseId: string,
+  meta: AnthropicServerToolMetadata,
+): WebSearchToolResultBlockParam | WebFetchToolResultBlockParam {
+  if (meta.resultBlockType === 'web_search_tool_result') {
+    return {
+      type: 'web_search_tool_result',
+      tool_use_id: toolUseId,
+      content: meta.result as WebSearchToolResultBlockParam['content'],
+    }
+  }
+  return {
+    type: 'web_fetch_tool_result',
+    tool_use_id: toolUseId,
+    content: meta.result as WebFetchToolResultBlockParam['content'],
+  }
+}
+
+/**
+ * True when any message carries a provider file-handle source, so the request
+ * must send the Files API beta header.
+ */
+export function messagesHaveFileSource(messages: Array<ModelMessage>): boolean {
+  return messages.some(
+    (message) =>
+      Array.isArray(message.content) &&
+      message.content.some(
+        (part) => 'source' in part && isFileSource(part.source),
+      ),
+  )
+}
+
+/**
+ * Maps `chat({ toolChoice })` to the Messages `tool_choice`. When the
+ * request cannot force a tool, a forced choice falls back to `auto`.
+ */
+function toAnthropicToolChoice(
+  choice: ToolChoice,
+  { canForceTool }: { canForceTool: boolean },
+) {
+  if (choice === 'none') return { type: 'none' as const }
+  if (choice === 'auto' || !canForceTool) return { type: 'auto' as const }
+  if (choice === 'required') return { type: 'any' as const }
+  return { type: 'tool' as const, name: choice.name }
+}
+
+/** Models already warned that `chat({ reasoning })` does nothing for them. */
+const modelsWarnedWithoutReasoning = new Set<string>()
+
+/** JSON Schema keywords that Anthropic structured outputs reject. */
+const UNSUPPORTED_SCHEMA_KEYWORDS = new Set([
+  'minimum',
+  'maximum',
+  'exclusiveMinimum',
+  'exclusiveMaximum',
+  'multipleOf',
+  'minLength',
+  'maxLength',
+  'maxItems',
+  'uniqueItems',
+  'minProperties',
+  'maxProperties',
+  'not',
+])
+const SUPPORTED_STRING_FORMATS = new Set([
+  'date-time',
+  'time',
+  'date',
+  'duration',
+  'email',
+  'hostname',
+  'uri',
+  'ipv4',
+  'ipv6',
+  'uuid',
+])
+const SCHEMA_MAP_KEYWORDS = new Set(['properties', '$defs', 'definitions'])
+const SUBSCHEMA_KEYWORDS = new Set([
+  'items',
+  'prefixItems',
+  'anyOf',
+  'allOf',
+  'oneOf',
+  'additionalProperties',
+])
+
+/**
+ * Moves the JSON Schema keywords that Anthropic rejects into `description`,
+ * like the SDK's `transformJSONSchema`. The SDK helper is not used because it
+ * also moves `enum`, `const` and `default`, which Anthropic supports. The
+ * response is still validated against the original schema.
+ */
+function toAnthropicOutputSchema(schema: unknown): unknown {
+  if (Array.isArray(schema)) return schema.map(toAnthropicOutputSchema)
+  if (!schema || typeof schema !== 'object') return schema
+  const result: Record<string, unknown> = {}
+  const moved: Array<string> = []
+  for (const [key, value] of Object.entries(schema)) {
+    if (
+      UNSUPPORTED_SCHEMA_KEYWORDS.has(key) ||
+      (key === 'minItems' && typeof value === 'number' && value > 1) ||
+      (key === 'format' && !SUPPORTED_STRING_FORMATS.has(String(value)))
+    ) {
+      moved.push(`${key}: ${JSON.stringify(value)}`)
+    } else if (
+      SCHEMA_MAP_KEYWORDS.has(key) &&
+      value &&
+      typeof value === 'object'
+    ) {
+      result[key] = Object.fromEntries(
+        Object.entries(value).map(([name, sub]) => [
+          name,
+          toAnthropicOutputSchema(sub),
+        ]),
+      )
+    } else {
+      result[key] = SUBSCHEMA_KEYWORDS.has(key)
+        ? toAnthropicOutputSchema(value)
+        : value
+    }
+  }
+  if (moved.length > 0) {
+    const description =
+      typeof result.description === 'string' ? `${result.description}\n\n` : ''
+    result.description = `${description}{${moved.join(', ')}}`
+  }
+  return result
+}
+
+/** The beta header of each single `computer` tool version. */
+const COMPUTER_USE_BETAS = {
+  computer_20241022: 'computer-use-2024-10-22',
+  computer_20250124: 'computer-use-2025-01-24',
+  computer_20251124: 'computer-use-2025-11-24',
+} as const satisfies Record<ComputerUseSingleToolConfig['type'], AnthropicBeta>
+
+/**
+ * Computes the `betas` array for a Messages request. Unions:
+ * - `interleaved-thinking-2025-05-14` when interleaved thinking is enabled,
+ * - `code-execution-2025-08-25` when a `code_execution` tool is present,
+ * - `skills-2025-10-02` when that tool carries skills,
+ * - the `computer-use-*` beta of a single `computer` tool version (the
+ *   computer toolset needs none),
+ * - `context-management-2025-06-27` when `context_management` is set,
+ * - `files-api-2025-04-14` when a message references an uploaded file handle,
+ * - `mid-conversation-tool-changes-2026-07-01` in mid-conversation tool mode,
+ * - `server-side-fallback-2026-07-01` when `modelOptions.fallbacks` is set.
+ * Returns `undefined` when none apply (so the call site omits `betas`).
+ */
+export function computeAnthropicBetas(
+  tools: Array<AnyTool> | undefined,
+  modelOptions:
+    | {
+        thinking?: {
+          type?: 'enabled' | 'disabled' | 'adaptive'
+          budget_tokens?: number
+        }
+        context_management?: unknown | null
+        fallbacks?: unknown
+        mcp_servers?: ReadonlyArray<unknown>
+      }
+    | undefined,
+  hasFileSource = false,
+  midConversationToolChanges = false,
+): Array<AnthropicBeta> | undefined {
+  const betas = new Set<AnthropicBeta>()
+
+  if (hasFileSource) betas.add('files-api-2025-04-14')
+  if (midConversationToolChanges) {
+    betas.add('mid-conversation-tool-changes-2026-07-01')
+  }
+
+  const useInterleavedThinking =
+    modelOptions?.thinking?.type === 'enabled' &&
+    typeof modelOptions.thinking.budget_tokens === 'number' &&
+    modelOptions.thinking.budget_tokens > 0
+  if (useInterleavedThinking) betas.add('interleaved-thinking-2025-05-14')
+
+  // Context editing requires the beta header; the body field alone is not
+  // enough (issue #1074). `null` is a typed "unset" — do not enable the beta.
+  if (modelOptions?.context_management != null) {
+    betas.add('context-management-2025-06-27')
+  }
+
+  // Server-side refusal fallback: the API rejects `fallbacks` without it.
+  if (modelOptions?.fallbacks != null) {
+    betas.add('server-side-fallback-2026-07-01')
+  }
+
+  // The MCP connector needs its beta header as well (same shape as #1074);
+  // an empty array is a typed "unset" — do not enable the beta.
+  // ponytail: 2025-04-04 matches the `mcp_servers` shape we type
+  // (`tool_configuration` on each server). 2025-11-20 needs an `mcp_toolset`
+  // in `tools` for every server, which this adapter does not send yet.
+  if (modelOptions?.mcp_servers && modelOptions.mcp_servers.length > 0) {
+    betas.add('mcp-client-2025-04-04')
+  }
+
+  // Code-execution beta is version-aware: select from the FIRST code_execution
+  // tool's config type.
+  const codeExecTool = tools?.find(
+    (tool) => getAnthropicProviderToolKind(tool) === 'code_execution',
+  )
+  if (codeExecTool) {
+    const cfgType = readCodeExecutionConfig(codeExecTool)?.type
+    // Each code_execution tool version pairs with a specific beta. Known
+    // legacy variant maps explicitly; current/future variants (e.g.
+    // `code_execution_20250825` and later) use the latest `-08-25` beta.
+    betas.add(
+      cfgType === 'code_execution_20250522'
+        ? 'code-execution-2025-05-22'
+        : 'code-execution-2025-08-25',
+    )
+  }
+
+  // Skills beta: scan ALL code_execution tools so this AGREES with the
+  // container-lift, which lifts skills from any code_execution tool that
+  // carries them (not just the first).
+  const hasSkills = tools?.some(
+    (tool) =>
+      getAnthropicProviderToolKind(tool) === 'code_execution' &&
+      (readCodeExecutionSkills(tool)?.length ?? 0) > 0,
+  )
+  if (hasSkills) betas.add('skills-2025-10-02')
+
+  // Each computer use version needs its own beta header.
+  const computerTool = tools?.find(
+    (tool) => getAnthropicProviderToolKind(tool) === 'computer_use',
+  )
+  if (computerTool) {
+    const { type } = convertComputerUseToolToAdapterFormat(computerTool)
+    if (type !== 'computer_toolset_20260801') {
+      betas.add(COMPUTER_USE_BETAS[type])
+    }
+  }
+
+  return betas.size > 0 ? Array.from(betas) : undefined
+}
+
+/**
+ * The tool placeholder of mid-conversation tool mode, copied from pi 0.87.1.
+ * Anthropic adds hidden scaffolding once any tool has `defer_loading`. This
+ * deferred tool is in every tool-mode request, so that scaffolding stays in
+ * the cached prefix. The model never sees it.
+ */
+const DEFERRED_TOOL_PLACEHOLDER: BetaTool = {
+  name: ANTHROPIC_DEFERRED_TOOL_PLACEHOLDER_NAME,
+  description: 'Reserved placeholder. Never available. Never call this.',
+  input_schema: { type: 'object', properties: {}, required: [] },
+  defer_loading: true,
+}
+
+/**
+ * Configuration for Anthropic text adapter
+ */
+export interface AnthropicTextConfig extends AnthropicClientConfig {
+  /**
+   * The mid-conversation channels (the
+   * `mid-conversation-tool-changes-2026-07-01` beta and mid-conversation
+   * `system` messages) of the models in
+   * `ANTHROPIC_MODEL_MID_CONVERSATION_CHANNELS`. When absent, they are on
+   * only for Anthropic's own API: a `baseURL`, a `fetch`, an injected
+   * `client`, or the SDK's `ANTHROPIC_BASE_URL` env var turns the default off. `true` turns them on anyway, for a
+   * gateway that passes the changes. `false` turns them off, so every
+   * request is built as before.
+   */
+  midConversationChannels?: boolean
+  /** Replay ordinary thinking without a signature. The default is false. */
+  allowEmptySignature?: boolean
+  /** Identify a gateway separately from the direct Anthropic API. */
+  provider?: string
+}
+
+export type AnthropicTextAdapterConfig =
+  | AnthropicTextConfig
+  | {
+      client: AnthropicMessagesClient
+      /** See {@link AnthropicTextConfig.midConversationChannels}. */
+      midConversationChannels?: boolean
+      allowEmptySignature?: boolean
+      provider?: string
+    }
+
+/** The headers that Claude Code sends with an OAuth token. */
+const OAUTH_IDENTITY_HEADERS = {
+  'user-agent': 'claude-cli/2.1.280',
+  'x-app': 'cli',
+}
+
+/**
+ * Anthropic-specific provider options for text/chat
+ */
+export type AnthropicTextProviderOptions = ExternalTextProviderOptions
+
+// ===========================
+// Type Resolution Helpers
+// ===========================
+
+/**
+ * Resolve provider options for a specific model.
+ * If the model has explicit options in the map, use those; otherwise use base options.
+ */
+type ResolveProviderOptions<TModel extends string> =
+  TModel extends keyof AnthropicChatModelProviderOptionsByName
+    ? AnthropicChatModelProviderOptionsByName[TModel]
+    : AnthropicTextProviderOptions
+
+/**
+ * Resolve input modalities for a specific model.
+ * If the model has explicit modalities in the map, use those; otherwise use default.
+ */
+type ResolveInputModalities<TModel extends string> =
+  TModel extends keyof AnthropicModelInputModalitiesByName
+    ? AnthropicModelInputModalitiesByName[TModel]
+    : readonly ['text', 'image', 'document']
+
+/** The reasoning levels of a model, for `chat({ reasoning })`. `never`: none. */
+type ResolveReasoning<TModel extends string> =
+  TModel extends keyof AnthropicModelReasoningByName
+    ? AnthropicModelReasoningByName[TModel]
+    : never
+
+type ResolveToolCapabilities<TModel extends string> =
+  TModel extends keyof AnthropicChatModelToolCapabilitiesByName
+    ? NonNullable<AnthropicChatModelToolCapabilitiesByName[TModel]>
+    : readonly []
+
+type SdkAnthropicMessagesClient = {
+  beta: {
+    messages: Pick<Anthropic_SDK['beta']['messages'], 'create'>
+  }
+}
+
+/**
+ * Restore the package SDK's precise overloads at the adapter boundary.
+ * Alternative clients may use a separate Anthropic 0.x SDK whose declarations
+ * drift while implementing the same Messages protocol at runtime.
+ */
+function asSdkAnthropicMessagesClient(
+  client: AnthropicMessagesClient,
+): SdkAnthropicMessagesClient {
+  // oxlint-disable-next-line eslint-js/no-restricted-syntax -- The public callable deliberately erases version-specific SDK overloads; restore this package's SDK type at the internal boundary.
+  return client as unknown as SdkAnthropicMessagesClient
+}
+
+// ===========================
+// Adapter Implementation
+// ===========================
+
+/**
+ * Anthropic Text (Chat) Adapter
+ *
+ * Tree-shakeable adapter for Anthropic chat/text completion functionality.
+ * Import only what you need for smaller bundle sizes.
+ */
+export class AnthropicTextAdapter<
+  TModel extends (typeof ANTHROPIC_MODELS)[number],
+  TProviderOptions extends Record<string, any> = ResolveProviderOptions<TModel>,
+  TInputModalities extends ReadonlyArray<Modality> =
+    ResolveInputModalities<TModel>,
+  TToolCapabilities extends ReadonlyArray<string> =
+    ResolveToolCapabilities<TModel>,
+> extends BaseTextAdapter<
+  TModel,
+  TProviderOptions,
+  TInputModalities,
+  AnthropicMessageMetadataByModality,
+  TToolCapabilities,
+  // TToolCallMetadata — anthropic has no tool-call metadata round-tripping
+  unknown,
+  // TSystemPromptMetadata — narrows `systemPrompts[i].metadata` at the
+  // chat() call site so users get `cache_control` autocomplete.
+  AnthropicSystemPromptMetadata,
+  ResolveReasoning<TModel>
+> {
+  override readonly kind = 'text' as const
+  readonly name = 'anthropic' as const
+  override readonly api = 'anthropic-messages'
+  override readonly provider: string
+  // Consumes `file_id` sources issued by anthropicFiles() (Files API beta).
+  override readonly supportsFileSources = true
+  override readonly inputModalities =
+    ANTHROPIC_MODEL_INPUT_MODALITIES[this.model]
+  /** Set from `ANTHROPIC_MODEL_MID_CONVERSATION_CHANNELS` in the constructor. */
+  override readonly midConversationChannels:
+    | MidConversationChannels
+    | undefined = undefined
+
+  private readonly client: SdkAnthropicMessagesClient
+  private readonly allowEmptySignature: boolean
+  /**
+   * With `auth: 'oauth'`: add the Claude Code identity system block, the CLI
+   * headers, and the `claude-code-20250219` and `oauth-2025-04-20` betas.
+   */
+  private readonly oauth: boolean = false
+  /** True when the credential goes out as `Authorization: Bearer`. */
+  private readonly tokenAuthentication: boolean = false
+  /** The OAuth identity headers, with the caller's own values on top. */
+  private readonly oauthHeaders = new Headers(OAUTH_IDENTITY_HEADERS)
+
+  /** The adapter's own SDK client. An injected client cannot take a fetch. */
+  private readonly sdkClient: Anthropic_SDK | undefined
+  private readonly baseFetch: typeof fetch | undefined
+
+  constructor(config: AnthropicTextAdapterConfig, model: TModel) {
+    super({}, model)
+    this.provider = config.provider ?? this.name
+    this.allowEmptySignature = config.allowEmptySignature ?? false
+    // On by default only on Anthropic's own API: a proxy, a gateway, Vertex,
+    // or Bedrock (a `baseURL`, a `fetch`, an injected client, or the SDK's
+    // ANTHROPIC_BASE_URL env var) may not pass the changes. The option wins.
+    const envBaseURL =
+      typeof process !== 'undefined' && Boolean(process.env.ANTHROPIC_BASE_URL)
+    const customEndpoint =
+      'client' in config ||
+      ('baseURL' in config && Boolean(config.baseURL)) ||
+      ('fetch' in config && Boolean(config.fetch)) ||
+      envBaseURL
+    if (config.midConversationChannels ?? !customEndpoint) {
+      this.midConversationChannels =
+        ANTHROPIC_MODEL_MID_CONVERSATION_CHANNELS[model]
+    }
+    if ('client' in config) {
+      this.client = asSdkAnthropicMessagesClient(config.client)
+      return
+    }
+    const auth = resolveAnthropicAuth(config)
+    this.oauth = auth === 'oauth'
+    this.tokenAuthentication = auth !== 'api-key'
+    for (const [name, value] of Object.entries(config.defaultHeaders ?? {})) {
+      const lower = name.toLowerCase()
+      if (
+        value != null &&
+        (lower === 'x-app' ||
+          lower === 'user-agent' ||
+          lower === 'anthropic-beta')
+      )
+        this.oauthHeaders.set(name, value)
+    }
+    this.baseFetch = config.fetch
+    this.sdkClient = createAnthropicClient({
+      ...config,
+      auth,
+      ...(this.oauth && {
+        defaultHeaders: {
+          ...OAUTH_IDENTITY_HEADERS,
+          ...config.defaultHeaders,
+        },
+      }),
+    })
+    this.client = this.sdkClient
+  }
+
+  /** Use a client whose fetch goes through `wrapFetch` for one call. */
+  private clientFor(wrapFetch: FetchWrapper | undefined) {
+    if (!wrapFetch || !this.sdkClient) return this.client
+    return this.sdkClient.withOptions({
+      fetch: wrapFetch(this.baseFetch ?? globalThis.fetch),
+    })
+  }
+
+  /** With OAuth, the Claude Code betas go first. */
+  private requestBetas(betas: Array<AnthropicBeta> | undefined) {
+    if (!this.oauth) return betas
+    return [
+      ...new Set<AnthropicBeta>([
+        'claude-code-20250219',
+        'oauth-2025-04-20',
+        ...(betas ?? []),
+      ]),
+    ]
+  }
+
+  /**
+   * With a token, drop `x-api-key`. With OAuth, also send the identity
+   * headers, and merge the configured `anthropic-beta` with the request betas.
+   */
+  private requestHeaders(
+    headers: HeadersInit | undefined,
+    betas: Array<AnthropicBeta> | undefined,
+  ) {
+    if (!this.tokenAuthentication) return headers
+    const requestHeaders = new Headers(
+      this.oauth ? this.oauthHeaders : undefined,
+    )
+    new Headers(headers).forEach((value, name) =>
+      requestHeaders.set(name, value),
+    )
+    if (this.oauth) {
+      const configured = (requestHeaders.get('anthropic-beta') ?? '')
+        .split(',')
+        .map((value) => value.trim())
+        .filter(Boolean)
+      requestHeaders.set(
+        'anthropic-beta',
+        [...new Set([...(betas ?? []), ...configured])].join(','),
+      )
+    }
+    return { ...Object.fromEntries(requestHeaders), 'x-api-key': null }
+  }
+
+  async *chatStream(
+    chatOptions: TextOptions<TProviderOptions>,
+  ): AsyncIterable<AdapterYieldChunk> {
+    let options = chatOptions
+    const { logger } = options
+    try {
+      // The rest of the request sees the native computer tool.
+      options = {
+        ...options,
+        tools: options.tools?.map((tool) =>
+          resolveComputerUseTool(tool, this.model),
+        ),
+      }
+      const requestParams = this.mapCommonOptionsToAnthropic(options)
+
+      logger.request(
+        `activity=chat provider=anthropic model=${this.model} messages=${options.messages.length} tools=${options.tools?.length ?? 0} stream=true`,
+        { provider: 'anthropic', model: this.model },
+      )
+
+      // `betas` is attached at the call site rather than in the shared mapper
+      // because the beta set depends on both the tools and the modelOptions.
+      // The request, not modelOptions: `reasoning` can turn budget
+      // thinking (and so the interleaved-thinking beta) on.
+      const betas = this.requestBetas(
+        computeAnthropicBetas(
+          options.tools,
+          requestParams,
+          messagesHaveFileSource(options.messages),
+          // Mid-conversation tool mode puts the deferred placeholder in `tools`.
+          requestParams.tools?.some(
+            (tool) =>
+              'name' in tool && tool.name === DEFERRED_TOOL_PLACEHOLDER.name,
+          ),
+        ),
+      )
+
+      // `client.beta.messages` is Anthropic's permanent staging surface, not a
+      // sunset path: it's a superset of `client.messages` that additionally
+      // accepts the `betas: AnthropicBeta[]` header (e.g. interleaved
+      // thinking) plus richer `container` (skills) and `context_management`
+      // shapes that `InternalTextProviderOptions` carries. We route every
+      // Messages call through it so the request mapper stays single-shape.
+      const stream = await this.clientFor(
+        options.wrapFetch,
+      ).beta.messages.create(
+        {
+          ...requestParams,
+          stream: true,
+          ...(betas && { betas }),
+        },
+        {
+          signal: options.request?.signal,
+          headers: this.requestHeaders(options.request?.headers, betas),
+        },
+      )
+
+      yield* this.processAnthropicStream(
+        stream,
+        options,
+        () => generateId(this.name),
+        logger,
+      )
+    } catch (error: unknown) {
+      const err = error as Error & { status?: number; code?: string }
+      const code = runErrorCode(err)
+      const rawEvent = toRunErrorRawEvent(error)
+      const retryAfterMs = toRetryAfterMs(error)
+      logger.errors('anthropic.chatStream fatal', {
+        error,
+        source: 'anthropic.chatStream',
+      })
+      yield {
+        type: EventType.RUN_ERROR,
+        model: options.model,
+        metadata: {
+          tanstack: {
+            source: {
+              provider: this.provider,
+              api: this.api,
+              model: options.model,
+            },
+          },
+        },
+        timestamp: Date.now(),
+        message: err.message || 'Unknown error occurred',
+        code,
+        // Forward the Anthropic SDK error's `.error` response body (e.g.
+        // `{ type, message }`) when present; never the raw exception object.
+        ...(rawEvent !== undefined && { rawEvent }),
+        ...(retryAfterMs !== undefined && { retryAfterMs }),
+        ...toRunErrorDetails(error),
+        error: {
+          message: err.message || 'Unknown error occurred',
+          code,
+        },
+      }
+    }
+  }
+
+  /**
+   * Generate structured output using Anthropic's tool-based approach.
+   * Anthropic doesn't have native structured output, so we use a tool with the schema
+   * and force the model to call it.
+   * The outputSchema is already JSON Schema (converted in the ai layer).
+   */
+  async structuredOutput(
+    options: StructuredOutputOptions<TProviderOptions>,
+  ): Promise<StructuredOutputResult<unknown>> {
+    const { outputSchema } = options
+    // The betas and the history see the native computer tool.
+    const chatOptions = {
+      ...options.chatOptions,
+      tools: options.chatOptions.tools?.map((tool) =>
+        resolveComputerUseTool(tool, this.model),
+      ),
+    }
+    const { logger } = chatOptions
+
+    // `structuredOutput()` issues a non-streaming `messages.create({ stream:
+    // false })` below, so the defaulted `max_tokens` must stay under the SDK's
+    // non-streaming 10-minute guard (issue #849) — pass `stream: false`.
+    // The API rejects a forced tool while thinking is on, so the forced
+    // structured-output tool goes without `chat({ reasoning })`.
+    const { reasoning: _reasoning, ...requestOptions } = chatOptions
+    const requestParams = this.mapCommonOptionsToAnthropic(requestOptions, {
+      stream: false,
+    })
+
+    // Create a tool that will capture the structured output
+    // Anthropic's SDK requires input_schema with type: 'object' literal
+    const structuredOutputTool = {
+      name: 'structured_output',
+      description:
+        'Use this tool to provide your response in the required structured format.',
+      input_schema: {
+        type: 'object' as const,
+        properties: outputSchema.properties ?? {},
+        required: outputSchema.required ?? [],
+      },
+    }
+
+    try {
+      logger.request(
+        `activity=chat provider=anthropic model=${this.model} messages=${chatOptions.messages.length} tools=${chatOptions.tools?.length ?? 0} stream=false`,
+        { provider: 'anthropic', model: this.model },
+      )
+      const betas = this.requestBetas(
+        computeAnthropicBetas(
+          chatOptions.tools,
+          requestParams,
+          messagesHaveFileSource(chatOptions.messages),
+        ),
+      )
+      // Make non-streaming request with tool_choice forced to our structured output tool
+      const response = await this.clientFor(
+        chatOptions.wrapFetch,
+      ).beta.messages.create(
+        {
+          ...requestParams,
+          stream: false,
+          tools: [structuredOutputTool],
+          tool_choice: { type: 'tool', name: 'structured_output' },
+          ...(betas && { betas }),
+        },
+        {
+          signal: chatOptions.request?.signal,
+          headers: this.requestHeaders(chatOptions.request?.headers, betas),
+        },
+      )
+
+      // A forced tool call cut off at the output cap carries partial input,
+      // which would read like a schema failure (issue #1426).
+      if (response.stop_reason === 'max_tokens') {
+        throw new Error(
+          'anthropic.structuredOutput: the response was cut off because the maximum token limit was reached (stop_reason=max_tokens); raise modelOptions.max_tokens',
+        )
+      }
+
+      // Extract the tool use content from the response
+      let parsed: unknown = null
+      let rawText = ''
+
+      for (const block of response.content) {
+        if (block.type === 'tool_use' && block.name === 'structured_output') {
+          parsed = block.input
+          rawText = JSON.stringify(block.input)
+          break
+        }
+      }
+
+      if (parsed === null) {
+        // Fallback: try to extract text content and parse as JSON
+        rawText = response.content
+          .map((b) => {
+            if (b.type === 'text') {
+              return b.text
+            }
+            return ''
+          })
+          .join('')
+        try {
+          parsed = JSON.parse(rawText)
+        } catch {
+          throw new Error(
+            `Failed to extract structured output from response. Content: ${rawText.slice(0, 200)}${rawText.length > 200 ? '...' : ''}`,
+          )
+        }
+      }
+
+      return {
+        data: parsed,
+        rawText,
+        usage: buildAnthropicUsage(response.usage),
+        responseId: response.id,
+        model: response.model,
+      }
+    } catch (error: unknown) {
+      const err = error as Error
+      logger.errors('anthropic.structuredOutput fatal', {
+        error,
+        source: 'anthropic.structuredOutput',
+      })
+      throw new Error(
+        `Structured output generation failed: ${err.message || 'Unknown error occurred'}`,
+      )
+    }
+  }
+
+  private mapCommonOptionsToAnthropic(
+    options: TextOptions<AnthropicTextProviderOptions>,
+    { stream = true }: { stream?: boolean } = {},
+  ) {
+    const modelOptions = options.modelOptions
+
+    // Another model's history loses its signatures, and its tool IDs are
+    // rewritten to the shape Anthropic accepts. Plan indexes match this
+    // array when the second replay keeps the same length.
+    const replay = transformMessagesForReplay(
+      options.messages,
+      { provider: this.provider, api: this.api, model: options.model },
+      (id, { attempt }) => {
+        const clean = id.replace(/[^a-zA-Z0-9_-]/g, '_')
+        const suffix = attempt === 0 ? '' : `_${attempt}`
+        return clean.slice(0, 64 - suffix.length) + suffix
+      },
+    )
+    const mid = this.midConversationRequest({
+      ...options,
+      messages: replay.messages,
+    })
+    const formattedMessages = this.formatMessages(
+      replay.messages,
+      mid?.systemMessages,
+      options.tools?.some(isComputerToolset) ?? false,
+    )
+    const tools = options.tools
+      ? (mid?.tools ?? convertToolsToProviderFormat(options.tools))
+      : undefined
+
+    const validProviderOptions: Partial<InternalTextProviderOptions> = {}
+    if (modelOptions) {
+      const validKeys: Array<keyof AnthropicTextProviderOptions> = [
+        'cache_control',
+        'container',
+        'context_management',
+        'fallbacks',
+        'mcp_servers',
+        'service_tier',
+        'stop_sequences',
+        'tool_choice',
+        'top_k',
+        'temperature',
+        'top_p',
+      ]
+      // `max_tokens` is a legitimate public modelOptions field, but it is read
+      // via a dedicated path (defaultMaxTokens below) rather than copied into
+      // validProviderOptions. Exempt it from the dropped-key warning here so a
+      // correct `modelOptions: { max_tokens }` call doesn't log a spurious
+      // "dropped unknown key" error, while keeping it out of the copy loop.
+      const droppedKeyExemptSet = new Set<string>([...validKeys, 'max_tokens'])
+      const droppedKeys = Object.keys(modelOptions).filter(
+        (key) => !droppedKeyExemptSet.has(key),
+      )
+      if (droppedKeys.length > 0) {
+        // Reachable when callers cast around the public type (e.g.
+        // `modelOptions: { system: ... } as any`). Without this warning the
+        // unknown keys are silently dropped — `system` in particular was a
+        // previously-tested path for attaching `cache_control` and we don't
+        // want that to fail in production with no signal.
+        options.logger.errors(
+          `anthropic.mapCommonOptionsToAnthropic dropped unknown modelOptions key(s): ${droppedKeys.join(', ')}`,
+          {
+            source: 'anthropic.mapCommonOptionsToAnthropic',
+            droppedKeys,
+            hint: droppedKeys.includes('system')
+              ? 'pass system prompts via the top-level `systemPrompts` option; `modelOptions.system` is no longer honored'
+              : undefined,
+          },
+        )
+      }
+      for (const key of validKeys) {
+        if (key in modelOptions) {
+          const value = modelOptions[key]
+          if (key === 'tool_choice' && typeof value === 'string') {
+            ;(validProviderOptions as Record<string, unknown>)[key] = {
+              type: value,
+            }
+          } else {
+            ;(validProviderOptions as Record<string, unknown>)[key] = value
+          }
+        }
+      }
+    }
+
+    // `chat({ reasoning })`, as this model's thinking fields.
+    if (
+      options.reasoning !== undefined &&
+      !(this.model in ANTHROPIC_MODEL_REASONING) &&
+      !modelsWarnedWithoutReasoning.has(this.model)
+    ) {
+      modelsWarnedWithoutReasoning.add(this.model)
+      console.warn(
+        `[ai-anthropic] chat({ reasoning }) is ignored for model "${this.model}": ` +
+          'the model is not in the reasoning table, so no thinking fields are sent.',
+      )
+    }
+    const { output_config: reasoningOutputConfig, ...thinkingFields } =
+      anthropicThinking(
+        this.model,
+        options.reasoning,
+        ANTHROPIC_MODEL_REASONING[this.model],
+      )
+    const thinkingBudget =
+      thinkingFields.thinking?.type === 'enabled'
+        ? thinkingFields.thinking.budget_tokens
+        : undefined
+    // Anthropic's Messages API *requires* `max_tokens`, so we must always send a
+    // value. When the caller doesn't specify one, default to the resolved
+    // model's real output ceiling (from model-meta) rather than a low constant
+    // that silently truncates long responses with `stop_reason: "max_tokens"`
+    // (issue #849). `max_tokens` is a ceiling, not a reservation — billing is on
+    // tokens actually generated, so a higher default costs nothing extra.
+    // For non-streaming requests (the `structuredOutput()` path) the default is
+    // clamped to the SDK's non-streaming-safe limit so it doesn't trip the
+    // "streaming required" 10-minute guard — see getAnthropicDefaultMaxTokens.
+    const defaultMaxTokens =
+      modelOptions?.max_tokens ??
+      getAnthropicDefaultMaxTokens(this.model, { stream })
+    const maxTokens =
+      thinkingBudget && thinkingBudget >= defaultMaxTokens
+        ? thinkingBudget + 1
+        : defaultMaxTokens
+
+    // `InternalTextProviderOptions.system` is typed
+    // `string | Array<TextBlockParam>` (no `| undefined`), so build it
+    // outside the literal and spread it conditionally rather than
+    // assigning `undefined` under exactOptionalPropertyTypes.
+    const systemBlocks = ((): Array<TextBlockParam> | undefined => {
+      // With a prompt channel, `system` holds only the start prompts. They
+      // keep their own `cache_control` metadata.
+      const normalized =
+        mid?.systemPrompts ??
+        normalizeSystemPrompts<AnthropicSystemPromptMetadata>(
+          options.systemPrompts,
+        )
+      if (normalized.length === 0 && !this.oauth) return undefined
+      const blocks = normalized.map(
+        (p): TextBlockParam => ({
+          type: 'text',
+          text: p.content,
+          ...(p.metadata?.cache_control && {
+            cache_control: p.metadata.cache_control,
+          }),
+        }),
+      )
+      // Anthropic accepts an OAuth token only with the Claude Code identity.
+      return this.oauth
+        ? [
+            {
+              type: 'text',
+              text: "You are Claude Code, Anthropic's official CLI for Claude.",
+            },
+            ...blocks,
+          ]
+        : blocks
+    })()
+    // Wire engine-threaded outputSchema into Messages `output_config.format`
+    // alongside any `tools` so the model emits tool calls during the agent
+    // loop and a single schema-constrained JSON message on its final turn.
+    // Merge it with the `output_config.effort` that `chat({ reasoning })`
+    // sets.
+    const combinedSchema = options.outputSchema as
+      | Record<string, unknown>
+      | undefined
+    const outputConfig =
+      combinedSchema || reasoningOutputConfig
+        ? {
+            output_config: {
+              ...reasoningOutputConfig,
+              ...(combinedSchema
+                ? {
+                    format: {
+                      type: 'json_schema' as const,
+                      schema: toAnthropicOutputSchema(combinedSchema) as Record<
+                        string,
+                        unknown
+                      >,
+                    },
+                  }
+                : {}),
+            },
+          }
+        : undefined
+
+    // Lift skills attached to a `code_execution` tool into the top-level
+    // `container.skills` request param (Anthropic's required shape). Preserve any
+    // `container.id` supplied via modelOptions for container reuse.
+    const toolSkills = options.tools
+      ?.map((tool) =>
+        getAnthropicProviderToolKind(tool) === 'code_execution'
+          ? readCodeExecutionSkills(tool)
+          : undefined,
+      )
+      .find((skills) => skills && skills.length > 0)
+
+    if (toolSkills && toolSkills.length > 0) {
+      const existingContainer = validProviderOptions.container ?? undefined
+      validProviderOptions.container = {
+        id: existingContainer?.id ?? null,
+        skills: toolSkills,
+      }
+    }
+
+    // `temperature`/`top_p` arrive via `...validProviderOptions` (sourced from
+    // `modelOptions`). `InternalTextProviderOptions` declares `system` and
+    // `tools` as `T?: ...` (no `| undefined`), so spread them conditionally
+    // rather than passing explicit `undefined` under exactOptionalPropertyTypes.
+    const requestParams: InternalTextProviderOptions = {
+      model: options.model,
+      max_tokens: maxTokens,
+      messages: formattedMessages,
+      ...(systemBlocks !== undefined && { system: systemBlocks }),
+      ...(tools !== undefined && { tools }),
+      ...validProviderOptions,
+      ...thinkingFields,
+      ...(outputConfig ?? {}),
+    }
+    validateTextProviderOptions(requestParams)
+
+    // `chat({ toolChoice })` is sent only when the request has tools. It goes
+    // before the request spread, so a `tool_choice` in modelOptions wins. It
+    // is not in `requestParams`, because that type has no `none` choice.
+    // The API rejects a forced tool while thinking is on, and some models
+    // reject it on every request.
+    const isThinking =
+      requestParams.thinking !== undefined &&
+      requestParams.thinking.type !== 'disabled'
+    const canForceTool =
+      !isThinking && !ANTHROPIC_NO_FORCED_TOOL_MODELS.has(this.model)
+    const toolChoiceField =
+      tools?.length && options.toolChoice !== undefined
+        ? {
+            tool_choice: toAnthropicToolChoice(options.toolChoice, {
+              canForceTool,
+            }),
+          }
+        : undefined
+    // Last step: the merged messages decide which message is last.
+    return {
+      ...toolChoiceField,
+      ...applyAnthropicPromptCache(requestParams, options.promptCache),
+    }
+  }
+
+  /**
+   * Mid-conversation changes: the start prompts for `system`, the tool-mode
+   * `tools`, and a `system` message for each change by message index.
+   * Undefined when the request stays as today: the adapter has no channels,
+   * the engine passed no changes, or the changes do not fit the current lists.
+   */
+  private midConversationRequest(
+    options: TextOptions<AnthropicTextProviderOptions>,
+  ):
+    | {
+        systemPrompts?: Array<
+          NormalizedSystemPrompt<AnthropicSystemPromptMetadata>
+        >
+        tools?: InternalTextProviderOptions['tools']
+        systemMessages: Map<number, BetaMessageParam>
+      }
+    | undefined {
+    const channels = this.midConversationChannels
+    if (!channels || !options.midConversationChanges) return undefined
+    const split = splitMidConversationChanges({
+      changes: options.midConversationChanges,
+      tools: options.tools ?? [],
+      systemPrompts: normalizeSystemPrompts<AnthropicSystemPromptMetadata>(
+        options.systemPrompts,
+      ),
+    })
+    if (!split) return undefined
+    // Tool mode needs a start tool (Anthropic rejects a list where every
+    // tool is deferred), and a provider tool cannot be deferred by name.
+    const toolMode =
+      channels.tools &&
+      split.startTools.length > 0 &&
+      ![...split.startTools, ...split.addedTools].some(
+        (tool) => getAnthropicProviderToolKind(tool) !== undefined,
+      )
+    const systemMessages = new Map<number, BetaMessageParam>()
+    for (const [before, change] of split.at) {
+      const content: Array<BetaContentBlockParam> = [
+        ...(channels.systemPrompts
+          ? change.systemPrompts.map(
+              (p): TextBlockParam => ({ type: 'text', text: p.content }),
+            )
+          : []),
+        ...(toolMode
+          ? change.tools.map((tool) => ({
+              type: 'tool_addition' as const,
+              tool: { type: 'tool_reference' as const, name: tool.name },
+            }))
+          : []),
+      ]
+      if (content.length === 0) continue
+      systemMessages.set(before, { role: 'system', content })
+    }
+    return {
+      ...(channels.systemPrompts && {
+        systemPrompts: split.startSystemPrompts,
+      }),
+      ...(toolMode && {
+        tools: [
+          ...convertToolsToProviderFormat(split.startTools),
+          DEFERRED_TOOL_PLACEHOLDER,
+          ...convertToolsToProviderFormat(split.addedTools).map((tool) => ({
+            ...tool,
+            defer_loading: true,
+          })),
+        ],
+      }),
+      systemMessages,
+    }
+  }
+
+  /**
+   * Anthropic supports `output_config.format` + `tools` in a single streaming
+   * Messages request only for Claude 4.5+ (GA 2026-01-29). Every registered
+   * model is 4.5+; an id outside the set (e.g. an untyped one) keeps the
+   * forced-tool-use workaround in {@link structuredOutput} via the engine's
+   * finalization path.
+   */
+  supportsCombinedToolsAndSchema(): boolean {
+    return ANTHROPIC_COMBINED_TOOLS_AND_SCHEMA_MODELS.has(this.model)
+  }
+
+  private convertContentPartToAnthropic(
+    part: ContentPart,
+  ): BetaTextBlockParam | BetaImageBlockParam | BetaRequestDocumentBlock {
+    switch (part.type) {
+      case 'text': {
+        const metadata = part.metadata as AnthropicTextMetadata | undefined
+        return {
+          type: 'text',
+          text: part.content,
+          ...metadata,
+        }
+      }
+
+      case 'image': {
+        const metadata = part.metadata as AnthropicImageMetadata | undefined
+        let imageSource:
+          | BetaBase64ImageSource
+          | BetaURLImageSource
+          | BetaFileImageSource
+        if (isFileSource(part.source)) {
+          imageSource = {
+            type: 'file',
+            file_id: fileReferenceFor(part.source, this.name),
+          }
+        } else if (part.source.type === 'data') {
+          imageSource = {
+            type: 'base64',
+            data: part.source.value,
+            media_type: part.source.mimeType as
+              | 'image/jpeg'
+              | 'image/png'
+              | 'image/gif'
+              | 'image/webp',
+          }
+        } else {
+          imageSource = {
+            type: 'url',
+            url: part.source.value,
+          }
+        }
+        return {
+          type: 'image',
+          source: imageSource,
+          ...(metadata?.cache_control !== undefined && {
+            cache_control: metadata.cache_control,
+          }),
+        }
+      }
+      case 'document': {
+        const metadata = part.metadata as AnthropicDocumentMetadata | undefined
+        const title = metadata?.title ?? metadata?.filename
+        let docSource:
+          | BetaBase64PDFSource
+          | BetaURLPDFSource
+          | BetaFileDocumentSource
+        if (isFileSource(part.source)) {
+          docSource = {
+            type: 'file',
+            file_id: fileReferenceFor(part.source, this.name),
+          }
+        } else if (part.source.type === 'data') {
+          docSource = {
+            type: 'base64',
+            data: part.source.value,
+            media_type: part.source.mimeType as 'application/pdf',
+          }
+        } else {
+          docSource = {
+            type: 'url',
+            url: part.source.value,
+          }
+        }
+        return {
+          type: 'document',
+          source: docSource,
+          ...(metadata?.cache_control !== undefined && {
+            cache_control: metadata.cache_control,
+          }),
+          ...(metadata?.citations !== undefined && {
+            citations: metadata.citations,
+          }),
+          ...(metadata?.context !== undefined && {
+            context: metadata.context,
+          }),
+          ...(title !== undefined && { title }),
+        }
+      }
+      case 'audio':
+      case 'video':
+        throw new Error(
+          `Anthropic does not support ${part.type} content directly`,
+        )
+      default: {
+        const _exhaustiveCheck: never = part
+        throw new Error(
+          `Unsupported content part type: ${(_exhaustiveCheck as ContentPart).type}`,
+        )
+      }
+    }
+  }
+
+  private formatMessages(
+    messages: Array<ModelMessage>,
+    /** Mid-conversation `system` messages by message index (`before`). */
+    systemMessages?: ReadonlyMap<number, BetaMessageParam>,
+    /** The tools have the computer toolset, so `computer` calls are its calls. */
+    computerToolset = false,
+  ): InternalTextProviderOptions['messages'] {
+    const formattedMessages: InternalTextProviderOptions['messages'] = []
+    // The ids of the computer toolset calls. Their results name the toolset.
+    const toolsetCalls = computerToolset ? new Set<string>() : undefined
+    // A system message waits for the next assistant message (or the end),
+    // so a `tool_result` still follows its `tool_use` directly.
+    const pendingSystemMessages: InternalTextProviderOptions['messages'] = []
+
+    for (const [index, message] of messages.entries()) {
+      const role = message.role
+      const systemMessage = systemMessages?.get(index)
+      if (systemMessage) pendingSystemMessages.push(systemMessage)
+      if (role === 'assistant') {
+        formattedMessages.push(...pendingSystemMessages.splice(0))
+      }
+
+      if (role === 'tool' && message.toolCallId) {
+        const toolContent = message.content
+        formattedMessages.push({
+          role: 'user',
+          content: [
+            {
+              type: 'tool_result',
+              tool_use_id: message.toolCallId,
+              ...(toolsetCalls?.has(message.toolCallId) && {
+                toolset_name: COMPUTER_TOOL_NAME,
+              }),
+              content: Array.isArray(toolContent)
+                ? toolContent.map((part) =>
+                    this.convertContentPartToAnthropic(part),
+                  )
+                : typeof toolContent === 'string'
+                  ? toolContent
+                  : '',
+              ...(message.error !== undefined && { is_error: true }),
+            },
+          ],
+        })
+        continue
+      }
+
+      // A valid block order map: send the blocks in the order the model
+      // sent them. Unsigned thinking is still skipped at its place.
+      const ordered =
+        role === 'assistant' ? orderedAssistantBlocks(message) : undefined
+      if (ordered) {
+        const contentBlocks: Array<BetaContentBlockParam> = []
+        for (const block of ordered) {
+          if (block.type === 'thinking') {
+            this.appendThinkingBlocks(contentBlocks, [block.thinking])
+          } else if (block.type === 'tool-call') {
+            this.appendToolCallBlocks(
+              contentBlocks,
+              block.toolCall,
+              toolsetCalls,
+            )
+          } else {
+            contentBlocks.push({ type: 'text', text: block.text })
+          }
+        }
+        formattedMessages.push({
+          role: 'assistant',
+          content: contentBlocks.length > 0 ? contentBlocks : '',
+        })
+        continue
+      }
+
+      if (role === 'assistant' && message.toolCalls?.length) {
+        const contentBlocks: Array<BetaContentBlockParam> = []
+
+        this.appendThinkingBlocks(contentBlocks, message.thinking)
+
+        if (message.content) {
+          const content =
+            typeof message.content === 'string' ? message.content : ''
+          const textBlock: TextBlockParam = {
+            type: 'text',
+            text: content,
+          }
+          contentBlocks.push(textBlock)
+        }
+
+        for (const toolCall of message.toolCalls) {
+          this.appendToolCallBlocks(contentBlocks, toolCall, toolsetCalls)
+        }
+
+        formattedMessages.push({
+          role: 'assistant',
+          content: contentBlocks,
+        })
+
+        continue
+      }
+
+      if (role === 'assistant') {
+        const contentBlocks: Array<BetaContentBlockParam> = []
+        this.appendThinkingBlocks(contentBlocks, message.thinking)
+
+        if (Array.isArray(message.content)) {
+          for (const part of message.content) {
+            contentBlocks.push(this.convertContentPartToAnthropic(part))
+          }
+        } else if (message.content) {
+          contentBlocks.push({
+            type: 'text',
+            text: message.content,
+          })
+        }
+
+        formattedMessages.push({
+          role: 'assistant',
+          content: contentBlocks.length > 0 ? contentBlocks : '',
+        })
+        continue
+      }
+
+      if (role === 'user' && Array.isArray(message.content)) {
+        const contentBlocks = message.content.map((part) =>
+          this.convertContentPartToAnthropic(part),
+        )
+        formattedMessages.push({
+          role: 'user',
+          content: contentBlocks,
+        })
+        continue
+      }
+
+      formattedMessages.push({
+        role: 'user',
+        content:
+          typeof message.content === 'string'
+            ? message.content
+            : message.content
+              ? message.content.map((c) =>
+                  this.convertContentPartToAnthropic(c),
+                )
+              : '',
+      })
+    }
+
+    // A change with `before === messages.length` goes at the end.
+    const endSystemMessage = systemMessages?.get(messages.length)
+    if (endSystemMessage) pendingSystemMessages.push(endSystemMessage)
+    formattedMessages.push(...pendingSystemMessages)
+
+    // Post-process: Anthropic requires strictly alternating user/assistant roles.
+    // Tool results are sent as role:'user' messages, which can create consecutive
+    // user messages when followed by a new user message. Merge them.
+    return this.mergeConsecutiveSameRoleMessages(formattedMessages)
+  }
+
+  private appendThinkingBlocks(
+    contentBlocks: Array<BetaContentBlockParam>,
+    thinkingParts: ModelMessage['thinking'],
+  ): void {
+    if (!thinkingParts?.length) return
+
+    for (const thinking of thinkingParts) {
+      if (
+        !thinking.signature &&
+        (thinking.redacted || !this.allowEmptySignature)
+      )
+        continue
+      if (thinking.redacted) {
+        if (!thinking.signature) continue
+        contentBlocks.push({
+          type: 'redacted_thinking',
+          data: thinking.signature,
+        })
+        continue
+      }
+      const block: ThinkingBlockParam = {
+        type: 'thinking',
+        thinking: thinking.content,
+        signature: thinking.signature ?? '',
+      }
+      contentBlocks.push(block)
+    }
+  }
+
+  /**
+   * A tool call as a `tool_use` block, or a server tool as its two blocks.
+   * With `toolsetCalls`, a `computer` call goes back as the computer toolset
+   * call that the model sent, and its id goes in `toolsetCalls`.
+   */
+  private appendToolCallBlocks(
+    contentBlocks: Array<BetaContentBlockParam>,
+    toolCall: ToolCall,
+    toolsetCalls?: Set<string>,
+  ): void {
+    let parsedInput: unknown = {}
+    try {
+      const parsed = toolCall.function.arguments
+        ? JSON.parse(toolCall.function.arguments)
+        : {}
+      parsedInput = parsed && typeof parsed === 'object' ? parsed : {}
+    } catch {
+      parsedInput = {}
+    }
+
+    // Provider-executed server tools (e.g. web_search) replay as the
+    // original `server_tool_use` + result blocks so the model still sees
+    // the prior evidence. Their result was captured verbatim during
+    // streaming (see processAnthropicStream).
+    const serverMeta = readAnthropicServerToolMetadata(toolCall.metadata)
+    if (serverMeta) {
+      const serverToolUseBlock: ServerToolUseBlockParam = {
+        type: 'server_tool_use',
+        id: toolCall.id,
+        name: serverMeta.serverToolType,
+        input: parsedInput,
+      }
+      contentBlocks.push(serverToolUseBlock)
+      contentBlocks.push(buildServerToolResultBlock(toolCall.id, serverMeta))
+      return
+    }
+
+    const member =
+      toolsetCalls &&
+      toolCall.function.name === COMPUTER_TOOL_NAME &&
+      typeof parsedInput === 'object' &&
+      parsedInput !== null
+        ? splitComputerToolsetCall(parsedInput)
+        : undefined
+    if (member) {
+      toolsetCalls?.add(toolCall.id)
+      contentBlocks.push({
+        type: 'tool_use',
+        id: toolCall.id,
+        name: member.name,
+        toolset_name: COMPUTER_TOOL_NAME,
+        input: member.input,
+      })
+      return
+    }
+
+    const toolUseBlock: ToolUseBlockParam = {
+      type: 'tool_use',
+      id: toolCall.id,
+      name: toolCall.function.name,
+      input: parsedInput,
+    }
+    contentBlocks.push(toolUseBlock)
+  }
+
+  /**
+   * Merge consecutive messages of the same role into a single message.
+   * Anthropic's API requires strictly alternating user/assistant roles.
+   * Tool results are wrapped as role:'user' messages, which can collide
+   * with actual user messages in multi-turn conversations.
+   *
+   * Also filters out empty assistant messages (e.g., from a previous failed request).
+   */
+  private mergeConsecutiveSameRoleMessages(
+    messages: InternalTextProviderOptions['messages'],
+  ): InternalTextProviderOptions['messages'] {
+    const merged: InternalTextProviderOptions['messages'] = []
+
+    for (const msg of messages) {
+      // Skip empty assistant messages (no content or empty string)
+      if (msg.role === 'assistant') {
+        const hasContent = Array.isArray(msg.content)
+          ? msg.content.length > 0
+          : typeof msg.content === 'string' && msg.content.length > 0
+        if (!hasContent) {
+          continue
+        }
+      }
+
+      const prev = merged[merged.length - 1]
+      if (prev && prev.role === msg.role) {
+        // Normalize both contents to arrays and concatenate
+        const prevBlocks = Array.isArray(prev.content)
+          ? prev.content
+          : typeof prev.content === 'string' && prev.content
+            ? [{ type: 'text' as const, text: prev.content }]
+            : []
+        const msgBlocks = Array.isArray(msg.content)
+          ? msg.content
+          : typeof msg.content === 'string' && msg.content
+            ? [{ type: 'text' as const, text: msg.content }]
+            : []
+        prev.content = [...prevBlocks, ...msgBlocks]
+      } else {
+        merged.push({ ...msg })
+      }
+    }
+
+    // Anthropic rejects a request that ends in a thinking-only assistant
+    // message ("The final block in an assistant message cannot be `thinking`").
+    // An interrupt can pause a turn that has thinking but no text. Drop it so
+    // the request ends in the user message and the model answers again.
+    const last = merged.at(-1)
+    if (
+      last?.role === 'assistant' &&
+      Array.isArray(last.content) &&
+      last.content.every(
+        (block) =>
+          block.type === 'thinking' || block.type === 'redacted_thinking',
+      )
+    ) {
+      merged.pop()
+    }
+
+    // De-duplicate tool_result blocks with the same tool_use_id.
+    // This can happen when the core layer generates tool results from both
+    // the tool-result part and the tool-call part's output field.
+    for (const msg of merged) {
+      if (Array.isArray(msg.content)) {
+        const seenToolResultIds = new Set<string>()
+        msg.content = msg.content.filter((block: any) => {
+          if (block.type === 'tool_result' && block.tool_use_id) {
+            if (seenToolResultIds.has(block.tool_use_id)) {
+              return false // Remove duplicate
+            }
+            seenToolResultIds.add(block.tool_use_id)
+          }
+          return true
+        })
+      }
+    }
+
+    return merged
+  }
+
+  private async *processAnthropicStream(
+    stream: AsyncIterable<Anthropic_SDK.Beta.BetaRawMessageStreamEvent>,
+    options: TextOptions<AnthropicTextProviderOptions>,
+    genId: () => string,
+    logger: InternalLogger,
+  ): AsyncIterable<AdapterYieldChunk> {
+    let model = options.model
+    let responseId: string | undefined
+    const source = {
+      provider: this.provider,
+      api: this.api,
+      model: options.model,
+    }
+    let accumulatedContent = ''
+    let accumulatedSignature = ''
+    const toolCallsMap = new Map<
+      number,
+      {
+        id: string
+        name: string
+        input: string
+        started: boolean
+        hasInputDelta: boolean
+        /** The action of a computer toolset call (`left_click`, …). */
+        member?: string
+      }
+    >()
+    let currentToolIndex = -1
+    // Server-side tools share the `input_json_delta` wire format with client
+    // `tool_use` blocks; routing both to the same buffer corrupts client tool
+    // input.
+    let currentServerTool: { id: string; name: string; input: string } | null =
+      null
+    // Completed server tools awaiting their matching result block. Anthropic
+    // emits `server_tool_use` then a separate `*_tool_result` block; we hold
+    // the call here (keyed by id) until the result arrives so we can emit a
+    // single provider-executed tool call carrying the raw result for round-trip.
+    const completedServerTools = new Map<
+      string,
+      { id: string; name: string; input: string }
+    >()
+
+    // AG-UI lifecycle tracking
+    const runId = options.runId ?? genId()
+    const threadId = options.threadId
+    const messageId = genId()
+    let reasoningMessageId: string | null = null
+    let hasClosedReasoning = false
+    let hasEmittedRunStarted = false
+    let hasEmittedTextMessageStart = false
+    let hasEmittedRunFinished = false
+    // Track current content block type for proper content_block_stop handling
+    let currentBlockType: string | null = null
+    // Input and cache counts from message_start, for a closing message_delta
+    // that leaves them out and for a stream that fails before it arrives.
+    let messageStartUsage: Anthropic_SDK.Beta.BetaUsage | undefined
+
+    try {
+      for await (const event of stream) {
+        if (event.type === 'message_start') {
+          responseId = event.message.id
+          model = event.message.model
+        }
+        logger.provider(`provider=anthropic type=${event.type}`, {
+          chunk: event,
+        })
+        // Emit RUN_STARTED on first event
+        if (!hasEmittedRunStarted) {
+          hasEmittedRunStarted = true
+          yield {
+            type: EventType.RUN_STARTED,
+            runId,
+            threadId,
+            model,
+            timestamp: Date.now(),
+            parentRunId: options.parentRunId,
+            metadata: { tanstack: { source } },
+          }
+        }
+
+        if (event.type === 'message_start') {
+          messageStartUsage = event.message.usage
+        } else if (event.type === 'content_block_start') {
+          currentBlockType = event.content_block.type
+          if (currentBlockType === 'fallback') {
+            // Server-side fallback handoff. The rest of the stream comes from
+            // `to.model`. message_start names the declining model only after
+            // output has started. Before any output, message_start already
+            // names the fallback model.
+            const block: unknown = event.content_block
+            const to =
+              block && typeof block === 'object' && 'to' in block
+                ? block.to
+                : undefined
+            if (
+              to &&
+              typeof to === 'object' &&
+              'model' in to &&
+              typeof to.model === 'string'
+            ) {
+              model = to.model
+            }
+          } else if (event.content_block.type === 'tool_use') {
+            currentToolIndex++
+            // A computer toolset call names its action. It runs as one
+            // `computer` call with the action in `input.action`.
+            const isComputerCall =
+              event.content_block.toolset_name === COMPUTER_TOOL_NAME
+            toolCallsMap.set(currentToolIndex, {
+              id: event.content_block.id,
+              name: isComputerCall
+                ? COMPUTER_TOOL_NAME
+                : event.content_block.name,
+              ...(isComputerCall && { member: event.content_block.name }),
+              // The initial input snapshot. The first `input_json_delta`
+              // replaces it.
+              input: JSON.stringify(event.content_block.input) ?? '',
+              started: false,
+              hasInputDelta: false,
+            })
+          } else if (event.content_block.type === 'server_tool_use') {
+            currentServerTool = {
+              id: event.content_block.id,
+              name: event.content_block.name,
+              input: '',
+            }
+          } else if (
+            event.content_block.type === 'web_fetch_tool_result' ||
+            event.content_block.type === 'web_search_tool_result'
+          ) {
+            // The result content arrives in full at content_block_start (no
+            // deltas). Surface error variants so a failed fetch/search isn't
+            // invisible to the consumer.
+            const content = event.content_block.content as
+              | { type?: string; error_code?: string }
+              | Array<unknown>
+            const errorBlock =
+              !Array.isArray(content) &&
+              (content.type === 'web_fetch_tool_result_error' ||
+                content.type === 'web_search_tool_result_error')
+                ? content
+                : null
+            if (errorBlock) {
+              logger.errors(
+                `anthropic.${event.content_block.type} error_code=${errorBlock.error_code}`,
+                {
+                  toolUseId: event.content_block.tool_use_id,
+                  blockType: event.content_block.type,
+                  errorCode: errorBlock.error_code,
+                  source: 'anthropic.processAnthropicStream',
+                },
+              )
+            }
+
+            // Emit the server tool as a single provider-executed tool call,
+            // carrying its raw result so the evidence (e.g. web_search sources)
+            // round-trips into the next turn's request. The agent loop skips
+            // provider-executed calls, so this never triggers client execution.
+            const serverTool = completedServerTools.get(
+              event.content_block.tool_use_id,
+            )
+            if (serverTool) {
+              completedServerTools.delete(serverTool.id)
+
+              let parsedInput: unknown = {}
+              try {
+                const parsed = serverTool.input
+                  ? JSON.parse(serverTool.input)
+                  : {}
+                parsedInput = parsed && typeof parsed === 'object' ? parsed : {}
+              } catch {
+                parsedInput = {}
+              }
+
+              const serverToolMetadata = {
+                providerExecuted: true,
+                anthropic: {
+                  serverToolType: serverTool.name,
+                  resultBlockType: event.content_block.type,
+                  result: content,
+                },
+              }
+
+              currentToolIndex++
+              yield {
+                type: EventType.TOOL_CALL_START,
+                toolCallId: serverTool.id,
+                toolCallName: serverTool.name,
+                parentMessageId: messageId,
+                model,
+                timestamp: Date.now(),
+                index: currentToolIndex,
+                metadata: serverToolMetadata,
+              }
+              yield {
+                type: EventType.TOOL_CALL_END,
+                toolCallId: serverTool.id,
+                toolCallName: serverTool.name,
+                model,
+                timestamp: Date.now(),
+                input: parsedInput,
+              }
+
+              // Text after the server tool starts a fresh message segment.
+              hasEmittedTextMessageStart = false
+            }
+          } else if (event.content_block.type === 'thinking') {
+            accumulatedSignature = ''
+            hasClosedReasoning = false
+            // Emit REASONING events for thinking
+            reasoningMessageId = genId()
+
+            // Spec REASONING events
+            yield {
+              type: EventType.REASONING_START,
+              messageId: reasoningMessageId,
+              model,
+              timestamp: Date.now(),
+            }
+            yield {
+              type: EventType.REASONING_MESSAGE_START,
+              messageId: reasoningMessageId,
+              role: 'reasoning' as const,
+              model,
+              timestamp: Date.now(),
+            }
+          } else if (event.content_block.type === 'redacted_thinking') {
+            // Encrypted thinking: no text, and its data must go back to
+            // Anthropic unchanged. It gets its own reasoning message, and the
+            // encrypted value names that message. The id prefix marks the
+            // data as a redacted block, not a signature.
+            const redactedId = `${REDACTED_THINKING_ID_PREFIX}${genId()}`
+            yield {
+              type: EventType.REASONING_START,
+              messageId: redactedId,
+              model,
+              timestamp: Date.now(),
+            }
+            yield {
+              type: EventType.REASONING_MESSAGE_START,
+              messageId: redactedId,
+              role: 'reasoning' as const,
+              model,
+              timestamp: Date.now(),
+            }
+            yield {
+              type: EventType.REASONING_ENCRYPTED_VALUE,
+              subtype: 'message' as const,
+              entityId: redactedId,
+              encryptedValue: event.content_block.data,
+              model,
+              timestamp: Date.now(),
+            }
+            yield {
+              type: EventType.REASONING_MESSAGE_END,
+              messageId: redactedId,
+              model,
+              timestamp: Date.now(),
+            }
+            yield {
+              type: EventType.REASONING_END,
+              messageId: redactedId,
+              model,
+              timestamp: Date.now(),
+            }
+          }
+        } else if (event.type === 'content_block_delta') {
+          if (event.delta.type === 'text_delta') {
+            // Close reasoning before text starts
+            if (reasoningMessageId && !hasClosedReasoning) {
+              hasClosedReasoning = true
+              yield {
+                type: EventType.REASONING_MESSAGE_END,
+                messageId: reasoningMessageId,
+                model,
+                timestamp: Date.now(),
+              }
+              yield {
+                type: EventType.REASONING_END,
+                messageId: reasoningMessageId,
+                model,
+                timestamp: Date.now(),
+              }
+            }
+
+            // Emit TEXT_MESSAGE_START on first text content
+            if (!hasEmittedTextMessageStart) {
+              hasEmittedTextMessageStart = true
+              yield {
+                type: EventType.TEXT_MESSAGE_START,
+                messageId,
+                model,
+                timestamp: Date.now(),
+                role: 'assistant',
+              }
+            }
+
+            const delta = event.delta.text
+            accumulatedContent += delta
+            yield {
+              type: EventType.TEXT_MESSAGE_CONTENT,
+              messageId,
+              model,
+              timestamp: Date.now(),
+              delta,
+              content: accumulatedContent,
+            }
+          } else if (
+            event.delta.type === 'thinking_delta' &&
+            reasoningMessageId
+          ) {
+            const delta = event.delta.thinking
+
+            // Spec REASONING content event
+            yield {
+              type: EventType.REASONING_MESSAGE_CONTENT,
+              messageId: reasoningMessageId,
+              delta,
+              model,
+              timestamp: Date.now(),
+            }
+          } else if (
+            (event.delta as { type: string }).type === 'signature_delta'
+          ) {
+            accumulatedSignature +=
+              (event.delta as { signature: string }).signature || ''
+          } else if (event.delta.type === 'input_json_delta') {
+            // Route deltas by current block type so server_tool_use input
+            // never appends onto the prior client tool's buffer.
+            if (currentBlockType === 'tool_use') {
+              const existing = toolCallsMap.get(currentToolIndex)
+              // A computer toolset call sends its joined arguments at the end.
+              if (existing?.member !== undefined) {
+                if (!existing.hasInputDelta) {
+                  existing.input = ''
+                  existing.hasInputDelta = true
+                }
+                existing.input += event.delta.partial_json
+              } else if (existing) {
+                // Emit TOOL_CALL_START on first args delta
+                if (!existing.started) {
+                  existing.started = true
+                  yield {
+                    type: EventType.TOOL_CALL_START,
+                    toolCallId: existing.id,
+                    toolCallName: existing.name,
+                    parentMessageId: messageId,
+                    model,
+                    timestamp: Date.now(),
+                    index: currentToolIndex,
+                  }
+                }
+
+                if (!existing.hasInputDelta) {
+                  existing.input = ''
+                  existing.hasInputDelta = true
+                }
+                existing.input += event.delta.partial_json
+
+                yield {
+                  type: EventType.TOOL_CALL_ARGS,
+                  toolCallId: existing.id,
+                  model,
+                  timestamp: Date.now(),
+                  delta: event.delta.partial_json,
+                  args: existing.input,
+                }
+              }
+            } else if (
+              currentBlockType === 'server_tool_use' &&
+              currentServerTool
+            ) {
+              // Accumulate server tool input internally. We don't emit
+              // TOOL_CALL_* events: the call is executed by Anthropic, not
+              // by our agent loop, so surfacing it as a client tool call
+              // would cause downstream code to try (and fail) to run it.
+              currentServerTool.input += event.delta.partial_json
+            }
+          }
+        } else if (event.type === 'content_block_stop') {
+          if (currentBlockType === 'thinking') {
+            // Emit signature so it can be replayed in multi-turn context.
+            // It belongs to the reasoning message, so an AG-UI client finds that
+            // message by `entityId`.
+            if (accumulatedSignature && reasoningMessageId) {
+              yield {
+                type: EventType.REASONING_ENCRYPTED_VALUE,
+                subtype: 'message' as const,
+                entityId: reasoningMessageId,
+                encryptedValue: accumulatedSignature,
+                model,
+                timestamp: Date.now(),
+              }
+            }
+            // End this block's reasoning message here, so the next thinking
+            // block gets its own end events.
+            if (reasoningMessageId && !hasClosedReasoning) {
+              hasClosedReasoning = true
+              yield {
+                type: EventType.REASONING_MESSAGE_END,
+                messageId: reasoningMessageId,
+                model,
+                timestamp: Date.now(),
+              }
+              yield {
+                type: EventType.REASONING_END,
+                messageId: reasoningMessageId,
+                model,
+                timestamp: Date.now(),
+              }
+            }
+          } else if (currentBlockType === 'tool_use') {
+            const existing = toolCallsMap.get(currentToolIndex)
+            if (existing) {
+              // If tool call wasn't started yet (no args), start it now
+              if (!existing.started) {
+                existing.started = true
+                yield {
+                  type: EventType.TOOL_CALL_START,
+                  toolCallId: existing.id,
+                  toolCallName: existing.name,
+                  parentMessageId: messageId,
+                  model,
+                  timestamp: Date.now(),
+                  index: currentToolIndex,
+                }
+              }
+
+              // Emit TOOL_CALL_END. Malformed JSON sends no `input`, so core
+              // reports the error from the raw `args`.
+              let parsedInput: unknown
+              try {
+                const parsed = existing.input ? JSON.parse(existing.input) : {}
+                parsedInput = parsed && typeof parsed === 'object' ? parsed : {}
+              } catch {
+                // Keep `parsedInput` undefined for the tool error.
+              }
+
+              if (
+                existing.member !== undefined &&
+                typeof parsedInput === 'object' &&
+                parsedInput !== null
+              ) {
+                parsedInput = joinComputerToolsetCall(
+                  existing.member,
+                  parsedInput,
+                )
+                existing.input = JSON.stringify(parsedInput)
+                yield {
+                  type: EventType.TOOL_CALL_ARGS,
+                  toolCallId: existing.id,
+                  model,
+                  timestamp: Date.now(),
+                  delta: existing.input,
+                  args: existing.input,
+                }
+              }
+
+              yield {
+                type: EventType.TOOL_CALL_END,
+                toolCallId: existing.id,
+                toolCallName: existing.name,
+                model,
+                timestamp: Date.now(),
+                args: existing.input,
+                ...(parsedInput !== undefined && { input: parsedInput }),
+              }
+
+              // Reset so a new TEXT_MESSAGE_START is emitted if text follows tool calls
+              hasEmittedTextMessageStart = false
+            }
+          } else if (currentBlockType === 'server_tool_use') {
+            if (currentServerTool) {
+              // Anthropic executes the call; we only need a breadcrumb so
+              // consumers (devtools, telemetry) can see what ran.
+              logger.provider(
+                `provider=anthropic server_tool_use name=${currentServerTool.name}`,
+                {
+                  toolUseId: currentServerTool.id,
+                  name: currentServerTool.name,
+                  input: currentServerTool.input,
+                },
+              )
+              // Hold the call until its result block arrives so we can emit
+              // both together as one provider-executed tool call.
+              completedServerTools.set(currentServerTool.id, currentServerTool)
+            }
+            currentServerTool = null
+          } else if (
+            currentBlockType === 'web_fetch_tool_result' ||
+            currentBlockType === 'web_search_tool_result'
+          ) {
+            // The model already consumed the result; error variants were
+            // already surfaced at content_block_start.
+          } else if (currentBlockType === 'fallback') {
+            // Server-side fallback handoff: the declining model's text block
+            // already closed. The fallback model's text starts a fresh segment.
+            hasEmittedTextMessageStart = false
+          } else {
+            // Emit TEXT_MESSAGE_END only for text blocks (not tool_use blocks)
+            if (hasEmittedTextMessageStart && accumulatedContent) {
+              yield {
+                type: EventType.TEXT_MESSAGE_END,
+                messageId,
+                model,
+                timestamp: Date.now(),
+              }
+            }
+          }
+          currentBlockType = null
+        } else if (event.type === 'message_stop') {
+          // Close reasoning events if still open
+          if (reasoningMessageId && !hasClosedReasoning) {
+            hasClosedReasoning = true
+            yield {
+              type: EventType.REASONING_MESSAGE_END,
+              messageId: reasoningMessageId,
+              model,
+              timestamp: Date.now(),
+            }
+            yield {
+              type: EventType.REASONING_END,
+              messageId: reasoningMessageId,
+              model,
+              timestamp: Date.now(),
+            }
+          }
+
+          // Only emit RUN_FINISHED from message_stop if message_delta didn't already emit one.
+          // message_delta carries the real stop_reason (tool_use, end_turn, etc.),
+          // while message_stop is just a completion signal.
+          if (!hasEmittedRunFinished) {
+            yield {
+              type: EventType.RUN_FINISHED,
+              ...(responseId !== undefined && { responseId }),
+              runId,
+              threadId,
+              model,
+              timestamp: Date.now(),
+              finishReason: 'stop',
+            }
+          }
+        } else if (event.type === 'message_delta') {
+          if (event.delta.stop_reason) {
+            hasEmittedRunFinished = true
+            const usage = buildAnthropicUsage(event.usage, messageStartUsage)
+
+            // Close reasoning events if still open
+            if (reasoningMessageId && !hasClosedReasoning) {
+              hasClosedReasoning = true
+              yield {
+                type: EventType.REASONING_MESSAGE_END,
+                messageId: reasoningMessageId,
+                model,
+                timestamp: Date.now(),
+              }
+              yield {
+                type: EventType.REASONING_END,
+                messageId: reasoningMessageId,
+                model,
+                timestamp: Date.now(),
+              }
+            }
+
+            switch (event.delta.stop_reason) {
+              case 'tool_use': {
+                yield {
+                  type: EventType.RUN_FINISHED,
+                  ...(responseId !== undefined && { responseId }),
+                  runId,
+                  threadId,
+                  model,
+                  timestamp: Date.now(),
+                  finishReason: 'tool_calls',
+                  usage,
+                }
+                break
+              }
+              case 'max_tokens': {
+                // Surface a warning when the truncating cap was the
+                // adapter-supplied default (caller didn't pass `max_tokens`), so
+                // the truncation isn't silently attributed to the model "doing
+                // nothing" (issue #849). When the caller set `max_tokens`
+                // themselves, hitting it is their own deliberate ceiling.
+                if (options.modelOptions?.max_tokens == null) {
+                  const defaultedMaxTokens = getAnthropicDefaultMaxTokens(
+                    options.model,
+                  )
+                  logger.warn(
+                    `anthropic response truncated at the default max_tokens (${defaultedMaxTokens}) for model=${model}; pass maxTokens (or modelOptions.max_tokens) to raise the output ceiling`,
+                    {
+                      source: 'anthropic.processAnthropicStream',
+                      model,
+                      defaultedMaxTokens,
+                    },
+                  )
+                }
+                yield {
+                  type: EventType.RUN_ERROR,
+                  model,
+                  timestamp: Date.now(),
+                  message:
+                    'The response was cut off because the maximum token limit was reached.',
+                  code: 'max_tokens',
+                  error: {
+                    message:
+                      'The response was cut off because the maximum token limit was reached.',
+                    code: 'max_tokens',
+                  },
+                  usage,
+                }
+                break
+              }
+              case 'model_context_window_exceeded': {
+                // The model filled its context window before it finished.
+                // Like `max_tokens`, the answer is cut off, so this is an
+                // error and not a clean stop.
+                const message =
+                  'The response was cut off because the model reached the end of its context window.'
+                yield {
+                  type: EventType.RUN_ERROR,
+                  model,
+                  timestamp: Date.now(),
+                  message,
+                  code: CONTEXT_OVERFLOW_CODE,
+                  error: { message, code: CONTEXT_OVERFLOW_CODE },
+                  usage,
+                }
+                break
+              }
+              case 'refusal': {
+                // A safety classifier declined and no server-side fallback
+                // served the request. Not an error: the run ends like a
+                // filtered completion, and `rawEvent` says why.
+                yield {
+                  type: EventType.RUN_FINISHED,
+                  ...(responseId !== undefined && { responseId }),
+                  runId,
+                  threadId,
+                  model,
+                  timestamp: Date.now(),
+                  finishReason: 'content_filter',
+                  ...(event.delta.stop_details && {
+                    rawEvent: event.delta.stop_details,
+                  }),
+                  usage,
+                }
+                break
+              }
+              case 'stop_sequence':
+              case 'end_turn':
+              case 'pause_turn':
+              case 'compaction':
+              default: {
+                // All remaining Anthropic stop_reason variants map to the
+                // generic "stop" finish reason — they describe *why* the
+                // stream ended, but for AG-UI consumers the resulting event
+                // shape is identical.
+                yield {
+                  type: EventType.RUN_FINISHED,
+                  ...(responseId !== undefined && { responseId }),
+                  runId,
+                  threadId,
+                  model,
+                  timestamp: Date.now(),
+                  finishReason: 'stop',
+                  usage,
+                }
+              }
+            }
+          }
+        }
+      }
+    } catch (error: unknown) {
+      const err = error as Error & { status?: number; code?: string }
+      const code = runErrorCode(err)
+      const rawEvent = toRunErrorRawEvent(error)
+      const retryAfterMs = toRetryAfterMs(error)
+      // The closing message_delta already reported usage on its terminal chunk.
+      const usage = hasEmittedRunFinished
+        ? undefined
+        : buildAnthropicUsage(messageStartUsage)
+
+      logger.errors('anthropic.processAnthropicStream fatal', {
+        error,
+        source: 'anthropic.processAnthropicStream',
+      })
+      yield {
+        type: EventType.RUN_ERROR,
+        model,
+        metadata: { tanstack: { source } },
+        timestamp: Date.now(),
+        message: err.message || 'Unknown error occurred',
+        code,
+        // Forward the Anthropic SDK error's `.error` response body when present.
+        ...(rawEvent !== undefined && { rawEvent }),
+        ...(retryAfterMs !== undefined && { retryAfterMs }),
+        ...(usage && { usage }),
+        ...toRunErrorDetails(error),
+        error: {
+          message: err.message || 'Unknown error occurred',
+          code,
+        },
+      }
+    }
+  }
+}
+
+/**
+ * The `RUN_ERROR.code` for an Anthropic SDK error. The Messages API has no
+ * error type for a context overflow. It answers 400 `invalid_request_error`,
+ * the same as every bad request, so the message text is the only signal.
+ */
+function runErrorCode(err: Error & { status?: number; code?: string }): string {
+  return err.status === 400 && err.message.includes('prompt is too long')
+    ? CONTEXT_OVERFLOW_CODE
+    : err.code || String(err.status)
+}
+
+/**
+ * Creates an Anthropic chat adapter with an explicit credential. It reads no
+ * credential from the environment. `config.auth` picks how the credential
+ * goes out. An `sk-ant-oat` credential uses `'oauth'` by default.
+ * Type resolution happens here at the call site.
+ */
+export function createAnthropicChat<
+  TModel extends (typeof ANTHROPIC_MODELS)[number],
+>(
+  model: TModel,
+  apiKey: string,
+  config?: Omit<AnthropicTextConfig, 'apiKey'>,
+): AnthropicTextAdapter<
+  TModel,
+  ResolveProviderOptions<TModel>,
+  ResolveInputModalities<TModel>
+> {
+  return new AnthropicTextAdapter({ apiKey, ...config }, model)
+}
+
+/**
+ * Creates an Anthropic chat adapter with an injected Messages client.
+ * Type resolution happens here at the call site.
+ */
+export function createAnthropicChatWithClient<
+  TModel extends (typeof ANTHROPIC_MODELS)[number],
+>(
+  model: TModel,
+  client: AnthropicMessagesClient,
+): AnthropicTextAdapter<
+  TModel,
+  ResolveProviderOptions<TModel>,
+  ResolveInputModalities<TModel>
+> {
+  return new AnthropicTextAdapter({ client }, model)
+}
+
+/**
+ * Creates an Anthropic text adapter with the credential from the environment:
+ * `ANTHROPIC_AUTH_TOKEN`, then `ANTHROPIC_OAUTH_TOKEN`, then
+ * `ANTHROPIC_API_KEY`. A `config.auth` wins over the detected kind.
+ * Type resolution happens here at the call site.
+ */
+export function anthropicText<TModel extends (typeof ANTHROPIC_MODELS)[number]>(
+  model: TModel,
+  config?: Omit<AnthropicTextConfig, 'apiKey'>,
+): AnthropicTextAdapter<
+  TModel,
+  ResolveProviderOptions<TModel>,
+  ResolveInputModalities<TModel>
+> {
+  const { credential, auth } = getAnthropicCredentialFromEnv()
+  return createAnthropicChat(model, credential, {
+    ...config,
+    auth: config?.auth ?? auth,
+  })
+}

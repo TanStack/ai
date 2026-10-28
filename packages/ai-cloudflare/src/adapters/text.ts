@@ -1,0 +1,204 @@
+import OpenAI from 'openai'
+import type { ClientOptions } from 'openai'
+import { OpenAIBaseChatCompletionsTextAdapter } from '@tanstack/openai-base'
+import { resolveReasoning } from '@tanstack/ai/adapter-internals'
+import { CLOUDFLARE_MODEL_REASONING } from '../utils/models'
+import {
+  gatewayHeaders,
+  isBindingConfig,
+  resolveConfigFromEnv,
+  restChatBaseURL,
+} from '../utils/config'
+import { createBindingFetch, createRestFetch } from '../utils/fetch'
+import type {
+  ChatCompletionChunk,
+  ChatCompletionMessageParam,
+} from 'openai/resources/chat/completions/completions'
+import type {
+  CloudflareConfigInput,
+  CloudflareTextConfig,
+  CloudflareTextRestConfig,
+} from '../utils/config'
+import type {
+  CloudflareModelReasoningByName,
+  CloudflareTextModel,
+} from '../utils/models'
+import type {
+  DefaultMessageMetadataByModality,
+  Modality,
+  ModelMessage,
+  TextOptions,
+} from '@tanstack/ai'
+
+/** The reasoning levels of a model, for `chat({ reasoning })`. `never`: none. */
+type ResolveReasoning<TModel extends string> =
+  TModel extends keyof CloudflareModelReasoningByName
+    ? CloudflareModelReasoningByName[TModel]
+    : never
+
+/**
+ * Chat Completions parameters forwarded verbatim to Workers AI. Reasoning
+ * effort is set with `chat({ reasoning })`; reasoning models (GLM, Kimi,
+ * gpt-oss, QwQ) also read `chat_template_kwargs`.
+ */
+export interface CloudflareTextProviderOptions {
+  temperature?: number
+  max_tokens?: number
+  top_p?: number
+  top_k?: number
+  seed?: number
+  repetition_penalty?: number
+  frequency_penalty?: number
+  presence_penalty?: number
+  chat_template_kwargs?: {
+    enable_thinking?: boolean
+    clear_thinking?: boolean
+  }
+}
+
+function clientOptions(config: CloudflareTextConfig): ClientOptions {
+  if (isBindingConfig(config)) {
+    return {
+      // The binding authenticates by itself; the SDK only requires a value.
+      apiKey: 'cloudflare-binding',
+      fetch: createBindingFetch(config),
+    }
+  }
+  const {
+    accountId: _accountId,
+    binding: _binding,
+    gateway,
+    ...options
+  } = config
+  return {
+    ...options,
+    baseURL: restChatBaseURL(config),
+    defaultHeaders: {
+      ...gatewayHeaders(gateway),
+      ...options.defaultHeaders,
+    },
+    fetch: createRestFetch(options.fetch),
+  }
+}
+
+/**
+ * Cloudflare text (chat) adapter.
+ *
+ * Drives Workers AI's OpenAI-compatible Chat Completions surface with the
+ * OpenAI SDK. Inside a Worker pass `{ binding: env.AI }`; anywhere else pass
+ * `{ accountId, apiKey }`. Add `gateway` to route through AI Gateway. Any
+ * catalog model works, including third-party `provider/model` ids billed
+ * through AI Gateway.
+ */
+export class CloudflareTextAdapter<
+  TModel extends CloudflareTextModel,
+  TProviderOptions extends Record<string, any> = CloudflareTextProviderOptions,
+> extends OpenAIBaseChatCompletionsTextAdapter<
+  TModel,
+  TProviderOptions,
+  ReadonlyArray<Modality>,
+  DefaultMessageMetadataByModality,
+  ReadonlyArray<string>,
+  ResolveReasoning<TModel>
+> {
+  override readonly kind = 'text' as const
+  override readonly name = 'cloudflare' as const
+
+  constructor(config: CloudflareTextConfig, model: TModel) {
+    const options = clientOptions(config)
+    super(model, 'cloudflare', new OpenAI(options), {
+      ...config,
+      fetch: options.fetch,
+    })
+  }
+
+  /** Workers AI reports a context overflow as error code 5021. */
+  protected override isContextOverflow(error: {
+    message: string
+    code: string | undefined
+  }): boolean {
+    return super.isContextOverflow(error) || error.code === '5021'
+  }
+
+  /**
+   * `chat({ reasoning })` as `reasoning_effort`. Workers AI turns reasoning
+   * off with `null`, so `off` sends `null`, not the model's off value.
+   */
+  protected override mapOptionsToRequest(options: TextOptions) {
+    const request = super.mapOptionsToRequest(options)
+    const resolved = resolveReasoning(
+      options.reasoning,
+      CLOUDFLARE_MODEL_REASONING[options.model],
+    )
+    if (resolved) {
+      Object.assign(request, {
+        reasoning_effort: resolved.level === 'off' ? null : resolved.value,
+      })
+    }
+    return request
+  }
+
+  /**
+   * Workers AI validates `messages[].content` as a string, so a tool-call-only
+   * assistant turn (which OpenAI accepts as `content: null`) is sent as `''`.
+   */
+  protected override convertMessage(
+    message: ModelMessage,
+  ): ChatCompletionMessageParam {
+    const converted = super.convertMessage(message)
+    if (converted.role === 'assistant' && converted.content == null) {
+      return { ...converted, content: '' }
+    }
+    return converted
+  }
+
+  /**
+   * Workers AI accepts `response_format` next to `tools` but its models answer
+   * the tool follow-up turn in prose, so structured output with tools runs as
+   * a separate finalization request instead.
+   */
+  override supportsCombinedToolsAndSchema(): boolean {
+    return false
+  }
+
+  /** Workers AI reasoning models stream thinking as `reasoning_content` (some as `reasoning`). */
+  protected override extractReasoning(
+    chunk: ChatCompletionChunk,
+  ): { text: string } | undefined {
+    // A usage-only trailer has no `choices`.
+    const delta = chunk.choices?.[0]?.delta as
+      | { reasoning?: unknown; reasoning_content?: unknown }
+      | undefined
+    const raw = delta?.reasoning_content ?? delta?.reasoning
+    return typeof raw === 'string' && raw.length > 0 ? { text: raw } : undefined
+  }
+}
+
+/**
+ * Creates a Cloudflare text adapter with explicit configuration.
+ *
+ * @example
+ * ```typescript
+ * // Inside a Worker
+ * const adapter = createCloudflareText('@cf/zai-org/glm-5.3-flash', { binding: env.AI })
+ * // Anywhere, over REST
+ * const adapter = createCloudflareText('@cf/zai-org/glm-5.3-flash', { accountId, apiKey })
+ * ```
+ */
+export function createCloudflareText<TModel extends CloudflareTextModel>(
+  model: TModel,
+  config: CloudflareTextConfig,
+): CloudflareTextAdapter<TModel> {
+  return new CloudflareTextAdapter(config, model)
+}
+
+/**
+ * Creates a Cloudflare text adapter, reading `CLOUDFLARE_ACCOUNT_ID` and
+ * `CLOUDFLARE_API_TOKEN` from the environment unless a binding is passed.
+ */
+export function cloudflareText<TModel extends CloudflareTextModel>(
+  model: TModel,
+  config?: CloudflareConfigInput<CloudflareTextRestConfig>,
+): CloudflareTextAdapter<TModel> {
+  return new CloudflareTextAdapter(resolveConfigFromEnv(config), model)
+}

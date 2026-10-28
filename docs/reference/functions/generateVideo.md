@@ -3,15 +3,11 @@ id: generateVideo
 title: generateVideo
 ---
 
-# Function: generateVideo()
-
 ```ts
 function generateVideo<TAdapter, TStream>(options): TStream extends true ? AsyncIterable<AGUIEvent, any, any> : Promise<VideoJobResult>;
 ```
 
-Defined in: [packages/typescript/ai/src/activities/generateVideo/index.ts:231](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/generateVideo/index.ts#L231)
-
-**`Experimental`**
+Defined in: packages/ai/src/activities/generateVideo/index.ts:413
 
 Generate video - creates a video generation job from a text prompt.
 
@@ -21,13 +17,11 @@ Unlike image generation, video generation is asynchronous and requires polling f
 When `stream: true` is passed, handles the full job lifecycle automatically:
 create job → poll for status → stream updates → yield final result.
 
- Video generation is an experimental feature and may change.
-
 ## Type Parameters
 
 ### TAdapter
 
-`TAdapter` *extends* [`VideoAdapter`](../interfaces/VideoAdapter.md)\<`string`, `any`, `any`, `any`\>
+`TAdapter` *extends* [`VideoAdapter`](../interfaces/VideoAdapter.md)\<`string`, `any`, `any`, `any`, `any`, `any`\>
 
 ### TStream
 
@@ -45,18 +39,32 @@ create job → poll for status → stream updates → yield final result.
 
 ## Examples
 
+**Create a video generation job**
+
 ```ts
-import { generateVideo } from '@tanstack/ai'
+import { generateVideo, getVideoJobStatus } from '@tanstack/ai'
 import { openaiVideo } from '@tanstack/ai-openai'
 
 // Start a video generation job
 const { jobId } = await generateVideo({
   adapter: openaiVideo('sora-2'),
-  prompt: 'A cat chasing a dog in a sunny park'
+  prompt: 'A cat chasing a dog in a sunny park',
+  threadId,
 })
 
 console.log('Job started:', jobId)
+
+// The submission only OPENS the run; the poll that sees a terminal state is
+// what completes it. The `jobId` is the whole correlation — pass the same
+// `middleware` and `threadId` when you use them.
+const status = await getVideoJobStatus({
+  adapter: openaiVideo('sora-2'),
+  jobId,
+  threadId,
+})
 ```
+
+**Stream the full video generation lifecycle**
 
 ```ts
 import { generateVideo, toServerSentEventsResponse } from '@tanstack/ai'
@@ -65,6 +73,7 @@ import { openaiVideo } from '@tanstack/ai-openai'
 const stream = generateVideo({
   adapter: openaiVideo('sora-2'),
   prompt: 'A cat chasing a dog in a sunny park',
+  threadId,
   stream: true,
   pollingInterval: 3000,
 })

@@ -6,13 +6,14 @@ import {
   elevenlabsRealtime,
   elevenlabsRealtimeToken,
 } from '@tanstack/ai-elevenlabs'
+import { geminiRealtime, geminiRealtimeToken } from '@tanstack/ai-gemini'
 import { grokRealtime, grokRealtimeToken } from '@tanstack/ai-grok'
 import { realtimeClientTools } from '@/lib/realtime-tools'
 
-type Provider = 'openai' | 'elevenlabs' | 'grok'
+type Provider = 'openai' | 'elevenlabs' | 'gemini' | 'grok'
 
 const getRealtimeTokenFn = createServerFn({ method: 'POST' })
-  .inputValidator((data: { provider: Provider; agentId?: string }) => {
+  .inputValidator((data: { provider: Provider; language?: string }) => {
     if (!data.provider) throw new Error('Provider is required')
     return data
   })
@@ -20,26 +21,28 @@ const getRealtimeTokenFn = createServerFn({ method: 'POST' })
     if (data.provider === 'openai') {
       return realtimeToken({
         adapter: openaiRealtimeToken({
-          model: 'gpt-4o-realtime-preview',
+          model: 'gpt-realtime-2.1',
         }),
       })
     }
 
-    if (data.provider === 'elevenlabs') {
-      const agentId = data.agentId || process.env.ELEVENLABS_AGENT_ID
-      if (!agentId) {
-        throw new Error(
-          'ElevenLabs agent ID is required. Set ELEVENLABS_AGENT_ID or pass agentId in request body.',
-        )
-      }
+    if (data.provider === 'gemini') {
       return realtimeToken({
-        adapter: elevenlabsRealtimeToken({ agentId }),
+        adapter: geminiRealtimeToken(),
+      })
+    }
+
+    if (data.provider === 'elevenlabs') {
+      return realtimeToken({
+        adapter: elevenlabsRealtimeToken({
+          ...(data.language ? { overrides: { language: data.language } } : {}),
+        }),
       })
     }
 
     if (data.provider === 'grok') {
       return realtimeToken({
-        adapter: grokRealtimeToken({ model: 'grok-voice-fast-1.0' }),
+        adapter: grokRealtimeToken({ model: 'grok-voice-think-fast-2.0' }),
       })
     }
 
@@ -52,6 +55,8 @@ function adapterForProvider(provider: Provider) {
       return openaiRealtime()
     case 'elevenlabs':
       return elevenlabsRealtime()
+    case 'gemini':
+      return geminiRealtime()
     case 'grok':
       return grokRealtime()
   }
@@ -59,7 +64,7 @@ function adapterForProvider(provider: Provider) {
 
 export function useRealtime({
   provider,
-  agentId,
+  language,
   voice,
   outputModalities,
   temperature,
@@ -67,7 +72,7 @@ export function useRealtime({
   semanticEagerness,
 }: {
   provider: Provider
-  agentId: string
+  language?: string
   voice?: string
   outputModalities?: Array<'audio' | 'text'>
   temperature?: number
@@ -79,7 +84,7 @@ export function useRealtime({
       getRealtimeTokenFn({
         data: {
           provider,
-          ...(provider === 'elevenlabs' && agentId ? { agentId } : {}),
+          ...(provider === 'elevenlabs' && language ? { language } : {}),
         },
       }),
     adapter: adapterForProvider(provider),
@@ -95,7 +100,9 @@ Keep your responses concise and conversational since this is a voice interface.
 When using tools, briefly explain what you're doing and then share the results naturally.
 If the user sends an image, describe what you see and answer any questions about it.
 Be friendly and engaging!`,
-    voice: voice ?? (provider === 'grok' ? 'eve' : 'alloy'),
+    voice:
+      voice ??
+      (provider === 'grok' ? 'eve' : provider === 'gemini' ? 'Puck' : 'alloy'),
     tools: realtimeClientTools,
     outputModalities,
     temperature,

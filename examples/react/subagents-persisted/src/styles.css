@@ -1,0 +1,84 @@
+@import 'tailwindcss';
+
+.chat-markdown p,
+.chat-markdown ul,
+.chat-markdown ol,
+.chat-markdown pre,
+.chat-markdown blockquote {
+  margin: 0.75rem 0;
+}
+
+.chat-markdown h1,
+.chat-markdown h2,
+.chat-markdown h3 {
+  margin: 1.25rem 0 0.5rem;
+  line-height: 1.25;
+  font-weight: 700;
+}
+
+.chat-markdown h1 {
+  margin-top: 0;
+  font-size: 2rem;
+}
+
+.chat-markdown h2 {
+  font-size: 1.35rem;
+}
+
+.chat-markdown h3 {
+  font-size: 1.1rem;
+}
+
+.chat-markdown ul {
+  list-style: disc;
+  padding-left: 1.25rem;
+}
+
+.chat-markdown ol {
+  list-style: decimal;
+  padding-left: 1.25rem;
+}
+
+.chat-markdown a {
+  text-decoration: underline;
+}
+
+.chat-markdown code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.9em;
+}
+
+.chat-markdown pre {
+  overflow-x: auto;
+  padding: 0.75rem;
+  border-radius: 0.5rem;
+}
+
+.writer-article {
+  margin-top: 0.75rem;
+  width: 100%;
+  border-radius: 0.75rem;
+  background: #faf7f2;
+  color: #1c1917;
+  padding: 1.5rem 1.75rem;
+}
+
+.writer-article .chat-markdown h1,
+.writer-article .chat-markdown h2,
+.writer-article .chat-markdown h3 {
+  font-family: Georgia, 'Times New Roman', serif;
+}
+
+.writer-article .chat-markdown pre,
+.writer-article .chat-markdown code {
+  background: #efeae2;
+}
+
+body {
+  @apply m-0;
+  font-family:
+    -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu',
+    'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}

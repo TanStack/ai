@@ -3,9 +3,7 @@ id: DefaultMessageMetadataByModality
 title: DefaultMessageMetadataByModality
 ---
 
-# Interface: DefaultMessageMetadataByModality
-
-Defined in: [packages/typescript/ai/src/types.ts:1526](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1526)
+Defined in: packages/ai/src/types.ts:3340
 
 Default metadata type for adapters that don't define custom metadata.
 Uses unknown for all modalities.
@@ -18,7 +16,7 @@ Uses unknown for all modalities.
 audio: unknown;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:1529](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1529)
+Defined in: packages/ai/src/types.ts:3343
 
 ***
 
@@ -28,7 +26,7 @@ Defined in: [packages/typescript/ai/src/types.ts:1529](https://github.com/TanSta
 document: unknown;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:1531](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1531)
+Defined in: packages/ai/src/types.ts:3345
 
 ***
 
@@ -38,7 +36,7 @@ Defined in: [packages/typescript/ai/src/types.ts:1531](https://github.com/TanSta
 image: unknown;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:1528](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1528)
+Defined in: packages/ai/src/types.ts:3342
 
 ***
 
@@ -48,7 +46,7 @@ Defined in: [packages/typescript/ai/src/types.ts:1528](https://github.com/TanSta
 text: unknown;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:1527](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1527)
+Defined in: packages/ai/src/types.ts:3341
 
 ***
 
@@ -58,4 +56,4 @@ Defined in: [packages/typescript/ai/src/types.ts:1527](https://github.com/TanSta
 video: unknown;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:1530](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1530)
+Defined in: packages/ai/src/types.ts:3344

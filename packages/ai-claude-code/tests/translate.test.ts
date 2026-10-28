@@ -1,0 +1,993 @@
+import { describe, expect, it } from 'vitest'
+import { translateSdkStream } from '../src/stream/translate'
+import type {
+  AgentSdkMessage,
+  SdkRawStreamEvent,
+} from '../src/stream/sdk-types'
+import type { AdapterYieldChunk } from '@tanstack/ai'
+
+function makeContext() {
+  let id = 0
+  return {
+    model: 'claude-opus-4-6',
+    runId: 'run-1',
+    threadId: 'thread-1',
+    genId: () => `gen-${++id}`,
+  }
+}
+
+async function* fromArray(
+  messages: Array<AgentSdkMessage>,
+): AsyncIterable<AgentSdkMessage> {
+  for (const message of messages) {
+    yield message
+  }
+}
+
+async function collect(
+  messages: Array<AgentSdkMessage>,
+  context: ReturnType<typeof makeContext> & {
+    expectStructuredOutput?: boolean
+  } = makeContext(),
+): Promise<Array<AdapterYieldChunk>> {
+  const chunks: Array<AdapterYieldChunk> = []
+  for await (const chunk of translateSdkStream(fromArray(messages), context)) {
+    chunks.push(chunk)
+  }
+  return chunks
+}
+
+const init: AgentSdkMessage = {
+  type: 'system',
+  subtype: 'init',
+  session_id: 'sess-abc',
+  model: 'claude-opus-4-6',
+  tools: ['Bash', 'Read'],
+  skills: ['repo-search'],
+  cwd: '/tmp',
+}
+
+const usage = {
+  input_tokens: 100,
+  output_tokens: 50,
+  cache_read_input_tokens: 10,
+  cache_creation_input_tokens: 5,
+}
+
+function assistantText(text: string, messageId = 'msg-1'): AgentSdkMessage {
+  return {
+    type: 'assistant',
+    message: { id: messageId, content: [{ type: 'text', text }] },
+    parent_tool_use_id: null,
+  }
+}
+
+function streamEvent(event: SdkRawStreamEvent): AgentSdkMessage {
+  return { type: 'stream_event', event, parent_tool_use_id: null }
+}
+
+function messageStart(messageId = 'msg-1'): AgentSdkMessage {
+  return streamEvent({ type: 'message_start', message: { id: messageId } })
+}
+
+function toolStart(index: number, id: string, name: string): AgentSdkMessage {
+  return streamEvent({
+    type: 'content_block_start',
+    index,
+    content_block: { type: 'tool_use', id, name },
+  })
+}
+
+function toolArgs(index: number, partialJson: string): AgentSdkMessage {
+  return streamEvent({
+    type: 'content_block_delta',
+    index,
+    delta: { type: 'input_json_delta', partial_json: partialJson },
+  })
+}
+
+function blockStop(index: number): AgentSdkMessage {
+  return streamEvent({ type: 'content_block_stop', index })
+}
+
+function assistantTool(
+  id: string,
+  name: string,
+  input: unknown,
+  messageId = 'msg-1',
+): AgentSdkMessage {
+  return {
+    type: 'assistant',
+    message: {
+      id: messageId,
+      content: [{ type: 'tool_use', id, name, input }],
+    },
+    parent_tool_use_id: null,
+  }
+}
+
+function toolResult(id: string, content = 'done'): AgentSdkMessage {
+  return {
+    type: 'user',
+    message: {
+      role: 'user',
+      content: [{ type: 'tool_result', tool_use_id: id, content }],
+    },
+    parent_tool_use_id: null,
+  }
+}
+
+const resultSuccess: AgentSdkMessage = {
+  type: 'result',
+  subtype: 'success',
+  result: 'done',
+  usage,
+  total_cost_usd: 0.12,
+}
+
+describe('translateSdkStream', () => {
+  it('translates a simple text turn into RUN_STARTED → CUSTOM → TEXT_* → RUN_FINISHED(stop)', async () => {
+    const chunks = await collect([init, assistantText('Hello!'), resultSuccess])
+
+    expect(chunks.map((c) => c.type)).toEqual([
+      'RUN_STARTED',
+      'CUSTOM',
+      'TEXT_MESSAGE_START',
+      'TEXT_MESSAGE_CONTENT',
+      'TEXT_MESSAGE_END',
+      'RUN_FINISHED',
+    ])
+
+    expect(chunks[0]).toMatchObject({
+      type: 'RUN_STARTED',
+      runId: 'run-1',
+      threadId: 'thread-1',
+      model: 'claude-opus-4-6',
+    })
+    expect(chunks[3]).toMatchObject({
+      type: 'TEXT_MESSAGE_CONTENT',
+      delta: 'Hello!',
+      content: 'Hello!',
+    })
+    expect(chunks[5]).toMatchObject({
+      type: 'RUN_FINISHED',
+      finishReason: 'stop',
+    })
+  })
+
+  it('surfaces the session id via a CUSTOM claude-code.session-id event', async () => {
+    const chunks = await collect([init, assistantText('hi'), resultSuccess])
+    const custom = chunks.find((c) => c.type === 'CUSTOM')
+    expect(custom).toMatchObject({
+      type: 'CUSTOM',
+      name: 'claude-code.session-id',
+      value: {
+        sessionId: 'sess-abc',
+        model: 'claude-opus-4-6',
+        tools: ['Bash', 'Read'],
+        skills: ['repo-search'],
+      },
+    })
+  })
+
+  it('uses an empty skill list when the SDK init message omits skills', async () => {
+    const { skills: _skills, ...initWithoutSkills } = init
+    const chunks = await collect([
+      initWithoutSkills,
+      assistantText('hi'),
+      resultSuccess,
+    ])
+    const custom = chunks.find((c) => c.type === 'CUSTOM')
+    expect(custom).toMatchObject({ value: { skills: [] } })
+  })
+
+  it('maps usage onto RUN_FINISHED with promptTokens as uncached + cache read + cache write', async () => {
+    const chunks = await collect([init, assistantText('hi'), resultSuccess])
+    const finished = chunks.find((c) => c.type === 'RUN_FINISHED')
+    expect(finished).toMatchObject({
+      usage: {
+        promptTokens: 115,
+        completionTokens: 50,
+        totalTokens: 165,
+        promptTokensDetails: { cachedTokens: 10, cacheWriteTokens: 5 },
+      },
+    })
+  })
+
+  it('counts cache reads in promptTokens when the SDK omits input_tokens', async () => {
+    const chunks = await collect([
+      init,
+      assistantText('hi'),
+      {
+        type: 'result',
+        subtype: 'success',
+        result: 'done',
+        usage: { output_tokens: 7, cache_read_input_tokens: 40 },
+      },
+    ])
+    const finished = chunks.find((c) => c.type === 'RUN_FINISHED')
+    expect(finished).toMatchObject({
+      usage: {
+        promptTokens: 40,
+        completionTokens: 7,
+        totalTokens: 47,
+        promptTokensDetails: { cachedTokens: 40 },
+      },
+    })
+  })
+
+  it('emits resolved TOOL_CALL_* quadruples for harness tool activity and never finishes with tool_calls', async () => {
+    const messages: Array<AgentSdkMessage> = [
+      init,
+      {
+        type: 'assistant',
+        message: {
+          id: 'msg-1',
+          content: [
+            {
+              type: 'tool_use',
+              id: 'toolu_1',
+              name: 'Bash',
+              input: { command: 'ls' },
+            },
+          ],
+        },
+        parent_tool_use_id: null,
+      },
+      {
+        type: 'user',
+        message: {
+          role: 'user',
+          content: [
+            {
+              type: 'tool_result',
+              tool_use_id: 'toolu_1',
+              content: 'file-a\nfile-b',
+            },
+          ],
+        },
+        parent_tool_use_id: null,
+      },
+      assistantText('Found two files.', 'msg-2'),
+      resultSuccess,
+    ]
+
+    const chunks = await collect(messages)
+    const types = chunks.map((c) => c.type)
+    expect(types).toEqual([
+      'RUN_STARTED',
+      'CUSTOM',
+      'TOOL_CALL_START',
+      'TOOL_CALL_ARGS',
+      'TOOL_CALL_END',
+      'TOOL_CALL_RESULT',
+      'TEXT_MESSAGE_START',
+      'TEXT_MESSAGE_CONTENT',
+      'TEXT_MESSAGE_END',
+      'RUN_FINISHED',
+    ])
+
+    expect(chunks[2]).toMatchObject({
+      toolCallId: 'toolu_1',
+      toolCallName: 'Bash',
+    })
+    expect(chunks[3]).toMatchObject({
+      toolCallId: 'toolu_1',
+      delta: JSON.stringify({ command: 'ls' }),
+    })
+    expect(chunks[4]).toMatchObject({
+      toolCallId: 'toolu_1',
+      input: { command: 'ls' },
+    })
+    expect(chunks[5]).toMatchObject({
+      type: 'TOOL_CALL_RESULT',
+      toolCallId: 'toolu_1',
+      content: 'file-a\nfile-b',
+    })
+
+    const finished = chunks.filter((c) => c.type === 'RUN_FINISHED')
+    expect(finished).toHaveLength(1)
+    expect(finished[0]).toMatchObject({ finishReason: 'stop' })
+  })
+
+  it('strips the mcp__tanstack__ prefix from bridged tool names', async () => {
+    const chunks = await collect([
+      init,
+      {
+        type: 'assistant',
+        message: {
+          id: 'msg-1',
+          content: [
+            {
+              type: 'tool_use',
+              id: 'toolu_2',
+              name: 'mcp__tanstack__lookup_user',
+              input: { userId: 'u1' },
+            },
+          ],
+        },
+        parent_tool_use_id: null,
+      },
+      resultSuccess,
+    ])
+
+    const start = chunks.find((c) => c.type === 'TOOL_CALL_START')
+    expect(start).toMatchObject({ toolCallName: 'lookup_user' })
+  })
+
+  it('marks errored tool results with state output-error', async () => {
+    const chunks = await collect([
+      init,
+      {
+        type: 'assistant',
+        message: {
+          id: 'msg-1',
+          content: [
+            { type: 'tool_use', id: 'toolu_3', name: 'Bash', input: {} },
+          ],
+        },
+        parent_tool_use_id: null,
+      },
+      {
+        type: 'user',
+        message: {
+          role: 'user',
+          content: [
+            {
+              type: 'tool_result',
+              tool_use_id: 'toolu_3',
+              content: [{ type: 'text', text: 'command failed' }],
+              is_error: true,
+            },
+          ],
+        },
+        parent_tool_use_id: null,
+      },
+      resultSuccess,
+    ])
+
+    const result = chunks.find((c) => c.type === 'TOOL_CALL_RESULT')
+    expect(result).toMatchObject({
+      toolCallId: 'toolu_3',
+      content: 'command failed',
+      state: 'output-error',
+    })
+  })
+
+  it('synthesizes interrupted tool results for unresolved tool calls before RUN_FINISHED', async () => {
+    const chunks = await collect([
+      init,
+      {
+        type: 'assistant',
+        message: {
+          id: 'msg-1',
+          content: [
+            { type: 'tool_use', id: 'toolu_4', name: 'Bash', input: {} },
+          ],
+        },
+        parent_tool_use_id: null,
+      },
+      resultSuccess,
+    ])
+
+    const types = chunks.map((c) => c.type as string)
+    expect(types.indexOf('TOOL_CALL_RESULT')).toBeGreaterThan(-1)
+    expect(types.indexOf('TOOL_CALL_RESULT')).toBeLessThan(
+      types.indexOf('RUN_FINISHED'),
+    )
+    expect(chunks.find((c) => c.type === 'TOOL_CALL_RESULT')).toMatchObject({
+      toolCallId: 'toolu_4',
+      content: JSON.stringify({ status: 'interrupted' }),
+    })
+  })
+
+  it('translates thinking blocks into REASONING_* events', async () => {
+    const chunks = await collect([
+      init,
+      {
+        type: 'assistant',
+        message: {
+          id: 'msg-1',
+          content: [
+            { type: 'thinking', thinking: 'pondering...' },
+            { type: 'text', text: 'answer' },
+          ],
+        },
+        parent_tool_use_id: null,
+      },
+      resultSuccess,
+    ])
+
+    expect(chunks.map((c) => c.type)).toEqual([
+      'RUN_STARTED',
+      'CUSTOM',
+      'REASONING_START',
+      'REASONING_MESSAGE_START',
+      'REASONING_MESSAGE_CONTENT',
+      'REASONING_MESSAGE_END',
+      'REASONING_END',
+      'TEXT_MESSAGE_START',
+      'TEXT_MESSAGE_CONTENT',
+      'TEXT_MESSAGE_END',
+      'RUN_FINISHED',
+    ])
+    expect(
+      chunks.find((c) => c.type === 'REASONING_MESSAGE_CONTENT'),
+    ).toMatchObject({ delta: 'pondering...' })
+  })
+
+  it('maps error_max_turns to RUN_FINISHED(length)', async () => {
+    const chunks = await collect([
+      init,
+      assistantText('partial'),
+      {
+        type: 'result',
+        subtype: 'error_max_turns',
+        usage,
+        total_cost_usd: 0.5,
+        errors: [],
+      },
+    ])
+    expect(chunks.at(-1)).toMatchObject({
+      type: 'RUN_FINISHED',
+      finishReason: 'length',
+    })
+  })
+
+  it('maps error_during_execution to RUN_ERROR', async () => {
+    const chunks = await collect([
+      init,
+      {
+        type: 'result',
+        subtype: 'error_during_execution',
+        usage,
+        total_cost_usd: 0,
+        errors: ['boom'],
+      },
+    ])
+    expect(chunks.at(-1)).toMatchObject({
+      type: 'RUN_ERROR',
+      message: 'boom',
+      code: 'error_during_execution',
+    })
+  })
+
+  it('skips subagent messages (parent_tool_use_id set)', async () => {
+    const chunks = await collect([
+      init,
+      {
+        type: 'assistant',
+        message: { id: 'msg-sub', content: [{ type: 'text', text: 'inner' }] },
+        parent_tool_use_id: 'toolu_task',
+      },
+      assistantText('outer'),
+      resultSuccess,
+    ])
+
+    const contents = chunks.filter((c) => c.type === 'TEXT_MESSAGE_CONTENT')
+    expect(contents).toHaveLength(1)
+    expect(contents[0]).toMatchObject({ delta: 'outer' })
+  })
+
+  it('streams partial text deltas and dedupes the whole assistant message', async () => {
+    const chunks = await collect([
+      init,
+      {
+        type: 'stream_event',
+        event: { type: 'message_start', message: { id: 'msg-1' } },
+        parent_tool_use_id: null,
+      },
+      {
+        type: 'stream_event',
+        event: {
+          type: 'content_block_start',
+          index: 0,
+          content_block: { type: 'text' },
+        },
+        parent_tool_use_id: null,
+      },
+      {
+        type: 'stream_event',
+        event: {
+          type: 'content_block_delta',
+          index: 0,
+          delta: { type: 'text_delta', text: 'Hel' },
+        },
+        parent_tool_use_id: null,
+      },
+      {
+        type: 'stream_event',
+        event: {
+          type: 'content_block_delta',
+          index: 0,
+          delta: { type: 'text_delta', text: 'lo' },
+        },
+        parent_tool_use_id: null,
+      },
+      {
+        type: 'stream_event',
+        event: { type: 'content_block_stop', index: 0 },
+        parent_tool_use_id: null,
+      },
+      assistantText('Hello', 'msg-1'),
+      resultSuccess,
+    ])
+
+    expect(chunks.map((c) => c.type)).toEqual([
+      'RUN_STARTED',
+      'CUSTOM',
+      'TEXT_MESSAGE_START',
+      'TEXT_MESSAGE_CONTENT',
+      'TEXT_MESSAGE_CONTENT',
+      'TEXT_MESSAGE_END',
+      'RUN_FINISHED',
+    ])
+    expect(chunks[3]).toMatchObject({ delta: 'Hel', content: 'Hel' })
+    expect(chunks[4]).toMatchObject({ delta: 'lo', content: 'Hello' })
+  })
+
+  it('streams partial tool-call args and dedupes the complete assistant message', async () => {
+    const chunks = await collect([
+      init,
+      messageStart(),
+      toolStart(0, 'toolu_1', 'Read'),
+      toolArgs(0, '{"file":'),
+      toolArgs(0, '"a.ts"}'),
+      blockStop(0),
+      assistantTool('toolu_1', 'Read', { file: 'a.ts' }),
+      toolResult('toolu_1', 'file contents'),
+      resultSuccess,
+    ])
+
+    expect(chunks.map((c) => c.type)).toEqual([
+      'RUN_STARTED',
+      'CUSTOM',
+      'TOOL_CALL_START',
+      'TOOL_CALL_ARGS',
+      'TOOL_CALL_ARGS',
+      'TOOL_CALL_END',
+      'TOOL_CALL_RESULT',
+      'RUN_FINISHED',
+    ])
+    expect(chunks[3]).toMatchObject({ delta: '{"file":' })
+    expect(chunks[4]).toMatchObject({ delta: '"a.ts"}' })
+    expect(chunks[3]).not.toHaveProperty('args')
+    expect(chunks[5]).toMatchObject({
+      type: 'TOOL_CALL_END',
+      toolCallId: 'toolu_1',
+      toolCallName: 'Read',
+      input: { file: 'a.ts' },
+    })
+  })
+
+  it('fails instead of completing malformed streamed tool input as an empty object', async () => {
+    await expect(
+      collect([
+        init,
+        messageStart(),
+        toolStart(0, 'toolu_1', 'Read'),
+        toolArgs(0, '{"file":'),
+        blockStop(0),
+      ]),
+    ).rejects.toThrow()
+  })
+
+  it('correlates interleaved tool-call deltas by block index', async () => {
+    const chunks = await collect([
+      init,
+      messageStart(),
+      toolStart(0, 'toolu_a', 'Read'),
+      toolStart(1, 'toolu_b', 'Bash'),
+      toolArgs(1, '{"cmd":'),
+      toolArgs(0, '{"file":'),
+      toolArgs(1, '"ls"}'),
+      toolArgs(0, '"a.ts"}'),
+      blockStop(1),
+      blockStop(0),
+      resultSuccess,
+    ])
+
+    expect(
+      chunks
+        .filter((chunk) => chunk.type === 'TOOL_CALL_ARGS')
+        .map((chunk) => [chunk.toolCallId, chunk.delta]),
+    ).toEqual([
+      ['toolu_b', '{"cmd":'],
+      ['toolu_a', '{"file":'],
+      ['toolu_b', '"ls"}'],
+      ['toolu_a', '"a.ts"}'],
+    ])
+    expect(
+      chunks
+        .filter((chunk) => chunk.type === 'TOOL_CALL_END')
+        .map((chunk) => [chunk.toolCallId, chunk.input]),
+    ).toEqual([
+      ['toolu_b', { cmd: 'ls' }],
+      ['toolu_a', { file: 'a.ts' }],
+    ])
+  })
+
+  it('ignores unsupported partial content blocks', async () => {
+    const chunks = await collect([
+      init,
+      messageStart(),
+      streamEvent({
+        type: 'content_block_start',
+        index: 0,
+        content_block: { type: 'redacted_thinking' },
+      }),
+      streamEvent({
+        type: 'content_block_delta',
+        index: 0,
+        delta: { type: 'signature_delta' },
+      }),
+      blockStop(0),
+      resultSuccess,
+    ])
+
+    expect(chunks.some((chunk) => chunk.type.startsWith('TOOL_CALL_'))).toBe(
+      false,
+    )
+  })
+
+  it('emits synthetic tool results then rethrows when the SDK stream throws mid-run', async () => {
+    async function* throwing(): AsyncIterable<AgentSdkMessage> {
+      yield init
+      yield {
+        type: 'assistant',
+        message: {
+          id: 'msg-1',
+          content: [
+            { type: 'tool_use', id: 'toolu_5', name: 'Bash', input: {} },
+          ],
+        },
+        parent_tool_use_id: null,
+      }
+      throw new Error('aborted')
+    }
+
+    const chunks: Array<AdapterYieldChunk> = []
+    await expect(async () => {
+      for await (const chunk of translateSdkStream(throwing(), makeContext())) {
+        chunks.push(chunk)
+      }
+    }).rejects.toThrow('aborted')
+
+    expect(chunks.find((c) => c.type === 'TOOL_CALL_RESULT')).toMatchObject({
+      toolCallId: 'toolu_5',
+      content: JSON.stringify({ status: 'interrupted' }),
+    })
+  })
+
+  it('ignores unknown SDK message types', async () => {
+    const chunks = await collect([
+      init,
+      {
+        type: 'system',
+        subtype: 'status',
+        status: 'compacting',
+      } as unknown as AgentSdkMessage,
+      assistantText('hi'),
+      resultSuccess,
+    ])
+    expect(chunks.map((c) => c.type)).toEqual([
+      'RUN_STARTED',
+      'CUSTOM',
+      'TEXT_MESSAGE_START',
+      'TEXT_MESSAGE_CONTENT',
+      'TEXT_MESSAGE_END',
+      'RUN_FINISHED',
+    ])
+  })
+
+  it('synthesizes an interrupted result when the stream throws mid partial tool-args', async () => {
+    async function* throwing(): AsyncIterable<AgentSdkMessage> {
+      yield init
+      yield messageStart()
+      yield toolStart(0, 'toolu_9', 'Read')
+      yield toolArgs(0, '{"file":')
+      throw new Error('aborted')
+    }
+
+    const chunks: Array<AdapterYieldChunk> = []
+    await expect(async () => {
+      for await (const chunk of translateSdkStream(throwing(), makeContext())) {
+        chunks.push(chunk)
+      }
+    }).rejects.toThrow('aborted')
+
+    expect(chunks.find((c) => c.type === 'TOOL_CALL_END')).toMatchObject({
+      toolCallId: 'toolu_9',
+    })
+    expect(chunks.find((c) => c.type === 'TOOL_CALL_RESULT')).toMatchObject({
+      toolCallId: 'toolu_9',
+      content: JSON.stringify({ status: 'interrupted' }),
+    })
+  })
+
+  it('tags a streamed tool call with its parent message id', async () => {
+    const chunks = await collect([
+      init,
+      messageStart(),
+      toolStart(0, 'toolu_7', 'Read'),
+      toolArgs(0, '{"file":"a.ts"}'),
+      blockStop(0),
+      resultSuccess,
+    ])
+
+    expect(chunks.find((c) => c.type === 'TOOL_CALL_START')).toMatchObject({
+      parentMessageId: 'msg-1',
+    })
+  })
+
+  it('streams a zero-argument tool call as START → END with no args frame', async () => {
+    const chunks = await collect([
+      init,
+      messageStart(),
+      toolStart(0, 'toolu_z', 'Now'),
+      blockStop(0),
+      resultSuccess,
+    ])
+
+    const toolTypes = chunks
+      .map((c) => c.type)
+      .filter((t) => t.startsWith('TOOL_CALL_'))
+    expect(toolTypes).toEqual([
+      'TOOL_CALL_START',
+      'TOOL_CALL_END',
+      'TOOL_CALL_RESULT',
+    ])
+    expect(chunks.find((c) => c.type === 'TOOL_CALL_END')).toMatchObject({
+      toolCallId: 'toolu_z',
+      input: {},
+    })
+  })
+
+  it('emits structured-output events from result.structured_output when expected', async () => {
+    const resultWithObject: AgentSdkMessage = {
+      type: 'result',
+      subtype: 'success',
+      result: 'done',
+      usage,
+      structured_output: { summary: 'ok' },
+    }
+    const chunks = await collect(
+      [init, assistantText('Looking around.'), resultWithObject],
+      { ...makeContext(), expectStructuredOutput: true },
+    )
+    const start = chunks.find(
+      (c) => c.type === 'CUSTOM' && c.name === 'structured-output.start',
+    )
+    const complete = chunks.find(
+      (c) => c.type === 'CUSTOM' && c.name === 'structured-output.complete',
+    )
+    expect(start).toBeDefined()
+    expect(complete).toBeDefined()
+    if (complete?.type === 'CUSTOM') {
+      expect(complete.value).toEqual(
+        expect.objectContaining({
+          object: { summary: 'ok' },
+          raw: JSON.stringify({ summary: 'ok' }),
+        }),
+      )
+    }
+    expect(chunks.some((c) => c.type === 'TEXT_MESSAGE_CONTENT')).toBe(true)
+    expect(chunks.some((c) => c.type === 'RUN_FINISHED')).toBe(true)
+  })
+
+  it('harvests StructuredOutput tool input when result.structured_output is missing', async () => {
+    const report = {
+      name: 'TanStack AI',
+      oneLiner: 'Type-safe AI SDK',
+    }
+    const chunks = await collect(
+      [
+        init,
+        assistantText('I have enough to compile the report.'),
+        {
+          type: 'assistant',
+          message: {
+            id: 'msg-so',
+            content: [
+              {
+                type: 'tool_use',
+                id: 'toolu_so',
+                name: 'StructuredOutput',
+                input: report,
+              },
+            ],
+          },
+          parent_tool_use_id: null,
+        },
+        {
+          type: 'user',
+          message: {
+            role: 'user',
+            content: [
+              {
+                type: 'tool_result',
+                tool_use_id: 'toolu_so',
+                content: 'ok',
+              },
+            ],
+          },
+          parent_tool_use_id: null,
+        },
+        resultSuccess,
+      ],
+      { ...makeContext(), expectStructuredOutput: true },
+    )
+
+    const complete = chunks.find(
+      (c) => c.type === 'CUSTOM' && c.name === 'structured-output.complete',
+    )
+    expect(complete).toBeDefined()
+    if (complete?.type === 'CUSTOM') {
+      expect(complete.value).toEqual(
+        expect.objectContaining({
+          object: report,
+          raw: JSON.stringify(report),
+        }),
+      )
+    }
+    expect(
+      chunks.some(
+        (c) =>
+          c.type === 'TOOL_CALL_START' &&
+          'toolCallName' in c &&
+          c.toolCallName === 'StructuredOutput',
+      ),
+    ).toBe(false)
+    expect(chunks.some((c) => c.type === 'TOOL_CALL_RESULT')).toBe(false)
+  })
+
+  it('does not let an empty StructuredOutput tool wipe a captured object', async () => {
+    const report = { name: 'TanStack AI', oneLiner: 'SDK' }
+    const chunks = await collect(
+      [
+        init,
+        {
+          type: 'assistant',
+          message: {
+            id: 'msg-so-1',
+            content: [
+              {
+                type: 'tool_use',
+                id: 'toolu_so_full',
+                name: 'StructuredOutput',
+                input: report,
+              },
+            ],
+          },
+          parent_tool_use_id: null,
+        },
+        {
+          type: 'assistant',
+          message: {
+            id: 'msg-so-2',
+            content: [
+              {
+                type: 'tool_use',
+                id: 'toolu_so_empty',
+                name: 'StructuredOutput',
+                input: {},
+              },
+            ],
+          },
+          parent_tool_use_id: null,
+        },
+        resultSuccess,
+      ],
+      { ...makeContext(), expectStructuredOutput: true },
+    )
+    const complete = chunks.find(
+      (c) => c.type === 'CUSTOM' && c.name === 'structured-output.complete',
+    )
+    expect(complete?.type === 'CUSTOM' && complete.value).toEqual(
+      expect.objectContaining({ object: report }),
+    )
+  })
+
+  it('harvests StructuredOutput from streamed input_json_delta', async () => {
+    const report = { name: 'TanStack AI', oneLiner: 'SDK' }
+    const chunks = await collect(
+      [
+        init,
+        {
+          type: 'stream_event',
+          event: { type: 'message_start', message: { id: 'msg-p' } },
+          parent_tool_use_id: null,
+        },
+        {
+          type: 'stream_event',
+          event: {
+            type: 'content_block_start',
+            index: 0,
+            content_block: {
+              type: 'tool_use',
+              id: 'toolu_stream',
+              name: 'StructuredOutput',
+              input: {},
+            },
+          },
+          parent_tool_use_id: null,
+        },
+        {
+          type: 'stream_event',
+          event: {
+            type: 'content_block_delta',
+            index: 0,
+            delta: {
+              type: 'input_json_delta',
+              partial_json: JSON.stringify(report),
+            },
+          },
+          parent_tool_use_id: null,
+        },
+        {
+          type: 'stream_event',
+          event: { type: 'content_block_stop', index: 0 },
+          parent_tool_use_id: null,
+        },
+        resultSuccess,
+      ],
+      { ...makeContext(), expectStructuredOutput: true },
+    )
+    const complete = chunks.find(
+      (c) => c.type === 'CUSTOM' && c.name === 'structured-output.complete',
+    )
+    expect(complete?.type === 'CUSTOM' && complete.value).toEqual(
+      expect.objectContaining({ object: report }),
+    )
+    expect(chunks.some((c) => c.type.startsWith('TOOL_CALL_'))).toBe(false)
+  })
+
+  it('parses JSON from assistant text when the StructuredOutput tool is missing', async () => {
+    const report = { name: 'TanStack AI', oneLiner: 'SDK' }
+    const chunks = await collect(
+      [init, assistantText(JSON.stringify(report)), resultSuccess],
+      { ...makeContext(), expectStructuredOutput: true },
+    )
+    const complete = chunks.find(
+      (c) => c.type === 'CUSTOM' && c.name === 'structured-output.complete',
+    )
+    expect(complete?.type === 'CUSTOM' && complete.value).toEqual(
+      expect.objectContaining({ object: report }),
+    )
+  })
+
+  it('does not emit structured-output events when the flag is off', async () => {
+    const resultWithObject: AgentSdkMessage = {
+      type: 'result',
+      subtype: 'success',
+      result: 'done',
+      usage,
+      structured_output: { summary: 'ok' },
+    }
+    const chunks = await collect([
+      init,
+      assistantText('Looking around.'),
+      resultWithObject,
+    ])
+    expect(
+      chunks.some(
+        (c) => c.type === 'CUSTOM' && c.name === 'structured-output.complete',
+      ),
+    ).toBe(false)
+  })
+
+  it('maps error_max_structured_output_retries to RUN_ERROR', async () => {
+    const failed: AgentSdkMessage = {
+      type: 'result',
+      subtype: 'error_max_structured_output_retries',
+      errors: ['schema retries exhausted'],
+      usage,
+    }
+    const chunks = await collect([init, failed])
+    const err = chunks.find((c) => c.type === 'RUN_ERROR')
+    expect(err).toBeDefined()
+    if (err?.type === 'RUN_ERROR') {
+      expect(err.message).toContain('schema retries exhausted')
+    }
+  })
+})

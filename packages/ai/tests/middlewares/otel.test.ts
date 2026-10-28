@@ -1,0 +1,1831 @@
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { SpanKind, SpanStatusCode } from '@opentelemetry/api'
+import { otelMiddleware } from '../../src/middlewares/otel'
+import { usageAttributes } from '../../src/middlewares/usage-attributes'
+import { applyGenerationResultTransforms } from '../../src/activities/middleware/run'
+import {
+  createFakeTracer,
+  createFakeMeter,
+  makeCtx,
+  makeToolCall,
+  type FakeSpan,
+} from './fake-otel'
+import { EventType } from '../../src/types'
+import type { StreamChunk, TokenUsage } from '../../src/types'
+import type {
+  ChatMiddleware,
+  ChatMiddlewareContext,
+  ChatMiddlewareConfig,
+} from '../../src/activities/chat/middleware/types'
+import type {
+  GenerationActivity,
+  GenerationMiddlewareContext,
+} from '../../src/activities/middleware/types'
+import { ev } from '../test-utils'
+import type { RunFinishedEvent } from '../../src/types'
+
+function finishedChunk(
+  finishReason: 'stop' | 'tool_calls' = 'stop',
+  usage?: TokenUsage,
+  model = 'gpt-4o',
+): RunFinishedEvent {
+  const chunk = ev.runFinished(finishReason, 'run-1', usage)
+  return {
+    ...chunk,
+    metadata: {
+      ...chunk.metadata,
+      tanstack: { ...chunk.metadata?.tanstack, model },
+    },
+  }
+}
+
+/**
+ * Build a minimal base GenerationMiddlewareContext for the media-activity unit
+ * tests below. Mirrors what `createGenerationContext` produces inside the media
+ * runners — only the fields otelMiddleware reads need realistic values.
+ */
+function makeGenCtx(
+  overrides: Partial<GenerationMiddlewareContext> = {},
+): GenerationMiddlewareContext {
+  return {
+    requestId: 'req-1',
+    activity: 'image',
+    provider: 'openai',
+    model: 'gpt-image-1',
+    source: 'server',
+    context: undefined,
+    createId: (prefix: string) => `${prefix}-1`,
+    resultTransforms: [],
+    ...overrides,
+  }
+}
+
+async function runToIterationStart(
+  mw: ChatMiddleware,
+  ctx: ChatMiddlewareContext,
+  config: Partial<ChatMiddlewareConfig> = {},
+) {
+  await mw.onStart?.(ctx)
+  ctx.phase = 'beforeModel'
+  await mw.onConfig?.(ctx, {
+    messages: [],
+    systemPrompts: [],
+    tools: [],
+    ...config,
+  })
+}
+
+async function runUsageIterations(
+  mw: ChatMiddleware,
+  ctx: ChatMiddlewareContext,
+  usages: Array<TokenUsage | undefined>,
+) {
+  await mw.onStart?.(ctx)
+  for (const [iteration, usage] of usages.entries()) {
+    ctx.iteration = iteration
+    ctx.phase = 'beforeModel'
+    await mw.onConfig?.(ctx, {
+      messages: [],
+      systemPrompts: [],
+      tools: [],
+    })
+    await mw.onChunk?.(
+      ctx,
+      ev.runFinished(
+        iteration === usages.length - 1 ? 'stop' : 'tool_calls',
+        'run-1',
+        usage,
+      ),
+    )
+    if (usage !== undefined) await mw.onUsage?.(ctx, usage)
+  }
+}
+
+class RateLimitError extends Error {
+  override name = 'RateLimitError'
+}
+
+describe('otelMiddleware — root span lifecycle', () => {
+  it('creates a root span on onStart and closes it on onFinish', async () => {
+    const { tracer, spans } = createFakeTracer()
+    const mw = otelMiddleware({ tracer })
+    const ctx = makeCtx()
+
+    await mw.onStart?.(ctx)
+    expect(spans).toHaveLength(1)
+    expect(spans[0]!.name).toBe('chat gpt-4o')
+    expect(spans[0]!.ended).toBe(false)
+    expect(spans[0]!.kind).toBe(SpanKind.INTERNAL)
+    expect(spans[0]!.attributes['gen_ai.system']).toBe('openai')
+    // `gen_ai.operation.name` is intentionally NOT set on the root span —
+    // see the matching comment in otel.ts. Only iteration spans carry it.
+    expect(spans[0]!.attributes['gen_ai.operation.name']).toBeUndefined()
+    expect(spans[0]!.attributes['gen_ai.request.model']).toBe('gpt-4o')
+
+    await mw.onFinish?.(ctx, {
+      finishReason: 'stop',
+      duration: 10,
+      content: '',
+    })
+    expect(spans[0]!.ended).toBe(true)
+    expect(spans[0]!.status.code).toBe(SpanStatusCode.UNSET)
+  })
+})
+
+describe('otelMiddleware — iteration span lifecycle', () => {
+  it('opens an iteration span on onConfig(beforeModel) and keeps it open through RUN_FINISHED', async () => {
+    const { tracer, spans } = createFakeTracer()
+    const mw = otelMiddleware({ tracer })
+    const ctx = makeCtx()
+    ctx.phase = 'init'
+
+    await runToIterationStart(mw, ctx, {
+      messages: [{ role: 'user', content: 'hi' }],
+      // Provider-native spellings: OpenAI Responses uses snake_case `top_p`
+      // and `max_output_tokens`, not the camelCase `topP` / `maxTokens`.
+      modelOptions: { temperature: 0.7, top_p: 0.9, max_output_tokens: 512 },
+    })
+
+    const [rootSpan, iterSpan] = spans
+    expect(spans).toHaveLength(2)
+    expect(iterSpan!.parent).toBe(rootSpan)
+    expect(iterSpan!.name).toBe('chat gpt-4o #0')
+    expect(iterSpan!.kind).toBe(SpanKind.CLIENT)
+    expect(iterSpan!.ended).toBe(false)
+    // Sampling options are sourced from provider-native modelOptions, whose
+    // key spellings vary per provider. The middleware reads a union of known
+    // spellings so the gen_ai semantic attributes populate regardless.
+    expect(iterSpan!.attributes['gen_ai.request.temperature']).toBe(0.7)
+    expect(iterSpan!.attributes['gen_ai.request.top_p']).toBe(0.9)
+    expect(iterSpan!.attributes['gen_ai.request.max_tokens']).toBe(512)
+
+    await mw.onChunk?.(ctx, finishedChunk())
+    // The iteration span stays open across RUN_FINISHED so tool spans can
+    // nest under it and onUsage still has a target. It closes on onFinish.
+    expect(iterSpan!.ended).toBe(false)
+    expect(iterSpan!.attributes['gen_ai.response.finish_reasons']).toEqual([
+      'stop',
+    ])
+    expect(iterSpan!.attributes['gen_ai.response.model']).toBe('gpt-4o')
+
+    await mw.onFinish?.(ctx, {
+      finishReason: 'stop',
+      duration: 10,
+      content: '',
+    })
+    expect(iterSpan!.ended).toBe(true)
+    expect(rootSpan!.ended).toBe(true)
+  })
+
+  it('sets model, finish reason, and usage from metadata.tanstack + spec usage[]', async () => {
+    const { tracer, spans } = createFakeTracer()
+    const mw = otelMiddleware({ tracer })
+    const ctx = makeCtx()
+
+    await runToIterationStart(mw, ctx)
+    await mw.onChunk?.(ctx, {
+      type: EventType.RUN_FINISHED,
+      threadId: 'thread-1',
+      runId: 'run-1',
+      timestamp: Date.now(),
+      usage: [
+        {
+          model: 'gpt-4o',
+          inputTokens: 100,
+          outputTokens: 50,
+          totalTokens: 150,
+        },
+      ],
+      metadata: {
+        tanstack: {
+          model: 'gpt-4o',
+          finishReason: 'stop',
+        },
+      },
+    } as StreamChunk)
+
+    expect(spans[1]!.attributes['gen_ai.response.finish_reasons']).toEqual([
+      'stop',
+    ])
+    expect(spans[1]!.attributes['gen_ai.response.model']).toBe('gpt-4o')
+    expect(spans[1]!.attributes['gen_ai.usage.input_tokens']).toBe(100)
+    expect(spans[1]!.attributes['gen_ai.usage.output_tokens']).toBe(50)
+    expect(spans[1]!.attributes['gen_ai.usage.total_tokens']).toBe(150)
+  })
+
+  it('reads sampling attributes from Ollama-nested modelOptions.options', async () => {
+    const { tracer, spans } = createFakeTracer()
+    const mw = otelMiddleware({ tracer })
+    const ctx = makeCtx()
+    ctx.phase = 'init'
+
+    await runToIterationStart(mw, ctx, {
+      messages: [{ role: 'user', content: 'hi' }],
+      // Ollama nests sampling under `options` and caps output via `num_predict`.
+      modelOptions: {
+        options: { temperature: 0.2, top_p: 0.8, num_predict: 256 },
+      },
+    })
+
+    const iterSpan = spans[1]
+    expect(iterSpan!.attributes['gen_ai.request.temperature']).toBe(0.2)
+    expect(iterSpan!.attributes['gen_ai.request.top_p']).toBe(0.8)
+    expect(iterSpan!.attributes['gen_ai.request.max_tokens']).toBe(256)
+  })
+
+  it('reads camelCase sampling spellings (Gemini/OpenRouter)', async () => {
+    const { tracer, spans } = createFakeTracer()
+    const mw = otelMiddleware({ tracer })
+    const ctx = makeCtx()
+    ctx.phase = 'init'
+
+    await runToIterationStart(mw, ctx, {
+      messages: [{ role: 'user', content: 'hi' }],
+      // Gemini uses `topP` / `maxOutputTokens`; OpenRouter uses
+      // `maxCompletionTokens`.
+      modelOptions: { temperature: 0.5, topP: 0.95, maxOutputTokens: 1024 },
+    })
+
+    const iterSpan = spans[1]
+    expect(iterSpan!.attributes['gen_ai.request.temperature']).toBe(0.5)
+    expect(iterSpan!.attributes['gen_ai.request.top_p']).toBe(0.95)
+    expect(iterSpan!.attributes['gen_ai.request.max_tokens']).toBe(1024)
+  })
+
+  it('opens a fresh iteration span for each onConfig(beforeModel) and closes the previous one', async () => {
+    const { tracer, spans } = createFakeTracer()
+    const mw = otelMiddleware({ tracer })
+    const ctx = makeCtx()
+
+    await runToIterationStart(mw, ctx)
+    await mw.onChunk?.(ctx, ev.runFinished('tool_calls'))
+    // First iteration span still open at this point.
+    expect(spans[1]!.ended).toBe(false)
+    ctx.iteration = 1
+    await mw.onConfig?.(ctx, { messages: [], systemPrompts: [], tools: [] })
+    // Opening the 2nd iteration closes the 1st.
+    expect(spans[1]!.ended).toBe(true)
+    await mw.onChunk?.(ctx, ev.runFinished('stop'))
+    await mw.onFinish?.(ctx, {
+      finishReason: 'stop',
+      duration: 10,
+      content: '',
+    })
+
+    expect(spans).toHaveLength(3)
+    expect(spans[1]!.ended).toBe(true)
+    expect(spans[2]!.ended).toBe(true)
+    expect(spans[1]!.name).toBe('chat gpt-4o #0')
+    expect(spans[2]!.name).toBe('chat gpt-4o #1')
+  })
+
+  // #1054 — no-tools + outputSchema skips the agent loop, so the only
+  // onConfig that fires is phase=structuredOutput. That must open a
+  // generation (iteration) span or captureContent is a silent no-op and
+  // backends that key off iteration spans (PostHog $ai_generation) see
+  // an empty trace.
+  it('opens an iteration span on onConfig(structuredOutput) — no-tools + outputSchema path', async () => {
+    const { tracer, spans } = createFakeTracer()
+    const mw = otelMiddleware({ tracer, captureContent: true })
+    const ctx = makeCtx()
+
+    await mw.onStart?.(ctx)
+    ctx.phase = 'structuredOutput'
+    await mw.onConfig?.(ctx, {
+      messages: [{ role: 'user', content: 'Describe this scene' }],
+      systemPrompts: [],
+      tools: [],
+    })
+
+    expect(spans).toHaveLength(2)
+    const [rootSpan, iterSpan] = spans
+    expect(iterSpan!.parent).toBe(rootSpan)
+    expect(iterSpan!.name).toBe('chat gpt-4o #0')
+    expect(iterSpan!.kind).toBe(SpanKind.CLIENT)
+    expect(iterSpan!.attributes['gen_ai.operation.name']).toBe('chat')
+    expect(iterSpan!.attributes['tanstack.ai.iteration']).toBe(0)
+    expect(iterSpan!.attributes['gen_ai.input.messages']).toBe(
+      JSON.stringify([{ role: 'user', content: 'Describe this scene' }]),
+    )
+
+    await mw.onChunk?.(ctx, ev.textContent('{"description":"a sunny park"}'))
+    await mw.onChunk?.(
+      ctx,
+      finishedChunk('stop', {
+        promptTokens: 12,
+        completionTokens: 8,
+        totalTokens: 20,
+      }),
+    )
+    expect(iterSpan!.attributes['gen_ai.output.messages']).toBe(
+      JSON.stringify([
+        { role: 'assistant', content: '{"description":"a sunny park"}' },
+      ]),
+    )
+    expect(iterSpan!.attributes['gen_ai.usage.input_tokens']).toBe(12)
+
+    await mw.onFinish?.(ctx, {
+      finishReason: 'stop',
+      duration: 10,
+      content: '',
+    })
+    expect(iterSpan!.ended).toBe(true)
+    expect(rootSpan!.ended).toBe(true)
+  })
+
+  it('does not open an iteration span for non-model-call phases', async () => {
+    const { tracer, spans } = createFakeTracer()
+    const mw = otelMiddleware({ tracer })
+    const ctx = makeCtx()
+
+    await mw.onStart?.(ctx)
+    for (const phase of [
+      'init',
+      'modelStream',
+      'beforeTools',
+      'afterTools',
+    ] as const) {
+      ctx.phase = phase
+      await mw.onConfig?.(ctx, {
+        messages: [],
+        systemPrompts: [],
+        tools: [],
+      })
+    }
+
+    // Root span only — none of those phases are a provider model call.
+    expect(spans).toHaveLength(1)
+  })
+
+  it('numbers structuredOutput finalization after a prior beforeModel span (#N+1)', async () => {
+    // Tools + outputSchema: agent loop opens #0, then finalization must open
+    // a distinct #1 rather than reusing ctx.iteration from the last turn.
+    const { tracer, spans } = createFakeTracer()
+    const mw = otelMiddleware({ tracer })
+    const ctx = makeCtx()
+
+    await runToIterationStart(mw, ctx)
+    await mw.onChunk?.(ctx, ev.runFinished('tool_calls'))
+    // Engine leaves ctx.iteration at 0 for finalization; middleware must
+    // still mint a distinct leaf.
+    ctx.phase = 'structuredOutput'
+    ctx.iteration = 0
+    await mw.onConfig?.(ctx, {
+      messages: [{ role: 'user', content: 'hi' }],
+      systemPrompts: [],
+      tools: [],
+    })
+
+    expect(spans).toHaveLength(3)
+    expect(spans[1]!.ended).toBe(true)
+    expect(spans[1]!.name).toBe('chat gpt-4o #0')
+    expect(spans[2]!.name).toBe('chat gpt-4o #1')
+    expect(spans[2]!.attributes['tanstack.ai.iteration']).toBe(1)
+  })
+})
+
+describe('otelMiddleware — token histogram', () => {
+  it('sets usage attributes on the iteration span from RUN_FINISHED chunk.usage without recording a histogram', async () => {
+    // The chat runner always follows onChunk(RUN_FINISHED) with runOnUsage, so
+    // histogram recording lives in onUsage alone to avoid double-counting.
+    // onChunk is responsible only for the per-iteration span attributes.
+    const { tracer, spans } = createFakeTracer()
+    const { meter, records } = createFakeMeter()
+    const mw = otelMiddleware({ tracer, meter })
+    const ctx = makeCtx()
+
+    await runToIterationStart(mw, ctx)
+    await mw.onChunk?.(
+      ctx,
+      finishedChunk('stop', {
+        promptTokens: 100,
+        completionTokens: 50,
+        totalTokens: 150,
+      }),
+    )
+
+    expect(spans[1]!.attributes['gen_ai.usage.input_tokens']).toBe(100)
+    expect(spans[1]!.attributes['gen_ai.usage.output_tokens']).toBe(50)
+    expect(
+      records.filter((r) => r.name === 'gen_ai.client.token.usage'),
+    ).toHaveLength(0)
+  })
+
+  it('records token histograms from onUsage in production hook order (after RUN_FINISHED)', async () => {
+    const { tracer, spans } = createFakeTracer()
+    const { meter, records } = createFakeMeter()
+    const mw = otelMiddleware({ tracer, meter })
+    const ctx = makeCtx()
+
+    // Production order: onChunk(RUN_FINISHED) fires first, then runOnUsage.
+    // This test is the regression guard for the "onUsage no-op" bug.
+    await runToIterationStart(mw, ctx)
+    await mw.onChunk?.(ctx, finishedChunk())
+    await mw.onUsage?.(ctx, {
+      promptTokens: 42,
+      completionTokens: 17,
+      totalTokens: 59,
+    })
+
+    const tokenRecords = records.filter(
+      (r) => r.name === 'gen_ai.client.token.usage',
+    )
+    expect(tokenRecords).toHaveLength(2)
+    expect(
+      tokenRecords.find((r) => r.attributes!['gen_ai.token.type'] === 'input')!
+        .value,
+    ).toBe(42)
+    // Iteration span is still open, so usage attrs land on it.
+    expect(spans[1]!.attributes['gen_ai.usage.input_tokens']).toBe(42)
+    expect(spans[1]!.attributes['gen_ai.usage.output_tokens']).toBe(17)
+  })
+
+  it('records token histogram even if onUsage fires after the iteration span is gone', async () => {
+    const { tracer, spans } = createFakeTracer()
+    const { meter, records } = createFakeMeter()
+    const mw = otelMiddleware({ tracer, meter })
+    const ctx = makeCtx()
+
+    await mw.onStart?.(ctx)
+    await mw.onUsage?.(ctx, {
+      promptTokens: 5,
+      completionTokens: 3,
+      totalTokens: 8,
+    })
+    expect(
+      records.filter((r) => r.name === 'gen_ai.client.token.usage'),
+    ).toHaveLength(2)
+    // Falls back to the root span for attribute assignment.
+    expect(spans[0]!.attributes['gen_ai.usage.input_tokens']).toBe(5)
+  })
+
+  it('skips metrics when meter is not provided', async () => {
+    const { tracer } = createFakeTracer()
+    const mw = otelMiddleware({ tracer })
+    const ctx = makeCtx()
+
+    await runToIterationStart(mw, ctx)
+    // Should not throw:
+    await mw.onUsage?.(ctx, {
+      promptTokens: 100,
+      completionTokens: 50,
+      totalTokens: 150,
+    })
+  })
+})
+
+describe('otelMiddleware — root usage rollup', () => {
+  it('rolls up mixed multi-iteration usage without changing iteration data or metrics', async () => {
+    const usages: Array<TokenUsage | undefined> = [
+      {
+        promptTokens: 0,
+        completionTokens: 0,
+        totalTokens: 0,
+        promptTokensDetails: { cachedTokens: 0, cacheWriteTokens: 0 },
+        completionTokensDetails: { reasoningTokens: 0 },
+      },
+      undefined,
+      {
+        promptTokens: 100,
+        completionTokens: 10,
+        totalTokens: 110,
+        promptTokensDetails: { cachedTokens: 20, cacheWriteTokens: 5 },
+        completionTokensDetails: { reasoningTokens: 1 },
+      },
+      { promptTokens: 200, completionTokens: 20, totalTokens: 220 },
+    ]
+    const expected: TokenUsage = {
+      promptTokens: 300,
+      completionTokens: 30,
+      totalTokens: 330,
+      promptTokensDetails: { cachedTokens: 20, cacheWriteTokens: 5 },
+      completionTokensDetails: { reasoningTokens: 1 },
+    }
+    const { tracer, spans } = createFakeTracer()
+    const { meter, records } = createFakeMeter()
+    const mw = otelMiddleware({ tracer, meter })
+    const ctx = makeCtx()
+
+    await runUsageIterations(mw, ctx, usages)
+    await mw.onFinish?.(ctx, {
+      finishReason: 'stop',
+      duration: 10,
+      content: '',
+      usage: usages.at(-1)!,
+    })
+
+    const [root, ...iterations] = spans
+    expect(root!.attributes).toMatchObject(usageAttributes(expected))
+    expect(root!.attributes['tanstack.ai.iterations']).toBe(usages.length)
+    expect(iterations).toHaveLength(usages.length)
+    expect(
+      iterations.map((span) => span.attributes['gen_ai.usage.input_tokens']),
+    ).toEqual([0, undefined, 100, 200])
+
+    const tokenRecords = records.filter(
+      (record) => record.name === 'gen_ai.client.token.usage',
+    )
+    expect(tokenRecords.map((record) => record.value)).toEqual([
+      0, 0, 100, 10, 200, 20,
+    ])
+  })
+})
+
+describe('otelMiddleware — duration histogram and rollup', () => {
+  it('records duration histogram on onFinish and rolls up tokens onto root', async () => {
+    const { tracer, spans } = createFakeTracer()
+    const { meter, records } = createFakeMeter()
+    const mw = otelMiddleware({ tracer, meter })
+    const ctx = makeCtx()
+
+    await runToIterationStart(mw, ctx)
+    await mw.onUsage?.(ctx, {
+      promptTokens: 100,
+      completionTokens: 50,
+      totalTokens: 150,
+    })
+    await mw.onChunk?.(ctx, finishedChunk())
+    await mw.onFinish?.(ctx, {
+      finishReason: 'stop',
+      duration: 1250,
+      content: '',
+      usage: { promptTokens: 100, completionTokens: 50, totalTokens: 150 },
+    })
+
+    const durationRecords = records.filter(
+      (r) => r.name === 'gen_ai.client.operation.duration',
+    )
+    expect(durationRecords).toHaveLength(1)
+    expect(durationRecords[0]!.value).toBe(1.25)
+    // `gen_ai.response.model` is intentionally absent from the duration
+    // histogram attrs (high-cardinality for per-request custom models).
+    expect(
+      durationRecords[0]!.attributes!['gen_ai.response.model'],
+    ).toBeUndefined()
+    expect(durationRecords[0]!.attributes!['error.type']).toBeUndefined()
+    // Histogram options are forwarded to the meter (unit/description).
+    expect(durationRecords[0]!.options?.unit).toBe('s')
+    const tokenRecord = records.find(
+      (r) => r.name === 'gen_ai.client.token.usage',
+    )
+    expect(tokenRecord?.options?.unit).toBe('{token}')
+
+    const root = spans[0]!
+    expect(root.attributes['gen_ai.usage.input_tokens']).toBe(100)
+    expect(root.attributes['gen_ai.usage.output_tokens']).toBe(50)
+    expect(root.attributes['tanstack.ai.iterations']).toBe(1)
+    expect(root.ended).toBe(true)
+  })
+})
+
+describe('otelMiddleware — full usage emission', () => {
+  // Everything `TokenUsage` carries beyond input/output tokens: cost,
+  // totals, cache/reasoning breakdowns, duration-based billing, and the
+  // upstream cost split. Backends like PostHog consume `gen_ai.usage.cost`
+  // directly; without it they re-derive cost from their own price tables
+  // and lose cache discounts / gateway markup (OpenRouter).
+  const fullUsage = {
+    promptTokens: 100,
+    completionTokens: 50,
+    totalTokens: 165,
+    promptTokensDetails: { cachedTokens: 80, cacheWriteTokens: 10 },
+    completionTokensDetails: { reasoningTokens: 15 },
+    cost: 0.0123,
+    costDetails: {
+      upstreamCost: 0.01,
+      upstreamInputCost: 0.004,
+      upstreamOutputCost: 0.006,
+    },
+  }
+
+  const expectFullUsageAttrs = (span: FakeSpan) => {
+    expect(span.attributes['gen_ai.usage.input_tokens']).toBe(100)
+    expect(span.attributes['gen_ai.usage.output_tokens']).toBe(50)
+    expect(span.attributes['gen_ai.usage.total_tokens']).toBe(165)
+    expect(span.attributes['gen_ai.usage.cost']).toBe(0.0123)
+    expect(span.attributes['gen_ai.usage.cache_read.input_tokens']).toBe(80)
+    expect(span.attributes['gen_ai.usage.cache_creation.input_tokens']).toBe(10)
+    expect(span.attributes['gen_ai.usage.reasoning.output_tokens']).toBe(15)
+    expect(span.attributes['tanstack.ai.usage.upstream_cost']).toBe(0.01)
+    expect(span.attributes['tanstack.ai.usage.upstream_input_cost']).toBe(0.004)
+    expect(span.attributes['tanstack.ai.usage.upstream_output_cost']).toBe(
+      0.006,
+    )
+  }
+
+  it('emits cost, totals, and detail breakdowns from RUN_FINISHED chunk.usage', async () => {
+    const { tracer, spans } = createFakeTracer()
+    const mw = otelMiddleware({ tracer })
+    const ctx = makeCtx()
+
+    await runToIterationStart(mw, ctx)
+    await mw.onChunk?.(ctx, finishedChunk('stop', fullUsage))
+
+    expectFullUsageAttrs(spans[1]!)
+  })
+
+  it('emits cost, totals, and detail breakdowns from onUsage', async () => {
+    const { tracer, spans } = createFakeTracer()
+    const mw = otelMiddleware({ tracer })
+    const ctx = makeCtx()
+
+    await runToIterationStart(mw, ctx)
+    await mw.onUsage?.(ctx, fullUsage)
+
+    expectFullUsageAttrs(spans[1]!)
+  })
+
+  it('rolls up cost, totals, and detail breakdowns onto the root span on onFinish', async () => {
+    const { tracer, spans } = createFakeTracer()
+    const mw = otelMiddleware({ tracer })
+    const ctx = makeCtx()
+
+    await runToIterationStart(mw, ctx)
+    await mw.onChunk?.(ctx, finishedChunk())
+    await mw.onFinish?.(ctx, {
+      finishReason: 'stop',
+      duration: 1250,
+      content: '',
+      usage: fullUsage,
+    })
+
+    expectFullUsageAttrs(spans[0]!)
+  })
+
+  it('omits optional usage attributes when the provider does not report them', async () => {
+    const { tracer, spans } = createFakeTracer()
+    const mw = otelMiddleware({ tracer })
+    const ctx = makeCtx()
+
+    await runToIterationStart(mw, ctx)
+    await mw.onUsage?.(ctx, {
+      promptTokens: 100,
+      completionTokens: 50,
+      totalTokens: 150,
+    })
+
+    const span = spans[1]!
+    expect(span.attributes['gen_ai.usage.input_tokens']).toBe(100)
+    expect(span.attributes['gen_ai.usage.output_tokens']).toBe(50)
+    expect(span.attributes['gen_ai.usage.total_tokens']).toBe(150)
+    expect(span.attributes['gen_ai.usage.cost']).toBeUndefined()
+    expect(
+      span.attributes['gen_ai.usage.cache_read.input_tokens'],
+    ).toBeUndefined()
+    expect(
+      span.attributes['gen_ai.usage.cache_creation.input_tokens'],
+    ).toBeUndefined()
+    expect(
+      span.attributes['gen_ai.usage.reasoning.output_tokens'],
+    ).toBeUndefined()
+    expect(span.attributes['tanstack.ai.usage.upstream_cost']).toBeUndefined()
+    expect(
+      span.attributes['tanstack.ai.usage.upstream_input_cost'],
+    ).toBeUndefined()
+    expect(
+      span.attributes['tanstack.ai.usage.upstream_output_cost'],
+    ).toBeUndefined()
+  })
+
+  it('emits zero-valued usage fields instead of dropping them', async () => {
+    // cost 0 is a real report (OpenRouter free models), and the OpenRouter
+    // extractor deliberately preserves it. Pin that the presence guard is
+    // `!== undefined`, not truthiness — a truthy guard would drop zeros.
+    const { tracer, spans } = createFakeTracer()
+    const mw = otelMiddleware({ tracer })
+    const ctx = makeCtx()
+
+    await runToIterationStart(mw, ctx)
+    await mw.onUsage?.(ctx, {
+      promptTokens: 100,
+      completionTokens: 50,
+      totalTokens: 150,
+      cost: 0,
+      promptTokensDetails: { cachedTokens: 0 },
+    })
+
+    const span = spans[1]!
+    expect(span.attributes['gen_ai.usage.cost']).toBe(0)
+    expect(span.attributes['gen_ai.usage.cache_read.input_tokens']).toBe(0)
+  })
+})
+
+describe('otelMiddleware — tool spans', () => {
+  it('creates a tool span as child of the iteration span (including after RUN_FINISHED)', async () => {
+    const { tracer, spans } = createFakeTracer()
+    const mw = otelMiddleware({ tracer })
+    const ctx = makeCtx({ hasTools: true, toolNames: ['get_weather'] })
+
+    await runToIterationStart(mw, ctx)
+    const iterSpan = spans[1]!
+    // Real flow: RUN_FINISHED(tool_calls) fires before onBeforeToolCall.
+    // Tool span must still nest under the iteration span.
+    await mw.onChunk?.(ctx, finishedChunk('tool_calls'))
+    await mw.onBeforeToolCall?.(ctx, {
+      toolCall: makeToolCall({ id: 'tc-1', function: { name: 'get_weather' } }),
+      tool: undefined,
+      args: { city: 'NYC' },
+      toolName: 'get_weather',
+      toolCallId: 'tc-1',
+    })
+
+    const toolSpan = spans[2]!
+    expect(toolSpan.name).toBe('execute_tool get_weather')
+    expect(toolSpan.parent).toBe(iterSpan)
+    expect(toolSpan.kind).toBe(SpanKind.INTERNAL)
+    expect(toolSpan.attributes['gen_ai.tool.name']).toBe('get_weather')
+    expect(toolSpan.attributes['gen_ai.tool.call.id']).toBe('tc-1')
+    expect(toolSpan.attributes['gen_ai.tool.type']).toBe('function')
+    expect(toolSpan.ended).toBe(false)
+
+    await mw.onAfterToolCall?.(ctx, {
+      toolCall: makeToolCall({ id: 'tc-1' }),
+      tool: undefined,
+      toolName: 'get_weather',
+      toolCallId: 'tc-1',
+      ok: true,
+      duration: 42,
+      result: { temp: 72 },
+    })
+
+    expect(toolSpan.ended).toBe(true)
+    expect(toolSpan.attributes['tanstack.ai.tool.outcome']).toBe('success')
+  })
+
+  it('records exception and error outcome on tool failure', async () => {
+    const { tracer, spans } = createFakeTracer()
+    const mw = otelMiddleware({ tracer })
+    const ctx = makeCtx({ hasTools: true })
+
+    await runToIterationStart(mw, ctx)
+    await mw.onBeforeToolCall?.(ctx, {
+      toolCall: makeToolCall({ id: 'tc-2', function: { name: 'broken' } }),
+      tool: undefined,
+      args: {},
+      toolName: 'broken',
+      toolCallId: 'tc-2',
+    })
+    const toolSpan = spans[2]!
+    await mw.onAfterToolCall?.(ctx, {
+      toolCall: makeToolCall({ id: 'tc-2' }),
+      tool: undefined,
+      toolName: 'broken',
+      toolCallId: 'tc-2',
+      ok: false,
+      duration: 5,
+      error: new Error('boom'),
+    })
+
+    expect(toolSpan.attributes['tanstack.ai.tool.outcome']).toBe('error')
+    expect(toolSpan.exceptions).toHaveLength(1)
+    expect((toolSpan.exceptions[0]!.exception as Error).message).toBe('boom')
+    expect(toolSpan.status.code).toBe(SpanStatusCode.ERROR)
+  })
+
+  it('preserves non-Error exception shapes through recordException', async () => {
+    const { tracer, spans } = createFakeTracer()
+    const mw = otelMiddleware({ tracer })
+    const ctx = makeCtx({ hasTools: true })
+
+    await runToIterationStart(mw, ctx)
+    await mw.onBeforeToolCall?.(ctx, {
+      toolCall: makeToolCall({ id: 'tc-obj', function: { name: 'x' } }),
+      tool: undefined,
+      args: {},
+      toolName: 'x',
+      toolCallId: 'tc-obj',
+    })
+    const plainError = { code: 'E_SOMETHING', message: 'plain-object error' }
+    await mw.onAfterToolCall?.(ctx, {
+      toolCall: makeToolCall({ id: 'tc-obj' }),
+      tool: undefined,
+      toolName: 'x',
+      toolCallId: 'tc-obj',
+      ok: false,
+      duration: 1,
+      error: plainError,
+    })
+
+    const toolSpan = spans[2]!
+    expect(toolSpan.exceptions[0]!.exception).toBe(plainError)
+    expect(toolSpan.status.message).toBe('plain-object error')
+  })
+
+  it('finalizes the tool span even when the result fails to JSON.stringify', async () => {
+    const { tracer, spans } = createFakeTracer()
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const mw = otelMiddleware({ tracer, captureContent: true })
+    const ctx = makeCtx({ hasTools: true })
+
+    await runToIterationStart(mw, ctx)
+    await mw.onBeforeToolCall?.(ctx, {
+      toolCall: makeToolCall({ id: 'tc-cyc', function: { name: 'circular' } }),
+      tool: undefined,
+      args: {},
+      toolName: 'circular',
+      toolCallId: 'tc-cyc',
+    })
+
+    // Craft a result that JSON.stringify cannot handle (circular ref).
+    const circular: Record<string, unknown> = {}
+    circular['self'] = circular
+
+    await mw.onAfterToolCall?.(ctx, {
+      toolCall: makeToolCall({ id: 'tc-cyc' }),
+      tool: undefined,
+      toolName: 'circular',
+      toolCallId: 'tc-cyc',
+      ok: true,
+      duration: 3,
+      result: circular,
+    })
+
+    const iter = spans[1]!
+    const toolSpan = spans[2]!
+    // The span is still properly ended — no dangling state.
+    expect(toolSpan.ended).toBe(true)
+    // The tool-message event uses the sentinel instead of raw serialization.
+    const toolEvt = iter.events.find((e) => e.name === 'gen_ai.tool.message')!
+    expect(toolEvt.attributes!['content']).toBe('[unserializable_tool_result]')
+    warn.mockRestore()
+  })
+})
+
+describe('otelMiddleware — captureContent', () => {
+  it('captureContent=true emits gen_ai.*.message events with redact applied on iteration span', async () => {
+    const { tracer, spans } = createFakeTracer()
+    const mw = otelMiddleware({
+      tracer,
+      captureContent: true,
+      redact: (s) => s.replace(/\d+/g, '[NUM]'),
+    })
+    const ctx = makeCtx()
+
+    await runToIterationStart(mw, ctx, {
+      messages: [
+        { role: 'user', content: 'Hello 42 world' },
+        { role: 'assistant', content: 'Hi 7 there' },
+      ],
+      systemPrompts: ['Be helpful 99'],
+    })
+
+    const iter = spans[1]!
+    const userEvt = iter.events.find((e) => e.name === 'gen_ai.user.message')
+    const sysEvt = iter.events.find((e) => e.name === 'gen_ai.system.message')
+    const asstEvt = iter.events.find(
+      (e) => e.name === 'gen_ai.assistant.message',
+    )
+    expect(userEvt!.attributes!['content']).toBe('Hello [NUM] world')
+    expect(sysEvt!.attributes!['content']).toBe('Be helpful [NUM]')
+    expect(asstEvt!.attributes!['content']).toBe('Hi [NUM] there')
+  })
+
+  it('captureContent=true attaches systemPrompt metadata as a JSON span attribute when any entry carries metadata', async () => {
+    const { tracer, spans } = createFakeTracer()
+    const mw = otelMiddleware({ tracer, captureContent: true })
+    const ctx = makeCtx()
+
+    await runToIterationStart(mw, ctx, {
+      messages: [{ role: 'user', content: 'hi' }],
+      systemPrompts: [
+        'plain',
+        {
+          content: 'cached',
+          metadata: { cache_control: { type: 'ephemeral' } },
+        },
+        { content: 'no-meta' },
+      ],
+    })
+
+    const iter = spans[1]!
+    const attr = iter.attributes!['tanstack.ai.system_prompt.metadata']
+    expect(typeof attr).toBe('string')
+    expect(JSON.parse(attr as string)).toEqual([
+      null,
+      { cache_control: { type: 'ephemeral' } },
+      null,
+    ])
+  })
+
+  it('does not attach systemPrompt metadata attribute when no entry carries metadata', async () => {
+    const { tracer, spans } = createFakeTracer()
+    const mw = otelMiddleware({ tracer, captureContent: true })
+    const ctx = makeCtx()
+
+    await runToIterationStart(mw, ctx, {
+      messages: [{ role: 'user', content: 'hi' }],
+      systemPrompts: ['plain-a', { content: 'plain-b' }],
+    })
+
+    const iter = spans[1]!
+    expect(
+      iter.attributes!['tanstack.ai.system_prompt.metadata'],
+    ).toBeUndefined()
+  })
+
+  it('captureContent=false emits no message events', async () => {
+    const { tracer, spans } = createFakeTracer()
+    const mw = otelMiddleware({ tracer })
+    const ctx = makeCtx()
+
+    await runToIterationStart(mw, ctx, {
+      messages: [{ role: 'user', content: 'Hello' }],
+    })
+
+    const iter = spans[1]!
+    expect(
+      iter.events.filter((e) => e.name.startsWith('gen_ai.')),
+    ).toHaveLength(0)
+  })
+
+  it('multimodal ContentPart arrays become placeholder-tagged strings', async () => {
+    const { tracer, spans } = createFakeTracer()
+    const mw = otelMiddleware({ tracer, captureContent: true })
+    const ctx = makeCtx()
+
+    await runToIterationStart(mw, ctx, {
+      messages: [
+        {
+          role: 'user',
+          content: [
+            { type: 'text', content: 'look at this' },
+            { type: 'image', source: { type: 'url', value: 'data:...' } },
+          ] as const,
+        },
+      ],
+    })
+
+    const userEvt = spans[1]!.events.find(
+      (e) => e.name === 'gen_ai.user.message',
+    )!
+    expect(userEvt.attributes!['content']).toBe('look at this [image]')
+  })
+
+  it('keeps multimodal parts structured in gen_ai.input.messages', async () => {
+    const { tracer, spans } = createFakeTracer()
+    const mw = otelMiddleware({
+      tracer,
+      captureContent: true,
+      redact: (s) => s.replace('secret', '***'),
+    })
+    const ctx = makeCtx()
+
+    await runToIterationStart(mw, ctx, {
+      messages: [
+        {
+          role: 'user',
+          content: [
+            { type: 'text', content: 'describe secret' },
+            {
+              type: 'image',
+              source: {
+                type: 'url',
+                value: 'https://x.test/a.png',
+                mimeType: 'image/png',
+              },
+            },
+            { type: 'audio', source: { type: 'file', value: 'file_123' } },
+            {
+              type: 'video',
+              source: { type: 'data', value: 'AAAA', mimeType: 'video/mp4' },
+            },
+            {
+              type: 'image',
+              source: { type: 'url', value: 'data:image/png;base64,AAAA' },
+            },
+          ],
+        },
+      ],
+    })
+
+    expect(
+      JSON.parse(spans[1]!.attributes['gen_ai.input.messages'] as string),
+    ).toEqual([
+      {
+        role: 'user',
+        content: [
+          { type: 'text', content: 'describe ***' },
+          {
+            type: 'uri',
+            modality: 'image',
+            uri: 'https://x.test/a.png',
+            mime_type: 'image/png',
+          },
+          { type: 'file', modality: 'audio', file_id: 'file_123' },
+          { type: 'text', content: '[video]' },
+          { type: 'text', content: '[image]' },
+        ],
+      },
+    ])
+  })
+
+  it('emits redaction sentinel and never raw content when redact throws', async () => {
+    const { tracer, spans } = createFakeTracer()
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const mw = otelMiddleware({
+      tracer,
+      captureContent: true,
+      redact: () => {
+        throw new Error('redactor blew up')
+      },
+    })
+    const ctx = makeCtx()
+
+    await runToIterationStart(mw, ctx, {
+      messages: [{ role: 'user', content: 'secret-ssn-123-45-6789' }],
+      systemPrompts: ['also-secret'],
+    })
+
+    const iter = spans[1]!
+    const userEvt = iter.events.find((e) => e.name === 'gen_ai.user.message')!
+    const sysEvt = iter.events.find((e) => e.name === 'gen_ai.system.message')!
+    expect(userEvt.attributes!['content']).toBe('[redaction_failed]')
+    expect(sysEvt.attributes!['content']).toBe('[redaction_failed]')
+    // The redactor failure is surfaced via console.warn.
+    expect(warn).toHaveBeenCalled()
+    warn.mockRestore()
+  })
+
+  it('caps assistantTextBuffer at maxContentLength', async () => {
+    const { tracer, spans } = createFakeTracer()
+    const mw = otelMiddleware({
+      tracer,
+      captureContent: true,
+      maxContentLength: 10,
+    })
+    const ctx = makeCtx()
+
+    await runToIterationStart(mw, ctx)
+    await mw.onChunk?.(ctx, ev.textContent('abcdefghij'))
+    // Over the cap — should truncate and stop accumulating.
+    await mw.onChunk?.(ctx, ev.textContent('klmnopqrstuvwxyz'))
+    await mw.onChunk?.(ctx, finishedChunk())
+
+    const iter = spans[1]!
+    const choice = iter.events.find((e) => e.name === 'gen_ai.choice')!
+    expect(choice.attributes!['content']).toBe('abcdefghij…')
+  })
+})
+
+describe('otelMiddleware — error and abort paths', () => {
+  it('onError sets ERROR status, records exception, adds error.type to duration histogram', async () => {
+    const { tracer, spans } = createFakeTracer()
+    const { meter, records } = createFakeMeter()
+    const mw = otelMiddleware({ tracer, meter })
+    const ctx = makeCtx()
+
+    await runToIterationStart(mw, ctx)
+    const err = new RateLimitError('rate limited')
+    await mw.onError?.(ctx, { error: err, duration: 200 })
+
+    const root = spans[0]!
+    expect(root.status.code).toBe(SpanStatusCode.ERROR)
+    expect(root.exceptions).toHaveLength(1)
+    expect(root.ended).toBe(true)
+
+    const iter = spans[1]!
+    expect(iter.status.code).toBe(SpanStatusCode.ERROR)
+    expect(iter.ended).toBe(true)
+    expect(iter.exceptions).toHaveLength(1)
+
+    const durationRecords = records.filter(
+      (r) => r.name === 'gen_ai.client.operation.duration',
+    )
+    expect(durationRecords[0]!.attributes!['error.type']).toBe('RateLimitError')
+  })
+
+  it('onAbort sets ERROR status, marks cancellation, and records duration', async () => {
+    const { tracer, spans } = createFakeTracer()
+    const { meter, records } = createFakeMeter()
+    const mw = otelMiddleware({ tracer, meter })
+    const ctx = makeCtx()
+
+    await runToIterationStart(mw, ctx)
+    await mw.onAbort?.(ctx, { reason: 'user stop', duration: 80 })
+
+    expect(spans[0]!.status.code).toBe(SpanStatusCode.ERROR)
+    expect(spans[0]!.attributes['tanstack.ai.completion.reason']).toBe(
+      'cancelled',
+    )
+    expect(spans[0]!.ended).toBe(true)
+    const durationRecords = records.filter(
+      (r) => r.name === 'gen_ai.client.operation.duration',
+    )
+    expect(durationRecords).toHaveLength(1)
+    expect(durationRecords[0]!.value).toBeCloseTo(0.08)
+    expect(durationRecords[0]!.attributes!['error.type']).toBe('cancelled')
+  })
+
+  it('onError fires onSpanEnd for iteration, open tool spans, then root — in depth-first order', async () => {
+    const { tracer } = createFakeTracer()
+    const seen: Array<{
+      kind: string
+      toolName?: string | undefined
+      toolCallId?: string | undefined
+      ended: boolean
+    }> = []
+    let rootInputAtEnd: unknown
+    const mw = otelMiddleware({
+      tracer,
+      onSpanEnd: (info, span) => {
+        if (info.kind === 'chat') {
+          rootInputAtEnd = (span as FakeSpan).attributes[
+            'gen_ai.usage.input_tokens'
+          ]
+        }
+        seen.push({
+          kind: info.kind,
+          toolName: info.kind === 'tool' ? info.toolName : undefined,
+          toolCallId: info.kind === 'tool' ? info.toolCallId : undefined,
+          ended: (span as FakeSpan).ended,
+        })
+      },
+    })
+    const ctx = makeCtx({ hasTools: true })
+
+    await runToIterationStart(mw, ctx)
+    await mw.onUsage?.(ctx, {
+      promptTokens: 12,
+      completionTokens: 3,
+      totalTokens: 15,
+    })
+    await mw.onBeforeToolCall?.(ctx, {
+      toolCall: makeToolCall({ id: 'tc-err', function: { name: 'my_tool' } }),
+      tool: undefined,
+      args: {},
+      toolName: 'my_tool',
+      toolCallId: 'tc-err',
+    })
+
+    await mw.onError?.(ctx, { error: new Error('fatal'), duration: 100 })
+
+    expect(seen.map((s) => s.kind)).toEqual(['iteration', 'tool', 'chat'])
+    expect(seen.every((s) => s.ended === false)).toBe(true)
+    const toolCall = seen.find((s) => s.kind === 'tool')!
+    expect(toolCall.toolName).toBe('my_tool')
+    expect(toolCall.toolCallId).toBe('tc-err')
+    expect(rootInputAtEnd).toBe(12)
+  })
+
+  it('onAbort fires onSpanEnd for iteration, open tool spans, then root — in depth-first order', async () => {
+    const { tracer } = createFakeTracer()
+    const seen: Array<{
+      kind: string
+      toolName?: string | undefined
+      toolCallId?: string | undefined
+      ended: boolean
+    }> = []
+    let rootInputAtEnd: unknown
+    const mw = otelMiddleware({
+      tracer,
+      onSpanEnd: (info, span) => {
+        if (info.kind === 'chat') {
+          rootInputAtEnd = (span as FakeSpan).attributes[
+            'gen_ai.usage.input_tokens'
+          ]
+        }
+        seen.push({
+          kind: info.kind,
+          toolName: info.kind === 'tool' ? info.toolName : undefined,
+          toolCallId: info.kind === 'tool' ? info.toolCallId : undefined,
+          ended: (span as FakeSpan).ended,
+        })
+      },
+    })
+    const ctx = makeCtx({ hasTools: true })
+
+    await runToIterationStart(mw, ctx)
+    await mw.onUsage?.(ctx, {
+      promptTokens: 8,
+      completionTokens: 2,
+      totalTokens: 10,
+    })
+    await mw.onBeforeToolCall?.(ctx, {
+      toolCall: makeToolCall({
+        id: 'tc-abort',
+        function: { name: 'slow_tool' },
+      }),
+      tool: undefined,
+      args: {},
+      toolName: 'slow_tool',
+      toolCallId: 'tc-abort',
+    })
+
+    await mw.onAbort?.(ctx, { reason: 'user stop', duration: 50 })
+
+    expect(seen.map((s) => s.kind)).toEqual(['iteration', 'tool', 'chat'])
+    expect(seen.every((s) => s.ended === false)).toBe(true)
+    expect(rootInputAtEnd).toBe(8)
+  })
+
+  it('onFinish sweeps dangling tool spans with outcome=unknown before closing the iteration span', async () => {
+    const { tracer, spans } = createFakeTracer()
+    const mw = otelMiddleware({ tracer })
+    const ctx = makeCtx({ hasTools: true })
+
+    await runToIterationStart(mw, ctx)
+    await mw.onBeforeToolCall?.(ctx, {
+      toolCall: makeToolCall({
+        id: 'tc-leak',
+        function: { name: 'never_resolves' },
+      }),
+      tool: undefined,
+      args: {},
+      toolName: 'never_resolves',
+      toolCallId: 'tc-leak',
+    })
+    // Never call onAfterToolCall — simulate an adapter that dropped the call.
+
+    await mw.onFinish?.(ctx, { finishReason: 'stop', duration: 1, content: '' })
+
+    const toolSpan = spans[2]!
+    expect(toolSpan.ended).toBe(true)
+    expect(toolSpan.attributes['tanstack.ai.tool.outcome']).toBe('unknown')
+  })
+})
+
+describe('otelMiddleware — tool-message and choice events', () => {
+  it('onAfterToolCall emits gen_ai.tool.message on iteration span with redacted result', async () => {
+    const { tracer, spans } = createFakeTracer()
+    const mw = otelMiddleware({
+      tracer,
+      captureContent: true,
+      redact: (s) => s.replace(/\d+/g, '[NUM]'),
+    })
+    const ctx = makeCtx({ hasTools: true })
+
+    await runToIterationStart(mw, ctx)
+    await mw.onBeforeToolCall?.(ctx, {
+      toolCall: makeToolCall({ id: 'tc-1', function: { name: 'x' } }),
+      tool: undefined,
+      args: {},
+      toolName: 'x',
+      toolCallId: 'tc-1',
+    })
+    await mw.onAfterToolCall?.(ctx, {
+      toolCall: makeToolCall({ id: 'tc-1' }),
+      tool: undefined,
+      toolName: 'x',
+      toolCallId: 'tc-1',
+      ok: true,
+      duration: 5,
+      result: { value: 42 },
+    })
+
+    const iter = spans[1]!
+    const toolEvt = iter.events.find((e) => e.name === 'gen_ai.tool.message')!
+    expect(toolEvt.attributes!['content']).toContain('[NUM]')
+    expect(toolEvt.attributes!['tool_call_id']).toBe('tc-1')
+  })
+
+  it('emits gen_ai.choice event with accumulated assistant text on RUN_FINISHED', async () => {
+    const { tracer, spans } = createFakeTracer()
+    const mw = otelMiddleware({ tracer, captureContent: true })
+    const ctx = makeCtx()
+
+    await runToIterationStart(mw, ctx)
+    await mw.onChunk?.(ctx, ev.textContent('Hello '))
+    await mw.onChunk?.(ctx, ev.textContent('world'))
+    await mw.onChunk?.(ctx, finishedChunk())
+
+    const iter = spans[1]!
+    const choice = iter.events.find((e) => e.name === 'gen_ai.choice')!
+    expect(choice.attributes!['content']).toBe('Hello world')
+  })
+})
+
+describe('otelMiddleware — concurrent isolation', () => {
+  it('parallel chat() calls do not cross-contaminate state', async () => {
+    const { tracer, spans } = createFakeTracer()
+    const mw = otelMiddleware({ tracer })
+
+    const ctxA = makeCtx({ requestId: 'A' })
+    const ctxB = makeCtx({ requestId: 'B' })
+
+    await Promise.all([mw.onStart?.(ctxA), mw.onStart?.(ctxB)])
+    ctxA.phase = 'beforeModel'
+    ctxB.phase = 'beforeModel'
+    await Promise.all([
+      mw.onConfig?.(ctxA, { messages: [], systemPrompts: [], tools: [] }),
+      mw.onConfig?.(ctxB, { messages: [], systemPrompts: [], tools: [] }),
+    ])
+    await Promise.all([
+      mw.onChunk?.(ctxA, ev.runFinished('stop', 'A')),
+      mw.onChunk?.(ctxB, ev.runFinished('tool_calls', 'B')),
+    ])
+    await Promise.all([
+      mw.onFinish?.(ctxA, { finishReason: 'stop', duration: 1, content: '' }),
+      mw.onFinish?.(ctxB, {
+        finishReason: 'tool_calls',
+        duration: 1,
+        content: '',
+      }),
+    ])
+
+    // Total: 2 root spans + 2 iteration spans, all ended.
+    expect(spans.filter((s) => s.ended).length).toBe(4)
+    const iters = spans.filter((s) => s.parent !== null)
+    const reasons = iters.flatMap((s) => {
+      const v = s.attributes['gen_ai.response.finish_reasons']
+      return Array.isArray(v) ? (v as Array<string>) : []
+    })
+    expect(reasons).toEqual(expect.arrayContaining(['stop', 'tool_calls']))
+  })
+})
+
+describe('otelMiddleware — extension points', () => {
+  it('spanNameFormatter overrides default names for chat, iteration, and tool', async () => {
+    const { tracer, spans } = createFakeTracer()
+    const mw = otelMiddleware({
+      tracer,
+      spanNameFormatter: (info) => {
+        if (info.kind === 'chat') return 'my-chat'
+        if (info.kind === 'iteration') return `iter-${info.iteration}`
+        if (info.kind === 'tool') return `tool-${info.toolName}`
+        return `generation-${info.ctx.activity}`
+      },
+    })
+    const ctx = makeCtx({ hasTools: true })
+
+    await runToIterationStart(mw, ctx)
+    await mw.onBeforeToolCall?.(ctx, {
+      toolCall: makeToolCall({ id: 't-1', function: { name: 'lookup' } }),
+      tool: undefined,
+      args: {},
+      toolName: 'lookup',
+      toolCallId: 't-1',
+    })
+
+    expect(spans[0]!.name).toBe('my-chat')
+    expect(spans[1]!.name).toBe('iter-0')
+    expect(spans[2]!.name).toBe('tool-lookup')
+  })
+
+  it('attributeEnricher merges attributes onto chat, iteration, and tool spans', async () => {
+    const { tracer, spans } = createFakeTracer()
+    const mw = otelMiddleware({
+      tracer,
+      attributeEnricher: (info) => ({ 'test.kind': info.kind }),
+    })
+    const ctx = makeCtx({ hasTools: true })
+
+    await runToIterationStart(mw, ctx)
+    await mw.onBeforeToolCall?.(ctx, {
+      toolCall: makeToolCall({ id: 't-1', function: { name: 'lookup' } }),
+      tool: undefined,
+      args: {},
+      toolName: 'lookup',
+      toolCallId: 't-1',
+    })
+
+    expect(spans[0]!.attributes['test.kind']).toBe('chat')
+    expect(spans[1]!.attributes['test.kind']).toBe('iteration')
+    expect(spans[2]!.attributes['test.kind']).toBe('tool')
+  })
+
+  it('onBeforeSpanStart can mutate SpanOptions before startSpan for every kind', async () => {
+    const { tracer, spans } = createFakeTracer()
+    const mw = otelMiddleware({
+      tracer,
+      onBeforeSpanStart: (info, options) => ({
+        ...options,
+        attributes: {
+          ...(options.attributes ?? {}),
+          'custom.kind': info.kind,
+        },
+      }),
+    })
+    const ctx = makeCtx({ hasTools: true })
+
+    await runToIterationStart(mw, ctx)
+    await mw.onBeforeToolCall?.(ctx, {
+      toolCall: makeToolCall({ id: 't-1', function: { name: 'x' } }),
+      tool: undefined,
+      args: {},
+      toolName: 'x',
+      toolCallId: 't-1',
+    })
+
+    expect(spans[0]!.attributes['custom.kind']).toBe('chat')
+    expect(spans[1]!.attributes['custom.kind']).toBe('iteration')
+    expect(spans[2]!.attributes['custom.kind']).toBe('tool')
+  })
+
+  it('onSpanEnd fires before span.end()', async () => {
+    const { tracer } = createFakeTracer()
+    const seen: Array<{ kind: string; ended: boolean }> = []
+    const mw = otelMiddleware({
+      tracer,
+      onSpanEnd: (info, span) => {
+        seen.push({ kind: info.kind, ended: (span as FakeSpan).ended })
+      },
+    })
+    const ctx = makeCtx()
+
+    await runToIterationStart(mw, ctx)
+    await mw.onChunk?.(ctx, ev.runFinished('stop'))
+    await mw.onFinish?.(ctx, { finishReason: 'stop', duration: 1, content: '' })
+
+    expect(seen.map((s) => s.kind)).toEqual(['iteration', 'chat'])
+    expect(seen.every((s) => s.ended === false)).toBe(true)
+  })
+
+  describe('callback resilience', () => {
+    let warn: ReturnType<typeof vi.spyOn>
+
+    beforeEach(() => {
+      warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    })
+
+    afterEach(() => {
+      warn.mockRestore()
+    })
+
+    it('a throwing user callback does not break the run and is logged', async () => {
+      const { tracer, spans } = createFakeTracer()
+      const mw = otelMiddleware({
+        tracer,
+        attributeEnricher: () => {
+          throw new Error('boom')
+        },
+      })
+      const ctx = makeCtx()
+
+      await mw.onStart?.(ctx)
+      await mw.onFinish?.(ctx, {
+        finishReason: 'stop',
+        duration: 1,
+        content: '',
+      })
+
+      expect(spans[0]!.ended).toBe(true)
+      expect(warn).toHaveBeenCalled()
+      // Label identifies the failing hook for diagnosis.
+      const call = warn.mock.calls.find((args: Array<unknown>) =>
+        String(args[0]).includes('otel.attributeEnricher'),
+      )
+      expect(call).toBeDefined()
+    })
+  })
+})
+
+describe('otelMiddleware — media activities', () => {
+  it('opens a CLIENT span with gen_ai attributes on start', () => {
+    const { tracer, spans } = createFakeTracer()
+    const mw = otelMiddleware({ tracer })
+
+    mw.onStart?.(makeGenCtx())
+
+    expect(spans).toHaveLength(1)
+    const span = spans[0]!
+    expect(span.kind).toBe(SpanKind.CLIENT)
+    expect(span.name).toBe('image_generation gpt-image-1')
+    expect(span.attributes['gen_ai.system']).toBe('openai')
+    expect(span.attributes['gen_ai.operation.name']).toBe('image_generation')
+    expect(span.attributes['gen_ai.request.model']).toBe('gpt-image-1')
+    expect(span.ended).toBe(false)
+  })
+
+  it('maps each media activity to the right gen_ai.operation.name', () => {
+    const cases: Array<[GenerationActivity, string]> = [
+      ['image', 'image_generation'],
+      ['video', 'video_generation'],
+      ['audio', 'audio_generation'],
+      ['tts', 'text_to_speech'],
+      ['voice', 'voice_generation'],
+      ['transcription', 'transcription'],
+      ['world', 'world_generation'],
+      ['liveVideo', 'live_video_generation'],
+    ]
+    for (const [activity, operation] of cases) {
+      const { tracer, spans } = createFakeTracer()
+      const mw = otelMiddleware({ tracer })
+      mw.onStart?.(makeGenCtx({ activity }))
+      expect(spans[0]!.attributes['gen_ai.operation.name']).toBe(operation)
+    }
+  })
+
+  it('attaches usage attributes, ends the span, and records duration on finish', () => {
+    const { tracer, spans } = createFakeTracer()
+    const { meter, records } = createFakeMeter()
+    const mw = otelMiddleware({ tracer, meter })
+    const ctx = makeGenCtx()
+    const usage: TokenUsage = {
+      promptTokens: 0,
+      completionTokens: 0,
+      totalTokens: 0,
+      cost: 0.04,
+    }
+
+    mw.onStart?.(ctx)
+    mw.onUsage?.(ctx, usage)
+    mw.onFinish?.(ctx, { duration: 1500, usage })
+
+    const span = spans[0]!
+    expect(span.ended).toBe(true)
+    expect(span.attributes['gen_ai.usage.cost']).toBe(0.04)
+
+    // Media records the duration histogram but NOT the chat token histogram.
+    expect(records).toHaveLength(1)
+    expect(records[0]!.name).toBe('gen_ai.client.operation.duration')
+    expect(records[0]!.value).toBe(1.5)
+    expect(records[0]!.attributes?.['gen_ai.operation.name']).toBe(
+      'image_generation',
+    )
+  })
+
+  it('finishes cleanly when no usage is reported', () => {
+    const { tracer, spans } = createFakeTracer()
+    const mw = otelMiddleware({ tracer })
+    const ctx = makeGenCtx({ activity: 'video', model: 'sora-2' })
+
+    mw.onStart?.(ctx)
+    mw.onFinish?.(ctx, { duration: 10 })
+
+    expect(spans[0]!.ended).toBe(true)
+    expect(spans[0]!.attributes['gen_ai.usage.cost']).toBeUndefined()
+  })
+
+  it('records the exception, ERROR status, and error.type on error', () => {
+    const { tracer, spans } = createFakeTracer()
+    const { meter, records } = createFakeMeter()
+    const mw = otelMiddleware({ tracer, meter })
+    const ctx = makeGenCtx()
+
+    mw.onStart?.(ctx)
+    const error = new TypeError('boom')
+    mw.onError?.(ctx, { error, duration: 200 })
+
+    const span = spans[0]!
+    expect(span.ended).toBe(true)
+    expect(span.status.code).toBe(SpanStatusCode.ERROR)
+    expect(span.status.message).toBe('boom')
+    expect(span.exceptions[0]!.exception).toBe(error)
+    expect(records[0]!.attributes?.['error.type']).toBe('TypeError')
+  })
+
+  it('ends the span as cancelled on abort (e.g. an abandoned video stream)', () => {
+    const { tracer, spans } = createFakeTracer()
+    const { meter, records } = createFakeMeter()
+    const mw = otelMiddleware({ tracer, meter })
+    const ctx = makeGenCtx({ activity: 'video', model: 'sora-2' })
+
+    mw.onStart?.(ctx)
+    mw.onAbort?.(ctx, { reason: 'stream abandoned', duration: 50 })
+
+    const span = spans[0]!
+    expect(span.ended).toBe(true)
+    expect(span.status.code).toBe(SpanStatusCode.ERROR)
+    expect(span.status.message).toBe('stream abandoned')
+    expect(span.attributes['tanstack.ai.completion.reason']).toBe('cancelled')
+    expect(records[0]!.attributes?.['error.type']).toBe('cancelled')
+  })
+
+  it('keys spans by the context object so concurrent calls do not collide', () => {
+    const { tracer, spans } = createFakeTracer()
+    const mw = otelMiddleware({ tracer })
+    const ctxA = makeGenCtx({ model: 'model-a' })
+    const ctxB = makeGenCtx({ model: 'model-b' })
+
+    mw.onStart?.(ctxA)
+    mw.onStart?.(ctxB)
+    // Finish B first — must end the model-b span, not model-a.
+    mw.onFinish?.(ctxB, { duration: 5 })
+
+    const spanA = spans.find(
+      (s) => s.attributes['gen_ai.request.model'] === 'model-a',
+    )!
+    const spanB = spans.find(
+      (s) => s.attributes['gen_ai.request.model'] === 'model-b',
+    )!
+    expect(spanB.ended).toBe(true)
+    expect(spanA.ended).toBe(false)
+  })
+
+  it('applies spanNameFormatter and attributeEnricher for the generation kind', () => {
+    const { tracer, spans } = createFakeTracer()
+    const mw = otelMiddleware({
+      tracer,
+      spanNameFormatter: (info) =>
+        info.kind === 'generation' ? `custom:${info.ctx.activity}` : 'other',
+      attributeEnricher: () => ({ 'app.tenant': 'acme' }),
+    })
+
+    mw.onStart?.(makeGenCtx())
+    expect(spans[0]!.name).toBe('custom:image')
+    expect(spans[0]!.attributes['app.tenant']).toBe('acme')
+  })
+
+  it('captures no content by default', async () => {
+    const { tracer, spans } = createFakeTracer()
+    const mw = otelMiddleware({ tracer })
+    const ctx = makeGenCtx({ artifactInputs: { prompt: 'a cat' } })
+
+    mw.onStart?.(ctx)
+    await applyGenerationResultTransforms(ctx, {
+      images: [{ url: 'https://cdn.example/out.png' }],
+    })
+
+    expect(ctx.resultTransforms).toHaveLength(0)
+    expect(spans[0]!.attributes['gen_ai.input.messages']).toBeUndefined()
+    expect(spans[0]!.attributes['gen_ai.output.messages']).toBeUndefined()
+  })
+
+  it('captures the prompt, input media and output URLs with captureContent', async () => {
+    const { tracer, spans } = createFakeTracer()
+    const mw = otelMiddleware({
+      tracer,
+      captureContent: true,
+      redact: (s) => s.replace('secret', '***'),
+    })
+    const ctx = makeGenCtx({
+      activity: 'video',
+      artifactInputs: {
+        prompt: [
+          { type: 'text', content: 'animate secret' },
+          {
+            type: 'image',
+            source: { type: 'url', value: 'https://cdn.example/start.png' },
+          },
+          {
+            type: 'image',
+            source: { type: 'data', value: 'AAAA', mimeType: 'image/png' },
+          },
+        ],
+      },
+    })
+
+    mw.onStart?.(ctx)
+    const result = { url: 'https://cdn.example/out.mp4' }
+    expect(await applyGenerationResultTransforms(ctx, result)).toBe(result)
+    mw.onFinish?.(ctx, { duration: 1 })
+
+    const span = spans[0]!
+    const input = JSON.parse(span.attributes['gen_ai.input.messages'] as string)
+    expect(input).toEqual([
+      {
+        role: 'user',
+        content: [
+          { type: 'text', content: 'animate ***' },
+          {
+            type: 'uri',
+            modality: 'image',
+            uri: 'https://cdn.example/start.png',
+          },
+          { type: 'text', content: '[image]' },
+        ],
+      },
+    ])
+    expect(span.attributes['langfuse.observation.input']).toBe(
+      span.attributes['gen_ai.input.messages'],
+    )
+    const output = JSON.parse(
+      span.attributes['gen_ai.output.messages'] as string,
+    )
+    expect(output).toEqual([
+      {
+        role: 'assistant',
+        content: [
+          {
+            type: 'uri',
+            modality: 'video',
+            uri: 'https://cdn.example/out.mp4',
+          },
+        ],
+      },
+    ])
+    expect(span.attributes['langfuse.observation.output']).toBe(
+      span.attributes['gen_ai.output.messages'],
+    )
+  })
+
+  it('captures image outputs, keeping base64 as a placeholder', async () => {
+    const { tracer, spans } = createFakeTracer()
+    const mw = otelMiddleware({ tracer, captureContent: true })
+    const ctx = makeGenCtx({ artifactInputs: { prompt: 'a cat' } })
+
+    mw.onStart?.(ctx)
+    await applyGenerationResultTransforms(ctx, {
+      images: [{ url: 'https://cdn.example/a.png' }, { b64Json: 'AAAA' }],
+    })
+
+    expect(
+      JSON.parse(spans[0]!.attributes['gen_ai.output.messages'] as string),
+    ).toEqual([
+      {
+        role: 'assistant',
+        content: [
+          { type: 'uri', modality: 'image', uri: 'https://cdn.example/a.png' },
+          { type: 'text', content: '[image]' },
+        ],
+      },
+    ])
+  })
+
+  it('captures transcription source audio and transcript text, capped by maxContentLength', async () => {
+    const { tracer, spans } = createFakeTracer()
+    const mw = otelMiddleware({
+      tracer,
+      captureContent: true,
+      maxContentLength: 5,
+    })
+    const urlCtx = makeGenCtx({
+      activity: 'transcription',
+      artifactInputs: { audio: 'https://cdn.example/in.mp3' },
+    })
+    const blobCtx = makeGenCtx({
+      activity: 'transcription',
+      artifactInputs: { audio: new Blob(['x']) },
+    })
+
+    mw.onStart?.(urlCtx)
+    mw.onStart?.(blobCtx)
+    await applyGenerationResultTransforms(urlCtx, { text: 'hello world' })
+
+    expect(
+      JSON.parse(spans[0]!.attributes['gen_ai.input.messages'] as string),
+    ).toEqual([
+      {
+        role: 'user',
+        content: [
+          { type: 'uri', modality: 'audio', uri: 'https://cdn.example/in.mp3' },
+        ],
+      },
+    ])
+    expect(
+      JSON.parse(spans[1]!.attributes['gen_ai.input.messages'] as string),
+    ).toEqual([
+      { role: 'user', content: [{ type: 'text', content: '[audio]' }] },
+    ])
+    expect(
+      JSON.parse(spans[0]!.attributes['gen_ai.output.messages'] as string),
+    ).toEqual([
+      { role: 'assistant', content: [{ type: 'text', content: 'hello…' }] },
+    ])
+  })
+
+  it('keeps the span when a formatter throws', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const { tracer, spans } = createFakeTracer()
+    const mw = otelMiddleware({
+      tracer,
+      spanNameFormatter: () => {
+        throw new Error('formatter broke')
+      },
+    })
+
+    mw.onStart?.(makeGenCtx())
+    // Falls back to the default name instead of losing the span.
+    expect(spans).toHaveLength(1)
+    expect(spans[0]!.name).toBe('image_generation gpt-image-1')
+    warn.mockRestore()
+  })
+})
+
+describe('usageAttributes', () => {
+  it('emits guarded fields, omitting absent ones', () => {
+    const usage: TokenUsage = {
+      promptTokens: 10,
+      completionTokens: 0,
+      totalTokens: 10,
+    }
+    const attrs = usageAttributes(usage)
+
+    expect(attrs['gen_ai.usage.input_tokens']).toBe(10)
+    // No cost reported → key absent.
+    expect('gen_ai.usage.cost' in attrs).toBe(false)
+  })
+
+  it('emits the self-describing billed quantity with its unit', () => {
+    const usage: TokenUsage = {
+      promptTokens: 0,
+      completionTokens: 0,
+      totalTokens: 0,
+      billed: { quantity: 8, unit: 'seconds' },
+    }
+    const attrs = usageAttributes(usage)
+
+    expect(attrs['tanstack.ai.usage.billed_quantity']).toBe(8)
+    expect(attrs['tanstack.ai.usage.billed_unit']).toBe('seconds')
+  })
+
+  it('omits both billed attributes when billed is absent or non-numeric', () => {
+    const attrs = usageAttributes({
+      promptTokens: 1,
+      completionTokens: 2,
+      totalTokens: 3,
+    })
+    expect('tanstack.ai.usage.billed_quantity' in attrs).toBe(false)
+    expect('tanstack.ai.usage.billed_unit' in attrs).toBe(false)
+
+    // A NaN quantity (bad provider data) must not emit a dangling unit.
+    const bad = usageAttributes({
+      promptTokens: 1,
+      completionTokens: 2,
+      totalTokens: 3,
+      billed: { quantity: Number.NaN, unit: 'units' },
+    })
+    expect('tanstack.ai.usage.billed_quantity' in bad).toBe(false)
+    expect('tanstack.ai.usage.billed_unit' in bad).toBe(false)
+  })
+})

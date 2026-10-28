@@ -1,0 +1,314 @@
+import { ChatClient } from '@tanstack/ai-client'
+import { createChatDevtoolsBridge } from '@tanstack/ai-client/devtools'
+import {
+  DestroyRef,
+  Injector,
+  afterNextRender,
+  assertInInjectionContext,
+  computed,
+  effect,
+  inject,
+  signal,
+} from '@angular/core'
+import { toReactive } from './internal/to-reactive'
+import type {
+  AnyClientTool,
+  InterruptDefinition,
+  InferSchemaType,
+  ModelMessage,
+  RunAgentResumeItem,
+  SchemaInput,
+  StreamChunk,
+} from '@tanstack/ai'
+import type {
+  ResolvableChatInterrupt,
+  ChatResumeState,
+  InferredClientContext,
+  SendMessageOptions,
+  StructuredOutputPart,
+} from '@tanstack/ai-client'
+import type {
+  DeepPartial,
+  InjectChatOptions,
+  InjectChatResult,
+  MultimodalContent,
+  UIMessage,
+} from './types'
+
+export function injectChat<
+  const TTools extends ReadonlyArray<AnyClientTool> = any,
+  TSchema extends SchemaInput | undefined = undefined,
+  TContext = InferredClientContext<TTools>,
+  const TInterrupts extends ReadonlyArray<
+    InterruptDefinition<any, any, any, any>
+  > = readonly [],
+>(
+  options: InjectChatOptions<TTools, TSchema, TContext, TInterrupts>,
+): InjectChatResult<TTools, TSchema, TInterrupts> {
+  assertInInjectionContext(injectChat)
+
+  type Partial = DeepPartial<InferSchemaType<NonNullable<TSchema>>>
+  type Final = InferSchemaType<NonNullable<TSchema>>
+
+  const destroyRef = inject(DestroyRef)
+  const injector = inject(Injector)
+
+  // Reactive option sources. Plain values become constant computeds.
+  const forwardedPropsSource =
+    options.forwardedProps !== undefined
+      ? toReactive(options.forwardedProps)
+      : undefined
+  const contextSource =
+    options.context !== undefined ? toReactive(options.context) : undefined
+  const liveSource =
+    options.live !== undefined ? toReactive(options.live) : undefined
+  const toolsSource =
+    options.tools !== undefined ? toReactive(options.tools) : undefined
+
+  const transport = options.connection
+    ? { connection: options.connection }
+    : { fetcher: options.fetcher }
+
+  const client = new ChatClient<TTools, TContext, TInterrupts>({
+    devtoolsBridgeFactory: createChatDevtoolsBridge,
+    ...transport,
+    ...(options.initialMessages !== undefined && {
+      initialMessages: options.initialMessages,
+    }),
+    threadId: options.threadId,
+    ...(options.persistence === true
+      ? {
+          persistence: true,
+          ...(options.history !== undefined && {
+            history: options.history,
+          }),
+        }
+      : { persistence: options.persistence }),
+    ...(options.initialResumeSnapshot !== undefined && {
+      initialResumeSnapshot: options.initialResumeSnapshot,
+    }),
+    ...(forwardedPropsSource !== undefined && {
+      forwardedProps: forwardedPropsSource(),
+    }),
+    ...(options.byok !== undefined && { byok: options.byok }),
+    byokProvider: () => options.byokProvider?.(),
+    ...(contextSource !== undefined && { context: contextSource() }),
+    devtools: {
+      ...options.devtools,
+      framework: 'angular',
+      hookName: 'injectChat',
+      outputKind: options.outputSchema ? 'structured' : 'chat',
+    },
+    onResponse: (response) => options.onResponse?.(response),
+    onChunk: (chunk: StreamChunk) => options.onChunk?.(chunk),
+    onFinish: (message) => options.onFinish?.(message),
+    onError: (err) => options.onError?.(err),
+    onInterruptStateChange: (nextInterruptState, context) => {
+      options.onInterruptStateChange?.(nextInterruptState, context)
+    },
+    tools: toolsSource?.(),
+    ...(options.interrupts !== undefined && {
+      interrupts: options.interrupts,
+    }),
+    onCustomEvent: (eventType, data, context) =>
+      options.onCustomEvent?.(eventType, data, context),
+    ...(options.streamProcessor !== undefined && {
+      streamProcessor: options.streamProcessor,
+    }),
+    ...(options.queue !== undefined && { queue: options.queue }),
+  })
+
+  const snapshot = signal(client.getSnapshot())
+  const messages = computed(() => snapshot().messages)
+  const interruptState = computed(() => snapshot().interruptState)
+  const unsubscribeSnapshot = client.subscribeSnapshot(() =>
+    snapshot.set(client.getSnapshot()),
+  )
+
+  // START TAILING HERE, not in the constructor. A client is idle until something
+  // attaches it, so a client that gets built and thrown away never opens a
+  // connection — an unreachable stream would hold one of the browser's ~6
+  // connections per origin until the page reloaded. `inject*` runs in an injection
+  // context tied to the consumer's lifetime, and `destroyRef.onDestroy` below is the
+  // matching `detach`.
+  client.attach()
+
+  // Sync reactive forwardedProps / context to the client.
+  if (forwardedPropsSource || contextSource) {
+    effect(
+      () => {
+        const newForwardedProps = forwardedPropsSource?.()
+        const newContext = contextSource?.()
+        client.updateOptions({
+          ...(newForwardedProps !== undefined && {
+            forwardedProps: newForwardedProps,
+          }),
+          ...(newContext !== undefined && { context: newContext }),
+        })
+      },
+      { injector },
+    )
+  }
+
+  // Sync reactive tools to the client.
+  if (toolsSource) {
+    effect(() => client.updateOptions({ tools: toolsSource() }), { injector })
+  }
+
+  // Subscribe / unsubscribe based on reactive `live`.
+  if (liveSource) {
+    effect(
+      () => {
+        if (liveSource()) {
+          client.subscribe()
+        } else {
+          client.unsubscribe()
+        }
+      },
+      { injector },
+    )
+  }
+
+  afterNextRender(
+    () => {
+      client.mountDevtools()
+      // Delivery-durability resume is transparent: the resumable SSE
+      // connection adapter reattaches via the browser's native Last-Event-ID
+      // on reconnect. No client-side auto-resume wiring is needed.
+    },
+    { injector },
+  )
+
+  destroyRef.onDestroy(() => {
+    unsubscribeSnapshot()
+    // Release the connection first: the counterpart of the `attach` above.
+    client.detach()
+    if (liveSource?.()) {
+      client.unsubscribe()
+    } else {
+      client.stop()
+    }
+    client.dispose()
+  })
+
+  // Active structured-output part = the one on the assistant message after the
+  // latest user message. Ported from ai-vue/src/use-chat.ts.
+  const activeStructuredPart = computed<StructuredOutputPart | null>(() => {
+    const list = messages()
+    let lastUserIndex = -1
+    for (let i = list.length - 1; i >= 0; i--) {
+      if (list[i]?.role === 'user') {
+        lastUserIndex = i
+        break
+      }
+    }
+    if (lastUserIndex === -1) return null
+    for (let i = list.length - 1; i > lastUserIndex; i--) {
+      const m = list[i]
+      if (m?.role !== 'assistant') continue
+      const part = m.parts.find(
+        (p): p is StructuredOutputPart => p.type === 'structured-output',
+      )
+      if (part) return part
+    }
+    return null
+  })
+
+  const partial = computed<Partial>(() => {
+    const part = activeStructuredPart()
+    if (!part) return {} as Partial
+    const v = part.partial ?? part.data
+    return (v ?? {}) as Partial
+  })
+
+  const final = computed<Final | null>(() => {
+    const part = activeStructuredPart()
+    if (!part || part.status !== 'complete') return null
+    return part.data as Final
+  })
+
+  const sendMessage = async (
+    content: string | MultimodalContent,
+    sendOptions?: SendMessageOptions,
+  ) => {
+    await client.sendMessage(content, undefined, sendOptions)
+  }
+  const cancelQueued = (id: string) => client.cancelQueued(id)
+  const append = async (message: ModelMessage | UIMessage<TTools>) => {
+    await client.append(message)
+  }
+  const reload = async () => {
+    await client.reload()
+  }
+  const loadOlderMessages = async () => {
+    await client.loadOlderMessages()
+  }
+  const stop = () => client.stop()
+  const clear = () => client.clear()
+  const setMessages = (m: ReadonlyArray<UIMessage<TTools>>) =>
+    client.setMessagesManually(m)
+  const addToolResult = async (result: {
+    toolCallId: string
+    tool: string
+    output: any
+    state?: 'output-available' | 'output-error'
+    errorText?: string
+  }) => {
+    await client.addToolResult(result)
+  }
+  const interrupts = computed(() => interruptState().interrupts)
+  const interruptErrors = computed(() => interruptState().interruptErrors)
+  const resuming = computed(() => interruptState().resuming)
+  const resolveInterrupts = (
+    resolution:
+      | boolean
+      | ((
+          interrupt: ResolvableChatInterrupt<TTools, TInterrupts>,
+        ) => undefined),
+  ) => {
+    if (typeof resolution === 'boolean') {
+      client.resolveInterrupts(resolution)
+    } else {
+      client.resolveInterrupts(resolution)
+    }
+  }
+  const cancelInterrupts = () => client.cancelInterrupts()
+  const retryInterrupts = () => client.retryInterrupts()
+  const resumeInterruptsUnsafe = (
+    resumeItems: Array<RunAgentResumeItem>,
+    state?: ChatResumeState,
+  ) => client.resumeInterruptsUnsafe(resumeItems, state)
+
+  // oxlint-disable-next-line eslint-js/no-restricted-syntax -- return shape diverges from conditional InjectChatResult<TTools, TSchema>; TS can't structurally narrow the TSchema-gated partial/final signals
+  return {
+    messages,
+    sendMessage,
+    queue: computed(() => snapshot().queue),
+    cancelQueued,
+    append,
+    reload,
+    stop,
+    isLoading: computed(() => snapshot().isLoading),
+    hasOlderMessages: computed(() => snapshot().hasOlderMessages),
+    loadOlderMessages,
+    error: computed(() => snapshot().error),
+    status: computed(() => snapshot().status),
+    isSubscribed: computed(() => snapshot().isSubscribed),
+    connectionStatus: computed(() => snapshot().connectionStatus),
+    sessionGenerating: computed(() => snapshot().sessionGenerating),
+    isHydrating: computed(() => snapshot().isHydrating),
+    setMessages,
+    clear,
+    addToolResult,
+    runId: computed(() => snapshot().runId),
+    interrupts,
+    interruptErrors,
+    resuming,
+    resolveInterrupts,
+    cancelInterrupts,
+    retryInterrupts,
+    resumeInterruptsUnsafe,
+    partial,
+    final,
+  } as unknown as InjectChatResult<TTools, TSchema, TInterrupts>
+}

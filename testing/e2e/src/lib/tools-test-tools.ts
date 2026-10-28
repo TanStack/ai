@@ -1,10 +1,35 @@
 import { toolDefinition } from '@tanstack/ai'
 import { z } from 'zod'
 
+export type TestRuntimeContext = {
+  userId: string
+  tenantId: string
+  source: string
+}
+
+export const STOP_CLIENT_TOOL_MESSAGE = 'Wait until Stop'
+
 /**
  * Server-side tool definitions (for tools that execute on the server)
  */
 export const serverTools = {
+  read_server_context: toolDefinition({
+    name: 'read_server_context',
+    description: 'Read the typed runtime context provided by the server',
+    inputSchema: z.object({}),
+    outputSchema: z.object({
+      userId: z.string(),
+      tenantId: z.string(),
+      source: z.string(),
+    }),
+  }).server<TestRuntimeContext>(async (_args, context) => {
+    return {
+      userId: context.context.userId,
+      tenantId: context.context.tenantId,
+      source: context.context.source,
+    }
+  }),
+
   check_status: toolDefinition({
     name: 'check_status',
     description: 'Check system status (no required input)',
@@ -59,6 +84,24 @@ export const serverTools = {
     })
   }),
 
+  get_screenshot: toolDefinition({
+    name: 'get_screenshot',
+    description: 'Get a screenshot of the layout',
+    inputSchema: z.object({}),
+  }).server(async () => [
+    { type: 'text' as const, content: 'Layout screenshot' },
+    {
+      type: 'image' as const,
+      source: {
+        type: 'data' as const,
+        // 1x1 transparent PNG
+        value:
+          'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+M8AAAMBAQDJ/1eYAAAAAElFTkSuQmCC',
+        mimeType: 'image/png',
+      },
+    },
+  ]),
+
   delete_file: toolDefinition({
     name: 'delete_file',
     description: 'Delete a file (requires approval)',
@@ -74,17 +117,53 @@ export const serverTools = {
   }),
 }
 
+/** A server tool that waits 300 ms and returns when it started and ended. */
+function timedServerTool(name: string) {
+  return toolDefinition({
+    name,
+    description: `Timed ${name}`,
+    inputSchema: z.object({}).passthrough(),
+  }).server(async () => {
+    const startedAt = Date.now()
+    await new Promise((resolve) => setTimeout(resolve, 300))
+    return JSON.stringify({ startedAt, endedAt: Date.now() })
+  })
+}
+
+/** The calls of the `parallel-tools` fixture, as slow tools that report their timing. */
+export const timedServerTools = {
+  get_weather: timedServerTool('get_weather'),
+  get_time: timedServerTool('get_time'),
+}
+
 /**
  * Client-side tool definitions (tools that execute on the client)
  * These use .client() without an execute function - execution happens on client side
  */
 export const clientToolDefinitions = {
+  read_client_context: toolDefinition({
+    name: 'read_client_context',
+    description: 'Read the typed runtime context provided by the client',
+    inputSchema: z.object({}),
+    outputSchema: z.object({
+      userId: z.string(),
+      tenantId: z.string(),
+      source: z.string(),
+    }),
+  }).client(),
+
   show_notification: toolDefinition({
     name: 'show_notification',
     description: 'Show a notification to the user',
     inputSchema: z.object({
       message: z.string(),
       type: z.enum(['info', 'warning', 'error']),
+    }),
+    // Must match the browser tool's outputSchema. A different schema makes
+    // the client treat the pause as a generic interrupt, not a client tool.
+    outputSchema: z.object({
+      displayed: z.boolean(),
+      timestamp: z.number(),
     }),
   }).client(),
 
@@ -95,6 +174,17 @@ export const clientToolDefinitions = {
       type: z.enum(['bar', 'line', 'pie']),
       data: z.array(z.number()),
     }),
+    outputSchema: z.object({
+      rendered: z.boolean(),
+      chartId: z.string(),
+    }),
+  }).client(),
+
+  fail_client_tool: toolDefinition({
+    name: 'fail_client_tool',
+    description: 'Fail while executing in the client',
+    inputSchema: z.object({}),
+    outputSchema: z.object({ completed: z.boolean() }),
   }).client(),
 }
 
@@ -153,19 +243,54 @@ export const SCENARIO_LIST = [
   { id: 'text-only', label: 'Text Only (No Tools)', category: 'basic' },
   { id: 'server-tool-single', label: 'Single Server Tool', category: 'basic' },
   { id: 'client-tool-single', label: 'Single Client Tool', category: 'basic' },
+  {
+    id: 'client-tool-reasoning',
+    label: 'Client Tool with Reasoning',
+    category: 'basic',
+  },
+  {
+    id: 'client-tool-stop',
+    label: 'Stop Pending Client Tool',
+    category: 'race',
+  },
   { id: 'approval-tool', label: 'Approval Required Tool', category: 'basic' },
   {
     id: 'sequence-server-client',
     label: 'Server \u2192 Client Sequence',
     category: 'basic',
   },
+  {
+    id: 'multimodal-server-tool',
+    label: 'Multimodal Server Tool Result (Regression #1283)',
+    category: 'basic',
+  },
   { id: 'parallel-tools', label: 'Parallel Tools', category: 'basic' },
+  {
+    id: 'parallel-server-timing',
+    label: 'Parallel Server Tool Timing',
+    category: 'basic',
+  },
   {
     id: 'lazy-tool-discovery',
     label: 'Lazy Tool Discovery',
     category: 'basic',
   },
   { id: 'custom-events', label: 'Custom Event Emitting', category: 'basic' },
+  {
+    id: 'server-context',
+    label: 'Server Runtime Context',
+    category: 'basic',
+  },
+  {
+    id: 'client-context',
+    label: 'Client Runtime Context',
+    category: 'basic',
+  },
+  {
+    id: 'client-server-context',
+    label: 'Forwarded Props to Server Context',
+    category: 'basic',
+  },
   { id: 'error', label: 'Error Response', category: 'basic' },
   {
     id: 'tool-error',
@@ -173,9 +298,34 @@ export const SCENARIO_LIST = [
     category: 'basic',
   },
   {
+    id: 'client-tool-error',
+    label: 'Client Tool Throws Error',
+    category: 'basic',
+  },
+  {
     id: 'null-tool-input',
     label: 'Null Tool Input (Regression #265)',
     category: 'basic',
+  },
+  {
+    id: 'malformed-tool-arguments',
+    label: 'Malformed Tool Arguments (Regression #1131)',
+    category: 'basic',
+  },
+  {
+    id: 'provider-rejected-tool-call',
+    label: 'Provider-Rejected Tool Call',
+    category: 'basic',
+  },
+  {
+    id: 'client-tool-input-error',
+    label: 'Client Tool Input Error',
+    category: 'basic',
+  },
+  {
+    id: 'invalid-client-tool-retry',
+    label: 'Invalid Client Tool Retry (Regression #1192)',
+    category: 'race',
   },
   // Race condition / event flow scenarios
   {
@@ -214,6 +364,16 @@ export const SCENARIO_LIST = [
     label: 'Triple Client Sequence',
     category: 'race',
   },
+  {
+    id: 'interleaved-args',
+    label: 'Text Interleaved in Tool Args (Regression #1017)',
+    category: 'race',
+  },
+  {
+    id: 'canonical-tool-input',
+    label: 'TOOL_CALL_END Input Replaces Streamed Args',
+    category: 'race',
+  },
 ]
 
 /**
@@ -228,7 +388,23 @@ export function getToolsForScenario(scenario: string) {
       return [serverTools.get_weather]
 
     case 'client-tool-single':
+    case 'client-tool-reasoning':
+    case 'client-tool-stop':
+    case 'client-tool-input-error':
+    case 'invalid-client-tool-retry':
       return [clientToolDefinitions.show_notification]
+
+    case 'client-tool-error':
+      return [clientToolDefinitions.fail_client_tool]
+
+    case 'server-context':
+      return [serverTools.read_server_context]
+
+    case 'client-context':
+      return [clientToolDefinitions.read_client_context]
+
+    case 'client-server-context':
+      return [serverTools.read_server_context]
 
     case 'approval-tool':
       return [serverTools.delete_file]
@@ -236,8 +412,14 @@ export function getToolsForScenario(scenario: string) {
     case 'sequence-server-client':
       return [serverTools.fetch_data, clientToolDefinitions.display_chart]
 
+    case 'multimodal-server-tool':
+      return [serverTools.get_screenshot]
+
     case 'parallel-tools':
       return [serverTools.get_weather, serverTools.get_time]
+
+    case 'parallel-server-timing':
+      return [timedServerTools.get_weather, timedServerTools.get_time]
 
     // Race condition / event flow scenarios
     case 'sequential-client-tools':
@@ -274,6 +456,9 @@ export function getToolsForScenario(scenario: string) {
         clientToolDefinitions.display_chart,
       ]
 
+    case 'interleaved-args':
+      return [serverTools.get_weather]
+
     case 'lazy-tool-discovery':
       return [serverTools.get_weather, searchInventory]
 
@@ -284,6 +469,11 @@ export function getToolsForScenario(scenario: string) {
       return [failingTool]
 
     case 'null-tool-input':
+      return [serverTools.check_status]
+
+    case 'malformed-tool-arguments':
+    case 'provider-rejected-tool-call':
+    case 'canonical-tool-input':
       return [serverTools.check_status]
 
     default:

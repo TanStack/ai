@@ -3,9 +3,7 @@ id: AudioAdapter
 title: AudioAdapter
 ---
 
-# Interface: AudioAdapter\<TModel, TProviderOptions\>
-
-Defined in: [packages/typescript/ai/src/activities/generateAudio/adapter.ts:24](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/generateAudio/adapter.ts#L24)
+Defined in: packages/ai/src/activities/generateAudio/adapter.ts:24
 
 Audio generation adapter interface with pre-resolved generics.
 
@@ -34,7 +32,7 @@ Generic parameters:
 ~types: object;
 ```
 
-Defined in: [packages/typescript/ai/src/activities/generateAudio/adapter.ts:38](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/generateAudio/adapter.ts#L38)
+Defined in: packages/ai/src/activities/generateAudio/adapter.ts:38
 
 **`Internal`**
 
@@ -48,13 +46,13 @@ providerOptions: TProviderOptions;
 
 ***
 
-### generateAudio()
+### generateAudio
 
 ```ts
 generateAudio: (options) => Promise<AudioGenerationResult>;
 ```
 
-Defined in: [packages/typescript/ai/src/activities/generateAudio/adapter.ts:45](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/generateAudio/adapter.ts#L45)
+Defined in: packages/ai/src/activities/generateAudio/adapter.ts:45
 
 Generate audio from a text prompt
 
@@ -76,7 +74,7 @@ Generate audio from a text prompt
 readonly kind: "audio";
 ```
 
-Defined in: [packages/typescript/ai/src/activities/generateAudio/adapter.ts:29](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/generateAudio/adapter.ts#L29)
+Defined in: packages/ai/src/activities/generateAudio/adapter.ts:29
 
 Discriminator for adapter kind - used to determine API shape
 
@@ -88,7 +86,7 @@ Discriminator for adapter kind - used to determine API shape
 readonly model: TModel;
 ```
 
-Defined in: [packages/typescript/ai/src/activities/generateAudio/adapter.ts:33](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/generateAudio/adapter.ts#L33)
+Defined in: packages/ai/src/activities/generateAudio/adapter.ts:33
 
 The model this adapter is configured for
 
@@ -100,6 +98,6 @@ The model this adapter is configured for
 readonly name: string;
 ```
 
-Defined in: [packages/typescript/ai/src/activities/generateAudio/adapter.ts:31](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/generateAudio/adapter.ts#L31)
+Defined in: packages/ai/src/activities/generateAudio/adapter.ts:31
 
 Adapter name identifier

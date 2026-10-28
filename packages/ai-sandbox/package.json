@@ -1,0 +1,118 @@
+{
+  "name": "@tanstack/ai-sandbox",
+  "version": "1.0.0",
+  "description": "Provider-agnostic sandbox layer for TanStack AI — run harness adapters inside isolated sandboxes (defineSandbox, defineWorkspace, withSandbox) with a uniform SandboxHandle, workspace bootstrap, policy, and resumable lifecycle.",
+  "author": "",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/TanStack/ai.git",
+    "directory": "packages/ai-sandbox"
+  },
+  "keywords": [
+    "ai",
+    "ai-sdk",
+    "typescript",
+    "tanstack",
+    "sandbox",
+    "harness",
+    "agent",
+    "coding-agent",
+    "isolation",
+    "workspace",
+    "tanstack-intent"
+  ],
+  "type": "module",
+  "module": "./dist/esm/index.js",
+  "types": "./dist/esm/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/esm/index.d.ts",
+      "import": "./dist/esm/index.js"
+    },
+    "./harness": {
+      "types": "./dist/esm/harness.d.ts",
+      "import": "./dist/esm/harness.js"
+    },
+    "./ngrok": {
+      "types": "./dist/esm/ngrok.d.ts",
+      "import": "./dist/esm/ngrok.js"
+    },
+    "./testkit": {
+      "types": "./dist/esm/testkit/conformance.d.ts",
+      "import": "./dist/esm/testkit/conformance.js"
+    }
+  },
+  "files": [
+    "dist",
+    "src",
+    "skills"
+  ],
+  "scripts": {
+    "build": "vite build",
+    "clean": "premove ./build ./dist",
+    "lint:fix": "oxlint src --type-aware --fix",
+    "test:build": "publint --strict",
+    "test:oxlint": "oxlint src --type-aware",
+    "test:coverage": "vitest run --coverage --coverage.include='src/**' --coverage.reporter=text-summary --coverage.reporter=json-summary",
+    "test:lib": "vitest",
+    "test:lib:dev": "pnpm test:lib --watch",
+    "test:types": "tsc"
+  },
+  "nx": {
+    "targets": {
+      "test:lib": {
+        "dependsOn": [
+          "build",
+          "^build"
+        ]
+      },
+      "test:coverage": {
+        "dependsOn": [
+          "build",
+          "^build"
+        ]
+      },
+      "test:types": {
+        "dependsOn": [
+          "build",
+          "^build"
+        ]
+      }
+    }
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "@tanstack/ai-skills": "workspace:^",
+    "@tanstack/ai-utils": "workspace:^"
+  },
+  "peerDependencies": {
+    "@ngrok/ngrok": "^1.0.0",
+    "@tanstack/ai": "workspace:^",
+    "@tanstack/ai-harness": "workspace:^",
+    "@tanstack/ai-persistence": "workspace:^",
+    "vitest": "^4.1.10"
+  },
+  "peerDependenciesMeta": {
+    "@tanstack/ai-harness": {
+      "optional": true
+    },
+    "@ngrok/ngrok": {
+      "optional": true
+    },
+    "@tanstack/ai-persistence": {
+      "optional": true
+    },
+    "vitest": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@ngrok/ngrok": "^1.7.0",
+    "@tanstack/ai": "workspace:*",
+    "@tanstack/ai-harness": "workspace:*",
+    "@tanstack/ai-persistence": "workspace:*",
+    "@vitest/coverage-v8": "4.1.10",
+    "vitest": "^4.1.10"
+  }
+}

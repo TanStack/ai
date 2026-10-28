@@ -2,16 +2,14 @@ import { createFileRoute } from '@tanstack/react-router'
 import { realtimeToken } from '@tanstack/ai'
 import { openaiRealtimeToken } from '@tanstack/ai-openai'
 
-export const Route = createFileRoute(
-  '/_execute-prompt/api/realtime-token' as any,
-)({
+export const Route = createFileRoute('/_execute-prompt/api/realtime-token')({
   server: {
     handlers: {
       POST: async () => {
         try {
           const token = await realtimeToken({
             adapter: openaiRealtimeToken({
-              model: 'gpt-4o-realtime-preview',
+              model: 'gpt-realtime-2.1',
             }),
           })
           return new Response(JSON.stringify(token), {

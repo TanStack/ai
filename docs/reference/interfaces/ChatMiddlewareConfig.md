@@ -3,9 +3,7 @@ id: ChatMiddlewareConfig
 title: ChatMiddlewareConfig
 ---
 
-# Interface: ChatMiddlewareConfig
-
-Defined in: [packages/typescript/ai/src/activities/chat/middleware/types.ts:105](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/middleware/types.ts#L105)
+Defined in: packages/ai/src/activities/chat/middleware/types.ts:340
 
 Chat configuration that middleware can observe or transform.
 This is a subset of the chat engine's effective configuration
@@ -13,13 +11,16 @@ that middleware is allowed to modify.
 
 ## Properties
 
-### maxTokens?
+### activities?
 
 ```ts
-optional maxTokens: number;
+optional activities?: ActivityRecord[];
 ```
 
-Defined in: [packages/typescript/ai/src/activities/chat/middleware/types.ts:111](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/middleware/types.ts#L111)
+Defined in: packages/ai/src/activities/chat/middleware/types.ts:347
+
+Frontend-only AG-UI activity sidecar. Persistence loads and saves this
+when an ActivityStore is configured. Never model input.
 
 ***
 
@@ -32,64 +33,134 @@ messages: ModelMessage<
   | null>[];
 ```
 
-Defined in: [packages/typescript/ai/src/activities/chat/middleware/types.ts:106](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/middleware/types.ts#L106)
+Defined in: packages/ai/src/activities/chat/middleware/types.ts:342
+
+Canonical conversation history. Middleware and persistence read this.
 
 ***
 
 ### metadata?
 
 ```ts
-optional metadata: Record<string, unknown>;
+optional metadata?: Record<string, unknown>;
 ```
 
-Defined in: [packages/typescript/ai/src/activities/chat/middleware/types.ts:112](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/middleware/types.ts#L112)
+Defined in: packages/ai/src/activities/chat/middleware/types.ts:354
 
 ***
 
 ### modelOptions?
 
 ```ts
-optional modelOptions: Record<string, unknown>;
+optional modelOptions?: Record<string, unknown>;
 ```
 
-Defined in: [packages/typescript/ai/src/activities/chat/middleware/types.ts:113](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/middleware/types.ts#L113)
+Defined in: packages/ai/src/activities/chat/middleware/types.ts:355
+
+***
+
+### promptCache?
+
+```ts
+optional promptCache?: ResolvedPromptCache;
+```
+
+Defined in: packages/ai/src/activities/chat/middleware/types.ts:368
+
+The prompt cache of the next model call. A returned value stays until a
+middleware changes it.
+
+***
+
+### providerMessages?
+
+```ts
+optional providerMessages?: ModelMessage<
+  | string
+  | ContentPart<unknown, unknown, unknown, unknown, unknown>[]
+  | null>[];
+```
+
+Defined in: packages/ai/src/activities/chat/middleware/types.ts:349
+
+Provider-only context. Defaults to `messages` when it is not set.
+
+***
+
+### reasoning?
+
+```ts
+optional reasoning?: ReasoningRequest;
+```
+
+Defined in: packages/ai/src/activities/chat/middleware/types.ts:357
+
+How hard the model thinks at this call. A middleware can set or change it.
+
+***
+
+### resume?
+
+```ts
+optional resume?: RunAgentResumeItem[];
+```
+
+Defined in: packages/ai/src/activities/chat/middleware/types.ts:352
+
+***
+
+### resumeToolState?
+
+```ts
+optional resumeToolState?: ChatResumeToolState;
+```
+
+Defined in: packages/ai/src/activities/chat/middleware/types.ts:353
 
 ***
 
 ### systemPrompts
 
 ```ts
-systemPrompts: string[];
+systemPrompts: SystemPrompt[];
 ```
 
-Defined in: [packages/typescript/ai/src/activities/chat/middleware/types.ts:107](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/middleware/types.ts#L107)
+Defined in: packages/ai/src/activities/chat/middleware/types.ts:350
 
 ***
 
-### temperature?
+### toolChoice?
 
 ```ts
-optional temperature: number;
+optional toolChoice?: ToolChoice;
 ```
 
-Defined in: [packages/typescript/ai/src/activities/chat/middleware/types.ts:109](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/middleware/types.ts#L109)
+Defined in: packages/ai/src/activities/chat/middleware/types.ts:363
+
+How the model uses the tools of the next model call. A returned value
+applies to that call only. The next call starts again from the `chat()`
+option. A call with no tools sends no tool choice.
 
 ***
 
 ### tools
 
 ```ts
-tools: Tool<SchemaInput, SchemaInput, string>[];
+tools: Tool<SchemaInput, SchemaInput, string, unknown>[];
 ```
 
-Defined in: [packages/typescript/ai/src/activities/chat/middleware/types.ts:108](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/middleware/types.ts#L108)
+Defined in: packages/ai/src/activities/chat/middleware/types.ts:351
 
 ***
 
-### topP?
+### wrapFetch?
 
 ```ts
-optional topP: number;
+optional wrapFetch?: FetchWrapper;
 ```
 
-Defined in: [packages/typescript/ai/src/activities/chat/middleware/types.ts:110](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/middleware/types.ts#L110)
+Defined in: packages/ai/src/activities/chat/middleware/types.ts:374
+
+Wraps the fetch of the next model call. A returned wrapper chains inside
+the wrappers before it, so it does not replace them. It applies to that
+call only. The next call starts again from the `chat()` option.

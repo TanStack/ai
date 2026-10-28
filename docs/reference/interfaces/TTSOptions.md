@@ -3,9 +3,7 @@ id: TTSOptions
 title: TTSOptions
 ---
 
-# Interface: TTSOptions\<TProviderOptions\>
-
-Defined in: [packages/typescript/ai/src/types.ts:1402](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1402)
+Defined in: packages/ai/src/types.ts:2882
 
 Options for text-to-speech generation.
 These are the common options supported across providers.
@@ -18,13 +16,27 @@ These are the common options supported across providers.
 
 ## Properties
 
+### abortSignal?
+
+```ts
+optional abortSignal?: AbortSignal;
+```
+
+Defined in: packages/ai/src/types.ts:2922
+
+Effective abort signal composed by the activity from caller `abortSignal`
+and/or `timeout`. Adapters should forward this to the provider SDK when
+supported. Request-specific — never store on a global client config.
+
+***
+
 ### format?
 
 ```ts
-optional format: "mp3" | "opus" | "aac" | "flac" | "wav" | "pcm";
+optional format?: "mp3" | "opus" | "aac" | "flac" | "wav" | "pcm";
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:1410](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1410)
+Defined in: packages/ai/src/types.ts:2906
 
 The output audio format
 
@@ -36,7 +48,7 @@ The output audio format
 logger: InternalLogger;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:1420](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1420)
+Defined in: packages/ai/src/types.ts:2916
 
 Internal logger threaded from the generateSpeech() entry point. Adapters
 must call logger.request() before the SDK call and logger.errors() in
@@ -50,7 +62,7 @@ catch blocks.
 model: string;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:1404](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1404)
+Defined in: packages/ai/src/types.ts:2884
 
 The model to use for TTS generation
 
@@ -59,10 +71,10 @@ The model to use for TTS generation
 ### modelOptions?
 
 ```ts
-optional modelOptions: TProviderOptions;
+optional modelOptions?: TProviderOptions;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:1414](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1414)
+Defined in: packages/ai/src/types.ts:2910
 
 Model-specific options for TTS generation
 
@@ -71,10 +83,10 @@ Model-specific options for TTS generation
 ### speed?
 
 ```ts
-optional speed: number;
+optional speed?: number;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:1412](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1412)
+Defined in: packages/ai/src/types.ts:2908
 
 The speed of the generated audio (0.25 to 4.0)
 
@@ -86,18 +98,48 @@ The speed of the generated audio (0.25 to 4.0)
 text: string;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:1406](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1406)
+Defined in: packages/ai/src/types.ts:2890
 
-The text to convert to speech
+The text to convert to speech. When the caller passed `turns`, the
+activity fills this with the turn texts joined by newlines so adapters
+that only read `text` still receive the full script.
+
+***
+
+### timestamps?
+
+```ts
+optional timestamps?: boolean;
+```
+
+Defined in: packages/ai/src/types.ts:2902
+
+Ask for `alignment` / `segments` on the result. Rejected by the activity
+unless the adapter declares `capabilities.timestamps`, because on some
+providers this is a different endpoint rather than free metadata.
+
+***
+
+### turns?
+
+```ts
+optional turns?: TTSTurn[];
+```
+
+Defined in: packages/ai/src/types.ts:2896
+
+Multi-voice dialogue turns, when the caller asked for dialogue. Only
+adapters that declare `capabilities.maxSpeakers` ever see this — the
+activity rejects `turns` for the rest.
 
 ***
 
 ### voice?
 
 ```ts
-optional voice: string;
+optional voice?: string;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:1408](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1408)
+Defined in: packages/ai/src/types.ts:2904
 
 The voice to use for generation

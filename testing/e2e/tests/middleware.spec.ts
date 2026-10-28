@@ -1,6 +1,73 @@
+import { SpanKind } from '@opentelemetry/api'
 import { test, expect } from './fixtures'
 
+async function fetchOtelCapture(
+  page: import('@playwright/test').Page,
+  baseURL: string | undefined,
+  testId: string | undefined,
+) {
+  if (!testId) throw new Error('otel capture test requires a testId fixture')
+  const url = `${baseURL ?? ''}/api/middleware-test?testId=${encodeURIComponent(testId)}`
+  const response = await page.request.get(url)
+  if (!response.ok()) {
+    throw new Error(
+      `GET ${url} failed: ${response.status()} ${await response.text()}`,
+    )
+  }
+  return response.json()
+}
+
+async function fetchPhaseCapture(
+  page: import('@playwright/test').Page,
+  baseURL: string | undefined,
+  testId: string | undefined,
+) {
+  if (!testId) throw new Error('phase capture test requires a testId fixture')
+  const url = `${baseURL ?? ''}/api/middleware-test?testId=${encodeURIComponent(testId)}&kind=phase`
+  const response = await page.request.get(url)
+  if (!response.ok()) {
+    throw new Error(
+      `GET ${url} failed: ${response.status()} ${await response.text()}`,
+    )
+  }
+  return response.json()
+}
+
 test.describe('Middleware Lifecycle', () => {
+  test('adapter RUN_ERROR calls onError once', async ({
+    page,
+    testId,
+    baseURL,
+  }) => {
+    const params = new URLSearchParams()
+    if (testId) params.set('testId', testId)
+    const qs = params.toString()
+    await page.goto(`/middleware-test${qs ? '?' + qs : ''}`)
+    await page.waitForTimeout(2000) // hydration
+    await page.locator('#mw-scenario-select').selectOption('run-error')
+    await page.locator('#mw-mode-select').selectOption('phase-recorder')
+    await page.locator('#mw-run-button').click()
+
+    await expect
+      .poll(async () => {
+        const capture = await fetchPhaseCapture(page, baseURL, testId)
+        return capture.onErrorCount
+      })
+      .toBe(1)
+
+    const capture = await fetchPhaseCapture(page, baseURL, testId)
+    expect(capture.onFinishCount).toBe(0)
+    expect(capture.yieldedChunks).toContainEqual(
+      expect.objectContaining({ type: 'RUN_ERROR' }),
+    )
+    expect(capture.yieldedChunks).not.toContainEqual(
+      expect.objectContaining({
+        type: 'RUN_FINISHED',
+        outcomeType: 'interrupt',
+      }),
+    )
+  })
+
   test('onChunk transforms text content', async ({
     page,
     testId,
@@ -65,6 +132,642 @@ test.describe('Middleware Lifecycle', () => {
     expect(toolResults[0].content).toContain('skipped')
   })
 
+  test('onBeforeToolCall args that fail the inputSchema become a tool error', async ({
+    page,
+    testId,
+    aimockPort,
+  }) => {
+    const params = new URLSearchParams()
+    if (testId) params.set('testId', testId)
+    if (aimockPort) params.set('aimockPort', String(aimockPort))
+    const qs = params.toString()
+    await page.goto(`/middleware-test${qs ? '?' + qs : ''}`)
+    await page.waitForTimeout(2000)
+    await page.locator('#mw-scenario-select').selectOption('with-tool')
+    await page.locator('#mw-mode-select').selectOption('tool-bad-args')
+    await page.locator('#mw-run-button').click()
+
+    await page.waitForFunction(
+      () =>
+        document
+          .querySelector('#mw-metadata')
+          ?.getAttribute('data-test-complete') === 'true',
+      { timeout: 10000 },
+    )
+
+    const messagesJson = await page.locator('#mw-messages-json').textContent()
+    const messages = JSON.parse(messagesJson || '[]')
+    const toolResults = messages.flatMap((m: any) =>
+      m.parts.filter((p: any) => p.type === 'tool-result'),
+    )
+    // The middleware rewrote { city: 'NYC' } to { city: { name: 'NYC' } }. The schema
+    // checks the rewritten args, so get_weather never runs.
+    expect(toolResults).toHaveLength(1)
+    expect(toolResults[0].content).toContain('Input validation failed')
+    expect(toolResults[0].content).not.toContain('temperature')
+  })
+
+  test('onGuardToolCall denies on the final args after a transformArgs', async ({
+    page,
+    testId,
+    aimockPort,
+  }) => {
+    const params = new URLSearchParams()
+    if (testId) params.set('testId', testId)
+    if (aimockPort) params.set('aimockPort', String(aimockPort))
+    const qs = params.toString()
+    await page.goto(`/middleware-test${qs ? '?' + qs : ''}`)
+    await page.waitForTimeout(2000)
+    await page.locator('#mw-scenario-select').selectOption('with-tool')
+    await page.locator('#mw-mode-select').selectOption('tool-guard')
+    await page.locator('#mw-run-button').click()
+
+    await page.waitForFunction(
+      () =>
+        document
+          .querySelector('#mw-metadata')
+          ?.getAttribute('data-test-complete') === 'true',
+      { timeout: 10000 },
+    )
+
+    const messagesJson = await page.locator('#mw-messages-json').textContent()
+    const messages = JSON.parse(messagesJson || '[]')
+    const toolResults = messages.flatMap((m: any) =>
+      m.parts.filter((p: any) => p.type === 'tool-result'),
+    )
+    // The rewrite ran first. The guard saw the new city and denied the call,
+    // so get_weather never ran.
+    expect(toolResults).toHaveLength(1)
+    expect(toolResults[0].content).toContain('guarded')
+    expect(toolResults[0].content).toContain('Blocked City')
+    expect(toolResults[0].content).not.toContain('temperature')
+  })
+
+  test('the next model call replays the exact tool argument bytes', async ({
+    page,
+    request,
+    testId,
+    aimockPort,
+  }) => {
+    const params = new URLSearchParams()
+    if (testId) params.set('testId', testId)
+    if (aimockPort) params.set('aimockPort', String(aimockPort))
+    const qs = params.toString()
+    await page.goto(`/middleware-test${qs ? '?' + qs : ''}`)
+    await page.waitForTimeout(2000)
+    await page.locator('#mw-scenario-select').selectOption('raw-tool-args')
+    await page.locator('#mw-run-button').click()
+
+    await page.waitForFunction(
+      () =>
+        document
+          .querySelector('#mw-metadata')
+          ?.getAttribute('data-test-complete') === 'true',
+      { timeout: 10000 },
+    )
+
+    // The fixture sends spaces and `1.50`. A re-serialized value would be
+    // `{"city":"NYC","days":1.5}`.
+    const raw = '{"city": "NYC",  "days": 1.50}'
+    const journal = await request.get(
+      `http://127.0.0.1:${aimockPort}/v1/_requests`,
+    )
+    const entries: Array<{
+      headers?: Record<string, string>
+      body: {
+        messages?: Array<{
+          role: string
+          tool_calls?: Array<{ function: { arguments: string } }>
+        }>
+      } | null
+    }> = await journal.json()
+    const calls = entries.filter(
+      (entry) => entry.headers?.['x-test-id'] === testId,
+    )
+    expect(calls).toHaveLength(2)
+    const replayed = calls[1]?.body?.messages
+      ?.flatMap((message) => message.tool_calls ?? [])
+      .map((call) => call.function.arguments)
+    expect(replayed).toEqual([raw])
+
+    // The client keeps the same string.
+    const messages = JSON.parse(
+      (await page.locator('#mw-messages-json').textContent()) || '[]',
+    )
+    const toolCall = messages
+      .flatMap((m: any) => m.parts)
+      .find((p: any) => p.type === 'tool-call')
+    expect(toolCall?.arguments).toBe(raw)
+  })
+
+  test('onAfterToolCall replaceResult changes what the client and the model see', async ({
+    page,
+    request,
+    testId,
+    aimockPort,
+  }) => {
+    const params = new URLSearchParams()
+    if (testId) params.set('testId', testId)
+    if (aimockPort) params.set('aimockPort', String(aimockPort))
+    const qs = params.toString()
+    await page.goto(`/middleware-test${qs ? '?' + qs : ''}`)
+    await page.waitForTimeout(2000)
+    await page.locator('#mw-scenario-select').selectOption('with-tool')
+    await page.locator('#mw-mode-select').selectOption('tool-replace')
+    await page.locator('#mw-run-button').click()
+
+    await page.waitForFunction(
+      () =>
+        document
+          .querySelector('#mw-metadata')
+          ?.getAttribute('data-test-complete') === 'true',
+      { timeout: 10000 },
+    )
+
+    // get_weather returns {"city":"NYC","temperature":72,...}. The
+    // tool-replace middleware swaps it for this value after the call.
+    const replaced = '{"replaced":true,"reason":"middleware"}'
+
+    // The client gets the replaced result in TOOL_CALL_RESULT.
+    const messagesJson = await page.locator('#mw-messages-json').textContent()
+    const messages = JSON.parse(messagesJson || '[]')
+    const toolResults = messages.flatMap((m: any) =>
+      m.parts.filter((p: any) => p.type === 'tool-result'),
+    )
+    expect(toolResults).toHaveLength(1)
+    expect(toolResults[0].content).toBe(replaced)
+
+    // The model gets the replaced result on the next call. aimock journals
+    // the Responses `function_call_output` as a `role: 'tool'` message.
+    const journal = await request.get(
+      `http://127.0.0.1:${aimockPort}/v1/_requests`,
+    )
+    const entries: Array<{
+      headers?: Record<string, string>
+      body: { messages?: Array<{ role: string; content: unknown }> } | null
+    }> = await journal.json()
+    const calls = entries.filter(
+      (entry) => entry.headers?.['x-test-id'] === testId,
+    )
+    expect(calls).toHaveLength(2)
+    const toolMessage = calls[1]?.body?.messages?.find(
+      (message) => message.role === 'tool',
+    )
+    expect(toolMessage?.content).toBe(replaced)
+  })
+
+  test('capability provide/consume flow surfaces the consumed value in the stream', async ({
+    page,
+    testId,
+    aimockPort,
+  }) => {
+    const params = new URLSearchParams()
+    if (testId) params.set('testId', testId)
+    if (aimockPort) params.set('aimockPort', String(aimockPort))
+    const qs = params.toString()
+    await page.goto(`/middleware-test${qs ? '?' + qs : ''}`)
+    await page.waitForTimeout(2000) // hydration
+    await page.locator('#mw-scenario-select').selectOption('capability')
+    await page.locator('#mw-mode-select').selectOption('capability')
+    await page.locator('#mw-run-button').click()
+
+    await page.waitForFunction(
+      () =>
+        document
+          .querySelector('#mw-metadata')
+          ?.getAttribute('data-test-complete') === 'true',
+      { timeout: 10000 },
+    )
+
+    const messagesJson = await page.locator('#mw-messages-json').textContent()
+    const messages = JSON.parse(messagesJson || '[]')
+    const assistantMsg = messages.find((m: any) => m.role === 'assistant')
+    const textPart = assistantMsg?.parts?.find((p: any) => p.type === 'text')
+    // The provider middleware provides "[CAP]" in setup(); the consumer
+    // middleware reads it via the capability getter in onChunk and prefixes
+    // each text delta. Seeing "[CAP]" in the streamed text proves the provided
+    // capability value flowed across middleware to the consumer.
+    expect(textPart?.content).toContain('[CAP]')
+    expect(textPart?.content).toContain('Hello')
+  })
+
+  test('otel middleware emits chat span + per-iteration token histograms', async ({
+    page,
+    testId,
+    aimockPort,
+    baseURL,
+  }) => {
+    const params = new URLSearchParams()
+    if (testId) params.set('testId', testId)
+    if (aimockPort) params.set('aimockPort', String(aimockPort))
+    const qs = params.toString()
+    await page.goto(`/middleware-test${qs ? '?' + qs : ''}`)
+    await page.waitForTimeout(2000)
+    await page.locator('#mw-scenario-select').selectOption('basic-text')
+    await page.locator('#mw-mode-select').selectOption('otel')
+    await page.locator('#mw-run-button').click()
+
+    await page.waitForFunction(
+      () =>
+        document
+          .querySelector('#mw-metadata')
+          ?.getAttribute('data-test-complete') === 'true',
+      { timeout: 10000 },
+    )
+
+    const capture = await fetchOtelCapture(page, baseURL, testId)
+
+    // Root span is kind=INTERNAL; iteration spans are kind=CLIENT. This is a
+    // structural discriminator, immune to accidental attribute renames on
+    // either span.
+    const chatSpans = capture.spans.filter(
+      (s: any) => s.kind === SpanKind.INTERNAL,
+    )
+    expect(chatSpans).toHaveLength(1)
+    const chatSpan = chatSpans[0]
+    expect(chatSpan.ended).toBe(true)
+    // `gen_ai.operation.name` is intentionally NOT set on the root span —
+    // only iteration spans carry it (see otel.ts).
+    expect(chatSpan.attributes['gen_ai.operation.name']).toBeUndefined()
+
+    const iterationSpans = capture.spans.filter(
+      (s: any) => s.kind === SpanKind.CLIENT,
+    )
+    expect(iterationSpans.length).toBeGreaterThanOrEqual(1)
+    for (const iter of iterationSpans) {
+      expect(iter.ended).toBe(true)
+      expect(iter.attributes['gen_ai.operation.name']).toBe('chat')
+    }
+
+    // Token histogram records show up with correct unit and low-cardinality attrs.
+    const tokenRecords = capture.histograms.filter(
+      (h: any) => h.name === 'gen_ai.client.token.usage',
+    )
+    // Guard against the C1 regression: onUsage used to no-op in production order,
+    // losing every token histogram record. If we ever regress, this assertion fails.
+    expect(tokenRecords.length).toBeGreaterThanOrEqual(2)
+    for (const r of tokenRecords) {
+      expect(r.unit).toBe('{token}')
+      expect(r.attributes['gen_ai.response.id']).toBeUndefined()
+      expect(r.attributes['gen_ai.response.model']).toBeUndefined()
+    }
+
+    // Duration histogram is per-run.
+    const durationRecords = capture.histograms.filter(
+      (h: any) => h.name === 'gen_ai.client.operation.duration',
+    )
+    expect(durationRecords.length).toBe(1)
+    expect(durationRecords[0].unit).toBe('s')
+    expect(
+      durationRecords[0].attributes['gen_ai.response.model'],
+    ).toBeUndefined()
+  })
+
+  // #1054 — no-tools + outputSchema skips the agent loop. The only model
+  // call is structured-output finalization (`phase=structuredOutput`).
+  // otelMiddleware must open an iteration (CLIENT) span for that call so
+  // backends that key off generation spans (PostHog $ai_generation) and
+  // captureContent both work. Pin to claude-3-7-sonnet so we take the
+  // legacy finalization path, not native-combined (#605) which already
+  // emits a beforeModel iteration span.
+  test('otel middleware emits iteration span + captureContent for no-tools structured-output finalization', async ({
+    page,
+    testId,
+    aimockPort,
+    baseURL,
+  }) => {
+    const params = new URLSearchParams()
+    if (testId) params.set('testId', testId)
+    if (aimockPort) params.set('aimockPort', String(aimockPort))
+    params.set('provider', 'anthropic')
+    params.set('model', 'claude-3-7-sonnet')
+    const qs = params.toString()
+    await page.goto(`/middleware-test?${qs}`)
+    await page.waitForTimeout(2000)
+    await page.locator('#mw-scenario-select').selectOption('structured-output')
+    await page.locator('#mw-mode-select').selectOption('otel')
+    await page.locator('#mw-run-button').click()
+
+    await page.waitForFunction(
+      () =>
+        document
+          .querySelector('#mw-metadata')
+          ?.getAttribute('data-test-complete') === 'true',
+      { timeout: 15000 },
+    )
+
+    const capture = await fetchOtelCapture(page, baseURL, testId)
+
+    const chatSpans = capture.spans.filter(
+      (s: any) => s.kind === SpanKind.INTERNAL,
+    )
+    expect(chatSpans).toHaveLength(1)
+
+    const iterationSpans = capture.spans.filter(
+      (s: any) => s.kind === SpanKind.CLIENT,
+    )
+    // Exactly one provider call on the skip-agent-loop path → one generation.
+    expect(iterationSpans).toHaveLength(1)
+    const iter = iterationSpans[0]
+    expect(iter.ended).toBe(true)
+    expect(iter.attributes['gen_ai.operation.name']).toBe('chat')
+    expect(iter.attributes['tanstack.ai.iteration']).toBe(0)
+
+    // captureContent is enabled on the harness otel middleware — prompt must
+    // land on the iteration span (the pre-fix silent no-op left this empty).
+    const inputMessages = iter.attributes['gen_ai.input.messages']
+    expect(typeof inputMessages).toBe('string')
+    expect(inputMessages.length).toBeGreaterThan(0)
+  })
+
+  test('otel middleware nests tool spans under the iteration span that triggered them', async ({
+    page,
+    testId,
+    aimockPort,
+    baseURL,
+  }) => {
+    const params = new URLSearchParams()
+    if (testId) params.set('testId', testId)
+    if (aimockPort) params.set('aimockPort', String(aimockPort))
+    const qs = params.toString()
+    await page.goto(`/middleware-test${qs ? '?' + qs : ''}`)
+    await page.waitForTimeout(2000)
+    await page.locator('#mw-scenario-select').selectOption('with-tool')
+    await page.locator('#mw-mode-select').selectOption('otel')
+    await page.locator('#mw-run-button').click()
+
+    await page.waitForFunction(
+      () =>
+        document
+          .querySelector('#mw-metadata')
+          ?.getAttribute('data-test-complete') === 'true',
+      { timeout: 15000 },
+    )
+
+    const capture = await fetchOtelCapture(page, baseURL, testId)
+
+    // Every tool span carries gen_ai.tool.name + ended outcome. This also
+    // guards against the "iteration span closed before onBeforeToolCall"
+    // regression — if it regressed, onBeforeToolCall would skip span creation.
+    const toolSpans = capture.spans.filter(
+      (s: any) => 'gen_ai.tool.name' in s.attributes,
+    )
+    expect(toolSpans.length).toBeGreaterThanOrEqual(1)
+    for (const tool of toolSpans) {
+      expect(tool.ended).toBe(true)
+      expect(tool.attributes['tanstack.ai.tool.outcome']).toBeDefined()
+    }
+  })
+
+  test('otel middleware rolls up usage across a tool loop', async ({
+    request,
+    testId,
+  }) => {
+    const res = await request.post('/api/otel-usage', {
+      data: { provider: 'tool-loop', testId },
+    })
+    expect(res.ok()).toBe(true)
+    const { ok, error, spans } = await res.json()
+    expect(error ?? null).toBeNull()
+    expect(ok).toBe(true)
+
+    const iterationSpans = spans.filter(
+      (span: any) => span.kind === SpanKind.CLIENT,
+    )
+    expect(iterationSpans).toHaveLength(2)
+    expect(iterationSpans.every((span: any) => span.ended)).toBe(true)
+
+    const rootSpans = spans.filter(
+      (span: any) =>
+        span.kind === SpanKind.INTERNAL &&
+        span.attributes['tanstack.ai.iterations'] === 2,
+    )
+    expect(rootSpans).toHaveLength(1)
+    expect(rootSpans[0].ended).toBe(true)
+
+    for (const key of [
+      'gen_ai.usage.input_tokens',
+      'gen_ai.usage.output_tokens',
+      'gen_ai.usage.total_tokens',
+    ]) {
+      expect(rootSpans[0].attributes[key]).toBe(
+        iterationSpans.reduce(
+          (total: number, span: any) => total + span.attributes[key],
+          0,
+        ),
+      )
+    }
+  })
+
+  test('otel middleware emits total/cache/reasoning usage details on spans', async ({
+    request,
+  }) => {
+    // `/api/otel-usage` drives the OpenAI adapter against the
+    // `/openai-usage-details` aimock mount (total_tokens + cached_tokens +
+    // reasoning_tokens) with otelMiddleware attached, and returns the
+    // captured spans. End-to-end proof for #721: the full TokenUsage reaches
+    // span attributes, not just input/output tokens.
+    const res = await request.post('/api/otel-usage', {
+      data: { provider: 'openai' },
+    })
+    expect(res.ok()).toBe(true)
+    const { ok, error, spans } = await res.json()
+    expect(error ?? null).toBeNull()
+    expect(ok).toBe(true)
+
+    const iterationSpans = spans.filter(
+      (s: any) => s.kind === SpanKind.CLIENT && s.ended,
+    )
+    expect(iterationSpans.length).toBeGreaterThanOrEqual(1)
+    expect(iterationSpans[0].attributes).toMatchObject({
+      'gen_ai.usage.input_tokens': 100,
+      'gen_ai.usage.output_tokens': 50,
+      'gen_ai.usage.total_tokens': 150,
+      'gen_ai.usage.cache_read.input_tokens': 80,
+      'gen_ai.usage.reasoning.output_tokens': 30,
+    })
+
+    // The root span rolls up the final usage on onFinish.
+    const rootSpans = spans.filter((s: any) => s.kind === SpanKind.INTERNAL)
+    expect(rootSpans).toHaveLength(1)
+    expect(rootSpans[0].attributes).toMatchObject({
+      'gen_ai.usage.total_tokens': 150,
+      'gen_ai.usage.cache_read.input_tokens': 80,
+      'gen_ai.usage.reasoning.output_tokens': 30,
+    })
+  })
+
+  test('otel middleware keeps image parts structured in gen_ai.input.messages', async ({
+    request,
+  }) => {
+    // #1525: captureContent used to flatten image parts to "[image]". The
+    // URL reference must survive as an OTel semconv `uri` part.
+    const res = await request.post('/api/otel-usage', {
+      data: { provider: 'multimodal' },
+    })
+    expect(res.ok()).toBe(true)
+    const { ok, error, spans } = await res.json()
+    expect(error ?? null).toBeNull()
+    expect(ok).toBe(true)
+
+    const iterationSpan = spans.find((s: any) => s.kind === SpanKind.CLIENT)
+    expect(
+      JSON.parse(iterationSpan.attributes['gen_ai.input.messages']),
+    ).toEqual([
+      {
+        role: 'user',
+        content: [
+          { type: 'text', content: 'describe this' },
+          {
+            type: 'uri',
+            modality: 'image',
+            uri: 'https://example.com/cat.png',
+            mime_type: 'image/png',
+          },
+        ],
+      },
+    ])
+  })
+
+  test('otel middleware emits provider-reported cost on spans', async ({
+    request,
+  }) => {
+    // OpenRouter adapter against the `/openrouter-cost` mount, whose trailing
+    // usage chunk carries `cost` / `cost_details`. Backends like PostHog read
+    // `gen_ai.usage.cost` directly instead of re-deriving from price tables.
+    const res = await request.post('/api/otel-usage', {
+      data: { provider: 'openrouter' },
+    })
+    expect(res.ok()).toBe(true)
+    const { ok, error, spans } = await res.json()
+    expect(error ?? null).toBeNull()
+    expect(ok).toBe(true)
+
+    const iterationSpans = spans.filter(
+      (s: any) => s.kind === SpanKind.CLIENT && s.ended,
+    )
+    expect(iterationSpans.length).toBeGreaterThanOrEqual(1)
+    expect(iterationSpans[0].attributes).toMatchObject({
+      'gen_ai.usage.input_tokens': 11,
+      'gen_ai.usage.output_tokens': 3,
+      'gen_ai.usage.total_tokens': 14,
+      'gen_ai.usage.cost': 0.0042,
+      'tanstack.ai.usage.upstream_cost': 0.0038,
+      'tanstack.ai.usage.upstream_input_cost': 0.0012,
+      'tanstack.ai.usage.upstream_output_cost': 0.0026,
+    })
+
+    const rootSpans = spans.filter((s: any) => s.kind === SpanKind.INTERNAL)
+    expect(rootSpans).toHaveLength(1)
+    expect(rootSpans[0].attributes['gen_ai.usage.cost']).toBe(0.0042)
+  })
+
+  test('otelMiddleware emits an image_generation span for generateImage', async ({
+    request,
+    testId,
+    aimockPort,
+  }) => {
+    // `/api/otel-media` drives generateImage with otelMiddleware against the
+    // image-gen aimock mount and returns the captured spans. End-to-end proof
+    // that the unified middleware tags a non-chat activity with the right
+    // `gen_ai.operation.name` — the same `otelMiddleware` value used for chat,
+    // passed through the media `middleware` slot.
+    const res = await request.post('/api/otel-media', {
+      data: {
+        prompt: 'a guitar in a music store',
+        provider: 'openai',
+        testId,
+        aimockPort,
+      },
+    })
+    expect(res.ok()).toBe(true)
+    const { ok, error, spans } = await res.json()
+    expect(error ?? null).toBeNull()
+    expect(ok).toBe(true)
+
+    const mediaSpans = spans.filter(
+      (s: any) => s.attributes['gen_ai.operation.name'] === 'image_generation',
+    )
+    expect(mediaSpans).toHaveLength(1)
+    expect(mediaSpans[0].kind).toBe(SpanKind.CLIENT)
+    expect(mediaSpans[0].ended).toBe(true)
+    expect(mediaSpans[0].attributes).toMatchObject({
+      'gen_ai.system': 'openai',
+      'gen_ai.operation.name': 'image_generation',
+      'gen_ai.request.model': 'gpt-image-1',
+    })
+    // captureContent (#1526): the prompt lands as input. The mock returns a
+    // `data:` URL, so the output is a placeholder, never the bytes.
+    expect(
+      JSON.parse(mediaSpans[0].attributes['gen_ai.input.messages']),
+    ).toEqual([
+      {
+        role: 'user',
+        content: [{ type: 'text', content: 'a guitar in a music store' }],
+      },
+    ])
+    expect(
+      JSON.parse(mediaSpans[0].attributes['gen_ai.output.messages']),
+    ).toEqual([
+      { role: 'assistant', content: [{ type: 'text', content: '[image]' }] },
+    ])
+  })
+
+  test('otel middleware emits the self-describing billed quantity for a duration-billed activity', async ({
+    request,
+    testId,
+    aimockPort,
+  }) => {
+    // `/api/otel-transcription` drives whisper-1 (duration-billed) against the
+    // transcription aimock fixture, whose response reports `duration: 2.4`.
+    // The adapter surfaces that as `usage.billed = { quantity, unit }`, and the
+    // middleware must emit it as the paired billed_quantity/billed_unit
+    // attributes — the machine-readable unit that #816 adds.
+    const res = await request.post('/api/otel-transcription', {
+      data: {
+        audio: 'data:audio/mpeg;base64,SGVsbG8=',
+        provider: 'openai',
+        testId,
+        aimockPort,
+      },
+    })
+    expect(res.ok()).toBe(true)
+    const { ok, error, spans } = await res.json()
+    expect(error ?? null).toBeNull()
+    expect(ok).toBe(true)
+
+    const mediaSpans = spans.filter(
+      (s: any) => s.attributes['gen_ai.operation.name'] === 'transcription',
+    )
+    expect(mediaSpans).toHaveLength(1)
+    expect(mediaSpans[0].ended).toBe(true)
+    expect(mediaSpans[0].attributes).toMatchObject({
+      'gen_ai.request.model': 'whisper-1',
+      'tanstack.ai.usage.billed_quantity': 2.4,
+      'tanstack.ai.usage.billed_unit': 'seconds',
+    })
+    // captureContent (#1526): inline source audio is a placeholder; the
+    // transcript is the output.
+    expect(
+      JSON.parse(mediaSpans[0].attributes['gen_ai.input.messages']),
+    ).toEqual([
+      { role: 'user', content: [{ type: 'text', content: '[audio]' }] },
+    ])
+    expect(
+      JSON.parse(mediaSpans[0].attributes['gen_ai.output.messages']),
+    ).toEqual([
+      {
+        role: 'assistant',
+        content: [
+          {
+            type: 'text',
+            content: 'I would like to buy a Fender Stratocaster please',
+          },
+        ],
+      },
+    ])
+  })
+
   test('no middleware passes content through unchanged', async ({
     page,
     testId,
@@ -94,5 +797,51 @@ test.describe('Middleware Lifecycle', () => {
     const textPart = assistantMsg?.parts?.find((p: any) => p.type === 'text')
     expect(textPart?.content).not.toContain('[MW]')
     expect(textPart?.content).toContain('Hello')
+  })
+
+  test('memory middleware injects recalled prompt + tools and defers save', async ({
+    page,
+    testId,
+    aimockPort,
+  }) => {
+    const params = new URLSearchParams()
+    if (testId) params.set('testId', testId)
+    if (aimockPort) params.set('aimockPort', String(aimockPort))
+    const qs = params.toString()
+    await page.goto(`/middleware-test${qs ? '?' + qs : ''}`)
+    await page.waitForTimeout(2000) // hydration
+    await page.locator('#mw-scenario-select').selectOption('basic-text')
+    await page.locator('#mw-mode-select').selectOption('memory')
+    await page.locator('#mw-run-button').click()
+
+    await page.waitForFunction(
+      () =>
+        document
+          .querySelector('#mw-metadata')
+          ?.getAttribute('data-test-complete') === 'true',
+      { timeout: 10000 },
+    )
+
+    const memoryJson = await page.locator('#mw-memory-json').textContent()
+    const capture = JSON.parse(memoryJson || '{}') as {
+      configs: Array<{ systemPrompts: Array<string>; toolNames: Array<string> }>
+      saveCount: number
+    }
+
+    // The recorder placed after memoryMiddleware saw the config the model
+    // receives: the recalled system prompt (+ tool guidance) and the injected
+    // tool must both be present.
+    expect(capture.configs.length).toBeGreaterThan(0)
+    const injected = capture.configs.find((c) =>
+      c.systemPrompts.some((p) => p.includes('love TanStack')),
+    )
+    expect(injected).toBeTruthy()
+    expect(injected?.systemPrompts.some((p) => p.includes('recall_more'))).toBe(
+      true,
+    )
+    expect(injected?.toolNames).toContain('recall_more')
+
+    // The finished turn deferred a save through the adapter.
+    expect(capture.saveCount).toBeGreaterThanOrEqual(1)
   })
 })

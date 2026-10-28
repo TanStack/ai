@@ -6,7 +6,15 @@
  * and audio generation flows.
  */
 
-export type SpeechProviderId = 'openai' | 'gemini' | 'fal' | 'grok'
+import type { TranscriptionGenerateInput } from '@tanstack/ai-client'
+
+export type SpeechProviderId =
+  | 'openai'
+  | 'gemini'
+  | 'fal'
+  | 'grok'
+  | 'elevenlabs'
+  | 'byteplus'
 
 export interface SpeechProviderConfig {
   id: SpeechProviderId
@@ -68,15 +76,50 @@ export const SPEECH_PROVIDERS: ReadonlyArray<SpeechProviderConfig> = [
     ],
     placeholder: 'Enter text for Grok speech…',
   },
+  {
+    id: 'elevenlabs',
+    label: 'ElevenLabs',
+    model: 'eleven_multilingual_v2',
+    voices: [
+      { id: '21m00Tcm4TlvDq8ikWAM', label: 'Rachel' },
+      { id: 'AZnzlk1XvdvUeBnXmlld', label: 'Domi' },
+      { id: 'EXAVITQu4vr4xnSDxMaL', label: 'Bella' },
+      { id: 'pNInz6obpgDQGcFmaJgB', label: 'Adam' },
+    ],
+    placeholder: 'Enter text to synthesize with ElevenLabs…',
+  },
+  {
+    id: 'byteplus',
+    label: 'BytePlus Seed Speech',
+    model: 'seed-audio-1.0',
+    // Voice ids ("speakers") encode language, gender, character and TTS
+    // generation. The full roster lives at
+    // https://docs.byteplus.com/en/docs/byteplusvoice/voicelist; this is the
+    // adapter's default. Output formats: wav | mp3 | pcm | ogg_opus.
+    voices: [
+      { id: 'en_female_stokie_uranus_bigtts', label: 'Stokie (EN female)' },
+    ],
+    placeholder: 'Enter text for BytePlus Seed Speech…',
+  },
 ]
 
-export type TranscriptionProviderId = 'openai' | 'fal' | 'grok'
+export type TranscriptionProviderId =
+  | 'openai'
+  | 'openai-diarize'
+  | 'fal'
+  | 'grok'
+  | 'elevenlabs'
+  | 'byteplus'
 
 export interface TranscriptionProviderConfig {
   id: TranscriptionProviderId
   label: string
   model: string
   description: string
+  transcriptionOptions?: Pick<
+    TranscriptionGenerateInput,
+    'responseFormat' | 'modelOptions'
+  >
 }
 
 export const TRANSCRIPTION_PROVIDERS: ReadonlyArray<TranscriptionProviderConfig> =
@@ -86,6 +129,19 @@ export const TRANSCRIPTION_PROVIDERS: ReadonlyArray<TranscriptionProviderConfig>
       label: 'OpenAI Whisper',
       model: 'whisper-1',
       description: 'OpenAI Whisper transcription with optional streaming.',
+    },
+    {
+      id: 'openai-diarize',
+      label: 'OpenAI Diarize',
+      model: 'gpt-4o-transcribe-diarize',
+      description:
+        'OpenAI diarized transcription with speaker-labeled segments.',
+      transcriptionOptions: {
+        modelOptions: {
+          response_format: 'diarized_json',
+          chunking_strategy: 'auto',
+        },
+      },
     },
     {
       id: 'fal',
@@ -99,9 +155,28 @@ export const TRANSCRIPTION_PROVIDERS: ReadonlyArray<TranscriptionProviderConfig>
       model: 'grok-stt',
       description: 'xAI speech-to-text with word-level timestamps.',
     },
+    {
+      id: 'elevenlabs',
+      label: 'ElevenLabs Scribe',
+      model: 'scribe_v1',
+      description:
+        'ElevenLabs Scribe with diarization, keyterm biasing, and PII redaction.',
+    },
+    {
+      id: 'byteplus',
+      label: 'BytePlus Seed ASR',
+      model: 'seed-asr',
+      description:
+        'BytePlus Seed Speech ASR with utterance and word-level timestamps.',
+    },
   ]
 
-export type AudioProviderId = 'gemini-lyria' | 'fal-audio' | 'fal-sfx'
+export type AudioProviderId =
+  | 'gemini-lyria'
+  | 'fal-audio'
+  | 'fal-sfx'
+  | 'elevenlabs-music'
+  | 'elevenlabs-sfx'
 
 export interface AudioProviderConfig {
   id: AudioProviderId
@@ -241,6 +316,72 @@ export const AUDIO_PROVIDERS: ReadonlyArray<AudioProviderConfig> = [
         label: 'Cartoon banana slip',
         prompt:
           'Classic cartoon banana slip: quick slide, comedic boing, and a distant crash.',
+      },
+    ],
+  },
+  {
+    id: 'elevenlabs-music',
+    label: 'ElevenLabs Music',
+    model: 'music_v2_5',
+    models: [
+      { id: 'music_v2_5', label: 'Music v2.5' },
+      { id: 'music_v2', label: 'Music v2' },
+    ],
+    description:
+      'ElevenLabs Music — free-form prompts or structured composition plans.',
+    placeholder: 'An upbeat synthwave track with driving drums and arpeggios',
+    defaultDuration: 15,
+    samplePrompts: [
+      {
+        label: 'Synthwave drive',
+        prompt:
+          'An upbeat synthwave track with driving drums, warm analog pads, and glittering arpeggios.',
+      },
+      {
+        label: 'Cinematic reveal',
+        prompt:
+          'A cinematic reveal score with soaring strings, low brass stabs, and a sudden timpani hit.',
+      },
+      {
+        label: 'Acoustic campfire',
+        prompt:
+          'A gentle acoustic campfire tune: fingerpicked guitar, soft harmonica, and distant crickets.',
+      },
+      {
+        label: 'Angry kazoo orchestra',
+        prompt:
+          'A furious kazoo orchestra performing an operatic aria about overdue library books.',
+      },
+    ],
+  },
+  {
+    id: 'elevenlabs-sfx',
+    label: 'ElevenLabs SFX',
+    model: 'eleven_text_to_sound_v2',
+    models: [{ id: 'eleven_text_to_sound_v2', label: 'Text-to-Sound v2' }],
+    description:
+      'ElevenLabs text-to-sound for short effects, 0.5–30 seconds per clip.',
+    placeholder: 'A whoosh followed by a deep bass impact',
+    defaultDuration: 5,
+    samplePrompts: [
+      {
+        label: 'Trailer whoosh',
+        prompt: 'A cinematic whoosh followed by a deep sub-bass impact.',
+      },
+      {
+        label: 'Sword unsheathe',
+        prompt:
+          'The crisp metallic ring of a sword being drawn from a leather scabbard.',
+      },
+      {
+        label: 'UI confirmation',
+        prompt:
+          'A short, satisfying UI confirmation tone with a subtle sparkle tail.',
+      },
+      {
+        label: 'Anxious toaster',
+        prompt:
+          'A small kitchen toaster having an anxiety attack: frantic clicks, steam, and a plaintive ding.',
       },
     ],
   },

@@ -1,6 +1,7 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { generateImage, toServerSentEventsResponse } from '@tanstack/ai'
 import { createImageAdapter } from '@/lib/media-providers'
+import type { MediaPrompt } from '@tanstack/ai'
 import type { Provider } from '@/lib/types'
 
 export const Route = createFileRoute('/api/image')({
@@ -10,10 +11,10 @@ export const Route = createFileRoute('/api/image')({
         await import('@/lib/llmock-server').then((m) => m.ensureLLMock())
         const abortController = new AbortController()
         const body = await request.json()
-        const data = body.data ?? body
+        const data = body.forwardedProps ?? body
         const { prompt, provider, numberOfImages, testId, aimockPort } =
           data as {
-            prompt: string
+            prompt: MediaPrompt
             provider: Provider
             numberOfImages?: number
             testId?: string
@@ -24,6 +25,7 @@ export const Route = createFileRoute('/api/image')({
 
         try {
           const stream = generateImage({
+            threadId: body.threadId,
             adapter,
             prompt,
             numberOfImages: numberOfImages ?? 1,

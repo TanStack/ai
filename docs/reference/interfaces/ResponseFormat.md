@@ -3,9 +3,7 @@ id: ResponseFormat
 title: ResponseFormat
 ---
 
-# Interface: ResponseFormat\<TData\>
-
-Defined in: [packages/typescript/ai/src/types.ts:547](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L547)
+Defined in: packages/ai/src/types.ts:1124
 
 Structured output format specification.
 
@@ -30,10 +28,10 @@ TypeScript type of the expected data structure (for type safety)
 ### \_\_data?
 
 ```ts
-optional __data: TData;
+optional __data?: TData;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:625](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L625)
+Defined in: packages/ai/src/types.ts:1202
 
 **`Internal`**
 
@@ -47,10 +45,10 @@ Allows the SDK to know what type to expect when parsing the response.
 ### json\_schema?
 
 ```ts
-optional json_schema: object;
+optional json_schema?: object;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:564](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L564)
+Defined in: packages/ai/src/types.ts:1141
 
 JSON schema specification (required when type is "json_schema").
 
@@ -60,7 +58,7 @@ OpenAI's structured outputs will guarantee the output matches this schema.
 #### description?
 
 ```ts
-optional description: string;
+optional description?: string;
 ```
 
 Optional description of what the schema represents.
@@ -117,7 +115,7 @@ https://json-schema.org/
 #### strict?
 
 ```ts
-optional strict: boolean;
+optional strict?: boolean;
 ```
 
 Whether to enforce strict schema validation.
@@ -139,7 +137,7 @@ https://platform.openai.com/docs/guides/structured-outputs#strict-mode
 type: "json_object" | "json_schema";
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:556](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L556)
+Defined in: packages/ai/src/types.ts:1133
 
 Type of structured output.
 

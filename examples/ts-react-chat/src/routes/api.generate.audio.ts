@@ -1,14 +1,34 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { generateAudio, toServerSentEventsResponse } from '@tanstack/ai'
+import {
+  generateAudio,
+  generationParamsFromBody,
+  memoryStream,
+  toServerSentEventsResponse,
+} from '@tanstack/ai'
+import {
+  reconstructGeneration,
+  withGenerationPersistence,
+} from '@tanstack/ai-persistence'
 import { z } from 'zod'
 import {
   InvalidModelOverrideError,
   UnknownProviderError,
   buildAudioAdapter,
 } from '../lib/server-audio-adapters'
+import { replayGenerationIfResuming } from '../lib/generation-durability'
+import {
+  artifactServeUrl,
+  generationServerPersistence,
+} from '../lib/generation-server-store'
 
 const AUDIO_PROVIDER_SCHEMA = z
-  .enum(['gemini-lyria', 'fal-audio', 'fal-sfx'])
+  .enum([
+    'gemini-lyria',
+    'fal-audio',
+    'fal-sfx',
+    'elevenlabs-music',
+    'elevenlabs-sfx',
+  ])
   .optional()
 
 const AUDIO_BODY_SCHEMA = z.object({
@@ -39,11 +59,12 @@ export const Route = createFileRoute('/api/generate/audio')({
           })
         }
 
-        const rawData = (body as { data?: unknown } | null)?.data
+        const rawData = (body as { forwardedProps?: unknown } | null)
+          ?.forwardedProps
         if (rawData == null) {
           return jsonError(400, {
-            error: 'missing_data',
-            message: 'Request body must include a `data` field',
+            error: 'missing_forwarded_props',
+            message: 'Request body must include a `forwardedProps` field',
           })
         }
 
@@ -58,6 +79,20 @@ export const Route = createFileRoute('/api/generate/audio')({
 
         const { prompt, duration, provider, model } = parsed.data
 
+        // The AG-UI envelope also carries the generation's identity. Persistence
+        // files the run under it, so a reload hydrates the same slot.
+        let threadId: string
+        let runId: string
+        try {
+          ;({ threadId, runId } = generationParamsFromBody('audio', body))
+        } catch (err) {
+          return jsonError(400, {
+            error: 'invalid_envelope',
+            message:
+              err instanceof Error ? err.message : 'Invalid request envelope',
+          })
+        }
+
         try {
           const adapter = buildAudioAdapter(provider ?? 'gemini-lyria', model)
 
@@ -66,9 +101,26 @@ export const Route = createFileRoute('/api/generate/audio')({
             prompt,
             duration,
             stream: true,
+            threadId,
+            runId,
+            // Copies the generated audio into our blob store and rewrites the
+            // result to the shared `/api/artifacts` serve URL, so a restored
+            // run still plays after the provider's link expires.
+            middleware: [
+              withGenerationPersistence(generationServerPersistence(), {
+                threadId,
+                artifactUrl: (ref) => artifactServeUrl(ref.artifactId),
+              }),
+            ],
           })
 
-          return toServerSentEventsResponse(stream)
+          // Delivery durability: each chunk is logged and id-tagged, so a
+          // reconnect or a mount-time `joinRun` replays instead of re-running
+          // the model. The run itself still ends with the request — an audio
+          // clip is short enough to simply re-run.
+          return toServerSentEventsResponse(stream, {
+            durability: { adapter: memoryStream(request) },
+          })
         } catch (err) {
           if (err instanceof InvalidModelOverrideError) {
             return jsonError(400, {
@@ -99,6 +151,15 @@ export const Route = createFileRoute('/api/generate/audio')({
           })
         }
       },
+
+      // Two independent jobs, resolved in order (like the image route):
+      // 1. `joinRun` delivery replay, when the request carries a resume offset.
+      // 2. Mount hydration for `persistence: true`: the latest run for
+      //    `?threadId=`, as `{ resumeSnapshot, activeRun }`, so a completed
+      //    clip still restores after a reload once its delivery log ages out.
+      GET: async ({ request }) =>
+        replayGenerationIfResuming(request) ??
+        (await reconstructGeneration(generationServerPersistence(), request)),
     },
   },
 })

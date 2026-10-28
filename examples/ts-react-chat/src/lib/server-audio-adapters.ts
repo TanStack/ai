@@ -8,12 +8,24 @@
 import { openaiSpeech, openaiTranscription } from '@tanstack/ai-openai'
 import { geminiAudio, geminiSpeech } from '@tanstack/ai-gemini'
 import { falAudio, falSpeech, falTranscription } from '@tanstack/ai-fal'
+import {
+  elevenlabsAudio,
+  elevenlabsSpeech,
+  elevenlabsTranscription,
+} from '@tanstack/ai-elevenlabs'
 import { grokSpeech, grokTranscription } from '@tanstack/ai-grok'
+import {
+  byteplusSpeech,
+  byteplusTranscription,
+  createBytePlusSpeech,
+  createBytePlusTranscription,
+} from '@tanstack/ai-byteplus'
 import type {
   AnyAudioAdapter,
   AnyTranscriptionAdapter,
   AnyTTSAdapter,
 } from '@tanstack/ai'
+import type { ElevenLabsAudioModel } from '@tanstack/ai-elevenlabs'
 import {
   AUDIO_PROVIDERS,
   SPEECH_PROVIDERS,
@@ -37,7 +49,10 @@ function findConfig<T extends { id: string }>(
   return match
 }
 
-export function buildSpeechAdapter(provider: SpeechProviderId): AnyTTSAdapter {
+export function buildSpeechAdapter(
+  provider: SpeechProviderId,
+  apiKey?: string,
+): AnyTTSAdapter {
   const config = findConfig(SPEECH_PROVIDERS, provider)
   switch (config.id) {
     case 'openai':
@@ -48,20 +63,38 @@ export function buildSpeechAdapter(provider: SpeechProviderId): AnyTTSAdapter {
       return falSpeech(config.model)
     case 'grok':
       return grokSpeech(config.model as 'grok-tts')
+    case 'elevenlabs':
+      return elevenlabsSpeech(config.model as 'eleven_multilingual_v2')
+    case 'byteplus':
+      // Seed Speech TTS authenticates with BYTEPLUS_VOICE_API_KEY, a
+      // different product (and key) from the ARK_API_KEY used for chat.
+      return apiKey
+        ? createBytePlusSpeech(config.model as 'seed-audio-1.0', apiKey)
+        : byteplusSpeech(config.model as 'seed-audio-1.0')
   }
 }
 
 export function buildTranscriptionAdapter(
   provider: TranscriptionProviderId,
+  apiKey?: string,
 ): AnyTranscriptionAdapter {
   const config = findConfig(TRANSCRIPTION_PROVIDERS, provider)
   switch (config.id) {
     case 'openai':
       return openaiTranscription(config.model as 'whisper-1')
+    case 'openai-diarize':
+      return openaiTranscription(config.model as 'gpt-4o-transcribe-diarize')
     case 'fal':
       return falTranscription(config.model)
     case 'grok':
       return grokTranscription(config.model as 'grok-stt')
+    case 'elevenlabs':
+      return elevenlabsTranscription(config.model as 'scribe_v1')
+    case 'byteplus':
+      // Seed Speech ASR shares the BYTEPLUS_VOICE_API_KEY key with TTS.
+      return apiKey
+        ? createBytePlusTranscription(config.model as 'seed-asr', apiKey)
+        : byteplusTranscription(config.model as 'seed-asr')
   }
 }
 
@@ -79,6 +112,9 @@ export function buildAudioAdapter(
     case 'fal-audio':
     case 'fal-sfx':
       return falAudio(model)
+    case 'elevenlabs-music':
+    case 'elevenlabs-sfx':
+      return elevenlabsAudio(model as ElevenLabsAudioModel)
   }
 }
 

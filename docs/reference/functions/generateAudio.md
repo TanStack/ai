@@ -3,13 +3,11 @@ id: generateAudio
 title: generateAudio
 ---
 
-# Function: generateAudio()
-
 ```ts
 function generateAudio<TAdapter, TStream>(options): AudioActivityResult<TStream>;
 ```
 
-Defined in: [packages/typescript/ai/src/activities/generateAudio/index.ts:115](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/generateAudio/index.ts#L115)
+Defined in: packages/ai/src/activities/generateAudio/index.ts:155
 
 Audio generation activity - generates audio from text prompts.
 
@@ -37,6 +35,8 @@ Uses AI models to create music, sound effects, and other audio content.
 
 ## Example
 
+**Generate music from a prompt**
+
 ```ts
 import { generateAudio } from '@tanstack/ai'
 import { falAudio } from '@tanstack/ai-fal'
@@ -44,7 +44,8 @@ import { falAudio } from '@tanstack/ai-fal'
 const result = await generateAudio({
   adapter: falAudio('fal-ai/diffrhythm'),
   prompt: 'An upbeat electronic track with synths',
-  duration: 10
+  duration: 10,
+  threadId,
 })
 
 console.log(result.audio.url) // URL to generated audio

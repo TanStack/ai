@@ -3,13 +3,11 @@ id: GeneratedImage
 title: GeneratedImage
 ---
 
-# Type Alias: GeneratedImage
-
 ```ts
 type GeneratedImage = GeneratedMediaSource & object;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:1243](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1243)
+Defined in: packages/ai/src/types.ts:2444
 
 A single generated image
 
@@ -18,7 +16,7 @@ A single generated image
 ### revisedPrompt?
 
 ```ts
-optional revisedPrompt: string;
+optional revisedPrompt?: string;
 ```
 
 Revised prompt used by the model (if applicable)

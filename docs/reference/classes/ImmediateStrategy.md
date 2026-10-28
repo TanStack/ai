@@ -3,9 +3,7 @@ id: ImmediateStrategy
 title: ImmediateStrategy
 ---
 
-# Class: ImmediateStrategy
-
-Defined in: [packages/typescript/ai/src/activities/chat/stream/strategies.ts:12](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/stream/strategies.ts#L12)
+Defined in: packages/ai/src/activities/chat/stream/strategies.ts:12
 
 Immediate Strategy - emit on every chunk (default behavior)
 
@@ -33,7 +31,7 @@ new ImmediateStrategy(): ImmediateStrategy;
 shouldEmit(_chunk, _accumulated): boolean;
 ```
 
-Defined in: [packages/typescript/ai/src/activities/chat/stream/strategies.ts:13](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/activities/chat/stream/strategies.ts#L13)
+Defined in: packages/ai/src/activities/chat/stream/strategies.ts:13
 
 Called for each text chunk received
 

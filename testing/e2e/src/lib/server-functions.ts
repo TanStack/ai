@@ -1,29 +1,40 @@
 import { createServerFn } from '@tanstack/react-start'
 import {
+  generateAudio,
   generateImage,
   generateSpeech,
   generateTranscription,
   generateVideo,
   getVideoJobStatus,
 } from '@tanstack/ai'
+import type {
+  MediaPrompt,
+  TranscriptionResponseFormat,
+  TTSTurn,
+} from '@tanstack/ai'
+import type { Feature, Provider } from '@/lib/types'
 import {
+  createAudioAdapter,
   createImageAdapter,
   createTTSAdapter,
   createTranscriptionAdapter,
   createVideoAdapter,
 } from '@/lib/media-providers'
-import type { Provider } from '@/lib/types'
 
 export const generateImageFn = createServerFn({ method: 'POST' })
   .inputValidator(
     (data: {
-      prompt: string
+      prompt: MediaPrompt
       provider: Provider
       numberOfImages?: number
       aimockPort?: number
       testId?: string
     }) => {
-      if (!data.prompt.trim()) throw new Error('Prompt is required')
+      const isEmpty =
+        typeof data.prompt === 'string'
+          ? !data.prompt.trim()
+          : data.prompt.length === 0
+      if (isEmpty) throw new Error('Prompt is required')
       if (!data.provider) throw new Error('Provider is required')
       return data
     },
@@ -36,6 +47,7 @@ export const generateImageFn = createServerFn({ method: 'POST' })
       data.testId,
     )
     return generateImage({
+      threadId: 'server-fn-image',
       adapter,
       prompt: data.prompt,
       numberOfImages: data.numberOfImages ?? 1,
@@ -45,13 +57,17 @@ export const generateImageFn = createServerFn({ method: 'POST' })
 export const generateSpeechFn = createServerFn({ method: 'POST' })
   .inputValidator(
     (data: {
-      text: string
+      text?: string
+      turns?: Array<TTSTurn>
+      timestamps?: boolean
       voice?: string
       provider: Provider
       aimockPort?: number
       testId?: string
     }) => {
-      if (!data.text.trim()) throw new Error('Text is required')
+      if (!data.turns?.length && !data.text?.trim()) {
+        throw new Error('Text or turns is required')
+      }
       if (!data.provider) throw new Error('Provider is required')
       return data
     },
@@ -63,11 +79,22 @@ export const generateSpeechFn = createServerFn({ method: 'POST' })
       data.aimockPort,
       data.testId,
     )
-    return generateSpeech({
-      adapter,
-      text: data.text,
-      voice: data.voice,
-    })
+    // `text` and `turns` are mutually exclusive in the activity's options, so
+    // the branch is what makes the call type-check rather than cosmetic.
+    return data.turns
+      ? generateSpeech({
+          threadId: 'server-fn-speech',
+          adapter,
+          turns: data.turns,
+          timestamps: data.timestamps,
+        })
+      : generateSpeech({
+          threadId: 'server-fn-speech',
+          adapter,
+          text: data.text ?? '',
+          voice: data.voice,
+          timestamps: data.timestamps,
+        })
   })
 
 export const generateTranscriptionFn = createServerFn({ method: 'POST' })
@@ -75,7 +102,10 @@ export const generateTranscriptionFn = createServerFn({ method: 'POST' })
     (data: {
       audio: string
       language?: string
+      responseFormat?: TranscriptionResponseFormat
+      modelOptions?: Record<string, any>
       provider: Provider
+      feature?: Feature
       aimockPort?: number
       testId?: string
     }) => {
@@ -90,23 +120,66 @@ export const generateTranscriptionFn = createServerFn({ method: 'POST' })
       data.provider,
       data.aimockPort,
       data.testId,
+      {
+        responseFormat: data.responseFormat,
+        modelOptions: data.modelOptions,
+      },
     )
     return generateTranscription({
+      threadId: 'server-fn-transcription',
       adapter,
       audio: data.audio,
       language: data.language,
+      responseFormat: data.responseFormat,
+      modelOptions: data.modelOptions,
+    })
+  })
+
+export const generateAudioFn = createServerFn({ method: 'POST' })
+  .inputValidator(
+    (data: {
+      prompt: string
+      provider: Provider
+      duration?: number
+      aimockPort?: number
+      testId?: string
+      feature?: Feature
+    }) => {
+      if (!data.prompt.trim()) throw new Error('Prompt is required')
+      if (!data.provider) throw new Error('Provider is required')
+      return data
+    },
+  )
+  .handler(async ({ data }) => {
+    await import('@/lib/llmock-server').then((m) => m.ensureLLMock())
+    const adapter = createAudioAdapter(
+      data.provider,
+      data.aimockPort,
+      data.testId,
+      data.feature,
+    )
+    return generateAudio({
+      threadId: 'server-fn-audio',
+      adapter,
+      prompt: data.prompt,
+      ...(data.duration != null ? { duration: data.duration } : {}),
     })
   })
 
 export const generateVideoFn = createServerFn({ method: 'POST' })
   .inputValidator(
     (data: {
-      prompt: string
+      prompt: MediaPrompt
       provider: Provider
       aimockPort?: number
       testId?: string
+      feature?: Feature
     }) => {
-      if (!data.prompt.trim()) throw new Error('Prompt is required')
+      const isEmpty =
+        typeof data.prompt === 'string'
+          ? !data.prompt.trim()
+          : data.prompt.length === 0
+      if (isEmpty) throw new Error('Prompt is required')
       if (!data.provider) throw new Error('Provider is required')
       return data
     },
@@ -117,9 +190,11 @@ export const generateVideoFn = createServerFn({ method: 'POST' })
       data.provider,
       data.aimockPort,
       data.testId,
+      data.feature,
     )
     // Non-streaming: create job, poll until complete, return result with URL
     const { jobId } = await generateVideo({
+      threadId: 'server-fn-video',
       adapter,
       prompt: data.prompt,
     })
