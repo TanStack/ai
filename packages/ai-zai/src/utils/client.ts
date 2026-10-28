@@ -1,10 +1,15 @@
-import OpenAI from 'openai'
+import { getApiKeyFromEnv } from '@tanstack/ai-utils'
+import type { ClientOptions } from 'openai'
 
 export const ZAI_GENERAL_BASE_URL = 'https://api.z.ai/api/paas/v4'
 export const ZAI_CODING_BASE_URL = 'https://api.z.ai/api/coding/paas/v4'
 
-export interface ClientConfig {
-  baseURL?: string
+export interface ZAIClientConfig extends Omit<ClientOptions, 'apiKey'> {
+  apiKey: string
+  /**
+   * Use Z.AI's coding-plan endpoint instead of the general one. Ignored when
+   * `baseURL` is set.
+   */
   coding?: boolean
 }
 
@@ -14,32 +19,23 @@ export function getZAIHeaders(): Record<string, string> {
   }
 }
 
+/**
+ * Gets the Z.AI API key from `ZAI_API_KEY`.
+ * @throws Error if the variable is not set
+ */
 export function getZAIApiKeyFromEnv(): string {
-  const env =
-    typeof globalThis !== 'undefined' && (globalThis as any).window?.env
-      ? (globalThis as any).window.env
-      : typeof process !== 'undefined'
-        ? process.env
-        : undefined
-
-  const key = env?.ZAI_API_KEY
-
-  if (!key) {
+  try {
+    return getApiKeyFromEnv('ZAI_API_KEY')
+  } catch {
     throw new Error(
       'ZAI_API_KEY is required. Please set it in your environment variables or use the factory function with an explicit API key.',
     )
   }
-
-  return key
 }
 
 /**
  * Validates the Z.AI API key format.
  * Checks for empty strings, whitespace, and invalid prefixes.
- *
- * @param apiKey - The API key to validate
- * @returns The validated and trimmed API key
- * @throws Error if the key is invalid
  */
 export function validateZAIApiKey(apiKey?: string): string {
   if (!apiKey || typeof apiKey !== 'string') {
@@ -65,14 +61,21 @@ export function validateZAIApiKey(apiKey?: string): string {
   return trimmed
 }
 
-export function createZAIClient(apiKey: string, config?: ClientConfig): OpenAI {
-  const validatedKey = validateZAIApiKey(apiKey)
-
-  return new OpenAI({
-    apiKey: validatedKey,
+/**
+ * Returns a client config with the Z.AI base URL and default headers applied
+ * when not already set. The Z.AI endpoint accepts the OpenAI SDK verbatim, so
+ * the adapter drives it via the OpenAI SDK with this baseURL.
+ */
+export function withZaiDefaults(config: ZAIClientConfig): ZAIClientConfig {
+  return {
+    ...config,
+    apiKey: validateZAIApiKey(config.apiKey),
     baseURL:
-      config?.baseURL ??
-      (config?.coding ? ZAI_CODING_BASE_URL : ZAI_GENERAL_BASE_URL),
-    defaultHeaders: getZAIHeaders(),
-  })
+      config.baseURL ??
+      (config.coding ? ZAI_CODING_BASE_URL : ZAI_GENERAL_BASE_URL),
+    defaultHeaders: {
+      ...getZAIHeaders(),
+      ...config.defaultHeaders,
+    },
+  }
 }

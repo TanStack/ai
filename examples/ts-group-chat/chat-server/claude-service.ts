@@ -1,6 +1,5 @@
 // Claude AI service for handling queued AI responses
 import { anthropicText } from '@tanstack/ai-anthropic'
-import { zaiText } from '@tanstack/ai-zai'
 import { chat, toolDefinition } from '@tanstack/ai'
 import type { JSONSchema, ModelMessage, StreamChunk } from '@tanstack/ai'
 import type { ClaudeMode } from './chat-api.js'

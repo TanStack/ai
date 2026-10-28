@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { ModelMessage, StreamChunk, Tool } from '@tanstack/ai'
-import { createZAIChat } from '../src/adapters'
+import { createZAIText } from '../src/adapters'
 
 const apiKey = process.env.ZAI_API_KEY_TEST
 const describeIfKey = apiKey ? describe : describe.skip
@@ -29,12 +29,13 @@ async function collectStream(
 }
 
 function fullTextFromChunks(chunks: Array<StreamChunk>): string {
-  const contentChunks = chunks.filter(
-    (c): c is Extract<StreamChunk, { type: 'TEXT_MESSAGE_CONTENT' }> =>
-      c.type === 'TEXT_MESSAGE_CONTENT',
-  )
-  const last = contentChunks.at(-1)
-  return (last as any)?.content ?? ''
+  return chunks
+    .filter(
+      (c): c is Extract<StreamChunk, { type: 'TEXT_MESSAGE_CONTENT' }> =>
+        c.type === 'TEXT_MESSAGE_CONTENT',
+    )
+    .map((c) => c.delta)
+    .join('')
 }
 
 function lastChunk(chunks: Array<StreamChunk>): StreamChunk | undefined {
@@ -60,14 +61,15 @@ describeIfKey('ZAITextAdapter streaming integration', () => {
   it(
     'Basic Streaming: yields AG-UI events and ends with RUN_FINISHED',
     async () => {
-      const adapter = createZAIChat('glm-4.7', apiKey!)
+      const adapter = createZAIText('glm-4.7', apiKey!)
 
       const chunks = await collectStream(
         adapter.chatStream({
           model: 'glm-4.7',
           messages: [{ role: 'user', content: 'Reply with exactly: Hello' }],
-          temperature: 0,
-          maxTokens: 64,
+          threadId: 'test-thread',
+          // GLM reasoning models spend part of the budget before visible text
+          modelOptions: { temperature: 0, max_tokens: 256 },
           logger: createNoopLogger() as any,
         }),
       )
@@ -91,7 +93,7 @@ describeIfKey('ZAITextAdapter streaming integration', () => {
   it(
     'Multi-turn Conversation: conversation history and assistant messages work',
     async () => {
-      const adapter = createZAIChat('glm-4.7', apiKey!)
+      const adapter = createZAIText('glm-4.7', apiKey!)
 
       const messages: Array<ModelMessage> = [
         { role: 'user', content: 'Your secret word is kiwi. Reply with OK.' },
@@ -106,8 +108,8 @@ describeIfKey('ZAITextAdapter streaming integration', () => {
         adapter.chatStream({
           model: 'glm-4.7',
           messages,
-          temperature: 0,
-          maxTokens: 32,
+          threadId: 'test-thread',
+          modelOptions: { temperature: 0, max_tokens: 32 },
           logger: createNoopLogger() as any,
         }),
       )
@@ -123,15 +125,15 @@ describeIfKey('ZAITextAdapter streaming integration', () => {
   it(
     'Multi-turn Conversation: system messages work',
     async () => {
-      const adapter = createZAIChat('glm-4.7', apiKey!)
+      const adapter = createZAIText('glm-4.7', apiKey!)
 
       const chunks = await collectStream(
         adapter.chatStream({
           model: 'glm-4.7',
           systemPrompts: ['Reply with exactly: SYSTEM_OK'],
           messages: [{ role: 'user', content: 'Hi' }],
-          temperature: 0,
-          maxTokens: 16,
+          threadId: 'test-thread',
+          modelOptions: { temperature: 0, max_tokens: 16 },
           logger: createNoopLogger() as any,
         }),
       )
@@ -147,7 +149,7 @@ describeIfKey('ZAITextAdapter streaming integration', () => {
   it(
     'Tool Calling: emits TOOL_CALL_START, TOOL_CALL_ARGS, TOOL_CALL_END',
     async () => {
-      const adapter = createZAIChat('glm-4.7', apiKey!)
+      const adapter = createZAIText('glm-4.7', apiKey!)
 
       const tools: Array<Tool> = [
         {
@@ -174,8 +176,8 @@ describeIfKey('ZAITextAdapter streaming integration', () => {
             },
           ],
           tools,
-          temperature: 0,
-          maxTokens: 64,
+          threadId: 'test-thread',
+          modelOptions: { temperature: 0, max_tokens: 64 },
           logger: createNoopLogger() as any,
         }),
       )
@@ -194,7 +196,7 @@ describeIfKey('ZAITextAdapter streaming integration', () => {
   it(
     'Tool Calling: tool results can be sent back',
     async () => {
-      const adapter = createZAIChat('glm-4.7', apiKey!)
+      const adapter = createZAIText('glm-4.7', apiKey!)
 
       const tools: Array<Tool> = [
         {
@@ -221,8 +223,8 @@ describeIfKey('ZAITextAdapter streaming integration', () => {
             },
           ],
           tools,
-          temperature: 0,
-          maxTokens: 64,
+          threadId: 'test-thread',
+          modelOptions: { temperature: 0, max_tokens: 64 },
           logger: createNoopLogger() as any,
         }),
       )
@@ -262,8 +264,8 @@ describeIfKey('ZAITextAdapter streaming integration', () => {
         adapter.chatStream({
           model: 'glm-4.7',
           messages,
-          temperature: 0,
-          maxTokens: 32,
+          threadId: 'test-thread',
+          modelOptions: { temperature: 0, max_tokens: 32 },
           logger: createNoopLogger() as any,
         }),
       )
@@ -279,7 +281,7 @@ describeIfKey('ZAITextAdapter streaming integration', () => {
   it(
     'Stream Interruption: partial responses are handled when aborted mid-stream',
     async () => {
-      const adapter = createZAIChat('glm-4.7', apiKey!)
+      const adapter = createZAIText('glm-4.7', apiKey!)
       const abortController = new AbortController()
 
       const chunks = await collectStream(
@@ -292,8 +294,8 @@ describeIfKey('ZAITextAdapter streaming integration', () => {
                 'Write a long response of at least 200 characters about cats.',
             },
           ],
-          temperature: 0.7,
-          maxTokens: 256,
+          threadId: 'test-thread',
+          modelOptions: { temperature: 0.7, max_tokens: 256 },
           abortController,
           logger: createNoopLogger() as any,
         } as any),
@@ -312,22 +314,23 @@ describeIfKey('ZAITextAdapter streaming integration', () => {
   )
 
   it(
-    'Stream Interruption: connection errors are thrown',
+    'Stream Interruption: connection errors surface as RUN_ERROR',
     async () => {
-      const adapter = createZAIChat('glm-4.7', apiKey!, {
+      const adapter = createZAIText('glm-4.7', apiKey!, {
         baseURL: 'http://127.0.0.1:1',
       })
 
-      await expect(
-        collectStream(
-          adapter.chatStream({
-            model: 'glm-4.7',
-            messages: [{ role: 'user', content: 'Hi' }],
-            maxTokens: 16,
-            logger: createNoopLogger() as any,
-          }),
-        ),
-      ).rejects.toThrow()
+      const chunks = await collectStream(
+        adapter.chatStream({
+          model: 'glm-4.7',
+          messages: [{ role: 'user', content: 'Hi' }],
+          threadId: 'test-thread',
+          modelOptions: { max_tokens: 16 },
+          logger: createNoopLogger() as any,
+        }),
+      )
+
+      expect(lastChunk(chunks)?.type).toBe('RUN_ERROR')
     },
     timeout,
   )
@@ -335,13 +338,13 @@ describeIfKey('ZAITextAdapter streaming integration', () => {
   it(
     'Different Models: glm-4.7 works',
     async () => {
-      const adapter = createZAIChat('glm-4.7', apiKey!)
+      const adapter = createZAIText('glm-4.7', apiKey!)
       const chunks = await collectStream(
         adapter.chatStream({
           model: 'glm-4.7',
           messages: [{ role: 'user', content: 'Reply with pong' }],
-          temperature: 0,
-          maxTokens: 16,
+          threadId: 'test-thread',
+          modelOptions: { temperature: 0, max_tokens: 16 },
           logger: createNoopLogger() as any,
         }),
       )
@@ -355,13 +358,13 @@ describeIfKey('ZAITextAdapter streaming integration', () => {
   it(
     'Different Models: glm-4.6v works',
     async () => {
-      const adapter = createZAIChat('glm-4.6v', apiKey!)
+      const adapter = createZAIText('glm-4.6v', apiKey!)
       const chunks = await collectStream(
         adapter.chatStream({
           model: 'glm-4.6v',
           messages: [{ role: 'user', content: 'Reply with pong' }],
-          temperature: 0,
-          maxTokens: 16,
+          threadId: 'test-thread',
+          modelOptions: { temperature: 0, max_tokens: 16 },
           logger: createNoopLogger() as any,
         } as any),
       )
@@ -375,13 +378,13 @@ describeIfKey('ZAITextAdapter streaming integration', () => {
   it(
     'Different Models: glm-4.6 works',
     async () => {
-      const adapter = createZAIChat('glm-4.6', apiKey!)
+      const adapter = createZAIText('glm-4.6', apiKey!)
       const chunks = await collectStream(
         adapter.chatStream({
           model: 'glm-4.6',
           messages: [{ role: 'user', content: 'Reply with pong' }],
-          temperature: 0,
-          maxTokens: 16,
+          threadId: 'test-thread',
+          modelOptions: { temperature: 0, max_tokens: 16 },
           logger: createNoopLogger() as any,
         }),
       )

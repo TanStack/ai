@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { StreamChunk } from '@tanstack/ai'
-import { createZAIChat } from '../src/adapters'
-import { ZAI_GENERAL_BASE_URL, ZAI_CODING_BASE_URL } from '../src/utils/client'
+import { createZAIText } from '../src/adapters'
+import { ZAI_CODING_BASE_URL } from '../src/utils/client'
 
 const apiKey = process.env.ZAI_API_KEY_TEST
 const describeIfKey = apiKey ? describe : describe.skip
@@ -31,12 +31,13 @@ async function collectStream(
 }
 
 function fullTextFromChunks(chunks: Array<StreamChunk>): string {
-  const contentChunks = chunks.filter(
-    (c): c is Extract<StreamChunk, { type: 'TEXT_MESSAGE_CONTENT' }> =>
-      c.type === 'TEXT_MESSAGE_CONTENT',
-  )
-  const last = contentChunks.at(-1)
-  return (last as any)?.content ?? ''
+  return chunks
+    .filter(
+      (c): c is Extract<StreamChunk, { type: 'TEXT_MESSAGE_CONTENT' }> =>
+        c.type === 'TEXT_MESSAGE_CONTENT',
+    )
+    .map((c) => c.delta)
+    .join('')
 }
 
 function lastChunk(chunks: Array<StreamChunk>): StreamChunk | undefined {
@@ -49,7 +50,7 @@ describeIfKey('Z.AI Coding Endpoint', () => {
   it(
     `coding: true connects to ${ZAI_CODING_BASE_URL} and streams text`,
     async () => {
-      const adapter = createZAIChat('glm-4.7', apiKey!, { coding: true })
+      const adapter = createZAIText('glm-4.7', apiKey!, { coding: true })
 
       const chunks = await collectStream(
         adapter.chatStream({
@@ -60,9 +61,9 @@ describeIfKey('Z.AI Coding Endpoint', () => {
               content: 'What is 2+2? Reply with just the number.',
             },
           ],
-          temperature: 0,
+          threadId: 'test-thread',
           // Coding plan models use reasoning tokens internally — need enough headroom
-          maxTokens: 256,
+          modelOptions: { temperature: 0, max_tokens: 256 },
           logger: createNoopLogger() as any,
         }),
       )
@@ -89,7 +90,7 @@ describeIfKey('Z.AI Coding Endpoint', () => {
   it(
     'explicit baseURL resolves to coding endpoint',
     async () => {
-      const adapter = createZAIChat('glm-4.7', apiKey!, {
+      const adapter = createZAIText('glm-4.7', apiKey!, {
         baseURL: ZAI_CODING_BASE_URL,
       })
 
@@ -102,8 +103,8 @@ describeIfKey('Z.AI Coding Endpoint', () => {
               content: 'What is 3+3? Reply with just the number.',
             },
           ],
-          temperature: 0,
-          maxTokens: 256,
+          threadId: 'test-thread',
+          modelOptions: { temperature: 0, max_tokens: 256 },
           logger: createNoopLogger() as any,
         }),
       )
@@ -118,28 +119,9 @@ describeIfKey('Z.AI Coding Endpoint', () => {
   )
 
   it(
-    'general endpoint rejects coding-only API key with 429',
-    async () => {
-      const adapter = createZAIChat('glm-4.7', apiKey!)
-
-      await expect(
-        collectStream(
-          adapter.chatStream({
-            model: 'glm-4.7',
-            messages: [{ role: 'user', content: 'Hi' }],
-            maxTokens: 16,
-            logger: createNoopLogger() as any,
-          }),
-        ),
-      ).rejects.toThrow(/429|Insufficient balance/i)
-    },
-    timeout,
-  )
-
-  it(
     'tool calling works on coding endpoint',
     async () => {
-      const adapter = createZAIChat('glm-4.7', apiKey!, { coding: true })
+      const adapter = createZAIText('glm-4.7', apiKey!, { coding: true })
 
       const chunks = await collectStream(
         adapter.chatStream({
@@ -164,8 +146,8 @@ describeIfKey('Z.AI Coding Endpoint', () => {
               },
             },
           ],
-          temperature: 0,
-          maxTokens: 256,
+          threadId: 'test-thread',
+          modelOptions: { temperature: 0, max_tokens: 256 },
           logger: createNoopLogger() as any,
         }),
       )

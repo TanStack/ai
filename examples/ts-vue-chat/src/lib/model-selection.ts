@@ -78,6 +78,9 @@ export const MODEL_OPTIONS: Array<ModelOption> = [
   },
 
   // Z.AI (GLM)
+  { provider: 'zai', model: 'glm-5.3', label: 'Z.AI - GLM-5.3' },
+  { provider: 'zai', model: 'glm-5.3-flash', label: 'Z.AI - GLM-5.3 Flash' },
+  { provider: 'zai', model: 'glm-5.2', label: 'Z.AI - GLM-5.2' },
   { provider: 'zai', model: 'glm-5.1', label: 'Z.AI - GLM-5.1' },
   { provider: 'zai', model: 'glm-5-turbo', label: 'Z.AI - GLM-5 Turbo' },
   { provider: 'zai', model: 'glm-5', label: 'Z.AI - GLM-5' },

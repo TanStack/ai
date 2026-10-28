@@ -4,10 +4,14 @@
   "description": "Z.AI adapter for TanStack AI",
   "author": "",
   "license": "MIT",
+  "homepage": "https://tanstack.com/ai",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/TanStack/ai.git",
-    "directory": "packages/typescript/ai-zai"
+    "directory": "packages/ai-zai"
+  },
+  "bugs": {
+    "url": "https://github.com/TanStack/ai/issues"
   },
   "type": "module",
   "module": "./dist/esm/index.js",
@@ -29,9 +33,10 @@
   "scripts": {
     "build": "vite build",
     "clean": "premove ./build ./dist",
-    "lint:fix": "eslint ./src --fix",
+    "lint:fix": "oxlint src --type-aware --fix",
     "test:build": "publint --strict",
-    "test:eslint": "eslint ./src",
+    "test:oxlint": "oxlint src --type-aware",
+    "test:coverage": "vitest run --coverage --coverage.include='src/**' --coverage.reporter=text-summary --coverage.reporter=json-summary",
     "test:lib": "vitest run",
     "test:lib:dev": "pnpm test:lib --watch",
     "test:types": "tsc"
@@ -43,15 +48,15 @@
     "adapter"
   ],
   "dependencies": {
-    "openai": "^6.9.1"
+    "@tanstack/ai-utils": "workspace:^",
+    "@tanstack/openai-base": "workspace:^",
+    "openai": "^7.30.0"
   },
   "peerDependencies": {
     "@tanstack/ai": "workspace:^"
   },
   "devDependencies": {
-    "@tanstack/ai": "workspace:*",
-    "@vitest/coverage-v8": "4.0.14",
-    "vite": "^7.2.7",
-    "zod": "^4.2.0"
+    "@vitest/coverage-v8": "4.1.10",
+    "vite": "^8.2.1"
   }
 }

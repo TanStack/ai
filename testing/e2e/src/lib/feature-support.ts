@@ -30,6 +30,7 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'cloudflare',
     'neon',
     'neon-anthropic',
+    'zai',
   ]),
   'one-shot-text': new Set([
     'openai',
@@ -53,6 +54,7 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'cloudflare',
     'neon',
     'neon-anthropic',
+    'zai',
   ]),
   // BytePlus, LLM Gateway and Neon all stream their reasoning trace as
   // `delta.reasoning_content`, which is exactly the field aimock's
@@ -77,6 +79,7 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'openai-compatible-legacy',
     'neon',
     'neon-anthropic',
+    'zai',
   ]),
   'multi-turn-reasoning': new Set(['anthropic']),
   'multi-turn': new Set([
@@ -101,6 +104,7 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'cloudflare',
     'neon',
     'neon-anthropic',
+    'zai',
   ]),
   'tool-calling': new Set([
     'openai',
@@ -128,6 +132,7 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'neon',
     'neon-anthropic',
     'neon-responses',
+    'zai',
   ]),
   // OpenAI only: aimock's journal keeps `tool_choice` for Responses requests,
   // but stores Anthropic requests in OpenAI shape without it. Anthropic is
@@ -154,6 +159,7 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'cloudflare',
     'neon',
     'neon-anthropic',
+    'zai',
   ]),
   // Gemini excluded: approval flow timing issues with Gemini's streaming format
   // Vertex uses the same Gemini stream, so it is excluded for the same reason.
@@ -177,6 +183,7 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'cloudflare',
     'neon',
     'neon-anthropic',
+    'zai',
   ]),
   // Ollama excluded: aimock doesn't support content+toolCalls for /api/chat format
   'text-tool-text': new Set([
@@ -200,6 +207,7 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'cloudflare',
     'neon',
     'neon-anthropic',
+    'zai',
   ]),
   'structured-output': new Set([
     'openai',
@@ -223,6 +231,7 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'cloudflare',
     'neon',
     'neon-anthropic',
+    'zai',
   ]),
   // Streaming structured output: only providers with native streaming JSON
   // schema support are listed here. Other providers fall back to the
@@ -244,6 +253,7 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'llmgateway',
     'cloudflare',
     'neon',
+    'zai',
   ]),
   // Multi-turn structured output: every turn produces its own typed
   // `structured-output` part on the assistant message, and historical
@@ -276,6 +286,7 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'cloudflare',
     'neon',
     'neon-anthropic',
+    'zai',
   ]),
   'agentic-structured': new Set([
     'openai',
@@ -299,6 +310,7 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'cloudflare',
     'neon',
     'neon-anthropic',
+    'zai',
   ]),
   // Native-combined-mode adapters only. Each provider's default test model
   // (or per-feature override in `features.ts`) must opt into combined mode
@@ -336,6 +348,7 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'cloudflare',
     'neon',
     'neon-anthropic',
+    'zai',
   ]),
   // OpenAI only: this feature exercises the Responses adapter's PDF
   // `input_file` conversion (base64 `file_data` + filename).
@@ -355,6 +368,7 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'cloudflare',
     'neon',
     'neon-anthropic',
+    'zai',
   ]),
   // byteplus excluded: @tanstack/ai-byteplus ships no summarize adapter —
   // Ark has no summarization endpoint, and api.summarize.ts builds a
@@ -381,6 +395,7 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'neon',
     'neon-anthropic',
     'neon-responses',
+    'zai',
   ]),
   'summarize-stream': new Set([
     'openai',
@@ -403,6 +418,7 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'neon',
     'neon-anthropic',
     'neon-responses',
+    'zai',
   ]),
   // Embedding (Promise-based `embed()` activity, no streaming). aimock 1.34
   // natively mocks OpenAI's /v1/embeddings (JSON fixture in

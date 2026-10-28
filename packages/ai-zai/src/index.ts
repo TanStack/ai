@@ -1,22 +1,21 @@
 // Text (Chat) adapter
 export {
   ZAITextAdapter,
-  createZAIChat,
+  createZAIText,
   zaiText,
-  type ZAITextAdapterConfig,
+  type ZAITextConfig,
+  type ZAITextProviderOptions,
 } from './adapters/index'
 
 // Summarize adapter
 export {
-  ZAISummarizeAdapter,
+  type ZAISummarizeAdapter,
   createZAISummarize,
   zaiSummarize,
   type ZAISummarizeConfig,
+  type ZAISummarizeModel,
   type ZAISummarizeProviderOptions,
 } from './adapters/index'
-
-// Config types
-export type { ZAIAdapterConfig, ZAIModel } from './adapters/index'
 
 // Endpoint constants
 export { ZAI_GENERAL_BASE_URL, ZAI_CODING_BASE_URL } from './utils/client'
@@ -27,6 +26,10 @@ export type {
   ZAIChatModelProviderOptionsByName,
   ZAIChatModelToolCapabilitiesByName,
   ZAIModelInputModalitiesByName,
+  ZAIModelReasoningByName,
+  ZAIProviderToolKind,
+  ResolveProviderOptions,
+  ResolveInputModalities,
 } from './model-meta'
 
 // Message metadata types

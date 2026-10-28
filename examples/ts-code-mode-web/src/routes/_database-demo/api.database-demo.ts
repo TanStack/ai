@@ -13,6 +13,7 @@ import { createFileSnippetStorage } from '@tanstack/ai-code-mode-snippets/storag
 import { anthropicText } from '@tanstack/ai-anthropic'
 import { openaiText } from '@tanstack/ai-openai'
 import { geminiText } from '@tanstack/ai-gemini'
+import { zaiText } from '@tanstack/ai-zai'
 import type { AnyServerTool, AnyTextAdapter, StreamChunk } from '@tanstack/ai'
 import type { IsolateDriver } from '@tanstack/ai-code-mode'
 

@@ -29,6 +29,7 @@ type Provider = 'openai' | 'anthropic' | 'gemini' | 'ollama' | 'zai'
 if (env.OPENAI_API_KEY) process.env.OPENAI_API_KEY = env.OPENAI_API_KEY
 if (env.ANTHROPIC_API_KEY) process.env.ANTHROPIC_API_KEY = env.ANTHROPIC_API_KEY
 if (env.GEMINI_API_KEY) process.env.GEMINI_API_KEY = env.GEMINI_API_KEY
+if (env.ZAI_API_KEY) process.env.ZAI_API_KEY = env.ZAI_API_KEY
 
 // Pre-define typed adapter configurations with full type inference
 // This pattern gives you model autocomplete at definition time
@@ -49,9 +50,9 @@ const adapterConfig = {
     createChatOptions({
       adapter: openaiText('gpt-4o'),
     }),
-  zai: () =>
+  zai: (model?: string) =>
     createChatOptions({
-      adapter: zaiText('glm-4.7'),
+      adapter: zaiText((model || 'glm-5.3') as 'glm-5.3'),
     }),
 }
 
@@ -121,6 +122,10 @@ export const POST: RequestHandler = async ({ request }) => {
     params.forwardedProps.provider in adapterConfig
       ? (params.forwardedProps.provider as Provider)
       : 'openai'
+  const model =
+    typeof params.forwardedProps?.model === 'string'
+      ? params.forwardedProps.model
+      : ''
 
   try {
     const mergedTools = mergeAgentTools(serverTools, params.tools)
@@ -145,7 +150,9 @@ export const POST: RequestHandler = async ({ request }) => {
           ? chat({ ...adapterConfig.gemini(), ...sharedOptions })
           : provider === 'ollama'
             ? chat({ ...adapterConfig.ollama(), ...sharedOptions })
-            : chat({ ...adapterConfig.openai(), ...sharedOptions })
+            : provider === 'zai'
+              ? chat({ ...adapterConfig.zai(model), ...sharedOptions })
+              : chat({ ...adapterConfig.openai(), ...sharedOptions })
 
     return toServerSentEventsResponse(stream, { abortController })
   } catch (error: any) {

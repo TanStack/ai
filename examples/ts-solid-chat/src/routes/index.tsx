@@ -303,9 +303,8 @@ function DebugPanel(props: {
 
 function ChatPage() {
   const [chunks, setChunks] = createSignal<Array<any>>([])
-  const [selectedModel, setSelectedModel] = createSignal<ModelOption>(
-    DEFAULT_MODEL_OPTION,
-  )
+  const [selectedModel, setSelectedModel] =
+    createSignal<ModelOption>(DEFAULT_MODEL_OPTION)
 
   const bodyData = () => ({
     provider: selectedModel().provider,
@@ -332,7 +331,10 @@ function ChatPage() {
           </h1>
           <div class="flex items-end gap-3">
             <div class="flex-1">
-              <label for="model-select" class="text-sm text-gray-400 mb-1 block">
+              <label
+                for="model-select"
+                class="text-sm text-gray-400 mb-1 block"
+              >
                 Select Model:
               </label>
               <select
@@ -342,10 +344,10 @@ function ChatPage() {
                     opt.provider === selectedModel().provider &&
                     opt.model === selectedModel().model,
                 )}
-                  onChange={(e) => {
-                    const option = MODEL_OPTIONS[parseInt(e.currentTarget.value)]
-                    setSelectedModel(option)
-                  }}
+                onChange={(e) => {
+                  const option = MODEL_OPTIONS[parseInt(e.currentTarget.value)]
+                  setSelectedModel(option)
+                }}
                 disabled={isLoading()}
                 class="w-full rounded-lg border border-orange-500/20 bg-gray-900 px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-orange-500/50 disabled:opacity-50"
               >
@@ -392,7 +394,7 @@ function ChatPage() {
                 onKeyDown={(e) => {
                   if (e.key === 'Enter' && !e.shiftKey && input().trim()) {
                     e.preventDefault()
-                    sendMessage(input())
+                    sendMessage(input(), { body: bodyData() })
                     setInput('')
                   }
                 }}
@@ -400,7 +402,7 @@ function ChatPage() {
               <button
                 onClick={() => {
                   if (input().trim()) {
-                    sendMessage(input())
+                    sendMessage(input(), { body: bodyData() })
                     setInput('')
                   }
                 }}

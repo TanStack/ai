@@ -2,6 +2,7 @@ import { createFileRoute } from '@tanstack/solid-router'
 import {
   chat,
   chatParamsFromRequestBody,
+  createChatOptions,
   maxIterations,
   mergeAgentTools,
   toServerSentEventsResponse,
@@ -11,6 +12,8 @@ import { geminiText } from '@tanstack/ai-gemini'
 import { openRouterText } from '@tanstack/ai-openrouter'
 import { grokText } from '@tanstack/ai-grok'
 import { groqText } from '@tanstack/ai-groq'
+import { ollamaText } from '@tanstack/ai-ollama'
+import { openaiText } from '@tanstack/ai-openai'
 import { zaiText } from '@tanstack/ai-zai'
 import { serverTools } from '@/lib/guitar-tools'
 import type { Provider } from '@/lib/model-selection'
@@ -39,6 +42,49 @@ Step 2: Call recommendGuitar(id: "6")
 Step 3: Done - do NOT add any text after calling recommendGuitar
 `
 
+const createProviderAdapters = (
+  model: string,
+): Record<Provider, () => { adapter: AnyTextAdapter }> => ({
+  anthropic: () =>
+    createChatOptions({
+      adapter: anthropicText(
+        (model || 'claude-sonnet-4-5') as 'claude-sonnet-4-5',
+      ),
+    }),
+  openrouter: () =>
+    createChatOptions({
+      adapter: openRouterText('openai/gpt-5.1'),
+    }),
+  gemini: () =>
+    createChatOptions({
+      adapter: geminiText((model || 'gemini-2.5-flash') as 'gemini-2.5-flash'),
+    }),
+  grok: () =>
+    createChatOptions({
+      adapter: grokText((model || 'grok-build-0.1') as 'grok-build-0.1'),
+    }),
+  groq: () =>
+    createChatOptions({
+      adapter: groqText(
+        (model || 'openai/gpt-oss-120b') as 'openai/gpt-oss-120b',
+      ),
+    }),
+  ollama: () =>
+    createChatOptions({
+      adapter: ollamaText((model || 'gpt-oss:20b') as 'gpt-oss:20b'),
+    }),
+  openai: () =>
+    createChatOptions({
+      adapter: openaiText((model || 'gpt-4o') as 'gpt-4o'),
+    }),
+  zai: () =>
+    createChatOptions({
+      adapter: zaiText((model || 'glm-4.7') as 'glm-4.7', {
+        coding: true,
+      }),
+    }),
+})
+
 export const Route = createFileRoute('/api/chat')({
   server: {
     handlers: {
@@ -64,17 +110,28 @@ export const Route = createFileRoute('/api/chat')({
         }
 
         try {
+          const model =
+            typeof params.forwardedProps.model === 'string'
+              ? params.forwardedProps.model
+              : ''
+          const providerAdapters = createProviderAdapters(model)
+          const provider: Provider =
+            typeof params.forwardedProps.provider === 'string' &&
+            params.forwardedProps.provider in providerAdapters
+              ? (params.forwardedProps.provider as Provider)
+              : 'openai'
+
           const mergedTools = mergeAgentTools(serverTools, params.tools)
-          // Use the stream abort signal for proper cancellation handling
+          const options = providerAdapters[provider]()
+
           const stream = chat({
-            adapter: anthropicText('claude-sonnet-4-5'),
+            ...options,
             tools: mergedTools,
             systemPrompts: [SYSTEM_PROMPT],
             agentLoopStrategy: maxIterations(20),
             messages: params.messages,
             threadId: params.threadId,
             runId: params.runId,
-            reasoning: { level: 'high', budgetTokens: 10000 },
             abortController,
           })
 

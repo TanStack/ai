@@ -17,6 +17,7 @@ import { createOpenRouterSummarize } from '@tanstack/ai-openrouter'
 import { createVercelGatewaySummarize } from '@tanstack/ai-vercel-gateway'
 import { createLovableSummarize } from '@tanstack/ai-lovable'
 import { createNeonSummarize } from '@tanstack/ai-neon'
+import { createZAISummarize } from '@tanstack/ai-zai'
 import { HTTPClient } from '@openrouter/sdk'
 import type { Provider } from '@/lib/types'
 
@@ -166,6 +167,11 @@ function createSummarizeAdapter(
       createNeonSummarize('gpt-6-1-sol', DUMMY_KEY, {
         api: 'responses',
         baseURL: llmockBase(aimockPort),
+        defaultHeaders: headers,
+      }),
+    zai: () =>
+      createZAISummarize('glm-5.2', DUMMY_KEY, {
+        baseURL: openaiUrl(aimockPort),
         defaultHeaders: headers,
       }),
   }
