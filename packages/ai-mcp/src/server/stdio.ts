@@ -51,6 +51,7 @@ export function serveMCPStdio(server: {
 
   async function forward(message: unknown) {
     if (closed) return
+    const sentSessionId = sessionId
     const controller = new AbortController()
     aborts.add(controller)
     try {
@@ -68,7 +69,11 @@ export function serveMCPStdio(server: {
         }),
       )
       if (closed) return
-      sessionId = nextSessionId(response, sessionId)
+      // A later initialize can open a new session while this request runs.
+      // This response then names the old session. Keep the new one.
+      if (sessionId === sentSessionId) {
+        sessionId = nextSessionId(response, sessionId)
+      }
       legacyProtocol = nextLegacyProtocol(response, legacyProtocol)
       const text = await response.text()
       if (closed) return
