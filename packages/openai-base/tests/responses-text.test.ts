@@ -2221,7 +2221,7 @@ describe('OpenAIBaseResponsesTextAdapter', () => {
   })
 
   describe('error handling', () => {
-    it('flushes completed web searches before RUN_ERROR on incomplete response', async () => {
+    it('flushes completed web searches before RUN_FINISHED on a capped response', async () => {
       const webSearchCall = {
         type: 'web_search_call',
         id: 'ws-incomplete',
@@ -2278,15 +2278,18 @@ describe('OpenAIBaseResponsesTextAdapter', () => {
       const toolEndIndex = chunks.findIndex(
         (chunk) => chunk.type === EventType.TOOL_CALL_END,
       )
-      const runErrorIndex = chunks.findIndex(
-        (chunk) => chunk.type === EventType.RUN_ERROR,
+      const runFinishedIndex = chunks.findIndex(
+        (chunk) => chunk.type === EventType.RUN_FINISHED,
       )
       expect(toolStartIndex).toBeGreaterThanOrEqual(0)
       expect(toolEndIndex).toBeGreaterThan(toolStartIndex)
-      expect(runErrorIndex).toBeGreaterThan(toolEndIndex)
+      expect(runFinishedIndex).toBeGreaterThan(toolEndIndex)
+      expect(
+        chunks.filter((chunk) => chunk.type === EventType.RUN_FINISHED),
+      ).toHaveLength(1)
       expect(
         chunks.filter((chunk) => chunk.type === EventType.RUN_ERROR),
-      ).toHaveLength(1)
+      ).toHaveLength(0)
       expect(chunks[toolStartIndex]).toMatchObject({
         toolCallId: 'ws-incomplete',
         metadata: {
@@ -2412,7 +2415,7 @@ describe('OpenAIBaseResponsesTextAdapter', () => {
       }
     })
 
-    it('emits RUN_ERROR on response.incomplete event', async () => {
+    it('emits RUN_FINISHED with finishReason length and usage on a max_output_tokens response.incomplete', async () => {
       const streamChunks = [
         {
           type: 'response.incomplete',
@@ -2422,6 +2425,84 @@ describe('OpenAIBaseResponsesTextAdapter', () => {
             status: 'incomplete',
             incomplete_details: {
               reason: 'max_output_tokens',
+            },
+            usage: {
+              input_tokens: 19,
+              input_tokens_details: { cached_tokens: 0 },
+              output_tokens: 16,
+              output_tokens_details: { reasoning_tokens: 0 },
+              total_tokens: 35,
+            },
+          },
+        },
+      ]
+
+      setupMockResponsesClient(streamChunks)
+      const adapter = new TestResponsesAdapter(testConfig, 'test-model')
+      const chunks: Array<AdapterYieldChunk> = []
+
+      for await (const chunk of adapter.chatStream({
+        threadId: 'thread-1',
+        logger: testLogger,
+        model: 'test-model',
+        messages: [{ role: 'user', content: 'Write a long story' }],
+      })) {
+        chunks.push(chunk)
+      }
+
+      expect(chunks.filter((c) => c.type === 'RUN_ERROR')).toHaveLength(0)
+      const finished = chunks.filter((c) => c.type === 'RUN_FINISHED')
+      expect(finished).toHaveLength(1)
+      expect(finished[0]).toMatchObject({
+        finishReason: 'length',
+        usage: { promptTokens: 19, completionTokens: 16, totalTokens: 35 },
+      })
+    })
+
+    it('emits RUN_FINISHED with finishReason content_filter on a content_filter response.incomplete', async () => {
+      const streamChunks = [
+        {
+          type: 'response.incomplete',
+          response: {
+            id: 'resp-123',
+            model: 'test-model',
+            status: 'incomplete',
+            incomplete_details: {
+              reason: 'content_filter',
+            },
+          },
+        },
+      ]
+
+      setupMockResponsesClient(streamChunks)
+      const adapter = new TestResponsesAdapter(testConfig, 'test-model')
+      const chunks: Array<AdapterYieldChunk> = []
+
+      for await (const chunk of adapter.chatStream({
+        threadId: 'thread-1',
+        logger: testLogger,
+        model: 'test-model',
+        messages: [{ role: 'user', content: 'Write a long story' }],
+      })) {
+        chunks.push(chunk)
+      }
+
+      expect(chunks.filter((c) => c.type === 'RUN_ERROR')).toHaveLength(0)
+      expect(chunks.filter((c) => c.type === 'RUN_FINISHED')).toMatchObject([
+        { finishReason: 'content_filter' },
+      ])
+    })
+
+    it('emits RUN_ERROR on response.incomplete without a known reason', async () => {
+      const streamChunks = [
+        {
+          type: 'response.incomplete',
+          response: {
+            id: 'resp-123',
+            model: 'test-model',
+            status: 'incomplete',
+            incomplete_details: {
+              reason: 'max_messages',
             },
           },
         },
@@ -2443,8 +2524,7 @@ describe('OpenAIBaseResponsesTextAdapter', () => {
       const errorChunks = chunks.filter((c) => c.type === 'RUN_ERROR')
       expect(errorChunks.length).toBeGreaterThan(0)
       const incompleteError = errorChunks.find(
-        (c) =>
-          c.type === 'RUN_ERROR' && c.error!.message === 'max_output_tokens',
+        (c) => c.type === 'RUN_ERROR' && c.error!.message === 'max_messages',
       )
       expect(incompleteError).toBeDefined()
     })
