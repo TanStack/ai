@@ -163,6 +163,9 @@ export class OpenAITranscriptionAdapter<
   ): Promise<TranscriptionResult> {
     const { model, language } = options
 
+    const requestOptions: [] | [{ signal: AbortSignal }] = options.abortSignal
+      ? [{ signal: options.abortSignal }]
+      : []
     try {
       const { request, responseMode } = this.buildTranscriptionRequest(options)
 
@@ -173,6 +176,7 @@ export class OpenAITranscriptionAdapter<
       if (responseMode === 'diarized') {
         const response = (await this.client.audio.transcriptions.create(
           request,
+          ...requestOptions,
         )) as OpenAI_SDK.Audio.TranscriptionDiarized
 
         // Guard the cast: a proxy/gateway or API change that returns a
@@ -213,10 +217,13 @@ export class OpenAITranscriptionAdapter<
       }
 
       if (responseMode === 'verbose') {
-        const response = (await this.client.audio.transcriptions.create({
-          ...request,
-          response_format: 'verbose_json',
-        })) as OpenAI_SDK.Audio.Transcriptions.TranscriptionVerbose
+        const response = (await this.client.audio.transcriptions.create(
+          {
+            ...request,
+            response_format: 'verbose_json',
+          },
+          ...requestOptions,
+        )) as OpenAI_SDK.Audio.Transcriptions.TranscriptionVerbose
 
         // `TranscriptionResult` declares optional fields without `| undefined`,
         // so under exactOptionalPropertyTypes we must omit absent fields rather
@@ -255,7 +262,10 @@ export class OpenAITranscriptionAdapter<
         }
       }
 
-      const response = await this.client.audio.transcriptions.create(request)
+      const response = await this.client.audio.transcriptions.create(
+        request,
+        ...requestOptions,
+      )
 
       const usage =
         typeof response === 'string'
