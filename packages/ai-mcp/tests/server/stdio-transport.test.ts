@@ -304,6 +304,39 @@ describe('serveMCPStdio in-process', () => {
     await vi.waitFor(() => expect(transport.sent).toEqual([result(1)]))
   })
 
+  it('does not hold a request behind a running request', async () => {
+    let release!: () => void
+    const blocked = new Promise<void>((resolve) => (release = resolve))
+    const { transport, receive } = serve(async (req) => {
+      const body = await req.json()
+      if (body.id === 1) await blocked
+      return json(result(body.id))
+    })
+    receive(request(1, 'tools/call'))
+    receive(request(2, 'ping'))
+
+    await vi.waitFor(() => expect(transport.sent).toEqual([result(2)]))
+    release()
+    await vi.waitFor(() =>
+      expect(transport.sent).toEqual([result(2), result(1)]),
+    )
+  })
+
+  it('holds a request until initialize answers', async () => {
+    const { transport, requests, receive } = serve(async (req) => {
+      const body = await req.json()
+      return json(result(body.id), { headers: { 'mcp-session-id': 'abc' } })
+    })
+    receive(request(1, 'initialize'))
+    receive(request(2, 'ping'))
+    await vi.waitFor(() => expect(transport.sent).toHaveLength(2))
+
+    expect(requests.map((r) => r.headers.get('mcp-session-id'))).toEqual([
+      null,
+      'abc',
+    ])
+  })
+
   it('mirrors the spec 2026 envelope into headers', async () => {
     const { transport, requests, receive } = serve(async (req) => {
       const body = await req.json()

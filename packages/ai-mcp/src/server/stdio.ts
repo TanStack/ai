@@ -113,7 +113,8 @@ export function serveMCPStdio(server: {
   transport.onmessage = (message) => {
     // A spec 2025 tool can wait inside server.fetch for the client answer.
     // That answer, and notifications/cancelled, must not wait behind the tool.
-    if (isJSONRPCRequest(message)) {
+    // Other requests wait only for initialize, which sets the session id.
+    if (isJSONRPCRequest(message) && message.method === 'initialize') {
       tail = tail
         .then(() => forward(message))
         .catch((error) => {
@@ -121,7 +122,11 @@ export function serveMCPStdio(server: {
         })
       return
     }
-    const run = forward(message).catch((error) => {
+    const run = (
+      isJSONRPCRequest(message)
+        ? tail.then(() => forward(message))
+        : forward(message)
+    ).catch((error) => {
       console.error(errorText(error))
     })
     sideMessages.add(run)
