@@ -332,8 +332,10 @@ export class OllamaTextAdapter<TModel extends string> extends BaseTextAdapter<
           id: string
           function: { index: number }
         }
+        // Ollama sends no id: tell parallel calls to the same tool apart by index
         const toolCallId =
-          actualToolCall.id || `${actualToolCall.function.name}_${Date.now()}`
+          actualToolCall.id ||
+          `${actualToolCall.function.name}_${Date.now()}_${actualToolCall.function.index ?? toolCallsEmitted.size}`
         const events: Array<AdapterYieldChunk> = []
 
         // Emit TOOL_CALL_START if not already emitted for this tool call
