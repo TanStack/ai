@@ -49,6 +49,7 @@
     "@tanstack/ai-sandbox-local-process": "workspace:*",
     "@tanstack/ai-sandbox-railway": "workspace:*",
     "@tanstack/ai-sandbox-vercel": "workspace:*",
+    "@tanstack/ai-zai": "workspace:*",
     "@tanstack/react-devtools": "^0.9.10",
     "@tanstack/react-router": "^1.170.41",
     "@tanstack/react-router-devtools": "^1.158.4",

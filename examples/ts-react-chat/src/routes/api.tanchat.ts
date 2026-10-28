@@ -30,6 +30,8 @@ import {
 import { BEDROCK_CONVERSE_MODELS, bedrockText } from '@tanstack/ai-bedrock'
 import { BYTEPLUS_CHAT_MODELS, createBytePlusText } from '@tanstack/ai-byteplus'
 import { byteplusByok } from '@tanstack/ai-byteplus/byok'
+import { createZAIText, ZAI_CHAT_MODELS } from '@tanstack/ai-zai'
+import { zaiByok } from '@tanstack/ai-zai/byok'
 import { byokMissing, getByokKey } from '@tanstack/ai/byok/server'
 import { z } from 'zod'
 import type { AnyTextAdapter, ChatMiddleware } from '@tanstack/ai'
@@ -104,6 +106,10 @@ const modelSelectionSchema = z
       provider: z.literal('cloudflare'),
       model: z.string().catch('@cf/zai-org/glm-5.3-flash'),
     }),
+    z.object({
+      provider: z.literal('zai'),
+      model: z.enum(ZAI_CHAT_MODELS).catch('glm-5.3'),
+    }),
   ])
   .catch({ provider: 'openai', model: 'gpt-5.2' })
 
@@ -119,6 +125,7 @@ const BYOK_PROVIDERS: Partial<Record<Provider, ByokProvider>> = {
   grok: grokByok,
   byteplus: byteplusByok,
   cloudflare: cloudflareByok,
+  zai: zaiByok,
 }
 
 function chatByokProvider(provider: Provider): ByokProvider | undefined {
@@ -444,6 +451,13 @@ export const Route = createFileRoute('/api/tanchat')({
                 adapter: ollamaText(model),
                 modelOptions: { options: { top_k: 1 } },
                 reasoning: 'low',
+              })
+            case 'zai':
+              return createChatOptions({
+                threadId: params.threadId,
+                // Z.AI direct: the browser key wins, ZAI_API_KEY in .env is the
+                // server fallback.
+                adapter: createZAIText(model, requireApiKey(apiKey)),
               })
             case 'openai':
               return createChatOptions({

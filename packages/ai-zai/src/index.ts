@@ -32,6 +32,9 @@ export type {
   ResolveInputModalities,
 } from './model-meta'
 
+// Runtime model catalog, e.g. for a UI picker or a request schema
+export { ZAI_CHAT_MODELS, ZAI_MODEL_META } from './model-meta'
+
 // Message metadata types
 export type { ZAIMessageMetadataByModality } from './message-types'
 

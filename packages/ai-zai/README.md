@@ -20,22 +20,10 @@
 
 # @tanstack/ai-zai
 
-[![npm version](https://img.shields.io/npm/v/@tanstack/ai-zai.svg)](https://www.npmjs.com/package/@tanstack/ai-zai)
-[![license](https://img.shields.io/npm/l/@tanstack/ai-zai.svg)](https://github.com/TanStack/ai/blob/main/LICENSE)
+Z.AI adapter for TanStack AI. It calls the GLM chat models over Z.AI's
+OpenAI-compatible Chat Completions API.
 
-Z.AI adapter for TanStack AI.
-
-- Z.AI docs: https://docs.z.ai/api-reference/introduction
-
-## OpenAI Compatibility
-
-Z.AI exposes an OpenAI-compatible API surface. This adapter:
-
-- Uses the OpenAI SDK internally, with Z.AI's base URL (`https://api.z.ai/api/paas/v4`)
-- Targets the Chat Completions streaming interface
-- Supports function/tool calling via OpenAI-style `tools`
-- Supports Zhipu AI specific features like **Web Search**, **Thinking Mode**, and **Tool Streaming**
-- Accepts `string` or `ContentPart[]` message content (only text parts are used today)
+- Z.AI API docs: https://docs.z.ai/api-reference/llm/chat-completion
 
 ## Installation
 
@@ -49,276 +37,236 @@ yarn add @tanstack/ai-zai
 
 ## Setup
 
-Get your API key from Z.AI and set it as an environment variable:
+Get a key from https://z.ai/manage-apikey/apikey-list and put it in the
+environment of your server:
 
 ```bash
-export ZAI_API_KEY="your_zai_api_key"
+ZAI_API_KEY=...
+```
+
+`zaiText` reads `ZAI_API_KEY`. To pass the key in code, use `createZAIText`:
+
+```ts
+import { createZAIText } from '@tanstack/ai-zai'
+
+const adapter = createZAIText('glm-5.3', apiKey)
 ```
 
 ## Usage
 
-### Text/Chat Adapter
+### Stream a chat from the server
 
 ```ts
+import {
+  chat,
+  chatParamsFromRequest,
+  toServerSentEventsResponse,
+} from '@tanstack/ai'
 import { zaiText } from '@tanstack/ai-zai'
-import { generate } from '@tanstack/ai'
 
-const adapter = zaiText('glm-4.7')
+export async function POST(request: Request) {
+  const { messages, threadId, runId } = await chatParamsFromRequest(request)
 
-const result = await generate({
-  adapter,
-  model: 'glm-4.7',
+  const stream = chat({
+    adapter: zaiText('glm-5.3'),
+    messages,
+    threadId,
+    runId,
+  })
+
+  return toServerSentEventsResponse(stream)
+}
+```
+
+The client is the same as for every other provider. See the Groq guide in
+`docs/adapters/groq.md` for the `useChat` half.
+
+### Reasoning
+
+GLM-5.3, GLM-5.3 Flash, and GLM-5.2 accept a reasoning effort. Pass a level to
+`chat()`. The adapter clamps it to the nearest level the model supports, then
+sends it as `reasoning_effort`.
+
+```ts
+const stream = chat({
+  adapter: zaiText('glm-5.3'),
+  messages,
+  reasoning: 'high',
+})
+```
+
+| Model           | `reasoning_effort` values |
+| --------------- | ------------------------- |
+| `glm-5.3`       | `low`, `high`, `max`      |
+| `glm-5.2`       | `high`, `max`             |
+| `glm-5.3-flash` | `max`                     |
+
+For GLM-4.7 and GLM-4.6, turn thinking on with the provider option instead:
+
+```ts
+const stream = chat({
+  adapter: zaiText('glm-4.7'),
+  messages,
+  modelOptions: { thinking: { type: 'enabled', clear_thinking: false } },
+})
+```
+
+### Structured output
+
+Pass `outputSchema`. Z.AI rejects `response_format: { type: 'json_schema' }`,
+so the adapter sends JSON mode plus a schema system prompt and validates the
+reply against your schema.
+
+```ts
+import { z } from 'zod'
+
+const orderSchema = z.object({
+  status: z.enum(['open', 'closed']),
+  total: z.number(),
+})
+
+const stream = chat({
+  adapter: zaiText('glm-5.3'),
+  messages,
+  outputSchema: orderSchema,
+})
+```
+
+### Tools
+
+Function tools and Z.AI's built-in web search both work. `tool_choice` is
+always `auto`, because Z.AI rejects the other values.
+
+```ts
+import { zaiText, zaiWebSearchTool } from '@tanstack/ai-zai'
+
+const stream = chat({
+  adapter: zaiText('glm-5.3'),
+  messages,
+  tools: [zaiWebSearchTool({ search_result: true })],
+})
+```
+
+### Images and video
+
+Vision models take `image` and `video` content parts:
+
+```ts
+const stream = chat({
+  adapter: zaiText('glm-5.3-flash'),
   messages: [
     {
       role: 'user',
       content: [
-        { type: 'text', content: 'Hello! Introduce yourself briefly.' },
+        { type: 'text', content: 'What is in this image?' },
+        { type: 'image', source: { type: 'url', value: imageUrl } },
       ],
     },
   ],
 })
-
-for await (const chunk of result) {
-  console.log(chunk)
-}
-```
-
-### Web Search Tool
-
-Zhipu AI provides a built-in Web Search capability.
-
-```ts
-import { zaiText } from '@tanstack/ai-zai'
-import { webSearchTool } from '@tanstack/ai-zai/tools'
-
-const adapter = zaiText('glm-4.7')
-
-for await (const chunk of adapter.chatStream({
-  model: 'glm-4.7',
-  messages: [
-    { role: 'user', content: 'What is the latest news about TanStack?' },
-  ],
-  tools: [webSearchTool({ enable: true, search_result: true })],
-})) {
-  if (chunk.type === 'content') process.stdout.write(chunk.delta)
-}
-```
-
-### Thinking Mode (GLM-4.7/4.6/4.5)
-
-Enable Deep Thinking for complex reasoning tasks.
-
-```ts
-import { zaiText } from '@tanstack/ai-zai'
-
-const adapter = zaiText('glm-4.7')
-
-for await (const chunk of adapter.chatStream({
-  model: 'glm-4.7',
-  messages: [{ role: 'user', content: 'Solve this complex logic puzzle...' }],
-  modelOptions: {
-    thinking: {
-      type: 'enabled',
-      clear_thinking: false, // Optional: set to false to preserve reasoning across turns (GLM-4.7 only)
-    },
-  },
-})) {
-  // Thinking content is streamed as part of the reasoning_content delta
-  // The adapter currently merges reasoning content into the main content stream or handles it as configured
-  if (chunk.type === 'content') process.stdout.write(chunk.delta)
-}
-```
-
-### Tool / Function Calling & Streaming
-
-GLM-4.7 supports streaming tool calls via `tool_stream`.
-
-```ts
-import { zaiText } from '@tanstack/ai-zai'
-import type { Tool } from '@tanstack/ai'
-
-const adapter = zaiText('glm-4.7')
-
-const tools: Array<Tool> = [
-  {
-    name: 'echo',
-    description: 'Echo back the provided text',
-    inputSchema: {
-      type: 'object',
-      properties: { text: { type: 'string' } },
-      required: ['text'],
-    },
-  },
-]
-
-for await (const chunk of adapter.chatStream({
-  model: 'glm-4.7',
-  messages: [{ role: 'user', content: 'Call echo with {"text":"hello"}.' }],
-  tools,
-  modelOptions: {
-    tool_stream: true, // Enable streaming tool arguments
-  },
-})) {
-  if (chunk.type === 'tool_call') {
-    const { id, function: fn } = chunk.toolCall
-    console.log('Tool requested:', fn.name, fn.arguments)
-  }
-}
 ```
 
 ### Summarization
 
 ```ts
-import { zaiSummarize } from '@tanstack/ai-zai'
 import { summarize } from '@tanstack/ai'
-
-const adapter = zaiSummarize('glm-4.7')
+import { zaiSummarize } from '@tanstack/ai-zai'
 
 const result = await summarize({
-  adapter,
-  text: 'Long article text...',
+  adapter: zaiSummarize('glm-5.3'),
+  text: longText,
+  threadId: 'article-summary',
   style: 'bullet-points',
   maxLength: 500,
 })
-
-console.log(result.summary)
 ```
 
-### Streaming (direct)
+### Coding endpoint
+
+A coding-plan key talks to a different host. Pass `coding: true`:
 
 ```ts
-import { zaiText } from '@tanstack/ai-zai'
-
-const adapter = zaiText('glm-4.7')
-
-for await (const chunk of adapter.chatStream({
-  model: 'glm-4.7',
-  messages: [
-    {
-      role: 'user',
-      content: [
-        { type: 'text', content: 'Stream a short poem about TypeScript.' },
-      ],
-    },
-  ],
-})) {
-  if (chunk.type === 'content') process.stdout.write(chunk.delta)
-  if (chunk.type === 'error') {
-    console.error(chunk.error)
-    break
-  }
-  if (chunk.type === 'done') break
-}
+const adapter = zaiText('glm-5.3', { coding: true })
 ```
 
-### With Explicit API Key
+That sets the base URL to `https://api.z.ai/api/coding/paas/v4`. A `baseURL`
+you set yourself wins.
+
+### Bring your own key
+
+`@tanstack/ai-zai/byok` exports a BYOK descriptor. Add it to your store so the
+key dialog shows a Z.AI field, then read the key in the route. The
+`x-byok-zai` header from the browser wins over `ZAI_API_KEY`:
 
 ```ts
-import { createZAIChat } from '@tanstack/ai-zai'
+import { defineByok, defaultByokStorage } from '@tanstack/ai-client/byok'
+import { byokMissing, getByokKey } from '@tanstack/ai/byok/server'
+import { createZAIText } from '@tanstack/ai-zai'
+import { zaiByok } from '@tanstack/ai-zai/byok'
 
-const adapter = createZAIChat('glm-4.7', 'your-zai-api-key-here')
-```
-
-### Error Handling
-
-The adapter yields an `error` chunk instead of throwing.
-
-```ts
-import { zaiText } from '@tanstack/ai-zai'
-
-const adapter = zaiText('glm-4.7')
-
-for await (const chunk of adapter.chatStream({
-  model: 'glm-4.7',
-  messages: [{ role: 'user', content: 'Hello' }],
-})) {
-  if (chunk.type === 'error') {
-    console.error(chunk.error.message, chunk.error.code)
-    break
-  }
-}
-```
-
-## API Reference
-
-### `createZAIChat(model, apiKey, config?)`
-
-```ts
-import { createZAIChat } from '@tanstack/ai-zai'
-
-const adapter = createZAIChat('glm-4.7', 'your_zai_api_key', {
-  baseURL: 'https://api.z.ai/api/paas/v4',
+export const byok = defineByok({
+  storage: defaultByokStorage(),
+  providers: [zaiByok],
 })
+
+// In the route handler. getByokKey reads the header, then ZAI_API_KEY.
+const apiKey = getByokKey(request, zaiByok)
+if (!apiKey) return byokMissing(zaiByok)
+
+const adapter = createZAIText('glm-5.3', apiKey)
 ```
 
-- `model`: `ZAIModel`
-- `apiKey`: string (required)
-- `config.baseURL`: string (optional)
+## Models
 
-### `zaiText(model, config?)`
+| Model           | Context   | Max output | Input              |
+| --------------- | --------- | ---------- | ------------------ |
+| `glm-5.3`       | 1,000,000 | 128,000    | text               |
+| `glm-5.3-flash` | 1,000,000 | 128,000    | text, image, video |
+| `glm-5.2`       | 1,000,000 | 131,072    | text               |
+| `glm-5.1`       | 200,000   | 128,000    | text               |
+| `glm-5-turbo`   | 200,000   | 128,000    | text               |
+| `glm-5`         | 200,000   | 128,000    | text               |
+| `glm-5v-turbo`  | 200,000   | 128,000    | text, image, video |
+| `glm-4.7`       | 200,000   | 128,000    | text               |
+| `glm-4.6v`      | 128,000   | 128,000    | text, image, video |
+| `glm-4.6`       | 128,000   | 128,000    | text               |
 
-```ts
-import { zaiText } from '@tanstack/ai-zai'
-
-const adapter = zaiText('glm-4.7', {
-  baseURL: 'https://api.z.ai/api/paas/v4',
-})
-```
-
-Uses `ZAI_API_KEY` from your environment.
-
-## Supported Models
-
-### Chat Models
-
-- `glm-4.7` - Latest flagship model (Supports Thinking, Tool Streaming)
-- `glm-4.6` - Previous flagship model (Supports Thinking)
-- `glm-4.6v` - Vision model (Z.AI supports multimodal input, this adapter currently streams text)
+Every model in the table streams, calls tools, and accepts JSON mode. Import
+`ZAI_CHAT_MODELS` for the list at runtime and `ZAI_MODEL_META` for the full
+metadata, including pricing.
 
 ## Features
 
 - ✅ Streaming chat completions
 - ✅ Function/tool calling
-- ✅ **Web Search Tool** (Zhipu AI native)
-- ✅ **Thinking Mode** (Interleaved & Preserved)
-- ✅ **Tool Streaming** (Real-time argument streaming)
-- ❌ Structured output (not implemented in this adapter yet)
-- ❌ Multimodal input (this adapter currently extracts text only; non-text parts are ignored)
-
-## Tree-Shakeable Adapters
-
-This package uses tree-shakeable adapters, so you only import what you need:
-
-```ts
-import { zaiText } from '@tanstack/ai-zai'
-```
+- ✅ Web search tool (provider runs the search)
+- ✅ Reasoning events (`delta.reasoning_content`)
+- ✅ Structured output (JSON mode plus a schema prompt)
+- ✅ Multimodal input (image and video on vision models)
+- ✅ Summarization (`zaiSummarize`)
+- ❌ Embeddings (Z.AI has none on this endpoint)
+- ❌ Image generation (not part of Chat Completions)
 
 ## Configuration
 
-### Environment Variables
+- `ZAI_API_KEY`: read by `zaiText()` and `zaiSummarize()`.
+- `ZAI_API_KEY_TEST`: read by the live integration tests in `tests/`.
+- Base URL: `https://api.z.ai/api/paas/v4` by default,
+  `https://api.z.ai/api/coding/paas/v4` with `coding: true`, or your own
+  `baseURL`.
 
-- `ZAI_API_KEY` - used by `zaiText()`
-- `ZAI_API_KEY_TEST` - used by the integration tests in this package
-
-### Base URL Customization
-
-Default base URL is `https://api.z.ai/api/paas/v4`. You can override it via:
-
-- `createZAIChat(model, apiKey, { baseURL })`
-- `zaiText(model, { baseURL })`
+The config object extends the OpenAI SDK client options, so `timeout`,
+`maxRetries`, and `defaultHeaders` pass straight through.
 
 ## Testing
 
 ```bash
-pnpm test:lib
+pnpm --filter @tanstack/ai-zai test:lib
 ```
 
-Integration tests require a real Z.AI API key.
-
-```bash
-export ZAI_API_KEY_TEST="your_test_key"
-pnpm test:lib
-```
+The unit tests run offline. The live tests in
+`tests/zai-adapter.integration.test.ts` need a real key in
+`ZAI_API_KEY_TEST`.
 
 ## Contributing
 
