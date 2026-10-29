@@ -1,6 +1,6 @@
 ---
 title: Cloudflare
-id: cloudflare-adapter
+id: cloudflare-community-adapter
 order: 3
 description: "Use Cloudflare's own @cloudflare/tanstack-ai package for Workers AI models and AI Gateway routing, with caching, rate limits, and one bill across providers."
 keywords:
