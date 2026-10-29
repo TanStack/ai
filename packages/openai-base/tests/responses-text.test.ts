@@ -4765,6 +4765,81 @@ describe('OpenAIBaseResponsesTextAdapter', () => {
       expect(finished).toMatchObject({ finishReason: 'tool_calls' })
     })
 
+    it('passes the streamed diff of an apply_patch_call to the app', async () => {
+      // The diff is empty when the item is added and streams in afterwards.
+      const diff = '@@\n-def fib\n+def fibonacci\n'
+      const item = (status: string, itemDiff: string) => ({
+        type: 'apply_patch_call',
+        id: 'apc_1',
+        call_id: 'call_patch',
+        status,
+        operation: { type: 'update_file', path: 'lib/fib.py', diff: itemDiff },
+      })
+      setupMockResponsesClient([
+        {
+          type: 'response.created',
+          response: {
+            id: 'resp-user-tool',
+            model: 'test-model',
+            status: 'in_progress',
+          },
+        },
+        {
+          type: 'response.output_item.added',
+          output_index: 0,
+          item: item('in_progress', ''),
+        },
+        {
+          type: 'response.apply_patch_call_operation_diff.delta',
+          output_index: 0,
+          item_id: 'apc_1',
+          delta: diff,
+        },
+        {
+          type: 'response.apply_patch_call_operation_diff.done',
+          output_index: 0,
+          item_id: 'apc_1',
+        },
+        {
+          type: 'response.output_item.done',
+          output_index: 0,
+          item: item('completed', diff),
+        },
+        {
+          type: 'response.completed',
+          response: {
+            id: 'resp-user-tool',
+            model: 'test-model',
+            status: 'completed',
+            output: [item('completed', diff)],
+            usage: { input_tokens: 1, output_tokens: 1, total_tokens: 2 },
+          },
+        },
+      ])
+      const adapter = new TestResponsesAdapter(testConfig, 'test-model')
+      const chunks: Array<AdapterYieldChunk> = []
+      for await (const chunk of adapter.chatStream({
+        threadId: 'thread-1',
+        logger: testLogger,
+        model: 'test-model',
+        messages: [{ role: 'user', content: 'edit the file' }],
+        tools: [applyPatchTool()],
+      })) {
+        chunks.push(chunk)
+      }
+
+      const starts = chunks.filter((chunk) => chunk.type === 'TOOL_CALL_START')
+      const ends = chunks.filter((chunk) => chunk.type === 'TOOL_CALL_END')
+      expect(starts).toHaveLength(1)
+      expect(ends).toHaveLength(1)
+      expect(ends[0]).toMatchObject({
+        toolCallId: 'call_patch',
+        input: {
+          operation: { type: 'update_file', path: 'lib/fib.py', diff },
+        },
+      })
+    })
+
     it('surfaces a local shell call and ignores a hosted container shell', async () => {
       const chunks = await collect([
         {
