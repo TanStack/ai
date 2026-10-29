@@ -119,7 +119,7 @@ export const POST: RequestHandler = async ({ request }) => {
   // Extract provider from forwardedProps (sent by the client)
   const provider: Provider =
     typeof params.forwardedProps?.provider === 'string' &&
-    params.forwardedProps.provider in adapterConfig
+    Object.hasOwn(adapterConfig, params.forwardedProps.provider)
       ? (params.forwardedProps.provider as Provider)
       : 'openai'
   const model =

@@ -79,9 +79,7 @@ const createProviderAdapters = (
     }),
   zai: () =>
     createChatOptions({
-      adapter: zaiText((model || 'glm-4.7') as 'glm-4.7', {
-        coding: true,
-      }),
+      adapter: zaiText((model || 'glm-5.3') as 'glm-5.3'),
     }),
 })
 
@@ -117,7 +115,7 @@ export const Route = createFileRoute('/api/chat')({
           const providerAdapters = createProviderAdapters(model)
           const provider: Provider =
             typeof params.forwardedProps.provider === 'string' &&
-            params.forwardedProps.provider in providerAdapters
+            Object.hasOwn(providerAdapters, params.forwardedProps.provider)
               ? (params.forwardedProps.provider as Provider)
               : 'openai'
 

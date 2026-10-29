@@ -4,7 +4,7 @@ import Square from 'lucide-solid/icons/square'
 import { fetchServerSentEvents, useChat } from '@tanstack/ai-solid'
 import { createChatClientOptions } from '@tanstack/ai-client'
 import { TextPart, ThinkingPart } from '@tanstack/ai-solid/ui'
-import { For, createSignal } from 'solid-js'
+import { For, createSignal, onMount } from 'solid-js'
 
 import type {
   BoundInterrupts,
@@ -18,6 +18,8 @@ import { clientTools } from '@/lib/guitar-tools'
 import {
   DEFAULT_MODEL_OPTION,
   MODEL_OPTIONS,
+  getDefaultModelOption,
+  setStoredModelPreference,
   type ModelOption,
 } from '@/lib/model-selection'
 
@@ -306,6 +308,13 @@ function ChatPage() {
   const [selectedModel, setSelectedModel] =
     createSignal<ModelOption>(DEFAULT_MODEL_OPTION)
 
+  onMount(() => setSelectedModel(getDefaultModelOption()))
+
+  const chooseModel = (option: ModelOption) => {
+    setSelectedModel(option)
+    setStoredModelPreference(option)
+  }
+
   const bodyData = () => ({
     provider: selectedModel().provider,
     model: selectedModel().model,
@@ -345,8 +354,7 @@ function ChatPage() {
                     opt.model === selectedModel().model,
                 )}
                 onChange={(e) => {
-                  const option = MODEL_OPTIONS[parseInt(e.currentTarget.value)]
-                  setSelectedModel(option)
+                  chooseModel(MODEL_OPTIONS[parseInt(e.currentTarget.value)])
                 }}
                 disabled={isLoading()}
                 class="w-full rounded-lg border border-orange-500/20 bg-gray-900 px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-orange-500/50 disabled:opacity-50"
