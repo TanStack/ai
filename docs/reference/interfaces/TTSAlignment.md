@@ -3,7 +3,7 @@ id: TTSAlignment
 title: TTSAlignment
 ---
 
-Defined in: packages/ai/src/types.ts:2850
+Defined in: [packages/ai/src/types.ts:2898](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2898)
 
 Timings for the generated audio, returned when `timestamps: true` was
 requested and the adapter declares `capabilities.timestamps`.
@@ -20,7 +20,7 @@ All times are **seconds**; adapters convert.
 endSeconds: number[];
 ```
 
-Defined in: packages/ai/src/types.ts:2858
+Defined in: [packages/ai/src/types.ts:2906](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2906)
 
 End of each entry in seconds. Same length as `texts`.
 
@@ -32,7 +32,7 @@ End of each entry in seconds. Same length as `texts`.
 startSeconds: number[];
 ```
 
-Defined in: packages/ai/src/types.ts:2856
+Defined in: [packages/ai/src/types.ts:2904](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2904)
 
 Start of each entry in seconds. Same length as `texts`.
 
@@ -44,7 +44,7 @@ Start of each entry in seconds. Same length as `texts`.
 texts: string[];
 ```
 
-Defined in: packages/ai/src/types.ts:2854
+Defined in: [packages/ai/src/types.ts:2902](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2902)
 
 Entry text, in audio order.
 
@@ -56,6 +56,6 @@ Entry text, in audio order.
 unit: "character" | "word";
 ```
 
-Defined in: packages/ai/src/types.ts:2852
+Defined in: [packages/ai/src/types.ts:2900](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2900)
 
 Granularity of each entry.

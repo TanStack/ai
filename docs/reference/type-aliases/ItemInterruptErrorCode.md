@@ -15,4 +15,4 @@ type ItemInterruptErrorCode =
   | "conflict";
 ```
 
-Defined in: packages/ai/src/interrupts.ts:16
+Defined in: [packages/ai/src/interrupts.ts:16](https://github.com/TanStack/ai/blob/main/packages/ai/src/interrupts.ts#L16)

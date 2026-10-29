@@ -3,7 +3,7 @@ id: InterruptCorrelation
 title: InterruptCorrelation
 ---
 
-Defined in: packages/ai/src/interrupts.ts:8
+Defined in: [packages/ai/src/interrupts.ts:8](https://github.com/TanStack/ai/blob/main/packages/ai/src/interrupts.ts#L8)
 
 ## Extended by
 
@@ -18,7 +18,7 @@ Defined in: packages/ai/src/interrupts.ts:8
 optional continuationRunId?: string;
 ```
 
-Defined in: packages/ai/src/interrupts.ts:13
+Defined in: [packages/ai/src/interrupts.ts:13](https://github.com/TanStack/ai/blob/main/packages/ai/src/interrupts.ts#L13)
 
 ***
 
@@ -28,7 +28,7 @@ Defined in: packages/ai/src/interrupts.ts:13
 generation: number;
 ```
 
-Defined in: packages/ai/src/interrupts.ts:11
+Defined in: [packages/ai/src/interrupts.ts:11](https://github.com/TanStack/ai/blob/main/packages/ai/src/interrupts.ts#L11)
 
 ***
 
@@ -38,7 +38,7 @@ Defined in: packages/ai/src/interrupts.ts:11
 interruptedRunId: string;
 ```
 
-Defined in: packages/ai/src/interrupts.ts:10
+Defined in: [packages/ai/src/interrupts.ts:10](https://github.com/TanStack/ai/blob/main/packages/ai/src/interrupts.ts#L10)
 
 ***
 
@@ -48,7 +48,7 @@ Defined in: packages/ai/src/interrupts.ts:10
 optional submissionId?: string;
 ```
 
-Defined in: packages/ai/src/interrupts.ts:12
+Defined in: [packages/ai/src/interrupts.ts:12](https://github.com/TanStack/ai/blob/main/packages/ai/src/interrupts.ts#L12)
 
 ***
 
@@ -58,4 +58,4 @@ Defined in: packages/ai/src/interrupts.ts:12
 threadId: string;
 ```
 
-Defined in: packages/ai/src/interrupts.ts:9
+Defined in: [packages/ai/src/interrupts.ts:9](https://github.com/TanStack/ai/blob/main/packages/ai/src/interrupts.ts#L9)

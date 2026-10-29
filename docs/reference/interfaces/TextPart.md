@@ -3,7 +3,7 @@ id: TextPart
 title: TextPart
 ---
 
-Defined in: packages/ai/src/types.ts:488
+Defined in: [packages/ai/src/types.ts:491](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L491)
 
 Message parts - building blocks of UIMessage
 
@@ -21,7 +21,7 @@ Message parts - building blocks of UIMessage
 content: string;
 ```
 
-Defined in: packages/ai/src/types.ts:490
+Defined in: [packages/ai/src/types.ts:493](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L493)
 
 ***
 
@@ -31,7 +31,7 @@ Defined in: packages/ai/src/types.ts:490
 optional metadata?: TMetadata;
 ```
 
-Defined in: packages/ai/src/types.ts:491
+Defined in: [packages/ai/src/types.ts:494](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L494)
 
 ***
 
@@ -41,4 +41,4 @@ Defined in: packages/ai/src/types.ts:491
 type: "text";
 ```
 
-Defined in: packages/ai/src/types.ts:489
+Defined in: [packages/ai/src/types.ts:492](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L492)

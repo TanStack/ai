@@ -3,7 +3,7 @@ id: WorldGenerationOptions
 title: WorldGenerationOptions
 ---
 
-Defined in: packages/ai/src/types.ts:2658
+Defined in: [packages/ai/src/types.ts:2706](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2706)
 
 **`Experimental`**
 
@@ -25,7 +25,7 @@ Options for world generation (live session or finished job).
 optional abortSignal?: AbortSignal;
 ```
 
-Defined in: packages/ai/src/types.ts:2683
+Defined in: [packages/ai/src/types.ts:2731](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2731)
 
 **`Experimental`**
 
@@ -41,7 +41,7 @@ supported. Request-specific — never store on a global client config.
 logger: InternalLogger;
 ```
 
-Defined in: packages/ai/src/types.ts:2677
+Defined in: [packages/ai/src/types.ts:2725](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2725)
 
 **`Experimental`**
 
@@ -57,7 +57,7 @@ catch blocks.
 model: string;
 ```
 
-Defined in: packages/ai/src/types.ts:2662
+Defined in: [packages/ai/src/types.ts:2710](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2710)
 
 **`Experimental`**
 
@@ -71,7 +71,7 @@ The model to use for world generation
 optional modelOptions?: TProviderOptions;
 ```
 
-Defined in: packages/ai/src/types.ts:2671
+Defined in: [packages/ai/src/types.ts:2719](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2719)
 
 **`Experimental`**
 
@@ -88,7 +88,7 @@ token-mint fields.
 prompt: string;
 ```
 
-Defined in: packages/ai/src/types.ts:2664
+Defined in: [packages/ai/src/types.ts:2712](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2712)
 
 **`Experimental`**
 

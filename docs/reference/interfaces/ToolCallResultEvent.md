@@ -3,7 +3,7 @@ id: ToolCallResultEvent
 title: ToolCallResultEvent
 ---
 
-Defined in: packages/ai/src/types.ts:1706
+Defined in: [packages/ai/src/types.ts:1764](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1764)
 
 Emitted when a tool call result is available.
 

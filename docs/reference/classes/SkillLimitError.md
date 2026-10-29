@@ -3,7 +3,7 @@ id: SkillLimitError
 title: SkillLimitError
 ---
 
-Defined in: packages/ai/src/utilities/errors.ts:22
+Defined in: [packages/ai/src/utilities/errors.ts:22](https://github.com/TanStack/ai/blob/main/packages/ai/src/utilities/errors.ts#L22)
 
 ## Extends
 
@@ -17,7 +17,7 @@ Defined in: packages/ai/src/utilities/errors.ts:22
 new SkillLimitError(init): SkillLimitError;
 ```
 
-Defined in: packages/ai/src/utilities/errors.ts:30
+Defined in: [packages/ai/src/utilities/errors.ts:30](https://github.com/TanStack/ai/blob/main/packages/ai/src/utilities/errors.ts#L30)
 
 #### Parameters
 
@@ -43,7 +43,7 @@ Error.constructor
 readonly actual: number;
 ```
 
-Defined in: packages/ai/src/utilities/errors.ts:27
+Defined in: [packages/ai/src/utilities/errors.ts:27](https://github.com/TanStack/ai/blob/main/packages/ai/src/utilities/errors.ts#L27)
 
 ***
 
@@ -53,7 +53,7 @@ Defined in: packages/ai/src/utilities/errors.ts:27
 readonly allowed: number;
 ```
 
-Defined in: packages/ai/src/utilities/errors.ts:26
+Defined in: [packages/ai/src/utilities/errors.ts:26](https://github.com/TanStack/ai/blob/main/packages/ai/src/utilities/errors.ts#L26)
 
 ***
 
@@ -63,7 +63,7 @@ Defined in: packages/ai/src/utilities/errors.ts:26
 readonly limit: string;
 ```
 
-Defined in: packages/ai/src/utilities/errors.ts:25
+Defined in: [packages/ai/src/utilities/errors.ts:25](https://github.com/TanStack/ai/blob/main/packages/ai/src/utilities/errors.ts#L25)
 
 ***
 
@@ -73,7 +73,7 @@ Defined in: packages/ai/src/utilities/errors.ts:25
 readonly offending: string[];
 ```
 
-Defined in: packages/ai/src/utilities/errors.ts:28
+Defined in: [packages/ai/src/utilities/errors.ts:28](https://github.com/TanStack/ai/blob/main/packages/ai/src/utilities/errors.ts#L28)
 
 ***
 
@@ -83,7 +83,7 @@ Defined in: packages/ai/src/utilities/errors.ts:28
 readonly path: "native" | "portable";
 ```
 
-Defined in: packages/ai/src/utilities/errors.ts:24
+Defined in: [packages/ai/src/utilities/errors.ts:24](https://github.com/TanStack/ai/blob/main/packages/ai/src/utilities/errors.ts#L24)
 
 ***
 
@@ -93,4 +93,4 @@ Defined in: packages/ai/src/utilities/errors.ts:24
 readonly provider: "anthropic" | "openai" | "gemini" | "other";
 ```
 
-Defined in: packages/ai/src/utilities/errors.ts:23
+Defined in: [packages/ai/src/utilities/errors.ts:23](https://github.com/TanStack/ai/blob/main/packages/ai/src/utilities/errors.ts#L23)

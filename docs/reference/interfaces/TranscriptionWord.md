@@ -3,7 +3,7 @@ id: TranscriptionWord
 title: TranscriptionWord
 ---
 
-Defined in: packages/ai/src/types.ts:3190
+Defined in: [packages/ai/src/types.ts:3238](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L3238)
 
 A single word with timing information.
 
@@ -15,7 +15,7 @@ A single word with timing information.
 end: number;
 ```
 
-Defined in: packages/ai/src/types.ts:3196
+Defined in: [packages/ai/src/types.ts:3244](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L3244)
 
 End time in seconds
 
@@ -27,7 +27,7 @@ End time in seconds
 start: number;
 ```
 
-Defined in: packages/ai/src/types.ts:3194
+Defined in: [packages/ai/src/types.ts:3242](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L3242)
 
 Start time in seconds
 
@@ -39,6 +39,6 @@ Start time in seconds
 word: string;
 ```
 
-Defined in: packages/ai/src/types.ts:3192
+Defined in: [packages/ai/src/types.ts:3240](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L3240)
 
 The transcribed word

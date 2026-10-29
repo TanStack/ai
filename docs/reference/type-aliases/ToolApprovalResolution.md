@@ -18,4 +18,4 @@ type ToolApprovalResolution =
 };
 ```
 
-Defined in: packages/ai/src/interrupts.ts:124
+Defined in: [packages/ai/src/interrupts.ts:124](https://github.com/TanStack/ai/blob/main/packages/ai/src/interrupts.ts#L124)

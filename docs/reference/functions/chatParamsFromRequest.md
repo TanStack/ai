@@ -22,7 +22,7 @@ function chatParamsFromRequest(req): Promise<{
 }>;
 ```
 
-Defined in: packages/ai/src/utilities/chat-params.ts:276
+Defined in: [packages/ai/src/utilities/chat-params.ts:276](https://github.com/TanStack/ai/blob/main/packages/ai/src/utilities/chat-params.ts#L276)
 
 Read an HTTP `Request`, parse its JSON body, and validate it as an
 AG-UI `RunAgentInput` — collapsing the standard `req.json()` +

@@ -3,7 +3,7 @@ id: BooleanAnswer
 title: BooleanAnswer
 ---
 
-Defined in: packages/ai/src/activities/evaluate/index.ts:92
+Defined in: [packages/ai/src/activities/evaluate/index.ts:93](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/evaluate/index.ts#L93)
 
 Public yes/no answer. `.value` is `true` when P(true) is 0.5 or more.
 There is no `.confidence`.
@@ -16,7 +16,7 @@ There is no `.confidence`.
 probability: number;
 ```
 
-Defined in: packages/ai/src/activities/evaluate/index.ts:96
+Defined in: [packages/ai/src/activities/evaluate/index.ts:97](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/evaluate/index.ts#L97)
 
 P(true), from the wire `noul` field.
 
@@ -28,7 +28,7 @@ P(true), from the wire `noul` field.
 type: "boolean";
 ```
 
-Defined in: packages/ai/src/activities/evaluate/index.ts:93
+Defined in: [packages/ai/src/activities/evaluate/index.ts:94](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/evaluate/index.ts#L94)
 
 ***
 
@@ -38,4 +38,4 @@ Defined in: packages/ai/src/activities/evaluate/index.ts:93
 value: boolean;
 ```
 
-Defined in: packages/ai/src/activities/evaluate/index.ts:94
+Defined in: [packages/ai/src/activities/evaluate/index.ts:95](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/evaluate/index.ts#L95)
