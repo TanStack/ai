@@ -3,9 +3,9 @@
  * sections and stats. Pure — no I/O.
  */
 
-import { deriveResponseState } from './classify'
-import { isRosterMaintainer } from './config'
-import { computeLoad, routePR } from './route'
+import { deriveResponseState } from './classify.ts'
+import { isRosterMaintainer } from './config.ts'
+import { computeLoad, routePR } from './route.ts'
 import type {
   DiscussionTriage,
   IssueTriage,
@@ -13,7 +13,7 @@ import type {
   RepoSnapshot,
   ToolsetConfig,
   TriageResult,
-} from './types'
+} from './types.ts'
 
 const DAY_MS = 24 * 60 * 60 * 1000
 
