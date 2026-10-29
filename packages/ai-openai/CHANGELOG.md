@@ -1,5 +1,17 @@
 # @tanstack/ai-openai
 
+## 1.0.1
+
+### Patch Changes
+
+- [#1904](https://github.com/TanStack/ai/pull/1904) [`f085015`](https://github.com/TanStack/ai/commit/f085015da1b77aee3cf95ca74a2e86ed9dbc1c29) - Show each package's own npm download count and npm version. The bundle-size badge uses bundlejs. Partner logos use image URLs that load.
+
+- [#1912](https://github.com/TanStack/ai/pull/1912) [`ae97655`](https://github.com/TanStack/ai/commit/ae976552710726b13b524c307c1b5bbe78478eb0) - Video generation is no longer marked experimental. The `@experimental` tags are gone from `generateVideo()`, the video adapters, and their types, and the docs no longer say the API can change.
+
+- Updated dependencies [[`f085015`](https://github.com/TanStack/ai/commit/f085015da1b77aee3cf95ca74a2e86ed9dbc1c29), [`ae97655`](https://github.com/TanStack/ai/commit/ae976552710726b13b524c307c1b5bbe78478eb0)]:
+  - @tanstack/ai@1.0.1
+  - @tanstack/openai-base@1.0.0
+
 ## 1.0.0
 
 ### Major Changes
