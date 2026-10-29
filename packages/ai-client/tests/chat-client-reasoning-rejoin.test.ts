@@ -151,3 +151,118 @@ it.each(firstEvents)(
     }
   },
 )
+
+const hydratedTails: Array<{ name: string; tail: Array<UIMessage> }> = [
+  { name: 'a user turn', tail: [] },
+  {
+    name: 'an in-flight assistant',
+    tail: [
+      {
+        id: 'partial',
+        role: 'assistant',
+        parts: [{ type: 'text', content: 'Hel' }],
+      },
+    ],
+  },
+]
+
+it.each(hydratedTails)(
+  'keeps the answer after encrypted-only reasoning when hydrate ends with $name',
+  async ({ tail }) => {
+    const metadata = { tanstack: { model: 'example-model' } }
+    const replay: Array<StreamChunk> = [
+      {
+        type: EventType.RUN_STARTED,
+        runId: 'r1',
+        threadId: 't1',
+        timestamp: 1,
+      },
+      {
+        type: EventType.REASONING_START,
+        messageId: 'reasoning',
+        metadata,
+        timestamp: 2,
+      },
+      {
+        type: EventType.REASONING_MESSAGE_START,
+        messageId: 'reasoning',
+        role: 'reasoning',
+        metadata,
+        timestamp: 3,
+      },
+      {
+        type: EventType.REASONING_MESSAGE_END,
+        messageId: 'reasoning',
+        timestamp: 4,
+      },
+      { type: EventType.REASONING_END, messageId: 'reasoning', timestamp: 5 },
+      {
+        type: EventType.REASONING_ENCRYPTED_VALUE,
+        subtype: 'message',
+        entityId: 'reasoning',
+        encryptedValue: 'signature',
+        timestamp: 6,
+      },
+      {
+        type: EventType.TEXT_MESSAGE_START,
+        messageId: 'answer',
+        role: 'assistant',
+        timestamp: 7,
+      },
+      {
+        type: EventType.TEXT_MESSAGE_CONTENT,
+        messageId: 'answer',
+        delta: 'Hello from Acme.',
+        timestamp: 8,
+      },
+      { type: EventType.TEXT_MESSAGE_END, messageId: 'answer', timestamp: 9 },
+      {
+        type: EventType.RUN_FINISHED,
+        runId: 'r1',
+        threadId: 't1',
+        timestamp: 10,
+      },
+    ]
+    const connection: ResumableConnectConnectionAdapter = {
+      async hydrate() {
+        return {
+          messages: [
+            {
+              id: 'u1',
+              role: 'user',
+              parts: [{ type: 'text', content: 'Say hello.' }],
+            },
+            ...tail,
+          ],
+          activeRun: { runId: 'r1' },
+          interrupts: null,
+        }
+      },
+      async *joinRun() {
+        yield* replay
+      },
+      async *connect() {},
+    }
+    const client = new ChatClient({
+      connection,
+      threadId: 't1',
+      persistence: true,
+    })
+    try {
+      client.attach()
+      await vi.waitFor(() => {
+        expect(client.getMessages()).not.toHaveLength(0)
+        expect(client.getIsLoading()).toBe(false)
+      })
+      const assistants = client
+        .getMessages()
+        .filter((message) => message.role === 'assistant')
+      expect(assistants).toHaveLength(1)
+      expect(assistants[0]!.parts).toContainEqual(
+        expect.objectContaining({ type: 'text', content: 'Hello from Acme.' }),
+      )
+    } finally {
+      client.dispose()
+    }
+  },
+)
