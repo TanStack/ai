@@ -20,6 +20,7 @@ import type {
 import type { SessionIndexEntry } from '@tanstack/ai-persistence'
 import type {
   AgentActions,
+  AnyHarness,
   AgentRun,
   AgentSettled,
   HarnessAgentContext,
@@ -32,6 +33,7 @@ import type {
   HarnessSession,
   Operation,
   PluginLifetime,
+  HarnessAgentsOf,
   HarnessUser,
   ProjectOptions,
   Receipt,
@@ -80,6 +82,26 @@ it('types agent input and result from the definition', () => {
   void session.agents.missing
   // @ts-expect-error wrong input
   void session.agents.pricer.run({ vendor: 1 })
+})
+
+it('collects the agents of a harness from agents and subagents', () => {
+  expectTypeOf<HarnessAgentsOf<typeof harness>>().toEqualTypeOf<
+    typeof pricer | typeof writer
+  >()
+  const agentsOnly = defineHarness({
+    name: 'test/agents-only',
+    adapter: mockAdapter([]).adapter,
+    agents: [pricer],
+  })
+  expectTypeOf<HarnessAgentsOf<typeof agentsOnly>>().toEqualTypeOf<
+    typeof pricer
+  >()
+  const noAgents = defineHarness({
+    name: 'test/no-agents',
+    adapter: mockAdapter([]).adapter,
+  })
+  expectTypeOf<HarnessAgentsOf<typeof noAgents>>().toBeNever()
+  expectTypeOf<HarnessAgentsOf<AnyHarness>>().toBeAny()
 })
 
 it('takes an inputId on every input and keeps the op narrowing', () => {
