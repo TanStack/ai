@@ -154,6 +154,7 @@ export const Route = createFileRoute('/api/anthropic-opus-5-combined-wire')({
 
         try {
           for await (const _ of chat({
+            threadId: 'anthropic-opus-5-combined-wire',
             ...options,
             messages: [
               {

@@ -159,6 +159,7 @@ describe('Grok adapters', () => {
 
       const chunks: Array<AdapterYieldChunk> = []
       for await (const chunk of adapter.chatStream({
+        threadId: 'thread-1',
         model: 'grok-build-0.1',
         messages: [{ role: 'user', content: 'Hello' }],
         modelOptions,
@@ -193,6 +194,7 @@ describe('Grok adapters', () => {
 
       await consume(
         adapter.chatStream({
+          threadId: 'thread-1',
           model: 'grok-build-0.1',
           messages: [{ role: 'user', content: 'Hello' }],
           modelOptions: {
@@ -218,6 +220,7 @@ describe('Grok adapters', () => {
 
       await consume(
         adapter.chatStream({
+          threadId: 'thread-1',
           model: 'grok-4.3',
           messages: [{ role: 'user', content: 'Hello' }],
           reasoning: { level: 'high', summary: true },
@@ -251,6 +254,7 @@ describe('Grok adapters', () => {
 
         await consume(
           adapter.chatStream({
+            threadId: 'thread-1',
             model,
             messages: [{ role: 'user', content: 'Hello' }],
             reasoning: { level: 'off', summary: true },
@@ -271,6 +275,7 @@ describe('Grok adapters', () => {
 
       await consume(
         adapter.chatStream({
+          threadId: 'thread-1',
           model: 'grok-build-0.1',
           messages: [{ role: 'user', content: 'What is the weather?' }],
           tools: [weatherTool],
@@ -298,6 +303,7 @@ describe('Grok adapters', () => {
 
       await consume(
         adapter.chatStream({
+          threadId: 'thread-1',
           model: 'grok-build-0.1',
           messages: [{ role: 'user', content: 'Use server tools' }],
           tools: [
@@ -361,6 +367,7 @@ describe('Grok adapters', () => {
 
       await consume(
         adapter.chatStream({
+          threadId: 'thread-1',
           model: 'grok-build-0.1',
           messages: [
             { role: 'user', content: 'Call my local web_search tool' },
@@ -548,6 +555,7 @@ describe('Grok adapters', () => {
       // Via the public generateImage() entry point so the per-model provider
       // options map is exercised: `quality` only type-checks on the 2.0 model.
       await generateImage({
+        threadId: 'thread-1',
         adapter,
         prompt: 'A skyline',
         size: '16:9',
@@ -597,8 +605,16 @@ describe('Grok adapters', () => {
       // (covered above) is not enough. This closure is type-checked but never
       // executed - passing CI's test:types is the assertion.
       const _typeCheck = () => {
-        void summarize({ adapter: grokSummarize('grok-4.3'), text: '' })
-        void summarize({ adapter: grokSummarize('grok-build-0.1'), text: '' })
+        void summarize({
+          threadId: 'thread-1',
+          adapter: grokSummarize('grok-4.3'),
+          text: '',
+        })
+        void summarize({
+          threadId: 'thread-1',
+          adapter: grokSummarize('grok-build-0.1'),
+          text: '',
+        })
       }
 
       expect(_typeCheck).toBeInstanceOf(Function)

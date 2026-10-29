@@ -6,6 +6,7 @@ import { createMistralEmbedding } from '@tanstack/ai-mistral'
 import { createOllamaEmbedding } from '@tanstack/ai-ollama'
 import { createVercelGatewayEmbedding } from '@tanstack/ai-vercel-gateway'
 import { createLovableEmbedding } from '@tanstack/ai-lovable'
+import { createNeonEmbedding } from '@tanstack/ai-neon'
 import type { Provider } from '@/lib/types'
 
 const LLMOCK_BASE = process.env.LLMOCK_URL || 'http://127.0.0.1:4010'
@@ -77,6 +78,12 @@ function createEmbeddingAdapter(
         baseURL: openaiUrl(aimockPort),
         defaultHeaders: headers,
       }),
+    // Neon's baseURL is the bare host; the adapter appends `/v1`.
+    neon: () =>
+      createNeonEmbedding('qwen3-embedding-0-6b', DUMMY_KEY, {
+        baseURL: llmockBase(aimockPort),
+        defaultHeaders: headers,
+      }),
   }
   return factories[provider]?.()
 }
@@ -87,7 +94,7 @@ export const Route = createFileRoute('/api/embedding')({
       POST: async ({ request }) => {
         await import('@/lib/llmock-server').then((m) => m.ensureLLMock())
         const body = await request.json()
-        const data = body.forwardedProps ?? body.data ?? body
+        const data = body.forwardedProps ?? body
         const { texts, provider, testId, aimockPort } = data as {
           texts: Array<string>
           provider: Provider

@@ -5,9 +5,7 @@ order: 14
 description: "Serve copied artifact bytes from one checkpoint through an authorized server route."
 ---
 
-A user wants to download a generated file from a saved version. The blob store
-is not a public URL. `snapshots.readArtifact` reads the copied bytes from one
-checkpoint. Your route then returns an HTTP response.
+`snapshots.readArtifact` reads the bytes of one file from a checkpoint. Return those bytes from your route.
 
 The method makes sure that the checkpoint belongs to the supplied thread. Your
 route must still authorize that thread first. The method returns metadata and

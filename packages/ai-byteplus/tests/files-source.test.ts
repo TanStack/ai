@@ -42,6 +42,7 @@ describe('byteplus file content source', () => {
     await expect(
       collectChunks(
         chat({
+          threadId: 'thread-1',
           adapter: adapterWithMockClient(),
           messages: [
             {
@@ -67,6 +68,7 @@ describe('byteplus file content source', () => {
     await expect(
       collectChunks(
         chat({
+          threadId: 'thread-1',
           adapter: adapterWithMockClient(),
           messages: [
             {

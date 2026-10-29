@@ -462,10 +462,10 @@ import { myPersistence } from '../src/persistence'
 
 runPersistenceConformance('my-backend', () => myPersistence())
 
-// Declare intentional omissions. The suite covers all seven stores, so a
-// chat-only backend skips the generation half:
+// Declare intentional omissions. The suite covers every store, so a
+// chat-only backend skips the optional activities store and the generation half:
 // runPersistenceConformance('chat-only', () => p, {
-//   skip: ['generationRuns', 'artifacts', 'blobs'],
+//   skip: ['activities', 'generationRuns', 'artifacts', 'blobs'],
 // })
 // `skip` never accepts 'locks' — locks are not a store.
 

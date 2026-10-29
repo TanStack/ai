@@ -5,8 +5,18 @@ import { grokVertexText } from '../src/vertex'
 const messages = [{ role: 'user' as const, content: 'hi' }]
 
 // A model's own levels.
-chat({ adapter: createGrokText('grok-4.7', 'k'), messages, reasoning: 'xhigh' })
-chat({ adapter: createGrokText('grok-4.3', 'k'), messages, reasoning: 'off' })
+chat({
+  threadId: 'thread-1',
+  adapter: createGrokText('grok-4.7', 'k'),
+  messages,
+  reasoning: 'xhigh',
+})
+chat({
+  threadId: 'thread-1',
+  adapter: createGrokText('grok-4.3', 'k'),
+  messages,
+  reasoning: 'off',
+})
 
 // @ts-expect-error grok-4.7 has no off level
 chat({ adapter: createGrokText('grok-4.7', 'k'), messages, reasoning: 'off' })

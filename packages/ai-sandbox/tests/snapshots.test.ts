@@ -37,6 +37,7 @@ function artifactRecord(
     artifactId: 'a',
     runId: 'r',
     threadId: 't',
+    blobKey: 'artifacts/r/a',
     name: 'a',
     mimeType: 'x',
     size: 1,
@@ -365,30 +366,6 @@ describe('portable sandbox snapshots', () => {
     ).rejects.toMatchObject({ code: 'SANDBOX_SNAPSHOT_MISSING_ARTIFACT_BLOB' })
     expect(heads).toEqual([])
     expect(puts).toEqual([])
-  })
-
-  it('uses artifact resolver fallback and never writes a partial result on missing source', async () => {
-    const store = blobs()
-    const artifacts = {
-      listForThread: async () => [
-        {
-          artifactId: 'missing',
-          runId: 'run',
-          threadId: 't',
-          name: 'x',
-          mimeType: 'x',
-          size: 1,
-          createdAt: 1,
-        },
-      ],
-    }
-    await expect(
-      captureSandboxArtifacts(
-        { blobs: store, artifacts: artifactStore(artifacts.listForThread) },
-        't',
-      ),
-    ).rejects.toMatchObject({ code: 'SANDBOX_SNAPSHOT_MISSING_ARTIFACT_BLOB' })
-    expect(store.putCount).toBe(0)
   })
 
   it('uses head for an existing immutable artifact blob and never deletes source blobs', async () => {

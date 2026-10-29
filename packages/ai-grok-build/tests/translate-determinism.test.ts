@@ -173,6 +173,7 @@ describe('chatStreamNdjson wiring (real adapter, journaled call site)', () => {
 
     const chunks = await collect(
       adapter.chatStream({
+        threadId: 'thread-1',
         model: 'grok-build',
         messages: [{ role: 'user', content: 'say pong' }],
         logger: noopLogger,

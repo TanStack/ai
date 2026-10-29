@@ -3,7 +3,7 @@ id: JSONParser
 title: JSONParser
 ---
 
-Defined in: [packages/ai/src/activities/chat/stream/json-parser.ts:12](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/stream/json-parser.ts#L12)
+Defined in: packages/ai/src/activities/chat/stream/json-parser.ts:12
 
 JSON Parser interface - allows for custom parser implementations
 
@@ -15,7 +15,7 @@ JSON Parser interface - allows for custom parser implementations
 parse: (jsonString) => any;
 ```
 
-Defined in: [packages/ai/src/activities/chat/stream/json-parser.ts:18](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/stream/json-parser.ts#L18)
+Defined in: packages/ai/src/activities/chat/stream/json-parser.ts:18
 
 Parse a JSON string (may be incomplete/partial)
 

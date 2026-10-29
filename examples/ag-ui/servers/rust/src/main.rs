@@ -3,7 +3,7 @@ mod messages;
 mod providers;
 
 use agui::{
-    provider_from_input, run_error, run_finished, run_started, sse_done, text_message_content,
+    provider_from_input, run_error, run_finished, run_started, text_message_content,
     text_message_end, text_message_start, RunAgentInput,
 };
 use async_stream::stream;
@@ -79,7 +79,6 @@ async fn handle_chat(State(client): State<Client>, request: Request) -> Response
                 &input.run_id,
                 "no user or assistant messages to send",
             ),
-            sse_done(),
         ];
         return sse_response(stream::iter(
             frames
@@ -118,18 +117,13 @@ async fn handle_chat(State(client): State<Client>, request: Request) -> Response
 
         let _ = match result {
             Ok(()) => tx.send(format!(
-                "{}{}{}",
+                "{}{}",
                 text_message_end(&llm_message_id),
                 run_finished(&thread_id, &run_id),
-                sse_done()
             )),
             Err(message) => {
                 eprintln!("[rust] chat error: {message}");
-                tx.send(format!(
-                    "{}{}",
-                    run_error(&thread_id, &run_id, &message),
-                    sse_done()
-                ))
+                tx.send(run_error(&thread_id, &run_id, &message))
             }
         };
     });

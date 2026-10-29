@@ -58,6 +58,7 @@ function ctx(): ChatMiddlewareContext<unknown> {
     runId: 'r1',
     iteration: 0,
     chunkIndex: 0,
+    callMetadata: {},
     context: undefined,
   } as unknown as ChatMiddlewareContext<unknown>
 }

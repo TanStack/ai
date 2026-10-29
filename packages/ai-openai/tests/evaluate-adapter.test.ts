@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { resolveDebugOption } from '@tanstack/ai/adapter-internals'
+import { EVALUATE_REFUSAL_CODE, EvaluateError } from '@tanstack/ai/adapters'
 import { OpenAIEvaluateAdapter } from '../src/adapters/evaluate'
 import type { EvaluateOptions, WireQuestion } from '@tanstack/ai/adapters'
 import type { Decision } from 'openai/resources/decisions'
@@ -193,9 +194,44 @@ describe('OpenAI evaluate adapter', () => {
     expect(Object.keys(result.answers)).toEqual(['__proto__'])
   })
 
-  it('throws when a question is refused', async () => {
-    const { adapter } = setup(decision([{ type: 'refusal', name: 'refund' }]))
-    await expect(run(adapter)).rejects.toThrow('"refund"')
+  it('throws an EvaluateError with usage and the other answers when a question is refused', async () => {
+    const { adapter } = setup(
+      decision([
+        ...allAnswers.answers.slice(0, 2),
+        { type: 'refusal', name: 'refund' },
+      ]),
+    )
+    const error = await run(adapter).catch((e: unknown) => e)
+    expect(error).toBeInstanceOf(EvaluateError)
+    if (!(error instanceof EvaluateError)) return
+    expect(error.code).toBe(EVALUATE_REFUSAL_CODE)
+    expect(error.message).toBe('OpenAI declined to answer question "refund"')
+    expect(error.model).toBe('gpt-6-luna')
+    expect(error.usage).toEqual({
+      promptTokens: 40,
+      completionTokens: 0,
+      totalTokens: 40,
+    })
+    expect(Object.keys(error.answers ?? {})).toEqual(['queue', 'urgency'])
+    expect(error.answers?.queue).toMatchObject({
+      type: 'choice',
+      choice: 'billing',
+    })
+  })
+
+  it('names the first refused question and leaves out every refused key', async () => {
+    const { adapter } = setup(
+      decision([
+        { type: 'refusal', name: 'queue' },
+        allAnswers.answers[1]!,
+        { type: 'refusal', name: 'refund' },
+      ]),
+    )
+    const error = await run(adapter).catch((e: unknown) => e)
+    expect(error).toBeInstanceOf(EvaluateError)
+    if (!(error instanceof EvaluateError)) return
+    expect(error.message).toBe('OpenAI declined to answer question "queue"')
+    expect(Object.keys(error.answers ?? {})).toEqual(['urgency'])
   })
 
   it('rethrows SDK errors', async () => {

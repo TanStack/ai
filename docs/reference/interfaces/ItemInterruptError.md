@@ -3,7 +3,7 @@ id: ItemInterruptError
 title: ItemInterruptError
 ---
 
-Defined in: [packages/ai/src/interrupts.ts:43](https://github.com/TanStack/ai/blob/main/packages/ai/src/interrupts.ts#L43)
+Defined in: packages/ai/src/interrupts.ts:41
 
 ## Extends
 
@@ -17,7 +17,7 @@ Defined in: [packages/ai/src/interrupts.ts:43](https://github.com/TanStack/ai/bl
 code: ItemInterruptErrorCode;
 ```
 
-Defined in: [packages/ai/src/interrupts.ts:46](https://github.com/TanStack/ai/blob/main/packages/ai/src/interrupts.ts#L46)
+Defined in: packages/ai/src/interrupts.ts:44
 
 ***
 
@@ -27,7 +27,7 @@ Defined in: [packages/ai/src/interrupts.ts:46](https://github.com/TanStack/ai/bl
 optional continuationRunId?: string;
 ```
 
-Defined in: [packages/ai/src/interrupts.ts:13](https://github.com/TanStack/ai/blob/main/packages/ai/src/interrupts.ts#L13)
+Defined in: packages/ai/src/interrupts.ts:13
 
 #### Inherited from
 
@@ -41,7 +41,7 @@ Defined in: [packages/ai/src/interrupts.ts:13](https://github.com/TanStack/ai/bl
 generation: number;
 ```
 
-Defined in: [packages/ai/src/interrupts.ts:11](https://github.com/TanStack/ai/blob/main/packages/ai/src/interrupts.ts#L11)
+Defined in: packages/ai/src/interrupts.ts:11
 
 #### Inherited from
 
@@ -55,7 +55,7 @@ Defined in: [packages/ai/src/interrupts.ts:11](https://github.com/TanStack/ai/bl
 interruptedRunId: string;
 ```
 
-Defined in: [packages/ai/src/interrupts.ts:10](https://github.com/TanStack/ai/blob/main/packages/ai/src/interrupts.ts#L10)
+Defined in: packages/ai/src/interrupts.ts:10
 
 #### Inherited from
 
@@ -69,7 +69,7 @@ Defined in: [packages/ai/src/interrupts.ts:10](https://github.com/TanStack/ai/bl
 interruptId: string;
 ```
 
-Defined in: [packages/ai/src/interrupts.ts:45](https://github.com/TanStack/ai/blob/main/packages/ai/src/interrupts.ts#L45)
+Defined in: packages/ai/src/interrupts.ts:43
 
 ***
 
@@ -79,7 +79,7 @@ Defined in: [packages/ai/src/interrupts.ts:45](https://github.com/TanStack/ai/bl
 message: string;
 ```
 
-Defined in: [packages/ai/src/interrupts.ts:47](https://github.com/TanStack/ai/blob/main/packages/ai/src/interrupts.ts#L47)
+Defined in: packages/ai/src/interrupts.ts:45
 
 ***
 
@@ -89,7 +89,7 @@ Defined in: [packages/ai/src/interrupts.ts:47](https://github.com/TanStack/ai/bl
 optional path?: readonly (string | number)[];
 ```
 
-Defined in: [packages/ai/src/interrupts.ts:48](https://github.com/TanStack/ai/blob/main/packages/ai/src/interrupts.ts#L48)
+Defined in: packages/ai/src/interrupts.ts:46
 
 ***
 
@@ -99,7 +99,7 @@ Defined in: [packages/ai/src/interrupts.ts:48](https://github.com/TanStack/ai/bl
 retryable: boolean;
 ```
 
-Defined in: [packages/ai/src/interrupts.ts:50](https://github.com/TanStack/ai/blob/main/packages/ai/src/interrupts.ts#L50)
+Defined in: packages/ai/src/interrupts.ts:48
 
 ***
 
@@ -109,7 +109,7 @@ Defined in: [packages/ai/src/interrupts.ts:50](https://github.com/TanStack/ai/bl
 scope: "item";
 ```
 
-Defined in: [packages/ai/src/interrupts.ts:44](https://github.com/TanStack/ai/blob/main/packages/ai/src/interrupts.ts#L44)
+Defined in: packages/ai/src/interrupts.ts:42
 
 ***
 
@@ -119,7 +119,7 @@ Defined in: [packages/ai/src/interrupts.ts:44](https://github.com/TanStack/ai/bl
 source: "server" | "client";
 ```
 
-Defined in: [packages/ai/src/interrupts.ts:49](https://github.com/TanStack/ai/blob/main/packages/ai/src/interrupts.ts#L49)
+Defined in: packages/ai/src/interrupts.ts:47
 
 ***
 
@@ -129,7 +129,7 @@ Defined in: [packages/ai/src/interrupts.ts:49](https://github.com/TanStack/ai/bl
 optional submissionId?: string;
 ```
 
-Defined in: [packages/ai/src/interrupts.ts:12](https://github.com/TanStack/ai/blob/main/packages/ai/src/interrupts.ts#L12)
+Defined in: packages/ai/src/interrupts.ts:12
 
 #### Inherited from
 
@@ -143,7 +143,7 @@ Defined in: [packages/ai/src/interrupts.ts:12](https://github.com/TanStack/ai/bl
 threadId: string;
 ```
 
-Defined in: [packages/ai/src/interrupts.ts:9](https://github.com/TanStack/ai/blob/main/packages/ai/src/interrupts.ts#L9)
+Defined in: packages/ai/src/interrupts.ts:9
 
 #### Inherited from
 

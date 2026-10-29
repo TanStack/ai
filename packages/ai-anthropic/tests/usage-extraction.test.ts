@@ -49,7 +49,7 @@ vi.mock('@anthropic-ai/sdk', () => {
 })
 
 const createAdapter = () =>
-  new AnthropicTextAdapter({ apiKey: 'test-key' }, 'claude-opus-4-1')
+  new AnthropicTextAdapter({ apiKey: 'test-key' }, 'claude-sonnet-4-5')
 
 function createMockStream(
   chunks: Array<Record<string, unknown>>,
@@ -60,6 +60,21 @@ function createMockStream(
       for (const chunk of chunks) {
         yield chunk
       }
+    },
+  }
+}
+
+function createFailingStream(
+  chunks: Array<Record<string, unknown>>,
+  error: Error,
+): AsyncIterable<Record<string, unknown>> {
+  return {
+    // eslint-disable-next-line @typescript-eslint/require-await
+    async *[Symbol.asyncIterator]() {
+      for (const chunk of chunks) {
+        yield chunk
+      }
+      throw error
     },
   }
 }
@@ -78,7 +93,7 @@ describe('Anthropic usage extraction', () => {
           type: 'message',
           role: 'assistant',
           content: [],
-          model: 'claude-opus-4-1',
+          model: 'claude-sonnet-4-5',
           usage: {
             input_tokens: 100,
             output_tokens: 0,
@@ -112,6 +127,7 @@ describe('Anthropic usage extraction', () => {
 
     const chunks: Array<AdapterYieldChunk> = []
     for await (const chunk of chat({
+      threadId: 'thread-1',
       adapter: createAdapter(),
       messages: [{ role: 'user', content: 'Hello' }],
     })) {
@@ -136,7 +152,7 @@ describe('Anthropic usage extraction', () => {
           type: 'message',
           role: 'assistant',
           content: [],
-          model: 'claude-opus-4-1',
+          model: 'claude-sonnet-4-5',
           usage: {
             input_tokens: 100,
             output_tokens: 0,
@@ -174,6 +190,7 @@ describe('Anthropic usage extraction', () => {
 
     const chunks: Array<AdapterYieldChunk> = []
     for await (const chunk of chat({
+      threadId: 'thread-1',
       adapter: createAdapter(),
       messages: [{ role: 'user', content: 'Hello' }],
     })) {
@@ -202,7 +219,7 @@ describe('Anthropic usage extraction', () => {
             type: 'message',
             role: 'assistant',
             content: [],
-            model: 'claude-opus-4-1',
+            model: 'claude-sonnet-4-5',
             usage: { input_tokens: 12, output_tokens: 0 },
           },
         },
@@ -222,6 +239,7 @@ describe('Anthropic usage extraction', () => {
 
     const chunks: Array<AdapterYieldChunk> = []
     for await (const chunk of chat({
+      threadId: 'thread-1',
       adapter: createAdapter(),
       messages: [{ role: 'user', content: 'Hello' }],
     })) {
@@ -246,7 +264,7 @@ describe('Anthropic usage extraction', () => {
           type: 'message',
           role: 'assistant',
           content: [],
-          model: 'claude-opus-4-1',
+          model: 'claude-sonnet-4-5',
           usage: {
             input_tokens: 100,
             output_tokens: 0,
@@ -284,6 +302,7 @@ describe('Anthropic usage extraction', () => {
 
     const chunks: Array<AdapterYieldChunk> = []
     for await (const chunk of chat({
+      threadId: 'thread-1',
       adapter: createAdapter(),
       messages: [{ role: 'user', content: 'Hello' }],
     })) {
@@ -309,7 +328,7 @@ describe('Anthropic usage extraction', () => {
           type: 'message',
           role: 'assistant',
           content: [],
-          model: 'claude-opus-4-1',
+          model: 'claude-sonnet-4-5',
           usage: {
             input_tokens: 100,
             output_tokens: 0,
@@ -343,6 +362,7 @@ describe('Anthropic usage extraction', () => {
 
     const chunks: Array<AdapterYieldChunk> = []
     for await (const chunk of chat({
+      threadId: 'thread-1',
       adapter: createAdapter(),
       messages: [{ role: 'user', content: 'Hello' }],
     })) {
@@ -358,6 +378,54 @@ describe('Anthropic usage extraction', () => {
     expect(tokenUsageOf(doneChunk)?.providerUsageDetails).toBeUndefined()
   })
 
+  it('reports the 1-hour part of a cache write as cacheWrite1hTokens', async () => {
+    mocks.betaMessagesCreate.mockResolvedValueOnce(
+      createMockStream([
+        {
+          type: 'message_start',
+          message: {
+            id: 'msg_123',
+            type: 'message',
+            role: 'assistant',
+            content: [],
+            model: 'claude-sonnet-4-5',
+            usage: {
+              input_tokens: 10,
+              output_tokens: 1,
+              cache_creation_input_tokens: 1000,
+              cache_read_input_tokens: 0,
+              cache_creation: {
+                ephemeral_5m_input_tokens: 200,
+                ephemeral_1h_input_tokens: 800,
+              },
+            },
+          },
+        },
+        {
+          type: 'message_delta',
+          delta: { stop_reason: 'end_turn' },
+          usage: { output_tokens: 1 },
+        },
+        { type: 'message_stop' },
+      ]),
+    )
+
+    const chunks: Array<AdapterYieldChunk> = []
+    for await (const chunk of chat({
+      threadId: 'thread-1',
+      adapter: createAdapter(),
+      messages: [{ role: 'user', content: 'Hello' }],
+    })) {
+      chunks.push(chunk)
+    }
+
+    const doneChunk = chunks.find((c) => c.type === 'RUN_FINISHED')
+    expect(tokenUsageOf(doneChunk)?.promptTokensDetails).toEqual({
+      cacheWriteTokens: 1000,
+      cacheWrite1hTokens: 800,
+    })
+  })
+
   it('defaults missing output_tokens to 0 instead of NaN', async () => {
     const mockStream = createMockStream([
       {
@@ -367,7 +435,7 @@ describe('Anthropic usage extraction', () => {
           type: 'message',
           role: 'assistant',
           content: [],
-          model: 'claude-opus-4-1',
+          model: 'claude-sonnet-4-5',
           usage: {
             input_tokens: 100,
             output_tokens: 0,
@@ -401,6 +469,7 @@ describe('Anthropic usage extraction', () => {
 
     const chunks: Array<AdapterYieldChunk> = []
     for await (const chunk of chat({
+      threadId: 'thread-1',
       adapter: createAdapter(),
       messages: [{ role: 'user', content: 'Hello' }],
     })) {
@@ -423,7 +492,7 @@ describe('Anthropic usage extraction', () => {
           type: 'message',
           role: 'assistant',
           content: [],
-          model: 'claude-opus-4-1',
+          model: 'claude-sonnet-4-5',
           usage: {
             input_tokens: 13,
             output_tokens: 1,
@@ -460,6 +529,7 @@ describe('Anthropic usage extraction', () => {
 
     const chunks: Array<AdapterYieldChunk> = []
     for await (const chunk of chat({
+      threadId: 'thread-1',
       adapter: createAdapter(),
       messages: [{ role: 'user', content: 'Say hello in five words.' }],
       modelOptions: { max_tokens: 3 },
@@ -500,7 +570,7 @@ describe('Anthropic usage extraction', () => {
               type: 'message',
               role: 'assistant',
               content: [],
-              model: 'claude-opus-4-1',
+              model: 'claude-sonnet-4-5',
               usage: {
                 input_tokens: 13,
                 output_tokens: 1,
@@ -521,7 +591,8 @@ describe('Anthropic usage extraction', () => {
 
       const chunks: Array<AdapterYieldChunk> = []
       for await (const chunk of createAdapter().chatStream({
-        model: 'claude-opus-4-1',
+        threadId: 'thread-1',
+        model: 'claude-sonnet-4-5',
         messages: [{ role: 'user', content: 'Hello' }],
         logger: createSilentLogger(),
       })) {
@@ -549,7 +620,7 @@ describe('Anthropic usage extraction', () => {
             type: 'message',
             role: 'assistant',
             content: [],
-            model: 'claude-opus-4-1',
+            model: 'claude-sonnet-4-5',
             usage: {
               input_tokens: 13,
               output_tokens: 1,
@@ -578,7 +649,8 @@ describe('Anthropic usage extraction', () => {
 
     const chunks: Array<AdapterYieldChunk> = []
     for await (const chunk of createAdapter().chatStream({
-      model: 'claude-opus-4-1',
+      threadId: 'thread-1',
+      model: 'claude-sonnet-4-5',
       messages: [{ role: 'user', content: 'Hello' }],
       logger: createSilentLogger(),
     })) {
@@ -605,7 +677,7 @@ describe('Anthropic usage extraction', () => {
             type: 'message',
             role: 'assistant',
             content: [],
-            model: 'claude-opus-4-1',
+            model: 'claude-sonnet-4-5',
             usage: { input_tokens: 13, output_tokens: 1 },
           },
         },
@@ -616,7 +688,8 @@ describe('Anthropic usage extraction', () => {
 
     const chunks: Array<AdapterYieldChunk> = []
     for await (const chunk of createAdapter().chatStream({
-      model: 'claude-opus-4-1',
+      threadId: 'thread-1',
+      model: 'claude-sonnet-4-5',
       messages: [{ role: 'user', content: 'Hello' }],
       logger: createSilentLogger(),
     })) {
@@ -626,5 +699,85 @@ describe('Anthropic usage extraction', () => {
     const doneChunk = chunks.find((c) => c.type === 'RUN_FINISHED')
     expect(doneChunk).toBeDefined()
     expect(tokenUsageOf(doneChunk)).toBeUndefined()
+  })
+  describe('when the stream fails (#1735)', () => {
+    const messageStart = {
+      type: 'message_start',
+      message: {
+        id: 'msg_123',
+        type: 'message',
+        role: 'assistant',
+        content: [],
+        model: 'claude-opus-4-1',
+        usage: {
+          input_tokens: 18,
+          output_tokens: 1,
+          cache_creation_input_tokens: 7,
+          cache_read_input_tokens: 40,
+        },
+      },
+    }
+    const textDelta = [
+      {
+        type: 'content_block_start',
+        index: 0,
+        content_block: { type: 'text', text: '' },
+      },
+      {
+        type: 'content_block_delta',
+        index: 0,
+        delta: { type: 'text_delta', text: 'One, two' },
+      },
+    ]
+    const closingDelta = {
+      type: 'message_delta',
+      delta: { stop_reason: 'end_turn' },
+      usage: { output_tokens: 5 },
+    }
+
+    it.each([
+      [
+        'after message_start',
+        [messageStart, ...textDelta],
+        {
+          promptTokens: 65,
+          completionTokens: 1,
+          totalTokens: 66,
+          promptTokensDetails: { cacheWriteTokens: 7, cachedTokens: 40 },
+        },
+      ],
+      ['before message_start', [], undefined],
+      // The RUN_FINISHED already carried the usage, so the RUN_ERROR must not
+      // report it a second time.
+      [
+        'after the closing message_delta',
+        [messageStart, ...textDelta, closingDelta],
+        undefined,
+      ],
+    ])(
+      'reports the expected usage on the RUN_ERROR %s',
+      async (_, events, expectedUsage) => {
+        mocks.betaMessagesCreate.mockResolvedValueOnce(
+          createFailingStream(
+            events,
+            Object.assign(new Error('read ECONNRESET'), { code: 'ECONNRESET' }),
+          ),
+        )
+
+        const chunks: Array<AdapterYieldChunk> = []
+        for await (const chunk of createAdapter().chatStream({
+          model: 'claude-opus-4-1',
+          threadId: 'thread-1',
+          messages: [{ role: 'user', content: 'Count to thirty' }],
+          logger: createSilentLogger(),
+        })) {
+          chunks.push(chunk)
+        }
+
+        const errorChunk = chunks.find((c) => c.type === 'RUN_ERROR')
+        expect(errorChunk).toMatchObject({ code: 'ECONNRESET' })
+        expect(tokenUsageOf(errorChunk)).toEqual(expectedUsage)
+      },
+    )
   })
 })

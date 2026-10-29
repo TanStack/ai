@@ -7,9 +7,7 @@ title: generateVideo
 function generateVideo<TAdapter, TStream>(options): TStream extends true ? AsyncIterable<AGUIEvent, any, any> : Promise<VideoJobResult>;
 ```
 
-Defined in: [packages/ai/src/activities/generateVideo/index.ts:425](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/generateVideo/index.ts#L425)
-
-**`Experimental`**
+Defined in: packages/ai/src/activities/generateVideo/index.ts:413
 
 Generate video - creates a video generation job from a text prompt.
 
@@ -18,8 +16,6 @@ Unlike image generation, video generation is asynchronous and requires polling f
 
 When `stream: true` is passed, handles the full job lifecycle automatically:
 create job → poll for status → stream updates → yield final result.
-
- Video generation is an experimental feature and may change.
 
 ## Type Parameters
 
@@ -52,7 +48,8 @@ import { openaiVideo } from '@tanstack/ai-openai'
 // Start a video generation job
 const { jobId } = await generateVideo({
   adapter: openaiVideo('sora-2'),
-  prompt: 'A cat chasing a dog in a sunny park'
+  prompt: 'A cat chasing a dog in a sunny park',
+  threadId,
 })
 
 console.log('Job started:', jobId)
@@ -63,6 +60,7 @@ console.log('Job started:', jobId)
 const status = await getVideoJobStatus({
   adapter: openaiVideo('sora-2'),
   jobId,
+  threadId,
 })
 ```
 
@@ -75,6 +73,7 @@ import { openaiVideo } from '@tanstack/ai-openai'
 const stream = generateVideo({
   adapter: openaiVideo('sora-2'),
   prompt: 'A cat chasing a dog in a sunny park',
+  threadId,
   stream: true,
   pollingInterval: 3000,
 })

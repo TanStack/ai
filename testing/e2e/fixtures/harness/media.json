@@ -1,0 +1,37 @@
+{
+  "fixtures": [
+    {
+      "match": {
+        "userMessage": "[harness-media] paint a copy of this dot",
+        "sequenceIndex": 0
+      },
+      "response": {
+        "toolCalls": [
+          {
+            "name": "painter",
+            "arguments": "{\"prompt\":\"[harness-media-image] a blue dot\"}"
+          }
+        ]
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[harness-media] paint a copy of this dot",
+        "sequenceIndex": 1
+      },
+      "response": {
+        "content": "Here is your blue dot."
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[harness-media-image] a blue dot"
+      },
+      "response": {
+        "image": {
+          "b64Json": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR42mNgYPgPAAEDAQA2dBFAAAAAAElFTkSuQmCC"
+        }
+      }
+    }
+  ]
+}

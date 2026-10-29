@@ -92,7 +92,7 @@ export function createImageAdapter(
         defaultHeaders: headers,
       }),
     gemini: () =>
-      createGeminiImage('gemini-2.5-flash-image', DUMMY_KEY, {
+      createGeminiImage('gemini-3.1-flash-image', DUMMY_KEY, {
         // Dedicated prefix: native image calls are Interactions API POSTs.
         // aimock's own /v1beta/interactions handler stays free for text tests.
         httpOptions: {

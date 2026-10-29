@@ -3,13 +3,9 @@ id: VideoUrlResult
 title: VideoUrlResult
 ---
 
-Defined in: [packages/ai/src/types.ts:2654](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2654)
-
-**`Experimental`**
+Defined in: packages/ai/src/types.ts:2663
 
 Result containing the URL to a generated video.
-
- Video generation is an experimental feature and may change.
 
 ## Properties
 
@@ -19,9 +15,7 @@ Result containing the URL to a generated video.
 optional artifacts?: PersistedArtifactRef[];
 ```
 
-Defined in: [packages/ai/src/types.ts:2668](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2668)
-
-**`Experimental`**
+Defined in: packages/ai/src/types.ts:2677
 
 Persisted artifact references for generated assets, when available
 
@@ -33,9 +27,7 @@ Persisted artifact references for generated assets, when available
 optional body?: undefined;
 ```
 
-Defined in: [packages/ai/src/types.ts:2669](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2669)
-
-**`Experimental`**
+Defined in: packages/ai/src/types.ts:2678
 
 ***
 
@@ -45,9 +37,7 @@ Defined in: [packages/ai/src/types.ts:2669](https://github.com/TanStack/ai/blob/
 optional expiresAt?: Date;
 ```
 
-Defined in: [packages/ai/src/types.ts:2660](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2660)
-
-**`Experimental`**
+Defined in: packages/ai/src/types.ts:2669
 
 When the URL expires, if applicable
 
@@ -59,9 +49,7 @@ When the URL expires, if applicable
 jobId: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:2656](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2656)
-
-**`Experimental`**
+Defined in: packages/ai/src/types.ts:2665
 
 Job identifier
 
@@ -73,9 +61,7 @@ Job identifier
 url: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:2658](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2658)
-
-**`Experimental`**
+Defined in: packages/ai/src/types.ts:2667
 
 URL to the generated video
 
@@ -87,9 +73,7 @@ URL to the generated video
 optional usage?: TokenUsage<ProviderUsageDetails>;
 ```
 
-Defined in: [packages/ai/src/types.ts:2666](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2666)
-
-**`Experimental`**
+Defined in: packages/ai/src/types.ts:2675
 
 Usage information for the completed generation, when the adapter can report
 it. For usage-based providers (e.g. fal) this carries `billed` — the real

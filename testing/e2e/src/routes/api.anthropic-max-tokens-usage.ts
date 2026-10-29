@@ -22,6 +22,7 @@ export const Route = createFileRoute('/api/anthropic-max-tokens-usage')({
         let runError: Record<string, unknown> | undefined
         try {
           for await (const chunk of chat({
+            threadId: 'anthropic-max-tokens-usage',
             adapter,
             modelOptions: { max_tokens: 3 },
             messages: [

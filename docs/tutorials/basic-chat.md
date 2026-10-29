@@ -2,7 +2,7 @@
 title: Basic Chat
 id: basic-chat
 order: 1
-description: "Create a TanStack Start app, then add a streaming React chat. BYOK holds the OpenRouter key in the tab. useChat talks to a server route that streams tokens."
+description: "Build a streaming React chat in a TanStack Start app. The user pastes an OpenRouter key in the tab, and useChat streams tokens from a server route."
 keywords:
   - tanstack ai
   - tutorial
@@ -13,11 +13,11 @@ keywords:
   - tanstack start
 ---
 
-Create a TanStack Start app. Then add a streaming chat.
+This tutorial builds a chat that streams tokens. The provider key stays in the browser for the demo.
 
-This tutorial is React + Start. For other frameworks, open [Quick Start](../getting-started/quick-start).
+The user pastes an OpenRouter key, and `useChat` sends it to a server route. It takes about 10 minutes.
 
-You can skip the scaffold and paste a key in the sandbox at the end of this page.
+This tutorial uses React and TanStack Start. For other frameworks, open [Quick Start](../getting-started/quick-start). To skip the setup, paste a key in the sandbox in step 5.
 
 ## 1. Create a Start app
 
@@ -27,7 +27,7 @@ npx @tanstack/cli@latest create
 
 Pick React. For more options, see [Start getting started](https://tanstack.com/start/latest/docs/framework/react/quick-start).
 
-Then install the TanStack AI packages:
+Install the TanStack AI packages:
 
 <!-- ::start:tabs variant="package-manager" mode="install" -->
 
@@ -37,19 +37,9 @@ react: @tanstack/ai @tanstack/ai-react @tanstack/ai-openrouter
 
 Get an OpenRouter key from [openrouter.ai](https://openrouter.ai).
 
-## Client and server
+## 2. Keep the key in the tab
 
-A chat has two sides.
-
-The **client** runs in the browser. It holds the key, draws messages, and POSTs to your route.
-
-The **server** route reads that key, calls OpenRouter, and streams tokens back.
-
-The next steps build the client. Then they add the route.
-
-## 2. Set up BYOK on the client
-
-Create `src/lib/byok.ts`. `memoryStorage()` keeps the key in this tab.
+Create `src/lib/byok.ts`. `memoryStorage()` keeps the key in this tab only.
 
 ```typescript
 import { defineByok, memoryStorage } from '@tanstack/ai-react/byok'
@@ -61,7 +51,7 @@ export const byok = defineByok({
 })
 ```
 
-Create `src/components/open-router-key-form.tsx`. Export `OpenRouterKeyForm` from that file. `byok.update` saves the key. `useByok` reads the status.
+Create `src/components/open-router-key-form.tsx`. `byok.update` saves the key. `useByok` reads the status.
 
 ```tsx ignore
 import { useState } from 'react'
@@ -113,11 +103,11 @@ export function OpenRouterKeyForm() {
 }
 ```
 
-If you want passkeys, open [Bring Your Own Key](../advanced/byok).
+For passkeys or other storage, open [Bring Your Own Key](../advanced/byok).
 
-## 3. Hook up `useChat`
+## 3. Add the chat page
 
-Open `src/routes/index.tsx`. Import `OpenRouterKeyForm` from `@/components/open-router-key-form`. Pass `byok` to `useChat`. The hook sends the key in an `x-byok-*` header.
+Replace `src/routes/index.tsx` with this file. Pass `byok` to `useChat`. The hook then sends the key in an `x-byok-*` header.
 
 ```tsx ignore
 import { useState } from 'react'
@@ -133,6 +123,7 @@ function ChatPage() {
   const [input, setInput] = useState('')
   const { messages, sendMessage, isLoading, error, stop } = useChat({
     connection: fetchServerSentEvents('/api/chat'),
+    threadId: 'support-chat',
     byok,
   })
 
@@ -179,48 +170,9 @@ export const Route = createFileRoute('/')({
 })
 ```
 
-`messages` updates as tokens arrive. Click Stop to cancel.
-
-A send with no key does not POST. The form shows "Paste an OpenRouter key, then send again."
-
 ## 4. Add the server route
 
-Create `src/routes/api.chat.ts` in the `src/routes` folder, next to `index.tsx`. Start maps that file name to the `/api/chat` path. Do this in two steps.
-
-### Read the key
-
-`getByokKey` reads the `x-byok-openrouter` header, then `OPENROUTER_API_KEY` in the environment. If both are empty, `byokMissing` returns HTTP 401.
-
-```typescript ignore
-import { createFileRoute } from '@tanstack/react-router'
-import { chatParamsFromRequest } from '@tanstack/ai'
-import { openrouterByok } from '@tanstack/ai-openrouter/byok'
-import { byokMissing, getByokKey } from '@tanstack/ai/byok/server'
-
-export async function POST({ request }: { request: Request }) {
-  const params = await chatParamsFromRequest(request)
-  const apiKey = getByokKey(request, openrouterByok)
-  if (!apiKey) return byokMissing(openrouterByok)
-
-  return new Response('ok')
-}
-
-export const Route = createFileRoute('/api/chat')({
-  server: {
-    handlers: {
-      POST,
-    },
-  },
-})
-```
-
-This is a stub. The next step replaces the `ok` body.
-
-Import `openrouterByok` from `@tanstack/ai-openrouter/byok`, not from the adapter main entry.
-
-### Call `chat` and return the stream
-
-Replace the `ok` response. Pass the key into `createOpenRouterText`. Wrap `chat()` with `toServerSentEventsResponse`.
+Create `src/routes/api.chat.ts`, next to `index.tsx`. Start maps this file name to the `/api/chat` path.
 
 ```typescript ignore
 import { createFileRoute } from '@tanstack/react-router'
@@ -256,20 +208,44 @@ export const Route = createFileRoute('/api/chat')({
 })
 ```
 
+Import `openrouterByok` from `@tanstack/ai-openrouter/byok`, not from the main entry of the adapter.
+
 ## 5. Try it
 
-Run the app. Paste an OpenRouter key. Send a message. Tokens stream into the UI.
+1. Run the app.
+2. Paste an OpenRouter key.
+3. Send a message.
+
+Tokens stream into the page. Click Stop to cancel the reply.
 
 The same app is on the Examples tab at `/ai/latest/docs/framework/react/examples/basic-chat`.
 
 <!-- ::client-example library=ai framework=react slug=basic-chat -->
 
-You have a streaming chat. The OpenRouter key never sits in a server env file.
+You have a streaming chat, and the OpenRouter key never sits in a server env file.
+
+## How it works
+
+A chat has two sides:
+
+- **The client** runs in the browser. It holds the key, shows the messages, and sends a POST to your route.
+- **The server route** reads the key, calls OpenRouter, and streams the tokens back.
+
+On the client:
+
+- `useChat` keeps `messages` up to date as tokens arrive.
+- If no key is saved, the hook does not send the POST. The form shows "Paste an OpenRouter key, then send again."
+
+On the server:
+
+- `getByokKey` reads the `x-byok-openrouter` header first. If the header is empty, it reads `OPENROUTER_API_KEY` from the environment.
+- If both are empty, `byokMissing` returns HTTP 401.
+- `toServerSentEventsResponse` turns the `chat()` stream into a Server-Sent Events response.
 
 The full example is on GitHub: [TanStack/ai `examples/react/basic-chat`](https://github.com/TanStack/ai/tree/main/examples/react/basic-chat).
 
-For a headless chat UI, open [A chat box with no tools](../ui/recipes/basic-chat).
+Next, pick one:
 
-For an image from a prompt, open [Generate Image](./generate-image).
-
-For a table that fills as JSON streams, open [Streaming Structured Table](./streaming-structured-table).
+- A headless chat UI: [A chat box with no tools](../ui/recipes/basic-chat).
+- An image from a prompt: [Generate Image](./generate-image).
+- A table that fills as JSON streams: [Streaming Structured Table](./streaming-structured-table).

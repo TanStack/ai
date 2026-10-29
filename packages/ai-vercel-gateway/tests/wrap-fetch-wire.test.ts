@@ -28,6 +28,7 @@ const adapters = [
         { apiKey: 'test-key', fetch },
         model,
       ).chatStream({
+        threadId: 'thread-1',
         logger,
         model,
         messages,
@@ -39,6 +40,7 @@ const adapters = [
     send: (fetch, wrapFetch) =>
       createVercelGatewayResponsesText(model, 'test-key', { fetch }).chatStream(
         {
+          threadId: 'thread-1',
           logger,
           model,
           messages,

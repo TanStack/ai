@@ -15,6 +15,7 @@ import {
 } from '@tanstack/ai/adapter-internals'
 import { BaseTextAdapter } from '@tanstack/ai/adapters'
 import { convertToolsToProviderFormat } from '../tools/tool-converter'
+import { getGeminiProviderToolKind } from '../tools/gemini-provider-tool'
 import { buildGeminiUsage } from '../usage'
 import { geminiThinkingConfig } from '../text/reasoning'
 import {
@@ -140,6 +141,24 @@ function getGroundingSources(
     })
   }
   return [...sources.values()]
+}
+
+/** A part of a built-in tool run, which Gemini needs back unchanged. */
+function isServerPart(part: Part): boolean {
+  return Boolean(
+    part.toolCall ||
+    part.toolResponse ||
+    part.executableCode ||
+    part.codeExecutionResult,
+  )
+}
+
+/** The tool name of a built-in tool part, when the part names its tool. */
+function serverToolName(part: Part): string | undefined {
+  if (part.executableCode || part.codeExecutionResult) return 'code_execution'
+  const type = (part.toolCall ?? part.toolResponse)?.toolType
+  if (!type || type === 'TOOL_TYPE_UNSPECIFIED') return undefined
+  return type.startsWith('GOOGLE_SEARCH') ? 'google_search' : type.toLowerCase()
 }
 
 /** Maps `chat({ toolChoice })` to the Gemini function calling config. */
@@ -525,7 +544,7 @@ export class GeminiTextAdapter<
     const model = options.model
     const { logger } = options
     const runId = options.runId ?? generateId(this.name)
-    const threadId = options.threadId ?? generateId(this.name)
+    const threadId = options.threadId
     const messageId = generateId(this.name)
 
     try {
@@ -850,7 +869,6 @@ export class GeminiTextAdapter<
     let responseId: string | undefined
     let reportedModel: string | undefined
     let accumulatedContent = ''
-    let accumulatedThinking = ''
     const toolCallMap = new Map<
       string,
       {
@@ -865,39 +883,63 @@ export class GeminiTextAdapter<
 
     // AG-UI lifecycle tracking
     const runId = options.runId ?? generateId(this.name)
-    const threadId = options.threadId ?? generateId(this.name)
+    const threadId = options.threadId
     const messageId = generateId(this.name)
-    let stepId: string | null = null
     let reasoningMessageId: string | null = null
     let hasClosedReasoning = false
     let hasEmittedRunStarted = false
     let hasEmittedTextMessageStart = false
-    let hasEmittedStepStarted = false
     let groundingMetadata: GroundingMetadata | undefined
     let groundingCallEmitted = false
+    // Gemini needs a step's built-in tool parts back only when the step can
+    // also call a function tool.
+    const keepServerParts =
+      options.tools?.some(
+        (tool) => getGeminiProviderToolKind(tool) === undefined,
+      ) ?? false
+    const serverParts: Array<{
+      part: Part
+      afterCallId?: string
+      afterText?: true
+    }> = []
+    let lastCallId: string | undefined
+    let textSinceCall = false
     const adapterName = this.name
 
     const emitGroundingToolCall = function* (): Generator<AdapterYieldChunk> {
-      if (!groundingMetadata || groundingCallEmitted) return
-      const sources = getGroundingSources(groundingMetadata)
+      if (groundingCallEmitted) return
+      const sources = groundingMetadata
+        ? getGroundingSources(groundingMetadata)
+        : []
       const hasGoogleSearchEvidence =
         sources.length > 0 ||
-        (groundingMetadata.webSearchQueries?.length ?? 0) > 0 ||
-        groundingMetadata.searchEntryPoint !== undefined
-      if (!hasGoogleSearchEvidence) return
+        (groundingMetadata?.webSearchQueries?.length ?? 0) > 0 ||
+        groundingMetadata?.searchEntryPoint !== undefined
+      if (!hasGoogleSearchEvidence && serverParts.length === 0) return
 
       groundingCallEmitted = true
       const toolCallId = generateId(adapterName)
+      const toolCallName =
+        (!hasGoogleSearchEvidence &&
+          (serverParts
+            .map(({ part }) => serverToolName(part))
+            .find((name) => name !== undefined) ??
+            options.tools?.find(
+              (tool) => getGeminiProviderToolKind(tool) !== undefined,
+            )?.name)) ||
+        'google_search'
       const metadata: GeminiToolCallMetadata = {
         providerExecuted: true,
         sources,
-        gemini: { groundingMetadata },
+        gemini: {
+          ...(groundingMetadata && { groundingMetadata }),
+          ...(serverParts.length > 0 && { serverParts }),
+        },
       }
       yield {
         type: EventType.TOOL_CALL_START,
         toolCallId,
-        toolCallName: 'google_search',
-        toolName: 'google_search',
+        toolCallName,
         parentMessageId: messageId,
         model,
         timestamp: Date.now(),
@@ -907,12 +949,11 @@ export class GeminiTextAdapter<
       yield {
         type: EventType.TOOL_CALL_END,
         toolCallId,
-        toolCallName: 'google_search',
-        toolName: 'google_search',
+        toolCallName,
         model,
         timestamp: Date.now(),
         input: {
-          ...(groundingMetadata.webSearchQueries && {
+          ...(groundingMetadata?.webSearchQueries && {
             queries: groundingMetadata.webSearchQueries,
           }),
         },
@@ -950,12 +991,19 @@ export class GeminiTextAdapter<
         const parts = chunk.candidates[0].content.parts
 
         for (const part of parts) {
+          if (keepServerParts && isServerPart(part)) {
+            serverParts.push({
+              part,
+              ...(lastCallId !== undefined && { afterCallId: lastCallId }),
+              ...(textSinceCall && { afterText: true }),
+            })
+          }
+          if (part.text?.trim() && !part.thought) textSinceCall = true
+
           if (part.text) {
             if (part.thought) {
-              // Emit STEP_STARTED and REASONING events on first thinking content
-              if (!hasEmittedStepStarted) {
-                hasEmittedStepStarted = true
-                stepId = generateId(this.name)
+              // Emit REASONING start events on first thinking content
+              if (!reasoningMessageId) {
                 reasoningMessageId = generateId(this.name)
 
                 // Spec REASONING events
@@ -972,40 +1020,15 @@ export class GeminiTextAdapter<
                   model,
                   timestamp: Date.now(),
                 }
-
-                // Legacy STEP events (kept during transition)
-                yield {
-                  type: EventType.STEP_STARTED,
-                  stepName: stepId,
-                  stepId,
-                  model,
-                  timestamp: Date.now(),
-                  stepType: 'thinking',
-                }
               }
 
-              accumulatedThinking += part.text
-
-              // Spec REASONING content event — reasoningMessageId is set in the
-              // hasEmittedStepStarted block above (entered on the same `part.thought` path)
-              if (!reasoningMessageId) continue
+              // Spec REASONING content event
               yield {
                 type: EventType.REASONING_MESSAGE_CONTENT,
                 messageId: reasoningMessageId,
                 delta: part.text,
                 model,
                 timestamp: Date.now(),
-              }
-
-              // Legacy STEP event
-              yield {
-                type: EventType.STEP_FINISHED,
-                stepName: stepId || generateId(this.name),
-                stepId: stepId || generateId(this.name),
-                model,
-                timestamp: Date.now(),
-                delta: part.text,
-                content: accumulatedThinking,
               }
             } else if (part.text.trim()) {
               // Close reasoning before text starts
@@ -1056,6 +1079,8 @@ export class GeminiTextAdapter<
               functionCall.id ||
               `${functionCall.name}_${Date.now()}_${nextToolIndex}`
             const functionArgs = functionCall.args || {}
+            lastCallId = toolCallId
+            textSinceCall = false
 
             // Gemini emits thoughtSignature as a Part-level sibling of
             // functionCall (per @google/genai Part type), not nested inside
@@ -1106,7 +1131,6 @@ export class GeminiTextAdapter<
                 type: EventType.TOOL_CALL_START,
                 toolCallId,
                 toolCallName: toolCallData.name,
-                toolName: toolCallData.name,
                 parentMessageId: messageId,
                 model,
                 timestamp: Date.now(),
@@ -1177,7 +1201,6 @@ export class GeminiTextAdapter<
             type: EventType.TOOL_CALL_END,
             toolCallId,
             toolCallName: toolCallData.name,
-            toolName: toolCallData.name,
             model,
             timestamp: Date.now(),
             args: toolCallData.args,
@@ -1475,6 +1498,70 @@ export class GeminiTextAdapter<
               .map(thoughtPart),
           )
         }
+
+        // Built-in tool parts go back after the function call they followed,
+        // or after the text that came between. Gemini rejects a step that
+        // drops them. Vertex AI rejects toolCall and toolResponse parts, so
+        // those throw here instead of going out missing.
+        const storedServerParts = (msg.toolCalls ?? []).flatMap(
+          (toolCall) =>
+            (toolCall.metadata as GeminiToolCallMetadata | undefined)?.gemini
+              ?.serverParts ?? [],
+        )
+        if (
+          this.client.vertexai &&
+          storedServerParts.some(
+            ({ part }) => part.toolCall || part.toolResponse,
+          )
+        ) {
+          throw new Error(
+            'Vertex AI cannot send built-in toolCall or toolResponse parts. Use the Gemini API to mix those tools with function tools.',
+          )
+        }
+        const serverParts = storedServerParts
+        if (serverParts.length > 0) {
+          const lastText = new Map<string | undefined, number>()
+          let segment: string | undefined
+          parts.forEach((part, index) => {
+            if (part.functionCall) segment = part.functionCall.id
+            else if (part.text && !part.thought) lastText.set(segment, index)
+          })
+          const after = (id: string | undefined, text: boolean) =>
+            serverParts
+              .filter(
+                ({ afterCallId, afterText }) =>
+                  afterCallId === id &&
+                  (afterText === true && lastText.has(id)) === text,
+              )
+              .map(({ part }) => part)
+          const callIds = new Set(
+            parts.flatMap((part) => part.functionCall?.id ?? []),
+          )
+          const first = parts.findIndex((part) => !part.thought)
+          segment = undefined
+          const withServerParts = parts.flatMap((part, index) => {
+            if (part.functionCall) segment = part.functionCall.id
+            return [
+              ...(index === first ? after(undefined, false) : []),
+              part,
+              ...(part.functionCall?.id !== undefined
+                ? after(part.functionCall.id, false)
+                : []),
+              ...(lastText.get(segment) === index ? after(segment, true) : []),
+            ]
+          })
+          if (first === -1) withServerParts.push(...after(undefined, false))
+          // A part whose call is not in this message goes last, not lost.
+          withServerParts.push(
+            ...serverParts
+              .filter(
+                ({ afterCallId }) =>
+                  afterCallId !== undefined && !callIds.has(afterCallId),
+              )
+              .map(({ part }) => part),
+          )
+          parts.splice(0, parts.length, ...withServerParts)
+        }
       }
       return {
         role,
@@ -1587,11 +1674,20 @@ export class GeminiTextAdapter<
     // them. A `toolConfig` in modelOptions wins key by key, so its own
     // `functionCallingConfig` wins, and a `retrievalConfig` alone keeps this one.
     const tools = convertToolsToProviderFormat(options.tools)
+    const hasFunctions = tools.some((tool) => 'functionDeclarations' in tool)
+    // The Gemini API needs this flag to mix built-in tools with function
+    // declarations, and rejects AUTO mode with it. The SDK throws on it for
+    // Vertex AI.
+    const includeServerSideToolInvocations =
+      !this.client.vertexai &&
+      hasFunctions &&
+      tools.some((tool) => !('functionDeclarations' in tool))
     const functionCallingConfig =
-      options.toolChoice !== undefined &&
-      tools.some((tool) => 'functionDeclarations' in tool)
-        ? toGeminiFunctionCallingConfig(options.toolChoice)
-        : undefined
+      options.toolChoice === 'auto' && includeServerSideToolInvocations
+        ? { mode: FunctionCallingConfigMode.VALIDATED }
+        : options.toolChoice !== undefined && hasFunctions
+          ? toGeminiFunctionCallingConfig(options.toolChoice)
+          : undefined
 
     // Vendor `GenerateContentConfig` fields are `field?: T` (no `| undefined`)
     // under EOPT, so spread each common option only when present rather than
@@ -1607,9 +1703,15 @@ export class GeminiTextAdapter<
       ),
       config: {
         ...modelOpts,
-        ...(functionCallingConfig !== undefined && {
+        ...((functionCallingConfig !== undefined ||
+          includeServerSideToolInvocations) && {
           toolConfig: {
-            functionCallingConfig,
+            ...(functionCallingConfig !== undefined && {
+              functionCallingConfig,
+            }),
+            ...(includeServerSideToolInvocations && {
+              includeServerSideToolInvocations,
+            }),
             ...options.modelOptions?.toolConfig,
           },
         }),

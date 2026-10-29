@@ -200,6 +200,7 @@ describe('chat({ outputSchema }) — Promise<T> path', () => {
     // chat({ outputSchema: PersonSchema }) is inferred as Promise<Person> —
     // no cast needed.
     const result = await chat({
+      threadId: 'thread-1',
       adapter,
       messages: [{ role: 'user', content: 'Give me a person' }],
       outputSchema: PersonSchema,
@@ -264,6 +265,7 @@ describe('chat({ outputSchema }) — Promise<T> path', () => {
     })
 
     await chat({
+      threadId: 'thread-1',
       adapter,
       messages: [{ role: 'user', content: 'Give me a person' }],
       outputSchema: PersonSchema,
@@ -299,6 +301,7 @@ describe('chat({ outputSchema, stream: true }) — streaming path', () => {
     // chunks. Consume directly via for-await — no cast needed.
     const yielded: Array<StreamChunk> = []
     for await (const c of chat({
+      threadId: 'thread-1',
       adapter,
       messages: [{ role: 'user', content: 'Give me a person' }],
       outputSchema: PersonSchema,
@@ -352,6 +355,7 @@ describe('onStructuredOutputConfig transforms', () => {
     }
 
     await chat({
+      threadId: 'thread-1',
       adapter,
       messages: [{ role: 'user', content: 'Give me a person' }],
       outputSchema: PersonSchema,
@@ -377,6 +381,7 @@ describe('onStructuredOutputConfig transforms', () => {
     }
 
     await chat({
+      threadId: 'thread-1',
       adapter,
       messages: [{ role: 'user', content: 'Give me a person' }],
       systemPrompts: [{ content: 'You are helpful' }],
@@ -400,6 +405,7 @@ describe('onStructuredOutputConfig transforms', () => {
     }
 
     await chat({
+      threadId: 'thread-1',
       adapter,
       messages: [{ role: 'user', content: 'Give me a person' }],
       outputSchema: PersonSchema,
@@ -424,6 +430,7 @@ describe('onStructuredOutputConfig transforms', () => {
     }
 
     await chat({
+      threadId: 'thread-1',
       adapter,
       messages: [{ role: 'user', content: 'original message' }],
       outputSchema: PersonSchema,
@@ -449,6 +456,7 @@ describe('failure paths', () => {
 
     await expect(
       chat({
+        threadId: 'thread-1',
         adapter,
         messages: [{ role: 'user', content: 'Give me a person' }],
         outputSchema: PersonSchema,
@@ -487,6 +495,7 @@ describe('failure paths', () => {
 
     await expect(
       chat({
+        threadId: 'thread-1',
         adapter,
         messages: [{ role: 'user', content: 'Give me a person' }],
         outputSchema: PersonSchema,
@@ -534,6 +543,7 @@ describe('failure paths', () => {
     const adapter = makeAdapter({})
 
     await chat({
+      threadId: 'thread-1',
       adapter,
       messages: [{ role: 'user', content: 'Give me a person' }],
       outputSchema: PersonSchema,
@@ -566,6 +576,7 @@ describe('failure paths', () => {
 
     await expect(
       chat({
+        threadId: 'thread-1',
         adapter,
         messages: [{ role: 'user', content: 'Give me a person' }],
         outputSchema: PersonSchema,
@@ -598,6 +609,7 @@ describe('failure paths', () => {
 
     await expect(
       chat({
+        threadId: 'thread-1',
         adapter,
         messages: [{ role: 'user', content: 'Give me a person' }],
         outputSchema: PersonSchema,
@@ -614,6 +626,7 @@ describe('backward compatibility', () => {
     const adapter = makeAdapter({})
     // `chat({ outputSchema: PersonSchema })` is inferred as Promise<Person>.
     const result = await chat({
+      threadId: 'thread-1',
       adapter,
       messages: [{ role: 'user', content: 'Give me a person' }],
       outputSchema: PersonSchema,
@@ -626,6 +639,7 @@ describe('backward compatibility', () => {
     const adapter = makeAdapter({})
 
     await chat({
+      threadId: 'thread-1',
       adapter,
       messages: [{ role: 'user', content: 'Give me a person' }],
       outputSchema: PersonSchema,
@@ -645,6 +659,7 @@ describe('adapter fallback (no native structuredOutputStream)', () => {
     const adapter = makeAdapter({ noNativeStructuredOutputStream: true })
 
     await chat({
+      threadId: 'thread-1',
       adapter,
       messages: [{ role: 'user', content: 'Give me a person' }],
       outputSchema: PersonSchema,

@@ -48,6 +48,7 @@ async function runSyntheticTool(agent: DefinedAgent) {
   })
   const chunks = await collectChunks(
     chat({
+      threadId: 'thread-1',
       adapter,
       messages: [{ role: 'user', content: 'Research this' }],
       subagents: { agents: [agent] },

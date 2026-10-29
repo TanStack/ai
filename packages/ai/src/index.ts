@@ -84,12 +84,19 @@ export type {
 export { BaseRerankAdapter } from './activities/rerank/adapter'
 
 // Evaluate adapter base + types
-export { BaseEvaluateAdapter } from './activities/evaluate/adapter'
+export {
+  BaseEvaluateAdapter,
+  EvaluateError,
+  EVALUATE_REFUSAL_CODE,
+  isEvaluateError,
+} from './activities/evaluate/adapter'
+export type { EvaluateErrorInit } from './activities/evaluate/adapter'
 
 export {
   defineAgent,
   type DefinedAgent,
   type SubagentChoiceOptions,
+  type SubagentContextExtension,
   type SubagentRunContext,
   type SubagentRunInput,
   type AgentProduces,
@@ -200,6 +207,11 @@ export {
   validateWithStandardSchema,
   StandardSchemaValidationError,
 } from './activities/chat/tools/schema-converter'
+export { validateJsonSchema } from './activities/chat/tools/input-validation'
+export type {
+  StandardJSONSchemaV1,
+  StandardSchemaV1,
+} from '@standard-schema/spec'
 
 // Stream utilities
 export {
@@ -280,6 +292,7 @@ export type {
   StructuredOutputMiddlewareConfig,
   ToolCallHookContext,
   BeforeToolCallDecision,
+  GuardToolCallDecision,
   AfterToolCallDecision,
   AfterToolCallInfo,
   IterationInfo,

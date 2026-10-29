@@ -18,9 +18,6 @@ export const WEB_SEARCH_TOOL_KIND = 'openrouter.web_search'
  */
 export type WebSearchToolConfig = OpenRouterWebSearchServerTool
 
-/** @deprecated Renamed to `WebSearchToolConfig`. Will be removed in a future release. */
-export type WebSearchTool = WebSearchToolConfig
-
 export type OpenRouterWebSearchTool = ProviderTool<'openrouter', 'web_search'>
 
 /** A tool is a webSearchTool() output iff its metadata carries our branded kind marker. */

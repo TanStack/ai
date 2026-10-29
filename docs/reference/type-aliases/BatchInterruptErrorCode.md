@@ -17,8 +17,7 @@ type BatchInterruptErrorCode =
   | "invalid-response-schema"
   | "expired"
   | "stale"
-  | "conflict"
-  | "legacy-submit-failed";
+  | "conflict";
 ```
 
-Defined in: [packages/ai/src/interrupts.ts:27](https://github.com/TanStack/ai/blob/main/packages/ai/src/interrupts.ts#L27)
+Defined in: packages/ai/src/interrupts.ts:26

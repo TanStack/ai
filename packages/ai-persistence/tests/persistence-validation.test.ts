@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { memoryLogStore, memoryPersistence } from '../src/memory'
 import { withGenerationPersistence, withPersistence } from '../src/middleware'
 import { reconstructChat } from '../src/reconstruct'
 import { defineAIPersistence } from '../src/types'
@@ -95,5 +96,16 @@ describe('persistence store dependency validation', () => {
         new Request('http://example.test/api/chat?threadId=t1'),
       ),
     ).rejects.toThrow(/requires stores\.messages/i)
+  })
+
+  it('accepts every session store key', () => {
+    const { sessions } = memoryPersistence().stores
+    const log = memoryLogStore()
+
+    expect(() =>
+      defineAIPersistence({
+        stores: { log, sessions },
+      }),
+    ).not.toThrow()
   })
 })

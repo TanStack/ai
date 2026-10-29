@@ -8,7 +8,7 @@ import { afterAll, afterEach, beforeAll } from 'vitest'
 // https://testing-library.com/docs/react-testing-library/api#cleanup
 afterEach(() => cleanup())
 
-let previousIsActEnvironment: boolean | undefined
+let previousIsActEnvironment = getIsOctaneActEnvironment()
 
 beforeAll(() => {
   previousIsActEnvironment = getIsOctaneActEnvironment()

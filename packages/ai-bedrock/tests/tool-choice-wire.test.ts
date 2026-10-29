@@ -94,7 +94,7 @@ async function converseRequest(
   // The adapter type takes only catalog ids, and the Claude 5.x models are
   // not in the Bedrock catalog yet. So the test sets the id at runtime.
   Object.defineProperty(adapter, 'model', { value: model })
-  const options = { logger, model, messages, ...request }
+  const options = { threadId: 'thread-1', logger, model, messages, ...request }
   try {
     if (call === 'structured') {
       // The probe makes the call throw after it records the body.
@@ -290,6 +290,7 @@ const openaiAdapters = [
     namedChoice: { type: 'function', function: { name: 'lookup_weather' } },
     send: (fetch, request) =>
       createBedrockChat(gptOss, 'test-key', { fetch }).chatStream({
+        threadId: 'thread-1',
         logger,
         model: gptOss,
         messages,
@@ -301,6 +302,7 @@ const openaiAdapters = [
     namedChoice: { type: 'function', name: 'lookup_weather' },
     send: (fetch, request) =>
       createBedrockResponsesText(gptOss, 'test-key', { fetch }).chatStream({
+        threadId: 'thread-1',
         logger,
         model: gptOss,
         messages,

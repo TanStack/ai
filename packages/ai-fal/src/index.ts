@@ -5,7 +5,7 @@
 export { FalImageAdapter, falImage } from './adapters/image'
 
 // ============================================================================
-// Video Adapter (Experimental)
+// Video Adapter
 // ============================================================================
 
 export { FalVideoAdapter, falVideo } from './adapters/video'

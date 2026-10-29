@@ -1,8 +1,10 @@
+import { execFile } from 'node:child_process'
+import { promisify } from 'node:util'
 import { describe, expect, it } from 'vitest'
-import { executeMutations, planLabelChanges } from './actions'
-import { ACK_MARKER, REPRO_MARKER, buildAckComment } from './comments'
-import { classifyPR } from './classify'
-import { planSweep } from './sweep'
+import { executeMutations, planLabelChanges } from './actions.ts'
+import { ACK_MARKER, REPRO_MARKER, buildAckComment } from './comments.ts'
+import { classifyPR } from './classify.ts'
+import { planSweep } from './sweep.ts'
 import {
   NOW,
   review,
@@ -12,8 +14,8 @@ import {
   hoursAgo,
   makeIssue,
   makePR,
-} from './fixtures'
-import type { RepoSnapshot } from './types'
+} from './fixtures.ts'
+import type { RepoSnapshot } from './types.ts'
 
 function makeSnapshot(overrides: Partial<RepoSnapshot> = {}): RepoSnapshot {
   return {
@@ -170,6 +172,63 @@ describe('planSweep', () => {
     expect(plan.commentsSuppressedByCap).toBe(2)
   })
 
+  it('assigns a PR to the roster assignee of the issue it closes, ahead of core review', () => {
+    const roster = {
+      ...config,
+      maintainers: config.maintainers.map((m) =>
+        m.github === 'alem' ? { ...m, github: 'AlemTuzlak' } : m,
+      ),
+    }
+    const snapshot = makeSnapshot({
+      codeowners: 'scripts/ @TanStack/tanstack-core',
+      prs: [
+        makePR({
+          number: 99,
+          files: ['scripts/a.ts'],
+          linkedIssues: [200],
+        }),
+      ],
+      issues: [makeIssue({ number: 200, assignees: ['jack'] })],
+    })
+    const assign = planSweep(snapshot, roster).mutations.find(
+      (m) => m.kind === 'assign' && m.number === 99,
+    )
+    expect(assign).toEqual({
+      kind: 'assign',
+      number: 99,
+      assignee: 'jack',
+    })
+  })
+
+  it('routes normally when the closed issue assignee authored the PR', () => {
+    const roster = {
+      ...config,
+      maintainers: config.maintainers.map((m) =>
+        m.github === 'alem' ? { ...m, github: 'AlemTuzlak' } : m,
+      ),
+    }
+    const snapshot = makeSnapshot({
+      codeowners: 'scripts/ @TanStack/tanstack-core',
+      prs: [
+        makePR({
+          number: 99,
+          author: 'jack',
+          files: ['scripts/a.ts'],
+          linkedIssues: [200],
+        }),
+      ],
+      issues: [makeIssue({ number: 200, assignees: ['jack'] })],
+    })
+    const assign = planSweep(snapshot, roster).mutations.find(
+      (m) => m.kind === 'assign' && m.number === 99,
+    )
+    expect(assign).toEqual({
+      kind: 'assign',
+      number: 99,
+      assignee: 'AlemTuzlak',
+    })
+  })
+
   it('spreads fallback assignments across maintainers', () => {
     const snapshot = makeSnapshot({
       prs: [11, 12, 13].map((n) => makePR({ number: n, files: ['README.md'] })),
@@ -319,11 +378,11 @@ describe('routing and review requests', () => {
 })
 
 it('runs collection → routing → REST mutations → scorecard with paginated GitHub data', async () => {
-  const { collectSnapshot } = await import('./collect')
-  const { createGitHubClient } = await import('./github')
-  const { classifyAll } = await import('./classify')
-  const { computeScorecard } = await import('./metrics')
-  const { buildScorecardEmbeds } = await import('./discord')
+  const { collectSnapshot } = await import('./collect.ts')
+  const { createGitHubClient } = await import('./github.ts')
+  const { classifyAll } = await import('./classify.ts')
+  const { computeScorecard } = await import('./metrics.ts')
+  const { buildScorecardEmbeds } = await import('./discord.ts')
   const roster = {
     ...config,
     maintainers: config.maintainers.map((m) => ({
@@ -515,4 +574,16 @@ it('does not treat assignment or review-request events as contributor replies', 
   expect(after.lastContributorActivityAt).toBe(before.lastContributorActivityAt)
   expect(after.unansweredSince).toBe(before.unansweredSince)
   expect(after.firstResponseHours).toBe(before.firstResponseHours)
+})
+
+const execFileAsync = promisify(execFile)
+
+it('links the sweep module when node loads the file', async () => {
+  const sweepHref = new URL('./sweep.ts', import.meta.url).href
+  const { stdout } = await execFileAsync(process.execPath, [
+    '--input-type=module',
+    '--eval',
+    `await import(${JSON.stringify(sweepHref)}); console.log('sweep-module-linked')`,
+  ])
+  expect(stdout).toContain('sweep-module-linked')
 })

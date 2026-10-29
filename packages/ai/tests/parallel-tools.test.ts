@@ -62,6 +62,7 @@ function runBatch(
   const { adapter } = twoCallBatch()
   return collectChunks(
     chat({
+      threadId: 'thread-1',
       adapter,
       messages: [{ role: 'user', content: 'Go' }],
       tools,
@@ -157,6 +158,7 @@ describe('server tools of one batch', () => {
       executeToolCalls(
         [call('a', 'first'), call('b', 'second')],
         [tool('first'), tool('second')],
+        'thread-1',
         new Map(),
         new Map(),
         undefined,
@@ -189,6 +191,7 @@ describe('server tools of one batch', () => {
       executeToolCalls(
         [call('a', 'first'), call('b', 'second')],
         [first, second],
+        'thread-1',
         new Map(),
         new Map(),
         undefined,
@@ -220,6 +223,7 @@ describe('server tools of one batch', () => {
       executeToolCalls(
         [call('a', 'slow'), call('b', 'bad')],
         [slow, bad],
+        'thread-1',
         new Map(),
         new Map(),
         undefined,
@@ -248,6 +252,7 @@ describe('server tools of one batch', () => {
       executeToolCalls(
         [call('a', 'first'), call('b', 'second')],
         [tool('first'), tool('second')],
+        'thread-1',
         new Map(),
         new Map(),
         undefined,
@@ -276,6 +281,7 @@ describe('server tools of one batch', () => {
     const generator = executeToolCalls(
       [call('a', 'late'), call('b', 'early')],
       [needsInput('late', 20), needsInput('early', 0)],
+      'thread-1',
       new Map(),
       new Map(),
     )

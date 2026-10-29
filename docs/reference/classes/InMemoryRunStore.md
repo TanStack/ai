@@ -3,7 +3,7 @@ id: InMemoryRunStore
 title: InMemoryRunStore
 ---
 
-Defined in: [packages/ai/src/activities/chat/middleware/run-store.ts:370](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/run-store.ts#L370)
+Defined in: packages/ai/src/activities/chat/middleware/run-store.ts:423
 
 In-memory [RunStore](../interfaces/RunStore.md). Single process only.
 
@@ -31,7 +31,7 @@ new InMemoryRunStore(): InMemoryRunStore;
 createOrResume(input): Promise<RunRecord>;
 ```
 
-Defined in: [packages/ai/src/activities/chat/middleware/run-store.ts:373](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/run-store.ts#L373)
+Defined in: packages/ai/src/activities/chat/middleware/run-store.ts:426
 
 Create a run record, or return the existing one unchanged if `runId` is
 already present.
@@ -46,7 +46,7 @@ link fields are copied only on the first insert.
 
 ##### input
 
-`Pick`\<[`RunRecord`](../interfaces/RunRecord.md), `"threadId"` \| `"runId"` \| `"startedAt"`\> & `object`
+`Pick`\<[`RunRecord`](../interfaces/RunRecord.md), `"threadId"` \| `"runId"` \| `"startedAt"`\> & `object` & `Partial`\<`Pick`\<[`RunRecord`](../interfaces/RunRecord.md), `"activity"` \| `"kind"` \| `"agent"` \| `"principal"`\>\>
 
 #### Returns
 
@@ -64,7 +64,7 @@ link fields are copied only on the first insert.
 findActiveRun(threadId): Promise<RunRecord | null>;
 ```
 
-Defined in: [packages/ai/src/activities/chat/middleware/run-store.ts:453](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/run-store.ts#L453)
+Defined in: packages/ai/src/activities/chat/middleware/run-store.ts:493
 
 The most recent `'running'` run for `threadId`, or `null` if none is active.
 
@@ -101,7 +101,7 @@ tiers belong at the store level, not the method level.
 get(runId): Promise<RunRecord | null>;
 ```
 
-Defined in: [packages/ai/src/activities/chat/middleware/run-store.ts:421](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/run-store.ts#L421)
+Defined in: packages/ai/src/activities/chat/middleware/run-store.ts:461
 
 Current record, or null when unknown.
 
@@ -127,7 +127,7 @@ Current record, or null when unknown.
 listByParentRun(parentRunId): Promise<RunRecord[]>;
 ```
 
-Defined in: [packages/ai/src/activities/chat/middleware/run-store.ts:432](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/run-store.ts#L432)
+Defined in: packages/ai/src/activities/chat/middleware/run-store.ts:472
 
 Child runs started by `parentRunId`, ascending by `startedAt`.
 OPTIONAL. `reconstructChat` uses this to put subagent cards back
@@ -156,7 +156,7 @@ text and not the cards.
 listByThread(threadId): Promise<RunRecord[]>;
 ```
 
-Defined in: [packages/ai/src/activities/chat/middleware/run-store.ts:425](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/run-store.ts#L425)
+Defined in: packages/ai/src/activities/chat/middleware/run-store.ts:465
 
 Every run in a conversation, ascending by `startedAt`. OPTIONAL.
 `reconstructChat` calls it to find the parent runs of children that a
@@ -185,7 +185,7 @@ Consumers feature-detect.
 listReclaimable(opts): Promise<RunRecord[]>;
 ```
 
-Defined in: [packages/ai/src/activities/chat/middleware/run-store.ts:439](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/run-store.ts#L439)
+Defined in: packages/ai/src/activities/chat/middleware/run-store.ts:479
 
 Runs that may be reclaimed: ALL THREE of `status === 'running'`,
 `detachedSince` is set, and `detachedSince <= now - ttlMs`. The cutoff is
@@ -229,7 +229,7 @@ method cannot be reaped at all.
 update(runId, patch): Promise<void>;
 ```
 
-Defined in: [packages/ai/src/activities/chat/middleware/run-store.ts:400](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/run-store.ts#L400)
+Defined in: packages/ai/src/activities/chat/middleware/run-store.ts:452
 
 Patch a record's mutable fields.
 
@@ -245,14 +245,19 @@ and must not create a record.
 ##### patch
 
 `Partial`\<`Pick`\<[`RunRecord`](../interfaces/RunRecord.md), 
-  \| `"status"`
-  \| `"finishedAt"`
   \| `"error"`
+  \| `"status"`
+  \| `"result"`
   \| `"usage"`
+  \| `"finishedAt"`
   \| `"sandboxKey"`
   \| `"detachedSince"`
   \| `"cancelRequested"`
-  \| `"driverEpoch"`\>\>
+  \| `"driverEpoch"`
+  \| `"artifacts"`
+  \| `"leaseOwner"`
+  \| `"leaseExpiresAt"`
+  \| `"checkpoint"`\>\>
 
 #### Returns
 

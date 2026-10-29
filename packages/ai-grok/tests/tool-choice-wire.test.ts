@@ -44,7 +44,7 @@ function xaiBody(request: ToolRequest) {
     new GrokTextAdapter<typeof model, { tool_choice?: 'none' }>(
       { apiKey: 'test-key', fetch },
       model,
-    ).chatStream({ logger, model, messages, ...request }),
+    ).chatStream({ threadId: 'thread-1', logger, model, messages, ...request }),
   )
 }
 
@@ -94,6 +94,7 @@ describe('grokVertexText tool_choice', () => {
         baseURL: 'http://vertex.test/v1',
         getAccessToken: async () => 'vertex-token',
       }).chatStream({
+        threadId: 'thread-1',
         logger,
         model,
         messages,

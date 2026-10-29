@@ -53,6 +53,7 @@ describe.each(adapters)('$adapter wrapFetch', ({ create, url }) => {
       })
     }
     for await (const _ of create(fetch).chatStream({
+      threadId: 'thread-1',
       logger,
       model: 'gpt-5.5',
       messages: [{ role: 'user', content: 'Hi' }],
@@ -93,6 +94,7 @@ describe('createAzureOpenaiText wrapFetch with an apiVersion', () => {
       },
     })
     for await (const _ of adapter.chatStream({
+      threadId: 'thread-1',
       logger,
       model: 'gpt-5.5',
       messages: [{ role: 'user', content: 'Hi' }],

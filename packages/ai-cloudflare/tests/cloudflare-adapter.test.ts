@@ -107,6 +107,18 @@ describe('normalizeSseResponse', () => {
     })
   })
 
+  it('reads `data:` without the space, CR line ends and any media type case', async () => {
+    const body = (await sse(chatStreamEvents).text())
+      .replaceAll('data: ', 'data:')
+      .replaceAll('\n', '\r')
+    const out = normalizeSseResponse(
+      new Response(body, {
+        headers: { 'content-type': 'Text/Event-Stream; charset=utf-8' },
+      }),
+    )
+    expect(await out.text()).toContain('"choices":[]')
+  })
+
   it('leaves non-SSE responses alone', () => {
     const json = new Response('{}', {
       headers: { 'content-type': 'application/json' },
@@ -125,6 +137,7 @@ describe('text adapter (binding)', () => {
 
     const chunks = await collect(
       adapter.chatStream({
+        threadId: 'thread-1',
         model: '@cf/test',
         messages: [{ role: 'user', content: 'Hi' }],
         modelOptions: { temperature: 0.2 },
@@ -156,6 +169,83 @@ describe('text adapter (binding)', () => {
     expect(finished.usage).toMatchObject({ promptTokens: 41, totalTokens: 45 })
   })
 
+  it('sends defaultHeaders as extraHeaders next to the gateway', async () => {
+    const { binding, run } = fakeBinding(() => sse(chatStreamEvents))
+    const adapter = createCloudflareText('@cf/test', {
+      binding,
+      gateway: { id: 'g1' },
+      defaultHeaders: { 'x-session-affinity': 'ses_abc' },
+    })
+
+    await collect(
+      adapter.chatStream({
+        threadId: 'thread-1',
+        model: '@cf/test',
+        messages: [{ role: 'user', content: 'Hi' }],
+        logger,
+      }),
+    )
+
+    // Only the configured headers: none of the OpenAI SDK's own headers
+    // (authorization, user-agent, x-stainless-*) reach the binding.
+    expect(run.mock.calls[0]![2]).toEqual({
+      returnRawResponse: true,
+      gateway: { id: 'g1' },
+      extraHeaders: { 'x-session-affinity': 'ses_abc' },
+    })
+  })
+
+  const plainSse = sse(chatStreamEvents)
+  it.each([
+    [
+      '`data:` without the space',
+      (s: string) => s.replaceAll('data: ', 'data:'),
+      'text/event-stream',
+    ],
+    [
+      'CR line ends',
+      (s: string) => s.replaceAll('\n', '\r'),
+      'text/event-stream',
+    ],
+    [
+      'CRLF line ends',
+      (s: string) => s.replaceAll('\n', '\r\n'),
+      'text/event-stream',
+    ],
+    [
+      'a mixed-case media type',
+      (s: string) => s,
+      'Text/Event-Stream; charset=utf-8',
+    ],
+    ['a media type that is not SSE', (s: string) => s, 'text/plain'],
+  ])(
+    'finishes with its reply and usage for %s',
+    async (_case, rewrite, contentType) => {
+      const body = rewrite(await plainSse.clone().text())
+      const { binding } = fakeBinding(
+        () => new Response(body, { headers: { 'content-type': contentType } }),
+      )
+      const chunks = await collect(
+        createCloudflareText('@cf/test', { binding }).chatStream({
+          threadId: 'thread-1',
+          model: '@cf/test',
+          messages: [{ role: 'user', content: 'Hi' }],
+          logger,
+        }),
+      )
+      expect(chunks.filter((c) => c.type === 'RUN_ERROR')).toEqual([])
+      const text = chunks
+        .filter((c) => c.type === 'TEXT_MESSAGE_CONTENT')
+        .map((c) => (c as { delta: string }).delta)
+        .join('')
+      expect(text).toBe('Hello there')
+      const finished = chunks.find((c) => c.type === 'RUN_FINISHED') as {
+        usage?: { promptTokens: number }
+      }
+      expect(finished.usage).toMatchObject({ promptTokens: 41 })
+    },
+  )
+
   it('surfaces reasoning_content as reasoning events', async () => {
     const { binding } = fakeBinding(() =>
       sse([
@@ -168,6 +258,7 @@ describe('text adapter (binding)', () => {
     const adapter = createCloudflareText('@cf/test', { binding })
     const chunks = await collect(
       adapter.chatStream({
+        threadId: 'thread-1',
         model: '@cf/test',
         messages: [{ role: 'user', content: '2+2?' }],
         logger,
@@ -195,6 +286,7 @@ describe('text adapter (binding)', () => {
         required: ['age'],
       },
       chatOptions: {
+        threadId: 'thread-1',
         model: '@cf/test',
         messages: [{ role: 'user', content: 'age?' }],
         logger,
@@ -213,6 +305,7 @@ describe('text adapter (binding) message shapes', () => {
     const adapter = createCloudflareText('@cf/test', { binding })
     await collect(
       adapter.chatStream({
+        threadId: 'thread-1',
         model: '@cf/test',
         messages: [
           { role: 'user', content: 'Weather?' },
@@ -259,6 +352,7 @@ describe('text adapter (binding) message shapes', () => {
     const adapter = createCloudflareText('@cf/test', { binding })
     const chunks = await collect(
       adapter.chatStream({
+        threadId: 'thread-1',
         model: '@cf/test',
         messages: [{ role: 'user', content: 'Hi' }],
         logger,
@@ -290,6 +384,7 @@ describe('text adapter (REST)', () => {
     })
     await collect(
       adapter.chatStream({
+        threadId: 'thread-1',
         model: '@cf/test',
         messages: [{ role: 'user', content: 'Hi' }],
         logger,
@@ -341,6 +436,22 @@ describe('embedding adapter', () => {
       { vector: [0.1, 0.2], index: 0 },
       { vector: [0.3, 0.4], index: 1 },
     ])
+  })
+
+  it('sends defaultHeaders as extraHeaders', async () => {
+    const { binding, run } = fakeBinding(() => ({ data: [[0.1]] }))
+    const adapter = createCloudflareEmbedding('@cf/baai/bge-m3', {
+      binding,
+      defaultHeaders: { 'x-session-affinity': 'ses_abc' },
+    })
+    await adapter.createEmbeddings({
+      model: '@cf/baai/bge-m3',
+      input: ['a'],
+      logger,
+    })
+    expect(run.mock.calls[0]![2]).toEqual({
+      extraHeaders: { 'x-session-affinity': 'ses_abc' },
+    })
   })
 
   it('rejects dimensions and a mismatched output shape', async () => {

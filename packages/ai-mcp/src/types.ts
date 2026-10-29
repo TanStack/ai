@@ -1,10 +1,12 @@
 import type { ServerTool, ToolDefinition } from '@tanstack/ai'
 import type {
   ClientOptions,
+  PriorDiscovery,
   Tool as McpToolDef,
   ToolAnnotations,
 } from '@modelcontextprotocol/client'
 import type { TransportInput } from './transport'
+import type { MCPEventsOptions } from './events/types'
 
 /** A bare tool definition (from `toolDefinition({...})`, no `.server()`/`.client()` called). */
 export type AnyToolDefinition = ToolDefinition<any, any, string>
@@ -154,6 +156,16 @@ export interface MCPClientOptions {
     resetTimeoutOnProgress?: boolean
   }
   /**
+   * A saved era verdict for the SDK `Client.connect`. Save the discover
+   * result from `MCPClient.getDiscoverResult()` and pass
+   * `{ kind: 'modern', discover }` to skip the `server/discover` request.
+   * Reuse it only for the same authorization context, and expire it
+   * yourself. With `prior`, connect sends no request, so a dead server or
+   * a revoked token fails on the first call. A prior with no shared
+   * protocol version throws `MCPConnectionError`.
+   */
+  prior?: PriorDiscovery
+  /**
    * Choose the server tools the model gets. Default: every tool.
    *
    * - A function: keep the tools it returns `true` for. It receives the raw
@@ -195,6 +207,44 @@ export interface MCPClientOptions {
    * ```
    */
   needsApproval?: (tool: McpToolDef) => boolean
+  /**
+   * Runs when the connection closes and this client did not close it. For
+   * example, the process of a stdio server stops. `close()` does not call
+   * it. After it runs, the client cannot send requests: connect a new one.
+   *
+   * ```ts
+   * const mcp = await createMCPClient({
+   *   transport: { type: 'stdio', command: 'npx', args: ['my-server'] },
+   *   onClose: () => console.warn('The MCP server stopped.'),
+   * })
+   * ```
+   */
+  onClose?: () => void
+  /**
+   * Runs when the server sends `notifications/tools/list_changed`. Call
+   * `tools()` again to get the new list.
+   */
+  onToolListChanged?: () => void
+  /**
+   * MCP Events (SEP-3415). Omit for discovery-only (`list()`).
+   *
+   * Direct mode (`{ store }`) talks to the MCP server and stores webhook
+   * subscriptions. Managed mode (`{ adapter }`) delegates subscribe to a
+   * hosted backend such as Vercel Connect.
+   *
+   * @experimental
+   *
+   * @example
+   * ```ts
+   * import { inMemoryMCPEventStore } from '@tanstack/ai-mcp/events'
+   *
+   * const mcp = await createMCPClient({
+   *   transport: { type: 'http', url: 'https://mcp.example.com/mcp' },
+   *   experimental_events: { store: inMemoryMCPEventStore() },
+   * })
+   * ```
+   */
+  experimental_events?: MCPEventsOptions
 }
 
 export interface ToolsOptions {
@@ -243,3 +293,29 @@ export type DescriptorTools<TServer extends ServerDescriptor> = Array<
     [K in keyof TServer['tools'] & string]: DescribedTool<K>
   }[keyof TServer['tools'] & string]
 >
+
+export type {
+  DirectMCPEventsOptions,
+  JSONObject,
+  ManagedMCPEvents,
+  ManagedMCPEventsOptions,
+  ManagedMCPSubscribeInput,
+  ManagedMCPSubscription,
+  ManagedMCPSubscriptionStatus,
+  MCPEventAdapter,
+  MCPEventAdapterTransport,
+  MCPEventDefinition,
+  MCPEventDeliveryMode,
+  MCPEventDeliveryStatus,
+  MCPEventOccurrence,
+  MCPEventOperations,
+  MCPEvents,
+  MCPEventsOptions,
+  MCPEventStore,
+  MCPEventSubscribeResult,
+  MCPEventSubscription,
+  MCPEventSubscriptionInfo,
+  MCPEventSubscriptionRef,
+  MCPEventWebhookOptions,
+  SubscribeMCPEventOptions,
+} from './events/types'

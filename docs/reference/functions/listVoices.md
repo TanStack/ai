@@ -7,7 +7,7 @@ title: listVoices
 function listVoices<TAdapter>(options): Promise<ListVoicesResult>;
 ```
 
-Defined in: [packages/ai/src/activities/generateSpeech/index.ts:453](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/generateSpeech/index.ts#L453)
+Defined in: packages/ai/src/activities/generateSpeech/index.ts:453
 
 List the voices an account can pass to `generateSpeech()`.
 

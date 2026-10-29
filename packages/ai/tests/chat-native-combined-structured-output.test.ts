@@ -85,6 +85,7 @@ describe('chat({ outputSchema, stream: true }) — native combined mode (#605)',
     })
 
     const stream = chat({
+      threadId: 'thread-1',
       adapter,
       messages: [{ role: 'user', content: 'extract' }],
       outputSchema: PersonSchema,
@@ -110,6 +111,7 @@ describe('chat({ outputSchema, stream: true }) — native combined mode (#605)',
 
     const chunks = await collectChunks(
       chat({
+        threadId: 'thread-1',
         adapter,
         messages: [{ role: 'user', content: 'extract' }],
         outputSchema: PersonSchema,
@@ -154,6 +156,7 @@ describe('chat({ outputSchema, stream: true }) — native combined mode (#605)',
 
     const chunks = await collectChunks(
       chat({
+        threadId: 'thread-1',
         adapter,
         messages: [{ role: 'user', content: 'extract' }],
         outputSchema: PersonSchema,
@@ -180,6 +183,7 @@ describe('chat({ outputSchema, stream: true }) — native combined mode (#605)',
     })
 
     const result = await chat({
+      threadId: 'thread-1',
       adapter,
       messages: [{ role: 'user', content: 'extract' }],
       outputSchema: PersonSchema,
@@ -200,11 +204,15 @@ describe('chat({ outputSchema, stream: true }) — native combined mode (#605)',
 
     await expect(
       chat({
+        threadId: 'thread-1',
         adapter,
         messages: [{ role: 'user', content: 'extract' }],
         outputSchema: PersonSchema,
       }),
-    ).rejects.toThrow()
+    ).rejects.toMatchObject({
+      code: 'structured-output-validation-failed',
+      rawText: JSON.stringify(invalid),
+    })
   })
 
   // #1426: a final turn cut off at the output cap is a truncation, not a
@@ -229,6 +237,7 @@ describe('chat({ outputSchema, stream: true }) — native combined mode (#605)',
 
       const chunks = await collectChunks(
         chat({
+          threadId: 'thread-1',
           adapter,
           messages: [{ role: 'user', content: 'extract' }],
           outputSchema: PersonSchema,
@@ -259,6 +268,7 @@ describe('chat({ outputSchema, stream: true }) — native combined mode (#605)',
 
     const chunks = await collectChunks(
       chat({
+        threadId: 'thread-1',
         adapter,
         messages: [{ role: 'user', content: 'extract' }],
         tools: [serverTool('lookup', () => ({ found: true }))],
@@ -288,6 +298,7 @@ describe('chat({ outputSchema, stream: true }) — native combined mode (#605)',
     })
 
     const error = await chat({
+      threadId: 'thread-1',
       adapter,
       messages: [{ role: 'user', content: 'extract' }],
       outputSchema: PersonSchema,
@@ -307,6 +318,7 @@ describe('chat({ outputSchema, stream: true }) — native combined mode (#605)',
 
     const chunks = await collectChunks(
       chat({
+        threadId: 'thread-1',
         adapter,
         messages: [{ role: 'user', content: 'extract' }],
         outputSchema: PersonSchema,
@@ -381,6 +393,7 @@ describe('chat({ outputSchema, stream: true }) — native combined mode (#605)',
 
     await collectChunks(
       chat({
+        threadId: 'thread-1',
         adapter,
         messages: [{ role: 'user', content: 'extract' }],
         outputSchema: PersonSchema,

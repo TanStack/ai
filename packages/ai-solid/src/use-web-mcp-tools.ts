@@ -17,12 +17,6 @@ export type UseRegisterWebMCPToolsOptions<
   onError?: (error: unknown) => void
 }
 
-/** @deprecated Use `UseRegisterWebMCPToolsOptions`. Removed in 1.0.0. */
-export type UseWebMCPToolsOptions<
-  TTools extends ReadonlyArray<AnyClientTool>,
-  TContext = InferredClientContext<TTools>,
-> = UseRegisterWebMCPToolsOptions<TTools, TContext>
-
 type UseRegisterWebMCPToolsArguments<
   TTools extends ReadonlyArray<AnyClientTool>,
   TContext,
@@ -65,12 +59,6 @@ export function useRegisterWebMCPTools<
   onCleanup(() => controller.abort())
 }
 
-/**
- * @deprecated Use `useRegisterWebMCPTools`. Removed in 1.0.0.
- * @alias
- */
-export const useWebMCPTools = useRegisterWebMCPTools
-
 /** Options for {@link usePageWebMCPTools}. */
 export type UsePageWebMCPToolsOptions = Omit<
   SubscribeWebMCPToolsOptions,
@@ -92,6 +80,7 @@ export type UsePageWebMCPToolsOptions = Omit<
  *   filter: (tool) => tool.origin === location.origin,
  * })
  * const chat = useChat({
+ *   threadId: 'support-1',
  *   connection,
  *   get tools() {
  *     return pageTools()

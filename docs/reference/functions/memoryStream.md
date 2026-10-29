@@ -7,7 +7,7 @@ title: memoryStream
 function memoryStream(source, options?): UpsertableStreamDurability;
 ```
 
-Defined in: [packages/ai/src/stream-durability.ts:331](https://github.com/TanStack/ai/blob/main/packages/ai/src/stream-durability.ts#L331)
+Defined in: packages/ai/src/stream-durability.ts:331
 
 The zero-infrastructure delivery-durability backend. Its versioned cursor is
 deliberately private: callers and core only pass the returned string back.

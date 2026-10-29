@@ -172,7 +172,6 @@ The `@tanstack/ai` package provides core functions:
 - **`chat()`** - Chat completion with streaming, tools, and agent loops
 - **`embedding()`** - Generate embeddings
 - **`summarize()`** - Summarize text
-- Legacy adapters (monolithic, deprecated) use `openai()`, `anthropic()`, etc.
 
 #### 3. Isomorphic Tool System
 
@@ -228,7 +227,6 @@ Each framework integration uses the headless `ai-client` under the hood.
 - **`index.ts`** - Exports tree-shakeable adapters (openaiText, openaiEmbed, etc.)
 - **`adapters/`** - Individual adapter implementations (text.ts, embed.ts, summarize.ts, image.ts)
 - **`model-meta.ts`** - Model metadata for type safety (provider options per model)
-- **`openai-adapter.ts`** - Legacy monolithic adapter (deprecated)
 
 ## Development Workflow
 

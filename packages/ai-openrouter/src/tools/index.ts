@@ -3,7 +3,6 @@ export {
   convertWebSearchToolToAdapterFormat,
   type OpenRouterWebSearchTool,
   type WebSearchToolConfig,
-  type WebSearchTool,
 } from './web-search-tool'
 export {
   webFetchTool,

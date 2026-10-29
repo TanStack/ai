@@ -7,7 +7,7 @@ title: subagentRoute
 function subagentRoute<TAgents>(agents, options?): object;
 ```
 
-Defined in: [packages/ai/src/activities/chat/agents/route.ts:94](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/agents/route.ts#L94)
+Defined in: packages/ai/src/activities/chat/agents/route.ts:94
 
 Build `decide()` questions for a subagent router.
 
@@ -30,7 +30,7 @@ input.
 
 ### TAgents
 
-`TAgents` *extends* readonly [`DefinedAgent`](../interfaces/DefinedAgent.md)\<`string`, readonly `SubagentTool`[], [`SchemaInput`](../type-aliases/SchemaInput.md) \| `undefined`, readonly [`InterruptDefinition`](../interfaces/InterruptDefinition.md)\<`any`, `any`, `any`, `any`, `any`\>[], `any`\>[]
+`TAgents` *extends* readonly [`DefinedAgent`](../interfaces/DefinedAgent.md)\<`string`, readonly `SubagentTool`[], [`SchemaInput`](../type-aliases/SchemaInput.md) \| `undefined`, readonly [`InterruptDefinition`](../interfaces/InterruptDefinition.md)\<`any`, `any`, `any`, `any`, `any`\>[], `any`, `unknown`, [`AgentProduces`](../type-aliases/AgentProduces.md) \| `undefined`\>[]
 
 ## Parameters
 

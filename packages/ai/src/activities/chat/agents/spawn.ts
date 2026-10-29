@@ -12,14 +12,24 @@ import {
 import { mergeStreams } from '../../../utilities/merge-streams'
 import { SUBAGENT_INPUT_KEY } from '../../../utilities/subagent-wire'
 import { INTERRUPT_BINDING_METADATA_KEY } from '../../../interrupt-resume'
-import { EMIT_STREAM_CHUNK, SUBAGENT_TOOL } from '../tools/tool-calls'
+import { INTERRUPT_BINDING_VERSION } from '../../../interrupts'
+import { INTERRUPT_PAYLOAD_METADATA_KEY } from '../../../interrupt-definition'
+import {
+  EMIT_STREAM_CHUNK,
+  SUBAGENT_TOOL,
+  inputRequestReason,
+  isMcpInputRequired,
+} from '../tools/tool-calls'
 import {
   convertSchemaToJsonSchema,
   isStandardSchema,
 } from '../tools/schema-converter'
 import { getLoadChild } from '../middleware/load-child'
 import type { LoadChild } from '../middleware/load-child'
-import type { SubagentToolOutcome } from '../tools/tool-calls'
+import type {
+  McpInputRequiredThrow,
+  SubagentToolOutcome,
+} from '../tools/tool-calls'
 import type { SpecTokenUsage } from '../../../utilities/ag-ui-usage'
 import type {
   StandardJSONSchemaV1,
@@ -34,6 +44,7 @@ import type {
   StreamChunk,
   SubagentErrorEvent,
   SubagentFinishedEvent,
+  SubagentPart,
   SubagentStartedEvent,
   TokenUsage,
   Tool,
@@ -52,6 +63,11 @@ import type {
   SubagentRunInput,
 } from './define-agent'
 import type { ChatMiddleware } from '../middleware/types'
+import { subagentCards } from './turn'
+import {
+  convertMessagesToModelMessages,
+  modelMessagesToUIMessages,
+} from '../messages'
 import type { SubagentTurn } from './turn'
 
 export const SUBAGENT_STARTED = EventType.SUBAGENT_STARTED
@@ -125,6 +141,8 @@ export interface SubagentsBag<
   /**
    * What a host adds to every activity call a child makes through `ctx`
    * (`ctx.chat`, `ctx.generateImage`, and the rest). Apps do not set it.
+   *
+   * @internal For hosts that run agents, such as `@tanstack/ai-harness`.
    */
   binding?: SubagentBinding
   /**
@@ -693,7 +711,8 @@ function* valueResultChunks(
 
 /**
  * Build the context `run` receives: the spawn input plus `forward`, the
- * provider keys, and the bound activity functions.
+ * provider keys, the bound activity functions, and the fields of
+ * `binding.extend`.
  */
 function runContext(
   agentName: string,
@@ -701,7 +720,7 @@ function runContext(
   abortController: AbortController,
   binding?: SubagentBinding,
 ) {
-  return {
+  const ctx = {
     ...input,
     forward: {
       threadId: input.threadId,
@@ -719,6 +738,7 @@ function runContext(
     keys: binding?.keys ?? envProviderKeys,
     ...createBoundActivities(agentName, input, abortController, binding),
   } satisfies SubagentRunContext
+  return binding?.extend ? { ...ctx, ...binding.extend(ctx) } : ctx
 }
 
 /**
@@ -857,6 +877,19 @@ export async function* spawnAgentStream(
       timestamp: Date.now(),
     } satisfies SubagentFinishedEvent
   } catch (error) {
+    // `run` threw the shape of MCPInputRequiredError: the child stops for
+    // outside input, as a tool does. The parent run waits with it.
+    if (isMcpInputRequired(error) && !ctx.abortSignal?.aborted) {
+      const interrupt = inputInterrupt(error, id, agent.name)
+      sink?.interrupts.push(interrupt)
+      yield {
+        type: SUBAGENT_FINISHED,
+        subagentRunId: id,
+        outcome: { type: 'suspended', interruptIds: [interrupt.id] },
+        timestamp: Date.now(),
+      } satisfies SubagentFinishedEvent
+      return
+    }
     yield {
       type: SUBAGENT_ERROR,
       subagentRunId: id,
@@ -874,6 +907,43 @@ export async function* spawnAgentStream(
       // Child stream may already be closed or aborted.
     }
     link.dispose()
+  }
+}
+
+/**
+ * The interrupt of an input request that the `run` of child `subagentRunId`
+ * threw. It has the shape of an `mcp_input` interrupt, with no tool call.
+ * Its id is the request's `interruptId`, so a child that asks more than once
+ * names each question. The message is the error message.
+ */
+function inputInterrupt(
+  error: McpInputRequiredThrow,
+  subagentRunId: string,
+  agentName: string,
+): Interrupt {
+  const own = Reflect.get(error, 'interruptId')
+  const id = typeof own === 'string' ? own : `mcp_input_${subagentRunId}`
+  const message = Reflect.get(error, 'message')
+  const reason = inputRequestReason(error.reason)
+  return {
+    id,
+    reason: reason ?? 'mcp_input',
+    message:
+      typeof message === 'string' && message !== ''
+        ? message
+        : `Input required to run ${agentName}`,
+    subagentRunId,
+    metadata: {
+      [INTERRUPT_BINDING_METADATA_KEY]: {
+        v: INTERRUPT_BINDING_VERSION,
+        kind: 'generic',
+        interruptId: id,
+      },
+      [INTERRUPT_PAYLOAD_METADATA_KEY]: {
+        kind: error.kind,
+        request: error.request,
+      },
+    },
   }
 }
 
@@ -1047,29 +1117,28 @@ function agentToolSchema(
     type: 'object',
     properties: { prompt: { type: 'string' } },
   }
-  // ponytail: a schema with no top-level properties (a top-level anyOf) gets
-  // no sessionId or background. Wrap it in allOf if one needs them.
-  if (schema.properties === undefined || names.length === 0) return schema
-  return {
-    ...schema,
-    properties: {
-      ...schema.properties,
-      ...(names.includes('sessionId') && {
-        sessionId: {
-          type: 'string',
-          description:
-            'The subagentRunId of an earlier result. The call continues that child.',
-        },
-      }),
-      ...(names.includes('background') && {
-        background: {
-          type: 'boolean',
-          description:
-            'true starts the child and returns its subagentRunId at once.',
-        },
-      }),
-    },
+  if (names.length === 0) return schema
+  const extra: JSONSchema['properties'] = {
+    ...(names.includes('sessionId') && {
+      sessionId: {
+        type: 'string',
+        description:
+          'The subagentRunId of an earlier result. The call continues that child.',
+      },
+    }),
+    ...(names.includes('background') && {
+      background: {
+        type: 'boolean',
+        description:
+          'true starts the child and returns its subagentRunId at once.',
+      },
+    }),
   }
+  // A top-level anyOf has no `properties`. Put the reserved fields beside it.
+  if (schema.properties === undefined) {
+    return { allOf: [schema, { type: 'object', properties: extra }] }
+  }
+  return { ...schema, properties: { ...schema.properties, ...extra } }
 }
 
 /**
@@ -1092,21 +1161,34 @@ function agentToolInput(
       vendor: 'tanstack-ai',
       validate: (value) => {
         const { fields, reserved } = splitReserved(value, names)
-        // ponytail: a schema that turns the input into a non-object (a
-        // top-level transform) loses the reserved fields.
-        const add = (result: StandardSchemaV1.Result<unknown>) =>
-          result.issues !== undefined ||
-          Object.keys(reserved).length === 0 ||
-          typeof result.value !== 'object' ||
-          result.value === null ||
-          Array.isArray(result.value)
-            ? result
-            : {
-                value: {
-                  ...(result.value as Record<string, unknown>),
-                  ...reserved,
+        const add = (result: StandardSchemaV1.Result<unknown>) => {
+          if (
+            result.issues !== undefined ||
+            Object.keys(reserved).length === 0
+          ) {
+            return result
+          }
+          if (
+            typeof result.value !== 'object' ||
+            result.value === null ||
+            Array.isArray(result.value)
+          ) {
+            return {
+              issues: [
+                {
+                  message:
+                    'Agent input must be an object when the call uses sessionId or background.',
                 },
-              }
+              ],
+            }
+          }
+          return {
+            value: {
+              ...(result.value as Record<string, unknown>),
+              ...reserved,
+            },
+          }
+        }
         const result = inner['~standard'].validate(fields)
         return result instanceof Promise ? result.then(add) : add(result)
       },
@@ -1156,6 +1238,91 @@ function readCall(
   }
 }
 
+function toolCallIds(messages: ReadonlyArray<UIMessage | ModelMessage>) {
+  return new Set(
+    messages.flatMap((message) =>
+      'parts' in message
+        ? message.parts.flatMap((part) =>
+            part.type === 'tool-call' ? [part.id] : [],
+          )
+        : (message.toolCalls ?? []).map((call) => call.id),
+    ),
+  )
+}
+
+/** `messages` as UI messages, each card on the message that holds its tool call. */
+function withCards(
+  messages: Array<UIMessage | ModelMessage>,
+  cards: ReadonlyArray<SubagentPart>,
+): Array<UIMessage> {
+  return modelMessagesToUIMessages(
+    convertMessagesToModelMessages(messages),
+  ).map((message) => {
+    const own = cards.filter((part) =>
+      message.parts.some(
+        (entry) =>
+          entry.type === 'tool-call' &&
+          entry.id === part.subagent.parentToolCallId,
+      ),
+    )
+    return own.length > 0
+      ? { ...message, parts: [...message.parts, ...own] }
+      : message
+  })
+}
+
+/**
+ * The cards of the waiting nested children of a waiting child. The store
+ * keeps a nested child in its own transcript, so the stored `pending` of the
+ * child has no card for it. Each card is rebuilt from the store: the client
+ * `card` gives only the id. A forged card cannot change the nested messages,
+ * and can name only a child that this child started from a tool call in
+ * `pending`.
+ */
+async function storedNestedCards(
+  card: ReadonlyArray<UIMessage | ModelMessage>,
+  pending: ReadonlyArray<UIMessage | ModelMessage>,
+  parentSubagentRunId: string,
+  load: LoadChild,
+): Promise<Array<SubagentPart>> {
+  const waiting = subagentCards(card).filter(
+    (child) => child.status === 'suspended',
+  )
+  if (waiting.length === 0) return []
+  const calls = toolCallIds(pending)
+  return Promise.all(
+    waiting.map(async (child): Promise<SubagentPart> => {
+      const id = child.subagentRunId
+      const stored = await load(id, { parentSubagentRunId })
+      const parentToolCallId = stored?.parentToolCallId
+      if (
+        !stored?.pending ||
+        parentToolCallId === undefined ||
+        !calls.has(parentToolCallId)
+      ) {
+        throw new Error(`Subagent run "${id}" is not waiting in this thread.`)
+      }
+      const nested = await storedNestedCards(
+        child.messages,
+        stored.pending,
+        id,
+        load,
+      )
+      return {
+        type: 'subagent',
+        subagent: {
+          id,
+          name: stored.agent ?? child.name,
+          status: 'suspended',
+          interruptIds: stored.interruptIds ?? [],
+          parentToolCallId,
+          messages: withCards(stored.pending, nested),
+        },
+      }
+    }),
+  )
+}
+
 export function createSyntheticSubagentTools(
   bag: SubagentsBag,
   parent: {
@@ -1198,12 +1365,36 @@ export function createSyntheticSubagentTools(
         turnChild.parentToolCallId !== undefined &&
         turnChild.parentToolCallId === toolCallId,
     )
+    // A store that knows the child is the source of its messages. The card
+    // came from the client, which could change a tool call before it answers
+    // the interrupt of that call.
+    const load = parent.childLoader?.()
+    const stored =
+      suspended && load
+        ? (await load(suspended.subagentRunId))?.pending
+        : undefined
+    if (suspended && load && !stored) {
+      throw new Error(
+        `Subagent run "${suspended.subagentRunId}" is not waiting in this thread.`,
+      )
+    }
+    const nested =
+      suspended && load && stored
+        ? await storedNestedCards(
+            suspended.messages,
+            stored,
+            suspended.subagentRunId,
+            load,
+          )
+        : []
+    const pending =
+      stored && nested.length > 0 ? withCards(stored, nested) : stored
     const entry: SpawnEntry = {
       ...child,
       ...(suspended && {
         resume: {
           subagentRunId: suspended.subagentRunId,
-          messages: suspended.messages,
+          messages: pending ?? suspended.messages,
           entries: suspended.resume,
           text: suspended.text,
         },
@@ -1215,7 +1406,9 @@ export function createSyntheticSubagentTools(
     const refusal = suspended
       ? undefined
       : timeout === 0
-        ? `subagent limit reached (timeoutMs ${budget.limits.timeoutMs ?? 0})`
+        ? budget.limits.timeoutMs === 0
+          ? 'subagent limit reached (timeoutMs 0)'
+          : 'subagent limit reached (no time left)'
         : budget.reserve(active)
     if (refusal !== undefined) {
       return {
@@ -1361,16 +1554,28 @@ export function createSyntheticSubagentTools(
         // A background child counts against the tree budget too.
         const refusal = budget.reserve(active)
         if (refusal !== undefined) throw new Error(refusal)
-        const { subagentRunId } = await start(
-          {
-            agent: agent.name,
-            ...fields,
-            ...(context?.toolCallId !== undefined && {
-              parentToolCallId: context.toolCallId,
-            }),
-          },
-          { wake: true },
-        )
+        active += 1
+        let started: { subagentRunId: string; done: Promise<unknown> }
+        try {
+          started = await start(
+            {
+              agent: agent.name,
+              ...fields,
+              ...(context?.toolCallId !== undefined && {
+                parentToolCallId: context.toolCallId,
+              }),
+            },
+            { wake: true },
+          )
+        } catch (error) {
+          active -= 1
+          budget.release()
+          throw error
+        }
+        void Promise.resolve(started.done).finally(() => {
+          active -= 1
+        })
+        const { subagentRunId } = started
         return {
           subagentRunId,
           text: '',

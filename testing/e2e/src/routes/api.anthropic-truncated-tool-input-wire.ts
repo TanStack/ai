@@ -139,6 +139,7 @@ export const Route = createFileRoute(
             })
 
             const stream = chat({
+              threadId: 'anthropic-truncated-tool-input-wire',
               ...createChatOptions({ adapter }),
               messages: params.messages,
               stream: true,

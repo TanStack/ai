@@ -180,6 +180,7 @@ describe(
 
       const chunks = await collect(
         adapter().chatStream({
+          threadId: 'thread-1',
           model: 'pi-fast',
           runId: 'r-attach-refused',
           messages: [{ role: 'user', content: 'say pong' }],
@@ -205,7 +206,7 @@ describe(
       expect(error.message).toMatch(/not a transient condition/i)
 
       // THE POINT OF THE THROW: the agent never ran. `pong` is the fake agent's
-      // only output, so its absence proves `session.prompt(...)` was never
+      // only output, so its absence proves `session.send(...)` was never
       // reached — the workspace the previous attempt mutated was not re-driven
       // and nothing was appended to the run log.
       expect(textOf(chunks)).toBe('')
@@ -224,6 +225,7 @@ describe(
 
       const chunks = await collect(
         adapter().chatStream({
+          threadId: 'thread-1',
           model: 'pi-fast',
           runId: 'r-fresh-durable',
           messages: [{ role: 'user', content: 'say pong' }],
@@ -255,6 +257,7 @@ describe(
 
       const chunks = await collect(
         adapter().chatStream({
+          threadId: 'thread-1',
           model: 'pi-fast',
           runId: 'r-no-durability',
           messages: [{ role: 'user', content: 'say pong' }],

@@ -2371,7 +2371,7 @@ describe('conversationSummarizer', () => {
     const { fake, requests } = fakeSummaryModel()
     const result = await conversationSummarizer({ adapter: fake })(
       [text('user', 'fix the bug'), text('assistant', 'done')],
-      {},
+      { threadId: 'thread-1' },
     )
 
     expect(result).toEqual({
@@ -2393,6 +2393,23 @@ describe('conversationSummarizer', () => {
     }
     expect(userOf(requests[0])).toContain('[User]: fix the bug')
     expect(userOf(requests[0])).toContain('[Assistant]: done')
+    expect(requests[0]?.threadId).toBe('thread-1:compaction')
+  })
+
+  it('runs the middleware option after its own usage count', async () => {
+    const { fake } = fakeSummaryModel()
+    const onUsage = vi.fn()
+    const result = await conversationSummarizer({
+      adapter: fake,
+      middleware: [{ name: 'app-ledger', onUsage }],
+    })([text('user', 'fix the bug')], { threadId: 'thread-1' })
+
+    expect(onUsage).toHaveBeenCalledTimes(1)
+    expect(onUsage.mock.calls[0]?.[0]).toMatchObject({
+      threadId: 'thread-1:compaction',
+    })
+    // The summarizer still reports the usage of its call.
+    expect(result).toMatchObject({ usage: { completionTokens: 3 } })
   })
 
   it('writes text parts and a tag for each other part', async () => {
@@ -2411,7 +2428,7 @@ describe('conversationSummarizer', () => {
         },
         { role: 'assistant', content: null },
       ],
-      {},
+      { threadId: 'thread-1' },
     )
 
     expect(userOf(requests[0])).toContain('[User]: look at this\\n[image]')
@@ -2427,7 +2444,7 @@ describe('conversationSummarizer', () => {
     }
     await conversationSummarizer({ adapter: fake })(
       [earlier, text('user', 'new step')],
-      { previousSummary: 'old facts' },
+      { threadId: 'thread-1', previousSummary: 'old facts' },
     )
 
     expect(systemOf(requests[0])).toContain('You update a checkpoint summary')
@@ -2443,7 +2460,7 @@ describe('conversationSummarizer', () => {
     const { fake, requests } = fakeSummaryModel()
     await conversationSummarizer({ adapter: fake })(
       [text('user', 'new task')],
-      { turnPrefix: true },
+      { threadId: 'thread-1', turnPrefix: true },
     )
     expect(systemOf(requests[0])).toContain(
       'the first part of the current turn',
@@ -2457,7 +2474,9 @@ describe('conversationSummarizer', () => {
       toolCallId: 't1',
     }
     const first = fakeSummaryModel()
-    await conversationSummarizer({ adapter: first.fake })([tool], {})
+    await conversationSummarizer({ adapter: first.fake })([tool], {
+      threadId: 'thread-1',
+    })
     expect(userOf(first.requests[0])).toContain('y'.repeat(2000))
     expect(userOf(first.requests[0])).not.toContain('y'.repeat(2001))
 
@@ -2465,7 +2484,7 @@ describe('conversationSummarizer', () => {
     await conversationSummarizer({
       adapter: second.fake,
       maxToolResultChars: 10,
-    })([tool], {})
+    })([tool], { threadId: 'thread-1' })
     expect(userOf(second.requests[0])).toContain('y'.repeat(10))
     expect(userOf(second.requests[0])).not.toContain('y'.repeat(11))
   })
@@ -2480,6 +2499,7 @@ describe('conversationSummarizer', () => {
       adapter: withDetails.fake,
       details,
     })([text('user', 'edit b.ts')], {
+      threadId: 'thread-1',
       previousSummary: 'old',
       previousDetails: 'a.ts',
     })
@@ -2492,7 +2512,7 @@ describe('conversationSummarizer', () => {
     const plain = await conversationSummarizer({
       adapter: without.fake,
       details: () => undefined,
-    })([text('user', 'hi')], {})
+    })([text('user', 'hi')], { threadId: 'thread-1' })
     expect(plain).toMatchObject({ summary: 'the summary' })
   })
 
@@ -2501,7 +2521,7 @@ describe('conversationSummarizer', () => {
     const details = vi.fn<Details>(() => undefined)
     await conversationSummarizer({ adapter: fake, details })(
       [summaryOf('old facts'), text('user', 'new step')],
-      { previousSummary: 'old facts' },
+      { threadId: 'thread-1', previousSummary: 'old facts' },
     )
     expect(details).toHaveBeenCalledWith({
       messages: [text('user', 'new step')],
@@ -2584,6 +2604,7 @@ describe('conversationSummarizer', () => {
     const early = fakeSummaryModel()
     await expect(
       conversationSummarizer({ adapter: early.fake })([text('user', 'hi')], {
+        threadId: 'thread-1',
         signal: AbortSignal.abort(new Error('stop')),
       }),
     ).rejects.toThrow('stop')
@@ -2592,6 +2613,7 @@ describe('conversationSummarizer', () => {
     // A reason that is not an Error: it throws its own error.
     await expect(
       conversationSummarizer({ adapter: early.fake })([text('user', 'hi')], {
+        threadId: 'thread-1',
         signal: AbortSignal.abort('stop'),
       }),
     ).rejects.toThrow('The summary was aborted.')
@@ -2610,6 +2632,7 @@ describe('conversationSummarizer', () => {
     ])
     await expect(
       conversationSummarizer({ adapter: late })([text('user', 'hi')], {
+        threadId: 'thread-1',
         signal: controller.signal,
       }),
     ).rejects.toThrow('stop')
@@ -2828,6 +2851,25 @@ describe('background compaction', () => {
       ])
     },
   )
+
+  it('drops a ready summary that another model prepared', async () => {
+    const onCompact = vi.fn()
+    const store = memoryStore()
+    const mw = backgroundCompaction(async () => 'the gist', { onCompact })
+    await runOnConfig(mw, list(4), runContext('r1', { store }).ctx)
+    await vi.waitFor(async () =>
+      expect(await store.get(BACKGROUND, 'thread-1')).not.toBeNull(),
+    )
+
+    // The next run calls another model: the summary is not applied.
+    const { ctx } = runContext('r2', { store })
+    ctx.model = 'other-model'
+    const result = await runOnConfig(mw, list(4), ctx)
+    expect(result?.providerMessages).toBeUndefined()
+    expect(onCompact).toHaveBeenCalledWith(
+      expect.objectContaining({ reason: 'background', stale: true }),
+    )
+  })
 
   it('reports the usage of a background summary when the next run applies it', async () => {
     const usage = tokenUsage(120, 30)
@@ -3243,6 +3285,40 @@ describe('withCompaction native', () => {
     expect(other?.providerMessages?.[0]?.content).toBe('gpt-5.4')
   })
 
+  it('does not keep a failed native compact as the checkpoint', async () => {
+    const store = memoryStore()
+    const strategy = vi.fn<CompactionStrategy>(() => [text('user', 'cut')])
+    const messages = [big('user'), big('assistant'), big('user')]
+    const context = () => {
+      const ctx = checkpointContext(store)
+      ctx.model = 'gpt-5.5'
+      return ctx
+    }
+    const failed = await runOnConfig(
+      withCompaction({
+        maxTokens: 50,
+        strategy,
+        native: { compact: () => Promise.reject(new Error('404 Not Found')) },
+      }),
+      messages,
+      context(),
+    )
+
+    expect(failed).toStrictEqual({ providerMessages: [text('user', 'cut')] })
+
+    const compact = vi.fn(() => Promise.resolve([text('user', 'sealed')]))
+    const retried = await runOnConfig(
+      withCompaction({ maxTokens: 50, strategy, native: { compact } }),
+      messages,
+      context(),
+    )
+
+    expect(compact).toHaveBeenCalledTimes(1)
+    expect(retried).toStrictEqual({
+      providerMessages: [text('user', 'sealed')],
+    })
+  })
+
   it('passes the system prompts to the adapter compact', async () => {
     const compact = vi.fn((_options: TextCompactOptions) =>
       Promise.resolve([text('user', 'kept')]),
@@ -3260,5 +3336,91 @@ describe('withCompaction native', () => {
     expect(compact.mock.calls[0]?.[0]).toMatchObject({
       systemPrompts: ['Be brief.'],
     })
+  })
+})
+
+describe('limits as functions of the model', () => {
+  /** 100 tokens for the model `small`, 1000 for the others. */
+  const byModel = ({ model }: { model: string }) =>
+    model === 'small' ? 100 : 1000
+  const four = () => [
+    big('user'),
+    big('assistant'),
+    big('user'),
+    big('assistant'),
+  ]
+
+  it('compacts at the maxTokens of the model of the call', async () => {
+    const mw = withCompaction({ maxTokens: byModel })
+    const large = recordingContext('beforeModel', { model: 'large' })
+    expect(await runOnConfig(mw, four(), large.ctx)).toBeUndefined()
+
+    const { ctx, events } = recordingContext('beforeModel', { model: 'small' })
+    const result = await runOnConfig(mw, four(), ctx)
+    expect(result?.providerMessages?.[0]?.content).toContain('omitted')
+    expect(events[0]?.value).toMatchObject({
+      maxTokens: 100,
+      strategyKey: 'evict-oldest:half:maxTokens=100',
+    })
+  })
+
+  it('calls the function once for each model call', async () => {
+    const maxTokens = vi.fn(() => 100)
+    const mw = withCompaction({ maxTokens, background: { atTokens: 50 } })
+    const { ctx } = recordingContext('beforeModel', { model: 'small' })
+    await runOnConfig(mw, four(), ctx)
+    expect(maxTokens.mock.calls).toEqual([[{ model: 'small' }]])
+  })
+
+  it('checks the contextWindow of the model after the turn', async () => {
+    const appended: Array<unknown> = []
+    const mw = withCompaction({
+      maxTokens: 1000,
+      contextWindow: byModel,
+      countTokens: 'usage',
+      auto: false,
+      durable: true,
+      strategy: summarizeOldest({
+        summarize: async () => 'the gist',
+        keepRecentTokens: 50,
+      }),
+    })
+    for (const model of ['large', 'small']) {
+      const { ctx } = durableContext(appended)
+      ctx.model = model
+      const turn = [
+        withId(big('user'), 'm1'),
+        withId(big('assistant'), 'm2'),
+        withId(big('user'), 'm3'),
+      ]
+      ctx.messages = turn
+      await mw.onUsage?.(ctx, tokenUsage(110, 10))
+      ctx.messages = [...turn, withId(big('assistant'), 'm4')]
+      await mw.onFinish?.(ctx, {
+        finishReason: 'stop',
+        duration: 0,
+        content: '',
+      })
+      // Only the turn of `small` (window 100) is over its window.
+      expect(appended).toHaveLength(model === 'small' ? 1 : 0)
+    }
+  })
+
+  it('starts a background summary past the atTokens of the model', async () => {
+    const gated = gatedSummary()
+    const mw = backgroundCompaction(gated.summarize, {
+      maxTokens: () => 200,
+      background: { atTokens: () => 150 },
+    })
+    // 160 tokens: over atTokens (150), not over maxTokens (200).
+    await runOnConfig(mw, list(4), runContext('r1').ctx)
+    await vi.waitFor(() => expect(gated.calls).toHaveLength(1))
+    gated.release()
+  })
+
+  it('does not check atTokens against maxTokens when one is a function', () => {
+    expect(() =>
+      withCompaction({ maxTokens: () => 200, background: { atTokens: 200 } }),
+    ).not.toThrow()
   })
 })

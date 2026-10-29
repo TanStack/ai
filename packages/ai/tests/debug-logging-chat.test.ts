@@ -58,6 +58,7 @@ describe('debug logging — chat integration', () => {
     })
 
     const stream = chat({
+      threadId: 'thread-1',
       adapter,
       messages: [{ role: 'user', content: 'hello' }],
       debug: { logger: logger as unknown as Logger },
@@ -89,6 +90,7 @@ describe('debug logging — chat integration', () => {
     })
 
     const stream = chat({
+      threadId: 'thread-1',
       adapter,
       messages: [{ role: 'user', content: 'hello' }],
       middleware: [
@@ -123,6 +125,7 @@ describe('debug logging — chat integration', () => {
     })
 
     const stream = chat({
+      threadId: 'thread-1',
       adapter,
       messages: [{ role: 'user', content: 'hello' }],
       middleware: [
@@ -146,6 +149,7 @@ describe('debug logging — chat integration', () => {
     const { adapter } = createFailingMockAdapter()
 
     const stream = chat({
+      threadId: 'thread-1',
       adapter,
       messages: [{ role: 'user', content: 'hello' }],
       debug: {
@@ -178,6 +182,7 @@ describe('debug logging — chat integration', () => {
     const { adapter } = createFailingMockAdapter()
 
     const stream = chat({
+      threadId: 'thread-1',
       adapter,
       messages: [{ role: 'user', content: 'hello' }],
     })
@@ -213,6 +218,7 @@ describe('debug logging — chat integration', () => {
     })
 
     const stream = chat({
+      threadId: 'thread-1',
       adapter,
       messages: [{ role: 'user', content: 'hello' }],
       debug: { logger: logger as unknown as Logger },
@@ -234,6 +240,7 @@ describe('debug logging — chat integration', () => {
     const { adapter } = createFailingMockAdapter('boom')
 
     const stream = chat({
+      threadId: 'thread-1',
       adapter,
       messages: [{ role: 'user', content: 'hello' }],
       debug: { logger: logger as unknown as Logger },
@@ -255,6 +262,7 @@ describe('debug logging — chat integration', () => {
     const { adapter } = createFailingMockAdapter('boom-default')
 
     const stream = chat({
+      threadId: 'thread-1',
       adapter,
       messages: [{ role: 'user', content: 'hello' }],
       debug: true,

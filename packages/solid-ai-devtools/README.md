@@ -19,17 +19,17 @@
 <br />
 
 <div align="center">
-  <a href="https://npmjs.com/package/@tanstack/ai" target="_parent">
-    <img alt="NPM downloads" src="https://img.shields.io/npm/dm/@tanstack/ai.svg" />
+  <a href="https://npmjs.com/package/@tanstack/solid-ai-devtools" target="_parent">
+    <img alt="NPM downloads" src="https://img.shields.io/npm/dm/@tanstack/solid-ai-devtools.svg" />
   </a>
   <a href="https://github.com/TanStack/ai" target="_parent">
     <img alt="GitHub stars" src="https://img.shields.io/github/stars/TanStack/ai.svg?style=social&label=Star" />
   </a>
-  <a href="https://github.com/TanStack/ai/releases" target="_parent">
-    <img alt="Release" src="https://img.shields.io/github/v/release/tanstack/ai" />
+  <a href="https://www.npmjs.com/package/@tanstack/solid-ai-devtools" target="_parent">
+    <img alt="npm version" src="https://img.shields.io/npm/v/@tanstack/solid-ai-devtools.svg" />
   </a>
-  <a href="https://bundlephobia.com/result?p=@tanstack/ai@latest" target="_parent">
-    <img alt="Bundle size" src="https://badgen.net/bundlephobia/minzip/@tanstack/ai@latest" />
+  <a href="https://bundlejs.com/?q=%40tanstack%2Fsolid-ai-devtools" target="_parent">
+    <img alt="Bundle size" src="https://deno.bundlejs.com/?q=%40tanstack%2Fsolid-ai-devtools&badge" />
   </a>
   <a href="https://twitter.com/tan_stack">
     <img alt="Follow @TanStack" src="https://img.shields.io/twitter/follow/tan_stack.svg?style=social" />
@@ -146,6 +146,7 @@ export async function POST(request: Request) {
   const stream = chat({
     adapter: openaiText('gpt-5.2'),
     messages: body.messages,
+    threadId: body.threadId,
   })
 
   return toServerSentEventsResponse(stream)
@@ -203,6 +204,7 @@ const Person = z.object({
 const person = await chat({
   adapter: openaiText('gpt-5.2'),
   messages: [{ role: 'user', content: 'Ada Lovelace, 36' }],
+  threadId: 'thread-1',
   outputSchema: Person,
 })
 ```
@@ -242,6 +244,7 @@ Official adapters include:
 | [`@tanstack/ai-reactor`](https://tanstack.com/ai/latest/docs/adapters/reactor)       | Reactor live world and video generation (Orbis, Happy Oyster, LingBot, Helios, FastH3) |
 | [`@tanstack/ai-worldlabs`](https://tanstack.com/ai/latest/docs/adapters/worldlabs)   | World Labs Marble persistent 3D world generation                                       |
 | [`@tanstack/ai-cloudflare`](https://tanstack.com/ai/latest/docs/adapters/cloudflare) | Cloudflare Workers AI chat, embeddings, image, speech, transcription, and AI Gateway   |
+| [`@tanstack/ai-neon`](https://tanstack.com/ai/latest/docs/adapters/neon)             | Neon AI Gateway chat and embeddings for Claude, GPT, Gemini, and open models           |
 
 The adapter system is tree-shakeable by activity. Import `openaiText` for chat,
 `openaiImage` for images, `falVideo` for video, `geminiSpeech` for TTS, and so
@@ -249,15 +252,15 @@ on.
 
 ## Framework Packages
 
-| Package                                                                                           | What it provides                                                                                                                        |
-| ------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
-| [`@tanstack/ai-client`](https://tanstack.com/ai/latest/docs/api/ai-client)                        | Headless chat, realtime, and generation clients                                                                                         |
-| [`@tanstack/ai-react`](https://tanstack.com/ai/latest/docs/api/ai-react)                          | React hooks including `useChat`, `useRealtimeChat`, and generation hooks                                                                |
-| [`@tanstack/ai-solid`](https://tanstack.com/ai/latest/docs/api/ai-solid)                          | Solid hooks for chat and generations                                                                                                    |
-| [`@tanstack/ai-vue`](https://tanstack.com/ai/latest/docs/api/ai-vue)                              | Vue composables for chat and generations                                                                                                |
-| [`@tanstack/ai-svelte`](https://tanstack.com/ai/latest/docs/api/ai-svelte)                        | Svelte 5 factories for chat and generations                                                                                             |
-| [`@tanstack/ai-preact`](https://tanstack.com/ai/latest/docs/api/ai-preact)                        | Preact hooks for chat                                                                                                                   |
-| `@tanstack/ai-react/ui`, `@tanstack/ai-solid/ui`, `@tanstack/ai-vue/ui`, `@tanstack/ai-svelte/ui` | Headless UI components for chat interfaces. `@tanstack/ai-react-ui`, `@tanstack/ai-solid-ui`, and `@tanstack/ai-vue-ui` are deprecated. |
+| Package                                                                                           | What it provides                                                         |
+| ------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
+| [`@tanstack/ai-client`](https://tanstack.com/ai/latest/docs/api/ai-client)                        | Headless chat, realtime, and generation clients                          |
+| [`@tanstack/ai-react`](https://tanstack.com/ai/latest/docs/api/ai-react)                          | React hooks including `useChat`, `useRealtimeChat`, and generation hooks |
+| [`@tanstack/ai-solid`](https://tanstack.com/ai/latest/docs/api/ai-solid)                          | Solid hooks for chat and generations                                     |
+| [`@tanstack/ai-vue`](https://tanstack.com/ai/latest/docs/api/ai-vue)                              | Vue composables for chat and generations                                 |
+| [`@tanstack/ai-svelte`](https://tanstack.com/ai/latest/docs/api/ai-svelte)                        | Svelte 5 factories for chat and generations                              |
+| [`@tanstack/ai-preact`](https://tanstack.com/ai/latest/docs/api/ai-preact)                        | Preact hooks for chat                                                    |
+| `@tanstack/ai-react/ui`, `@tanstack/ai-solid/ui`, `@tanstack/ai-vue/ui`, `@tanstack/ai-svelte/ui` | Headless UI components for chat interfaces.                              |
 
 ## Advanced Docs
 
@@ -295,9 +298,9 @@ on.
     <td>
       <a href="https://www.coderabbit.ai/?via=tanstack&dub_id=aCcEEdAOqqutX6OS">
         <picture>
-          <source media="(prefers-color-scheme: dark)" srcset="https://tanstack.com/assets/coderabbit-dark-D643Zkrv.svg" />
-          <source media="(prefers-color-scheme: light)" srcset="https://tanstack.com/assets/coderabbit-light-CIzGLYU_.svg" />
-          <img src="https://tanstack.com/assets/coderabbit-light-CIzGLYU_.svg" height="40" alt="CodeRabbit" />
+          <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/TanStack/tanstack.com/main/src/images/coderabbit-dark.svg" />
+          <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/TanStack/tanstack.com/main/src/images/coderabbit-light.svg" />
+          <img src="https://raw.githubusercontent.com/TanStack/tanstack.com/main/src/images/coderabbit-light.svg" height="40" alt="CodeRabbit" />
         </picture>
       </a>
     </td>
@@ -306,7 +309,7 @@ on.
         <picture>
           <source media="(prefers-color-scheme: dark)" srcset="https://tanstack.com/assets/cloudflare-white-Co-Tyjbl.svg" />
           <source media="(prefers-color-scheme: light)" srcset="https://tanstack.com/assets/cloudflare-black-6Ojsn8yh.svg" />
-          <img src="https://tanstack.com/assets/cloudflare-white-Co-Tyjbl.svg" height="60" alt="Cloudflare" />
+          <img src="https://tanstack.com/assets/cloudflare-black-6Ojsn8yh.svg" height="60" alt="Cloudflare" />
         </picture>
       </a>
     </td>

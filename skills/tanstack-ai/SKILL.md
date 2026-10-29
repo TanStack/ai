@@ -74,7 +74,7 @@ lockfile shows which package manager to use.
 | ----------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------- |
 | Stream a chat, call tools, agent loops, structured outputs, media | `@tanstack/ai`                                                                                                                                                                                          | `@tanstack/ai#ai-core`                       |
 | Talk to a model provider                                          | `@tanstack/ai-openai`, `-anthropic`, `-gemini`, `-grok`, `-groq`, `-mistral`, `-cohere`, `-ollama`, `-bedrock`, `-vertex`, `-cloudflare`, `-fal`, `-elevenlabs`, `-byteplus`, `-perplexity`, `-reactor` | `@tanstack/ai#ai-core/adapter-configuration` |
-| Many providers behind one key                                     | `@tanstack/ai-openrouter`, `-vercel-gateway`, `-llmgateway`, `-lovable`                                                                                                                                 | `@tanstack/ai#ai-core/adapter-configuration` |
+| Many providers behind one key                                     | `@tanstack/ai-openrouter`, `-vercel-gateway`, `-llmgateway`, `-lovable`, `-neon`                                                                                                                        | `@tanstack/ai#ai-core/adapter-configuration` |
 | A chat UI with `useChat`                                          | `@tanstack/ai-react`, `-vue`, `-solid`, `-svelte`, `-preact`, `-angular`, `-octane`, `-remix`; vanilla JS uses `@tanstack/ai-client`                                                                    | `@tanstack/ai#ai-core/chat-experience`       |
 | Inspect messages, tool calls, and streams while developing        | `@tanstack/ai-devtools-core` plus `@tanstack/react-ai-devtools`, `solid-`, `preact-`, or `svelte-ai-devtools`                                                                                           | docs                                         |
 | Keep chat state on the server, resume runs, durable approvals     | `@tanstack/ai-persistence`                                                                                                                                                                              | `@tanstack/ai-persistence#ai-persistence`    |
@@ -86,7 +86,7 @@ lockfile shows which package manager to use.
 | Remember facts across conversations                               | `@tanstack/ai-memory`                                                                                                                                                                                   | `@tanstack/ai-memory#tanstack-ai-memory`     |
 | Load SKILL.md files at runtime, for the app's own model           | `@tanstack/ai-skills`                                                                                                                                                                                   | `@tanstack/ai-skills#ai-skills`              |
 | Keep a long conversation inside the context window                | `@tanstack/ai-compaction`                                                                                                                                                                               | docs                                         |
-| Port from the Vercel AI SDK, or upgrade a deprecated API          | see the `tanstack-ai-migration` skill                                                                                                                                                                   |                                              |
+| Port from the Vercel AI SDK, or upgrade from TanStack AI 0.x      | see the `tanstack-ai-migration` skill                                                                                                                                                                   |                                              |
 
 Things that trip agents up:
 
@@ -95,7 +95,7 @@ Things that trip agents up:
   with the capability the task needs.
 - Client code imports from the framework package, never `@tanstack/ai-client`
   (vanilla JS only). Chat UI is a subpath, such as `@tanstack/ai-react/ui`; the
-  `@tanstack/ai-*-ui` packages are deprecated.
+  old `@tanstack/ai-*-ui` packages have no 1.0 release.
 - Delivery durability (`ai-durable-stream`) and state persistence
   (`ai-persistence`) are different problems. Sort out which one the user has.
 - `@tanstack/ai-skills` loads skills for the model inside the app at runtime.

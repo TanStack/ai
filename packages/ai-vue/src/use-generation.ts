@@ -8,7 +8,6 @@ import type {
   GenerationClientOptions,
   GenerationClientState,
   GenerationFetcher,
-  GenerationPersistenceOptions,
   GenerationRestoredResult,
   InferGenerationOutputFromReturn,
 } from '@tanstack/ai-client'
@@ -56,11 +55,10 @@ export interface UseGenerationOptions<TInput, TResult, TOutput = TResult> {
    * `` `video-${videoId}-start-frame` ``). It is also sent as the AG-UI thread
    * id on the wire, which the protocol requires.
    *
-   * **Required whenever `persistence` is set** — an app that cannot name the
-   * scope has nothing to restore to. Optional for ephemeral generations. If
-   * omitted, the client mints a wire id after mount.
+   * Required. A generated id would change on every reload, so persistence
+   * would restore nothing.
    */
-  threadId?: string
+  threadId: string
   /**
    * Server-driven hydration handler for `persistence: true` when the
    * connection doesn't carry one (e.g. alongside `fetcher`, or a `stream()` /
@@ -147,6 +145,7 @@ export interface UseGenerationReturn<
  * import { fetchServerSentEvents } from '@tanstack/ai-client'
  *
  * const { generate, result, isLoading } = useGeneration({
+ *   threadId: 'custom-gen',
  *   connection: fetchServerSentEvents('/api/generate/custom'),
  * })
  * </script>
@@ -163,12 +162,9 @@ export function useGeneration<
   TResult,
   TTransformed = void,
 >(
-  options: Omit<
-    UseGenerationOptions<TInput, TResult>,
-    'onResult' | 'persistence' | 'threadId'
-  > & {
+  options: Omit<UseGenerationOptions<TInput, TResult>, 'onResult'> & {
     onResult?: (result: TResult) => TTransformed
-  } & GenerationPersistenceOptions,
+  },
 ): UseGenerationReturn<
   InferGenerationOutputFromReturn<TResult, TTransformed>,
   TInput
@@ -185,10 +181,9 @@ export function useGeneration<
   // Conditional spread on `body`: `GenerationClientOptions.body` is a strict
   // optional (`body?: Record<string, any>`), and under EOPT we must omit the
   // key when absent rather than assign `undefined`.
-  const clientOptions: Omit<
-    GenerationClientOptions<TInput, TResult, TOutput>,
-    'persistence' | 'threadId'
-  > = {
+  const clientOptions: GenerationClientOptions<TInput, TResult, TOutput> = {
+    persistence: options.persistence,
+    threadId: options.threadId,
     body: options.body,
     ...(options.hydrateGeneration !== undefined && {
       hydrateGeneration: options.hydrateGeneration,
@@ -220,52 +215,18 @@ export function useGeneration<
     onChunk: (c: StreamChunk) => {
       if (!disposed) options.onChunk?.(c)
     },
-    onResultChange: (r: TOutput | null) => {
-      if (disposed) return
-      result.value = r
-    },
-    onLoadingChange: (l: boolean) => {
-      if (disposed) return
-      isLoading.value = l
-    },
-    onErrorChange: (e: Error | undefined) => {
-      if (disposed) return
-      error.value = e
-    },
-    onStatusChange: (s: GenerationClientState) => {
-      if (disposed) return
-      status.value = s
-    },
-    onResumeStateChange: (rs) => {
-      if (disposed) return
-      runId.value = rs?.runId ?? null
-    },
   }
-
-  const persistenceProps =
-    typeof options.threadId === 'string' && options.persistence
-      ? {
-          persistence: options.persistence,
-          threadId: options.threadId,
-        }
-      : {
-          ...(options.threadId !== undefined && {
-            threadId: options.threadId,
-          }),
-        }
 
   let client: GenerationClient<TInput, TResult, TOutput>
 
   if (options.connection) {
     client = new GenerationClient<TInput, TResult, TOutput>({
       ...clientOptions,
-      ...persistenceProps,
       connection: options.connection,
     })
   } else if (options.fetcher) {
     client = new GenerationClient<TInput, TResult, TOutput>({
       ...clientOptions,
-      ...persistenceProps,
       fetcher: options.fetcher,
     })
   } else {
@@ -273,6 +234,17 @@ export function useGeneration<
       'useGeneration requires either a connection or fetcher option',
     )
   }
+
+  const applySnapshot = () => {
+    const next = client.getSnapshot()
+    result.value = next.result
+    isLoading.value = next.isLoading
+    error.value = next.error
+    status.value = next.status
+    runId.value = next.runId
+  }
+  applySnapshot()
+  onScopeDispose(client.subscribe(applySnapshot))
 
   // Sync body changes to the client.
   // Conditional spread: `updateOptions` declares `body?: Record<string, any>`

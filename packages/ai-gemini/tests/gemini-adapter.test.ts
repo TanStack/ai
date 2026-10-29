@@ -10,7 +10,7 @@ import {
   type SafetySetting,
 } from '@google/genai'
 import { GeminiTextAdapter } from '../src/adapters/text'
-import { googleSearchTool } from '../src/tools'
+import { codeExecutionTool, googleSearchTool } from '../src/tools'
 import { createGeminiSummarize } from '../src/adapters/summarize'
 import type { GeminiTextProviderOptions } from '../src/adapters/text'
 import type { Schema } from '@google/genai'
@@ -41,8 +41,11 @@ vi.mock('@google/genai', async () => {
 
     public getGenerativeModel = getGenerativeModelSpy
 
-    constructor(options: { apiKey: string }) {
+    public vertexai: boolean
+
+    constructor(options: { apiKey: string; vertexai?: boolean }) {
       constructorSpy(options)
+      this.vertexai = options.vertexai === true
     }
   }
 
@@ -141,6 +144,7 @@ describe('GeminiAdapter through AI', () => {
 
     // Consume the stream to trigger the API call
     for await (const _ of chat({
+      threadId: 'thread-1',
       adapter,
       messages: [{ role: 'user', content: 'How is the weather in Madrid?' }],
       modelOptions: {
@@ -192,6 +196,7 @@ describe('GeminiAdapter through AI', () => {
     const adapter = createTextAdapter()
 
     for await (const _ of chat({
+      threadId: 'thread-1',
       adapter,
       messages: [{ role: 'user', content: 'hi' }],
       modelOptions: {
@@ -226,6 +231,7 @@ describe('GeminiAdapter through AI', () => {
     const abortController = new AbortController()
 
     for await (const _ of chat({
+      threadId: 'thread-1',
       adapter,
       messages: [{ role: 'user', content: 'hi' }],
       abortController,
@@ -253,6 +259,7 @@ describe('GeminiAdapter through AI', () => {
     const adapter = createTextAdapter()
 
     for await (const _ of chat({
+      threadId: 'thread-1',
       adapter,
       messages: [{ role: 'user', content: 'hi' }],
     })) {
@@ -281,6 +288,7 @@ describe('GeminiAdapter through AI', () => {
     const adapter = createTextAdapter()
 
     for await (const _ of chat({
+      threadId: 'thread-1',
       adapter,
       messages: [{ role: 'user', content: 'Hi' }],
       systemPrompts: [
@@ -384,6 +392,7 @@ describe('GeminiAdapter through AI', () => {
 
     // Consume the stream to trigger the API call
     for await (const _ of chat({
+      threadId: 'thread-1',
       adapter,
       messages: [{ role: 'user', content: 'Provide structured response' }],
       systemPrompts: ['Stay concise', 'Return JSON'],
@@ -462,6 +471,7 @@ describe('GeminiAdapter through AI', () => {
     const adapter = createTextAdapter()
     const received: AdapterYieldChunk[] = []
     for await (const chunk of chat({
+      threadId: 'thread-1',
       adapter,
       messages: [{ role: 'user', content: 'Tell me a joke' }],
       modelOptions: {
@@ -545,6 +555,7 @@ describe('GeminiAdapter through AI', () => {
     const adapter = createTextAdapter()
     const received: AdapterYieldChunk[] = []
     for await (const chunk of chat({
+      threadId: 'thread-1',
       adapter,
       messages: [{ role: 'user', content: 'What is the weather?' }],
       tools: [weatherTool],
@@ -595,6 +606,7 @@ describe('GeminiAdapter through AI', () => {
 
       const chunks: Array<AdapterYieldChunk> = []
       for await (const chunk of createTextAdapter().chatStream({
+        threadId: 'thread-1',
         model: 'gemini-2.5-pro',
         logger: testLogger,
         messages: [{ role: 'user', content: 'Go' }],
@@ -635,6 +647,7 @@ describe('GeminiAdapter through AI', () => {
 
     const chunks: Array<AdapterYieldChunk> = []
     for await (const chunk of createTextAdapter().chatStream({
+      threadId: 'thread-1',
       model: 'gemini-2.5-pro',
       logger: testLogger,
       messages: [{ role: 'user', content: 'Go' }],
@@ -678,6 +691,7 @@ describe('GeminiAdapter through AI', () => {
     const adapter = createTextAdapter()
     const received: AdapterYieldChunk[] = []
     for await (const chunk of chat({
+      threadId: 'thread-1',
       adapter,
       tools: [googleSearchTool()],
       messages: [{ role: 'user', content: 'Find the latest release.' }],
@@ -773,6 +787,7 @@ describe('GeminiAdapter through AI', () => {
 
     const received: AdapterYieldChunk[] = []
     for await (const chunk of chat({
+      threadId: 'thread-1',
       adapter: createTextAdapter(),
       messages: [{ role: 'user', content: 'Use the retrieved context.' }],
       tools: [googleSearchTool()],
@@ -787,6 +802,360 @@ describe('GeminiAdapter through AI', () => {
           chunk.toolCallName === 'google_search',
       ),
     ).toHaveLength(0)
+  })
+
+  describe('built-in tools beside function tools', () => {
+    const toolCallPart = {
+      toolCall: {
+        id: 'search_1',
+        toolType: 'GOOGLE_SEARCH_WEB',
+        args: { queries: ['utah news'] },
+      },
+      thoughtSignature: 'sig-search',
+    }
+    const toolResponsePart = {
+      toolResponse: {
+        id: 'search_1',
+        toolType: 'GOOGLE_SEARCH_WEB',
+        response: { search_suggestions: '<div></div>' },
+      },
+      thoughtSignature: 'sig-response',
+    }
+    const lookupTool: Tool = {
+      name: 'lookup_caucus',
+      description: 'Look up a caucus location',
+      execute: async () => ({ location: 'Library' }),
+    }
+    const textStream = () =>
+      createStream([
+        {
+          candidates: [
+            { content: { parts: [{ text: 'Done' }] }, finishReason: 'STOP' },
+          ],
+        },
+      ])
+
+    it('sets the flag and sends the built-in tool parts back in place', async () => {
+      mocks.generateContentStreamSpy
+        .mockResolvedValueOnce(
+          createStream([
+            {
+              candidates: [
+                {
+                  content: {
+                    parts: [
+                      toolCallPart,
+                      {
+                        functionCall: {
+                          id: 'call_1',
+                          name: 'lookup_caucus',
+                          args: { county: 'Salt Lake' },
+                        },
+                      },
+                      toolResponsePart,
+                    ],
+                  },
+                  finishReason: 'STOP',
+                },
+              ],
+            },
+          ]),
+        )
+        .mockResolvedValueOnce(textStream())
+
+      const received: Array<AdapterYieldChunk> = []
+      for await (const chunk of chat({
+        threadId: 'thread-1',
+        adapter: new GeminiTextAdapter(
+          { apiKey: 'test-key' },
+          'gemini-3.6-flash',
+        ),
+        tools: [googleSearchTool(), lookupTool],
+        messages: [{ role: 'user', content: 'Search and look up.' }],
+      })) {
+        received.push(chunk)
+      }
+
+      expect(mocks.generateContentStreamSpy).toHaveBeenCalledTimes(2)
+      const [firstPayload] = mocks.generateContentStreamSpy.mock.calls[0]!
+      expect(firstPayload.config.toolConfig).toEqual({
+        includeServerSideToolInvocations: true,
+      })
+      expect(
+        received.find(
+          (chunk) =>
+            chunk.type === 'TOOL_CALL_START' &&
+            chunk.toolCallName === 'google_search',
+        ),
+      ).toMatchObject({ metadata: { providerExecuted: true } })
+
+      const [secondPayload] = mocks.generateContentStreamSpy.mock.calls[1]!
+      const modelTurn = secondPayload.contents.find(
+        (content: any) => content.role === 'model',
+      )
+      expect(modelTurn.parts).toEqual([
+        toolCallPart,
+        {
+          functionCall: {
+            id: 'call_1',
+            name: 'lookup_caucus',
+            args: { county: 'Salt Lake' },
+          },
+        },
+        toolResponsePart,
+      ])
+    })
+
+    const functionCallPart = (id: string) => ({
+      functionCall: { id, name: 'lookup_caucus', args: { county: 'Utah' } },
+    })
+
+    it.each([
+      {
+        label: 'at the start',
+        parts: [
+          { text: 'Searching first.' },
+          toolCallPart,
+          toolResponsePart,
+          functionCallPart('call_1'),
+        ],
+      },
+      {
+        label: 'after a function call',
+        parts: [
+          functionCallPart('call_1'),
+          { text: 'Searching next.' },
+          toolCallPart,
+          toolResponsePart,
+          functionCallPart('call_2'),
+        ],
+      },
+    ])(
+      'sends built-in tool parts back after text $label',
+      async ({ parts }) => {
+        mocks.generateContentStreamSpy
+          .mockResolvedValueOnce(
+            createStream([
+              {
+                candidates: [{ content: { parts }, finishReason: 'STOP' }],
+              },
+            ]),
+          )
+          .mockResolvedValueOnce(textStream())
+
+        for await (const _ of chat({
+          threadId: 'thread-1',
+          adapter: new GeminiTextAdapter(
+            { apiKey: 'test-key' },
+            'gemini-3.6-flash',
+          ),
+          tools: [googleSearchTool(), lookupTool],
+          messages: [{ role: 'user', content: 'Search and look up.' }],
+        })) {
+          // consume
+        }
+
+        const [secondPayload] = mocks.generateContentStreamSpy.mock.calls[1]!
+        const modelTurn = secondPayload.contents.find(
+          (content: any) => content.role === 'model',
+        )
+        expect(modelTurn.parts).toEqual(parts)
+      },
+    )
+
+    it('sends code execution parts back beside a function tool', async () => {
+      const codePart = {
+        executableCode: { code: 'print(2**40)' },
+        thoughtSignature: 'sig-code',
+      }
+      const resultPart = {
+        codeExecutionResult: { output: '1099511627776' },
+        thoughtSignature: 'sig-result',
+      }
+      const callPart = {
+        functionCall: {
+          id: 'call_1',
+          name: 'lookup_caucus',
+          args: { county: 'Salt Lake' },
+        },
+      }
+      mocks.generateContentStreamSpy
+        .mockResolvedValueOnce(
+          createStream([
+            {
+              candidates: [
+                {
+                  content: { parts: [codePart, callPart, resultPart] },
+                  finishReason: 'STOP',
+                },
+              ],
+            },
+          ]),
+        )
+        .mockResolvedValueOnce(textStream())
+
+      for await (const _ of chat({
+        threadId: 'thread-1',
+        adapter: new GeminiTextAdapter(
+          { apiKey: 'test-key' },
+          'gemini-3.6-flash',
+        ),
+        tools: [codeExecutionTool(), lookupTool],
+        messages: [{ role: 'user', content: 'Compute and look up.' }],
+      })) {
+        // consume
+      }
+
+      const [secondPayload] = mocks.generateContentStreamSpy.mock.calls[1]!
+      const modelTurn = secondPayload.contents.find(
+        (content: any) => content.role === 'model',
+      )
+      expect(modelTurn.parts).toEqual([codePart, callPart, resultPart])
+    })
+
+    it('emits no provider call for a code run without function tools', async () => {
+      mocks.generateContentStreamSpy.mockResolvedValueOnce(
+        createStream([
+          {
+            candidates: [
+              {
+                content: {
+                  parts: [
+                    { executableCode: { code: 'print(2**40)' } },
+                    { codeExecutionResult: { output: '1099511627776' } },
+                    { text: '1099511627776' },
+                  ],
+                },
+                finishReason: 'STOP',
+              },
+            ],
+          },
+        ]),
+      )
+
+      const received: Array<AdapterYieldChunk> = []
+      for await (const chunk of chat({
+        threadId: 'thread-1',
+        adapter: new GeminiTextAdapter(
+          { apiKey: 'test-key' },
+          'gemini-3.6-flash',
+        ),
+        tools: [codeExecutionTool()],
+        messages: [{ role: 'user', content: 'Compute 2**40.' }],
+      })) {
+        received.push(chunk)
+      }
+
+      expect(
+        received.filter((chunk) => chunk.type === 'TOOL_CALL_START'),
+      ).toHaveLength(0)
+    })
+
+    it('does not set the flag on Vertex AI, where the SDK rejects it', async () => {
+      mocks.generateContentStreamSpy.mockResolvedValueOnce(textStream())
+
+      for await (const _ of chat({
+        threadId: 'thread-1',
+        adapter: new GeminiTextAdapter(
+          { vertexai: true, project: 'p', location: 'us-central1' },
+          'gemini-3.6-flash',
+        ),
+        tools: [googleSearchTool(), lookupTool],
+        messages: [{ role: 'user', content: 'Search and look up.' }],
+      })) {
+        // consume
+      }
+
+      const [payload] = mocks.generateContentStreamSpy.mock.calls[0]!
+      expect(payload.config.toolConfig).toBeUndefined()
+    })
+
+    it('throws on Vertex AI when the next step must send toolCall parts', async () => {
+      mocks.generateContentStreamSpy.mockResolvedValueOnce(
+        createStream([
+          {
+            candidates: [
+              {
+                content: {
+                  parts: [
+                    toolCallPart,
+                    {
+                      functionCall: {
+                        id: 'call_1',
+                        name: 'lookup_caucus',
+                        args: { county: 'Salt Lake' },
+                      },
+                    },
+                    toolResponsePart,
+                  ],
+                },
+                finishReason: 'STOP',
+              },
+            ],
+          },
+        ]),
+      )
+
+      await expect(async () => {
+        for await (const _ of chat({
+          threadId: 'thread-1',
+          adapter: new GeminiTextAdapter(
+            { vertexai: true, project: 'p', location: 'us-central1' },
+            'gemini-3.6-flash',
+          ),
+          tools: [googleSearchTool(), lookupTool],
+          messages: [{ role: 'user', content: 'Search and look up.' }],
+        })) {
+          // consume
+        }
+      }).rejects.toThrow(/toolCall or toolResponse/)
+      expect(mocks.generateContentStreamSpy).toHaveBeenCalledTimes(1)
+    })
+
+    it('sends code execution parts back on Vertex AI', async () => {
+      const codePart = { executableCode: { code: 'print(1)' } }
+      const resultPart = { codeExecutionResult: { output: '1' } }
+      const callPart = {
+        functionCall: {
+          id: 'call_1',
+          name: 'lookup_caucus',
+          args: { county: 'Salt Lake' },
+        },
+      }
+      mocks.generateContentStreamSpy
+        .mockResolvedValueOnce(
+          createStream([
+            {
+              candidates: [
+                {
+                  content: { parts: [codePart, callPart, resultPart] },
+                  finishReason: 'STOP',
+                },
+              ],
+            },
+          ]),
+        )
+        .mockResolvedValueOnce(textStream())
+
+      for await (const _ of chat({
+        threadId: 'thread-1',
+        adapter: new GeminiTextAdapter(
+          { vertexai: true, project: 'p', location: 'us-central1' },
+          'gemini-3.6-flash',
+        ),
+        tools: [codeExecutionTool(), lookupTool],
+        messages: [{ role: 'user', content: 'Compute and look up.' }],
+      })) {
+        // consume
+      }
+
+      const [secondPayload] = mocks.generateContentStreamSpy.mock.calls[1]!
+      const modelTurn = secondPayload.contents.find(
+        (content: any) => content.role === 'model',
+      )
+      expect(modelTurn.parts).toEqual([codePart, callPart, resultPart])
+      expect(secondPayload.config.toolConfig).toBeUndefined()
+    })
   })
 
   it('emits parentMessageId on tool-first tool calls matching the assistant message id', async () => {
@@ -830,6 +1199,7 @@ describe('GeminiAdapter through AI', () => {
     const adapter = createTextAdapter()
     const received: AdapterYieldChunk[] = []
     for await (const chunk of chat({
+      threadId: 'thread-1',
       adapter,
       messages: [{ role: 'user', content: 'What is the weather in Berlin?' }],
       tools: [weatherTool],
@@ -874,6 +1244,7 @@ describe('GeminiAdapter through AI', () => {
     const adapter = createTextAdapter()
 
     for await (const _ of chat({
+      threadId: 'thread-1',
       adapter,
       messages: [
         { role: 'user', content: 'What is the weather in Berlin?' },
@@ -953,6 +1324,7 @@ describe('GeminiAdapter through AI', () => {
     const adapter = createTextAdapter()
 
     for await (const _ of chat({
+      threadId: 'thread-1',
       adapter,
       messages: [
         { role: 'user', content: "what's a good acoustic guitar?" },
@@ -1050,6 +1422,7 @@ describe('GeminiAdapter through AI', () => {
     const adapter = createTextAdapter()
 
     for await (const _ of chat({
+      threadId: 'thread-1',
       adapter,
       messages: [
         { role: 'user', content: 'log 50 USD and 30 EUR' },
@@ -1162,6 +1535,7 @@ describe('GeminiAdapter through AI', () => {
     }
 
     for await (const _ of chat({
+      threadId: 'thread-1',
       adapter,
       tools: [sumTool],
       messages: [{ role: 'user', content: 'What is 1 + 2 + 5?' }],
@@ -1248,6 +1622,7 @@ describe('GeminiAdapter through AI', () => {
     }
 
     for await (const _ of chat({
+      threadId: 'thread-1',
       adapter,
       tools: [sumTool],
       messages: [{ role: 'user', content: 'What is 3 + 4?' }],
@@ -1327,6 +1702,7 @@ describe('GeminiAdapter through AI', () => {
     }
 
     for await (const _ of chat({
+      threadId: 'thread-1',
       adapter,
       tools: [executableWeatherTool],
       messages: [{ role: 'user', content: 'How is the weather in Madrid?' }],
@@ -1378,6 +1754,7 @@ describe('GeminiAdapter through AI', () => {
     })
 
     const result = await chat({
+      threadId: 'thread-1',
       adapter,
       messages: [{ role: 'user', content: 'forecast Madrid' }],
       tools: [weatherTool],
@@ -1419,6 +1796,7 @@ describe('GeminiAdapter through AI', () => {
     const events = await collectChunks(
       createTextAdapter().structuredOutputStream({
         chatOptions: {
+          threadId: 'thread-1',
           model: 'gemini-2.5-pro',
           messages: [{ role: 'user', content: 'Return a city' }],
           logger: testLogger,
@@ -1462,6 +1840,7 @@ describe('GeminiAdapter through AI', () => {
 
     const events = await collectChunks(
       chat({
+        threadId: 'thread-1',
         adapter: createTextAdapter(),
         messages: [{ role: 'user', content: 'Return a city' }],
         outputSchema: z.object({ city: z.string() }),
@@ -1488,6 +1867,7 @@ describe('GeminiAdapter through AI', () => {
     await expect(
       createTextAdapter().structuredOutput({
         chatOptions: {
+          threadId: 'thread-1',
           model: 'gemini-2.5-pro',
           messages: [{ role: 'user', content: 'Return a city' }],
           logger: testLogger,
@@ -1509,6 +1889,7 @@ describe('GeminiAdapter through AI', () => {
     const events = await collectChunks(
       createTextAdapter().structuredOutputStream({
         chatOptions: {
+          threadId: 'thread-1',
           model: 'gemini-2.5-pro',
           messages: [{ role: 'user', content: 'Return a city' }],
           logger: testLogger,
@@ -1542,6 +1923,7 @@ describe('GeminiAdapter through AI', () => {
     const events = await collectChunks(
       createTextAdapter().structuredOutputStream({
         chatOptions: {
+          threadId: 'thread-1',
           model: 'gemini-2.5-pro',
           messages: [{ role: 'user', content: 'Return a city' }],
           logger: testLogger,
@@ -1571,6 +1953,7 @@ describe('GeminiAdapter through AI', () => {
     const events = await collectChunks(
       createTextAdapter().structuredOutputStream({
         chatOptions: {
+          threadId: 'thread-1',
           model: 'gemini-2.5-pro',
           messages: [{ role: 'user', content: 'Return a city' }],
           logger: testLogger,
@@ -1598,6 +1981,7 @@ describe('GeminiAdapter through AI', () => {
       const events: Array<AdapterYieldChunk> = []
       for await (const event of createTextAdapter().structuredOutputStream({
         chatOptions: {
+          threadId: 'thread-1',
           model: 'gemini-2.5-pro',
           messages: [{ role: 'user', content: 'Return a city' }],
           logger: testLogger,
@@ -1644,6 +2028,7 @@ describe('GeminiAdapter through AI', () => {
 
     const adapter = createSummarizeAdapter()
     const result = await summarize({
+      threadId: 'thread-1',
       adapter,
       text: 'A very long passage that needs to be shortened',
       maxLength: 123,
@@ -1676,6 +2061,7 @@ describe('Gemini adapter error handling', () => {
     const adapter = createTextAdapter()
     const chunks: AdapterYieldChunk[] = []
     for await (const chunk of adapter.chatStream({
+      threadId: 'thread-1',
       model: 'gemini-2.5-pro',
       messages: [{ role: 'user', content: 'hi' }],
       logger: { request: () => {}, errors: () => {} } as any,
@@ -1700,6 +2086,7 @@ describe('Gemini adapter error handling', () => {
     )
     const chunks: AdapterYieldChunk[] = []
     for await (const chunk of createTextAdapter().chatStream({
+      threadId: 'thread-1',
       model: 'gemini-2.5-pro',
       messages: [{ role: 'user', content: 'hi' }],
       logger: { request: () => {}, errors: () => {} } as any,

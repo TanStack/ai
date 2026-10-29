@@ -17,7 +17,7 @@ const EFFORT_OFF_HIGH = {
   budget: false,
 } as const
 
-/** Provider options for vision-capable Mistral models (pixtral-*). */
+/** Provider options for vision-capable Mistral models. */
 export type MistralVisionProviderOptions = MistralTextProviderOptions
 
 /** Provider options for reasoning-capable Mistral models (magistral-*). */
@@ -153,38 +153,6 @@ const CODESTRAL_LATEST = {
   },
 } as const satisfies ModelMeta<MistralTextProviderOptions>
 
-const PIXTRAL_LARGE_LATEST = {
-  name: 'pixtral-large-latest',
-  context_window: 131_072,
-  max_completion_tokens: 8_192,
-  pricing: {
-    input: { normal: 2 },
-    output: { normal: 6 },
-  },
-  supports: {
-    input: ['text', 'image', 'document'],
-    output: ['text'],
-    endpoints: ['chat'],
-    features: ['streaming', 'tools', 'json_object', 'json_schema', 'vision'],
-  },
-} as const satisfies ModelMeta<MistralTextProviderOptions>
-
-const PIXTRAL_12B_2409 = {
-  name: 'pixtral-12b-2409',
-  context_window: 131_072,
-  max_completion_tokens: 8_192,
-  pricing: {
-    input: { normal: 0.15 },
-    output: { normal: 0.15 },
-  },
-  supports: {
-    input: ['text', 'image', 'document'],
-    output: ['text'],
-    endpoints: ['chat'],
-    features: ['streaming', 'tools', 'json_object', 'vision'],
-  },
-} as const satisfies ModelMeta<MistralTextProviderOptions>
-
 const MAGISTRAL_MEDIUM_LATEST = {
   name: 'magistral-medium-latest',
   context_window: 40_000,
@@ -218,22 +186,6 @@ const MAGISTRAL_SMALL_LATEST = {
   },
   // Not in models.dev. The same as Magistral Medium: prompt_mode only.
   reasoning: EFFORT_OFF_HIGH,
-} as const satisfies ModelMeta<MistralTextProviderOptions>
-
-const OPEN_MISTRAL_NEMO = {
-  name: 'open-mistral-nemo',
-  context_window: 131_072,
-  max_completion_tokens: 8_192,
-  pricing: {
-    input: { normal: 0.15 },
-    output: { normal: 0.15 },
-  },
-  supports: {
-    input: ['text'],
-    output: ['text'],
-    endpoints: ['chat'],
-    features: ['streaming', 'tools', 'json_object'],
-  },
 } as const satisfies ModelMeta<MistralTextProviderOptions>
 
 // Vertex Model Garden IDs. These are not the Mistral API catalog.
@@ -296,11 +248,8 @@ export const MISTRAL_CHAT_MODELS = [
   MINISTRAL_8B_LATEST.name,
   MINISTRAL_3B_LATEST.name,
   CODESTRAL_LATEST.name,
-  PIXTRAL_LARGE_LATEST.name,
-  PIXTRAL_12B_2409.name,
   MAGISTRAL_MEDIUM_LATEST.name,
   MAGISTRAL_SMALL_LATEST.name,
-  OPEN_MISTRAL_NEMO.name,
 ] as const
 
 /**
@@ -332,11 +281,8 @@ export type MistralModelInputModalitiesByName = {
   [MINISTRAL_8B_LATEST.name]: typeof MINISTRAL_8B_LATEST.supports.input
   [MINISTRAL_3B_LATEST.name]: typeof MINISTRAL_3B_LATEST.supports.input
   [CODESTRAL_LATEST.name]: typeof CODESTRAL_LATEST.supports.input
-  [PIXTRAL_LARGE_LATEST.name]: typeof PIXTRAL_LARGE_LATEST.supports.input
-  [PIXTRAL_12B_2409.name]: typeof PIXTRAL_12B_2409.supports.input
   [MAGISTRAL_MEDIUM_LATEST.name]: typeof MAGISTRAL_MEDIUM_LATEST.supports.input
   [MAGISTRAL_SMALL_LATEST.name]: typeof MAGISTRAL_SMALL_LATEST.supports.input
-  [OPEN_MISTRAL_NEMO.name]: typeof OPEN_MISTRAL_NEMO.supports.input
   [MISTRAL_MEDIUM_3.name]: typeof MISTRAL_MEDIUM_3.supports.input
   [MISTRAL_SMALL_2503.name]: typeof MISTRAL_SMALL_2503.supports.input
   [CODESTRAL_2.name]: typeof CODESTRAL_2.supports.input
@@ -356,11 +302,8 @@ export const MISTRAL_MODEL_INPUT_MODALITIES: Readonly<
   [MINISTRAL_8B_LATEST.name]: MINISTRAL_8B_LATEST.supports.input,
   [MINISTRAL_3B_LATEST.name]: MINISTRAL_3B_LATEST.supports.input,
   [CODESTRAL_LATEST.name]: CODESTRAL_LATEST.supports.input,
-  [PIXTRAL_LARGE_LATEST.name]: PIXTRAL_LARGE_LATEST.supports.input,
-  [PIXTRAL_12B_2409.name]: PIXTRAL_12B_2409.supports.input,
   [MAGISTRAL_MEDIUM_LATEST.name]: MAGISTRAL_MEDIUM_LATEST.supports.input,
   [MAGISTRAL_SMALL_LATEST.name]: MAGISTRAL_SMALL_LATEST.supports.input,
-  [OPEN_MISTRAL_NEMO.name]: OPEN_MISTRAL_NEMO.supports.input,
   [MISTRAL_MEDIUM_3.name]: MISTRAL_MEDIUM_3.supports.input,
   [MISTRAL_SMALL_2503.name]: MISTRAL_SMALL_2503.supports.input,
   [CODESTRAL_2.name]: CODESTRAL_2.supports.input,
@@ -376,11 +319,8 @@ export type MistralChatModelProviderOptionsByName = {
   [MINISTRAL_8B_LATEST.name]: MistralTextProviderOptions
   [MINISTRAL_3B_LATEST.name]: MistralTextProviderOptions
   [CODESTRAL_LATEST.name]: MistralTextProviderOptions
-  [PIXTRAL_LARGE_LATEST.name]: MistralVisionProviderOptions
-  [PIXTRAL_12B_2409.name]: MistralVisionProviderOptions
   [MAGISTRAL_MEDIUM_LATEST.name]: MistralReasoningProviderOptions
   [MAGISTRAL_SMALL_LATEST.name]: MistralReasoningProviderOptions
-  [OPEN_MISTRAL_NEMO.name]: MistralTextProviderOptions
   [MISTRAL_MEDIUM_3.name]: MistralVisionProviderOptions
   [MISTRAL_SMALL_2503.name]: MistralVisionProviderOptions
   [CODESTRAL_2.name]: MistralTextProviderOptions

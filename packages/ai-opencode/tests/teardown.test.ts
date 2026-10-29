@@ -45,6 +45,7 @@ describe('opencode teardown', () => {
     })
     const types: Array<string> = []
     for await (const chunk of opencodeText(MODEL).chatStream({
+      threadId: 'thread-1',
       model: MODEL,
       messages: [{ role: 'user', content: 'hi' }],
       logger: resolveDebugOption(false),

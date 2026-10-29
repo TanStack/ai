@@ -25,12 +25,16 @@ export type Provider =
   | 'elevenlabs'
   | 'llmgateway'
   | 'cloudflare'
+  | 'neon'
+  | 'neon-anthropic'
+  | 'neon-responses'
 
 export type Feature =
   | 'chat'
   | 'one-shot-text'
   | 'reasoning'
   | 'multi-turn'
+  | 'multi-turn-reasoning'
   | 'tool-calling'
   | 'tool-choice'
   | 'parallel-tool-calls'
@@ -86,6 +90,9 @@ export const ALL_PROVIDERS: Provider[] = [
   'elevenlabs',
   'llmgateway',
   'cloudflare',
+  'neon',
+  'neon-anthropic',
+  'neon-responses',
 ]
 
 export const ALL_FEATURES: Feature[] = [
@@ -93,6 +100,7 @@ export const ALL_FEATURES: Feature[] = [
   'one-shot-text',
   'reasoning',
   'multi-turn',
+  'multi-turn-reasoning',
   'tool-calling',
   'tool-choice',
   'parallel-tool-calls',

@@ -17,10 +17,9 @@ type HeadlessOptions<TOptions> = CreateChatOptions<
 >
 
 type ChatInstanceOverrides<TOptions> = {
-  threadId?: string
+  threadId: string
   live?: boolean
   forwardedProps?: Record<string, any>
-  body?: Record<string, any>
   initialMessages?: HeadlessOptions<TOptions>['initialMessages']
 }
 
@@ -42,12 +41,7 @@ export function createChatHook<const TOptions>({
     chatComponents as ChatUIFactoryConfig<NoInfer<TOptions>>,
   )
 
-  function createAppChat(overrides?: ChatInstanceOverrides<TOptions>) {
-    if (!overrides) {
-      return createUnboundChat(
-        options as HeadlessOptions<TOptions>,
-      ) as ChatUIHost<TOptions>
-    }
+  function createAppChat(overrides: ChatInstanceOverrides<TOptions>) {
     return createUnboundChat({
       ...(options as HeadlessOptions<TOptions>),
       ...overrides,

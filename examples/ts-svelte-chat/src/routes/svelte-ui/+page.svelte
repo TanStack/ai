@@ -66,7 +66,7 @@
       addToCart: Tool,
     },
   })
-  const chat = createAppChat()
+  const chat = createAppChat({ threadId: 'svelte-ui' })
 </script>
 
 <svelte:head>

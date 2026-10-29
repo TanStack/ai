@@ -11,6 +11,7 @@ import { resolveDebugOption } from '../src/logger/resolve'
 import { chat } from '../src'
 import { collectChunks, createMockAdapter, ev } from './test-utils'
 import type { CapabilityContext } from '../src/activities/chat/middleware/capabilities'
+import type { Tool, ToolExecutionContext } from '../src/types'
 import type {
   ChatMiddleware,
   ChatMiddlewareContext,
@@ -84,6 +85,7 @@ function makeRunnerCtx(): ChatMiddlewareContext {
     phase: 'init',
     iteration: 0,
     chunkIndex: 0,
+    callMetadata: {},
     abort: () => {},
     retry: () => {},
     emitCustomEvent: () => {},
@@ -213,6 +215,7 @@ describe('chat() capability integration', () => {
     })
     await collectChunks(
       chat({
+        threadId: 'thread-1',
         adapter,
         messages: [{ role: 'user', content: 'hello' }],
         middleware: [provider, consumer],
@@ -247,6 +250,7 @@ describe('chat() capability integration', () => {
     })
     await collectChunks(
       chat({
+        threadId: 'thread-1',
         adapter,
         messages: [{ role: 'user', content: 'hello' }],
         middleware: [provider, consumer],
@@ -265,11 +269,58 @@ describe('chat() capability integration', () => {
     const { adapter } = createMockAdapter({ iterations: [[]] })
     expect(() =>
       chat({
+        threadId: 'thread-1',
         adapter,
         messages: [{ role: 'user', content: 'x' }],
         middleware: [needsSandbox],
       }),
     ).toThrowError(/requires capability "sandbox-int"/i)
+  })
+
+  it('a server tool reads a run capability with context.get / getOptional', async () => {
+    const cap = createCapability<{ greeting: string }>()('tool-greeter')
+    const absent = createCapability<number>()('tool-absent')
+    const provider: ChatMiddleware = {
+      name: 'tool-provider',
+      provides: [cap],
+      setup(ctx) {
+        ctx.provide(cap, { greeting: 'hey' })
+      },
+    }
+    let read: { greeting: string } | undefined
+    let optionalMissing: number | undefined = 1
+    const tool: Tool = {
+      name: 'greet',
+      description: 'greet',
+      execute: (_args: unknown, context?: ToolExecutionContext) => {
+        read = context?.get?.(cap)
+        optionalMissing = context?.getOptional?.(absent)
+        return 'ok'
+      },
+    }
+    const { adapter } = createMockAdapter({
+      iterations: [
+        [
+          ev.runStarted(),
+          ev.toolStart('call-1', 'greet'),
+          ev.toolArgs('call-1', '{}'),
+          ev.toolEnd('call-1'),
+          ev.runFinished('tool_calls'),
+        ],
+        [ev.runStarted(), ev.textContent('Done'), ev.runFinished('stop')],
+      ],
+    })
+    await collectChunks(
+      chat({
+        threadId: 'thread-1',
+        adapter,
+        messages: [{ role: 'user', content: 'hello' }],
+        tools: [tool],
+        middleware: [provider],
+      }),
+    )
+    expect(read).toEqual({ greeting: 'hey' })
+    expect(optionalMissing).toBeUndefined()
   })
 })
 

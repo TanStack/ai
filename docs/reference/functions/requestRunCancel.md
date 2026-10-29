@@ -7,7 +7,7 @@ title: requestRunCancel
 function requestRunCancel(runs, runId): Promise<void>;
 ```
 
-Defined in: [packages/ai/src/activities/chat/cancel.ts:48](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/cancel.ts#L48)
+Defined in: packages/ai/src/activities/chat/cancel.ts:48
 
 Record an explicit cancel on the run record.
 

@@ -58,6 +58,7 @@ describe('Ollama replay parity', () => {
       const original = JSON.stringify(messages)
       await collect(
         new OllamaTextAdapter(mock.client, model).chatStream({
+          threadId: 'thread-1',
           logger,
           model,
           messages,
@@ -95,6 +96,7 @@ describe('Ollama replay parity', () => {
     const adapter = new OllamaTextAdapter(mock.client, model)
     const chunks = await collect(
       adapter.chatStream({
+        threadId: 'thread-1',
         logger,
         model,
         messages: [{ role: 'user', content: 'Go' }],
@@ -109,6 +111,7 @@ describe('Ollama replay parity', () => {
     expect(JSON.stringify(chunks)).not.toContain('responseId')
     const result = await adapter.structuredOutput({
       chatOptions: {
+        threadId: 'thread-1',
         logger,
         model,
         messages: [{ role: 'user', content: 'Go' }],

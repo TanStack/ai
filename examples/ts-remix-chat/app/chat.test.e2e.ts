@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
+import { render } from 'remix/middleware/render'
 import { createRouter } from 'remix/router'
 
 import chatController from './actions/chat/controller.ts'
@@ -7,7 +8,9 @@ import { routes } from './routes.ts'
 
 // ponytail: map only the chat controller. The app router loads Chat, and
 // @tanstack/ai-remix source has extensionless imports Node cannot resolve.
-const router = createRouter()
+// `RouterTypes` types every controller with the app context, which the render
+// middleware adds, so the router needs it. No `assets`: chat renders no UI.
+const router = createRouter({ middleware: [render()] })
 router.map(routes.chat, chatController)
 
 const chatUrl = 'http://localhost' + routes.chat.stream.href()

@@ -66,6 +66,7 @@ async function sentRequest({
   mockSend.mockResolvedValue([])
   const adapter = createOpenRouterText(model, 'test-key')
   for await (const _ of adapter.chatStream({
+    threadId: 'thread-1',
     ...rest,
     model,
     messages,

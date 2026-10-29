@@ -23,6 +23,7 @@ export const Route = createFileRoute('/foreign-client-tool')({
 
 function ForeignClientToolPage() {
   const { messages, sendMessage } = useChat({
+    threadId: 'foreign-client-tool',
     connection: fetchServerSentEvents('/api/foreign-client-tool'),
     tools: [ping],
   })

@@ -62,6 +62,7 @@ export const Route = createFileRoute('/api/multimodal-tool-result-wire')({
 
         try {
           for await (const _ of chat({
+            threadId: 'multimodal-tool-result-wire',
             ...createChatOptions({ adapter }),
             messages,
           })) {

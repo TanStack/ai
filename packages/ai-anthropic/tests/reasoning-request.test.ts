@@ -47,6 +47,7 @@ async function send(
     beta: { messages: { create } },
   })
   for await (const _chunk of adapter.chatStream({
+    threadId: 'thread-1',
     logger,
     model,
     messages: [{ role: 'user', content: 'hi' }],
@@ -158,6 +159,7 @@ describe('Anthropic chat({ reasoning }) request shape', () => {
       .fn()
       .mockResolvedValue(textStream(JSON.stringify({ word: 'hi' })))
     const result = await chat({
+      threadId: 'thread-1',
       adapter: createAnthropicChatWithClient('claude-opus-5-5', {
         beta: { messages: { create } },
       }),
@@ -171,5 +173,17 @@ describe('Anthropic chat({ reasoning }) request shape', () => {
       effort: 'high',
       format: { type: 'json_schema' },
     })
+  })
+
+  it('warns once when the model is not in the reasoning table', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const model = 'claude-sonnet-4-6-20261101' as AnthropicChatModel
+    const body = await send(model, on('high'))
+    await send(model, on('high'))
+    await send('claude-opus-5-5', on('high'))
+    expect(body).not.toHaveProperty('thinking')
+    expect(warn).toHaveBeenCalledTimes(1)
+    expect(String(warn.mock.calls[0]?.[0])).toContain(model)
+    warn.mockRestore()
   })
 })

@@ -55,12 +55,6 @@ export const Route = createFileRoute('/api/generate/image')({
         // Persistence needs the scope named. It is a type error to wire the
         // middleware without one, so reject the request rather than inventing
         // an id the client could never hydrate by.
-        if (!threadId) {
-          return new Response(
-            '`threadId` is required — it is the scope this generation is filed under.',
-            { status: 400 },
-          )
-        }
 
         const stream = generateImage({
           adapter: grokImage('grok-imagine-image'),
@@ -71,8 +65,8 @@ export const Route = createFileRoute('/api/generate/image')({
           ...(input.numberOfImages
             ? { numberOfImages: input.numberOfImages }
             : {}),
-          ...(threadId ? { threadId } : {}),
-          ...(runId ? { runId } : {}),
+          threadId,
+          runId,
           stream: true,
           middleware: [
             withGenerationPersistence(generationServerPersistence(), {

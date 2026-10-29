@@ -7,7 +7,7 @@ title: hashSchemaInput
 function hashSchemaInput(schema): string;
 ```
 
-Defined in: [packages/ai/src/activities/chat/tools/approval-schema.ts:198](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/tools/approval-schema.ts#L198)
+Defined in: packages/ai/src/activities/chat/tools/approval-schema.ts:198
 
 ## Parameters
 

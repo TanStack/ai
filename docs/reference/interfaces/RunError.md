@@ -3,7 +3,7 @@ id: RunError
 title: RunError
 ---
 
-Defined in: [packages/ai/src/activities/chat/middleware/run-store.ts:99](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/run-store.ts#L99)
+Defined in: packages/ai/src/activities/chat/middleware/run-store.ts:99
 
 Why a run failed.
 
@@ -19,7 +19,7 @@ to decide whether to retry, escalate, or surface a specific UI.
 optional code?: string;
 ```
 
-Defined in: [packages/ai/src/activities/chat/middleware/run-store.ts:102](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/run-store.ts#L102)
+Defined in: packages/ai/src/activities/chat/middleware/run-store.ts:102
 
 Stable, machine-branchable classification, when the provider supplies one.
 
@@ -31,4 +31,4 @@ Stable, machine-branchable classification, when the provider supplies one.
 message: string;
 ```
 
-Defined in: [packages/ai/src/activities/chat/middleware/run-store.ts:100](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/run-store.ts#L100)
+Defined in: packages/ai/src/activities/chat/middleware/run-store.ts:100

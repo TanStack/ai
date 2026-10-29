@@ -7,7 +7,7 @@ title: chat
 function chat<TAdapter, TSchema, TStream, TTools, TInterrupts, TContext, TMiddleware, TAgents>(options): TextActivityResult<TSchema, TStream, TTools>;
 ```
 
-Defined in: [packages/ai/src/activities/chat/index.ts:5771](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/index.ts#L5771)
+Defined in: packages/ai/src/activities/chat/index.ts:5864
 
 Text activity - handles agentic text generation, one-shot text generation, and agentic structured output.
 
@@ -57,7 +57,7 @@ This activity supports four modes:
 
 ### TAgents
 
-`TAgents` *extends* readonly [`DefinedAgent`](../interfaces/DefinedAgent.md)\<`string`, readonly `SubagentTool`[], [`SchemaInput`](../type-aliases/SchemaInput.md) \| `undefined`, readonly [`InterruptDefinition`](../interfaces/InterruptDefinition.md)\<`any`, `any`, `any`, `any`, `any`\>[], `any`\>[] = readonly [`DefinedAgent`](../interfaces/DefinedAgent.md)\<`string`, readonly `SubagentTool`[], [`SchemaInput`](../type-aliases/SchemaInput.md) \| `undefined`, readonly [`InterruptDefinition`](../interfaces/InterruptDefinition.md)\<`any`, `any`, `any`, `any`, `any`\>[], `any`\>[]
+`TAgents` *extends* readonly [`DefinedAgent`](../interfaces/DefinedAgent.md)\<`string`, readonly `SubagentTool`[], [`SchemaInput`](../type-aliases/SchemaInput.md) \| `undefined`, readonly [`InterruptDefinition`](../interfaces/InterruptDefinition.md)\<`any`, `any`, `any`, `any`, `any`\>[], `any`, `unknown`, [`AgentProduces`](../type-aliases/AgentProduces.md) \| `undefined`\>[] = readonly [`DefinedAgent`](../interfaces/DefinedAgent.md)\<`string`, readonly `SubagentTool`[], [`SchemaInput`](../type-aliases/SchemaInput.md) \| `undefined`, readonly [`InterruptDefinition`](../interfaces/InterruptDefinition.md)\<`any`, `any`, `any`, `any`, `any`\>[], `any`, `unknown`, [`AgentProduces`](../type-aliases/AgentProduces.md) \| `undefined`\>[]
 
 ## Parameters
 
@@ -80,6 +80,7 @@ import { openaiText } from '@tanstack/ai-openai'
 for await (const chunk of chat({
   adapter: openaiText('gpt-5.5'),
   messages: [{ role: 'user', content: 'What is the weather?' }],
+  threadId,
   tools: [weatherTool]
 })) {
   if (chunk.type === 'TEXT_MESSAGE_CONTENT') {
@@ -93,7 +94,8 @@ for await (const chunk of chat({
 ```ts
 for await (const chunk of chat({
   adapter: openaiText('gpt-5.5'),
-  messages: [{ role: 'user', content: 'Hello!' }]
+  messages: [{ role: 'user', content: 'Hello!' }],
+  threadId,
 })) {
   console.log(chunk)
 }
@@ -105,6 +107,7 @@ for await (const chunk of chat({
 const { text, chunks } = await chat({
   adapter: openaiText('gpt-5.5'),
   messages: [{ role: 'user', content: 'Hello!' }],
+  threadId,
   stream: false
 })
 // text is a string with the full response
@@ -119,6 +122,7 @@ import { z } from 'zod'
 const result = await chat({
   adapter: openaiText('gpt-5.5'),
   messages: [{ role: 'user', content: 'Research and summarize the topic' }],
+  threadId,
   tools: [researchTool, analyzeTool],
   outputSchema: z.object({
     summary: z.string(),

@@ -3,18 +3,18 @@
  * Discord webhook (DISCORD_WEBHOOK_URL). With --dry-run (or when the webhook
  * is not configured) it prints the payload instead of posting.
  *
- * Usage: tsx scripts/maintainer/scorecard.ts [--dry-run]
+ * Usage: node scripts/maintainer/scorecard.ts [--dry-run]
  */
 
 import { readdir } from 'node:fs/promises'
 import process from 'node:process'
-import { classifyAll } from './classify'
-import { collectSnapshot } from './collect'
-import { loadConfig } from './config'
-import { buildScorecardEmbeds, postToDiscord } from './discord'
-import { createGitHubClient } from './github'
-import { computeScorecard } from './metrics'
-import { isDryRun, resolveToken, writeStepSummary } from './env'
+import { classifyAll } from './classify.ts'
+import { collectSnapshot } from './collect.ts'
+import { loadConfig } from './config.ts'
+import { buildScorecardEmbeds, postToDiscord } from './discord.ts'
+import { createGitHubClient } from './github.ts'
+import { computeScorecard } from './metrics.ts'
+import { isDryRun, resolveToken, writeStepSummary } from './env.ts'
 
 async function countPendingChangesets(): Promise<number> {
   try {

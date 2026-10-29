@@ -23,6 +23,7 @@ export const Route = createFileRoute('/api/moonshot-usage-details')({
         let usage: Record<string, unknown> | undefined
         try {
           for await (const chunk of chat({
+            threadId: 'moonshot-usage-details',
             ...createChatOptions({ adapter }),
             messages: [{ role: 'user', content: 'hi' }],
           })) {

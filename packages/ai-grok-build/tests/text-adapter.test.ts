@@ -100,6 +100,7 @@ describe('grok-build in-sandbox adapter', () => {
 
     const chunks = await collect(
       adapter.chatStream({
+        threadId: 'thread-1',
         model: 'grok-build-0.1',
         messages: [{ role: 'user', content: 'say pong' }],
         logger: noopLogger,
@@ -141,6 +142,7 @@ describe('grok-build in-sandbox adapter', () => {
 
     await collect(
       adapter.chatStream({
+        threadId: 'thread-1',
         model: 'grok-build-0.1',
         messages: [{ role: 'user', content: 'say pong' }],
         logger: noopLogger,
@@ -172,6 +174,7 @@ describe('grok-build in-sandbox adapter', () => {
 
     const chunks = await collect(
       adapter.chatStream({
+        threadId: 'thread-1',
         model: 'grok-build',
         messages: [{ role: 'user', content: 'say pong' }],
         logger: noopLogger,

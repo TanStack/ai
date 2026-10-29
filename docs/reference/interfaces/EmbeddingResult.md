@@ -3,7 +3,7 @@ id: EmbeddingResult
 title: EmbeddingResult
 ---
 
-Defined in: [packages/ai/src/types.ts:3366](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L3366)
+Defined in: packages/ai/src/types.ts:3325
 
 Result of embedding generation.
 
@@ -15,7 +15,7 @@ Result of embedding generation.
 embeddings: Embedding[];
 ```
 
-Defined in: [packages/ai/src/types.ts:3372](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L3372)
+Defined in: packages/ai/src/types.ts:3331
 
 One embedding per input item, in input order
 
@@ -27,7 +27,7 @@ One embedding per input item, in input order
 id: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:3368](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L3368)
+Defined in: packages/ai/src/types.ts:3327
 
 Unique identifier for the generation
 
@@ -39,7 +39,7 @@ Unique identifier for the generation
 model: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:3370](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L3370)
+Defined in: packages/ai/src/types.ts:3329
 
 Model used for generation
 
@@ -51,6 +51,6 @@ Model used for generation
 optional usage?: TokenUsage<ProviderUsageDetails>;
 ```
 
-Defined in: [packages/ai/src/types.ts:3374](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L3374)
+Defined in: packages/ai/src/types.ts:3333
 
 Token usage information (if provided by the adapter)

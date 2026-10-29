@@ -7,7 +7,7 @@ title: AnyServerTool
 type AnyServerTool = Omit<ServerTool<any, any, string, any, boolean, any>, "execute"> & object;
 ```
 
-Defined in: [packages/ai/src/activities/chat/tools/tool-definition.ts:139](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/tools/tool-definition.ts#L139)
+Defined in: packages/ai/src/activities/chat/tools/tool-definition.ts:139
 
 Broad server-tool shape for heterogeneous internal collections.
 

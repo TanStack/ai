@@ -36,6 +36,7 @@ import type {
   AfterToolCallDecision,
   AfterToolCallInfo,
   BeforeToolCallDecision,
+  GuardToolCallDecision,
 } from '../middleware/types'
 import type { McpResourceReadResult } from '../mcp/types'
 import type {
@@ -210,6 +211,12 @@ export interface ToolExecutionMiddlewareHooks {
     tool: Tool | undefined,
     args: unknown,
   ) => Promise<BeforeToolCallDecision>
+  /** Runs on the final checked args, just before the call runs. */
+  onGuardToolCall?: (
+    toolCall: ToolCall,
+    tool: Tool | undefined,
+    args: unknown,
+  ) => Promise<GuardToolCallDecision>
   onAfterToolCall?: (info: AfterToolCallInfo) => Promise<AfterToolCallDecision>
 }
 
@@ -320,7 +327,7 @@ export class ToolCallManager<
       if (toolCall.id === event.toolCallId) return
     }
     const index = (event as AdapterYieldChunk).index ?? this.toolCallsMap.size
-    const name = event.toolCallName ?? event.toolName
+    const name = event.toolCallName
     this.toolCallsMap.set(index, {
       id: event.toolCallId,
       type: 'function',
@@ -423,6 +430,7 @@ export class ToolCallManager<
           // Execute the tool
           const executionContext = {
             toolCallId: toolCall.id,
+            threadId: finishEvent.threadId,
             context: userContext,
             emitCustomEvent: () => {},
           } as ToolExecutionContext<TContext>
@@ -468,7 +476,6 @@ export class ToolCallManager<
         type: 'TOOL_CALL_END',
         toolCallId: toolCall.id,
         toolCallName: toolCall.function.name,
-        toolName: toolCall.function.name,
         model: (() => {
           const model = tanstackMetadata(finishEvent)?.model
           return typeof model === 'string' ? model : undefined
@@ -547,7 +554,7 @@ export interface McpInputRequest {
   reason?: string
 }
 
-interface McpInputRequiredThrow {
+export interface McpInputRequiredThrow {
   name: 'MCPInputRequiredError'
   kind: 'form' | 'sampling'
   request: unknown
@@ -555,14 +562,10 @@ interface McpInputRequiredThrow {
 }
 
 /** Reasons that clients read as another kind of interrupt. */
-const RESERVED_INTERRUPT_REASONS = new Set([
-  'approval_required',
-  'client_tool_input',
-  'tanstack:client_tool_execution',
-])
+const RESERVED_INTERRUPT_REASONS = new Set(['tanstack:client_tool_execution'])
 
 /** The reason a thrown input request names, when it can use it. */
-function inputRequestReason(reason: unknown) {
+export function inputRequestReason(reason: unknown) {
   return typeof reason === 'string' &&
     reason !== '' &&
     !RESERVED_INTERRUPT_REASONS.has(reason)
@@ -570,7 +573,9 @@ function inputRequestReason(reason: unknown) {
     : undefined
 }
 
-function isMcpInputRequired(value: unknown): value is McpInputRequiredThrow {
+export function isMcpInputRequired(
+  value: unknown,
+): value is McpInputRequiredThrow {
   if (typeof value !== 'object' || value === null) return false
   if (!('name' in value) || value.name !== 'MCPInputRequiredError') {
     return false
@@ -703,6 +708,31 @@ async function applyBeforeToolCallDecision(
   }
 
   const decision = await middlewareHooks.onBeforeToolCall(toolCall, tool, input)
+  return applyToolCallDecision(
+    decision,
+    toolCall,
+    tool,
+    input,
+    toolName,
+    middlewareHooks,
+    results,
+  )
+}
+
+/**
+ * Apply an onBeforeToolCall or onGuardToolCall decision.
+ * Returns the input to run with, or proceed false when the call was skipped
+ * (result already pushed). Throws MiddlewareAbortError on 'abort'.
+ */
+async function applyToolCallDecision(
+  decision: BeforeToolCallDecision | GuardToolCallDecision,
+  toolCall: ToolCall,
+  tool: Tool,
+  input: unknown,
+  toolName: string,
+  middlewareHooks: ToolExecutionMiddlewareHooks,
+  results: Array<ToolResult>,
+): Promise<{ proceed: true; input: unknown } | { proceed: false }> {
   if (!decision) {
     return { proceed: true, input }
   }
@@ -734,7 +764,9 @@ async function applyBeforeToolCallDecision(
     return { proceed: false }
   }
 
-  return { proceed: true, input: decision.args }
+  return decision.type === 'transformArgs'
+    ? { proceed: true, input: decision.args }
+    : { proceed: true, input }
 }
 
 /**
@@ -973,6 +1005,8 @@ async function buildClientToolResult(
  *
  * @param toolCalls - Tool calls from the LLM
  * @param tools - Available tools with their configurations
+ * @param threadId - The thread id of the run. Each server tool gets it on
+ *   its context.
  * @param approvals - Map keyed by toolCallId (or `approval_${toolCallId}`) → ToolApprovalResolution
  * @param clientResults - Map of client-side execution results (toolCallId -> result)
  * @param createCustomEventChunk - Factory to create CustomEvent chunks (optional)
@@ -981,10 +1015,13 @@ async function buildClientToolResult(
  *   call at a time. Results come back in call order either way.
  * @param repairToolInput - How an input that fails the final check is
  *   repaired: the built-in repair (default), none (`false`), or a function.
+ * @param capabilities - The run's capability readers. Each server tool gets
+ *   them on its context as `get` and `getOptional`.
  */
 export async function* executeToolCalls<TContext = unknown>(
   toolCalls: Array<ToolCall>,
   tools: ReadonlyArray<AnyTool>,
+  threadId: string,
   approvals: Map<string, ToolApprovalResolution> = new Map(),
   clientResults: Map<string, any> = new Map(),
   createCustomEventChunk?: (
@@ -998,6 +1035,7 @@ export async function* executeToolCalls<TContext = unknown>(
   resumeState?: ToolResumeExecutionState,
   toolExecution: NonNullable<TextOptions['toolExecution']> = 'parallel',
   repairToolInput?: TextOptions['repairToolInput'],
+  capabilities?: Pick<ToolExecutionContext, 'get' | 'getOptional'>,
 ): AsyncGenerator<CustomEvent | StreamChunk, ExecuteToolCallsResult, void> {
   const results: Array<ToolResult> = []
   const needsApproval: Array<ApprovalRequest> = []
@@ -1285,6 +1323,27 @@ export async function* executeToolCalls<TContext = unknown>(
       continue
     }
 
+    // The guard tier sees the final checked input. It always runs, also
+    // when an onBeforeToolCall decision came first, and cannot change it.
+    if (middlewareHooks?.onGuardToolCall) {
+      let guard: Awaited<ReturnType<typeof applyToolCallDecision>>
+      try {
+        guard = await applyToolCallDecision(
+          await middlewareHooks.onGuardToolCall(toolCall, tool, input),
+          toolCall,
+          tool,
+          input,
+          toolName,
+          middlewareHooks,
+          results,
+        )
+      } catch (error) {
+        failures.push(error)
+        break
+      }
+      if (!guard.proceed) continue
+    }
+
     // Create a ToolExecutionContext for this tool call with event emission
     const pendingEvents: Array<CustomEvent | StreamChunk> = []
     const inputResponse = resumeState?.inputResponses?.get(toolCall.id)
@@ -1292,6 +1351,8 @@ export async function* executeToolCalls<TContext = unknown>(
       toolCallId: toolCall.id,
       context: userContext,
       abortSignal,
+      threadId,
+      ...capabilities,
       ...(inputResponse !== undefined ? { inputResponse } : {}),
       emitCustomEvent: (
         eventName: string,
@@ -1346,6 +1407,7 @@ export async function* executeToolCalls<TContext = unknown>(
     const rest = yield* executeToolCalls(
       held,
       tools,
+      threadId,
       approvals,
       clientResults,
       createCustomEventChunk,
@@ -1355,6 +1417,7 @@ export async function* executeToolCalls<TContext = unknown>(
       resumeState,
       toolExecution,
       repairToolInput,
+      capabilities,
     )
     results.push(...rest.results)
     needsClientExecution.push(...rest.needsClientExecution)

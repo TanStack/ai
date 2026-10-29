@@ -10,9 +10,6 @@ import type { ProviderTool, Tool } from '@tanstack/ai'
 
 export type BashToolConfig = BetaToolBash20241022 | BetaToolBash20250124
 
-/** @deprecated Renamed to `BashToolConfig`. Will be removed in a future release. */
-export type BashTool = BashToolConfig
-
 export type AnthropicBashTool = ProviderTool<'anthropic', 'bash'>
 
 export function convertBashToolToAdapterFormat(tool: Tool): BashToolConfig {

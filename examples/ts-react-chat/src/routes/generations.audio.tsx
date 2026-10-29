@@ -85,9 +85,17 @@ function AudioGenerationForm({
     }
     return {
       threadId: `audio:${mode}:${config.id}`,
-      fetcher: (input: { prompt: string; duration?: number }) =>
+      fetcher: (
+        input: { prompt: string; duration?: number },
+        { threadId }: { threadId: string },
+      ) =>
         generateAudioFn({
-          data: { ...input, provider: config.id, model: selectedModel },
+          data: {
+            ...input,
+            provider: config.id,
+            model: selectedModel,
+            threadId,
+          },
         }),
       persistence: true,
       onResult: toAudioOutput,

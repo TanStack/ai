@@ -38,6 +38,9 @@ export const providers: Provider[] = [
   'elevenlabs',
   'llmgateway',
   'cloudflare',
+  'neon',
+  'neon-anthropic',
+  'neon-responses',
 ]
 
 export { isSupported }
@@ -55,7 +58,17 @@ const LOCAL_E2E_PROVIDERS: ReadonlySet<Provider> = new Set([
   'gemini',
 ])
 
-function requestedProviders(env: NodeJS.ProcessEnv = process.env) {
+type RequestedProviders =
+  | { kind: 'all' }
+  | {
+      kind: 'subset'
+      providers: ReadonlySet<Provider>
+      fallbackWhenEmpty: boolean
+    }
+
+function requestedProviders(
+  env: NodeJS.ProcessEnv = process.env,
+): RequestedProviders {
   if (env.CI) return { kind: 'all' }
   const raw = env.E2E_PROVIDERS
   if (raw === undefined || raw.trim() === '') {

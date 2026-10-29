@@ -100,19 +100,7 @@ const PROVIDER_MODELS: Record<
     { value: 'grok-4.3', label: 'Grok 4.3' },
   ],
   groq: [
-    {
-      value: 'meta-llama/llama-4-maverick-17b-128e-instruct',
-      label: 'Llama 4 Maverick 17B',
-    },
-    {
-      value: 'meta-llama/llama-4-scout-17b-16e-instruct',
-      label: 'Llama 4 Scout 17B',
-    },
-    {
-      value: 'moonshotai/kimi-k2-instruct-0905',
-      label: 'Kimi K2 Instruct',
-    },
-    { value: 'llama-3.3-70b-versatile', label: 'Llama 3.3 70B Versatile' },
+    { value: 'qwen/qwen3.8-27b', label: 'Qwen3.8 27B' },
     { value: 'openai/gpt-oss-120b', label: 'GPT-OSS 120B' },
   ],
   openrouter: [

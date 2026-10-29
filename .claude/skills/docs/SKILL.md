@@ -1,6 +1,6 @@
 ---
 name: docs
-description: Use when writing, editing, or organizing documentation, when planning what docs a feature needs, and whenever planning or implementing a new feature or change in a repo (docs ship with the code). Also use when tempted to write docs without showing the discovered readers to the user, without asking for tone, or without loading simple-english and i-have-adhd. Triggers on "write docs for X", "document this feature", "add a guide", "update the docs", "reorganize the docs", "plan feature X", "implement X", or /docs.
+description: Use when writing, editing, or organizing documentation, when planning what docs a feature needs, and whenever planning or implementing a new feature or change in a repo (docs ship with the code). Also use when tempted to write docs without naming the readers, without picking a tone, or without loading simple-english and i-have-adhd. Triggers on "write docs for X", "document this feature", "add a guide", "update the docs", "reorganize the docs", "plan feature X", "implement X", or /docs.
 ---
 
 # docs
@@ -11,19 +11,19 @@ Write docs a real person wants to read. Short, plain, built around someone tryin
 
 Work in two phases. First plan the story: who reads this, what they want, and how many pages it should be. Then write.
 
-The plan is not private. The user must see the readers and must choose the tone before any page is written.
+Do not ask the user to approve the plan or the tone. Pick sane defaults, state them in one line each, and keep going. The user can correct you after.
 
 ```text
 Find docs
   → read neighbors
   → Phase 1: readers + pages
-  → PERSONA GATE (show the list, then stop)
-  → TONE GATE (ask, then stop)          [when writing pages]
+  → state the readers + pages (one line each, no question)
+  → state the tone (match neighbors, no question)   [when writing pages]
   → load simple-english + i-have-adhd   [when writing pages]
   → Phase 2: write
 ```
 
-A doc-impact list in a feature plan still runs the persona gate. It does not run the tone gate or load the writing skills until pages are actually written.
+A doc-impact list in a feature plan still names the reader for each page. It does not pick a tone or load the writing skills until pages are actually written.
 
 ## When to run
 
@@ -48,7 +48,7 @@ If either file is missing, stop and tell the user. Do not write the pages withou
 
 How they compose:
 
-- This skill owns who the page is for, the page split, problem-then-fix, show-don't-tell, no history leak, forbidden glyphs, and neighbor structure.
+- This skill owns who the page is for, the page split, the call-first opener, show-don't-tell, no history leak, forbidden glyphs, and neighbor structure.
 - `simple-english` owns the sentences. Use pragmatic mode. Run its self-check before you call a page done.
 - `i-have-adhd` owns the shape of the page: next action first, numbered steps, lists capped at 5 (split must vs later, or split the page), no preamble, a visible win at the end.
 
@@ -59,8 +59,8 @@ When `i-have-adhd` is loaded from this skill, apply it to the pages only. Do not
 Before writing anything, find where docs live.
 
 1. Look for a docs folder. Check `docs/` first, then `documentation/`, `content/docs/`, `site/`, `website/docs/`.
-2. Found nothing? Ask the user where docs should go. Do not guess and do not create a folder on a hunch.
-3. Open 2 or 3 existing pages near where the new content belongs. Read them for copy, structure, frontmatter fields, and components. Note the apparent tone as a *candidate* for the tone gate. Do not adopt it yet.
+2. Found nothing? Put the page in the README or the closest existing docs file, and say where you put it. Do not create a new docs folder on a hunch.
+3. Open 2 or 3 existing pages near where the new content belongs. Read them for copy, structure, frontmatter fields, and components. Note their tone. That is the tone you write in.
 4. Note which components the site already uses (steps, tabs, callouts, cards, accordions, code groups, and so on). Different sites have different ones.
 5. Reuse those components to tell the story. If the site has a steps component, use it for walkthroughs. If it has tabs, use them for framework variations. If the site has none, use plain markdown. Never invent a component the site does not have.
 
@@ -100,8 +100,6 @@ If there is no page like the one you are about to write, read the closest one yo
 
 Matching neighbors is about **copy, structure, frontmatter, and components**: whether headings are sentence case, how much setup a section gets, which components carry the walkthrough, how code samples are introduced, what the frontmatter fields are.
 
-It is **not** a substitute for the tone gate. Neighbors can suggest a default. They cannot answer for the user.
-
 It is **not** permission to copy a neighbor's bad habits. Everything in [Forbidden](#forbidden) and every rule in this skill still applies to the content you write, no matter what the surrounding pages do. An existing page full of em dashes does not license one more.
 
 So: never reason "the other pages do it, so I will too" about a rule this skill states. If existing pages break a rule and you think the whole set should be brought in line, that is a separate cleanup to raise with the user, not something to settle by quietly matching the violation.
@@ -117,40 +115,11 @@ Do this before you write a word of content.
 
 The page split comes out of this step. Do not skip it.
 
-### Gate: show the personas
+### State the readers
 
-<HARD-GATE>
-The user must see the list. Listing readers in a thought, a todo, or a buried plan is not this gate.
+After step 4, put the readers and their pages in your message to the user, one line per reader: the user story and the page. Do not ask a question and do not wait. Continue to Phase 2 in the same turn.
 
-After step 4, send a message that contains only:
-
-1. Each reader, one user story, and the page you will write for them.
-2. One question: confirm, drop a reader, or add one.
-
-If the harness has an AskQuestion (or similar) tool, use it for that question. If it does not, use a numbered list.
-
-Then pick one path:
-
-**Default: stop.** This message is the entire turn. End the turn. Do not write files. Do not start Phase 2. Do not say you will proceed unless they object.
-
-**Skip the wait: continue in this same turn.** Use this path only when one of these is true:
-
-- This conversation already has the user's confirmation of this persona list.
-- The user said "use sane defaults", "just write it", or "don't ask questions". Still SHOW the list in this turn, then continue.
-- The change is a tiny copy edit: typo, broken link, code-fence language, or a factual fix. No new page, no new section, no rewrite of a journey.
-
-On this path, do not end the turn. After you show the list (or after a tiny copy edit, with no list), continue to the next step.
-
-These are not skips:
-
-- "The readers are obvious."
-- "The user asked for docs, so they do not want a question."
-- "I already named them in the plan."
-- "There is only one reader."
-- "This is part of implementing a feature, keep going."
-
-Writing docs is why this gate exists. It is not a reason to skip it.
-</HARD-GATE>
+The user reads the list and corrects you if a reader is wrong. A list that only lives in your thinking or a todo does not count. Skip the list only for a tiny copy edit (typo, broken link, code-fence language, factual fix).
 
 ## Less is more: split, do not cram
 
@@ -173,47 +142,15 @@ Good: a small set of linked pages
 
 Each page is short and does one thing. The overview stitches them into a story.
 
-## Gate: ask for tone
+## Pick the tone
 
-This gate sits between Phase 1 and Phase 2. Run it before you write any page. Do not nest it inside Phase 2.
+Use the tone of the neighboring pages. State it in one line (how formal, how much setup, second person or not) and continue. Do not ask.
 
-<HARD-GATE>
-This gate runs before any page content is written. It does not run for a doc-impact list that is only a plan.
-
-Neighbors can suggest a default. They cannot answer for the user.
-
-Send a message that contains only:
-
-1. The tone you inferred from neighboring pages, in one line (how formal, how much setup, second person or not).
-2. One question with options: use that tone, more casual, more formal, or the user names another.
-
-If the harness has an AskQuestion (or similar) tool, use it. If it does not, use a numbered list.
-
-Then pick one path:
-
-**Default: stop.** This message is the entire turn. End the turn. Do not write page content.
-
-**Skip the wait: continue in this same turn.** Use this path only when one of these is true:
-
-- This conversation already has the user's tone choice, including an explicit "match the existing pages".
-- The user said "use sane defaults", "just write it", or "don't ask questions". Still STATE the inferred tone in one line, then continue.
-- Tiny copy edit, same carve-out as the persona gate.
-
-On this path, do not end the turn. After you state the tone (or after a tiny copy edit, with no question), continue to Phase 2.
-
-These are not skips:
-
-- "I can tell from the neighbors."
-- "The site already has a voice."
-- "Tone does not matter for a reference page."
-- "I'll match neighbors and mention it later."
-</HARD-GATE>
+If the user already named a tone in this conversation, use theirs.
 
 ## Phase 2: write like a human
 
-Do not write page content until the persona gate has passed, the tone gate has passed, and `simple-english` plus `i-have-adhd` are loaded.
-
-The tone gate is the heading above this one. Run that gate first. Then load the two skills. Then write.
+Do not write page content until you have stated the readers and the tone, and `simple-english` plus `i-have-adhd` are loaded.
 
 Legibility is the goal, above everything else.
 
@@ -224,28 +161,29 @@ Legibility is the goal, above everything else.
 - Second person, action first. Start with what the reader has now and what they will have at the end. No "In this guide we will explore..." openings. Just start.
 - Shape the page with `i-have-adhd`: the first line is something the reader can do, multi-step work is numbered, a list longer than 5 is split, the page ends on a visible win.
 
-### Lead with the problem, then solve it
+### Open with the call
 
-Every page opens with the problem the reader came for, in their own words, before any API. Name the situation they are stuck in. Then say in a sentence or two how the feature solves it. Only after that do you go into the technical parts and the code.
-
-A reader who sees the problem first knows in seconds whether they are on the right page. A reader who hits an API signature first has to reverse-engineer what it is even for.
-
-The first line of the how is the next action (from `i-have-adhd`). The problem still comes first so they know they are on the right page.
+The first one or two sentences name the call and what the reader gets from it. A reader who lands from search knows in one line whether this page has their answer.
 
 ```text
 Bad:
-  Call useInterrupts() and pass a resolver. The resolver runs once per
-  pending item inside a transaction...
+  Some tool calls shouldn't run without a human saying yes: moving money,
+  deleting data. An interrupt pauses the run for that decision...
 
 Good:
-  Some tool calls shouldn't run without a human saying yes: moving money,
-  deleting data. An interrupt pauses the run for that decision, then picks up
-  where it left off. Here is how to gate a tool behind an approval:
+  Set `needsApproval: true` on a tool. The run pauses before the tool runs,
+  and continues after a person approves it.
 
-  [code]
+Good:
+  `chat()` returns each token while the model writes the reply. `useChat`
+  renders those tokens. Call `stop()` to cancel the run.
 ```
 
-The order for a guide is problem, one-line fix, then the how (steps, snippets, API). Keep the problem to a couple of sentences, not a background essay. The code shows how it is solved, so do not narrate the solution in prose first.
+The opener is the page's only summary. The next line starts the steps or the code. Each idea in the opener is said once on the page, so the paragraph after it adds something new.
+
+When the reader must know a limit to pick the right page, put it in the opener: "`chat()` with `outputSchema` returns one typed object. It does not stream or run tools."
+
+The order for a guide is the call, then the steps and code. The code shows how it works, so the prose between snippets stays short.
 
 ### Show, do not tell
 
@@ -309,10 +247,9 @@ If a list grows past five items, split it. Put "do now" first. Put the rest on a
 
 ### Page shape for a guide
 
-Problem, fix, steps, done.
+Call, steps, done.
 
-- Open with the problem the reader has, in their words, and what they will have at the end.
-- Say in a sentence how the feature solves it.
+- Open with the call and what the reader gets from it, in one or two sentences.
 - Walk through steps they can follow and test as they go, with the code doing the explaining.
 - End when they reach the goal. Show what now works. Do not close with a vague "next steps" dump.
 
@@ -397,7 +334,8 @@ Then run the `simple-english` self-check on the same added text.
 
 | You catch yourself | Do instead |
 |---|---|
-| Opening with an API signature or config before the problem | Name the problem the reader has first, then the one-line fix, then the code. |
+| Opening with a scene, a background story, or "In this guide" | Open with the call and its result in one or two sentences, then the steps. |
+| A second paragraph that restates the opener | Cut it. The paragraph after the opener starts the steps or adds a new fact. |
 | Writing three paragraphs before any code | Cut to one sentence plus a snippet. Show it. |
 | Writing a sentence that names two or more things and explains each | Make it a bulleted list, one item per bullet. |
 | A paragraph with commas or semicolons separating a set of options/stores/flags | Same fix: that is a list, format it as one. |
@@ -407,9 +345,9 @@ Then run the `simple-english` self-check on the same added text.
 | Reaching for an em dash | Rewrite with a comma, period, or parentheses. |
 | "The surrounding pages do X, so I will too" where X breaks a rule here | Match neighbors on structure only. Follow this skill on everything it covers, and raise the existing violations as their own cleanup. |
 | Using a big word (utilize, leverage, facilitate) | Swap in the plain word. `simple-english` owns this. |
-| One page for everyone | Name the readers. Give each a path or a page. Show the list. Stop. |
+| One page for everyone | Name the readers. Give each a path or a page. State the list. |
 | Posting a snippet "they can adapt" | Make it complete and runnable. |
-| Guessing where docs go | Find the docs folder, or ask. Read neighbors first. |
+| Guessing where docs go | Find the docs folder. Read neighbors first. |
 | Calling a feature done with no doc change | If behavior changed, docs change too. Write them before you finish. |
 | Planning a feature without a doc-impact list | Add the list of new and changed docs to the plan. Name the reader for each page. |
 | "Unlike the old X, this now..." / "we renamed X to Y" | The reader never saw X. Describe only what ships now. |
@@ -417,8 +355,5 @@ Then run the `simple-english` self-check on the same added text.
 | Warning readers not to do a thing they never knew was possible (e.g. "don't pass locks as a store") | Delete it. If they never saw the old arrangement, the warning only confuses. Describe the thing in its own terms. |
 | Inventing a component the site lacks | Use only components the site already has. |
 | Stacking `npm` / `pnpm` / `yarn` in one install fence | Use `<!-- ::start:tabs variant="package-manager" mode="install" -->`. |
-| Skipping the persona message because readers are obvious | Show the list. Stop. Obvious is not a skip. |
-| Skipping the tone question because neighbors have a voice | Neighbors are the proposed default. Ask. Then stop. |
 | Writing pages without loading simple-english and i-have-adhd | Load both. If either is missing, stop. |
-| Treating "write the docs" as permission to skip the gates | Writing docs is why the gates exist. |
-| Listing personas inside a larger plan and continuing | That is not the gate. The gate is a dedicated message that ends the turn. |
+| Asking the user to confirm readers or tone, then ending the turn | Do not ask. State them in one line each and keep writing. |

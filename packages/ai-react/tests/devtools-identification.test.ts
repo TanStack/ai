@@ -37,6 +37,7 @@ describe('React generation devtools identification', () => {
 
     renderHook(() =>
       useGeneration({
+        threadId: 'thread-1',
         fetcher: async () => ({ id: 'result-1' }),
         devtools,
       }),
@@ -53,6 +54,7 @@ describe('React generation devtools identification', () => {
   it('keeps specialized hook identity', () => {
     renderHook(() =>
       useGenerateImage({
+        threadId: 'thread-1',
         fetcher: async () => ({
           id: 'image-1',
           images: [],

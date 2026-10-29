@@ -36,15 +36,20 @@ and PR code is never checked out or executed (no `pull_request_target`).
 
 ## Assignment order
 
-1. Route unassigned core-owned PRs first. Read `.github/CODEOWNERS` from the
+1. If an unassigned PR closes an open issue that already has an assignee, and
+   that assignee is on the roster and did not author the PR, assign the PR to
+   them. This wins over the core-review rule. The first linked issue with a
+   qualifying assignee wins. A missing issue, a non-roster assignee, or an
+   assignee who authored the PR falls through to the steps below.
+2. Route unassigned core-owned PRs first. Read `.github/CODEOWNERS` from the
    default branch through GitHub, including last-match and ownerless exceptions.
    Assign these PRs to `AlemTuzlak`, regardless of load. If Alem authored the PR,
    choose another maintainer with the fewest assigned PRs.
-2. Route other unassigned PRs to the least-loaded maintainer who is not the
+3. Route other unassigned PRs to the least-loaded maintainer who is not the
    author. Break load ties with configured areas and matching files or packages
    from PRs merged in the last 14 days (authored or reviewed by the maintainer).
    Remaining ties use a deterministic rotation based on the item number.
-3. Route unassigned issues with a separate issue count. Package names in the
+4. Route unassigned issues with a separate issue count. Package names in the
    title/body break load ties using configured areas.
 
 Every eligible item gets an assignee when the roster has someone other than

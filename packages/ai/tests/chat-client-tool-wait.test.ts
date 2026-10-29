@@ -87,6 +87,7 @@ describe('client-tool wait lifecycle', () => {
 
     const chunks = await collectChunks(
       chat({
+        threadId: 'thread-1',
         adapter,
         messages: [{ role: 'user', content: 'Ask the client' }],
         tools: [clientTool('ask_client')],
@@ -109,6 +110,7 @@ describe('client-tool wait lifecycle', () => {
 
     const chunks = await collectChunks(
       chat({
+        threadId: 'thread-1',
         adapter,
         messages: [
           { role: 'user', content: 'Ask the client' },
@@ -157,6 +159,7 @@ describe('client-tool wait lifecycle', () => {
 
     const chunks = await collectChunks(
       chat({
+        threadId: 'thread-1',
         adapter,
         messages: [
           { role: 'user', content: 'Ask the client' },
@@ -202,6 +205,7 @@ describe('client-tool wait lifecycle', () => {
 
     await collectChunks(
       chat({
+        threadId: 'thread-1',
         adapter,
         messages: [{ role: 'user', content: 'Ask the client' }],
         tools: [clientTool('ask_client')],
@@ -248,6 +252,7 @@ describe('client-tool wait with structured output', () => {
 
     const chunks = await collectChunks(
       chat({
+        threadId: 'thread-1',
         adapter,
         messages: [{ role: 'user', content: 'Ask the client' }],
         tools: [clientTool('ask_client')],
@@ -275,6 +280,7 @@ describe('client-tool wait with structured output', () => {
 
     const chunks = await collectChunks(
       chat({
+        threadId: 'thread-1',
         adapter,
         messages: [{ role: 'user', content: 'Ask the client' }],
         tools: [clientTool('ask_client')],
@@ -297,6 +303,7 @@ describe('client-tool wait with structured output', () => {
 
     const chunks = await collectChunks(
       chat({
+        threadId: 'thread-1',
         adapter,
         messages: [
           { role: 'user', content: 'Ask the client' },

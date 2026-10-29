@@ -146,6 +146,7 @@ export const Route = createFileRoute('/api/mistral-strict-tool-null-wire')({
           const text: Array<string> = []
 
           for await (const chunk of chat({
+            threadId: 'mistral-strict-tool-null-wire',
             ...createChatOptions({ adapter }),
             messages: [{ role: 'user', content: 'Ask me a question' }],
             tools: [askUser],

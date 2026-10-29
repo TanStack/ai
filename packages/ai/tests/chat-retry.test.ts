@@ -28,7 +28,12 @@ describe('chat({ retry })', () => {
       iterations: [rateLimited(5), answer],
     })
     const chunks = await collectChunks(
-      chat({ adapter, messages, retry: { maxRetries: 2 } }),
+      chat({
+        threadId: 'thread-1',
+        adapter,
+        messages,
+        retry: { maxRetries: 2 },
+      }),
     )
     expect(calls).toHaveLength(2)
     expect(types(chunks)).not.toContain(EventType.RUN_ERROR)
@@ -42,7 +47,9 @@ describe('chat({ retry })', () => {
     const { adapter } = createMockAdapter({
       iterations: [[ev.runError('boom')]],
     })
-    const chunks = await collectChunks(chat({ adapter, messages }))
+    const chunks = await collectChunks(
+      chat({ threadId: 'thread-1', adapter, messages }),
+    )
     expect(types(chunks)).toEqual([EventType.RUN_STARTED, EventType.RUN_ERROR])
   })
 
@@ -50,7 +57,9 @@ describe('chat({ retry })', () => {
     const { adapter, calls } = createMockAdapter({
       iterations: [rateLimited(5), answer],
     })
-    const chunks = await collectChunks(chat({ adapter, messages }))
+    const chunks = await collectChunks(
+      chat({ threadId: 'thread-1', adapter, messages }),
+    )
     expect(calls).toHaveLength(1)
     expect(types(chunks)).toContain(EventType.RUN_ERROR)
   })
@@ -60,7 +69,12 @@ describe('chat({ retry })', () => {
       iterations: [rateLimited(5), rateLimited(5), rateLimited(5), answer],
     })
     const chunks = await collectChunks(
-      chat({ adapter, messages, retry: { maxRetries: 2 } }),
+      chat({
+        threadId: 'thread-1',
+        adapter,
+        messages,
+        retry: { maxRetries: 2 },
+      }),
     )
     expect(calls).toHaveLength(3)
     expect(chunks.at(-1)).toMatchObject({
@@ -74,7 +88,12 @@ describe('chat({ retry })', () => {
       iterations: [rateLimited(5_000), answer],
     })
     const chunks = await collectChunks(
-      chat({ adapter, messages, retry: { maxRetries: 2, maxWaitMs: 1_000 } }),
+      chat({
+        threadId: 'thread-1',
+        adapter,
+        messages,
+        retry: { maxRetries: 2, maxWaitMs: 1_000 },
+      }),
     )
     expect(calls).toHaveLength(1)
     expect(types(chunks)).toContain(EventType.RUN_ERROR)
@@ -85,7 +104,12 @@ describe('chat({ retry })', () => {
       iterations: [[ev.runStarted(), ev.runError('boom')], answer],
     })
     const chunks = await collectChunks(
-      chat({ adapter, messages, retry: { maxRetries: 2 } }),
+      chat({
+        threadId: 'thread-1',
+        adapter,
+        messages,
+        retry: { maxRetries: 2 },
+      }),
     )
     expect(calls).toHaveLength(1)
     expect(types(chunks)).toContain(EventType.RUN_ERROR)
@@ -104,7 +128,12 @@ describe('chat({ retry })', () => {
       ],
     })
     const chunks = await collectChunks(
-      chat({ adapter, messages, retry: { maxRetries: 2 } }),
+      chat({
+        threadId: 'thread-1',
+        adapter,
+        messages,
+        retry: { maxRetries: 2 },
+      }),
     )
     expect(calls).toHaveLength(1)
     expect(chunks).toContainEqual(expect.objectContaining({ delta: 'part' }))
@@ -120,6 +149,7 @@ describe('chat({ retry })', () => {
     setTimeout(() => abortController.abort(), 20)
     const chunks = await collectChunks(
       chat({
+        threadId: 'thread-1',
         adapter,
         messages,
         abortController,
@@ -146,7 +176,14 @@ describe('chat({ retry })', () => {
         })()
       },
     })
-    await collectChunks(chat({ adapter, messages, retry: { maxRetries: 1 } }))
+    await collectChunks(
+      chat({
+        threadId: 'thread-1',
+        adapter,
+        messages,
+        retry: { maxRetries: 1 },
+      }),
+    )
     expect(callTimes).toHaveLength(2)
     // Timers can fire a few ms early, so the bound is under 50.
     const [first = 0, second = 0] = callTimes
@@ -162,7 +199,7 @@ describe('chat({ retry })', () => {
   ])('rejects the bad retry config %o', async (retry) => {
     const { adapter, calls } = createMockAdapter({ iterations: [answer] })
     await expect(
-      collectChunks(chat({ adapter, messages, retry })),
+      collectChunks(chat({ threadId: 'thread-1', adapter, messages, retry })),
     ).rejects.toThrow(TypeError)
     expect(calls).toHaveLength(0)
   })
@@ -184,7 +221,12 @@ describe('chat({ retry })', () => {
       ],
     })
     const chunks = await collectChunks(
-      chat({ adapter, messages, retry: { maxRetries: 2 } }),
+      chat({
+        threadId: 'thread-1',
+        adapter,
+        messages,
+        retry: { maxRetries: 2 },
+      }),
     )
     const runIds = chunks
       .filter(
@@ -208,6 +250,7 @@ describe('chat({ retry })', () => {
     const started = Date.now()
     await collectChunks(
       chat({
+        threadId: 'thread-1',
         adapter,
         messages,
         middleware: [aborter],
@@ -249,7 +292,7 @@ describe('ctx.retry() in onModelError', () => {
       },
     })
     const chunks = await collectChunks(
-      chat({ adapter, messages, middleware: [retrier] }),
+      chat({ threadId: 'thread-1', adapter, messages, middleware: [retrier] }),
     )
     expect(seen).toEqual(['context_overflow'])
     expect(calls).toHaveLength(2)
@@ -271,7 +314,7 @@ describe('ctx.retry() in onModelError', () => {
       onModelError() {},
     })
     const chunks = await collectChunks(
-      chat({ adapter, messages, middleware: [watcher] }),
+      chat({ threadId: 'thread-1', adapter, messages, middleware: [watcher] }),
     )
     expect(calls).toHaveLength(1)
     expect(types(chunks)).toEqual([EventType.RUN_STARTED, EventType.RUN_ERROR])
@@ -290,7 +333,7 @@ describe('ctx.retry() in onModelError', () => {
       },
     })
     const chunks = await collectChunks(
-      chat({ adapter, messages, middleware: [always] }),
+      chat({ threadId: 'thread-1', adapter, messages, middleware: [always] }),
     )
     expect(calls).toHaveLength(3)
     // The hook still sees the last error, but it does not retry.
@@ -322,7 +365,7 @@ describe('ctx.retry() in onModelError', () => {
       },
     })
     const chunks = await collectChunks(
-      chat({ adapter, messages, middleware: [retrier] }),
+      chat({ threadId: 'thread-1', adapter, messages, middleware: [retrier] }),
     )
     expect(called).toBe(false)
     expect(calls).toHaveLength(1)
@@ -342,7 +385,9 @@ describe('ctx.retry() in onModelError', () => {
         }
       },
     })
-    await collectChunks(chat({ adapter, messages, middleware: [early] }))
+    await collectChunks(
+      chat({ threadId: 'thread-1', adapter, messages, middleware: [early] }),
+    )
     expect(thrown).toBeInstanceOf(Error)
   })
 })

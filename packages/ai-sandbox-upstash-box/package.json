@@ -1,6 +1,6 @@
 {
   "name": "@tanstack/ai-sandbox-upstash-box",
-  "version": "0.2.0",
+  "version": "1.0.0",
   "description": "Upstash Box sandbox provider for TanStack AI — run harness adapters inside isolated Upstash Box cloud sandboxes through the uniform SandboxHandle.",
   "author": "",
   "license": "MIT",

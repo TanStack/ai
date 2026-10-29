@@ -98,7 +98,6 @@ describe('OpenAI transcription usage', () => {
       completionTokens: 0,
       totalTokens: 0,
       billed: { quantity: 12.5, unit: 'seconds' },
-      durationSeconds: 12.5,
     })
   })
 })

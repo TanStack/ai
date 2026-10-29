@@ -1,6 +1,10 @@
 import OpenAI from 'openai'
 import { buildBaseUsage } from '@tanstack/ai'
-import { BaseEvaluateAdapter } from '@tanstack/ai/adapters'
+import {
+  BaseEvaluateAdapter,
+  EVALUATE_REFUSAL_CODE,
+  EvaluateError,
+} from '@tanstack/ai/adapters'
 import { toRunErrorPayload } from '@tanstack/ai/adapter-internals'
 import { getOpenAIApiKeyFromEnv } from '../utils/client'
 import type {
@@ -71,7 +75,7 @@ function toDecisionQuestion(
   }
 }
 
-function toWireAnswer(answer: DecisionAnswer, name: string): WireAnswer {
+function toWireAnswer(answer: DecisionAnswer): WireAnswer | undefined {
   switch (answer.type) {
     case 'predicate':
       return { type: 'noul', noul: answer.probability }
@@ -97,7 +101,7 @@ function toWireAnswer(answer: DecisionAnswer, name: string): WireAnswer {
         confidence: answer.confidence,
       }
     case 'refusal':
-      throw new Error(`OpenAI declined to answer question "${name}"`)
+      return undefined
   }
 }
 
@@ -144,22 +148,35 @@ export class OpenAIEvaluateAdapter<
       // Answers come back in question order. `name` is null only for
       // unnamed questions, and we always send names. Object.fromEntries keeps
       // a question named "__proto__" as an own key.
+      const refused: Array<string> = []
       const answers: Record<string, WireAnswer> = Object.fromEntries(
-        decision.answers.map((answer, index) => {
+        decision.answers.flatMap((answer, index) => {
           const name = answer.name ?? questionKeys[index] ?? String(index)
-          return [name, toWireAnswer(answer, name)]
+          const wire = toWireAnswer(answer)
+          if (!wire) {
+            refused.push(name)
+            return []
+          }
+          return [[name, wire]]
         }),
       )
+      const usage = buildBaseUsage({
+        promptTokens: decision.usage.input_tokens,
+        completionTokens: decision.usage.output_tokens,
+        totalTokens: decision.usage.total_tokens,
+      })
 
-      return {
-        model: decision.model,
-        answers,
-        usage: buildBaseUsage({
-          promptTokens: decision.usage.input_tokens,
-          completionTokens: decision.usage.output_tokens,
-          totalTokens: decision.usage.total_tokens,
-        }),
+      if (refused.length > 0) {
+        throw new EvaluateError({
+          message: `OpenAI declined to answer question "${refused[0]}"`,
+          code: EVALUATE_REFUSAL_CODE,
+          usage,
+          model: decision.model,
+          answers,
+        })
       }
+
+      return { model: decision.model, answers, usage }
     } catch (error) {
       // toRunErrorPayload keeps request headers (and the API key) out of logs.
       logger.errors(`${this.name}.evaluate fatal`, {

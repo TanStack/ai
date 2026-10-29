@@ -61,7 +61,7 @@ function clientOptions(config: CloudflareTextConfig): ClientOptions {
     return {
       // The binding authenticates by itself; the SDK only requires a value.
       apiKey: 'cloudflare-binding',
-      fetch: createBindingFetch(config.binding, config.gateway),
+      fetch: createBindingFetch(config),
     }
   }
   const {
@@ -165,7 +165,8 @@ export class CloudflareTextAdapter<
   protected override extractReasoning(
     chunk: ChatCompletionChunk,
   ): { text: string } | undefined {
-    const delta = chunk.choices[0]?.delta as
+    // A usage-only trailer has no `choices`.
+    const delta = chunk.choices?.[0]?.delta as
       | { reasoning?: unknown; reasoning_content?: unknown }
       | undefined
     const raw = delta?.reasoning_content ?? delta?.reasoning

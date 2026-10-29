@@ -1,6 +1,12 @@
 import { GenerationClient } from '@tanstack/ai-client'
 import { createGenerationDevtoolsBridge } from '@tanstack/ai-client/devtools'
-import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useSyncExternalStore,
+} from 'react'
 import type { StreamChunk } from '@tanstack/ai'
 import type {
   AIDevtoolsClientMetadata,
@@ -9,7 +15,6 @@ import type {
   GenerationClientOptions,
   GenerationClientState,
   GenerationFetcher,
-  GenerationPersistenceOptions,
   GenerationRestoredResult,
   InferGenerationOutputFromReturn,
 } from '@tanstack/ai-client'
@@ -56,11 +61,10 @@ export interface UseGenerationOptions<TInput, TResult, TOutput = TResult> {
    * `` `video-${videoId}-start-frame` ``). It is also sent as the AG-UI thread
    * id on the wire, which the protocol requires.
    *
-   * **Required whenever `persistence` is set** — an app that cannot name the
-   * scope has nothing to restore to. Optional for ephemeral generations. If
-   * omitted, the client mints a wire id after mount.
+   * Required. A generated id would change on every reload, so persistence
+   * would restore nothing.
    */
-  threadId?: string
+  threadId: string
   /**
    * Server-driven hydration handler for `persistence: true` when the
    * connection doesn't carry one (e.g. alongside `fetcher`, or a `stream()` /
@@ -160,12 +164,9 @@ export function useGeneration<
   TResult,
   TTransformed = void,
 >(
-  options: Omit<
-    UseGenerationOptions<TInput, TResult>,
-    'onResult' | 'persistence' | 'threadId'
-  > & {
+  options: Omit<UseGenerationOptions<TInput, TResult>, 'onResult'> & {
     onResult?: (result: TResult) => TTransformed
-  } & GenerationPersistenceOptions,
+  },
 ): UseGenerationReturn<
   InferGenerationOutputFromReturn<TResult, TTransformed>,
   TInput
@@ -187,28 +188,15 @@ export function useGenerationWithDevtoolsIdentity<
   TResult,
   TTransformed = void,
 >(
-  options: Omit<
-    UseGenerationOptions<TInput, TResult>,
-    'onResult' | 'persistence' | 'threadId'
-  > & {
+  options: Omit<UseGenerationOptions<TInput, TResult>, 'onResult'> & {
     onResult?: (result: TResult) => TTransformed
-  } & GenerationPersistenceOptions,
+  },
   devtoolsIdentity: GenerationDevtoolsIdentity,
 ): UseGenerationReturn<
   InferGenerationOutputFromReturn<TResult, TTransformed>,
   TInput
 > {
   type TOutput = InferGenerationOutputFromReturn<TResult, TTransformed>
-  const hookId = useId()
-  // The hook identity is `threadId`. `hookId` is only a React recreation key.
-  const clientIdentity = options.threadId ?? hookId
-
-  const [result, setResult] = useState<TOutput | null>(null)
-  const [isLoading, setIsLoading] = useState(false)
-  const [error, setError] = useState<Error | undefined>(undefined)
-  const [status, setStatus] = useState<GenerationClientState>('idle')
-  const [runId, setRunId] = useState<string | null>(null)
-
   const optionsRef = useRef(options)
   optionsRef.current = options
   const disposedRef = useRef(false)
@@ -220,10 +208,9 @@ export function useGenerationWithDevtoolsIdentity<
     // local source is `Record<string, any> | undefined`). Callbacks
     // wrap optional ones in non-returning bodies so `?.()`'s
     // implicit `undefined` doesn't pollute the function return type.
-    const clientOptions: Omit<
-      GenerationClientOptions<TInput, TResult, TOutput>,
-      'persistence' | 'threadId'
-    > = {
+    const clientOptions: GenerationClientOptions<TInput, TResult, TOutput> = {
+      persistence: opts.persistence,
+      threadId: opts.threadId,
       body: opts.body,
       ...(opts.hydrateGeneration !== undefined && {
         hydrateGeneration: opts.hydrateGeneration,
@@ -258,37 +245,11 @@ export function useGenerationWithDevtoolsIdentity<
       onChunk: (c: StreamChunk) => {
         if (!disposedRef.current) optionsRef.current.onChunk?.(c)
       },
-      onResultChange: (r) => {
-        if (!disposedRef.current) setResult(r)
-      },
-      onLoadingChange: (l) => {
-        if (!disposedRef.current) setIsLoading(l)
-      },
-      onErrorChange: (e) => {
-        if (!disposedRef.current) setError(e)
-      },
-      onStatusChange: (s) => {
-        if (!disposedRef.current) setStatus(s)
-      },
-      onResumeStateChange: (rs) => {
-        if (!disposedRef.current) setRunId(rs?.runId ?? null)
-      },
     }
-
-    const persistenceProps =
-      typeof opts.threadId === 'string' && opts.persistence
-        ? {
-            persistence: opts.persistence,
-            threadId: opts.threadId,
-          }
-        : {
-            ...(opts.threadId !== undefined && { threadId: opts.threadId }),
-          }
 
     if (opts.connection) {
       return new GenerationClient<TInput, TResult, TOutput>({
         ...clientOptions,
-        ...persistenceProps,
         connection: opts.connection,
       })
     }
@@ -296,7 +257,6 @@ export function useGenerationWithDevtoolsIdentity<
     if (opts.fetcher) {
       return new GenerationClient<TInput, TResult, TOutput>({
         ...clientOptions,
-        ...persistenceProps,
         fetcher: opts.fetcher,
       })
     }
@@ -304,7 +264,13 @@ export function useGenerationWithDevtoolsIdentity<
     throw new Error(
       'useGeneration requires either a connection or fetcher option',
     )
-  }, [clientIdentity, hookId])
+  }, [options.threadId])
+
+  const snapshot = useSyncExternalStore(
+    client.subscribe,
+    client.getSnapshot,
+    client.getSnapshot,
+  )
 
   // Sync body changes without recreating client
   useEffect(() => {
@@ -344,12 +310,12 @@ export function useGenerationWithDevtoolsIdentity<
 
   return {
     generate,
-    result,
-    isLoading,
-    error,
-    status,
+    result: snapshot.result,
+    isLoading: snapshot.isLoading,
+    error: snapshot.error,
+    status: snapshot.status,
     stop,
     reset,
-    runId,
+    runId: snapshot.runId,
   }
 }

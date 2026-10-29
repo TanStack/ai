@@ -205,6 +205,7 @@ async function runToolResult(
   const pendingEvents: Array<CustomEvent> = []
   const context: ToolExecutionContext<unknown> = {
     toolCallId,
+    threadId: 'thread-1',
     context: undefined,
     // Mirrors the chat() closure: stamps toolCallId, pushes a CUSTOM chunk.
     emitCustomEvent: (eventName, value) => {

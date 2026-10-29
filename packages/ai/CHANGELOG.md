@@ -1,5 +1,329 @@
 # @tanstack/ai
 
+## 1.0.0
+
+### Major Changes
+
+- [#1840](https://github.com/TanStack/ai/pull/1840) [`f1b3f65`](https://github.com/TanStack/ai/commit/f1b3f65a59fb75116bd52abbb162cab8c763d10e) - TanStack AI 1.0.0. This release removes every API that was deprecated in 0.x. Read the upgrade guide before you upgrade: https://tanstack.com/ai/latest/docs/migration/v1
+  - Removed all `@deprecated` exports, options, fields, and type aliases. Each one has a replacement that already shipped in 0.x.
+  - Removed `addToolApprovalResponse()` from `ChatClient` and every chat hook. Resolve the bound `tool-approval` interrupt with `resolveInterrupt` instead. The devtools event `tools:approval:responded` is also removed.
+  - Removed the old wire formats: the CUSTOM `approval-requested` and `tool-input-available` events, the `[DONE]` SSE line, the `data` copy of `forwardedProps`, pre-binding interrupt descriptors and their `approval_required` and `client_tool_input` reasons, and the STEP events that adapters sent next to `REASONING_*` events. Use a 1.0 client with a 1.0 server.
+  - Removed the `toolName` alias from `TOOL_CALL_START` chunks. Read `toolCallName` instead.
+  - `threadId` is now required on `useChat` and every other chat hook, `ChatClient`, the generation hooks and clients, `chat()`, `summarize()`, the generation functions, `codeModeWithSnippets()`, `selectRelevantSnippets()`, `CompactionContext`, and `SummarizeInput`. TanStack AI no longer makes a thread id for you. Pass a stable id for each conversation. `createChatHook` factory options no longer take `threadId`: pass it on each hook call. Octane generation hooks take `threadId` instead of `id`. `@tanstack/ai-sandbox` removes `resolveDurableThreadId` and `DurableThreadIdRequiredError`.
+  - The published `@tanstack/ai-octane/ui` types are now strict. `UI.Messages`, `UI.Message`, `UI.Part`, and `UI.Interrupts` type their render children. `ToolProps` types `part.input` and `part.output` for the named tool. `toolsComponents` and `interruptsComponents` are required when the chat options declare tools or named interrupts. Code that relied on the old loose types can fail to compile.
+  - A connection adapter's `connect()` and `send()` need the run context (with `threadId`) as their fourth argument. `ChatClient` and the generation clients pass it.
+  - `@tanstack/ai-sandbox`: `createToolBridgeCore()`, `startHostToolBridge()`, a `ToolBridgeProvisioner`, and `executeHostTool()` take a required `threadId`. Bridged tools get it in their context.
+  - `@tanstack/ai-sandbox`: the harness tool bridge and `executeHostTool()` refuse a tool with `needsApproval`. Before, the tool ran with no approval. Remove `needsApproval`, or run the tool with an HTTP adapter.
+  - `stream()` and `rpcStream()` pass the AG-UI `RunAgentInput` for the run as the fourth factory argument, the same body the HTTP adapters send. Read it on the server with `chatParamsFromRequestBody()` or `generationParamsFromBody()`, so `threadId`, `runId`, and interrupt `resume` reach a server function. `RunAgentInput` is exported from `@tanstack/ai/client`.
+  - A generation `fetcher` gets `threadId` and `runId` in its second argument, next to `signal` and `headers`. Pass them to the server generation call.
+  - `generationParamsFromBody()` and `generationParamsFromRequest()` read the generation input from `forwardedProps`. A server that reads `body.data` gets `undefined`. Read `body.forwardedProps` instead. They also require `threadId` and `runId` and return them as strings, the same as `chatParamsFromRequestBody()` and the AG-UI `RunAgentInput`. A body that holds only the input is rejected.
+  - Removed the readers for data saved in old 0.x formats (old Cloudflare run-log records, a bare `UIMessage[]` from client persistence, artifact records without `blobKey`).
+  - Removed provider models that are shut down.
+  - `@tanstack/ai-react-ui`, `@tanstack/ai-solid-ui`, and `@tanstack/ai-vue-ui` get no 1.0 release. Import from `@tanstack/ai-react/ui`, `@tanstack/ai-solid/ui`, or `@tanstack/ai-vue/ui`.
+
+### Minor Changes
+
+- [#1743](https://github.com/TanStack/ai/pull/1743) [`959f43e`](https://github.com/TanStack/ai/commit/959f43e4b11112f2c097f642bdec34d8d0f83e27) - Add `EvaluateError`, a typed error an evaluate adapter throws when the provider answered but the call cannot become a result. `@tanstack/ai` and `@tanstack/ai/adapters` export the class, the `isEvaluateError()` type guard, the `EvaluateErrorInit` type and `EVALUATE_REFUSAL_CODE`. The error keeps what the provider sent back:
+  - `code`: a stable code to branch on. A refused question uses `EVALUATE_REFUSAL_CODE` (`'refusal'`).
+  - `usage`: the tokens the call used.
+  - `model`: the model that answered.
+  - `answers`: the raw wire answers that came back, before `decide()` maps them. A `choice()` answer has `choice` (for example `{ type: 'choice', choice: 'billing', ... }`), and a `boolean()` answer is `{ type: 'noul', noul: 0.9 }`, not `{ value }`. The refused question has no key.
+
+  When OpenAI refuses to answer a question, `decide()` now throws an `EvaluateError` with `code: 'refusal'` instead of a plain `Error`. If more than one question is refused, the message names the first one.
+
+  Use `isEvaluateError(error)` to narrow a caught error. It checks `name` and `code`, not `instanceof`, so it still works when the app installs more than one copy of `@tanstack/ai`.
+
+  When an adapter throws an `EvaluateError` that carries `usage`, `decide()` reports that usage through the `evaluate:usage` event and the middleware `onUsage` hook, then runs `onError` and rethrows the same error. `onFinish` does not run.
+
+  ```ts
+  try {
+    await decide({ adapter, state, questions })
+  } catch (error) {
+    if (isEvaluateError(error) && error.code === EVALUATE_REFUSAL_CODE) {
+      console.log(error.usage, error.answers)
+    }
+    throw error
+  }
+  ```
+
+  The message text does not change. The error is still an `Error`, but its `name` is now `'EvaluateError'`, so logs and the OpenTelemetry `error.type` show that name instead of `'Error'`.
+
+- [#1806](https://github.com/TanStack/ai/pull/1806) [`468063c`](https://github.com/TanStack/ai/commit/468063c07cd904be97b154b415163c23510834b2) - Fix `withPersistence` failing to resume an interrupt of a subagent tool call with `Tool <name> is unavailable for interrupt <id>.` The parent run now leaves interrupts its child answers to the child, using the new `ctx.childResumeIds` on the middleware context, and still commits them once the run succeeds.
+
+  With `withPersistence`, the resume of a child is server-authoritative:
+  - The stored interrupt records decide which interrupts a child owns. A resume whose subagent cards claim other interrupts fails with `InterruptResumeValidationError`.
+  - The child resumes from its stored messages, not from the card the client sent back. `LoadChild` results get an optional `pending` field for this. A middleware that provides `loadChild` must set `pending` for a waiting child, or the agent tool does not resume it.
+
+- [#1880](https://github.com/TanStack/ai/pull/1880) [`781a3a8`](https://github.com/TanStack/ai/commit/781a3a82c870e246deff23c7aca32094e9aaaf2f) - Put the provider error type and the request id on `RUN_ERROR`. The Anthropic adapter and the adapters built on `@tanstack/openai-base` set `errorType` (for example `overloaded_error`) and `requestId` (from the SDK error or the `request-id` / `x-request-id` header). `chat()` moves both to `metadata.tanstack`, so the client gets them too. `code` stays the HTTP status. Adapter authors can read both values with `toRunErrorDetails` from `@tanstack/ai/adapter-internals`.
+
+- [#1883](https://github.com/TanStack/ai/pull/1883) [`39abb7e`](https://github.com/TanStack/ai/commit/39abb7ed172b4357bc04a39fc6cf7c3577f77cf3) - Core support for the harness: subagent binding options, the `onGuardToolCall` hook, server-side BYOK keys, harness tool runs, checked streamed `outputSchema` results, and resume fixes.
+
+  Add the harness asks from the fifth findings list.
+  - `chat({ outputSchema, stream: true })` now checks the full result against a Standard Schema. A failure ends with `RUN_ERROR` `structured-output-validation-failed`, with the model text in `metadata.tanstack.rawText`.
+  - `session.send(prompt, { outputSchema })` gives the turn a typed `structured` value. It is per send only, and the HTTP handler does not take it.
+  - A server tool reads run capabilities with `context.get(capability)` and `context.getOptional(capability)`, for example the sandbox under `withSandbox`.
+  - Readers keep the full history after a durable compaction. `session.transcript()`, `GET transcript`, and the chat hydration show every message. The model still gets the compacted context.
+  - `createHarnessHost({ acceptInput })` sees each input after the access check and before the log keeps it. It can change the input or refuse it.
+  - A plugin `adapter()` pick with `override: true` wins over the stored thread model.
+  - `onModelError` can return `{ retry: true, adapter }` to retry on another model. `ModelErrorContext` has `adapter` and `model`.
+  - Middleware reads `ctx.context.run.source` and `label` to tell a turn call from a plugin, router, or transfer call.
+  - `host.sessions.archive()` and `unarchive()`. Lists hide archived threads unless you pass `withArchived: true`.
+  - `host.sessions.eraseUser({ harness, threadId, userId, replies })` replaces one person's messages with `[removed]`, deletes their media, and cuts the log before a new snapshot. The new `erase` access action guards it.
+  - `HarnessRecord` is exported, for a typed `LogStore` wrapper.
+  - Coding-tool file calls pass their abort signal through `WorkspaceBackend` to the sandbox.
+  - `withCompaction` limits (`maxTokens`, `contextWindow`, `background.atTokens`) can be a function of `{ model }`.
+
+  Run a harness tool with no model turn, add host records from a client, and add a per-run system preamble.
+  - `session.runTool({ name, args?, meta?, inputId?, user? })` runs one harness tool with no model
+    turn, for example from a schedule or a webhook. The call goes through the
+    same middleware, input check, and `permissions()` rules as a model call, and
+    the call and its result join the transcript. A tool that asks for approval
+    stops the turn with an interrupt. While interrupts wait, the call is refused
+    with `pending_interrupts`. `meta` is echoed as a `tanstack.injection` custom
+    event. `args` is typed from the input schema of a harness tool.
+  - `expose.tools` lists the harness tools a client may run with a
+    `{ op: 'tool', name, args?, meta? }` input, or with the new
+    `client.runTool({ name, args?, meta?, inputId? })`. The list is typed from the harness
+    `tools`, and `defineHarness` throws for a name that is not in `tools`. Any
+    other tool is refused with `not_exposed`. The capabilities document marks
+    each tool with `exposed`.
+  - `expose.records` lists the host record types a client may add with an
+    `{ op: 'append', records }` input, or with the new `client.appendRecords({ records })`.
+    A record of another type, or with a `thread` field, is refused with
+    `not_exposed`. The session log keeps the records.
+  - `createHarnessMcpServer` adds a `tool_<name>` tool for each tool in
+    `expose.tools`, and an `append` tool when `expose.records` has types. A tool
+    input with its own `threadId` field throws when the server is created,
+    because MCP uses `threadId` to pick the thread.
+  - `session.send(message, { systemPreamble })` prepends per-run, server-only
+    system prompts ahead of the harness's own system prompts (for example
+    host-provided memory). A client input cannot set them.
+  - A tool call in a harness turn gets `threadId` and `runId` in its execution
+    context. `ToolExecutionContext` in `@tanstack/ai` has the two new optional
+    fields for a host to set.
+
+  A host can add fields to the `ctx` an agent's `run` gets.
+  - `subagents.binding.extend(ctx)` returns the fields to add. A child's `ctx.chat({ subagents })` passes it down, so the fields reach nested children too.
+  - `SubagentContextExtension` is an empty interface that `SubagentRunContext` includes. A package augments it to type its fields, for example `ctx.harness` from `@tanstack/ai-harness`. Make each field optional, because a run that a plain `chat()` starts has no host.
+
+  Add `interrupts` to `SubagentBinding`.
+  - A host sets `binding.interrupts` to give interrupt definitions to every `ctx.chat` call of an agent run. Then the host middleware in `chatMiddleware` can stop the child with these interrupts.
+  - The own `interrupts` of the call win. When a host definition has the same id as one of the call, the host definition is not added.
+  - A child's `ctx.chat({ subagents })` passes the definitions on to its own children.
+  - A plain `chat()` call does not get them.
+
+  Add `lastChatMiddleware` to `SubagentBinding`. It runs after the own middleware of each `ctx.chat` call of an agent run, so it sees the final model context and tool results. A child's `ctx.chat({ subagents })` passes it on, after the child's own.
+
+  Add `validateJsonSchema(schema, value)`. It checks a value against a JSON Schema with `@cfworker/json-schema`, as a tool input is checked, but with no repair. The result has the Standard Schema shape: `{ value }` or `{ issues }`. The root also exports the `StandardSchemaV1` and `StandardJSONSchemaV1` types.
+
+  An agent `run` that throws the shape of `MCPInputRequiredError` (`name`, `kind`, `request`) stops the child as `suspended`, as a tool does, and the parent run stops with its interrupt. The interrupt has a generic binding and no tool call. Its id is the `interruptId` of the thrown value, else `mcp_input_<subagentRunId>`, and its message is the error message. The resume runs the child again, and `ctx.resume` has the answer.
+
+  Add `SubagentBinding.debug`, the `debug` option for the model calls of child agents that set no `debug` of their own.
+
+  Add the `onGuardToolCall` middleware hook for checks that must always run, such as permissions.
+  - It runs for every tool call, after all `onBeforeToolCall` hooks and after the `inputSchema` check. `hookCtx.args` holds the final checked arguments that the tool gets.
+  - The guard of every middleware runs, in order, until one returns a decision. An earlier `onBeforeToolCall` decision does not skip it.
+  - Return `{ type: 'skip', result }` to deny the call. The tool does not run, and the model gets `result`, the same as an `onBeforeToolCall` skip. Return `{ type: 'abort', reason }` to abort the run.
+  - It runs before a server tool runs and before a client tool goes to the client. A guard cannot change the arguments.
+  - The new `GuardToolCallDecision` type is exported.
+
+  BYOK keys can now live on the server. `@tanstack/ai/byok` exports the `CredentialStore` contract, the `Credential` and `CredentialScope` types, and `defineCredentialStore`. A `CredentialScope` has `tenantId` and `userId`. Its `threadId` is optional, and a store ignores it. `@tanstack/ai/byok/server` adds:
+  - `storedProviderKeys(store, scope)`: provider keys from the `api_key` credentials of a user, then of the tenant, then the provider's `env` names. Pass `keys.adapter(...)` to `chat()` and `keys.get` to `subagents.keys`.
+  - `readCredential(store, scope, id)`: one credential, the user's own first, then the tenant's. A user with no tenant reads only their own.
+  - `tenantScopeOf(scope)`: the tenant scope of a user scope, or `undefined` when the scope has no user or no tenant.
+  - `memoryCredentialStore()`: a store in memory, for development and tests.
+  - `envKeyEntry(provider)`: the first `provider.env` name that is set, with its value.
+  - `readCredentialEntry(store, scope, id)`: reads a credential like `readCredential`. It also tells you which scope had the credential (the user or the tenant), and gives its revision when the store has `getVersioned`.
+
+  `CredentialStore` has two optional methods for compare-and-set writes, `getVersioned` and `setIf`, with the same shape as the pair on `MetadataStore`. A store without them still works. `memoryCredentialStore` has both.
+
+  Keep the store in your own database or in a secrets manager, and encrypt the secrets at rest. An `oauth` credential can keep the OAuth `client` it was issued to. `list` never returns secret values.
+
+  `scrubSecrets` from `@tanstack/ai/byok` now also removes the JSON-escaped and URL-encoded forms of each secret. It skips a secret that is shorter than 6 characters, so a short value does not remove common words.
+
+  `Credential` has a new type, `secret_answer` (`{ value, expiresAt }`). The harness keeps a secret answer to a question there for a short time and deletes it once read. Leave this type out of a list of connected accounts. `memoryCredentialStore().list` returns its `expiresAt`.
+
+  Approved edits to tool arguments stay raw until the final input check.
+  - `@tanstack/ai`: a resume no longer rejects approved `editedArgs` that do not fit the tool's `inputSchema`. The edit goes through `onBeforeToolCall` and the final input check, like the model's arguments. If it still does not fit, the approval is used, the tool does not run, and the model gets the input error as the tool result. The transcript keeps the approved edit as it was sent, but only when the call passed the check.
+  - `@tanstack/ai-persistence`: `withPersistence` binds the client-tool phase of an approved tool call to its approval. After a restart, the client result resumes with the approval that came before it, and a stale or missing approval fails the resume.
+
+  A nested subagent that waits on an interrupt now continues after the resume under `withPersistence`. Before, it ran again from its prompt. Core rebuilds the card of the nested child from the store and takes only its id from the client card. `LoadChild` takes an optional `parentSubagentRunId`, and returns `interruptIds` and `parentToolCallId`.
+
+  `chat()` asks the middleware `onShouldContinue` after it runs the pending tool calls of a resume, before the next model call. A middleware that returns `false` there ends the run with no more model calls. The loop strategy is not asked at that point.
+
+  `WebSocketLike` has an optional `bufferedAmount`. A server can read it to stop sending to a slow socket. A socket without it works as before.
+
+### Patch Changes
+
+- [#1846](https://github.com/TanStack/ai/pull/1846) [`fcbd199`](https://github.com/TanStack/ai/commit/fcbd199a66b553acef0b81bc76c4b4acd7fde6a9) - Apply `ACTIVITY_SNAPSHOT` and `ACTIVITY_DELTA` events that chat middleware adds to `ctx.activities`, so `withPersistence` saves them and `reconstructChat` restores their activity rows. A middleware that passes on an adapter activity event, or an exact copy of it, does not apply it twice.
+
+- [#1755](https://github.com/TanStack/ai/pull/1755) [`39c1c79`](https://github.com/TanStack/ai/commit/39c1c79dc9b6c21329f659d9b4ba6968e9496983) - Fix recovery, cancel, steer, and provider bugs, and fill small harness gaps.
+  - Recovery: a resolve that another host recovers runs its continuation. Before, it settled `completed` with no answer.
+  - Approvals: a tool that a middleware adds in `onConfig` can now be approved. `chat()` checks a durable resume after the whole `onConfig` chain.
+  - Cancel: a cancelled turn keeps the text it streamed, and ends with `TEXT_MESSAGE_END` and `RUN_FINISHED` (`outcome: cancelled`). A turn that times out ends with `RUN_ERROR` (`code: 'timeout'`).
+  - Steer: a steer from another sender gets a `queued` receipt with its own operation. `host.events()` shows `idle` after a turn that a steer joined.
+  - The duplicate-input check no longer depends on the key order of the stored input.
+  - `TurnInfo` has `model`, `attempt`, and `sender`. The log keeps the sender's `name`. `harness.input.accepted` carries the message. The chat hydration has `pendingWaits`. `ObservedSession.settled()` reads a settlement with no open session. Another host's `snapshot().plugins` shows the saved plugin state.
+  - New options: `subagents.background: false`, `media.urlTtlMs`, `conversationSummarizer({ middleware })`, and the `beforeWrite` workspace hook, which can refuse a write.
+  - Plugin model calls (`ctx.model.chat`) run the harness middleware.
+  - Exports: `SHUTDOWN_REASON`, `BUDGET_REASON`, and `RUN_CANCEL_REASON` from `@tanstack/ai-harness`, `HARNESS_EVENTS` from `@tanstack/ai-harness/client`, and `ChatHydrateOptions` and `ChatHydrationResult` from `@tanstack/ai-client`.
+  - Compaction drops a background summary that another model prepared.
+  - Sandbox file calls take an optional `{ signal }`.
+  - Anthropic: `outputSchema` moves keywords that Anthropic rejects into `description`, usage reports 1-hour cache writes as `cacheWrite1hTokens` again, and `reasoning` on a model with no reasoning entry warns once.
+  - OpenAI Responses: a message whose model call sent a reasoning item is marked with `metadata.tanstack.reasoningItem`. A replay of that message without its reasoning item no longer sends its `msg_` and `fc_` ids.
+  - Cloudflare: a `data:` line with no `choices` no longer throws, and the SSE fix-up accepts `data:` with no space, CRLF line ends, and any case in the content type.
+  - Structured output: a schema failure carries `rawText`, and a parse failure has the code `structured-output-parse-failed`.
+  - `ChatClient.addToolResult` answers the interrupt when the tool's schemas differ, so the result is sent.
+  - The persistence conformance suite no longer fails a correct store on a slow runner.
+
+- [#1869](https://github.com/TanStack/ai/pull/1869) [`fa2a291`](https://github.com/TanStack/ai/commit/fa2a291f5526f6dec9a91fe5b71de15dfaf59ec7) - Accept a missing `midConversationChannels` value on text adapters when `exactOptionalPropertyTypes` is on. `chat()` can take `fakeText()` and the provider text adapters again.
+
+- [#1851](https://github.com/TanStack/ai/pull/1851) [`f7e7cce`](https://github.com/TanStack/ai/commit/f7e7cce8f2d543a7480b626b7985417e054bfd8d) - Add `@tanstack/ai-neon` for the Neon AI Gateway: `neonText` sends Claude to the Anthropic Messages route, codex and `*-pro` models to the Responses route, and every other model to Chat Completions, with `neonEmbedding` and `neonSummarize`. `@tanstack/openai-base` gets a `streamOptions(model)` hook, so a Chat Completions backend that rejects `stream_options` can leave it out.
+
+- [#1805](https://github.com/TanStack/ai/pull/1805) [`7a0a48b`](https://github.com/TanStack/ai/commit/7a0a48bac8b531a90e768c87cb645da2fc8d3f31) - Middleware can read `ctx.callMetadata`, the `metadata.tanstack` of the current model call. Each assistant message of the call gets a copy of it.
+
+  With `snapshotStreaming`, `withPersistence` now stores `ctx.callMetadata` on snapshot rows, so a stopped or failed row has the same metadata as a finished one. A stopped or failed row no longer stores other chunk metadata, such as the durability batch hint of `ctx.emitCustomEvent(name, value, { batch: true })`.
+
+- [#1868](https://github.com/TanStack/ai/pull/1868) [`fe83aa0`](https://github.com/TanStack/ai/commit/fe83aa05fe2346c50693664d4a4896d4fc1fea5a) - Remove model ids that providers have retired. Each one now fails on the provider's API, so the types no longer accept it.
+  - Groq: `llama-3.3-70b-versatile`, `llama-3.1-8b-instant`, `meta-llama/llama-4-maverick-17b-128e-instruct`, `meta-llama/llama-4-scout-17b-16e-instruct`, `meta-llama/llama-guard-4-12b`, `moonshotai/kimi-k2-instruct-0905`, `qwen/qwen3-32b`. Adds `qwen/qwen3.8-27b`.
+  - Mistral: `pixtral-large-latest`, `pixtral-12b-2409`, `open-mistral-nemo`.
+  - OpenAI: `chatgpt-4o-latest`, `codex-mini-latest`, `gpt-4o-audio`, `gpt-4o-mini-audio`, `gpt-5.6`, `dall-e-2`, `dall-e-3`, `computer-use-preview`. The speech model `gpt-4o-audio-preview` is replaced by `gpt-4o-mini-tts`.
+  - Anthropic: `claude-opus-4-1`, `claude-opus-5-fast`.
+  - Gemini: `imagen-4.0-generate-001`, `imagen-4.0-ultra-generate-001`, `imagen-4.0-fast-generate-001`.
+
+  Types and helpers that only served those models are removed:
+  - `@tanstack/ai-gemini`: `GeminiImageProviderOptions`, `GeminiAnyImageProviderOptions`, `GeminiAspectRatio`, `PersonGeneration`, `SafetyFilterLevel`, `ImagePromptLanguage`, `GEMINI_NATIVE_IMAGE_MODELS`, `isGeminiNativeImageModel`. Every Gemini image model uses `GeminiNativeImageProviderOptions`.
+  - `@tanstack/openai-base`: `OpenAIComputerToolName`. `resolveComputerUseTool(tool)` no longer takes a model.
+  - `@tanstack/ai-openai`: the dall-e option and size types.
+
+- Updated dependencies [[`39c1c79`](https://github.com/TanStack/ai/commit/39c1c79dc9b6c21329f659d9b4ba6968e9496983), [`39c1c79`](https://github.com/TanStack/ai/commit/39c1c79dc9b6c21329f659d9b4ba6968e9496983), [`f1b3f65`](https://github.com/TanStack/ai/commit/f1b3f65a59fb75116bd52abbb162cab8c763d10e)]:
+  - @tanstack/ai-utils@1.0.0
+  - @tanstack/ai-event-client@1.0.0
+
+## 0.71.0
+
+### Minor Changes
+
+- [#1837](https://github.com/TanStack/ai/pull/1837) [`824ee98`](https://github.com/TanStack/ai/commit/824ee98060983dd2b5728f288cecefa6a1250325) - Add computer use that runs the same code on OpenAI and on Anthropic. A driver controls the machine. The Playwright and sandbox drivers give each thread its own machine.
+
+  New packages:
+  - `@tanstack/ai-computer-use` adds `createComputerUse()`. It returns `tools`, a middleware, a safety-check interrupt, and `close`. Each `threadId` gets its own machine, action queue, and approvals. A thread that stays idle for `idleTimeout` (10 minutes by default) closes.
+  - `@tanstack/ai-computer-playwright` adds `playwrightComputer()`, which opens one browser page for each thread. `createPlaywrightComputerDriver()` controls one page that you give it. Both add a `navigate` tool that opens `http:` and `https:` URLs.
+  - `@tanstack/ai-computer-sandbox` adds `sandboxComputer()`, which creates one Linux desktop sandbox for each thread from any `@tanstack/ai-sandbox` provider, like `e2bSandbox({ template: 'desktop' })`. `createSandboxComputerDriver()` controls one sandbox that you give it.
+  - `@tanstack/ai-computer-local` adds `localComputer()`, which lets the model use the mouse, keyboard, and main screen of the machine that runs `chat()`. It works on Windows, macOS, and Linux with `@jitsi/robotjs`.
+
+  Changes in existing packages:
+  - `@tanstack/ai` adds `threadId` to `ToolExecutionContext`. It also adds the computer tool metadata reader in `@tanstack/ai/adapter-internals`.
+  - `@tanstack/ai-anthropic` and `@tanstack/openai-base` send the generic computer tool to the model as the native computer tool of the provider.
+  - `@tanstack/ai-openai` marks the models that support the `computer` tool.
+
+  ```ts
+  const computerUse = createComputerUse({
+    driver: playwrightComputer({ startUrl: 'https://tanstack.com' }),
+  })
+
+  chat({
+    adapter,
+    messages,
+    threadId,
+    tools: computerUse.tools,
+    middleware: [computerUse.middleware],
+    interrupts: [computerUse.interrupt],
+  })
+
+  await computerUse.close(threadId) // one thread
+  await computerUse.close() // every thread, and the browser
+  ```
+
+  The `ai-core` agent skill routes computer use to `@tanstack/ai-computer-use` and its three drivers.
+
+## 0.70.0
+
+### Minor Changes
+
+- [#1723](https://github.com/TanStack/ai/pull/1723) [`1d0f8f1`](https://github.com/TanStack/ai/commit/1d0f8f11f4e781c4ecc38baa99c30320b593c555) - Subagent limits, and provider keys for agents.
+  - **`subagents.limits`**: `maxDepth`, `maxConcurrent`, `maxCalls`, and `timeoutMs` for the whole tree of children the model starts through tools. The tree shares one budget (`SubagentBudget`), which a child's `ctx.chat({ subagents })` passes on, so a child cannot reset it. A refused start reaches the model as a tool error.
+  - **`subagents.keys`** and **`ctx.keys`** (`ProviderKeys`: `get`, `require`, and `adapter`). Pass an object by provider id, for example `{ openai: userKey }`, or a function, for example `(provider) => getByokKey(request, provider)`. An agent builds a `keyedAdapter` with `await ctx.keys.adapter(adapter)`. A missing key falls back to the provider's `env` names. When there is no key at all, the call throws an error that names the env var. A child's `ctx.chat({ subagents })` passes the keys on to its own children. Keys that the child sets itself win for those providers.
+
+- [#1723](https://github.com/TanStack/ai/pull/1723) [`1d0f8f1`](https://github.com/TanStack/ai/commit/1d0f8f11f4e781c4ecc38baa99c30320b593c555) - A subagent can now return a plain value and call any activity.
+  - `defineAgent`'s `run` can return a promise of any value, such as an image result. The value arrives on `SUBAGENT_FINISHED.result`, and the parent model gets it as the tool result. A very long string inside an object result (for example a base64 image) reaches the parent model as a short note (`compactForModel`). A string result also streams as the child's text. The result of `ctx.chat({ stream: false })` streams like the chat stream.
+  - `run` gets the activities on `ctx` (`ctx.chat`, `ctx.generateImage`, `ctx.generateVideo`, and the rest), which fill in the thread id, a run id, and the abort signal. `ctx.forward` holds the fields for a plain `chat()` call. The optional `produces` field says what an agent makes.
+  - A host can set `subagents.binding` (`SubagentBinding`) to add chat and generation middleware to every activity call of a child. A child's `ctx.chat({ subagents })` passes it down to its own children.
+  - Children inherit the prompt cache retention of the parent call.
+  - The chat middleware context has `subagentName` and `parentSubagentRunId`. `chat()` takes both as options.
+  - `RunRecord` gets optional fields for host sessions (`kind`, `activity`, `agent`, `result`, `artifacts`, `principal`, `leaseOwner`, `leaseExpiresAt`, `checkpoint`). The memory run stores keep them.
+
+- [#1750](https://github.com/TanStack/ai/pull/1750) [`3170517`](https://github.com/TanStack/ai/commit/3170517d1c3faa0c1ee6fb004b8a551978fa2a7b) - Check a raw JSON Schema tool input before the tool runs. This covers plain JSON Schema tools and every MCP tool.
+
+  Behavior change:
+  - A tool with a JSON Schema `inputSchema` now gets a tool error (state `output-error`) when the input does not fit the schema. The tool does not run. Before, any input ran.
+  - The check runs at the same place as the Standard Schema check: after approval edits and middleware `onBeforeToolCall`.
+  - The draft comes from `$schema` (draft-04, draft-07, 2019-09, 2020-12). With no `$schema`, the check uses 2020-12. `format` is not checked.
+  - OpenAPI 3.0 schemas work: `nullable: true` lets the field be `null`, and a boolean `exclusiveMinimum` or `exclusiveMaximum` works in every draft.
+  - The error names each failed location (up to 10) and shows the received arguments: `Input validation failed for tool <name>: #/count: ...`.
+  - A schema that the check cannot use, such as one with a remote `$ref`, gives a tool error on each call.
+  - The check uses `@cfworker/json-schema`. It does not compile code, so it runs on Cloudflare Workers.
+
+  Migration: if a JSON Schema tool must accept input that its schema rejects, widen the schema.
+
+- [#1728](https://github.com/TanStack/ai/pull/1728) [`3292bad`](https://github.com/TanStack/ai/commit/3292bad7b26990c5aa4676cc9d9fe33b1741fc1a) - Add the `onModelError` middleware hook and `ctx.retry()`. When a model call fails before it streams output, `onModelError` gets the `RUN_ERROR`. Call `ctx.retry()` there to drop the failed call, run `onConfig` again, and call the model again. A model call retries at most 2 times this way. `ctx.retry()` throws in any other hook.
+
+- [#1750](https://github.com/TanStack/ai/pull/1750) [`3170517`](https://github.com/TanStack/ai/commit/3170517d1c3faa0c1ee6fb004b8a551978fa2a7b) - Keep the provider's raw tool argument string for replay.
+  - Adapters now send the raw argument string as `args` on `TOOL_CALL_END`.
+  - The tool call in the history keeps that exact string when it is the same JSON value as the parsed input, so the next request sends the provider's own bytes back (for example `1.50`, or an id past `Number.MAX_SAFE_INTEGER`). When the parsed input differs, only the changed values are written again.
+  - The `TOOL_CALL_END` that reaches the client carries the same string in `metadata.tanstack.args`, so the client history matches the server history. It no longer also carries `metadata.tanstack.input`: in-process `chat()` and `StreamProcessor` parse `input` from `args`. Run the client and the server on the same release: an older client ignores `args`, so it builds the tool input from the streamed deltas only, and a tool call with no deltas (for example an Anthropic server tool) gets no input.
+  - History converters for Bedrock and the Gemini Interactions API send malformed tool arguments as `{}` instead of failing the request.
+  - Gemini Interactions: the initial `step.arguments` snapshot goes out as a `TOOL_CALL_ARGS` delta only when no argument deltas follow, so the deltas always add up to the final arguments.
+  - Malformed tool arguments are no longer turned into `{}` by an adapter. The tool gets a "Failed to parse tool arguments as JSON" error that the model can repair. Mistral still ends the run with an error on malformed arguments, as before.
+
+- [#1723](https://github.com/TanStack/ai/pull/1723) [`1d0f8f1`](https://github.com/TanStack/ai/commit/1d0f8f11f4e781c4ecc38baa99c30320b593c555) - Continue a child. With `withPersistence` on the parent `chat()`, an agent tool result gives the model the child's `subagentRunId`, and a later call of the same agent tool with `sessionId` continues that child from its stored transcript. With a host that sets `subagents.binding.start`, `background: true` starts the child and returns at once. These fields sit next to the agent's own fields, and each agent tool has them only when the run can use them. When the run uses `sessionId` or `background`, that name is reserved: `chat()` throws when an agent's `inputSchema` uses it. An agent without `inputSchema` takes the task as text in `prompt`, and the child gets it as the last user message. Agent tools also support the `detach` field of the tool context.
+
+  The card keeps the checked input of an agent with `inputSchema`. On the client, `part.subagent.input` has it, typed from `inputSchema` when the agent declaration goes to `useChat({ subagents })`.
+
+  `@tanstack/ai` adds `LoadChildCapability`, `getLoadChild`, and `provideLoadChild`, so a persistence middleware can load a stored child. A provider lists `LoadChildCapability` in `provides`. `withPersistence` in `@tanstack/ai-persistence` provides it: it stores the task of each child's first call and the thread that started it, and loads only the children of the calling thread.
+
+- [#1750](https://github.com/TanStack/ai/pull/1750) [`3170517`](https://github.com/TanStack/ai/commit/3170517d1c3faa0c1ee6fb004b8a551978fa2a7b) - Repair common model mistakes in a tool input before the final input check.
+  - When a JSON Schema tool's input (and every MCP tool's input) fails the check, it is repaired and checked again: `"5"` as `5` (decimal text only), `"true"` as `true`, `5` as `"5"` for a string, and `null` as `""`, `0`, or `false` for a required field. A `null` for an optional field that does not allow `null` is removed. The repair follows unions, `$ref`, `if`/`then`/`else`, `prefixItems`, `patternProperties`, and `additionalProperties`.
+  - A Standard Schema runs first as written. When it fails and the schema can export JSON Schema (Zod, ArkType, Valibot), the input is repaired and the schema runs again. A failure reports the issues of the first run.
+  - The received arguments do not change. The tool gets the repaired copy.
+  - New `chat({ repairToolInput })` option. `false` turns the repair off. A function replaces the built-in repair: it gets `{ tool, toolCall, input, error }` and returns the input to check again, or `undefined` to send the validation error to the model.
+
+  Behavior change: a call that failed the check only because of these mistakes now runs with the repaired input.
+
+- [#1750](https://github.com/TanStack/ai/pull/1750) [`3170517`](https://github.com/TanStack/ai/commit/3170517d1c3faa0c1ee6fb004b8a551978fa2a7b) - Check a tool input at the last moment, just before the tool runs or the client gets the call.
+
+  Behavior change:
+  - The tool's Standard Schema `inputSchema` now checks the input after approval `editedArgs` and after middleware `onBeforeToolCall`. Before, a `transformArgs` value reached `execute` or the client without a check. An input that does not fit the schema now becomes a tool error (state `output-error`), and the tool does not run. An approval edit is also still checked when the run resumes.
+  - `onBeforeToolCall` gets the parsed input before the schema check. It has no schema defaults or transforms yet, and it can be invalid.
+  - Async Standard Schema input validators are awaited. Before, every call to such a tool failed with an input validation error.
+  - `onBeforeToolCall` now also runs for a client tool before the server sends the call to the client. This includes a client request at an interrupt boundary. It does not run while a call waits for approval or for a denied call. When the client result comes back, the result is kept, with no second hook run and no second check. `otelMiddleware` records no `execute_tool` span for a client tool, because the server does not run it.
+  - A validation error after the hook runs `onAfterToolCall` with `ok: false`.
+  - The tool error that the model sees now also shows the arguments that the model sent. When an approval edit or middleware changed them, the error says so.
+  - While a call waits for approval, an approved client tool in the same batch is now sent to the client. Before, it waited for the next round trip.
+  - When the only call that waits for approval fails its input check, the other calls of the batch now run. Before, they got no result.
+
+  Migration:
+  - If a middleware `transformArgs` or an approval edit sends a value that the schema rejects, make the value fit the schema, or widen the schema.
+  - If `onBeforeToolCall` reads `hookCtx.args`, check its shape first. Do not expect schema defaults there.
+  - If a middleware counts or blocks calls in `onBeforeToolCall` and must see only server tools, return early when `hookCtx.tool?.execute` is missing.
+
+### Patch Changes
+
+- [#1742](https://github.com/TanStack/ai/pull/1742) [`5f95dbd`](https://github.com/TanStack/ai/commit/5f95dbd08f2780442000ac52074ea747d1b44187) - `decide()` now reports token usage when the provider answered but the answers cannot be mapped, for example when an answer is missing, has the wrong type, or has no probability for its value. Before, `decide()` threw without reporting the usage that the provider already billed. The `onUsage` middleware hook and the `evaluate:usage` event now get that usage once, before `onError` runs. `onFinish` still does not run for a failed call, and `decide()` throws the mapping error. If an `onUsage` hook throws, that error is thrown instead, as it is for a successful call. The mapping error is still logged.
+
+- [#1789](https://github.com/TanStack/ai/pull/1789) [`4298480`](https://github.com/TanStack/ai/commit/429848047c8c514f29855f8a99a7260253eb5d5b) - Keep custom metadata from `REASONING_MESSAGE_START` on the assistant `UIMessage`. The thinking text was already kept. Metadata that arrived only on the start event was dropped.
+
+- [#1776](https://github.com/TanStack/ai/pull/1776) [`f68da51`](https://github.com/TanStack/ai/commit/f68da51f63f999b70ac7aaf5aebc0109a7e9daf7) - File each model call on its own assistant message. Reasoning that arrives before the call's text id, a tool call whose parent id is new, and a signature that names an earlier step stay on the message that owns them.
+
+- [#1786](https://github.com/TanStack/ai/pull/1786) [`30fa651`](https://github.com/TanStack/ai/commit/30fa651d173e519db8de50c9f888ded71b951640) - Fix subagent limit and continue edges.
+  - A background `start` that throws gives the `maxCalls` slot back. `maxConcurrent` counts that child until `done` settles. `start` now returns `done`.
+  - A schema result that is not an object does not drop `sessionId` or `background`. A top-level `anyOf` schema still shows those fields.
+  - A suspended child with no stored `base` keeps its transcript.
+  - When the parent deadline is already past, the model gets `subagent limit reached (no time left)`.
+
+- Updated dependencies [[`85c2956`](https://github.com/TanStack/ai/commit/85c2956c68f3226ef409b3a4e54d5be82198931e)]:
+  - @tanstack/ai-utils@0.5.0
+
 ## 0.69.0
 
 ### Minor Changes

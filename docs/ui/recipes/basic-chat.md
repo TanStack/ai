@@ -2,7 +2,7 @@
 title: A chat box with no tools
 id: ui-recipe-basic-chat
 order: 1
-description: "The smallest working React chat UI. A layout, a message, and a text part."
+description: "The smallest React chat UI that works: a layout, a message, a text part, and a composer."
 keywords:
   - tanstack ai
   - createChatHook
@@ -10,28 +10,32 @@ keywords:
   - example
 ---
 
-Start here. This chat has no tools, no interrupts, and no styling.
+This recipe is a chat UI with four components: `layout`, `message`, `text`, and `input`. It has no tools, no interrupts, and no styles.
 
-For a Start app with BYOK, open [Basic Chat](../../tutorials/basic-chat).
-
-You need three components: a `layout`, a `message`, and a `text` part. Leave the rest out.
+For a full TanStack Start app with your own API key, read the [Basic Chat](../../tutorials/basic-chat) tutorial.
 
 ## Server
 
+Put `OPENAI_API_KEY` in your server environment. Then add a `POST` route at `/api/chat`:
+
 ```tsx
-import { chat, toServerSentEventsResponse } from '@tanstack/ai'
+import {
+  chat,
+  chatParamsFromRequest,
+  toServerSentEventsResponse,
+} from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai'
 
 export async function POST(request: Request) {
-  const json: unknown = await request.json()
-  if (typeof json !== 'object' || json === null || !('messages' in json)) {
-    return new Response('Invalid body', { status: 400 })
-  }
-  const messages = json.messages
+  const { messages, threadId, runId } = await chatParamsFromRequest(request)
+
   const stream = chat({
-    adapter: openaiText('gpt-5.6'),
-    messages: Array.isArray(messages) ? messages : [],
+    adapter: openaiText('gpt-6.1-sol'),
+    messages,
+    threadId,
+    runId,
   })
+
   return toServerSentEventsResponse(stream)
 }
 ```
@@ -87,24 +91,21 @@ const { useAppChat, useChatContext } = createChatHook({
 })
 
 export function ChatScreen() {
-  const chat = useAppChat()
+  const chat = useAppChat({ threadId: 'support-chat' })
   return <chat.AppChat />
 }
 ```
 
-Render `<ChatScreen />`. Type a message. The reply streams into the page.
+Render `<ChatScreen />` and type a message. The reply streams into the page.
 
-## What each piece does
+## How it works
 
-`layout` gets `Messages`, `Interrupts`, and `Input` as components. Render them where you want them. `Interrupts` is unused here, so leave it out.
-
-`message` gets one message plus a `Parts` component. `Parts` walks that message and picks a component per part.
-
-`partsComponents.text` renders text parts. `fallback` catches every part type you did not register. It returns `null` here, so anything else is silent.
+- `layout` gets `Messages`, `Interrupts`, and `Input` as components. Render them where you want them. This chat has no interrupts, so it leaves `Interrupts` out.
+- `message` gets one message plus a `Parts` component. `Parts` picks a component for each part of that message.
+- `partsComponents.text` renders text parts. `fallback` catches every part type that you did not register. Here it returns `null`, so other parts render nothing.
+- `input` reads the chat with `useChatContext()`. It comes before `layout`, so TypeScript sees that an input is registered and adds `Input` to the layout props.
 
 ## Next
 
-- One tool that renders as raw JSON? See [format a tool](./format-a-tool).
-- Need the user to approve something? See [tool approval](./tool-approval).
-- Want markdown with colored fences? See [Highlight markdown code](../markdown).
-- Using Solid, Vue, or Svelte? The same shape applies. See [Solid](../solid), [Vue](../vue), or [Svelte](../svelte).
+- A tool that shows raw JSON? Read [Make a tool look right](./format-a-tool).
+- Colored code in replies? Read [Highlight markdown code](../markdown).

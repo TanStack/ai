@@ -71,6 +71,26 @@ test.describe('subagents', () => {
     await expect(page.getByTestId('card-cleaner')).toHaveCount(1)
   })
 
+  test('with persistence, a child of a tool call resumes after its approval', async ({
+    page,
+    testId,
+    aimockPort,
+  }) => {
+    await open(page, 'tool-approval', testId, aimockPort)
+    await run(page)
+
+    await expect(page.getByTestId('card-status-cleaner')).toHaveText(
+      'suspended',
+    )
+    await page.getByTestId('approve-deleteLogs').click()
+
+    await expect(page.getByTestId('card-status-cleaner')).toHaveText('finished')
+    await expect(page.getByTestId('card-cleaner')).toContainText(
+      'text:Deleted the old logs.',
+    )
+    await expect(page.getByTestId('parent-text')).toHaveText('Cleanup is done.')
+  })
+
   test('a card overrides the kit widgets for its own parts', async ({
     page,
     testId,

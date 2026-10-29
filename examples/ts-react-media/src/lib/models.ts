@@ -86,30 +86,6 @@ export const IMAGE_MODELS = [
     provider: 'gemini' as const,
   },
   {
-    id: 'imagen-4.0-ultra-generate-001',
-    name: 'Imagen 4.0 Ultra',
-    description: 'Best quality Imagen image generation',
-    defaultSize: '1024x1024' as const,
-    sizeType: 'standard' as const,
-    provider: 'gemini' as const,
-  },
-  {
-    id: 'imagen-4.0-generate-001',
-    name: 'Imagen 4.0',
-    description: 'High quality Imagen image generation',
-    defaultSize: '1024x1024' as const,
-    sizeType: 'standard' as const,
-    provider: 'gemini' as const,
-  },
-  {
-    id: 'imagen-4.0-fast-generate-001',
-    name: 'Imagen 4.0 Fast',
-    description: 'Fast Imagen image generation',
-    defaultSize: '1024x1024' as const,
-    sizeType: 'standard' as const,
-    provider: 'gemini' as const,
-  },
-  {
     id: 'dola-seedream-5-0-pro-260628',
     name: 'Seedream 5.0 Pro',
     description:

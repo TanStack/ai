@@ -10,8 +10,7 @@ const svelteClient: typeof Svelte = await import(
 vi.doMock('svelte', () => svelteClient)
 
 const { mount, unmount } = svelteClient
-const { createRegisterWebMCPTools, createWebMCPTools } =
-  await import('../src/index')
+const { createRegisterWebMCPTools } = await import('../src/index')
 const { default: WebMCPToolsFixture } =
   await import('./fixtures/web-mcp-tools.svelte')
 const { default: PageWebMCPToolsFixture } =
@@ -143,12 +142,6 @@ describe('createRegisterWebMCPTools (Svelte)', () => {
       })
     }
     void checkTypes
-  })
-})
-
-describe('createWebMCPTools (Svelte)', () => {
-  it('is a deprecated alias of createRegisterWebMCPTools', () => {
-    expect(createWebMCPTools).toBe(createRegisterWebMCPTools)
   })
 })
 

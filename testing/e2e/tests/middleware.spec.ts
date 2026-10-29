@@ -167,6 +167,42 @@ test.describe('Middleware Lifecycle', () => {
     expect(toolResults[0].content).not.toContain('temperature')
   })
 
+  test('onGuardToolCall denies on the final args after a transformArgs', async ({
+    page,
+    testId,
+    aimockPort,
+  }) => {
+    const params = new URLSearchParams()
+    if (testId) params.set('testId', testId)
+    if (aimockPort) params.set('aimockPort', String(aimockPort))
+    const qs = params.toString()
+    await page.goto(`/middleware-test${qs ? '?' + qs : ''}`)
+    await page.waitForTimeout(2000)
+    await page.locator('#mw-scenario-select').selectOption('with-tool')
+    await page.locator('#mw-mode-select').selectOption('tool-guard')
+    await page.locator('#mw-run-button').click()
+
+    await page.waitForFunction(
+      () =>
+        document
+          .querySelector('#mw-metadata')
+          ?.getAttribute('data-test-complete') === 'true',
+      { timeout: 10000 },
+    )
+
+    const messagesJson = await page.locator('#mw-messages-json').textContent()
+    const messages = JSON.parse(messagesJson || '[]')
+    const toolResults = messages.flatMap((m: any) =>
+      m.parts.filter((p: any) => p.type === 'tool-result'),
+    )
+    // The rewrite ran first. The guard saw the new city and denied the call,
+    // so get_weather never ran.
+    expect(toolResults).toHaveLength(1)
+    expect(toolResults[0].content).toContain('guarded')
+    expect(toolResults[0].content).toContain('Blocked City')
+    expect(toolResults[0].content).not.toContain('temperature')
+  })
+
   test('the next model call replays the exact tool argument bytes', async ({
     page,
     request,
@@ -709,8 +745,6 @@ test.describe('Middleware Lifecycle', () => {
       'gen_ai.request.model': 'whisper-1',
       'tanstack.ai.usage.billed_quantity': 2.4,
       'tanstack.ai.usage.billed_unit': 'seconds',
-      // Deprecated bare count still emitted for backward compatibility.
-      'tanstack.ai.usage.duration_seconds': 2.4,
     })
     // captureContent (#1526): inline source audio is a placeholder; the
     // transcript is the output.

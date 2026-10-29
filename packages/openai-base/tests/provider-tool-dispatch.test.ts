@@ -30,7 +30,7 @@ function isRoundTrippedTool(value: unknown): value is Tool {
 const PROVIDER_TOOL_NAMES = [
   'apply_patch',
   'code_interpreter',
-  'computer_use_preview',
+  'computer',
   'custom',
   'file_search',
   'image_generation',
@@ -58,20 +58,10 @@ const FACTORY_CASES = [
     wire: { type: 'code_interpreter' },
   },
   {
-    name: 'computer_use_preview',
+    name: 'computer',
     kind: 'openai.computer_use',
-    tool: computerUseTool({
-      type: 'computer_use_preview',
-      display_height: 768,
-      display_width: 1024,
-      environment: 'linux',
-    }),
-    wire: {
-      type: 'computer_use_preview',
-      display_height: 768,
-      display_width: 1024,
-      environment: 'linux',
-    },
+    tool: computerUseTool({ type: 'computer' }),
+    wire: { type: 'computer' },
   },
   {
     name: 'custom',

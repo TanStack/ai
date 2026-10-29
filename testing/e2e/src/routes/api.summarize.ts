@@ -16,6 +16,7 @@ import { createCloudflareSummarize } from '@tanstack/ai-cloudflare'
 import { createOpenRouterSummarize } from '@tanstack/ai-openrouter'
 import { createVercelGatewaySummarize } from '@tanstack/ai-vercel-gateway'
 import { createLovableSummarize } from '@tanstack/ai-lovable'
+import { createNeonSummarize } from '@tanstack/ai-neon'
 import { HTTPClient } from '@openrouter/sdk'
 import type { Provider } from '@/lib/types'
 
@@ -94,7 +95,7 @@ function createSummarizeAdapter(
       ),
     ollama: () => createOllamaSummarize('mistral', llmockBase(aimockPort)),
     groq: () =>
-      createGroqSummarize('llama-3.3-70b-versatile', DUMMY_KEY, {
+      createGroqSummarize('openai/gpt-oss-120b', DUMMY_KEY, {
         baseURL: `${llmockBase(aimockPort)}/openai/v1`,
         defaultHeaders: headers,
       }),
@@ -148,6 +149,25 @@ function createSummarizeAdapter(
         baseURL: openaiUrl(aimockPort),
         defaultHeaders: headers,
       }),
+    // Neon's baseURL is the bare host; the adapter appends `/v1`.
+    neon: () =>
+      createNeonSummarize('gemini-3-8-flash', DUMMY_KEY, {
+        baseURL: llmockBase(aimockPort),
+        defaultHeaders: headers,
+      }),
+    'neon-anthropic': () =>
+      createNeonSummarize('claude-opus-5-5', DUMMY_KEY, {
+        baseURL: llmockBase(aimockPort),
+        defaultHeaders: headers,
+        fetch: (input, init) =>
+          fetch(String(input).replace('/anthropic/v1/', '/v1/'), init),
+      }),
+    'neon-responses': () =>
+      createNeonSummarize('gpt-6-1-sol', DUMMY_KEY, {
+        api: 'responses',
+        baseURL: llmockBase(aimockPort),
+        defaultHeaders: headers,
+      }),
   }
   return factories[provider]?.()
 }
@@ -158,7 +178,7 @@ export const Route = createFileRoute('/api/summarize')({
       POST: async ({ request }) => {
         await import('@/lib/llmock-server').then((m) => m.ensureLLMock())
         const body = await request.json()
-        const data = body.forwardedProps ?? body.data ?? body
+        const data = body.forwardedProps ?? body
         const {
           text,
           provider,
@@ -192,6 +212,7 @@ export const Route = createFileRoute('/api/summarize')({
           // check on the result variable.
           if (shouldStream === false) {
             const summary = await summarize({
+              threadId: body.threadId ?? 'summarize',
               adapter,
               text,
               maxLength,
@@ -201,7 +222,13 @@ export const Route = createFileRoute('/api/summarize')({
               headers: { 'Content-Type': 'application/json' },
             })
           }
-          const stream = summarize({ adapter, text, maxLength, stream: true })
+          const stream = summarize({
+            threadId: body.threadId ?? 'summarize',
+            adapter,
+            text,
+            maxLength,
+            stream: true,
+          })
           return toServerSentEventsResponse(stream)
         } catch (error) {
           console.error('[api.summarize] Error:', error)

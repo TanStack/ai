@@ -2,7 +2,7 @@ import { createFileRoute } from '@tanstack/react-router'
 import { useAppChat } from '@/chat-ui'
 
 function ChatPage() {
-  const chat = useAppChat()
+  const chat = useAppChat({ threadId: 'subagents' })
   return <chat.AppChat />
 }
 

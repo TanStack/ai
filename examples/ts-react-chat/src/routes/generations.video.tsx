@@ -28,9 +28,13 @@ function DirectVideoGeneration() {
 
   const hookReturn = useGenerateVideo({
     threadId: 'video:direct',
-    fetcher: (input) =>
+    fetcher: (input, { threadId }) =>
       generateVideoFn({
-        data: { ...input, prompt: resolveMediaPrompt(input.prompt).text },
+        data: {
+          ...input,
+          prompt: resolveMediaPrompt(input.prompt).text,
+          threadId,
+        },
       }),
     persistence: true,
   })
@@ -45,9 +49,13 @@ function ServerFnVideoGeneration() {
 
   const hookReturn = useGenerateVideo({
     threadId: 'video:server-fn',
-    fetcher: (input) =>
+    fetcher: (input, { threadId }) =>
       generateVideoStreamFn({
-        data: { ...input, prompt: resolveMediaPrompt(input.prompt).text },
+        data: {
+          ...input,
+          prompt: resolveMediaPrompt(input.prompt).text,
+          threadId,
+        },
       }),
     persistence: true,
   })
@@ -81,8 +89,8 @@ function VideoGenerationUI({
     <div className="space-y-6">
       <div className="p-4 bg-yellow-500/10 border border-yellow-500/20 rounded-lg">
         <p className="text-yellow-400 text-sm">
-          Video generation is experimental and requires an XAI_API_KEY with Grok
-          Imagine access. Generation can take several minutes.
+          Video generation requires an XAI_API_KEY with Grok Imagine access.
+          Generation can take several minutes.
         </p>
       </div>
 
@@ -182,7 +190,7 @@ function VideoGenerationPage() {
           <div>
             <h2 className="text-xl font-semibold">Video Generation</h2>
             <p className="text-sm text-gray-400 mt-1">
-              Generate videos using xAI Grok Imagine (experimental)
+              Generate videos using xAI Grok Imagine
             </p>
           </div>
           <div className="flex gap-1 bg-gray-900/50 rounded-lg p-1">
