@@ -37,6 +37,8 @@ Tools you pass to Code Mode are converted to typed function stubs that appear in
 
 Generated code runs in an isolated environment. V8, QuickJS WASM, native QuickJS on Bun, and a Cloudflare Worker have no access to the host file system, network, or process. A Daytona sandbox and an E2B sandbox are full Linux environments. Each sandbox has its own file system, network, and processes. The code in that sandbox cannot reach the host. Timeouts and memory limits are configurable.
 
+Code Mode rejects tools that need approval. A tool marked `needsApproval: true` expects a human to approve each call before it runs. Code Mode runs tools inside the sandbox from one `execute_typescript` call, so it cannot raise that per-tool approval. `createCodeMode` and `createCodeModeTool` throw when you pass such a tool. An approval tool belongs outside the Code Mode config. `chat()` runs it directly, where the approval interrupt works.
+
 ## Getting Started
 
 ### 1. Install packages

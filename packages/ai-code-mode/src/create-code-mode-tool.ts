@@ -108,6 +108,26 @@ export function createCodeModeTool(
     throw new Error('At least one tool must be provided to createCodeModeTool')
   }
 
+  // Reject approval-gated tools up front, before any binding work. A tool
+  // marked `needsApproval: true` expects a human approval interrupt before it
+  // runs. Code Mode invokes tools from inside the sandbox, where the model only
+  // sees the outer execute_typescript call — the per-tool interrupt is never
+  // raised, so the tool would run unattended. Approving only execute_typescript
+  // would not preserve per-tool/per-argument approval semantics. `toolToBinding`
+  // enforces the same rule as a lower-level backstop.
+  const approvalTools = tools.filter((t) => t.needsApproval)
+  if (approvalTools.length > 0) {
+    const names = approvalTools.map((t) => t.name).join(', ')
+    throw new Error(
+      `Code Mode cannot expose tools that require approval: ${names}. ` +
+        `A tool marked needsApproval: true expects a human approval interrupt ` +
+        `before it runs, but Code Mode invokes tools from inside the sandbox ` +
+        `where that interrupt cannot be raised. Remove these tools from the ` +
+        `Code Mode config, or drop needsApproval if they are safe to call ` +
+        `unattended.`,
+    )
+  }
+
   // Transform tools to bindings with external_ prefix (static bindings)
   const staticBindings = toolsToBindings(tools, 'external_')
 

@@ -37,6 +37,22 @@ export function toolToBinding(
   tool: CodeModeTool,
   prefix: string = '',
 ): ToolBinding {
+  // Reject approval-gated tools. A tool marked `needsApproval: true` expects a
+  // human approval interrupt before it runs, but Code Mode invokes bindings
+  // from inside the sandbox — the model only ever sees the outer
+  // execute_typescript call, so no per-tool interrupt is raised and the tool
+  // would run unattended. This is the authoritative gate: every binding path
+  // (toolsToBindings, direct callers, snippet helpers) funnels through here.
+  if (tool.needsApproval) {
+    throw new Error(
+      `Tool "${tool.name}" requires approval (needsApproval: true) and cannot ` +
+        `be used in Code Mode. Code Mode executes tools inside a sandbox and ` +
+        `cannot pause for the approval interrupt, so the tool would run without ` +
+        `approval. Remove it from the Code Mode config, or drop needsApproval ` +
+        `if the tool is safe to call unattended.`,
+    )
+  }
+
   // Convert schemas (Zod or Standard Schema) to JSON Schema
   const inputSchema = convertSchemaToJsonSchema(tool.inputSchema) || {
     type: 'object',
