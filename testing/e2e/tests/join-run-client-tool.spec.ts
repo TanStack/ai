@@ -94,3 +94,30 @@ test.describe('joinRun client-tool continuation (issue #1058)', () => {
     })
   })
 })
+
+test.describe('joinRun replay that starts with reasoning', () => {
+  test('a reload mid run keeps the thinking and the answer', async ({
+    page,
+  }) => {
+    const threadId = `join-run-reasoning-${crypto.randomUUID()}`
+    await page.goto(
+      `/join-run-client-tool?threadId=${encodeURIComponent(threadId)}`,
+    )
+    await expect(page.getByTestId('hydration-marker')).toBeAttached()
+
+    await sendMessage(page, 'reason')
+    // The run is held open after its answer, so the remount sees `activeRun`.
+    await expect(page.getByTestId('assistant-text')).toContainText('REASON_OK')
+
+    await page.reload()
+    await expect(page.getByTestId('hydration-marker')).toBeAttached()
+
+    // Hydrate returns no messages, so both can only come from the replay.
+    await expect(page.getByTestId('assistant-text')).toContainText('REASON_OK')
+    await expect(page.getByTestId('assistant-thinking')).toHaveText(
+      'Check the order.',
+    )
+    await expect(page.getByTestId('assistant-message')).toHaveCount(1)
+    await expect(page.getByTestId('loading-indicator')).toHaveCount(0)
+  })
+})

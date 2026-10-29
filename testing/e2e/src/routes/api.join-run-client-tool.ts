@@ -30,6 +30,7 @@ import type {
 
 const JOIN_OK = 'JOIN_OK the lookup is 42'
 const LATER_OK = 'LATER_OK the follow-up ran'
+const REASON_OK = 'REASON_OK the answer after reasoning'
 const DISCONNECT_FALLBACK_MS = 3000
 const SETTLE_AFTER_DISCONNECT_MS = 1500
 
@@ -51,6 +52,8 @@ const parentInterruptByThread = new Map<
 // User text for the #1429 scenario: the first run pauses on the client tool,
 // and the continuation run (not the first run) is held open.
 const CONTINUATION_SCENARIO = 'continue'
+// User text for a held run that reasons before it answers.
+const REASONING_SCENARIO = 'reason'
 
 async function* recordInterrupt(
   stream: AsyncIterable<AdapterYieldChunk>,
@@ -154,7 +157,13 @@ const adapter: AnyTextAdapter = {
     )
     const userText = lastUserText(options.messages)
     const reply =
-      userText === 'later' ? LATER_OK : hasToolResult ? JOIN_OK : null
+      userText === 'later'
+        ? LATER_OK
+        : userText === REASONING_SCENARIO
+          ? REASON_OK
+          : hasToolResult
+            ? JOIN_OK
+            : null
 
     yield {
       type: EventType.RUN_STARTED,
@@ -165,6 +174,41 @@ const adapter: AnyTextAdapter = {
     }
 
     if (reply !== null) {
+      if (userText === REASONING_SCENARIO) {
+        const reasoningId = `${runId}-reasoning`
+        yield {
+          type: EventType.REASONING_START,
+          messageId: reasoningId,
+          model,
+          timestamp: Date.now(),
+        }
+        yield {
+          type: EventType.REASONING_MESSAGE_START,
+          messageId: reasoningId,
+          role: 'reasoning',
+          model,
+          timestamp: Date.now(),
+        }
+        yield {
+          type: EventType.REASONING_MESSAGE_CONTENT,
+          messageId: reasoningId,
+          delta: 'Check the order.',
+          model,
+          timestamp: Date.now(),
+        }
+        yield {
+          type: EventType.REASONING_MESSAGE_END,
+          messageId: reasoningId,
+          model,
+          timestamp: Date.now(),
+        }
+        yield {
+          type: EventType.REASONING_END,
+          messageId: reasoningId,
+          model,
+          timestamp: Date.now(),
+        }
+      }
       yield {
         type: EventType.TEXT_MESSAGE_START,
         messageId,
