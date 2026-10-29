@@ -2237,11 +2237,8 @@ export class ChatClient<
    */
   private dropHydratedAssistant(id: string): void {
     const messages = this.processor.getMessages()
-    if (messages.some((message) => message.id === id)) {
-      this.processor.setMessages(
-        messages.filter((message) => message.id !== id),
-      )
-    }
+    const kept = messages.filter((message) => message.id !== id)
+    if (kept.length < messages.length) this.processor.setMessages(kept)
   }
 
   private processIncomingChunk(chunk: StreamChunk): void {
