@@ -95,11 +95,10 @@ const stream = chat({
 })
 ```
 
-| Model           | `reasoning_effort` values |
-| --------------- | ------------------------- |
-| `glm-5.3`       | `low`, `high`, `max`      |
-| `glm-5.2`       | `high`, `max`             |
-| `glm-5.3-flash` | `max`                     |
+| Model                                | `reasoning_effort` values                              |
+| ------------------------------------ | ------------------------------------------------------ |
+| `glm-5.2`                            | `off`, `minimal`, `low`, `medium`, `high`, `xhigh`, `max` |
+| `glm-5.3`, `glm-5.3-flash`           | `low`, `high`, `max`                                   |
 
 For GLM-4.7 and GLM-4.6, turn thinking on with the provider option instead:
 
@@ -115,7 +114,8 @@ const stream = chat({
 
 Pass `outputSchema`. Z.AI rejects `response_format: { type: 'json_schema' }`,
 so the adapter sends JSON mode plus a schema system prompt and validates the
-reply against your schema.
+reply against your schema. Without `stream: true`, `chat()` resolves to the
+parsed object, so await it.
 
 ```ts
 import { z } from 'zod'
@@ -125,7 +125,7 @@ const orderSchema = z.object({
   total: z.number(),
 })
 
-const stream = chat({
+const order = await chat({
   adapter: zaiText('glm-5.3'),
   messages,
   outputSchema: orderSchema,
@@ -134,8 +134,9 @@ const stream = chat({
 
 ### Tools
 
-Function tools and Z.AI's built-in web search both work. `tool_choice` is
-always `auto`, because Z.AI rejects the other values.
+Function tools and Z.AI's built-in web search both work. Z.AI accepts a
+`tool_choice` of `auto` only. `toolChoice: 'none'` sends no tools; `'required'`
+or a named tool warns once and falls back to `auto`.
 
 ```ts
 import { zaiText, zaiWebSearchTool } from '@tanstack/ai-zai'
@@ -166,6 +167,10 @@ const stream = chat({
 })
 ```
 
+Vision models are `glm-5.3-flash`, `glm-5v-turbo`, and `glm-4.6v`. A video
+source must be an HTTP(S) URL; Z.AI has no base64 video input, so a `data`
+source throws before the request.
+
 ### Summarization
 
 ```ts
@@ -195,26 +200,62 @@ you set yourself wins.
 ### Bring your own key
 
 `@tanstack/ai-zai/byok` exports a BYOK descriptor. Add it to your store so the
-key dialog shows a Z.AI field, then read the key in the route. The
-`x-byok-zai` header from the browser wins over `ZAI_API_KEY`:
+key dialog shows a Z.AI field:
 
 ```ts
-import { defineByok, defaultByokStorage } from '@tanstack/ai-client/byok'
-import { byokMissing, getByokKey } from '@tanstack/ai/byok/server'
-import { createZAIText } from '@tanstack/ai-zai'
+import { defaultByokStorage, defineByok } from '@tanstack/ai-react/byok'
 import { zaiByok } from '@tanstack/ai-zai/byok'
 
 export const byok = defineByok({
   storage: defaultByokStorage(),
   providers: [zaiByok],
 })
-
-// In the route handler. getByokKey reads the header, then ZAI_API_KEY.
-const apiKey = getByokKey(request, zaiByok)
-if (!apiKey) return byokMissing(zaiByok)
-
-const adapter = createZAIText('glm-5.3', apiKey)
 ```
+
+Pass the store to `useChat` and set `forwardedProps.provider` to `'zai'`, so the
+send carries that key and nothing else:
+
+```tsx
+const { messages, sendMessage } = useChat({
+  connection,
+  threadId: 'zai-chat',
+  byok,
+  forwardedProps: { provider: 'zai' },
+})
+```
+
+Then read the key in the route. The `x-byok-zai` header from the browser wins
+over `ZAI_API_KEY`:
+
+```ts
+import {
+  chat,
+  chatParamsFromRequest,
+  toServerSentEventsResponse,
+} from '@tanstack/ai'
+import { byokMissing, getByokKey } from '@tanstack/ai/byok/server'
+import { createZAIText } from '@tanstack/ai-zai'
+import { zaiByok } from '@tanstack/ai-zai/byok'
+
+export async function POST(request: Request) {
+  const apiKey = getByokKey(request, zaiByok)
+  if (!apiKey) return byokMissing(zaiByok)
+
+  const { messages, threadId, runId } = await chatParamsFromRequest(request)
+
+  return toServerSentEventsResponse(
+    chat({
+      adapter: createZAIText('glm-5.3', apiKey),
+      messages,
+      threadId,
+      runId,
+    }),
+  )
+}
+```
+
+See
+[BYOK](https://tanstack.com/ai/latest/docs/advanced/byok).
 
 ## Models
 

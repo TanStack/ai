@@ -161,9 +161,9 @@ const stream = chat({
 The adapter sends the level as `reasoning_effort`. It clamps a level the model
 does not have to the nearest one that it does:
 
-- `glm-5.3`: `low`, `high`, `max`.
-- `glm-5.2`: `high`, `max`.
-- `glm-5.3-flash`: `max`.
+- `glm-5.2`: `off`, `minimal`, `low`, `medium`, `high`, `xhigh`, `max`.
+- `glm-5.3` and `glm-5.3-flash`: `low`, `high`, `max`. A lower level becomes
+  `low`.
 
 GLM-4.7 and GLM-4.6 have no `reasoning_effort`. Turn their thinking on with the
 provider option instead:
@@ -191,6 +191,7 @@ reasoning events.
 adds your schema to the system prompt. It then parses the reply with your
 schema. Read
 [When strict JSON schema is rejected](../structured-outputs/overview.md#when-strict-json-schema-is-rejected).
+Without `stream: true`, `chat()` resolves to the parsed object, so await it:
 
 ```typescript
 import { chat } from "@tanstack/ai";
@@ -202,7 +203,7 @@ const orderSchema = z.object({
   total: z.number(),
 });
 
-const stream = chat({
+const order = await chat({
   adapter: zaiText("glm-5.3"),
   messages: [{ role: "user", content: "Summarize my open orders" }],
   threadId: "thread-1",
@@ -212,8 +213,11 @@ const stream = chat({
 
 ### Tools
 
-Function tools work on every model. Z.AI rejects a `tool_choice` other than
-`auto`, so the adapter always sends `auto`.
+Function tools work on every model. Z.AI accepts a `tool_choice` of `auto`
+only, so the adapter cannot force a call. With `toolChoice: 'none'` it sends
+no tools at all, which gives you the text-only answer you asked for. With
+`'required'` or a named tool it warns once and sends `auto`, so the model
+decides. See [Choose when the model calls a tool](../tools/tools#choose-when-the-model-calls-a-tool).
 
 Z.AI also runs a search on the provider side. Add it with `zaiWebSearchTool`:
 
@@ -256,6 +260,8 @@ const stream = chat({
 ```
 
 Vision models: `glm-5.3-flash`, `glm-5v-turbo`, `glm-4.6v`.
+A video source must be an HTTP(S) URL. Z.AI has no base64 video input, so a
+`data` source throws before the request.
 `adapter.inputModalities` lists the input kinds of the selected model. See
 [Check what a model accepts](../advanced/extend-adapter#check-what-a-model-accepts).
 
@@ -302,8 +308,36 @@ export const byok = defineByok({
 });
 ```
 
-The server then reads one key. The `x-byok-zai` header from the browser wins
-over `ZAI_API_KEY`:
+Registering `zaiByok` is the Z.AI part. Save the key with
+`byok.update("zai", value)` and pass the store to `useChat`, with
+`forwardedProps.provider` set to `"zai"` so the send carries that key and
+nothing else:
+
+```tsx
+import { useChat, fetchServerSentEvents } from "@tanstack/ai-react";
+import { byok } from "./byok";
+
+export function Chat() {
+  const { sendMessage } = useChat({
+    connection: fetchServerSentEvents("/api/chat"),
+    threadId: "zai-chat",
+    byok,
+    forwardedProps: { provider: "zai" },
+  });
+
+  return (
+    <button type="button" onClick={() => void sendMessage("Hello")}>
+      Send
+    </button>
+  );
+}
+```
+
+Save a key, build a dialog, and use the server fallback in
+[BYOK](../advanced/byok).
+
+On the server, one call reads the key. The `x-byok-zai` header from the browser
+wins over `ZAI_API_KEY`:
 
 ```typescript
 import {
@@ -331,8 +365,6 @@ export async function POST(request: Request) {
   return toServerSentEventsResponse(stream);
 }
 ```
-
-See [BYOK](../advanced/byok).
 
 ### Model list
 

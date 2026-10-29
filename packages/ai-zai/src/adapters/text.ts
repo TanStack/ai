@@ -55,10 +55,11 @@ export type { ExternalTextProviderOptions as ZAITextProviderOptions } from '../t
  * - `response_format` rejects `json_schema`, so every model reports
  *   `json_object` mode. The base then sends the schema as a system prompt
  *   plus `response_format: { type: 'json_object' }`.
- * - `tool_choice` accepts only `"auto"` — a named or required choice would
- *   fail the request, so the adapter always sends `auto`.
+ * - `tool_choice` accepts only `"auto"`. A `required` or named choice warns and
+ *   falls back to `auto`; `none` drops the tools instead of sending the value.
  * - Vision models accept `video_url` content parts, which the OpenAI SDK's
- *   content-part union does not model.
+ *   content-part union does not model. The URL must be HTTP(S); a base64 video
+ *   source throws instead of sending a request Z.AI rejects.
  */
 export class ZAITextAdapter<
   TModel extends (typeof ZAI_CHAT_MODELS)[number],
@@ -78,6 +79,9 @@ export class ZAITextAdapter<
   override readonly kind = 'text' as const
   override readonly name = 'zai' as const
   override readonly inputModalities = ZAI_MODEL_INPUT_MODALITIES[this.model]
+
+  /** Set after the first warning that Z.AI cannot force a tool call. */
+  private warnedToolChoice = false
   readonly maxTokensKey = 'max_tokens'
 
   constructor(config: ZAITextConfig, model: TModel) {
@@ -102,16 +106,31 @@ export class ZAITextAdapter<
     })
     void _baseTools
 
-    const tools = options.tools
-      ? convertToolsToProviderFormat(options.tools)
-      : undefined
+    // `none` cannot be sent, so drop the tools instead of letting the model
+    // call them anyway.
+    const tools =
+      options.tools && options.toolChoice !== 'none'
+        ? convertToolsToProviderFormat(options.tools)
+        : undefined
+
+    if (
+      tools &&
+      options.toolChoice &&
+      options.toolChoice !== 'auto' &&
+      !this.warnedToolChoice
+    ) {
+      this.warnedToolChoice = true
+      options.logger.warn(
+        "zai: Z.AI accepts tool_choice 'auto' only. The model decides which tools to call.",
+      )
+    }
 
     return {
       ...request,
       ...(tools &&
         tools.length > 0 && {
           tools: tools as ChatCompletionCreateParamsStreaming['tools'],
-          // Z.AI only accepts `auto`; `none`/`required`/named choices 400.
+          // Z.AI only accepts `auto`; `required` and named choices 400.
           tool_choice: 'auto' as const,
         }),
     }
@@ -121,6 +140,11 @@ export class ZAITextAdapter<
     part: ContentPart,
   ): ChatCompletionContentPart | null {
     if (part.type === 'video') {
+      if (part.source.type === 'data') {
+        throw new Error(
+          'zai: Z.AI video input needs an HTTP(S) URL. Base64 video is not supported.',
+        )
+      }
       // oxlint-disable-next-line eslint-js/no-restricted-syntax -- Z.AI's video_url part is absent from the OpenAI SDK's content-part union
       return {
         type: 'video_url',

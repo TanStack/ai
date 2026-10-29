@@ -27,12 +27,20 @@ describe('ZAI model meta', () => {
     expect(_invalid).toBe('not-a-real-model')
   })
 
-  it('glm-5.2 is the previous flagship: 1M context, high/max reasoning', () => {
+  it('glm-5.2 is the previous flagship: 1M context, every reasoning level', () => {
     const meta = ZAI_MODEL_META['glm-5.2']
     expect(meta.context_window).toBe(1_000_000)
     expect(meta.max_output_tokens).toBe(131_072)
     expect(ZAI_MODEL_REASONING['glm-5.2']).toEqual({
-      levels: { high: 'high', max: 'max' },
+      levels: {
+        off: 'none',
+        minimal: 'minimal',
+        low: 'low',
+        medium: 'medium',
+        high: 'high',
+        xhigh: 'xhigh',
+        max: 'max',
+      },
       budget: false,
     })
   })
@@ -49,14 +57,14 @@ describe('ZAI model meta', () => {
     })
   })
 
-  it('glm-5.3-flash is multimodal with max-only reasoning', () => {
+  it('glm-5.3-flash is multimodal with low/high/max reasoning', () => {
     const meta = ZAI_MODEL_META['glm-5.3-flash']
     expect(meta.context_window).toBe(1_000_000)
     expect(meta.max_output_tokens).toBe(128_000)
     expect(meta.pricing.input.normal).toBe(0.15)
     expect(meta.supports.input).toEqual(['text', 'image', 'video'])
     expect(ZAI_MODEL_REASONING['glm-5.3-flash']).toEqual({
-      levels: { max: 'max' },
+      levels: { low: 'low', high: 'high', max: 'max' },
       budget: false,
     })
   })

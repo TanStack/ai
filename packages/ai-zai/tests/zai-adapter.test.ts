@@ -63,6 +63,7 @@ function createNoopLogger() {
     agentLoop: vi.fn(),
     config: vi.fn(),
     errors: vi.fn(),
+    warn: vi.fn(),
   }
 }
 
@@ -217,6 +218,32 @@ describe('ZAITextAdapter', () => {
       expect(mapped).not.toHaveProperty('tool_choice')
     })
 
+    it('drops the tools when the caller asks for toolChoice none', () => {
+      const mapped = mapOptions({
+        tools: [weatherTool],
+        toolChoice: 'none',
+      })
+
+      expect(mapped).not.toHaveProperty('tools')
+      expect(mapped).not.toHaveProperty('tool_choice')
+    })
+
+    it('warns once when a forcing choice falls back to auto', () => {
+      const warn = vi.fn()
+      const adapter = createAdapter() as any
+      const options = {
+        ...baseOptions(),
+        tools: [weatherTool],
+        toolChoice: 'required',
+        logger: { ...createNoopLogger(), warn },
+      }
+
+      adapter.mapOptionsToRequest(options)
+      adapter.mapOptionsToRequest(options)
+
+      expect(warn).toHaveBeenCalledTimes(1)
+    })
+
     it('maps a reasoning level to reasoning_effort for glm-5.2', () => {
       const mapped = mapOptions({
         reasoning: { level: 'max', summary: false },
@@ -224,11 +251,14 @@ describe('ZAITextAdapter', () => {
       expect(mapped.reasoning_effort).toBe('max')
     })
 
-    it('clamps a lower reasoning level up to the model minimum', () => {
+    it('maps every reasoning level for glm-5.2', () => {
       const mapped = mapOptions({
         reasoning: { level: 'low', summary: true },
       })
-      expect(mapped.reasoning_effort).toBe('high')
+      expect(mapped.reasoning_effort).toBe('low')
+
+      const off = mapOptions({ reasoning: { level: 'off', summary: false } })
+      expect(off.reasoning_effort).toBe('none')
     })
 
     it('passes low effort through for glm-5.3', () => {
@@ -239,12 +269,20 @@ describe('ZAITextAdapter', () => {
       expect(mapped.reasoning_effort).toBe('low')
     })
 
-    it('clamps every level up to max for glm-5.3-flash', () => {
+    it('passes low effort through for glm-5.3-flash', () => {
       const mapped = mapOptions({
         model: 'glm-5.3-flash',
         reasoning: { level: 'low', summary: true },
       })
-      expect(mapped.reasoning_effort).toBe('max')
+      expect(mapped.reasoning_effort).toBe('low')
+    })
+
+    it('clamps a level below the model minimum up to low', () => {
+      const mapped = mapOptions({
+        model: 'glm-5.3',
+        reasoning: { level: 'off', summary: false },
+      })
+      expect(mapped.reasoning_effort).toBe('low')
     })
 
     it('sends no reasoning_effort for a model that does not reason', () => {
@@ -420,6 +458,23 @@ describe('ZAITextAdapter', () => {
           ],
         },
       ])
+    })
+    it('rejects a base64 video source', () => {
+      expect(() =>
+        mapOptions(
+          {
+            messages: [
+              {
+                role: 'user',
+                content: [
+                  { type: 'video', source: { type: 'data', value: 'AAAA' } },
+                ],
+              } as any,
+            ],
+          },
+          'glm-4.6v',
+        ),
+      ).toThrow('Z.AI video input needs an HTTP(S) URL')
     })
   })
 

@@ -38,28 +38,28 @@ interface ModelMeta<TProviderOptions = unknown> {
 }
 
 /**
- * GLM-5.2 reasoning: `reasoning_effort` accepts `high` and `max`. Levels are
- * ordered, so a lower request clamps up to `high`.
+ * GLM-5.2 reasoning: `reasoning_effort` accepts every level, plus `none` for
+ * `off`.
  */
-const REASONING_HIGH_MAX = {
-  levels: { high: 'high', max: 'max' },
+const REASONING_ALL_LEVELS = {
+  levels: {
+    off: 'none',
+    minimal: 'minimal',
+    low: 'low',
+    medium: 'medium',
+    high: 'high',
+    xhigh: 'xhigh',
+    max: 'max',
+  },
   budget: false,
 } as const
 
 /**
- * GLM-5.3 reasoning: `reasoning_effort` accepts `low`, `high`, and `max`.
+ * GLM-5.3 and GLM-5.3-Flash reasoning: `reasoning_effort` accepts `low`,
+ * `high`, and `max`. A lower request clamps up to `low`.
  */
 const REASONING_LOW_HIGH_MAX = {
   levels: { low: 'low', high: 'high', max: 'max' },
-  budget: false,
-} as const
-
-/**
- * GLM-5.3-Flash thinks on every request and only accepts `max` effort, so any
- * lower request clamps up to `max`.
- */
-const REASONING_MAX_ONLY = {
-  levels: { max: 'max' },
   budget: false,
 } as const
 
@@ -123,7 +123,7 @@ const GLM_5_3_FLASH = {
       normal: 0.5,
     },
   },
-  reasoning: REASONING_MAX_ONLY,
+  reasoning: REASONING_LOW_HIGH_MAX,
 } as const satisfies ModelMeta<ZAITextProviderOptions>
 
 /**
@@ -154,7 +154,7 @@ const GLM_5_2 = {
       normal: 4.4,
     },
   },
-  reasoning: REASONING_HIGH_MAX,
+  reasoning: REASONING_ALL_LEVELS,
 } as const satisfies ModelMeta<ZAITextProviderOptions>
 
 /**
