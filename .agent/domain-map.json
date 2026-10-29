@@ -92,6 +92,7 @@
         "packages/ai-sandbox-e2b",
         "packages/ai-sandbox-local-process",
         "packages/ai-sandbox-railway",
+        "packages/ai-sandbox-render",
         "packages/ai-sandbox-sprites",
         "packages/ai-sandbox-upstash-box",
         "packages/ai-sandbox-vercel"

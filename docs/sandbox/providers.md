@@ -2,7 +2,7 @@
 title: Providers
 id: providers
 order: 3
-description: "Pick where a TanStack AI sandbox runs (local process, Docker container, Docker Sandboxes microVM, Daytona, Vercel, Sprites, Upstash Box, Blaxel, E2B, boxd, Railway, or Cloudflare), install it, and configure it."
+description: "Pick where a TanStack AI sandbox runs (local process, Docker container, Docker Sandboxes microVM, Daytona, Vercel, Sprites, Upstash Box, Blaxel, E2B, boxd, Railway, Cloudflare, or Render), install it, and configure it."
 ---
 
 A provider is where the sandbox runs: a local process for a fast loop, or an isolated VM in production.
@@ -27,6 +27,7 @@ A provider is that place. Every provider has the same contract, so your [workspa
 | [boxd](https://boxd.sh) | `@tanstack/ai-sandbox-boxd` | microVM | `BOXD_API_KEY` and `BOXD_ORG`. |
 | [Railway](https://railway.com) | `@tanstack/ai-sandbox-railway` | microVM | `RAILWAY_API_TOKEN` or `RAILWAY_TOKEN`, and an environment. |
 | [Cloudflare](./cloudflare) | `@tanstack/ai-sandbox-cloudflare` | Container | A `Sandbox` Durable Object binding in a Worker. |
+| [Render](https://render.com/docs/sandboxes) | `@tanstack/ai-sandbox-render` | Cloud sandbox | `RENDER_API_KEY` and `RENDER_WORKSPACE_ID` |
 
 2. Install its package. This example installs the Docker provider. Use the package from your row.
 
@@ -82,6 +83,7 @@ import { blaxelSandbox } from '@tanstack/ai-sandbox-blaxel'
 import { e2bSandbox } from '@tanstack/ai-sandbox-e2b'
 import { boxdSandbox } from '@tanstack/ai-sandbox-boxd'
 import { railwaySandbox } from '@tanstack/ai-sandbox-railway'
+import { renderSandbox } from '@tanstack/ai-sandbox-render'
 
 const dev = localProcessSandbox() // runs on your host
 const isolated = dockerSandbox({ image: 'node:22' }) // container
@@ -94,6 +96,7 @@ const blaxel = blaxelSandbox() // uses the API key or the CLI login
 const e2b = e2bSandbox() // reads E2B_API_KEY
 const boxd = boxdSandbox({ org: 'acme' }) // reads BOXD_API_KEY
 const railway = railwaySandbox() // reads RAILWAY_TOKEN and RAILWAY_ENVIRONMENT_ID
+const render = renderSandbox() // reads RENDER_API_KEY and RENDER_WORKSPACE_ID
 ```
 
 `dockerSandbox()` and `sbxSandbox()` come from the same package. Every other provider has its own package.
@@ -108,7 +111,7 @@ const railway = railwaySandbox() // reads RAILWAY_TOKEN and RAILWAY_ENVIRONMENT_
 - Provider-native snapshots and resume keep or recreate the provider state. They make bootstrap faster. [Portable Snapshots](./portable-snapshots) store finished files in your own persistence.
 
 > [!NOTE]
-> Cloud providers (Daytona, Vercel, Sprites, Upstash Box, Blaxel, E2B, boxd, and Railway) run remotely. When you drive them from your laptop, [bridged tools](./tools) cannot reach your `localhost`. Use the ngrok bridge tunnel from the [tools guide](./tools). Cloudflare is different: the Worker that owns the sandbox also runs the bridge, so there is no laptop in the path. See [Cloudflare](./cloudflare).
+> Cloud providers (Daytona, Vercel, Sprites, Upstash Box, Blaxel, E2B, boxd, Railway, and Render) run remotely. When you drive them from your laptop, [bridged tools](./tools) cannot reach your `localhost`. Use the ngrok bridge tunnel from the [tools guide](./tools). Cloudflare is different: the Worker that owns the sandbox also runs the bridge, so there is no laptop in the path. See [Cloudflare](./cloudflare).
 
 ## Capabilities
 
@@ -162,6 +165,7 @@ The [run journal](./journal) reads this flag to decide how to read a run's outpu
 | Cloudflare | `false` |
 | boxd | `true` |
 | Railway | `true` |
+| Render | `true` |
 
 A bring-your-own provider must set this flag too. For the reason behind each value, see [Providers (Advanced)](./providers-advanced#killableprocesses-per-provider).
 

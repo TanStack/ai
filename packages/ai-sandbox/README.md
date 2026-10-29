@@ -78,6 +78,7 @@ Pick a **provider** package for where the sandbox runs:
 | `@tanstack/ai-sandbox-boxd`          | boxd microVMs, live fork, snapshots    |
 | `@tanstack/ai-sandbox-e2b`           | E2B microVMs, snapshots and fork       |
 | `@tanstack/ai-sandbox-railway`       | Railway sandboxes, private networking  |
+| `@tanstack/ai-sandbox-render`        | Render sandboxes, snapshots, egress    |
 
 Install the provider you select separately. For Blaxel:
 
