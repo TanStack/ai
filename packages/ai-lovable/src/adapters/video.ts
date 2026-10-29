@@ -40,9 +40,6 @@ const VIDEO_DURATIONS = [
   4, 6, 8,
 ] as const satisfies ReadonlyArray<LovableVideoDuration>
 
-/**
- * @experimental Video generation is an experimental feature and may change.
- */
 export interface LovableVideoConfig extends LovableClientConfig {
   /**
    * Opt into fetching HTTP(S) image URL inputs for `input_reference`.
@@ -53,9 +50,6 @@ export interface LovableVideoConfig extends LovableClientConfig {
   allowUrlFetch?: boolean
 }
 
-/**
- * @experimental Video generation is an experimental feature and may change.
- */
 export class LovableVideoAdapter<
   TModel extends LovableVideoModel,
 > extends BaseVideoAdapter<
@@ -256,9 +250,6 @@ function isHttpStatus(error: unknown, status: number): boolean {
   )
 }
 
-/**
- * @experimental Video generation is an experimental feature and may change.
- */
 export function createLovableVideo<TModel extends LovableVideoModel>(
   model: TModel,
   apiKey: string,
@@ -267,9 +258,6 @@ export function createLovableVideo<TModel extends LovableVideoModel>(
   return new LovableVideoAdapter({ apiKey, ...config }, model)
 }
 
-/**
- * @experimental Video generation is an experimental feature and may change.
- */
 export function lovableVideo<TModel extends LovableVideoModel>(
   model: TModel,
   config?: Omit<LovableVideoConfig, 'apiKey'>,

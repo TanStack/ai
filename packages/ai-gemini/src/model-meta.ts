@@ -612,7 +612,6 @@ const GEMINI_2_5_FLASH_LITE = {
 /**
  * Veo video generation models. Pricing is per second of generated video
  * (audio+video rate where the model supports audio).
- * @experimental Veo video generation is an experimental feature and may change.
  */
 const VEO_3_1_PREVIEW = {
   name: 'veo-3.1-generate-preview',
@@ -692,7 +691,6 @@ const VEO_3_1_LITE_PREVIEW = {
  * ($0.10/sec). 360p / 720p (default) / 1080p / 4k at 24 FPS, 3–10 second
  * clips (default 10s).
  * @see https://ai.google.dev/gemini-api/docs/models/gemini-omni-flash
- * @experimental Omni video generation is an experimental feature and may change.
  */
 const GEMINI_OMNI_1_1_FLASH = {
   name: 'gemini-omni-1.1-flash',
@@ -1069,7 +1067,6 @@ export type GeminiTTSVoice = (typeof GEMINI_TTS_VOICES)[number]
  * Video generation models. Veo models run on the long-running
  * `:predictLongRunning` flow; Gemini Omni Flash runs on the Interactions
  * API — the video adapter routes by model.
- * @experimental Video generation is an experimental feature and may change.
  */
 export const GEMINI_VIDEO_MODELS = [
   VEO_3_1_PREVIEW.name,
@@ -1081,7 +1078,6 @@ export const GEMINI_VIDEO_MODELS = [
 /**
  * Video models served by the Interactions API rather than Veo's
  * `:predictLongRunning` operations flow.
- * @experimental Omni video generation is an experimental feature and may change.
  */
 export const GEMINI_INTERACTIONS_VIDEO_MODELS = [
   GEMINI_OMNI_1_1_FLASH.name,

@@ -38,8 +38,6 @@ import type { GrokClientConfig } from '../utils/client'
 
 /**
  * Configuration for Grok video adapter.
- *
- * @experimental Video generation is an experimental feature and may change.
  */
 export interface GrokVideoConfig extends GrokClientConfig {}
 
@@ -115,7 +113,6 @@ function buildGrokVideoUsage(
  * xAI rejects the SDK's multipart paths), so requests are plain JSON calls
  * issued with the configured `fetch` (or the global one).
  *
- * @experimental Video generation is an experimental feature and may change.
  *
  * Features:
  * - Async job-based video generation (1–15 second clips with audio)
@@ -646,7 +643,6 @@ export class GrokVideoAdapter<
  * Creates a Grok video adapter with an explicit API key.
  * Type resolution happens here at the call site.
  *
- * @experimental Video generation is an experimental feature and may change.
  *
  * @param model - The model name (e.g., 'grok-imagine-video-1.5')
  * @param apiKey - Your xAI API key
@@ -681,7 +677,6 @@ export function createGrokVideo<TModel extends GrokVideoModel>(
  * - `process.env` (Node.js)
  * - `window.env` (Browser with injected env)
  *
- * @experimental Video generation is an experimental feature and may change.
  *
  * @param model - The model name (e.g., 'grok-imagine-video-1.5')
  * @param config - Optional configuration (excluding apiKey which is auto-detected)

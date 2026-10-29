@@ -609,7 +609,7 @@ Each factory pair has the same shape. The short factory (`geminiText`, `geminiIm
 | `geminiImage(model, config?)` / `createGeminiImage(model, apiKey, config?)` | Image adapter. See [Images](#images) |
 | `geminiSpeech(model, config?)` / `createGeminiSpeech(model, apiKey, config?)` | Text-to-speech adapter. Experimental |
 | `geminiAudio(model, config?)` / `createGeminiAudio(model, apiKey, config?)` | Lyria music adapter. Experimental |
-| `geminiVideo(model, config?)` / `createGeminiVideo(model, apiKey, config?)` | Video adapter. Experimental |
+| `geminiVideo(model, config?)` / `createGeminiVideo(model, apiKey, config?)` | Video adapter |
 | `geminiEmbedding(model, config?)` / `createGeminiEmbedding(model, apiKey, config?)` | Embedding adapter |
 | `geminiFiles` / `createGeminiFiles` | Files API adapter. See [Files API](../advanced/files-api) |
 

@@ -18,7 +18,6 @@ keywords:
   - fal
   - generateVideo
   - jobs api
-  - experimental
   - text-to-video
   - image-to-video
 ---
@@ -26,7 +25,7 @@ keywords:
 `generateVideo()` starts a video job, watches it, and streams progress to the browser. A video takes minutes, so one plain request times out.
 
 > [!WARNING]
-> Video generation is experimental. The API can change in a future version. Provider access, pricing, rate limits, and quotas also change. For example, the OpenAI Sora API can need organization verification.
+> Provider access, pricing, rate limits, and quotas change. For example, the OpenAI Sora API can need organization verification.
 
 ## Generate your first video
 

@@ -2,8 +2,6 @@
  * OpenAI Video Generation Provider Options
  *
  * Based on https://platform.openai.com/docs/api-reference/videos/create
- *
- * @experimental Video generation is an experimental feature and may change.
  */
 
 import { durationToSeconds } from '@tanstack/ai/adapters'
@@ -12,8 +10,6 @@ import type { DurationOptions, VideoDurationSpell } from '@tanstack/ai/adapters'
 /**
  * Supported video sizes for OpenAI Sora video generation.
  * Based on the official API documentation.
- *
- * @experimental Video generation is an experimental feature and may change.
  */
 export type OpenAIVideoSize =
   | '1280x720' // 720p landscape (16:9)
@@ -24,8 +20,6 @@ export type OpenAIVideoSize =
 /**
  * Wire values for the Sora `seconds` parameter. The API stores these as
  * strings: `'4'`, `'8'`, or `'12'`.
- *
- * @experimental Video generation is an experimental feature and may change.
  */
 export type OpenAIVideoSeconds = '4' | '8' | '12'
 
@@ -34,15 +28,11 @@ export type OpenAIVideoSeconds = '4' | '8' | '12'
  * 4, 8, or 12 seconds (Videos API, checked 2026-09-28). There is no `"auto"`.
  * Callers may pass the number, the numeric string, or a `"4s"` template.
  * The adapter sends {@link OpenAIVideoSeconds}.
- *
- * @experimental Video generation is an experimental feature and may change.
  */
 export type OpenAIVideoDuration = VideoDurationSpell<4 | 8 | 12>
 
 /**
  * Provider-specific options for OpenAI video generation.
- *
- * @experimental Video generation is an experimental feature and may change.
  */
 export interface OpenAIVideoProviderOptions {
   /**
@@ -60,8 +50,6 @@ export interface OpenAIVideoProviderOptions {
 
 /**
  * Model-specific provider options mapping.
- *
- * @experimental Video generation is an experimental feature and may change.
  */
 export type OpenAIVideoModelProviderOptionsByName = {
   'sora-2': OpenAIVideoProviderOptions
@@ -70,8 +58,6 @@ export type OpenAIVideoModelProviderOptionsByName = {
 
 /**
  * Model-specific provider options mapping.
- *
- * @experimental Video generation is an experimental feature and may change.
  */
 export type OpenAIVideoModelSizeByName = {
   'sora-2': OpenAIVideoSize
@@ -80,8 +66,6 @@ export type OpenAIVideoModelSizeByName = {
 
 /**
  * Per-model duration union. Same vocabulary on both Sora models.
- *
- * @experimental Video generation is an experimental feature and may change.
  */
 export type OpenAIVideoModelDurationByName = {
   'sora-2': OpenAIVideoDuration
@@ -97,8 +81,6 @@ const SORA_SECONDS = [
 /**
  * Runtime duration table backing `availableDurations()` / `snapDuration()`.
  * `snapDuration` returns the API string (`'4' | '8' | '12'`).
- *
- * @experimental Video generation is an experimental feature and may change.
  */
 export const OPENAI_VIDEO_DURATIONS = {
   'sora-2': { kind: 'discrete', values: SORA_SECONDS },
@@ -109,8 +91,6 @@ export const OPENAI_VIDEO_DURATIONS = {
 
 /**
  * Look up the duration options for a Sora model.
- *
- * @experimental Video generation is an experimental feature and may change.
  */
 export function getOpenAIVideoDurationOptions<
   TModel extends keyof OpenAIVideoModelDurationByName,
@@ -121,8 +101,6 @@ export function getOpenAIVideoDurationOptions<
 /**
  * Per-model prompt input modalities. Sora models accept a single image part
  * in the prompt, mapped to the API's `input_reference` field.
- *
- * @experimental Video generation is an experimental feature and may change.
  */
 export type OpenAIVideoModelInputModalitiesByName = {
   'sora-2': readonly ['image']
@@ -131,8 +109,6 @@ export type OpenAIVideoModelInputModalitiesByName = {
 
 /**
  * Validate video size for a given model.
- *
- * @experimental Video generation is an experimental feature and may change.
  */
 export function validateVideoSize(
   model: string,
@@ -155,8 +131,6 @@ export function validateVideoSize(
 /**
  * Validate a Sora duration. Accepts `4`, `"4"`, and `"4s"` (and 8, 12).
  * Rejects other lengths, including `"6s"` and `"auto"`.
- *
- * @experimental Video generation is an experimental feature and may change.
  */
 export function validateVideoSeconds(
   model: string,

@@ -233,7 +233,7 @@ console.log(result.summary);
 ## Music, video, voice, and files
 
 - **Music**: `geminiAudio` makes music with the Lyria models. Experimental. See [Audio Generation](../media/audio-generation).
-- **Video**: `geminiVideo` makes videos with Veo and Gemini Omni. Experimental. See [Video Generation](../media/video-generation).
+- **Video**: `geminiVideo` makes videos with Veo and Gemini Omni. See [Video Generation](../media/video-generation).
 - **Realtime voice**: `geminiRealtime` and `geminiRealtimeToken` run a live voice chat. See [Realtime Voice Chat](../media/realtime-chat).
 - **Files**: `geminiFiles` uploads media to the Gemini Files API. See [Files API](../advanced/files-api).
 

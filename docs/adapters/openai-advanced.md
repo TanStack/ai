@@ -839,7 +839,7 @@ Each factory pair has the same shape. The short factory (`openaiText`, `openaiIm
 | `openaiSpeech(model, config?)` / `createOpenaiSpeech(model, apiKey, config?)` | Text-to-speech adapter |
 | `openaiTranscription(model, config?)` / `createOpenaiTranscription(model, apiKey, config?)` | Transcription adapter (Whisper, GPT-4o transcription, and GPT-4o diarized transcription) |
 | `openaiEmbedding(model, config?)` / `createOpenaiEmbedding(model, apiKey, config?)` | Embedding adapter |
-| `openaiVideo(model, config?)` / `createOpenaiVideo(model, apiKey, config?)` | Video adapter (Sora). Experimental |
+| `openaiVideo(model, config?)` / `createOpenaiVideo(model, apiKey, config?)` | Video adapter (Sora) |
 | `openaiDecider(model, config?)` / `createOpenaiDecider(model, apiKey, config?)` | Evaluate adapter for `decide()`. See [Evaluate](./openai#evaluate) |
 | `openaiFiles` / `createOpenaiFiles` | Files API adapter. See [Files API](../advanced/files-api) |
 | `openaiRealtime(...)` / `openaiRealtimeToken(...)` | Realtime voice adapters. See [Realtime Voice Chat](../media/realtime-chat) |
