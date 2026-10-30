@@ -1,7 +1,3 @@
-/**
- * @experimental Video generation is an experimental feature and may change.
- */
-
 import { durationToSeconds } from '@tanstack/ai/adapters'
 import type { VideoDurationSpell } from '@tanstack/ai/adapters'
 

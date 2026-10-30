@@ -3,13 +3,9 @@ id: VideoUrlResult
 title: VideoUrlResult
 ---
 
-Defined in: packages/ai/src/types.ts:2613
-
-**`Experimental`**
+Defined in: packages/ai/src/types.ts:2663
 
 Result containing the URL to a generated video.
-
- Video generation is an experimental feature and may change.
 
 ## Properties
 
@@ -19,9 +15,7 @@ Result containing the URL to a generated video.
 optional artifacts?: PersistedArtifactRef[];
 ```
 
-Defined in: packages/ai/src/types.ts:2627
-
-**`Experimental`**
+Defined in: packages/ai/src/types.ts:2677
 
 Persisted artifact references for generated assets, when available
 
@@ -33,9 +27,7 @@ Persisted artifact references for generated assets, when available
 optional body?: undefined;
 ```
 
-Defined in: packages/ai/src/types.ts:2628
-
-**`Experimental`**
+Defined in: packages/ai/src/types.ts:2678
 
 ***
 
@@ -45,9 +37,7 @@ Defined in: packages/ai/src/types.ts:2628
 optional expiresAt?: Date;
 ```
 
-Defined in: packages/ai/src/types.ts:2619
-
-**`Experimental`**
+Defined in: packages/ai/src/types.ts:2669
 
 When the URL expires, if applicable
 
@@ -59,9 +49,7 @@ When the URL expires, if applicable
 jobId: string;
 ```
 
-Defined in: packages/ai/src/types.ts:2615
-
-**`Experimental`**
+Defined in: packages/ai/src/types.ts:2665
 
 Job identifier
 
@@ -73,9 +61,7 @@ Job identifier
 url: string;
 ```
 
-Defined in: packages/ai/src/types.ts:2617
-
-**`Experimental`**
+Defined in: packages/ai/src/types.ts:2667
 
 URL to the generated video
 
@@ -87,9 +73,7 @@ URL to the generated video
 optional usage?: TokenUsage<ProviderUsageDetails>;
 ```
 
-Defined in: packages/ai/src/types.ts:2625
-
-**`Experimental`**
+Defined in: packages/ai/src/types.ts:2675
 
 Usage information for the completed generation, when the adapter can report
 it. For usage-based providers (e.g. fal) this carries `billed` — the real

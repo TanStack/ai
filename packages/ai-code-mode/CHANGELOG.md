@@ -1,5 +1,21 @@
 # @tanstack/ai-code-mode
 
+## 1.0.1
+
+### Patch Changes
+
+- [#1949](https://github.com/TanStack/ai/pull/1949) [`44f225f`](https://github.com/TanStack/ai/commit/44f225fab82964f4d217c7f150b3a34185a90cbe) - Reject approval-gated tools in Code Mode. A tool marked `needsApproval: true` expects a human approval interrupt before it runs, but Code Mode invokes tools from inside the sandbox — the model only ever sees the outer `execute_typescript` call, so no per-tool interrupt is raised and the tool would run unattended.
+
+  The `CodeModeTool` type already pins `needsApproval` to `false`, so typed callers were blocked at compile time. This adds the matching runtime guard for callers that bypass the types (JavaScript consumers, `as` casts, or dynamically built tools):
+  - `createCodeModeTool` / `createCodeMode` now throw synchronously if any supplied tool has `needsApproval: true`, naming every offending tool.
+  - `toolToBinding` / `toolsToBindings` enforce the same rule as a lower-level backstop, so every binding path is covered.
+
+  Approving only the outer `execute_typescript` call would not preserve per-tool/per-argument approval semantics, so these tools are rejected rather than silently approved. Remove approval-gated tools from the Code Mode config, or drop `needsApproval` if they are safe to call unattended.
+
+- Updated dependencies [[`3061f4b`](https://github.com/TanStack/ai/commit/3061f4b22d44c21eb9b99fb7b1076808338caa74), [`f085015`](https://github.com/TanStack/ai/commit/f085015da1b77aee3cf95ca74a2e86ed9dbc1c29), [`ae97655`](https://github.com/TanStack/ai/commit/ae976552710726b13b524c307c1b5bbe78478eb0)]:
+  - @tanstack/ai-harness@0.1.1
+  - @tanstack/ai@1.0.1
+
 ## 1.0.0
 
 ### Major Changes

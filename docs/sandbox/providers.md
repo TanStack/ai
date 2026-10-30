@@ -2,7 +2,7 @@
 title: Providers
 id: providers
 order: 3
-description: "Pick where a TanStack AI sandbox runs (local process, Docker container, Docker Sandboxes microVM, Daytona, Vercel, Sprites, Upstash Box, Blaxel, E2B, boxd, or Railway), install it, and configure it."
+description: "Pick where a TanStack AI sandbox runs (local process, Docker container, Docker Sandboxes microVM, Daytona, Vercel, Sprites, Upstash Box, Blaxel, E2B, boxd, Railway, or Cloudflare), install it, and configure it."
 ---
 
 A provider is where the sandbox runs: a local process for a fast loop, or an isolated VM in production.
@@ -26,6 +26,7 @@ A provider is that place. Every provider has the same contract, so your [workspa
 | [E2B](https://e2b.dev) | `@tanstack/ai-sandbox-e2b` | microVM | `E2B_API_KEY` |
 | [boxd](https://boxd.sh) | `@tanstack/ai-sandbox-boxd` | microVM | `BOXD_API_KEY` and `BOXD_ORG`. |
 | [Railway](https://railway.com) | `@tanstack/ai-sandbox-railway` | microVM | `RAILWAY_API_TOKEN` or `RAILWAY_TOKEN`, and an environment. |
+| [Cloudflare](./cloudflare) | `@tanstack/ai-sandbox-cloudflare` | Container | A `Sandbox` Durable Object binding in a Worker. |
 
 2. Install its package. This example installs the Docker provider. Use the package from your row.
 
@@ -95,7 +96,9 @@ const boxd = boxdSandbox({ org: 'acme' }) // reads BOXD_API_KEY
 const railway = railwaySandbox() // reads RAILWAY_TOKEN and RAILWAY_ENVIRONMENT_ID
 ```
 
-`dockerSandbox()` and `sbxSandbox()` come from the same package. Every other provider has its own package. For the edge, see [Cloudflare](./cloudflare).
+`dockerSandbox()` and `sbxSandbox()` come from the same package. Every other provider has its own package.
+
+`cloudflareSandbox({ binding: env.Sandbox })` from `@tanstack/ai-sandbox-cloudflare` is not in this list. It needs a `Sandbox` Durable Object binding, so you call it inside a Worker. See [Cloudflare](./cloudflare).
 
 ## How it works
 
@@ -105,7 +108,7 @@ const railway = railwaySandbox() // reads RAILWAY_TOKEN and RAILWAY_ENVIRONMENT_
 - Provider-native snapshots and resume keep or recreate the provider state. They make bootstrap faster. [Portable Snapshots](./portable-snapshots) store finished files in your own persistence.
 
 > [!NOTE]
-> Cloud providers (Daytona, Vercel, Sprites, Upstash Box, Blaxel, E2B, boxd, and Railway) run remotely. When you drive them from your laptop, [bridged tools](./tools) cannot reach your `localhost`. Use the ngrok bridge tunnel from the [tools guide](./tools), or see [Cloudflare](./cloudflare) for the edge setup.
+> Cloud providers (Daytona, Vercel, Sprites, Upstash Box, Blaxel, E2B, boxd, and Railway) run remotely. When you drive them from your laptop, [bridged tools](./tools) cannot reach your `localhost`. Use the ngrok bridge tunnel from the [tools guide](./tools). Cloudflare is different: the Worker that owns the sandbox also runs the bridge, so there is no laptop in the path. See [Cloudflare](./cloudflare).
 
 ## Capabilities
 

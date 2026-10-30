@@ -14,7 +14,7 @@
 | `openaiImage`         | Image          | Image generation (GPT Image)     |
 | `openaiSpeech`        | TTS            | Text-to-speech                   |
 | `openaiTranscription` | Transcription  | Speech-to-text                   |
-| `openaiVideo`         | Video          | Video generation (experimental)  |
+| `openaiVideo`         | Video          | Video generation                 |
 | `openaiSummarize`     | Summarize      | Text summarization               |
 | `openaiRealtime`      | Realtime/Voice | Realtime voice conversations     |
 

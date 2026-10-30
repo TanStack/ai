@@ -32,8 +32,6 @@ import type { OpenAIClientConfig } from '../utils/client'
 
 /**
  * Configuration for OpenAI video adapter.
- *
- * @experimental Video generation is an experimental feature and may change.
  */
 export interface OpenAIVideoConfig extends OpenAIClientConfig {
   /**
@@ -53,7 +51,6 @@ export interface OpenAIVideoConfig extends OpenAIClientConfig {
  * Tree-shakeable adapter for OpenAI video generation functionality using Sora-2.
  * Uses a jobs/polling architecture for async video generation.
  *
- * @experimental Video generation is an experimental feature and may change.
  *
  * Features:
  * - Async job-based video generation
@@ -298,7 +295,6 @@ export class OpenAIVideoAdapter<
  * Creates an OpenAI video adapter with an explicit API key.
  * Type resolution happens here at the call site.
  *
- * @experimental Video generation is an experimental feature and may change.
  *
  * @param model - The model name (e.g., 'sora-2')
  * @param apiKey - Your OpenAI API key
@@ -331,7 +327,6 @@ export function createOpenaiVideo<TModel extends OpenAIVideoModel>(
  * - `process.env` (Node.js)
  * - `window.env` (Browser with injected env)
  *
- * @experimental Video generation is an experimental feature and may change.
  *
  * @param model - The model name (e.g., 'sora-2')
  * @param config - Optional configuration (excluding apiKey which is auto-detected)

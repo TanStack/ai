@@ -3,14 +3,10 @@ id: VideoGenerationOptions
 title: VideoGenerationOptions
 ---
 
-Defined in: packages/ai/src/types.ts:2534
-
-**`Experimental`**
+Defined in: packages/ai/src/types.ts:2590
 
 Options for video generation.
 These are the common options supported across providers.
-
- Video generation is an experimental feature and may change.
 
 ## Type Parameters
 
@@ -34,9 +30,7 @@ These are the common options supported across providers.
 optional abortSignal?: AbortSignal;
 ```
 
-Defined in: packages/ai/src/types.ts:2571
-
-**`Experimental`**
+Defined in: packages/ai/src/types.ts:2627
 
 Effective abort signal composed by the activity from caller `abortSignal`
 and/or `timeout`. Adapters should forward this to the provider SDK when
@@ -50,9 +44,7 @@ supported. Request-specific — never store on a global client config.
 optional duration?: TDuration;
 ```
 
-Defined in: packages/ai/src/types.ts:2558
-
-**`Experimental`**
+Defined in: packages/ai/src/types.ts:2614
 
 Video duration. Adapters that declare a per-model duration map narrow
 this to that model's union (a number, `"8"`, or `"8s"`). Use
@@ -67,9 +59,7 @@ seconds, a `"6s"` template, or `"auto"` when the model lists it.
 logger: InternalLogger;
 ```
 
-Defined in: packages/ai/src/types.ts:2565
-
-**`Experimental`**
+Defined in: packages/ai/src/types.ts:2621
 
 Internal logger threaded from the generateVideo() entry point. Adapters must
 call logger.request() before the SDK call and logger.errors() in catch blocks.
@@ -82,9 +72,7 @@ call logger.request() before the SDK call and logger.errors() in catch blocks.
 model: string;
 ```
 
-Defined in: packages/ai/src/types.ts:2540
-
-**`Experimental`**
+Defined in: packages/ai/src/types.ts:2596
 
 The model to use for video generation
 
@@ -96,9 +84,7 @@ The model to use for video generation
 optional modelOptions?: TProviderOptions;
 ```
 
-Defined in: packages/ai/src/types.ts:2560
-
-**`Experimental`**
+Defined in: packages/ai/src/types.ts:2616
 
 Model-specific options for video generation
 
@@ -110,9 +96,7 @@ Model-specific options for video generation
 prompt: MediaPrompt;
 ```
 
-Defined in: packages/ai/src/types.ts:2549
-
-**`Experimental`**
+Defined in: packages/ai/src/types.ts:2605
 
 Description of the desired video: a plain string, or an ordered array of
 content parts for image-conditioned generation. Image parts may carry
@@ -129,8 +113,6 @@ provider-native request (e.g. OpenAI Sora `input_reference`, fal
 optional size?: TSize;
 ```
 
-Defined in: packages/ai/src/types.ts:2551
-
-**`Experimental`**
+Defined in: packages/ai/src/types.ts:2607
 
 Video size — format depends on the provider (e.g., "16:9", "1280x720")

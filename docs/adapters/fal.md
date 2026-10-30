@@ -143,8 +143,6 @@ For the `size` formats, see [Image sizes](#image-sizes).
 
 ## Video
 
-> Video generation is an [experimental feature](../media/video-generation).
-
 Video runs as a job. `generateVideo()` starts the job, and `getVideoJobStatus()` reads its status:
 
 ```typescript

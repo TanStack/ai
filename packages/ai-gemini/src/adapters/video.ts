@@ -50,8 +50,6 @@ type InteractionContent = Interactions.Content
 
 /**
  * Configuration for Gemini video adapter.
- *
- * @experimental Video generation is an experimental feature and may change.
  */
 export interface GeminiVideoConfig extends GeminiClientConfig {
   /**
@@ -259,8 +257,6 @@ function interactionUsageToTokenUsage(
  * (`'16:9'` or `'16:9_1080p'`); the optional suffix maps onto
  * `response_format.resolution` (`'360p' | '720p' | '1080p' | '4k'`,
  * default 720p).
- *
- * @experimental Video generation is an experimental feature and may change.
  */
 export class GeminiVideoAdapter<
   TModel extends GeminiVideoModel,
@@ -689,7 +685,6 @@ export class GeminiVideoAdapter<
  * Creates a Gemini video adapter with an explicit API key.
  * Type resolution happens here at the call site.
  *
- * @experimental Video generation is an experimental feature and may change.
  *
  * @param model - The model name (e.g., 'veo-3.1-generate-preview')
  * @param apiKey - Your Google API key
@@ -728,7 +723,6 @@ export function createGeminiVideo<TModel extends GeminiVideoModel>(
  * - `process.env` (Node.js)
  * - `window.env` (Browser with injected env)
  *
- * @experimental Video generation is an experimental feature and may change.
  *
  * @param model - The model name (e.g., 'veo-3.1-generate-preview')
  * @param config - Optional configuration (excluding apiKey which is auto-detected)

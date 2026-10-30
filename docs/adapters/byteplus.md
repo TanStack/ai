@@ -128,8 +128,6 @@ You now have a streaming chat on BytePlus. Seed models think before they answer,
 
 ## Video generation (Seedance)
 
-> Video generation is an [experimental feature](../media/video-generation).
-
 Seedance runs as a job. `generateVideo()` starts the job and returns a `jobId`. Poll the job until it has a video URL:
 
 ```typescript

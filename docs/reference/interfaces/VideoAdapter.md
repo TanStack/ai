@@ -3,16 +3,12 @@ id: VideoAdapter
 title: VideoAdapter
 ---
 
-Defined in: packages/ai/src/activities/generateVideo/adapter.ts:69
-
-**`Experimental`**
+Defined in: packages/ai/src/activities/generateVideo/adapter.ts:64
 
 Video adapter interface with pre-resolved generics.
 
 An adapter is created by a provider function: `provider('model')` → `adapter`
 All type resolution happens at the provider call site, not in this interface.
-
- Video generation is an experimental feature and may change.
 
 Generic parameters:
 - TModel: The specific model name (e.g., 'sora-2')
@@ -59,7 +55,7 @@ Generic parameters:
 ~types: object;
 ```
 
-Defined in: packages/ai/src/activities/generateVideo/adapter.ts:99
+Defined in: packages/ai/src/activities/generateVideo/adapter.ts:94
 
 **`Internal`**
 
@@ -103,9 +99,7 @@ providerOptions: TProviderOptions;
 availableDurations: () => DurationOptions<TModelDurationByName[TModel]>;
 ```
 
-Defined in: packages/ai/src/activities/generateVideo/adapter.ts:136
-
-**`Experimental`**
+Defined in: packages/ai/src/activities/generateVideo/adapter.ts:131
 
 Describe the durations this adapter's model accepts. Returns a tagged
 union so consumers can render UI / coerce input without provider-specific
@@ -123,9 +117,7 @@ knowledge.
 createVideoJob: (options) => Promise<VideoJobResult>;
 ```
 
-Defined in: packages/ai/src/activities/generateVideo/adapter.ts:111
-
-**`Experimental`**
+Defined in: packages/ai/src/activities/generateVideo/adapter.ts:106
 
 Create a new video generation job.
 Returns a job ID that can be used to poll for status and retrieve the video.
@@ -150,9 +142,7 @@ getVideo: (jobId) => Promise<
 | VideoStreamResult>;
 ```
 
-Defined in: packages/ai/src/activities/generateVideo/adapter.ts:129
-
-**`Experimental`**
+Defined in: packages/ai/src/activities/generateVideo/adapter.ts:124
 
 Get the finished video: a public URL when the provider has one, or the
 download stream for generation middleware to host. Call only after
@@ -178,9 +168,7 @@ status is 'completed'.
 getVideoStatus: (jobId) => Promise<VideoStatusResult>;
 ```
 
-Defined in: packages/ai/src/activities/generateVideo/adapter.ts:122
-
-**`Experimental`**
+Defined in: packages/ai/src/activities/generateVideo/adapter.ts:117
 
 Get the current status of a video generation job.
 
@@ -202,9 +190,7 @@ Get the current status of a video generation job.
 readonly kind: "video";
 ```
 
-Defined in: packages/ai/src/activities/generateVideo/adapter.ts:83
-
-**`Experimental`**
+Defined in: packages/ai/src/activities/generateVideo/adapter.ts:78
 
 Discriminator for adapter kind - used to determine API shape
 
@@ -216,9 +202,7 @@ Discriminator for adapter kind - used to determine API shape
 readonly model: TModel;
 ```
 
-Defined in: packages/ai/src/activities/generateVideo/adapter.ts:94
-
-**`Experimental`**
+Defined in: packages/ai/src/activities/generateVideo/adapter.ts:89
 
 The model this adapter is configured for
 
@@ -230,9 +214,7 @@ The model this adapter is configured for
 readonly name: string;
 ```
 
-Defined in: packages/ai/src/activities/generateVideo/adapter.ts:85
-
-**`Experimental`**
+Defined in: packages/ai/src/activities/generateVideo/adapter.ts:80
 
 Adapter name identifier
 
@@ -244,9 +226,7 @@ Adapter name identifier
 snapDuration: (input) => TModelDurationByName[TModel] | undefined;
 ```
 
-Defined in: packages/ai/src/activities/generateVideo/adapter.ts:145
-
-**`Experimental`**
+Defined in: packages/ai/src/activities/generateVideo/adapter.ts:140
 
 Coerce `input` to the closest duration this model accepts.
 `input` may be seconds (`7`), a numeric string (`"7"`), a template
@@ -272,9 +252,7 @@ Returns `undefined` when the model has no duration field, or when
 readonly optional supportsFileSources?: boolean;
 ```
 
-Defined in: packages/ai/src/activities/generateVideo/adapter.ts:92
-
-**`Experimental`**
+Defined in: packages/ai/src/activities/generateVideo/adapter.ts:87
 
 Declares that this adapter can consume `{ type: 'file' }` content
 sources (provider Files API references). The activity dispatcher rejects

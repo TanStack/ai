@@ -19,17 +19,17 @@
 <br />
 
 <div align="center">
-  <a href="https://npmjs.com/package/@tanstack/ai" target="_parent">
-    <img alt="NPM downloads" src="https://img.shields.io/npm/dm/@tanstack/ai.svg" />
+  <a href="https://npmjs.com/package/@tanstack/ai-openai" target="_parent">
+    <img alt="NPM downloads" src="https://img.shields.io/npm/dm/@tanstack/ai-openai.svg" />
   </a>
   <a href="https://github.com/TanStack/ai" target="_parent">
     <img alt="GitHub stars" src="https://img.shields.io/github/stars/TanStack/ai.svg?style=social&label=Star" />
   </a>
-  <a href="https://github.com/TanStack/ai/releases" target="_parent">
-    <img alt="Release" src="https://img.shields.io/github/v/release/tanstack/ai" />
+  <a href="https://www.npmjs.com/package/@tanstack/ai-openai" target="_parent">
+    <img alt="npm version" src="https://img.shields.io/npm/v/@tanstack/ai-openai.svg" />
   </a>
-  <a href="https://bundlephobia.com/result?p=@tanstack/ai@latest" target="_parent">
-    <img alt="Bundle size" src="https://badgen.net/bundlephobia/minzip/@tanstack/ai@latest" />
+  <a href="https://bundlejs.com/?q=%40tanstack%2Fai-openai" target="_parent">
+    <img alt="Bundle size" src="https://deno.bundlejs.com/?q=%40tanstack%2Fai-openai&badge" />
   </a>
   <a href="https://twitter.com/tan_stack">
     <img alt="Follow @TanStack" src="https://img.shields.io/twitter/follow/tan_stack.svg?style=social" />
@@ -244,6 +244,7 @@ Official adapters include:
 | [`@tanstack/ai-reactor`](https://tanstack.com/ai/latest/docs/adapters/reactor)       | Reactor live world and video generation (Orbis, Happy Oyster, LingBot, Helios, FastH3) |
 | [`@tanstack/ai-worldlabs`](https://tanstack.com/ai/latest/docs/adapters/worldlabs)   | World Labs Marble persistent 3D world generation                                       |
 | [`@tanstack/ai-cloudflare`](https://tanstack.com/ai/latest/docs/adapters/cloudflare) | Cloudflare Workers AI chat, embeddings, image, speech, transcription, and AI Gateway   |
+| [`@tanstack/ai-neon`](https://tanstack.com/ai/latest/docs/adapters/neon)             | Neon AI Gateway chat and embeddings for Claude, GPT, Gemini, and open models           |
 
 The adapter system is tree-shakeable by activity. Import `openaiText` for chat,
 `openaiImage` for images, `falVideo` for video, `geminiSpeech` for TTS, and so
@@ -297,9 +298,9 @@ on.
     <td>
       <a href="https://www.coderabbit.ai/?via=tanstack&dub_id=aCcEEdAOqqutX6OS">
         <picture>
-          <source media="(prefers-color-scheme: dark)" srcset="https://tanstack.com/assets/coderabbit-dark-D643Zkrv.svg" />
-          <source media="(prefers-color-scheme: light)" srcset="https://tanstack.com/assets/coderabbit-light-CIzGLYU_.svg" />
-          <img src="https://tanstack.com/assets/coderabbit-light-CIzGLYU_.svg" height="40" alt="CodeRabbit" />
+          <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/TanStack/tanstack.com/main/src/images/coderabbit-dark.svg" />
+          <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/TanStack/tanstack.com/main/src/images/coderabbit-light.svg" />
+          <img src="https://raw.githubusercontent.com/TanStack/tanstack.com/main/src/images/coderabbit-light.svg" height="40" alt="CodeRabbit" />
         </picture>
       </a>
     </td>
@@ -308,7 +309,7 @@ on.
         <picture>
           <source media="(prefers-color-scheme: dark)" srcset="https://tanstack.com/assets/cloudflare-white-Co-Tyjbl.svg" />
           <source media="(prefers-color-scheme: light)" srcset="https://tanstack.com/assets/cloudflare-black-6Ojsn8yh.svg" />
-          <img src="https://tanstack.com/assets/cloudflare-white-Co-Tyjbl.svg" height="60" alt="Cloudflare" />
+          <img src="https://tanstack.com/assets/cloudflare-black-6Ojsn8yh.svg" height="60" alt="Cloudflare" />
         </picture>
       </a>
     </td>

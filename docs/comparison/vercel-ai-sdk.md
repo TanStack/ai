@@ -190,7 +190,7 @@ Versions: Vercel AI SDK `ai@7.x` and TanStack AI 1.0.
 | Speech and transcription | Marked experimental | Stable. Word timestamps and diarization |
 | Music and sound effects | - | `generateAudio()` |
 | Live worlds and live video | - | Reactor and World Labs adapters |
-| Realtime voice | Experimental `experimental_useRealtime` | Stable: OpenAI, Grok, ElevenLabs |
+| Realtime voice | Experimental `experimental_useRealtime` | Stable: OpenAI, Gemini, Grok, ElevenLabs |
 | Devtools | `devToolsMiddleware` and a local inspector (server, dev only) | In-app panel for the server and the client |
 
 To move an app, start with [Migration from Vercel AI SDK](../migration/migration-from-vercel-ai).

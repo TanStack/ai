@@ -58,8 +58,6 @@ function entryToSeconds(entry: string | number): number | null {
  *                       returns `values[0]` (keyword-only models like 'auto')
  * - `range`           → clamped to [min, max] and rounded to `step` (default 1)
  * - `mixed`           → closest of (discrete numerics ∪ range values)
- *
- * @experimental Video generation is an experimental feature and may change.
  */
 export function snapToDurationOption<T extends string | number | undefined>(
   input: number | string,

@@ -1,5 +1,5 @@
 import { readFile } from 'node:fs/promises'
-import type { ToolsetConfig } from './types'
+import type { ToolsetConfig } from './types.ts'
 
 export const DEFAULT_CONFIG_PATH = '.github/maintainers.json'
 

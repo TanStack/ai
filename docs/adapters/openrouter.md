@@ -225,7 +225,7 @@ For a React and TanStack Start walkthrough with `useGenerateImage`, see [Generat
 
 ## Video
 
-`openRouterVideo` makes videos with Seedance, Veo 3.1, Wan, Kling, and more, through the async video API of OpenRouter (`POST /api/v1/videos`). Video generation is experimental. For the full server and client code, see [OpenRouter: Advanced](./openrouter-advanced#video-generation).
+`openRouterVideo` makes videos with Seedance, Veo 3.1, Wan, Kling, and more, through the async video API of OpenRouter (`POST /api/v1/videos`). For the full server and client code, see [OpenRouter: Advanced](./openrouter-advanced#video-generation).
 
 ## Reranking
 

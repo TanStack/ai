@@ -46,6 +46,14 @@
       ],
       "@upstash/agentkit-tanstack-ai/memory": [
         "./node_modules/.kiira/node_modules/@upstash/agentkit-tanstack-ai/dist/memory.d.ts"
+      ],
+      "@/db": ["./packages/ai-persistence/skills-test/stubs/app-db.ts"],
+      "@/db/schema": [
+        "./packages/ai-persistence/skills-test/stubs/drizzle-sqlite-schema.ts"
+      ],
+      "@/lib/prisma": ["./packages/ai-persistence/skills-test/stubs/prisma.ts"],
+      "@prisma/client": [
+        "./packages/ai-persistence/skills-test/stubs/prisma-client.ts"
       ]
     }
   }

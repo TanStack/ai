@@ -473,7 +473,7 @@ How usage works when a call fails:
 
 ## Video generation
 
-`openRouterVideo` uses the async video API of OpenRouter (`POST /api/v1/videos`). You get Seedance, Veo 3.1, Wan, Kling, and more with your one OpenRouter key. Video generation is experimental.
+`openRouterVideo` uses the async video API of OpenRouter (`POST /api/v1/videos`). You get Seedance, Veo 3.1, Wan, Kling, and more with your one OpenRouter key.
 
 Like every TanStack AI video adapter, it creates a job, then you poll the job. OpenRouter returns the finished video as a stream, not a URL. Persistence stores the stream and sets `url`, so pass the same options to both calls.
 

@@ -7,9 +7,7 @@ title: getVideoJobStatus
 function getVideoJobStatus<TAdapter>(options): Promise<VideoJobStatusResult>;
 ```
 
-Defined in: packages/ai/src/activities/generateVideo/index.ts:937
-
-**`Experimental`**
+Defined in: packages/ai/src/activities/generateVideo/index.ts:919
 
 Get video job status - returns the current status, progress, and URL if available.
 
@@ -21,8 +19,6 @@ It is also where a non-streaming `generateVideo()` run ENDS: pass the same
 finishes the run (recording the result and its artifacts) or fails it. The run
 is identified by `adapter` + `jobId`, exactly what the submission derived it
 from, so there is nothing else to carry between the two calls.
-
- Video generation is an experimental feature and may change.
 
 ## Type Parameters
 
