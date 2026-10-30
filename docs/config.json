@@ -1958,12 +1958,28 @@
           "label": "From Vercel AI SDK",
           "to": "migration/migration-from-vercel-ai",
           "addedAt": "2026-04-20",
-          "updatedAt": "2026-10-22"
+          "updatedAt": "2026-10-23"
         },
         {
           "label": "Vercel AI SDK: full API mapping",
           "to": "migration/migration-from-vercel-ai-advanced",
           "addedAt": "2026-10-21"
+        },
+        {
+          "label": "AI SDK useChat with a TanStack AI server",
+          "to": "migration/ai-sdk-client-tanstack-server",
+          "addedAt": "2026-10-23",
+          "updatedAt": "2026-10-27"
+        },
+        {
+          "label": "TanStack useChat with an AI SDK server",
+          "to": "migration/tanstack-client-ai-sdk-server",
+          "addedAt": "2026-10-23"
+        },
+        {
+          "label": "AI SDK bridge compatibility",
+          "to": "migration/ai-sdk-compatibility",
+          "addedAt": "2026-10-23"
         },
         {
           "label": "AG-UI Client Compliance",
