@@ -160,6 +160,7 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'neon',
     'neon-anthropic',
     'zai',
+    'ollama',
   ]),
   // Gemini excluded: approval flow timing issues with Gemini's streaming format
   // Vertex uses the same Gemini stream, so it is excluded for the same reason.

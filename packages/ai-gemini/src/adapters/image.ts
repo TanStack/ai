@@ -4,7 +4,11 @@ import {
   resolveMediaPrompt,
 } from '@tanstack/ai'
 import { BaseImageAdapter } from '@tanstack/ai/adapters'
-import { createGeminiClient, getGeminiApiKeyFromEnv } from '../utils'
+import {
+  createGeminiClient,
+  generateId,
+  getGeminiApiKeyFromEnv,
+} from '../utils'
 import { flattenModalityTokenCounts, hasModalityTokens } from '../usage'
 import {
   parseNativeImageSize,
@@ -196,7 +200,11 @@ export class GeminiImageAdapter<
         })
       : await this.client.interactions.create(request)
 
-    return this.transformInteractionResponse(model, interaction)
+    return this.transformInteractionResponse(
+      model,
+      interaction,
+      modelOptions?.store !== false,
+    )
   }
 
   /**
@@ -261,13 +269,17 @@ export class GeminiImageAdapter<
   private transformInteractionResponse(
     model: string,
     interaction: Interactions.Interaction,
+    stored: boolean,
   ): ImageGenerationResult {
     if (interaction.status !== 'completed') {
       throw new Error(
         `Gemini ${model} image interaction ended with status "${interaction.status}".`,
       )
     }
-    if (!interaction.id) {
+    // The interaction id only matters for chaining an edit through
+    // `previous_interaction_id`, and an unstored interaction cannot be chained.
+    // Gemini leaves the id out when `store` is false, so use a local one.
+    if (!interaction.id && stored) {
       throw new Error(`Gemini ${model} image interaction returned no id.`)
     }
 
@@ -302,7 +314,7 @@ export class GeminiImageAdapter<
 
     const usage = interactionImageUsage(interaction.usage)
     return {
-      id: interaction.id,
+      id: interaction.id ?? generateId(this.name),
       model,
       images,
       ...(usage ? { usage } : {}),

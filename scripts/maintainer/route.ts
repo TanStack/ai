@@ -4,8 +4,8 @@
  * needing any stored state.
  */
 
-import { matchesAnyGlob, matchesGlob } from './glob'
-import type { ClosedItem, MaintainerEntry, ToolsetConfig } from './types'
+import { matchesAnyGlob, matchesGlob } from './glob.ts'
+import type { ClosedItem, MaintainerEntry, ToolsetConfig } from './types.ts'
 
 export type AssignmentLoad = Map<string, number>
 

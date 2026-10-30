@@ -482,18 +482,25 @@ export type SessionMetadataOf<THarness> =
     ? MetadataOf<TMetadataSchema>
     : Record<string, unknown>
 
-/** Every agent a harness registers, as a union. */
+/**
+ * Every agent a harness registers, as a union. It reads `agents` and
+ * `subagents.agents` alone: matching the whole definition reaches
+ * `session.agents`, which is typed by this, and TypeScript 7.1 reports the
+ * loop as a circular mapped type (TS2615).
+ */
 export type HarnessAgentsOf<THarness> =
-  THarness extends HarnessDefinition<
-    any,
-    infer TAgents,
-    infer TSubagents,
-    any,
-    ReadonlyArray<AnyTool>,
-    any
-  >
-    ? TAgents[number] | TSubagents[number]
-    : never
+  | (THarness extends {
+      readonly agents?: infer TAgents extends ReadonlyArray<AnyAgent>
+    }
+      ? TAgents[number]
+      : never)
+  | (THarness extends {
+      readonly subagents?: {
+        agents: infer TSubagents extends ReadonlyArray<AnyAgent>
+      }
+    }
+      ? TSubagents[number]
+      : never)
 
 /** The `tools` of a harness, as a union. */
 export type HarnessToolsOf<THarness> =
