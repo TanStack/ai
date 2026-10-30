@@ -39,6 +39,8 @@ test.describe('AG-UI client-to-server compliance', () => {
       expect(body).toHaveProperty('tools')
       expect(body).toHaveProperty('context')
       expect(body).toHaveProperty('forwardedProps')
+      // AG-UI 1.0: the client states its protocol version in-band.
+      expect(body.protocolVersion).toBe('1.0')
       expect(Array.isArray(body.messages)).toBe(true)
       expect(Array.isArray(body.tools)).toBe(true)
     }
