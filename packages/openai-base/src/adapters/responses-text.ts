@@ -1767,6 +1767,37 @@ export abstract class OpenAIBaseResponsesTextAdapter<
             }
             hasEmittedTextMessageStart = false
           }
+          // A response cut off by a known limit is a finished-but-capped
+          // answer, not a failure: end it like the chat-completions adapter
+          // does for finish_reason 'length' / 'content_filter', keeping usage.
+          const cappedFinishReason =
+            chunk.type === 'response.incomplete'
+              ? chunk.response.incomplete_details?.reason ===
+                'max_output_tokens'
+                ? ('length' as const)
+                : chunk.response.incomplete_details?.reason === 'content_filter'
+                  ? ('content_filter' as const)
+                  : undefined
+              : undefined
+          if (cappedFinishReason) {
+            yield {
+              type: EventType.RUN_FINISHED,
+              ...(responseId ? { responseId } : {}),
+              runId: aguiState.runId,
+              threadId: aguiState.threadId,
+              model: chunk.response.model || options.model,
+              timestamp: Date.now(),
+              ...(chunk.response.usage && {
+                usage: this.responsesTokenUsage(
+                  chunk.response.usage,
+                  chunk.response,
+                ),
+              }),
+              finishReason: cappedFinishReason,
+            }
+            runFinishedEmitted = true
+            return
+          }
           // Coalesce error + incomplete_details into a single RUN_ERROR
           // payload — emitting two distinct events for one terminal upstream
           // event would force consumers to handle a non-existent ordering.
