@@ -329,11 +329,11 @@ export class OllamaTextAdapter<TModel extends string> extends BaseTextAdapter<
 
       const handleToolCall = (toolCall: ToolCall): Array<AdapterYieldChunk> => {
         const actualToolCall = toolCall as ToolCall & {
-          id: string
-          function: { index: number }
+          id?: string
+          function: { index?: number }
         }
         const toolCallId =
-          actualToolCall.id || `${actualToolCall.function.name}_${Date.now()}`
+          actualToolCall.id || generateId(actualToolCall.function.name)
         const events: Array<AdapterYieldChunk> = []
 
         // Emit TOOL_CALL_START if not already emitted for this tool call
