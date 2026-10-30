@@ -62,6 +62,7 @@ import {
   freezeSnapshotMessages,
   freezeSnapshotPart,
   patchAtom,
+  scheduleFrame,
   subscribeAtom,
 } from './snapshot-atom'
 import type { Atom } from './snapshot-atom'
@@ -809,12 +810,7 @@ export class ChatClient<
           // its live handle before anyone reads the messages.
           this.syncSubagentHandles()
           this.persistor?.notifyMessagesChanged(messages)
-          patchAtom(this.snapshotAtom, {
-            messages: freezeSnapshotMessages(
-              this.frozenMessages,
-              messages as Array<UIMessage<TTools>>,
-            ),
-          })
+          this.onChunkMessagesChange(messages as Array<UIMessage<TTools>>)
           this.callbacksRef.current.onMessagesChange(messages)
           // The bridge only snapshots on status changes, and the panel draws a
           // child card from the snapshot, so without this the card would update
@@ -1833,19 +1829,73 @@ export class ChatClient<
 
   /**
    * Subscribe to UI snapshot changes. Does not fire with the current value;
-   * read {@link getSnapshot} first.
+   * read {@link getSnapshot} first. Notifies synchronously on every atom
+   * change — except the per-chunk message storm, which is coalesced to roughly
+   * one notification per animation frame (see {@link onChunkMessagesChange}).
    *
    * Named separately from {@link subscribe} (the live connection loop).
    */
   subscribeSnapshot = (listener: () => void): (() => void) =>
     subscribeAtom(this.snapshotAtom, listener)
 
+  /** Set only while a streamed chunk is being processed (see processIncomingChunk). */
+  private processingChunk = false
+  /** Latest frozen messages not yet published to the atom while coalescing. */
+  private pendingFrozenMessages: ReadonlyArray<UIMessage<TTools>> | null = null
+  private cancelMessagesFrame: (() => void) | null = null
+
+  /**
+   * Publish a `messages` change to the snapshot atom. While a chunk is being
+   * processed (`processingChunk`), a high-frequency stream — e.g. Code Mode
+   * delivering a program as thousands of `TOOL_CALL_ARGS` deltas in one burst —
+   * would otherwise patch the atom and notify every framework hook once per
+   * chunk. Coalesce those to one atom patch (hence one re-render) per frame.
+   * Discrete changes (setMessages, clear, reload) run outside chunk processing
+   * and publish synchronously, so their observers still see them at once.
+   * {@link getSnapshot} flushes any pending messages, so it is never stale.
+   */
+  private onChunkMessagesChange(
+    messages: ReadonlyArray<UIMessage<TTools>>,
+  ): void {
+    this.pendingFrozenMessages = freezeSnapshotMessages(
+      this.frozenMessages,
+      messages as Array<UIMessage<TTools>>,
+    )
+    if (!this.processingChunk) {
+      this.flushPendingMessages()
+      return
+    }
+    if (!this.cancelMessagesFrame) {
+      this.cancelMessagesFrame = scheduleFrame(() => {
+        this.cancelMessagesFrame = null
+        this.flushPendingMessages()
+      })
+    }
+  }
+
+  /** Patch the pending messages into the atom now (fires listeners once). */
+  private flushPendingMessages(): void {
+    if (this.cancelMessagesFrame) {
+      this.cancelMessagesFrame()
+      this.cancelMessagesFrame = null
+    }
+    if (this.pendingFrozenMessages) {
+      const messages = this.pendingFrozenMessages
+      this.pendingFrozenMessages = null
+      patchAtom(this.snapshotAtom, { messages })
+    }
+  }
+
   /**
    * Current UI snapshot. The snapshot, `messages`, `queue`, and their entries
    * are frozen copies. `interruptState` is the interrupt manager's own state.
+   * Flushes any coalesced streaming messages first, so a synchronous read is
+   * never behind what the processor has produced.
    */
-  getSnapshot = (): ChatClientSnapshot<TTools, TInterrupts> =>
-    this.snapshotAtom.get()
+  getSnapshot = (): ChatClientSnapshot<TTools, TInterrupts> => {
+    if (this.pendingFrozenMessages) this.flushPendingMessages()
+    return this.snapshotAtom.get()
+  }
 
   private setIsLoading(isLoading: boolean): void {
     patchAtom(this.snapshotAtom, { isLoading })
@@ -2276,9 +2326,14 @@ export class ChatClient<
     }
     this.handingOverPendingToolCalls =
       chunk.type === 'RUN_FINISHED' && chunk.outcome?.type !== 'interrupt'
+    // Mark the window in which the processor may fire onMessagesChange per
+    // chunk, so those message updates coalesce (see onChunkMessagesChange)
+    // while discrete, API-driven message changes keep notifying synchronously.
+    this.processingChunk = true
     try {
       this.processor.processChunk(chunk)
     } finally {
+      this.processingChunk = false
       this.handingOverPendingToolCalls = false
     }
     this.syncSubagentHandles()
