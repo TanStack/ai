@@ -111,6 +111,62 @@ class AnswerRefused extends Error {
 }
 
 /**
+ * What names `message` in a seed: its role and id, or the call id of a tool
+ * result. `undefined` for a message with neither.
+ */
+function seedKey(message: ModelMessage | undefined) {
+  const id =
+    message?.id ?? (message?.role === 'tool' ? message.toolCallId : undefined)
+  return id ? `${message?.role}:${id}` : undefined
+}
+
+/**
+ * Whether two of `messages` share an `id`, whatever their roles. An
+ * assistant message may repeat the id of the assistant message before it,
+ * with only tool results between them: `convertMessagesToModelMessages`
+ * splits one UI message at its tool results that way.
+ */
+function repeatsMessageId(messages: ReadonlyArray<ModelMessage>) {
+  const ids = new Set<string>()
+  let previous: ModelMessage | undefined
+  for (const message of messages) {
+    const { id } = message
+    if (id !== undefined) {
+      const continues =
+        message.role === 'assistant' &&
+        previous?.role === 'assistant' &&
+        previous.id === id
+      if (ids.has(id) && !continues) return true
+      ids.add(id)
+    }
+    if (message.role !== 'tool') previous = message
+  }
+  return false
+}
+
+/**
+ * Why the tool calls of `messages` cannot start a thread: a tool result
+ * that answers no open call before it (`'unknown_tool_call'`), or a call
+ * with no result (`'open_tool_call'`). A call that repeats the id of an open
+ * call leaves one of the two with no result. `undefined` when each call has
+ * its result.
+ */
+function seedToolFault(messages: ReadonlyArray<ModelMessage>) {
+  const open = new Set<string>()
+  for (const message of messages) {
+    if (message.role === 'tool') {
+      const callId = message.toolCallId
+      if (!callId || !open.delete(callId)) return 'unknown_tool_call'
+    }
+    for (const call of message.toolCalls ?? []) {
+      if (open.has(call.id)) return 'open_tool_call'
+      open.add(call.id)
+    }
+  }
+  return open.size > 0 ? 'open_tool_call' : undefined
+}
+
+/**
  * A layer of {@link HarnessSession}: config, thread settings, revert,
  * interrupts, media, and the snapshot.
  */
@@ -122,6 +178,8 @@ export abstract class SessionState<
    * on when the log ends its wait (see `afterWaitEnd`).
    */
   protected readonly waitEnds = new Map<string, () => void>()
+  /** The last `seed()`. The calls run one at a time. */
+  protected seeds: Promise<unknown> = Promise.resolve()
   /** The secret answers to `step.ask` waits that this host kept, by wait id. */
   protected readonly keptAnswers = new Map<string, unknown>()
   /**
@@ -878,24 +936,28 @@ export abstract class SessionState<
       | undefined
   }
 
-  /** The index of the revert message in `messages`, or -1. */
+  /**
+   * The index of the revert message in `messages`, or -1. Of messages that
+   * share the id, the last one: see `revert`.
+   */
   protected revertedAt(messages: ReadonlyArray<ModelMessage>) {
     const id = this.reverted?.messageId
     return id === undefined
       ? -1
-      : messages.findIndex((message) => message.id === id)
+      : messages.findLastIndex((message) => message.id === id)
   }
 
   /**
    * Go back to the message `messageId`. The transcript hides the messages
-   * after it. With the snapshots plugin, the files that their tool calls
-   * changed go back too. `unrevert()` undoes it. The next turn drops the
-   * hidden messages for good. The revert state is saved, so it survives a
-   * restart. Refused while the session is not idle, or another host runs
-   * the thread (`'busy'`), and for a message that is not in the transcript
-   * (`'unknown_message'`). `user` is who reverts. Default: the
-   * user that opened the session. The `harness.revert` record keeps
-   * it. A handle of `host.open` checks that it is the user of the
+   * after it. Of messages that share the id, such as the parts of one UI
+   * message that a seed split at its tool results, it is the last one. With
+   * the snapshots plugin, the files that their tool calls changed go back too.
+   * `unrevert()` undoes it. The next turn drops the hidden messages for good.
+   * The revert state is saved, so it survives a restart. Refused while the
+   * session is not idle, or another host runs the thread (`'busy'`), and for a
+   * message that is not in the transcript (`'unknown_message'`). `user` is who
+   * reverts. Default: the user that opened the session. The `harness.revert`
+   * record keeps it. A handle of `host.open` checks that it is the user of the
    * handle.
    *
    * @example
@@ -918,7 +980,7 @@ export abstract class SessionState<
       // The reader picks a message of the transcript, also one that a
       // compaction took out of the model context.
       const messages = [...this.writer.state.transcript]
-      const at = messages.findIndex((message) => message.id === messageId)
+      const at = messages.findLastIndex((message) => message.id === messageId)
       if (at < 0)
         return { inputId, status: 'rejected', reason: 'unknown_message' }
       // A revert that stands ends first, so its files come back.
@@ -948,6 +1010,79 @@ export abstract class SessionState<
       await this.endRevert()
       // The notes that came during the revert go after the messages again.
       await this.flushNotes()
+      return { inputId, status: 'accepted' }
+    })
+  }
+
+  /**
+   * Start this empty thread with `messages` that exist already: a
+   * conversation of your app from before it used the harness, or context
+   * for a new thread. The transcript keeps them as they are, and the next
+   * turn reads them. Each message needs an `id`, except a tool result, which
+   * its `toolCallId` names.
+   *
+   * A thread whose transcript starts with these messages (the same ids and
+   * roles) has the seed already: the seed is accepted and writes nothing, so
+   * a retry is safe. An empty `messages` is accepted in an empty thread
+   * only. Seeds run one at a time, so of two seeds of an empty thread one
+   * writes. Refused for a thread with other messages (`'not_empty'`), for
+   * two messages with the same `id`, whatever their roles
+   * (`'duplicate_message'`), except an assistant message that continues the
+   * one before it across its tool results, as
+   * `convertMessagesToModelMessages` writes it, for a tool call with no result in `messages`, such as one that repeats the id
+   * of an open call (`'open_tool_call'`), for a tool result with no call
+   * before it in `messages` (`'unknown_tool_call'`), and while the session is
+   * not idle or another host runs the thread (`'busy'`). Throws for a message
+   * with no id.
+   *
+   * @example
+   * ```ts
+   * await session.seed({ messages: await loadOldConversation(threadId) })
+   * ```
+   */
+  async seed({
+    messages,
+  }: {
+    messages: ReadonlyArray<ModelMessage>
+  }): Promise<Receipt> {
+    const keys = messages.map((message, index) => {
+      const key = seedKey(message)
+      if (key === undefined) {
+        throw new Error(`Message ${index} of the seed has no id.`)
+      }
+      return key
+    })
+    // One at a time: two seeds of an empty thread must not both write.
+    const run = this.seeds.then(() => this.runSeed(messages, keys))
+    this.seeds = run.catch(() => {})
+    return run
+  }
+
+  protected async runSeed(
+    messages: ReadonlyArray<ModelMessage>,
+    keys: ReadonlyArray<string>,
+  ): Promise<Receipt> {
+    const inputId = createInputId()
+    if (!(await this.ownsIdleThread())) {
+      return { inputId, status: 'rejected', reason: 'busy' }
+    }
+    return this.holding(async () => {
+      const { transcript } = this.writer.state
+      // An empty seed is in an empty thread only.
+      const isSeeded =
+        keys.length === 0
+          ? transcript.length === 0
+          : keys.every((key, index) => seedKey(transcript[index]) === key)
+      if (isSeeded) return { inputId, status: 'accepted' }
+      if (transcript.length > 0) {
+        return { inputId, status: 'rejected', reason: 'not_empty' }
+      }
+      if (repeatsMessageId(messages)) {
+        return { inputId, status: 'rejected', reason: 'duplicate_message' }
+      }
+      const fault = seedToolFault(messages)
+      if (fault) return { inputId, status: 'rejected', reason: fault }
+      await this.writer.commit({ messages: [...messages] })
       return { inputId, status: 'accepted' }
     })
   }
