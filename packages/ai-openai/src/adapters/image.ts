@@ -131,15 +131,21 @@ export class OpenAIImageAdapter<
       request.size = size
     }
 
+    const requestOptions: [] | [{ signal: AbortSignal }] = options.abortSignal
+      ? [{ signal: options.abortSignal }]
+      : []
     try {
       options.logger.request(
         `activity=image provider=${this.name} model=${model} n=${request.n ?? 1} size=${request.size ?? 'default'}`,
         { provider: this.name, model },
       )
-      const response = await this.client.images.generate({
-        ...request,
-        stream: false,
-      })
+      const response = await this.client.images.generate(
+        {
+          ...request,
+          stream: false,
+        },
+        ...requestOptions,
+      )
 
       const images: Array<GeneratedImage> = (response.data ?? []).flatMap(
         (item): Array<GeneratedImage> => {

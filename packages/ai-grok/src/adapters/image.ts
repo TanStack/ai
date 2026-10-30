@@ -154,12 +154,18 @@ export class GrokImageAdapter<
       ...modelOptions,
     } as OpenAI_SDK.Images.ImageGenerateParamsNonStreaming
 
+    const requestOptions: [] | [{ signal: AbortSignal }] = options.abortSignal
+      ? [{ signal: options.abortSignal }]
+      : []
     try {
       options.logger.request(
         `activity=image provider=${this.name} model=${model} n=${request.n ?? 1} size=${request.size ?? 'default'}`,
         { provider: this.name, model },
       )
-      const response = await this.client.images.generate(request)
+      const response = await this.client.images.generate(
+        request,
+        ...requestOptions,
+      )
 
       const images: Array<GeneratedImage> = (response.data ?? []).flatMap(
         (item): Array<GeneratedImage> => {
@@ -266,6 +272,7 @@ export class GrokImageAdapter<
             Authorization: `Bearer ${this.clientConfig.apiKey}`,
           },
           body: JSON.stringify(request),
+          ...(options.abortSignal && { signal: options.abortSignal }),
         },
       )
       if (!response.ok) {
