@@ -121,6 +121,44 @@ State values are plain React values. The hook renders again when they change.
 | `partial`, `final` | Structured output. Only when you pass `outputSchema`. |
 | `subagents` | Live child-agent runs. See [Subagents](../chat/subagents). |
 
+### Hidden views
+
+You can keep a chat mounted while it is hidden, for example in `<Activity mode="hidden">`. A hidden chat holds no connection to the server.
+
+When the chat shows again, `useChat` starts a new client for the same thread, with the messages that were on screen. With `persistence: true`, the client loads the thread again and joins the run that is in progress.
+
+```tsx
+import { Activity, useState } from "react";
+import { useChat, fetchServerSentEvents } from "@tanstack/ai-react";
+
+function Chat() {
+  const { messages } = useChat({
+    connection: fetchServerSentEvents("/api/chat"),
+    threadId: "support-chat",
+    persistence: true,
+  });
+
+  return <p>{messages.length} messages</p>;
+}
+
+export function Tabs() {
+  const [tab, setTab] = useState<"chat" | "settings">("chat");
+
+  return (
+    <div>
+      <button onClick={() => setTab(tab === "chat" ? "settings" : "chat")}>
+        Switch tab
+      </button>
+      <Activity mode={tab === "chat" ? "visible" : "hidden"}>
+        <Chat />
+      </Activity>
+    </div>
+  );
+}
+```
+
+To join a run, the server needs the `GET` handler from [Resumable Streams](../resumable-streams/overview).
+
 ### Example: tool approval
 
 A tool with `needsApproval: true` pauses the run. The pending call shows up in `interrupts`.

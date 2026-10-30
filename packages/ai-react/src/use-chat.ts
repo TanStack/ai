@@ -51,6 +51,16 @@ export function useChat<
     client: ChatClient
     timeout: ReturnType<typeof setTimeout>
   } | null>(null)
+  // A client the deferred teardown disposed while the hook stayed mounted: a
+  // hidden `<Activity>` keeps state and memos, runs the effect cleanups, and
+  // runs the effects again when it shows. The teardown replaces the client,
+  // which starts from the messages it had on screen for the same thread, so
+  // the hook never renders a disposed client.
+  const disposedClientRef = useRef<{
+    client: ChatClient
+    threadId: string | undefined
+  } | null>(null)
+  const [clientRevision, setClientRevision] = useState(0)
 
   // Track current options in a ref to avoid recreating client when options change
   const optionsRef =
@@ -63,7 +73,11 @@ export function useChat<
   // restores the same conversation. User callbacks read latest options.
   const { client, initialization, serverSnapshot, startPersistenceHydration } =
     useMemo(() => {
-      const messagesToUse = options.initialMessages || []
+      const disposed = disposedClientRef.current
+      const messagesToUse =
+        disposed && disposed.threadId === options.threadId
+          ? disposed.client.getMessages()
+          : options.initialMessages || []
 
       const initialOptions = optionsRef.current
       const { persistence, release: releasePersistenceHydration } =
@@ -184,7 +198,7 @@ export function useChat<
         serverSnapshot: capturedServerSnapshot,
         startPersistenceHydration: releasePersistenceHydration,
       }
-    }, [options.threadId])
+    }, [options.threadId, clientRevision])
 
   useEffect(() => {
     activeClientRef.current = client
@@ -287,6 +301,9 @@ export function useChat<
   }, [client, startPersistenceHydration])
 
   useEffect(() => {
+    disposedClientRef.current = null
+    // The options this client was made with, as committed alongside it.
+    const threadId = optionsRef.current.threadId
     if (cleanupDisposalRef.current?.client === client) {
       clearTimeout(cleanupDisposalRef.current.timeout)
       cleanupDisposalRef.current = null
@@ -309,7 +326,9 @@ export function useChat<
       // later; calling `stop()` would abort a constructor rejoin
       // (`resumeInFlightRun`) and can wipe the durable resume pointer before
       // the first chunk. Real teardown lives in the deferred dispose path
-      // below, which only runs when the client is not remounted.
+      // below, which only runs when the client is not remounted. A hidden
+      // `<Activity>` runs it too and keeps the hook: the teardown then replaces
+      // the disposed client.
       // Subscribe/unsubscribe on `options.live` is still owned by the
       // dedicated effect above for live toggles.
       const disposal = {
@@ -321,6 +340,12 @@ export function useChat<
             client.stop()
           }
           client.dispose()
+          // Replace it only if the hook has no newer client: on a new
+          // threadId the new client is active by now, and stays.
+          if (activeClientRef.current === null) {
+            disposedClientRef.current = { client, threadId }
+            setClientRevision((revision) => revision + 1)
+          }
           if (cleanupDisposalRef.current === disposal) {
             cleanupDisposalRef.current = null
           }
