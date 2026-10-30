@@ -1,5 +1,11 @@
 # @tanstack/ai-ollama
 
+## 1.0.2
+
+### Patch Changes
+
+- [#1932](https://github.com/TanStack/ai/pull/1932) [`3ce3085`](https://github.com/TanStack/ai/commit/3ce3085d674fc068e4d45b8699eccb17b886aa6c) - Keep parallel calls to the same tool apart when Ollama sends no tool-call id. The fallback id was `<name>_<Date.now()>`, so two calls to one tool in the same millisecond shared an id and the second call was merged into the first instead of running. The fallback id is now unique per call.
+
 ## 1.0.1
 
 ### Patch Changes
