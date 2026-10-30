@@ -48,6 +48,7 @@ import {
   ANTHROPIC_MODEL_MID_CONVERSATION_CHANNELS,
   ANTHROPIC_MODEL_REASONING,
   ANTHROPIC_NO_FORCED_TOOL_MODELS,
+  anthropicModelSupportsSampling,
   getAnthropicDefaultMaxTokens,
 } from '../model-meta'
 import type {
@@ -558,6 +559,11 @@ export class AnthropicTextAdapter<
   override readonly supportsFileSources = true
   override readonly inputModalities =
     ANTHROPIC_MODEL_INPUT_MODALITIES[this.model]
+  /**
+   * When `false`, `ChatStreamSummarizeAdapter` skips its default
+   * `temperature: 0.3` (models that reject non-default sampling).
+   */
+  readonly supportsSamplingTemperature: boolean
   /** Set from `ANTHROPIC_MODEL_MID_CONVERSATION_CHANNELS` in the constructor. */
   override readonly midConversationChannels:
     | MidConversationChannels
@@ -581,6 +587,7 @@ export class AnthropicTextAdapter<
 
   constructor(config: AnthropicTextAdapterConfig, model: TModel) {
     super({}, model)
+    this.supportsSamplingTemperature = anthropicModelSupportsSampling(model)
     this.provider = config.provider ?? this.name
     this.allowEmptySignature = config.allowEmptySignature ?? false
     // On by default only on Anthropic's own API: a proxy, a gateway, Vertex,
@@ -938,6 +945,8 @@ export class AnthropicTextAdapter<
 
     const validProviderOptions: Partial<InternalTextProviderOptions> = {}
     if (modelOptions) {
+      const samplingKeys = ['top_k', 'temperature', 'top_p'] as const
+      const modelAllowsSampling = anthropicModelSupportsSampling(this.model)
       const validKeys: Array<keyof AnthropicTextProviderOptions> = [
         'cache_control',
         'container',
@@ -947,16 +956,20 @@ export class AnthropicTextAdapter<
         'service_tier',
         'stop_sequences',
         'tool_choice',
-        'top_k',
-        'temperature',
-        'top_p',
+        ...(modelAllowsSampling ? samplingKeys : []),
       ]
       // `max_tokens` is a legitimate public modelOptions field, but it is read
       // via a dedicated path (defaultMaxTokens below) rather than copied into
       // validProviderOptions. Exempt it from the dropped-key warning here so a
       // correct `modelOptions: { max_tokens }` call doesn't log a spurious
       // "dropped unknown key" error, while keeping it out of the copy loop.
-      const droppedKeyExemptSet = new Set<string>([...validKeys, 'max_tokens'])
+      const droppedKeyExemptSet = new Set<string>([
+        ...validKeys,
+        'max_tokens',
+        // Sampling keys are stripped (not "unknown") on no-sampling models —
+        // warn separately below so callers who cast around types get a signal.
+        ...(modelAllowsSampling ? [] : samplingKeys),
+      ])
       const droppedKeys = Object.keys(modelOptions).filter(
         (key) => !droppedKeyExemptSet.has(key),
       )
@@ -976,6 +989,21 @@ export class AnthropicTextAdapter<
               : undefined,
           },
         )
+      }
+      if (!modelAllowsSampling) {
+        const strippedSampling = samplingKeys.filter(
+          (key) => key in modelOptions,
+        )
+        if (strippedSampling.length > 0) {
+          options.logger.warn(
+            `anthropic.mapCommonOptionsToAnthropic omitted sampling key(s) for model=${this.model}: ${strippedSampling.join(', ')} (this model rejects non-default sampling parameters)`,
+            {
+              provider: 'anthropic',
+              model: this.model,
+              strippedSampling,
+            },
+          )
+        }
       }
       for (const key of validKeys) {
         if (key in modelOptions) {
