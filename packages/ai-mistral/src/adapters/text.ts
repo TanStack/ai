@@ -356,6 +356,7 @@ export class MistralTextAdapter<
         body,
         this.rawConfig,
         options.wrapFetch,
+        options.request?.signal ?? undefined,
       )
       for await (const chunk of this.processMistralStreamChunks(
         stream,
@@ -456,17 +457,29 @@ export class MistralTextAdapter<
       : chatOptions.wrapFetch
         ? createMistralClient(this.rawConfig, next)
         : this.client
-    const response = await client.chat.complete({
+    const params = {
       ...nonStreamParams,
       responseFormat: {
-        type: 'json_schema',
+        type: 'json_schema' as const,
         jsonSchema: {
           name: 'structured_output',
           schemaDefinition: jsonSchema,
           strict,
         },
       },
-    })
+    }
+    // @mistralai/mistralai 2.2.0 defaults timeoutMs to 30_000 (funcs/chatComplete.js)
+    // and skips it when the request has a signal (lib/sdks.js). See #1517.
+    const signal = chatOptions.request?.signal
+    const timeoutMs = this.rawConfig.timeoutMs || 30_000
+    const response = signal
+      ? await client.chat.complete(params, {
+          signal:
+            timeoutMs > 0
+              ? AbortSignal.any([signal, AbortSignal.timeout(timeoutMs)])
+              : signal,
+        })
+      : await client.chat.complete(params)
 
     // A response cut off at the output cap is a truncated JSON document;
     // report it before the parse error (issue #1426).
@@ -939,6 +952,7 @@ export class MistralTextAdapter<
     body: Record<string, unknown>,
     config: MistralClientConfig,
     wrapFetch: FetchWrapper | undefined,
+    signal: AbortSignal | undefined,
   ): AsyncGenerator<MistralRawChunk> {
     const serverURL = (
       config.baseURL ??
@@ -966,6 +980,7 @@ export class MistralTextAdapter<
       method: 'POST',
       headers,
       body: JSON.stringify(body),
+      signal,
     })
 
     if (!response.ok) {
