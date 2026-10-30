@@ -2408,20 +2408,31 @@ class TextEngine<
     // Alignment suppresses already-delivered deltas, so this snapshot is
     // what a takeover saves as the full assistant text.
     const before = this.accumulatedContent
+    let delta: string
     if (typeof extra.content === 'string' && extra.content !== '') {
-      this.accumulatedContent = extra.content
+      const next = extra.content
+      this.accumulatedContent = next
+      // `startsWith(before)` flattens the whole rope on every chunk, so a
+      // long answer of small deltas is O(n²) and does not yield. A normal
+      // snapshot is `before` plus this delta; the lengths say so without
+      // reading the text. ponytail: length check. A same-length prefix
+      // rewrite falls out later, when turn text disagrees with
+      // `accumulatedContent` and block order is dropped.
+      if (next.length === before.length + chunk.delta.length) {
+        delta = chunk.delta
+      } else if (!this.turnParts || !next.startsWith(before)) {
+        // A cumulative `content` snapshot rewrote earlier text; order unknown.
+        this.turnParts = null
+        delta = ''
+      } else {
+        delta = next.slice(before.length)
+      }
     } else {
       this.accumulatedContent += chunk.delta
+      delta = chunk.delta
     }
     this.middlewareCtx.accumulatedContent = this.accumulatedContent
-    if (!this.turnParts) return
-    if (!this.accumulatedContent.startsWith(before)) {
-      // A cumulative `content` snapshot rewrote earlier text; order unknown.
-      this.turnParts = null
-      return
-    }
-    const delta = this.accumulatedContent.slice(before.length)
-    if (delta === '') return
+    if (!this.turnParts || delta === '') return
     const last = this.turnParts[this.turnParts.length - 1]
     if (last && last.type === 'text') {
       last.content += delta
