@@ -38,6 +38,7 @@ const receipt = await turn.receipt
 console.log(receipt.status) // 'accepted' or 'queued'
 ```
 
+- When the session rejects a stored input, the receipt resolves after the log has `harness.input.rejected`.
 - The same id and the same message: you get the first input's operation, and the model is not called again.
 - The same id and another message: the receipt has `status: 'rejected'` and `reason: 'conflict'`, and `await turn` rejects with `InputRejectedError`.
 - An input to a thread that was deleted: the receipt has `status: 'rejected'` and `reason: 'deleted'`, and `await turn` rejects with `InputRejectedError`. Nothing runs.

@@ -1122,7 +1122,7 @@
           "label": "Send inputs safely",
           "to": "harness/inputs",
           "addedAt": "2026-10-13",
-          "updatedAt": "2026-10-22"
+          "updatedAt": "2026-10-30"
         },
         {
           "label": "Run a tool without a model",
@@ -1133,7 +1133,7 @@
           "label": "Durable sessions",
           "to": "harness/durable-sessions",
           "addedAt": "2026-10-13",
-          "updatedAt": "2026-10-22"
+          "updatedAt": "2026-10-30"
         },
         {
           "label": "Run background work on workers",

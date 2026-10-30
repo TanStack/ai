@@ -78,7 +78,7 @@ A host that stops also stops renewing its ownership of the thread. When the owne
 4. The time limit passed: the input ends `failed`, with the error code `timeout`.
 5. Else the turn runs again as the next attempt, and clients get a `harness.operation.resumed` event.
 
-An input that was stored but never ran, runs now. `session.settled({ inputId })` resolves to how an input ended. See [Send inputs safely](./inputs).
+An input that was stored but never ran, runs now. A rejected input is not pending work. When the receipt resolves, the log has `harness.input.rejected`. Recovery does not run that input. `session.settled({ inputId })` resolves to how an input ended. See [Send inputs safely](./inputs).
 
 A background agent that you started with `runAgainAfterCrash: true` runs again on the next host. A background child that the model started with `background: true` runs again too, unless you set `durability: { resumeBackgroundAgents: false }`. See [Keep a background agent going after a crash](./subagents#keep-a-background-agent-going-after-a-crash). The children and groups that it started before the stop do not start again: they give their stored results. See [Children of a run that runs again](./subagents#children-of-a-run-that-runs-again). For any other background agent whose host stopped, the next host:
 
