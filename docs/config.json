@@ -1722,7 +1722,7 @@
           "label": "Ollama",
           "to": "adapters/ollama",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-10-22"
+          "updatedAt": "2026-10-25"
         },
         {
           "label": "Grok (xAI)",
