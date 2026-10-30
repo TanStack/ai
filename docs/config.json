@@ -1891,7 +1891,7 @@
         {
           "label": "Z.AI",
           "to": "adapters/zai",
-          "addedAt": "2026-10-29"
+          "addedAt": "2026-10-30"
         }
       ],
       "tab": "adapters"
