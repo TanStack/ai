@@ -7,7 +7,7 @@ title: ToolExecutionContext
 type ToolExecutionContext<TContext> = RuntimeContextField<TContext> & object;
 ```
 
-Defined in: packages/ai/src/types.ts:872
+Defined in: [packages/ai/src/types.ts:890](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L890)
 
 Context passed to tool execute functions, providing capabilities like
 emitting custom events during execution.
@@ -101,6 +101,64 @@ const tool = toolDefinition({ ... }).server(async (args, context) => {
 })
 ```
 
+### get?
+
+```ts
+optional get?: <TValue>(capability) => TValue;
+```
+
+Read a capability that a middleware of the run provided, by its
+handle. It works like `ctx.get` in middleware and throws if the
+capability was never provided. `chat()` sets it. It is missing when a
+tool runs outside a chat.
+
+#### Type Parameters
+
+##### TValue
+
+`TValue`
+
+#### Parameters
+
+##### capability
+
+[`Capability`](Capability.md)\<`TValue`\>
+
+#### Returns
+
+`TValue`
+
+#### Example
+
+```ts
+const sandbox = context?.get?.(SandboxCapability)
+```
+
+### getOptional?
+
+```ts
+optional getOptional?: <TValue>(capability) => TValue | undefined;
+```
+
+Read a capability by its handle. Returns `undefined` if no middleware
+provided it. It works like `ctx.getOptional` in middleware.
+
+#### Type Parameters
+
+##### TValue
+
+`TValue`
+
+#### Parameters
+
+##### capability
+
+[`Capability`](Capability.md)\<`TValue`\>
+
+#### Returns
+
+`TValue` \| `undefined`
+
 ### inputResponse?
 
 ```ts
@@ -110,6 +168,15 @@ optional inputResponse?: ToolInputResponse;
 The answer to the input request that this tool call raised in the
 previous run. It is set only when the run resumes an `mcp_input`
 interrupt for this tool call.
+
+### runId?
+
+```ts
+optional runId?: string;
+```
+
+The run of the call, when a host knows it. `chat()` does not set it:
+a host such as the harness wraps the tool's `execute` to add it.
 
 ### threadId?
 

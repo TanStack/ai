@@ -3,7 +3,7 @@ id: Scope
 title: Scope
 ---
 
-Defined in: packages/ai/src/scope.ts:22
+Defined in: [packages/ai/src/scope.ts:22](https://github.com/TanStack/ai/blob/main/packages/ai/src/scope.ts#L22)
 
 Shared identity/isolation scope for the TanStack AI subsystems that persist
 or recall per-conversation data — `@tanstack/ai-persistence` (keyed CRUD over
@@ -33,7 +33,7 @@ their own they let one caller read another's data.
 optional namespace?: string;
 ```
 
-Defined in: packages/ai/src/scope.ts:45
+Defined in: [packages/ai/src/scope.ts:45](https://github.com/TanStack/ai/blob/main/packages/ai/src/scope.ts#L45)
 
 Logical partition within a tenant/user (e.g. separating distinct memory
 banks or persistence namespaces). Reserved — no subsystem keys on it yet;
@@ -47,7 +47,7 @@ adapters that don't understand it must ignore it rather than error.
 optional tenantId?: string;
 ```
 
-Defined in: packages/ai/src/scope.ts:39
+Defined in: [packages/ai/src/scope.ts:39](https://github.com/TanStack/ai/blob/main/packages/ai/src/scope.ts#L39)
 
 Tenant/organization boundary for multi-tenant deployments. When present,
 every read and write must be confined to it.
@@ -60,7 +60,7 @@ every read and write must be confined to it.
 threadId: string;
 ```
 
-Defined in: packages/ai/src/scope.ts:28
+Defined in: [packages/ai/src/scope.ts:28](https://github.com/TanStack/ai/blob/main/packages/ai/src/scope.ts#L28)
 
 The conversation this data belongs to. Required — the minimal isolation
 key both subsystems already center on. Same concept as
@@ -74,7 +74,7 @@ key both subsystems already center on. Same concept as
 optional userId?: string;
 ```
 
-Defined in: packages/ai/src/scope.ts:34
+Defined in: [packages/ai/src/scope.ts:34](https://github.com/TanStack/ai/blob/main/packages/ai/src/scope.ts#L34)
 
 Durable end-user identity, for cross-thread recall and per-user isolation.
 Optional, but required in practice for any multi-user deployment — a

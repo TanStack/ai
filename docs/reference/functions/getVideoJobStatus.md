@@ -7,7 +7,7 @@ title: getVideoJobStatus
 function getVideoJobStatus<TAdapter>(options): Promise<VideoJobStatusResult>;
 ```
 
-Defined in: packages/ai/src/activities/generateVideo/index.ts:919
+Defined in: [packages/ai/src/activities/generateVideo/index.ts:919](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/generateVideo/index.ts#L919)
 
 Get video job status - returns the current status, progress, and URL if available.
 

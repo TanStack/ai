@@ -3,7 +3,7 @@ id: SubagentHandleData
 title: SubagentHandleData
 ---
 
-Defined in: packages/ai/src/types.ts:635
+Defined in: [packages/ai/src/types.ts:638](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L638)
 
 One child invocation as the client sees it. AG-UI `SubagentInfo` names the
 child; the other AG-UI fields come from its `SUBAGENT_STARTED`,
@@ -23,7 +23,7 @@ spec does not model.
 optional error?: Pick<SubagentErrorEvent, "message" | "code">;
 ```
 
-Defined in: packages/ai/src/types.ts:649
+Defined in: [packages/ai/src/types.ts:652](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L652)
 
 ***
 
@@ -33,7 +33,7 @@ Defined in: packages/ai/src/types.ts:649
 id: string;
 ```
 
-Defined in: packages/ai/src/types.ts:642
+Defined in: [packages/ai/src/types.ts:645](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L645)
 
 ***
 
@@ -43,7 +43,7 @@ Defined in: packages/ai/src/types.ts:642
 optional interruptIds?: string[];
 ```
 
-Defined in: packages/ai/src/types.ts:647
+Defined in: [packages/ai/src/types.ts:650](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L650)
 
 Interrupts this child raised, while `status` is `'suspended'`.
 
@@ -55,7 +55,7 @@ Interrupts this child raised, while `status` is `'suspended'`.
 messages: UIMessage<unknown>[];
 ```
 
-Defined in: packages/ai/src/types.ts:648
+Defined in: [packages/ai/src/types.ts:651](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L651)
 
 ***
 
@@ -65,7 +65,7 @@ Defined in: packages/ai/src/types.ts:648
 optional parentRunId?: string;
 ```
 
-Defined in: packages/ai/src/types.ts:645
+Defined in: [packages/ai/src/types.ts:648](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L648)
 
 The parent chat run that started this child.
 
@@ -77,4 +77,4 @@ The parent chat run that started this child.
 status: SubagentStatus;
 ```
 
-Defined in: packages/ai/src/types.ts:643
+Defined in: [packages/ai/src/types.ts:646](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L646)

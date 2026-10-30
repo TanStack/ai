@@ -3,7 +3,7 @@ id: ChatResumeToolState
 title: ChatResumeToolState
 ---
 
-Defined in: packages/ai/src/activities/chat/middleware/types.ts:382
+Defined in: [packages/ai/src/activities/chat/middleware/types.ts:396](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L396)
 
 Tool decisions reconstructed by server-side middleware from validated resume
 entries. This lets empty-message interrupt resumes continue tool execution
@@ -17,7 +17,7 @@ without relying on client message history.
 optional approvals?: ReadonlyMap<string, ToolApprovalResolution>;
 ```
 
-Defined in: packages/ai/src/activities/chat/middleware/types.ts:383
+Defined in: [packages/ai/src/activities/chat/middleware/types.ts:397](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L397)
 
 ***
 
@@ -27,7 +27,7 @@ Defined in: packages/ai/src/activities/chat/middleware/types.ts:383
 optional cancelledToolCallIds?: ReadonlySet<string>;
 ```
 
-Defined in: packages/ai/src/activities/chat/middleware/types.ts:397
+Defined in: [packages/ai/src/activities/chat/middleware/types.ts:411](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L411)
 
 ***
 
@@ -37,7 +37,7 @@ Defined in: packages/ai/src/activities/chat/middleware/types.ts:397
 optional clientToolErrors?: ReadonlyMap<string, string>;
 ```
 
-Defined in: packages/ai/src/activities/chat/middleware/types.ts:385
+Defined in: [packages/ai/src/activities/chat/middleware/types.ts:399](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L399)
 
 ***
 
@@ -47,7 +47,7 @@ Defined in: packages/ai/src/activities/chat/middleware/types.ts:385
 optional clientToolResults?: ReadonlyMap<string, unknown>;
 ```
 
-Defined in: packages/ai/src/activities/chat/middleware/types.ts:384
+Defined in: [packages/ai/src/activities/chat/middleware/types.ts:398](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L398)
 
 ***
 
@@ -57,7 +57,7 @@ Defined in: packages/ai/src/activities/chat/middleware/types.ts:384
 optional deniedToolResults?: ReadonlyMap<string, unknown>;
 ```
 
-Defined in: packages/ai/src/activities/chat/middleware/types.ts:396
+Defined in: [packages/ai/src/activities/chat/middleware/types.ts:410](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L410)
 
 ***
 
@@ -67,7 +67,7 @@ Defined in: packages/ai/src/activities/chat/middleware/types.ts:396
 optional genericInterruptRequests?: ReadonlyMap<string, GenericInterruptRequestBase<InterruptDefinition<any, any, any, any, any>>>;
 ```
 
-Defined in: packages/ai/src/activities/chat/middleware/types.ts:390
+Defined in: [packages/ai/src/activities/chat/middleware/types.ts:404](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L404)
 
 Durable generic requests reconstructed by server middleware.
 
@@ -79,4 +79,4 @@ Durable generic requests reconstructed by server middleware.
 optional genericInterrupts?: ReadonlyMap<string, ChatResumeGenericResolution>;
 ```
 
-Defined in: packages/ai/src/activities/chat/middleware/types.ts:386
+Defined in: [packages/ai/src/activities/chat/middleware/types.ts:400](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L400)
