@@ -1,5 +1,11 @@
 # @tanstack/ai-gemini
 
+## 1.0.2
+
+### Patch Changes
+
+- [#1928](https://github.com/TanStack/ai/pull/1928) [`a4007b4`](https://github.com/TanStack/ai/commit/a4007b4a8b5457ce799d3545baa76b5c93e50594) - Native Gemini image generation no longer throws `image interaction returned no id.` when `modelOptions.store` is `false`. Gemini leaves the interaction id out of an unstored interaction, so the result gets a local id, which cannot be passed as `previous_interaction_id`. A stored interaction without an id still throws.
+
 ## 1.0.1
 
 ### Patch Changes
