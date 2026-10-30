@@ -249,6 +249,8 @@ Persistence is the **server-authoritative resume path**. For each request with a
 3. It **clears** `config.resume`, so the chat engine skips its own short-lived rebuild. That rebuild needs client message history, and the persistence flow does not send it.
 4. It commits all resolved and cancelled entries at one success boundary: the next interrupt or the finish.
 
+For an MCP input interrupt (`mcp_input_<toolCallId>`), the pending server tool runs again with the answer in `ctx.inputResponse`. A resolved answer carries `{ status: 'resolved', payload }`. A cancelled answer carries `{ status: 'cancelled' }`. This also works with `messages: []` when the message store restores the thread.
+
 An `InterruptStore` can implement `commitBatch()` to make that commit atomic. Without it, the fallback writes the entries one at a time, and the write is not atomic.
 
 `onInterruptResolution` runs at the same moment as in a request without persistence: after the init `onConfig`, before `onStart`. See [Apply Answers](../interrupts/apply-answers).

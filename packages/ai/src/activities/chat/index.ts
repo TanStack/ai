@@ -5374,12 +5374,10 @@ class TextEngine<
     pending.push(...genericPending)
     // An `mcp_input_*` answer is valid only for a server tool call that is
     // still pending in history.
-    const mcpInputCallIds = new Map<string, string>()
     for (const toolCall of pendingToolCalls) {
       const interruptId = `mcp_input_${toolCall.id}`
       if (!resumeInterruptIds.has(interruptId)) continue
       if (!toolsByCallId.get(toolCall.id)?.execute) continue
-      mcpInputCallIds.set(interruptId, toolCall.id)
       pending.push({
         interruptId,
         payload: { id: interruptId },
@@ -5421,16 +5419,6 @@ class TextEngine<
     })
 
     const genericResolutions = validated.resumeToolState.genericInterrupts
-    for (const [interruptId, toolCallId] of mcpInputCallIds) {
-      const resolution = genericResolutions?.get(interruptId)
-      if (!resolution) continue
-      this.resumeInputResponses.set(
-        toolCallId,
-        resolution.status === 'resolved'
-          ? { status: 'resolved', payload: resolution.payload }
-          : { status: 'cancelled' },
-      )
-    }
     if (genericPending.length > 0 && genericResolutions) {
       const resolutions = genericPending
         .sort((left, right) => {
@@ -5640,6 +5628,24 @@ class TextEngine<
     if (state?.genericInterrupts) {
       for (const [interruptId, resolution] of state.genericInterrupts) {
         this.resumeGenericInterrupts.set(interruptId, resolution)
+      }
+      for (const toolCall of this.getPendingToolCallsFromMessages()) {
+        if (
+          !this.tools.some(
+            (tool) => tool.name === toolCall.function.name && tool.execute,
+          )
+        )
+          continue
+        const resolution = state.genericInterrupts.get(
+          `mcp_input_${toolCall.id}`,
+        )
+        if (!resolution) continue
+        this.resumeInputResponses.set(
+          toolCall.id,
+          resolution.status === 'resolved'
+            ? { status: 'resolved', payload: resolution.payload }
+            : { status: 'cancelled' },
+        )
       }
     }
     if (state?.genericInterruptRequests) {
