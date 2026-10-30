@@ -382,8 +382,8 @@ The agent coordinator, durable runs, live previews through a quick tunnel, callb
 
 ## `writableStdin` per provider
 
-- `true`: local process, Docker container, Daytona, Upstash Box, E2B, boxd, and Railway.
-- `false`: Docker Sandboxes (`sbx`), Vercel, Sprites, Blaxel, and Cloudflare.
+- `true`: local process, Docker container, Upstash Box, E2B, boxd, and Railway.
+- `false`: Docker Sandboxes (`sbx`), Daytona, Vercel, Sprites, Blaxel, and Cloudflare. Daytona can write to stdin, but it cannot close stdin, so a process that reads to EOF never starts.
 
 When the value is `false`, a harness that reads its prompt from stdin gets the prompt from a file. The shell redirects that file into the process.
 
