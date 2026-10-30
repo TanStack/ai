@@ -878,6 +878,9 @@ describe('ChatClient devtools bridge', () => {
     const duplicateClient = createClient({
       threadId: 'shared-thread',
     })
+    // The surviving bridge's mount snapshot is coalesced to a microtask; let it
+    // flush before clearing so only post-send emissions are asserted below.
+    await Promise.resolve()
     vi.clearAllMocks()
 
     await firstClient.sendMessage('start')
@@ -1044,11 +1047,13 @@ describe('ChatClient devtools bridge', () => {
     expect(eventClientMock.unsubscribe).toHaveBeenCalledTimes(2)
   })
 
-  it('emits a snapshot when messages are set manually', () => {
+  it('emits a snapshot when messages are set manually', async () => {
     const client = createClient()
     vi.clearAllMocks()
 
     client.setMessagesManually([userMessage])
+    // The event-driven snapshot is coalesced to a microtask; let it flush.
+    await Promise.resolve()
 
     expect(aiEventClient.emit).toHaveBeenCalledWith(
       'hook:state-snapshot',
@@ -1062,12 +1067,14 @@ describe('ChatClient devtools bridge', () => {
     client.dispose()
   })
 
-  it('emits a snapshot when messages are cleared', () => {
+  it('emits a snapshot when messages are cleared', async () => {
     const client = createClient()
     client.setMessagesManually([userMessage])
     vi.clearAllMocks()
 
     client.clear()
+    // The event-driven snapshot is coalesced to a microtask; let it flush.
+    await Promise.resolve()
 
     expect(aiEventClient.emit).toHaveBeenCalledWith(
       'hook:state-snapshot',

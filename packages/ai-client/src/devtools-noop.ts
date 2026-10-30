@@ -60,6 +60,7 @@ export class NoOpChatDevtoolsBridge {
   emitRegistered(): void {}
   emitUpdated(): void {}
   emitSnapshot(): void {}
+  scheduleSnapshot(): void {}
   emitToolsRegistered(): void {}
   emitRunLifecycle(
     _eventType: unknown,
