@@ -4,7 +4,7 @@ End-to-end tests for TanStack AI using Playwright and [aimock](https://github.co
 
 **Architecture:** Playwright drives a TanStack Start app (`testing/e2e/`) which routes requests through provider adapters pointing at aimock. Fixtures define mock responses. No real API keys needed. All scenarios (including tool execution flows) use aimock fixtures. Tests run in parallel with per-test `X-Test-Id` isolation.
 
-**Providers tested in CI:** openai, anthropic, gemini, vertex, vertex-grok, vertex-mistral, ollama, groq, grok, openrouter, openrouter-responses, vercel-gateway, vercel-gateway-responses, lovable, lovable-responses, bedrock, bedrock-responses, openai-compatible, openai-compatible-legacy, mistral, byteplus, elevenlabs, llmgateway, cloudflare, neon, neon-anthropic, neon-responses
+**Providers tested in CI:** openai, anthropic, gemini, vertex, vertex-grok, vertex-mistral, ollama, groq, grok, openrouter, openrouter-responses, vercel-gateway, vercel-gateway-responses, lovable, lovable-responses, bedrock, bedrock-responses, openai-compatible, openai-compatible-legacy, mistral, byteplus, elevenlabs, llmgateway, cloudflare, neon, neon-anthropic, neon-responses, zai
 
 **Local `pnpm test:e2e`** runs openai, anthropic, and gemini. If none of those providers support a feature, the feature still runs on the providers that do. An explicit `E2E_PROVIDERS` list runs only those providers. Use `E2E_PROVIDERS=*` for the full matrix, or `E2E_PROVIDERS=grok` (comma-separated) to pick providers. Playwright does not retry or record video locally; CI retries twice and keeps the video of a failed test.
 
@@ -333,6 +333,7 @@ Three endpoints have no aimock equivalent and are mounted in `global-setup.ts`, 
 - Ollama: `{ host: LLMOCK_BASE, headers }` (config object)
 - OpenRouter: `serverURL` with `?testId=` query param (SDK doesn't support headers)
 - BytePlus: `LLMOCK_BASE + /api/v3` + `defaultHeaders` for Ark (chat, image, video); bare `LLMOCK_BASE` + `defaultHeaders` for Seed Speech (TTS, ASR)
+- Z.AI: `LLMOCK_OPENAI` (OpenAI-compatible chat completions) + `defaultHeaders`
 
 ## 7. Adding a Tool Test Scenario
 

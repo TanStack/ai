@@ -1887,6 +1887,11 @@
           "label": "BytePlus: Advanced",
           "to": "adapters/byteplus-advanced",
           "addedAt": "2026-10-21"
+        },
+        {
+          "label": "Z.AI",
+          "to": "adapters/zai",
+          "addedAt": "2026-10-30"
         }
       ],
       "tab": "adapters"
