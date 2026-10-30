@@ -1,6 +1,6 @@
 ---
 title: Cloudflare
-id: cloudflare-adapter
+id: cloudflare-community-adapter
 order: 3
 description: "Use Cloudflare's own @cloudflare/tanstack-ai package for Workers AI models and AI Gateway routing, with caching, rate limits, and one bill across providers."
 keywords:
@@ -14,12 +14,13 @@ keywords:
   - community adapter
 ---
 
-`@cloudflare/tanstack-ai` is the community Cloudflare package. It provides:
+> [!NOTE]
+> For a new project, use the [Cloudflare adapter](../adapters/cloudflare) (`@tanstack/ai-cloudflare`). TanStack maintains it, and it covers Workers AI chat, embeddings, images, speech, transcription, evaluate, and AI Gateway. This page is for apps that already use `@cloudflare/tanstack-ai`.
+
+`@cloudflare/tanstack-ai` is the community Cloudflare package. Cloudflare maintains it. It provides:
 
 - [Workers AI](https://developers.cloudflare.com/workers-ai/) models, which run on the Cloudflare network.
 - [AI Gateway](https://developers.cloudflare.com/ai-gateway/) routing to OpenAI, Anthropic, Gemini, Grok, and OpenRouter, with caching, rate limits, and one bill.
-
-Cloudflare maintains this package. TanStack AI also has its own Cloudflare adapter, `@tanstack/ai-cloudflare`. See the [Cloudflare adapter](../adapters/cloudflare) page.
 
 ## 1. Install
 

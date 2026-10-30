@@ -3,9 +3,9 @@
  * heuristic, and per-item hygiene checks. No I/O — fixture-testable.
  */
 
-import { isRosterMaintainer } from './config'
-import { ACK_MARKER, REPRO_MARKER } from './comments'
-import { matchesAnyGlob } from './glob'
+import { isRosterMaintainer } from './config.ts'
+import { ACK_MARKER, REPRO_MARKER } from './comments.ts'
+import { matchesAnyGlob } from './glob.ts'
 import type {
   DiscussionItem,
   DiscussionTriage,
@@ -18,7 +18,7 @@ import type {
   ToolsetConfig,
   TriageResult,
   WaitingOn,
-} from './types'
+} from './types.ts'
 
 export const HOUR_MS = 60 * 60 * 1000
 

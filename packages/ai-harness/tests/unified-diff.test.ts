@@ -244,12 +244,13 @@ describe('unifiedDiff', () => {
     expect(unifiedDiff(options)).toEqual({ patch, additions, deletions })
   })
 
+  // Past the edit cap the search stops early and emits a whole-file rewrite.
+  // Without the cap this diff takes minutes and the test times out, so the
+  // timeout is the speed check. A wall-clock assertion here was flaky on a
+  // loaded CI runner (issue #1909).
   it('rewrites 20,000 lines fast, past the edit cap', () => {
     const { patch, additions, deletions, ...options } = rewrite
-    const started = performance.now()
-    const diff = unifiedDiff(options)
-    expect(performance.now() - started).toBeLessThan(1000)
-    expect(diff).toEqual({ patch, additions, deletions })
+    expect(unifiedDiff(options)).toEqual({ patch, additions, deletions })
   })
 })
 

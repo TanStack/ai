@@ -1007,7 +1007,7 @@
           "label": "Code Mode",
           "to": "code-mode/code-mode",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-10-22"
+          "updatedAt": "2026-10-29"
         },
         {
           "label": "Showing Code Mode in the UI",
@@ -1360,7 +1360,7 @@
           "label": "Providers",
           "to": "sandbox/providers",
           "addedAt": "2026-06-29",
-          "updatedAt": "2026-10-22"
+          "updatedAt": "2026-10-29"
         },
         {
           "label": "Harnesses",
@@ -1475,7 +1475,8 @@
         {
           "label": "Providers (Advanced)",
           "to": "sandbox/providers-advanced",
-          "addedAt": "2026-10-21"
+          "addedAt": "2026-10-21",
+          "updatedAt": "2026-10-29"
         },
         {
           "label": "The Run Journal",
@@ -1916,7 +1917,7 @@
           "label": "Cloudflare",
           "to": "community-adapters/cloudflare",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-10-22"
+          "updatedAt": "2026-10-29"
         },
         {
           "label": "Soniox",

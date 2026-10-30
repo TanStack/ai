@@ -125,6 +125,10 @@ The three weather calls run in parallel inside the sandbox. The model gets one r
 
 The Node, QuickJS, QuickJS Bun, and Cloudflare drivers have no access to the host file system, network, or process. The Daytona and E2B drivers run the code in a full remote Linux sandbox, with its own file system, network, and processes.
 
+## Tool approval
+
+Code Mode rejects tools that need approval. A tool marked `needsApproval: true` expects a human to approve each call before it runs. Code Mode runs tools inside the sandbox from one `execute_typescript` call, so it cannot raise that per-tool approval. `createCodeMode` and `createCodeModeTool` throw when you pass such a tool. An approval tool belongs outside the Code Mode config. `chat()` runs it directly, where the approval interrupt works.
+
 ## Add more
 
 - **Show the run to your users:** [Showing Code Mode in the UI](./client-integration).
