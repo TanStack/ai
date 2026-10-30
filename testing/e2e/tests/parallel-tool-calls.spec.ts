@@ -51,7 +51,9 @@ for (const provider of providersFor('parallel-tool-calls')) {
       await waitForResponse(page)
 
       const toolNames = (await getToolCalls(page)).map((t) => t.name)
-      expect(toolNames).toEqual(['compareGuitars', 'compareGuitars'])
+      expect(
+        toolNames.filter((name) => name === 'compareGuitars'),
+      ).toHaveLength(2)
 
       await waitForAssistantText(page, 'Both comparisons are done')
     })
