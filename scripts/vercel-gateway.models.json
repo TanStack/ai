@@ -10,7 +10,7 @@
     "context_window": 40960,
     "max_tokens": 16384,
     "type": "language",
-    "zdr": "all",
+    "zdr": "none",
     "no_training": "all",
     "tags": ["reasoning", "tool-use", "structured-output", "open-weights"],
     "supported_specifications": ["v2", "v3", "v4"],
@@ -52,7 +52,7 @@
     "context_window": 262144,
     "max_tokens": 16384,
     "type": "language",
-    "zdr": "all",
+    "zdr": "some",
     "no_training": "all",
     "tags": ["tool-use", "structured-output", "open-weights"],
     "supported_specifications": ["v2", "v3", "v4"],
@@ -88,7 +88,7 @@
     "context_window": 40960,
     "max_tokens": 16384,
     "type": "language",
-    "zdr": "all",
+    "zdr": "none",
     "no_training": "all",
     "tags": ["reasoning", "tool-use", "structured-output", "open-weights"],
     "supported_specifications": ["v2", "v3", "v4"],
@@ -130,7 +130,7 @@
     "context_window": 128000,
     "max_tokens": 8192,
     "type": "language",
-    "zdr": "all",
+    "zdr": "some",
     "no_training": "all",
     "tags": ["reasoning", "tool-use", "structured-output", "open-weights"],
     "supported_specifications": ["v2", "v3", "v4"],
@@ -288,7 +288,7 @@
     "context_window": 32768,
     "max_tokens": 32768,
     "type": "embedding",
-    "zdr": "all",
+    "zdr": "none",
     "no_training": "all",
     "tags": ["open-weights"],
     "supported_specifications": ["v2", "v3", "v4"],
@@ -311,7 +311,7 @@
     "context_window": 32768,
     "max_tokens": 32768,
     "type": "embedding",
-    "zdr": "all",
+    "zdr": "none",
     "no_training": "all",
     "tags": ["open-weights"],
     "supported_specifications": ["v2", "v3", "v4"],
@@ -334,7 +334,7 @@
     "context_window": 32768,
     "max_tokens": 32768,
     "type": "embedding",
-    "zdr": "all",
+    "zdr": "some",
     "no_training": "all",
     "tags": ["open-weights"],
     "supported_specifications": ["v2", "v3", "v4"],
@@ -450,7 +450,7 @@
     "context_window": 262114,
     "max_tokens": 262114,
     "type": "language",
-    "zdr": "all",
+    "zdr": "some",
     "no_training": "all",
     "tags": ["tool-use", "structured-output", "open-weights"],
     "supported_specifications": ["v2", "v3", "v4"],
@@ -529,7 +529,7 @@
     "context_window": 262144,
     "max_tokens": 262144,
     "type": "language",
-    "zdr": "all",
+    "zdr": "none",
     "no_training": "all",
     "tags": ["implicit-caching", "tool-use", "vision", "open-weights"],
     "supported_specifications": ["v2", "v3", "v4"],
@@ -996,6 +996,7 @@
       "explicit-caching",
       "structured-output"
     ],
+    "regions": ["us"],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
       "input": ["text"],
@@ -1031,7 +1032,15 @@
       "input": "0.0000025",
       "output": "0.0000075",
       "input_cache_read": "0.0000005",
-      "input_cache_write": "0.000003125"
+      "input_cache_write": "0.000003125",
+      "regional": {
+        "us": {
+          "input": "0.0000025",
+          "output": "0.0000075",
+          "input_cache_read": "0.0000005",
+          "input_cache_write": "0.000003125"
+        }
+      }
     }
   },
   {
@@ -1264,6 +1273,7 @@
       "explicit-caching",
       "structured-output"
     ],
+    "regions": ["us"],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
       "input": ["text", "image", "pdf"],
@@ -1297,7 +1307,15 @@
       "input": "0.00000015",
       "output": "0.00000047",
       "input_cache_read": "0.000000016",
-      "input_cache_write": "0.0000002"
+      "input_cache_write": "0.0000002",
+      "regional": {
+        "us": {
+          "input": "0.00000015",
+          "output": "0.00000047",
+          "input_cache_read": "0.000000016",
+          "input_cache_write": "0.0000002"
+        }
+      }
     }
   },
   {
@@ -1321,6 +1339,7 @@
       "explicit-caching",
       "structured-output"
     ],
+    "regions": ["us"],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
       "input": ["text", "image"],
@@ -1355,7 +1374,15 @@
     "pricing": {
       "input": "0.000002",
       "output": "0.000006",
-      "input_cache_read": "0.00000025"
+      "input_cache_read": "0.00000025",
+      "regional": {
+        "us": {
+          "input": "0.000002",
+          "output": "0.000006",
+          "input_cache_read": "0.00000025",
+          "input_cache_write": "0.0000025"
+        }
+      }
     }
   },
   {
@@ -2240,19 +2267,19 @@
     ],
     "knowledge": "2024-10",
     "pricing": {
-      "input": "0.0000003",
-      "output": "0.0000025",
-      "input_cache_read": "0.000000075",
+      "input": "0.00000033",
+      "output": "0.00000275",
+      "input_cache_read": "0.0000000825",
       "regional": {
         "eu": {
-          "input": "0.00000039",
-          "output": "0.00000327",
-          "input_cache_read": "0.000000075"
+          "input": "0.000000429",
+          "output": "0.000003597",
+          "input_cache_read": "0.0000001072"
         },
         "us": {
-          "input": "0.0000003",
-          "output": "0.0000025",
-          "input_cache_read": "0.000000075"
+          "input": "0.00000033",
+          "output": "0.00000275",
+          "input_cache_read": "0.0000000825"
         }
       }
     }
@@ -2291,10 +2318,12 @@
     "pricing": {
       "input": "0.00000006",
       "output": "0.00000024",
+      "input_cache_read": "0.000000015",
       "regional": {
         "eu": {
           "input": "0.000000078",
-          "output": "0.000000312"
+          "output": "0.000000312",
+          "input_cache_read": "0.0000000195"
         }
       }
     }
@@ -2333,10 +2362,12 @@
     "pricing": {
       "input": "0.000000035",
       "output": "0.00000014",
+      "input_cache_read": "0.0000000087",
       "regional": {
         "eu": {
           "input": "0.000000046",
-          "output": "0.000000184"
+          "output": "0.000000184",
+          "input_cache_read": "0.0000000115"
         }
       }
     }
@@ -2375,10 +2406,12 @@
     "pricing": {
       "input": "0.0000008",
       "output": "0.0000032",
+      "input_cache_read": "0.0000002",
       "regional": {
         "eu": {
           "input": "0.00000105",
-          "output": "0.0000042"
+          "output": "0.0000042",
+          "input_cache_read": "0.0000002625"
         }
       }
     }
@@ -4917,52 +4950,6 @@
     }
   },
   {
-    "id": "arcee-ai/trinity-large-thinking",
-    "object": "model",
-    "created": 1755815280,
-    "released": 1775001600,
-    "owned_by": "arcee-ai",
-    "name": "Trinity Large Thinking",
-    "description": "Trinity-Large-Thinking is a reasoning-optimized variant of Arcee AI's Trinity-Large family — a 398B-parameter sparse Mixture-of-Experts (MoE) model with approximately 13B active parameters per token. Built on Trinity-Large-Base and post-trained with extended chain-of-thought reasoning and agentic RL, Trinity-Large-Thinking delivers state-of-the-art performance on agentic benchmarks while maintaining strong general capabilities.",
-    "context_window": 262100,
-    "max_tokens": 80000,
-    "type": "language",
-    "zdr": "none",
-    "no_training": "none",
-    "tags": ["reasoning", "tool-use", "structured-output", "open-weights"],
-    "supported_specifications": ["v2", "v3", "v4"],
-    "modalities": {
-      "input": ["text"],
-      "output": ["text"]
-    },
-    "supported_parameters": [
-      "max_tokens",
-      "temperature",
-      "stop",
-      "tools",
-      "tool_choice",
-      "reasoning",
-      "include_reasoning",
-      "response_format",
-      "structured_outputs"
-    ],
-    "temperature": true,
-    "reasoning_options": [
-      {
-        "type": "toggle"
-      },
-      {
-        "type": "effort",
-        "values": ["none", "low", "medium", "high"]
-      }
-    ],
-    "pricing": {
-      "input": "0.00000025",
-      "output": "0.0000008",
-      "input_cache_read": "0.00000006"
-    }
-  },
-  {
     "id": "baseten/elephant-1",
     "object": "model",
     "created": 1755815280,
@@ -4976,14 +4963,49 @@
     "zdr": "all",
     "no_training": "all",
     "tags": ["open-weights"],
+    "regions": ["us"],
     "supported_specifications": ["v4"],
     "modalities": {
       "input": ["text"],
       "output": ["text"]
     },
     "pricing": {
-      "input": "0",
-      "output": "0"
+      "input": "0.000000035",
+      "output": "0",
+      "regional": {
+        "us": {
+          "input": "0.000000035"
+        }
+      }
+    }
+  },
+  {
+    "id": "baseten/joey-1",
+    "object": "model",
+    "created": 1755815280,
+    "released": 1793232000,
+    "owned_by": "baseten",
+    "name": "Joey-1",
+    "description": "Joey-1 is a 2B decision model from Baseten's Base Labs for classification, routing, and scoring. It evaluates text context against choice, yes/no, and ordered scoring questions, returning answer probabilities and confidence in a single forward pass without generating free-form text.",
+    "context_window": 16384,
+    "max_tokens": 0,
+    "type": "evaluation",
+    "zdr": "all",
+    "no_training": "all",
+    "regions": ["us"],
+    "supported_specifications": ["v4"],
+    "modalities": {
+      "input": ["text"],
+      "output": ["text"]
+    },
+    "pricing": {
+      "input": "0.00000001",
+      "output": "0",
+      "regional": {
+        "us": {
+          "input": "0.00000001"
+        }
+      }
     }
   },
   {
@@ -5000,14 +5022,20 @@
     "zdr": "all",
     "no_training": "all",
     "tags": ["open-weights"],
+    "regions": ["us"],
     "supported_specifications": ["v4"],
     "modalities": {
       "input": ["text"],
       "output": ["text"]
     },
     "pricing": {
-      "input": "0",
-      "output": "0"
+      "input": "0.0000001",
+      "output": "0",
+      "regional": {
+        "us": {
+          "input": "0.0000001"
+        }
+      }
     }
   },
   {
@@ -6557,7 +6585,7 @@
     "context_window": 128000,
     "max_tokens": 8192,
     "type": "language",
-    "zdr": "all",
+    "zdr": "some",
     "no_training": "all",
     "tags": ["reasoning", "tool-use", "open-weights", "implicit-caching"],
     "supported_specifications": ["v2", "v3", "v4"],
@@ -6602,7 +6630,7 @@
     "context_window": 163840,
     "max_tokens": 128000,
     "type": "language",
-    "zdr": "some",
+    "zdr": "none",
     "no_training": "some",
     "tags": [
       "implicit-caching",
@@ -6655,7 +6683,7 @@
     "context_window": 128000,
     "max_tokens": 8000,
     "type": "language",
-    "zdr": "all",
+    "zdr": "some",
     "no_training": "all",
     "tags": ["tool-use", "open-weights", "implicit-caching"],
     "supported_specifications": ["v2", "v3", "v4"],
@@ -6700,7 +6728,7 @@
     "context_window": 128000,
     "max_tokens": 8000,
     "type": "language",
-    "zdr": "all",
+    "zdr": "some",
     "no_training": "all",
     "tags": ["tool-use", "open-weights", "implicit-caching"],
     "supported_specifications": ["v2", "v3", "v4"],
@@ -6870,7 +6898,7 @@
     "context_window": 1048576,
     "max_tokens": 1048576,
     "type": "language",
-    "zdr": "some",
+    "zdr": "none",
     "no_training": "some",
     "tags": [
       "reasoning",
@@ -7111,24 +7139,9 @@
       }
     ],
     "pricing": {
-      "input": "0.000000075",
-      "output": "0.0000003",
-      "input_cache_read": "0.0000000015",
-      "peak_pricing": {
-        "multiplier": 2,
-        "windows": [
-          {
-            "start_minute_utc": 60,
-            "end_minute_utc": 240,
-            "days_of_week": [1, 2, 3, 4, 5]
-          },
-          {
-            "start_minute_utc": 360,
-            "end_minute_utc": 600,
-            "days_of_week": [1, 2, 3, 4, 5]
-          }
-        ]
-      },
+      "input": "0.0000003",
+      "output": "0.0000012",
+      "input_cache_read": "0.000000007",
       "varies_by_provider": true,
       "fast": {
         "input": "0.0000006",
@@ -7151,9 +7164,9 @@
     "released": 1792195200,
     "owned_by": "deepseek",
     "name": "DeepSeek V4.1 Flash 1017",
-    "description": "DeepSeek V4.1 Flash 1017 served by Fireworks for multimodal reasoning, coding, tool calling, and structured output, with automatic prefix caching.",
+    "description": "DeepSeek V4.1 Flash 1017 served by Baseten for multimodal reasoning, tool calling, and structured output, with automatic prefix caching.",
     "context_window": 1048576,
-    "max_tokens": 1048576,
+    "max_tokens": 262144,
     "type": "language",
     "zdr": "some",
     "no_training": "some",
@@ -7193,24 +7206,9 @@
       }
     ],
     "pricing": {
-      "input": "0.000000075",
-      "output": "0.0000003",
-      "input_cache_read": "0.0000000015",
-      "peak_pricing": {
-        "multiplier": 2,
-        "windows": [
-          {
-            "start_minute_utc": 60,
-            "end_minute_utc": 240,
-            "days_of_week": [1, 2, 3, 4, 5]
-          },
-          {
-            "start_minute_utc": 360,
-            "end_minute_utc": 600,
-            "days_of_week": [1, 2, 3, 4, 5]
-          }
-        ]
-      },
+      "input": "0.0000003",
+      "output": "0.0000012",
+      "input_cache_read": "0.000000007",
       "varies_by_provider": true,
       "fast": {
         "input": "0.0000006",
@@ -7219,9 +7217,9 @@
       },
       "regional": {
         "us": {
-          "input": "0.00000045",
-          "output": "0.0000018",
-          "input_cache_read": "0.000000009"
+          "input": "0.0000003",
+          "output": "0.0000012",
+          "input_cache_read": "0.000000007"
         }
       }
     }
@@ -7346,6 +7344,317 @@
           "input_cache_read": "0.000000014"
         }
       }
+    }
+  },
+  {
+    "id": "elevenlabs/eleven-flash-v2",
+    "object": "model",
+    "created": 1755815280,
+    "released": 1793059200,
+    "owned_by": "elevenlabs",
+    "name": "Eleven Flash v2",
+    "description": "English-only text-to-speech optimized for ultra-low latency in real-time applications. Accepts up to 30,000 characters per request and is billed per input character.",
+    "type": "speech",
+    "zdr": "none",
+    "no_training": "none",
+    "tags": ["websocket-speech"],
+    "supported_specifications": ["v3", "v4"],
+    "modalities": {
+      "input": ["text"],
+      "output": ["audio"]
+    },
+    "pricing": {
+      "input": "0.00002",
+      "speech_input_character_cost": "0.00002"
+    }
+  },
+  {
+    "id": "elevenlabs/eleven-flash-v2.5",
+    "object": "model",
+    "created": 1755815280,
+    "released": 1793059200,
+    "owned_by": "elevenlabs",
+    "name": "Eleven Flash v2.5",
+    "description": "Ultra-low-latency text-to-speech for real-time applications in 32 languages. Accepts up to 40,000 characters per request and is billed per input character.",
+    "type": "speech",
+    "zdr": "none",
+    "no_training": "none",
+    "tags": ["websocket-speech"],
+    "supported_specifications": ["v3", "v4"],
+    "modalities": {
+      "input": ["text"],
+      "output": ["audio"]
+    },
+    "pricing": {
+      "input": "0.00002",
+      "speech_input_character_cost": "0.00002"
+    }
+  },
+  {
+    "id": "elevenlabs/eleven-multilingual-v2",
+    "object": "model",
+    "created": 1755815280,
+    "released": 1793059200,
+    "owned_by": "elevenlabs",
+    "name": "Eleven Multilingual v2",
+    "description": "Lifelike text-to-speech with consistent voice quality for long-form audio in 29 languages. Accepts up to 10,000 characters per request and is billed per input character.",
+    "type": "speech",
+    "zdr": "none",
+    "no_training": "none",
+    "tags": ["websocket-speech"],
+    "supported_specifications": ["v3", "v4"],
+    "modalities": {
+      "input": ["text"],
+      "output": ["audio"]
+    },
+    "pricing": {
+      "input": "0.00004",
+      "speech_input_character_cost": "0.00004"
+    }
+  },
+  {
+    "id": "elevenlabs/eleven-realtime-v1-max",
+    "object": "model",
+    "created": 1755815280,
+    "released": 1793059200,
+    "owned_by": "elevenlabs",
+    "name": "Eleven Realtime v1 Max",
+    "description": "A speech-to-speech voice agent optimized for complex instructions, reasoning, and multi-step tool use, with speech recognition, turn-taking, and voice generation tuned as one system. Supports more than 90 languages through an OpenAI-compatible Realtime WebSocket API. Billed for connected session duration plus input and output tokens.",
+    "context_window": 0,
+    "max_tokens": 0,
+    "type": "realtime",
+    "zdr": "none",
+    "no_training": "none",
+    "supported_specifications": ["v3", "v4"],
+    "modalities": {
+      "input": ["text", "audio"],
+      "output": ["text", "audio"]
+    },
+    "supported_parameters": ["max_tokens", "temperature", "stop"],
+    "temperature": true,
+    "pricing": {
+      "input": "0.0000009",
+      "output": "0.0000045",
+      "input_cache_read": "0.00000009",
+      "realtime_session_duration_cost_per_second": "0.0006667"
+    }
+  },
+  {
+    "id": "elevenlabs/eleven-realtime-v1-mini",
+    "object": "model",
+    "created": 1755815280,
+    "released": 1793059200,
+    "owned_by": "elevenlabs",
+    "name": "Eleven Realtime v1 Mini",
+    "description": "A speech-to-speech voice agent optimized for fast, natural conversation, with speech recognition, turn-taking, interruption handling, and voice generation tuned as one system. Supports more than 90 languages through an OpenAI-compatible Realtime WebSocket API. Billed for connected session duration plus input and output tokens.",
+    "context_window": 0,
+    "max_tokens": 0,
+    "type": "realtime",
+    "zdr": "none",
+    "no_training": "none",
+    "supported_specifications": ["v3", "v4"],
+    "modalities": {
+      "input": ["text", "audio"],
+      "output": ["text", "audio"]
+    },
+    "supported_parameters": ["max_tokens", "temperature", "stop"],
+    "temperature": true,
+    "pricing": {
+      "input": "0.0000001",
+      "output": "0.000003",
+      "input_cache_read": "0.00000001",
+      "realtime_session_duration_cost_per_second": "0.0006667"
+    }
+  },
+  {
+    "id": "elevenlabs/eleven-v3",
+    "object": "model",
+    "created": 1755815280,
+    "released": 1793059200,
+    "owned_by": "elevenlabs",
+    "name": "Eleven v3",
+    "description": "Emotionally rich text-to-speech with inline audio tags for delivery and expression, supporting more than 70 languages. Accepts up to 5,000 characters per request and is billed per input character, including audio tags.",
+    "type": "speech",
+    "zdr": "none",
+    "no_training": "none",
+    "tags": ["websocket-speech"],
+    "supported_specifications": ["v3", "v4"],
+    "modalities": {
+      "input": ["text"],
+      "output": ["audio"]
+    },
+    "pricing": {
+      "input": "0.00004",
+      "speech_input_character_cost": "0.00004"
+    }
+  },
+  {
+    "id": "elevenlabs/eleven-v3-conversational",
+    "object": "model",
+    "created": 1755815280,
+    "released": 1793059200,
+    "owned_by": "elevenlabs",
+    "name": "Eleven v3 Conversational",
+    "description": "A low-latency Eleven v3 variant tuned for conversational agents, with expressive audio tags and support for more than 70 languages. Accepts up to 5,000 characters per request and is billed per input character.",
+    "type": "speech",
+    "zdr": "none",
+    "no_training": "none",
+    "tags": ["websocket-speech"],
+    "supported_specifications": ["v3", "v4"],
+    "modalities": {
+      "input": ["text"],
+      "output": ["audio"]
+    },
+    "pricing": {
+      "input": "0.00002",
+      "speech_input_character_cost": "0.00002"
+    }
+  },
+  {
+    "id": "elevenlabs/eleven-v4",
+    "object": "model",
+    "created": 1755815280,
+    "released": 1793059200,
+    "owned_by": "elevenlabs",
+    "name": "Eleven v4",
+    "description": "ElevenLabs' expressive text-to-speech model with audio tags for emotion and delivery, multilingual speech, and multi-speaker dialogue support. Accepts up to 10,000 characters per request and is billed per input character.",
+    "type": "speech",
+    "zdr": "none",
+    "no_training": "none",
+    "tags": ["websocket-speech"],
+    "supported_specifications": ["v3", "v4"],
+    "modalities": {
+      "input": ["text"],
+      "output": ["audio"]
+    },
+    "pricing": {
+      "input": "0.00004",
+      "speech_input_character_cost": "0.00004"
+    }
+  },
+  {
+    "id": "elevenlabs/eleven-v4-turbo",
+    "object": "model",
+    "created": 1755815280,
+    "released": 1793059200,
+    "owned_by": "elevenlabs",
+    "name": "Eleven v4 Turbo",
+    "description": "A low-latency Eleven v4 variant for real-time and conversational applications, with expressive audio tags and multilingual speech. Accepts up to 10,000 characters per request and is billed per input character.",
+    "type": "speech",
+    "zdr": "none",
+    "no_training": "none",
+    "tags": ["websocket-speech"],
+    "supported_specifications": ["v3", "v4"],
+    "modalities": {
+      "input": ["text"],
+      "output": ["audio"]
+    },
+    "pricing": {
+      "input": "0.00002",
+      "speech_input_character_cost": "0.00002"
+    }
+  },
+  {
+    "id": "elevenlabs/music-v2",
+    "object": "model",
+    "created": 1755815280,
+    "released": 1793059200,
+    "owned_by": "elevenlabs",
+    "name": "Eleven Music v2",
+    "description": "Music generation from text prompts, billed per second of generated audio.",
+    "type": "speech",
+    "zdr": "none",
+    "no_training": "none",
+    "tags": ["music"],
+    "supported_specifications": ["v4"],
+    "modalities": {
+      "input": ["text"],
+      "output": ["audio"]
+    },
+    "pricing": {
+      "speech_output_cost_per_second": "0.00125"
+    }
+  },
+  {
+    "id": "elevenlabs/music-v2.5",
+    "object": "model",
+    "created": 1755815280,
+    "released": 1793059200,
+    "owned_by": "elevenlabs",
+    "name": "Eleven Music v2.5",
+    "description": "Music generation from text prompts, billed per second of generated audio.",
+    "type": "speech",
+    "zdr": "none",
+    "no_training": "none",
+    "tags": ["music"],
+    "supported_specifications": ["v4"],
+    "modalities": {
+      "input": ["text"],
+      "output": ["audio"]
+    },
+    "pricing": {
+      "speech_output_cost_per_second": "0.00125"
+    }
+  },
+  {
+    "id": "elevenlabs/scribe-v2",
+    "object": "model",
+    "created": 1755815280,
+    "released": 1793059200,
+    "owned_by": "elevenlabs",
+    "name": "Scribe v2",
+    "description": "Multilingual speech-to-text with speaker diarization, word-level timestamps, and audio event tagging. Supports more than 90 languages and is billed per second of input audio.",
+    "type": "transcription",
+    "zdr": "none",
+    "no_training": "none",
+    "supported_specifications": ["v3", "v4"],
+    "modalities": {
+      "input": ["audio"],
+      "output": ["text"]
+    },
+    "pricing": {
+      "input": "0",
+      "transcription_duration_cost_per_second": "0.000030556"
+    }
+  },
+  {
+    "id": "elevenlabs/scribe-v2-realtime",
+    "object": "model",
+    "created": 1755815280,
+    "released": 1793059200,
+    "owned_by": "elevenlabs",
+    "name": "Scribe v2 Realtime",
+    "description": "Real-time speech-to-text over WebSocket with manual or voice-activity-based commits, optional word timestamps, and language detection. Supports PCM and mu-law audio and is billed per second of streamed audio.",
+    "type": "transcription",
+    "zdr": "none",
+    "no_training": "none",
+    "tags": ["websocket-transcription"],
+    "supported_specifications": ["v3", "v4"],
+    "modalities": {
+      "input": ["audio"],
+      "output": ["text"]
+    },
+    "pricing": {}
+  },
+  {
+    "id": "elevenlabs/sound-effects-v2",
+    "object": "model",
+    "created": 1755815280,
+    "released": 1793059200,
+    "owned_by": "elevenlabs",
+    "name": "Eleven Sound Effects v2",
+    "description": "Sound effects generation from text prompts, billed per second of generated audio.",
+    "type": "speech",
+    "zdr": "none",
+    "no_training": "none",
+    "tags": ["sound-effects"],
+    "supported_specifications": ["v4"],
+    "modalities": {
+      "input": ["text"],
+      "output": ["audio"]
+    },
+    "pricing": {
+      "speech_output_cost_per_second": "0.001"
     }
   },
   {
@@ -10607,6 +10916,54 @@
           "resolution": "2k",
           "mode": "reference_to_video",
           "cost_per_second": "0.09"
+        },
+        {
+          "duration_over_seconds": 15,
+          "resolution": "480p",
+          "mode": "text_to_video",
+          "cost_per_second": "0.045"
+        },
+        {
+          "duration_over_seconds": 15,
+          "resolution": "768p",
+          "mode": "text_to_video",
+          "cost_per_second": "0.075"
+        },
+        {
+          "duration_over_seconds": 15,
+          "resolution": "1080p",
+          "mode": "text_to_video",
+          "cost_per_second": "0.105"
+        },
+        {
+          "duration_over_seconds": 15,
+          "resolution": "2k",
+          "mode": "text_to_video",
+          "cost_per_second": "0.105"
+        },
+        {
+          "duration_over_seconds": 15,
+          "resolution": "480p",
+          "mode": "image_to_video",
+          "cost_per_second": "0.045"
+        },
+        {
+          "duration_over_seconds": 15,
+          "resolution": "768p",
+          "mode": "image_to_video",
+          "cost_per_second": "0.075"
+        },
+        {
+          "duration_over_seconds": 15,
+          "resolution": "1080p",
+          "mode": "image_to_video",
+          "cost_per_second": "0.105"
+        },
+        {
+          "duration_over_seconds": 15,
+          "resolution": "2k",
+          "mode": "image_to_video",
+          "cost_per_second": "0.105"
         }
       ]
     }
@@ -10648,6 +11005,7 @@
         "values": ["instant", "low", "medium", "high"]
       }
     ],
+    "deprecated_at": 1794719100000,
     "pricing": {
       "input": "0.00000025",
       "output": "0.00000075",
@@ -10691,6 +11049,7 @@
         "values": ["instant", "low", "medium", "high"]
       }
     ],
+    "deprecated_at": 1794719100000,
     "pricing": {
       "input": "0.00000004",
       "output": "0.00000015",
@@ -10769,6 +11128,7 @@
       "structured_outputs"
     ],
     "temperature": true,
+    "deprecated_at": 1794719100000,
     "pricing": {
       "input": "0.00000025",
       "output": "0.000001"
@@ -10825,7 +11185,7 @@
     "context_window": 256000,
     "max_tokens": 32000,
     "type": "language",
-    "zdr": "some",
+    "zdr": "none",
     "no_training": "some",
     "tags": [
       "implicit-caching",
@@ -10989,6 +11349,49 @@
       "input": "0.0000003",
       "output": "0.0000009",
       "input_cache_read": "0.00000006"
+    }
+  },
+  {
+    "id": "inclusionai/ling-3.1-flash-1019",
+    "object": "model",
+    "created": 1755815280,
+    "released": 1793318400,
+    "owned_by": "inclusionai",
+    "name": "Ling 3.1 Flash 1019",
+    "description": "Ling 3.1 Flash 1019 is InclusionAI's updated hybrid reasoning language model for coding, multi-step analysis, and tool-using agents. Its mixture-of-experts architecture has 560B total parameters with 25B active per token, and its 1M-token context window supports long-document analysis and extended agentic workflows.",
+    "context_window": 1000000,
+    "max_tokens": 262144,
+    "type": "language",
+    "zdr": "none",
+    "no_training": "none",
+    "tags": ["implicit-caching", "reasoning", "tool-use", "open-weights"],
+    "supported_specifications": ["v2", "v3", "v4"],
+    "modalities": {
+      "input": ["text"],
+      "output": ["text"]
+    },
+    "supported_parameters": [
+      "max_tokens",
+      "temperature",
+      "stop",
+      "tools",
+      "tool_choice",
+      "reasoning",
+      "include_reasoning"
+    ],
+    "temperature": true,
+    "reasoning_options": [
+      {
+        "type": "toggle"
+      },
+      {
+        "type": "effort",
+        "values": ["none", "low", "medium", "high"]
+      }
+    ],
+    "pricing": {
+      "input": "0",
+      "output": "0"
     }
   },
   {
@@ -11926,7 +12329,7 @@
     "context_window": 128000,
     "max_tokens": 8192,
     "type": "language",
-    "zdr": "all",
+    "zdr": "some",
     "no_training": "all",
     "tags": ["tool-use", "vision", "open-weights", "structured-output"],
     "supported_specifications": ["v2", "v3", "v4"],
@@ -13186,18 +13589,18 @@
     "released": 1792368000,
     "owned_by": "minimax",
     "name": "MiniMax-M3.1-Flash",
-    "description": "MiniMax-M3.1-Flash is MiniMax's M-series language model for agent reasoning, tool use, coding, and long-context tasks, with a 1,000,000-token context window. Compared with MiniMax-M3, it adds always-on reasoning and adjustable reasoning effort, allowing developers to tune reasoning effort for different tasks.",
-    "context_window": 1000000,
-    "max_tokens": 524288,
+    "description": "MiniMax-M3.1-Flash is MiniMax’s multimodal M-series model for agent reasoning, tool use, coding, and long-context tasks. Fireworks serves the final weights with hybrid MXFP8 and NVFP4 expert precision, text and image inputs, structured outputs, and implicit prompt caching.",
+    "context_window": 1048576,
+    "max_tokens": 1048576,
     "type": "language",
-    "zdr": "none",
-    "no_training": "none",
+    "zdr": "some",
+    "no_training": "some",
     "tags": [
       "implicit-caching",
       "reasoning",
+      "structured-output",
       "tool-use",
       "vision",
-      "structured-output",
       "open-weights"
     ],
     "supported_specifications": ["v2", "v3", "v4"],
@@ -13224,8 +13627,10 @@
       }
     ],
     "pricing": {
-      "input": "0",
-      "output": "0"
+      "input": "0.00000015",
+      "output": "0.0000006",
+      "input_cache_read": "0.000000015",
+      "varies_by_provider": true
     }
   },
   {
@@ -13461,11 +13866,11 @@
     "id": "mistral/mistral-large-4",
     "object": "model",
     "created": 1755815280,
-    "released": 1791244800,
+    "released": 1793232000,
     "owned_by": "mistral",
     "name": "Mistral Large 4",
-    "description": "Mistral Large 4 is Mistral AI's open-weight, natively multimodal model, available in public preview with 1.05 trillion total parameters and 49 billion active parameters. It leads aggregated benchmarks among open-weight models from the US and Europe, with strengths in cyber defense, manufacturing, finance, and visual grounding.",
-    "context_window": 524288,
+    "description": "Mistral Large 4 is Mistral AI's open-weight, natively multimodal model, available in public preview with 1.05 trillion total parameters and 49 billion active parameters. It leads aggregated benchmarks among open-weight models from the US and Europe, with strengths in cyber defense, manufacturing, finance, and visual grounding. This model uses the latest weights from Mistral.",
+    "context_window": 1048576,
     "max_tokens": 262144,
     "type": "language",
     "zdr": "all",
@@ -13498,9 +13903,9 @@
       }
     ],
     "pricing": {
-      "input": "0.00000136",
-      "output": "0.00000418",
-      "input_cache_read": "0.00000014"
+      "input": "0.0000007",
+      "output": "0.0000021",
+      "input_cache_read": "0.00000007"
     }
   },
   {
@@ -13560,7 +13965,7 @@
     "context_window": 131072,
     "max_tokens": 131072,
     "type": "language",
-    "zdr": "all",
+    "zdr": "none",
     "no_training": "all",
     "tags": ["tool-use", "structured-output", "open-weights"],
     "supported_specifications": ["v2", "v3", "v4"],
@@ -14094,6 +14499,108 @@
     }
   },
   {
+    "id": "moonshotai/kimi-k3.1-pro",
+    "object": "model",
+    "created": 1755815280,
+    "released": 1792713600,
+    "owned_by": "moonshotai",
+    "name": "Kimi K3.1 Pro",
+    "description": "Kimi K3.1 Pro is a frontier model from Moonshot AI for complex reasoning, coding, and agentic workflows, with support for vision, tool use, structured outputs, and long-context tasks.",
+    "context_window": 1048576,
+    "max_tokens": 1048576,
+    "type": "language",
+    "zdr": "all",
+    "no_training": "all",
+    "tags": [
+      "implicit-caching",
+      "reasoning",
+      "structured-output",
+      "tool-use",
+      "vision",
+      "open-weights"
+    ],
+    "supported_specifications": ["v2", "v3", "v4"],
+    "modalities": {
+      "input": ["text", "image"],
+      "output": ["text"]
+    },
+    "supported_parameters": [
+      "max_tokens",
+      "temperature",
+      "stop",
+      "tools",
+      "tool_choice",
+      "reasoning",
+      "include_reasoning",
+      "response_format",
+      "structured_outputs"
+    ],
+    "temperature": true,
+    "reasoning_options": [
+      {
+        "type": "effort",
+        "values": ["low", "high", "max"]
+      }
+    ],
+    "pricing": {
+      "input": "0.000002",
+      "output": "0.00001",
+      "input_cache_read": "0.0000002",
+      "input_cache_write": "0.000002"
+    }
+  },
+  {
+    "id": "moonshotai/kimi-k3.1-pro-highspeed",
+    "object": "model",
+    "created": 1755815280,
+    "released": 1792713600,
+    "owned_by": "moonshotai",
+    "name": "Kimi K3.1 Pro Highspeed",
+    "description": "Kimi K3.1 Pro Highspeed is the high-speed variant of Moonshot AI’s frontier Kimi K3.1 Pro model for complex reasoning, coding, and agentic workflows, with vision, tool use, structured outputs, and long-context support.",
+    "context_window": 1048576,
+    "max_tokens": 1048576,
+    "type": "language",
+    "zdr": "all",
+    "no_training": "all",
+    "tags": [
+      "implicit-caching",
+      "reasoning",
+      "structured-output",
+      "tool-use",
+      "vision",
+      "open-weights"
+    ],
+    "supported_specifications": ["v2", "v3", "v4"],
+    "modalities": {
+      "input": ["text", "image"],
+      "output": ["text"]
+    },
+    "supported_parameters": [
+      "max_tokens",
+      "temperature",
+      "stop",
+      "tools",
+      "tool_choice",
+      "reasoning",
+      "include_reasoning",
+      "response_format",
+      "structured_outputs"
+    ],
+    "temperature": true,
+    "reasoning_options": [
+      {
+        "type": "effort",
+        "values": ["low", "high", "max"]
+      }
+    ],
+    "pricing": {
+      "input": "0.000004",
+      "output": "0.00002",
+      "input_cache_read": "0.0000002",
+      "input_cache_write": "0.000004"
+    }
+  },
+  {
     "id": "morph/morph-v3-fast",
     "object": "model",
     "created": 1755815280,
@@ -14166,7 +14673,7 @@
     "context_window": 262144,
     "max_tokens": 262144,
     "type": "language",
-    "zdr": "all",
+    "zdr": "none",
     "no_training": "all",
     "tags": ["reasoning", "tool-use", "open-weights"],
     "supported_specifications": ["v2", "v3", "v4"],
@@ -14255,7 +14762,7 @@
     "context_window": 1000000,
     "max_tokens": 65000,
     "type": "language",
-    "zdr": "all",
+    "zdr": "some",
     "no_training": "all",
     "tags": [
       "reasoning",
@@ -14556,72 +15063,6 @@
     "pricing": {
       "input": "0.00000006",
       "output": "0.00000023"
-    }
-  },
-  {
-    "id": "openai/gpt-3.5-turbo",
-    "object": "model",
-    "created": 1755815280,
-    "released": 1677628800,
-    "owned_by": "openai",
-    "name": "GPT-3.5 Turbo",
-    "description": "OpenAI's most capable and cost effective model in the GPT-3.5 family optimized for chat purposes, but also works well for traditional completions tasks.",
-    "context_window": 16385,
-    "max_tokens": 4096,
-    "type": "language",
-    "zdr": "all",
-    "no_training": "all",
-    "tags": ["tool-use"],
-    "supported_specifications": ["v2", "v3", "v4"],
-    "modalities": {
-      "input": ["text"],
-      "output": ["text"]
-    },
-    "supported_parameters": [
-      "max_tokens",
-      "temperature",
-      "stop",
-      "tools",
-      "tool_choice"
-    ],
-    "temperature": true,
-    "knowledge": "2021-09-01",
-    "pricing": {
-      "input": "0.0000005",
-      "output": "0.0000015"
-    }
-  },
-  {
-    "id": "openai/gpt-4-turbo",
-    "object": "model",
-    "created": 1755815280,
-    "released": 1712620800,
-    "owned_by": "openai",
-    "name": "GPT-4 Turbo",
-    "description": "gpt-4-turbo from OpenAI has broad general knowledge and domain expertise allowing it to follow complex instructions in natural language and solve difficult problems accurately. It has a knowledge cutoff of April 2023 and a 128,000 token context window.",
-    "context_window": 128000,
-    "max_tokens": 4096,
-    "type": "language",
-    "zdr": "all",
-    "no_training": "all",
-    "tags": ["tool-use", "vision"],
-    "supported_specifications": ["v2", "v3", "v4"],
-    "modalities": {
-      "input": ["text", "image"],
-      "output": ["text"]
-    },
-    "supported_parameters": [
-      "max_tokens",
-      "temperature",
-      "stop",
-      "tools",
-      "tool_choice"
-    ],
-    "temperature": true,
-    "knowledge": "2023-12-01",
-    "pricing": {
-      "input": "0.00001",
-      "output": "0.00003"
     }
   },
   {
@@ -14931,8 +15372,7 @@
       "tool-use",
       "vision",
       "web-search",
-      "structured-output",
-      "fast"
+      "structured-output"
     ],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
@@ -14953,108 +15393,8 @@
     "pricing": {
       "input": "0.0000001",
       "output": "0.0000004",
-      "input_cache_read": "0.000000025",
-      "web_search": "10",
-      "service_tiers": {
-        "priority": {
-          "input": "0.0000002",
-          "output": "0.0000008",
-          "input_cache_read": "0.00000005"
-        }
-      },
-      "varies_by_provider": true,
-      "fast": {
-        "input": "0.0000002",
-        "output": "0.0000008",
-        "input_cache_read": "0.00000005"
-      }
-    }
-  },
-  {
-    "id": "openai/gpt-4.1-nano-batch",
-    "object": "model",
-    "created": 1755815280,
-    "released": 1744588800,
-    "owned_by": "openai",
-    "name": "GPT-4.1 nano (Batch)",
-    "description": "GPT-4.1 nano is the fastest, most cost-effective GPT 4.1 model.",
-    "context_window": 1047576,
-    "max_tokens": 32768,
-    "type": "language",
-    "zdr": "none",
-    "no_training": "all",
-    "tags": [
-      "file-input",
-      "implicit-caching",
-      "tool-use",
-      "vision",
-      "structured-output"
-    ],
-    "supported_specifications": ["v4"],
-    "modalities": {
-      "input": ["text", "image", "pdf"],
-      "output": ["text"]
-    },
-    "supported_parameters": [
-      "max_tokens",
-      "temperature",
-      "stop",
-      "tools",
-      "tool_choice",
-      "response_format",
-      "structured_outputs"
-    ],
-    "temperature": true,
-    "knowledge": "2024-06-01",
-    "pricing": {
-      "input": "0.00000005",
-      "output": "0.0000002",
-      "input_cache_read": "0.0000000125"
-    }
-  },
-  {
-    "id": "openai/gpt-4.1-nano-fast",
-    "object": "model",
-    "created": 1755815280,
-    "released": 1744588800,
-    "owned_by": "openai",
-    "name": "GPT-4.1 nano (Fast)",
-    "description": "GPT-4.1 nano is the fastest, most cost-effective GPT 4.1 model.",
-    "context_window": 1047576,
-    "max_tokens": 32768,
-    "type": "language",
-    "zdr": "all",
-    "no_training": "all",
-    "tags": [
-      "file-input",
-      "implicit-caching",
-      "tool-use",
-      "vision",
-      "web-search",
-      "structured-output",
-      "fast"
-    ],
-    "supported_specifications": ["v2", "v3", "v4"],
-    "modalities": {
-      "input": ["text", "image", "pdf"],
-      "output": ["text"]
-    },
-    "supported_parameters": [
-      "max_tokens",
-      "temperature",
-      "stop",
-      "tools",
-      "tool_choice",
-      "response_format",
-      "structured_outputs"
-    ],
-    "temperature": true,
-    "knowledge": "2024-06-01",
-    "pricing": {
-      "input": "0.0000002",
-      "output": "0.0000008",
-      "input_cache_read": "0.00000005",
-      "web_search": "10"
+      "input_cache_read": "0.00000003",
+      "web_search": "14"
     }
   },
   {
@@ -20982,8 +21322,9 @@
     "context_window": 1050000,
     "max_tokens": 0,
     "type": "evaluation",
-    "zdr": "none",
+    "zdr": "all",
     "no_training": "all",
+    "regions": ["eu", "us"],
     "supported_specifications": ["v4"],
     "modalities": {
       "input": ["text"],
@@ -20999,7 +21340,121 @@
       }
     ],
     "pricing": {
-      "input": "0.0000001"
+      "input": "0.0000001",
+      "input_tiers": [
+        {
+          "cost": "0.0000001",
+          "min": 0,
+          "max": 272001
+        },
+        {
+          "cost": "0.0000002",
+          "min": 272001
+        }
+      ],
+      "output": "0",
+      "input_cache_read": "0.00000001",
+      "input_cache_read_tiers": [
+        {
+          "cost": "0.00000001",
+          "min": 0,
+          "max": 272001
+        },
+        {
+          "cost": "0.00000002",
+          "min": 272001
+        }
+      ],
+      "input_cache_write": "0.000000125",
+      "input_cache_write_tiers": [
+        {
+          "cost": "0.000000125",
+          "min": 0,
+          "max": 272001
+        },
+        {
+          "cost": "0.00000025",
+          "min": 272001
+        }
+      ],
+      "regional": {
+        "eu": {
+          "input": "0.00000011",
+          "input_tiers": [
+            {
+              "cost": "0.00000011",
+              "min": 0,
+              "max": 272001
+            },
+            {
+              "cost": "0.00000022",
+              "min": 272001
+            }
+          ],
+          "input_cache_read": "0.000000011",
+          "input_cache_read_tiers": [
+            {
+              "cost": "0.000000011",
+              "min": 0,
+              "max": 272001
+            },
+            {
+              "cost": "0.000000022",
+              "min": 272001
+            }
+          ],
+          "input_cache_write": "0.0000001375",
+          "input_cache_write_tiers": [
+            {
+              "cost": "0.0000001375",
+              "min": 0,
+              "max": 272001
+            },
+            {
+              "cost": "0.000000275",
+              "min": 272001
+            }
+          ]
+        },
+        "us": {
+          "input": "0.00000011",
+          "input_tiers": [
+            {
+              "cost": "0.00000011",
+              "min": 0,
+              "max": 272001
+            },
+            {
+              "cost": "0.00000022",
+              "min": 272001
+            }
+          ],
+          "input_cache_read": "0.000000011",
+          "input_cache_read_tiers": [
+            {
+              "cost": "0.000000011",
+              "min": 0,
+              "max": 272001
+            },
+            {
+              "cost": "0.000000022",
+              "min": 272001
+            }
+          ],
+          "input_cache_write": "0.0000001375",
+          "input_cache_write_tiers": [
+            {
+              "cost": "0.0000001375",
+              "min": 0,
+              "max": 272001
+            },
+            {
+              "cost": "0.000000275",
+              "min": 272001
+            }
+          ]
+        }
+      }
     }
   },
   {
@@ -22480,28 +22935,587 @@
     }
   },
   {
-    "id": "openai/gpt-image-1",
+    "id": "openai/gpt-6.1-terra",
     "object": "model",
     "created": 1755815280,
-    "released": 1742860800,
+    "released": 1792972800,
     "owned_by": "openai",
-    "name": "GPT Image 1",
-    "description": "GPT Image 1 is OpenAI's new state-of-the-art image generation model. It is a natively multimodal language model that accepts both text and image inputs, and produces image outputs.",
-    "context_window": 0,
-    "max_tokens": 0,
-    "type": "image",
-    "zdr": "none",
+    "name": "GPT-6.1 Terra",
+    "description": "GPT-6.1 Terra is OpenAI’s model for visual reasoning, precise computer use, and natural writing. It accepts text and images and generates text, with configurable reasoning effort, structured outputs, tool calling through the Responses API, and implicit and explicit prompt caching.",
+    "context_window": 1050000,
+    "max_tokens": 128000,
+    "type": "language",
+    "zdr": "all",
     "no_training": "all",
-    "tags": ["image-generation", "implicit-caching"],
+    "tags": [
+      "explicit-caching",
+      "file-input",
+      "implicit-caching",
+      "reasoning",
+      "structured-output",
+      "tool-use",
+      "vision",
+      "web-search",
+      "fast"
+    ],
+    "regions": ["eu", "us"],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
-      "input": ["text"],
-      "output": ["image"]
+      "input": ["text", "image", "pdf"],
+      "output": ["text"]
     },
+    "supported_parameters": [
+      "max_tokens",
+      "temperature",
+      "stop",
+      "tools",
+      "tool_choice",
+      "reasoning",
+      "include_reasoning",
+      "response_format",
+      "structured_outputs"
+    ],
+    "temperature": true,
+    "reasoning_options": [
+      {
+        "type": "toggle"
+      },
+      {
+        "type": "effort",
+        "values": ["none", "low", "medium", "high", "xhigh", "max"]
+      }
+    ],
     "pricing": {
-      "input": "0.000005",
-      "output": "0.00004",
-      "input_cache_read": "0.00000125"
+      "input": "0.000001",
+      "input_tiers": [
+        {
+          "cost": "0.000001",
+          "min": 0,
+          "max": 272001
+        },
+        {
+          "cost": "0.000002",
+          "min": 272001
+        }
+      ],
+      "output": "0.000005",
+      "output_tiers": [
+        {
+          "cost": "0.000005",
+          "min": 0,
+          "max": 272001
+        },
+        {
+          "cost": "0.0000075",
+          "min": 272001
+        }
+      ],
+      "input_cache_read": "0.00000005",
+      "input_cache_read_tiers": [
+        {
+          "cost": "0.00000005",
+          "min": 0,
+          "max": 272001
+        },
+        {
+          "cost": "0.0000001",
+          "min": 272001
+        }
+      ],
+      "input_cache_write": "0.00000125",
+      "input_cache_write_tiers": [
+        {
+          "cost": "0.00000125",
+          "min": 0,
+          "max": 272001
+        },
+        {
+          "cost": "0.0000025",
+          "min": 272001
+        }
+      ],
+      "web_search": "10",
+      "service_tiers": {
+        "flex": {
+          "input": "0.0000005",
+          "output": "0.0000025",
+          "input_cache_read": "0.000000025",
+          "long_context": {
+            "threshold": 272001,
+            "input": "0.000001",
+            "output": "0.00000375",
+            "input_cache_read": "0.00000005"
+          }
+        },
+        "priority": {
+          "input": "0.000002",
+          "output": "0.00001",
+          "input_cache_read": "0.0000001",
+          "long_context": {
+            "threshold": 272001,
+            "input": "0.000004",
+            "output": "0.000015",
+            "input_cache_read": "0.0000002"
+          }
+        }
+      },
+      "fast": {
+        "input": "0.000002",
+        "input_tiers": [
+          {
+            "cost": "0.000002",
+            "min": 0,
+            "max": 272001
+          },
+          {
+            "cost": "0.000004",
+            "min": 272001
+          }
+        ],
+        "output": "0.00001",
+        "output_tiers": [
+          {
+            "cost": "0.00001",
+            "min": 0,
+            "max": 272001
+          },
+          {
+            "cost": "0.000015",
+            "min": 272001
+          }
+        ],
+        "input_cache_read": "0.0000001",
+        "input_cache_read_tiers": [
+          {
+            "cost": "0.0000001",
+            "min": 0,
+            "max": 272001
+          },
+          {
+            "cost": "0.0000002",
+            "min": 272001
+          }
+        ],
+        "input_cache_write": "0.0000025",
+        "input_cache_write_tiers": [
+          {
+            "cost": "0.0000025",
+            "min": 0,
+            "max": 272001
+          },
+          {
+            "cost": "0.000005",
+            "min": 272001
+          }
+        ]
+      },
+      "regional": {
+        "eu": {
+          "input": "0.0000011",
+          "input_tiers": [
+            {
+              "cost": "0.0000011",
+              "min": 0,
+              "max": 272001
+            },
+            {
+              "cost": "0.0000022",
+              "min": 272001
+            }
+          ],
+          "output": "0.0000055",
+          "output_tiers": [
+            {
+              "cost": "0.0000055",
+              "min": 0,
+              "max": 272001
+            },
+            {
+              "cost": "0.00000825",
+              "min": 272001
+            }
+          ],
+          "input_cache_read": "0.000000055",
+          "input_cache_read_tiers": [
+            {
+              "cost": "0.000000055",
+              "min": 0,
+              "max": 272001
+            },
+            {
+              "cost": "0.00000011",
+              "min": 272001
+            }
+          ],
+          "input_cache_write": "0.000001375",
+          "input_cache_write_tiers": [
+            {
+              "cost": "0.000001375",
+              "min": 0,
+              "max": 272001
+            },
+            {
+              "cost": "0.00000275",
+              "min": 272001
+            }
+          ],
+          "fast": {
+            "input": "0.0000022",
+            "input_tiers": [
+              {
+                "cost": "0.0000022",
+                "min": 0,
+                "max": 272001
+              },
+              {
+                "cost": "0.0000044",
+                "min": 272001
+              }
+            ],
+            "output": "0.000011",
+            "output_tiers": [
+              {
+                "cost": "0.000011",
+                "min": 0,
+                "max": 272001
+              },
+              {
+                "cost": "0.0000165",
+                "min": 272001
+              }
+            ],
+            "input_cache_read": "0.00000011",
+            "input_cache_read_tiers": [
+              {
+                "cost": "0.00000011",
+                "min": 0,
+                "max": 272001
+              },
+              {
+                "cost": "0.00000022",
+                "min": 272001
+              }
+            ],
+            "input_cache_write": "0.00000275",
+            "input_cache_write_tiers": [
+              {
+                "cost": "0.00000275",
+                "min": 0,
+                "max": 272001
+              },
+              {
+                "cost": "0.0000055",
+                "min": 272001
+              }
+            ]
+          }
+        },
+        "us": {
+          "input": "0.0000011",
+          "input_tiers": [
+            {
+              "cost": "0.0000011",
+              "min": 0,
+              "max": 272001
+            },
+            {
+              "cost": "0.0000022",
+              "min": 272001
+            }
+          ],
+          "output": "0.0000055",
+          "output_tiers": [
+            {
+              "cost": "0.0000055",
+              "min": 0,
+              "max": 272001
+            },
+            {
+              "cost": "0.00000825",
+              "min": 272001
+            }
+          ],
+          "input_cache_read": "0.000000055",
+          "input_cache_read_tiers": [
+            {
+              "cost": "0.000000055",
+              "min": 0,
+              "max": 272001
+            },
+            {
+              "cost": "0.00000011",
+              "min": 272001
+            }
+          ],
+          "input_cache_write": "0.000001375",
+          "input_cache_write_tiers": [
+            {
+              "cost": "0.000001375",
+              "min": 0,
+              "max": 272001
+            },
+            {
+              "cost": "0.00000275",
+              "min": 272001
+            }
+          ],
+          "fast": {
+            "input": "0.0000022",
+            "input_tiers": [
+              {
+                "cost": "0.0000022",
+                "min": 0,
+                "max": 272001
+              },
+              {
+                "cost": "0.0000044",
+                "min": 272001
+              }
+            ],
+            "output": "0.000011",
+            "output_tiers": [
+              {
+                "cost": "0.000011",
+                "min": 0,
+                "max": 272001
+              },
+              {
+                "cost": "0.0000165",
+                "min": 272001
+              }
+            ],
+            "input_cache_read": "0.00000011",
+            "input_cache_read_tiers": [
+              {
+                "cost": "0.00000011",
+                "min": 0,
+                "max": 272001
+              },
+              {
+                "cost": "0.00000022",
+                "min": 272001
+              }
+            ],
+            "input_cache_write": "0.00000275",
+            "input_cache_write_tiers": [
+              {
+                "cost": "0.00000275",
+                "min": 0,
+                "max": 272001
+              },
+              {
+                "cost": "0.0000055",
+                "min": 272001
+              }
+            ]
+          }
+        }
+      }
+    }
+  },
+  {
+    "id": "openai/gpt-6.1-terra-fast",
+    "object": "model",
+    "created": 1755815280,
+    "released": 1792972800,
+    "owned_by": "openai",
+    "name": "GPT-6.1 Terra (Fast)",
+    "description": "GPT-6.1 Terra is OpenAI’s model for visual reasoning, precise computer use, and natural writing. It accepts text and images and generates text, with configurable reasoning effort, structured outputs, tool calling through the Responses API, and implicit and explicit prompt caching.",
+    "context_window": 1050000,
+    "max_tokens": 128000,
+    "type": "language",
+    "zdr": "all",
+    "no_training": "all",
+    "tags": [
+      "explicit-caching",
+      "file-input",
+      "implicit-caching",
+      "reasoning",
+      "structured-output",
+      "tool-use",
+      "vision",
+      "web-search",
+      "fast"
+    ],
+    "regions": ["eu", "us"],
+    "supported_specifications": ["v2", "v3", "v4"],
+    "modalities": {
+      "input": ["text", "image", "pdf"],
+      "output": ["text"]
+    },
+    "supported_parameters": [
+      "max_tokens",
+      "temperature",
+      "stop",
+      "tools",
+      "tool_choice",
+      "reasoning",
+      "include_reasoning",
+      "response_format",
+      "structured_outputs"
+    ],
+    "temperature": true,
+    "reasoning_options": [
+      {
+        "type": "toggle"
+      },
+      {
+        "type": "effort",
+        "values": ["none", "low", "medium", "high", "xhigh", "max"]
+      }
+    ],
+    "pricing": {
+      "input": "0.000002",
+      "input_tiers": [
+        {
+          "cost": "0.000002",
+          "min": 0,
+          "max": 272001
+        },
+        {
+          "cost": "0.000004",
+          "min": 272001
+        }
+      ],
+      "output": "0.00001",
+      "output_tiers": [
+        {
+          "cost": "0.00001",
+          "min": 0,
+          "max": 272001
+        },
+        {
+          "cost": "0.000015",
+          "min": 272001
+        }
+      ],
+      "input_cache_read": "0.0000001",
+      "input_cache_read_tiers": [
+        {
+          "cost": "0.0000001",
+          "min": 0,
+          "max": 272001
+        },
+        {
+          "cost": "0.0000002",
+          "min": 272001
+        }
+      ],
+      "input_cache_write": "0.0000025",
+      "input_cache_write_tiers": [
+        {
+          "cost": "0.0000025",
+          "min": 0,
+          "max": 272001
+        },
+        {
+          "cost": "0.000005",
+          "min": 272001
+        }
+      ],
+      "web_search": "10",
+      "regional": {
+        "eu": {
+          "input": "0.0000022",
+          "input_tiers": [
+            {
+              "cost": "0.0000022",
+              "min": 0,
+              "max": 272001
+            },
+            {
+              "cost": "0.0000044",
+              "min": 272001
+            }
+          ],
+          "output": "0.000011",
+          "output_tiers": [
+            {
+              "cost": "0.000011",
+              "min": 0,
+              "max": 272001
+            },
+            {
+              "cost": "0.0000165",
+              "min": 272001
+            }
+          ],
+          "input_cache_read": "0.00000011",
+          "input_cache_read_tiers": [
+            {
+              "cost": "0.00000011",
+              "min": 0,
+              "max": 272001
+            },
+            {
+              "cost": "0.00000022",
+              "min": 272001
+            }
+          ],
+          "input_cache_write": "0.00000275",
+          "input_cache_write_tiers": [
+            {
+              "cost": "0.00000275",
+              "min": 0,
+              "max": 272001
+            },
+            {
+              "cost": "0.0000055",
+              "min": 272001
+            }
+          ]
+        },
+        "us": {
+          "input": "0.0000022",
+          "input_tiers": [
+            {
+              "cost": "0.0000022",
+              "min": 0,
+              "max": 272001
+            },
+            {
+              "cost": "0.0000044",
+              "min": 272001
+            }
+          ],
+          "output": "0.000011",
+          "output_tiers": [
+            {
+              "cost": "0.000011",
+              "min": 0,
+              "max": 272001
+            },
+            {
+              "cost": "0.0000165",
+              "min": 272001
+            }
+          ],
+          "input_cache_read": "0.00000011",
+          "input_cache_read_tiers": [
+            {
+              "cost": "0.00000011",
+              "min": 0,
+              "max": 272001
+            },
+            {
+              "cost": "0.00000022",
+              "min": 272001
+            }
+          ],
+          "input_cache_write": "0.00000275",
+          "input_cache_write_tiers": [
+            {
+              "cost": "0.00000275",
+              "min": 0,
+              "max": 272001
+            },
+            {
+              "cost": "0.0000055",
+              "min": 272001
+            }
+          ]
+        }
+      }
     }
   },
   {
@@ -22657,6 +23671,28 @@
     }
   },
   {
+    "id": "openai/gpt-live-transcribe",
+    "object": "model",
+    "created": 1755815280,
+    "released": 1785196800,
+    "owned_by": "openai",
+    "name": "GPT Live Transcribe",
+    "description": "GPT Live Transcribe is a low-latency streaming speech-to-text model for live audio, with tunable latency, context, keyword hints, and multiple language hints. Priced by audio duration.",
+    "type": "transcription",
+    "zdr": "none",
+    "no_training": "all",
+    "tags": ["websocket-transcription"],
+    "supported_specifications": ["v2", "v3", "v4"],
+    "modalities": {
+      "input": ["audio"],
+      "output": ["text"]
+    },
+    "pricing": {
+      "input": "0.0000000002",
+      "transcription_duration_cost_per_second": "0.00028334"
+    }
+  },
+  {
     "id": "openai/gpt-oss-120b",
     "object": "model",
     "created": 1755815280,
@@ -22726,7 +23762,7 @@
     "context_window": 131072,
     "max_tokens": 8192,
     "type": "language",
-    "zdr": "all",
+    "zdr": "some",
     "no_training": "all",
     "tags": [
       "reasoning",
@@ -23026,6 +24062,28 @@
     }
   },
   {
+    "id": "openai/gpt-transcribe",
+    "object": "model",
+    "created": 1755815280,
+    "released": 1785196800,
+    "owned_by": "openai",
+    "name": "GPT Transcribe",
+    "description": "GPT Transcribe is a high-accuracy speech-to-text model for completed audio files, streamed file transcripts, and committed turns in Realtime sessions. It supports context, keyword hints, and multiple language hints. Priced by audio duration.",
+    "type": "transcription",
+    "zdr": "none",
+    "no_training": "all",
+    "tags": ["websocket-transcription"],
+    "supported_specifications": ["v2", "v3", "v4"],
+    "modalities": {
+      "input": ["audio"],
+      "output": ["text"]
+    },
+    "pricing": {
+      "input": "0",
+      "transcription_duration_cost_per_second": "0.000075"
+    }
+  },
+  {
     "id": "openai/o1",
     "object": "model",
     "created": 1755815280,
@@ -23072,7 +24130,8 @@
     "pricing": {
       "input": "0.000015",
       "output": "0.00006",
-      "input_cache_read": "0.0000075"
+      "input_cache_read": "0.0000075",
+      "web_search": "14"
     }
   },
   {
@@ -23238,7 +24297,8 @@
     "pricing": {
       "input": "0.0000011",
       "output": "0.0000044",
-      "input_cache_read": "0.00000055"
+      "input_cache_read": "0.00000055",
+      "web_search": "14"
     }
   },
   {
@@ -23312,8 +24372,7 @@
       "tool-use",
       "vision",
       "web-search",
-      "structured-output",
-      "fast"
+      "structured-output"
     ],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
@@ -23342,77 +24401,7 @@
       "input": "0.0000011",
       "output": "0.0000044",
       "input_cache_read": "0.000000275",
-      "web_search": "10",
-      "service_tiers": {
-        "priority": {
-          "input": "0.000002",
-          "output": "0.000008",
-          "input_cache_read": "0.0000005"
-        },
-        "flex": {
-          "input": "0.00000055",
-          "output": "0.0000022",
-          "input_cache_read": "0.000000138"
-        }
-      },
-      "fast": {
-        "input": "0.000002",
-        "output": "0.000008",
-        "input_cache_read": "0.0000005"
-      }
-    }
-  },
-  {
-    "id": "openai/o4-mini-fast",
-    "object": "model",
-    "created": 1755815280,
-    "released": 1744761600,
-    "owned_by": "openai",
-    "name": "o4-mini (Fast)",
-    "description": "OpenAI's o4-mini delivers fast, cost-efficient reasoning with exceptional performance for its size, particularly excelling in math (best-performing on AIME benchmarks), coding, and visual tasks.",
-    "context_window": 200000,
-    "max_tokens": 100000,
-    "type": "language",
-    "zdr": "all",
-    "no_training": "all",
-    "tags": [
-      "file-input",
-      "implicit-caching",
-      "reasoning",
-      "tool-use",
-      "vision",
-      "web-search",
-      "structured-output",
-      "fast"
-    ],
-    "supported_specifications": ["v2", "v3", "v4"],
-    "modalities": {
-      "input": ["text", "image", "pdf"],
-      "output": ["text"]
-    },
-    "supported_parameters": [
-      "max_tokens",
-      "stop",
-      "tools",
-      "tool_choice",
-      "reasoning",
-      "include_reasoning",
-      "response_format",
-      "structured_outputs"
-    ],
-    "temperature": false,
-    "reasoning_options": [
-      {
-        "type": "effort",
-        "values": ["low", "medium", "high"]
-      }
-    ],
-    "knowledge": "2024-06-01",
-    "pricing": {
-      "input": "0.000002",
-      "output": "0.000008",
-      "input_cache_read": "0.0000005",
-      "web_search": "10"
+      "web_search": "14"
     }
   },
   {
@@ -23553,6 +24542,67 @@
     "pricing": {
       "input": "0.0000000001",
       "transcription_duration_cost_per_second": "0.0001"
+    }
+  },
+  {
+    "id": "particle/particle-1",
+    "object": "model",
+    "created": 1755815280,
+    "released": 1793145600,
+    "owned_by": "particle",
+    "name": "Particle-1",
+    "description": "Particle-1 is Particle AI’s model for agentic coding and software engineering, post-trained on DeepSeek V4.1 Flash to complete tasks with fewer tokens. It supports text and image inputs, reasoning, tool use, and implicit prompt caching.",
+    "context_window": 1048576,
+    "max_tokens": 131072,
+    "type": "language",
+    "zdr": "all",
+    "no_training": "all",
+    "tags": ["implicit-caching", "reasoning", "tool-use", "vision"],
+    "regions": ["us"],
+    "supported_specifications": ["v2", "v3", "v4"],
+    "modalities": {
+      "input": ["text", "image"],
+      "output": ["text"]
+    },
+    "supported_parameters": [
+      "max_tokens",
+      "temperature",
+      "stop",
+      "tools",
+      "tool_choice",
+      "reasoning",
+      "include_reasoning"
+    ],
+    "temperature": true,
+    "reasoning_options": [
+      {
+        "type": "toggle"
+      },
+      {
+        "type": "effort",
+        "values": ["none", "low", "high", "max"]
+      }
+    ],
+    "pricing": {
+      "input": "0.000000125",
+      "output": "0.0000005",
+      "input_cache_read": "0.000000015",
+      "peak_pricing": {
+        "multiplier": 2,
+        "windows": [
+          {
+            "start_minute_utc": 480,
+            "end_minute_utc": 30
+          }
+        ]
+      },
+      "regional": {
+        "us": {
+          "input": "0.000000125",
+          "output": "0.0000005",
+          "input_cache_read": "0.000000015"
+        }
+      }
     }
   },
   {
@@ -23731,46 +24781,6 @@
       "input": "0.00000009",
       "output": "0.00000018",
       "input_cache_read": "0.000000009"
-    }
-  },
-  {
-    "id": "poolside/laguna-s-2.1-free",
-    "object": "model",
-    "created": 1755815280,
-    "released": 1784592000,
-    "owned_by": "poolside",
-    "name": "Laguna S 2.1 Free",
-    "description": "Laguna S 2.1 is Poolside's new open-weight model for agentic coding and long-horizon work.",
-    "context_window": 256000,
-    "max_tokens": 32768,
-    "type": "language",
-    "zdr": "none",
-    "no_training": "none",
-    "tags": ["reasoning", "tool-use", "free", "open-weights"],
-    "supported_specifications": ["v2", "v3", "v4"],
-    "modalities": {
-      "input": ["text"],
-      "output": ["text"]
-    },
-    "supported_parameters": [
-      "max_tokens",
-      "temperature",
-      "stop",
-      "tools",
-      "tool_choice",
-      "reasoning",
-      "include_reasoning"
-    ],
-    "temperature": true,
-    "reasoning_options": [
-      {
-        "type": "toggle"
-      }
-    ],
-    "deprecated_at": 1793404800000,
-    "pricing": {
-      "input": "0",
-      "output": "0"
     }
   },
   {
@@ -24589,111 +25599,6 @@
     "pricing": {
       "input": "0.00000005",
       "output": "0"
-    }
-  },
-  {
-    "id": "spacexai/grok-4.1-fast-non-reasoning",
-    "object": "model",
-    "created": 1755815280,
-    "released": 1763510400,
-    "owned_by": "spacexai",
-    "name": "Grok 4.1 Fast Non-Reasoning",
-    "description": "",
-    "context_window": 1000000,
-    "max_tokens": 1000000,
-    "type": "language",
-    "zdr": "all",
-    "no_training": "all",
-    "tags": [
-      "tool-use",
-      "file-input",
-      "vision",
-      "implicit-caching",
-      "structured-output"
-    ],
-    "supported_specifications": ["v2", "v3", "v4"],
-    "modalities": {
-      "input": ["text", "image", "pdf"],
-      "output": ["text"]
-    },
-    "supported_parameters": [
-      "max_tokens",
-      "temperature",
-      "stop",
-      "tools",
-      "tool_choice",
-      "reasoning",
-      "include_reasoning",
-      "response_format",
-      "structured_outputs"
-    ],
-    "temperature": true,
-    "reasoning_options": [
-      {
-        "type": "toggle"
-      },
-      {
-        "type": "effort",
-        "values": ["none", "low", "medium", "high"]
-      }
-    ],
-    "pricing": {
-      "input": "0.0000002",
-      "output": "0.0000005",
-      "input_cache_read": "0.00000005"
-    }
-  },
-  {
-    "id": "spacexai/grok-4.1-fast-reasoning",
-    "object": "model",
-    "created": 1755815280,
-    "released": 1763510400,
-    "owned_by": "spacexai",
-    "name": "Grok 4.1 Fast Reasoning",
-    "description": "",
-    "context_window": 1000000,
-    "max_tokens": 1000000,
-    "type": "language",
-    "zdr": "all",
-    "no_training": "all",
-    "tags": [
-      "reasoning",
-      "file-input",
-      "vision",
-      "tool-use",
-      "implicit-caching",
-      "structured-output"
-    ],
-    "supported_specifications": ["v2", "v3", "v4"],
-    "modalities": {
-      "input": ["text", "image", "pdf"],
-      "output": ["text"]
-    },
-    "supported_parameters": [
-      "max_tokens",
-      "temperature",
-      "stop",
-      "tools",
-      "tool_choice",
-      "reasoning",
-      "include_reasoning",
-      "response_format",
-      "structured_outputs"
-    ],
-    "temperature": true,
-    "reasoning_options": [
-      {
-        "type": "toggle"
-      },
-      {
-        "type": "effort",
-        "values": ["none", "low", "medium", "high"]
-      }
-    ],
-    "pricing": {
-      "input": "0.0000002",
-      "output": "0.0000005",
-      "input_cache_read": "0.00000005"
     }
   },
   {
@@ -25808,12 +26713,13 @@
     "zdr": "all",
     "no_training": "all",
     "tags": [
-      "reasoning",
-      "tool-use",
       "implicit-caching",
-      "vision",
-      "structured-output"
+      "reasoning",
+      "structured-output",
+      "tool-use",
+      "vision"
     ],
+    "regions": ["us"],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
       "input": ["text", "image"],
@@ -25888,6 +26794,46 @@
             "input_cache_read": "0.000002"
           }
         }
+      },
+      "regional": {
+        "us": {
+          "input": "0.0000022",
+          "input_tiers": [
+            {
+              "cost": "0.0000022",
+              "min": 0,
+              "max": 200001
+            },
+            {
+              "cost": "0.0000044",
+              "min": 200001
+            }
+          ],
+          "output": "0.0000066",
+          "output_tiers": [
+            {
+              "cost": "0.0000066",
+              "min": 0,
+              "max": 200001
+            },
+            {
+              "cost": "0.0000132",
+              "min": 200001
+            }
+          ],
+          "input_cache_read": "0.00000055",
+          "input_cache_read_tiers": [
+            {
+              "cost": "0.00000055",
+              "min": 0,
+              "max": 200001
+            },
+            {
+              "cost": "0.0000011",
+              "min": 200001
+            }
+          ]
+        }
       }
     }
   },
@@ -25905,12 +26851,13 @@
     "zdr": "all",
     "no_training": "all",
     "tags": [
-      "reasoning",
-      "tool-use",
       "implicit-caching",
-      "vision",
-      "structured-output"
+      "reasoning",
+      "structured-output",
+      "tool-use",
+      "vision"
     ],
+    "regions": ["us"],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
       "input": ["text", "image"],
@@ -25984,6 +26931,46 @@
             "output": "0.000024",
             "input_cache_read": "0.000002"
           }
+        }
+      },
+      "regional": {
+        "us": {
+          "input": "0.0000022",
+          "input_tiers": [
+            {
+              "cost": "0.0000022",
+              "min": 0,
+              "max": 200001
+            },
+            {
+              "cost": "0.0000044",
+              "min": 200001
+            }
+          ],
+          "output": "0.0000066",
+          "output_tiers": [
+            {
+              "cost": "0.0000066",
+              "min": 0,
+              "max": 200001
+            },
+            {
+              "cost": "0.0000132",
+              "min": 200001
+            }
+          ],
+          "input_cache_read": "0.00000055",
+          "input_cache_read_tiers": [
+            {
+              "cost": "0.00000055",
+              "min": 0,
+              "max": 200001
+            },
+            {
+              "cost": "0.0000011",
+              "min": 200001
+            }
+          ]
         }
       }
     }
@@ -26637,7 +27624,7 @@
     "context_window": 1048576,
     "max_tokens": 1048576,
     "type": "language",
-    "zdr": "some",
+    "zdr": "none",
     "no_training": "some",
     "tags": [
       "implicit-caching",
@@ -26779,7 +27766,7 @@
     "context_window": 262144,
     "max_tokens": 262144,
     "type": "language",
-    "zdr": "some",
+    "zdr": "none",
     "no_training": "some",
     "tags": [
       "implicit-caching",
@@ -26922,7 +27909,7 @@
     "context_window": 1000000,
     "max_tokens": 1000000,
     "type": "language",
-    "zdr": "some",
+    "zdr": "none",
     "no_training": "some",
     "tags": [
       "reasoning",
@@ -27030,12 +28017,13 @@
     "released": 1789430400,
     "owned_by": "typesafe-ai",
     "name": "Jev",
-    "description": "TypeSafe AI System One decision model. Accepts shared state and typed questions, returning choices, scores, and boolean probabilities. Limits: 64,000 tokens total per request; 32,000 tokens for the state plus the longest question. No streaming or output-token limit.",
+    "description": "Jev is TypeSafe AI’s System One decision model for fast, structured decisions in software. It evaluates shared state against typed questions and returns choices, scores, and boolean probabilities, supporting classification, routing, rubric-based assessment, and automated verification. Multiple questions can be evaluated in parallel within a single request.",
     "context_window": 32000,
     "max_tokens": 0,
     "type": "evaluation",
     "zdr": "some",
     "no_training": "all",
+    "regions": ["us"],
     "supported_specifications": ["v4"],
     "modalities": {
       "input": ["text"],
@@ -27043,7 +28031,12 @@
     },
     "pricing": {
       "input": "0.000000042",
-      "output": "0"
+      "output": "0",
+      "regional": {
+        "us": {
+          "input": "0.000000042"
+        }
+      }
     }
   },
   {
@@ -27060,6 +28053,7 @@
     "zdr": "all",
     "no_training": "all",
     "tags": ["vision"],
+    "regions": ["us"],
     "supported_specifications": ["v4"],
     "modalities": {
       "input": ["text", "image"],
@@ -27067,7 +28061,12 @@
     },
     "pricing": {
       "input": "0.000000042",
-      "output": "0"
+      "output": "0",
+      "regional": {
+        "us": {
+          "input": "0.000000042"
+        }
+      }
     }
   },
   {
@@ -27084,6 +28083,7 @@
     "zdr": "all",
     "no_training": "all",
     "tags": ["vision"],
+    "regions": ["us"],
     "supported_specifications": ["v4"],
     "modalities": {
       "input": ["text", "image"],
@@ -27091,7 +28091,12 @@
     },
     "pricing": {
       "input": "0.000000042",
-      "output": "0"
+      "output": "0",
+      "regional": {
+        "us": {
+          "input": "0.000000042"
+        }
+      }
     }
   },
   {
@@ -27512,7 +28517,7 @@
     "context_window": 1048576,
     "max_tokens": 131072,
     "type": "language",
-    "zdr": "some",
+    "zdr": "none",
     "no_training": "some",
     "tags": [
       "audio-input",
@@ -27568,7 +28573,7 @@
     "context_window": 1048576,
     "max_tokens": 131072,
     "type": "language",
-    "zdr": "some",
+    "zdr": "none",
     "no_training": "some",
     "tags": [
       "audio-input",
@@ -27828,7 +28833,7 @@
     "context_window": 200000,
     "max_tokens": 96000,
     "type": "language",
-    "zdr": "some",
+    "zdr": "none",
     "no_training": "some",
     "tags": [
       "implicit-caching",

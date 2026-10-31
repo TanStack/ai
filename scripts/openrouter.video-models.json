@@ -242,7 +242,7 @@
       "cents_per_second_video_continuation_720p": "41",
       "cents_per_second_video_continuation_1080p": "53"
     },
-    "allowed_passthrough_parameters": ["safety_tolerance", "version"]
+    "allowed_passthrough_parameters": ["safety_tolerance", "version", "draft"]
   },
   {
     "id": "black-forest-labs/flux-video-edit",
@@ -892,6 +892,28 @@
       "cents_per_second_output": "12"
     },
     "allowed_passthrough_parameters": ["contentModeration"]
+  },
+  {
+    "id": "tbc/mischief-1",
+    "canonical_slug": "tbc/mischief-1-20261023",
+    "hugging_face_id": null,
+    "name": "TBC: mischief 1",
+    "created": 1793319378,
+    "description": "TBC mischief 1 is the world's first neuron-derived video model from The Biological Computing Co. It supports image to video and is a fast and affordable way to bring ideas...",
+    "supported_resolutions": ["480p", "720p"],
+    "supported_aspect_ratios": ["16:9"],
+    "supported_sizes": ["854x480", "1280x720"],
+    "supported_durations": [3, 5],
+    "supported_frame_images": ["first_frame"],
+    "upscale_factor": null,
+    "creativity": null,
+    "generate_audio": false,
+    "seed": true,
+    "pricing_skus": {
+      "cents_per_video_output_second_480p": "0.5",
+      "cents_per_video_output_second_720p": "1"
+    },
+    "allowed_passthrough_parameters": []
   },
   {
     "id": "x-ai/grok-imagine-video",

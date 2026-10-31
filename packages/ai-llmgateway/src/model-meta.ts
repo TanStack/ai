@@ -34,8 +34,8 @@ export const LLMGATEWAY_CHAT_MODELS = [
   'deepseek-v4-pro',
   'deepseek-v4.1-flash',
   'deepseek-v4.1-flash-1017',
+  'deepseek-v4.1-flash-cyber',
   'devstral-2512',
-  'ernie-4.5-vl-424b-a47b',
   'fugu-max',
   'fugu-ultra',
   'fugu-ultra-v2.0',
@@ -70,7 +70,6 @@ export const LLMGATEWAY_CHAT_MODELS = [
   'glm-4.6v',
   'glm-4.6v-flashx',
   'glm-4.7',
-  'glm-4.7-flash',
   'glm-4.7-flashx',
   'glm-5',
   'glm-5-turbo',
@@ -80,14 +79,11 @@ export const LLMGATEWAY_CHAT_MODELS = [
   'glm-5.3',
   'glm-5.3-fast',
   'glm-5.3-flash',
+  'glm-5.3-flashx',
   'glm-5v-turbo',
   'glm-image',
-  'gpt-3.5-turbo',
-  'gpt-4',
-  'gpt-4-turbo',
   'gpt-4.1',
   'gpt-4.1-mini',
-  'gpt-4.1-nano',
   'gpt-4o',
   'gpt-4o-mini',
   'gpt-4o-mini-transcribe',
@@ -116,6 +112,7 @@ export const LLMGATEWAY_CHAT_MODELS = [
   'gpt-6-luna',
   'gpt-6-sol',
   'gpt-6.1-sol',
+  'gpt-6.1-terra',
   'gpt-live-transcribe',
   'gpt-oss-120b',
   'gpt-oss-20b',
@@ -126,7 +123,6 @@ export const LLMGATEWAY_CHAT_MODELS = [
   'gpt-transcribe',
   'granite-4.2-8b',
   'grok-4',
-  'grok-4-1-fast-non-reasoning',
   'grok-4-1-fast-reasoning',
   'grok-4-20-beta-0309-non-reasoning',
   'grok-4-20-beta-0309-reasoning',
@@ -147,19 +143,18 @@ export const LLMGATEWAY_CHAT_MODELS = [
   'kimi-k2.6',
   'kimi-k2.7-code',
   'kimi-k2.7-code-highspeed',
+  'kimi-k2.8-preview',
   'kimi-k3',
   'kimi-k3-fast',
+  'kimi-k3.1-pro',
+  'kimi-k3.1-pro-highspeed',
   'ling-3.0-flash',
   'ling-3.0-flash-vl',
-  'llama-3-70b-instruct',
   'llama-3.1-70b-instruct',
   'llama-3.2-11b-instruct',
-  'llama-3.2-3b-instruct',
   'llama-3.3-70b-instruct',
   'llama-4-maverick-17b-instruct',
   'llama-4-scout-17b-instruct',
-  'mimo-v2.5',
-  'mimo-v2.5-pro',
   'mimo-v2.6-flash',
   'mimo-v2.6-pro',
   'minimax-m2',
@@ -189,10 +184,7 @@ export const LLMGATEWAY_CHAT_MODELS = [
   'muse-spark-1.3-contributor',
   'muse-wonder-1.0',
   'nemotron-3-ultra-550b',
-  'o1',
   'o3',
-  'o3-mini',
-  'o4-mini',
   'qwen-flash',
   'qwen-image-2.1-pro',
   'qwen-image-2.1-turbo',
@@ -202,19 +194,10 @@ export const LLMGATEWAY_CHAT_MODELS = [
   'qwen-plus',
   'qwen-plus-latest',
   'qwen3-14b',
-  'qwen3-235b-a22b-fp8',
-  'qwen3-235b-a22b-instruct-2507',
-  'qwen3-235b-a22b-thinking-2507',
   'qwen3-30b-a3b',
   'qwen3-32b',
-  'qwen3-coder-30b-a3b-instruct',
-  'qwen3-coder-480b-a35b-instruct',
   'qwen3-coder-flash',
-  'qwen3-coder-next',
-  'qwen3-max',
-  'qwen3-next-80b-a3b-instruct',
   'qwen3-vl-235b-a22b-instruct',
-  'qwen3-vl-235b-a22b-thinking',
   'qwen3-vl-30b-a3b-instruct',
   'qwen3-vl-plus',
   'qwen3.5-122b-a10b',
@@ -233,6 +216,7 @@ export const LLMGATEWAY_CHAT_MODELS = [
   'Qwen3.8-27B',
   'qwen3.8-flash',
   'qwen3.8-max',
+  'qwen3.8-omni-flash',
   'qwen35-397b-a17b',
   'reka-edge-2603',
   'seed-1-6-250615',
@@ -251,6 +235,7 @@ export const LLMGATEWAY_CHAT_MODELS = [
   'smart',
   'sonar',
   'step-3.7-flash',
+  'step-5-preview',
 ] as const
 
 export type LLMGatewayChatModels = (typeof LLMGATEWAY_CHAT_MODELS)[number]
@@ -286,8 +271,8 @@ export type LLMGatewayModelInputModalitiesByName = {
   'deepseek-v4-pro': readonly ['text']
   'deepseek-v4.1-flash': readonly ['text', 'image']
   'deepseek-v4.1-flash-1017': readonly ['text', 'image']
+  'deepseek-v4.1-flash-cyber': readonly ['text', 'image']
   'devstral-2512': readonly ['text']
-  'ernie-4.5-vl-424b-a47b': readonly ['text', 'image']
   'fugu-max': readonly ['text', 'image']
   'fugu-ultra': readonly ['text', 'image']
   'fugu-ultra-v2.0': readonly ['text', 'image']
@@ -322,7 +307,6 @@ export type LLMGatewayModelInputModalitiesByName = {
   'glm-4.6v': readonly ['text', 'image']
   'glm-4.6v-flashx': readonly ['text', 'image']
   'glm-4.7': readonly ['text']
-  'glm-4.7-flash': readonly ['text']
   'glm-4.7-flashx': readonly ['text']
   'glm-5': readonly ['text']
   'glm-5-turbo': readonly ['text']
@@ -332,14 +316,11 @@ export type LLMGatewayModelInputModalitiesByName = {
   'glm-5.3': readonly ['text']
   'glm-5.3-fast': readonly ['text']
   'glm-5.3-flash': readonly ['text', 'image']
+  'glm-5.3-flashx': readonly ['text', 'image']
   'glm-5v-turbo': readonly ['text', 'image']
   'glm-image': readonly ['text']
-  'gpt-3.5-turbo': readonly ['text']
-  'gpt-4': readonly ['text']
-  'gpt-4-turbo': readonly ['text', 'image']
   'gpt-4.1': readonly ['text', 'image']
   'gpt-4.1-mini': readonly ['text', 'image']
-  'gpt-4.1-nano': readonly ['text', 'image']
   'gpt-4o': readonly ['text', 'image']
   'gpt-4o-mini': readonly ['text', 'image']
   'gpt-4o-mini-transcribe': readonly ['text', 'audio']
@@ -368,6 +349,7 @@ export type LLMGatewayModelInputModalitiesByName = {
   'gpt-6-luna': readonly ['text', 'image']
   'gpt-6-sol': readonly ['text', 'image']
   'gpt-6.1-sol': readonly ['text', 'image']
+  'gpt-6.1-terra': readonly ['text', 'image']
   'gpt-live-transcribe': readonly ['text', 'audio']
   'gpt-oss-120b': readonly ['text']
   'gpt-oss-20b': readonly ['text']
@@ -378,7 +360,6 @@ export type LLMGatewayModelInputModalitiesByName = {
   'gpt-transcribe': readonly ['text', 'audio']
   'granite-4.2-8b': readonly ['text']
   'grok-4': readonly ['text', 'image']
-  'grok-4-1-fast-non-reasoning': readonly ['text', 'image']
   'grok-4-1-fast-reasoning': readonly ['text', 'image']
   'grok-4-20-beta-0309-non-reasoning': readonly ['text', 'image']
   'grok-4-20-beta-0309-reasoning': readonly ['text', 'image']
@@ -399,19 +380,18 @@ export type LLMGatewayModelInputModalitiesByName = {
   'kimi-k2.6': readonly ['text', 'image']
   'kimi-k2.7-code': readonly ['text', 'image']
   'kimi-k2.7-code-highspeed': readonly ['text', 'image']
+  'kimi-k2.8-preview': readonly ['text', 'image']
   'kimi-k3': readonly ['text', 'image']
   'kimi-k3-fast': readonly ['text', 'image']
+  'kimi-k3.1-pro': readonly ['text', 'image']
+  'kimi-k3.1-pro-highspeed': readonly ['text', 'image']
   'ling-3.0-flash': readonly ['text']
   'ling-3.0-flash-vl': readonly ['text', 'image']
-  'llama-3-70b-instruct': readonly ['text']
   'llama-3.1-70b-instruct': readonly ['text']
   'llama-3.2-11b-instruct': readonly ['text']
-  'llama-3.2-3b-instruct': readonly ['text']
   'llama-3.3-70b-instruct': readonly ['text']
   'llama-4-maverick-17b-instruct': readonly ['text', 'image']
   'llama-4-scout-17b-instruct': readonly ['text', 'image']
-  'mimo-v2.5': readonly ['text', 'image', 'audio']
-  'mimo-v2.5-pro': readonly ['text']
   'mimo-v2.6-flash': readonly ['text', 'image', 'audio']
   'mimo-v2.6-pro': readonly ['text', 'image', 'audio']
   'minimax-m2': readonly ['text']
@@ -441,10 +421,7 @@ export type LLMGatewayModelInputModalitiesByName = {
   'muse-spark-1.3-contributor': readonly ['text', 'image']
   'muse-wonder-1.0': readonly ['text', 'image']
   'nemotron-3-ultra-550b': readonly ['text', 'image']
-  o1: readonly ['text', 'image']
   o3: readonly ['text', 'image']
-  'o3-mini': readonly ['text']
-  'o4-mini': readonly ['text', 'image']
   'qwen-flash': readonly ['text']
   'qwen-image-2.1-pro': readonly ['text', 'image']
   'qwen-image-2.1-turbo': readonly ['text', 'image']
@@ -454,19 +431,10 @@ export type LLMGatewayModelInputModalitiesByName = {
   'qwen-plus': readonly ['text']
   'qwen-plus-latest': readonly ['text']
   'qwen3-14b': readonly ['text']
-  'qwen3-235b-a22b-fp8': readonly ['text']
-  'qwen3-235b-a22b-instruct-2507': readonly ['text']
-  'qwen3-235b-a22b-thinking-2507': readonly ['text']
   'qwen3-30b-a3b': readonly ['text']
   'qwen3-32b': readonly ['text']
-  'qwen3-coder-30b-a3b-instruct': readonly ['text']
-  'qwen3-coder-480b-a35b-instruct': readonly ['text']
   'qwen3-coder-flash': readonly ['text']
-  'qwen3-coder-next': readonly ['text']
-  'qwen3-max': readonly ['text', 'image']
-  'qwen3-next-80b-a3b-instruct': readonly ['text']
   'qwen3-vl-235b-a22b-instruct': readonly ['text', 'image']
-  'qwen3-vl-235b-a22b-thinking': readonly ['text', 'image']
   'qwen3-vl-30b-a3b-instruct': readonly ['text', 'image']
   'qwen3-vl-plus': readonly ['text', 'image']
   'qwen3.5-122b-a10b': readonly ['text', 'image']
@@ -485,6 +453,7 @@ export type LLMGatewayModelInputModalitiesByName = {
   'Qwen3.8-27B': readonly ['text', 'image']
   'qwen3.8-flash': readonly ['text', 'image']
   'qwen3.8-max': readonly ['text', 'image']
+  'qwen3.8-omni-flash': readonly ['text', 'image', 'audio']
   'qwen35-397b-a17b': readonly ['text', 'image']
   'reka-edge-2603': readonly ['text', 'image']
   'seed-1-6-250615': readonly ['text', 'image']
@@ -503,6 +472,7 @@ export type LLMGatewayModelInputModalitiesByName = {
   smart: readonly ['text', 'image']
   sonar: readonly ['text']
   'step-3.7-flash': readonly ['text', 'image']
+  'step-5-preview': readonly ['text', 'image']
 }
 
 export const LLMGATEWAY_MODEL_INPUT_MODALITIES: Readonly<
@@ -532,8 +502,8 @@ export const LLMGATEWAY_MODEL_INPUT_MODALITIES: Readonly<
   'deepseek-v4-pro': ['text'] as const,
   'deepseek-v4.1-flash': ['text', 'image'] as const,
   'deepseek-v4.1-flash-1017': ['text', 'image'] as const,
+  'deepseek-v4.1-flash-cyber': ['text', 'image'] as const,
   'devstral-2512': ['text'] as const,
-  'ernie-4.5-vl-424b-a47b': ['text', 'image'] as const,
   'fugu-max': ['text', 'image'] as const,
   'fugu-ultra': ['text', 'image'] as const,
   'fugu-ultra-v2.0': ['text', 'image'] as const,
@@ -568,7 +538,6 @@ export const LLMGATEWAY_MODEL_INPUT_MODALITIES: Readonly<
   'glm-4.6v': ['text', 'image'] as const,
   'glm-4.6v-flashx': ['text', 'image'] as const,
   'glm-4.7': ['text'] as const,
-  'glm-4.7-flash': ['text'] as const,
   'glm-4.7-flashx': ['text'] as const,
   'glm-5': ['text'] as const,
   'glm-5-turbo': ['text'] as const,
@@ -578,14 +547,11 @@ export const LLMGATEWAY_MODEL_INPUT_MODALITIES: Readonly<
   'glm-5.3': ['text'] as const,
   'glm-5.3-fast': ['text'] as const,
   'glm-5.3-flash': ['text', 'image'] as const,
+  'glm-5.3-flashx': ['text', 'image'] as const,
   'glm-5v-turbo': ['text', 'image'] as const,
   'glm-image': ['text'] as const,
-  'gpt-3.5-turbo': ['text'] as const,
-  'gpt-4': ['text'] as const,
-  'gpt-4-turbo': ['text', 'image'] as const,
   'gpt-4.1': ['text', 'image'] as const,
   'gpt-4.1-mini': ['text', 'image'] as const,
-  'gpt-4.1-nano': ['text', 'image'] as const,
   'gpt-4o': ['text', 'image'] as const,
   'gpt-4o-mini': ['text', 'image'] as const,
   'gpt-4o-mini-transcribe': ['text', 'audio'] as const,
@@ -614,6 +580,7 @@ export const LLMGATEWAY_MODEL_INPUT_MODALITIES: Readonly<
   'gpt-6-luna': ['text', 'image'] as const,
   'gpt-6-sol': ['text', 'image'] as const,
   'gpt-6.1-sol': ['text', 'image'] as const,
+  'gpt-6.1-terra': ['text', 'image'] as const,
   'gpt-live-transcribe': ['text', 'audio'] as const,
   'gpt-oss-120b': ['text'] as const,
   'gpt-oss-20b': ['text'] as const,
@@ -624,7 +591,6 @@ export const LLMGATEWAY_MODEL_INPUT_MODALITIES: Readonly<
   'gpt-transcribe': ['text', 'audio'] as const,
   'granite-4.2-8b': ['text'] as const,
   'grok-4': ['text', 'image'] as const,
-  'grok-4-1-fast-non-reasoning': ['text', 'image'] as const,
   'grok-4-1-fast-reasoning': ['text', 'image'] as const,
   'grok-4-20-beta-0309-non-reasoning': ['text', 'image'] as const,
   'grok-4-20-beta-0309-reasoning': ['text', 'image'] as const,
@@ -645,19 +611,18 @@ export const LLMGATEWAY_MODEL_INPUT_MODALITIES: Readonly<
   'kimi-k2.6': ['text', 'image'] as const,
   'kimi-k2.7-code': ['text', 'image'] as const,
   'kimi-k2.7-code-highspeed': ['text', 'image'] as const,
+  'kimi-k2.8-preview': ['text', 'image'] as const,
   'kimi-k3': ['text', 'image'] as const,
   'kimi-k3-fast': ['text', 'image'] as const,
+  'kimi-k3.1-pro': ['text', 'image'] as const,
+  'kimi-k3.1-pro-highspeed': ['text', 'image'] as const,
   'ling-3.0-flash': ['text'] as const,
   'ling-3.0-flash-vl': ['text', 'image'] as const,
-  'llama-3-70b-instruct': ['text'] as const,
   'llama-3.1-70b-instruct': ['text'] as const,
   'llama-3.2-11b-instruct': ['text'] as const,
-  'llama-3.2-3b-instruct': ['text'] as const,
   'llama-3.3-70b-instruct': ['text'] as const,
   'llama-4-maverick-17b-instruct': ['text', 'image'] as const,
   'llama-4-scout-17b-instruct': ['text', 'image'] as const,
-  'mimo-v2.5': ['text', 'image', 'audio'] as const,
-  'mimo-v2.5-pro': ['text'] as const,
   'mimo-v2.6-flash': ['text', 'image', 'audio'] as const,
   'mimo-v2.6-pro': ['text', 'image', 'audio'] as const,
   'minimax-m2': ['text'] as const,
@@ -687,10 +652,7 @@ export const LLMGATEWAY_MODEL_INPUT_MODALITIES: Readonly<
   'muse-spark-1.3-contributor': ['text', 'image'] as const,
   'muse-wonder-1.0': ['text', 'image'] as const,
   'nemotron-3-ultra-550b': ['text', 'image'] as const,
-  o1: ['text', 'image'] as const,
   o3: ['text', 'image'] as const,
-  'o3-mini': ['text'] as const,
-  'o4-mini': ['text', 'image'] as const,
   'qwen-flash': ['text'] as const,
   'qwen-image-2.1-pro': ['text', 'image'] as const,
   'qwen-image-2.1-turbo': ['text', 'image'] as const,
@@ -700,19 +662,10 @@ export const LLMGATEWAY_MODEL_INPUT_MODALITIES: Readonly<
   'qwen-plus': ['text'] as const,
   'qwen-plus-latest': ['text'] as const,
   'qwen3-14b': ['text'] as const,
-  'qwen3-235b-a22b-fp8': ['text'] as const,
-  'qwen3-235b-a22b-instruct-2507': ['text'] as const,
-  'qwen3-235b-a22b-thinking-2507': ['text'] as const,
   'qwen3-30b-a3b': ['text'] as const,
   'qwen3-32b': ['text'] as const,
-  'qwen3-coder-30b-a3b-instruct': ['text'] as const,
-  'qwen3-coder-480b-a35b-instruct': ['text'] as const,
   'qwen3-coder-flash': ['text'] as const,
-  'qwen3-coder-next': ['text'] as const,
-  'qwen3-max': ['text', 'image'] as const,
-  'qwen3-next-80b-a3b-instruct': ['text'] as const,
   'qwen3-vl-235b-a22b-instruct': ['text', 'image'] as const,
-  'qwen3-vl-235b-a22b-thinking': ['text', 'image'] as const,
   'qwen3-vl-30b-a3b-instruct': ['text', 'image'] as const,
   'qwen3-vl-plus': ['text', 'image'] as const,
   'qwen3.5-122b-a10b': ['text', 'image'] as const,
@@ -731,6 +684,7 @@ export const LLMGATEWAY_MODEL_INPUT_MODALITIES: Readonly<
   'Qwen3.8-27B': ['text', 'image'] as const,
   'qwen3.8-flash': ['text', 'image'] as const,
   'qwen3.8-max': ['text', 'image'] as const,
+  'qwen3.8-omni-flash': ['text', 'image', 'audio'] as const,
   'qwen35-397b-a17b': ['text', 'image'] as const,
   'reka-edge-2603': ['text', 'image'] as const,
   'seed-1-6-250615': ['text', 'image'] as const,
@@ -749,6 +703,7 @@ export const LLMGATEWAY_MODEL_INPUT_MODALITIES: Readonly<
   smart: ['text', 'image'] as const,
   sonar: ['text'] as const,
   'step-3.7-flash': ['text', 'image'] as const,
+  'step-5-preview': ['text', 'image'] as const,
 } satisfies LLMGatewayModelInputModalitiesByName
 
 export type LLMGatewayChatModelProviderOptionsByName = {
@@ -847,6 +802,10 @@ const EFFORT_NONE_LOW_HIGH_MAX = {
   levels: { off: 'none', low: 'low', high: 'high', max: 'max' },
   budget: false,
 } as const
+const EFFORT_NONE_LOW_HIGH_TO_MAX = {
+  levels: { off: 'none', low: 'low', high: 'high', xhigh: 'xhigh', max: 'max' },
+  budget: false,
+} as const
 const EFFORT_NONE_LOW_MEDIUM_XHIGH = {
   levels: { off: 'none', low: 'low', medium: 'medium', xhigh: 'xhigh' },
   budget: false,
@@ -899,6 +858,10 @@ const EFFORT_NONE_MINIMAL_TO_XHIGH = {
   },
   budget: false,
 } as const
+const EFFORT_XHIGH_MAX = {
+  levels: { xhigh: 'xhigh', max: 'max' },
+  budget: false,
+} as const
 
 const LLMGATEWAY_REASONING = {
   'claude-fable-5': EFFORT_LOW_TO_MAX,
@@ -919,8 +882,9 @@ const LLMGATEWAY_REASONING = {
   'claude-sonnet-5-5': EFFORT_LOW_TO_MAX,
   'deepseek-v4-flash': EFFORT_NONE_LOW_HIGH_MAX,
   'deepseek-v4-pro': EFFORT_NONE_HIGH_MAX,
-  'deepseek-v4.1-flash': EFFORT_NONE_LOW_HIGH_MAX,
-  'deepseek-v4.1-flash-1017': EFFORT_NONE_LOW_HIGH_MAX,
+  'deepseek-v4.1-flash': EFFORT_NONE_MINIMAL_TO_MAX,
+  'deepseek-v4.1-flash-1017': EFFORT_NONE_MINIMAL_TO_MAX,
+  'deepseek-v4.1-flash-cyber': EFFORT_NONE_LOW_HIGH_TO_MAX,
   'fugu-max': EFFORT_HIGH_TO_MAX,
   'fugu-ultra': EFFORT_HIGH_TO_MAX,
   'fugu-ultra-v2.0': EFFORT_HIGH_TO_MAX,
@@ -940,8 +904,9 @@ const LLMGATEWAY_REASONING = {
   'glm-5-turbo': EFFORT_LOW_TO_MAX,
   'glm-5.1': EFFORT_NONE_MINIMAL_TO_MAX,
   'glm-5.2': EFFORT_NONE_HIGH_MAX,
-  'glm-5.3': EFFORT_LOW_HIGH_MAX,
-  'glm-5.3-flash': EFFORT_LOW_HIGH_MAX,
+  'glm-5.3': EFFORT_LOW_TO_MAX,
+  'glm-5.3-flash': EFFORT_XHIGH_MAX,
+  'glm-5.3-flashx': EFFORT_XHIGH_MAX,
   'glm-5v-turbo': EFFORT_LOW_TO_MAX,
   'gpt-5': EFFORT_MINIMAL_TO_HIGH,
   'gpt-5-mini': EFFORT_MINIMAL_TO_HIGH,
@@ -965,6 +930,7 @@ const LLMGATEWAY_REASONING = {
   'gpt-6-luna': EFFORT_NONE_LOW_TO_MAX,
   'gpt-6-sol': EFFORT_NONE_LOW_TO_MAX,
   'gpt-6.1-sol': EFFORT_LOW_TO_MAX,
+  'gpt-6.1-terra': EFFORT_NONE_LOW_TO_MAX,
   'gpt-oss-120b': EFFORT_LOW_TO_HIGH,
   'gpt-oss-20b': EFFORT_LOW_TO_HIGH,
   'granite-4.2-8b': EFFORT_NONE_LOW_TO_HIGH,
@@ -978,12 +944,13 @@ const LLMGATEWAY_REASONING = {
   'kimi-k2.6': EFFORT_NONE_MINIMAL_TO_MAX,
   'kimi-k2.7-code': EFFORT_LOW_TO_MAX,
   'kimi-k2.7-code-highspeed': EFFORT_LOW_TO_MAX,
+  'kimi-k2.8-preview': EFFORT_NONE_MINIMAL_TO_MAX,
   'kimi-k3': EFFORT_NONE_MINIMAL_TO_MAX,
   'kimi-k3-fast': EFFORT_NONE_LOW_TO_MAX,
+  'kimi-k3.1-pro': EFFORT_LOW_HIGH_MAX,
+  'kimi-k3.1-pro-highspeed': EFFORT_LOW_HIGH_MAX,
   'ling-3.0-flash': EFFORT_NONE,
   'ling-3.0-flash-vl': EFFORT_NONE_LOW_TO_HIGH,
-  'mimo-v2.5': EFFORT_NONE_LOW_TO_HIGH,
-  'mimo-v2.5-pro': EFFORT_NONE_LOW_TO_HIGH,
   'mimo-v2.6-flash': EFFORT_NONE_LOW_TO_HIGH,
   'mimo-v2.6-pro': EFFORT_NONE_LOW_TO_HIGH,
   'minimax-m2': EFFORT_LOW_TO_MAX,
@@ -1002,8 +969,6 @@ const LLMGATEWAY_REASONING = {
   'muse-spark-1.3': EFFORT_MINIMAL_TO_XHIGH,
   'muse-spark-1.3-contributor': EFFORT_MINIMAL_TO_XHIGH,
   'muse-wonder-1.0': EFFORT_MINIMAL_TO_XHIGH,
-  o1: EFFORT_LOW_TO_HIGH,
-  'o4-mini': EFFORT_LOW_TO_HIGH,
   'qwen3.5-122b-a10b': EFFORT_NONE_MINIMAL_TO_MAX,
   'qwen3.5-27b': EFFORT_NONE_MINIMAL_TO_MAX,
   'qwen3.5-35b-a3b': EFFORT_NONE_MINIMAL_TO_MAX,
@@ -1017,6 +982,7 @@ const LLMGATEWAY_REASONING = {
   'qwen3.8-27b': EFFORT_NONE_LOW_TO_HIGH,
   'Qwen3.8-27B': EFFORT_LOW_MEDIUM_XHIGH,
   'qwen3.8-flash': EFFORT_NONE_MINIMAL_TO_MAX,
+  'qwen3.8-omni-flash': EFFORT_NONE_MINIMAL_TO_MAX,
   'qwen35-397b-a17b': EFFORT_NONE_MINIMAL_TO_MAX,
   'seed-1-6-250615': EFFORT_MINIMAL_TO_HIGH,
   'seed-1-6-250915': EFFORT_MINIMAL_TO_HIGH,
