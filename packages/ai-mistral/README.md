@@ -46,13 +46,14 @@ export MISTRAL_API_KEY="..."
 
 ```typescript
 import { mistralText } from '@tanstack/ai-mistral'
-import { generate } from '@tanstack/ai'
+import { chat } from '@tanstack/ai'
 
 const adapter = mistralText('mistral-large-latest')
 
-const result = await generate({
+const result = await chat({
   adapter,
-  model: 'mistral-large-latest',
+  threadId: 'thread-1',
+  stream: false,
   messages: [
     { role: 'user', content: 'Explain quantum computing in simple terms' },
   ],
