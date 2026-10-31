@@ -374,7 +374,7 @@
           "label": "Tool Approval Flow",
           "to": "tools/tool-approval",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-10-22"
+          "updatedAt": "2026-11-01"
         },
         {
           "label": "Provider Tools",
@@ -459,25 +459,25 @@
           "label": "React",
           "to": "ui/react",
           "addedAt": "2026-08-26",
-          "updatedAt": "2026-10-22"
+          "updatedAt": "2026-11-01"
         },
         {
           "label": "Solid",
           "to": "ui/solid",
           "addedAt": "2026-08-26",
-          "updatedAt": "2026-10-22"
+          "updatedAt": "2026-11-01"
         },
         {
           "label": "Vue",
           "to": "ui/vue",
           "addedAt": "2026-08-26",
-          "updatedAt": "2026-10-22"
+          "updatedAt": "2026-11-01"
         },
         {
           "label": "Svelte",
           "to": "ui/svelte",
           "addedAt": "2026-08-26",
-          "updatedAt": "2026-10-22"
+          "updatedAt": "2026-11-01"
         },
         {
           "label": "Preact",
@@ -495,13 +495,13 @@
           "label": "Remix",
           "to": "ui/remix",
           "addedAt": "2026-09-01",
-          "updatedAt": "2026-10-22"
+          "updatedAt": "2026-11-01"
         },
         {
           "label": "Angular",
           "to": "ui/angular",
           "addedAt": "2026-09-01",
-          "updatedAt": "2026-10-22"
+          "updatedAt": "2026-11-01"
         },
         {
           "label": "Custom Adapters",
@@ -554,7 +554,7 @@
           "to": "ui/recipes/custom-interrupt",
           "tab": "guides",
           "addedAt": "2026-08-31",
-          "updatedAt": "2026-10-22"
+          "updatedAt": "2026-11-01"
         },
         {
           "label": "Per-request context",
@@ -585,7 +585,7 @@
           "label": "Multiple Interrupts",
           "to": "interrupts/multiple",
           "addedAt": "2026-08-04",
-          "updatedAt": "2026-10-22"
+          "updatedAt": "2026-11-01"
         },
         {
           "label": "Generic Interrupts",
@@ -649,7 +649,8 @@
         {
           "label": "MCP Server Tools: Advanced",
           "to": "tools/mcp-advanced",
-          "addedAt": "2026-10-21"
+          "addedAt": "2026-10-21",
+          "updatedAt": "2026-11-01"
         },
         {
           "label": "MCP Events",

@@ -390,6 +390,11 @@ function ChatPage() {
 }
 ```
 
+A tool that only the server knows (for example an MCP tool gated with
+`needsApproval`) has no client definition. Its approval arrives as
+`kind: 'server-tool-approval'`, with `toolName: string` and
+`originalArgs: unknown`, and the same `resolveInterrupt(approved)` control.
+
 Batch all pending approvals with `resolveInterrupts` (void — submission is
 async; watch `resuming` / `interruptErrors`):
 

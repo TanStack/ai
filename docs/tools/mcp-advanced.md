@@ -372,7 +372,47 @@ const mcp = await createMCPClient({
 })
 ```
 
-The run stops with an approval interrupt for each gated call. The client approves or denies it the same way as for any other tool. See [Tool Approval Flow](./tool-approval).
+The run stops with an approval interrupt for each gated call. The browser has no definition for an MCP tool, so `useChat` gives you the call as `kind: 'server-tool-approval'`:
+
+```tsx
+import { fetchServerSentEvents, useChat } from '@tanstack/ai-react'
+
+export function McpApprovals() {
+  const { interrupts, resuming } = useChat({
+    connection: fetchServerSentEvents('/api/chat'),
+    threadId: 'support-chat',
+  })
+
+  return (
+    <>
+      {interrupts.map((interrupt) =>
+        interrupt.kind === 'server-tool-approval' ? (
+          <div key={interrupt.id}>
+            <p>Run {interrupt.toolName}?</p>
+            <pre>{JSON.stringify(interrupt.originalArgs, null, 2)}</pre>
+            <button
+              disabled={!interrupt.canResolve || resuming}
+              onClick={() => interrupt.resolveInterrupt(true)}
+            >
+              Approve
+            </button>
+            <button
+              disabled={!interrupt.canResolve || resuming}
+              onClick={() => interrupt.resolveInterrupt(false)}
+            >
+              Deny
+            </button>
+          </div>
+        ) : null,
+      )}
+    </>
+  )
+}
+```
+
+- `toolName` is a `string` and `originalArgs` is `unknown`. In a [pool](#multi-server-pool), `toolName` has the server prefix, for example `github_create_issue`.
+- The server checks the answer against the MCP tool, so the browser needs no tool definition.
+- Your chat route must forward `parentRunId` and `resume` to `chat()`. See [Tool Approval Flow](./tool-approval#2-add-the-server-function-and-forward-the-resume-fields).
 
 In a [pool](#multi-server-pool), each server gets its own options:
 

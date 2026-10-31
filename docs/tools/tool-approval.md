@@ -289,6 +289,21 @@ const { messages, interrupts } = useChat({
 })
 ```
 
+### Approval on a server-only tool
+
+Some tools exist only on the server, for example an [MCP tool with `needsApproval`](./mcp-advanced#limit-and-gate-tools). The browser has no definition for them, so their approval arrives as `kind: 'server-tool-approval'`:
+
+```ts ignore
+if (interrupt.kind === 'server-tool-approval') {
+  // toolName is a string. originalArgs is unknown.
+  console.log(interrupt.toolName, interrupt.originalArgs)
+  interrupt.resolveInterrupt(true)
+}
+```
+
+- It has the same controls as `tool-approval`, and `resolveInterrupts(true)` approves it too.
+- If the server tool has an `approvalSchema`, the approval arrives as a `generic` interrupt. See [Generic Interrupts](../interrupts/generic).
+
 ### Tell a denial from a failure
 
 A denied or cancelled tool result has `state: 'error'` and the wire state `output-error`. To tell it apart from a real tool failure, read `outcome` on the `tool-result` part:

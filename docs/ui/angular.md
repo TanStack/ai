@@ -341,7 +341,7 @@ It passes these inputs to each widget:
 
 - A tool approval renders in the tool when you read the `interrupt` input.
 - To show it in the list instead, register a component under `interruptsComponents.tools` and render `Interrupts` in the layout.
-- Generic interrupts always render in the list. `generic.fallback` renders an unregistered id and an unbound interrupt. If the copy must be different, branch on `interrupt().kind === 'unbound'`.
+- Generic interrupts always render in the list. `generic.fallback` renders an unregistered id, an unbound interrupt, and a `server-tool-approval` (a tool that only the server knows, such as an MCP tool). If the copy must be different, branch on `interrupt().kind === 'unbound'`.
 
 ### Show queued messages
 

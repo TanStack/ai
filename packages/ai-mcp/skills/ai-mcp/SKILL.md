@@ -551,6 +551,10 @@ These rules apply to both `toolFilter` forms and to `needsApproval`:
   apply to `callTool()`.
 - `needsApproval` does not change `tools([defs])`: each `toolDefinition` keeps
   its own `needsApproval`.
+- In `useChat`, a gated MCP call arrives as `kind: 'server-tool-approval'`
+  (`toolName: string`, `originalArgs: unknown`, `resolveInterrupt(approved)`).
+  The browser needs no tool definition. The chat route must forward
+  `parentRunId` and `resume` to `chat()`.
 - MCP Apps widget calls have no approval step, so the call handler refuses a
   tool that `needsApproval` marks (`{ ok: false, error: 'Tool needs approval: <name>' }`).
 - Annotations are server-declared hints. For an untrusted server, use a

@@ -100,6 +100,7 @@ When the server asks, the plan buttons show in the interrupt list.
 
 - An interrupt id that you did not register.
 - An unbound interrupt. Something outside this chat owns it, so it cannot be answered here.
+- A `server-tool-approval`: an approval for a tool that only the server knows, such as an MCP tool.
 
 If the copy must be different, branch on `interrupt.kind === 'unbound'`.
 
