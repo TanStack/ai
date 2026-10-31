@@ -19,6 +19,7 @@ import type {
   StreamChunk,
 } from '@tanstack/ai'
 import type {
+  AnyClientTool,
   Interrupt,
   InterruptBinding,
   ModelMessage,
@@ -2259,4 +2260,155 @@ describe('ChatClient native interrupts', () => {
       expect(client?.getInterruptState().interruptErrors).toEqual([])
     },
   )
+})
+
+describe('InterruptManager server-only tool approvals', () => {
+  // A tool only the server knows, like an MCP tool gated with needsApproval.
+  async function serverApprovalInterrupts(
+    approvalSchema?: StandardSchemaV1,
+  ): Promise<ReadonlyArray<Interrupt>> {
+    const deleteNote = toolDefinition({
+      name: 'delete_note',
+      description: 'Delete a note by id',
+      inputSchema: z.object({ id: z.string() }),
+      needsApproval: true,
+      ...(approvalSchema ? { approvalSchema } : {}),
+    }).server(({ id }) => Promise.resolve(`deleted ${id}`))
+    const chunks = [
+      {
+        type: EventType.RUN_STARTED,
+        runId: 'r1',
+        threadId: 't1',
+        timestamp: 1,
+      },
+      {
+        type: EventType.TOOL_CALL_START,
+        toolCallId: 'call-1',
+        toolCallName: 'delete_note',
+        timestamp: 1,
+      },
+      {
+        type: EventType.TOOL_CALL_ARGS,
+        toolCallId: 'call-1',
+        delta: '{"id":"n1"}',
+        timestamp: 1,
+      },
+      { type: EventType.TOOL_CALL_END, toolCallId: 'call-1', timestamp: 1 },
+      {
+        type: EventType.RUN_FINISHED,
+        runId: 'r1',
+        threadId: 't1',
+        finishReason: 'tool_calls',
+        timestamp: 1,
+      },
+    ] as Array<StreamChunk>
+    const adapter: AnyTextAdapter = {
+      kind: 'text',
+      name: 'server-approval-test',
+      model: 'test-model',
+      '~types': {
+        providerOptions: {},
+        inputModalities: ['text'],
+        messageMetadataByModality: {
+          text: undefined,
+          image: undefined,
+          audio: undefined,
+          video: undefined,
+          document: undefined,
+        },
+        toolCapabilities: [],
+        toolCallMetadata: undefined,
+        systemPromptMetadata: undefined,
+      },
+      chatStream: () =>
+        (async function* () {
+          await Promise.resolve()
+          for (const chunk of chunks) yield chunk
+        })(),
+      structuredOutput: () => Promise.resolve({ data: {}, rawText: '{}' }),
+    }
+    for await (const chunk of chat({
+      adapter,
+      messages: [{ role: 'user', content: 'delete n1' }],
+      tools: [deleteNote],
+      runId: 'r1',
+      threadId: 't1',
+    })) {
+      if (
+        chunk.type === EventType.RUN_FINISHED &&
+        chunk.outcome?.type === 'interrupt'
+      ) {
+        return chunk.outcome.interrupts
+      }
+    }
+    throw new Error('Expected an interrupt terminal.')
+  }
+
+  function hydrate(
+    interrupts: ReadonlyArray<Interrupt>,
+    clientTools: ReadonlyArray<AnyClientTool> = [],
+  ) {
+    const submit = vi.fn(
+      async (_submission: InterruptManagerSubmission) => undefined,
+    )
+    const manager = new InterruptManager({ tools: clientTools, submit })
+    manager.hydrate({
+      threadId: 't1',
+      interruptedRunId: 'r1',
+      generation: 0,
+      interrupts,
+    })
+    return { manager, submit }
+  }
+
+  it('surfaces a server-only approval as server-tool-approval and submits the decision', async () => {
+    const { manager, submit } = hydrate(await serverApprovalInterrupts())
+
+    const item = manager.getInterrupts()[0]
+    if (item?.kind !== 'server-tool-approval') {
+      throw new Error(`Expected server-tool-approval, got ${item?.kind}`)
+    }
+    expect(item.canResolve).toBe(true)
+    expect(item.toolName).toBe('delete_note')
+    expect(item.toolCallId).toBe('call-1')
+    expect(item.originalArgs).toEqual({ id: 'n1' })
+
+    item.resolveInterrupt(true)
+    await settle()
+    expect(submit.mock.calls[0]?.[0].resolutions).toEqual([
+      { interruptId: item.id, status: 'resolved', payload: { approved: true } },
+    ])
+  })
+
+  it('approves a server-only approval with boolean bulk resolution', async () => {
+    const { manager, submit } = hydrate(await serverApprovalInterrupts())
+    const id = manager.getInterrupts()[0]?.id
+
+    manager.resolve(false)
+    expect(manager.getInterruptErrors()).toEqual([])
+    expect(submit.mock.calls[0]?.[0].resolutions).toEqual([
+      { interruptId: id, status: 'resolved', payload: { approved: false } },
+    ])
+  })
+
+  it('keeps a server-only approval that needs a payload generic', async () => {
+    const { manager } = hydrate(
+      await serverApprovalInterrupts(z.object({ reason: z.string() })),
+    )
+    expect(manager.getInterrupts()[0]?.kind).toBe('generic')
+  })
+
+  it('keeps a same-name client tool with different schemas generic', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const drifted = toolDefinition({
+      name: 'delete_note',
+      description: 'Delete a note by id',
+      inputSchema: z.object({ noteId: z.number() }),
+      needsApproval: true,
+    }).client()
+    const { manager } = hydrate(await serverApprovalInterrupts(), [drifted])
+    expect(manager.getInterrupts()[0]?.kind).toBe('generic')
+    expect(warn).toHaveBeenCalledOnce()
+    warn.mockRestore()
+  })
 })

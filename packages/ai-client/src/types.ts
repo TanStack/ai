@@ -225,6 +225,30 @@ export type ToolApprovalInterrupt<TTool extends AnyClientTool = AnyClientTool> =
       }
     : never
 
+/**
+ * An approval for a tool that only the server knows, such as an MCP tool gated
+ * with `needsApproval`. No client definition exists for it, so the tool name
+ * and arguments are untyped. The server checks the decision and any edited
+ * arguments against its own tool definition.
+ *
+ * A server tool whose `approvalSchema` asks for a payload is not exposed this
+ * way. It stays a `generic` interrupt, because the client has no schema to
+ * build that payload from.
+ */
+export interface ServerToolApprovalInterrupt extends BoundInterruptBase {
+  readonly kind: 'server-tool-approval'
+  readonly binding: Readonly<
+    Extract<InterruptBinding, { kind: 'tool-approval' }>
+  >
+  readonly toolName: string
+  readonly toolCallId: string
+  readonly originalArgs: unknown
+  readonly resolveInterrupt: (
+    approved: boolean,
+    options?: { editedArgs?: unknown },
+  ) => void
+}
+
 type ApprovalInterrupts<TTools extends ReadonlyArray<AnyClientTool>> =
   TTools[number] extends infer TTool
     ? TTool extends AnyClientTool
@@ -247,6 +271,7 @@ export type ChatInterrupt<
   | RegisteredGenericInterrupt<TInterrupts>
   | UnboundInterrupt
   | ApprovalInterrupts<TTools>
+  | ServerToolApprovalInterrupt
 
 export type ResolvableChatInterrupt<
   TTools extends ReadonlyArray<AnyClientTool> = ReadonlyArray<AnyClientTool>,
@@ -256,6 +281,7 @@ export type ResolvableChatInterrupt<
   | GenericAGUIInterrupt
   | RegisteredGenericInterrupt<TInterrupts>
   | ApprovalInterrupts<TTools>
+  | ServerToolApprovalInterrupt
 
 export type BoundInterrupts<
   TTools extends ReadonlyArray<AnyClientTool> = ReadonlyArray<AnyClientTool>,

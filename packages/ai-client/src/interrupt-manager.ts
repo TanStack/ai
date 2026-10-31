@@ -66,6 +66,10 @@ export interface InterruptManagerOptions<
 
 type UnknownObject = { [key: string]: unknown }
 
+/** The binding hash of an approval that takes no payload on either branch. */
+const PAYLOADLESS_APPROVAL_SCHEMA_HASH =
+  normalizeApprovalSchema(undefined).approvalSchemaHash
+
 type RuntimeKind =
   | 'generic'
   | 'tool-approval'
@@ -823,6 +827,24 @@ export class InterruptManager<
       const tool = this.tools?.find(
         (configured) => configured.name === candidate.toolName,
       )
+      // A tool only the server knows (an MCP tool, for example) has no client
+      // definition to type it. Keep it an approval, untyped, when it takes no
+      // payload. The server checks the decision against its own definition.
+      if (
+        tool === undefined &&
+        interrupt.toolCallId === candidate.toolCallId &&
+        candidate.approvalSchemaHash === PAYLOADLESS_APPROVAL_SCHEMA_HASH
+      ) {
+        return {
+          descriptor: interrupt,
+          binding: cloneAndDeepFreezeJson(candidate),
+          kind: 'tool-approval',
+          status: 'pending',
+          canResolve: true,
+          resumable: true,
+          validationGeneration: 0,
+        }
+      }
       // Gated on the binding and the schema hashes below, not on
       // `interrupt.reason` — that string is free-form AG-UI text another
       // producer can also use, so it cannot be what decides ownership.
@@ -1006,7 +1028,11 @@ export class InterruptManager<
           const binding = cloneAndDeepFreezeJson(item.binding)
           const snapshot = {
             ...base,
-            kind: 'tool-approval' as const,
+            // No client tool means a server-only tool: untyped public kind.
+            kind:
+              item.tool === undefined
+                ? ('server-tool-approval' as const)
+                : ('tool-approval' as const),
             binding,
             toolName: item.binding.toolName,
             toolCallId: item.binding.toolCallId,

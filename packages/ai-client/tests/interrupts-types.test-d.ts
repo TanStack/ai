@@ -20,6 +20,7 @@ import type {
   GenericAGUIInterrupt,
   GenericInterrupt,
   RegisteredGenericInterrupt,
+  ServerToolApprovalInterrupt,
   ToolApprovalInterrupt,
 } from '../src/index'
 
@@ -251,3 +252,22 @@ const hydrate = (
 ): Promise<ChatHydrationResult> =>
   Promise.resolve({ messages: [], activeRun: null, interrupts: null })
 expectTypeOf(hydrate).toExtend<NonNullable<ConnectionAdapter['hydrate']>>()
+
+// Server-only tool approvals (MCP tools, for example) get their own kind, so
+// narrowing a typed approval by tool name still types its arguments.
+declare const anyInterrupt: ChatInterrupt<Tools>
+if (
+  anyInterrupt.kind === 'tool-approval' &&
+  anyInterrupt.toolName === 'transfer'
+) {
+  expectTypeOf(anyInterrupt.originalArgs).toEqualTypeOf<{ cents: number }>()
+}
+if (anyInterrupt.kind === 'server-tool-approval') {
+  expectTypeOf(anyInterrupt).toEqualTypeOf<ServerToolApprovalInterrupt>()
+  expectTypeOf(anyInterrupt.toolName).toEqualTypeOf<string>()
+  expectTypeOf(anyInterrupt.originalArgs).toEqualTypeOf<unknown>()
+  anyInterrupt.resolveInterrupt(true)
+  anyInterrupt.resolveInterrupt(true, { editedArgs: { id: 'n2' } })
+  // @ts-expect-error server-only approvals take no payload
+  anyInterrupt.resolveInterrupt(true, { payload: {} })
+}
