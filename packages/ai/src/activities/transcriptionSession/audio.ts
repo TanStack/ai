@@ -43,7 +43,9 @@ export function pickAudioFormat(
   const sampleRate =
     !rates || rates.includes(input.sampleRate)
       ? input.sampleRate
-      : (rates.find((r) => r >= input.sampleRate) ?? rates[rates.length - 1]!)
+      : (rates.find((r) => r >= input.sampleRate) ??
+        rates.at(-1) ??
+        input.sampleRate)
   return { ...input, encoding: 'linear16', sampleRate }
 }
 
@@ -90,7 +92,7 @@ export function createAudioConverter(
   const decode = (chunk: Uint8Array): Int16Array => {
     if (from.encoding !== 'linear16') {
       const table = from.encoding === 'mulaw' ? MULAW : ALAW
-      return Int16Array.from(chunk, (b) => table[b]!)
+      return Int16Array.from(chunk, (b) => table[b] ?? 0)
     }
     let bytes = chunk
     if (carry !== undefined) {
@@ -113,7 +115,7 @@ export function createAudioConverter(
     const frames = input.length / channels
     const out: Array<number> = []
     const at = (frame: number, c: number) =>
-      frame < 0 ? prev![c]! : input[frame * channels + c]!
+      (frame < 0 ? prev?.[c] : input[frame * channels + c]) ?? 0
     while (Math.floor(pos) + 1 < frames) {
       const i = Math.floor(pos)
       const frac = pos - i
@@ -135,7 +137,7 @@ export function createAudioConverter(
     const out = new Uint8Array(samples.length * 2)
     const view = new DataView(out.buffer)
     for (let i = 0; i < samples.length; i++)
-      view.setInt16(i * 2, samples[i]!, true)
+      view.setInt16(i * 2, samples[i] ?? 0, true)
     return out
   }
 }

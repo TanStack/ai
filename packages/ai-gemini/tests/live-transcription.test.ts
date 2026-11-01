@@ -37,11 +37,15 @@ describe('geminiLiveTranscription', () => {
       realtimeInput: { audio: { data: string; mimeType: string } }
     }
     expect(chunk.realtimeInput.audio.mimeType).toBe('audio/pcm;rate=16000')
-    // 80 samples at 8 kHz upsample to 159 samples at 16 kHz (the last waits for more).
-    expect(atob(chunk.realtimeInput.audio.data).length).toBe(159 * 2)
+    // 80 samples at 8 kHz upsample to 158 at 16 kHz. The last two wait for the next chunk.
+    expect(atob(chunk.realtimeInput.audio.data).length).toBe(158 * 2)
 
-    socket.receive({ serverContent: { interimInputTranscription: { text: 'Hel' } } })
-    socket.receive({ serverContent: { inputTranscription: { text: 'Hello.' } } })
+    socket.receive({
+      serverContent: { interimInputTranscription: { text: 'Hel' } },
+    })
+    socket.receive({
+      serverContent: { inputTranscription: { text: 'Hello.' } },
+    })
     await session.close()
     await reading
     expect(events).toEqual([

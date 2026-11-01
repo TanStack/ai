@@ -50,7 +50,8 @@ export function fakeWebSocket() {
         receive(message) {
           const event = new Event('message') as MessageEvent
           Object.defineProperty(event, 'data', {
-            value: typeof message === 'string' ? message : JSON.stringify(message),
+            value:
+              typeof message === 'string' ? message : JSON.stringify(message),
           })
           self.dispatchEvent(event)
         },
@@ -64,7 +65,7 @@ export function fakeWebSocket() {
       }
       sockets.push(this.fake)
     }
-    private fake: FakeSocket
+    private readonly fake: FakeSocket
     send(data: string | Uint8Array) {
       this.fake.sent.push(typeof data === 'string' ? data : data.slice())
     }
@@ -74,6 +75,7 @@ export function fakeWebSocket() {
   }
 
   return {
+    // oxlint-disable-next-line eslint-js/no-restricted-syntax -- the fake implements only the WebSocket members adapters use
     WebSocket: FakeWebSocketImpl as unknown as new (
       url: string,
       protocols?: string | Array<string>,

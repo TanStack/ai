@@ -41,11 +41,17 @@ function fakeAdapter(audioInputs: Array<LiveAudioInput>) {
 describe('G.711 decode', () => {
   it('decodes μ-law and A-law reference values', () => {
     const to: LiveAudioFormat = { encoding: 'linear16', sampleRate: 8000 }
-    const mulaw = createAudioConverter({ encoding: 'mulaw', sampleRate: 8000 }, to)
+    const mulaw = createAudioConverter(
+      { encoding: 'mulaw', sampleRate: 8000 },
+      to,
+    )
     expect(pcm(mulaw(new Uint8Array([0xff, 0x7f, 0x00, 0x80])))).toEqual([
       0, 0, -32124, 32124,
     ])
-    const alaw = createAudioConverter({ encoding: 'alaw', sampleRate: 8000 }, to)
+    const alaw = createAudioConverter(
+      { encoding: 'alaw', sampleRate: 8000 },
+      to,
+    )
     expect(pcm(alaw(new Uint8Array([0xd5, 0x55, 0xaa, 0x2a])))).toEqual([
       8, -8, 32256, -32256,
     ])
@@ -77,7 +83,8 @@ describe('createAudioConverter', () => {
     )
     const input = new Int16Array(160).map((_, i) => i * 3)
     let total = 0
-    for (let i = 0; i < 10; i++) total += convert(new Uint8Array(input.buffer)).length / 2
+    for (let i = 0; i < 10; i++)
+      total += convert(new Uint8Array(input.buffer)).length / 2
     // The last input frame waits for the next chunk.
     expect(total).toBe(160 * 10 * 3 - 3)
   })

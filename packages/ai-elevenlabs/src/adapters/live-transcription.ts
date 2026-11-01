@@ -65,7 +65,10 @@ export function elevenlabsLiveTranscription<
 >(
   model: TModel,
   config: ElevenLabsLiveTranscriptionConfig = {},
-): LiveTranscriptionAdapter<TModel, ElevenLabsLiveTranscriptionProviderOptions> {
+): LiveTranscriptionAdapter<
+  TModel,
+  ElevenLabsLiveTranscriptionProviderOptions
+> {
   return {
     kind: 'liveTranscription',
     name: 'elevenlabs',
@@ -103,7 +106,10 @@ export function elevenlabsLiveTranscription<
       })
       if (options.language) query.set('language_code', options.language)
       if (opts.vadSilenceThresholdSecs !== undefined)
-        query.set('vad_silence_threshold_secs', String(opts.vadSilenceThresholdSecs))
+        query.set(
+          'vad_silence_threshold_secs',
+          String(opts.vadSilenceThresholdSecs),
+        )
       if (opts.vadThreshold !== undefined)
         query.set('vad_threshold', String(opts.vadThreshold))
       if (opts.minSpeechDurationMs !== undefined)

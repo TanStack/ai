@@ -17,8 +17,13 @@ describe('openaiLiveTranscription', () => {
     })
     const socket = ws.sockets[0]!
     socket.open()
-    expect(socket.url).toBe('wss://api.openai.com/v1/realtime?intent=transcription')
-    expect(socket.protocols).toEqual(['realtime', 'openai-insecure-api-key.sk-test'])
+    expect(socket.url).toBe(
+      'wss://api.openai.com/v1/realtime?intent=transcription',
+    )
+    expect(socket.protocols).toEqual([
+      'realtime',
+      'openai-insecure-api-key.sk-test',
+    ])
     expect(socket.json()[0]).toEqual({
       type: 'session.update',
       session: {
@@ -40,7 +45,10 @@ describe('openaiLiveTranscription', () => {
       for await (const e of session) events.push(e)
     })()
     session.send(new Uint8Array([0xff, 0x7f]))
-    expect(socket.json()[1]).toEqual({ type: 'input_audio_buffer.append', audio: '/38=' })
+    expect(socket.json()[1]).toEqual({
+      type: 'input_audio_buffer.append',
+      audio: '/38=',
+    })
 
     const delta = (d: string) => ({
       type: 'conversation.item.input_audio_transcription.delta',
@@ -58,7 +66,9 @@ describe('openaiLiveTranscription', () => {
     socket.receive({ type: 'error', error: { message: 'bad event' } })
     await session.close() // nothing pending: closes without waiting
     await reading
-    expect(events.map((e) => (e.type === 'error' ? e.error.message : e))).toEqual([
+    expect(
+      events.map((e) => (e.type === 'error' ? e.error.message : e)),
+    ).toEqual([
       { type: 'interim', text: 'Hel' },
       { type: 'interim', text: 'Hello' },
       { type: 'final', text: 'Hello.' },
@@ -78,8 +88,9 @@ describe('openaiLiveTranscription', () => {
       language: 'en',
     })
     ws.sockets[0]!.open()
-    const input = (ws.sockets[0]!.json()[0] as { session: { audio: { input: unknown } } })
-      .session.audio.input
+    const input = (
+      ws.sockets[0]!.json()[0] as { session: { audio: { input: unknown } } }
+    ).session.audio.input
     expect(input).toMatchObject({
       format: { type: 'audio/pcm', rate: 24000 },
       transcription: { languages: ['en'] },

@@ -113,8 +113,7 @@ export function openaiLiveTranscription<
         protocols: ['realtime', `openai-insecure-api-key.${apiKey}`],
         WebSocket: config.WebSocket,
         connect: options,
-        readyWhen: (m) =>
-          (m as OpenAIRealtimeEvent).type === 'session.updated',
+        readyWhen: (m) => (m as OpenAIRealtimeEvent).type === 'session.updated',
         onOpen: (socket) =>
           socket.sendJson({
             type: 'session.update',
@@ -148,15 +147,17 @@ export function openaiLiveTranscription<
           }),
         onMessage: (message, socket) => {
           const m = message as OpenAIRealtimeEvent
-          switch (m.type) {
+          switch (m.type ?? '') {
             case 'input_audio_buffer.speech_started':
               pending = true
               break
             case 'conversation.item.input_audio_transcription.delta': {
               pending = true
-              const text = (interim.get(m.item_id ?? '') ?? '') + (m.delta ?? '')
+              const text =
+                (interim.get(m.item_id ?? '') ?? '') + (m.delta ?? '')
               interim.set(m.item_id ?? '', text)
-              if (text.trim()) options.emit({ type: 'interim', text: text.trim() })
+              if (text.trim())
+                options.emit({ type: 'interim', text: text.trim() })
               break
             }
             case 'conversation.item.input_audio_transcription.completed': {
@@ -189,7 +190,10 @@ export function openaiLiveTranscription<
             audio: bytesToBase64(audio),
           }),
         close: () =>
-          live.finish({ type: 'input_audio_buffer.commit' }, pending ? 5000 : 0),
+          live.finish(
+            { type: 'input_audio_buffer.commit' },
+            pending ? 5000 : 0,
+          ),
       }
     },
   }

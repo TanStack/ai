@@ -713,13 +713,13 @@ export async function handleCall(twilio: WebSocket) {
 Adapters (each declares `audioInputs`; anything else is converted to
 linear16 PCM automatically, including G.711 decode and resampling):
 
-| Adapter | Package | Phone audio |
-| --- | --- | --- |
-| `deepgramLiveTranscription('nova-3' \| 'flux-general-en')` | `@tanstack/ai-deepgram` | mulaw, alaw |
-| `elevenlabsLiveTranscription('scribe_v2_realtime')` | `@tanstack/ai-elevenlabs` | mulaw |
-| `openaiLiveTranscription('gpt-transcribe' \| 'gpt-live-transcribe')` | `@tanstack/ai-openai` | mulaw, alaw |
-| `grokLiveTranscription('grok-voice-transcribe-2.0')` | `@tanstack/ai-grok` | mulaw, alaw |
-| `geminiLiveTranscription('gemini-3.5-transcribe-live')` | `@tanstack/ai-gemini` | converted to 16 kHz PCM |
+| Adapter                                                              | Package                   | Phone audio             |
+| -------------------------------------------------------------------- | ------------------------- | ----------------------- |
+| `deepgramLiveTranscription('nova-3' \| 'flux-general-en')`           | `@tanstack/ai-deepgram`   | mulaw, alaw             |
+| `elevenlabsLiveTranscription('scribe_v2_realtime')`                  | `@tanstack/ai-elevenlabs` | mulaw                   |
+| `openaiLiveTranscription('gpt-transcribe' \| 'gpt-live-transcribe')` | `@tanstack/ai-openai`     | mulaw, alaw             |
+| `grokLiveTranscription('grok-voice-transcribe-2.0')`                 | `@tanstack/ai-grok`       | mulaw, alaw             |
+| `geminiLiveTranscription('gemini-3.5-transcribe-live')`              | `@tanstack/ai-gemini`     | converted to 16 kHz PCM |
 
 - `openaiLiveTranscription('gpt-live-transcribe')` has no voice activity
   detection: no `turn-end`, one `final` at close. Use `gpt-transcribe` for turns.

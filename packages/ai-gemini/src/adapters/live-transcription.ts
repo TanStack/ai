@@ -18,7 +18,9 @@ export interface GeminiLiveTranscriptionProviderOptions {
   mode?: 'VERBATIM' | 'SMART'
   /** Automatic voice activity detection settings. */
   automaticActivityDetection?: {
-    startOfSpeechSensitivity?: 'START_SENSITIVITY_LOW' | 'START_SENSITIVITY_HIGH'
+    startOfSpeechSensitivity?:
+      | 'START_SENSITIVITY_LOW'
+      | 'START_SENSITIVITY_HIGH'
     endOfSpeechSensitivity?: 'END_SENSITIVITY_LOW' | 'END_SENSITIVITY_HIGH'
     prefixPaddingMs?: number
     silenceDurationMs?: number

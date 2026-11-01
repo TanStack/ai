@@ -31,7 +31,9 @@ describe('elevenlabsLiveTranscription', () => {
     )
     expect(requests[0]![1]!.headers).toEqual({ 'xi-api-key': 'xi' })
     const url = new URL(socket.url)
-    expect(url.host + url.pathname).toBe('api.elevenlabs.io/v1/speech-to-text/realtime')
+    expect(url.host + url.pathname).toBe(
+      'api.elevenlabs.io/v1/speech-to-text/realtime',
+    )
     expect(Object.fromEntries(url.searchParams)).toEqual({
       model_id: 'scribe_v2_realtime',
       audio_format: 'ulaw_8000',
@@ -57,11 +59,16 @@ describe('elevenlabsLiveTranscription', () => {
     socket.receive({ message_type: 'committed_transcript', text: 'Hi there.' })
     socket.receive({ message_type: 'quota_exceeded', error: 'out of credit' })
     const closing = session.close()
-    expect(socket.json().at(-1)).toMatchObject({ commit: true, audio_base_64: '' })
+    expect(socket.json().at(-1)).toMatchObject({
+      commit: true,
+      audio_base_64: '',
+    })
     socket.receive({ message_type: 'committed_transcript', text: '' })
     await closing
     await reading
-    expect(events.map((e) => (e.type === 'error' ? e.error.message : e))).toEqual([
+    expect(
+      events.map((e) => (e.type === 'error' ? e.error.message : e)),
+    ).toEqual([
       { type: 'interim', text: 'Hi' },
       { type: 'final', text: 'Hi there.' },
       { type: 'turn-end' },

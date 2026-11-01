@@ -28,27 +28,6 @@ import type { AnyEvaluateAdapter } from './evaluate/adapter'
 import type { AnyWorldAdapter } from './generateWorld/adapter'
 import type { AnyLiveVideoAdapter } from './generateLiveVideo/adapter'
 
-// ===========================
-// Live Transcription Session Activity
-// ===========================
-
-export {
-  kind as liveTranscriptionKind,
-  transcriptionSession,
-  createAudioConverter,
-  pickAudioFormat,
-  type TranscriptionSession,
-  type TranscriptionSessionOptions,
-  type LiveTranscriptionProviderOptions,
-  type LiveAudioEncoding,
-  type LiveAudioFormat,
-  type LiveAudioInput,
-  type LiveTranscriptionAdapter,
-  type LiveTranscriptionConnectOptions,
-  type LiveTranscriptionConnection,
-  type LiveTranscriptionEvent,
-  type AnyLiveTranscriptionAdapter,
-} from './transcriptionSession/index'
 import type { AnyFilesAdapter } from './files/adapter'
 import type { AnyLiveTranscriptionAdapter } from './transcriptionSession/adapter'
 
@@ -367,6 +346,28 @@ export {
   type LiveVideoAdapterConfig,
   type AnyLiveVideoAdapter,
 } from './generateLiveVideo/adapter'
+
+// ===========================
+// Live Transcription Session Activity
+// ===========================
+
+export {
+  kind as liveTranscriptionKind,
+  transcriptionSession,
+  createAudioConverter,
+  pickAudioFormat,
+  type TranscriptionSession,
+  type TranscriptionSessionOptions,
+  type LiveTranscriptionProviderOptions,
+  type LiveAudioEncoding,
+  type LiveAudioFormat,
+  type LiveAudioInput,
+  type LiveTranscriptionAdapter,
+  type LiveTranscriptionConnectOptions,
+  type LiveTranscriptionConnection,
+  type LiveTranscriptionEvent,
+  type AnyLiveTranscriptionAdapter,
+} from './transcriptionSession/index'
 
 // ===========================
 // Files Activity

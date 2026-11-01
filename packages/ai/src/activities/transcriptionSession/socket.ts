@@ -13,10 +13,7 @@ export interface LiveSocketOptions {
   /** Defaults to `globalThis.WebSocket`. */
   WebSocket?: WebSocketConstructor
   /** The `emit`, `end` and `abortSignal` from the adapter's connect options. */
-  connect: Pick<
-    LiveTranscriptionConnectOptions,
-    'emit' | 'end' | 'abortSignal'
-  >
+  connect: Pick<LiveTranscriptionConnectOptions, 'emit' | 'end' | 'abortSignal'>
   /** Runs once the socket is open. Send setup messages here. */
   onOpen?: (socket: LiveSocket) => void
   /**
@@ -60,7 +57,9 @@ const decoder = new TextDecoder()
  * unexpected closes as `error` events, calls `end()` once on close, and closes
  * on abort. Resolves when the socket is open.
  */
-export function openLiveSocket(options: LiveSocketOptions): Promise<LiveSocket> {
+export function openLiveSocket(
+  options: LiveSocketOptions,
+): Promise<LiveSocket> {
   const { emit, end, abortSignal } = options.connect
   const Ctor = options.WebSocket ?? globalThis.WebSocket
   if (typeof Ctor !== 'function') {

@@ -25,7 +25,11 @@ async function open(model: 'nova-3' | 'flux-general-en') {
   return { socket, session, events, reading }
 }
 
-const results = (transcript: string, isFinal: boolean, speechFinal = false) => ({
+const results = (
+  transcript: string,
+  isFinal: boolean,
+  speechFinal = false,
+) => ({
   type: 'Results',
   is_final: isFinal,
   speech_final: speechFinal,
@@ -72,7 +76,11 @@ describe('deepgramLiveTranscription', () => {
     expect(new URL(socket.url).pathname).toBe('/v2/listen')
     socket.receive({ type: 'TurnInfo', event: 'StartOfTurn', transcript: 'I' })
     socket.receive({ type: 'TurnInfo', event: 'Update', transcript: 'I want' })
-    socket.receive({ type: 'TurnInfo', event: 'EndOfTurn', transcript: 'I want pizza' })
+    socket.receive({
+      type: 'TurnInfo',
+      event: 'EndOfTurn',
+      transcript: 'I want pizza',
+    })
     socket.receive({ type: 'Error', description: 'bad audio' })
     socket.serverClose(1011, 'internal')
     await session.close()
@@ -83,9 +91,8 @@ describe('deepgramLiveTranscription', () => {
       { type: 'final', text: 'I want pizza' },
       { type: 'turn-end' },
     ])
-    expect(events.slice(4).map((e) => e.type === 'error' && e.error.message)).toEqual([
-      'bad audio',
-      'Connection closed with code 1011: internal.',
-    ])
+    expect(
+      events.slice(4).map((e) => e.type === 'error' && e.error.message),
+    ).toEqual(['bad audio', 'Connection closed with code 1011: internal.'])
   })
 })

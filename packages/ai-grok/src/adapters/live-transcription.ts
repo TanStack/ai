@@ -55,7 +55,9 @@ interface GrokSttMessage {
  * })
  * ```
  */
-export function grokLiveTranscription<TModel extends GrokLiveTranscriptionModel>(
+export function grokLiveTranscription<
+  TModel extends GrokLiveTranscriptionModel,
+>(
   model: TModel,
   config: GrokLiveTranscriptionConfig = {},
 ): LiveTranscriptionAdapter<TModel, GrokLiveTranscriptionProviderOptions> {
