@@ -178,6 +178,27 @@ console.log(result.text);
 
 For speaker labels, use `gpt-4o-transcribe-diarize`. See [Speaker diarization](./openai-advanced#speaker-diarization).
 
+
+## Live transcription
+
+`openaiLiveTranscription` streams speech-to-text for [`transcriptionSession()`](../media/live-transcription). Send audio as it arrives, for example from a phone call:
+
+```typescript
+import { transcriptionSession } from '@tanstack/ai'
+import { openaiLiveTranscription } from '@tanstack/ai-openai'
+
+const session = await transcriptionSession({
+  adapter: openaiLiveTranscription('gpt-transcribe'),
+  audio: { encoding: 'mulaw', sampleRate: 8000 },
+})
+
+for await (const event of session) {
+  if (event.type === 'final') console.log(event.text)
+}
+```
+
+It takes 24 kHz PCM, μ-law, and A-law. `gpt-transcribe` sends a `turn-end` when the speaker pauses. `gpt-live-transcribe` streams text with lower delay and has no `turn-end`.
+
 ## Embeddings
 
 ```typescript

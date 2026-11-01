@@ -85,6 +85,15 @@ export {
   grokTranscription,
   type GrokTranscriptionConfig,
 } from './adapters/transcription'
+
+// Live transcription (streaming speech-to-text) adapter
+export {
+  grokLiveTranscription,
+  GROK_LIVE_TRANSCRIPTION_MODELS,
+  type GrokLiveTranscriptionModel,
+  type GrokLiveTranscriptionConfig,
+  type GrokLiveTranscriptionProviderOptions,
+} from './adapters/live-transcription'
 export type {
   GrokTranscriptionProviderOptions,
   GrokSTTAudioFormat,

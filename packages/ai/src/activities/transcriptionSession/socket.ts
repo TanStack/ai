@@ -17,9 +17,14 @@ export interface LiveSocketOptions {
     LiveTranscriptionConnectOptions,
     'emit' | 'end' | 'abortSignal'
   >
-  /** Runs once the socket is open, before `openLiveSocket` resolves. */
+  /** Runs once the socket is open. Send setup messages here. */
   onOpen?: (socket: LiveSocket) => void
-  /** Each JSON text frame. Frames that are not JSON are skipped. */
+  /**
+   * Resolve only once a message matches, for providers that must confirm
+   * setup before they take audio. Without it, resolve when the socket opens.
+   */
+  readyWhen?: (message: unknown) => boolean
+  /** Each JSON frame, text or binary. Frames that are not JSON are skipped. */
   onMessage: (message: unknown, socket: LiveSocket) => void
 }
 
@@ -48,6 +53,8 @@ export function bytesToBase64(bytes: Uint8Array): string {
   )
 }
 
+const decoder = new TextDecoder()
+
 /**
  * Open a provider WebSocket for a live transcription adapter. It reports
  * unexpected closes as `error` events, calls `end()` once on close, and closes
@@ -64,7 +71,7 @@ export function openLiveSocket(options: LiveSocketOptions): Promise<LiveSocket> 
   const ws = new Ctor(options.url, options.protocols)
   ws.binaryType = 'arraybuffer'
   let closing = false
-  let opened = false
+  let ready = false
   let resolveClosed!: () => void
   const closed = new Promise<void>((r) => (resolveClosed = r))
 
@@ -97,25 +104,36 @@ export function openLiveSocket(options: LiveSocketOptions): Promise<LiveSocket> 
   abortSignal?.addEventListener('abort', onAbort, { once: true })
 
   return new Promise((resolve, reject) => {
-    ws.addEventListener('open', () => {
-      opened = true
-      options.onOpen?.(live)
+    const markReady = () => {
+      ready = true
       resolve(live)
+    }
+    ws.addEventListener('open', () => {
+      options.onOpen?.(live)
+      if (!options.readyWhen) markReady()
     })
     ws.addEventListener('message', (event: MessageEvent) => {
-      if (typeof event.data !== 'string') return
+      // Some providers (Gemini Live) send JSON in binary frames.
+      const text =
+        typeof event.data === 'string'
+          ? event.data
+          : event.data instanceof ArrayBuffer
+            ? decoder.decode(event.data)
+            : undefined
+      if (text === undefined) return
       let message: unknown
       try {
-        message = JSON.parse(event.data)
+        message = JSON.parse(text)
       } catch {
         return
       }
+      if (!ready && options.readyWhen?.(message)) markReady()
       options.onMessage(message, live)
     })
     ws.addEventListener('close', (event: CloseEvent) => {
       abortSignal?.removeEventListener('abort', onAbort)
       const clean = event.code === 1000 || event.code === 1005
-      if (!opened) {
+      if (!ready) {
         reject(
           new Error(
             `Could not connect to ${new URL(options.url).host} (code ${event.code}${event.reason ? `: ${event.reason}` : ''}).`,

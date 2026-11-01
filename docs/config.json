@@ -13,7 +13,7 @@
           "label": "Overview",
           "to": "getting-started/overview",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-10-22"
+          "updatedAt": "2026-11-02"
         },
         {
           "label": "Quick Start",
@@ -896,12 +896,22 @@
           "label": "Transcription",
           "to": "media/transcription",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-10-22"
+          "updatedAt": "2026-11-02"
         },
         {
           "label": "Transcription: Advanced",
           "to": "media/transcription-advanced",
           "addedAt": "2026-10-21"
+        },
+        {
+          "label": "Live Transcription",
+          "to": "media/live-transcription",
+          "addedAt": "2026-11-02"
+        },
+        {
+          "label": "Live Transcription: Advanced",
+          "to": "media/live-transcription-advanced",
+          "addedAt": "2026-11-02"
         },
         {
           "label": "Voice Creation",
@@ -1681,7 +1691,7 @@
           "label": "OpenAI",
           "to": "adapters/openai",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-10-22"
+          "updatedAt": "2026-11-02"
         },
         {
           "label": "OpenAI: Advanced",
@@ -1705,7 +1715,7 @@
           "label": "Google Gemini",
           "to": "adapters/gemini",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-10-22"
+          "updatedAt": "2026-11-02"
         },
         {
           "label": "Google Gemini: Advanced",
@@ -1729,7 +1739,7 @@
           "label": "Grok (xAI)",
           "to": "adapters/grok",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-10-22"
+          "updatedAt": "2026-11-02"
         },
         {
           "label": "Groq",
@@ -1762,10 +1772,15 @@
           "updatedAt": "2026-10-22"
         },
         {
+          "label": "Deepgram",
+          "to": "adapters/deepgram",
+          "addedAt": "2026-11-02"
+        },
+        {
           "label": "ElevenLabs",
           "to": "adapters/elevenlabs",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-10-22"
+          "updatedAt": "2026-11-02"
         },
         {
           "label": "fal.ai",

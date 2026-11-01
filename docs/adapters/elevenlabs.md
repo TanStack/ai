@@ -213,6 +213,27 @@ console.log(result.text);
 
 See [Transcription](../media/transcription).
 
+
+## Live transcription
+
+`elevenlabsLiveTranscription` streams speech-to-text for [`transcriptionSession()`](../media/live-transcription). Send audio as it arrives, for example from a phone call:
+
+```typescript
+import { transcriptionSession } from '@tanstack/ai'
+import { elevenlabsLiveTranscription } from '@tanstack/ai-elevenlabs'
+
+const session = await transcriptionSession({
+  adapter: elevenlabsLiveTranscription('scribe_v2_realtime'),
+  audio: { encoding: 'mulaw', sampleRate: 8000 },
+})
+
+for await (const event of session) {
+  if (event.type === 'final') console.log(event.text)
+}
+```
+
+Scribe realtime takes PCM at 8 to 48 kHz and μ-law at 8 kHz. It commits text when the speaker pauses, and each commit is a `turn-end`.
+
 ## Voice design
 
 `elevenlabsVoiceDesign` makes a new voice from a description. Use the voice id that it returns in `generateSpeech()`:

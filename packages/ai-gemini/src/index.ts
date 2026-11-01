@@ -188,3 +188,12 @@ export type {
   GeminiRealtimeTokenOptions,
   GeminiRealtimeVoice,
 } from './realtime/index'
+
+// Live transcription (streaming speech-to-text) adapter
+export {
+  geminiLiveTranscription,
+  GEMINI_LIVE_TRANSCRIPTION_MODELS,
+  type GeminiLiveTranscriptionModel,
+  type GeminiLiveTranscriptionConfig,
+  type GeminiLiveTranscriptionProviderOptions,
+} from './adapters/live-transcription'

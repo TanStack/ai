@@ -190,6 +190,27 @@ console.log(result.audio); // Base64 encoded audio
 
 For a dialogue with two voices, see [Speech with two speakers](./gemini-advanced#speech-with-two-speakers).
 
+
+## Live transcription
+
+`geminiLiveTranscription` streams speech-to-text for [`transcriptionSession()`](../media/live-transcription). Send audio as it arrives, for example from a phone call:
+
+```typescript
+import { transcriptionSession } from '@tanstack/ai'
+import { geminiLiveTranscription } from '@tanstack/ai-gemini'
+
+const session = await transcriptionSession({
+  adapter: geminiLiveTranscription('gemini-3.5-transcribe-live'),
+  audio: { encoding: 'mulaw', sampleRate: 8000 },
+})
+
+for await (const event of session) {
+  if (event.type === 'final') console.log(event.text)
+}
+```
+
+It takes 16 kHz PCM, so the session converts phone audio for you. A session lasts up to 10 minutes.
+
 ## Embeddings
 
 ```typescript

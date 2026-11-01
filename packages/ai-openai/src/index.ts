@@ -82,6 +82,15 @@ export {
   openaiTranscription,
   type OpenAITranscriptionConfig,
 } from './adapters/transcription'
+
+// Live transcription (streaming speech-to-text) adapter
+export {
+  openaiLiveTranscription,
+  OPENAI_LIVE_TRANSCRIPTION_MODELS,
+  type OpenAILiveTranscriptionModel,
+  type OpenAILiveTranscriptionConfig,
+  type OpenAILiveTranscriptionProviderOptions,
+} from './adapters/live-transcription'
 export type { OpenAITranscriptionProviderOptions } from './audio/transcription-provider-options'
 
 // Embedding adapter - for embedding vectors
