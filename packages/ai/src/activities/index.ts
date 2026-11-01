@@ -27,7 +27,30 @@ import type { AnyRerankAdapter } from './rerank/adapter'
 import type { AnyEvaluateAdapter } from './evaluate/adapter'
 import type { AnyWorldAdapter } from './generateWorld/adapter'
 import type { AnyLiveVideoAdapter } from './generateLiveVideo/adapter'
+
+// ===========================
+// Live Transcription Session Activity
+// ===========================
+
+export {
+  kind as liveTranscriptionKind,
+  transcriptionSession,
+  createAudioConverter,
+  pickAudioFormat,
+  type TranscriptionSession,
+  type TranscriptionSessionOptions,
+  type LiveTranscriptionProviderOptions,
+  type LiveAudioEncoding,
+  type LiveAudioFormat,
+  type LiveAudioInput,
+  type LiveTranscriptionAdapter,
+  type LiveTranscriptionConnectOptions,
+  type LiveTranscriptionConnection,
+  type LiveTranscriptionEvent,
+  type AnyLiveTranscriptionAdapter,
+} from './transcriptionSession/index'
 import type { AnyFilesAdapter } from './files/adapter'
+import type { AnyLiveTranscriptionAdapter } from './transcriptionSession/adapter'
 
 // ===========================
 // Chat Activity
@@ -385,6 +408,7 @@ export type AIAdapter =
   | AnyEvaluateAdapter
   | AnyWorldAdapter
   | AnyLiveVideoAdapter
+  | AnyLiveTranscriptionAdapter
   | AnyFilesAdapter
 
 /** Union type of all adapter kinds */
@@ -402,4 +426,5 @@ export type AdapterKind =
   | 'evaluate'
   | 'world'
   | 'liveVideo'
+  | 'liveTranscription'
   | 'files'

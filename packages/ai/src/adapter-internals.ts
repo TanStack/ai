@@ -91,3 +91,12 @@ export type {
   ReplayMessages,
   ReplayToolIdRule,
 } from './utilities/replay-messages'
+export {
+  openLiveSocket,
+  bytesToBase64,
+} from './activities/transcriptionSession/socket'
+export type {
+  LiveSocket,
+  LiveSocketOptions,
+  WebSocketConstructor,
+} from './activities/transcriptionSession/socket'
