@@ -54,13 +54,10 @@ describe('handleTextMessageContentEvent', () => {
   it.each([
     ['cumulative content snapshots', true],
     ['plain deltas', false],
-  ])(
-    'joins a long answer of small %s',
-    async (_label, withContent) => {
-      const content = await assistantContent(longAnswer(withContent))
-      expect(content).toBe(PIECE.repeat(COUNT))
-    },
-  )
+  ])('joins a long answer of small %s', async (_label, withContent) => {
+    const content = await assistantContent(longAnswer(withContent))
+    expect(content).toBe(PIECE.repeat(COUNT))
+  })
 
   it('keeps a cumulative snapshot that rewrites earlier text', async () => {
     const content = await assistantContent(
