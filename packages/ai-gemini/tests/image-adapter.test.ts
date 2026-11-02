@@ -909,5 +909,41 @@ describe('Gemini Image Adapter', () => {
         }),
       ).rejects.toThrow(/audio prompt parts/)
     })
+
+    it('attaches usage to the error when the interaction fails or has no image', async () => {
+      const usage = {
+        total_input_tokens: 12,
+        total_output_tokens: 34,
+        total_tokens: 46,
+      }
+      for (const interaction of [
+        { id: 'int_failed', status: 'failed', usage },
+        {
+          id: 'int_empty',
+          status: 'completed',
+          steps: [{ type: 'model_output', content: [] }],
+          usage,
+        },
+      ]) {
+        const adapter = createGeminiImage(
+          'gemini-3.1-flash-image',
+          'test-api-key',
+        )
+        stubCreate(adapter, vi.fn().mockResolvedValueOnce(interaction))
+
+        const error = await adapter
+          .generateImages({
+            model: 'gemini-3.1-flash-image',
+            prompt: 'A red circle',
+            logger: testLogger,
+          })
+          .catch((e: unknown) => e)
+
+        expect(error).toBeInstanceOf(Error)
+        expect(error).toMatchObject({
+          usage: { promptTokens: 12, completionTokens: 34, totalTokens: 46 },
+        })
+      }
+    })
   })
 })

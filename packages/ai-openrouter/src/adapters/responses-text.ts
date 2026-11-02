@@ -49,6 +49,7 @@ import type {
   ReasoningEffort,
   ResponsesRequest,
   StreamEvents,
+  Usage,
 } from '@openrouter/sdk/models'
 import type {
   StructuredOutputOptions,
@@ -61,9 +62,11 @@ import type {
   ModelMessage,
   AdapterYieldChunk,
   TextOptions,
+  TokenUsage,
   ToolChoice,
 } from '@tanstack/ai'
 import type { ExternalResponsesProviderOptions } from '../text/responses-provider-options'
+import type { OpenRouterProviderUsageDetails } from '../usage'
 import type {
   OPENROUTER_CHAT_MODELS,
   OpenRouterChatModelToolCapabilitiesByName,
@@ -319,10 +322,24 @@ export class OpenRouterResponsesTextAdapter<
         },
       )
 
+      // Responses API reports usage as inputTokens/outputTokens. A failure
+      // below still carries it: core reads `error.usage`.
+      const usage = buildResponsesUsage(response.usage)
+      const fail = (message: string) =>
+        Object.assign(new Error(message), usage && { usage })
+
+      // A cut-off response is a truncated JSON document. Report the cutoff
+      // instead of the parse error it would cause.
+      if (response.status === 'incomplete') {
+        throw fail(
+          `${this.name}.structuredOutput: the response ended incomplete (${response.incompleteDetails?.reason ?? 'unknown reason'})`,
+        )
+      }
+
       const rawText = this.extractTextFromResponse(response)
 
       if (rawText.length === 0) {
-        throw new Error(
+        throw fail(
           `${this.name}.structuredOutput: response contained no content`,
         )
       }
@@ -331,7 +348,7 @@ export class OpenRouterResponsesTextAdapter<
       try {
         parsed = JSON.parse(rawText)
       } catch {
-        throw new Error(
+        throw fail(
           `Failed to parse structured output as JSON. Content: ${rawText.slice(0, 200)}${rawText.length > 200 ? '...' : ''}`,
         )
       }
@@ -339,33 +356,12 @@ export class OpenRouterResponsesTextAdapter<
       // OpenRouter override: pass nulls through unchanged.
       const transformed = this.transformStructuredOutput(parsed)
 
-      // Responses API reports usage as inputTokens/outputTokens (not the
-      // chat-completions promptTokens/completionTokens shape). Map to
-      // TokenUsage and attach OpenRouter cost when present — same contract
-      // as structuredOutputStream / processStreamChunks. Cost-only usage
-      // (finite cost, no token fields) still forwards with zeroed tokens.
-      const usage = response.usage
-      const cost = extractUsageCost(usage)
-      const hasUsage =
-        usage != null &&
-        (usage.inputTokens != null ||
-          usage.outputTokens != null ||
-          usage.totalTokens != null ||
-          cost.cost !== undefined)
       return {
         data: transformed,
         rawText,
         ...(response.id && { responseId: response.id }),
         ...(response.model && { model: response.model }),
-        ...(hasUsage && {
-          usage: {
-            promptTokens: usage.inputTokens ?? 0,
-            completionTokens: usage.outputTokens ?? 0,
-            totalTokens: usage.totalTokens ?? 0,
-            ...cachedTokensDetails(usage),
-            ...cost,
-          },
-        }),
+        ...(usage && { usage }),
       }
     } catch (error: unknown) {
       chatOptions.logger.errors(`${this.name}.structuredOutput fatal`, {
@@ -436,14 +432,7 @@ export class OpenRouterResponsesTextAdapter<
     let model: string = chatOptions.model
     let responseId: string | undefined
     let reportedModel: string | undefined
-    let usage:
-      | {
-          inputTokens?: number
-          inputTokensDetails?: { cachedTokens?: number }
-          outputTokens?: number
-          totalTokens?: number
-        }
-      | undefined
+    let usage: TokenUsage<OpenRouterProviderUsageDetails> | undefined
     let responseCompleted = false
 
     const closeReasoning = function* (this: {
@@ -621,7 +610,7 @@ export class OpenRouterResponsesTextAdapter<
         if (chunk.type === 'response.completed') {
           responseCompleted = true
           if (chunk.response?.model) model = chunk.response.model
-          if (chunk.response?.usage) usage = chunk.response.usage
+          usage = buildResponsesUsage(chunk.response?.usage)
           // Terminal event: do not wait for the HTTP body to close (#1445).
           break
         }
@@ -640,8 +629,10 @@ export class OpenRouterResponsesTextAdapter<
             normalizeCode(chunk.response?.error?.code) ??
             (chunk.response?.incompleteDetails ? 'incomplete' : undefined)
           const rawError = chunk.response?.error
+          usage = buildResponsesUsage(chunk.response?.usage)
           yield {
             type: EventType.RUN_ERROR,
+            ...(usage && { usage }),
             runId: aguiState.runId,
             model,
             timestamp: Date.now(),
@@ -705,6 +696,7 @@ export class OpenRouterResponsesTextAdapter<
       if (accumulatedContent.length === 0) {
         yield {
           type: EventType.RUN_ERROR,
+          ...(usage && { usage }),
           runId: aguiState.runId,
           model,
           timestamp: Date.now(),
@@ -724,6 +716,7 @@ export class OpenRouterResponsesTextAdapter<
       } catch {
         yield {
           type: EventType.RUN_ERROR,
+          ...(usage && { usage }),
           runId: aguiState.runId,
           model,
           timestamp: Date.now(),
@@ -765,15 +758,7 @@ export class OpenRouterResponsesTextAdapter<
         model,
         timestamp: Date.now(),
         finishReason: 'stop',
-        ...(usage && {
-          usage: {
-            promptTokens: usage.inputTokens ?? 0,
-            completionTokens: usage.outputTokens ?? 0,
-            totalTokens: usage.totalTokens ?? 0,
-            ...cachedTokensDetails(usage),
-            ...extractUsageCost(usage),
-          },
-        }),
+        ...(usage && { usage }),
       }
     } catch (error: unknown) {
       if (!aguiState.hasEmittedRunStarted) {
@@ -807,6 +792,7 @@ export class OpenRouterResponsesTextAdapter<
       const rawEvent = isAbort ? undefined : toRunErrorRawEvent(error)
       yield {
         type: EventType.RUN_ERROR,
+        ...(usage && { usage }),
         runId: aguiState.runId,
         model,
         timestamp: Date.now(),
@@ -1120,8 +1106,10 @@ export class OpenRouterResponsesTextAdapter<
             (chunk.response?.incompleteDetails ? 'incomplete' : undefined) ??
             undefined
           const rawError = chunk.response?.error
+          const usage = buildResponsesUsage(chunk.response?.usage)
           yield {
             type: EventType.RUN_ERROR,
+            ...(usage && { usage }),
             model,
             timestamp: Date.now(),
             message: errorMessage,
@@ -1671,6 +1659,7 @@ export class OpenRouterResponsesTextAdapter<
                 ? 'content_filter'
                 : 'stop'
 
+          const usage = buildResponsesUsage(responseObj.usage)
           yield {
             type: EventType.RUN_FINISHED,
             ...(responseId && { responseId }),
@@ -1684,13 +1673,7 @@ export class OpenRouterResponsesTextAdapter<
             threadId: aguiState.threadId,
             model: model || options.model,
             timestamp: Date.now(),
-            usage: {
-              promptTokens: responseObj.usage?.inputTokens || 0,
-              completionTokens: responseObj.usage?.outputTokens || 0,
-              totalTokens: responseObj.usage?.totalTokens || 0,
-              ...cachedTokensDetails(responseObj.usage),
-              ...extractUsageCost(responseObj.usage),
-            },
+            ...(usage && { usage }),
             finishReason,
           }
           runFinishedEmitted = true
@@ -2404,6 +2387,13 @@ function camelCaseResponseShape(
             cachedTokens: u.input_tokens_details.cached_tokens,
           },
         }),
+      ...(isRecord(u.output_tokens_details) &&
+        typeof u.output_tokens_details.reasoning_tokens === 'number' && {
+          outputTokensDetails: {
+            reasoningTokens: u.output_tokens_details.reasoning_tokens,
+          },
+        }),
+      ...(typeof u.is_byok === 'boolean' && { isByok: u.is_byok }),
     }
   }
   if (Array.isArray(src.output)) {
@@ -2428,12 +2418,40 @@ function camelCaseOutputItem(
   return out
 }
 
-/** `promptTokensDetails` with the cached input tokens, when there are any. */
-function cachedTokensDetails(
-  usage: { inputTokensDetails?: { cachedTokens?: number } } | null | undefined,
-) {
-  const cachedTokens = usage?.inputTokensDetails?.cachedTokens
-  return cachedTokens ? { promptTokensDetails: { cachedTokens } } : {}
+/**
+ * TanStack usage from a Responses `usage` object: tokens, cached and
+ * reasoning tokens, BYOK, and OpenRouter cost. `undefined` when the
+ * provider sent no token counts and no cost, so callers omit the field.
+ * Cost-only usage still forwards with zeroed tokens.
+ */
+function buildResponsesUsage(
+  usage: Partial<Usage> | null | undefined,
+): TokenUsage<OpenRouterProviderUsageDetails> | undefined {
+  if (usage == null) return undefined
+  const cost = extractUsageCost(usage)
+  if (
+    usage.inputTokens == null &&
+    usage.outputTokens == null &&
+    usage.totalTokens == null &&
+    cost.cost === undefined
+  ) {
+    return undefined
+  }
+  const cachedTokens = usage.inputTokensDetails?.cachedTokens
+  const reasoningTokens = usage.outputTokensDetails?.reasoningTokens
+  return {
+    promptTokens: usage.inputTokens ?? 0,
+    completionTokens: usage.outputTokens ?? 0,
+    totalTokens: usage.totalTokens ?? 0,
+    ...(cachedTokens ? { promptTokensDetails: { cachedTokens } } : {}),
+    ...(reasoningTokens != null && {
+      completionTokensDetails: { reasoningTokens },
+    }),
+    ...(usage.isByok != null && {
+      providerUsageDetails: { isByok: usage.isByok },
+    }),
+    ...cost,
+  }
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

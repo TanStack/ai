@@ -82,6 +82,16 @@ function finishChunk() {
   }
 }
 
+/** Usage-only tail chunk (OpenAI include_usage). */
+function usageOnlyChunk() {
+  return {
+    id: 'chatcmpl-1',
+    model: 'test-model',
+    choices: [],
+    usage: { prompt_tokens: 10, completion_tokens: 20, total_tokens: 30 },
+  }
+}
+
 const personSchema: JSONSchema = {
   type: 'object',
   properties: {
@@ -439,6 +449,63 @@ describe('OpenAIBaseChatCompletionsTextAdapter.structuredOutputStream', () => {
         | undefined
       expect(runError).toBeDefined()
       expect(runError!.code).toBe('parse-error')
+    })
+    it.each([
+      ['max_tokens', [deltaChunk('{"name":"A', 'length'), usageOnlyChunk()]],
+      ['empty-response', [finishChunk()]],
+      ['parse-error', [deltaChunk('{not valid json'), finishChunk()]],
+    ])(
+      'keeps received usage on the RUN_ERROR { code: "%s" }',
+      async (code, streamChunks) => {
+        setupStreamingMock(streamChunks)
+        const adapter = new TestAdapter()
+
+        const chunks = await collect(
+          adapter.structuredOutputStream!({
+            chatOptions: {
+              threadId: 'thread-1',
+              model: 'test-model',
+              messages: [{ role: 'user', content: 'extract' }],
+              logger: testLogger,
+            },
+            outputSchema: personSchema,
+          }),
+        )
+
+        expect(chunks.at(-1)).toMatchObject({
+          type: 'RUN_ERROR',
+          code,
+          usage: { promptTokens: 10, completionTokens: 20, totalTokens: 30 },
+        })
+      },
+    )
+
+    it('keeps received usage on the RUN_ERROR when the stream throws', async () => {
+      mockCreate = vi.fn().mockResolvedValue({
+        async *[Symbol.asyncIterator]() {
+          yield finishChunk()
+          throw new Error('Stream interrupted')
+        },
+      })
+      const adapter = new TestAdapter()
+
+      const chunks = await collect(
+        adapter.structuredOutputStream!({
+          chatOptions: {
+            threadId: 'thread-1',
+            model: 'test-model',
+            messages: [{ role: 'user', content: 'extract' }],
+            logger: testLogger,
+          },
+          outputSchema: personSchema,
+        }),
+      )
+
+      expect(chunks.at(-1)).toMatchObject({
+        type: 'RUN_ERROR',
+        message: 'Stream interrupted',
+        usage: { promptTokens: 10, completionTokens: 20, totalTokens: 30 },
+      })
     })
   })
 

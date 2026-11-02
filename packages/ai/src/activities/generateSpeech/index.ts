@@ -8,6 +8,7 @@
 import { aiEventClient } from '@tanstack/ai-event-client'
 import { streamGenerationResult } from '../stream-generation-result.js'
 import { resolveDebugOption } from '../../logger/resolve'
+import { readErrorUsage } from '../../utilities/ag-ui-usage'
 import {
   applyGenerationResultTransforms,
   createGenerationContext,
@@ -399,6 +400,18 @@ async function runGenerateSpeech<
       modelOptions: rest.modelOptions as Record<string, unknown> | undefined,
       timestamp: Date.now(),
     })
+    // The provider can bill a call that then fails (no audio came back).
+    const usage = readErrorUsage(error)
+    if (usage) {
+      aiEventClient.emit('speech:usage', {
+        requestId,
+        model,
+        usage,
+        modelOptions: rest.modelOptions as Record<string, unknown> | undefined,
+        timestamp: Date.now(),
+      })
+      await runGenerationUsage(middleware, mwCtx, usage)
+    }
     if (isActivityAbortError(error, abortControls.signal)) {
       await runGenerationAbort(middleware, mwCtx, {
         reason: abortReasonMessage(error, abortControls.signal),

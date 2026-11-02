@@ -16,7 +16,7 @@ import {
 import { BaseTextAdapter } from '@tanstack/ai/adapters'
 import { convertToolsToProviderFormat } from '../tools/tool-converter'
 import { getGeminiProviderToolKind } from '../tools/gemini-provider-tool'
-import { buildGeminiUsage } from '../usage'
+import { buildGeminiInteractionsUsage, buildGeminiUsage } from '../usage'
 import { geminiThinkingConfig } from '../text/reasoning'
 import {
   createGeminiClient,
@@ -46,6 +46,7 @@ import type {
   FunctionCallingConfig,
   GenerateContentParameters,
   GenerateContentResponse,
+  GenerateContentResponseUsageMetadata,
   GoogleGenAI,
   GroundingMetadata,
   Part,
@@ -60,6 +61,7 @@ import type {
   AdapterYieldChunk,
   ProviderExecutedToolSource,
   TextOptions,
+  TokenUsage,
   ToolChoice,
 } from '@tanstack/ai'
 import type { ExternalTextProviderOptions } from '../text/text-provider-options'
@@ -490,6 +492,7 @@ export class GeminiTextAdapter<
 
     const mappedOptions = this.mapCommonOptionsToGemini(options)
     const { logger } = options
+    const seen: StreamUsageSeen = {}
 
     try {
       logger.request(
@@ -499,10 +502,14 @@ export class GeminiTextAdapter<
       const result =
         await this.client.models.generateContentStream(mappedOptions)
 
-      yield* this.processStreamChunks(result, options, logger)
+      yield* this.processStreamChunks(result, options, logger, seen)
     } catch (error) {
       const overflow = isGeminiContextOverflow(error)
       const rawEvent = toRunErrorRawEvent(error)
+      // A RUN_FINISHED that was already sent reported this usage.
+      const usage = seen.reported
+        ? undefined
+        : buildGeminiUsage(seen.usageMetadata)
       logger.errors('gemini.chatStream fatal', {
         error,
         source: 'gemini.chatStream',
@@ -519,6 +526,7 @@ export class GeminiTextAdapter<
         // Forward the provider's structured error body when present (see
         // toRunErrorRawEvent); omitted otherwise.
         ...(rawEvent !== undefined && { rawEvent }),
+        ...(usage && { usage }),
         error: {
           message:
             error instanceof Error
@@ -579,6 +587,7 @@ export class GeminiTextAdapter<
       })
 
       const text = interaction.output_text ?? ''
+      const usage = buildGeminiInteractionsUsage(interaction.usage)
       const responseMetadata = {
         tanstack: {
           ...(interaction.id && { responseId: interaction.id }),
@@ -626,6 +635,7 @@ export class GeminiTextAdapter<
         model,
         timestamp: Date.now(),
         finishReason: 'stop',
+        ...(usage && { usage }),
       }
     } catch (error) {
       const overflow = isGeminiContextOverflow(error)
@@ -667,6 +677,7 @@ export class GeminiTextAdapter<
     const { logger } = chatOptions
 
     const mappedOptions = this.mapCommonOptionsToGemini(chatOptions)
+    let usage: TokenUsage | undefined
 
     try {
       logger.request(
@@ -682,6 +693,7 @@ export class GeminiTextAdapter<
           responseSchema: outputSchema,
         },
       })
+      usage = buildGeminiUsage(result.usageMetadata)
 
       // A response cut off at the output cap is a truncated JSON document;
       // report it before the parse error (issue #1426).
@@ -707,19 +719,21 @@ export class GeminiTextAdapter<
         rawText,
         ...(result.responseId && { responseId: result.responseId }),
         ...(result.modelVersion && { model: result.modelVersion }),
-        usage: result.usageMetadata
-          ? buildGeminiUsage(result.usageMetadata)
-          : undefined,
+        usage,
       }
     } catch (error) {
       logger.errors('gemini.structuredOutput fatal', {
         error,
         source: 'gemini.structuredOutput',
       })
-      throw new Error(
-        error instanceof Error
-          ? error.message
-          : 'An unknown error occurred during structured output generation.',
+      // The provider already billed the tokens, so the caller still gets them.
+      throw Object.assign(
+        new Error(
+          error instanceof Error
+            ? error.message
+            : 'An unknown error occurred during structured output generation.',
+        ),
+        usage && { usage },
       )
     }
   }
@@ -752,6 +766,7 @@ export class GeminiTextAdapter<
       runId: requestedChatOptions.runId ?? generateId(this.name),
     }
     const mappedOptions = this.mapCommonOptionsToGemini(chatOptions)
+    const seen: StreamUsageSeen = {}
 
     try {
       chatOptions.logger.request(
@@ -776,6 +791,7 @@ export class GeminiTextAdapter<
         result,
         chatOptions,
         chatOptions.logger,
+        seen,
       )) {
         if (chunk.type === EventType.TEXT_MESSAGE_CONTENT) {
           rawText += chunk.delta
@@ -794,6 +810,7 @@ export class GeminiTextAdapter<
           chatOptions,
           'Gemini structured-output stream ended without a terminal event',
           'truncated-stream',
+          buildGeminiUsage(seen.usageMetadata),
         )
         return
       }
@@ -802,6 +819,7 @@ export class GeminiTextAdapter<
           chatOptions,
           'Gemini structured-output stream contained no content',
           'empty-response',
+          finished.usage,
         )
         return
       }
@@ -814,6 +832,7 @@ export class GeminiTextAdapter<
           chatOptions,
           jsonContentParseError(rawText, 'Gemini structured-output stream'),
           'parse-error',
+          finished.usage,
         )
         return
       }
@@ -837,7 +856,12 @@ export class GeminiTextAdapter<
         source: 'gemini.structuredOutputStream',
       })
       yield {
-        ...structuredStreamError(chatOptions, message, 'provider-error'),
+        ...structuredStreamError(
+          chatOptions,
+          message,
+          'provider-error',
+          buildGeminiUsage(seen.usageMetadata),
+        ),
         ...(rawEvent !== undefined && { rawEvent }),
       }
     }
@@ -864,9 +888,12 @@ export class GeminiTextAdapter<
     result: AsyncGenerator<GenerateContentResponse, unknown, unknown>,
     options: TextOptions<GeminiTextProviderOptions>,
     logger: InternalLogger,
+    seen: StreamUsageSeen = {},
   ): AsyncIterable<AdapterYieldChunk> {
     const model = options.model
     let responseId: string | undefined
+    let blockReason: string | undefined
+    let sawFinishReason = false
     let reportedModel: string | undefined
     let accumulatedContent = ''
     const toolCallMap = new Map<
@@ -963,6 +990,11 @@ export class GeminiTextAdapter<
     for await (const chunk of result) {
       if (chunk.responseId) responseId = chunk.responseId
       if (chunk.modelVersion) reportedModel = chunk.modelVersion
+      // usageMetadata is cumulative, so the last one is the billed total.
+      if (chunk.usageMetadata) seen.usageMetadata = chunk.usageMetadata
+      if (chunk.promptFeedback?.blockReason) {
+        blockReason = chunk.promptFeedback.blockReason
+      }
       logger.provider(`provider=gemini`, { chunk })
       // Emit RUN_STARTED on first chunk
       if (!hasEmittedRunStarted) {
@@ -1180,6 +1212,7 @@ export class GeminiTextAdapter<
       }
 
       if (chunk.candidates?.[0]?.finishReason) {
+        sawFinishReason = true
         yield* emitGroundingToolCall()
         const finishReason = chunk.candidates[0].finishReason
 
@@ -1213,23 +1246,6 @@ export class GeminiTextAdapter<
           hasEmittedTextMessageStart = false
         }
 
-        if (finishReason === FinishReason.MAX_TOKENS) {
-          yield {
-            type: EventType.RUN_ERROR,
-            runId,
-            model,
-            timestamp: Date.now(),
-            message:
-              'The response was cut off because the maximum token limit was reached.',
-            code: 'max_tokens',
-            error: {
-              message:
-                'The response was cut off because the maximum token limit was reached.',
-              code: 'max_tokens',
-            },
-          }
-        }
-
         // Close reasoning events if still open
         if (reasoningMessageId && !hasClosedReasoning) {
           hasClosedReasoning = true
@@ -1257,6 +1273,32 @@ export class GeminiTextAdapter<
           }
         }
 
+        if (finishReason === FinishReason.MAX_TOKENS) {
+          // RUN_ERROR ends the run (as in the Anthropic adapter), so it
+          // carries the usage and no RUN_FINISHED follows.
+          const usage = buildGeminiUsage(seen.usageMetadata)
+          seen.reported = true
+          yield {
+            type: EventType.RUN_ERROR,
+            runId,
+            model,
+            timestamp: Date.now(),
+            message:
+              'The response was cut off because the maximum token limit was reached.',
+            code: 'max_tokens',
+            error: {
+              message:
+                'The response was cut off because the maximum token limit was reached.',
+              code: 'max_tokens',
+            },
+            ...(usage && { usage }),
+          }
+          continue
+        }
+
+        // The last usageMetadata seen, in case the finish chunk has none.
+        const usage = buildGeminiUsage(seen.usageMetadata)
+        seen.reported = true
         yield {
           type: EventType.RUN_FINISHED,
           metadata: {
@@ -1270,17 +1312,28 @@ export class GeminiTextAdapter<
           model,
           timestamp: Date.now(),
           finishReason: toolCallMap.size > 0 ? 'tool_calls' : 'stop',
-          // RunFinishedEvent.usage is `usage?: {...}` (no `| undefined`) under
-          // exactOptionalPropertyTypes; only include it when usageMetadata is
-          // present rather than assigning an explicit `undefined`.
-          ...(chunk.usageMetadata && {
-            usage: buildGeminiUsage(chunk.usageMetadata),
-          }),
+          ...(usage && { usage }),
         }
       }
     }
 
     yield* emitGroundingToolCall()
+
+    // A blocked prompt gets no candidates, so no finishReason ends the run.
+    if (blockReason && !sawFinishReason) {
+      const message = `Gemini blocked the prompt (blockReason=${blockReason}).`
+      const usage = buildGeminiUsage(seen.usageMetadata)
+      yield {
+        type: EventType.RUN_ERROR,
+        runId,
+        model,
+        timestamp: Date.now(),
+        message,
+        code: blockReason,
+        error: { message, code: blockReason },
+        ...(usage && { usage }),
+      }
+    }
   }
 
   private convertContentPartToGemini(part: ContentPart): Part {
@@ -1749,10 +1802,21 @@ function jsonContentParseError(rawText: string, label: string) {
   return `Failed to parse ${label} as JSON. Content: ${snippet}${ellipsis}`
 }
 
+/** The last usageMetadata a stream reported, read by the error paths. */
+interface StreamUsageSeen {
+  usageMetadata?: GenerateContentResponseUsageMetadata
+  /** A terminal event already carried the usage. */
+  reported?: boolean
+}
+
 function structuredStreamError(
   options: TextOptions<GeminiTextProviderOptions>,
   message: string,
   code: string,
+  usage?: Extract<
+    AdapterYieldChunk,
+    { type: typeof EventType.RUN_ERROR }
+  >['usage'],
 ): Extract<AdapterYieldChunk, { type: typeof EventType.RUN_ERROR }> {
   return {
     type: EventType.RUN_ERROR,
@@ -1762,6 +1826,7 @@ function structuredStreamError(
     message,
     code,
     error: { message, code },
+    ...(usage && { usage }),
   }
 }
 

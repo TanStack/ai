@@ -165,6 +165,22 @@ export class OpenAIEvaluateAdapter<
         completionTokens: decision.usage.output_tokens,
         totalTokens: decision.usage.total_tokens,
       })
+      // Only include the details the response reports (zero means none).
+      const {
+        cached_tokens: cachedTokens,
+        cache_write_tokens: cacheWriteTokens,
+      } = decision.usage.input_tokens_details
+      if (cachedTokens || cacheWriteTokens) {
+        usage.promptTokensDetails = {
+          ...(cachedTokens && { cachedTokens }),
+          ...(cacheWriteTokens && { cacheWriteTokens }),
+        }
+      }
+      const reasoningTokens =
+        decision.usage.output_tokens_details.reasoning_tokens
+      if (reasoningTokens) {
+        usage.completionTokensDetails = { reasoningTokens }
+      }
 
       if (refused.length > 0) {
         throw new EvaluateError({

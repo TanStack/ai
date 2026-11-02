@@ -72,7 +72,7 @@ describe('Gemini Embedding Adapter', () => {
         { vector: [0.3, 0.4], index: 1 },
       ])
       expect(result.model).toBe('gemini-embedding-001')
-      // The Gemini embedding API does not report token usage.
+      // The Gemini Developer API does not report embedding token usage.
       expect(result.usage).toBeUndefined()
     })
 
@@ -124,6 +124,33 @@ describe('Gemini Embedding Adapter', () => {
           },
         }),
       )
+    })
+
+    it('reports Vertex token statistics and billable characters as usage', async () => {
+      const adapter = new TestGeminiEmbeddingAdapter(
+        { apiKey: 'test' },
+        'gemini-embedding-001',
+      )
+      adapter.spyOnEmbedContent().mockResolvedValue({
+        embeddings: [
+          { values: [0.1], statistics: { tokenCount: 3 } },
+          { values: [0.2], statistics: { tokenCount: 4 } },
+        ],
+        metadata: { billableCharacterCount: 25 },
+      })
+
+      const result = await adapter.createEmbeddings({
+        model: 'gemini-embedding-001',
+        input: ['a red guitar', 'a blue drum kit'],
+        logger: testLogger,
+      })
+
+      expect(result.usage).toEqual({
+        promptTokens: 7,
+        completionTokens: 0,
+        totalTokens: 7,
+        billed: { quantity: 25, unit: 'characters' },
+      })
     })
 
     it('throws a clear error when the response has no embeddings', async () => {

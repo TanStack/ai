@@ -465,11 +465,11 @@ for await (const chunk of chat({
 
 How usage works when a call fails:
 
-- The `structuredOutputStream()` method of `openRouterText` puts the usage that it got on its last `RUN_ERROR` event. This covers parse failures, cut-off responses, empty responses, and SDK errors.
-- When `chat()` uses this path, middleware `onChunk` gets the error event, also when the promise rejects.
-- The `onUsage` hook reports successful calls. Each adapter call reports usage on one last event.
+- `openRouterText` and `openRouterResponsesText` put the usage and cost that they got on the `RUN_ERROR` event. This covers parse failures, cut-off responses, empty responses, and SDK errors.
+- The `onUsage` hook gets that usage too, so your totals include the failed calls that OpenRouter billed.
+- A failed image call throws an error with a `usage` field.
 - A reported `completionTokensDetails.reasoningTokens` value of `0` stays zero. A missing count stays missing.
-- An error before any usage arrives has no `usage` field. If the consumer stops reading the stream, it cannot get later events.
+- An error before any usage arrives has no `usage` field.
 
 ## Video generation
 

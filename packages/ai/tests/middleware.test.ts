@@ -1009,6 +1009,38 @@ describe('chat() middleware', () => {
       expect(onUsage).toHaveBeenCalledTimes(1)
       expect(onUsage.mock.calls[0]![1]).toEqual(usage)
     })
+
+    it('should call onUsage with the billed usage of a RUN_ERROR', async () => {
+      const onUsage = vi.fn()
+      const usage = {
+        promptTokens: 10,
+        completionTokens: 4096,
+        totalTokens: 4106,
+      }
+
+      const { adapter } = createMockAdapter({
+        iterations: [
+          [
+            ev.runStarted(),
+            ev.textContent('cut off'),
+            { ...ev.runError('max_tokens'), usage },
+          ],
+        ],
+      })
+
+      // A consumer that stops reading at the error still gets the usage.
+      for await (const chunk of chat({
+        threadId: 'thread-1',
+        adapter,
+        messages: [{ role: 'user', content: 'Hi' }],
+        middleware: [{ name: 'test', onUsage }],
+      }) as AsyncIterable<StreamChunk>) {
+        if (chunk.type === 'RUN_ERROR') break
+      }
+
+      expect(onUsage).toHaveBeenCalledTimes(1)
+      expect(onUsage.mock.calls[0]![1]).toEqual(usage)
+    })
   })
 
   // ==========================================================================

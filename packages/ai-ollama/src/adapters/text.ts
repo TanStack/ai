@@ -245,6 +245,7 @@ export class OllamaTextAdapter<TModel extends string> extends BaseTextAdapter<
     const { logger } = chatOptions
 
     const mappedOptions = this.mapCommonOptionsToOllama(chatOptions)
+    let usage: ReturnType<typeof buildOllamaUsage>
 
     try {
       logger.request(
@@ -257,6 +258,7 @@ export class OllamaTextAdapter<TModel extends string> extends BaseTextAdapter<
         stream: false,
         format: outputSchema,
       })
+      usage = buildOllamaUsage(response)
 
       // A response cut off at the output cap is a truncated JSON document;
       // report it before the parse error (issue #1426).
@@ -281,7 +283,7 @@ export class OllamaTextAdapter<TModel extends string> extends BaseTextAdapter<
       return {
         data: parsed,
         rawText,
-        usage: buildOllamaUsage(response),
+        usage,
       }
     } catch (error: unknown) {
       const err = error as Error
@@ -289,8 +291,12 @@ export class OllamaTextAdapter<TModel extends string> extends BaseTextAdapter<
         error,
         source: 'ollama.structuredOutput',
       })
-      throw new Error(
-        `Structured output generation failed: ${err.message || 'Unknown error occurred'}`,
+      // The model already ran, so the error keeps the usage for the caller.
+      throw Object.assign(
+        new Error(
+          `Structured output generation failed: ${err.message || 'Unknown error occurred'}`,
+        ),
+        usage && { usage },
       )
     }
   }

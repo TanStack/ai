@@ -1,6 +1,6 @@
 import { buildBaseUsage } from '@tanstack/ai'
 import type { TokenUsage } from '@tanstack/ai'
-import type { ChatUsage } from '@openrouter/sdk/models'
+import type { ChatUsage, ServerToolUseDetails } from '@openrouter/sdk/models'
 
 /**
  * OpenRouter-specific provider usage details.
@@ -11,6 +11,10 @@ export type OpenRouterProviderUsageDetails = {
   acceptedPredictionTokens?: number
   /** Rejected prediction tokens (speculative decoding) */
   rejectedPredictionTokens?: number
+  /** Whether the request used a Bring Your Own Key configuration */
+  isByok?: boolean
+  /** OpenRouter server-side tool use (e.g. web search) */
+  serverToolUseDetails?: ServerToolUseDetails
 }
 
 /**
@@ -35,28 +39,32 @@ export function buildOpenRouterUsage(
   }
 
   // Map completion tokens details (passthrough from SDK)
-  if (usage.completionTokensDetails) {
-    const details = usage.completionTokensDetails
+  const details = usage.completionTokensDetails
+  if (details) {
     result.completionTokensDetails = {
       ...(details.reasoningTokens != null
         ? { reasoningTokens: details.reasoningTokens }
         : {}),
       ...(details.audioTokens ? { audioTokens: details.audioTokens } : {}),
     }
+  }
 
-    // Add OpenRouter-specific prediction tokens to providerUsageDetails
-    const providerDetails = {
-      ...(details.acceptedPredictionTokens
-        ? { acceptedPredictionTokens: details.acceptedPredictionTokens }
-        : {}),
-      ...(details.rejectedPredictionTokens
-        ? { rejectedPredictionTokens: details.rejectedPredictionTokens }
-        : {}),
-    } satisfies OpenRouterProviderUsageDetails
+  // OpenRouter-specific fields go to providerUsageDetails
+  const providerDetails = {
+    ...(details?.acceptedPredictionTokens
+      ? { acceptedPredictionTokens: details.acceptedPredictionTokens }
+      : {}),
+    ...(details?.rejectedPredictionTokens
+      ? { rejectedPredictionTokens: details.rejectedPredictionTokens }
+      : {}),
+    ...(usage.isByok != null ? { isByok: usage.isByok } : {}),
+    ...(usage.serverToolUseDetails
+      ? { serverToolUseDetails: usage.serverToolUseDetails }
+      : {}),
+  } satisfies OpenRouterProviderUsageDetails
 
-    if (Object.keys(providerDetails).length > 0) {
-      result.providerUsageDetails = providerDetails
-    }
+  if (Object.keys(providerDetails).length > 0) {
+    result.providerUsageDetails = providerDetails
   }
 
   return result

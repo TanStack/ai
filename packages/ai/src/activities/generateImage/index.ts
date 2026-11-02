@@ -8,6 +8,7 @@
 import { aiEventClient } from '@tanstack/ai-event-client'
 import { streamGenerationResult } from '../stream-generation-result.js'
 import { resolveDebugOption } from '../../logger/resolve'
+import { readErrorUsage } from '../../utilities/ag-ui-usage'
 import {
   applyGenerationResultTransforms,
   createGenerationContext,
@@ -395,6 +396,18 @@ async function runGenerateImage<
   } catch (error) {
     abortControls.clear()
     const duration = Date.now() - startTime
+    // The provider can bill a call that then fails (no image came back).
+    const usage = readErrorUsage(error)
+    if (usage) {
+      aiEventClient.emit('image:usage', {
+        requestId,
+        model,
+        usage,
+        modelOptions: rest.modelOptions,
+        timestamp: Date.now(),
+      })
+      await runGenerationUsage(middleware, mwCtx, usage)
+    }
     if (isActivityAbortError(error, abortControls.signal)) {
       await runGenerationAbort(middleware, mwCtx, {
         reason: abortReasonMessage(error, abortControls.signal),

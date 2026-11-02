@@ -62,6 +62,7 @@ import type {
   DefaultMessageMetadataByModality,
   Modality,
   AdapterYieldChunk,
+  RunFinishedEvent,
   TextOptions,
 } from '@tanstack/ai'
 import type { GrokBuildModel } from '../model-meta'
@@ -510,12 +511,18 @@ export class GrokBuildTextAdapter<
       }
 
       if (options.outputSchema) {
-        yield* this.emitParsedStructuredOutput(
+        const parseFailed = yield* this.emitParsedStructuredOutput(
           lastAssistantText,
           threadId,
           runId,
           lastTextMessageId,
+          heldFinished?.type === EventType.RUN_FINISHED
+            ? heldFinished.usage
+            : undefined,
         )
+        // chat() stops at the first RUN_ERROR, so the held RUN_FINISHED is
+        // never read. Its usage is on the RUN_ERROR.
+        if (parseFailed) heldFinished = undefined
       }
       if (heldFinished) yield heldFinished
 
@@ -564,7 +571,8 @@ export class GrokBuildTextAdapter<
     threadId: string,
     runId: string,
     messageId = this.generateId(),
-  ): Generator<AdapterYieldChunk> {
+    usage?: RunFinishedEvent['usage'],
+  ): Generator<AdapterYieldChunk, boolean> {
     try {
       const object = parseJsonFromAssistantText(raw)
       yield structuredOutputStartChunk({
@@ -581,6 +589,7 @@ export class GrokBuildTextAdapter<
         object,
         raw,
       })
+      return false
     } catch (error: unknown) {
       const message =
         error instanceof Error
@@ -592,7 +601,9 @@ export class GrokBuildTextAdapter<
         timestamp: Date.now(),
         message,
         error: { message },
+        ...(usage && { usage }),
       }
+      return true
     }
   }
 

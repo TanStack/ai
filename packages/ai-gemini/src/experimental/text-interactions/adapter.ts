@@ -19,6 +19,7 @@ import {
 import { assertUniqueToolNames } from '@tanstack/ai/adapter-internals'
 import { interactionsThinking } from '../../text/reasoning'
 import { GEMINI_MODEL_REASONING } from '../../model-meta'
+import { buildGeminiInteractionsUsage } from '../../usage'
 import {
   prepareGeminiMessagesForReplay,
   withGeminiSource,
@@ -41,6 +42,7 @@ import type {
   ModelMessage,
   AdapterYieldChunk,
   TextOptions,
+  TokenUsage,
   Tool,
 } from '@tanstack/ai'
 
@@ -457,6 +459,7 @@ export class GeminiTextInteractionsAdapter<
       },
     }
 
+    let usage: TokenUsage | undefined
     try {
       logger.request(
         `activity=chat provider=gemini-text-interactions model=${this.model} messages=${chatOptions.messages.length} tools=${chatOptions.tools?.length ?? 0} stream=false`,
@@ -470,6 +473,7 @@ export class GeminiTextInteractionsAdapter<
         request as Parameters<typeof this.client.interactions.create>[0],
         { signal: abortSignalFromOptions(chatOptions) },
       )) as Interaction
+      usage = buildGeminiInteractionsUsage(result.usage)
 
       const rawText = extractTextFromInteraction(result)
 
@@ -491,6 +495,7 @@ export class GeminiTextInteractionsAdapter<
         rawText,
         ...(result.id && { responseId: result.id }),
         ...(result.model && { model: result.model }),
+        ...(usage && { usage }),
       }
     } catch (error) {
       logger.errors('gemini-text-interactions.structuredOutput fatal', {
@@ -498,12 +503,16 @@ export class GeminiTextInteractionsAdapter<
         source: 'gemini-text-interactions.structuredOutput',
       })
       // Preserve the original error as `cause` so the stack trace and any
-      // SDK-attached status/code/headers survive for Sentry dedup.
-      throw new Error(
-        error instanceof Error
-          ? error.message
-          : 'An unknown error occurred during structured output generation.',
-        { cause: error },
+      // SDK-attached status/code/headers survive for Sentry dedup. The
+      // usage rides along because the provider already billed the tokens.
+      throw Object.assign(
+        new Error(
+          error instanceof Error
+            ? error.message
+            : 'An unknown error occurred during structured output generation.',
+          { cause: error },
+        ),
+        usage && { usage },
       )
     }
   }
@@ -613,6 +622,7 @@ export class GeminiTextInteractionsAdapter<
           runId,
           'Gemini Interactions structured-output stream contained no content',
           'empty-response',
+          finished.usage,
         )
         return
       }
@@ -628,6 +638,7 @@ export class GeminiTextInteractionsAdapter<
             'Gemini Interactions structured-output stream',
           ),
           'parse-error',
+          finished.usage,
         )
         return
       }
@@ -678,6 +689,10 @@ function interactionsStructuredStreamError(
   runId: string,
   message: string,
   code: string,
+  usage?: Extract<
+    AdapterYieldChunk,
+    { type: typeof EventType.RUN_ERROR }
+  >['usage'],
 ): Extract<AdapterYieldChunk, { type: typeof EventType.RUN_ERROR }> {
   return {
     type: EventType.RUN_ERROR,
@@ -687,6 +702,7 @@ function interactionsStructuredStreamError(
     message,
     code,
     error: { message, code },
+    ...(usage && { usage }),
   }
 }
 
@@ -1696,6 +1712,7 @@ async function* translateInteractionEvents(
         yield* closeOpenState()
 
         const status = event.interaction.status
+        const usage = buildGeminiInteractionsUsage(event.interaction.usage)
         if (statusIsError(status)) {
           const message = `Gemini Interactions ${status}: the interaction ended without a usable response.`
           logger.errors(
@@ -1714,11 +1731,11 @@ async function* translateInteractionEvents(
             message,
             code: status,
             error: { message, code: status },
+            ...(usage && { usage }),
           }
           return
         }
 
-        const usage = event.interaction.usage
         const finishReason = statusToFinishReason(status, sawFunctionCall)
 
         if (interactionId) {
@@ -1744,13 +1761,7 @@ async function* translateInteractionEvents(
           model,
           timestamp,
           finishReason,
-          usage: usage
-            ? {
-                promptTokens: usage.total_input_tokens ?? 0,
-                completionTokens: usage.total_output_tokens ?? 0,
-                totalTokens: usage.total_tokens ?? 0,
-              }
-            : undefined,
+          usage,
         }
         return
       }

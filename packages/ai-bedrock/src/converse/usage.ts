@@ -15,6 +15,10 @@ import type { TokenUsage as ConverseTokenUsage } from '@aws-sdk/client-bedrock-r
 export function buildConverseUsage(usage: ConverseTokenUsage): TokenUsage {
   const cachedTokens = usage.cacheReadInputTokens
   const cacheWriteTokens = usage.cacheWriteInputTokens
+  // The 1-hour part of the cache write.
+  const cacheWrite1hTokens = usage.cacheDetails?.find(
+    (detail) => detail.ttl === '1h',
+  )?.inputTokens
   const promptTokens =
     (usage.inputTokens ?? 0) + (cachedTokens ?? 0) + (cacheWriteTokens ?? 0)
   const completionTokens = usage.outputTokens ?? 0
@@ -31,6 +35,7 @@ export function buildConverseUsage(usage: ConverseTokenUsage): TokenUsage {
   const promptTokensDetails = {
     ...(cachedTokens !== undefined ? { cachedTokens } : {}),
     ...(cacheWriteTokens !== undefined ? { cacheWriteTokens } : {}),
+    ...(cacheWrite1hTokens !== undefined ? { cacheWrite1hTokens } : {}),
   }
   if (Object.keys(promptTokensDetails).length > 0) {
     result.promptTokensDetails = promptTokensDetails

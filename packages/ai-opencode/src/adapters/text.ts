@@ -508,12 +508,20 @@ export class OpencodeTextAdapter<
             error instanceof Error
               ? error.message
               : 'Failed to parse structured output'
+          // chat() stops at the first RUN_ERROR, so the held RUN_FINISHED is
+          // never read: move its usage onto the RUN_ERROR and drop it.
+          const usage =
+            heldFinished?.type === EventType.RUN_FINISHED
+              ? heldFinished.usage
+              : undefined
+          heldFinished = undefined
           yield {
             type: EventType.RUN_ERROR,
             model: this.model,
             timestamp: Date.now(),
             message,
             error: { message },
+            ...(usage && { usage }),
           }
         }
       }

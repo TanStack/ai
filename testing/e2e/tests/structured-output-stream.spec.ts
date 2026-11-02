@@ -203,13 +203,14 @@ for (const malformed of [false, true]) {
       expect(terminal.usage.completionTokensDetails?.reasoningTokens).toBe(
         reasoning === 'missing' ? undefined : reasoning === 'zero' ? 0 : 42,
       )
-      expect(usageReports).toHaveLength(malformed ? 0 : 1)
+      // A failed call that OpenRouter billed still reaches onUsage.
+      expect(usageReports).toHaveLength(1)
+      expect(usageReports[0]).toEqual(terminal.usage)
       if (malformed) {
         expect(terminal.code).toBe('parse-error')
         expect(result.error).toContain('Failed to parse structured output')
       } else {
         expect(result.value).toEqual({ answer: 'ok' })
-        expect(usageReports[0]).toEqual(terminal.usage)
       }
     })
   }

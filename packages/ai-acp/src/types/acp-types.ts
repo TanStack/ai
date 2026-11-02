@@ -39,6 +39,12 @@ export type AcpSessionUpdate =
   | { sessionUpdate: 'available_commands_update' }
   | { sessionUpdate: 'current_mode_update' }
   | { sessionUpdate: 'user_message_chunk'; content: AcpContentBlock }
+  | {
+      sessionUpdate: 'usage_update'
+      used: number
+      size: number
+      cost?: { amount: number; currency: string } | null
+    }
 
 export type AcpStopReason =
   | 'end_turn'
@@ -53,6 +59,7 @@ export interface AcpUsage {
   outputTokens?: number | null
   totalTokens?: number | null
   cachedReadTokens?: number | null
+  cachedWriteTokens?: number | null
   thoughtTokens?: number | null
 }
 

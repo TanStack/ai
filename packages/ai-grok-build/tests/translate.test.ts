@@ -108,4 +108,25 @@ describe('translateThreadEvents (native grok streaming-json)', () => {
     }
     expect(err.message).toBe('bad model')
   })
+
+  it('maps cached_input_tokens to cachedTokens on turn.completed usage', async () => {
+    const chunks = await collect([
+      {
+        type: 'turn.completed',
+        usage: {
+          input_tokens: 100,
+          cached_input_tokens: 40,
+          output_tokens: 20,
+        },
+      },
+    ])
+    expect(chunks.find((c) => c.type === 'RUN_FINISHED')).toMatchObject({
+      usage: {
+        promptTokens: 100,
+        completionTokens: 20,
+        totalTokens: 120,
+        promptTokensDetails: { cachedTokens: 40 },
+      },
+    })
+  })
 })

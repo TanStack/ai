@@ -478,6 +478,33 @@ describe('OllamaTextAdapter.structuredOutput', () => {
     ).rejects.toThrow(/maximum token limit was reached/)
   })
 
+  it('attaches usage to the errors thrown after a response', async () => {
+    for (const reply of [
+      { content: '{"result":', done_reason: 'length' },
+      { content: 'not json', done_reason: 'stop' },
+    ]) {
+      chatMock.mockResolvedValueOnce({
+        message: { role: 'assistant', content: reply.content },
+        done_reason: reply.done_reason,
+        prompt_eval_count: 9,
+        eval_count: 4,
+      })
+      const error = await createOllamaChat('llama3.2')
+        .structuredOutput({
+          chatOptions: {
+            logger: testLogger,
+            messages: [{ role: 'user', content: 'q' }],
+          },
+          outputSchema: { type: 'object', properties: {} },
+        } as any)
+        .catch((e: unknown) => e)
+      expect(error).toBeInstanceOf(Error)
+      expect(error).toMatchObject({
+        usage: { promptTokens: 9, completionTokens: 4, totalTokens: 13 },
+      })
+    }
+  })
+
   it('surfaces upstream errors as structured-output errors', async () => {
     chatMock.mockRejectedValueOnce(new Error('network down'))
     const adapter = createOllamaChat('llama3.2')

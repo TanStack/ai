@@ -38,6 +38,7 @@ import type {
   Modality,
   ModelMessage,
   AdapterYieldChunk,
+  RunFinishedEvent,
   TextOptions,
 } from '@tanstack/ai'
 import type { AcpSessionHandle } from '../session/acp-client'
@@ -644,12 +645,18 @@ export class AcpCompatibleTextAdapter<
       }
 
       if (options.outputSchema) {
-        yield* this.emitParsedStructuredOutput(
+        const parseFailed = yield* this.emitParsedStructuredOutput(
           lastAssistantText,
           threadId,
           runId,
           lastTextMessageId,
+          heldFinished?.type === EventType.RUN_FINISHED
+            ? heldFinished.usage
+            : undefined,
         )
+        // chat() stops at the first RUN_ERROR, so the held RUN_FINISHED is
+        // never read. Its usage is on the RUN_ERROR.
+        if (parseFailed) heldFinished = undefined
       }
       if (heldFinished) yield heldFinished
 
@@ -740,7 +747,8 @@ export class AcpCompatibleTextAdapter<
     threadId: string,
     runId: string,
     messageId = this.generateId(),
-  ): Generator<AdapterYieldChunk> {
+    usage?: RunFinishedEvent['usage'],
+  ): Generator<AdapterYieldChunk, boolean> {
     try {
       const object = parseJsonFromAssistantText(raw)
       yield structuredOutputStartChunk({
@@ -757,6 +765,7 @@ export class AcpCompatibleTextAdapter<
         object,
         raw,
       })
+      return false
     } catch (error: unknown) {
       const parserMessage =
         error instanceof Error
@@ -772,7 +781,9 @@ export class AcpCompatibleTextAdapter<
         message,
         code: 'structured-output-parse-failed',
         error: { message, code: 'structured-output-parse-failed' },
+        ...(usage && { usage }),
       }
+      return true
     }
   }
 

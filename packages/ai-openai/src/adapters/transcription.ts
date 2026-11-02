@@ -72,6 +72,12 @@ function buildTranscriptionUsage(
 ): TokenUsage | undefined {
   const usage = response?.usage
 
+  // Any model can report duration usage (whisper-1 does on `json`, and
+  // gpt-4o-transcribe-diarize may). Surface the billing data the API returned.
+  if (usage?.type === 'duration') {
+    return durationUsage(usage.seconds)
+  }
+
   // GPT-4o transcription models are billed by token. Surface the token counts
   // and the per-modality input breakdown when present. These models must never
   // fall through to the duration path below — when usage is absent there is no
@@ -80,12 +86,6 @@ function buildTranscriptionUsage(
   if (model.startsWith('gpt-4o')) {
     if (!usage) {
       return undefined
-    }
-
-    // gpt-4o-transcribe-diarize responses may report duration-based usage;
-    // surface it rather than discarding billing data the API returned.
-    if (usage.type === 'duration') {
-      return durationUsage(usage.seconds)
     }
 
     const result: TokenUsage = {

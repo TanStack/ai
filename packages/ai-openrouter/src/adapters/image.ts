@@ -237,10 +237,6 @@ export class OpenRouterImageAdapter<
       }
     }
 
-    if (images.length === 0) {
-      throw new Error('Image generation failed: response contained no images')
-    }
-
     // OpenRouter routes image generation through the chat surface, so the
     // response carries the same `usage` shape as text. Surface it (with any
     // detail breakdowns and provider-reported cost) when present.
@@ -248,6 +244,14 @@ export class OpenRouterImageAdapter<
     const usage = baseUsage && {
       ...baseUsage,
       ...extractUsageCost(response.usage),
+    }
+
+    if (images.length === 0) {
+      // Core reads `error.usage`, so the billed tokens still count.
+      throw Object.assign(
+        new Error('Image generation failed: response contained no images'),
+        usage && { usage },
+      )
     }
 
     return {

@@ -37,6 +37,18 @@ export function isTanstackUsage(usage: unknown): usage is TokenUsage {
   )
 }
 
+/**
+ * The billed usage on a thrown adapter error. An adapter that fails after
+ * the provider answered (token limit, refusal, bad JSON) throws an `Error`
+ * with a `usage` property, so the caller can still count the tokens.
+ */
+export function readErrorUsage(error: unknown): TokenUsage | undefined {
+  if (typeof error !== 'object' || error == null || !('usage' in error)) {
+    return undefined
+  }
+  return isTanstackUsage(error.usage) ? error.usage : undefined
+}
+
 export function toSpecTokenUsage(
   usage: TokenUsage,
   options?: ToSpecTokenUsageOptions,
