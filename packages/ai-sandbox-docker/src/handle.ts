@@ -338,7 +338,10 @@ export interface DockerHandleDeps {
   container: Dockerode.Container
   workdir: string
   /** Factory used by fork: commit + create a new container from the image. */
-  forkFactory: (sourceContainerId: string) => Promise<SandboxHandle>
+  forkFactory: (
+    sourceContainerId: string,
+    signal?: AbortSignal,
+  ) => Promise<SandboxHandle>
   /** Remove the container on destroy (vs. just stop). */
   removeOnDestroy: boolean
   /**
@@ -446,7 +449,7 @@ export class DockerHandle implements SandboxHandle {
     this.git = createExecBackedGit(this.process, this.workdir)
 
     this.ports = {
-      connect: (port) => this.connectPort(port),
+      connect: (port, options) => this.connectPort(port, options?.signal),
     }
 
     this.env = {
@@ -799,8 +802,13 @@ export class DockerHandle implements SandboxHandle {
     }
   }
 
-  private async connectPort(port: number): Promise<SandboxChannel> {
-    const info = await this.container.inspect()
+  private async connectPort(
+    port: number,
+    signal?: AbortSignal,
+  ): Promise<SandboxChannel> {
+    const info = await this.container.inspect(
+      signal ? { abortSignal: signal } : undefined,
+    )
     const mapping = info.NetworkSettings.Ports[`${port}/tcp`]
     const hostPort = mapping?.[0]?.HostPort
     if (!hostPort) {
@@ -811,18 +819,25 @@ export class DockerHandle implements SandboxHandle {
     return { url: `http://localhost:${hostPort}` }
   }
 
-  async snapshot(label?: string): Promise<SnapshotRef> {
+  async snapshot(
+    label?: string,
+    options?: { signal?: AbortSignal },
+  ): Promise<SnapshotRef> {
     const tag = `tanstack-ai-sandbox-snapshot:${this.id.slice(0, 12)}-${label ?? 'snap'}`
     const [repo, tagName] = tag.split(':')
-    await this.container.commit({ repo, tag: tagName })
+    await this.container.commit({
+      repo,
+      tag: tagName,
+      ...(options?.signal && { abortSignal: options.signal }),
+    })
     return { id: tag, label }
   }
 
-  fork = async (): Promise<SandboxHandle> => {
+  fork = async (options?: { signal?: AbortSignal }): Promise<SandboxHandle> => {
     if (!this.capabilities.fork) {
       throw new UnsupportedCapabilityError('docker', 'fork')
     }
-    return this.deps.forkFactory(this.id)
+    return this.deps.forkFactory(this.id, options?.signal)
   }
 
   async destroy(): Promise<void> {

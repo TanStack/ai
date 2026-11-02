@@ -274,8 +274,43 @@ function slug(value: string): string {
     .replace(/^-+|-+$/g, '')
 }
 
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms))
+/** Waits `ms`. Rejects with the abort reason when `signal` aborts first. */
+function sleep(ms: number, signal?: AbortSignal): Promise<void> {
+  return new Promise((resolve, reject) => {
+    if (signal?.aborted) return reject(signal.reason)
+    const onAbort = () => {
+      clearTimeout(timer)
+      reject(signal?.reason)
+    }
+    const timer = setTimeout(() => {
+      signal?.removeEventListener('abort', onAbort)
+      resolve()
+    }, ms)
+    signal?.addEventListener('abort', onAbort, { once: true })
+  })
+}
+
+/**
+ * The boxd SDK takes no abort signal. Reject when `signal` aborts, so the
+ * caller stops waiting. The SDK call itself goes on until it ends.
+ */
+function untilAborted<T>(work: Promise<T>, signal: AbortSignal | undefined) {
+  if (!signal) return work
+  return new Promise<T>((resolve, reject) => {
+    const onAbort = () => reject(signal.reason)
+    if (signal.aborted) return onAbort()
+    signal.addEventListener('abort', onAbort, { once: true })
+    work.then(
+      (value) => {
+        signal.removeEventListener('abort', onAbort)
+        resolve(value)
+      },
+      (error: unknown) => {
+        signal.removeEventListener('abort', onAbort)
+        reject(error)
+      },
+    )
+  })
 }
 
 export class BoxdHandle implements SandboxHandle {
@@ -539,11 +574,17 @@ export class BoxdHandle implements SandboxHandle {
    * returned `id` is the snapshot NAME, which is what `create({ fromSnapshot })`
    * and `snapshots.get` take.
    */
-  snapshot = async (label?: string): Promise<SnapshotRef> => {
+  snapshot = async (
+    label?: string,
+    options?: { signal?: AbortSignal },
+  ): Promise<SnapshotRef> => {
+    const signal = options?.signal
     const name = `${this.machineName}-${slug(label ?? 'snapshot') || 'snapshot'}`
     await this.client.snapshots.create(this.id, name)
     const deadline = Date.now() + SNAPSHOT_READY_TIMEOUT_MS
     for (;;) {
+      // An abort stops the wait. The capture goes on in boxd.
+      signal?.throwIfAborted()
       const snap = await this.client.snapshots.get(name, this.orgParams())
       if (snap.status === 'ready') break
       if (snap.status === 'failed') {
@@ -554,18 +595,22 @@ export class BoxdHandle implements SandboxHandle {
           `boxd: snapshot "${name}" still pending after ${SNAPSHOT_READY_TIMEOUT_MS} ms`,
         )
       }
-      await sleep(SNAPSHOT_POLL_MS)
+      await sleep(SNAPSHOT_POLL_MS, signal)
     }
     return { id: name, ...(label !== undefined ? { label } : {}) }
   }
 
   /** Live fork: disk, memory and running processes, into a new machine. */
-  fork = async (): Promise<SandboxHandle> => {
+  fork = async (options?: { signal?: AbortSignal }): Promise<SandboxHandle> => {
     const machine = await this.client.machines.fork(this.id, {
       name: `${this.machineName}-fork-${randomUUID().replace(/-/g, '').slice(0, 8)}`,
     })
     try {
-      const ready = await this.client.machines.waitUntilReady(machine.id)
+      // An abort stops the wait, and the catch deletes the fork.
+      const ready = await untilAborted(
+        this.client.machines.waitUntilReady(machine.id),
+        options?.signal,
+      )
       return new BoxdHandle({ ...this.deps, machine: ready, env: this.envVars })
     } catch (error) {
       // The caller never gets a handle, so nobody else can delete this fork.

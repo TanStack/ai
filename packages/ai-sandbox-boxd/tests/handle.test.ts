@@ -467,3 +467,30 @@ describe('BoxdHandle.ports / snapshot / fork / destroy', () => {
     expect(handle.workspaceRoot).toBe('/home/boxd/workspace')
   })
 })
+
+describe('BoxdHandle snapshot and fork signal', () => {
+  it('snapshot() stops polling when the signal aborts', async () => {
+    const { handle, raw } = makeHandle({
+      snapshotStatuses: ['pending', 'pending', 'pending', 'ready'],
+    })
+    const controller = new AbortController()
+    const pending = handle.snapshot('s', { signal: controller.signal })
+    await vi.waitFor(() => expect(raw.snapshots.get).toHaveBeenCalledOnce())
+    controller.abort(new Error('stopped'))
+    await expect(pending).rejects.toThrow('stopped')
+    expect(raw.snapshots.get).toHaveBeenCalledOnce()
+  })
+
+  it('fork() stops waiting for the fork and deletes it when the signal aborts', async () => {
+    const { handle, raw } = makeHandle()
+    raw.machines.waitUntilReady.mockImplementation(() => new Promise(() => {}))
+    const controller = new AbortController()
+    const pending = handle.fork({ signal: controller.signal })
+    await vi.waitFor(() =>
+      expect(raw.machines.waitUntilReady).toHaveBeenCalledOnce(),
+    )
+    controller.abort(new Error('stopped'))
+    await expect(pending).rejects.toThrow('stopped')
+    expect(raw.machines.delete).toHaveBeenCalledWith('vm-fork')
+  })
+})

@@ -460,18 +460,23 @@ export class E2BHandle implements SandboxHandle {
     return { url, token, headers: { [TRAFFIC_TOKEN_HEADER]: token } }
   }
 
-  snapshot = async (label?: string): Promise<SnapshotRef> => {
+  snapshot = async (
+    label?: string,
+    options?: { signal?: AbortSignal },
+  ): Promise<SnapshotRef> => {
     // E2B pauses the sandbox briefly while it is captured, then resumes it.
     const snap = await this.sandbox.createSnapshot({
       name: snapshotName(this.id, label),
+      ...(options?.signal && { signal: options.signal }),
     })
     return { id: snap.snapshotId, ...(label !== undefined ? { label } : {}) }
   }
 
-  fork = async (): Promise<SandboxHandle> => {
-    const [forked] = await this.sandbox.fork(
-      this.timeoutMs !== undefined ? { timeoutMs: this.timeoutMs } : {},
-    )
+  fork = async (options?: { signal?: AbortSignal }): Promise<SandboxHandle> => {
+    const [forked] = await this.sandbox.fork({
+      ...(this.timeoutMs !== undefined && { timeoutMs: this.timeoutMs }),
+      ...(options?.signal && { signal: options.signal }),
+    })
     if (forked === undefined) throw new Error('e2b: fork returned no sandbox')
     if (forked instanceof Error) throw forked
     const handle = new E2BHandle({
