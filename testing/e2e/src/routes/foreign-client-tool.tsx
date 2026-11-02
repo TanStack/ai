@@ -19,12 +19,23 @@ const ping = toolDefinition({
 
 export const Route = createFileRoute('/foreign-client-tool')({
   component: ForeignClientToolPage,
+  // `?finish=tool_calls` ends turn 1 with finishReason 'tool_calls' instead
+  // of a success outcome, the way a custom server forwards it.
+  validateSearch: (search: Record<string, unknown>) => ({
+    finish:
+      search.finish === 'tool_calls'
+        ? ('tool_calls' as const)
+        : ('success' as const),
+  }),
 })
 
 function ForeignClientToolPage() {
+  const { finish } = Route.useSearch()
   const { messages, sendMessage } = useChat({
     threadId: 'foreign-client-tool',
-    connection: fetchServerSentEvents('/api/foreign-client-tool'),
+    connection: fetchServerSentEvents(
+      `/api/foreign-client-tool?finish=${finish}`,
+    ),
     tools: [ping],
   })
 

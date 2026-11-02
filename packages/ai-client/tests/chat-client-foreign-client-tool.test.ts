@@ -9,7 +9,11 @@ import type { StreamChunk } from '@tanstack/ai/client'
  * An AG-UI server outside TanStack AI ends a run that calls a frontend tool
  * with a success outcome and no TOOL_CALL_RESULT (issue #1464).
  */
-function foreignServer() {
+function foreignServer(
+  finished: Record<string, unknown> = {
+    outcome: { type: 'success' },
+  },
+) {
   const requests: Array<unknown> = []
   const connection: ConnectConnectionAdapter = {
     async *connect(messages) {
@@ -26,12 +30,7 @@ function foreignServer() {
               },
               { type: 'TOOL_CALL_ARGS', toolCallId: 'tc-1', delta: '{}' },
               { type: 'TOOL_CALL_END', toolCallId: 'tc-1' },
-              {
-                type: 'RUN_FINISHED',
-                threadId: 't',
-                runId,
-                outcome: { type: 'success' },
-              },
+              { type: 'RUN_FINISHED', threadId: 't', runId, ...finished },
             ]
           : [
               { type: 'RUN_STARTED', threadId: 't', runId },
@@ -67,7 +66,79 @@ describe('client tools from a foreign AG-UI server', () => {
     expect(JSON.stringify(requests[1])).toContain('{\\"reply\\":\\"pong\\"}')
   })
 
-  it('does not run a tool that needs approval', async () => {
+  it('runs the tool when the run ends with finishReason tool_calls', async () => {
+    const execute = vi.fn(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 5))
+      return { reply: 'pong' }
+    })
+    const ping = toolDefinition({
+      name: 'ping',
+      description: 'Reply with pong',
+      inputSchema: z.object({}),
+    }).client(execute)
+    // A custom server that forwards the provider finish reason and closes.
+    const { connection, requests } = foreignServer({
+      finishReason: 'tool_calls',
+    })
+    const client = new ChatClient({
+      threadId: 'thread-1',
+      connection,
+      tools: [ping],
+    })
+
+    await client.sendMessage('ping me')
+
+    await vi.waitFor(() => expect(requests).toHaveLength(2))
+    expect(execute).toHaveBeenCalledTimes(1)
+    expect(JSON.stringify(requests[1])).toContain('{\\"reply\\":\\"pong\\"}')
+  })
+
+  it.each([
+    ['a success outcome', { outcome: { type: 'success' } }],
+    ['finishReason tool_calls', { finishReason: 'tool_calls' }],
+  ])(
+    'sends the tool result before a queued message (%s)',
+    async (_, finished) => {
+      const execute = vi.fn(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 20))
+        return { reply: 'pong' }
+      })
+      const ping = toolDefinition({
+        name: 'ping',
+        description: 'Reply with pong',
+        inputSchema: z.object({}),
+      }).client(execute)
+      const { connection, requests } = foreignServer(finished)
+      const client = new ChatClient({
+        threadId: 'thread-1',
+        connection,
+        tools: [ping],
+      })
+
+      // The second message waits in the queue while the first run streams.
+      await Promise.all([
+        client.sendMessage('ping me'),
+        client.sendMessage('queued'),
+      ])
+
+      await vi.waitFor(() =>
+        expect(
+          requests.some((request) =>
+            JSON.stringify(request).includes('queued'),
+          ),
+        ).toBe(true),
+      )
+      const queued = requests.find((request) =>
+        JSON.stringify(request).includes('queued'),
+      )
+      expect(JSON.stringify(queued)).toContain('{\\"reply\\":\\"pong\\"}')
+    },
+  )
+
+  it.each([
+    ['a success outcome', { outcome: { type: 'success' } }],
+    ['finishReason tool_calls', { finishReason: 'tool_calls' }],
+  ])('does not run a tool that needs approval (%s)', async (_, finished) => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
     const execute = vi.fn(() => ({ reply: 'pong' }))
     const ping = toolDefinition({
@@ -76,7 +147,7 @@ describe('client tools from a foreign AG-UI server', () => {
       inputSchema: z.object({}),
       needsApproval: true,
     }).client(execute)
-    const { connection, requests } = foreignServer()
+    const { connection, requests } = foreignServer(finished)
     const client = new ChatClient({
       threadId: 'thread-1',
       connection,
