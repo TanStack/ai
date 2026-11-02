@@ -23,7 +23,8 @@
     "packages/ai-openai/src/**/*.test.ts",
     "packages/ai-openai/src/audio/audio-provider-options.ts",
     "packages/ai-devtools/src/production.ts",
-    "codemods/**/__testfixtures__/**"
+    "codemods/**/__testfixtures__/**",
+    "packages/ai-persistence/skills-test/stubs/**"
   ],
   "ignoreExportsUsedInFile": true,
   "workspaces": {

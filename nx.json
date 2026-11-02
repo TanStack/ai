@@ -68,7 +68,9 @@
         "{workspaceRoot}/packages/*/src/**/*",
         "{workspaceRoot}/packages/*/skills/**/*",
         "{workspaceRoot}/skills/**/*",
-        "{workspaceRoot}/kiira.config.ts"
+        "{workspaceRoot}/kiira.config.ts",
+        "{workspaceRoot}/tsconfig.docs.json",
+        "{workspaceRoot}/packages/ai-persistence/skills-test/stubs/**/*"
       ]
     },
     "test:knip": {

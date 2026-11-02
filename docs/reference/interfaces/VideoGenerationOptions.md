@@ -3,7 +3,7 @@ id: VideoGenerationOptions
 title: VideoGenerationOptions
 ---
 
-Defined in: packages/ai/src/types.ts:2590
+Defined in: [packages/ai/src/types.ts:2590](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2590)
 
 Options for video generation.
 These are the common options supported across providers.
@@ -30,7 +30,7 @@ These are the common options supported across providers.
 optional abortSignal?: AbortSignal;
 ```
 
-Defined in: packages/ai/src/types.ts:2627
+Defined in: [packages/ai/src/types.ts:2627](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2627)
 
 Effective abort signal composed by the activity from caller `abortSignal`
 and/or `timeout`. Adapters should forward this to the provider SDK when
@@ -44,7 +44,7 @@ supported. Request-specific — never store on a global client config.
 optional duration?: TDuration;
 ```
 
-Defined in: packages/ai/src/types.ts:2614
+Defined in: [packages/ai/src/types.ts:2614](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2614)
 
 Video duration. Adapters that declare a per-model duration map narrow
 this to that model's union (a number, `"8"`, or `"8s"`). Use
@@ -59,7 +59,7 @@ seconds, a `"6s"` template, or `"auto"` when the model lists it.
 logger: InternalLogger;
 ```
 
-Defined in: packages/ai/src/types.ts:2621
+Defined in: [packages/ai/src/types.ts:2621](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2621)
 
 Internal logger threaded from the generateVideo() entry point. Adapters must
 call logger.request() before the SDK call and logger.errors() in catch blocks.
@@ -72,7 +72,7 @@ call logger.request() before the SDK call and logger.errors() in catch blocks.
 model: string;
 ```
 
-Defined in: packages/ai/src/types.ts:2596
+Defined in: [packages/ai/src/types.ts:2596](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2596)
 
 The model to use for video generation
 
@@ -84,7 +84,7 @@ The model to use for video generation
 optional modelOptions?: TProviderOptions;
 ```
 
-Defined in: packages/ai/src/types.ts:2616
+Defined in: [packages/ai/src/types.ts:2616](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2616)
 
 Model-specific options for video generation
 
@@ -96,7 +96,7 @@ Model-specific options for video generation
 prompt: MediaPrompt;
 ```
 
-Defined in: packages/ai/src/types.ts:2605
+Defined in: [packages/ai/src/types.ts:2605](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2605)
 
 Description of the desired video: a plain string, or an ordered array of
 content parts for image-conditioned generation. Image parts may carry
@@ -113,6 +113,6 @@ provider-native request (e.g. OpenAI Sora `input_reference`, fal
 optional size?: TSize;
 ```
 
-Defined in: packages/ai/src/types.ts:2607
+Defined in: [packages/ai/src/types.ts:2607](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2607)
 
 Video size — format depends on the provider (e.g., "16:9", "1280x720")

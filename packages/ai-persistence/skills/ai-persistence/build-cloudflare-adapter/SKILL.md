@@ -303,14 +303,14 @@ import { env } from 'cloudflare:test'
 import { chatPersistence } from '../src/lib/chat-persistence'
 
 runPersistenceConformance('app-d1', () => chatPersistence(env.AI_STATE), {
-  skip: ['generationRuns', 'artifacts', 'blobs'],
+  skip: ['activities', 'generationRuns', 'artifacts', 'blobs'],
 })
 ```
 
 Run it against a Miniflare D1 binding with the migration applied, reset between
-runs. All four state stores are provided; the suite also covers the three
-generation stores, so a chat-only adapter declares them skipped (drop the `skip`
-once you add the R2-backed set from
+runs. All four state stores are provided; the suite also covers the optional
+`activities` store and the three generation stores, so a chat-only adapter
+declares them skipped (drop the `skip` once you add the R2-backed set from
 **ai-persistence/build-cloudflare-artifact-store**). `skip` never accepts
 `'locks'`, which is not a store.
 

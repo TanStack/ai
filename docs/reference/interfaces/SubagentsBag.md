@@ -3,7 +3,7 @@ id: SubagentsBag
 title: SubagentsBag
 ---
 
-Defined in: packages/ai/src/activities/chat/agents/spawn.ts:108
+Defined in: [packages/ai/src/activities/chat/agents/spawn.ts:124](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/agents/spawn.ts#L124)
 
 ## Type Parameters
 
@@ -19,7 +19,7 @@ Defined in: packages/ai/src/activities/chat/agents/spawn.ts:108
 agents: TAgents;
 ```
 
-Defined in: packages/ai/src/activities/chat/agents/spawn.ts:111
+Defined in: [packages/ai/src/activities/chat/agents/spawn.ts:127](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/agents/spawn.ts#L127)
 
 ***
 
@@ -29,10 +29,14 @@ Defined in: packages/ai/src/activities/chat/agents/spawn.ts:111
 optional binding?: SubagentBinding;
 ```
 
-Defined in: packages/ai/src/activities/chat/agents/spawn.ts:129
+Defined in: [packages/ai/src/activities/chat/agents/spawn.ts:147](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/agents/spawn.ts#L147)
+
+**`Internal`**
 
 What a host adds to every activity call a child makes through `ctx`
 (`ctx.chat`, `ctx.generateImage`, and the rest). Apps do not set it.
+
+ For hosts that run agents, such as `@tanstack/ai-harness`.
 
 ***
 
@@ -42,7 +46,7 @@ What a host adds to every activity call a child makes through `ctx`
 optional keys?: ProviderKeySource;
 ```
 
-Defined in: packages/ai/src/activities/chat/agents/spawn.ts:145
+Defined in: [packages/ai/src/activities/chat/agents/spawn.ts:163](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/agents/spawn.ts#L163)
 
 Provider keys that agents read as `ctx.keys`: an object by provider id,
 for example `{ openai: userKey }`, or a function that returns the key of
@@ -59,7 +63,7 @@ them on. The keys it sets itself win for those providers.
 optional limits?: SubagentLimits;
 ```
 
-Defined in: packages/ai/src/activities/chat/agents/spawn.ts:136
+Defined in: [packages/ai/src/activities/chat/agents/spawn.ts:154](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/agents/spawn.ts#L154)
 
 Limits for the whole tree of children the model starts through tools:
 depth, total calls, children at once, and time per child. A refused
@@ -74,7 +78,7 @@ apply: a nested chat in a child uses the root's budget.
 optional order?: "parallel" | "sequence";
 ```
 
-Defined in: packages/ai/src/activities/chat/agents/spawn.ts:123
+Defined in: [packages/ai/src/activities/chat/agents/spawn.ts:139](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/agents/spawn.ts#L139)
 
 How a router list runs. `parallel` starts every name together.
 `sequence` runs each name after the previous one finishes, and passes
@@ -90,7 +94,7 @@ optional router?: (ctx) =>
 | Promise<SubagentRouterPick>;
 ```
 
-Defined in: packages/ai/src/activities/chat/agents/spawn.ts:112
+Defined in: [packages/ai/src/activities/chat/agents/spawn.ts:128](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/agents/spawn.ts#L128)
 
 #### Parameters
 
@@ -126,7 +130,7 @@ Defined in: packages/ai/src/activities/chat/agents/spawn.ts:112
 optional sandbox?: "own" | "inherit";
 ```
 
-Defined in: packages/ai/src/activities/chat/agents/spawn.ts:124
+Defined in: [packages/ai/src/activities/chat/agents/spawn.ts:140](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/agents/spawn.ts#L140)
 
 ***
 
@@ -136,4 +140,4 @@ Defined in: packages/ai/src/activities/chat/agents/spawn.ts:124
 optional strategy?: "exclusive" | "handoff";
 ```
 
-Defined in: packages/ai/src/activities/chat/agents/spawn.ts:117
+Defined in: [packages/ai/src/activities/chat/agents/spawn.ts:133](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/agents/spawn.ts#L133)

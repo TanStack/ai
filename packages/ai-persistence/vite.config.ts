@@ -1,8 +1,17 @@
+import { fileURLToPath } from 'node:url'
 import { defineConfig, mergeConfig } from 'vitest/config'
 import { tanstackViteConfig } from '@tanstack/vite-config'
 import packageJson from './package.json'
 
 const config = defineConfig({
+  resolve: {
+    alias: [
+      {
+        find: /^@tanstack\/ai-persistence$/,
+        replacement: fileURLToPath(new URL('./src/index.ts', import.meta.url)),
+      },
+    ],
+  },
   test: {
     name: packageJson.name,
     dir: './',
@@ -10,7 +19,7 @@ const config = defineConfig({
 
     globals: true,
     environment: 'node',
-    include: ['tests/**/*.test.ts'],
+    include: ['tests/**/*.test.ts', 'skills-test/**/*.test.ts'],
     coverage: {
       provider: 'v8',
       reporter: ['text', 'json', 'html', 'lcov'],

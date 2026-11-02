@@ -111,7 +111,10 @@ reference counts in one transaction.
 
 Adding persistence to an app? Pick the recipe that matches what it already
 runs — each one writes a single `chat-persistence.ts` against the app's
-existing database client and schema:
+existing database client and schema. Every recipe writes all four chat
+stores (messages, runs, interrupts, metadata) and all four tables, on every
+dialect; the "which stores do you need" minimums in the docs are for
+hand-rolled adapters, not these recipes:
 
 | The app runs...                                      | Read                                                    |
 | ---------------------------------------------------- | ------------------------------------------------------- |

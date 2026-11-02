@@ -34,6 +34,11 @@ jobs:
   coverage:
     name: Coverage
     runs-on: ubuntu-latest
+    # One Vitest worker per package. nx.json still runs 4 packages at once.
+    # More workers time out on the 4-core runner. Same cap as `pnpm test:coverage`.
+    # Not an Nx input, so the remote cache hash is unchanged.
+    env:
+      VITEST_MAX_WORKERS: "1"
     permissions:
       contents: read
       pull-requests: write # the last step posts the table as a PR comment; only it reads the token
@@ -54,7 +59,9 @@ jobs:
       # very PR under test. Both runs and the comparison use this copy, so all
       # three agree on the version.
       - name: Stage the coverage script
-        run: cp scripts/coverage-check.mjs "$RUNNER_TEMP/coverage-check.mjs"
+        run: |
+          cp scripts/coverage-check.mjs "$RUNNER_TEMP/coverage-check.mjs"
+          cp scripts/print-failed-nx-logs.mjs "$RUNNER_TEMP/print-failed-nx-logs.mjs"
       # The set of packages to measure is decided once, here, so that the base
       # run measures exactly what the head run does. `--with-target` keeps out
       # projects that have no test:coverage script, so a docs-only PR resolves
@@ -73,7 +80,14 @@ jobs:
           PROJECTS: ${{ steps.affected.outputs.list }}
         run: |
           rm -rf packages/*/coverage
+          set +e
           pnpm exec nx run-many --targets=test:coverage --projects="$PROJECTS" --outputStyle=static -- --coverage.reporter=json-summary --coverage.include='src/**'
+          status=$?
+          set -e
+          if [ "$status" -ne 0 ]; then
+            node --disable-warning=ExperimentalWarning "$RUNNER_TEMP/print-failed-nx-logs.mjs" --cache .nx/cache --data .nx/workspace-data || echo "Could not print failed task logs"
+            exit "$status"
+          fi
           node "$RUNNER_TEMP/coverage-check.mjs" --collect "$RUNNER_TEMP/cov-head" --expect "$PROJECTS"
       # Re-measuring the merge-base is normally a set of Nx Cloud cache
       # restores seeded by the Coverage workflow on main: the task hashes are
@@ -102,7 +116,14 @@ jobs:
           fi
           # Extra reporters/include so a merge-base whose scripts are still
           # `vitest run --coverage` still writes coverage-summary.json.
+          set +e
           pnpm exec nx run-many --targets=test:coverage --projects="$base_list" --outputStyle=static -- --coverage.reporter=json-summary --coverage.include='src/**'
+          status=$?
+          set -e
+          if [ "$status" -ne 0 ]; then
+            node --disable-warning=ExperimentalWarning "$RUNNER_TEMP/print-failed-nx-logs.mjs" --cache .nx/cache --data .nx/workspace-data || echo "Could not print failed task logs"
+            exit "$status"
+          fi
           node "$RUNNER_TEMP/coverage-check.mjs" --collect "$RUNNER_TEMP/cov-base" --expect "$base_list"
       - name: Compare
         if: steps.affected.outputs.list != ''

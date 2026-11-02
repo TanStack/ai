@@ -3,7 +3,7 @@ id: BoundActivities
 title: BoundActivities
 ---
 
-Defined in: packages/ai/src/activities/chat/agents/bound.ts:164
+Defined in: [packages/ai/src/activities/chat/agents/bound.ts:197](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/agents/bound.ts#L197)
 
 Activity functions bound to one child run. Each takes the same options as
 the plain function, but `threadId` is optional: the child run fills it.
@@ -17,7 +17,7 @@ Options you pass win over the bound defaults.
 chat: <TAdapter, TSchema, TStream, TTools, TInterrupts, TContext, TMiddleware, TAgents>(options) => TextActivityResult<TSchema, TStream, TTools>;
 ```
 
-Defined in: packages/ai/src/activities/chat/agents/bound.ts:165
+Defined in: [packages/ai/src/activities/chat/agents/bound.ts:198](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/agents/bound.ts#L198)
 
 #### Type Parameters
 
@@ -79,7 +79,7 @@ Defined in: packages/ai/src/activities/chat/agents/bound.ts:165
 decide: <TAdapter, TQuestions>(options) => Promise<{ [K in string | number | symbol]: InferEvaluateAnswer<TQuestions[K]> } & object>;
 ```
 
-Defined in: packages/ai/src/activities/chat/agents/bound.ts:259
+Defined in: [packages/ai/src/activities/chat/agents/bound.ts:292](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/agents/bound.ts#L292)
 
 Ask typed questions about `state` and get answers your code can branch on.
 
@@ -89,6 +89,10 @@ branch on `result.queue.value` in ordinary TypeScript.
 
 The question key `meta` is reserved. Throws if `questions` is empty or uses
 that key.
+
+When the adapter throws an `EvaluateError` that carries `usage`, `decide()`
+reports that usage through `onUsage` and the `evaluate:usage` event, then
+runs `onError` and rethrows the same error.
 
 #### Type Parameters
 
@@ -153,7 +157,7 @@ result.meta.usage
 embed: <TAdapter>(options) => Promise<EmbeddingResult>;
 ```
 
-Defined in: packages/ai/src/activities/chat/agents/bound.ts:257
+Defined in: [packages/ai/src/activities/chat/agents/bound.ts:290](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/agents/bound.ts#L290)
 
 Embed activity - generates embedding vectors from text and image inputs.
 
@@ -229,7 +233,7 @@ const result = await embed({
 generateAudio: <TAdapter, TStream>(options) => AudioActivityResult<TStream>;
 ```
 
-Defined in: packages/ai/src/activities/chat/agents/bound.ts:212
+Defined in: [packages/ai/src/activities/chat/agents/bound.ts:245](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/agents/bound.ts#L245)
 
 #### Type Parameters
 
@@ -259,7 +263,7 @@ Defined in: packages/ai/src/activities/chat/agents/bound.ts:212
 generateImage: <TAdapter, TStream>(options) => ImageActivityResult<TStream>;
 ```
 
-Defined in: packages/ai/src/activities/chat/agents/bound.ts:200
+Defined in: [packages/ai/src/activities/chat/agents/bound.ts:233](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/agents/bound.ts#L233)
 
 #### Type Parameters
 
@@ -289,7 +293,7 @@ Defined in: packages/ai/src/activities/chat/agents/bound.ts:200
 generateLiveVideo: <TAdapter, TStream>(options) => LiveVideoActivityResult<TStream>;
 ```
 
-Defined in: packages/ai/src/activities/chat/agents/bound.ts:248
+Defined in: [packages/ai/src/activities/chat/agents/bound.ts:281](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/agents/bound.ts#L281)
 
 #### Type Parameters
 
@@ -319,7 +323,7 @@ Defined in: packages/ai/src/activities/chat/agents/bound.ts:248
 generateSpeech: <TAdapter, TStream>(options) => TTSActivityResult<TStream>;
 ```
 
-Defined in: packages/ai/src/activities/chat/agents/bound.ts:218
+Defined in: [packages/ai/src/activities/chat/agents/bound.ts:251](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/agents/bound.ts#L251)
 
 #### Type Parameters
 
@@ -349,7 +353,7 @@ Defined in: packages/ai/src/activities/chat/agents/bound.ts:218
 generateTranscription: <TAdapter, TStream>(options) => TranscriptionActivityResult<TStream>;
 ```
 
-Defined in: packages/ai/src/activities/chat/agents/bound.ts:231
+Defined in: [packages/ai/src/activities/chat/agents/bound.ts:264](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/agents/bound.ts#L264)
 
 #### Type Parameters
 
@@ -379,7 +383,7 @@ Defined in: packages/ai/src/activities/chat/agents/bound.ts:231
 generateVideo: <TAdapter, TStream>(options) => TStream extends true ? AsyncIterable<AGUIEvent, any, any> : Promise<VideoJobResult>;
 ```
 
-Defined in: packages/ai/src/activities/chat/agents/bound.ts:206
+Defined in: [packages/ai/src/activities/chat/agents/bound.ts:239](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/agents/bound.ts#L239)
 
 #### Type Parameters
 
@@ -409,7 +413,7 @@ Defined in: packages/ai/src/activities/chat/agents/bound.ts:206
 generateVoice: <TAdapter, TStream>(options) => VoiceActivityResult<TStream>;
 ```
 
-Defined in: packages/ai/src/activities/chat/agents/bound.ts:225
+Defined in: [packages/ai/src/activities/chat/agents/bound.ts:258](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/agents/bound.ts#L258)
 
 #### Type Parameters
 
@@ -439,7 +443,7 @@ Defined in: packages/ai/src/activities/chat/agents/bound.ts:225
 generateWorld: <TAdapter, TStream>(options) => WorldActivityResult<TStream>;
 ```
 
-Defined in: packages/ai/src/activities/chat/agents/bound.ts:242
+Defined in: [packages/ai/src/activities/chat/agents/bound.ts:275](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/agents/bound.ts#L275)
 
 #### Type Parameters
 
@@ -469,7 +473,7 @@ Defined in: packages/ai/src/activities/chat/agents/bound.ts:242
 rerank: <TAdapter, TDocument>(options) => Promise<RerankResult<TDocument>>;
 ```
 
-Defined in: packages/ai/src/activities/chat/agents/bound.ts:258
+Defined in: [packages/ai/src/activities/chat/agents/bound.ts:291](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/agents/bound.ts#L291)
 
 Rerank activity - reorders documents by relevance to a query.
 
@@ -535,7 +539,7 @@ console.log(ranking[0].document.id)
 summarize: <TAdapter, TStream>(options) => SummarizeActivityResult<TStream>;
 ```
 
-Defined in: packages/ai/src/activities/chat/agents/bound.ts:194
+Defined in: [packages/ai/src/activities/chat/agents/bound.ts:227](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/agents/bound.ts#L227)
 
 #### Type Parameters
 

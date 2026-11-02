@@ -1,4 +1,4 @@
-import type { PRTriage } from './types'
+import type { PRTriage } from './types.ts'
 
 /**
  * HTML markers embedded in bot comments so sweeps stay idempotent: before
