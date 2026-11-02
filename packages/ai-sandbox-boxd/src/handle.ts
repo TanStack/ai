@@ -632,7 +632,10 @@ export class BoxdHandle implements SandboxHandle {
       return new BoxdHandle({ ...this.deps, machine: ready, env: this.envVars })
     } catch (error) {
       // The caller never gets a handle, so nobody else can delete this fork.
-      await this.client.machines.delete(machine.id).catch(() => {})
+      const deleting = this.client.machines.delete(machine.id).catch(() => {})
+      // The delete takes no signal: after an abort, do not make the caller
+      // wait for it. Other errors keep the delete before the rejection.
+      if (!options?.signal?.aborted) await deleting
       throw error
     }
   }
