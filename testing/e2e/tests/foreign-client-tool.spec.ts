@@ -28,4 +28,23 @@ test.describe('frontend tool from a spec-compliant AG-UI server', () => {
     )
     expect(posts).toHaveLength(2)
   })
+
+  for (const [button, sent] of [
+    ['Approve', 'ping returned {"reply":"pong"}'],
+    ['Deny', 'User declined tool execution'],
+  ]) {
+    test(`asks for approval of a tool that needs it (${button})`, async ({
+      page,
+    }) => {
+      await page.goto('/foreign-client-tool?approval=1')
+
+      await page
+        .getByTestId('approval')
+        .getByRole('button', { name: button })
+        .click()
+
+      await expect(page.getByTestId('assistant-text')).toContainText(sent)
+      await expect(page.getByTestId('approval')).toHaveCount(0)
+    })
+  }
 })
