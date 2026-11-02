@@ -209,7 +209,7 @@ On spec 2025, the call response is the `CreateTaskResult` from the spec. The `ta
 | `working` | The tool function is still at work. |
 | `completed` | The store holds the tool result. |
 | `failed` | The tool function threw an error. |
-| `cancelled` | A host sent `tasks/cancel`. The tool's `ctx.abortSignal` aborted. |
+| `cancelled` | A host sent `tasks/cancel`. `ctx.abortSignal` of the tool aborts only in the process that runs the task. With a shared store, see [Stop a cancelled task](#stop-a-cancelled-task). |
 
 If the tool function throws, the task keeps the text of that error in `statusMessage`. If that error has no text, the task keeps `The tool failed.`
 
