@@ -124,4 +124,23 @@ describe('makeHindsightTools', () => {
     expect(receipts[0]?.ok).toBe(false)
     expect(receipts[0]?.error).toContain('server down')
   })
+
+  it('gives the abort signal of the call to the client', async () => {
+    const retain = vi.fn(async () => ({ stored: true }))
+    const recall = vi.fn(async () => ({ results: [] }))
+    const reflect = vi.fn(async () => ({ text: 'reflection' }))
+    const tools = makeHindsightTools({
+      getRuntime: async () => fakeRuntime({ retain, recall, reflect }),
+      bankId: 'u1__s1',
+      budget: 'mid',
+    })
+    const { signal } = new AbortController()
+    const context = { abortSignal: signal, emitCustomEvent: () => undefined }
+    await tools[0]?.execute?.({ content: 'x' }, context)
+    await tools[1]?.execute?.({ query: 'q' }, context)
+    await tools[2]?.execute?.({ query: 'q' }, context)
+    for (const method of [retain, recall, reflect]) {
+      expect(method.mock.lastCall?.at(-1)).toMatchObject({ signal })
+    }
+  })
 })

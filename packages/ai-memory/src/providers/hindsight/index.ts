@@ -33,14 +33,18 @@ export interface HindsightClientLike {
   retain: (
     bankId: string,
     text: string,
-    opts: { context: string; timestamp: Date },
+    opts: { context: string; timestamp: Date; signal?: AbortSignal },
   ) => Promise<unknown>
   recall: (
     bankId: string,
     query: string,
-    opts: { budget: string },
+    opts: { budget: string; signal?: AbortSignal },
   ) => Promise<HindsightRecallResponse>
-  reflect: (bankId: string, query: string) => Promise<{ text?: string }>
+  reflect: (
+    bankId: string,
+    query: string,
+    opts?: { signal?: AbortSignal },
+  ) => Promise<{ text?: string }>
   listMemories: (
     bankId: string,
     opts: { limit: number },
