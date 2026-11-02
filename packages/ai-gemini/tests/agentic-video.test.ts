@@ -129,7 +129,8 @@ describe.each(['gemini-3.8-flash', 'gemini-3.7-flash'] as const)(
       expect(chunks.find((c) => c.type === 'RUN_FINISHED')).toMatchObject({
         usage: {
           promptTokens: 7,
-          completionTokens: 2,
+          // Output plus thought tokens. The reported total stays.
+          completionTokens: 6,
           totalTokens: 13,
           completionTokensDetails: { reasoningTokens: 4 },
         },

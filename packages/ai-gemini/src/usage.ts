@@ -220,7 +220,9 @@ export function buildGeminiInteractionsUsage(
 ): TokenUsage | undefined {
   if (!usage) return undefined
   const promptTokens = usage.total_input_tokens ?? 0
-  const completionTokens = usage.total_output_tokens ?? 0
+  // Thought tokens are billed as output, the same as in buildGeminiUsage.
+  const completionTokens =
+    (usage.total_output_tokens ?? 0) + (usage.total_thought_tokens ?? 0)
   const promptModalities = flattenModalityTokenCounts(
     usage.input_tokens_by_modality?.map((item) => ({
       modality: item.modality,

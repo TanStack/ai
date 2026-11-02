@@ -2123,8 +2123,9 @@ describe('GeminiTextInteractionsAdapter usage', () => {
   }
   const expectedUsage = {
     promptTokens: 10,
-    completionTokens: 4,
-    totalTokens: 14,
+    // Output plus thought tokens.
+    completionTokens: 7,
+    totalTokens: 17,
     promptTokensDetails: { imageTokens: 8, cachedTokens: 6 },
     completionTokensDetails: { reasoningTokens: 3 },
   }
