@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
 import { chat } from '../src/activities/chat/index'
 import { MCPDuplicateToolNameError } from '../src/activities/chat/mcp/manager'
-import { collectChunks, createMockAdapter, ev } from './test-utils'
+import { clientTool, collectChunks, createMockAdapter, ev } from './test-utils'
 import type { StreamChunk } from '../src/types'
 import type { MCPToolSource } from '../src/activities/chat/mcp/types'
 import type { ServerTool } from '../src/activities/chat/tools/tool-definition'
@@ -641,6 +641,50 @@ describe('chat({ mcp }) abort during discovery', () => {
 
     expect(onAbort).toHaveBeenCalledOnce()
     expect(onError).not.toHaveBeenCalled()
+  })
+
+  it('raises no tool interrupt for a pending client tool after the abort', async () => {
+    const { adapter, calls } = createMockAdapter({ iterations: [] })
+    const abortController = new AbortController()
+    const onAbort = vi.fn()
+
+    const stream = chat({
+      threadId: 'thread-1',
+      adapter,
+      messages: [
+        { role: 'user', content: 'Notify me' },
+        {
+          role: 'assistant',
+          content: '',
+          toolCalls: [
+            {
+              id: 'call_client',
+              type: 'function' as const,
+              function: {
+                name: 'showNotification',
+                arguments: '{"message":"done"}',
+              },
+            },
+          ],
+        },
+      ],
+      tools: [clientTool('showNotification')],
+      mcp: { clients: [abortingSource(abortController)] },
+      middleware: [{ name: 'observer', onAbort }],
+      abortController,
+    })
+    const chunks = await collectChunks(stream as AsyncIterable<StreamChunk>)
+
+    expect(onAbort).toHaveBeenCalledOnce()
+    expect(
+      chunks.some(
+        (c) =>
+          c.type === 'RUN_FINISHED' &&
+          'outcome' in c &&
+          c.outcome?.type === 'interrupt',
+      ),
+    ).toBe(false)
+    expect(calls).toHaveLength(0)
   })
 
   it('calls onAbort on the structured output path too', async () => {

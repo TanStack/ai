@@ -1588,6 +1588,10 @@ class TextEngine<
         return
       }
 
+      // A run stopped before it started runs no pending tools and raises no
+      // interrupt. The `finally` below reports it through `onAbort`.
+      if (this.isCancelled()) return
+
       const hasResumedTools = this.getPendingToolCallsFromMessages().length > 0
       const pendingPhase = yield* this.checkForPendingToolCalls()
       if (pendingPhase === 'stop' || pendingPhase === 'wait') {
