@@ -58,9 +58,11 @@ describe('Connection Adapters - Abort Signal Handling', () => {
       expect(fetchCall?.[1]?.signal).toBe(abortSignal)
     })
 
-    it('should use provided abortSignal over options.signal', async () => {
-      const providedSignal = new AbortController().signal
-      const optionsSignal = new AbortController().signal
+    it('should combine provided abortSignal with options.signal', async () => {
+      const provided = new AbortController()
+      const providedSignal = provided.signal
+      const optionsController = new AbortController()
+      const optionsSignal = optionsController.signal
 
       const mockResponse = {
         ok: true,
@@ -88,8 +90,10 @@ describe('Connection Adapters - Abort Signal Handling', () => {
         // Consume all chunks
       }
 
-      const fetchCall = fetchMock.mock.calls[0]
-      expect(fetchCall?.[1]?.signal).toBe(providedSignal)
+      const fetchSignal: AbortSignal = fetchMock.mock.calls[0]?.[1]?.signal
+      expect(fetchSignal.aborted).toBe(false)
+      optionsController.abort()
+      expect(fetchSignal.aborted).toBe(true)
     })
 
     it('should stop reading stream when aborted', async () => {

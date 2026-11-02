@@ -328,6 +328,24 @@ export function createReconnectTracker(
   }
 }
 
+/**
+ * A signal that aborts when either one does. The client's signal (stop()) and
+ * the user's own `options.signal` must both stop the request.
+ */
+// ponytail: listeners stay on a long-lived signal until it aborts; AbortSignal.any when the browser floor allows.
+function eitherSignal(
+  a: AbortSignal | undefined,
+  b: AbortSignal | undefined,
+): AbortSignal | undefined {
+  if (!a || !b) return a ?? b
+  if (a.aborted) return a
+  if (b.aborted) return b
+  const controller = new AbortController()
+  a.addEventListener('abort', () => controller.abort(a.reason), { once: true })
+  b.addEventListener('abort', () => controller.abort(b.reason), { once: true })
+  return controller.signal
+}
+
 /** Resolve after `ms`, or immediately once `signal` aborts. Never rejects. */
 function abortableDelay(ms: number, signal?: AbortSignal): Promise<void> {
   if (ms <= 0 || signal?.aborted) return Promise.resolve()
@@ -1500,7 +1518,7 @@ export function fetchServerSentEvents(
       // `RequestInit.signal` is typed `AbortSignal | null` (no `undefined`
       // under `exactOptionalPropertyTypes`), so spread it conditionally
       // rather than passing `undefined` explicitly.
-      const signal = abortSignal || resolvedOptions.signal
+      const signal = eitherSignal(abortSignal, resolvedOptions.signal)
       // POST URL is byte-identical to a plain request; the run id (when set)
       // rides in the X-Run-Id header so durability can key the log by it
       // without changing the request URL existing clients rely on.
@@ -1543,7 +1561,7 @@ export function fetchServerSentEvents(
         ...mergeHeaders(resolvedOptions.headers),
       }
       const fetchClient = resolvedOptions.fetchClient ?? fetch
-      const signal = abortSignal || resolvedOptions.signal
+      const signal = eitherSignal(abortSignal, resolvedOptions.signal)
 
       yield* resumableStream(
         fetchEventSource(
@@ -1660,7 +1678,7 @@ export function fetchHttpStream(
       // `RequestInit.signal` is typed `AbortSignal | null` (no `undefined`
       // under `exactOptionalPropertyTypes`), so spread it conditionally
       // rather than passing `undefined` explicitly.
-      const signal = abortSignal || resolvedOptions.signal
+      const signal = eitherSignal(abortSignal, resolvedOptions.signal)
       // POST URL is byte-identical to a plain request; the run id (when set)
       // rides in the X-Run-Id header so durability can key the log by it
       // without changing the request URL existing clients rely on.
@@ -1700,7 +1718,7 @@ export function fetchHttpStream(
         ...mergeHeaders(resolvedOptions.headers),
       }
       const fetchClient = resolvedOptions.fetchClient ?? fetch
-      const signal = abortSignal || resolvedOptions.signal
+      const signal = eitherSignal(abortSignal, resolvedOptions.signal)
 
       yield* resumableStream(
         fetchEventSource(
@@ -1907,7 +1925,7 @@ export function fetchJson(
     runId: string,
     abortSignal: AbortSignal | undefined,
   ) {
-    const signal = abortSignal || resolvedOptions.signal
+    const signal = eitherSignal(abortSignal, resolvedOptions.signal)
     return {
       fetchClient: resolvedOptions.fetchClient ?? fetch,
       url: resolvedUrl,
@@ -2257,7 +2275,7 @@ export function xhrServerSentEvents(
     async *connect(messages, data, abortSignal, runContext) {
       const resolvedUrl = typeof url === 'function' ? url() : url
       const resolvedOptions = await resolveXhrConnectionOptions(options)
-      const signal = abortSignal || resolvedOptions.signal
+      const signal = eitherSignal(abortSignal, resolvedOptions.signal)
       // POST URL is byte-identical to a plain request; the run id (when set)
       // rides in the X-Run-Id header so durability can key the log by it
       // without changing the request URL existing clients rely on.
@@ -2279,7 +2297,7 @@ export function xhrServerSentEvents(
     async *joinRun(runId, abortSignal) {
       const resolvedUrl = typeof url === 'function' ? url() : url
       const resolvedOptions = await resolveXhrConnectionOptions(options)
-      const signal = abortSignal || resolvedOptions.signal
+      const signal = eitherSignal(abortSignal, resolvedOptions.signal)
       const joinUrl = withSearchParams(resolvedUrl, { offset: '-1', runId })
       yield* resumableStream(
         xhrEventSource(
@@ -2341,7 +2359,7 @@ export function xhrHttpStream(
     async *connect(messages, data, abortSignal, runContext) {
       const resolvedUrl = typeof url === 'function' ? url() : url
       const resolvedOptions = await resolveXhrConnectionOptions(options)
-      const signal = abortSignal || resolvedOptions.signal
+      const signal = eitherSignal(abortSignal, resolvedOptions.signal)
       // POST URL is byte-identical to a plain request; the run id (when set)
       // rides in the X-Run-Id header so durability can key the log by it
       // without changing the request URL existing clients rely on.
@@ -2363,7 +2381,7 @@ export function xhrHttpStream(
     async *joinRun(runId, abortSignal) {
       const resolvedUrl = typeof url === 'function' ? url() : url
       const resolvedOptions = await resolveXhrConnectionOptions(options)
-      const signal = abortSignal || resolvedOptions.signal
+      const signal = eitherSignal(abortSignal, resolvedOptions.signal)
       const joinUrl = withSearchParams(resolvedUrl, { offset: '-1', runId })
       yield* resumableStream(
         xhrEventSource(
@@ -2896,12 +2914,13 @@ export function stream(
     async *connect(messages, data, abortSignal, runContext) {
       // Pass messages as-is (UIMessages with parts preserved)
       // Server-side chat() handles conversion to ModelMessages
-      yield* streamFactory(
+      const source = streamFactory(
         messages,
         data,
         abortSignal,
         buildRunAgentInputBody(messages, data, runContext, {}),
       )
+      yield* abortSignal ? abortableIterable(source, abortSignal) : source
     },
     ...(handlers?.hydrate ? { hydrate: handlers.hydrate } : {}),
     ...(handlers?.hydrateGeneration
@@ -2987,7 +3006,11 @@ async function* abortableIterable<T>(
       yield result.value
     }
   } finally {
-    await iterator.return?.()
+    const closing = iterator.return?.()
+    // A source stuck in an await runs return() only after that await ends,
+    // so do not wait for it once the signal has aborted.
+    if (signal.aborted) void Promise.resolve(closing).catch(() => {})
+    else await closing
   }
 }
 
@@ -3034,12 +3057,13 @@ export function rpcStream(
     async *connect(messages, data, abortSignal, runContext) {
       // Pass messages as-is (UIMessages with parts preserved)
       // Server-side chat() handles conversion to ModelMessages
-      yield* rpcCall(
+      const source = rpcCall(
         messages,
         data,
         abortSignal,
         buildRunAgentInputBody(messages, data, runContext, {}),
       )
+      yield* abortSignal ? abortableIterable(source, abortSignal) : source
     },
     ...(handlers?.hydrate ? { hydrate: handlers.hydrate } : {}),
     ...(handlers?.hydrateGeneration

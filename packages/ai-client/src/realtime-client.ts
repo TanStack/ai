@@ -51,6 +51,7 @@ export class RealtimeClient {
   private connection: RealtimeConnection | null = null
   private token: RealtimeToken | null = null
   private tokenRefreshTimeout: ReturnType<typeof setTimeout> | null = null
+  private connectGeneration = 0
   private readonly clientTools: Map<string, AnyClientTool>
   private readonly stateChangeCallbacks: Set<RealtimeStateChangeCallback> =
     new Set()
@@ -104,10 +105,14 @@ export class RealtimeClient {
       status: 'connecting',
       error: null,
     })
+    // disconnect() bumps this. A connect() it overtook must stop.
+    const generation = ++this.connectGeneration
 
     try {
       // Fetch token from server
-      this.token = await this.options.getToken()
+      const token = await this.options.getToken()
+      if (generation !== this.connectGeneration) return
+      this.token = token
 
       // Schedule token refresh
       this.scheduleTokenRefresh()
@@ -118,10 +123,15 @@ export class RealtimeClient {
           ? Array.from(this.clientTools.values())
           : undefined
 
-      this.connection = await this.options.adapter.connect(
+      const connection = await this.options.adapter.connect(
         this.token,
         toolsList,
       )
+      if (generation !== this.connectGeneration) {
+        await connection.disconnect()
+        return
+      }
+      this.connection = connection
 
       // A new session starts here. Clear the last transcript before events
       // flow, so a greeting that arrives while audio capture starts is kept.
@@ -141,6 +151,7 @@ export class RealtimeClient {
       // Start audio capture if configured
       if (this.options.autoCapture) {
         await this.connection.startAudioCapture()
+        if (generation !== this.connectGeneration) return
       }
 
       this.updateState({
@@ -160,6 +171,7 @@ export class RealtimeClient {
    * Disconnect from the realtime session.
    */
   async disconnect(): Promise<void> {
+    this.connectGeneration++
     if (this.tokenRefreshTimeout) {
       clearTimeout(this.tokenRefreshTimeout)
       this.tokenRefreshTimeout = null
