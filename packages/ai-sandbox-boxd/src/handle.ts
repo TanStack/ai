@@ -635,7 +635,10 @@ export class BoxdHandle implements SandboxHandle {
       const deleting = this.client.machines.delete(machine.id).catch(() => {})
       // The delete takes no signal: after an abort, do not make the caller
       // wait for it. Other errors keep the delete before the rejection.
-      if (!options?.signal?.aborted) await deleting
+      if (!options?.signal?.aborted) {
+        // A later abort still stops this wait. The readiness error stays.
+        await untilAborted(deleting, options?.signal).catch(() => {})
+      }
       throw error
     }
   }

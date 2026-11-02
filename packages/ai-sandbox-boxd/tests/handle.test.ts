@@ -508,6 +508,20 @@ describe('BoxdHandle snapshot and fork signal', () => {
     expect(raw.machines.delete).toHaveBeenCalledWith('vm-fork')
   })
 
+  it('fork() stops waiting for the delete of a failed fork when the signal aborts', async () => {
+    const { handle, raw } = makeHandle()
+    raw.machines.waitUntilReady.mockRejectedValueOnce(new Error('not ready'))
+    raw.machines.delete.mockImplementation(() => new Promise(() => {}))
+    const controller = new AbortController()
+    const pending = handle.fork({ signal: controller.signal })
+    await vi.waitFor(() =>
+      expect(raw.machines.delete).toHaveBeenCalledWith('vm-fork'),
+    )
+    controller.abort(new Error('stopped'))
+    // The readiness error is the reason the fork failed.
+    await expect(pending).rejects.toThrow('not ready')
+  })
+
   it('snapshot() stops waiting while a snapshot request hangs', async () => {
     const { handle, raw } = makeHandle()
     raw.snapshots.get.mockImplementation(() => new Promise(() => {}))
