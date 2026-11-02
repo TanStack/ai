@@ -63,6 +63,14 @@ function JoinRunClientToolPage() {
       ),
     )
     .join('')
+  const assistantThinking = messages
+    .filter((message) => message.role === 'assistant')
+    .flatMap((message) =>
+      message.parts.flatMap((part) =>
+        part.type === 'thinking' ? [part.content] : [],
+      ),
+    )
+    .join('')
 
   const toolPending = messages.some((message) =>
     message.parts.some((part) => {
@@ -88,6 +96,7 @@ function JoinRunClientToolPage() {
     <div data-testid="join-run-client-tool-page" style={{ padding: 16 }}>
       {hydrated ? <div data-testid="hydration-marker" /> : null}
       <div data-testid="assistant-text">{assistantText || 'none'}</div>
+      <div data-testid="assistant-thinking">{assistantThinking || 'none'}</div>
       <div data-testid="client-tool-pending">
         {toolPending ? 'true' : 'false'}
       </div>
