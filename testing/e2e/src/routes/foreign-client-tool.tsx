@@ -29,7 +29,9 @@ const pingWithApproval = toolDefinition({
 export const Route = createFileRoute('/foreign-client-tool')({
   component: ForeignClientToolPage,
   validateSearch: (search: Record<string, unknown>) => ({
-    approval: search.approval === 1 || search.approval === '1',
+    // The router writes the result back to the URL (`approval=true`) and
+    // checks it again, so `true` must stay `true`.
+    approval: search.approval === true || search.approval === 1,
   }),
 })
 
