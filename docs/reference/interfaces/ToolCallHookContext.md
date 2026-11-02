@@ -3,9 +3,10 @@ id: ToolCallHookContext
 title: ToolCallHookContext
 ---
 
-Defined in: packages/ai/src/activities/chat/middleware/types.ts:430
+Defined in: [packages/ai/src/activities/chat/middleware/types.ts:445](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L445)
 
-Context provided to tool call hooks (onBeforeToolCall / onAfterToolCall).
+Context provided to tool call hooks (onBeforeToolCall / onGuardToolCall /
+onAfterToolCall).
 
 ## Properties
 
@@ -15,10 +16,11 @@ Context provided to tool call hooks (onBeforeToolCall / onAfterToolCall).
 args: unknown;
 ```
 
-Defined in: packages/ai/src/activities/chat/middleware/types.ts:439
+Defined in: [packages/ai/src/activities/chat/middleware/types.ts:455](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L455)
 
 Parsed arguments for the tool call, before the `inputSchema` check: no
-schema defaults or transforms yet, and possibly invalid.
+schema defaults or transforms yet, and possibly invalid. In
+`onGuardToolCall`, these are the final checked arguments.
 
 ***
 
@@ -30,7 +32,7 @@ tool:
   | undefined;
 ```
 
-Defined in: packages/ai/src/activities/chat/middleware/types.ts:434
+Defined in: [packages/ai/src/activities/chat/middleware/types.ts:449](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L449)
 
 The resolved tool definition, if found
 
@@ -42,7 +44,7 @@ The resolved tool definition, if found
 toolCall: ToolCall;
 ```
 
-Defined in: packages/ai/src/activities/chat/middleware/types.ts:432
+Defined in: [packages/ai/src/activities/chat/middleware/types.ts:447](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L447)
 
 The tool call being executed
 
@@ -54,7 +56,7 @@ The tool call being executed
 toolCallId: string;
 ```
 
-Defined in: packages/ai/src/activities/chat/middleware/types.ts:443
+Defined in: [packages/ai/src/activities/chat/middleware/types.ts:459](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L459)
 
 ID of the tool call
 
@@ -66,6 +68,6 @@ ID of the tool call
 toolName: string;
 ```
 
-Defined in: packages/ai/src/activities/chat/middleware/types.ts:441
+Defined in: [packages/ai/src/activities/chat/middleware/types.ts:457](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L457)
 
 Name of the tool

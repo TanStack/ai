@@ -361,6 +361,25 @@ Processes on Railway:
 - Blocking `exec` runs without a durable session. If the connection drops, the command dies.
 - `kill()` and an aborted `exec` send `TERM` to the process group, then `KILL` after 2 s. An aborted `spawn` sends `KILL` at once. All of them finish only on the confirmed remote exit. An aborted `exec` resolves with the exit code of the signal.
 
+## Cloudflare
+
+```ts
+import { cloudflareSandbox } from '@tanstack/ai-sandbox-cloudflare'
+import type { SandboxAgentEnv } from '@tanstack/ai-sandbox-cloudflare/agent'
+
+export function provider(env: SandboxAgentEnv) {
+  return cloudflareSandbox({ binding: env.Sandbox })
+}
+```
+
+- **Isolation:** a [Cloudflare Container](https://developers.cloudflare.com/containers/) behind a `Sandbox` Durable Object. The provider runs inside your Worker, not on a laptop or a server that you run.
+- **Auth:** the runtime, not a credential. The `binding` comes from `wrangler.jsonc`. There is no API key to set.
+- **Bridge:** the Worker that owns the sandbox also runs the tool bridge, so no tunnel is needed.
+- **No snapshots, no durable disk, no fork:** `snapshots`, `durableFilesystem`, and `fork` are `false`. To keep work, use [Portable Snapshots](./portable-snapshots).
+- **Network:** `networkPolicy` is `false`.
+
+The agent coordinator, durable runs, live previews through a quick tunnel, callback hosts, and the Durable Object run log are on [Cloudflare](./cloudflare) and [Cloudflare Edge Details](./cloudflare-advanced).
+
 ## `writableStdin` per provider
 
 - `true`: local process, Docker container, Daytona, Upstash Box, E2B, boxd, and Railway.

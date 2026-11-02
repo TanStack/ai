@@ -1,5 +1,18 @@
 # @tanstack/ai-persistence
 
+## 1.0.1
+
+### Patch Changes
+
+- [#1921](https://github.com/TanStack/ai/pull/1921) [`669fd31`](https://github.com/TanStack/ai/commit/669fd31d995a7134e9f39f386181edc5085039b2) - Persistence adapter skills now type-check, and the Drizzle and custom Postgres recipes run the persistence conformance suite. The custom recipe includes the interrupt and metadata stores. The Prisma recipe is type-checked only, because it needs a generated client.
+
+- [#1918](https://github.com/TanStack/ai/pull/1918) [`2f86841`](https://github.com/TanStack/ai/commit/2f868416cc9d2fe0022f6c08417ed76ddcdadcbd) - The adapter skills now say to write all four chat tables and stores on every dialect. The Drizzle skill gets a full Postgres schema block instead of a prose note, so an agent does not translate the SQLite schema by hand and drop `interrupts` and `metadata`.
+
+  The conformance step in every adapter skill now skips the optional `activities` store, which the testkit requires to be provided or declared. The Drizzle recipe's Postgres and SQLite code was run through the testkit on PGlite and libsql and passes.
+
+- Updated dependencies [[`f085015`](https://github.com/TanStack/ai/commit/f085015da1b77aee3cf95ca74a2e86ed9dbc1c29), [`ae97655`](https://github.com/TanStack/ai/commit/ae976552710726b13b524c307c1b5bbe78478eb0)]:
+  - @tanstack/ai@1.0.1
+
 ## 1.0.0
 
 ### Major Changes

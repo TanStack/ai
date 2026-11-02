@@ -9,4 +9,4 @@ type InterruptSubmissionError =
   | BatchInterruptError;
 ```
 
-Defined in: packages/ai/src/interrupts.ts:60
+Defined in: [packages/ai/src/interrupts.ts:60](https://github.com/TanStack/ai/blob/main/packages/ai/src/interrupts.ts#L60)

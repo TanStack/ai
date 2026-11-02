@@ -3,7 +3,7 @@ id: VideoUrlResult
 title: VideoUrlResult
 ---
 
-Defined in: packages/ai/src/types.ts:2663
+Defined in: [packages/ai/src/types.ts:2663](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2663)
 
 Result containing the URL to a generated video.
 
@@ -15,7 +15,7 @@ Result containing the URL to a generated video.
 optional artifacts?: PersistedArtifactRef[];
 ```
 
-Defined in: packages/ai/src/types.ts:2677
+Defined in: [packages/ai/src/types.ts:2677](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2677)
 
 Persisted artifact references for generated assets, when available
 
@@ -27,7 +27,7 @@ Persisted artifact references for generated assets, when available
 optional body?: undefined;
 ```
 
-Defined in: packages/ai/src/types.ts:2678
+Defined in: [packages/ai/src/types.ts:2678](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2678)
 
 ***
 
@@ -37,7 +37,7 @@ Defined in: packages/ai/src/types.ts:2678
 optional expiresAt?: Date;
 ```
 
-Defined in: packages/ai/src/types.ts:2669
+Defined in: [packages/ai/src/types.ts:2669](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2669)
 
 When the URL expires, if applicable
 
@@ -49,7 +49,7 @@ When the URL expires, if applicable
 jobId: string;
 ```
 
-Defined in: packages/ai/src/types.ts:2665
+Defined in: [packages/ai/src/types.ts:2665](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2665)
 
 Job identifier
 
@@ -61,7 +61,7 @@ Job identifier
 url: string;
 ```
 
-Defined in: packages/ai/src/types.ts:2667
+Defined in: [packages/ai/src/types.ts:2667](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2667)
 
 URL to the generated video
 
@@ -73,7 +73,7 @@ URL to the generated video
 optional usage?: TokenUsage<ProviderUsageDetails>;
 ```
 
-Defined in: packages/ai/src/types.ts:2675
+Defined in: [packages/ai/src/types.ts:2675](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2675)
 
 Usage information for the completed generation, when the adapter can report
 it. For usage-based providers (e.g. fal) this carries `billed` — the real

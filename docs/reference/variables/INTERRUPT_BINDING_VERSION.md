@@ -7,7 +7,7 @@ title: INTERRUPT_BINDING_VERSION
 const INTERRUPT_BINDING_VERSION: 1;
 ```
 
-Defined in: packages/ai/src/interrupts.ts:77
+Defined in: [packages/ai/src/interrupts.ts:77](https://github.com/TanStack/ai/blob/main/packages/ai/src/interrupts.ts#L77)
 
 Wire version of [InterruptBinding](../type-aliases/InterruptBinding.md).
 

@@ -1276,24 +1276,17 @@ describe('useChat', () => {
 
       await result.current.sendMessage('Hello')
 
+      // The chunks stream in over several ticks. Wait for the full text, not
+      // for the first chunk, or a slow runner sees 'Hello, ' here.
       await waitFor(() => {
         const assistantMessage = result.current.messages.find(
           (m) => m.role === 'assistant',
         )
-        expect(assistantMessage).toBeDefined()
+        const textPart = assistantMessage?.parts.find((p) => p.type === 'text')
+        expect(textPart?.type === 'text' ? textPart.content : undefined).toBe(
+          'Hello, world!',
+        )
       })
-
-      const assistantMessage = result.current.messages.find(
-        (m) => m.role === 'assistant',
-      )
-      expect(assistantMessage).toBeDefined()
-      if (assistantMessage) {
-        const textPart = assistantMessage.parts.find((p) => p.type === 'text')
-        expect(textPart).toBeDefined()
-        if (textPart && textPart.type === 'text') {
-          expect(textPart.content).toBe('Hello, world!')
-        }
-      }
     })
 
     it('should not send empty messages', async () => {

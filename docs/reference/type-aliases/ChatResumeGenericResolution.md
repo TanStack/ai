@@ -17,4 +17,4 @@ type ChatResumeGenericResolution =
 };
 ```
 
-Defined in: packages/ai/src/activities/chat/middleware/types.ts:400
+Defined in: [packages/ai/src/activities/chat/middleware/types.ts:414](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L414)
