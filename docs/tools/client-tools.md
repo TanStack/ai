@@ -350,7 +350,7 @@ const searchDocs = toolDefinition({
   inputSchema: z.object({ query: z.string() }),
 }).client(async ({ query }, ctx) => {
   const response = await fetch(`/api/search?q=${encodeURIComponent(query)}`, {
-    signal: ctx.abortSignal,
+    signal: ctx?.abortSignal,
   });
   return { results: await response.text() };
 });
