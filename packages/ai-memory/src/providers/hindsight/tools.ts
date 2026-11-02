@@ -40,7 +40,7 @@ export function makeHindsightTools(deps: HindsightToolDeps): Array<Tool> {
       required: ['content'],
       additionalProperties: false,
     },
-    async execute(args, ctx) {
+    async execute(args) {
       const content = stringField(args, 'content')
       const start = Date.now()
       try {
@@ -48,7 +48,6 @@ export function makeHindsightTools(deps: HindsightToolDeps): Array<Tool> {
         const data = await client.retain(deps.bankId, content, {
           context: 'chat:tool',
           timestamp: new Date(),
-          signal: ctx?.abortSignal,
         })
         deps.onToolRetain?.({
           ok: true,
@@ -79,14 +78,13 @@ export function makeHindsightTools(deps: HindsightToolDeps): Array<Tool> {
       required: ['query'],
       additionalProperties: false,
     },
-    async execute(args, ctx) {
+    async execute(args) {
       const query = stringField(args, 'query')
       const start = Date.now()
       try {
         const { client, recallToPrompt } = await deps.getRuntime()
         const data = await client.recall(deps.bankId, query, {
           budget: deps.budget,
-          signal: ctx?.abortSignal,
         })
         const systemPrompt = recallToPrompt(data)
         const fragments: Array<MemoryFragment> = (data.results ?? []).map(
@@ -125,13 +123,11 @@ export function makeHindsightTools(deps: HindsightToolDeps): Array<Tool> {
       required: ['query'],
       additionalProperties: false,
     },
-    async execute(args, ctx) {
+    async execute(args) {
       const query = stringField(args, 'query')
       try {
         const { client } = await deps.getRuntime()
-        const data = await client.reflect(deps.bankId, query, {
-          signal: ctx?.abortSignal,
-        })
+        const data = await client.reflect(deps.bankId, query)
         return data.text ?? '(no reflection)'
       } catch (err) {
         return `(reflection failed: ${err instanceof Error ? err.message : String(err)})`
