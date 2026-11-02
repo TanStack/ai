@@ -405,5 +405,6 @@ interface ExecutionResult<T = unknown> {
 
 Code Mode passes the abort signal of the tool call as `options.signal`. When it aborts, stop the run and return a failure. The built-in drivers do this:
 
-- The Node, Cloudflare, and E2B drivers stop the run at once.
-- The QuickJS and Daytona drivers run until their `timeout`.
+- The Node, Cloudflare, E2B, and QuickJS drivers stop the run at once. After an abort, the Node and QuickJS contexts are disposed, the same as after a timeout.
+- The QuickJS on Bun driver stops the run between jobs. The context stays usable.
+- The Daytona driver returns at once and starts no more tool rounds. The Daytona SDK cannot cancel a `codeRun`, so a run that started continues in the sandbox until its `timeout`.

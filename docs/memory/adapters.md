@@ -162,7 +162,7 @@ const memory = mem0({
 
 ## `honcho()`
 
-Honcho stores the turn as messages in a session. `recall` returns one written answer about the user, built by Honcho, with no separate fragments.
+Honcho stores the turn as messages in a session. `recall` returns one written answer about the user, built by Honcho, with no separate fragments. When the chat run aborts, `recall` stops waiting and returns an empty prompt. The Honcho SDK takes no abort signal, so the Honcho request continues on the server.
 
 | Option | Type | Default | Purpose |
 | --- | --- | --- | --- |

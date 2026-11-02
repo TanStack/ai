@@ -107,6 +107,8 @@ Coordinates are in pixels, in `display` space. Key names are `KeyboardEvent.key`
 | `press(keys)` | Presses one combo, like `['Control', 's']`. |
 | `type(text)` | Types text as a user does. |
 
+Each action also takes an optional `signal`, the abort signal of the tool call. It is the last argument, for example `move(x, y, { signal })`. `click` gets it in its options: `click(x, y, { button, count, signal })`. Pass it to your requests, so an action stops when the run stops. `keyUp` and `mouseUp` get no signal, because they release what an aborted action held down.
+
 ### Add the optional methods
 
 Four methods are optional:
