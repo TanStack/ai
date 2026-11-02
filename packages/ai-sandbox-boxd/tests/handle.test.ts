@@ -494,6 +494,16 @@ describe('BoxdHandle snapshot and fork signal', () => {
     expect(raw.machines.delete).toHaveBeenCalledWith('vm-fork')
   })
 
+  it('snapshot() stops waiting while a snapshot request hangs', async () => {
+    const { handle, raw } = makeHandle()
+    raw.snapshots.get.mockImplementation(() => new Promise(() => {}))
+    const controller = new AbortController()
+    const pending = handle.snapshot('s', { signal: controller.signal })
+    await vi.waitFor(() => expect(raw.snapshots.get).toHaveBeenCalledOnce())
+    controller.abort(new Error('stopped'))
+    await expect(pending).rejects.toThrow('stopped')
+  })
+
   it('snapshot() starts no capture when the signal is already aborted', async () => {
     const { handle, raw } = makeHandle()
     await expect(

@@ -582,12 +582,16 @@ export class BoxdHandle implements SandboxHandle {
     const signal = options?.signal
     signal?.throwIfAborted()
     const name = `${this.machineName}-${slug(label ?? 'snapshot') || 'snapshot'}`
-    await this.client.snapshots.create(this.id, name)
+    // The SDK takes no signal: stop waiting on abort. The capture goes on in boxd.
+    await untilAborted(this.client.snapshots.create(this.id, name), signal)
     const deadline = Date.now() + SNAPSHOT_READY_TIMEOUT_MS
     for (;;) {
       // An abort stops the wait. The capture goes on in boxd.
       signal?.throwIfAborted()
-      const snap = await this.client.snapshots.get(name, this.orgParams())
+      const snap = await untilAborted(
+        this.client.snapshots.get(name, this.orgParams()),
+        signal,
+      )
       if (snap.status === 'ready') break
       if (snap.status === 'failed') {
         throw new Error(`boxd: snapshot "${name}" failed to capture`)
