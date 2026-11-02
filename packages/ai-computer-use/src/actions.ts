@@ -20,7 +20,7 @@ function isRecord(value: unknown): value is Input {
 }
 
 /** Waits `ms`. Rejects with the reason of `signal` when it aborts first. */
-function sleep(ms: number, signal?: AbortSignal) {
+export function sleep(ms: number, signal?: AbortSignal) {
   return new Promise<void>((resolve, reject) => {
     signal?.throwIfAborted()
     const onAbort = () => {
@@ -405,6 +405,8 @@ export async function runComputerAction(
   signal?: AbortSignal,
 ) {
   if (!isRecord(input)) throw invalid('input', 'an object')
+  // The call can abort while its machine starts.
+  signal?.throwIfAborted()
   const { action, actions } = input
   if (typeof action === 'string') {
     return runAnthropicAction(driver, action, input, signal)

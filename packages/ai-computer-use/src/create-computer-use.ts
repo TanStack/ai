@@ -1,7 +1,7 @@
 import { brandProviderTool, toolDefinition } from '@tanstack/ai'
 import { arrayBufferToBase64 } from '@tanstack/ai-utils'
 import { z } from 'zod'
-import { runComputerAction } from './actions'
+import { runComputerAction, sleep } from './actions'
 import { computerSafetyCheck, safetyCheckSchema } from './safety-check'
 import type {
   ChatMiddleware,
@@ -106,10 +106,6 @@ function isWebUrl(url: string) {
   } catch {
     return false
   }
-}
-
-function sleep(ms: number) {
-  return new Promise<void>((resolve) => setTimeout(resolve, ms))
 }
 
 function imageResult(bytes: Uint8Array) {
@@ -337,7 +333,7 @@ export function createComputerUse({
           context?.abortSignal,
         )
         if (result === undefined) {
-          await sleep(screenshotDelay)
+          await sleep(screenshotDelay, context?.abortSignal)
           return imageResult(await machine.screenshot())
         }
         return result.type === 'image' ? imageResult(result.bytes) : result.text
@@ -357,7 +353,7 @@ export function createComputerUse({
         throw new Error('The computer driver has no navigate method.')
       }
       await machine.navigate(url)
-      await sleep(screenshotDelay)
+      await sleep(screenshotDelay, context?.abortSignal)
       return imageResult(await machine.screenshot())
     }),
   )

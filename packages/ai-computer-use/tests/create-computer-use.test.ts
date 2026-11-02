@@ -979,4 +979,35 @@ describe('the abort signal of a computer action', () => {
     await expect(waiting).rejects.toThrow()
     expect(Date.now() - started).toBeLessThan(1000)
   })
+
+  it('does not run an action when its call aborts while the machine starts', async () => {
+    const abort = new AbortController()
+    const { factory, machines } = createFactory({
+      // `create` runs while the machine starts: abort the call there.
+      failCreate: () => {
+        abort.abort()
+        return false
+      },
+    })
+    const computer = setupWith(factory)
+
+    await expect(
+      executeWith(computer, CLICK, 'call_1', abort.signal),
+    ).rejects.toThrow()
+    expect(machines.get(THREAD)).toEqual([])
+  })
+
+  it('ends the screenshot wait after an action when its call aborts', async () => {
+    const { driver, calls } = createDriver()
+    const computer = setupWith(driver, { screenshotDelay: 5000 })
+    const abort = new AbortController()
+    const running = executeWith(computer, CLICK, 'call_1', abort.signal)
+    await vi.waitFor(() => expect(calls).toContain('click:end'))
+    const started = Date.now()
+    abort.abort()
+
+    await expect(running).rejects.toThrow()
+    expect(Date.now() - started).toBeLessThan(1000)
+    expect(calls).not.toContain('screenshot')
+  })
 })

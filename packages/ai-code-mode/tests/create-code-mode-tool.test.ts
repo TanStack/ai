@@ -731,4 +731,66 @@ describe('createCodeModeTool run abort', () => {
     expect(dispose).toHaveBeenCalled()
     expect((await running).success).toBe(false)
   })
+
+  it('does not run the code when the run aborts while the context is made', async () => {
+    const execute = vi.fn()
+    const dispose = vi.fn(async () => {})
+    const abort = new AbortController()
+    const driver: IsolateDriver = {
+      createContext: async () => {
+        abort.abort()
+        return { execute, dispose }
+      },
+    }
+    const tool = createCodeModeTool({
+      driver,
+      tools: [createMockTool('fetchWeather')],
+    })
+
+    const result = await tool.execute!(
+      { typescriptCode: 'return 1' },
+      { abortSignal: abort.signal, emitCustomEvent: vi.fn() },
+    )
+
+    expect(execute).not.toHaveBeenCalled()
+    expect(result.success).toBe(false)
+    expect(dispose).toHaveBeenCalledTimes(1)
+  })
+
+  it('disposes the isolate once when the run aborts', async () => {
+    let release = () => {}
+    const disposed = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    const dispose = vi.fn(async () => release())
+    const driver: IsolateDriver = {
+      createContext: async () => ({
+        execute: async () => {
+          await disposed
+          return {
+            success: false,
+            error: { name: 'DisposedError', message: 'Context was disposed' },
+            logs: [],
+          }
+        },
+        dispose,
+      }),
+    }
+    const tool = createCodeModeTool({
+      driver,
+      tools: [createMockTool('fetchWeather')],
+    })
+    const abort = new AbortController()
+
+    const running = tool.execute!(
+      { typescriptCode: 'return 1' },
+      { abortSignal: abort.signal, emitCustomEvent: vi.fn() },
+    )
+    await vi.waitFor(() => expect(dispose).not.toHaveBeenCalled())
+    await new Promise((resolve) => setTimeout(resolve, 10))
+    abort.abort()
+    await running
+
+    expect(dispose).toHaveBeenCalledTimes(1)
+  })
 })

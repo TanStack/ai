@@ -196,7 +196,7 @@ On spec 2025, the call response is the `CreateTaskResult` from the spec. The `ta
 | Field | Value |
 | --- | --- |
 | `taskId` | The id from the call. |
-| `status` | `working`, `completed`, or `failed`. |
+| `status` | `working`, `completed`, `failed`, or `cancelled`. |
 | `ttl` | `null`. |
 | `createdAt` | The time of the first `set`. |
 | `lastUpdatedAt` | The time of the last `set`. |
@@ -209,6 +209,7 @@ On spec 2025, the call response is the `CreateTaskResult` from the spec. The `ta
 | `working` | The tool function is still at work. |
 | `completed` | The store holds the tool result. |
 | `failed` | The tool function threw an error. |
+| `cancelled` | A host sent `tasks/cancel`. The tool's `ctx.abortSignal` aborted. |
 
 If the tool function throws, the task keeps the text of that error in `statusMessage`. If that error has no text, the task keeps `The tool failed.`
 

@@ -109,9 +109,16 @@ async function findRg(backend: WorkspaceBackend) {
     const bundled = await bundledRg()
     if (bundled !== undefined) return quoteArg(bundled, process.platform)
   }
-  const probe = await backend.exec('rg --version', { timeoutMs: TIMEOUT_MS })
+  // Every later call reuses this result, so the probe does not take the
+  // signal of the call that runs it: an aborted call would cache "no rg".
+  const probe = await backend.exec('rg --version', {
+    timeoutMs: TIMEOUT_MS,
+    signal: NEVER_ABORTS,
+  })
   return probe.exitCode === 0 ? 'rg' : undefined
 }
+
+const NEVER_ABORTS = new AbortController().signal
 
 /** Run an rg command in `cwd`, and give its output. */
 async function runRg(backend: WorkspaceBackend, command: string, cwd: string) {

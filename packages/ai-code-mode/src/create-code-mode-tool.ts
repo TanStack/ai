@@ -217,11 +217,21 @@ export function createCodeModeTool(
       // Aborts when this program ends, so a host call that still waits can stop.
       const programEnd = new AbortController()
       // An abort of the run ends the program: a call that waits (for example
-      // for an approval) stops, and the isolate goes, so its code stops too.
+      // for an approval) stops, and the isolate is disposed. How fast running
+      // code stops depends on the driver.
       const runSignal = toolContext?.abortSignal
+      let disposing: Promise<void> | undefined
+      const disposeContext = () => {
+        if (isolateContext && !disposing) {
+          disposing = isolateContext.dispose()
+          // Marked as seen; the finally block still awaits it.
+          disposing.catch(() => {})
+        }
+        return disposing
+      }
       const onRunAbort = () => {
         programEnd.abort()
-        void isolateContext?.dispose()
+        void disposeContext()
       }
       runSignal?.addEventListener('abort', onRunAbort, { once: true })
 
@@ -302,8 +312,20 @@ export function createCodeModeTool(
           )
         }
 
-        // An abort that came while the context was made.
-        if (runSignal?.aborted) onRunAbort()
+        // An abort that came while the context was made: do not run the code.
+        if (runSignal?.aborted) {
+          onRunAbort()
+          return finish(
+            {
+              success: false,
+              error: {
+                message: 'The run was aborted before the code ran',
+                name: 'AbortError',
+              },
+            },
+            'create-context',
+          )
+        }
 
         // Step 5: Execute the code in the sandbox
         const executionResult = await isolateContext.execute(strippedCode)
@@ -379,9 +401,7 @@ export function createCodeModeTool(
         // The program has ended (success, error, or timeout).
         programEnd.abort()
         // Always clean up the sandbox context
-        if (isolateContext) {
-          await isolateContext.dispose()
-        }
+        await disposeContext()
       }
     },
   )

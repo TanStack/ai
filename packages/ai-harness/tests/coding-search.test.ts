@@ -583,7 +583,8 @@ describe('the abort signal of a call', () => {
     const backend: WorkspaceBackend = {
       ...fake.backend,
       exec: (command, options) => {
-        signals.push(options?.signal)
+        // The rg probe is shared by every call, so it has its own signal.
+        if (command !== 'rg --version') signals.push(options?.signal)
         return fake.backend.exec(command, options)
       },
     }
@@ -597,5 +598,44 @@ describe('the abort signal of a call', () => {
     )
     expect(signals.length).toBeGreaterThan(0)
     expect(signals.filter((each) => each !== signal)).toEqual([])
+  })
+
+  it('still finds rg after a call that aborted during the rg probe', async () => {
+    const fake = fakeBackend({ 'a.ts': 'one\n' }, (command) =>
+      command.startsWith('rg --files ') ? ok('./a.ts\0') : undefined,
+    )
+    const backend: WorkspaceBackend = {
+      ...fake.backend,
+      exec: (command, options) => {
+        fake.commands.push(command)
+        // An aborted command ends with a failure, like `hostBackend.exec`.
+        if (command === 'rg --version') {
+          return Promise.resolve(
+            options?.signal?.aborted
+              ? { exitCode: 1, stdout: '', stderr: '' }
+              : ok('ripgrep 14.1.0'),
+          )
+        }
+        return fake.backend.exec(command, options)
+      },
+    }
+    const { tools } = createWorkspaceTools({ root, backend })
+    const listFiles = tools.find((each) => each.name === 'list_files')?.execute
+    if (!listFiles) throw new Error('No tool list_files')
+    const aborted = new AbortController()
+    aborted.abort()
+    await Promise.resolve(
+      listFiles(
+        {},
+        { abortSignal: aborted.signal, emitCustomEvent: () => undefined },
+      ),
+    ).catch(() => undefined)
+
+    expect(await listFiles({}, { emitCustomEvent: () => undefined })).toBe(
+      'a.ts',
+    )
+    expect(
+      fake.commands.filter((c) => c.startsWith('rg --files ')),
+    ).not.toEqual([])
   })
 })

@@ -439,4 +439,20 @@ describe('daytonaSandbox abort', () => {
       expect(del).toHaveBeenCalledWith(late)
     },
   )
+
+  it('deletes the sandbox when the abort comes while its workdir is made', async () => {
+    const abort = new AbortController()
+    const sandbox = fakeRemoteSandbox('sbx-setup', {
+      executeCommand: vi.fn(async () => {
+        abort.abort()
+        return { result: '', exitCode: 0 }
+      }),
+    })
+    create.mockResolvedValue(sandbox)
+    del.mockResolvedValue(undefined)
+    const provider = daytonaSandbox({ apiKey: 'test-key' })
+
+    await expect(provider.create({ signal: abort.signal })).rejects.toThrow()
+    expect(del).toHaveBeenCalledWith(sandbox)
+  })
 })

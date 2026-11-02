@@ -399,10 +399,13 @@ test.describe('computer use with a Playwright page', () => {
           setTimeout(() => abort.abort(), 50)
         }
       }
-    } catch {
-      // An aborted run can end with an error. The checks below are the test.
+    } catch (error) {
+      // An aborted run can end with an error. Any other error fails the test.
+      if (!abort.signal.aborted) throw error
     }
 
+    // The stop really happened, so the timing check below tests it.
+    expect(abort.signal.aborted).toBe(true)
     expect(Date.now() - started).toBeLessThan(1500)
     await expect(page.locator('#status')).toHaveText('idle')
   })

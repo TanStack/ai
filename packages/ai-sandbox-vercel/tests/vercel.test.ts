@@ -219,4 +219,26 @@ describe('vercelSandbox create abort', () => {
       create.mockRestore()
     }
   })
+
+  it('stops the sandbox when the abort comes while its workdir is made', async () => {
+    const abort = new AbortController()
+    const stop = vi.fn(() => Promise.resolve())
+    const mkDir = vi.fn(async () => {
+      abort.abort()
+    })
+    const create = vi
+      .spyOn(VercelSandbox, 'create')
+      .mockResolvedValue({ name: 'sbx-setup', mkDir, stop } as never)
+    try {
+      const provider = vercelSandbox({
+        token: 't',
+        teamId: 't',
+        projectId: 'p',
+      })
+      await expect(provider.create({ signal: abort.signal })).rejects.toThrow()
+      expect(stop).toHaveBeenCalledOnce()
+    } finally {
+      create.mockRestore()
+    }
+  })
 })

@@ -101,11 +101,15 @@ class DaytonaProvider implements SandboxProvider {
   ): Promise<SandboxHandle> {
     // The SDK create takes no signal. A sandbox that comes after the abort has
     // no owner, so delete it instead of leaving it billed.
-    if (signal?.aborted) {
+    const deleteIfAborted = async () => {
+      if (!signal?.aborted) return
       await this.daytona.delete(sandbox).catch(() => undefined)
       signal.throwIfAborted()
     }
+    await deleteIfAborted()
     await sandbox.process.executeCommand(`mkdir -p ${shQuote(this.workdir)}`)
+    // The abort can also come while the workdir is made.
+    await deleteIfAborted()
     return new DaytonaHandle({ sandbox, workdir: this.workdir, applyEnvSet })
   }
 
