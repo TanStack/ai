@@ -3,7 +3,7 @@ id: VideoStreamResult
 title: VideoStreamResult
 ---
 
-Defined in: packages/ai/src/types.ts:2686
+Defined in: [packages/ai/src/types.ts:2686](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2686)
 
 Video bytes from a provider that has no public URL for the finished video.
 Core passes `body` to generation middleware, which streams it into storage
@@ -17,7 +17,7 @@ and sets `url`. Use `withGenerationPersistence` with `artifactUrl`.
 body: ReadableStream<Uint8Array<ArrayBufferLike>>;
 ```
 
-Defined in: packages/ai/src/types.ts:2690
+Defined in: [packages/ai/src/types.ts:2690](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2690)
 
 The video bytes. Read once, with backpressure. Never buffer it whole.
 
@@ -29,7 +29,7 @@ The video bytes. Read once, with backpressure. Never buffer it whole.
 contentType: string;
 ```
 
-Defined in: packages/ai/src/types.ts:2692
+Defined in: [packages/ai/src/types.ts:2692](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2692)
 
 MIME type of `body`, e.g. `video/mp4`.
 
@@ -41,7 +41,7 @@ MIME type of `body`, e.g. `video/mp4`.
 jobId: string;
 ```
 
-Defined in: packages/ai/src/types.ts:2688
+Defined in: [packages/ai/src/types.ts:2688](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2688)
 
 Job identifier
 
@@ -53,7 +53,7 @@ Job identifier
 optional url?: undefined;
 ```
 
-Defined in: packages/ai/src/types.ts:2694
+Defined in: [packages/ai/src/types.ts:2694](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2694)
 
 ***
 
@@ -63,4 +63,4 @@ Defined in: packages/ai/src/types.ts:2694
 optional usage?: TokenUsage<ProviderUsageDetails>;
 ```
 
-Defined in: packages/ai/src/types.ts:2693
+Defined in: [packages/ai/src/types.ts:2693](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2693)

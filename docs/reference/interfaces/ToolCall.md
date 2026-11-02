@@ -3,7 +3,7 @@ id: ToolCall
 title: ToolCall
 ---
 
-Defined in: packages/ai/src/types.ts:194
+Defined in: [packages/ai/src/types.ts:197](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L197)
 
 AG-UI `ToolCall` with typed metadata. `function.arguments` is a JSON string.
 
@@ -25,7 +25,7 @@ AG-UI `ToolCall` with typed metadata. `function.arguments` is a JSON string.
 optional metadata?: TMetadata;
 ```
 
-Defined in: packages/ai/src/types.ts:201
+Defined in: [packages/ai/src/types.ts:204](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L204)
 
 Provider-specific metadata to carry through the tool call lifecycle.
 Typed per-adapter via `TToolCallMetadata`. For example,

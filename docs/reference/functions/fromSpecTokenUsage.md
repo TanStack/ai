@@ -7,7 +7,7 @@ title: fromSpecTokenUsage
 function fromSpecTokenUsage(usage, leftover?): TokenUsage<ProviderUsageDetails> | undefined;
 ```
 
-Defined in: packages/ai/src/utilities/ag-ui-usage.ts:175
+Defined in: [packages/ai/src/utilities/ag-ui-usage.ts:175](https://github.com/TanStack/ai/blob/main/packages/ai/src/utilities/ag-ui-usage.ts#L175)
 
 ## Parameters
 

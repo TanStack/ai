@@ -3,7 +3,7 @@ id: MidConversationRequest
 title: MidConversationRequest
 ---
 
-Defined in: packages/ai/src/utilities/mid-conversation.ts:114
+Defined in: [packages/ai/src/utilities/mid-conversation.ts:114](https://github.com/TanStack/ai/blob/main/packages/ai/src/utilities/mid-conversation.ts#L114)
 
 ## Type Parameters
 
@@ -23,7 +23,7 @@ Defined in: packages/ai/src/utilities/mid-conversation.ts:114
 addedTools: TTool[];
 ```
 
-Defined in: packages/ai/src/utilities/mid-conversation.ts:118
+Defined in: [packages/ai/src/utilities/mid-conversation.ts:118](https://github.com/TanStack/ai/blob/main/packages/ai/src/utilities/mid-conversation.ts#L118)
 
 Every added tool, in change order.
 
@@ -38,7 +38,7 @@ at: Map<number, {
 }>;
 ```
 
-Defined in: packages/ai/src/utilities/mid-conversation.ts:120
+Defined in: [packages/ai/src/utilities/mid-conversation.ts:120](https://github.com/TanStack/ai/blob/main/packages/ai/src/utilities/mid-conversation.ts#L120)
 
 The changes by message index (`before`).
 
@@ -50,7 +50,7 @@ The changes by message index (`before`).
 startSystemPrompts: TPrompt[];
 ```
 
-Defined in: packages/ai/src/utilities/mid-conversation.ts:116
+Defined in: [packages/ai/src/utilities/mid-conversation.ts:116](https://github.com/TanStack/ai/blob/main/packages/ai/src/utilities/mid-conversation.ts#L116)
 
 ***
 
@@ -60,4 +60,4 @@ Defined in: packages/ai/src/utilities/mid-conversation.ts:116
 startTools: TTool[];
 ```
 
-Defined in: packages/ai/src/utilities/mid-conversation.ts:115
+Defined in: [packages/ai/src/utilities/mid-conversation.ts:115](https://github.com/TanStack/ai/blob/main/packages/ai/src/utilities/mid-conversation.ts#L115)
