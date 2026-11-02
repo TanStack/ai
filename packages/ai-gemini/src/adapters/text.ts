@@ -767,6 +767,8 @@ export class GeminiTextAdapter<
     }
     const mappedOptions = this.mapCommonOptionsToGemini(chatOptions)
     const seen: StreamUsageSeen = {}
+    // Set once a RUN_ERROR went out. It carried the usage already.
+    let failed = false
 
     try {
       chatOptions.logger.request(
@@ -786,7 +788,6 @@ export class GeminiTextAdapter<
       let finished:
         | Extract<AdapterYieldChunk, { type: typeof EventType.RUN_FINISHED }>
         | undefined
-      let failed = false
       for await (const chunk of this.processStreamChunks(
         result,
         chatOptions,
@@ -860,7 +861,7 @@ export class GeminiTextAdapter<
           chatOptions,
           message,
           'provider-error',
-          buildGeminiUsage(seen.usageMetadata),
+          failed ? undefined : buildGeminiUsage(seen.usageMetadata),
         ),
         ...(rawEvent !== undefined && { rawEvent }),
       }

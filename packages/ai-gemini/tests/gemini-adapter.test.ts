@@ -2248,6 +2248,36 @@ describe('Gemini adapter usage on error paths', () => {
     })
   })
 
+  it('reports the structured stream usage once when the stream throws after MAX_TOKENS', async () => {
+    mocks.generateContentStreamSpy.mockResolvedValue(
+      (async function* () {
+        yield {
+          candidates: [
+            {
+              content: { parts: [{ text: '{"name":' }] },
+              finishReason: 'MAX_TOKENS',
+            },
+          ],
+          usageMetadata,
+        }
+        throw new Error('socket closed')
+      })(),
+    )
+
+    const events = await collectChunks(
+      createTextAdapter().structuredOutputStream({
+        chatOptions,
+        outputSchema: cityJsonSchema,
+      }),
+    )
+
+    const withUsage = events.filter(
+      (c) => c.type === 'RUN_ERROR' && 'usage' in c && c.usage,
+    )
+    expect(withUsage).toHaveLength(1)
+    expect(withUsage[0]).toMatchObject({ code: 'max_tokens' })
+  })
+
   it('keeps the usage on empty-response and parse-error structured stream errors', async () => {
     for (const [text, code] of [
       ['', 'empty-response'],

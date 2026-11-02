@@ -1923,6 +1923,8 @@ class TextEngine<
             break
           }
           if (hasModelErrorHook && (await this.modelErrorRetried(chunk))) {
+            // The dropped call can still be billed: report its usage.
+            await this.runOnUsageFromChunk(chunk)
             return
           }
         }
@@ -1948,6 +1950,8 @@ class TextEngine<
         yield rateLimitError
         return
       }
+      // The dropped call can still be billed: report its usage.
+      await this.runOnUsageFromChunk(rateLimitError)
     }
     if (start) yield start
   }

@@ -150,4 +150,22 @@ describe('devtoolsMiddleware spec events', () => {
       },
     })
   })
+
+  it('sends text:usage for a RUN_ERROR that carries usage', () => {
+    const emit = vi
+      .spyOn(aiEventClient, 'emit')
+      .mockImplementation(() => undefined)
+    const mw = devtoolsMiddleware()
+
+    send(mw, {
+      type: 'RUN_ERROR',
+      message: 'max_tokens',
+      usage: { promptTokens: 10, completionTokens: 4096, totalTokens: 4106 },
+    })
+
+    const usage = emit.mock.calls.find(([name]) => name === 'text:usage')
+    expect(usage?.[1]).toMatchObject({
+      usage: { promptTokens: 10, completionTokens: 4096, totalTokens: 4106 },
+    })
+  })
 })

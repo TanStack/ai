@@ -1137,6 +1137,23 @@ export abstract class OpenAIBaseResponsesTextAdapter<
         }
       }
 
+      // The model refused before the stream failed: report the refusal.
+      if (refusal !== undefined) {
+        const message = `Model refused: ${refusal}`
+        yield {
+          type: EventType.RUN_ERROR,
+          metadata: this.sourceMetadata(chatOptions.model),
+          runId: aguiState.runId,
+          model,
+          timestamp: Date.now(),
+          message,
+          code: 'refusal',
+          error: { message, code: 'refusal' },
+          ...(usage && { usage }),
+        }
+        return
+      }
+
       const isAbort = this.isAbortError(error)
       const errorPayload = this.runErrorPayload(
         error,

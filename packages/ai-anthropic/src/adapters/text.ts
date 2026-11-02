@@ -2204,6 +2204,7 @@ export class AnthropicTextAdapter<
           // message_delta carries the real stop_reason (tool_use, end_turn, etc.),
           // while message_stop is just a completion signal.
           if (!hasEmittedRunFinished) {
+            hasEmittedRunFinished = true
             const usage = buildAnthropicUsage(messageStartUsage)
             yield {
               type: EventType.RUN_FINISHED,

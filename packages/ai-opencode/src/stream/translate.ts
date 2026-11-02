@@ -72,7 +72,9 @@ function buildUsage(
   if (tokens.reasoning) {
     result.completionTokensDetails = { reasoningTokens: tokens.reasoning }
   }
-  if (cost !== undefined) result.cost = cost
+  // ponytail: opencode reports 0 for a model with no price. Leave cost out
+  // then, so a price table of the caller still applies.
+  if (cost) result.cost = cost
   return result
 }
 

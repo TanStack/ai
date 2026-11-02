@@ -2813,3 +2813,98 @@ describe('OpenRouter responses adapter — usage on errors', () => {
     expect(withoutUsage).not.toHaveProperty('usage')
   })
 })
+
+describe('OpenRouter responses adapter — refusal usage', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  const completed = {
+    type: 'response.completed',
+    sequenceNumber: 3,
+    response: {
+      model: 'openai/gpt-4o-mini',
+      output: [],
+      usage: {
+        inputTokens: 10,
+        outputTokens: 5,
+        totalTokens: 15,
+        cost: 0.001,
+      },
+    },
+  }
+  const collect = async (iterable: AsyncIterable<AdapterYieldChunk>) => {
+    const chunks: Array<AdapterYieldChunk> = []
+    for await (const chunk of iterable) chunks.push(chunk)
+    return chunks
+  }
+
+  it('chatStream reports the usage of response.completed on a refusal', async () => {
+    setupMockSdkClient([
+      {
+        type: 'response.content_part.added',
+        sequenceNumber: 1,
+        outputIndex: 0,
+        contentIndex: 0,
+        itemId: 'msg_1',
+        part: { type: 'refusal', refusal: 'I cannot help with that.' },
+      },
+      completed,
+    ])
+
+    const chunks = await collect(
+      createAdapter().chatStream({
+        threadId: 'thread-1',
+        model: 'openai/gpt-4o-mini' as any,
+        messages: [{ role: 'user', content: 'hi' }],
+        logger: testLogger,
+      }),
+    )
+
+    const terminals = chunks.filter(
+      (c) => c.type === 'RUN_ERROR' || c.type === 'RUN_FINISHED',
+    )
+    expect(terminals).toHaveLength(1)
+    expect(terminals[0]).toMatchObject({
+      type: 'RUN_ERROR',
+      code: 'refusal',
+      message: 'I cannot help with that.',
+      usage: { promptTokens: 10, completionTokens: 5, cost: 0.001 },
+    })
+  })
+
+  it('structuredOutputStream reports the usage of response.completed on a refusal', async () => {
+    setupMockSdkClient([
+      { type: 'response.refusal.delta', sequenceNumber: 1, delta: 'I cannot ' },
+      { type: 'response.refusal.delta', sequenceNumber: 2, delta: 'help.' },
+      completed,
+    ])
+
+    const chunks = await collect(
+      createAdapter().structuredOutputStream!({
+        chatOptions: {
+          threadId: 'thread-1',
+          model: 'openai/gpt-4o-mini' as any,
+          messages: [{ role: 'user', content: 'Return an answer.' }],
+          logger: testLogger,
+        },
+        outputSchema: {
+          type: 'object',
+          properties: { answer: { type: 'string' } },
+          required: ['answer'],
+        },
+      }),
+    )
+
+    const terminals = chunks.filter(
+      (c) => c.type === 'RUN_ERROR' || c.type === 'RUN_FINISHED',
+    )
+    expect(terminals).toHaveLength(1)
+    expect(terminals[0]).toMatchObject({
+      type: 'RUN_ERROR',
+      code: 'refusal',
+      message: 'Model refused: I cannot help.',
+      usage: { promptTokens: 10, completionTokens: 5, cost: 0.001 },
+    })
+  })
+})

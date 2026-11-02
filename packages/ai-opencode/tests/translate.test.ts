@@ -320,6 +320,19 @@ describe('translateOpencodeStream', () => {
     })
   })
 
+  it('leaves cost out when opencode reports 0 (a model with no price)', async () => {
+    const chunks = await collect([
+      session,
+      done({ tokens: { input: 20, output: 5 }, cost: 0 }),
+    ])
+    const finished = chunks.at(-1)
+    expect(finished).toMatchObject({
+      type: 'RUN_FINISHED',
+      usage: { promptTokens: 20, completionTokens: 5 },
+    })
+    expect(finished).not.toHaveProperty('usage.cost')
+  })
+
   it('maps a length finish to finishReason length', async () => {
     const chunks = await collect([session, done({ finish: 'length' })])
     expect(chunks.at(-1)).toMatchObject({ finishReason: 'length' })

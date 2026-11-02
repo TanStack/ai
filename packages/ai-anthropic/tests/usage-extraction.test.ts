@@ -952,6 +952,43 @@ describe('Anthropic usage extraction', () => {
     })
   })
 
+  it('does not report the message_stop usage again when the stream then fails', async () => {
+    mocks.betaMessagesCreate.mockResolvedValueOnce(
+      (async function* () {
+        yield {
+          type: 'message_start',
+          message: {
+            id: 'msg_123',
+            type: 'message',
+            role: 'assistant',
+            content: [],
+            model: 'claude-sonnet-4-5',
+            usage: { input_tokens: 12, output_tokens: 3 },
+          },
+        }
+        yield { type: 'message_stop' }
+        throw new Error('socket closed')
+      })(),
+    )
+
+    const chunks: Array<AdapterYieldChunk> = []
+    for await (const chunk of createAdapter().chatStream({
+      model: 'claude-sonnet-4-5',
+      threadId: 'thread-1',
+      messages: [{ role: 'user', content: 'Hello' }],
+      logger: createSilentLogger(),
+    })) {
+      chunks.push(chunk)
+    }
+
+    expect(tokenUsageOf(chunks.find((c) => c.type === 'RUN_FINISHED'))).toEqual(
+      { promptTokens: 12, completionTokens: 3, totalTokens: 15 },
+    )
+    expect(chunks.find((c) => c.type === 'RUN_ERROR')).not.toHaveProperty(
+      'usage',
+    )
+  })
+
   describe('when structuredOutput fails after the response arrived', () => {
     const structuredOptions = {
       chatOptions: {

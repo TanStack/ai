@@ -445,6 +445,36 @@ describe('OpenAIBaseResponsesTextAdapter.structuredOutputStream', () => {
       expect(runError!.code).toBe('parse-error')
     })
 
+    it('keeps the refusal when the stream throws before the terminal event', async () => {
+      mockCreate = vi.fn().mockResolvedValue(
+        (async function* () {
+          yield eventCreated()
+          yield { type: 'response.refusal.delta', delta: 'cannot do this' }
+          throw new Error('socket closed')
+        })(),
+      )
+      const adapter = new TestAdapter()
+
+      const chunks = await collect(
+        adapter.structuredOutputStream!({
+          chatOptions: {
+            threadId: 'thread-1',
+            model: 'test-model',
+            messages: [{ role: 'user', content: 'extract' }],
+            logger: testLogger,
+          },
+          outputSchema: personSchema,
+        }),
+      )
+
+      const runErrors = chunks.filter((c) => c.type === 'RUN_ERROR')
+      expect(runErrors).toHaveLength(1)
+      expect(runErrors[0]).toMatchObject({
+        code: 'refusal',
+        message: 'Model refused: cannot do this',
+      })
+    })
+
     it('emits RUN_ERROR { code: "refusal" } on response.refusal.delta', async () => {
       setupStreamingMock([
         eventCreated(),

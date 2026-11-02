@@ -433,7 +433,22 @@ export class OpenRouterResponsesTextAdapter<
     let responseId: string | undefined
     let reportedModel: string | undefined
     let usage: TokenUsage<OpenRouterProviderUsageDetails> | undefined
+    // A refusal is reported once the terminal event brings the usage.
+    let refusal: string | undefined
     let responseCompleted = false
+    const refusalError = (text: string): AdapterYieldChunk => {
+      const message = `Model refused: ${text}`
+      return {
+        type: EventType.RUN_ERROR,
+        ...(usage && { usage }),
+        runId: aguiState.runId,
+        model,
+        timestamp: Date.now(),
+        message,
+        code: 'refusal',
+        error: { message, code: 'refusal' },
+      }
+    }
 
     const closeReasoning = function* (this: {
       name: string
@@ -538,16 +553,8 @@ export class OpenRouterResponsesTextAdapter<
 
         if (chunk.type === 'response.refusal.delta') {
           const delta = typeof chunk.delta === 'string' ? chunk.delta : ''
-          yield {
-            type: EventType.RUN_ERROR,
-            runId: aguiState.runId,
-            model,
-            timestamp: Date.now(),
-            message: `Model refused: ${delta}`,
-            code: 'refusal',
-            error: { message: `Model refused: ${delta}`, code: 'refusal' },
-          }
-          return
+          refusal = (refusal ?? '') + delta
+          continue
         }
 
         if (
@@ -630,6 +637,7 @@ export class OpenRouterResponsesTextAdapter<
             (chunk.response?.incompleteDetails ? 'incomplete' : undefined)
           const rawError = chunk.response?.error
           usage = buildResponsesUsage(chunk.response?.usage)
+          if (refusal !== undefined) break
           yield {
             type: EventType.RUN_ERROR,
             ...(usage && { usage }),
@@ -677,6 +685,11 @@ export class OpenRouterResponsesTextAdapter<
           model,
           timestamp: Date.now(),
         }
+      }
+
+      if (refusal !== undefined) {
+        yield refusalError(refusal)
+        return
       }
 
       if (!responseCompleted) {
@@ -771,6 +784,12 @@ export class OpenRouterResponsesTextAdapter<
           timestamp: Date.now(),
           parentRunId: chatOptions.parentRunId,
         }
+      }
+
+      // The model refused before the stream failed: report the refusal.
+      if (refusal !== undefined) {
+        yield refusalError(refusal)
+        return
       }
 
       // OpenRouter SDK raises a proprietary `RequestAbortedError` on
@@ -930,6 +949,9 @@ export class OpenRouterResponsesTextAdapter<
     let reasoningMessageId: string | undefined
     let hasClosedReasoning = false
     let runFinishedEmitted = false
+    // A refusal (or unknown content part) RUN_ERROR waits for the terminal
+    // event, so it can carry the usage that only that event reports.
+    let pendingRunError: AdapterYieldChunk | undefined
 
     const adapterName = this.name
     const emitModel = () => model || options.model
@@ -1057,6 +1079,20 @@ export class OpenRouterResponsesTextAdapter<
             code,
             error: { message, code },
           }
+        }
+
+        if (pendingRunError) {
+          if (
+            chunk.type === 'response.completed' ||
+            chunk.type === 'response.failed' ||
+            chunk.type === 'response.incomplete'
+          ) {
+            const usage = buildResponsesUsage(chunk.response?.usage)
+            yield { ...pendingRunError, ...(usage && { usage }) }
+            runFinishedEmitted = true
+            return
+          }
+          continue
         }
 
         // Capture model metadata from any of these events.
@@ -1244,11 +1280,13 @@ export class OpenRouterResponsesTextAdapter<
             hasStreamedContentDeltas = true
           }
           const partChunk = handleContentPart(contentPart)
-          yield partChunk
+          // A refusal is terminal. Hold it until the terminal event (see
+          // pendingRunError).
           if (partChunk.type === 'RUN_ERROR') {
-            runFinishedEmitted = true
-            return
+            pendingRunError = partChunk
+            continue
           }
+          yield partChunk
         }
 
         if (chunk.type === 'response.content_part.done' && chunk.part) {
@@ -1288,11 +1326,11 @@ export class OpenRouterResponsesTextAdapter<
           }
 
           const doneChunk = handleContentPart(contentPart)
-          yield doneChunk
           if (doneChunk.type === 'RUN_ERROR') {
-            runFinishedEmitted = true
-            return
+            pendingRunError = doneChunk
+            continue
           }
+          yield doneChunk
         }
 
         // handle output_item.added to capture function call metadata (name)
@@ -1699,6 +1737,11 @@ export class OpenRouterResponsesTextAdapter<
         }
       }
 
+      if (pendingRunError) {
+        yield pendingRunError
+        return
+      }
+
       // The stream ended without a terminal event (e.g. a truncated
       // connection). Completion was never confirmed, so this is not a
       // successful stop (#1447). The partial text was already emitted.
@@ -1723,6 +1766,10 @@ export class OpenRouterResponsesTextAdapter<
         }
       }
     } catch (error: unknown) {
+      if (pendingRunError) {
+        yield pendingRunError
+        return
+      }
       const errorPayload = toOpenRouterRunErrorPayload(
         error,
         `${this.name}.processStreamChunks failed`,
