@@ -165,7 +165,7 @@ export class QuickJSBunIsolateContext implements IsolateContext {
     if (this.disposed) {
       return this.disposedResult()
     }
-    if (signal?.aborted) return this.fail(abortError(signal))
+    if (signal?.aborted) return this.abortedBeforeRun(signal)
 
     // Serialize through the per-context queue so a second execute (or a
     // concurrent dispose) never interleaves with an in-flight run.
@@ -186,7 +186,7 @@ export class QuickJSBunIsolateContext implements IsolateContext {
     // The signal can abort while this call waits for an earlier one.
     if (signal?.aborted) {
       release()
-      return this.fail(abortError(signal))
+      return this.abortedBeforeRun(signal)
     }
 
     // A prior aborted or timed-out execution can leave promise reactions queued
@@ -609,6 +609,11 @@ export class QuickJSBunIsolateContext implements IsolateContext {
    * captured logs. If the error is a fatal QuickJS limit (memory/stack), the
    * runtime is released first since it may be left unusable.
    */
+  /** An abort before the run started. `logs` still holds the earlier run. */
+  private abortedBeforeRun(signal: AbortSignal): ExecutionResult<never> {
+    return { ...this.fail(abortError(signal)), logs: [] }
+  }
+
   private fail(error: unknown): ExecutionResult<never> {
     const normalized = this.toNormalizedError(error)
     if (isFatalQuickJSLimitError(normalized)) {

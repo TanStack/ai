@@ -77,8 +77,7 @@ function untilAborted<T>(work: Promise<T>, signal: AbortSignal | undefined) {
   if (!signal) return work
   return new Promise<T>((resolve, reject) => {
     const onAbort = () => reject(signal.reason)
-    if (signal.aborted) return onAbort()
-    signal.addEventListener('abort', onAbort, { once: true })
+    // Handle `work` first, so a late rejection is never unhandled.
     work.then(
       (value) => {
         signal.removeEventListener('abort', onAbort)
@@ -89,6 +88,8 @@ function untilAborted<T>(work: Promise<T>, signal: AbortSignal | undefined) {
         reject(error)
       },
     )
+    if (signal.aborted) return onAbort()
+    signal.addEventListener('abort', onAbort, { once: true })
   })
 }
 

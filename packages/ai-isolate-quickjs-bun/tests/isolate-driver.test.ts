@@ -807,4 +807,17 @@ describe.skipIf(typeof Bun === 'undefined')('execute signal', () => {
     expect(ok).toMatchObject({ success: true, value: 1 })
     await context.dispose()
   })
+
+  it('gives no logs of an earlier run when the signal is already aborted', async () => {
+    const driver = createQuickJSBunIsolateDriver()
+    const context = await driver.createContext({ bindings: {} })
+    const first = await context.execute('console.log("earlier"); return 1')
+    expect(first.logs).not.toEqual([])
+    const result = await context.execute('return 2', {
+      signal: AbortSignal.abort(),
+    })
+    expect(result.error?.name).toBe('AbortError')
+    expect(result.logs).toEqual([])
+    await context.dispose()
+  })
 })

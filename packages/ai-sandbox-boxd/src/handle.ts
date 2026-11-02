@@ -298,8 +298,7 @@ function untilAborted<T>(work: Promise<T>, signal: AbortSignal | undefined) {
   if (!signal) return work
   return new Promise<T>((resolve, reject) => {
     const onAbort = () => reject(signal.reason)
-    if (signal.aborted) return onAbort()
-    signal.addEventListener('abort', onAbort, { once: true })
+    // Handle `work` first, so a late rejection is never unhandled.
     work.then(
       (value) => {
         signal.removeEventListener('abort', onAbort)
@@ -310,6 +309,8 @@ function untilAborted<T>(work: Promise<T>, signal: AbortSignal | undefined) {
         reject(error)
       },
     )
+    if (signal.aborted) return onAbort()
+    signal.addEventListener('abort', onAbort, { once: true })
   })
 }
 
@@ -579,6 +580,7 @@ export class BoxdHandle implements SandboxHandle {
     options?: { signal?: AbortSignal },
   ): Promise<SnapshotRef> => {
     const signal = options?.signal
+    signal?.throwIfAborted()
     const name = `${this.machineName}-${slug(label ?? 'snapshot') || 'snapshot'}`
     await this.client.snapshots.create(this.id, name)
     const deadline = Date.now() + SNAPSHOT_READY_TIMEOUT_MS
@@ -602,6 +604,7 @@ export class BoxdHandle implements SandboxHandle {
 
   /** Live fork: disk, memory and running processes, into a new machine. */
   fork = async (options?: { signal?: AbortSignal }): Promise<SandboxHandle> => {
+    options?.signal?.throwIfAborted()
     const machine = await this.client.machines.fork(this.id, {
       name: `${this.machineName}-fork-${randomUUID().replace(/-/g, '').slice(0, 8)}`,
     })

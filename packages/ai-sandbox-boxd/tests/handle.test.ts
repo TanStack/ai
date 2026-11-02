@@ -493,4 +493,18 @@ describe('BoxdHandle snapshot and fork signal', () => {
     await expect(pending).rejects.toThrow('stopped')
     expect(raw.machines.delete).toHaveBeenCalledWith('vm-fork')
   })
+
+  it('snapshot() starts no capture when the signal is already aborted', async () => {
+    const { handle, raw } = makeHandle()
+    await expect(
+      handle.snapshot('s', { signal: AbortSignal.abort() }),
+    ).rejects.toThrow()
+    expect(raw.snapshots.create).not.toHaveBeenCalled()
+  })
+
+  it('fork() makes no fork when the signal is already aborted', async () => {
+    const { handle, raw } = makeHandle()
+    await expect(handle.fork({ signal: AbortSignal.abort() })).rejects.toThrow()
+    expect(raw.machines.fork).not.toHaveBeenCalled()
+  })
 })
