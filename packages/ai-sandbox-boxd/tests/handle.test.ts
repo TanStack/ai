@@ -507,4 +507,30 @@ describe('BoxdHandle snapshot and fork signal', () => {
     await expect(handle.fork({ signal: AbortSignal.abort() })).rejects.toThrow()
     expect(raw.machines.fork).not.toHaveBeenCalled()
   })
+
+  it('fork() stops waiting while the fork is made, and deletes it later', async () => {
+    const { handle, raw } = makeHandle()
+    let deliver = () => {}
+    raw.machines.fork.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          deliver = () =>
+            resolve({
+              id: 'vm-late',
+              name: 'late',
+              access: { url: 'https://late.boxd.sh' },
+            })
+        }),
+    )
+    const controller = new AbortController()
+    const pending = handle.fork({ signal: controller.signal })
+    await vi.waitFor(() => expect(raw.machines.fork).toHaveBeenCalledOnce())
+    controller.abort(new Error('stopped'))
+
+    await expect(pending).rejects.toThrow('stopped')
+    deliver()
+    await vi.waitFor(() =>
+      expect(raw.machines.delete).toHaveBeenCalledWith('vm-late'),
+    )
+  })
 })

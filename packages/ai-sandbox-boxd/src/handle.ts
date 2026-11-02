@@ -605,9 +605,20 @@ export class BoxdHandle implements SandboxHandle {
   /** Live fork: disk, memory and running processes, into a new machine. */
   fork = async (options?: { signal?: AbortSignal }): Promise<SandboxHandle> => {
     options?.signal?.throwIfAborted()
-    const machine = await this.client.machines.fork(this.id, {
+    const creating = this.client.machines.fork(this.id, {
       name: `${this.machineName}-fork-${randomUUID().replace(/-/g, '').slice(0, 8)}`,
     })
+    // The SDK takes no signal, so stop waiting on abort. Nobody gets the
+    // fork then, so delete it once it exists.
+    const machine = await untilAborted(creating, options?.signal).catch(
+      (error: unknown) => {
+        creating.then(
+          (late) => this.client.machines.delete(late.id).catch(() => {}),
+          () => undefined,
+        )
+        throw error
+      },
+    )
     try {
       // An abort stops the wait, and the catch deletes the fork.
       const ready = await untilAborted(
