@@ -12,7 +12,7 @@ type AfterToolCallDecision =
 };
 ```
 
-Defined in: packages/ai/src/activities/chat/middleware/types.ts:489
+Defined in: [packages/ai/src/activities/chat/middleware/types.ts:519](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L519)
 
 Decision returned from onAfterToolCall.
 - undefined/void: keep the current result

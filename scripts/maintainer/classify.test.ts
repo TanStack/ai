@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { classifyDiscussion, classifyIssue, classifyPR } from './classify'
-import { ACK_MARKER, REPRO_MARKER } from './comments'
+import { classifyDiscussion, classifyIssue, classifyPR } from './classify.ts'
+import { ACK_MARKER, REPRO_MARKER } from './comments.ts'
 import {
   NOW,
   comment,
@@ -12,7 +12,7 @@ import {
   makeIssue,
   makePR,
   review,
-} from './fixtures'
+} from './fixtures.ts'
 
 describe('classifyPR — waiting-on state machine', () => {
   it('brand-new PR with no maintainer response waits on maintainer', () => {

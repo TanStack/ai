@@ -6,7 +6,7 @@ import type {
   PRItem,
   TimelineEvent,
   ToolsetConfig,
-} from './types'
+} from './types.ts'
 
 export const NOW = new Date('2026-07-16T00:00:00Z')
 

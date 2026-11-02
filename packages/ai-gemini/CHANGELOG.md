@@ -1,5 +1,18 @@
 # @tanstack/ai-gemini
 
+## 1.0.1
+
+### Patch Changes
+
+- [#1897](https://github.com/TanStack/ai/pull/1897) [`8731d75`](https://github.com/TanStack/ai/commit/8731d75d5fe969869824e17e2f4877bb89b8bdcb) - Let Gemini 3 use a built-in tool (`googleSearchTool`, `urlContextTool`, `googleMapsTool`, `fileSearchTool`, `codeExecutionTool`) beside function tools in one `chat()` run. On the Gemini API, the adapter now sets `toolConfig.includeServerSideToolInvocations`, which Gemini needs for this mix. A request without it failed with a 400. The adapter also keeps the signed `toolCall`, `toolResponse`, `executableCode` and `codeExecutionResult` parts of a step on its provider-executed tool call (`metadata.gemini.serverParts`) and sends them back in place on the next request. Without them, the next agent-loop step failed with "Function call is missing a thought_signature". Vertex AI does not get the flag, because `@google/genai` rejects it there. A follow-up that must send `toolCall` or `toolResponse` parts throws. Code execution parts are sent back.
+
+- [#1904](https://github.com/TanStack/ai/pull/1904) [`f085015`](https://github.com/TanStack/ai/commit/f085015da1b77aee3cf95ca74a2e86ed9dbc1c29) - Show each package's own npm download count and npm version. The bundle-size badge uses bundlejs. Partner logos use image URLs that load.
+
+- [#1912](https://github.com/TanStack/ai/pull/1912) [`ae97655`](https://github.com/TanStack/ai/commit/ae976552710726b13b524c307c1b5bbe78478eb0) - Video generation is no longer marked experimental. The `@experimental` tags are gone from `generateVideo()`, the video adapters, and their types, and the docs no longer say the API can change.
+
+- Updated dependencies [[`f085015`](https://github.com/TanStack/ai/commit/f085015da1b77aee3cf95ca74a2e86ed9dbc1c29), [`ae97655`](https://github.com/TanStack/ai/commit/ae976552710726b13b524c307c1b5bbe78478eb0)]:
+  - @tanstack/ai@1.0.1
+
 ## 1.0.0
 
 ### Major Changes

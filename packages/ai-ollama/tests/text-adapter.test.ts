@@ -54,6 +54,7 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.unstubAllEnvs()
+  vi.restoreAllMocks()
 })
 
 describe('OllamaTextAdapter construction', () => {
@@ -277,7 +278,46 @@ describe('OllamaTextAdapter.chatStream (tool calls)', () => {
     const startChunk = chunks.find((c) => c.type === 'TOOL_CALL_START') as
       | { toolCallId: string; toolCallName: string }
       | undefined
-    expect(startChunk!.toolCallId).toMatch(/^search_\d+/)
+    expect(startChunk!.toolCallId).toMatch(/^search-\d+-/)
+  })
+
+  it('keeps two parallel calls to the same tool apart when Ollama omits ids', async () => {
+    // Same millisecond for both calls: the old `name_Date.now()` id collided here
+    vi.spyOn(Date, 'now').mockReturnValue(1_700_000_000_000)
+    chatMock.mockResolvedValueOnce(
+      asyncIterable([
+        {
+          message: {
+            role: 'assistant',
+            content: '',
+            tool_calls: [
+              { function: { name: 'search', arguments: { q: 'cats' } } },
+              { function: { name: 'search', arguments: { q: 'dogs' } } },
+            ],
+          },
+          done: true,
+          done_reason: 'stop',
+        },
+      ]),
+    )
+
+    const chunks = await collectStream(
+      createOllamaChat('llama3.2').chatStream({
+        threadId: 'thread-1',
+        logger: testLogger,
+        model: 'llama3.2',
+        messages: [{ role: 'user', content: 'find cats and dogs' }],
+        tools: [searchTool],
+      }),
+    )
+
+    const startIds = chunks.flatMap((c) =>
+      c.type === 'TOOL_CALL_START' ? [c.toolCallId] : [],
+    )
+    const ends = chunks.flatMap((c) => (c.type === 'TOOL_CALL_END' ? [c] : []))
+    expect(new Set(startIds).size).toBe(2)
+    expect(ends.map((e) => e.toolCallId)).toEqual(startIds)
+    expect(ends.map((e) => e.args)).toEqual(['{"q":"cats"}', '{"q":"dogs"}'])
   })
 
   async function toolCallEnd(args: unknown) {

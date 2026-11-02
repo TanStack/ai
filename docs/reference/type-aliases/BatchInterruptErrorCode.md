@@ -20,4 +20,4 @@ type BatchInterruptErrorCode =
   | "conflict";
 ```
 
-Defined in: packages/ai/src/interrupts.ts:26
+Defined in: [packages/ai/src/interrupts.ts:26](https://github.com/TanStack/ai/blob/main/packages/ai/src/interrupts.ts#L26)
