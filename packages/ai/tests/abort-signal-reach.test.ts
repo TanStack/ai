@@ -126,9 +126,11 @@ describe('summarize() abort reaches the wrapped chatStream', () => {
       chatStream: (options) =>
         (async function* () {
           yield* []
-          await hangUntilAborted(options.request?.signal).catch(() => {
-            throw new Error('socket closed')
-          })
+          await hangUntilAborted(options.request?.signal ?? undefined).catch(
+            () => {
+              throw new Error('socket closed')
+            },
+          )
         })(),
     }
     const onAbort = vi.fn()
