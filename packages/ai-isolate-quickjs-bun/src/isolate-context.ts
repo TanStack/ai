@@ -155,11 +155,17 @@ export class QuickJSBunIsolateContext implements IsolateContext {
    * than interleaving. Console output produced during the run is captured and
    * returned in `logs`. Never throws: tool errors, timeouts, and limit
    * violations come back as a failed `ExecutionResult` with a normalized error.
+   * When `options.signal` aborts, the run stops with an `AbortError`.
    */
-  async execute<T = unknown>(code: string): Promise<ExecutionResult<T>> {
+  async execute<T = unknown>(
+    code: string,
+    options?: { signal?: AbortSignal },
+  ): Promise<ExecutionResult<T>> {
+    const signal = options?.signal
     if (this.disposed) {
       return this.disposedResult()
     }
+    if (signal?.aborted) return this.fail(abortError(signal))
 
     // Serialize through the per-context queue so a second execute (or a
     // concurrent dispose) never interleaves with an in-flight run.
@@ -177,6 +183,11 @@ export class QuickJSBunIsolateContext implements IsolateContext {
       release()
       return this.disposedResult()
     }
+    // The signal can abort while this call waits for an earlier one.
+    if (signal?.aborted) {
+      release()
+      return this.fail(abortError(signal))
+    }
 
     // A prior aborted or timed-out execution can leave promise reactions queued
     // in the VM. Left in place, the loop in runToCompletion would run them
@@ -193,7 +204,7 @@ export class QuickJSBunIsolateContext implements IsolateContext {
     this.hostSettleError = undefined
 
     try {
-      const value = await this.runToCompletion(wrapCode(code))
+      const value = await this.runToCompletion(wrapCode(code), signal)
       return {
         success: true,
         value: value as T,
@@ -233,7 +244,10 @@ export class QuickJSBunIsolateContext implements IsolateContext {
    * in-flight host tool calls) until the program's promise settles or the
    * deadline passes. Returns the parsed result value.
    */
-  private async runToCompletion(wrappedCode: string): Promise<unknown> {
+  private async runToCompletion(
+    wrappedCode: string,
+    signal: AbortSignal | undefined,
+  ): Promise<unknown> {
     const { QuickJSPromiseState, JSException } = this.quickjs
     const deadline = performance.now() + this.timeout
 
@@ -270,6 +284,8 @@ export class QuickJSBunIsolateContext implements IsolateContext {
             throw normalizedErrorToThrowable(this.hostSettleError)
           }
 
+          // Stop between jobs. The next execute drains the jobs left behind.
+          if (signal?.aborted) throw abortError(signal)
           const remainingMs = deadline - performance.now()
           if (remainingMs <= 0) {
             throw this.timeoutError()
@@ -289,7 +305,7 @@ export class QuickJSBunIsolateContext implements IsolateContext {
               'Code execution is pending on a promise that no host work will ever resolve',
             )
           }
-          await this.waitForAnyTask(remainingMs)
+          await this.waitForAnyTask(remainingMs, signal)
         }
       }
     } finally {
@@ -315,20 +331,31 @@ export class QuickJSBunIsolateContext implements IsolateContext {
     }
   }
 
-  /** Wait until any in-flight host tool call settles, or `timeoutMs` passes. */
-  private async waitForAnyTask(timeoutMs: number): Promise<void> {
+  /**
+   * Wait until any in-flight host tool call settles, `timeoutMs` passes, or
+   * `signal` aborts.
+   */
+  private async waitForAnyTask(
+    timeoutMs: number,
+    signal: AbortSignal | undefined,
+  ): Promise<void> {
     const settled = Array.from(this.tasks, (task) => task.settled)
     let timer: ReturnType<typeof setTimeout> | undefined
+    let onAbort: (() => void) | undefined
     try {
       await Promise.race([
         Promise.race(settled),
         new Promise<void>((resolve) => {
-          // Resolve (not reject): the execution loop re-checks the deadline.
+          // Resolve (not reject): the execution loop re-checks the deadline
+          // and the signal.
           timer = setTimeout(resolve, Math.max(1, timeoutMs))
+          onAbort = resolve
+          signal?.addEventListener('abort', onAbort, { once: true })
         }),
       ])
     } finally {
       clearTimeout(timer)
+      if (onAbort) signal?.removeEventListener('abort', onAbort)
     }
   }
 
@@ -689,4 +716,14 @@ export class QuickJSBunIsolateContext implements IsolateContext {
       logs: [],
     }
   }
+}
+
+/** The error of a run stopped by its abort signal. */
+function abortError(signal: AbortSignal): Error {
+  const reason: unknown = signal.reason
+  const error = new Error(
+    reason instanceof Error ? reason.message : 'Execution was aborted',
+  )
+  error.name = 'AbortError'
+  return error
 }

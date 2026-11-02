@@ -1054,3 +1054,61 @@ describe('createDaytonaIsolateDriver', () => {
     expect(codeRun).not.toHaveBeenCalled()
   })
 })
+
+describe('execute signal', () => {
+  it('stops waiting on codeRun when the signal aborts', async () => {
+    const controller = new AbortController()
+    // codeRun never settles, so only the abort can end the run.
+    const codeRun = vi.fn(() => {
+      controller.abort()
+      return new Promise<DaytonaCodeRunResponse>(() => {})
+    })
+    const driver = createDaytonaIsolateDriver({
+      sandbox: makeSandbox(codeRun),
+      timeout: 60_000,
+    })
+    const context = await driver.createContext({ bindings: {} })
+    const result = await context.execute('return 1', {
+      signal: controller.signal,
+    })
+    expect(result.success).toBe(false)
+    expect(result.error?.name).toBe('AbortError')
+  })
+
+  it('starts no new codeRun round after the signal aborts', async () => {
+    const controller = new AbortController()
+    const add = makeBinding('add', async () => {
+      controller.abort()
+      return 5
+    })
+    const codeRun = vi.fn().mockResolvedValue(
+      envelope({
+        status: 'need_tools',
+        toolCalls: [{ id: 'tc_0', name: 'add', args: {} }],
+        logs: [],
+      }),
+    )
+    const driver = createDaytonaIsolateDriver({
+      sandbox: makeSandbox(codeRun),
+    })
+    const context = await driver.createContext({ bindings: { add } })
+    const result = await context.execute('return await add({})', {
+      signal: controller.signal,
+    })
+    expect(result.error?.name).toBe('AbortError')
+    expect(codeRun).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not call codeRun when the signal is already aborted', async () => {
+    const codeRun = vi.fn()
+    const driver = createDaytonaIsolateDriver({
+      sandbox: makeSandbox(codeRun),
+    })
+    const context = await driver.createContext({ bindings: {} })
+    const result = await context.execute('return 1', {
+      signal: AbortSignal.abort(),
+    })
+    expect(result.error?.name).toBe('AbortError')
+    expect(codeRun).not.toHaveBeenCalled()
+  })
+})
