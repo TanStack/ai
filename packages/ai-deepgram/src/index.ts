@@ -50,6 +50,12 @@ export interface DeepgramLiveTranscriptionConfig {
   baseURL?: string
   /** Defaults to the global `WebSocket`. */
   WebSocket?: WebSocketConstructor
+  /**
+   * Open the socket yourself, for example through the Workers AI binding.
+   * Gets the query parameters the adapter would send, and returns an open
+   * socket. `apiKey`, `baseURL` and `WebSocket` are then not used.
+   */
+  openSocket?: (query: URLSearchParams) => Promise<WebSocket>
 }
 
 interface DeepgramMessage {
@@ -100,7 +106,6 @@ export function deepgramLiveTranscription<
     ],
     '~types': {} as never,
     connect: async (options) => {
-      const apiKey = config.apiKey ?? getApiKeyFromEnv('DEEPGRAM_API_KEY')
       const opts = options.modelOptions ?? {}
       const { encoding, sampleRate, channels = 1 } = options.audio
       const query = new URLSearchParams({
@@ -130,9 +135,16 @@ export function deepgramLiveTranscription<
       // Nova sends both `speech_final` and `UtteranceEnd`; emit one turn-end.
       let speaking = false
       const live = await openLiveSocket({
-        url: `${config.baseURL ?? 'wss://api.deepgram.com'}/${flux ? 'v2' : 'v1'}/listen?${query}`,
-        protocols: ['token', apiKey],
-        WebSocket: config.WebSocket,
+        ...(config.openSocket
+          ? { socket: await config.openSocket(query) }
+          : {
+              url: `${config.baseURL ?? 'wss://api.deepgram.com'}/${flux ? 'v2' : 'v1'}/listen?${query}`,
+              protocols: [
+                'token',
+                config.apiKey ?? getApiKeyFromEnv('DEEPGRAM_API_KEY'),
+              ],
+              WebSocket: config.WebSocket,
+            }),
         connect: options,
         onMessage: (message) => {
           const m = message as DeepgramMessage

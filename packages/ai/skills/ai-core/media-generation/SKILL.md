@@ -9,7 +9,8 @@ description: >
   generateTranscription() with openaiTranscription/byteplusTranscription,
   transcriptionSession() for live server-side speech-to-text (phone calls,
   voice agents) with deepgramLiveTranscription/elevenlabsLiveTranscription/
-  openaiLiveTranscription/grokLiveTranscription/geminiLiveTranscription,
+  openaiLiveTranscription/grokLiveTranscription/geminiLiveTranscription/
+  mistralLiveTranscription/cloudflareLiveTranscription,
   generateVoice() with elevenlabsVoiceDesign (create a voice, then speak with it).
   React hooks:
   useGenerateImage, useGenerateAudio,
@@ -720,7 +721,11 @@ linear16 PCM automatically, including G.711 decode and resampling):
 | `openaiLiveTranscription('gpt-transcribe' \| 'gpt-live-transcribe')` | `@tanstack/ai-openai`     | mulaw, alaw             |
 | `grokLiveTranscription('grok-voice-transcribe-2.0')`                 | `@tanstack/ai-grok`       | mulaw, alaw             |
 | `geminiLiveTranscription('gemini-3.5-transcribe-live')`              | `@tanstack/ai-gemini`     | converted to 16 kHz PCM |
+| `mistralLiveTranscription('voxtral-mini-transcribe-realtime-2602')`  | `@tanstack/ai-mistral`    | mulaw, alaw             |
+| `cloudflareLiveTranscription('@cf/deepgram/nova-3' \| '@cf/deepgram/flux', { binding: env.AI })` | `@tanstack/ai-cloudflare` | mulaw (Nova-3 only) |
 
+- `cloudflareLiveTranscription` needs the Workers AI binding (Workers only).
+- `mistralLiveTranscription` sends no `turn-end`.
 - `openaiLiveTranscription('gpt-live-transcribe')` has no voice activity
   detection: no `turn-end`, one `final` at close. Use `gpt-transcribe` for turns.
 - `createAudioConverter(from, to)` is exported for manual conversion; keep one

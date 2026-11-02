@@ -1751,7 +1751,7 @@
           "label": "Mistral",
           "to": "adapters/mistral",
           "addedAt": "2026-06-30",
-          "updatedAt": "2026-10-22"
+          "updatedAt": "2026-11-02"
         },
         {
           "label": "Cohere",

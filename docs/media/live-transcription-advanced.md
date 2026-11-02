@@ -93,7 +93,8 @@ const session = await transcriptionSession({
 
 `turn-end` support differs by provider:
 
-- Deepgram, ElevenLabs, xAI, and Gemini send `turn-end` when the speaker pauses.
+- Deepgram, Cloudflare, ElevenLabs, xAI, and Gemini send `turn-end` when the speaker pauses.
+- Mistral Voxtral sends no `turn-end`.
 - OpenAI sends it with `gpt-transcribe` and the `gpt-4o-*` models, which detect voice activity.
 - OpenAI `gpt-live-transcribe` streams text with no `turn-end`. It sends one `final` when the session closes.
 

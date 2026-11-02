@@ -156,5 +156,7 @@ Swap the adapter to change provider. The rest of the code stays the same.
 | OpenAI     | `openaiLiveTranscription('gpt-transcribe')` from `@tanstack/ai-openai` | μ-law, A-law |
 | xAI        | `grokLiveTranscription('grok-voice-transcribe-2.0')` from `@tanstack/ai-grok` | μ-law, A-law |
 | Gemini     | `geminiLiveTranscription('gemini-3.5-transcribe-live')` from `@tanstack/ai-gemini` | Converted to PCM |
+| Mistral    | `mistralLiveTranscription('voxtral-mini-transcribe-realtime-2602')` from `@tanstack/ai-mistral` | μ-law, A-law |
+| Cloudflare | `cloudflareLiveTranscription('@cf/deepgram/nova-3', { binding: env.AI })` from `@tanstack/ai-cloudflare` | μ-law |
 
 When a provider does not take your audio format, the session converts it to PCM for you. See [Live Transcription: Advanced](./live-transcription-advanced) for audio formats, provider options, and custom adapters.

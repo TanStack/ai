@@ -8,10 +8,16 @@ export type WebSocketConstructor = new (
 ) => WebSocket
 
 export interface LiveSocketOptions {
-  url: string
+  /** The provider URL. Not needed when you pass `socket`. */
+  url?: string
   protocols?: string | Array<string>
   /** Defaults to `globalThis.WebSocket`. */
   WebSocket?: WebSocketConstructor
+  /**
+   * A socket that is already open, such as one from the Workers AI binding.
+   * Used instead of opening `url`.
+   */
+  socket?: WebSocket
   /** The `emit`, `end` and `abortSignal` from the adapter's connect options. */
   connect: Pick<LiveTranscriptionConnectOptions, 'emit' | 'end' | 'abortSignal'>
   /** Runs once the socket is open. Send setup messages here. */
@@ -62,12 +68,12 @@ export function openLiveSocket(
 ): Promise<LiveSocket> {
   const { emit, end, abortSignal } = options.connect
   const Ctor = options.WebSocket ?? globalThis.WebSocket
-  if (typeof Ctor !== 'function') {
+  if (!options.socket && (typeof Ctor !== 'function' || !options.url)) {
     return Promise.reject(
       new Error('No WebSocket available. Pass a WebSocket constructor.'),
     )
   }
-  const ws = new Ctor(options.url, options.protocols)
+  const ws = options.socket ?? new Ctor(options.url ?? '', options.protocols)
   ws.binaryType = 'arraybuffer'
   let closing = false
   let ready = false
@@ -107,10 +113,12 @@ export function openLiveSocket(
       ready = true
       resolve(live)
     }
-    ws.addEventListener('open', () => {
+    const onOpen = () => {
       options.onOpen?.(live)
       if (!options.readyWhen) markReady()
-    })
+    }
+    if (options.socket) queueMicrotask(onOpen)
+    else ws.addEventListener('open', onOpen)
     ws.addEventListener('message', (event: MessageEvent) => {
       // Some providers (Gemini Live) send JSON in binary frames.
       const text =
@@ -135,7 +143,7 @@ export function openLiveSocket(
       if (!ready) {
         reject(
           new Error(
-            `Could not connect to ${new URL(options.url).host} (code ${event.code}${event.reason ? `: ${event.reason}` : ''}).`,
+            `Could not connect to ${options.url ? new URL(options.url).host : 'the provider'} (code ${event.code}${event.reason ? `: ${event.reason}` : ''}).`,
           ),
         )
       } else if (!clean && !closing) {
