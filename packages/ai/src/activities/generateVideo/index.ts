@@ -683,7 +683,10 @@ async function* runStreamingVideoGeneration<
     while (Date.now() - startTime < maxDuration) {
       await sleep(pollingInterval, abortControls.signal)
 
-      const statusResult = await adapter.getVideoStatus(jobResult.jobId)
+      const statusResult = await raceWithAbort(
+        adapter.getVideoStatus(jobResult.jobId),
+        abortControls.signal,
+      )
 
       yield {
         type: 'CUSTOM',
@@ -698,7 +701,10 @@ async function* runStreamingVideoGeneration<
       }
 
       if (statusResult.status === 'completed') {
-        const video = await adapter.getVideo(jobResult.jobId)
+        const video = await raceWithAbort(
+          adapter.getVideo(jobResult.jobId),
+          abortControls.signal,
+        )
 
         logger.output(
           `activity=generateVideo jobId=${jobResult.jobId} status=completed`,

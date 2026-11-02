@@ -404,11 +404,25 @@ async function* runStreamingSummarize(
 
   // Use real streaming if the adapter supports it
   if (adapter.summarizeStream) {
-    yield* runNativeSummarizeStream(
-      options,
-      adapter.summarizeStream(summarizeOptions),
-      logger,
-    )
+    // Same abort/timeout composition as the non-streaming path.
+    const abortControls = createActivityAbortControls({
+      timeout: options.timeout,
+      abortSignal: options.abortSignal,
+    })
+    try {
+      yield* runNativeSummarizeStream(
+        options,
+        adapter.summarizeStream({
+          ...summarizeOptions,
+          ...(abortControls.signal
+            ? { abortSignal: abortControls.signal }
+            : {}),
+        }),
+        logger,
+      )
+    } finally {
+      abortControls.clear()
+    }
     return
   }
 

@@ -1275,9 +1275,6 @@ class TextEngine<
     >(this.tools)
     this.requestId = this.createId('chat')
     this.streamId = this.createId('stream')
-    this.effectiveRequest = config.params.abortController
-      ? { signal: config.params.abortController.signal }
-      : undefined
     this.effectiveSignal = config.params.abortController?.signal
     this.threadId = config.params.threadId
     this.runIdOverride = config.params.runId
@@ -1296,6 +1293,10 @@ class TextEngine<
       this.effectiveSignal,
       this.middlewareAbortController.signal,
     )
+    // The provider request follows ctx.abort() too, not only the caller.
+    this.effectiveRequest = this.toolAbortSignal
+      ? { signal: this.toolAbortSignal }
+      : undefined
     this.middlewareCtx = {
       requestId: this.requestId,
       streamId: this.streamId,
@@ -1312,7 +1313,7 @@ class TextEngine<
       iteration: 0,
       chunkIndex: 0,
       callMetadata: this.currentCallMetadata,
-      signal: this.effectiveSignal,
+      signal: this.toolAbortSignal,
       abort: (reason?: string) => {
         this.abortReason = reason
         this.middlewareAbortController?.abort(reason)
