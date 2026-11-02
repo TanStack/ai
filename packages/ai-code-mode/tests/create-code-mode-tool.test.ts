@@ -757,6 +757,27 @@ describe('createCodeModeTool run abort', () => {
     expect(dispose).toHaveBeenCalledTimes(1)
   })
 
+  it('does not make the context when the run aborts while the snippets load', async () => {
+    const createContext = vi.fn()
+    const abort = new AbortController()
+    const tool = createCodeModeTool({
+      driver: { createContext },
+      tools: [createMockTool('fetchWeather')],
+      getSnippetBindings: async () => {
+        abort.abort()
+        return {}
+      },
+    })
+
+    const result = await tool.execute!(
+      { typescriptCode: 'return 1' },
+      { abortSignal: abort.signal, emitCustomEvent: vi.fn() },
+    )
+
+    expect(createContext).not.toHaveBeenCalled()
+    expect(result.success).toBe(false)
+  })
+
   it('disposes the isolate once when the run aborts', async () => {
     let release = () => {}
     const disposed = new Promise<void>((resolve) => {

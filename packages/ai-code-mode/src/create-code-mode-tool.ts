@@ -234,6 +234,17 @@ export function createCodeModeTool(
         void disposeContext()
       }
       runSignal?.addEventListener('abort', onRunAbort, { once: true })
+      const abortedBeforeRun = () =>
+        finish(
+          {
+            success: false,
+            error: {
+              message: 'The run was aborted before the code ran',
+              name: 'AbortError',
+            },
+          },
+          'create-context',
+        )
 
       // Emit execution started event immediately
       emitCustomEvent('code_mode:execution_started', {
@@ -289,6 +300,9 @@ export function createCodeModeTool(
           aroundCalls?.(toolContext, programEnd.signal),
         )
 
+        // An abort that came while the snippets loaded: make no context.
+        if (runSignal?.aborted) return abortedBeforeRun()
+
         // Step 4: Create sandbox context with event-aware bindings
         try {
           isolateContext = await driver.createContext({
@@ -315,16 +329,7 @@ export function createCodeModeTool(
         // An abort that came while the context was made: do not run the code.
         if (runSignal?.aborted) {
           onRunAbort()
-          return finish(
-            {
-              success: false,
-              error: {
-                message: 'The run was aborted before the code ran',
-                name: 'AbortError',
-              },
-            },
-            'create-context',
-          )
+          return abortedBeforeRun()
         }
 
         // Step 5: Execute the code in the sandbox
