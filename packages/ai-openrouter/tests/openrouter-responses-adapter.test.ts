@@ -2740,6 +2740,26 @@ describe('OpenRouter responses adapter — usage on errors', () => {
     },
   )
 
+  it('structuredOutput attaches the response usage to a refusal error', async () => {
+    setupMockSdkClient([], {
+      status: 'completed',
+      output: [
+        {
+          type: 'message',
+          content: [{ type: 'refusal', refusal: 'I cannot help with that.' }],
+        },
+      ],
+      usage: wireUsage,
+    })
+    const error = await createAdapter()
+      .structuredOutput(structuredOptions)
+      .then(
+        () => undefined,
+        (e: unknown) => e,
+      )
+    expect(error).toMatchObject({ code: 'refusal', usage: expectedUsage })
+  })
+
   it('maps reasoning tokens on a successful structuredOutput', async () => {
     setupMockSdkClient([], {
       status: 'completed',

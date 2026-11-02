@@ -166,14 +166,23 @@ export async function* translateOpencodeStream(
       cache: { read: 0, write: 0 },
     }
     let cost = 0
+    const recorded = [...finishedSteps.values()]
+    const own = recorded.filter((s) => s.messageID === message.id)
+    // One message can hold several steps. opencode keeps the tokens of its
+    // last step and the cost of all its steps on the message.
+    const ownCost = own.reduce((sum, s) => sum + (s.cost ?? 0), 0)
     const steps: Array<{ tokens?: OpencodeTokens; cost?: number }> = [
-      ...finishedSteps.values(),
+      ...recorded.filter((s) => s.messageID !== message.id),
+      ...own.map((s) => ({ tokens: s.tokens })),
+      { cost: message.cost ?? ownCost },
     ]
-    // The final message's own step-finish part can arrive after `done`.
-    // ponytail: then its message totals stand in for its steps.
-    if (![...finishedSteps.values()].some((s) => s.messageID === message.id)) {
-      steps.push(message)
-    }
+    // The last step-finish part can arrive after `done`. Then the message
+    // tokens stand in for that step.
+    const lastStepSeen =
+      message.finish === undefined
+        ? own.length > 0
+        : own.some((s) => s.reason === message.finish)
+    if (!lastStepSeen) steps.push({ tokens: message.tokens })
     for (const step of steps) {
       tokens.input += step.tokens?.input ?? 0
       tokens.output += step.tokens?.output ?? 0

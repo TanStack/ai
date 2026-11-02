@@ -84,6 +84,7 @@ export type OpencodePart =
       sessionID?: string
       messageID: string
       type: 'step-finish'
+      reason?: string
       cost?: number
       tokens?: OpencodeTokens
     }

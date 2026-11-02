@@ -239,6 +239,7 @@ describe('translateOpencodeStream', () => {
       messageID: string,
       input: number,
       cost: number,
+      reason = 'stop',
     ): OpencodeStreamEvent => ({
       kind: 'event',
       event: {
@@ -249,6 +250,7 @@ describe('translateOpencodeStream', () => {
             sessionID: 'sess-1',
             messageID,
             type: 'step-finish',
+            reason,
             cost,
             tokens: {
               input,
@@ -263,9 +265,9 @@ describe('translateOpencodeStream', () => {
     const chunks = await collect([
       session,
       messageUpdated('msg-0', 'assistant'),
-      stepFinish('step-a', 'msg-0', 100, 0.01),
+      stepFinish('step-a', 'msg-0', 100, 0.01, 'tool-calls'),
       // A repeated update of the same part is not counted twice.
-      stepFinish('step-a', 'msg-0', 100, 0.01),
+      stepFinish('step-a', 'msg-0', 100, 0.01, 'tool-calls'),
       messageUpdated('msg-1', 'assistant'),
       stepFinish('step-b', 'msg-1', 200, 0.02),
       done({
@@ -313,6 +315,36 @@ describe('translateOpencodeStream', () => {
       },
       // The step-finish part of msg-1 comes after `done`, so it is missed.
       done({ tokens: { input: 200, output: 20 }, cost: 0.02 }),
+    ])
+    expect(chunks.at(-1)).toMatchObject({
+      type: 'RUN_FINISHED',
+      usage: { promptTokens: 300, completionTokens: 30, cost: 0.03 },
+    })
+  })
+
+  it('adds the last step when one message has several steps and the last part is missing', async () => {
+    const chunks = await collect([
+      session,
+      messageUpdated('msg-1', 'assistant'),
+      {
+        kind: 'event',
+        event: {
+          type: 'message.part.updated',
+          properties: {
+            part: {
+              id: 'step-a',
+              sessionID: 'sess-1',
+              messageID: 'msg-1',
+              type: 'step-finish',
+              reason: 'tool-calls',
+              cost: 0.01,
+              tokens: { input: 100, output: 10 },
+            },
+          },
+        },
+      },
+      // msg-1 keeps the tokens of its last step and the cost of all steps.
+      done({ tokens: { input: 200, output: 20 }, cost: 0.03 }),
     ])
     expect(chunks.at(-1)).toMatchObject({
       type: 'RUN_FINISHED',

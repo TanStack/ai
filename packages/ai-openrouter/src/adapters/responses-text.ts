@@ -336,7 +336,15 @@ export class OpenRouterResponsesTextAdapter<
         )
       }
 
-      const rawText = this.extractTextFromResponse(response)
+      let rawText: string
+      try {
+        rawText = this.extractTextFromResponse(response)
+      } catch (error: unknown) {
+        // A refusal or an unsupported part: the call was still billed.
+        throw error instanceof Error
+          ? Object.assign(error, usage && { usage })
+          : error
+      }
 
       if (rawText.length === 0) {
         throw fail(
