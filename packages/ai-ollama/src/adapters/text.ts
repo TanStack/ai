@@ -200,6 +200,7 @@ export class OllamaTextAdapter<TModel extends string> extends BaseTextAdapter<
       const onAbort = () => response.abort()
       if (signal?.aborted) onAbort()
       else signal?.addEventListener('abort', onAbort, { once: true })
+      let ended = false
       try {
         for await (const chunk of this.processOllamaStreamChunks(
           response,
@@ -214,9 +215,15 @@ export class OllamaTextAdapter<TModel extends string> extends BaseTextAdapter<
             },
           }
         }
+        ended = true
       } finally {
-        // chat() reuses one signal for every agent-loop step.
-        signal?.removeEventListener('abort', onAbort)
+        if (signal) {
+          // chat() reuses one signal for every agent-loop step.
+          signal.removeEventListener('abort', onAbort)
+          // A consumer that stops early does not abort the request in
+          // `ollama`, and the listener is gone now, so stop it here.
+          if (!ended) response.abort()
+        }
       }
     } catch (error: unknown) {
       const errorPayload = toRunErrorPayload(

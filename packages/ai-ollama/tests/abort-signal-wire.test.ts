@@ -173,4 +173,42 @@ describe('Ollama abort signal with an injected client', () => {
     expect(fetch).toHaveBeenCalledTimes(2)
     expect(getEventListeners(signal, 'abort')).toHaveLength(0)
   })
+
+  it('aborts the request when the consumer stops before the stream ends', async () => {
+    const signals: Array<AbortSignal> = []
+    const line = `${JSON.stringify({
+      model,
+      created_at: '2026-11-02T00:00:00Z',
+      message: { role: 'assistant', content: 'Hi' },
+      done: false,
+    })}\n`
+    const fetch = vi.fn((_input: RequestInfo | URL, init?: RequestInit) => {
+      const signal = init?.signal
+      if (!signal) return Promise.reject(new Error('fetch got no abort signal'))
+      signals.push(signal)
+      // One chunk, then a body that never ends.
+      const body = new ReadableStream({
+        start(controller) {
+          controller.enqueue(new TextEncoder().encode(line))
+          signal.addEventListener('abort', () =>
+            controller.error(signal.reason),
+          )
+        },
+      })
+      return Promise.resolve(new Response(body))
+    })
+    const client = new Ollama({ host: 'http://ollama.test', fetch })
+    const { signal } = new AbortController()
+    for await (const chunk of new OllamaTextAdapter(client, model).chatStream({
+      threadId: 'thread-1',
+      logger,
+      model,
+      messages,
+      request: { signal },
+    })) {
+      if (chunk.type === 'TEXT_MESSAGE_CONTENT') break
+    }
+
+    expect(signals.at(-1)?.aborted).toBe(true)
+  })
 })
