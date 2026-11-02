@@ -638,4 +638,29 @@ describe('the abort signal of a call', () => {
       fake.commands.filter((c) => c.startsWith('rg --files ')),
     ).not.toEqual([])
   })
+
+  it.each([
+    ['list_files', {}],
+    ['grep', { pattern: 'one' }],
+  ])(
+    '%s starts no command for a call that aborted already',
+    async (name, args) => {
+      const fake = fakeBackend({ 'a.ts': 'one\n' })
+      const { tools } = createWorkspaceTools({ root, backend: fake.backend })
+      const execute = tools.find((each) => each.name === name)?.execute
+      if (!execute) throw new Error(`No tool ${name}`)
+      const aborted = new AbortController()
+      aborted.abort()
+
+      await expect(
+        Promise.resolve(
+          execute(args, {
+            abortSignal: aborted.signal,
+            emitCustomEvent: () => undefined,
+          }),
+        ),
+      ).rejects.toThrow()
+      expect(fake.commands).toEqual([])
+    },
+  )
 })

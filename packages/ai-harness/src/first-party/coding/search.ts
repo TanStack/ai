@@ -439,7 +439,9 @@ export function searchTools(env: ToolEnv) {
         },
       },
       replay: 'safe',
-    }).server(async (args: unknown) => {
+    }).server(async (args: unknown, context) => {
+      // An aborted call starts no search work, not even the shared rg probe.
+      context?.abortSignal?.throwIfAborted()
       const base = await env.reach(
         optionalString(args, 'path') ?? '.',
         'list_files',
@@ -472,7 +474,8 @@ export function searchTools(env: ToolEnv) {
         required: ['pattern'],
       },
       replay: 'safe',
-    }).server(async (args: unknown) => {
+    }).server(async (args: unknown, context) => {
+      context?.abortSignal?.throwIfAborted()
       const pattern = stringArg(args, 'pattern')
       if (/[\r\n]/.test(pattern)) {
         throw new Error('The pattern must be one line. grep tests each line.')
