@@ -573,3 +573,29 @@ describe('quoteArg', () => {
     },
   )
 })
+
+describe('the abort signal of a call', () => {
+  it('goes to each search command', async () => {
+    const fake = fakeBackend({ 'a.ts': 'one\n' }, (command) =>
+      command === GIT ? ok('a.ts\0') : undefined,
+    )
+    const signals: Array<AbortSignal | undefined> = []
+    const backend: WorkspaceBackend = {
+      ...fake.backend,
+      exec: (command, options) => {
+        signals.push(options?.signal)
+        return fake.backend.exec(command, options)
+      },
+    }
+    const { tools } = createWorkspaceTools({ root, backend })
+    const listFiles = tools.find((each) => each.name === 'list_files')?.execute
+    if (!listFiles) throw new Error('No tool list_files')
+    const { signal } = new AbortController()
+    await listFiles(
+      {},
+      { abortSignal: signal, emitCustomEvent: () => undefined },
+    )
+    expect(signals.length).toBeGreaterThan(0)
+    expect(signals.filter((each) => each !== signal)).toEqual([])
+  })
+})

@@ -95,11 +95,17 @@ async function bundledRg() {
   }
 }
 
+/**
+ * The `exec` wrappers of `hostBackend.exec` that give each command the
+ * signal of its tool call (see `withCallSignal`). They run on this host too.
+ */
+export const hostExecs = new WeakSet<WorkspaceBackend['exec']>()
+
 /** The command that starts rg on `backend`, or `undefined` without rg. */
 async function findRg(backend: WorkspaceBackend) {
   // The bundled binary is a host file. A sandbox cannot run it. A bound
   // workspace is a copy of `hostBackend` with a root, so compare `exec`.
-  if (backend.exec === hostBackend.exec) {
+  if (backend.exec === hostBackend.exec || hostExecs.has(backend.exec)) {
     const bundled = await bundledRg()
     if (bundled !== undefined) return quoteArg(bundled, process.platform)
   }
