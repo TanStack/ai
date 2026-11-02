@@ -369,6 +369,7 @@ describe('createMCPServer', () => {
     await withClient(server, { era: '2025' }, async (client) => {
       expect(client.getServerCapabilities()?.tasks).toEqual({
         requests: { tools: { call: {} } },
+        cancel: {},
       })
       const listed = await client.listTools()
       expect(listed.tools[0]?.execution).toEqual({ taskSupport: 'required' })
@@ -403,6 +404,61 @@ describe('createMCPServer', () => {
       expect(await taskResultOf(client, taskId)).toEqual({
         content: [{ type: 'text', text: '{"text":"done"}' }],
         structuredContent: { text: 'done' },
+      })
+    })
+  })
+
+  it('cancels a running spec 2025 task with tasks/cancel', async () => {
+    const taskStore = inMemoryTaskStore()
+    const calls: Array<Promise<unknown>> = []
+    let toolSignal: AbortSignal | undefined
+    const server = createMCPServer({
+      name: 'tasks',
+      version: '1.0.0',
+      taskStore,
+      waitUntil(promise) {
+        calls.push(promise)
+      },
+      tools: [
+        toolDefinition({
+          name: 'slow',
+          description: 'Slow work',
+          execution: 'task',
+        }).server(async (_args, ctx) => {
+          toolSignal = ctx?.abortSignal
+          // Work that runs until the task is cancelled.
+          await new Promise<void>((resolve) => {
+            ctx?.abortSignal?.addEventListener('abort', () => resolve(), {
+              once: true,
+            })
+          })
+          return 'late'
+        }),
+      ],
+    })
+
+    await withClient(server, { era: '2025' }, async (client) => {
+      const { taskId } = (await taskCall(client, 'slow')).task
+      await vi.waitFor(() => expect(toolSignal).toBeDefined())
+
+      const cancelled = await client.request(
+        { method: 'tasks/cancel', params: { taskId } },
+        taskShape,
+      )
+      expect(cancelled).toMatchObject({ taskId, status: 'cancelled' })
+      expect(toolSignal?.aborted).toBe(true)
+      // The late result of the tool does not replace the cancel.
+      await calls[0]
+      expect((await taskGet(client, taskId)).status).toBe('cancelled')
+      // A task in a terminal status cannot be cancelled again.
+      await expect(
+        client.request(
+          { method: 'tasks/cancel', params: { taskId } },
+          taskShape,
+        ),
+      ).rejects.toThrow()
+      expect(client.getServerCapabilities()?.tasks).toMatchObject({
+        cancel: {},
       })
     })
   })
