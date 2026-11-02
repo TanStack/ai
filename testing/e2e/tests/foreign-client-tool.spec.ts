@@ -54,4 +54,32 @@ test.describe('frontend tool from a spec-compliant AG-UI server', () => {
       })
     }
   }
+
+  test('keeps a queued message until the approval is answered', async ({
+    page,
+  }) => {
+    const posts: Array<string> = []
+    page.on('request', (request) => {
+      if (
+        request.url().includes('/api/foreign-client-tool') &&
+        request.method() === 'POST'
+      ) {
+        posts.push(request.postData() ?? '')
+      }
+    })
+
+    await page.goto('/foreign-client-tool?approval=1&queue=1')
+    const approve = page
+      .getByTestId('approval')
+      .getByRole('button', { name: 'Approve' })
+    await expect(approve).toBeVisible()
+    expect(posts).toHaveLength(1)
+
+    await approve.click()
+
+    // The run with the tool result goes first. The queued message follows.
+    await expect.poll(() => posts.length).toBe(3)
+    expect(posts[1]).not.toContain('queued')
+    expect(posts[2]).toContain('queued')
+  })
 })

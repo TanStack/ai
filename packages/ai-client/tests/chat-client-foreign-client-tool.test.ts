@@ -178,4 +178,45 @@ describe('client tools from a foreign AG-UI server', () => {
       },
     )
   })
+
+  it('keeps a queued message until the approval is answered', async () => {
+    const execute = vi.fn(() => ({ reply: 'pong' }))
+    const ping = toolDefinition({
+      name: 'ping',
+      description: 'Reply with pong',
+      inputSchema: z.object({}),
+      needsApproval: true,
+    }).client(execute)
+    const { connection, requests } = foreignServer()
+    const client = new ChatClient({
+      threadId: 'thread-1',
+      connection,
+      tools: [ping],
+    })
+
+    // The second message waits in the queue while the first run streams.
+    await Promise.all([
+      client.sendMessage('ping me'),
+      client.sendMessage('queued'),
+    ])
+    await new Promise((resolve) => setTimeout(resolve, 20))
+
+    const interrupt = client.getInterrupts()[0]
+    if (interrupt?.kind !== 'tool-approval') {
+      throw new Error('expected a tool-approval interrupt')
+    }
+    expect(requests).toHaveLength(1)
+
+    interrupt.resolveInterrupt(true)
+
+    await vi.waitFor(() =>
+      expect(
+        requests.some((request) => JSON.stringify(request).includes('queued')),
+      ).toBe(true),
+    )
+    const queued = requests.find((request) =>
+      JSON.stringify(request).includes('queued'),
+    )
+    expect(JSON.stringify(queued)).toContain('{\\"reply\\":\\"pong\\"}')
+  })
 })
