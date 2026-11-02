@@ -232,13 +232,21 @@ function applyReservedHeaders(
  *
  * `maxRetries` has no equivalent here and stays SDK-path-only; it is
  * documented as such on {@link BytePlusArkConfig}.
+ *
+ * The caller's `abortSignal`, when given, is combined with the timeout, so an
+ * abort cancels the request too.
  */
 export function bytePlusTimeoutSignal(
   timeout: number | undefined,
+  abortSignal?: AbortSignal,
 ): AbortSignal | undefined {
-  return typeof timeout === 'number' && timeout > 0
-    ? AbortSignal.timeout(timeout)
-    : undefined
+  const timeoutSignal =
+    typeof timeout === 'number' && timeout > 0
+      ? AbortSignal.timeout(timeout)
+      : undefined
+  return timeoutSignal && abortSignal
+    ? AbortSignal.any([timeoutSignal, abortSignal])
+    : (timeoutSignal ?? abortSignal)
 }
 
 /**

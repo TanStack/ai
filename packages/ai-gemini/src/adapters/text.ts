@@ -570,13 +570,16 @@ export class GeminiTextAdapter<
       // The installed @google/genai (2.10.0) Interactions `VideoContent` type
       // predates the `processing` field, so the structurally-built input is
       // cast at the call boundary. The SDK forwards it to the wire unchanged.
-      const interaction = await this.client.interactions.create({
-        model,
-        ...(systemInstruction !== undefined && {
-          system_instruction: systemInstruction,
-        }),
-        input: input as never,
-      })
+      const interaction = await this.client.interactions.create(
+        {
+          model,
+          ...(systemInstruction !== undefined && {
+            system_instruction: systemInstruction,
+          }),
+          input: input as never,
+        },
+        { signal: options.request?.signal },
+      )
 
       const text = interaction.output_text ?? ''
       const responseMetadata = {

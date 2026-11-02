@@ -160,6 +160,7 @@ export class BytePlusTranscriptionAdapter<
             [BYTEPLUS_ASR_RESOURCE_HEADER]: BYTEPLUS_ASR_RESOURCE_ID,
           }),
           body: JSON.stringify(body),
+          ...(options.abortSignal && { signal: options.abortSignal }),
         },
       )
 

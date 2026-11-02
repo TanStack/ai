@@ -194,6 +194,15 @@ export class OllamaTextAdapter<TModel extends string> extends BaseTextAdapter<
         ...mappedOptions,
         stream: true,
       })
+      // ponytail: an injected client has no per-call signal, so stop this
+      // stream with its own abort(). It cannot cancel before the headers.
+      const signal = options.request?.signal
+      if (!this.clientConfig && signal) {
+        if (signal.aborted) response.abort()
+        signal.addEventListener('abort', () => response.abort(), {
+          once: true,
+        })
+      }
       for await (const chunk of this.processOllamaStreamChunks(
         response,
         options,

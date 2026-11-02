@@ -1,7 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { Ollama } from 'ollama'
 import { chat } from '@tanstack/ai'
 import { resolveDebugOption } from '@tanstack/ai/adapter-internals'
-import { createOllamaChat } from '../src/adapters/text'
+import { OllamaTextAdapter, createOllamaChat } from '../src/adapters/text'
 import type { FetchWrapper } from '@tanstack/ai'
 
 const logger = resolveDebugOption(false)
@@ -96,6 +97,50 @@ describe('Ollama abort signal', () => {
     abortController.abort()
 
     expect(wrapped).toBe(true)
+    await run
+  })
+})
+
+// `ollama` takes no per-call signal, so with an injected client only the
+// stream's own `abort()` can end the request. It needs the response headers,
+// so this fake answers at once with a body that never ends.
+describe('Ollama abort signal with an injected client', () => {
+  it('aborts the stream request when the caller aborts', async () => {
+    const signals: Array<AbortSignal> = []
+    const fetch = vi.fn((_input: RequestInfo | URL, init?: RequestInit) => {
+      const signal = init?.signal
+      if (!signal) return Promise.reject(new Error('fetch got no abort signal'))
+      signals.push(signal)
+      const body = new ReadableStream({
+        start(controller) {
+          signal.addEventListener('abort', () =>
+            controller.error(signal.reason),
+          )
+        },
+      })
+      return Promise.resolve(new Response(body))
+    })
+    const client = new Ollama({ host: 'http://ollama.test', fetch })
+    const abortController = new AbortController()
+    const run = (async () => {
+      for await (const _ of new OllamaTextAdapter(client, model).chatStream({
+        threadId: 'thread-1',
+        logger,
+        model,
+        messages,
+        request: { signal: abortController.signal },
+      })) {
+        // drain
+      }
+    })()
+
+    await vi.waitFor(() => expect(fetch).toHaveBeenCalled())
+    abortController.abort()
+
+    await vi.waitFor(
+      () => expect(signals.at(-1)?.aborted, 'request aborted').toBe(true),
+      { timeout: 500 },
+    )
     await run
   })
 })

@@ -89,6 +89,7 @@ function operationErrorMessage(error: Record<string, unknown>): string {
 async function imagePartToVeoImage(
   part: ImagePart<MediaInputMetadata>,
   allowUrlFetch: boolean,
+  abortSignal: AbortSignal | undefined,
 ): Promise<Image> {
   if (part.source.type === 'data') {
     return {
@@ -132,7 +133,9 @@ async function imagePartToVeoImage(
         `adapter config to opt into fetching. URL: ${url}`,
     )
   }
-  const response = await fetch(url)
+  const response = abortSignal
+    ? await fetch(url, { signal: abortSignal })
+    : await fetch(url)
   if (!response.ok) {
     throw new Error(
       `Failed to fetch image input (${response.status} ${response.statusText}): ${url}`,
@@ -319,6 +322,7 @@ export class GeminiVideoAdapter<
 
       const { image, lastFrame, referenceImages } = await this.routeImageParts(
         resolved.images,
+        options.abortSignal,
       )
 
       const config: GenerateVideosConfig = {
@@ -327,6 +331,7 @@ export class GeminiVideoAdapter<
         ...(duration !== undefined && { durationSeconds: duration }),
         ...(lastFrame && { lastFrame }),
         ...(referenceImages.length > 0 && { referenceImages }),
+        ...(options.abortSignal && { abortSignal: options.abortSignal }),
       }
 
       const operation = await this.client.models.generateVideos({
@@ -427,14 +432,19 @@ export class GeminiVideoAdapter<
             }
           : {}
 
-      const interaction = await this.client.interactions.create({
+      const request = {
         ...modelOptions,
         model: this.model,
-        input: [{ type: 'user_input', content }],
-        response_modalities: ['video'],
+        input: [{ type: 'user_input' as const, content }],
+        response_modalities: ['video' as const],
         background: true,
         ...responseFormat,
-      })
+      }
+      const interaction = options.abortSignal
+        ? await this.client.interactions.create(request, {
+            signal: options.abortSignal,
+          })
+        : await this.client.interactions.create(request)
 
       if (!interaction.id) {
         throw new Error(
@@ -457,6 +467,7 @@ export class GeminiVideoAdapter<
    */
   private async routeImageParts(
     parts: Array<ImagePart<MediaInputMetadata>>,
+    abortSignal: AbortSignal | undefined,
   ): Promise<{
     image: Image | undefined
     lastFrame: Image | undefined
@@ -475,13 +486,21 @@ export class GeminiVideoAdapter<
               `${this.name}: Veo accepts at most one 'end_frame' image.`,
             )
           }
-          lastFrame = await imagePartToVeoImage(part, this.allowUrlFetch)
+          lastFrame = await imagePartToVeoImage(
+            part,
+            this.allowUrlFetch,
+            abortSignal,
+          )
           break
         }
         case 'reference':
         case 'character': {
           referenceImages.push({
-            image: await imagePartToVeoImage(part, this.allowUrlFetch),
+            image: await imagePartToVeoImage(
+              part,
+              this.allowUrlFetch,
+              abortSignal,
+            ),
             referenceType: VideoGenerationReferenceType.ASSET,
           })
           break
@@ -493,7 +512,11 @@ export class GeminiVideoAdapter<
               `${this.name}: Veo accepts at most one starting image; received multiple 'start_frame'/un-roled images. Use metadata.role ('end_frame', 'reference') to disambiguate the others.`,
             )
           }
-          image = await imagePartToVeoImage(part, this.allowUrlFetch)
+          image = await imagePartToVeoImage(
+            part,
+            this.allowUrlFetch,
+            abortSignal,
+          )
           break
         }
         case 'mask':
