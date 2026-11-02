@@ -136,7 +136,7 @@ const daytona = daytonaSandbox({
 - **Idle stop:** Daytona stops an idle sandbox after 15 minutes by default. Set `autoStopInterval` in minutes to change that. Pass `0` to turn auto-stop off. Set `ephemeral: true` to delete the sandbox when it stops.
 - **Network:** `policy.capabilities.network: 'deny'` blocks all outbound network at create.
 - **Working directory:** the portable root `/workspace` maps to `/home/daytona/workspace` by default. Set `workdir` on `daytonaSandbox()` for another path.
-- **Stdin:** spawned processes accept host stdin (`writableStdin: true`).
+- **Stdin:** spawned processes do not get host stdin (`writableStdin: false`). Daytona cannot close stdin, so a harness gets its prompt from a file.
 - **Privileges:** the Daytona user is not root. Package installs in `setup` must use `sudo -n` (for example `sudo -n apt-get install ...`). Do not put `sudo *` in a [policy](./policy) deny list for this provider.
 - **Bridge:** the sandbox is remote, so a [bridged tool](./tools) call cannot reach your laptop's `localhost`. In local dev, tunnel the bridge. A deployed orchestrator needs no tunnel.
 
