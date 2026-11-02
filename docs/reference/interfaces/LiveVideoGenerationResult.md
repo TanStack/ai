@@ -3,7 +3,7 @@ id: LiveVideoGenerationResult
 title: LiveVideoGenerationResult
 ---
 
-Defined in: packages/ai/src/types.ts:2802
+Defined in: [packages/ai/src/types.ts:2850](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2850)
 
 **`Experimental`**
 
@@ -24,7 +24,7 @@ that attaches `FAL_KEY`. Do not send `token` as Key credentials.
 expiresAt: number;
 ```
 
-Defined in: packages/ai/src/types.ts:2813
+Defined in: [packages/ai/src/types.ts:2861](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2861)
 
 **`Experimental`**
 
@@ -38,7 +38,7 @@ Token expiry as milliseconds since epoch
 id: string;
 ```
 
-Defined in: packages/ai/src/types.ts:2804
+Defined in: [packages/ai/src/types.ts:2852](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2852)
 
 **`Experimental`**
 
@@ -52,7 +52,7 @@ Unique identifier for this generation
 model: string;
 ```
 
-Defined in: packages/ai/src/types.ts:2809
+Defined in: [packages/ai/src/types.ts:2857](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2857)
 
 **`Experimental`**
 
@@ -67,7 +67,7 @@ fal: WMA app id `fal-ai/minimax-h3-max-director`.
 prompt: string;
 ```
 
-Defined in: packages/ai/src/types.ts:2815
+Defined in: [packages/ai/src/types.ts:2863](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2863)
 
 **`Experimental`**
 
@@ -81,7 +81,7 @@ Prompt the client should send when it starts the session
 optional sessionId?: string;
 ```
 
-Defined in: packages/ai/src/types.ts:2819
+Defined in: [packages/ai/src/types.ts:2867](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2867)
 
 **`Experimental`**
 
@@ -95,7 +95,7 @@ Provider session id, when the adapter created one
 status: "ready" | "waiting";
 ```
 
-Defined in: packages/ai/src/types.ts:2817
+Defined in: [packages/ai/src/types.ts:2865](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2865)
 
 **`Experimental`**
 
@@ -109,7 +109,7 @@ Session status after the server half finishes
 token: string;
 ```
 
-Defined in: packages/ai/src/types.ts:2811
+Defined in: [packages/ai/src/types.ts:2859](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2859)
 
 **`Experimental`**
 
@@ -123,7 +123,7 @@ Short-lived session token. Reactor uses this to connect. fal does not.
 optional usage?: TokenUsage<ProviderUsageDetails>;
 ```
 
-Defined in: packages/ai/src/types.ts:2821
+Defined in: [packages/ai/src/types.ts:2869](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2869)
 
 **`Experimental`**
 

@@ -3,7 +3,7 @@ id: FilesAdapter
 title: FilesAdapter
 ---
 
-Defined in: packages/ai/src/activities/files/adapter.ts:75
+Defined in: [packages/ai/src/activities/files/adapter.ts:75](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/files/adapter.ts#L75)
 
 The `files` adapter contract. `upload` is required; `get`/`delete` are
 optional and present only when the provider has a lifecycle API.
@@ -26,7 +26,7 @@ type system.
 optional delete?: (id) => Promise<void>;
 ```
 
-Defined in: packages/ai/src/activities/files/adapter.ts:80
+Defined in: [packages/ai/src/activities/files/adapter.ts:80](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/files/adapter.ts#L80)
 
 #### Parameters
 
@@ -46,7 +46,7 @@ Defined in: packages/ai/src/activities/files/adapter.ts:80
 optional get?: (id) => Promise<FileHandle<TName>>;
 ```
 
-Defined in: packages/ai/src/activities/files/adapter.ts:79
+Defined in: [packages/ai/src/activities/files/adapter.ts:79](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/files/adapter.ts#L79)
 
 #### Parameters
 
@@ -66,7 +66,7 @@ Defined in: packages/ai/src/activities/files/adapter.ts:79
 readonly kind: "files";
 ```
 
-Defined in: packages/ai/src/activities/files/adapter.ts:76
+Defined in: [packages/ai/src/activities/files/adapter.ts:76](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/files/adapter.ts#L76)
 
 ***
 
@@ -76,7 +76,7 @@ Defined in: packages/ai/src/activities/files/adapter.ts:76
 readonly name: TName;
 ```
 
-Defined in: packages/ai/src/activities/files/adapter.ts:77
+Defined in: [packages/ai/src/activities/files/adapter.ts:77](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/files/adapter.ts#L77)
 
 ***
 
@@ -86,7 +86,7 @@ Defined in: packages/ai/src/activities/files/adapter.ts:77
 upload: (input) => Promise<FileHandle<TName>>;
 ```
 
-Defined in: packages/ai/src/activities/files/adapter.ts:78
+Defined in: [packages/ai/src/activities/files/adapter.ts:78](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/files/adapter.ts#L78)
 
 #### Parameters
 

@@ -1,5 +1,15 @@
 # @tanstack/ai-harness
 
+## 0.1.1
+
+### Patch Changes
+
+- [#1913](https://github.com/TanStack/ai/pull/1913) [`3061f4b`](https://github.com/TanStack/ai/commit/3061f4b22d44c21eb9b99fb7b1076808338caa74) - Fix TS2615 under TypeScript 7.1: "Type of property 'agents' circularly references itself in mapped type 'Pick<SessionImpl<…>, PublicSessionMember>'". `defineHarness()` and `host.open()` failed with it in code that TypeScript 7.0 accepts. `HarnessAgentsOf` now reads the `agents` and `subagents.agents` of a harness instead of matching the whole definition, which reached `session.agents` again. The types it gives are unchanged.
+
+- Updated dependencies [[`f085015`](https://github.com/TanStack/ai/commit/f085015da1b77aee3cf95ca74a2e86ed9dbc1c29), [`669fd31`](https://github.com/TanStack/ai/commit/669fd31d995a7134e9f39f386181edc5085039b2), [`2f86841`](https://github.com/TanStack/ai/commit/2f868416cc9d2fe0022f6c08417ed76ddcdadcbd), [`ae97655`](https://github.com/TanStack/ai/commit/ae976552710726b13b524c307c1b5bbe78478eb0)]:
+  - @tanstack/ai@1.0.1
+  - @tanstack/ai-persistence@1.0.1
+
 ## 0.1.0
 
 ### Minor Changes

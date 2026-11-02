@@ -71,7 +71,7 @@ error TS2353: Object literal may only specify known properties, and 'text' does 
 ```
 
 > [!TIP]
-> For structured output, use `chat({ outputSchema })` in most apps. It works with every provider and validates the result. The raw `text` option is for control that is specific to the provider. See [Structured Outputs](../chat/structured-outputs).
+> For structured output, use `chat({ outputSchema })` in most apps. It works with every provider and validates the result. The raw `text` option is for control that is specific to the provider. See [Structured Outputs](../structured-outputs/overview).
 
 ## What you get
 

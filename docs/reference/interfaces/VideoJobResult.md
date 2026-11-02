@@ -3,7 +3,7 @@ id: VideoJobResult
 title: VideoJobResult
 ---
 
-Defined in: packages/ai/src/types.ts:2633
+Defined in: [packages/ai/src/types.ts:2633](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2633)
 
 Result of creating a video generation job.
 
@@ -15,7 +15,7 @@ Result of creating a video generation job.
 optional artifacts?: PersistedArtifactRef[];
 ```
 
-Defined in: packages/ai/src/types.ts:2643
+Defined in: [packages/ai/src/types.ts:2643](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2643)
 
 Durable artifact references, when generation persistence with an artifact +
 blob store is wired. A submission has no video yet, so this only carries
@@ -29,7 +29,7 @@ refs for persisted prompt INPUTS (e.g. a start frame).
 jobId: string;
 ```
 
-Defined in: packages/ai/src/types.ts:2635
+Defined in: [packages/ai/src/types.ts:2635](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2635)
 
 Unique job identifier for polling status
 
@@ -41,6 +41,6 @@ Unique job identifier for polling status
 model: string;
 ```
 
-Defined in: packages/ai/src/types.ts:2637
+Defined in: [packages/ai/src/types.ts:2637](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2637)
 
 Model used for generation

@@ -8,6 +8,7 @@ import {
 } from '../src/bindings/tool-to-binding'
 import type {
   CodeModeCallHook,
+  CodeModeTool,
   ToolBinding,
   ToolExecutionContext,
 } from '../src/types'
@@ -25,6 +26,17 @@ function createMockServerTool<TName extends string>(
   return def.server(async (input) => ({
     result: `response to ${input.query}`,
   }))
+}
+
+// A `needsApproval: true` tool is rejected by the `CodeModeTool` *type*
+// (`needsApproval` is pinned to `false`). These helpers model a runtime bypass
+// — a JS consumer, an `as` cast, or a dynamically built `AnyServerTool` — which
+// is exactly what the runtime guard has to catch.
+function createApprovalTool(name: string): CodeModeTool {
+  return {
+    ...createMockServerTool(name),
+    needsApproval: true,
+  } as unknown as CodeModeTool
 }
 
 describe('toolToBinding', () => {
@@ -54,6 +66,21 @@ describe('toolToBinding', () => {
 
     // @ts-expect-error - bare definitions are rejected by the Code Mode API.
     expect(() => toolToBinding(def)).toThrow('server tools')
+  })
+
+  it('throws for a tool that requires approval', () => {
+    expect(() => toolToBinding(createApprovalTool('runCommand'))).toThrow(
+      /Tool "runCommand" requires approval .* cannot[\s\S]*be used in Code Mode/,
+    )
+  })
+
+  it('allows a tool with needsApproval explicitly false', () => {
+    const tool = {
+      ...createMockServerTool('runCommand'),
+      needsApproval: false as const,
+    }
+
+    expect(() => toolToBinding(tool)).not.toThrow()
   })
 
   it('execute function calls through to the tool', async () => {
@@ -124,6 +151,15 @@ describe('toolsToBindings', () => {
   it('returns empty object for empty array', () => {
     const bindings = toolsToBindings([])
     expect(bindings).toEqual({})
+  })
+
+  it('throws if any tool requires approval', () => {
+    const safe = createMockServerTool('fetchWeather')
+    const gated = createApprovalTool('runCommand')
+
+    expect(() => toolsToBindings([safe, gated], 'external_')).toThrow(
+      /Tool "runCommand" requires approval/,
+    )
   })
 })
 

@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
 import { toolDefinition } from '@tanstack/ai'
 import { createCodeMode } from '../src/create-code-mode'
-import type { IsolateDriver, IsolateContext } from '../src/types'
+import type { CodeModeTool, IsolateDriver, IsolateContext } from '../src/types'
 
 function createMockDriver(): IsolateDriver {
   const mockContext: IsolateContext = {
@@ -62,6 +62,22 @@ describe('createCodeMode', () => {
         tools: [],
       }),
     ).toThrow('At least one tool must be provided')
+  })
+
+  it('throws when a tool requires approval', () => {
+    // Models a runtime bypass: the CodeModeTool type pins needsApproval to
+    // false, so a true value only reaches the guard via JS / a cast.
+    const gated = {
+      ...createMockTool('runCommand'),
+      needsApproval: true,
+    } as unknown as CodeModeTool
+
+    expect(() =>
+      createCodeMode({
+        driver: createMockDriver(),
+        tools: [createMockTool('search'), gated],
+      }),
+    ).toThrow(/Code Mode cannot expose tools that require approval: runCommand/)
   })
 })
 

@@ -1,0 +1,31 @@
+{
+  "fixtures": [
+    {
+      "match": {
+        "userMessage": "[parallel-same] compare guitars 1 and 2, then 3 and 4",
+        "sequenceIndex": 0
+      },
+      "response": {
+        "toolCalls": [
+          {
+            "name": "compareGuitars",
+            "arguments": "{\"guitarIds\":[1,2]}"
+          },
+          {
+            "name": "compareGuitars",
+            "arguments": "{\"guitarIds\":[3,4]}"
+          }
+        ]
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[parallel-same] compare guitars 1 and 2, then 3 and 4",
+        "sequenceIndex": 1
+      },
+      "response": {
+        "content": "Both comparisons are done. The Stratocaster is the cheapest of the first pair."
+      }
+    }
+  ]
+}

@@ -3,7 +3,7 @@ id: MessageSource
 title: MessageSource
 ---
 
-Defined in: packages/ai/src/types.ts:689
+Defined in: [packages/ai/src/types.ts:692](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L692)
 
 Provider, wire API, and requested model of an assistant message.
 
@@ -15,7 +15,7 @@ Provider, wire API, and requested model of an assistant message.
 api: string;
 ```
 
-Defined in: packages/ai/src/types.ts:691
+Defined in: [packages/ai/src/types.ts:694](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L694)
 
 ***
 
@@ -25,7 +25,7 @@ Defined in: packages/ai/src/types.ts:691
 model: string;
 ```
 
-Defined in: packages/ai/src/types.ts:692
+Defined in: [packages/ai/src/types.ts:695](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L695)
 
 ***
 
@@ -35,4 +35,4 @@ Defined in: packages/ai/src/types.ts:692
 provider: string;
 ```
 
-Defined in: packages/ai/src/types.ts:690
+Defined in: [packages/ai/src/types.ts:693](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L693)

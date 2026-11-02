@@ -198,7 +198,7 @@ const recipe = await chat({
 console.log(recipe.name); // typed as z.infer<typeof recipeSchema>
 ```
 
-See [Structured Outputs](../chat/structured-outputs).
+See [Structured Outputs](../structured-outputs/overview).
 
 ## Embeddings
 

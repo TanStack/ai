@@ -19,17 +19,17 @@
 <br />
 
 <div align="center">
-  <a href="https://npmjs.com/package/@tanstack/ai-openai" target="_parent">
-    <img alt="NPM downloads" src="https://img.shields.io/npm/dm/@tanstack/ai-openai.svg" />
+  <a href="https://npmjs.com/package/@tanstack/ai" target="_parent">
+    <img alt="NPM downloads" src="https://img.shields.io/npm/dm/@tanstack/ai.svg" />
   </a>
   <a href="https://github.com/TanStack/ai" target="_parent">
     <img alt="GitHub stars" src="https://img.shields.io/github/stars/TanStack/ai.svg?style=social&label=Star" />
   </a>
-  <a href="https://www.npmjs.com/package/@tanstack/ai-openai" target="_parent">
-    <img alt="npm version" src="https://img.shields.io/npm/v/@tanstack/ai-openai.svg" />
+  <a href="https://www.npmjs.com/package/@tanstack/ai" target="_parent">
+    <img alt="npm version" src="https://img.shields.io/npm/v/@tanstack/ai.svg" />
   </a>
-  <a href="https://bundlejs.com/?q=%40tanstack%2Fai-openai" target="_parent">
-    <img alt="Bundle size" src="https://deno.bundlejs.com/?q=%40tanstack%2Fai-openai&badge" />
+  <a href="https://bundlejs.com/?q=%40tanstack%2Fai" target="_parent">
+    <img alt="Bundle size" src="https://deno.bundlejs.com/?q=%40tanstack%2Fai&badge" />
   </a>
   <a href="https://twitter.com/tan_stack">
     <img alt="Follow @TanStack" src="https://img.shields.io/twitter/follow/tan_stack.svg?style=social" />
@@ -298,9 +298,9 @@ on.
     <td>
       <a href="https://www.coderabbit.ai/?via=tanstack&dub_id=aCcEEdAOqqutX6OS">
         <picture>
-          <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/TanStack/tanstack.com/main/src/images/coderabbit-dark.svg" />
-          <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/TanStack/tanstack.com/main/src/images/coderabbit-light.svg" />
-          <img src="https://raw.githubusercontent.com/TanStack/tanstack.com/main/src/images/coderabbit-light.svg" height="40" alt="CodeRabbit" />
+          <source media="(prefers-color-scheme: dark)" srcset="https://tanstack.com/assets/coderabbit-dark-D643Zkrv.svg" />
+          <source media="(prefers-color-scheme: light)" srcset="https://tanstack.com/assets/coderabbit-light-CIzGLYU_.svg" />
+          <img src="https://tanstack.com/assets/coderabbit-light-CIzGLYU_.svg" height="40" alt="CodeRabbit" />
         </picture>
       </a>
     </td>
@@ -309,7 +309,7 @@ on.
         <picture>
           <source media="(prefers-color-scheme: dark)" srcset="https://tanstack.com/assets/cloudflare-white-Co-Tyjbl.svg" />
           <source media="(prefers-color-scheme: light)" srcset="https://tanstack.com/assets/cloudflare-black-6Ojsn8yh.svg" />
-          <img src="https://tanstack.com/assets/cloudflare-black-6Ojsn8yh.svg" height="60" alt="Cloudflare" />
+          <img src="https://tanstack.com/assets/cloudflare-white-Co-Tyjbl.svg" height="60" alt="Cloudflare" />
         </picture>
       </a>
     </td>
