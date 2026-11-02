@@ -118,6 +118,39 @@ describe('summarize() abort reaches the wrapped chatStream', () => {
     expect(onError).not.toHaveBeenCalled()
     expect(onAbort).toHaveBeenCalledTimes(1)
   })
+
+  it('stream: a plain Error after the abort still reports onAbort', async () => {
+    // Many SDKs throw a plain Error (no AbortError name) once the request is
+    // cancelled, so only the aborted signal shows it was a cancel.
+    const text: ChatStreamCapable = {
+      chatStream: (options) =>
+        (async function* () {
+          yield* []
+          await hangUntilAborted(options.request?.signal).catch(() => {
+            throw new Error('socket closed')
+          })
+        })(),
+    }
+    const onAbort = vi.fn()
+    const onError = vi.fn()
+    const controller = new AbortController()
+    const stream = summarize({
+      adapter: new ChatStreamSummarizeAdapter<string, object>(
+        text,
+        'test-model',
+        'openai',
+      ),
+      threadId: 'thread-1',
+      text: 'long text',
+      stream: true,
+      abortSignal: controller.signal,
+      middleware: [{ name: 'observe', onAbort, onError }],
+    })
+    setTimeout(() => controller.abort(), 10)
+    await expect(collectChunks(stream)).rejects.toThrow()
+    expect(onError).not.toHaveBeenCalled()
+    expect(onAbort).toHaveBeenCalledTimes(1)
+  })
 })
 
 describe('middleware ctx.abort() reaches the provider', () => {
