@@ -722,7 +722,31 @@ async function createWebRTCConnection(
 
   // Wait for the data channel to be open before returning the connection.
   // This ensures session.update (tools, instructions, etc.) can be sent immediately.
-  await dataChannelReady
+  // An abort during this wait releases the mic, the peer connection, and the
+  // audio context, and rejects, so connect() does not stay pending.
+  try {
+    await waitUnlessAborted(dataChannelReady, abortSignal)
+  } catch (error) {
+    await connection.disconnect()
+    throw error
+  }
 
   return connection
+}
+
+/** Resolve with `promise`, or reject with the abort reason when `signal` aborts first. */
+function waitUnlessAborted(
+  promise: Promise<void>,
+  signal: AbortSignal | undefined,
+): Promise<void> {
+  if (!signal) return promise
+  return new Promise((resolve, reject) => {
+    const onAbort = () => reject(signal.reason)
+    if (signal.aborted) return onAbort()
+    signal.addEventListener('abort', onAbort, { once: true })
+    void promise.then(() => {
+      signal.removeEventListener('abort', onAbort)
+      resolve()
+    })
+  })
 }

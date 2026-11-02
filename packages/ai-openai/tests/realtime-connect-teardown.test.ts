@@ -72,4 +72,36 @@ describe('openaiRealtime connect teardown', () => {
     expect(track.stop).toHaveBeenCalled()
     expect(pc.close).toHaveBeenCalled()
   })
+
+  it('releases everything when disconnect() aborts the wait for the data channel', async () => {
+    const { track, channel, pc } = stubBrowser()
+    Object.assign(pc, { setRemoteDescription: async () => {} })
+    const audioContext = {
+      state: 'running',
+      createAnalyser: () => ({ connect: vi.fn() }),
+      createMediaStreamSource: () => ({ connect: vi.fn() }),
+      close: vi.fn(async () => {}),
+    }
+    const AudioContextMock = vi.fn(function AudioContext() {
+      return audioContext
+    })
+    vi.stubGlobal('AudioContext', AudioContextMock)
+    vi.stubGlobal('fetch', async () => new Response('v=0', { status: 200 }))
+    const controller = new AbortController()
+    // The data channel never opens, so connect() waits until the abort.
+    const settled = expect(
+      openaiRealtime().connect(token, undefined, {
+        abortSignal: controller.signal,
+      }),
+    ).rejects.toMatchObject({ name: 'AbortError' })
+    // The SDP step is done once the input audio analysis starts.
+    await vi.waitFor(() => expect(AudioContextMock).toHaveBeenCalled())
+    controller.abort()
+
+    await settled
+    expect(track.stop).toHaveBeenCalled()
+    expect(channel.close).toHaveBeenCalled()
+    expect(pc.close).toHaveBeenCalled()
+    expect(audioContext.close).toHaveBeenCalled()
+  })
 })
