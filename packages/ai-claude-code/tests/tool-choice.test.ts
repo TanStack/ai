@@ -160,3 +160,42 @@ describe('claude-code toolChoice', () => {
     expect(warn).not.toHaveBeenCalled()
   })
 })
+
+describe('tool bridge signal', () => {
+  // chat() passes the run signal as `request.signal` and sets no
+  // `abortController`, so the bridge must take `request.signal`.
+  it('gives the chat() request signal to the tool bridge', async () => {
+    const sbx = await provider.create({})
+    try {
+      const capabilities = {
+        capabilities: { markProvided: () => {}, has: () => true },
+      } as unknown as CapabilityContext
+      provideSandbox(capabilities, sbx)
+      let bridgeSignal: AbortSignal | undefined
+      provideToolBridgeProvisioner(capabilities, {
+        provision: (_tools, options) => {
+          bridgeSignal = options.signal
+          return Promise.reject(new Error('stop after the bridge'))
+        },
+      })
+      const adapter = claudeCodeText('haiku', {
+        claudeExecutable: 'node fake-claude.mjs',
+      })
+      const signal = new AbortController().signal
+      await collect(
+        adapter.chatStream({
+          threadId: 'thread-1',
+          model: 'haiku',
+          messages: [{ role: 'user', content: 'hi' }],
+          logger: loggerWith(() => {}),
+          capabilities,
+          tools,
+          request: { signal },
+        }),
+      ).catch(() => undefined)
+      expect(bridgeSignal).toBe(signal)
+    } finally {
+      await sbx.destroy()
+    }
+  })
+})
