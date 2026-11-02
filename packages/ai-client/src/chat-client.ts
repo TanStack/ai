@@ -3078,6 +3078,12 @@ export class ChatClient<
     // This aborts the local request. A durable server run keeps going.
     this.continuationGeneration++
     const hadLocalStream = this.abortController !== null
+    const stoppedRunId = hadLocalStream ? this.currentRunId : null
+    if (stoppedRunId) {
+      // Opt-in server cancel (`cancelUrl`). Best effort: the local stop is done.
+      const run = { runId: stoppedRunId, threadId: this.threadId }
+      void (async () => this.connection.cancelRun?.(run))().catch(() => {})
+    }
     this.cancelInFlightStream({ setReadyStatus: true })
     this.clientToolAbortController.abort()
     this.clientToolAbortController = new AbortController()

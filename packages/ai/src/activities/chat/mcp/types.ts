@@ -26,7 +26,14 @@ export interface MCPToolSource {
   // Keep the options shape in sync with ai-mcp's `ToolsOptions` — extra
   // optional fields added there still match structurally, but chat() only
   // forwards what is declared here.
-  tools: (options?: { lazy?: boolean }) => Promise<Array<AnyServerTool>>
+  /**
+   * Lists the tools. `chat()` passes the run's `signal` so that a cancelled
+   * run also cancels discovery. A source that ignores `signal` still works.
+   */
+  tools: (options?: {
+    lazy?: boolean
+    signal?: AbortSignal
+  }) => Promise<Array<AnyServerTool>>
   close: () => Promise<void>
   /**
    * Reads an MCP resource by URI. Used by the chat manager to eagerly fetch

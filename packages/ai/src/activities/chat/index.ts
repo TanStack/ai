@@ -6408,7 +6408,7 @@ async function* runChatEngine(
   const logger = resolveDebugOption(debug)
 
   const mcpManager = MCPManager.from(mcp)
-  const mcpTools = await mcpManager.discover()
+  const mcpTools = await mcpManager.discover(options.abortController?.signal)
   if (mcpTools.length > 0) {
     textOptions.tools = [...(textOptions.tools ?? []), ...mcpTools]
   }
@@ -7024,7 +7024,7 @@ async function runAgenticStructuredOutput<TSchema extends SchemaInput>(
     adapter.combinedStructuredOutputSource?.(options.modelOptions) ?? 'text'
 
   const mcpManager = MCPManager.from(mcp)
-  const mcpTools = await mcpManager.discover()
+  const mcpTools = await mcpManager.discover(options.abortController?.signal)
   if (mcpTools.length > 0) {
     textOptions.tools = [...(textOptions.tools ?? []), ...mcpTools]
   }
@@ -7386,7 +7386,7 @@ async function* runStreamingStructuredOutputImpl<TSchema extends SchemaInput>(
     : undefined
 
   const mcpManager = MCPManager.from(mcp)
-  const mcpTools = await mcpManager.discover()
+  const mcpTools = await mcpManager.discover(options.abortController?.signal)
   if (mcpTools.length > 0) {
     textOptions.tools = [...(textOptions.tools ?? []), ...mcpTools]
   }

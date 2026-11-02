@@ -298,6 +298,37 @@ describe('chat({ mcp })', () => {
     expect(toolsSpy).toHaveBeenCalledWith({ lazy: true })
   })
 
+  it('passes the run abort signal to source.tools()', async () => {
+    const toolsSpy = vi.fn().mockResolvedValue([])
+    const source: MCPToolSource = { tools: toolsSpy, close: async () => {} }
+    const { adapter } = createMockAdapter({
+      iterations: [
+        [
+          ev.runStarted(),
+          ev.textStart(),
+          ev.textContent('ok'),
+          ev.textEnd(),
+          ev.runFinished('stop'),
+        ],
+      ],
+    })
+    const abortController = new AbortController()
+
+    const stream = chat({
+      threadId: 'thread-1',
+      adapter,
+      messages: [{ role: 'user', content: 'hi' }],
+      mcp: { clients: [source] },
+      abortController,
+    })
+    await collectChunks(stream as AsyncIterable<StreamChunk>)
+
+    expect(toolsSpy).toHaveBeenCalledWith({
+      lazy: false,
+      signal: abortController.signal,
+    })
+  })
+
   // --------------------------------------------------------------------------
   // Case 7a: onDiscoveryError returning skips failed source, run proceeds
   // --------------------------------------------------------------------------

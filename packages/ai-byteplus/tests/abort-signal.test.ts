@@ -35,7 +35,7 @@ async function expectAbortReachesFetch(
 }
 
 describe('byteplus adapters forward abortSignal to the request', () => {
-  it.each(['getVideoStatus', 'getVideo'] as const)(
+  it.each(['getVideoStatus', 'getVideo', 'cancelVideoJob'] as const)(
     'video %s',
     async (method) => {
       const { fetch, signals } = hangingFetch()
@@ -47,4 +47,35 @@ describe('byteplus adapters forward abortSignal to the request', () => {
       )
     },
   )
+})
+
+describe('byteplus cancelVideoJob', () => {
+  it('sends DELETE for the task and resolves on success', async () => {
+    const calls: Array<{ url: string; method?: string }> = []
+    const fetch = async (input: unknown, init?: RequestInit) => {
+      calls.push({ url: String(input), method: init?.method })
+      return new Response('{}', { status: 200 })
+    }
+    const adapter = createBytePlusVideo('seedance-1-5-pro-251215', 'k', {
+      fetch,
+    })
+    await adapter.cancelVideoJob('job-1')
+    expect(calls).toHaveLength(1)
+    expect(calls[0]!.method).toBe('DELETE')
+    expect(calls[0]!.url).toMatch(/\/contents\/generations\/tasks\/job-1$/)
+  })
+
+  it('rejects when Ark refuses the cancel', async () => {
+    const fetch = async () =>
+      new Response(
+        JSON.stringify({ error: { code: 'x', message: 'task is running' } }),
+        { status: 400 },
+      )
+    const adapter = createBytePlusVideo('seedance-1-5-pro-251215', 'k', {
+      fetch,
+    })
+    await expect(adapter.cancelVideoJob('job-1')).rejects.toThrow(
+      /task is running/,
+    )
+  })
 })

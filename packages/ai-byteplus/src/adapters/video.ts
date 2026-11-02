@@ -524,6 +524,27 @@ export class BytePlusVideoAdapter<
     return body as BytePlusVideoTask
   }
 
+  /**
+   * `DELETE /contents/generations/tasks/{id}`. Ark can cancel only a
+   * `queued` task, and the call fails for a `running` one. On a finished
+   * task, Ark deletes the task record.
+   */
+  async cancelVideoJob(
+    jobId: string,
+    options?: { abortSignal?: AbortSignal },
+  ): Promise<void> {
+    const { response, body } = await this.request(
+      `${TASKS_PATH}/${encodeURIComponent(jobId)}`,
+      {
+        method: 'DELETE',
+        ...(options?.abortSignal && { signal: options.abortSignal }),
+      },
+    )
+    if (!response.ok) {
+      throw bytePlusArkError(response.status, body, 'video task cancel')
+    }
+  }
+
   async getVideoStatus(
     jobId: string,
     options?: { abortSignal?: AbortSignal },

@@ -983,6 +983,14 @@ export interface ConnectConnectionAdapter {
     runContext: RunAgentInputContext,
   ) => AsyncIterable<StreamChunk>
   /**
+   * Optional. Ask the server to cancel a run. `ChatClient.stop()` calls it
+   * (best effort, not awaited) for the run that it stops. Other aborts, such
+   * as an unmount, do not call it, so a durable run keeps going for them.
+   * `fetchServerSentEvents` and `fetchHttpStream` provide it when you set
+   * `cancelUrl`.
+   */
+  cancelRun?: (run: { runId: string; threadId: string }) => Promise<void>
+  /**
    * Fetch server-driven hydration for a generation `threadId`: the last
    * generation's resume snapshot, plus a cursor to a run still generating if
    * one exists. The generation client calls this itself on mount when
@@ -1130,6 +1138,8 @@ export interface SubscribeConnectionAdapter {
     abortSignal: AbortSignal | undefined,
     runContext: RunAgentInputContext,
   ) => Promise<void>
+  /** See {@link ConnectConnectionAdapter.cancelRun}. */
+  cancelRun?: (run: { runId: string; threadId: string }) => Promise<void>
   /**
    * Re-attach to an existing run by id, replaying its stream from the start off
    * the server's delivery-durability sink. Present only when the underlying
@@ -1189,11 +1199,13 @@ export function normalizeConnectionAdapter(
     const hydrate = (connection as SubscribeConnectionAdapter).hydrate?.bind(
       connection,
     )
+    const cancelRun = connection.cancelRun?.bind(connection)
     return {
       subscribe: connection.subscribe.bind(connection),
       send: connection.send.bind(connection),
       ...(joinRun ? { joinRun } : {}),
       ...(hydrate ? { hydrate } : {}),
+      ...(cancelRun ? { cancelRun } : {}),
     }
   }
 
@@ -1334,6 +1346,9 @@ export function normalizeConnectionAdapter(
       }
       await waitUntilSubscriberIdle(abortSignal)
     },
+    ...(connection.cancelRun
+      ? { cancelRun: connection.cancelRun.bind(connection) }
+      : {}),
     // Expose joinRun only when the underlying connection is resumable. Require
     // a real function — `'joinRun' in connection` is true for
     // `{ joinRun: undefined }`, which would wrap a non-callable and throw on
@@ -1373,6 +1388,49 @@ export interface FetchConnectionOptions {
   fetchClient?: typeof globalThis.fetch
   /** Bounding for resumable-SSE reconnection (throttle delay + attempt ceiling). */
   reconnect?: ReconnectOptions
+  /**
+   * Opt in to server cancel. `ChatClient.stop()` then sends
+   * `POST cancelUrl` with the JSON body `{ runId, threadId }` and the same
+   * `headers` and `credentials`. Your route aborts the run.
+   */
+  cancelUrl?: string | (() => string)
+}
+
+/**
+ * `cancelRun` for the fetch adapters. Present only when `cancelUrl` can be
+ * set: a static options object with `cancelUrl`, or an options function
+ * (resolved on `stop()`; it does nothing when it returns no `cancelUrl`).
+ */
+function fetchCancelRun(
+  options:
+    | FetchConnectionOptions
+    | (() => FetchConnectionOptions | Promise<FetchConnectionOptions>),
+): Pick<ConnectConnectionAdapter, 'cancelRun'> {
+  if (typeof options !== 'function' && options.cancelUrl === undefined) {
+    return {}
+  }
+  return {
+    async cancelRun({ runId, threadId }) {
+      const resolved = typeof options === 'function' ? await options() : options
+      const { cancelUrl } = resolved
+      if (cancelUrl === undefined) return
+      const response = await (resolved.fetchClient ?? fetch)(
+        typeof cancelUrl === 'function' ? cancelUrl() : cancelUrl,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...mergeHeaders(resolved.headers),
+          },
+          body: JSON.stringify({ runId, threadId }),
+          credentials: resolved.credentials || 'same-origin',
+        },
+      )
+      if (!response.ok) {
+        throw new Error(`Run cancel failed with status ${response.status}`)
+      }
+    },
+  }
 }
 
 /**
@@ -1469,6 +1527,7 @@ export function fetchServerSentEvents(
     | (() => FetchConnectionOptions | Promise<FetchConnectionOptions>) = {},
 ): ResumableConnectConnectionAdapter {
   return {
+    ...fetchCancelRun(options),
     async *connect(messages, data, abortSignal, runContext) {
       // Resolve URL and options if they are functions
       const resolvedUrl = typeof url === 'function' ? url() : url
@@ -1629,6 +1688,7 @@ export function fetchHttpStream(
     | (() => FetchConnectionOptions | Promise<FetchConnectionOptions>) = {},
 ): ResumableConnectConnectionAdapter {
   return {
+    ...fetchCancelRun(options),
     async *connect(messages, data, abortSignal, runContext) {
       // Resolve URL and options if they are functions
       const resolvedUrl = typeof url === 'function' ? url() : url

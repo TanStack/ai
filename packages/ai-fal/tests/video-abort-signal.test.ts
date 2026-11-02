@@ -19,20 +19,25 @@ const mocks = vi.hoisted(() => {
 
 vi.mock('@fal-ai/client', () => ({
   fal: {
-    queue: { status: mocks.hang, result: mocks.hang },
+    queue: { status: mocks.hang, result: mocks.hang, cancel: mocks.hang },
     config: () => {},
   },
 }))
 
 describe('fal video forwards abortSignal to the queue', () => {
-  it.each(['getVideoStatus', 'getVideo'] as const)('%s', async (method) => {
-    mocks.signals.length = 0
-    const adapter = falVideo('fal-ai/veo3/image-to-video', { apiKey: 'k' })
-    const controller = new AbortController()
-    const pending = adapter[method]('job-1', { abortSignal: controller.signal })
-    await vi.waitFor(() => expect(mocks.signals).toHaveLength(1))
-    expect(mocks.signals[0]).toBe(controller.signal)
-    controller.abort()
-    await expect(pending).rejects.toMatchObject({ name: 'AbortError' })
-  })
+  it.each(['getVideoStatus', 'getVideo', 'cancelVideoJob'] as const)(
+    '%s',
+    async (method) => {
+      mocks.signals.length = 0
+      const adapter = falVideo('fal-ai/veo3/image-to-video', { apiKey: 'k' })
+      const controller = new AbortController()
+      const pending = adapter[method]('job-1', {
+        abortSignal: controller.signal,
+      })
+      await vi.waitFor(() => expect(mocks.signals).toHaveLength(1))
+      expect(mocks.signals[0]).toBe(controller.signal)
+      controller.abort()
+      await expect(pending).rejects.toMatchObject({ name: 'AbortError' })
+    },
+  )
 })

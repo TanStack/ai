@@ -536,6 +536,8 @@ client.destroy()
 
 The React hook disconnects by itself when the component unmounts. With `RealtimeClient`, call `disconnect()` and `destroy()` yourself.
 
+A `disconnect()` while `connect()` still runs cancels the connection setup. `connect()` then rejects with an `AbortError`, and the status is `idle`, not `error`. The OpenAI and Grok adapters stop their setup requests.
+
 ### Cancel the token request
 
 `realtimeToken()` takes an `abortSignal`. Pass the request signal, so a client that leaves also cancels the provider call:

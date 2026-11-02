@@ -170,6 +170,32 @@ export function VideoGenerator() {
 }
 ```
 
+## Cancel the provider job
+
+Pass `abortSignal` (or `timeout`) to a streaming `generateVideo()`. If it aborts after the provider accepts the job, `generateVideo()` asks the provider to cancel the job:
+
+```typescript
+import { generateVideo, toServerSentEventsResponse } from '@tanstack/ai'
+import { falVideo } from '@tanstack/ai-fal'
+
+export function POST(request: Request) {
+  const stream = generateVideo({
+    adapter: falVideo('fal-ai/veo3.1'),
+    prompt: 'A timelapse of a city skyline at dusk',
+    threadId: 'thread-1',
+    stream: true,
+    abortSignal: request.signal,
+  })
+  return toServerSentEventsResponse(stream)
+}
+```
+
+- fal.ai and BytePlus have a cancel API. fal can refuse a request that already runs. BytePlus cancels only a queued task.
+- The other adapters have no cancel API, so their job keeps running.
+- The cancel is best effort. A failed cancel goes to the error log, and the run still ends as aborted.
+- To cancel a job that you poll yourself, call `adapter.cancelVideoJob?.(jobId)`.
+- In your own adapter, add the optional `cancelVideoJob(jobId, options?)` method when the provider can cancel a job.
+
 ## Image-to-video support
 
 What each provider does with image parts in the `prompt`. The roles are in [Role hints](./video-generation#role-hints).

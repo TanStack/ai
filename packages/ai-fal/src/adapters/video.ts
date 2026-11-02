@@ -210,6 +210,20 @@ export class FalVideoAdapter<TModel extends FalModel> extends BaseVideoAdapter<
     return getFalVideoDurationOptions(this.model)
   }
 
+  /**
+   * Cancels a queued request with `fal.queue.cancel`. fal can refuse when the
+   * request already runs, and then this rejects.
+   */
+  async cancelVideoJob(
+    jobId: string,
+    options?: { abortSignal?: AbortSignal },
+  ): Promise<void> {
+    await fal.queue.cancel(this.model, {
+      requestId: jobId,
+      ...(options?.abortSignal ? { abortSignal: options.abortSignal } : {}),
+    })
+  }
+
   async getVideoStatus(
     jobId: string,
     options?: { abortSignal?: AbortSignal },

@@ -85,6 +85,24 @@ describe('MCPManager', () => {
     expect(spyA).toHaveBeenCalledWith({ lazy: true })
   })
 
+  it('discover(signal) forwards the signal to every source', async () => {
+    const a = source([tool('a')])
+    const spyA = vi.spyOn(a, 'tools')
+    const controller = new AbortController()
+    await MCPManager.from({ clients: [a] }).discover(controller.signal)
+    expect(spyA).toHaveBeenCalledWith({
+      lazy: false,
+      signal: controller.signal,
+    })
+  })
+
+  it('discover() without a signal sends no signal key', async () => {
+    const a = source([tool('a')])
+    const spyA = vi.spyOn(a, 'tools')
+    await MCPManager.from({ clients: [a] }).discover()
+    expect(spyA).toHaveBeenCalledWith({ lazy: false })
+  })
+
   it('discover() throws MCPDuplicateToolNameError on collision', async () => {
     const m = MCPManager.from({
       clients: [source([tool('x')]), source([tool('x')])],

@@ -49,6 +49,8 @@ const TOKEN_REFRESH_BUFFER_MS = 60_000
 export class RealtimeClient {
   private readonly options: RealtimeClientOptions
   private connection: RealtimeConnection | null = null
+  /** Aborts the `adapter.connect()` setup when `disconnect()` runs. */
+  private connectAbort: AbortController | null = null
   private token: RealtimeToken | null = null
   private tokenRefreshTimeout: ReturnType<typeof setTimeout> | null = null
   private readonly clientTools: Map<string, AnyClientTool>
@@ -104,6 +106,7 @@ export class RealtimeClient {
       status: 'connecting',
       error: null,
     })
+    const connectAbort = (this.connectAbort = new AbortController())
 
     try {
       // Fetch token from server
@@ -121,6 +124,7 @@ export class RealtimeClient {
       this.connection = await this.options.adapter.connect(
         this.token,
         toolsList,
+        { abortSignal: connectAbort.signal },
       )
 
       // A new session starts here. Clear the last transcript before events
@@ -150,6 +154,8 @@ export class RealtimeClient {
       this.options.onConnect?.()
     } catch (error) {
       const err = error instanceof Error ? error : new Error(String(error))
+      // `disconnect()` cancelled this connect: the state is already idle.
+      if (connectAbort.signal.aborted) throw err
       this.updateState({ status: 'error', error: err })
       this.options.onError?.(err)
       throw err
@@ -160,6 +166,7 @@ export class RealtimeClient {
    * Disconnect from the realtime session.
    */
   async disconnect(): Promise<void> {
+    this.connectAbort?.abort()
     if (this.tokenRefreshTimeout) {
       clearTimeout(this.tokenRefreshTimeout)
       this.tokenRefreshTimeout = null

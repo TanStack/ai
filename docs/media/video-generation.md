@@ -144,7 +144,7 @@ const stream = generateVideo({
 })
 ```
 
-`stop()` on the hook only closes the stream in the browser. The provider job can continue to run.
+`stop()` on the hook only closes the stream in the browser. The provider job can continue to run. To cancel the job on fal.ai or BytePlus too, see [Cancel the provider job](./video-generation-advanced#cancel-the-provider-job).
 
 The `jobId`, `videoStatus`, `onJobCreated`, and `onStatusUpdate` hook values are listed in [Generation Hooks](./generation-hooks#usegeneratevideo). The other transports (a server function that returns JSON, or one that returns an SSE `Response`) are in [Generations](./generations#transports-in-full).
 

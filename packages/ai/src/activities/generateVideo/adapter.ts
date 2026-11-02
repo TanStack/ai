@@ -132,6 +132,17 @@ export interface VideoAdapter<
   ) => Promise<VideoUrlResult | VideoStreamResult>
 
   /**
+   * Optional. Ask the provider to stop a job that is not finished. Implement
+   * it only when the provider has a real cancel API. Streaming
+   * `generateVideo()` calls it (best effort) when its `abortSignal` or
+   * `timeout` aborts after the job exists. A rejection is logged, not thrown.
+   */
+  cancelVideoJob?: (
+    jobId: string,
+    options?: { abortSignal?: AbortSignal },
+  ) => Promise<void>
+
+  /**
    * Describe the durations this adapter's model accepts. Returns a tagged
    * union so consumers can render UI / coerce input without provider-specific
    * knowledge.

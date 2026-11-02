@@ -661,6 +661,8 @@ async function* runStreamingVideoGeneration<
   // fired, so the `finally` below can fire one on abandonment without
   // double-firing.
   let settled = false
+  // Set once the provider has a job, so an abort can ask it to stop the job.
+  let jobId: string | undefined
   try {
     // Create the video generation job
     const jobResult = await raceWithAbort(
@@ -675,6 +677,8 @@ async function* runStreamingVideoGeneration<
       }),
       abortControls.signal,
     )
+
+    jobId = jobResult.jobId
 
     yield {
       type: 'CUSTOM',
@@ -777,6 +781,19 @@ async function* runStreamingVideoGeneration<
     settled = true
     const elapsed = Date.now() - obsStartTime
     if (isActivityAbortError(error, abortControls.signal)) {
+      if (jobId !== undefined) {
+        // Best effort: the run already ends as aborted, so a failed cancel
+        // is only logged. Not awaited, so a slow provider does not delay it.
+        const cancelledJobId = jobId
+        void (async () => adapter.cancelVideoJob?.(cancelledJobId))().catch(
+          (cancelError: unknown) =>
+            logger.errors('generateVideo cancelVideoJob failed', {
+              jobId: cancelledJobId,
+              error: cancelError,
+              source: 'generateVideo',
+            }),
+        )
+      }
       await runGenerationAbort(middleware, mwCtx, {
         reason: abortReasonMessage(error, abortControls.signal),
         duration: elapsed,

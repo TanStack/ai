@@ -213,6 +213,74 @@ describe('video job abortSignal', () => {
   })
 })
 
+describe('generateVideo cancelVideoJob', () => {
+  async function abortAfterJob(
+    cancelVideoJob?: (jobId: string) => Promise<void>,
+  ) {
+    const adapter = { ...videoAdapter('hang'), cancelVideoJob }
+    const controller = new AbortController()
+    const chunks: Array<StreamChunk> = []
+    for await (const chunk of generateVideo({
+      adapter,
+      prompt: 'a cat',
+      threadId: 't1',
+      stream: true,
+      pollingInterval: 1,
+      abortSignal: controller.signal,
+      debug: false,
+    })) {
+      chunks.push(chunk)
+      if (chunk.type === 'CUSTOM' && chunk.name === 'video:job:created') {
+        void vi
+          .waitFor(() => expect(adapter.getVideoStatus).toHaveBeenCalled())
+          .then(() => controller.abort())
+      }
+    }
+    return chunks
+  }
+
+  it('asks the provider to cancel the job when the caller aborts', async () => {
+    const cancel = vi.fn(async (_jobId: string) => {})
+    const chunks = await abortAfterJob(cancel)
+    expect(chunks.at(-1)?.type).toBe('RUN_ERROR')
+    expect(cancel).toHaveBeenCalledWith('job-1')
+  })
+
+  it('a failed cancel does not change the abort result', async () => {
+    const cancel = vi.fn(async (_jobId: string) => {
+      throw new Error('cancel failed')
+    })
+    const chunks = await abortAfterJob(cancel)
+    const last = chunks.at(-1)
+    expect(last?.type).toBe('RUN_ERROR')
+    expect(last && 'message' in last && last.message).not.toContain(
+      'cancel failed',
+    )
+    expect(cancel).toHaveBeenCalledTimes(1)
+  })
+
+  it('an adapter without cancelVideoJob still aborts', async () => {
+    const chunks = await abortAfterJob(undefined)
+    expect(chunks.at(-1)?.type).toBe('RUN_ERROR')
+  })
+
+  it('a finished run does not cancel', async () => {
+    const cancel = vi.fn(async (_jobId: string) => {})
+    const adapter = { ...videoAdapter('complete'), cancelVideoJob: cancel }
+    for await (const _chunk of generateVideo({
+      adapter,
+      prompt: 'a cat',
+      threadId: 't1',
+      stream: true,
+      pollingInterval: 1,
+      abortSignal: new AbortController().signal,
+    })) {
+      // drain
+    }
+    expect(cancel).not.toHaveBeenCalled()
+  })
+})
+
 describe('files abortSignal', () => {
   function filesAdapter() {
     const handle = { id: 'f1', provider: 'mock' as const }
