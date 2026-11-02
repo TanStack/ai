@@ -100,6 +100,24 @@ describe('summarize() abort reaches the wrapped chatStream', () => {
     await expect(collectChunks(stream)).rejects.toThrow()
     expect(seen.signal?.aborted).toBe(true)
   })
+
+  it('stream: caller abort reports onAbort, not onError', async () => {
+    const onAbort = vi.fn()
+    const onError = vi.fn()
+    const controller = new AbortController()
+    const stream = summarize({
+      adapter: summarizeAdapter({}),
+      threadId: 'thread-1',
+      text: 'long text',
+      stream: true,
+      abortSignal: controller.signal,
+      middleware: [{ name: 'observe', onAbort, onError }],
+    })
+    setTimeout(() => controller.abort(), 10)
+    await expect(collectChunks(stream)).rejects.toThrow()
+    expect(onError).not.toHaveBeenCalled()
+    expect(onAbort).toHaveBeenCalledTimes(1)
+  })
 })
 
 describe('middleware ctx.abort() reaches the provider', () => {

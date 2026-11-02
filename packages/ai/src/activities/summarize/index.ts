@@ -419,6 +419,7 @@ async function* runStreamingSummarize(
             : {}),
         }),
         logger,
+        abortControls.signal,
       )
     } finally {
       abortControls.clear()
@@ -461,6 +462,7 @@ async function* runNativeSummarizeStream(
   options: SummarizeActivityOptions<SummarizeAdapter<string, object>, true>,
   stream: AsyncIterable<StreamChunk>,
   logger: InternalLogger,
+  signal: AbortSignal | undefined,
 ): AsyncIterable<StreamChunk> {
   const { adapter, middleware, modelOptions } = options
   const mwCtx = createGenerationContext({
@@ -509,10 +511,15 @@ async function* runNativeSummarizeStream(
     }
   } catch (error) {
     settled = true
-    await runGenerationError(middleware, mwCtx, {
-      error,
-      duration: Date.now() - startTime,
-    })
+    const duration = Date.now() - startTime
+    if (isActivityAbortError(error, signal)) {
+      await runGenerationAbort(middleware, mwCtx, {
+        reason: abortReasonMessage(error, signal),
+        duration,
+      })
+    } else {
+      await runGenerationError(middleware, mwCtx, { error, duration })
+    }
     logger.errors('summarize activity failed', {
       error,
       source: 'summarize',
