@@ -997,6 +997,35 @@ describe('the abort signal of a computer action', () => {
     expect(machines.get(THREAD)).toEqual([])
   })
 
+  it('does not navigate when its call aborts while the machine starts', async () => {
+    const abort = new AbortController()
+    const { factory, machines } = createFactory({
+      navigate: true,
+      // `create` runs while the machine starts: abort the call there.
+      failCreate: () => {
+        abort.abort()
+        return false
+      },
+    })
+    const [, navigateTool] = setupWith(factory).tools
+    if (!navigateTool?.execute) throw new Error('There is no navigate tool.')
+
+    await expect(
+      Promise.resolve(
+        navigateTool.execute(
+          { url: 'https://tanstack.com' },
+          {
+            toolCallId: 'call_nav',
+            threadId: THREAD,
+            abortSignal: abort.signal,
+            emitCustomEvent() {},
+          },
+        ),
+      ),
+    ).rejects.toThrow()
+    expect(machines.get(THREAD)).toEqual([])
+  })
+
   it('ends the screenshot wait after an action when its call aborts', async () => {
     const { driver, calls } = createDriver()
     const computer = setupWith(driver, { screenshotDelay: 5000 })

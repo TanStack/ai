@@ -92,9 +92,13 @@ function readSeconds(input: Input, key: string) {
   return value
 }
 
-/** Presses `keys` in order, runs `action`, then releases the keys that went down. */
+/**
+ * Presses `keys` in order, runs `action`, then releases the keys that went
+ * down. An abort of `signal` stops it between steps. The keys still go up.
+ */
 async function withKeys(
   driver: ComputerDriver,
+  signal: AbortSignal | undefined,
   keys: Array<string>,
   action: () => Promise<void>,
 ) {
@@ -104,6 +108,7 @@ async function withKeys(
     for (const key of keys) {
       await driver.keyDown(key)
       pressed.push(key)
+      signal?.throwIfAborted()
     }
     await action()
   } finally {
@@ -118,13 +123,22 @@ async function withKeys(
   if (releaseError !== undefined) throw releaseError
 }
 
-async function drag(driver: ComputerDriver, path: Array<Point>) {
+async function drag(
+  driver: ComputerDriver,
+  path: Array<Point>,
+  signal: AbortSignal | undefined,
+) {
   const [start, ...rest] = path
   if (start === undefined) throw invalid('path', 'a non-empty array')
   await driver.move(start.x, start.y)
+  signal?.throwIfAborted()
   await driver.mouseDown('left')
   try {
-    for (const point of rest) await driver.move(point.x, point.y)
+    for (const point of rest) {
+      // An abort stops the drag between moves. The mouse still goes up.
+      signal?.throwIfAborted()
+      await driver.move(point.x, point.y)
+    }
   } finally {
     await driver.mouseUp('left')
   }
@@ -185,7 +199,7 @@ async function runAnthropicAction(
   const click = ANTHROPIC_CLICKS[action]
   if (click) {
     const { x, y } = await anthropicPoint(driver, input)
-    await withKeys(driver, anthropicModifiers(input), () =>
+    await withKeys(driver, signal, anthropicModifiers(input), () =>
       driver.click(x, y, click),
     )
     return undefined
@@ -198,7 +212,10 @@ async function runAnthropicAction(
       const combos = readString(input, 'text').split(/\s+/).filter(Boolean)
       const repeat = readRepeat(input)
       for (let i = 0; i < repeat; i++) {
-        for (const combo of combos) await driver.press(parseKeyCombo(combo))
+        for (const combo of combos) {
+          signal?.throwIfAborted()
+          await driver.press(parseKeyCombo(combo))
+        }
       }
       return undefined
     }
@@ -215,8 +232,8 @@ async function runAnthropicAction(
         readCoordinate(input, 'start_coordinate'),
         readCoordinate(input, 'coordinate'),
       ]
-      await withKeys(driver, anthropicModifiers(input), () =>
-        drag(driver, path),
+      await withKeys(driver, signal, anthropicModifiers(input), () =>
+        drag(driver, path, signal),
       )
       return undefined
     }
@@ -231,7 +248,7 @@ async function runAnthropicAction(
       const pixels = readNumber(input, 'scroll_amount') * SCROLL_STEP
       const direction = readString(input, 'scroll_direction')
       const { deltaX, deltaY } = scrollDelta(direction, pixels)
-      await withKeys(driver, anthropicModifiers(input), () =>
+      await withKeys(driver, signal, anthropicModifiers(input), () =>
         driver.scroll(x, y, deltaX, deltaY),
       )
       return undefined
@@ -239,7 +256,7 @@ async function runAnthropicAction(
     case 'hold_key': {
       const keys = parseKeyCombo(readString(input, 'text'))
       const ms = readSeconds(input, 'duration') * 1000
-      await withKeys(driver, keys, () => sleep(ms, signal))
+      await withKeys(driver, signal, keys, () => sleep(ms, signal))
       return undefined
     }
     case 'wait':
@@ -326,7 +343,7 @@ async function runOpenAIAction(
       }
       const x = readNumber(input, 'x')
       const y = readNumber(input, 'y')
-      await withKeys(driver, modifiers, () =>
+      await withKeys(driver, signal, modifiers, () =>
         driver.click(x, y, { button, count: 1 }),
       )
       return
@@ -334,14 +351,16 @@ async function runOpenAIAction(
     case 'double_click': {
       const x = readNumber(input, 'x')
       const y = readNumber(input, 'y')
-      await withKeys(driver, modifiers, () =>
+      await withKeys(driver, signal, modifiers, () =>
         driver.click(x, y, { button: 'left', count: 2 }),
       )
       return
     }
     case 'drag': {
       const path = readPath(input)
-      await withKeys(driver, modifiers, () => drag(driver, path))
+      await withKeys(driver, signal, modifiers, () =>
+        drag(driver, path, signal),
+      )
       return
     }
     case 'keypress': {
@@ -357,7 +376,7 @@ async function runOpenAIAction(
     case 'move': {
       const x = readNumber(input, 'x')
       const y = readNumber(input, 'y')
-      await withKeys(driver, modifiers, () => driver.move(x, y))
+      await withKeys(driver, signal, modifiers, () => driver.move(x, y))
       return
     }
     case 'scroll': {
@@ -365,7 +384,7 @@ async function runOpenAIAction(
       const y = readNumber(input, 'y')
       const deltaX = readNumber(input, 'scroll_x')
       const deltaY = readNumber(input, 'scroll_y')
-      await withKeys(driver, modifiers, () =>
+      await withKeys(driver, signal, modifiers, () =>
         driver.scroll(x, y, deltaX, deltaY),
       )
       return

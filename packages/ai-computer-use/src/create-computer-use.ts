@@ -352,6 +352,8 @@ export function createComputerUse({
       if (machine.navigate === undefined) {
         throw new Error('The computer driver has no navigate method.')
       }
+      // The call can abort while its machine starts.
+      context?.abortSignal?.throwIfAborted()
       await machine.navigate(url)
       await sleep(screenshotDelay, context?.abortSignal)
       return imageResult(await machine.screenshot())
