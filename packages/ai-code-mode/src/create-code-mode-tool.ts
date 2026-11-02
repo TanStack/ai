@@ -216,6 +216,14 @@ export function createCodeModeTool(
       let isolateContext: IsolateContext | null = null
       // Aborts when this program ends, so a host call that still waits can stop.
       const programEnd = new AbortController()
+      // An abort of the run ends the program: a call that waits (for example
+      // for an approval) stops, and the isolate goes, so its code stops too.
+      const runSignal = toolContext?.abortSignal
+      const onRunAbort = () => {
+        programEnd.abort()
+        void isolateContext?.dispose()
+      }
+      runSignal?.addEventListener('abort', onRunAbort, { once: true })
 
       // Emit execution started event immediately
       emitCustomEvent('code_mode:execution_started', {
@@ -294,6 +302,9 @@ export function createCodeModeTool(
           )
         }
 
+        // An abort that came while the context was made.
+        if (runSignal?.aborted) onRunAbort()
+
         // Step 5: Execute the code in the sandbox
         const executionResult = await isolateContext.execute(strippedCode)
 
@@ -364,6 +375,7 @@ export function createCodeModeTool(
           'unhandled',
         )
       } finally {
+        runSignal?.removeEventListener('abort', onRunAbort)
         // The program has ended (success, error, or timeout).
         programEnd.abort()
         // Always clean up the sandbox context

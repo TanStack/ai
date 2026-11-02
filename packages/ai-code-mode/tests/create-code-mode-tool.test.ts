@@ -681,3 +681,54 @@ describe('createCodeModeTool debug logging', () => {
     }
   })
 })
+
+describe('createCodeModeTool run abort', () => {
+  it('ends the program and disposes the isolate when the run aborts', async () => {
+    let programSignal: AbortSignal | undefined
+    const aroundCalls = vi.fn<NonNullable<CodeModeToolConfig['aroundCalls']>>(
+      (_context, signal) => {
+        programSignal = signal
+        return (_call, run) => run()
+      },
+    )
+    let isExecuting = false
+    let release = () => {}
+    const disposed = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    const dispose = vi.fn(async () => release())
+    // An isolate that runs until it is disposed.
+    const driver: IsolateDriver = {
+      createContext: async () => ({
+        execute: async () => {
+          isExecuting = true
+          await disposed
+          return {
+            success: false,
+            error: { name: 'DisposedError', message: 'Context was disposed' },
+            logs: [],
+          }
+        },
+        dispose,
+      }),
+    }
+    const tool = createCodeModeTool({
+      driver,
+      tools: [createMockTool('fetchWeather')],
+      aroundCalls,
+    })
+    const abort = new AbortController()
+
+    const running = tool.execute!(
+      { typescriptCode: 'return 1' },
+      { abortSignal: abort.signal, emitCustomEvent: vi.fn() },
+    )
+    await vi.waitFor(() => expect(isExecuting).toBe(true))
+    abort.abort()
+
+    // A call that waits for an approval stops with the program.
+    expect(programSignal?.aborted).toBe(true)
+    expect(dispose).toHaveBeenCalled()
+    expect((await running).success).toBe(false)
+  })
+})
