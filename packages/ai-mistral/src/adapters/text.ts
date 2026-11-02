@@ -656,7 +656,24 @@ export class MistralTextAdapter<
 
         if (deltaToolCalls) {
           for (const [i, toolCallDelta] of deltaToolCalls.entries()) {
-            const index = toolCallDelta.index ?? i
+            let index = toolCallDelta.index ?? i
+            // Mistral can send each parallel call whole with the same `index`
+            // (the SDK fills a missing one with 0), so an id that differs from
+            // the one already in the slot starts a new call. A repeated id goes
+            // back to its own slot.
+            if (toolCallDelta.id) {
+              const occupant = toolCallsInProgress.get(index)
+              if (occupant?.id && occupant.id !== toolCallDelta.id) {
+                const sameId = [...toolCallsInProgress].find(
+                  ([, call]) => call.id === toolCallDelta.id,
+                )
+                if (sameId) {
+                  index = sameId[0]
+                } else {
+                  while (toolCallsInProgress.has(index)) index += 1
+                }
+              }
+            }
 
             let toolCall = toolCallsInProgress.get(index)
             if (!toolCall) {
