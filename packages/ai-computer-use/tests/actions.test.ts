@@ -600,6 +600,30 @@ describe('an abort during a compound action', () => {
     ])
   })
 
+  it('makes no move after a drag aborts during mouseDown, and releases the mouse', async () => {
+    const { driver, calls, signal } = abortingDuring('mouseDown', 1)
+    await expect(
+      runComputerAction(
+        driver,
+        {
+          action: {
+            type: 'drag',
+            path: [
+              { x: 0, y: 0 },
+              { x: 1, y: 1 },
+            ],
+          },
+        },
+        signal,
+      ),
+    ).rejects.toThrow()
+    expect(calls.map(([name]) => name)).toEqual([
+      'move',
+      'mouseDown',
+      'mouseUp',
+    ])
+  })
+
   it('stops a drag between two moves, and releases the mouse', async () => {
     const { driver, calls, signal } = abortingDuring('move', 2)
     await expect(

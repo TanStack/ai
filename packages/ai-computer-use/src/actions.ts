@@ -134,6 +134,8 @@ async function drag(
   signal?.throwIfAborted()
   await driver.mouseDown('left')
   try {
+    // The abort can come while the button goes down.
+    signal?.throwIfAborted()
     for (const point of rest) {
       await driver.move(point.x, point.y)
       // An abort stops the drag after a move, also the last one. The mouse
