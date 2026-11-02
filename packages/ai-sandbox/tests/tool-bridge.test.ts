@@ -7,7 +7,11 @@ import { request } from 'node:http'
 import { afterEach, describe, expect, it } from 'vitest'
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js'
-import { hostForSandbox, startHostToolBridge } from '../src/tool-bridge'
+import {
+  createToolBridgeCore,
+  hostForSandbox,
+  startHostToolBridge,
+} from '../src/tool-bridge'
 import type { HostToolBridge } from '../src/tool-bridge'
 import type { AnyTool } from '@tanstack/ai'
 
@@ -18,7 +22,10 @@ afterEach(async () => {
   bridge = undefined
 })
 
-function tool(name: string, execute: (args: unknown) => unknown): AnyTool {
+function tool(
+  name: string,
+  execute: (args: unknown, ctx?: { abortSignal?: AbortSignal }) => unknown,
+): AnyTool {
   return {
     name,
     description: `${name} tool`,
@@ -126,5 +133,101 @@ describe('hostForSandbox', () => {
   it('uses loopback for other providers', () => {
     expect(hostForSandbox('local-process')).toBe('127.0.0.1')
     expect(hostForSandbox('daytona')).toBe('127.0.0.1')
+  })
+})
+
+/** Rejects at once without a signal. With one, waits until it aborts. */
+function waitForAbortTool(): AnyTool {
+  return {
+    name: 'slow',
+    description: 'slow tool',
+    inputSchema: { type: 'object', properties: {} },
+    execute: (_args: unknown, ctx?: { abortSignal?: AbortSignal }) => {
+      const signal = ctx?.abortSignal
+      if (!signal) return Promise.reject(new Error('no signal'))
+      return new Promise((resolve) => {
+        signal.addEventListener('abort', () => resolve('stopped'), {
+          once: true,
+        })
+      })
+    },
+  } as unknown as AnyTool
+}
+
+describe('createToolBridgeCore call signal', () => {
+  it('stops the tool when the call signal aborts', async () => {
+    const core = createToolBridgeCore([waitForAbortTool()], {
+      threadId: 't',
+    })
+    const controller = new AbortController()
+    const pending = core.callTool('slow', {}, { signal: controller.signal })
+    controller.abort()
+    await expect(pending).resolves.toEqual({
+      content: [{ type: 'text', text: 'stopped' }],
+    })
+  })
+
+  it('still stops the tool when the bridge signal aborts', async () => {
+    const run = new AbortController()
+    const core = createToolBridgeCore([waitForAbortTool()], {
+      threadId: 't',
+      signal: run.signal,
+    })
+    const call = new AbortController()
+    const pending = core.callTool('slow', {}, { signal: call.signal })
+    run.abort()
+    await expect(pending).resolves.toEqual({
+      content: [{ type: 'text', text: 'stopped' }],
+    })
+  })
+
+  it('passes no signal when neither the bridge nor the call has one', async () => {
+    const core = createToolBridgeCore([waitForAbortTool()], { threadId: 't' })
+    await expect(core.callTool('slow', {})).resolves.toMatchObject({
+      isError: true,
+    })
+  })
+
+  it('aborts the tool when the agent closes the tools/call request', async () => {
+    let started!: () => void
+    const running = new Promise<void>((resolve) => (started = resolve))
+    let stopped!: () => void
+    const aborted = new Promise<void>((resolve) => (stopped = resolve))
+    bridge = await startHostToolBridge(
+      [
+        tool(
+          'cancelMe',
+          (_args: unknown, ctx?: { abortSignal?: AbortSignal }) => {
+            started()
+            return new Promise(() => {
+              ctx?.abortSignal?.addEventListener('abort', () => stopped())
+            })
+          },
+        ),
+      ],
+      { hostForSandbox: '127.0.0.1', threadId: 'thread-1' },
+    )
+    // The bridge is stateless: one server per HTTP request. Closing the
+    // request ends that server, which aborts the running call.
+    const req = request(bridge.url, {
+      method: 'POST',
+      headers: {
+        authorization: `Bearer ${bridge.token}`,
+        'content-type': 'application/json',
+        accept: 'application/json, text/event-stream',
+      },
+    })
+    req.on('error', () => {})
+    req.end(
+      JSON.stringify({
+        jsonrpc: '2.0',
+        id: 1,
+        method: 'tools/call',
+        params: { name: 'cancelMe', arguments: {} },
+      }),
+    )
+    await running
+    req.destroy()
+    await aborted
   })
 })
