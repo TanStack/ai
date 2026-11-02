@@ -931,3 +931,52 @@ describe('createComputerUse navigate', () => {
     )
   })
 })
+
+describe('the abort signal of a computer action', () => {
+  /** Run the computer tool as `chat()` does, with `signal`. */
+  function executeWith(
+    computer: Computer,
+    input: unknown,
+    toolCallId: string,
+    signal: AbortSignal,
+  ) {
+    const [computerTool] = computer.tools
+    if (!computerTool.execute) throw new Error('The tool has no execute.')
+    return computerTool.execute(input, {
+      toolCallId,
+      threadId: THREAD,
+      abortSignal: signal,
+      emitCustomEvent() {},
+    })
+  }
+
+  it('does not run a queued action after its call aborts', async () => {
+    const { gate, open } = createGate()
+    const computer = setup({ clickGate: gate })
+    const first = computer.execute(CLICK, 'call_1')
+    const abort = new AbortController()
+    const queued = executeWith(computer, TYPE, 'call_2', abort.signal)
+    abort.abort()
+    open()
+
+    await first
+    await expect(queued).rejects.toThrow()
+    expect(computer.calls).not.toContain('type')
+  })
+
+  it('ends a wait when its call aborts', async () => {
+    const computer = setup()
+    const abort = new AbortController()
+    const waiting = executeWith(
+      computer,
+      { action: { type: 'wait' } },
+      'call_1',
+      abort.signal,
+    )
+    setTimeout(() => abort.abort(), 10)
+    const started = Date.now()
+
+    await expect(waiting).rejects.toThrow()
+    expect(Date.now() - started).toBeLessThan(1000)
+  })
+})

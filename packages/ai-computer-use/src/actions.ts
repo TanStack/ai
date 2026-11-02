@@ -19,8 +19,20 @@ function isRecord(value: unknown): value is Input {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
-function sleep(ms: number) {
-  return new Promise<void>((resolve) => setTimeout(resolve, ms))
+/** Waits `ms`. Rejects with the reason of `signal` when it aborts first. */
+function sleep(ms: number, signal?: AbortSignal) {
+  return new Promise<void>((resolve, reject) => {
+    signal?.throwIfAborted()
+    const onAbort = () => {
+      clearTimeout(timer)
+      reject(signal?.reason)
+    }
+    const timer = setTimeout(() => {
+      signal?.removeEventListener('abort', onAbort)
+      resolve()
+    }, ms)
+    signal?.addEventListener('abort', onAbort, { once: true })
+  })
 }
 
 function invalid(key: string, expected: string) {
@@ -168,6 +180,7 @@ async function runAnthropicAction(
   driver: ComputerDriver,
   action: string,
   input: Input,
+  signal: AbortSignal | undefined,
 ) {
   const click = ANTHROPIC_CLICKS[action]
   if (click) {
@@ -226,11 +239,11 @@ async function runAnthropicAction(
     case 'hold_key': {
       const keys = parseKeyCombo(readString(input, 'text'))
       const ms = readSeconds(input, 'duration') * 1000
-      await withKeys(driver, keys, () => sleep(ms))
+      await withKeys(driver, keys, () => sleep(ms, signal))
       return undefined
     }
     case 'wait':
-      await sleep(readSeconds(input, 'duration') * 1000)
+      await sleep(readSeconds(input, 'duration') * 1000, signal)
       return undefined
     case 'cursor_position': {
       if (!driver.cursorPosition) {
@@ -291,7 +304,11 @@ function readPath(input: Input) {
   })
 }
 
-async function runOpenAIAction(driver: ComputerDriver, input: unknown) {
+async function runOpenAIAction(
+  driver: ComputerDriver,
+  input: unknown,
+  signal: AbortSignal | undefined,
+) {
   if (!isRecord(input)) throw invalid('action', 'an object')
   const type = readString(input, 'type')
   const modifiers = openaiModifiers(input)
@@ -357,7 +374,7 @@ async function runOpenAIAction(driver: ComputerDriver, input: unknown) {
       await driver.type(readString(input, 'text'))
       return
     case 'wait':
-      await sleep(OPENAI_WAIT_MS)
+      await sleep(OPENAI_WAIT_MS, signal)
       return
     default:
       throw new Error(`Unknown computer action "${type}".`)
@@ -385,18 +402,23 @@ async function runOpenAIAction(driver: ComputerDriver, input: unknown) {
 export async function runComputerAction(
   driver: ComputerDriver,
   input: unknown,
+  signal?: AbortSignal,
 ) {
   if (!isRecord(input)) throw invalid('input', 'an object')
   const { action, actions } = input
   if (typeof action === 'string') {
-    return runAnthropicAction(driver, action, input)
+    return runAnthropicAction(driver, action, input, signal)
   }
   if (Array.isArray(actions)) {
-    for (const item of actions) await runOpenAIAction(driver, item)
+    for (const item of actions) {
+      // An abort stops the batch before its next action.
+      signal?.throwIfAborted()
+      await runOpenAIAction(driver, item, signal)
+    }
     return undefined
   }
   if (isRecord(action)) {
-    await runOpenAIAction(driver, action)
+    await runOpenAIAction(driver, action, signal)
     return undefined
   }
   throw invalid('action', 'a string, an object, or an "actions" array')
