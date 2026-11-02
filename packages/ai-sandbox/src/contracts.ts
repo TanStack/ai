@@ -211,11 +211,7 @@ export interface SandboxPorts {
 }
 
 export interface SandboxEnv {
-  /** Providers forward `options.signal` when their API can cancel. */
-  set: (
-    vars: Record<string, string>,
-    options?: { signal?: AbortSignal },
-  ) => Promise<void>
+  set: (vars: Record<string, string>) => Promise<void>
 }
 
 /** Opaque reference to a stored snapshot, used to restore later. */
