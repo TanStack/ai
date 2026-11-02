@@ -135,31 +135,47 @@ describe('client tools from a foreign AG-UI server', () => {
     },
   )
 
-  it.each([
+  describe.each([
     ['a success outcome', { outcome: { type: 'success' } }],
     ['finishReason tool_calls', { finishReason: 'tool_calls' }],
-  ])('does not run a tool that needs approval (%s)', async (_, finished) => {
-    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
-    const execute = vi.fn(() => ({ reply: 'pong' }))
-    const ping = toolDefinition({
-      name: 'ping',
-      description: 'Reply with pong',
-      inputSchema: z.object({}),
-      needsApproval: true,
-    }).client(execute)
-    const { connection, requests } = foreignServer(finished)
-    const client = new ChatClient({
-      threadId: 'thread-1',
-      connection,
-      tools: [ping],
-    })
+  ])('with %s', (_, finished) => {
+    it.each([
+      [true, '{\\"reply\\":\\"pong\\"}'],
+      [false, 'User declined tool execution'],
+    ])(
+      'asks for approval of a tool that needs it (approved: %s)',
+      async (approved, sent) => {
+        const execute = vi.fn(() => ({ reply: 'pong' }))
+        const ping = toolDefinition({
+          name: 'ping',
+          description: 'Reply with pong',
+          inputSchema: z.object({}),
+          needsApproval: true,
+        }).client(execute)
+        const { connection, requests } = foreignServer(finished)
+        const client = new ChatClient({
+          threadId: 'thread-1',
+          connection,
+          tools: [ping],
+        })
 
-    await client.sendMessage('ping me')
-    await new Promise((resolve) => setTimeout(resolve, 20))
+        await client.sendMessage('ping me')
 
-    expect(execute).not.toHaveBeenCalled()
-    expect(requests).toHaveLength(1)
-    expect(warn).toHaveBeenCalledOnce()
-    warn.mockRestore()
+        const interrupt = client.getInterrupts()[0]
+        if (interrupt?.kind !== 'tool-approval') {
+          throw new Error('expected a tool-approval interrupt')
+        }
+        expect(interrupt.toolName).toBe('ping')
+        expect(execute).not.toHaveBeenCalled()
+        expect(requests).toHaveLength(1)
+
+        interrupt.resolveInterrupt(approved)
+
+        await vi.waitFor(() => expect(requests).toHaveLength(2))
+        expect(execute).toHaveBeenCalledTimes(approved ? 1 : 0)
+        expect(JSON.stringify(requests[1])).toContain(sent)
+        expect(client.getInterrupts()).toEqual([])
+      },
+    )
   })
 })

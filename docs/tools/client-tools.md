@@ -408,7 +408,12 @@ These calls do not run:
 
 - A call with a name that no client tool has.
 - A call with arguments that are not complete JSON.
-- A call to a client tool with `needsApproval: true`, because the server did not ask for approval.
+
+A call to a client tool with `needsApproval: true` waits for the user. It comes in `interrupts` as a `tool-approval` item, the same as with `chat()`. Show it as in [Tool Approval](./tool-approval):
+
+- On approve, the client runs the tool with the arguments, or with the edited arguments. Then it starts the next run with the result.
+- On deny, the client sends a denied result, `{ error: 'User declined tool execution' }`, and starts the next run.
+- The approval exists only in the browser. A page reload loses it.
 
 ### Expose client tools through WebMCP
 
