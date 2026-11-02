@@ -135,9 +135,10 @@ async function drag(
   await driver.mouseDown('left')
   try {
     for (const point of rest) {
-      // An abort stops the drag between moves. The mouse still goes up.
-      signal?.throwIfAborted()
       await driver.move(point.x, point.y)
+      // An abort stops the drag after a move, also the last one. The mouse
+      // still goes up.
+      signal?.throwIfAborted()
     }
   } finally {
     await driver.mouseUp('left')
