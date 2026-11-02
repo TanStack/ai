@@ -161,6 +161,25 @@ describe('UpstashBoxHandle', () => {
     expect(commands[0]).toBe("cd '/workspace/home' && echo hello")
   })
 
+  it('kills an exec in the box when its signal aborts', async () => {
+    const fake = fakeSession()
+    const { box, sessionOptions } = fakeBox({ session: fake })
+    const handle = new UpstashBoxHandle({ box })
+    const abort = new AbortController()
+
+    const running = handle.process.exec('sleep 600', { signal: abort.signal })
+    await vi.waitFor(() => expect(sessionOptions).toHaveLength(1))
+    fake.session.emitStdout('partial')
+    abort.abort()
+
+    expect(fake.session.kill).toHaveBeenCalledOnce()
+    await expect(running).resolves.toEqual({
+      stdout: 'partial',
+      stderr: '',
+      exitCode: 143,
+    })
+  })
+
   it('maps /workspace cwd and applies env exports in order', async () => {
     const { box, commands } = fakeBox()
     const handle = new UpstashBoxHandle({ box })

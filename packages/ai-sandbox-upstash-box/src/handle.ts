@@ -326,6 +326,22 @@ export class UpstashBoxHandle implements SandboxHandle {
     opts?: ProcessOptions,
   ): Promise<ExecResult> {
     opts?.signal?.throwIfAborted()
+    // `exec.command` cannot be stopped. A session can: its abort kills the
+    // command in the box.
+    if (opts?.signal) {
+      const proc = await this.spawnProcess(command, opts)
+      const read = async (stream: AsyncIterable<string>) => {
+        let text = ''
+        for await (const chunk of stream) text += chunk
+        return text
+      }
+      const [stdout, stderr, exitCode] = await Promise.all([
+        read(proc.stdout),
+        read(proc.stderr),
+        proc.wait(),
+      ])
+      return { stdout, stderr, exitCode }
+    }
     const run = await this.box.exec.command(this.wrap(command, opts))
     return {
       stdout: run.stdout,

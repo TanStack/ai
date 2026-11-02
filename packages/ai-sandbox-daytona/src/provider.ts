@@ -97,7 +97,14 @@ class DaytonaProvider implements SandboxProvider {
   private async wrapCreated(
     sandbox: Awaited<ReturnType<Daytona['create']>>,
     applyEnvSet: boolean,
+    signal: AbortSignal | undefined,
   ): Promise<SandboxHandle> {
+    // The SDK create takes no signal. A sandbox that comes after the abort has
+    // no owner, so delete it instead of leaving it billed.
+    if (signal?.aborted) {
+      await this.daytona.delete(sandbox).catch(() => undefined)
+      signal.throwIfAborted()
+    }
     await sandbox.process.executeCommand(`mkdir -p ${shQuote(this.workdir)}`)
     return new DaytonaHandle({ sandbox, workdir: this.workdir, applyEnvSet })
   }
@@ -164,7 +171,7 @@ class DaytonaProvider implements SandboxProvider {
     )
     // Workspace secrets live in Daytona OS env as placeholders. Do not overlay
     // plaintext via env.set (bootstrap and resume also call env.set).
-    return this.wrapCreated(sandbox, secrets === undefined)
+    return this.wrapCreated(sandbox, secrets === undefined, input.signal)
   }
 
   async restoreSnapshot(input: SandboxRestoreInput): Promise<SandboxHandle> {
@@ -176,7 +183,7 @@ class DaytonaProvider implements SandboxProvider {
         ...(secrets !== undefined ? { secrets } : {}),
       }),
     )
-    return this.wrapCreated(sandbox, secrets === undefined)
+    return this.wrapCreated(sandbox, secrets === undefined, input.signal)
   }
 
   async resume(input: SandboxResumeInput): Promise<SandboxHandle | null> {
