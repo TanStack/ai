@@ -34,6 +34,7 @@
       "import": "./dist/esm/tools/index.js"
     }
   },
+  "sideEffects": false,
   "files": [
     "dist",
     "src"

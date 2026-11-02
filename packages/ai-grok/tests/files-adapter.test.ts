@@ -8,17 +8,16 @@ const mocks = vi.hoisted(() => ({
   post: vi.fn(),
 }))
 
-vi.mock('openai', () => ({
-  OpenAI: class {
-    files = {
+vi.mock('@tanstack/openai-base', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@tanstack/openai-base')>()),
+  createOpenAIClient: () => ({
+    files: {
       create: mocks.filesCreate,
       retrieve: mocks.filesRetrieve,
       delete: mocks.filesDelete,
-    }
-    post = mocks.post
-    constructor(_: unknown) {}
-  },
-  toFile: async (blob: Blob) => blob,
+    },
+    post: mocks.post,
+  }),
 }))
 
 function adapter(expiresAfter?: number) {

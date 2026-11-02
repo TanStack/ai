@@ -9,11 +9,11 @@ const mocks = vi.hoisted(() => {
   }
 })
 
-vi.mock('@fal-ai/client', () => {
+vi.mock('../src/client', () => {
   return {
-    fal: {
-      config: mocks.config,
-      storage: { upload: mocks.storageUpload },
+    createFalClient: (...args: Array<unknown>) => {
+      mocks.config(...args)
+      return { storage: { upload: mocks.storageUpload } }
     },
   }
 })

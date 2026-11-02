@@ -12,20 +12,20 @@ const testLogger = resolveDebugOption(false)
 let mockSend: any
 let lastOpenRouterConfig: any
 
-vi.mock('@openrouter/sdk', async () => {
-  return {
-    OpenRouter: class {
-      constructor(config?: unknown) {
-        lastOpenRouterConfig = config
-      }
-      beta = {
+vi.mock('../src/client', () => ({
+  createOpenRouterResponsesClient: (config?: unknown) => {
+    lastOpenRouterConfig = config
+    return {
+      beta: {
         responses: {
           send: (...args: Array<unknown>) => mockSend(...args),
         },
-      }
-    },
-  }
-})
+      },
+    }
+  },
+  // One cross-adapter test builds the chat adapter. It never sends.
+  createOpenRouterChatClient: () => ({}),
+}))
 
 const createAdapter = () =>
   createOpenRouterResponsesText('openai/gpt-4o-mini', 'test-key')

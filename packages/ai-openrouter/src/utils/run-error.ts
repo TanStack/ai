@@ -1,6 +1,6 @@
 import { CONTEXT_OVERFLOW_CODE } from '@tanstack/ai'
 import { toRunErrorPayload } from '@tanstack/ai/adapter-internals'
-import { OpenRouterError } from '@openrouter/sdk/models/errors'
+import { OpenRouterError } from '@openrouter/sdk/models/errors/openroutererror.js'
 
 /**
  * `toRunErrorPayload`, with `code` set to `CONTEXT_OVERFLOW_CODE` for a

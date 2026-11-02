@@ -3,10 +3,11 @@ import type { TranscriptionOptions } from '@tanstack/ai'
 
 const convertMock = vi.fn()
 
-vi.mock('@elevenlabs/elevenlabs-js', () => ({
-  ElevenLabsClient: class {
-    speechToText = { convert: convertMock }
-  },
+// The adapters build their client with `createElevenLabsClient`.
+vi.mock('../src/client', () => ({
+  createElevenLabsClient: () => ({
+    speechToText: { convert: convertMock },
+  }),
 }))
 
 import { elevenlabsTranscription } from '../src/adapters/transcription'

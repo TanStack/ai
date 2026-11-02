@@ -5,8 +5,10 @@
  */
 import { request } from 'node:http'
 import { afterEach, describe, expect, it } from 'vitest'
-import { Client } from '@modelcontextprotocol/sdk/client/index.js'
-import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js'
+import {
+  Client,
+  StreamableHTTPClientTransport,
+} from '@modelcontextprotocol/client'
 import { hostForSandbox, startHostToolBridge } from '../src/tool-bridge'
 import type { HostToolBridge } from '../src/tool-bridge'
 import type { AnyTool } from '@tanstack/ai'
@@ -24,7 +26,7 @@ function tool(name: string, execute: (args: unknown) => unknown): AnyTool {
     description: `${name} tool`,
     inputSchema: { type: 'object', properties: {} },
     execute,
-  } as unknown as AnyTool
+  }
 }
 
 describe('startHostToolBridge', () => {

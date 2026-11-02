@@ -1,5 +1,7 @@
-import OpenAI from 'openai'
-import { OpenAIBaseChatCompletionsTextAdapter } from '@tanstack/openai-base'
+import {
+  OpenAIBaseChatCompletionsTextAdapter,
+  createOpenAIClient,
+} from '@tanstack/openai-base'
 import { getOpenAIApiKeyFromEnv } from '../utils/client'
 import {
   OPENAI_MODEL_INPUT_MODALITIES,
@@ -81,7 +83,7 @@ export class OpenAIChatCompletionsTextAdapter<
   override readonly inputModalities = OPENAI_MODEL_INPUT_MODALITIES[this.model]
 
   constructor(config: OpenAIChatCompletionsConfig, model: TModel) {
-    super(model, 'openai-chat', new OpenAI(config), config)
+    super(model, 'openai-chat', createOpenAIClient(config), config)
   }
 
   /** `chat({ reasoning })` goes out as `reasoning_effort`. */

@@ -1,4 +1,5 @@
-import { OpenRouter } from '@openrouter/sdk'
+import { createOpenRouterChatClient } from '../client'
+import type { OpenRouterClient } from '../client'
 import {
   isFileSource,
   resolveMediaPrompt,
@@ -91,11 +92,11 @@ export class OpenRouterImageAdapter<
   override readonly kind = 'image' as const
   readonly name = 'openrouter' as const
 
-  private readonly client: OpenRouter
+  private readonly client: Pick<OpenRouterClient, 'chat'>
 
   constructor(config: OpenRouterImageConfig, model: TModel) {
     super(model, {})
-    this.client = new OpenRouter({
+    this.client = createOpenRouterChatClient({
       ...config,
       apiKey: config.apiKey,
       serverURL: config.baseURL,

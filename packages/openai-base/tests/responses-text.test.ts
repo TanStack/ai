@@ -3,7 +3,7 @@ import { OpenAIBaseResponsesTextAdapter } from '../src/adapters/responses-text'
 import { applyPatchTool } from '../src/tools/apply-patch-tool'
 import { localShellTool } from '../src/tools/local-shell-tool'
 import { shellTool } from '../src/tools/shell-tool'
-import type OpenAI from 'openai'
+import { stubClient } from './stub-client'
 import { EventType, chat } from '@tanstack/ai'
 import type { AdapterYieldChunk, ModelMessage, Tool } from '@tanstack/ai'
 import { resolveDebugOption } from '@tanstack/ai/adapter-internals'
@@ -16,17 +16,15 @@ let mockResponsesCreate: ReturnType<typeof vi.fn<(...args: Array<any>) => any>>
 /** Build a stub OpenAI client whose `responses.create` defers to the
  *  module-level `mockResponsesCreate`. Reassigning the mock inside a test
  *  still takes effect because the stub looks it up at call time. */
-function makeStubClient(): OpenAI {
-  return {
-    responses: {
-      create: (params: unknown, options: unknown) =>
-        mockResponsesCreate(params, options),
-    },
-  } as unknown as OpenAI
+function makeStubClient() {
+  return stubClient({
+    responses: (params: unknown, options: unknown) =>
+      mockResponsesCreate(params, options),
+  })
 }
 
 /**
- * Concrete test subclass. The base now calls the OpenAI SDK directly, so the
+ * Concrete test subclass. The base calls the client directly, so the
  * subclass just supplies a stub client whose `responses.create` routes into
  * `mockResponsesCreate` for per-test setup.
  */

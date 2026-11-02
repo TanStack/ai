@@ -1,5 +1,7 @@
-import OpenAI from 'openai'
-import { OpenAIBaseResponsesTextAdapter } from '@tanstack/openai-base'
+import {
+  OpenAIBaseResponsesTextAdapter,
+  createOpenAIClient,
+} from '@tanstack/openai-base'
 import { validateTextProviderOptions } from '../text/text-provider-options'
 import { convertToolsToProviderFormat } from '../tools'
 import { getOpenAIApiKeyFromEnv } from '../utils/client'
@@ -141,7 +143,7 @@ export class OpenAITextAdapter<
     | undefined = undefined
 
   constructor(config: OpenAITextConfig, model: TModel) {
-    super(model, 'openai', new OpenAI(config), config)
+    super(model, 'openai', createOpenAIClient(config), config)
     // On by default only on OpenAI's own API: a proxy or a gateway (a
     // `baseURL`, a `fetch`, or the SDK's OPENAI_BASE_URL env var) may not
     // pass the changes. The option wins.

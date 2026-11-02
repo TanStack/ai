@@ -1,7 +1,6 @@
-import { fal } from '@fal-ai/client'
 import { BaseAudioAdapter } from '@tanstack/ai/adapters'
 import {
-  configureFalClient,
+  createAdapterFalClient,
   deriveAudioContentType,
   generateId as utilGenerateId,
 } from '../utils/client'
@@ -12,6 +11,7 @@ import type {
   AudioGenerationResult,
 } from '@tanstack/ai'
 import type { FalClientConfig } from '../utils/client'
+import type { FalClient } from '../client'
 import type { FalModel, FalModelInput } from '../model-meta'
 
 /**
@@ -68,10 +68,11 @@ export class FalAudioAdapter<TModel extends FalModel> extends BaseAudioAdapter<
   FalAudioProviderOptions<TModel>
 > {
   readonly name = 'fal' as const
+  private readonly client: FalClient
 
   constructor(model: TModel, config?: FalClientConfig) {
     super(model, {})
-    configureFalClient(config)
+    this.client = createAdapterFalClient(config)
   }
 
   async generateAudio(
@@ -84,8 +85,8 @@ export class FalAudioAdapter<TModel extends FalModel> extends BaseAudioAdapter<
     })
     try {
       const input = this.buildInput(options)
-      // Request-specific abortSignal only — not fal.config() (global).
-      const result = await fal.subscribe(this.model, {
+      // Pass the abortSignal per request, not in the client config.
+      const result = await this.client.subscribe(this.model, {
         input,
         ...(options.abortSignal ? { abortSignal: options.abortSignal } : {}),
       })

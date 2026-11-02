@@ -16,18 +16,17 @@ import type { AdapterYieldChunk, Tool } from '@tanstack/ai'
 
 const testLogger = resolveDebugOption(false)
 
-vi.mock('openai', () => {
-  return {
-    default: class {
-      responses = {
-        create: vi.fn(),
-      }
-      images = {
-        generate: vi.fn(),
-      }
+vi.mock('@tanstack/openai-base', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@tanstack/openai-base')>()),
+  createOpenAIClient: () => ({
+    responses: {
+      create: vi.fn(),
     },
-  }
-})
+    images: {
+      generate: vi.fn(),
+    },
+  }),
+}))
 
 function createAsyncIterable<T>(chunks: Array<T>): AsyncIterable<T> {
   return {

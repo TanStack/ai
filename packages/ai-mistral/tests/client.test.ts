@@ -1,43 +1,57 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { createMistralClient } from '../src/utils/client'
+import { describe, expect, it, vi } from 'vitest'
+import { createMistralClient } from '../src/client'
+import type { MistralClientConfig } from '../src/utils/client'
 
-const constructorSpy = vi.hoisted(() =>
-  vi.fn<(options: Record<string, unknown>) => void>(),
-)
+const completion = {
+  id: 'cmpl-1',
+  object: 'chat.completion',
+  model: 'mistral-large-latest',
+  created: 1,
+  usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 },
+  choices: [
+    {
+      index: 0,
+      message: { role: 'assistant', content: 'hi' },
+      finish_reason: 'stop',
+    },
+  ],
+}
 
-vi.mock('@mistralai/mistralai', () => ({
-  Mistral: class {
-    constructor(options: Record<string, unknown>) {
-      constructorSpy(options)
-    }
-  },
-  HTTPClient: class {
-    addHook() {}
-  },
-}))
+/** Sends one chat completion and returns the URL it went to. */
+async function requestURL(config: MistralClientConfig) {
+  const fetcher = vi
+    .fn<(url: string, init: RequestInit) => Promise<Response>>()
+    .mockResolvedValue(Response.json(completion))
+  await createMistralClient(config, fetcher).chat.complete({
+    model: 'mistral-large-latest',
+    messages: [{ role: 'user', content: 'hi' }],
+  })
+  return fetcher.mock.calls[0]?.[0]
+}
 
 describe('createMistralClient', () => {
-  beforeEach(() => {
-    constructorSpy.mockClear()
+  it('maps baseURL onto serverURL', async () => {
+    expect(
+      await requestURL({ apiKey: 'k', baseURL: 'https://gw.example/mistral' }),
+    ).toBe('https://gw.example/mistral/v1/chat/completions')
   })
 
-  it('maps baseURL onto serverURL', () => {
-    createMistralClient({ apiKey: 'k', baseURL: 'https://gw.example/mistral' })
-    expect(constructorSpy).toHaveBeenCalledExactlyOnceWith({
-      apiKey: 'k',
-      serverURL: 'https://gw.example/mistral',
-    })
+  it('keeps serverURL working, baseURL wins', async () => {
+    expect(
+      await requestURL({ apiKey: 'k', serverURL: 'https://old.example' }),
+    ).toBe('https://old.example/v1/chat/completions')
+    expect(
+      await requestURL({
+        apiKey: 'k',
+        serverURL: 'https://old.example',
+        baseURL: 'https://new.example',
+      }),
+    ).toBe('https://new.example/v1/chat/completions')
   })
 
-  it('keeps serverURL working, baseURL wins', () => {
-    createMistralClient({
-      apiKey: 'k',
-      serverURL: 'https://old.example',
-      baseURL: 'https://new.example',
-    })
-    expect(constructorSpy).toHaveBeenCalledExactlyOnceWith({
-      apiKey: 'k',
-      serverURL: 'https://new.example',
-    })
+  it('defaults to the Mistral API', async () => {
+    expect(await requestURL({ apiKey: 'k' })).toBe(
+      'https://api.mistral.ai/v1/chat/completions',
+    )
   })
 })

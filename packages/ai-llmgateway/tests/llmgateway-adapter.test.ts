@@ -20,22 +20,19 @@ import type { LLMGatewayTextProviderOptions } from '../src/index'
 // Test helper: a silent logger for test chatStream calls.
 const testLogger = resolveDebugOption(false)
 
-// Stub the OpenAI SDK so adapter construction doesn't open a real network
-// handle. The per-test mock client is injected post-construction via
-// `setupMockSdkClient` (mirrors the ai-groq pattern). We avoid relying on
-// vi.mock to intercept transitive openai imports — the built openai-base
-// dist resolves `openai` independently and is unaffected by vi.mock here.
-vi.mock('openai', () => {
-  return {
-    default: class {
-      chat = {
-        completions: {
-          create: vi.fn(),
-        },
-      }
+// Stub the OpenAI-compatible client factory so adapter construction doesn't
+// build a real client. The per-test mock client is injected post-construction
+// via `setupMockSdkClient` (mirrors the ai-groq pattern).
+vi.mock('@tanstack/openai-base', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@tanstack/openai-base')>()),
+  createOpenAIClient: () => ({
+    chat: {
+      completions: {
+        create: vi.fn(),
+      },
     },
-  }
-})
+  }),
+}))
 
 // Helper to create async iterable from chunks
 function createAsyncIterable<T>(chunks: Array<T>): AsyncIterable<T> {

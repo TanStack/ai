@@ -1,5 +1,8 @@
-import OpenAI from 'openai'
-import { OpenAIBaseChatCompletionsTextAdapter } from '@tanstack/openai-base'
+import type OpenAI from 'openai'
+import {
+  OpenAIBaseChatCompletionsTextAdapter,
+  createOpenAIClient,
+} from '@tanstack/openai-base'
 import { withGatewayCost } from '../utils/gateway-cost'
 import { withVercelGatewayDefaults } from '../utils/client'
 import { mapGatewayModelOptions } from '../utils/map-gateway-options'
@@ -76,7 +79,7 @@ export class VercelGatewayTextAdapter<
     super(
       model,
       'vercel-gateway',
-      new OpenAI(withVercelGatewayDefaults(config)),
+      createOpenAIClient(withVercelGatewayDefaults(config)),
       config,
     )
   }

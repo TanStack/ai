@@ -35,6 +35,21 @@ octane: @tanstack/ai-cloudflare
 
 <!-- ::end:tabs -->
 
+If you use TypeScript, also install `@cloudflare/workers-types`. The adapter types use its `Ai` binding and AI Gateway types. The adapter needs no extra package at runtime.
+
+<!-- ::start:tabs variant="package-manager" mode="dev-install" -->
+
+react: @cloudflare/workers-types
+vue: @cloudflare/workers-types
+solid: @cloudflare/workers-types
+svelte: @cloudflare/workers-types
+preact: @cloudflare/workers-types
+angular: @cloudflare/workers-types
+vanilla: @cloudflare/workers-types
+octane: @cloudflare/workers-types
+
+<!-- ::end:tabs -->
+
 ## 2. Connect to Cloudflare
 
 Inside a Worker, use the `env.AI` binding. You need no token and no account id. Add the binding to `wrangler.jsonc`:

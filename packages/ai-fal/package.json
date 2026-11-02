@@ -30,6 +30,7 @@
       "import": "./dist/esm/byok.js"
     }
   },
+  "sideEffects": false,
   "files": [
     "dist",
     "src"

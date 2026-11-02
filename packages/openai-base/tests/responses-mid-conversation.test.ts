@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { resolveDebugOption } from '@tanstack/ai/adapter-internals'
 import { OpenAIBaseResponsesTextAdapter } from '../src/adapters/responses-text'
 import { webSearchTool } from '../src/tools/web-search-tool'
-import type OpenAI from 'openai'
+import { stubClient } from './stub-client'
 import type {
   MidConversationChanges,
   MidConversationChannels,
@@ -22,9 +22,11 @@ class ChannelAdapter extends OpenAIBaseResponsesTextAdapter<string> {
     | undefined = undefined
 
   constructor(channels: MidConversationChannels | undefined) {
-    super('test-model', 'openai-base-responses', {
-      responses: { create },
-    } as unknown as OpenAI)
+    super(
+      'test-model',
+      'openai-base-responses',
+      stubClient({ responses: create }),
+    )
     this.midConversationChannels = channels
   }
 }

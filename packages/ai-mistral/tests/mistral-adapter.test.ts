@@ -4,19 +4,13 @@ const { mockComplete } = vi.hoisted(() => ({
   mockComplete: vi.fn<(...args: Array<unknown>) => unknown>(),
 }))
 
-vi.mock('@mistralai/mistralai', () => {
-  return {
-    Mistral: class {
-      chat = {
-        complete: (...args: Array<unknown>) => mockComplete(...args),
-      }
-      HTTPClient = class {}
+vi.mock('../src/client', () => ({
+  createMistralClient: () => ({
+    chat: {
+      complete: (...args: Array<unknown>) => mockComplete(...args),
     },
-    HTTPClient: class {
-      addHook() {}
-    },
-  }
-})
+  }),
+}))
 
 import type { AdapterYieldChunk, TextOptions, Tool } from '@tanstack/ai'
 import type { MistralTextProviderOptions } from '../src/adapters/text'

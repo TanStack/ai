@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import OpenAI from 'openai'
+import { createOpenAIClient } from '../src/client'
+import type { OpenAIClientLike } from '../src/client'
 import { resolveDebugOption } from '@tanstack/ai/adapter-internals'
 import { OpenAIBaseChatCompletionsTextAdapter } from '../src/adapters/chat-completions-text'
 import { OpenAIBaseResponsesTextAdapter } from '../src/adapters/responses-text'
@@ -14,18 +15,20 @@ class Responses extends OpenAIBaseResponsesTextAdapter<string> {}
 const apis = [
   {
     api: 'Chat Completions',
-    adapter: (client: OpenAI) => new Completions(model, 'openai', client),
+    adapter: (client: OpenAIClientLike) =>
+      new Completions(model, 'openai', client),
   },
   {
     api: 'Responses',
-    adapter: (client: OpenAI) => new Responses(model, 'openai', client),
+    adapter: (client: OpenAIClientLike) =>
+      new Responses(model, 'openai', client),
   },
 ]
 
 describe.each(apis)('$api adapter on a 429', ({ adapter }) => {
   /** Runs one call that gets a 429 with `headers`. Gives back its RUN_ERROR. */
   async function runError(headers: Record<string, string>) {
-    const client = new OpenAI({
+    const client = createOpenAIClient({
       apiKey: 'test-key',
       maxRetries: 0,
       fetch: async () =>

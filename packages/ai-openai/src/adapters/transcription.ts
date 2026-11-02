@@ -1,4 +1,5 @@
-import OpenAI from 'openai'
+import { createOpenAIClient } from '@tanstack/openai-base'
+import type { OpenAIClientLike } from '@tanstack/openai-base'
 import { BaseTranscriptionAdapter } from '@tanstack/ai/adapters'
 import { toRunErrorPayload } from '@tanstack/ai/adapter-internals'
 import { base64ToArrayBuffer, generateId } from '@tanstack/ai-utils'
@@ -151,11 +152,11 @@ export class OpenAITranscriptionAdapter<
 > extends BaseTranscriptionAdapter<TModel, OpenAITranscriptionProviderOptions> {
   readonly name = 'openai' as const
 
-  protected client: OpenAI
+  protected client: OpenAIClientLike
 
   constructor(config: OpenAITranscriptionConfig, model: TModel) {
     super(model, {})
-    this.client = new OpenAI(config)
+    this.client = createOpenAIClient(config)
   }
 
   async transcribe(

@@ -9,7 +9,7 @@ const mocks = vi.hoisted(() => {
   }
 })
 
-vi.mock('@google/genai', () => {
+vi.mock('../src/client', () => {
   class MockGoogleGenAI {
     files = {
       upload: mocks.filesUpload,
@@ -19,7 +19,11 @@ vi.mock('@google/genai', () => {
 
     constructor(_options: { apiKey: string }) {}
   }
-  return { GoogleGenAI: MockGoogleGenAI }
+  return {
+    createGoogleGenAI: (
+      options: ConstructorParameters<typeof MockGoogleGenAI>[0],
+    ) => new MockGoogleGenAI(options),
+  }
 })
 
 const GEMINI_FILE = {

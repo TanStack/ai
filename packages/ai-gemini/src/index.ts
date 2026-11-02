@@ -59,7 +59,7 @@ export type {
 // These SDK enums are values, so they cannot travel through `export type`.
 // Re-exported here so `safetySettings` and `thinkingConfig.thinkingLevel`
 // are usable with only `@tanstack/ai-gemini` installed.
-export { HarmBlockThreshold, HarmCategory, ThinkingLevel } from '@google/genai'
+export { HarmBlockThreshold, HarmCategory, ThinkingLevel } from './client/enums'
 
 // Files API helpers — upload + poll a file (e.g. video) until it is ACTIVE
 export {

@@ -1,4 +1,4 @@
-import OpenAI from 'openai'
+import { createOpenAIClient } from '@tanstack/openai-base'
 import { BaseTTSAdapter } from '@tanstack/ai/adapters'
 import { toRunErrorPayload } from '@tanstack/ai/adapter-internals'
 import { arrayBufferToBase64, generateId } from '@tanstack/ai-utils'
@@ -9,6 +9,7 @@ import {
 } from '../utils/client'
 import type { TTSOptions, TTSResult } from '@tanstack/ai'
 import type OpenAI_SDK from 'openai'
+import type { OpenAIClientLike } from '@tanstack/openai-base'
 import type { LovableTTSModel } from '../model-meta'
 import type { LovableTTSProviderOptions } from '../audio/tts-provider-options'
 import type { LovableClientConfig } from '../utils/client'
@@ -29,11 +30,11 @@ export class LovableTTSAdapter<
 > extends BaseTTSAdapter<TModel, LovableTTSProviderOptions> {
   readonly name = 'lovable' as const
 
-  protected client: OpenAI
+  protected client: OpenAIClientLike
 
   constructor(config: LovableTTSConfig, model: TModel) {
     super(model, {})
-    this.client = new OpenAI(withLovableDefaults(config))
+    this.client = createOpenAIClient(withLovableDefaults(config))
   }
 
   async generateSpeech(

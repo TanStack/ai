@@ -34,7 +34,8 @@ import type {
   StructuredOutputOptions,
   StructuredOutputResult,
 } from '@tanstack/ai/adapters'
-import type { GoogleGenAI, Interactions } from '@google/genai'
+import type { Interactions } from '@google/genai'
+import type { GeminiClient } from '../../client'
 import type {
   ContentPart,
   Modality,
@@ -213,7 +214,7 @@ export class GeminiTextInteractionsAdapter<
   // Consumes Gemini Files API references (geminiFiles()) as content `uri`s.
   override readonly supportsFileSources = true
 
-  private readonly client: GoogleGenAI
+  private readonly client: GeminiClient
   // Tracks the most recent server-assigned interaction id per threadId
   // so the adapter can chain follow-up calls on the same thread without
   // the caller having to thread the id manually. Two callers rely on

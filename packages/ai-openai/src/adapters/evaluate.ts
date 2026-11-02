@@ -1,4 +1,5 @@
-import OpenAI from 'openai'
+import { createOpenAIClient } from '@tanstack/openai-base'
+import type { OpenAIClientLike } from '@tanstack/openai-base'
 import { buildBaseUsage } from '@tanstack/ai'
 import {
   BaseEvaluateAdapter,
@@ -117,11 +118,11 @@ export class OpenAIEvaluateAdapter<
 > extends BaseEvaluateAdapter<TModel> {
   readonly name = 'openai' as const
 
-  protected client: OpenAI
+  protected client: OpenAIClientLike
 
   constructor(config: OpenAIEvaluateConfig, model: TModel) {
     super({}, model)
-    this.client = new OpenAI(config)
+    this.client = createOpenAIClient(config)
   }
 
   async evaluate(options: EvaluateOptions) {

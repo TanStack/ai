@@ -1,4 +1,5 @@
-import OpenAI from 'openai'
+import { createOpenAIClient } from '@tanstack/openai-base'
+import type { OpenAIClientLike } from '@tanstack/openai-base'
 import { BaseTTSAdapter } from '@tanstack/ai/adapters'
 import { toRunErrorPayload } from '@tanstack/ai/adapter-internals'
 import { arrayBufferToBase64, generateId } from '@tanstack/ai-utils'
@@ -35,11 +36,11 @@ export class OpenAITTSAdapter<
 > extends BaseTTSAdapter<TModel, OpenAITTSProviderOptions> {
   readonly name = 'openai' as const
 
-  protected client: OpenAI
+  protected client: OpenAIClientLike
 
   constructor(config: OpenAITTSConfig, model: TModel) {
     super(model, {})
-    this.client = new OpenAI(config)
+    this.client = createOpenAIClient(config)
   }
 
   async generateSpeech(

@@ -42,6 +42,7 @@
       "import": "./dist/esm/pkce.js"
     }
   },
+  "sideEffects": false,
   "files": [
     "dist",
     "src"

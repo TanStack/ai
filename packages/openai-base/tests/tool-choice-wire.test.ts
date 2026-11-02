@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import OpenAI from 'openai'
+import { createOpenAIClient } from '../src/client'
+import type { OpenAIClientLike } from '../src/client'
 import { resolveDebugOption } from '@tanstack/ai/adapter-internals'
 import { OpenAIBaseChatCompletionsTextAdapter } from '../src/adapters/chat-completions-text'
 import { OpenAIBaseResponsesTextAdapter } from '../src/adapters/responses-text'
@@ -41,13 +42,15 @@ const responsesDone = {
 const apis = [
   {
     api: 'Chat Completions',
-    adapter: (client: OpenAI) => new Completions(model, 'openai', client),
+    adapter: (client: OpenAIClientLike) =>
+      new Completions(model, 'openai', client),
     sse: `data: ${JSON.stringify(completionsDone)}\n\ndata: [DONE]\n\n`,
     namedChoice: { type: 'function', function: { name: 'lookup_weather' } },
   },
   {
     api: 'Responses',
-    adapter: (client: OpenAI) => new Responses(model, 'openai', client),
+    adapter: (client: OpenAIClientLike) =>
+      new Responses(model, 'openai', client),
     sse: `data: ${JSON.stringify(responsesDone)}\n\n`,
     namedChoice: { type: 'function', name: 'lookup_weather' },
   },
@@ -59,7 +62,7 @@ async function sentBody(
   request: Pick<TextOptions, 'tools' | 'toolChoice' | 'modelOptions'>,
 ) {
   let body: unknown
-  const client = new OpenAI({
+  const client = createOpenAIClient({
     apiKey: 'test-key',
     fetch: async (_url, init) => {
       body = JSON.parse(String(init?.body))

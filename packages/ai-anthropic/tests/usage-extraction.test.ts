@@ -36,7 +36,7 @@ const mocks = vi.hoisted(() => {
   return { betaMessagesCreate, client }
 })
 
-vi.mock('@anthropic-ai/sdk', () => {
+vi.mock('../src/client', () => {
   const { client } = mocks
 
   class MockAnthropic {
@@ -45,7 +45,10 @@ vi.mock('@anthropic-ai/sdk', () => {
     constructor(_: { apiKey: string }) {}
   }
 
-  return { default: MockAnthropic }
+  return {
+    createAnthropicClient: (options: { apiKey: string }) =>
+      new MockAnthropic(options),
+  }
 })
 
 const createAdapter = () =>

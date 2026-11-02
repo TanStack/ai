@@ -1,4 +1,4 @@
-import { FinishReason, FunctionCallingConfigMode } from '@google/genai'
+import { FinishReason, FunctionCallingConfigMode } from '../client/enums'
 import {
   CONTEXT_OVERFLOW_CODE,
   EventType,
@@ -45,12 +45,11 @@ import type {
   Content,
   FunctionCallingConfig,
   GenerateContentParameters,
-  GenerateContentResponse,
-  GoogleGenAI,
   GroundingMetadata,
   Part,
   VideoMetadata,
 } from '@google/genai'
+import type { GeminiClient, GeminiContentResponse } from '../client'
 import type {
   ContentPart,
   Modality,
@@ -451,7 +450,7 @@ export class GeminiTextAdapter<
   override readonly supportsFileSources = true
   override readonly inputModalities = GEMINI_MODEL_INPUT_MODALITIES[this.model]
 
-  private readonly client: GoogleGenAI
+  private readonly client: GeminiClient
 
   constructor(config: GeminiTextConfig, model: TModel) {
     super({}, model)
@@ -846,7 +845,7 @@ export class GeminiTextAdapter<
   /**
    * Extract text content from a non-streaming response
    */
-  private extractTextFromResponse(response: GenerateContentResponse): string {
+  private extractTextFromResponse(response: GeminiContentResponse): string {
     let textContent = ''
 
     if (response.candidates?.[0]?.content?.parts) {
@@ -861,7 +860,7 @@ export class GeminiTextAdapter<
   }
 
   private async *processStreamChunks(
-    result: AsyncGenerator<GenerateContentResponse, unknown, unknown>,
+    result: AsyncGenerator<GeminiContentResponse, unknown, unknown>,
     options: TextOptions<GeminiTextProviderOptions>,
     logger: InternalLogger,
   ): AsyncIterable<AdapterYieldChunk> {
@@ -1153,29 +1152,6 @@ export class GeminiTextAdapter<
               args: toolCallData.args,
             }
           }
-        }
-      } else if (chunk.data && chunk.data.trim()) {
-        // Skip whitespace-only data (e.g. "\n" during auto-continuation)
-        // Emit TEXT_MESSAGE_START on first text content
-        if (!hasEmittedTextMessageStart) {
-          hasEmittedTextMessageStart = true
-          yield {
-            type: EventType.TEXT_MESSAGE_START,
-            messageId,
-            model,
-            timestamp: Date.now(),
-            role: 'assistant',
-          }
-        }
-
-        accumulatedContent += chunk.data
-        yield {
-          type: EventType.TEXT_MESSAGE_CONTENT,
-          messageId,
-          model,
-          timestamp: Date.now(),
-          delta: chunk.data,
-          content: accumulatedContent,
         }
       }
 

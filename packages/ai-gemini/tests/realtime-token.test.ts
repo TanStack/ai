@@ -5,13 +5,16 @@ const mocks = vi.hoisted(() => ({
   createSpy: vi.fn(),
 }))
 
-vi.mock('@google/genai', async () => {
-  const actual = await vi.importActual('@google/genai')
+vi.mock('../src/client', () => {
   class MockGoogleGenAI {
     public authTokens = { create: mocks.createSpy }
     constructor(_options: { apiKey: string }) {}
   }
-  return { ...actual, GoogleGenAI: MockGoogleGenAI }
+  return {
+    createGoogleGenAI: (
+      options: ConstructorParameters<typeof MockGoogleGenAI>[0],
+    ) => new MockGoogleGenAI(options),
+  }
 })
 
 describe('geminiRealtimeToken', () => {

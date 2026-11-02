@@ -1,8 +1,7 @@
-import OpenAI from 'openai'
 import { resolveMediaPrompt } from '@tanstack/ai'
 import { BaseImageAdapter } from '@tanstack/ai/adapters'
 import { toRunErrorPayload } from '@tanstack/ai/adapter-internals'
-import { buildImagesUsage } from '@tanstack/openai-base'
+import { buildImagesUsage, createOpenAIClient } from '@tanstack/openai-base'
 import { generateId } from '@tanstack/ai-utils'
 import {
   getVercelGatewayApiKeyFromEnv,
@@ -15,6 +14,7 @@ import type {
   ImageGenerationResult,
 } from '@tanstack/ai'
 import type OpenAI_SDK from 'openai'
+import type { OpenAIClientLike } from '@tanstack/openai-base'
 import type {
   VercelGatewayImageModel,
   VercelGatewayImageModelInputModalitiesByName,
@@ -43,11 +43,11 @@ export class VercelGatewayImageAdapter<
   override readonly kind = 'image' as const
   readonly name = 'vercel-gateway' as const
 
-  protected client: OpenAI
+  protected client: OpenAIClientLike
 
   constructor(config: VercelGatewayImageConfig, model: TModel) {
     super(model, {})
-    this.client = new OpenAI(withVercelGatewayDefaults(config))
+    this.client = createOpenAIClient(withVercelGatewayDefaults(config))
   }
 
   async generateImages(

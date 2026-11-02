@@ -17,6 +17,23 @@ export type ResolvedBedrockAuth =
       credentials: AwsCredentialIdentityProvider
     }
 
+/**
+ * Loads an optional peer dependency of this package (the AWS SDK parts). If
+ * the import fails, throws an error that names the package to install. The
+ * original error is kept as `cause`.
+ */
+export async function importOptionalPeer<T>(mod: string): Promise<T> {
+  try {
+    return (await import(/* @vite-ignore */ mod)) as T
+  } catch (cause) {
+    throw new Error(
+      `@tanstack/ai-bedrock could not load "${mod}". It is an optional peer ` +
+        `dependency. Install it: npm install ${mod}`,
+      { cause },
+    )
+  }
+}
+
 const DEFAULT_REGION = 'us-east-1'
 
 function readApiKeyFromEnv(): string | undefined {
@@ -71,9 +88,8 @@ export function resolveBedrockAuth(
     // type-only reference (erased at emit) so we keep full typing.
     credentials: async (...args) => {
       const mod = '@aws-sdk/credential-providers'
-      const { fromNodeProviderChain } = (await import(
-        /* @vite-ignore */ mod
-      )) as typeof CredentialProviders
+      const { fromNodeProviderChain } =
+        await importOptionalPeer<typeof CredentialProviders>(mod)
       return fromNodeProviderChain()(...args)
     },
   }

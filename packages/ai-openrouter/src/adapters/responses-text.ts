@@ -1,4 +1,5 @@
-import { OpenRouter } from '@openrouter/sdk'
+import { createOpenRouterResponsesClient } from '../client'
+import type { OpenRouterClient } from '../client'
 import {
   EventType,
   isFileSource,
@@ -126,8 +127,8 @@ function toOpenRouterResponsesToolChoice(
 
 /**
  * OpenRouter Responses (beta) Adapter — standalone implementation that talks
- * to OpenRouter's `/v1/responses` (beta) endpoint via the `@openrouter/sdk`
- * SDK.
+ * to OpenRouter's `/v1/responses` (beta) endpoint via a fetch client with the
+ * `@openrouter/sdk` API and wire format.
  *
  * The wire format is OpenAI-Responses-compatible (so OpenRouter can route
  * Responses requests to GPT, Claude, Gemini, etc.) but the SDK exposes the
@@ -162,13 +163,13 @@ export class OpenRouterResponsesTextAdapter<
   override readonly inputModalities =
     OPENROUTER_MODEL_INPUT_MODALITIES[this.model]
 
-  protected orClient: OpenRouter
+  protected orClient: Pick<OpenRouterClient, 'beta'>
   private readonly sdkOptions: SDKOptions
 
   constructor(config: OpenRouterResponsesConfig, model: TModel) {
     super({}, model)
     this.sdkOptions = config
-    this.orClient = new OpenRouter(config)
+    this.orClient = createOpenRouterResponsesClient(config)
   }
 
   async *chatStream(
@@ -220,6 +221,7 @@ export class OpenRouterResponsesTextAdapter<
         this.orClient,
         this.sdkOptions,
         options.wrapFetch,
+        createOpenRouterResponsesClient,
       ).beta.responses.send(
         { responsesRequest: { ...responsesRequest, stream: true } },
         {
@@ -303,6 +305,7 @@ export class OpenRouterResponsesTextAdapter<
         this.orClient,
         this.sdkOptions,
         chatOptions.wrapFetch,
+        createOpenRouterResponsesClient,
       ).beta.responses.send(
         {
           responsesRequest: {
@@ -498,6 +501,7 @@ export class OpenRouterResponsesTextAdapter<
         this.orClient,
         this.sdkOptions,
         chatOptions.wrapFetch,
+        createOpenRouterResponsesClient,
       ).beta.responses.send(
         {
           responsesRequest: {

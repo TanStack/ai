@@ -1,4 +1,4 @@
-import OpenAI from 'openai'
+import { createOpenAIClient } from '@tanstack/openai-base'
 import { BaseEmbeddingAdapter } from '@tanstack/ai/adapters'
 import { toRunErrorPayload } from '@tanstack/ai/adapter-internals'
 import { generateId } from '@tanstack/ai-utils'
@@ -10,6 +10,7 @@ import type {
   TokenUsage,
 } from '@tanstack/ai'
 import type OpenAI_SDK from 'openai'
+import type { OpenAIClientLike } from '@tanstack/openai-base'
 import type {
   LovableEmbeddingModel,
   LovableEmbeddingModelInputModalitiesByName,
@@ -30,11 +31,11 @@ export class LovableEmbeddingAdapter<
 > {
   readonly name = 'lovable' as const
 
-  protected client: OpenAI
+  protected client: OpenAIClientLike
 
   constructor(config: LovableEmbeddingConfig, model: TModel) {
     super(model, {})
-    this.client = new OpenAI(withLovableDefaults(config))
+    this.client = createOpenAIClient(withLovableDefaults(config))
   }
 
   async createEmbeddings(

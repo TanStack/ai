@@ -114,7 +114,7 @@ function withBody(response: Response, body: BodyInit): Response {
  * A fetch for the Chat Completions route. For some models the gateway sends
  * `content` as an array of `{ type: 'reasoning' | 'text' }` parts instead of a
  * string, in JSON and in each streamed delta. This fetch rewrites those to the
- * spec shape before the OpenAI SDK reads them, so `chatStream`,
+ * spec shape before the OpenAI client reads them, so `chatStream`,
  * `structuredOutput` and `structuredOutputStream` all see strings. A body
  * with string content passes through unchanged.
  *

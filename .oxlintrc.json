@@ -248,6 +248,40 @@
         ]
       },
       "plugins": ["typescript"]
+    },
+    {
+      "files": [
+        "packages/{openai-base,ai-openai,ai-anthropic,ai-gemini,ai-mistral,ai-openrouter,ai-elevenlabs,ai-fal,ai-bedrock,ai-groq,ai-grok,ai-byteplus,ai-cloudflare,ai-llmgateway,ai-lovable,ai-neon,ai-vercel-gateway,ai-vertex}/src/**/*.{ts,tsx}"
+      ],
+      "rules": {
+        "eslint-js/no-restricted-syntax": [
+          "error",
+          {
+            "selector": "TSAsExpression > TSAsExpression[typeAnnotation.type='TSUnknownKeyword']",
+            "message": "Avoid `as unknown as <Type>` — it bypasses TS's structural overlap check. Prefer plain `as <Type>`, fix the root cause, or opt out with `// oxlint-disable-next-line eslint-js/no-restricted-syntax -- <reason>`."
+          },
+          {
+            "selector": ":matches(ImportDeclaration[importKind!='type'], ExportNamedDeclaration[exportKind!='type'], ExportAllDeclaration[exportKind!='type'])[source.value=/^(openai|openai\\x2Fazure|@anthropic-ai\\x2Fsdk|@google\\x2Fgenai|@mistralai\\x2Fmistralai|@openrouter\\x2Fsdk|@elevenlabs\\x2Felevenlabs-js|@fal-ai\\x2Fclient|@smithy\\x2Fsignature-v4|@aws-crypto\\x2Fsha256-js)$/]",
+            "message": "Do not load a provider SDK at runtime from its root. Use `import type`, an allowed deep path (for example `openai/core/error`), or a dynamic `await import()` on a rare path."
+          }
+        ]
+      }
+    },
+    {
+      "files": ["packages/ai-fal/src/utils/configure.ts"],
+      "rules": {
+        "eslint-js/no-restricted-syntax": [
+          "error",
+          {
+            "selector": "TSAsExpression > TSAsExpression[typeAnnotation.type='TSUnknownKeyword']",
+            "message": "Avoid `as unknown as <Type>` — it bypasses TS's structural overlap check. Prefer plain `as <Type>`, fix the root cause, or opt out with `// oxlint-disable-next-line eslint-js/no-restricted-syntax -- <reason>`."
+          },
+          {
+            "selector": ":matches(ImportDeclaration[importKind!='type'], ExportNamedDeclaration[exportKind!='type'], ExportAllDeclaration[exportKind!='type'])[source.value=/^(openai|openai\\x2Fazure|@anthropic-ai\\x2Fsdk|@google\\x2Fgenai|@mistralai\\x2Fmistralai|@openrouter\\x2Fsdk|@elevenlabs\\x2Felevenlabs-js|@smithy\\x2Fsignature-v4|@aws-crypto\\x2Fsha256-js)$/]",
+            "message": "Do not load a provider SDK at runtime from its root. Use `import type`, an allowed deep path (for example `openai/core/error`), or a dynamic `await import()` on a rare path."
+          }
+        ]
+      }
     }
   ]
 }

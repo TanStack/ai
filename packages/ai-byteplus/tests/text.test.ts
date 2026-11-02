@@ -29,22 +29,19 @@ import type { BytePlusTextProviderOptions } from '../src/index'
 // Silent logger for adapter calls under test.
 const testLogger = resolveDebugOption(false)
 
-// Stub the OpenAI SDK so constructing an adapter never opens a real network
-// handle. The per-test mock client is injected post-construction through the
-// wrapped factories below (the ai-groq / ai-grok pattern) rather than by
-// stubbing globals — the built openai-base dist resolves `openai`
-// independently, so vi.mock alone would not intercept it.
-vi.mock('openai', () => {
-  return {
-    default: class {
-      chat = {
-        completions: {
-          create: vi.fn(),
-        },
-      }
+// Stub the OpenAI-compatible client factory so constructing an adapter never
+// builds a real client. The per-test mock client is injected post-construction
+// through the wrapped factories below (the ai-groq / ai-grok pattern).
+vi.mock('@tanstack/openai-base', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@tanstack/openai-base')>()),
+  createOpenAIClient: () => ({
+    chat: {
+      completions: {
+        create: vi.fn(),
+      },
     },
-  }
-})
+  }),
+}))
 
 function createAsyncIterable<T>(chunks: Array<T>): AsyncIterable<T> {
   return {

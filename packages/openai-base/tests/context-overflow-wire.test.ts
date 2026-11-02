@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import OpenAI from 'openai'
+import { createOpenAIClient } from '../src/client'
+import type { OpenAIClientLike } from '../src/client'
 import { CONTEXT_OVERFLOW_CODE } from '@tanstack/ai'
 import { resolveDebugOption } from '@tanstack/ai/adapter-internals'
 import { OpenAIBaseChatCompletionsTextAdapter } from '../src/adapters/chat-completions-text'
@@ -44,10 +45,10 @@ const rateLimited = () =>
 
 /** Runs one call that gets `response`. Gives back its RUN_ERROR. */
 async function runError(
-  adapter: (client: OpenAI) => Completions | Responses,
+  adapter: (client: OpenAIClientLike) => Completions | Responses,
   response: () => Response,
 ) {
-  const client = new OpenAI({
+  const client = createOpenAIClient({
     apiKey: 'test-key',
     maxRetries: 0,
     fetch: async () => response(),
@@ -67,11 +68,13 @@ async function runError(
 const apis = [
   {
     api: 'Chat Completions',
-    adapter: (client: OpenAI) => new Completions(model, 'openai', client),
+    adapter: (client: OpenAIClientLike) =>
+      new Completions(model, 'openai', client),
   },
   {
     api: 'Responses',
-    adapter: (client: OpenAI) => new Responses(model, 'openai', client),
+    adapter: (client: OpenAIClientLike) =>
+      new Responses(model, 'openai', client),
   },
 ]
 
@@ -102,7 +105,8 @@ describe('Responses adapter on a context overflow in the stream', () => {
       events.map((event) => `data: ${JSON.stringify(event)}\n\n`).join(''),
       { headers: { 'content-type': 'text/event-stream' } },
     )
-  const responses = (client: OpenAI) => new Responses(model, 'openai', client)
+  const responses = (client: OpenAIClientLike) =>
+    new Responses(model, 'openai', client)
 
   it('sets the code from an error event', async () => {
     const error = await runError(

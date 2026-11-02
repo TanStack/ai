@@ -36,7 +36,30 @@ octane: @tanstack/ai-bedrock
 
 <!-- ::end:tabs -->
 
-You need no other package. `@aws-sdk/client-bedrock-runtime` is a direct dependency, and it does the SigV4 signing.
+The AWS packages are optional. Install the ones that your setup uses:
+
+| You use | Also install |
+|---|---|
+| The Converse API (`api: 'converse'`, the default) or embeddings | `@aws-sdk/client-bedrock-runtime` |
+| SigV4 auth from the AWS credential chain (no API key) | `@aws-sdk/credential-providers` |
+| The Chat Completions or Responses API with an API key | Nothing |
+
+For the Converse API with SigV4 auth, install both:
+
+<!-- ::start:tabs variant="package-manager" mode="install" -->
+
+react: @aws-sdk/client-bedrock-runtime @aws-sdk/credential-providers
+vue: @aws-sdk/client-bedrock-runtime @aws-sdk/credential-providers
+solid: @aws-sdk/client-bedrock-runtime @aws-sdk/credential-providers
+svelte: @aws-sdk/client-bedrock-runtime @aws-sdk/credential-providers
+preact: @aws-sdk/client-bedrock-runtime @aws-sdk/credential-providers
+angular: @aws-sdk/client-bedrock-runtime @aws-sdk/credential-providers
+vanilla: @aws-sdk/client-bedrock-runtime @aws-sdk/credential-providers
+octane: @aws-sdk/client-bedrock-runtime @aws-sdk/credential-providers
+
+<!-- ::end:tabs -->
+
+If a package is missing, the first request fails with an error that names the package to install. If your type check reports that `@smithy/types` is missing, install it as a dev dependency.
 
 ## 2. Set the credentials
 
@@ -203,11 +226,11 @@ See the [Embeddings guide](../embeddings.md).
 
 Bedrock has three chat APIs. Set `api` on the factory:
 
-| `api` | Adapter name | Models | SDK |
+| `api` | Adapter name | Models | Extra package |
 |---|---|---|---|
 | `'converse'` (default) | `bedrock-converse` | The full catalog: Claude, Nova, Llama, Mistral, DeepSeek, Cohere, AI21, gpt-oss, and more | `@aws-sdk/client-bedrock-runtime` |
-| `'chat'` | `bedrock` | Open-weight models only: gpt-oss, DeepSeek V3.x, Gemma, Qwen, Mistral open models, GLM, and similar. No Claude, Nova, or Llama | `openai` (OpenAI-compatible Chat Completions) |
-| `'responses'` | `bedrock-responses` | gpt-oss and Gemma 4. Mantle only | `openai` (OpenAI-compatible Responses) |
+| `'chat'` | `bedrock` | Open-weight models only: gpt-oss, DeepSeek V3.x, Gemma, Qwen, Mistral open models, GLM, and similar. No Claude, Nova, or Llama | None (OpenAI-compatible Chat Completions) |
+| `'responses'` | `bedrock-responses` | gpt-oss and Gemma 4. Mantle only | None (OpenAI-compatible Responses) |
 
 Use Converse unless you need the OpenAI wire format. For which models work with which API, see the [AWS API compatibility matrix](https://docs.aws.amazon.com/bedrock/latest/userguide/models-api-compatibility.html). Samples for `'chat'` and `'responses'` are in [Advanced](#chat-completions-api).
 

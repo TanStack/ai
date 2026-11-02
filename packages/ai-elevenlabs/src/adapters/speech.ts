@@ -1,12 +1,13 @@
 import { BaseTTSAdapter } from '@tanstack/ai/adapters'
 import {
   arrayBufferToBase64,
-  createElevenLabsClient,
   generateId,
   parseOutputFormat,
   readStreamToArrayBuffer,
 } from '../utils/client'
-import type { ElevenLabs, ElevenLabsClient } from '@elevenlabs/elevenlabs-js'
+import { createElevenLabsClient } from '../client'
+import type { ElevenLabs } from '@elevenlabs/elevenlabs-js'
+import type { ElevenLabsClient } from '../client'
 import type {
   CatalogVoice,
   ListVoicesOptions,

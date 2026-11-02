@@ -1,4 +1,4 @@
-import OpenAI from 'openai'
+import { createOpenAIClient } from '@tanstack/openai-base'
 import { BaseEmbeddingAdapter } from '@tanstack/ai/adapters'
 import { toRunErrorPayload } from '@tanstack/ai/adapter-internals'
 import { generateId } from '@tanstack/ai-utils'
@@ -14,6 +14,7 @@ import type {
   TokenUsage,
 } from '@tanstack/ai'
 import type OpenAI_SDK from 'openai'
+import type { OpenAIClientLike } from '@tanstack/openai-base'
 import type {
   VercelGatewayEmbeddingModel,
   VercelGatewayEmbeddingModelInputModalitiesByName,
@@ -39,11 +40,11 @@ export class VercelGatewayEmbeddingAdapter<
 > {
   readonly name = 'vercel-gateway' as const
 
-  protected client: OpenAI
+  protected client: OpenAIClientLike
 
   constructor(config: VercelGatewayEmbeddingConfig, model: TModel) {
     super(model, {})
-    this.client = new OpenAI(withVercelGatewayDefaults(config))
+    this.client = createOpenAIClient(withVercelGatewayDefaults(config))
   }
 
   async createEmbeddings(

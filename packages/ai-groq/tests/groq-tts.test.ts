@@ -8,17 +8,18 @@ import {
 
 const mockSpeechCreate = vi.fn()
 
-// Groq drives the OpenAI-compatible /audio/speech endpoint via the OpenAI SDK.
-vi.mock('openai', () => {
-  class OpenAI {
-    audio = {
+// Groq drives the OpenAI-compatible /audio/speech endpoint via the
+// OpenAI-compatible client from @tanstack/openai-base.
+vi.mock('@tanstack/openai-base', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@tanstack/openai-base')>()),
+  createOpenAIClient: () => ({
+    audio: {
       speech: {
         create: (...args: Array<unknown>) => mockSpeechCreate(...args),
       },
-    }
-  }
-  return { default: OpenAI }
-})
+    },
+  }),
+}))
 
 // Helper to create a mock audio response (mirrors the SDK's Response shape).
 function createMockAudioResponse(audioContent = 'mock-audio-data') {

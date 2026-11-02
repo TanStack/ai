@@ -8,19 +8,17 @@ let mockGenerate = vi.fn()
 let mockGetGeneration = vi.fn()
 let mockGetVideoContent = vi.fn()
 
-// Mock the OpenRouter SDK
-vi.mock('@openrouter/sdk', () => {
-  return {
-    OpenRouter: class {
-      videoGeneration = {
-        generate: (...args: Array<unknown>) => mockGenerate(...args),
-        getGeneration: (...args: Array<unknown>) => mockGetGeneration(...args),
-        getVideoContent: (...args: Array<unknown>) =>
-          mockGetVideoContent(...args),
-      }
+// Mock the OpenRouter fetch client
+vi.mock('../src/client', () => ({
+  createOpenRouterVideoClient: () => ({
+    videoGeneration: {
+      generate: (...args: Array<unknown>) => mockGenerate(...args),
+      getGeneration: (...args: Array<unknown>) => mockGetGeneration(...args),
+      getVideoContent: (...args: Array<unknown>) =>
+        mockGetVideoContent(...args),
     },
-  }
-})
+  }),
+}))
 
 function streamOf(bytes: Uint8Array): ReadableStream<Uint8Array> {
   return new ReadableStream({

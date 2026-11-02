@@ -1,4 +1,4 @@
-import OpenAI from 'openai'
+import { createOpenAIClient } from '@tanstack/openai-base'
 import {
   OpenAICompatibleChatAdapter,
   OpenAICompatibleResponsesAdapter,
@@ -53,7 +53,7 @@ export function openaiCompatible<
     strictFallbackWarning,
     ...clientOptions
   } = config
-  const client = new OpenAI(clientOptions)
+  const client = createOpenAIClient(clientOptions)
 
   return <TModelName extends ModelNameOf<TModels>>(model: TModelName) => {
     if (api === 'responses') {
@@ -103,7 +103,7 @@ export function openaiCompatibleText<const TModelName extends string>(
     strictFallbackWarning,
     ...clientOptions
   } = config
-  const client = new OpenAI(clientOptions)
+  const client = createOpenAIClient(clientOptions)
   if (api === 'responses') {
     return new OpenAICompatibleResponsesAdapter<TModelName>(
       client,

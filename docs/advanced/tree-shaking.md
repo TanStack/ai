@@ -89,6 +89,19 @@ The `create*Options` helpers are separate exports too. See [Typed Pre-Configured
 - Load code-split routes with dynamic imports.
 - In React Native and Expo, keep the chat screens client-only. Import `useChat` and the connection adapters there. Do not import provider SDKs, server response helpers, React DOM UI, devtools UI, or other framework packages. See [Quick Start: React Native](../getting-started/quick-start-react-native) for the server-only provider boundary and the mobile transport setup.
 
+## Provider options that load the provider SDK
+
+Provider adapters call the provider HTTP API with `fetch`. They do not load the provider SDK, except for the options below. These options load the SDK on first use.
+
+| Adapter | Options that load the SDK |
+|---|---|
+| OpenAI and OpenAI-compatible | `workloadIdentity`, `provider`, `dataResidency`, `credential`, `x509Transport`, no `apiKey` (admin key only). On Azure: `azureADTokenProvider` or `workloadIdentity` |
+| Anthropic | `middleware`, OpenTelemetry tracing (`openTelemetry`, or a global OpenTelemetry tracer), `logLevel: 'info'` or `'debug'` (or `ANTHROPIC_LOG`), no `apiKey` and no `authToken` |
+| Gemini | `vertexai: true`, `enterprise: true`, no `apiKey`, a file path string as the upload |
+| fal | An upload larger than 90 MB, and `configureFalClient` (it configures the global `fal` client of `@fal-ai/client`) |
+
+A bundler that splits chunks keeps the SDK out of the startup bundle. A single-file bundle includes the SDK in the file. To keep a single-file bundle small, do not use these options.
+
 ## How it works
 
 - Each function is a named ES module export, not a default export.

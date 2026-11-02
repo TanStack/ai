@@ -1,4 +1,4 @@
-import OpenAI from 'openai'
+import { createOpenAIClient } from '@tanstack/openai-base'
 import { BaseEmbeddingAdapter } from '@tanstack/ai/adapters'
 import { toRunErrorPayload } from '@tanstack/ai/adapter-internals'
 import { generateId } from '@tanstack/ai-utils'
@@ -10,6 +10,7 @@ import type {
   TokenUsage,
 } from '@tanstack/ai'
 import type OpenAI_SDK from 'openai'
+import type { OpenAIClientLike } from '@tanstack/openai-base'
 import type { NeonEmbeddingModel } from '../model-meta'
 import type { NeonClientConfig } from '../utils/client'
 
@@ -37,11 +38,11 @@ export class NeonEmbeddingAdapter<
 > {
   readonly name = 'neon' as const
 
-  protected client: OpenAI
+  protected client: OpenAIClientLike
 
   constructor(config: NeonEmbeddingConfig, model: TModel) {
     super(model, {})
-    this.client = new OpenAI(withNeonDefaults(config, 'chat'))
+    this.client = createOpenAIClient(withNeonDefaults(config, 'chat'))
   }
 
   async createEmbeddings(

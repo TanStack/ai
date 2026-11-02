@@ -1,5 +1,7 @@
-import OpenAI from 'openai'
-import { OpenAIBaseResponsesTextAdapter } from '@tanstack/openai-base'
+import {
+  OpenAIBaseResponsesTextAdapter,
+  createOpenAIClient,
+} from '@tanstack/openai-base'
 import {
   isBedrockOpenAIContextOverflow,
   withBedrockDefaults,
@@ -38,7 +40,7 @@ type ResolveToolCapabilities<TModel extends string> =
 
 /**
  * Bedrock Responses adapter. Drives mantle's OpenAI-compatible `/responses`
- * endpoint via the OpenAI SDK (`client.responses.create`) — the same base
+ * endpoint via the OpenAI-compatible client (`client.responses.create`) — the same base
  * class ai-openai's `openaiText` uses. Responses is mantle-only, so the
  * constructor forces the mantle baseURL.
  */
@@ -73,7 +75,7 @@ export class BedrockResponsesTextAdapter<
     // Responses is mantle-only — force the mantle base URL (an explicit
     // config.baseURL still wins, e.g. E2E pointing at aimock).
     const options = withBedrockDefaults(config, 'mantle', model)
-    super(model, 'bedrock-responses', new OpenAI(options), {
+    super(model, 'bedrock-responses', createOpenAIClient(options), {
       ...config,
       fetch: options.fetch,
     })
