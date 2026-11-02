@@ -1,3 +1,4 @@
+import { getEventListeners } from 'node:events'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { Ollama } from 'ollama'
 import { chat } from '@tanstack/ai'
@@ -142,5 +143,34 @@ describe('Ollama abort signal with an injected client', () => {
       { timeout: 500 },
     )
     await run
+  })
+
+  it('leaves no abort listener on the signal after the stream ends', async () => {
+    const line = `${JSON.stringify({
+      model,
+      created_at: '2026-11-02T00:00:00Z',
+      message: { role: 'assistant', content: 'Hi' },
+      done: true,
+      done_reason: 'stop',
+    })}\n`
+    const fetch = vi.fn(() => Promise.resolve(new Response(line)))
+    const client = new Ollama({ host: 'http://ollama.test', fetch })
+    const adapter = new OllamaTextAdapter(client, model)
+    // chat() reuses one signal for every step of the agent loop.
+    const { signal } = new AbortController()
+    for (let step = 0; step < 2; step++) {
+      for await (const _ of adapter.chatStream({
+        threadId: 'thread-1',
+        logger,
+        model,
+        messages,
+        request: { signal },
+      })) {
+        // drain
+      }
+    }
+
+    expect(fetch).toHaveBeenCalledTimes(2)
+    expect(getEventListeners(signal, 'abort')).toHaveLength(0)
   })
 })
