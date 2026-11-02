@@ -958,3 +958,47 @@ describe('driver factory signal', () => {
     expect(signals).toEqual([controller.signal])
   })
 })
+
+describe('tool call signal', () => {
+  it('stops the screenshot wait and takes no screenshot when the call aborts', async () => {
+    const { driver, calls } = createDriver()
+    const [computerTool] = createComputerUse({
+      driver,
+      screenshotDelay: 60_000,
+    }).tools
+    const controller = new AbortController()
+    const result = computerTool.execute!(CLICK, {
+      toolCallId: 'call_1',
+      threadId: THREAD,
+      abortSignal: controller.signal,
+      emitCustomEvent() {},
+    })
+    await vi.waitFor(() => expect(calls).toContain('click:end'))
+    controller.abort(new Error('stopped'))
+    await expect(result).rejects.toThrow('stopped')
+    expect(calls).not.toContain('screenshot')
+  })
+
+  it('gives the signal to navigate', async () => {
+    const { driver } = createDriver({ navigate: true })
+    const navigate = vi.fn(async () => {})
+    driver.navigate = navigate
+    const [, navigateTool] = createComputerUse({
+      driver,
+      screenshotDelay: 0,
+    }).tools
+    const controller = new AbortController()
+    await navigateTool!.execute!(
+      { url: 'https://tanstack.com' },
+      {
+        toolCallId: 'call_nav',
+        threadId: THREAD,
+        abortSignal: controller.signal,
+        emitCustomEvent() {},
+      },
+    )
+    expect(navigate).toHaveBeenCalledWith('https://tanstack.com', {
+      signal: controller.signal,
+    })
+  })
+})
