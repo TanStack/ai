@@ -663,4 +663,36 @@ describe('the abort signal of a call', () => {
       expect(fake.commands).toEqual([])
     },
   )
+
+  it.each([
+    ['list_files', {}],
+    ['grep', { pattern: 'one' }],
+  ])('%s rejects a search that the abort stops', async (name, args) => {
+    const fake = fakeBackend({ 'a.ts': 'one\n' })
+    const controller = new AbortController()
+    const backend: WorkspaceBackend = {
+      ...fake.backend,
+      // The abort comes while the search command runs. A stopped command
+      // ends with a failure code, like on `hostBackend`.
+      exec: (command, options) => {
+        if (command === 'rg --version') {
+          return fake.backend.exec(command, options)
+        }
+        controller.abort()
+        return Promise.resolve({ exitCode: 1, stdout: '', stderr: '' })
+      },
+    }
+    const { tools } = createWorkspaceTools({ root, backend })
+    const execute = tools.find((each) => each.name === name)?.execute
+    if (!execute) throw new Error(`No tool ${name}`)
+
+    await expect(
+      Promise.resolve(
+        execute(args, {
+          abortSignal: controller.signal,
+          emitCustomEvent: () => undefined,
+        }),
+      ),
+    ).rejects.toThrow()
+  })
 })

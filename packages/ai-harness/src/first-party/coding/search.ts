@@ -449,6 +449,9 @@ export function searchTools(env: ToolEnv) {
       )
       const isWanted = globMatcher(optionalString(args, 'pattern'))
       const { files, partial } = await filesUnder(base)
+      // A stopped command ends with a failure code, which can read as "no
+      // files". An aborted search is not a result.
+      context?.abortSignal?.throwIfAborted()
       const listed = files.filter(isWanted)
       const shown = listed
         .slice(0, MAX_FILES)
@@ -496,6 +499,7 @@ export function searchTools(env: ToolEnv) {
         partial,
         files: listed,
       } = await grepUnder(base, pattern, isWanted, isProtected !== undefined)
+      context?.abortSignal?.throwIfAborted()
       // The note counts the protected files in the list, not in the hits,
       // so it does not tell whether a protected file has the pattern.
       const skipped = isProtected
