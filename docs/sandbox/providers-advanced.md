@@ -380,10 +380,50 @@ export function provider(env: SandboxAgentEnv) {
 
 The agent coordinator, durable runs, live previews through a quick tunnel, callback hosts, and the Durable Object run log are on [Cloudflare](./cloudflare) and [Cloudflare Edge Details](./cloudflare-advanced).
 
+## Render
+
+```ts
+import { renderSandbox } from '@tanstack/ai-sandbox-render'
+
+const render = renderSandbox({
+  plan: '2c-4g',
+  idleTimeoutSeconds: 900,
+  // Optional: when the policy allows network, allow only these hosts.
+  networkPolicy: {
+    type: 'allow-list',
+    rules: [{ domain: 'registry.npmjs.org' }, { domain: 'api.anthropic.com' }],
+  },
+})
+```
+
+- **Isolation:** a managed [Render](https://render.com/docs/sandboxes) sandbox. It boots from the base image (Debian 12, `root` user), a custom image (`buildName`), or a named snapshot (`snapshotName`).
+- **Auth:** the SDK reads `RENDER_API_KEY` and `RENDER_WORKSPACE_ID`. Pass `token` and `ownerId` to set them in code. Harness credentials are [workspace secrets](./provisioning). The provider uploads them to a shared file in `/dev/tsai` that only `root` can read. `/dev` is held in memory, so the secrets never reach the sandbox disk. Reconnecting with fresh secrets replaces that file and removes older overlays. No value goes into a command string.
+- **Lifetime:** Render suspends an idle sandbox after `idleTimeoutSeconds` (default 900) and keeps its disk, so `durableFilesystem` is `true`. The next command or file call resumes it. After `timeoutSeconds` (default 86400), Render terminates it.
+- **Network:** `policy.capabilities.network: 'deny'` sends `deny-all`, and Render enforces it. Otherwise the provider sends `networkPolicy`, or allows all egress.
+- **Not available:** inbound ports, stdin for a spawned process, and fork. `ports.connect` throws. Harnesses that need a port or stdin, such as OpenCode and ACP harnesses, do not run on Render.
+
+Snapshots and resume on Render:
+
+Take snapshots while commands are stopped. A runtime snapshot also captures memory, so the provider removes the env file for the capture and writes it back after. When multiple orchestrator processes share a sandbox, use your lifecycle lock to serialize runtime snapshots and secret updates.
+
+- `snapshot(label)` captures a `filesystem` snapshot named `tsai-<label>`, and waits until it is available. Set `snapshotKind: 'runtime'` to keep memory and processes too. A runtime snapshot restores only onto the same `plan`.
+- Render restores a snapshot only inside its sandbox group, so keep the same `sandboxGroupId` between capture and restore. `restoreSnapshot()` applies env and the network policy again. Filesystem snapshots leave out `/dev`, so they never contain the env file. Runtime snapshots retain the environment of existing processes.
+- The contract has no delete hook. Delete `tsai-*` snapshots that you do not use with `sandboxes.snapshots.delete()` from `@renderinc/sdk`.
+- Resume by id reads the sandbox status. A missing, `errored`, or `terminated` sandbox resumes as `null`. Auth and server errors are thrown again.
+- Render makes its own `sbx-` ids, so `create` ignores `input.id`. Keep the returned id in your instance store.
+
+Processes on Render:
+
+- Each command runs through `bash -c` in `/workspace`. Set `workdir` to change it. stdout and stderr stay separate, and `spawn()` reports `pid: -1`.
+- Each command has its own process group, recorded in `/tmp/tsai`. `kill(signal)` sends the requested signal and abort sends `TERM`, then `KILL` after 2 s if the group is still alive. Signals other than `TERM`, `INT`, `HUP`, `QUIT` and `KILL` become `KILL`. A cancellation marker prevents delayed commands from starting.
+- A supervising shell stops remaining children before it reports exit. A kill finishes on the confirmed remote exit. An aborted `exec` resolves with the exit code of the signal.
+- If the host disconnects, the command keeps running in the sandbox. The [run journal](./journal) owns run identity, so a new host reads the output from the journal.
+- `read`, `readBytes`, and `write` use native file transfer. Each other file call is one command, about 0.6 s. Render allows 1,000 commands per minute for each user.
+
 ## `writableStdin` per provider
 
 - `true`: local process, Docker container, Daytona, Upstash Box, E2B, boxd, and Railway.
-- `false`: Docker Sandboxes (`sbx`), Vercel, Sprites, Blaxel, and Cloudflare.
+- `false`: Docker Sandboxes (`sbx`), Vercel, Sprites, Blaxel, Cloudflare, and Render.
 
 When the value is `false`, a harness that reads its prompt from stdin gets the prompt from a file. The shell redirects that file into the process.
 
@@ -412,6 +452,7 @@ If a provider cannot be measured yet, it stays `false`. A `false` value only mak
 | Cloudflare | `false` | `kill()` does nothing. The `AbortSignal` of the caller reaches neither `exec` nor `spawn`, because Workers RPC cannot serialize one. |
 | boxd | `true` | **Measured.** The spawn wrapper runs under `setsid`, so the recorded pid leads its own process group. `kill()` runs a shell inside the machine that signals that group, then sends `KILL`, then checks with `kill -0`. Closing the stream alone is not a kill: the process survived it. Verified against production: a spawned `sleep 5 && touch <marker>` was killed, and the marker never appeared. Needs `BOXD_API_KEY`. |
 | Railway | `true` | **Measured.** `kill()` and an aborted `exec` send `TERM` to the process group, then `KILL` after 2 s. An aborted `spawn` sends `KILL` at once. Each one finishes only when the remote exit is confirmed. Verified against production: the shared journal conformance kill case passes. Spawned `sleep 5 && touch <marker>` commands (one with a background child) were killed before the marker appeared, for `kill()`, an aborted `exec`, and an aborted `spawn`. Needs `RAILWAY_API_TOKEN` or `RAILWAY_TOKEN` and `RAILWAY_ENVIRONMENT_ID`. |
+| Render | `true` | **Measured.** Each command records its process group. `kill()` sends the requested signal (`TERM` by default) to the group from a second command, then `KILL` after 2 s. A closed exec stream does not stop the process (measured), so every abort sends the kill. The shared journal conformance kill case passes against a real sandbox. Needs `RENDER_API_KEY` and `RENDER_WORKSPACE_ID`. |
 
 Each remote provider registers the shared journal conformance suite, so you can test each claim:
 
