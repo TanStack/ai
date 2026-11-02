@@ -2814,8 +2814,15 @@ export class ChatClient<
         await Promise.all(this.pendingToolExecutions.values())
       }
 
-      // Finalize (idempotent — may already be done by RUN_FINISHED handler)
-      this.processor.finalizeStream()
+      // Finalize (idempotent — may already be done by RUN_FINISHED handler).
+      // It can hand over the calls of a run that ended with 'tool_calls', so
+      // the approval check in onToolCall applies here too.
+      this.handingOverPendingToolCalls = true
+      try {
+        this.processor.finalizeStream()
+      } finally {
+        this.handingOverPendingToolCalls = false
+      }
       streamCompletedSuccessfully = true
     } catch (err: unknown) {
       const error = err instanceof Error ? err : new Error(String(err))
