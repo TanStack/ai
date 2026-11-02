@@ -150,8 +150,15 @@ export class RealtimeClient {
 
       // Start audio capture if configured
       if (this.options.autoCapture) {
-        await this.connection.startAudioCapture()
-        if (generation !== this.connectGeneration) return
+        await connection.startAudioCapture()
+        if (generation !== this.connectGeneration) {
+          // A later connect() replaced this connection: close it. After
+          // disconnect(), `this.connection` is null and it is closed already.
+          if (this.connection && this.connection !== connection) {
+            await connection.disconnect()
+          }
+          return
+        }
       }
 
       this.updateState({

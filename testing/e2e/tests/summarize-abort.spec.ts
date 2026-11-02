@@ -20,7 +20,11 @@ test('streaming summarize stops at its timeout', async ({
   })
   const body = await response.text()
 
+  const elapsed = Date.now() - started
   expect(body).toContain('RUN_ERROR')
   expect(body).not.toContain('RUN_FINISHED')
-  expect(Date.now() - started).toBeLessThan(5000)
+  // An error that is not the timeout (a failed connection, a bad route)
+  // comes at once. The timeout ends the run only after 300 ms.
+  expect(elapsed).toBeGreaterThanOrEqual(250)
+  expect(elapsed).toBeLessThan(5000)
 })

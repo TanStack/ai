@@ -701,6 +701,8 @@ async function* runStreamingVideoGeneration<
       }
 
       if (statusResult.status === 'completed') {
+        // The caller can abort when it reads the status above.
+        abortControls.signal?.throwIfAborted()
         const video = await raceWithAbort(
           adapter.getVideo(jobResult.jobId),
           abortControls.signal,

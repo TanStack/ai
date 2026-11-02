@@ -153,6 +153,42 @@ describe('summarize() abort reaches the wrapped chatStream', () => {
     expect(onError).not.toHaveBeenCalled()
     expect(onAbort).toHaveBeenCalledTimes(1)
   })
+
+  it('stream: an abort that comes as a RUN_ERROR chunk reports onAbort', async () => {
+    // Like openai-base: a failed request becomes a RUN_ERROR chunk.
+    const text: ChatStreamCapable = {
+      chatStream: (options) =>
+        (async function* () {
+          yield ev.runStarted()
+          try {
+            await hangUntilAborted(options.request?.signal ?? undefined)
+          } catch {
+            yield ev.runError('Request was aborted.')
+          }
+        })(),
+    }
+    const onAbort = vi.fn()
+    const onFinish = vi.fn()
+    const controller = new AbortController()
+    const stream = summarize({
+      adapter: new ChatStreamSummarizeAdapter<string, object>(
+        text,
+        'test-model',
+        'openai',
+      ),
+      threadId: 'thread-1',
+      text: 'long text',
+      stream: true,
+      abortSignal: controller.signal,
+      middleware: [{ name: 'observe', onAbort, onFinish }],
+    })
+    setTimeout(() => controller.abort(), 10)
+    const chunks = await collectChunks(stream).catch(() => [])
+    expect(onFinish).not.toHaveBeenCalled()
+    expect(onAbort).toHaveBeenCalledTimes(1)
+    // The error chunk still reaches the consumer.
+    expect(chunks.some((chunk) => chunk.type === 'RUN_ERROR')).toBe(true)
+  })
 })
 
 describe('middleware ctx.abort() reaches the provider', () => {
@@ -376,6 +412,43 @@ describe('generateVideo() polling', () => {
       expect(await settlesWithin(collectChunks(stream))).toBe('done')
     })
   }
+
+  it('starts no download when the caller aborts on the completed status', async () => {
+    const controller = new AbortController()
+    const getVideo = vi.fn(async () => ({ url: 'https://example.com/v.mp4' }))
+    const adapter = {
+      kind: 'video' as const,
+      name: 'mock',
+      model: 'mock-video-model',
+      createVideoJob: async () => ({
+        jobId: 'job-1',
+        model: 'mock-video-model',
+      }),
+      getVideoStatus: async () => ({ status: 'completed' as const }),
+      getVideo,
+    }
+    const stream = generateVideo({
+      threadId: 'thread-1',
+      adapter: adapter as any,
+      prompt: 'a cat',
+      stream: true,
+      pollingInterval: 1,
+      abortSignal: controller.signal,
+    })
+    // The stream ends the run itself; it may not throw.
+    await (async () => {
+      for await (const chunk of stream as AsyncIterable<StreamChunk>) {
+        if (
+          chunk.type === 'CUSTOM' &&
+          chunk.name === 'video:status' &&
+          (chunk.value as { status?: string }).status === 'completed'
+        ) {
+          controller.abort()
+        }
+      }
+    })().catch(() => undefined)
+    expect(getVideo).not.toHaveBeenCalled()
+  })
 })
 
 describe('toWebSocketStream() (non-durable)', () => {

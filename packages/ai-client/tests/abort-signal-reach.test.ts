@@ -3,6 +3,7 @@
  * must reach the work it should stop. The fake requests below hang until
  * their signal aborts, like a real fetch that keeps the run going.
  */
+import { getEventListeners } from 'node:events'
 import { describe, expect, it, vi } from 'vitest'
 import { ChatClient } from '../src/chat-client'
 import { RealtimeClient } from '../src/realtime-client'
@@ -137,6 +138,23 @@ describe("connection adapters follow the user's options.signal (L2)", () => {
       })
     }
   }
+
+  it('leaves no listener on a reused options.signal after each request', async () => {
+    const user = new AbortController()
+    const fetchClient = (() =>
+      Promise.resolve(
+        new Response('', { headers: { 'content-type': 'text/event-stream' } }),
+      )) as typeof fetch
+    const adapter = fetchServerSentEvents('/api/chat', {
+      fetchClient,
+      signal: user.signal,
+    })
+    for (let run = 0; run < 3; run++) {
+      const client = new AbortController()
+      await drain(adapter.connect([], undefined, client.signal, RUN_CONTEXT))
+    }
+    expect(getEventListeners(user.signal, 'abort')).toHaveLength(0)
+  })
 })
 
 describe('stream() and rpcStream() stop on abort (L3)', () => {
@@ -250,6 +268,42 @@ describe('RealtimeClient.disconnect() during connect() (L4)', () => {
       expect(Reflect.get(client, 'tokenRefreshTimeout')).toBeNull()
     })
   }
+
+  it('closes a connection that a second connect() replaced during audio startup', async () => {
+    let release!: () => void
+    const held = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    const makeConnection = (startAudioCapture: () => Promise<void>) => ({
+      on: () => () => {},
+      updateSession: () => {},
+      disconnect: vi.fn(async () => {}),
+      startAudioCapture,
+    })
+    const first = makeConnection(() => held)
+    const second = makeConnection(async () => {})
+    const adapterConnect = vi
+      .fn()
+      .mockResolvedValueOnce(first)
+      .mockResolvedValueOnce(second)
+    const client = new RealtimeClient({
+      getToken: async () =>
+        ({ token: 't', expiresAt: Date.now() + 60_000 }) as any,
+      adapter: { connect: adapterConnect } as any,
+      autoCapture: true,
+    })
+
+    const firstConnect = client.connect()
+    await vi.waitFor(() => expect(adapterConnect).toHaveBeenCalledTimes(1))
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    await client.connect()
+    release()
+    await firstConnect
+
+    expect(first.disconnect).toHaveBeenCalled()
+    expect(second.disconnect).not.toHaveBeenCalled()
+    await client.disconnect()
+  })
 })
 
 describe('RealtimeClient.disconnect() during a token refresh', () => {

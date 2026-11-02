@@ -504,10 +504,19 @@ async function* runNativeSummarizeStream(
       yield chunk
     }
     if (!settled) {
-      await runGenerationFinish(middleware, mwCtx, {
-        duration: Date.now() - startTime,
-      })
       settled = true
+      // An adapter can end an aborted request with a RUN_ERROR chunk instead
+      // of a throw. The consumer got that chunk; middleware gets onAbort.
+      if (signal?.aborted) {
+        await runGenerationAbort(middleware, mwCtx, {
+          reason: abortReasonMessage(undefined, signal),
+          duration: Date.now() - startTime,
+        })
+      } else {
+        await runGenerationFinish(middleware, mwCtx, {
+          duration: Date.now() - startTime,
+        })
+      }
     }
   } catch (error) {
     settled = true

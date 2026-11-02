@@ -332,7 +332,6 @@ export function createReconnectTracker(
  * A signal that aborts when either one does. The client's signal (stop()) and
  * the user's own `options.signal` must both stop the request.
  */
-// ponytail: listeners stay on a long-lived signal until it aborts; AbortSignal.any when the browser floor allows.
 function eitherSignal(
   a: AbortSignal | undefined,
   b: AbortSignal | undefined,
@@ -340,6 +339,11 @@ function eitherSignal(
   if (!a || !b) return a ?? b
   if (a.aborted) return a
   if (b.aborted) return b
+  // `AbortSignal.any` links weakly, so a long-lived `options.signal` keeps
+  // nothing from a finished request.
+  if (typeof AbortSignal.any === 'function') return AbortSignal.any([a, b])
+  // ponytail: older runtimes keep these listeners on a long-lived signal
+  // until it aborts.
   const controller = new AbortController()
   a.addEventListener('abort', () => controller.abort(a.reason), { once: true })
   b.addEventListener('abort', () => controller.abort(b.reason), { once: true })
