@@ -778,6 +778,28 @@ describe('createCodeModeTool run abort', () => {
     expect(result.success).toBe(false)
   })
 
+  it('loads no snippets when the run aborts while the code is transpiled', async () => {
+    const getSnippetBindings = vi.fn(async () => ({}))
+    const abort = new AbortController()
+    const tool = createCodeModeTool({
+      driver: { createContext: vi.fn() },
+      tools: [createMockTool('fetchWeather')],
+      transpile: async (code) => {
+        abort.abort()
+        return code
+      },
+      getSnippetBindings,
+    })
+
+    const result = await tool.execute!(
+      { typescriptCode: 'return 1' },
+      { abortSignal: abort.signal, emitCustomEvent: vi.fn() },
+    )
+
+    expect(getSnippetBindings).not.toHaveBeenCalled()
+    expect(result.success).toBe(false)
+  })
+
   it('disposes the isolate once when the run aborts', async () => {
     let release = () => {}
     const disposed = new Promise<void>((resolve) => {

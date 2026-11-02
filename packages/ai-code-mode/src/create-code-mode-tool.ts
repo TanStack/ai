@@ -274,6 +274,9 @@ export function createCodeModeTool(
           )
         }
 
+        // An abort that came while the code was transpiled: load no snippets.
+        if (runSignal?.aborted) return abortedBeforeRun()
+
         // Step 2: Get dynamic snippet bindings if available
         const snippetBindings = getSnippetBindings
           ? await getSnippetBindings()
