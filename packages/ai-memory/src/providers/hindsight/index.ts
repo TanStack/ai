@@ -154,7 +154,8 @@ export function hindsight(options: HindsightOptions = {}): MemoryAdapter {
       ])
     },
 
-    async recall(scope, query): Promise<RecallResult> {
+    async recall(scope, query, recallOptions): Promise<RecallResult> {
+      const signal = recallOptions?.signal
       const bank = bankId(scope)
       const tools = makeHindsightTools({
         getRuntime,
@@ -165,7 +166,10 @@ export function hindsight(options: HindsightOptions = {}): MemoryAdapter {
       })
       try {
         const { client, recallToPrompt } = await getRuntime()
-        const data = await client.recall(bank, query, { budget })
+        const data = await client.recall(bank, query, {
+          budget,
+          ...(signal && { signal }),
+        })
         const fragments: Array<MemoryFragment> = (data.results ?? []).map(
           (r) => ({
             text: r.text,

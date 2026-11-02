@@ -17,7 +17,11 @@ vi.mock('@honcho-ai/sdk', () => {
       return {
         id,
         message: (content: string) => ({ peer: id, content }),
-        chat: async (query: string) => `dialectic answer about: ${query}`,
+        // 'hang' never settles, like a slow dialectic call.
+        chat: (query: string) =>
+          query === 'hang'
+            ? new Promise(() => {})
+            : Promise.resolve(`dialectic answer about: ${query}`),
         representation: async () =>
           '[2024-05-01T10:00:00Z] user lives in Berlin\n[2024-05-02T11:00:00Z] user likes hiking',
       }
@@ -95,5 +99,20 @@ describe('honcho factory', () => {
       'user lives in Berlin',
       'user likes hiking',
     ])
+  })
+})
+
+describe('honcho recall signal', () => {
+  it('stops waiting for the dialectic call when the signal aborts', async () => {
+    const adapter = honcho({ user: 'u1' })
+    const controller = new AbortController()
+    const recall = adapter.recall({ threadId: 's1', userId: 'u1' }, 'hang', {
+      signal: controller.signal,
+    })
+    controller.abort(new Error('stopped'))
+    await expect(recall).resolves.toEqual({
+      systemPrompt: '',
+      raw: { error: 'stopped' },
+    })
   })
 })

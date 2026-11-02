@@ -49,6 +49,32 @@ async function timed<T>(fn: () => Promise<T>): Promise<Timed<T>> {
   }
 }
 
+/**
+ * `peer.chat` of the Honcho SDK takes no abort signal. Reject when `signal`
+ * aborts, so recall stops waiting. The Honcho request goes on until it ends.
+ */
+function untilAborted<T>(
+  work: () => Promise<T>,
+  signal: AbortSignal | undefined,
+): Promise<T> {
+  if (!signal) return work()
+  return new Promise<T>((resolve, reject) => {
+    const onAbort = () => reject(signal.reason)
+    if (signal.aborted) return onAbort()
+    signal.addEventListener('abort', onAbort, { once: true })
+    work().then(
+      (value) => {
+        signal.removeEventListener('abort', onAbort)
+        resolve(value)
+      },
+      (error: unknown) => {
+        signal.removeEventListener('abort', onAbort)
+        reject(error)
+      },
+    )
+  })
+}
+
 const HONCHO_LINE_RE = /^\[(?<ts>[^\]]+)\]\s+(?<text>.+)$/
 
 /** Parse a Honcho `peer.representation()` text blob into flat fact rows. */
@@ -183,14 +209,16 @@ export function honcho(options: HonchoOptions = {}): MemoryAdapter {
       ]
     },
 
-    async recall(scope, query): Promise<RecallResult> {
-      const result = await timed(async () => {
-        const [userPeer, session] = await Promise.all([
-          getUserPeer(userIdFor(scope)),
-          getSession(sessionKeyFor(scope)),
-        ])
-        return userPeer.chat(query, { session })
-      })
+    async recall(scope, query, recallOptions): Promise<RecallResult> {
+      const result = await timed(() =>
+        untilAborted(async () => {
+          const [userPeer, session] = await Promise.all([
+            getUserPeer(userIdFor(scope)),
+            getSession(sessionKeyFor(scope)),
+          ])
+          return userPeer.chat(query, { session })
+        }, recallOptions?.signal),
+      )
       if (!result.ok) {
         return { systemPrompt: '', raw: { error: result.error } }
       }

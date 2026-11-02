@@ -2,10 +2,23 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { memoryMiddleware } from '../src'
 import { inMemory } from '../src/providers/in-memory'
 import { mem0 } from '../src/providers/mem0'
+import { hindsight } from '../src/providers/hindsight'
 import type { ChatMiddlewareConfig, ChatMiddlewareContext } from '@tanstack/ai'
 import type { MemoryAdapter } from '../src'
 
 const scope = { threadId: 's1', userId: 'u1' }
+
+const hindsightRecall = vi.hoisted(() =>
+  vi.fn(async (_bank: string, _query: string, _opts: object) => ({
+    results: [],
+  })),
+)
+vi.mock('@vectorize-io/hindsight-client', () => ({
+  HindsightClient: class {
+    recall = hindsightRecall
+  },
+  recallResponseToPromptString: () => '',
+}))
 
 function initCall(signal?: AbortSignal) {
   const config: ChatMiddlewareConfig = {
@@ -69,6 +82,17 @@ describe('memory recall signal', () => {
     expect(fetchMock.mock.calls[0]).toEqual([
       'http://mem0.test/search',
       expect.objectContaining({ signal }),
+    ])
+  })
+
+  it('hindsight passes the signal to client.recall, and none without it', async () => {
+    const adapter = hindsight({ baseUrl: 'http://hindsight.test' })
+    const signal = new AbortController().signal
+    await adapter.recall(scope, 'cats', { signal })
+    await adapter.recall(scope, 'dogs')
+    expect(hindsightRecall.mock.calls.map((call) => call[2])).toEqual([
+      { budget: 'mid', signal },
+      { budget: 'mid' },
     ])
   })
 })
