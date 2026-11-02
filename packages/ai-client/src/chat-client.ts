@@ -2918,7 +2918,10 @@ export class ChatClient<
       this.raiseLocalApprovals()
       // Wait for the tools that finalizeStream() started, as above.
       if (this.pendingToolExecutions.size > 0) {
-        await Promise.all(this.pendingToolExecutions.values())
+        await untilAborted(
+          Promise.all(this.pendingToolExecutions.values()),
+          signal,
+        )
       }
       streamCompletedSuccessfully = true
     } catch (err: unknown) {

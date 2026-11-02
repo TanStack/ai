@@ -162,39 +162,48 @@ describe('stream() and rpcStream() stop on abort (L3)', () => {
 })
 
 describe('ChatClient.stop() (L1)', () => {
-  it('does not wait for a client tool that never ends', async () => {
-    let toolStarted = false
-    const chunks = createToolCallChunks([
-      { id: 'tc-1', name: 'stuck', arguments: '{}' },
-    ])
-    const connection: ConnectConnectionAdapter = {
-      async *connect(_messages, _data, abortSignal) {
-        for (const chunk of chunks) {
-          if (abortSignal?.aborted) return
-          yield chunk
-        }
-      },
-    }
-    const client = new ChatClient({
-      threadId: 'thread-1',
-      connection,
-      tools: [
-        {
-          __toolSide: 'client' as const,
-          name: 'stuck',
-          description: 'Never finishes',
-          execute: () => {
-            toolStarted = true
-            return new Promise(() => {})
-          },
+  // 'stop' starts the tool while chunks stream. 'tool_calls' starts it in
+  // finalizeStream(), after the stream ends.
+  it.each(['stop', 'tool_calls'] as const)(
+    'does not wait for a client tool that never ends (finishReason %s)',
+    async (finishReason) => {
+      let toolStarted = false
+      const chunks = createToolCallChunks([
+        { id: 'tc-1', name: 'stuck', arguments: '{}' },
+      ])
+      chunks[chunks.length - 1] = {
+        ...chunks[chunks.length - 1]!,
+        finishReason,
+      } as StreamChunk
+      const connection: ConnectConnectionAdapter = {
+        async *connect(_messages, _data, abortSignal) {
+          for (const chunk of chunks) {
+            if (abortSignal?.aborted) return
+            yield chunk
+          }
         },
-      ],
-    })
-    const send = client.sendMessage('Go')
-    await vi.waitFor(() => expect(toolStarted).toBe(true))
-    client.stop()
-    expect(await settlesWithin(send)).toBe('done')
-  })
+      }
+      const client = new ChatClient({
+        threadId: 'thread-1',
+        connection,
+        tools: [
+          {
+            __toolSide: 'client' as const,
+            name: 'stuck',
+            description: 'Never finishes',
+            execute: () => {
+              toolStarted = true
+              return new Promise(() => {})
+            },
+          },
+        ],
+      })
+      const send = client.sendMessage('Go')
+      await vi.waitFor(() => expect(toolStarted).toBe(true))
+      client.stop()
+      expect(await settlesWithin(send)).toBe('done')
+    },
+  )
 })
 
 describe('RealtimeClient.disconnect() during connect() (L4)', () => {
@@ -241,4 +250,40 @@ describe('RealtimeClient.disconnect() during connect() (L4)', () => {
       expect(Reflect.get(client, 'tokenRefreshTimeout')).toBeNull()
     })
   }
+})
+
+describe('RealtimeClient.disconnect() during a token refresh', () => {
+  it('does not re-arm the refresh timer', async () => {
+    let release!: () => void
+    const held = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    // First token expires now, so the refresh starts at once and then waits.
+    const getToken = vi
+      .fn()
+      .mockResolvedValueOnce({ token: 't1', expiresAt: Date.now() })
+      .mockImplementationOnce(async () => {
+        await held
+        return { token: 't2', expiresAt: Date.now() }
+      })
+    const client = new RealtimeClient({
+      getToken,
+      adapter: {
+        connect: async () => ({
+          on: () => () => {},
+          updateSession: () => {},
+          disconnect: async () => {},
+          startAudioCapture: async () => {},
+        }),
+      } as any,
+    })
+
+    await client.connect()
+    await vi.waitFor(() => expect(getToken).toHaveBeenCalledTimes(2))
+    await client.disconnect()
+    release()
+    await new Promise((resolve) => setTimeout(resolve, 0))
+
+    expect(Reflect.get(client, 'tokenRefreshTimeout')).toBeNull()
+  })
 })

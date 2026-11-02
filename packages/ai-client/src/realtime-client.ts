@@ -457,8 +457,12 @@ export class RealtimeClient {
   }
 
   private async refreshToken(): Promise<void> {
+    const generation = this.connectGeneration
     try {
-      this.token = await this.options.getToken()
+      const token = await this.options.getToken()
+      // disconnect() ran during the refresh: do not re-arm the timer.
+      if (generation !== this.connectGeneration) return
+      this.token = token
       this.scheduleTokenRefresh()
       this.connection?.updateToken?.(this.token)
       // Note: Some providers may require reconnection with new token
