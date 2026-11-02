@@ -402,6 +402,8 @@ The AG-UI spec ends such a run with `RUN_FINISHED` and a success outcome. The to
 - If the server names the calls in `outcome.pendingToolCallIds`, the client runs only those of them that this run started.
 - The next request carries each result as a `role: "tool"` message.
 
+Some servers end the run with `finishReason: "tool_calls"` instead, then close the stream. The client does the same steps when the stream closes.
+
 These calls do not run:
 
 - A call with a name that no client tool has.

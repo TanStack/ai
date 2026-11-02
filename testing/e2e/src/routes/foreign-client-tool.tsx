@@ -28,7 +28,13 @@ const pingWithApproval = toolDefinition({
 
 export const Route = createFileRoute('/foreign-client-tool')({
   component: ForeignClientToolPage,
+  // `?finish=tool_calls` ends turn 1 with finishReason 'tool_calls' instead
+  // of a success outcome, the way a custom server forwards it.
   validateSearch: (search: Record<string, unknown>) => ({
+    finish:
+      search.finish === 'tool_calls'
+        ? ('tool_calls' as const)
+        : ('success' as const),
     // The router writes the result back to the URL (`approval=true`) and
     // checks it again, so `true` must stay `true`.
     approval: search.approval === true || search.approval === 1,
@@ -36,10 +42,12 @@ export const Route = createFileRoute('/foreign-client-tool')({
 })
 
 function ForeignClientToolPage() {
-  const { approval } = Route.useSearch()
+  const { finish, approval } = Route.useSearch()
   const { messages, sendMessage, interrupts } = useChat({
     threadId: 'foreign-client-tool',
-    connection: fetchServerSentEvents('/api/foreign-client-tool'),
+    connection: fetchServerSentEvents(
+      `/api/foreign-client-tool?finish=${finish}`,
+    ),
     tools: [approval ? pingWithApproval : ping],
   })
 

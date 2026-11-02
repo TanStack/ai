@@ -2887,8 +2887,20 @@ export class ChatClient<
         await Promise.all(this.pendingToolExecutions.values())
       }
 
-      // Finalize (idempotent — may already be done by RUN_FINISHED handler)
-      this.processor.finalizeStream()
+      // Finalize (idempotent — may already be done by RUN_FINISHED handler).
+      // It can hand over the calls of a run that ended with 'tool_calls', so
+      // the approval check in onToolCall applies here too.
+      this.handingOverPendingToolCalls = true
+      try {
+        this.processor.finalizeStream()
+      } finally {
+        this.handingOverPendingToolCalls = false
+      }
+      this.raiseLocalApprovals()
+      // Wait for the tools that finalizeStream() started, as above.
+      if (this.pendingToolExecutions.size > 0) {
+        await Promise.all(this.pendingToolExecutions.values())
+      }
       streamCompletedSuccessfully = true
     } catch (err: unknown) {
       const error = err instanceof Error ? err : new Error(String(err))
