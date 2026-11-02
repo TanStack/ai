@@ -449,6 +449,44 @@ describe('generateVideo() polling', () => {
     })().catch(() => undefined)
     expect(getVideo).not.toHaveBeenCalled()
   })
+
+  it('cancels the body of a video stream that comes after the abort', async () => {
+    const controller = new AbortController()
+    const cancel = vi.fn()
+    let deliver = () => {}
+    const adapter = {
+      kind: 'video' as const,
+      name: 'mock',
+      model: 'mock-video-model',
+      createVideoJob: async () => ({
+        jobId: 'job-1',
+        model: 'mock-video-model',
+      }),
+      getVideoStatus: async () => ({ status: 'completed' as const }),
+      // The download answers only after the caller aborted.
+      getVideo: () =>
+        new Promise((resolve) => {
+          deliver = () =>
+            resolve({
+              jobId: 'job-1',
+              contentType: 'video/mp4',
+              body: new ReadableStream({ cancel }),
+            })
+          setTimeout(() => controller.abort(), 10)
+        }),
+    }
+    const stream = generateVideo({
+      threadId: 'thread-1',
+      adapter: adapter as any,
+      prompt: 'a cat',
+      stream: true,
+      pollingInterval: 1,
+      abortSignal: controller.signal,
+    })
+    await collectChunks(stream).catch(() => undefined)
+    deliver()
+    await vi.waitFor(() => expect(cancel).toHaveBeenCalled())
+  })
 })
 
 describe('toWebSocketStream() (non-durable)', () => {

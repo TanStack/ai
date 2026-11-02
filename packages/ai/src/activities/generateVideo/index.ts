@@ -703,9 +703,19 @@ async function* runStreamingVideoGeneration<
       if (statusResult.status === 'completed') {
         // The caller can abort when it reads the status above.
         abortControls.signal?.throwIfAborted()
-        const video = await raceWithAbort(
-          adapter.getVideo(jobResult.jobId),
-          abortControls.signal,
+        const download = adapter.getVideo(jobResult.jobId)
+        const video = await raceWithAbort(download, abortControls.signal).catch(
+          (error: unknown) => {
+            // Nobody reads a video stream that comes after the abort, so
+            // cancel its body to close the download.
+            download.then(
+              (late) => {
+                if ('body' in late) late.body?.cancel().catch(() => undefined)
+              },
+              () => undefined,
+            )
+            throw error
+          },
         )
 
         logger.output(
