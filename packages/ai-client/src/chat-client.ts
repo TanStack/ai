@@ -3580,7 +3580,16 @@ export class ChatClient<
    * by control-flow analysis.
    */
   private shouldAbortMessageQueueDrain(): boolean {
-    return this.isLoading || this.stopMessageQueueDrain
+    return (
+      this.isLoading || this.stopMessageQueueDrain || this.hasOpenInterrupts()
+    )
+  }
+
+  // A paused run waits for its interrupts. A queued message sent now would
+  // start a new run with the paused tool calls unanswered. The run that
+  // answers them drains the queue when it ends.
+  private hasOpenInterrupts(): boolean {
+    return this.interruptManager.getInterrupts().length > 0
   }
 
   /**
@@ -3600,6 +3609,7 @@ export class ChatClient<
     if (
       this.messageQueueDraining ||
       this.isLoading ||
+      this.hasOpenInterrupts() ||
       this.messageQueue.length === 0
     ) {
       return

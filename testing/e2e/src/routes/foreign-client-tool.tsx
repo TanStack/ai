@@ -38,11 +38,13 @@ export const Route = createFileRoute('/foreign-client-tool')({
     // The router writes the result back to the URL (`approval=true`) and
     // checks it again, so `true` must stay `true`.
     approval: search.approval === true || search.approval === 1,
+    // `?queue=1` queues a second message while the first run streams.
+    queue: search.queue === true || search.queue === 1,
   }),
 })
 
 function ForeignClientToolPage() {
-  const { finish, approval } = Route.useSearch()
+  const { finish, approval, queue } = Route.useSearch()
   const { messages, sendMessage, interrupts } = useChat({
     threadId: 'foreign-client-tool',
     connection: fetchServerSentEvents(
@@ -70,6 +72,7 @@ function ForeignClientToolPage() {
 
   useEffect(() => {
     void sendMessage('ping me')
+    if (queue) void sendMessage('queued')
     // Fire the single run once on mount; the harness route ignores the content.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
