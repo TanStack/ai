@@ -29,9 +29,34 @@ function hangingFetch() {
   return { fetch, signals }
 }
 
+/**
+ * Replaces `interactions.create` of the adapter's SDK client with a call that
+ * never answers. The Interactions client sends `request.clone()`, and after a
+ * GC the signal of the clone stops following the caller signal. So a fake
+ * `fetch` cannot show the abort reliably. This check reads the signal that
+ * the adapter gives to the SDK.
+ */
+function hangingInteractionsCreate(adapter: object) {
+  const { interactions } = (adapter as { client: { interactions: object } })
+    .client
+  const signals: Array<AbortSignal> = []
+  const fetch = vi
+    .spyOn(Object.getPrototypeOf(interactions), 'create')
+    .mockImplementation((...args: Array<unknown>) => {
+      const signal = (args[1] as { signal?: AbortSignal } | undefined)?.signal
+      if (!signal) return Promise.reject(new Error('SDK got no abort signal'))
+      signals.push(signal)
+      return new Promise((_resolve, reject) => {
+        if (signal.aborted) reject(signal.reason)
+        signal.addEventListener('abort', () => reject(signal.reason))
+      })
+    })
+  return { fetch, signals }
+}
+
 /** Starts the call, aborts the caller, and expects the request to abort. */
 async function expectAbortReachesFetch(
-  wire: ReturnType<typeof hangingFetch>,
+  wire: { fetch: object; signals: Array<AbortSignal> },
   start: (signal: AbortSignal) => Promise<unknown>,
 ) {
   const controller = new AbortController()
@@ -54,6 +79,7 @@ function stubFetch() {
 }
 
 afterEach(() => {
+  vi.restoreAllMocks()
   vi.unstubAllGlobals()
 })
 
@@ -110,26 +136,35 @@ function runText(
 }
 
 describe('Gemini adapters abort the provider request', () => {
-  it.each([
-    ['stream', 'stream', text],
-    ['structured', 'structured', text],
-    ['stream, agentic video (Interactions API)', 'stream', agenticVideo],
-  ] as const)('text %s', async (_label, mode, messages) => {
+  it.each(['stream', 'structured'] as const)('text %s', async (mode) => {
     const wire = stubFetch()
     const adapter = createGeminiChat('gemini-3.8-flash', 'test-key')
     await expectAbortReachesFetch(wire, (signal) =>
-      runText(adapter as unknown as TextAdapter, mode, [...messages], signal),
+      runText(adapter as unknown as TextAdapter, mode, text, signal),
+    )
+  })
+
+  it('text stream, agentic video (Interactions API)', async () => {
+    const adapter = createGeminiChat('gemini-3.8-flash', 'test-key')
+    const wire = hangingInteractionsCreate(adapter)
+    await expectAbortReachesFetch(wire, (signal) =>
+      runText(
+        adapter as unknown as TextAdapter,
+        'stream',
+        agenticVideo,
+        signal,
+      ),
     )
   })
 
   it.each(['stream', 'structured'] as const)(
     'experimental text interactions %s',
     async (mode) => {
-      const wire = stubFetch()
       const adapter = createGeminiTextInteractions(
         'gemini-3.8-flash',
         'test-key',
       )
+      const wire = hangingInteractionsCreate(adapter)
       await expectAbortReachesFetch(wire, (signal) =>
         runText(adapter as unknown as TextAdapter, mode, text, signal),
       )
@@ -137,8 +172,8 @@ describe('Gemini adapters abort the provider request', () => {
   )
 
   it('image', async () => {
-    const wire = stubFetch()
     const adapter = createGeminiImage('gemini-3.1-flash-image', 'test-key')
+    const wire = hangingInteractionsCreate(adapter)
     await expectAbortReachesFetch(wire, (abortSignal) =>
       adapter.generateImages({
         model: 'gemini-3.1-flash-image',
@@ -207,8 +242,8 @@ describe('Gemini adapters abort the provider request', () => {
   })
 
   it('video create (Omni)', async () => {
-    const wire = stubFetch()
     const adapter = createGeminiVideo('gemini-omni-1.1-flash', 'test-key')
+    const wire = hangingInteractionsCreate(adapter)
     await expectAbortReachesFetch(wire, (abortSignal) =>
       adapter.createVideoJob({
         model: 'gemini-omni-1.1-flash',
