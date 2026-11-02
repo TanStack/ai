@@ -191,7 +191,7 @@ The factory has these members:
 | `display` | The screen size of every machine. Each driver from `create` has this `display`. |
 | `environment` | The kind of every machine. |
 | `capabilities` | `{ zoom, cursorPosition, navigate }`: the optional methods that every driver from `create` has. The tool is built before any machine exists, so the factory tells it. |
-| `create({ threadId })` | Makes the driver of one thread. If it throws, the model gets the error. The next model turn calls `create` again. |
+| `create({ threadId, signal })` | Makes the driver of one thread. `signal` is the abort signal of the tool call that needs the machine. Pass it to your setup requests. If `create` throws, the model gets the error. The next model turn calls `create` again. |
 | `close()` | Optional. Frees what the threads share. `computerUse.close()` calls it after it closes every thread. |
 
 When a thread closes or goes idle, `createComputerUse` calls `close()` on the driver of that thread.

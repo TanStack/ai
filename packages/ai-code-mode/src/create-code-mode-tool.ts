@@ -295,7 +295,10 @@ export function createCodeModeTool(
         }
 
         // Step 5: Execute the code in the sandbox
-        const executionResult = await isolateContext.execute(strippedCode)
+        const signal = toolContext?.abortSignal
+        const executionResult = signal
+          ? await isolateContext.execute(strippedCode, { signal })
+          : await isolateContext.execute(strippedCode)
 
         // Emit console logs as custom events
         if (executionResult.logs && executionResult.logs.length > 0) {

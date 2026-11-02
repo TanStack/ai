@@ -15,7 +15,7 @@ keywords:
   - options
 ---
 
-Each memory adapter implements `recall` and `save`. Swap one for another in `memoryMiddleware`.
+Each memory adapter implements `recall` and `save`. Swap one for another in `memoryMiddleware`. `memoryMiddleware` calls `recall(scope, query, { signal })` with the abort signal of the chat run. The built-in adapters pass it to their requests when the backend client can take it.
 
 | Adapter | Import | Use it for | Extra install |
 | --- | --- | --- | --- |
@@ -64,7 +64,7 @@ const memory = inMemory({
 ```
 
 - **`extract`** returns `ExtractedFact[]` (`{ text, kind?, importance?, metadata? }`), or `undefined` to save nothing extra. Put an LLM-based fact extractor here. The adapter does not depend on a model.
-- **`embedder`** embeds the query on `recall` and the stored text on `save`. With no embedder, the score uses word overlap, recency, and importance only.
+- **`embedder`** embeds the query on `recall` and the stored text on `save`. With no embedder, the score uses word overlap, recency, and importance only. On `recall`, `embed(text, { signal })` gets the abort signal of the chat run. Pass it to your embedding request, so a stopped run does not wait for it.
 
 ## `inMemory()`
 

@@ -25,7 +25,12 @@ export class NodeIsolateContext implements IsolateContext {
     this.timeout = timeout
   }
 
-  async execute<T = unknown>(code: string): Promise<ExecutionResult<T>> {
+  async execute<T = unknown>(
+    code: string,
+    options?: { signal?: AbortSignal },
+  ): Promise<ExecutionResult<T>> {
+    const signal = options?.signal
+    if (signal?.aborted) return aborted(signal)
     if (this.disposed) {
       return {
         success: false,
@@ -40,6 +45,10 @@ export class NodeIsolateContext implements IsolateContext {
     // Clear previous logs
     this.logs.length = 0
 
+    // isolated-vm takes no signal. Disposing the isolate stops a running
+    // script, so an abort ends this context.
+    const onAbort = () => void this.dispose()
+    signal?.addEventListener('abort', onAbort, { once: true })
     try {
       // Wrap user code in async IIFE
       const wrappedCode = wrapCode(code)
@@ -71,11 +80,14 @@ export class NodeIsolateContext implements IsolateContext {
         logs: [...this.logs],
       }
     } catch (error) {
+      if (signal?.aborted) return aborted(signal, this.logs)
       return {
         success: false,
         error: normalizeError(error),
         logs: [...this.logs],
       }
+    } finally {
+      signal?.removeEventListener('abort', onAbort)
     }
   }
 
@@ -86,5 +98,22 @@ export class NodeIsolateContext implements IsolateContext {
       this.isolate.dispose()
     }
     return Promise.resolve()
+  }
+}
+
+/** The result of a run stopped by its abort signal. */
+function aborted<T>(
+  signal: AbortSignal,
+  logs: Array<string> = [],
+): ExecutionResult<T> {
+  const reason: unknown = signal.reason
+  return {
+    success: false,
+    error: {
+      name: 'AbortError',
+      message:
+        reason instanceof Error ? reason.message : 'Execution was aborted',
+    },
+    logs: [...logs],
   }
 }

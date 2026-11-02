@@ -613,3 +613,25 @@ describe('createMcpAppCallHandler', () => {
     })
   })
 })
+
+describe('createMcpAppCallHandler signal', () => {
+  it('passes the signal to the connect and to callTool', async () => {
+    callToolMock.mockClear()
+    vi.mocked(createMCPClient).mockClear()
+    mockToolsList = [{ name: 'place_order' }]
+    const controller = new AbortController()
+    const res = await weatherPoolHandler()(
+      { threadId: 't1', serverId: 'weather', toolName: 'place_order' },
+      { signal: controller.signal },
+    )
+    expect(res).toEqual({ ok: true, result: expect.anything() })
+    expect(createMCPClient).toHaveBeenCalledWith(
+      expect.objectContaining({ signal: controller.signal }),
+    )
+    expect(callToolMock).toHaveBeenCalledWith(
+      'place_order',
+      {},
+      { signal: controller.signal },
+    )
+  })
+})

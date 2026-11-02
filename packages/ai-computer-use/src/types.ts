@@ -79,8 +79,14 @@ export interface ComputerDriverFactory {
   environment: ComputerEnvironment
   /** The optional methods that every created driver has. */
   capabilities: { zoom: boolean; cursorPosition: boolean; navigate: boolean }
-  /** Make the machine for one thread. */
-  create: (context: { threadId: string }) => Promise<ComputerDriver>
+  /**
+   * Make the machine for one thread. `signal` is the abort signal of the
+   * tool call that needs the machine. Stop the setup when it aborts.
+   */
+  create: (context: {
+    threadId: string
+    signal?: AbortSignal
+  }) => Promise<ComputerDriver>
   /**
    * Free what the threads share, like the browser.
    * `createComputerUse(...).close()` with no thread id calls this.

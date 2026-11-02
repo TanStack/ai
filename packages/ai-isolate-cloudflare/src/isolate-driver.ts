@@ -95,7 +95,10 @@ class CloudflareIsolateContext implements IsolateContext {
     this.authorization = authorization
   }
 
-  async execute<T = unknown>(code: string): Promise<ExecutionResult<T>> {
+  async execute<T = unknown>(
+    code: string,
+    options?: { signal?: AbortSignal },
+  ): Promise<ExecutionResult<T>> {
     if (this.disposed) {
       return {
         success: false,
@@ -133,6 +136,7 @@ class CloudflareIsolateContext implements IsolateContext {
         }
 
         const response = await fetch(this.workerUrl, {
+          ...(options?.signal && { signal: options.signal }),
           method: 'POST',
           headers,
           body: JSON.stringify(request),

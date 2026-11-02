@@ -144,7 +144,11 @@ export function memoryMiddleware(
           query: state.lastUserText,
           timestamp: startedAt,
         })
-        result = await options.adapter.recall(scope, state.lastUserText)
+        result = ctx.signal
+          ? await options.adapter.recall(scope, state.lastUserText, {
+              signal: ctx.signal,
+            })
+          : await options.adapter.recall(scope, state.lastUserText)
       } catch (error) {
         safeEmit('memory:error', {
           // Only attach scope when resolve already succeeded; otherwise omit

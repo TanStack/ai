@@ -137,3 +137,30 @@ it('creates the clone parent directory before git clone', async () => {
     "'/workspace/.tanstack-skills/skills-pack'",
   )
 })
+
+describe('createExecBackedGit signal', () => {
+  it('passes the signal to every git command of clone, push, and pull', async () => {
+    const { process, calls } = recordingProcess()
+    const git = createExecBackedGit(process, '/workspace')
+    const signal = new AbortController().signal
+    await git.clone({ url: 'https://x/r.git', dir: '/workspace/r', signal })
+    await git.clone({
+      url: 'https://x/r.git',
+      dir: '/workspace/s',
+      auth: { token: 't' },
+      signal,
+    })
+    await git.push('/workspace/r', { signal })
+    await git.pull('/workspace/r', { signal })
+    expect(calls.length).toBeGreaterThan(0)
+    for (const call of calls) expect(call.options?.signal).toBe(signal)
+  })
+
+  it('sends no options to push and pull without a signal', async () => {
+    const { process, calls } = recordingProcess()
+    const git = createExecBackedGit(process, '/workspace')
+    await git.push()
+    await git.pull()
+    expect(calls.map((c) => c.options)).toEqual([undefined, undefined])
+  })
+})

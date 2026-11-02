@@ -388,7 +388,10 @@ interface IsolateConfig {
 }
 
 interface IsolateContext {
-  execute<T = unknown>(code: string): Promise<ExecutionResult<T>>
+  execute<T = unknown>(
+    code: string,
+    options?: { signal?: AbortSignal },
+  ): Promise<ExecutionResult<T>>
   dispose(): Promise<void>
 }
 
@@ -399,3 +402,8 @@ interface ExecutionResult<T = unknown> {
   error?: NormalizedError
 }
 ```
+
+Code Mode passes the abort signal of the tool call as `options.signal`. When it aborts, stop the run and return a failure. The built-in drivers do this:
+
+- The Node, Cloudflare, and E2B drivers stop the run at once.
+- The QuickJS and Daytona drivers run until their `timeout`.

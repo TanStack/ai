@@ -51,7 +51,7 @@ export function createExecBackedGit(
   }
 
   return {
-    clone: async ({ url, dir, ref, auth, depth }) => {
+    clone: async ({ url, dir, ref, auth, depth, signal }) => {
       assertNoLeadingDash(url, 'url')
       const target = dir ?? defaultRoot
       assertNoLeadingDash(target, 'dir')
@@ -76,7 +76,10 @@ export function createExecBackedGit(
       // `<root>/.tanstack-skills/<name>`, so create that parent first.
       const parentSlash = target.lastIndexOf('/')
       if (parentSlash > 0) {
-        await process.exec(`mkdir -p ${q(target.slice(0, parentSlash))}`)
+        await process.exec(
+          `mkdir -p ${q(target.slice(0, parentSlash))}`,
+          signal && { signal },
+        )
       }
 
       if (auth?.token) {
@@ -89,6 +92,7 @@ export function createExecBackedGit(
               GIT_ASKPASS_TOKEN: auth.token,
               GIT_TERMINAL_PROMPT: '0',
             },
+            ...(signal && { signal }),
           },
         )
         return
@@ -96,6 +100,7 @@ export function createExecBackedGit(
 
       await process.exec(
         `git clone ${refArg}${depthArg}-- ${q(url)} ${q(target)}`,
+        signal && { signal },
       )
     },
     status: async (dir) =>
@@ -107,15 +112,20 @@ export function createExecBackedGit(
     commit: async (message, dir) => {
       await process.exec(`git -C ${at(dir)} commit -m ${q(message)}`)
     },
-    push: async (dir) => {
-      await process.exec(`git -C ${at(dir)} push`)
+    push: async (dir, options) => {
+      await process.exec(`git -C ${at(dir)} push`, signalOnly(options))
     },
-    pull: async (dir) => {
-      await process.exec(`git -C ${at(dir)} pull`)
+    pull: async (dir, options) => {
+      await process.exec(`git -C ${at(dir)} pull`, signalOnly(options))
     },
     branch: async (dir) =>
       (
         await process.exec(`git -C ${at(dir)} rev-parse --abbrev-ref HEAD`)
       ).stdout.trim(),
   }
+}
+
+/** Exec options that carry only the caller's signal, if any. */
+function signalOnly(options: { signal?: AbortSignal } | undefined) {
+  return options?.signal ? { signal: options.signal } : undefined
 }

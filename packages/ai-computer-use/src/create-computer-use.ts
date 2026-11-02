@@ -243,10 +243,10 @@ export function createComputerUse({
     await machine?.close?.()
   }
 
-  function machineOf(thread: ThreadState) {
+  function machineOf(thread: ThreadState, signal?: AbortSignal) {
     if (!('create' in driver)) return driver
     thread.driver ??= driver
-      .create({ threadId: thread.id })
+      .create({ threadId: thread.id, ...(signal && { signal }) })
       .catch((error: unknown) => {
         // The next call of the thread calls create again.
         thread.driver = undefined
@@ -328,7 +328,7 @@ export function createComputerUse({
             'Refused: this computer action has safety checks that nobody approved. Add the `interrupt` from createComputerUse to chat({ interrupts }) and the `middleware` to chat({ middleware }).',
           )
         }
-        const machine = await machineOf(thread)
+        const machine = await machineOf(thread, context?.abortSignal)
         const result = await runComputerAction(machine, input)
         if (result === undefined) {
           await sleep(screenshotDelay)
@@ -346,7 +346,7 @@ export function createComputerUse({
           'Refused: navigate needs a full URL that starts with https:// or http://, like https://tanstack.com.',
         )
       }
-      const machine = await machineOf(thread)
+      const machine = await machineOf(thread, context?.abortSignal)
       if (machine.navigate === undefined) {
         throw new Error('The computer driver has no navigate method.')
       }

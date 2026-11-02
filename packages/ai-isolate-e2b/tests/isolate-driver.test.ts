@@ -487,3 +487,34 @@ describe('createE2BIsolateDriver', () => {
     }
   })
 })
+
+describe('execute abort signal', () => {
+  it('kills the process group when the signal aborts', async () => {
+    const fake = localSandbox()
+    const context = await createE2BIsolateDriver({
+      sandbox: fake.sandbox,
+    }).createContext({ bindings: {}, timeout: 20_000 })
+    const controller = new AbortController()
+    const pending = context.execute('while (true) {}', {
+      signal: controller.signal,
+    })
+    setTimeout(() => controller.abort(), 300)
+    const result = await pending
+    expect(result.error?.name).toBe('AbortError')
+    expect(fake.commands.some((c) => c.startsWith('kill -KILL -- -'))).toBe(
+      true,
+    )
+  })
+
+  it('does not start a run when the signal is already aborted', async () => {
+    const fake = localSandbox()
+    const context = await createE2BIsolateDriver({
+      sandbox: fake.sandbox,
+    }).createContext({ bindings: {} })
+    const result = await context.execute('return 1', {
+      signal: AbortSignal.abort(),
+    })
+    expect(result.error?.name).toBe('AbortError')
+    expect(fake.commands).toHaveLength(0)
+  })
+})

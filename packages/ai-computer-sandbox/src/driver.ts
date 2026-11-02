@@ -253,8 +253,8 @@ export function sandboxComputer({
     display,
     environment: 'linux',
     capabilities: { zoom: false, cursorPosition: true, navigate: false },
-    async create() {
-      const sandbox = await provider.create({})
+    async create({ signal }) {
+      const sandbox = await provider.create(signal ? { signal } : {})
       try {
         const driver = await createSandboxComputerDriver({ sandbox, display })
         const { width, height } = driver.display

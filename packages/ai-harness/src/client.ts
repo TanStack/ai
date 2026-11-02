@@ -167,15 +167,22 @@ export interface HarnessClient<THarness extends AnyHarness> {
    * `as: 'operator'` is the reply of an operator while a handoff to a
    * person is open: no model runs. The sender needs the `operator` action.
    */
-  send: (message: UserInput, options?: ClientSendOptions) => Promise<Receipt>
+  send: (
+    message: UserInput,
+    options?: ClientSendOptions,
+    request?: { signal?: AbortSignal },
+  ) => Promise<Receipt>
   /**
    * Start a turn from the stored transcript, with no new message. See
    * `session.continueWithoutMessage`.
    */
-  continueWithoutMessage: (options?: {
-    inputId?: string
-    ephemeral?: ReadonlyArray<ModelMessage & { role: 'user' }>
-  }) => Promise<Receipt>
+  continueWithoutMessage: (
+    options?: {
+      inputId?: string
+      ephemeral?: ReadonlyArray<ModelMessage & { role: 'user' }>
+    },
+    request?: { signal?: AbortSignal },
+  ) => Promise<Receipt>
   /**
    * Answer the waits of `snapshot().pendingWaits` that have an
    * `interrupt`, as `session.resolve` does. The waits of the last turn (the
@@ -188,7 +195,10 @@ export interface HarnessClient<THarness extends AnyHarness> {
    * await client.resolve({ resume: [{ interruptId, status: 'resolved' }] })
    * ```
    */
-  resolve: (options: ResolveOptions) => Promise<Receipt>
+  resolve: (
+    options: ResolveOptions,
+    request?: { signal?: AbortSignal },
+  ) => Promise<Receipt>
   /**
    * Stop the operation `operationId`, or the running turn without it, as
    * `session.cancel` does.
@@ -198,7 +208,10 @@ export interface HarnessClient<THarness extends AnyHarness> {
    * await client.cancel({ operationId })
    * ```
    */
-  cancel: (options?: CancelOptions) => Promise<Receipt>
+  cancel: (
+    options?: CancelOptions,
+    request?: { signal?: AbortSignal },
+  ) => Promise<Receipt>
   /**
    * Cancel an input that waits (see `snapshot().waitingInputs`). An input
    * that started is refused with `not_waiting`: use `cancel`.
@@ -208,15 +221,21 @@ export interface HarnessClient<THarness extends AnyHarness> {
    * await client.cancelInput({ inputId })
    * ```
    */
-  cancelInput: (options: { inputId: string }) => Promise<Receipt>
+  cancelInput: (
+    options: { inputId: string },
+    request?: { signal?: AbortSignal },
+  ) => Promise<Receipt>
   /**
    * Move an input that waits: `'steer'` joins the running turn, `'queue'`
    * runs it as its own turn later.
    */
-  changeInputDelivery: (change: {
-    inputId: string
-    delivery: WaitingInput['delivery']
-  }) => Promise<Receipt>
+  changeInputDelivery: (
+    change: {
+      inputId: string
+      delivery: WaitingInput['delivery']
+    },
+    request?: { signal?: AbortSignal },
+  ) => Promise<Receipt>
   agents: ClientAgentHandles<THarness>
   /**
    * Answer a wait of `snapshot().pendingWaits` that no turn holds, as
@@ -224,7 +243,10 @@ export interface HarnessClient<THarness extends AnyHarness> {
    * or an agent run, an MCP question, or a `human` wait. The waits of the
    * stopped turn take `resolve`.
    */
-  answer: (answer: { questionId: string; value: unknown }) => Promise<Receipt>
+  answer: (
+    answer: { questionId: string; value: unknown },
+    request?: { signal?: AbortSignal },
+  ) => Promise<Receipt>
   /**
    * Run the plugin command `name`. Its result arrives as a
    * `harness.command.result` event.
@@ -234,7 +256,10 @@ export interface HarnessClient<THarness extends AnyHarness> {
    * await client.runCommand({ name: 'mode', input: 'plan' })
    * ```
    */
-  runCommand: (options: CommandOptions) => Promise<Receipt>
+  runCommand: (
+    options: CommandOptions,
+    request?: { signal?: AbortSignal },
+  ) => Promise<Receipt>
   /**
    * Run a harness tool with no model turn, as `session.runTool` does. The
    * harness must list it in `expose.tools`. `args` is typed from the
@@ -245,12 +270,15 @@ export interface HarnessClient<THarness extends AnyHarness> {
    * await client.runTool({ name: 'sync_inbox', args: { folder: 'INBOX' } })
    * ```
    */
-  runTool: <TName extends HarnessToolsOf<THarness>['name']>(options: {
-    name: TName
-    args?: HarnessToolInput<THarness, TName>
-    meta?: Record<string, unknown>
-    inputId?: string
-  }) => Promise<Receipt>
+  runTool: <TName extends HarnessToolsOf<THarness>['name']>(
+    options: {
+      name: TName
+      args?: HarnessToolInput<THarness, TName>
+      meta?: Record<string, unknown>
+      inputId?: string
+    },
+    request?: { signal?: AbortSignal },
+  ) => Promise<Receipt>
   /**
    * Add host records to the session log, as `session.appendRecords` does. The
    * harness must list each record type in `expose.records`. With `inputId`,
@@ -261,15 +289,21 @@ export interface HarnessClient<THarness extends AnyHarness> {
    * await client.appendRecords({ records: [{ type: 'app.signal', text: 'Saved.' }] })
    * ```
    */
-  appendRecords: (options: {
-    records: ReadonlyArray<LogRecord>
-    inputId?: string
-  }) => Promise<Receipt>
+  appendRecords: (
+    options: {
+      records: ReadonlyArray<LogRecord>
+      inputId?: string
+    },
+    request?: { signal?: AbortSignal },
+  ) => Promise<Receipt>
   /** Change a session setting. */
-  setPluginSetting: (change: {
-    key: string
-    value: unknown
-  }) => Promise<Receipt>
+  setPluginSetting: (
+    change: {
+      key: string
+      value: unknown
+    },
+    request?: { signal?: AbortSignal },
+  ) => Promise<Receipt>
   /**
    * Change the stored settings of the thread. See `session.updateThreadSettings`.
    *
@@ -278,7 +312,10 @@ export interface HarnessClient<THarness extends AnyHarness> {
    * await client.updateThreadSettings({ settings: { model: 'strong' } })
    * ```
    */
-  updateThreadSettings: (options: ConfigureOptions) => Promise<Receipt>
+  updateThreadSettings: (
+    options: ConfigureOptions,
+    request?: { signal?: AbortSignal },
+  ) => Promise<Receipt>
   /**
    * Start a fresh model context from the next turn. The model sees `note`
    * first, when you give one. The transcript keeps every message.
@@ -288,7 +325,10 @@ export interface HarnessClient<THarness extends AnyHarness> {
    * await client.reset({ note: 'The user wants a new plan.' })
    * ```
    */
-  reset: (options?: ResetOptions) => Promise<Receipt>
+  reset: (
+    options?: ResetOptions,
+    request?: { signal?: AbortSignal },
+  ) => Promise<Receipt>
   /**
    * Go back to the message `messageId`, as `session.revert` does. The
    * harness must list `'undo'` in `expose.commands`.
@@ -298,9 +338,12 @@ export interface HarnessClient<THarness extends AnyHarness> {
    * await client.revert({ messageId })
    * ```
    */
-  revert: (options: { messageId: string }) => Promise<Receipt>
+  revert: (
+    options: { messageId: string },
+    request?: { signal?: AbortSignal },
+  ) => Promise<Receipt>
   /** End the revert that stands, as `session.unrevert` does. */
-  unrevert: () => Promise<Receipt>
+  unrevert: (request?: { signal?: AbortSignal }) => Promise<Receipt>
   /**
    * The session events from `from` (exclusive). Without `from`, the events
    * start at the cursor of the snapshot: only new events come. Pass
@@ -323,9 +366,11 @@ export interface HarnessClient<THarness extends AnyHarness> {
    * again to reconnect: the current statuses come first again.
    */
   hostEvents: (options?: { signal?: AbortSignal }) => AsyncIterable<HostEvent>
-  snapshot: () => Promise<SessionSnapshot>
+  snapshot: (request?: { signal?: AbortSignal }) => Promise<SessionSnapshot>
   /** The saved messages of the thread. */
-  transcript: () => Promise<Array<ModelMessage>>
+  transcript: (request?: {
+    signal?: AbortSignal
+  }) => Promise<Array<ModelMessage>>
   /**
    * The saved messages of a child agent run of the thread, by its
    * `subagentRunId` or by its `runId`. Empty for an unknown id. A child with
@@ -339,12 +384,13 @@ export interface HarnessClient<THarness extends AnyHarness> {
    */
   agentTranscript: (
     run: { subagentRunId: string } | { runId: string },
+    request?: { signal?: AbortSignal },
   ) => Promise<Array<ModelMessage>>
   /**
    * The commands, settings, and tools of the session. Only the commands in
    * `expose.commands` and the config keys in `expose.config`.
    */
-  describe: () => Promise<SessionDescription>
+  describe: (request?: { signal?: AbortSignal }) => Promise<SessionDescription>
   /**
    * Store a file in the media store of the thread. Send the record in a
    * prompt with `mediaPart(record)`. Throws when the handler refuses the
@@ -357,6 +403,7 @@ export interface HarnessClient<THarness extends AnyHarness> {
    */
   putMedia: (
     file: MediaUpload<Blob | ArrayBuffer | Uint8Array>,
+    request?: { signal?: AbortSignal },
   ) => Promise<MediaRecord>
   /**
    * A signed URL for a media file, for `<img>`, `<audio>`, or `<video>`. It
@@ -367,9 +414,12 @@ export interface HarnessClient<THarness extends AnyHarness> {
    * const { url } = await client.mediaUrl({ id: record.id })
    * ```
    */
-  mediaUrl: (options: {
-    id: string
-  }) => Promise<{ url?: string; expiresAt?: number }>
+  mediaUrl: (
+    options: {
+      id: string
+    },
+    request?: { signal?: AbortSignal },
+  ) => Promise<{ url?: string; expiresAt?: number }>
   /**
    * The bytes of the media file `id`.
    *
@@ -378,7 +428,10 @@ export interface HarnessClient<THarness extends AnyHarness> {
    * const bytes = await client.loadMedia({ id: record.id })
    * ```
    */
-  loadMedia: (options: { id: string }) => Promise<Uint8Array>
+  loadMedia: (
+    options: { id: string },
+    request?: { signal?: AbortSignal },
+  ) => Promise<Uint8Array>
   /**
    * Your sessions on the server, as `host.sessions` has them for the
    * user of the request.
@@ -403,34 +456,46 @@ export interface HarnessClientSessions<THarness extends AnyHarness> {
    * sessions with each exact metadata value. Archived sessions are left out
    * unless `withArchived` is `true`.
    */
-  list: (options?: {
-    limit?: number
-    cursor?: string
-    parentThreadId?: string
-    search?: string
-    metadata?: Record<string, string>
-    withArchived?: boolean
-  }) => Promise<
+  list: (
+    options?: {
+      limit?: number
+      cursor?: string
+      parentThreadId?: string
+      search?: string
+      metadata?: Record<string, string>
+      withArchived?: boolean
+    },
+    request?: { signal?: AbortSignal },
+  ) => Promise<
     Omit<SessionIndexPage, 'entries'> & {
       entries: Array<SessionIndexEntry<SessionMetadataOf<THarness>>>
     }
   >
   /** Set the title of one of your sessions. Resolves to the changed entry. */
-  rename: (change: {
-    threadId: string
-    title: string
-  }) => Promise<SessionIndexEntry<SessionMetadataOf<THarness>>>
+  rename: (
+    change: {
+      threadId: string
+      title: string
+    },
+    request?: { signal?: AbortSignal },
+  ) => Promise<SessionIndexEntry<SessionMetadataOf<THarness>>>
   /**
    * Archive one of your sessions: `list` leaves it out unless you pass
    * `withArchived: true`. Resolves to the changed entry.
    */
-  archive: (options: {
-    threadId: string
-  }) => Promise<SessionIndexEntry<SessionMetadataOf<THarness>>>
+  archive: (
+    options: {
+      threadId: string
+    },
+    request?: { signal?: AbortSignal },
+  ) => Promise<SessionIndexEntry<SessionMetadataOf<THarness>>>
   /** Undo `archive` on one of your sessions. Resolves to the changed entry. */
-  unarchive: (options: {
-    threadId: string
-  }) => Promise<SessionIndexEntry<SessionMetadataOf<THarness>>>
+  unarchive: (
+    options: {
+      threadId: string
+    },
+    request?: { signal?: AbortSignal },
+  ) => Promise<SessionIndexEntry<SessionMetadataOf<THarness>>>
   /**
    * Change the `title`, `pinned`, or `metadata` of one of your sessions, for
    * example the context items a user pinned in the composer. Each field you
@@ -441,39 +506,52 @@ export interface HarnessClientSessions<THarness extends AnyHarness> {
     change: { threadId: string } & SessionEntryChange<
       SessionMetadataOf<THarness>
     >,
+    request?: { signal?: AbortSignal },
   ) => Promise<SessionIndexEntry<SessionMetadataOf<THarness>>>
   /**
    * Remove one of your sessions from the session index. The transcript and
    * the other data of the thread stay on the server.
    */
-  delete: (options: { threadId: string }) => Promise<void>
+  delete: (
+    options: { threadId: string },
+    request?: { signal?: AbortSignal },
+  ) => Promise<void>
   /**
    * Copy one of your sessions into a new session, up to a message id.
    * Resolves to the entry of the new session.
    */
-  fork: (options: {
-    threadId: string
-    at: ForkPoint
-  }) => Promise<SessionIndexEntry<SessionMetadataOf<THarness>>>
+  fork: (
+    options: {
+      threadId: string
+      at: ForkPoint
+    },
+    request?: { signal?: AbortSignal },
+  ) => Promise<SessionIndexEntry<SessionMetadataOf<THarness>>>
   /**
    * Add the user `userId` to the members of one of your sessions with
    * `role`, or change the role of a member. The server needs
    * `access.rules.members`, and you need the `share` action. Resolves to
    * the changed entry.
    */
-  share: (change: {
-    threadId: string
-    userId: string
-    role: SessionMember['role']
-  }) => Promise<SessionIndexEntry<SessionMetadataOf<THarness>>>
+  share: (
+    change: {
+      threadId: string
+      userId: string
+      role: SessionMember['role']
+    },
+    request?: { signal?: AbortSignal },
+  ) => Promise<SessionIndexEntry<SessionMetadataOf<THarness>>>
   /**
    * Remove the user `userId` from the members of one of your sessions. The
    * streams of that user close. Resolves to the changed entry.
    */
-  unshare: (change: {
-    threadId: string
-    userId: string
-  }) => Promise<SessionIndexEntry<SessionMetadataOf<THarness>>>
+  unshare: (
+    change: {
+      threadId: string
+      userId: string
+    },
+    request?: { signal?: AbortSignal },
+  ) => Promise<SessionIndexEntry<SessionMetadataOf<THarness>>>
 }
 
 /** The body of `POST sessions`. */
@@ -657,6 +735,7 @@ export function createHarnessClient<THarness extends AnyHarness>(
   const send = async (
     input: HarnessInput,
     traceparent?: string,
+    signal?: AbortSignal,
   ): Promise<Receipt> => {
     // In `cancelInput` and `setDelivery`, `inputId` is the input to change.
     const namesOther = input.op === 'cancelInput' || input.op === 'setDelivery'
@@ -665,6 +744,7 @@ export function createHarnessClient<THarness extends AnyHarness>(
     const withId =
       namesOther || input.inputId ? input : { ...input, inputId: newInputId() }
     const response = await doFetch(`${base}/control`, {
+      ...(signal && { signal }),
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -678,9 +758,14 @@ export function createHarnessClient<THarness extends AnyHarness>(
     return body as Receipt
   }
 
-  const get = async (route: string, params: Record<string, string> = {}) => {
+  const get = async (
+    route: string,
+    params: Record<string, string> = {},
+    signal?: AbortSignal,
+  ) => {
     const query = new URLSearchParams({ threadId: options.threadId, ...params })
     const response = await doFetch(`${base}/${route}?${query}`, {
+      ...(signal && { signal }),
       headers: headers(),
     })
     if (!response.ok)
@@ -688,21 +773,25 @@ export function createHarnessClient<THarness extends AnyHarness>(
     return response
   }
 
-  const read = async <T>(route: string, params?: Record<string, string>) =>
+  const read = async <T>(
+    route: string,
+    params?: Record<string, string>,
+    signal?: AbortSignal,
+  ) =>
     // Each GET route answers with the type of the `HarnessClient` member
     // that reads it. That member type sets `T`.
-    (await (await get(route, params)).json()) as T
+    (await (await get(route, params, signal)).json()) as T
 
-  const putMedia = async ({
-    body,
-    mimeType,
-    name,
-  }: MediaUpload<Blob | ArrayBuffer | Uint8Array>) => {
+  const putMedia = async (
+    { body, mimeType, name }: MediaUpload<Blob | ArrayBuffer | Uint8Array>,
+    request?: { signal?: AbortSignal },
+  ) => {
     const query = new URLSearchParams({
       threadId: options.threadId,
       name,
     })
     const response = await doFetch(`${base}/media?${query}`, {
+      ...(request?.signal && { signal: request.signal }),
       method: 'POST',
       headers: { 'Content-Type': mimeType, ...headers() },
       // fetch refuses a view on a SharedArrayBuffer. ponytail: a Uint8Array
@@ -717,31 +806,42 @@ export function createHarnessClient<THarness extends AnyHarness>(
     return stored
   }
 
-  const mediaUrl = async ({ id }: { id: string }) => {
-    const body: unknown = await (await get('media-url', { id })).json()
+  const mediaUrl = async (
+    { id }: { id: string },
+    request?: { signal?: AbortSignal },
+  ) => {
+    const body: unknown = await (
+      await get('media-url', { id }, request?.signal)
+    ).json()
     if (!isSignedPath(body))
       throw new Error('Harness media-url failed: the answer has no signed path')
     return { url: `${base}/${body.path}`, expiresAt: body.expiresAt }
   }
 
-  const loadMedia = async ({ id }: { id: string }) =>
-    new Uint8Array(await (await get('media', { id })).arrayBuffer())
+  const loadMedia = async (
+    { id }: { id: string },
+    request?: { signal?: AbortSignal },
+  ) =>
+    new Uint8Array(
+      await (await get('media', { id }, request?.signal)).arrayBuffer(),
+    )
 
   // `POST sessions`: rename, delete, fork, or share a session of this user.
-  const changeSession = async (change: SessionChange) =>
+  const changeSession = async (change: SessionChange, signal?: AbortSignal) =>
     checked(
       'sessions',
       await doFetch(`${base}/sessions`, {
+        ...(signal && { signal }),
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...headers() },
         body: JSON.stringify(change),
       }),
     )
 
-  const sessionEntry = async (change: SessionChange) =>
+  const sessionEntry = async (change: SessionChange, signal?: AbortSignal) =>
     // The handler answers each op but a delete with the entry.
     // The server schema checked its metadata.
-    (await (await changeSession(change)).json()) as SessionIndexEntry<
+    (await (await changeSession(change, signal)).json()) as SessionIndexEntry<
       SessionMetadataOf<THarness>
     >
 
@@ -921,23 +1021,28 @@ export function createHarnessClient<THarness extends AnyHarness>(
   })
 
   return {
-    send: (message, sendOptions) => {
+    send: (message, sendOptions, request) => {
+      const signal = request?.signal
       const inputId = sendOptions?.inputId
         ? { inputId: sendOptions.inputId }
         : {}
       if (sendOptions?.to !== undefined) {
-        return send({
-          op: 'agentMessage',
-          operationId: sendOptions.to,
-          message,
-          ...(sendOptions.mode ? { mode: sendOptions.mode } : {}),
-          ...inputId,
-        })
+        return send(
+          {
+            op: 'agentMessage',
+            operationId: sendOptions.to,
+            message,
+            ...(sendOptions.mode ? { mode: sendOptions.mode } : {}),
+            ...inputId,
+          },
+          undefined,
+          signal,
+        )
       }
       const mode = sendOptions?.mode ?? 'prompt'
       const traceparent = sendOptions?.traceparent
       if (mode !== 'prompt') {
-        return send({ op: mode, message, ...inputId }, traceparent)
+        return send({ op: mode, message, ...inputId }, traceparent, signal)
       }
       return send(
         {
@@ -951,78 +1056,119 @@ export function createHarnessClient<THarness extends AnyHarness>(
           ...inputId,
         },
         traceparent,
+        signal,
       )
     },
-    continueWithoutMessage: (continueOptions) =>
-      send({
-        op: 'continue',
-        ...(continueOptions?.inputId
-          ? { inputId: continueOptions.inputId }
-          : {}),
-        ...(continueOptions?.ephemeral
-          ? { ephemeral: continueOptions.ephemeral }
-          : {}),
-      }),
-    resolve: ({ resume, inputId }) =>
-      send({ op: 'resolve', resume, ...(inputId ? { inputId } : {}) }),
-    cancel: ({ operationId } = {}) =>
-      send({ op: 'cancel', ...(operationId ? { operationId } : {}) }),
-    cancelInput: ({ inputId }) => send({ op: 'cancelInput', inputId }),
-    changeInputDelivery: ({ inputId, delivery }) =>
-      send({ op: 'setDelivery', inputId, delivery }),
+    continueWithoutMessage: (continueOptions, request) =>
+      send(
+        {
+          op: 'continue',
+          ...(continueOptions?.inputId
+            ? { inputId: continueOptions.inputId }
+            : {}),
+          ...(continueOptions?.ephemeral
+            ? { ephemeral: continueOptions.ephemeral }
+            : {}),
+        },
+        undefined,
+        request?.signal,
+      ),
+    resolve: ({ resume, inputId }, request) =>
+      send(
+        { op: 'resolve', resume, ...(inputId ? { inputId } : {}) },
+        undefined,
+        request?.signal,
+      ),
+    cancel: ({ operationId } = {}, request) =>
+      send(
+        { op: 'cancel', ...(operationId ? { operationId } : {}) },
+        undefined,
+        request?.signal,
+      ),
+    cancelInput: ({ inputId }, request) =>
+      send({ op: 'cancelInput', inputId }, undefined, request?.signal),
+    changeInputDelivery: ({ inputId, delivery }, request) =>
+      send(
+        { op: 'setDelivery', inputId, delivery },
+        undefined,
+        request?.signal,
+      ),
     agents,
-    answer: ({ questionId, value }) =>
-      send({ op: 'answer', questionId, value }),
-    runCommand: ({ name, input }) => send({ op: 'command', name, input }),
-    runTool: ({ name, args, meta, inputId }) =>
-      send({
-        op: 'tool',
-        name,
-        ...(args !== undefined ? { args } : {}),
-        ...(meta ? { meta } : {}),
-        ...(inputId ? { inputId } : {}),
-      }),
-    appendRecords: ({ records, inputId }) =>
-      send({
-        op: 'append',
-        records: [...records],
-        ...(inputId ? { inputId } : {}),
-      }),
-    setPluginSetting: ({ key, value }) => send({ op: 'config', key, value }),
-    updateThreadSettings: ({ settings, inputId }) =>
-      send({ op: 'configure', settings, ...(inputId ? { inputId } : {}) }),
-    reset: ({ note, inputId } = {}) =>
-      send({
-        op: 'reset',
-        ...(note !== undefined ? { note } : {}),
-        ...(inputId ? { inputId } : {}),
-      }),
-    revert: ({ messageId }) => send({ op: 'revert', messageId }),
-    unrevert: () => send({ op: 'unrevert' }),
+    answer: ({ questionId, value }, request) =>
+      send({ op: 'answer', questionId, value }, undefined, request?.signal),
+    runCommand: ({ name, input }, request) =>
+      send({ op: 'command', name, input }, undefined, request?.signal),
+    runTool: ({ name, args, meta, inputId }, request) =>
+      send(
+        {
+          op: 'tool',
+          name,
+          ...(args !== undefined ? { args } : {}),
+          ...(meta ? { meta } : {}),
+          ...(inputId ? { inputId } : {}),
+        },
+        undefined,
+        request?.signal,
+      ),
+    appendRecords: ({ records, inputId }, request) =>
+      send(
+        {
+          op: 'append',
+          records: [...records],
+          ...(inputId ? { inputId } : {}),
+        },
+        undefined,
+        request?.signal,
+      ),
+    setPluginSetting: ({ key, value }, request) =>
+      send({ op: 'config', key, value }, undefined, request?.signal),
+    updateThreadSettings: ({ settings, inputId }, request) =>
+      send(
+        { op: 'configure', settings, ...(inputId ? { inputId } : {}) },
+        undefined,
+        request?.signal,
+      ),
+    reset: ({ note, inputId } = {}, request) =>
+      send(
+        {
+          op: 'reset',
+          ...(note !== undefined ? { note } : {}),
+          ...(inputId ? { inputId } : {}),
+        },
+        undefined,
+        request?.signal,
+      ),
+    revert: ({ messageId }, request) =>
+      send({ op: 'revert', messageId }, undefined, request?.signal),
+    unrevert: (request) => send({ op: 'unrevert' }, undefined, request?.signal),
     events,
     hostEvents,
-    snapshot: () => read('snapshot'),
-    transcript: () => read('transcript'),
-    agentTranscript: (run) =>
+    snapshot: (request) => read('snapshot', undefined, request?.signal),
+    transcript: (request) => read('transcript', undefined, request?.signal),
+    agentTranscript: (run, request) =>
       read(
         'agent-transcript',
         'subagentRunId' in run
           ? { subagentRunId: run.subagentRunId }
           : { runId: run.runId },
+        request?.signal,
       ),
-    describe: () => read('describe'),
+    describe: (request) => read('describe', undefined, request?.signal),
     putMedia,
     mediaUrl,
     loadMedia,
     sessions: {
-      list: async ({
-        limit,
-        cursor,
-        parentThreadId,
-        search,
-        metadata = {},
-        withArchived,
-      } = {}) => {
+      list: async (
+        {
+          limit,
+          cursor,
+          parentThreadId,
+          search,
+          metadata = {},
+          withArchived,
+        } = {},
+        request,
+      ) => {
         const query = new URLSearchParams()
         if (limit !== undefined) query.set('limit', String(limit))
         if (cursor) query.set('cursor', cursor)
@@ -1033,26 +1179,33 @@ export function createHarnessClient<THarness extends AnyHarness>(
           query.set(`metadata.${key}`, value)
         const response = await checked(
           'sessions',
-          await doFetch(`${base}/sessions?${query}`, { headers: headers() }),
+          await doFetch(`${base}/sessions?${query}`, {
+            ...(request?.signal && { signal: request.signal }),
+            headers: headers(),
+          }),
         )
         // The handler answers with one page of the session index.
         return (await response.json()) as Omit<SessionIndexPage, 'entries'> & {
           entries: Array<SessionIndexEntry<SessionMetadataOf<THarness>>>
         }
       },
-      rename: ({ threadId, title }) =>
-        sessionEntry({ op: 'rename', threadId, title }),
-      archive: ({ threadId }) => sessionEntry({ op: 'archive', threadId }),
-      unarchive: ({ threadId }) => sessionEntry({ op: 'unarchive', threadId }),
-      update: (change) => sessionEntry({ ...change, op: 'update' }),
-      delete: async ({ threadId }) => {
-        await changeSession({ op: 'delete', threadId })
+      rename: ({ threadId, title }, request) =>
+        sessionEntry({ op: 'rename', threadId, title }, request?.signal),
+      archive: ({ threadId }, request) =>
+        sessionEntry({ op: 'archive', threadId }, request?.signal),
+      unarchive: ({ threadId }, request) =>
+        sessionEntry({ op: 'unarchive', threadId }, request?.signal),
+      update: (change, request) =>
+        sessionEntry({ ...change, op: 'update' }, request?.signal),
+      delete: async ({ threadId }, request) => {
+        await changeSession({ op: 'delete', threadId }, request?.signal)
       },
-      fork: ({ threadId, at }) => sessionEntry({ op: 'fork', threadId, ...at }),
-      share: ({ threadId, userId, role }) =>
-        sessionEntry({ op: 'share', threadId, userId, role }),
-      unshare: ({ threadId, userId }) =>
-        sessionEntry({ op: 'unshare', threadId, userId }),
+      fork: ({ threadId, at }, request) =>
+        sessionEntry({ op: 'fork', threadId, ...at }, request?.signal),
+      share: ({ threadId, userId, role }, request) =>
+        sessionEntry({ op: 'share', threadId, userId, role }, request?.signal),
+      unshare: ({ threadId, userId }, request) =>
+        sessionEntry({ op: 'unshare', threadId, userId }, request?.signal),
     },
   }
 }

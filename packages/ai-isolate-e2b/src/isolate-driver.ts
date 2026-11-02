@@ -224,9 +224,16 @@ class E2BIsolateContext implements IsolateContext {
     void this.sandbox.commands.run(`rm -f ${file}`).catch(() => undefined)
   }
 
-  async execute<T = unknown>(code: string): Promise<ExecutionResult<T>> {
+  async execute<T = unknown>(
+    code: string,
+    options?: { signal?: AbortSignal },
+  ): Promise<ExecutionResult<T>> {
     if (this.disposed) {
       return failure('DisposedError', 'Context has been disposed', [])
+    }
+    const signal = options?.signal
+    if (signal?.aborted) {
+      return failure('AbortError', 'Execution was aborted.', [])
     }
     const deadline = Date.now() + this.timeoutMs
     const logs: Array<string> = []
@@ -385,6 +392,8 @@ class E2BIsolateContext implements IsolateContext {
         `Exceeded E2B execution timeout (${this.timeoutMs}ms).`,
       )
     }, this.timeoutMs)
+    const onAbort = () => void halt('AbortError', 'Execution was aborted.')
+    signal?.addEventListener('abort', onAbort, { once: true })
     // Start in the background so a deadline resolves while write or run is open.
     void (async () => {
       let command: E2BCommandHandleLike
@@ -441,6 +450,7 @@ class E2BIsolateContext implements IsolateContext {
       return result
     } finally {
       clearTimeout(timer)
+      signal?.removeEventListener('abort', onAbort)
       this.running.delete(stopHere)
     }
   }

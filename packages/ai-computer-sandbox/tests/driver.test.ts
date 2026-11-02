@@ -284,3 +284,17 @@ describe('sandboxComputer', () => {
     error.mockRestore()
   })
 })
+
+describe('sandboxComputer create signal', () => {
+  it('passes the signal to provider.create, and {} without one', async () => {
+    const provider = fakeProvider([fakeSandbox(), fakeSandbox()])
+    const factory = sandboxComputer({ provider })
+    const controller = new AbortController()
+    await factory.create({ threadId: 'a', signal: controller.signal })
+    await factory.create({ threadId: 'b' })
+    expect(vi.mocked(provider.create).mock.calls).toEqual([
+      [{ signal: controller.signal }],
+      [{}],
+    ])
+  })
+})

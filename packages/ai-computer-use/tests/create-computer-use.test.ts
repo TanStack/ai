@@ -931,3 +931,30 @@ describe('createComputerUse navigate', () => {
     )
   })
 })
+
+describe('driver factory signal', () => {
+  it('passes the abort signal of the tool call to create()', async () => {
+    const signals: Array<AbortSignal | undefined> = []
+    const factory: ComputerDriverFactory = {
+      display: { width: 1280, height: 800 },
+      environment: 'linux',
+      capabilities: { zoom: false, cursorPosition: false, navigate: false },
+      async create({ signal }) {
+        signals.push(signal)
+        return createDriver().driver
+      },
+    }
+    const [computerTool] = createComputerUse({
+      driver: factory,
+      screenshotDelay: 0,
+    }).tools
+    const controller = new AbortController()
+    await computerTool.execute!(CLICK, {
+      toolCallId: 'call_1',
+      threadId: THREAD,
+      abortSignal: controller.signal,
+      emitCustomEvent() {},
+    })
+    expect(signals).toEqual([controller.signal])
+  })
+})

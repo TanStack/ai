@@ -12,17 +12,20 @@ export interface CreateMcpAppBridgeOptions {
 }
 
 export interface McpAppBridge {
-  callTool: (input: {
-    serverId?: string
-    toolName: string
-    args?: Record<string, unknown>
-    /**
-     * Reserved — forwarded to the call handler for correlation purposes but
-     * not consumed by the handler. Accepted on the wire; the handler does not
-     * read it (mirrors the `meta` convention on `UIResourcePart`).
-     */
-    messageId?: string
-  }) => Promise<unknown>
+  callTool: (
+    input: {
+      serverId?: string
+      toolName: string
+      args?: Record<string, unknown>
+      /**
+       * Reserved — forwarded to the call handler for correlation purposes but
+       * not consumed by the handler. Accepted on the wire; the handler does not
+       * read it (mirrors the `meta` convention on `UIResourcePart`).
+       */
+      messageId?: string
+    },
+    options?: { signal?: AbortSignal },
+  ) => Promise<unknown>
   sendPrompt: (text: string) => Promise<void>
   openLink: (url: string) => { isError: boolean }
 }
@@ -61,8 +64,9 @@ export function createMcpAppBridge(
   const doFetch = fetchImpl ?? fetch
 
   return {
-    async callTool(input) {
+    async callTool(input, callOptions) {
       const response = await doFetch(callEndpoint, {
+        ...(callOptions?.signal && { signal: callOptions.signal }),
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({
