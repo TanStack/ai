@@ -207,6 +207,22 @@ describe('OpenAI evaluate adapter', () => {
     })
   })
 
+  it('maps the usage when the response has no token details', async () => {
+    // The SDK types mark the details as required, but responses can omit them.
+    const usage: unknown = {
+      input_tokens: 40,
+      output_tokens: 9,
+      total_tokens: 49,
+    }
+    const { adapter } = setup({ ...allAnswers, usage } as typeof allAnswers)
+    const result = await run(adapter)
+    expect(result.usage).toEqual({
+      promptTokens: 40,
+      completionTokens: 9,
+      totalTokens: 49,
+    })
+  })
+
   it('keeps an answer for a question named __proto__ as an own key', async () => {
     const { adapter } = setup(
       decision([{ type: 'predicate', name: '__proto__', probability: 0.5 }]),
