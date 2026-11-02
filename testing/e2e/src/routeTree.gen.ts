@@ -640,11 +640,12 @@ const ApiDurableDeliveryRoute = ApiDurableDeliveryRouteImport.update({
   path: '/api/durable-delivery',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ApiDurableDeliveryCancelRoute = ApiDurableDeliveryCancelRouteImport.update({
-  id: '/api/durable-delivery-cancel',
-  path: '/api/durable-delivery-cancel',
-  getParentRoute: () => rootRouteImport,
-} as any)
+const ApiDurableDeliveryCancelRoute =
+  ApiDurableDeliveryCancelRouteImport.update({
+    id: '/api/durable-delivery-cancel',
+    path: '/api/durable-delivery-cancel',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiDurableMcpInputRoute = ApiDurableMcpInputRouteImport.update({
   id: '/api/durable-mcp-input',
   path: '/api/durable-mcp-input',
