@@ -201,7 +201,7 @@ fal storage is upload-only. `falFiles()` has no `get` or `delete`, so `getFile()
 
 ### Cancel a file request
 
-`uploadFile()`, `getFile()`, and `deleteFile()` take an `abortSignal`. When it aborts, the call rejects and the adapter cancels the provider request:
+`uploadFile()`, `getFile()`, and `deleteFile()` take an `abortSignal`. When it aborts, the call rejects. The adapter passes the signal to the provider request when the provider SDK can cancel it:
 
 ```typescript
 import { uploadFile } from "@tanstack/ai";

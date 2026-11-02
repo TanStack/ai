@@ -181,11 +181,15 @@ import { openaiText } from '@tanstack/ai-openai'
 
 // The runs that this process drives, by run id.
 const liveRuns = new Map<string, AbortController>()
+// Cancels that arrived before their chat request, by run id.
+const earlyCancels = new Set<string>()
 
 // POST /api/chat
 export async function POST(request: Request) {
   const { messages, threadId, runId } = await chatParamsFromRequest(request)
   const abortController = new AbortController()
+  // Stop was pressed before this request arrived: start the run aborted.
+  if (earlyCancels.delete(runId)) abortController.abort(RUN_CANCEL_REASON)
   liveRuns.set(runId, abortController)
   const forget = () => {
     liveRuns.delete(runId)
@@ -216,7 +220,14 @@ export async function cancelChatRun(request: Request) {
   if (typeof runId !== 'string') {
     return new Response('runId must be a string', { status: 400 })
   }
-  liveRuns.get(runId)?.abort(RUN_CANCEL_REASON)
+  const run = liveRuns.get(runId)
+  if (run) {
+    run.abort(RUN_CANCEL_REASON)
+  } else {
+    // The chat request can still be on its way. Keep the cancel for a minute.
+    earlyCancels.add(runId)
+    setTimeout(() => earlyCancels.delete(runId), 60_000)
+  }
   return new Response(null, { status: 204 })
 }
 ```
@@ -245,6 +256,7 @@ Behavior to know:
 - Only `stop()` sends the cancel. An unmount, a reload, or a lost connection does not, so the run keeps going for them.
 - The cancel request has the same `headers` and `credentials` as the chat request. Authorize it like the chat route.
 - `fetchHttpStream` takes `cancelUrl` too.
+- A cancel can arrive before its chat request. The sample keeps it in `earlyCancels`, so the run starts aborted.
 - `liveRuns` is in the memory of one process. The cancel request must reach the process that drives the run. For runs on other hosts, see [Detach vs cancel](../sandbox/takeover#detach-vs-cancel).
 
 ### memoryStream in production

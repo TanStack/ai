@@ -540,7 +540,7 @@ A `disconnect()` while `connect()` still runs cancels the connection setup. `con
 
 ### Cancel the token request
 
-`realtimeToken()` takes an `abortSignal`. Pass the request signal, so a client that leaves also cancels the provider call:
+`realtimeToken()` takes an `abortSignal`. Pass the request signal, so the provider call stops when the HTTP request to your route is aborted:
 
 ```typescript
 import { realtimeToken } from '@tanstack/ai'
