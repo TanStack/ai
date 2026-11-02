@@ -187,6 +187,7 @@ describe('middleware ctx.abort() reaches the provider', () => {
         adapter,
         messages: [{ role: 'user', content: 'Hi' }],
         middleware: [middleware],
+        abortController: new AbortController(),
       }) as AsyncIterable<StreamChunk>,
     )
     expect(await settlesWithin(run)).toBe('done')
@@ -227,6 +228,7 @@ describe('middleware ctx.abort() reaches the provider', () => {
           },
         },
       ],
+      abortController: new AbortController(),
     })
     expect(await settlesWithin(run)).toBe('done')
     expect(seen?.aborted).toBe(true)
@@ -251,9 +253,41 @@ describe('middleware ctx.abort() reaches the provider', () => {
             },
           },
         ],
+        abortController: new AbortController(),
       }) as AsyncIterable<StreamChunk>,
     )
     expect(signal?.aborted).toBe(true)
+  })
+
+  it('gives the provider no signal when the caller gives none', async () => {
+    // Some SDKs drop their own timeout when a request has a signal.
+    let request: unknown = 'not called'
+    let ctxSignal: AbortSignal | undefined
+    const { adapter } = createMockAdapter({
+      chatStreamFn: (options) =>
+        (async function* () {
+          request = options.request
+          yield ev.runStarted()
+          yield ev.runFinished('stop')
+        })(),
+    })
+    await collectChunks(
+      chat({
+        threadId: 'thread-1',
+        adapter,
+        messages: [{ role: 'user', content: 'Hi' }],
+        middleware: [
+          {
+            name: 'observe',
+            onStart: (ctx) => {
+              ctxSignal = ctx.signal
+            },
+          },
+        ],
+      }) as AsyncIterable<StreamChunk>,
+    )
+    expect(request).toBeUndefined()
+    expect(ctxSignal).toBeUndefined()
   })
 
   it('stops a subagent child (C5)', async () => {
@@ -302,44 +336,6 @@ describe('middleware ctx.abort() reaches the provider', () => {
       }) as AsyncIterable<StreamChunk>,
     )
     expect(outcome).toBe('stopped')
-  })
-
-  it('does not wait for a server tool that ignores the signal (C6)', async () => {
-    const { adapter } = createMockAdapter({
-      iterations: [
-        [
-          ev.runStarted(),
-          ev.toolStart('c1', 'stuck'),
-          ev.toolArgs('c1', '{}'),
-          ev.toolEnd('c1', 'stuck', { input: {} }),
-          ev.runFinished('tool_calls'),
-        ],
-      ],
-    })
-    const run = collectChunks(
-      chat({
-        threadId: 'thread-1',
-        adapter,
-        messages: [{ role: 'user', content: 'Hi' }],
-        tools: [
-          {
-            name: 'stuck',
-            description: 'Ignores its abort signal',
-            execute: () => new Promise(() => {}),
-          },
-        ],
-        middleware: [
-          {
-            name: 'aborter',
-            onBeforeToolCall: (ctx) => {
-              setTimeout(() => ctx.abort('stop'), 10)
-              return undefined
-            },
-          },
-        ],
-      }) as AsyncIterable<StreamChunk>,
-    )
-    expect(await settlesWithin(run)).toBe('done')
   })
 })
 

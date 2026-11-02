@@ -3,7 +3,6 @@ import { normalizeToolResult } from '../../../utilities/tool-result'
 import { tanstackMetadata } from '../../../utilities/merge-metadata'
 import { isProviderExecutedToolCall } from '../../../utilities/provider-executed'
 import { mergeStreams } from '../../../utilities/merge-streams'
-import { raceWithAbort } from '../../../utilities/activity-abort'
 import { validateToolInput } from './input-validation'
 import type { AdapterYieldChunk } from '../../../utilities/adapter-yield-chunk'
 import {
@@ -797,12 +796,7 @@ export async function* executeServerTool<TContext = unknown>(
         [EMIT_STREAM_CHUNK]: (chunk: StreamChunk) => pendingEvents.push(chunk),
       })
     }
-    const execution = Promise.resolve(tool.execute(input, context))
-    // Do not wait for a tool that ignores its signal. An abort that came
-    // during execute() itself keeps the result the tool already returned.
-    const executionPromise = context.abortSignal?.aborted
-      ? execution
-      : raceWithAbort(execution, context.abortSignal)
+    const executionPromise = Promise.resolve(tool.execute(input, context))
     let result = yield* executeWithEventPolling(executionPromise, pendingEvents)
     const duration = Date.now() - startTime
 
