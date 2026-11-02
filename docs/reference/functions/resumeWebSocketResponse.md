@@ -7,7 +7,7 @@ title: resumeWebSocketResponse
 function resumeWebSocketResponse<TOffset>(options): Response;
 ```
 
-Defined in: packages/ai/src/stream-to-websocket.ts:419
+Defined in: [packages/ai/src/stream-to-websocket.ts:425](https://github.com/TanStack/ai/blob/main/packages/ai/src/stream-to-websocket.ts#L425)
 
 Cloudflare wrapper (Workers/Durable Objects): creates a `WebSocketPair`,
 accepts the server socket, delegates to [resumeWebSocketStream](resumeWebSocketStream.md), and

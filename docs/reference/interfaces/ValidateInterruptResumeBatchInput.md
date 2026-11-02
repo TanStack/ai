@@ -3,7 +3,7 @@ id: ValidateInterruptResumeBatchInput
 title: ValidateInterruptResumeBatchInput
 ---
 
-Defined in: packages/ai/src/interrupt-resume.ts:60
+Defined in: [packages/ai/src/interrupt-resume.ts:60](https://github.com/TanStack/ai/blob/main/packages/ai/src/interrupt-resume.ts#L60)
 
 ## Properties
 
@@ -13,7 +13,7 @@ Defined in: packages/ai/src/interrupt-resume.ts:60
 generation: number;
 ```
 
-Defined in: packages/ai/src/interrupt-resume.ts:63
+Defined in: [packages/ai/src/interrupt-resume.ts:63](https://github.com/TanStack/ai/blob/main/packages/ai/src/interrupt-resume.ts#L63)
 
 ***
 
@@ -23,7 +23,7 @@ Defined in: packages/ai/src/interrupt-resume.ts:63
 interruptedRunId: string;
 ```
 
-Defined in: packages/ai/src/interrupt-resume.ts:62
+Defined in: [packages/ai/src/interrupt-resume.ts:62](https://github.com/TanStack/ai/blob/main/packages/ai/src/interrupt-resume.ts#L62)
 
 ***
 
@@ -33,7 +33,7 @@ Defined in: packages/ai/src/interrupt-resume.ts:62
 optional now?: number;
 ```
 
-Defined in: packages/ai/src/interrupt-resume.ts:67
+Defined in: [packages/ai/src/interrupt-resume.ts:67](https://github.com/TanStack/ai/blob/main/packages/ai/src/interrupt-resume.ts#L67)
 
 ***
 
@@ -43,7 +43,7 @@ Defined in: packages/ai/src/interrupt-resume.ts:67
 pending: readonly PendingInterruptResumeRecord[];
 ```
 
-Defined in: packages/ai/src/interrupt-resume.ts:64
+Defined in: [packages/ai/src/interrupt-resume.ts:64](https://github.com/TanStack/ai/blob/main/packages/ai/src/interrupt-resume.ts#L64)
 
 ***
 
@@ -53,7 +53,7 @@ Defined in: packages/ai/src/interrupt-resume.ts:64
 optional resume?: readonly RunAgentResumeItem[];
 ```
 
-Defined in: packages/ai/src/interrupt-resume.ts:65
+Defined in: [packages/ai/src/interrupt-resume.ts:65](https://github.com/TanStack/ai/blob/main/packages/ai/src/interrupt-resume.ts#L65)
 
 ***
 
@@ -63,7 +63,7 @@ Defined in: packages/ai/src/interrupt-resume.ts:65
 threadId: string;
 ```
 
-Defined in: packages/ai/src/interrupt-resume.ts:61
+Defined in: [packages/ai/src/interrupt-resume.ts:61](https://github.com/TanStack/ai/blob/main/packages/ai/src/interrupt-resume.ts#L61)
 
 ***
 
@@ -73,4 +73,4 @@ Defined in: packages/ai/src/interrupt-resume.ts:61
 tools: Tool<SchemaInput, SchemaInput, string, unknown>[];
 ```
 
-Defined in: packages/ai/src/interrupt-resume.ts:66
+Defined in: [packages/ai/src/interrupt-resume.ts:66](https://github.com/TanStack/ai/blob/main/packages/ai/src/interrupt-resume.ts#L66)

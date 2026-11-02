@@ -3,7 +3,7 @@ id: ToolPhaseCompleteInfo
 title: ToolPhaseCompleteInfo
 ---
 
-Defined in: packages/ai/src/activities/chat/middleware/types.ts:516
+Defined in: [packages/ai/src/activities/chat/middleware/types.ts:546](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L546)
 
 Aggregate information passed to onToolPhaseComplete after all tool calls
 in an iteration have been processed.
@@ -16,7 +16,7 @@ in an iteration have been processed.
 needsApproval: object[];
 ```
 
-Defined in: packages/ai/src/activities/chat/middleware/types.ts:527
+Defined in: [packages/ai/src/activities/chat/middleware/types.ts:557](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L557)
 
 Tools that need user approval
 
@@ -52,7 +52,7 @@ toolName: string;
 needsClientExecution: object[];
 ```
 
-Defined in: packages/ai/src/activities/chat/middleware/types.ts:534
+Defined in: [packages/ai/src/activities/chat/middleware/types.ts:564](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L564)
 
 Tools that need client-side execution
 
@@ -82,7 +82,7 @@ toolName: string;
 results: object[];
 ```
 
-Defined in: packages/ai/src/activities/chat/middleware/types.ts:520
+Defined in: [packages/ai/src/activities/chat/middleware/types.ts:550](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L550)
 
 Completed tool results
 
@@ -118,6 +118,6 @@ toolName: string;
 toolCalls: ToolCall<unknown>[];
 ```
 
-Defined in: packages/ai/src/activities/chat/middleware/types.ts:518
+Defined in: [packages/ai/src/activities/chat/middleware/types.ts:548](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L548)
 
 Tool calls that were assigned to the assistant message

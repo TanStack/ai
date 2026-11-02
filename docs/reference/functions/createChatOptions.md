@@ -4,10 +4,10 @@ title: createChatOptions
 ---
 
 ```ts
-function createChatOptions<TAdapter, TSchema, TStream, TTools, TInterrupts, TContext, TMiddleware>(options): Omit<TextActivityOptions<TAdapter, TSchema, TStream, InferredContext<TTools, TMiddleware>, readonly DefinedAgent<string, readonly SubagentTool[], SchemaInput | undefined, readonly InterruptDefinition<any, any, any, any, any>[], any, unknown, AgentProduces | undefined>[]>, "middleware" | "tools" | "threadId" | "interrupts" | "context"> & object & RuntimeContextOption<TTools, TMiddleware, TContext>;
+function createChatOptions<TAdapter, TSchema, TStream, TTools, TInterrupts, TContext, TMiddleware>(options): Omit<Omit<TextActivityOptions<TAdapter, TSchema, TStream, InferredContext<TTools, TMiddleware>, readonly DefinedAgent<string, readonly SubagentTool[], SchemaInput | undefined, readonly InterruptDefinition<any, any, any, any, any>[], any, unknown, AgentProduces | undefined>[]>, "middleware" | "tools" | "context" | "interrupts">, "threadId"> & object & object & RuntimeContextOption<TTools, TMiddleware, TContext>;
 ```
 
-Defined in: packages/ai/src/activities/chat/index.ts:834
+Defined in: [packages/ai/src/activities/chat/index.ts:845](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/index.ts#L845)
 
 Create typed options for the chat() function without executing.
 This is useful for pre-defining configurations with full type inference.
@@ -56,17 +56,11 @@ call.
 
 ### options
 
-`Omit`\<`TextActivityOptions`\<`TAdapter`, `TSchema`, `TStream`, `any`, readonly [`DefinedAgent`](../interfaces/DefinedAgent.md)\<`string`, readonly `SubagentTool`[], [`SchemaInput`](../type-aliases/SchemaInput.md) \| `undefined`, readonly [`InterruptDefinition`](../interfaces/InterruptDefinition.md)\<`any`, `any`, `any`, `any`, `any`\>[], `any`, `unknown`, [`AgentProduces`](../type-aliases/AgentProduces.md) \| `undefined`\>[]\>, 
-  \| `"middleware"`
-  \| `"tools"`
-  \| `"threadId"`
-  \| `"toolChoice"`
-  \| `"interrupts"`
-  \| `"context"`\> & `object` & `object` & `RuntimeContextOption`\<`TTools`, `TMiddleware`, `TContext`\>
+`BoundTextActivityOptions`\<`TAdapter`, `TSchema`, `TStream`, `TTools`, `TInterrupts`, `TContext`, `TMiddleware`\>
 
 ## Returns
 
-`Omit`\<`TextActivityOptions`\<`TAdapter`, `TSchema`, `TStream`, `InferredContext`\<`TTools`, `TMiddleware`\>, readonly [`DefinedAgent`](../interfaces/DefinedAgent.md)\<`string`, readonly `SubagentTool`[], [`SchemaInput`](../type-aliases/SchemaInput.md) \| `undefined`, readonly [`InterruptDefinition`](../interfaces/InterruptDefinition.md)\<`any`, `any`, `any`, `any`, `any`\>[], `any`, `unknown`, [`AgentProduces`](../type-aliases/AgentProduces.md) \| `undefined`\>[]\>, `"middleware"` \| `"tools"` \| `"threadId"` \| `"interrupts"` \| `"context"`\> & `object` & `RuntimeContextOption`\<`TTools`, `TMiddleware`, `TContext`\>
+`Omit`\<`Omit`\<`TextActivityOptions`\<`TAdapter`, `TSchema`, `TStream`, `InferredContext`\<`TTools`, `TMiddleware`\>, readonly [`DefinedAgent`](../interfaces/DefinedAgent.md)\<`string`, readonly `SubagentTool`[], [`SchemaInput`](../type-aliases/SchemaInput.md) \| `undefined`, readonly [`InterruptDefinition`](../interfaces/InterruptDefinition.md)\<`any`, `any`, `any`, `any`, `any`\>[], `any`, `unknown`, [`AgentProduces`](../type-aliases/AgentProduces.md) \| `undefined`\>[]\>, `"middleware"` \| `"tools"` \| `"context"` \| `"interrupts"`\>, `"threadId"`\> & `object` & `object` & `RuntimeContextOption`\<`TTools`, `TMiddleware`, `TContext`\>
 
 ## Example
 
