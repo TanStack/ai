@@ -1,16 +1,20 @@
 import {
   EventType,
+  INTERRUPT_BINDING_VERSION,
   StreamProcessor,
   cloneAndDeepFreezeJson,
   convertSchemaToJsonSchema,
   generateMessageId,
+  hashSchemaInput,
   isStandardSchema,
   mergeMetadata,
+  normalizeApprovalSchema,
   normalizeToUIMessage,
   restoreInboundChunk,
   subagentInputOf,
   tanstackMetadata,
   validateWithStandardSchema,
+  withInterruptBinding,
 } from '@tanstack/ai/client'
 import {
   ByokBlockedError,
@@ -35,6 +39,7 @@ import { InterruptManager } from './interrupt-manager'
 import type {
   AnyClientTool,
   ContentPart,
+  Interrupt,
   InterruptDefinition,
   InterruptSubmissionError,
   ModelMessage,
@@ -309,6 +314,56 @@ function readApprovalApproved(payload: unknown): boolean | undefined {
   return payload.approved
 }
 
+/** A client tool call that needs approval, from a server that did not ask. */
+interface LocalApproval {
+  toolCallId: string
+  toolName: string
+  input: unknown
+  tool: AnyClientTool
+}
+
+/**
+ * The tool-approval interrupt that chat() sends for a call, built on the
+ * client for a server that does not send one (issue #1945).
+ */
+function localApprovalInterrupt(
+  id: string,
+  interruptedRunId: string,
+  call: LocalApproval,
+): Interrupt {
+  const approval = normalizeApprovalSchema(
+    call.tool.approvalSchema,
+    call.tool.inputSchema,
+  )
+  return withInterruptBinding(
+    {
+      id,
+      reason: 'tool_call',
+      message: `Approval required to run ${call.toolName}`,
+      toolCallId: call.toolCallId,
+      responseSchema: approval.responseSchema,
+      metadata: {
+        kind: 'approval',
+        toolName: call.toolName,
+        input: call.input,
+      },
+    },
+    {
+      v: INTERRUPT_BINDING_VERSION,
+      kind: 'tool-approval',
+      interruptId: id,
+      interruptedRunId,
+      generation: 0,
+      toolName: call.toolName,
+      toolCallId: call.toolCallId,
+      originalArgs: call.input,
+      inputSchemaHash: hashSchemaInput(call.tool.inputSchema),
+      approvalSchemaHash: approval.approvalSchemaHash,
+      responseSchemaHash: approval.responseSchemaHash,
+    },
+  )
+}
+
 function readResumeState(
   snapshot: ChatResumeSnapshot,
 ): ChatResumeState | undefined {
@@ -577,6 +632,13 @@ export class ChatClient<
   // Track pending client tool executions to await them before stream finalization
   private readonly pendingToolExecutions: Map<string, Promise<void>> = new Map()
   private handingOverPendingToolCalls = false
+  // Handed-over calls that need approval. After the chunk, they become local
+  // tool-approval interrupts, and their answer stays on the client.
+  private pendingLocalApprovals: Array<LocalApproval> = []
+  private localApprovals: {
+    runId: string
+    calls: Map<string, LocalApproval>
+  } | null = null
   private activeClientTools: Map<string, AnyClientTool> | null = null
   private activeContext: TContext | undefined = undefined
   // Flag to deduplicate continuation checks during action draining
@@ -933,72 +995,16 @@ export class ChatClient<
           const clientTools =
             this.activeClientTools ?? this.clientToolsRef.current
           const clientTool = clientTools.get(args.toolName)
-          const executeFunc = clientTool?.execute
           // A success RUN_FINISHED hands over calls that no approval step
-          // covered. A tool that needs approval does not run from there.
+          // covered. A tool that needs approval asks the user first.
           if (
             this.handingOverPendingToolCalls &&
             clientTool?.needsApproval === true
           ) {
-            console.warn(
-              `[ChatClient] Did not run tool call ${args.toolCallId}: ${args.toolName} needs approval, and the server did not ask for it`,
-            )
+            this.pendingLocalApprovals.push({ ...args, tool: clientTool })
             return
           }
-          if (executeFunc) {
-            const continuationGeneration = this.continuationGeneration
-            // Capture the run context at execution-start so a tool whose
-            // result lands AFTER the originating run finishes still reports
-            // back against the originating run, not whatever run is
-            // current when the result emits.
-            const runEventContext =
-              this.devtoolsBridge.getCurrentRunEventContext()
-            // Create and track the execution promise
-            const executionPromise = (async () => {
-              try {
-                const context =
-                  this.activeClientTools === null
-                    ? this.context
-                    : this.activeContext
-                const output = await executeFunc(args.input, {
-                  toolCallId: args.toolCallId,
-                  threadId: this.threadId,
-                  context: context as TContext,
-                  emitCustomEvent: () => {},
-                })
-                await this.addToolResultForClientTool(
-                  {
-                    toolCallId: args.toolCallId,
-                    tool: args.toolName,
-                    output,
-                    state: 'output-available',
-                  },
-                  clientTool,
-                  continuationGeneration,
-                  runEventContext,
-                )
-              } catch (error: any) {
-                await this.addToolResultForClientTool(
-                  {
-                    toolCallId: args.toolCallId,
-                    tool: args.toolName,
-                    output: null,
-                    state: 'output-error',
-                    errorText: error.message,
-                  },
-                  clientTool,
-                  continuationGeneration,
-                  runEventContext,
-                )
-              } finally {
-                // Remove from pending when complete
-                this.pendingToolExecutions.delete(args.toolCallId)
-              }
-            })()
-
-            // Track the pending execution
-            this.pendingToolExecutions.set(args.toolCallId, executionPromise)
-          }
+          if (clientTool) this.runClientTool(args, clientTool)
         },
         onApprovalRequest: (args: {
           toolCallId: string
@@ -1713,6 +1719,17 @@ export class ChatClient<
   private async submitInterruptBatch(
     submission: InterruptManagerSubmission,
   ): Promise<void> {
+    const local = this.localApprovals
+    if (local?.runId === submission.interruptedRunId) {
+      // No server asked for these approvals, so no server run resumes.
+      this.localApprovals = null
+      this.interruptManager.reset()
+      for (const resolution of submission.resolutions) {
+        const call = local.calls.get(resolution.interruptId)
+        if (call) this.answerLocalApproval(call, resolution.payload)
+      }
+      return
+    }
     const continuationGeneration = this.continuationGeneration
     this.activeInterruptSubmission = submission
     this.interruptSubmissionFailure = undefined
@@ -2284,7 +2301,63 @@ export class ChatClient<
     this.syncSubagentHandles()
     this.updateRunLifecycle(chunk)
     this.observeInterruptState(chunk)
+    this.raiseLocalApprovals()
     this.resolveJoinedRun(chunk)
+  }
+
+  /**
+   * Show the handed-over calls that need approval as tool-approval
+   * interrupts. Runs after observeInterruptState(), which clears the
+   * interrupts on the RUN_FINISHED that handed the calls over.
+   */
+  private raiseLocalApprovals(): void {
+    if (this.pendingLocalApprovals.length === 0) return
+    const runId = this.generateUniqueId('local-approval')
+    const calls = new Map(
+      this.pendingLocalApprovals.map((call) => [
+        `local_approval_${call.toolCallId}`,
+        call,
+      ]),
+    )
+    this.pendingLocalApprovals = []
+    this.localApprovals = { runId, calls }
+    this.interruptManager.hydrate({
+      threadId: this.threadId,
+      interruptedRunId: runId,
+      generation: 0,
+      interrupts: Array.from(calls, ([id, call]) =>
+        localApprovalInterrupt(id, runId, call),
+      ),
+    })
+  }
+
+  /** Run an approved local call, or add a denied result. */
+  private answerLocalApproval(call: LocalApproval, payload: unknown): void {
+    // The interrupt manager checked the payload: { approved, editedArgs?,
+    // payload? }.
+    const read = (key: string): unknown =>
+      typeof payload === 'object' && payload !== null
+        ? Reflect.get(payload, key)
+        : undefined
+    if (readApprovalApproved(payload) === true) {
+      this.runClientTool(
+        { ...call, input: read('editedArgs') ?? call.input },
+        call.tool,
+      )
+      return
+    }
+    // The same result chat() sends for a denied call.
+    void this.addToolResultForClientTool(
+      {
+        toolCallId: call.toolCallId,
+        tool: call.toolName,
+        output: read('payload') ?? { error: 'User declined tool execution' },
+        state: 'output-error',
+        errorText: 'User declined tool execution',
+      },
+      call.tool,
+      this.continuationGeneration,
+    )
   }
 
   private isActiveInterruptSubmissionFailure(
@@ -2814,8 +2887,20 @@ export class ChatClient<
         await Promise.all(this.pendingToolExecutions.values())
       }
 
-      // Finalize (idempotent — may already be done by RUN_FINISHED handler)
-      this.processor.finalizeStream()
+      // Finalize (idempotent — may already be done by RUN_FINISHED handler).
+      // It can hand over the calls of a run that ended with 'tool_calls', so
+      // the approval check in onToolCall applies here too.
+      this.handingOverPendingToolCalls = true
+      try {
+        this.processor.finalizeStream()
+      } finally {
+        this.handingOverPendingToolCalls = false
+      }
+      this.raiseLocalApprovals()
+      // Wait for the tools that finalizeStream() started, as above.
+      if (this.pendingToolExecutions.size > 0) {
+        await Promise.all(this.pendingToolExecutions.values())
+      }
       streamCompletedSuccessfully = true
     } catch (err: unknown) {
       const error = err instanceof Error ? err : new Error(String(err))
@@ -3047,6 +3132,64 @@ export class ChatClient<
       clientTool,
       this.streamContinuationGeneration,
     )
+  }
+
+  /** Run a client tool, then add its result and continue the loop. */
+  private runClientTool(
+    args: { toolCallId: string; toolName: string; input: any },
+    clientTool: AnyClientTool,
+  ): void {
+    const executeFunc = clientTool.execute
+    if (!executeFunc) return
+    const continuationGeneration = this.continuationGeneration
+    // Capture the run context at execution-start so a tool whose
+    // result lands AFTER the originating run finishes still reports
+    // back against the originating run, not whatever run is
+    // current when the result emits.
+    const runEventContext = this.devtoolsBridge.getCurrentRunEventContext()
+    // Create and track the execution promise
+    const executionPromise = (async () => {
+      try {
+        const context =
+          this.activeClientTools === null ? this.context : this.activeContext
+        const output = await executeFunc(args.input, {
+          toolCallId: args.toolCallId,
+          threadId: this.threadId,
+          context: context as TContext,
+          emitCustomEvent: () => {},
+        })
+        await this.addToolResultForClientTool(
+          {
+            toolCallId: args.toolCallId,
+            tool: args.toolName,
+            output,
+            state: 'output-available',
+          },
+          clientTool,
+          continuationGeneration,
+          runEventContext,
+        )
+      } catch (error: any) {
+        await this.addToolResultForClientTool(
+          {
+            toolCallId: args.toolCallId,
+            tool: args.toolName,
+            output: null,
+            state: 'output-error',
+            errorText: error.message,
+          },
+          clientTool,
+          continuationGeneration,
+          runEventContext,
+        )
+      } finally {
+        // Remove from pending when complete
+        this.pendingToolExecutions.delete(args.toolCallId)
+      }
+    })()
+
+    // Track the pending execution
+    this.pendingToolExecutions.set(args.toolCallId, executionPromise)
   }
 
   private async addToolResultForClientTool(

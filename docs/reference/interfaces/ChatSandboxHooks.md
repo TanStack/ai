@@ -3,7 +3,7 @@ id: ChatSandboxHooks
 title: ChatSandboxHooks
 ---
 
-Defined in: packages/ai/src/activities/chat/middleware/types.ts:61
+Defined in: [packages/ai/src/activities/chat/middleware/types.ts:62](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L62)
 
 Sandbox file-event hooks a chat middleware can declare. Fire server-side for
 every file create/change/delete observed in the sandbox during the run.
@@ -22,7 +22,7 @@ every file create/change/delete observed in the sandbox during the run.
 optional onFile?: (ctx, e) => void | Promise<void>;
 ```
 
-Defined in: packages/ai/src/activities/chat/middleware/types.ts:62
+Defined in: [packages/ai/src/activities/chat/middleware/types.ts:63](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L63)
 
 #### Parameters
 
@@ -46,7 +46,7 @@ Defined in: packages/ai/src/activities/chat/middleware/types.ts:62
 optional onFileChange?: (ctx, e) => void | Promise<void>;
 ```
 
-Defined in: packages/ai/src/activities/chat/middleware/types.ts:70
+Defined in: [packages/ai/src/activities/chat/middleware/types.ts:71](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L71)
 
 #### Parameters
 
@@ -70,7 +70,7 @@ Defined in: packages/ai/src/activities/chat/middleware/types.ts:70
 optional onFileCreate?: (ctx, e) => void | Promise<void>;
 ```
 
-Defined in: packages/ai/src/activities/chat/middleware/types.ts:66
+Defined in: [packages/ai/src/activities/chat/middleware/types.ts:67](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L67)
 
 #### Parameters
 
@@ -94,7 +94,7 @@ Defined in: packages/ai/src/activities/chat/middleware/types.ts:66
 optional onFileDelete?: (ctx, e) => void | Promise<void>;
 ```
 
-Defined in: packages/ai/src/activities/chat/middleware/types.ts:74
+Defined in: [packages/ai/src/activities/chat/middleware/types.ts:75](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L75)
 
 #### Parameters
 
