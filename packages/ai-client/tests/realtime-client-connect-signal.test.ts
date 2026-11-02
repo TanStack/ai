@@ -38,13 +38,16 @@ describe('RealtimeClient connect abortSignal', () => {
       onError,
     })
 
-    const pending = client.connect()
+    // Handle the rejection now: it comes while the test still awaits.
+    const pending = expect(client.connect()).rejects.toMatchObject({
+      name: 'AbortError',
+    })
     await vi.waitFor(() => expect(signals).toHaveLength(1))
     expect(signals[0]!.aborted).toBe(false)
 
     await client.disconnect()
     expect(signals[0]!.aborted).toBe(true)
-    await expect(pending).rejects.toMatchObject({ name: 'AbortError' })
+    await pending
     expect(client.getSnapshot().status).toBe('idle')
     expect(onError).not.toHaveBeenCalled()
     client.destroy()
@@ -59,18 +62,23 @@ describe('RealtimeClient connect abortSignal', () => {
       onError,
     })
 
-    const first = client.connect()
+    // Handle each rejection now: it comes while the test still awaits.
+    const first = expect(client.connect()).rejects.toMatchObject({
+      name: 'AbortError',
+    })
     await vi.waitFor(() => expect(signals).toHaveLength(1))
-    const second = client.connect()
+    const second = expect(client.connect()).rejects.toMatchObject({
+      name: 'AbortError',
+    })
     await vi.waitFor(() => expect(signals).toHaveLength(2))
 
     expect(signals[0]!.aborted).toBe(true)
     expect(signals[1]!.aborted).toBe(false)
-    await expect(first).rejects.toMatchObject({ name: 'AbortError' })
+    await first
     expect(onError).not.toHaveBeenCalled()
 
     await client.disconnect()
-    await expect(second).rejects.toMatchObject({ name: 'AbortError' })
+    await second
     client.destroy()
   })
 
