@@ -90,6 +90,7 @@ import { Route as ApiCopilotWireRouteImport } from './routes/api.copilot-wire'
 import { Route as ApiCrossModelReplayWireRouteImport } from './routes/api.cross-model-replay-wire'
 import { Route as ApiDevtoolsMemoryRouteImport } from './routes/api.devtools-memory'
 import { Route as ApiDurableDeliveryRouteImport } from './routes/api.durable-delivery'
+import { Route as ApiDurableMcpInputRouteImport } from './routes/api.durable-mcp-input'
 import { Route as ApiDurableTakeoverRouteImport } from './routes/api.durable-takeover'
 import { Route as ApiEmbeddingRouteImport } from './routes/api.embedding'
 import { Route as ApiEvaluateHttpStatusRouteImport } from './routes/api.evaluate-http-status'
@@ -635,6 +636,11 @@ const ApiDevtoolsMemoryRoute = ApiDevtoolsMemoryRouteImport.update({
 const ApiDurableDeliveryRoute = ApiDurableDeliveryRouteImport.update({
   id: '/api/durable-delivery',
   path: '/api/durable-delivery',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiDurableMcpInputRoute = ApiDurableMcpInputRouteImport.update({
+  id: '/api/durable-mcp-input',
+  path: '/api/durable-mcp-input',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiDurableTakeoverRoute = ApiDurableTakeoverRouteImport.update({
@@ -1348,6 +1354,7 @@ export interface FileRoutesByFullPath {
   '/api/cross-model-replay-wire': typeof ApiCrossModelReplayWireRoute
   '/api/devtools-memory': typeof ApiDevtoolsMemoryRoute
   '/api/durable-delivery': typeof ApiDurableDeliveryRoute
+  '/api/durable-mcp-input': typeof ApiDurableMcpInputRoute
   '/api/durable-takeover': typeof ApiDurableTakeoverRoute
   '/api/embedding': typeof ApiEmbeddingRoute
   '/api/evaluate-http-status': typeof ApiEvaluateHttpStatusRoute
@@ -1551,6 +1558,7 @@ export interface FileRoutesByTo {
   '/api/cross-model-replay-wire': typeof ApiCrossModelReplayWireRoute
   '/api/devtools-memory': typeof ApiDevtoolsMemoryRoute
   '/api/durable-delivery': typeof ApiDurableDeliveryRoute
+  '/api/durable-mcp-input': typeof ApiDurableMcpInputRoute
   '/api/durable-takeover': typeof ApiDurableTakeoverRoute
   '/api/embedding': typeof ApiEmbeddingRoute
   '/api/evaluate-http-status': typeof ApiEvaluateHttpStatusRoute
@@ -1755,6 +1763,7 @@ export interface FileRoutesById {
   '/api/cross-model-replay-wire': typeof ApiCrossModelReplayWireRoute
   '/api/devtools-memory': typeof ApiDevtoolsMemoryRoute
   '/api/durable-delivery': typeof ApiDurableDeliveryRoute
+  '/api/durable-mcp-input': typeof ApiDurableMcpInputRoute
   '/api/durable-takeover': typeof ApiDurableTakeoverRoute
   '/api/embedding': typeof ApiEmbeddingRoute
   '/api/evaluate-http-status': typeof ApiEvaluateHttpStatusRoute
@@ -1960,6 +1969,7 @@ export interface FileRouteTypes {
     | '/api/cross-model-replay-wire'
     | '/api/devtools-memory'
     | '/api/durable-delivery'
+    | '/api/durable-mcp-input'
     | '/api/durable-takeover'
     | '/api/embedding'
     | '/api/evaluate-http-status'
@@ -2163,6 +2173,7 @@ export interface FileRouteTypes {
     | '/api/cross-model-replay-wire'
     | '/api/devtools-memory'
     | '/api/durable-delivery'
+    | '/api/durable-mcp-input'
     | '/api/durable-takeover'
     | '/api/embedding'
     | '/api/evaluate-http-status'
@@ -2366,6 +2377,7 @@ export interface FileRouteTypes {
     | '/api/cross-model-replay-wire'
     | '/api/devtools-memory'
     | '/api/durable-delivery'
+    | '/api/durable-mcp-input'
     | '/api/durable-takeover'
     | '/api/embedding'
     | '/api/evaluate-http-status'
@@ -2570,6 +2582,7 @@ export interface RootRouteChildren {
   ApiCrossModelReplayWireRoute: typeof ApiCrossModelReplayWireRoute
   ApiDevtoolsMemoryRoute: typeof ApiDevtoolsMemoryRoute
   ApiDurableDeliveryRoute: typeof ApiDurableDeliveryRoute
+  ApiDurableMcpInputRoute: typeof ApiDurableMcpInputRoute
   ApiDurableTakeoverRoute: typeof ApiDurableTakeoverRoute
   ApiEmbeddingRoute: typeof ApiEmbeddingRoute
   ApiEvaluateHttpStatusRoute: typeof ApiEvaluateHttpStatusRoute
@@ -3255,6 +3268,13 @@ declare module '@tanstack/react-router' {
       path: '/api/durable-delivery'
       fullPath: '/api/durable-delivery'
       preLoaderRoute: typeof ApiDurableDeliveryRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/durable-mcp-input': {
+      id: '/api/durable-mcp-input'
+      path: '/api/durable-mcp-input'
+      fullPath: '/api/durable-mcp-input'
+      preLoaderRoute: typeof ApiDurableMcpInputRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/durable-takeover': {
@@ -4244,6 +4264,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiCrossModelReplayWireRoute: ApiCrossModelReplayWireRoute,
   ApiDevtoolsMemoryRoute: ApiDevtoolsMemoryRoute,
   ApiDurableDeliveryRoute: ApiDurableDeliveryRoute,
+  ApiDurableMcpInputRoute: ApiDurableMcpInputRoute,
   ApiDurableTakeoverRoute: ApiDurableTakeoverRoute,
   ApiEmbeddingRoute: ApiEmbeddingRoute,
   ApiEvaluateHttpStatusRoute: ApiEvaluateHttpStatusRoute,

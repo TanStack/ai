@@ -51,6 +51,7 @@ export function serveMCPStdio(server: {
 
   async function forward(message: unknown) {
     if (closed) return
+    const sentSessionId = sessionId
     const controller = new AbortController()
     aborts.add(controller)
     try {
@@ -68,7 +69,11 @@ export function serveMCPStdio(server: {
         }),
       )
       if (closed) return
-      sessionId = nextSessionId(response, sessionId)
+      // A later initialize can open a new session while this request runs.
+      // This response then names the old session. Keep the new one.
+      if (sessionId === sentSessionId) {
+        sessionId = nextSessionId(response, sessionId)
+      }
       legacyProtocol = nextLegacyProtocol(response, legacyProtocol)
       const text = await response.text()
       if (closed) return
@@ -113,7 +118,8 @@ export function serveMCPStdio(server: {
   transport.onmessage = (message) => {
     // A spec 2025 tool can wait inside server.fetch for the client answer.
     // That answer, and notifications/cancelled, must not wait behind the tool.
-    if (isJSONRPCRequest(message)) {
+    // Other requests wait only for initialize, which sets the session id.
+    if (isJSONRPCRequest(message) && message.method === 'initialize') {
       tail = tail
         .then(() => forward(message))
         .catch((error) => {
@@ -121,7 +127,11 @@ export function serveMCPStdio(server: {
         })
       return
     }
-    const run = forward(message).catch((error) => {
+    const run = (
+      isJSONRPCRequest(message)
+        ? tail.then(() => forward(message))
+        : forward(message)
+    ).catch((error) => {
       console.error(errorText(error))
     })
     sideMessages.add(run)

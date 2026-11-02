@@ -304,6 +304,78 @@ describe('serveMCPStdio in-process', () => {
     await vi.waitFor(() => expect(transport.sent).toEqual([result(1)]))
   })
 
+  it('does not hold a request behind a running request', async () => {
+    let release!: () => void
+    const blocked = new Promise<void>((resolve) => (release = resolve))
+    const { transport, receive } = serve(async (req) => {
+      const body = await req.json()
+      if (body.id === 1) await blocked
+      return json(result(body.id))
+    })
+    receive(request(1, 'tools/call'))
+    receive(request(2, 'ping'))
+
+    try {
+      await vi.waitFor(() => expect(transport.sent).toEqual([result(2)]))
+    } finally {
+      release()
+    }
+    await vi.waitFor(() =>
+      expect(transport.sent).toEqual([result(2), result(1)]),
+    )
+  })
+
+  it('keeps a new session when an older request answers late', async () => {
+    let release!: () => void
+    const blocked = new Promise<void>((resolve) => (release = resolve))
+    let opened = 0
+    const { transport, requests, receive } = serve(async (req) => {
+      const body = await req.json()
+      // Like the SDK, each answer names the session it ran on.
+      const session =
+        body.method === 'initialize'
+          ? `s${++opened}`
+          : req.headers.get('mcp-session-id')!
+      if (body.id === 2) await blocked
+      return json(result(body.id), { headers: { 'mcp-session-id': session } })
+    })
+    receive(request(1, 'initialize'))
+    receive(request(2, 'tools/call'))
+    receive(request(3, 'initialize'))
+    try {
+      await vi.waitFor(() =>
+        expect(transport.sent).toEqual([result(1), result(3)]),
+      )
+    } finally {
+      release()
+    }
+    await vi.waitFor(() => expect(transport.sent).toHaveLength(3))
+    receive(request(4, 'ping'))
+    await vi.waitFor(() => expect(transport.sent).toHaveLength(4))
+
+    expect(requests.map((r) => r.headers.get('mcp-session-id'))).toEqual([
+      null,
+      's1',
+      null,
+      's2',
+    ])
+  })
+
+  it('holds a request until initialize answers', async () => {
+    const { transport, requests, receive } = serve(async (req) => {
+      const body = await req.json()
+      return json(result(body.id), { headers: { 'mcp-session-id': 'abc' } })
+    })
+    receive(request(1, 'initialize'))
+    receive(request(2, 'ping'))
+    await vi.waitFor(() => expect(transport.sent).toHaveLength(2))
+
+    expect(requests.map((r) => r.headers.get('mcp-session-id'))).toEqual([
+      null,
+      'abc',
+    ])
+  })
+
   it('mirrors the spec 2026 envelope into headers', async () => {
     const { transport, requests, receive } = serve(async (req) => {
       const body = await req.json()
