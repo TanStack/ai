@@ -96,6 +96,48 @@ describe('client tools from a foreign AG-UI server', () => {
   it.each([
     ['a success outcome', { outcome: { type: 'success' } }],
     ['finishReason tool_calls', { finishReason: 'tool_calls' }],
+  ])(
+    'sends the tool result before a queued message (%s)',
+    async (_, finished) => {
+      const execute = vi.fn(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 20))
+        return { reply: 'pong' }
+      })
+      const ping = toolDefinition({
+        name: 'ping',
+        description: 'Reply with pong',
+        inputSchema: z.object({}),
+      }).client(execute)
+      const { connection, requests } = foreignServer(finished)
+      const client = new ChatClient({
+        threadId: 'thread-1',
+        connection,
+        tools: [ping],
+      })
+
+      // The second message waits in the queue while the first run streams.
+      await Promise.all([
+        client.sendMessage('ping me'),
+        client.sendMessage('queued'),
+      ])
+
+      await vi.waitFor(() =>
+        expect(
+          requests.some((request) =>
+            JSON.stringify(request).includes('queued'),
+          ),
+        ).toBe(true),
+      )
+      const queued = requests.find((request) =>
+        JSON.stringify(request).includes('queued'),
+      )
+      expect(JSON.stringify(queued)).toContain('{\\"reply\\":\\"pong\\"}')
+    },
+  )
+
+  it.each([
+    ['a success outcome', { outcome: { type: 'success' } }],
+    ['finishReason tool_calls', { finishReason: 'tool_calls' }],
   ])('does not run a tool that needs approval (%s)', async (_, finished) => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
     const execute = vi.fn(() => ({ reply: 'pong' }))

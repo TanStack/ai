@@ -2823,6 +2823,10 @@ export class ChatClient<
       } finally {
         this.handingOverPendingToolCalls = false
       }
+      // Wait for the tools that finalizeStream() started, as above.
+      if (this.pendingToolExecutions.size > 0) {
+        await Promise.all(this.pendingToolExecutions.values())
+      }
       streamCompletedSuccessfully = true
     } catch (err: unknown) {
       const error = err instanceof Error ? err : new Error(String(err))

@@ -2728,7 +2728,9 @@ export class StreamProcessor {
         // The next model call is a new assistant message. Leave this
         // call's messages closed so its reasoning cannot land here.
         for (const id of ids) this.sealedMessageIds.add(id)
-        this.handOverAtStreamEnd = true
+        // Only the top-level stream can end here. A subagent run comes from
+        // chat(), which goes on with its next run itself.
+        this.handOverAtStreamEnd = this.subagentRunId === undefined
         return
       }
       if (!chunk.outcome || chunk.outcome.type === 'success') {
