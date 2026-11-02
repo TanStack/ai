@@ -352,6 +352,70 @@ describe('translateOpencodeStream', () => {
     })
   })
 
+  it('adds the last step of a message with no finish when its part is missing', async () => {
+    const chunks = await collect([
+      session,
+      messageUpdated('msg-1', 'assistant'),
+      {
+        kind: 'event',
+        event: {
+          type: 'message.part.updated',
+          properties: {
+            part: {
+              id: 'step-a',
+              sessionID: 'sess-1',
+              messageID: 'msg-1',
+              type: 'step-finish',
+              reason: 'tool-calls',
+              cost: 0.01,
+              tokens: { input: 100, output: 10 },
+            },
+          },
+        },
+      },
+      done({
+        finish: undefined,
+        tokens: { input: 200, output: 20 },
+        cost: 0.03,
+      }),
+    ])
+    expect(chunks.at(-1)).toMatchObject({
+      usage: { promptTokens: 300, completionTokens: 30, cost: 0.03 },
+    })
+  })
+
+  it('does not count the last step twice when a message has no finish', async () => {
+    const chunks = await collect([
+      session,
+      messageUpdated('msg-1', 'assistant'),
+      {
+        kind: 'event',
+        event: {
+          type: 'message.part.updated',
+          properties: {
+            part: {
+              id: 'step-a',
+              sessionID: 'sess-1',
+              messageID: 'msg-1',
+              type: 'step-finish',
+              reason: 'stop',
+              cost: 0.02,
+              tokens: { input: 200, output: 20 },
+            },
+          },
+        },
+      },
+      done({
+        finish: undefined,
+        tokens: { input: 200, output: 20 },
+        cost: 0.02,
+      }),
+    ])
+    expect(chunks.at(-1)).toMatchObject({
+      usage: { promptTokens: 200, completionTokens: 20, cost: 0.02 },
+    })
+  })
+
   it('leaves cost out when opencode reports 0 (a model with no price)', async () => {
     const chunks = await collect([
       session,

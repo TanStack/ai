@@ -78,6 +78,21 @@ function buildUsage(
   return result
 }
 
+function sameTokens(
+  a: OpencodeTokens | undefined,
+  b: OpencodeTokens | undefined,
+): boolean {
+  return (
+    a !== undefined &&
+    b !== undefined &&
+    a.input === b.input &&
+    a.output === b.output &&
+    a.reasoning === b.reasoning &&
+    a.cache?.read === b.cache?.read &&
+    a.cache?.write === b.cache?.write
+  )
+}
+
 type TextPart = Extract<OpencodePart, { type: 'text' }>
 type ReasoningPart = Extract<OpencodePart, { type: 'reasoning' }>
 type ToolPart = Extract<OpencodePart, { type: 'tool' }>
@@ -178,9 +193,11 @@ export async function* translateOpencodeStream(
     ]
     // The last step-finish part can arrive after `done`. Then the message
     // tokens stand in for that step.
+    // With no finish reason, the message tokens (the last step's) are the
+    // signal: a recorded part with the same tokens is that step.
     const lastStepSeen =
       message.finish === undefined
-        ? own.length > 0
+        ? own.some((s) => sameTokens(s.tokens, message.tokens))
         : own.some((s) => s.reason === message.finish)
     if (!lastStepSeen) steps.push({ tokens: message.tokens })
     for (const step of steps) {
