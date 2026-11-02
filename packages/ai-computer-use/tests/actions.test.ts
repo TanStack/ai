@@ -508,7 +508,10 @@ describe('an abort during a compound action', () => {
    * A driver that records its calls. Call number `nth` of `method` aborts
    * the signal while it runs, as a slow driver call that the user stops.
    */
-  function abortingDuring(method: 'press' | 'keyDown' | 'move', nth = 1) {
+  function abortingDuring(
+    method: 'press' | 'keyDown' | 'move' | 'mouseDown',
+    nth = 1,
+  ) {
     const { driver, calls } = createDriver()
     const controller = new AbortController()
     const original = driver[method] as (
