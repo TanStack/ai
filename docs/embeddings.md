@@ -277,6 +277,27 @@ const result = await embed({
 console.log(result.usage?.promptTokens);
 ```
 
+### Cancel or time out
+
+Pass `abortSignal` to cancel the call, or `timeout` in milliseconds to stop it after a fixed time. The adapter cancels the provider request, and `embed()` rejects. A timeout rejects with a `TimeoutError`.
+
+```typescript
+import { embed } from "@tanstack/ai";
+import { openaiEmbedding } from "@tanstack/ai-openai";
+
+export async function POST(request: Request) {
+  const result = await embed({
+    adapter: openaiEmbedding("text-embedding-3-small"),
+    input: "a red guitar",
+    abortSignal: request.signal,
+    timeout: 10_000,
+  });
+  return Response.json(result.embeddings[0]?.vector);
+}
+```
+
+When you pass both, the first one to fire wins. Middleware gets `onAbort`, not `onError`.
+
 ### Errors
 
 `embed()` rejects with the provider error. Middleware `onError` hooks run before the rejection reaches your code.

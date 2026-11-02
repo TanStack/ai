@@ -7,6 +7,7 @@
  * error when the selected provider has no lifecycle API.
  */
 
+import { raceWithAbort } from '../../utilities/activity-abort'
 import type { ContentPartFileSource } from '../../types'
 import type { FileHandle, FileUploadInput, FilesAdapter } from './adapter'
 
@@ -27,8 +28,30 @@ export const kind = 'files' as const
 export async function uploadFile<TName extends string>(options: {
   adapter: FilesAdapter<TName> & { kind: typeof kind }
   input: FileUploadInput
+  /** Cancels the upload. The call rejects when the signal aborts. */
+  abortSignal?: AbortSignal
 }): Promise<FileHandle<TName>> {
-  return options.adapter.upload(options.input)
+  const { adapter } = options
+  return withAbort(
+    adapter.upload.bind(adapter),
+    options.input,
+    options.abortSignal,
+  )
+}
+
+/**
+ * Run an adapter call with `{ abortSignal }` only when there is a signal, and
+ * reject on abort even if the adapter ignores the signal.
+ */
+function withAbort<TArg, T>(
+  call: (arg: TArg, options?: { abortSignal?: AbortSignal }) => Promise<T>,
+  arg: TArg,
+  abortSignal: AbortSignal | undefined,
+): Promise<T> {
+  return raceWithAbort(
+    abortSignal ? call(arg, { abortSignal }) : call(arg),
+    abortSignal,
+  )
 }
 
 /**
@@ -51,15 +74,18 @@ export async function getFile<TName extends string>(options: {
   // `NoInfer` so `TName` comes from the adapter only. Otherwise a foreign
   // handle widens it to a union and the call compiles.
   id: string | FileHandle<NoInfer<TName>>
+  /** Cancels the request. The call rejects when the signal aborts. */
+  abortSignal?: AbortSignal
 }): Promise<FileHandle<TName>> {
   const { adapter } = options
-  if (!adapter.get) {
+  const get = adapter.get?.bind(adapter)
+  if (!get) {
     throw new Error(
       `${adapter.name}: files adapter does not support get() — this provider ` +
         `has no file-retrieval API.`,
     )
   }
-  return adapter.get(toLifecycleId(options.id))
+  return withAbort(get, toLifecycleId(options.id), options.abortSignal)
 }
 
 /**
@@ -72,15 +98,18 @@ export async function getFile<TName extends string>(options: {
 export async function deleteFile<TName extends string>(options: {
   adapter: FilesAdapter<TName> & { kind: typeof kind }
   id: string | FileHandle<NoInfer<TName>>
+  /** Cancels the request. The call rejects when the signal aborts. */
+  abortSignal?: AbortSignal
 }): Promise<void> {
   const { adapter } = options
-  if (!adapter.delete) {
+  const remove = adapter.delete?.bind(adapter)
+  if (!remove) {
     throw new Error(
       `${adapter.name}: files adapter does not support delete() — this ` +
         `provider has no file-deletion API.`,
     )
   }
-  return adapter.delete(toLifecycleId(options.id))
+  return withAbort(remove, toLifecycleId(options.id), options.abortSignal)
 }
 
 /**

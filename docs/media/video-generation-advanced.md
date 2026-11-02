@@ -65,6 +65,22 @@ console.log('Video ready:', videoUrl)
 
 If you use middleware, such as `withGenerationPersistence`, pass the same `middleware` and `threadId` to `generateVideo()` and to `getVideoJobStatus()`. The submit call only opens the run. The poll that sees the finished job closes the run and records the result.
 
+To cancel one poll, pass `abortSignal`. To limit it, pass `timeout` in milliseconds. The limit covers the status request and the video download.
+
+```typescript
+import { getVideoJobStatus } from '@tanstack/ai'
+import { openaiVideo } from '@tanstack/ai-openai'
+
+const status = await getVideoJobStatus({
+  adapter: openaiVideo('sora-2'),
+  jobId: 'video_123',
+  timeout: 15_000,
+})
+console.log(status.status)
+```
+
+A cancelled poll rejects. It does not change the job. The provider job keeps running, and a later poll can still read it.
+
 ### Server function that polls (fetcher)
 
 A TanStack Start server function can run the full loop and return the finished result as JSON:

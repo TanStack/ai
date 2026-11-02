@@ -203,6 +203,7 @@ async function runGenerateWorld<
 
   const mwCtx = createGenerationContext({
     requestId,
+    signal: abortControls.signal,
     activity: 'world',
     provider: adapter.name,
     model,

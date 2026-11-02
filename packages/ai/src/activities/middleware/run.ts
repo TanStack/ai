@@ -23,6 +23,7 @@ export function createGenerationContext(args: {
   threadId?: string
   runId?: string
   artifactInputs?: unknown
+  signal?: AbortSignal
   createId: (prefix: string) => string
 }): GenerationMiddlewareContext {
   return {
@@ -38,6 +39,7 @@ export function createGenerationContext(args: {
     context: undefined,
     resultTransforms: [],
     artifactInputs: args.artifactInputs,
+    ...(args.signal && { signal: args.signal }),
   }
 }
 

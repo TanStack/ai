@@ -3355,6 +3355,12 @@ export interface EmbeddingOptions<TProviderOptions extends object = object> {
    * blocks.
    */
   logger: InternalLogger
+  /**
+   * Effective abort signal composed by the activity from caller `abortSignal`
+   * and/or `timeout`. Adapters should forward this to the provider SDK when
+   * supported. Request-specific — never store on a global client config.
+   */
+  abortSignal?: AbortSignal
 }
 
 /**

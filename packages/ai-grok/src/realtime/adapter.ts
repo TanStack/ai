@@ -89,6 +89,7 @@ export function grokRealtime(
     async connect(
       token: RealtimeToken,
       _clientTools?: ReadonlyArray<AnyClientTool>,
+      options?: { abortSignal?: AbortSignal },
     ): Promise<RealtimeConnection> {
       const model = token.config.model ?? GROK_DEFAULT_REALTIME_MODEL
       logger.request(`activity=realtime provider=grok model=${model}`, {
@@ -97,7 +98,7 @@ export function grokRealtime(
       })
 
       if (connectionMode === 'webrtc') {
-        return createWebRTCConnection(token, logger)
+        return createWebRTCConnection(token, logger, options?.abortSignal)
       }
       const error = new Error('WebSocket connection mode not yet implemented')
       logger.errors('grok.realtime fatal', {
@@ -115,6 +116,7 @@ export function grokRealtime(
 async function createWebRTCConnection(
   token: RealtimeToken,
   logger: InternalLogger,
+  abortSignal?: AbortSignal,
 ): Promise<RealtimeConnection> {
   const model = token.config.model ?? GROK_DEFAULT_REALTIME_MODEL
   const eventHandlers = new Map<RealtimeEvent, Set<RealtimeEventHandler<any>>>()
@@ -498,6 +500,7 @@ async function createWebRTCConnection(
         'Content-Type': 'application/sdp',
       },
       body: offer.sdp,
+      ...(abortSignal && { signal: abortSignal }),
     })
 
     if (!sdpResponse.ok) {

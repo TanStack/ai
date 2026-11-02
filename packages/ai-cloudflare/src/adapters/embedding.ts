@@ -43,10 +43,12 @@ export class CloudflareEmbeddingAdapter<
         `activity=embed provider=${this.name} model=${model} inputs=${texts.length}`,
         { provider: this.name, model },
       )
-      const output = (await runModel(this.cfConfig, model, {
-        ...options.modelOptions,
-        text: texts,
-      })) as { data?: Array<Array<number>> }
+      const output = (await runModel(
+        this.cfConfig,
+        model,
+        { ...options.modelOptions, text: texts },
+        { signal: options.abortSignal },
+      )) as { data?: Array<Array<number>> }
       if (!Array.isArray(output.data) || output.data.length !== texts.length) {
         throw new Error(
           `Workers AI ${model} returned ${output.data?.length ?? 0} embeddings for ${texts.length} inputs`,

@@ -536,6 +536,23 @@ client.destroy()
 
 The React hook disconnects by itself when the component unmounts. With `RealtimeClient`, call `disconnect()` and `destroy()` yourself.
 
+### Cancel the token request
+
+`realtimeToken()` takes an `abortSignal`. Pass the request signal, so a client that leaves also cancels the provider call:
+
+```typescript
+import { realtimeToken } from '@tanstack/ai'
+import { openaiRealtimeToken } from '@tanstack/ai-openai'
+
+export async function POST(request: Request) {
+  const token = await realtimeToken({
+    adapter: openaiRealtimeToken({ model: 'gpt-realtime-2.1' }),
+    abortSignal: request.signal,
+  })
+  return Response.json(token)
+}
+```
+
 ### Tips
 
 - Mint tokens only on the server. Never send an API key to the browser.

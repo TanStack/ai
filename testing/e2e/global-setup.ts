@@ -189,6 +189,11 @@ export default async function globalSetup() {
   // Gateway adapter keeps only the origin of its baseURL, so that mount sits on
   // the real evaluate path. Both answer only requests carrying the
   // `x-evaluate-http-status` header and fall through otherwise.
+  // embed() abort: `/v1/embeddings` never answers, and `/status` reports
+  // whether the client closed the request. The embedding-abort spec checks
+  // that `embed({ timeout })` cancels the real HTTP request.
+  mock.mount('/embedding-abort', embeddingAbortMount())
+
   mock.mount('/evaluate-http-status', evaluateHttpStatusMount())
   mock.mount('/v4/ai/evaluation-model', evaluateHttpStatusMount())
 
@@ -2348,6 +2353,46 @@ function evaluateHttpStatusMount(): Mountable {
       res.statusCode = status
       res.setHeader('Content-Type', 'application/json')
       res.end(JSON.stringify({ error: 'rejected' }))
+      return true
+    },
+  }
+}
+
+/**
+ * Never answers `POST /v1/embeddings`, and records per `X-Test-Id` whether the
+ * client closed that request before a reply. `GET /status?testId=` reads it.
+ */
+function embeddingAbortMount(): Mountable {
+  const closedByClient = new Map<string, boolean>()
+  return {
+    async handleRequest(
+      req: http.IncomingMessage,
+      res: http.ServerResponse,
+      pathname: string,
+    ): Promise<boolean> {
+      if (req.method === 'GET' && pathname === '/status') {
+        const testId = new URL(req.url ?? '', 'http://x').searchParams.get(
+          'testId',
+        )
+        res.setHeader('Content-Type', 'application/json')
+        res.end(
+          JSON.stringify({
+            closedByClient: closedByClient.get(testId ?? '') ?? false,
+          }),
+        )
+        return true
+      }
+      if (req.method !== 'POST' || pathname !== '/v1/embeddings') return false
+      const testId = String(req.headers['x-test-id'] ?? '')
+      closedByClient.set(testId, false)
+      await drainBody(req)
+      res.on('close', () => {
+        if (!res.writableEnded) closedByClient.set(testId, true)
+      })
+      // Safety net so a broken client cannot hold the socket forever.
+      setTimeout(() => {
+        if (!res.writableEnded) res.end()
+      }, 30_000).unref()
       return true
     },
   }

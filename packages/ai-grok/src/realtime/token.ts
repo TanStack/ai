@@ -41,7 +41,9 @@ export function grokRealtimeToken(
   return {
     provider: 'grok',
 
-    async generateToken(): Promise<RealtimeToken> {
+    async generateToken(request?: {
+      abortSignal?: AbortSignal
+    }): Promise<RealtimeToken> {
       const model: GrokRealtimeModel =
         options.model ?? GROK_DEFAULT_REALTIME_MODEL
 
@@ -67,6 +69,11 @@ export function grokRealtimeToken(
           controller.abort(new Error('Grok realtime token request timed out')),
         DEFAULT_TOKEN_FETCH_TIMEOUT_MS,
       )
+      // Also abort when the caller's signal aborts.
+      const callerSignal = request?.abortSignal
+      const onAbort = () => controller.abort(callerSignal?.reason)
+      if (callerSignal?.aborted) onAbort()
+      else callerSignal?.addEventListener('abort', onAbort, { once: true })
 
       try {
         const response = await fetch(GROK_REALTIME_CLIENT_SECRETS_URL, {
@@ -127,6 +134,7 @@ export function grokRealtimeToken(
         throw error
       } finally {
         clearTimeout(timeout)
+        callerSignal?.removeEventListener('abort', onAbort)
       }
     },
   }

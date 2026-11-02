@@ -218,7 +218,9 @@ describe('rerank() activity', () => {
     const { middleware, events } = recordingMiddleware()
     const controller = new AbortController()
     const adapter = mockRerankAdapter(async () => {
-      controller.abort()
+      // Abort just after the genuine error settles the call. An abort that
+      // comes first wins the activity's abort race instead.
+      setTimeout(() => controller.abort(), 0)
       throw new Error('genuine provider failure')
     })
 

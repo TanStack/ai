@@ -314,6 +314,8 @@ The four extension points also apply to media spans. Media spans report `kind: '
 
 The shared lifecycle hooks (`onStart`, `onUsage`, `onFinish`, `onAbort`, `onError`) use the `GenerationMiddlewareContext`, which is the same for each activity. That is why one instance works everywhere. For a custom backend, implement the base `GenerationMiddleware` contract. Its hooks get the `GenerationMiddlewareContext` and fire for each activity, chat included.
 
+In a custom middleware, `ctx.signal` is the effective abort signal of the activity call: the caller `abortSignal` and the `timeout` together. It is `undefined` when the call has neither. Pass it to async work in a result transform, such as an upload, so that a cancelled call also stops that work.
+
 The `GenerationMiddleware` types come from the package root. The `otelMiddleware` value lives on the `@tanstack/ai/middlewares/otel` subpath, so an import of `@tanstack/ai` never needs the optional `@opentelemetry/api` peer.
 
 ### Capturing media content

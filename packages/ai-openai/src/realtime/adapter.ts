@@ -48,6 +48,7 @@ export function openaiRealtime(
     async connect(
       token: RealtimeToken,
       _clientTools?: ReadonlyArray<AnyClientTool>,
+      options?: { abortSignal?: AbortSignal },
     ): Promise<RealtimeConnection> {
       const model = token.config.model ?? 'gpt-realtime-2.1'
       logger.request(`activity=realtime provider=openai model=${model}`, {
@@ -56,7 +57,7 @@ export function openaiRealtime(
       })
 
       if (connectionMode === 'webrtc') {
-        return createWebRTCConnection(token, logger)
+        return createWebRTCConnection(token, logger, options?.abortSignal)
       }
       const error = new Error('WebSocket connection mode not yet implemented')
       logger.errors('openai.realtime fatal', {
@@ -74,6 +75,7 @@ export function openaiRealtime(
 async function createWebRTCConnection(
   token: RealtimeToken,
   logger: InternalLogger,
+  abortSignal?: AbortSignal,
 ): Promise<RealtimeConnection> {
   const eventHandlers = new Map<RealtimeEvent, Set<RealtimeEventHandler<any>>>()
 
@@ -200,6 +202,7 @@ async function createWebRTCConnection(
       'Content-Type': 'application/sdp',
     },
     body: offer.sdp ?? null,
+    ...(abortSignal && { signal: abortSignal }),
   })
 
   if (!sdpResponse.ok) {

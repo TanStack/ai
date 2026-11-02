@@ -203,6 +203,7 @@ async function runGenerateAudio<
 
   const mwCtx = createGenerationContext({
     requestId,
+    signal: abortControls.signal,
     activity: 'audio',
     provider: adapter.name,
     model,

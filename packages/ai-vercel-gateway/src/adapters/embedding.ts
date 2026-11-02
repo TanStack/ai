@@ -71,7 +71,11 @@ export class VercelGatewayEmbeddingAdapter<
         { provider: this.name, model },
       )
 
-      const response = await this.client.embeddings.create(request)
+      const response = options.abortSignal
+        ? await this.client.embeddings.create(request, {
+            signal: options.abortSignal,
+          })
+        : await this.client.embeddings.create(request)
 
       const usage: TokenUsage = {
         promptTokens: response.usage.prompt_tokens,

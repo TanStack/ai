@@ -201,6 +201,7 @@ async function runGenerateLiveVideo<
 
   const mwCtx = createGenerationContext({
     requestId,
+    signal: abortControls.signal,
     activity: 'liveVideo',
     provider: adapter.name,
     model,

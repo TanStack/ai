@@ -8,7 +8,11 @@
 
 import { aiEventClient } from '@tanstack/ai-event-client'
 import { resolveDebugOption } from '../../logger/resolve'
-import { isAbortShapedError } from '../error-payload'
+import {
+  createActivityAbortControls,
+  isActivityAbortError,
+  raceWithAbort,
+} from '../../utilities/activity-abort'
 import {
   createGenerationContext,
   runGenerationAbort,
@@ -166,6 +170,12 @@ export interface EvaluateActivityOptions<
   /** Forwarded to the provider request for cancellation. */
   abortSignal?: AbortSignal
   /**
+   * Maximum duration of this activity invocation in milliseconds.
+   * No SDK-wide default. Composed with {@link abortSignal}; the first abort
+   * wins.
+   */
+  timeout?: number
+  /**
    * Observe-only middleware notified on start, usage, success, abort, and
    * error. Pass `otelMiddleware()` to emit OpenTelemetry spans, or implement
    * the `GenerationMiddleware` contract for a custom backend.
@@ -193,7 +203,8 @@ function isAbortError(error: unknown, signal?: AbortSignal): boolean {
   // SDK's `RequestAbortedError`, ...). Classifying on `signal.aborted` alone
   // would misroute a real failure to the abort hook whenever a shared signal
   // happens to already be aborted, hiding it from `onError` observers.
-  if (isAbortShapedError(error)) return true
+  // `isActivityAbortError` also matches the `TimeoutError` of `timeout`.
+  if (isActivityAbortError(error)) return true
   // Fall back to signal state only for non-Error throws we can't otherwise
   // identify; a real Error with a non-abort name is never an abort.
   return error instanceof Error ? false : signal?.aborted === true
@@ -464,6 +475,7 @@ export function boolean(options: {
  * @param options.questions Questions built with `choice`, `score`, `boolean`.
  * @param options.modelOptions Provider-specific options.
  * @param options.abortSignal Cancels the in-flight request.
+ * @param options.timeout Maximum duration in milliseconds.
  * @param options.middleware Observe-only generation middleware.
  * @param options.debug Debug logging option.
  *
@@ -503,23 +515,21 @@ export async function decide<
   TAdapter extends EvaluateAdapter<string, EvaluateProviderOptions<TAdapter>>,
   TQuestions extends Record<string, WireQuestion>,
 >(options: EvaluateActivityOptions<TAdapter, TQuestions>) {
-  const {
-    adapter,
-    state,
-    questions,
-    modelOptions,
-    abortSignal,
-    middleware,
-    debug,
-  } = options
+  const { adapter, state, questions, modelOptions, middleware, debug } = options
   const model = adapter.model
   const keys = assertQuestions(questions)
   const requestId = createId('evaluate')
   const startTime = Date.now()
   const logger: InternalLogger = resolveDebugOption(debug)
+  const abortControls = createActivityAbortControls({
+    timeout: options.timeout,
+    abortSignal: options.abortSignal,
+  })
+  const abortSignal = abortControls.signal
 
   const mwCtx = createGenerationContext({
     requestId,
+    signal: abortControls.signal,
     activity: 'evaluate',
     provider: adapter.name,
     model,
@@ -544,14 +554,18 @@ export async function decide<
   })
 
   try {
-    const result = await adapter.evaluate({
-      model,
-      state,
-      questions,
-      modelOptions,
+    const result = await raceWithAbort(
+      adapter.evaluate({
+        model,
+        state,
+        questions,
+        modelOptions,
+        abortSignal,
+        logger,
+      }),
       abortSignal,
-      logger,
-    })
+    )
+    abortControls.clear()
 
     let answers
     try {
@@ -606,6 +620,7 @@ export async function decide<
       ...(result.provider !== undefined && { provider: result.provider }),
     })
   } catch (error) {
+    abortControls.clear()
     const duration = Date.now() - startTime
     try {
       if (isEvaluateError(error) && error.usage) {
