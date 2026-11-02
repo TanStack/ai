@@ -106,6 +106,8 @@ export class RealtimeClient {
       status: 'connecting',
       error: null,
     })
+    // A new connect() owns the setup. Stop the setup of an earlier one.
+    this.connectAbort?.abort()
     const connectAbort = (this.connectAbort = new AbortController())
 
     try {

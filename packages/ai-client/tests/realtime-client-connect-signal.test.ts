@@ -50,6 +50,30 @@ describe('RealtimeClient connect abortSignal', () => {
     client.destroy()
   })
 
+  it('a second connect() aborts the setup of the first', async () => {
+    const { adapter, signals } = hangingAdapter()
+    const onError = vi.fn()
+    const client = new RealtimeClient({
+      getToken: async () => token,
+      adapter,
+      onError,
+    })
+
+    const first = client.connect()
+    await vi.waitFor(() => expect(signals).toHaveLength(1))
+    const second = client.connect()
+    await vi.waitFor(() => expect(signals).toHaveLength(2))
+
+    expect(signals[0]!.aborted).toBe(true)
+    expect(signals[1]!.aborted).toBe(false)
+    await expect(first).rejects.toMatchObject({ name: 'AbortError' })
+    expect(onError).not.toHaveBeenCalled()
+
+    await client.disconnect()
+    await expect(second).rejects.toMatchObject({ name: 'AbortError' })
+    client.destroy()
+  })
+
   it('a connect error that is not an abort still sets the error state', async () => {
     const client = new RealtimeClient({
       getToken: async () => token,

@@ -1396,6 +1396,9 @@ export interface FetchConnectionOptions {
   cancelUrl?: string | (() => string)
 }
 
+/** How long the cancel POST from `stop()` can take before it is aborted. */
+const CANCEL_RUN_TIMEOUT_MS = 10_000
+
 /**
  * `cancelRun` for the fetch adapters. Present only when `cancelUrl` can be
  * set: a static options object with `cancelUrl`, or an options function
@@ -1424,6 +1427,9 @@ function fetchCancelRun(
           },
           body: JSON.stringify({ runId, threadId }),
           credentials: resolved.credentials || 'same-origin',
+          // `stop()` does not wait for this request. The deadline stops a
+          // `cancelUrl` that never answers from holding a connection.
+          signal: AbortSignal.timeout(CANCEL_RUN_TIMEOUT_MS),
         },
       )
       if (!response.ok) {

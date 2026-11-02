@@ -124,3 +124,17 @@ describe('ChatClient.stop() with cancelUrl', () => {
     expect(fetchClient).toHaveBeenCalledTimes(1)
   })
 })
+
+describe('cancelRun request deadline', () => {
+  it('sends the cancel POST with a signal, so a dead cancelUrl cannot hold it', async () => {
+    const { fetchClient, cancels } = fakeFetch()
+    const connection = fetchServerSentEvents('/api/chat', {
+      fetchClient,
+      cancelUrl: '/api/chat/cancel',
+    })
+    await connection.cancelRun?.({ runId: 'run-1', threadId: 'thread-1' })
+    expect(cancels).toHaveLength(1)
+    expect(cancels[0]!.init.signal).toBeInstanceOf(AbortSignal)
+    expect(cancels[0]!.init.signal?.aborted).toBe(false)
+  })
+})
