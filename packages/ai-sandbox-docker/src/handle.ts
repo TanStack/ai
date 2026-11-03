@@ -816,7 +816,7 @@ export class DockerHandle implements SandboxHandle {
         `docker: container port ${port} is not published. Pass publishPorts: [${port}] to dockerSandbox() to reach it from the host.`,
       )
     }
-    return { url: `http://localhost:${hostPort}` }
+    return { url: `http://127.0.0.1:${hostPort}` }
   }
 
   async snapshot(
