@@ -149,26 +149,29 @@ export class ElevenLabsAudioAdapter<
     const music = (options.modelOptions ?? {}) as ElevenLabsMusicProviderOptions
     const outputFormat = music.outputFormat
 
-    const stream = await this.client.music.compose({
-      modelId,
-      ...(options.prompt && !music.compositionPlan
-        ? { prompt: options.prompt }
-        : {}),
-      ...(music.compositionPlan
-        ? { compositionPlan: toMusicPrompt(music.compositionPlan) }
-        : {}),
-      ...(options.duration != null && !music.compositionPlan
-        ? { musicLengthMs: Math.round(options.duration * 1000) }
-        : {}),
-      ...(outputFormat ? { outputFormat } : {}),
-      ...(music.seed != null ? { seed: music.seed } : {}),
-      ...(music.forceInstrumental != null
-        ? { forceInstrumental: music.forceInstrumental }
-        : {}),
-      ...(music.respectSectionsDurations != null
-        ? { respectSectionsDurations: music.respectSectionsDurations }
-        : {}),
-    })
+    const stream = await this.client.music.compose(
+      {
+        modelId,
+        ...(options.prompt && !music.compositionPlan
+          ? { prompt: options.prompt }
+          : {}),
+        ...(music.compositionPlan
+          ? { compositionPlan: toMusicPrompt(music.compositionPlan) }
+          : {}),
+        ...(options.duration != null && !music.compositionPlan
+          ? { musicLengthMs: Math.round(options.duration * 1000) }
+          : {}),
+        ...(outputFormat ? { outputFormat } : {}),
+        ...(music.seed != null ? { seed: music.seed } : {}),
+        ...(music.forceInstrumental != null
+          ? { forceInstrumental: music.forceInstrumental }
+          : {}),
+        ...(music.respectSectionsDurations != null
+          ? { respectSectionsDurations: music.respectSectionsDurations }
+          : {}),
+      },
+      options.abortSignal ? { abortSignal: options.abortSignal } : {},
+    )
 
     return this.finalize(stream, outputFormat, options.duration)
   }
@@ -182,19 +185,22 @@ export class ElevenLabsAudioAdapter<
       {}) as ElevenLabsSoundEffectsProviderOptions
     const outputFormat = sfx.outputFormat
 
-    const stream = await this.client.textToSoundEffects.convert({
-      text: options.prompt,
-      // The SDK types list only the sound models it knew at release.
-      modelId: modelId as ElevenLabs.SfxModelId,
-      ...(options.duration != null
-        ? { durationSeconds: options.duration }
-        : {}),
-      ...(outputFormat ? { outputFormat } : {}),
-      ...(sfx.promptInfluence != null
-        ? { promptInfluence: sfx.promptInfluence }
-        : {}),
-      ...(sfx.loop != null ? { loop: sfx.loop } : {}),
-    })
+    const stream = await this.client.textToSoundEffects.convert(
+      {
+        text: options.prompt,
+        // The SDK types list only the sound models it knew at release.
+        modelId: modelId as ElevenLabs.SfxModelId,
+        ...(options.duration != null
+          ? { durationSeconds: options.duration }
+          : {}),
+        ...(outputFormat ? { outputFormat } : {}),
+        ...(sfx.promptInfluence != null
+          ? { promptInfluence: sfx.promptInfluence }
+          : {}),
+        ...(sfx.loop != null ? { loop: sfx.loop } : {}),
+      },
+      options.abortSignal ? { abortSignal: options.abortSignal } : {},
+    )
 
     return this.finalize(stream, outputFormat, options.duration)
   }

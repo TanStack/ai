@@ -502,3 +502,127 @@ describe('OpenAI actions', () => {
 it('throws for an input with no action', async () => {
   await expect(run({ foo: 1 })).rejects.toThrow('"action"')
 })
+
+describe('an abort during a compound action', () => {
+  /**
+   * A driver that records its calls. Call number `nth` of `method` aborts
+   * the signal while it runs, as a slow driver call that the user stops.
+   */
+  function abortingDuring(
+    method: 'press' | 'keyDown' | 'move' | 'mouseDown',
+    nth = 1,
+  ) {
+    const { driver, calls } = createDriver()
+    const controller = new AbortController()
+    const original = driver[method] as (
+      ...args: Array<unknown>
+    ) => Promise<void>
+    let count = 0
+    driver[method] = (async (...args: Array<unknown>) => {
+      await original(...args)
+      count += 1
+      if (count === nth) controller.abort()
+    }) as never
+    return { driver, calls, signal: controller.signal }
+  }
+
+  it('stops a repeated key press', async () => {
+    const { driver, calls, signal } = abortingDuring('press')
+    await expect(
+      runComputerAction(
+        driver,
+        { action: 'key', text: 'a', repeat: 5 },
+        signal,
+      ),
+    ).rejects.toThrow()
+    expect(calls.filter(([name]) => name === 'press')).toHaveLength(1)
+  })
+
+  it('does not run the action after a modifier key, and releases the key', async () => {
+    const { driver, calls, signal } = abortingDuring('keyDown')
+    await expect(
+      runComputerAction(
+        driver,
+        {
+          action: {
+            type: 'click',
+            button: 'left',
+            x: 1,
+            y: 2,
+            keys: ['shift', 'ctrl'],
+          },
+        },
+        signal,
+      ),
+    ).rejects.toThrow()
+    expect(calls.map(([name]) => name)).toEqual(['keyDown', 'keyUp'])
+  })
+
+  it('does not press the mouse when the drag aborts at its first move', async () => {
+    const { driver, calls, signal } = abortingDuring('move')
+    await expect(
+      runComputerAction(
+        driver,
+        {
+          action: {
+            type: 'drag',
+            path: [
+              { x: 0, y: 0 },
+              { x: 1, y: 1 },
+            ],
+          },
+        },
+        signal,
+      ),
+    ).rejects.toThrow()
+    expect(calls.map(([name]) => name)).toEqual(['move'])
+  })
+
+  it('finishes a drag that aborts while the button goes down', async () => {
+    const { driver, calls, signal } = abortingDuring('mouseDown')
+    await runComputerAction(
+      driver,
+      {
+        action: {
+          type: 'drag',
+          path: [
+            { x: 0, y: 0 },
+            { x: 1, y: 1 },
+          ],
+        },
+      },
+      signal,
+    )
+    expect(calls).toEqual([
+      ['move', 0, 0],
+      ['mouseDown', 'left'],
+      ['move', 1, 1],
+      ['mouseUp', 'left'],
+    ])
+  })
+
+  it('finishes a drag that aborts between two moves', async () => {
+    const { driver, calls, signal } = abortingDuring('move', 2)
+    await runComputerAction(
+      driver,
+      {
+        action: {
+          type: 'drag',
+          path: [
+            { x: 0, y: 0 },
+            { x: 1, y: 1 },
+            { x: 2, y: 2 },
+          ],
+        },
+      },
+      signal,
+    )
+    expect(calls).toEqual([
+      ['move', 0, 0],
+      ['mouseDown', 'left'],
+      ['move', 1, 1],
+      ['move', 2, 2],
+      ['mouseUp', 'left'],
+    ])
+  })
+})

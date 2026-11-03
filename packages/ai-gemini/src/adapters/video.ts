@@ -10,7 +10,11 @@ import {
 } from '@tanstack/ai'
 import { BaseVideoAdapter } from '@tanstack/ai/adapters'
 import { arrayBufferToBase64 } from '@tanstack/ai-utils'
-import { createGeminiClient, getGeminiApiKeyFromEnv } from '../utils'
+import {
+  createGeminiClient,
+  getGeminiApiKeyFromEnv,
+  withHttpTimeout,
+} from '../utils'
 import {
   getGeminiVideoDurationOptions,
   isInteractionsVideoModel,
@@ -89,6 +93,7 @@ function operationErrorMessage(error: Record<string, unknown>): string {
 async function imagePartToVeoImage(
   part: ImagePart<MediaInputMetadata>,
   allowUrlFetch: boolean,
+  abortSignal: AbortSignal | undefined,
 ): Promise<Image> {
   if (part.source.type === 'data') {
     return {
@@ -132,7 +137,9 @@ async function imagePartToVeoImage(
         `adapter config to opt into fetching. URL: ${url}`,
     )
   }
-  const response = await fetch(url)
+  const response = abortSignal
+    ? await fetch(url, { signal: abortSignal })
+    : await fetch(url)
   if (!response.ok) {
     throw new Error(
       `Failed to fetch image input (${response.status} ${response.statusText}): ${url}`,
@@ -275,11 +282,13 @@ export class GeminiVideoAdapter<
 
   protected client: GoogleGenAI
   private readonly allowUrlFetch: boolean
+  private readonly timeoutMs: number | undefined
 
   constructor(config: GeminiVideoConfig, model: TModel) {
     super({}, model)
     this.client = createGeminiClient(config)
     this.allowUrlFetch = config.allowUrlFetch ?? false
+    this.timeoutMs = config.httpOptions?.timeout
   }
 
   async createVideoJob(
@@ -319,6 +328,7 @@ export class GeminiVideoAdapter<
 
       const { image, lastFrame, referenceImages } = await this.routeImageParts(
         resolved.images,
+        options.abortSignal,
       )
 
       const config: GenerateVideosConfig = {
@@ -327,6 +337,7 @@ export class GeminiVideoAdapter<
         ...(duration !== undefined && { durationSeconds: duration }),
         ...(lastFrame && { lastFrame }),
         ...(referenceImages.length > 0 && { referenceImages }),
+        ...(options.abortSignal && { abortSignal: options.abortSignal }),
       }
 
       const operation = await this.client.models.generateVideos({
@@ -427,14 +438,18 @@ export class GeminiVideoAdapter<
             }
           : {}
 
-      const interaction = await this.client.interactions.create({
+      const request = {
         ...modelOptions,
         model: this.model,
-        input: [{ type: 'user_input', content }],
-        response_modalities: ['video'],
+        input: [{ type: 'user_input' as const, content }],
+        response_modalities: ['video' as const],
         background: true,
         ...responseFormat,
-      })
+      }
+      const signal = withHttpTimeout(options.abortSignal, this.timeoutMs)
+      const interaction = signal
+        ? await this.client.interactions.create(request, { signal })
+        : await this.client.interactions.create(request)
 
       if (!interaction.id) {
         throw new Error(
@@ -457,6 +472,7 @@ export class GeminiVideoAdapter<
    */
   private async routeImageParts(
     parts: Array<ImagePart<MediaInputMetadata>>,
+    abortSignal: AbortSignal | undefined,
   ): Promise<{
     image: Image | undefined
     lastFrame: Image | undefined
@@ -475,13 +491,21 @@ export class GeminiVideoAdapter<
               `${this.name}: Veo accepts at most one 'end_frame' image.`,
             )
           }
-          lastFrame = await imagePartToVeoImage(part, this.allowUrlFetch)
+          lastFrame = await imagePartToVeoImage(
+            part,
+            this.allowUrlFetch,
+            abortSignal,
+          )
           break
         }
         case 'reference':
         case 'character': {
           referenceImages.push({
-            image: await imagePartToVeoImage(part, this.allowUrlFetch),
+            image: await imagePartToVeoImage(
+              part,
+              this.allowUrlFetch,
+              abortSignal,
+            ),
             referenceType: VideoGenerationReferenceType.ASSET,
           })
           break
@@ -493,7 +517,11 @@ export class GeminiVideoAdapter<
               `${this.name}: Veo accepts at most one starting image; received multiple 'start_frame'/un-roled images. Use metadata.role ('end_frame', 'reference') to disambiguate the others.`,
             )
           }
-          image = await imagePartToVeoImage(part, this.allowUrlFetch)
+          image = await imagePartToVeoImage(
+            part,
+            this.allowUrlFetch,
+            abortSignal,
+          )
           break
         }
         case 'mask':

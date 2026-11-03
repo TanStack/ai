@@ -690,7 +690,7 @@
           "label": "MCP Server Tasks",
           "to": "mcp/server-tasks",
           "addedAt": "2026-09-22",
-          "updatedAt": "2026-10-22"
+          "updatedAt": "2026-11-02"
         },
         {
           "label": "MCP Server Auth",
@@ -1008,7 +1008,7 @@
           "label": "Code Mode",
           "to": "code-mode/code-mode",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-10-29"
+          "updatedAt": "2026-11-02"
         },
         {
           "label": "Showing Code Mode in the UI",
@@ -1093,7 +1093,7 @@
           "label": "Connect clients",
           "to": "harness/connect",
           "addedAt": "2026-10-13",
-          "updatedAt": "2026-10-22"
+          "updatedAt": "2026-11-02"
         },
         {
           "label": "Write a client in any language",
@@ -2018,7 +2018,7 @@
           "label": "@tanstack/ai-react",
           "to": "api/ai-react",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-10-21"
+          "updatedAt": "2026-10-24"
         },
         {
           "label": "@tanstack/ai-solid",

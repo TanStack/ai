@@ -210,15 +210,11 @@ export class BytePlusVideoAdapter<
 
   private async request(
     path: string,
-    init?: Omit<RequestInit, 'headers'>,
+    init?: Omit<RequestInit, 'headers' | 'signal'>,
+    abortSignal?: AbortSignal,
   ): Promise<{ response: Response; body: unknown }> {
     const fetchImpl = this.clientConfig.fetch ?? fetch
-    const timeoutSignal = bytePlusTimeoutSignal(this.clientConfig.timeout)
-    // Keep a caller signal from `init` and the config timeout together.
-    const signal =
-      init?.signal && timeoutSignal
-        ? AbortSignal.any([init.signal, timeoutSignal])
-        : (init?.signal ?? timeoutSignal)
+    const signal = bytePlusTimeoutSignal(this.clientConfig.timeout, abortSignal)
     const response = await fetchImpl(`${this.clientConfig.baseURL}${path}`, {
       ...init,
       ...(signal && { signal }),
@@ -467,10 +463,11 @@ export class BytePlusVideoAdapter<
         { provider: this.name, model },
       )
 
-      const { response, body } = await this.request(TASKS_PATH, {
-        method: 'POST',
-        body: JSON.stringify(request),
-      })
+      const { response, body } = await this.request(
+        TASKS_PATH,
+        { method: 'POST', body: JSON.stringify(request) },
+        options.abortSignal,
+      )
       if (!response.ok) {
         throw bytePlusArkError(response.status, body, 'video task creation')
       }
@@ -507,7 +504,8 @@ export class BytePlusVideoAdapter<
   ): Promise<BytePlusVideoTask> {
     const { response, body } = await this.request(
       `${TASKS_PATH}/${encodeURIComponent(jobId)}`,
-      signal && { signal },
+      undefined,
+      signal,
     )
     if (!response.ok) {
       const error = bytePlusArkError(response.status, body, 'video task lookup')
@@ -535,10 +533,8 @@ export class BytePlusVideoAdapter<
   ): Promise<void> {
     const { response, body } = await this.request(
       `${TASKS_PATH}/${encodeURIComponent(jobId)}`,
-      {
-        method: 'DELETE',
-        ...(options?.abortSignal && { signal: options.abortSignal }),
-      },
+      { method: 'DELETE' },
+      options?.abortSignal,
     )
     if (!response.ok) {
       throw bytePlusArkError(response.status, body, 'video task cancel')

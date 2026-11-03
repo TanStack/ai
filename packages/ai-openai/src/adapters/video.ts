@@ -127,6 +127,7 @@ export class OpenAIVideoAdapter<
         inputReference,
         'input-reference',
         this.clientConfig.allowUrlFetch ?? false,
+        options.abortSignal,
       )
     }
     // `VideoCreateParams.size` is `size?: VideoSize` (no `| undefined`), so we
@@ -147,7 +148,9 @@ export class OpenAIVideoAdapter<
         { provider: this.name, model },
       )
       const videosClient = this.getVideosClient()
-      const response = await videosClient.create(request)
+      const response = await videosClient.create(request, {
+        signal: options.abortSignal,
+      })
       return { jobId: response.id, model }
     } catch (error: any) {
       options.logger.errors(`${this.name}.createVideoJob fatal`, {
@@ -170,7 +173,10 @@ export class OpenAIVideoAdapter<
    * the path uniformly even when the SDK lacks first-class typings here.
    */
   private getVideosClient(): {
-    create: (req: Record<string, any>) => Promise<{ id: string }>
+    create: (
+      req: Record<string, any>,
+      options?: { signal?: AbortSignal | undefined },
+    ) => Promise<{ id: string }>
     retrieve: (
       id: string,
       options?: { signal?: AbortSignal },

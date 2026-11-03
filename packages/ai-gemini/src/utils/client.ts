@@ -44,6 +44,21 @@ export function createGeminiClient(config: GeminiClientConfig): GoogleGenAI {
 }
 
 /**
+ * The signal for a `client.interactions.create` call. That SDK client uses
+ * `httpOptions.timeout` only when the request has no signal. So with a caller
+ * signal, add the timeout to the signal here.
+ */
+export function withHttpTimeout(
+  signal: AbortSignal | null | undefined,
+  timeoutMs: number | undefined,
+): AbortSignal | undefined {
+  if (!signal || timeoutMs === undefined || timeoutMs <= 0) {
+    return signal ?? undefined
+  }
+  return AbortSignal.any([signal, AbortSignal.timeout(timeoutMs)])
+}
+
+/**
  * Gets Google API key from environment variables
  * @throws Error if GOOGLE_API_KEY or GEMINI_API_KEY is not found
  */

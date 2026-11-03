@@ -72,6 +72,7 @@ describe('OpenAI transcription adapter', () => {
         response_format: 'diarized_json',
         chunking_strategy: 'auto',
       }),
+      { signal: undefined },
     )
     expect(result.text).toBe('Agent: Hello\nCustomer: Hi')
     expect(result.segments).toEqual([
@@ -145,6 +146,7 @@ describe('OpenAI transcription adapter', () => {
         known_speaker_names: ['agent'],
         known_speaker_references: ['data:audio/wav;base64,AAA='],
       }),
+      { signal: undefined },
     )
     expect(result.segments?.[0]?.id).toBe(0)
   })
@@ -188,6 +190,7 @@ describe('OpenAI transcription adapter', () => {
         response_format: 'diarized_json',
         chunking_strategy: null,
       }),
+      { signal: undefined },
     )
     expect(result.segments?.[0]?.speaker).toBe('agent')
   })
@@ -220,6 +223,7 @@ describe('OpenAI transcription adapter', () => {
       expect.objectContaining({
         chunking_strategy: null,
       }),
+      { signal: undefined },
     )
     // Diarized requests always report segments, even when empty — an empty
     // list must not look like a non-diarized result.
@@ -250,6 +254,7 @@ describe('OpenAI transcription adapter', () => {
         response_format: 'json',
         chunking_strategy: 'auto',
       }),
+      { signal: undefined },
     )
     expect(result).toMatchObject({
       model: 'gpt-4o-transcribe-diarize',
@@ -355,6 +360,7 @@ describe('OpenAI transcription adapter', () => {
         model: 'gpt-4o-transcribe',
         chunking_strategy: 'auto',
       }),
+      { signal: undefined },
     )
   })
 
@@ -506,6 +512,7 @@ describe('OpenAI transcription adapter', () => {
         known_speaker_names: names,
         known_speaker_references: references,
       }),
+      { signal: undefined },
     )
   })
 
@@ -674,6 +681,7 @@ describe('OpenAI transcription adapter', () => {
       expect.objectContaining({
         response_format: 'verbose_json',
       }),
+      { signal: undefined },
     )
     expect(result.segments).toEqual([
       { id: 0, start: 0, end: 3, text: 'Hello world', confidence: 1 },
@@ -704,6 +712,7 @@ describe('OpenAI transcription adapter', () => {
       expect.objectContaining({
         response_format: 'text',
       }),
+      { signal: undefined },
     )
     expect(result.text).toBe('Hello world')
     expect(result.segments).toBeUndefined()

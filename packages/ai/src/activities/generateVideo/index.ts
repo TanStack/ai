@@ -692,9 +692,9 @@ async function* runStreamingVideoGeneration<
     while (Date.now() - startTime < maxDuration) {
       await sleep(pollingInterval, abortControls.signal)
 
-      const statusResult = await adapter.getVideoStatus(
-        jobResult.jobId,
-        signalOptions,
+      const statusResult = await raceWithAbort(
+        adapter.getVideoStatus(jobResult.jobId, signalOptions),
+        abortControls.signal,
       )
 
       yield {
@@ -710,7 +710,22 @@ async function* runStreamingVideoGeneration<
       }
 
       if (statusResult.status === 'completed') {
-        const video = await adapter.getVideo(jobResult.jobId, signalOptions)
+        // The caller can abort when it reads the status above.
+        abortControls.signal?.throwIfAborted()
+        const download = adapter.getVideo(jobResult.jobId, signalOptions)
+        const video = await raceWithAbort(download, abortControls.signal).catch(
+          (error: unknown) => {
+            // Nobody reads a video stream that comes after the abort, so
+            // cancel its body to close the download.
+            download.then(
+              (late) => {
+                if ('body' in late) late.body?.cancel().catch(() => undefined)
+              },
+              () => undefined,
+            )
+            throw error
+          },
+        )
 
         logger.output(
           `activity=generateVideo jobId=${jobResult.jobId} status=completed`,
