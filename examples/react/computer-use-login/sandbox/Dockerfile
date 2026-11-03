@@ -1,5 +1,5 @@
 # The desktop that the model uses: a screen, the tools of the sandbox
-# computer driver, Chromium, and the sign-in script.
+# computer driver, Chromium, the sign-in script, and a live view (noVNC).
 # Build it from the example folder: docker build -t computer-use-login-desktop sandbox
 FROM debian:bookworm-slim
 
@@ -7,7 +7,7 @@ RUN printf 'Acquire::Retries "10";\nAcquire::ForceIPv4 "true";\n' > /etc/apt/apt
   && apt-get update \
   && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
     xvfb xdotool scrot x11-utils chromium fonts-dejavu-core \
-    python3 python3-websockets ca-certificates \
+    python3 python3-websockets ca-certificates x11vnc novnc python3-websockify \
   && rm -rf /var/lib/apt/lists/*
 
 # The model sees the screen and moves the mouse. So Chromium must never show

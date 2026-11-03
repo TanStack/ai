@@ -14,13 +14,17 @@ import { dockerSandbox } from '@tanstack/ai-sandbox-docker'
 import { openaiText } from '@tanstack/ai-openai'
 import { memoryPersistence } from '@tanstack/ai-persistence'
 import { z } from 'zod'
+import { handOffTool } from './hand-off'
 import { requestLoginTool } from './request-login'
 
 // One Docker container for each chat thread. The image comes from
-// `sandbox/Dockerfile`. Its main process starts the screen and Chromium.
+// `sandbox/Dockerfile`. Its main process starts the screen, Chromium, and the
+// live view (noVNC on port 6080).
+const LIVE_VIEW_PORT = 6080
 const provider = dockerSandbox({
   image: 'computer-use-login-desktop',
   keepAliveCommand: ['/opt/desktop/desktop.sh'],
+  publishPorts: [LIVE_VIEW_PORT],
 })
 
 // The container id of each thread, in a file. A thread keeps its container,
@@ -57,6 +61,36 @@ const sandboxIds = {
     })
     return sandboxIdsWrite
   },
+}
+
+/**
+ * The container of a thread, or null before the model's first action. The
+ * container can be stopped, for example when the user answers a card hours
+ * later. `resume` starts it again.
+ */
+async function threadSandbox(threadId: string) {
+  const id = await sandboxIds.get(threadId)
+  return id === undefined ? null : provider.resume({ id })
+}
+
+/** The noVNC address of a thread's desktop, or null when it has none yet. */
+export async function liveViewUrl(threadId: string) {
+  const sandbox = await threadSandbox(threadId)
+  if (!sandbox) return null
+  const [{ url }, password] = await Promise.all([
+    sandbox.ports.connect(LIVE_VIEW_PORT),
+    sandbox.process.exec('cat /tmp/vnc-password'),
+  ])
+  if (password.exitCode !== 0) {
+    throw new Error(`No live view password: ${password.stderr.trim()}`)
+  }
+  const params = new URLSearchParams({
+    autoconnect: '1',
+    reconnect: '1',
+    resize: 'scale',
+    password: password.stdout.trim(),
+  })
+  return `${url}/vnc.html?${params}`
 }
 
 // The Chromium profile of each thread, saved after a sign-in and when the
@@ -157,10 +191,7 @@ const requestLogin = requestLoginTool.server(async ({ site }, context) => {
   if (!threadId) throw new Error('requestLogin runs only in a chat thread.')
   const login = takeLogin(threadId, site)
 
-  // The user can answer the card hours later. The container of the thread
-  // can be stopped by then. `resume` starts it again.
-  const id = await sandboxIds.get(threadId)
-  const sandbox = id === undefined ? null : await provider.resume({ id })
+  const sandbox = await threadSandbox(threadId)
   if (!sandbox) {
     throw new Error(
       'This thread has no computer. Take a screenshot, then call requestLogin again.',
@@ -188,6 +219,12 @@ const requestLogin = requestLoginTool.server(async ({ site }, context) => {
   return `Signed in. The browser shows ${page.url}. Take a screenshot to see it.`
 })
 
+// The model is stuck. The user used the desktop in the live view and clicked
+// Done. A click on Cancel declines the call, and the model gets told so.
+const handOff = handOffTool.server(
+  () => 'The user is done. Take a screenshot to see the screen.',
+)
+
 // One time, outside `plugins`, so every session shares the containers.
 const computer = computerUse({
   driver: sandboxComputer({ provider, sandboxIds, snapshots }),
@@ -200,8 +237,9 @@ const agent = defineHarness({
   adapter: openaiText('gpt-6.1-sol'),
   systemPrompts: [
     'You use a Linux desktop with Chromium on it. When a page asks you to sign in, call requestLogin with the address of the sign-in page. Never ask for a password in the chat, and never type one.',
+    'When you are stuck and cannot continue alone, call handOff. The user then uses the desktop and tells you when they are done.',
   ],
-  tools: [requestLogin],
+  tools: [requestLogin, handOff],
   plugins: () => [permissions(), computer],
 })
 

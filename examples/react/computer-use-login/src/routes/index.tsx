@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
 import { fetchServerSentEvents, useChat } from '@tanstack/ai-react'
+import { z } from 'zod'
+import { handOffTool } from '@/hand-off'
 import { requestLoginTool } from '@/request-login'
 import type { UIMessage } from '@tanstack/ai-react'
 
@@ -189,6 +191,110 @@ function LoginCard({
   )
 }
 
+/**
+ * The model is stuck and gave the desktop to the user. The live view takes
+ * the mouse and keyboard until the user clicks Done.
+ */
+function HandOffCard({
+  reason,
+  onAnswer,
+}: {
+  reason: string
+  onAnswer: (done: boolean) => void
+}) {
+  return (
+    <div className="mx-4 mt-2 rounded-lg border border-sky-500/30 bg-sky-500/10 p-3 text-sm text-sky-100">
+      <p className="font-medium">The model needs you</p>
+      <p className="mb-2">{reason}</p>
+      <p className="mb-2 text-xs text-sky-200/80">
+        Use the desktop in the live view. Then click Done, and the model
+        continues.
+      </p>
+      <div className="flex gap-2">
+        <button
+          type="button"
+          onClick={() => onAnswer(true)}
+          className="rounded bg-sky-600 px-3 py-1 text-white"
+        >
+          Done
+        </button>
+        <button
+          type="button"
+          onClick={() => onAnswer(false)}
+          className="rounded bg-gray-700 px-3 py-1 text-white"
+        >
+          Cancel
+        </button>
+      </div>
+    </div>
+  )
+}
+
+const liveViewSchema = z.object({ url: z.string().nullable() })
+
+/**
+ * The thread's desktop in real time, through noVNC. It is view-only, except
+ * while the model hands the desktop to the user.
+ */
+function LiveView({ interactive }: { interactive: boolean }) {
+  const [url, setUrl] = useState<string | null>(null)
+  const [error, setError] = useState<string>()
+
+  // The container starts at the model's first action. Ask until it exists.
+  // ponytail: a restarted container has a new VNC password. Reload the page.
+  useEffect(() => {
+    if (url) return
+    const load = async () => {
+      try {
+        const response = await fetch(
+          `/api/live?${new URLSearchParams({ threadId: THREAD_ID })}`,
+        )
+        if (!response.ok) {
+          throw new Error(`No live view (${response.status}).`)
+        }
+        setUrl(liveViewSchema.parse(await response.json()).url)
+        setError(undefined)
+      } catch (loadError) {
+        setError(
+          loadError instanceof Error ? loadError.message : String(loadError),
+        )
+      }
+    }
+    void load()
+    const timer = setInterval(load, 2000)
+    return () => clearInterval(timer)
+  }, [url])
+
+  return (
+    <div className="flex w-1/2 flex-col gap-2 border-l border-orange-500/10 p-4">
+      <p className="text-sm text-gray-400">
+        {interactive
+          ? 'You have the desktop. Click Done in the chat when you finish.'
+          : 'Live view. The model has the desktop.'}
+      </p>
+      <div
+        className={`aspect-4/3 w-full overflow-hidden rounded border ${
+          interactive
+            ? 'border-sky-500 ring-2 ring-sky-500/50'
+            : 'border-gray-700'
+        }`}
+      >
+        {url ? (
+          <iframe
+            src={interactive ? url : `${url}&view_only=1`}
+            title="Live view of the desktop"
+            className="h-full w-full"
+          />
+        ) : (
+          <div className="flex h-full items-center justify-center text-sm text-gray-500">
+            {error ?? 'The desktop starts at the first action of the model.'}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
 /** Another approval, like an OpenAI safety check on a computer action. */
 function ApprovalCard({
   message,
@@ -228,7 +334,7 @@ function ChatPage() {
       threadId: THREAD_ID,
       // No browser code: the tool runs on the server. This gives the
       // approval of the tool its typed arguments.
-      tools: [requestLoginTool.client()],
+      tools: [requestLoginTool.client(), handOffTool.client()],
       // Load the thread from the server after a reload.
       persistence: true,
     },
@@ -240,12 +346,29 @@ function ChatPage() {
     setInput('')
   }
 
+  const handedOff = interrupts.some(
+    (interrupt) =>
+      interrupt.kind === 'tool-approval' && interrupt.toolName === 'handOff',
+  )
+
   return (
     <div className="flex h-screen bg-gray-900">
-      <div className="flex w-full flex-col">
+      <div className="flex w-1/2 flex-col">
         <Messages messages={messages} />
 
         {interrupts.map((interrupt) => {
+          if (
+            interrupt.kind === 'tool-approval' &&
+            interrupt.toolName === 'handOff'
+          ) {
+            return (
+              <HandOffCard
+                key={interrupt.id}
+                reason={interrupt.originalArgs.reason}
+                onAnswer={(done) => interrupt.resolveInterrupt(done)}
+              />
+            )
+          }
           if (interrupt.kind === 'tool-approval') {
             return (
               <LoginCard
@@ -307,6 +430,7 @@ function ChatPage() {
           </div>
         </div>
       </div>
+      <LiveView interactive={handedOff} />
     </div>
   )
 }

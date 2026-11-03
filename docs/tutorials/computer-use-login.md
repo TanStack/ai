@@ -105,7 +105,7 @@ done
 
 - `--user-data-dir` keeps the cookies. A restarted container is still signed in.
 - `--password-store=basic` uses the same cookie key in every container. A profile that a new container restores can read its cookies.
-- `--remote-debugging-port` listens on 127.0.0.1 inside the container only. No port leaves the container.
+- `--remote-debugging-port` listens on 127.0.0.1 inside the container only. That port never leaves the container.
 
 `sandbox/browser.sh` stops and starts Chromium, so a snapshot saves a complete profile. Copy it from the [example](https://github.com/TanStack/ai/blob/main/examples/react/computer-use-login/sandbox/browser.sh):
 
@@ -548,5 +548,106 @@ When you are signed in, say what the page shows and stop.
 ```
 
 The model opens the practice page and calls `requestLogin`. Type `tomsmith` and `SuperSecretPassword!` in the card, then click Sign in. The model says that the page shows the Secure Area. Your password is not in the chat, the tool result, or the harness log.
+
+## 8. Watch the desktop and take over
+
+Show the desktop live next to the chat. When the model is stuck, it calls a `handOff` tool, and the user uses the desktop until they click Done.
+
+1. Add the live view to `sandbox/Dockerfile`. Put `x11vnc novnc python3-websockify` after `ca-certificates` in the `apt-get install` line.
+
+2. Start it in `sandbox/desktop.sh`, after the `until` line. Each start makes a new VNC password:
+
+   ```bash
+   head -c 64 /dev/urandom | tr -dc 'A-Za-z0-9' | head -c 8 > /tmp/vnc-password
+   x11vnc -display :0 -localhost -forever -shared -quiet \
+     -passwdfile /tmp/vnc-password -rfbport 5900 &
+   websockify --web /usr/share/novnc 6080 localhost:5900 >/dev/null 2>&1 &
+   ```
+
+3. Build the image again, then publish the noVNC port in `src/harness.ts`. Docker publishes it on 127.0.0.1 only:
+
+   ```typescript ignore
+   const provider = dockerSandbox({
+     image: 'computer-use-login-desktop',
+     keepAliveCommand: ['/opt/desktop/desktop.sh'],
+     publishPorts: [6080],
+   })
+   ```
+
+4. Add a function to `src/harness.ts` that gives the address of the live view, with its password:
+
+   ```typescript ignore
+   export async function liveViewUrl(threadId: string) {
+     const id = await sandboxIds.get(threadId)
+     const sandbox = id === undefined ? null : await provider.resume({ id })
+     if (!sandbox) return null
+     const [{ url }, password] = await Promise.all([
+       sandbox.ports.connect(6080),
+       sandbox.process.exec('cat /tmp/vnc-password'),
+     ])
+     if (password.exitCode !== 0) {
+       throw new Error(`No live view password: ${password.stderr.trim()}`)
+     }
+     const params = new URLSearchParams({
+       autoconnect: '1',
+       reconnect: '1',
+       resize: 'scale',
+       password: password.stdout.trim(),
+     })
+     return `${url}/vnc.html?${params}`
+   }
+   ```
+
+   Return it from a `GET /api/live?threadId=...` route as `{ url }`. Copy [`api.live.ts`](https://github.com/TanStack/ai/blob/main/examples/react/computer-use-login/src/routes/api.live.ts) from the example.
+
+5. Create `src/hand-off.ts`. The tool has `needsApproval: true`, so the run stops until the user clicks Done:
+
+   ```typescript
+   import { toolDefinition } from '@tanstack/ai'
+   import { z } from 'zod'
+
+   export const handOffTool = toolDefinition({
+     name: 'handOff',
+     description:
+       'Give the desktop to the user, and wait until the user is done. Call it when you are stuck and cannot continue alone: a captcha, a two-factor code, a page that you cannot use, or a choice that only the user can make. Then take a screenshot to see what the user did.',
+     needsApproval: true,
+     inputSchema: z.object({
+       reason: z
+         .string()
+         .describe('What the user must do, in one sentence. The user reads it.'),
+     }),
+   })
+   ```
+
+6. Give the server tool to the harness in `src/harness.ts`:
+
+   ```typescript ignore
+   const handOff = handOffTool.server(
+     () => 'The user is done. Take a screenshot to see the screen.',
+   )
+
+   // In defineHarness:
+   tools: [requestLogin, handOff],
+   ```
+
+7. In `src/routes/index.tsx`, add `handOffTool.client()` to the `tools` of `useChat`. Then show the live view in an `<iframe>`. Add `&view_only=1` to its address, except while a `handOff` approval waits:
+
+   ```tsx ignore
+   const handedOff = interrupts.some(
+     (interrupt) =>
+       interrupt.kind === 'tool-approval' && interrupt.toolName === 'handOff',
+   )
+
+   <iframe
+     src={handedOff ? url : `${url}&view_only=1`}
+     title="Live view of the desktop"
+   />
+   ```
+
+   For the `handOff` approval, show `interrupt.originalArgs.reason` with a Done button that calls `interrupt.resolveInterrupt(true)`. Copy the `LiveView` and `HandOffCard` components from the [example](https://github.com/TanStack/ai/blob/main/examples/react/computer-use-login/src/routes/index.tsx).
+
+Start the app, and send a task that needs a person, for example "Open https://www.google.com/recaptcha/api2/demo and send the form." The model calls `handOff`. Tick the captcha in the live view, then click Done. The model continues.
+
+The model sees only the screenshots that it takes after you click Done. If the user types a password in the live view, the model sees only dots.
 
 The full example is on GitHub: [TanStack/ai `examples/react/computer-use-login`](https://github.com/TanStack/ai/tree/main/examples/react/computer-use-login). To host it, see [Run it on a server](https://github.com/TanStack/ai/tree/main/examples/react/computer-use-login#run-it-on-a-server) in its README.

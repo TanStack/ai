@@ -10,12 +10,18 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as ApiLiveRouteImport } from './routes/api.live'
 import { Route as ApiLoginRouteImport } from './routes/api.login'
 import { Route as ApiHarnessSplatRouteImport } from './routes/api.harness.$'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiLiveRoute = ApiLiveRouteImport.update({
+  id: '/api/live',
+  path: '/api/live',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiLoginRoute = ApiLoginRouteImport.update({
@@ -31,30 +37,34 @@ const ApiHarnessSplatRoute = ApiHarnessSplatRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/api/live': typeof ApiLiveRoute
   '/api/login': typeof ApiLoginRoute
   '/api/harness/$': typeof ApiHarnessSplatRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/api/live': typeof ApiLiveRoute
   '/api/login': typeof ApiLoginRoute
   '/api/harness/$': typeof ApiHarnessSplatRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/api/live': typeof ApiLiveRoute
   '/api/login': typeof ApiLoginRoute
   '/api/harness/$': typeof ApiHarnessSplatRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/api/login' | '/api/harness/$'
+  fullPaths: '/' | '/api/live' | '/api/login' | '/api/harness/$'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/api/login' | '/api/harness/$'
-  id: '__root__' | '/' | '/api/login' | '/api/harness/$'
+  to: '/' | '/api/live' | '/api/login' | '/api/harness/$'
+  id: '__root__' | '/' | '/api/live' | '/api/login' | '/api/harness/$'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  ApiLiveRoute: typeof ApiLiveRoute
   ApiLoginRoute: typeof ApiLoginRoute
   ApiHarnessSplatRoute: typeof ApiHarnessSplatRoute
 }
@@ -66,6 +76,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/live': {
+      id: '/api/live'
+      path: '/api/live'
+      fullPath: '/api/live'
+      preLoaderRoute: typeof ApiLiveRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/login': {
@@ -87,6 +104,7 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  ApiLiveRoute: ApiLiveRoute,
   ApiLoginRoute: ApiLoginRoute,
   ApiHarnessSplatRoute: ApiHarnessSplatRoute,
 }
