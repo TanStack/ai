@@ -1061,6 +1061,8 @@ class TextEngine<
   private readonly streamId: string
   private readonly effectiveRequest?: Request | RequestInit
   private readonly effectiveSignal?: AbortSignal
+  /** The caller signal plus ctx.abort(), only when there is a caller signal. */
+  private readonly linkedSignal?: AbortSignal
 
   private messages: Array<ModelMessage>
   private activities: Array<ActivityRecord> = []
@@ -1275,9 +1277,6 @@ class TextEngine<
     >(this.tools)
     this.requestId = this.createId('chat')
     this.streamId = this.createId('stream')
-    this.effectiveRequest = config.params.abortController
-      ? { signal: config.params.abortController.signal }
-      : undefined
     this.effectiveSignal = config.params.abortController?.signal
     this.threadId = config.params.threadId
     this.runIdOverride = config.params.runId
@@ -1296,6 +1295,13 @@ class TextEngine<
       this.effectiveSignal,
       this.middlewareAbortController.signal,
     )
+    // With a caller signal, the provider request and ctx.signal follow
+    // ctx.abort() too. Without one they get no signal, as before: some SDKs
+    // drop their own timeout when a request has a signal.
+    this.linkedSignal = this.effectiveSignal ? this.toolAbortSignal : undefined
+    this.effectiveRequest = this.linkedSignal
+      ? { signal: this.linkedSignal }
+      : undefined
     this.middlewareCtx = {
       requestId: this.requestId,
       streamId: this.streamId,
@@ -1312,7 +1318,7 @@ class TextEngine<
       iteration: 0,
       chunkIndex: 0,
       callMetadata: this.currentCallMetadata,
-      signal: this.effectiveSignal,
+      signal: this.linkedSignal,
       abort: (reason?: string) => {
         this.abortReason = reason
         this.middlewareAbortController?.abort(reason)

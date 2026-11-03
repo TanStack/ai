@@ -110,6 +110,22 @@ type SchedulerWithYield = {
   yield?: () => Promise<void>
 }
 
+/**
+ * Wait for `promise`, but reject with an AbortError once `signal` aborts.
+ * A client tool that never settles must not block stop().
+ */
+function untilAborted<T>(promise: Promise<T>, signal: AbortSignal): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const onAbort = () =>
+      reject(Object.assign(new Error('Aborted'), { name: 'AbortError' }))
+    if (signal.aborted) return onAbort()
+    signal.addEventListener('abort', onAbort, { once: true })
+    promise.then(resolve, reject).finally(() => {
+      signal.removeEventListener('abort', onAbort)
+    })
+  })
+}
+
 function yieldToHost(): Promise<void> {
   const { scheduler } = globalThis as typeof globalThis & {
     scheduler?: SchedulerWithYield
@@ -2884,7 +2900,10 @@ export class ChatClient<
 
       // Wait for pending client tool executions
       if (this.pendingToolExecutions.size > 0) {
-        await Promise.all(this.pendingToolExecutions.values())
+        await untilAborted(
+          Promise.all(this.pendingToolExecutions.values()),
+          signal,
+        )
       }
 
       // Finalize (idempotent — may already be done by RUN_FINISHED handler).
@@ -2899,7 +2918,10 @@ export class ChatClient<
       this.raiseLocalApprovals()
       // Wait for the tools that finalizeStream() started, as above.
       if (this.pendingToolExecutions.size > 0) {
-        await Promise.all(this.pendingToolExecutions.values())
+        await untilAborted(
+          Promise.all(this.pendingToolExecutions.values()),
+          signal,
+        )
       }
       streamCompletedSuccessfully = true
     } catch (err: unknown) {
@@ -2912,6 +2934,11 @@ export class ChatClient<
             'cancelled',
           )
           runTerminalEventEmitted = true
+        }
+        // The abort came from the user's own `options.signal`, not from
+        // stop(). End the same way stop() does.
+        if (!signal.aborted && generation === this.streamGeneration) {
+          this.stop()
         }
         return false
       }
