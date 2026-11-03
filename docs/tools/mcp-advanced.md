@@ -377,6 +377,22 @@ The run stops with an approval interrupt for each gated call. The browser has no
 ```tsx
 import { fetchServerSentEvents, useChat } from '@tanstack/ai-react'
 
+// Use the schema's description as the label, or fall back to the name.
+function argLabel(
+  schema: Readonly<Record<string, unknown>> | undefined,
+  name: string,
+): string {
+  const properties = schema?.['properties']
+  if (typeof properties !== 'object' || properties === null) return name
+  const property: unknown = Reflect.get(properties, name)
+  return typeof property === 'object' &&
+    property !== null &&
+    'description' in property &&
+    typeof property.description === 'string'
+    ? property.description
+    : name
+}
+
 export function McpApprovals() {
   const { interrupts, resuming } = useChat({
     connection: fetchServerSentEvents('/api/chat'),
@@ -385,11 +401,24 @@ export function McpApprovals() {
 
   return (
     <>
-      {interrupts.map((interrupt) =>
-        interrupt.kind === 'server-tool-approval' ? (
+      {interrupts.map((interrupt) => {
+        if (interrupt.kind !== 'server-tool-approval') return null
+        const args = interrupt.originalArgs
+        return (
           <div key={interrupt.id}>
             <p>Run {interrupt.toolName}?</p>
-            <pre>{JSON.stringify(interrupt.originalArgs, null, 2)}</pre>
+            {typeof args === 'object' && args !== null ? (
+              <dl>
+                {Object.entries(args).map(([name, value]) => (
+                  <div key={name}>
+                    <dt>{argLabel(interrupt.inputSchema, name)}</dt>
+                    <dd>{JSON.stringify(value)}</dd>
+                  </div>
+                ))}
+              </dl>
+            ) : (
+              <pre>{JSON.stringify(args)}</pre>
+            )}
             <button
               disabled={!interrupt.canResolve || resuming}
               onClick={() => interrupt.resolveInterrupt(true)}
@@ -403,14 +432,15 @@ export function McpApprovals() {
               Deny
             </button>
           </div>
-        ) : null,
-      )}
+        )
+      })}
     </>
   )
 }
 ```
 
 - `toolName` is a `string` and `originalArgs` is `unknown`. In a [pool](#multi-server-pool), `toolName` has the server prefix, for example `github_create_issue`.
+- `inputSchema` is the MCP tool's JSON Schema. Use it to label the arguments, or pass it to a JSON Schema form library. It is absent when the tool has no JSON Schema, or when it does not match the schema the server checks against.
 - The server checks the answer against the MCP tool, so the browser needs no tool definition.
 - Your chat route must forward `parentRunId` and `resume` to `chat()`. See [Tool Approval Flow](./tool-approval#2-add-the-server-function-and-forward-the-resume-fields).
 

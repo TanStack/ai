@@ -44,6 +44,9 @@ function McpApprovalPage() {
               <span data-testid="interrupt-args">
                 {JSON.stringify(interrupt.originalArgs)}
               </span>
+              <span data-testid="interrupt-schema">
+                {JSON.stringify(interrupt.inputSchema?.['properties'])}
+              </span>
               <button
                 data-testid="approve"
                 disabled={!interrupt.canResolve}

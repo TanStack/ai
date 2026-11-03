@@ -553,6 +553,7 @@ These rules apply to both `toolFilter` forms and to `needsApproval`:
   its own `needsApproval`.
 - In `useChat`, a gated MCP call arrives as `kind: 'server-tool-approval'`
   (`toolName: string`, `originalArgs: unknown`, `resolveInterrupt(approved)`).
+  `inputSchema` holds the MCP tool's JSON Schema; render the args from it.
   The browser needs no tool definition. The chat route must forward
   `parentRunId` and `resume` to `chat()`.
 - MCP Apps widget calls have no approval step, so the call handler refuses a

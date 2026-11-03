@@ -20,6 +20,8 @@ test.describe('mcp approval — server-only tool in useChat', () => {
     await expect(page.getByTestId('interrupt-args')).toHaveText(
       '{"id":"strat"}',
     )
+    // The MCP tool's input schema arrives too, so a UI can label the args.
+    await expect(page.getByTestId('interrupt-schema')).toContainText('"id"')
 
     await page.getByTestId('approve').click()
 

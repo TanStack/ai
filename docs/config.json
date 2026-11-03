@@ -374,7 +374,7 @@
           "label": "Tool Approval Flow",
           "to": "tools/tool-approval",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-11-01"
+          "updatedAt": "2026-11-03"
         },
         {
           "label": "Provider Tools",
@@ -650,7 +650,7 @@
           "label": "MCP Server Tools: Advanced",
           "to": "tools/mcp-advanced",
           "addedAt": "2026-10-21",
-          "updatedAt": "2026-11-01"
+          "updatedAt": "2026-11-03"
         },
         {
           "label": "MCP Events",

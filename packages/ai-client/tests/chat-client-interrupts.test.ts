@@ -2372,12 +2372,29 @@ describe('InterruptManager server-only tool approvals', () => {
     expect(item.toolName).toBe('delete_note')
     expect(item.toolCallId).toBe('call-1')
     expect(item.originalArgs).toEqual({ id: 'n1' })
+    expect(item.inputSchema).toMatchObject({
+      type: 'object',
+      properties: { id: { type: 'string' } },
+    })
 
     item.resolveInterrupt(true)
     await settle()
     expect(submit.mock.calls[0]?.[0].resolutions).toEqual([
       { interruptId: item.id, status: 'resolved', payload: { approved: true } },
     ])
+  })
+
+  it('drops an input schema that does not match the binding hash', async () => {
+    const tampered = (await serverApprovalInterrupts()).map((interrupt) => ({
+      ...interrupt,
+      metadata: {
+        ...interrupt.metadata,
+        inputSchema: { type: 'object', properties: { other: {} } },
+      },
+    }))
+    const item = hydrate(tampered).manager.getInterrupts()[0]
+    expect(item?.kind).toBe('server-tool-approval')
+    expect(item && 'inputSchema' in item).toBe(false)
   })
 
   it('approves a server-only approval with boolean bulk resolution', async () => {

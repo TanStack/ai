@@ -296,7 +296,8 @@ Some tools exist only on the server, for example an [MCP tool with `needsApprova
 ```ts ignore
 if (interrupt.kind === 'server-tool-approval') {
   // toolName is a string. originalArgs is unknown.
-  console.log(interrupt.toolName, interrupt.originalArgs)
+  // inputSchema is the tool's JSON Schema, when the server has one.
+  console.log(interrupt.toolName, interrupt.originalArgs, interrupt.inputSchema)
   interrupt.resolveInterrupt(true)
 }
 ```

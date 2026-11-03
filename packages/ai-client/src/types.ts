@@ -243,6 +243,12 @@ export interface ServerToolApprovalInterrupt extends BoundInterruptBase {
   readonly toolName: string
   readonly toolCallId: string
   readonly originalArgs: unknown
+  /**
+   * The tool's input schema as JSON Schema, to label and render
+   * `originalArgs`. Absent when the tool has no JSON Schema, or when the schema
+   * does not match the one the server checks against.
+   */
+  readonly inputSchema?: Readonly<Record<string, unknown>>
   readonly resolveInterrupt: (
     approved: boolean,
     options?: { editedArgs?: unknown },

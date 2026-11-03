@@ -66,6 +66,23 @@ export interface InterruptManagerOptions<
 
 type UnknownObject = { [key: string]: unknown }
 
+/**
+ * The tool's input schema from the descriptor, only when it hashes to the
+ * binding's `inputSchemaHash`. Anything else is not the schema the server
+ * checks against, so it is not shown.
+ */
+function verifiedInputSchema(
+  metadata: Readonly<Record<string, unknown>> | undefined,
+  binding: Extract<InterruptBinding, { kind: 'tool-approval' }>,
+): Readonly<Record<string, unknown>> | undefined {
+  const schema = metadata?.['inputSchema']
+  if (!isUnknownObject(schema)) return undefined
+  const hash = digestInterruptJson(canonicalInterruptJson(schema))
+  return hash === binding.inputSchemaHash
+    ? cloneAndDeepFreezeJson(schema)
+    : undefined
+}
+
 /** The binding hash of an approval that takes no payload on either branch. */
 const PAYLOADLESS_APPROVAL_SCHEMA_HASH =
   normalizeApprovalSchema(undefined).approvalSchemaHash
@@ -1026,6 +1043,10 @@ export class InterruptManager<
           item.binding.kind === 'tool-approval'
         ) {
           const binding = cloneAndDeepFreezeJson(item.binding)
+          const inputSchema =
+            item.tool === undefined
+              ? verifiedInputSchema(item.descriptor.metadata, binding)
+              : undefined
           const snapshot = {
             ...base,
             // No client tool means a server-only tool: untyped public kind.
@@ -1034,6 +1055,7 @@ export class InterruptManager<
                 ? ('server-tool-approval' as const)
                 : ('tool-approval' as const),
             binding,
+            ...(inputSchema !== undefined && { inputSchema }),
             toolName: item.binding.toolName,
             toolCallId: item.binding.toolCallId,
             originalArgs: cloneAndDeepFreezeJson(item.binding.originalArgs),
