@@ -2,7 +2,7 @@
 
 Your agent uses a desktop, and a site asks it for a password. In this app, the model calls `requestLogin`. You type the username and password in a card in the chat. The server fills the form in the browser, and the model never sees the password.
 
-The desktop is a Docker container with Chromium on it. Each chat thread keeps its own container, so it stays signed in when you come back later.
+The desktop is a Docker container with Chromium on it. Each chat thread keeps its own container, so it stays signed in when you come back later. The app also saves the Chromium profile after each sign-in. When the container of a thread is gone, a new container gets the profile back, still signed in.
 
 ## Run it
 
@@ -22,17 +22,18 @@ The model opens a practice sign-in page. When the login card shows, type `tomsmi
 3. The card then approves the tool call. The approval is only "yes". The harness writes approvals to its log, so a password must never be in one.
 4. The tool takes the login from memory and deletes it. It runs `sandbox/login.py` in the container, with the password in the environment of that one process, not on its command line.
 5. The script opens the site in Chromium and checks its origin. It fills the username and the password field, then submits the form. Then it clears every password field.
-6. The model gets "Signed in" and the address of the page.
+6. The tool saves a snapshot of the Chromium profile, with the cookies of the sign-in.
+7. The model gets "Signed in" and the address of the page.
 
 The model sees the screen, so Chromium must never show a password. `sandbox/policy.json` turns off the password manager and `javascript:` URLs. Chromium listens for its debugging protocol only inside the container. No port leaves it.
 
 ## Files
 
-- `src/harness.ts`: the harness, the Docker provider, the `requestLogin` tool, and the two stores.
+- `src/harness.ts`: the harness, the Docker provider, the `requestLogin` tool, and the three stores.
 - `src/request-login.ts`: the tool definition that the server and the browser share.
 - `src/routes/api.login.ts`: the route that takes the username and password.
 - `src/routes/index.tsx`: the chat and the login card.
-- `sandbox/`: the desktop image. `desktop.sh` starts the screen and Chromium. `login.py` fills the form.
+- `sandbox/`: the desktop image. `desktop.sh` starts the screen and Chromium. `browser.sh` stops and starts Chromium for a snapshot. `login.py` fills the form.
 
 ## Run it on a server
 
@@ -47,16 +48,19 @@ const provider = e2bSandbox({
 })
 ```
 
-Build an E2B template from `sandbox/Dockerfile`, and start `desktop.sh` in it. Then move the two stores of `src/harness.ts` to your database: the sandbox id of each thread, and the logins (with a time limit).
+Build an E2B template from `sandbox/Dockerfile`, and start `desktop.sh` in it. Then move the three stores of `src/harness.ts` to your database:
+
+- The sandbox id of each thread.
+- The profile snapshots. Build them with `createSandboxSnapshots`. They hold session cookies, so encrypt them.
+- The logins, with a time limit.
 
 This app keeps the chat in `memoryPersistence()`. When the server restarts, the chat is gone, but the container stays. For a user who comes back the next day, give `createHarnessHost` a persistence store in your database. See [Chat persistence](https://tanstack.com/ai/latest/docs/persistence/chat-persistence).
 
-Cloudflare containers do not fit this app. Their disk is empty after each restart, so the browser signs out.
+A provider whose disk does not last, like Cloudflare, also keeps the sign-in. Each new container gets the profile snapshot back.
 
 ## Not in this app
 
 - Two-factor codes.
 - A live view of the desktop for a captcha.
-- A saved Chromium profile in sandbox snapshots.
 
 CAUTION: The harness route has no login, and the browser can open every address that your server can reach. Run this app only on your own machine.

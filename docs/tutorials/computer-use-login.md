@@ -29,7 +29,7 @@ Pick React. Then install the packages:
 
 <!-- ::start:tabs variant="package-manager" mode="install" -->
 
-react: @tanstack/ai @tanstack/ai-react @tanstack/ai-openai @tanstack/ai-harness @tanstack/ai-persistence @tanstack/ai-computer-use @tanstack/ai-computer-sandbox @tanstack/ai-sandbox-docker zod
+react: @tanstack/ai @tanstack/ai-react @tanstack/ai-openai @tanstack/ai-harness @tanstack/ai-persistence @tanstack/ai-computer-use @tanstack/ai-computer-sandbox @tanstack/ai-sandbox @tanstack/ai-sandbox-docker zod
 
 <!-- ::end:tabs -->
 
@@ -49,7 +49,7 @@ The approval of a tool call goes into the harness log. So the card approves the 
 
 ## 2. Build the desktop
 
-Create a `sandbox` folder in your app with four files.
+Create a `sandbox` folder in your app with five files.
 
 `sandbox/Dockerfile` installs the screen, the tools of the sandbox computer driver, Chromium, and Python:
 
@@ -64,8 +64,8 @@ RUN printf 'Acquire::Retries "10";\nAcquire::ForceIPv4 "true";\n' > /etc/apt/apt
   && rm -rf /var/lib/apt/lists/*
 
 COPY policy.json /etc/chromium/policies/managed/policy.json
-COPY desktop.sh login.py /opt/desktop/
-RUN chmod +x /opt/desktop/desktop.sh
+COPY desktop.sh browser.sh login.py /opt/desktop/
+RUN chmod +x /opt/desktop/desktop.sh /opt/desktop/browser.sh
 ```
 
 `sandbox/policy.json` keeps passwords off the screen. The model sees the screen and moves the mouse, so Chromium must not offer to show a saved password:
@@ -75,9 +75,12 @@ RUN chmod +x /opt/desktop/desktop.sh
   "PasswordManagerEnabled": false,
   "AutofillAddressEnabled": false,
   "AutofillCreditCardEnabled": false,
-  "URLBlocklist": ["javascript://*"]
+  "URLBlocklist": ["javascript://*"],
+  "RestoreOnStartup": 1
 }
 ```
+
+`RestoreOnStartup` opens the last tabs when Chromium starts again. It also keeps the session cookies, so a restarted Chromium is still signed in.
 
 `sandbox/desktop.sh` is the main process of the container. It starts the screen and Chromium:
 
@@ -88,18 +91,26 @@ Xvfb :0 -ac -screen 0 1024x768x24 -nolisten tcp &
 until DISPLAY=:0 xdpyinfo >/dev/null 2>&1; do sleep 0.2; done
 
 while true; do
+  # browser.sh stop pauses this loop while a snapshot saves or restores the profile.
+  while [ -e /tmp/chromium-paused ]; do sleep 0.2; done
   # --no-sandbox: Chromium runs as root in the container, which is the sandbox.
   DISPLAY=:0 chromium --no-sandbox --test-type --no-first-run \
     --no-default-browser-check --disable-dev-shm-usage \
-    --user-data-dir=/root/chromium-profile \
+    --user-data-dir=/root/chromium-profile --password-store=basic \
     --remote-debugging-port=9222 \
-    --window-position=0,0 --window-size=1024,768 about:blank
+    --window-position=0,0 --window-size=1024,768
   sleep 1
 done
 ```
 
 - `--user-data-dir` keeps the cookies. A restarted container is still signed in.
+- `--password-store=basic` uses the same cookie key in every container. A profile that a new container restores can read its cookies.
 - `--remote-debugging-port` listens on 127.0.0.1 inside the container only. No port leaves the container.
+
+`sandbox/browser.sh` stops and starts Chromium, so a snapshot saves a complete profile. Copy it from the [example](https://github.com/TanStack/ai/blob/main/examples/react/computer-use-login/sandbox/browser.sh):
+
+- `browser.sh stop` pauses the loop in `desktop.sh`, then closes Chromium with the debugging command `Browser.close`. A clean close writes the cookies to disk. A kill signal can lose them.
+- `browser.sh start` ends the pause, then waits until Chromium answers on its debugging port.
 
 `sandbox/login.py` signs in. Copy it from the [example](https://github.com/TanStack/ai/blob/main/examples/react/computer-use-login/sandbox/login.py). It reads the site, the username, and the password from its environment, then talks to Chromium over the debugging port:
 
@@ -140,7 +151,7 @@ export const requestLoginTool = toolDefinition({
 
 ## 4. Set up the harness
 
-Create `src/harness.ts`. It has the Docker provider, two stores, the tool, and the harness.
+Create `src/harness.ts`. It has the Docker provider, three stores, the tool, and the harness.
 
 First the provider and the sandbox ids. `sandboxIds` keeps the container of each thread, so the thread finds its signed-in browser again later:
 
@@ -151,7 +162,12 @@ import { createHarnessHost, defineHarness } from '@tanstack/ai-harness'
 import { permissions } from '@tanstack/ai-harness/plugins'
 import { createHarnessHandler } from '@tanstack/ai-harness/server'
 import { computerUse } from '@tanstack/ai-computer-use/harness'
-import { sandboxComputer } from '@tanstack/ai-computer-sandbox'
+import {
+  saveComputerSnapshot,
+  sandboxComputer,
+} from '@tanstack/ai-computer-sandbox'
+import { memorySandboxSnapshots } from '@tanstack/ai-sandbox'
+import type { SandboxHandle } from '@tanstack/ai-sandbox'
 import { dockerSandbox } from '@tanstack/ai-sandbox-docker'
 import { openaiText } from '@tanstack/ai-openai'
 import { memoryPersistence } from '@tanstack/ai-persistence'
@@ -197,6 +213,49 @@ const sandboxIds = {
   },
 }
 ```
+
+Then the snapshots of the Chromium profile. `sandboxIds` brings back a container that still exists. A snapshot brings the profile into a new container, when the old one is gone. This also works with providers whose disk does not last, like Cloudflare:
+
+```typescript ignore
+const PROFILE = '/root/chromium-profile'
+// Only the files that keep a sign-in. Caches stay out of the snapshot.
+const PROFILE_FILES = [
+  'Local State',
+  'Default/Cookies',
+  'Default/Cookies-journal',
+  'Default/Preferences',
+  'Default/Sessions',
+  'Default/Local Storage',
+  'Default/Session Storage',
+]
+const keepInProfile = (path: string) =>
+  PROFILE_FILES.some(
+    (file) =>
+      path === file ||
+      path.startsWith(`${file}/`) ||
+      file.startsWith(`${path}/`),
+  )
+
+async function browser(sandbox: SandboxHandle, action: 'stop' | 'start') {
+  const result = await sandbox.process.exec(`/opt/desktop/browser.sh ${action}`)
+  if (result.exitCode !== 0) {
+    throw new Error(`Could not ${action} Chromium: ${result.stderr.trim()}`)
+  }
+}
+
+const snapshots = {
+  store: await memorySandboxSnapshots(),
+  root: PROFILE,
+  policy: { exclude: (path: string) => !keepInProfile(path) },
+  // Chromium writes its profile all the time. Stop it, so the files are complete.
+  before: (sandbox: SandboxHandle) => browser(sandbox, 'stop'),
+  after: (sandbox: SandboxHandle) => browser(sandbox, 'start'),
+}
+```
+
+- The driver saves the profile when a thread closes or goes idle. The tool below also saves it right after a sign-in.
+- `memorySandboxSnapshots()` keeps the snapshots in memory, like the chat. For a user who comes back the next day, build the stores with `createSandboxSnapshots` on your database.
+- The profile holds session cookies. Keep the blob store secret, and encrypt it in production.
 
 Then the logins. The card sends a login, and the tool takes it once. A login that nobody takes is deleted after 5 minutes:
 
@@ -279,9 +338,12 @@ const requestLogin = requestLoginTool.server(async ({ site }, context) => {
     throw new Error(`The sign-in failed: ${result.stderr.trim()}`)
   }
   const page = loginResultSchema.parse(JSON.parse(result.stdout))
-  return page.hasPasswordField
-    ? `The form was sent, but ${page.url} still shows a password field. The sign-in may have failed. Take a screenshot to check.`
-    : `Signed in. The browser shows ${page.url}. Take a screenshot to see it.`
+  if (page.hasPasswordField) {
+    return `The form was sent, but ${page.url} still shows a password field. The sign-in may have failed. Take a screenshot to check.`
+  }
+  // Save the signed-in profile now. A server that stops skips the idle save.
+  await saveComputerSnapshot(sandbox, threadId, snapshots)
+  return `Signed in. The browser shows ${page.url}. Take a screenshot to see it.`
 })
 ```
 
@@ -292,7 +354,7 @@ Last, the harness and its HTTP handler:
 
 ```typescript ignore
 const computer = computerUse({
-  driver: sandboxComputer({ provider, sandboxIds }),
+  driver: sandboxComputer({ provider, sandboxIds, snapshots }),
   screenshotDelay: 1000,
 })
 
@@ -315,7 +377,7 @@ export const handler = createHarnessHandler({
 })
 ```
 
-- `sandboxComputer` makes one container for each thread. With `sandboxIds`, it keeps the container and reconnects to it later.
+- `sandboxComputer` makes one container for each thread. With `sandboxIds`, it keeps the container and reconnects to it later. With `snapshots`, a new container gets the saved profile.
 - `memoryPersistence()` keeps the chat in memory. A server restart loses the chat, but not the container. For a user who comes back the next day, use a persistence store in your database. See [Chat persistence](../persistence/chat-persistence).
 - `openAccess` serves every request with no login. Use it only on your own machine. See [Serve with no login](../harness/access#serve-with-no-login).
 

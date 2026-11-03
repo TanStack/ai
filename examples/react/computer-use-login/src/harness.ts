@@ -4,7 +4,12 @@ import { createHarnessHost, defineHarness } from '@tanstack/ai-harness'
 import { permissions } from '@tanstack/ai-harness/plugins'
 import { createHarnessHandler } from '@tanstack/ai-harness/server'
 import { computerUse } from '@tanstack/ai-computer-use/harness'
-import { sandboxComputer } from '@tanstack/ai-computer-sandbox'
+import {
+  saveComputerSnapshot,
+  sandboxComputer,
+} from '@tanstack/ai-computer-sandbox'
+import { memorySandboxSnapshots } from '@tanstack/ai-sandbox'
+import type { SandboxHandle } from '@tanstack/ai-sandbox'
 import { dockerSandbox } from '@tanstack/ai-sandbox-docker'
 import { openaiText } from '@tanstack/ai-openai'
 import { memoryPersistence } from '@tanstack/ai-persistence'
@@ -52,6 +57,46 @@ const sandboxIds = {
     })
     return sandboxIdsWrite
   },
+}
+
+// The Chromium profile of each thread, saved after a sign-in and when the
+// thread goes idle. A thread whose container is gone gets a new container
+// with this profile, so it is still signed in.
+// ponytail: memory only, like the chat. Use durable stores to keep a sign-in
+// after a server restart. The profile holds session cookies: keep it secret.
+const PROFILE = '/root/chromium-profile'
+// Only the files that keep a sign-in. Caches stay out of the snapshot.
+const PROFILE_FILES = [
+  'Local State',
+  'Default/Cookies',
+  'Default/Cookies-journal',
+  'Default/Preferences',
+  'Default/Sessions',
+  'Default/Local Storage',
+  'Default/Session Storage',
+]
+const keepInProfile = (path: string) =>
+  PROFILE_FILES.some(
+    (file) =>
+      path === file ||
+      path.startsWith(`${file}/`) ||
+      file.startsWith(`${path}/`),
+  )
+
+async function browser(sandbox: SandboxHandle, action: 'stop' | 'start') {
+  const result = await sandbox.process.exec(`/opt/desktop/browser.sh ${action}`)
+  if (result.exitCode !== 0) {
+    throw new Error(`Could not ${action} Chromium: ${result.stderr.trim()}`)
+  }
+}
+
+const snapshots = {
+  store: await memorySandboxSnapshots(),
+  root: PROFILE,
+  policy: { exclude: (path: string) => !keepInProfile(path) },
+  // Chromium writes its profile all the time. Stop it, so the files are complete.
+  before: (sandbox: SandboxHandle) => browser(sandbox, 'stop'),
+  after: (sandbox: SandboxHandle) => browser(sandbox, 'start'),
 }
 
 // The username and password of each thread, between the login card and the
@@ -135,14 +180,17 @@ const requestLogin = requestLoginTool.server(async ({ site }, context) => {
     throw new Error(`The sign-in failed: ${result.stderr.trim()}`)
   }
   const page = loginResultSchema.parse(JSON.parse(result.stdout))
-  return page.hasPasswordField
-    ? `The form was sent, but ${page.url} still shows a password field. The sign-in may have failed. Take a screenshot to check.`
-    : `Signed in. The browser shows ${page.url}. Take a screenshot to see it.`
+  if (page.hasPasswordField) {
+    return `The form was sent, but ${page.url} still shows a password field. The sign-in may have failed. Take a screenshot to check.`
+  }
+  // Save the signed-in profile now. A server that stops skips the idle save.
+  await saveComputerSnapshot(sandbox, threadId, snapshots)
+  return `Signed in. The browser shows ${page.url}. Take a screenshot to see it.`
 })
 
 // One time, outside `plugins`, so every session shares the containers.
 const computer = computerUse({
-  driver: sandboxComputer({ provider, sandboxIds }),
+  driver: sandboxComputer({ provider, sandboxIds, snapshots }),
   // Pages load in a real browser. Give each one time to draw.
   screenshotDelay: 1000,
 })

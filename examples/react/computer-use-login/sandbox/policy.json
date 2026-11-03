@@ -2,5 +2,6 @@
   "PasswordManagerEnabled": false,
   "AutofillAddressEnabled": false,
   "AutofillCreditCardEnabled": false,
-  "URLBlocklist": ["javascript://*"]
+  "URLBlocklist": ["javascript://*"],
+  "RestoreOnStartup": 1
 }

@@ -353,6 +353,9 @@ importers:
       '@tanstack/ai-react':
         specifier: workspace:*
         version: link:../../../packages/ai-react
+      '@tanstack/ai-sandbox':
+        specifier: workspace:*
+        version: link:../../../packages/ai-sandbox
       '@tanstack/ai-sandbox-docker':
         specifier: workspace:*
         version: link:../../../packages/ai-sandbox-docker
