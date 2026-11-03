@@ -341,6 +341,45 @@ describe('RealtimeClient.disconnect() during connect() (L4)', () => {
     })
   }
 
+  it('stays idle when the late connection fails to close', async () => {
+    let release!: () => void
+    const held = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    const connection = {
+      on: () => () => {},
+      updateSession: () => {},
+      disconnect: vi.fn(async () => {
+        throw new Error('close failed')
+      }),
+      startAudioCapture: async () => {},
+    }
+    const onError = vi.fn()
+    const client = new RealtimeClient({
+      getToken: async () =>
+        ({ token: 't', expiresAt: Date.now() + 60_000 }) as any,
+      adapter: {
+        connect: async () => {
+          await held
+          return connection
+        },
+      } as any,
+      onError,
+    })
+
+    const connecting = client.connect()
+    await vi.waitFor(() => expect(client.status).toBe('connecting'))
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    await client.disconnect()
+    release()
+    await connecting
+
+    expect(connection.disconnect).toHaveBeenCalled()
+    expect(client.status).toBe('idle')
+    expect(client.error).toBeNull()
+    expect(onError).not.toHaveBeenCalled()
+  })
+
   it('closes a connection that a second connect() replaced during audio startup', async () => {
     let release!: () => void
     const held = new Promise<void>((resolve) => {

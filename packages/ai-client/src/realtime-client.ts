@@ -128,7 +128,9 @@ export class RealtimeClient {
         toolsList,
       )
       if (generation !== this.connectGeneration) {
-        await connection.disconnect()
+        // A failed close of a connection that was never used is not an
+        // error of the client.
+        await connection.disconnect().catch(() => {})
         return
       }
       this.connection = connection
