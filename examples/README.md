@@ -15,6 +15,7 @@ Choose an example based on your use case:
 - **Want an agent in the terminal?** → [Harness CLI](#harness-cli)
 - **Want a signed MCP webhook?** → [MCP Events](#mcp-events)
 - **Want the model to use a web page?** → [Computer Use](#computer-use)
+- **Want the model to sign in without seeing the password?** → [Computer Use Login](#computer-use-login)
 - **Want a full-stack TypeScript app?** → [TanStack Chat (ts-react-chat)](#tanstack-chat-ts-react-chat)
 - **Need a live world stream?** → [World generation (ts-react-media)](#world-generation-ts-react-media)
 - **Need a vanilla JS frontend?** → [Vanilla Chat](#vanilla-chat)
@@ -201,6 +202,25 @@ pnpm --filter computer-use dev
 Set `OPENAI_API_KEY` in `.env.local`. Open http://localhost:3100. Click Send.
 
 📖 [Full Documentation](react/computer-use/README.md)
+
+---
+
+### Computer Use Login
+
+A TanStack Start app on the harness. The model uses a Docker desktop with Chromium. When a site asks for a password, a card in the chat asks you, and the server fills the form. The model never sees the password.
+
+**Path:** `examples/react/computer-use-login`
+
+**Getting Started:**
+
+```bash
+pnpm --filter computer-use-login build:desktop
+pnpm --filter computer-use-login dev
+```
+
+Start Docker first. Set `OPENAI_API_KEY` in `.env.local`. Open http://localhost:3100. Click Send.
+
+📖 [Full Documentation](react/computer-use-login/README.md)
 
 ---
 
