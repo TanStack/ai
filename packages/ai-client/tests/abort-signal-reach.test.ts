@@ -515,4 +515,46 @@ describe('RealtimeClient.disconnect() during a token refresh', () => {
 
     expect(Reflect.get(client, 'tokenRefreshTimeout')).toBeNull()
   })
+
+  it('leaves no refresh timer of a connect() that a later connect() replaced', async () => {
+    vi.useFakeTimers()
+    try {
+      let release!: () => void
+      const held = new Promise<void>((resolve) => {
+        release = resolve
+      })
+      const connection = {
+        on: () => () => {},
+        updateSession: () => {},
+        disconnect: async () => {},
+        startAudioCapture: async () => {},
+      }
+      const getToken = vi.fn(
+        async () => ({ token: 't', expiresAt: Date.now() + 120_000 }) as any,
+      )
+      const client = new RealtimeClient({
+        getToken,
+        adapter: {
+          connect: vi
+            .fn()
+            .mockImplementationOnce(async () => {
+              await held
+              return connection
+            })
+            .mockResolvedValueOnce(connection),
+        } as any,
+      })
+
+      const first = client.connect()
+      await vi.waitFor(() => expect(getToken).toHaveBeenCalledTimes(1))
+      await client.connect()
+      release()
+      await first
+      await client.disconnect()
+
+      expect(vi.getTimerCount()).toBe(0)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
 })

@@ -458,6 +458,8 @@ export class RealtimeClient {
 
   private scheduleTokenRefresh(): void {
     if (!this.token) return
+    // A connect() that replaced an earlier one must not leave its timer.
+    if (this.tokenRefreshTimeout) clearTimeout(this.tokenRefreshTimeout)
 
     const timeUntilExpiry = this.token.expiresAt - Date.now()
     const refreshIn = Math.max(0, timeUntilExpiry - TOKEN_REFRESH_BUFFER_MS)

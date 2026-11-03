@@ -187,7 +187,13 @@ describe('summarize() abort reaches the wrapped chatStream', () => {
     expect(onFinish).not.toHaveBeenCalled()
     expect(onAbort).toHaveBeenCalledTimes(1)
     // The error chunk still reaches the consumer.
-    expect(chunks.some((chunk) => chunk.type === 'RUN_ERROR')).toBe(true)
+    expect(
+      chunks.some(
+        (chunk) =>
+          chunk.type === 'RUN_ERROR' &&
+          chunk.message === 'Request was aborted.',
+      ),
+    ).toBe(true)
   })
 })
 
@@ -435,6 +441,7 @@ describe('generateVideo() polling', () => {
       pollingInterval: 1,
       abortSignal: controller.signal,
     })
+    let sawCompleted = false
     // The stream ends the run itself; it may not throw.
     await (async () => {
       for await (const chunk of stream as AsyncIterable<StreamChunk>) {
@@ -443,10 +450,12 @@ describe('generateVideo() polling', () => {
           chunk.name === 'video:status' &&
           (chunk.value as { status?: string }).status === 'completed'
         ) {
+          sawCompleted = true
           controller.abort()
         }
       }
     })().catch(() => undefined)
+    expect(sawCompleted).toBe(true)
     expect(getVideo).not.toHaveBeenCalled()
   })
 
