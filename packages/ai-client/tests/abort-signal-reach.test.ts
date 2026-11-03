@@ -296,6 +296,9 @@ describe('ChatClient.stop() (L1)', () => {
   )
 })
 
+// An overtaken or cancelled connect() rejects with this.
+const ABORT = { name: 'AbortError' }
+
 describe('RealtimeClient.disconnect() during connect() (L4)', () => {
   // `gate` is the connect() step that waits while disconnect() runs.
   for (const gate of ['getToken', 'adapter.connect', 'startAudioCapture']) {
@@ -330,7 +333,7 @@ describe('RealtimeClient.disconnect() during connect() (L4)', () => {
       await new Promise((resolve) => setTimeout(resolve, 0))
       await client.disconnect()
       release()
-      await connecting.catch(() => {})
+      await expect(connecting).rejects.toMatchObject(ABORT)
 
       const opened = adapterConnect.mock.calls.length > 0
       // Either it never connects, or it closes what it opened.
@@ -368,11 +371,13 @@ describe('RealtimeClient.disconnect() during connect() (L4)', () => {
     })
 
     const connecting = client.connect()
+    // disconnect() cancels this connect(), so it rejects with AbortError.
+    const rejected = expect(connecting).rejects.toMatchObject(ABORT)
     await vi.waitFor(() => expect(client.status).toBe('connecting'))
     await new Promise((resolve) => setTimeout(resolve, 0))
     await client.disconnect()
     release()
-    await connecting
+    await rejected
 
     expect(connection.disconnect).toHaveBeenCalled()
     expect(client.status).toBe('idle')
@@ -405,11 +410,13 @@ describe('RealtimeClient.disconnect() during connect() (L4)', () => {
     })
 
     const firstConnect = client.connect()
+    // The second connect() cancels the first, so it rejects with AbortError.
+    const rejected = expect(firstConnect).rejects.toMatchObject(ABORT)
     await vi.waitFor(() => expect(adapterConnect).toHaveBeenCalledTimes(1))
     await new Promise((resolve) => setTimeout(resolve, 0))
     await client.connect()
     release()
-    await firstConnect
+    await rejected
 
     expect(first.disconnect).toHaveBeenCalled()
     expect(second.disconnect).not.toHaveBeenCalled()
@@ -465,12 +472,13 @@ describe('RealtimeClient keeps the live session when a second connect() wins', (
       })
 
       const firstConnect = client.connect()
+      const rejected = expect(firstConnect).rejects.toMatchObject(ABORT)
       await vi.waitFor(() =>
         expect(Reflect.get(client, 'connection')).toBe(first),
       )
       await client.connect()
       release()
-      await firstConnect
+      await rejected
 
       expect(first.disconnect).toHaveBeenCalled()
       expect(client.status).toBe('connected')
@@ -546,10 +554,11 @@ describe('RealtimeClient.disconnect() during a token refresh', () => {
       })
 
       const first = client.connect()
+      const rejected = expect(first).rejects.toMatchObject(ABORT)
       await vi.waitFor(() => expect(getToken).toHaveBeenCalledTimes(1))
       await client.connect()
       release()
-      await first
+      await rejected
       await client.disconnect()
 
       expect(vi.getTimerCount()).toBe(0)

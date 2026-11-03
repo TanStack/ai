@@ -544,8 +544,14 @@ export class GrokVideoAdapter<
     }
   }
 
-  private async retrieveJob(jobId: string): Promise<GrokVideoStatusResponse> {
-    const response = await this.request(`/videos/${jobId}`)
+  private async retrieveJob(
+    jobId: string,
+    signal?: AbortSignal,
+  ): Promise<GrokVideoStatusResponse> {
+    const response = await this.request(
+      `/videos/${jobId}`,
+      signal && { signal },
+    )
     if (!response.ok) {
       const error = new Error(
         `grok: video status request failed (${response.status} ${response.statusText}): ${await this.errorMessage(response)}`,
@@ -556,10 +562,13 @@ export class GrokVideoAdapter<
     return (await response.json()) as GrokVideoStatusResponse
   }
 
-  async getVideoStatus(jobId: string): Promise<VideoStatusResult> {
+  async getVideoStatus(
+    jobId: string,
+    options?: { abortSignal?: AbortSignal },
+  ): Promise<VideoStatusResult> {
     let response: GrokVideoStatusResponse
     try {
-      response = await this.retrieveJob(jobId)
+      response = await this.retrieveJob(jobId, options?.abortSignal)
     } catch (error) {
       if ((error as { status?: number }).status === 404) {
         return { jobId, status: 'failed', error: 'Job not found' }
@@ -575,10 +584,13 @@ export class GrokVideoAdapter<
     }
   }
 
-  override async getVideo(jobId: string): Promise<VideoUrlResult> {
+  override async getVideo(
+    jobId: string,
+    options?: { abortSignal?: AbortSignal },
+  ): Promise<VideoUrlResult> {
     let response: GrokVideoStatusResponse
     try {
-      response = await this.retrieveJob(jobId)
+      response = await this.retrieveJob(jobId, options?.abortSignal)
     } catch (error) {
       if ((error as { status?: number }).status === 404) {
         throw new Error(`Video job not found: ${jobId}`)

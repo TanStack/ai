@@ -49,9 +49,10 @@ const TOKEN_REFRESH_BUFFER_MS = 60_000
 export class RealtimeClient {
   private readonly options: RealtimeClientOptions
   private connection: RealtimeConnection | null = null
+  /** Aborts the `adapter.connect()` setup when `disconnect()` runs. */
+  private connectAbort: AbortController | null = null
   private token: RealtimeToken | null = null
   private tokenRefreshTimeout: ReturnType<typeof setTimeout> | null = null
-  private connectGeneration = 0
   private readonly clientTools: Map<string, AnyClientTool>
   private readonly stateChangeCallbacks: Set<RealtimeStateChangeCallback> =
     new Set()
@@ -105,13 +106,14 @@ export class RealtimeClient {
       status: 'connecting',
       error: null,
     })
-    // disconnect() bumps this. A connect() it overtook must stop.
-    const generation = ++this.connectGeneration
+    // A new connect() owns the setup. Stop the setup of an earlier one.
+    this.connectAbort?.abort()
+    const connectAbort = (this.connectAbort = new AbortController())
 
     try {
       // Fetch token from server
       const token = await this.options.getToken()
-      if (generation !== this.connectGeneration) return
+      connectAbort.signal.throwIfAborted()
       this.token = token
 
       // Schedule token refresh
@@ -126,12 +128,13 @@ export class RealtimeClient {
       const connection = await this.options.adapter.connect(
         this.token,
         toolsList,
+        { abortSignal: connectAbort.signal },
       )
-      if (generation !== this.connectGeneration) {
+      if (connectAbort.signal.aborted) {
         // A failed close of a connection that was never used is not an
         // error of the client.
         await connection.disconnect().catch(() => {})
-        return
+        connectAbort.signal.throwIfAborted()
       }
       this.connection = connection
 
@@ -153,7 +156,7 @@ export class RealtimeClient {
       // Start audio capture if configured
       if (this.options.autoCapture) {
         await connection.startAudioCapture()
-        if (generation !== this.connectGeneration) {
+        if (connectAbort.signal.aborted) {
           // A later connect() replaced this connection: close it. After
           // disconnect(), `this.connection` is null and it is closed already.
           if (this.connection && this.connection !== connection) {
@@ -161,7 +164,7 @@ export class RealtimeClient {
             // error of the live session.
             await connection.disconnect().catch(() => {})
           }
-          return
+          connectAbort.signal.throwIfAborted()
         }
       }
 
@@ -172,6 +175,8 @@ export class RealtimeClient {
       this.options.onConnect?.()
     } catch (error) {
       const err = error instanceof Error ? error : new Error(String(error))
+      // `disconnect()` cancelled this connect: the state is already idle.
+      if (connectAbort.signal.aborted) throw err
       this.updateState({ status: 'error', error: err })
       this.options.onError?.(err)
       throw err
@@ -182,7 +187,7 @@ export class RealtimeClient {
    * Disconnect from the realtime session.
    */
   async disconnect(): Promise<void> {
-    this.connectGeneration++
+    this.connectAbort?.abort()
     if (this.tokenRefreshTimeout) {
       clearTimeout(this.tokenRefreshTimeout)
       this.tokenRefreshTimeout = null
@@ -470,11 +475,11 @@ export class RealtimeClient {
   }
 
   private async refreshToken(): Promise<void> {
-    const generation = this.connectGeneration
+    const connectSignal = this.connectAbort?.signal
     try {
       const token = await this.options.getToken()
       // disconnect() ran during the refresh: do not re-arm the timer.
-      if (generation !== this.connectGeneration) return
+      if (connectSignal?.aborted) return
       this.token = token
       this.scheduleTokenRefresh()
       this.connection?.updateToken?.(this.token)

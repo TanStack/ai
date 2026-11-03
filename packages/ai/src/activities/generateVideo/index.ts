@@ -495,6 +495,7 @@ async function runCreateVideoJob<
   const contextFor = (runId?: string): GenerationMiddlewareContext =>
     createGenerationContext({
       requestId,
+      signal: abortControls.signal,
       activity: 'video',
       provider: adapter.name,
       model,
@@ -613,6 +614,9 @@ async function* runStreamingVideoGeneration<
     timeout,
     abortSignal: callerAbortSignal,
   })
+  const signalOptions = abortControls.signal
+    ? { abortSignal: abortControls.signal }
+    : undefined
   const providerName =
     (adapter as { name?: string; provider?: string }).provider ??
     (adapter as { name?: string }).name ??
@@ -629,6 +633,7 @@ async function* runStreamingVideoGeneration<
 
   const mwCtx = createGenerationContext({
     requestId,
+    signal: abortControls.signal,
     activity: 'video',
     provider: adapter.name,
     model,
@@ -656,6 +661,8 @@ async function* runStreamingVideoGeneration<
   // fired, so the `finally` below can fire one on abandonment without
   // double-firing.
   let settled = false
+  // Set once the provider has a job, so an abort can ask it to stop the job.
+  let jobId: string | undefined
   try {
     // Create the video generation job
     const jobResult = await raceWithAbort(
@@ -671,6 +678,8 @@ async function* runStreamingVideoGeneration<
       abortControls.signal,
     )
 
+    jobId = jobResult.jobId
+
     yield {
       type: 'CUSTOM',
       name: 'video:job:created',
@@ -684,7 +693,7 @@ async function* runStreamingVideoGeneration<
       await sleep(pollingInterval, abortControls.signal)
 
       const statusResult = await raceWithAbort(
-        adapter.getVideoStatus(jobResult.jobId),
+        adapter.getVideoStatus(jobResult.jobId, signalOptions),
         abortControls.signal,
       )
 
@@ -703,7 +712,7 @@ async function* runStreamingVideoGeneration<
       if (statusResult.status === 'completed') {
         // The caller can abort when it reads the status above.
         abortControls.signal?.throwIfAborted()
-        const download = adapter.getVideo(jobResult.jobId)
+        const download = adapter.getVideo(jobResult.jobId, signalOptions)
         const video = await raceWithAbort(download, abortControls.signal).catch(
           (error: unknown) => {
             // Nobody reads a video stream that comes after the abort, so
@@ -787,6 +796,21 @@ async function* runStreamingVideoGeneration<
     settled = true
     const elapsed = Date.now() - obsStartTime
     if (isActivityAbortError(error, abortControls.signal)) {
+      // Cancel only on a real caller abort or timeout. A provider error
+      // named `TimeoutError` does not mean the caller wants the job stopped.
+      if (jobId !== undefined && abortControls.signal?.aborted) {
+        // Best effort: the run already ends as aborted, so a failed cancel
+        // is only logged. Not awaited, so a slow provider does not delay it.
+        const cancelledJobId = jobId
+        void (async () => adapter.cancelVideoJob?.(cancelledJobId))().catch(
+          (cancelError: unknown) =>
+            logger.errors('generateVideo cancelVideoJob failed', {
+              jobId: cancelledJobId,
+              error: cancelError,
+              source: 'generateVideo',
+            }),
+        )
+      }
       await runGenerationAbort(middleware, mwCtx, {
         reason: abortReasonMessage(error, abortControls.signal),
         duration: elapsed,
@@ -856,6 +880,17 @@ export interface VideoJobStatusOptions<
    * charged for the wait.
    */
   middleware?: Array<GenerationMiddleware>
+  /**
+   * Maximum duration of this status call (status poll plus the video fetch)
+   * in milliseconds. Composed with {@link abortSignal}; the first abort wins.
+   */
+  timeout?: number
+  /**
+   * Caller cancellation signal. Composed with {@link timeout} and forwarded to
+   * the adapter's status and video requests. An abort rejects the call; it
+   * does not mark the job or the run as failed.
+   */
+  abortSignal?: AbortSignal
 }
 
 /**
@@ -937,7 +972,25 @@ export interface VideoJobStatusResult {
 export async function getVideoJobStatus<
   TAdapter extends VideoAdapter<string, any, any, any, any, any>,
 >(options: VideoJobStatusOptions<TAdapter>): Promise<VideoJobStatusResult> {
+  const abortControls = createActivityAbortControls({
+    timeout: options.timeout,
+    abortSignal: options.abortSignal,
+  })
+  try {
+    return await runGetVideoJobStatus(options, abortControls.signal)
+  } finally {
+    abortControls.clear()
+  }
+}
+
+async function runGetVideoJobStatus<
+  TAdapter extends VideoAdapter<string, any, any, any, any, any>,
+>(
+  options: VideoJobStatusOptions<TAdapter>,
+  signal: AbortSignal | undefined,
+): Promise<VideoJobStatusResult> {
   const { adapter, jobId, middleware } = options
+  const signalOptions = signal ? { abortSignal: signal } : undefined
   const requestId = createId('video-status')
   const startTime = Date.now()
 
@@ -947,6 +1000,7 @@ export async function getVideoJobStatus<
   const terminalContext = (): GenerationMiddlewareContext =>
     createGenerationContext({
       requestId,
+      signal,
       activity: 'video',
       provider: adapter.name,
       model: adapter.model,
@@ -971,7 +1025,10 @@ export async function getVideoJobStatus<
   })
 
   // Get status first
-  const statusResult = await adapter.getVideoStatus(jobId)
+  const statusResult = await raceWithAbort(
+    adapter.getVideoStatus(jobId, signalOptions),
+    signal,
+  )
 
   // If completed, also get the URL
   if (statusResult.status === 'completed') {
@@ -980,8 +1037,14 @@ export async function getVideoJobStatus<
     // surface as itself, not be relabelled "failed to get video URL" and then
     // re-reported to the very middleware that threw.
     try {
-      video = await adapter.getVideo(jobId)
+      video = await raceWithAbort(
+        adapter.getVideo(jobId, signalOptions),
+        signal,
+      )
     } catch (error) {
+      // A cancelled call says nothing about the job: rethrow, do not fail it.
+      // Without a caller abort, a provider `TimeoutError` still fails the job.
+      if (signal?.aborted) throw error
       const errorMessage =
         error instanceof Error ? error.message : 'Failed to get video URL'
       aiEventClient.emit('video:request:completed', {
@@ -1051,6 +1114,7 @@ export async function getVideoJobStatus<
     try {
       result = await settleVideoUrl(transformed)
     } catch (error) {
+      if (signal?.aborted) throw error
       // The download broke mid-stream: the job is terminal, so fail the run.
       await runGenerationError(middleware, mwCtx, {
         error,

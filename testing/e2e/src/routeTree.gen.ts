@@ -91,9 +91,11 @@ import { Route as ApiCopilotWireRouteImport } from './routes/api.copilot-wire'
 import { Route as ApiCrossModelReplayWireRouteImport } from './routes/api.cross-model-replay-wire'
 import { Route as ApiDevtoolsMemoryRouteImport } from './routes/api.devtools-memory'
 import { Route as ApiDurableDeliveryRouteImport } from './routes/api.durable-delivery'
+import { Route as ApiDurableDeliveryCancelRouteImport } from './routes/api.durable-delivery-cancel'
 import { Route as ApiDurableMcpInputRouteImport } from './routes/api.durable-mcp-input'
 import { Route as ApiDurableTakeoverRouteImport } from './routes/api.durable-takeover'
 import { Route as ApiEmbeddingRouteImport } from './routes/api.embedding'
+import { Route as ApiEmbeddingAbortRouteImport } from './routes/api.embedding-abort'
 import { Route as ApiEvaluateHttpStatusRouteImport } from './routes/api.evaluate-http-status'
 import { Route as ApiEvaluateRefusalRouteImport } from './routes/api.evaluate-refusal'
 import { Route as ApiEvaluateUsageOnFailureRouteImport } from './routes/api.evaluate-usage-on-failure'
@@ -645,6 +647,12 @@ const ApiDurableDeliveryRoute = ApiDurableDeliveryRouteImport.update({
   path: '/api/durable-delivery',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiDurableDeliveryCancelRoute =
+  ApiDurableDeliveryCancelRouteImport.update({
+    id: '/api/durable-delivery-cancel',
+    path: '/api/durable-delivery-cancel',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiDurableMcpInputRoute = ApiDurableMcpInputRouteImport.update({
   id: '/api/durable-mcp-input',
   path: '/api/durable-mcp-input',
@@ -658,6 +666,11 @@ const ApiDurableTakeoverRoute = ApiDurableTakeoverRouteImport.update({
 const ApiEmbeddingRoute = ApiEmbeddingRouteImport.update({
   id: '/api/embedding',
   path: '/api/embedding',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiEmbeddingAbortRoute = ApiEmbeddingAbortRouteImport.update({
+  id: '/api/embedding-abort',
+  path: '/api/embedding-abort',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiEvaluateHttpStatusRoute = ApiEvaluateHttpStatusRouteImport.update({
@@ -1367,9 +1380,11 @@ export interface FileRoutesByFullPath {
   '/api/cross-model-replay-wire': typeof ApiCrossModelReplayWireRoute
   '/api/devtools-memory': typeof ApiDevtoolsMemoryRoute
   '/api/durable-delivery': typeof ApiDurableDeliveryRoute
+  '/api/durable-delivery-cancel': typeof ApiDurableDeliveryCancelRoute
   '/api/durable-mcp-input': typeof ApiDurableMcpInputRoute
   '/api/durable-takeover': typeof ApiDurableTakeoverRoute
   '/api/embedding': typeof ApiEmbeddingRoute
+  '/api/embedding-abort': typeof ApiEmbeddingAbortRoute
   '/api/evaluate-http-status': typeof ApiEvaluateHttpStatusRoute
   '/api/evaluate-refusal': typeof ApiEvaluateRefusalRoute
   '/api/evaluate-usage-on-failure': typeof ApiEvaluateUsageOnFailureRoute
@@ -1573,9 +1588,11 @@ export interface FileRoutesByTo {
   '/api/cross-model-replay-wire': typeof ApiCrossModelReplayWireRoute
   '/api/devtools-memory': typeof ApiDevtoolsMemoryRoute
   '/api/durable-delivery': typeof ApiDurableDeliveryRoute
+  '/api/durable-delivery-cancel': typeof ApiDurableDeliveryCancelRoute
   '/api/durable-mcp-input': typeof ApiDurableMcpInputRoute
   '/api/durable-takeover': typeof ApiDurableTakeoverRoute
   '/api/embedding': typeof ApiEmbeddingRoute
+  '/api/embedding-abort': typeof ApiEmbeddingAbortRoute
   '/api/evaluate-http-status': typeof ApiEvaluateHttpStatusRoute
   '/api/evaluate-refusal': typeof ApiEvaluateRefusalRoute
   '/api/evaluate-usage-on-failure': typeof ApiEvaluateUsageOnFailureRoute
@@ -1780,9 +1797,11 @@ export interface FileRoutesById {
   '/api/cross-model-replay-wire': typeof ApiCrossModelReplayWireRoute
   '/api/devtools-memory': typeof ApiDevtoolsMemoryRoute
   '/api/durable-delivery': typeof ApiDurableDeliveryRoute
+  '/api/durable-delivery-cancel': typeof ApiDurableDeliveryCancelRoute
   '/api/durable-mcp-input': typeof ApiDurableMcpInputRoute
   '/api/durable-takeover': typeof ApiDurableTakeoverRoute
   '/api/embedding': typeof ApiEmbeddingRoute
+  '/api/embedding-abort': typeof ApiEmbeddingAbortRoute
   '/api/evaluate-http-status': typeof ApiEvaluateHttpStatusRoute
   '/api/evaluate-refusal': typeof ApiEvaluateRefusalRoute
   '/api/evaluate-usage-on-failure': typeof ApiEvaluateUsageOnFailureRoute
@@ -1988,9 +2007,11 @@ export interface FileRouteTypes {
     | '/api/cross-model-replay-wire'
     | '/api/devtools-memory'
     | '/api/durable-delivery'
+    | '/api/durable-delivery-cancel'
     | '/api/durable-mcp-input'
     | '/api/durable-takeover'
     | '/api/embedding'
+    | '/api/embedding-abort'
     | '/api/evaluate-http-status'
     | '/api/evaluate-refusal'
     | '/api/evaluate-usage-on-failure'
@@ -2194,9 +2215,11 @@ export interface FileRouteTypes {
     | '/api/cross-model-replay-wire'
     | '/api/devtools-memory'
     | '/api/durable-delivery'
+    | '/api/durable-delivery-cancel'
     | '/api/durable-mcp-input'
     | '/api/durable-takeover'
     | '/api/embedding'
+    | '/api/embedding-abort'
     | '/api/evaluate-http-status'
     | '/api/evaluate-refusal'
     | '/api/evaluate-usage-on-failure'
@@ -2400,9 +2423,11 @@ export interface FileRouteTypes {
     | '/api/cross-model-replay-wire'
     | '/api/devtools-memory'
     | '/api/durable-delivery'
+    | '/api/durable-delivery-cancel'
     | '/api/durable-mcp-input'
     | '/api/durable-takeover'
     | '/api/embedding'
+    | '/api/embedding-abort'
     | '/api/evaluate-http-status'
     | '/api/evaluate-refusal'
     | '/api/evaluate-usage-on-failure'
@@ -2607,9 +2632,11 @@ export interface RootRouteChildren {
   ApiCrossModelReplayWireRoute: typeof ApiCrossModelReplayWireRoute
   ApiDevtoolsMemoryRoute: typeof ApiDevtoolsMemoryRoute
   ApiDurableDeliveryRoute: typeof ApiDurableDeliveryRoute
+  ApiDurableDeliveryCancelRoute: typeof ApiDurableDeliveryCancelRoute
   ApiDurableMcpInputRoute: typeof ApiDurableMcpInputRoute
   ApiDurableTakeoverRoute: typeof ApiDurableTakeoverRoute
   ApiEmbeddingRoute: typeof ApiEmbeddingRoute
+  ApiEmbeddingAbortRoute: typeof ApiEmbeddingAbortRoute
   ApiEvaluateHttpStatusRoute: typeof ApiEvaluateHttpStatusRoute
   ApiEvaluateRefusalRoute: typeof ApiEvaluateRefusalRoute
   ApiEvaluateUsageOnFailureRoute: typeof ApiEvaluateUsageOnFailureRoute
@@ -3303,6 +3330,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiDurableDeliveryRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/durable-delivery-cancel': {
+      id: '/api/durable-delivery-cancel'
+      path: '/api/durable-delivery-cancel'
+      fullPath: '/api/durable-delivery-cancel'
+      preLoaderRoute: typeof ApiDurableDeliveryCancelRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/durable-mcp-input': {
       id: '/api/durable-mcp-input'
       path: '/api/durable-mcp-input'
@@ -3322,6 +3356,13 @@ declare module '@tanstack/react-router' {
       path: '/api/embedding'
       fullPath: '/api/embedding'
       preLoaderRoute: typeof ApiEmbeddingRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/embedding-abort': {
+      id: '/api/embedding-abort'
+      path: '/api/embedding-abort'
+      fullPath: '/api/embedding-abort'
+      preLoaderRoute: typeof ApiEmbeddingAbortRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/evaluate-http-status': {
@@ -4305,9 +4346,11 @@ const rootRouteChildren: RootRouteChildren = {
   ApiCrossModelReplayWireRoute: ApiCrossModelReplayWireRoute,
   ApiDevtoolsMemoryRoute: ApiDevtoolsMemoryRoute,
   ApiDurableDeliveryRoute: ApiDurableDeliveryRoute,
+  ApiDurableDeliveryCancelRoute: ApiDurableDeliveryCancelRoute,
   ApiDurableMcpInputRoute: ApiDurableMcpInputRoute,
   ApiDurableTakeoverRoute: ApiDurableTakeoverRoute,
   ApiEmbeddingRoute: ApiEmbeddingRoute,
+  ApiEmbeddingAbortRoute: ApiEmbeddingAbortRoute,
   ApiEvaluateHttpStatusRoute: ApiEvaluateHttpStatusRoute,
   ApiEvaluateRefusalRoute: ApiEvaluateRefusalRoute,
   ApiEvaluateUsageOnFailureRoute: ApiEvaluateUsageOnFailureRoute,

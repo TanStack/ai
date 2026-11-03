@@ -84,7 +84,9 @@ export function openaiRealtimeToken(
   return {
     provider: 'openai',
 
-    async generateToken(): Promise<RealtimeToken> {
+    async generateToken(request?: {
+      abortSignal?: AbortSignal
+    }): Promise<RealtimeToken> {
       const model: OpenAIRealtimeModel = options.model ?? 'gpt-realtime-2.1'
 
       // Only the model is sent server-side; all other session config
@@ -97,6 +99,7 @@ export function openaiRealtimeToken(
           'Content-Type': 'application/json',
         },
         body: JSON.stringify(buildClientSecretRequest(model)),
+        ...(request?.abortSignal && { signal: request.abortSignal }),
       })
 
       if (!response.ok) {

@@ -210,7 +210,7 @@ export class BytePlusVideoAdapter<
 
   private async request(
     path: string,
-    init?: Omit<RequestInit, 'headers'>,
+    init?: Omit<RequestInit, 'headers' | 'signal'>,
     abortSignal?: AbortSignal,
   ): Promise<{ response: Response; body: unknown }> {
     const fetchImpl = this.clientConfig.fetch ?? fetch
@@ -498,9 +498,14 @@ export class BytePlusVideoAdapter<
    * interpret; the honest answer is that the response was not a task at all,
    * so say so while the body is still in hand.
    */
-  private async retrieveTask(jobId: string): Promise<BytePlusVideoTask> {
+  private async retrieveTask(
+    jobId: string,
+    signal?: AbortSignal,
+  ): Promise<BytePlusVideoTask> {
     const { response, body } = await this.request(
       `${TASKS_PATH}/${encodeURIComponent(jobId)}`,
+      undefined,
+      signal,
     )
     if (!response.ok) {
       const error = bytePlusArkError(response.status, body, 'video task lookup')
@@ -517,10 +522,32 @@ export class BytePlusVideoAdapter<
     return body as BytePlusVideoTask
   }
 
-  async getVideoStatus(jobId: string): Promise<VideoStatusResult> {
+  /**
+   * `DELETE /contents/generations/tasks/{id}`. Ark can cancel only a
+   * `queued` task, and the call fails for a `running` one. On a finished
+   * task, Ark deletes the task record.
+   */
+  async cancelVideoJob(
+    jobId: string,
+    options?: { abortSignal?: AbortSignal },
+  ): Promise<void> {
+    const { response, body } = await this.request(
+      `${TASKS_PATH}/${encodeURIComponent(jobId)}`,
+      { method: 'DELETE' },
+      options?.abortSignal,
+    )
+    if (!response.ok) {
+      throw bytePlusArkError(response.status, body, 'video task cancel')
+    }
+  }
+
+  async getVideoStatus(
+    jobId: string,
+    options?: { abortSignal?: AbortSignal },
+  ): Promise<VideoStatusResult> {
     let task: BytePlusVideoTask
     try {
-      task = await this.retrieveTask(jobId)
+      task = await this.retrieveTask(jobId, options?.abortSignal)
     } catch (error) {
       // A task record lives 7 days from creation; past that the id 404s. Keep
       // Ark's own code/message: a 404 from a wrong baseURL, a proxy, or a
@@ -545,10 +572,13 @@ export class BytePlusVideoAdapter<
     }
   }
 
-  override async getVideo(jobId: string): Promise<VideoUrlResult> {
+  override async getVideo(
+    jobId: string,
+    options?: { abortSignal?: AbortSignal },
+  ): Promise<VideoUrlResult> {
     let task: BytePlusVideoTask
     try {
-      task = await this.retrieveTask(jobId)
+      task = await this.retrieveTask(jobId, options?.abortSignal)
     } catch (error) {
       // See getVideoStatus: Ark's detail distinguishes an expired id from a
       // misrouted request.

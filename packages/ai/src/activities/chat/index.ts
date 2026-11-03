@@ -1594,6 +1594,10 @@ class TextEngine<
         return
       }
 
+      // A run stopped before it started runs no pending tools and raises no
+      // interrupt. The `finally` below reports it through `onAbort`.
+      if (this.isCancelled()) return
+
       const hasResumedTools = this.getPendingToolCallsFromMessages().length > 0
       const pendingPhase = yield* this.checkForPendingToolCalls()
       if (pendingPhase === 'stop' || pendingPhase === 'wait') {
@@ -6397,6 +6401,23 @@ function runStreamingText(
   return stream
 }
 
+/**
+ * MCP tools for one run. When the run is stopped during discovery, it returns
+ * no tools: the engine then ends the run through its abort path, so middleware
+ * gets `onAbort`. Other discovery errors still throw.
+ */
+async function discoverMcpTools(
+  mcpManager: MCPManager,
+  signal: AbortSignal | undefined,
+) {
+  try {
+    return await mcpManager.discover(signal)
+  } catch (error) {
+    if (signal?.aborted) return []
+    throw error
+  }
+}
+
 async function* runChatEngine(
   options: RuntimeTextActivityOptions<AnyTextAdapter, undefined, boolean>,
   engineRef: DeliveryEngineRef,
@@ -6414,7 +6435,10 @@ async function* runChatEngine(
   const logger = resolveDebugOption(debug)
 
   const mcpManager = MCPManager.from(mcp)
-  const mcpTools = await mcpManager.discover()
+  const mcpTools = await discoverMcpTools(
+    mcpManager,
+    options.abortController?.signal,
+  )
   if (mcpTools.length > 0) {
     textOptions.tools = [...(textOptions.tools ?? []), ...mcpTools]
   }
@@ -7030,7 +7054,10 @@ async function runAgenticStructuredOutput<TSchema extends SchemaInput>(
     adapter.combinedStructuredOutputSource?.(options.modelOptions) ?? 'text'
 
   const mcpManager = MCPManager.from(mcp)
-  const mcpTools = await mcpManager.discover()
+  const mcpTools = await discoverMcpTools(
+    mcpManager,
+    options.abortController?.signal,
+  )
   if (mcpTools.length > 0) {
     textOptions.tools = [...(textOptions.tools ?? []), ...mcpTools]
   }
@@ -7392,7 +7419,10 @@ async function* runStreamingStructuredOutputImpl<TSchema extends SchemaInput>(
     : undefined
 
   const mcpManager = MCPManager.from(mcp)
-  const mcpTools = await mcpManager.discover()
+  const mcpTools = await discoverMcpTools(
+    mcpManager,
+    options.abortController?.signal,
+  )
   if (mcpTools.length > 0) {
     textOptions.tools = [...(textOptions.tools ?? []), ...mcpTools]
   }

@@ -255,6 +255,7 @@ async function runSummarize(
 
   const mwCtx = createGenerationContext({
     requestId,
+    signal: abortControls.signal,
     activity: 'summarize',
     provider: adapter.name,
     model,

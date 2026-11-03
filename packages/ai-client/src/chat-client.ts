@@ -660,6 +660,8 @@ export class ChatClient<
   // Flag to deduplicate continuation checks during action draining
   private continuationPending = false
   private subscriptionAbortController: AbortController | null = null
+  /** Aborts the `abortSignal` of running client tools on `stop()`. */
+  private clientToolAbortController = new AbortController()
   private processingResolve: (() => void) | null = null
   /**
    * `connect()` adapters push the full HTTP body into the subscribe queue, then
@@ -3103,7 +3105,15 @@ export class ChatClient<
     // This aborts the local request. A durable server run keeps going.
     this.continuationGeneration++
     const hadLocalStream = this.abortController !== null
+    const stoppedRunId = hadLocalStream ? this.currentRunId : null
+    if (stoppedRunId) {
+      // Opt-in server cancel (`cancelUrl`). Best effort: the local stop is done.
+      const run = { runId: stoppedRunId, threadId: this.threadId }
+      void (async () => this.connection.cancelRun?.(run))().catch(() => {})
+    }
     this.cancelInFlightStream({ setReadyStatus: true })
+    this.clientToolAbortController.abort()
+    this.clientToolAbortController = new AbortController()
     this.discardPendingSends()
     this.lastResume = null
     this.activeInterruptSubmission = undefined
@@ -3183,6 +3193,7 @@ export class ChatClient<
           toolCallId: args.toolCallId,
           threadId: this.threadId,
           context: context as TContext,
+          abortSignal: this.clientToolAbortController.signal,
           emitCustomEvent: () => {},
         })
         await this.addToolResultForClientTool(

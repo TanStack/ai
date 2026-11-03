@@ -535,11 +535,15 @@ export class GeminiVideoAdapter<
     return { image, lastFrame, referenceImages }
   }
 
-  async getVideoStatus(jobId: string): Promise<VideoStatusResult> {
+  async getVideoStatus(
+    jobId: string,
+    options?: { abortSignal?: AbortSignal },
+  ): Promise<VideoStatusResult> {
+    const signal = options?.abortSignal
     if (isInteractionsVideoModel(this.model)) {
-      return await this.getInteractionsVideoStatus(jobId)
+      return await this.getInteractionsVideoStatus(jobId, signal)
     }
-    const operation = await this.getOperation(jobId)
+    const operation = await this.getOperation(jobId, signal)
 
     if (!operation.done) {
       return { jobId, status: 'processing' }
@@ -583,8 +587,9 @@ export class GeminiVideoAdapter<
    */
   private async getInteractionsVideoStatus(
     jobId: string,
+    signal?: AbortSignal,
   ): Promise<VideoStatusResult> {
-    const interaction = await this.getInteraction(jobId)
+    const interaction = await this.getInteraction(jobId, signal)
     const status = interaction.status
 
     if (status === 'in_progress') {
@@ -616,11 +621,15 @@ export class GeminiVideoAdapter<
     }
   }
 
-  override async getVideo(jobId: string): Promise<VideoUrlResult> {
+  override async getVideo(
+    jobId: string,
+    options?: { abortSignal?: AbortSignal },
+  ): Promise<VideoUrlResult> {
+    const signal = options?.abortSignal
     if (isInteractionsVideoModel(this.model)) {
-      return await this.getInteractionsVideoUrl(jobId)
+      return await this.getInteractionsVideoUrl(jobId, signal)
     }
-    const operation = await this.getOperation(jobId)
+    const operation = await this.getOperation(jobId, signal)
 
     if (!operation.done) {
       throw new Error(
@@ -656,8 +665,9 @@ export class GeminiVideoAdapter<
    */
   private async getInteractionsVideoUrl(
     jobId: string,
+    signal?: AbortSignal,
   ): Promise<VideoUrlResult> {
-    const interaction = await this.getInteraction(jobId)
+    const interaction = await this.getInteraction(jobId, signal)
     const status = interaction.status
 
     if (status === 'in_progress') {
@@ -695,17 +705,28 @@ export class GeminiVideoAdapter<
    * instance (it calls `_fromAPIResponse` on it), so reconstruct one from
    * the job ID rather than passing an object literal.
    */
-  private async getOperation(jobId: string): Promise<GenerateVideosOperation> {
+  private async getOperation(
+    jobId: string,
+    signal?: AbortSignal,
+  ): Promise<GenerateVideosOperation> {
     const operation = new GenerateVideosOperation()
     operation.name = jobId
-    return await this.client.operations.getVideosOperation({ operation })
+    return await this.client.operations.getVideosOperation({
+      operation,
+      ...(signal && { config: { abortSignal: signal } }),
+    })
   }
 
   /**
    * Fetch an Omni background interaction by id.
    */
-  private async getInteraction(jobId: string): Promise<Interaction> {
-    return await this.client.interactions.get(jobId)
+  private async getInteraction(
+    jobId: string,
+    signal?: AbortSignal,
+  ): Promise<Interaction> {
+    return signal
+      ? await this.client.interactions.get(jobId, undefined, { signal })
+      : await this.client.interactions.get(jobId)
   }
 }
 

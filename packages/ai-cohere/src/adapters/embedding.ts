@@ -66,10 +66,16 @@ async function fetchWithTimeout(
 ): Promise<Response> {
   const controller = new AbortController()
   const timeoutId = setTimeout(() => controller.abort(), timeoutMs)
+  // Also abort when the caller's signal aborts.
+  const callerSignal = init?.signal
+  const onAbort = () => controller.abort(callerSignal?.reason)
+  if (callerSignal?.aborted) onAbort()
+  else callerSignal?.addEventListener('abort', onAbort, { once: true })
   try {
     return await fetch(url, { ...init, signal: controller.signal })
   } finally {
     clearTimeout(timeoutId)
+    callerSignal?.removeEventListener('abort', onAbort)
   }
 }
 
@@ -158,7 +164,9 @@ export class CohereEmbeddingAdapter<
           for (const image of item.images) {
             content.push({
               type: 'image_url',
-              image_url: { url: await this.resolveImageUrl(image) },
+              image_url: {
+                url: await this.resolveImageUrl(image, options.abortSignal),
+              },
             })
           }
           return { content }
@@ -198,6 +206,7 @@ export class CohereEmbeddingAdapter<
             ...transport.headers,
           },
           body: JSON.stringify(body),
+          ...(options.abortSignal && { signal: options.abortSignal }),
         },
         timeoutMs,
       )
@@ -266,7 +275,10 @@ export class CohereEmbeddingAdapter<
    * remote image URLs, so everything is normalized to a `data:` URI unless
    * the caller already provided one.
    */
-  protected async resolveImageUrl(image: ImagePart): Promise<string> {
+  protected async resolveImageUrl(
+    image: ImagePart,
+    signal?: AbortSignal,
+  ): Promise<string> {
     const source = image.source
     if (isFileSource(source)) throw unsupportedFileSourceError(this.name)
 
@@ -292,7 +304,7 @@ export class CohereEmbeddingAdapter<
 
     const response = await fetchWithTimeout(
       source.value,
-      undefined,
+      signal ? { signal } : undefined,
       this.clientConfig.timeout ?? DEFAULT_TIMEOUT_MS,
     )
     if (!response.ok) {
