@@ -85,6 +85,28 @@ const computerUse = createComputerUse({
 - A later call of the thread reconnects with `provider.resume`. If the sandbox is gone, the driver creates a new one and stores its id.
 - The driver never destroys a kept sandbox. The provider timeout pauses or removes it.
 
+## Restore files into a new sandbox
+
+Give `sandboxComputer()` a `snapshots` option. The driver saves the files of one folder, like the browser profile, when a thread closes or goes idle. The next new sandbox of the thread gets those files back. This works with every provider.
+
+```typescript
+const computerUse = createComputerUse({
+  driver: sandboxComputer({
+    provider,
+    snapshots: {
+      store: await memorySandboxSnapshots(),
+      root: '/home/user/browser-profile',
+      before: (sandbox) => stopBrowser(sandbox),
+      after: (sandbox) => startBrowser(sandbox),
+    },
+  }),
+})
+```
+
+- `before` runs before each save and restore. Stop the programs that write in `root`. `after` starts them again.
+- To save right away, like after a sign-in, call `saveComputerSnapshot(sandbox, threadId, snapshots)`.
+- A snapshot of a browser profile holds its session cookies. Keep the store secret.
+
 ## Share one sandbox
 
 To drive a sandbox that you already have, use `createSandboxComputerDriver`. Every thread shares this sandbox, so it serves one conversation at a time.

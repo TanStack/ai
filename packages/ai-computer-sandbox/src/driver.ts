@@ -4,7 +4,13 @@ import type {
   ComputerDriverFactory,
   MouseButton,
 } from '@tanstack/ai-computer-use'
-import type { SandboxHandle, SandboxProvider } from '@tanstack/ai-sandbox'
+import { captureSandboxFiles, restoreSandboxFiles } from '@tanstack/ai-sandbox'
+import type {
+  SandboxHandle,
+  SandboxProvider,
+  SandboxSnapshotPolicy,
+  SandboxSnapshots,
+} from '@tanstack/ai-sandbox'
 
 /** Options for {@link createSandboxComputerDriver}. */
 export interface SandboxComputerDriverOptions {
@@ -36,6 +42,30 @@ export interface SandboxComputerOptions {
     get: (threadId: string) => Promise<string | undefined>
     set: (threadId: string, sandboxId: string) => Promise<void>
   }
+  /**
+   * Save the files of a folder when a thread closes or goes idle, and restore
+   * them into the next new sandbox of the thread. This works with every
+   * provider, also when the sandbox is gone.
+   */
+  snapshots?: SandboxComputerSnapshots
+}
+
+/** Options for the saved files of each thread. See {@link saveComputerSnapshot}. */
+export interface SandboxComputerSnapshots {
+  /**
+   * The stores from `createSandboxSnapshots` or `memorySandboxSnapshots`.
+   * Each save becomes the newest checkpoint of the thread, so use these
+   * stores only for computers.
+   */
+  store: Pick<SandboxSnapshots, 'persistence' | 'checkpoints'>
+  /** The folder to save, as an absolute path. */
+  root: string
+  /** The paths to skip. The default skips `.git`, `node_modules`, and `.env` files. */
+  policy?: SandboxSnapshotPolicy
+  /** Runs before each save and restore. Stop the programs that write in `root`. */
+  before?: (sandbox: SandboxHandle) => Promise<void>
+  /** Runs after each save and restore. Start those programs again. */
+  after?: (sandbox: SandboxHandle) => Promise<void>
 }
 
 const DEFAULT_DISPLAY = { width: 1024, height: 768 }
@@ -263,7 +293,9 @@ export async function createSandboxComputerDriver({
  * Each sandbox comes from `provider.create`. When `createComputerUse` closes
  * a thread, or the thread goes idle, the sandbox of that thread is
  * destroyed. With `sandboxIds`, the sandbox is kept, and the next call of the
- * thread reconnects to it with `provider.resume`. The drivers have `cursorPosition`. They have no `zoom` and no
+ * thread reconnects to it with `provider.resume`. With `snapshots`, the files
+ * of one folder are saved first, and restored into the next new sandbox of
+ * the thread. The drivers have `cursorPosition`. They have no `zoom` and no
  * `navigate`, because a desktop has no address. The model opens the browser
  * on the desktop.
  *
@@ -278,6 +310,7 @@ export function sandboxComputer({
   provider,
   display = DEFAULT_DISPLAY,
   sandboxIds,
+  snapshots,
 }: SandboxComputerOptions) {
   /** The sandbox of the thread: its stored sandbox, when it still exists, or a new one. */
   async function open(threadId: string, signal: AbortSignal | undefined) {
@@ -315,9 +348,23 @@ export function sandboxComputer({
             `The sandbox display is ${width}x${height}, not ${display.width}x${display.height}. Set display to the size of the running display.`,
           )
         }
+        if (isNew && snapshots) {
+          await restoreComputerSnapshot(sandbox, threadId, snapshots)
+        }
         // A kept sandbox outlives its thread. The provider timeout ends it.
-        if (sandboxIds) return driver
-        return { ...driver, close: () => sandbox.destroy() }
+        if (sandboxIds && !snapshots) return driver
+        return {
+          ...driver,
+          close: async () => {
+            try {
+              if (snapshots) {
+                await saveComputerSnapshot(sandbox, threadId, snapshots)
+              }
+            } finally {
+              if (!sandboxIds) await sandbox.destroy()
+            }
+          },
+        }
       } catch (error) {
         // A kept sandbox holds the state of the thread, like a signed-in
         // browser. Keep it, so the next call of the thread tries it again.
@@ -337,4 +384,72 @@ async function destroyAfterFailure(sandbox: SandboxHandle) {
       destroyError,
     )
   })
+}
+
+/**
+ * Save the files of `snapshots.root` as the newest snapshot of the thread.
+ * `sandboxComputer` calls it when a thread closes or goes idle. Call it
+ * yourself after a step that you must keep, like a sign-in.
+ */
+export async function saveComputerSnapshot(
+  sandbox: SandboxHandle,
+  threadId: string,
+  { store, root, policy, before, after }: SandboxComputerSnapshots,
+) {
+  await before?.(sandbox)
+  try {
+    const { files } = await captureSandboxFiles(
+      sandbox,
+      { blobs: store.persistence.stores.blobs, workspaceRoot: root },
+      policy,
+    )
+    const writer = await store.checkpoints.acquireWriter(threadId)
+    try {
+      const parentCheckpointId = await store.checkpoints.getHead(threadId)
+      await store.checkpoints.append({
+        checkpoint: {
+          id: crypto.randomUUID(),
+          threadId,
+          parentCheckpointId,
+          createdAt: Date.now(),
+          reason: 'named',
+          label: 'computer',
+          files,
+          conversation: [],
+          artifacts: [],
+        },
+        expectedHeadId: parentCheckpointId,
+        writer,
+      })
+    } finally {
+      await writer.release()
+    }
+  } finally {
+    await after?.(sandbox)
+  }
+}
+
+/** Restore the newest snapshot of the thread into a new sandbox. */
+async function restoreComputerSnapshot(
+  sandbox: SandboxHandle,
+  threadId: string,
+  { store, root, policy, before, after }: SandboxComputerSnapshots,
+) {
+  const head = await store.checkpoints.getHead(threadId)
+  if (head === null) return
+  const checkpoint = await store.checkpoints.get(head)
+  if (!checkpoint) {
+    throw new Error(`The snapshot ${head} of thread ${threadId} is missing.`)
+  }
+  await before?.(sandbox)
+  try {
+    await restoreSandboxFiles(
+      sandbox,
+      { blobs: store.persistence.stores.blobs, workspaceRoot: root },
+      checkpoint,
+      policy,
+    )
+  } finally {
+    await after?.(sandbox)
+  }
 }

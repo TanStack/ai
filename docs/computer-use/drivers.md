@@ -131,11 +131,12 @@ const computerUse = createComputerUse({
 - `provider`: the sandbox provider. It makes one sandbox for each thread.
 - `display`: the screen size of each desktop in pixels. The default is 1024 x 768.
 - `sandboxIds`: keep the desktop of each thread and reconnect to it later. See [Keep the desktop for later](#keep-the-desktop-for-later).
+- `snapshots`: save the files of a folder, and restore them into the next new sandbox of the thread. See [Restore files into a new sandbox](#restore-files-into-a-new-sandbox).
 
 How the sandbox driver behaves:
 
 - There is no `navigate` tool, because a desktop has no address. The model opens the browser on the desktop.
-- When a thread closes or goes idle, `createComputerUse` destroys its sandbox, unless you set `sandboxIds`.
+- When a thread closes or goes idle, `createComputerUse` destroys its sandbox, unless you set `sandboxIds`. With `snapshots`, the driver saves the files first.
 - One scroll step is 100 pixels.
 - The driver quotes every key name and all typed text before they go to the shell.
 
@@ -202,6 +203,53 @@ What each provider keeps:
 
 > [!WARNING]
 > A kept desktop holds what the user did in it, like signed-in browser sessions. Delete the sandbox when the user deletes the thread.
+
+### Restore files into a new sandbox
+
+Give `sandboxComputer()` a `snapshots` option. The driver saves the files of one folder, like the browser profile. When the sandbox of a thread is gone, the next new sandbox gets those files, so the browser is still signed in. This works with every provider, also when its disk does not last, like Cloudflare.
+
+```ts
+import { createComputerUse } from '@tanstack/ai-computer-use'
+import { sandboxComputer } from '@tanstack/ai-computer-sandbox'
+import { memorySandboxSnapshots } from '@tanstack/ai-sandbox'
+import { e2bSandbox } from '@tanstack/ai-sandbox-e2b'
+import type { SandboxHandle } from '@tanstack/ai-sandbox'
+
+async function run(sandbox: SandboxHandle, command: string) {
+  const result = await sandbox.process.exec(command)
+  if (result.exitCode !== 0) throw new Error(result.stderr)
+}
+
+const computerUse = createComputerUse({
+  driver: sandboxComputer({
+    provider: e2bSandbox({ template: 'my-desktop' }),
+    snapshots: {
+      store: await memorySandboxSnapshots(),
+      root: '/home/user/browser-profile',
+      // Skip the caches. They are large, and the browser makes them again.
+      policy: { exclude: (path) => path.includes('Cache') },
+      // The browser writes its profile all the time. Close it cleanly during
+      // a save. A kill signal can stop it before it writes its cookies.
+      before: (sandbox) => run(sandbox, 'stop-browser'),
+      after: (sandbox) => run(sandbox, 'start-browser'),
+    },
+  }),
+})
+```
+
+With `snapshots`, the driver works like this:
+
+- When a thread closes or goes idle, the driver runs `before`, saves the files under `root`, then runs `after`.
+- When the driver creates a new sandbox for a thread with a saved snapshot, it runs `before`, restores the files, then runs `after`.
+- A sandbox that the driver reconnects to with `sandboxIds` keeps its own files. The driver restores nothing into it.
+- Each save becomes the newest checkpoint of the thread. Use these stores only for computers.
+
+To save at a moment that you must keep, like right after a sign-in, call `saveComputerSnapshot(sandbox, threadId, snapshots)` with the same options. The [sign-in tutorial](../tutorials/computer-use-login) does this.
+
+`memorySandboxSnapshots()` keeps the files in memory, so they are lost when the server stops. For a user who comes back the next day, build the stores with `createSandboxSnapshots` on your database.
+
+> [!WARNING]
+> A snapshot of a browser profile holds its session cookies. A person with the cookies can use the signed-in accounts. Keep the blob store secret, and encrypt it in production.
 
 Do you already have a desktop sandbox? See [Share one sandbox](#share-one-sandbox).
 
