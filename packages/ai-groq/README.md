@@ -46,13 +46,14 @@ export GROQ_API_KEY="gsk_..."
 
 ```typescript
 import { groqText } from '@tanstack/ai-groq'
-import { generate } from '@tanstack/ai'
+import { chat } from '@tanstack/ai'
 
 const adapter = groqText('openai/gpt-oss-120b')
 
-const result = await generate({
+const result = await chat({
   adapter,
-  model: 'openai/gpt-oss-120b',
+  threadId: 'thread-1',
+  stream: false,
   messages: [
     { role: 'user', content: 'Explain quantum computing in simple terms' },
   ],

@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
 import { chat } from '../src/activities/chat/index'
 import { MCPDuplicateToolNameError } from '../src/activities/chat/mcp/manager'
-import { collectChunks, createMockAdapter, ev } from './test-utils'
+import { clientTool, collectChunks, createMockAdapter, ev } from './test-utils'
 import type { StreamChunk } from '../src/types'
 import type { MCPToolSource } from '../src/activities/chat/mcp/types'
 import type { ServerTool } from '../src/activities/chat/tools/tool-definition'
@@ -298,6 +298,37 @@ describe('chat({ mcp })', () => {
     expect(toolsSpy).toHaveBeenCalledWith({ lazy: true })
   })
 
+  it('passes the run abort signal to source.tools()', async () => {
+    const toolsSpy = vi.fn().mockResolvedValue([])
+    const source: MCPToolSource = { tools: toolsSpy, close: async () => {} }
+    const { adapter } = createMockAdapter({
+      iterations: [
+        [
+          ev.runStarted(),
+          ev.textStart(),
+          ev.textContent('ok'),
+          ev.textEnd(),
+          ev.runFinished('stop'),
+        ],
+      ],
+    })
+    const abortController = new AbortController()
+
+    const stream = chat({
+      threadId: 'thread-1',
+      adapter,
+      messages: [{ role: 'user', content: 'hi' }],
+      mcp: { clients: [source] },
+      abortController,
+    })
+    await collectChunks(stream as AsyncIterable<StreamChunk>)
+
+    expect(toolsSpy).toHaveBeenCalledWith({
+      lazy: false,
+      signal: abortController.signal,
+    })
+  })
+
   // --------------------------------------------------------------------------
   // Case 7a: onDiscoveryError returning skips failed source, run proceeds
   // --------------------------------------------------------------------------
@@ -577,5 +608,100 @@ describe('chat({ mcp }) — structured-output runners', () => {
     await collectChunks(stream)
 
     expect(mcpExecuteSpy).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('chat({ mcp }) abort during discovery', () => {
+  /** A source whose discovery the caller aborts; it then rejects like an SDK. */
+  function abortingSource(abortController: AbortController): MCPToolSource {
+    return {
+      tools: (options) => {
+        abortController.abort()
+        return Promise.reject(options?.signal?.reason)
+      },
+      close: async () => {},
+    }
+  }
+
+  it('ends the stream through the abort path and calls onAbort', async () => {
+    const { adapter } = createMockAdapter({ iterations: [] })
+    const abortController = new AbortController()
+    const onAbort = vi.fn()
+    const onError = vi.fn()
+
+    const stream = chat({
+      threadId: 'thread-1',
+      adapter,
+      messages: [{ role: 'user', content: 'hi' }],
+      mcp: { clients: [abortingSource(abortController)] },
+      middleware: [{ name: 'observer', onAbort, onError }],
+      abortController,
+    })
+    await collectChunks(stream as AsyncIterable<StreamChunk>)
+
+    expect(onAbort).toHaveBeenCalledOnce()
+    expect(onError).not.toHaveBeenCalled()
+  })
+
+  it('raises no tool interrupt for a pending client tool after the abort', async () => {
+    const { adapter, calls } = createMockAdapter({ iterations: [] })
+    const abortController = new AbortController()
+    const onAbort = vi.fn()
+
+    const stream = chat({
+      threadId: 'thread-1',
+      adapter,
+      messages: [
+        { role: 'user', content: 'Notify me' },
+        {
+          role: 'assistant',
+          content: '',
+          toolCalls: [
+            {
+              id: 'call_client',
+              type: 'function' as const,
+              function: {
+                name: 'showNotification',
+                arguments: '{"message":"done"}',
+              },
+            },
+          ],
+        },
+      ],
+      tools: [clientTool('showNotification')],
+      mcp: { clients: [abortingSource(abortController)] },
+      middleware: [{ name: 'observer', onAbort }],
+      abortController,
+    })
+    const chunks = await collectChunks(stream as AsyncIterable<StreamChunk>)
+
+    expect(onAbort).toHaveBeenCalledOnce()
+    expect(
+      chunks.some(
+        (c) =>
+          c.type === 'RUN_FINISHED' &&
+          'outcome' in c &&
+          c.outcome?.type === 'interrupt',
+      ),
+    ).toBe(false)
+    expect(calls).toHaveLength(0)
+  })
+
+  it('calls onAbort on the structured output path too', async () => {
+    const { adapter } = createMockAdapter({ iterations: [] })
+    const abortController = new AbortController()
+    const onAbort = vi.fn()
+
+    await chat({
+      threadId: 'thread-1',
+      adapter,
+      messages: [{ role: 'user', content: 'hi' }],
+      mcp: { clients: [abortingSource(abortController)] },
+      middleware: [{ name: 'observer', onAbort }],
+      outputSchema: z.object({ ok: z.boolean() }),
+      abortController,
+    }).catch(() => undefined)
+
+    expect(onAbort).toHaveBeenCalledOnce()
   })
 })

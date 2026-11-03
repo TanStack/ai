@@ -309,9 +309,13 @@ export class SpritesHandle implements SandboxHandle {
    * {@link SnapshotRef} whose `id` is `<spriteName>#<version>` (e.g.
    * `my-sprite#v3`) so it round-trips through {@link restoreCheckpoint}.
    */
-  async snapshot(label?: string): Promise<SnapshotRef> {
+  async snapshot(
+    label?: string,
+    options?: { signal?: AbortSignal },
+  ): Promise<SnapshotRef> {
     const version = await this.client.createCheckpoint(this.name, {
       ...(label !== undefined ? { comment: label } : {}),
+      ...(options?.signal && { signal: options.signal }),
     })
     return {
       id: `${this.name}#${version}`,

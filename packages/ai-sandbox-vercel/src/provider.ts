@@ -129,6 +129,15 @@ class VercelProvider implements SandboxProvider {
         : {}),
       ...(input.env ? { env: input.env } : {}),
     })
+    // ponytail: no SDK signal here. It cancels only the request, so a sandbox
+    // that the server made has no owner. Let the create end, then stop a
+    // sandbox that comes after the abort instead of leaving it billed.
+    const stopIfAborted = async () => {
+      if (!input.signal?.aborted) return
+      await sandbox.stop().catch(() => undefined)
+      input.signal.throwIfAborted()
+    }
+    await stopIfAborted()
     // Ensure the workspace dir exists via the native (cwd-independent) mkDir —
     // running a command with a not-yet-existing `cwd` would fail, so we must not
     // route this through the handle (which runs every command in `workdir`).
@@ -142,6 +151,8 @@ class VercelProvider implements SandboxProvider {
     } catch (error) {
       if (!isDirAlreadyExistsError(error)) throw error
     }
+    // The abort can also come while the workdir is made.
+    await stopIfAborted()
     return new VercelHandle({
       sandbox,
       workdir: this.workdir,

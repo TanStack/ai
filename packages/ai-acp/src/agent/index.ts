@@ -513,12 +513,15 @@ export function createAcpAgent<U extends HarnessUser = HarnessUser>(
     wait,
     toolCallId,
     url,
+    signal,
   }: {
     client: AgentContext
     sessionId: string
     wait: Wait
     toolCallId?: string
     url?: string
+    /** Sends `$/cancel_request` for the question when it aborts. */
+    signal?: AbortSignal
   }): Promise<WaitAnswer> => {
     if (!(await canAsk(client, wait, url))) return { status: 'cancelled' }
     if (wait.kind === 'approval') {
@@ -539,12 +542,16 @@ export function createAcpAgent<U extends HarnessUser = HarnessUser>(
     const scope = { sessionId, ...(toolCallId ? { toolCallId } : {}) }
     if (wait.kind === 'question' || wait.kind === 'human') {
       const form = formOf(wait)
-      const reply = await client.request('elicitation/create', {
-        ...scope,
-        mode: 'form',
-        message: wait.message ?? 'The agent asks for input.',
-        requestedSchema: form.requestedSchema,
-      })
+      const reply = await client.request(
+        'elicitation/create',
+        {
+          ...scope,
+          mode: 'form',
+          message: wait.message ?? 'The agent asks for input.',
+          requestedSchema: form.requestedSchema,
+        },
+        { cancellationSignal: signal },
+      )
       if (reply.action === 'cancel') return { status: 'stop' }
       if (reply.action !== 'accept') return { status: 'cancelled' }
       const content = 'content' in reply ? reply.content : undefined
@@ -655,7 +662,9 @@ export function createAcpAgent<U extends HarnessUser = HarnessUser>(
             !turn && kind === 'question' && waitId === wait.waitId,
         )
       if (!isQuestion) return
-      const reply = await askEditor({ client, sessionId, wait })
+      // The operation can end while the editor shows the question (another
+      // client answered it). Then the editor gets a cancel for it.
+      const reply = await askEditor({ client, sessionId, wait, signal })
       if (signal.aborted) return
       if (reply.status !== 'resolved') {
         await session.cancel({ operationId })

@@ -142,9 +142,14 @@ export interface MemoryAdapter {
   /**
    * Read side — retrieve what's relevant to `query` within `scope`. The ranking
    * strategy (lexical, semantic, hybrid, vendor-native) is entirely the
-   * adapter's concern.
+   * adapter's concern. `options.signal` is the chat run's abort signal;
+   * forward it to network calls so a cancelled run stops the recall.
    */
-  recall: (scope: MemoryScope, query: string) => Promise<RecallResult>
+  recall: (
+    scope: MemoryScope,
+    query: string,
+    options?: { signal?: AbortSignal },
+  ) => Promise<RecallResult>
 
   /**
    * Write side — persist a completed turn. Extraction (turn → stored facts)

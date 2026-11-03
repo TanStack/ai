@@ -224,7 +224,7 @@
           "label": "Message Queue",
           "to": "chat/queueing",
           "addedAt": "2026-08-26",
-          "updatedAt": "2026-10-22"
+          "updatedAt": "2026-11-02"
         }
       ],
       "tab": "guides"
@@ -356,7 +356,7 @@
           "label": "Client Tools",
           "to": "tools/client-tools",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-10-22"
+          "updatedAt": "2026-11-02"
         },
         {
           "label": "WebMCP Tools",
@@ -434,7 +434,7 @@
           "label": "OpenTelemetry",
           "to": "advanced/otel",
           "addedAt": "2026-05-08",
-          "updatedAt": "2026-10-22"
+          "updatedAt": "2026-11-02"
         },
         {
           "label": "Compaction",
@@ -626,13 +626,13 @@
           "label": "Managed MCP with chat()",
           "to": "tools/mcp-managed",
           "addedAt": "2026-06-05",
-          "updatedAt": "2026-10-22"
+          "updatedAt": "2026-11-02"
         },
         {
           "label": "Manual MCP",
           "to": "tools/mcp-manual",
           "addedAt": "2026-06-05",
-          "updatedAt": "2026-10-22"
+          "updatedAt": "2026-11-02"
         },
         {
           "label": "MCP Type Generation",
@@ -660,7 +660,7 @@
           "label": "MCP Apps",
           "to": "mcp/apps",
           "addedAt": "2026-06-24",
-          "updatedAt": "2026-10-22"
+          "updatedAt": "2026-11-02"
         },
         {
           "label": "Serve Tools over HTTP",
@@ -690,7 +690,7 @@
           "label": "MCP Server Tasks",
           "to": "mcp/server-tasks",
           "addedAt": "2026-09-22",
-          "updatedAt": "2026-10-22"
+          "updatedAt": "2026-11-02"
         },
         {
           "label": "MCP Server Auth",
@@ -751,7 +751,7 @@
           "label": "Advanced",
           "to": "resumable-streams/advanced",
           "addedAt": "2026-08-04",
-          "updatedAt": "2026-10-22"
+          "updatedAt": "2026-11-02"
         },
         {
           "label": "WebSockets",
@@ -884,7 +884,7 @@
           "label": "Realtime Voice Chat",
           "to": "media/realtime-chat",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-10-22"
+          "updatedAt": "2026-11-02"
         },
         {
           "label": "Text-to-Speech",
@@ -936,12 +936,13 @@
           "label": "Video Generation",
           "to": "media/video-generation",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-10-22"
+          "updatedAt": "2026-11-02"
         },
         {
           "label": "Video Generation: Advanced",
           "to": "media/video-generation-advanced",
-          "addedAt": "2026-10-21"
+          "addedAt": "2026-10-21",
+          "updatedAt": "2026-11-02"
         },
         {
           "label": "Live Generation",
@@ -971,7 +972,7 @@
           "label": "Embeddings",
           "to": "embeddings",
           "addedAt": "2026-07-10",
-          "updatedAt": "2026-10-22"
+          "updatedAt": "2026-11-02"
         }
       ],
       "tab": "guides"
@@ -983,7 +984,7 @@
           "label": "Reranking",
           "to": "rerank/rerank",
           "addedAt": "2026-06-25",
-          "updatedAt": "2026-10-22"
+          "updatedAt": "2026-11-02"
         }
       ],
       "tab": "guides"
@@ -995,7 +996,7 @@
           "label": "Evaluate",
           "to": "evaluate/evaluate",
           "addedAt": "2026-09-18",
-          "updatedAt": "2026-10-22"
+          "updatedAt": "2026-11-02"
         }
       ],
       "tab": "guides"
@@ -1007,7 +1008,7 @@
           "label": "Code Mode",
           "to": "code-mode/code-mode",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-10-29"
+          "updatedAt": "2026-11-02"
         },
         {
           "label": "Showing Code Mode in the UI",
@@ -1025,7 +1026,7 @@
           "label": "Code Mode Isolate Drivers",
           "to": "code-mode/code-mode-isolates",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-10-22"
+          "updatedAt": "2026-11-02"
         },
         {
           "label": "Lazy Tools",
@@ -1061,7 +1062,7 @@
           "label": "Custom Driver",
           "to": "computer-use/custom-driver",
           "addedAt": "2026-10-20",
-          "updatedAt": "2026-10-22"
+          "updatedAt": "2026-11-02"
         }
       ],
       "tab": "guides"
@@ -1092,7 +1093,7 @@
           "label": "Connect clients",
           "to": "harness/connect",
           "addedAt": "2026-10-13",
-          "updatedAt": "2026-10-22"
+          "updatedAt": "2026-11-02"
         },
         {
           "label": "Write a client in any language",
@@ -1229,7 +1230,7 @@
           "label": "Sandbox and extend the coding tools",
           "to": "harness/coding-tools-backends",
           "addedAt": "2026-10-13",
-          "updatedAt": "2026-10-22"
+          "updatedAt": "2026-11-02"
         },
         {
           "label": "Run the coding tools for many threads",
@@ -1360,7 +1361,7 @@
           "label": "Providers",
           "to": "sandbox/providers",
           "addedAt": "2026-06-29",
-          "updatedAt": "2026-10-29"
+          "updatedAt": "2026-11-02"
         },
         {
           "label": "Harnesses",
@@ -1493,7 +1494,7 @@
           "label": "Takeover & Detached Runs",
           "to": "sandbox/takeover",
           "addedAt": "2026-08-04",
-          "updatedAt": "2026-10-22"
+          "updatedAt": "2026-11-02"
         },
         {
           "label": "Takeover Internals",
@@ -1556,7 +1557,7 @@
           "label": "Adapters",
           "to": "memory/adapters",
           "addedAt": "2026-08-04",
-          "updatedAt": "2026-10-22"
+          "updatedAt": "2026-11-02"
         },
         {
           "label": "Custom Adapter",
@@ -1609,7 +1610,7 @@
           "label": "Files API",
           "to": "advanced/files-api",
           "addedAt": "2026-09-11",
-          "updatedAt": "2026-10-22"
+          "updatedAt": "2026-11-02"
         },
         {
           "label": "Per-Model Type Safety",
@@ -2005,7 +2006,7 @@
           "label": "@tanstack/ai",
           "to": "api/ai",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-10-21"
+          "updatedAt": "2026-11-02"
         },
         {
           "label": "@tanstack/ai-client",
@@ -2017,7 +2018,7 @@
           "label": "@tanstack/ai-react",
           "to": "api/ai-react",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-10-21"
+          "updatedAt": "2026-10-24"
         },
         {
           "label": "@tanstack/ai-solid",

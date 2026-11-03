@@ -3,7 +3,7 @@ id: SandboxLifecyclePayload
 title: SandboxLifecyclePayload
 ---
 
-Defined in: packages/ai/src/custom-events.ts:76
+Defined in: [packages/ai/src/custom-events.ts:76](https://github.com/TanStack/ai/blob/main/packages/ai/src/custom-events.ts#L76)
 
 ## Properties
 
@@ -13,7 +13,7 @@ Defined in: packages/ai/src/custom-events.ts:76
 provider: string;
 ```
 
-Defined in: packages/ai/src/custom-events.ts:78
+Defined in: [packages/ai/src/custom-events.ts:78](https://github.com/TanStack/ai/blob/main/packages/ai/src/custom-events.ts#L78)
 
 ***
 
@@ -23,4 +23,4 @@ Defined in: packages/ai/src/custom-events.ts:78
 sandboxId: string;
 ```
 
-Defined in: packages/ai/src/custom-events.ts:77
+Defined in: [packages/ai/src/custom-events.ts:77](https://github.com/TanStack/ai/blob/main/packages/ai/src/custom-events.ts#L77)

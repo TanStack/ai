@@ -31,28 +31,48 @@ export class AnthropicFilesAdapter extends BaseFilesAdapter<'anthropic'> {
     this.client = createAnthropicClient(config)
   }
 
-  async upload(input: FileUploadInput): Promise<FileHandle<'anthropic'>> {
+  async upload(
+    input: FileUploadInput,
+    options?: { abortSignal?: AbortSignal },
+  ): Promise<FileHandle<'anthropic'>> {
     const { blob, mimeType, filename } = normalizeFileUploadInput(input)
     const file = await toFile(blob, filename, {
       ...(mimeType ? { type: mimeType } : {}),
     })
-    const result = await this.client.beta.files.upload({
-      file,
-      betas: [FILES_API_BETA],
-    })
+    const result = await this.client.beta.files.upload(
+      { file, betas: [FILES_API_BETA] },
+      requestOptions(options),
+    )
     return toFileHandle(result)
   }
 
-  async get(id: string): Promise<FileHandle<'anthropic'>> {
-    const result = await this.client.beta.files.retrieveMetadata(id, {
-      betas: [FILES_API_BETA],
-    })
+  async get(
+    id: string,
+    options?: { abortSignal?: AbortSignal },
+  ): Promise<FileHandle<'anthropic'>> {
+    const result = await this.client.beta.files.retrieveMetadata(
+      id,
+      { betas: [FILES_API_BETA] },
+      requestOptions(options),
+    )
     return toFileHandle(result)
   }
 
-  async delete(id: string): Promise<void> {
-    await this.client.beta.files.delete(id, { betas: [FILES_API_BETA] })
+  async delete(
+    id: string,
+    options?: { abortSignal?: AbortSignal },
+  ): Promise<void> {
+    await this.client.beta.files.delete(
+      id,
+      { betas: [FILES_API_BETA] },
+      requestOptions(options),
+    )
   }
+}
+
+/** SDK request options that carry the caller's abort signal, if any. */
+function requestOptions(options?: { abortSignal?: AbortSignal }) {
+  return options?.abortSignal ? { signal: options.abortSignal } : undefined
 }
 
 function toFileHandle(file: BetaFileMetadata): FileHandle<'anthropic'> {
