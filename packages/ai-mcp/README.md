@@ -52,7 +52,7 @@ pnpm add @tanstack/ai-mcp @modelcontextprotocol/client
 ```ts
 import { createMCPClient } from '@tanstack/ai-mcp'
 import { chat } from '@tanstack/ai'
-import { openaiText } from '@tanstack/ai-openai/adapters'
+import { openaiText } from '@tanstack/ai-openai'
 
 const mcp = await createMCPClient({
   transport: { type: 'http', url: 'https://your-mcp-server.com/mcp' },

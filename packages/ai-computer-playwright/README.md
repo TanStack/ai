@@ -62,6 +62,9 @@ To drive a page that you already have, use `createPlaywrightComputerDriver`. Eve
 ```typescript
 import { createComputerUse } from '@tanstack/ai-computer-use'
 import { createPlaywrightComputerDriver } from '@tanstack/ai-computer-playwright'
+import type { PlaywrightPageLike } from '@tanstack/ai-computer-playwright'
+
+declare const page: PlaywrightPageLike
 
 const computerUse = createComputerUse({
   driver: createPlaywrightComputerDriver({ page }),

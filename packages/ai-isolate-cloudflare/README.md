@@ -44,6 +44,7 @@ If you want a self-contained host without Cloudflare infrastructure, prefer `@ta
 import { chat, toolDefinition } from '@tanstack/ai'
 import { createCodeMode } from '@tanstack/ai-code-mode'
 import { createCloudflareIsolateDriver } from '@tanstack/ai-isolate-cloudflare'
+import { openaiText } from '@tanstack/ai-openai'
 import { z } from 'zod'
 
 const fetchWeather = toolDefinition({
@@ -70,8 +71,7 @@ const { tool, systemPrompt } = createCodeMode({
 })
 
 const result = await chat({
-  adapter: yourTextAdapter,
-  model: 'gpt-4o-mini',
+  adapter: openaiText('gpt-6.1-sol'),
   systemPrompts: ['You are a helpful assistant.', systemPrompt],
   tools: [tool],
   messages: [{ role: 'user', content: 'Compare weather in Tokyo and Paris' }],

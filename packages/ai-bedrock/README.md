@@ -101,6 +101,8 @@ itself; the OpenAI-compatible chat/responses paths sign via the bundled
 the standard credential chain (env vars, shared config, instance role):
 
 ```typescript
+import { bedrockText } from '@tanstack/ai-bedrock'
+
 const adapter = bedrockText('us.anthropic.claude-haiku-4-5-20251001-v1:0', {
   auth: 'sigv4',
   region: 'us-east-1',

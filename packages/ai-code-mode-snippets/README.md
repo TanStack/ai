@@ -35,6 +35,10 @@ pnpm add @tanstack/ai-code-mode-snippets
 ## Usage
 
 ```typescript
+import { chat } from '@tanstack/ai'
+import type { ModelMessage } from '@tanstack/ai'
+import { anthropicText } from '@tanstack/ai-anthropic'
+import type { CodeModeTool } from '@tanstack/ai-code-mode'
 import {
   codeModeWithSnippets,
   createAlwaysTrustedStrategy,
@@ -43,6 +47,10 @@ import {
 // export stays safe for Worker/browser bundlers.
 import { createFileSnippetStorage } from '@tanstack/ai-code-mode-snippets/storage'
 import { createNodeIsolateDriver } from '@tanstack/ai-isolate-node'
+
+declare const allTools: Array<CodeModeTool>
+declare const messages: Array<ModelMessage>
+declare const basePrompt: string
 
 // Create snippet storage
 const snippetStorage = createFileSnippetStorage({
@@ -58,11 +66,11 @@ const codeModeConfig = {
   memoryLimit: 128,
 }
 
-// Build a dynamic registry and system prompt with snippets
+// Build the tool registry and system prompt with snippets
 const { toolsRegistry, systemPrompt, selectedSnippets } =
   await codeModeWithSnippets({
     config: codeModeConfig,
-    adapter: anthropic('claude-haiku-4-5'), // Cheap model for snippet selection
+    adapter: anthropicText('claude-haiku-5-5'), // Cheap model for snippet selection
     snippets: {
       storage: snippetStorage,
       maxSnippetsInContext: 5,
@@ -73,8 +81,8 @@ const { toolsRegistry, systemPrompt, selectedSnippets } =
 
 // Use in chat
 const stream = chat({
-  adapter: anthropic('claude-sonnet-4-6'), // Main model
-  toolRegistry: toolsRegistry,
+  adapter: anthropicText('claude-sonnet-5-5'), // Main model
+  tools: toolsRegistry.getTools(),
   messages,
   threadId: 'thread-1',
   systemPrompts: [basePrompt, systemPrompt],

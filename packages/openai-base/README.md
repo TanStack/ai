@@ -78,9 +78,18 @@ construct the SDK with their own `baseURL` (and any other client
 options) and pass it to `super`:
 
 ```ts
-class GrokTextAdapter extends OpenAIBaseChatCompletionsTextAdapter<…> {
-  constructor(config: GrokConfig, model: TModel) {
-    super(model, 'grok', new OpenAI(withGrokDefaults(config)))
+import OpenAI from 'openai'
+import { OpenAIBaseResponsesTextAdapter } from '@tanstack/openai-base'
+import type { GrokTextConfig } from '@tanstack/ai-grok'
+
+declare function withGrokDefaults(config: GrokTextConfig): GrokTextConfig
+
+class GrokTextAdapter<
+  TModel extends string,
+> extends OpenAIBaseResponsesTextAdapter<TModel> {
+  constructor(config: GrokTextConfig, model: TModel) {
+    const options = withGrokDefaults(config)
+    super(model, 'grok', new OpenAI(options), { fetch: options.fetch })
   }
 }
 ```
@@ -108,11 +117,11 @@ Each provider typically overrides 2–6 hooks and inherits everything else.
 └── BaseTextAdapter  (abstract — emits AG-UI events)
     │
     ├── @tanstack/openai-base::OpenAIBaseChatCompletionsTextAdapter
-    │   ├── ai-groq
-    │   └── ai-grok
+    │   └── ai-groq
     │
     ├── @tanstack/openai-base::OpenAIBaseResponsesTextAdapter
-    │   └── ai-openai (Responses is OpenAI's preferred API)
+    │   ├── ai-openai (Responses is OpenAI's preferred API)
+    │   └── ai-grok
     │
     ├── ai-anthropic::AnthropicTextAdapter   extends BaseTextAdapter directly
     ├── ai-gemini::GeminiTextAdapter         extends BaseTextAdapter directly
@@ -123,7 +132,7 @@ Each provider typically overrides 2–6 hooks and inherits everything else.
 
 Note: `ai-openai` ships only the Responses-based text adapter. For pure
 Chat Completions use cases without OpenAI-specific behaviour, use
-`ai-grok` or `ai-groq`, or build a new provider package extending
+`ai-groq`, or build a new provider package extending
 `OpenAIBaseChatCompletionsTextAdapter`.
 
 ## Direct use

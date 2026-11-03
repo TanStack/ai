@@ -68,6 +68,11 @@ Pass an array to offer several; they are sorted by name and deduped. Loading the
 ### Tuning the catalog
 
 ```typescript
+import { withSkills } from '@tanstack/ai-skills'
+import type { SkillSource } from '@tanstack/ai-skills'
+
+declare const sources: Array<SkillSource>
+
 withSkills(sources, {
   // Cap the catalog so a big library doesn't tax every request.
   // Default 4000 tokens; throws if exceeded unless you supply a reducer.
@@ -99,6 +104,7 @@ Implement the `SkillSource` contract, then prove it with the conformance suite t
 ```typescript
 import { runSkillSourceConformance } from '@tanstack/ai-skills/testing'
 import { s3Skills } from './s3-skills'
+import { makeTestBucket } from './test-helpers'
 
 runSkillSourceConformance(() => s3Skills(makeTestBucket()), 's3')
 ```

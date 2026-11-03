@@ -87,7 +87,7 @@ const result = await chat({
 
 The LLM will generate code like:
 
-```typescript
+```typescript ignore
 const cities = ['Tokyo', 'Paris', 'NYC']
 const results = await Promise.all(
   cities.map((city) => external_fetchWeather({ location: city })),

@@ -39,6 +39,9 @@ pnpm add @tanstack/ai-isolate-node
 ```typescript
 import { createNodeIsolateDriver } from '@tanstack/ai-isolate-node'
 import { createCodeModeTool } from '@tanstack/ai-code-mode'
+import type { CodeModeTool } from '@tanstack/ai-code-mode'
+
+declare const myTool: CodeModeTool
 
 const driver = createNodeIsolateDriver({
   timeout: 30000, // execution timeout in ms (default: 30000)
