@@ -10,7 +10,11 @@ import {
 } from '@tanstack/ai'
 import { BaseVideoAdapter } from '@tanstack/ai/adapters'
 import { arrayBufferToBase64 } from '@tanstack/ai-utils'
-import { createGeminiClient, getGeminiApiKeyFromEnv } from '../utils'
+import {
+  createGeminiClient,
+  getGeminiApiKeyFromEnv,
+  withHttpTimeout,
+} from '../utils'
 import {
   getGeminiVideoDurationOptions,
   isInteractionsVideoModel,
@@ -278,11 +282,13 @@ export class GeminiVideoAdapter<
 
   protected client: GoogleGenAI
   private readonly allowUrlFetch: boolean
+  private readonly timeoutMs: number | undefined
 
   constructor(config: GeminiVideoConfig, model: TModel) {
     super({}, model)
     this.client = createGeminiClient(config)
     this.allowUrlFetch = config.allowUrlFetch ?? false
+    this.timeoutMs = config.httpOptions?.timeout
   }
 
   async createVideoJob(
@@ -440,10 +446,9 @@ export class GeminiVideoAdapter<
         background: true,
         ...responseFormat,
       }
-      const interaction = options.abortSignal
-        ? await this.client.interactions.create(request, {
-            signal: options.abortSignal,
-          })
+      const signal = withHttpTimeout(options.abortSignal, this.timeoutMs)
+      const interaction = signal
+        ? await this.client.interactions.create(request, { signal })
         : await this.client.interactions.create(request)
 
       if (!interaction.id) {

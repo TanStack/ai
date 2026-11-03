@@ -254,3 +254,83 @@ describe('Gemini adapters abort the provider request', () => {
     )
   })
 })
+
+// The Interactions client drops its own `httpOptions.timeout` when the
+// request has a signal. So a caller signal must not remove that timeout.
+describe('Gemini Interactions calls keep httpOptions.timeout', () => {
+  const httpOptions = { timeout: 50 }
+
+  /** Starts the call with a caller signal that never aborts. */
+  async function expectTimeoutAborts(
+    wire: { fetch: object; signals: Array<AbortSignal> },
+    start: (signal: AbortSignal) => Promise<unknown>,
+  ) {
+    const run = start(new AbortController().signal)
+    run.catch(() => {})
+    await vi.waitFor(
+      () => expect(wire.signals.at(-1)?.aborted, 'request aborted').toBe(true),
+      { timeout: 1000 },
+    )
+    await expect(run).rejects.toBeDefined()
+  }
+
+  it('text stream, agentic video: the timeout aborts', async () => {
+    const adapter = createGeminiChat('gemini-3.8-flash', 'test-key', {
+      httpOptions,
+    })
+    const wire = hangingInteractionsCreate(adapter)
+    await expectTimeoutAborts(wire, (signal) =>
+      runText(
+        adapter as unknown as TextAdapter,
+        'stream',
+        agenticVideo,
+        signal,
+      ),
+    )
+  })
+
+  it('text stream, agentic video: the caller still aborts', async () => {
+    const adapter = createGeminiChat('gemini-3.8-flash', 'test-key', {
+      httpOptions: { timeout: 60_000 },
+    })
+    const wire = hangingInteractionsCreate(adapter)
+    await expectAbortReachesFetch(wire, (signal) =>
+      runText(
+        adapter as unknown as TextAdapter,
+        'stream',
+        agenticVideo,
+        signal,
+      ),
+    )
+  })
+
+  it('video create (Omni): the timeout aborts', async () => {
+    const adapter = createGeminiVideo('gemini-omni-1.1-flash', 'test-key', {
+      httpOptions,
+    })
+    const wire = hangingInteractionsCreate(adapter)
+    await expectTimeoutAborts(wire, (abortSignal) =>
+      adapter.createVideoJob({
+        model: 'gemini-omni-1.1-flash',
+        prompt: 'a cat',
+        abortSignal,
+        logger,
+      }),
+    )
+  })
+
+  it('video create (Omni): the caller still aborts', async () => {
+    const adapter = createGeminiVideo('gemini-omni-1.1-flash', 'test-key', {
+      httpOptions: { timeout: 60_000 },
+    })
+    const wire = hangingInteractionsCreate(adapter)
+    await expectAbortReachesFetch(wire, (abortSignal) =>
+      adapter.createVideoJob({
+        model: 'gemini-omni-1.1-flash',
+        prompt: 'a cat',
+        abortSignal,
+        logger,
+      }),
+    )
+  })
+})
