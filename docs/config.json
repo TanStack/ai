@@ -632,7 +632,7 @@
           "label": "Manual MCP",
           "to": "tools/mcp-manual",
           "addedAt": "2026-06-05",
-          "updatedAt": "2026-10-22"
+          "updatedAt": "2026-11-02"
         },
         {
           "label": "MCP Type Generation",
@@ -660,7 +660,7 @@
           "label": "MCP Apps",
           "to": "mcp/apps",
           "addedAt": "2026-06-24",
-          "updatedAt": "2026-10-22"
+          "updatedAt": "2026-11-02"
         },
         {
           "label": "Serve Tools over HTTP",
@@ -1025,7 +1025,7 @@
           "label": "Code Mode Isolate Drivers",
           "to": "code-mode/code-mode-isolates",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-10-22"
+          "updatedAt": "2026-11-02"
         },
         {
           "label": "Lazy Tools",
@@ -1061,7 +1061,7 @@
           "label": "Custom Driver",
           "to": "computer-use/custom-driver",
           "addedAt": "2026-10-20",
-          "updatedAt": "2026-10-22"
+          "updatedAt": "2026-11-02"
         }
       ],
       "tab": "guides"
@@ -1229,7 +1229,7 @@
           "label": "Sandbox and extend the coding tools",
           "to": "harness/coding-tools-backends",
           "addedAt": "2026-10-13",
-          "updatedAt": "2026-10-22"
+          "updatedAt": "2026-11-02"
         },
         {
           "label": "Run the coding tools for many threads",
@@ -1360,7 +1360,7 @@
           "label": "Providers",
           "to": "sandbox/providers",
           "addedAt": "2026-06-29",
-          "updatedAt": "2026-10-29"
+          "updatedAt": "2026-11-02"
         },
         {
           "label": "Harnesses",
@@ -1556,7 +1556,7 @@
           "label": "Adapters",
           "to": "memory/adapters",
           "addedAt": "2026-08-04",
-          "updatedAt": "2026-10-22"
+          "updatedAt": "2026-11-02"
         },
         {
           "label": "Custom Adapter",

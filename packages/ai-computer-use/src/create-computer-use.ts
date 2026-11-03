@@ -1,7 +1,7 @@
 import { brandProviderTool, toolDefinition } from '@tanstack/ai'
 import { arrayBufferToBase64 } from '@tanstack/ai-utils'
 import { z } from 'zod'
-import { runComputerAction, sleep } from './actions'
+import { runComputerAction, sleep, withSignal } from './actions'
 import { computerSafetyCheck, safetyCheckSchema } from './safety-check'
 import type {
   ChatMiddleware,
@@ -239,10 +239,10 @@ export function createComputerUse({
     await machine?.close?.()
   }
 
-  function machineOf(thread: ThreadState) {
+  function machineOf(thread: ThreadState, signal?: AbortSignal) {
     if (!('create' in driver)) return driver
     thread.driver ??= driver
-      .create({ threadId: thread.id })
+      .create({ threadId: thread.id, ...(signal && { signal }) })
       .catch((error: unknown) => {
         // The next call of the thread calls create again.
         thread.driver = undefined
@@ -326,14 +326,11 @@ export function createComputerUse({
             'Refused: this computer action has safety checks that nobody approved. Add the `interrupt` from createComputerUse to chat({ interrupts }) and the `middleware` to chat({ middleware }).',
           )
         }
-        const machine = await machineOf(thread)
-        const result = await runComputerAction(
-          machine,
-          input,
-          context?.abortSignal,
-        )
+        const signal = context?.abortSignal
+        const machine = withSignal(await machineOf(thread, signal), signal)
+        const result = await runComputerAction(machine, input, signal)
         if (result === undefined) {
-          await sleep(screenshotDelay, context?.abortSignal)
+          await sleep(screenshotDelay, signal)
           return imageResult(await machine.screenshot())
         }
         return result.type === 'image' ? imageResult(result.bytes) : result.text
@@ -348,14 +345,15 @@ export function createComputerUse({
           'Refused: navigate needs a full URL that starts with https:// or http://, like https://tanstack.com.',
         )
       }
-      const machine = await machineOf(thread)
+      const signal = context?.abortSignal
+      const machine = withSignal(await machineOf(thread, signal), signal)
       if (machine.navigate === undefined) {
         throw new Error('The computer driver has no navigate method.')
       }
       // The call can abort while its machine starts.
       context?.abortSignal?.throwIfAborted()
       await machine.navigate(url)
-      await sleep(screenshotDelay, context?.abortSignal)
+      await sleep(screenshotDelay, signal)
       return imageResult(await machine.screenshot())
     }),
   )

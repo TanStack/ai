@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { runComputerAction } from '../src/actions'
+import { runComputerAction, withSignal } from '../src/actions'
 import type { ComputerDriver } from '../src/types'
 
 type Call = [string, ...Array<unknown>]
@@ -503,6 +503,55 @@ it('throws for an input with no action', async () => {
   await expect(run({ foo: 1 })).rejects.toThrow('"action"')
 })
 
+describe('abort signal', () => {
+  it('gives the signal to each driver action, but not to the releases', async () => {
+    const { driver, calls } = createDriver()
+    const signal = new AbortController().signal
+    await runComputerAction(
+      withSignal(driver, signal),
+      { action: 'left_click', coordinate: [1, 2], text: 'shift' },
+      signal,
+    )
+    expect(calls).toEqual([
+      ['keyDown', 'Shift', { signal }],
+      ['click', 1, 2, { button: 'left', count: 1, signal }],
+      ['keyUp', 'Shift'],
+    ])
+  })
+
+  it('stops a wait and releases the held key when the signal aborts', async () => {
+    const { driver, calls } = createDriver()
+    const controller = new AbortController()
+    const run = runComputerAction(
+      withSignal(driver, controller.signal),
+      { action: 'hold_key', text: 'a', duration: 300 },
+      controller.signal,
+    )
+    await Promise.resolve()
+    controller.abort(new Error('stop'))
+    await expect(run).rejects.toThrow('stop')
+    expect(calls.map(([name]) => name)).toEqual(['keyDown', 'keyUp'])
+  })
+
+  it('runs no driver action when the signal is already aborted', async () => {
+    const { driver, calls } = createDriver()
+    const signal = AbortSignal.abort()
+    await expect(
+      runComputerAction(
+        withSignal(driver, signal),
+        { action: 'mouse_move', coordinate: [1, 2] },
+        signal,
+      ),
+    ).rejects.toThrow()
+    expect(calls).toEqual([])
+  })
+
+  it('returns the driver as it is without a signal', () => {
+    const { driver } = createDriver()
+    expect(withSignal(driver, undefined)).toBe(driver)
+  })
+})
+
 describe('an abort during a compound action', () => {
   /**
    * A driver that records its calls. Call number `nth` of `method` aborts
@@ -597,6 +646,31 @@ describe('an abort during a compound action', () => {
       ['move', 0, 0],
       ['mouseDown', 'left'],
       ['move', 1, 1],
+      ['mouseUp', 'left'],
+    ])
+  })
+
+  it('finishes a drag through withSignal that aborts between two moves', async () => {
+    const { driver, calls, signal } = abortingDuring('move', 2)
+    await runComputerAction(
+      withSignal(driver, signal),
+      {
+        action: {
+          type: 'drag',
+          path: [
+            { x: 0, y: 0 },
+            { x: 1, y: 1 },
+            { x: 2, y: 2 },
+          ],
+        },
+      },
+      signal,
+    )
+    expect(calls).toEqual([
+      ['move', 0, 0, { signal }],
+      ['mouseDown', 'left', { signal }],
+      ['move', 1, 1],
+      ['move', 2, 2],
       ['mouseUp', 'left'],
     ])
   })

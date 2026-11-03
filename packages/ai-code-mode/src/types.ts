@@ -47,9 +47,13 @@ export interface IsolateConfig {
  */
 export interface IsolateContext {
   /**
-   * Execute generated code and return results
+   * Execute generated code and return results. Drivers stop the run when
+   * `options.signal` aborts, if their runtime can.
    */
-  execute: <T = unknown>(code: string) => Promise<ExecutionResult<T>>
+  execute: <T = unknown>(
+    code: string,
+    options?: { signal?: AbortSignal },
+  ) => Promise<ExecutionResult<T>>
 
   /**
    * Clean up sandbox resources

@@ -35,6 +35,68 @@ export function sleep(ms: number, signal?: AbortSignal) {
   })
 }
 
+/**
+ * The driver with `signal` on every action. Each action first throws when
+ * the signal has aborted. `keyUp` and `mouseUp` run without the signal, so
+ * an aborted action still releases what it held down. While a mouse button
+ * is down, `move` also runs without the signal, so a drag that started always
+ * ends at its last point. Without a signal, this returns `driver` as it is.
+ */
+export function withSignal(
+  driver: ComputerDriver,
+  signal: AbortSignal | undefined,
+): ComputerDriver {
+  if (!signal) return driver
+  const options = { signal }
+  const { zoom, cursorPosition, navigate } = driver
+  let buttonDown = false
+  return {
+    display: driver.display,
+    environment: driver.environment,
+    screenshot: () => (signal.throwIfAborted(), driver.screenshot(options)),
+    click: (x, y, click) => (
+      signal.throwIfAborted(),
+      driver.click(x, y, { ...click, signal })
+    ),
+    move: (x, y) =>
+      buttonDown
+        ? driver.move(x, y)
+        : (signal.throwIfAborted(), driver.move(x, y, options)),
+    mouseDown: (button) => (
+      signal.throwIfAborted(),
+      (buttonDown = true),
+      driver.mouseDown(button, options)
+    ),
+    mouseUp: (button) => ((buttonDown = false), driver.mouseUp(button)),
+    scroll: (x, y, deltaX, deltaY) => (
+      signal.throwIfAborted(),
+      driver.scroll(x, y, deltaX, deltaY, options)
+    ),
+    keyDown: (key) => (signal.throwIfAborted(), driver.keyDown(key, options)),
+    keyUp: (key) => driver.keyUp(key),
+    press: (keys) => (signal.throwIfAborted(), driver.press(keys, options)),
+    type: (text) => (signal.throwIfAborted(), driver.type(text, options)),
+    ...(zoom && {
+      zoom: (region) => (
+        signal.throwIfAborted(),
+        zoom.call(driver, region, options)
+      ),
+    }),
+    ...(cursorPosition && {
+      cursorPosition: () => (
+        signal.throwIfAborted(),
+        cursorPosition.call(driver, options)
+      ),
+    }),
+    ...(navigate && {
+      navigate: (url) => (
+        signal.throwIfAborted(),
+        navigate.call(driver, url, options)
+      ),
+    }),
+  }
+}
+
 function invalid(key: string, expected: string) {
   return new Error(`Invalid computer action: "${key}" must be ${expected}.`)
 }
@@ -416,6 +478,8 @@ async function runOpenAIAction(
  *
  * @param driver - The driver that controls the computer.
  * @param input - The raw tool input from the model.
+ * @param signal - The abort signal of the tool call. It stops the waits.
+ *   Wrap the driver with {@link withSignal} to give it to each action too.
  */
 export async function runComputerAction(
   driver: ComputerDriver,

@@ -55,7 +55,8 @@ export function inMemory(options: InMemoryOptions = {}): MemoryAdapter {
 
   return {
     id: 'in-memory',
-    recall: (scope, query) => recallRecords(store, scope, query, options),
+    recall: (scope, query, recallOptions) =>
+      recallRecords(store, scope, query, options, recallOptions?.signal),
     save: (scope, turn) => saveTurn(store, scope, turn, options),
     inspect: (scope) => inspectRecords(store, scope),
     listFacts: (scope) => listRecordFacts(store, scope),

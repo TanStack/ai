@@ -188,6 +188,19 @@ Without `from`, `events()` starts at the newest event, so it sends no old events
 - To read every event from the start of the session, pass `from: '0'`. Do this when you rebuild a transcript from the events.
 - If the snapshot answer has no `cursor` (the URL is not a harness handler), `events()` throws and does not try again.
 
+Each request method of the client takes an optional last argument `{ signal }`. When the signal aborts, the request stops and the call rejects:
+
+```ts group=harness-connect-client
+const controller = new AbortController()
+setTimeout(() => controller.abort(), 5000)
+
+const snapshot = await client.snapshot({ signal: controller.signal })
+await client.send('Summarize my open tickets.', undefined, {
+  signal: controller.signal,
+})
+console.log(snapshot.cursor)
+```
+
 To upload files and show the media that your agents make, read [Send and show media](./media).
 
 ## Send a message to a running agent

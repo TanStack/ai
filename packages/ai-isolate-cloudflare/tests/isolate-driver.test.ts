@@ -560,3 +560,31 @@ describe('createCloudflareIsolateDriver', () => {
     })
   })
 })
+
+describe('execute abort signal', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it('passes the signal to the worker request', async () => {
+    const fetchMock = vi.fn(
+      (_url: string, init?: RequestInit) =>
+        new Promise<Response>((_, reject) => {
+          init?.signal?.addEventListener('abort', () =>
+            reject(init.signal?.reason),
+          )
+        }),
+    )
+    vi.stubGlobal('fetch', fetchMock)
+    const driver = createCloudflareIsolateDriver({ workerUrl: WORKER_URL })
+    const context = await driver.createContext({ bindings: {} })
+    const controller = new AbortController()
+    const pending = context.execute('return 1', { signal: controller.signal })
+    await vi.waitFor(() => expect(fetchMock).toHaveBeenCalled())
+    expect(fetchMock.mock.calls[0]![1]?.signal).toBe(controller.signal)
+    controller.abort()
+    const result = await pending
+    expect(result.success).toBe(false)
+    expect(result.error?.name).toBe('AbortError')
+  })
+})

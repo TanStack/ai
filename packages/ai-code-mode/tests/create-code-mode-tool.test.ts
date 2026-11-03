@@ -729,7 +729,11 @@ describe('createCodeModeTool run abort', () => {
     // A call that waits for an approval stops with the program.
     expect(programSignal?.aborted).toBe(true)
     expect(dispose).toHaveBeenCalled()
-    expect((await running).success).toBe(false)
+    // The model sees the abort, not the dispose.
+    expect(await running).toMatchObject({
+      success: false,
+      error: { name: 'AbortError' },
+    })
   })
 
   it('does not run the code when the run aborts while the context is made', async () => {

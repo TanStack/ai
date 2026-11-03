@@ -336,7 +336,9 @@ export function createCodeModeTool(
         }
 
         // Step 5: Execute the code in the sandbox
-        const executionResult = await isolateContext.execute(strippedCode)
+        const executionResult = runSignal
+          ? await isolateContext.execute(strippedCode, { signal: runSignal })
+          : await isolateContext.execute(strippedCode)
 
         // Emit console logs as custom events
         if (executionResult.logs && executionResult.logs.length > 0) {
@@ -378,15 +380,24 @@ export function createCodeModeTool(
         return finish(
           {
             success: false,
-            error: executionResult.error
-              ? {
-                  message: executionResult.error.message,
-                  name: executionResult.error.name,
-                  ...(executionResult.error.stack !== undefined && {
-                    stack: executionResult.error.stack,
-                  }),
-                }
-              : { message: 'Unknown execution error', name: 'UnknownError' },
+            // An abort also disposes the context, so the driver can report
+            // a DisposedError first. Report the abort.
+            error:
+              runSignal?.aborted &&
+              executionResult.error?.name === 'DisposedError'
+                ? { message: 'Execution was aborted.', name: 'AbortError' }
+                : executionResult.error
+                  ? {
+                      message: executionResult.error.message,
+                      name: executionResult.error.name,
+                      ...(executionResult.error.stack !== undefined && {
+                        stack: executionResult.error.stack,
+                      }),
+                    }
+                  : {
+                      message: 'Unknown execution error',
+                      name: 'UnknownError',
+                    },
             logs: executionResult.logs,
           },
           'execute',
