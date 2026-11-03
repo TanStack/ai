@@ -578,78 +578,51 @@ describe('an abort during a compound action', () => {
     expect(calls.map(([name]) => name)).toEqual(['move'])
   })
 
-  it('rejects a drag that aborts during its final move, and releases the mouse', async () => {
-    const { driver, calls, signal } = abortingDuring('move', 2)
-    await expect(
-      runComputerAction(
-        driver,
-        {
-          action: {
-            type: 'drag',
-            path: [
-              { x: 0, y: 0 },
-              { x: 1, y: 1 },
-            ],
-          },
+  it('finishes a drag that aborts while the button goes down', async () => {
+    const { driver, calls, signal } = abortingDuring('mouseDown')
+    await runComputerAction(
+      driver,
+      {
+        action: {
+          type: 'drag',
+          path: [
+            { x: 0, y: 0 },
+            { x: 1, y: 1 },
+          ],
         },
-        signal,
-      ),
-    ).rejects.toThrow()
-    expect(calls.map(([name]) => name)).toEqual([
-      'move',
-      'mouseDown',
-      'move',
-      'mouseUp',
+      },
+      signal,
+    )
+    expect(calls).toEqual([
+      ['move', 0, 0],
+      ['mouseDown', 'left'],
+      ['move', 1, 1],
+      ['mouseUp', 'left'],
     ])
   })
 
-  it('makes no move after a drag aborts during mouseDown, and releases the mouse', async () => {
-    const { driver, calls, signal } = abortingDuring('mouseDown', 1)
-    await expect(
-      runComputerAction(
-        driver,
-        {
-          action: {
-            type: 'drag',
-            path: [
-              { x: 0, y: 0 },
-              { x: 1, y: 1 },
-            ],
-          },
-        },
-        signal,
-      ),
-    ).rejects.toThrow()
-    expect(calls.map(([name]) => name)).toEqual([
-      'move',
-      'mouseDown',
-      'mouseUp',
-    ])
-  })
-
-  it('stops a drag between two moves, and releases the mouse', async () => {
+  it('finishes a drag that aborts between two moves', async () => {
     const { driver, calls, signal } = abortingDuring('move', 2)
-    await expect(
-      runComputerAction(
-        driver,
-        {
-          action: {
-            type: 'drag',
-            path: [
-              { x: 0, y: 0 },
-              { x: 1, y: 1 },
-              { x: 2, y: 2 },
-            ],
-          },
+    await runComputerAction(
+      driver,
+      {
+        action: {
+          type: 'drag',
+          path: [
+            { x: 0, y: 0 },
+            { x: 1, y: 1 },
+            { x: 2, y: 2 },
+          ],
         },
-        signal,
-      ),
-    ).rejects.toThrow()
-    expect(calls.map(([name]) => name)).toEqual([
-      'move',
-      'mouseDown',
-      'move',
-      'mouseUp',
+      },
+      signal,
+    )
+    expect(calls).toEqual([
+      ['move', 0, 0],
+      ['mouseDown', 'left'],
+      ['move', 1, 1],
+      ['move', 2, 2],
+      ['mouseUp', 'left'],
     ])
   })
 })

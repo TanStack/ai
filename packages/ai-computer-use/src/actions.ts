@@ -132,16 +132,12 @@ async function drag(
   if (start === undefined) throw invalid('path', 'a non-empty array')
   await driver.move(start.x, start.y)
   signal?.throwIfAborted()
+  // After the button goes down, an abort does not stop the drag. Each
+  // mouseUp is a drop, so a stop in the middle drops the item at the wrong
+  // point.
   await driver.mouseDown('left')
   try {
-    // The abort can come while the button goes down.
-    signal?.throwIfAborted()
-    for (const point of rest) {
-      await driver.move(point.x, point.y)
-      // An abort stops the drag after a move, also the last one. The mouse
-      // still goes up.
-      signal?.throwIfAborted()
-    }
+    for (const point of rest) await driver.move(point.x, point.y)
   } finally {
     await driver.mouseUp('left')
   }
