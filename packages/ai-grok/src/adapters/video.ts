@@ -269,6 +269,7 @@ export class GrokVideoAdapter<
         size,
         genericDuration: options.duration,
         logger,
+        signal: options.abortSignal,
       })
     }
 
@@ -410,6 +411,7 @@ export class GrokVideoAdapter<
       model,
       logger,
       logLine: `activity=video.create provider=${this.name} model=${model} mode=generate size=${size ?? 'default'} duration=${duration ?? 'default'}`,
+      signal: options.abortSignal,
     })
   }
 
@@ -430,6 +432,7 @@ export class GrokVideoAdapter<
     size: string | undefined
     genericDuration: number | undefined
     logger: VideoGenerationOptions<GrokVideoRuntimeOptions>['logger']
+    signal: AbortSignal | undefined
   }): Promise<VideoJobResult> {
     const { model, mode, sourceVideo, resolved, wireOptions, logger } = args
     const endpoint = mode === 'edit' ? '/videos/edits' : '/videos/extensions'
@@ -493,6 +496,7 @@ export class GrokVideoAdapter<
       model,
       logger,
       logLine: `activity=video.create provider=${this.name} model=${model} mode=${mode} duration=${duration ?? 'default'}`,
+      signal: args.signal,
     })
   }
 
@@ -508,15 +512,17 @@ export class GrokVideoAdapter<
       model: string
       logger: VideoGenerationOptions<GrokVideoRuntimeOptions>['logger']
       logLine: string
+      signal: AbortSignal | undefined
     },
   ): Promise<VideoJobResult> {
-    const { model, logger, logLine } = context
+    const { model, logger, logLine, signal } = context
     try {
       logger.request(logLine, { provider: this.name, model })
 
       const response = await this.request(endpoint, {
         method: 'POST',
         body: JSON.stringify(request),
+        signal,
       })
       if (!response.ok) {
         throw new Error(

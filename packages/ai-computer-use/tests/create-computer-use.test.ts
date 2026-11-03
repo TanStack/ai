@@ -1002,3 +1002,112 @@ describe('tool call signal', () => {
     })
   })
 })
+
+describe('the abort signal of a computer action', () => {
+  /** Run the computer tool as `chat()` does, with `signal`. */
+  function executeWith(
+    computer: Computer,
+    input: unknown,
+    toolCallId: string,
+    signal: AbortSignal,
+  ) {
+    const [computerTool] = computer.tools
+    if (!computerTool.execute) throw new Error('The tool has no execute.')
+    return computerTool.execute(input, {
+      toolCallId,
+      threadId: THREAD,
+      abortSignal: signal,
+      emitCustomEvent() {},
+    })
+  }
+
+  it('does not run a queued action after its call aborts', async () => {
+    const { gate, open } = createGate()
+    const computer = setup({ clickGate: gate })
+    const first = computer.execute(CLICK, 'call_1')
+    const abort = new AbortController()
+    const queued = executeWith(computer, TYPE, 'call_2', abort.signal)
+    abort.abort()
+    open()
+
+    await first
+    await expect(queued).rejects.toThrow()
+    expect(computer.calls).not.toContain('type')
+  })
+
+  it('ends a wait when its call aborts', async () => {
+    const computer = setup()
+    const abort = new AbortController()
+    const waiting = executeWith(
+      computer,
+      { action: { type: 'wait' } },
+      'call_1',
+      abort.signal,
+    )
+    setTimeout(() => abort.abort(), 10)
+    const started = Date.now()
+
+    await expect(waiting).rejects.toThrow()
+    expect(Date.now() - started).toBeLessThan(1000)
+  })
+
+  it('does not run an action when its call aborts while the machine starts', async () => {
+    const abort = new AbortController()
+    const { factory, machines } = createFactory({
+      // `create` runs while the machine starts: abort the call there.
+      failCreate: () => {
+        abort.abort()
+        return false
+      },
+    })
+    const computer = setupWith(factory)
+
+    await expect(
+      executeWith(computer, CLICK, 'call_1', abort.signal),
+    ).rejects.toThrow()
+    expect(machines.get(THREAD)).toEqual([])
+  })
+
+  it('does not navigate when its call aborts while the machine starts', async () => {
+    const abort = new AbortController()
+    const { factory, machines } = createFactory({
+      navigate: true,
+      // `create` runs while the machine starts: abort the call there.
+      failCreate: () => {
+        abort.abort()
+        return false
+      },
+    })
+    const [, navigateTool] = setupWith(factory).tools
+    if (!navigateTool?.execute) throw new Error('There is no navigate tool.')
+
+    await expect(
+      Promise.resolve(
+        navigateTool.execute(
+          { url: 'https://tanstack.com' },
+          {
+            toolCallId: 'call_nav',
+            threadId: THREAD,
+            abortSignal: abort.signal,
+            emitCustomEvent() {},
+          },
+        ),
+      ),
+    ).rejects.toThrow()
+    expect(machines.get(THREAD)).toEqual([])
+  })
+
+  it('ends the screenshot wait after an action when its call aborts', async () => {
+    const { driver, calls } = createDriver()
+    const computer = setupWith(driver, { screenshotDelay: 5000 })
+    const abort = new AbortController()
+    const running = executeWith(computer, CLICK, 'call_1', abort.signal)
+    await vi.waitFor(() => expect(calls).toContain('click:end'))
+    const started = Date.now()
+    abort.abort()
+
+    await expect(running).rejects.toThrow()
+    expect(Date.now() - started).toBeLessThan(1000)
+    expect(calls).not.toContain('screenshot')
+  })
+})

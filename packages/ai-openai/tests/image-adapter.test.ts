@@ -136,13 +136,16 @@ describe('OpenAI Image Adapter', () => {
         logger: testLogger,
       })
 
-      expect(mockGenerate).toHaveBeenCalledWith({
-        model: 'gpt-image-1',
-        prompt: 'A cat wearing a hat',
-        n: 1,
-        size: '1024x1024',
-        stream: false,
-      })
+      expect(mockGenerate).toHaveBeenCalledWith(
+        {
+          model: 'gpt-image-1',
+          prompt: 'A cat wearing a hat',
+          n: 1,
+          size: '1024x1024',
+          stream: false,
+        },
+        { signal: undefined },
+      )
 
       expect(result.model).toBe('gpt-image-1')
       expect(result.images).toHaveLength(1)
@@ -176,14 +179,17 @@ describe('OpenAI Image Adapter', () => {
           logger: testLogger,
         })
 
-        expect(mockGenerate).toHaveBeenCalledWith({
-          model,
-          prompt: 'A cat wearing a hat',
-          n: 1,
-          size: '1536x1024',
-          quality: 'xhigh',
-          stream: false,
-        })
+        expect(mockGenerate).toHaveBeenCalledWith(
+          {
+            model,
+            prompt: 'A cat wearing a hat',
+            n: 1,
+            size: '1536x1024',
+            quality: 'xhigh',
+            stream: false,
+          },
+          { signal: undefined },
+        )
         expect(result.images[0]!.b64Json).toBe('img')
       },
     )
@@ -327,7 +333,10 @@ describe('OpenAI Image Adapter', () => {
           ],
           logger: testLogger,
         })
-        expect(fetchMock).toHaveBeenCalledWith('https://example.com/photo.jpg')
+        expect(fetchMock).toHaveBeenCalledWith(
+          'https://example.com/photo.jpg',
+          { signal: undefined },
+        )
         expect(editSpy).toHaveBeenCalledTimes(1)
         expect(editSpy.mock.calls[0]![0].image).toBeInstanceOf(File)
         expect(result.images[0]!.b64Json).toBe('edited-base64')

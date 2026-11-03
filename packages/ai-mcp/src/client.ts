@@ -315,8 +315,8 @@ class MCPClientImpl<TServer extends ServerDescriptor> implements Omit<
     )
     // A spec 2025 server asks for input with a request to the client.
     if (onElicit) {
-      this.#client.setRequestHandler('elicitation/create', (request) =>
-        onElicit(request.params),
+      this.#client.setRequestHandler('elicitation/create', (request, ctx) =>
+        onElicit(request.params, ctx.mcpReq.signal),
       )
     }
   }
@@ -811,9 +811,13 @@ export async function createMCPClient(
   return connectTransport(options)
 }
 
-/** Answers a spec 2025 `elicitation/create` request. */
+/**
+ * Answers a spec 2025 `elicitation/create` request. `signal` aborts when the
+ * server cancels the request.
+ */
 export type OnElicit = (
   params: ElicitRequest['params'],
+  signal?: AbortSignal,
 ) => Promise<ElicitResult>
 
 /**

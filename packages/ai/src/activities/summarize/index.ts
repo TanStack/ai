@@ -404,11 +404,26 @@ async function* runStreamingSummarize(
 
   // Use real streaming if the adapter supports it
   if (adapter.summarizeStream) {
-    yield* runNativeSummarizeStream(
-      options,
-      adapter.summarizeStream(summarizeOptions),
-      logger,
-    )
+    // Same abort/timeout composition as the non-streaming path.
+    const abortControls = createActivityAbortControls({
+      timeout: options.timeout,
+      abortSignal: options.abortSignal,
+    })
+    try {
+      yield* runNativeSummarizeStream(
+        options,
+        adapter.summarizeStream({
+          ...summarizeOptions,
+          ...(abortControls.signal
+            ? { abortSignal: abortControls.signal }
+            : {}),
+        }),
+        logger,
+        abortControls.signal,
+      )
+    } finally {
+      abortControls.clear()
+    }
     return
   }
 
@@ -447,6 +462,7 @@ async function* runNativeSummarizeStream(
   options: SummarizeActivityOptions<SummarizeAdapter<string, object>, true>,
   stream: AsyncIterable<StreamChunk>,
   logger: InternalLogger,
+  signal: AbortSignal | undefined,
 ): AsyncIterable<StreamChunk> {
   const { adapter, middleware, modelOptions } = options
   const mwCtx = createGenerationContext({
@@ -488,17 +504,31 @@ async function* runNativeSummarizeStream(
       yield chunk
     }
     if (!settled) {
-      await runGenerationFinish(middleware, mwCtx, {
-        duration: Date.now() - startTime,
-      })
       settled = true
+      // An adapter can end an aborted request with a RUN_ERROR chunk instead
+      // of a throw. The consumer got that chunk; middleware gets onAbort.
+      if (signal?.aborted) {
+        await runGenerationAbort(middleware, mwCtx, {
+          reason: abortReasonMessage(undefined, signal),
+          duration: Date.now() - startTime,
+        })
+      } else {
+        await runGenerationFinish(middleware, mwCtx, {
+          duration: Date.now() - startTime,
+        })
+      }
     }
   } catch (error) {
     settled = true
-    await runGenerationError(middleware, mwCtx, {
-      error,
-      duration: Date.now() - startTime,
-    })
+    const duration = Date.now() - startTime
+    if (isActivityAbortError(error, signal)) {
+      await runGenerationAbort(middleware, mwCtx, {
+        reason: abortReasonMessage(error, signal),
+        duration,
+      })
+    } else {
+      await runGenerationError(middleware, mwCtx, { error, duration })
+    }
     logger.errors('summarize activity failed', {
       error,
       source: 'summarize',

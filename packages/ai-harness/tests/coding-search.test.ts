@@ -573,3 +573,126 @@ describe('quoteArg', () => {
     },
   )
 })
+
+describe('the abort signal of a call', () => {
+  it('goes to each search command', async () => {
+    const fake = fakeBackend({ 'a.ts': 'one\n' }, (command) =>
+      command === GIT ? ok('a.ts\0') : undefined,
+    )
+    const signals: Array<AbortSignal | undefined> = []
+    const backend: WorkspaceBackend = {
+      ...fake.backend,
+      exec: (command, options) => {
+        // The rg probe is shared by every call, so it has its own signal.
+        if (command !== 'rg --version') signals.push(options?.signal)
+        return fake.backend.exec(command, options)
+      },
+    }
+    const { tools } = createWorkspaceTools({ root, backend })
+    const listFiles = tools.find((each) => each.name === 'list_files')?.execute
+    if (!listFiles) throw new Error('No tool list_files')
+    const { signal } = new AbortController()
+    await listFiles(
+      {},
+      { abortSignal: signal, emitCustomEvent: () => undefined },
+    )
+    expect(signals.length).toBeGreaterThan(0)
+    expect(signals.filter((each) => each !== signal)).toEqual([])
+  })
+
+  it('still finds rg after a call that aborted during the rg probe', async () => {
+    const fake = fakeBackend({ 'a.ts': 'one\n' }, (command) =>
+      command.startsWith('rg --files ') ? ok('./a.ts\0') : undefined,
+    )
+    const backend: WorkspaceBackend = {
+      ...fake.backend,
+      exec: (command, options) => {
+        fake.commands.push(command)
+        // An aborted command ends with a failure, like `hostBackend.exec`.
+        if (command === 'rg --version') {
+          return Promise.resolve(
+            options?.signal?.aborted
+              ? { exitCode: 1, stdout: '', stderr: '' }
+              : ok('ripgrep 14.1.0'),
+          )
+        }
+        return fake.backend.exec(command, options)
+      },
+    }
+    const { tools } = createWorkspaceTools({ root, backend })
+    const listFiles = tools.find((each) => each.name === 'list_files')?.execute
+    if (!listFiles) throw new Error('No tool list_files')
+    const aborted = new AbortController()
+    aborted.abort()
+    await Promise.resolve(
+      listFiles(
+        {},
+        { abortSignal: aborted.signal, emitCustomEvent: () => undefined },
+      ),
+    ).catch(() => undefined)
+
+    expect(await listFiles({}, { emitCustomEvent: () => undefined })).toBe(
+      'a.ts',
+    )
+    expect(
+      fake.commands.filter((c) => c.startsWith('rg --files ')),
+    ).not.toEqual([])
+  })
+
+  it.each([
+    ['list_files', {}],
+    ['grep', { pattern: 'one' }],
+  ])(
+    '%s starts no command for a call that aborted already',
+    async (name, args) => {
+      const fake = fakeBackend({ 'a.ts': 'one\n' })
+      const { tools } = createWorkspaceTools({ root, backend: fake.backend })
+      const execute = tools.find((each) => each.name === name)?.execute
+      if (!execute) throw new Error(`No tool ${name}`)
+      const aborted = new AbortController()
+      aborted.abort()
+
+      await expect(
+        Promise.resolve(
+          execute(args, {
+            abortSignal: aborted.signal,
+            emitCustomEvent: () => undefined,
+          }),
+        ),
+      ).rejects.toThrow()
+      expect(fake.commands).toEqual([])
+    },
+  )
+
+  it.each([
+    ['list_files', {}],
+    ['grep', { pattern: 'one' }],
+  ])('%s rejects a search that the abort stops', async (name, args) => {
+    const fake = fakeBackend({ 'a.ts': 'one\n' })
+    const controller = new AbortController()
+    const backend: WorkspaceBackend = {
+      ...fake.backend,
+      // The abort comes while the search command runs. A stopped command
+      // ends with a failure code, like on `hostBackend`.
+      exec: (command, options) => {
+        if (command === 'rg --version') {
+          return fake.backend.exec(command, options)
+        }
+        controller.abort()
+        return Promise.resolve({ exitCode: 1, stdout: '', stderr: '' })
+      },
+    }
+    const { tools } = createWorkspaceTools({ root, backend })
+    const execute = tools.find((each) => each.name === name)?.execute
+    if (!execute) throw new Error(`No tool ${name}`)
+
+    await expect(
+      Promise.resolve(
+        execute(args, {
+          abortSignal: controller.signal,
+          emitCustomEvent: () => undefined,
+        }),
+      ),
+    ).rejects.toThrow()
+  })
+})
