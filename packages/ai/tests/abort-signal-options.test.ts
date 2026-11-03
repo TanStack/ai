@@ -420,3 +420,138 @@ describe('decide() and rerank() timeout', () => {
     expect(rec.aborts).toHaveLength(1)
   })
 })
+
+/** An error a provider SDK throws on its own fetch timeout. */
+function providerTimeout(): Error {
+  const error = new Error('provider timed out')
+  error.name = 'TimeoutError'
+  return error
+}
+
+describe('a provider TimeoutError without a caller abort', () => {
+  it('generateVideo does not cancel the job', async () => {
+    const cancel = vi.fn(async (_jobId: string) => {})
+    const adapter = { ...videoAdapter('complete'), cancelVideoJob: cancel }
+    adapter.getVideoStatus.mockRejectedValueOnce(providerTimeout())
+    for await (const _chunk of generateVideo({
+      adapter,
+      prompt: 'a cat',
+      threadId: 't1',
+      stream: true,
+      pollingInterval: 1,
+      debug: false,
+    })) {
+      // drain
+    }
+    expect(adapter.getVideoStatus).toHaveBeenCalled()
+    expect(cancel).not.toHaveBeenCalled()
+  })
+
+  it('getVideoJobStatus reports a failed job and calls onError', async () => {
+    const adapter = videoAdapter('complete')
+    adapter.getVideo.mockRejectedValueOnce(providerTimeout())
+    const rec = recorder()
+    const result = await getVideoJobStatus({
+      adapter,
+      jobId: 'job-1',
+      middleware: [rec.middleware],
+    })
+    expect(result.status).toBe('failed')
+    expect(rec.errors).toHaveLength(1)
+    expect(rec.aborts).toHaveLength(0)
+  })
+
+  it('embed calls onError, not onAbort', async () => {
+    const adapter = new HangingEmbeddingAdapter()
+    adapter.createEmbeddings = () => Promise.reject(providerTimeout())
+    const rec = recorder()
+    await expect(
+      embed({ adapter, input: 'a', middleware: [rec.middleware] }),
+    ).rejects.toThrow('provider timed out')
+    expect(rec.errors).toHaveLength(1)
+    expect(rec.aborts).toHaveLength(0)
+  })
+
+  it('rerank calls onError, not onAbort', async () => {
+    const adapter: RerankAdapter<string, object> = {
+      kind: 'rerank',
+      name: 'mock',
+      model: 'mock-model',
+      '~types': { providerOptions: {} },
+      rerank: () => Promise.reject(providerTimeout()),
+    }
+    const rec = recorder()
+    await expect(
+      rerank({
+        adapter,
+        query: 'q',
+        documents: ['a'],
+        middleware: [rec.middleware],
+      }),
+    ).rejects.toThrow('provider timed out')
+    expect(rec.errors).toHaveLength(1)
+    expect(rec.aborts).toHaveLength(0)
+  })
+})
+
+describe('the timeout timer when onStart throws', () => {
+  const failingStart: GenerationMiddleware = {
+    name: 'fail-start',
+    onStart: () => {
+      throw new Error('onStart failed')
+    },
+  }
+
+  it.each(['embed', 'rerank', 'decide'] as const)(
+    '%s clears the timer',
+    async (activity) => {
+      vi.useFakeTimers()
+      try {
+        const pending =
+          activity === 'embed'
+            ? embed({
+                adapter: new HangingEmbeddingAdapter(),
+                input: 'a',
+                timeout: 60_000,
+                middleware: [failingStart],
+              })
+            : activity === 'rerank'
+              ? rerank({
+                  adapter: {
+                    kind: 'rerank',
+                    name: 'mock',
+                    model: 'mock-model',
+                    '~types': { providerOptions: {} },
+                    rerank: () => new Promise(() => {}),
+                  },
+                  query: 'q',
+                  documents: ['a'],
+                  timeout: 60_000,
+                  middleware: [failingStart],
+                })
+              : decide({
+                  adapter: {
+                    kind: 'evaluate',
+                    name: 'mock',
+                    model: 'mock-model',
+                    '~types': { providerOptions: {} },
+                    evaluate: () => new Promise(() => {}),
+                  },
+                  state: { text: 'hi' },
+                  questions: {
+                    kind: choice({
+                      instructions: 'Pick one',
+                      options: { a: 'A' },
+                    }),
+                  },
+                  timeout: 60_000,
+                  middleware: [failingStart],
+                })
+        await expect(pending).rejects.toThrow('onStart failed')
+        expect(vi.getTimerCount()).toBe(0)
+      } finally {
+        vi.useRealTimers()
+      }
+    },
+  )
+})

@@ -781,7 +781,9 @@ async function* runStreamingVideoGeneration<
     settled = true
     const elapsed = Date.now() - obsStartTime
     if (isActivityAbortError(error, abortControls.signal)) {
-      if (jobId !== undefined) {
+      // Cancel only on a real caller abort or timeout. A provider error
+      // named `TimeoutError` does not mean the caller wants the job stopped.
+      if (jobId !== undefined && abortControls.signal?.aborted) {
         // Best effort: the run already ends as aborted, so a failed cancel
         // is only logged. Not awaited, so a slow provider does not delay it.
         const cancelledJobId = jobId
@@ -1026,7 +1028,8 @@ async function runGetVideoJobStatus<
       )
     } catch (error) {
       // A cancelled call says nothing about the job: rethrow, do not fail it.
-      if (isActivityAbortError(error, signal)) throw error
+      // Without a caller abort, a provider `TimeoutError` still fails the job.
+      if (signal?.aborted) throw error
       const errorMessage =
         error instanceof Error ? error.message : 'Failed to get video URL'
       aiEventClient.emit('video:request:completed', {
@@ -1096,7 +1099,7 @@ async function runGetVideoJobStatus<
     try {
       result = await settleVideoUrl(transformed)
     } catch (error) {
-      if (isActivityAbortError(error, signal)) throw error
+      if (signal?.aborted) throw error
       // The download broke mid-stream: the job is terminal, so fail the run.
       await runGenerationError(middleware, mwCtx, {
         error,

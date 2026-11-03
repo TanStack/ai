@@ -8,6 +8,7 @@
 
 import { aiEventClient } from '@tanstack/ai-event-client'
 import { resolveDebugOption } from '../../logger/resolve'
+import { isAbortShapedError } from '../error-payload'
 import {
   createActivityAbortControls,
   isActivityAbortError,
@@ -203,8 +204,10 @@ function isAbortError(error: unknown, signal?: AbortSignal): boolean {
   // SDK's `RequestAbortedError`, ...). Classifying on `signal.aborted` alone
   // would misroute a real failure to the abort hook whenever a shared signal
   // happens to already be aborted, hiding it from `onError` observers.
-  // `isActivityAbortError` also matches the `TimeoutError` of `timeout`.
-  if (isActivityAbortError(error)) return true
+  if (isAbortShapedError(error)) return true
+  // A `TimeoutError` is an abort only when our signal fired (the `timeout`
+  // option). A provider's own fetch timeout stays an error.
+  if (signal?.aborted && isActivityAbortError(error)) return true
   // Fall back to signal state only for non-Error throws we can't otherwise
   // identify; a real Error with a non-abort name is never an abort.
   return error instanceof Error ? false : signal?.aborted === true
@@ -537,7 +540,10 @@ export async function decide<
     createId,
   })
 
-  await runGenerationStart(middleware, mwCtx)
+  await runGenerationStart(middleware, mwCtx).catch((error: unknown) => {
+    abortControls.clear()
+    throw error
+  })
 
   aiEventClient.emit('evaluate:request:started', {
     requestId,

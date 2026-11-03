@@ -62,6 +62,22 @@ describe('openaiRealtime connect teardown', () => {
     expect(pc.close).toHaveBeenCalled()
   })
 
+  it('does not ask for the microphone when the signal is already aborted', async () => {
+    const { pc } = stubBrowser()
+    const getUserMedia = vi.fn()
+    vi.stubGlobal('navigator', { mediaDevices: { getUserMedia } })
+    const controller = new AbortController()
+    controller.abort()
+
+    await expect(
+      openaiRealtime().connect(token, undefined, {
+        abortSignal: controller.signal,
+      }),
+    ).rejects.toMatchObject({ name: 'AbortError' })
+    expect(getUserMedia).not.toHaveBeenCalled()
+    expect(pc.close).toHaveBeenCalled()
+  })
+
   it('releases them when the SDP request fails', async () => {
     const { track, pc } = stubBrowser()
     vi.stubGlobal('fetch', async () => new Response('bad', { status: 500 }))

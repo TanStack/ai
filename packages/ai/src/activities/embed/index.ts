@@ -10,7 +10,6 @@ import { resolveDebugOption } from '../../logger/resolve'
 import {
   abortReasonMessage,
   createActivityAbortControls,
-  isActivityAbortError,
   raceWithAbort,
 } from '../../utilities/activity-abort'
 import {
@@ -242,7 +241,10 @@ export async function embed<
     createId,
   })
 
-  await runGenerationStart(middleware, mwCtx)
+  await runGenerationStart(middleware, mwCtx).catch((error: unknown) => {
+    abortControls.clear()
+    throw error
+  })
 
   aiEventClient.emit('embedding:request:started', {
     requestId,
@@ -319,7 +321,9 @@ export async function embed<
       modelOptions,
       timestamp: Date.now(),
     })
-    if (isActivityAbortError(error, abortControls.signal)) {
+    // Only a real caller abort or timeout is an abort. A provider error named
+    // `TimeoutError` (for example a client-side fetch timeout) is an error.
+    if (abortControls.signal?.aborted) {
       await runGenerationAbort(middleware, mwCtx, {
         reason: abortReasonMessage(error, abortControls.signal),
         duration,

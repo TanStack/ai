@@ -168,6 +168,9 @@ async function createWebRTCConnection(
   // A failed or aborted setup releases the microphone and the peer
   // connection. Without this, the mic indicator stays on after disconnect().
   try {
+    // A disconnect during the token fetch already aborted the signal. Do not
+    // ask for the microphone in that case.
+    abortSignal?.throwIfAborted()
     // IMPORTANT: Request microphone access and add audio track BEFORE creating offer
     // OpenAI's Realtime API requires an audio track in the SDP offer
     try {
