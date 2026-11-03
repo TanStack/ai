@@ -292,9 +292,10 @@ export class OpenRouterVideoAdapter<
         `activity=video.create provider=${this.name} model=${this.model} size=${size ?? 'default'} duration=${duration ?? 'default'}`,
         { provider: this.name, model: this.model },
       )
-      const response = await this.client.videoGeneration.generate({
-        videoGenerationRequest: request,
-      })
+      const response = await this.client.videoGeneration.generate(
+        { videoGenerationRequest: request },
+        { signal: options.abortSignal },
+      )
       return { jobId: response.id, model: this.model }
     } catch (error) {
       logger.errors(`${this.name}.createVideoJob fatal`, {

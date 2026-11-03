@@ -189,6 +189,7 @@ export class BytePlusTTSAdapter<
             'X-Api-Request-Id': newRequestId(),
           }),
           body: JSON.stringify(body),
+          ...(options.abortSignal && { signal: options.abortSignal }),
         },
       )
 

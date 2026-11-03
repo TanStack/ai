@@ -241,12 +241,13 @@ export class BedrockConverseTextAdapter<
 
   protected async sendStream(
     input: ConverseStreamCommandInput,
+    signal?: AbortSignal | null,
   ): Promise<AsyncIterable<ConverseStreamOutput>> {
     const { ConverseStreamCommand } = await this.importBedrockRuntime()
     const client = await this.getClient()
     const command = new ConverseStreamCommand(input)
     addRestoreDocuments(command, input)
-    const res = await client.send(command)
+    const res = await client.send(command, { abortSignal: signal ?? undefined })
     if (!res.stream) {
       throw new Error('Bedrock Converse: empty stream response')
     }
@@ -255,12 +256,13 @@ export class BedrockConverseTextAdapter<
 
   protected async send(
     input: ConverseCommandInput,
+    signal?: AbortSignal | null,
   ): Promise<ConverseCommandOutput> {
     const { ConverseCommand } = await this.importBedrockRuntime()
     const client = await this.getClient()
     const command = new ConverseCommand(input)
     addRestoreDocuments(command, input)
-    return client.send(command)
+    return client.send(command, { abortSignal: signal ?? undefined })
   }
 
   // ---------------------------------------------------------------------------
@@ -281,7 +283,7 @@ export class BedrockConverseTextAdapter<
       if (!input.toolConfig && input.messages) {
         input.messages = toolBlocksToText(input.messages)
       }
-      const stream = await this.sendStream(input)
+      const stream = await this.sendStream(input, options.request?.signal)
       for await (const chunk of processConverseStream(
         stream,
         () => this.generateId(),
@@ -344,7 +346,7 @@ export class BedrockConverseTextAdapter<
         ...this.buildInput(requestOptions),
         toolConfig: buildStructuredToolConfig(outputSchema),
       }
-      const res = await this.send(input)
+      const res = await this.send(input, chatOptions.request?.signal)
       // A forced tool call cut off at the output cap carries partial input,
       // which would read like a schema failure (issue #1426).
       if (res.stopReason === 'max_tokens') {
@@ -408,7 +410,7 @@ export class BedrockConverseTextAdapter<
         ...this.buildInput(requestOptions),
         toolConfig: buildStructuredToolConfig(outputSchema),
       }
-      const stream = await this.sendStream(input)
+      const stream = await this.sendStream(input, chatOptions.request?.signal)
 
       // The forced tool streams its `input` as partial-JSON fragments inside
       // `contentBlockDelta.delta.toolUse.input`. We surface them as

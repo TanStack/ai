@@ -211,9 +211,10 @@ export class BytePlusVideoAdapter<
   private async request(
     path: string,
     init?: Omit<RequestInit, 'headers'>,
+    abortSignal?: AbortSignal,
   ): Promise<{ response: Response; body: unknown }> {
     const fetchImpl = this.clientConfig.fetch ?? fetch
-    const signal = bytePlusTimeoutSignal(this.clientConfig.timeout)
+    const signal = bytePlusTimeoutSignal(this.clientConfig.timeout, abortSignal)
     const response = await fetchImpl(`${this.clientConfig.baseURL}${path}`, {
       ...init,
       ...(signal && { signal }),
@@ -462,10 +463,11 @@ export class BytePlusVideoAdapter<
         { provider: this.name, model },
       )
 
-      const { response, body } = await this.request(TASKS_PATH, {
-        method: 'POST',
-        body: JSON.stringify(request),
-      })
+      const { response, body } = await this.request(
+        TASKS_PATH,
+        { method: 'POST', body: JSON.stringify(request) },
+        options.abortSignal,
+      )
       if (!response.ok) {
         throw bytePlusArkError(response.status, body, 'video task creation')
       }

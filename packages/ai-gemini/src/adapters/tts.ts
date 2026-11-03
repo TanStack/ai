@@ -215,6 +215,7 @@ export class GeminiTTSAdapter<
         config: {
           responseModalities: ['AUDIO'],
           speechConfig,
+          ...(options.abortSignal && { abortSignal: options.abortSignal }),
           // systemInstruction belongs inside `config` per the @google/genai
           // contract — matches sibling Gemini adapters (summarize, text).
           ...(modelOptions?.systemInstruction && {

@@ -194,17 +194,35 @@ export class OllamaTextAdapter<TModel extends string> extends BaseTextAdapter<
         ...mappedOptions,
         stream: true,
       })
-      for await (const chunk of this.processOllamaStreamChunks(
-        response,
-        options,
-        logger,
-      )) {
-        yield {
-          ...chunk,
-          metadata: {
-            ...chunk.metadata,
-            tanstack: { ...tanstackMetadata(chunk), source },
-          },
+      // ponytail: an injected client has no per-call signal, so stop this
+      // stream with its own abort(). It cannot cancel before the headers.
+      const signal = this.clientConfig ? undefined : options.request?.signal
+      const onAbort = () => response.abort()
+      if (signal?.aborted) onAbort()
+      else signal?.addEventListener('abort', onAbort, { once: true })
+      let ended = false
+      try {
+        for await (const chunk of this.processOllamaStreamChunks(
+          response,
+          options,
+          logger,
+        )) {
+          yield {
+            ...chunk,
+            metadata: {
+              ...chunk.metadata,
+              tanstack: { ...tanstackMetadata(chunk), source },
+            },
+          }
+        }
+        ended = true
+      } finally {
+        if (signal) {
+          // chat() reuses one signal for every agent-loop step.
+          signal.removeEventListener('abort', onAbort)
+          // A consumer that stops early does not abort the request in
+          // `ollama`, and the listener is gone now, so stop it here.
+          if (!ended) response.abort()
         }
       }
     } catch (error: unknown) {
