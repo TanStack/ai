@@ -246,9 +246,11 @@ export class QuickJSIsolateContext implements IsolateContext {
       cleanup: 'reusable' | 'terminal' = 'reusable',
     ) => {
       const normalized = normalizeError(error)
+      // Guest code can throw its own AbortError. Only an abort of this
+      // run's signal is terminal.
       if (
         normalized.name === TIMEOUT_ERROR ||
-        normalized.name === ABORT_ERROR
+        (normalized.name === ABORT_ERROR && signal?.aborted)
       ) {
         await releaseAfterUnsettledExecution()
       } else if (isFatalQuickJSLimitError(normalized)) {

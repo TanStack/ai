@@ -609,11 +609,6 @@ export class QuickJSBunIsolateContext implements IsolateContext {
    * captured logs. If the error is a fatal QuickJS limit (memory/stack), the
    * runtime is released first since it may be left unusable.
    */
-  /** An abort before the run started. `logs` still holds the earlier run. */
-  private abortedBeforeRun(signal: AbortSignal): ExecutionResult<never> {
-    return { ...this.fail(abortError(signal)), logs: [] }
-  }
-
   private fail(error: unknown): ExecutionResult<never> {
     const normalized = this.toNormalizedError(error)
     if (isFatalQuickJSLimitError(normalized)) {
@@ -624,6 +619,11 @@ export class QuickJSBunIsolateContext implements IsolateContext {
       error: normalized,
       logs: [...this.logs],
     }
+  }
+
+  /** An abort before the run started. `logs` still holds the earlier run. */
+  private abortedBeforeRun(signal: AbortSignal): ExecutionResult<never> {
+    return { ...this.fail(abortError(signal)), logs: [] }
   }
 
   /**

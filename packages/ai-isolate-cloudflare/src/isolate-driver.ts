@@ -224,6 +224,21 @@ class CloudflareIsolateContext implements IsolateContext {
 
         // Continue loop to send results back to Worker
       } catch (fetchError) {
+        const signal = options?.signal
+        if (signal?.aborted) {
+          const reason: unknown = signal.reason
+          return {
+            success: false,
+            error: {
+              name: 'AbortError',
+              message:
+                reason instanceof Error
+                  ? reason.message
+                  : 'Execution was aborted',
+            },
+            logs: allLogs,
+          }
+        }
         const err = normalizeError(fetchError)
         return {
           success: false,

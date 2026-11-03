@@ -585,5 +585,6 @@ describe('execute abort signal', () => {
     controller.abort()
     const result = await pending
     expect(result.success).toBe(false)
+    expect(result.error?.name).toBe('AbortError')
   })
 })

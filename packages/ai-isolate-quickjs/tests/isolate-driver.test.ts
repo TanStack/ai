@@ -578,4 +578,19 @@ describe('execute signal', () => {
     expect(ok).toMatchObject({ success: true, value: 1 })
     await context.dispose()
   })
+
+  it('keeps the context when guest code throws its own AbortError', async () => {
+    const driver = createQuickJSIsolateDriver()
+    const context = await driver.createContext({ bindings: {} })
+    const code = "const e = new Error('x'); e.name = 'AbortError'; throw e"
+    const withoutSignal = await context.execute(code)
+    expect(withoutSignal.error?.name).toBe('AbortError')
+    const withSignal = await context.execute(code, {
+      signal: new AbortController().signal,
+    })
+    expect(withSignal.error?.name).toBe('AbortError')
+    const after = await context.execute('return 1')
+    expect(after).toMatchObject({ success: true, value: 1 })
+    await context.dispose()
+  })
 })
