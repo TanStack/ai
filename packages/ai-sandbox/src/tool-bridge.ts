@@ -344,7 +344,8 @@ function buildMcpServer(core: ToolBridgeCore): McpServer {
   server.server.setRequestHandler(
     CallToolRequestSchema,
     async (request, extra) => {
-      // `extra.signal` aborts when the MCP client cancels this request.
+      // `extra.signal` aborts when the MCP client cancels this request, and
+      // when the transport closes (the HTTP response closes, see below).
       const result = await core.callTool(
         request.params.name,
         request.params.arguments ?? {},

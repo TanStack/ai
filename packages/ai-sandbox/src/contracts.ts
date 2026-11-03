@@ -162,8 +162,10 @@ export type SandboxFsStat =
  * native git (when advertised) or desugar to `process.exec("git …")`, so the
  * contract is identical across providers.
  *
- * `clone`, `push`, and `pull` take an optional `signal` that stops the git
- * command when it aborts.
+ * `clone`, `push`, and `pull` take an optional `signal`. The exec-backed git
+ * (`createExecBackedGit`) stops the git command when the signal aborts. A
+ * native git can ignore the signal: Daytona's git API takes no signal, so its
+ * git command runs to the end.
  */
 export interface SandboxGit {
   clone: (input: {
