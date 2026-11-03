@@ -127,13 +127,20 @@ function toolCallIdFor(index: number): string {
   return `tc_${index}`
 }
 
+/** Resolves `undefined` when `milliseconds` pass or `signal` aborts first. */
 async function withTimeout<T>(
   promise: Promise<T>,
   milliseconds: number,
+  signal: AbortSignal | undefined,
 ): Promise<T | undefined> {
   let timer: number | undefined
+  let onAbort: (() => void) | undefined
   const timeout = new Promise<undefined>((resolve) => {
     timer = setTimeout(resolve, milliseconds)
+    onAbort = () => resolve(undefined)
+    // `promise` started before this point and can abort the signal itself.
+    if (signal?.aborted) onAbort()
+    else signal?.addEventListener('abort', onAbort, { once: true })
   })
 
   try {
@@ -142,6 +149,7 @@ async function withTimeout<T>(
     if (timer !== undefined) {
       clearTimeout(timer)
     }
+    if (onAbort) signal?.removeEventListener('abort', onAbort)
   }
 }
 
@@ -370,6 +378,22 @@ class DaytonaIsolateContext implements IsolateContext {
     }
   }
 
+  private abortedResult<T>(
+    signal: AbortSignal,
+    logs: Array<string>,
+  ): ExecutionResult<T> {
+    const reason: unknown = signal.reason
+    return {
+      success: false,
+      error: {
+        name: 'AbortError',
+        message:
+          reason instanceof Error ? reason.message : 'Execution was aborted',
+      },
+      logs,
+    }
+  }
+
   private isDisposed(): boolean {
     return this.disposed
   }
@@ -387,7 +411,15 @@ class DaytonaIsolateContext implements IsolateContext {
     return remainingMs > 0 ? remainingMs : undefined
   }
 
-  async execute<T = unknown>(code: string): Promise<ExecutionResult<T>> {
+  /**
+   * `options.signal` stops the wait and any later tool round. The Daytona
+   * SDK cannot cancel a `codeRun`, so a started run ends at its own timeout.
+   */
+  async execute<T = unknown>(
+    code: string,
+    options?: { signal?: AbortSignal },
+  ): Promise<ExecutionResult<T>> {
+    const signal = options?.signal
     if (this.isDisposed()) {
       return this.disposedResult([])
     }
@@ -404,6 +436,7 @@ class DaytonaIsolateContext implements IsolateContext {
         if (this.isDisposed()) {
           return this.disposedResult(allLogs)
         }
+        if (signal?.aborted) return this.abortedResult(signal, allLogs)
 
         const remainingCodeRunMs = this.remainingTimeoutMs(deadlineMs)
         if (remainingCodeRunMs === undefined) {
@@ -419,7 +452,9 @@ class DaytonaIsolateContext implements IsolateContext {
             timeoutMsToSeconds(remainingCodeRunMs),
           ),
           remainingCodeRunMs,
+          signal,
         )
+        if (signal?.aborted) return this.abortedResult(signal, allLogs)
         if (response === undefined) {
           return this.timeoutResult(allLogs)
         }
@@ -494,7 +529,9 @@ class DaytonaIsolateContext implements IsolateContext {
             ),
           ),
           remainingToolMs,
+          signal,
         )
+        if (signal?.aborted) return this.abortedResult(signal, allLogs)
         if (batchEntries === undefined) {
           return this.timeoutResult(allLogs)
         }

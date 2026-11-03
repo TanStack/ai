@@ -62,7 +62,7 @@
     "@tanstack/devtools-utils": "^0.7.0"
   },
   "peerDependencies": {
-    "solid-js": ">=1.9.7"
+    "solid-js": "^1.9.7"
   },
   "devDependencies": {
     "solid-js": "^1.9.10",

@@ -121,7 +121,12 @@ export function buildGeminiUsage(
   if (!usageMetadata) return undefined
 
   const promptTokens = usageMetadata.promptTokenCount ?? 0
-  const completionTokens = usageMetadata.candidatesTokenCount ?? 0
+  // Gemini reports thinking tokens apart from candidatesTokenCount but bills
+  // them as output, so completionTokens includes them (reasoningTokens is the
+  // detail of that total, as with OpenAI).
+  const completionTokens =
+    (usageMetadata.candidatesTokenCount ?? 0) +
+    (usageMetadata.thoughtsTokenCount ?? 0)
 
   const result = buildBaseUsage<GeminiProviderUsageDetails>({
     promptTokens: promptTokens,

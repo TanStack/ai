@@ -33,5 +33,29 @@ for (const provider of providersFor('parallel-tool-calls')) {
       // Wait for text response after tool execution
       await waitForAssistantText(page, 'Stratocaster')
     })
+
+    // Ollama sends no tool-call ids, so this guards the fallback id
+    test('keeps parallel calls to the same tool apart', async ({
+      page,
+      testId,
+      aimockPort,
+    }) => {
+      await page.goto(
+        featureUrl(provider, 'parallel-tool-calls', testId, aimockPort),
+      )
+
+      await sendMessage(
+        page,
+        '[parallel-same] compare guitars 1 and 2, then 3 and 4',
+      )
+      await waitForResponse(page)
+
+      const toolNames = (await getToolCalls(page)).map((t) => t.name)
+      expect(
+        toolNames.filter((name) => name === 'compareGuitars'),
+      ).toHaveLength(2)
+
+      await waitForAssistantText(page, 'Both comparisons are done')
+    })
   })
 }

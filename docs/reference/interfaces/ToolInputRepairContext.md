@@ -3,7 +3,7 @@ id: ToolInputRepairContext
 title: ToolInputRepairContext
 ---
 
-Defined in: packages/ai/src/types.ts:1292
+Defined in: [packages/ai/src/types.ts:1332](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1332)
 
 What a `repairToolInput` function gets: a tool input that failed the check.
 
@@ -15,7 +15,7 @@ What a `repairToolInput` function gets: a tool input that failed the check.
 error: Error;
 ```
 
-Defined in: packages/ai/src/types.ts:1300
+Defined in: [packages/ai/src/types.ts:1340](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1340)
 
 The validation error. A Standard Schema error also has `issues`.
 
@@ -27,7 +27,7 @@ The validation error. A Standard Schema error also has `issues`.
 input: unknown;
 ```
 
-Defined in: packages/ai/src/types.ts:1298
+Defined in: [packages/ai/src/types.ts:1338](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1338)
 
 The input that failed, after approval edits and middleware.
 
@@ -39,7 +39,7 @@ The input that failed, after approval edits and middleware.
 tool: AnyTool;
 ```
 
-Defined in: packages/ai/src/types.ts:1294
+Defined in: [packages/ai/src/types.ts:1334](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1334)
 
 The tool the model called.
 
@@ -51,6 +51,6 @@ The tool the model called.
 toolCall: ToolCall;
 ```
 
-Defined in: packages/ai/src/types.ts:1296
+Defined in: [packages/ai/src/types.ts:1336](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1336)
 
 The call, with its id and the raw arguments text.

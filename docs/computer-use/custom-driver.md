@@ -107,6 +107,8 @@ Coordinates are in pixels, in `display` space. Key names are `KeyboardEvent.key`
 | `press(keys)` | Presses one combo, like `['Control', 's']`. |
 | `type(text)` | Types text as a user does. |
 
+Each action also takes an optional `signal`, the abort signal of the tool call. It is the last argument, for example `move(x, y, { signal })`. `click` gets it in its options: `click(x, y, { button, count, signal })`. Pass it to your requests, so an action stops when the run stops. `keyUp` and `mouseUp` get no signal, because they release what an aborted action held down.
+
 ### Add the optional methods
 
 Four methods are optional:
@@ -191,7 +193,7 @@ The factory has these members:
 | `display` | The screen size of every machine. Each driver from `create` has this `display`. |
 | `environment` | The kind of every machine. |
 | `capabilities` | `{ zoom, cursorPosition, navigate }`: the optional methods that every driver from `create` has. The tool is built before any machine exists, so the factory tells it. |
-| `create({ threadId })` | Makes the driver of one thread. If it throws, the model gets the error. The next model turn calls `create` again. |
+| `create({ threadId, signal })` | Makes the driver of one thread. `signal` is the abort signal of the tool call that needs the machine. Pass it to your setup requests. If `create` throws, the model gets the error. The next model turn calls `create` again. |
 | `close()` | Optional. Frees what the threads share. `computerUse.close()` calls it after it closes every thread. |
 
 When a thread closes or goes idle, `createComputerUse` calls `close()` on the driver of that thread.

@@ -199,6 +199,26 @@ await deleteFile({ adapter: files, id: handle });
 
 fal storage is upload-only. `falFiles()` has no `get` or `delete`, so `getFile()` and `deleteFile()` throw with it.
 
+### Cancel a file request
+
+`uploadFile()`, `getFile()`, and `deleteFile()` take an `abortSignal`. When it aborts, the call rejects. The adapter passes the signal to the provider request when the provider SDK can cancel it:
+
+```typescript
+import { uploadFile } from "@tanstack/ai";
+import { openaiFiles } from "@tanstack/ai-openai";
+
+export async function POST(request: Request) {
+  const handle = await uploadFile({
+    adapter: openaiFiles(),
+    input: await request.blob(),
+    abortSignal: request.signal,
+  });
+  return Response.json(handle);
+}
+```
+
+The Gemini and fal SDKs do not cancel a running upload. With those providers, the call still rejects at once, but the upload can finish on the provider.
+
 ### Grok (xAI): handles are public URLs
 
 `grokFiles()` uploads to the xAI Files API. Then it mints a [public URL](https://docs.x.ai/developers/files/public-urls) for the file and uses that URL as the reference of the handle.

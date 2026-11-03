@@ -3,7 +3,7 @@ id: SandboxFileCustomEvent
 title: SandboxFileCustomEvent
 ---
 
-Defined in: packages/ai/src/types.ts:1811
+Defined in: [packages/ai/src/types.ts:1869](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1869)
 
 Custom event for extensibility.
 
@@ -21,7 +21,7 @@ Custom event for extensibility.
 optional metadata?: Record<string, any>;
 ```
 
-Defined in: packages/ai/src/types.ts:1756
+Defined in: [packages/ai/src/types.ts:1814](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1814)
 
 Extra information attached to this event.
 
@@ -37,7 +37,7 @@ Extra information attached to this event.
 name: "sandbox.file";
 ```
 
-Defined in: packages/ai/src/types.ts:1812
+Defined in: [packages/ai/src/types.ts:1870](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1870)
 
 What this custom event is. Required: without it a consumer cannot route
 the value.
@@ -56,7 +56,7 @@ CustomEvent.name
 type: "CUSTOM";
 ```
 
-Defined in: packages/ai/src/types.ts:1755
+Defined in: [packages/ai/src/types.ts:1813](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1813)
 
 #### Inherited from
 
@@ -70,7 +70,7 @@ Defined in: packages/ai/src/types.ts:1755
 value: object;
 ```
 
-Defined in: packages/ai/src/types.ts:1813
+Defined in: [packages/ai/src/types.ts:1871](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1871)
 
 The payload. Any JSON value, and required.
 

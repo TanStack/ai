@@ -3,7 +3,7 @@ id: InterruptBindingDescriptor
 title: InterruptBindingDescriptor
 ---
 
-Defined in: packages/ai/src/interrupt-definition.ts:54
+Defined in: [packages/ai/src/interrupt-definition.ts:54](https://github.com/TanStack/ai/blob/main/packages/ai/src/interrupt-definition.ts#L54)
 
 ## Properties
 
@@ -13,7 +13,7 @@ Defined in: packages/ai/src/interrupt-definition.ts:54
 optional batchIndex?: number;
 ```
 
-Defined in: packages/ai/src/interrupt-definition.ts:62
+Defined in: [packages/ai/src/interrupt-definition.ts:62](https://github.com/TanStack/ai/blob/main/packages/ai/src/interrupt-definition.ts#L62)
 
 ***
 
@@ -23,7 +23,7 @@ Defined in: packages/ai/src/interrupt-definition.ts:62
 definitionId: string;
 ```
 
-Defined in: packages/ai/src/interrupt-definition.ts:57
+Defined in: [packages/ai/src/interrupt-definition.ts:57](https://github.com/TanStack/ai/blob/main/packages/ai/src/interrupt-definition.ts#L57)
 
 ***
 
@@ -33,7 +33,7 @@ Defined in: packages/ai/src/interrupt-definition.ts:57
 optional generation?: number;
 ```
 
-Defined in: packages/ai/src/interrupt-definition.ts:61
+Defined in: [packages/ai/src/interrupt-definition.ts:61](https://github.com/TanStack/ai/blob/main/packages/ai/src/interrupt-definition.ts#L61)
 
 ***
 
@@ -43,7 +43,7 @@ Defined in: packages/ai/src/interrupt-definition.ts:61
 optional interruptedRunId?: string;
 ```
 
-Defined in: packages/ai/src/interrupt-definition.ts:60
+Defined in: [packages/ai/src/interrupt-definition.ts:60](https://github.com/TanStack/ai/blob/main/packages/ai/src/interrupt-definition.ts#L60)
 
 ***
 
@@ -53,7 +53,7 @@ Defined in: packages/ai/src/interrupt-definition.ts:60
 key: string;
 ```
 
-Defined in: packages/ai/src/interrupt-definition.ts:58
+Defined in: [packages/ai/src/interrupt-definition.ts:58](https://github.com/TanStack/ai/blob/main/packages/ai/src/interrupt-definition.ts#L58)
 
 ***
 
@@ -63,7 +63,7 @@ Defined in: packages/ai/src/interrupt-definition.ts:58
 kind: "generic";
 ```
 
-Defined in: packages/ai/src/interrupt-definition.ts:56
+Defined in: [packages/ai/src/interrupt-definition.ts:56](https://github.com/TanStack/ai/blob/main/packages/ai/src/interrupt-definition.ts#L56)
 
 ***
 
@@ -73,7 +73,7 @@ Defined in: packages/ai/src/interrupt-definition.ts:56
 optional payloadSchemaCanonicalJson?: string;
 ```
 
-Defined in: packages/ai/src/interrupt-definition.ts:64
+Defined in: [packages/ai/src/interrupt-definition.ts:64](https://github.com/TanStack/ai/blob/main/packages/ai/src/interrupt-definition.ts#L64)
 
 ***
 
@@ -83,7 +83,7 @@ Defined in: packages/ai/src/interrupt-definition.ts:64
 optional payloadSchemaHash?: string;
 ```
 
-Defined in: packages/ai/src/interrupt-definition.ts:65
+Defined in: [packages/ai/src/interrupt-definition.ts:65](https://github.com/TanStack/ai/blob/main/packages/ai/src/interrupt-definition.ts#L65)
 
 ***
 
@@ -93,7 +93,7 @@ Defined in: packages/ai/src/interrupt-definition.ts:65
 optional responseSchemaCanonicalJson?: string;
 ```
 
-Defined in: packages/ai/src/interrupt-definition.ts:63
+Defined in: [packages/ai/src/interrupt-definition.ts:63](https://github.com/TanStack/ai/blob/main/packages/ai/src/interrupt-definition.ts#L63)
 
 ***
 
@@ -103,7 +103,7 @@ Defined in: packages/ai/src/interrupt-definition.ts:63
 optional responseSchemaHash?: string;
 ```
 
-Defined in: packages/ai/src/interrupt-definition.ts:66
+Defined in: [packages/ai/src/interrupt-definition.ts:66](https://github.com/TanStack/ai/blob/main/packages/ai/src/interrupt-definition.ts#L66)
 
 ***
 
@@ -113,7 +113,7 @@ Defined in: packages/ai/src/interrupt-definition.ts:66
 optional threadId?: string;
 ```
 
-Defined in: packages/ai/src/interrupt-definition.ts:59
+Defined in: [packages/ai/src/interrupt-definition.ts:59](https://github.com/TanStack/ai/blob/main/packages/ai/src/interrupt-definition.ts#L59)
 
 ***
 
@@ -123,4 +123,4 @@ Defined in: packages/ai/src/interrupt-definition.ts:59
 v: 1;
 ```
 
-Defined in: packages/ai/src/interrupt-definition.ts:55
+Defined in: [packages/ai/src/interrupt-definition.ts:55](https://github.com/TanStack/ai/blob/main/packages/ai/src/interrupt-definition.ts#L55)

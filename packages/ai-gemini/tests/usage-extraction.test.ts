@@ -185,6 +185,46 @@ describe('Gemini usage extraction', () => {
     })
   })
 
+  it('counts thoughts tokens in completionTokens', async () => {
+    const mockStream = createMockStream([
+      {
+        candidates: [
+          {
+            content: {
+              parts: [{ text: 'Hello world' }],
+            },
+            finishReason: 'STOP',
+          },
+        ],
+        usageMetadata: {
+          promptTokenCount: 100,
+          candidatesTokenCount: 50,
+          thoughtsTokenCount: 30,
+          totalTokenCount: 180,
+        },
+      },
+    ])
+
+    mocks.generateContentStreamSpy.mockResolvedValueOnce(mockStream)
+
+    const chunks: Array<AdapterYieldChunk> = []
+    for await (const chunk of chat({
+      threadId: 'thread-1',
+      adapter: createAdapter(),
+      messages: [{ role: 'user', content: 'Hello' }],
+    })) {
+      chunks.push(chunk)
+    }
+
+    const doneChunk = chunks.find((c) => c.type === 'RUN_FINISHED')
+    expect(tokenUsageOf(doneChunk)).toMatchObject({
+      promptTokens: 100,
+      completionTokens: 80,
+      totalTokens: 180,
+      completionTokensDetails: { reasoningTokens: 30 },
+    })
+  })
+
   it('extracts modality token breakdown for prompt', async () => {
     const mockStream = createMockStream([
       {

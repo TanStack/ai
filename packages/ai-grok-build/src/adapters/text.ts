@@ -667,7 +667,9 @@ export class GrokBuildTextAdapter<
           context: options.context,
           ...(options.abortController?.signal
             ? { signal: options.abortController.signal }
-            : {}),
+            : options.request?.signal
+              ? { signal: options.request.signal }
+              : {}),
         })
         // Grok reads MCP from `<cwd>/.grok/config.toml`, not `--mcp-config`.
         await projectGrokMcpBridge(sandbox, cwd, bridge)

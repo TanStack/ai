@@ -87,6 +87,7 @@ export class FalImageAdapter<TModel extends FalModel> extends BaseImageAdapter<
       )
     }
 
+    let requestId: string | undefined
     try {
       const input = this.buildInput(options, resolved)
       // Pass request-specific abortSignal only — never via fal.config(), which
@@ -94,9 +95,17 @@ export class FalImageAdapter<TModel extends FalModel> extends BaseImageAdapter<
       const result = await fal.subscribe(this.model, {
         input,
         ...(options.abortSignal ? { abortSignal: options.abortSignal } : {}),
+        onEnqueue: (id) => {
+          requestId = id
+        },
       })
       return this.transformResponse(result)
     } catch (error) {
+      // The SDK stops waiting on abort but leaves the queued job running.
+      // Cancel it so it stops billing.
+      if (requestId && options.abortSignal?.aborted) {
+        fal.queue.cancel(this.model, { requestId }).catch(() => {})
+      }
       logger.errors('fal.generateImage fatal', {
         error,
         source: 'fal.generateImage',

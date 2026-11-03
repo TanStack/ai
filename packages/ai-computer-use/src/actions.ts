@@ -19,8 +19,82 @@ function isRecord(value: unknown): value is Input {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
-function sleep(ms: number) {
-  return new Promise<void>((resolve) => setTimeout(resolve, ms))
+/** Waits `ms`. Rejects with the reason of `signal` when it aborts first. */
+export function sleep(ms: number, signal?: AbortSignal) {
+  return new Promise<void>((resolve, reject) => {
+    signal?.throwIfAborted()
+    const onAbort = () => {
+      clearTimeout(timer)
+      reject(signal?.reason)
+    }
+    const timer = setTimeout(() => {
+      signal?.removeEventListener('abort', onAbort)
+      resolve()
+    }, ms)
+    signal?.addEventListener('abort', onAbort, { once: true })
+  })
+}
+
+/**
+ * The driver with `signal` on every action. Each action first throws when
+ * the signal has aborted. `keyUp` and `mouseUp` run without the signal, so
+ * an aborted action still releases what it held down. While a mouse button
+ * is down, `move` also runs without the signal, so a drag that started always
+ * ends at its last point. Without a signal, this returns `driver` as it is.
+ */
+export function withSignal(
+  driver: ComputerDriver,
+  signal: AbortSignal | undefined,
+): ComputerDriver {
+  if (!signal) return driver
+  const options = { signal }
+  const { zoom, cursorPosition, navigate } = driver
+  let buttonDown = false
+  return {
+    display: driver.display,
+    environment: driver.environment,
+    screenshot: () => (signal.throwIfAborted(), driver.screenshot(options)),
+    click: (x, y, click) => (
+      signal.throwIfAborted(),
+      driver.click(x, y, { ...click, signal })
+    ),
+    move: (x, y) =>
+      buttonDown
+        ? driver.move(x, y)
+        : (signal.throwIfAborted(), driver.move(x, y, options)),
+    mouseDown: (button) => (
+      signal.throwIfAborted(),
+      (buttonDown = true),
+      driver.mouseDown(button, options)
+    ),
+    mouseUp: (button) => ((buttonDown = false), driver.mouseUp(button)),
+    scroll: (x, y, deltaX, deltaY) => (
+      signal.throwIfAborted(),
+      driver.scroll(x, y, deltaX, deltaY, options)
+    ),
+    keyDown: (key) => (signal.throwIfAborted(), driver.keyDown(key, options)),
+    keyUp: (key) => driver.keyUp(key),
+    press: (keys) => (signal.throwIfAborted(), driver.press(keys, options)),
+    type: (text) => (signal.throwIfAborted(), driver.type(text, options)),
+    ...(zoom && {
+      zoom: (region) => (
+        signal.throwIfAborted(),
+        zoom.call(driver, region, options)
+      ),
+    }),
+    ...(cursorPosition && {
+      cursorPosition: () => (
+        signal.throwIfAborted(),
+        cursorPosition.call(driver, options)
+      ),
+    }),
+    ...(navigate && {
+      navigate: (url) => (
+        signal.throwIfAborted(),
+        navigate.call(driver, url, options)
+      ),
+    }),
+  }
 }
 
 function invalid(key: string, expected: string) {
@@ -80,9 +154,13 @@ function readSeconds(input: Input, key: string) {
   return value
 }
 
-/** Presses `keys` in order, runs `action`, then releases the keys that went down. */
+/**
+ * Presses `keys` in order, runs `action`, then releases the keys that went
+ * down. An abort of `signal` stops it between steps. The keys still go up.
+ */
 async function withKeys(
   driver: ComputerDriver,
+  signal: AbortSignal | undefined,
   keys: Array<string>,
   action: () => Promise<void>,
 ) {
@@ -92,6 +170,7 @@ async function withKeys(
     for (const key of keys) {
       await driver.keyDown(key)
       pressed.push(key)
+      signal?.throwIfAborted()
     }
     await action()
   } finally {
@@ -106,10 +185,18 @@ async function withKeys(
   if (releaseError !== undefined) throw releaseError
 }
 
-async function drag(driver: ComputerDriver, path: Array<Point>) {
+async function drag(
+  driver: ComputerDriver,
+  path: Array<Point>,
+  signal: AbortSignal | undefined,
+) {
   const [start, ...rest] = path
   if (start === undefined) throw invalid('path', 'a non-empty array')
   await driver.move(start.x, start.y)
+  signal?.throwIfAborted()
+  // After the button goes down, an abort does not stop the drag. Each
+  // mouseUp is a drop, so a stop in the middle drops the item at the wrong
+  // point.
   await driver.mouseDown('left')
   try {
     for (const point of rest) await driver.move(point.x, point.y)
@@ -168,11 +255,12 @@ async function runAnthropicAction(
   driver: ComputerDriver,
   action: string,
   input: Input,
+  signal: AbortSignal | undefined,
 ) {
   const click = ANTHROPIC_CLICKS[action]
   if (click) {
     const { x, y } = await anthropicPoint(driver, input)
-    await withKeys(driver, anthropicModifiers(input), () =>
+    await withKeys(driver, signal, anthropicModifiers(input), () =>
       driver.click(x, y, click),
     )
     return undefined
@@ -185,7 +273,10 @@ async function runAnthropicAction(
       const combos = readString(input, 'text').split(/\s+/).filter(Boolean)
       const repeat = readRepeat(input)
       for (let i = 0; i < repeat; i++) {
-        for (const combo of combos) await driver.press(parseKeyCombo(combo))
+        for (const combo of combos) {
+          signal?.throwIfAborted()
+          await driver.press(parseKeyCombo(combo))
+        }
       }
       return undefined
     }
@@ -202,8 +293,8 @@ async function runAnthropicAction(
         readCoordinate(input, 'start_coordinate'),
         readCoordinate(input, 'coordinate'),
       ]
-      await withKeys(driver, anthropicModifiers(input), () =>
-        drag(driver, path),
+      await withKeys(driver, signal, anthropicModifiers(input), () =>
+        drag(driver, path, signal),
       )
       return undefined
     }
@@ -218,7 +309,7 @@ async function runAnthropicAction(
       const pixels = readNumber(input, 'scroll_amount') * SCROLL_STEP
       const direction = readString(input, 'scroll_direction')
       const { deltaX, deltaY } = scrollDelta(direction, pixels)
-      await withKeys(driver, anthropicModifiers(input), () =>
+      await withKeys(driver, signal, anthropicModifiers(input), () =>
         driver.scroll(x, y, deltaX, deltaY),
       )
       return undefined
@@ -226,11 +317,11 @@ async function runAnthropicAction(
     case 'hold_key': {
       const keys = parseKeyCombo(readString(input, 'text'))
       const ms = readSeconds(input, 'duration') * 1000
-      await withKeys(driver, keys, () => sleep(ms))
+      await withKeys(driver, signal, keys, () => sleep(ms, signal))
       return undefined
     }
     case 'wait':
-      await sleep(readSeconds(input, 'duration') * 1000)
+      await sleep(readSeconds(input, 'duration') * 1000, signal)
       return undefined
     case 'cursor_position': {
       if (!driver.cursorPosition) {
@@ -291,7 +382,11 @@ function readPath(input: Input) {
   })
 }
 
-async function runOpenAIAction(driver: ComputerDriver, input: unknown) {
+async function runOpenAIAction(
+  driver: ComputerDriver,
+  input: unknown,
+  signal: AbortSignal | undefined,
+) {
   if (!isRecord(input)) throw invalid('action', 'an object')
   const type = readString(input, 'type')
   const modifiers = openaiModifiers(input)
@@ -309,7 +404,7 @@ async function runOpenAIAction(driver: ComputerDriver, input: unknown) {
       }
       const x = readNumber(input, 'x')
       const y = readNumber(input, 'y')
-      await withKeys(driver, modifiers, () =>
+      await withKeys(driver, signal, modifiers, () =>
         driver.click(x, y, { button, count: 1 }),
       )
       return
@@ -317,14 +412,16 @@ async function runOpenAIAction(driver: ComputerDriver, input: unknown) {
     case 'double_click': {
       const x = readNumber(input, 'x')
       const y = readNumber(input, 'y')
-      await withKeys(driver, modifiers, () =>
+      await withKeys(driver, signal, modifiers, () =>
         driver.click(x, y, { button: 'left', count: 2 }),
       )
       return
     }
     case 'drag': {
       const path = readPath(input)
-      await withKeys(driver, modifiers, () => drag(driver, path))
+      await withKeys(driver, signal, modifiers, () =>
+        drag(driver, path, signal),
+      )
       return
     }
     case 'keypress': {
@@ -340,7 +437,7 @@ async function runOpenAIAction(driver: ComputerDriver, input: unknown) {
     case 'move': {
       const x = readNumber(input, 'x')
       const y = readNumber(input, 'y')
-      await withKeys(driver, modifiers, () => driver.move(x, y))
+      await withKeys(driver, signal, modifiers, () => driver.move(x, y))
       return
     }
     case 'scroll': {
@@ -348,7 +445,7 @@ async function runOpenAIAction(driver: ComputerDriver, input: unknown) {
       const y = readNumber(input, 'y')
       const deltaX = readNumber(input, 'scroll_x')
       const deltaY = readNumber(input, 'scroll_y')
-      await withKeys(driver, modifiers, () =>
+      await withKeys(driver, signal, modifiers, () =>
         driver.scroll(x, y, deltaX, deltaY),
       )
       return
@@ -357,7 +454,7 @@ async function runOpenAIAction(driver: ComputerDriver, input: unknown) {
       await driver.type(readString(input, 'text'))
       return
     case 'wait':
-      await sleep(OPENAI_WAIT_MS)
+      await sleep(OPENAI_WAIT_MS, signal)
       return
     default:
       throw new Error(`Unknown computer action "${type}".`)
@@ -381,22 +478,31 @@ async function runOpenAIAction(driver: ComputerDriver, input: unknown) {
  *
  * @param driver - The driver that controls the computer.
  * @param input - The raw tool input from the model.
+ * @param signal - The abort signal of the tool call. It stops the waits.
+ *   Wrap the driver with {@link withSignal} to give it to each action too.
  */
 export async function runComputerAction(
   driver: ComputerDriver,
   input: unknown,
+  signal?: AbortSignal,
 ) {
   if (!isRecord(input)) throw invalid('input', 'an object')
+  // The call can abort while its machine starts.
+  signal?.throwIfAborted()
   const { action, actions } = input
   if (typeof action === 'string') {
-    return runAnthropicAction(driver, action, input)
+    return runAnthropicAction(driver, action, input, signal)
   }
   if (Array.isArray(actions)) {
-    for (const item of actions) await runOpenAIAction(driver, item)
+    for (const item of actions) {
+      // An abort stops the batch before its next action.
+      signal?.throwIfAborted()
+      await runOpenAIAction(driver, item, signal)
+    }
     return undefined
   }
   if (isRecord(action)) {
-    await runOpenAIAction(driver, action)
+    await runOpenAIAction(driver, action, signal)
     return undefined
   }
   throw invalid('action', 'a string, an object, or an "actions" array')

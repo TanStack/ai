@@ -8,7 +8,13 @@
 import { aiEventClient } from '@tanstack/ai-event-client'
 import { resolveDebugOption } from '../../logger/resolve'
 import {
+  abortReasonMessage,
+  createActivityAbortControls,
+  raceWithAbort,
+} from '../../utilities/activity-abort'
+import {
   createGenerationContext,
+  runGenerationAbort,
   runGenerationError,
   runGenerationFinish,
   runGenerationStart,
@@ -119,6 +125,18 @@ export type EmbedOptions<
    * `GenerationMiddleware` contract for a custom backend.
    */
   middleware?: Array<GenerationMiddleware>
+  /**
+   * Maximum duration of this activity invocation in milliseconds.
+   * No SDK-wide default — choose a value suitable for the provider and job.
+   * Composed with {@link abortSignal}; the first abort wins.
+   */
+  timeout?: number
+  /**
+   * Caller cancellation signal (request disconnects, job/runtime cancellation).
+   * Composed with {@link timeout} into an effective signal forwarded to the
+   * adapter. Request-specific — not stored on global provider client config.
+   */
+  abortSignal?: AbortSignal
 } & ({} extends EmbedProviderOptionsForModel<TAdapter, TAdapter['model']>
   ? {
       /** Provider-specific options for embedding generation */ modelOptions?: EmbedProviderOptionsForModel<
@@ -208,9 +226,14 @@ export async function embed<
     : [options.input]
   const { textInputCount, imageInputCount } =
     countEmbeddingInputModalities(inputItems)
+  const abortControls = createActivityAbortControls({
+    timeout: options.timeout,
+    abortSignal: options.abortSignal,
+  })
 
   const mwCtx = createGenerationContext({
     requestId,
+    signal: abortControls.signal,
     activity: 'embedding',
     provider: adapter.name,
     model,
@@ -218,7 +241,10 @@ export async function embed<
     createId,
   })
 
-  await runGenerationStart(middleware, mwCtx)
+  await runGenerationStart(middleware, mwCtx).catch((error: unknown) => {
+    abortControls.clear()
+    throw error
+  })
 
   aiEventClient.emit('embedding:request:started', {
     requestId,
@@ -238,13 +264,18 @@ export async function embed<
   })
 
   try {
-    const result = await adapter.createEmbeddings({
-      model,
-      input: inputItems,
-      dimensions: options.dimensions,
-      modelOptions,
-      logger,
-    })
+    const result = await raceWithAbort(
+      adapter.createEmbeddings({
+        model,
+        input: inputItems,
+        dimensions: options.dimensions,
+        modelOptions,
+        logger,
+        ...(abortControls.signal ? { abortSignal: abortControls.signal } : {}),
+      }),
+      abortControls.signal,
+    )
+    abortControls.clear()
     const duration = Date.now() - startTime
 
     aiEventClient.emit('embedding:request:completed', {
@@ -278,6 +309,7 @@ export async function embed<
 
     return result
   } catch (error) {
+    abortControls.clear()
     const duration = Date.now() - startTime
     const err = error as Error
     aiEventClient.emit('embedding:request:error', {
@@ -289,10 +321,19 @@ export async function embed<
       modelOptions,
       timestamp: Date.now(),
     })
-    await runGenerationError(middleware, mwCtx, {
-      error,
-      duration,
-    })
+    // Only a real caller abort or timeout is an abort. A provider error named
+    // `TimeoutError` (for example a client-side fetch timeout) is an error.
+    if (abortControls.signal?.aborted) {
+      await runGenerationAbort(middleware, mwCtx, {
+        reason: abortReasonMessage(error, abortControls.signal),
+        duration,
+      })
+    } else {
+      await runGenerationError(middleware, mwCtx, {
+        error,
+        duration,
+      })
+    }
     logger.errors('embed activity failed', {
       error,
       source: 'embed',

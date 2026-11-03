@@ -33,14 +33,18 @@ export interface HindsightClientLike {
   retain: (
     bankId: string,
     text: string,
-    opts: { context: string; timestamp: Date },
+    opts: { context: string; timestamp: Date; signal?: AbortSignal },
   ) => Promise<unknown>
   recall: (
     bankId: string,
     query: string,
-    opts: { budget: string },
+    opts: { budget: string; signal?: AbortSignal },
   ) => Promise<HindsightRecallResponse>
-  reflect: (bankId: string, query: string) => Promise<{ text?: string }>
+  reflect: (
+    bankId: string,
+    query: string,
+    opts?: { signal?: AbortSignal },
+  ) => Promise<{ text?: string }>
   listMemories: (
     bankId: string,
     opts: { limit: number },
@@ -150,7 +154,8 @@ export function hindsight(options: HindsightOptions = {}): MemoryAdapter {
       ])
     },
 
-    async recall(scope, query): Promise<RecallResult> {
+    async recall(scope, query, recallOptions): Promise<RecallResult> {
+      const signal = recallOptions?.signal
       const bank = bankId(scope)
       const tools = makeHindsightTools({
         getRuntime,
@@ -161,7 +166,10 @@ export function hindsight(options: HindsightOptions = {}): MemoryAdapter {
       })
       try {
         const { client, recallToPrompt } = await getRuntime()
-        const data = await client.recall(bank, query, { budget })
+        const data = await client.recall(bank, query, {
+          budget,
+          ...(signal && { signal }),
+        })
         const fragments: Array<MemoryFragment> = (data.results ?? []).map(
           (r) => ({
             text: r.text,

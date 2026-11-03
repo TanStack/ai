@@ -3,7 +3,7 @@ id: ThinkingPart
 title: ThinkingPart
 ---
 
-Defined in: packages/ai/src/types.ts:538
+Defined in: [packages/ai/src/types.ts:541](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L541)
 
 ## Properties
 
@@ -13,7 +13,7 @@ Defined in: packages/ai/src/types.ts:538
 content: string;
 ```
 
-Defined in: packages/ai/src/types.ts:540
+Defined in: [packages/ai/src/types.ts:543](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L543)
 
 ***
 
@@ -23,7 +23,7 @@ Defined in: packages/ai/src/types.ts:540
 optional redacted?: boolean;
 ```
 
-Defined in: packages/ai/src/types.ts:555
+Defined in: [packages/ai/src/types.ts:558](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L558)
 
 The provider encrypted this thinking block (Anthropic `redacted_thinking`).
 `content` is empty, and `signature` holds the opaque data that goes back
@@ -38,7 +38,7 @@ starts with `redacted_thinking-` instead.
 optional signature?: string;
 ```
 
-Defined in: packages/ai/src/types.ts:548
+Defined in: [packages/ai/src/types.ts:551](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L551)
 
 The provider's opaque reasoning artefact, sent back unchanged: an
 Anthropic signature, Anthropic redacted data, or OpenAI encrypted content.
@@ -53,7 +53,7 @@ Renaming breaks stored messages, so it needs a read shim for `signature`.
 optional stepId?: string;
 ```
 
-Defined in: packages/ai/src/types.ts:541
+Defined in: [packages/ai/src/types.ts:544](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L544)
 
 ***
 
@@ -63,4 +63,4 @@ Defined in: packages/ai/src/types.ts:541
 type: "thinking";
 ```
 
-Defined in: packages/ai/src/types.ts:539
+Defined in: [packages/ai/src/types.ts:542](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L542)

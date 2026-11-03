@@ -98,6 +98,7 @@ export class GeminiAudioAdapter<
         config: {
           responseModalities: ['AUDIO', 'TEXT'],
           ...(modelOptions?.seed != null ? { seed: modelOptions.seed } : {}),
+          ...(options.abortSignal && { abortSignal: options.abortSignal }),
         },
       })
 

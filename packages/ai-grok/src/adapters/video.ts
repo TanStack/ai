@@ -269,6 +269,7 @@ export class GrokVideoAdapter<
         size,
         genericDuration: options.duration,
         logger,
+        signal: options.abortSignal,
       })
     }
 
@@ -410,6 +411,7 @@ export class GrokVideoAdapter<
       model,
       logger,
       logLine: `activity=video.create provider=${this.name} model=${model} mode=generate size=${size ?? 'default'} duration=${duration ?? 'default'}`,
+      signal: options.abortSignal,
     })
   }
 
@@ -430,6 +432,7 @@ export class GrokVideoAdapter<
     size: string | undefined
     genericDuration: number | undefined
     logger: VideoGenerationOptions<GrokVideoRuntimeOptions>['logger']
+    signal: AbortSignal | undefined
   }): Promise<VideoJobResult> {
     const { model, mode, sourceVideo, resolved, wireOptions, logger } = args
     const endpoint = mode === 'edit' ? '/videos/edits' : '/videos/extensions'
@@ -493,6 +496,7 @@ export class GrokVideoAdapter<
       model,
       logger,
       logLine: `activity=video.create provider=${this.name} model=${model} mode=${mode} duration=${duration ?? 'default'}`,
+      signal: args.signal,
     })
   }
 
@@ -508,15 +512,17 @@ export class GrokVideoAdapter<
       model: string
       logger: VideoGenerationOptions<GrokVideoRuntimeOptions>['logger']
       logLine: string
+      signal: AbortSignal | undefined
     },
   ): Promise<VideoJobResult> {
-    const { model, logger, logLine } = context
+    const { model, logger, logLine, signal } = context
     try {
       logger.request(logLine, { provider: this.name, model })
 
       const response = await this.request(endpoint, {
         method: 'POST',
         body: JSON.stringify(request),
+        signal,
       })
       if (!response.ok) {
         throw new Error(
@@ -538,8 +544,14 @@ export class GrokVideoAdapter<
     }
   }
 
-  private async retrieveJob(jobId: string): Promise<GrokVideoStatusResponse> {
-    const response = await this.request(`/videos/${jobId}`)
+  private async retrieveJob(
+    jobId: string,
+    signal?: AbortSignal,
+  ): Promise<GrokVideoStatusResponse> {
+    const response = await this.request(
+      `/videos/${jobId}`,
+      signal && { signal },
+    )
     if (!response.ok) {
       const error = new Error(
         `grok: video status request failed (${response.status} ${response.statusText}): ${await this.errorMessage(response)}`,
@@ -550,10 +562,13 @@ export class GrokVideoAdapter<
     return (await response.json()) as GrokVideoStatusResponse
   }
 
-  async getVideoStatus(jobId: string): Promise<VideoStatusResult> {
+  async getVideoStatus(
+    jobId: string,
+    options?: { abortSignal?: AbortSignal },
+  ): Promise<VideoStatusResult> {
     let response: GrokVideoStatusResponse
     try {
-      response = await this.retrieveJob(jobId)
+      response = await this.retrieveJob(jobId, options?.abortSignal)
     } catch (error) {
       if ((error as { status?: number }).status === 404) {
         return { jobId, status: 'failed', error: 'Job not found' }
@@ -569,10 +584,13 @@ export class GrokVideoAdapter<
     }
   }
 
-  override async getVideo(jobId: string): Promise<VideoUrlResult> {
+  override async getVideo(
+    jobId: string,
+    options?: { abortSignal?: AbortSignal },
+  ): Promise<VideoUrlResult> {
     let response: GrokVideoStatusResponse
     try {
-      response = await this.retrieveJob(jobId)
+      response = await this.retrieveJob(jobId, options?.abortSignal)
     } catch (error) {
       if ((error as { status?: number }).status === 404) {
         throw new Error(`Video job not found: ${jobId}`)
