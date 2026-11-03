@@ -28,6 +28,9 @@ export interface CohereEmbeddingConfig extends CohereClientConfig {}
 
 const DEFAULT_TIMEOUT_MS = 30_000
 
+/** Cohere v2/embed accepts at most 96 inputs per request. */
+const COHERE_MAX_BATCH_SIZE = 96
+
 /**
  * Returns true when `url` is malformed, non-http(s), or targets a private /
  * loopback / link-local host. Used to block SSRF via `allowUrlFetch`.
@@ -116,7 +119,8 @@ interface CohereEmbedResponse {
  * SDK dependency.
  *
  * Features:
- * - Batch embedding (one request for the whole input array)
+ * - Batch embedding (the input array is sent in requests of at most 96
+ *   inputs, the v2/embed per-request limit, and the results are merged)
  * - Multimodal inputs: text, images, and fused text+image items (one vector
  *   per input item)
  * - Matryoshka dimension reduction via the top-level `dimensions` option
@@ -173,75 +177,94 @@ export class CohereEmbeddingAdapter<
         }),
       )
 
-      // embedding_types is pinned to ['float'] (overriding any disagreeing
-      // modelOptions.embeddingTypes) so vectors are always number[].
-      const body: CohereEmbedRequestBody = {
-        model,
-        inputs,
-        input_type: inputType,
-        embedding_types: ['float'],
-      }
-      const truncate = modelOptions?.truncate
-      if (truncate !== undefined) {
-        body.truncate = truncate
-      }
-      if (options.dimensions !== undefined) {
-        body.output_dimension = options.dimensions
-      }
-
-      logger.request(
-        `activity=embed provider=${this.name} model=${model} inputs=${inputs.length}`,
-        { provider: this.name, model },
-      )
-
       const timeoutMs = this.clientConfig.timeout ?? DEFAULT_TIMEOUT_MS
       const transport = resolveCohereTransport(this.clientConfig)
-      const response = await fetchWithTimeout(
-        `${transport.baseUrl}/v2/embed`,
-        {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${this.clientConfig.apiKey}`,
-            'Content-Type': 'application/json',
-            ...transport.headers,
-          },
-          body: JSON.stringify(body),
-          ...(options.abortSignal && { signal: options.abortSignal }),
-        },
-        timeoutMs,
-      )
 
-      if (!response.ok) {
-        const bodyText = await response.text()
-        let message = bodyText
-        try {
-          const parsed: unknown = JSON.parse(bodyText)
-          if (
-            typeof parsed === 'object' &&
-            parsed !== null &&
-            'message' in parsed &&
-            typeof parsed.message === 'string'
-          ) {
-            message = parsed.message
-          }
-        } catch {
-          // Not JSON — fall back to the raw body text.
+      const vectors: Array<Array<number>> = []
+      let inputTokens: number | undefined
+      for (
+        let start = 0;
+        start < inputs.length;
+        start += COHERE_MAX_BATCH_SIZE
+      ) {
+        const batch = inputs.slice(start, start + COHERE_MAX_BATCH_SIZE)
+
+        // embedding_types is pinned to ['float'] (overriding any disagreeing
+        // modelOptions.embeddingTypes) so vectors are always number[].
+        const body: CohereEmbedRequestBody = {
+          model,
+          inputs: batch,
+          input_type: inputType,
+          embedding_types: ['float'],
         }
-        throw new Error(`Cohere embed failed (${response.status}): ${message}`)
-      }
+        const truncate = modelOptions?.truncate
+        if (truncate !== undefined) {
+          body.truncate = truncate
+        }
+        if (options.dimensions !== undefined) {
+          body.output_dimension = options.dimensions
+        }
 
-      const data = (await response.json()) as CohereEmbedResponse
+        logger.request(
+          `activity=embed provider=${this.name} model=${model} inputs=${batch.length}`,
+          { provider: this.name, model },
+        )
 
-      const vectors = data.embeddings?.float
-      if (!vectors) {
-        throw new Error(
-          'Cohere embed response did not include float embeddings',
+        const response = await fetchWithTimeout(
+          `${transport.baseUrl}/v2/embed`,
+          {
+            method: 'POST',
+            headers: {
+              Authorization: `Bearer ${this.clientConfig.apiKey}`,
+              'Content-Type': 'application/json',
+              ...transport.headers,
+            },
+            body: JSON.stringify(body),
+            ...(options.abortSignal && { signal: options.abortSignal }),
+          },
+          timeoutMs,
         )
-      }
-      if (vectors.length !== inputs.length) {
-        throw new Error(
-          `Cohere embed returned ${vectors.length} embeddings for ${inputs.length} inputs`,
-        )
+
+        if (!response.ok) {
+          const bodyText = await response.text()
+          let message = bodyText
+          try {
+            const parsed: unknown = JSON.parse(bodyText)
+            if (
+              typeof parsed === 'object' &&
+              parsed !== null &&
+              'message' in parsed &&
+              typeof parsed.message === 'string'
+            ) {
+              message = parsed.message
+            }
+          } catch {
+            // Not JSON — fall back to the raw body text.
+          }
+          throw new Error(
+            `Cohere embed failed (${response.status}): ${message}`,
+          )
+        }
+
+        const data = (await response.json()) as CohereEmbedResponse
+
+        const batchVectors = data.embeddings?.float
+        if (!batchVectors) {
+          throw new Error(
+            'Cohere embed response did not include float embeddings',
+          )
+        }
+        if (batchVectors.length !== batch.length) {
+          throw new Error(
+            `Cohere embed returned ${batchVectors.length} embeddings for ${batch.length} inputs`,
+          )
+        }
+        vectors.push(...batchVectors)
+
+        const batchTokens = data.meta?.billed_units?.input_tokens
+        if (batchTokens !== undefined) {
+          inputTokens = (inputTokens ?? 0) + batchTokens
+        }
       }
 
       const result: EmbeddingResult = {
@@ -250,7 +273,6 @@ export class CohereEmbeddingAdapter<
         embeddings: vectors.map((vector, index) => ({ vector, index })),
       }
 
-      const inputTokens = data.meta?.billed_units?.input_tokens
       if (inputTokens !== undefined) {
         const usage: TokenUsage = {
           promptTokens: inputTokens,
