@@ -26,6 +26,16 @@ export interface SandboxComputerOptions {
   provider: SandboxProvider
   /** The screen size in pixels. The default is `{ width: 1024, height: 768 }`. */
   display?: { width: number; height: number }
+  /**
+   * Keep the sandbox of each thread, and reconnect to it later. Store the ids
+   * where your threads persist. With this option, the driver does not destroy
+   * a sandbox when its thread closes or goes idle. The provider timeout
+   * pauses or removes it, like E2B `onTimeout: 'pause'`.
+   */
+  sandboxIds?: {
+    get: (threadId: string) => Promise<string | undefined>
+    set: (threadId: string, sandboxId: string) => Promise<void>
+  }
 }
 
 const DEFAULT_DISPLAY = { width: 1024, height: 768 }
@@ -252,7 +262,8 @@ export async function createSandboxComputerDriver({
  *
  * Each sandbox comes from `provider.create`. When `createComputerUse` closes
  * a thread, or the thread goes idle, the sandbox of that thread is
- * destroyed. The drivers have `cursorPosition`. They have no `zoom` and no
+ * destroyed. With `sandboxIds`, the sandbox is kept, and the next call of the
+ * thread reconnects to it with `provider.resume`. The drivers have `cursorPosition`. They have no `zoom` and no
  * `navigate`, because a desktop has no address. The model opens the browser
  * on the desktop.
  *
@@ -266,13 +277,32 @@ export async function createSandboxComputerDriver({
 export function sandboxComputer({
   provider,
   display = DEFAULT_DISPLAY,
+  sandboxIds,
 }: SandboxComputerOptions) {
+  /** The sandbox of the thread: its stored sandbox, when it still exists, or a new one. */
+  async function open(threadId: string, signal: AbortSignal | undefined) {
+    const id = await sandboxIds?.get(threadId)
+    const resumed =
+      id === undefined
+        ? null
+        : await provider.resume(signal ? { id, signal } : { id })
+    if (resumed) return { sandbox: resumed, isNew: false }
+    const sandbox = await provider.create(signal ? { signal } : {})
+    try {
+      await sandboxIds?.set(threadId, sandbox.id)
+    } catch (error) {
+      await destroyAfterFailure(sandbox)
+      throw error
+    }
+    return { sandbox, isNew: true }
+  }
+
   const factory: ComputerDriverFactory = {
     display,
     environment: 'linux',
     capabilities: { zoom: false, cursorPosition: true, navigate: false },
-    async create({ signal }) {
-      const sandbox = await provider.create(signal ? { signal } : {})
+    async create({ threadId, signal }) {
+      const { sandbox, isNew } = await open(threadId, signal)
       try {
         const driver = await createSandboxComputerDriver({
           sandbox,
@@ -285,18 +315,26 @@ export function sandboxComputer({
             `The sandbox display is ${width}x${height}, not ${display.width}x${display.height}. Set display to the size of the running display.`,
           )
         }
+        // A kept sandbox outlives its thread. The provider timeout ends it.
+        if (sandboxIds) return driver
         return { ...driver, close: () => sandbox.destroy() }
       } catch (error) {
-        // Keep the setup error. A failed destroy does not replace it.
-        await sandbox.destroy().catch((destroyError: unknown) => {
-          console.error(
-            'Failed to destroy the sandbox after setup failed.',
-            destroyError,
-          )
-        })
+        // A kept sandbox holds the state of the thread, like a signed-in
+        // browser. Keep it, so the next call of the thread tries it again.
+        if (isNew) await destroyAfterFailure(sandbox)
         throw error
       }
     },
   }
   return factory
+}
+
+/** Destroy a sandbox after a setup error. A failed destroy does not replace that error. */
+async function destroyAfterFailure(sandbox: SandboxHandle) {
+  await sandbox.destroy().catch((destroyError: unknown) => {
+    console.error(
+      'Failed to destroy the sandbox after setup failed.',
+      destroyError,
+    )
+  })
 }

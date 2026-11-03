@@ -66,6 +66,25 @@ RUN apt-get update && apt-get install -y xvfb xdotool scrot x11-utils
 
 When a tool is missing, the driver throws an error with its name.
 
+## Keep the desktop for later
+
+Give `sandboxComputer()` a `sandboxIds` store, and set the provider to pause the sandbox. A user who comes back to a thread later gets the same desktop.
+
+```typescript
+const computerUse = createComputerUse({
+  driver: sandboxComputer({
+    provider: e2bSandbox({ template: 'desktop', onTimeout: 'pause' }),
+    sandboxIds: {
+      get: (threadId) => db.getSandboxId(threadId),
+      set: (threadId, sandboxId) => db.setSandboxId(threadId, sandboxId),
+    },
+  }),
+})
+```
+
+- A later call of the thread reconnects with `provider.resume`. If the sandbox is gone, the driver creates a new one and stores its id.
+- The driver never destroys a kept sandbox. The provider timeout pauses or removes it.
+
 ## Share one sandbox
 
 To drive a sandbox that you already have, use `createSandboxComputerDriver`. Every thread shares this sandbox, so it serves one conversation at a time.

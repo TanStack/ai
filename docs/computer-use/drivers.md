@@ -130,11 +130,12 @@ const computerUse = createComputerUse({
 
 - `provider`: the sandbox provider. It makes one sandbox for each thread.
 - `display`: the screen size of each desktop in pixels. The default is 1024 x 768.
+- `sandboxIds`: keep the desktop of each thread and reconnect to it later. See [Keep the desktop for later](#keep-the-desktop-for-later).
 
 How the sandbox driver behaves:
 
 - There is no `navigate` tool, because a desktop has no address. The model opens the browser on the desktop.
-- When a thread closes or goes idle, `createComputerUse` destroys its sandbox.
+- When a thread closes or goes idle, `createComputerUse` destroys its sandbox, unless you set `sandboxIds`.
 - One scroll step is 100 pixels.
 - The driver quotes every key name and all typed text before they go to the shell.
 
@@ -154,6 +155,53 @@ RUN apt-get update && apt-get install -y xvfb xdotool scrot x11-utils
 ```
 
 If a tool is missing, the driver throws an error with its name.
+
+### Keep the desktop for later
+
+Give `sandboxComputer()` a `sandboxIds` store. A user who comes back to a thread a day later gets the same desktop, for example with the browser still signed in.
+
+1. Store one sandbox id for each thread, next to your threads.
+2. Set the provider to pause the sandbox, not to kill it. With E2B, use `onTimeout: 'pause'`.
+
+```ts
+import { createComputerUse } from '@tanstack/ai-computer-use'
+import { sandboxComputer } from '@tanstack/ai-computer-sandbox'
+import { e2bSandbox } from '@tanstack/ai-sandbox-e2b'
+
+declare const db: {
+  getSandboxId: (threadId: string) => Promise<string | undefined>
+  setSandboxId: (threadId: string, sandboxId: string) => Promise<void>
+}
+
+const computerUse = createComputerUse({
+  driver: sandboxComputer({
+    provider: e2bSandbox({
+      template: 'desktop',
+      timeoutMs: 15 * 60_000,
+      onTimeout: 'pause',
+    }),
+    sandboxIds: {
+      get: (threadId) => db.getSandboxId(threadId),
+      set: (threadId, sandboxId) => db.setSandboxId(threadId, sandboxId),
+    },
+  }),
+})
+```
+
+With `sandboxIds`, the driver works like this:
+
+- The first call of a thread creates a sandbox and stores its id.
+- A later call reconnects to that sandbox with `provider.resume`. If the sandbox is gone, the driver creates a new one and stores the new id.
+- The driver never destroys a kept sandbox. The provider timeout pauses or removes it.
+- If the setup of a reconnected sandbox fails, the driver keeps the sandbox and throws the error. The next call tries again.
+
+What each provider keeps:
+
+- E2B with `onTimeout: 'pause'` keeps the memory and the disk. Open apps come back as they were.
+- Docker keeps the container. A stopped container starts again with its disk, and the driver starts the display again.
+
+> [!WARNING]
+> A kept desktop holds what the user did in it, like signed-in browser sessions. Delete the sandbox when the user deletes the thread.
 
 Do you already have a desktop sandbox? See [Share one sandbox](#share-one-sandbox).
 

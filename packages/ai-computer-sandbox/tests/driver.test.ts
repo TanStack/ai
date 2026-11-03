@@ -21,6 +21,8 @@ interface FakeOptions {
   size?: string
 }
 
+let sandboxCount = 0
+
 /** A fake sandbox. Each command adds one line to `calls`, prefixed with `exec` or `spawn`. */
 function fakeSandbox({ running = true, missing = [], size }: FakeOptions = {}) {
   const calls: Array<string> = []
@@ -52,6 +54,7 @@ function fakeSandbox({ running = true, missing = [], size }: FakeOptions = {}) {
     calls.push('destroy')
   })
   const sandbox = {
+    id: `sbx-${++sandboxCount}`,
     process: { exec, spawn },
     destroy,
   } as unknown as SandboxHandle
@@ -66,7 +69,11 @@ async function setup() {
   return { driver, calls: fake.calls }
 }
 
-function fakeProvider(fakes: Array<ReturnType<typeof fakeSandbox>>) {
+/** A provider that hands out `fakes` in order, and resumes only the `alive` sandboxes. */
+function fakeProvider(
+  fakes: Array<ReturnType<typeof fakeSandbox>>,
+  alive: Array<ReturnType<typeof fakeSandbox>> = [],
+) {
   let next = 0
   const provider = {
     name: 'fake',
@@ -75,8 +82,24 @@ function fakeProvider(fakes: Array<ReturnType<typeof fakeSandbox>>) {
       if (!fake) throw new Error('no more sandboxes')
       return fake.sandbox
     }),
+    resume: vi.fn(
+      async ({ id }: { id: string }) =>
+        alive.find((fake) => fake.sandbox.id === id)?.sandbox ?? null,
+    ),
   } as unknown as SandboxProvider
   return provider
+}
+
+/** An in-memory `sandboxIds` store. */
+function memoryIds(initial: Record<string, string> = {}) {
+  const ids = new Map(Object.entries(initial))
+  return {
+    ids,
+    get: async (threadId: string) => ids.get(threadId),
+    set: async (threadId: string, sandboxId: string) => {
+      ids.set(threadId, sandboxId)
+    },
+  }
 }
 
 describe('createSandboxComputerDriver', () => {
@@ -285,6 +308,27 @@ describe('sandboxComputer', () => {
       expect.any(Error),
     )
     error.mockRestore()
+  })
+
+  it('with sandboxIds, resumes the stored sandbox and never destroys it', async () => {
+    const kept = fakeSandbox()
+    const provider = fakeProvider([], [kept])
+    const sandboxIds = memoryIds({ a: kept.sandbox.id })
+    const factory = sandboxComputer({ provider, sandboxIds })
+    const driver = await factory.create({ threadId: 'a' })
+    expect(provider.create).not.toHaveBeenCalled()
+    expect(driver.close).toBeUndefined()
+    expect(kept.destroy).not.toHaveBeenCalled()
+  })
+
+  it('with sandboxIds, creates and stores a sandbox when the stored one is gone', async () => {
+    const created = fakeSandbox()
+    const provider = fakeProvider([created])
+    const sandboxIds = memoryIds({ a: 'gone' })
+    const factory = sandboxComputer({ provider, sandboxIds })
+    await factory.create({ threadId: 'a' })
+    expect(provider.resume).toHaveBeenCalledWith({ id: 'gone' })
+    expect(sandboxIds.ids.get('a')).toBe(created.sandbox.id)
   })
 })
 
