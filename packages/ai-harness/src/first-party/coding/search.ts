@@ -95,17 +95,30 @@ async function bundledRg() {
   }
 }
 
+/**
+ * The `exec` wrappers of `hostBackend.exec` that give each command the
+ * signal of its tool call (see `withCallSignal`). They run on this host too.
+ */
+export const hostExecs = new WeakSet<WorkspaceBackend['exec']>()
+
 /** The command that starts rg on `backend`, or `undefined` without rg. */
 async function findRg(backend: WorkspaceBackend) {
   // The bundled binary is a host file. A sandbox cannot run it. A bound
   // workspace is a copy of `hostBackend` with a root, so compare `exec`.
-  if (backend.exec === hostBackend.exec) {
+  if (backend.exec === hostBackend.exec || hostExecs.has(backend.exec)) {
     const bundled = await bundledRg()
     if (bundled !== undefined) return quoteArg(bundled, process.platform)
   }
-  const probe = await backend.exec('rg --version', { timeoutMs: TIMEOUT_MS })
+  // Every later call reuses this result, so the probe does not take the
+  // signal of the call that runs it: an aborted call would cache "no rg".
+  const probe = await backend.exec('rg --version', {
+    timeoutMs: TIMEOUT_MS,
+    signal: NEVER_ABORTS,
+  })
   return probe.exitCode === 0 ? 'rg' : undefined
 }
+
+const NEVER_ABORTS = new AbortController().signal
 
 /** Run an rg command in `cwd`, and give its output. */
 async function runRg(backend: WorkspaceBackend, command: string, cwd: string) {
@@ -426,7 +439,9 @@ export function searchTools(env: ToolEnv) {
         },
       },
       replay: 'safe',
-    }).server(async (args: unknown) => {
+    }).server(async (args: unknown, context) => {
+      // An aborted call starts no search work, not even the shared rg probe.
+      context?.abortSignal?.throwIfAborted()
       const base = await env.reach(
         optionalString(args, 'path') ?? '.',
         'list_files',
@@ -434,6 +449,9 @@ export function searchTools(env: ToolEnv) {
       )
       const isWanted = globMatcher(optionalString(args, 'pattern'))
       const { files, partial } = await filesUnder(base)
+      // A stopped command ends with a failure code, which can read as "no
+      // files". An aborted search is not a result.
+      context?.abortSignal?.throwIfAborted()
       const listed = files.filter(isWanted)
       const shown = listed
         .slice(0, MAX_FILES)
@@ -459,7 +477,8 @@ export function searchTools(env: ToolEnv) {
         required: ['pattern'],
       },
       replay: 'safe',
-    }).server(async (args: unknown) => {
+    }).server(async (args: unknown, context) => {
+      context?.abortSignal?.throwIfAborted()
       const pattern = stringArg(args, 'pattern')
       if (/[\r\n]/.test(pattern)) {
         throw new Error('The pattern must be one line. grep tests each line.')
@@ -480,6 +499,7 @@ export function searchTools(env: ToolEnv) {
         partial,
         files: listed,
       } = await grepUnder(base, pattern, isWanted, isProtected !== undefined)
+      context?.abortSignal?.throwIfAborted()
       // The note counts the protected files in the list, not in the hits,
       // so it does not tell whether a protected file has the pattern.
       const skipped = isProtected

@@ -141,7 +141,7 @@ Code Mode rejects tools that need approval. A tool marked `needsApproval: true` 
 
 ### Stop tool calls when the run stops
 
-When a user stops a chat run, a tool call that the sandbox started keeps going, unless the tool listens for the abort. Each `external_*` call gets the `abortSignal` of the chat run in its second argument. Pass it to the slow work:
+When a user stops a chat run, Code Mode disposes the isolate. With the Node and E2B drivers the program stops at once. With other drivers, the running code can continue until it ends or until its timeout. A tool call that the program started keeps going, unless the tool listens for the abort. Each `external_*` call gets the `abortSignal` of the chat run in its second argument. Pass it to the slow work:
 
 ```typescript
 import { toolDefinition } from "@tanstack/ai";

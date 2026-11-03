@@ -216,6 +216,35 @@ export function createCodeModeTool(
       let isolateContext: IsolateContext | null = null
       // Aborts when this program ends, so a host call that still waits can stop.
       const programEnd = new AbortController()
+      // An abort of the run ends the program: a call that waits (for example
+      // for an approval) stops, and the isolate is disposed. How fast running
+      // code stops depends on the driver.
+      const runSignal = toolContext?.abortSignal
+      let disposing: Promise<void> | undefined
+      const disposeContext = () => {
+        if (isolateContext && !disposing) {
+          disposing = isolateContext.dispose()
+          // Marked as seen; the finally block still awaits it.
+          disposing.catch(() => {})
+        }
+        return disposing
+      }
+      const onRunAbort = () => {
+        programEnd.abort()
+        void disposeContext()
+      }
+      runSignal?.addEventListener('abort', onRunAbort, { once: true })
+      const abortedBeforeRun = () =>
+        finish(
+          {
+            success: false,
+            error: {
+              message: 'The run was aborted before the code ran',
+              name: 'AbortError',
+            },
+          },
+          'create-context',
+        )
 
       // Emit execution started event immediately
       emitCustomEvent('code_mode:execution_started', {
@@ -245,6 +274,9 @@ export function createCodeModeTool(
           )
         }
 
+        // An abort that came while the code was transpiled: load no snippets.
+        if (runSignal?.aborted) return abortedBeforeRun()
+
         // Step 2: Get dynamic snippet bindings if available
         const snippetBindings = getSnippetBindings
           ? await getSnippetBindings()
@@ -271,6 +303,9 @@ export function createCodeModeTool(
           aroundCalls?.(toolContext, programEnd.signal),
         )
 
+        // An abort that came while the snippets loaded: make no context.
+        if (runSignal?.aborted) return abortedBeforeRun()
+
         // Step 4: Create sandbox context with event-aware bindings
         try {
           isolateContext = await driver.createContext({
@@ -292,6 +327,12 @@ export function createCodeModeTool(
             },
             'create-context',
           )
+        }
+
+        // An abort that came while the context was made: do not run the code.
+        if (runSignal?.aborted) {
+          onRunAbort()
+          return abortedBeforeRun()
         }
 
         // Step 5: Execute the code in the sandbox
@@ -364,12 +405,11 @@ export function createCodeModeTool(
           'unhandled',
         )
       } finally {
+        runSignal?.removeEventListener('abort', onRunAbort)
         // The program has ended (success, error, or timeout).
         programEnd.abort()
         // Always clean up the sandbox context
-        if (isolateContext) {
-          await isolateContext.dispose()
-        }
+        await disposeContext()
       }
     },
   )

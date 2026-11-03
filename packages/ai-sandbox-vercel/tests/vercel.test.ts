@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { APIError } from '@vercel/sandbox'
+import { APIError, Sandbox as VercelSandbox } from '@vercel/sandbox'
 import { journalReadStrategy } from '@tanstack/ai-sandbox'
 import { vercelSandbox } from '../src/index'
 import { isDirAlreadyExistsError } from '../src/provider'
@@ -195,4 +195,50 @@ describe.skipIf(!hasCreds)('vercel provider (gated on VERCEL_TOKEN)', () => {
       await sbx?.destroy()
     }
   }, 180_000)
+})
+
+describe('vercelSandbox create abort', () => {
+  it('stops a sandbox that comes after the abort', async () => {
+    const abort = new AbortController()
+    const stop = vi.fn(() => Promise.resolve())
+    const create = vi
+      .spyOn(VercelSandbox, 'create')
+      .mockImplementation(async () => {
+        abort.abort()
+        return { name: 'sbx-late', mkDir: async () => {}, stop } as never
+      })
+    try {
+      const provider = vercelSandbox({
+        token: 't',
+        teamId: 't',
+        projectId: 'p',
+      })
+      await expect(provider.create({ signal: abort.signal })).rejects.toThrow()
+      expect(stop).toHaveBeenCalledOnce()
+    } finally {
+      create.mockRestore()
+    }
+  })
+
+  it('stops the sandbox when the abort comes while its workdir is made', async () => {
+    const abort = new AbortController()
+    const stop = vi.fn(() => Promise.resolve())
+    const mkDir = vi.fn(async () => {
+      abort.abort()
+    })
+    const create = vi
+      .spyOn(VercelSandbox, 'create')
+      .mockResolvedValue({ name: 'sbx-setup', mkDir, stop } as never)
+    try {
+      const provider = vercelSandbox({
+        token: 't',
+        teamId: 't',
+        projectId: 'p',
+      })
+      await expect(provider.create({ signal: abort.signal })).rejects.toThrow()
+      expect(stop).toHaveBeenCalledOnce()
+    } finally {
+      create.mockRestore()
+    }
+  })
 })

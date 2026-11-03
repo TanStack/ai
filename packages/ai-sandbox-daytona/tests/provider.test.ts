@@ -413,3 +413,46 @@ describe('daytonaSandbox create', () => {
     expect(provider.capabilities().networkPolicy).toBe(true)
   })
 })
+
+describe('daytonaSandbox abort', () => {
+  it.each(['create', 'restoreSnapshot'] as const)(
+    '%s deletes a sandbox that comes after the abort',
+    async (method) => {
+      const abort = new AbortController()
+      const late = fakeRemoteSandbox('sbx-late')
+      create.mockImplementation(async () => {
+        abort.abort()
+        return late
+      })
+      del.mockResolvedValue(undefined)
+      const provider = daytonaSandbox({ apiKey: 'test-key' })
+
+      const made =
+        method === 'create'
+          ? provider.create({ signal: abort.signal })
+          : provider.restoreSnapshot!({
+              snapshotId: 'snap-1',
+              signal: abort.signal,
+            })
+
+      await expect(made).rejects.toThrow()
+      expect(del).toHaveBeenCalledWith(late)
+    },
+  )
+
+  it('deletes the sandbox when the abort comes while its workdir is made', async () => {
+    const abort = new AbortController()
+    const sandbox = fakeRemoteSandbox('sbx-setup', {
+      executeCommand: vi.fn(async () => {
+        abort.abort()
+        return { result: '', exitCode: 0 }
+      }),
+    })
+    create.mockResolvedValue(sandbox)
+    del.mockResolvedValue(undefined)
+    const provider = daytonaSandbox({ apiKey: 'test-key' })
+
+    await expect(provider.create({ signal: abort.signal })).rejects.toThrow()
+    expect(del).toHaveBeenCalledWith(sandbox)
+  })
+})

@@ -113,6 +113,21 @@ describe('createSnapshotTools', () => {
     expect(provider.calls).toMatchObject({ create: 0, resume: 1 })
   })
 
+  it('gives the abort signal of the call to the save', async () => {
+    const { snapshots } = await liveSnapshots()
+    const save = vi.fn(snapshots.save)
+    const tool = toolsFor({ ...snapshots, save }).find(
+      (candidate) => candidate.name === 'save_sandbox_snapshot',
+    )
+    if (tool?.execute === undefined) throw new Error('Missing save tool')
+    const { signal } = new AbortController()
+    await tool.execute(
+      { label: 'release-1' },
+      { abortSignal: signal, emitCustomEvent: () => undefined },
+    )
+    expect(save).toHaveBeenCalledWith(expect.objectContaining({ signal }))
+  })
+
   it('rejects save while this thread already has a writer', async () => {
     const { snapshots } = await liveSnapshots()
     const writer = await snapshots.checkpoints.acquireWriter(THREAD)
