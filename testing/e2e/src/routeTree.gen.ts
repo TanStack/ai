@@ -45,6 +45,7 @@ import { Route as SubagentsUiTestRouteImport } from './routes/subagents-ui-test'
 import { Route as TextFirstToolRouteImport } from './routes/text-first-tool'
 import { Route as ToolFirstTextRouteImport } from './routes/tool-first-text'
 import { Route as ToolsTestRouteImport } from './routes/tools-test'
+import { Route as UseChatHiddenViewRouteImport } from './routes/use-chat-hidden-view'
 import { Route as WebMcpPageToolsRouteImport } from './routes/web-mcp-page-tools'
 import { Route as WebMcpToolsRouteImport } from './routes/web-mcp-tools'
 import { Route as WebsocketAdapterRouteImport } from './routes/websocket-adapter'
@@ -195,6 +196,7 @@ import { Route as ApiToolFirstTextWireRouteImport } from './routes/api.tool-firs
 import { Route as ApiToolsTestRouteImport } from './routes/api.tools-test'
 import { Route as ApiTranscriptionRouteImport } from './routes/api.transcription'
 import { Route as ApiTtsRouteImport } from './routes/api.tts'
+import { Route as ApiUseChatHiddenViewRouteImport } from './routes/api.use-chat-hidden-view'
 import { Route as ApiVideoRouteImport } from './routes/api.video'
 import { Route as ApiVideoLiveRouteImport } from './routes/api.video-live'
 import { Route as ApiVoiceRouteImport } from './routes/api.voice'
@@ -393,6 +395,11 @@ const ToolFirstTextRoute = ToolFirstTextRouteImport.update({
 const ToolsTestRoute = ToolsTestRouteImport.update({
   id: '/tools-test',
   path: '/tools-test',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const UseChatHiddenViewRoute = UseChatHiddenViewRouteImport.update({
+  id: '/use-chat-hidden-view',
+  path: '/use-chat-hidden-view',
   getParentRoute: () => rootRouteImport,
 } as any)
 const WebMcpPageToolsRoute = WebMcpPageToolsRouteImport.update({
@@ -1190,6 +1197,11 @@ const ApiTtsRoute = ApiTtsRouteImport.update({
   path: '/api/tts',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiUseChatHiddenViewRoute = ApiUseChatHiddenViewRouteImport.update({
+  id: '/api/use-chat-hidden-view',
+  path: '/api/use-chat-hidden-view',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiVideoRoute = ApiVideoRouteImport.update({
   id: '/api/video',
   path: '/api/video',
@@ -1310,6 +1322,7 @@ export interface FileRoutesByFullPath {
   '/text-first-tool': typeof TextFirstToolRoute
   '/tool-first-text': typeof ToolFirstTextRoute
   '/tools-test': typeof ToolsTestRoute
+  '/use-chat-hidden-view': typeof UseChatHiddenViewRoute
   '/web-mcp-page-tools': typeof WebMcpPageToolsRoute
   '/web-mcp-tools': typeof WebMcpToolsRoute
   '/websocket-adapter': typeof WebsocketAdapterRoute
@@ -1459,6 +1472,7 @@ export interface FileRoutesByFullPath {
   '/api/tools-test': typeof ApiToolsTestRoute
   '/api/transcription': typeof ApiTranscriptionRouteWithChildren
   '/api/tts': typeof ApiTtsRouteWithChildren
+  '/api/use-chat-hidden-view': typeof ApiUseChatHiddenViewRoute
   '/api/video': typeof ApiVideoRouteWithChildren
   '/api/video-live': typeof ApiVideoLiveRoute
   '/api/voice': typeof ApiVoiceRoute
@@ -1514,6 +1528,7 @@ export interface FileRoutesByTo {
   '/text-first-tool': typeof TextFirstToolRoute
   '/tool-first-text': typeof ToolFirstTextRoute
   '/tools-test': typeof ToolsTestRoute
+  '/use-chat-hidden-view': typeof UseChatHiddenViewRoute
   '/web-mcp-page-tools': typeof WebMcpPageToolsRoute
   '/web-mcp-tools': typeof WebMcpToolsRoute
   '/websocket-adapter': typeof WebsocketAdapterRoute
@@ -1663,6 +1678,7 @@ export interface FileRoutesByTo {
   '/api/tools-test': typeof ApiToolsTestRoute
   '/api/transcription': typeof ApiTranscriptionRouteWithChildren
   '/api/tts': typeof ApiTtsRouteWithChildren
+  '/api/use-chat-hidden-view': typeof ApiUseChatHiddenViewRoute
   '/api/video': typeof ApiVideoRouteWithChildren
   '/api/video-live': typeof ApiVideoLiveRoute
   '/api/voice': typeof ApiVoiceRoute
@@ -1719,6 +1735,7 @@ export interface FileRoutesById {
   '/text-first-tool': typeof TextFirstToolRoute
   '/tool-first-text': typeof ToolFirstTextRoute
   '/tools-test': typeof ToolsTestRoute
+  '/use-chat-hidden-view': typeof UseChatHiddenViewRoute
   '/web-mcp-page-tools': typeof WebMcpPageToolsRoute
   '/web-mcp-tools': typeof WebMcpToolsRoute
   '/websocket-adapter': typeof WebsocketAdapterRoute
@@ -1868,6 +1885,7 @@ export interface FileRoutesById {
   '/api/tools-test': typeof ApiToolsTestRoute
   '/api/transcription': typeof ApiTranscriptionRouteWithChildren
   '/api/tts': typeof ApiTtsRouteWithChildren
+  '/api/use-chat-hidden-view': typeof ApiUseChatHiddenViewRoute
   '/api/video': typeof ApiVideoRouteWithChildren
   '/api/video-live': typeof ApiVideoLiveRoute
   '/api/voice': typeof ApiVoiceRoute
@@ -1925,6 +1943,7 @@ export interface FileRouteTypes {
     | '/text-first-tool'
     | '/tool-first-text'
     | '/tools-test'
+    | '/use-chat-hidden-view'
     | '/web-mcp-page-tools'
     | '/web-mcp-tools'
     | '/websocket-adapter'
@@ -2074,6 +2093,7 @@ export interface FileRouteTypes {
     | '/api/tools-test'
     | '/api/transcription'
     | '/api/tts'
+    | '/api/use-chat-hidden-view'
     | '/api/video'
     | '/api/video-live'
     | '/api/voice'
@@ -2129,6 +2149,7 @@ export interface FileRouteTypes {
     | '/text-first-tool'
     | '/tool-first-text'
     | '/tools-test'
+    | '/use-chat-hidden-view'
     | '/web-mcp-page-tools'
     | '/web-mcp-tools'
     | '/websocket-adapter'
@@ -2278,6 +2299,7 @@ export interface FileRouteTypes {
     | '/api/tools-test'
     | '/api/transcription'
     | '/api/tts'
+    | '/api/use-chat-hidden-view'
     | '/api/video'
     | '/api/video-live'
     | '/api/voice'
@@ -2333,6 +2355,7 @@ export interface FileRouteTypes {
     | '/text-first-tool'
     | '/tool-first-text'
     | '/tools-test'
+    | '/use-chat-hidden-view'
     | '/web-mcp-page-tools'
     | '/web-mcp-tools'
     | '/websocket-adapter'
@@ -2482,6 +2505,7 @@ export interface FileRouteTypes {
     | '/api/tools-test'
     | '/api/transcription'
     | '/api/tts'
+    | '/api/use-chat-hidden-view'
     | '/api/video'
     | '/api/video-live'
     | '/api/voice'
@@ -2538,6 +2562,7 @@ export interface RootRouteChildren {
   TextFirstToolRoute: typeof TextFirstToolRoute
   ToolFirstTextRoute: typeof ToolFirstTextRoute
   ToolsTestRoute: typeof ToolsTestRoute
+  UseChatHiddenViewRoute: typeof UseChatHiddenViewRoute
   WebMcpPageToolsRoute: typeof WebMcpPageToolsRoute
   WebMcpToolsRoute: typeof WebMcpToolsRoute
   WebsocketAdapterRoute: typeof WebsocketAdapterRoute
@@ -2687,6 +2712,7 @@ export interface RootRouteChildren {
   ApiToolsTestRoute: typeof ApiToolsTestRoute
   ApiTranscriptionRoute: typeof ApiTranscriptionRouteWithChildren
   ApiTtsRoute: typeof ApiTtsRouteWithChildren
+  ApiUseChatHiddenViewRoute: typeof ApiUseChatHiddenViewRoute
   ApiVideoRoute: typeof ApiVideoRouteWithChildren
   ApiVideoLiveRoute: typeof ApiVideoLiveRoute
   ApiVoiceRoute: typeof ApiVoiceRoute
@@ -2953,6 +2979,13 @@ declare module '@tanstack/react-router' {
       path: '/tools-test'
       fullPath: '/tools-test'
       preLoaderRoute: typeof ToolsTestRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/use-chat-hidden-view': {
+      id: '/use-chat-hidden-view'
+      path: '/use-chat-hidden-view'
+      fullPath: '/use-chat-hidden-view'
+      preLoaderRoute: typeof UseChatHiddenViewRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/web-mcp-page-tools': {
@@ -4005,6 +4038,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiTtsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/use-chat-hidden-view': {
+      id: '/api/use-chat-hidden-view'
+      path: '/api/use-chat-hidden-view'
+      fullPath: '/api/use-chat-hidden-view'
+      preLoaderRoute: typeof ApiUseChatHiddenViewRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/video': {
       id: '/api/video'
       path: '/api/video'
@@ -4215,6 +4255,7 @@ const rootRouteChildren: RootRouteChildren = {
   TextFirstToolRoute: TextFirstToolRoute,
   ToolFirstTextRoute: ToolFirstTextRoute,
   ToolsTestRoute: ToolsTestRoute,
+  UseChatHiddenViewRoute: UseChatHiddenViewRoute,
   WebMcpPageToolsRoute: WebMcpPageToolsRoute,
   WebMcpToolsRoute: WebMcpToolsRoute,
   WebsocketAdapterRoute: WebsocketAdapterRoute,
@@ -4370,6 +4411,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiToolsTestRoute: ApiToolsTestRoute,
   ApiTranscriptionRoute: ApiTranscriptionRouteWithChildren,
   ApiTtsRoute: ApiTtsRouteWithChildren,
+  ApiUseChatHiddenViewRoute: ApiUseChatHiddenViewRoute,
   ApiVideoRoute: ApiVideoRouteWithChildren,
   ApiVideoLiveRoute: ApiVideoLiveRoute,
   ApiVoiceRoute: ApiVoiceRoute,
