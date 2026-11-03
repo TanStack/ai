@@ -155,7 +155,9 @@ export class RealtimeClient {
           // A later connect() replaced this connection: close it. After
           // disconnect(), `this.connection` is null and it is closed already.
           if (this.connection && this.connection !== connection) {
-            await connection.disconnect()
+            // A failed close of the replaced connection is not an
+            // error of the live session.
+            await connection.disconnect().catch(() => {})
           }
           return
         }
@@ -482,18 +484,25 @@ export class RealtimeClient {
   }
 
   private subscribeToConnectionEvents(): void {
-    if (!this.connection) return
+    const connection = this.connection
+    if (!connection) return
+    // A later connect() can replace this connection. Its late events (such as
+    // `idle` from its disconnect) must not change the live session.
+    const on: RealtimeConnection['on'] = (event, handler) =>
+      connection.on(event, (payload) => {
+        if (this.connection === connection) handler(payload)
+      })
 
     // Status changes
     this.unsubscribers.push(
-      this.connection.on('status_change', ({ status }) => {
+      on('status_change', ({ status }) => {
         this.updateState({ status })
       }),
     )
 
     // Mode changes
     this.unsubscribers.push(
-      this.connection.on('mode_change', ({ mode }) => {
+      on('mode_change', ({ mode }) => {
         this.updateState({ mode })
       }),
     )
@@ -502,7 +511,7 @@ export class RealtimeClient {
     // User transcripts are added as messages when final (no separate message_complete for user input)
     // Assistant transcripts are streamed, final message comes via message_complete
     this.unsubscribers.push(
-      this.connection.on('transcript', ({ role, transcript, isFinal }) => {
+      on('transcript', ({ role, transcript, isFinal }) => {
         if (role === 'user') {
           this.updateState({
             pendingUserTranscript: isFinal ? null : transcript,
@@ -527,7 +536,7 @@ export class RealtimeClient {
 
     // Tool calls
     this.unsubscribers.push(
-      this.connection.on('tool_call', ({ toolCallId, toolName, input }) => {
+      on('tool_call', ({ toolCallId, toolName, input }) => {
         if (!toolCallId) {
           console.error(
             '[RealtimeClient] tool_call missing toolCallId',
@@ -567,7 +576,7 @@ export class RealtimeClient {
 
     // Message complete
     this.unsubscribers.push(
-      this.connection.on('message_complete', ({ message }) => {
+      on('message_complete', ({ message }) => {
         // Replace pending message with final version if needed
         const existingIndex = this.state.messages.findIndex(
           (m) => m.id === message.id,
@@ -584,7 +593,7 @@ export class RealtimeClient {
 
     // Interruption
     this.unsubscribers.push(
-      this.connection.on('interrupted', ({ messageId }) => {
+      on('interrupted', ({ messageId }) => {
         if (messageId) {
           const newMessages = this.state.messages.map((m) =>
             m.id === messageId ? { ...m, interrupted: true } : m,
@@ -601,20 +610,20 @@ export class RealtimeClient {
 
     // Errors
     this.unsubscribers.push(
-      this.connection.on('error', ({ error }) => {
+      on('error', ({ error }) => {
         this.updateState({ error })
         this.options.onError?.(error)
       }),
     )
 
     this.unsubscribers.push(
-      this.connection.on('go_away', ({ timeLeft }) => {
+      on('go_away', ({ timeLeft }) => {
         this.options.onGoAway?.(timeLeft)
       }),
     )
 
     this.unsubscribers.push(
-      this.connection.on('usage', (usage) => {
+      on('usage', (usage) => {
         this.options.onUsage?.(usage)
       }),
     )

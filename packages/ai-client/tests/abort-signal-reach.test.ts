@@ -157,6 +157,78 @@ describe("connection adapters follow the user's options.signal (L2)", () => {
   })
 })
 
+describe('ChatClient ends a user abort of options.signal like stop()', () => {
+  /** An SSE reply that sends some text, then waits until its signal aborts. */
+  const partialFetch = (() => (_url: RequestInfo | URL, init?: RequestInit) => {
+    const encoder = new TextEncoder()
+    const body = new ReadableStream({
+      start(controller) {
+        for (const event of [
+          { type: 'RUN_STARTED', ...RUN_CONTEXT, timestamp: 1 },
+          {
+            type: 'TEXT_MESSAGE_START',
+            messageId: 'm1',
+            role: 'assistant',
+            timestamp: 1,
+          },
+          {
+            type: 'TEXT_MESSAGE_CONTENT',
+            messageId: 'm1',
+            delta: 'Hel',
+            timestamp: 1,
+          },
+        ]) {
+          controller.enqueue(
+            encoder.encode(`data: ${JSON.stringify(event)}
+
+`),
+          )
+        }
+        init?.signal?.addEventListener('abort', () =>
+          controller.error(
+            Object.assign(new Error('aborted'), { name: 'AbortError' }),
+          ),
+        )
+      },
+    })
+    return Promise.resolve(
+      new Response(body, {
+        headers: { 'content-type': 'text/event-stream' },
+      }),
+    )
+  }) as unknown as () => typeof fetch
+
+  it.each(['options.signal', 'stop()'] as const)(
+    'cancel with %s',
+    async (cancel) => {
+      const user = new AbortController()
+      const onError = vi.fn()
+      const onFinish = vi.fn()
+      const client = new ChatClient({
+        threadId: 'thread-1',
+        connection: fetchServerSentEvents('/api/chat', {
+          fetchClient: partialFetch(),
+          signal: user.signal,
+        }),
+        onError,
+        onFinish,
+      })
+      const send = client.sendMessage('Go')
+      await vi.waitFor(() =>
+        expect(JSON.stringify(client.getMessages())).toContain('Hel'),
+      )
+      if (cancel === 'stop()') client.stop()
+      else user.abort()
+
+      expect(await settlesWithin(send)).toBe('done')
+      expect(client.getStatus()).toBe('ready')
+      expect(client.getIsLoading()).toBe(false)
+      expect(onError).not.toHaveBeenCalled()
+      expect(onFinish).not.toHaveBeenCalled()
+    },
+  )
+})
+
 describe('stream() and rpcStream() stop on abort (L3)', () => {
   // A source that ignores its signal and never ends.
   const ignoresSignal = () =>
@@ -304,6 +376,70 @@ describe('RealtimeClient.disconnect() during connect() (L4)', () => {
     expect(second.disconnect).not.toHaveBeenCalled()
     await client.disconnect()
   })
+})
+
+describe('RealtimeClient keeps the live session when a second connect() wins', () => {
+  // The first connection emits `idle` when it closes (like the OpenAI
+  // adapter), and its close can fail.
+  it.each(['emits idle', 'throws'] as const)(
+    'the replaced connection %s on close',
+    async (onClose) => {
+      let release!: () => void
+      const held = new Promise<void>((resolve) => {
+        release = resolve
+      })
+      const makeConnection = (startAudioCapture: () => Promise<void>) => {
+        const handlers = new Map<string, Set<(payload: any) => void>>()
+        const connection = {
+          on: (event: string, handler: (payload: any) => void) => {
+            const set = handlers.get(event) ?? new Set()
+            set.add(handler)
+            handlers.set(event, set)
+            return () => set.delete(handler)
+          },
+          emit: (event: string, payload: unknown) =>
+            handlers.get(event)?.forEach((handler) => handler(payload)),
+          updateSession: () => {},
+          disconnect: vi.fn(async () => {}),
+          startAudioCapture,
+        }
+        return connection
+      }
+      const first = makeConnection(() => held)
+      first.disconnect.mockImplementation(async () => {
+        if (onClose === 'throws') throw new Error('close failed')
+        first.emit('status_change', { status: 'idle' })
+      })
+      const second = makeConnection(async () => {})
+      const onError = vi.fn()
+      const client = new RealtimeClient({
+        getToken: async () =>
+          ({ token: 't', expiresAt: Date.now() + 60_000 }) as any,
+        adapter: {
+          connect: vi
+            .fn()
+            .mockResolvedValueOnce(first)
+            .mockResolvedValueOnce(second),
+        } as any,
+        autoCapture: true,
+        onError,
+      })
+
+      const firstConnect = client.connect()
+      await vi.waitFor(() =>
+        expect(Reflect.get(client, 'connection')).toBe(first),
+      )
+      await client.connect()
+      release()
+      await firstConnect
+
+      expect(first.disconnect).toHaveBeenCalled()
+      expect(client.status).toBe('connected')
+      expect(client.error).toBeNull()
+      expect(onError).not.toHaveBeenCalled()
+      await client.disconnect()
+    },
+  )
 })
 
 describe('RealtimeClient.disconnect() during a token refresh', () => {

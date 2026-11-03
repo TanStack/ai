@@ -2935,6 +2935,11 @@ export class ChatClient<
           )
           runTerminalEventEmitted = true
         }
+        // The abort came from the user's own `options.signal`, not from
+        // stop(). End the same way stop() does.
+        if (!signal.aborted && generation === this.streamGeneration) {
+          this.stop()
+        }
         return false
       }
       if (error instanceof ByokMissingError) {

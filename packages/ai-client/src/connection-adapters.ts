@@ -337,8 +337,18 @@ function eitherSignal(
   b: AbortSignal | undefined,
 ): AbortSignal | undefined {
   if (!a || !b) return a ?? b
-  if (a.aborted) return a
-  if (b.aborted) return b
+  const signal = a.aborted ? a : b.aborted ? b : anySignal(a, b)
+  requestSignals.set(a, signal)
+  return signal
+}
+
+/**
+ * The client's signal -> the signal its request follows. `send()` reads it,
+ * so an abort of `options.signal` is a stop, not an end or an error.
+ */
+const requestSignals = new WeakMap<AbortSignal, AbortSignal>()
+
+function anySignal(a: AbortSignal, b: AbortSignal): AbortSignal {
   // `AbortSignal.any` links weakly, so a long-lived `options.signal` keeps
   // nothing from a finished request.
   if (typeof AbortSignal.any === 'function') return AbortSignal.any([a, b])
@@ -1300,6 +1310,10 @@ export function normalizeConnectionAdapter(
       let hasTerminalEvent = false
       let upstreamThreadId: string | undefined
       let upstreamRunId: string | undefined
+      const aborted = () =>
+        abortSignal?.aborted === true ||
+        (abortSignal !== undefined &&
+          requestSignals.get(abortSignal)?.aborted === true)
       try {
         const stream = connection.connect(
           messages,
@@ -1325,7 +1339,12 @@ export function normalizeConnectionAdapter(
         // The event payload may carry an upstream/provider runId when one was
         // observed, but stamp the caller's request runId so getChunkRunId()
         // correlates to activeRunIds / currentRunId (same as real stream chunks).
-        if (!abortSignal?.aborted && !hasTerminalEvent) {
+        // Only the user's `options.signal` aborted: end like the client's own
+        // stop(), which rejects with an AbortError.
+        if (aborted() && !abortSignal?.aborted) {
+          throw Object.assign(new Error('Aborted'), { name: 'AbortError' })
+        }
+        if (!aborted() && !hasTerminalEvent) {
           push(
             withTanstackMetadata(
               {
@@ -1340,7 +1359,7 @@ export function normalizeConnectionAdapter(
           )
         }
       } catch (err) {
-        if (!abortSignal?.aborted && !hasTerminalEvent) {
+        if (!aborted() && !hasTerminalEvent) {
           const message =
             err instanceof Error ? err.message : 'Unknown error in connect()'
           const synthetic: RunErrorEvent = {
