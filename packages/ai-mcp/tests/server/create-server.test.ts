@@ -463,6 +463,64 @@ describe('createMCPServer', () => {
     })
   })
 
+  it('keeps the result of a task that completes while tasks/cancel reads it', async () => {
+    const inner = inMemoryTaskStore()
+    const calls: Array<Promise<unknown>> = []
+    let finish: (() => void) | undefined
+    let raceNextRead = false
+    const taskStore = {
+      ...inner,
+      // After it reads the `working` task, the run completes and saves
+      // its result. Then the stale read goes to tasks/cancel.
+      async get(id: string) {
+        const value = await inner.get(id)
+        if (raceNextRead) {
+          raceNextRead = false
+          finish?.()
+          await calls[0]
+        }
+        return value
+      },
+    }
+    const server = createMCPServer({
+      name: 'tasks',
+      version: '1.0.0',
+      taskStore,
+      waitUntil(promise) {
+        calls.push(promise)
+      },
+      tools: [
+        toolDefinition({
+          name: 'slow',
+          description: 'Slow work',
+          execution: 'task',
+        }).server(async () => {
+          await new Promise<void>((resolve) => {
+            finish = resolve
+          })
+          return 'done'
+        }),
+      ],
+    })
+
+    await withClient(server, { era: '2025' }, async (client) => {
+      const { taskId } = (await taskCall(client, 'slow')).task
+      await vi.waitFor(() => expect(finish).toBeDefined())
+
+      raceNextRead = true
+      await expect(
+        client.request(
+          { method: 'tasks/cancel', params: { taskId } },
+          taskShape,
+        ),
+      ).rejects.toThrow('completed')
+      expect((await taskGet(client, taskId)).status).toBe('completed')
+      expect(await taskResultOf(client, taskId)).toMatchObject({
+        content: [{ type: 'text', text: 'done' }],
+      })
+    })
+  })
+
   it('runs a task tool inline for a spec 2026 request', async () => {
     // Spec 2026-07-28 has no tasks. The call waits for the tool output.
     const taskStore = inMemoryTaskStore()

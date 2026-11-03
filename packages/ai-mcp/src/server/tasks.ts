@@ -147,12 +147,23 @@ export async function getTask(
  * Cancels the task of `record` (a `working` task from {@link getTask}):
  * aborts its run, when it runs in this process, and saves it as
  * `cancelled`. Returns the spec 2025-11-25 `Task` for `tasks/cancel`.
+ * When the task got a terminal status after the caller read `record`, the
+ * task does not change, and the result is that terminal `Task`.
  */
 export async function cancelTask(record: StoredTask, store: TaskStore) {
   // Abort first, so the run does not save a late result over the cancel.
   // ponytail: a run on another instance of the server is not aborted. Its
   // late result replaces the cancel. Add a store-backed flag if that matters.
-  running.get(record.taskId)?.abort()
+  const controller = running.get(record.taskId)
+  controller?.abort()
+  if (controller === undefined) {
+    // The run can end after the caller read `record`. Keep its result.
+    // ponytail: a re-read, not a compare-and-set. KeyedStore has no CAS.
+    const current = await store.get(record.taskId)
+    if (isStoredTask(current) && current.status !== 'working') {
+      return taskView(current)
+    }
+  }
   const cancelled: StoredTask = {
     ...record,
     status: 'cancelled',

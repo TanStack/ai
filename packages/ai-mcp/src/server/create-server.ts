@@ -955,7 +955,15 @@ function registerLegacyTaskMethods(
           `Task is ${polled.record.status}, so it cannot be cancelled`,
         )
       }
-      return cancelTask(polled.record, store)
+      const task = await cancelTask(polled.record, store)
+      // The task can end while cancelTask runs. Then it keeps its status.
+      if (task.status !== 'cancelled') {
+        throw new ProtocolError(
+          ProtocolErrorCode.InvalidParams,
+          `Task is ${task.status}, so it cannot be cancelled`,
+        )
+      }
+      return task
     },
   )
 }
