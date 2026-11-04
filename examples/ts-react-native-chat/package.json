@@ -25,7 +25,7 @@
     "smoke": "pnpm smoke:server && pnpm smoke:expo"
   },
   "dependencies": {
-    "@hono/node-server": "^1.19.6",
+    "@hono/node-server": "^2.1.6",
     "@tanstack/ai": "workspace:*",
     "@tanstack/ai-openai": "workspace:*",
     "@tanstack/ai-react": "workspace:*",
