@@ -62,6 +62,9 @@ export async function* parseSSE(response: Response, signal?: AbortSignal) {
   }
 
   let buffer = ''
+  // Index in `buffer` where the next scan starts. The text before it holds
+  // no line end.
+  let scanned = 0
   // True when the last chunk ended with `\r`, so a `\n` at the start of the
   // next chunk belongs to that line ending.
   let skipLeadingLF = false
@@ -76,7 +79,7 @@ export async function* parseSSE(response: Response, signal?: AbortSignal) {
       if (text) skipLeadingLF = false
       buffer += text
       let start = 0
-      for (let i = 0; i < buffer.length; i++) {
+      for (let i = scanned; i < buffer.length; i++) {
         const char = buffer[i]
         if (char !== '\n' && char !== '\r') continue
         const sse = readLine(buffer.slice(start, i))
@@ -86,7 +89,8 @@ export async function* parseSSE(response: Response, signal?: AbortSignal) {
         if (sse) yield sse
         if (signal?.aborted) return
       }
-      buffer = buffer.slice(start)
+      if (start > 0) buffer = buffer.slice(start)
+      scanned = buffer.length
     }
     if (!ended) return
     const rest = buffer + decoder.decode()

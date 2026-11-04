@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { resolveDebugOption } from '@tanstack/ai/adapter-internals'
 import { createGeminiAudio } from '../src/adapters/audio'
+import { createGeminiFiles } from '../src/adapters/files'
 import { createGeminiImage } from '../src/adapters/image'
 import { createGeminiChat } from '../src/adapters/text'
 import { createGeminiSpeech } from '../src/adapters/tts'
@@ -238,6 +239,14 @@ describe('Gemini adapters abort the provider request', () => {
         abortSignal,
         logger,
       }),
+    )
+  })
+
+  it('files upload', async () => {
+    const wire = stubFetch()
+    const adapter = createGeminiFiles('test-key')
+    await expectAbortReachesFetch(wire, (abortSignal) =>
+      adapter.upload(new Blob(['x'], { type: 'text/plain' }), { abortSignal }),
     )
   })
 

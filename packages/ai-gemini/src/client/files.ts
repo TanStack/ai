@@ -30,6 +30,7 @@ export async function uploadBlob(
   const start = await api.request({
     path: 'upload/v1beta/files',
     method: 'POST',
+    abortSignal: config?.abortSignal,
     body: JSON.stringify({
       file: { mimeType, name, displayName: config?.displayName, sizeBytes },
     }),
@@ -65,6 +66,7 @@ export async function uploadBlob(
       response = await api.request({
         path: '',
         method: 'POST',
+        abortSignal: config?.abortSignal,
         body: file.slice(offset, offset + chunkSize),
         httpOptions: {
           apiVersion: '',
