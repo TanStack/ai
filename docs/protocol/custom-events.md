@@ -144,6 +144,9 @@ Each interface extends the base `CustomEvent` (`type: 'CUSTOM'` and an optional 
 | --- | --- | --- | --- |
 | `SandboxFileCustomEvent` | `sandbox.file` | `{ type: 'create' \| 'change' \| 'delete'; path: string; timestamp: number }` | For each file create, change, or delete in an active [sandbox](../sandbox/events) |
 | `SandboxFileDiffEvent` | `sandbox.file.diff` | `{ path: string; diff: string }` | For each file change. Turn it on with `fileEvents: { diff: true }` |
+| `SandboxStartingEvent` | `sandbox.starting` | `{ provider: string }` | `withSandbox`, once before it creates or resumes the [sandbox](../sandbox/events#show-a-pending-state-while-the-sandbox-starts) |
+| `SandboxCreatedEvent` | `sandbox.created` | `{ sandboxId: string; provider: string }` | `withSandbox`, once when a new sandbox is ready |
+| `SandboxResumedEvent` | `sandbox.resumed` | `{ sandboxId: string; provider: string }` | `withSandbox`, once when an existing sandbox is ready again |
 | `FileChangedEvent` | `file.changed` | `{ path: string; diff: string }` | A harness adapter (Grok Build, Claude Code, and more), once after the run completes |
 | `SessionIdEvent` | `` `${string}.session-id` `` | `{ sessionId: string }` | A harness adapter, once when it creates or resumes its session in the sandbox |
 | `CodeModeExecutionStartedEvent` | `code_mode:execution_started` | `{ timestamp: number; codeLength: number }` | [Code Mode](../code-mode/code-mode), when sandbox execution starts |

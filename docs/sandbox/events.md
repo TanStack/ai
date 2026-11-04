@@ -84,14 +84,88 @@ On top of the standard chunks, the sandbox and harness layers send `CUSTOM` even
 | `file.changed` | Harness adapter (for example Grok Build, Claude Code) | After the run completes | `{ path: string; diff: string }`: the whole working-tree `git diff`. `path` is always `'.'`, the tree root. |
 | `sandbox.file` | The engine, automatically | For each file create, change, or delete while a sandbox is active | `{ type: 'create' \| 'change' \| 'delete'; path: string; timestamp: number }` |
 | `sandbox.file.diff` | The engine, with `fileEvents: { diff: true }` | For each file create, change, or delete, after the matching `sandbox.file` | `{ path: string; diff: string }`: a unified patch of that one file against the git baseline of the session |
+| `sandbox.starting` | `withSandbox` | Once, before the sandbox is created or resumed | `{ provider: string }` |
+| `sandbox.created` | `withSandbox` | Once, when a new sandbox is ready | `{ sandboxId: string; provider: string }` |
+| `sandbox.resumed` | `withSandbox` | Once, when an existing sandbox is ready again, also from a provider snapshot | `{ sandboxId: string; provider: string }` |
 
 - **`*.session-id`**: pass the id back with the adapter's `modelOptions.sessionId` to resume the harness session on a later run.
 - **`sandbox.file`**: sent whenever a sandbox is active and file watching is on. You need no hooks.
 - **`sandbox.file.diff`**: off by default, because a diff on every change has a cost. Turn it on with `fileEvents: { diff: true }` on `defineSandbox` when the client must show the change, not only know that it happened.
+- **`sandbox.starting`, `sandbox.created`, `sandbox.resumed`**: sent before the model starts to stream. Use them to show a pending state, as in [the next section](#show-a-pending-state-while-the-sandbox-starts).
 
 To handle file changes on the server with hooks, or to turn the watcher off, see [Observability](./observability). Hooks get the same diff, plus `before()` and `after()`.
 
 For the full typed event list and the `ChatStream` type, see [Custom Events Reference](../protocol/custom-events).
+
+## Show a pending state while the sandbox starts
+
+A new sandbox can take many seconds to boot. During that time the model sends nothing, so your chat UI looks frozen.
+
+`withSandbox` sends `sandbox.starting` before it creates or resumes the sandbox. When the sandbox is ready, it sends `sandbox.created` or `sandbox.resumed`. All three arrive before `RUN_STARTED`.
+
+1. On the server, add `withSandbox` to `chat()`. You add nothing else, because the events are on by default:
+
+```ts
+import { chat, chatParamsFromRequest, toServerSentEventsResponse } from '@tanstack/ai'
+import { grokBuildText } from '@tanstack/ai-grok-build'
+import { withSandbox } from '@tanstack/ai-sandbox'
+import { repoSandbox } from './sandbox'
+
+export async function POST(request: Request) {
+  const { messages, threadId } = await chatParamsFromRequest(request)
+  const stream = chat({
+    adapter: grokBuildText('grok-build'),
+    messages,
+    threadId,
+    middleware: [withSandbox(repoSandbox)],
+  })
+  return toServerSentEventsResponse(stream)
+}
+```
+
+`repoSandbox` is the `defineSandbox()` definition from [Read the events](#read-the-events).
+
+2. On the client, pass `onCustomEvent` to `useChat`. Set a flag on `sandbox.starting`. Clear the flag on `sandbox.created` or `sandbox.resumed`:
+
+```tsx
+import { useState } from 'react'
+import { fetchServerSentEvents, useChat } from '@tanstack/ai-react'
+
+export function Chat() {
+  const [starting, setStarting] = useState(false)
+  const { sendMessage } = useChat({
+    connection: fetchServerSentEvents('/api/chat'),
+    threadId: 'support-chat',
+    onCustomEvent: (name) => {
+      if (name === 'sandbox.starting') {
+        setStarting(true)
+      } else if (name === 'sandbox.created' || name === 'sandbox.resumed') {
+        setStarting(false)
+      }
+    },
+    onError: () => setStarting(false),
+  })
+
+  return (
+    <>
+      <button onClick={() => sendMessage('Add a README section on testing.')}>
+        Send
+      </button>
+      {starting && <p>Starting sandbox...</p>}
+    </>
+  )
+}
+```
+
+Click Send. "Starting sandbox..." shows until the sandbox is ready, then the agent text starts to stream.
+
+To avoid string literals, use `CUSTOM_EVENT.SANDBOX_STARTING`, `CUSTOM_EVENT.SANDBOX_CREATED`, and `CUSTOM_EVENT.SANDBOX_RESUMED` from `@tanstack/ai`.
+
+Things to know:
+
+- **Only `defineSandbox()` sends them.** A sandbox definition that you build by hand sends none of the three events.
+- **A failed start sends no end event.** If the sandbox cannot start, you get no `sandbox.created` or `sandbox.resumed`. The run error ends the stream, so the snippet also clears the flag in `onError`.
+- **A reload during the start shows the state again.** With [durable runs](./durable-runs), the events go into the run log like all other chunks. A client that joins the run again gets `sandbox.starting` again, and shows the pending state until the sandbox is ready.
 
 ## What gets stored
 

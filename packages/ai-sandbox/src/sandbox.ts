@@ -152,6 +152,14 @@ export function ensureSandboxWithOutcome(
 }
 
 /**
+ * True when `definition` was made by `defineSandbox()`, so
+ * `ensureSandboxWithOutcome` can tell a created sandbox from a resumed one.
+ */
+export function hasEnsureOutcome(definition: SandboxDefinition) {
+  return outcomeEnsure.has(definition)
+}
+
+/**
  * Parse a human-readable duration string into milliseconds.
  * Supports `'<n>h'` (hours) and `'<n>m'` (minutes).
  * Returns `undefined` when the input is undefined or the format is unrecognised.

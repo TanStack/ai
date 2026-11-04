@@ -1878,6 +1878,21 @@ export interface SandboxFileDiffEvent extends CustomEvent {
   name: 'sandbox.file.diff'
   value: { path: string; diff: string }
 }
+/** `withSandbox` sends this before it creates or resumes the sandbox. */
+export interface SandboxStartingEvent extends CustomEvent {
+  name: 'sandbox.starting'
+  value: { provider: string }
+}
+/** `withSandbox` sends this after it creates a new sandbox. */
+export interface SandboxCreatedEvent extends CustomEvent {
+  name: 'sandbox.created'
+  value: { sandboxId: string; provider: string }
+}
+/** `withSandbox` sends this after it resumes an existing sandbox. */
+export interface SandboxResumedEvent extends CustomEvent {
+  name: 'sandbox.resumed'
+  value: { sandboxId: string; provider: string }
+}
 
 // ── Harness events ──────────────────────────────────────────────────────────
 export interface FileChangedEvent extends CustomEvent {
@@ -1944,6 +1959,9 @@ export interface SnippetRegisteredEvent extends CustomEvent {
 export type KnownCustomEvent =
   | SandboxFileCustomEvent
   | SandboxFileDiffEvent
+  | SandboxStartingEvent
+  | SandboxCreatedEvent
+  | SandboxResumedEvent
   | FileChangedEvent
   | SessionIdEvent
   | CodeModeExecutionStartedEvent

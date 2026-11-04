@@ -12,11 +12,12 @@
  * - `onFinish`/`onAbort`/`onError`: stop the watcher, snapshot (`after-run`)
  *   and/or destroy per lifecycle.
  *
- * NOTE: streamed sandbox lifecycle events (sandbox.created, workspace.setup.*)
- * are emitted by the harness adapter's chatStream (which can yield CUSTOM
- * chunks), not from here — middleware setup runs before streaming begins.
+ * NOTE: `setup` sends the `sandbox.starting`, `sandbox.created`, and
+ * `sandbox.resumed` events through `ctx.emitCustomEvent`. Core streams custom
+ * events that `setup` emits live, so the client sees them during the wait.
  */
 import {
+  CUSTOM_EVENT,
   defineChatMiddleware,
   isTerminalRunStatus,
   provideDetachableRun,
@@ -50,7 +51,7 @@ import {
 import { watchWorkspace } from './watch'
 import { DEFAULT_WORKSPACE_ROOT } from './bootstrap'
 import { resolveHarnessCwd } from './harness-cwd'
-import { ensureSandboxWithOutcome } from './sandbox'
+import { ensureSandboxWithOutcome, hasEnsureOutcome } from './sandbox'
 import {
   restoreSandboxFiles,
   captureSandboxFiles,
@@ -780,10 +781,17 @@ export function withSandbox<TOffset extends string = string>(
         })
       }
 
+      // Only a `defineSandbox()` definition can tell created from resumed. A
+      // hand-built definition sends no lifecycle events.
+      const lifecycleEvents = hasEnsureOutcome(definition)
+      if (lifecycleEvents)
+        ctx.emitCustomEvent(CUSTOM_EVENT.SANDBOX_STARTING, {
+          provider: definition.provider.name,
+        })
       let outcome: 'resumed' | 'native-restored' | 'created' = 'created'
       let handle: SandboxHandle
       try {
-        if (snapshotConfig)
+        if (snapshotConfig || lifecycleEvents)
           ({ handle, outcome } = await ensureSandboxWithOutcome(
             definition,
             ensureCtx,
@@ -817,6 +825,15 @@ export function withSandbox<TOffset extends string = string>(
         if (state.handle && state.privateHandle)
           await definition.destroy(ensureCtx).catch(() => {})
         throw error
+      }
+      if (lifecycleEvents) {
+        const isResumed = outcome === 'resumed' || outcome === 'native-restored'
+        ctx.emitCustomEvent(
+          isResumed
+            ? CUSTOM_EVENT.SANDBOX_RESUMED
+            : CUSTOM_EVENT.SANDBOX_CREATED,
+          { sandboxId: handle.id, provider: handle.provider },
+        )
       }
       // MUTATE, don't re-`set`: a disconnect that landed during `ensure` already
       // captured this object.
