@@ -1,5 +1,11 @@
 # @tanstack/solid-ai-devtools
 
+## 1.0.2
+
+### Patch Changes
+
+- [#1936](https://github.com/TanStack/ai/pull/1936) [`6ed7c64`](https://github.com/TanStack/ai/commit/6ed7c642c6474c4774628dec39aa550a8ef08558) - Cap the `solid-js` peer range at `^1`. The previous open-ended `>=` range would accept Solid 2.0.0 once it is released, but these packages are built against Solid 1 and do not work with Solid 2.
+
 ## 1.0.1
 
 ### Patch Changes

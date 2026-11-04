@@ -1,5 +1,44 @@
 # @tanstack/ai
 
+## 1.1.0
+
+### Minor Changes
+
+- [#1977](https://github.com/TanStack/ai/pull/1977) [`9ac67f3`](https://github.com/TanStack/ai/commit/9ac67f3acbcecee88714503b205d602560fdc8c6) - New optional cancel options. Old calls work the same.
+  - `embed()` takes `abortSignal` and `timeout`. The effective signal reaches the adapter as `EmbeddingOptions.abortSignal`.
+  - `getVideoJobStatus()` takes `abortSignal` and `timeout`. The video adapter contract adds an optional `{ abortSignal }` to `getVideoStatus(jobId, options?)` and `getVideo(jobId, options?)`. The streaming `generateVideo()` poll passes its signal to both.
+  - `uploadFile()`, `getFile()`, and `deleteFile()` take `abortSignal`. `FilesAdapter.upload/get/delete` take an optional `{ abortSignal }`.
+  - `realtimeToken()` takes `abortSignal`. `RealtimeTokenAdapter.generateToken(options?)` and `RealtimeAdapter.connect(token, clientTools?, options?)` take an optional `{ abortSignal }`.
+  - `decide()` and `rerank()` take `timeout`, and race the adapter call against the signal like the other activities.
+  - `GenerationMiddlewareContext` has an optional `signal`: the effective activity signal.
+
+- [#1977](https://github.com/TanStack/ai/pull/1977) [`9ac67f3`](https://github.com/TanStack/ai/commit/9ac67f3acbcecee88714503b205d602560fdc8c6) - New optional cancel hooks. Old code works the same.
+  - `MCPToolSource.tools()` takes an optional `signal`. `chat()` passes the signal of its `abortController` to each MCP source during tool discovery.
+  - `VideoAdapter` has an optional `cancelVideoJob(jobId, options?)` method. A streaming `generateVideo()` calls it (best effort) when its `abortSignal` or `timeout` aborts after the provider accepted the job. A failed cancel is logged and does not change the abort result.
+
+### Patch Changes
+
+- [#1962](https://github.com/TanStack/ai/pull/1962) [`d6ead13`](https://github.com/TanStack/ai/commit/d6ead13def85f91782e20d6c1b8755fdf1c836c2) - Stop `chat()` from copying the whole assistant answer on every text chunk. A long reply streamed as small deltas no longer blocks the server for seconds.
+
+- [#1968](https://github.com/TanStack/ai/pull/1968) [`450950d`](https://github.com/TanStack/ai/commit/450950da860d58047c654c1497ddb48d651f9076) - Run client tools when a custom AG-UI server ends a run with `finishReason: 'tool_calls'` and closes the stream. Before, the client waited for a next run that never came, so the tool did not run and the agent loop stopped. The client now runs the unanswered calls when the stream ends. A tool that needs approval asks the user first, the same as for a success outcome.
+
+- [#1979](https://github.com/TanStack/ai/pull/1979) [`07d2e42`](https://github.com/TanStack/ai/commit/07d2e429c456a31d35748fecf7d8f8c0795eff31) - A cancel now stops the provider request, not only the caller. `summarize()` (also with `stream: true`, which now passes `abortSignal` and `timeout` to the adapter and reports a cancel to middleware `onAbort`, not `onError`), middleware `ctx.abort()` when the caller passed an `abortController` (adapter request, structured output, and `ctx.signal`), subagent children, `generateVideo` status polls, and aborted `toWebSocket` turns now stop when the run is cancelled.
+
+- [#1903](https://github.com/TanStack/ai/pull/1903) [`13b1ca9`](https://github.com/TanStack/ai/commit/13b1ca918a0ac36761db2a6226973c5330d4221d) - Pass resolved and cancelled MCP input responses to pending server tools when resuming through persistence with an empty incoming message history.
+
+- [#1974](https://github.com/TanStack/ai/pull/1974) [`09dde65`](https://github.com/TanStack/ai/commit/09dde65b9fdcc312fd0459c98328c23abd1406cb) - Report token usage for every call that the provider billed, also when the call fails.
+  - Adapters put the usage that they received on `RUN_ERROR`: a cut-off response, a refusal, a parse failure, an empty response, or a stream that fails after usage arrived. Before, many of these paths dropped it.
+  - A non-streaming `structuredOutput()`, image, or speech call that fails after the response throws an error with a `usage` field. `chat()`, `generateImage()`, `generateSpeech()`, and `summarize()` report it.
+  - The `onUsage` middleware hook now also runs for a `RUN_ERROR` with usage. A structured output value that fails the schema check still reports the usage of its call.
+  - Media streams carry `usage` on `RUN_FINISHED` and `RUN_ERROR`. Devtools now gets the `summarize:usage` and `transcription:usage` events, and `text:usage` for a chat `RUN_ERROR` with usage. A call that `onModelError` or a rate-limit retry drops still reports its usage.
+  - Provider fields that were dropped are mapped: Anthropic thinking tokens, Claude Code `total_cost_usd` as `usage.cost`, OpenRouter Responses reasoning tokens, opencode cost and cache writes, ACP and Bedrock cache writes, OpenAI evaluate token details, Gemini Vertex embedding tokens, and audio duration as billed seconds for Whisper, Groq, Cloudflare, and Lovable transcription.
+  - opencode adds up the usage of every agent step in a turn. Before, it counted only the last step.
+  - Gemini Interactions usage (text, agentic video, and images) counts thought tokens in `completionTokens`, the same as `generateContent`.
+
+- Updated dependencies [[`e17cae7`](https://github.com/TanStack/ai/commit/e17cae7aa40ce5ebe0e78496931d49c793bdaf41), [`09dde65`](https://github.com/TanStack/ai/commit/09dde65b9fdcc312fd0459c98328c23abd1406cb)]:
+  - @tanstack/ai-utils@1.0.1
+  - @tanstack/ai-event-client@1.0.1
+
 ## 1.0.1
 
 ### Patch Changes
