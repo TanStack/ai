@@ -50,6 +50,9 @@ function throwRunError(
   if (typeof chunk.code === 'string') {
     ;(err as Error & { code?: string }).code = chunk.code
   }
+  // A run cut off at `maxLength` still bills its tokens.
+  const usage = rebuildTokenUsage(chunk.usage, tanstackMetadata(chunk)?.usage)
+  if (usage) Object.assign(err, { usage })
   throw err
 }
 

@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { chat } from '@tanstack/ai'
+import { resolveDebugOption } from '@tanstack/ai/adapter-internals'
 import type { AdapterYieldChunk, ModelMessage } from '@tanstack/ai'
 import { GeminiTextAdapter } from '../src/adapters/text'
 
@@ -102,6 +103,38 @@ describe.each(['gemini-3.8-flash', 'gemini-3.7-flash'] as const)(
 
       expect(mocks.generateContentStreamSpy).toHaveBeenCalledTimes(1)
       expect(mocks.interactionsCreateSpy).not.toHaveBeenCalled()
+    })
+
+    it('reports the interaction usage on RUN_FINISHED', async () => {
+      mocks.interactionsCreateSpy.mockResolvedValue({
+        output_text: 'ok',
+        usage: {
+          total_input_tokens: 7,
+          total_output_tokens: 2,
+          total_thought_tokens: 4,
+          total_tokens: 13,
+        },
+      })
+
+      const adapter = new GeminiTextAdapter({ apiKey: 'k' }, model)
+      const chunks = await collect(
+        adapter.chatStream({
+          threadId: 'thread-1',
+          model,
+          messages: [videoMessage({ processing: 'agentic' })],
+          logger: resolveDebugOption(false),
+        }),
+      )
+
+      expect(chunks.find((c) => c.type === 'RUN_FINISHED')).toMatchObject({
+        usage: {
+          promptTokens: 7,
+          // Output plus thought tokens. The reported total stays.
+          completionTokens: 6,
+          totalTokens: 13,
+          completionTokensDetails: { reasoningTokens: 4 },
+        },
+      })
     })
   },
 )

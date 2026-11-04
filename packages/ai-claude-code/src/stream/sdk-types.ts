@@ -95,6 +95,18 @@ export interface SdkUsage {
   cache_creation_input_tokens?: number
 }
 
+/** Per-model usage entry of `result.modelUsage`. */
+export interface SdkModelUsage {
+  inputTokens: number
+  outputTokens: number
+  cacheReadInputTokens: number
+  cacheCreationInputTokens: number
+  webSearchRequests: number
+  costUSD: number
+  contextWindow: number
+  maxOutputTokens: number
+}
+
 export interface SdkResultMessage {
   type: 'result'
   subtype:
@@ -107,6 +119,7 @@ export interface SdkResultMessage {
   errors?: Array<string>
   usage?: SdkUsage
   total_cost_usd?: number
+  modelUsage?: Record<string, SdkModelUsage>
   structured_output?: unknown
 }
 

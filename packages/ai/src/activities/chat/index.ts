@@ -33,7 +33,7 @@ import {
   canonicalInterruptJson,
   digestInterruptJson,
 } from '../../interrupt-serialization'
-import { rebuildTokenUsage } from '../../utilities/ag-ui-usage'
+import { readErrorUsage, rebuildTokenUsage } from '../../utilities/ag-ui-usage'
 import { uiMessagesToWire } from '../../utilities/ag-ui-wire'
 import {
   tanstackMetadata,
@@ -180,6 +180,7 @@ import type {
   TanStackMessageMetadata,
   TextMessageContentEvent,
   TextOptions,
+  TokenUsage,
   ToolCall,
   ToolCallArgsEvent,
   ReasoningEncryptedValueEvent,
@@ -1932,6 +1933,8 @@ class TextEngine<
             break
           }
           if (hasModelErrorHook && (await this.modelErrorRetried(chunk))) {
+            // The dropped call can still be billed: report its usage.
+            await this.runOnUsageFromChunk(chunk)
             return
           }
         }
@@ -1957,6 +1960,8 @@ class TextEngine<
         yield rateLimitError
         return
       }
+      // The dropped call can still be billed: report its usage.
+      await this.runOnUsageFromChunk(rateLimitError)
     }
     if (start) yield start
   }
@@ -2185,6 +2190,11 @@ class TextEngine<
         this.middlewareCtx,
         outboundChunk,
       )
+      // A RUN_ERROR can carry the usage of a call the provider billed. Report
+      // it before the yield: a consumer often stops reading at the error.
+      if (raw.type === EventType.RUN_ERROR) {
+        await this.runOnUsageFromChunk(raw)
+      }
       // When a streaming structured-output finalization step will run after
       // the agent loop, suppress the agent-loop's RUN_STARTED/RUN_FINISHED
       // here — the finalization step emits the single outer lifecycle pair
@@ -2571,15 +2581,29 @@ class TextEngine<
         : (tanstackMetadata(chunk)?.finishReason ?? null)
   }
 
+  /**
+   * On a failed call, a throwing `onUsage` is logged, so the call's own error
+   * still reaches the consumer.
+   */
   private async runOnUsageFromChunk(
     chunk: RunFinishedEvent | AdapterYieldChunk,
+    failed = chunk.type === EventType.RUN_ERROR,
   ): Promise<void> {
     const rebuilt = rebuildTokenUsage(
       chunk.usage,
       tanstackMetadata(chunk)?.usage,
     )
-    if (rebuilt) {
+    if (!rebuilt) return
+    if (!failed) {
       await this.middlewareRunner.runOnUsage(this.middlewareCtx, rebuilt)
+      return
+    }
+    try {
+      await this.middlewareRunner.runOnUsage(this.middlewareCtx, rebuilt)
+    } catch (error) {
+      this.logger.errors('onUsage middleware threw for a failed call', {
+        error,
+      })
     }
   }
 
@@ -4864,12 +4888,41 @@ class TextEngine<
     // The full model text. Adapter errors carry only a 200-character preview,
     // so a Promise caller could not recover the answer (#1485).
     let rawText = ''
+    // Set when the value fails the schema. The provider still billed the
+    // call, so the loop reads on to its terminal event for the usage.
+    let validationFailed = false
+    let validationUsage: TokenUsage | undefined
+
+    // After a schema failure the loop only reads on for the billed usage. A
+    // stream that fails then keeps the schema error, not its own.
+    const guardedStream = (async function* () {
+      try {
+        yield* providerStream
+      } catch (error) {
+        if (!validationFailed) throw error
+      }
+    })()
 
     // Pipe chunks through middleware; yield to consumer only when yieldChunks=true
-    for await (const raw of providerStream) {
+    for await (const raw of guardedStream) {
       // Honor cancellation between chunks (mirrors streamModelResponse).
       if (this.isCancelled()) {
         break
+      }
+
+      if (validationFailed) {
+        if (
+          raw.type === EventType.RUN_FINISHED ||
+          raw.type === EventType.RUN_ERROR
+        ) {
+          validationUsage = rebuildTokenUsage(
+            raw.usage,
+            tanstackMetadata(raw)?.usage,
+          )
+          await this.runOnUsageFromChunk(raw, true)
+          break
+        }
+        continue
       }
 
       {
@@ -4971,11 +5024,17 @@ class TextEngine<
             // Check the value before a consumer gets it. A value that fails
             // the schema is not sent: the run ends with RUN_ERROR instead.
             this.validateStructuredOutput(object, parsed.raw)
-            if (this.finalizationError) break
+            if (this.finalizationError) {
+              validationFailed = true
+              continue
+            }
           }
         }
 
-        if (chunk.type === EventType.RUN_FINISHED) {
+        if (
+          chunk.type === EventType.RUN_FINISHED ||
+          chunk.type === EventType.RUN_ERROR
+        ) {
           await this.runOnUsageFromChunk(chunk)
         }
 
@@ -5075,7 +5134,10 @@ class TextEngine<
         startEmitted = true
       }
 
-      const errChunk = finalizationErrorChunk(this.finalizationError)
+      const errChunk = finalizationErrorChunk({
+        ...this.finalizationError,
+        ...(validationUsage ? { usage: validationUsage } : {}),
+      })
       yield* this.emitPublicChunks(
         await this.middlewareRunner.runOnChunk(this.middlewareCtx, errChunk),
       )
@@ -7211,6 +7273,7 @@ async function* fallbackStructuredOutputStream(
       error instanceof SyntaxError ||
       (error instanceof Error && error.cause instanceof SyntaxError)
     const code = parseFailed ? 'structured-output-parse-failed' : undefined
+    const usage = readErrorUsage(error)
     yield {
       type: EventType.RUN_ERROR,
       runId,
@@ -7219,6 +7282,7 @@ async function* fallbackStructuredOutputStream(
       timestamp: Date.now(),
       message,
       ...(code ? { code } : {}),
+      ...(usage ? { usage } : {}),
       error: { message, ...(code ? { code } : {}) },
     }
     return
@@ -7355,14 +7419,16 @@ function finalizationErrorChunk(failure: {
   message: string
   code?: string
   rawText?: string
+  usage?: TokenUsage
 }): StreamChunk {
-  const { message, code, rawText } = failure
+  const { message, code, rawText, usage } = failure
   return {
     type: EventType.RUN_ERROR,
     timestamp: Date.now(),
     message,
     ...(code ? { code } : {}),
     ...(rawText !== undefined ? { rawText } : {}),
+    ...(usage ? { usage } : {}),
   }
 }
 

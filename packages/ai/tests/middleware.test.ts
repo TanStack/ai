@@ -1009,6 +1009,66 @@ describe('chat() middleware', () => {
       expect(onUsage).toHaveBeenCalledTimes(1)
       expect(onUsage.mock.calls[0]![1]).toEqual(usage)
     })
+
+    it('should call onUsage with the billed usage of a RUN_ERROR', async () => {
+      const onUsage = vi.fn()
+      const usage = {
+        promptTokens: 10,
+        completionTokens: 4096,
+        totalTokens: 4106,
+      }
+
+      const { adapter } = createMockAdapter({
+        iterations: [
+          [
+            ev.runStarted(),
+            ev.textContent('cut off'),
+            { ...ev.runError('max_tokens'), usage },
+          ],
+        ],
+      })
+
+      // A consumer that stops reading at the error still gets the usage.
+      for await (const chunk of chat({
+        threadId: 'thread-1',
+        adapter,
+        messages: [{ role: 'user', content: 'Hi' }],
+        middleware: [{ name: 'test', onUsage }],
+      }) as AsyncIterable<StreamChunk>) {
+        if (chunk.type === 'RUN_ERROR') break
+      }
+
+      expect(onUsage).toHaveBeenCalledTimes(1)
+      expect(onUsage.mock.calls[0]![1]).toEqual(usage)
+    })
+
+    it('should still yield the RUN_ERROR when onUsage throws for it', async () => {
+      const usage = { promptTokens: 10, completionTokens: 5, totalTokens: 15 }
+      const { adapter } = createMockAdapter({
+        iterations: [
+          [ev.runStarted(), { ...ev.runError('max_tokens'), usage }],
+        ],
+      })
+
+      const types: Array<string> = []
+      for await (const chunk of chat({
+        threadId: 'thread-1',
+        adapter,
+        messages: [{ role: 'user', content: 'Hi' }],
+        middleware: [
+          {
+            name: 'test',
+            onUsage: () => {
+              throw new Error('onUsage broke')
+            },
+          },
+        ],
+      }) as AsyncIterable<StreamChunk>) {
+        types.push(chunk.type)
+      }
+
+      expect(types).toContain('RUN_ERROR')
+    })
   })
 
   // ==========================================================================

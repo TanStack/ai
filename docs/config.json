@@ -416,7 +416,7 @@
           "label": "Middleware: Advanced",
           "to": "advanced/middleware-advanced",
           "addedAt": "2026-10-21",
-          "updatedAt": "2026-10-22"
+          "updatedAt": "2026-11-02"
         },
         {
           "label": "Built-in Middleware",
@@ -1699,7 +1699,7 @@
           "label": "Anthropic: Advanced",
           "to": "adapters/anthropic-advanced",
           "addedAt": "2026-10-21",
-          "updatedAt": "2026-10-22"
+          "updatedAt": "2026-11-02"
         },
         {
           "label": "Google Gemini",
@@ -1794,7 +1794,8 @@
         {
           "label": "OpenRouter: Advanced",
           "to": "adapters/openrouter-advanced",
-          "addedAt": "2026-10-21"
+          "addedAt": "2026-10-21",
+          "updatedAt": "2026-11-02"
         },
         {
           "label": "Perplexity Search",

@@ -777,6 +777,7 @@ async function* runStreamingVideoGeneration<
           threadId,
           finishReason: 'stop',
           timestamp: Date.now(),
+          ...(video.usage ? { usage: video.usage } : {}),
         } as AdapterYieldChunk)
         return
       }

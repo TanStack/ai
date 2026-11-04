@@ -1,6 +1,9 @@
 import { buildBaseUsage } from '@tanstack/ai'
 import type { TokenUsage } from '@tanstack/ai'
-import type { GenerateContentResponseUsageMetadata } from '@google/genai'
+import type {
+  GenerateContentResponseUsageMetadata,
+  Interactions,
+} from '@google/genai'
 
 /**
  * Flattened modality token counts for normalized usage reporting.
@@ -206,4 +209,53 @@ export function buildGeminiUsage(
   }
 
   return result
+}
+
+/**
+ * Build normalized TokenUsage from an Interactions API `usage` object.
+ * Returns `undefined` when the provider reported no usage.
+ */
+export function buildGeminiInteractionsUsage(
+  usage: Interactions.Interaction['usage'],
+): TokenUsage | undefined {
+  if (!usage) return undefined
+  const promptTokens = usage.total_input_tokens ?? 0
+  // Thought tokens are billed as output, the same as in buildGeminiUsage.
+  const completionTokens =
+    (usage.total_output_tokens ?? 0) + (usage.total_thought_tokens ?? 0)
+  const promptModalities = flattenModalityTokenCounts(
+    usage.input_tokens_by_modality?.map((item) => ({
+      modality: item.modality,
+      tokenCount: item.tokens,
+    })),
+  )
+  const completionModalities = flattenModalityTokenCounts(
+    usage.output_tokens_by_modality?.map((item) => ({
+      modality: item.modality,
+      tokenCount: item.tokens,
+    })),
+  )
+  const promptTokensDetails = {
+    ...(hasModalityTokens(promptModalities) ? promptModalities : {}),
+    ...(usage.total_cached_tokens
+      ? { cachedTokens: usage.total_cached_tokens }
+      : {}),
+  }
+  const completionTokensDetails = {
+    ...(hasModalityTokens(completionModalities) ? completionModalities : {}),
+    ...(usage.total_thought_tokens
+      ? { reasoningTokens: usage.total_thought_tokens }
+      : {}),
+  }
+  return {
+    promptTokens,
+    completionTokens,
+    totalTokens: usage.total_tokens ?? promptTokens + completionTokens,
+    ...(Object.keys(promptTokensDetails).length > 0
+      ? { promptTokensDetails }
+      : {}),
+    ...(Object.keys(completionTokensDetails).length > 0
+      ? { completionTokensDetails }
+      : {}),
+  }
 }

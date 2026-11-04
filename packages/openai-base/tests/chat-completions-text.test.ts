@@ -873,6 +873,47 @@ describe('OpenAIBaseChatCompletionsTextAdapter', () => {
       }
     })
 
+    it('keeps received usage on the RUN_ERROR when the stream throws', async () => {
+      const streamChunks = [
+        {
+          id: 'chatcmpl-123',
+          model: 'test-model',
+          choices: [{ delta: { content: 'Hello' }, finish_reason: null }],
+          usage: { prompt_tokens: 7, completion_tokens: 1, total_tokens: 8 },
+        },
+      ]
+      mockCreate = vi.fn().mockResolvedValue({
+        [Symbol.asyncIterator]() {
+          let index = 0
+          return {
+            async next() {
+              if (index < streamChunks.length) {
+                return { value: streamChunks[index++]!, done: false }
+              }
+              throw new Error('Stream interrupted')
+            },
+          }
+        },
+      })
+
+      const adapter = new TestChatCompletionsAdapter(testConfig, 'test-model')
+      const chunks: Array<AdapterYieldChunk> = []
+      for await (const chunk of adapter.chatStream({
+        threadId: 'thread-1',
+        logger: testLogger,
+        model: 'test-model',
+        messages: [{ role: 'user', content: 'Hello' }],
+      })) {
+        chunks.push(chunk)
+      }
+
+      expect(chunks.at(-1)).toMatchObject({
+        type: 'RUN_ERROR',
+        message: 'Stream interrupted',
+        usage: { promptTokens: 7, completionTokens: 1, totalTokens: 8 },
+      })
+    })
+
     it('emits RUN_STARTED then RUN_ERROR when client.create throws', async () => {
       mockCreate = vi.fn().mockRejectedValue(new Error('API key invalid'))
 
@@ -1215,6 +1256,34 @@ describe('OpenAIBaseChatCompletionsTextAdapter', () => {
         }),
       ).rejects.toThrow('response contained no content')
     })
+    it.each([
+      ['truncation', { content: '{"name":"Ada' }, 'length'],
+      ['no content', { content: '' }, 'stop'],
+      ['parse failure', { content: 'not valid json' }, 'stop'],
+    ])(
+      'attaches the response usage to the thrown error (%s)',
+      async (_label, message, finishReason) => {
+        setupMockSdkClient([], {
+          choices: [{ message, finish_reason: finishReason }],
+          usage: { prompt_tokens: 5, completion_tokens: 4, total_tokens: 9 },
+        })
+        const adapter = new TestChatCompletionsAdapter(testConfig, 'test-model')
+
+        await expect(
+          adapter.structuredOutput({
+            chatOptions: {
+              threadId: 'thread-1',
+              logger: testLogger,
+              model: 'test-model',
+              messages: [{ role: 'user', content: 'Give me data' }],
+            },
+            outputSchema: { type: 'object' },
+          }),
+        ).rejects.toMatchObject({
+          usage: { promptTokens: 5, completionTokens: 4, totalTokens: 9 },
+        })
+      },
+    )
   })
 
   describe('malformed tool arguments', () => {

@@ -2,6 +2,7 @@ import type { TokenUsage } from '@tanstack/ai'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { chat } from '@tanstack/ai'
 import { GeminiTextAdapter } from '../src/adapters/text'
+import { buildGeminiInteractionsUsage } from '../src/usage'
 import type { AdapterYieldChunk } from '@tanstack/ai'
 
 /** `chat()` restores a TokenUsage object on RUN_FINISHED. */
@@ -415,5 +416,22 @@ describe('Gemini usage extraction', () => {
     expect(doneChunk).toBeDefined()
     // When no usageMetadata is provided, usage is undefined
     expect(doneChunk?.usage).toBeUndefined()
+  })
+})
+
+describe('buildGeminiInteractionsUsage', () => {
+  it('counts thought tokens in completionTokens, as generateContent does', () => {
+    expect(
+      buildGeminiInteractionsUsage({
+        total_input_tokens: 10,
+        total_output_tokens: 20,
+        total_thought_tokens: 30,
+      }),
+    ).toEqual({
+      promptTokens: 10,
+      completionTokens: 50,
+      totalTokens: 60,
+      completionTokensDetails: { reasoningTokens: 30 },
+    })
   })
 })

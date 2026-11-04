@@ -2,6 +2,7 @@ import { BaseTranscriptionAdapter } from '@tanstack/ai/adapters'
 import { base64ToArrayBuffer, generateId } from '@tanstack/ai-utils'
 import { getGroqApiKeyFromEnv, withGroqDefaults } from '../utils/client'
 import type {
+  TokenUsage,
   TranscriptionOptions,
   TranscriptionResult,
   TranscriptionSegment,
@@ -192,6 +193,18 @@ export class GroqTranscriptionAdapter<
           end: w.end,
         }))
 
+        // Groq STT is billed by audio duration and the response has no token
+        // counts, so surface the duration as the billed quantity.
+        const usage: TokenUsage | undefined =
+          data.duration !== undefined && data.duration > 0
+            ? {
+                promptTokens: 0,
+                completionTokens: 0,
+                totalTokens: 0,
+                billed: { quantity: data.duration, unit: 'seconds' },
+              }
+            : undefined
+
         return {
           id: requestId,
           model,
@@ -200,6 +213,7 @@ export class GroqTranscriptionAdapter<
           ...(data.duration !== undefined && { duration: data.duration }),
           ...(segments !== undefined && { segments }),
           ...(words !== undefined && { words }),
+          ...(usage !== undefined && { usage }),
         }
       } else if (effectiveFormat === 'text') {
         const text = await response.text()

@@ -300,9 +300,12 @@ export async function* translateThreadEvents(
     if (done) yield* endText(item.id)
   }
 
-  function* emitStructuredFromLast(): Generator<AdapterYieldChunk> {
-    if (ctx.expectStructuredOutput !== true) return
-    if (lastAgentMessage === undefined) return
+  /** Returns true when it yielded a parse-failure RUN_ERROR. */
+  function* emitStructuredFromLast(
+    usage?: TokenUsage,
+  ): Generator<AdapterYieldChunk, boolean> {
+    if (ctx.expectStructuredOutput !== true) return false
+    if (lastAgentMessage === undefined) return false
     const item = lastAgentMessage
     lastAgentMessage = undefined
     try {
@@ -321,6 +324,7 @@ export async function* translateThreadEvents(
         object,
         raw: item.text,
       })
+      return false
     } catch (error: unknown) {
       const parserMessage =
         error instanceof Error
@@ -336,7 +340,9 @@ export async function* translateThreadEvents(
         message,
         code: 'structured-output-parse-failed',
         error: { message, code: 'structured-output-parse-failed' },
+        ...(usage && { usage }),
       }
+      return true
     }
   }
 
@@ -427,9 +433,11 @@ export async function* translateThreadEvents(
       } else if (event.type === 'item.completed') {
         yield* handleItemCompleted(event.item)
       } else if (event.type === 'turn.completed') {
-        yield* emitStructuredFromLast()
-        yield* synthesizeUnresolvedResults()
         const usage = buildUsage(event.usage)
+        const parseFailed = yield* emitStructuredFromLast(usage)
+        yield* synthesizeUnresolvedResults()
+        // chat() stops at the first RUN_ERROR, so a RUN_FINISHED is never read.
+        if (parseFailed) continue
         yield {
           type: EventType.RUN_FINISHED,
           runId,

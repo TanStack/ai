@@ -212,6 +212,33 @@ describe('OpenAI Image Adapter', () => {
       ).rejects.toThrow(/image response contained no images/)
     })
 
+    it('attaches the response usage when the response contains no usable images', async () => {
+      const adapter = new TestOpenAIImageAdapter(
+        { apiKey: 'test-api-key' },
+        'gpt-image-1',
+      )
+      adapter.spyOnImagesGenerate().mockResolvedValueOnce({
+        created: 0,
+        data: [{}],
+        usage: {
+          input_tokens: 10,
+          input_tokens_details: { image_tokens: 0, text_tokens: 10 },
+          output_tokens: 0,
+          total_tokens: 10,
+        },
+      })
+
+      await expect(
+        adapter.generateImages({
+          model: 'gpt-image-1',
+          prompt: 'A cat',
+          logger: testLogger,
+        }),
+      ).rejects.toMatchObject({
+        usage: { promptTokens: 10, completionTokens: 0, totalTokens: 10 },
+      })
+    })
+
     it('generates a unique ID for each response', async () => {
       const mockResponse: OpenAI.Images.ImagesResponse = {
         created: 0,
@@ -454,6 +481,39 @@ describe('OpenAI Image Adapter', () => {
           logger: testLogger,
         }),
       ).rejects.toThrow(/image edit response contained no images/)
+    })
+
+    it('attaches the response usage when the edit response contains no usable images', async () => {
+      const adapter = new TestOpenAIImageAdapter(
+        { apiKey: 'test-api-key' },
+        'gpt-image-1',
+      )
+      adapter.spyOnImagesEdit().mockResolvedValueOnce({
+        created: 0,
+        data: [{}],
+        usage: {
+          input_tokens: 10,
+          input_tokens_details: { image_tokens: 0, text_tokens: 10 },
+          output_tokens: 0,
+          total_tokens: 10,
+        },
+      })
+
+      await expect(
+        adapter.generateImages({
+          model: 'gpt-image-1',
+          prompt: [
+            { type: 'text', content: 'edit' },
+            {
+              type: 'image',
+              source: { type: 'data', value: 'aGk=', mimeType: 'image/png' },
+            },
+          ],
+          logger: testLogger,
+        }),
+      ).rejects.toMatchObject({
+        usage: { promptTokens: 10, completionTokens: 0, totalTokens: 10 },
+      })
     })
 
     it('rejects video or audio prompt parts', async () => {

@@ -255,7 +255,7 @@ When more than one middleware has `onChunk`, chunks flow through them in order. 
 
 | `chunk.type` | Meaning | Key fields |
 | --- | --- | --- |
-| `RUN_STARTED` / `RUN_FINISHED` / `RUN_ERROR` | Start and end of the run | `runId`, `finishReason`, `usage` (on finish), `message` (on error) |
+| `RUN_STARTED` / `RUN_FINISHED` / `RUN_ERROR` | Start and end of the run | `runId`, `finishReason`, `usage` (on finish, and on error when the provider billed the call), `message` (on error) |
 | `TEXT_MESSAGE_START` / `TEXT_MESSAGE_CONTENT` / `TEXT_MESSAGE_END` | Assistant text | `messageId`, `delta` (content) |
 | `TOOL_CALL_START` / `TOOL_CALL_ARGS` / `TOOL_CALL_END` | Tool calls | `toolCallId`, `toolCallName`, `delta` (args), result on end |
 | `REASONING_START` / `REASONING_MESSAGE_CONTENT` / `REASONING_END` | Thinking or reasoning | `messageId`, `delta`. The signature comes on `REASONING_ENCRYPTED_VALUE` |
@@ -725,7 +725,10 @@ With `toolExecution: 'sequential'`, each call finishes its `onBeforeToolCall`, i
 
 ### onUsage
 
-`onUsage` runs once per model call when the `RUN_FINISHED` chunk has usage data. It gets the usage object.
+`onUsage` gets the token usage of each model call. It runs one time per call, when the call ends with usage:
+
+- `RUN_FINISHED`: the call completed.
+- `RUN_ERROR`: the call failed after the provider billed it. Examples are a response cut off at the token limit, a refusal, or JSON that does not match the schema.
 
 ```typescript
 import { type ChatMiddleware } from "@tanstack/ai";
@@ -750,6 +753,30 @@ The main `usage` fields:
 | `cost` | `number \| undefined` | The cost that the provider reports, when it reports one |
 
 The object can also have `promptTokensDetails`, `completionTokensDetails`, `costDetails`, and `providerUsageDetails`.
+
+A failed call has usage only when the provider sent usage before the failure. A request that fails before the response starts has no usage.
+
+Media and summarize calls report billed failures too. When `generateImage()`, `generateSpeech()`, or `summarize()` fails after the provider billed the call, two things get the usage:
+
+- The `onUsage` hook of the generation middleware.
+- The `usage` field of the error that the call throws.
+
+```typescript
+import { generateImage } from "@tanstack/ai";
+import { openaiImage } from "@tanstack/ai-openai";
+
+try {
+  await generateImage({
+    adapter: openaiImage("gpt-image-2.5-flare"),
+    prompt: "A lighthouse at night",
+    threadId: "thread-1",
+  });
+} catch (error) {
+  if (error instanceof Error && "usage" in error) {
+    console.log("Billed usage of the failed call:", error.usage);
+  }
+}
+```
 
 ### Terminal hooks: onFinish, onAbort, onError
 
@@ -805,7 +832,7 @@ On the **separate-finalization** path, the adapter makes one more provider call 
 - `onIteration` does **not** run for that call. It runs only for agent-loop iterations.
 - `onFinish` runs after that call completes. Its `info` shows the end state of the **agent loop**.
 - `info.content` does not have the JSON deltas. Read the result from the `structured-output.complete` CUSTOM event in `onChunk`.
-- `info.usage` is `undefined` for a structured-output run with no tools. Use `onUsage` to get the tokens of the final call. `onUsage` runs for **every** `RUN_FINISHED` with usage.
+- `info.usage` is `undefined` for a structured-output run with no tools. Use `onUsage` to get the tokens of the final call. `onUsage` runs for **every** `RUN_FINISHED` or `RUN_ERROR` with usage.
 
 On the **native-combined** path, the JSON comes in the normal agent-loop stream:
 

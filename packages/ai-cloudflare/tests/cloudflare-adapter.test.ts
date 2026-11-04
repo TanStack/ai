@@ -594,6 +594,28 @@ describe('transcription adapter', () => {
     })
   })
 
+  it('reports the audio duration as billed seconds', async () => {
+    const { binding } = fakeBinding(() => ({
+      text: 'Hello there.',
+      transcription_info: { language: 'en', duration: 1.05 },
+    }))
+    const adapter = createCloudflareTranscription(
+      '@cf/openai/whisper-large-v3-turbo',
+      { binding },
+    )
+    const result = await adapter.transcribe({
+      model: '@cf/openai/whisper-large-v3-turbo',
+      audio: new Uint8Array([65]).buffer,
+      logger,
+    })
+    expect(result.usage).toEqual({
+      promptTokens: 0,
+      completionTokens: 0,
+      totalTokens: 0,
+      billed: { quantity: 1.05, unit: 'seconds' },
+    })
+  })
+
   it('fails instead of returning an empty transcript', async () => {
     const { binding } = fakeBinding(() => ({ transcription_info: {} }))
     const adapter = createCloudflareTranscription(

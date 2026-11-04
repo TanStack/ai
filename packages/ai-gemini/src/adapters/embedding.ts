@@ -91,8 +91,15 @@ export class GeminiEmbeddingAdapter<
         )
       }
 
-      // The Gemini embedding API does not report token usage, so `usage` is
-      // omitted from the result.
+      // Only Vertex reports usage (per-input token counts and billable
+      // characters). The Developer API reports none, so `usage` is omitted.
+      const tokenCounts = embeddings.flatMap(
+        (embedding) => embedding.statistics?.tokenCount ?? [],
+      )
+      const billableCharacters = response.metadata?.billableCharacterCount
+      const tokens = tokenCounts.reduce((sum, count) => sum + count, 0)
+      const hasUsage =
+        tokenCounts.length > 0 || billableCharacters !== undefined
       return {
         id: generateId(this.name),
         model,
@@ -100,6 +107,16 @@ export class GeminiEmbeddingAdapter<
           vector: embedding.values ?? [],
           index,
         })),
+        ...(hasUsage && {
+          usage: {
+            promptTokens: tokens,
+            completionTokens: 0,
+            totalTokens: tokens,
+            ...(billableCharacters !== undefined && {
+              billed: { quantity: billableCharacters, unit: 'characters' },
+            }),
+          },
+        }),
       }
     } catch (error: unknown) {
       logger.errors(`${this.name}.createEmbeddings fatal`, {

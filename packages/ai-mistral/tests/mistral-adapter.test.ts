@@ -1799,3 +1799,113 @@ describe('Mistral reasoning (magistral-* models)', () => {
     expect(types).not.toContain('TEXT_MESSAGE_START')
   })
 })
+
+describe('Mistral usage on every terminal event', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  const usage = { promptTokens: 5, completionTokens: 2, totalTokens: 7 }
+  const textChunk = {
+    id: 'cmpl-u',
+    model: 'mistral-large-latest',
+    choices: [{ index: 0, delta: { content: 'Hi' }, finishReason: null }],
+  }
+  const finishChunk = {
+    id: 'cmpl-u',
+    model: 'mistral-large-latest',
+    choices: [{ index: 0, delta: {}, finishReason: 'stop' }],
+  }
+
+  async function collect() {
+    const adapter = createMistralText('mistral-large-latest', 'test-api-key')
+    const chunks: Array<AdapterYieldChunk> = []
+    try {
+      for await (const chunk of adapter.chatStream(
+        chatOpts({
+          model: 'mistral-large-latest',
+          messages: [{ role: 'user', content: 'Hello' }],
+        }),
+      )) {
+        chunks.push(chunk)
+      }
+    } catch {
+      // chatStream rethrows after its RUN_ERROR.
+    }
+    return chunks
+  }
+
+  it('includes usage from a trailing usage-only chunk on RUN_FINISHED', async () => {
+    setupMockStream([
+      textChunk,
+      finishChunk,
+      { id: 'cmpl-u', model: 'mistral-large-latest', choices: [], usage },
+    ])
+    const chunks = await collect()
+    const finished = chunks.filter((c) => c.type === 'RUN_FINISHED')
+    expect(finished).toHaveLength(1)
+    expect(finished[0]).toMatchObject({ finishReason: 'stop', usage })
+  })
+
+  it('keeps the usage when the stream ends without a finish_reason', async () => {
+    setupMockStream([{ ...textChunk, usage }])
+    const chunks = await collect()
+    expect(chunks.find((c) => c.type === 'RUN_FINISHED')).toMatchObject({
+      usage,
+    })
+  })
+
+  it('keeps the usage on the RUN_ERROR when the stream breaks after it', async () => {
+    const sse = `data: ${JSON.stringify(toApiChunk({ ...finishChunk, usage }))}\n\n`
+    let sent = false
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        body: new ReadableStream({
+          // error() drops queued data, so send the chunk on the first pull.
+          pull(controller) {
+            if (sent) controller.error(new Error('connection reset'))
+            else controller.enqueue(new TextEncoder().encode(sse))
+            sent = true
+          },
+        }),
+      }),
+    )
+    const chunks = await collect()
+    expect(chunks.find((c) => c.type === 'RUN_ERROR')).toMatchObject({
+      message: 'connection reset',
+      usage,
+    })
+  })
+
+  it('attaches usage to the errors structuredOutput throws after a response', async () => {
+    for (const [content, finishReason] of [
+      ['{"value":', 'length'],
+      ['{not json', 'stop'],
+    ]) {
+      mockComplete.mockReset().mockResolvedValue({
+        choices: [{ message: { content }, finishReason }],
+        usage,
+      })
+      const error = await createMistralText(
+        'mistral-large-latest',
+        'test-api-key',
+      )
+        .structuredOutput({
+          chatOptions: chatOpts({
+            model: 'mistral-large-latest',
+            messages: [{ role: 'user', content: 'Return structured output' }],
+          }),
+          outputSchema: {
+            type: 'object',
+            properties: { value: { type: 'string' } },
+          },
+        })
+        .catch((e: unknown) => e)
+      expect(error).toBeInstanceOf(Error)
+      expect(error).toMatchObject({ usage })
+    }
+  })
+})

@@ -1,3 +1,4 @@
+import type { InternalLogger } from '../../logger/internal-logger'
 import type {
   GenerationAbortInfo,
   GenerationErrorInfo,
@@ -71,6 +72,24 @@ export function runGenerationUsage(
   usage: GenerationUsageInfo,
 ): Promise<void> {
   return run(middleware, (mw) => mw.onUsage?.(ctx, usage))
+}
+
+/**
+ * `onUsage` for a call that failed after the provider billed it. A throwing
+ * middleware is logged, so the call's own error still reaches `onError`
+ * and the caller.
+ */
+export async function runFailedGenerationUsage(
+  middleware: ReadonlyArray<GenerationMiddleware> | undefined,
+  ctx: GenerationMiddlewareContext,
+  usage: GenerationUsageInfo,
+  logger: InternalLogger,
+): Promise<void> {
+  try {
+    await runGenerationUsage(middleware, ctx, usage)
+  } catch (error) {
+    logger.errors('onUsage middleware threw for a failed call', { error })
+  }
 }
 
 export function runGenerationFinish(

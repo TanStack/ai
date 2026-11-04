@@ -29,6 +29,7 @@ import type {
   ReasoningRequest,
   ResolvedPromptCache,
   TextOptions,
+  TokenUsage,
   ToolChoice,
 } from '@tanstack/ai'
 import type {
@@ -336,7 +337,14 @@ export class MistralTextAdapter<
     const requestParams = this.mapTextOptionsToMistral(options)
     const timestamp = Date.now()
 
-    const aguiState = {
+    const aguiState: {
+      runId: string
+      threadId: string
+      messageId: string
+      timestamp: number
+      hasEmittedRunStarted: boolean
+      usage?: TokenUsage
+    } = {
       runId: options.runId ?? generateId(this.name),
       threadId: options.threadId,
       messageId: generateId(this.name),
@@ -423,6 +431,7 @@ export class MistralTextAdapter<
           message: err.message || 'Unknown error',
           code: err.code,
         },
+        ...(aguiState.usage && { usage: aguiState.usage }),
       })
 
       throw err
@@ -481,11 +490,22 @@ export class MistralTextAdapter<
         })
       : await client.chat.complete(params)
 
+    const usage = response.usage && {
+      promptTokens: response.usage.promptTokens ?? 0,
+      completionTokens: response.usage.completionTokens ?? 0,
+      totalTokens: response.usage.totalTokens ?? 0,
+      ...mistralCachedTokens(response.usage),
+    }
+
     // A response cut off at the output cap is a truncated JSON document;
-    // report it before the parse error (issue #1426).
+    // report it before the parse error (issue #1426). The errors carry the
+    // usage, because the provider already billed the tokens.
     if (response.choices[0]?.finishReason === 'length') {
-      throw new Error(
-        'mistral.structuredOutput: the response was cut off because the maximum token limit was reached (finish_reason=length); raise modelOptions.max_tokens',
+      throw Object.assign(
+        new Error(
+          'mistral.structuredOutput: the response was cut off because the maximum token limit was reached (finish_reason=length); raise modelOptions.max_tokens',
+        ),
+        usage && { usage },
       )
     }
 
@@ -496,25 +516,20 @@ export class MistralTextAdapter<
     try {
       parsed = JSON.parse(textContent)
     } catch {
-      throw new Error(
-        `Failed to parse structured output as JSON. Content: ${textContent.slice(0, 200)}${textContent.length > 200 ? '...' : ''}`,
+      throw Object.assign(
+        new Error(
+          `Failed to parse structured output as JSON. Content: ${textContent.slice(0, 200)}${textContent.length > 200 ? '...' : ''}`,
+        ),
+        usage && { usage },
       )
     }
 
-    const usage = response.usage
     return {
       data: undoNullWidening(parsed, nullWideningMap),
       ...(response.id && { responseId: response.id }),
       ...(response.model && { model: response.model }),
       rawText: textContent,
-      ...(usage && {
-        usage: {
-          promptTokens: usage.promptTokens ?? 0,
-          completionTokens: usage.completionTokens ?? 0,
-          totalTokens: usage.totalTokens ?? 0,
-          ...mistralCachedTokens(usage),
-        },
-      }),
+      ...(usage && { usage }),
     }
   }
 
@@ -530,9 +545,15 @@ export class MistralTextAdapter<
       messageId: string
       timestamp: number
       hasEmittedRunStarted: boolean
+      usage?: TokenUsage
     },
   ): AsyncIterable<AdapterYieldChunk> {
     let accumulatedContent = ''
+    // RUN_FINISHED waits for the end of the stream, so usage from a
+    // trailing usage-only chunk (`choices: []`) is included.
+    let finished:
+      | { model: string; finishReason: 'tool_calls' | 'length' | 'stop' }
+      | undefined
     const timestamp = aguiState.timestamp
     let hasEmittedTextMessageStart = false
     let hasEmittedTextMessageEnd = false
@@ -564,6 +585,14 @@ export class MistralTextAdapter<
       for await (const chunk of stream) {
         lastChunkModel = chunk.model || lastChunkModel
         if (chunk.id) responseId = chunk.id
+        if (chunk.usage) {
+          aguiState.usage = {
+            promptTokens: chunk.usage.prompt_tokens || 0,
+            completionTokens: chunk.usage.completion_tokens || 0,
+            totalTokens: chunk.usage.total_tokens || 0,
+            ...mistralCachedTokens(chunk.usage),
+          }
+        }
         const choice = chunk.choices?.[0]
         if (!choice) continue
 
@@ -820,26 +849,22 @@ export class MistralTextAdapter<
             })
           }
 
-          const usage = chunk.usage
           hasEmittedRunFinished = true
-          yield asChunk({
-            type: 'RUN_FINISHED',
-            ...(responseId && { responseId }),
-            runId: aguiState.runId,
-            threadId: aguiState.threadId,
-            model: chunkModel,
-            timestamp,
-            usage: usage
-              ? {
-                  promptTokens: usage.prompt_tokens || 0,
-                  completionTokens: usage.completion_tokens || 0,
-                  totalTokens: usage.total_tokens || 0,
-                  ...mistralCachedTokens(usage),
-                }
-              : undefined,
-            finishReason: computedFinishReason,
-          })
+          finished = { model: chunkModel, finishReason: computedFinishReason }
         }
+      }
+
+      if (finished) {
+        yield asChunk({
+          type: 'RUN_FINISHED',
+          ...(responseId && { responseId }),
+          runId: aguiState.runId,
+          threadId: aguiState.threadId,
+          model: finished.model,
+          timestamp,
+          ...(aguiState.usage && { usage: aguiState.usage }),
+          finishReason: finished.finishReason,
+        })
       }
 
       // Stream ended cleanly without finish_reason — flush any open
@@ -896,7 +921,7 @@ export class MistralTextAdapter<
           threadId: aguiState.threadId,
           model: lastChunkModel,
           timestamp,
-          usage: undefined,
+          ...(aguiState.usage && { usage: aguiState.usage }),
           finishReason: hasEmittedToolCall ? 'tool_calls' : 'stop',
         })
       }

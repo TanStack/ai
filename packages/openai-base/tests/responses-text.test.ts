@@ -2449,6 +2449,124 @@ describe('OpenAIBaseResponsesTextAdapter', () => {
       expect(incompleteError).toBeDefined()
     })
 
+    it.each(['response.failed', 'response.incomplete'])(
+      'keeps the response usage on the RUN_ERROR for %s',
+      async (type) => {
+        setupMockResponsesClient([
+          {
+            type,
+            response: {
+              id: 'resp-123',
+              model: 'test-model',
+              status: type === 'response.failed' ? 'failed' : 'incomplete',
+              ...(type === 'response.failed'
+                ? { error: { message: 'Server error', code: 'server_error' } }
+                : { incomplete_details: { reason: 'content_filter' } }),
+              usage: { input_tokens: 11, output_tokens: 3, total_tokens: 14 },
+            },
+          },
+        ])
+        const adapter = new TestResponsesAdapter(testConfig, 'test-model')
+        const chunks: Array<AdapterYieldChunk> = []
+        for await (const chunk of adapter.chatStream({
+          threadId: 'thread-1',
+          logger: testLogger,
+          model: 'test-model',
+          messages: [{ role: 'user', content: 'Hello' }],
+        })) {
+          chunks.push(chunk)
+        }
+
+        expect(chunks.at(-1)).toMatchObject({
+          type: 'RUN_ERROR',
+          usage: { promptTokens: 11, completionTokens: 3, totalTokens: 14 },
+        })
+      },
+    )
+
+    it.each(['response.content_part.added', 'response.content_part.done'])(
+      'reports a refusal from %s with the usage of response.completed',
+      async (type) => {
+        setupMockResponsesClient([
+          {
+            type: 'response.created',
+            response: { id: 'resp-123', model: 'test-model' },
+          },
+          {
+            type,
+            item_id: 'msg_1',
+            output_index: 0,
+            content_index: 0,
+            part: { type: 'refusal', refusal: 'I cannot help with that' },
+          },
+          {
+            type: 'response.completed',
+            response: {
+              id: 'resp-123',
+              model: 'test-model',
+              status: 'completed',
+              output: [],
+              usage: { input_tokens: 11, output_tokens: 3, total_tokens: 14 },
+            },
+          },
+        ])
+        const adapter = new TestResponsesAdapter(testConfig, 'test-model')
+        const chunks: Array<AdapterYieldChunk> = []
+        for await (const chunk of adapter.chatStream({
+          threadId: 'thread-1',
+          logger: testLogger,
+          model: 'test-model',
+          messages: [{ role: 'user', content: 'Hello' }],
+        })) {
+          chunks.push(chunk)
+        }
+
+        expect(chunks.filter((c) => c.type === 'RUN_ERROR')).toHaveLength(1)
+        expect(chunks.map((c) => c.type)).not.toContain('RUN_FINISHED')
+        expect(chunks.at(-1)).toMatchObject({
+          type: 'RUN_ERROR',
+          message: 'I cannot help with that',
+          code: 'refusal',
+          usage: { promptTokens: 11, completionTokens: 3, totalTokens: 14 },
+        })
+      },
+    )
+
+    it('reports a caller abort during a held refusal as an abort', async () => {
+      mockResponsesCreate = vi.fn().mockResolvedValue(
+        (async function* () {
+          yield {
+            type: 'response.created',
+            response: { id: 'resp-123', model: 'test-model' },
+          }
+          yield {
+            type: 'response.content_part.done',
+            item_id: 'msg_1',
+            output_index: 0,
+            content_index: 0,
+            part: { type: 'refusal', refusal: 'I cannot help with that' },
+          }
+          throw Object.assign(new Error('Request was aborted.'), {
+            name: 'APIUserAbortError',
+          })
+        })(),
+      )
+      const adapter = new TestResponsesAdapter(testConfig, 'test-model')
+      const chunks: Array<AdapterYieldChunk> = []
+      for await (const chunk of adapter.chatStream({
+        threadId: 'thread-1',
+        logger: testLogger,
+        model: 'test-model',
+        messages: [{ role: 'user', content: 'Hello' }],
+      })) {
+        chunks.push(chunk)
+      }
+
+      const errors = chunks.filter((c) => c.type === 'RUN_ERROR')
+      expect(errors).toHaveLength(1)
+      expect(errors[0]).not.toMatchObject({ code: 'refusal' })
+    })
+
     it('emits RUN_ERROR on error event type', async () => {
       const streamChunks = [
         {
@@ -2856,6 +2974,52 @@ describe('OpenAIBaseResponsesTextAdapter', () => {
         }),
       ).rejects.toThrow(/unsupported message content part type "output_audio"/)
     })
+    it.each([
+      [
+        'a refusal',
+        [
+          {
+            type: 'message',
+            content: [{ type: 'refusal', refusal: 'I cannot help with that' }],
+          },
+        ],
+      ],
+      [
+        'no content',
+        [{ type: 'message', content: [{ type: 'output_text', text: '' }] }],
+      ],
+      [
+        'invalid JSON',
+        [
+          {
+            type: 'message',
+            content: [{ type: 'output_text', text: 'not json' }],
+          },
+        ],
+      ],
+    ])(
+      'attaches the response usage to the thrown error (%s)',
+      async (_label, output) => {
+        setupMockResponsesClient([], {
+          output,
+          usage: { input_tokens: 11, output_tokens: 3, total_tokens: 14 },
+        })
+        const adapter = new TestResponsesAdapter(testConfig, 'test-model')
+        await expect(
+          adapter.structuredOutput({
+            chatOptions: {
+              threadId: 'thread-1',
+              logger: testLogger,
+              model: 'test-model',
+              messages: [{ role: 'user', content: 'q' }],
+            },
+            outputSchema: { type: 'object' },
+          }),
+        ).rejects.toMatchObject({
+          usage: { promptTokens: 11, completionTokens: 3, totalTokens: 14 },
+        })
+      },
+    )
   })
 
   describe('request mapping', () => {

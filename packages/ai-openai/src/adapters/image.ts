@@ -161,15 +161,19 @@ export class OpenAIImageAdapter<
         },
       )
 
-      // Surface empty responses (e.g. moderation blocks returning items with
-      // neither b64_json nor url) instead of resolving to `{ images: [] }`.
-      if (images.length === 0) {
-        throw new Error(`${this.name}: image response contained no images`)
-      }
-
       // `ImageGenerationResult.usage` is `usage?: TokenUsage` without
       // `| undefined`, so spread the field only when the model reported usage.
       const usage = buildImagesUsage(response.usage)
+
+      // Surface empty responses (e.g. moderation blocks returning items with
+      // neither b64_json nor url) instead of resolving to `{ images: [] }`.
+      // The error keeps the usage the provider billed.
+      if (images.length === 0) {
+        throw Object.assign(
+          new Error(`${this.name}: image response contained no images`),
+          { usage },
+        )
+      }
 
       return {
         id: generateId(this.name),
@@ -296,20 +300,23 @@ export class OpenAIImageAdapter<
         },
       )
 
+      const usage = buildImagesUsage(response.usage)
+
       // Surface empty responses (e.g. moderation blocks returning items with
       // neither b64_json nor url) instead of resolving to `{ images: [] }`.
+      // The error keeps the usage the provider billed.
       if (images.length === 0) {
-        throw new Error(`${this.name}: image edit response contained no images`)
+        throw Object.assign(
+          new Error(`${this.name}: image edit response contained no images`),
+          { usage },
+        )
       }
 
       return {
         id: generateId(this.name),
         model,
         images,
-        ...(() => {
-          const usage = buildImagesUsage(response.usage)
-          return usage ? { usage } : {}
-        })(),
+        ...(usage ? { usage } : {}),
       }
     } catch (error: unknown) {
       logger.errors(`${this.name}.editImages fatal`, {

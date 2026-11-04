@@ -780,4 +780,289 @@ describe('Anthropic usage extraction', () => {
       },
     )
   })
+
+  it.each([
+    ['30 thinking tokens', 30],
+    ['0 thinking tokens', 0],
+  ])(
+    'maps output_tokens_details.thinking_tokens to reasoningTokens (%s)',
+    async (_, thinkingTokens) => {
+      mocks.betaMessagesCreate.mockResolvedValueOnce(
+        createMockStream([
+          {
+            type: 'message_start',
+            message: {
+              id: 'msg_123',
+              type: 'message',
+              role: 'assistant',
+              content: [],
+              model: 'claude-sonnet-4-5',
+              usage: {
+                input_tokens: 10,
+                output_tokens: 1,
+                output_tokens_details: { thinking_tokens: 0 },
+              },
+            },
+          },
+          {
+            type: 'message_delta',
+            delta: { stop_reason: 'end_turn' },
+            usage: {
+              output_tokens: 50,
+              output_tokens_details: { thinking_tokens: thinkingTokens },
+            },
+          },
+          { type: 'message_stop' },
+        ]),
+      )
+
+      const chunks: Array<AdapterYieldChunk> = []
+      for await (const chunk of createAdapter().chatStream({
+        model: 'claude-sonnet-4-5',
+        threadId: 'thread-1',
+        messages: [{ role: 'user', content: 'Hello' }],
+        logger: createSilentLogger(),
+      })) {
+        chunks.push(chunk)
+      }
+
+      const doneChunk = chunks.find((c) => c.type === 'RUN_FINISHED')
+      expect(tokenUsageOf(doneChunk)?.completionTokensDetails).toEqual({
+        reasoningTokens: thinkingTokens,
+      })
+    },
+  )
+
+  it('reports usage iterations in providerUsageDetails without changing the totals', async () => {
+    mocks.betaMessagesCreate.mockResolvedValueOnce(
+      createMockStream([
+        {
+          type: 'message_start',
+          message: {
+            id: 'msg_123',
+            type: 'message',
+            role: 'assistant',
+            content: [],
+            model: 'claude-sonnet-4-5',
+            usage: { input_tokens: 100, output_tokens: 1 },
+          },
+        },
+        {
+          type: 'message_delta',
+          delta: { stop_reason: 'end_turn' },
+          usage: {
+            input_tokens: 100,
+            output_tokens: 20,
+            iterations: [
+              {
+                type: 'compaction',
+                input_tokens: 5000,
+                output_tokens: 300,
+                cache_creation_input_tokens: 0,
+                cache_read_input_tokens: 0,
+                cache_creation: null,
+              },
+              {
+                type: 'message',
+                model: 'claude-sonnet-4-5',
+                input_tokens: 100,
+                output_tokens: 20,
+                cache_creation_input_tokens: 0,
+                cache_read_input_tokens: 40,
+                cache_creation: null,
+              },
+            ],
+          },
+        },
+        { type: 'message_stop' },
+      ]),
+    )
+
+    const chunks: Array<AdapterYieldChunk> = []
+    for await (const chunk of createAdapter().chatStream({
+      model: 'claude-sonnet-4-5',
+      threadId: 'thread-1',
+      messages: [{ role: 'user', content: 'Hello' }],
+      logger: createSilentLogger(),
+    })) {
+      chunks.push(chunk)
+    }
+
+    const usage = tokenUsageOf(chunks.find((c) => c.type === 'RUN_FINISHED'))
+    // Compaction tokens are not in the top-level counts, so the totals stay.
+    expect(usage).toMatchObject({
+      promptTokens: 100,
+      completionTokens: 20,
+      totalTokens: 120,
+    })
+    expect(usage?.providerUsageDetails).toEqual({
+      iterations: [
+        {
+          type: 'compaction',
+          inputTokens: 5000,
+          outputTokens: 300,
+          cacheCreationInputTokens: 0,
+          cacheReadInputTokens: 0,
+        },
+        {
+          type: 'message',
+          model: 'claude-sonnet-4-5',
+          inputTokens: 100,
+          outputTokens: 20,
+          cacheCreationInputTokens: 0,
+          cacheReadInputTokens: 40,
+        },
+      ],
+    })
+  })
+
+  it('reports the message_start usage when message_stop ends the run without a stop_reason', async () => {
+    mocks.betaMessagesCreate.mockResolvedValueOnce(
+      createMockStream([
+        {
+          type: 'message_start',
+          message: {
+            id: 'msg_123',
+            type: 'message',
+            role: 'assistant',
+            content: [],
+            model: 'claude-sonnet-4-5',
+            usage: { input_tokens: 12, output_tokens: 3 },
+          },
+        },
+        { type: 'message_stop' },
+      ]),
+    )
+
+    const chunks: Array<AdapterYieldChunk> = []
+    for await (const chunk of createAdapter().chatStream({
+      model: 'claude-sonnet-4-5',
+      threadId: 'thread-1',
+      messages: [{ role: 'user', content: 'Hello' }],
+      logger: createSilentLogger(),
+    })) {
+      chunks.push(chunk)
+    }
+
+    const doneChunk = chunks.find((c) => c.type === 'RUN_FINISHED')
+    expect(tokenUsageOf(doneChunk)).toEqual({
+      promptTokens: 12,
+      completionTokens: 3,
+      totalTokens: 15,
+    })
+  })
+
+  it('does not report the message_stop usage again when the stream then fails', async () => {
+    mocks.betaMessagesCreate.mockResolvedValueOnce(
+      (async function* () {
+        yield {
+          type: 'message_start',
+          message: {
+            id: 'msg_123',
+            type: 'message',
+            role: 'assistant',
+            content: [],
+            model: 'claude-sonnet-4-5',
+            usage: { input_tokens: 12, output_tokens: 3 },
+          },
+        }
+        yield { type: 'message_stop' }
+        throw new Error('socket closed')
+      })(),
+    )
+
+    const chunks: Array<AdapterYieldChunk> = []
+    for await (const chunk of createAdapter().chatStream({
+      model: 'claude-sonnet-4-5',
+      threadId: 'thread-1',
+      messages: [{ role: 'user', content: 'Hello' }],
+      logger: createSilentLogger(),
+    })) {
+      chunks.push(chunk)
+    }
+
+    expect(tokenUsageOf(chunks.find((c) => c.type === 'RUN_FINISHED'))).toEqual(
+      { promptTokens: 12, completionTokens: 3, totalTokens: 15 },
+    )
+    expect(chunks.find((c) => c.type === 'RUN_ERROR')).not.toHaveProperty(
+      'usage',
+    )
+  })
+
+  describe('when structuredOutput fails after the response arrived', () => {
+    const structuredOptions = {
+      chatOptions: {
+        threadId: 'thread-1',
+        model: 'claude-sonnet-4-5',
+        messages: [{ role: 'user' as const, content: 'recommend a guitar' }],
+        logger: createSilentLogger(),
+      },
+      outputSchema: {
+        type: 'object',
+        properties: { recommendation: { type: 'string' } },
+      },
+    }
+    const response = {
+      id: 'msg_structured',
+      type: 'message',
+      role: 'assistant',
+      model: 'claude-sonnet-4-5',
+      usage: {
+        input_tokens: 10,
+        output_tokens: 100,
+        cache_read_input_tokens: 5,
+      },
+    }
+
+    it.each([
+      [
+        'max_tokens',
+        {
+          stop_reason: 'max_tokens',
+          content: [
+            {
+              type: 'tool_use',
+              id: 'toolu_1',
+              name: 'structured_output',
+              input: {},
+            },
+          ],
+        },
+      ],
+      [
+        'refusal',
+        {
+          stop_reason: 'refusal',
+          content: [{ type: 'text', text: 'I cannot help with that.' }],
+        },
+      ],
+    ])('attaches the usage to the thrown error (%s)', async (_, outcome) => {
+      mocks.betaMessagesCreate.mockResolvedValueOnce({
+        ...response,
+        ...outcome,
+      })
+
+      await expect(
+        createAdapter().structuredOutput(structuredOptions),
+      ).rejects.toMatchObject({
+        message: expect.stringMatching(/^Structured output generation failed/),
+        usage: {
+          promptTokens: 15,
+          completionTokens: 100,
+          totalTokens: 115,
+          promptTokensDetails: { cachedTokens: 5 },
+        },
+      })
+    })
+
+    it('attaches no usage when the request itself failed', async () => {
+      mocks.betaMessagesCreate.mockRejectedValueOnce(new Error('ECONNRESET'))
+
+      const error: unknown = await createAdapter()
+        .structuredOutput(structuredOptions)
+        .catch((e: unknown) => e)
+      expect(error).toBeInstanceOf(Error)
+      expect(error).not.toHaveProperty('usage')
+    })
+  })
 })

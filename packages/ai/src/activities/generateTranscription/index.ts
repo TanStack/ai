@@ -314,7 +314,16 @@ async function runGenerateTranscription<
       { hasText: !!result.text },
     )
 
-    if (result.usage) await runGenerationUsage(middleware, mwCtx, result.usage)
+    if (result.usage) {
+      aiEventClient.emit('transcription:usage', {
+        requestId,
+        model,
+        usage: result.usage,
+        modelOptions: rest.modelOptions as Record<string, unknown> | undefined,
+        timestamp: Date.now(),
+      })
+      await runGenerationUsage(middleware, mwCtx, result.usage)
+    }
     await runGenerationFinish(middleware, mwCtx, {
       duration,
       usage: result.usage,
