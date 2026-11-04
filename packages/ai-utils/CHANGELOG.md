@@ -1,5 +1,11 @@
 # @tanstack/ai-utils
 
+## 1.0.1
+
+### Patch Changes
+
+- [#1966](https://github.com/TanStack/ai/pull/1966) [`e17cae7`](https://github.com/TanStack/ai/commit/e17cae7aa40ce5ebe0e78496931d49c793bdaf41) - Add `drainAfterTerminal`, which the OpenAI and OpenRouter Responses adapters use to let the body end by itself after a terminal event instead of cancelling a finished request.
+
 ## 1.0.0
 
 ### Major Changes

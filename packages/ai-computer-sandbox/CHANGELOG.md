@@ -1,5 +1,20 @@
 # @tanstack/ai-computer-sandbox
 
+## 1.1.0
+
+### Minor Changes
+
+- [#1978](https://github.com/TanStack/ai/pull/1978) [`4caefd7`](https://github.com/TanStack/ai/commit/4caefd7cb6783766fb2bdb9d34d65b367624dd32) - Pass the `create()` signal to `provider.create()`.
+
+- [#1978](https://github.com/TanStack/ai/pull/1978) [`4caefd7`](https://github.com/TanStack/ai/commit/4caefd7cb6783766fb2bdb9d34d65b367624dd32) - The driver passes the signal of each action to `sandbox.process.exec`, so an abort stops the xdotool or screenshot command. `createSandboxComputerDriver({ signal })` stops the setup commands, and `sandboxComputer` passes the `create` signal to it.
+
+### Patch Changes
+
+- Updated dependencies [[`5f62940`](https://github.com/TanStack/ai/commit/5f62940bb15c871a205de70e4e6b58fbe5016960), [`5f62940`](https://github.com/TanStack/ai/commit/5f62940bb15c871a205de70e4e6b58fbe5016960), [`4caefd7`](https://github.com/TanStack/ai/commit/4caefd7cb6783766fb2bdb9d34d65b367624dd32), [`4caefd7`](https://github.com/TanStack/ai/commit/4caefd7cb6783766fb2bdb9d34d65b367624dd32), [`4caefd7`](https://github.com/TanStack/ai/commit/4caefd7cb6783766fb2bdb9d34d65b367624dd32), [`4caefd7`](https://github.com/TanStack/ai/commit/4caefd7cb6783766fb2bdb9d34d65b367624dd32), [`e17cae7`](https://github.com/TanStack/ai/commit/e17cae7aa40ce5ebe0e78496931d49c793bdaf41)]:
+  - @tanstack/ai-computer-use@1.1.0
+  - @tanstack/ai-sandbox@1.1.0
+  - @tanstack/ai-utils@1.0.1
+
 ## 1.0.0
 
 ### Major Changes
