@@ -5,7 +5,20 @@ import type { File as GeminiFile, UploadFileParameters } from '@google/genai'
 
 const MAX_CHUNK_SIZE = 8 * 1024 * 1024
 const UPLOAD_STATUS_HEADER = 'x-goog-upload-status'
-const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
+/** Waits `ms`. Rejects with the abort reason when `signal` aborts first. */
+const sleep = (ms: number, signal?: AbortSignal) =>
+  new Promise<void>((resolve, reject) => {
+    if (signal?.aborted) return reject(signal.reason)
+    const onAbort = () => {
+      clearTimeout(timer)
+      reject(signal?.reason)
+    }
+    const timer = setTimeout(() => {
+      signal?.removeEventListener('abort', onAbort)
+      resolve()
+    }, ms)
+    signal?.addEventListener('abort', onAbort, { once: true })
+  })
 
 /**
  * Port of `ApiClient.uploadFile` + `uploadBlob` for a Blob: a resumable
@@ -79,7 +92,7 @@ export async function uploadBlob(
         },
       })
       if (response.headers.get(UPLOAD_STATUS_HEADER)) break
-      await sleep(delay)
+      await sleep(delay, config?.abortSignal)
       delay *= 2
     }
     offset += chunkSize

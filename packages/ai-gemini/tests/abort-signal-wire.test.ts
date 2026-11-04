@@ -250,6 +250,52 @@ describe('Gemini adapters abort the provider request', () => {
     )
   })
 
+  it('files upload: a chunk request', async () => {
+    const wire = hangingFetch()
+    const fetch = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+      const url = input instanceof Request ? input.url : String(input)
+      // The start request answers with the upload URL. Chunks hang.
+      if (url.includes('upload/v1beta/files')) {
+        return Promise.resolve(
+          new Response('{}', {
+            headers: { 'x-goog-upload-url': 'https://upload.test/session' },
+          }),
+        )
+      }
+      return wire.fetch(input, init)
+    })
+    vi.stubGlobal('fetch', fetch)
+    const adapter = createGeminiFiles('test-key')
+    await expectAbortReachesFetch(wire, (abortSignal) =>
+      adapter.upload(new Blob(['x'], { type: 'text/plain' }), { abortSignal }),
+    )
+  })
+
+  it('files upload: the retry wait stops at once', async () => {
+    // Every chunk answers without an upload status, so the upload waits 1 s
+    // before it retries.
+    const fetch = vi.fn((input: RequestInfo | URL) => {
+      const url = input instanceof Request ? input.url : String(input)
+      const headers: Record<string, string> = url.includes('upload/v1beta')
+        ? { 'x-goog-upload-url': 'https://upload.test/session' }
+        : {}
+      return Promise.resolve(new Response('{}', { headers }))
+    })
+    vi.stubGlobal('fetch', fetch)
+    const adapter = createGeminiFiles('test-key')
+    const controller = new AbortController()
+    const run = adapter.upload(new Blob(['x'], { type: 'text/plain' }), {
+      abortSignal: controller.signal,
+    })
+    run.catch(() => {})
+    await vi.waitFor(() => expect(fetch).toHaveBeenCalledTimes(2))
+    const reason = new Error('stopped')
+    const started = Date.now()
+    controller.abort(reason)
+    await expect(run).rejects.toBe(reason)
+    expect(Date.now() - started).toBeLessThan(500)
+  })
+
   it('video create (Omni)', async () => {
     const adapter = createGeminiVideo('gemini-omni-1.1-flash', 'test-key')
     const wire = hangingInteractionsCreate(adapter)
