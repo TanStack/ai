@@ -212,6 +212,8 @@ const stream = chat({
 
 Sampling options do not go at the root of `chat()`. For Ollama, they go to `modelOptions.options.temperature`, `modelOptions.options.top_p`, and `modelOptions.options.num_predict`. See [Moving Sampling Options into modelOptions](../migration/sampling-options-to-model-options). The full option list is in [All runner options](#all-runner-options).
 
+When Ollama reports `done_reason: "length"`, the final `RUN_FINISHED` event carries `metadata.tanstack.finishReason: "length"`. This also applies when the stream contains tool calls. `chat()` keeps the partial reply and skips tool execution for that truncated turn.
+
 ### Reasoning
 
 Running a thinking model like Qwen 3 or gpt-oss? Set `reasoning` on `chat()`:
