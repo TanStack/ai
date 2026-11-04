@@ -22,7 +22,7 @@
     "@tanstack/ai-svelte": "workspace:*",
     "highlight.js": "^11.11.1",
     "lucide-svelte": "^0.468.0",
-    "marked": "^15.0.6",
+    "marked": "^18.1.3",
     "marked-highlight": "^2.2.0",
     "zod": "^4.2.0"
   },
