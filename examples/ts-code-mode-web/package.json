@@ -42,7 +42,7 @@
     "lucide-react": "^0.561.0",
     "marked": "^15.0.6",
     "nitro": "3.0.260610-beta",
-    "puppeteer": "^24.34.0",
+    "puppeteer": "^25.16.0",
     "quickjs-bun": "0.1.2",
     "quickjs-emscripten": "^0.31.0",
     "quickjs-emscripten-core": "^0.31.0",
