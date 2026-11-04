@@ -103,4 +103,37 @@ describe('withSandbox + a server tool', () => {
     expect(provider.created).toHaveLength(1)
     expect(seen).toBe(provider.created[0])
   })
+
+  it('runs setup when the definition has no workspace (no projection provided)', async () => {
+    const provider = makeFakeProvider({ caps: FULL_CAPS })
+    const sandbox = defineSandbox({
+      id: 'repo',
+      provider,
+      fileEvents: false,
+    })
+    let seen: SandboxHandle | undefined
+    const whereAmI = toolDefinition({
+      name: 'whereAmI',
+      description: 'Return the sandbox id',
+      inputSchema: { type: 'object', properties: {} },
+    }).server((_args, context) => {
+      seen = context?.get?.(SandboxCapability)
+      return seen?.id ?? 'none'
+    })
+
+    const stream = chat({
+      adapter: toolThenAnswer(),
+      messages: [{ role: 'user', content: 'hi' }],
+      runId: 'run-1',
+      threadId: 'thread-1',
+      tools: [whereAmI],
+      middleware: [
+        withSandbox(sandbox, { instances: new InMemorySandboxInstanceStore() }),
+      ],
+    })
+    for await (const _chunk of stream) void _chunk
+
+    expect(provider.created).toHaveLength(1)
+    expect(seen).toBe(provider.created[0])
+  })
 })

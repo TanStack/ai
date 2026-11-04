@@ -41,7 +41,7 @@ import {
 import { SandboxInstanceStoreCapability } from './instance-store'
 import { computeWorkspaceHash } from './key'
 import { buildFileHookEvent, resolveFileEvents } from './file-diff'
-import { ProjectionCapability, provideWorkspaceProjection } from './projection'
+import { provideWorkspaceProjection } from './projection'
 import { resolveAllSecrets, resolveSecret } from './secrets'
 import {
   createToolHistoryRecorder,
@@ -495,13 +495,14 @@ export function withSandbox<TOffset extends string = string>(
 ): DefinedChatMiddleware<
   unknown,
   readonly [],
-  readonly [typeof SandboxCapability, typeof ProjectionCapability]
+  readonly [typeof SandboxCapability]
 > {
   return defineChatMiddleware({
     name: 'sandbox',
-    provides: [SandboxCapability, ProjectionCapability],
-    // SandboxPolicyCapability is provided conditionally (only when the
-    // definition has a policy), so it is intentionally NOT declared here —
+    provides: [SandboxCapability],
+    // ProjectionCapability is provided conditionally (only when the definition
+    // has a workspace) and SandboxPolicyCapability only when the definition has
+    // a policy, so they are intentionally NOT declared here —
     // consumers read it via `getOptional`. SandboxDurabilityCapability and
     // DetachableRunCapability are conditional for the same reason (only when
     // `runs` + `durability` are both wired), so they are intentionally NOT
