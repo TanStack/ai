@@ -10,11 +10,11 @@
     "test:types": "node scripts/typecheck.mjs"
   },
   "dependencies": {
-    "@angular/common": "^21.2.20",
-    "@angular/compiler": "^21.2.20",
-    "@angular/core": "^21.2.20",
-    "@angular/forms": "^21.2.20",
-    "@angular/platform-browser": "^21.2.20",
+    "@angular/common": "^22.2.4",
+    "@angular/compiler": "^22.2.4",
+    "@angular/core": "^22.2.4",
+    "@angular/forms": "^22.2.4",
+    "@angular/platform-browser": "^22.2.4",
     "@tanstack/ai": "workspace:*",
     "@tanstack/ai-angular": "workspace:*",
     "@tanstack/ai-client": "workspace:*",
