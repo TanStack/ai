@@ -20,7 +20,7 @@
     "@tanstack/ai-isolate-node": "workspace:*",
     "@tanstack/ai-ollama": "workspace:*",
     "@tanstack/ai-openai": "workspace:*",
-    "dotenv": "^17.2.3",
+    "dotenv": "^18.0.9",
     "zod": "^4.2.0"
   },
   "devDependencies": {
