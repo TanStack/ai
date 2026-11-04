@@ -313,6 +313,7 @@ On the TypeSafe wire, the `boolean` question type is named `noul`.
 | `state`        | `string \| object \| array`   | The data that every question judges. Required.               |
 | `questions`    | `Record<string, Question>`    | Map of `choice`, `score`, and `boolean` questions. Required. |
 | `abortSignal`  | `AbortSignal`                 | Cancel the request                                           |
+| `timeout`      | `number`                      | Stop the request after this many milliseconds                |
 | `modelOptions` | provider options              | Provider-specific options                                    |
 | `middleware`   | `Array<GenerationMiddleware>` | Observe-only lifecycle hooks (usage, finish, error, abort)   |
 | `debug`        | `DebugOption`                 | Debug logging                                                |
@@ -325,7 +326,7 @@ On the TypeSafe wire, the `boolean` question type is named `noul`.
 
 ### Cancel a request
 
-Pass an `abortSignal`:
+Pass an `abortSignal`. To stop after a fixed time, pass `timeout` in milliseconds instead. A timeout rejects with a `TimeoutError`.
 
 ```typescript
 import { decide, boolean } from '@tanstack/ai'

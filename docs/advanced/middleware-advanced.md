@@ -865,7 +865,7 @@ Each hook gets a `ChatMiddlewareContext` as its first argument. The fields you u
 | `chunkIndex` | `number` | How many chunks the run sent so far |
 | `callMetadata` | `Readonly<TanStackMessageMetadata>` | The `metadata.tanstack` of the current model call (`source`, `stopReason`, `responseId`, and more). It changes as chunks arrive. Each assistant message of the call gets a copy. |
 | `messages` | `ReadonlyArray<ModelMessage>` | The current messages (read-only) |
-| `signal` | `AbortSignal \| undefined` | The external abort signal |
+| `signal` | `AbortSignal \| undefined` | Aborts when the caller aborts the run or a middleware calls `ctx.abort()` |
 | `abort(reason?)` | `function` | Abort the run from middleware |
 | `retry()` | `function` | Call the model again. Works only in [`onModelError`](#onmodelerror). |
 | `emitCustomEvent(name, value, options?)` | `function` | Push a `CUSTOM` chunk onto the stream now. See [Live custom events](#live-custom-events). |

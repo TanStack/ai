@@ -412,6 +412,96 @@ describe('harnessText', () => {
     })
   })
 
+  it('cancels the remote turn when the caller stops reading early', async () => {
+    const requests: Array<{ url: string; body: unknown }> = []
+    const encoder = new TextEncoder()
+    const delta = {
+      type: EventType.TEXT_MESSAGE_CONTENT,
+      messageId: 'm1',
+      delta: 'working',
+    }
+    const adapter = harnessText({
+      url: 'http://remote.test/',
+      fetch: async (url, init) => {
+        requests.push({
+          url: String(url),
+          body: typeof init?.body === 'string' ? JSON.parse(init.body) : null,
+        })
+        if (!String(url).endsWith('/run')) return Response.json({})
+        // A turn that streams one delta, then runs on.
+        return new Response(
+          new ReadableStream({
+            start(controller) {
+              controller.enqueue(
+                encoder.encode(`data: ${JSON.stringify(delta)}\n\n`),
+              )
+            },
+          }),
+          { status: 200 },
+        )
+      },
+    })
+
+    for await (const chunk of adapter.chatStream({
+      model: adapter.model,
+      messages: [{ role: 'user', content: 'hello' }],
+      logger: resolveDebugOption(false),
+      threadId: 'outer-remote',
+      runId: 'run-1',
+    })) {
+      if (chunk.type === EventType.TEXT_MESSAGE_CONTENT) break
+    }
+
+    await vi.waitFor(() => expect(requests).toHaveLength(2))
+    expect(requests[1]).toEqual({
+      url: 'http://remote.test/control',
+      body: {
+        threadId: 'outer-remote',
+        input: { op: 'cancel', operationId: 'run-1' },
+      },
+    })
+  })
+
+  it('cancels the inner turn when the caller stops reading early', async () => {
+    const inner = mockAdapter([
+      (options) =>
+        (async function* () {
+          yield {
+            type: EventType.TEXT_MESSAGE_CONTENT,
+            messageId: 'm1',
+            delta: 'working',
+            timestamp: Date.now(),
+          }
+          // A turn that runs until it is cancelled.
+          const signal: AbortSignal | undefined = options.request?.signal
+          await new Promise<void>((resolve) => {
+            if (!signal || signal.aborted) return resolve()
+            signal.addEventListener('abort', () => resolve(), { once: true })
+          })
+        })(),
+    ])
+    const studio = defineHarness({ name: 'test/inner', adapter: inner.adapter })
+    const host = createHarnessHost({ persistence: memoryPersistence() })
+    const adapter = harnessText(studio, { host })
+
+    const stopped = (async () => {
+      for await (const chunk of adapter.chatStream({
+        model: adapter.model,
+        messages: [{ role: 'user', content: 'hello' }],
+        logger: resolveDebugOption(false),
+        threadId: 'outer-early',
+      })) {
+        if (chunk.type === EventType.TEXT_MESSAGE_CONTENT) break
+      }
+    })()
+
+    await vi.waitFor(() =>
+      expect(inner.calls[0]?.request?.signal?.aborted).toBe(true),
+    )
+    await stopped
+    await host.close()
+  })
+
   it('opens the inner session as the user of each outer harness turn', async () => {
     const inner = mockAdapter([() => text('one'), () => text('two')])
     const seen: Array<unknown> = []

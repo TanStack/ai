@@ -54,7 +54,11 @@ export interface ExtractedFact {
 }
 
 export interface Embedder {
-  embed: (text: string) => Promise<Array<number>>
+  /** `options.signal` is set on recall, from the chat run's abort signal. */
+  embed: (
+    text: string,
+    options?: { signal?: AbortSignal },
+  ) => Promise<Array<number>>
 }
 
 /** Options common to the built-in adapters. */
@@ -309,13 +313,15 @@ export async function recallRecords(
   scope: MemoryScope,
   query: string,
   options: BuiltinOptions,
+  signal?: AbortSignal,
 ): Promise<RecallResult> {
   const topK = options.topK ?? 6
   const minScore = options.minScore ?? 0.15
   const now = Date.now()
 
-  const queryEmbedding = options.embedder
-    ? await options.embedder.embed(query)
+  const embedder = options.embedder
+  const queryEmbedding = embedder
+    ? await (signal ? embedder.embed(query, { signal }) : embedder.embed(query))
     : undefined
 
   const records = await store.loadScope(scope)

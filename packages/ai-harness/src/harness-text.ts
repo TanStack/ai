@@ -394,6 +394,8 @@ function remoteHarnessText(remote: RemoteHarness): AnyTextAdapter {
           }).catch(() => {})
         }
         signal?.addEventListener('abort', cancelRemote, { once: true })
+        // A caller that stops reading early sends no abort. Cancel then too.
+        let isEnded = false
         try {
           const response = await doFetch(`${base}/run`, {
             method: 'POST',
@@ -436,6 +438,7 @@ function remoteHarnessText(remote: RemoteHarness): AnyTextAdapter {
             (chunk, isOwn) =>
               FORWARDED.has(chunk.type) && isOwn ? chunk : undefined,
           )
+          isEnded = true
           if (failed !== undefined) {
             yield {
               type: EventType.RUN_ERROR,
@@ -466,6 +469,7 @@ function remoteHarnessText(remote: RemoteHarness): AnyTextAdapter {
         } finally {
           // A long-lived signal must not keep one listener per call.
           signal?.removeEventListener('abort', cancelRemote)
+          if (!isEnded && !signal?.aborted) cancelRemote()
         }
       })(),
   }
@@ -552,6 +556,8 @@ export function harnessText(
         // A signal that aborted already never fires its event.
         if (signal?.aborted) cancel()
         else signal?.addEventListener('abort', cancel, { once: true })
+        // A caller that stops reading early sends no abort. Cancel then too.
+        let isEnded = false
         try {
           yield {
             type: EventType.RUN_STARTED,
@@ -564,6 +570,7 @@ export function harnessText(
             (chunk, isOwn) =>
               FORWARDED.has(chunk.type) && isOwn ? chunk : undefined,
           )
+          isEnded = true
           if (failed !== undefined) {
             yield {
               type: EventType.RUN_ERROR,
@@ -585,6 +592,7 @@ export function harnessText(
         } finally {
           // A long-lived signal must not keep one listener per call.
           signal?.removeEventListener('abort', cancel)
+          if (!isEnded && !signal?.aborted) cancel()
           await session.close()
         }
       })(),

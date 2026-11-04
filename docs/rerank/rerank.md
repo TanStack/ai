@@ -207,6 +207,7 @@ pnpm dev
 | `documents`    | `Array<string \| object>`     | The candidate documents. Required.                                      |
 | `topN`         | `number`                      | Return only the top N results                                           |
 | `abortSignal`  | `AbortSignal`                 | Cancel the request                                                      |
+| `timeout`      | `number`                      | Stop the request after this many milliseconds                           |
 | `modelOptions` | provider options              | Provider-specific options (see below)                                   |
 | `middleware`   | `Array<GenerationMiddleware>` | Observe-only lifecycle hooks (usage, finish, error, abort)              |
 
@@ -262,7 +263,7 @@ interface RerankResult<TDocument = string> {
 
 ### Cancel a request
 
-Pass an `abortSignal`:
+Pass an `abortSignal`. To stop after a fixed time, pass `timeout` in milliseconds instead. A timeout rejects with a `TimeoutError`.
 
 ```typescript
 import { rerank } from '@tanstack/ai'

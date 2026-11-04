@@ -218,7 +218,10 @@ export class BytePlusImageAdapter<
       )
 
       const fetchImpl = this.clientConfig.fetch ?? fetch
-      const signal = bytePlusTimeoutSignal(this.clientConfig.timeout)
+      const signal = bytePlusTimeoutSignal(
+        this.clientConfig.timeout,
+        options.abortSignal,
+      )
       const response = await fetchImpl(
         `${this.clientConfig.baseURL}/images/generations`,
         {

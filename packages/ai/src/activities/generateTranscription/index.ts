@@ -250,6 +250,7 @@ async function runGenerateTranscription<
 
   const mwCtx = createGenerationContext({
     requestId,
+    signal: abortControls.signal,
     activity: 'transcription',
     provider: adapter.name,
     model,

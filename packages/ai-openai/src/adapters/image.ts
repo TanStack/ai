@@ -112,6 +112,7 @@ export class OpenAIImageAdapter<
         modelOptions,
         imageInputs: resolved.images,
         logger: options.logger,
+        abortSignal: options.abortSignal,
       })
     }
 
@@ -136,10 +137,10 @@ export class OpenAIImageAdapter<
         `activity=image provider=${this.name} model=${model} n=${request.n ?? 1} size=${request.size ?? 'default'}`,
         { provider: this.name, model },
       )
-      const response = await this.client.images.generate({
-        ...request,
-        stream: false,
-      })
+      const response = await this.client.images.generate(
+        { ...request, stream: false },
+        { signal: options.abortSignal },
+      )
 
       const images: Array<GeneratedImage> = (response.data ?? []).flatMap(
         (item): Array<GeneratedImage> => {
@@ -204,8 +205,17 @@ export class OpenAIImageAdapter<
     modelOptions?: OpenAIImageProviderOptions
     imageInputs: ReadonlyArray<ImagePart<MediaInputMetadata>>
     logger: ImageGenerationOptions<OpenAIImageProviderOptions>['logger']
+    abortSignal?: AbortSignal
   }): Promise<ImageGenerationResult> {
-    const { model, prompt, numberOfImages, size, modelOptions, logger } = args
+    const {
+      model,
+      prompt,
+      numberOfImages,
+      size,
+      modelOptions,
+      logger,
+      abortSignal,
+    } = args
     const maskParts = args.imageInputs.filter(
       (part) => part.metadata?.role === 'mask',
     )
@@ -231,12 +241,17 @@ export class OpenAIImageAdapter<
 
     const sourceFiles = await Promise.all(
       sourceParts.map((part, i) =>
-        imagePartToFile(part, `source-${i}`, this.allowUrlFetch),
+        imagePartToFile(part, `source-${i}`, this.allowUrlFetch, abortSignal),
       ),
     )
     const [firstSourceFile] = sourceFiles
     const maskFile = maskParts[0]
-      ? await imagePartToFile(maskParts[0], 'mask', this.allowUrlFetch)
+      ? await imagePartToFile(
+          maskParts[0],
+          'mask',
+          this.allowUrlFetch,
+          abortSignal,
+        )
       : undefined
 
     // The SDK's edit params do not list every gpt-image option (e.g. the
@@ -265,7 +280,9 @@ export class OpenAIImageAdapter<
         `activity=imageEdit provider=${this.name} model=${model} n=${request.n ?? 1} size=${request.size ?? 'default'} sources=${sourceFiles.length}${maskFile ? ' mask' : ''}`,
         { provider: this.name, model },
       )
-      const response = await this.client.images.edit(request)
+      const response = await this.client.images.edit(request, {
+        signal: abortSignal,
+      })
 
       const images: Array<GeneratedImage> = (response.data ?? []).flatMap(
         (item): Array<GeneratedImage> => {

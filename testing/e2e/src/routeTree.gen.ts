@@ -45,6 +45,7 @@ import { Route as SubagentsUiTestRouteImport } from './routes/subagents-ui-test'
 import { Route as TextFirstToolRouteImport } from './routes/text-first-tool'
 import { Route as ToolFirstTextRouteImport } from './routes/tool-first-text'
 import { Route as ToolsTestRouteImport } from './routes/tools-test'
+import { Route as UseChatHiddenViewRouteImport } from './routes/use-chat-hidden-view'
 import { Route as WebMcpPageToolsRouteImport } from './routes/web-mcp-page-tools'
 import { Route as WebMcpToolsRouteImport } from './routes/web-mcp-tools'
 import { Route as WebsocketAdapterRouteImport } from './routes/websocket-adapter'
@@ -90,9 +91,11 @@ import { Route as ApiCopilotWireRouteImport } from './routes/api.copilot-wire'
 import { Route as ApiCrossModelReplayWireRouteImport } from './routes/api.cross-model-replay-wire'
 import { Route as ApiDevtoolsMemoryRouteImport } from './routes/api.devtools-memory'
 import { Route as ApiDurableDeliveryRouteImport } from './routes/api.durable-delivery'
+import { Route as ApiDurableDeliveryCancelRouteImport } from './routes/api.durable-delivery-cancel'
 import { Route as ApiDurableMcpInputRouteImport } from './routes/api.durable-mcp-input'
 import { Route as ApiDurableTakeoverRouteImport } from './routes/api.durable-takeover'
 import { Route as ApiEmbeddingRouteImport } from './routes/api.embedding'
+import { Route as ApiEmbeddingAbortRouteImport } from './routes/api.embedding-abort'
 import { Route as ApiEvaluateHttpStatusRouteImport } from './routes/api.evaluate-http-status'
 import { Route as ApiEvaluateRefusalRouteImport } from './routes/api.evaluate-refusal'
 import { Route as ApiEvaluateUsageOnFailureRouteImport } from './routes/api.evaluate-usage-on-failure'
@@ -195,6 +198,7 @@ import { Route as ApiToolFirstTextWireRouteImport } from './routes/api.tool-firs
 import { Route as ApiToolsTestRouteImport } from './routes/api.tools-test'
 import { Route as ApiTranscriptionRouteImport } from './routes/api.transcription'
 import { Route as ApiTtsRouteImport } from './routes/api.tts'
+import { Route as ApiUseChatHiddenViewRouteImport } from './routes/api.use-chat-hidden-view'
 import { Route as ApiVideoRouteImport } from './routes/api.video'
 import { Route as ApiVideoLiveRouteImport } from './routes/api.video-live'
 import { Route as ApiVoiceRouteImport } from './routes/api.voice'
@@ -393,6 +397,11 @@ const ToolFirstTextRoute = ToolFirstTextRouteImport.update({
 const ToolsTestRoute = ToolsTestRouteImport.update({
   id: '/tools-test',
   path: '/tools-test',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const UseChatHiddenViewRoute = UseChatHiddenViewRouteImport.update({
+  id: '/use-chat-hidden-view',
+  path: '/use-chat-hidden-view',
   getParentRoute: () => rootRouteImport,
 } as any)
 const WebMcpPageToolsRoute = WebMcpPageToolsRouteImport.update({
@@ -638,6 +647,12 @@ const ApiDurableDeliveryRoute = ApiDurableDeliveryRouteImport.update({
   path: '/api/durable-delivery',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiDurableDeliveryCancelRoute =
+  ApiDurableDeliveryCancelRouteImport.update({
+    id: '/api/durable-delivery-cancel',
+    path: '/api/durable-delivery-cancel',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiDurableMcpInputRoute = ApiDurableMcpInputRouteImport.update({
   id: '/api/durable-mcp-input',
   path: '/api/durable-mcp-input',
@@ -651,6 +666,11 @@ const ApiDurableTakeoverRoute = ApiDurableTakeoverRouteImport.update({
 const ApiEmbeddingRoute = ApiEmbeddingRouteImport.update({
   id: '/api/embedding',
   path: '/api/embedding',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiEmbeddingAbortRoute = ApiEmbeddingAbortRouteImport.update({
+  id: '/api/embedding-abort',
+  path: '/api/embedding-abort',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiEvaluateHttpStatusRoute = ApiEvaluateHttpStatusRouteImport.update({
@@ -1190,6 +1210,11 @@ const ApiTtsRoute = ApiTtsRouteImport.update({
   path: '/api/tts',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiUseChatHiddenViewRoute = ApiUseChatHiddenViewRouteImport.update({
+  id: '/api/use-chat-hidden-view',
+  path: '/api/use-chat-hidden-view',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiVideoRoute = ApiVideoRouteImport.update({
   id: '/api/video',
   path: '/api/video',
@@ -1310,6 +1335,7 @@ export interface FileRoutesByFullPath {
   '/text-first-tool': typeof TextFirstToolRoute
   '/tool-first-text': typeof ToolFirstTextRoute
   '/tools-test': typeof ToolsTestRoute
+  '/use-chat-hidden-view': typeof UseChatHiddenViewRoute
   '/web-mcp-page-tools': typeof WebMcpPageToolsRoute
   '/web-mcp-tools': typeof WebMcpToolsRoute
   '/websocket-adapter': typeof WebsocketAdapterRoute
@@ -1354,9 +1380,11 @@ export interface FileRoutesByFullPath {
   '/api/cross-model-replay-wire': typeof ApiCrossModelReplayWireRoute
   '/api/devtools-memory': typeof ApiDevtoolsMemoryRoute
   '/api/durable-delivery': typeof ApiDurableDeliveryRoute
+  '/api/durable-delivery-cancel': typeof ApiDurableDeliveryCancelRoute
   '/api/durable-mcp-input': typeof ApiDurableMcpInputRoute
   '/api/durable-takeover': typeof ApiDurableTakeoverRoute
   '/api/embedding': typeof ApiEmbeddingRoute
+  '/api/embedding-abort': typeof ApiEmbeddingAbortRoute
   '/api/evaluate-http-status': typeof ApiEvaluateHttpStatusRoute
   '/api/evaluate-refusal': typeof ApiEvaluateRefusalRoute
   '/api/evaluate-usage-on-failure': typeof ApiEvaluateUsageOnFailureRoute
@@ -1459,6 +1487,7 @@ export interface FileRoutesByFullPath {
   '/api/tools-test': typeof ApiToolsTestRoute
   '/api/transcription': typeof ApiTranscriptionRouteWithChildren
   '/api/tts': typeof ApiTtsRouteWithChildren
+  '/api/use-chat-hidden-view': typeof ApiUseChatHiddenViewRoute
   '/api/video': typeof ApiVideoRouteWithChildren
   '/api/video-live': typeof ApiVideoLiveRoute
   '/api/voice': typeof ApiVoiceRoute
@@ -1514,6 +1543,7 @@ export interface FileRoutesByTo {
   '/text-first-tool': typeof TextFirstToolRoute
   '/tool-first-text': typeof ToolFirstTextRoute
   '/tools-test': typeof ToolsTestRoute
+  '/use-chat-hidden-view': typeof UseChatHiddenViewRoute
   '/web-mcp-page-tools': typeof WebMcpPageToolsRoute
   '/web-mcp-tools': typeof WebMcpToolsRoute
   '/websocket-adapter': typeof WebsocketAdapterRoute
@@ -1558,9 +1588,11 @@ export interface FileRoutesByTo {
   '/api/cross-model-replay-wire': typeof ApiCrossModelReplayWireRoute
   '/api/devtools-memory': typeof ApiDevtoolsMemoryRoute
   '/api/durable-delivery': typeof ApiDurableDeliveryRoute
+  '/api/durable-delivery-cancel': typeof ApiDurableDeliveryCancelRoute
   '/api/durable-mcp-input': typeof ApiDurableMcpInputRoute
   '/api/durable-takeover': typeof ApiDurableTakeoverRoute
   '/api/embedding': typeof ApiEmbeddingRoute
+  '/api/embedding-abort': typeof ApiEmbeddingAbortRoute
   '/api/evaluate-http-status': typeof ApiEvaluateHttpStatusRoute
   '/api/evaluate-refusal': typeof ApiEvaluateRefusalRoute
   '/api/evaluate-usage-on-failure': typeof ApiEvaluateUsageOnFailureRoute
@@ -1663,6 +1695,7 @@ export interface FileRoutesByTo {
   '/api/tools-test': typeof ApiToolsTestRoute
   '/api/transcription': typeof ApiTranscriptionRouteWithChildren
   '/api/tts': typeof ApiTtsRouteWithChildren
+  '/api/use-chat-hidden-view': typeof ApiUseChatHiddenViewRoute
   '/api/video': typeof ApiVideoRouteWithChildren
   '/api/video-live': typeof ApiVideoLiveRoute
   '/api/voice': typeof ApiVoiceRoute
@@ -1719,6 +1752,7 @@ export interface FileRoutesById {
   '/text-first-tool': typeof TextFirstToolRoute
   '/tool-first-text': typeof ToolFirstTextRoute
   '/tools-test': typeof ToolsTestRoute
+  '/use-chat-hidden-view': typeof UseChatHiddenViewRoute
   '/web-mcp-page-tools': typeof WebMcpPageToolsRoute
   '/web-mcp-tools': typeof WebMcpToolsRoute
   '/websocket-adapter': typeof WebsocketAdapterRoute
@@ -1763,9 +1797,11 @@ export interface FileRoutesById {
   '/api/cross-model-replay-wire': typeof ApiCrossModelReplayWireRoute
   '/api/devtools-memory': typeof ApiDevtoolsMemoryRoute
   '/api/durable-delivery': typeof ApiDurableDeliveryRoute
+  '/api/durable-delivery-cancel': typeof ApiDurableDeliveryCancelRoute
   '/api/durable-mcp-input': typeof ApiDurableMcpInputRoute
   '/api/durable-takeover': typeof ApiDurableTakeoverRoute
   '/api/embedding': typeof ApiEmbeddingRoute
+  '/api/embedding-abort': typeof ApiEmbeddingAbortRoute
   '/api/evaluate-http-status': typeof ApiEvaluateHttpStatusRoute
   '/api/evaluate-refusal': typeof ApiEvaluateRefusalRoute
   '/api/evaluate-usage-on-failure': typeof ApiEvaluateUsageOnFailureRoute
@@ -1868,6 +1904,7 @@ export interface FileRoutesById {
   '/api/tools-test': typeof ApiToolsTestRoute
   '/api/transcription': typeof ApiTranscriptionRouteWithChildren
   '/api/tts': typeof ApiTtsRouteWithChildren
+  '/api/use-chat-hidden-view': typeof ApiUseChatHiddenViewRoute
   '/api/video': typeof ApiVideoRouteWithChildren
   '/api/video-live': typeof ApiVideoLiveRoute
   '/api/voice': typeof ApiVoiceRoute
@@ -1925,6 +1962,7 @@ export interface FileRouteTypes {
     | '/text-first-tool'
     | '/tool-first-text'
     | '/tools-test'
+    | '/use-chat-hidden-view'
     | '/web-mcp-page-tools'
     | '/web-mcp-tools'
     | '/websocket-adapter'
@@ -1969,9 +2007,11 @@ export interface FileRouteTypes {
     | '/api/cross-model-replay-wire'
     | '/api/devtools-memory'
     | '/api/durable-delivery'
+    | '/api/durable-delivery-cancel'
     | '/api/durable-mcp-input'
     | '/api/durable-takeover'
     | '/api/embedding'
+    | '/api/embedding-abort'
     | '/api/evaluate-http-status'
     | '/api/evaluate-refusal'
     | '/api/evaluate-usage-on-failure'
@@ -2074,6 +2114,7 @@ export interface FileRouteTypes {
     | '/api/tools-test'
     | '/api/transcription'
     | '/api/tts'
+    | '/api/use-chat-hidden-view'
     | '/api/video'
     | '/api/video-live'
     | '/api/voice'
@@ -2129,6 +2170,7 @@ export interface FileRouteTypes {
     | '/text-first-tool'
     | '/tool-first-text'
     | '/tools-test'
+    | '/use-chat-hidden-view'
     | '/web-mcp-page-tools'
     | '/web-mcp-tools'
     | '/websocket-adapter'
@@ -2173,9 +2215,11 @@ export interface FileRouteTypes {
     | '/api/cross-model-replay-wire'
     | '/api/devtools-memory'
     | '/api/durable-delivery'
+    | '/api/durable-delivery-cancel'
     | '/api/durable-mcp-input'
     | '/api/durable-takeover'
     | '/api/embedding'
+    | '/api/embedding-abort'
     | '/api/evaluate-http-status'
     | '/api/evaluate-refusal'
     | '/api/evaluate-usage-on-failure'
@@ -2278,6 +2322,7 @@ export interface FileRouteTypes {
     | '/api/tools-test'
     | '/api/transcription'
     | '/api/tts'
+    | '/api/use-chat-hidden-view'
     | '/api/video'
     | '/api/video-live'
     | '/api/voice'
@@ -2333,6 +2378,7 @@ export interface FileRouteTypes {
     | '/text-first-tool'
     | '/tool-first-text'
     | '/tools-test'
+    | '/use-chat-hidden-view'
     | '/web-mcp-page-tools'
     | '/web-mcp-tools'
     | '/websocket-adapter'
@@ -2377,9 +2423,11 @@ export interface FileRouteTypes {
     | '/api/cross-model-replay-wire'
     | '/api/devtools-memory'
     | '/api/durable-delivery'
+    | '/api/durable-delivery-cancel'
     | '/api/durable-mcp-input'
     | '/api/durable-takeover'
     | '/api/embedding'
+    | '/api/embedding-abort'
     | '/api/evaluate-http-status'
     | '/api/evaluate-refusal'
     | '/api/evaluate-usage-on-failure'
@@ -2482,6 +2530,7 @@ export interface FileRouteTypes {
     | '/api/tools-test'
     | '/api/transcription'
     | '/api/tts'
+    | '/api/use-chat-hidden-view'
     | '/api/video'
     | '/api/video-live'
     | '/api/voice'
@@ -2538,6 +2587,7 @@ export interface RootRouteChildren {
   TextFirstToolRoute: typeof TextFirstToolRoute
   ToolFirstTextRoute: typeof ToolFirstTextRoute
   ToolsTestRoute: typeof ToolsTestRoute
+  UseChatHiddenViewRoute: typeof UseChatHiddenViewRoute
   WebMcpPageToolsRoute: typeof WebMcpPageToolsRoute
   WebMcpToolsRoute: typeof WebMcpToolsRoute
   WebsocketAdapterRoute: typeof WebsocketAdapterRoute
@@ -2582,9 +2632,11 @@ export interface RootRouteChildren {
   ApiCrossModelReplayWireRoute: typeof ApiCrossModelReplayWireRoute
   ApiDevtoolsMemoryRoute: typeof ApiDevtoolsMemoryRoute
   ApiDurableDeliveryRoute: typeof ApiDurableDeliveryRoute
+  ApiDurableDeliveryCancelRoute: typeof ApiDurableDeliveryCancelRoute
   ApiDurableMcpInputRoute: typeof ApiDurableMcpInputRoute
   ApiDurableTakeoverRoute: typeof ApiDurableTakeoverRoute
   ApiEmbeddingRoute: typeof ApiEmbeddingRoute
+  ApiEmbeddingAbortRoute: typeof ApiEmbeddingAbortRoute
   ApiEvaluateHttpStatusRoute: typeof ApiEvaluateHttpStatusRoute
   ApiEvaluateRefusalRoute: typeof ApiEvaluateRefusalRoute
   ApiEvaluateUsageOnFailureRoute: typeof ApiEvaluateUsageOnFailureRoute
@@ -2687,6 +2739,7 @@ export interface RootRouteChildren {
   ApiToolsTestRoute: typeof ApiToolsTestRoute
   ApiTranscriptionRoute: typeof ApiTranscriptionRouteWithChildren
   ApiTtsRoute: typeof ApiTtsRouteWithChildren
+  ApiUseChatHiddenViewRoute: typeof ApiUseChatHiddenViewRoute
   ApiVideoRoute: typeof ApiVideoRouteWithChildren
   ApiVideoLiveRoute: typeof ApiVideoLiveRoute
   ApiVoiceRoute: typeof ApiVoiceRoute
@@ -2953,6 +3006,13 @@ declare module '@tanstack/react-router' {
       path: '/tools-test'
       fullPath: '/tools-test'
       preLoaderRoute: typeof ToolsTestRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/use-chat-hidden-view': {
+      id: '/use-chat-hidden-view'
+      path: '/use-chat-hidden-view'
+      fullPath: '/use-chat-hidden-view'
+      preLoaderRoute: typeof UseChatHiddenViewRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/web-mcp-page-tools': {
@@ -3270,6 +3330,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiDurableDeliveryRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/durable-delivery-cancel': {
+      id: '/api/durable-delivery-cancel'
+      path: '/api/durable-delivery-cancel'
+      fullPath: '/api/durable-delivery-cancel'
+      preLoaderRoute: typeof ApiDurableDeliveryCancelRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/durable-mcp-input': {
       id: '/api/durable-mcp-input'
       path: '/api/durable-mcp-input'
@@ -3289,6 +3356,13 @@ declare module '@tanstack/react-router' {
       path: '/api/embedding'
       fullPath: '/api/embedding'
       preLoaderRoute: typeof ApiEmbeddingRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/embedding-abort': {
+      id: '/api/embedding-abort'
+      path: '/api/embedding-abort'
+      fullPath: '/api/embedding-abort'
+      preLoaderRoute: typeof ApiEmbeddingAbortRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/evaluate-http-status': {
@@ -4005,6 +4079,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiTtsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/use-chat-hidden-view': {
+      id: '/api/use-chat-hidden-view'
+      path: '/api/use-chat-hidden-view'
+      fullPath: '/api/use-chat-hidden-view'
+      preLoaderRoute: typeof ApiUseChatHiddenViewRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/video': {
       id: '/api/video'
       path: '/api/video'
@@ -4215,6 +4296,7 @@ const rootRouteChildren: RootRouteChildren = {
   TextFirstToolRoute: TextFirstToolRoute,
   ToolFirstTextRoute: ToolFirstTextRoute,
   ToolsTestRoute: ToolsTestRoute,
+  UseChatHiddenViewRoute: UseChatHiddenViewRoute,
   WebMcpPageToolsRoute: WebMcpPageToolsRoute,
   WebMcpToolsRoute: WebMcpToolsRoute,
   WebsocketAdapterRoute: WebsocketAdapterRoute,
@@ -4264,9 +4346,11 @@ const rootRouteChildren: RootRouteChildren = {
   ApiCrossModelReplayWireRoute: ApiCrossModelReplayWireRoute,
   ApiDevtoolsMemoryRoute: ApiDevtoolsMemoryRoute,
   ApiDurableDeliveryRoute: ApiDurableDeliveryRoute,
+  ApiDurableDeliveryCancelRoute: ApiDurableDeliveryCancelRoute,
   ApiDurableMcpInputRoute: ApiDurableMcpInputRoute,
   ApiDurableTakeoverRoute: ApiDurableTakeoverRoute,
   ApiEmbeddingRoute: ApiEmbeddingRoute,
+  ApiEmbeddingAbortRoute: ApiEmbeddingAbortRoute,
   ApiEvaluateHttpStatusRoute: ApiEvaluateHttpStatusRoute,
   ApiEvaluateRefusalRoute: ApiEvaluateRefusalRoute,
   ApiEvaluateUsageOnFailureRoute: ApiEvaluateUsageOnFailureRoute,
@@ -4370,6 +4454,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiToolsTestRoute: ApiToolsTestRoute,
   ApiTranscriptionRoute: ApiTranscriptionRouteWithChildren,
   ApiTtsRoute: ApiTtsRouteWithChildren,
+  ApiUseChatHiddenViewRoute: ApiUseChatHiddenViewRoute,
   ApiVideoRoute: ApiVideoRouteWithChildren,
   ApiVideoLiveRoute: ApiVideoLiveRoute,
   ApiVoiceRoute: ApiVoiceRoute,

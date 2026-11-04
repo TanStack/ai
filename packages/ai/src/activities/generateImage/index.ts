@@ -299,6 +299,7 @@ async function runGenerateImage<
 
   const mwCtx = createGenerationContext({
     requestId,
+    signal: abortControls.signal,
     activity: 'image',
     provider: adapter.name,
     model,

@@ -68,15 +68,24 @@ export class FalTranscriptionAdapter<
         model: this.model,
       },
     )
+    let requestId: string | undefined
     try {
       const input = this.buildInput(options)
       // Request-specific abortSignal only — not fal.config() (global).
       const result = await fal.subscribe(this.model, {
         input,
         ...(options.abortSignal ? { abortSignal: options.abortSignal } : {}),
+        onEnqueue: (id) => {
+          requestId = id
+        },
       })
       return this.transformResponse(result)
     } catch (error) {
+      // The SDK stops waiting on abort but leaves the queued job running.
+      // Cancel it so it stops billing.
+      if (requestId && options.abortSignal?.aborted) {
+        fal.queue.cancel(this.model, { requestId }).catch(() => {})
+      }
       logger.errors('fal.generateTranscription fatal', {
         error,
         source: 'fal.generateTranscription',

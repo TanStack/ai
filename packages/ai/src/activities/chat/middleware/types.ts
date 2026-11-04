@@ -234,7 +234,7 @@ export interface ChatMiddlewareContext<TContext = unknown> {
    * message of the call gets a copy of it.
    */
   callMetadata: Readonly<TanStackMessageMetadata>
-  /** Abort signal from the chat request */
+  /** Aborts when the caller aborts the chat request or a middleware calls `abort()`. */
   signal?: AbortSignal
   /** Abort the chat run with a reason */
   abort: (reason?: string) => void

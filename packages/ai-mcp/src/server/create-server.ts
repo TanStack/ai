@@ -36,7 +36,7 @@ import type { SampleRequest, ToolInputRequest } from './context'
 import { isServedOverStdio, rememberServerOptions } from './registry'
 import { parseToolOutput } from './output'
 import type { MCPResourceContext, MCPResourceList } from './definitions'
-import { getTask, startTask, toCallToolResult } from './tasks'
+import { cancelTask, getTask, startTask, toCallToolResult } from './tasks'
 import { inMemoryTaskStore } from './stores'
 import type { TaskStore } from './stores'
 
@@ -521,7 +521,7 @@ function serverOptions(era: ProtocolYear, hasTaskTool: boolean) {
       resources: { listChanged: false },
       prompts: { listChanged: false },
       ...(hasTaskTool && era === '2025'
-        ? { tasks: { requests: { tools: { call: {} } } } }
+        ? { tasks: { requests: { tools: { call: {} } }, cancel: {} } }
         : {}),
     },
   }
@@ -619,12 +619,19 @@ async function runTaskTool(
   },
   authInfo: AuthInfo | undefined,
 ) {
-  const ctx = taskContext(input.options.sample, authInfo, input.appContext)
-  const handle = await startTask(() => runTool(tool, args, ctx), {
-    store: input.taskStore,
-    waitUntil: input.options.waitUntil,
-    owner: input.owner,
-  })
+  const handle = await startTask(
+    (signal) =>
+      runTool(
+        tool,
+        args,
+        taskContext(input.options.sample, authInfo, input.appContext, signal),
+      ),
+    {
+      store: input.taskStore,
+      waitUntil: input.options.waitUntil,
+      owner: input.owner,
+    },
+  )
   const polled = await getTask(handle.taskId, input.taskStore, input.owner)
   if (polled === null) {
     throw new Error(`Task ${handle.taskId} was not saved.`)
@@ -639,10 +646,12 @@ async function runTaskTool(
 
 // A task keeps running after tools/call answers with the task handle.
 // So it must not use that request: its signal, elicitation, or sampling.
+// `signal` aborts on `tasks/cancel`.
 function taskContext(
   sample: MCPServerOptions['sample'],
   authInfo: AuthInfo | undefined,
   appContext: AppContext,
+  signal: AbortSignal,
 ) {
   return {
     context: {
@@ -662,8 +671,7 @@ function taskContext(
         return sample(request)
       },
     },
-    // ponytail: nothing aborts this signal until tasks/cancel is implemented.
-    abortSignal: new AbortController().signal,
+    abortSignal: signal,
     emitCustomEvent() {},
   }
 }
@@ -927,6 +935,35 @@ function registerLegacyTaskMethods(
         )
       }
       return toCallToolResult(polled.record.result)
+    },
+  )
+  server.server.setRequestHandler(
+    'tasks/cancel',
+    { params: taskIdParams },
+    async (params) => {
+      const polled = await getTask(taskIdFrom(params), store, owner)
+      if (polled === null) {
+        throw new ProtocolError(
+          ProtocolErrorCode.InvalidParams,
+          'Task not found',
+        )
+      }
+      // Spec 2025-11-25: a task in a terminal status cannot be cancelled.
+      if (polled.record.status !== 'working') {
+        throw new ProtocolError(
+          ProtocolErrorCode.InvalidParams,
+          `Task is ${polled.record.status}, so it cannot be cancelled`,
+        )
+      }
+      const task = await cancelTask(polled.record, store)
+      // The task can end while cancelTask runs. Then it keeps its status.
+      if (task.status !== 'cancelled') {
+        throw new ProtocolError(
+          ProtocolErrorCode.InvalidParams,
+          `Task is ${task.status}, so it cannot be cancelled`,
+        )
+      }
+      return task
     },
   )
 }

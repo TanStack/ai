@@ -410,6 +410,11 @@ export class ChatStreamSummarizeAdapter<
       // `runId` absent when unset, under `exactOptionalPropertyTypes`.
       ...(options.runId !== undefined ? { runId: options.runId } : {}),
       threadId: options.threadId,
+      // Without this, a cancel or timeout rejects summarize() but the wrapped
+      // provider request keeps running.
+      ...(options.abortSignal
+        ? { request: { signal: options.abortSignal } }
+        : {}),
     }
   }
 

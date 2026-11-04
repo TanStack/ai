@@ -69,6 +69,9 @@ export class GeminiEmbeddingAdapter<
       if (modelOptions?.title !== undefined) {
         config.title = modelOptions.title
       }
+      if (options.abortSignal) {
+        config.abortSignal = options.abortSignal
+      }
 
       logger.request(
         `activity=embed provider=${this.name} model=${model} inputs=${texts.length}`,

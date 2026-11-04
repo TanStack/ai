@@ -303,6 +303,7 @@ async function runGenerateSpeech<
 
   const mwCtx = createGenerationContext({
     requestId,
+    signal: abortControls.signal,
     activity: 'tts',
     provider: adapter.name,
     model,

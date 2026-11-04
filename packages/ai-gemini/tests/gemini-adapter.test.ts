@@ -241,7 +241,12 @@ describe('GeminiAdapter through AI', () => {
 
     expect(mocks.generateContentStreamSpy).toHaveBeenCalledTimes(1)
     const [payload] = mocks.generateContentStreamSpy.mock.calls[0]!
-    expect(payload.config.abortSignal).toBe(abortController.signal)
+    // chat() links the caller signal with middleware ctx.abort(), so the SDK
+    // gets a linked signal that aborts with the caller.
+    const sdkSignal: AbortSignal = payload.config.abortSignal
+    expect(sdkSignal.aborted).toBe(false)
+    abortController.abort()
+    expect(sdkSignal.aborted).toBe(true)
   })
 
   it('omits config.abortSignal when no abort controller is supplied', async () => {

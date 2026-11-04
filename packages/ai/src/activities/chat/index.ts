@@ -1062,6 +1062,8 @@ class TextEngine<
   private readonly streamId: string
   private readonly effectiveRequest?: Request | RequestInit
   private readonly effectiveSignal?: AbortSignal
+  /** The caller signal plus ctx.abort(), only when there is a caller signal. */
+  private readonly linkedSignal?: AbortSignal
 
   private messages: Array<ModelMessage>
   private activities: Array<ActivityRecord> = []
@@ -1276,9 +1278,6 @@ class TextEngine<
     >(this.tools)
     this.requestId = this.createId('chat')
     this.streamId = this.createId('stream')
-    this.effectiveRequest = config.params.abortController
-      ? { signal: config.params.abortController.signal }
-      : undefined
     this.effectiveSignal = config.params.abortController?.signal
     this.threadId = config.params.threadId
     this.runIdOverride = config.params.runId
@@ -1297,6 +1296,13 @@ class TextEngine<
       this.effectiveSignal,
       this.middlewareAbortController.signal,
     )
+    // With a caller signal, the provider request and ctx.signal follow
+    // ctx.abort() too. Without one they get no signal, as before: some SDKs
+    // drop their own timeout when a request has a signal.
+    this.linkedSignal = this.effectiveSignal ? this.toolAbortSignal : undefined
+    this.effectiveRequest = this.linkedSignal
+      ? { signal: this.linkedSignal }
+      : undefined
     this.middlewareCtx = {
       requestId: this.requestId,
       streamId: this.streamId,
@@ -1313,7 +1319,7 @@ class TextEngine<
       iteration: 0,
       chunkIndex: 0,
       callMetadata: this.currentCallMetadata,
-      signal: this.effectiveSignal,
+      signal: this.linkedSignal,
       abort: (reason?: string) => {
         this.abortReason = reason
         this.middlewareAbortController?.abort(reason)
@@ -1588,6 +1594,10 @@ class TextEngine<
         }
         return
       }
+
+      // A run stopped before it started runs no pending tools and raises no
+      // interrupt. The `finally` below reports it through `onAbort`.
+      if (this.isCancelled()) return
 
       const hasResumedTools = this.getPendingToolCallsFromMessages().length > 0
       const pendingPhase = yield* this.checkForPendingToolCalls()
@@ -6439,6 +6449,23 @@ function runStreamingText(
   return stream
 }
 
+/**
+ * MCP tools for one run. When the run is stopped during discovery, it returns
+ * no tools: the engine then ends the run through its abort path, so middleware
+ * gets `onAbort`. Other discovery errors still throw.
+ */
+async function discoverMcpTools(
+  mcpManager: MCPManager,
+  signal: AbortSignal | undefined,
+) {
+  try {
+    return await mcpManager.discover(signal)
+  } catch (error) {
+    if (signal?.aborted) return []
+    throw error
+  }
+}
+
 async function* runChatEngine(
   options: RuntimeTextActivityOptions<AnyTextAdapter, undefined, boolean>,
   engineRef: DeliveryEngineRef,
@@ -6456,7 +6483,10 @@ async function* runChatEngine(
   const logger = resolveDebugOption(debug)
 
   const mcpManager = MCPManager.from(mcp)
-  const mcpTools = await mcpManager.discover()
+  const mcpTools = await discoverMcpTools(
+    mcpManager,
+    options.abortController?.signal,
+  )
   if (mcpTools.length > 0) {
     textOptions.tools = [...(textOptions.tools ?? []), ...mcpTools]
   }
@@ -7072,7 +7102,10 @@ async function runAgenticStructuredOutput<TSchema extends SchemaInput>(
     adapter.combinedStructuredOutputSource?.(options.modelOptions) ?? 'text'
 
   const mcpManager = MCPManager.from(mcp)
-  const mcpTools = await mcpManager.discover()
+  const mcpTools = await discoverMcpTools(
+    mcpManager,
+    options.abortController?.signal,
+  )
   if (mcpTools.length > 0) {
     textOptions.tools = [...(textOptions.tools ?? []), ...mcpTools]
   }
@@ -7438,7 +7471,10 @@ async function* runStreamingStructuredOutputImpl<TSchema extends SchemaInput>(
     : undefined
 
   const mcpManager = MCPManager.from(mcp)
-  const mcpTools = await mcpManager.discover()
+  const mcpTools = await discoverMcpTools(
+    mcpManager,
+    options.abortController?.signal,
+  )
   if (mcpTools.length > 0) {
     textOptions.tools = [...(textOptions.tools ?? []), ...mcpTools]
   }

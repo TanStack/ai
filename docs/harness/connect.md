@@ -188,6 +188,19 @@ Without `from`, `events()` starts at the newest event, so it sends no old events
 - To read every event from the start of the session, pass `from: '0'`. Do this when you rebuild a transcript from the events.
 - If the snapshot answer has no `cursor` (the URL is not a harness handler), `events()` throws and does not try again.
 
+Each request method of the client takes an optional last argument `{ signal }`. When the signal aborts, the request stops and the call rejects:
+
+```ts group=harness-connect-client
+const controller = new AbortController()
+setTimeout(() => controller.abort(), 5000)
+
+const snapshot = await client.snapshot({ signal: controller.signal })
+await client.send('Summarize my open tickets.', undefined, {
+  signal: controller.signal,
+})
+console.log(snapshot.cursor)
+```
+
 To upload files and show the media that your agents make, read [Send and show media](./media).
 
 ## Send a message to a running agent
@@ -498,7 +511,7 @@ Each outer thread gets its own inner session, so the harness keeps its own histo
 - Who runs the inner turn: when the outer `chat()` runs inside a harness turn, the inner session opens as the user of that turn. Else it opens as `user`, for example `harnessText(assistant, { host, user: { id: 'ada' } })`.
 - Access: the inner thread is `<outer thread id>/inner/<harness name>`. When `host` has `access` and also runs the outer thread, the inner session is checked through the outer thread, so every user who can read a shared outer thread can use its inner session. From app code, `host.open`, `host.submit`, `host.fork`, and `host.transfer` refuse any thread id with `/inner/`.
 - Usage: the outer run gets the token usage of every inner model call, so the usage totals of the outer session count them.
-- Cancel: an abort of the outer call cancels the inner turn. For a remote harness, `harnessText({ url, token })` also tells the remote host to cancel the turn.
+- Cancel: an abort of the outer call cancels the inner turn. A caller that stops reading the stream early cancels it too. For a remote harness, `harnessText({ url, token })` also tells the remote host to cancel the turn.
 
 If a plugin picks the model of the harness, the harness has no adapter to read its input kinds from. Pass them with `harnessText(assistant, { host, inputModalities: ['text', 'image'] })`.
 
