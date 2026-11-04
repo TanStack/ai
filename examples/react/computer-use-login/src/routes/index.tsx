@@ -67,27 +67,29 @@ function Messages({
 
   return (
     <div ref={containerRef} className="flex-1 overflow-y-auto px-4 py-4">
-      {messages.map((message) => (
-        <div
-          key={message.id}
-          className={`mb-2 rounded-lg p-4 ${
-            message.role === 'assistant'
-              ? 'bg-linear-to-r from-orange-500/5 to-red-600/5'
-              : 'bg-transparent'
-          }`}
-        >
-          {message.parts.map((part, index) => {
-            if (part.type === 'text' && part.content) {
-              return (
-                <div key={index} className="whitespace-pre-wrap text-white">
-                  {part.content}
-                </div>
-              )
-            }
-            return null
-          })}
-        </div>
-      ))}
+      {/* Only the text. The live view shows what the tools do. */}
+      {messages.map((message) => {
+        const texts = message.parts.flatMap((part) =>
+          part.type === 'text' && part.content ? [part.content] : [],
+        )
+        if (!texts.length) return null
+        return (
+          <div
+            key={message.id}
+            className={`mb-2 rounded-lg p-4 ${
+              message.role === 'assistant'
+                ? 'bg-linear-to-r from-orange-500/5 to-red-600/5'
+                : 'bg-transparent'
+            }`}
+          >
+            {texts.map((text, index) => (
+              <div key={index} className="whitespace-pre-wrap text-white">
+                {text}
+              </div>
+            ))}
+          </div>
+        )
+      })}
       <LiveView interactive={handedOff} />
     </div>
   )
