@@ -10,6 +10,7 @@ export type Provider =
   | 'bedrock'
   | 'byteplus'
   | 'cloudflare'
+  | 'zai'
 
 export interface ModelOption {
   provider: Provider
@@ -55,6 +56,12 @@ export const MODEL_OPTIONS: Array<ModelOption> = [
     model: 'openai/gpt-5.5',
     label: 'Cloudflare Gateway - GPT-5.5',
   },
+
+  // Z.AI direct API. BYOK key from the browser, ZAI_API_KEY in .env as fallback.
+  { provider: 'zai', model: 'glm-5.3', label: 'Z.AI - GLM-5.3' },
+  { provider: 'zai', model: 'glm-5.3-flash', label: 'Z.AI - GLM-5.3 Flash' },
+  { provider: 'zai', model: 'glm-5.2', label: 'Z.AI - GLM-5.2' },
+  { provider: 'zai', model: 'glm-4.7', label: 'Z.AI - GLM-4.7' },
 
   // Anthropic
   {

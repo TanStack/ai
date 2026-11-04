@@ -10,10 +10,10 @@ import { openaiText } from '@tanstack/ai-openai'
 import { ollamaText } from '@tanstack/ai-ollama'
 import { anthropicText } from '@tanstack/ai-anthropic'
 import { geminiText } from '@tanstack/ai-gemini'
+import { zaiText } from '@tanstack/ai-zai'
 
 import type { RequestHandler } from './$types'
 import { env } from '$env/dynamic/private'
-
 import {
   addToCartToolDef,
   addToWishListToolDef,
@@ -22,13 +22,14 @@ import {
   recommendGuitarToolDef,
 } from '$lib/guitar-tools'
 
-type Provider = 'openai' | 'anthropic' | 'gemini' | 'ollama'
+type Provider = 'openai' | 'anthropic' | 'gemini' | 'ollama' | 'zai'
 
 // Populate process.env with the SvelteKit environment variables
 // This is needed because the TanStack AI adapters read from process.env
 if (env.OPENAI_API_KEY) process.env.OPENAI_API_KEY = env.OPENAI_API_KEY
 if (env.ANTHROPIC_API_KEY) process.env.ANTHROPIC_API_KEY = env.ANTHROPIC_API_KEY
 if (env.GEMINI_API_KEY) process.env.GEMINI_API_KEY = env.GEMINI_API_KEY
+if (env.ZAI_API_KEY) process.env.ZAI_API_KEY = env.ZAI_API_KEY
 
 // Pre-define typed adapter configurations with full type inference
 // This pattern gives you model autocomplete at definition time
@@ -48,6 +49,10 @@ const adapterConfig = {
   openai: () =>
     createChatOptions({
       adapter: openaiText('gpt-4o'),
+    }),
+  zai: (model?: string) =>
+    createChatOptions({
+      adapter: zaiText((model || 'glm-5.3') as 'glm-5.3'),
     }),
 }
 
@@ -114,9 +119,13 @@ export const POST: RequestHandler = async ({ request }) => {
   // Extract provider from forwardedProps (sent by the client)
   const provider: Provider =
     typeof params.forwardedProps?.provider === 'string' &&
-    params.forwardedProps.provider in adapterConfig
+    Object.hasOwn(adapterConfig, params.forwardedProps.provider)
       ? (params.forwardedProps.provider as Provider)
       : 'openai'
+  const model =
+    typeof params.forwardedProps?.model === 'string'
+      ? params.forwardedProps.model
+      : ''
 
   try {
     const mergedTools = mergeAgentTools(serverTools, params.tools)
@@ -141,7 +150,9 @@ export const POST: RequestHandler = async ({ request }) => {
           ? chat({ ...adapterConfig.gemini(), ...sharedOptions })
           : provider === 'ollama'
             ? chat({ ...adapterConfig.ollama(), ...sharedOptions })
-            : chat({ ...adapterConfig.openai(), ...sharedOptions })
+            : provider === 'zai'
+              ? chat({ ...adapterConfig.zai(model), ...sharedOptions })
+              : chat({ ...adapterConfig.openai(), ...sharedOptions })
 
     return toServerSentEventsResponse(stream, { abortController })
   } catch (error: any) {

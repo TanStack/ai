@@ -1,4 +1,4 @@
-export type Provider = 'openai' | 'anthropic' | 'gemini' | 'ollama'
+export type Provider = 'openai' | 'anthropic' | 'gemini' | 'ollama' | 'zai'
 
 export interface ModelOption {
   provider: Provider
@@ -76,6 +76,18 @@ export const MODEL_OPTIONS: Array<ModelOption> = [
     model: 'smollm',
     label: 'Ollama - SmolLM',
   },
+
+  // Z.AI (GLM)
+  { provider: 'zai', model: 'glm-5.3', label: 'Z.AI - GLM-5.3' },
+  { provider: 'zai', model: 'glm-5.3-flash', label: 'Z.AI - GLM-5.3 Flash' },
+  { provider: 'zai', model: 'glm-5.2', label: 'Z.AI - GLM-5.2' },
+  { provider: 'zai', model: 'glm-5.1', label: 'Z.AI - GLM-5.1' },
+  { provider: 'zai', model: 'glm-5-turbo', label: 'Z.AI - GLM-5 Turbo' },
+  { provider: 'zai', model: 'glm-5', label: 'Z.AI - GLM-5' },
+  { provider: 'zai', model: 'glm-5v-turbo', label: 'Z.AI - GLM-5V Turbo' },
+  { provider: 'zai', model: 'glm-4.7', label: 'Z.AI - GLM-4.7' },
+  { provider: 'zai', model: 'glm-4.6v', label: 'Z.AI - GLM-4.6V' },
+  { provider: 'zai', model: 'glm-4.6', label: 'Z.AI - GLM-4.6' },
 ]
 
 const STORAGE_KEY = 'tanstack-ai-model-preference'

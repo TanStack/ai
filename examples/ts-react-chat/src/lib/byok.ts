@@ -10,6 +10,7 @@ import { grokByok } from '@tanstack/ai-grok/byok'
 import { groqByok } from '@tanstack/ai-groq/byok'
 import { openaiByok } from '@tanstack/ai-openai/byok'
 import { openrouterByok } from '@tanstack/ai-openrouter/byok'
+import { zaiByok } from '@tanstack/ai-zai/byok'
 import { createServerFn } from '@tanstack/react-start'
 import type { ProviderId } from '@tanstack/ai/byok'
 import type { Provider } from '@/lib/model-selection'
@@ -25,6 +26,7 @@ export const KEYED_PROVIDERS = [
   byteplusVoiceByok,
   cloudflareByok,
   cloudflareAccountByok,
+  zaiByok,
 ] as const
 
 /**
