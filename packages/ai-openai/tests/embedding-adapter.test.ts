@@ -87,6 +87,45 @@ describe('OpenAI Embedding Adapter', () => {
       })
     })
 
+    it('splits inputs over 2048 into batches and keeps order, indexes and usage', async () => {
+      const adapter = new TestOpenAIEmbeddingAdapter(
+        { apiKey: 'test' },
+        'text-embedding-3-small',
+      )
+      const spy = adapter.spyOnEmbeddingsCreate()
+      // Like the real API: reject any request with more than 2048 inputs.
+      spy.mockImplementation((params) => {
+        const input = params.input as Array<string>
+        if (input.length > 2048) {
+          return Promise.reject(
+            new Error('400 max 2048 embedding inputs per request'),
+          ) as never
+        }
+        return Promise.resolve(
+          mockResponse(input.map((text) => [Number(text)])),
+        ) as never
+      })
+
+      const texts = Array.from({ length: 5000 }, (_, i) => String(i))
+      const result = await adapter.createEmbeddings({
+        model: 'text-embedding-3-small',
+        input: texts,
+        logger: testLogger,
+      })
+
+      expect(spy.mock.calls.map(([params]) => params.input.length)).toEqual([
+        2048, 2048, 904,
+      ])
+      expect(result.embeddings).toHaveLength(5000)
+      expect(result.embeddings[2048]).toEqual({ vector: [2048], index: 2048 })
+      expect(result.embeddings[4999]).toEqual({ vector: [4999], index: 4999 })
+      expect(result.usage).toEqual({
+        promptTokens: 21,
+        completionTokens: 0,
+        totalTokens: 21,
+      })
+    })
+
     it('passes the top-level dimensions option through', async () => {
       const adapter = new TestOpenAIEmbeddingAdapter(
         { apiKey: 'test' },
