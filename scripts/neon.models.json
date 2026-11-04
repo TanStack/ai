@@ -2,7 +2,8 @@
   {
     "id": "bge-large-en",
     "name": "BGE Large (En)",
-    "provider": "baai",
+    "lab": "baai",
+    "provider": "databricks",
     "family": "text-embedding",
     "released": true,
     "type": "embedding",
@@ -21,7 +22,8 @@
       "responses": false,
       "web_search": false,
       "image_generation": false,
-      "embeddings": true
+      "embeddings": true,
+      "decision": false
     },
     "use_case": "chat",
     "unsupported": "bge-large-en does not serve chat completions. It is an embedding model — see the embeddings use case."
@@ -29,7 +31,8 @@
   {
     "id": "claude-fable-5",
     "name": "Claude Fable 5",
-    "provider": "anthropic",
+    "lab": "anthropic",
+    "provider": "databricks",
     "family": "claude-fable",
     "released": true,
     "attachment": true,
@@ -70,14 +73,16 @@
       "responses": false,
       "web_search": false,
       "image_generation": false,
-      "embeddings": false
+      "embeddings": false,
+      "decision": false
     },
     "use_case": "chat"
   },
   {
     "id": "claude-fable-5-1",
     "name": "Claude Fable 5.1",
-    "provider": "anthropic",
+    "lab": "anthropic",
+    "provider": "databricks",
     "family": "claude-fable",
     "released": true,
     "attachment": true,
@@ -118,14 +123,16 @@
       "responses": false,
       "web_search": false,
       "image_generation": false,
-      "embeddings": false
+      "embeddings": false,
+      "decision": false
     },
     "use_case": "chat"
   },
   {
     "id": "claude-haiku-4-5",
     "name": "Claude Haiku 4.5",
-    "provider": "anthropic",
+    "lab": "anthropic",
+    "provider": "databricks",
     "family": "claude-haiku",
     "released": true,
     "attachment": true,
@@ -170,14 +177,16 @@
       "responses": false,
       "web_search": false,
       "image_generation": false,
-      "embeddings": false
+      "embeddings": false,
+      "decision": false
     },
     "use_case": "chat"
   },
   {
     "id": "claude-haiku-5-5",
     "name": "Claude Haiku 5.5",
-    "provider": "anthropic",
+    "lab": "anthropic",
+    "provider": "databricks",
     "family": "claude-haiku",
     "released": true,
     "attachment": true,
@@ -241,14 +250,16 @@
       "responses": false,
       "web_search": false,
       "image_generation": false,
-      "embeddings": false
+      "embeddings": false,
+      "decision": false
     },
     "use_case": "chat"
   },
   {
     "id": "claude-opus-4-1",
     "name": "Claude Opus 4.1",
-    "provider": "anthropic",
+    "lab": "anthropic",
+    "provider": "databricks",
     "family": "claude-opus",
     "released": true,
     "attachment": true,
@@ -293,14 +304,16 @@
       "responses": false,
       "web_search": false,
       "image_generation": false,
-      "embeddings": false
+      "embeddings": false,
+      "decision": false
     },
     "use_case": "chat"
   },
   {
     "id": "claude-opus-4-5",
     "name": "Claude Opus 4.5",
-    "provider": "anthropic",
+    "lab": "anthropic",
+    "provider": "databricks",
     "family": "claude-opus",
     "released": true,
     "attachment": true,
@@ -345,14 +358,16 @@
       "responses": false,
       "web_search": false,
       "image_generation": false,
-      "embeddings": false
+      "embeddings": false,
+      "decision": false
     },
     "use_case": "chat"
   },
   {
     "id": "claude-opus-4-6",
     "name": "Claude Opus 4.6",
-    "provider": "anthropic",
+    "lab": "anthropic",
+    "provider": "databricks",
     "family": "claude-opus",
     "released": true,
     "attachment": true,
@@ -397,14 +412,16 @@
       "responses": false,
       "web_search": false,
       "image_generation": false,
-      "embeddings": false
+      "embeddings": false,
+      "decision": false
     },
     "use_case": "chat"
   },
   {
     "id": "claude-opus-4-7",
     "name": "Claude Opus 4.7",
-    "provider": "anthropic",
+    "lab": "anthropic",
+    "provider": "databricks",
     "family": "claude-opus",
     "released": true,
     "attachment": true,
@@ -448,14 +465,16 @@
       "responses": false,
       "web_search": false,
       "image_generation": false,
-      "embeddings": false
+      "embeddings": false,
+      "decision": false
     },
     "use_case": "chat"
   },
   {
     "id": "claude-opus-4-8",
     "name": "Claude Opus 4.8",
-    "provider": "anthropic",
+    "lab": "anthropic",
+    "provider": "databricks",
     "family": "claude-opus",
     "released": true,
     "attachment": true,
@@ -499,14 +518,16 @@
       "responses": false,
       "web_search": false,
       "image_generation": false,
-      "embeddings": false
+      "embeddings": false,
+      "decision": false
     },
     "use_case": "chat"
   },
   {
     "id": "claude-opus-5",
     "name": "Claude Opus 5",
-    "provider": "anthropic",
+    "lab": "anthropic",
+    "provider": "databricks",
     "family": "claude-opus",
     "released": true,
     "attachment": true,
@@ -550,14 +571,16 @@
       "responses": false,
       "web_search": false,
       "image_generation": false,
-      "embeddings": false
+      "embeddings": false,
+      "decision": false
     },
     "use_case": "chat"
   },
   {
     "id": "claude-opus-5-5",
     "name": "Claude Opus 5.5",
-    "provider": "anthropic",
+    "lab": "anthropic",
+    "provider": "databricks",
     "family": "claude-opus",
     "released": true,
     "attachment": true,
@@ -600,14 +623,16 @@
       "responses": false,
       "web_search": false,
       "image_generation": false,
-      "embeddings": false
+      "embeddings": false,
+      "decision": false
     },
     "use_case": "chat"
   },
   {
     "id": "claude-sonnet-4-5",
     "name": "Claude Sonnet 4.5",
-    "provider": "anthropic",
+    "lab": "anthropic",
+    "provider": "databricks",
     "family": "claude-sonnet",
     "released": true,
     "attachment": true,
@@ -652,14 +677,16 @@
       "responses": false,
       "web_search": false,
       "image_generation": false,
-      "embeddings": false
+      "embeddings": false,
+      "decision": false
     },
     "use_case": "chat"
   },
   {
     "id": "claude-sonnet-4-6",
     "name": "Claude Sonnet 4.6",
-    "provider": "anthropic",
+    "lab": "anthropic",
+    "provider": "databricks",
     "family": "claude-sonnet",
     "released": true,
     "attachment": true,
@@ -704,14 +731,16 @@
       "responses": false,
       "web_search": false,
       "image_generation": false,
-      "embeddings": false
+      "embeddings": false,
+      "decision": false
     },
     "use_case": "chat"
   },
   {
     "id": "claude-sonnet-5",
     "name": "Claude Sonnet 5",
-    "provider": "anthropic",
+    "lab": "anthropic",
+    "provider": "databricks",
     "family": "claude-sonnet",
     "released": true,
     "attachment": true,
@@ -755,14 +784,16 @@
       "responses": false,
       "web_search": false,
       "image_generation": false,
-      "embeddings": false
+      "embeddings": false,
+      "decision": false
     },
     "use_case": "chat"
   },
   {
     "id": "claude-sonnet-5-5",
     "name": "Claude Sonnet 5.5",
-    "provider": "anthropic",
+    "lab": "anthropic",
+    "provider": "databricks",
     "family": "claude-sonnet",
     "released": true,
     "attachment": true,
@@ -805,14 +836,16 @@
       "responses": false,
       "web_search": false,
       "image_generation": false,
-      "embeddings": false
+      "embeddings": false,
+      "decision": false
     },
     "use_case": "chat"
   },
   {
     "id": "deepseek-v4-1-flash",
     "name": "DeepSeek V4.1 Flash",
-    "provider": "deepseek",
+    "lab": "deepseek",
+    "provider": "databricks",
     "family": "deepseek-flash",
     "released": true,
     "attachment": true,
@@ -845,14 +878,16 @@
       "responses": false,
       "web_search": false,
       "image_generation": false,
-      "embeddings": false
+      "embeddings": false,
+      "decision": false
     },
     "use_case": "chat"
   },
   {
     "id": "gemini-3-1-flash-lite",
     "name": "Gemini 3.1 Flash Lite",
-    "provider": "google",
+    "lab": "google",
+    "provider": "databricks",
     "family": "gemini-flash-lite",
     "released": true,
     "attachment": true,
@@ -893,14 +928,16 @@
       "responses": false,
       "web_search": false,
       "image_generation": false,
-      "embeddings": false
+      "embeddings": false,
+      "decision": false
     },
     "use_case": "chat"
   },
   {
     "id": "gemini-3-1-pro",
     "name": "Gemini 3.1 Pro",
-    "provider": "google",
+    "lab": "google",
+    "provider": "databricks",
     "family": "gemini-pro",
     "released": true,
     "attachment": true,
@@ -956,14 +993,16 @@
       "responses": false,
       "web_search": false,
       "image_generation": false,
-      "embeddings": false
+      "embeddings": false,
+      "decision": false
     },
     "use_case": "chat"
   },
   {
     "id": "gemini-3-5-flash",
     "name": "Gemini 3.5 Flash",
-    "provider": "google",
+    "lab": "google",
+    "provider": "databricks",
     "family": "gemini-flash",
     "released": true,
     "attachment": true,
@@ -1004,14 +1043,16 @@
       "responses": false,
       "web_search": false,
       "image_generation": false,
-      "embeddings": false
+      "embeddings": false,
+      "decision": false
     },
     "use_case": "chat"
   },
   {
     "id": "gemini-3-5-flash-lite",
     "name": "Gemini 3.5 Flash Lite",
-    "provider": "google",
+    "lab": "google",
+    "provider": "databricks",
     "family": "gemini-flash-lite",
     "released": true,
     "attachment": true,
@@ -1051,14 +1092,16 @@
       "responses": false,
       "web_search": false,
       "image_generation": false,
-      "embeddings": false
+      "embeddings": false,
+      "decision": false
     },
     "use_case": "chat"
   },
   {
     "id": "gemini-3-6-flash",
     "name": "Gemini 3.6 Flash",
-    "provider": "google",
+    "lab": "google",
+    "provider": "databricks",
     "family": "gemini-flash",
     "released": true,
     "attachment": true,
@@ -1099,14 +1142,16 @@
       "responses": false,
       "web_search": false,
       "image_generation": false,
-      "embeddings": false
+      "embeddings": false,
+      "decision": false
     },
     "use_case": "chat"
   },
   {
     "id": "gemini-3-7-flash",
     "name": "Gemini 3.7 Flash",
-    "provider": "google",
+    "lab": "google",
+    "provider": "databricks",
     "family": "gemini-flash",
     "released": true,
     "attachment": true,
@@ -1150,14 +1195,16 @@
       "responses": false,
       "web_search": false,
       "image_generation": false,
-      "embeddings": false
+      "embeddings": false,
+      "decision": false
     },
     "use_case": "chat"
   },
   {
     "id": "gemini-3-8-flash",
     "name": "Gemini 3.8 Flash",
-    "provider": "google",
+    "lab": "google",
+    "provider": "databricks",
     "family": "gemini-flash",
     "released": true,
     "attachment": true,
@@ -1199,14 +1246,16 @@
       "responses": false,
       "web_search": false,
       "image_generation": false,
-      "embeddings": false
+      "embeddings": false,
+      "decision": false
     },
     "use_case": "chat"
   },
   {
     "id": "gemini-3-flash",
     "name": "Gemini 3 Flash",
-    "provider": "google",
+    "lab": "google",
+    "provider": "databricks",
     "family": "gemini-flash",
     "released": true,
     "attachment": true,
@@ -1247,14 +1296,70 @@
       "responses": false,
       "web_search": false,
       "image_generation": false,
-      "embeddings": false
+      "embeddings": false,
+      "decision": false
+    },
+    "use_case": "chat"
+  },
+  {
+    "id": "gemini-4-argon",
+    "name": "Gemini 4 Argon",
+    "lab": "google",
+    "provider": "databricks",
+    "family": "gemini",
+    "released": true,
+    "attachment": true,
+    "reasoning": true,
+    "reasoning_options": [
+      {
+        "type": "effort",
+        "values": ["low", "medium", "high"]
+      }
+    ],
+    "tool_call": true,
+    "temperature": false,
+    "structured_output": true,
+    "open_weights": false,
+    "knowledge": "2026-03",
+    "release_date": "2026-10-13",
+    "last_updated": "2026-10-13",
+    "modalities": {
+      "input": ["text", "image", "video", "audio", "pdf"],
+      "output": ["text"]
+    },
+    "limit": {
+      "context": 1048576,
+      "output": 65536
+    },
+    "cost": {
+      "input": 4,
+      "output": 20,
+      "cache_read": 0.2
+    },
+    "blended_cost": 8,
+    "capabilities": {
+      "entitled": true,
+      "chat": "array-content",
+      "deviations": [
+        "`id` is null; the spec requires a string",
+        "`content` is an array[1] of {text} with keys {text, thoughtSignature, type}; the spec requires a string",
+        "`usage.total_tokens` is 240, but prompt + completion is 46",
+        "`usage.reasoning_tokens` is top-level; the spec nests it under `completion_tokens_details`"
+      ],
+      "native_dialect": "gemini",
+      "responses": false,
+      "web_search": false,
+      "image_generation": false,
+      "embeddings": false,
+      "decision": false
     },
     "use_case": "chat"
   },
   {
     "id": "gemma-3-12b",
     "name": "Gemma 3 12B",
-    "provider": "google",
+    "lab": "google",
+    "provider": "databricks",
     "family": "gemma",
     "released": true,
     "attachment": true,
@@ -1287,14 +1392,16 @@
       "responses": false,
       "web_search": false,
       "image_generation": false,
-      "embeddings": false
+      "embeddings": false,
+      "decision": false
     },
     "use_case": "chat"
   },
   {
     "id": "glm-5-2",
     "name": "GLM 5.2",
-    "provider": "zhipuai",
+    "lab": "zhipuai",
+    "provider": "databricks",
     "family": "glm",
     "released": true,
     "attachment": false,
@@ -1336,14 +1443,16 @@
       "responses": false,
       "web_search": false,
       "image_generation": false,
-      "embeddings": false
+      "embeddings": false,
+      "decision": false
     },
     "use_case": "chat"
   },
   {
     "id": "glm-5-3",
     "name": "GLM 5.3",
-    "provider": "zhipuai",
+    "lab": "zhipuai",
+    "provider": "databricks",
     "family": "glm",
     "released": true,
     "attachment": false,
@@ -1382,14 +1491,16 @@
       "responses": false,
       "web_search": false,
       "image_generation": false,
-      "embeddings": false
+      "embeddings": false,
+      "decision": false
     },
     "use_case": "chat"
   },
   {
     "id": "glm-5-3-flash",
     "name": "GLM 5.3 Flash",
-    "provider": "zhipuai",
+    "lab": "zhipuai",
+    "provider": "databricks",
     "family": "glm-flash",
     "released": true,
     "attachment": true,
@@ -1428,14 +1539,16 @@
       "responses": false,
       "web_search": false,
       "image_generation": false,
-      "embeddings": false
+      "embeddings": false,
+      "decision": false
     },
     "use_case": "chat"
   },
   {
     "id": "gpt-5",
     "name": "GPT-5",
-    "provider": "openai",
+    "lab": "openai",
+    "provider": "databricks",
     "family": "gpt",
     "released": true,
     "attachment": true,
@@ -1476,14 +1589,16 @@
       "responses": true,
       "web_search": true,
       "image_generation": true,
-      "embeddings": false
+      "embeddings": false,
+      "decision": false
     },
     "use_case": "chat"
   },
   {
     "id": "gpt-5-1",
     "name": "GPT-5.1",
-    "provider": "openai",
+    "lab": "openai",
+    "provider": "databricks",
     "family": "gpt",
     "released": true,
     "attachment": true,
@@ -1524,14 +1639,16 @@
       "responses": true,
       "web_search": true,
       "image_generation": true,
-      "embeddings": false
+      "embeddings": false,
+      "decision": false
     },
     "use_case": "chat"
   },
   {
     "id": "gpt-5-2",
     "name": "GPT-5.2",
-    "provider": "openai",
+    "lab": "openai",
+    "provider": "databricks",
     "family": "gpt",
     "released": true,
     "attachment": true,
@@ -1572,14 +1689,16 @@
       "responses": true,
       "web_search": true,
       "image_generation": true,
-      "embeddings": false
+      "embeddings": false,
+      "decision": false
     },
     "use_case": "chat"
   },
   {
     "id": "gpt-5-3-codex",
     "name": "GPT-5.3 Codex",
-    "provider": "openai",
+    "lab": "openai",
+    "provider": "databricks",
     "family": "gpt-codex",
     "released": true,
     "attachment": true,
@@ -1620,14 +1739,16 @@
       "responses": true,
       "web_search": true,
       "image_generation": true,
-      "embeddings": false
+      "embeddings": false,
+      "decision": false
     },
     "use_case": "chat"
   },
   {
     "id": "gpt-5-4",
     "name": "GPT-5.4",
-    "provider": "openai",
+    "lab": "openai",
+    "provider": "databricks",
     "family": "gpt",
     "released": true,
     "attachment": true,
@@ -1684,14 +1805,16 @@
       "responses": true,
       "web_search": true,
       "image_generation": true,
-      "embeddings": false
+      "embeddings": false,
+      "decision": false
     },
     "use_case": "chat"
   },
   {
     "id": "gpt-5-4-mini",
     "name": "GPT-5.4 Mini",
-    "provider": "openai",
+    "lab": "openai",
+    "provider": "databricks",
     "family": "gpt-mini",
     "released": true,
     "attachment": true,
@@ -1732,14 +1855,16 @@
       "responses": true,
       "web_search": true,
       "image_generation": true,
-      "embeddings": false
+      "embeddings": false,
+      "decision": false
     },
     "use_case": "chat"
   },
   {
     "id": "gpt-5-4-nano",
     "name": "GPT-5.4 Nano",
-    "provider": "openai",
+    "lab": "openai",
+    "provider": "databricks",
     "family": "gpt-nano",
     "released": true,
     "attachment": true,
@@ -1780,14 +1905,16 @@
       "responses": true,
       "web_search": true,
       "image_generation": true,
-      "embeddings": false
+      "embeddings": false,
+      "decision": false
     },
     "use_case": "chat"
   },
   {
     "id": "gpt-5-5",
     "name": "GPT-5.5",
-    "provider": "openai",
+    "lab": "openai",
+    "provider": "databricks",
     "family": "gpt",
     "released": true,
     "attachment": true,
@@ -1844,14 +1971,16 @@
       "responses": true,
       "web_search": true,
       "image_generation": true,
-      "embeddings": false
+      "embeddings": false,
+      "decision": false
     },
     "use_case": "chat"
   },
   {
     "id": "gpt-5-5-pro",
     "name": "GPT-5.5 Pro",
-    "provider": "openai",
+    "lab": "openai",
+    "provider": "databricks",
     "family": "gpt-pro",
     "released": true,
     "attachment": true,
@@ -1905,14 +2034,16 @@
       "responses": true,
       "web_search": true,
       "image_generation": true,
-      "embeddings": false
+      "embeddings": false,
+      "decision": false
     },
     "use_case": "chat"
   },
   {
     "id": "gpt-5-6-luna",
     "name": "GPT-5.6 Luna",
-    "provider": "openai",
+    "lab": "openai",
+    "provider": "databricks",
     "family": "gpt-luna",
     "released": true,
     "attachment": true,
@@ -1972,14 +2103,16 @@
       "responses": true,
       "web_search": true,
       "image_generation": true,
-      "embeddings": false
+      "embeddings": false,
+      "decision": false
     },
     "use_case": "chat"
   },
   {
     "id": "gpt-5-6-sol",
     "name": "GPT-5.6 Sol",
-    "provider": "openai",
+    "lab": "openai",
+    "provider": "databricks",
     "family": "gpt-sol",
     "released": true,
     "attachment": true,
@@ -2039,14 +2172,16 @@
       "responses": true,
       "web_search": true,
       "image_generation": true,
-      "embeddings": false
+      "embeddings": false,
+      "decision": false
     },
     "use_case": "chat"
   },
   {
     "id": "gpt-5-6-terra",
     "name": "GPT-5.6 Terra",
-    "provider": "openai",
+    "lab": "openai",
+    "provider": "databricks",
     "family": "gpt-terra",
     "released": true,
     "attachment": true,
@@ -2106,14 +2241,16 @@
       "responses": true,
       "web_search": true,
       "image_generation": true,
-      "embeddings": false
+      "embeddings": false,
+      "decision": false
     },
     "use_case": "chat"
   },
   {
     "id": "gpt-5-mini",
     "name": "GPT-5 Mini",
-    "provider": "openai",
+    "lab": "openai",
+    "provider": "databricks",
     "family": "gpt-mini",
     "released": true,
     "attachment": true,
@@ -2154,14 +2291,16 @@
       "responses": true,
       "web_search": true,
       "image_generation": true,
-      "embeddings": false
+      "embeddings": false,
+      "decision": false
     },
     "use_case": "chat"
   },
   {
     "id": "gpt-5-nano",
     "name": "GPT-5 Nano",
-    "provider": "openai",
+    "lab": "openai",
+    "provider": "databricks",
     "family": "gpt-nano",
     "released": true,
     "attachment": true,
@@ -2202,14 +2341,16 @@
       "responses": true,
       "web_search": true,
       "image_generation": true,
-      "embeddings": false
+      "embeddings": false,
+      "decision": false
     },
     "use_case": "chat"
   },
   {
     "id": "gpt-6-1-sol",
     "name": "GPT-6.1 Sol",
-    "provider": "openai",
+    "lab": "openai",
+    "provider": "databricks",
     "family": "gpt-sol",
     "released": true,
     "attachment": true,
@@ -2268,14 +2409,16 @@
       "responses": true,
       "web_search": true,
       "image_generation": true,
-      "embeddings": false
+      "embeddings": false,
+      "decision": false
     },
     "use_case": "chat"
   },
   {
     "id": "gpt-6-astra",
     "name": "GPT-6 Astra",
-    "provider": "openai",
+    "lab": "openai",
+    "provider": "databricks",
     "family": "gpt-astra",
     "released": true,
     "attachment": true,
@@ -2335,14 +2478,16 @@
       "responses": true,
       "web_search": true,
       "image_generation": true,
-      "embeddings": false
+      "embeddings": false,
+      "decision": false
     },
     "use_case": "chat"
   },
   {
     "id": "gpt-6-luna",
     "name": "GPT-6 Luna",
-    "provider": "openai",
+    "lab": "openai",
+    "provider": "databricks",
     "family": "gpt-luna",
     "released": true,
     "attachment": true,
@@ -2401,14 +2546,16 @@
       "responses": true,
       "web_search": true,
       "image_generation": true,
-      "embeddings": false
+      "embeddings": false,
+      "decision": false
     },
     "use_case": "chat"
   },
   {
     "id": "gpt-6-sol",
     "name": "GPT-6 Sol",
-    "provider": "openai",
+    "lab": "openai",
+    "provider": "databricks",
     "family": "gpt-sol",
     "released": true,
     "attachment": true,
@@ -2467,14 +2614,16 @@
       "responses": true,
       "web_search": true,
       "image_generation": true,
-      "embeddings": false
+      "embeddings": false,
+      "decision": false
     },
     "use_case": "chat"
   },
   {
     "id": "gpt-oss-120b",
     "name": "GPT OSS 120B",
-    "provider": "openai",
+    "lab": "openai",
+    "provider": "databricks",
     "family": "gpt-oss",
     "released": true,
     "attachment": false,
@@ -2512,14 +2661,16 @@
       "responses": false,
       "web_search": false,
       "image_generation": false,
-      "embeddings": false
+      "embeddings": false,
+      "decision": false
     },
     "use_case": "chat"
   },
   {
     "id": "gpt-oss-20b",
     "name": "GPT OSS 20B",
-    "provider": "openai",
+    "lab": "openai",
+    "provider": "databricks",
     "family": "gpt-oss",
     "released": true,
     "attachment": false,
@@ -2557,14 +2708,16 @@
       "responses": false,
       "web_search": false,
       "image_generation": false,
-      "embeddings": false
+      "embeddings": false,
+      "decision": false
     },
     "use_case": "chat"
   },
   {
     "id": "grok-4-6",
     "name": "Grok 4.6",
-    "provider": "xai",
+    "lab": "xai",
+    "provider": "databricks",
     "family": "grok",
     "released": true,
     "attachment": true,
@@ -2604,14 +2757,16 @@
       "responses": true,
       "web_search": false,
       "image_generation": false,
-      "embeddings": false
+      "embeddings": false,
+      "decision": false
     },
     "use_case": "chat"
   },
   {
     "id": "grok-4-7",
     "name": "Grok 4.7",
-    "provider": "xai",
+    "lab": "xai",
+    "provider": "databricks",
     "family": "grok",
     "released": true,
     "attachment": false,
@@ -2650,14 +2805,16 @@
       "responses": true,
       "web_search": false,
       "image_generation": false,
-      "embeddings": false
+      "embeddings": false,
+      "decision": false
     },
     "use_case": "chat"
   },
   {
     "id": "gte-large-en",
     "name": "GTE Large (En)",
-    "provider": "alibaba",
+    "lab": "alibaba",
+    "provider": "databricks",
     "family": "text-embedding",
     "released": true,
     "type": "embedding",
@@ -2676,7 +2833,8 @@
       "responses": false,
       "web_search": false,
       "image_generation": false,
-      "embeddings": true
+      "embeddings": true,
+      "decision": false
     },
     "use_case": "chat",
     "unsupported": "gte-large-en does not serve chat completions. It is an embedding model — see the embeddings use case."
@@ -2684,7 +2842,8 @@
   {
     "id": "inkling",
     "name": "Inkling",
-    "provider": "thinkingmachines",
+    "lab": "thinkingmachines",
+    "provider": "databricks",
     "family": "ling",
     "released": true,
     "attachment": true,
@@ -2726,14 +2885,16 @@
       "responses": false,
       "web_search": false,
       "image_generation": false,
-      "embeddings": false
+      "embeddings": false,
+      "decision": false
     },
     "use_case": "chat"
   },
   {
     "id": "kimi-k3",
     "name": "Kimi K3",
-    "provider": "moonshotai",
+    "lab": "moonshotai",
+    "provider": "databricks",
     "family": "kimi-k3",
     "released": true,
     "attachment": true,
@@ -2775,14 +2936,16 @@
       "responses": false,
       "web_search": false,
       "image_generation": false,
-      "embeddings": false
+      "embeddings": false,
+      "decision": false
     },
     "use_case": "chat"
   },
   {
     "id": "llama-4-maverick",
     "name": "Llama 4 Maverick",
-    "provider": "meta",
+    "lab": "meta",
+    "provider": "databricks",
     "family": "llama",
     "released": true,
     "attachment": true,
@@ -2815,14 +2978,16 @@
       "responses": false,
       "web_search": false,
       "image_generation": false,
-      "embeddings": false
+      "embeddings": false,
+      "decision": false
     },
     "use_case": "chat"
   },
   {
     "id": "meta-llama-3-1-8b-instruct",
     "name": "Meta Llama 3.1 8B Instruct",
-    "provider": "meta",
+    "lab": "meta",
+    "provider": "databricks",
     "family": "llama",
     "released": true,
     "attachment": false,
@@ -2855,14 +3020,16 @@
       "responses": false,
       "web_search": false,
       "image_generation": false,
-      "embeddings": false
+      "embeddings": false,
+      "decision": false
     },
     "use_case": "chat"
   },
   {
     "id": "meta-llama-3-3-70b-instruct",
     "name": "Meta Llama 3.3 70B Instruct",
-    "provider": "meta",
+    "lab": "meta",
+    "provider": "databricks",
     "family": "llama",
     "released": true,
     "attachment": false,
@@ -2895,14 +3062,47 @@
       "responses": false,
       "web_search": false,
       "image_generation": false,
-      "embeddings": false
+      "embeddings": false,
+      "decision": false
     },
     "use_case": "chat"
   },
   {
+    "id": "openjev-qwen35-4b",
+    "name": "OpenJev (Qwen 3.5 4B)",
+    "lab": "typesafe",
+    "provider": "databricks",
+    "family": "openjev",
+    "released": true,
+    "type": "decision",
+    "open_weights": true,
+    "release_date": "2026-10-01",
+    "last_updated": "2026-10-01",
+    "limit": {
+      "context": 131072
+    },
+    "cost": {
+      "input": 0.042
+    },
+    "capabilities": {
+      "entitled": true,
+      "chat": "not-served",
+      "deviations": [],
+      "native_dialect": "none",
+      "responses": false,
+      "web_search": false,
+      "image_generation": false,
+      "embeddings": false,
+      "decision": true
+    },
+    "use_case": "chat",
+    "unsupported": "openjev-qwen35-4b is a System One decision model served only on /typesafe/v1/systemone — see the systemone use case."
+  },
+  {
     "id": "qwen3-embedding-0-6b",
     "name": "Qwen3 Embedding 0.6B",
-    "provider": "alibaba",
+    "lab": "alibaba",
+    "provider": "databricks",
     "family": "text-embedding",
     "released": true,
     "type": "embedding",
@@ -2921,7 +3121,8 @@
       "responses": false,
       "web_search": false,
       "image_generation": false,
-      "embeddings": true
+      "embeddings": true,
+      "decision": false
     },
     "use_case": "chat",
     "unsupported": "qwen3-embedding-0-6b does not serve chat completions. It is an embedding model — see the embeddings use case."
@@ -2929,7 +3130,8 @@
   {
     "id": "qwen3-next-80b-a3b-instruct",
     "name": "Qwen3 Next Instruct",
-    "provider": "alibaba",
+    "lab": "alibaba",
+    "provider": "databricks",
     "family": "qwen",
     "released": true,
     "attachment": false,
@@ -2962,14 +3164,16 @@
       "responses": false,
       "web_search": false,
       "image_generation": false,
-      "embeddings": false
+      "embeddings": false,
+      "decision": false
     },
     "use_case": "chat"
   },
   {
     "id": "qwen35-122b-a10b",
     "name": "Qwen3.5 122B A10B",
-    "provider": "alibaba",
+    "lab": "alibaba",
+    "provider": "databricks",
     "family": "qwen",
     "released": true,
     "attachment": false,
@@ -3007,8 +3211,40 @@
       "responses": false,
       "web_search": false,
       "image_generation": false,
-      "embeddings": false
+      "embeddings": false,
+      "decision": false
     },
     "use_case": "chat"
+  },
+  {
+    "id": "typesafeai-jev-1-14-0",
+    "name": "Jev 1.14",
+    "lab": "typesafe",
+    "provider": "typesafe",
+    "family": "jev",
+    "released": true,
+    "type": "decision",
+    "open_weights": false,
+    "release_date": "2026-10-15",
+    "last_updated": "2026-10-15",
+    "limit": {
+      "context": 65536
+    },
+    "cost": {
+      "input": 0.042
+    },
+    "capabilities": {
+      "entitled": true,
+      "chat": "not-served",
+      "deviations": [],
+      "native_dialect": "none",
+      "responses": false,
+      "web_search": false,
+      "image_generation": false,
+      "embeddings": false,
+      "decision": true
+    },
+    "use_case": "chat",
+    "unsupported": "typesafeai-jev-1-14-0 is a System One decision model served only on /typesafe/v1/systemone — see the systemone use case."
   }
 ]
