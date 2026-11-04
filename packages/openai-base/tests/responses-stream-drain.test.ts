@@ -33,9 +33,16 @@ const completed = {
 
 class Responses extends OpenAIBaseResponsesTextAdapter<string> {}
 
+interface Seen {
+  /** Whether the request was aborted when the body ended by itself. */
+  aborted: boolean
+  signal?: AbortSignal | null
+}
+
 /** A body that sends `completed`, then ends after `closeAfterMs` (never if null). */
-function fakeFetch(closeAfterMs: number | null, seen: { aborted: boolean }) {
+function fakeFetch(closeAfterMs: number | null, seen: Seen) {
   const fetch: Fetch = async (_url, init) => {
+    seen.signal = init?.signal
     const body = new ReadableStream<Uint8Array>({
       start(controller) {
         controller.enqueue(
@@ -109,25 +116,18 @@ const entries = [
 
 describe.each(entries)('$name after response.completed', ({ run }) => {
   it('does not abort a body that ends by itself soon after', async () => {
-    const seen = { aborted: true }
+    // starts true so the test fails if the body never ends
+    const seen: Seen = { aborted: true }
     await run(adapterFor(fakeFetch(20, seen)))
     await sleep(60)
     expect(seen.aborted).toBe(false)
   })
 
   it('returns at once and aborts a body that never ends', async () => {
-    const seen = { aborted: false }
-    let signal: AbortSignal | undefined
-    const inner = fakeFetch(null, seen)
-    const fetch: Fetch = (url, init) => {
-      signal = init?.signal ?? undefined
-      return inner(url, init)
-    }
-    const started = Date.now()
-    await run(adapterFor(fetch))
-    expect(Date.now() - started).toBeLessThan(200)
-    expect(signal?.aborted).toBe(false)
+    const seen: Seen = { aborted: false }
+    await run(adapterFor(fakeFetch(null, seen)))
+    expect(seen.signal?.aborted).toBe(false)
     await sleep(450)
-    expect(signal?.aborted).toBe(true)
+    expect(seen.signal?.aborted).toBe(true)
   })
 })

@@ -15,8 +15,7 @@ import {
   toRunErrorRawEvent,
   transformMessagesForReplay,
 } from '@tanstack/ai/adapter-internals'
-import { generateId } from '@tanstack/ai-utils'
-import { drainAfterTerminal } from '../internal/drain-after-terminal'
+import { drainAfterTerminal, generateId } from '@tanstack/ai-utils'
 import { extractRequestOptions } from '../internal/request-options'
 import { clientForCall } from '../internal/wrap-fetch'
 import { openRouterSupportsCombinedToolsAndSchema } from '../internal/combined-tools-and-schema'
@@ -515,7 +514,10 @@ export class OpenRouterResponsesTextAdapter<
         },
       )
 
-      for await (const rawEvent of drainAfterTerminal(rawStream)) {
+      for await (const rawEvent of drainAfterTerminal(
+        rawStream,
+        (e) => normalizeStreamEvent(e).type,
+      )) {
         const chunk = normalizeStreamEvent(rawEvent)
         if (chunk.response?.id) responseId = chunk.response.id
         if (chunk.response?.model) {
@@ -1007,7 +1009,10 @@ export class OpenRouterResponsesTextAdapter<
     }
 
     try {
-      for await (const rawEvent of drainAfterTerminal(stream)) {
+      for await (const rawEvent of drainAfterTerminal(
+        stream,
+        (e) => normalizeStreamEvent(e).type,
+      )) {
         const chunk = normalizeStreamEvent(rawEvent)
         if (chunk.response?.id) responseId = chunk.response.id
         if (chunk.response?.model) {
