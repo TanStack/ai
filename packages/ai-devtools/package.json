@@ -99,7 +99,7 @@
     "solid-js": "^1.9.10"
   },
   "devDependencies": {
-    "@vitest/coverage-v8": "4.1.10",
+    "@vitest/coverage-v8": "5.1.0",
     "jsdom": "^27.4.0",
     "tsup": "^8.5.1",
     "tsup-preset-solid": "^2.2.0",

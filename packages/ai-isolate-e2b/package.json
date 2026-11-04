@@ -55,7 +55,7 @@
   "devDependencies": {
     "@tanstack/ai": "workspace:*",
     "@tanstack/ai-code-mode": "workspace:*",
-    "@vitest/coverage-v8": "4.1.10",
+    "@vitest/coverage-v8": "5.1.0",
     "e2b": "^2.46.1",
     "zod": "^4.2.0"
   }

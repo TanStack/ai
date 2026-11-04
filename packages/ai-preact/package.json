@@ -71,7 +71,7 @@
     "@mcp-ui/client": "^7.1.1",
     "@tanstack/ai": "workspace:*",
     "@testing-library/preact": "^3.2.4",
-    "@vitest/coverage-v8": "4.1.10",
+    "@vitest/coverage-v8": "5.1.0",
     "jsdom": "^27.4.0",
     "preact": "^11.0.1",
     "vite": "^8.2.1"

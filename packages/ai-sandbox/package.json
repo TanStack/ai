@@ -114,7 +114,7 @@
     "@tanstack/ai": "workspace:*",
     "@tanstack/ai-harness": "workspace:*",
     "@tanstack/ai-persistence": "workspace:*",
-    "@vitest/coverage-v8": "4.1.10",
-    "vitest": "^4.1.10"
+    "@vitest/coverage-v8": "5.1.0",
+    "vitest": "^5.1.0"
   }
 }

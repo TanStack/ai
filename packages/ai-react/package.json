@@ -92,7 +92,7 @@
     "@tanstack/ai": "workspace:*",
     "@testing-library/react": "^16.3.2",
     "@types/react": "^19.2.7",
-    "@vitest/coverage-v8": "4.1.10",
+    "@vitest/coverage-v8": "5.1.0",
     "jsdom": "^27.4.0",
     "react": "^19.2.3",
     "react-dom": "^19.2.3",
