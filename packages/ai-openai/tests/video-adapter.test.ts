@@ -102,7 +102,9 @@ describe('OpenAI Video Adapter', () => {
         vi.unstubAllGlobals()
       }
 
-      expect(fetchMock).toHaveBeenCalledWith('https://example.com/ref.jpg')
+      expect(fetchMock).toHaveBeenCalledWith('https://example.com/ref.jpg', {
+        signal: undefined,
+      })
       expect(mockCreate.mock.calls[0]![0].input_reference).toBeInstanceOf(File)
     })
 

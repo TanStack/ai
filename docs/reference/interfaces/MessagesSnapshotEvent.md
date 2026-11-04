@@ -3,7 +3,7 @@ id: MessagesSnapshotEvent
 title: MessagesSnapshotEvent
 ---
 
-Defined in: packages/ai/src/types.ts:1733
+Defined in: [packages/ai/src/types.ts:1791](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1791)
 
 Emitted to provide a snapshot of all messages in a conversation.
 

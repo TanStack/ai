@@ -253,3 +253,31 @@ describe.skipIf(!addonAvailable)('createNodeIsolateDriver', () => {
     })
   })
 })
+
+describe.skipIf(!addonAvailable)('execute abort signal', () => {
+  it('stops a running script when the signal aborts', async () => {
+    const driver = createNodeIsolateDriver()
+    const context = await driver.createContext({
+      bindings: {},
+      timeout: 20_000,
+    })
+    const controller = new AbortController()
+    const pending = context.execute('while (true) {}', {
+      signal: controller.signal,
+    })
+    setTimeout(() => controller.abort(), 100)
+    const result = await pending
+    expect(result.success).toBe(false)
+    expect(result.error?.name).toBe('AbortError')
+  })
+
+  it('returns at once when the signal is already aborted', async () => {
+    const driver = createNodeIsolateDriver()
+    const context = await driver.createContext({ bindings: {} })
+    const result = await context.execute('return 1', {
+      signal: AbortSignal.abort(),
+    })
+    expect(result.error?.name).toBe('AbortError')
+    await context.dispose()
+  })
+})

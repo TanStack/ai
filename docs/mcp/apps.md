@@ -211,7 +211,8 @@ export const Route = createFileRoute('/api/mcp-apps/call')({
       POST: async ({ request }) => {
         // body: { threadId, serverId, toolName, args?, messageId? }
         const body = await request.json()
-        const result = await handler(body)
+        // The signal stops the connect and the tool call if the widget leaves.
+        const result = await handler(body, { signal: request.signal })
         return new Response(JSON.stringify(result), {
           headers: { 'Content-Type': 'application/json' },
         })

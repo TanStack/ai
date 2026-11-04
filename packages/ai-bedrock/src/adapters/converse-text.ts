@@ -241,12 +241,13 @@ export class BedrockConverseTextAdapter<
 
   protected async sendStream(
     input: ConverseStreamCommandInput,
+    signal?: AbortSignal | null,
   ): Promise<AsyncIterable<ConverseStreamOutput>> {
     const { ConverseStreamCommand } = await this.importBedrockRuntime()
     const client = await this.getClient()
     const command = new ConverseStreamCommand(input)
     addRestoreDocuments(command, input)
-    const res = await client.send(command)
+    const res = await client.send(command, { abortSignal: signal ?? undefined })
     if (!res.stream) {
       throw new Error('Bedrock Converse: empty stream response')
     }
@@ -255,12 +256,13 @@ export class BedrockConverseTextAdapter<
 
   protected async send(
     input: ConverseCommandInput,
+    signal?: AbortSignal | null,
   ): Promise<ConverseCommandOutput> {
     const { ConverseCommand } = await this.importBedrockRuntime()
     const client = await this.getClient()
     const command = new ConverseCommand(input)
     addRestoreDocuments(command, input)
-    return client.send(command)
+    return client.send(command, { abortSignal: signal ?? undefined })
   }
 
   // ---------------------------------------------------------------------------
@@ -281,7 +283,7 @@ export class BedrockConverseTextAdapter<
       if (!input.toolConfig && input.messages) {
         input.messages = toolBlocksToText(input.messages)
       }
-      const stream = await this.sendStream(input)
+      const stream = await this.sendStream(input, options.request?.signal)
       for await (const chunk of processConverseStream(
         stream,
         () => this.generateId(),
@@ -344,25 +346,31 @@ export class BedrockConverseTextAdapter<
         ...this.buildInput(requestOptions),
         toolConfig: buildStructuredToolConfig(outputSchema),
       }
-      const res = await this.send(input)
+      const res = await this.send(input, chatOptions.request?.signal)
+      const usage = res.usage && buildConverseUsage(res.usage)
       // A forced tool call cut off at the output cap carries partial input,
       // which would read like a schema failure (issue #1426).
       if (res.stopReason === 'max_tokens') {
-        throw new Error(
-          `${this.name}.structuredOutput: the response was cut off because the maximum token limit was reached (stopReason=max_tokens); raise modelOptions.max_completion_tokens`,
+        throw Object.assign(
+          new Error(
+            `${this.name}.structuredOutput: the response was cut off because the maximum token limit was reached (stopReason=max_tokens); raise modelOptions.max_completion_tokens`,
+          ),
+          usage && { usage },
         )
       }
       const structured = extractStructuredToolInput(res)
       if (structured === undefined) {
-        throw new Error(
-          `${this.name}.structuredOutput: response contained no forced-tool output`,
+        throw Object.assign(
+          new Error(
+            `${this.name}.structuredOutput: response contained no forced-tool output`,
+          ),
+          usage && { usage },
         )
       }
-      const usage = res.usage
       return {
         data: structured,
         rawText: JSON.stringify(structured),
-        ...(usage && { usage: buildConverseUsage(usage) }),
+        ...(usage && { usage }),
       }
     } catch (error: unknown) {
       chatOptions.logger.errors(`${this.name}.structuredOutput fatal`, {
@@ -408,7 +416,7 @@ export class BedrockConverseTextAdapter<
         ...this.buildInput(requestOptions),
         toolConfig: buildStructuredToolConfig(outputSchema),
       }
-      const stream = await this.sendStream(input)
+      const stream = await this.sendStream(input, chatOptions.request?.signal)
 
       // The forced tool streams its `input` as partial-JSON fragments inside
       // `contentBlockDelta.delta.toolUse.input`. We surface them as
@@ -518,6 +526,7 @@ export class BedrockConverseTextAdapter<
           message,
           code: 'max_tokens',
           error: { message, code: 'max_tokens' },
+          ...(usage && { usage }),
         }
         return
       }
@@ -535,6 +544,7 @@ export class BedrockConverseTextAdapter<
             message: `${this.name}.structuredOutputStream: response contained no content`,
             code: 'empty-response',
           },
+          ...(usage && { usage }),
         }
         return
       }
@@ -555,6 +565,7 @@ export class BedrockConverseTextAdapter<
             message: 'Failed to parse structured output as JSON',
             code: 'parse-error',
           },
+          ...(usage && { usage }),
         }
         return
       }
@@ -613,6 +624,7 @@ export class BedrockConverseTextAdapter<
           message: errorPayload.message,
           ...(errorPayload.code !== undefined && { code: errorPayload.code }),
         },
+        ...(usage && { usage }),
       }
     }
   }

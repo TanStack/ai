@@ -3,7 +3,7 @@ id: EvaluateAdapter
 title: EvaluateAdapter
 ---
 
-Defined in: packages/ai/src/activities/evaluate/adapter.ts:150
+Defined in: [packages/ai/src/activities/evaluate/adapter.ts:226](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/evaluate/adapter.ts#L226)
 
 Evaluate adapter interface with pre-resolved generics.
 
@@ -32,7 +32,7 @@ Generic parameters:
 ~types: object;
 ```
 
-Defined in: packages/ai/src/activities/evaluate/adapter.ts:164
+Defined in: [packages/ai/src/activities/evaluate/adapter.ts:240](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/evaluate/adapter.ts#L240)
 
 **`Internal`**
 
@@ -52,7 +52,7 @@ providerOptions: TProviderOptions;
 evaluate: (options) => Promise<EvaluateAdapterResult>;
 ```
 
-Defined in: packages/ai/src/activities/evaluate/adapter.ts:172
+Defined in: [packages/ai/src/activities/evaluate/adapter.ts:248](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/evaluate/adapter.ts#L248)
 
 Evaluate typed questions against `state`. Return the provider payload.
 Do not invent unified `.value` fields. The activity maps wire answers.
@@ -75,7 +75,7 @@ Do not invent unified `.value` fields. The activity maps wire answers.
 readonly kind: "evaluate";
 ```
 
-Defined in: packages/ai/src/activities/evaluate/adapter.ts:155
+Defined in: [packages/ai/src/activities/evaluate/adapter.ts:231](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/evaluate/adapter.ts#L231)
 
 Discriminator for adapter kind
 
@@ -87,7 +87,7 @@ Discriminator for adapter kind
 readonly model: TModel;
 ```
 
-Defined in: packages/ai/src/activities/evaluate/adapter.ts:159
+Defined in: [packages/ai/src/activities/evaluate/adapter.ts:235](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/evaluate/adapter.ts#L235)
 
 The model this adapter is configured for
 
@@ -99,6 +99,6 @@ The model this adapter is configured for
 readonly name: string;
 ```
 
-Defined in: packages/ai/src/activities/evaluate/adapter.ts:157
+Defined in: [packages/ai/src/activities/evaluate/adapter.ts:233](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/evaluate/adapter.ts#L233)
 
 Adapter name identifier

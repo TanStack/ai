@@ -91,10 +91,10 @@ export class VercelGatewayImageAdapter<
         `activity=image provider=${this.name} model=${model} n=${request.n ?? 1} size=${request.size ?? 'default'}`,
         { provider: this.name, model },
       )
-      const response = await this.client.images.generate({
-        ...request,
-        stream: false,
-      })
+      const response = await this.client.images.generate(
+        { ...request, stream: false },
+        { signal: options.abortSignal },
+      )
 
       const images: Array<GeneratedImage> = (response.data ?? []).flatMap(
         (item): Array<GeneratedImage> => {

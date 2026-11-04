@@ -3,7 +3,7 @@ id: ImageGenerationOptions
 title: ImageGenerationOptions
 ---
 
-Defined in: packages/ai/src/types.ts:2344
+Defined in: [packages/ai/src/types.ts:2402](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2402)
 
 Options for image generation.
 These are the common options supported across providers.
@@ -26,7 +26,7 @@ These are the common options supported across providers.
 optional abortSignal?: AbortSignal;
 ```
 
-Defined in: packages/ai/src/types.ts:2376
+Defined in: [packages/ai/src/types.ts:2434](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2434)
 
 Effective abort signal composed by the activity from caller `abortSignal`
 and/or `timeout`. Adapters should forward this to the provider SDK when
@@ -40,7 +40,7 @@ supported. Request-specific — never store on a global client config.
 logger: InternalLogger;
 ```
 
-Defined in: packages/ai/src/types.ts:2370
+Defined in: [packages/ai/src/types.ts:2428](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2428)
 
 Internal logger threaded from the generateImage() entry point. Adapters must
 call logger.request() before the SDK call and logger.errors() in catch blocks.
@@ -53,7 +53,7 @@ call logger.request() before the SDK call and logger.errors() in catch blocks.
 model: string;
 ```
 
-Defined in: packages/ai/src/types.ts:2349
+Defined in: [packages/ai/src/types.ts:2407](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2407)
 
 The model to use for image generation
 
@@ -65,7 +65,7 @@ The model to use for image generation
 optional modelOptions?: TProviderOptions;
 ```
 
-Defined in: packages/ai/src/types.ts:2365
+Defined in: [packages/ai/src/types.ts:2423](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2423)
 
 Model-specific options for image generation
 
@@ -77,7 +77,7 @@ Model-specific options for image generation
 optional numberOfImages?: number;
 ```
 
-Defined in: packages/ai/src/types.ts:2361
+Defined in: [packages/ai/src/types.ts:2419](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2419)
 
 Number of images to generate (default: 1)
 
@@ -89,7 +89,7 @@ Number of images to generate (default: 1)
 prompt: MediaPrompt;
 ```
 
-Defined in: packages/ai/src/types.ts:2359
+Defined in: [packages/ai/src/types.ts:2417](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2417)
 
 Description of the desired image(s): a plain string, or an ordered array
 of content parts for image-conditioned generation (image-to-image,
@@ -107,6 +107,6 @@ multimodal `contents`, OpenAI `images.edit()`, fal `image_url` /
 optional size?: TSize;
 ```
 
-Defined in: packages/ai/src/types.ts:2363
+Defined in: [packages/ai/src/types.ts:2421](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2421)
 
 Image size in WIDTHxHEIGHT format (e.g., "1024x1024")

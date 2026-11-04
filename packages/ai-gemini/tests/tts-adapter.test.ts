@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { generateSpeech } from '@tanstack/ai'
+import { resolveDebugOption } from '@tanstack/ai/adapter-internals'
 
 import {
   GeminiTTSAdapter,
@@ -249,6 +250,34 @@ describe('Gemini TTS Adapter', () => {
     await expect(
       generateSpeech({ threadId: 'thread-1', adapter, text: 'hi' }),
     ).rejects.toThrow(/No audio output/)
+  })
+
+  it('attaches usage to the error when the response has no audio', async () => {
+    const usageMetadata = {
+      promptTokenCount: 5,
+      candidatesTokenCount: 0,
+      totalTokenCount: 5,
+    }
+    for (const parts of [[], [{ text: 'no audio' }]]) {
+      mockGenerateContent.mockResolvedValueOnce({
+        candidates: [{ content: { parts } }],
+        usageMetadata,
+      })
+      const error = await createGeminiSpeech(
+        'gemini-2.5-flash-preview-tts',
+        'key',
+      )
+        .generateSpeech({
+          model: 'gemini-2.5-flash-preview-tts',
+          text: 'hi',
+          logger: resolveDebugOption(false),
+        })
+        .catch((e: unknown) => e)
+      expect(error).toBeInstanceOf(Error)
+      expect(error).toMatchObject({
+        usage: { promptTokens: 5, completionTokens: 0, totalTokens: 5 },
+      })
+    }
   })
 
   it('rejects an unknown voice with a descriptive error', async () => {

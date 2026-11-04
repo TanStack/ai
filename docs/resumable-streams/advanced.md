@@ -142,7 +142,7 @@ If the replay ends on a client tool, the client sends the tool result after the 
 
 A run ends early only on a real cancel or a failure:
 
-- **Cancel**: you pass an `AbortController` to the response as `abortController`, then abort it. For example, from a Stop button, or by forwarding `request.signal` to a controller of your own. This stops the producer and appends a terminal `RUN_ERROR`. A plain client disconnect does not do this. Pass a controller if you want a disconnect to stop the run too.
+- **Cancel**: you pass an `AbortController` to the response as `abortController`, then abort it. For example, from a Stop button, or by forwarding `request.signal` to a controller of your own. This stops the producer and appends a terminal `RUN_ERROR`. A plain client disconnect does not do this. Pass a controller if you want a disconnect to stop the run too. To abort it from `stop()`, see [Cancel the run on stop()](#cancel-the-run-on-stop).
 - **Provider failure**: the model stream throws, and the error is appended as a terminal `RUN_ERROR`.
 
 In both cases, the producer writes a terminal and then awaits `close()` on exit. A reconnecting or joining client then sees a terminal and does not hang.
@@ -162,6 +162,102 @@ function respond(request: Request, stream: AsyncIterable<StreamChunk>) {
 ```
 
 A durable source must end with its own terminal event (`RUN_FINISHED` or `RUN_ERROR`). On normal completion, core terminalizes the log only if the source emitted a terminal. Without one, a durable consumer reconnects once, gets nothing new, and fails with `DurableStreamIncompleteError`. `chat()` always emits `RUN_FINISHED`, so this affects only streams that you build yourself.
+
+### Cancel the run on stop()
+
+Set `cancelUrl` on the connection. Then `stop()` also sends `POST cancelUrl` with the JSON body `{ runId, threadId }`, and your route aborts the run.
+
+1. Keep the controller of each run, and abort it from a cancel route:
+
+```ts
+import {
+  RUN_CANCEL_REASON,
+  chat,
+  chatParamsFromRequest,
+  memoryStream,
+  toServerSentEventsResponse,
+} from '@tanstack/ai'
+import { openaiText } from '@tanstack/ai-openai'
+
+// The runs that this process drives, by run id.
+const liveRuns = new Map<string, AbortController>()
+// Cancels that arrived before their chat request, by run id.
+const earlyCancels = new Set<string>()
+
+// POST /api/chat
+export async function POST(request: Request) {
+  const { messages, threadId, runId } = await chatParamsFromRequest(request)
+  const abortController = new AbortController()
+  // Stop was pressed before this request arrived: start the run aborted.
+  if (earlyCancels.delete(runId)) abortController.abort(RUN_CANCEL_REASON)
+  liveRuns.set(runId, abortController)
+  const forget = () => {
+    liveRuns.delete(runId)
+  }
+  const stream = chat({
+    adapter: openaiText('gpt-6.1-sol'),
+    messages,
+    threadId,
+    runId,
+    abortController,
+    middleware: [
+      { name: 'forget-run', onFinish: forget, onAbort: forget, onError: forget },
+    ],
+  })
+  return toServerSentEventsResponse(stream, {
+    abortController,
+    durability: { adapter: memoryStream(request) },
+  })
+}
+
+// POST /api/chat/cancel
+export async function cancelChatRun(request: Request) {
+  const body: unknown = await request.json()
+  if (typeof body !== 'object' || body === null || !('runId' in body)) {
+    return new Response('runId is required', { status: 400 })
+  }
+  const runId = body.runId
+  if (typeof runId !== 'string') {
+    return new Response('runId must be a string', { status: 400 })
+  }
+  const run = liveRuns.get(runId)
+  if (run) {
+    run.abort(RUN_CANCEL_REASON)
+  } else {
+    // The chat request can still be on its way. Keep the cancel for a minute.
+    earlyCancels.add(runId)
+    setTimeout(() => earlyCancels.delete(runId), 60_000)
+  }
+  return new Response(null, { status: 204 })
+}
+```
+
+2. Set `cancelUrl` on the client:
+
+```tsx
+import { fetchServerSentEvents, useChat } from '@tanstack/ai-react'
+
+export function Chat({ threadId }: { threadId: string }) {
+  const chat = useChat({
+    threadId,
+    connection: fetchServerSentEvents('/api/chat', {
+      cancelUrl: '/api/chat/cancel',
+    }),
+  })
+
+  return <button onClick={() => chat.stop()}>Stop</button>
+}
+```
+
+Press Stop while a reply streams. The run ends with a terminal `RUN_ERROR` in the log, and a reload no longer resumes it.
+
+Behavior to know:
+
+- Only `stop()` sends the cancel. An unmount, a reload, or a lost connection does not, so the run keeps going for them.
+- The cancel request has the same `headers` and `credentials` as the chat request. Authorize it like the chat route.
+- `fetchHttpStream` takes `cancelUrl` too.
+- A cancel can arrive before its chat request. The sample keeps it in `earlyCancels`, so the run starts aborted.
+- `liveRuns` is in the memory of one process. The cancel request must reach the process that drives the run. For runs on other hosts, see [Detach vs cancel](../sandbox/takeover#detach-vs-cancel).
 
 ### memoryStream in production
 

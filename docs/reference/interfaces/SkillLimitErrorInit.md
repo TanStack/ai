@@ -3,7 +3,7 @@ id: SkillLimitErrorInit
 title: SkillLimitErrorInit
 ---
 
-Defined in: packages/ai/src/utilities/errors.ts:13
+Defined in: [packages/ai/src/utilities/errors.ts:13](https://github.com/TanStack/ai/blob/main/packages/ai/src/utilities/errors.ts#L13)
 
 Thrown when a skills request exceeds a provider limit. Lives in core (rather
 than `@tanstack/ai-skills`) so the native tool factories in `ai-anthropic`
@@ -22,7 +22,7 @@ cap that only applies to hosted skills.
 actual: number;
 ```
 
-Defined in: packages/ai/src/utilities/errors.ts:18
+Defined in: [packages/ai/src/utilities/errors.ts:18](https://github.com/TanStack/ai/blob/main/packages/ai/src/utilities/errors.ts#L18)
 
 ***
 
@@ -32,7 +32,7 @@ Defined in: packages/ai/src/utilities/errors.ts:18
 allowed: number;
 ```
 
-Defined in: packages/ai/src/utilities/errors.ts:17
+Defined in: [packages/ai/src/utilities/errors.ts:17](https://github.com/TanStack/ai/blob/main/packages/ai/src/utilities/errors.ts#L17)
 
 ***
 
@@ -42,7 +42,7 @@ Defined in: packages/ai/src/utilities/errors.ts:17
 limit: string;
 ```
 
-Defined in: packages/ai/src/utilities/errors.ts:16
+Defined in: [packages/ai/src/utilities/errors.ts:16](https://github.com/TanStack/ai/blob/main/packages/ai/src/utilities/errors.ts#L16)
 
 ***
 
@@ -52,7 +52,7 @@ Defined in: packages/ai/src/utilities/errors.ts:16
 offending: string[];
 ```
 
-Defined in: packages/ai/src/utilities/errors.ts:19
+Defined in: [packages/ai/src/utilities/errors.ts:19](https://github.com/TanStack/ai/blob/main/packages/ai/src/utilities/errors.ts#L19)
 
 ***
 
@@ -62,7 +62,7 @@ Defined in: packages/ai/src/utilities/errors.ts:19
 path: "native" | "portable";
 ```
 
-Defined in: packages/ai/src/utilities/errors.ts:15
+Defined in: [packages/ai/src/utilities/errors.ts:15](https://github.com/TanStack/ai/blob/main/packages/ai/src/utilities/errors.ts#L15)
 
 ***
 
@@ -72,4 +72,4 @@ Defined in: packages/ai/src/utilities/errors.ts:15
 provider: "anthropic" | "openai" | "gemini" | "other";
 ```
 
-Defined in: packages/ai/src/utilities/errors.ts:14
+Defined in: [packages/ai/src/utilities/errors.ts:14](https://github.com/TanStack/ai/blob/main/packages/ai/src/utilities/errors.ts#L14)

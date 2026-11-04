@@ -1,0 +1,14 @@
+{
+  "fixtures": [
+    {
+      "match": {
+        "userMessage": "[summarize-abort] A slow summary that the timeout must stop"
+      },
+      "response": {
+        "content": "This summary streams very slowly so that a short timeout ends the run before the model finishes and the request to the provider is aborted."
+      },
+      "chunkSize": 2,
+      "streamingProfile": { "tps": 5 }
+    }
+  ]
+}

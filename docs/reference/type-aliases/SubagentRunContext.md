@@ -4,10 +4,10 @@ title: SubagentRunContext
 ---
 
 ```ts
-type SubagentRunContext<TInput> = SubagentRunInput<TInput> & BoundActivities & object;
+type SubagentRunContext<TInput> = SubagentRunInput<TInput> & BoundActivities & SubagentContextExtension & object;
 ```
 
-Defined in: packages/ai/src/activities/chat/agents/define-agent.ts:64
+Defined in: [packages/ai/src/activities/chat/agents/define-agent.ts:64](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/agents/define-agent.ts#L64)
 
 Context the library passes into [defineAgent](../functions/defineAgent.md) `run`.
 

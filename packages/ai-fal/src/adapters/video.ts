@@ -210,10 +210,28 @@ export class FalVideoAdapter<TModel extends FalModel> extends BaseVideoAdapter<
     return getFalVideoDurationOptions(this.model)
   }
 
-  async getVideoStatus(jobId: string): Promise<VideoStatusResult> {
+  /**
+   * Cancels a queued request with `fal.queue.cancel`. fal can refuse when the
+   * request already runs, and then this rejects.
+   */
+  async cancelVideoJob(
+    jobId: string,
+    options?: { abortSignal?: AbortSignal },
+  ): Promise<void> {
+    await fal.queue.cancel(this.model, {
+      requestId: jobId,
+      ...(options?.abortSignal ? { abortSignal: options.abortSignal } : {}),
+    })
+  }
+
+  async getVideoStatus(
+    jobId: string,
+    options?: { abortSignal?: AbortSignal },
+  ): Promise<VideoStatusResult> {
     const statusResponse = (await fal.queue.status(this.model, {
       requestId: jobId,
       logs: true,
+      ...(options?.abortSignal ? { abortSignal: options.abortSignal } : {}),
     })) as FalStatusResponse
 
     return {
@@ -227,13 +245,19 @@ export class FalVideoAdapter<TModel extends FalModel> extends BaseVideoAdapter<
     }
   }
 
-  override async getVideo(jobId: string): Promise<VideoUrlResult> {
+  override async getVideo(
+    jobId: string,
+    options?: { abortSignal?: AbortSignal },
+  ): Promise<VideoUrlResult> {
     let result
     try {
       result = await fal.queue.result(this.model, {
         requestId: jobId,
+        ...(options?.abortSignal ? { abortSignal: options.abortSignal } : {}),
       })
     } catch (error: unknown) {
+      // A cancelled call is not a provider failure: keep the abort error.
+      if (options?.abortSignal?.aborted) throw error
       // fal.ai may report COMPLETED status but throw on result fetch
       // (e.g. 422 validation errors). Extract the detailed error info.
       const err = error as { body?: { detail?: unknown }; message?: string }

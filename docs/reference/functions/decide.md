@@ -7,7 +7,7 @@ title: decide
 function decide<TAdapter, TQuestions>(options): Promise<{ [K in string | number | symbol]: InferEvaluateAnswer<TQuestions[K]> } & object>;
 ```
 
-Defined in: packages/ai/src/activities/evaluate/index.ts:497
+Defined in: [packages/ai/src/activities/evaluate/index.ts:502](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/evaluate/index.ts#L502)
 
 Ask typed questions about `state` and get answers your code can branch on.
 
@@ -17,6 +17,10 @@ branch on `result.queue.value` in ordinary TypeScript.
 
 The question key `meta` is reserved. Throws if `questions` is empty or uses
 that key.
+
+When the adapter throws an `EvaluateError` that carries `usage`, `decide()`
+reports that usage through `onUsage` and the `evaluate:usage` event, then
+runs `onError` and rethrows the same error.
 
 ## Type Parameters
 

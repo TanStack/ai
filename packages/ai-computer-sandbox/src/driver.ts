@@ -16,6 +16,8 @@ export interface SandboxComputerDriverOptions {
    * `{ width: 1024, height: 768 }`.
    */
   display?: { width: number; height: number }
+  /** Stops the setup commands when it aborts. */
+  signal?: AbortSignal
 }
 
 /** Options for {@link sandboxComputer}. */
@@ -102,9 +104,13 @@ function moveTo(x: number, y: number) {
 export async function createSandboxComputerDriver({
   sandbox,
   display: size = DEFAULT_DISPLAY,
+  signal: setupSignal,
 }: SandboxComputerDriverOptions) {
-  async function run(command: string) {
-    const result = await sandbox.process.exec(command)
+  /** Runs `command`. `signal` stops it. Without one, exec gets no options. */
+  async function run(command: string, signal?: AbortSignal) {
+    const result = await (signal
+      ? sandbox.process.exec(command, { signal })
+      : sandbox.process.exec(command))
     if (result.exitCode !== 0) {
       throw new Error(
         `Sandbox command failed with exit code ${result.exitCode}: ${command}\n${result.stderr}`,
@@ -112,13 +118,15 @@ export async function createSandboxComputerDriver({
     }
     return result.stdout
   }
-  const xdotool = (args: string) => run(`${X} xdotool ${args}`)
+  const xdotool = (args: string, signal?: AbortSignal) =>
+    run(`${X} xdotool ${args}`, signal)
 
   // Prints each missing tool. `@import` means no scrot, but ImageMagick
   // `import` takes the screenshots, like on Amazon Linux.
   const found = (
     await run(
       'for t in xdotool xdpyinfo; do command -v $t >/dev/null || echo $t; done; command -v scrot >/dev/null || { command -v import >/dev/null && echo @import || echo scrot; }',
+      setupSignal,
     )
   )
     .trim()
@@ -134,7 +142,10 @@ export async function createSandboxComputerDriver({
     ? 'import -window root'
     : 'scrot --pointer'
 
-  const running = await sandbox.process.exec(`${X} xdpyinfo >/dev/null 2>&1`)
+  const probe = `${X} xdpyinfo >/dev/null 2>&1`
+  const running = await (setupSignal
+    ? sandbox.process.exec(probe, { signal: setupSignal })
+    : sandbox.process.exec(probe))
   if (running.exitCode !== 0) {
     // Output goes to /dev/null, so no provider buffer fills up.
     await sandbox.process.spawn(
@@ -142,6 +153,7 @@ export async function createSandboxComputerDriver({
     )
     await run(
       `for i in $(seq 50); do ${X} xdpyinfo >/dev/null 2>&1 && exit 0; sleep 0.2; done; echo 'Xvfb did not start' >&2; exit 1`,
+      setupSignal,
     )
     // ponytail: no wait for the session. Early screenshots can show an empty
     // screen, and the model takes another one.
@@ -150,7 +162,7 @@ export async function createSandboxComputerDriver({
     )
   }
 
-  const info = await run(`${X} xdpyinfo`)
+  const info = await run(`${X} xdpyinfo`, setupSignal)
   const match = /dimensions:\s+(\d+)x(\d+)/.exec(info)
   if (!match) {
     throw new Error('Could not read the screen size from xdpyinfo.')
@@ -159,30 +171,32 @@ export async function createSandboxComputerDriver({
   const driver = {
     display: { width: Number(match[1]), height: Number(match[2]) },
     environment: 'linux',
-    async screenshot() {
+    async screenshot(options?: { signal?: AbortSignal }) {
       const file = `/tmp/${generateId('tanstack-screenshot')}.png`
       // One round trip: capture, print as base64, delete. Not `status`: zsh
       // (the Daytona shell) makes it read-only.
       const base64 = await run(
         `${X} ${capture} ${file} && base64 -w0 ${file}; code=$?; rm -f ${file}; exit $code`,
+        options?.signal,
       )
       return base64ToUint8Array(base64.trim())
     },
-    async click(x, y, { button, count }) {
+    async click(x, y, { button, count, signal }) {
       await xdotool(
         `${moveTo(x, y)} click --repeat ${int(count)} ${BUTTONS[button]}`,
+        signal,
       )
     },
-    async move(x, y) {
-      await xdotool(moveTo(x, y))
+    async move(x, y, options?: { signal?: AbortSignal }) {
+      await xdotool(moveTo(x, y), options?.signal)
     },
-    async mouseDown(button) {
-      await xdotool(`mousedown ${BUTTONS[button]}`)
+    async mouseDown(button, options?: { signal?: AbortSignal }) {
+      await xdotool(`mousedown ${BUTTONS[button]}`, options?.signal)
     },
     async mouseUp(button) {
       await xdotool(`mouseup ${BUTTONS[button]}`)
     },
-    async scroll(x, y, deltaX, deltaY) {
+    async scroll(x, y, deltaX, deltaY, options?: { signal?: AbortSignal }) {
       // xdotool buttons 4 and 5 scroll up and down, 6 and 7 left and right.
       let args = moveTo(x, y)
       if (deltaY !== 0) {
@@ -191,18 +205,21 @@ export async function createSandboxComputerDriver({
       if (deltaX !== 0) {
         args += ` click --repeat ${scrollClicks(deltaX)} ${deltaX > 0 ? 7 : 6}`
       }
-      await xdotool(args)
+      await xdotool(args, options?.signal)
     },
-    async keyDown(key) {
-      await xdotool(`keydown -- ${quote(toXdotoolKey(key))}`)
+    async keyDown(key, options?: { signal?: AbortSignal }) {
+      await xdotool(`keydown -- ${quote(toXdotoolKey(key))}`, options?.signal)
     },
     async keyUp(key) {
       await xdotool(`keyup -- ${quote(toXdotoolKey(key))}`)
     },
-    async press(keys) {
-      await xdotool(`key -- ${quote(keys.map(toXdotoolKey).join('+'))}`)
+    async press(keys, options?: { signal?: AbortSignal }) {
+      await xdotool(
+        `key -- ${quote(keys.map(toXdotoolKey).join('+'))}`,
+        options?.signal,
+      )
     },
-    async type(text) {
+    async type(text, options?: { signal?: AbortSignal }) {
       if (text === '') return
       const chunks: Array<string> = []
       for (let i = 0; i < text.length; i += TYPE_CHUNK) {
@@ -215,10 +232,11 @@ export async function createSandboxComputerDriver({
               `${X} xdotool type --delay ${TYPE_DELAY_MS} -- ${quote(chunk)}`,
           )
           .join(' && '),
+        options?.signal,
       )
     },
-    async cursorPosition() {
-      const out = await xdotool('getmouselocation')
+    async cursorPosition(options?: { signal?: AbortSignal }) {
+      const out = await xdotool('getmouselocation', options?.signal)
       const position = /x:(\d+)\s+y:(\d+)/.exec(out)
       if (!position) {
         throw new Error(`Could not read the cursor position: ${out}`)
@@ -253,10 +271,14 @@ export function sandboxComputer({
     display,
     environment: 'linux',
     capabilities: { zoom: false, cursorPosition: true, navigate: false },
-    async create() {
-      const sandbox = await provider.create({})
+    async create({ signal }) {
+      const sandbox = await provider.create(signal ? { signal } : {})
       try {
-        const driver = await createSandboxComputerDriver({ sandbox, display })
+        const driver = await createSandboxComputerDriver({
+          sandbox,
+          display,
+          ...(signal && { signal }),
+        })
         const { width, height } = driver.display
         if (width !== display.width || height !== display.height) {
           throw new Error(

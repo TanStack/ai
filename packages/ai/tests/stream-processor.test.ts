@@ -1961,6 +1961,32 @@ describe('StreamProcessor', () => {
       expect(events.onToolCall).not.toHaveBeenCalled()
     })
 
+    it('fires at the stream end when the last run finished with tool_calls', () => {
+      const { events, processor } = run(
+        ...toolCall('tc-1'),
+        ev.runFinished('tool_calls'),
+      )
+      expect(events.onToolCall).not.toHaveBeenCalled()
+
+      processor.finalizeStream()
+
+      expect(events.onToolCall).toHaveBeenCalledTimes(1)
+      expect(events.onToolCall.mock.calls[0]![0].toolCallId).toBe('tc-1')
+    })
+
+    it('does not fire for a tool_calls run that the stream continues', () => {
+      const { events, processor } = run(
+        ...toolCall('tc-1'),
+        ev.runFinished('tool_calls'),
+        ev.runStarted('run-2'),
+        ev.toolResult('tc-1', '"pong"'),
+        ev.runFinished('stop', 'run-2'),
+      )
+      processor.finalizeStream()
+
+      expect(events.onToolCall).not.toHaveBeenCalled()
+    })
+
     it('skips calls the run answered with TOOL_CALL_RESULT', () => {
       const { events } = run(
         ...toolCall('tc-1'),

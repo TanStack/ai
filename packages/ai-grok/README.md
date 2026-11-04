@@ -46,12 +46,14 @@ export XAI_API_KEY="xai-..."
 
 ```typescript
 import { grokText } from '@tanstack/ai-grok'
-import { generate } from '@tanstack/ai'
+import { chat } from '@tanstack/ai'
 
 const adapter = grokText('grok-build-0.1')
 
-const result = await generate({
+const result = await chat({
   adapter,
+  threadId: 'thread-1',
+  stream: false,
   messages: [
     { role: 'user', content: 'Explain quantum computing in simple terms' },
   ],
@@ -82,13 +84,13 @@ console.log(result.summary)
 
 ```typescript
 import { grokImage } from '@tanstack/ai-grok'
-import { generateImages } from '@tanstack/ai'
+import { generateImage } from '@tanstack/ai'
 
-const adapter = grokImage()
+const adapter = grokImage('grok-imagine-image-2.0')
 
-const result = await generateImages({
+const result = await generateImage({
   adapter,
-  model: 'grok-imagine-image-2.0',
+  threadId: 'thread-1',
   prompt: 'A beautiful sunset over mountains',
   numberOfImages: 1,
   size: '16:9',

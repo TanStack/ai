@@ -3,7 +3,7 @@ id: PersistedArtifactRef
 title: PersistedArtifactRef
 ---
 
-Defined in: packages/ai/src/types.ts:2406
+Defined in: [packages/ai/src/types.ts:2464](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2464)
 
 ## Properties
 
@@ -13,7 +13,7 @@ Defined in: packages/ai/src/types.ts:2406
 artifactId: string;
 ```
 
-Defined in: packages/ai/src/types.ts:2408
+Defined in: [packages/ai/src/types.ts:2466](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2466)
 
 ***
 
@@ -23,7 +23,7 @@ Defined in: packages/ai/src/types.ts:2408
 createdAt: string;
 ```
 
-Defined in: packages/ai/src/types.ts:2414
+Defined in: [packages/ai/src/types.ts:2472](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2472)
 
 ***
 
@@ -33,7 +33,7 @@ Defined in: packages/ai/src/types.ts:2414
 mimeType: string;
 ```
 
-Defined in: packages/ai/src/types.ts:2412
+Defined in: [packages/ai/src/types.ts:2470](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2470)
 
 ***
 
@@ -43,7 +43,7 @@ Defined in: packages/ai/src/types.ts:2412
 name: string;
 ```
 
-Defined in: packages/ai/src/types.ts:2411
+Defined in: [packages/ai/src/types.ts:2469](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2469)
 
 ***
 
@@ -53,7 +53,7 @@ Defined in: packages/ai/src/types.ts:2411
 role: PersistedArtifactRole;
 ```
 
-Defined in: packages/ai/src/types.ts:2407
+Defined in: [packages/ai/src/types.ts:2465](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2465)
 
 ***
 
@@ -63,7 +63,7 @@ Defined in: packages/ai/src/types.ts:2407
 runId: string;
 ```
 
-Defined in: packages/ai/src/types.ts:2410
+Defined in: [packages/ai/src/types.ts:2468](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2468)
 
 ***
 
@@ -73,7 +73,7 @@ Defined in: packages/ai/src/types.ts:2410
 size: number;
 ```
 
-Defined in: packages/ai/src/types.ts:2413
+Defined in: [packages/ai/src/types.ts:2471](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2471)
 
 ***
 
@@ -83,7 +83,7 @@ Defined in: packages/ai/src/types.ts:2413
 source: object;
 ```
 
-Defined in: packages/ai/src/types.ts:2430
+Defined in: [packages/ai/src/types.ts:2488](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2488)
 
 #### activity
 
@@ -135,7 +135,7 @@ provider: string;
 optional sourceUrl?: string;
 ```
 
-Defined in: packages/ai/src/types.ts:2421
+Defined in: [packages/ai/src/types.ts:2479](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2479)
 
 Where these bytes were fetched FROM — the provider's original result URL,
 or a caller-supplied prompt URL when `allowInputUrl` opted that in. Usually
@@ -150,7 +150,7 @@ instead.
 threadId: string;
 ```
 
-Defined in: packages/ai/src/types.ts:2409
+Defined in: [packages/ai/src/types.ts:2467](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2467)
 
 ***
 
@@ -160,7 +160,7 @@ Defined in: packages/ai/src/types.ts:2409
 optional url?: string;
 ```
 
-Defined in: packages/ai/src/types.ts:2429
+Defined in: [packages/ai/src/types.ts:2487](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2487)
 
 Durable app-origin URL that serves this artifact's persisted bytes (your
 `GET` route around `retrieveArtifact` / `retrieveBlob`). Stamped by

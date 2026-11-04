@@ -67,7 +67,7 @@ That is all. There is no `try/finally`. Your `useChat` code does not change.
 
 ## How it works
 
-- Before the first model call, `chat()` calls `tools()` on each client at the same time and merges the results into one tool set.
+- Before the first model call, `chat()` calls `tools()` on each client at the same time and merges the results into one tool set. When you pass `abortController` to `chat()`, each `tools()` call gets its signal as `signal`.
 - Tools from `mcp.clients` merge with any tools that you pass in `tools`. You can use both in one call.
 - `connection: 'close'` (the default) closes each client when the run ends: on success, on error, and on abort.
 - `connection: 'keep-alive'` never closes the clients. You own them.

@@ -165,6 +165,23 @@ export class OpenAIEvaluateAdapter<
         completionTokens: decision.usage.output_tokens,
         totalTokens: decision.usage.total_tokens,
       })
+      // Only include the details the response reports (zero means none).
+      // The SDK types mark the details as required, but a response can omit
+      // them.
+      const cachedTokens = decision.usage.input_tokens_details?.cached_tokens
+      const cacheWriteTokens =
+        decision.usage.input_tokens_details?.cache_write_tokens
+      if (cachedTokens || cacheWriteTokens) {
+        usage.promptTokensDetails = {
+          ...(cachedTokens && { cachedTokens }),
+          ...(cacheWriteTokens && { cacheWriteTokens }),
+        }
+      }
+      const reasoningTokens =
+        decision.usage.output_tokens_details?.reasoning_tokens
+      if (reasoningTokens) {
+        usage.completionTokensDetails = { reasoningTokens }
+      }
 
       if (refused.length > 0) {
         throw new EvaluateError({

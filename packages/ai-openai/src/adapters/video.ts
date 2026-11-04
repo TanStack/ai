@@ -127,6 +127,7 @@ export class OpenAIVideoAdapter<
         inputReference,
         'input-reference',
         this.clientConfig.allowUrlFetch ?? false,
+        options.abortSignal,
       )
     }
     // `VideoCreateParams.size` is `size?: VideoSize` (no `| undefined`), so we
@@ -147,7 +148,9 @@ export class OpenAIVideoAdapter<
         { provider: this.name, model },
       )
       const videosClient = this.getVideosClient()
-      const response = await videosClient.create(request)
+      const response = await videosClient.create(request, {
+        signal: options.abortSignal,
+      })
       return { jobId: response.id, model }
     } catch (error: any) {
       options.logger.errors(`${this.name}.createVideoJob fatal`, {
@@ -170,8 +173,14 @@ export class OpenAIVideoAdapter<
    * the path uniformly even when the SDK lacks first-class typings here.
    */
   private getVideosClient(): {
-    create: (req: Record<string, any>) => Promise<{ id: string }>
-    retrieve: (id: string) => Promise<{
+    create: (
+      req: Record<string, any>,
+      options?: { signal?: AbortSignal | undefined },
+    ) => Promise<{ id: string }>
+    retrieve: (
+      id: string,
+      options?: { signal?: AbortSignal },
+    ) => Promise<{
       id: string
       status: string
       progress?: number
@@ -179,15 +188,24 @@ export class OpenAIVideoAdapter<
       expires_at?: number
       error?: { message?: string }
     }>
-    downloadContent: (id: string) => Promise<Response>
+    downloadContent: (
+      id: string,
+      options?: { signal?: AbortSignal },
+    ) => Promise<Response>
   } {
     return (this.client as { videos: any }).videos
   }
 
-  async getVideoStatus(jobId: string): Promise<VideoStatusResult> {
+  async getVideoStatus(
+    jobId: string,
+    options?: { abortSignal?: AbortSignal },
+  ): Promise<VideoStatusResult> {
+    const requestOptions = options?.abortSignal && {
+      signal: options.abortSignal,
+    }
     try {
       const videosClient = this.getVideosClient()
-      const response = await videosClient.retrieve(jobId)
+      const response = await videosClient.retrieve(jobId, requestOptions)
       // `VideoStatusResult` declares optional fields without `| undefined`;
       // spread conditionally so we omit absent fields rather than assigning
       // `undefined`.
@@ -209,14 +227,18 @@ export class OpenAIVideoAdapter<
 
   override async getVideo(
     jobId: string,
+    options?: { abortSignal?: AbortSignal },
   ): Promise<VideoUrlResult | VideoStreamResult> {
+    const requestOptions = options?.abortSignal && {
+      signal: options.abortSignal,
+    }
     try {
       const videosClient = this.getVideosClient()
 
       // Prefer retrieve() because many openai-compatible backends (and the
       // aimock test harness) return the URL directly on the video resource
       // and do not implement a separate /content endpoint.
-      const videoInfo = await videosClient.retrieve(jobId)
+      const videoInfo = await videosClient.retrieve(jobId, requestOptions)
       if (videoInfo.url) {
         // `VideoUrlResult.expiresAt` is `expiresAt?: Date` without `| undefined`;
         // omit the field when the API didn't return an expiry.
@@ -231,7 +253,7 @@ export class OpenAIVideoAdapter<
 
       // No URL: hand the download stream to generation middleware (which
       // stores it and sets the URL) instead of buffering the whole video.
-      const response = await videosClient.downloadContent(jobId)
+      const response = await videosClient.downloadContent(jobId, requestOptions)
       if (!response.body) throw new Error('Video download returned no body')
       return {
         jobId,

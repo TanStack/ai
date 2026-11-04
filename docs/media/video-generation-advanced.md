@@ -65,6 +65,22 @@ console.log('Video ready:', videoUrl)
 
 If you use middleware, such as `withGenerationPersistence`, pass the same `middleware` and `threadId` to `generateVideo()` and to `getVideoJobStatus()`. The submit call only opens the run. The poll that sees the finished job closes the run and records the result.
 
+To cancel one poll, pass `abortSignal`. To limit it, pass `timeout` in milliseconds. The limit covers the status request and the video download.
+
+```typescript
+import { getVideoJobStatus } from '@tanstack/ai'
+import { openaiVideo } from '@tanstack/ai-openai'
+
+const status = await getVideoJobStatus({
+  adapter: openaiVideo('sora-2'),
+  jobId: 'video_123',
+  timeout: 15_000,
+})
+console.log(status.status)
+```
+
+A cancelled poll rejects. It does not change the job. The provider job keeps running, and a later poll can still read it.
+
 ### Server function that polls (fetcher)
 
 A TanStack Start server function can run the full loop and return the finished result as JSON:
@@ -153,6 +169,32 @@ export function VideoGenerator() {
   // Render the same way as in the quick setup.
 }
 ```
+
+## Cancel the provider job
+
+Pass `abortSignal` (or `timeout`) to a streaming `generateVideo()`. If it aborts after the provider accepts the job, `generateVideo()` asks the provider to cancel the job:
+
+```typescript
+import { generateVideo, toServerSentEventsResponse } from '@tanstack/ai'
+import { falVideo } from '@tanstack/ai-fal'
+
+export function POST(request: Request) {
+  const stream = generateVideo({
+    adapter: falVideo('fal-ai/veo3.1'),
+    prompt: 'A timelapse of a city skyline at dusk',
+    threadId: 'thread-1',
+    stream: true,
+    abortSignal: request.signal,
+  })
+  return toServerSentEventsResponse(stream)
+}
+```
+
+- fal.ai and BytePlus have a cancel API. fal can refuse a request that already runs. BytePlus cancels only a queued task.
+- The other adapters have no cancel API, so their job keeps running.
+- The cancel is best effort. A failed cancel goes to the error log, and the run still ends as aborted.
+- To cancel a job that you poll yourself, call `adapter.cancelVideoJob?.(jobId)`.
+- In your own adapter, add the optional `cancelVideoJob(jobId, options?)` method when the provider can cancel a job.
 
 ## Image-to-video support
 

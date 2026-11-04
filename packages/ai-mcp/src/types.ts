@@ -166,6 +166,11 @@ export interface MCPClientOptions {
    */
   prior?: PriorDiscovery
   /**
+   * Cancels the connect handshake. It applies only while `createMCPClient`
+   * connects, not to later requests.
+   */
+  signal?: AbortSignal
+  /**
    * Choose the server tools the model gets. Default: every tool.
    *
    * - A function: keep the tools it returns `true` for. It receives the raw
@@ -250,6 +255,8 @@ export interface MCPClientOptions {
 export interface ToolsOptions {
   /** Mark tools `lazy: true` to defer schema-sending via LazyToolManager. */
   lazy?: boolean
+  /** Cancels the `tools/list` requests. */
+  signal?: AbortSignal
 }
 
 /**

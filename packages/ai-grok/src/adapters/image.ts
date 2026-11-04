@@ -159,7 +159,9 @@ export class GrokImageAdapter<
         `activity=image provider=${this.name} model=${model} n=${request.n ?? 1} size=${request.size ?? 'default'}`,
         { provider: this.name, model },
       )
-      const response = await this.client.images.generate(request)
+      const response = await this.client.images.generate(request, {
+        signal: options.abortSignal,
+      })
 
       const images: Array<GeneratedImage> = (response.data ?? []).flatMap(
         (item): Array<GeneratedImage> => {
@@ -266,6 +268,7 @@ export class GrokImageAdapter<
             Authorization: `Bearer ${this.clientConfig.apiKey}`,
           },
           body: JSON.stringify(request),
+          signal: options.abortSignal,
         },
       )
       if (!response.ok) {

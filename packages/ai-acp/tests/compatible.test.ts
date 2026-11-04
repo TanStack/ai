@@ -34,6 +34,7 @@ const SDK_URL = pathToFileURL(require.resolve('@agentclientprotocol/sdk')).href
 function fakeAcpAgent(
   protocolVersionExpr = 'PROTOCOL_VERSION',
   reply = 'pong',
+  promptResultExpr = "{ stopReason: 'end_turn' }",
 ): string {
   return `
 import { AgentSideConnection, ndJsonStream, PROTOCOL_VERSION } from ${JSON.stringify(SDK_URL)}
@@ -63,7 +64,7 @@ new AgentSideConnection((conn) => ({
       sessionId: params.sessionId,
       update: { sessionUpdate: 'agent_message_chunk', content: { type: 'text', text: ${JSON.stringify(reply)} } },
     })
-    return { stopReason: 'end_turn' }
+    return ${promptResultExpr}
   },
   async cancel() {},
 }), stream)
@@ -465,6 +466,44 @@ describe('acpCompatible in-sandbox adapter (stdio)', () => {
     }
     expect(error?.code).toBe('structured-output-parse-failed')
     expect(error?.message).toMatch(/pong/)
+
+    await sbx.destroy()
+  })
+
+  it('puts the turn usage on the parse error and drops RUN_FINISHED', async () => {
+    const sbx = await provider.create({})
+    await sbx.fs.write(
+      '/workspace/fake-acp-agent.mjs',
+      fakeAcpAgent(
+        'PROTOCOL_VERSION',
+        'pong',
+        "{ stopReason: 'end_turn', usage: { inputTokens: 12, outputTokens: 3, totalTokens: 15 } }",
+      ),
+    )
+
+    const chunks = await collect(
+      acpCompatibleText('pi-fast', {
+        name: 'pi',
+        command: () => 'node fake-acp-agent.mjs',
+      }).chatStream({
+        threadId: 'thread-1',
+        model: 'pi-fast',
+        messages: [{ role: 'user', content: 'report' }],
+        outputSchema: {
+          type: 'object',
+          properties: { ok: { type: 'boolean' } },
+          required: ['ok'],
+        },
+        logger: noopLogger,
+        capabilities: capabilityContextWith(sbx),
+      }),
+    )
+
+    expect(chunks.find((chunk) => chunk.type === 'RUN_ERROR')).toMatchObject({
+      code: 'structured-output-parse-failed',
+      usage: { promptTokens: 12, completionTokens: 3, totalTokens: 15 },
+    })
+    expect(chunks.some((chunk) => chunk.type === 'RUN_FINISHED')).toBe(false)
 
     await sbx.destroy()
   })

@@ -3,7 +3,7 @@ id: WsRunContext
 title: WsRunContext
 ---
 
-Defined in: packages/ai/src/stream-to-websocket.ts:62
+Defined in: [packages/ai/src/stream-to-websocket.ts:68](https://github.com/TanStack/ai/blob/main/packages/ai/src/stream-to-websocket.ts#L68)
 
 Per-turn context for one inbound `run` frame on a conversation-scoped socket.
 
@@ -15,7 +15,7 @@ Per-turn context for one inbound `run` frame on a conversation-scoped socket.
 optional forwardedProps?: Record<string, unknown>;
 ```
 
-Defined in: packages/ai/src/stream-to-websocket.ts:66
+Defined in: [packages/ai/src/stream-to-websocket.ts:72](https://github.com/TanStack/ai/blob/main/packages/ai/src/stream-to-websocket.ts#L72)
 
 ***
 
@@ -30,7 +30,7 @@ messages: (
   | null>)[];
 ```
 
-Defined in: packages/ai/src/stream-to-websocket.ts:63
+Defined in: [packages/ai/src/stream-to-websocket.ts:69](https://github.com/TanStack/ai/blob/main/packages/ai/src/stream-to-websocket.ts#L69)
 
 ***
 
@@ -40,7 +40,7 @@ Defined in: packages/ai/src/stream-to-websocket.ts:63
 request: Request;
 ```
 
-Defined in: packages/ai/src/stream-to-websocket.ts:68
+Defined in: [packages/ai/src/stream-to-websocket.ts:74](https://github.com/TanStack/ai/blob/main/packages/ai/src/stream-to-websocket.ts#L74)
 
 Synthetic per-turn request carrying `?runId=` so durability keys correctly.
 
@@ -52,7 +52,7 @@ Synthetic per-turn request carrying `?runId=` so durability keys correctly.
 runId: string;
 ```
 
-Defined in: packages/ai/src/stream-to-websocket.ts:65
+Defined in: [packages/ai/src/stream-to-websocket.ts:71](https://github.com/TanStack/ai/blob/main/packages/ai/src/stream-to-websocket.ts#L71)
 
 ***
 
@@ -62,7 +62,7 @@ Defined in: packages/ai/src/stream-to-websocket.ts:65
 signal: AbortSignal;
 ```
 
-Defined in: packages/ai/src/stream-to-websocket.ts:70
+Defined in: [packages/ai/src/stream-to-websocket.ts:76](https://github.com/TanStack/ai/blob/main/packages/ai/src/stream-to-websocket.ts#L76)
 
 Aborts on socket close or an `abort` control frame for this run.
 
@@ -74,4 +74,4 @@ Aborts on socket close or an `abort` control frame for this run.
 threadId: string;
 ```
 
-Defined in: packages/ai/src/stream-to-websocket.ts:64
+Defined in: [packages/ai/src/stream-to-websocket.ts:70](https://github.com/TanStack/ai/blob/main/packages/ai/src/stream-to-websocket.ts#L70)

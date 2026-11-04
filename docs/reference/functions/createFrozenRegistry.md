@@ -7,7 +7,7 @@ title: createFrozenRegistry
 function createFrozenRegistry<TTool>(tools?): ToolRegistry<TTool>;
 ```
 
-Defined in: packages/ai/src/tool-registry.ts:119
+Defined in: [packages/ai/src/tool-registry.ts:119](https://github.com/TanStack/ai/blob/main/packages/ai/src/tool-registry.ts#L119)
 
 Create a frozen (immutable) tool registry from a tools array.
 

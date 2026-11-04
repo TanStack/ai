@@ -227,7 +227,7 @@ const edited = await generateImage({
 
 Rules for the edit:
 
-- Leave `store` unset. The API default is `true`. If you set `store` to `false`, a later call cannot use that id.
+- Leave `store` unset. The API default is `true`. If you set `store` to `false`, Gemini does not keep the interaction, so `id` is a local id and a later call cannot use it as `previous_interaction_id`.
 - A free tier keeps a stored interaction for 1 day. A paid tier keeps it for 55 days.
 - If the edit needs a new reference image, add that image part on this call. Do not send the image from `first` again.
 

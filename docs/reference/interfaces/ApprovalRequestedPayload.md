@@ -3,7 +3,7 @@ id: ApprovalRequestedPayload
 title: ApprovalRequestedPayload
 ---
 
-Defined in: packages/ai/src/custom-events.ts:57
+Defined in: [packages/ai/src/custom-events.ts:57](https://github.com/TanStack/ai/blob/main/packages/ai/src/custom-events.ts#L57)
 
 ## Indexable
 
@@ -21,7 +21,7 @@ Free-form detail describing the action awaiting approval.
 approvalId: string;
 ```
 
-Defined in: packages/ai/src/custom-events.ts:58
+Defined in: [packages/ai/src/custom-events.ts:58](https://github.com/TanStack/ai/blob/main/packages/ai/src/custom-events.ts#L58)
 
 ***
 
@@ -31,4 +31,4 @@ Defined in: packages/ai/src/custom-events.ts:58
 title: string;
 ```
 
-Defined in: packages/ai/src/custom-events.ts:59
+Defined in: [packages/ai/src/custom-events.ts:59](https://github.com/TanStack/ai/blob/main/packages/ai/src/custom-events.ts#L59)

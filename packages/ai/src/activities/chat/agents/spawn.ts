@@ -1355,6 +1355,7 @@ export function createSyntheticSubagentTools(
     const toolContext = context as
       | {
           toolCallId?: string
+          abortSignal?: AbortSignal
           [EMIT_STREAM_CHUNK]?: (chunk: StreamChunk) => void
         }
       | undefined
@@ -1419,7 +1420,8 @@ export function createSyntheticSubagentTools(
     }
     active += 1
     const sink = createSubagentSink()
-    const link = linkAbort(parent.abortSignal)
+    // The tool context signal also fires on a middleware ctx.abort().
+    const link = linkAbort(toolContext?.abortSignal ?? parent.abortSignal)
     let timedOut = false
     const timer =
       timeout === undefined

@@ -10,7 +10,7 @@ const toolFailedMessage = 'The tool failed.'
  * fields that never leave the server: the owner and the tool result.
  */
 type StoredTask = Task & {
-  status: 'working' | 'completed' | 'failed'
+  status: 'working' | 'completed' | 'failed' | 'cancelled'
   /** The auth subject that started the task. Absent without auth. */
   owner?: string
   /** The tool output. Present when `status` is `completed`. */
@@ -30,6 +30,9 @@ type StartTaskOptions = {
   owner?: string
 }
 
+/** The abort controllers of the tasks that run in this process, by id. */
+const running = new Map<string, AbortController>()
+
 /**
  * Starts a tool run and returns a task id before the run finishes.
  *
@@ -43,6 +46,9 @@ type StartTaskOptions = {
  * A tool error does not reject this function.
  * The store records the error on the task as `statusMessage`.
  *
+ * `run` gets a signal that `cancelTask` aborts. A cancelled task keeps its
+ * `cancelled` status: the late result or error of `run` is not saved.
+ *
  * @param run - Tool function. It returns the tool result.
  * @param options - `store` is required. `waitUntil` is optional.
  *
@@ -55,7 +61,7 @@ type StartTaskOptions = {
  * ```
  */
 export async function startTask(
-  run: () => Promise<unknown>,
+  run: (signal: AbortSignal) => Promise<unknown>,
   options: StartTaskOptions,
 ) {
   const taskId = crypto.randomUUID()
@@ -69,21 +75,27 @@ export async function startTask(
     ...(options.owner === undefined ? {} : { owner: options.owner }),
   }
   await options.store.set(taskId, working)
+  const controller = new AbortController()
+  running.set(taskId, controller)
+  const settle = async (task: StoredTask) => {
+    running.delete(taskId)
+    if (!controller.signal.aborted) await options.store.set(taskId, task)
+  }
 
-  // A tool can throw before it returns a promise. `.then(run)` turns that
+  // A tool can throw before it returns a promise. `.then` turns that
   // throw into a rejection, so the store records it.
   const inflight = Promise.resolve()
-    .then(run)
+    .then(() => run(controller.signal))
     .then(
       (result) =>
-        options.store.set(taskId, {
+        settle({
           ...working,
           status: 'completed',
           lastUpdatedAt: new Date().toISOString(),
           result,
         }),
       (error: unknown) =>
-        options.store.set(taskId, {
+        settle({
           ...working,
           status: 'failed',
           lastUpdatedAt: new Date().toISOString(),
@@ -129,6 +141,36 @@ export async function getTask(
   if (!isStoredTask(value)) return null
   if (value.owner !== owner) return null
   return { record: value, task: taskView(value) }
+}
+
+/**
+ * Cancels the task of `record` (a `working` task from {@link getTask}):
+ * aborts its run, when it runs in this process, and saves it as
+ * `cancelled`. Returns the spec 2025-11-25 `Task` for `tasks/cancel`.
+ * When the task got a terminal status after the caller read `record`, the
+ * task does not change, and the result is that terminal `Task`.
+ */
+export async function cancelTask(record: StoredTask, store: TaskStore) {
+  // Abort first, so the run does not save a late result over the cancel.
+  // ponytail: a run on another instance of the server is not aborted. Its
+  // late result replaces the cancel. Add a store-backed flag if that matters.
+  const controller = running.get(record.taskId)
+  controller?.abort()
+  if (controller === undefined) {
+    // The run can end after the caller read `record`. Keep its result.
+    // ponytail: a re-read, not a compare-and-set. KeyedStore has no CAS.
+    const current = await store.get(record.taskId)
+    if (isStoredTask(current) && current.status !== 'working') {
+      return taskView(current)
+    }
+  }
+  const cancelled: StoredTask = {
+    ...record,
+    status: 'cancelled',
+    lastUpdatedAt: new Date().toISOString(),
+  }
+  await store.set(record.taskId, cancelled)
+  return taskView(cancelled)
 }
 
 function taskView(record: StoredTask) {
@@ -186,6 +228,7 @@ function isStoredTask(value: unknown): value is StoredTask {
   switch (value.status) {
     case 'working':
     case 'failed':
+    case 'cancelled':
       return true
     case 'completed':
       return 'result' in value

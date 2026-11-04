@@ -62,6 +62,8 @@ export const sandboxed = defineHarness({
 
 To give the agent the project folder on your machine, [copy it into the container](#copy-your-project-into-the-container).
 
+To stop a slow clone, pass `signal`: `sandbox.git.clone({ url, signal })`. `git.push(dir, { signal })` and `git.pull(dir, { signal })` take it too. When the signal aborts, it stops the git command on every provider except Daytona. Daytona runs git through its own API, which takes no signal, so the git command runs to the end.
+
 3. When you are done, stop the sandbox with `await sandbox.destroy()`.
 
 Every provider works. Get the handle from `create()`, or from `resume()` for a sandbox that runs already. See [Providers](../sandbox/providers). To create a sandbox for each thread, and resume it on another server, see [Run the coding tools for many threads](./coding-workspaces).

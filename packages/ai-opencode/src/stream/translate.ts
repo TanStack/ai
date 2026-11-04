@@ -53,6 +53,7 @@ export function resolveToolName(
 
 function buildUsage(
   tokens: OpencodeTokens | undefined,
+  cost: number | undefined,
 ): TokenUsage | undefined {
   if (!tokens) return undefined
   const promptTokens = tokens.input ?? 0
@@ -62,18 +63,40 @@ function buildUsage(
     completionTokens,
     totalTokens: promptTokens + completionTokens,
   })
-  if (tokens.cache?.read) {
-    result.promptTokensDetails = { cachedTokens: tokens.cache.read }
+  if (tokens.cache?.read || tokens.cache?.write) {
+    result.promptTokensDetails = {
+      ...(tokens.cache.read ? { cachedTokens: tokens.cache.read } : {}),
+      ...(tokens.cache.write ? { cacheWriteTokens: tokens.cache.write } : {}),
+    }
   }
   if (tokens.reasoning) {
     result.completionTokensDetails = { reasoningTokens: tokens.reasoning }
   }
+  // ponytail: opencode reports 0 for a model with no price. Leave cost out
+  // then, so a price table of the caller still applies.
+  if (cost) result.cost = cost
   return result
+}
+
+function sameTokens(
+  a: OpencodeTokens | undefined,
+  b: OpencodeTokens | undefined,
+): boolean {
+  return (
+    a !== undefined &&
+    b !== undefined &&
+    a.input === b.input &&
+    a.output === b.output &&
+    a.reasoning === b.reasoning &&
+    a.cache?.read === b.cache?.read &&
+    a.cache?.write === b.cache?.write
+  )
 }
 
 type TextPart = Extract<OpencodePart, { type: 'text' }>
 type ReasoningPart = Extract<OpencodePart, { type: 'reasoning' }>
 type ToolPart = Extract<OpencodePart, { type: 'tool' }>
+type StepFinishPart = Extract<OpencodePart, { type: 'step-finish' }>
 
 const isTextPart = (part: OpencodePart): part is TextPart =>
   part.type === 'text'
@@ -81,6 +104,8 @@ const isReasoningPart = (part: OpencodePart): part is ReasoningPart =>
   part.type === 'reasoning'
 const isToolPart = (part: OpencodePart): part is ToolPart =>
   part.type === 'tool'
+const isStepFinishPart = (part: OpencodePart): part is StepFinishPart =>
+  part.type === 'step-finish'
 
 function messageError(
   message: OpencodeAssistantMessage,
@@ -135,6 +160,57 @@ export async function* translateOpencodeStream(
   const textAccumulators = new Map<string, string>()
   let openTextId: string | null = null
   let openReasoningId: string | null = null
+  /**
+   * Finished agent-loop steps of this turn, keyed by part id so a repeated
+   * update of one part is not counted twice. Each step-finish part carries
+   * that step's tokens and cost.
+   */
+  const finishedSteps = new Map<string, StepFinishPart>()
+
+  /** Usage summed over all steps, or the final message's usage. */
+  function turnUsage(
+    message: OpencodeAssistantMessage,
+  ): TokenUsage | undefined {
+    if (finishedSteps.size === 0) {
+      return buildUsage(message.tokens, message.cost)
+    }
+    const tokens = {
+      input: 0,
+      output: 0,
+      reasoning: 0,
+      cache: { read: 0, write: 0 },
+    }
+    let cost = 0
+    const recorded = [...finishedSteps.values()]
+    const own = recorded.filter((s) => s.messageID === message.id)
+    // One message can hold several steps. opencode keeps the tokens of its
+    // last step and the cost of all its steps on the message.
+    const ownCost = own.reduce((sum, s) => sum + (s.cost ?? 0), 0)
+    const steps: Array<{ tokens?: OpencodeTokens; cost?: number }> = [
+      ...recorded.filter((s) => s.messageID !== message.id),
+      ...own.map((s) => ({ tokens: s.tokens })),
+      { cost: message.cost ?? ownCost },
+    ]
+    // The last step-finish part can arrive after `done`. Then the message
+    // tokens (the last step's) stand in for that step. The last recorded
+    // part is that step only when its tokens, and its reason when the
+    // message has one, match: an earlier step can share the reason.
+    const last = own.at(-1)
+    const lastStepSeen =
+      last !== undefined &&
+      sameTokens(last.tokens, message.tokens) &&
+      (message.finish === undefined || last.reason === message.finish)
+    if (!lastStepSeen) steps.push({ tokens: message.tokens })
+    for (const step of steps) {
+      tokens.input += step.tokens?.input ?? 0
+      tokens.output += step.tokens?.output ?? 0
+      tokens.reasoning += step.tokens?.reasoning ?? 0
+      tokens.cache.read += step.tokens?.cache?.read ?? 0
+      tokens.cache.write += step.tokens?.cache?.write ?? 0
+      cost += step.cost ?? 0
+    }
+    return buildUsage(tokens, cost)
+  }
 
   function* startRun(): Generator<AdapterYieldChunk> {
     if (runStarted) return
@@ -347,9 +423,11 @@ export async function* translateOpencodeStream(
       yield* handleReasoningPart(part, delta)
     } else if (isToolPart(part)) {
       yield* handleToolPart(part)
+    } else if (isStepFinishPart(part)) {
+      finishedSteps.set(part.id, part)
     }
-    // Other part kinds (file, step-start/finish, snapshot, ...) carry no
-    // state the chunk stream needs.
+    // Other part kinds (file, step-start, snapshot, ...) carry no state the
+    // chunk stream needs.
   }
 
   function* setMessageRole(
@@ -411,6 +489,7 @@ export async function* translateOpencodeStream(
     yield* closeReasoning()
     yield* synthesizeUnresolvedResults()
 
+    const usage = turnUsage(message)
     const error = messageError(message)
     if (error) {
       yield {
@@ -419,11 +498,11 @@ export async function* translateOpencodeStream(
         timestamp: now(),
         message: error.message,
         error,
+        ...(usage && { usage }),
       }
       return
     }
 
-    const usage = buildUsage(message.tokens)
     const finishReason = message.finish === 'length' ? 'length' : 'stop'
     yield {
       type: EventType.RUN_FINISHED,

@@ -70,12 +70,15 @@ export class MCPManager {
    * Discover + merge tools from all sources. Throws on a fatal discovery error
    * (no `onDiscoveryError`, or it re-threw) or a duplicate tool name; in that
    * case it first closes any connected sources when the policy is 'close'.
+   * `signal` (the chat run signal) goes to each source's `tools()`.
    */
-  async discover(): Promise<Array<AnyServerTool>> {
+  async discover(signal?: AbortSignal): Promise<Array<AnyServerTool>> {
     if (this.#sources.length === 0) return []
     try {
       const settled = await Promise.allSettled(
-        this.#sources.map((s) => s.tools({ lazy: this.#lazyTools })),
+        this.#sources.map((s) =>
+          s.tools({ lazy: this.#lazyTools, ...(signal && { signal }) }),
+        ),
       )
       const tools: Array<AnyServerTool> = []
       const zipped = this.#sources.map(

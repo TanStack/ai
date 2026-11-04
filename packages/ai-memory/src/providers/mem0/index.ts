@@ -141,9 +141,11 @@ export function mem0(options: Mem0Options = {}): MemoryAdapter {
       ]
     },
 
-    async recall(scope, query): Promise<RecallResult> {
+    async recall(scope, query, recallOptions): Promise<RecallResult> {
+      const signal = recallOptions?.signal
       const result = await safeJson(() =>
         fetch(`${baseUrl}/search`, {
+          ...(signal && { signal }),
           method: 'POST',
           headers: headers(),
           body: JSON.stringify({

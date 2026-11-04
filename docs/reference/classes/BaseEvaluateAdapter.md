@@ -3,7 +3,7 @@ id: BaseEvaluateAdapter
 title: BaseEvaluateAdapter
 ---
 
-Defined in: packages/ai/src/activities/evaluate/adapter.ts:189
+Defined in: [packages/ai/src/activities/evaluate/adapter.ts:265](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/evaluate/adapter.ts#L265)
 
 Abstract base class for evaluate adapters.
 Extend this class to implement an evaluate adapter for a specific provider.
@@ -32,7 +32,7 @@ Generic parameters match EvaluateAdapter. The provider function resolves them.
 new BaseEvaluateAdapter<TModel, TProviderOptions>(config?, model): BaseEvaluateAdapter<TModel, TProviderOptions>;
 ```
 
-Defined in: packages/ai/src/activities/evaluate/adapter.ts:204
+Defined in: [packages/ai/src/activities/evaluate/adapter.ts:280](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/evaluate/adapter.ts#L280)
 
 #### Parameters
 
@@ -56,7 +56,7 @@ Defined in: packages/ai/src/activities/evaluate/adapter.ts:204
 ~types: object;
 ```
 
-Defined in: packages/ai/src/activities/evaluate/adapter.ts:198
+Defined in: [packages/ai/src/activities/evaluate/adapter.ts:274](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/evaluate/adapter.ts#L274)
 
 **`Internal`**
 
@@ -80,7 +80,7 @@ providerOptions: TProviderOptions;
 protected config: EvaluateAdapterConfig;
 ```
 
-Defined in: packages/ai/src/activities/evaluate/adapter.ts:202
+Defined in: [packages/ai/src/activities/evaluate/adapter.ts:278](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/evaluate/adapter.ts#L278)
 
 ***
 
@@ -90,7 +90,7 @@ Defined in: packages/ai/src/activities/evaluate/adapter.ts:202
 readonly kind: "evaluate";
 ```
 
-Defined in: packages/ai/src/activities/evaluate/adapter.ts:193
+Defined in: [packages/ai/src/activities/evaluate/adapter.ts:269](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/evaluate/adapter.ts#L269)
 
 Discriminator for adapter kind
 
@@ -106,7 +106,7 @@ Discriminator for adapter kind
 readonly model: TModel;
 ```
 
-Defined in: packages/ai/src/activities/evaluate/adapter.ts:195
+Defined in: [packages/ai/src/activities/evaluate/adapter.ts:271](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/evaluate/adapter.ts#L271)
 
 The model this adapter is configured for
 
@@ -122,7 +122,7 @@ The model this adapter is configured for
 abstract readonly name: string;
 ```
 
-Defined in: packages/ai/src/activities/evaluate/adapter.ts:194
+Defined in: [packages/ai/src/activities/evaluate/adapter.ts:270](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/evaluate/adapter.ts#L270)
 
 Adapter name identifier
 
@@ -138,7 +138,7 @@ Adapter name identifier
 abstract evaluate(options): Promise<EvaluateAdapterResult>;
 ```
 
-Defined in: packages/ai/src/activities/evaluate/adapter.ts:209
+Defined in: [packages/ai/src/activities/evaluate/adapter.ts:285](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/evaluate/adapter.ts#L285)
 
 Evaluate typed questions against `state`. Return the provider payload.
 Do not invent unified `.value` fields. The activity maps wire answers.
@@ -165,7 +165,7 @@ Do not invent unified `.value` fields. The activity maps wire answers.
 protected generateId(): string;
 ```
 
-Defined in: packages/ai/src/activities/evaluate/adapter.ts:213
+Defined in: [packages/ai/src/activities/evaluate/adapter.ts:289](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/evaluate/adapter.ts#L289)
 
 #### Returns
 
