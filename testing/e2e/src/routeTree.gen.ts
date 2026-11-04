@@ -154,6 +154,7 @@ import { Route as ApiMoonshotUsageDetailsRouteImport } from './routes/api.moonsh
 import { Route as ApiMultimodalToolResultWireRouteImport } from './routes/api.multimodal-tool-result-wire'
 import { Route as ApiNeonWireRouteImport } from './routes/api.neon-wire'
 import { Route as ApiNonStreamingRunErrorRouteImport } from './routes/api.non-streaming-run-error'
+import { Route as ApiOpenaiApplyPatchWireRouteImport } from './routes/api.openai-apply-patch-wire'
 import { Route as ApiOpenaiCompletedResponseTextRouteImport } from './routes/api.openai-completed-response-text'
 import { Route as ApiOpenaiComputerUseWireRouteImport } from './routes/api.openai-computer-use-wire'
 import { Route as ApiOpenaiImage25ModelsRouteImport } from './routes/api.openai-image-2-5-models'
@@ -971,6 +972,11 @@ const ApiNonStreamingRunErrorRoute = ApiNonStreamingRunErrorRouteImport.update({
   path: '/api/non-streaming-run-error',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiOpenaiApplyPatchWireRoute = ApiOpenaiApplyPatchWireRouteImport.update({
+  id: '/api/openai-apply-patch-wire',
+  path: '/api/openai-apply-patch-wire',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiOpenaiCompletedResponseTextRoute =
   ApiOpenaiCompletedResponseTextRouteImport.update({
     id: '/api/openai-completed-response-text',
@@ -1443,6 +1449,7 @@ export interface FileRoutesByFullPath {
   '/api/multimodal-tool-result-wire': typeof ApiMultimodalToolResultWireRoute
   '/api/neon-wire': typeof ApiNeonWireRoute
   '/api/non-streaming-run-error': typeof ApiNonStreamingRunErrorRoute
+  '/api/openai-apply-patch-wire': typeof ApiOpenaiApplyPatchWireRoute
   '/api/openai-completed-response-text': typeof ApiOpenaiCompletedResponseTextRoute
   '/api/openai-computer-use-wire': typeof ApiOpenaiComputerUseWireRoute
   '/api/openai-image-2-5-models': typeof ApiOpenaiImage25ModelsRoute
@@ -1651,6 +1658,7 @@ export interface FileRoutesByTo {
   '/api/multimodal-tool-result-wire': typeof ApiMultimodalToolResultWireRoute
   '/api/neon-wire': typeof ApiNeonWireRoute
   '/api/non-streaming-run-error': typeof ApiNonStreamingRunErrorRoute
+  '/api/openai-apply-patch-wire': typeof ApiOpenaiApplyPatchWireRoute
   '/api/openai-completed-response-text': typeof ApiOpenaiCompletedResponseTextRoute
   '/api/openai-computer-use-wire': typeof ApiOpenaiComputerUseWireRoute
   '/api/openai-image-2-5-models': typeof ApiOpenaiImage25ModelsRoute
@@ -1860,6 +1868,7 @@ export interface FileRoutesById {
   '/api/multimodal-tool-result-wire': typeof ApiMultimodalToolResultWireRoute
   '/api/neon-wire': typeof ApiNeonWireRoute
   '/api/non-streaming-run-error': typeof ApiNonStreamingRunErrorRoute
+  '/api/openai-apply-patch-wire': typeof ApiOpenaiApplyPatchWireRoute
   '/api/openai-completed-response-text': typeof ApiOpenaiCompletedResponseTextRoute
   '/api/openai-computer-use-wire': typeof ApiOpenaiComputerUseWireRoute
   '/api/openai-image-2-5-models': typeof ApiOpenaiImage25ModelsRoute
@@ -2070,6 +2079,7 @@ export interface FileRouteTypes {
     | '/api/multimodal-tool-result-wire'
     | '/api/neon-wire'
     | '/api/non-streaming-run-error'
+    | '/api/openai-apply-patch-wire'
     | '/api/openai-completed-response-text'
     | '/api/openai-computer-use-wire'
     | '/api/openai-image-2-5-models'
@@ -2278,6 +2288,7 @@ export interface FileRouteTypes {
     | '/api/multimodal-tool-result-wire'
     | '/api/neon-wire'
     | '/api/non-streaming-run-error'
+    | '/api/openai-apply-patch-wire'
     | '/api/openai-completed-response-text'
     | '/api/openai-computer-use-wire'
     | '/api/openai-image-2-5-models'
@@ -2486,6 +2497,7 @@ export interface FileRouteTypes {
     | '/api/multimodal-tool-result-wire'
     | '/api/neon-wire'
     | '/api/non-streaming-run-error'
+    | '/api/openai-apply-patch-wire'
     | '/api/openai-completed-response-text'
     | '/api/openai-computer-use-wire'
     | '/api/openai-image-2-5-models'
@@ -2695,6 +2707,7 @@ export interface RootRouteChildren {
   ApiMultimodalToolResultWireRoute: typeof ApiMultimodalToolResultWireRoute
   ApiNeonWireRoute: typeof ApiNeonWireRoute
   ApiNonStreamingRunErrorRoute: typeof ApiNonStreamingRunErrorRoute
+  ApiOpenaiApplyPatchWireRoute: typeof ApiOpenaiApplyPatchWireRoute
   ApiOpenaiCompletedResponseTextRoute: typeof ApiOpenaiCompletedResponseTextRoute
   ApiOpenaiComputerUseWireRoute: typeof ApiOpenaiComputerUseWireRoute
   ApiOpenaiImage25ModelsRoute: typeof ApiOpenaiImage25ModelsRoute
@@ -3771,6 +3784,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiNonStreamingRunErrorRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/openai-apply-patch-wire': {
+      id: '/api/openai-apply-patch-wire'
+      path: '/api/openai-apply-patch-wire'
+      fullPath: '/api/openai-apply-patch-wire'
+      preLoaderRoute: typeof ApiOpenaiApplyPatchWireRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/openai-completed-response-text': {
       id: '/api/openai-completed-response-text'
       path: '/api/openai-completed-response-text'
@@ -4409,6 +4429,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiMultimodalToolResultWireRoute: ApiMultimodalToolResultWireRoute,
   ApiNeonWireRoute: ApiNeonWireRoute,
   ApiNonStreamingRunErrorRoute: ApiNonStreamingRunErrorRoute,
+  ApiOpenaiApplyPatchWireRoute: ApiOpenaiApplyPatchWireRoute,
   ApiOpenaiCompletedResponseTextRoute: ApiOpenaiCompletedResponseTextRoute,
   ApiOpenaiComputerUseWireRoute: ApiOpenaiComputerUseWireRoute,
   ApiOpenaiImage25ModelsRoute: ApiOpenaiImage25ModelsRoute,

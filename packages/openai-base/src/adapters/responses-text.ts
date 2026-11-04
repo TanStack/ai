@@ -1658,6 +1658,17 @@ export abstract class OpenAIBaseResponsesTextAdapter<
       return tracked
     }
 
+    /**
+     * The tool call chunks for a user-run item (`apply_patch_call`,
+     * `shell_call`, `local_shell_call`, `computer_call`). The first time a call
+     * is seen it emits `TOOL_CALL_START`. While the item is `in_progress` its
+     * input may be incomplete (an `apply_patch_call` has an empty diff), so
+     * `TOOL_CALL_END` waits until the item is no longer `in_progress`, and then
+     * carries the complete input. An ended call emits nothing.
+     */
+    // The call ids of user-run calls that are still `in_progress`.
+    const unendedUserCalls = new Set<string>()
+
     const userToolChunks = (
       item: unknown,
       outputIndex: number,
@@ -1672,21 +1683,21 @@ export abstract class OpenAIBaseResponsesTextAdapter<
         started: false,
       }
       toolCallMetadata.set(call.callId, tracked)
-      tracked.started = true
-      tracked.ended = true
       tracked.name = call.name
       streamedToolCall = true
       const timestamp = Date.now()
       const modelName = model || options.model
-      const metadata: OpenAIResponsesToolCallMetadata = {
-        openaiUserTool: call.name,
-        ...(call.itemId ? { itemId: call.itemId } : {}),
-        ...(call.maxOutputLength !== undefined
-          ? { maxOutputLength: call.maxOutputLength }
-          : {}),
-      }
-      return [
-        {
+      const chunks: Array<AdapterYieldChunk> = []
+      if (!tracked.started) {
+        tracked.started = true
+        const metadata: OpenAIResponsesToolCallMetadata = {
+          openaiUserTool: call.name,
+          ...(call.itemId ? { itemId: call.itemId } : {}),
+          ...(call.maxOutputLength !== undefined
+            ? { maxOutputLength: call.maxOutputLength }
+            : {}),
+        }
+        chunks.push({
           type: EventType.TOOL_CALL_START,
           toolCallId: call.callId,
           toolCallName: call.name,
@@ -1695,16 +1706,23 @@ export abstract class OpenAIBaseResponsesTextAdapter<
           timestamp,
           index: outputIndex,
           metadata,
-        },
-        {
-          type: EventType.TOOL_CALL_END,
-          toolCallId: call.callId,
-          toolCallName: call.name,
-          model: modelName,
-          timestamp,
-          input: call.input,
-        },
-      ]
+        })
+      }
+      if (isRecord(item) && item.status === 'in_progress') {
+        unendedUserCalls.add(call.callId)
+        return chunks
+      }
+      unendedUserCalls.delete(call.callId)
+      tracked.ended = true
+      chunks.push({
+        type: EventType.TOOL_CALL_END,
+        toolCallId: call.callId,
+        toolCallName: call.name,
+        model: modelName,
+        timestamp,
+        input: call.input,
+      })
+      return chunks
     }
 
     const emitReasoningDelta = function* (
@@ -2520,6 +2538,25 @@ export abstract class OpenAIBaseResponsesTextAdapter<
               timestamp: Date.now(),
             }
             hasEmittedTextMessageStart = false
+          }
+
+          // A stateless stream can skip `output_item.done` and send an empty
+          // `output`. A user-run call that never left `in_progress` has
+          // incomplete input (an `apply_patch_call` has an empty diff), so
+          // the run fails instead of running the tool with it.
+          if (unendedUserCalls.size > 0) {
+            const message = `Response completed with user tool calls still in progress: ${[...unendedUserCalls].join(', ')}`
+            yield {
+              type: EventType.RUN_ERROR,
+              metadata: this.sourceMetadata(options.model),
+              model: model || options.model,
+              timestamp: Date.now(),
+              message,
+              code: 'incomplete-tool-call',
+              error: { message, code: 'incomplete-tool-call' },
+            }
+            runFinishedEmitted = true
+            return
           }
 
           // Determine finish reason. Function-call output → tool_calls.
