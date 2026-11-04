@@ -11,33 +11,35 @@ const THREAD_ID = 'computer-use-login'
 const TASK = `Open https://the-internet.herokuapp.com/login in Chromium and sign in.
 When you are signed in, say what the page shows and stop.`
 
-type Part = UIMessage['parts'][number]
-
-const MEDIA_PREFIX = 'harness-media:'
-
 /**
- * The screenshots in one tool result, as `<img>` sources. The harness keeps
- * each screenshot in its media store. The message has only its id.
+ * True when the last sign-in failed, for example with a wrong password. The
+ * model then calls requestLogin again, and the card asks the user to retry.
  */
-function screenshots(part: Part) {
-  if (part.type !== 'tool-result' || typeof part.content === 'string') return []
-  return part.content.flatMap((content) => {
-    if (content.type !== 'image') return []
-    const { source } = content
-    if (source.type === 'data') {
-      return [`data:${source.mimeType};base64,${source.value}`]
-    }
-    if (source.value.startsWith(MEDIA_PREFIX)) {
-      const id = source.value.slice(MEDIA_PREFIX.length)
-      return [
-        `/api/harness/media?${new URLSearchParams({ threadId: THREAD_ID, id })}`,
-      ]
-    }
-    return [source.value]
-  })
+function lastSignInFailed(messages: ReadonlyArray<UIMessage>) {
+  const parts = messages.flatMap((message) => message.parts)
+  const previousId = parts
+    .flatMap((part) =>
+      part.type === 'tool-call' && part.name === 'requestLogin'
+        ? [part.id]
+        : [],
+    )
+    .at(-2)
+  return parts.some(
+    (part) =>
+      part.type === 'tool-result' &&
+      part.toolCallId === previousId &&
+      part.state === 'error' &&
+      part.outcome === undefined,
+  )
 }
 
-function Messages({ messages }: { messages: ReadonlyArray<UIMessage> }) {
+function Messages({
+  messages,
+  handedOff,
+}: {
+  messages: ReadonlyArray<UIMessage>
+  handedOff: boolean
+}) {
   const containerRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -82,17 +84,11 @@ function Messages({ messages }: { messages: ReadonlyArray<UIMessage> }) {
                 </div>
               )
             }
-            return screenshots(part).map((src) => (
-              <img
-                key={`${index}-${src.slice(-16)}`}
-                src={src}
-                alt="What the model sees"
-                className="my-2 max-w-xl rounded border border-gray-700"
-              />
-            ))
+            return null
           })}
         </div>
       ))}
+      <LiveView interactive={handedOff} />
     </div>
   )
 }
@@ -103,9 +99,11 @@ function Messages({ messages }: { messages: ReadonlyArray<UIMessage> }) {
  */
 function LoginCard({
   site,
+  retry,
   onAnswer,
 }: {
   site: string
+  retry: boolean
   onAnswer: (approved: boolean) => void
 }) {
   const [username, setUsername] = useState('')
@@ -146,6 +144,11 @@ function LoginCard({
       <p className="font-medium">
         Sign in to <span className="font-mono">{new URL(site).origin}</span>
       </p>
+      {retry ? (
+        <p className="text-red-300">
+          The sign-in failed. Check the username and password, then try again.
+        </p>
+      ) : null}
       <p className="text-xs text-orange-200/80">
         The server fills the form in the browser. The model never sees your
         password.
@@ -233,8 +236,8 @@ function HandOffCard({
 const liveViewSchema = z.object({ url: z.string().nullable() })
 
 /**
- * The thread's desktop in real time, through noVNC. It is view-only, except
- * while the model hands the desktop to the user.
+ * The thread's desktop in real time, through noVNC, at the end of the chat.
+ * It is view-only, except while the model hands the desktop to the user.
  */
 function LiveView({ interactive }: { interactive: boolean }) {
   const [url, setUrl] = useState<string | null>(null)
@@ -266,7 +269,7 @@ function LiveView({ interactive }: { interactive: boolean }) {
   }, [url])
 
   return (
-    <div className="flex w-1/2 flex-col gap-2 border-l border-orange-500/10 p-4">
+    <div className="my-2 flex max-w-2xl flex-col gap-2">
       <p className="text-sm text-gray-400">
         {interactive
           ? 'You have the desktop. Click Done in the chat when you finish.'
@@ -353,8 +356,8 @@ function ChatPage() {
 
   return (
     <div className="flex h-screen bg-gray-900">
-      <div className="flex w-1/2 flex-col">
-        <Messages messages={messages} />
+      <div className="flex w-full flex-col">
+        <Messages messages={messages} handedOff={handedOff} />
 
         {interrupts.map((interrupt) => {
           if (
@@ -374,6 +377,7 @@ function ChatPage() {
               <LoginCard
                 key={interrupt.id}
                 site={interrupt.originalArgs.site}
+                retry={lastSignInFailed(messages)}
                 onAnswer={(approved) => interrupt.resolveInterrupt(approved)}
               />
             )
@@ -430,7 +434,6 @@ function ChatPage() {
           </div>
         </div>
       </div>
-      <LiveView interactive={handedOff} />
     </div>
   )
 }

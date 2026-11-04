@@ -338,8 +338,11 @@ const requestLogin = requestLoginTool.server(async ({ site }, context) => {
     throw new Error(`The sign-in failed: ${result.stderr.trim()}`)
   }
   const page = loginResultSchema.parse(JSON.parse(result.stdout))
+  // A wrong password. The model calls requestLogin again, and the user retries.
   if (page.hasPasswordField) {
-    return `The form was sent, but ${page.url} still shows a password field. The sign-in may have failed. Take a screenshot to check.`
+    throw new Error(
+      `The sign-in failed: ${page.url} still asks for a password. Call requestLogin again, so the user can try again.`,
+    )
   }
   // Save the signed-in profile now. A server that stops skips the idle save.
   await saveComputerSnapshot(sandbox, threadId, snapshots)
@@ -363,6 +366,7 @@ const agent = defineHarness({
   adapter: openaiText('gpt-6.1-sol'),
   systemPrompts: [
     'You use a Linux desktop with Chromium on it. When a page asks you to sign in, call requestLogin with the address of the sign-in page. Never ask for a password in the chat, and never type one.',
+    'When a sign-in fails, call requestLogin again.',
   ],
   tools: [requestLogin],
   plugins: () => [permissions(), computer],
@@ -551,7 +555,7 @@ The model opens the practice page and calls `requestLogin`. Type `tomsmith` and 
 
 ## 8. Watch the desktop and take over
 
-Show the desktop live next to the chat. When the model is stuck, it calls a `handOff` tool, and the user uses the desktop until they click Done.
+Show the desktop live at the end of the chat, in place of the screenshots. When the model is stuck, it calls a `handOff` tool, and the user uses the desktop until they click Done.
 
 1. Add the live view to `sandbox/Dockerfile`. Put `x11vnc novnc python3-websockify` after `ca-certificates` in the `apt-get install` line.
 
@@ -609,7 +613,7 @@ Show the desktop live next to the chat. When the model is stuck, it calls a `han
    export const handOffTool = toolDefinition({
      name: 'handOff',
      description:
-       'Give the desktop to the user, and wait until the user is done. Call it when you are stuck and cannot continue alone: a captcha, a two-factor code, a page that you cannot use, or a choice that only the user can make. Then take a screenshot to see what the user did.',
+       'Give the desktop to the user, and wait until the user is done. Call it when you are stuck and cannot continue alone: a captcha, a two-factor code, a page that you cannot use, or a choice that only the user can make. Do not call it for a sign-in: call requestLogin. Then take a screenshot to see what the user did.',
      needsApproval: true,
      inputSchema: z.object({
        reason: z
@@ -630,7 +634,7 @@ Show the desktop live next to the chat. When the model is stuck, it calls a `han
    tools: [requestLogin, handOff],
    ```
 
-7. In `src/routes/index.tsx`, add `handOffTool.client()` to the `tools` of `useChat`. Then show the live view in an `<iframe>`. Add `&view_only=1` to its address, except while a `handOff` approval waits:
+7. In `src/routes/index.tsx`, add `handOffTool.client()` to the `tools` of `useChat`. Remove the screenshots, and show the live view in an `<iframe>` after the last message. Add `&view_only=1` to its address, except while a `handOff` approval waits:
 
    ```tsx ignore
    const handedOff = interrupts.some(

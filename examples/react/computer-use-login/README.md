@@ -2,7 +2,7 @@
 
 Your agent uses a desktop, and a site asks it for a password. In this app, the model calls `requestLogin`. You type the username and password in a card in the chat. The server fills the form in the browser, and the model never sees the password.
 
-The desktop is a Docker container with Chromium on it. The page shows it live, next to the chat. When the model is stuck, it calls `handOff`, and you use the desktop yourself.
+The desktop is a Docker container with Chromium on it. The chat shows it live, after the last message. When the model is stuck, it calls `handOff`, and you use the desktop yourself.
 
 Each chat thread keeps its own container, so it stays signed in when you come back later. The app also saves the Chromium profile after each sign-in. When the container of a thread is gone, a new container gets the profile back, still signed in.
 
@@ -26,6 +26,8 @@ The model opens a practice sign-in page. When the login card shows, type `tomsmi
 5. The script opens the site in Chromium and checks its origin. It fills the username and the password field, then submits the form. Then it clears every password field.
 6. The tool saves a snapshot of the Chromium profile, with the cookies of the sign-in.
 7. The model gets "Signed in" and the address of the page.
+
+When the password is wrong, the tool fails, and the model calls `requestLogin` again. The card asks you to try again.
 
 The model sees the screen, so Chromium must never show a password. `sandbox/policy.json` turns off the password manager and `javascript:` URLs. Chromium listens for its debugging protocol only inside the container. That port never leaves it.
 

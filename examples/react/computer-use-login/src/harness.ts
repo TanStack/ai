@@ -211,8 +211,12 @@ const requestLogin = requestLoginTool.server(async ({ site }, context) => {
     throw new Error(`The sign-in failed: ${result.stderr.trim()}`)
   }
   const page = loginResultSchema.parse(JSON.parse(result.stdout))
+  // A wrong password. The error brings the login card back, and the card
+  // asks the user to try again.
   if (page.hasPasswordField) {
-    return `The form was sent, but ${page.url} still shows a password field. The sign-in may have failed. Take a screenshot to check.`
+    throw new Error(
+      `The sign-in failed: ${page.url} still asks for a password. Call requestLogin again, so the user can try again.`,
+    )
   }
   // Save the signed-in profile now. A server that stops skips the idle save.
   await saveComputerSnapshot(sandbox, threadId, snapshots)
@@ -237,7 +241,7 @@ const agent = defineHarness({
   adapter: openaiText('gpt-6.1-sol'),
   systemPrompts: [
     'You use a Linux desktop with Chromium on it. When a page asks you to sign in, call requestLogin with the address of the sign-in page. Never ask for a password in the chat, and never type one.',
-    'When you are stuck and cannot continue alone, call handOff. The user then uses the desktop and tells you when they are done.',
+    'When a sign-in fails, call requestLogin again. When you are stuck on anything else and cannot continue alone, call handOff. The user then uses the desktop and tells you when they are done.',
   ],
   tools: [requestLogin, handOff],
   plugins: () => [permissions(), computer],
