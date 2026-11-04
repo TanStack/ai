@@ -31,7 +31,7 @@
     "@tanstack/ai-react": "workspace:*",
     "concurrently": "^9.1.2",
     "dotenv": "^17.2.3",
-    "expo": "~56.0.5",
+    "expo": "~58.0.22",
     "hono": "^4.10.6",
     "react": "^19.2.3",
     "react-native": "0.85.3"
