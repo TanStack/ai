@@ -47,6 +47,6 @@
     "vite": "^8.2.1",
     "vite-plugin-solid": "^2.11.14",
     "vitest": "^4.1.10",
-    "web-vitals": "^5.1.0"
+    "web-vitals": "^6.2.3"
   }
 }
