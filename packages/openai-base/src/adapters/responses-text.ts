@@ -1600,9 +1600,12 @@ export abstract class OpenAIBaseResponsesTextAdapter<
      * `shell_call`, `local_shell_call`, `computer_call`). The first time a call
      * is seen it emits `TOOL_CALL_START`. While the item is `in_progress` its
      * input may be incomplete (an `apply_patch_call` has an empty diff), so
-     * `TOOL_CALL_END` waits until the item has any other status, and then
+     * `TOOL_CALL_END` waits until the item is no longer `in_progress`, and then
      * carries the complete input. An ended call emits nothing.
      */
+    // The END of each user-run call that is still `in_progress`.
+    const unendedUserCalls = new Map<string, AdapterYieldChunk>()
+
     const userToolChunks = (
       item: unknown,
       outputIndex: number,
@@ -1642,16 +1645,21 @@ export abstract class OpenAIBaseResponsesTextAdapter<
           metadata,
         })
       }
-      if (isRecord(item) && item.status === 'in_progress') return chunks
-      tracked.ended = true
-      chunks.push({
+      const end: AdapterYieldChunk = {
         type: EventType.TOOL_CALL_END,
         toolCallId: call.callId,
         toolCallName: call.name,
         model: modelName,
         timestamp,
         input: call.input,
-      })
+      }
+      if (isRecord(item) && item.status === 'in_progress') {
+        unendedUserCalls.set(call.callId, end)
+        return chunks
+      }
+      unendedUserCalls.delete(call.callId)
+      tracked.ended = true
+      chunks.push(end)
       return chunks
     }
 
@@ -2436,6 +2444,19 @@ export abstract class OpenAIBaseResponsesTextAdapter<
             }
             yield* userToolChunks(item, outputIndex, true)
           }
+          // A stateless stream can skip `output_item.done` and send an empty
+          // `output`. End such a call with the last input seen, so no
+          // TOOL_CALL_START is left open.
+          for (const [callId, end] of unendedUserCalls) {
+            options.logger.errors(
+              `${this.name}.processStreamChunks user tool call ${callId} never left in_progress; ending it with its last input`,
+              { source: `${this.name}.processStreamChunks` },
+            )
+            const tracked = toolCallMetadata.get(callId)
+            if (tracked) tracked.ended = true
+            yield end
+          }
+          unendedUserCalls.clear()
 
           yield* closeReasoning()
           // Emit TEXT_MESSAGE_END if we had text content

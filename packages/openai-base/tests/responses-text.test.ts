@@ -4840,6 +4840,60 @@ describe('OpenAIBaseResponsesTextAdapter', () => {
       })
     })
 
+    it('ends an in_progress user tool call when the completed output is empty', async () => {
+      // A stateless stream can skip output_item.done and send an empty output.
+      setupMockResponsesClient([
+        {
+          type: 'response.created',
+          response: {
+            id: 'resp-open',
+            model: 'test-model',
+            status: 'in_progress',
+          },
+        },
+        {
+          type: 'response.output_item.added',
+          output_index: 0,
+          item: {
+            type: 'apply_patch_call',
+            id: 'apc_open',
+            call_id: 'call_open',
+            status: 'in_progress',
+            operation: { type: 'update_file', path: 'lib/fib.py', diff: '' },
+          },
+        },
+        {
+          type: 'response.completed',
+          response: {
+            id: 'resp-open',
+            model: 'test-model',
+            status: 'completed',
+            output: [],
+            usage: { input_tokens: 1, output_tokens: 1, total_tokens: 2 },
+          },
+        },
+      ])
+      const adapter = new TestResponsesAdapter(testConfig, 'test-model')
+      const types: Array<string> = []
+      for await (const chunk of adapter.chatStream({
+        threadId: 'thread-1',
+        logger: testLogger,
+        model: 'test-model',
+        messages: [{ role: 'user', content: 'edit the file' }],
+        tools: [applyPatchTool()],
+      })) {
+        types.push(chunk.type)
+      }
+
+      expect(types.filter((type) => type.startsWith('TOOL_CALL'))).toEqual([
+        'TOOL_CALL_START',
+        'TOOL_CALL_END',
+      ])
+      expect(types.indexOf('TOOL_CALL_END')).toBeLessThan(
+        types.indexOf('RUN_FINISHED'),
+      )
+    })
+
     it('surfaces a local shell call and ignores a hosted container shell', async () => {
       const chunks = await collect([
         {
