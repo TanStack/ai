@@ -1173,10 +1173,10 @@ describe('generation middleware — wiring', () => {
       throw Object.assign(new Error('no output'), { usage })
     })
 
-    it.each([
+    const cases = [
       [
         'generateImage',
-        () =>
+        (mw: GenerationMiddleware) =>
           generateImage({
             adapter: {
               kind: 'image',
@@ -1186,13 +1186,13 @@ describe('generation middleware — wiring', () => {
             } as any,
             prompt: 'a sunset',
             threadId: 'thread-1',
-            middleware: [recorder.middleware],
+            middleware: [mw],
           }),
         'image:usage',
       ],
       [
         'generateSpeech',
-        () =>
+        (mw: GenerationMiddleware) =>
           generateSpeech({
             adapter: {
               kind: 'tts',
@@ -1202,13 +1202,13 @@ describe('generation middleware — wiring', () => {
             } as any,
             text: 'hello',
             threadId: 'thread-1',
-            middleware: [recorder.middleware],
+            middleware: [mw],
           }),
         'speech:usage',
       ],
       [
         'summarize',
-        () =>
+        (mw: GenerationMiddleware) =>
           summarize({
             adapter: {
               kind: 'summarize',
@@ -1218,11 +1218,13 @@ describe('generation middleware — wiring', () => {
             } as any,
             text: 'a long article',
             threadId: 'thread-1',
-            middleware: [recorder.middleware],
+            middleware: [mw],
           }),
         'summarize:usage',
       ],
-    ] as const)(
+    ] as const
+
+    it.each(cases)(
       '%s reports the usage of the thrown error',
       async (_name, run, eventName) => {
         recorder = recordingMiddleware()
@@ -1233,7 +1235,7 @@ describe('generation middleware — wiring', () => {
           { withEventTarget: true },
         )
         try {
-          await expect(run()).rejects.toThrow('no output')
+          await expect(run(recorder.middleware)).rejects.toThrow('no output')
         } finally {
           off()
         }
@@ -1241,6 +1243,45 @@ describe('generation middleware — wiring', () => {
         expect(recorder.events.usage.map((u) => u.info)).toEqual([usage])
         expect(recorder.events.error).toHaveLength(1)
         expect(emitted).toEqual([usage])
+      },
+    )
+
+    it('ignores a usage field on an error that has no token counts', async () => {
+      recorder = recordingMiddleware()
+      await expect(
+        generateImage({
+          adapter: {
+            kind: 'image',
+            name: 'openai',
+            model: 'gpt-image-1',
+            generateImages: async () => {
+              throw Object.assign(new Error('other library'), {
+                usage: { promptTokens: '12' },
+              })
+            },
+          } as any,
+          prompt: 'a sunset',
+          threadId: 'thread-1',
+          middleware: [recorder.middleware],
+        }),
+      ).rejects.toThrow('other library')
+      expect(recorder.events.usage).toHaveLength(0)
+    })
+
+    it.each(cases)(
+      '%s keeps its own error when onUsage throws',
+      async (_name, run) => {
+        const onError = vi.fn()
+        await expect(
+          run({
+            name: 'throws-on-usage',
+            onUsage: () => {
+              throw new Error('onUsage broke')
+            },
+            onError,
+          }),
+        ).rejects.toThrow('no output')
+        expect(onError).toHaveBeenCalledTimes(1)
       },
     )
   })

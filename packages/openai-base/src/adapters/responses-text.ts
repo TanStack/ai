@@ -1138,7 +1138,18 @@ export abstract class OpenAIBaseResponsesTextAdapter<
       }
 
       // The model refused before the stream failed: report the refusal.
-      if (refusal !== undefined) {
+      // A caller abort stays an abort.
+      if (refusal !== undefined && !this.isAbortError(error)) {
+        chatOptions.logger.errors(
+          `${this.name}.structuredOutputStream failed after a refusal`,
+          {
+            error: this.runErrorPayload(
+              error,
+              `${this.name}.structuredOutputStream failed`,
+            ),
+            source: `${this.name}.structuredOutputStream`,
+          },
+        )
         const message = `Model refused: ${refusal}`
         yield {
           type: EventType.RUN_ERROR,
@@ -2651,22 +2662,24 @@ export abstract class OpenAIBaseResponsesTextAdapter<
         }
       }
     } catch (error: unknown) {
-      if (pendingRunError) {
-        yield pendingRunError
-        return
-      }
       // Narrow before logging: raw SDK errors can carry request metadata
       // (including auth headers) which we must never surface to user loggers.
       const errorPayload = this.runErrorPayload(
         error,
         `${this.name}.processStreamChunks failed`,
       )
-      const rawEvent = toRunErrorRawEvent(error)
-      const retryAfterMs = toRetryAfterMs(error)
       options.logger.errors(`${this.name}.processStreamChunks fatal`, {
         error: errorPayload,
         source: `${this.name}.processStreamChunks`,
       })
+      // A held refusal wins over a later stream error. A caller abort stays
+      // an abort.
+      if (pendingRunError && !this.isAbortError(error)) {
+        yield pendingRunError
+        return
+      }
+      const rawEvent = toRunErrorRawEvent(error)
+      const retryAfterMs = toRetryAfterMs(error)
       // Emit AG-UI RUN_ERROR with conditional `code` spread (see chatStream
       // catch for the rationale). `rawEvent` carries the provider's structured
       // error body when present.

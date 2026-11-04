@@ -2532,6 +2532,41 @@ describe('OpenAIBaseResponsesTextAdapter', () => {
       },
     )
 
+    it('reports a caller abort during a held refusal as an abort', async () => {
+      mockResponsesCreate = vi.fn().mockResolvedValue(
+        (async function* () {
+          yield {
+            type: 'response.created',
+            response: { id: 'resp-123', model: 'test-model' },
+          }
+          yield {
+            type: 'response.content_part.done',
+            item_id: 'msg_1',
+            output_index: 0,
+            content_index: 0,
+            part: { type: 'refusal', refusal: 'I cannot help with that' },
+          }
+          throw Object.assign(new Error('Request was aborted.'), {
+            name: 'APIUserAbortError',
+          })
+        })(),
+      )
+      const adapter = new TestResponsesAdapter(testConfig, 'test-model')
+      const chunks: Array<AdapterYieldChunk> = []
+      for await (const chunk of adapter.chatStream({
+        threadId: 'thread-1',
+        logger: testLogger,
+        model: 'test-model',
+        messages: [{ role: 'user', content: 'Hello' }],
+      })) {
+        chunks.push(chunk)
+      }
+
+      const errors = chunks.filter((c) => c.type === 'RUN_ERROR')
+      expect(errors).toHaveLength(1)
+      expect(errors[0]).not.toMatchObject({ code: 'refusal' })
+    })
+
     it('emits RUN_ERROR on error event type', async () => {
       const streamChunks = [
         {

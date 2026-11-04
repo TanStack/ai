@@ -46,7 +46,14 @@ export function readErrorUsage(error: unknown): TokenUsage | undefined {
   if (typeof error !== 'object' || error == null || !('usage' in error)) {
     return undefined
   }
-  return isTanstackUsage(error.usage) ? error.usage : undefined
+  const usage = error.usage
+  // Any library's error can have a `usage` field: take only real counts.
+  return isTanstackUsage(usage) &&
+    typeof usage.promptTokens === 'number' &&
+    typeof usage.completionTokens === 'number' &&
+    typeof usage.totalTokens === 'number'
+    ? usage
+    : undefined
 }
 
 export function toSpecTokenUsage(

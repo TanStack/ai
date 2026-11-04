@@ -1041,6 +1041,34 @@ describe('chat() middleware', () => {
       expect(onUsage).toHaveBeenCalledTimes(1)
       expect(onUsage.mock.calls[0]![1]).toEqual(usage)
     })
+
+    it('should still yield the RUN_ERROR when onUsage throws for it', async () => {
+      const usage = { promptTokens: 10, completionTokens: 5, totalTokens: 15 }
+      const { adapter } = createMockAdapter({
+        iterations: [
+          [ev.runStarted(), { ...ev.runError('max_tokens'), usage }],
+        ],
+      })
+
+      const types: Array<string> = []
+      for await (const chunk of chat({
+        threadId: 'thread-1',
+        adapter,
+        messages: [{ role: 'user', content: 'Hi' }],
+        middleware: [
+          {
+            name: 'test',
+            onUsage: () => {
+              throw new Error('onUsage broke')
+            },
+          },
+        ],
+      }) as AsyncIterable<StreamChunk>) {
+        types.push(chunk.type)
+      }
+
+      expect(types).toContain('RUN_ERROR')
+    })
   })
 
   // ==========================================================================

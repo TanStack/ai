@@ -13,6 +13,7 @@ import { tanstackMetadata } from '../../utilities/merge-metadata'
 import {
   applyGenerationResultTransforms,
   createGenerationContext,
+  runFailedGenerationUsage,
   runGenerationAbort,
   runGenerationError,
   runGenerationFinish,
@@ -351,7 +352,7 @@ async function runSummarize(
         usage,
         timestamp: Date.now(),
       })
-      await runGenerationUsage(middleware, mwCtx, usage)
+      await runFailedGenerationUsage(middleware, mwCtx, usage, logger)
     }
     if (isActivityAbortError(error, abortControls.signal)) {
       await runGenerationAbort(middleware, mwCtx, {

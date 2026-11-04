@@ -192,13 +192,14 @@ export async function* translateOpencodeStream(
       { cost: message.cost ?? ownCost },
     ]
     // The last step-finish part can arrive after `done`. Then the message
-    // tokens stand in for that step.
-    // With no finish reason, the message tokens (the last step's) are the
-    // signal: a recorded part with the same tokens is that step.
+    // tokens (the last step's) stand in for that step. The last recorded
+    // part is that step only when its tokens, and its reason when the
+    // message has one, match: an earlier step can share the reason.
+    const last = own.at(-1)
     const lastStepSeen =
-      message.finish === undefined
-        ? own.some((s) => sameTokens(s.tokens, message.tokens))
-        : own.some((s) => s.reason === message.finish)
+      last !== undefined &&
+      sameTokens(last.tokens, message.tokens) &&
+      (message.finish === undefined || last.reason === message.finish)
     if (!lastStepSeen) steps.push({ tokens: message.tokens })
     for (const step of steps) {
       tokens.input += step.tokens?.input ?? 0

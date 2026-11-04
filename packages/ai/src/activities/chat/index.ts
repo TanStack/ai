@@ -2581,15 +2581,29 @@ class TextEngine<
         : (tanstackMetadata(chunk)?.finishReason ?? null)
   }
 
+  /**
+   * On a failed call, a throwing `onUsage` is logged, so the call's own error
+   * still reaches the consumer.
+   */
   private async runOnUsageFromChunk(
     chunk: RunFinishedEvent | AdapterYieldChunk,
+    failed = chunk.type === EventType.RUN_ERROR,
   ): Promise<void> {
     const rebuilt = rebuildTokenUsage(
       chunk.usage,
       tanstackMetadata(chunk)?.usage,
     )
-    if (rebuilt) {
+    if (!rebuilt) return
+    if (!failed) {
       await this.middlewareRunner.runOnUsage(this.middlewareCtx, rebuilt)
+      return
+    }
+    try {
+      await this.middlewareRunner.runOnUsage(this.middlewareCtx, rebuilt)
+    } catch (error) {
+      this.logger.errors('onUsage middleware threw for a failed call', {
+        error,
+      })
     }
   }
 
@@ -4905,7 +4919,7 @@ class TextEngine<
             raw.usage,
             tanstackMetadata(raw)?.usage,
           )
-          await this.runOnUsageFromChunk(raw)
+          await this.runOnUsageFromChunk(raw, true)
           break
         }
         continue

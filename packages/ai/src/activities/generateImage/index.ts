@@ -12,6 +12,7 @@ import { readErrorUsage } from '../../utilities/ag-ui-usage'
 import {
   applyGenerationResultTransforms,
   createGenerationContext,
+  runFailedGenerationUsage,
   runGenerationAbort,
   runGenerationError,
   runGenerationFinish,
@@ -407,7 +408,7 @@ async function runGenerateImage<
         modelOptions: rest.modelOptions,
         timestamp: Date.now(),
       })
-      await runGenerationUsage(middleware, mwCtx, usage)
+      await runFailedGenerationUsage(middleware, mwCtx, usage, logger)
     }
     if (isActivityAbortError(error, abortControls.signal)) {
       await runGenerationAbort(middleware, mwCtx, {

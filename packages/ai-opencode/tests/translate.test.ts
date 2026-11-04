@@ -352,6 +352,39 @@ describe('translateOpencodeStream', () => {
     })
   })
 
+  it('adds the last step when an earlier step of the message has the same reason', async () => {
+    const chunks = await collect([
+      session,
+      messageUpdated('msg-1', 'assistant'),
+      {
+        kind: 'event',
+        event: {
+          type: 'message.part.updated',
+          properties: {
+            part: {
+              id: 'step-a',
+              sessionID: 'sess-1',
+              messageID: 'msg-1',
+              type: 'step-finish',
+              reason: 'tool-calls',
+              cost: 0.01,
+              tokens: { input: 100, output: 10 },
+            },
+          },
+        },
+      },
+      // The last step also ends with tool-calls, and its part is missing.
+      done({
+        finish: 'tool-calls',
+        tokens: { input: 200, output: 20 },
+        cost: 0.03,
+      }),
+    ])
+    expect(chunks.at(-1)).toMatchObject({
+      usage: { promptTokens: 300, completionTokens: 30, cost: 0.03 },
+    })
+  })
+
   it('adds the last step of a message with no finish when its part is missing', async () => {
     const chunks = await collect([
       session,

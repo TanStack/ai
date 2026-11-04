@@ -128,6 +128,18 @@ function toOpenRouterResponsesToolChoice(
 }
 
 /**
+ * OpenRouter's SDK raises a proprietary `RequestAbortedError` on a caller
+ * abort. It and a DOM `AbortError` map to `code: 'aborted'`.
+ */
+function isOpenRouterAbort(error: unknown): boolean {
+  const name =
+    error && typeof error === 'object'
+      ? (error as { name?: unknown }).name
+      : undefined
+  return name === 'AbortError' || name === 'RequestAbortedError'
+}
+
+/**
  * OpenRouter Responses (beta) Adapter — standalone implementation that talks
  * to OpenRouter's `/v1/responses` (beta) endpoint via the `@openrouter/sdk`
  * SDK.
@@ -794,26 +806,25 @@ export class OpenRouterResponsesTextAdapter<
         }
       }
 
-      // The model refused before the stream failed: report the refusal.
-      if (refusal !== undefined) {
-        yield refusalError(refusal)
-        return
-      }
-
-      // OpenRouter SDK raises a proprietary `RequestAbortedError` on
-      // caller-initiated abort. Map it (plus DOM `AbortError`) to
-      // `code: 'aborted'` so consumers can distinguish abort from a real
-      // upstream failure.
-      const errName =
-        error && typeof error === 'object'
-          ? ((error as { name?: unknown }).name ?? '')
-          : ''
-      const isAbort =
-        errName === 'AbortError' || errName === 'RequestAbortedError'
+      const isAbort = isOpenRouterAbort(error)
       const errorPayload = toOpenRouterRunErrorPayload(
         error,
         `${this.name}.structuredOutputStream failed`,
       )
+
+      // The model refused before the stream failed: report the refusal.
+      // A caller abort stays an abort.
+      if (refusal !== undefined && !isAbort) {
+        chatOptions.logger.errors(
+          `${this.name}.structuredOutputStream failed after a refusal`,
+          {
+            error: errorPayload,
+            source: `${this.name}.structuredOutputStream`,
+          },
+        )
+        yield refusalError(refusal)
+        return
+      }
 
       const resolvedCode = isAbort ? 'aborted' : errorPayload.code
       const rawEvent = isAbort ? undefined : toRunErrorRawEvent(error)
@@ -1774,19 +1785,21 @@ export class OpenRouterResponsesTextAdapter<
         }
       }
     } catch (error: unknown) {
-      if (pendingRunError) {
-        yield pendingRunError
-        return
-      }
       const errorPayload = toOpenRouterRunErrorPayload(
         error,
         `${this.name}.processStreamChunks failed`,
       )
-      const rawEvent = toRunErrorRawEvent(error)
       options.logger.errors(`${this.name}.processStreamChunks fatal`, {
         error: errorPayload,
         source: `${this.name}.processStreamChunks`,
       })
+      // A held refusal wins over a later stream error. A caller abort stays
+      // an abort.
+      if (pendingRunError && !isOpenRouterAbort(error)) {
+        yield pendingRunError
+        return
+      }
+      const rawEvent = toRunErrorRawEvent(error)
       yield {
         type: EventType.RUN_ERROR,
         model: options.model,

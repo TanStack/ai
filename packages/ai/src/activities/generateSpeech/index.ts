@@ -12,6 +12,7 @@ import { readErrorUsage } from '../../utilities/ag-ui-usage'
 import {
   applyGenerationResultTransforms,
   createGenerationContext,
+  runFailedGenerationUsage,
   runGenerationAbort,
   runGenerationError,
   runGenerationFinish,
@@ -411,7 +412,7 @@ async function runGenerateSpeech<
         modelOptions: rest.modelOptions as Record<string, unknown> | undefined,
         timestamp: Date.now(),
       })
-      await runGenerationUsage(middleware, mwCtx, usage)
+      await runFailedGenerationUsage(middleware, mwCtx, usage, logger)
     }
     if (isActivityAbortError(error, abortControls.signal)) {
       await runGenerationAbort(middleware, mwCtx, {
