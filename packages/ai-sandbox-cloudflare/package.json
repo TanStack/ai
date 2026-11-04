@@ -52,7 +52,7 @@
     "test:types": "tsc"
   },
   "dependencies": {
-    "@cloudflare/sandbox": "^0.12.1"
+    "@cloudflare/sandbox": "^1.0.3"
   },
   "peerDependencies": {
     "@tanstack/ai": "workspace:^",

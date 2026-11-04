@@ -13,7 +13,7 @@
     "cf-typegen": "wrangler types"
   },
   "dependencies": {
-    "@cloudflare/sandbox": "^0.12.1",
+    "@cloudflare/sandbox": "^1.0.3",
     "@tanstack/ai": "workspace:*",
     "@tanstack/ai-claude-code": "workspace:*",
     "@tanstack/ai-codex": "workspace:*",
