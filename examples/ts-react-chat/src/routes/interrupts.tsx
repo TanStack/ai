@@ -322,6 +322,33 @@ function InterruptCard({
   if (interrupt.kind === 'unbound') {
     return <UnboundCard interrupt={interrupt} />
   }
+  // A server-only tool (e.g. an MCP tool) with `needsApproval`: untyped args,
+  // so a plain approve/deny.
+  if (interrupt.kind === 'server-tool-approval') {
+    return (
+      <Shell
+        title={interrupt.toolName}
+        subtitle={JSON.stringify(interrupt.originalArgs)}
+        interrupt={interrupt}
+      >
+        <ApproveRejectRow
+          disabled={disabled}
+          onApprove={() => {
+            record(`✅ approved ${interrupt.toolName}`)
+            interrupt.resolveInterrupt(true)
+          }}
+          onReject={() => {
+            record(`❌ rejected ${interrupt.toolName}`)
+            interrupt.resolveInterrupt(false)
+          }}
+          onCancel={() => {
+            record(`✋ cancelled ${interrupt.toolName}`)
+            interrupt.cancel()
+          }}
+        />
+      </Shell>
+    )
+  }
   return (
     <ApprovalCard interrupt={interrupt} disabled={disabled} record={record} />
   )
