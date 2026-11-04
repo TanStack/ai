@@ -438,6 +438,27 @@ describe('embedding adapter', () => {
     ])
   })
 
+  it('splits more than 100 inputs into requests of at most 100', async () => {
+    const { binding, run } = fakeBinding((_model, inputs) => {
+      const text = (inputs as { text: Array<string> }).text
+      if (text.length > 100) throw new Error('too many: maxItems is 100')
+      return { data: text.map((t) => [Number(t)]) }
+    })
+    const adapter = createCloudflareEmbedding('@cf/baai/bge-m3', { binding })
+    const input = Array.from({ length: 250 }, (_, i) => String(i))
+    const result = await adapter.createEmbeddings({
+      model: '@cf/baai/bge-m3',
+      input,
+      logger,
+    })
+    expect(
+      run.mock.calls.map((c) => (c[1] as { text: Array<string> }).text.length),
+    ).toEqual([100, 100, 50])
+    expect(result.embeddings).toHaveLength(250)
+    expect(result.embeddings[0]).toEqual({ vector: [0], index: 0 })
+    expect(result.embeddings[249]).toEqual({ vector: [249], index: 249 })
+  })
+
   it('sends defaultHeaders as extraHeaders', async () => {
     const { binding, run } = fakeBinding(() => ({ data: [[0.1]] }))
     const adapter = createCloudflareEmbedding('@cf/baai/bge-m3', {
