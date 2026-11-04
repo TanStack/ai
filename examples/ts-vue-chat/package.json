@@ -18,7 +18,7 @@
     "@tanstack/ai-ollama": "workspace:*",
     "@tanstack/ai-openai": "workspace:*",
     "@tanstack/ai-vue": "workspace:*",
-    "marked": "^15.0.6",
+    "marked": "^18.1.3",
     "vue": "^3.5.25",
     "vue-router": "^5.4.0",
     "zod": "^4.2.0"

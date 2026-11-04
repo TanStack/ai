@@ -1054,8 +1054,8 @@ importers:
         specifier: ^0.561.0
         version: 0.561.0(react@19.2.3)
       marked:
-        specifier: ^15.0.6
-        version: 15.0.12
+        specifier: ^18.1.3
+        version: 18.1.3
       nitro:
         specifier: 3.0.260610-beta
         version: 3.0.260610-beta(@electric-sql/pglite@0.5.11)(aws4fetch@1.0.20)(better-sqlite3@12.11.1)(chokidar@5.0.0)(dotenv@17.2.3)(drizzle-orm@0.45.4(@electric-sql/pglite@0.5.11)(@opentelemetry/api@1.9.1)(@prisma/client@7.9.0(prisma@7.9.0(@types/react-dom@19.2.3(@types/react@19.2.7))(@types/react@19.2.7)(better-sqlite3@12.11.1)(magicast@0.5.2)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)(typescript@5.9.3))(typescript@5.9.3))(@types/pg@8.23.1)(better-sqlite3@12.11.1)(bun-types@1.3.14)(mysql2@3.15.3)(pg@8.23.1)(postgres@3.4.7)(prisma@7.9.0(@types/react-dom@19.2.3(@types/react@19.2.7))(@types/react@19.2.7)(better-sqlite3@12.11.1)(magicast@0.5.2)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)(typescript@5.9.3)))(giget@2.0.0)(jiti@2.7.0)(lru-cache@11.5.3)(miniflare@4.20260617.1)(mysql2@3.15.3)(rollup@4.60.1)(vite@8.2.1(@types/node@24.10.3)(esbuild@0.28.1)(jiti@2.7.0)(less@4.6.6)(sass@1.101.0)(terser@5.44.1)(tsx@4.23.12)(yaml@2.9.0))(wrangler@4.103.0)
@@ -2027,11 +2027,11 @@ importers:
         specifier: ^0.468.0
         version: 0.468.0(svelte@5.56.9(@typescript-eslint/types@8.59.4))
       marked:
-        specifier: ^15.0.6
-        version: 15.0.12
+        specifier: ^18.1.3
+        version: 18.1.3
       marked-highlight:
         specifier: ^2.2.0
-        version: 2.2.3(marked@15.0.12)
+        version: 2.2.3(marked@18.1.3)
       zod:
         specifier: ^4.2.0
         version: 4.2.1
@@ -2094,8 +2094,8 @@ importers:
         specifier: workspace:*
         version: link:../../packages/ai-vue
       marked:
-        specifier: ^15.0.6
-        version: 15.0.12
+        specifier: ^18.1.3
+        version: 18.1.3
       vue:
         specifier: ^3.5.25
         version: 3.5.25(typescript@5.9.3)
@@ -15770,13 +15770,13 @@ packages:
     peerDependencies:
       marked: '>=4 <18'
 
-  marked@15.0.12:
-    resolution: {integrity: sha512-8dD6FusOQSrpv9Z1rdNMdlSgQOIP880DHqnohobOmYLElGEqAL/JvxvuxZO16r4HtjTlfPRDC1hbvxC9dPN2nA==}
-    engines: {node: '>= 18'}
-    hasBin: true
-
   marked@17.0.1:
     resolution: {integrity: sha512-boeBdiS0ghpWcSwoNm/jJBwdpFaMnZWRzjA6SkUMYb40SVaN1x7mmfGKp0jvexGcx+7y2La5zRZsYFZI6Qpypg==}
+    engines: {node: '>= 20'}
+    hasBin: true
+
+  marked@18.1.3:
+    resolution: {integrity: sha512-9ChMH8EVVgjgID49nsL6IWxWk5c6GtAsq/xw7U1ggkjkU5AGuv68oLTVlFRtvcUYZtpbNyjyvGo3YDu0fGapiw==}
     engines: {node: '>= 20'}
     hasBin: true
 
@@ -33695,13 +33695,13 @@ snapshots:
 
   markdown-table@3.0.4: {}
 
-  marked-highlight@2.2.3(marked@15.0.12):
+  marked-highlight@2.2.3(marked@18.1.3):
     dependencies:
-      marked: 15.0.12
-
-  marked@15.0.12: {}
+      marked: 18.1.3
 
   marked@17.0.1: {}
+
+  marked@18.1.3: {}
 
   marky@1.3.0: {}
 
