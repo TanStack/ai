@@ -30,7 +30,7 @@
     "@tanstack/solid-store": "^0.11.1",
     "@tanstack/store": "^0.11.1",
     "highlight.js": "^11.11.1",
-    "lucide-solid": "^0.554.0",
+    "lucide-solid": "^1.67.0",
     "solid-js": "^1.9.10",
     "solid-markdown": "^2.1.0",
     "tailwindcss": "^4.1.18",

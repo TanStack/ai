@@ -21,7 +21,7 @@
     "@tanstack/ai-openai": "workspace:*",
     "@tanstack/ai-svelte": "workspace:*",
     "highlight.js": "^11.11.1",
-    "lucide-svelte": "^0.468.0",
+    "lucide-svelte": "^1.0.1",
     "marked": "^15.0.6",
     "marked-highlight": "^2.2.0",
     "zod": "^4.2.0"
