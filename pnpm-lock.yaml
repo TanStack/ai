@@ -3325,8 +3325,8 @@ importers:
         specifier: workspace:^
         version: link:../ai-client
       '@tanstack/markdown':
-        specifier: ^0.0.13
-        version: 0.0.13(octane@0.12.1(@tsrx/oxc@0.20.0(svelte@5.56.9(@typescript-eslint/types@8.59.4)))(@typescript-eslint/types@8.59.4)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)(typescript@6.0.3)(vite@8.2.1(@types/node@24.10.3)(esbuild@0.28.1)(jiti@2.7.0)(less@4.6.6)(sass@1.101.0)(terser@5.44.1)(tsx@4.23.12)(yaml@2.9.0)))(react@19.2.3)
+        specifier: ^1.2.0
+        version: 1.2.0(octane@0.12.1(@tsrx/oxc@0.20.0(svelte@5.56.9(@typescript-eslint/types@8.59.4)))(@typescript-eslint/types@8.59.4)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)(typescript@6.0.3)(vite@8.2.1(@types/node@24.10.3)(esbuild@0.28.1)(jiti@2.7.0)(less@4.6.6)(sass@1.101.0)(terser@5.44.1)(tsx@4.23.12)(yaml@2.9.0)))(react@19.2.3)
     devDependencies:
       '@mcp-ui/client':
         specifier: ^7.1.1
@@ -3622,8 +3622,8 @@ importers:
         specifier: workspace:^
         version: link:../ai-client
       '@tanstack/markdown':
-        specifier: ^0.0.13
-        version: 0.0.13(octane@0.12.1(@tsrx/oxc@0.20.0(svelte@5.56.9(@typescript-eslint/types@8.59.4)))(@typescript-eslint/types@8.59.4)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)(typescript@5.9.3)(vite@8.2.1(@types/node@24.10.3)(esbuild@0.28.1)(jiti@2.7.0)(less@4.6.6)(sass@1.101.0)(terser@5.44.1)(tsx@4.23.12)(yaml@2.9.0)))(react@19.2.3)
+        specifier: ^1.2.0
+        version: 1.2.0(octane@0.12.1(@tsrx/oxc@0.20.0(svelte@5.56.9(@typescript-eslint/types@8.59.4)))(@typescript-eslint/types@8.59.4)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)(typescript@5.9.3)(vite@8.2.1(@types/node@24.10.3)(esbuild@0.28.1)(jiti@2.7.0)(less@4.6.6)(sass@1.101.0)(terser@5.44.1)(tsx@4.23.12)(yaml@2.9.0)))(react@19.2.3)
     devDependencies:
       '@solidjs/testing-library':
         specifier: ^0.8.10
@@ -3777,8 +3777,8 @@ importers:
         specifier: workspace:^
         version: link:../ai-client
       '@tanstack/markdown':
-        specifier: ^0.0.13
-        version: 0.0.13(octane@0.12.1(@tsrx/oxc@0.20.0(svelte@5.56.9(@typescript-eslint/types@8.59.4)))(@typescript-eslint/types@8.59.4)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)(typescript@5.9.3)(vite@8.2.1(@types/node@24.10.3)(esbuild@0.28.1)(jiti@2.7.0)(less@4.6.6)(sass@1.101.0)(terser@5.44.1)(tsx@4.23.12)(yaml@2.9.0)))(react@19.2.3)
+        specifier: ^1.2.0
+        version: 1.2.0(octane@0.12.1(@tsrx/oxc@0.20.0(svelte@5.56.9(@typescript-eslint/types@8.59.4)))(@typescript-eslint/types@8.59.4)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)(typescript@5.9.3)(vite@8.2.1(@types/node@24.10.3)(esbuild@0.28.1)(jiti@2.7.0)(less@4.6.6)(sass@1.101.0)(terser@5.44.1)(tsx@4.23.12)(yaml@2.9.0)))(react@19.2.3)
     devDependencies:
       '@standard-schema/spec':
         specifier: ^1.1.0
@@ -11089,8 +11089,8 @@ packages:
     resolution: {integrity: sha512-utTS5L2OkeYUzXGohL1Z8sefu1GLNOJcxe8Hd6iIdc/Xo1K1nDB2JEp4iSFhvYh33xKC9V91TxrS8qfrpoKobQ==}
     engines: {node: '>=20.19'}
 
-  '@tanstack/markdown@0.0.13':
-    resolution: {integrity: sha512-ZSQP2ulBvlPzdpZeRheBJnaELo7e4ET/D/XrfgweHyqhhLMN5vUJJAUl7ufSRd7GlfO/vwdzjKPh0E0JwqJkDA==}
+  '@tanstack/markdown@1.2.0':
+    resolution: {integrity: sha512-8ZaMDLvp7iUuo7R5Ot+yvX/h1ZN8Cq2p38iL+X9uOkIKVFw3IjgP62dXT6+dp/Nk522qsuSDCJNdt2F4fZvVXQ==}
     peerDependencies:
       octane: '>=0.1.12'
       react: '>=18'
@@ -27898,12 +27898,12 @@ snapshots:
 
   '@tanstack/history@1.162.4': {}
 
-  '@tanstack/markdown@0.0.13(octane@0.12.1(@tsrx/oxc@0.20.0(svelte@5.56.9(@typescript-eslint/types@8.59.4)))(@typescript-eslint/types@8.59.4)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)(typescript@5.9.3)(vite@8.2.1(@types/node@24.10.3)(esbuild@0.28.1)(jiti@2.7.0)(less@4.6.6)(sass@1.101.0)(terser@5.44.1)(tsx@4.23.12)(yaml@2.9.0)))(react@19.2.3)':
+  '@tanstack/markdown@1.2.0(octane@0.12.1(@tsrx/oxc@0.20.0(svelte@5.56.9(@typescript-eslint/types@8.59.4)))(@typescript-eslint/types@8.59.4)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)(typescript@5.9.3)(vite@8.2.1(@types/node@24.10.3)(esbuild@0.28.1)(jiti@2.7.0)(less@4.6.6)(sass@1.101.0)(terser@5.44.1)(tsx@4.23.12)(yaml@2.9.0)))(react@19.2.3)':
     optionalDependencies:
       octane: 0.12.1(@tsrx/oxc@0.20.0(svelte@5.56.9(@typescript-eslint/types@8.59.4)))(@typescript-eslint/types@8.59.4)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)(typescript@5.9.3)(vite@8.2.1(@types/node@24.10.3)(esbuild@0.28.1)(jiti@2.7.0)(less@4.6.6)(sass@1.101.0)(terser@5.44.1)(tsx@4.23.12)(yaml@2.9.0))
       react: 19.2.3
 
-  '@tanstack/markdown@0.0.13(octane@0.12.1(@tsrx/oxc@0.20.0(svelte@5.56.9(@typescript-eslint/types@8.59.4)))(@typescript-eslint/types@8.59.4)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)(typescript@6.0.3)(vite@8.2.1(@types/node@24.10.3)(esbuild@0.28.1)(jiti@2.7.0)(less@4.6.6)(sass@1.101.0)(terser@5.44.1)(tsx@4.23.12)(yaml@2.9.0)))(react@19.2.3)':
+  '@tanstack/markdown@1.2.0(octane@0.12.1(@tsrx/oxc@0.20.0(svelte@5.56.9(@typescript-eslint/types@8.59.4)))(@typescript-eslint/types@8.59.4)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)(typescript@6.0.3)(vite@8.2.1(@types/node@24.10.3)(esbuild@0.28.1)(jiti@2.7.0)(less@4.6.6)(sass@1.101.0)(terser@5.44.1)(tsx@4.23.12)(yaml@2.9.0)))(react@19.2.3)':
     optionalDependencies:
       octane: 0.12.1(@tsrx/oxc@0.20.0(svelte@5.56.9(@typescript-eslint/types@8.59.4)))(@typescript-eslint/types@8.59.4)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)(typescript@6.0.3)(vite@8.2.1(@types/node@24.10.3)(esbuild@0.28.1)(jiti@2.7.0)(less@4.6.6)(sass@1.101.0)(terser@5.44.1)(tsx@4.23.12)(yaml@2.9.0))
       react: 19.2.3
