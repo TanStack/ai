@@ -1048,8 +1048,8 @@ importers:
         specifier: ^11.11.1
         version: 11.11.1
       isolated-vm:
-        specifier: ^6.0.2
-        version: 6.1.2
+        specifier: ^7.0.2
+        version: 7.0.2
       lucide-react:
         specifier: ^0.561.0
         version: 0.561.0(react@19.2.3)
@@ -2916,8 +2916,8 @@ importers:
         specifier: workspace:^
         version: link:../ai-code-mode
       isolated-vm:
-        specifier: ^6.0.2
-        version: 6.1.2
+        specifier: ^7.0.2
+        version: 7.0.2
     devDependencies:
       '@vitest/coverage-v8':
         specifier: 4.1.10
@@ -15155,9 +15155,9 @@ packages:
     resolution: {integrity: sha512-WhB9zCku7EGTj/HQQRz5aUQEUeoQZH2bWcltRErOpymJ4boYE6wL9Tbr23krRPSZ+C5zqNSrSw+Cc7sZZ4b7vg==}
     engines: {node: '>=0.10.0'}
 
-  isolated-vm@6.1.2:
-    resolution: {integrity: sha512-GGfsHqtlZiiurZaxB/3kY7LLAXR3sgzDul0fom4cSyBjx6ZbjpTrFWiH3z/nUfLJGJ8PIq9LQmQFiAxu24+I7A==}
-    engines: {node: '>=22.0.0'}
+  isolated-vm@7.0.2:
+    resolution: {integrity: sha512-Z1sYxpptGyGiKblG16EJEdP5x9/68C6AuqFFsewnrxlwSlrTLHKqtRMogOjcYZ0f8/cijMaRi+XwiHVQ1+uG+g==}
+    engines: {node: '>=24.0.0'}
 
   isomorphic-ws@5.0.0:
     resolution: {integrity: sha512-muId7Zzn9ywDsyXgTIafTry2sV3nySZeUDe6YedVd1Hvuuep5AsIlqK+XefWpYTyJG5e503F2xIuT2lcU6rCSw==}
@@ -33045,7 +33045,7 @@ snapshots:
 
   isobject@3.0.1: {}
 
-  isolated-vm@6.1.2:
+  isolated-vm@7.0.2:
     dependencies:
       node-gyp-build: 4.8.4
 
