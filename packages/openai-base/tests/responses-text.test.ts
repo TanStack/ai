@@ -4840,7 +4840,7 @@ describe('OpenAIBaseResponsesTextAdapter', () => {
       })
     })
 
-    it('ends an in_progress user tool call when the completed output is empty', async () => {
+    it('fails the run when a user tool call is still in_progress at completion', async () => {
       // A stateless stream can skip output_item.done and send an empty output.
       setupMockResponsesClient([
         {
@@ -4874,7 +4874,7 @@ describe('OpenAIBaseResponsesTextAdapter', () => {
         },
       ])
       const adapter = new TestResponsesAdapter(testConfig, 'test-model')
-      const types: Array<string> = []
+      const chunks: Array<AdapterYieldChunk> = []
       for await (const chunk of adapter.chatStream({
         threadId: 'thread-1',
         logger: testLogger,
@@ -4882,16 +4882,16 @@ describe('OpenAIBaseResponsesTextAdapter', () => {
         messages: [{ role: 'user', content: 'edit the file' }],
         tools: [applyPatchTool()],
       })) {
-        types.push(chunk.type)
+        chunks.push(chunk)
       }
 
-      expect(types.filter((type) => type.startsWith('TOOL_CALL'))).toEqual([
-        'TOOL_CALL_START',
-        'TOOL_CALL_END',
-      ])
-      expect(types.indexOf('TOOL_CALL_END')).toBeLessThan(
-        types.indexOf('RUN_FINISHED'),
-      )
+      const types = chunks.map((chunk) => chunk.type)
+      expect(types).not.toContain('TOOL_CALL_END')
+      expect(types).not.toContain('RUN_FINISHED')
+      expect(chunks.at(-1)).toMatchObject({
+        type: 'RUN_ERROR',
+        code: 'incomplete-tool-call',
+      })
     })
 
     it('surfaces a local shell call and ignores a hosted container shell', async () => {
