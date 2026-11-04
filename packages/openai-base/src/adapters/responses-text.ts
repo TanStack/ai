@@ -18,7 +18,8 @@ import {
   toRunErrorRawEvent,
   transformMessagesForReplay,
 } from '@tanstack/ai/adapter-internals'
-import { generateId } from '@tanstack/ai-utils'
+import { drainAfterTerminal, generateId } from '@tanstack/ai-utils'
+import { Stream } from 'openai/streaming'
 import { clientFor, extractRequestOptions } from '../utils/request-options'
 import type { Fetch } from '../utils/request-options'
 import {
@@ -855,7 +856,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
         extractRequestOptions(chatOptions.request),
       )
 
-      for await (const chunk of stream) {
+      for await (const chunk of drainResponsesStream(stream)) {
         chatOptions.logger.provider(
           `provider=${this.name} type=${chunk.type}`,
           { provider: this.name, type: chunk.type },
@@ -1661,7 +1662,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
     }
 
     try {
-      for await (const chunk of stream) {
+      for await (const chunk of drainResponsesStream(stream)) {
         options.logger.provider(`provider=${this.name} type=${chunk.type}`, {
           provider: this.name,
           type: chunk.type,
@@ -3400,4 +3401,15 @@ export abstract class OpenAIBaseResponsesTextAdapter<
       .map((p) => p.content)
       .join('')
   }
+}
+
+/** Lets the body end by itself after a terminal event, so a finished call is not logged as a client cancel (#1965). */
+function drainResponsesStream<T extends { type: string }>(
+  stream: AsyncIterable<T>,
+) {
+  return drainAfterTerminal(
+    stream,
+    (event) => event.type,
+    stream instanceof Stream ? () => stream.controller.abort() : undefined,
+  )
 }
