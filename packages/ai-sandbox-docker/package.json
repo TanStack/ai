@@ -44,7 +44,7 @@
     "test:types": "tsc"
   },
   "dependencies": {
-    "dockerode": "^4.0.2"
+    "dockerode": "^5.0.1"
   },
   "peerDependencies": {
     "@tanstack/ai-sandbox": "workspace:^"
