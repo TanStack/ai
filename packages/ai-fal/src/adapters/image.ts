@@ -9,7 +9,7 @@ import { mapSizeToFalFormat } from '../image/image-provider-options'
 import { mapImageInputsToFalFields } from '../image/image-inputs'
 import type { OutputType, Result } from '@fal-ai/client'
 import type { FalClientConfig } from '../utils/client'
-import type { FalClient } from '../client'
+import type { FalClient } from '../client/index'
 import type {
   GeneratedImage,
   ImageGenerationOptions,
@@ -88,6 +88,7 @@ export class FalImageAdapter<TModel extends FalModel> extends BaseImageAdapter<
       )
     }
 
+    let requestId: string | undefined
     try {
       const input = this.buildInput(options, resolved)
       // Pass the abortSignal per request, not in the client config, so it
@@ -95,9 +96,17 @@ export class FalImageAdapter<TModel extends FalModel> extends BaseImageAdapter<
       const result = await this.client.subscribe(this.model, {
         input,
         ...(options.abortSignal ? { abortSignal: options.abortSignal } : {}),
+        onEnqueue: (id) => {
+          requestId = id
+        },
       })
       return this.transformResponse(result)
     } catch (error) {
+      // The SDK stops waiting on abort but leaves the queued job running.
+      // Cancel it so it stops billing.
+      if (requestId && options.abortSignal?.aborted) {
+        this.client.queue.cancel(this.model, { requestId }).catch(() => {})
+      }
       logger.errors('fal.generateImage fatal', {
         error,
         source: 'fal.generateImage',

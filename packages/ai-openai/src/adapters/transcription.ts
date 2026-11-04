@@ -73,6 +73,12 @@ function buildTranscriptionUsage(
 ): TokenUsage | undefined {
   const usage = response?.usage
 
+  // Any model can report duration usage (whisper-1 does on `json`, and
+  // gpt-4o-transcribe-diarize may). Surface the billing data the API returned.
+  if (usage?.type === 'duration') {
+    return durationUsage(usage.seconds)
+  }
+
   // GPT-4o transcription models are billed by token. Surface the token counts
   // and the per-modality input breakdown when present. These models must never
   // fall through to the duration path below — when usage is absent there is no
@@ -81,12 +87,6 @@ function buildTranscriptionUsage(
   if (model.startsWith('gpt-4o')) {
     if (!usage) {
       return undefined
-    }
-
-    // gpt-4o-transcribe-diarize responses may report duration-based usage;
-    // surface it rather than discarding billing data the API returned.
-    if (usage.type === 'duration') {
-      return durationUsage(usage.seconds)
     }
 
     const result: TokenUsage = {
@@ -174,6 +174,7 @@ export class OpenAITranscriptionAdapter<
       if (responseMode === 'diarized') {
         const response = (await this.client.audio.transcriptions.create(
           request,
+          { signal: options.abortSignal },
         )) as OpenAI_SDK.Audio.TranscriptionDiarized
 
         // Guard the cast: a proxy/gateway or API change that returns a
@@ -214,10 +215,10 @@ export class OpenAITranscriptionAdapter<
       }
 
       if (responseMode === 'verbose') {
-        const response = (await this.client.audio.transcriptions.create({
-          ...request,
-          response_format: 'verbose_json',
-        })) as OpenAI_SDK.Audio.Transcriptions.TranscriptionVerbose
+        const response = (await this.client.audio.transcriptions.create(
+          { ...request, response_format: 'verbose_json' },
+          { signal: options.abortSignal },
+        )) as OpenAI_SDK.Audio.Transcriptions.TranscriptionVerbose
 
         // `TranscriptionResult` declares optional fields without `| undefined`,
         // so under exactOptionalPropertyTypes we must omit absent fields rather
@@ -256,7 +257,9 @@ export class OpenAITranscriptionAdapter<
         }
       }
 
-      const response = await this.client.audio.transcriptions.create(request)
+      const response = await this.client.audio.transcriptions.create(request, {
+        signal: options.abortSignal,
+      })
 
       const usage =
         typeof response === 'string'

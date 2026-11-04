@@ -2541,3 +2541,390 @@ describe('OpenRouter responses tool input normalizer — own keys', () => {
     ).toBe('{"keep":null}')
   })
 })
+
+describe('OpenRouter responses adapter — usage on errors', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  const wireUsage = {
+    inputTokens: 10,
+    inputTokensDetails: { cachedTokens: 0 },
+    outputTokens: 50,
+    outputTokensDetails: { reasoningTokens: 42 },
+    totalTokens: 60,
+    cost: 0.002,
+    isByok: true,
+  }
+  const expectedUsage = {
+    promptTokens: 10,
+    completionTokens: 50,
+    totalTokens: 60,
+    completionTokensDetails: { reasoningTokens: 42 },
+    cost: 0.002,
+    providerUsageDetails: { isByok: true },
+  }
+  const structuredOptions = {
+    chatOptions: {
+      threadId: 'thread-1',
+      model: 'openai/gpt-4o-mini' as any,
+      messages: [{ role: 'user' as const, content: 'Return an answer.' }],
+      logger: testLogger,
+    },
+    outputSchema: {
+      type: 'object',
+      properties: { answer: { type: 'string' } },
+      required: ['answer'],
+    },
+  }
+
+  const collect = async (iterable: AsyncIterable<AdapterYieldChunk>) => {
+    const chunks: Array<AdapterYieldChunk> = []
+    for await (const chunk of iterable) chunks.push(chunk)
+    return chunks
+  }
+  const chatChunks = () =>
+    collect(
+      createAdapter().chatStream({
+        threadId: 'thread-1',
+        model: 'openai/gpt-4o-mini' as any,
+        messages: [{ role: 'user', content: 'hi' }],
+        logger: testLogger,
+      }),
+    )
+  const terminalEvent = (
+    type: 'response.incomplete' | 'response.failed',
+  ): Record<string, unknown> => ({
+    type,
+    sequenceNumber: 1,
+    response: {
+      model: 'openai/gpt-4o-mini',
+      output: [],
+      ...(type === 'response.failed'
+        ? { error: { code: 'server_error', message: 'boom' } }
+        : { incompleteDetails: { reason: 'max_output_tokens' } }),
+      usage: wireUsage,
+    },
+  })
+
+  it.each(['response.incomplete', 'response.failed'] as const)(
+    'chatStream reports usage on the RUN_ERROR for %s',
+    async (type) => {
+      setupMockSdkClient([terminalEvent(type)])
+      const chunks = await chatChunks()
+      const terminal = chunks.at(-1)
+      expect(terminal?.type).toBe('RUN_ERROR')
+      expect(terminal).toMatchObject({ usage: expectedUsage })
+    },
+  )
+
+  it.each(['response.incomplete', 'response.failed'] as const)(
+    'structuredOutputStream reports usage on the RUN_ERROR for %s',
+    async (type) => {
+      setupMockSdkClient([terminalEvent(type)])
+      const chunks = await collect(
+        createAdapter().structuredOutputStream(structuredOptions),
+      )
+      const terminal = chunks.at(-1)
+      expect(terminal?.type).toBe('RUN_ERROR')
+      expect(terminal).toMatchObject({ usage: expectedUsage })
+    },
+  )
+
+  it.each([
+    ['empty', '', 'empty-response'],
+    ['malformed', '{"answer":', 'parse-error'],
+  ] as const)(
+    'structuredOutputStream reports usage on the RUN_ERROR when %s',
+    async (_label, text, code) => {
+      setupMockSdkClient([
+        ...(text
+          ? [
+              {
+                type: 'response.output_text.delta',
+                sequenceNumber: 1,
+                itemId: 'msg_1',
+                outputIndex: 0,
+                contentIndex: 0,
+                delta: text,
+              },
+            ]
+          : []),
+        {
+          type: 'response.completed',
+          sequenceNumber: 2,
+          response: {
+            model: 'openai/gpt-4o-mini',
+            output: [],
+            usage: wireUsage,
+          },
+        },
+      ])
+      const chunks = await collect(
+        createAdapter().structuredOutputStream(structuredOptions),
+      )
+      const terminal = chunks.at(-1)
+      expect(terminal).toMatchObject({
+        type: 'RUN_ERROR',
+        code,
+        usage: expectedUsage,
+      })
+      expect(chunks.filter((c) => 'usage' in c)).toHaveLength(1)
+    },
+  )
+
+  it('structuredOutputStream keeps the usage when the stream throws after response.completed', async () => {
+    mockSend = vi.fn().mockResolvedValue({
+      [Symbol.asyncIterator]() {
+        let sent = false
+        return {
+          next() {
+            if (sent) return Promise.resolve({ value: undefined, done: true })
+            sent = true
+            return Promise.resolve({
+              value: {
+                type: 'response.completed',
+                sequenceNumber: 1,
+                response: {
+                  model: 'openai/gpt-4o-mini',
+                  output: [],
+                  usage: wireUsage,
+                },
+              },
+              done: false,
+            })
+          },
+          return() {
+            return Promise.reject(new Error('body cancel failed'))
+          },
+        }
+      },
+    })
+    const chunks = await collect(
+      createAdapter().structuredOutputStream(structuredOptions),
+    )
+    const terminal = chunks.at(-1)
+    expect(terminal?.type).toBe('RUN_ERROR')
+    expect(terminal).toMatchObject({ usage: expectedUsage })
+  })
+
+  it.each([
+    ['incomplete', '{"answer":', 'incomplete', /max_output_tokens/],
+    ['empty', '', 'completed', /no content/],
+    ['malformed', '{"answer":', 'completed', /Failed to parse/],
+  ] as const)(
+    'structuredOutput attaches the response usage to the error when %s',
+    async (_label, text, status, message) => {
+      setupMockSdkClient([], {
+        status,
+        ...(status === 'incomplete' && {
+          incompleteDetails: { reason: 'max_output_tokens' },
+        }),
+        output: [
+          {
+            type: 'message',
+            content: [{ type: 'output_text', text }],
+          },
+        ],
+        usage: wireUsage,
+      })
+      const error = await createAdapter()
+        .structuredOutput(structuredOptions)
+        .then(
+          () => undefined,
+          (e: unknown) => e,
+        )
+      expect(error).toBeInstanceOf(Error)
+      expect((error as Error).message).toMatch(message)
+      expect(error).toMatchObject({ usage: expectedUsage })
+    },
+  )
+
+  it('structuredOutput attaches the response usage to a refusal error', async () => {
+    setupMockSdkClient([], {
+      status: 'completed',
+      output: [
+        {
+          type: 'message',
+          content: [{ type: 'refusal', refusal: 'I cannot help with that.' }],
+        },
+      ],
+      usage: wireUsage,
+    })
+    const error = await createAdapter()
+      .structuredOutput(structuredOptions)
+      .then(
+        () => undefined,
+        (e: unknown) => e,
+      )
+    expect(error).toMatchObject({ code: 'refusal', usage: expectedUsage })
+  })
+
+  it('maps reasoning tokens on a successful structuredOutput', async () => {
+    setupMockSdkClient([], {
+      status: 'completed',
+      output: [
+        {
+          type: 'message',
+          content: [{ type: 'output_text', text: '{"answer":"ok"}' }],
+        },
+      ],
+      usage: wireUsage,
+    })
+    const result = await createAdapter().structuredOutput(structuredOptions)
+    expect(result.usage).toMatchObject(expectedUsage)
+  })
+
+  it('maps reasoning tokens on a raw (UNKNOWN) response.completed event', async () => {
+    setupMockSdkClient([
+      {
+        isUnknown: true,
+        raw: {
+          type: 'response.completed',
+          sequence_number: 1,
+          response: {
+            model: 'openai/gpt-4o-mini',
+            output: [],
+            usage: {
+              input_tokens: 10,
+              output_tokens: 50,
+              output_tokens_details: { reasoning_tokens: 0 },
+              total_tokens: 60,
+            },
+          },
+        },
+      },
+    ])
+    const chunks = await chatChunks()
+    expect(chunks.find((c) => c.type === 'RUN_FINISHED')).toMatchObject({
+      usage: {
+        promptTokens: 10,
+        completionTokens: 50,
+        totalTokens: 60,
+        completionTokensDetails: { reasoningTokens: 0 },
+      },
+    })
+  })
+
+  it('chatStream maps reasoning tokens and omits usage the provider did not send', async () => {
+    setupMockSdkClient([
+      {
+        type: 'response.completed',
+        sequenceNumber: 1,
+        response: { model: 'openai/gpt-4o-mini', output: [], usage: wireUsage },
+      },
+    ])
+    const withUsage = (await chatChunks()).find(
+      (c) => c.type === 'RUN_FINISHED',
+    )
+    expect(withUsage).toMatchObject({ usage: expectedUsage })
+
+    setupMockSdkClient([
+      {
+        type: 'response.completed',
+        sequenceNumber: 1,
+        response: { model: 'openai/gpt-4o-mini', output: [] },
+      },
+    ])
+    const withoutUsage = (await chatChunks()).find(
+      (c) => c.type === 'RUN_FINISHED',
+    )
+    expect(withoutUsage?.type).toBe('RUN_FINISHED')
+    expect(withoutUsage).not.toHaveProperty('usage')
+  })
+})
+
+describe('OpenRouter responses adapter — refusal usage', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  const completed = {
+    type: 'response.completed',
+    sequenceNumber: 3,
+    response: {
+      model: 'openai/gpt-4o-mini',
+      output: [],
+      usage: {
+        inputTokens: 10,
+        outputTokens: 5,
+        totalTokens: 15,
+        cost: 0.001,
+      },
+    },
+  }
+  const collect = async (iterable: AsyncIterable<AdapterYieldChunk>) => {
+    const chunks: Array<AdapterYieldChunk> = []
+    for await (const chunk of iterable) chunks.push(chunk)
+    return chunks
+  }
+
+  it('chatStream reports the usage of response.completed on a refusal', async () => {
+    setupMockSdkClient([
+      {
+        type: 'response.content_part.added',
+        sequenceNumber: 1,
+        outputIndex: 0,
+        contentIndex: 0,
+        itemId: 'msg_1',
+        part: { type: 'refusal', refusal: 'I cannot help with that.' },
+      },
+      completed,
+    ])
+
+    const chunks = await collect(
+      createAdapter().chatStream({
+        threadId: 'thread-1',
+        model: 'openai/gpt-4o-mini' as any,
+        messages: [{ role: 'user', content: 'hi' }],
+        logger: testLogger,
+      }),
+    )
+
+    const terminals = chunks.filter(
+      (c) => c.type === 'RUN_ERROR' || c.type === 'RUN_FINISHED',
+    )
+    expect(terminals).toHaveLength(1)
+    expect(terminals[0]).toMatchObject({
+      type: 'RUN_ERROR',
+      code: 'refusal',
+      message: 'I cannot help with that.',
+      usage: { promptTokens: 10, completionTokens: 5, cost: 0.001 },
+    })
+  })
+
+  it('structuredOutputStream reports the usage of response.completed on a refusal', async () => {
+    setupMockSdkClient([
+      { type: 'response.refusal.delta', sequenceNumber: 1, delta: 'I cannot ' },
+      { type: 'response.refusal.delta', sequenceNumber: 2, delta: 'help.' },
+      completed,
+    ])
+
+    const chunks = await collect(
+      createAdapter().structuredOutputStream!({
+        chatOptions: {
+          threadId: 'thread-1',
+          model: 'openai/gpt-4o-mini' as any,
+          messages: [{ role: 'user', content: 'Return an answer.' }],
+          logger: testLogger,
+        },
+        outputSchema: {
+          type: 'object',
+          properties: { answer: { type: 'string' } },
+          required: ['answer'],
+        },
+      }),
+    )
+
+    const terminals = chunks.filter(
+      (c) => c.type === 'RUN_ERROR' || c.type === 'RUN_FINISHED',
+    )
+    expect(terminals).toHaveLength(1)
+    expect(terminals[0]).toMatchObject({
+      type: 'RUN_ERROR',
+      code: 'refusal',
+      message: 'Model refused: I cannot help.',
+      usage: { promptTokens: 10, completionTokens: 5, cost: 0.001 },
+    })
+  })
+})

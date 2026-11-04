@@ -6,7 +6,7 @@ import { createAdapterFalClient } from '../utils/client'
 import type { StorageSettings } from '@fal-ai/client'
 import type { FileHandle, FileUploadInput } from '@tanstack/ai/adapters'
 import type { FalClientConfig } from '../utils/client'
-import type { FalClient } from '../client'
+import type { FalClient } from '../client/index'
 
 export interface FalFilesConfig extends FalClientConfig {
   /**

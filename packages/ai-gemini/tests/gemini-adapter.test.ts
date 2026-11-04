@@ -239,7 +239,12 @@ describe('GeminiAdapter through AI', () => {
 
     expect(mocks.generateContentStreamSpy).toHaveBeenCalledTimes(1)
     const [payload] = mocks.generateContentStreamSpy.mock.calls[0]!
-    expect(payload.config.abortSignal).toBe(abortController.signal)
+    // chat() links the caller signal with middleware ctx.abort(), so the SDK
+    // gets a linked signal that aborts with the caller.
+    const sdkSignal: AbortSignal = payload.config.abortSignal
+    expect(sdkSignal.aborted).toBe(false)
+    abortController.abort()
+    expect(sdkSignal.aborted).toBe(true)
   })
 
   it('omits config.abortSignal when no abort controller is supplied', async () => {
@@ -2114,5 +2119,213 @@ describe('Gemini adapter error handling', () => {
   it('does not set it on another bad request', async () => {
     const runError = await runErrorFor(400, 'Invalid JSON payload received.')
     expect(runError).not.toHaveProperty('code')
+  })
+})
+
+describe('Gemini adapter usage on error paths', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  const usageMetadata = {
+    promptTokenCount: 5,
+    candidatesTokenCount: 3,
+    totalTokenCount: 8,
+  }
+  const expectedUsage = { promptTokens: 5, completionTokens: 3, totalTokens: 8 }
+  const chatOptions = {
+    threadId: 'thread-1',
+    model: 'gemini-2.5-pro' as const,
+    messages: [{ role: 'user' as const, content: 'hi' }],
+    logger: testLogger,
+  }
+
+  it('puts usage on the max_tokens RUN_ERROR and sends no RUN_FINISHED after it', async () => {
+    mocks.generateContentStreamSpy.mockResolvedValue(
+      createStream([
+        {
+          candidates: [
+            {
+              content: { parts: [{ text: 'cut' }] },
+              finishReason: 'MAX_TOKENS',
+            },
+          ],
+          usageMetadata,
+        },
+      ]),
+    )
+
+    const chunks = await collectChunks(
+      createTextAdapter().chatStream(chatOptions),
+    )
+
+    expect(runErrorEvent(chunks)).toMatchObject({
+      code: 'max_tokens',
+      usage: expectedUsage,
+    })
+    expect(chunks.some((c) => c.type === EventType.RUN_FINISHED)).toBe(false)
+  })
+
+  it('ends a blocked prompt with a RUN_ERROR that carries usage', async () => {
+    mocks.generateContentStreamSpy.mockResolvedValue(
+      createStream([
+        { promptFeedback: { blockReason: 'SAFETY' }, usageMetadata },
+      ]),
+    )
+
+    const chunks = await collectChunks(
+      createTextAdapter().chatStream(chatOptions),
+    )
+
+    const runError = runErrorEvent(chunks)
+    expect(runError).toMatchObject({ code: 'SAFETY', usage: expectedUsage })
+    expect(runError?.type === EventType.RUN_ERROR && runError.message).toMatch(
+      /blocked the prompt/,
+    )
+  })
+
+  it('keeps the usage seen before a mid-stream throw on the RUN_ERROR', async () => {
+    mocks.generateContentStreamSpy.mockResolvedValue(
+      (async function* () {
+        yield {
+          candidates: [{ content: { parts: [{ text: 'partial' }] } }],
+          usageMetadata,
+        }
+        throw new Error('socket closed')
+      })(),
+    )
+
+    const chunks = await collectChunks(
+      createTextAdapter().chatStream(chatOptions),
+    )
+
+    expect(runErrorEvent(chunks)).toMatchObject({
+      message: 'socket closed',
+      usage: expectedUsage,
+    })
+  })
+
+  it('does not report the usage again when the stream throws after RUN_FINISHED', async () => {
+    mocks.generateContentStreamSpy.mockResolvedValue(
+      (async function* () {
+        yield {
+          candidates: [
+            { content: { parts: [{ text: 'done' }] }, finishReason: 'STOP' },
+          ],
+          usageMetadata,
+        }
+        throw new Error('socket closed')
+      })(),
+    )
+
+    const chunks = await collectChunks(
+      createTextAdapter().chatStream(chatOptions),
+    )
+
+    const finished = chunks.find((c) => c.type === 'RUN_FINISHED')
+    expect(finished).toMatchObject({ usage: expectedUsage })
+    expect(runErrorEvent(chunks)).not.toHaveProperty('usage')
+  })
+
+  it('reports the last usage seen when the finish chunk has none', async () => {
+    mocks.generateContentStreamSpy.mockResolvedValue(
+      createStream([
+        {
+          candidates: [{ content: { parts: [{ text: 'partial' }] } }],
+          usageMetadata,
+        },
+        {
+          candidates: [
+            { content: { parts: [{ text: ' end' }] }, finishReason: 'STOP' },
+          ],
+        },
+      ]),
+    )
+
+    const chunks = await collectChunks(
+      createTextAdapter().chatStream(chatOptions),
+    )
+
+    expect(chunks.find((c) => c.type === 'RUN_FINISHED')).toMatchObject({
+      usage: expectedUsage,
+    })
+  })
+
+  it('reports the structured stream usage once when the stream throws after MAX_TOKENS', async () => {
+    mocks.generateContentStreamSpy.mockResolvedValue(
+      (async function* () {
+        yield {
+          candidates: [
+            {
+              content: { parts: [{ text: '{"name":' }] },
+              finishReason: 'MAX_TOKENS',
+            },
+          ],
+          usageMetadata,
+        }
+        throw new Error('socket closed')
+      })(),
+    )
+
+    const events = await collectChunks(
+      createTextAdapter().structuredOutputStream({
+        chatOptions,
+        outputSchema: cityJsonSchema,
+      }),
+    )
+
+    const withUsage = events.filter(
+      (c) => c.type === 'RUN_ERROR' && 'usage' in c && c.usage,
+    )
+    expect(withUsage).toHaveLength(1)
+    expect(withUsage[0]).toMatchObject({ code: 'max_tokens' })
+  })
+
+  it('keeps the usage on empty-response and parse-error structured stream errors', async () => {
+    for (const [text, code] of [
+      ['', 'empty-response'],
+      ['{not json', 'parse-error'],
+    ] as const) {
+      mocks.generateContentStreamSpy.mockResolvedValueOnce(
+        createStream([
+          {
+            candidates: [
+              {
+                content: { parts: text ? [{ text }] : [] },
+                finishReason: 'STOP',
+              },
+            ],
+            usageMetadata,
+          },
+        ]),
+      )
+      const events = await collectChunks(
+        createTextAdapter().structuredOutputStream({
+          chatOptions,
+          outputSchema: cityJsonSchema,
+        }),
+      )
+      expect(runErrorEvent(events)).toMatchObject({
+        code,
+        usage: expectedUsage,
+      })
+    }
+  })
+
+  it('attaches usage to the errors structuredOutput throws after a response', async () => {
+    for (const [text, finishReason] of [
+      ['{"city":', 'MAX_TOKENS'],
+      ['{not json', 'STOP'],
+    ]) {
+      mocks.generateContentSpy.mockResolvedValueOnce({
+        candidates: [{ content: { parts: [{ text }] }, finishReason }],
+        usageMetadata,
+      })
+      const error = await createTextAdapter()
+        .structuredOutput({ chatOptions, outputSchema: cityJsonSchema })
+        .catch((e: unknown) => e)
+      expect(error).toBeInstanceOf(Error)
+      expect(error).toMatchObject({ usage: expectedUsage })
+    }
   })
 })

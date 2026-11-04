@@ -148,6 +148,40 @@ describe('OpenRouter Image Adapter', () => {
     })
   })
 
+  it('attaches the usage to the error when the response has no images', async () => {
+    mockSend = vi.fn().mockResolvedValueOnce({
+      ...createMockImageResponse([]),
+      usage: {
+        promptTokens: 7,
+        completionTokens: 13,
+        totalTokens: 20,
+        cost: 0.001,
+      },
+    })
+
+    const error = await createAdapter()
+      .generateImages({
+        model: 'google/gemini-2.5-flash-image',
+        prompt: 'A futuristic city at sunset',
+        logger: testLogger,
+      })
+      .then(
+        () => undefined,
+        (e: unknown) => e,
+      )
+
+    expect(error).toBeInstanceOf(Error)
+    expect((error as Error).message).toMatch(/no images/)
+    expect(error).toMatchObject({
+      usage: {
+        promptTokens: 7,
+        completionTokens: 13,
+        totalTokens: 20,
+        cost: 0.001,
+      },
+    })
+  })
+
   it('throws for numberOfImages > 1 (the pathway returns exactly one image)', async () => {
     mockSend = vi.fn()
 

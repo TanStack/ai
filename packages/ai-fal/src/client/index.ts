@@ -23,7 +23,7 @@ export interface FalClientOptions {
  * client also fits this type.
  */
 export type FalClient = Pick<SdkFalClient, 'subscribe'> & {
-  queue: Pick<QueueClient, 'submit' | 'status' | 'result'>
+  queue: Pick<QueueClient, 'submit' | 'status' | 'result' | 'cancel'>
   storage: Pick<StorageClient, 'upload'>
 }
 
@@ -307,7 +307,7 @@ export function createFalClient(options: FalClientOptions) {
   }
 
   async function send(
-    method: 'GET' | 'POST',
+    method: 'GET' | 'POST' | 'PUT',
     url: string,
     { body, headers, signal, retry = DEFAULT_RETRY }: SendOptions = {},
   ) {
@@ -422,6 +422,13 @@ export function createFalClient(options: FalClientOptions) {
         requestId: response.headers.get('x-fal-request-id') || '',
       }
     },
+    async cancel(endpointId, { requestId, abortSignal }) {
+      const url = queueUrl(
+        queueAppId(endpointId),
+        `/requests/${requestId}/cancel`,
+      )
+      await send('PUT', url, { signal: abortSignal })
+    },
   }
 
   const client: FalClient = {
@@ -432,7 +439,8 @@ export function createFalClient(options: FalClientOptions) {
         endpointId,
         subscribeOptions,
       )
-      const { abortSignal, logs } = subscribeOptions
+      const { abortSignal, logs, onEnqueue } = subscribeOptions
+      onEnqueue?.(requestId)
       // Same as the SDK: poll right away, then every 500 ms until COMPLETED.
       while (
         (await queue.status(endpointId, { requestId, logs, abortSignal }))

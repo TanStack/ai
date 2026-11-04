@@ -1,7 +1,7 @@
 import { BaseTranscriptionAdapter } from '@tanstack/ai/adapters'
 import { dataUrlToBlob, generateId } from '../utils/client'
-import { createElevenLabsClient } from '../client'
-import type { ElevenLabsClient } from '../client'
+import { createElevenLabsClient } from '../client/index'
+import type { ElevenLabsClient } from '../client/index'
 import type {
   TranscriptionOptions,
   TranscriptionResult,
@@ -98,53 +98,56 @@ export class ElevenLabsTranscriptionAdapter<
       const modelOpts = options.modelOptions ?? {}
       const audioInput = normalizeAudioInput(options.audio)
 
-      const response = await this.client.speechToText.convert({
-        modelId: this.model,
-        ...(audioInput.kind === 'file'
-          ? { file: audioInput.value }
-          : { cloudStorageUrl: audioInput.value }),
-        ...(options.language ? { languageCode: options.language } : {}),
-        ...(modelOpts.tagAudioEvents != null
-          ? { tagAudioEvents: modelOpts.tagAudioEvents }
-          : {}),
-        ...(modelOpts.numSpeakers != null
-          ? { numSpeakers: modelOpts.numSpeakers }
-          : {}),
-        ...(modelOpts.timestampsGranularity
-          ? { timestampsGranularity: modelOpts.timestampsGranularity }
-          : {}),
-        ...(modelOpts.diarize != null ? { diarize: modelOpts.diarize } : {}),
-        ...(modelOpts.diarizationThreshold != null
-          ? { diarizationThreshold: modelOpts.diarizationThreshold }
-          : {}),
-        ...(modelOpts.detectSpeakerRoles != null
-          ? { detectSpeakerRoles: modelOpts.detectSpeakerRoles }
-          : {}),
-        ...(modelOpts.keyterms ? { keyterms: modelOpts.keyterms } : {}),
-        ...(modelOpts.entityDetection
-          ? { entityDetection: modelOpts.entityDetection }
-          : {}),
-        ...(modelOpts.entityRedaction
-          ? { entityRedaction: modelOpts.entityRedaction }
-          : {}),
-        ...(modelOpts.entityRedactionMode
-          ? { entityRedactionMode: modelOpts.entityRedactionMode }
-          : {}),
-        ...(modelOpts.noVerbatim != null
-          ? { noVerbatim: modelOpts.noVerbatim }
-          : {}),
-        ...(modelOpts.temperature != null
-          ? { temperature: modelOpts.temperature }
-          : {}),
-        ...(modelOpts.seed != null ? { seed: modelOpts.seed } : {}),
-        ...(modelOpts.enableLogging != null
-          ? { enableLogging: modelOpts.enableLogging }
-          : {}),
-        ...(modelOpts.useMultiChannel != null
-          ? { useMultiChannel: modelOpts.useMultiChannel }
-          : {}),
-        ...(modelOpts.fileFormat ? { fileFormat: modelOpts.fileFormat } : {}),
-      } as Parameters<ElevenLabsClient['speechToText']['convert']>[0])
+      const response = await this.client.speechToText.convert(
+        {
+          modelId: this.model,
+          ...(audioInput.kind === 'file'
+            ? { file: audioInput.value }
+            : { cloudStorageUrl: audioInput.value }),
+          ...(options.language ? { languageCode: options.language } : {}),
+          ...(modelOpts.tagAudioEvents != null
+            ? { tagAudioEvents: modelOpts.tagAudioEvents }
+            : {}),
+          ...(modelOpts.numSpeakers != null
+            ? { numSpeakers: modelOpts.numSpeakers }
+            : {}),
+          ...(modelOpts.timestampsGranularity
+            ? { timestampsGranularity: modelOpts.timestampsGranularity }
+            : {}),
+          ...(modelOpts.diarize != null ? { diarize: modelOpts.diarize } : {}),
+          ...(modelOpts.diarizationThreshold != null
+            ? { diarizationThreshold: modelOpts.diarizationThreshold }
+            : {}),
+          ...(modelOpts.detectSpeakerRoles != null
+            ? { detectSpeakerRoles: modelOpts.detectSpeakerRoles }
+            : {}),
+          ...(modelOpts.keyterms ? { keyterms: modelOpts.keyterms } : {}),
+          ...(modelOpts.entityDetection
+            ? { entityDetection: modelOpts.entityDetection }
+            : {}),
+          ...(modelOpts.entityRedaction
+            ? { entityRedaction: modelOpts.entityRedaction }
+            : {}),
+          ...(modelOpts.entityRedactionMode
+            ? { entityRedactionMode: modelOpts.entityRedactionMode }
+            : {}),
+          ...(modelOpts.noVerbatim != null
+            ? { noVerbatim: modelOpts.noVerbatim }
+            : {}),
+          ...(modelOpts.temperature != null
+            ? { temperature: modelOpts.temperature }
+            : {}),
+          ...(modelOpts.seed != null ? { seed: modelOpts.seed } : {}),
+          ...(modelOpts.enableLogging != null
+            ? { enableLogging: modelOpts.enableLogging }
+            : {}),
+          ...(modelOpts.useMultiChannel != null
+            ? { useMultiChannel: modelOpts.useMultiChannel }
+            : {}),
+          ...(modelOpts.fileFormat ? { fileFormat: modelOpts.fileFormat } : {}),
+        } as Parameters<ElevenLabsClient['speechToText']['convert']>[0],
+        options.abortSignal ? { abortSignal: options.abortSignal } : {},
+      )
 
       return this.transformResponse(response)
     } catch (error) {

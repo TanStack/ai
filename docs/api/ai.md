@@ -454,6 +454,7 @@ console.log(result.queue.value, result.urgency.value, result.refund.value);
 | `state` | Required. The content that every question judges: a string, an object, or an array. An array is one state, not a batch. |
 | `questions` | Required. A map of `choice`, `score`, and `boolean` questions. The key `meta` is reserved. |
 | `abortSignal` | Cancels the request. |
+| `timeout` | Stops the request after this many milliseconds. |
 | `modelOptions` | Provider options. |
 | `middleware` | Observe-only generation middleware. |
 | `debug` | Debug logging. |

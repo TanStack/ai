@@ -214,6 +214,27 @@ describe('Chat Completions completion policy with the real SDK', () => {
     expect(result.onFinish).not.toHaveBeenCalled()
   })
 
+  it.each([
+    ['incomplete stream', [{ ...textChunk, usage }]],
+    [
+      'unknown finish_reason',
+      [
+        textChunk,
+        {
+          ...envelope,
+          choices: [{ index: 0, delta: {}, finish_reason: 'error' }],
+        },
+        usageChunk,
+      ],
+    ],
+  ])('keeps received usage on the RUN_ERROR (%s)', async (_name, chunks) => {
+    const result = await observe(chunks)
+    expect(result.events.at(-1)).toMatchObject({
+      type: 'RUN_ERROR',
+      usage: { promptTokens: 10, completionTokens: 2, totalTokens: 12 },
+    })
+  })
+
   it('keeps content_filter as a finished run', async () => {
     const result = await observe([
       textChunk,

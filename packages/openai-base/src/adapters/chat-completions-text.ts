@@ -201,6 +201,7 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
     options: TextOptions,
     aguiState: ChatStreamState,
     source: 'chatStream' | 'processStreamChunks',
+    usage?: TokenUsage,
   ): AsyncIterable<AdapterYieldChunk> {
     // Narrow before logging: raw SDK errors can carry request metadata
     // (including auth headers) which we must never surface to user loggers.
@@ -294,6 +295,7 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
         message: errorPayload.message,
         ...(errorPayload.code !== undefined && { code: errorPayload.code }),
       },
+      ...(usage && { usage }),
     }
   }
 
@@ -369,21 +371,30 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
       // root cause (the model returned no content for the structured request)
       // is then visible in logs.
       const choice = response.choices[0]
+      // Attached to the thrown errors below, so a failed call still reports
+      // the tokens it used.
+      const usage = this.chatCompletionsTokenUsage(response.usage, response)
 
       // A response cut off at the output cap is a truncated JSON document —
       // or, for reasoning models, no content at all once the budget went to
       // reasoning. Report it as truncation before the empty-content and
       // parse errors, which would read like a schema failure (issue #1426).
       if (choice?.finish_reason === 'length') {
-        throw new Error(
-          `${this.name}.structuredOutput: the response was cut off because the maximum token limit was reached (finish_reason=length); raise the output token limit (max_completion_tokens or max_tokens, depending on the provider)`,
+        throw Object.assign(
+          new Error(
+            `${this.name}.structuredOutput: the response was cut off because the maximum token limit was reached (finish_reason=length); raise the output token limit (max_completion_tokens or max_tokens, depending on the provider)`,
+          ),
+          { usage },
         )
       }
 
       const rawText = choice?.message.content
       if (typeof rawText !== 'string' || rawText.length === 0) {
-        throw new Error(
-          `${this.name}.structuredOutput: response contained no content`,
+        throw Object.assign(
+          new Error(
+            `${this.name}.structuredOutput: response contained no content`,
+          ),
+          { usage },
         )
       }
 
@@ -392,8 +403,11 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
       try {
         parsed = JSON.parse(rawText)
       } catch {
-        throw new Error(
-          `Failed to parse structured output as JSON. Content: ${rawText.slice(0, 200)}${rawText.length > 200 ? '...' : ''}`,
+        throw Object.assign(
+          new Error(
+            `Failed to parse structured output as JSON. Content: ${rawText.slice(0, 200)}${rawText.length > 200 ? '...' : ''}`,
+          ),
+          { usage },
         )
       }
 
@@ -403,7 +417,6 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
 
       // Surface usage so non-stream structured paths (and
       // fallbackStructuredOutputStream) can forward tokens to middleware.
-      const usage = this.chatCompletionsTokenUsage(response.usage, response)
       return {
         data: transformed,
         rawText,
@@ -459,10 +472,7 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
     let lastModel: string | undefined
     let lastResponseId: string | undefined
     let finishReason: string | null = null
-    let lastUsage:
-      | OpenAI.Chat.Completions.ChatCompletionChunk['usage']
-      | undefined
-    let lastUsageSource: unknown
+    let lastUsage: TokenUsage | undefined
 
     const closeReasoningLifecycle = function* (this: {
       name: string
@@ -535,8 +545,7 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
           chunk.usage ??
           (chunk as { x_groq?: { usage?: typeof chunk.usage } }).x_groq?.usage
         if (usage) {
-          lastUsage = usage
-          lastUsageSource = chunk
+          lastUsage = this.chatCompletionsTokenUsage(usage, chunk)
         }
 
         if (!aguiState.hasEmittedRunStarted) {
@@ -640,6 +649,7 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
           message,
           code: 'max_tokens',
           error: { message, code: 'max_tokens' },
+          ...(lastUsage && { usage: lastUsage }),
         }
         return
       }
@@ -657,6 +667,7 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
             message: `${this.name}.structuredOutputStream: response contained no content`,
             code: 'empty-response',
           },
+          ...(lastUsage && { usage: lastUsage }),
         }
         return
       }
@@ -677,6 +688,7 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
             message: 'Failed to parse structured output as JSON',
             code: 'parse-error',
           },
+          ...(lastUsage && { usage: lastUsage }),
         }
         return
       }
@@ -703,9 +715,7 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
         model: lastModel || chatOptions.model,
         timestamp: Date.now(),
         finishReason: 'stop',
-        ...(lastUsage && {
-          usage: this.chatCompletionsTokenUsage(lastUsage, lastUsageSource),
-        }),
+        ...(lastUsage && { usage: lastUsage }),
       }
     } catch (error: unknown) {
       if (!aguiState.hasEmittedRunStarted) {
@@ -748,6 +758,7 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
           message: errorPayload.message,
           ...(resolvedCode !== undefined && { code: resolvedCode }),
         },
+        ...(lastUsage && { usage: lastUsage }),
       }
 
       chatOptions.logger.errors(`${this.name}.structuredOutputStream fatal`, {
@@ -924,8 +935,7 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
     // earlier `finish_reason` chunk does NOT include token counts. We must
     // therefore defer RUN_FINISHED until the iterator is exhausted so we can
     // pick up usage from the trailing chunk regardless of arrival order.
-    let lastUsage: ChatCompletionChunk['usage'] | undefined
-    let lastUsageSource: unknown
+    let lastUsage: TokenUsage | undefined
     let endsWithUsageOnlyChunk = false
     let pendingFinishReason:
       | ChatCompletionChunk['choices'][number]['finish_reason']
@@ -969,8 +979,7 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
         // Capture usage from any chunk (including the terminal usage-only
         // chunk emitted when `stream_options.include_usage` is on).
         if (chunk.usage) {
-          lastUsage = chunk.usage
-          lastUsageSource = chunk
+          lastUsage = this.chatCompletionsTokenUsage(chunk.usage, chunk)
         }
         if (chunk.id) lastResponseId = chunk.id
         if (chunk.model) {
@@ -1354,6 +1363,7 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
             message,
             code: 'incomplete-stream',
             error: { message, code: 'incomplete-stream' },
+            ...(lastUsage && { usage: lastUsage }),
           }
           return
         }
@@ -1378,6 +1388,7 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
             timestamp: Date.now(),
             message,
             error: { message },
+            ...(lastUsage && { usage: lastUsage }),
           }
           return
         }
@@ -1415,9 +1426,7 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
           threadId: aguiState.threadId,
           model: lastModel || options.model,
           timestamp: Date.now(),
-          ...(lastUsage && {
-            usage: this.chatCompletionsTokenUsage(lastUsage, lastUsageSource),
-          }),
+          ...(lastUsage && { usage: lastUsage }),
           finishReason,
         }
       }
@@ -1427,6 +1436,7 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
         options,
         aguiState,
         'processStreamChunks',
+        lastUsage,
       )
     }
   }

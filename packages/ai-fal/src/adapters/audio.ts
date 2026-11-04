@@ -11,7 +11,7 @@ import type {
   AudioGenerationResult,
 } from '@tanstack/ai'
 import type { FalClientConfig } from '../utils/client'
-import type { FalClient } from '../client'
+import type { FalClient } from '../client/index'
 import type { FalModel, FalModelInput } from '../model-meta'
 
 /**
@@ -83,15 +83,24 @@ export class FalAudioAdapter<TModel extends FalModel> extends BaseAudioAdapter<
       provider: 'fal',
       model: this.model,
     })
+    let requestId: string | undefined
     try {
       const input = this.buildInput(options)
       // Pass the abortSignal per request, not in the client config.
       const result = await this.client.subscribe(this.model, {
         input,
         ...(options.abortSignal ? { abortSignal: options.abortSignal } : {}),
+        onEnqueue: (id) => {
+          requestId = id
+        },
       })
       return this.transformResponse(result)
     } catch (error) {
+      // The SDK stops waiting on abort but leaves the queued job running.
+      // Cancel it so it stops billing.
+      if (requestId && options.abortSignal?.aborted) {
+        this.client.queue.cancel(this.model, { requestId }).catch(() => {})
+      }
       logger.errors('fal.generateAudio fatal', {
         error,
         source: 'fal.generateAudio',

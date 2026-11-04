@@ -542,6 +542,26 @@ describe('translateThreadEvents', () => {
     })
   })
 
+  it('puts the turn usage on the parse-failure RUN_ERROR and ends there', async () => {
+    const chunks = await collect(
+      [
+        started,
+        {
+          type: 'item.completed',
+          item: { id: 'item-1', type: 'agent_message', text: 'not json' },
+        },
+        completedTurn,
+      ],
+      makeCtx({ expectStructuredOutput: true }),
+    )
+    expect(chunks.at(-1)).toMatchObject({
+      type: 'RUN_ERROR',
+      code: 'structured-output-parse-failed',
+      usage: { promptTokens: 100, completionTokens: 20, totalTokens: 120 },
+    })
+    expect(chunks.some((c) => c.type === 'RUN_FINISHED')).toBe(false)
+  })
+
   it('parses fenced JSON from the last agent_message', async () => {
     const chunks = await collect(
       [

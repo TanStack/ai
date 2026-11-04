@@ -1,14 +1,14 @@
 import { BaseEmbeddingAdapter } from '@tanstack/ai/adapters'
 import { toRunErrorPayload } from '@tanstack/ai/adapter-internals'
 import { requireTextOnlyEmbeddingInput } from '@tanstack/ai'
-import { createMistralClient } from '../client'
+import { createMistralClient } from '../client/index'
 import { generateId, getMistralApiKeyFromEnv } from '../utils/client'
 import type {
   EmbeddingOptions,
   EmbeddingResult,
   TokenUsage,
 } from '@tanstack/ai'
-import type { MistralClient } from '../client'
+import type { MistralClient } from '../client/index'
 import type { EmbeddingRequest } from '@mistralai/mistralai/models/components'
 import type {
   MistralEmbeddingModel,
@@ -82,7 +82,11 @@ export class MistralEmbeddingAdapter<
         { provider: this.name, model },
       )
 
-      const response = await this.client.embeddings.create(request)
+      const response = options.abortSignal
+        ? await this.client.embeddings.create(request, {
+            fetchOptions: { signal: options.abortSignal },
+          })
+        : await this.client.embeddings.create(request)
 
       const usage: TokenUsage = {
         promptTokens: response.usage.promptTokens ?? 0,

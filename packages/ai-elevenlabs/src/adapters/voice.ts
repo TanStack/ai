@@ -4,8 +4,8 @@ import {
   generateId,
   parseOutputFormat,
 } from '../utils/client'
-import { createElevenLabsClient } from '../client'
-import type { ElevenLabsClient } from '../client'
+import { createElevenLabsClient } from '../client/index'
+import type { ElevenLabsClient } from '../client/index'
 import type {
   GeneratedVoice,
   VoiceGenerationOptions,

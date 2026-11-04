@@ -98,6 +98,7 @@ Notes:
 | `tests/delivery-durability.spec.ts`    | Transport layer: offset-tagged log, `Last-Event-ID` reconnect, second-tab join, SSE + NDJSON                                                                |
 | `tests/persistence-durability.spec.ts` | Client layer: a browser refresh restores the conversation and any pending interrupt                                                                         |
 | `tests/join-run-client-tool.spec.ts`   | Mid-run reload: `joinRun` replay that ends on a client tool drains the continuation (issue #1058)                                                           |
+| `tests/use-chat-hidden-view.spec.ts`   | Client layer: a chat that `<Activity>` hides mid-reply loads the thread and joins the run when it shows again                                               |
 | `tests/sandbox-durability.spec.ts`     | Sandbox instances: a second run resumes the persisted sandbox                                                                                               |
 | `tests/durable-takeover.spec.ts`       | Takeover with log alignment, detach-on-disconnect, out-of-band cancel in both bands, cancel-vs-disconnect divergence, and the superseded-driver epoch fence |
 

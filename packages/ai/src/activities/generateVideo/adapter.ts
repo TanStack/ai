@@ -112,16 +112,35 @@ export interface VideoAdapter<
   ) => Promise<VideoJobResult>
 
   /**
-   * Get the current status of a video generation job.
+   * Get the current status of a video generation job. Adapters should forward
+   * `options.abortSignal` to the provider request when supported.
    */
-  getVideoStatus: (jobId: string) => Promise<VideoStatusResult>
+  getVideoStatus: (
+    jobId: string,
+    options?: { abortSignal?: AbortSignal },
+  ) => Promise<VideoStatusResult>
 
   /**
    * Get the finished video: a public URL when the provider has one, or the
    * download stream for generation middleware to host. Call only after
-   * status is 'completed'.
+   * status is 'completed'. Adapters should forward `options.abortSignal` to
+   * the provider request (and the download) when supported.
    */
-  getVideo: (jobId: string) => Promise<VideoUrlResult | VideoStreamResult>
+  getVideo: (
+    jobId: string,
+    options?: { abortSignal?: AbortSignal },
+  ) => Promise<VideoUrlResult | VideoStreamResult>
+
+  /**
+   * Optional. Ask the provider to stop a job that is not finished. Implement
+   * it only when the provider has a real cancel API. Streaming
+   * `generateVideo()` calls it (best effort) when its `abortSignal` or
+   * `timeout` aborts after the job exists. A rejection is logged, not thrown.
+   */
+  cancelVideoJob?: (
+    jobId: string,
+    options?: { abortSignal?: AbortSignal },
+  ) => Promise<void>
 
   /**
    * Describe the durations this adapter's model accepts. Returns a tagged
@@ -234,10 +253,16 @@ export abstract class BaseVideoAdapter<
     >,
   ): Promise<VideoJobResult>
 
-  abstract getVideoStatus(jobId: string): Promise<VideoStatusResult>
+  abstract getVideoStatus(
+    jobId: string,
+    options?: { abortSignal?: AbortSignal },
+  ): Promise<VideoStatusResult>
 
   /** See {@link VideoAdapter.getVideo}. */
-  abstract getVideo(jobId: string): Promise<VideoUrlResult | VideoStreamResult>
+  abstract getVideo(
+    jobId: string,
+    options?: { abortSignal?: AbortSignal },
+  ): Promise<VideoUrlResult | VideoStreamResult>
 
   /**
    * Default implementation returns `{ kind: 'none' }`. Adapters that have

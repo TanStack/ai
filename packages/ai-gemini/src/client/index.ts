@@ -76,6 +76,7 @@ export interface GeminiClient {
   operations: {
     getVideosOperation(params: {
       operation: { name?: string }
+      config?: { abortSignal?: AbortSignal }
     }): Promise<GeminiVideosOperation>
   }
   files: {
@@ -128,7 +129,7 @@ function createSdkClient(options: GoogleGenAIOptions, vertexai: boolean) {
         (await load()).models.generateVideos(params),
     },
     operations: {
-      getVideosOperation: async ({ operation }) => {
+      getVideosOperation: async ({ operation, config }) => {
         const { GenerateVideosOperation } = await import('@google/genai')
         // The SDK calls `_fromAPIResponse` on the operation it gets.
         const sdkOperation = Object.assign(
@@ -137,6 +138,7 @@ function createSdkClient(options: GoogleGenAIOptions, vertexai: boolean) {
         )
         return (await load()).operations.getVideosOperation({
           operation: sdkOperation,
+          ...(config && { config }),
         })
       },
     },
@@ -253,12 +255,12 @@ function createFetchClient(options: GoogleGenAIOptions, apiKey: string) {
       },
     },
     operations: {
-      async getVideosOperation({ operation }) {
+      async getVideosOperation({ operation, config }) {
         if (operation.name === undefined || operation.name === '') {
           throw new Error('Operation name is required.')
         }
         const { videosOperationFromWire } = await import('./videos')
-        const response = await send('GET', operation.name, {})
+        const response = await send('GET', operation.name, {}, config)
         const body: WireVideosOperation = await response.json()
         return videosOperationFromWire(body)
       },

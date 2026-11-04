@@ -1,5 +1,5 @@
-import { createOpenRouterRerankClient } from '../client'
-import type { OpenRouterClient } from '../client'
+import { createOpenRouterRerankClient } from '../client/index'
+import type { OpenRouterClient } from '../client/index'
 import { BaseRerankAdapter } from '@tanstack/ai/adapters'
 import { toRunErrorPayload } from '@tanstack/ai/adapter-internals'
 import { getOpenRouterApiKeyFromEnv } from '../utils'

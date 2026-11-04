@@ -126,7 +126,15 @@ export interface ToolCallResult {
  */
 export interface ToolBridgeCore {
   listTools: () => Array<ToolDescriptor>
-  callTool: (name: string, args: unknown) => Promise<ToolCallResult>
+  /**
+   * `options.signal` is the abort signal of this one call. The tool gets a
+   * signal that aborts when this signal or the bridge `signal` aborts.
+   */
+  callTool: (
+    name: string,
+    args: unknown,
+    options?: { signal?: AbortSignal },
+  ) => Promise<ToolCallResult>
 }
 
 /**
@@ -168,18 +176,22 @@ export function createToolBridgeCore(
       ]
     },
 
-    async callTool(name, args) {
+    async callTool(name, args, callOptions) {
       if (permission && name === permission.toolName) {
         const result = await permission.resolve(args ?? {})
         return { content: [{ type: 'text', text: JSON.stringify(result) }] }
       }
       const tool = toolsByName.get(name)
       if (!tool?.execute) throw new Error(`Unknown tool: ${name}`)
+      const { signal, release } = combineSignals(
+        options.signal,
+        callOptions?.signal,
+      )
       try {
         const result: unknown = await tool.execute(args ?? {}, {
           threadId: options.threadId,
           context: options.context,
-          abortSignal: options.signal,
+          abortSignal: signal,
           // No-op default so tools that always call it (e.g. code mode) don't
           // crash when the transport didn't wire a sink.
           emitCustomEvent: options.emitCustomEvent ?? (() => {}),
@@ -195,7 +207,36 @@ export function createToolBridgeCore(
             { type: 'text', text: `Tool execution failed: ${message}` },
           ],
         }
+      } finally {
+        release()
       }
+    },
+  }
+}
+
+/**
+ * One signal that aborts when `a` or `b` aborts. `release` removes the
+ * listeners, so a long run signal does not keep one per call.
+ * Manual, because `AbortSignal.any` needs Node >= 20.3.
+ */
+function combineSignals(
+  a: AbortSignal | undefined,
+  b: AbortSignal | undefined,
+): { signal: AbortSignal | undefined; release: () => void } {
+  if (!a || !b) return { signal: a ?? b, release() {} }
+  if (a.aborted || b.aborted) {
+    return { signal: a.aborted ? a : b, release() {} }
+  }
+  const controller = new AbortController()
+  const abortFromA = () => controller.abort(a.reason)
+  const abortFromB = () => controller.abort(b.reason)
+  a.addEventListener('abort', abortFromA, { once: true })
+  b.addEventListener('abort', abortFromB, { once: true })
+  return {
+    signal: controller.signal,
+    release() {
+      a.removeEventListener('abort', abortFromA)
+      b.removeEventListener('abort', abortFromB)
     },
   }
 }
@@ -299,10 +340,13 @@ function buildMcpServer(core: ToolBridgeCore) {
   server.server.setRequestHandler('tools/list', () => ({
     tools: core.listTools(),
   }))
-  server.server.setRequestHandler('tools/call', async (request) => {
+  server.server.setRequestHandler('tools/call', async (request, ctx) => {
+    // `ctx.mcpReq.signal` aborts when the MCP client cancels this request,
+    // and when the transport closes (the HTTP response closes, see below).
     const result = await core.callTool(
       request.params.name,
       request.params.arguments ?? {},
+      { signal: ctx.mcpReq.signal },
     )
     return {
       content: result.content,

@@ -18,7 +18,8 @@ import {
   toRunErrorRawEvent,
   transformMessagesForReplay,
 } from '@tanstack/ai/adapter-internals'
-import { generateId } from '@tanstack/ai-utils'
+import { drainAfterTerminal, generateId } from '@tanstack/ai-utils'
+import { Stream } from 'openai/streaming'
 import { clientFor, extractRequestOptions } from '../utils/request-options'
 import type { Fetch } from '../utils/request-options'
 import {
@@ -701,15 +702,26 @@ export abstract class OpenAIBaseResponsesTextAdapter<
       // SDK return type to `Response`, but the explicit annotation makes
       // that contract local rather than relying on inference through the
       // overloaded `client.responses.create` signature.
-      const rawText = this.extractTextFromResponse(response satisfies Response)
+      // The usage is attached to the thrown errors below, so a failed call
+      // still reports the tokens it used.
+      const usage = this.responsesTokenUsage(response.usage, response)
+      let rawText: string
+      try {
+        rawText = this.extractTextFromResponse(response satisfies Response)
+      } catch (error: unknown) {
+        throw error instanceof Error ? Object.assign(error, { usage }) : error
+      }
 
       // Fail loud on empty content rather than letting it cascade into a
       // confusing "Failed to parse JSON. Content: " error — the root cause
       // (the model returned no text content for the structured request) is
       // then visible in logs. Mirrors the chat-completions sibling.
       if (rawText.length === 0) {
-        throw new Error(
-          `${this.name}.structuredOutput: response contained no content`,
+        throw Object.assign(
+          new Error(
+            `${this.name}.structuredOutput: response contained no content`,
+          ),
+          { usage },
         )
       }
 
@@ -718,8 +730,11 @@ export abstract class OpenAIBaseResponsesTextAdapter<
       try {
         parsed = JSON.parse(rawText)
       } catch {
-        throw new Error(
-          `Failed to parse structured output as JSON. Content: ${rawText.slice(0, 200)}${rawText.length > 200 ? '...' : ''}`,
+        throw Object.assign(
+          new Error(
+            `Failed to parse structured output as JSON. Content: ${rawText.slice(0, 200)}${rawText.length > 200 ? '...' : ''}`,
+          ),
+          { usage },
         )
       }
 
@@ -729,7 +744,6 @@ export abstract class OpenAIBaseResponsesTextAdapter<
 
       // Surface usage so non-stream structured paths (and
       // fallbackStructuredOutputStream) can forward tokens to middleware.
-      const usage = this.responsesTokenUsage(response.usage, response)
       return {
         data: transformed,
         rawText,
@@ -786,9 +800,10 @@ export abstract class OpenAIBaseResponsesTextAdapter<
     let hasClosedReasoning = false
     let model: string = chatOptions.model
     let responseId: string | undefined
-    let usage: OpenAI.Responses.Response['usage'] | undefined
-    let usageSource: unknown
+    let usage: TokenUsage | undefined
     let responseCompleted = false
+    // A refusal is reported once the terminal event brings the usage.
+    let refusal: string | undefined
 
     const closeReasoning = function* (this: {
       name: string
@@ -856,7 +871,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
         extractRequestOptions(chatOptions.request),
       )
 
-      for await (const chunk of stream) {
+      for await (const chunk of drainResponsesStream(stream)) {
         chatOptions.logger.provider(
           `provider=${this.name} type=${chunk.type}`,
           { provider: this.name, type: chunk.type },
@@ -890,17 +905,8 @@ export abstract class OpenAIBaseResponsesTextAdapter<
             typeof (chunk as { delta?: unknown }).delta === 'string'
               ? (chunk as { delta: string }).delta
               : ''
-          yield {
-            type: EventType.RUN_ERROR,
-            metadata: this.sourceMetadata(chatOptions.model),
-            runId: aguiState.runId,
-            model,
-            timestamp: Date.now(),
-            message: `Model refused: ${delta}`,
-            code: 'refusal',
-            error: { message: `Model refused: ${delta}`, code: 'refusal' },
-          }
-          return
+          refusal = (refusal ?? '') + delta
+          continue
         }
 
         if (
@@ -967,24 +973,33 @@ export abstract class OpenAIBaseResponsesTextAdapter<
           responseCompleted = true
           const response = chunk.response
           if (response.id) responseId = response.id
-          if (response.usage) {
-            usage = response.usage
-            usageSource = response
-          }
+          usage = this.responsesTokenUsage(response.usage, response)
           if (response.model) model = response.model
           // Terminal event: do not wait for the HTTP body to close (#1445).
           break
         }
 
-        if (chunk.type === 'response.failed') {
-          const response = (
-            chunk as {
-              response?: { error?: { message?: string; code?: string } }
-            }
-          ).response
+        if (
+          chunk.type === 'response.failed' ||
+          chunk.type === 'response.incomplete'
+        ) {
+          const response =
+            chunk.response as Partial<OpenAI.Responses.Response> | null
+          usage = this.responsesTokenUsage(response?.usage, response)
+          if (refusal !== undefined) break
+          const reason = response?.incomplete_details?.reason
           const message =
-            response?.error?.message || 'Responses API stream failed'
-          const code = response?.error?.code
+            chunk.type === 'response.failed'
+              ? response?.error?.message || 'Responses API stream failed'
+              : reason === 'max_output_tokens'
+                ? `${this.name}.structuredOutputStream: the response was cut off because the maximum token limit was reached (incomplete_details.reason=max_output_tokens); raise max_output_tokens`
+                : `${this.name}.structuredOutputStream: response ended incomplete (${reason ?? 'no reason given'})`
+          const code =
+            chunk.type === 'response.failed'
+              ? response?.error?.code
+              : reason === 'max_output_tokens'
+                ? 'max_tokens'
+                : 'incomplete'
           // Conditional `code` spread keeps the wire shape spec-compliant
           // under `exactOptionalPropertyTypes` (see chatStream catch).
           yield {
@@ -994,8 +1009,9 @@ export abstract class OpenAIBaseResponsesTextAdapter<
             model,
             timestamp: Date.now(),
             message,
-            ...(code !== undefined && { code }),
-            error: { message, ...(code !== undefined && { code }) },
+            ...(code != null && { code }),
+            error: { message, ...(code != null && { code }) },
+            ...(usage && { usage }),
           }
           return
         }
@@ -1010,6 +1026,22 @@ export abstract class OpenAIBaseResponsesTextAdapter<
           model,
           timestamp: Date.now(),
         }
+      }
+
+      if (refusal !== undefined) {
+        const message = `Model refused: ${refusal}`
+        yield {
+          type: EventType.RUN_ERROR,
+          metadata: this.sourceMetadata(chatOptions.model),
+          runId: aguiState.runId,
+          model,
+          timestamp: Date.now(),
+          message,
+          code: 'refusal',
+          error: { message, code: 'refusal' },
+          ...(usage && { usage }),
+        }
+        return
       }
 
       if (!responseCompleted) {
@@ -1040,6 +1072,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
             message: `${this.name}.structuredOutputStream: response contained no content`,
             code: 'empty-response',
           },
+          ...(usage && { usage }),
         }
         return
       }
@@ -1060,6 +1093,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
             message: 'Failed to parse structured output as JSON',
             code: 'parse-error',
           },
+          ...(usage && { usage }),
         }
         return
       }
@@ -1089,9 +1123,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
         model,
         timestamp: Date.now(),
         finishReason: 'stop',
-        ...(usage && {
-          usage: this.responsesTokenUsage(usage, usageSource),
-        }),
+        ...(usage && { usage }),
       }
     } catch (error: unknown) {
       if (!aguiState.hasEmittedRunStarted) {
@@ -1105,6 +1137,34 @@ export abstract class OpenAIBaseResponsesTextAdapter<
           timestamp: Date.now(),
           parentRunId: chatOptions.parentRunId,
         }
+      }
+
+      // The model refused before the stream failed: report the refusal.
+      // A caller abort stays an abort.
+      if (refusal !== undefined && !this.isAbortError(error)) {
+        chatOptions.logger.errors(
+          `${this.name}.structuredOutputStream failed after a refusal`,
+          {
+            error: this.runErrorPayload(
+              error,
+              `${this.name}.structuredOutputStream failed`,
+            ),
+            source: `${this.name}.structuredOutputStream`,
+          },
+        )
+        const message = `Model refused: ${refusal}`
+        yield {
+          type: EventType.RUN_ERROR,
+          metadata: this.sourceMetadata(chatOptions.model),
+          runId: aguiState.runId,
+          model,
+          timestamp: Date.now(),
+          message,
+          code: 'refusal',
+          error: { message, code: 'refusal' },
+          ...(usage && { usage }),
+        }
+        return
       }
 
       const isAbort = this.isAbortError(error)
@@ -1424,6 +1484,9 @@ export abstract class OpenAIBaseResponsesTextAdapter<
     // end-of-stream fallback below knows to synthesise one when the upstream
     // cuts off without a response.completed event.
     let runFinishedEmitted = false
+    // A refusal (or unknown content part) RUN_ERROR waits for the terminal
+    // event, so it can carry the usage that only that event reports.
+    let pendingRunError: AdapterYieldChunk | undefined
 
     const providerWebSearchCalls = new Map<
       string,
@@ -1596,6 +1659,17 @@ export abstract class OpenAIBaseResponsesTextAdapter<
       return tracked
     }
 
+    /**
+     * The tool call chunks for a user-run item (`apply_patch_call`,
+     * `shell_call`, `local_shell_call`, `computer_call`). The first time a call
+     * is seen it emits `TOOL_CALL_START`. While the item is `in_progress` its
+     * input may be incomplete (an `apply_patch_call` has an empty diff), so
+     * `TOOL_CALL_END` waits until the item is no longer `in_progress`, and then
+     * carries the complete input. An ended call emits nothing.
+     */
+    // The call ids of user-run calls that are still `in_progress`.
+    const unendedUserCalls = new Set<string>()
+
     const userToolChunks = (
       item: unknown,
       outputIndex: number,
@@ -1610,21 +1684,21 @@ export abstract class OpenAIBaseResponsesTextAdapter<
         started: false,
       }
       toolCallMetadata.set(call.callId, tracked)
-      tracked.started = true
-      tracked.ended = true
       tracked.name = call.name
       streamedToolCall = true
       const timestamp = Date.now()
       const modelName = model || options.model
-      const metadata: OpenAIResponsesToolCallMetadata = {
-        openaiUserTool: call.name,
-        ...(call.itemId ? { itemId: call.itemId } : {}),
-        ...(call.maxOutputLength !== undefined
-          ? { maxOutputLength: call.maxOutputLength }
-          : {}),
-      }
-      return [
-        {
+      const chunks: Array<AdapterYieldChunk> = []
+      if (!tracked.started) {
+        tracked.started = true
+        const metadata: OpenAIResponsesToolCallMetadata = {
+          openaiUserTool: call.name,
+          ...(call.itemId ? { itemId: call.itemId } : {}),
+          ...(call.maxOutputLength !== undefined
+            ? { maxOutputLength: call.maxOutputLength }
+            : {}),
+        }
+        chunks.push({
           type: EventType.TOOL_CALL_START,
           toolCallId: call.callId,
           toolCallName: call.name,
@@ -1633,16 +1707,23 @@ export abstract class OpenAIBaseResponsesTextAdapter<
           timestamp,
           index: outputIndex,
           metadata,
-        },
-        {
-          type: EventType.TOOL_CALL_END,
-          toolCallId: call.callId,
-          toolCallName: call.name,
-          model: modelName,
-          timestamp,
-          input: call.input,
-        },
-      ]
+        })
+      }
+      if (isRecord(item) && item.status === 'in_progress') {
+        unendedUserCalls.add(call.callId)
+        return chunks
+      }
+      unendedUserCalls.delete(call.callId)
+      tracked.ended = true
+      chunks.push({
+        type: EventType.TOOL_CALL_END,
+        toolCallId: call.callId,
+        toolCallName: call.name,
+        model: modelName,
+        timestamp,
+        input: call.input,
+      })
+      return chunks
     }
 
     const emitReasoningDelta = function* (
@@ -1662,7 +1743,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
     }
 
     try {
-      for await (const chunk of stream) {
+      for await (const chunk of drainResponsesStream(stream)) {
         options.logger.provider(`provider=${this.name} type=${chunk.type}`, {
           provider: this.name,
           type: chunk.type,
@@ -1716,6 +1797,23 @@ export abstract class OpenAIBaseResponsesTextAdapter<
             code,
             error: { message, code },
           }
+        }
+
+        if (pendingRunError) {
+          if (
+            chunk.type === 'response.completed' ||
+            chunk.type === 'response.failed' ||
+            chunk.type === 'response.incomplete'
+          ) {
+            const usage = this.responsesTokenUsage(
+              chunk.response.usage,
+              chunk.response,
+            )
+            yield { ...pendingRunError, ...(usage && { usage }) }
+            runFinishedEmitted = true
+            return
+          }
+          continue
         }
 
         // Capture model metadata from any of these events (created starts
@@ -1792,6 +1890,10 @@ export abstract class OpenAIBaseResponsesTextAdapter<
           // emission on a `response.incomplete` with no detail would let the
           // post-loop synthetic block silently coerce the run to a clean
           // `RUN_FINISHED { finishReason: 'stop' }` — masking the failure.
+          const usage = this.responsesTokenUsage(
+            chunk.response.usage,
+            chunk.response,
+          )
           yield {
             type: EventType.RUN_ERROR,
             metadata: this.sourceMetadata(options.model),
@@ -1803,6 +1905,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
               message: errorMessage,
               ...(errorCode !== undefined && { code: errorCode }),
             },
+            ...(usage && { usage }),
           }
           // RUN_ERROR is the terminal event for this run; stop processing
           // any further chunks the iterator might still deliver.
@@ -1912,15 +2015,14 @@ export abstract class OpenAIBaseResponsesTextAdapter<
             hasStreamedContentDeltas = true
           }
           const partChunk = handleContentPart(contentPart)
-          yield partChunk
           // handleContentPart returns RUN_ERROR for refusals / unknown
-          // content_part types — those are terminal events. Don't keep
-          // processing more chunks (and don't let the post-loop synthetic
-          // block emit a second terminal event).
+          // content_part types — those are terminal. Hold it until the
+          // terminal event (see pendingRunError).
           if (partChunk.type === 'RUN_ERROR') {
-            runFinishedEmitted = true
-            return
+            pendingRunError = partChunk
+            continue
           }
+          yield partChunk
         }
 
         if (chunk.type === 'response.content_part.done') {
@@ -1967,11 +2069,11 @@ export abstract class OpenAIBaseResponsesTextAdapter<
 
           // Only emit if we haven't been streaming deltas (e.g., for non-streaming responses)
           const doneChunk = handleContentPart(contentPart)
-          yield doneChunk
           if (doneChunk.type === 'RUN_ERROR') {
-            runFinishedEmitted = true
-            return
+            pendingRunError = doneChunk
+            continue
           }
+          yield doneChunk
         }
 
         // handle output_item.added to capture function call metadata (name)
@@ -2439,6 +2541,25 @@ export abstract class OpenAIBaseResponsesTextAdapter<
             hasEmittedTextMessageStart = false
           }
 
+          // A stateless stream can skip `output_item.done` and send an empty
+          // `output`. A user-run call that never left `in_progress` has
+          // incomplete input (an `apply_patch_call` has an empty diff), so
+          // the run fails instead of running the tool with it.
+          if (unendedUserCalls.size > 0) {
+            const message = `Response completed with user tool calls still in progress: ${[...unendedUserCalls].join(', ')}`
+            yield {
+              type: EventType.RUN_ERROR,
+              metadata: this.sourceMetadata(options.model),
+              model: model || options.model,
+              timestamp: Date.now(),
+              message,
+              code: 'incomplete-tool-call',
+              error: { message, code: 'incomplete-tool-call' },
+            }
+            runFinishedEmitted = true
+            return
+          }
+
           // Determine finish reason. Function-call output → tool_calls.
           // Otherwise surface incomplete_details.reason when present so
           // callers can distinguish length-limit / content-filter cutoffs
@@ -2549,6 +2670,11 @@ export abstract class OpenAIBaseResponsesTextAdapter<
         }
       }
 
+      if (pendingRunError) {
+        yield pendingRunError
+        return
+      }
+
       // The stream ended without a terminal event (e.g. a truncated
       // connection). Completion was never confirmed, so this is not a
       // successful stop (#1447). The partial text was already emitted.
@@ -2581,12 +2707,18 @@ export abstract class OpenAIBaseResponsesTextAdapter<
         error,
         `${this.name}.processStreamChunks failed`,
       )
-      const rawEvent = toRunErrorRawEvent(error)
-      const retryAfterMs = toRetryAfterMs(error)
       options.logger.errors(`${this.name}.processStreamChunks fatal`, {
         error: errorPayload,
         source: `${this.name}.processStreamChunks`,
       })
+      // A held refusal wins over a later stream error. A caller abort stays
+      // an abort.
+      if (pendingRunError && !this.isAbortError(error)) {
+        yield pendingRunError
+        return
+      }
+      const rawEvent = toRunErrorRawEvent(error)
+      const retryAfterMs = toRetryAfterMs(error)
       // Emit AG-UI RUN_ERROR with conditional `code` spread (see chatStream
       // catch for the rationale). `rawEvent` carries the provider's structured
       // error body when present.
@@ -3401,4 +3533,15 @@ export abstract class OpenAIBaseResponsesTextAdapter<
       .map((p) => p.content)
       .join('')
   }
+}
+
+/** Lets the body end by itself after a terminal event, so a finished call is not logged as a client cancel (#1965). */
+function drainResponsesStream<T extends { type: string }>(
+  stream: AsyncIterable<T>,
+) {
+  return drainAfterTerminal(
+    stream,
+    (event) => event.type,
+    stream instanceof Stream ? () => stream.controller.abort() : undefined,
+  )
 }

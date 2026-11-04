@@ -192,7 +192,10 @@ describe('Fal Speech Adapter', () => {
     })
 
     expect(result.format).toBe('mp3')
-    expect(mockFetch).toHaveBeenCalledWith('https://fal.media/files/speech.mp3')
+    expect(mockFetch).toHaveBeenCalledWith(
+      'https://fal.media/files/speech.mp3',
+      undefined,
+    )
   })
 
   it('handles large audio payloads without blowing the stack', async () => {

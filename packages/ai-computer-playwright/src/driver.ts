@@ -70,6 +70,30 @@ export interface PlaywrightComputerOptions {
 }
 
 /**
+ * Playwright takes no abort signal. Reject when `signal` aborts, so the
+ * caller stops waiting. The page call itself goes on until it ends.
+ */
+function untilAborted<T>(work: Promise<T>, signal: AbortSignal | undefined) {
+  if (!signal) return work
+  return new Promise<T>((resolve, reject) => {
+    const onAbort = () => reject(signal.reason)
+    // Handle `work` first, so a late rejection is never unhandled.
+    work.then(
+      (value) => {
+        signal.removeEventListener('abort', onAbort)
+        resolve(value)
+      },
+      (error: unknown) => {
+        signal.removeEventListener('abort', onAbort)
+        reject(error)
+      },
+    )
+    if (signal.aborted) return onAbort()
+    signal.addEventListener('abort', onAbort, { once: true })
+  })
+}
+
+/**
  * Create a computer driver that controls one Playwright page.
  *
  * The driver reads the viewport size once, at create. Key names go to
@@ -98,7 +122,8 @@ export function createPlaywrightComputerDriver({
   const driver: ComputerDriver = {
     display,
     environment: 'browser',
-    screenshot: () => page.screenshot({ type: 'png' }),
+    screenshot: (options) =>
+      untilAborted(page.screenshot({ type: 'png' }), options?.signal),
     async click(x, y, { button, count }) {
       if (button === 'back' || button === 'forward') return history(button)
       await page.mouse.click(x, y, { button, clickCount: count })
@@ -121,9 +146,13 @@ export function createPlaywrightComputerDriver({
     keyUp: (key) => page.keyboard.up(key),
     press: (keys) => page.keyboard.press(keys.join('+')),
     type: (text) => page.keyboard.type(text),
-    zoom: (region) => page.screenshot({ type: 'png', clip: region }),
-    navigate: async (url) => {
-      await page.goto(url)
+    zoom: (region, options) =>
+      untilAborted(
+        page.screenshot({ type: 'png', clip: region }),
+        options?.signal,
+      ),
+    navigate: async (url, options) => {
+      await untilAborted(page.goto(url), options?.signal)
     },
   }
   return driver
@@ -170,12 +199,15 @@ export function playwrightComputer(options: PlaywrightComputerOptions = {}) {
     display,
     environment: 'browser',
     capabilities: { zoom: true, cursorPosition: false, navigate: true },
-    async create() {
+    async create({ signal }) {
       const shared = await getBrowser()
       const context = await shared.newContext({ viewport: display })
       try {
+        signal?.throwIfAborted()
         const page = await context.newPage()
-        if (startUrl !== undefined) await page.goto(startUrl)
+        if (startUrl !== undefined) {
+          await untilAborted(page.goto(startUrl), signal)
+        }
         return {
           ...createPlaywrightComputerDriver({ page }),
           close: () => context.close(),

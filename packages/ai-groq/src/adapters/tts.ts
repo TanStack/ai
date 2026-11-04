@@ -71,7 +71,9 @@ export class GroqTTSAdapter<TModel extends GroqTTSModel> extends BaseTTSAdapter<
         `activity=tts provider=${this.name} model=${model} format=${request.response_format ?? 'default'} voice=${request.voice}`,
         { provider: this.name, model },
       )
-      const response = await this.client.audio.speech.create(request)
+      const response = await this.client.audio.speech.create(request, {
+        signal: options.abortSignal,
+      })
 
       const arrayBuffer = await response.arrayBuffer()
       const base64 = arrayBufferToBase64(arrayBuffer)

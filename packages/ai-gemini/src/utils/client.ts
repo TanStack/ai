@@ -1,5 +1,5 @@
 import { generateId as _generateId, getApiKeyFromEnv } from '@tanstack/ai-utils'
-import { createGoogleGenAI } from '../client'
+import { createGoogleGenAI } from '../client/index'
 import type { GoogleGenAIOptions } from '@google/genai'
 
 export interface GeminiClientConfig extends GoogleGenAIOptions {
@@ -41,6 +41,21 @@ export function createGeminiClient(config: GeminiClientConfig) {
     }
   }
   return createGoogleGenAI(options)
+}
+
+/**
+ * The signal for a `client.interactions.create` call. That SDK client uses
+ * `httpOptions.timeout` only when the request has no signal. So with a caller
+ * signal, add the timeout to the signal here.
+ */
+export function withHttpTimeout(
+  signal: AbortSignal | null | undefined,
+  timeoutMs: number | undefined,
+): AbortSignal | undefined {
+  if (!signal || timeoutMs === undefined || timeoutMs <= 0) {
+    return signal ?? undefined
+  }
+  return AbortSignal.any([signal, AbortSignal.timeout(timeoutMs)])
 }
 
 /**

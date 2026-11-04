@@ -98,9 +98,14 @@ Provider adapters call the provider HTTP API with `fetch`. They do not load the 
 | OpenAI and OpenAI-compatible | `workloadIdentity`, `provider`, `dataResidency`, `credential`, `x509Transport`, no `apiKey` (admin key only). On Azure: `azureADTokenProvider` or `workloadIdentity` |
 | Anthropic | `middleware`, OpenTelemetry tracing (`openTelemetry`, or a global OpenTelemetry tracer), `logLevel: 'info'` or `'debug'` (or `ANTHROPIC_LOG`), no `apiKey` and no `authToken` |
 | Gemini | `vertexai: true`, `enterprise: true`, no `apiKey`, a file path string as the upload |
-| fal | An upload larger than 90 MB, and `configureFalClient` (it configures the global `fal` client of `@fal-ai/client`) |
+| fal | An upload larger than 90 MB |
 
-A bundler that splits chunks keeps the SDK out of the startup bundle. A single-file bundle includes the SDK in the file. To keep a single-file bundle small, do not use these options.
+These options decide when the SDK runs. They do not decide what goes into the bundle:
+
+- A bundler that splits chunks puts the SDK in a separate chunk. The app loads that chunk only when it uses one of these options.
+- A single-file bundle always includes the SDK. The bundler cannot know which options the app uses at runtime.
+
+`configureFalClient` is different. It imports `@fal-ai/client` statically, because it configures the global `fal` client. If you import `configureFalClient`, the SDK is in the startup bundle, also with chunk splitting.
 
 ## How it works
 

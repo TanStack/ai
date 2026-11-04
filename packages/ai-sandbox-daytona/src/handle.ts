@@ -36,7 +36,11 @@ export const DAYTONA_CAPS: SandboxCapabilities = {
   env: true,
   ports: true,
   backgroundProcesses: true,
-  writableStdin: true,
+  // FALSE: `sendSessionCommandInput` delivers bytes, but the session API cannot
+  // close a command's stdin, so `stdin.end()` never sends EOF. Harnesses that
+  // read the prompt to EOF (`claude -p`, `codex exec`) would hang forever.
+  // With `false` they redirect the prompt from a file instead (#1926).
+  writableStdin: false,
   // FALSE, and it must not be flipped back without a MEASUREMENT against a real
   // Daytona sandbox. It read `true` on an asserted comment: that `kill()` "deletes
   // the Daytona session via `deleteSession`, which terminates the session's running

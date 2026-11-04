@@ -96,8 +96,15 @@ function buildUsage(usage: AcpUsage | undefined): TokenUsage | undefined {
     completionTokens,
     totalTokens: usage.totalTokens ?? promptTokens + completionTokens,
   })
-  if (usage.cachedReadTokens) {
-    result.promptTokensDetails = { cachedTokens: usage.cachedReadTokens }
+  if (usage.cachedReadTokens || usage.cachedWriteTokens) {
+    result.promptTokensDetails = {
+      ...(usage.cachedReadTokens
+        ? { cachedTokens: usage.cachedReadTokens }
+        : {}),
+      ...(usage.cachedWriteTokens
+        ? { cacheWriteTokens: usage.cachedWriteTokens }
+        : {}),
+    }
   }
   if (usage.thoughtTokens) {
     result.completionTokensDetails = { reasoningTokens: usage.thoughtTokens }
@@ -110,6 +117,7 @@ export async function* translateAcpStream(
   ctx: TranslateContext,
 ): AsyncIterable<AdapterYieldChunk> {
   const { model, runId, threadId, genId, labels } = ctx
+  let sessionCost: { amount: number; currency: string } | undefined
   const now = () => Date.now()
 
   let runStarted = false
@@ -238,7 +246,9 @@ export async function* translateAcpStream(
   function* handleUpdate(
     update: AcpSessionUpdate,
   ): Generator<AdapterYieldChunk> {
-    if (update.sessionUpdate === 'agent_message_chunk') {
+    if (update.sessionUpdate === 'usage_update') {
+      if (update.cost) sessionCost = update.cost
+    } else if (update.sessionUpdate === 'agent_message_chunk') {
       yield* closeReasoning()
       // Non-text content (image / audio / resource / resource_link): surface it
       // as a CUSTOM event when the harness opted in, instead of dropping it.
@@ -377,6 +387,18 @@ export async function* translateAcpStream(
         yield* closeReasoning()
         yield* synthesizeUnresolvedResults()
 
+        const usage = buildUsage(event.usage)
+        // ponytail: the ACP cost is the whole session's total, so it is kept
+        // as a detail. As `usage.cost` it would count earlier turns again.
+        if (usage && sessionCost) {
+          usage.providerUsageDetails = {
+            ...usage.providerUsageDetails,
+            sessionCost: {
+              amount: sessionCost.amount,
+              currency: sessionCost.currency,
+            },
+          }
+        }
         if (event.stopReason === 'refusal') {
           const message =
             labels.refusalMessage ?? 'The harness refused the request.'
@@ -387,9 +409,9 @@ export async function* translateAcpStream(
             message,
             code: 'refusal',
             error: { message, code: 'refusal' },
+            ...(usage && { usage }),
           }
         } else {
-          const usage = buildUsage(event.usage)
           const finishReason =
             event.stopReason === 'max_tokens' ||
             event.stopReason === 'max_turn_requests'

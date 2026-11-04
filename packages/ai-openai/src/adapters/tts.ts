@@ -77,7 +77,9 @@ export class OpenAITTSAdapter<
         `activity=tts provider=${this.name} model=${model} format=${request.response_format ?? 'default'} voice=${request.voice}`,
         { provider: this.name, model },
       )
-      const response = await this.client.audio.speech.create(request)
+      const response = await this.client.audio.speech.create(request, {
+        signal: options.abortSignal,
+      })
 
       // Convert response to base64. Buffer is Node-only; use atob fallback in
       // browser/edge runtimes where the SDK can run.

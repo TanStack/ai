@@ -35,11 +35,24 @@ export interface MistralClient {
   chat: {
     complete: (
       request: ChatCompletionRequest,
+      options?: MistralRequestOptions,
     ) => Promise<ChatCompletionResponse>
   }
   embeddings: {
-    create: (request: EmbeddingRequest) => Promise<EmbeddingResponse>
+    create: (
+      request: EmbeddingRequest,
+      options?: MistralRequestOptions,
+    ) => Promise<EmbeddingResponse>
   }
+}
+
+/**
+ * The part of the SDK `RequestOptions` that the adapters pass. Same as the
+ * SDK: a signal replaces the default timeout.
+ */
+export interface MistralRequestOptions {
+  signal?: AbortSignal | null
+  fetchOptions?: { signal?: AbortSignal | null }
 }
 
 type Fetcher = (url: string, init: RequestInit) => Promise<Response>
@@ -455,7 +468,11 @@ export function createMistralClient(
   baseURL.pathname = `${baseURL.pathname.replace(/\/+$/, '')}/`
   const timeoutMs = config.timeoutMs || 30000
 
-  async function post(path: string, body: unknown) {
+  async function post(
+    path: string,
+    body: unknown,
+    requestOptions?: MistralRequestOptions,
+  ) {
     const url = new URL(path, baseURL)
     url.hash = ''
     const headers = new Headers({
@@ -470,7 +487,10 @@ export function createMistralClient(
       method: 'POST',
       headers,
       body: JSON.stringify(body),
-      ...(timeoutMs > 0 && { signal: AbortSignal.timeout(timeoutMs) }),
+      signal:
+        requestOptions?.signal ??
+        requestOptions?.fetchOptions?.signal ??
+        (timeoutMs > 0 ? AbortSignal.timeout(timeoutMs) : undefined),
     }
     const send =
       fetcher ??
@@ -549,18 +569,19 @@ export function createMistralClient(
 
   return {
     chat: {
-      complete: async (request) =>
+      complete: async (request, options) =>
         chatCompletionResponseFromWire(
           await post(
             'v1/chat/completions',
             chatCompletionRequestToWire(request),
+            options,
           ),
         ),
     },
     embeddings: {
-      create: async (request) =>
+      create: async (request, options) =>
         embeddingResponseFromWire(
-          await post('v1/embeddings', embeddingRequestToWire(request)),
+          await post('v1/embeddings', embeddingRequestToWire(request), options),
         ),
     },
   }

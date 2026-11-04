@@ -29,8 +29,16 @@ function buildTranscriptionUsage(
   response?: OpenAI_SDK.Audio.TranscriptionCreateResponse,
 ): TokenUsage | undefined {
   const usage = response?.usage
-  if (!usage || usage.type === 'duration') {
+  if (!usage) {
     return undefined
+  }
+  if (usage.type === 'duration') {
+    return {
+      promptTokens: 0,
+      completionTokens: 0,
+      totalTokens: 0,
+      billed: { quantity: usage.seconds, unit: 'seconds' },
+    }
   }
 
   const result: TokenUsage = {

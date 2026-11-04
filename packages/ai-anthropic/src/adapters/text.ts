@@ -115,7 +115,7 @@ import type {
   AnthropicMessagesClient,
 } from '../utils/client'
 import type { ComputerUseSingleToolConfig } from '../tools/computer-use-tool'
-import type { AnthropicClient } from '../client'
+import type { AnthropicClient } from '../client/index'
 
 /**
  * The block type carried by an Anthropic provider-executed (server) tool's
@@ -821,6 +821,9 @@ export class AnthropicTextAdapter<
       },
     }
 
+    // Set once the response arrives, so a later throw still reports it.
+    let usage: ReturnType<typeof buildAnthropicUsage>
+
     try {
       logger.request(
         `activity=chat provider=anthropic model=${this.model} messages=${chatOptions.messages.length} tools=${chatOptions.tools?.length ?? 0} stream=false`,
@@ -849,6 +852,7 @@ export class AnthropicTextAdapter<
           headers: this.requestHeaders(chatOptions.request?.headers, betas),
         },
       )
+      usage = buildAnthropicUsage(response.usage)
 
       // A forced tool call cut off at the output cap carries partial input,
       // which would read like a schema failure (issue #1426).
@@ -892,7 +896,7 @@ export class AnthropicTextAdapter<
       return {
         data: parsed,
         rawText,
-        usage: buildAnthropicUsage(response.usage),
+        usage,
         responseId: response.id,
         model: response.model,
       }
@@ -902,8 +906,11 @@ export class AnthropicTextAdapter<
         error,
         source: 'anthropic.structuredOutput',
       })
-      throw new Error(
-        `Structured output generation failed: ${err.message || 'Unknown error occurred'}`,
+      throw Object.assign(
+        new Error(
+          `Structured output generation failed: ${err.message || 'Unknown error occurred'}`,
+        ),
+        usage && { usage },
       )
     }
   }
@@ -2200,6 +2207,8 @@ export class AnthropicTextAdapter<
           // message_delta carries the real stop_reason (tool_use, end_turn, etc.),
           // while message_stop is just a completion signal.
           if (!hasEmittedRunFinished) {
+            hasEmittedRunFinished = true
+            const usage = buildAnthropicUsage(messageStartUsage)
             yield {
               type: EventType.RUN_FINISHED,
               ...(responseId !== undefined && { responseId }),
@@ -2208,6 +2217,7 @@ export class AnthropicTextAdapter<
               model,
               timestamp: Date.now(),
               finishReason: 'stop',
+              ...(usage && { usage }),
             }
           }
         } else if (event.type === 'message_delta') {

@@ -5,9 +5,9 @@ import {
   parseOutputFormat,
   readStreamToArrayBuffer,
 } from '../utils/client'
-import { createElevenLabsClient } from '../client'
+import { createElevenLabsClient } from '../client/index'
 import type { ElevenLabs } from '@elevenlabs/elevenlabs-js'
-import type { ElevenLabsClient } from '../client'
+import type { ElevenLabsClient } from '../client/index'
 import type {
   CatalogVoice,
   ListVoicesOptions,
@@ -138,6 +138,9 @@ export class ElevenLabsSpeechAdapter<
       const { format, contentType } = wrapAsWav
         ? { format: 'wav', contentType: 'audio/wav' }
         : parseOutputFormat(effectiveOutputFormat)
+      const requestOptions = options.abortSignal
+        ? { abortSignal: options.abortSignal }
+        : {}
       // `format: 'wav'` asks ElevenLabs for pcm_44100 and wraps it here, on
       // every endpoint: the byte-stream pair hands back raw bytes, the
       // timestamped pair hands back the same bytes as base64.
@@ -173,7 +176,10 @@ export class ElevenLabsSpeechAdapter<
 
         if (options.timestamps) {
           const response =
-            await this.client.textToDialogue.convertWithTimestamps(dialogue)
+            await this.client.textToDialogue.convertWithTimestamps(
+              dialogue,
+              requestOptions,
+            )
           return {
             id: generateId(this.name),
             model: this.model,
@@ -184,7 +190,10 @@ export class ElevenLabsSpeechAdapter<
           }
         }
 
-        const stream = await this.client.textToDialogue.convert(dialogue)
+        const stream = await this.client.textToDialogue.convert(
+          dialogue,
+          requestOptions,
+        )
         return {
           id: generateId(this.name),
           model: this.model,
@@ -222,6 +231,7 @@ export class ElevenLabsSpeechAdapter<
         const response = await this.client.textToSpeech.convertWithTimestamps(
           voiceId,
           single,
+          requestOptions,
         )
         return {
           id: generateId(this.name),
@@ -233,12 +243,16 @@ export class ElevenLabsSpeechAdapter<
         }
       }
 
-      const stream = await this.client.textToSpeech.convert(voiceId, {
-        ...single,
-        ...(optimizeStreamingLatency != null
-          ? { optimizeStreamingLatency }
-          : {}),
-      })
+      const stream = await this.client.textToSpeech.convert(
+        voiceId,
+        {
+          ...single,
+          ...(optimizeStreamingLatency != null
+            ? { optimizeStreamingLatency }
+            : {}),
+        },
+        requestOptions,
+      )
 
       return {
         id: generateId(this.name),

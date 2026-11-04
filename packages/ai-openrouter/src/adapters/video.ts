@@ -1,5 +1,5 @@
-import { createOpenRouterVideoClient } from '../client'
-import type { OpenRouterClient } from '../client'
+import { createOpenRouterVideoClient } from '../client/index'
+import type { OpenRouterClient } from '../client/index'
 import {
   buildBaseUsage,
   isFileSource,
@@ -293,9 +293,10 @@ export class OpenRouterVideoAdapter<
         `activity=video.create provider=${this.name} model=${this.model} size=${size ?? 'default'} duration=${duration ?? 'default'}`,
         { provider: this.name, model: this.model },
       )
-      const response = await this.client.videoGeneration.generate({
-        videoGenerationRequest: request,
-      })
+      const response = await this.client.videoGeneration.generate(
+        { videoGenerationRequest: request },
+        { signal: options.abortSignal },
+      )
       return { jobId: response.id, model: this.model }
     } catch (error) {
       logger.errors(`${this.name}.createVideoJob fatal`, {
@@ -312,8 +313,14 @@ export class OpenRouterVideoAdapter<
     return getVideoDurationOptions(this.model)
   }
 
-  async getVideoStatus(jobId: string): Promise<VideoStatusResult> {
-    const response = await this.client.videoGeneration.getGeneration({ jobId })
+  async getVideoStatus(
+    jobId: string,
+    options?: { abortSignal?: AbortSignal },
+  ): Promise<VideoStatusResult> {
+    const response = await this.client.videoGeneration.getGeneration(
+      { jobId },
+      ...requestArgs(options?.abortSignal),
+    )
     return {
       jobId,
       status: mapStatus(response.status),
@@ -323,8 +330,13 @@ export class OpenRouterVideoAdapter<
 
   override async getVideo(
     jobId: string,
+    options?: { abortSignal?: AbortSignal },
   ): Promise<VideoUrlResult | VideoStreamResult> {
-    const response = await this.client.videoGeneration.getGeneration({ jobId })
+    const reqArgs = requestArgs(options?.abortSignal)
+    const response = await this.client.videoGeneration.getGeneration(
+      { jobId },
+      ...reqArgs,
+    )
     const status = mapStatus(response.status)
     if (status === 'failed') {
       throw new Error(
@@ -345,7 +357,10 @@ export class OpenRouterVideoAdapter<
     // accepts `video/mp4` and streams the bytes.
     let stream: ReadableStream<Uint8Array>
     try {
-      stream = await this.client.videoGeneration.getVideoContent({ jobId })
+      stream = await this.client.videoGeneration.getVideoContent(
+        { jobId },
+        ...reqArgs,
+      )
     } catch (error) {
       const detail = error instanceof Error ? error.message : String(error)
       throw new Error(
@@ -407,4 +422,14 @@ export function openRouterVideo<TModel extends OpenRouterVideoModel>(
 ): OpenRouterVideoAdapter<TModel> {
   const apiKey = getOpenRouterApiKeyFromEnv()
   return createOpenRouterVideo(model, apiKey, config)
+}
+
+/**
+ * SDK request options that carry the caller's abort signal. Empty without a
+ * signal, so the SDK call keeps its one-argument form.
+ */
+function requestArgs(
+  signal: AbortSignal | undefined,
+): [] | [{ fetchOptions: { signal: AbortSignal } }] {
+  return signal ? [{ fetchOptions: { signal } }] : []
 }

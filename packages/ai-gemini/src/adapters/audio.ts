@@ -10,7 +10,7 @@ import type {
   AudioGenerationOptions,
   AudioGenerationResult,
 } from '@tanstack/ai'
-import type { GeminiClient } from '../client'
+import type { GeminiClient } from '../client/index'
 import type { GeminiClientConfig } from '../utils/client'
 
 /**
@@ -98,6 +98,7 @@ export class GeminiAudioAdapter<
         config: {
           responseModalities: ['AUDIO', 'TEXT'],
           ...(modelOptions?.seed != null ? { seed: modelOptions.seed } : {}),
+          ...(options.abortSignal && { abortSignal: options.abortSignal }),
         },
       })
 

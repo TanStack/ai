@@ -1,4 +1,4 @@
-import type { OpenRouterClientOptions } from '../client'
+import type { OpenRouterClientOptions } from '../client/index'
 import type { FetchWrapper } from '@tanstack/ai'
 
 /**

@@ -48,6 +48,8 @@ export const Route = createFileRoute('/api/foreign-client-tool')({
         const body: unknown = await request.json()
         const threadId = 'foreign-client-tool'
         const result = toolResultContent(body)
+        const toolCalls =
+          new URL(request.url).searchParams.get('finish') === 'tool_calls'
 
         if (result === undefined) {
           const runId = 'run-1'
@@ -64,7 +66,9 @@ export const Route = createFileRoute('/api/foreign-client-tool')({
               type: 'RUN_FINISHED',
               threadId,
               runId,
-              outcome: { type: 'success' },
+              ...(toolCalls
+                ? { finishReason: 'tool_calls' }
+                : { outcome: { type: 'success' } }),
             },
           ])
         }

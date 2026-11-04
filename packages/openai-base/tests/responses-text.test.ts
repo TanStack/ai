@@ -2447,6 +2447,124 @@ describe('OpenAIBaseResponsesTextAdapter', () => {
       expect(incompleteError).toBeDefined()
     })
 
+    it.each(['response.failed', 'response.incomplete'])(
+      'keeps the response usage on the RUN_ERROR for %s',
+      async (type) => {
+        setupMockResponsesClient([
+          {
+            type,
+            response: {
+              id: 'resp-123',
+              model: 'test-model',
+              status: type === 'response.failed' ? 'failed' : 'incomplete',
+              ...(type === 'response.failed'
+                ? { error: { message: 'Server error', code: 'server_error' } }
+                : { incomplete_details: { reason: 'content_filter' } }),
+              usage: { input_tokens: 11, output_tokens: 3, total_tokens: 14 },
+            },
+          },
+        ])
+        const adapter = new TestResponsesAdapter(testConfig, 'test-model')
+        const chunks: Array<AdapterYieldChunk> = []
+        for await (const chunk of adapter.chatStream({
+          threadId: 'thread-1',
+          logger: testLogger,
+          model: 'test-model',
+          messages: [{ role: 'user', content: 'Hello' }],
+        })) {
+          chunks.push(chunk)
+        }
+
+        expect(chunks.at(-1)).toMatchObject({
+          type: 'RUN_ERROR',
+          usage: { promptTokens: 11, completionTokens: 3, totalTokens: 14 },
+        })
+      },
+    )
+
+    it.each(['response.content_part.added', 'response.content_part.done'])(
+      'reports a refusal from %s with the usage of response.completed',
+      async (type) => {
+        setupMockResponsesClient([
+          {
+            type: 'response.created',
+            response: { id: 'resp-123', model: 'test-model' },
+          },
+          {
+            type,
+            item_id: 'msg_1',
+            output_index: 0,
+            content_index: 0,
+            part: { type: 'refusal', refusal: 'I cannot help with that' },
+          },
+          {
+            type: 'response.completed',
+            response: {
+              id: 'resp-123',
+              model: 'test-model',
+              status: 'completed',
+              output: [],
+              usage: { input_tokens: 11, output_tokens: 3, total_tokens: 14 },
+            },
+          },
+        ])
+        const adapter = new TestResponsesAdapter(testConfig, 'test-model')
+        const chunks: Array<AdapterYieldChunk> = []
+        for await (const chunk of adapter.chatStream({
+          threadId: 'thread-1',
+          logger: testLogger,
+          model: 'test-model',
+          messages: [{ role: 'user', content: 'Hello' }],
+        })) {
+          chunks.push(chunk)
+        }
+
+        expect(chunks.filter((c) => c.type === 'RUN_ERROR')).toHaveLength(1)
+        expect(chunks.map((c) => c.type)).not.toContain('RUN_FINISHED')
+        expect(chunks.at(-1)).toMatchObject({
+          type: 'RUN_ERROR',
+          message: 'I cannot help with that',
+          code: 'refusal',
+          usage: { promptTokens: 11, completionTokens: 3, totalTokens: 14 },
+        })
+      },
+    )
+
+    it('reports a caller abort during a held refusal as an abort', async () => {
+      mockResponsesCreate = vi.fn().mockResolvedValue(
+        (async function* () {
+          yield {
+            type: 'response.created',
+            response: { id: 'resp-123', model: 'test-model' },
+          }
+          yield {
+            type: 'response.content_part.done',
+            item_id: 'msg_1',
+            output_index: 0,
+            content_index: 0,
+            part: { type: 'refusal', refusal: 'I cannot help with that' },
+          }
+          throw Object.assign(new Error('Request was aborted.'), {
+            name: 'APIUserAbortError',
+          })
+        })(),
+      )
+      const adapter = new TestResponsesAdapter(testConfig, 'test-model')
+      const chunks: Array<AdapterYieldChunk> = []
+      for await (const chunk of adapter.chatStream({
+        threadId: 'thread-1',
+        logger: testLogger,
+        model: 'test-model',
+        messages: [{ role: 'user', content: 'Hello' }],
+      })) {
+        chunks.push(chunk)
+      }
+
+      const errors = chunks.filter((c) => c.type === 'RUN_ERROR')
+      expect(errors).toHaveLength(1)
+      expect(errors[0]).not.toMatchObject({ code: 'refusal' })
+    })
+
     it('emits RUN_ERROR on error event type', async () => {
       const streamChunks = [
         {
@@ -2854,6 +2972,52 @@ describe('OpenAIBaseResponsesTextAdapter', () => {
         }),
       ).rejects.toThrow(/unsupported message content part type "output_audio"/)
     })
+    it.each([
+      [
+        'a refusal',
+        [
+          {
+            type: 'message',
+            content: [{ type: 'refusal', refusal: 'I cannot help with that' }],
+          },
+        ],
+      ],
+      [
+        'no content',
+        [{ type: 'message', content: [{ type: 'output_text', text: '' }] }],
+      ],
+      [
+        'invalid JSON',
+        [
+          {
+            type: 'message',
+            content: [{ type: 'output_text', text: 'not json' }],
+          },
+        ],
+      ],
+    ])(
+      'attaches the response usage to the thrown error (%s)',
+      async (_label, output) => {
+        setupMockResponsesClient([], {
+          output,
+          usage: { input_tokens: 11, output_tokens: 3, total_tokens: 14 },
+        })
+        const adapter = new TestResponsesAdapter(testConfig, 'test-model')
+        await expect(
+          adapter.structuredOutput({
+            chatOptions: {
+              threadId: 'thread-1',
+              logger: testLogger,
+              model: 'test-model',
+              messages: [{ role: 'user', content: 'q' }],
+            },
+            outputSchema: { type: 'object' },
+          }),
+        ).rejects.toMatchObject({
+          usage: { promptTokens: 11, completionTokens: 3, totalTokens: 14 },
+        })
+      },
+    )
   })
 
   describe('request mapping', () => {
@@ -4761,6 +4925,135 @@ describe('OpenAIBaseResponsesTextAdapter', () => {
       })
       const finished = chunks.find((chunk) => chunk.type === 'RUN_FINISHED')
       expect(finished).toMatchObject({ finishReason: 'tool_calls' })
+    })
+
+    it('passes the streamed diff of an apply_patch_call to the app', async () => {
+      // The diff is empty when the item is added and streams in afterwards.
+      const diff = '@@\n-def fib\n+def fibonacci\n'
+      const item = (status: string, itemDiff: string) => ({
+        type: 'apply_patch_call',
+        id: 'apc_1',
+        call_id: 'call_patch',
+        status,
+        operation: { type: 'update_file', path: 'lib/fib.py', diff: itemDiff },
+      })
+      setupMockResponsesClient([
+        {
+          type: 'response.created',
+          response: {
+            id: 'resp-user-tool',
+            model: 'test-model',
+            status: 'in_progress',
+          },
+        },
+        {
+          type: 'response.output_item.added',
+          output_index: 0,
+          item: item('in_progress', ''),
+        },
+        {
+          type: 'response.apply_patch_call_operation_diff.delta',
+          output_index: 0,
+          item_id: 'apc_1',
+          delta: diff,
+        },
+        {
+          type: 'response.apply_patch_call_operation_diff.done',
+          output_index: 0,
+          item_id: 'apc_1',
+        },
+        {
+          type: 'response.output_item.done',
+          output_index: 0,
+          item: item('completed', diff),
+        },
+        {
+          type: 'response.completed',
+          response: {
+            id: 'resp-user-tool',
+            model: 'test-model',
+            status: 'completed',
+            output: [item('completed', diff)],
+            usage: { input_tokens: 1, output_tokens: 1, total_tokens: 2 },
+          },
+        },
+      ])
+      const adapter = new TestResponsesAdapter(testConfig, 'test-model')
+      const chunks: Array<AdapterYieldChunk> = []
+      for await (const chunk of adapter.chatStream({
+        threadId: 'thread-1',
+        logger: testLogger,
+        model: 'test-model',
+        messages: [{ role: 'user', content: 'edit the file' }],
+        tools: [applyPatchTool()],
+      })) {
+        chunks.push(chunk)
+      }
+
+      const starts = chunks.filter((chunk) => chunk.type === 'TOOL_CALL_START')
+      const ends = chunks.filter((chunk) => chunk.type === 'TOOL_CALL_END')
+      expect(starts).toHaveLength(1)
+      expect(ends).toHaveLength(1)
+      expect(ends[0]).toMatchObject({
+        toolCallId: 'call_patch',
+        input: {
+          operation: { type: 'update_file', path: 'lib/fib.py', diff },
+        },
+      })
+    })
+
+    it('fails the run when a user tool call is still in_progress at completion', async () => {
+      // A stateless stream can skip output_item.done and send an empty output.
+      setupMockResponsesClient([
+        {
+          type: 'response.created',
+          response: {
+            id: 'resp-open',
+            model: 'test-model',
+            status: 'in_progress',
+          },
+        },
+        {
+          type: 'response.output_item.added',
+          output_index: 0,
+          item: {
+            type: 'apply_patch_call',
+            id: 'apc_open',
+            call_id: 'call_open',
+            status: 'in_progress',
+            operation: { type: 'update_file', path: 'lib/fib.py', diff: '' },
+          },
+        },
+        {
+          type: 'response.completed',
+          response: {
+            id: 'resp-open',
+            model: 'test-model',
+            status: 'completed',
+            output: [],
+            usage: { input_tokens: 1, output_tokens: 1, total_tokens: 2 },
+          },
+        },
+      ])
+      const adapter = new TestResponsesAdapter(testConfig, 'test-model')
+      const chunks: Array<AdapterYieldChunk> = []
+      for await (const chunk of adapter.chatStream({
+        threadId: 'thread-1',
+        logger: testLogger,
+        model: 'test-model',
+        messages: [{ role: 'user', content: 'edit the file' }],
+        tools: [applyPatchTool()],
+      })) {
+        chunks.push(chunk)
+      }
+
+      const types = chunks.map((chunk) => chunk.type)
+      expect(types).not.toContain('TOOL_CALL_END')
+      expect(types).not.toContain('RUN_FINISHED')
+      expect(chunks.at(-1)).toMatchObject({
+        type: 'RUN_ERROR',
+        code: 'incomplete-tool-call',
+      })
     })
 
     it('surfaces a local shell call and ignores a hosted container shell', async () => {

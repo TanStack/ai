@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { createSandboxComputerDriver, sandboxComputer } from '../src/index'
 import type {
   ExecResult,
+  ProcessOptions,
   SandboxHandle,
   SandboxProvider,
 } from '@tanstack/ai-sandbox'
@@ -25,21 +26,23 @@ function fakeSandbox({ running = true, missing = [], size }: FakeOptions = {}) {
   const calls: Array<string> = []
   let started = running
   const ok = (stdout = ''): ExecResult => ({ stdout, stderr: '', exitCode: 0 })
-  const exec = vi.fn(async (command: string): Promise<ExecResult> => {
-    calls.push(`exec ${command}`)
-    if (command.startsWith('for t in')) return ok(missing.join('\n'))
-    if (command.endsWith('xdpyinfo >/dev/null 2>&1')) {
-      return started ? ok() : { stdout: '', stderr: '', exitCode: 1 }
-    }
-    if (command.endsWith('xdpyinfo')) {
-      return ok(size ? XDPYINFO.replace('1024x768', size) : XDPYINFO)
-    }
-    if (command.includes('base64 -w0')) return ok(`${PNG_BASE64}\n`)
-    if (command.endsWith('getmouselocation')) {
-      return ok('x:12 y:34 screen:0 window:1\n')
-    }
-    return ok()
-  })
+  const exec = vi.fn(
+    async (command: string, _options?: ProcessOptions): Promise<ExecResult> => {
+      calls.push(`exec ${command}`)
+      if (command.startsWith('for t in')) return ok(missing.join('\n'))
+      if (command.endsWith('xdpyinfo >/dev/null 2>&1')) {
+        return started ? ok() : { stdout: '', stderr: '', exitCode: 1 }
+      }
+      if (command.endsWith('xdpyinfo')) {
+        return ok(size ? XDPYINFO.replace('1024x768', size) : XDPYINFO)
+      }
+      if (command.includes('base64 -w0')) return ok(`${PNG_BASE64}\n`)
+      if (command.endsWith('getmouselocation')) {
+        return ok('x:12 y:34 screen:0 window:1\n')
+      }
+      return ok()
+    },
+  )
   const spawn = vi.fn(async (command: string) => {
     calls.push(`spawn ${command}`)
     if (command.startsWith('Xvfb')) started = true
@@ -282,5 +285,57 @@ describe('sandboxComputer', () => {
       expect.any(Error),
     )
     error.mockRestore()
+  })
+})
+
+describe('sandboxComputer create signal', () => {
+  it('passes the signal to provider.create, and {} without one', async () => {
+    const provider = fakeProvider([fakeSandbox(), fakeSandbox()])
+    const factory = sandboxComputer({ provider })
+    const controller = new AbortController()
+    await factory.create({ threadId: 'a', signal: controller.signal })
+    await factory.create({ threadId: 'b' })
+    expect(vi.mocked(provider.create).mock.calls).toEqual([
+      [{ signal: controller.signal }],
+      [{}],
+    ])
+  })
+})
+
+describe('action signals', () => {
+  it('passes the action signal to exec, and none to the releases', async () => {
+    const fake = fakeSandbox()
+    const driver = await createSandboxComputerDriver({ sandbox: fake.sandbox })
+    fake.exec.mockClear()
+    const signal = new AbortController().signal
+    await driver.move(1, 2, { signal })
+    await driver.click(1, 2, { button: 'left', count: 1, signal })
+    await driver.type('hi', { signal })
+    await driver.keyUp('a')
+    await driver.mouseUp('left')
+    expect(fake.exec.mock.calls.map((call) => call[1])).toEqual([
+      { signal },
+      { signal },
+      { signal },
+      undefined,
+      undefined,
+    ])
+  })
+
+  it('passes the setup signal to the setup commands', async () => {
+    const fake = fakeSandbox()
+    const signal = new AbortController().signal
+    await createSandboxComputerDriver({ sandbox: fake.sandbox, signal })
+    expect(fake.exec.mock.calls.length).toBeGreaterThan(0)
+    for (const call of fake.exec.mock.calls) {
+      expect(call[1]).toEqual({ signal })
+    }
+  })
+
+  it('sends exec no options without a signal', async () => {
+    const fake = fakeSandbox()
+    const driver = await createSandboxComputerDriver({ sandbox: fake.sandbox })
+    await driver.move(1, 2)
+    expect(fake.exec.mock.calls.every((call) => call.length === 1)).toBe(true)
   })
 })

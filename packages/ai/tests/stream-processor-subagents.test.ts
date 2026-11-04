@@ -265,4 +265,36 @@ describe('StreamProcessor subagent parts', () => {
       warn.mockRestore()
     })
   })
+
+  it.each([EventType.SUBAGENT_FINISHED, EventType.SUBAGENT_ERROR])(
+    'does not hand over a child tool_calls run at %s',
+    (type) => {
+      const onToolCall = vi.fn()
+      const processor = new StreamProcessor({ events: { onToolCall } })
+      processor.processChunk(ev.runStarted())
+      processor.processChunk({
+        type: EventType.SUBAGENT_STARTED,
+        subagentRunId: 'sub-1',
+        name: 'researcher',
+        timestamp: Date.now(),
+      })
+      for (const chunk of [
+        ev.runStarted('child-run'),
+        ev.toolStart('tc-1', 'ping'),
+        ev.toolArgs('tc-1', '{}'),
+        ev.toolEnd('tc-1'),
+        ev.runFinished('tool_calls', 'child-run'),
+      ]) {
+        processor.processChunk(attributed(chunk, 'sub-1'))
+      }
+      processor.processChunk({
+        type,
+        subagentRunId: 'sub-1',
+        message: 'Stopped',
+        timestamp: Date.now(),
+      } as StreamChunk)
+
+      expect(onToolCall).not.toHaveBeenCalled()
+    },
+  )
 })

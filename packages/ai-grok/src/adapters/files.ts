@@ -70,15 +70,19 @@ export class GrokFilesAdapter extends BaseFilesAdapter<'grok'> {
     this.expiresAfter = expiresAfter
   }
 
-  async upload(input: FileUploadInput): Promise<FileHandle<'grok'>> {
+  async upload(
+    input: FileUploadInput,
+    options?: { abortSignal?: AbortSignal },
+  ): Promise<FileHandle<'grok'>> {
+    const signal = options?.abortSignal
     const { blob, mimeType, filename } = normalizeFileUploadInput(input)
     const file = await toFile(blob, filename, {
       ...(mimeType ? { type: mimeType } : {}),
     })
-    const uploaded = await this.client.files.create({
-      file,
-      purpose: 'assistants',
-    })
+    const uploaded = await this.client.files.create(
+      { file, purpose: 'assistants' },
+      signal && { signal },
+    )
 
     // Minting the public URL is idempotent: asking again for a file that
     // already has one returns the same URL.
@@ -89,6 +93,7 @@ export class GrokFilesAdapter extends BaseFilesAdapter<'grok'> {
           this.expiresAfter !== undefined
             ? { expires_after: this.expiresAfter }
             : {},
+        ...(signal && { signal }),
       },
     )
     if (!publicUrl.public_url) {
@@ -118,13 +123,17 @@ export class GrokFilesAdapter extends BaseFilesAdapter<'grok'> {
    * it. After {@link revokePublicUrl}, a `get()` gives the file a public URL
    * again. Do not call it for a file whose URL you revoked.
    */
-  async get(id: string): Promise<FileHandle<'grok'>> {
-    const file = await this.client.files.retrieve(id)
+  async get(
+    id: string,
+    options?: { abortSignal?: AbortSignal },
+  ): Promise<FileHandle<'grok'>> {
+    const signal = options?.abortSignal
+    const file = await this.client.files.retrieve(id, signal && { signal })
     // `retrieve` reports the stored object, not its public URL. Re-minting is
     // idempotent, so this returns the URL the upload already created.
     const publicUrl = await this.client.post<GrokPublicUrlResponse>(
       `/files/${id}/public-url`,
-      { body: {} },
+      { body: {}, ...(signal && { signal }) },
     )
     return {
       id: file.id,
@@ -138,8 +147,12 @@ export class GrokFilesAdapter extends BaseFilesAdapter<'grok'> {
     }
   }
 
-  async delete(id: string): Promise<void> {
-    await this.client.files.delete(id)
+  async delete(
+    id: string,
+    options?: { abortSignal?: AbortSignal },
+  ): Promise<void> {
+    const signal = options?.abortSignal
+    await this.client.files.delete(id, signal && { signal })
   }
 
   /**

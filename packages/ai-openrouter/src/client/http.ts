@@ -162,16 +162,50 @@ export async function sendText(
 
 /**
  * The SSE events of a response, parsed and renamed. Stops at `[DONE]`.
- * ponytail: an async generator, not the SDK `ReadableStream` subclass; the
- * adapters only iterate it.
+ * A `ReadableStream`, like the SDK `EventStream`, so `drainAfterTerminal`
+ * can read the rest of the body after a terminal event.
  */
-async function* events(response: Response, tables: TextTables) {
-  for await (const event of parseSSE(response)) {
-    if (event.data === '[DONE]') return
-    // The SDK skips events with no data line.
-    if (event.data === '') continue
-    yield remap(JSON.parse(event.data), tables.event, tables.objects)
-  }
+function events(response: Response, tables: TextTables) {
+  // Cancelling the stream stops a pending body read at once.
+  const stop = new AbortController()
+  const source = (async function* () {
+    for await (const event of parseSSE(response, stop.signal)) {
+      if (event.data === '[DONE]') return
+      // The SDK skips events with no data line.
+      if (event.data === '') continue
+      yield remap(JSON.parse(event.data), tables.event, tables.objects)
+    }
+  })()
+  const stream = new ReadableStream<unknown>({
+    async pull(controller) {
+      try {
+        const step = await source.next()
+        if (step.done) controller.close()
+        else controller.enqueue(step.value)
+      } catch (error) {
+        controller.error(error)
+      }
+    },
+    cancel: () => stop.abort(),
+  })
+  // Same as the SDK `EventStream`: async iteration also where the runtime's
+  // `ReadableStream` has none.
+  return Object.assign(stream, {
+    [Symbol.asyncIterator]: () => {
+      const reader = stream.getReader()
+      return {
+        next: () => reader.read(),
+        return: async () => {
+          await reader.cancel('done')
+          reader.releaseLock()
+          return { done: true as const, value: undefined }
+        },
+        [Symbol.asyncIterator]() {
+          return this
+        },
+      }
+    },
+  })
 }
 
 /**

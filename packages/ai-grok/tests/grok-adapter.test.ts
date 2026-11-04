@@ -517,6 +517,7 @@ describe('Grok adapters', () => {
 
       expect(mockGenerate).toHaveBeenCalledWith(
         expect.objectContaining({ model: 'grok-imagine-image', prompt }),
+        expect.anything(),
       )
     })
 
@@ -540,6 +541,7 @@ describe('Grok adapters', () => {
           aspect_ratio: '16:9',
           resolution: '2k',
         }),
+        expect.anything(),
       )
       expect(mockGenerate.mock.calls[0]![0]).not.toHaveProperty('size')
     })
@@ -567,6 +569,7 @@ describe('Grok adapters', () => {
           aspect_ratio: '16:9',
           quality: 'low',
         }),
+        expect.anything(),
       )
     })
   })

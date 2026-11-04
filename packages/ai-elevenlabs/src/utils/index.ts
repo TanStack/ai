@@ -1,4 +1,4 @@
-export { createElevenLabsClient } from '../client'
+export { createElevenLabsClient } from '../client/index'
 export {
   arrayBufferToBase64,
   dataUrlToBlob,

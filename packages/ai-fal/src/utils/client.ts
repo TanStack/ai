@@ -1,5 +1,5 @@
 import { generateId as _generateId, getApiKeyFromEnv } from '@tanstack/ai-utils'
-import { createFalClient } from '../client'
+import { createFalClient } from '../client/index'
 import { createBillingFetch } from './billing'
 
 export interface FalClientConfig {

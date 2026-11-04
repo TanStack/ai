@@ -1,4 +1,4 @@
-import { createElevenLabsClient } from '../client'
+import { createElevenLabsClient } from '../client/index'
 import { getElevenLabsAgentIdFromEnv } from '../utils/client'
 import type { RealtimeToken, RealtimeTokenAdapter } from '@tanstack/ai'
 import type { ElevenLabsRealtimeTokenOptions } from './types'
@@ -36,12 +36,15 @@ export function elevenlabsRealtimeToken(
   return {
     provider: 'elevenlabs',
 
-    async generateToken(): Promise<RealtimeToken> {
+    async generateToken(request?: {
+      abortSignal?: AbortSignal
+    }): Promise<RealtimeToken> {
       const { overrides } = options
       const agentId = options.agentId ?? getElevenLabsAgentIdFromEnv()
 
       const response = await client.conversationalAi.conversations.getSignedUrl(
         { agentId },
+        request?.abortSignal && { abortSignal: request.abortSignal },
       )
 
       // Signed URLs are valid for 30 minutes

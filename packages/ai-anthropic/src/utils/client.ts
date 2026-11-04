@@ -1,5 +1,5 @@
 import { generateId as _generateId } from '@tanstack/ai-utils'
-import { createAnthropicClient as createClient } from '../client'
+import { createAnthropicClient as createClient } from '../client/index'
 import type { ClientOptions } from '@anthropic-ai/sdk'
 
 /**

@@ -104,11 +104,16 @@ function toUsage(usage: GrokBuildUsage | undefined): TokenUsage | undefined {
   if (!usage) return undefined
   const promptTokens = usage.input_tokens ?? 0
   const completionTokens = usage.output_tokens ?? 0
-  return buildBaseUsage({
+  const result = buildBaseUsage({
     promptTokens,
     completionTokens,
     totalTokens: promptTokens + completionTokens,
   })
+  // Codex-shaped usage: input_tokens already includes the cached tokens.
+  if (usage.cached_input_tokens) {
+    result.promptTokensDetails = { cachedTokens: usage.cached_input_tokens }
+  }
+  return result
 }
 
 function isNativeEvent(

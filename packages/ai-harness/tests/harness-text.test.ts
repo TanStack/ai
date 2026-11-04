@@ -290,6 +290,73 @@ describe('harnessText', () => {
     ])
   })
 
+  it('puts the usage of a remote RUN_ERROR on the outer RUN_ERROR', async () => {
+    const error = {
+      type: EventType.RUN_ERROR,
+      message: 'refused',
+      usage: [{ inputTokens: 3, outputTokens: 2, totalTokens: 5 }],
+    }
+    const adapter = harnessText(
+      remoteOf([
+        `data: ${JSON.stringify(error)}
+
+`,
+      ]),
+    )
+
+    const chunks = await callChunks(adapter, { threadId: 'outer-remote' })
+
+    expect(chunks.at(-1)).toMatchObject({
+      type: EventType.RUN_ERROR,
+      message: 'refused',
+      usage: { promptTokens: 3, completionTokens: 2, totalTokens: 5 },
+    })
+  })
+
+  it('keeps cost details, billed units, and provider details when it adds up usage', async () => {
+    const finished = (n: number) => ({
+      type: EventType.RUN_FINISHED,
+      runId: 'i',
+      threadId: 'i',
+      usage: [{ inputTokens: n, outputTokens: n, totalTokens: 2 * n }],
+      metadata: {
+        tanstack: {
+          usage: {
+            cost: n,
+            costDetails: { upstreamCost: n },
+            billed: { quantity: n, unit: 'seconds' },
+            providerUsageDetails: { call: n },
+          },
+        },
+      },
+    })
+    const adapter = harnessText(
+      remoteOf([
+        `data: ${JSON.stringify(finished(1))}
+
+`,
+        `data: ${JSON.stringify(finished(2))}
+
+`,
+      ]),
+    )
+
+    const chunks = await callChunks(adapter, { threadId: 'outer-remote' })
+
+    expect(chunks.at(-1)).toMatchObject({
+      type: EventType.RUN_FINISHED,
+      usage: {
+        promptTokens: 3,
+        completionTokens: 3,
+        totalTokens: 6,
+        cost: 3,
+        costDetails: { upstreamCost: 3 },
+        billed: { quantity: 3, unit: 'seconds' },
+        providerUsageDetails: { call: 2 },
+      },
+    })
+  })
+
   it('cancels the remote turn when the call aborts', async () => {
     const requests: Array<{ url: string; body: unknown }> = []
     const encoder = new TextEncoder()
@@ -343,6 +410,96 @@ describe('harnessText', () => {
         input: { op: 'cancel', operationId: 'run-1' },
       },
     })
+  })
+
+  it('cancels the remote turn when the caller stops reading early', async () => {
+    const requests: Array<{ url: string; body: unknown }> = []
+    const encoder = new TextEncoder()
+    const delta = {
+      type: EventType.TEXT_MESSAGE_CONTENT,
+      messageId: 'm1',
+      delta: 'working',
+    }
+    const adapter = harnessText({
+      url: 'http://remote.test/',
+      fetch: async (url, init) => {
+        requests.push({
+          url: String(url),
+          body: typeof init?.body === 'string' ? JSON.parse(init.body) : null,
+        })
+        if (!String(url).endsWith('/run')) return Response.json({})
+        // A turn that streams one delta, then runs on.
+        return new Response(
+          new ReadableStream({
+            start(controller) {
+              controller.enqueue(
+                encoder.encode(`data: ${JSON.stringify(delta)}\n\n`),
+              )
+            },
+          }),
+          { status: 200 },
+        )
+      },
+    })
+
+    for await (const chunk of adapter.chatStream({
+      model: adapter.model,
+      messages: [{ role: 'user', content: 'hello' }],
+      logger: resolveDebugOption(false),
+      threadId: 'outer-remote',
+      runId: 'run-1',
+    })) {
+      if (chunk.type === EventType.TEXT_MESSAGE_CONTENT) break
+    }
+
+    await vi.waitFor(() => expect(requests).toHaveLength(2))
+    expect(requests[1]).toEqual({
+      url: 'http://remote.test/control',
+      body: {
+        threadId: 'outer-remote',
+        input: { op: 'cancel', operationId: 'run-1' },
+      },
+    })
+  })
+
+  it('cancels the inner turn when the caller stops reading early', async () => {
+    const inner = mockAdapter([
+      (options) =>
+        (async function* () {
+          yield {
+            type: EventType.TEXT_MESSAGE_CONTENT,
+            messageId: 'm1',
+            delta: 'working',
+            timestamp: Date.now(),
+          }
+          // A turn that runs until it is cancelled.
+          const signal: AbortSignal | undefined = options.request?.signal
+          await new Promise<void>((resolve) => {
+            if (!signal || signal.aborted) return resolve()
+            signal.addEventListener('abort', () => resolve(), { once: true })
+          })
+        })(),
+    ])
+    const studio = defineHarness({ name: 'test/inner', adapter: inner.adapter })
+    const host = createHarnessHost({ persistence: memoryPersistence() })
+    const adapter = harnessText(studio, { host })
+
+    const stopped = (async () => {
+      for await (const chunk of adapter.chatStream({
+        model: adapter.model,
+        messages: [{ role: 'user', content: 'hello' }],
+        logger: resolveDebugOption(false),
+        threadId: 'outer-early',
+      })) {
+        if (chunk.type === EventType.TEXT_MESSAGE_CONTENT) break
+      }
+    })()
+
+    await vi.waitFor(() =>
+      expect(inner.calls[0]?.request?.signal?.aborted).toBe(true),
+    )
+    await stopped
+    await host.close()
   })
 
   it('opens the inner session as the user of each outer harness turn', async () => {
@@ -465,6 +622,36 @@ describe('harnessText', () => {
     await expect(asBob.send('again')).rejects.toThrow(
       'Access denied: read on thread "a/inner/test/inner".',
     )
+    await host.close()
+  })
+
+  it('puts the usage of a failed inner turn on the outer RUN_ERROR', async () => {
+    const inner = mockAdapter([
+      () => [
+        {
+          type: EventType.RUN_STARTED,
+          runId: 'r',
+          threadId: 't',
+          timestamp: Date.now(),
+        },
+        {
+          type: EventType.RUN_ERROR,
+          message: 'refused',
+          timestamp: Date.now(),
+          usage: { promptTokens: 7, completionTokens: 1, totalTokens: 8 },
+        },
+      ],
+    ])
+    const studio = defineHarness({ name: 'test/inner', adapter: inner.adapter })
+    const host = createHarnessHost({ persistence: memoryPersistence() })
+    const adapter = harnessText(studio, { host })
+
+    const chunks = await callChunks(adapter, { threadId: 'outer-failed' })
+
+    expect(chunks.at(-1)).toMatchObject({
+      type: EventType.RUN_ERROR,
+      usage: { promptTokens: 7, completionTokens: 1, totalTokens: 8 },
+    })
     await host.close()
   })
 

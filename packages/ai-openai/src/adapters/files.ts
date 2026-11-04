@@ -37,25 +37,44 @@ export class OpenAIFilesAdapter extends BaseFilesAdapter<'openai'> {
     this.purpose = purpose ?? 'user_data'
   }
 
-  async upload(input: FileUploadInput): Promise<FileHandle<'openai'>> {
+  async upload(
+    input: FileUploadInput,
+    options?: { abortSignal?: AbortSignal },
+  ): Promise<FileHandle<'openai'>> {
     const { blob, mimeType, filename } = normalizeFileUploadInput(input)
     const file = await toFile(blob, filename, {
       ...(mimeType ? { type: mimeType } : {}),
     })
-    const result = await this.client.files.create({
-      file,
-      purpose: this.purpose,
-    })
+    const result = await this.client.files.create(
+      { file, purpose: this.purpose },
+      requestOptions(options),
+    )
     return toFileHandle(result)
   }
 
-  async get(id: string): Promise<FileHandle<'openai'>> {
-    return toFileHandle(await this.client.files.retrieve(id))
+  async get(
+    id: string,
+    options?: { abortSignal?: AbortSignal },
+  ): Promise<FileHandle<'openai'>> {
+    const request = requestOptions(options)
+    return toFileHandle(
+      request
+        ? await this.client.files.retrieve(id, request)
+        : await this.client.files.retrieve(id),
+    )
   }
 
-  async delete(id: string): Promise<void> {
-    await this.client.files.delete(id)
+  async delete(
+    id: string,
+    options?: { abortSignal?: AbortSignal },
+  ): Promise<void> {
+    await this.client.files.delete(id, requestOptions(options))
   }
+}
+
+/** SDK request options that carry the caller's abort signal, if any. */
+function requestOptions(options?: { abortSignal?: AbortSignal }) {
+  return options?.abortSignal ? { signal: options.abortSignal } : undefined
 }
 
 function toFileHandle(file: FileObject): FileHandle<'openai'> {

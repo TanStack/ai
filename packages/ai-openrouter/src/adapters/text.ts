@@ -1,5 +1,5 @@
-import { createOpenRouterChatClient } from '../client'
-import type { OpenRouterClient } from '../client'
+import { createOpenRouterChatClient } from '../client/index'
+import type { OpenRouterClient } from '../client/index'
 import {
   EventType,
   isFileSource,
@@ -358,12 +358,24 @@ export class OpenRouterTextAdapter<
       // is then visible in logs.
       const choice = response.choices[0]
 
+      // Forward provider usage (tokens + OpenRouter cost) so middleware
+      // onFinish/onUsage and fallbackStructuredOutputStream see real cost.
+      // Matches the stream path and StructuredOutputResult.usage contract.
+      // A failure below still carries it: core reads `error.usage`.
+      const baseUsage = buildOpenRouterUsage(response.usage)
+      const usage = baseUsage && {
+        ...baseUsage,
+        ...extractUsageCost(response.usage),
+      }
+      const fail = (message: string) =>
+        Object.assign(new Error(message), usage && { usage })
+
       // A response cut off at the output cap is a truncated JSON document —
       // or, for reasoning models, no content at all once the budget went to
       // reasoning. Report it as truncation before the empty-content and
       // parse errors, which would read like a schema failure (issue #1426).
       if (choice?.finishReason === 'length') {
-        throw new Error(
+        throw fail(
           `${this.name}.structuredOutput: the response was cut off because the maximum token limit was reached (finish_reason=length); raise maxCompletionTokens`,
         )
       }
@@ -372,7 +384,7 @@ export class OpenRouterTextAdapter<
       const rawText =
         typeof message?.content === 'string' ? message.content : ''
       if (rawText.length === 0) {
-        throw new Error(
+        throw fail(
           `${this.name}.structuredOutput: response contained no content`,
         )
       }
@@ -382,7 +394,7 @@ export class OpenRouterTextAdapter<
       try {
         parsed = JSON.parse(rawText)
       } catch {
-        throw new Error(
+        throw fail(
           `Failed to parse structured output as JSON. Content: ${rawText.slice(0, 200)}${rawText.length > 200 ? '...' : ''}`,
         )
       }
@@ -392,18 +404,12 @@ export class OpenRouterTextAdapter<
       // this).
       const transformed = this.transformStructuredOutput(parsed)
 
-      // Forward provider usage (tokens + OpenRouter cost) so middleware
-      // onFinish/onUsage and fallbackStructuredOutputStream see real cost.
-      // Matches the stream path and StructuredOutputResult.usage contract.
-      const baseUsage = buildOpenRouterUsage(response.usage)
       return {
         data: transformed,
         rawText,
         ...(response.id && { responseId: response.id }),
         ...(response.model && { model: response.model }),
-        ...(baseUsage && {
-          usage: { ...baseUsage, ...extractUsageCost(response.usage) },
-        }),
+        ...(usage && { usage }),
       }
     } catch (error: unknown) {
       // Narrow before logging: raw SDK errors can carry request metadata
@@ -865,6 +871,11 @@ export class OpenRouterTextAdapter<
     // therefore defer RUN_FINISHED until the iterator is exhausted so we can
     // pick up usage from the trailing chunk regardless of arrival order.
     let lastUsage: ChatStreamChunk['usage'] | undefined
+    // Received usage plus OpenRouter cost, for RUN_FINISHED and RUN_ERROR.
+    const runUsage = () => {
+      const usage = buildOpenRouterUsage(lastUsage)
+      return usage && { ...usage, ...extractUsageCost(lastUsage) }
+    }
     let pendingFinishReason: ChatStreamChoice['finishReason'] | undefined
 
     // Track tool calls being streamed (arguments come in chunks).
@@ -898,6 +909,13 @@ export class OpenRouterTextAdapter<
           `provider=${this.name} finishReason=${choiceForLog?.finishReason ?? 'none'} hasContent=${!!choiceForLog?.delta.content} hasToolCalls=${!!choiceForLog?.delta.toolCalls} hasUsage=${!!chunk.usage}`,
           { provider: this.name, model: chunk.model },
         )
+
+        // Capture usage from any chunk (including the terminal usage-only
+        // chunk emitted when `streamOptions.includeUsage` is on, and an error
+        // chunk, so the RUN_ERROR still reports it).
+        if (chunk.usage) {
+          lastUsage = chunk.usage
+        }
 
         // Surface upstream errors so they can be routed to RUN_ERROR. Stream
         // chunks may carry an `error` field (provider-side failures that
@@ -933,11 +951,6 @@ export class OpenRouterTextAdapter<
           )
         }
 
-        // Capture usage from any chunk (including the terminal usage-only
-        // chunk emitted when `streamOptions.includeUsage` is on).
-        if (chunk.usage) {
-          lastUsage = chunk.usage
-        }
         if (chunk.model) {
           lastModel = chunk.model
         }
@@ -1255,8 +1268,10 @@ export class OpenRouterTextAdapter<
           )
         ) {
           const message = `Provider finish_reason: ${pendingFinishReason}`
+          const usage = runUsage()
           yield {
             type: EventType.RUN_ERROR,
+            ...(usage && { usage }),
             runId: aguiState.runId,
             model: lastModel || options.model,
             timestamp: Date.now(),
@@ -1286,7 +1301,7 @@ export class OpenRouterTextAdapter<
                 ? 'content_filter'
                 : 'stop'
 
-        const finalUsage = buildOpenRouterUsage(lastUsage)
+        const finalUsage = runUsage()
 
         yield {
           type: EventType.RUN_FINISHED,
@@ -1301,9 +1316,7 @@ export class OpenRouterTextAdapter<
           threadId: aguiState.threadId,
           model: lastModel || options.model,
           timestamp: Date.now(),
-          ...(finalUsage && {
-            usage: { ...finalUsage, ...extractUsageCost(lastUsage) },
-          }),
+          ...(finalUsage && { usage: finalUsage }),
           finishReason,
         }
       }
@@ -1323,8 +1336,10 @@ export class OpenRouterTextAdapter<
       // Emit AG-UI RUN_ERROR. `rawEvent` carries the provider's structured
       // error body (e.g. the mid-stream `chunk.error` rethrown above) when
       // present.
+      const usage = runUsage()
       yield {
         type: EventType.RUN_ERROR,
+        ...(usage && { usage }),
         model: options.model,
         timestamp: Date.now(),
         message: errorPayload.message,

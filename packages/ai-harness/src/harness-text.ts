@@ -5,6 +5,7 @@ import type {
   AnyTextAdapter,
   Modality,
   ModelMessage,
+  RunErrorEvent,
   RunFinishedEvent,
   StreamChunk,
   TokenUsage,
@@ -157,7 +158,7 @@ async function* sseData(response: Response): AsyncGenerator<unknown> {
 }
 
 /** The usage of an inner RUN_FINISHED, in either form that it can have. */
-function usageOf(chunk: RunFinishedEvent) {
+function usageOf(chunk: RunFinishedEvent | RunErrorEvent) {
   const { usage } = chunk
   if (usage === undefined || Array.isArray(usage)) {
     return fromSpecTokenUsage(usage, chunk.metadata?.tanstack?.usage)
@@ -171,7 +172,8 @@ const plus = (a: number | undefined, b: number | undefined) =>
 
 /**
  * The usage of two model calls added up: the token counts, the cached,
- * cache write, and reasoning tokens, and the cost.
+ * cache write, and reasoning tokens, the cost and its details, and the
+ * billed units of one unit. The provider details of the last call stay.
  */
 function addUsage(total: TokenUsage | undefined, next: TokenUsage) {
   if (total === undefined) return next
@@ -188,6 +190,24 @@ function addUsage(total: TokenUsage | undefined, next: TokenUsage) {
     next.completionTokensDetails?.reasoningTokens,
   )
   const cost = plus(total.cost, next.cost)
+  let costDetails = next.costDetails ?? total.costDetails
+  if (total.costDetails && next.costDetails) {
+    costDetails = { ...total.costDetails }
+    for (const key of Object.keys(next.costDetails) as Array<
+      keyof typeof costDetails
+    >) {
+      costDetails[key] = plus(total.costDetails[key], next.costDetails[key])
+    }
+  }
+  const billed =
+    total.billed && next.billed && total.billed.unit === next.billed.unit
+      ? {
+          quantity: total.billed.quantity + next.billed.quantity,
+          unit: total.billed.unit,
+        }
+      : (next.billed ?? total.billed)
+  const providerUsageDetails =
+    next.providerUsageDetails ?? total.providerUsageDetails
   const hasPromptDetails =
     cachedTokens !== undefined || cacheWriteTokens !== undefined
   const usage: TokenUsage = {
@@ -204,6 +224,9 @@ function addUsage(total: TokenUsage | undefined, next: TokenUsage) {
       completionTokensDetails: { reasoningTokens },
     }),
     ...(cost !== undefined && { cost }),
+    ...(costDetails && { costDetails }),
+    ...(billed && { billed }),
+    ...(providerUsageDetails && { providerUsageDetails }),
   }
   return usage
 }
@@ -291,7 +314,12 @@ async function* forwardChunks(
       const used = usageOf(chunk)
       if (used) usage = addUsage(usage, used)
     }
-    if (chunk.type === EventType.RUN_ERROR) failed = chunk.message
+    if (chunk.type === EventType.RUN_ERROR) {
+      failed = chunk.message
+      // A failed call used tokens too.
+      const used = isOwn ? usageOf(chunk) : undefined
+      if (used) usage = addUsage(usage, used)
+    }
   }
   return {
     ...(failed !== undefined && { failed }),
@@ -366,6 +394,8 @@ function remoteHarnessText(remote: RemoteHarness): AnyTextAdapter {
           }).catch(() => {})
         }
         signal?.addEventListener('abort', cancelRemote, { once: true })
+        // A caller that stops reading early sends no abort. Cancel then too.
+        let isEnded = false
         try {
           const response = await doFetch(`${base}/run`, {
             method: 'POST',
@@ -408,11 +438,13 @@ function remoteHarnessText(remote: RemoteHarness): AnyTextAdapter {
             (chunk, isOwn) =>
               FORWARDED.has(chunk.type) && isOwn ? chunk : undefined,
           )
+          isEnded = true
           if (failed !== undefined) {
             yield {
               type: EventType.RUN_ERROR,
               message: failed,
               timestamp: Date.now(),
+              ...(usage && { usage }),
             }
             return
           }
@@ -437,6 +469,7 @@ function remoteHarnessText(remote: RemoteHarness): AnyTextAdapter {
         } finally {
           // A long-lived signal must not keep one listener per call.
           signal?.removeEventListener('abort', cancelRemote)
+          if (!isEnded && !signal?.aborted) cancelRemote()
         }
       })(),
   }
@@ -523,6 +556,8 @@ export function harnessText(
         // A signal that aborted already never fires its event.
         if (signal?.aborted) cancel()
         else signal?.addEventListener('abort', cancel, { once: true })
+        // A caller that stops reading early sends no abort. Cancel then too.
+        let isEnded = false
         try {
           yield {
             type: EventType.RUN_STARTED,
@@ -535,11 +570,13 @@ export function harnessText(
             (chunk, isOwn) =>
               FORWARDED.has(chunk.type) && isOwn ? chunk : undefined,
           )
+          isEnded = true
           if (failed !== undefined) {
             yield {
               type: EventType.RUN_ERROR,
               message: failed,
               timestamp: Date.now(),
+              ...(usage && { usage }),
             }
             return
           }
@@ -555,6 +592,7 @@ export function harnessText(
         } finally {
           // A long-lived signal must not keep one listener per call.
           signal?.removeEventListener('abort', cancel)
+          if (!isEnded && !signal?.aborted) cancel()
           await session.close()
         }
       })(),
