@@ -269,4 +269,25 @@ describe('OpenAI Video Adapter', () => {
     expect(result.contentType).toBe('video/mp4')
     await expect(new Response(result.body).text()).resolves.toBe('mp4-bytes')
   })
+
+  it('passes the abort signal to the download as request options', async () => {
+    const adapter = createOpenaiVideo('sora-2', 'test-api-key')
+    const downloadContent = vi.fn().mockResolvedValue(new Response('mp4'))
+    ;(adapter as unknown as { client: { videos: unknown } }).client = {
+      videos: {
+        retrieve: vi
+          .fn()
+          .mockResolvedValue({ id: 'job-1', status: 'completed' }),
+        downloadContent,
+      },
+    }
+    const { signal } = new AbortController()
+
+    await adapter.getVideo('job-1', { abortSignal: signal })
+
+    // The SDK signature is (videoID, query, options).
+    expect(downloadContent).toHaveBeenCalledWith('job-1', undefined, {
+      signal,
+    })
+  })
 })

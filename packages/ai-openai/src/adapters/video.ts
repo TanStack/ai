@@ -191,6 +191,7 @@ export class OpenAIVideoAdapter<
     }>
     downloadContent: (
       id: string,
+      query?: undefined,
       options?: { signal?: AbortSignal },
     ) => Promise<Response>
   } {
@@ -254,7 +255,12 @@ export class OpenAIVideoAdapter<
 
       // No URL: hand the download stream to generation middleware (which
       // stores it and sets the URL) instead of buffering the whole video.
-      const response = await videosClient.downloadContent(jobId, requestOptions)
+      // The second argument is the query, so the options go third.
+      const response = await videosClient.downloadContent(
+        jobId,
+        undefined,
+        requestOptions,
+      )
       if (!response.body) throw new Error('Video download returned no body')
       return {
         jobId,

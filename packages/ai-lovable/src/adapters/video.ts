@@ -197,8 +197,10 @@ export class LovableVideoAdapter<
 
       // No URL: hand the download stream to generation middleware instead of
       // buffering the whole video.
+      // The second argument is the query, so the options go third.
       const response = await this.client.videos.downloadContent(
         jobId,
+        undefined,
         requestOptions,
       )
       if (!response.body) throw new Error('Video download returned no body')
