@@ -3064,8 +3064,8 @@ importers:
         specifier: ^8.9.0
         version: 8.13.1(@types/ioredis-mock@8.2.7(ioredis@5.9.2))(ioredis@5.9.2)
       redis:
-        specifier: ^4.7.0
-        version: 4.7.1
+        specifier: ^6.3.1
+        version: 6.3.1(@opentelemetry/api@1.9.1)
       vitest:
         specifier: ^4.1.10
         version: 4.1.10(@opentelemetry/api@1.9.1)(@types/node@24.10.3)(@vitest/coverage-v8@4.1.10)(happy-dom@20.11.2)(jsdom@27.4.0(@noble/hashes@2.3.0))(vite@8.3.0(@types/node@24.13.6)(esbuild@0.28.1)(jiti@2.7.0)(less@4.6.6)(sass@1.101.0)(terser@5.44.1)(tsx@4.23.12)(yaml@2.9.0))
@@ -9763,34 +9763,41 @@ packages:
     peerDependencies:
       react: ^18.0.0 || ^19.0.0
 
-  '@redis/bloom@1.2.0':
-    resolution: {integrity: sha512-HG2DFjYKbpNmVXsa0keLHp/3leGJz1mjh09f2RLGGLQZzSHpkmZWuwJbAvo3QcRY8p80m5+ZdXZdYOSBLlp7Cg==}
+  '@redis/bloom@6.3.1':
+    resolution: {integrity: sha512-dpF9j2yJDoPzSCaZn0MSB3xzmnXQVJeTSAWJcQVcgbmluwhpFeemmII0cF1t+WYfoVS+shEFq79+MmUItgzJLg==}
+    engines: {node: '>= 20.0.0'}
     peerDependencies:
-      '@redis/client': ^1.0.0
+      '@redis/client': ^6.3.1
 
-  '@redis/client@1.6.1':
-    resolution: {integrity: sha512-/KCsg3xSlR+nCK8/8ZYSknYxvXHwubJrU82F3Lm1Fp6789VQ0/3RJKfsmRXjqfaTA++23CvC3hqmqe/2GEt6Kw==}
-    engines: {node: '>=14'}
-
-  '@redis/graph@1.1.1':
-    resolution: {integrity: sha512-FEMTcTHZozZciLRl6GiiIB4zGm5z5F3F6a6FZCyrfxdKOhFlGkiAqlexWMBzCi4DcRoyiOsuLfW+cjlGWyExOw==}
+  '@redis/client@6.3.1':
+    resolution: {integrity: sha512-masbfVKULdoAofwddepZxRhWa4w6zvBHn6TRn90TRPrRkVIlGCur3pFqwWaCbMxtYI9twepkz63e/T/tEH8GjA==}
+    engines: {node: '>= 20.0.0'}
     peerDependencies:
-      '@redis/client': ^1.0.0
+      '@node-rs/xxhash': ^1.1.0
+      '@opentelemetry/api': '>=1 <2'
+    peerDependenciesMeta:
+      '@node-rs/xxhash':
+        optional: true
+      '@opentelemetry/api':
+        optional: true
 
-  '@redis/json@1.0.7':
-    resolution: {integrity: sha512-6UyXfjVaTBTJtKNG4/9Z8PSpKE6XgSyEb8iwaqDcy+uKrd/DGYHTWkUdnQDyzm727V7p21WUMhsqz5oy65kPcQ==}
+  '@redis/json@6.3.1':
+    resolution: {integrity: sha512-fMz4kUwJzEftcU9EMaqsjZcUwzpTQLOYRqhQsAD6uKvZWeamblK13ZhgO5SzVSZVk31jmwLeTRpU5GAl5egfUw==}
+    engines: {node: '>= 20.0.0'}
     peerDependencies:
-      '@redis/client': ^1.0.0
+      '@redis/client': ^6.3.1
 
-  '@redis/search@1.2.0':
-    resolution: {integrity: sha512-tYoDBbtqOVigEDMAcTGsRlMycIIjwMCgD8eR2t0NANeQmgK/lvxNAvYyb6bZDD4frHRhIHkJu2TBRvB0ERkOmw==}
+  '@redis/search@6.3.1':
+    resolution: {integrity: sha512-T67pvPUpW82VrZLvihO8O2DFMC7eY2oMAzMzapCbiPZn7mdWqHMEIlohYim12gIawT5kn6qT/Cvmm4WulKB+kQ==}
+    engines: {node: '>= 20.0.0'}
     peerDependencies:
-      '@redis/client': ^1.0.0
+      '@redis/client': ^6.3.1
 
-  '@redis/time-series@1.1.0':
-    resolution: {integrity: sha512-c1Q99M5ljsIuc4YdaCwfUEXsofakb9c8+Zse2qxTadu8TalLXuAESzLvFAvNVbkmSlvlzIQOLpBCmWI9wTOt+g==}
+  '@redis/time-series@6.3.1':
+    resolution: {integrity: sha512-MNDgrm+i63M/1a+XA+HcDsScwt4uBh/fGGJ84swTQZTFK5K5wMmxdlTRa4ZgmNJzjxMaszW/ipPScMUGV3aAMg==}
+    engines: {node: '>= 20.0.0'}
     peerDependencies:
-      '@redis/client': ^1.0.0
+      '@redis/client': ^6.3.1
 
   '@remix-run/assert@0.3.0':
     resolution: {integrity: sha512-GBA9klvJdG5YSTwRNur54LQcfqDOtir+x1TDbv3dzB9FS2Li9CEiRLp1EpBcaYrj4ByO03WJCWFBiY8bTMy4vQ==}
@@ -14432,10 +14439,6 @@ packages:
   generate-function@2.3.1:
     resolution: {integrity: sha512-eeB5GfMNeevm/GRYq20ShmsaGcmI81kIX2K9XQx5miC8KdHaC6Jm0qQ8ZNeGOi7wYB8OsdxKs+Y2oVuTFuVwKQ==}
 
-  generic-pool@3.9.0:
-    resolution: {integrity: sha512-hymDOu5B53XvN4QT9dBmZxPX4CWhBPPLguTZ9MMFeFa/Kg0xWVfylOVNlJji/E7yTZWFd/q9GO5TxDLq156D7g==}
-    engines: {node: '>= 4'}
-
   gensync@1.0.0-beta.2:
     resolution: {integrity: sha512-3hN7NaskYvMDLQY55gnW3NQ+mesEAepTqlg+VEbj7zzqEMBVNhzcGYYeqFo/TlYz6eQiFcp1HcsCZO+nGgS8zg==}
     engines: {node: '>=6.9.0'}
@@ -17353,8 +17356,9 @@ packages:
     resolution: {integrity: sha512-DJnGAeenTdpMEH6uAJRK/uiyEIH9WVsUmoLwzudwGJUwZPp80PDBWPHXSAGNPwNvIXAbe7MSUB1zQFugFml66A==}
     engines: {node: '>=4'}
 
-  redis@4.7.1:
-    resolution: {integrity: sha512-S1bJDnqLftzHXHP8JsT5II/CtHWQrASX5K96REjWjlmWKrviSOLWmM7QnRLstAWsu1VBBV1ffV6DzCvxNP0UJQ==}
+  redis@6.3.1:
+    resolution: {integrity: sha512-mV96ZKxQ4CGn3SyEGaY0Lb9YA443mdVey3c+mdr0NAUaBxiOZGoYCWX8PoM55kictSOmxlJRtZJxIsmZm3jL+w==}
+    engines: {node: '>= 20.0.0'}
 
   reflect-metadata@0.2.2:
     resolution: {integrity: sha512-urBwgfrvVP/eAyXx4hluJivBKzuEbSQs9rKWCrCkbSxNv8mxPcUZKeuoF3Uy4mJl3Lwprp6yy5/39VWigZ4K6Q==}
@@ -26658,31 +26662,25 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  '@redis/bloom@1.2.0(@redis/client@1.6.1)':
+  '@redis/bloom@6.3.1(@redis/client@6.3.1(@opentelemetry/api@1.9.1))':
     dependencies:
-      '@redis/client': 1.6.1
+      '@redis/client': 6.3.1(@opentelemetry/api@1.9.1)
 
-  '@redis/client@1.6.1':
-    dependencies:
-      cluster-key-slot: 1.1.2
-      generic-pool: 3.9.0
-      yallist: 4.0.0
+  '@redis/client@6.3.1(@opentelemetry/api@1.9.1)':
+    optionalDependencies:
+      '@opentelemetry/api': 1.9.1
 
-  '@redis/graph@1.1.1(@redis/client@1.6.1)':
+  '@redis/json@6.3.1(@redis/client@6.3.1(@opentelemetry/api@1.9.1))':
     dependencies:
-      '@redis/client': 1.6.1
+      '@redis/client': 6.3.1(@opentelemetry/api@1.9.1)
 
-  '@redis/json@1.0.7(@redis/client@1.6.1)':
+  '@redis/search@6.3.1(@redis/client@6.3.1(@opentelemetry/api@1.9.1))':
     dependencies:
-      '@redis/client': 1.6.1
+      '@redis/client': 6.3.1(@opentelemetry/api@1.9.1)
 
-  '@redis/search@1.2.0(@redis/client@1.6.1)':
+  '@redis/time-series@6.3.1(@redis/client@6.3.1(@opentelemetry/api@1.9.1))':
     dependencies:
-      '@redis/client': 1.6.1
-
-  '@redis/time-series@1.1.0(@redis/client@1.6.1)':
-    dependencies:
-      '@redis/client': 1.6.1
+      '@redis/client': 6.3.1(@opentelemetry/api@1.9.1)
 
   '@remix-run/assert@0.3.0': {}
 
@@ -32240,8 +32238,6 @@ snapshots:
       is-property: 1.0.2
     optional: true
 
-  generic-pool@3.9.0: {}
-
   gensync@1.0.0-beta.2: {}
 
   get-caller-file@2.0.5: {}
@@ -36586,14 +36582,16 @@ snapshots:
     dependencies:
       redis-errors: 1.2.0
 
-  redis@4.7.1:
+  redis@6.3.1(@opentelemetry/api@1.9.1):
     dependencies:
-      '@redis/bloom': 1.2.0(@redis/client@1.6.1)
-      '@redis/client': 1.6.1
-      '@redis/graph': 1.1.1(@redis/client@1.6.1)
-      '@redis/json': 1.0.7(@redis/client@1.6.1)
-      '@redis/search': 1.2.0(@redis/client@1.6.1)
-      '@redis/time-series': 1.1.0(@redis/client@1.6.1)
+      '@redis/bloom': 6.3.1(@redis/client@6.3.1(@opentelemetry/api@1.9.1))
+      '@redis/client': 6.3.1(@opentelemetry/api@1.9.1)
+      '@redis/json': 6.3.1(@redis/client@6.3.1(@opentelemetry/api@1.9.1))
+      '@redis/search': 6.3.1(@redis/client@6.3.1(@opentelemetry/api@1.9.1))
+      '@redis/time-series': 6.3.1(@redis/client@6.3.1(@opentelemetry/api@1.9.1))
+    transitivePeerDependencies:
+      - '@node-rs/xxhash'
+      - '@opentelemetry/api'
 
   reflect-metadata@0.2.2: {}
 
@@ -39199,7 +39197,8 @@ snapshots:
 
   yallist@3.1.1: {}
 
-  yallist@4.0.0: {}
+  yallist@4.0.0:
+    optional: true
 
   yallist@5.0.0: {}
 

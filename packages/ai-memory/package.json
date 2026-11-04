@@ -123,7 +123,7 @@
     "@vectorize-io/hindsight-client": "^0.6.1",
     "@vitest/coverage-v8": "4.1.10",
     "ioredis-mock": "^8.9.0",
-    "redis": "^4.7.0",
+    "redis": "^6.3.1",
     "vitest": "^4.1.10"
   }
 }
