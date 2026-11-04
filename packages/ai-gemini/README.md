@@ -165,6 +165,7 @@ input and output types:
 ```typescript
 import { toolDefinition } from '@tanstack/ai'
 import { z } from 'zod'
+import { db } from './db'
 
 const getProducts = toolDefinition({
   name: 'getProducts',

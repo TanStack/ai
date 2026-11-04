@@ -40,6 +40,9 @@ yarn add @tanstack/ai-sandbox-cloudflare
 
 ```typescript
 import { cloudflareSandbox } from '@tanstack/ai-sandbox-cloudflare'
+import type { SandboxAgentEnv } from '@tanstack/ai-sandbox-cloudflare/agent'
+
+declare const env: SandboxAgentEnv
 
 const sandbox = cloudflareSandbox({ binding: env.Sandbox })
 ```

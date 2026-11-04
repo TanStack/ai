@@ -92,6 +92,11 @@ import { chatParamsFromRequest } from '@tanstack/ai'
 import { reconstructChat } from '@tanstack/ai-persistence'
 import { persistence } from './persistence'
 
+declare function ownsThread(
+  request: Request,
+  threadId: string,
+): Promise<boolean>
+
 export function GET(request: Request) {
   return reconstructChat(persistence, request, {
     // WITHOUT this, anyone who guesses a thread id gets the whole transcript.

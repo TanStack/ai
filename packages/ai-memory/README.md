@@ -40,7 +40,7 @@ yarn add @tanstack/ai-memory
 
 Start with the in-memory adapter, then swap it for a persistent one without changing anything else:
 
-```typescript
+```typescript group=memory
 import { chat } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai'
 import { memoryMiddleware } from '@tanstack/ai-memory'
@@ -51,6 +51,7 @@ const memory = inMemory()
 const stream = chat({
   adapter: openaiText('gpt-5.5'),
   messages: [{ role: 'user', content: 'Hello' }],
+  threadId: 'demo-thread',
   middleware: [
     memoryMiddleware({
       adapter: memory,
@@ -64,7 +65,14 @@ const stream = chat({
 
 `scope` is the isolation boundary. In a real app, derive it per request from server-validated session data, never from the request body:
 
-```typescript
+```typescript group=memory
+import type { ChatMiddlewareContext } from '@tanstack/ai'
+
+declare function getSession(ctx: ChatMiddlewareContext): {
+  threadId: string
+  userId: string
+}
+
 memoryMiddleware({
   adapter: memory,
   scope: (ctx) => {
@@ -92,7 +100,9 @@ Memory is entirely server-side; the client consumes the same stream as any other
 import Redis from 'ioredis'
 import { redis } from '@tanstack/ai-memory/redis'
 
-const memory = redis({ redis: new Redis(process.env.REDIS_URL) })
+const memory = redis({
+  redis: new Redis(process.env.REDIS_URL ?? 'redis://localhost:6379'),
+})
 ```
 
 Using `redis` (node-redis) instead of `ioredis`? Wrap the client with `fromNodeRedis` from the same subpath.

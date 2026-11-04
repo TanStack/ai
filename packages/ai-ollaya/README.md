@@ -90,6 +90,8 @@ That's it — the adapter below talks to the running server over HTTP.
 import { boolean, choice, decide, score } from '@tanstack/ai'
 import { ollayaDecider } from '@tanstack/ai-ollaya'
 
+const ticket = 'My payouts have been failing for 3 days'
+
 const result = await decide({
   adapter: ollayaDecider('laya:latest'),
   state: ticket,
@@ -120,6 +122,8 @@ result.meta.usage
 Point the adapter at a non-default host with the `baseURL` option:
 
 ```typescript
+import { ollayaDecider } from '@tanstack/ai-ollaya'
+
 ollayaDecider('laya:latest', { baseURL: 'http://my-host:11435' })
 ```
 
