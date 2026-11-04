@@ -36,6 +36,7 @@ import {
 import { toChatCompletionsToolChoice } from '../tools/tool-choice'
 import { convertToolsToChatCompletionsFormat } from './chat-completions-tool-converter'
 import type OpenAI from 'openai'
+import type { OpenAIClientLike } from '../client/index'
 import type {
   StructuredOutputOptions,
   StructuredOutputResult,
@@ -92,7 +93,7 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
   override readonly kind = 'text' as const
   override readonly api: string = 'openai-completions'
   readonly name: string
-  protected client: OpenAI
+  protected client: OpenAIClientLike
 
   private sourceMetadata(
     model: string,
@@ -134,7 +135,7 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
   constructor(
     model: TModel,
     name: string,
-    client: OpenAI,
+    client: OpenAIClientLike,
     options: OpenAIBaseTextAdapterOptions & { fetch?: Fetch | undefined } = {},
   ) {
     super({}, model)

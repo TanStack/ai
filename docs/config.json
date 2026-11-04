@@ -1628,7 +1628,7 @@
           "label": "Tree-Shaking",
           "to": "advanced/tree-shaking",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-10-22"
+          "updatedAt": "2026-11-02"
         },
         {
           "label": "Extend Adapter",
@@ -1836,7 +1836,7 @@
           "label": "Cloudflare",
           "to": "adapters/cloudflare",
           "addedAt": "2026-09-03",
-          "updatedAt": "2026-10-22"
+          "updatedAt": "2026-11-02"
         },
         {
           "label": "Neon AI Gateway",
@@ -1877,7 +1877,7 @@
           "label": "Amazon Bedrock",
           "to": "adapters/bedrock",
           "addedAt": "2026-06-25",
-          "updatedAt": "2026-10-22"
+          "updatedAt": "2026-11-02"
         },
         {
           "label": "BytePlus",

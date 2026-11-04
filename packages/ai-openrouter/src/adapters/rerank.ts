@@ -1,4 +1,5 @@
-import { OpenRouter } from '@openrouter/sdk'
+import { createOpenRouterRerankClient } from '../client/index'
+import type { OpenRouterClient } from '../client/index'
 import { BaseRerankAdapter } from '@tanstack/ai/adapters'
 import { toRunErrorPayload } from '@tanstack/ai/adapter-internals'
 import { getOpenRouterApiKeyFromEnv } from '../utils'
@@ -19,9 +20,9 @@ export interface OpenRouterRerankConfig extends SDKOptions {}
  * OpenRouter rerank adapter.
  *
  * Reorders documents by relevance to a query through OpenRouter's unified
- * `/v1/rerank` endpoint via the `@openrouter/sdk` SDK. The endpoint is
- * model-agnostic, so any rerank model OpenRouter offers works by passing its
- * slug (Cohere, NVIDIA, …). Returns scored indices into the submitted
+ * `/v1/rerank` endpoint via a fetch client with the `@openrouter/sdk` API.
+ * The endpoint is model-agnostic, so any rerank model OpenRouter offers works
+ * by passing its slug (Cohere, NVIDIA, …). Returns scored indices into the submitted
  * documents; the `rerank()` activity maps those back to the caller's original
  * documents.
  */
@@ -30,11 +31,11 @@ export class OpenRouterRerankAdapter<
 > extends BaseRerankAdapter<TModel, OpenRouterRerankProviderOptions> {
   readonly name = 'openrouter' as const
 
-  private readonly client: OpenRouter
+  private readonly client: Pick<OpenRouterClient, 'rerank'>
 
   constructor(config: OpenRouterRerankConfig, model: TModel) {
     super({}, model)
-    this.client = new OpenRouter(config)
+    this.client = createOpenRouterRerankClient(config)
   }
 
   async rerank(
@@ -66,9 +67,8 @@ export class OpenRouterRerankAdapter<
 
       // The SDK types the response as `CreateRerankResponseBody | string`; the
       // bare-string form is an error/non-JSON payload, not a valid result.
-      // (A malformed object body never reaches here — the SDK zod-validates the
-      // response and throws "Response validation failed" first, so `results` is
-      // a runtime-guaranteed array below.)
+      // (A body with no `results` never reaches here: the client checks the
+      // required keys and throws "Response validation failed" first.)
       if (typeof response === 'string') {
         throw new Error('OpenRouter rerank returned an unexpected response')
       }

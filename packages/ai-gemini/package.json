@@ -38,6 +38,7 @@
       "import": "./dist/esm/experimental/index.js"
     }
   },
+  "sideEffects": false,
   "files": [
     "dist",
     "src"

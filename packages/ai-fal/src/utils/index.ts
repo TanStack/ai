@@ -1,6 +1,5 @@
 export {
   getFalApiKeyFromEnv,
-  configureFalClient,
   generateId,
   arrayBufferToBase64,
   dataUrlToBlob,
@@ -10,3 +9,5 @@ export {
 } from './client'
 
 export { takeBillableUnits, buildFalUsage } from './billing'
+
+export { configureFalClient } from './configure'

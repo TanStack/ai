@@ -1,5 +1,6 @@
 import { BaseTranscriptionAdapter } from '@tanstack/ai/adapters'
 import { base64ToArrayBuffer, generateId } from '@tanstack/ai-utils'
+import { toHeaderRecord } from '@tanstack/ai-utils/http'
 import { getGroqApiKeyFromEnv, withGroqDefaults } from '../utils/client'
 import type {
   TokenUsage,
@@ -15,33 +16,6 @@ import type { GroqClientConfig } from '../utils/client'
  * Configuration for the Groq Transcription adapter.
  */
 export interface GroqTranscriptionConfig extends GroqClientConfig {}
-
-/**
- * Flattens the `openai` SDK's `HeadersLike` config value into a plain record so
- * it can be merged into the raw `fetch` request this adapter issues. Handles
- * the shapes callers actually pass (`Headers`, an entries array, or a plain
- * object); null/undefined values are dropped.
- *
- * ponytail: doesn't unwrap the SDK's internal `NullableHeaders` class; forward
- * that shape here if the SDK ever hands it to adapter config.
- */
-function normalizeHeaders(
-  headers: GroqTranscriptionConfig['defaultHeaders'],
-): Record<string, string> {
-  const out: Record<string, string> = {}
-  if (!headers) return out
-  const assign = (key: string, value: unknown) => {
-    if (value != null) out[key] = String(value)
-  }
-  if (headers instanceof Headers) {
-    headers.forEach((value, key) => assign(key, value))
-  } else if (Array.isArray(headers)) {
-    for (const [key, value] of headers) assign(key, value)
-  } else {
-    for (const [key, value] of Object.entries(headers)) assign(key, value)
-  }
-  return out
-}
 
 // Shape of Groq's verbose_json transcription response
 interface GroqVerboseTranscriptionResponse {
@@ -98,7 +72,7 @@ export class GroqTranscriptionAdapter<
     const resolved = withGroqDefaults(config)
     this.apiKey = resolved.apiKey
     this.baseURL = resolved.baseURL ?? 'https://api.groq.com/openai/v1'
-    this.defaultHeaders = normalizeHeaders(resolved.defaultHeaders)
+    this.defaultHeaders = toHeaderRecord(resolved.defaultHeaders)
   }
 
   async transcribe(

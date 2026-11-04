@@ -1,6 +1,6 @@
-import { AzureOpenAI } from 'openai'
 import {
   OpenAIBaseResponsesTextAdapter,
+  createAzureOpenAIClient,
   toResponsesToolChoice,
   warnStrictFallback,
 } from '@tanstack/openai-base'
@@ -98,7 +98,7 @@ export class AzureOpenAITextAdapter<
     super(
       model,
       'azure-openai-responses',
-      new AzureOpenAI({
+      createAzureOpenAIClient({
         ...clientOptions,
         apiKey,
         baseURL: normalizeAzureBaseURL(selectedURL),

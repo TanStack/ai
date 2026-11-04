@@ -1,4 +1,5 @@
-import { OpenRouter } from '@openrouter/sdk'
+import { createOpenRouterVideoClient } from '../client/index'
+import type { OpenRouterClient } from '../client/index'
 import {
   buildBaseUsage,
   isFileSource,
@@ -222,11 +223,11 @@ export class OpenRouterVideoAdapter<
   override readonly kind = 'video' as const
   readonly name = 'openrouter' as const
 
-  private readonly client: OpenRouter
+  private readonly client: Pick<OpenRouterClient, 'videoGeneration'>
 
   constructor(config: OpenRouterVideoConfig, model: TModel) {
     super({}, model)
-    this.client = new OpenRouter({
+    this.client = createOpenRouterVideoClient({
       ...config,
       apiKey: config.apiKey,
       serverURL: config.baseURL,

@@ -1,5 +1,7 @@
-import OpenAI from 'openai'
-import { OpenAIBaseChatCompletionsTextAdapter } from '@tanstack/openai-base'
+import {
+  OpenAIBaseChatCompletionsTextAdapter,
+  createOpenAIClient,
+} from '@tanstack/openai-base'
 import { LOVABLE_MODEL_REASONING } from '../model-meta'
 import { withLovableDefaults } from '../utils/client'
 import type { Modality } from '@tanstack/ai'
@@ -59,7 +61,12 @@ export class LovableTextAdapter<
   override readonly name = 'lovable' as const
 
   constructor(config: LovableTextConfig, model: TModel) {
-    super(model, 'lovable', new OpenAI(withLovableDefaults(config)), config)
+    super(
+      model,
+      'lovable',
+      createOpenAIClient(withLovableDefaults(config)),
+      config,
+    )
   }
 
   protected override modelReasoning(model: string) {

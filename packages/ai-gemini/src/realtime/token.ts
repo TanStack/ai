@@ -1,4 +1,4 @@
-import { GoogleGenAI } from '@google/genai'
+import { createGoogleGenAI } from '../client/index'
 import { getGeminiApiKeyFromEnv } from '../utils'
 import type { RealtimeToken, RealtimeTokenAdapter } from '@tanstack/ai'
 import type { GeminiRealtimeTokenOptions } from './types'
@@ -31,7 +31,7 @@ export function geminiRealtimeToken(
 ): RealtimeTokenAdapter {
   const apiKey = getGeminiApiKeyFromEnv()
 
-  const client = new GoogleGenAI({
+  const client = createGoogleGenAI({
     apiKey,
   })
 

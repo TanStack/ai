@@ -6,7 +6,7 @@ import {
   resolveEmbeddingInput,
   unsupportedFileSourceError,
 } from '@tanstack/ai'
-import { resolveBedrockAuth } from '../utils/auth'
+import { importOptionalPeer, resolveBedrockAuth } from '../utils/auth'
 import { BEDROCK_EMBEDDING_MODELS } from '../model-meta'
 import type * as BedrockRuntime from '@aws-sdk/client-bedrock-runtime'
 import type {
@@ -104,7 +104,7 @@ export class BedrockEmbeddingAdapter<
    */
   protected importBedrockRuntime(): Promise<typeof BedrockRuntime> {
     const mod = '@aws-sdk/client-bedrock-runtime'
-    return import(/* @vite-ignore */ mod) as Promise<typeof BedrockRuntime>
+    return importOptionalPeer<typeof BedrockRuntime>(mod)
   }
 
   /**

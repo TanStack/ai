@@ -38,6 +38,7 @@
       "import": "./dist/esm/vertex/index.js"
     }
   },
+  "sideEffects": false,
   "files": [
     "dist",
     "src"

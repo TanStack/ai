@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import OpenAI from 'openai'
+import { createOpenAIClient } from '../src/client'
 import { resolveDebugOption } from '@tanstack/ai/adapter-internals'
 import { OpenAIBaseResponsesTextAdapter } from '../src/adapters/responses-text'
 import type { ClientOptions } from 'openai'
@@ -53,7 +53,7 @@ function recordingClient(reply: (url: string) => Response) {
     })
     return reply(String(url))
   }
-  const client = new OpenAI({ apiKey: 'test-key', fetch })
+  const client = createOpenAIClient({ apiKey: 'test-key', fetch })
   return { client, fetch, sent }
 }
 

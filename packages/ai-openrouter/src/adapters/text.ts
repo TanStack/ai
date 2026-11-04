@@ -1,4 +1,5 @@
-import { OpenRouter } from '@openrouter/sdk'
+import { createOpenRouterChatClient } from '../client/index'
+import type { OpenRouterClient } from '../client/index'
 import {
   EventType,
   isFileSource,
@@ -122,7 +123,8 @@ function toOpenRouterChatToolChoice(
 
 /**
  * OpenRouter Text (Chat) Adapter — standalone implementation that talks to
- * OpenRouter's `/v1/chat/completions` endpoint via the `@openrouter/sdk` SDK.
+ * OpenRouter's `/v1/chat/completions` endpoint via a fetch client with the
+ * `@openrouter/sdk` API and wire format.
  *
  * The wire format is OpenAI-Chat-Completions-compatible, but the SDK exposes
  * the request/response in camelCase TS shapes (`toolCalls`, `finishReason`,
@@ -134,7 +136,7 @@ function toOpenRouterChatToolChoice(
  *   - Provider routing surface (`provider`, `models`, `plugins`, `variant`,
  *     `transforms`) passes through `modelOptions`.
  *   - App attribution headers (`httpReferer`, `appTitle`) and base URL
- *     overrides flow through the SDK `SDKOptions` constructor.
+ *     overrides flow through the SDK `SDKOptions` config.
  *   - `RequestAbortedError` from the SDK propagates up — `chatStream` wraps
  *     unknown errors into a single RUN_ERROR event via `toRunErrorPayload`.
  *   - Model variant suffixing (e.g. `:thinking`, `:free`) via
@@ -167,7 +169,7 @@ export class OpenRouterTextAdapter<
   override readonly inputModalities =
     OPENROUTER_MODEL_INPUT_MODALITIES[this.model]
 
-  protected orClient: OpenRouter
+  protected orClient: Pick<OpenRouterClient, 'chat'>
   private readonly sdkOptions: SDKOptions
   private readonly retryCodes: Array<string> | undefined
 
@@ -175,7 +177,7 @@ export class OpenRouterTextAdapter<
     super({}, model)
     const { retryCodes, ...sdkOptions } = config
     this.sdkOptions = sdkOptions
-    this.orClient = new OpenRouter(sdkOptions)
+    this.orClient = createOpenRouterChatClient(sdkOptions)
     this.retryCodes = retryCodes
   }
 
@@ -224,6 +226,7 @@ export class OpenRouterTextAdapter<
         this.orClient,
         this.sdkOptions,
         options.wrapFetch,
+        createOpenRouterChatClient,
       ).chat.send(
         {
           chatRequest: {
@@ -333,6 +336,7 @@ export class OpenRouterTextAdapter<
         this.orClient,
         this.sdkOptions,
         chatOptions.wrapFetch,
+        createOpenRouterChatClient,
       ).chat.send(
         {
           chatRequest: {
@@ -534,6 +538,7 @@ export class OpenRouterTextAdapter<
         this.orClient,
         this.sdkOptions,
         chatOptions.wrapFetch,
+        createOpenRouterChatClient,
       ).chat.send(
         {
           chatRequest: {

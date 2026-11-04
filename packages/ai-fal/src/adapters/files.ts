@@ -1,12 +1,12 @@
-import { fal } from '@fal-ai/client'
 import {
   BaseFilesAdapter,
   normalizeFileUploadInput,
 } from '@tanstack/ai/adapters'
-import { configureFalClient } from '../utils/client'
+import { createAdapterFalClient } from '../utils/client'
 import type { StorageSettings } from '@fal-ai/client'
 import type { FileHandle, FileUploadInput } from '@tanstack/ai/adapters'
 import type { FalClientConfig } from '../utils/client'
+import type { FalClient } from '../client/index'
 
 export interface FalFilesConfig extends FalClientConfig {
   /**
@@ -25,17 +25,18 @@ export interface FalFilesConfig extends FalClientConfig {
  */
 export class FalFilesAdapter extends BaseFilesAdapter<'fal'> {
   readonly name = 'fal' as const
+  private readonly client: FalClient
   private readonly expiresIn?: StorageSettings['expiresIn']
 
   constructor(config?: FalFilesConfig) {
     super()
-    configureFalClient(config)
+    this.client = createAdapterFalClient(config)
     this.expiresIn = config?.expiresIn
   }
 
   async upload(input: FileUploadInput): Promise<FileHandle<'fal'>> {
     const { blob, mimeType } = normalizeFileUploadInput(input)
-    const url = await fal.storage.upload(
+    const url = await this.client.storage.upload(
       blob,
       this.expiresIn !== undefined
         ? { lifecycle: { expiresIn: this.expiresIn } }

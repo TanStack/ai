@@ -1,8 +1,7 @@
-import OpenAI from 'openai'
 import { resolveMediaPrompt } from '@tanstack/ai'
 import { BaseImageAdapter } from '@tanstack/ai/adapters'
 import { toRunErrorPayload } from '@tanstack/ai/adapter-internals'
-import { buildImagesUsage } from '@tanstack/openai-base'
+import { buildImagesUsage, createOpenAIClient } from '@tanstack/openai-base'
 import { generateId } from '@tanstack/ai-utils'
 import { getOpenAIApiKeyFromEnv } from '../utils/client'
 import { imagePartToFile } from '../image/image-input-to-file'
@@ -19,6 +18,7 @@ import type {
   MediaInputMetadata,
 } from '@tanstack/ai'
 import type OpenAI_SDK from 'openai'
+import type { OpenAIClientLike } from '@tanstack/openai-base'
 import type { OpenAIImageModel } from '../model-meta'
 import type {
   OpenAIImageModelInputModalitiesByName,
@@ -70,13 +70,13 @@ export class OpenAIImageAdapter<
   override readonly kind = 'image' as const
   readonly name = 'openai' as const
 
-  protected client: OpenAI
+  protected client: OpenAIClientLike
   private readonly allowUrlFetch: boolean
 
   constructor(config: OpenAIImageConfig, model: TModel) {
     super(model, {})
     const { allowUrlFetch, ...clientOptions } = config
-    this.client = new OpenAI(clientOptions)
+    this.client = createOpenAIClient(clientOptions)
     this.allowUrlFetch = allowUrlFetch ?? false
   }
 

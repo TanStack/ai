@@ -48,6 +48,7 @@ import {
 } from './responses-user-tools'
 import type { OpenAIUserToolName } from './responses-user-tools'
 import type OpenAI from 'openai'
+import type { OpenAIClientLike } from '../client/index'
 import type {
   StructuredOutputOptions,
   StructuredOutputResult,
@@ -476,7 +477,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
   override readonly kind = 'text' as const
   override readonly api: string = 'openai-responses'
   readonly name: string
-  protected client: OpenAI
+  protected client: OpenAIClientLike
 
   /**
    * Token usage for a Responses result. `source` is the response that carried
@@ -514,7 +515,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
   constructor(
     model: TModel,
     name: string,
-    client: OpenAI,
+    client: OpenAIClientLike,
     options: OpenAIBaseTextAdapterOptions & { fetch?: Fetch | undefined } = {},
   ) {
     super({}, model)
@@ -526,9 +527,9 @@ export abstract class OpenAIBaseResponsesTextAdapter<
 
   /**
    * A copy of the client that sends its requests through `fetch`. Override it
-   * when the SDK copy loses an option of your client.
+   * when the copy loses an option of your client.
    */
-  protected withFetch(fetch: Fetch): OpenAI {
+  protected withFetch(fetch: Fetch): OpenAIClientLike {
     return this.client.withOptions({ fetch })
   }
 

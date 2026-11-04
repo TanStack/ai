@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import OpenAI from 'openai'
+import { createOpenAIClient } from '../src/client'
 import { resolveDebugOption } from '@tanstack/ai/adapter-internals'
 import { OpenAIBaseChatCompletionsTextAdapter } from '../src/adapters/chat-completions-text'
 import { OpenAIBaseResponsesTextAdapter } from '../src/adapters/responses-text'
@@ -10,7 +10,7 @@ import type {
 } from '@tanstack/ai'
 
 const logger = resolveDebugOption(false)
-const client = new OpenAI({ apiKey: 'test-api-key' })
+const client = createOpenAIClient({ apiKey: 'test-api-key' })
 
 const DATA: ModelReasoning = {
   budget: false,
