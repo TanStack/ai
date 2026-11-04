@@ -29,7 +29,7 @@
     "@tanstack/ai": "workspace:*",
     "@tanstack/ai-openai": "workspace:*",
     "@tanstack/ai-react": "workspace:*",
-    "concurrently": "^9.1.2",
+    "concurrently": "^10.0.6",
     "dotenv": "^17.2.3",
     "expo": "~56.0.5",
     "hono": "^4.10.6",

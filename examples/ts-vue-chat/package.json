@@ -28,7 +28,7 @@
     "@types/node": "^24.10.1",
     "@vitejs/plugin-vue": "^6.0.8",
     "autoprefixer": "^10.4.21",
-    "concurrently": "^9.1.2",
+    "concurrently": "^10.0.6",
     "dotenv": "^17.2.3",
     "express": "^5.1.0",
     "tailwindcss": "^4.1.18",
