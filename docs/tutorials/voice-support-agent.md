@@ -195,18 +195,19 @@ For your own product, swap the two `fetch` calls for your help centre or a vecto
 
 ## 5. Run the call
 
-Create `src/server/characters.ts` first. A character is a persona for the chat model and a voice for the speech model. The persona is one more system prompt. The voice, speed, and `instructions` go to `generateSpeech()`. OpenAI takes `instructions` on `gpt-4o-mini-tts`, and Gemini takes the same text as `systemInstruction`.
+Create `src/server/characters.ts` first. A character is a persona for the chat model and a voice for the speech model. The persona is one more system prompt. The voice, speed, and `instructions` go to `generateSpeech()`. OpenAI takes `instructions` on `gpt-4o-mini-tts`, and Gemini takes the same text as `systemInstruction`. Grok TTS has no style or speed field, so with Grok the character is in the words only.
 
 Write a persona as a habit with a frequency. "Thank the caller every time" is a rule, and the model follows it every time, which sounds like a loop. "Show it a different way each turn" gives the same character without the echo.
 
 ```typescript ignore
 import type { GeminiTTSVoice } from '@tanstack/ai-gemini'
+import type { GrokTTSVoice } from '@tanstack/ai-grok'
 import type { OpenAITTSVoice } from '@tanstack/ai-openai'
 
 export type Character = {
   label: string
   persona: string
-  voice: { openai: OpenAITTSVoice; gemini: GeminiTTSVoice }
+  voice: { openai: OpenAITTSVoice; gemini: GeminiTTSVoice; grok: GrokTTSVoice }
   speed: number
   instructions: string
 }
@@ -218,7 +219,7 @@ export const CHARACTERS = {
     label: 'Helpful',
     persona:
       'Friendly and quick. Lightly funny, never sarcastic at the caller.',
-    voice: { openai: 'ash', gemini: 'Puck' },
+    voice: { openai: 'ash', gemini: 'Puck', grok: 'leo' },
     speed: 1.15,
     instructions:
       'Upbeat, quick, and lightly funny. A friendly support rep who enjoys the job.',
@@ -227,7 +228,7 @@ export const CHARACTERS = {
     label: 'Could not care less',
     persona:
       'You are bored and make no effort to hide it. Correct answers, as few words as you can get away with. Vary the tell: a trailing sentence here, a mention of your lunch break there, sometimes nothing at all. Do not use the same tell twice in a row.',
-    voice: { openai: 'onyx', gemini: 'Charon' },
+    voice: { openai: 'onyx', gemini: 'Charon', grok: 'rex' },
     speed: 0.9,
     instructions:
       'Flat, slow, and bored. Long pauses. The odd sigh. Sentences that lose interest in themselves.',
@@ -236,7 +237,7 @@ export const CHARACTERS = {
     label: 'Way too perky',
     persona:
       'You are exhaustingly enthusiastic. Everything is exciting and the caller is wonderful. Show it a different way each turn: an exclamation, a compliment, a wild tangent, a little cheer. Never repeat a compliment or a catchphrase you have already used on this call.',
-    voice: { openai: 'shimmer', gemini: 'Zephyr' },
+    voice: { openai: 'shimmer', gemini: 'Zephyr', grok: 'eve' },
     speed: 1.3,
     instructions:
       'Extremely perky and bubbly. Fast, bright, breathless, like a game show host on their third coffee. Every sentence goes up at the end.',
@@ -245,7 +246,7 @@ export const CHARACTERS = {
     label: 'About to lose it',
     persona:
       'You are one bad call away from a nervous breakdown. You answer correctly, but you keep nearly cracking. Pick one crack per answer and make it a new one each time: a half-finished apology, the ticket queue, how long since you slept, a deep breath. Pull yourself together at the end.',
-    voice: { openai: 'ballad', gemini: 'Fenrir' },
+    voice: { openai: 'ballad', gemini: 'Fenrir', grok: 'sal' },
     speed: 1.2,
     instructions:
       'Frazzled and barely holding it together. Shaky, rushed, voice cracking, with sudden forced calm. Nervous laughs at the wrong moments.',
@@ -283,6 +284,7 @@ export const HOPS = {
   speak: {
     openai: 'OpenAI gpt-4o-mini-tts',
     gemini: 'Gemini 3.1 Flash TTS',
+    grok: 'Grok TTS',
   },
 } as const
 
@@ -307,7 +309,11 @@ import {
   geminiLiveTranscription,
 } from '@tanstack/ai-gemini'
 import { geminiByok } from '@tanstack/ai-gemini/byok'
-import { createGrokText, grokLiveTranscription } from '@tanstack/ai-grok'
+import {
+  createGrokSpeech,
+  createGrokText,
+  grokLiveTranscription,
+} from '@tanstack/ai-grok'
 import { grokByok } from '@tanstack/ai-grok/byok'
 import {
   createOpenaiChat,
@@ -460,6 +466,22 @@ export const SPEAK = {
       })
       // Gemini returns 24 kHz PCM wrapped as WAV. Drop the header.
       return stripWav(Buffer.from(result.audio, 'base64'))
+    },
+  },
+  grok: {
+    byok: grokByok,
+    make: (apiKey) => async (text, character, threadId, abortSignal) => {
+      // Grok has no speed or style field. The persona carries the character.
+      const result = await generateSpeech({
+        adapter: createGrokSpeech('grok-tts', apiKey),
+        text,
+        voice: character.voice.grok,
+        format: 'pcm',
+        modelOptions: { sample_rate: 24000 },
+        threadId,
+        abortSignal,
+      })
+      return Buffer.from(result.audio, 'base64')
     },
   },
 } satisfies Record<Choice['speak'], Keyed<Speak>>
