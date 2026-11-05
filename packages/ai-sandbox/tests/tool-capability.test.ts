@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import { EventType, chat, toolDefinition } from '@tanstack/ai'
+import { EventType, chat, defineChatMiddleware, toolDefinition } from '@tanstack/ai'
 import {
   InMemorySandboxInstanceStore,
+  ProjectionCapability,
   SandboxCapability,
   defineSandbox,
   defineWorkspace,
@@ -79,12 +80,14 @@ describe('withSandbox + a server tool', () => {
       fileEvents: false,
     })
     let seen: SandboxHandle | undefined
+    let projected: boolean | undefined
     const whereAmI = toolDefinition({
       name: 'whereAmI',
       description: 'Return the sandbox id',
       inputSchema: { type: 'object', properties: {} },
     }).server((_args, context) => {
       seen = context?.get?.(SandboxCapability)
+      projected = context?.getOptional?.(ProjectionCapability) !== undefined
       return seen?.id ?? 'none'
     })
 
@@ -96,12 +99,17 @@ describe('withSandbox + a server tool', () => {
       tools: [whereAmI],
       middleware: [
         withSandbox(sandbox, { instances: new InMemorySandboxInstanceStore() }),
+        defineChatMiddleware({
+          name: 'needs-projection',
+          requires: [ProjectionCapability],
+        }),
       ],
     })
     for await (const _chunk of stream) void _chunk
 
     expect(provider.created).toHaveLength(1)
     expect(seen).toBe(provider.created[0])
+    expect(projected).toBe(true)
   })
 
   it('runs setup when the definition has no workspace (no projection provided)', async () => {
@@ -112,12 +120,14 @@ describe('withSandbox + a server tool', () => {
       fileEvents: false,
     })
     let seen: SandboxHandle | undefined
+    let projected: boolean | undefined
     const whereAmI = toolDefinition({
       name: 'whereAmI',
       description: 'Return the sandbox id',
       inputSchema: { type: 'object', properties: {} },
     }).server((_args, context) => {
       seen = context?.get?.(SandboxCapability)
+      projected = context?.getOptional?.(ProjectionCapability) !== undefined
       return seen?.id ?? 'none'
     })
 
@@ -135,5 +145,6 @@ describe('withSandbox + a server tool', () => {
 
     expect(provider.created).toHaveLength(1)
     expect(seen).toBe(provider.created[0])
+    expect(projected).toBe(false)
   })
 })
