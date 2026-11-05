@@ -467,6 +467,7 @@ export type {
   ApprovalRequestedPayload,
   ApprovalResolvedPayload,
   ArtifactCreatedPayload,
+  SandboxStartingPayload,
   SandboxLifecyclePayload,
 } from './custom-events'
 
