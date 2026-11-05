@@ -2351,22 +2351,15 @@ export class AnthropicTextAdapter<
           }
         }
       }
-      // The body ended before message_delta or message_stop, so the
-      // answer is cut off. An abort also ends the body, but that is the
+      // The body ended before a stop reason (a message_delta with
+      // stop_reason, or message_stop), so the answer is cut off. The catch
+      // below reports it. An abort also ends the body, but that is the
       // caller's choice and not an error.
       if (!hasEmittedRunFinished && !options.request?.signal?.aborted) {
-        const message = 'Anthropic stream ended before message_stop'
-        const usage = buildAnthropicUsage(messageStartUsage)
-        yield {
-          type: EventType.RUN_ERROR,
-          model,
-          metadata: { tanstack: { source } },
-          timestamp: Date.now(),
-          message,
-          code: 'incomplete-stream',
-          error: { message, code: 'incomplete-stream' },
-          ...(usage && { usage }),
-        }
+        throw Object.assign(
+          new Error('Anthropic stream ended before a stop reason'),
+          { code: 'incomplete-stream' },
+        )
       }
     } catch (error: unknown) {
       const err = error as Error & { status?: number; code?: string }

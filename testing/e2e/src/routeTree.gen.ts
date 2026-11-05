@@ -58,7 +58,6 @@ import { Route as ApiAnthropicBugTestRouteImport } from './routes/api.anthropic-
 import { Route as ApiAnthropicComputerToolsetWireRouteImport } from './routes/api.anthropic-computer-toolset-wire'
 import { Route as ApiAnthropicComputerUseWireRouteImport } from './routes/api.anthropic-computer-use-wire'
 import { Route as ApiAnthropicHaiku55WireRouteImport } from './routes/api.anthropic-haiku-5-5-wire'
-import { Route as ApiAnthropicIncompleteStreamRouteImport } from './routes/api.anthropic-incomplete-stream'
 import { Route as ApiAnthropicMaxTokensUsageRouteImport } from './routes/api.anthropic-max-tokens-usage'
 import { Route as ApiAnthropicMultiTurnStructuredWireRouteImport } from './routes/api.anthropic-multi-turn-structured-wire'
 import { Route as ApiAnthropicOpus5CombinedWireRouteImport } from './routes/api.anthropic-opus-5-combined-wire'
@@ -469,12 +468,6 @@ const ApiAnthropicHaiku55WireRoute = ApiAnthropicHaiku55WireRouteImport.update({
   path: '/api/anthropic-haiku-5-5-wire',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ApiAnthropicIncompleteStreamRoute =
-  ApiAnthropicIncompleteStreamRouteImport.update({
-    id: '/api/anthropic-incomplete-stream',
-    path: '/api/anthropic-incomplete-stream',
-    getParentRoute: () => rootRouteImport,
-  } as any)
 const ApiAnthropicMaxTokensUsageRoute =
   ApiAnthropicMaxTokensUsageRouteImport.update({
     id: '/api/anthropic-max-tokens-usage',
@@ -1360,7 +1353,6 @@ export interface FileRoutesByFullPath {
   '/api/anthropic-computer-toolset-wire': typeof ApiAnthropicComputerToolsetWireRoute
   '/api/anthropic-computer-use-wire': typeof ApiAnthropicComputerUseWireRoute
   '/api/anthropic-haiku-5-5-wire': typeof ApiAnthropicHaiku55WireRoute
-  '/api/anthropic-incomplete-stream': typeof ApiAnthropicIncompleteStreamRoute
   '/api/anthropic-max-tokens-usage': typeof ApiAnthropicMaxTokensUsageRoute
   '/api/anthropic-multi-turn-structured-wire': typeof ApiAnthropicMultiTurnStructuredWireRoute
   '/api/anthropic-opus-5-combined-wire': typeof ApiAnthropicOpus5CombinedWireRoute
@@ -1570,7 +1562,6 @@ export interface FileRoutesByTo {
   '/api/anthropic-computer-toolset-wire': typeof ApiAnthropicComputerToolsetWireRoute
   '/api/anthropic-computer-use-wire': typeof ApiAnthropicComputerUseWireRoute
   '/api/anthropic-haiku-5-5-wire': typeof ApiAnthropicHaiku55WireRoute
-  '/api/anthropic-incomplete-stream': typeof ApiAnthropicIncompleteStreamRoute
   '/api/anthropic-max-tokens-usage': typeof ApiAnthropicMaxTokensUsageRoute
   '/api/anthropic-multi-turn-structured-wire': typeof ApiAnthropicMultiTurnStructuredWireRoute
   '/api/anthropic-opus-5-combined-wire': typeof ApiAnthropicOpus5CombinedWireRoute
@@ -1781,7 +1772,6 @@ export interface FileRoutesById {
   '/api/anthropic-computer-toolset-wire': typeof ApiAnthropicComputerToolsetWireRoute
   '/api/anthropic-computer-use-wire': typeof ApiAnthropicComputerUseWireRoute
   '/api/anthropic-haiku-5-5-wire': typeof ApiAnthropicHaiku55WireRoute
-  '/api/anthropic-incomplete-stream': typeof ApiAnthropicIncompleteStreamRoute
   '/api/anthropic-max-tokens-usage': typeof ApiAnthropicMaxTokensUsageRoute
   '/api/anthropic-multi-turn-structured-wire': typeof ApiAnthropicMultiTurnStructuredWireRoute
   '/api/anthropic-opus-5-combined-wire': typeof ApiAnthropicOpus5CombinedWireRoute
@@ -1993,7 +1983,6 @@ export interface FileRouteTypes {
     | '/api/anthropic-computer-toolset-wire'
     | '/api/anthropic-computer-use-wire'
     | '/api/anthropic-haiku-5-5-wire'
-    | '/api/anthropic-incomplete-stream'
     | '/api/anthropic-max-tokens-usage'
     | '/api/anthropic-multi-turn-structured-wire'
     | '/api/anthropic-opus-5-combined-wire'
@@ -2203,7 +2192,6 @@ export interface FileRouteTypes {
     | '/api/anthropic-computer-toolset-wire'
     | '/api/anthropic-computer-use-wire'
     | '/api/anthropic-haiku-5-5-wire'
-    | '/api/anthropic-incomplete-stream'
     | '/api/anthropic-max-tokens-usage'
     | '/api/anthropic-multi-turn-structured-wire'
     | '/api/anthropic-opus-5-combined-wire'
@@ -2413,7 +2401,6 @@ export interface FileRouteTypes {
     | '/api/anthropic-computer-toolset-wire'
     | '/api/anthropic-computer-use-wire'
     | '/api/anthropic-haiku-5-5-wire'
-    | '/api/anthropic-incomplete-stream'
     | '/api/anthropic-max-tokens-usage'
     | '/api/anthropic-multi-turn-structured-wire'
     | '/api/anthropic-opus-5-combined-wire'
@@ -2624,7 +2611,6 @@ export interface RootRouteChildren {
   ApiAnthropicComputerToolsetWireRoute: typeof ApiAnthropicComputerToolsetWireRoute
   ApiAnthropicComputerUseWireRoute: typeof ApiAnthropicComputerUseWireRoute
   ApiAnthropicHaiku55WireRoute: typeof ApiAnthropicHaiku55WireRoute
-  ApiAnthropicIncompleteStreamRoute: typeof ApiAnthropicIncompleteStreamRoute
   ApiAnthropicMaxTokensUsageRoute: typeof ApiAnthropicMaxTokensUsageRoute
   ApiAnthropicMultiTurnStructuredWireRoute: typeof ApiAnthropicMultiTurnStructuredWireRoute
   ApiAnthropicOpus5CombinedWireRoute: typeof ApiAnthropicOpus5CombinedWireRoute
@@ -3124,13 +3110,6 @@ declare module '@tanstack/react-router' {
       path: '/api/anthropic-haiku-5-5-wire'
       fullPath: '/api/anthropic-haiku-5-5-wire'
       preLoaderRoute: typeof ApiAnthropicHaiku55WireRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/anthropic-incomplete-stream': {
-      id: '/api/anthropic-incomplete-stream'
-      path: '/api/anthropic-incomplete-stream'
-      fullPath: '/api/anthropic-incomplete-stream'
-      preLoaderRoute: typeof ApiAnthropicIncompleteStreamRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/anthropic-max-tokens-usage': {
@@ -4349,7 +4328,6 @@ const rootRouteChildren: RootRouteChildren = {
   ApiAnthropicComputerToolsetWireRoute: ApiAnthropicComputerToolsetWireRoute,
   ApiAnthropicComputerUseWireRoute: ApiAnthropicComputerUseWireRoute,
   ApiAnthropicHaiku55WireRoute: ApiAnthropicHaiku55WireRoute,
-  ApiAnthropicIncompleteStreamRoute: ApiAnthropicIncompleteStreamRoute,
   ApiAnthropicMaxTokensUsageRoute: ApiAnthropicMaxTokensUsageRoute,
   ApiAnthropicMultiTurnStructuredWireRoute:
     ApiAnthropicMultiTurnStructuredWireRoute,
