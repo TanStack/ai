@@ -1337,6 +1337,48 @@ export class GeminiTextAdapter<
 
     yield* emitGroundingToolCall()
 
+    // The body ended with no finishReason and no blockReason, so the answer
+    // is cut off. An abort also ends the body, but that is not an error.
+    if (!sawFinishReason && !blockReason && !options.request?.signal?.aborted) {
+      // Close the open blocks first, as openai-base does (#1604).
+      if (reasoningMessageId && !hasClosedReasoning) {
+        hasClosedReasoning = true
+        yield {
+          type: EventType.REASONING_MESSAGE_END,
+          messageId: reasoningMessageId,
+          model,
+          timestamp: Date.now(),
+        }
+        yield {
+          type: EventType.REASONING_END,
+          messageId: reasoningMessageId,
+          model,
+          timestamp: Date.now(),
+        }
+      }
+      if (hasEmittedTextMessageStart) {
+        yield {
+          type: EventType.TEXT_MESSAGE_END,
+          messageId,
+          model,
+          timestamp: Date.now(),
+        }
+      }
+      const message = 'Gemini stream ended without a finishReason'
+      const usage = buildGeminiUsage(seen.usageMetadata)
+      seen.reported = true
+      yield {
+        type: EventType.RUN_ERROR,
+        runId,
+        model,
+        timestamp: Date.now(),
+        message,
+        code: 'truncated-stream',
+        error: { message, code: 'truncated-stream' },
+        ...(usage && { usage }),
+      }
+    }
+
     // A blocked prompt gets no candidates, so no finishReason ends the run.
     if (blockReason && !sawFinishReason) {
       const message = `Gemini blocked the prompt (blockReason=${blockReason}).`
