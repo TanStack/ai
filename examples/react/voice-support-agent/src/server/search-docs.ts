@@ -6,8 +6,16 @@ const RAW = 'https://raw.githubusercontent.com/TanStack/ai/main/docs'
 /** Every docs page, from the same file the docs site reads. Fetched once. */
 let pages: Promise<Array<{ label: string; to: string }>> | undefined
 
+async function fetchDoc(path: string) {
+  const response = await fetch(`${RAW}/${path}`)
+  if (!response.ok) {
+    throw new Error(`Docs fetch failed: ${response.status} ${path}`)
+  }
+  return response
+}
+
 function listPages() {
-  pages ??= fetch(`${RAW}/config.json`)
+  pages ??= fetchDoc('config.json')
     .then((r) => r.json())
     .then((config: unknown) => {
       const found: Array<{ label: string; to: string }> = []
@@ -26,6 +34,11 @@ function listPages() {
       }
       walk(config)
       return found
+    })
+    .catch((error: unknown) => {
+      // Do not cache a failure. The next call retries.
+      pages = undefined
+      throw error
     })
   return pages
 }
@@ -62,7 +75,7 @@ export const searchDocs = toolDefinition({
 
   const results = await Promise.all(
     ranked.map(async ({ page }) => {
-      const markdown = await fetch(`${RAW}/${page.to}.md`).then((r) => r.text())
+      const markdown = await fetchDoc(`${page.to}.md`).then((r) => r.text())
       // ponytail: keyword match on titles plus the first 4000 chars of each
       // page. Swap in embeddings when answers need the middle of long pages.
       const text = markdown.replace(/^---[\s\S]*?---\s*/, '').slice(0, 4000)

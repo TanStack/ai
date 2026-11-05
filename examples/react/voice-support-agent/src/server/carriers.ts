@@ -47,7 +47,14 @@ export function twilioCarrier(ws: WebSocket): Carrier {
   return {
     audio: { encoding: 'mulaw', sampleRate: 8000 },
     audioIn: (data) => {
-      const frame: unknown = JSON.parse(toBytes(data).toString())
+      let frame: unknown
+      try {
+        frame = JSON.parse(toBytes(data).toString())
+      } catch {
+        // Twilio only sends JSON. Anything else is not a Media Stream.
+        ws.close(1003, 'expected a Twilio Media Stream frame')
+        return undefined
+      }
       if (!isTwilioFrame(frame)) return undefined
       if (frame.event === 'start') streamSid = frame.start.streamSid
       if (frame.event === 'media') {

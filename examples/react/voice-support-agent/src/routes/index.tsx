@@ -108,8 +108,8 @@ function isCaption(value: object): value is Caption {
 function CallPage() {
   const [captions, setCaptions] = useState<Array<Caption>>([])
   const [error, setError] = useState('')
+  const [inCall, setInCall] = useState(false)
   const hangUp = useRef<(() => void) | null>(null)
-  const inCall = hangUp.current !== null
 
   const onCaption = (caption: Caption) =>
     setCaptions((list) => {
@@ -126,12 +126,14 @@ function CallPage() {
     if (hangUp.current) {
       hangUp.current()
       hangUp.current = null
+      setInCall(false)
       setCaptions([])
       return
     }
     try {
       setError('')
       hangUp.current = await startCall(onCaption)
+      setInCall(true)
       setCaptions([
         {
           role: 'agent',
