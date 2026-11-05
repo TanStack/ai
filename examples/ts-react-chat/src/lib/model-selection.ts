@@ -74,11 +74,6 @@ export const MODEL_OPTIONS: Array<ModelOption> = [
   },
   {
     provider: 'anthropic',
-    model: 'claude-sonnet-4-5',
-    label: 'Anthropic - Claude Sonnet 4.5',
-  },
-  {
-    provider: 'anthropic',
     model: 'claude-haiku-4-5',
     label: 'Anthropic - Claude Haiku 4.5',
   },
