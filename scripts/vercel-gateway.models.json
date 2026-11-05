@@ -14467,11 +14467,11 @@
     "owned_by": "moonshotai",
     "name": "Kimi K3.1 Pro",
     "description": "Kimi K3.1 Pro is a frontier model from Moonshot AI for complex reasoning, coding, and agentic workflows, with support for vision, tool use, structured outputs, and long-context tasks.",
-    "context_window": 1048576,
-    "max_tokens": 1048576,
+    "context_window": 1000000,
+    "max_tokens": 262144,
     "type": "language",
-    "zdr": "all",
-    "no_training": "all",
+    "zdr": "some",
+    "no_training": "some",
     "tags": [
       "implicit-caching",
       "reasoning",
@@ -14480,6 +14480,7 @@
       "vision",
       "open-weights"
     ],
+    "regions": ["us"],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
       "input": ["text", "image"],
@@ -14507,7 +14508,14 @@
       "input": "0.000002",
       "output": "0.00001",
       "input_cache_read": "0.0000002",
-      "input_cache_write": "0.000002"
+      "varies_by_provider": true,
+      "regional": {
+        "us": {
+          "input": "0.0000018",
+          "output": "0.000009",
+          "input_cache_read": "0.00000018"
+        }
+      }
     }
   },
   {
@@ -23605,6 +23613,56 @@
     }
   },
   {
+    "id": "openai/gpt-image-2.6-flare",
+    "object": "model",
+    "created": 1755815280,
+    "released": 1793750400,
+    "owned_by": "openai",
+    "name": "GPT Image 2.6 Flare",
+    "description": "GPT Image 2.6 Flare is an OpenAI image generation and editing model for interactive workflows using text and image inputs.",
+    "context_window": 0,
+    "max_tokens": 0,
+    "type": "image",
+    "zdr": "none",
+    "no_training": "all",
+    "tags": ["image-generation", "implicit-caching"],
+    "supported_specifications": ["v2", "v3", "v4"],
+    "modalities": {
+      "input": ["text"],
+      "output": ["image"]
+    },
+    "pricing": {
+      "input": "0.000005",
+      "output": "0.00003",
+      "input_cache_read": "0.00000125"
+    }
+  },
+  {
+    "id": "openai/gpt-image-2.6-sunburst",
+    "object": "model",
+    "created": 1755815280,
+    "released": 1793750400,
+    "owned_by": "openai",
+    "name": "GPT Image 2.6 Sunburst",
+    "description": "GPT Image 2.6 Sunburst is an OpenAI image generation model that creates and edits images from text and image inputs.",
+    "context_window": 0,
+    "max_tokens": 0,
+    "type": "image",
+    "zdr": "none",
+    "no_training": "all",
+    "tags": ["image-generation", "implicit-caching"],
+    "supported_specifications": ["v2", "v3", "v4"],
+    "modalities": {
+      "input": ["text"],
+      "output": ["image"]
+    },
+    "pricing": {
+      "input": "0.000005",
+      "output": "0.00003",
+      "input_cache_read": "0.00000125"
+    }
+  },
+  {
     "id": "openai/gpt-live-1",
     "object": "model",
     "created": 1755815280,
@@ -27443,47 +27501,6 @@
     }
   },
   {
-    "id": "spacexai/grok-voice-think-fast-2.0",
-    "object": "model",
-    "created": 1755815280,
-    "released": 1785283200,
-    "owned_by": "spacexai",
-    "name": "Grok Voice Think Fast 2.0",
-    "description": "Grok Voice Think Fast 2.0, our next-generation voice model with improved intelligence, transcription accuracy, and conversational capabilities.",
-    "context_window": 0,
-    "max_tokens": 0,
-    "type": "realtime",
-    "zdr": "all",
-    "no_training": "all",
-    "supported_specifications": ["v2", "v3", "v4"],
-    "modalities": {
-      "input": ["text", "audio"],
-      "output": ["text", "audio"]
-    },
-    "supported_parameters": [
-      "max_tokens",
-      "temperature",
-      "stop",
-      "reasoning",
-      "include_reasoning"
-    ],
-    "temperature": true,
-    "reasoning_options": [
-      {
-        "type": "toggle"
-      },
-      {
-        "type": "effort",
-        "values": ["none", "low", "medium", "high"]
-      }
-    ],
-    "deprecated_at": 1793836800000,
-    "pricing": {
-      "realtime_client_message_cost": "0.004",
-      "realtime_session_duration_cost_per_second": "0.001334"
-    }
-  },
-  {
     "id": "stealth/glyph-cluster",
     "object": "model",
     "created": 1755815280,
@@ -27784,7 +27801,8 @@
       "reasoning",
       "structured-output",
       "tool-use",
-      "vision"
+      "vision",
+      "open-weights"
     ],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
