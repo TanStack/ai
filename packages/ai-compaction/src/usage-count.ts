@@ -16,10 +16,25 @@ export interface UsageCount {
   compacted: boolean
 }
 
+/**
+ * JSON.stringify replacer that writes the keys of every object in sorted order. A store may give a
+ * message back with its keys in another order (PostgreSQL `jsonb` does, and so does a schema
+ * parse), and a hash that followed that order would call an equal message changed.
+ */
+function sortedKeys(_key: string, value: unknown): unknown {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+    return value
+  }
+  return Object.fromEntries(
+    Object.entries(value).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)),
+  )
+}
+
+/** The hash of `messages` by value: the order of an object's keys does not change it. */
 export async function hashMessages(
   messages: ReadonlyArray<ModelMessage>,
 ): Promise<string> {
-  const bytes = new TextEncoder().encode(JSON.stringify(messages))
+  const bytes = new TextEncoder().encode(JSON.stringify(messages, sortedKeys))
   const digest = await globalThis.crypto.subtle.digest('SHA-256', bytes)
   return Array.from(new Uint8Array(digest), (byte) =>
     byte.toString(16).padStart(2, '0'),
