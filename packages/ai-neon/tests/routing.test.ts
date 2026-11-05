@@ -14,7 +14,31 @@ const logger = resolveDebugOption(false)
 const messages = [{ role: 'user' as const, content: 'Hi' }]
 const HOST = 'https://br-test-api.ai.c-1.us-east-2.aws.neon.tech'
 
-/** A fetch that records each request and answers with an empty stream. */
+/** A complete Claude stream with no content. */
+const finishedStream = [
+  {
+    type: 'message_start',
+    message: {
+      id: 'msg-neon',
+      type: 'message',
+      role: 'assistant',
+      model: 'claude-opus-5-5',
+      content: [],
+      stop_reason: null,
+      usage: { input_tokens: 1, output_tokens: 0 },
+    },
+  },
+  {
+    type: 'message_delta',
+    delta: { stop_reason: 'end_turn' },
+    usage: { output_tokens: 0 },
+  },
+  { type: 'message_stop' },
+]
+  .map((event) => `event: ${event.type}\ndata: ${JSON.stringify(event)}\n\n`)
+  .join('')
+
+/** A fetch that records each request and answers with a finished stream. */
 function captureFetch() {
   const sent: Array<{ url: string; headers: Headers; body: any }> = []
   const fetch: typeof globalThis.fetch = async (input, init) => {
@@ -24,7 +48,7 @@ function captureFetch() {
       headers: request.headers,
       body: init?.body ? JSON.parse(String(init.body)) : undefined,
     })
-    return new Response('', {
+    return new Response(finishedStream, {
       headers: { 'content-type': 'text/event-stream' },
     })
   }
