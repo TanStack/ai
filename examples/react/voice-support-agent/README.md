@@ -2,7 +2,7 @@
 
 A phone support agent for TanStack AI. Talk into your microphone, and the agent answers from the docs. Point a Twilio number at it to take real calls.
 
-Each hop of the call, listen, think, and speak, runs on OpenAI, Gemini, or Grok. Pick a provider per hop on the page and paste your own keys, or put keys in `.env.local`.
+Each hop of the call, listen, think, and speak, runs on OpenAI, Gemini, or Grok. Pick a provider per hop on the page and paste your own keys in the key dialog, or put keys in `.env.local`.
 
 ## Run it
 
@@ -35,7 +35,8 @@ Characters live in `src/server/characters.ts`: helpful, bored, way too perky, an
 
 - `src/routes/index.tsx`: the softphone page. Microphone in, audio out, captions.
 - `src/lib/hops.ts`: the providers offered per hop.
-- `src/lib/byok.ts`: the browser keyring.
+- `src/lib/byok.ts`: the browser keyring and the server-key status.
+- `src/components/ByokKeyDialog.tsx`: the key dialog, copied from `ts-react-chat`.
 - `src/server/characters.ts`: the personas and voices.
 - `src/server/providers.ts`: builds the adapters and reads keys.
 - `src/server/call.ts`: one call. Transcribe, answer with `chat()`, speak each sentence.

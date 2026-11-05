@@ -806,13 +806,14 @@ export default defineConfig({
 
 ## 7. Build the softphone
 
-First create `src/lib/byok.ts`. The keyring from `@tanstack/ai-client/byok` stores keys in the browser, and `byok.headers()` gives them back as `x-byok-<provider>` headers.
+First create `src/lib/byok.ts`. The keyring from `@tanstack/ai-client/byok` stores keys in the browser, and `byok.headers()` gives them back as `x-byok-<provider>` headers. `getEnvKeyStatus` is a server function that says which providers already have a key in env, as booleans, so the dialog can show "Server key" instead of asking for one.
 
 ```typescript ignore
 import { defaultByokStorage, defineByok } from '@tanstack/ai-client/byok'
 import { geminiByok } from '@tanstack/ai-gemini/byok'
 import { grokByok } from '@tanstack/ai-grok/byok'
 import { openaiByok } from '@tanstack/ai-openai/byok'
+import { createServerFn } from '@tanstack/react-start'
 
 export const KEYED_PROVIDERS = [openaiByok, geminiByok, grokByok] as const
 
@@ -820,21 +821,36 @@ export const byok = defineByok({
   storage: defaultByokStorage(),
   providers: KEYED_PROVIDERS,
 })
+
+export const getEnvKeyStatus = createServerFn({ method: 'GET' }).handler(
+  (): Record<string, boolean> => {
+    const status: Record<string, boolean> = {}
+    for (const provider of KEYED_PROVIDERS) {
+      status[provider.id] = (provider.env ?? []).some((name) =>
+        Boolean(process.env[name]),
+      )
+    }
+    return status
+  },
+)
 ```
 
-Then replace `src/routes/index.tsx`. The page sends microphone PCM up the socket, plays PCM that comes down, and shows captions. Four dropdowns pick the character and the provider per hop, and a row of password fields takes keys. The `start` frame carries all of it.
+Next, the key dialog. Copy `src/components/ByokKeyDialog.tsx` from the [ts-react-chat example](https://github.com/TanStack/ai/blob/main/examples/ts-react-chat/src/components/ByokKeyDialog.tsx). It is the same dialog, without the OpenRouter and ChatGPT sign-in buttons and the Cloudflare group card, since this example does not use them. One card per provider, with a badge for your key, a server key, or none.
+
+Then replace `src/routes/index.tsx`. The page sends microphone PCM up the socket, plays PCM that comes down, and shows captions. Four dropdowns pick the character and the provider per hop, and the key icon opens the dialog. The `start` frame carries the choices and the keys. When the server closes a call with `missing <provider> key`, the page opens the dialog with that provider highlighted.
 
 An `AudioWorklet` turns the microphone's float samples into 16-bit PCM. It runs off the main thread, so the page stays smooth.
 
 ```tsx ignore
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
 import { ChevronDown, Phone, PhoneOff } from 'lucide-react'
-import { useByok } from '@tanstack/ai-react'
-import { byok, KEYED_PROVIDERS } from '../lib/byok.ts'
+import { ByokKeyDialog } from '../components/ByokKeyDialog.tsx'
+import { byok, getEnvKeyStatus } from '../lib/byok.ts'
 import { DEFAULT_CHOICE, HOPS } from '../lib/hops.ts'
 import { CHARACTERS, isCharacterName } from '../server/characters.ts'
 import type { Choice, Hop } from '../lib/hops.ts'
+import type { ProviderId } from '@tanstack/ai/byok'
 import type { CharacterName } from '../server/characters.ts'
 
 type Caption = { role: 'caller' | 'agent'; text: string; final: boolean }
@@ -860,6 +876,7 @@ async function startCall(
   character: CharacterName,
   choice: Choice,
   onCaption: (caption: Caption) => void,
+  onClose: (reason: string) => void,
 ) {
   const context = new AudioContext({ sampleRate: 24000 })
   const mic = await navigator.mediaDevices.getUserMedia({
@@ -886,6 +903,8 @@ async function startCall(
       headers: byok.headers(),
     }),
   )
+
+  ws.onclose = (event) => onClose(event.reason)
 
   const sender = new AudioWorkletNode(context, 'pcm-sender')
   sender.port.onmessage = (event: MessageEvent<ArrayBuffer>) => {
@@ -955,6 +974,23 @@ function CallPage() {
   const [character, setCharacter] = useState<CharacterName>('helpful')
   const [choice, setChoice] = useState<Choice>(DEFAULT_CHOICE)
   const hangUp = useRef<(() => void) | null>(null)
+  const [keysOpen, setKeysOpen] = useState(false)
+  const [envStatus, setEnvStatus] = useState<Record<string, boolean>>()
+  const [missingKey, setMissingKey] = useState<ProviderId | null>(null)
+  useEffect(() => {
+    void getEnvKeyStatus().then(setEnvStatus)
+  }, [])
+
+  // The server closes with "missing <provider> key" when no key covers a hop.
+  const onClose = (reason: string) => {
+    const missing = /^missing (\S+) key$/.exec(reason)?.[1]
+    hangUp.current = null
+    setInCall(false)
+    if (missing) {
+      setMissingKey(missing)
+      setKeysOpen(true)
+    }
+  }
 
   const onCaption = (caption: Caption) =>
     setCaptions((list) => {
@@ -977,7 +1013,7 @@ function CallPage() {
     }
     try {
       setError('')
-      hangUp.current = await startCall(character, choice, onCaption)
+      hangUp.current = await startCall(character, choice, onCaption, onClose)
       setInCall(true)
       setCaptions([
         {
@@ -1071,8 +1107,17 @@ function CallPage() {
           >
             {inCall ? <PhoneOff size={24} /> : <Phone size={24} />}
           </button>
+          <ByokKeyDialog
+            open={keysOpen}
+            onOpenChange={(open) => {
+              setKeysOpen(open)
+              if (!open) setMissingKey(null)
+            }}
+            envStatus={envStatus}
+            highlightProvider={missingKey}
+            description="Keys stay in your browser and go to the server on the first frame of each call, never stored there. A provider with a server key already works without one."
+          />
         </div>
-        <KeyRow />
       </div>
     </div>
   )
@@ -1119,80 +1164,6 @@ function Select({
         />
       </span>
     </label>
-  )
-}
-
-function KeyRow() {
-  const snapshot = useByok(byok)
-  const [drafts, setDrafts] = useState<Record<string, string>>({})
-  const [error, setError] = useState('')
-  return (
-    <div className="flex flex-wrap items-end justify-center gap-3">
-      {KEYED_PROVIDERS.map((provider) => {
-        const status = snapshot.status[provider.id]
-        const masked = status && 'masked' in status ? status.masked : undefined
-        const draft = drafts[provider.id] ?? ''
-        return (
-          <form
-            key={provider.id}
-            className="flex items-end gap-1"
-            onSubmit={(event) => {
-              event.preventDefault()
-              if (!draft.trim()) return
-              setError('')
-              void byok
-                .update(provider.id, draft.trim())
-                .then(() => setDrafts((d) => ({ ...d, [provider.id]: '' })))
-                .catch((caught: unknown) =>
-                  setError(
-                    caught instanceof Error
-                      ? caught.message
-                      : 'Could not save key',
-                  ),
-                )
-            }}
-          >
-            <label className="flex flex-col gap-1 text-xs text-gray-400">
-              {provider.label} key
-              <input
-                type="password"
-                autoComplete="off"
-                spellCheck={false}
-                placeholder={masked ? `Saved ${masked}` : 'Paste key'}
-                value={draft}
-                onChange={(event) =>
-                  setDrafts((d) => ({
-                    ...d,
-                    [provider.id]: event.target.value,
-                  }))
-                }
-                className="h-10 w-44 rounded-lg border border-gray-700 bg-gray-800 px-3 text-sm text-white placeholder-gray-500 focus:border-orange-500 focus:outline-none"
-              />
-            </label>
-            {masked ? (
-              <button
-                type="button"
-                onClick={() => void byok.clear(provider.id)}
-                className="h-10 rounded-lg border border-gray-600 px-3 text-sm text-gray-200"
-              >
-                Clear
-              </button>
-            ) : (
-              <button
-                type="submit"
-                disabled={!draft.trim()}
-                className="h-10 rounded-lg bg-orange-500 px-3 text-sm font-medium text-white disabled:opacity-50"
-              >
-                Save
-              </button>
-            )}
-          </form>
-        )
-      })}
-      {error ? (
-        <p className="w-full text-center text-xs text-red-400">{error}</p>
-      ) : null}
-    </div>
   )
 }
 
