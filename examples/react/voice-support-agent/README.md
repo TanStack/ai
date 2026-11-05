@@ -14,7 +14,7 @@ Each hop of the call, listen, think, and speak, runs on OpenAI, Gemini, or Grok.
 
 The agent speaks after about one second. Talk over it to interrupt.
 
-Characters live in `src/server/characters.ts`: helpful, bored, way too perky, and about to lose it. Each one is a persona for the chat model plus a voice, speed, and delivery note for the speech model.
+Characters live in `src/server/characters.ts`: helpful, startup founder, frightfully posh, surfie, total brat, and about to lose it. Each one is a persona for the chat model plus a voice, speed, and delivery note for the speech model.
 
 ## Take a phone call
 
@@ -24,7 +24,7 @@ Characters live in `src/server/characters.ts`: helpful, bored, way too perky, an
 ```xml
 <Response>
   <Connect>
-    <Stream url="wss://YOUR-NGROK-HOST/twilio?character=bored&amp;speak=gemini" />
+    <Stream url="wss://YOUR-NGROK-HOST/twilio?character=surfie&amp;speak=gemini" />
   </Connect>
 </Response>
 ```
