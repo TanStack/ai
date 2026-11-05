@@ -1,4 +1,4 @@
-import { mkdir, readFile, writeFile } from 'node:fs/promises'
+import { mkdir, readFile, rename, writeFile } from 'node:fs/promises'
 import { dirname, resolve } from 'node:path'
 import { createHarnessHost, defineHarness } from '@tanstack/ai-harness'
 import { permissions } from '@tanstack/ai-harness/plugins'
@@ -51,15 +51,20 @@ const sandboxIds = {
   get: async (threadId: string) => (await readSandboxIds())[threadId],
   set: (threadId: string, sandboxId: string) => {
     // One write at a time, so two threads do not lose each other's id.
-    sandboxIdsWrite = sandboxIdsWrite.then(async () => {
+    const write = sandboxIdsWrite.then(async () => {
       const ids = await readSandboxIds()
       await mkdir(dirname(SANDBOX_IDS_FILE), { recursive: true })
+      // Write a new file, then rename it, so a read never sees half a file.
+      const temporary = `${SANDBOX_IDS_FILE}.${crypto.randomUUID()}`
       await writeFile(
-        SANDBOX_IDS_FILE,
+        temporary,
         JSON.stringify({ ...ids, [threadId]: sandboxId }),
       )
+      await rename(temporary, SANDBOX_IDS_FILE)
     })
-    return sandboxIdsWrite
+    // A failed write fails this call only. The next write still runs.
+    sandboxIdsWrite = write.catch(() => {})
+    return write
   },
 }
 
@@ -79,7 +84,10 @@ export async function liveViewUrl(threadId: string) {
   if (!sandbox) return null
   const [{ url }, password] = await Promise.all([
     sandbox.ports.connect(LIVE_VIEW_PORT),
-    sandbox.process.exec('cat /tmp/vnc-password'),
+    // desktop.sh writes it after each start. Wait for it, up to 10 s.
+    sandbox.process.exec(
+      'for i in $(seq 50); do test -s /dev/shm/vnc-password && cat /dev/shm/vnc-password && exit 0; sleep 0.2; done; echo "desktop.sh wrote no password." >&2; exit 1',
+    ),
   ])
   if (password.exitCode !== 0) {
     throw new Error(`No live view password: ${password.stderr.trim()}`)
@@ -100,6 +108,8 @@ const PROFILE_FILES = [
   'Local State',
   'Default/Cookies',
   'Default/Cookies-journal',
+  'Default/Network/Cookies',
+  'Default/Network/Cookies-journal',
   'Default/Preferences',
   'Default/Sessions',
   'Default/Local Storage',
@@ -129,8 +139,8 @@ const snapshots = {
   after: (sandbox: SandboxHandle) => browser(sandbox, 'start'),
 }
 
-// The username and password of each thread, between the login card and the
-// sign-in. Only in memory, and never in a log.
+// The username and password of each requestLogin call, between the login
+// card and the sign-in. Only in memory, and never in a log.
 // ponytail: one process. With more servers, use a store with a time limit.
 const LOGIN_TTL_MS = 5 * 60_000
 const logins = new Map<
@@ -144,24 +154,27 @@ const logins = new Map<
 >()
 
 export const loginSchema = z.object({
-  threadId: z.string().min(1).max(200),
-  site: z.url({ protocol: /^https?$/ }).max(2000),
+  toolCallId: z.string().min(1).max(200),
+  site: z.url({ protocol: /^https$/ }).max(2000),
   username: z.string().min(1).max(500),
   password: z.string().min(1).max(500),
 })
 
-/** Keep a username and password for the next sign-in of a thread. */
-export function saveLogin({ threadId, ...login }: z.infer<typeof loginSchema>) {
-  clearTimeout(logins.get(threadId)?.timer)
-  const timer = setTimeout(() => logins.delete(threadId), LOGIN_TTL_MS)
+/** Keep a username and password for one requestLogin call. */
+export function saveLogin({
+  toolCallId,
+  ...login
+}: z.infer<typeof loginSchema>) {
+  clearTimeout(logins.get(toolCallId)?.timer)
+  const timer = setTimeout(() => logins.delete(toolCallId), LOGIN_TTL_MS)
   timer.unref()
-  logins.set(threadId, { ...login, timer })
+  logins.set(toolCallId, { ...login, timer })
 }
 
-/** Take the saved login of a thread. It is deleted, so it is used once. */
-function takeLogin(threadId: string, site: string) {
-  const login = logins.get(threadId)
-  logins.delete(threadId)
+/** Take the saved login of a call. It is deleted, so it is used once. */
+function takeLogin(toolCallId: string, site: string) {
+  const login = logins.get(toolCallId)
+  logins.delete(toolCallId)
   clearTimeout(login?.timer)
   if (!login) {
     throw new Error(
@@ -176,6 +189,12 @@ function takeLogin(threadId: string, site: string) {
   return login
 }
 
+/** A page address without its query and fragment, which can hold form values. */
+const pageAddress = (url: string) => {
+  const { origin, pathname } = new URL(url)
+  return origin + pathname
+}
+
 const loginResultSchema = z.object({
   url: z.string(),
   hasPasswordField: z.boolean(),
@@ -184,8 +203,11 @@ const loginResultSchema = z.object({
 // The model asks for a sign-in, and it never sees the password.
 const requestLogin = requestLoginTool.server(async ({ site }, context) => {
   const threadId = context?.threadId
-  if (!threadId) throw new Error('requestLogin runs only in a chat thread.')
-  const login = takeLogin(threadId, site)
+  const toolCallId = context?.toolCallId
+  if (!threadId || !toolCallId) {
+    throw new Error('requestLogin runs only in a chat thread.')
+  }
+  const login = takeLogin(toolCallId, site)
 
   const sandbox = await threadSandbox(threadId)
   if (!sandbox) {
@@ -198,7 +220,7 @@ const requestLogin = requestLoginTool.server(async ({ site }, context) => {
   // line. The script opens the site, checks its origin, then fills the form.
   const result = await sandbox.process.exec('python3 /opt/desktop/login.py', {
     env: {
-      LOGIN_SITE: site,
+      LOGIN_SITE: new URL(site).href,
       LOGIN_USERNAME: login.username,
       LOGIN_PASSWORD: login.password,
     },
@@ -211,12 +233,12 @@ const requestLogin = requestLoginTool.server(async ({ site }, context) => {
   // asks the user to try again.
   if (page.hasPasswordField) {
     throw new Error(
-      `The sign-in failed: ${page.url} still asks for a password. Call requestLogin again, so the user can try again.`,
+      `The sign-in failed: ${pageAddress(page.url)} still asks for a password. Call requestLogin again, so the user can try again.`,
     )
   }
   // Save the signed-in profile now. A server that stops skips the idle save.
   await saveComputerSnapshot(sandbox, threadId, snapshots)
-  return `Signed in. The browser shows ${page.url}. Take a screenshot to see it.`
+  return `Signed in. The browser shows ${pageAddress(page.url)}. Take a screenshot to see it.`
 })
 
 // The model is stuck. The user used the desktop in the live view and clicked
@@ -237,7 +259,7 @@ const agent = defineHarness({
   adapter: openaiText('gpt-6.1-sol'),
   systemPrompts: [
     'You use a Linux desktop with Chromium on it. When a page asks you to sign in, call requestLogin with the address of the sign-in page. Never ask for a password in the chat, and never type one.',
-    'When a sign-in fails, call requestLogin again. When you are stuck on anything else and cannot continue alone, call handOff. The user then uses the desktop and tells you when they are done.',
+    'When requestLogin says that the page still asks for a password, call requestLogin again. When it fails for another reason, do not call it again: tell the user the error. When you are stuck on anything else and cannot continue alone, call handOff. The user then uses the desktop and tells you when they are done.',
   ],
   tools: [requestLogin, handOff],
   plugins: () => [permissions(), computer],

@@ -109,10 +109,12 @@ function Messages({
  * `/api/login`, not to the chat. The answer to the model is only "yes".
  */
 function LoginCard({
+  toolCallId,
   site,
   retry,
   onAnswer,
 }: {
+  toolCallId: string
   site: string
   retry: boolean
   onAnswer: (approved: boolean) => void
@@ -130,7 +132,7 @@ function LoginCard({
       const response = await fetch('/api/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ threadId: THREAD_ID, site, username, password }),
+        body: JSON.stringify({ toolCallId, site, username, password }),
       })
       if (!response.ok) {
         throw new Error(
@@ -254,10 +256,9 @@ function LiveView({ interactive }: { interactive: boolean }) {
   const [url, setUrl] = useState<string | null>(null)
   const [error, setError] = useState<string>()
 
-  // The container starts at the model's first action. Ask until it exists.
-  // ponytail: a restarted container has a new VNC password. Reload the page.
+  // The container starts at the model's first action. Keep asking: a
+  // restarted container has a new VNC password, so a new address.
   useEffect(() => {
-    if (url) return
     const load = async () => {
       try {
         const response = await fetch(
@@ -277,7 +278,7 @@ function LiveView({ interactive }: { interactive: boolean }) {
     void load()
     const timer = setInterval(load, 2000)
     return () => clearInterval(timer)
-  }, [url])
+  }, [])
 
   return (
     <div className="my-2 flex max-w-2xl flex-col gap-2">
@@ -387,6 +388,7 @@ function ChatPage() {
             return (
               <LoginCard
                 key={interrupt.id}
+                toolCallId={interrupt.toolCallId}
                 site={interrupt.originalArgs.site}
                 retry={lastSignInFailed(messages)}
                 onAnswer={(approved) => interrupt.resolveInterrupt(approved)}

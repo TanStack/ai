@@ -1,6 +1,7 @@
 #!/bin/sh
 # Stop or start Chromium, so a snapshot saves or restores a complete profile.
-# `stop` pauses the loop in desktop.sh, then waits until Chromium has exited.
+# `stop` pauses the loop in desktop.sh, closes Chromium, then waits until the
+# loop says that Chromium is stopped. Then no new Chromium can start.
 # `start` ends the pause, then waits until Chromium answers on its debugging port.
 set -e
 PAUSE=/tmp/chromium-paused
@@ -21,7 +22,7 @@ async def close():
 asyncio.run(close())
 PY
     fi
-    for i in $(seq 100); do pgrep -x chromium >/dev/null || exit 0; sleep 0.2; done
+    for i in $(seq 100); do [ -e /tmp/chromium-stopped ] && exit 0; sleep 0.2; done
     echo 'Chromium did not stop.' >&2
     exit 1
     ;;

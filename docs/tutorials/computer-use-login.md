@@ -86,13 +86,18 @@ RUN chmod +x /opt/desktop/desktop.sh /opt/desktop/browser.sh
 
 ```bash
 #!/bin/sh
-rm -f /tmp/.X0-lock
+rm -f /tmp/.X0-lock /tmp/chromium-paused /tmp/chromium-stopped
 Xvfb :0 -ac -screen 0 1024x768x24 -nolisten tcp &
 until DISPLAY=:0 xdpyinfo >/dev/null 2>&1; do sleep 0.2; done
 
 while true; do
-  # browser.sh stop pauses this loop while a snapshot saves or restores the profile.
-  while [ -e /tmp/chromium-paused ]; do sleep 0.2; done
+  # browser.sh stop pauses this loop while a snapshot saves or restores the
+  # profile. The loop tells browser.sh that Chromium is stopped.
+  if [ -e /tmp/chromium-paused ]; then
+    touch /tmp/chromium-stopped
+    while [ -e /tmp/chromium-paused ]; do sleep 0.2; done
+    rm -f /tmp/chromium-stopped
+  fi
   # --no-sandbox: Chromium runs as root in the container, which is the sandbox.
   DISPLAY=:0 chromium --no-sandbox --test-type --no-first-run \
     --no-default-browser-check --disable-dev-shm-usage \
@@ -110,6 +115,7 @@ done
 `sandbox/browser.sh` stops and starts Chromium, so a snapshot saves a complete profile. Copy it from the [example](https://github.com/TanStack/ai/blob/main/examples/react/computer-use-login/sandbox/browser.sh):
 
 - `browser.sh stop` pauses the loop in `desktop.sh`, then closes Chromium with the debugging command `Browser.close`. A clean close writes the cookies to disk. A kill signal can lose them.
+- `browser.sh stop` returns when the loop says that Chromium is stopped. Then no new Chromium can start while the profile saves.
 - `browser.sh start` ends the pause, then waits until Chromium answers on its debugging port.
 
 `sandbox/login.py` signs in. Copy it from the [example](https://github.com/TanStack/ai/blob/main/examples/react/computer-use-login/sandbox/login.py). It reads the site, the username, and the password from its environment, then talks to Chromium over the debugging port:
@@ -141,7 +147,7 @@ export const requestLoginTool = toolDefinition({
   needsApproval: true,
   inputSchema: z.object({
     site: z
-      .url({ protocol: /^https?$/ })
+      .url({ protocol: /^https$/ })
       .describe(
         'The address of the sign-in page, for example https://example.com/login',
       ),
@@ -156,7 +162,7 @@ Create `src/harness.ts`. It has the Docker provider, three stores, the tool, and
 First the provider and the sandbox ids. `sandboxIds` keeps the container of each thread, so the thread finds its signed-in browser again later:
 
 ```typescript ignore
-import { mkdir, readFile, writeFile } from 'node:fs/promises'
+import { mkdir, readFile, rename, writeFile } from 'node:fs/promises'
 import { dirname, resolve } from 'node:path'
 import { createHarnessHost, defineHarness } from '@tanstack/ai-harness'
 import { permissions } from '@tanstack/ai-harness/plugins'
@@ -201,15 +207,20 @@ const sandboxIds = {
   get: async (threadId: string) => (await readSandboxIds())[threadId],
   set: (threadId: string, sandboxId: string) => {
     // One write at a time, so two threads do not lose each other's id.
-    sandboxIdsWrite = sandboxIdsWrite.then(async () => {
+    const write = sandboxIdsWrite.then(async () => {
       const ids = await readSandboxIds()
       await mkdir(dirname(SANDBOX_IDS_FILE), { recursive: true })
+      // Write a new file, then rename it, so a read never sees half a file.
+      const temporary = `${SANDBOX_IDS_FILE}.${crypto.randomUUID()}`
       await writeFile(
-        SANDBOX_IDS_FILE,
+        temporary,
         JSON.stringify({ ...ids, [threadId]: sandboxId }),
       )
+      await rename(temporary, SANDBOX_IDS_FILE)
     })
-    return sandboxIdsWrite
+    // A failed write fails this call only. The next write still runs.
+    sandboxIdsWrite = write.catch(() => {})
+    return write
   },
 }
 ```
@@ -223,6 +234,8 @@ const PROFILE_FILES = [
   'Local State',
   'Default/Cookies',
   'Default/Cookies-journal',
+  'Default/Network/Cookies',
+  'Default/Network/Cookies-journal',
   'Default/Preferences',
   'Default/Sessions',
   'Default/Local Storage',
@@ -257,7 +270,7 @@ const snapshots = {
 - `memorySandboxSnapshots()` keeps the snapshots in memory, like the chat. For a user who comes back the next day, build the stores with `createSandboxSnapshots` on your database.
 - The profile holds session cookies. Keep the blob store secret, and encrypt it in production.
 
-Then the logins. The card sends a login, and the tool takes it once. A login that nobody takes is deleted after 5 minutes:
+Then the logins. The card sends a login for one `requestLogin` call, and the tool takes it once. A login that nobody takes is deleted after 5 minutes:
 
 ```typescript ignore
 const LOGIN_TTL_MS = 5 * 60_000
@@ -272,22 +285,25 @@ const logins = new Map<
 >()
 
 export const loginSchema = z.object({
-  threadId: z.string().min(1).max(200),
-  site: z.url({ protocol: /^https?$/ }).max(2000),
+  toolCallId: z.string().min(1).max(200),
+  site: z.url({ protocol: /^https$/ }).max(2000),
   username: z.string().min(1).max(500),
   password: z.string().min(1).max(500),
 })
 
-export function saveLogin({ threadId, ...login }: z.infer<typeof loginSchema>) {
-  clearTimeout(logins.get(threadId)?.timer)
-  const timer = setTimeout(() => logins.delete(threadId), LOGIN_TTL_MS)
+export function saveLogin({
+  toolCallId,
+  ...login
+}: z.infer<typeof loginSchema>) {
+  clearTimeout(logins.get(toolCallId)?.timer)
+  const timer = setTimeout(() => logins.delete(toolCallId), LOGIN_TTL_MS)
   timer.unref()
-  logins.set(threadId, { ...login, timer })
+  logins.set(toolCallId, { ...login, timer })
 }
 
-function takeLogin(threadId: string, site: string) {
-  const login = logins.get(threadId)
-  logins.delete(threadId)
+function takeLogin(toolCallId: string, site: string) {
+  const login = logins.get(toolCallId)
+  logins.delete(toolCallId)
   clearTimeout(login?.timer)
   if (!login) {
     throw new Error(
@@ -306,6 +322,12 @@ function takeLogin(threadId: string, site: string) {
 Then the tool. It runs after the user approves the card:
 
 ```typescript ignore
+// No query and no fragment: they can hold form values.
+const pageAddress = (url: string) => {
+  const { origin, pathname } = new URL(url)
+  return origin + pathname
+}
+
 const loginResultSchema = z.object({
   url: z.string(),
   hasPasswordField: z.boolean(),
@@ -313,8 +335,11 @@ const loginResultSchema = z.object({
 
 const requestLogin = requestLoginTool.server(async ({ site }, context) => {
   const threadId = context?.threadId
-  if (!threadId) throw new Error('requestLogin runs only in a chat thread.')
-  const login = takeLogin(threadId, site)
+  const toolCallId = context?.toolCallId
+  if (!threadId || !toolCallId) {
+    throw new Error('requestLogin runs only in a chat thread.')
+  }
+  const login = takeLogin(toolCallId, site)
 
   // The user can answer the card hours later. `resume` starts a stopped
   // container again.
@@ -329,7 +354,8 @@ const requestLogin = requestLoginTool.server(async ({ site }, context) => {
   // The password goes in the environment of one process, not on its command line.
   const result = await sandbox.process.exec('python3 /opt/desktop/login.py', {
     env: {
-      LOGIN_SITE: site,
+      // The normal form of the address, so its origin matches Chromium's.
+      LOGIN_SITE: new URL(site).href,
       LOGIN_USERNAME: login.username,
       LOGIN_PASSWORD: login.password,
     },
@@ -341,17 +367,17 @@ const requestLogin = requestLoginTool.server(async ({ site }, context) => {
   // A wrong password. The model calls requestLogin again, and the user retries.
   if (page.hasPasswordField) {
     throw new Error(
-      `The sign-in failed: ${page.url} still asks for a password. Call requestLogin again, so the user can try again.`,
+      `The sign-in failed: ${pageAddress(page.url)} still asks for a password. Call requestLogin again, so the user can try again.`,
     )
   }
   // Save the signed-in profile now. A server that stops skips the idle save.
   await saveComputerSnapshot(sandbox, threadId, snapshots)
-  return `Signed in. The browser shows ${page.url}. Take a screenshot to see it.`
+  return `Signed in. The browser shows ${pageAddress(page.url)}. Take a screenshot to see it.`
 })
 ```
 
 - `takeLogin` deletes the login, so the server uses each password once.
-- The tool result has no password. The model gets only the address of the page.
+- The tool result has no password. The model gets only the address of the page, with no query and no fragment.
 
 Last, the harness and its HTTP handler:
 
@@ -366,7 +392,7 @@ const agent = defineHarness({
   adapter: openaiText('gpt-6.1-sol'),
   systemPrompts: [
     'You use a Linux desktop with Chromium on it. When a page asks you to sign in, call requestLogin with the address of the sign-in page. Never ask for a password in the chat, and never type one.',
-    'When a sign-in fails, call requestLogin again.',
+    'When requestLogin says that the page still asks for a password, call requestLogin again. When it fails for another reason, do not call it again: tell the user the error.',
   ],
   tools: [requestLogin],
   plugins: () => [permissions(), computer],
@@ -463,9 +489,11 @@ Add the card. It sends the login to `/api/login` first. Then it approves the too
 
 ```tsx ignore
 function LoginCard({
+  toolCallId,
   site,
   onAnswer,
 }: {
+  toolCallId: string
   site: string
   onAnswer: (approved: boolean) => void
 }) {
@@ -480,7 +508,7 @@ function LoginCard({
       const response = await fetch('/api/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ threadId: THREAD_ID, site, username, password }),
+        body: JSON.stringify({ toolCallId, site, username, password }),
       })
       if (!response.ok) {
         throw new Error(`The server did not take the login (${response.status}).`)
@@ -527,6 +555,7 @@ Show a card for each approval of `requestLogin`, below the messages:
   interrupt.kind === 'tool-approval' ? (
     <LoginCard
       key={interrupt.id}
+      toolCallId={interrupt.toolCallId}
       site={interrupt.originalArgs.site}
       onAnswer={(approved) => interrupt.resolveInterrupt(approved)}
     />
@@ -566,12 +595,12 @@ Show the desktop live at the end of the chat, in place of the screenshots. When 
 
    ```
 
-2. Start it in `sandbox/desktop.sh`, after the `until` line. Each start makes a new VNC password:
+2. Start it in `sandbox/desktop.sh`, after the `until` line. Each start makes a new VNC password in `/dev/shm`, which is empty after each container start:
 
    ```bash
-   head -c 64 /dev/urandom | tr -dc 'A-Za-z0-9' | head -c 8 > /tmp/vnc-password
+   head -c 256 /dev/urandom | tr -dc 'A-Za-z0-9' | head -c 8 > /dev/shm/vnc-password
    x11vnc -display :0 -localhost -forever -shared -quiet \
-     -passwdfile /tmp/vnc-password -rfbport 5900 &
+     -passwdfile /dev/shm/vnc-password -rfbport 5900 &
    websockify --web /usr/share/novnc 6080 localhost:5900 >/dev/null 2>&1 &
    ```
 
@@ -594,7 +623,10 @@ Show the desktop live at the end of the chat, in place of the screenshots. When 
      if (!sandbox) return null
      const [{ url }, password] = await Promise.all([
        sandbox.ports.connect(6080),
-       sandbox.process.exec('cat /tmp/vnc-password'),
+       // desktop.sh writes it after each start. Wait for it, up to 10 s.
+       sandbox.process.exec(
+         'for i in $(seq 50); do test -s /dev/shm/vnc-password && cat /dev/shm/vnc-password && exit 0; sleep 0.2; done; echo "desktop.sh wrote no password." >&2; exit 1',
+       ),
      ])
      if (password.exitCode !== 0) {
        throw new Error(`No live view password: ${password.stderr.trim()}`)
@@ -654,6 +686,8 @@ Show the desktop live at the end of the chat, in place of the screenshots. When 
 
 Start the app, and send a task that needs a person, for example "Open https://www.google.com/recaptcha/api2/demo and send the form." The model calls `handOff`. Tick the captcha in the live view, then click Done. The model continues.
 
-The model sees only the screenshots that it takes after you click Done. If the user types a password in the live view, the model sees only dots.
+The model sees only the screenshots that it takes after you click Done. A password field that the site masks shows only dots. A site that shows the password as text shows it in the screenshot too. Hide the password before you click Done, or use the login card.
 
 The full example is on GitHub: [TanStack/ai `examples/react/computer-use-login`](https://github.com/TanStack/ai/tree/main/examples/react/computer-use-login). To host it, see [Run it on a server](https://github.com/TanStack/ai/tree/main/examples/react/computer-use-login#run-it-on-a-server) in its README.
+
+<!-- ::client-example library=ai framework=react slug=computer-use-login -->

@@ -71,6 +71,16 @@ When a tool is missing, the driver throws an error with its name.
 Give `sandboxComputer()` a `sandboxIds` store, and set the provider to pause the sandbox. A user who comes back to a thread later gets the same desktop.
 
 ```typescript
+import { createComputerUse } from '@tanstack/ai-computer-use'
+import { sandboxComputer } from '@tanstack/ai-computer-sandbox'
+import { e2bSandbox } from '@tanstack/ai-sandbox-e2b'
+
+// Your database.
+declare const db: {
+  getSandboxId: (threadId: string) => Promise<string | undefined>
+  setSandboxId: (threadId: string, sandboxId: string) => Promise<void>
+}
+
 const computerUse = createComputerUse({
   driver: sandboxComputer({
     provider: e2bSandbox({ template: 'desktop', onTimeout: 'pause' }),
@@ -87,12 +97,22 @@ const computerUse = createComputerUse({
 
 ## Restore files into a new sandbox
 
-Give `sandboxComputer()` a `snapshots` option. The driver saves the files of one folder, like the browser profile, when a thread closes or goes idle. The next new sandbox of the thread gets those files back. This works with every provider.
+Give `sandboxComputer()` a `snapshots` option. The driver saves the files of one folder, like the browser profile, when a thread closes or goes idle. The next new sandbox of the thread gets those files back. A kept sandbox that comes back with an empty disk gets them back too. This works with every provider.
 
 ```typescript
+import { createComputerUse } from '@tanstack/ai-computer-use'
+import { sandboxComputer } from '@tanstack/ai-computer-sandbox'
+import { memorySandboxSnapshots } from '@tanstack/ai-sandbox'
+import type { SandboxHandle } from '@tanstack/ai-sandbox'
+import { e2bSandbox } from '@tanstack/ai-sandbox-e2b'
+
+// Your own functions that stop and start the browser.
+declare function stopBrowser(sandbox: SandboxHandle): Promise<void>
+declare function startBrowser(sandbox: SandboxHandle): Promise<void>
+
 const computerUse = createComputerUse({
   driver: sandboxComputer({
-    provider,
+    provider: e2bSandbox({ template: 'desktop' }),
     snapshots: {
       store: await memorySandboxSnapshots(),
       root: '/home/user/browser-profile',
@@ -106,6 +126,7 @@ const computerUse = createComputerUse({
 - `before` runs before each save and restore. Stop the programs that write in `root`. `after` starts them again.
 - To save right away, like after a sign-in, call `saveComputerSnapshot(sandbox, threadId, snapshots)`.
 - A snapshot of a browser profile holds its session cookies. Keep the store secret.
+- `memorySandboxSnapshots()` keeps the snapshots in memory. A server restart deletes them. For a durable store, use `createSandboxSnapshots` with your database.
 
 ## Share one sandbox
 

@@ -12,7 +12,8 @@ export const requestLoginTool = toolDefinition({
   needsApproval: true,
   inputSchema: z.object({
     site: z
-      .url({ protocol: /^https?$/ })
+      // HTTPS only: a password sent over plain HTTP can be read on the way.
+      .url({ protocol: /^https$/ })
       .describe(
         'The address of the sign-in page, for example https://example.com/login',
       ),

@@ -102,13 +102,14 @@ function memoryFs(initial: Record<string, string>) {
         path: `${dir}/${name}`,
         type: dirs.has(`${dir}/${name}`) ? 'dir' : 'file',
       })),
+    exists: async (path: string) => files.has(path) || dirs.has(path),
     readBytes: async (path: string) => {
       const bytes = files.get(path)
       if (!bytes) throw new Error(`No file ${path}`)
       return bytes
     },
-    write: async (path: string, data: Uint8Array) => {
-      files.set(path, data)
+    write: async (path: string, data: Uint8Array | string) => {
+      files.set(path, typeof data === 'string' ? encoder.encode(data) : data)
     },
     mkdir: async (path: string) => {
       dirs.add(path)
@@ -436,7 +437,7 @@ describe('sandboxComputer', () => {
     expect(second.files.has('/p/Cache/data')).toBe(false)
   })
 
-  it('with snapshots and sandboxIds, saves on close but restores nothing into a resumed sandbox', async () => {
+  it('with snapshots and sandboxIds, restores into a resumed sandbox only when its disk is new', async () => {
     const kept = fakeSandbox({ files: { '/p/Cookies': 'live' } })
     const store = await memorySandboxSnapshots()
     const factory = sandboxComputer({
@@ -454,6 +455,11 @@ describe('sandboxComputer', () => {
     kept.files.set('/p/Cookies', new TextEncoder().encode('newer'))
     await factory.create({ threadId: 'a' })
     expect(new TextDecoder().decode(kept.files.get('/p/Cookies'))).toBe('newer')
+
+    // A resume onto an empty disk, as on Cloudflare, gets the snapshot back.
+    kept.files.clear()
+    await factory.create({ threadId: 'a' })
+    expect(new TextDecoder().decode(kept.files.get('/p/Cookies'))).toBe('live')
   })
 })
 

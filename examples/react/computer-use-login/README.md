@@ -39,7 +39,7 @@ The live view is noVNC, a VNC viewer in the browser. It is view-only while the m
 2. A card shows the reason. The live view now takes your mouse and keyboard.
 3. Do the step on the desktop, then click Done. The model takes a screenshot and continues. Click Cancel to tell the model that you did not do it.
 
-The model sees only the screenshots that it takes after you click Done. If you type a password in the live view, the model sees only dots. The login card is still the better path for a password, because the server checks the origin of the page before it fills the form.
+The model sees only the screenshots that it takes after you click Done. A password field that the site masks shows only dots. A site that shows the password as text shows it in the screenshot too, so hide it before you click Done. The login card is still the better path for a password, because the server checks the origin of the page before it fills the form.
 
 The live view needs a password. The container makes a new one at each start, and `/api/live` reads it. Docker publishes the noVNC port on 127.0.0.1 only, so other computers on your network cannot connect.
 
@@ -53,6 +53,8 @@ The live view needs a password. The container makes a new one at each start, and
 - `sandbox/`: the desktop image. `desktop.sh` starts the screen, the live view, and Chromium. `browser.sh` stops and starts Chromium for a snapshot. `login.py` fills the form. `view.html` is the live view, with no noVNC controls.
 
 ## Run it on a server
+
+The app has no login. The harness handler uses `openAccess: true`, and `/api/login` takes a login from any caller. Before you host it, put it behind your own login or a private network.
 
 The Docker setup runs on your own machine. To host the app, use a sandbox provider that pauses a sandbox and keeps its memory, like E2B:
 

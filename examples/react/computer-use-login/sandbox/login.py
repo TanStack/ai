@@ -25,8 +25,10 @@ import websockets
 
 # Fills the last text field before the password field, then submits the form.
 # The native value setter and the input events make frameworks like React
-# see the values.
-FILL = """(username, password) => {
+# see the values. It checks the origin first, in the same evaluation, so a
+# page that navigates away cannot get the password.
+FILL = """(origin, username, password) => {
+  if (location.origin !== origin) return `The page is on ${location.origin}, not ${origin}. Nothing was filled.`
   const visible = (input) => input.offsetParent !== null
   const password_ = [...document.querySelectorAll('input[type=password]')].find(visible)
   if (!password_) return 'The page has no visible password field.'
@@ -67,6 +69,8 @@ async def main():
     page = next((target for target in targets if target["type"] == "page"), None)
     if page is None:
         raise LoginError("Chromium has no open tab.")
+    # Show this tab, so the screenshots show the page that the script fills.
+    urllib.request.urlopen(f"http://127.0.0.1:9222/json/activate/{page['id']}").close()
 
     async with websockets.connect(page["webSocketDebuggerUrl"], max_size=None) as socket:
         next_id = 0
@@ -75,8 +79,16 @@ async def main():
             nonlocal next_id
             next_id += 1
             await socket.send(json.dumps({"id": next_id, "method": method, "params": params}))
+            deadline = time.monotonic() + TIMEOUT_S
             while True:
-                message = json.loads(await socket.recv())
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    raise LoginError(f"Chromium did not answer {method} in {TIMEOUT_S} s.")
+                try:
+                    raw = await asyncio.wait_for(socket.recv(), remaining)
+                except asyncio.TimeoutError:
+                    raise LoginError(f"Chromium did not answer {method} in {TIMEOUT_S} s.")
+                message = json.loads(raw)
                 if message.get("id") == next_id:
                     if "error" in message:
                         raise LoginError(f"{method} failed: {message['error']['message']}")
@@ -111,7 +123,9 @@ async def main():
             raise LoginError(f"The page is on {page_origin}, not {origin}. Nothing was filled.")
 
         before = await evaluate("location.href")
-        result = await evaluate(f"({FILL})({json.dumps(username)}, {json.dumps(password)})")
+        result = await evaluate(
+            f"({FILL})({json.dumps(origin)}, {json.dumps(username)}, {json.dumps(password)})"
+        )
         if result != "submitted":
             raise LoginError(result)
 

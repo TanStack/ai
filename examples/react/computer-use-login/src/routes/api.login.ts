@@ -13,7 +13,9 @@ export const Route = createFileRoute('/api/login')({
         const login = loginSchema.safeParse(body)
         if (!login.success) {
           return Response.json(
-            { error: 'Send a thread id, a site, a username, and a password.' },
+            {
+              error: 'Send a tool call id, a site, a username, and a password.',
+            },
             { status: 400 },
           )
         }

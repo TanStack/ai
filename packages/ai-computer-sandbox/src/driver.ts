@@ -348,7 +348,9 @@ export function sandboxComputer({
             `The sandbox display is ${width}x${height}, not ${display.width}x${display.height}. Set display to the size of the running display.`,
           )
         }
-        if (isNew && snapshots) {
+        // A resumed sandbox can have a new, empty disk, as on Cloudflare after
+        // a restart. The marker is missing then, so the snapshot goes back.
+        if (snapshots && (isNew || !(await hasRestored(sandbox, snapshots)))) {
           await restoreComputerSnapshot(sandbox, threadId, snapshots)
         }
         // A kept sandbox outlives its thread. The provider timeout ends it.
@@ -387,69 +389,110 @@ async function destroyAfterFailure(sandbox: SandboxHandle) {
 }
 
 /**
+ * Written next to `root` after a restore, so no snapshot holds it. A disk
+ * without it has not got the snapshot.
+ */
+const markerPath = (root: string) =>
+  `${root.replace(/\/$/, '')}.computer-snapshot-restored`
+
+function hasRestored(
+  sandbox: SandboxHandle,
+  { root }: SandboxComputerSnapshots,
+) {
+  return sandbox.fs.exists(markerPath(root))
+}
+
+// One save or restore at a time on each sandbox. Two at once would stop and
+// start the programs of `root` in the middle of each other.
+// ponytail: one process. With more servers, the provider must lock.
+const snapshotQueues = new Map<string, Promise<unknown>>()
+
+function oneAtATime<T>(sandbox: SandboxHandle, task: () => Promise<T>) {
+  const previous = snapshotQueues.get(sandbox.id) ?? Promise.resolve()
+  const next = previous.then(task, task)
+  const settled = next.catch(() => {})
+  snapshotQueues.set(sandbox.id, settled)
+  void settled.then(() => {
+    if (snapshotQueues.get(sandbox.id) === settled) {
+      snapshotQueues.delete(sandbox.id)
+    }
+  })
+  return next
+}
+
+/**
  * Save the files of `snapshots.root` as the newest snapshot of the thread.
  * `sandboxComputer` calls it when a thread closes or goes idle. Call it
  * yourself after a step that you must keep, like a sign-in.
  */
-export async function saveComputerSnapshot(
+export function saveComputerSnapshot(
   sandbox: SandboxHandle,
   threadId: string,
   { store, root, policy, before, after }: SandboxComputerSnapshots,
 ) {
-  await before?.(sandbox)
-  try {
-    const { files } = await captureSandboxFiles(
-      sandbox,
-      { blobs: store.persistence.stores.blobs, workspaceRoot: root },
-      policy,
-    )
-    const writer = await store.checkpoints.acquireWriter(threadId)
+  return oneAtATime(sandbox, async () => {
     try {
-      const parentCheckpointId = await store.checkpoints.getHead(threadId)
-      await store.checkpoints.append({
-        checkpoint: {
-          id: crypto.randomUUID(),
-          threadId,
-          parentCheckpointId,
-          createdAt: Date.now(),
-          reason: 'named',
-          label: 'computer',
-          files,
-          conversation: [],
-          artifacts: [],
-        },
-        expectedHeadId: parentCheckpointId,
-        writer,
-      })
+      // In the try, so `after` starts the programs again when `before` fails.
+      await before?.(sandbox)
+      const { files } = await captureSandboxFiles(
+        sandbox,
+        { blobs: store.persistence.stores.blobs, workspaceRoot: root },
+        policy,
+      )
+      const writer = await store.checkpoints.acquireWriter(threadId)
+      try {
+        const parentCheckpointId = await store.checkpoints.getHead(threadId)
+        await store.checkpoints.append({
+          checkpoint: {
+            id: crypto.randomUUID(),
+            threadId,
+            parentCheckpointId,
+            createdAt: Date.now(),
+            reason: 'named',
+            label: 'computer',
+            files,
+            conversation: [],
+            artifacts: [],
+          },
+          expectedHeadId: parentCheckpointId,
+          writer,
+        })
+      } finally {
+        await writer.release()
+      }
     } finally {
-      await writer.release()
+      await after?.(sandbox)
     }
-  } finally {
-    await after?.(sandbox)
-  }
+  })
 }
 
-/** Restore the newest snapshot of the thread into a new sandbox. */
-async function restoreComputerSnapshot(
+/** Restore the newest snapshot of the thread into a sandbox, then mark the disk. */
+function restoreComputerSnapshot(
   sandbox: SandboxHandle,
   threadId: string,
   { store, root, policy, before, after }: SandboxComputerSnapshots,
 ) {
-  const head = await store.checkpoints.getHead(threadId)
-  if (head === null) return
-  const checkpoint = await store.checkpoints.get(head)
-  if (!checkpoint) {
-    throw new Error(`The snapshot ${head} of thread ${threadId} is missing.`)
-  }
-  await before?.(sandbox)
-  try {
-    await restoreSandboxFiles(
-      sandbox,
-      { blobs: store.persistence.stores.blobs, workspaceRoot: root },
-      checkpoint,
-      policy,
-    )
-  } finally {
-    await after?.(sandbox)
-  }
+  return oneAtATime(sandbox, async () => {
+    const head = await store.checkpoints.getHead(threadId)
+    if (head !== null) {
+      const checkpoint = await store.checkpoints.get(head)
+      if (!checkpoint) {
+        throw new Error(
+          `The snapshot ${head} of thread ${threadId} is missing.`,
+        )
+      }
+      try {
+        await before?.(sandbox)
+        await restoreSandboxFiles(
+          sandbox,
+          { blobs: store.persistence.stores.blobs, workspaceRoot: root },
+          checkpoint,
+          policy,
+        )
+      } finally {
+        await after?.(sandbox)
+      }
+    }
+    await sandbox.fs.write(markerPath(root), '')
+  })
 }
