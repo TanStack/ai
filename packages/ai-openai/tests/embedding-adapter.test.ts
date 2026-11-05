@@ -101,28 +101,65 @@ describe('OpenAI Embedding Adapter', () => {
             new Error('400 max 2048 embedding inputs per request'),
           ) as never
         }
-        return Promise.resolve(
-          mockResponse(input.map((text) => [Number(text)])),
-        ) as never
+        // Distinct prompt/total counts per batch prove both fields are summed.
+        return Promise.resolve({
+          ...mockResponse(input.map((text) => [Number(text)])),
+          usage: {
+            prompt_tokens: input.length,
+            total_tokens: input.length + 1,
+          },
+        }) as never
       })
 
       const texts = Array.from({ length: 5000 }, (_, i) => String(i))
       const result = await adapter.createEmbeddings({
         model: 'text-embedding-3-small',
         input: texts,
+        dimensions: 256,
+        modelOptions: { user: 'u' },
         logger: testLogger,
       })
 
       expect(spy.mock.calls.map(([params]) => params.input.length)).toEqual([
         2048, 2048, 904,
       ])
+      for (const [params] of spy.mock.calls) {
+        expect(params).toMatchObject({
+          model: 'text-embedding-3-small',
+          encoding_format: 'float',
+          dimensions: 256,
+          user: 'u',
+        })
+      }
       expect(result.embeddings).toHaveLength(5000)
       expect(result.embeddings[2048]).toEqual({ vector: [2048], index: 2048 })
       expect(result.embeddings[4999]).toEqual({ vector: [4999], index: 4999 })
       expect(result.usage).toEqual({
-        promptTokens: 21,
+        promptTokens: 5000,
         completionTokens: 0,
-        totalTokens: 21,
+        totalTokens: 5003,
+      })
+    })
+
+    it('sends no request for an empty input array', async () => {
+      const adapter = new TestOpenAIEmbeddingAdapter(
+        { apiKey: 'test' },
+        'text-embedding-3-small',
+      )
+      const spy = adapter.spyOnEmbeddingsCreate()
+
+      const result = await adapter.createEmbeddings({
+        model: 'text-embedding-3-small',
+        input: [],
+        logger: testLogger,
+      })
+
+      expect(spy).not.toHaveBeenCalled()
+      expect(result.embeddings).toEqual([])
+      expect(result.usage).toEqual({
+        promptTokens: 0,
+        completionTokens: 0,
+        totalTokens: 0,
       })
     })
 

@@ -26,8 +26,11 @@ export interface OpenAIEmbeddingConfig extends OpenAIClientConfig {}
 
 /**
  * The embeddings endpoint rejects requests with more than 2048 inputs, so
- * larger arrays are sent as several requests.
+ * larger arrays are sent as several sequential requests.
  */
+// ponytail: splits by input count only. OpenAI also caps a request at 300k
+// tokens summed across inputs, so 2048 long texts can still 400. Add a
+// token-budget split if that bites (needs a tokeniser or char estimate).
 const OPENAI_MAX_BATCH_SIZE = 2048
 
 /**
@@ -37,7 +40,7 @@ const OPENAI_MAX_BATCH_SIZE = 2048
  * Supports text-embedding-3-small and text-embedding-3-large.
  *
  * Features:
- * - Batch embedding (inputs are sent in requests of at most 2048)
+ * - Batch embedding (sequential requests of at most 2048 inputs each; usage is summed)
  * - Matryoshka dimension reduction via the top-level `dimensions` option
  */
 export class OpenAIEmbeddingAdapter<
