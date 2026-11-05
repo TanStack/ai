@@ -229,10 +229,43 @@ const result = await embed({
 
 See the [Embeddings guide](../embeddings.md).
 
+## Live transcription
+
+`mistralLiveTranscription` streams speech-to-text with Voxtral for [`transcriptionSession()`](../media/live-transcription). Send audio as it arrives, for example from a phone call:
+
+```typescript
+import { transcriptionSession } from "@tanstack/ai";
+import { mistralLiveTranscription } from "@tanstack/ai-mistral";
+
+export async function transcribe(audio: AsyncIterable<Uint8Array>) {
+  const session = await transcriptionSession({
+    adapter: mistralLiveTranscription("voxtral-mini-transcribe-realtime-2602"),
+    audio: { encoding: "mulaw", sampleRate: 8000 },
+  });
+
+  const feeding = (async () => {
+    try {
+      for await (const chunk of audio) session.send(chunk);
+    } finally {
+      await session.close();
+    }
+  })();
+
+  for await (const event of session) {
+    if (event.type === "final") console.log(event.text);
+  }
+  await feeding;
+}
+```
+
+- It takes PCM at 8 to 48 kHz, μ-law, and A-law.
+- Voxtral sends no `turn-end`. Detect pauses yourself, or use a provider that sends them.
+- Set `modelOptions.targetStreamingDelayMs` to trade speed for accuracy.
+
 ## What Mistral does not do
 
 - Image, audio, and video generation. Use [OpenAI](./openai), [Gemini](./gemini), or [fal.ai](./fal).
-- Text-to-speech and transcription. Use [OpenAI](./openai) or [ElevenLabs](./elevenlabs).
+- Text-to-speech and file transcription. Use [OpenAI](./openai) or [ElevenLabs](./elevenlabs).
 
 ## Models and options
 

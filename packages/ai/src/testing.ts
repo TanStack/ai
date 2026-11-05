@@ -6,3 +6,5 @@ export type {
   FakeTextOptions,
   FakeTextState,
 } from './testing/fake-text'
+export { fakeWebSocket } from './testing/fake-websocket'
+export type { FakeSocket } from './testing/fake-websocket'

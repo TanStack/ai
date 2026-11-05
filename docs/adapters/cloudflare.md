@@ -546,6 +546,48 @@ console.log(result.text, result.segments, result.words);
 
 Pass the audio as a `File`, a `Blob`, an `ArrayBuffer`, or a base64 string. Whisper models take base64, and `@cf/deepgram/nova-3` takes the raw bytes. The adapter sends each model the format that it needs.
 
+## Live transcription
+
+`cloudflareLiveTranscription` streams speech-to-text for [`transcriptionSession()`](../media/live-transcription) inside a Worker. It runs Deepgram Nova-3 or Flux through the `env.AI` binding:
+
+```typescript
+import { transcriptionSession } from "@tanstack/ai";
+import { cloudflareLiveTranscription } from "@tanstack/ai-cloudflare";
+import type { Ai } from "@cloudflare/workers-types";
+
+interface Env {
+  AI: Ai;
+}
+
+export async function transcribeCall(env: Env, audio: AsyncIterable<Uint8Array>) {
+  const session = await transcriptionSession({
+    adapter: cloudflareLiveTranscription("@cf/deepgram/nova-3", {
+      binding: env.AI,
+    }),
+    audio: { encoding: "mulaw", sampleRate: 8000 },
+  });
+
+  const feeding = (async () => {
+    try {
+      for await (const chunk of audio) session.send(chunk);
+    } finally {
+      await session.close();
+    }
+  })();
+
+  for await (const event of session) {
+    if (event.type === "final") console.log(event.text);
+  }
+  await feeding;
+}
+```
+
+- `@cf/deepgram/nova-3` takes PCM and μ-law. Other formats are converted to PCM.
+- `@cf/deepgram/flux` takes PCM and detects turns itself.
+- Both take the Deepgram `modelOptions`, such as `keyterms` and `endpointing`.
+
+This adapter needs the binding. On other servers, use [`deepgramLiveTranscription`](./deepgram) with a Deepgram key.
+
 ## Models and options
 
 ### Models

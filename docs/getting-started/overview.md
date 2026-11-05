@@ -137,6 +137,7 @@ Each adapter is its own package. Install only the ones you use.
 | `@tanstack/ai-fal` | fal (image and video generation). |
 | `@tanstack/ai-reactor` | Reactor (live world and video generation: Orbis, Happy Oyster, LingBot, Helios, FastH3). |
 | `@tanstack/ai-worldlabs` | World Labs Marble (persistent 3D world generation). |
+| `@tanstack/ai-deepgram` | Deepgram (live speech-to-text for phone and voice agents: Nova-3, Flux). |
 | `@tanstack/ai-llmgateway` | LLM Gateway. Hundreds of models through one OpenAI-compatible endpoint. You can host it yourself. |
 | `@tanstack/ai-cloudflare` | Cloudflare Workers AI (chat, embeddings, image, speech, transcription, evaluate) and AI Gateway routing. |
 | `@tanstack/ai-neon` | Neon AI Gateway (Claude, GPT, Gemini, and open models, plus embeddings, through one Neon credential). |

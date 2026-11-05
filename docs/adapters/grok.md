@@ -198,6 +198,27 @@ const result = await generateTranscription({
 console.log(result.text);
 ```
 
+
+## Live transcription
+
+`grokLiveTranscription` streams speech-to-text for [`transcriptionSession()`](../media/live-transcription). Send audio as it arrives, for example from a phone call:
+
+```typescript
+import { transcriptionSession } from '@tanstack/ai'
+import { grokLiveTranscription } from '@tanstack/ai-grok'
+
+const session = await transcriptionSession({
+  adapter: grokLiveTranscription('grok-voice-transcribe-2.0'),
+  audio: { encoding: 'alaw', sampleRate: 8000 },
+})
+
+for await (const event of session) {
+  if (event.type === 'final') console.log(event.text)
+}
+```
+
+It takes PCM at 8 to 48 kHz, μ-law, and A-law. Set `modelOptions.endpointing` to change how much silence ends a turn.
+
 ## Summarization
 
 <!-- ignored: grokSummarize()'s resolved provider-options type sits in a

@@ -60,6 +60,15 @@ export {
   type ElevenLabsTranscriptionProviderOptions,
 } from './adapters/transcription'
 
+// Live transcription (streaming speech-to-text) adapter
+export {
+  elevenlabsLiveTranscription,
+  ELEVENLABS_LIVE_TRANSCRIPTION_MODELS,
+  type ElevenLabsLiveTranscriptionModel,
+  type ElevenLabsLiveTranscriptionConfig,
+  type ElevenLabsLiveTranscriptionProviderOptions,
+} from './adapters/live-transcription'
+
 // ============================================================================
 // Model Metadata
 // ============================================================================

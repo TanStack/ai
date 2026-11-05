@@ -27,6 +27,15 @@ export type {
   CodestralEmbedProviderOptions,
 } from './embedding/embedding-provider-options'
 
+// Live transcription adapter - for transcriptionSession()
+export {
+  MISTRAL_LIVE_TRANSCRIPTION_MODELS,
+  mistralLiveTranscription,
+  type MistralLiveTranscriptionConfig,
+  type MistralLiveTranscriptionModel,
+  type MistralLiveTranscriptionProviderOptions,
+} from './adapters/live-transcription'
+
 // Types
 export type {
   MistralChatModelProviderOptionsByName,

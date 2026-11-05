@@ -7,6 +7,10 @@ description: >
   polling (openaiVideo/geminiVideo/grokVideo/falVideo/byteplusVideo/openRouterVideo,
   per-model typed durations), generateSpeech() with openaiSpeech/byteplusSpeech/elevenlabsSpeech,
   generateTranscription() with openaiTranscription/byteplusTranscription,
+  transcriptionSession() for live server-side speech-to-text (phone calls,
+  voice agents) with deepgramLiveTranscription/elevenlabsLiveTranscription/
+  openaiLiveTranscription/grokLiveTranscription/geminiLiveTranscription/
+  mistralLiveTranscription/cloudflareLiveTranscription,
   generateVoice() with elevenlabsVoiceDesign (create a voice, then speak with it).
   React hooks:
   useGenerateImage, useGenerateAudio,
@@ -25,6 +29,8 @@ sources:
   - 'TanStack/ai:docs/adapters/elevenlabs.md'
   - 'TanStack/ai:docs/media/voice-creation.md'
   - 'TanStack/ai:docs/media/transcription.md'
+  - 'TanStack/ai:docs/media/live-transcription.md'
+  - 'TanStack/ai:docs/media/live-transcription-advanced.md'
   - 'TanStack/ai:docs/advanced/debug-logging.md'
 ---
 
@@ -670,6 +676,70 @@ const { generate, result, isLoading } = useTranscription({
 
 // Trigger: generate({ audio: dataUrl, language: 'en' })
 ```
+
+### 5b. Live Transcription (server-side streaming speech-to-text)
+
+Use `transcriptionSession()` when audio arrives live (Twilio/Telnyx/Vonage
+Media Streams, an SFU track, a browser WebSocket). It runs on the server
+(Node, Bun, Workers, Durable Objects). `generateTranscription()` only takes a
+finished file; `useRealtimeChat` reads the browser microphone itself.
+
+```typescript
+import { transcriptionSession } from '@tanstack/ai'
+import type { TranscriptionSession } from '@tanstack/ai'
+import { deepgramLiveTranscription } from '@tanstack/ai-deepgram'
+import { mediaPayload } from './twilio' // parses Twilio `media` frames
+
+export async function handleCall(twilio: WebSocket) {
+  // Listen before the session opens: Twilio sends audio right away.
+  const early: Array<string> = []
+  let session: TranscriptionSession | undefined
+  twilio.addEventListener('message', (event) => {
+    const payload = mediaPayload(event.data) // base64 string or bytes
+    if (payload) session ? session.send(payload) : early.push(payload)
+  })
+  twilio.addEventListener('close', () => void session?.close()) // flushes
+
+  session = await transcriptionSession({
+    adapter: deepgramLiveTranscription('nova-3'),
+    audio: { encoding: 'mulaw', sampleRate: 8000 }, // a Twilio call
+    language: 'en',
+  })
+  for (const payload of early) session.send(payload)
+
+  for await (const event of session) {
+    // { type: 'interim', text }  can still change (captions, barge-in)
+    // { type: 'final', text }    stable text for one segment
+    // { type: 'turn-end' }       speaker finished; hand the turn to chat()
+    // { type: 'error', error }   errors are events, not throws
+    if (event.type === 'final') console.log(event.text)
+  }
+}
+```
+
+Adapters (each declares `audioInputs`; anything else is converted to
+linear16 PCM automatically, including G.711 decode and resampling):
+
+| Adapter                                                                                          | Package                   | Phone audio             |
+| ------------------------------------------------------------------------------------------------ | ------------------------- | ----------------------- |
+| `deepgramLiveTranscription('nova-3' \| 'flux-general-en')`                                       | `@tanstack/ai-deepgram`   | mulaw, alaw             |
+| `elevenlabsLiveTranscription('scribe_v2_realtime')`                                              | `@tanstack/ai-elevenlabs` | mulaw                   |
+| `openaiLiveTranscription('gpt-transcribe' \| 'gpt-live-transcribe')`                             | `@tanstack/ai-openai`     | mulaw, alaw             |
+| `grokLiveTranscription('grok-voice-transcribe-2.0')`                                             | `@tanstack/ai-grok`       | mulaw, alaw             |
+| `geminiLiveTranscription('gemini-3.5-transcribe-live')`                                          | `@tanstack/ai-gemini`     | converted to 16 kHz PCM |
+| `mistralLiveTranscription('voxtral-mini-transcribe-realtime-2602')`                              | `@tanstack/ai-mistral`    | mulaw, alaw             |
+| `cloudflareLiveTranscription('@cf/deepgram/nova-3' \| '@cf/deepgram/flux', { binding: env.AI })` | `@tanstack/ai-cloudflare` | mulaw (Nova-3 only)     |
+
+- `cloudflareLiveTranscription` needs the Workers AI binding (Workers only).
+- `mistralLiveTranscription` sends no `turn-end`.
+- `openaiLiveTranscription('gpt-live-transcribe')` has no voice activity
+  detection: no `turn-end`, one `final` at close. Use `gpt-transcribe` for turns.
+- `createAudioConverter(from, to)` is exported for manual conversion; keep one
+  converter per stream (it carries state between chunks).
+- Custom adapters implement `LiveTranscriptionAdapter` (`kind: 'liveTranscription'`,
+  `audioInputs`, `connect({ emit, end })`). `openLiveSocket` from
+  `@tanstack/ai/adapter-internals` handles the WebSocket; `fakeWebSocket()` from
+  `@tanstack/ai/testing` tests it offline.
 
 ### 6. Video Generation (async polling)
 
