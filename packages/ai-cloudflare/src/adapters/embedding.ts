@@ -8,7 +8,11 @@ import type { EmbeddingOptions, EmbeddingResult } from '@tanstack/ai'
 import type { CloudflareConfig, CloudflareConfigInput } from '../utils/config'
 import type { CloudflareEmbeddingModel } from '../utils/models'
 
-/** Workers AI text-embedding models accept at most 100 texts per request. */
+/**
+ * Texts per Workers AI request. 100 is the cap of the BGE and EmbeddingGemma
+ * models. Models with a lower cap (such as `@cf/qwen/qwen3-embedding-0.6b`)
+ * can still reject a full batch.
+ */
 const CLOUDFLARE_MAX_BATCH_SIZE = 100
 
 /** Extra inputs forwarded to the embedding model (model specific). */
@@ -52,6 +56,8 @@ export class CloudflareEmbeddingAdapter<
         start < texts.length;
         start += CLOUDFLARE_MAX_BATCH_SIZE
       ) {
+        // The binding path ignores the signal, so check it between batches.
+        options.abortSignal?.throwIfAborted()
         const batch = texts.slice(start, start + CLOUDFLARE_MAX_BATCH_SIZE)
         const output = (await runModel(
           this.cfConfig,

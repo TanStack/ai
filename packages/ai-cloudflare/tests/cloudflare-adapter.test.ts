@@ -459,6 +459,24 @@ describe('embedding adapter', () => {
     expect(result.embeddings[249]).toEqual({ vector: [249], index: 249 })
   })
 
+  it('stops sending batches once the signal aborts', async () => {
+    const controller = new AbortController()
+    const { binding, run } = fakeBinding((_model, inputs) => {
+      controller.abort(new Error('stop'))
+      return { data: (inputs as { text: Array<string> }).text.map(() => [0]) }
+    })
+    const adapter = createCloudflareEmbedding('@cf/baai/bge-m3', { binding })
+    await expect(
+      adapter.createEmbeddings({
+        model: '@cf/baai/bge-m3',
+        input: Array.from({ length: 250 }, (_, i) => String(i)),
+        abortSignal: controller.signal,
+        logger,
+      }),
+    ).rejects.toThrow('stop')
+    expect(run).toHaveBeenCalledTimes(1)
+  })
+
   it('sends defaultHeaders as extraHeaders', async () => {
     const { binding, run } = fakeBinding(() => ({ data: [[0.1]] }))
     const adapter = createCloudflareEmbedding('@cf/baai/bge-m3', {
