@@ -130,8 +130,12 @@ test.describe('multimodal tool result — wire format', () => {
     const journal = await request.get(
       `http://127.0.0.1:${aimockPort}/v1/_requests`,
     )
-    const entries = (await journal.json()) as Array<{ body: any }>
-    expect(entries[0]?.body?.messages?.at(-1)?.role).toBe('tool')
+    const entries = (await journal.json()) as Array<{
+      body: any
+      headers?: Record<string, string>
+    }>
+    const entry = entries.find((e) => e.headers?.['x-test-id'] === testId)
+    expect(entry?.body?.messages?.at(-1)?.role).toBe('tool')
   })
 
   // ──────────────────────────────────────────────────────────────────────────
