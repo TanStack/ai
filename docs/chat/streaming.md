@@ -198,6 +198,7 @@ The shared `ChatClient` processes the chunks that are ready in order. It does no
 - **The connection drops in the middle of a line.** The client throws `StreamTruncatedError` and moves to `error`. See [Transports: Errors](../transports/overview#errors).
 - **An OpenAI or OpenRouter Responses stream ends without `response.completed`.** The adapter emits `RUN_ERROR` with code `incomplete-stream`. This applies to chat and to structured output. The text that arrived stays available. The run does not call `onFinish`.
 - **A Chat Completions stream ends without a finish.** See below.
+- **An Anthropic stream ends before `message_stop`.** The adapter emits `RUN_ERROR` with code `incomplete-stream`. The text that arrived stays available. The run does not call `onFinish`.
 
 Chat Completions adapters built on `@tanstack/openai-base` also make sure that the stream finished. A started stream needs one of these:
 
