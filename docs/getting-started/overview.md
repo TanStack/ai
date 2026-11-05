@@ -90,6 +90,7 @@ Each tutorial builds one small app from start to finish:
 - [Subagents](../tutorials/subagents): a researcher, an SEO agent, and a writer in one blog-writing chat.
 - [Build an MCP Server](../tutorials/mcp-server): serve a tool, a resource, and a prompt.
 - [Computer Use](../tutorials/computer-use): let the model use a web page from screenshots.
+- [Voice Support Agent](../tutorials/voice-support-agent): a phone agent that answers questions from the docs.
 
 ## Reference
 
