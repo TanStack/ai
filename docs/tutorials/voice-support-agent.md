@@ -193,7 +193,68 @@ For your own product, swap the two `fetch` calls for your help centre or a vecto
 
 ## 5. Run the call
 
-Create `src/server/call.ts`. This is the whole agent. Read it top to bottom once, then the notes below.
+Create `src/server/characters.ts` first. A character is a persona for the chat model and a voice for the speech model. The persona is one more system prompt. The voice, speed, and `instructions` go to `generateSpeech()`. `instructions` is the OpenAI knob for tone and pace, and it only works on `gpt-4o-mini-tts`.
+
+```typescript ignore
+import type { OpenAITTSVoice } from '@tanstack/ai-openai'
+
+export type Character = {
+  label: string
+  persona: string
+  voice: OpenAITTSVoice
+  speed: number
+  instructions: string
+}
+
+export const CHARACTERS = {
+  helpful: {
+    label: 'Helpful',
+    persona:
+      'Friendly and quick. Lightly funny, never sarcastic at the caller.',
+    voice: 'ash',
+    speed: 1.15,
+    instructions:
+      'Upbeat, quick, and lightly funny. A friendly support rep who enjoys the job.',
+  },
+  bored: {
+    label: 'Could not care less',
+    persona:
+      'You are deeply bored and make no effort to hide it. Sigh in words. Give correct answers in as few words as you can get away with. Trail off. Mention your lunch break.',
+    voice: 'onyx',
+    speed: 0.9,
+    instructions:
+      'Flat, slow, and bored. Long pauses. Audible sighs. Every sentence trails off like it was not worth finishing.',
+  },
+  perky: {
+    label: 'Way too perky',
+    persona:
+      'You are relentlessly, exhaustingly enthusiastic. Everything is amazing. Every question is the best question you have ever heard. Use exclamation marks. Thank the caller for existing.',
+    voice: 'shimmer',
+    speed: 1.3,
+    instructions:
+      'Extremely perky and bubbly. Fast, bright, breathless, like a game show host on their third coffee. Every sentence goes up at the end.',
+  },
+  breakdown: {
+    label: 'About to lose it',
+    persona:
+      'You are one bad call away from a nervous breakdown. You answer correctly, but you keep nearly cracking: half-finished apologies, worries about the ticket queue, a mention of how long it has been since you slept. Pull yourself together at the end of each answer.',
+    voice: 'ballad',
+    speed: 1.2,
+    instructions:
+      'Frazzled and barely holding it together. Shaky, rushed, voice cracking, with sudden forced calm. Nervous laughs at the wrong moments.',
+  },
+} satisfies Record<string, Character>
+
+export type CharacterName = keyof typeof CHARACTERS
+
+export function isCharacterName(name: string): name is CharacterName {
+  return name in CHARACTERS
+}
+```
+
+Keep `helpful` for real support. The other three are there to show how far a persona and a delivery note can push the same answer.
+
+Now create `src/server/call.ts`. This is the whole agent. Read it top to bottom once, then the notes below.
 
 ```typescript ignore
 import { chat, generateSpeech, transcriptionSession } from '@tanstack/ai'
@@ -203,6 +264,7 @@ import {
   openaiText,
 } from '@tanstack/ai-openai'
 import { searchDocs } from './search-docs.ts'
+import type { Character } from './characters.ts'
 import type { ModelMessage } from '@tanstack/ai'
 import type { WebSocket } from 'ws'
 import type { Carrier } from './carriers.ts'
@@ -214,15 +276,11 @@ You are on a voice call. The caller hears your words, they do not read them.
 - Say package and function names as words. Never read out URLs, code, or markdown.
 - If the docs do not cover the question, say so and suggest where to look.`
 
-// Voice knobs. Voices: alloy, ash, ballad, coral, echo, fable, onyx, nova,
-// sage, shimmer, verse. Speed is 0.25 to 4.0. Instructions steer tone and
-// pace on gpt-4o-mini-tts only.
-const VOICE = 'ash'
-const SPEED = 1.15
-const VOICE_STYLE =
-  'Upbeat, quick, and lightly funny. A friendly support rep who enjoys the job. Dry one-liners welcome, never sarcasm at the caller.'
-
-export async function handleCall(ws: WebSocket, carrier: Carrier) {
+export async function handleCall(
+  ws: WebSocket,
+  carrier: Carrier,
+  character: Character,
+) {
   const callId = crypto.randomUUID()
   const messages: Array<ModelMessage> = []
 
@@ -276,7 +334,7 @@ export async function handleCall(ws: WebSocket, carrier: Carrier) {
         carrier.caption('caller', question, true)
         messages.push({ role: 'user', content: question })
         replying = new AbortController()
-        void reply(callId, messages, carrier, replying)
+        void reply(callId, messages, carrier, character, replying)
         break
       }
       case 'error':
@@ -290,6 +348,7 @@ async function reply(
   callId: string,
   messages: Array<ModelMessage>,
   carrier: Carrier,
+  character: Character,
   abortController: AbortController,
 ) {
   const { signal } = abortController
@@ -301,9 +360,9 @@ async function reply(
     const audio = generateSpeech({
       adapter: openaiSpeech('gpt-4o-mini-tts'),
       text: sentence,
-      voice: VOICE,
-      speed: SPEED,
-      modelOptions: { instructions: VOICE_STYLE },
+      voice: character.voice,
+      speed: character.speed,
+      modelOptions: { instructions: character.instructions },
       format: 'pcm',
       threadId: callId,
       abortSignal: signal,
@@ -323,7 +382,7 @@ async function reply(
   try {
     const stream = chat({
       adapter: openaiText('gpt-6.1-terra'),
-      systemPrompts: [SYSTEM_PROMPT],
+      systemPrompts: [SYSTEM_PROMPT, character.persona],
       tools: [searchDocs],
       messages,
       threadId: callId,
@@ -366,12 +425,13 @@ The system prompt is a procedure for a reader that cannot see. Short answers, no
 
 ## 6. Host the socket
 
-Create `src/server/vite-plugin.ts`. It takes WebSocket upgrades on two paths and hands each socket to `handleCall` with the right carrier.
+Create `src/server/vite-plugin.ts`. It takes WebSocket upgrades on two paths, reads `?character=` from the URL, and hands each socket to `handleCall` with the right carrier. An unknown character name drops the connection.
 
 ```typescript ignore
 import { WebSocketServer } from 'ws'
 import { handleCall } from './call.ts'
 import { browserCarrier, twilioCarrier } from './carriers.ts'
+import { CHARACTERS, isCharacterName } from './characters.ts'
 import type { Plugin } from 'vite'
 
 export function voiceServer(): Plugin {
@@ -381,12 +441,18 @@ export function voiceServer(): Plugin {
       if (!server.httpServer) return
       const wss = new WebSocketServer({ noServer: true })
       server.httpServer.on('upgrade', (request, socket, head) => {
-        const path = new URL(request.url ?? '/', 'http://localhost').pathname
+        const url = new URL(request.url ?? '/', 'http://localhost')
+        const path = url.pathname
         if (path !== '/voice' && path !== '/twilio') return
+        const name = url.searchParams.get('character') ?? 'helpful'
+        if (!isCharacterName(name)) {
+          socket.destroy()
+          return
+        }
         wss.handleUpgrade(request, socket, head, (ws) => {
           const carrier =
             path === '/twilio' ? twilioCarrier(ws) : browserCarrier(ws)
-          handleCall(ws, carrier).catch((error: unknown) => {
+          handleCall(ws, carrier, CHARACTERS[name]).catch((error: unknown) => {
             console.error('call failed', error)
             ws.close(1011, 'call failed')
           })
@@ -419,13 +485,16 @@ export default defineConfig({
 
 ## 7. Build the softphone
 
-Replace `src/routes/index.tsx`. The page does three things: it sends microphone PCM up the socket, plays PCM that comes down, and shows captions.
+Replace `src/routes/index.tsx`. The page does three things: it sends microphone PCM up the socket, plays PCM that comes down, and shows captions. A `<select>` picks the character before the call and puts it on the socket URL.
 
 An `AudioWorklet` turns the microphone's float samples into 16-bit PCM. It runs off the main thread, so the page stays smooth.
 
 ```tsx ignore
 import { useRef, useState } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
+import { Phone, PhoneOff } from 'lucide-react'
+import { CHARACTERS, isCharacterName } from '../server/characters.ts'
+import type { CharacterName } from '../server/characters.ts'
 
 type Caption = { role: 'caller' | 'agent'; text: string; final: boolean }
 
@@ -446,7 +515,10 @@ class PcmSender extends AudioWorkletProcessor {
 registerProcessor('pcm-sender', PcmSender)
 `
 
-async function startCall(onCaption: (caption: Caption) => void) {
+async function startCall(
+  character: CharacterName,
+  onCaption: (caption: Caption) => void,
+) {
   const context = new AudioContext({ sampleRate: 24000 })
   const mic = await navigator.mediaDevices.getUserMedia({
     audio: { echoCancellation: true, noiseSuppression: true },
@@ -457,7 +529,9 @@ async function startCall(onCaption: (caption: Caption) => void) {
   await context.audioWorklet.addModule(workletUrl)
 
   const protocol = location.protocol === 'https:' ? 'wss' : 'ws'
-  const ws = new WebSocket(`${protocol}://${location.host}/voice`)
+  const ws = new WebSocket(
+    `${protocol}://${location.host}/voice?character=${character}`,
+  )
   ws.binaryType = 'arraybuffer'
   await new Promise<void>((resolve, reject) => {
     ws.onopen = () => resolve()
@@ -480,9 +554,8 @@ async function startCall(onCaption: (caption: Caption) => void) {
         typeof message !== 'object' ||
         message === null ||
         !('type' in message)
-      ) {
+      )
         return
-      }
       if (message.type === 'clear') {
         for (const source of playing) source.stop()
         playing.clear()
@@ -493,7 +566,10 @@ async function startCall(onCaption: (caption: Caption) => void) {
     }
     const pcm = new Int16Array(event.data)
     const buffer = context.createBuffer(1, pcm.length, 24000)
-    buffer.copyToChannel(Float32Array.from(pcm, (s) => s / 0x8000), 0)
+    buffer.copyToChannel(
+      Float32Array.from(pcm, (s) => s / 0x8000),
+      0,
+    )
     const source = context.createBufferSource()
     source.buffer = buffer
     source.connect(context.destination)
@@ -527,6 +603,7 @@ function CallPage() {
   const [captions, setCaptions] = useState<Array<Caption>>([])
   const [error, setError] = useState('')
   const [inCall, setInCall] = useState(false)
+  const [character, setCharacter] = useState<CharacterName>('helpful')
   const hangUp = useRef<(() => void) | null>(null)
 
   const onCaption = (caption: Caption) =>
@@ -550,8 +627,15 @@ function CallPage() {
     }
     try {
       setError('')
-      hangUp.current = await startCall(onCaption)
+      hangUp.current = await startCall(character, onCaption)
       setInCall(true)
+      setCaptions([
+        {
+          role: 'agent',
+          text: 'Connected. Ask me about TanStack AI.',
+          final: true,
+        },
+      ])
     } catch (caught: unknown) {
       setError(
         caught instanceof Error ? caught.message : 'Could not start the call',
@@ -560,16 +644,72 @@ function CallPage() {
   }
 
   return (
-    <div>
-      {captions.map((caption, index) => (
-        <p key={index}>
-          <b>{caption.role === 'agent' ? 'Agent' : 'You'}</b> {caption.text}
+    <div className="flex h-screen flex-col bg-gray-900 text-white">
+      <div className="border-b border-orange-500/20 bg-gray-800 px-4 py-3">
+        <h1 className="text-lg font-semibold">TanStack AI support line</h1>
+        <p className="text-sm text-gray-400">
+          Talk, then pause. The agent answers from the docs. Talk over it to
+          interrupt.
         </p>
-      ))}
-      {error ? <p>{error}</p> : null}
-      <button type="button" onClick={() => void toggleCall()}>
-        {inCall ? 'Hang up' : 'Start call'}
-      </button>
+      </div>
+
+      <div className="flex-1 space-y-2 overflow-y-auto px-4 py-4">
+        {captions.map((caption, index) => (
+          <div
+            key={index}
+            className={`rounded-lg p-3 ${
+              caption.role === 'agent'
+                ? 'bg-linear-to-r from-orange-500/10 to-red-600/10'
+                : caption.final
+                  ? 'bg-gray-800'
+                  : 'bg-gray-800/40 text-gray-400'
+            }`}
+          >
+            <span className="mr-2 text-xs uppercase text-gray-500">
+              {caption.role === 'agent' ? 'Agent' : 'You'}
+            </span>
+            {caption.text}
+          </div>
+        ))}
+      </div>
+
+      {error ? (
+        <div className="mx-4 mb-2 rounded-lg border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-400">
+          {error}
+        </div>
+      ) : null}
+
+      <div className="flex items-center justify-center gap-4 border-t border-orange-500/10 p-4">
+        <select
+          aria-label="Agent character"
+          value={character}
+          disabled={inCall}
+          onChange={(event) => {
+            if (isCharacterName(event.target.value)) {
+              setCharacter(event.target.value)
+            }
+          }}
+          className="rounded-lg border border-gray-700 bg-gray-800 px-3 py-2 text-sm disabled:opacity-50"
+        >
+          {Object.entries(CHARACTERS).map(([name, { label }]) => (
+            <option key={name} value={name}>
+              {label}
+            </option>
+          ))}
+        </select>
+        <button
+          type="button"
+          onClick={() => void toggleCall()}
+          aria-label={inCall ? 'Hang up' : 'Start call'}
+          className={`flex h-16 w-16 items-center justify-center rounded-full text-white ${
+            inCall
+              ? 'bg-red-600 hover:bg-red-700'
+              : 'bg-green-600 hover:bg-green-700'
+          }`}
+        >
+          {inCall ? <PhoneOff size={28} /> : <Phone size={28} />}
+        </button>
+      </div>
     </div>
   )
 }
@@ -663,12 +803,12 @@ Then connect a number:
 ```xml
 <Response>
   <Connect>
-    <Stream url="wss://YOUR-NGROK-HOST/twilio" />
+    <Stream url="wss://YOUR-NGROK-HOST/twilio?character=perky" />
   </Connect>
 </Response>
 ```
 
-3. Call the number and ask a question.
+3. Call the number and ask a question. Leave off `?character=` for the helpful one.
 
 The same `handleCall` runs. Only the carrier changed.
 

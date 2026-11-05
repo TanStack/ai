@@ -1,6 +1,8 @@
 import { useRef, useState } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
 import { Phone, PhoneOff } from 'lucide-react'
+import { CHARACTERS, isCharacterName } from '../server/characters.ts'
+import type { CharacterName } from '../server/characters.ts'
 
 type Caption = { role: 'caller' | 'agent'; text: string; final: boolean }
 
@@ -26,7 +28,10 @@ registerProcessor('pcm-sender', PcmSender)
 `
 
 /** Open the socket, stream the mic up, play the agent's audio down. */
-async function startCall(onCaption: (caption: Caption) => void) {
+async function startCall(
+  character: CharacterName,
+  onCaption: (caption: Caption) => void,
+) {
   const context = new AudioContext({ sampleRate: 24000 })
   const mic = await navigator.mediaDevices.getUserMedia({
     audio: { echoCancellation: true, noiseSuppression: true },
@@ -37,7 +42,9 @@ async function startCall(onCaption: (caption: Caption) => void) {
   await context.audioWorklet.addModule(workletUrl)
 
   const protocol = location.protocol === 'https:' ? 'wss' : 'ws'
-  const ws = new WebSocket(`${protocol}://${location.host}/voice`)
+  const ws = new WebSocket(
+    `${protocol}://${location.host}/voice?character=${character}`,
+  )
   ws.binaryType = 'arraybuffer'
   await new Promise<void>((resolve, reject) => {
     ws.onopen = () => resolve()
@@ -109,6 +116,7 @@ function CallPage() {
   const [captions, setCaptions] = useState<Array<Caption>>([])
   const [error, setError] = useState('')
   const [inCall, setInCall] = useState(false)
+  const [character, setCharacter] = useState<CharacterName>('helpful')
   const hangUp = useRef<(() => void) | null>(null)
 
   const onCaption = (caption: Caption) =>
@@ -132,7 +140,7 @@ function CallPage() {
     }
     try {
       setError('')
-      hangUp.current = await startCall(onCaption)
+      hangUp.current = await startCall(character, onCaption)
       setInCall(true)
       setCaptions([
         {
@@ -184,12 +192,29 @@ function CallPage() {
         </div>
       ) : null}
 
-      <div className="border-t border-orange-500/10 p-4">
+      <div className="flex items-center justify-center gap-4 border-t border-orange-500/10 p-4">
+        <select
+          aria-label="Agent character"
+          value={character}
+          disabled={inCall}
+          onChange={(event) => {
+            if (isCharacterName(event.target.value)) {
+              setCharacter(event.target.value)
+            }
+          }}
+          className="rounded-lg border border-gray-700 bg-gray-800 px-3 py-2 text-sm disabled:opacity-50"
+        >
+          {Object.entries(CHARACTERS).map(([name, { label }]) => (
+            <option key={name} value={name}>
+              {label}
+            </option>
+          ))}
+        </select>
         <button
           type="button"
           onClick={() => void toggleCall()}
           aria-label={inCall ? 'Hang up' : 'Start call'}
-          className={`mx-auto flex h-16 w-16 items-center justify-center rounded-full text-white ${
+          className={`flex h-16 w-16 items-center justify-center rounded-full text-white ${
             inCall
               ? 'bg-red-600 hover:bg-red-700'
               : 'bg-green-600 hover:bg-green-700'

@@ -5,6 +5,7 @@ import {
   openaiText,
 } from '@tanstack/ai-openai'
 import { searchDocs } from './search-docs.ts'
+import type { Character } from './characters.ts'
 import type { ModelMessage } from '@tanstack/ai'
 import type { WebSocket } from 'ws'
 import type { Carrier } from './carriers.ts'
@@ -16,14 +17,6 @@ You are on a voice call. The caller hears your words, they do not read them.
 - Say package and function names as words. Never read out URLs, code, or markdown.
 - If the docs do not cover the question, say so and suggest where to look.`
 
-// Voice knobs. Voices: alloy, ash, ballad, coral, echo, fable, onyx, nova,
-// sage, shimmer, verse. Speed is 0.25 to 4.0. Instructions steer tone and
-// pace on gpt-4o-mini-tts only.
-const VOICE = 'ash'
-const SPEED = 1.15
-const VOICE_STYLE =
-  'Upbeat, quick, and lightly funny. A friendly support rep who enjoys the job. Dry one-liners welcome, never sarcasm at the caller.'
-
 /**
  * One phone call: caller audio in, agent audio out, until the socket closes.
  *
@@ -34,7 +27,11 @@ const VOICE_STYLE =
  * - An `interim` event while the agent talks is a barge-in: stop the reply
  *   and clear the audio the carrier has not played yet.
  */
-export async function handleCall(ws: WebSocket, carrier: Carrier) {
+export async function handleCall(
+  ws: WebSocket,
+  carrier: Carrier,
+  character: Character,
+) {
   const callId = crypto.randomUUID()
   const messages: Array<ModelMessage> = []
 
@@ -88,7 +85,7 @@ export async function handleCall(ws: WebSocket, carrier: Carrier) {
         carrier.caption('caller', question, true)
         messages.push({ role: 'user', content: question })
         replying = new AbortController()
-        void reply(callId, messages, carrier, replying)
+        void reply(callId, messages, carrier, character, replying)
         break
       }
       case 'error':
@@ -102,6 +99,7 @@ async function reply(
   callId: string,
   messages: Array<ModelMessage>,
   carrier: Carrier,
+  character: Character,
   abortController: AbortController,
 ) {
   const { signal } = abortController
@@ -113,9 +111,9 @@ async function reply(
     const audio = generateSpeech({
       adapter: openaiSpeech('gpt-4o-mini-tts'),
       text: sentence,
-      voice: VOICE,
-      speed: SPEED,
-      modelOptions: { instructions: VOICE_STYLE },
+      voice: character.voice,
+      speed: character.speed,
+      modelOptions: { instructions: character.instructions },
       format: 'pcm',
       threadId: callId,
       abortSignal: signal,
@@ -135,7 +133,7 @@ async function reply(
   try {
     const stream = chat({
       adapter: openaiText('gpt-6.1-terra'),
-      systemPrompts: [SYSTEM_PROMPT],
+      systemPrompts: [SYSTEM_PROMPT, character.persona],
       tools: [searchDocs],
       messages,
       threadId: callId,
