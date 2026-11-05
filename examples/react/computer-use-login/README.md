@@ -10,7 +10,7 @@ Each chat thread keeps its own container, so it stays signed in when you come ba
 
 1. Start Docker.
 2. From the repo root, run `pnpm install`.
-3. Build the desktop image one time: `pnpm --filter computer-use-login build:desktop`.
+3. Build the desktop image: `pnpm --filter computer-use-login build:desktop`. Each build makes the app forget the old containers, so every thread gets a new one from the new image.
 4. Copy `.env.example` to `.env.local`, then set `OPENAI_API_KEY`. Get a key at https://platform.openai.com/api-keys.
 5. Run `pnpm --filter computer-use-login dev`.
 6. Open http://localhost:3100 and press Enter.

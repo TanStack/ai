@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "vite dev --port 3100",
     "build": "vite build",
-    "build:desktop": "docker build -t computer-use-login-desktop sandbox",
+    "build:desktop": "docker build -t computer-use-login-desktop sandbox && rm -f .data/sandbox-ids.json",
     "test:types": "tsc"
   },
   "dependencies": {
