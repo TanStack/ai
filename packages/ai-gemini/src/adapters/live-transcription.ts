@@ -78,7 +78,7 @@ export function geminiLiveTranscription<
       const apiKey = config.apiKey ?? getGeminiApiKeyFromEnv()
       const opts = options.modelOptions ?? {}
       const mimeType = `audio/pcm;rate=${options.audio.sampleRate}`
-      // Interim text with no final yet. When there is none, close does not wait.
+      // Audio or text with no final yet. When there is none, close does not wait.
       let pending = false
 
       const live = await openLiveSocket({
@@ -125,10 +125,12 @@ export function geminiLiveTranscription<
       })
 
       return {
-        send: (audio) =>
+        send: (audio) => {
+          pending = true
           live.sendJson({
             realtimeInput: { audio: { data: bytesToBase64(audio), mimeType } },
-          }),
+          })
+        },
         close: () =>
           live.finish(
             { realtimeInput: { audioStreamEnd: true } },

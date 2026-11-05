@@ -102,7 +102,7 @@ export function grokLiveTranscription<
         WebSocket: config.WebSocket,
         connect: options,
         readyWhen: (m) => (m as GrokSttMessage).type === 'transcript.created',
-        onMessage: (message) => {
+        onMessage: (message, socket) => {
           const m = message as GrokSttMessage
           if (m.type === 'transcript.partial') {
             const text = m.text?.trim() ?? ''
@@ -120,10 +120,7 @@ export function grokLiveTranscription<
             committed = m.speech_final ? '' : `${committed} ${rest}`.trim()
             if (m.speech_final) options.emit({ type: 'turn-end' })
           } else if (m.type === 'error') {
-            options.emit({
-              type: 'error',
-              error: new Error(m.message ?? 'xAI speech-to-text error'),
-            })
+            socket.fail(new Error(m.message ?? 'xAI speech-to-text error'))
           }
         },
       })

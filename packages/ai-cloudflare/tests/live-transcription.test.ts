@@ -67,6 +67,20 @@ describe('cloudflareLiveTranscription', () => {
     ])
   })
 
+  it('rejects more than one keyterm', async () => {
+    const adapter = cloudflareLiveTranscription('@cf/deepgram/nova-3', {
+      // oxlint-disable-next-line eslint-js/no-restricted-syntax -- run() must not be reached
+      binding: {} as Ai,
+    })
+    await expect(
+      transcriptionSession({
+        adapter,
+        audio: { encoding: 'mulaw', sampleRate: 8000 },
+        modelOptions: { keyterms: ['TanStack', 'Nx'] },
+      }),
+    ).rejects.toThrow('one keyterm')
+  })
+
   it('converts μ-law to linear16 for Flux', async () => {
     const adapter = cloudflareLiveTranscription('@cf/deepgram/flux', {
       // oxlint-disable-next-line eslint-js/no-restricted-syntax -- not run in this test

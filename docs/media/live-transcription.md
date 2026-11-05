@@ -70,23 +70,33 @@ export function mediaPayload(data: unknown): string | undefined {
 
 ```typescript
 import { transcriptionSession } from '@tanstack/ai'
+import type { TranscriptionSession } from '@tanstack/ai'
 import { deepgramLiveTranscription } from '@tanstack/ai-deepgram'
 import { mediaPayload } from './twilio'
 
 export async function handleCall(twilio: WebSocket) {
-  const session = await transcriptionSession({
+  // Listen before the session opens. Twilio sends audio right away.
+  const early: Array<string> = []
+  let session: TranscriptionSession | undefined
+  let callEnded = false
+  twilio.addEventListener('message', (event) => {
+    const payload = mediaPayload(event.data)
+    if (!payload) return
+    if (session) session.send(payload)
+    else early.push(payload)
+  })
+  twilio.addEventListener('close', () => {
+    callEnded = true
+    void session?.close()
+  })
+
+  session = await transcriptionSession({
     adapter: deepgramLiveTranscription('nova-3'),
     audio: { encoding: 'mulaw', sampleRate: 8000 },
     language: 'en',
   })
-
-  twilio.addEventListener('message', (event) => {
-    const payload = mediaPayload(event.data)
-    if (payload) session.send(payload)
-  })
-  twilio.addEventListener('close', () => {
-    void session.close()
-  })
+  for (const payload of early) session.send(payload)
+  if (callEnded) await session.close()
 
   for await (const event of session) {
     if (event.type === 'final') console.log('Caller:', event.text)
@@ -111,9 +121,13 @@ export async function runAgent(callId: string, audio: AsyncIterable<string>) {
     adapter: deepgramLiveTranscription('nova-3'),
     audio: { encoding: 'mulaw', sampleRate: 8000 },
   })
-  void (async () => {
-    for await (const chunk of audio) session.send(chunk)
-    await session.close()
+  // Close the session when the audio ends, or when the source fails.
+  const feeding = (async () => {
+    try {
+      for await (const chunk of audio) session.send(chunk)
+    } finally {
+      await session.close()
+    }
   })()
 
   const messages: Array<ModelMessage> = []
@@ -133,8 +147,11 @@ export async function runAgent(callId: string, audio: AsyncIterable<string>) {
       console.log('Agent:', text)
     }
   }
+  await feeding
 }
 ```
+
+This example prints the reply. To speak it to the caller, generate audio with `generateSpeech()` and send it back on the Twilio stream.
 
 The session yields four kinds of event:
 
@@ -147,7 +164,7 @@ The session yields four kinds of event:
 
 ## Pick a provider
 
-Swap the adapter to change provider. The rest of the code stays the same.
+Swap the adapter to change provider. The rest of the code stays the same. Cloudflare is the exception: it needs the `env.AI` binding, so it runs inside a Worker.
 
 | Provider   | Adapter                                                 | Phone audio (8 kHz)  |
 | ---------- | ------------------------------------------------------- | -------------------- |

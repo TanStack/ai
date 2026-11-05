@@ -54,4 +54,37 @@ describe('geminiLiveTranscription', () => {
       { type: 'turn-end' },
     ])
   })
+
+  it('waits for the transcript of audio sent just before close', async () => {
+    const ws = fakeWebSocket()
+    const opening = transcriptionSession({
+      adapter: geminiLiveTranscription('gemini-3.5-transcribe-live', {
+        apiKey: 'g-key',
+        WebSocket: ws.WebSocket,
+      }),
+      audio: { encoding: 'linear16', sampleRate: 16000 },
+    })
+    const socket = ws.sockets[0]!
+    socket.open()
+    socket.receive({ setupComplete: {} })
+    const session = await opening
+    const events: Array<LiveTranscriptionEvent> = []
+    const reading = (async () => {
+      for await (const e of session) events.push(e)
+    })()
+
+    session.send(new Uint8Array(320))
+    const closing = session.close()
+    // No interim arrived yet, so the socket stays open for the final.
+    expect(socket.json().at(-1)).toEqual({
+      realtimeInput: { audioStreamEnd: true },
+    })
+    socket.receive({ serverContent: { inputTranscription: { text: 'Hi.' } } })
+    await closing
+    await reading
+    expect(events).toEqual([
+      { type: 'final', text: 'Hi.' },
+      { type: 'turn-end' },
+    ])
+  })
 })

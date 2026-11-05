@@ -686,20 +686,26 @@ finished file; `useRealtimeChat` reads the browser microphone itself.
 
 ```typescript
 import { transcriptionSession } from '@tanstack/ai'
+import type { TranscriptionSession } from '@tanstack/ai'
 import { deepgramLiveTranscription } from '@tanstack/ai-deepgram'
 import { mediaPayload } from './twilio' // parses Twilio `media` frames
 
 export async function handleCall(twilio: WebSocket) {
-  const session = await transcriptionSession({
+  // Listen before the session opens: Twilio sends audio right away.
+  const early: Array<string> = []
+  let session: TranscriptionSession | undefined
+  twilio.addEventListener('message', (event) => {
+    const payload = mediaPayload(event.data) // base64 string or bytes
+    if (payload) session ? session.send(payload) : early.push(payload)
+  })
+  twilio.addEventListener('close', () => void session?.close()) // flushes
+
+  session = await transcriptionSession({
     adapter: deepgramLiveTranscription('nova-3'),
     audio: { encoding: 'mulaw', sampleRate: 8000 }, // a Twilio call
     language: 'en',
   })
-  twilio.addEventListener('message', (event) => {
-    const payload = mediaPayload(event.data)
-    if (payload) session.send(payload) // base64 string or bytes
-  })
-  twilio.addEventListener('close', () => void session.close()) // flushes
+  for (const payload of early) session.send(payload)
 
   for await (const event of session) {
     // { type: 'interim', text }  can still change (captions, barge-in)
@@ -714,15 +720,15 @@ export async function handleCall(twilio: WebSocket) {
 Adapters (each declares `audioInputs`; anything else is converted to
 linear16 PCM automatically, including G.711 decode and resampling):
 
-| Adapter                                                              | Package                   | Phone audio             |
-| -------------------------------------------------------------------- | ------------------------- | ----------------------- |
-| `deepgramLiveTranscription('nova-3' \| 'flux-general-en')`           | `@tanstack/ai-deepgram`   | mulaw, alaw             |
-| `elevenlabsLiveTranscription('scribe_v2_realtime')`                  | `@tanstack/ai-elevenlabs` | mulaw                   |
-| `openaiLiveTranscription('gpt-transcribe' \| 'gpt-live-transcribe')` | `@tanstack/ai-openai`     | mulaw, alaw             |
-| `grokLiveTranscription('grok-voice-transcribe-2.0')`                 | `@tanstack/ai-grok`       | mulaw, alaw             |
-| `geminiLiveTranscription('gemini-3.5-transcribe-live')`              | `@tanstack/ai-gemini`     | converted to 16 kHz PCM |
-| `mistralLiveTranscription('voxtral-mini-transcribe-realtime-2602')`  | `@tanstack/ai-mistral`    | mulaw, alaw             |
-| `cloudflareLiveTranscription('@cf/deepgram/nova-3' \| '@cf/deepgram/flux', { binding: env.AI })` | `@tanstack/ai-cloudflare` | mulaw (Nova-3 only) |
+| Adapter                                                                                          | Package                   | Phone audio             |
+| ------------------------------------------------------------------------------------------------ | ------------------------- | ----------------------- |
+| `deepgramLiveTranscription('nova-3' \| 'flux-general-en')`                                       | `@tanstack/ai-deepgram`   | mulaw, alaw             |
+| `elevenlabsLiveTranscription('scribe_v2_realtime')`                                              | `@tanstack/ai-elevenlabs` | mulaw                   |
+| `openaiLiveTranscription('gpt-transcribe' \| 'gpt-live-transcribe')`                             | `@tanstack/ai-openai`     | mulaw, alaw             |
+| `grokLiveTranscription('grok-voice-transcribe-2.0')`                                             | `@tanstack/ai-grok`       | mulaw, alaw             |
+| `geminiLiveTranscription('gemini-3.5-transcribe-live')`                                          | `@tanstack/ai-gemini`     | converted to 16 kHz PCM |
+| `mistralLiveTranscription('voxtral-mini-transcribe-realtime-2602')`                              | `@tanstack/ai-mistral`    | mulaw, alaw             |
+| `cloudflareLiveTranscription('@cf/deepgram/nova-3' \| '@cf/deepgram/flux', { binding: env.AI })` | `@tanstack/ai-cloudflare` | mulaw (Nova-3 only)     |
 
 - `cloudflareLiveTranscription` needs the Workers AI binding (Workers only).
 - `mistralLiveTranscription` sends no `turn-end`.

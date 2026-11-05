@@ -29,6 +29,8 @@ export interface LiveSocketOptions {
   readyWhen?: (message: unknown) => boolean
   /** Each JSON frame, text or binary. Frames that are not JSON are skipped. */
   onMessage: (message: unknown, socket: LiveSocket) => void
+  /** Reject `connect` when the socket is not ready after this long. Defaults to 15000. */
+  connectTimeoutMs?: number
 }
 
 export interface LiveSocket {
@@ -44,6 +46,11 @@ export interface LiveSocket {
   finish: (lastMessage?: unknown, timeoutMs?: number) => Promise<void>
   /** Close the socket now. */
   close: () => void
+  /**
+   * Report a provider error. Before the socket is ready it rejects `connect`
+   * and closes the socket. After that it emits an `error` event.
+   */
+  fail: (error: Error) => void
 }
 
 /** Base64-encode a byte view (Node Buffers can be views into a larger pool). */
@@ -73,12 +80,20 @@ export function openLiveSocket(
       new Error('No WebSocket available. Pass a WebSocket constructor.'),
     )
   }
+  if (abortSignal?.aborted) {
+    return Promise.reject(
+      abortSignal.reason instanceof Error
+        ? abortSignal.reason
+        : new Error('The session was aborted before it connected.'),
+    )
+  }
   const ws = options.socket ?? new Ctor(options.url ?? '', options.protocols)
   ws.binaryType = 'arraybuffer'
   let closing = false
   let ready = false
   let resolveClosed!: () => void
   const closed = new Promise<void>((r) => (resolveClosed = r))
+  let rejectConnect: (error: Error) => void = () => {}
 
   const live: LiveSocket = {
     sendJson: (value) => {
@@ -103,13 +118,32 @@ export function openLiveSocket(
       closing = true
       if (ws.readyState < 2) ws.close(1000)
     },
+    fail: (error) => {
+      if (ready) {
+        emit({ type: 'error', error })
+        return
+      }
+      rejectConnect(error)
+      live.close()
+    },
   }
 
   const onAbort = () => live.close()
   abortSignal?.addEventListener('abort', onAbort, { once: true })
 
   return new Promise((resolve, reject) => {
+    const timer = setTimeout(
+      () =>
+        live.fail(
+          new Error(
+            `Timed out after ${options.connectTimeoutMs ?? 15000} ms waiting for the provider to be ready.`,
+          ),
+        ),
+      options.connectTimeoutMs ?? 15000,
+    )
+    rejectConnect = reject
     const markReady = () => {
+      clearTimeout(timer)
       ready = true
       resolve(live)
     }
@@ -141,6 +175,7 @@ export function openLiveSocket(
       abortSignal?.removeEventListener('abort', onAbort)
       const clean = event.code === 1000 || event.code === 1005
       if (!ready) {
+        clearTimeout(timer)
         reject(
           new Error(
             `Could not connect to ${options.url ? new URL(options.url).host : 'the provider'} (code ${event.code}${event.reason ? `: ${event.reason}` : ''}).`,

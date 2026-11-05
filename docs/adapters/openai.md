@@ -197,7 +197,7 @@ for await (const event of session) {
 }
 ```
 
-It takes 24 kHz PCM, μ-law, and A-law. `gpt-transcribe` sends a `turn-end` when the speaker pauses. `gpt-live-transcribe` streams text with lower delay and has no `turn-end`.
+It takes 24 kHz PCM, μ-law, and A-law. `gpt-transcribe` sends a `turn-end` when the speaker pauses. `gpt-live-transcribe` streams text with lower delay and has no `turn-end` while audio flows. It sends one `final` and one `turn-end` when the session closes.
 
 ## Embeddings
 

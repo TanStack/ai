@@ -62,7 +62,7 @@ interface OpenAIRealtimeEvent {
   item_id?: string
   delta?: string
   transcript?: string
-  error?: { message?: string }
+  error?: { code?: string; message?: string }
 }
 
 /**
@@ -105,7 +105,7 @@ export function openaiLiveTranscription<
             : { type: 'audio/pcm', rate: 24000 }
       // Deltas per item, joined into one interim text.
       const interim = new Map<string, string>()
-      // Speech or text with no final yet. When there is none, close does not wait.
+      // Audio or text with no final yet. When there is none, close does not wait.
       let pending = false
 
       const live = await openLiveSocket({
@@ -171,24 +171,30 @@ export function openaiLiveTranscription<
             }
             case 'conversation.item.input_audio_transcription.failed':
             case 'error':
-              // An empty buffer cannot be committed when closing. Not an error.
-              if (socket.closing) socket.close()
-              else
-                options.emit({
-                  type: 'error',
-                  error: new Error(m.error?.message ?? 'OpenAI realtime error'),
-                })
+              // Committing an empty buffer when closing is not an error.
+              if (
+                socket.closing &&
+                m.error?.code === 'input_audio_buffer_commit_empty'
+              ) {
+                socket.close()
+              } else {
+                socket.fail(
+                  new Error(m.error?.message ?? 'OpenAI realtime error'),
+                )
+              }
               break
           }
         },
       })
 
       return {
-        send: (audio) =>
+        send: (audio) => {
+          pending = true
           live.sendJson({
             type: 'input_audio_buffer.append',
             audio: bytesToBase64(audio),
-          }),
+          })
+        },
         close: () =>
           live.finish(
             { type: 'input_audio_buffer.commit' },

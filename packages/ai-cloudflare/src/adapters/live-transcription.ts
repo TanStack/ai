@@ -41,6 +41,10 @@ export function cloudflareLiveTranscription<
     flux ? 'flux-general-en' : 'nova-3',
     {
       openSocket: async (query) => {
+        // The binding takes a flat object, so repeated keys cannot be sent.
+        if (query.getAll('keyterm').length > 1) {
+          throw new Error('Workers AI live transcription takes one keyterm.')
+        }
         // The binding's typed inputs are for the HTTP path; WebSocket runs
         // take the Deepgram query parameters as strings.
         const run = config.binding.run.bind(config.binding) as (
@@ -51,7 +55,6 @@ export function cloudflareLiveTranscription<
           webSocket: (WebSocket & { accept: () => void }) | null
         }>
         query.delete('model')
-        // ponytail: one keyterm only, the binding takes a flat object.
         const res = await run(model, Object.fromEntries(query), {
           websocket: true,
         })

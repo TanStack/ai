@@ -136,14 +136,13 @@ export function mistralLiveTranscription<
             if (m.type === 'transcription.done') socket.close()
           } else if (m.type === 'error') {
             const detail = m.error?.message
-            options.emit({
-              type: 'error',
-              error: new Error(
+            socket.fail(
+              new Error(
                 typeof detail === 'string'
                   ? detail
                   : JSON.stringify(detail ?? 'Mistral realtime error'),
               ),
-            })
+            )
           }
         },
       })

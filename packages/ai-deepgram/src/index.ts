@@ -146,7 +146,7 @@ export function deepgramLiveTranscription<
               WebSocket: config.WebSocket,
             }),
         connect: options,
-        onMessage: (message) => {
+        onMessage: (message, socket) => {
           const m = message as DeepgramMessage
           if (m.type === 'Results') {
             const text = m.channel?.alternatives?.[0]?.transcript?.trim()
@@ -170,12 +170,11 @@ export function deepgramLiveTranscription<
               options.emit({ type: 'interim', text })
             }
           } else if (m.type === 'Error') {
-            options.emit({
-              type: 'error',
-              error: new Error(
+            socket.fail(
+              new Error(
                 m.description ?? m.message ?? 'Deepgram streaming error',
               ),
-            })
+            )
           }
         },
       })

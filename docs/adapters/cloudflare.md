@@ -567,14 +567,18 @@ export async function transcribeCall(env: Env, audio: AsyncIterable<Uint8Array>)
     audio: { encoding: "mulaw", sampleRate: 8000 },
   });
 
-  void (async () => {
-    for await (const chunk of audio) session.send(chunk);
-    await session.close();
+  const feeding = (async () => {
+    try {
+      for await (const chunk of audio) session.send(chunk);
+    } finally {
+      await session.close();
+    }
   })();
 
   for await (const event of session) {
     if (event.type === "final") console.log(event.text);
   }
+  await feeding;
 }
 ```
 

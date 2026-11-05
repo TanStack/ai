@@ -237,13 +237,24 @@ See the [Embeddings guide](../embeddings.md).
 import { transcriptionSession } from "@tanstack/ai";
 import { mistralLiveTranscription } from "@tanstack/ai-mistral";
 
-const session = await transcriptionSession({
-  adapter: mistralLiveTranscription("voxtral-mini-transcribe-realtime-2602"),
-  audio: { encoding: "mulaw", sampleRate: 8000 },
-});
+export async function transcribe(audio: AsyncIterable<Uint8Array>) {
+  const session = await transcriptionSession({
+    adapter: mistralLiveTranscription("voxtral-mini-transcribe-realtime-2602"),
+    audio: { encoding: "mulaw", sampleRate: 8000 },
+  });
 
-for await (const event of session) {
-  if (event.type === "final") console.log(event.text);
+  const feeding = (async () => {
+    try {
+      for await (const chunk of audio) session.send(chunk);
+    } finally {
+      await session.close();
+    }
+  })();
+
+  for await (const event of session) {
+    if (event.type === "final") console.log(event.text);
+  }
+  await feeding;
 }
 ```
 

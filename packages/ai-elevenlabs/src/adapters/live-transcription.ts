@@ -141,10 +141,7 @@ export function elevenlabsLiveTranscription<
             options.emit({ type: 'turn-end' })
             if (socket.closing) socket.close()
           } else if (m.error) {
-            options.emit({
-              type: 'error',
-              error: new Error(`ElevenLabs ${m.message_type}: ${m.error}`),
-            })
+            socket.fail(new Error(`ElevenLabs ${m.message_type}: ${m.error}`))
           }
         },
       })

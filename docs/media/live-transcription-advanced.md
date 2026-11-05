@@ -25,7 +25,7 @@ This page builds on [Live Transcription](./live-transcription).
 - `alaw`: G.711 A-law. Most carriers outside North America send this.
 - `linear16`: 16-bit signed little-endian PCM, at any sample rate.
 
-Set `sampleRate` (8000 for a phone call), and `channels` when the audio is not mono:
+Set `sampleRate` (8000 for a phone call), and `channels` when the audio is not mono. The session does not downmix. ElevenLabs and Gemini take mono only, so downmix before you send:
 
 ```typescript
 import { transcriptionSession } from '@tanstack/ai'
@@ -74,7 +74,12 @@ import { deepgramLiveTranscription } from '@tanstack/ai-deepgram'
 const session = await transcriptionSession({
   adapter: deepgramLiveTranscription('nova-3'),
   audio: { encoding: 'mulaw', sampleRate: 8000 },
-  modelOptions: { utteranceEndMs: 1000, smartFormat: true, keyterms: ['TanStack'] },
+  modelOptions: {
+    endpointing: false,
+    utteranceEndMs: 1000,
+    smartFormat: true,
+    keyterms: ['TanStack'],
+  },
 })
 ```
 
@@ -96,7 +101,7 @@ const session = await transcriptionSession({
 - Deepgram, Cloudflare, ElevenLabs, xAI, and Gemini send `turn-end` when the speaker pauses.
 - Mistral Voxtral sends no `turn-end`.
 - OpenAI sends it with `gpt-transcribe` and the `gpt-4o-*` models, which detect voice activity.
-- OpenAI `gpt-live-transcribe` streams text with no `turn-end`. It sends one `final` when the session closes.
+- OpenAI `gpt-live-transcribe` streams text with no `turn-end` while audio flows. It sends one `final` and one `turn-end` when the session closes.
 
 ## Stop a session
 
