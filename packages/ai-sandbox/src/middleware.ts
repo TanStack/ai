@@ -496,17 +496,18 @@ export function withSandbox<TOffset extends string = string>(
 ): DefinedChatMiddleware<
   unknown,
   readonly [],
-  readonly [typeof SandboxCapability, typeof ProjectionCapability]
+  | readonly [typeof SandboxCapability, typeof ProjectionCapability]
+  | readonly [typeof SandboxCapability]
 > {
   return defineChatMiddleware({
     name: 'sandbox',
-    provides: [SandboxCapability, ProjectionCapability],
-    // SandboxPolicyCapability is provided conditionally (only when the
-    // definition has a policy), so it is intentionally NOT declared here —
-    // consumers read it via `getOptional`. SandboxDurabilityCapability and
-    // DetachableRunCapability are conditional for the same reason (only when
-    // `runs` + `durability` are both wired), so they are intentionally NOT
-    // declared here either.
+    // Listed only when setup will call provide(). chat() checks `requires`
+    // against this array before setup. Policy, durability, and detach stay
+    // off the list: they depend on other options and are read optionally.
+    provides:
+      definition.workspace !== undefined
+        ? [SandboxCapability, ProjectionCapability]
+        : [SandboxCapability],
     optionalRequires: [SandboxInstanceStoreCapability, LocksCapability],
 
     async setup(ctx) {
