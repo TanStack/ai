@@ -7,7 +7,8 @@ import {
   getGeminiApiKeyFromEnv,
 } from '../utils'
 import type { EmbeddingOptions, EmbeddingResult } from '@tanstack/ai'
-import type { EmbedContentConfig, GoogleGenAI } from '@google/genai'
+import type { EmbedContentConfig } from '@google/genai'
+import type { GeminiClient } from '../client/index'
 import type {
   GeminiEmbeddingModel,
   GeminiEmbeddingModelInputModalitiesByName,
@@ -43,7 +44,7 @@ export class GeminiEmbeddingAdapter<
 > {
   readonly name = 'gemini' as const
 
-  protected client: GoogleGenAI
+  protected client: GeminiClient
 
   constructor(config: GeminiEmbeddingConfig, model: TModel) {
     super(model, {})

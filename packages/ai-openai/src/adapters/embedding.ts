@@ -1,4 +1,5 @@
-import OpenAI from 'openai'
+import { createOpenAIClient } from '@tanstack/openai-base'
+import type { OpenAIClientLike } from '@tanstack/openai-base'
 import { BaseEmbeddingAdapter } from '@tanstack/ai/adapters'
 import { toRunErrorPayload } from '@tanstack/ai/adapter-internals'
 import { generateId } from '@tanstack/ai-utils'
@@ -49,11 +50,11 @@ export class OpenAIEmbeddingAdapter<
 > {
   readonly name = 'openai' as const
 
-  protected client: OpenAI
+  protected client: OpenAIClientLike
 
   constructor(config: OpenAIEmbeddingConfig, model: TModel) {
     super(model, {})
-    this.client = new OpenAI(config)
+    this.client = createOpenAIClient(config)
   }
 
   async createEmbeddings(

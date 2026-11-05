@@ -29,17 +29,17 @@ import type {
   MediaInputMetadata,
   ResolvedMediaPrompt,
 } from '@tanstack/ai'
-import { ThinkingLevel } from '@google/genai'
+import { ThinkingLevel } from '../client/enums'
 import type {
   Content,
   ContentUnion,
-  GoogleGenAI,
   Interactions,
   Part,
   SafetySetting,
   ThinkingConfig,
 } from '@google/genai'
 import type { GeminiClientConfig } from '../utils/client'
+import type { GeminiClient } from '../client/index'
 
 /**
  * Configuration for Gemini image adapter
@@ -83,7 +83,7 @@ export class GeminiImageAdapter<
     modelInputModalitiesByName: GeminiImageModelInputModalitiesByName
   }
 
-  private readonly client: GoogleGenAI
+  private readonly client: GeminiClient
 
   constructor(config: GeminiImageConfig, model: TModel) {
     super(model, config)

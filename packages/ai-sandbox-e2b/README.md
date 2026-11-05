@@ -46,7 +46,7 @@ const sandbox = defineSandbox({
   provider: e2bSandbox({
     apiKey: process.env.E2B_API_KEY, // or set the env var and omit
   }),
-  workspace: defineWorkspace({/* … */}),
+  workspace: defineWorkspace({ source: { type: 'none' } }),
 })
 
 // Then pass `withSandbox(sandbox)` as chat() middleware.

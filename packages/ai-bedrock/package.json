@@ -1,6 +1,6 @@
 {
   "name": "@tanstack/ai-bedrock",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "type": "module",
   "description": "Amazon Bedrock adapter for TanStack AI — OpenAI-compatible chat, responses, tools, and reasoning.",
   "author": "",
@@ -22,6 +22,7 @@
       "import": "./dist/esm/byok.js"
     }
   },
+  "sideEffects": false,
   "files": [
     "dist",
     "src"
@@ -50,18 +51,32 @@
     "tool-calling"
   ],
   "devDependencies": {
-    "@vitest/coverage-v8": "4.1.10",
-    "vite": "^8.2.1"
-  },
-  "peerDependencies": {
-    "@tanstack/ai": "workspace:^"
-  },
-  "dependencies": {
     "@aws-crypto/sha256-js": "^5.2.0",
     "@aws-sdk/client-bedrock-runtime": "^3.1057.0",
     "@aws-sdk/credential-providers": "^3.1057.0",
     "@smithy/signature-v4": "^5.4.5",
     "@smithy/types": "^4.14.2",
+    "@vitest/coverage-v8": "4.1.10",
+    "vite": "^8.2.1"
+  },
+  "peerDependencies": {
+    "@aws-sdk/client-bedrock-runtime": "^3.1057.0",
+    "@aws-sdk/credential-providers": "^3.1057.0",
+    "@smithy/types": "^4.14.2",
+    "@tanstack/ai": "workspace:^"
+  },
+  "peerDependenciesMeta": {
+    "@aws-sdk/client-bedrock-runtime": {
+      "optional": true
+    },
+    "@aws-sdk/credential-providers": {
+      "optional": true
+    },
+    "@smithy/types": {
+      "optional": true
+    }
+  },
+  "dependencies": {
     "@tanstack/openai-base": "workspace:^",
     "openai": "^7.30.0"
   }

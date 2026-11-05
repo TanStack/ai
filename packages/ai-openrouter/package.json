@@ -1,6 +1,6 @@
 {
   "name": "@tanstack/ai-openrouter",
-  "version": "1.0.1",
+  "version": "1.1.0",
   "description": "TanStack AI adapter for OpenRouter chat, provider tools, structured outputs, and access to hundreds of LLMs.",
   "author": "Tanner Linsley",
   "license": "MIT",
@@ -42,6 +42,7 @@
       "import": "./dist/esm/pkce.js"
     }
   },
+  "sideEffects": false,
   "files": [
     "dist",
     "src"

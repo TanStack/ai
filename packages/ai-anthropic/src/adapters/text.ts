@@ -115,6 +115,7 @@ import type {
   AnthropicMessagesClient,
 } from '../utils/client'
 import type { ComputerUseSingleToolConfig } from '../tools/computer-use-tool'
+import type { AnthropicClient } from '../client/index'
 
 /**
  * The block type carried by an Anthropic provider-executed (server) tool's
@@ -575,8 +576,8 @@ export class AnthropicTextAdapter<
   /** The OAuth identity headers, with the caller's own values on top. */
   private readonly oauthHeaders = new Headers(OAUTH_IDENTITY_HEADERS)
 
-  /** The adapter's own SDK client. An injected client cannot take a fetch. */
-  private readonly sdkClient: Anthropic_SDK | undefined
+  /** The adapter's own client. An injected client cannot take a fetch. */
+  private readonly sdkClient: AnthropicClient | undefined
   private readonly baseFetch: typeof fetch | undefined
 
   constructor(config: AnthropicTextAdapterConfig, model: TModel) {
@@ -625,15 +626,17 @@ export class AnthropicTextAdapter<
         },
       }),
     })
-    this.client = this.sdkClient
+    this.client = asSdkAnthropicMessagesClient(this.sdkClient)
   }
 
   /** Use a client whose fetch goes through `wrapFetch` for one call. */
   private clientFor(wrapFetch: FetchWrapper | undefined) {
     if (!wrapFetch || !this.sdkClient) return this.client
-    return this.sdkClient.withOptions({
-      fetch: wrapFetch(this.baseFetch ?? globalThis.fetch),
-    })
+    return asSdkAnthropicMessagesClient(
+      this.sdkClient.withOptions({
+        fetch: wrapFetch(this.baseFetch ?? globalThis.fetch),
+      }),
+    )
   }
 
   /** With OAuth, the Claude Code betas go first. */

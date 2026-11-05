@@ -1,11 +1,11 @@
 import { BaseVoiceAdapter } from '@tanstack/ai/adapters'
 import {
   arrayBufferToBase64,
-  createElevenLabsClient,
   generateId,
   parseOutputFormat,
 } from '../utils/client'
-import type { ElevenLabsClient } from '@elevenlabs/elevenlabs-js'
+import { createElevenLabsClient } from '../client/index'
+import type { ElevenLabsClient } from '../client/index'
 import type {
   GeneratedVoice,
   VoiceGenerationOptions,

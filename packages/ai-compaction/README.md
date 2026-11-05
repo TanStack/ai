@@ -37,7 +37,11 @@ recent ones.
 
 ```ts
 import { chat } from '@tanstack/ai'
+import type { AnyTextAdapter, ModelMessage } from '@tanstack/ai'
 import { withCompaction } from '@tanstack/ai-compaction'
+
+declare const adapter: AnyTextAdapter
+declare const messages: Array<ModelMessage>
 
 chat({
   adapter,
@@ -64,6 +68,9 @@ import {
   summarizeOldest,
   clearToolResults,
 } from '@tanstack/ai-compaction'
+import type { ModelMessage } from '@tanstack/ai'
+
+declare function summarizeToText(messages: Array<ModelMessage>): Promise<string>
 
 // Tune how much recent history to keep.
 withCompaction({
@@ -110,6 +117,7 @@ A strategy gets the messages and the budget, and returns the rewritten messages
 (or `null` to change nothing). It runs when the count is over `maxTokens`, and when `compactNext` forces it. Then the count can be under `maxTokens`.
 
 ```ts
+import { withCompaction } from '@tanstack/ai-compaction'
 import type { CompactionStrategy } from '@tanstack/ai-compaction'
 
 const keepLastOnly: CompactionStrategy = (messages) =>

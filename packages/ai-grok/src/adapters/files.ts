@@ -1,11 +1,13 @@
-import { OpenAI, toFile } from 'openai'
+import { toFile } from 'openai/core/uploads'
 import {
   BaseFilesAdapter,
   normalizeFileUploadInput,
 } from '@tanstack/ai/adapters'
+import { createOpenAIClient } from '@tanstack/openai-base'
 import { getGrokApiKeyFromEnv, withGrokDefaults } from '../utils/client'
 import type { FileHandle, FileUploadInput } from '@tanstack/ai/adapters'
 import type { GrokClientConfig } from '../utils/client'
+import type { OpenAIClientLike } from '@tanstack/openai-base'
 
 /**
  * Bounds xAI accepts for a public URL's `expires_after`, in seconds:
@@ -45,7 +47,7 @@ interface GrokPublicUrlResponse {
  */
 export class GrokFilesAdapter extends BaseFilesAdapter<'grok'> {
   readonly name = 'grok' as const
-  private readonly client: OpenAI
+  private readonly client: OpenAIClientLike
   private readonly expiresAfter?: number
 
   constructor(config: GrokFilesConfig) {
@@ -64,7 +66,7 @@ export class GrokFilesAdapter extends BaseFilesAdapter<'grok'> {
         )
       }
     }
-    this.client = new OpenAI(withGrokDefaults(clientOptions))
+    this.client = createOpenAIClient(withGrokDefaults(clientOptions))
     this.expiresAfter = expiresAfter
   }
 

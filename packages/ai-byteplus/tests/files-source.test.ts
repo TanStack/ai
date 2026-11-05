@@ -4,19 +4,18 @@ import { createBytePlusText } from '../src/adapters/text'
 import { BYTEPLUS_CHAT_MODELS } from '../src/model-meta'
 import type { StreamChunk } from '@tanstack/ai'
 
-// Stub the OpenAI SDK so constructing an adapter never opens a real network
-// handle (same pattern as text.test.ts).
-vi.mock('openai', () => {
-  return {
-    default: class {
-      chat = {
-        completions: {
-          create: vi.fn(),
-        },
-      }
+// Stub the OpenAI-compatible client factory so constructing an adapter never
+// builds a real client (same pattern as text.test.ts).
+vi.mock('@tanstack/openai-base', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@tanstack/openai-base')>()),
+  createOpenAIClient: () => ({
+    chat: {
+      completions: {
+        create: vi.fn(),
+      },
     },
-  }
-})
+  }),
+}))
 
 // The guard throws while the request body is being built, so the mocked
 // `create` is never reached — it exists only to fail loudly if a file source

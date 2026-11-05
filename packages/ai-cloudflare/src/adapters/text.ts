@@ -1,6 +1,8 @@
-import OpenAI from 'openai'
 import type { ClientOptions } from 'openai'
-import { OpenAIBaseChatCompletionsTextAdapter } from '@tanstack/openai-base'
+import {
+  OpenAIBaseChatCompletionsTextAdapter,
+  createOpenAIClient,
+} from '@tanstack/openai-base'
 import { resolveReasoning } from '@tanstack/ai/adapter-internals'
 import { CLOUDFLARE_MODEL_REASONING } from '../utils/models'
 import {
@@ -59,7 +61,7 @@ export interface CloudflareTextProviderOptions {
 function clientOptions(config: CloudflareTextConfig): ClientOptions {
   if (isBindingConfig(config)) {
     return {
-      // The binding authenticates by itself; the SDK only requires a value.
+      // The binding authenticates by itself; the client only requires a value.
       apiKey: 'cloudflare-binding',
       fetch: createBindingFetch(config),
     }
@@ -84,11 +86,11 @@ function clientOptions(config: CloudflareTextConfig): ClientOptions {
 /**
  * Cloudflare text (chat) adapter.
  *
- * Drives Workers AI's OpenAI-compatible Chat Completions surface with the
- * OpenAI SDK. Inside a Worker pass `{ binding: env.AI }`; anywhere else pass
- * `{ accountId, apiKey }`. Add `gateway` to route through AI Gateway. Any
- * catalog model works, including third-party `provider/model` ids billed
- * through AI Gateway.
+ * Drives Workers AI's OpenAI-compatible Chat Completions surface with a small
+ * OpenAI-shaped fetch client. Inside a Worker pass `{ binding: env.AI }`;
+ * anywhere else pass `{ accountId, apiKey }`. Add `gateway` to route through
+ * AI Gateway. Any catalog model works, including third-party `provider/model`
+ * ids billed through AI Gateway.
  */
 export class CloudflareTextAdapter<
   TModel extends CloudflareTextModel,
@@ -106,7 +108,7 @@ export class CloudflareTextAdapter<
 
   constructor(config: CloudflareTextConfig, model: TModel) {
     const options = clientOptions(config)
-    super(model, 'cloudflare', new OpenAI(options), {
+    super(model, 'cloudflare', createOpenAIClient(options), {
       ...config,
       fetch: options.fetch,
     })

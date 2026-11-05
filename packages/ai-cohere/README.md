@@ -65,7 +65,7 @@ const result = await embed({
   modelOptions: { inputType: 'search_document' },
 })
 
-console.log(result.embeddings[0].vector)
+console.log(result.embeddings[0]?.vector)
 ```
 
 ### Multimodal Inputs
@@ -73,6 +73,14 @@ console.log(result.embeddings[0].vector)
 embed-v4.0 embeds text, images, and fused text+image items (one vector per input item). Fuse parts by nesting them in an array — the outer array is the item list:
 
 ```typescript
+import { cohereEmbedding } from '@tanstack/ai-cohere'
+import { embed } from '@tanstack/ai'
+
+declare const base64Png: string
+declare const base64Jpeg: string
+
+const adapter = cohereEmbedding('embed-v4.0')
+
 const result = await embed({
   adapter,
   input: [

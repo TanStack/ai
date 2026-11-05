@@ -1,4 +1,4 @@
-import OpenAI from 'openai'
+import { createOpenAIClient } from '@tanstack/openai-base'
 import { resolveMediaPrompt } from '@tanstack/ai'
 import { BaseVideoAdapter } from '@tanstack/ai/adapters'
 import { toRunErrorPayload } from '@tanstack/ai/adapter-internals'
@@ -23,6 +23,7 @@ import type {
   VideoUrlResult,
 } from '@tanstack/ai'
 import type OpenAI_SDK from 'openai'
+import type { OpenAIClientLike } from '@tanstack/openai-base'
 import type {
   LovableVideoModel,
   LovableVideoModelDurationByName,
@@ -62,14 +63,14 @@ export class LovableVideoAdapter<
 > {
   readonly name = 'lovable' as const
 
-  protected client: OpenAI
+  protected client: OpenAIClientLike
   protected clientConfig: LovableVideoConfig
 
   constructor(config: LovableVideoConfig, model: TModel) {
     super({}, model)
     this.clientConfig = config
     const { allowUrlFetch: _allowUrlFetch, ...clientOptions } = config
-    this.client = new OpenAI(withLovableDefaults(clientOptions))
+    this.client = createOpenAIClient(withLovableDefaults(clientOptions))
   }
 
   async createVideoJob(
@@ -196,8 +197,10 @@ export class LovableVideoAdapter<
 
       // No URL: hand the download stream to generation middleware instead of
       // buffering the whole video.
+      // The second argument is the query, so the options go third.
       const response = await this.client.videos.downloadContent(
         jobId,
+        undefined,
         requestOptions,
       )
       if (!response.body) throw new Error('Video download returned no body')

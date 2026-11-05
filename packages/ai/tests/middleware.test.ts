@@ -3366,4 +3366,32 @@ describe('chat() middleware', () => {
       expect(onConfigCallCount).toBe(4)
     })
   })
+
+  // A CUSTOM event from setup makes core send a synthetic RUN_STARTED and drop
+  // the adapter's own. The synthetic event must keep the run's parentRunId.
+  it('keeps parentRunId on the synthetic RUN_STARTED', async () => {
+    const { adapter } = createMockAdapter({
+      iterations: [[ev.runStarted(), ev.runFinished('stop')]],
+    })
+    const middleware: ChatMiddleware = {
+      name: 'emits-in-setup',
+      setup(ctx) {
+        ctx.emitCustomEvent('test.setup', {})
+      },
+    }
+
+    const chunks = await collectChunks(
+      chat({
+        threadId: 't1',
+        parentRunId: 'parent-1',
+        adapter,
+        messages: [{ role: 'user', content: 'Hi' }],
+        middleware: [middleware],
+      }) as AsyncIterable<StreamChunk>,
+    )
+
+    const started = chunks.filter((c) => c.type === EventType.RUN_STARTED)
+    expect(started).toHaveLength(1)
+    expect(started[0]).toMatchObject({ parentRunId: 'parent-1' })
+  })
 })

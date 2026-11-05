@@ -5,7 +5,7 @@ import {
 } from '@tanstack/ai'
 import { BaseTextAdapter } from '@tanstack/ai/adapters'
 import { toRunErrorPayload } from '@tanstack/ai/adapter-internals'
-import { resolveBedrockAuth } from '../utils/auth'
+import { importOptionalPeer, resolveBedrockAuth } from '../utils/auth'
 import {
   toConverseMessages,
   toolBlocksToText,
@@ -148,7 +148,7 @@ export class BedrockConverseTextAdapter<
    */
   protected importBedrockRuntime(): Promise<typeof BedrockRuntime> {
     const mod = '@aws-sdk/client-bedrock-runtime'
-    return import(/* @vite-ignore */ mod) as Promise<typeof BedrockRuntime>
+    return importOptionalPeer<typeof BedrockRuntime>(mod)
   }
 
   /**

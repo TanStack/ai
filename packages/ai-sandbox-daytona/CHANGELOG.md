@@ -1,5 +1,16 @@
 # @tanstack/ai-sandbox-daytona
 
+## 1.0.1
+
+### Patch Changes
+
+- [#1976](https://github.com/TanStack/ai/pull/1976) [`5f62940`](https://github.com/TanStack/ai/commit/5f62940bb15c871a205de70e4e6b58fbe5016960) - `create` and `restoreSnapshot` now delete a sandbox that the SDK makes after the signal aborted. Before, that sandbox kept running with no owner.
+
+- [#1954](https://github.com/TanStack/ai/pull/1954) [`41f464d`](https://github.com/TanStack/ai/commit/41f464d6c2a179ba25253dc54337237e59ac4d61) - Daytona now reports `writableStdin: false`. The session API cannot close a command's stdin, so `stdin.end()` never sent EOF and stdin-fed harnesses (Claude Code, Codex) hung forever. They now get the prompt from a file redirect instead.
+
+- Updated dependencies [[`5f62940`](https://github.com/TanStack/ai/commit/5f62940bb15c871a205de70e4e6b58fbe5016960), [`4caefd7`](https://github.com/TanStack/ai/commit/4caefd7cb6783766fb2bdb9d34d65b367624dd32), [`4caefd7`](https://github.com/TanStack/ai/commit/4caefd7cb6783766fb2bdb9d34d65b367624dd32)]:
+  - @tanstack/ai-sandbox@1.1.0
+
 ## 1.0.0
 
 ### Major Changes

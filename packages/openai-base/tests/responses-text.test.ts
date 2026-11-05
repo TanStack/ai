@@ -3,7 +3,7 @@ import { OpenAIBaseResponsesTextAdapter } from '../src/adapters/responses-text'
 import { applyPatchTool } from '../src/tools/apply-patch-tool'
 import { localShellTool } from '../src/tools/local-shell-tool'
 import { shellTool } from '../src/tools/shell-tool'
-import type OpenAI from 'openai'
+import { stubClient } from './stub-client'
 import { EventType, chat } from '@tanstack/ai'
 import type { AdapterYieldChunk, ModelMessage, Tool } from '@tanstack/ai'
 import { resolveDebugOption } from '@tanstack/ai/adapter-internals'
@@ -16,17 +16,15 @@ let mockResponsesCreate: ReturnType<typeof vi.fn<(...args: Array<any>) => any>>
 /** Build a stub OpenAI client whose `responses.create` defers to the
  *  module-level `mockResponsesCreate`. Reassigning the mock inside a test
  *  still takes effect because the stub looks it up at call time. */
-function makeStubClient(): OpenAI {
-  return {
-    responses: {
-      create: (params: unknown, options: unknown) =>
-        mockResponsesCreate(params, options),
-    },
-  } as unknown as OpenAI
+function makeStubClient() {
+  return stubClient({
+    responses: (params: unknown, options: unknown) =>
+      mockResponsesCreate(params, options),
+  })
 }
 
 /**
- * Concrete test subclass. The base now calls the OpenAI SDK directly, so the
+ * Concrete test subclass. The base calls the client directly, so the
  * subclass just supplies a stub client whose `responses.create` routes into
  * `mockResponsesCreate` for per-test setup.
  */
@@ -4927,6 +4925,135 @@ describe('OpenAIBaseResponsesTextAdapter', () => {
       })
       const finished = chunks.find((chunk) => chunk.type === 'RUN_FINISHED')
       expect(finished).toMatchObject({ finishReason: 'tool_calls' })
+    })
+
+    it('passes the streamed diff of an apply_patch_call to the app', async () => {
+      // The diff is empty when the item is added and streams in afterwards.
+      const diff = '@@\n-def fib\n+def fibonacci\n'
+      const item = (status: string, itemDiff: string) => ({
+        type: 'apply_patch_call',
+        id: 'apc_1',
+        call_id: 'call_patch',
+        status,
+        operation: { type: 'update_file', path: 'lib/fib.py', diff: itemDiff },
+      })
+      setupMockResponsesClient([
+        {
+          type: 'response.created',
+          response: {
+            id: 'resp-user-tool',
+            model: 'test-model',
+            status: 'in_progress',
+          },
+        },
+        {
+          type: 'response.output_item.added',
+          output_index: 0,
+          item: item('in_progress', ''),
+        },
+        {
+          type: 'response.apply_patch_call_operation_diff.delta',
+          output_index: 0,
+          item_id: 'apc_1',
+          delta: diff,
+        },
+        {
+          type: 'response.apply_patch_call_operation_diff.done',
+          output_index: 0,
+          item_id: 'apc_1',
+        },
+        {
+          type: 'response.output_item.done',
+          output_index: 0,
+          item: item('completed', diff),
+        },
+        {
+          type: 'response.completed',
+          response: {
+            id: 'resp-user-tool',
+            model: 'test-model',
+            status: 'completed',
+            output: [item('completed', diff)],
+            usage: { input_tokens: 1, output_tokens: 1, total_tokens: 2 },
+          },
+        },
+      ])
+      const adapter = new TestResponsesAdapter(testConfig, 'test-model')
+      const chunks: Array<AdapterYieldChunk> = []
+      for await (const chunk of adapter.chatStream({
+        threadId: 'thread-1',
+        logger: testLogger,
+        model: 'test-model',
+        messages: [{ role: 'user', content: 'edit the file' }],
+        tools: [applyPatchTool()],
+      })) {
+        chunks.push(chunk)
+      }
+
+      const starts = chunks.filter((chunk) => chunk.type === 'TOOL_CALL_START')
+      const ends = chunks.filter((chunk) => chunk.type === 'TOOL_CALL_END')
+      expect(starts).toHaveLength(1)
+      expect(ends).toHaveLength(1)
+      expect(ends[0]).toMatchObject({
+        toolCallId: 'call_patch',
+        input: {
+          operation: { type: 'update_file', path: 'lib/fib.py', diff },
+        },
+      })
+    })
+
+    it('fails the run when a user tool call is still in_progress at completion', async () => {
+      // A stateless stream can skip output_item.done and send an empty output.
+      setupMockResponsesClient([
+        {
+          type: 'response.created',
+          response: {
+            id: 'resp-open',
+            model: 'test-model',
+            status: 'in_progress',
+          },
+        },
+        {
+          type: 'response.output_item.added',
+          output_index: 0,
+          item: {
+            type: 'apply_patch_call',
+            id: 'apc_open',
+            call_id: 'call_open',
+            status: 'in_progress',
+            operation: { type: 'update_file', path: 'lib/fib.py', diff: '' },
+          },
+        },
+        {
+          type: 'response.completed',
+          response: {
+            id: 'resp-open',
+            model: 'test-model',
+            status: 'completed',
+            output: [],
+            usage: { input_tokens: 1, output_tokens: 1, total_tokens: 2 },
+          },
+        },
+      ])
+      const adapter = new TestResponsesAdapter(testConfig, 'test-model')
+      const chunks: Array<AdapterYieldChunk> = []
+      for await (const chunk of adapter.chatStream({
+        threadId: 'thread-1',
+        logger: testLogger,
+        model: 'test-model',
+        messages: [{ role: 'user', content: 'edit the file' }],
+        tools: [applyPatchTool()],
+      })) {
+        chunks.push(chunk)
+      }
+
+      const types = chunks.map((chunk) => chunk.type)
+      expect(types).not.toContain('TOOL_CALL_END')
+      expect(types).not.toContain('RUN_FINISHED')
+      expect(chunks.at(-1)).toMatchObject({
+        type: 'RUN_ERROR',
+        code: 'incomplete-tool-call',
+      })
     })
 
     it('surfaces a local shell call and ignores a hosted container shell', async () => {

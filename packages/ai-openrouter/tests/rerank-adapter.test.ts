@@ -2,9 +2,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { rerank } from '@tanstack/ai'
 import { createOpenRouterRerank } from '../src/adapters/rerank'
 
-// Intercept at the network layer and drive the REAL @openrouter/sdk. This keeps
+// Intercept at the network layer and drive the real fetch client. This keeps
 // the test free of module mocking (which is sensitive to runner/isolation
-// differences) and exercises the SDK's real request building and response
+// differences) and exercises the real request building and response
 // parsing.
 const fetchMock = vi.fn<typeof fetch>()
 
@@ -121,7 +121,7 @@ describe('OpenRouterRerankAdapter', () => {
   })
 
   it('rejects loudly on a malformed response body (SDK runtime validation)', async () => {
-    // The SDK zod-validates the response, so a body missing `results` throws
+    // The client checks the required keys, so a body missing `results` throws
     // before the adapter maps it — the caller never sees a silent bad result
     // or a cryptic `undefined.map` TypeError.
     fetchMock.mockResolvedValue(

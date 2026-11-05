@@ -3,7 +3,8 @@ import {
   normalizeFileUploadInput,
 } from '@tanstack/ai/adapters'
 import { createGeminiClient, getGeminiApiKeyFromEnv } from '../utils/client'
-import type { File as GeminiFile, GoogleGenAI } from '@google/genai'
+import type { File as GeminiFile } from '@google/genai'
+import type { GeminiClient } from '../client/index'
 import type { FileHandle, FileUploadInput } from '@tanstack/ai/adapters'
 import type { GeminiClientConfig } from '../utils/client'
 
@@ -17,7 +18,7 @@ export interface GeminiFilesConfig extends GeminiClientConfig {}
  */
 export class GeminiFilesAdapter extends BaseFilesAdapter<'gemini'> {
   readonly name = 'gemini' as const
-  private readonly client: GoogleGenAI
+  private readonly client: GeminiClient
 
   constructor(config: GeminiFilesConfig) {
     super()

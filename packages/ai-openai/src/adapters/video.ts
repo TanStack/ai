@@ -1,4 +1,5 @@
-import OpenAI from 'openai'
+import { createOpenAIClient } from '@tanstack/openai-base'
+import type { OpenAIClientLike } from '@tanstack/openai-base'
 import { resolveMediaPrompt } from '@tanstack/ai'
 import { BaseVideoAdapter, snapToDurationOption } from '@tanstack/ai/adapters'
 import { toRunErrorPayload } from '@tanstack/ai/adapter-internals'
@@ -70,7 +71,7 @@ export class OpenAIVideoAdapter<
 > {
   readonly name = 'openai' as const
 
-  protected client: OpenAI
+  protected client: OpenAIClientLike
   protected clientConfig: OpenAIVideoConfig
 
   constructor(config: OpenAIVideoConfig, model: TModel) {
@@ -80,7 +81,7 @@ export class OpenAIVideoAdapter<
     super({}, model)
     this.clientConfig = config
     const { allowUrlFetch: _allowUrlFetch, ...clientOptions } = config
-    this.client = new OpenAI(clientOptions)
+    this.client = createOpenAIClient(clientOptions)
   }
 
   async createVideoJob(
@@ -190,6 +191,7 @@ export class OpenAIVideoAdapter<
     }>
     downloadContent: (
       id: string,
+      query?: undefined,
       options?: { signal?: AbortSignal },
     ) => Promise<Response>
   } {
@@ -253,7 +255,12 @@ export class OpenAIVideoAdapter<
 
       // No URL: hand the download stream to generation middleware (which
       // stores it and sets the URL) instead of buffering the whole video.
-      const response = await videosClient.downloadContent(jobId, requestOptions)
+      // The second argument is the query, so the options go third.
+      const response = await videosClient.downloadContent(
+        jobId,
+        undefined,
+        requestOptions,
+      )
       if (!response.body) throw new Error('Video download returned no body')
       return {
         jobId,

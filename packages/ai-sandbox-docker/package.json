@@ -1,6 +1,6 @@
 {
   "name": "@tanstack/ai-sandbox-docker",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Docker sandbox providers for TanStack AI — dockerSandbox() runs a container; sbxSandbox() runs a Docker Sandboxes microVM.",
   "author": "",
   "license": "MIT",
@@ -44,14 +44,14 @@
     "test:types": "tsc"
   },
   "dependencies": {
-    "dockerode": "^4.0.2"
+    "dockerode": "^5.0.1"
   },
   "peerDependencies": {
     "@tanstack/ai-sandbox": "workspace:^"
   },
   "devDependencies": {
     "@tanstack/ai-sandbox": "workspace:*",
-    "@types/dockerode": "^3.3.31",
+    "@types/dockerode": "^4.0.2",
     "@vitest/coverage-v8": "4.1.10"
   }
 }

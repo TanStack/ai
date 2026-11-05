@@ -89,6 +89,24 @@ The `create*Options` helpers are separate exports too. See [Typed Pre-Configured
 - Load code-split routes with dynamic imports.
 - In React Native and Expo, keep the chat screens client-only. Import `useChat` and the connection adapters there. Do not import provider SDKs, server response helpers, React DOM UI, devtools UI, or other framework packages. See [Quick Start: React Native](../getting-started/quick-start-react-native) for the server-only provider boundary and the mobile transport setup.
 
+## Provider options that load the provider SDK
+
+Provider adapters call the provider HTTP API with `fetch`. They do not load the provider SDK, except for the options below. These options load the SDK on first use.
+
+| Adapter | Options that load the SDK |
+|---|---|
+| OpenAI and OpenAI-compatible | `workloadIdentity`, `provider`, `dataResidency`, `credential`, `x509Transport`, no `apiKey` (admin key only). On Azure: `azureADTokenProvider` or `workloadIdentity` |
+| Anthropic | `middleware`, OpenTelemetry tracing (`openTelemetry`, or a global OpenTelemetry tracer), `logLevel: 'info'` or `'debug'` (or `ANTHROPIC_LOG`), no `apiKey` and no `authToken` |
+| Gemini | `vertexai: true`, `enterprise: true`, no `apiKey`, a file path string as the upload |
+| fal | An upload larger than 90 MB |
+
+These options decide when the SDK runs. They do not decide what goes into the bundle:
+
+- A bundler that splits chunks puts the SDK in a separate chunk. The app loads that chunk only when it uses one of these options.
+- A single-file bundle always includes the SDK. The bundler cannot know which options the app uses at runtime.
+
+`configureFalClient` is different. It imports `@fal-ai/client` statically, because it configures the global `fal` client. If you import `configureFalClient`, the SDK is in the startup bundle, also with chunk splitting.
+
 ## How it works
 
 - Each function is a named ES module export, not a default export.

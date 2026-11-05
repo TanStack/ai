@@ -25,8 +25,7 @@ const mocks = vi.hoisted(() => {
   }
 })
 
-vi.mock('@google/genai', async () => {
-  const actual = await vi.importActual<any>('@google/genai')
+vi.mock('../src/client', () => {
   const { constructorSpy, interactionsCreateSpy } = mocks
   class MockGoogleGenAI {
     get interactions() {
@@ -38,8 +37,9 @@ vi.mock('@google/genai', async () => {
   }
 
   return {
-    ...actual,
-    GoogleGenAI: MockGoogleGenAI,
+    createGoogleGenAI: (
+      options: ConstructorParameters<typeof MockGoogleGenAI>[0],
+    ) => new MockGoogleGenAI(options),
   }
 })
 

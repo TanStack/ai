@@ -21,12 +21,11 @@
 import { createServer } from 'node:http'
 import { randomBytes, timingSafeEqual } from 'node:crypto'
 import { once } from 'node:events'
-import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
-import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js'
 import {
-  CallToolRequestSchema,
-  ListToolsRequestSchema,
-} from '@modelcontextprotocol/sdk/types.js'
+  McpServer,
+  WebStandardStreamableHTTPServerTransport,
+} from '@modelcontextprotocol/server'
+import { readRawBody, sendWebResponse, toWebRequest } from './node-web'
 import type { AddressInfo } from 'node:net'
 import type { AnyTool, EmitCustomEventOptions } from '@tanstack/ai'
 
@@ -333,30 +332,27 @@ export interface StartBridgeOptions extends ToolBridgeCoreOptions {
   bindAddress?: string
 }
 
-function buildMcpServer(core: ToolBridgeCore): McpServer {
+function buildMcpServer(core: ToolBridgeCore) {
   const server = new McpServer(
     { name: BRIDGED_MCP_SERVER_NAME, version: '1.0.0' },
     { capabilities: { tools: {} } },
   )
-  server.server.setRequestHandler(ListToolsRequestSchema, () => ({
+  server.server.setRequestHandler('tools/list', () => ({
     tools: core.listTools(),
   }))
-  server.server.setRequestHandler(
-    CallToolRequestSchema,
-    async (request, extra) => {
-      // `extra.signal` aborts when the MCP client cancels this request, and
-      // when the transport closes (the HTTP response closes, see below).
-      const result = await core.callTool(
-        request.params.name,
-        request.params.arguments ?? {},
-        { signal: extra.signal },
-      )
-      return {
-        content: result.content,
-        ...(result.isError ? { isError: true } : {}),
-      }
-    },
-  )
+  server.server.setRequestHandler('tools/call', async (request, ctx) => {
+    // `ctx.mcpReq.signal` aborts when the MCP client cancels this request,
+    // and when the transport closes (the HTTP response closes, see below).
+    const result = await core.callTool(
+      request.params.name,
+      request.params.arguments ?? {},
+      { signal: ctx.mcpReq.signal },
+    )
+    return {
+      content: result.content,
+      ...(result.isError ? { isError: true } : {}),
+    }
+  })
   return server
 }
 
@@ -387,7 +383,7 @@ export async function startHostToolBridge(
         return
       }
       const server = buildMcpServer(core)
-      const transport = new StreamableHTTPServerTransport({
+      const transport = new WebStandardStreamableHTTPServerTransport({
         sessionIdGenerator: undefined,
       })
       res.on('close', () => {
@@ -396,8 +392,8 @@ export async function startHostToolBridge(
       })
       await server.connect(transport)
 
-      let body = ''
-      for await (const chunk of req) body += chunk
+      const rawBody = await readRawBody(req)
+      const body = new TextDecoder().decode(rawBody)
       let parsed: unknown
       try {
         parsed = body ? JSON.parse(body) : undefined
@@ -406,7 +402,11 @@ export async function startHostToolBridge(
         if (!res.headersSent) res.writeHead(400).end('invalid JSON body')
         return
       }
-      await transport.handleRequest(req, res, parsed)
+      const response = await transport.handleRequest(
+        toWebRequest(req, rawBody),
+        { parsedBody: parsed },
+      )
+      await sendWebResponse(res, response)
     })().catch((error: unknown) => {
       // Log the underlying fault — on the host/Docker path there is no run-log
       // capturing it, so swallowing it leaves an operator with nothing.

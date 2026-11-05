@@ -2,11 +2,8 @@ import { isFileSource, unsupportedFileSourceError } from '@tanstack/ai'
 import { BaseTextAdapter } from '@tanstack/ai/adapters'
 import { undoNullWidening } from '@tanstack/ai-utils'
 import { convertToolsToProviderFormat } from '../tools/tool-converter'
-import {
-  createMistralClient,
-  generateId,
-  getMistralApiKeyFromEnv,
-} from '../utils/client'
+import { createMistralClient } from '../client/index'
+import { generateId, getMistralApiKeyFromEnv } from '../utils/client'
 import { makeMistralStructuredOutputCompatibleWithMap } from '../utils/schema-converter'
 import { createToolInputNormalizer } from '../utils/tool-input-normalizer'
 import {
@@ -43,7 +40,6 @@ import type {
   StructuredOutputOptions,
   StructuredOutputResult,
 } from '@tanstack/ai/adapters'
-import type { Mistral } from '@mistralai/mistralai'
 import type {
   AssistantMessage,
   ChatCompletionStreamRequest,
@@ -59,6 +55,7 @@ import type {
   MistralImageMetadata,
   MistralMessageMetadataByModality,
 } from '../message-types'
+import type { MistralClient } from '../client/index'
 import type { MistralClientConfig } from '../utils/client'
 import type { ToolInputNormalizer } from '../utils/tool-input-normalizer'
 
@@ -315,14 +312,14 @@ export class MistralTextAdapter<
   override readonly provider: string
   override readonly inputModalities = MISTRAL_MODEL_INPUT_MODALITIES[this.model]
 
-  private readonly client: Mistral
+  private readonly client: MistralClient
   private readonly rawConfig: MistralClientConfig
 
   constructor(config: MistralTextConfig, model: TModel) {
     super(config, model)
-    // The SDK client is retained for `structuredOutput` (non-streaming). The
-    // streaming path bypasses the SDK and uses `fetchRawMistralStream` because
-    // the SDK's Zod schemas reject partial tool-call argument deltas.
+    // The client serves `structuredOutput` (non-streaming). The streaming
+    // path uses `fetchRawMistralStream`, which reads partial tool-call
+    // argument deltas as they come.
     this.client = createMistralClient(config)
     this.rawConfig = config
     this.provider =
