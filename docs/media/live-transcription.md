@@ -151,7 +151,7 @@ export async function runAgent(callId: string, audio: AsyncIterable<string>) {
 }
 ```
 
-This example prints the reply. To speak it to the caller, generate audio with `generateSpeech()` and send it back on the Twilio stream.
+This example prints the reply. To speak it to the caller, generate audio with `generateSpeech()` and send it back on the Twilio stream. The [Voice Support Agent](../tutorials/voice-support-agent) tutorial builds that full loop, with barge-in.
 
 The session yields four kinds of event:
 

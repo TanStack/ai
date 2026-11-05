@@ -7,6 +7,7 @@ This directory contains comprehensive examples demonstrating TanStack AI across 
 Choose an example based on your use case:
 
 - **Want the smallest React + Start chat?** → [Basic Chat](#basic-chat)
+- **Want a phone agent you can talk to?** → [Voice Support Agent](#voice-support-agent)
 - **Want an image from a prompt?** → [Generate Image](#generate-image)
 - **Want a table that fills as JSON streams?** → [Streaming Structured Table](#streaming-structured-table)
 - **Want typed ticket routing?** → [Evaluate](#evaluate)
@@ -40,6 +41,22 @@ Open http://localhost:3100. Paste an OpenRouter key. Send a message.
 📖 [Full Documentation](react/basic-chat/README.md)
 
 ---
+
+### Voice Support Agent
+
+A phone support agent for TanStack AI. Talk into the microphone, and the agent answers from the docs. Point a Twilio number at it to take real calls.
+
+**Path:** `examples/react/voice-support-agent`
+
+**Getting Started:**
+
+```bash
+pnpm --filter voice-support-agent dev
+```
+
+Set `OPENAI_API_KEY` in `.env.local`. Open http://localhost:3100. Click Start call and ask a question.
+
+📖 [Full Documentation](react/voice-support-agent/README.md)
 
 ### Generate Image
 

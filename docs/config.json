@@ -13,7 +13,7 @@
           "label": "Overview",
           "to": "getting-started/overview",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-11-02"
+          "updatedAt": "2026-11-05"
         },
         {
           "label": "Quick Start",
@@ -104,6 +104,11 @@
           "label": "Subscribe to MCP Events",
           "to": "tutorials/mcp-events",
           "addedAt": "2026-10-17"
+        },
+        {
+          "label": "Voice Support Agent",
+          "to": "tutorials/voice-support-agent",
+          "addedAt": "2026-11-05"
         }
       ]
     },
@@ -155,6 +160,11 @@
           "label": "MCP Events",
           "to": "framework/react/examples/mcp-events",
           "addedAt": "2026-10-17"
+        },
+        {
+          "label": "Voice Support Agent",
+          "to": "framework/react/examples/voice-support-agent",
+          "addedAt": "2026-11-05"
         }
       ]
     },
@@ -906,7 +916,8 @@
         {
           "label": "Live Transcription",
           "to": "media/live-transcription",
-          "addedAt": "2026-11-02"
+          "addedAt": "2026-11-02",
+          "updatedAt": "2026-11-05"
         },
         {
           "label": "Live Transcription: Advanced",
