@@ -1463,7 +1463,7 @@
           "label": "Events",
           "to": "sandbox/events",
           "addedAt": "2026-06-29",
-          "updatedAt": "2026-10-22"
+          "updatedAt": "2026-11-04"
         }
       ]
     },
@@ -2078,7 +2078,7 @@
           "label": "Custom Events Reference",
           "to": "protocol/custom-events",
           "addedAt": "2026-07-03",
-          "updatedAt": "2026-10-22"
+          "updatedAt": "2026-11-04"
         }
       ],
       "tab": "api"

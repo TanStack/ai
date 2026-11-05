@@ -491,6 +491,16 @@ const TWO_LINE_SEQUENCE = [
   'RUN_FINISHED',
 ]
 
+/**
+ * The head of a FRESH run: the run-accepted marker, `RUN_STARTED`, then
+ * `withSandbox`'s `sandbox.starting` and `sandbox.created`. An attach does not
+ * send the sandbox events again, so a seeded log has none of them.
+ */
+const FRESH_HEAD = ['CUSTOM', 'RUN_STARTED', 'CUSTOM', 'CUSTOM']
+
+/** A fresh six-line run, as the log stores it. */
+const FRESH_FULL_SEQUENCE = [...FRESH_HEAD, ...FULL_SEQUENCE.slice(1)]
+
 /** What a previous host had already delivered when it went away: two lines. */
 const DELIVERED_PREFIX = [
   'RUN_STARTED',
@@ -678,9 +688,8 @@ test.describe('durable runs — takeover', () => {
     const runId = uniqueRunId('disconnect-takeover')
     const run = await SseStream.open(routeUrl({ runId, total: '6' }))
     await tick(runId, 2)
-    // Five events now lead with the run-accepted marker: CUSTOM, RUN_STARTED,
-    // TEXT_MESSAGE_START, '1', '2'.
-    const before = await run.take(5)
+    // FRESH_HEAD, then TEXT_MESSAGE_START, '1', '2'.
+    const before = await run.take(7)
     expect(contentDeltas(before)).toEqual(['1', '2'])
     await drop(runId, run)
 
@@ -701,9 +710,9 @@ test.describe('durable runs — takeover', () => {
     await tick(runId, 4)
     const delivered = await attach.drain()
 
-    // The from-start attach replays the run-accepted marker the producer
-    // appended, then the full run.
-    expect(delivered.map(eventType)).toEqual(['CUSTOM', ...FULL_SEQUENCE])
+    // The from-start attach replays the fresh run's head from the log, then
+    // the full run.
+    expect(delivered.map(eventType)).toEqual(FRESH_FULL_SEQUENCE)
     expect(contentDeltas(delivered)).toEqual(['1', '2', '3', '4', '5', '6'])
 
     // The run completed for real — NOT recorded as failed by a diverged replay.
@@ -717,10 +726,7 @@ test.describe('durable runs — takeover', () => {
     expect(after.record?.detachedSince).toBeUndefined()
     // And the log holds each chunk exactly once (marker included), with no
     // stored RUN_ERROR.
-    expect(after.log.map((entry) => entry.type)).toEqual([
-      'CUSTOM',
-      ...FULL_SEQUENCE,
-    ])
+    expect(after.log.map((entry) => entry.type)).toEqual(FRESH_FULL_SEQUENCE)
   })
 })
 
@@ -733,7 +739,7 @@ test.describe('durable runs — disconnect', () => {
     const runId = uniqueRunId('detach')
     const run = await SseStream.open(routeUrl({ runId, total: '6' }))
     await tick(runId, 2)
-    expect(contentDeltas(await run.take(5))).toEqual(['1', '2'])
+    expect(contentDeltas(await run.take(7))).toEqual(['1', '2'])
 
     await drop(runId, run)
 
@@ -771,7 +777,7 @@ test.describe('durable runs — cancel', () => {
       const runId = uniqueRunId(`cancel-${band}`)
       const run = await SseStream.open(routeUrl({ runId, total: '6' }))
       await tick(runId, 2)
-      expect(contentDeltas(await run.take(5))).toEqual(['1', '2'])
+      expect(contentDeltas(await run.take(7))).toEqual(['1', '2'])
 
       await cancel(runId, band)
       if (band === 'durable') {
@@ -817,8 +823,9 @@ test.describe('durable runs — cancel', () => {
     const cancelledRun = await SseStream.open(routeUrl({ runId: cancelled }))
     await tick(dropped, 2)
     await tick(cancelled, 2)
-    await droppedRun.take(4)
-    await cancelledRun.take(4)
+    // FRESH_HEAD, TEXT_MESSAGE_START, '1'.
+    await droppedRun.take(6)
+    await cancelledRun.take(6)
 
     // Out of band, and only for one of them.
     await cancel(cancelled, 'durable')

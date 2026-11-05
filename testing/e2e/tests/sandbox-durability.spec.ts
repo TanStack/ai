@@ -15,6 +15,7 @@ interface DurabilityResult {
   resume: number
   providerSandboxId: string | null
   latestRunId: string | null
+  events: Array<string>
 }
 
 test.describe('sandbox instance durability (server-side resume)', () => {
@@ -42,5 +43,35 @@ test.describe('sandbox instance durability (server-side resume)', () => {
     expect(secondBody.resume).toBe(1)
     expect(secondBody.providerSandboxId).toBe(firstBody.providerSandboxId)
     expect(secondBody.latestRunId).toBe('run-2')
+  })
+
+  // Core sends RUN_STARTED before the first middleware CUSTOM event, so the
+  // lifecycle events come right after it, while setup still runs.
+  test('sandbox lifecycle events stream while the sandbox starts', async ({
+    request,
+  }) => {
+    const threadId = `sandbox-lifecycle-${Date.now()}`
+
+    const first = await request.post('/api/sandbox-durability', {
+      data: { threadId, runId: 'run-1' },
+    })
+    expect(first.ok()).toBe(true)
+    const firstBody = (await first.json()) as DurabilityResult
+    expect(firstBody.events).toEqual([
+      'RUN_STARTED',
+      'sandbox.starting',
+      'sandbox.created',
+    ])
+
+    const second = await request.post('/api/sandbox-durability', {
+      data: { threadId, runId: 'run-2' },
+    })
+    expect(second.ok()).toBe(true)
+    const secondBody = (await second.json()) as DurabilityResult
+    expect(secondBody.events).toEqual([
+      'RUN_STARTED',
+      'sandbox.starting',
+      'sandbox.resumed',
+    ])
   })
 })
