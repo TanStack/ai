@@ -214,6 +214,14 @@ You are on a voice call. The caller hears your words, they do not read them.
 - Say package and function names as words. Never read out URLs, code, or markdown.
 - If the docs do not cover the question, say so and suggest where to look.`
 
+// Voice knobs. Voices: alloy, ash, ballad, coral, echo, fable, onyx, nova,
+// sage, shimmer, verse. Speed is 0.25 to 4.0. Instructions steer tone and
+// pace on gpt-4o-mini-tts only.
+const VOICE = 'ash'
+const SPEED = 1.15
+const VOICE_STYLE =
+  'Upbeat, quick, and lightly funny. A friendly support rep who enjoys the job. Dry one-liners welcome, never sarcasm at the caller.'
+
 export async function handleCall(ws: WebSocket, carrier: Carrier) {
   const callId = crypto.randomUUID()
   const messages: Array<ModelMessage> = []
@@ -293,6 +301,9 @@ async function reply(
     const audio = generateSpeech({
       adapter: openaiSpeech('gpt-4o-mini-tts'),
       text: sentence,
+      voice: VOICE,
+      speed: SPEED,
+      modelOptions: { instructions: VOICE_STYLE },
       format: 'pcm',
       threadId: callId,
       abortSignal: signal,
