@@ -3,7 +3,7 @@ id: RealtimeToolCallPart
 title: RealtimeToolCallPart
 ---
 
-Defined in: [packages/ai/src/realtime/types.ts:120](https://github.com/TanStack/ai/blob/main/packages/ai/src/realtime/types.ts#L120)
+Defined in: [packages/ai/src/realtime/types.ts:129](https://github.com/TanStack/ai/blob/main/packages/ai/src/realtime/types.ts#L129)
 
 Tool call part in a realtime message
 
@@ -15,7 +15,7 @@ Tool call part in a realtime message
 arguments: string;
 ```
 
-Defined in: [packages/ai/src/realtime/types.ts:124](https://github.com/TanStack/ai/blob/main/packages/ai/src/realtime/types.ts#L124)
+Defined in: [packages/ai/src/realtime/types.ts:133](https://github.com/TanStack/ai/blob/main/packages/ai/src/realtime/types.ts#L133)
 
 ***
 
@@ -25,7 +25,7 @@ Defined in: [packages/ai/src/realtime/types.ts:124](https://github.com/TanStack/
 id: string;
 ```
 
-Defined in: [packages/ai/src/realtime/types.ts:122](https://github.com/TanStack/ai/blob/main/packages/ai/src/realtime/types.ts#L122)
+Defined in: [packages/ai/src/realtime/types.ts:131](https://github.com/TanStack/ai/blob/main/packages/ai/src/realtime/types.ts#L131)
 
 ***
 
@@ -35,7 +35,7 @@ Defined in: [packages/ai/src/realtime/types.ts:122](https://github.com/TanStack/
 optional input?: unknown;
 ```
 
-Defined in: [packages/ai/src/realtime/types.ts:125](https://github.com/TanStack/ai/blob/main/packages/ai/src/realtime/types.ts#L125)
+Defined in: [packages/ai/src/realtime/types.ts:134](https://github.com/TanStack/ai/blob/main/packages/ai/src/realtime/types.ts#L134)
 
 ***
 
@@ -45,7 +45,7 @@ Defined in: [packages/ai/src/realtime/types.ts:125](https://github.com/TanStack/
 name: string;
 ```
 
-Defined in: [packages/ai/src/realtime/types.ts:123](https://github.com/TanStack/ai/blob/main/packages/ai/src/realtime/types.ts#L123)
+Defined in: [packages/ai/src/realtime/types.ts:132](https://github.com/TanStack/ai/blob/main/packages/ai/src/realtime/types.ts#L132)
 
 ***
 
@@ -55,7 +55,7 @@ Defined in: [packages/ai/src/realtime/types.ts:123](https://github.com/TanStack/
 optional output?: unknown;
 ```
 
-Defined in: [packages/ai/src/realtime/types.ts:126](https://github.com/TanStack/ai/blob/main/packages/ai/src/realtime/types.ts#L126)
+Defined in: [packages/ai/src/realtime/types.ts:135](https://github.com/TanStack/ai/blob/main/packages/ai/src/realtime/types.ts#L135)
 
 ***
 
@@ -65,4 +65,4 @@ Defined in: [packages/ai/src/realtime/types.ts:126](https://github.com/TanStack/
 type: "tool-call";
 ```
 
-Defined in: [packages/ai/src/realtime/types.ts:121](https://github.com/TanStack/ai/blob/main/packages/ai/src/realtime/types.ts#L121)
+Defined in: [packages/ai/src/realtime/types.ts:130](https://github.com/TanStack/ai/blob/main/packages/ai/src/realtime/types.ts#L130)

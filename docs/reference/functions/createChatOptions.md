@@ -7,7 +7,7 @@ title: createChatOptions
 function createChatOptions<TAdapter, TSchema, TStream, TTools, TInterrupts, TContext, TMiddleware>(options): Omit<Omit<TextActivityOptions<TAdapter, TSchema, TStream, InferredContext<TTools, TMiddleware>, readonly DefinedAgent<string, readonly SubagentTool[], SchemaInput | undefined, readonly InterruptDefinition<any, any, any, any, any>[], any, unknown, AgentProduces | undefined>[]>, "middleware" | "tools" | "context" | "interrupts">, "threadId"> & object & object & RuntimeContextOption<TTools, TMiddleware, TContext>;
 ```
 
-Defined in: [packages/ai/src/activities/chat/index.ts:845](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/index.ts#L845)
+Defined in: [packages/ai/src/activities/chat/index.ts:846](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/index.ts#L846)
 
 Create typed options for the chat() function without executing.
 This is useful for pre-defining configurations with full type inference.

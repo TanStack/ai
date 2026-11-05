@@ -12,12 +12,21 @@ Adapter interface for generating provider-specific tokens
 ### generateToken
 
 ```ts
-generateToken: () => Promise<RealtimeToken>;
+generateToken: (options?) => Promise<RealtimeToken>;
 ```
 
-Defined in: [packages/ai/src/realtime/types.ts:81](https://github.com/TanStack/ai/blob/main/packages/ai/src/realtime/types.ts#L81)
+Defined in: [packages/ai/src/realtime/types.ts:84](https://github.com/TanStack/ai/blob/main/packages/ai/src/realtime/types.ts#L84)
 
-Generate an ephemeral token for client use
+Generate an ephemeral token for client use. Adapters should forward
+`options.abortSignal` to the provider request when supported.
+
+#### Parameters
+
+##### options?
+
+###### abortSignal?
+
+`AbortSignal`
 
 #### Returns
 

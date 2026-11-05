@@ -3,7 +3,7 @@ id: TranscriptionOptions
 title: TranscriptionOptions
 ---
 
-Defined in: [packages/ai/src/types.ts:3188](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L3188)
+Defined in: [packages/ai/src/types.ts:3206](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L3206)
 
 ## Type Parameters
 
@@ -19,7 +19,7 @@ Defined in: [packages/ai/src/types.ts:3188](https://github.com/TanStack/ai/blob/
 optional abortSignal?: AbortSignal;
 ```
 
-Defined in: [packages/ai/src/types.ts:3214](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L3214)
+Defined in: [packages/ai/src/types.ts:3232](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L3232)
 
 Effective abort signal composed by the activity from caller `abortSignal`
 and/or `timeout`. Adapters should forward this to the provider SDK when
@@ -33,7 +33,7 @@ supported. Request-specific — never store on a global client config.
 audio: string | ArrayBuffer | File | Blob;
 ```
 
-Defined in: [packages/ai/src/types.ts:3194](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L3194)
+Defined in: [packages/ai/src/types.ts:3212](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L3212)
 
 The audio data to transcribe - can be base64 string, File, Blob, or Buffer
 
@@ -45,7 +45,7 @@ The audio data to transcribe - can be base64 string, File, Blob, or Buffer
 optional language?: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:3196](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L3196)
+Defined in: [packages/ai/src/types.ts:3214](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L3214)
 
 The language of the audio in ISO-639-1 format (e.g., 'en')
 
@@ -57,7 +57,7 @@ The language of the audio in ISO-639-1 format (e.g., 'en')
 logger: InternalLogger;
 ```
 
-Defined in: [packages/ai/src/types.ts:3208](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L3208)
+Defined in: [packages/ai/src/types.ts:3226](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L3226)
 
 Internal logger threaded from the generateTranscription() entry point.
 Adapters must call logger.request() before the SDK call and logger.errors()
@@ -71,7 +71,7 @@ in catch blocks.
 model: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:3192](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L3192)
+Defined in: [packages/ai/src/types.ts:3210](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L3210)
 
 The model to use for transcription
 
@@ -83,7 +83,7 @@ The model to use for transcription
 optional modelOptions?: TProviderOptions;
 ```
 
-Defined in: [packages/ai/src/types.ts:3202](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L3202)
+Defined in: [packages/ai/src/types.ts:3220](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L3220)
 
 Model-specific options for transcription
 
@@ -95,7 +95,7 @@ Model-specific options for transcription
 optional prompt?: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:3198](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L3198)
+Defined in: [packages/ai/src/types.ts:3216](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L3216)
 
 An optional prompt to guide the transcription
 
@@ -107,6 +107,6 @@ An optional prompt to guide the transcription
 optional responseFormat?: TranscriptionResponseFormat;
 ```
 
-Defined in: [packages/ai/src/types.ts:3200](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L3200)
+Defined in: [packages/ai/src/types.ts:3218](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L3218)
 
 The format of the transcription output

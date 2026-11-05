@@ -3,7 +3,7 @@ id: CodeModeSnippetErrorEvent
 title: CodeModeSnippetErrorEvent
 ---
 
-Defined in: [packages/ai/src/types.ts:1930](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1930)
+Defined in: [packages/ai/src/types.ts:1945](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1945)
 
 Custom event for extensibility.
 
@@ -37,7 +37,7 @@ Extra information attached to this event.
 name: "code_mode:snippet_error";
 ```
 
-Defined in: [packages/ai/src/types.ts:1931](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1931)
+Defined in: [packages/ai/src/types.ts:1946](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1946)
 
 What this custom event is. Required: without it a consumer cannot route
 the value.
@@ -70,7 +70,7 @@ Defined in: [packages/ai/src/types.ts:1813](https://github.com/TanStack/ai/blob/
 value: object;
 ```
 
-Defined in: [packages/ai/src/types.ts:1932](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1932)
+Defined in: [packages/ai/src/types.ts:1947](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1947)
 
 The payload. Any JSON value, and required.
 
