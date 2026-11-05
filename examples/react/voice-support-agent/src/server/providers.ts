@@ -6,7 +6,11 @@ import {
   geminiLiveTranscription,
 } from '@tanstack/ai-gemini'
 import { geminiByok } from '@tanstack/ai-gemini/byok'
-import { createGrokText, grokLiveTranscription } from '@tanstack/ai-grok'
+import {
+  createGrokSpeech,
+  createGrokText,
+  grokLiveTranscription,
+} from '@tanstack/ai-grok'
 import { grokByok } from '@tanstack/ai-grok/byok'
 import {
   createOpenaiChat,
@@ -163,6 +167,22 @@ export const SPEAK = {
       })
       // Gemini returns 24 kHz PCM wrapped as WAV. Drop the header.
       return stripWav(Buffer.from(result.audio, 'base64'))
+    },
+  },
+  grok: {
+    byok: grokByok,
+    make: (apiKey) => async (text, character, threadId, abortSignal) => {
+      // Grok has no speed or style field. The persona carries the character.
+      const result = await generateSpeech({
+        adapter: createGrokSpeech('grok-tts', apiKey),
+        text,
+        voice: character.voice.grok,
+        format: 'pcm',
+        modelOptions: { sample_rate: 24000 },
+        threadId,
+        abortSignal,
+      })
+      return Buffer.from(result.audio, 'base64')
     },
   },
 } satisfies Record<Choice['speak'], Keyed<Speak>>

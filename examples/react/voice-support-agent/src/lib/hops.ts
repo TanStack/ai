@@ -17,6 +17,7 @@ export const HOPS = {
   speak: {
     openai: 'OpenAI gpt-4o-mini-tts',
     gemini: 'Gemini 3.1 Flash TTS',
+    grok: 'Grok TTS',
   },
 } as const
 

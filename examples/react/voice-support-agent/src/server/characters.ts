@@ -1,15 +1,17 @@
 import type { GeminiTTSVoice } from '@tanstack/ai-gemini'
+import type { GrokTTSVoice } from '@tanstack/ai-grok'
 import type { OpenAITTSVoice } from '@tanstack/ai-openai'
 
 /**
  * A character is a persona for the chat model plus a voice for the TTS model.
  * `persona` is one more system prompt. `instructions` steers delivery:
- * OpenAI takes it on gpt-4o-mini-tts, Gemini as `systemInstruction`.
+ * OpenAI takes it on gpt-4o-mini-tts, Gemini as `systemInstruction`. Grok
+ * has no style field, so there the character lives in the words alone.
  */
 export type Character = {
   label: string
   persona: string
-  voice: { openai: OpenAITTSVoice; gemini: GeminiTTSVoice }
+  voice: { openai: OpenAITTSVoice; gemini: GeminiTTSVoice; grok: GrokTTSVoice }
   speed: number
   instructions: string
 }
@@ -21,7 +23,7 @@ export const CHARACTERS = {
     label: 'Helpful',
     persona:
       'Friendly and quick. Lightly funny, never sarcastic at the caller.',
-    voice: { openai: 'ash', gemini: 'Puck' },
+    voice: { openai: 'ash', gemini: 'Puck', grok: 'leo' },
     speed: 1.15,
     instructions:
       'Upbeat, quick, and lightly funny. A friendly support rep who enjoys the job.',
@@ -30,7 +32,7 @@ export const CHARACTERS = {
     label: 'Could not care less',
     persona:
       'You are bored and make no effort to hide it. Correct answers, as few words as you can get away with. Vary the tell: a trailing sentence here, a mention of your lunch break there, sometimes nothing at all. Do not use the same tell twice in a row.',
-    voice: { openai: 'onyx', gemini: 'Charon' },
+    voice: { openai: 'onyx', gemini: 'Charon', grok: 'rex' },
     speed: 0.9,
     instructions:
       'Flat, slow, and bored. Long pauses. The odd sigh. Sentences that lose interest in themselves.',
@@ -39,7 +41,7 @@ export const CHARACTERS = {
     label: 'Way too perky',
     persona:
       'You are exhaustingly enthusiastic. Everything is exciting and the caller is wonderful. Show it a different way each turn: an exclamation, a compliment, a wild tangent, a little cheer. Never repeat a compliment or a catchphrase you have already used on this call.',
-    voice: { openai: 'shimmer', gemini: 'Zephyr' },
+    voice: { openai: 'shimmer', gemini: 'Zephyr', grok: 'eve' },
     speed: 1.3,
     instructions:
       'Extremely perky and bubbly. Fast, bright, breathless, like a game show host on their third coffee. Every sentence goes up at the end.',
@@ -48,7 +50,7 @@ export const CHARACTERS = {
     label: 'About to lose it',
     persona:
       'You are one bad call away from a nervous breakdown. You answer correctly, but you keep nearly cracking. Pick one crack per answer and make it a new one each time: a half-finished apology, the ticket queue, how long since you slept, a deep breath. Pull yourself together at the end.',
-    voice: { openai: 'ballad', gemini: 'Fenrir' },
+    voice: { openai: 'ballad', gemini: 'Fenrir', grok: 'sal' },
     speed: 1.2,
     instructions:
       'Frazzled and barely holding it together. Shaky, rushed, voice cracking, with sudden forced calm. Nervous laughs at the wrong moments.',
