@@ -199,6 +199,7 @@ The shared `ChatClient` processes the chunks that are ready in order. It does no
 - **An OpenAI or OpenRouter Responses stream ends without `response.completed`.** The adapter emits `RUN_ERROR` with code `incomplete-stream`. This applies to chat and to structured output. The text that arrived stays available. The run does not call `onFinish`.
 - **A Chat Completions stream ends without a finish.** See below.
 - **An Anthropic stream ends before a stop reason.** No `message_delta` with `stop_reason` and no `message_stop` arrived. The adapter emits `RUN_ERROR` with code `incomplete-stream`. The text that arrived stays available. The run does not call `onFinish`.
+- **A Gemini chat stream ends without a `finishReason`.** The adapter closes the open text and reasoning, then emits `RUN_ERROR` with code `truncated-stream`. Structured output already did this. The text that arrived stays available. The run does not call `onFinish`.
 
 Chat Completions adapters built on `@tanstack/openai-base` also make sure that the stream finished. A started stream needs one of these:
 
