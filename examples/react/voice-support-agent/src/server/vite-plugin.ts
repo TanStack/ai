@@ -1,6 +1,6 @@
 import { WebSocketServer } from 'ws'
-import { handleCall } from './call'
-import { browserCarrier, twilioCarrier } from './carriers'
+import { handleCall } from './call.ts'
+import { browserCarrier, twilioCarrier } from './carriers.ts'
 import type { Plugin } from 'vite'
 
 /**

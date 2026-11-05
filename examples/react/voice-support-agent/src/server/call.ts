@@ -4,10 +4,10 @@ import {
   openaiSpeech,
   openaiText,
 } from '@tanstack/ai-openai'
-import { searchDocs } from './search-docs'
+import { searchDocs } from './search-docs.ts'
 import type { ModelMessage } from '@tanstack/ai'
 import type { WebSocket } from 'ws'
-import type { Carrier } from './carriers'
+import type { Carrier } from './carriers.ts'
 
 const SYSTEM_PROMPT = `You are the phone support agent for TanStack AI, a TypeScript AI SDK.
 You are on a voice call. The caller hears your words, they do not read them.
@@ -101,10 +101,16 @@ async function reply(
       format: 'pcm',
       threadId: callId,
       abortSignal: signal,
+    }).catch((error: unknown) => {
+      // A barge-in aborts every clip still in flight. That is not a failure.
+      if (signal.aborted) return undefined
+      throw error
     })
     delivery = delivery.then(async () => {
       const result = await audio
-      if (!signal.aborted) carrier.speak(Buffer.from(result.audio, 'base64'))
+      if (result && !signal.aborted) {
+        carrier.speak(Buffer.from(result.audio, 'base64'))
+      }
     })
   }
 

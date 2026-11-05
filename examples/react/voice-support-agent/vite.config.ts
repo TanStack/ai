@@ -4,7 +4,7 @@ import { defineConfig } from 'vite'
 import { tanstackStart } from '@tanstack/react-start/plugin/vite'
 import viteReact from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
-import { voiceServer } from './src/server/vite-plugin'
+import { voiceServer } from './src/server/vite-plugin.ts'
 
 // Server code reads process.env. Vite does not copy unprefixed .env keys
 // into the SSR process. Load them here. Already-set vars win.
