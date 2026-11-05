@@ -1,5 +1,18 @@
 # @tanstack/ai
 
+## 1.2.0
+
+### Minor Changes
+
+- [#2033](https://github.com/TanStack/ai/pull/2033) [`48cbc66`](https://github.com/TanStack/ai/commit/48cbc66d677896e75d242e9c52be67f7da259fd9) - `withSandbox` now sends a `sandbox.starting` CUSTOM event before it creates or resumes the sandbox. Then it sends `sandbox.created` or `sandbox.resumed`. Use these events to show a pending state in the client while the sandbox starts.
+
+  New in `@tanstack/ai`: `CUSTOM_EVENT.SANDBOX_STARTING`, the `SandboxStartingPayload` type, and the typed `SandboxStartingEvent`, `SandboxCreatedEvent`, and `SandboxResumedEvent` members of `KnownCustomEvent`.
+
+### Patch Changes
+
+- Updated dependencies [[`374fb69`](https://github.com/TanStack/ai/commit/374fb69a534de7e200421056acf3a677fd833bce)]:
+  - @tanstack/ai-utils@1.1.0
+
 ## 1.1.0
 
 ### Minor Changes

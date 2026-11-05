@@ -1,5 +1,20 @@
 # @tanstack/ai-cloudflare
 
+## 1.2.0
+
+### Minor Changes
+
+- [#1973](https://github.com/TanStack/ai/pull/1973) [`374fb69`](https://github.com/TanStack/ai/commit/374fb69a534de7e200421056acf3a677fd833bce) - `@cloudflare/workers-types` is now an optional peer dependency. If you use TypeScript, install it as a dev dependency, because the adapter types use its `Ai` binding and AI Gateway types. The adapter needs no extra package at runtime.
+
+### Patch Changes
+
+- [#2036](https://github.com/TanStack/ai/pull/2036) [`382cb80`](https://github.com/TanStack/ai/commit/382cb808f3bc51fe6dd44c84cb327549569b67ac) - `embed()` with more than 100 inputs no longer fails on Workers AI embedding models that accept 100 texts per request, such as the BGE models. The adapter now sends the inputs in sequential requests of at most 100 texts and returns the vectors in input order. An aborted signal stops the remaining requests. Models with a lower limit, such as `@cf/qwen/qwen3-embedding-0.6b`, can still reject large inputs.
+
+- Updated dependencies [[`48cbc66`](https://github.com/TanStack/ai/commit/48cbc66d677896e75d242e9c52be67f7da259fd9), [`374fb69`](https://github.com/TanStack/ai/commit/374fb69a534de7e200421056acf3a677fd833bce), [`374fb69`](https://github.com/TanStack/ai/commit/374fb69a534de7e200421056acf3a677fd833bce)]:
+  - @tanstack/ai@1.2.0
+  - @tanstack/ai-utils@1.1.0
+  - @tanstack/openai-base@1.0.2
+
 ## 1.1.0
 
 ### Minor Changes

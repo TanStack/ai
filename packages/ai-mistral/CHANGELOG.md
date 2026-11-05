@@ -1,5 +1,15 @@
 # @tanstack/ai-mistral
 
+## 1.1.1
+
+### Patch Changes
+
+- [#1973](https://github.com/TanStack/ai/pull/1973) [`374fb69`](https://github.com/TanStack/ai/commit/374fb69a534de7e200421056acf3a677fd833bce) - The adapters now call the provider HTTP API with `fetch` and do not create the `@mistralai/mistralai` client. At runtime they load only the SDK error classes. Bundles are smaller. A 422 response now throws the adapter's own `HTTPValidationError`, not the SDK class. It has the same `name`, `message`, and `detail` fields, and it is still an `instanceof MistralError`. If your code checks a 422 error with `instanceof` against the SDK `HTTPValidationError`, check `error.name` instead.
+
+- Updated dependencies [[`48cbc66`](https://github.com/TanStack/ai/commit/48cbc66d677896e75d242e9c52be67f7da259fd9), [`374fb69`](https://github.com/TanStack/ai/commit/374fb69a534de7e200421056acf3a677fd833bce)]:
+  - @tanstack/ai@1.2.0
+  - @tanstack/ai-utils@1.1.0
+
 ## 1.1.0
 
 ### Minor Changes

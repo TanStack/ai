@@ -1,5 +1,25 @@
 # @tanstack/ai-sandbox
 
+## 1.2.0
+
+### Minor Changes
+
+- [#2033](https://github.com/TanStack/ai/pull/2033) [`48cbc66`](https://github.com/TanStack/ai/commit/48cbc66d677896e75d242e9c52be67f7da259fd9) - `withSandbox` now sends a `sandbox.starting` CUSTOM event before it creates or resumes the sandbox. Then it sends `sandbox.created` or `sandbox.resumed`. Use these events to show a pending state in the client while the sandbox starts.
+
+  New in `@tanstack/ai`: `CUSTOM_EVENT.SANDBOX_STARTING`, the `SandboxStartingPayload` type, and the typed `SandboxStartingEvent`, `SandboxCreatedEvent`, and `SandboxResumedEvent` members of `KnownCustomEvent`.
+
+### Patch Changes
+
+- [#2039](https://github.com/TanStack/ai/pull/2039) [`c86063a`](https://github.com/TanStack/ai/commit/c86063a09fd81dc069e9eb597086f0b4f42c142c) - `withSandbox` no longer fails the first `chat()` call with `declares it provides "sandbox-projection" but never called provide() in setup()` when the sandbox definition has no `workspace`. `sandbox-projection` is listed in `provides` only when a workspace is declared, which is when `setup` calls `provide()`. A sandbox with a workspace still satisfies `requires: [ProjectionCapability]`.
+
+- [#1973](https://github.com/TanStack/ai/pull/1973) [`374fb69`](https://github.com/TanStack/ai/commit/374fb69a534de7e200421056acf3a677fd833bce) - The host tool bridge now uses the MCP v2 server package `@modelcontextprotocol/server`. The bridge works the same way. The package is marked `"sideEffects": false`, so bundlers can drop the modules that you do not import.
+
+- Updated dependencies [[`48cbc66`](https://github.com/TanStack/ai/commit/48cbc66d677896e75d242e9c52be67f7da259fd9), [`374fb69`](https://github.com/TanStack/ai/commit/374fb69a534de7e200421056acf3a677fd833bce)]:
+  - @tanstack/ai@1.2.0
+  - @tanstack/ai-utils@1.1.0
+  - @tanstack/ai-harness@0.2.0
+  - @tanstack/ai-persistence@1.0.1
+
 ## 1.1.0
 
 ### Minor Changes
