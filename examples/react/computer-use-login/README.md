@@ -50,7 +50,7 @@ The live view needs a password. The container makes a new one at each start, and
 - `src/routes/api.login.ts`: the route that takes the username and password.
 - `src/routes/api.live.ts`: the route that gives the address of the live view.
 - `src/routes/index.tsx`: the chat, the cards, and the live view.
-- `sandbox/`: the desktop image. `desktop.sh` starts the screen, the live view, and Chromium. `browser.sh` stops and starts Chromium for a snapshot. `login.py` fills the form.
+- `sandbox/`: the desktop image. `desktop.sh` starts the screen, the live view, and Chromium. `browser.sh` stops and starts Chromium for a snapshot. `login.py` fills the form. `view.html` is the live view, with no noVNC controls.
 
 ## Run it on a server
 

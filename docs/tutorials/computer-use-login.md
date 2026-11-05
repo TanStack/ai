@@ -557,7 +557,14 @@ The model opens the practice page and calls `requestLogin`. Type `tomsmith` and 
 
 Show the desktop live at the end of the chat, in place of the screenshots. When the model is stuck, it calls a `handOff` tool, and the user uses the desktop until they click Done.
 
-1. Add the live view to `sandbox/Dockerfile`. Put `x11vnc novnc python3-websockify` after `ca-certificates` in the `apt-get install` line.
+1. Add the live view to `sandbox/Dockerfile`. Put `x11vnc novnc python3-websockify` after `ca-certificates` in the `apt-get install` line. Then copy a viewer page that shows only the screen, with no noVNC controls. Get [`view.html`](https://github.com/TanStack/ai/blob/main/examples/react/computer-use-login/sandbox/view.html) from the example:
+
+
+   ```dockerfile
+
+   COPY view.html /usr/share/novnc/view.html
+
+   ```
 
 2. Start it in `sandbox/desktop.sh`, after the `until` line. Each start makes a new VNC password:
 
@@ -592,13 +599,8 @@ Show the desktop live at the end of the chat, in place of the screenshots. When 
      if (password.exitCode !== 0) {
        throw new Error(`No live view password: ${password.stderr.trim()}`)
      }
-     const params = new URLSearchParams({
-       autoconnect: '1',
-       reconnect: '1',
-       resize: 'scale',
-       password: password.stdout.trim(),
-     })
-     return `${url}/vnc.html?${params}`
+     const params = new URLSearchParams({ password: password.stdout.trim() })
+     return `${url}/view.html?${params}`
    }
    ```
 

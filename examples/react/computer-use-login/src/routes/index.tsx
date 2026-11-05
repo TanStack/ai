@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
 import { fetchServerSentEvents, useChat } from '@tanstack/ai-react'
+import { TextPart } from '@tanstack/ai-react/ui'
 import { z } from 'zod'
 import { handOffTool } from '@/hand-off'
 import { requestLoginTool } from '@/request-login'
@@ -82,11 +83,19 @@ function Messages({
                 : 'bg-transparent'
             }`}
           >
-            {texts.map((text, index) => (
-              <div key={index} className="whitespace-pre-wrap text-white">
-                {text}
-              </div>
-            ))}
+            {texts.map((text, index) =>
+              message.role === 'assistant' ? (
+                <TextPart
+                  key={index}
+                  content={text}
+                  className="chat-markdown text-white"
+                />
+              ) : (
+                <div key={index} className="whitespace-pre-wrap text-white">
+                  {text}
+                </div>
+              ),
+            )}
           </div>
         )
       })}
@@ -431,8 +440,8 @@ function ChatPage() {
                   }
                 }}
                 placeholder="Tell the model what to do on the desktop..."
-                className="w-full resize-none rounded-lg border border-orange-500/20 bg-gray-800/50 px-4 py-3 text-sm text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-orange-500/50"
-                rows={3}
+                className="field-sizing-content max-h-48 w-full resize-none rounded-lg border border-orange-500/20 bg-gray-800/50 px-4 py-3 text-sm text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-orange-500/50"
+                rows={1}
                 disabled={isLoading}
               />
               <button

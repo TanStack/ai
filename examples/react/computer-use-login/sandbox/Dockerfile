@@ -14,5 +14,6 @@ RUN printf 'Acquire::Retries "10";\nAcquire::ForceIPv4 "true";\n' > /etc/apt/apt
 # a password: no password manager, and no `javascript:` URLs.
 # (A DevTools policy would also close the debugging port that login.py uses.)
 COPY policy.json /etc/chromium/policies/managed/policy.json
+COPY view.html /usr/share/novnc/view.html
 COPY desktop.sh browser.sh login.py /opt/desktop/
 RUN chmod +x /opt/desktop/desktop.sh /opt/desktop/browser.sh

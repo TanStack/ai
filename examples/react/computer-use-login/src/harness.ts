@@ -84,13 +84,9 @@ export async function liveViewUrl(threadId: string) {
   if (password.exitCode !== 0) {
     throw new Error(`No live view password: ${password.stderr.trim()}`)
   }
-  const params = new URLSearchParams({
-    autoconnect: '1',
-    reconnect: '1',
-    resize: 'scale',
-    password: password.stdout.trim(),
-  })
-  return `${url}/vnc.html?${params}`
+  // `sandbox/view.html`: only the screen, with no noVNC controls.
+  const params = new URLSearchParams({ password: password.stdout.trim() })
+  return `${url}/view.html?${params}`
 }
 
 // The Chromium profile of each thread, saved after a sign-in and when the
