@@ -13,7 +13,8 @@
  * so the assertions pin production code, not a sketch of the hook bodies.
  */
 import { describe, expect, it } from 'vitest'
-import { EventType } from '@tanstack/ai'
+import { EventType, chat } from '@tanstack/ai'
+import { memoryPersistence, withPersistence } from '@tanstack/ai-persistence'
 import { defineSandbox } from '../src/sandbox'
 import { withSandbox } from '../src/middleware'
 // Through the PUBLIC entry point, because that is how an app reaches it.
@@ -21,6 +22,8 @@ import { isSandboxToolCall } from '../src/index'
 import { InMemorySandboxInstanceStore } from '../src/instance-store'
 import { FULL_CAPS, makeFakeHandle, makeMiddlewareCtx } from './fakes'
 import type {
+  AnyTextAdapter,
+  ChatMiddleware,
   ChatMiddlewareConfig,
   ChatMiddlewareContext,
   FinishInfo,
@@ -294,9 +297,33 @@ describe('withSandbox: recorded history is kept out of the model request', () =>
 
     const patch = await h.mw.onConfig?.(h.ctx, configOf(stored))
 
-    expect(patch?.messages).toEqual([{ role: 'user', content: 'Triage this' }])
+    expect(patch?.providerMessages).toEqual([
+      { role: 'user', content: 'Triage this' },
+    ])
+    // `messages` is the engine's transcript. Patching it would drop the pairs from
+    // what persistence saves.
+    expect(patch).not.toHaveProperty('messages')
     // The transcript itself keeps them — that is what gets stored and rendered.
     expect(pairOf(h.ctx.messages, 't1').call).toBeDefined()
+  })
+
+  it('strips from the provider messages an earlier middleware set', async () => {
+    const h = await harness()
+    await h.chunk(start('t1', 'bash'))
+    await h.chunk(end('t1'))
+    await h.chunk(result('t1', 'ok'))
+    const pairs = h.ctx.messages.filter(
+      (m) => m.toolCalls?.length || m.role === 'tool',
+    )
+    // For example a compaction summary in place of the full history.
+    const summary: ModelMessage = { role: 'user', content: 'Summary so far' }
+
+    const patch = await h.mw.onConfig?.(h.ctx, {
+      ...configOf([{ role: 'user', content: 'Triage this' }, ...pairs]),
+      providerMessages: [summary, ...pairs],
+    })
+
+    expect(patch?.providerMessages).toEqual([summary])
   })
 
   it('leaves a normal transcript alone', async () => {
@@ -349,4 +376,102 @@ describe('withSandbox: recorded history is kept out of the model request', () =>
     // Dropping it would lose the engine's half, which the provider needs.
     expect(patch).toBeUndefined()
   })
+})
+
+describe('withSandbox + withPersistence: tool history across runs', () => {
+  /** A harness run: one passthrough tool call with its result, then the answer. */
+  function harnessAdapter(seen: Array<ReadonlyArray<ModelMessage>>) {
+    return {
+      kind: 'text',
+      name: 'fixed',
+      model: 'test-model',
+      '~types': {},
+      chatStream: (options: {
+        runId: string
+        threadId: string
+        messages: ReadonlyArray<ModelMessage>
+      }) => {
+        seen.push(options.messages)
+        const base = {
+          threadId: options.threadId,
+          runId: options.runId,
+          timestamp: 1,
+        }
+        const id = `call-${options.runId}`
+        return (async function* () {
+          yield { type: EventType.RUN_STARTED, ...base }
+          yield { ...start(id, 'bash'), ...base }
+          yield { ...args(id, '{"cmd":"ls"}'), ...base }
+          yield { ...end(id), ...base }
+          yield { ...result(id, `out-${options.runId}`), ...base }
+          yield {
+            type: EventType.TEXT_MESSAGE_START,
+            messageId: `text-${options.runId}`,
+            role: 'assistant',
+            ...base,
+          }
+          yield {
+            type: EventType.TEXT_MESSAGE_CONTENT,
+            messageId: `text-${options.runId}`,
+            delta: `answer ${options.runId}`,
+            ...base,
+          }
+          yield {
+            type: EventType.TEXT_MESSAGE_END,
+            messageId: `text-${options.runId}`,
+            ...base,
+          }
+          yield { type: EventType.RUN_FINISHED, finishReason: 'stop', ...base }
+        })()
+      },
+      structuredOutput: () => Promise.resolve({ data: {}, rawText: '{}' }),
+    } as unknown as AnyTextAdapter
+  }
+
+  it.each(['persistence first', 'sandbox first'])(
+    'a later run keeps the tool calls of earlier runs (%s)',
+    async (order) => {
+      const persistence = memoryPersistence()
+      const sandbox = withSandbox(
+        defineSandbox({
+          id: 's',
+          provider: fakeProvider(),
+          lifecycle: { snapshot: 'none' },
+          fileEvents: false,
+        }),
+        { instances: new InMemorySandboxInstanceStore() },
+      )
+      const middleware: Array<ChatMiddleware> =
+        order === 'persistence first'
+          ? [withPersistence(persistence), sandbox]
+          : [sandbox, withPersistence(persistence)]
+      const seen: Array<ReadonlyArray<ModelMessage>> = []
+
+      for (const [runId, prompt] of [
+        ['run-1', 'first'],
+        ['run-2', 'second'],
+      ] as const) {
+        const stream = chat({
+          adapter: harnessAdapter(seen),
+          messages: [{ role: 'user', content: prompt }],
+          threadId: 'thread-1',
+          runId,
+          middleware,
+        })
+        for await (const _ of stream) void _
+      }
+
+      const messages = await persistence.stores.messages.loadThread('thread-1')
+      // Run 2's save must still hold run 1's tool card, not only its own.
+      expect(pairOf(messages, 'call-run-1').call).toBeDefined()
+      expect(pairOf(messages, 'call-run-1').output?.content).toBe('out-run-1')
+      expect(pairOf(messages, 'call-run-2').call).toBeDefined()
+      // The model still never sees the recorded calls.
+      const sentToModel = seen.flat()
+      expect(
+        sentToModel.some((m) => m.toolCalls?.some(isSandboxToolCall)),
+      ).toBe(false)
+      expect(sentToModel.some((m) => m.role === 'tool')).toBe(false)
+    },
+  )
 })

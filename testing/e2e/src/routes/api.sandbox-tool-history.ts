@@ -110,6 +110,7 @@ function harnessRun(
   runId: string,
 ): AsyncIterable<StreamChunk> {
   const base = { threadId, runId, timestamp: 1 }
+  const toolCallId = `call-${runId}`
   return (async function* () {
     yield { type: EventType.RUN_STARTED, ...base }
     yield {
@@ -127,21 +128,21 @@ function harnessRun(
     yield { type: EventType.TEXT_MESSAGE_END, messageId: 'm1', ...base }
     yield {
       type: EventType.TOOL_CALL_START,
-      toolCallId: 'call-1',
+      toolCallId,
       toolCallName: 'bash',
       ...base,
     }
     yield {
       type: EventType.TOOL_CALL_ARGS,
-      toolCallId: 'call-1',
+      toolCallId,
       delta: '{"cmd":"ls packages"}',
       ...base,
     }
-    yield { type: EventType.TOOL_CALL_END, toolCallId: 'call-1', ...base }
+    yield { type: EventType.TOOL_CALL_END, toolCallId, ...base }
     yield {
       type: EventType.TOOL_CALL_RESULT,
       messageId: 'tr-1',
-      toolCallId: 'call-1',
+      toolCallId,
       content: 'ai\nai-client\nai-sandbox',
       ...base,
     }
@@ -190,10 +191,11 @@ export const Route = createFileRoute('/api/sandbox-tool-history')({
         const body: unknown = await request.json()
         const threadId = stringField(body, 'threadId') ?? 'tool-history-thread'
         const runId = stringField(body, 'runId') ?? crypto.randomUUID()
+        const prompt = stringField(body, 'prompt') ?? 'Triage this'
 
         const stream = chat({
           adapter,
-          messages: [{ role: 'user', content: 'Triage this' }],
+          messages: [{ role: 'user', content: prompt }],
           runId,
           threadId,
           middleware: [

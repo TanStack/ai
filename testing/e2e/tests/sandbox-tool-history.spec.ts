@@ -75,4 +75,32 @@ test.describe('sandbox tool history survives a reload', () => {
       .join(' ')
     expect(text).toContain('TOOL_HISTORY_OK')
   })
+
+  test("a second run on the thread keeps the first run's tool card", async ({
+    request,
+  }) => {
+    const threadId = `tool-history-two-runs-${Date.now()}`
+    for (const [runId, prompt] of [
+      [`run-a-${Date.now()}`, 'Triage this'],
+      [`run-b-${Date.now()}`, 'And once more'],
+    ]) {
+      const run = await request.post('/api/sandbox-tool-history', {
+        data: { threadId, runId, prompt },
+      })
+      expect(run.ok()).toBe(true)
+    }
+
+    const hydrate = await request.get(
+      `/api/sandbox-tool-history?threadId=${threadId}`,
+    )
+    expect(hydrate.ok()).toBe(true)
+    const body = (await hydrate.json()) as Hydration
+
+    // Run 2's save used to drop run 1's call, so only one card came back.
+    const calls = body.messages
+      .flatMap((message) => message.parts)
+      .filter((part) => part.type === 'tool-call')
+    expect(calls).toHaveLength(2)
+    for (const call of calls) expect(call.state).toBe('complete')
+  })
 })
