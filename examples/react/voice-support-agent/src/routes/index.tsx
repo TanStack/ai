@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
-import { Phone, PhoneOff } from 'lucide-react'
+import { ChevronDown, Phone, PhoneOff } from 'lucide-react'
 import { CHARACTERS, isCharacterName } from '../server/characters.ts'
 import type { CharacterName } from '../server/characters.ts'
 
@@ -193,23 +193,29 @@ function CallPage() {
       ) : null}
 
       <div className="flex items-center justify-center gap-4 border-t border-orange-500/10 p-4">
-        <select
-          aria-label="Agent character"
-          value={character}
-          disabled={inCall}
-          onChange={(event) => {
-            if (isCharacterName(event.target.value)) {
-              setCharacter(event.target.value)
-            }
-          }}
-          className="rounded-lg border border-gray-700 bg-gray-800 px-3 py-2 text-sm disabled:opacity-50"
-        >
-          {Object.entries(CHARACTERS).map(([name, { label }]) => (
-            <option key={name} value={name}>
-              {label}
-            </option>
-          ))}
-        </select>
+        <div className="relative">
+          <select
+            aria-label="Agent character"
+            value={character}
+            disabled={inCall}
+            onChange={(event) => {
+              if (isCharacterName(event.target.value)) {
+                setCharacter(event.target.value)
+              }
+            }}
+            className="h-12 w-56 appearance-none rounded-lg border border-gray-700 bg-gray-800 pl-4 pr-10 text-white focus:border-orange-500 focus:outline-none disabled:opacity-50"
+          >
+            {Object.entries(CHARACTERS).map(([name, { label }]) => (
+              <option key={name} value={name}>
+                {label}
+              </option>
+            ))}
+          </select>
+          <ChevronDown
+            size={18}
+            className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-gray-400"
+          />
+        </div>
         <button
           type="button"
           onClick={() => void toggleCall()}
