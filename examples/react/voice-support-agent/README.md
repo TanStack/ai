@@ -2,12 +2,14 @@
 
 A phone support agent for TanStack AI. Talk into your microphone, and the agent answers from the docs. Point a Twilio number at it to take real calls.
 
+Each hop of the call, listen, think, and speak, runs on OpenAI, Gemini, or Grok. Pick a provider per hop on the page and paste your own keys, or put keys in `.env.local`.
+
 ## Run it
 
 1. From the repo root, run `pnpm install`, then `pnpm build`.
-2. Copy `.env.example` to `.env.local` and set `OPENAI_API_KEY`.
+2. Copy `.env.example` to `.env.local` and set a key, or paste keys into the page later.
 3. Run `pnpm --filter voice-support-agent dev`.
-4. Open http://localhost:3100, pick a character, and click the green handset.
+4. Open http://localhost:3100, pick a character and providers, and click the green handset.
 5. Ask "How do I add a server tool?" and pause.
 
 The agent speaks after about one second. Talk over it to interrupt.
@@ -22,7 +24,7 @@ Characters live in `src/server/characters.ts`: helpful, bored, way too perky, an
 ```xml
 <Response>
   <Connect>
-    <Stream url="wss://YOUR-NGROK-HOST/twilio?character=bored" />
+    <Stream url="wss://YOUR-NGROK-HOST/twilio?character=bored&amp;speak=gemini" />
   </Connect>
 </Response>
 ```
@@ -32,7 +34,10 @@ Characters live in `src/server/characters.ts`: helpful, bored, way too perky, an
 ## Files
 
 - `src/routes/index.tsx`: the softphone page. Microphone in, audio out, captions.
+- `src/lib/hops.ts`: the providers offered per hop.
+- `src/lib/byok.ts`: the browser keyring.
 - `src/server/characters.ts`: the personas and voices.
+- `src/server/providers.ts`: builds the adapters and reads keys.
 - `src/server/call.ts`: one call. Transcribe, answer with `chat()`, speak each sentence.
 - `src/server/search-docs.ts`: the tool that reads the TanStack AI docs.
 - `src/server/carriers.ts`: audio framing for the browser and for Twilio.

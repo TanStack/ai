@@ -1,14 +1,8 @@
-import { chat, generateSpeech, transcriptionSession } from '@tanstack/ai'
-import {
-  openaiLiveTranscription,
-  openaiSpeech,
-  openaiText,
-} from '@tanstack/ai-openai'
 import { searchDocs } from './search-docs.ts'
-import type { Character } from './characters.ts'
 import type { ModelMessage } from '@tanstack/ai'
 import type { WebSocket } from 'ws'
 import type { Carrier } from './carriers.ts'
+import type { CallSetup } from './providers.ts'
 
 const SYSTEM_PROMPT = `You are the phone support agent for TanStack AI, a TypeScript AI SDK.
 You are on a voice call. The caller hears your words, they do not read them.
@@ -30,7 +24,7 @@ You are on a voice call. The caller hears your words, they do not read them.
 export async function handleCall(
   ws: WebSocket,
   carrier: Carrier,
-  character: Character,
+  setup: CallSetup,
 ) {
   const callId = crypto.randomUUID()
   const messages: Array<ModelMessage> = []
@@ -47,18 +41,7 @@ export async function handleCall(
   const hungUp = new AbortController()
   ws.on('close', () => hungUp.abort())
 
-  const session = await transcriptionSession({
-    adapter: openaiLiveTranscription('gpt-transcribe'),
-    audio: carrier.audio,
-    // Pin the language. Without it the provider guesses per utterance, and a
-    // short word like "yes" can come back in the wrong language.
-    language: 'en',
-    modelOptions: {
-      prompt:
-        'A support call about TanStack AI, a TypeScript SDK. Expect words like TanStack, useChat, toolDefinition, adapter, Zod, OpenAI, Anthropic, Gemini.',
-    },
-    abortSignal: hungUp.signal,
-  })
+  const session = await setup.listen(carrier.audio, hungUp.signal)
   send = (audio) => session.send(audio)
   for (const chunk of early) session.send(chunk)
   ws.on('close', () => void session.close())
@@ -85,7 +68,7 @@ export async function handleCall(
         carrier.caption('caller', question, true)
         messages.push({ role: 'user', content: question })
         replying = new AbortController()
-        void reply(callId, messages, carrier, character, replying)
+        void reply(callId, messages, carrier, setup, replying)
         break
       }
       case 'error':
@@ -99,7 +82,7 @@ async function reply(
   callId: string,
   messages: Array<ModelMessage>,
   carrier: Carrier,
-  character: Character,
+  setup: CallSetup,
   abortController: AbortController,
 ) {
   const { signal } = abortController
@@ -108,32 +91,22 @@ async function reply(
   // Start text-to-speech for each sentence at once. Deliver them in order.
   let delivery = Promise.resolve()
   const say = (sentence: string) => {
-    const audio = generateSpeech({
-      adapter: openaiSpeech('gpt-4o-mini-tts'),
-      text: sentence,
-      voice: character.voice,
-      speed: character.speed,
-      modelOptions: { instructions: character.instructions },
-      format: 'pcm',
-      threadId: callId,
-      abortSignal: signal,
-    }).catch((error: unknown) => {
-      // A barge-in aborts every clip still in flight. That is not a failure.
-      if (signal.aborted) return undefined
-      throw error
-    })
+    const audio = setup
+      .speak(sentence, setup.character, callId, signal)
+      .catch((error: unknown) => {
+        // A barge-in aborts every clip still in flight. That is not a failure.
+        if (signal.aborted) return undefined
+        throw error
+      })
     delivery = delivery.then(async () => {
-      const result = await audio
-      if (result && !signal.aborted) {
-        carrier.speak(Buffer.from(result.audio, 'base64'))
-      }
+      const pcm = await audio
+      if (pcm && !signal.aborted) carrier.speak(pcm)
     })
   }
 
   try {
-    const stream = chat({
-      adapter: openaiText('gpt-6.1-terra'),
-      systemPrompts: [SYSTEM_PROMPT, character.persona],
+    const stream = setup.think({
+      systemPrompts: [SYSTEM_PROMPT, setup.character.persona],
       tools: [searchDocs],
       messages,
       threadId: callId,

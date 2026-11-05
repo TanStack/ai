@@ -1,7 +1,11 @@
 import { useRef, useState } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
 import { ChevronDown, Phone, PhoneOff } from 'lucide-react'
+import { useByok } from '@tanstack/ai-react'
+import { byok, KEYED_PROVIDERS } from '../lib/byok.ts'
+import { DEFAULT_CHOICE, HOPS } from '../lib/hops.ts'
 import { CHARACTERS, isCharacterName } from '../server/characters.ts'
+import type { Choice, Hop } from '../lib/hops.ts'
 import type { CharacterName } from '../server/characters.ts'
 
 type Caption = { role: 'caller' | 'agent'; text: string; final: boolean }
@@ -30,6 +34,7 @@ registerProcessor('pcm-sender', PcmSender)
 /** Open the socket, stream the mic up, play the agent's audio down. */
 async function startCall(
   character: CharacterName,
+  choice: Choice,
   onCaption: (caption: Caption) => void,
 ) {
   const context = new AudioContext({ sampleRate: 24000 })
@@ -42,14 +47,21 @@ async function startCall(
   await context.audioWorklet.addModule(workletUrl)
 
   const protocol = location.protocol === 'https:' ? 'wss' : 'ws'
-  const ws = new WebSocket(
-    `${protocol}://${location.host}/voice?character=${character}`,
-  )
+  const ws = new WebSocket(`${protocol}://${location.host}/voice`)
   ws.binaryType = 'arraybuffer'
   await new Promise<void>((resolve, reject) => {
     ws.onopen = () => resolve()
     ws.onerror = () => reject(new Error('Could not open the voice socket'))
   })
+  // The server reads the character, the provider per hop, and your keys from
+  // this frame. Keys never touch the URL.
+  ws.send(
+    JSON.stringify({
+      type: 'start',
+      choice: { character, ...choice },
+      headers: byok.headers(),
+    }),
+  )
 
   const sender = new AudioWorkletNode(context, 'pcm-sender')
   sender.port.onmessage = (event: MessageEvent<ArrayBuffer>) => {
@@ -117,6 +129,7 @@ function CallPage() {
   const [error, setError] = useState('')
   const [inCall, setInCall] = useState(false)
   const [character, setCharacter] = useState<CharacterName>('helpful')
+  const [choice, setChoice] = useState<Choice>(DEFAULT_CHOICE)
   const hangUp = useRef<(() => void) | null>(null)
 
   const onCaption = (caption: Caption) =>
@@ -140,7 +153,7 @@ function CallPage() {
     }
     try {
       setError('')
-      hangUp.current = await startCall(character, onCaption)
+      hangUp.current = await startCall(character, choice, onCaption)
       setInCall(true)
       setCaptions([
         {
@@ -192,43 +205,174 @@ function CallPage() {
         </div>
       ) : null}
 
-      <div className="flex items-center justify-center gap-4 border-t border-orange-500/10 p-4">
-        <div className="relative">
-          <select
-            aria-label="Agent character"
+      <div className="space-y-3 border-t border-orange-500/10 p-4">
+        <div className="flex flex-wrap items-center justify-center gap-3">
+          <Select
+            label="Agent character"
             value={character}
             disabled={inCall}
-            onChange={(event) => {
-              if (isCharacterName(event.target.value)) {
-                setCharacter(event.target.value)
-              }
+            options={Object.fromEntries(
+              Object.entries(CHARACTERS).map(([name, { label }]) => [
+                name,
+                label,
+              ]),
+            )}
+            onChange={(next) => {
+              if (isCharacterName(next)) setCharacter(next)
             }}
-            className="h-12 w-56 appearance-none rounded-lg border border-gray-700 bg-gray-800 pl-4 pr-10 text-white focus:border-orange-500 focus:outline-none disabled:opacity-50"
-          >
-            {Object.entries(CHARACTERS).map(([name, { label }]) => (
-              <option key={name} value={name}>
-                {label}
-              </option>
-            ))}
-          </select>
-          <ChevronDown
-            size={18}
-            className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-gray-400"
           />
+          {(Object.keys(HOPS) as Array<Hop>).map((hop) => (
+            <Select
+              key={hop}
+              label={HOP_LABEL[hop]}
+              value={choice[hop]}
+              disabled={inCall}
+              options={HOPS[hop]}
+              onChange={(next) => {
+                if (next in HOPS[hop]) {
+                  setChoice((current) => ({ ...current, [hop]: next }))
+                }
+              }}
+            />
+          ))}
+          <button
+            type="button"
+            onClick={() => void toggleCall()}
+            aria-label={inCall ? 'Hang up' : 'Start call'}
+            className={`flex h-12 w-12 items-center justify-center rounded-full text-white ${
+              inCall
+                ? 'bg-red-600 hover:bg-red-700'
+                : 'bg-green-600 hover:bg-green-700'
+            }`}
+          >
+            {inCall ? <PhoneOff size={24} /> : <Phone size={24} />}
+          </button>
         </div>
-        <button
-          type="button"
-          onClick={() => void toggleCall()}
-          aria-label={inCall ? 'Hang up' : 'Start call'}
-          className={`flex h-16 w-16 items-center justify-center rounded-full text-white ${
-            inCall
-              ? 'bg-red-600 hover:bg-red-700'
-              : 'bg-green-600 hover:bg-green-700'
-          }`}
-        >
-          {inCall ? <PhoneOff size={28} /> : <Phone size={28} />}
-        </button>
+        <KeyRow />
       </div>
+    </div>
+  )
+}
+
+const HOP_LABEL: Record<Hop, string> = {
+  listen: 'Listen with',
+  think: 'Think with',
+  speak: 'Speak with',
+}
+
+function Select({
+  label,
+  value,
+  options,
+  disabled,
+  onChange,
+}: {
+  label: string
+  value: string
+  options: Record<string, string>
+  disabled: boolean
+  onChange: (next: string) => void
+}) {
+  return (
+    <label className="flex flex-col gap-1 text-xs text-gray-400">
+      {label}
+      <span className="relative">
+        <select
+          value={value}
+          disabled={disabled}
+          onChange={(event) => onChange(event.target.value)}
+          className="h-10 w-44 appearance-none rounded-lg border border-gray-700 bg-gray-800 pl-3 pr-8 text-sm text-white focus:border-orange-500 focus:outline-none disabled:opacity-50"
+        >
+          {Object.entries(options).map(([name, text]) => (
+            <option key={name} value={name}>
+              {text}
+            </option>
+          ))}
+        </select>
+        <ChevronDown
+          size={16}
+          className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-gray-400"
+        />
+      </span>
+    </label>
+  )
+}
+
+/**
+ * One password field per provider. Keys stay in the browser and go to the
+ * server on the first frame of a call. A provider with a server-side env
+ * key works with the field left empty.
+ */
+function KeyRow() {
+  const snapshot = useByok(byok)
+  const [drafts, setDrafts] = useState<Record<string, string>>({})
+  const [error, setError] = useState('')
+  return (
+    <div className="flex flex-wrap items-end justify-center gap-3">
+      {KEYED_PROVIDERS.map((provider) => {
+        const status = snapshot.status[provider.id]
+        const masked = status && 'masked' in status ? status.masked : undefined
+        const draft = drafts[provider.id] ?? ''
+        return (
+          <form
+            key={provider.id}
+            className="flex items-end gap-1"
+            onSubmit={(event) => {
+              event.preventDefault()
+              if (!draft.trim()) return
+              setError('')
+              void byok
+                .update(provider.id, draft.trim())
+                .then(() => setDrafts((d) => ({ ...d, [provider.id]: '' })))
+                .catch((caught: unknown) =>
+                  setError(
+                    caught instanceof Error
+                      ? caught.message
+                      : 'Could not save key',
+                  ),
+                )
+            }}
+          >
+            <label className="flex flex-col gap-1 text-xs text-gray-400">
+              {provider.label} key
+              <input
+                type="password"
+                autoComplete="off"
+                spellCheck={false}
+                placeholder={masked ? `Saved ${masked}` : 'Paste key'}
+                value={draft}
+                onChange={(event) =>
+                  setDrafts((d) => ({
+                    ...d,
+                    [provider.id]: event.target.value,
+                  }))
+                }
+                className="h-10 w-44 rounded-lg border border-gray-700 bg-gray-800 px-3 text-sm text-white placeholder-gray-500 focus:border-orange-500 focus:outline-none"
+              />
+            </label>
+            {masked ? (
+              <button
+                type="button"
+                onClick={() => void byok.clear(provider.id)}
+                className="h-10 rounded-lg border border-gray-600 px-3 text-sm text-gray-200"
+              >
+                Clear
+              </button>
+            ) : (
+              <button
+                type="submit"
+                disabled={!draft.trim()}
+                className="h-10 rounded-lg bg-orange-500 px-3 text-sm font-medium text-white disabled:opacity-50"
+              >
+                Save
+              </button>
+            )}
+          </form>
+        )
+      })}
+      {error ? (
+        <p className="w-full text-center text-xs text-red-400">{error}</p>
+      ) : null}
     </div>
   )
 }

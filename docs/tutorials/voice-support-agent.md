@@ -17,7 +17,7 @@ keywords:
 
 This tutorial builds a support agent you talk to. You speak, the agent answers from the TanStack AI docs, and you hear the reply about one second later. At the end you point a Twilio number at it.
 
-One OpenAI key covers speech-to-text, the chat model, and text-to-speech. It takes about 25 minutes.
+Each hop of the call, listen, think, and speak, can run on OpenAI, Gemini, or Grok, and the caller can paste their own keys into the page. It takes about 30 minutes.
 
 This tutorial uses React and TanStack Start. The server half runs on Node. For the audio-in half alone, open [Live Transcription](../media/live-transcription).
 
@@ -41,10 +41,12 @@ react: @types/ws
 
 <!-- ::end:tabs -->
 
-Put your key in `.env.local`:
+Put a key in `.env.local`. Any key left out here can be pasted into the page instead:
 
 ```bash
 OPENAI_API_KEY=sk-...
+GEMINI_API_KEY=
+XAI_API_KEY=
 ```
 
 ## 2. Decide what runs where
@@ -193,25 +195,30 @@ For your own product, swap the two `fetch` calls for your help centre or a vecto
 
 ## 5. Run the call
 
-Create `src/server/characters.ts` first. A character is a persona for the chat model and a voice for the speech model. The persona is one more system prompt. The voice, speed, and `instructions` go to `generateSpeech()`. `instructions` is the OpenAI knob for tone and pace, and it only works on `gpt-4o-mini-tts`.
+Create `src/server/characters.ts` first. A character is a persona for the chat model and a voice for the speech model. The persona is one more system prompt. The voice, speed, and `instructions` go to `generateSpeech()`. OpenAI takes `instructions` on `gpt-4o-mini-tts`, and Gemini takes the same text as `systemInstruction`.
+
+Write a persona as a habit with a frequency. "Thank the caller every time" is a rule, and the model follows it every time, which sounds like a loop. "Show it a different way each turn" gives the same character without the echo.
 
 ```typescript ignore
+import type { GeminiTTSVoice } from '@tanstack/ai-gemini'
 import type { OpenAITTSVoice } from '@tanstack/ai-openai'
 
 export type Character = {
   label: string
   persona: string
-  voice: OpenAITTSVoice
+  voice: { openai: OpenAITTSVoice; gemini: GeminiTTSVoice }
   speed: number
   instructions: string
 }
 
+// Each persona names a habit and then says how often. A rule like "thank the
+// caller every time" is followed every time, and that reads as a loop.
 export const CHARACTERS = {
   helpful: {
     label: 'Helpful',
     persona:
       'Friendly and quick. Lightly funny, never sarcastic at the caller.',
-    voice: 'ash',
+    voice: { openai: 'ash', gemini: 'Puck' },
     speed: 1.15,
     instructions:
       'Upbeat, quick, and lightly funny. A friendly support rep who enjoys the job.',
@@ -219,17 +226,17 @@ export const CHARACTERS = {
   bored: {
     label: 'Could not care less',
     persona:
-      'You are deeply bored and make no effort to hide it. Sigh in words. Give correct answers in as few words as you can get away with. Trail off. Mention your lunch break.',
-    voice: 'onyx',
+      'You are bored and make no effort to hide it. Correct answers, as few words as you can get away with. Vary the tell: a trailing sentence here, a mention of your lunch break there, sometimes nothing at all. Do not use the same tell twice in a row.',
+    voice: { openai: 'onyx', gemini: 'Charon' },
     speed: 0.9,
     instructions:
-      'Flat, slow, and bored. Long pauses. Audible sighs. Every sentence trails off like it was not worth finishing.',
+      'Flat, slow, and bored. Long pauses. The odd sigh. Sentences that lose interest in themselves.',
   },
   perky: {
     label: 'Way too perky',
     persona:
-      'You are relentlessly, exhaustingly enthusiastic. Everything is amazing. Every question is the best question you have ever heard. Use exclamation marks. Thank the caller for existing.',
-    voice: 'shimmer',
+      'You are exhaustingly enthusiastic. Everything is exciting and the caller is wonderful. Show it a different way each turn: an exclamation, a compliment, a wild tangent, a little cheer. Never repeat a compliment or a catchphrase you have already used on this call.',
+    voice: { openai: 'shimmer', gemini: 'Zephyr' },
     speed: 1.3,
     instructions:
       'Extremely perky and bubbly. Fast, bright, breathless, like a game show host on their third coffee. Every sentence goes up at the end.',
@@ -237,8 +244,8 @@ export const CHARACTERS = {
   breakdown: {
     label: 'About to lose it',
     persona:
-      'You are one bad call away from a nervous breakdown. You answer correctly, but you keep nearly cracking: half-finished apologies, worries about the ticket queue, a mention of how long it has been since you slept. Pull yourself together at the end of each answer.',
-    voice: 'ballad',
+      'You are one bad call away from a nervous breakdown. You answer correctly, but you keep nearly cracking. Pick one crack per answer and make it a new one each time: a half-finished apology, the ticket queue, how long since you slept, a deep breath. Pull yourself together at the end.',
+    voice: { openai: 'ballad', gemini: 'Fenrir' },
     speed: 1.2,
     instructions:
       'Frazzled and barely holding it together. Shaky, rushed, voice cracking, with sudden forced calm. Nervous laughs at the wrong moments.',
@@ -254,20 +261,263 @@ export function isCharacterName(name: string): name is CharacterName {
 
 Keep `helpful` for real support. The other three are there to show how far a persona and a delivery note can push the same answer.
 
-Now create `src/server/call.ts`. This is the whole agent. Read it top to bottom once, then the notes below.
+Next, the providers. `src/lib/hops.ts` names the three hops and the providers offered for each. It holds labels only, so the page can import it.
+
+```typescript ignore
+/**
+ * The three hops of a call and the providers offered for each. Labels only,
+ * safe to import in the browser. `src/server/providers.ts` builds the real
+ * adapters for these names.
+ */
+export const HOPS = {
+  listen: {
+    openai: 'OpenAI gpt-transcribe',
+    gemini: 'Gemini transcribe live',
+    grok: 'Grok voice transcribe',
+  },
+  think: {
+    openai: 'OpenAI gpt-6.1-terra',
+    gemini: 'Gemini 3.8 Flash',
+    grok: 'Grok 4.7',
+  },
+  speak: {
+    openai: 'OpenAI gpt-4o-mini-tts',
+    gemini: 'Gemini 3.1 Flash TTS',
+  },
+} as const
+
+export type Hop = keyof typeof HOPS
+export type Choice = { [K in Hop]: keyof (typeof HOPS)[K] }
+
+export const DEFAULT_CHOICE: Choice = {
+  listen: 'openai',
+  think: 'openai',
+  speak: 'openai',
+}
+```
+
+`src/server/providers.ts` builds the real adapters. Each hop is a small closure, so the call loop never sees a provider type. `setupCall` turns the caller's choices and keys into one `CallSetup`. Keys come from `getByokKey`, which reads the `x-byok-<provider>` header first and the provider's env var second. That one rule covers both the page, which sends headers, and Twilio, which does not.
 
 ```typescript ignore
 import { chat, generateSpeech, transcriptionSession } from '@tanstack/ai'
+import { getByokKey } from '@tanstack/ai/byok/server'
 import {
+  createGeminiChat,
+  createGeminiSpeech,
+  geminiLiveTranscription,
+} from '@tanstack/ai-gemini'
+import { geminiByok } from '@tanstack/ai-gemini/byok'
+import { createGrokText, grokLiveTranscription } from '@tanstack/ai-grok'
+import { grokByok } from '@tanstack/ai-grok/byok'
+import {
+  createOpenaiChat,
+  createOpenaiSpeech,
   openaiLiveTranscription,
-  openaiSpeech,
-  openaiText,
 } from '@tanstack/ai-openai'
-import { searchDocs } from './search-docs.ts'
+import { openaiByok } from '@tanstack/ai-openai/byok'
+import { HOPS } from '../lib/hops.ts'
+import { CHARACTERS, isCharacterName } from './characters.ts'
 import type { Character } from './characters.ts'
+import type {
+  AnyTool,
+  LiveAudioFormat,
+  ModelMessage,
+  StreamChunk,
+  TranscriptionSession,
+} from '@tanstack/ai'
+import type { ByokProvider } from '@tanstack/ai/byok'
+import type { Choice, Hop } from '../lib/hops.ts'
+
+const VOCABULARY = [
+  'TanStack',
+  'useChat',
+  'toolDefinition',
+  'adapter',
+  'Zod',
+  'OpenAI',
+  'Anthropic',
+  'Gemini',
+]
+
+export type Listen = (
+  audio: LiveAudioFormat,
+  abortSignal: AbortSignal,
+) => Promise<TranscriptionSession>
+
+export type Think = (args: {
+  messages: Array<ModelMessage>
+  systemPrompts: Array<string>
+  tools: Array<AnyTool>
+  threadId: string
+  abortController: AbortController
+}) => AsyncIterable<StreamChunk>
+
+export type Speak = (
+  text: string,
+  character: Character,
+  threadId: string,
+  abortSignal: AbortSignal,
+) => Promise<Uint8Array>
+
+type Keyed<T> = { byok: ByokProvider; make: (key: string) => T }
+
+export const LISTEN = {
+  openai: {
+    byok: openaiByok,
+    make: (apiKey) => (audio, abortSignal) =>
+      transcriptionSession({
+        adapter: openaiLiveTranscription('gpt-transcribe', { apiKey }),
+        audio,
+        // Pin the language. Without it the provider guesses per utterance,
+        // and a short word like "yes" can come back in the wrong language.
+        language: 'en',
+        modelOptions: {
+          prompt: `A support call about TanStack AI, a TypeScript SDK. Expect words like ${VOCABULARY.join(', ')}.`,
+        },
+        abortSignal,
+      }),
+  },
+  gemini: {
+    byok: geminiByok,
+    make: (apiKey) => (audio, abortSignal) =>
+      transcriptionSession({
+        adapter: geminiLiveTranscription('gemini-3.5-transcribe-live', {
+          apiKey,
+        }),
+        audio,
+        language: 'en',
+        modelOptions: { customVocabulary: VOCABULARY },
+        abortSignal,
+      }),
+  },
+  grok: {
+    byok: grokByok,
+    make: (apiKey) => (audio, abortSignal) =>
+      transcriptionSession({
+        adapter: grokLiveTranscription('grok-voice-transcribe-2.0', { apiKey }),
+        audio,
+        language: 'en',
+        modelOptions: { keyterms: VOCABULARY },
+        abortSignal,
+      }),
+  },
+} satisfies Record<Choice['listen'], Keyed<Listen>>
+
+export const THINK = {
+  openai: {
+    byok: openaiByok,
+    make: (apiKey) => (args) =>
+      chat({ adapter: createOpenaiChat('gpt-6.1-terra', apiKey), ...args }),
+  },
+  gemini: {
+    byok: geminiByok,
+    make: (apiKey) => (args) =>
+      chat({ adapter: createGeminiChat('gemini-3.8-flash', apiKey), ...args }),
+  },
+  grok: {
+    byok: grokByok,
+    make: (apiKey) => (args) =>
+      chat({ adapter: createGrokText('grok-4.7', apiKey), ...args }),
+  },
+} satisfies Record<Choice['think'], Keyed<Think>>
+
+export const SPEAK = {
+  openai: {
+    byok: openaiByok,
+    make: (apiKey) => async (text, character, threadId, abortSignal) => {
+      const result = await generateSpeech({
+        adapter: createOpenaiSpeech('gpt-4o-mini-tts', apiKey),
+        text,
+        voice: character.voice.openai,
+        speed: character.speed,
+        modelOptions: { instructions: character.instructions },
+        format: 'pcm',
+        threadId,
+        abortSignal,
+      })
+      return Buffer.from(result.audio, 'base64')
+    },
+  },
+  gemini: {
+    byok: geminiByok,
+    make: (apiKey) => async (text, character, threadId, abortSignal) => {
+      // Gemini has no speed field. The instruction carries pace instead.
+      const pace =
+        character.speed > 1.1
+          ? 'Talk fast.'
+          : character.speed < 1
+            ? 'Talk slowly.'
+            : ''
+      const result = await generateSpeech({
+        adapter: createGeminiSpeech('gemini-3.1-flash-tts-preview', apiKey),
+        text,
+        voice: character.voice.gemini,
+        modelOptions: {
+          systemInstruction: `${character.instructions} ${pace}`.trim(),
+        },
+        threadId,
+        abortSignal,
+      })
+      // Gemini returns 24 kHz PCM wrapped as WAV. Drop the header.
+      return stripWav(Buffer.from(result.audio, 'base64'))
+    },
+  },
+} satisfies Record<Choice['speak'], Keyed<Speak>>
+
+function stripWav(wav: Buffer): Uint8Array {
+  const data = wav.indexOf('data', 12, 'ascii')
+  if (data === -1) throw new Error('Not a WAV file')
+  return wav.subarray(data + 8)
+}
+
+export type CallSetup = {
+  character: Character
+  listen: Listen
+  think: Think
+  speak: Speak
+}
+
+export function setupCall(
+  choice: Partial<Record<Hop | 'character', string | null>>,
+  headers: Record<string, string>,
+): CallSetup | { missing: string } {
+  const request = new Request('http://byok', { headers })
+  const pick = <T>(
+    hop: Hop,
+    keyed: Record<string, Keyed<T>>,
+  ): { value: T } | { missing: string } => {
+    const name = choice[hop] ?? ''
+    const entry = name in HOPS[hop] ? keyed[name] : keyed.openai
+    if (!entry) throw new Error(`No provider for ${hop}`)
+    const key = getByokKey(request, entry.byok)
+    return key ? { value: entry.make(key) } : { missing: entry.byok.id }
+  }
+  const name = choice.character ?? ''
+  const character = CHARACTERS[isCharacterName(name) ? name : 'helpful']
+  const listen = pick<Listen>('listen', LISTEN)
+  if ('missing' in listen) return listen
+  const think = pick<Think>('think', THINK)
+  if ('missing' in think) return think
+  const speak = pick<Speak>('speak', SPEAK)
+  if ('missing' in speak) return speak
+  return {
+    character,
+    listen: listen.value,
+    think: think.value,
+    speak: speak.value,
+  }
+}
+```
+
+
+Now create `src/server/call.ts`. This is the whole agent. It takes a `CallSetup` and never names a provider. Read it top to bottom once, then the notes below.
+
+```typescript ignore
+import { searchDocs } from './search-docs.ts'
 import type { ModelMessage } from '@tanstack/ai'
 import type { WebSocket } from 'ws'
 import type { Carrier } from './carriers.ts'
+import type { CallSetup } from './providers.ts'
 
 const SYSTEM_PROMPT = `You are the phone support agent for TanStack AI, a TypeScript AI SDK.
 You are on a voice call. The caller hears your words, they do not read them.
@@ -279,7 +529,7 @@ You are on a voice call. The caller hears your words, they do not read them.
 export async function handleCall(
   ws: WebSocket,
   carrier: Carrier,
-  character: Character,
+  setup: CallSetup,
 ) {
   const callId = crypto.randomUUID()
   const messages: Array<ModelMessage> = []
@@ -296,18 +546,7 @@ export async function handleCall(
   const hungUp = new AbortController()
   ws.on('close', () => hungUp.abort())
 
-  const session = await transcriptionSession({
-    adapter: openaiLiveTranscription('gpt-transcribe'),
-    audio: carrier.audio,
-    // Pin the language. Without it the provider guesses per utterance, and a
-    // short word like "yes" can come back in the wrong language.
-    language: 'en',
-    modelOptions: {
-      prompt:
-        'A support call about TanStack AI, a TypeScript SDK. Expect words like TanStack, useChat, toolDefinition, adapter, Zod, OpenAI, Anthropic, Gemini.',
-    },
-    abortSignal: hungUp.signal,
-  })
+  const session = await setup.listen(carrier.audio, hungUp.signal)
   send = (audio) => session.send(audio)
   for (const chunk of early) session.send(chunk)
   ws.on('close', () => void session.close())
@@ -334,7 +573,7 @@ export async function handleCall(
         carrier.caption('caller', question, true)
         messages.push({ role: 'user', content: question })
         replying = new AbortController()
-        void reply(callId, messages, carrier, character, replying)
+        void reply(callId, messages, carrier, setup, replying)
         break
       }
       case 'error':
@@ -348,7 +587,7 @@ async function reply(
   callId: string,
   messages: Array<ModelMessage>,
   carrier: Carrier,
-  character: Character,
+  setup: CallSetup,
   abortController: AbortController,
 ) {
   const { signal } = abortController
@@ -357,32 +596,22 @@ async function reply(
   // Start text-to-speech for each sentence at once. Deliver them in order.
   let delivery = Promise.resolve()
   const say = (sentence: string) => {
-    const audio = generateSpeech({
-      adapter: openaiSpeech('gpt-4o-mini-tts'),
-      text: sentence,
-      voice: character.voice,
-      speed: character.speed,
-      modelOptions: { instructions: character.instructions },
-      format: 'pcm',
-      threadId: callId,
-      abortSignal: signal,
-    }).catch((error: unknown) => {
-      // A barge-in aborts every clip still in flight. That is not a failure.
-      if (signal.aborted) return undefined
-      throw error
-    })
+    const audio = setup
+      .speak(sentence, setup.character, callId, signal)
+      .catch((error: unknown) => {
+        // A barge-in aborts every clip still in flight. That is not a failure.
+        if (signal.aborted) return undefined
+        throw error
+      })
     delivery = delivery.then(async () => {
-      const result = await audio
-      if (result && !signal.aborted) {
-        carrier.speak(Buffer.from(result.audio, 'base64'))
-      }
+      const pcm = await audio
+      if (pcm && !signal.aborted) carrier.speak(pcm)
     })
   }
 
   try {
-    const stream = chat({
-      adapter: openaiText('gpt-6.1-terra'),
-      systemPrompts: [SYSTEM_PROMPT, character.persona],
+    const stream = setup.think({
+      systemPrompts: [SYSTEM_PROMPT, setup.character.persona],
       tools: [searchDocs],
       messages,
       threadId: callId,
@@ -425,13 +654,14 @@ The system prompt is a procedure for a reader that cannot see. Short answers, no
 
 ## 6. Host the socket
 
-Create `src/server/vite-plugin.ts`. It takes WebSocket upgrades on two paths, reads `?character=` from the URL, and hands each socket to `handleCall` with the right carrier. An unknown character name drops the connection.
+Create `src/server/vite-plugin.ts`. It takes WebSocket upgrades on two paths. The page sends a `start` frame first with its choices and keys, because a browser cannot set headers on a WebSocket. Twilio gets its choices from the query string and its keys from env. A missing key closes the socket with a caption that says which one.
 
 ```typescript ignore
 import { WebSocketServer } from 'ws'
 import { handleCall } from './call.ts'
 import { browserCarrier, twilioCarrier } from './carriers.ts'
-import { CHARACTERS, isCharacterName } from './characters.ts'
+import { setupCall } from './providers.ts'
+import type { WebSocket } from 'ws'
 import type { Plugin } from 'vite'
 
 export function voiceServer(): Plugin {
@@ -442,17 +672,18 @@ export function voiceServer(): Plugin {
       const wss = new WebSocketServer({ noServer: true })
       server.httpServer.on('upgrade', (request, socket, head) => {
         const url = new URL(request.url ?? '/', 'http://localhost')
-        const path = url.pathname
-        if (path !== '/voice' && path !== '/twilio') return
-        const name = url.searchParams.get('character') ?? 'helpful'
-        if (!isCharacterName(name)) {
-          socket.destroy()
-          return
-        }
+        if (url.pathname !== '/voice' && url.pathname !== '/twilio') return
         wss.handleUpgrade(request, socket, head, (ws) => {
-          const carrier =
-            path === '/twilio' ? twilioCarrier(ws) : browserCarrier(ws)
-          handleCall(ws, carrier, CHARACTERS[name]).catch((error: unknown) => {
+          const run =
+            url.pathname === '/twilio'
+              ? start(
+                  ws,
+                  twilioCarrier(ws),
+                  Object.fromEntries(url.searchParams),
+                  {},
+                )
+              : startFromFirstFrame(ws)
+          run.catch((error: unknown) => {
             console.error('call failed', error)
             ws.close(1011, 'call failed')
           })
@@ -460,6 +691,74 @@ export function voiceServer(): Plugin {
       })
     },
   }
+}
+
+function startFromFirstFrame(ws: WebSocket) {
+  return new Promise<void>((resolve, reject) => {
+    ws.once('message', (data) => {
+      let frame: unknown
+      try {
+        frame = JSON.parse(data.toString())
+      } catch {
+        ws.close(1003, 'expected a start frame')
+        resolve()
+        return
+      }
+      if (!isStartFrame(frame)) {
+        ws.close(1003, 'expected a start frame')
+        resolve()
+        return
+      }
+      start(ws, browserCarrier(ws), frame.choice, frame.headers).then(
+        resolve,
+        reject,
+      )
+    })
+  })
+}
+
+async function start(
+  ws: WebSocket,
+  carrier: ReturnType<typeof browserCarrier>,
+  choice: Record<string, string>,
+  headers: Record<string, string>,
+) {
+  const setup = setupCall(choice, headers)
+  if ('missing' in setup) {
+    carrier.caption(
+      'agent',
+      `No ${setup.missing} key. Add one and call again.`,
+      true,
+    )
+    ws.close(1008, `missing ${setup.missing} key`)
+    return
+  }
+  await handleCall(ws, carrier, setup)
+}
+
+type StartFrame = {
+  type: 'start'
+  choice: Record<string, string>
+  headers: Record<string, string>
+}
+
+function isStartFrame(value: unknown): value is StartFrame {
+  if (typeof value !== 'object' || value === null) return false
+  if (!('type' in value) || value.type !== 'start') return false
+  return (
+    'choice' in value &&
+    isStringRecord(value.choice) &&
+    'headers' in value &&
+    isStringRecord(value.headers)
+  )
+}
+
+function isStringRecord(value: unknown): value is Record<string, string> {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    Object.values(value).every((entry) => typeof entry === 'string')
+  )
 }
 ```
 
@@ -485,7 +784,23 @@ export default defineConfig({
 
 ## 7. Build the softphone
 
-Replace `src/routes/index.tsx`. The page does three things: it sends microphone PCM up the socket, plays PCM that comes down, and shows captions. A `<select>` picks the character before the call and puts it on the socket URL.
+First create `src/lib/byok.ts`. The keyring from `@tanstack/ai-client/byok` stores keys in the browser, and `byok.headers()` gives them back as `x-byok-<provider>` headers.
+
+```typescript ignore
+import { defaultByokStorage, defineByok } from '@tanstack/ai-client/byok'
+import { geminiByok } from '@tanstack/ai-gemini/byok'
+import { grokByok } from '@tanstack/ai-grok/byok'
+import { openaiByok } from '@tanstack/ai-openai/byok'
+
+export const KEYED_PROVIDERS = [openaiByok, geminiByok, grokByok] as const
+
+export const byok = defineByok({
+  storage: defaultByokStorage(),
+  providers: KEYED_PROVIDERS,
+})
+```
+
+Then replace `src/routes/index.tsx`. The page sends microphone PCM up the socket, plays PCM that comes down, and shows captions. Four dropdowns pick the character and the provider per hop, and a row of password fields takes keys. The `start` frame carries all of it.
 
 An `AudioWorklet` turns the microphone's float samples into 16-bit PCM. It runs off the main thread, so the page stays smooth.
 
@@ -493,7 +808,11 @@ An `AudioWorklet` turns the microphone's float samples into 16-bit PCM. It runs 
 import { useRef, useState } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
 import { ChevronDown, Phone, PhoneOff } from 'lucide-react'
+import { useByok } from '@tanstack/ai-react'
+import { byok, KEYED_PROVIDERS } from '../lib/byok.ts'
+import { DEFAULT_CHOICE, HOPS } from '../lib/hops.ts'
 import { CHARACTERS, isCharacterName } from '../server/characters.ts'
+import type { Choice, Hop } from '../lib/hops.ts'
 import type { CharacterName } from '../server/characters.ts'
 
 type Caption = { role: 'caller' | 'agent'; text: string; final: boolean }
@@ -517,6 +836,7 @@ registerProcessor('pcm-sender', PcmSender)
 
 async function startCall(
   character: CharacterName,
+  choice: Choice,
   onCaption: (caption: Caption) => void,
 ) {
   const context = new AudioContext({ sampleRate: 24000 })
@@ -529,14 +849,21 @@ async function startCall(
   await context.audioWorklet.addModule(workletUrl)
 
   const protocol = location.protocol === 'https:' ? 'wss' : 'ws'
-  const ws = new WebSocket(
-    `${protocol}://${location.host}/voice?character=${character}`,
-  )
+  const ws = new WebSocket(`${protocol}://${location.host}/voice`)
   ws.binaryType = 'arraybuffer'
   await new Promise<void>((resolve, reject) => {
     ws.onopen = () => resolve()
     ws.onerror = () => reject(new Error('Could not open the voice socket'))
   })
+  // The server reads the character, the provider per hop, and your keys from
+  // this frame. Keys never touch the URL.
+  ws.send(
+    JSON.stringify({
+      type: 'start',
+      choice: { character, ...choice },
+      headers: byok.headers(),
+    }),
+  )
 
   const sender = new AudioWorkletNode(context, 'pcm-sender')
   sender.port.onmessage = (event: MessageEvent<ArrayBuffer>) => {
@@ -604,6 +931,7 @@ function CallPage() {
   const [error, setError] = useState('')
   const [inCall, setInCall] = useState(false)
   const [character, setCharacter] = useState<CharacterName>('helpful')
+  const [choice, setChoice] = useState<Choice>(DEFAULT_CHOICE)
   const hangUp = useRef<(() => void) | null>(null)
 
   const onCaption = (caption: Caption) =>
@@ -627,7 +955,7 @@ function CallPage() {
     }
     try {
       setError('')
-      hangUp.current = await startCall(character, onCaption)
+      hangUp.current = await startCall(character, choice, onCaption)
       setInCall(true)
       setCaptions([
         {
@@ -679,43 +1007,169 @@ function CallPage() {
         </div>
       ) : null}
 
-      <div className="flex items-center justify-center gap-4 border-t border-orange-500/10 p-4">
-        <div className="relative">
-          <select
-            aria-label="Agent character"
+      <div className="space-y-3 border-t border-orange-500/10 p-4">
+        <div className="flex flex-wrap items-center justify-center gap-3">
+          <Select
+            label="Agent character"
             value={character}
             disabled={inCall}
-            onChange={(event) => {
-              if (isCharacterName(event.target.value)) {
-                setCharacter(event.target.value)
-              }
+            options={Object.fromEntries(
+              Object.entries(CHARACTERS).map(([name, { label }]) => [
+                name,
+                label,
+              ]),
+            )}
+            onChange={(next) => {
+              if (isCharacterName(next)) setCharacter(next)
             }}
-            className="h-12 w-56 appearance-none rounded-lg border border-gray-700 bg-gray-800 pl-4 pr-10 text-white focus:border-orange-500 focus:outline-none disabled:opacity-50"
-          >
-            {Object.entries(CHARACTERS).map(([name, { label }]) => (
-              <option key={name} value={name}>
-                {label}
-              </option>
-            ))}
-          </select>
-          <ChevronDown
-            size={18}
-            className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-gray-400"
           />
+          {(Object.keys(HOPS) as Array<Hop>).map((hop) => (
+            <Select
+              key={hop}
+              label={HOP_LABEL[hop]}
+              value={choice[hop]}
+              disabled={inCall}
+              options={HOPS[hop]}
+              onChange={(next) => {
+                if (next in HOPS[hop]) {
+                  setChoice((current) => ({ ...current, [hop]: next }))
+                }
+              }}
+            />
+          ))}
+          <button
+            type="button"
+            onClick={() => void toggleCall()}
+            aria-label={inCall ? 'Hang up' : 'Start call'}
+            className={`flex h-12 w-12 items-center justify-center rounded-full text-white ${
+              inCall
+                ? 'bg-red-600 hover:bg-red-700'
+                : 'bg-green-600 hover:bg-green-700'
+            }`}
+          >
+            {inCall ? <PhoneOff size={24} /> : <Phone size={24} />}
+          </button>
         </div>
-        <button
-          type="button"
-          onClick={() => void toggleCall()}
-          aria-label={inCall ? 'Hang up' : 'Start call'}
-          className={`flex h-16 w-16 items-center justify-center rounded-full text-white ${
-            inCall
-              ? 'bg-red-600 hover:bg-red-700'
-              : 'bg-green-600 hover:bg-green-700'
-          }`}
-        >
-          {inCall ? <PhoneOff size={28} /> : <Phone size={28} />}
-        </button>
+        <KeyRow />
       </div>
+    </div>
+  )
+}
+
+const HOP_LABEL: Record<Hop, string> = {
+  listen: 'Listen with',
+  think: 'Think with',
+  speak: 'Speak with',
+}
+
+function Select({
+  label,
+  value,
+  options,
+  disabled,
+  onChange,
+}: {
+  label: string
+  value: string
+  options: Record<string, string>
+  disabled: boolean
+  onChange: (next: string) => void
+}) {
+  return (
+    <label className="flex flex-col gap-1 text-xs text-gray-400">
+      {label}
+      <span className="relative">
+        <select
+          value={value}
+          disabled={disabled}
+          onChange={(event) => onChange(event.target.value)}
+          className="h-10 w-44 appearance-none rounded-lg border border-gray-700 bg-gray-800 pl-3 pr-8 text-sm text-white focus:border-orange-500 focus:outline-none disabled:opacity-50"
+        >
+          {Object.entries(options).map(([name, text]) => (
+            <option key={name} value={name}>
+              {text}
+            </option>
+          ))}
+        </select>
+        <ChevronDown
+          size={16}
+          className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-gray-400"
+        />
+      </span>
+    </label>
+  )
+}
+
+function KeyRow() {
+  const snapshot = useByok(byok)
+  const [drafts, setDrafts] = useState<Record<string, string>>({})
+  const [error, setError] = useState('')
+  return (
+    <div className="flex flex-wrap items-end justify-center gap-3">
+      {KEYED_PROVIDERS.map((provider) => {
+        const status = snapshot.status[provider.id]
+        const masked = status && 'masked' in status ? status.masked : undefined
+        const draft = drafts[provider.id] ?? ''
+        return (
+          <form
+            key={provider.id}
+            className="flex items-end gap-1"
+            onSubmit={(event) => {
+              event.preventDefault()
+              if (!draft.trim()) return
+              setError('')
+              void byok
+                .update(provider.id, draft.trim())
+                .then(() => setDrafts((d) => ({ ...d, [provider.id]: '' })))
+                .catch((caught: unknown) =>
+                  setError(
+                    caught instanceof Error
+                      ? caught.message
+                      : 'Could not save key',
+                  ),
+                )
+            }}
+          >
+            <label className="flex flex-col gap-1 text-xs text-gray-400">
+              {provider.label} key
+              <input
+                type="password"
+                autoComplete="off"
+                spellCheck={false}
+                placeholder={masked ? `Saved ${masked}` : 'Paste key'}
+                value={draft}
+                onChange={(event) =>
+                  setDrafts((d) => ({
+                    ...d,
+                    [provider.id]: event.target.value,
+                  }))
+                }
+                className="h-10 w-44 rounded-lg border border-gray-700 bg-gray-800 px-3 text-sm text-white placeholder-gray-500 focus:border-orange-500 focus:outline-none"
+              />
+            </label>
+            {masked ? (
+              <button
+                type="button"
+                onClick={() => void byok.clear(provider.id)}
+                className="h-10 rounded-lg border border-gray-600 px-3 text-sm text-gray-200"
+              >
+                Clear
+              </button>
+            ) : (
+              <button
+                type="submit"
+                disabled={!draft.trim()}
+                className="h-10 rounded-lg bg-orange-500 px-3 text-sm font-medium text-white disabled:opacity-50"
+              >
+                Save
+              </button>
+            )}
+          </form>
+        )
+      })}
+      {error ? (
+        <p className="w-full text-center text-xs text-red-400">{error}</p>
+      ) : null}
     </div>
   )
 }
@@ -809,12 +1263,12 @@ Then connect a number:
 ```xml
 <Response>
   <Connect>
-    <Stream url="wss://YOUR-NGROK-HOST/twilio?character=perky" />
+    <Stream url="wss://YOUR-NGROK-HOST/twilio?character=perky&amp;think=gemini" />
   </Connect>
 </Response>
 ```
 
-3. Call the number and ask a question. Leave off `?character=` for the helpful one.
+3. Call the number and ask a question. The query takes `character`, `listen`, `think`, and `speak`. Leave one off for the default.
 
 The same `handleCall` runs. Only the carrier changed.
 

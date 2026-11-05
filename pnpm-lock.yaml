@@ -732,9 +732,21 @@ importers:
       '@tanstack/ai':
         specifier: workspace:*
         version: link:../../../packages/ai
+      '@tanstack/ai-client':
+        specifier: workspace:*
+        version: link:../../../packages/ai-client
+      '@tanstack/ai-gemini':
+        specifier: workspace:*
+        version: link:../../../packages/ai-gemini
+      '@tanstack/ai-grok':
+        specifier: workspace:*
+        version: link:../../../packages/ai-grok
       '@tanstack/ai-openai':
         specifier: workspace:*
         version: link:../../../packages/ai-openai
+      '@tanstack/ai-react':
+        specifier: workspace:*
+        version: link:../../../packages/ai-react
       '@tanstack/react-router':
         specifier: ^1.170.41
         version: 1.170.41(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
