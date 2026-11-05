@@ -3,7 +3,7 @@ id: ReasoningMessageContentEvent
 title: ReasoningMessageContentEvent
 ---
 
-Defined in: [packages/ai/src/types.ts:2028](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2028)
+Defined in: [packages/ai/src/types.ts:2046](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2046)
 
 Emitted when reasoning message content is generated.
 

@@ -246,9 +246,9 @@ and must not create a record.
 
 `Partial`\<`Pick`\<[`RunRecord`](../interfaces/RunRecord.md), 
   \| `"error"`
+  \| `"usage"`
   \| `"status"`
   \| `"result"`
-  \| `"usage"`
   \| `"finishedAt"`
   \| `"sandboxKey"`
   \| `"detachedSince"`

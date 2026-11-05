@@ -3,7 +3,7 @@ id: RealtimeAdapter
 title: RealtimeAdapter
 ---
 
-Defined in: [packages/ai/src/realtime/types.ts:319](https://github.com/TanStack/ai/blob/main/packages/ai/src/realtime/types.ts#L319)
+Defined in: [packages/ai/src/realtime/types.ts:328](https://github.com/TanStack/ai/blob/main/packages/ai/src/realtime/types.ts#L328)
 
 Adapter interface for connecting to realtime providers.
 Each provider (OpenAI, ElevenLabs, etc.) implements this interface.
@@ -19,10 +19,10 @@ re-exports this type for backwards compatibility.
 ### connect
 
 ```ts
-connect: (token, clientTools?) => Promise<RealtimeConnection>;
+connect: (token, clientTools?, options?) => Promise<RealtimeConnection>;
 ```
 
-Defined in: [packages/ai/src/realtime/types.ts:329](https://github.com/TanStack/ai/blob/main/packages/ai/src/realtime/types.ts#L329)
+Defined in: [packages/ai/src/realtime/types.ts:340](https://github.com/TanStack/ai/blob/main/packages/ai/src/realtime/types.ts#L340)
 
 Create a connection using the provided token
 
@@ -40,6 +40,15 @@ readonly [`AnyClientTool`](../type-aliases/AnyClientTool.md)[]
 
 Optional client-side tools to register with the provider
 
+##### options?
+
+Optional `abortSignal` that cancels the connection setup
+  requests, when the provider supports it
+
+###### abortSignal?
+
+`AbortSignal`
+
 #### Returns
 
 `Promise`\<[`RealtimeConnection`](RealtimeConnection.md)\>
@@ -54,6 +63,6 @@ A connection instance
 provider: string;
 ```
 
-Defined in: [packages/ai/src/realtime/types.ts:321](https://github.com/TanStack/ai/blob/main/packages/ai/src/realtime/types.ts#L321)
+Defined in: [packages/ai/src/realtime/types.ts:330](https://github.com/TanStack/ai/blob/main/packages/ai/src/realtime/types.ts#L330)
 
 Provider identifier

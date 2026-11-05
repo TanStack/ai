@@ -20,7 +20,7 @@ function boolean(options):
 };
 ```
 
-Defined in: [packages/ai/src/activities/evaluate/index.ts:424](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/evaluate/index.ts#L424)
+Defined in: [packages/ai/src/activities/evaluate/index.ts:438](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/evaluate/index.ts#L438)
 
 Build a yes/no question.
 

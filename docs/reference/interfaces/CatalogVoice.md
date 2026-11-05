@@ -3,7 +3,7 @@ id: CatalogVoice
 title: CatalogVoice
 ---
 
-Defined in: [packages/ai/src/types.ts:3019](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L3019)
+Defined in: [packages/ai/src/types.ts:3037](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L3037)
 
 One voice from a provider's catalog.
 
@@ -15,7 +15,7 @@ One voice from a provider's catalog.
 optional description?: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:3027](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L3027)
+Defined in: [packages/ai/src/types.ts:3045](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L3045)
 
 Provider description of the voice
 
@@ -27,7 +27,7 @@ Provider description of the voice
 optional labels?: Record<string, string>;
 ```
 
-Defined in: [packages/ai/src/types.ts:3031](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L3031)
+Defined in: [packages/ai/src/types.ts:3049](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L3049)
 
 Provider labels, such as accent, age, or use case
 
@@ -39,7 +39,7 @@ Provider labels, such as accent, age, or use case
 optional name?: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:3023](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L3023)
+Defined in: [packages/ai/src/types.ts:3041](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L3041)
 
 Display name, when the provider stores one
 
@@ -51,7 +51,7 @@ Display name, when the provider stores one
 optional origin?: VoiceOrigin;
 ```
 
-Defined in: [packages/ai/src/types.ts:3025](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L3025)
+Defined in: [packages/ai/src/types.ts:3043](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L3043)
 
 Where the voice came from
 
@@ -63,7 +63,7 @@ Where the voice came from
 optional previewUrl?: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:3029](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L3029)
+Defined in: [packages/ai/src/types.ts:3047](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L3047)
 
 URL of a sample, when the provider hosts one
 
@@ -75,6 +75,6 @@ URL of a sample, when the provider hosts one
 voiceId: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:3021](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L3021)
+Defined in: [packages/ai/src/types.ts:3039](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L3039)
 
 Pass this to `generateSpeech()` as `voice`

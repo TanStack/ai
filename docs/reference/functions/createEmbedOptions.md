@@ -7,7 +7,7 @@ title: createEmbedOptions
 function createEmbedOptions<TAdapter>(options): EmbedOptions<TAdapter>;
 ```
 
-Defined in: [packages/ai/src/activities/embed/index.ts:311](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/embed/index.ts#L311)
+Defined in: [packages/ai/src/activities/embed/index.ts:352](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/embed/index.ts#L352)
 
 Create typed options for the embed() function without executing.
 

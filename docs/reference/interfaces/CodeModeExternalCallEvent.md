@@ -3,7 +3,7 @@ id: CodeModeExternalCallEvent
 title: CodeModeExternalCallEvent
 ---
 
-Defined in: [packages/ai/src/types.ts:1905](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1905)
+Defined in: [packages/ai/src/types.ts:1920](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1920)
 
 Custom event for extensibility.
 
@@ -37,7 +37,7 @@ Extra information attached to this event.
 name: "code_mode:external_call";
 ```
 
-Defined in: [packages/ai/src/types.ts:1906](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1906)
+Defined in: [packages/ai/src/types.ts:1921](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1921)
 
 What this custom event is. Required: without it a consumer cannot route
 the value.
@@ -70,7 +70,7 @@ Defined in: [packages/ai/src/types.ts:1813](https://github.com/TanStack/ai/blob/
 value: object;
 ```
 
-Defined in: [packages/ai/src/types.ts:1907](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1907)
+Defined in: [packages/ai/src/types.ts:1922](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1922)
 
 The payload. Any JSON value, and required.
 

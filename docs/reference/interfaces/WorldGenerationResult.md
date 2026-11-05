@@ -3,7 +3,7 @@ id: WorldGenerationResult
 title: WorldGenerationResult
 ---
 
-Defined in: [packages/ai/src/types.ts:2775](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2775)
+Defined in: [packages/ai/src/types.ts:2793](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2793)
 
 **`Experimental`**
 
@@ -27,7 +27,7 @@ Job adapters (World Labs): `status: 'ready'` with viewer `url` and
 optional assets?: WorldGenerationAssets;
 ```
 
-Defined in: [packages/ai/src/types.ts:2800](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2800)
+Defined in: [packages/ai/src/types.ts:2818](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2818)
 
 **`Experimental`**
 
@@ -41,7 +41,7 @@ Assets when a world job has finished and the provider returned them
 optional expiresAt?: number;
 ```
 
-Defined in: [packages/ai/src/types.ts:2786](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2786)
+Defined in: [packages/ai/src/types.ts:2804](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2804)
 
 **`Experimental`**
 
@@ -56,7 +56,7 @@ Job adapters: operation expiry when the provider sends it.
 id: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:2777](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2777)
+Defined in: [packages/ai/src/types.ts:2795](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2795)
 
 **`Experimental`**
 
@@ -70,7 +70,7 @@ Unique identifier for this generation
 model: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:2779](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2779)
+Defined in: [packages/ai/src/types.ts:2797](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2797)
 
 **`Experimental`**
 
@@ -84,7 +84,7 @@ Model used for generation (provider connect slug or model id)
 optional operationId?: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:2798](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2798)
+Defined in: [packages/ai/src/types.ts:2816](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2816)
 
 **`Experimental`**
 
@@ -98,7 +98,7 @@ Provider operation id for a long-running world job
 prompt: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:2788](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2788)
+Defined in: [packages/ai/src/types.ts:2806](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2806)
 
 **`Experimental`**
 
@@ -112,7 +112,7 @@ Prompt used to generate the world, or the prompt the client should send
 optional sessionId?: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:2792](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2792)
+Defined in: [packages/ai/src/types.ts:2810](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2810)
 
 **`Experimental`**
 
@@ -126,7 +126,7 @@ Provider session id, when the adapter created one
 status: "ready" | "waiting";
 ```
 
-Defined in: [packages/ai/src/types.ts:2790](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2790)
+Defined in: [packages/ai/src/types.ts:2808](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2808)
 
 **`Experimental`**
 
@@ -140,7 +140,7 @@ Status after the server half finishes
 optional token?: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:2781](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2781)
+Defined in: [packages/ai/src/types.ts:2799](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2799)
 
 **`Experimental`**
 
@@ -154,7 +154,7 @@ Short-lived session token for a live client connection
 optional url?: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:2794](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2794)
+Defined in: [packages/ai/src/types.ts:2812](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2812)
 
 **`Experimental`**
 
@@ -168,7 +168,7 @@ Viewer URL for a finished world job (not an asset download URL)
 optional usage?: TokenUsage<ProviderUsageDetails>;
 ```
 
-Defined in: [packages/ai/src/types.ts:2802](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2802)
+Defined in: [packages/ai/src/types.ts:2820](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2820)
 
 **`Experimental`**
 
@@ -182,7 +182,7 @@ Token usage / billing, when the adapter can report it
 optional worldId?: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:2796](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2796)
+Defined in: [packages/ai/src/types.ts:2814](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2814)
 
 **`Experimental`**
 
