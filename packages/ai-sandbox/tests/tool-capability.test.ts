@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { EventType, chat, defineChatMiddleware, toolDefinition } from '@tanstack/ai'
+import {
+  EventType,
+  chat,
+  defineChatMiddleware,
+  toolDefinition,
+} from '@tanstack/ai'
 import {
   InMemorySandboxInstanceStore,
   ProjectionCapability,

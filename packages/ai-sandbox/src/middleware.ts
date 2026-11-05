@@ -42,10 +42,7 @@ import {
 import { SandboxInstanceStoreCapability } from './instance-store'
 import { computeWorkspaceHash } from './key'
 import { buildFileHookEvent, resolveFileEvents } from './file-diff'
-import {
-  ProjectionCapability,
-  provideWorkspaceProjection,
-} from './projection'
+import { ProjectionCapability, provideWorkspaceProjection } from './projection'
 import { resolveAllSecrets, resolveSecret } from './secrets'
 import {
   createToolHistoryRecorder,
