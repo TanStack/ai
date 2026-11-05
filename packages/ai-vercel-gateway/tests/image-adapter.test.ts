@@ -6,7 +6,7 @@ const testLogger = resolveDebugOption(false)
 
 describe('Vercel Gateway image adapter', () => {
   it('calls images.generate with model, prompt, n, size, and gateway options', async () => {
-    const adapter = createVercelGatewayImage('openai/gpt-image-1.5', 'k')
+    const adapter = createVercelGatewayImage('openai/gpt-image-2', 'k')
     const generate = vi.fn().mockResolvedValue({
       data: [{ b64_json: 'abc' }],
     })
@@ -15,7 +15,7 @@ describe('Vercel Gateway image adapter', () => {
     }
 
     const result = await adapter.generateImages({
-      model: 'openai/gpt-image-1.5',
+      model: 'openai/gpt-image-2',
       prompt: 'a red guitar',
       numberOfImages: 1,
       size: '1024x1024',
@@ -25,7 +25,7 @@ describe('Vercel Gateway image adapter', () => {
 
     expect(result.images[0]?.b64Json).toBe('abc')
     const body = generate.mock.calls[0]![0] as Record<string, unknown>
-    expect(body.model).toBe('openai/gpt-image-1.5')
+    expect(body.model).toBe('openai/gpt-image-2')
     expect(body.prompt).toBe('a red guitar')
     expect(body.n).toBe(1)
     expect(body.size).toBe('1024x1024')
