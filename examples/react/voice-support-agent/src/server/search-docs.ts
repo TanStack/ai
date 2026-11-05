@@ -40,11 +40,9 @@ export const searchDocs = toolDefinition({
   description:
     'Search the TanStack AI documentation. Call this before answering any question about TanStack AI features, APIs, adapters, or setup.',
   inputSchema: z.object({
-    query: z
-      .string()
-      .meta({
-        description: 'Two to five keywords, for example "tool approval"',
-      }),
+    query: z.string().meta({
+      description: 'Two to five keywords, for example "tool approval"',
+    }),
   }),
   outputSchema: z.object({
     pages: z.array(
