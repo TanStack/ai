@@ -476,7 +476,8 @@ export class BedrockConverseTextAdapter<
           finishReason =
             stopReason === 'max_tokens'
               ? 'length'
-              : stopReason === 'content_filtered'
+              : stopReason === 'content_filtered' ||
+                  stopReason === 'guardrail_intervened'
                 ? 'content_filter'
                 : 'stop'
           continue
