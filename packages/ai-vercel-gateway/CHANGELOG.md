@@ -1,5 +1,18 @@
 # @tanstack/ai-vercel-gateway
 
+## 1.1.1
+
+### Patch Changes
+
+- [#1973](https://github.com/TanStack/ai/pull/1973) [`374fb69`](https://github.com/TanStack/ai/commit/374fb69a534de7e200421056acf3a677fd833bce) - The adapters now call the provider HTTP API with `fetch` and do not create the `openai` SDK client. At runtime they load only small SDK modules, for example the error classes from `openai/core/error`. With a bundler that splits chunks, the startup bundle is smaller. A single-file bundle can be a little larger, because a few rare options still load the full SDK on first use. Errors keep the same classes and fields.
+
+- [#1895](https://github.com/TanStack/ai/pull/1895) [`e024981`](https://github.com/TanStack/ai/commit/e024981ed2c0481c506595dae1280a94a7fba2e4) - Update model metadata from OpenRouter API
+
+- Updated dependencies [[`48cbc66`](https://github.com/TanStack/ai/commit/48cbc66d677896e75d242e9c52be67f7da259fd9), [`374fb69`](https://github.com/TanStack/ai/commit/374fb69a534de7e200421056acf3a677fd833bce), [`374fb69`](https://github.com/TanStack/ai/commit/374fb69a534de7e200421056acf3a677fd833bce)]:
+  - @tanstack/ai@1.2.0
+  - @tanstack/ai-utils@1.1.0
+  - @tanstack/openai-base@1.0.2
+
 ## 1.1.0
 
 ### Minor Changes

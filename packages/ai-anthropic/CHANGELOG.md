@@ -1,5 +1,19 @@
 # @tanstack/ai-anthropic
 
+## 1.1.1
+
+### Patch Changes
+
+- [#2042](https://github.com/TanStack/ai/pull/2042) [`1f777da`](https://github.com/TanStack/ai/commit/1f777da51534bde12c9af3efd6c73855836ee7d7) - Report `incomplete-stream` when an Anthropic stream ends before a stop reason (no `message_delta` with `stop_reason` and no `message_stop`). Before, the run had no terminal event and `onFinish` got the partial text as a success. An abort is not reported.
+
+- [#1973](https://github.com/TanStack/ai/pull/1973) [`374fb69`](https://github.com/TanStack/ai/commit/374fb69a534de7e200421056acf3a677fd833bce) - The adapters now call the provider HTTP API with `fetch` and do not create the `@anthropic-ai/sdk` client. At runtime they load only small SDK modules, for example the error classes from `@anthropic-ai/sdk/core/error`. With a bundler that splits chunks, the startup bundle is smaller. Errors keep the same classes and fields.
+
+  These options still load `@anthropic-ai/sdk` on first use: `middleware`, OpenTelemetry tracing, `logLevel: 'info'` or `'debug'` (or `ANTHROPIC_LOG`), and no `apiKey` and no `authToken`.
+
+- Updated dependencies [[`48cbc66`](https://github.com/TanStack/ai/commit/48cbc66d677896e75d242e9c52be67f7da259fd9), [`374fb69`](https://github.com/TanStack/ai/commit/374fb69a534de7e200421056acf3a677fd833bce)]:
+  - @tanstack/ai@1.2.0
+  - @tanstack/ai-utils@1.1.0
+
 ## 1.1.0
 
 ### Minor Changes

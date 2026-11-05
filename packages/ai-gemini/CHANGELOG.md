@@ -1,5 +1,19 @@
 # @tanstack/ai-gemini
 
+## 1.1.1
+
+### Patch Changes
+
+- [#2037](https://github.com/TanStack/ai/pull/2037) [`ac406f1`](https://github.com/TanStack/ai/commit/ac406f1d73126f977d193215b79bda140a1a2fca) - `embed()` with the Gemini adapter now sends inputs in requests of at most 100 texts, one after the other, instead of one request for the whole array. Vectors keep input order and indexes, and Vertex billable characters are summed across requests. Calls with 100 or fewer inputs are unchanged.
+
+- [#1973](https://github.com/TanStack/ai/pull/1973) [`374fb69`](https://github.com/TanStack/ai/commit/374fb69a534de7e200421056acf3a677fd833bce) - The adapters now call the provider HTTP API with `fetch` and do not load the provider SDK at runtime, except for the options below. With a bundler that splits chunks, the startup bundle is smaller. The SDK stays a dependency for its TypeScript types and for those options. Errors keep the same `name`, `status`, `message`, and body fields. If your code checks an error with `instanceof` against an error class of `@google/genai`, check `error.name` instead.
+
+  These options still load `@google/genai` on first use: `vertexai: true`, `enterprise: true`, no `apiKey`, and a file path string as the upload.
+
+- Updated dependencies [[`48cbc66`](https://github.com/TanStack/ai/commit/48cbc66d677896e75d242e9c52be67f7da259fd9), [`374fb69`](https://github.com/TanStack/ai/commit/374fb69a534de7e200421056acf3a677fd833bce)]:
+  - @tanstack/ai@1.2.0
+  - @tanstack/ai-utils@1.1.0
+
 ## 1.1.0
 
 ### Minor Changes

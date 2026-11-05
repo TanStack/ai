@@ -1,5 +1,15 @@
 # @tanstack/ai-vertex
 
+## 1.0.1
+
+### Patch Changes
+
+- [#1973](https://github.com/TanStack/ai/pull/1973) [`374fb69`](https://github.com/TanStack/ai/commit/374fb69a534de7e200421056acf3a677fd833bce) - Mark the package as `"sideEffects": false`, so bundlers can drop the modules that you do not import.
+
+- Updated dependencies [[`ac406f1`](https://github.com/TanStack/ai/commit/ac406f1d73126f977d193215b79bda140a1a2fca), [`48cbc66`](https://github.com/TanStack/ai/commit/48cbc66d677896e75d242e9c52be67f7da259fd9), [`374fb69`](https://github.com/TanStack/ai/commit/374fb69a534de7e200421056acf3a677fd833bce)]:
+  - @tanstack/ai-gemini@1.1.1
+  - @tanstack/ai@1.2.0
+
 ## 1.0.0
 
 ### Major Changes

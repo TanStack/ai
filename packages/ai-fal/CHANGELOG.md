@@ -1,5 +1,18 @@
 # @tanstack/ai-fal
 
+## 1.1.1
+
+### Patch Changes
+
+- [#1973](https://github.com/TanStack/ai/pull/1973) [`374fb69`](https://github.com/TanStack/ai/commit/374fb69a534de7e200421056acf3a677fd833bce) - The adapters now call the provider HTTP API with `fetch` and do not load the provider SDK at runtime, except for the options below. With a bundler that splits chunks, the startup bundle is smaller. The SDK stays a dependency for its TypeScript types and for those options. Errors keep the same `name`, `status`, `message`, and body fields. If your code checks an error with `instanceof` against an error class of `@fal-ai/client`, check `error.name` instead.
+  - Each fal adapter now keeps its own config. Two fal adapters with different API keys do not overwrite each other.
+  - Uploads larger than 90 MB still load `@fal-ai/client` on first use.
+  - `configureFalClient` configures the global `fal` client of `@fal-ai/client` for apps that call `fal` themselves.
+
+- Updated dependencies [[`48cbc66`](https://github.com/TanStack/ai/commit/48cbc66d677896e75d242e9c52be67f7da259fd9), [`374fb69`](https://github.com/TanStack/ai/commit/374fb69a534de7e200421056acf3a677fd833bce)]:
+  - @tanstack/ai@1.2.0
+  - @tanstack/ai-utils@1.1.0
+
 ## 1.1.0
 
 ### Minor Changes
