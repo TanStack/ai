@@ -125,7 +125,7 @@ export async function POST(request: Request) {
 
 `repoSandbox` is the `defineSandbox()` definition from [Read the events](#read-the-events).
 
-2. On the client, pass `onCustomEvent` to `useChat`. Set a flag on `sandbox.starting`. Clear the flag on `sandbox.created` or `sandbox.resumed`:
+2. On the client, pass `onCustomEvent` to `useChat`. Set a flag on `sandbox.starting`. Clear the flag on `sandbox.created` or `sandbox.resumed`. Show the notice only while `isLoading` is `true`, so that a stop or an error hides it:
 
 ```tsx
 import { useState } from 'react'
@@ -133,7 +133,7 @@ import { fetchServerSentEvents, useChat } from '@tanstack/ai-react'
 
 export function Chat() {
   const [starting, setStarting] = useState(false)
-  const { sendMessage } = useChat({
+  const { sendMessage, isLoading } = useChat({
     connection: fetchServerSentEvents('/api/chat'),
     threadId: 'support-chat',
     onCustomEvent: (name) => {
@@ -143,7 +143,6 @@ export function Chat() {
         setStarting(false)
       }
     },
-    onError: () => setStarting(false),
   })
 
   return (
@@ -151,7 +150,7 @@ export function Chat() {
       <button onClick={() => sendMessage('Add a README section on testing.')}>
         Send
       </button>
-      {starting && <p>Starting sandbox...</p>}
+      {starting && isLoading && <p>Starting sandbox...</p>}
     </>
   )
 }

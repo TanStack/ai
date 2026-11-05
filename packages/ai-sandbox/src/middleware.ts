@@ -829,15 +829,6 @@ export function withSandbox<TOffset extends string = string>(
           await definition.destroy(ensureCtx).catch(() => {})
         throw error
       }
-      if (lifecycleEvents) {
-        const isResumed = outcome === 'resumed' || outcome === 'native-restored'
-        ctx.emitCustomEvent(
-          isResumed
-            ? CUSTOM_EVENT.SANDBOX_RESUMED
-            : CUSTOM_EVENT.SANDBOX_CREATED,
-          { sandboxId: handle.id, provider: handle.provider },
-        )
-      }
       // MUTATE, don't re-`set`: a disconnect that landed during `ensure` already
       // captured this object.
       state.handle = handle
@@ -992,6 +983,18 @@ export function withSandbox<TOffset extends string = string>(
         // teardown path a different object than the watcher writes into.
         // `pendingDiffs` needs no copying — it IS `state.pendingDiffs`.
         if (watcher) state.watcher = watcher
+        // Sent last, so the sandbox is ready to use (after `onReady` and the
+        // watcher) and a later setup failure cannot follow it.
+        if (lifecycleEvents) {
+          const isResumed =
+            outcome === 'resumed' || outcome === 'native-restored'
+          ctx.emitCustomEvent(
+            isResumed
+              ? CUSTOM_EVENT.SANDBOX_RESUMED
+              : CUSTOM_EVENT.SANDBOX_CREATED,
+            { sandboxId: handle.id, provider: handle.provider },
+          )
+        }
       } catch (error) {
         await drainWatcher(state, 'error')
         await stopSnapshotLease(state).catch(() => {})

@@ -134,6 +134,24 @@ describe('sandbox lifecycle events', () => {
     expect(events).toEqual([['sandbox.starting', { provider: 'fake' }]])
   })
 
+  it('sends no ready event when onReady throws', async () => {
+    const definition = defineSandbox({
+      id: 's',
+      provider: makeFakeProvider(),
+      lifecycle: { snapshot: 'none' },
+      fileEvents: false,
+      hooks: {
+        onReady: () => {
+          throw new Error('setup script failed')
+        },
+      },
+    })
+    const { events, setup } = runSetup({ definition, runId: 'r1' })
+
+    await expect(setup).rejects.toThrow('setup script failed')
+    expect(events).toEqual([['sandbox.starting', { provider: 'fake' }]])
+  })
+
   it('sends nothing on an attach, which continues a run that already sent them', async () => {
     const { events, setup } = runSetup({
       definition: defineFakeSandbox(makeFakeProvider()),
