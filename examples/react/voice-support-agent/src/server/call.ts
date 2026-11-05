@@ -45,6 +45,13 @@ export async function handleCall(ws: WebSocket, carrier: Carrier) {
   const session = await transcriptionSession({
     adapter: openaiLiveTranscription('gpt-transcribe'),
     audio: carrier.audio,
+    // Pin the language. Without it the provider guesses per utterance, and a
+    // short word like "yes" can come back in the wrong language.
+    language: 'en',
+    modelOptions: {
+      prompt:
+        'A support call about TanStack AI, a TypeScript SDK. Expect words like TanStack, useChat, toolDefinition, adapter, Zod, OpenAI, Anthropic, Gemini.',
+    },
     abortSignal: hungUp.signal,
   })
   send = (audio) => session.send(audio)

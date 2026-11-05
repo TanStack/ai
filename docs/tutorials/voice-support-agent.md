@@ -220,6 +220,13 @@ export async function handleCall(ws: WebSocket, carrier: Carrier) {
   const session = await transcriptionSession({
     adapter: openaiLiveTranscription('gpt-transcribe'),
     audio: carrier.audio,
+    // Pin the language. Without it the provider guesses per utterance, and a
+    // short word like "yes" can come back in the wrong language.
+    language: 'en',
+    modelOptions: {
+      prompt:
+        'A support call about TanStack AI, a TypeScript SDK. Expect words like TanStack, useChat, toolDefinition, adapter, Zod, OpenAI, Anthropic, Gemini.',
+    },
     abortSignal: hungUp.signal,
   })
   send = (audio) => session.send(audio)
@@ -323,8 +330,9 @@ async function reply(
 }
 ```
 
-Four things make it feel like a call and not a form:
+Five things make it feel like a call and not a form:
 
+- **Pin the language.** The transcriber guesses the language for each utterance unless you set `language`. A one-word answer gives it nothing to guess from. The `prompt` tells it which product names to expect.
 - **Listen first.** The socket listeners attach before `transcriptionSession()` opens. Audio that arrives in that gap waits in `early`, then goes in.
 - **Turns, not files.** `final` text piles up in `turn`. `turn-end` means the caller paused, so that text becomes one user message and `chat()` runs.
 - **Speak by the sentence.** `generateSpeech()` starts the moment a sentence is complete, while the model still writes the next one. The promise chain keeps playback in order. The caller hears the first sentence in about a second.
