@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
+import { Phone, PhoneOff } from 'lucide-react'
 
 type Caption = { role: 'caller' | 'agent'; text: string; final: boolean }
 
@@ -185,13 +186,14 @@ function CallPage() {
         <button
           type="button"
           onClick={() => void toggleCall()}
-          className={`w-full rounded-lg px-4 py-3 text-sm font-medium ${
+          aria-label={inCall ? 'Hang up' : 'Start call'}
+          className={`mx-auto flex h-16 w-16 items-center justify-center rounded-full text-white ${
             inCall
               ? 'bg-red-600 hover:bg-red-700'
-              : 'bg-orange-500 hover:bg-orange-600'
+              : 'bg-green-600 hover:bg-green-700'
           }`}
         >
-          {inCall ? 'Hang up' : 'Start call'}
+          {inCall ? <PhoneOff size={28} /> : <Phone size={28} />}
         </button>
       </div>
     </div>
