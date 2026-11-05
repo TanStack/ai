@@ -80,10 +80,11 @@ test.describe('sandbox tool history survives a reload', () => {
     request,
   }) => {
     const threadId = `tool-history-two-runs-${Date.now()}`
-    for (const [runId, prompt] of [
-      [`run-a-${Date.now()}`, 'Triage this'],
-      [`run-b-${Date.now()}`, 'And once more'],
-    ]) {
+    const runs = [
+      { runId: `run-a-${Date.now()}`, prompt: 'Triage this' },
+      { runId: `run-b-${Date.now()}`, prompt: 'And once more' },
+    ]
+    for (const { runId, prompt } of runs) {
       const run = await request.post('/api/sandbox-tool-history', {
         data: { threadId, runId, prompt },
       })
@@ -100,7 +101,9 @@ test.describe('sandbox tool history survives a reload', () => {
     const calls = body.messages
       .flatMap((message) => message.parts)
       .filter((part) => part.type === 'tool-call')
-    expect(calls).toHaveLength(2)
+    expect(calls.map((call) => call.id)).toEqual(
+      runs.map(({ runId }) => `call-${runId}`),
+    )
     for (const call of calls) expect(call.state).toBe('complete')
   })
 })

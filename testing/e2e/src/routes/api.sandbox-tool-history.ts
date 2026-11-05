@@ -115,17 +115,21 @@ function harnessRun(
     yield { type: EventType.RUN_STARTED, ...base }
     yield {
       type: EventType.TEXT_MESSAGE_START,
-      messageId: 'm1',
+      messageId: `m1-${runId}`,
       role: 'assistant',
       ...base,
     }
     yield {
       type: EventType.TEXT_MESSAGE_CONTENT,
-      messageId: 'm1',
+      messageId: `m1-${runId}`,
       delta: 'Looking at the repo. ',
       ...base,
     }
-    yield { type: EventType.TEXT_MESSAGE_END, messageId: 'm1', ...base }
+    yield {
+      type: EventType.TEXT_MESSAGE_END,
+      messageId: `m1-${runId}`,
+      ...base,
+    }
     yield {
       type: EventType.TOOL_CALL_START,
       toolCallId,
@@ -141,24 +145,28 @@ function harnessRun(
     yield { type: EventType.TOOL_CALL_END, toolCallId, ...base }
     yield {
       type: EventType.TOOL_CALL_RESULT,
-      messageId: 'tr-1',
+      messageId: `tr-1-${runId}`,
       toolCallId,
       content: 'ai\nai-client\nai-sandbox',
       ...base,
     }
     yield {
       type: EventType.TEXT_MESSAGE_START,
-      messageId: 'm2',
+      messageId: `m2-${runId}`,
       role: 'assistant',
       ...base,
     }
     yield {
       type: EventType.TEXT_MESSAGE_CONTENT,
-      messageId: 'm2',
+      messageId: `m2-${runId}`,
       delta: VERDICT,
       ...base,
     }
-    yield { type: EventType.TEXT_MESSAGE_END, messageId: 'm2', ...base }
+    yield {
+      type: EventType.TEXT_MESSAGE_END,
+      messageId: `m2-${runId}`,
+      ...base,
+    }
     yield { type: EventType.RUN_FINISHED, finishReason: 'stop', ...base }
   })()
 }
