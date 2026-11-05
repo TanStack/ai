@@ -48,6 +48,8 @@ export default async function globalSetup() {
   // pattern above.
   mock.mount('/v1/text-to-speech', elevenLabsTTSMount())
   mock.mount('/v1/speech-to-text', elevenLabsSTTMount())
+  mock.mount('/tts/bytes', cartesiaTTSMount())
+  mock.mount('/stt', cartesiaSTTMount())
 
   // Gemini TTS hits the standard Gemini generateContent endpoint
   // (POST /v1beta/models/{model}:generateContent) with
@@ -1660,6 +1662,58 @@ function byteplusASRMount(): Mountable {
               },
             ],
           },
+        }),
+      )
+      return true
+    },
+  }
+}
+
+function cartesiaTTSMount(): Mountable {
+  return {
+    async handleRequest(req, res, pathname): Promise<boolean> {
+      if (pathname !== '/' || req.method !== 'POST') return false
+      const body = await readJsonRequestBody(req)
+      const output = asRecord(body?.output_format)
+      if (
+        body?.model_id !== 'sonic-3.6' ||
+        typeof body.transcript !== 'string' ||
+        typeof body.voice !== 'string' ||
+        output?.container !== 'mp3' ||
+        req.headers['cartesia-version'] !== '2026-08-14'
+      ) {
+        return rejectVoiceRequest(res, 'Invalid Cartesia speech request')
+      }
+      res.statusCode = 200
+      res.setHeader('Content-Type', 'audio/mpeg')
+      res.end(FAKE_MP3_BYTES)
+      return true
+    },
+  }
+}
+
+function cartesiaSTTMount(): Mountable {
+  return {
+    async handleRequest(req, res, pathname): Promise<boolean> {
+      if (pathname !== '/' || req.method !== 'POST') return false
+      const body = await readBody(req)
+      if (
+        !body.includes('name="file"') ||
+        !body.includes('name="model"') ||
+        !body.includes('ink-whisper') ||
+        req.headers['cartesia-version'] !== '2026-08-14'
+      ) {
+        return rejectVoiceRequest(res, 'Invalid Cartesia transcription request')
+      }
+      res.statusCode = 200
+      res.setHeader('Content-Type', 'application/json')
+      res.end(
+        JSON.stringify({
+          type: 'transcript',
+          text: 'I would like to buy a Fender Stratocaster please',
+          request_id: 'cartesia-e2e',
+          language: 'en',
+          duration: 2.4,
         }),
       )
       return true

@@ -2,7 +2,7 @@
 title: Text-to-Speech
 id: text-to-speech
 order: 3
-description: "Turn text into spoken audio with generateSpeech() and play it in the browser. Works with OpenAI, Gemini, ElevenLabs, BytePlus, fal.ai, Grok, and Groq."
+description: "Turn text into spoken audio with generateSpeech() and play it in the browser. Works with OpenAI, Gemini, ElevenLabs, Cartesia, BytePlus, fal.ai, Grok, and Groq."
 keywords:
   - tanstack ai
   - text-to-speech
@@ -110,6 +110,7 @@ Swap the adapter to change the provider. The rest of the route stays the same.
 | OpenAI | `openaiSpeech` from `@tanstack/ai-openai` | `tts-1-hd`, `tts-1`, `gpt-4o-mini-tts` | `OPENAI_API_KEY` |
 | Gemini (experimental) | `geminiSpeech` from `@tanstack/ai-gemini` | `gemini-3.1-flash-tts-preview`, `gemini-2.5-flash-preview-tts`, `gemini-2.5-pro-preview-tts` | `GOOGLE_API_KEY` or `GEMINI_API_KEY` |
 | ElevenLabs | `elevenlabsSpeech` from `@tanstack/ai-elevenlabs` | `eleven_v4`, `eleven_v4_turbo`, `eleven_v3`, and more | `ELEVENLABS_API_KEY` |
+| Cartesia | `cartesiaSpeech` from `@tanstack/ai-cartesia` | `sonic-3.6` | `CARTESIA_API_KEY` |
 | BytePlus | `byteplusSpeech` from `@tanstack/ai-byteplus` | `seed-audio-1.0` | `BYTEPLUS_VOICE_API_KEY` |
 | fal.ai | `falSpeech` from `@tanstack/ai-fal` | Kokoro, ElevenLabs, MiniMax, Gemini TTS, Chatterbox, and more | `FAL_KEY` |
 | Grok | `grokSpeech` from `@tanstack/ai-grok` | `grok-tts` | `XAI_API_KEY` |
