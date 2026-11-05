@@ -3176,6 +3176,9 @@ class TextEngine<
       type: EventType.RUN_STARTED,
       runId: finishEvent.runId,
       threadId: finishEvent.threadId,
+      ...(this.parentRunIdOverride !== undefined && {
+        parentRunId: this.parentRunIdOverride,
+      }),
       timestamp: Date.now(),
     })
   }

@@ -118,7 +118,7 @@ export function createImageAdapter(
         defaultHeaders: headers,
       }),
     'vercel-gateway': () =>
-      createVercelGatewayImage('openai/gpt-image-1', DUMMY_KEY, {
+      createVercelGatewayImage('openai/gpt-image-2', DUMMY_KEY, {
         baseURL: openaiUrl(aimockPort),
         defaultHeaders: headers,
       }),
