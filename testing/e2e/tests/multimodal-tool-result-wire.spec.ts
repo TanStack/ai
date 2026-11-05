@@ -116,6 +116,7 @@ test.describe('multimodal tool result — wire format', () => {
   // ──────────────────────────────────────────────────────────────────────────
   test('gemini: multimodal tool result completes end-to-end (image structure covered by unit test)', async ({
     request,
+    aimockPort,
     testId,
   }) => {
     const res = await request.post(
@@ -124,6 +125,13 @@ test.describe('multimodal tool result — wire format', () => {
     const { ok } = (await res.json()) as { ok: boolean; error?: string }
     // Structural proof that the image becomes a functionResponse.parts inlineData entry lives in packages/ai-gemini/tests/tool-result-multimodal.test.ts — aimock's journal strips multimodal tool content so it can't be asserted here.
     expect(ok).toBe(true)
+    // A tool result's parts go only inside its functionResponse. aimock
+    // journals a text part beside it as a user message after the tool message.
+    const journal = await request.get(
+      `http://127.0.0.1:${aimockPort}/v1/_requests`,
+    )
+    const entries = (await journal.json()) as Array<{ body: any }>
+    expect(entries[0]?.body?.messages?.at(-1)?.role).toBe('tool')
   })
 
   // ──────────────────────────────────────────────────────────────────────────
