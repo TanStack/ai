@@ -99,7 +99,7 @@ providerOptions: TProviderOptions;
 availableDurations: () => DurationOptions<TModelDurationByName[TModel]>;
 ```
 
-Defined in: [packages/ai/src/activities/generateVideo/adapter.ts:131](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/generateVideo/adapter.ts#L131)
+Defined in: [packages/ai/src/activities/generateVideo/adapter.ts:150](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/generateVideo/adapter.ts#L150)
 
 Describe the durations this adapter's model accepts. Returns a tagged
 union so consumers can render UI / coerce input without provider-specific
@@ -108,6 +108,37 @@ knowledge.
 #### Returns
 
 `DurationOptions`\<`TModelDurationByName`\[`TModel`\]\>
+
+***
+
+### cancelVideoJob?
+
+```ts
+optional cancelVideoJob?: (jobId, options?) => Promise<void>;
+```
+
+Defined in: [packages/ai/src/activities/generateVideo/adapter.ts:140](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/generateVideo/adapter.ts#L140)
+
+Optional. Ask the provider to stop a job that is not finished. Implement
+it only when the provider has a real cancel API. Streaming
+`generateVideo()` calls it (best effort) when its `abortSignal` or
+`timeout` aborts after the job exists. A rejection is logged, not thrown.
+
+#### Parameters
+
+##### jobId
+
+`string`
+
+##### options?
+
+###### abortSignal?
+
+`AbortSignal`
+
+#### Returns
+
+`Promise`\<`void`\>
 
 ***
 
@@ -137,22 +168,29 @@ Returns a job ID that can be used to poll for status and retrieve the video.
 ### getVideo
 
 ```ts
-getVideo: (jobId) => Promise<
+getVideo: (jobId, options?) => Promise<
   | VideoUrlResult
 | VideoStreamResult>;
 ```
 
-Defined in: [packages/ai/src/activities/generateVideo/adapter.ts:124](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/generateVideo/adapter.ts#L124)
+Defined in: [packages/ai/src/activities/generateVideo/adapter.ts:129](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/generateVideo/adapter.ts#L129)
 
 Get the finished video: a public URL when the provider has one, or the
 download stream for generation middleware to host. Call only after
-status is 'completed'.
+status is 'completed'. Adapters should forward `options.abortSignal` to
+the provider request (and the download) when supported.
 
 #### Parameters
 
 ##### jobId
 
 `string`
+
+##### options?
+
+###### abortSignal?
+
+`AbortSignal`
 
 #### Returns
 
@@ -165,18 +203,25 @@ status is 'completed'.
 ### getVideoStatus
 
 ```ts
-getVideoStatus: (jobId) => Promise<VideoStatusResult>;
+getVideoStatus: (jobId, options?) => Promise<VideoStatusResult>;
 ```
 
-Defined in: [packages/ai/src/activities/generateVideo/adapter.ts:117](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/generateVideo/adapter.ts#L117)
+Defined in: [packages/ai/src/activities/generateVideo/adapter.ts:118](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/generateVideo/adapter.ts#L118)
 
-Get the current status of a video generation job.
+Get the current status of a video generation job. Adapters should forward
+`options.abortSignal` to the provider request when supported.
 
 #### Parameters
 
 ##### jobId
 
 `string`
+
+##### options?
+
+###### abortSignal?
+
+`AbortSignal`
 
 #### Returns
 
@@ -226,7 +271,7 @@ Adapter name identifier
 snapDuration: (input) => TModelDurationByName[TModel] | undefined;
 ```
 
-Defined in: [packages/ai/src/activities/generateVideo/adapter.ts:140](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/generateVideo/adapter.ts#L140)
+Defined in: [packages/ai/src/activities/generateVideo/adapter.ts:159](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/generateVideo/adapter.ts#L159)
 
 Coerce `input` to the closest duration this model accepts.
 `input` may be seconds (`7`), a numeric string (`"7"`), a template

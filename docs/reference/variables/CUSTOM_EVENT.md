@@ -66,3 +66,9 @@ readonly SANDBOX_CREATED: "sandbox.created" = 'sandbox.created';
 ```ts
 readonly SANDBOX_RESUMED: "sandbox.resumed" = 'sandbox.resumed';
 ```
+
+### SANDBOX\_STARTING
+
+```ts
+readonly SANDBOX_STARTING: "sandbox.starting" = 'sandbox.starting';
+```

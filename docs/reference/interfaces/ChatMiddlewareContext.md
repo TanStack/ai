@@ -513,7 +513,7 @@ optional signal?: AbortSignal;
 
 Defined in: [packages/ai/src/activities/chat/middleware/types.ts:238](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L238)
 
-Abort signal from the chat request
+Aborts when the caller aborts the chat request or a middleware calls `abort()`.
 
 ***
 
