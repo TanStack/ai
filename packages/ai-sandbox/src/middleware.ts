@@ -782,8 +782,11 @@ export function withSandbox<TOffset extends string = string>(
       }
 
       // Only a `defineSandbox()` definition can tell created from resumed. A
-      // hand-built definition sends no lifecycle events.
-      const lifecycleEvents = hasEnsureOutcome(definition)
+      // hand-built definition sends no lifecycle events. An attach sends none
+      // either: the log already holds the first run's events, and new ones would
+      // land in the middle of the replayed stream and break its alignment.
+      const lifecycleEvents =
+        hasEnsureOutcome(definition) && durability?.attach !== true
       if (lifecycleEvents)
         ctx.emitCustomEvent(CUSTOM_EVENT.SANDBOX_STARTING, {
           provider: definition.provider.name,

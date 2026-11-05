@@ -101,7 +101,7 @@ For the full typed event list and the `ChatStream` type, see [Custom Events Refe
 
 A new sandbox can take many seconds to boot. During that time the model sends nothing, so your chat UI looks frozen.
 
-`withSandbox` sends `sandbox.starting` before it creates or resumes the sandbox. When the sandbox is ready, it sends `sandbox.created` or `sandbox.resumed`. All three arrive before `RUN_STARTED`.
+`withSandbox` sends `sandbox.starting` before it creates or resumes the sandbox. When the sandbox is ready, it sends `sandbox.created` or `sandbox.resumed`. All three arrive right after `RUN_STARTED`, before the model sends any text. A client that rejoins a durable run gets them again from the run log.
 
 1. On the server, add `withSandbox` to `chat()`. You add nothing else, because the events are on by default:
 

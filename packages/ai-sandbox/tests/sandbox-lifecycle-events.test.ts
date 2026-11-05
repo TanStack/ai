@@ -4,6 +4,7 @@
  * `setup` and records the events it sends.
  */
 import { describe, expect, it } from 'vitest'
+import { InMemoryRunStore, memoryStream } from '@tanstack/ai'
 import { InMemoryLockStore } from '@tanstack/ai/locks'
 import { provideSandboxRuntime } from '@tanstack/ai/adapter-internals'
 import { defineSandbox } from '../src/sandbox'
@@ -20,12 +21,14 @@ import type { LockStore } from '@tanstack/ai/locks'
 import type { SandboxProvider } from '../src/contracts'
 import type { SandboxDefinition } from '../src/sandbox'
 import type { SandboxInstanceStore } from '../src/instance-store'
+import type { SandboxDurabilityOptions } from '../src/durability'
 
 interface SetupInput {
   definition: SandboxDefinition
   runId: string
   instances?: SandboxInstanceStore
   locks?: LockStore
+  durability?: SandboxDurabilityOptions
 }
 
 /** Run the real `withSandbox` setup and record every custom event it sends. */
@@ -44,6 +47,10 @@ function runSetup(input: SetupInput) {
   const setup = withSandbox(input.definition, {
     instances: input.instances ?? new InMemorySandboxInstanceStore(),
     locks: input.locks ?? new InMemoryLockStore(),
+    ...(input.durability && {
+      runs: new InMemoryRunStore(),
+      durability: input.durability,
+    }),
   }).setup!(ctx)
   return { events, ctx, setup }
 }
@@ -125,5 +132,16 @@ describe('sandbox lifecycle events', () => {
 
     await expect(setup).rejects.toThrow('quota exceeded')
     expect(events).toEqual([['sandbox.starting', { provider: 'fake' }]])
+  })
+
+  it('sends nothing on an attach, which continues a run that already sent them', async () => {
+    const { events, setup } = runSetup({
+      definition: defineFakeSandbox(makeFakeProvider()),
+      runId: 'r1',
+      durability: { adapter: memoryStream({ runId: 'r1' }), attach: true },
+    })
+    await setup
+
+    expect(events).toEqual([])
   })
 })
