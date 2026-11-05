@@ -13,7 +13,7 @@ Each chat thread keeps its own container, so it stays signed in when you come ba
 3. Build the desktop image one time: `pnpm --filter computer-use-login build:desktop`.
 4. Copy `.env.example` to `.env.local`, then set `OPENAI_API_KEY`. Get a key at https://platform.openai.com/api-keys.
 5. Run `pnpm --filter computer-use-login dev`.
-6. Open http://localhost:3100 and click Send.
+6. Open http://localhost:3100 and press Enter.
 
 The model opens a practice sign-in page. When the login card shows, type `tomsmith` and `SuperSecretPassword!`, then click Sign in. The model then says what the page shows.
 

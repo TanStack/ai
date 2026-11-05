@@ -56,9 +56,9 @@ function Messages({
             Sign in without the model
           </h2>
           <p className="text-sm text-gray-400">
-            Click Send. The model opens a sign-in page in a Docker desktop. When
-            it needs a password, a card asks you. The model never sees what you
-            type.
+            Press Enter. The model opens a sign-in page in a Docker desktop.
+            When it needs a password, a card asks you. The model never sees what
+            you type.
           </p>
         </div>
       </div>
@@ -419,6 +419,17 @@ function ChatPage() {
               <textarea
                 value={input}
                 onChange={(event) => setInput(event.target.value)}
+                // Enter sends. Shift+Enter adds a new line.
+                onKeyDown={(event) => {
+                  if (
+                    event.key === 'Enter' &&
+                    !event.shiftKey &&
+                    !event.nativeEvent.isComposing
+                  ) {
+                    event.preventDefault()
+                    handleSendMessage()
+                  }
+                }}
                 placeholder="Tell the model what to do on the desktop..."
                 className="w-full resize-none rounded-lg border border-orange-500/20 bg-gray-800/50 px-4 py-3 text-sm text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-orange-500/50"
                 rows={3}
@@ -428,9 +439,21 @@ function ChatPage() {
                 type="button"
                 onClick={handleSendMessage}
                 disabled={!input.trim() || isLoading}
-                className="rounded-lg bg-orange-500 px-4 py-3 text-sm font-medium text-white disabled:opacity-50"
+                aria-label="Send"
+                className="rounded-full bg-orange-500 p-3 text-white disabled:opacity-50"
               >
-                Send
+                <svg
+                  viewBox="0 0 24 24"
+                  aria-hidden="true"
+                  className="h-5 w-5"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth={2.5}
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="M12 19V5M5 12l7-7 7 7" />
+                </svg>
               </button>
             </div>
           </div>
