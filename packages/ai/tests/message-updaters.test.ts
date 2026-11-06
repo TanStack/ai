@@ -458,7 +458,87 @@ describe('message-updaters', () => {
         'complete',
       )
 
-      expect(result[0]?.parts[0]).toMatchObject({ metadata })
+      expect(result[0]?.parts[0]).toMatchObject({
+        content: '{"temperature":20}',
+        state: 'complete',
+        metadata,
+      })
+    })
+
+    it('should clear stale tool result outcome metadata on a successful update', () => {
+      const messages = [
+        createMessage('msg-1', 'assistant', [
+          {
+            type: 'tool-result',
+            toolCallId: 'call-1',
+            content: '{"error":"User declined"}',
+            state: 'error',
+            metadata: {
+              displayType: 'account-assets',
+              accountId: 'A001',
+              tanstack: {
+                toolResultOutcome: 'denied',
+                retained: true,
+              },
+            },
+          },
+        ]),
+      ]
+
+      const result = updateToolResultPart(
+        messages,
+        'msg-1',
+        'call-1',
+        '{"ok":true}',
+        'complete',
+      )
+
+      expect(result[0]?.parts[0]).toEqual({
+        type: 'tool-result',
+        toolCallId: 'call-1',
+        content: '{"ok":true}',
+        state: 'complete',
+        metadata: {
+          displayType: 'account-assets',
+          accountId: 'A001',
+          tanstack: { retained: true },
+        },
+      })
+    })
+
+    it('should preserve outcome metadata explicitly supplied by an update', () => {
+      const incomingMetadata = {
+        displayType: 'account-assets',
+        tanstack: { toolResultOutcome: 'cancelled' },
+      }
+      const messages = [
+        createMessage('msg-1', 'assistant', [
+          {
+            type: 'tool-result',
+            toolCallId: 'call-1',
+            content: '{"error":"User declined"}',
+            state: 'error',
+            metadata: { tanstack: { toolResultOutcome: 'denied' } },
+          },
+        ]),
+      ]
+
+      const result = updateToolResultPart(
+        messages,
+        'msg-1',
+        'call-1',
+        '{"ok":true}',
+        'complete',
+        undefined,
+        undefined,
+        incomingMetadata,
+      )
+
+      expect(result[0]?.parts[0]).toMatchObject({
+        content: '{"ok":true}',
+        state: 'complete',
+        metadata: incomingMetadata,
+      })
     })
 
     it('should merge incoming metadata with existing metadata', () => {
