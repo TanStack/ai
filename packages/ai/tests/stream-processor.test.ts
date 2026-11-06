@@ -6365,6 +6365,10 @@ describe('StreamProcessor', () => {
     it('should create tool-result part and update tool-call output', () => {
       const events = spyEvents()
       const processor = new StreamProcessor({ events })
+      const metadata = {
+        displayType: 'account-assets',
+        accountId: 'A001',
+      }
 
       processor.processChunk(ev.runStarted())
       processor.processChunk(ev.textStart())
@@ -6380,6 +6384,7 @@ describe('StreamProcessor', () => {
           toolCallId: 'tc-1',
           content: '{"temp": 72}',
           role: 'tool',
+          metadata,
         }),
       )
       processor.processChunk(ev.runFinished('tool_calls'))
@@ -6398,6 +6403,7 @@ describe('StreamProcessor', () => {
       expect(toolResultPart.toolCallId).toBe('tc-1')
       expect(toolResultPart.content).toBe('{"temp": 72}')
       expect(toolResultPart.state).toBe('complete')
+      expect(toolResultPart.metadata).toEqual(metadata)
     })
 
     it('should mark output-error tool results as errored message parts', () => {
