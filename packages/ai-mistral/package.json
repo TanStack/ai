@@ -58,13 +58,13 @@
   ],
   "devDependencies": {
     "@tanstack/ai": "workspace:*",
-    "@vitest/coverage-v8": "4.1.10",
-    "google-auth-library": "^10.5.0",
-    "vite": "^8.2.1"
+    "@vitest/coverage-v8": "5.1.0",
+    "google-auth-library": "^11.3.3",
+    "vite": "^8.3.5"
   },
   "peerDependencies": {
     "@tanstack/ai": "workspace:^",
-    "google-auth-library": "^10.5.0"
+    "google-auth-library": "^10.5.0 || ^11.0.0"
   },
   "peerDependenciesMeta": {
     "google-auth-library": {
@@ -72,7 +72,7 @@
     }
   },
   "dependencies": {
-    "@mistralai/mistralai": "2.2.0",
+    "@mistralai/mistralai": "3.5.0",
     "@tanstack/ai-utils": "workspace:^"
   }
 }

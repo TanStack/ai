@@ -877,13 +877,11 @@ export function durableStream(
       await ensureSeqSeeded()
       const batchStartOffset = appendTailOffset ?? (await ensureCreated())
       const firstSeq = nextSeq
-      const records = chunks.map(
-        (chunk, index): WireRecord => ({
-          v: 1,
-          seq: firstSeq + index,
-          chunk,
-        }),
-      )
+      const records = chunks.map((chunk, index): WireRecord => ({
+        v: 1,
+        seq: firstSeq + index,
+        chunk,
+      }))
       // Through `observeSeq`, so a concurrent read that already pushed the
       // counter further cannot be walked backwards.
       observeSeq(firstSeq + records.length - 1)

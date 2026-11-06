@@ -92,7 +92,7 @@ import { generateVideo, getVideoJobStatus } from '@tanstack/ai'
 import { openaiVideo } from '@tanstack/ai-openai'
 
 export const generateVideoFn = createServerFn({ method: 'POST' })
-  .inputValidator((data: { prompt: string; threadId: string }) => data)
+  .validator((data: { prompt: string; threadId: string }) => data)
   .handler(async ({ data }) => {
     const adapter = openaiVideo('sora-2')
     const { threadId } = data
@@ -141,7 +141,7 @@ import { generateVideo, toServerSentEventsResponse } from '@tanstack/ai'
 import { openaiVideo } from '@tanstack/ai-openai'
 
 export const generateVideoStreamFn = createServerFn({ method: 'POST' })
-  .inputValidator((data: { prompt: string; threadId: string }) => data)
+  .validator((data: { prompt: string; threadId: string }) => data)
   .handler(({ data }) => {
     return toServerSentEventsResponse(
       generateVideo({

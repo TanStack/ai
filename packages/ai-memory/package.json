@@ -98,7 +98,7 @@
     "@vectorize-io/hindsight-client": ">=0.6.0",
     "ioredis": ">=5.0.0",
     "redis": ">=4.0.0",
-    "vitest": "^4.1.10"
+    "vitest": "^4.1.10 || ^5.0.0"
   },
   "peerDependenciesMeta": {
     "ioredis": {
@@ -118,12 +118,12 @@
     }
   },
   "devDependencies": {
-    "@honcho-ai/sdk": "^2.1.1",
+    "@honcho-ai/sdk": "^2.8.0",
     "@tanstack/ai": "workspace:*",
-    "@vectorize-io/hindsight-client": "^0.6.1",
-    "@vitest/coverage-v8": "4.1.10",
-    "ioredis-mock": "^8.9.0",
+    "@vectorize-io/hindsight-client": "^1.2.0",
+    "@vitest/coverage-v8": "5.1.0",
+    "ioredis-mock": "^8.13.1",
     "redis": "^6.3.1",
-    "vitest": "^4.1.10"
+    "vitest": "^5.1.0"
   }
 }

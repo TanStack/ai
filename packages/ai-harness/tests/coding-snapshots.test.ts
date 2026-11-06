@@ -1386,16 +1386,13 @@ describe('snapshots with a fake git', () => {
   it('reverts with the last 500 steps of the log only', async () => {
     // 11 turns of 46 steps: 506 steps. A turn has at most 50 model calls.
     let callId = 0
-    const replies = Array.from(
-      { length: 11 },
-      (): Array<Reply> => [
-        ...Array.from({ length: 46 }, (): Reply => {
-          const id = `call-${callId++}`
-          return () => toolCall('change', {}, id)
-        }),
-        () => text('Done.'),
-      ],
-    ).flat()
+    const replies = Array.from({ length: 11 }, (): Array<Reply> => [
+      ...Array.from({ length: 46 }, (): Reply => {
+        const id = `call-${callId++}`
+        return () => toolCall('change', {}, id)
+      }),
+      () => text('Done.'),
+    ]).flat()
     const git = fakeGit()
     const commands: Array<string> = []
     const backend: WorkspaceBackend = {

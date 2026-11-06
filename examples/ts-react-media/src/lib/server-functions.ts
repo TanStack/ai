@@ -261,7 +261,7 @@ function isWorldResolution(value: string): value is WorldResolution {
 }
 
 export const generateImageFn = createServerFn({ method: 'POST' })
-  .inputValidator((data: { prompt: MediaPrompt; model: string }) => {
+  .validator((data: { prompt: MediaPrompt; model: string }) => {
     if (!hasPromptContent(data.prompt)) throw new Error('Prompt is required')
     if (!data.model) throw new Error('Model is required')
     return data
@@ -691,7 +691,7 @@ async function videoStreamForModel(
  * through the UI.
  */
 export const generateVideoFn = createServerFn({ method: 'POST' })
-  .inputValidator((data: VideoRequest) => {
+  .validator((data: VideoRequest) => {
     if (!hasPromptContent(data.prompt)) throw new Error('Prompt is required')
     if (!data.model) throw new Error('Model is required')
     return data
@@ -750,27 +750,26 @@ function acceptedResolutions(
  */
 export const getSeedanceCapabilitiesFn = createServerFn({
   method: 'GET',
-}).handler(
-  (): Array<SeedanceCapability> =>
-    BYTEPLUS_VIDEO_MODELS.map((model) => {
-      const durations = getBytePlusVideoDurationOptions(model)
-      if (durations.kind !== 'range') {
-        throw new Error(
-          `Expected a duration range for ${model}, got "${durations.kind}"`,
-        )
-      }
-      return {
-        model,
-        resolutions: acceptedResolutions(model),
-        duration: {
-          min: durations.min,
-          max: durations.max,
-          step: durations.step ?? 1,
-        },
-        supportsLastFrame: supportsLastFrame(model),
-        supportsReferenceMedia: supportsReferenceMedia(model),
-      }
-    }),
+}).handler((): Array<SeedanceCapability> =>
+  BYTEPLUS_VIDEO_MODELS.map((model) => {
+    const durations = getBytePlusVideoDurationOptions(model)
+    if (durations.kind !== 'range') {
+      throw new Error(
+        `Expected a duration range for ${model}, got "${durations.kind}"`,
+      )
+    }
+    return {
+      model,
+      resolutions: acceptedResolutions(model),
+      duration: {
+        min: durations.min,
+        max: durations.max,
+        step: durations.step ?? 1,
+      },
+      supportsLastFrame: supportsLastFrame(model),
+      supportsReferenceMedia: supportsReferenceMedia(model),
+    }
+  }),
 )
 
 /** What the studio sends for one Seedance generation. */
@@ -866,7 +865,7 @@ function seedanceStream(data: SeedanceRequest): AsyncIterable<StreamChunk> {
  * to poll with — the server does the waiting and reports status on the wire.
  */
 export const generateSeedanceVideoFn = createServerFn({ method: 'POST' })
-  .inputValidator((data: SeedanceRequest) => {
+  .validator((data: SeedanceRequest) => {
     if (!hasPromptContent(data.prompt)) throw new Error('Prompt is required')
     if (!data.model) throw new Error('Model is required')
     return data
@@ -884,7 +883,7 @@ interface LiveVideoRequest {
  * client (`@reactor-team/js-sdk` or `@fal-ai/client`). There is no job URL.
  */
 export const generateLiveVideoFn = createServerFn({ method: 'POST' })
-  .inputValidator((data: LiveVideoRequest) => {
+  .validator((data: LiveVideoRequest) => {
     if (typeof data.prompt !== 'string' || data.prompt.trim().length === 0) {
       throw new Error('Prompt is required')
     }
@@ -960,7 +959,7 @@ const WORLDLABS_TIMEOUT_MS = 12 * 60 * 1000
  * and waits until the Marble world is ready (about 5 minutes).
  */
 export const generateWorldFn = createServerFn({ method: 'POST' })
-  .inputValidator((data: WorldRequest) => {
+  .validator((data: WorldRequest) => {
     if (typeof data.prompt !== 'string' || data.prompt.trim().length === 0) {
       throw new Error('Prompt is required')
     }

@@ -129,7 +129,7 @@ function imagePersistenceMiddleware() {
 // =============================================================================
 
 export const generateImageFn = createServerFn({ method: 'POST' })
-  .inputValidator(imageGenerateInputSchema)
+  .validator(imageGenerateInputSchema)
   .handler(async ({ data }) => {
     return generateImage({
       adapter: grokImage('grok-imagine-image'),
@@ -142,7 +142,7 @@ export const generateImageFn = createServerFn({ method: 'POST' })
   })
 
 export const generateSpeechFn = createServerFn({ method: 'POST' })
-  .inputValidator(
+  .validator(
     z.object({
       threadId: z.string().min(1),
       text: z.string(),
@@ -171,7 +171,7 @@ export const generateSpeechFn = createServerFn({ method: 'POST' })
   })
 
 export const transcribeFn = createServerFn({ method: 'POST' })
-  .inputValidator(
+  .validator(
     z.object({
       threadId: z.string().min(1),
       audio: z.string(),
@@ -203,7 +203,7 @@ export const transcribeFn = createServerFn({ method: 'POST' })
   })
 
 export const generateAudioFn = createServerFn({ method: 'POST' })
-  .inputValidator(
+  .validator(
     z.object({
       threadId: z.string().min(1),
       prompt: z.string(),
@@ -232,7 +232,7 @@ export const generateAudioFn = createServerFn({ method: 'POST' })
   })
 
 export const summarizeFn = createServerFn({ method: 'POST' })
-  .inputValidator(
+  .validator(
     z.object({
       threadId: z.string().min(1),
       text: z.string(),
@@ -252,7 +252,7 @@ export const summarizeFn = createServerFn({ method: 'POST' })
   })
 
 export const generateVideoFn = createServerFn({ method: 'POST' })
-  .inputValidator(
+  .validator(
     z.object({
       threadId: z.string().min(1),
       prompt: z.string(),
@@ -305,7 +305,7 @@ export const generateVideoFn = createServerFn({ method: 'POST' })
 // =============================================================================
 
 export const generateImageStreamFn = createServerFn({ method: 'POST' })
-  .inputValidator(imageGenerateInputSchema)
+  .validator(imageGenerateInputSchema)
   .handler(({ data }) => {
     // One run id for the durability log and the run record so join can replay
     // exactly the run hydration reports.
@@ -357,7 +357,7 @@ const generationHydrationSchema = z.object({
 
 /** Mount hydration for image `persistence: true` over a fetcher (no GET route). */
 export const getImageHydrationFn = createServerFn({ method: 'GET' })
-  .inputValidator(z.string().min(1))
+  .validator(z.string().min(1))
   .handler(async ({ data: threadId }) => {
     // No auth in this single-user demo — gate on session in a multi-user app.
     return generationHydrationSchema.parse(
@@ -371,13 +371,13 @@ export const getImageHydrationFn = createServerFn({ method: 'GET' })
  * `generateImageStreamFn` does (see `chunksFromSseResponse` on the page).
  */
 export const joinImageRunFn = createServerFn({ method: 'GET' })
-  .inputValidator(z.string().min(1))
+  .validator(z.string().min(1))
   .handler(({ data: runId }) =>
     toServerSentEventsResponse(replayRunStream(memoryStream({ runId }))),
   )
 
 export const generateSpeechStreamFn = createServerFn({ method: 'POST' })
-  .inputValidator(
+  .validator(
     z.object({
       threadId: z.string().min(1),
       text: z.string(),
@@ -409,7 +409,7 @@ export const generateSpeechStreamFn = createServerFn({ method: 'POST' })
   })
 
 export const transcribeStreamFn = createServerFn({ method: 'POST' })
-  .inputValidator(
+  .validator(
     z.object({
       threadId: z.string().min(1),
       audio: z.string(),
@@ -444,7 +444,7 @@ export const transcribeStreamFn = createServerFn({ method: 'POST' })
   })
 
 export const summarizeStreamFn = createServerFn({ method: 'POST' })
-  .inputValidator(
+  .validator(
     z.object({
       threadId: z.string().min(1),
       text: z.string(),
@@ -469,7 +469,7 @@ export const summarizeStreamFn = createServerFn({ method: 'POST' })
   })
 
 export const generateVideoStreamFn = createServerFn({ method: 'POST' })
-  .inputValidator(
+  .validator(
     z.object({
       threadId: z.string().min(1),
       prompt: z.string(),
@@ -495,7 +495,7 @@ export const generateVideoStreamFn = createServerFn({ method: 'POST' })
 // =============================================================================
 
 export const chatFn = createServerFn({ method: 'POST' })
-  .inputValidator(
+  .validator(
     (data: {
       messages: Array<UIMessage>
       threadId: string

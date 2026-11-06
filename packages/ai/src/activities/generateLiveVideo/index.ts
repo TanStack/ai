@@ -332,9 +332,4 @@ export function createLiveVideoOptions<
 }
 
 // Re-export adapter types
-export type {
-  LiveVideoAdapter,
-  LiveVideoAdapterConfig,
-  AnyLiveVideoAdapter,
-} from './adapter'
-export { BaseLiveVideoAdapter } from './adapter'
+export type { LiveVideoAdapter } from './adapter'

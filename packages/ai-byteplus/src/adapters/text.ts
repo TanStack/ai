@@ -72,7 +72,6 @@ export interface BytePlusTextConfig
 /**
  * Re-export of the public provider options type.
  */
-export type { BytePlusTextProviderOptions } from '../text/text-provider-options'
 
 /**
  * BytePlus ModelArk Text (Chat) Adapter

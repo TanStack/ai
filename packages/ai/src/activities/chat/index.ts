@@ -3384,14 +3384,12 @@ class TextEngine<
     if (cut.length === 0) return
     this.messages = [
       ...this.messages,
-      ...cut.map(
-        (call): ModelMessage => ({
-          role: 'tool',
-          toolCallId: call.id,
-          content: TRUNCATED_TOOL_RESULT,
-          error: TRUNCATED_TOOL_RESULT,
-        }),
-      ),
+      ...cut.map((call): ModelMessage => ({
+        role: 'tool',
+        toolCallId: call.id,
+        content: TRUNCATED_TOOL_RESULT,
+        error: TRUNCATED_TOOL_RESULT,
+      })),
     ]
   }
 
@@ -5537,9 +5535,7 @@ class TextEngine<
           resolutions.filter(
             (resolution) => resolution.request.definition === definition,
           ) as never,
-        all: (
-          ...definitions: Array<InterruptDefinition<any, any, any, any>>
-        ) =>
+        all: (...definitions: Array<InterruptDefinition<any, any, any, any>>) =>
           definitions.length === 0
             ? resolutions
             : resolutions.filter((resolution) =>
@@ -7531,10 +7527,3 @@ async function* runStreamingStructuredOutputImpl<TSchema extends SchemaInput>(
 }
 
 // Re-export adapter types
-export type {
-  TextAdapter,
-  TextAdapterConfig,
-  StructuredOutputOptions,
-  StructuredOutputResult,
-} from './adapter'
-export { BaseTextAdapter } from './adapter'

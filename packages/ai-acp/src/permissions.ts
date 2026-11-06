@@ -4,10 +4,9 @@ import type {
   AcpPermissionMode,
   AcpPermissionOutcome,
   AcpPermissionRequest,
-  PermissionHandler,
 } from './types/acp-types'
 
-export type { AcpPermissionMode, PermissionHandler }
+export type { AcpPermissionMode }
 
 const EDIT_KINDS = new Set(['edit', 'move', 'delete'])
 

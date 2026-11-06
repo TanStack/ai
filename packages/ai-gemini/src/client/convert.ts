@@ -41,7 +41,12 @@ export type WithHttpHeaders<T> = Omit<T, 'sdkHttpResponse'> & {
 export type GeminiContentResponse = WithHttpHeaders<
   Omit<
     GenerateContentResponse,
-    'text' | 'data' | 'functionCalls' | 'executableCode' | 'codeExecutionResult'
+    | 'text'
+    | 'data'
+    | 'functionCalls'
+    | 'executableCode'
+    | 'codeExecutionResult'
+    | 'initialPromptTokenCount'
   >
 >
 

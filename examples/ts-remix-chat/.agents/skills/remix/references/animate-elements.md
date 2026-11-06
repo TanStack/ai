@@ -9,7 +9,7 @@ How to animate insertion, removal, and layout changes of elements. Read this whe
 - Coordinating CSS transitions with the same easing as JS animations
 - Imperative animation loops via `requestAnimationFrame`
 
-Import animation APIs from `remix/ui/animation`. For the smaller set of animation helpers that show up alongside other mixins, see `mixins-styling-events.md`.
+Import animation APIs from `remix/component/animation`. For the smaller set of animation helpers that show up alongside other mixins, see `mixins-styling-events.md`.
 
 ## Animation Mixins
 
@@ -178,7 +178,7 @@ for (let t of spring('bouncy')) {
 Generator-based tween for animating values over time with cubic bezier easing. Prefer animation mixins or CSS transitions with `spring` for most UI work. Use `tween` for imperative `requestAnimationFrame` loops, canvas/WebGL, or non-CSS properties.
 
 ```tsx
-import { tween, easings } from 'remix/ui/animation'
+import { tween, easings } from 'remix/component/animation'
 
 let animation = tween({
   from: 0,

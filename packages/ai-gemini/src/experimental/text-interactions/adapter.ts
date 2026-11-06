@@ -1545,6 +1545,10 @@ async function* translateInteractionEvents(
           case 'mcp_server_tool_call':
           case 'mcp_server_tool_result':
           case 'google_maps_call':
+          case 'processing_call':
+          case 'processing_result':
+          case 'retrieval_call':
+          case 'retrieval_result':
           case 'google_maps_result':
           case 'function_result':
           default:
@@ -1672,6 +1676,10 @@ async function* translateInteractionEvents(
           case 'mcp_server_tool_call':
           case 'mcp_server_tool_result':
           case 'google_maps_call':
+          case 'processing_call':
+          case 'processing_result':
+          case 'retrieval_call':
+          case 'retrieval_result':
           case 'google_maps_result':
           case 'function_result':
           default:

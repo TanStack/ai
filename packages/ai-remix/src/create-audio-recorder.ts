@@ -4,7 +4,7 @@ import type {
   AudioRecording,
   InferAudioRecordingOutput,
 } from '@tanstack/ai-client'
-import type { Handle } from 'remix/ui'
+import type { Handle } from 'remix/component'
 
 export type CreateAudioRecorderOptions<TOnComplete> = AudioRecorderOptions & {
   /**

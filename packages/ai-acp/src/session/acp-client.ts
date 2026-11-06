@@ -1,16 +1,18 @@
+// `/unstable` because turn `usage` on `session/prompt` responses (and the
+// `usage_update` session update) are unstable ACP v1 fields; the stable
+// entrypoint strips them.
 import {
-  ClientSideConnection,
   PROTOCOL_VERSION,
+  client,
+  methods,
   ndJsonStream,
-} from '@agentclientprotocol/sdk'
+} from '@agentclientprotocol/sdk/unstable'
+import { isRecord } from '../utils'
 import { spawnHandleToAcpTransport } from '../transport/stdio'
 import type {
-  Client,
+  Implementation,
   McpServer,
-  RequestPermissionRequest,
-  RequestPermissionResponse,
-  SessionNotification,
-} from '@agentclientprotocol/sdk'
+} from '@agentclientprotocol/sdk/unstable'
 import type {
   AcpPermissionOutcome,
   AcpPermissionRequest,
@@ -27,11 +29,11 @@ import type { AcpJsonRpcStream, AcpSessionTransport } from '../transport/types'
  * but will become required, so we always send it.
  * ponytail: hardcoded — clientInfo is diagnostic; a stale patch version is harmless.
  */
-const CLIENT_INFO = {
+const CLIENT_INFO: Implementation = {
   name: '@tanstack/ai-acp',
   title: 'TanStack AI',
   version: '0.1.0',
-} as const
+}
 
 export interface AcpSessionHandle {
   sessionId: string
@@ -100,33 +102,30 @@ export async function startAcpSession(
 
   let replaying = false
 
-  const client: Client = {
-    requestPermission: async (
-      params: RequestPermissionRequest,
-    ): Promise<RequestPermissionResponse> => {
+  const app = client({ name: CLIENT_INFO.name })
+    .onRequest(methods.client.session.requestPermission, async ({ params }) => {
       const outcome = await options.onPermissionRequest(params)
       return { outcome }
-    },
-    sessionUpdate: (params: SessionNotification): Promise<void> => {
+    })
+    .onNotification(methods.client.session.update, ({ params }) => {
       if (!replaying) {
         options.onUpdate(params.update as AcpSessionUpdate)
       }
-      return Promise.resolve()
-    },
-    extNotification: (method, params) => {
-      options.onExtNotification?.(method, params)
-      return Promise.resolve()
-    },
-  }
+    })
+    // Raw fallback: runs only for notifications without a typed handler, i.e.
+    // vendor extensions such as Grok's `_x.ai/session_notification`.
+    .onNotification('*', ({ method, params }) => {
+      if (isRecord(params)) options.onExtNotification?.(method, params)
+    })
 
   const race = <T>(work: Promise<T>): Promise<T> =>
     exited !== undefined ? Promise.race([work, exited]) : work
 
   try {
-    const connection = new ClientSideConnection(() => client, stream)
+    const connection = app.connect(stream).agent
 
     const initResult = await race(
-      connection.initialize({
+      connection.request(methods.agent.initialize, {
         protocolVersion: PROTOCOL_VERSION,
         clientInfo: CLIENT_INFO,
         clientCapabilities: {
@@ -162,7 +161,11 @@ export async function startAcpSession(
           }.`,
         )
       }
-      await race(connection.authenticate({ methodId: options.authMethodId }))
+      await race(
+        connection.request(methods.agent.authenticate, {
+          methodId: options.authMethodId,
+        }),
+      )
     }
 
     const mcpServers: Array<McpServer> = (options.mcpServers ?? []).map(
@@ -183,7 +186,7 @@ export async function startAcpSession(
       replaying = true
       try {
         await race(
-          connection.loadSession({
+          connection.request(methods.agent.session.load, {
             sessionId: options.resumeSessionId,
             cwd: options.cwd,
             mcpServers,
@@ -200,7 +203,10 @@ export async function startAcpSession(
 
     if (sessionId === undefined) {
       const session = await race(
-        connection.newSession({ cwd: options.cwd, mcpServers }),
+        connection.request(methods.agent.session.new, {
+          cwd: options.cwd,
+          mcpServers,
+        }),
       )
       sessionId = session.sessionId
     }
@@ -210,7 +216,7 @@ export async function startAcpSession(
       resumed,
       prompt: async (text: string) => {
         const response = await race(
-          connection.prompt({
+          connection.request(methods.agent.session.prompt, {
             sessionId,
             prompt: [{ type: 'text', text }],
           }),
@@ -220,7 +226,8 @@ export async function startAcpSession(
           ...(response.usage != null && { usage: response.usage }),
         }
       },
-      cancel: () => connection.cancel({ sessionId }),
+      cancel: () =>
+        connection.notify(methods.agent.session.cancel, { sessionId }),
       dispose: teardown,
     }
   } catch (error) {

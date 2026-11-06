@@ -4,7 +4,7 @@ import type {
   ChatUISchemaOf,
   ChatUIToolsOf,
 } from '@tanstack/ai-client/ui'
-import type { Handle } from 'remix/ui'
+import type { Handle } from 'remix/component'
 import { createChat as createUnboundChat } from '../create-chat.ts'
 import type { CreateChatOptions } from '../types.ts'
 import { createChatUI } from './create-ui.tsx'

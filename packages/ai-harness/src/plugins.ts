@@ -526,10 +526,12 @@ const SETUP_KEYS: ReadonlySet<string> = new Set<
 
 /** No `setup()` contribution at the top level of a definition. */
 type NoSetupKeys = {
-  [K in Exclude<
-    keyof HostPluginContributions | keyof PluginContributions,
-    keyof PluginDefinitionBase | 'lifetime' | 'setup'
-  >]?: never
+  [
+    K in Exclude<
+      keyof HostPluginContributions | keyof PluginContributions,
+      keyof PluginDefinitionBase | 'lifetime' | 'setup'
+    >
+  ]?: never
 }
 
 /**

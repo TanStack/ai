@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { Send, Square } from 'lucide-svelte'
+  import { Send, Square } from '@lucide/svelte'
 
   interface Props {
     value: string

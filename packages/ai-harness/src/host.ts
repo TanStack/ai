@@ -1482,9 +1482,8 @@ function forkedMembers(
   if (mode === 'self') return [owner]
   const others = (source?.members ?? [])
     .filter((member) => member.userId !== forker.id)
-    .map(
-      (member): SessionMember =>
-        member.role === 'owner' ? { ...member, role: 'member' } : member,
+    .map((member): SessionMember =>
+      member.role === 'owner' ? { ...member, role: 'member' } : member,
     )
   return [owner, ...others]
 }

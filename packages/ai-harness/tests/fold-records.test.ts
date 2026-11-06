@@ -381,13 +381,11 @@ describe('pluginStateDeltas', () => {
         plugin: 'p',
         delta: { path: [], value: current },
       },
-      ...pluginStateDeltas(current, next).map(
-        (delta): ThreadRecord => ({
-          type: 'harness.plugin.state',
-          plugin: 'p',
-          delta,
-        }),
-      ),
+      ...pluginStateDeltas(current, next).map((delta): ThreadRecord => ({
+        type: 'harness.plugin.state',
+        plugin: 'p',
+        delta,
+      })),
     ]
     return fold(records).plugins.get('p')
   }

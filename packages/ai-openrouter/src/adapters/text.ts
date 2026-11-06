@@ -1395,15 +1395,13 @@ export class OpenRouterTextAdapter<
       messages.push({
         role: 'system',
         content: hasCacheControl
-          ? systemPrompts.map(
-              (p): ChatContentText => ({
-                type: 'text',
-                text: p.content,
-                ...(p.metadata?.cache_control && {
-                  cacheControl: p.metadata.cache_control,
-                }),
+          ? systemPrompts.map((p): ChatContentText => ({
+              type: 'text',
+              text: p.content,
+              ...(p.metadata?.cache_control && {
+                cacheControl: p.metadata.cache_control,
               }),
-            )
+            }))
           : systemPrompts.map((p) => p.content).join('\n'),
       })
     }

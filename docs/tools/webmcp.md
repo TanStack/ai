@@ -242,7 +242,7 @@ Pass the component `Handle` to `createRegisterWebMCPTools`. Remix uses `handle.s
 
 ```tsx
 import { createRegisterWebMCPTools } from '@tanstack/ai-remix'
-import { clientEntry, createElement } from 'remix/ui'
+import { clientEntry, createElement } from 'remix/component'
 import { webMCPTools } from './tools'
 
 export const HelpPage = clientEntry(

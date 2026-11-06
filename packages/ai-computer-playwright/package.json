@@ -55,7 +55,7 @@
   },
   "devDependencies": {
     "@tanstack/ai-computer-use": "workspace:*",
-    "@vitest/coverage-v8": "4.1.10",
-    "playwright-core": "^1.57.0"
+    "@vitest/coverage-v8": "5.1.0",
+    "playwright-core": "^1.64.1"
   }
 }

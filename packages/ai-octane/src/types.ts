@@ -32,7 +32,6 @@ import type {
 // Re-export types from ai-client
 export type {
   ChatRequestBody,
-  MultimodalContent,
   QueueConfig,
   QueuedMessage,
   QueueOption,

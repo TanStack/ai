@@ -6,7 +6,7 @@
     addToWishListToolDef,
     getPersonalGuitarPreferenceToolDef,
     recommendGuitarToolDef,
-  } from '$lib/guitar-tools'
+  } from '#lib/guitar-tools.ts'
   import Fallback from './Fallback.svelte'
   import Layout from './Layout.svelte'
   import Message from './Message.svelte'

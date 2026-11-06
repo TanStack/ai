@@ -9,7 +9,7 @@ export { createOpenRouterChatClient } from './chat'
 export { createOpenRouterResponsesClient } from './responses'
 export { createOpenRouterRerankClient } from './rerank'
 export { createOpenRouterVideoClient } from './video'
-export type { HttpClientLike, OpenRouterClientOptions } from './http'
+export type { OpenRouterClientOptions } from './http'
 export type { OpenRouterClient } from './types'
 
 /**

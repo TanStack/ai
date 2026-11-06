@@ -43,10 +43,10 @@
     "test:types": "tsc"
   },
   "dependencies": {
-    "@tanstack/devtools-event-client": "^0.4.1"
+    "@tanstack/devtools-event-client": "^0.5.1"
   },
   "devDependencies": {
-    "@vitest/coverage-v8": "4.1.10"
+    "@vitest/coverage-v8": "5.1.0"
   },
   "keywords": [
     "ai",

@@ -64,8 +64,8 @@
     "image-generation"
   ],
   "devDependencies": {
-    "@vitest/coverage-v8": "4.1.10",
-    "vite": "^8.2.1"
+    "@vitest/coverage-v8": "5.1.0",
+    "vite": "^8.3.5"
   },
   "peerDependencies": {
     "@tanstack/ai": "workspace:^"
@@ -73,6 +73,6 @@
   "dependencies": {
     "@tanstack/ai-utils": "workspace:^",
     "@tanstack/openai-base": "workspace:^",
-    "openai": "^7.30.0"
+    "openai": "^7.51.0"
   }
 }

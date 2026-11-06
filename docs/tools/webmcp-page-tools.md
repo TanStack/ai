@@ -259,7 +259,7 @@ import {
   createPageWebMCPTools,
   fetchServerSentEvents,
 } from '@tanstack/ai-remix'
-import { clientEntry, createElement, on } from 'remix/ui'
+import { clientEntry, createElement, on } from 'remix/component'
 
 export const Chat = clientEntry(import.meta.url, function Chat(handle) {
   const page = createPageWebMCPTools(handle)

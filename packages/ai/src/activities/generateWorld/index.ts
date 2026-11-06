@@ -334,9 +334,4 @@ export function createWorldOptions<
 }
 
 // Re-export adapter types
-export type {
-  WorldAdapter,
-  WorldAdapterConfig,
-  AnyWorldAdapter,
-} from './adapter'
-export { BaseWorldAdapter } from './adapter'
+export type { WorldAdapter } from './adapter'
