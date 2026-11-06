@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { EventType } from '@tanstack/ai'
+import { CONTEXT_OVERFLOW_CODE, EventType } from '@tanstack/ai'
 import type { AdapterYieldChunk } from '@tanstack/ai'
 import { processConverseStream } from '../../src/converse/stream-processor'
 import type {
@@ -182,6 +182,25 @@ describe('processConverseStream', () => {
         totalTokens: 18,
       })
     }
+  })
+
+  it('ends with a context_overflow RUN_ERROR when the context window is exceeded', async () => {
+    const events = await collect(
+      { contentBlockDelta: { delta: { text: 'hi' }, contentBlockIndex: 0 } },
+      { messageStop: { stopReason: 'model_context_window_exceeded' } },
+      {
+        metadata: {
+          usage: { inputTokens: 7, outputTokens: 11, totalTokens: 18 },
+        },
+      },
+    )
+    expect(events.some((e) => e.type === EventType.RUN_FINISHED)).toBe(false)
+    const errors = events.filter((e) => e.type === EventType.RUN_ERROR)
+    expect(errors).toHaveLength(1)
+    expect(errors[0]).toMatchObject({
+      code: CONTEXT_OVERFLOW_CODE,
+      usage: { promptTokens: 7, completionTokens: 11, totalTokens: 18 },
+    })
   })
 
   // Run one text turn with this metadata usage and return the usage on the
