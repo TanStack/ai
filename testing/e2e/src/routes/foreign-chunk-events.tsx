@@ -1,5 +1,4 @@
-import { useEffect } from 'react'
-import { createFileRoute } from '@tanstack/react-router'
+import { createFileRoute, useHydrated } from '@tanstack/react-router'
 import { fetchServerSentEvents, useChat } from '@tanstack/ai-react'
 
 /**
@@ -23,16 +22,20 @@ function ForeignChunkEventsPage() {
     ),
   })
 
-  useEffect(() => {
+  // Sending is a user action, so it runs from a click and not a mount effect.
+  // The button stays disabled until hydration, so the spec's click reaches React.
+  const hydrated = useHydrated()
+  const send = () => {
     void sendMessage('go')
-    // Fire the single run once on mount; the harness route ignores the content.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }
 
   const assistant = messages.filter((message) => message.role === 'assistant')
 
   return (
     <div data-testid="foreign-chunk-events-page">
+      <button data-testid="send" disabled={!hydrated} onClick={send}>
+        Send
+      </button>
       <div data-testid="assistant-ids">
         {assistant.map((message) => message.id).join(',')}
       </div>

@@ -47,7 +47,7 @@ test.describe('openai strict tool optional fields', () => {
           },
           options: { type: ['array', 'null'] },
           nullableNote: {
-            anyOf: [{ type: 'string' }, { type: 'null' }],
+            type: ['string', 'null'],
           },
         },
       },

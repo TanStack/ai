@@ -11,6 +11,7 @@ test.describe('tool-first text (#1247)', () => {
     page,
   }) => {
     await page.goto('/tool-first-text')
+    await page.getByTestId('send').click()
 
     await expect(page.getByTestId('assistant-text')).toHaveText('Hello, world.')
   })
