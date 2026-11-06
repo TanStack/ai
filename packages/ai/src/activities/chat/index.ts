@@ -1123,6 +1123,8 @@ class TextEngine<
   private deferredModelRunFinishedChunks: Array<StreamChunk> = []
 
   private earlyTermination = false
+  /** The loop strategy or `onShouldContinue` ended the loop after a tool phase. */
+  private loopStopped = false
   private toolPhase: ToolPhaseResult = 'continue'
   private cyclePhase: CyclePhase = 'processText'
   // Client state extracted from initial messages (before conversion to ModelMessage)
@@ -1704,7 +1706,19 @@ class TextEngine<
 
       this.logger.agentLoop('run finished', {
         finishReason: this.lastFinishReason,
+        loopStopped: this.loopStopped,
       })
+
+      // The `tool_calls` RUN_FINISHED went out before the tool results. A
+      // last one tells the client that the loop, not the model, ended the run.
+      if (this.loopStopped && !this.isCancelled()) {
+        this.markLoopStoppedMessage()
+        yield* this.pipeThroughMiddleware(
+          withTanstackMetadata(this.createSyntheticFinishedEvent(), {
+            loopStopped: true,
+          }),
+        )
+      }
 
       // After the agent loop ends, if a structured-output finalization was
       // requested AND the run hasn't already errored/aborted, run it through
@@ -2950,6 +2964,15 @@ class TextEngine<
       // A stopped run ends on the `length` RUN_FINISHED, after the results.
       // Native combined structured output sends it after its harvest, and
       // drops it when the harvest fails.
+      if (!continues) {
+        this.markLoopStoppedMessage()
+        this.deferredToolCallRunFinishedChunks =
+          this.deferredToolCallRunFinishedChunks.map((chunk) =>
+            chunk.type === EventType.RUN_FINISHED
+              ? withTanstackMetadata(chunk, { loopStopped: true })
+              : chunk,
+          )
+      }
       if (!continues && this.finalStructuredOutput?.nativeCombined) {
         this.deferredModelRunFinishedChunks.push(
           ...this.deferredToolCallRunFinishedChunks,
@@ -4567,10 +4590,26 @@ class TextEngine<
     const cutAnswerContinues = this.cutAnswerContinues
     this.cutAnswerContinues = undefined
 
-    return (
-      (cutAnswerContinues ?? (await this.loopContinues(this.iterationCount))) &&
-      this.toolPhase === 'continue'
+    const continues =
+      cutAnswerContinues ?? (await this.loopContinues(this.iterationCount))
+    // Tool results wait for the next model call, and the loop says no.
+    if (!continues && this.toolPhase === 'continue') this.loopStopped = true
+    return continues && this.toolPhase === 'continue'
+  }
+
+  /**
+   * Mark the last assistant message as stopped by the loop, so a stored
+   * transcript keeps the signal of the `RUN_FINISHED`.
+   */
+  private markLoopStoppedMessage(): void {
+    const index = this.messages.findLastIndex((m) => m.role === 'assistant')
+    if (index < 0) return
+    this.messages = this.messages.map((message, at) =>
+      at === index
+        ? withTanstackMetadata(message, { loopStopped: true })
+        : message,
     )
+    this.middlewareCtx.messages = this.messages
   }
 
   /** What the loop strategy and middleware `onShouldContinue` get. */

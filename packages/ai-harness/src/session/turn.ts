@@ -678,6 +678,8 @@ export abstract class SessionTurn<
     let openMessageId: string | undefined
     let interrupts: Array<Interrupt> | undefined
     let failure: string | undefined
+    /** The last RUN_FINISHED says the agent loop stopped the model. */
+    let loopStopped = false
     /** With `outputSchema`: the value of the last call, or why its check failed. */
     let structured: unknown
     let structuredError: { code: string; rawText?: string } | undefined
@@ -1364,6 +1366,9 @@ export abstract class SessionTurn<
               ) {
                 isRunOpen = false
               }
+              if (chunk.type === EventType.RUN_FINISHED) {
+                loopStopped = chunk.metadata?.tanstack?.loopStopped === true
+              }
               if (
                 chunk.type === EventType.TEXT_MESSAGE_CONTENT ||
                 chunk.type === EventType.REASONING_MESSAGE_CONTENT ||
@@ -1853,7 +1858,10 @@ export abstract class SessionTurn<
       await settleTurn({ outcome: 'interrupted' })
       operation.finish('interrupted', { text, interrupts: [], media: captured })
     } else {
-      await settleTurn({ outcome: 'completed' })
+      await settleTurn({
+        outcome: 'completed',
+        ...(loopStopped ? { loopStopped: true } : {}),
+      })
       operation.finish('completed', {
         text,
         media: captured,

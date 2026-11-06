@@ -483,6 +483,13 @@ export type InputSettlement = {
        */
       outcome: 'completed' | 'aborted' | 'interrupted'
       error?: never
+      /**
+       * `true` on a `completed` turn that the agent loop stopped before the
+       * model was done: `agentLoopStrategy` (default `maxIterations(50)`) or
+       * a middleware `onShouldContinue` said stop while tool results waited.
+       * The last `RUN_FINISHED` of the turn has `metadata.tanstack.loopStopped`.
+       */
+      loopStopped?: boolean
     }
   | {
       outcome: 'failed'

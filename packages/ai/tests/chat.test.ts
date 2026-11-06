@@ -3397,9 +3397,11 @@ describe('chat()', () => {
       expect(lookup).not.toHaveBeenCalled()
       expect(afterToolCall).toHaveBeenCalledTimes(1)
       expect(calls).toHaveLength(1)
-      expect(
-        tanstackMetadata(expectSingleRunFinished(chunks))?.finishReason,
-      ).toBe('length')
+      expect(tanstackMetadata(expectSingleRunFinished(chunks))).toMatchObject({
+        finishReason: 'length',
+        // The default strategy stops on `length`.
+        loopStopped: true,
+      })
       // The result comes before the RUN_FINISHED that ends the run.
       expect(
         chunks
@@ -3416,7 +3418,10 @@ describe('chat()', () => {
           content: 'Let me look.',
           toolCalls: [expect.objectContaining({ id: 'call_1' })],
           metadata: {
-            tanstack: expect.objectContaining({ finishReason: 'length' }),
+            tanstack: expect.objectContaining({
+              finishReason: 'length',
+              loopStopped: true,
+            }),
           },
         }),
         {
@@ -3718,6 +3723,87 @@ describe('chat()', () => {
       // Should have called the adapter 2 times (iterations 0 and 1)
       // Each iteration has processText + executeToolCalls phases
       expect(calls.length).toBe(2)
+    })
+
+    describe('loopStopped', () => {
+      const toolTurn = (id: string) => [
+        ev.runStarted(),
+        ev.toolStart(id, 'repeater'),
+        ev.toolArgs(id, '{}'),
+        ev.runFinished('tool_calls'),
+      ]
+      const textTurn = [
+        ev.runStarted(),
+        ev.textStart('msg-2'),
+        ev.textContent('Done.', 'msg-2'),
+        ev.textEnd('msg-2'),
+        ev.runFinished('stop'),
+      ]
+      const runFinished = (chunks: Array<StreamChunk>) =>
+        chunks.filter((item) => item.type === EventType.RUN_FINISHED)
+
+      async function run(iterations: Array<Array<StreamChunk>>) {
+        const { adapter, calls } = createMockAdapter({ iterations })
+        let transcript: Array<ModelMessage> = []
+        const chunks = await collectChunks(
+          chat({
+            threadId: 'thread-1',
+            adapter,
+            messages: [{ role: 'user', content: 'Repeat' }],
+            tools: [serverTool('repeater', () => ({ ok: true }))],
+            agentLoopStrategy: maxIterations(2),
+            middleware: [
+              defineChatMiddleware({
+                onFinish(ctx) {
+                  transcript = [...ctx.messages]
+                },
+              }),
+            ],
+          }) as AsyncIterable<StreamChunk>,
+        )
+        const assistants = transcript.filter((m) => m.role === 'assistant')
+        return { calls, chunks, assistants }
+      }
+
+      it('ends a run that maxIterations stops with a loopStopped RUN_FINISHED', async () => {
+        const { calls, chunks, assistants } = await run([
+          toolTurn('call_1'),
+          toolTurn('call_2'),
+          textTurn,
+        ])
+
+        expect(calls).toHaveLength(2)
+        const finished = runFinished(chunks)
+        expect(
+          finished.map((item) => tanstackMetadata(item)?.loopStopped),
+        ).toEqual([undefined, undefined, true])
+        // It comes last, after the tool results, and keeps the finish reason
+        // of the last model call.
+        expect(chunks.at(-1)).toBe(finished.at(-1))
+        expect(tanstackMetadata(finished.at(-1))?.finishReason).toBe(
+          'tool_calls',
+        )
+        expect(assistants.map((m) => tanstackMetadata(m)?.loopStopped)).toEqual(
+          [undefined, true],
+        )
+      })
+
+      it('does not mark a run that the model ends, also at the iteration limit', async () => {
+        const { calls, chunks, assistants } = await run([
+          toolTurn('call_1'),
+          textTurn,
+        ])
+
+        expect(calls).toHaveLength(2)
+        const finished = runFinished(chunks)
+        expect(tanstackMetadata(finished.at(-1))?.finishReason).toBe('stop')
+        expect(
+          finished.some((item) => tanstackMetadata(item)?.loopStopped),
+        ).toBe(false)
+        expect(assistants.some((m) => tanstackMetadata(m)?.loopStopped)).toBe(
+          false,
+        )
+      })
     })
 
     it('should respect toolCallCount on strategy state (counts tools, not turns)', async () => {

@@ -259,6 +259,8 @@ An iteration is one model turn, not one tool call. One turn can call many tools 
 
 A strategy that goes on after a `length` answer makes the model send the [cut tool call](../chat/agentic-cycle#when-the-output-limit-cuts-a-tool-call) again.
 
+When a strategy stops the loop while tool results wait for the model, the last `RUN_FINISHED` has `metadata.tanstack.loopStopped: true`. See [Know when the loop stopped the run](../chat/agentic-cycle#know-when-the-loop-stopped-the-run).
+
 ## Response helpers
 
 Each helper turns a `chat()` stream into a response for one transport. Pick the one that matches the client connection adapter. See [Transports](../transports/overview).
