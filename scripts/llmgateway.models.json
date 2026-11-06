@@ -3905,39 +3905,6 @@
         "quantization": "fp4"
       },
       {
-        "providerId": "canopywave",
-        "externalId": "deepseek/deepseek-v4-flash",
-        "pricing": {
-          "prompt": "0.14e-6",
-          "completion": "0.28e-6",
-          "image": "0",
-          "request": "0",
-          "input_cache_read": "0.03e-6",
-          "input_cache_write": "0",
-          "input_cache_write_1h": "0"
-        },
-        "context_length": 1000000,
-        "streaming": true,
-        "vision": false,
-        "cancellation": true,
-        "tools": true,
-        "parallelToolCalls": false,
-        "supported_tool_choices": ["auto", "none"],
-        "json_output": true,
-        "reasoning": true,
-        "reasoning_efforts": [
-          "none",
-          "minimal",
-          "low",
-          "medium",
-          "high",
-          "xhigh",
-          "max"
-        ],
-        "max_output": 393216,
-        "quantization": "fp8"
-      },
-      {
         "providerId": "baidu",
         "externalId": "deepseek-v4-flash-0731",
         "pricing": {
@@ -4433,39 +4400,6 @@
         "reasoning": true,
         "quantization": "fp8",
         "deactivated_at": "2026-08-31T00:00:00.000Z"
-      },
-      {
-        "providerId": "canopywave",
-        "externalId": "deepseek/deepseek-v4-pro",
-        "pricing": {
-          "prompt": "1.74e-6",
-          "completion": "3.48e-6",
-          "image": "0",
-          "request": "0",
-          "input_cache_read": "0.01e-6",
-          "input_cache_write": "0",
-          "input_cache_write_1h": "0"
-        },
-        "context_length": 1000000,
-        "streaming": true,
-        "vision": false,
-        "cancellation": true,
-        "tools": true,
-        "parallelToolCalls": false,
-        "supported_tool_choices": ["auto", "none"],
-        "json_output": true,
-        "reasoning": true,
-        "reasoning_efforts": [
-          "none",
-          "minimal",
-          "low",
-          "medium",
-          "high",
-          "xhigh",
-          "max"
-        ],
-        "max_output": 393216,
-        "quantization": "fp8"
       },
       {
         "providerId": "fireworks",
@@ -5128,11 +5062,11 @@
         "providerId": "reka-ai",
         "externalId": "deepseek41-flash",
         "pricing": {
-          "prompt": "0.0000001275",
-          "completion": "0.00000051",
+          "prompt": "0.000000135",
+          "completion": "0.00000054",
           "image": "0",
           "request": "0",
-          "input_cache_read": "0.0000000095",
+          "input_cache_read": "0.000000007",
           "input_cache_write": "0",
           "input_cache_write_1h": "0"
         },
@@ -5271,11 +5205,11 @@
       }
     ],
     "pricing": {
-      "prompt": "0.0000001275",
-      "completion": "0.00000051",
+      "prompt": "0.000000135",
+      "completion": "0.00000054",
       "image": "0",
       "request": "0",
-      "input_cache_read": "0.0000000095",
+      "input_cache_read": "0.000000007",
       "input_cache_write": "0",
       "input_cache_write_1h": "0",
       "web_search": "0",
@@ -12155,29 +12089,6 @@
         "max_output": 131072
       },
       {
-        "providerId": "canopywave",
-        "externalId": "zai/glm-5.2",
-        "pricing": {
-          "prompt": "1.4e-6",
-          "completion": "4.4e-6",
-          "image": "0",
-          "request": "0",
-          "input_cache_read": "0.26e-6",
-          "input_cache_write": "0",
-          "input_cache_write_1h": "0"
-        },
-        "context_length": 200000,
-        "streaming": true,
-        "vision": false,
-        "cancellation": true,
-        "tools": true,
-        "parallelToolCalls": false,
-        "json_output": true,
-        "reasoning": true,
-        "max_output": 32768,
-        "quantization": "fp8"
-      },
-      {
         "providerId": "bytedance",
         "externalId": "glm-5-2-260617",
         "pricing": {
@@ -12387,6 +12298,34 @@
           "max"
         ],
         "max_output": 128000
+      },
+      {
+        "providerId": "canopywave",
+        "externalId": "zai/glm-5.2",
+        "pricing": {
+          "prompt": "0.0000014",
+          "completion": "0.0000044",
+          "image": "0",
+          "request": "0",
+          "input_cache_read": "0.00000026",
+          "input_cache_write": "0",
+          "input_cache_write_1h": "0"
+        },
+        "context_length": 200000,
+        "streaming": true,
+        "vision": false,
+        "audio": false,
+        "cancellation": true,
+        "tools": true,
+        "parallelToolCalls": false,
+        "json_output": true,
+        "structured_outputs": false,
+        "web_search": false,
+        "reasoning": true,
+        "reasoning_max_tokens": false,
+        "max_output": 32768,
+        "quantization": "fp8",
+        "stability": "stable"
       },
       {
         "providerId": "flexai",
@@ -13515,10 +13454,10 @@
         "externalId": "glm5.3-flash",
         "pricing": {
           "prompt": "0.00000011",
-          "completion": "0.00000033",
+          "completion": "0.0000003",
           "image": "0",
           "request": "0",
-          "input_cache_read": "0.000000027",
+          "input_cache_read": "0.00000002",
           "input_cache_write": "0",
           "input_cache_write_1h": "0"
         },
@@ -23164,29 +23103,6 @@
         ]
       },
       {
-        "providerId": "canopywave",
-        "externalId": "moonshotai/kimi-k2.6",
-        "pricing": {
-          "prompt": "0.95e-6",
-          "completion": "4.0e-6",
-          "image": "0",
-          "request": "0",
-          "input_cache_read": "0.16e-6",
-          "input_cache_write": "0",
-          "input_cache_write_1h": "0"
-        },
-        "context_length": 262144,
-        "streaming": true,
-        "vision": true,
-        "cancellation": true,
-        "tools": true,
-        "parallelToolCalls": false,
-        "json_output": true,
-        "reasoning": true,
-        "max_output": 32768,
-        "stability": "unstable"
-      },
-      {
         "providerId": "novita",
         "externalId": "moonshotai/kimi-k2.6",
         "pricing": {
@@ -23323,6 +23239,33 @@
           "max"
         ],
         "max_output": 262144
+      },
+      {
+        "providerId": "canopywave",
+        "externalId": "moonshotai/kimi-k2.6",
+        "pricing": {
+          "prompt": "0.00000095",
+          "completion": "0.0000040",
+          "image": "0",
+          "request": "0",
+          "input_cache_read": "0.00000016",
+          "input_cache_write": "0",
+          "input_cache_write_1h": "0"
+        },
+        "context_length": 262144,
+        "streaming": true,
+        "vision": true,
+        "audio": false,
+        "cancellation": true,
+        "tools": true,
+        "parallelToolCalls": false,
+        "json_output": true,
+        "structured_outputs": false,
+        "web_search": false,
+        "reasoning": true,
+        "reasoning_max_tokens": false,
+        "max_output": 32768,
+        "stability": "unstable"
       }
     ],
     "pricing": {
@@ -24016,38 +23959,6 @@
         "max_output": 1040384
       },
       {
-        "providerId": "canopywave",
-        "externalId": "moonshotai/kimi-k3",
-        "pricing": {
-          "prompt": "3.0e-6",
-          "completion": "15.0e-6",
-          "image": "0",
-          "request": "0",
-          "input_cache_read": "0.3e-6",
-          "input_cache_write": "0",
-          "input_cache_write_1h": "0"
-        },
-        "context_length": 1048576,
-        "streaming": true,
-        "vision": true,
-        "cancellation": true,
-        "tools": true,
-        "parallelToolCalls": false,
-        "supported_tool_choices": ["auto", "none", "required"],
-        "json_output": true,
-        "reasoning": true,
-        "reasoning_efforts": [
-          "none",
-          "minimal",
-          "low",
-          "medium",
-          "high",
-          "xhigh",
-          "max"
-        ],
-        "max_output": 1048576
-      },
-      {
         "providerId": "tencent",
         "externalId": "kimi-k3",
         "pricing": {
@@ -24256,6 +24167,43 @@
         "max_output": 1048576,
         "quantization": "fp8",
         "stability": "stable"
+      },
+      {
+        "providerId": "canopywave",
+        "externalId": "moonshotai/kimi-k3",
+        "pricing": {
+          "prompt": "0.0000030",
+          "completion": "0.0000150",
+          "image": "0",
+          "request": "0",
+          "input_cache_read": "0.0000003",
+          "input_cache_write": "0",
+          "input_cache_write_1h": "0"
+        },
+        "context_length": 1048576,
+        "streaming": true,
+        "vision": true,
+        "audio": false,
+        "cancellation": true,
+        "tools": true,
+        "parallelToolCalls": false,
+        "supported_tool_choices": ["auto", "none", "required"],
+        "json_output": true,
+        "structured_outputs": false,
+        "web_search": false,
+        "reasoning": true,
+        "reasoning_efforts": [
+          "none",
+          "minimal",
+          "low",
+          "medium",
+          "high",
+          "xhigh",
+          "max"
+        ],
+        "reasoning_max_tokens": false,
+        "max_output": 1048576,
+        "stability": "stable"
       }
     ],
     "pricing": {
@@ -24438,14 +24386,40 @@
           "tool_choice",
           "reasoning_effort"
         ]
+      },
+      {
+        "providerId": "scx-ai-gp",
+        "externalId": "kimi-k3.1-pro",
+        "pricing": {
+          "prompt": "0.0000019",
+          "completion": "0.0000095",
+          "image": "0",
+          "request": "0",
+          "input_cache_read": "0.00000019",
+          "input_cache_write": "0",
+          "input_cache_write_1h": "0"
+        },
+        "context_length": 1048576,
+        "streaming": true,
+        "vision": false,
+        "audio": false,
+        "cancellation": false,
+        "tools": false,
+        "parallelToolCalls": false,
+        "json_output": false,
+        "structured_outputs": false,
+        "web_search": false,
+        "reasoning": false,
+        "reasoning_max_tokens": false,
+        "stability": "stable"
       }
     ],
     "pricing": {
-      "prompt": "2.0e-6",
-      "completion": "10.0e-6",
+      "prompt": "0.0000019",
+      "completion": "0.0000095",
       "image": "0",
       "request": "0",
-      "input_cache_read": "0.2e-6",
+      "input_cache_read": "0.00000019",
       "input_cache_write": "0",
       "input_cache_write_1h": "0",
       "web_search": "0",
@@ -27214,6 +27188,35 @@
         "reasoning": true,
         "reasoning_efforts": ["none"],
         "max_output": 1048576
+      },
+      {
+        "providerId": "canopywave",
+        "externalId": "minimax/minimax-m3.1-flash",
+        "pricing": {
+          "prompt": "0.00000015",
+          "completion": "0.0000006",
+          "image": "0",
+          "request": "0",
+          "input_cache_read": "0.000000015",
+          "input_cache_write": "0",
+          "input_cache_write_1h": "0"
+        },
+        "context_length": 1000000,
+        "streaming": true,
+        "vision": true,
+        "audio": false,
+        "cancellation": true,
+        "tools": true,
+        "parallelToolCalls": false,
+        "json_output": true,
+        "structured_outputs": false,
+        "web_search": false,
+        "reasoning": true,
+        "reasoning_efforts": ["low", "medium", "high", "xhigh", "max"],
+        "reasoning_max_tokens": false,
+        "max_output": 131072,
+        "quantization": "fp16",
+        "stability": "stable"
       }
     ],
     "pricing": {
@@ -27228,7 +27231,7 @@
       "internal_reasoning": "0"
     },
     "context_length": 1048576,
-    "max_output": 524288,
+    "max_output": 131072,
     "supported_parameters": [
       "messages",
       "model",
@@ -33997,6 +34000,33 @@
           "tool_choice",
           "response_format"
         ]
+      },
+      {
+        "providerId": "canopywave",
+        "externalId": "qwen/qwen3.8-flash-next",
+        "pricing": {
+          "prompt": "0.00000015",
+          "completion": "0.0000005",
+          "image": "0",
+          "request": "0",
+          "input_cache_read": "0.00000002",
+          "input_cache_write": "0",
+          "input_cache_write_1h": "0"
+        },
+        "context_length": 1000000,
+        "streaming": true,
+        "vision": true,
+        "audio": false,
+        "cancellation": true,
+        "tools": true,
+        "parallelToolCalls": false,
+        "json_output": true,
+        "structured_outputs": false,
+        "web_search": false,
+        "reasoning": true,
+        "reasoning_max_tokens": false,
+        "quantization": "fp16",
+        "stability": "stable"
       }
     ],
     "pricing": {
@@ -35395,10 +35425,11 @@
           "prompt": "0",
           "completion": "0",
           "image": "0",
+          "video_output": "[object Object]",
           "per_second": {
             "default_audio": "0.05184",
             "default_video": "0.02592",
-            "1080p_audio": "0.1166",
+            "1080p_audio": "0.11664",
             "1080p_video": "0.05832"
           },
           "request": "0",
@@ -35414,17 +35445,19 @@
         "parallelToolCalls": false,
         "json_output": false,
         "reasoning": false,
-        "max_output": 1
+        "max_output": 1,
+        "deactivated_at": "2026-11-11T00:00:00.000Z"
       }
     ],
     "pricing": {
       "prompt": "0",
       "completion": "0",
       "image": "0",
+      "video_output": "[object Object]",
       "per_second": {
         "default_audio": "0.05184",
         "default_video": "0.02592",
-        "1080p_audio": "0.1166",
+        "1080p_audio": "0.11664",
         "1080p_video": "0.05832"
       },
       "request": "0",
@@ -35448,7 +35481,8 @@
     ],
     "json_output": false,
     "structured_outputs": false,
-    "free": false
+    "free": false,
+    "deactivated_at": "2026-11-11T00:00:00.000Z"
   },
   {
     "id": "seedance-2-0",
@@ -35484,11 +35518,12 @@
           "prompt": "0",
           "completion": "0",
           "image": "0",
+          "video_output": "[object Object]",
           "per_second": {
             "default_audio": "0.1512",
             "default_video": "0.1512",
-            "1080p_audio": "0.3402",
-            "1080p_video": "0.3402"
+            "1080p_audio": "0.37422",
+            "1080p_video": "0.37422"
           },
           "request": "0",
           "input_cache_read": "0",
@@ -35510,11 +35545,12 @@
       "prompt": "0",
       "completion": "0",
       "image": "0",
+      "video_output": "[object Object]",
       "per_second": {
         "default_audio": "0.1512",
         "default_video": "0.1512",
-        "1080p_audio": "0.3402",
-        "1080p_video": "0.3402"
+        "1080p_audio": "0.37422",
+        "1080p_video": "0.37422"
       },
       "request": "0",
       "input_cache_read": "0",
@@ -35568,11 +35604,10 @@
           "prompt": "0",
           "completion": "0",
           "image": "0",
+          "video_output": "[object Object]",
           "per_second": {
-            "default_audio": "0.121",
-            "default_video": "0.121",
-            "1080p_audio": "0.2722",
-            "1080p_video": "0.2722"
+            "default_audio": "0.12096",
+            "default_video": "0.12096"
           },
           "request": "0",
           "input_cache_read": "0",
@@ -35594,11 +35629,10 @@
       "prompt": "0",
       "completion": "0",
       "image": "0",
+      "video_output": "[object Object]",
       "per_second": {
-        "default_audio": "0.121",
-        "default_video": "0.121",
-        "1080p_audio": "0.2722",
-        "1080p_video": "0.2722"
+        "default_audio": "0.12096",
+        "default_video": "0.12096"
       },
       "request": "0",
       "input_cache_read": "0",
@@ -35658,11 +35692,12 @@
           "prompt": "0",
           "completion": "0",
           "image": "0",
+          "video_output": "[object Object]",
           "per_second": {
             "default_audio": "0.0756",
             "default_video": "0.0756",
-            "480p_audio": "0.0378",
-            "480p_video": "0.0378"
+            "480p_audio": "0.035154",
+            "480p_video": "0.035154"
           },
           "request": "0",
           "input_cache_read": "0",
@@ -35684,11 +35719,12 @@
       "prompt": "0",
       "completion": "0",
       "image": "0",
+      "video_output": "[object Object]",
       "per_second": {
         "default_audio": "0.0756",
         "default_video": "0.0756",
-        "480p_audio": "0.0378",
-        "480p_video": "0.0378"
+        "480p_audio": "0.035154",
+        "480p_video": "0.035154"
       },
       "request": "0",
       "input_cache_read": "0",
@@ -35751,13 +35787,14 @@
           "prompt": "0",
           "completion": "0",
           "image": "0",
+          "video_output": "[object Object]",
           "per_second": {
-            "default_audio": "0.2311",
-            "default_video": "0.2311",
-            "480p_audio": "0.1028",
-            "480p_video": "0.1028",
-            "1080p_audio": "0.52",
-            "1080p_video": "0.52"
+            "default_audio": "0.23112",
+            "default_video": "0.23112",
+            "480p_audio": "0.10280025",
+            "480p_video": "0.10280025",
+            "1080p_audio": "0.56862",
+            "1080p_video": "0.56862"
           },
           "request": "0",
           "input_cache_read": "0",
@@ -35779,13 +35816,14 @@
       "prompt": "0",
       "completion": "0",
       "image": "0",
+      "video_output": "[object Object]",
       "per_second": {
-        "default_audio": "0.2311",
-        "default_video": "0.2311",
-        "480p_audio": "0.1028",
-        "480p_video": "0.1028",
-        "1080p_audio": "0.52",
-        "1080p_video": "0.52"
+        "default_audio": "0.23112",
+        "default_video": "0.23112",
+        "480p_audio": "0.10280025",
+        "480p_video": "0.10280025",
+        "1080p_audio": "0.56862",
+        "1080p_video": "0.56862"
       },
       "request": "0",
       "input_cache_read": "0",

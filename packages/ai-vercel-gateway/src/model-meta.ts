@@ -365,7 +365,6 @@ export const VERCEL_GATEWAY_CHAT_MODELS = [
   'spacexai/grok-stt',
   'spacexai/grok-tts',
   'spacexai/grok-voice-3.0',
-  'spacexai/grok-voice-think-fast-2.0',
   'stealth/glyph-cluster',
   'stepfun/step-3.7-flash',
   'stepfun/step-5-preview',
@@ -545,6 +544,8 @@ export const VERCEL_GATEWAY_IMAGE_MODELS = [
   'openai/gpt-image-2',
   'openai/gpt-image-2.5-flare',
   'openai/gpt-image-2.5-sunburst',
+  'openai/gpt-image-2.6-flare',
+  'openai/gpt-image-2.6-sunburst',
   'prodia/flux-fast-schnell',
   'recraft/recraft-v2',
   'recraft/recraft-v3',
@@ -3321,11 +3322,6 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       VercelGatewayBaseOptions,
       'max_tokens' | 'max_output_tokens' | 'temperature' | 'stop'
     >
-  'spacexai/grok-voice-think-fast-2.0': VercelGatewayCommonOptions &
-    Pick<
-      VercelGatewayBaseOptions,
-      'max_tokens' | 'max_output_tokens' | 'temperature' | 'stop'
-    >
   'stealth/glyph-cluster': VercelGatewayCommonOptions &
     Pick<
       VercelGatewayBaseOptions,
@@ -4019,7 +4015,6 @@ export type VercelGatewayModelInputModalitiesByName = {
   'spacexai/grok-stt': readonly ['text', 'audio']
   'spacexai/grok-tts': readonly ['text']
   'spacexai/grok-voice-3.0': readonly ['text', 'audio']
-  'spacexai/grok-voice-think-fast-2.0': readonly ['text', 'audio']
   'stealth/glyph-cluster': readonly ['text']
   'stepfun/step-3.7-flash': readonly ['text', 'image']
   'stepfun/step-5-preview': readonly ['text', 'image', 'video']
