@@ -65,7 +65,7 @@ const client = new ChatClient({
 });
 
 client.attach(); // rejoin a run in progress, and load the thread
-client.detach(); // drop the connection, keep the messages and the run pointer
+client.detach(); // drop the rejoin connection, keep the messages and the run pointer
 ```
 
 The connection follows the view because a browser allows only about six connections to one origin. A chat that follows a run holds one connection for as long as the run lasts. If every chat on a page held one, the other requests wait behind them.
@@ -73,6 +73,7 @@ The connection follows the view because a browser allows only about six connecti
 - `attach()` is safe to call more than once. A second call does nothing.
 - `detach()` keeps the messages, the resume pointer, and the run id. The run goes on at the server, and a later `attach()` picks it up from the durable log.
 - `detach()` does not end the run (that is `stop()`) or the client (that is `dispose()`).
+- `detach()` does not stop a message that this client is sending. That request runs to the end, so `detach()` then `attach()` loses nothing, also on a server with no durable log.
 - A chat with no persistence has nothing to rejoin, so `attach()` sends no request.
 
 ### Constructor options
