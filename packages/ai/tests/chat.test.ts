@@ -3804,6 +3804,35 @@ describe('chat()', () => {
           false,
         )
       })
+
+      it('puts loopStopped on the RUN_FINISHED of a streamed structured-output finalization', async () => {
+        const { adapter } = createMockAdapter({
+          iterations: [toolTurn('call_1'), toolTurn('call_2')],
+          structuredOutput: async () => ({
+            data: { status: 'ok' },
+            rawText: '{"status":"ok"}',
+          }),
+        })
+        const chunks = await collectChunks(
+          chat({
+            threadId: 'thread-1',
+            adapter,
+            messages: [{ role: 'user', content: 'Repeat' }],
+            tools: [serverTool('repeater', () => ({ ok: true }))],
+            agentLoopStrategy: maxIterations(2),
+            outputSchema: {
+              type: 'object',
+              properties: { status: { type: 'string' } },
+              required: ['status'],
+            },
+            stream: true,
+          }) as AsyncIterable<StreamChunk>,
+        )
+
+        const finished = expectSingleRunFinished(chunks)
+        expect(chunks.at(-1)).toBe(finished)
+        expect(tanstackMetadata(finished)?.loopStopped).toBe(true)
+      })
     })
 
     it('should respect toolCallCount on strategy state (counts tools, not turns)', async () => {

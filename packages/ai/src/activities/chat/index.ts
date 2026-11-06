@@ -1711,13 +1711,17 @@ class TextEngine<
 
       // The `tool_calls` RUN_FINISHED went out before the tool results. A
       // last one tells the client that the loop, not the model, ended the run.
+      // A streamed finalization sends the outer RUN_FINISHED, so it carries
+      // the flag instead.
       if (this.loopStopped && !this.isCancelled()) {
         this.markLoopStoppedMessage()
-        yield* this.pipeThroughMiddleware(
-          withTanstackMetadata(this.createSyntheticFinishedEvent(), {
-            loopStopped: true,
-          }),
-        )
+        if (!this.finalizationOwnsLifecycle()) {
+          yield* this.pipeThroughMiddleware(
+            withTanstackMetadata(this.createSyntheticFinishedEvent(), {
+              loopStopped: true,
+            }),
+          )
+        }
       }
 
       // After the agent loop ends, if a structured-output finalization was
@@ -2216,10 +2220,7 @@ class TextEngine<
       //
       // Native combined mode does NOT issue a second adapter stream — the
       // agent loop's lifecycle IS the outer pair the consumer sees.
-      const suppressAgentLifecycle =
-        !!this.finalStructuredOutput &&
-        this.finalStructuredOutput.yieldChunks &&
-        this.finalStructuredOutput.nativeCombined !== true
+      const suppressAgentLifecycle = this.finalizationOwnsLifecycle()
       for (const outputChunk of outputChunks) {
         this.recordPublicActivity(outputChunk, raw)
         for (const spec of normalizeStreamChunk(
@@ -4598,6 +4599,18 @@ class TextEngine<
   }
 
   /**
+   * A streamed structured-output finalization sends the one outer
+   * RUN_STARTED / RUN_FINISHED pair, not the agent loop.
+   */
+  private finalizationOwnsLifecycle(): boolean {
+    return (
+      !!this.finalStructuredOutput &&
+      this.finalStructuredOutput.yieldChunks &&
+      this.finalStructuredOutput.nativeCombined !== true
+    )
+  }
+
+  /**
    * Mark the last assistant message as stopped by the loop, so a stored
    * transcript keeps the signal of the `RUN_FINISHED`.
    */
@@ -5078,6 +5091,13 @@ class TextEngine<
           chunk.type === EventType.RUN_ERROR
         ) {
           await this.runOnUsageFromChunk(chunk)
+        }
+
+        // This is the outer RUN_FINISHED, so it carries the loop stop.
+        if (chunk.type === EventType.RUN_FINISHED && this.loopStopped) {
+          outboundChunk = withTanstackMetadata(chunk, {
+            loopStopped: true,
+          })
         }
 
         if (chunk.type === EventType.TEXT_MESSAGE_CONTENT) {
