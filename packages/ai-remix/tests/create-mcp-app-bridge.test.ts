@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import type { Handle } from 'remix/ui'
+import type { Handle } from 'remix/component'
 import { createMcpAppBridge } from '../src/create-mcp-app-bridge'
 import type { CreateMcpAppBridgeOptions } from '../src/create-mcp-app-bridge'
 

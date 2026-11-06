@@ -77,10 +77,12 @@ export type DescriptorFromServer<TServer extends MCPServer> = {
     }
   }
   resources: {
-    [TResource in Extract<
-      TServer['resources'][number],
-      { uri: string }
-    > as TResource['uri']]: {
+    [
+      TResource in Extract<
+        TServer['resources'][number],
+        { uri: string }
+      > as TResource['uri']
+    ]: {
       uri: TResource['uri']
       data: ResourceContents<TResource>
     }

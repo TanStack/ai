@@ -159,7 +159,7 @@ export interface AcpWebSocketConnection {
 
 /**
  * Open a WebSocket to an in-sandbox ACP server and adapt it for
- * {@link ClientSideConnection}.
+ * the ACP client app.
  */
 function openWebSocket(
   url: string,

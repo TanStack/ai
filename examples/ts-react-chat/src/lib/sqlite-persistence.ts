@@ -1416,28 +1416,25 @@ function createCheckpointStore(
       ...(header.source_run_id === null
         ? {}
         : { sourceRunId: header.source_run_id }),
-      files: files.map(
-        (row): SandboxSnapshotEntry =>
-          row.kind === 'dir'
-            ? { path: row.path, kind: 'dir' }
-            : {
-                path: row.path,
-                kind: 'file',
-                blobKey: row.blob_key!,
-                size: row.size!,
-              },
+      files: files.map((row): SandboxSnapshotEntry =>
+        row.kind === 'dir'
+          ? { path: row.path, kind: 'dir' }
+          : {
+              path: row.path,
+              kind: 'file',
+              blobKey: row.blob_key!,
+              size: row.size!,
+            },
       ),
       conversation: JSON.parse(header.conversation_json),
-      artifacts: artifacts.map(
-        (row): SandboxSnapshotArtifact => ({
-          artifactId: row.artifact_id,
-          name: row.name,
-          mimeType: row.mime_type,
-          size: row.size,
-          blobKey: row.blob_key,
-          createdAt: row.created_at,
-        }),
-      ),
+      artifacts: artifacts.map((row): SandboxSnapshotArtifact => ({
+        artifactId: row.artifact_id,
+        name: row.name,
+        mimeType: row.mime_type,
+        size: row.size,
+        blobKey: row.blob_key,
+        createdAt: row.created_at,
+      })),
     }
   }
   const assertWriter = (writer: SandboxCheckpointWriter, threadId: string) => {

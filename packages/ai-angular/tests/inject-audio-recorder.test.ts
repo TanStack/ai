@@ -1,9 +1,9 @@
 import { Component } from '@angular/core'
 import { getTestBed, TestBed } from '@angular/core/testing'
 import {
-  BrowserDynamicTestingModule,
-  platformBrowserDynamicTesting,
-} from '@angular/platform-browser-dynamic/testing'
+  BrowserTestingModule,
+  platformBrowserTesting,
+} from '@angular/platform-browser/testing'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 // The Angular plugin runs vitest.setup.ts in a separate module realm, so the
 // jsdom Blob polyfill must be imported into this test's own graph rather than
@@ -23,8 +23,8 @@ if (
   testBedInstance._compiler === undefined
 ) {
   getTestBed().initTestEnvironment(
-    BrowserDynamicTestingModule,
-    platformBrowserDynamicTesting(),
+    BrowserTestingModule,
+    platformBrowserTesting(),
   )
 }
 

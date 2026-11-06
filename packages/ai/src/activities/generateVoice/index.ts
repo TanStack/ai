@@ -367,9 +367,4 @@ export function createVoiceOptions<
 }
 
 // Re-export adapter types
-export type {
-  VoiceAdapter,
-  VoiceAdapterConfig,
-  AnyVoiceAdapter,
-} from './adapter'
-export { BaseVoiceAdapter } from './adapter'
+export type { VoiceAdapter } from './adapter'

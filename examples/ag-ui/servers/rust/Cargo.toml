@@ -7,9 +7,9 @@ edition = "2021"
 async-stream = "0.3"
 axum = "0.8"
 futures-util = "0.3"
-reqwest = { version = "0.12", default-features = false, features = [
+reqwest = { version = "0.13", default-features = false, features = [
   "json",
-  "rustls-tls",
+  "rustls",
   "stream",
 ] }
 serde = { version = "1", features = ["derive"] }

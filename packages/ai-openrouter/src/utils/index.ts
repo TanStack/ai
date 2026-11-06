@@ -1,6 +1,1 @@
-export {
-  getOpenRouterApiKeyFromEnv,
-  generateId,
-  buildHeaders,
-  type OpenRouterClientConfig,
-} from './client'
+export { getOpenRouterApiKeyFromEnv, buildHeaders } from './client'

@@ -1,7 +1,6 @@
 import type { MCPCodegenConfig } from './define-config'
 
-export type { CodegenServerConfig, MCPCodegenConfig } from './define-config'
-export { defineConfig } from './define-config'
+export type { MCPCodegenConfig } from './define-config'
 
 /** Load mcp.config.ts (via jiti) or mcp.config.json from cwd. */
 export async function loadConfig(cwd: string): Promise<MCPCodegenConfig> {

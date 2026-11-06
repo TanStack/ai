@@ -59,7 +59,7 @@ import {
   type MessageProps,
   type PartProps,
 } from '@tanstack/ai-remix/ui'
-import { clientEntry, on, type Handle } from 'remix/ui'
+import { clientEntry, on, type Handle } from 'remix/component'
 
 const chatOptions = {
   connection: fetchServerSentEvents('/api/chat'),
@@ -228,7 +228,7 @@ The factory needs one entry for every interrupt id in `chatOptions`. Full exampl
 Mapped components do not get `chat` as a prop. Import `ui` and call `ui.useChatContext(handle)` inside the widget. This also moves the composer into the layout. Create `app/chat-input.tsx`:
 
 ```tsx ignore
-import { on, type Handle, type RemixNode } from 'remix/ui'
+import { on, type Handle, type RemixNode } from 'remix/component'
 import { ui } from './chat'
 
 export function ChatInput(handle: Handle): () => RemixNode {
@@ -273,7 +273,7 @@ Type the `handle.props` of a widget with `ToolProps`, `PartProps`, `InterruptPro
 
 ```tsx ignore
 import type { ToolProps } from '@tanstack/ai-remix/ui'
-import type { Handle } from 'remix/ui'
+import type { Handle } from 'remix/component'
 import { chatOptions } from './chat-options'
 
 export function WeatherTool(

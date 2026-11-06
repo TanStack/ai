@@ -3,9 +3,9 @@
   "extends": "./tsconfig.json",
   "compilerOptions": {
     "paths": {
-      "remix/ui": [
-        "./node_modules/.kiira/node_modules/remix/dist/ui.d.ts",
-        "./packages/ai-remix/node_modules/remix/dist/ui.d.ts"
+      "remix/component": [
+        "./node_modules/.kiira/node_modules/remix/dist/component.d.ts",
+        "./packages/ai-remix/node_modules/remix/dist/component.d.ts"
       ],
       "remix/router": [
         "./node_modules/.kiira/node_modules/remix/dist/fetch-router.d.ts",
@@ -15,8 +15,11 @@
         "./node_modules/.kiira/node_modules/remix/dist/fetch-router/routes.d.ts",
         "./packages/ai-remix/node_modules/remix/dist/fetch-router/routes.d.ts"
       ],
-      "@remix-run/ui/jsx-runtime": [
-        "./node_modules/.kiira/node_modules/@remix-run/ui/dist/jsx-runtime.d.ts"
+      "@remix-run/component/jsx-runtime": [
+        "./node_modules/.kiira/node_modules/@remix-run/component/dist/jsx-runtime.d.ts"
+      ],
+      "react-native": [
+        "./examples/ts-react-native-chat/node_modules/react-native/types_generated/index.d.ts"
       ],
       "@tanstack/highlight/core": [
         "./node_modules/.kiira/node_modules/@tanstack/highlight/dist/core.d.ts"

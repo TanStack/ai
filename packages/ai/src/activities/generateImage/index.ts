@@ -446,9 +446,4 @@ export function createImageOptions<
 }
 
 // Re-export adapter types
-export type {
-  ImageAdapter,
-  ImageAdapterConfig,
-  AnyImageAdapter,
-} from './adapter'
-export { BaseImageAdapter } from './adapter'
+export type { ImageAdapter } from './adapter'

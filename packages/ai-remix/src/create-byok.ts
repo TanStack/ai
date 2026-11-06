@@ -1,5 +1,5 @@
 import type { ByokClient } from '@tanstack/ai-client/byok'
-import type { Handle } from 'remix/ui'
+import type { Handle } from 'remix/component'
 
 /**
  * Subscribe to a BYOK snapshot in Remix setup.

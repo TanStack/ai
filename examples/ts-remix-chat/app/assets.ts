@@ -1,5 +1,5 @@
 import { createAssetServer } from 'remix/assets'
-import { uiHmr } from 'remix/ui-hmr/assets'
+import { componentHmr } from 'remix/component-hmr/assets'
 
 const rootDir = process.cwd()
 const nodeEnv = process.env.NODE_ENV ?? 'development'
@@ -10,7 +10,7 @@ export const assets = createAssetServer({
   basePath: '/assets',
   rootDir,
   // pnpm stores workspace packages under the repo root. Mount that store so
-  // `remix/ui` and `@tanstack/*` resolve inside a configured mount.
+  // `remix/component` and `@tanstack/*` resolve inside a configured mount.
   mounts: {
     app: 'app',
     npm: 'node_modules',
@@ -44,7 +44,7 @@ export const assets = createAssetServer({
   scripts: {
     // Remix's unbundled asset server cannot compile this CJS package.
     external: ['partial-json'],
-    loaders: isHmr ? [uiHmr()] : undefined,
+    loaders: isHmr ? [componentHmr()] : undefined,
   },
 })
 

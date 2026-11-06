@@ -24,13 +24,11 @@ vi.mock('../src/client', async (importOriginal) => {
       connects.tools.push(['echo'])
       return {
         tools: async () =>
-          (connects.tools[index] ?? []).map(
-            (name): AnyTool => ({
-              name: `demo_${name}`,
-              description: name,
-              execute: async () => name,
-            }),
-          ),
+          (connects.tools[index] ?? []).map((name): AnyTool => ({
+            name: `demo_${name}`,
+            description: name,
+            execute: async () => name,
+          })),
         close: async () => {},
       }
     },

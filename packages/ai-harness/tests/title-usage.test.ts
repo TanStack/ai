@@ -128,18 +128,17 @@ describe('title()', () => {
 
   it('counts the title call under plugin:tanstack/title', async () => {
     const titler = mockAdapter(() =>
-      text('Trip to Rome').map(
-        (chunk): StreamChunk =>
-          chunk.type === EventType.RUN_FINISHED
-            ? {
-                ...chunk,
-                usage: {
-                  promptTokens: 9,
-                  completionTokens: 3,
-                  totalTokens: 12,
-                },
-              }
-            : chunk,
+      text('Trip to Rome').map((chunk): StreamChunk =>
+        chunk.type === EventType.RUN_FINISHED
+          ? {
+              ...chunk,
+              usage: {
+                promptTokens: 9,
+                completionTokens: 3,
+                totalTokens: 12,
+              },
+            }
+          : chunk,
       ),
     )
     const { host, session } = await open([title({ adapter: titler.adapter })])
@@ -221,9 +220,8 @@ describe('usage()', () => {
     '1 model calls, 1000000 input tokens (250000 cache read, 250000 cache write), 100000 output tokens, 1100000 total.'
   /** A model call that answers and reports `usage`. */
   const replyWith = (usage: TokenUsage) => () =>
-    text('answer').map(
-      (chunk): StreamChunk =>
-        chunk.type === EventType.RUN_FINISHED ? { ...chunk, usage } : chunk,
+    text('answer').map((chunk): StreamChunk =>
+      chunk.type === EventType.RUN_FINISHED ? { ...chunk, usage } : chunk,
     )
   const withUsage = replyWith(CALL)
   /** The prices of the mock adapter's model only. */

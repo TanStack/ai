@@ -914,9 +914,10 @@ async function settle(
   operation: Operation<unknown>,
 ): Promise<Settled> {
   const stop = new AbortController()
-  const done = Promise.resolve(operation).then(
-    (value): Settled => ({ done: true, value }),
-  )
+  const done = Promise.resolve(operation).then((value): Settled => ({
+    done: true,
+    value,
+  }))
   const asked = session
     .waitForRun({ runId: operation.id, signal: stop.signal })
     .then(

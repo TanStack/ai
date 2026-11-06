@@ -245,13 +245,11 @@ describe('OpenAI replay parity', () => {
             },
           })),
         },
-        ...ids.map(
-          (id): ModelMessage => ({
-            role: 'tool',
-            toolCallId: id,
-            content: '{"output":"ok"}',
-          }),
-        ),
+        ...ids.map((id): ModelMessage => ({
+          role: 'tool',
+          toolCallId: id,
+          content: '{"output":"ok"}',
+        })),
       ]
       const original = JSON.stringify(messages)
       for (const structured of [false, true]) {
@@ -694,13 +692,11 @@ describe('OpenAI replay parity', () => {
               : {}),
           })),
         },
-        ...ids.map(
-          (id): ModelMessage => ({
-            role: 'tool',
-            toolCallId: id,
-            content: 'ok',
-          }),
-        ),
+        ...ids.map((id): ModelMessage => ({
+          role: 'tool',
+          toolCallId: id,
+          content: 'ok',
+        })),
       ]
       const adapter =
         api === 'completions'

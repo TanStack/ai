@@ -40,14 +40,13 @@ export const IterationTimeline: Component<IterationTimelineProps> = (props) => {
    * Group iterations by user messages.
    * Memoized to avoid recomputing on unrelated store changes.
    */
-  const groups = createMemo(
-    (): Array<UserMessageGroup> =>
-      groupTimeline(
-        props.iterations,
-        props.messages,
-        props.subagents ?? [],
-        props.turns ?? [],
-      ),
+  const groups = createMemo((): Array<UserMessageGroup> =>
+    groupTimeline(
+      props.iterations,
+      props.messages,
+      props.subagents ?? [],
+      props.turns ?? [],
+    ),
   )
 
   return (

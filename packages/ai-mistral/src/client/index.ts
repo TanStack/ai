@@ -81,6 +81,19 @@ function chunkToWire(chunk: ContentChunk) {
       return thinkChunkToWire(chunk)
     case 'input_audio':
       return { type: chunk.type, input_audio: chunk.inputAudio }
+    case 'resource':
+      return {
+        type: chunk.type,
+        uri: chunk.uri,
+        content:
+          chunk.content.type === 'image_url'
+            ? { type: chunk.content.type, image_url: chunk.content.imageUrl }
+            : chunk.content.type === 'text'
+              ? { type: chunk.content.type, text: chunk.content.text }
+              : chunk.content.raw,
+      }
+    case 'resource_link':
+      return { type: chunk.type, uri: chunk.uri, metadata: chunk.metadata }
     case 'UNKNOWN':
       // An unknown chunk read from a response. Send what came in.
       return chunk.raw
@@ -305,6 +318,9 @@ function chunkFromWire(chunk: WireContentChunk): ContentChunk {
       }
     case 'input_audio':
       return { type: chunk.type, inputAudio: chunk.input_audio }
+    // Request-only chunk types. Keep them raw if a response ever has one.
+    case 'resource':
+    case 'resource_link':
     default:
       return { raw: chunk, type: 'UNKNOWN', isUnknown: true }
   }

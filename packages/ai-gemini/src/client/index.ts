@@ -46,7 +46,6 @@ import type {
   UploadFileParameters,
 } from '@google/genai'
 
-export { ApiError } from './api'
 export type { GeminiContentResponse } from './convert'
 export type { GeminiInteraction } from './interactions'
 export type { GeminiVideosOperation } from './videos'

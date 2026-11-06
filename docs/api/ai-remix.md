@@ -22,7 +22,7 @@ remix: @tanstack/ai-remix remix
 
 <!-- ::end:tabs -->
 
-`remix` is a required peer. The package publishes uncompiled source. Remix compiles the JSX through the `remix/ui` `jsxImportSource`.
+`remix` is a required peer. The package publishes uncompiled source. Remix compiles the JSX through the `remix/component` `jsxImportSource`.
 
 Every helper takes the component `Handle` as its first argument. Call it in the setup function, not in the render function.
 
@@ -68,7 +68,7 @@ Holds the messages and the run state of one chat, and talks to your server route
 
 ```tsx
 import { createChat, fetchServerSentEvents } from "@tanstack/ai-remix";
-import { clientEntry, on, type Handle } from "remix/ui";
+import { clientEntry, on, type Handle } from "remix/component";
 
 export const Chat = clientEntry(
   import.meta.url,
@@ -170,7 +170,7 @@ A tool with `needsApproval: true` pauses the run. The pending call shows up in `
 ```tsx
 import { toolDefinition } from "@tanstack/ai";
 import { createChat, fetchServerSentEvents } from "@tanstack/ai-remix";
-import { clientEntry, on, type Handle } from "remix/ui";
+import { clientEntry, on, type Handle } from "remix/component";
 import { z } from "zod";
 
 const deleteFileTool = toolDefinition({
@@ -238,7 +238,7 @@ Each helper runs one generation request and keeps its result. See [Generation Ho
 
 ```tsx
 import { createGenerateImage, fetchServerSentEvents } from "@tanstack/ai-remix";
-import { on, type Handle } from "remix/ui";
+import { on, type Handle } from "remix/component";
 
 function ImageGenerator(handle: Handle) {
   const image = createGenerateImage(handle, {
@@ -273,7 +273,7 @@ Runs a voice conversation with a realtime model. Pass `getToken` and `adapter`. 
 ```tsx
 import { createRealtimeChat } from "@tanstack/ai-remix";
 import { openaiRealtime } from "@tanstack/ai-openai";
-import { on, type Handle } from "remix/ui";
+import { on, type Handle } from "remix/component";
 
 function VoiceChat(handle: Handle) {
   const chat = createRealtimeChat(handle, {
@@ -312,7 +312,7 @@ Subscribes to a BYOK keyring. The return value is a function that gives the late
 
 ```tsx
 import { createByok } from "@tanstack/ai-remix";
-import type { Handle } from "remix/ui";
+import type { Handle } from "remix/component";
 import { byok } from "./byok";
 
 function KeyStatus(handle: Handle) {
@@ -337,7 +337,7 @@ Exposes client tools to the browser WebMCP API. Remix removes them when `handle.
 
 ```tsx
 import { createRegisterWebMCPTools } from "@tanstack/ai-remix";
-import { clientEntry, type Handle } from "remix/ui";
+import { clientEntry, type Handle } from "remix/component";
 import { searchProducts } from "./tools";
 
 export const ProductsPage = clientEntry(
@@ -359,7 +359,7 @@ Reads the WebMCP tools that the page registered, as client tools. The `tools` fi
 
 ```ts
 import { createPageWebMCPTools } from "@tanstack/ai-remix";
-import type { Handle } from "remix/ui";
+import type { Handle } from "remix/component";
 
 export function readPageTools(handle: Handle) {
   return createPageWebMCPTools(handle, {

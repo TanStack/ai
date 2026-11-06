@@ -75,7 +75,7 @@ export type EmbeddingInputForModel<TAdapter, TModel extends string> =
   TAdapter extends EmbeddingAdapter<any, any, any, infer ModsByName>
     ? string extends keyof ModsByName
       ? // No explicit map - accept the full union
-          EmbeddingInputItem | Array<EmbeddingInputItem>
+        EmbeddingInputItem | Array<EmbeddingInputItem>
       : TModel extends keyof ModsByName
         ?
             | EmbeddingInputItemFor<ModsByName[TModel][number]>
@@ -356,9 +356,4 @@ export function createEmbedOptions<
 }
 
 // Re-export adapter types
-export type {
-  EmbeddingAdapter,
-  EmbeddingAdapterConfig,
-  AnyEmbeddingAdapter,
-} from './adapter'
-export { BaseEmbeddingAdapter } from './adapter'
+export type { EmbeddingAdapter } from './adapter'

@@ -162,13 +162,11 @@ export function skillDirectory(
     listScripts: async (name) => {
       const dir = await dirOf(name)
       const files = await collectFiles(join(dir, SCRIPT_DIR), dir)
-      return files.map(
-        (p): SkillScriptRef => ({
-          path: p,
-          executable: false,
-          reason: 'no-runtime',
-        }),
-      )
+      return files.map((p): SkillScriptRef => ({
+        path: p,
+        executable: false,
+        reason: 'no-runtime',
+      }))
     },
     readScript: async (name, path) => {
       assertSafeResourcePath(path)

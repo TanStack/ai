@@ -424,11 +424,10 @@ describe('resumeServerSentEventsResponse — driver', () => {
     const { logger, debug } = collectingLogger()
     const driver = {
       ...baseDriver(runs, request),
-      drive: vi.fn(
-        (): AsyncIterable<StreamChunk> =>
-          (async function* () {
-            throw new Error('drive exploded')
-          })(),
+      drive: vi.fn((): AsyncIterable<StreamChunk> =>
+        (async function* () {
+          throw new Error('drive exploded')
+        })(),
       ),
       // A real pipe: iterating the driven stream is what surfaces the throw.
       pipe: vi.fn(async (stream: AsyncIterable<StreamChunk>) => {

@@ -12,6 +12,7 @@ import {
   waitFromInterrupt,
 } from '@tanstack/ai-harness'
 import { MediaError, kindOf, mediaPart } from '@tanstack/ai-harness/media'
+import { isRecord } from '../utils'
 import type {
   AgentApp,
   AgentContext,
@@ -321,10 +322,6 @@ function formOf(wait: Wait) {
 /** The waits of the stopped turn of `session`. */
 function turnWaitsOf(session: HarnessSession) {
   return session.snapshot().pendingWaits.filter(({ turn }) => turn)
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null
 }
 
 /**

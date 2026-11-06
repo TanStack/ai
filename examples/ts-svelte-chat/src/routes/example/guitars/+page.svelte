@@ -1,5 +1,5 @@
 <script lang="ts">
-  import guitars from '$data/example-guitars'
+  import guitars from '#data/example-guitars.ts'
 </script>
 
 <svelte:head>

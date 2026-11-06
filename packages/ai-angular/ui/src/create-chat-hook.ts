@@ -3,7 +3,7 @@ import type { Type } from '@angular/core'
 import { injectChat } from '@tanstack/ai-angular'
 import type { InjectChatOptions } from '@tanstack/ai-angular'
 import { createChatUI } from './create-ui'
-import type { ChatUIFactoryConfig, ChatUIHost, InputProps } from './create-ui'
+import type { ChatUIFactoryConfig, ChatUIHost } from './create-ui'
 import type {
   ChatUIInterruptsOf,
   ChatUISchemaOf,
@@ -70,5 +70,3 @@ export function createChatHook<
     ChatProvider: Type<unknown>
   }
 }
-
-export type { InputProps }

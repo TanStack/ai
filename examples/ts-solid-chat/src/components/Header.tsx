@@ -1,6 +1,6 @@
 import { Link } from '@tanstack/solid-router'
 import Guitar from 'lucide-solid/icons/guitar'
-import Home from 'lucide-solid/icons/home'
+import Home from 'lucide-solid/icons/house'
 import Menu from 'lucide-solid/icons/menu'
 import X from 'lucide-solid/icons/x'
 import { createSignal } from 'solid-js'

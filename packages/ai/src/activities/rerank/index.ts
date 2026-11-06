@@ -314,9 +314,4 @@ export function createRerankOptions<
 }
 
 // Re-export adapter types
-export type {
-  RerankAdapter,
-  RerankAdapterConfig,
-  AnyRerankAdapter,
-} from './adapter'
-export { BaseRerankAdapter } from './adapter'
+export type { RerankAdapter } from './adapter'

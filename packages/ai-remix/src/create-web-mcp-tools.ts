@@ -5,7 +5,7 @@ import type {
   RegisterWebMCPToolsOptions,
   SubscribeWebMCPToolsOptions,
 } from '@tanstack/ai-client'
-import type { Handle } from 'remix/ui'
+import type { Handle } from 'remix/component'
 
 /** Options for {@link createRegisterWebMCPTools}. */
 export type CreateRegisterWebMCPToolsOptions<

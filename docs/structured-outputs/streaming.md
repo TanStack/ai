@@ -20,7 +20,20 @@ Stream the JSON instead. `useChat` parses it as it arrives and gives you a typed
 
 ## Quick setup
 
-This setup assumes chat already works in your app. For the schema file and the `zod` install, see the [overview](./overview#quick-setup).
+This setup assumes chat already works in your app. For the `zod` install, see the [overview](./overview#quick-setup).
+
+Put the schema in a file that the server and the client can both import:
+
+```typescript
+// schemas/person.ts
+import { z } from "zod";
+
+export const PersonSchema = z.object({
+  name: z.string().meta({ description: "The full name of the person" }),
+  age: z.number().meta({ description: "The age in years" }),
+  email: z.string().email(),
+});
+```
 
 ### 1. Stream from the server
 
@@ -104,14 +117,7 @@ Vue, Solid, Svelte, Angular, Preact, and Octane take the same `outputSchema` opt
 
 ```tsx
 import { useChat, fetchServerSentEvents } from "@tanstack/ai-react";
-import { z } from "zod";
-
-// The same schema as schemas/person.ts. In your app, import it from that file.
-const PersonSchema = z.object({
-  name: z.string().meta({ description: "The full name of the person" }),
-  age: z.number().meta({ description: "The age in years" }),
-  email: z.string().email(),
-});
+import { PersonSchema } from "./schemas/person";
 
 export function PersonRun() {
   const { messages, sendMessage } = useChat({

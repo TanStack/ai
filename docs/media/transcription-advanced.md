@@ -128,7 +128,7 @@ import { generateTranscription } from '@tanstack/ai'
 import { openaiTranscription } from '@tanstack/ai-openai'
 
 export const transcribeFn = createServerFn({ method: 'POST' })
-  .inputValidator(
+  .validator(
     (data: { audio: string; language?: string; threadId: string }) => data,
   )
   .handler(async ({ data }) => {
@@ -166,7 +166,7 @@ import { generateTranscription, toServerSentEventsResponse } from '@tanstack/ai'
 import { openaiTranscription } from '@tanstack/ai-openai'
 
 export const transcribeStreamFn = createServerFn({ method: 'POST' })
-  .inputValidator(
+  .validator(
     (data: { audio: string; language?: string; threadId: string }) => data,
   )
   .handler(({ data }) => {

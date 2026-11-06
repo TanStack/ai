@@ -227,7 +227,7 @@ describe('Anthropic automatic prompt cache markers', () => {
       })
       const last = body.messages.at(-1)
       expect(last?.role).toBe('user')
-      expect(last?.content.at(-1)).toEqual(lastBlock)
+      expect(last?.content?.at(-1)).toEqual(lastBlock)
     },
   )
 

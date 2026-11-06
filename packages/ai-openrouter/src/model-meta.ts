@@ -21417,7 +21417,9 @@ export const OPENROUTER_MODEL_INPUT_MODALITIES: Readonly<
   [Z_AI_GLM_5V_TURBO.id]: Z_AI_GLM_5V_TURBO.supports.input,
   'openrouter/auto': ['text', 'image', 'audio', 'video', 'document'],
 } satisfies {
-  [K in (typeof OPENROUTER_CHAT_MODELS)[number]]: OpenRouterModelInputModalitiesByName[K]
+  [
+    K in (typeof OPENROUTER_CHAT_MODELS)[number]
+  ]: OpenRouterModelInputModalitiesByName[K]
 }
 
 // Reasoning

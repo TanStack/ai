@@ -382,9 +382,4 @@ export function createTranscriptionOptions<
 }
 
 // Re-export adapter types
-export type {
-  TranscriptionAdapter,
-  TranscriptionAdapterConfig,
-  AnyTranscriptionAdapter,
-} from './adapter'
-export { BaseTranscriptionAdapter } from './adapter'
+export type { TranscriptionAdapter } from './adapter'

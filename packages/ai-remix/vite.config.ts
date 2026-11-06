@@ -4,12 +4,12 @@ import packageJson from './package.json'
 export default defineConfig({
   esbuild: {
     jsx: 'automatic',
-    jsxImportSource: 'remix/ui',
+    jsxImportSource: 'remix/component',
   },
   oxc: {
     jsx: {
       runtime: 'automatic',
-      importSource: 'remix/ui',
+      importSource: 'remix/component',
     },
   },
   test: {

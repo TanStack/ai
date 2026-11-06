@@ -3,6 +3,7 @@ import type {
   BetaCacheControlEphemeral,
   BetaContentBlockParam,
   BetaMessageParam,
+  BetaTextBlockParam,
 } from '@anthropic-ai/sdk/resources/beta/messages'
 import type { TextBlockParam } from '@anthropic-ai/sdk/resources/messages'
 import type { InternalTextProviderOptions } from './text/text-provider-options'
@@ -71,26 +72,18 @@ function withCacheControl<T extends object>(
 }
 
 /**
- * The messages with a marker on the last block of the last message. Returns
- * `null` when that message is not from the user or a mid-conversation
- * `system` message, or when its last block cannot take a marker.
+ * The blocks with a marker on the last block. Returns `null` when there is
+ * no last block or its type cannot take a marker.
  */
-function markLastUserMessage(
-  messages: Array<BetaMessageParam>,
+function markLastBlock<TBlock extends { type: string }>(
+  content: string | Array<TBlock | BetaTextBlockParam> | null | undefined,
   cacheControl: BetaCacheControlEphemeral,
 ) {
-  const last = messages.at(-1)
-  // A mid-conversation `system` message at the end takes the marker, as in
-  // pi 0.87.1. The SDK type has no `system` role, so compare it as a string.
-  const role: string | undefined = last?.role
-  if (last === undefined || (role !== 'user' && role !== 'system')) {
-    return null
-  }
-  const blocks: Array<BetaContentBlockParam> =
-    typeof last.content !== 'string'
-      ? last.content
-      : last.content
-        ? [{ type: 'text', text: last.content }]
+  const blocks: Array<TBlock | BetaTextBlockParam> =
+    typeof content !== 'string'
+      ? (content ?? [])
+      : content
+        ? [{ type: 'text', text: content }]
         : []
   const lastBlock = blocks.at(-1)
   if (
@@ -99,16 +92,30 @@ function markLastUserMessage(
   ) {
     return null
   }
-  return [
-    ...messages.slice(0, -1),
-    {
-      ...last,
-      content: [
-        ...blocks.slice(0, -1),
-        withCacheControl(lastBlock, cacheControl),
-      ],
-    },
-  ]
+  return [...blocks.slice(0, -1), withCacheControl(lastBlock, cacheControl)]
+}
+
+/**
+ * The messages with a marker on the last block of the last message. Returns
+ * `null` when that message is not from the user or a mid-conversation
+ * `system` message, or when its last block cannot take a marker.
+ */
+function markLastUserMessage(
+  messages: Array<BetaMessageParam>,
+  cacheControl: BetaCacheControlEphemeral,
+): Array<BetaMessageParam> | null {
+  const last = messages.at(-1)
+  // A mid-conversation `system` message at the end takes the marker, as in
+  // pi 0.87.1.
+  if (last?.role === 'user') {
+    const content = markLastBlock(last.content, cacheControl)
+    return content && [...messages.slice(0, -1), { ...last, content }]
+  }
+  if (last?.role === 'system') {
+    const content = markLastBlock(last.content, cacheControl)
+    return content && [...messages.slice(0, -1), { ...last, content }]
+  }
+  return null
 }
 
 /**
@@ -138,7 +145,7 @@ function markLastUserMessage(
 export function applyAnthropicPromptCache(
   request: InternalTextProviderOptions,
   promptCache: ResolvedPromptCache | undefined,
-) {
+): InternalTextProviderOptions {
   const retention = promptCache?.retention ?? 'none'
   if (retention === 'none' || hasManualCacheControl(request)) return request
 

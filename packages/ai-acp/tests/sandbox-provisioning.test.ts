@@ -39,58 +39,56 @@ import type {
 } from '@tanstack/ai-sandbox'
 
 const require = createRequire(import.meta.url)
-const SDK_URL = pathToFileURL(require.resolve('@agentclientprotocol/sdk')).href
+const SDK_URL = pathToFileURL(
+  require.resolve('@agentclientprotocol/sdk/unstable'),
+).href
 
 /** Reports the env/files it sees and records newSession params (mcpServers). */
 const PROBE_AGENT = `
-import { AgentSideConnection, ndJsonStream, PROTOCOL_VERSION } from ${JSON.stringify(SDK_URL)}
+import { agent, methods, ndJsonStream, PROTOCOL_VERSION } from ${JSON.stringify(SDK_URL)}
 import { Readable, Writable } from 'node:stream'
 import { writeFileSync, readFileSync } from 'node:fs'
 
 const readSafe = (p) => { try { return readFileSync(p, 'utf8') } catch { return '' } }
 const stream = ndJsonStream(Writable.toWeb(process.stdout), Readable.toWeb(process.stdin))
 
-new AgentSideConnection((conn) => ({
-  async initialize() {
-    return { protocolVersion: PROTOCOL_VERSION, agentCapabilities: { loadSession: true }, authMethods: [] }
-  },
-  async newSession(params) {
+agent()
+  .onRequest(methods.agent.initialize, () => ({ protocolVersion: PROTOCOL_VERSION, agentCapabilities: { loadSession: true }, authMethods: [] }))
+  .onRequest(methods.agent.session.new, ({ params }) => {
     writeFileSync('acp-session.json', JSON.stringify(params))
     return { sessionId: 'sess-1' }
-  },
-  async loadSession() { return {} },
-  async prompt(params) {
+  })
+  .onRequest(methods.agent.session.load, () => ({}))
+  .onRequest(methods.agent.session.prompt, async ({ params, client }) => {
     const report = [
       'SECRET=' + (process.env.TEST_SECRET ?? ''),
       'STYLE=' + readSafe('STYLE.md'),
       'AGENTS=' + readSafe('AGENTS.md'),
       'SETUP=' + readSafe('setup-marker.txt'),
     ].join('\\n')
-    await conn.sessionUpdate({
+    await client.notify(methods.client.session.update, {
       sessionId: params.sessionId,
       update: { sessionUpdate: 'agent_message_chunk', content: { type: 'text', text: report } },
     })
     return { stopReason: 'end_turn' }
-  },
-  async cancel() {},
-}), stream)
+  })
+  .onNotification(methods.agent.session.cancel, () => {})
+  .connect(stream)
 `
 
 /** Requests permission for a dangerous tool and reports the chosen optionId. */
 const PERMISSION_AGENT = `
-import { AgentSideConnection, ndJsonStream, PROTOCOL_VERSION } from ${JSON.stringify(SDK_URL)}
+import { agent, methods, ndJsonStream, PROTOCOL_VERSION } from ${JSON.stringify(SDK_URL)}
 import { Readable, Writable } from 'node:stream'
 
 const stream = ndJsonStream(Writable.toWeb(process.stdout), Readable.toWeb(process.stdin))
 
-new AgentSideConnection((conn) => ({
-  async initialize() {
-    return { protocolVersion: PROTOCOL_VERSION, agentCapabilities: { loadSession: true }, authMethods: [] }
-  },
-  async newSession() { return { sessionId: 'sess-1' } },
-  async loadSession() { return {} },
-  async prompt(params) {
-    const res = await conn.requestPermission({
+agent()
+  .onRequest(methods.agent.initialize, () => ({ protocolVersion: PROTOCOL_VERSION, agentCapabilities: { loadSession: true }, authMethods: [] }))
+  .onRequest(methods.agent.session.new, () => ({ sessionId: 'sess-1' }))
+  .onRequest(methods.agent.session.load, () => ({}))
+  .onRequest(methods.agent.session.prompt, async ({ params, client }) => {
+    const res = await client.request(methods.client.session.requestPermission, {
       sessionId: params.sessionId,
       toolCall: { toolCallId: 't1', title: 'rm -rf /', kind: 'execute', status: 'pending' },
       options: [
@@ -98,14 +96,14 @@ new AgentSideConnection((conn) => ({
         { optionId: 'reject', name: 'Reject', kind: 'reject_once' },
       ],
     })
-    await conn.sessionUpdate({
+    await client.notify(methods.client.session.update, {
       sessionId: params.sessionId,
       update: { sessionUpdate: 'agent_message_chunk', content: { type: 'text', text: 'OUTCOME=' + JSON.stringify(res.outcome) } },
     })
     return { stopReason: 'end_turn' }
-  },
-  async cancel() {},
-}), stream)
+  })
+  .onNotification(methods.agent.session.cancel, () => {})
+  .connect(stream)
 `
 
 const baseDir = path.join(os.tmpdir(), `tanstack-ai-acp-prov-${Date.now()}`)

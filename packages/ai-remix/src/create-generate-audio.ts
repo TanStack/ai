@@ -1,6 +1,6 @@
 import { createGeneration } from './create-generation.ts'
 import { reconstructAudioResult } from '@tanstack/ai-client'
-import type { Handle } from 'remix/ui'
+import type { Handle } from 'remix/component'
 import type { AudioGenerationResult } from '@tanstack/ai'
 import type { AudioGenerateInput } from '@tanstack/ai-client'
 import type {
@@ -40,7 +40,7 @@ export type CreateGenerateAudioReturn<TOutput = AudioGenerationResult> =
  * ```tsx
  * import { createGenerateAudio } from '@tanstack/ai-remix'
  * import { fetchServerSentEvents } from '@tanstack/ai-client'
- * import type { Handle } from 'remix/ui'
+ * import type { Handle } from 'remix/component'
  *
  * function AudioGenerator(handle: Handle) {
  *   const audio = createGenerateAudio(handle, {

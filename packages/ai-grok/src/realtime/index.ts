@@ -15,4 +15,3 @@ export type {
 } from './types'
 
 // Re-export the realtime model type from the single source of truth.
-export type { GrokRealtimeModel } from '../model-meta'

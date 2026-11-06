@@ -411,18 +411,17 @@ describe('turn.onModelError', () => {
     const backup = mockAdapter([
       textThenLookup('Checking. '),
       () =>
-        text('Done.').map(
-          (chunk): StreamChunk =>
-            chunk.type === EventType.RUN_FINISHED
-              ? {
-                  ...chunk,
-                  usage: {
-                    promptTokens: 7,
-                    completionTokens: 3,
-                    totalTokens: 10,
-                  },
-                }
-              : chunk,
+        text('Done.').map((chunk): StreamChunk =>
+          chunk.type === EventType.RUN_FINISHED
+            ? {
+                ...chunk,
+                usage: {
+                  promptTokens: 7,
+                  completionTokens: 3,
+                  totalTokens: 10,
+                },
+              }
+            : chunk,
         ),
     ])
     const backupAdapter = { ...backup.adapter, model: 'backup-model' }

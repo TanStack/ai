@@ -77,8 +77,9 @@ import type {
   BetaFileDocumentSource,
   BetaFileImageSource,
   BetaImageBlockParam,
-  BetaMessageParam,
   BetaRequestDocumentBlock,
+  BetaRequestToolAdditionBlock,
+  BetaSystemMessageParam,
   BetaTextBlockParam,
   BetaTool,
   BetaURLImageSource,
@@ -1053,15 +1054,13 @@ export class AnthropicTextAdapter<
           options.systemPrompts,
         )
       if (normalized.length === 0 && !this.oauth) return undefined
-      const blocks = normalized.map(
-        (p): TextBlockParam => ({
-          type: 'text',
-          text: p.content,
-          ...(p.metadata?.cache_control && {
-            cache_control: p.metadata.cache_control,
-          }),
+      const blocks = normalized.map((p): TextBlockParam => ({
+        type: 'text',
+        text: p.content,
+        ...(p.metadata?.cache_control && {
+          cache_control: p.metadata.cache_control,
         }),
-      )
+      }))
       // Anthropic accepts an OAuth token only with the Claude Code identity.
       return this.oauth
         ? [
@@ -1175,7 +1174,7 @@ export class AnthropicTextAdapter<
           NormalizedSystemPrompt<AnthropicSystemPromptMetadata>
         >
         tools?: InternalTextProviderOptions['tools']
-        systemMessages: Map<number, BetaMessageParam>
+        systemMessages: Map<number, BetaSystemMessageParam>
       }
     | undefined {
     const channels = this.midConversationChannels
@@ -1196,21 +1195,23 @@ export class AnthropicTextAdapter<
       ![...split.startTools, ...split.addedTools].some(
         (tool) => getAnthropicProviderToolKind(tool) !== undefined,
       )
-    const systemMessages = new Map<number, BetaMessageParam>()
+    const systemMessages = new Map<number, BetaSystemMessageParam>()
     for (const [before, change] of split.at) {
-      const content: Array<BetaContentBlockParam> = [
-        ...(channels.systemPrompts
-          ? change.systemPrompts.map(
-              (p): TextBlockParam => ({ type: 'text', text: p.content }),
-            )
-          : []),
-        ...(toolMode
-          ? change.tools.map((tool) => ({
-              type: 'tool_addition' as const,
-              tool: { type: 'tool_reference' as const, name: tool.name },
-            }))
-          : []),
-      ]
+      const content: Array<BetaTextBlockParam | BetaRequestToolAdditionBlock> =
+        [
+          ...(channels.systemPrompts
+            ? change.systemPrompts.map((p): TextBlockParam => ({
+                type: 'text',
+                text: p.content,
+              }))
+            : []),
+          ...(toolMode
+            ? change.tools.map((tool) => ({
+                type: 'tool_addition' as const,
+                tool: { type: 'tool_reference' as const, name: tool.name },
+              }))
+            : []),
+        ]
       if (content.length === 0) continue
       systemMessages.set(before, { role: 'system', content })
     }
@@ -1347,7 +1348,7 @@ export class AnthropicTextAdapter<
   private formatMessages(
     messages: Array<ModelMessage>,
     /** Mid-conversation `system` messages by message index (`before`). */
-    systemMessages?: ReadonlyMap<number, BetaMessageParam>,
+    systemMessages?: ReadonlyMap<number, BetaSystemMessageParam>,
     /** The tools have the computer toolset, so `computer` calls are its calls. */
     computerToolset = false,
   ): InternalTextProviderOptions['messages'] {

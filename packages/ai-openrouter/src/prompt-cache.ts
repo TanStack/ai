@@ -1,6 +1,7 @@
 import type { ResolvedPromptCache } from '@tanstack/ai'
 import type {
   ChatContentCacheControl,
+  ChatContentItems,
   ChatMessages,
   ChatRequest,
 } from '@openrouter/sdk/models'
@@ -55,7 +56,13 @@ function markMessage(
       // The converter gives an assistant a string, or null when the message
       // has only tool calls. Null has no text to mark.
       return typeof message.content === 'string'
-        ? { ...message, content: markLastText(message.content, cacheControl) }
+        ? {
+            ...message,
+            content: markLastText<ChatContentItems>(
+              message.content,
+              cacheControl,
+            ),
+          }
         : message
     case 'developer':
       // The converter never makes a developer message.

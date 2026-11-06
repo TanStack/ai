@@ -15,7 +15,7 @@
     "verbatimModuleSyntax": true,
     "types": ["node"],
     "strict": true,
-    "jsxImportSource": "remix/ui"
+    "jsxImportSource": "remix/component"
   },
   "include": ["src", "tests"],
   "exclude": ["node_modules", "dist"]
