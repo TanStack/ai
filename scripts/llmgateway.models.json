@@ -4019,33 +4019,6 @@
         "max_output": 393216
       },
       {
-        "providerId": "consensusprotocol",
-        "externalId": "DeepSeek-V4-Flash",
-        "pricing": {
-          "prompt": "0.0000001",
-          "completion": "0.0000002",
-          "image": "0",
-          "request": "0",
-          "input_cache_read": "0.000000005",
-          "input_cache_write": "0",
-          "input_cache_write_1h": "0"
-        },
-        "context_length": 1000000,
-        "streaming": true,
-        "vision": false,
-        "audio": false,
-        "cancellation": false,
-        "tools": true,
-        "parallelToolCalls": false,
-        "json_output": true,
-        "structured_outputs": false,
-        "web_search": false,
-        "reasoning": true,
-        "reasoning_max_tokens": false,
-        "quantization": "fp8",
-        "stability": "stable"
-      },
-      {
         "providerId": "flexai",
         "externalId": "DeepSeek-V4-Flash-0731",
         "pricing": {
@@ -4053,7 +4026,7 @@
           "completion": "0.000000238",
           "image": "0",
           "request": "0",
-          "input_cache_read": "0.0000000178",
+          "input_cache_read": "0.000000004",
           "input_cache_write": "0",
           "input_cache_write_1h": "0",
           "discount": "0.05"
@@ -4101,6 +4074,33 @@
         "max_output": 384000,
         "quantization": "fp8",
         "stability": "stable"
+      },
+      {
+        "providerId": "consensusprotocol",
+        "externalId": "DeepSeek-V4-Flash",
+        "pricing": {
+          "prompt": "0.0000001",
+          "completion": "0.0000002",
+          "image": "0",
+          "request": "0",
+          "input_cache_read": "0.000000005",
+          "input_cache_write": "0",
+          "input_cache_write_1h": "0"
+        },
+        "context_length": 1000000,
+        "streaming": true,
+        "vision": false,
+        "audio": false,
+        "cancellation": false,
+        "tools": true,
+        "parallelToolCalls": false,
+        "json_output": true,
+        "structured_outputs": false,
+        "web_search": false,
+        "reasoning": true,
+        "reasoning_max_tokens": false,
+        "quantization": "fp8",
+        "stability": "stable"
       }
     ],
     "pricing": {
@@ -4132,6 +4132,80 @@
     "json_output": true,
     "structured_outputs": true,
     "free": false
+  },
+  {
+    "id": "deepseek-v4-flash-0731",
+    "name": "deepseek-v4-flash-0731",
+    "display_name": "deepseek-v4-flash-0731",
+    "aliases": [],
+    "created": 1793909710,
+    "description": "DeepSeek-V4-Flash-0731 is the official release of DeepSeek-V4-Flash, superseding the preview version, with substantially enhanced agentic capabilities. It has the same model structure as DeepSeek-V4-Flash-DSpark, i.e. it comes with a speculative decoding module attached.",
+    "family": "deepseek",
+    "architecture": {
+      "input_modalities": ["text"],
+      "output_modalities": ["text"],
+      "tokenizer": "GPT"
+    },
+    "top_provider": {
+      "is_moderated": true
+    },
+    "providers": [
+      {
+        "providerId": "canopywave",
+        "externalId": "deepseek/deepseek-v4-flash",
+        "pricing": {
+          "prompt": "0.00000014",
+          "completion": "0.00000028",
+          "image": "0",
+          "request": "0",
+          "input_cache_read": "0.00000003",
+          "input_cache_write": "0",
+          "input_cache_write_1h": "0"
+        },
+        "context_length": 1000000,
+        "streaming": true,
+        "vision": false,
+        "audio": false,
+        "cancellation": true,
+        "tools": true,
+        "parallelToolCalls": false,
+        "json_output": true,
+        "structured_outputs": false,
+        "web_search": false,
+        "reasoning": true,
+        "reasoning_max_tokens": false,
+        "quantization": "fp8",
+        "stability": "stable"
+      }
+    ],
+    "pricing": {
+      "prompt": "0.00000014",
+      "completion": "0.00000028",
+      "image": "0",
+      "request": "0",
+      "input_cache_read": "0.00000003",
+      "input_cache_write": "0",
+      "input_cache_write_1h": "0",
+      "web_search": "0",
+      "internal_reasoning": "0"
+    },
+    "context_length": 1000000,
+    "supported_parameters": [
+      "temperature",
+      "max_tokens",
+      "top_p",
+      "frequency_penalty",
+      "presence_penalty",
+      "response_format",
+      "tools",
+      "tool_choice",
+      "reasoning"
+    ],
+    "json_output": true,
+    "structured_outputs": false,
+    "free": false,
+    "image_input_required": false,
+    "stability": "stable"
   },
   {
     "id": "deepseek-v4-pro",
@@ -5059,6 +5133,32 @@
         "max_output": 393216
       },
       {
+        "providerId": "luminal",
+        "externalId": "deepseek-ai/DeepSeek-V4.1-Flash",
+        "pricing": {
+          "prompt": "0.000000135",
+          "completion": "0.00000054",
+          "image": "0",
+          "request": "0",
+          "input_cache_read": "0.0000000027",
+          "input_cache_write": "0",
+          "input_cache_write_1h": "0"
+        },
+        "context_length": 1000000,
+        "streaming": true,
+        "vision": true,
+        "audio": false,
+        "cancellation": false,
+        "tools": true,
+        "parallelToolCalls": false,
+        "json_output": true,
+        "structured_outputs": false,
+        "web_search": false,
+        "reasoning": true,
+        "reasoning_max_tokens": false,
+        "stability": "stable"
+      },
+      {
         "providerId": "reka-ai",
         "externalId": "deepseek41-flash",
         "pricing": {
@@ -5093,32 +5193,6 @@
         "reasoning_max_tokens": false,
         "max_output": 393216,
         "quantization": "fp4",
-        "stability": "stable"
-      },
-      {
-        "providerId": "luminal",
-        "externalId": "deepseek-ai/DeepSeek-V4.1-Flash",
-        "pricing": {
-          "prompt": "0.000000135",
-          "completion": "0.00000054",
-          "image": "0",
-          "request": "0",
-          "input_cache_read": "0.0000000027",
-          "input_cache_write": "0",
-          "input_cache_write_1h": "0"
-        },
-        "context_length": 1000000,
-        "streaming": true,
-        "vision": true,
-        "audio": false,
-        "cancellation": false,
-        "tools": true,
-        "parallelToolCalls": false,
-        "json_output": true,
-        "structured_outputs": false,
-        "web_search": false,
-        "reasoning": true,
-        "reasoning_max_tokens": false,
         "stability": "stable"
       },
       {
@@ -5209,7 +5283,7 @@
       "completion": "0.00000054",
       "image": "0",
       "request": "0",
-      "input_cache_read": "0.000000007",
+      "input_cache_read": "0.0000000027",
       "input_cache_write": "0",
       "input_cache_write_1h": "0",
       "web_search": "0",
@@ -5658,7 +5732,7 @@
           "completion": "0.0000006",
           "image": "0",
           "request": "0",
-          "input_cache_read": "0.0000000225",
+          "input_cache_read": "0.000000004",
           "input_cache_write": "0",
           "input_cache_write_1h": "0",
           "discount": "0.05"
@@ -5675,34 +5749,6 @@
         "web_search": false,
         "reasoning": true,
         "reasoning_efforts": ["medium", "high", "max", "low"],
-        "reasoning_max_tokens": false,
-        "quantization": "fp8",
-        "stability": "stable"
-      },
-      {
-        "providerId": "sciforium",
-        "externalId": "/deployments/serverless/deepseek-ai/DeepSeek-V4.1-Flash-1017",
-        "pricing": {
-          "prompt": "0.00000015",
-          "completion": "0.0000006",
-          "image": "0",
-          "request": "0",
-          "input_cache_read": "0.000000003",
-          "input_cache_write": "0",
-          "input_cache_write_1h": "0"
-        },
-        "context_length": 1048576,
-        "streaming": true,
-        "vision": true,
-        "audio": false,
-        "cancellation": false,
-        "tools": true,
-        "parallelToolCalls": false,
-        "json_output": true,
-        "structured_outputs": true,
-        "web_search": false,
-        "reasoning": true,
-        "reasoning_efforts": ["none", "low", "high", "xhigh", "max"],
         "reasoning_max_tokens": false,
         "quantization": "fp8",
         "stability": "stable"
@@ -5732,6 +5778,34 @@
         "web_search": false,
         "reasoning": true,
         "reasoning_efforts": ["low", "high", "medium", "xhigh", "max"],
+        "reasoning_max_tokens": false,
+        "quantization": "fp8",
+        "stability": "stable"
+      },
+      {
+        "providerId": "sciforium",
+        "externalId": "/deployments/serverless/deepseek-ai/DeepSeek-V4.1-Flash-1017",
+        "pricing": {
+          "prompt": "0.00000015",
+          "completion": "0.0000006",
+          "image": "0",
+          "request": "0",
+          "input_cache_read": "0.000000003",
+          "input_cache_write": "0",
+          "input_cache_write_1h": "0"
+        },
+        "context_length": 1048576,
+        "streaming": true,
+        "vision": true,
+        "audio": false,
+        "cancellation": false,
+        "tools": true,
+        "parallelToolCalls": false,
+        "json_output": true,
+        "structured_outputs": true,
+        "web_search": false,
+        "reasoning": true,
+        "reasoning_efforts": ["none", "low", "high", "xhigh", "max"],
         "reasoning_max_tokens": false,
         "quantization": "fp8",
         "stability": "stable"
@@ -12300,34 +12374,6 @@
         "max_output": 128000
       },
       {
-        "providerId": "canopywave",
-        "externalId": "zai/glm-5.2",
-        "pricing": {
-          "prompt": "0.0000014",
-          "completion": "0.0000044",
-          "image": "0",
-          "request": "0",
-          "input_cache_read": "0.00000026",
-          "input_cache_write": "0",
-          "input_cache_write_1h": "0"
-        },
-        "context_length": 200000,
-        "streaming": true,
-        "vision": false,
-        "audio": false,
-        "cancellation": true,
-        "tools": true,
-        "parallelToolCalls": false,
-        "json_output": true,
-        "structured_outputs": false,
-        "web_search": false,
-        "reasoning": true,
-        "reasoning_max_tokens": false,
-        "max_output": 32768,
-        "quantization": "fp8",
-        "stability": "stable"
-      },
-      {
         "providerId": "flexai",
         "externalId": "GLM-5.2",
         "pricing": {
@@ -12353,6 +12399,34 @@
         "reasoning": true,
         "reasoning_efforts": ["medium", "high", "max"],
         "reasoning_max_tokens": false,
+        "quantization": "fp8",
+        "stability": "stable"
+      },
+      {
+        "providerId": "canopywave",
+        "externalId": "zai/glm-5.2",
+        "pricing": {
+          "prompt": "0.0000014",
+          "completion": "0.0000044",
+          "image": "0",
+          "request": "0",
+          "input_cache_read": "0.00000026",
+          "input_cache_write": "0",
+          "input_cache_write_1h": "0"
+        },
+        "context_length": 200000,
+        "streaming": true,
+        "vision": false,
+        "audio": false,
+        "cancellation": true,
+        "tools": true,
+        "parallelToolCalls": false,
+        "json_output": true,
+        "structured_outputs": false,
+        "web_search": false,
+        "reasoning": true,
+        "reasoning_max_tokens": false,
+        "max_output": 32768,
         "quantization": "fp8",
         "stability": "stable"
       },
@@ -12911,6 +12985,34 @@
         "max_temperature": 1
       },
       {
+        "providerId": "runware",
+        "externalId": "zai:glm@5.3",
+        "pricing": {
+          "prompt": "0.0000012",
+          "completion": "0.000004",
+          "image": "0",
+          "request": "0",
+          "input_cache_read": "0.0000002",
+          "input_cache_write": "0",
+          "input_cache_write_1h": "0"
+        },
+        "context_length": 1000000,
+        "streaming": true,
+        "vision": false,
+        "audio": false,
+        "cancellation": false,
+        "tools": true,
+        "parallelToolCalls": false,
+        "json_output": true,
+        "structured_outputs": true,
+        "web_search": false,
+        "reasoning": true,
+        "reasoning_efforts": ["low", "high", "max"],
+        "reasoning_max_tokens": false,
+        "max_output": 131072,
+        "stability": "stable"
+      },
+      {
         "providerId": "entrim",
         "externalId": "zai-org/GLM-5.3",
         "pricing": {
@@ -12937,34 +13039,6 @@
         "reasoning_efforts": ["low", "medium", "high", "xhigh", "max"],
         "reasoning_max_tokens": false,
         "quantization": "fp4",
-        "stability": "stable"
-      },
-      {
-        "providerId": "runware",
-        "externalId": "zai:glm@5.3",
-        "pricing": {
-          "prompt": "0.0000012",
-          "completion": "0.000004",
-          "image": "0",
-          "request": "0",
-          "input_cache_read": "0.0000002",
-          "input_cache_write": "0",
-          "input_cache_write_1h": "0"
-        },
-        "context_length": 1000000,
-        "streaming": true,
-        "vision": false,
-        "audio": false,
-        "cancellation": false,
-        "tools": true,
-        "parallelToolCalls": false,
-        "json_output": true,
-        "structured_outputs": true,
-        "web_search": false,
-        "reasoning": true,
-        "reasoning_efforts": ["low", "high", "max"],
-        "reasoning_max_tokens": false,
-        "max_output": 131072,
         "stability": "stable"
       },
       {
@@ -13391,65 +13465,6 @@
         "stability": "stable"
       },
       {
-        "providerId": "flexai",
-        "externalId": "GLM-5.3-Flash",
-        "pricing": {
-          "prompt": "0.00000008",
-          "completion": "0.0000005",
-          "image": "0",
-          "request": "0",
-          "input_cache_read": "0.000000012",
-          "input_cache_write": "0",
-          "input_cache_write_1h": "0",
-          "discount": "0.05"
-        },
-        "context_length": 1048576,
-        "streaming": true,
-        "vision": true,
-        "audio": false,
-        "cancellation": false,
-        "tools": true,
-        "parallelToolCalls": false,
-        "json_output": true,
-        "structured_outputs": true,
-        "web_search": false,
-        "reasoning": true,
-        "reasoning_efforts": ["medium", "high", "max", "minimal", "low"],
-        "reasoning_max_tokens": false,
-        "quantization": "fp8",
-        "stability": "stable"
-      },
-      {
-        "providerId": "greenference",
-        "externalId": "greenference/glm-5.3-flash",
-        "pricing": {
-          "prompt": "0.00000014",
-          "completion": "0.00000049",
-          "image": "0",
-          "request": "0",
-          "input_cache_read": "0.000000028",
-          "input_cache_write": "0",
-          "input_cache_write_1h": "0",
-          "discount": "0.3"
-        },
-        "context_length": 1048576,
-        "streaming": true,
-        "vision": true,
-        "audio": false,
-        "cancellation": false,
-        "tools": true,
-        "parallelToolCalls": false,
-        "json_output": true,
-        "structured_outputs": false,
-        "web_search": false,
-        "reasoning": true,
-        "reasoning_efforts": ["low", "medium", "high"],
-        "reasoning_max_tokens": false,
-        "max_output": 131072,
-        "quantization": "fp8",
-        "stability": "stable"
-      },
-      {
         "providerId": "reka-ai",
         "externalId": "glm5.3-flash",
         "pricing": {
@@ -13483,6 +13498,92 @@
         ],
         "reasoning_max_tokens": false,
         "max_output": 262144,
+        "quantization": "fp8",
+        "stability": "stable"
+      },
+      {
+        "providerId": "flexai",
+        "externalId": "GLM-5.3-Flash",
+        "pricing": {
+          "prompt": "0.00000008",
+          "completion": "0.0000005",
+          "image": "0",
+          "request": "0",
+          "input_cache_read": "0.000000012",
+          "input_cache_write": "0",
+          "input_cache_write_1h": "0",
+          "discount": "0.05"
+        },
+        "context_length": 1048576,
+        "streaming": true,
+        "vision": true,
+        "audio": false,
+        "cancellation": false,
+        "tools": true,
+        "parallelToolCalls": false,
+        "json_output": true,
+        "structured_outputs": true,
+        "web_search": false,
+        "reasoning": true,
+        "reasoning_efforts": ["medium", "high", "max", "minimal", "low"],
+        "reasoning_max_tokens": false,
+        "quantization": "fp8",
+        "stability": "stable"
+      },
+      {
+        "providerId": "canopywave",
+        "externalId": "zai/glm-5.3-flash",
+        "pricing": {
+          "prompt": "0.00000015",
+          "completion": "0.0000005",
+          "image": "0",
+          "request": "0",
+          "input_cache_read": "0.00000003",
+          "input_cache_write": "0",
+          "input_cache_write_1h": "0"
+        },
+        "context_length": 1000000,
+        "streaming": true,
+        "vision": true,
+        "audio": false,
+        "cancellation": true,
+        "tools": true,
+        "parallelToolCalls": false,
+        "json_output": true,
+        "structured_outputs": false,
+        "web_search": false,
+        "reasoning": true,
+        "reasoning_max_tokens": false,
+        "quantization": "fp8",
+        "stability": "stable"
+      },
+      {
+        "providerId": "greenference",
+        "externalId": "greenference/glm-5.3-flash",
+        "pricing": {
+          "prompt": "0.00000014",
+          "completion": "0.00000049",
+          "image": "0",
+          "request": "0",
+          "input_cache_read": "0.000000028",
+          "input_cache_write": "0",
+          "input_cache_write_1h": "0",
+          "discount": "0.3"
+        },
+        "context_length": 1048576,
+        "streaming": true,
+        "vision": true,
+        "audio": false,
+        "cancellation": false,
+        "tools": true,
+        "parallelToolCalls": false,
+        "json_output": true,
+        "structured_outputs": false,
+        "web_search": false,
+        "reasoning": true,
+        "reasoning_efforts": ["low", "medium", "high"],
+        "reasoning_max_tokens": false,
+        "max_output": 131072,
         "quantization": "fp8",
         "stability": "stable"
       },
@@ -14224,6 +14325,32 @@
         "reasoning": false,
         "max_output": 2000,
         "stability": "beta"
+      },
+      {
+        "providerId": "azure",
+        "externalId": "gpt-4o-mini-transcribe",
+        "pricing": {
+          "prompt": "1.25e-6",
+          "completion": "5.0e-6",
+          "image": "0",
+          "input_audio": "3.0e-6",
+          "request": "0",
+          "input_cache_read": "0",
+          "input_cache_write": "0",
+          "input_cache_write_1h": "0"
+        },
+        "context_length": 16000,
+        "streaming": false,
+        "vision": false,
+        "audio": true,
+        "cancellation": true,
+        "tools": false,
+        "parallelToolCalls": false,
+        "json_output": false,
+        "reasoning": false,
+        "max_output": 2000,
+        "stability": "beta",
+        "deactivated_at": "2027-06-15T00:00:00.000Z"
       }
     ],
     "pricing": {
@@ -14308,6 +14435,44 @@
           "verse"
         ],
         "deactivated_at": "2027-01-06T00:00:00.000Z"
+      },
+      {
+        "providerId": "azure",
+        "externalId": "gpt-4o-mini-tts",
+        "pricing": {
+          "prompt": "0.6e-6",
+          "completion": "12.0e-6",
+          "image": "0",
+          "output_audio": "12.0e-6",
+          "request": "0",
+          "input_cache_read": "0",
+          "input_cache_write": "0",
+          "input_cache_write_1h": "0"
+        },
+        "context_length": 2000,
+        "streaming": false,
+        "vision": false,
+        "cancellation": true,
+        "tools": false,
+        "parallelToolCalls": false,
+        "json_output": false,
+        "reasoning": false,
+        "supported_voices": [
+          "alloy",
+          "ash",
+          "ballad",
+          "cedar",
+          "coral",
+          "echo",
+          "fable",
+          "marin",
+          "nova",
+          "onyx",
+          "sage",
+          "shimmer",
+          "verse"
+        ],
+        "deactivated_at": "2027-06-15T00:00:00.000Z"
       }
     ],
     "pricing": {
@@ -14336,7 +14501,7 @@
     "json_output": false,
     "structured_outputs": false,
     "free": false,
-    "deactivated_at": "2027-01-06T00:00:00.000Z"
+    "deactivated_at": "2027-06-15T00:00:00.000Z"
   },
   {
     "id": "gpt-4o-transcribe",
@@ -14378,6 +14543,32 @@
         "reasoning": false,
         "max_output": 2000,
         "stability": "beta"
+      },
+      {
+        "providerId": "azure",
+        "externalId": "gpt-4o-transcribe",
+        "pricing": {
+          "prompt": "2.5e-6",
+          "completion": "10.0e-6",
+          "image": "0",
+          "input_audio": "6.0e-6",
+          "request": "0",
+          "input_cache_read": "0",
+          "input_cache_write": "0",
+          "input_cache_write_1h": "0"
+        },
+        "context_length": 16000,
+        "streaming": false,
+        "vision": false,
+        "audio": true,
+        "cancellation": true,
+        "tools": false,
+        "parallelToolCalls": false,
+        "json_output": false,
+        "reasoning": false,
+        "max_output": 2000,
+        "stability": "beta",
+        "deactivated_at": "2027-02-26T00:00:00.000Z"
       }
     ],
     "pricing": {
@@ -19022,6 +19213,140 @@
     "free": false
   },
   {
+    "id": "gpt-image-2.6-flare",
+    "name": "GPT Image 2.6 Flare",
+    "display_name": "GPT Image 2.6 Flare",
+    "created": 1793750400,
+    "description": "OpenAI's fast image generation and editing model for iteration, with native SVG output for icons and illustrations.",
+    "family": "openai",
+    "architecture": {
+      "input_modalities": ["text", "image"],
+      "output_modalities": ["image"],
+      "tokenizer": "GPT"
+    },
+    "top_provider": {
+      "is_moderated": true
+    },
+    "providers": [
+      {
+        "providerId": "openai",
+        "externalId": "gpt-image-2.6-flare",
+        "pricing": {
+          "prompt": "5e-6",
+          "completion": "0",
+          "image": "8e-6",
+          "image_output": "30e-6",
+          "image_input_cache_read": "2e-6",
+          "request": "0",
+          "input_cache_read": "1.25e-6",
+          "input_cache_write": "0",
+          "input_cache_write_1h": "0"
+        },
+        "streaming": false,
+        "vision": true,
+        "cancellation": true,
+        "tools": false,
+        "parallelToolCalls": false,
+        "json_output": false,
+        "reasoning": false
+      }
+    ],
+    "pricing": {
+      "prompt": "5e-6",
+      "completion": "0",
+      "image": "8e-6",
+      "image_output": "30e-6",
+      "image_input_cache_read": "2e-6",
+      "request": "0",
+      "input_cache_read": "1.25e-6",
+      "input_cache_write": "0",
+      "input_cache_write_1h": "0",
+      "web_search": "0",
+      "internal_reasoning": "0"
+    },
+    "context_length": 0,
+    "supported_parameters": [
+      "temperature",
+      "max_tokens",
+      "top_p",
+      "frequency_penalty",
+      "presence_penalty",
+      "response_format",
+      "tools",
+      "tool_choice"
+    ],
+    "json_output": false,
+    "structured_outputs": false,
+    "free": false
+  },
+  {
+    "id": "gpt-image-2.6-sunburst",
+    "name": "GPT Image 2.6 Sunburst",
+    "display_name": "GPT Image 2.6 Sunburst",
+    "created": 1793750400,
+    "description": "OpenAI's image generation and editing model for detailed visual work, with native SVG output for icons and illustrations.",
+    "family": "openai",
+    "architecture": {
+      "input_modalities": ["text", "image"],
+      "output_modalities": ["image"],
+      "tokenizer": "GPT"
+    },
+    "top_provider": {
+      "is_moderated": true
+    },
+    "providers": [
+      {
+        "providerId": "openai",
+        "externalId": "gpt-image-2.6-sunburst",
+        "pricing": {
+          "prompt": "5e-6",
+          "completion": "0",
+          "image": "8e-6",
+          "image_output": "30e-6",
+          "image_input_cache_read": "2e-6",
+          "request": "0",
+          "input_cache_read": "1.25e-6",
+          "input_cache_write": "0",
+          "input_cache_write_1h": "0"
+        },
+        "streaming": false,
+        "vision": true,
+        "cancellation": true,
+        "tools": false,
+        "parallelToolCalls": false,
+        "json_output": false,
+        "reasoning": false
+      }
+    ],
+    "pricing": {
+      "prompt": "5e-6",
+      "completion": "0",
+      "image": "8e-6",
+      "image_output": "30e-6",
+      "image_input_cache_read": "2e-6",
+      "request": "0",
+      "input_cache_read": "1.25e-6",
+      "input_cache_write": "0",
+      "input_cache_write_1h": "0",
+      "web_search": "0",
+      "internal_reasoning": "0"
+    },
+    "context_length": 0,
+    "supported_parameters": [
+      "temperature",
+      "max_tokens",
+      "top_p",
+      "frequency_penalty",
+      "presence_penalty",
+      "response_format",
+      "tools",
+      "tool_choice"
+    ],
+    "json_output": false,
+    "structured_outputs": false,
+    "free": false
+  },
+  {
     "id": "gpt-live-transcribe",
     "name": "GPT Live Transcribe",
     "display_name": "GPT Live Transcribe",
@@ -19059,6 +19384,30 @@
         "json_output": false,
         "reasoning": false,
         "stability": "beta"
+      },
+      {
+        "providerId": "azure",
+        "externalId": "gpt-live-transcribe",
+        "pricing": {
+          "prompt": "0",
+          "completion": "0",
+          "image": "0",
+          "request": "0",
+          "input_cache_read": "0",
+          "input_cache_write": "0",
+          "input_cache_write_1h": "0",
+          "input_audio_hour": "1.02"
+        },
+        "streaming": false,
+        "vision": false,
+        "audio": true,
+        "cancellation": true,
+        "tools": false,
+        "parallelToolCalls": false,
+        "json_output": false,
+        "reasoning": false,
+        "stability": "beta",
+        "deactivated_at": "2028-02-01T00:00:00.000Z"
       }
     ],
     "pricing": {
@@ -19436,7 +19785,7 @@
     "description": "Legacy OpenAI speech-to-speech realtime model, superseded by gpt-realtime-2.1. Served via the gateway's /v1/realtime WebSocket endpoint with text and audio input/output and function calling.",
     "family": "openai",
     "architecture": {
-      "input_modalities": ["text", "audio"],
+      "input_modalities": ["text", "image", "audio"],
       "output_modalities": ["text", "audio"],
       "tokenizer": "GPT"
     },
@@ -19462,7 +19811,7 @@
         },
         "context_length": 32768,
         "streaming": false,
-        "vision": false,
+        "vision": true,
         "audio": true,
         "realtime": true,
         "cancellation": true,
@@ -19486,6 +19835,48 @@
         "stability": "beta",
         "deprecated_at": "2026-07-20T00:00:00.000Z",
         "deactivated_at": "2027-01-20T00:00:00.000Z"
+      },
+      {
+        "providerId": "azure",
+        "externalId": "gpt-realtime",
+        "pricing": {
+          "prompt": "4.0e-6",
+          "completion": "16.0e-6",
+          "image": "5.0e-6",
+          "image_input_cache_read": "0.5e-6",
+          "input_audio": "32.0e-6",
+          "input_audio_cache_read": "0.4e-6",
+          "output_audio": "64.0e-6",
+          "request": "0",
+          "input_cache_read": "0.4e-6",
+          "input_cache_write": "0",
+          "input_cache_write_1h": "0"
+        },
+        "context_length": 32768,
+        "streaming": false,
+        "vision": true,
+        "audio": true,
+        "realtime": true,
+        "cancellation": true,
+        "tools": true,
+        "parallelToolCalls": false,
+        "json_output": false,
+        "reasoning": false,
+        "max_output": 4096,
+        "supported_voices": [
+          "marin",
+          "cedar",
+          "alloy",
+          "ash",
+          "ballad",
+          "coral",
+          "echo",
+          "sage",
+          "shimmer",
+          "verse"
+        ],
+        "stability": "beta",
+        "deactivated_at": "2027-03-02T00:00:00.000Z"
       }
     ],
     "pricing": {
@@ -19518,8 +19909,7 @@
     "json_output": false,
     "structured_outputs": false,
     "free": false,
-    "deprecated_at": "2026-07-20T00:00:00.000Z",
-    "deactivated_at": "2027-01-20T00:00:00.000Z",
+    "deactivated_at": "2027-03-02T00:00:00.000Z",
     "stability": "beta"
   },
   {
@@ -19530,7 +19920,7 @@
     "description": "OpenAI's current speech-to-speech realtime model. Served via the gateway's /v1/realtime WebSocket endpoint with text and audio input/output and function calling.",
     "family": "openai",
     "architecture": {
-      "input_modalities": ["text", "audio"],
+      "input_modalities": ["text", "image", "audio"],
       "output_modalities": ["text", "audio"],
       "tokenizer": "GPT"
     },
@@ -19556,7 +19946,7 @@
         },
         "context_length": 128000,
         "streaming": false,
-        "vision": false,
+        "vision": true,
         "audio": true,
         "realtime": true,
         "cancellation": true,
@@ -19578,6 +19968,48 @@
           "verse"
         ],
         "stability": "beta"
+      },
+      {
+        "providerId": "azure",
+        "externalId": "gpt-realtime-2.1",
+        "pricing": {
+          "prompt": "4.0e-6",
+          "completion": "24.0e-6",
+          "image": "5.0e-6",
+          "image_input_cache_read": "0.5e-6",
+          "input_audio": "32.0e-6",
+          "input_audio_cache_read": "0.4e-6",
+          "output_audio": "64.0e-6",
+          "request": "0",
+          "input_cache_read": "0.4e-6",
+          "input_cache_write": "0",
+          "input_cache_write_1h": "0"
+        },
+        "context_length": 128000,
+        "streaming": false,
+        "vision": true,
+        "audio": true,
+        "realtime": true,
+        "cancellation": true,
+        "tools": true,
+        "parallelToolCalls": false,
+        "json_output": false,
+        "reasoning": true,
+        "max_output": 32000,
+        "supported_voices": [
+          "marin",
+          "cedar",
+          "alloy",
+          "ash",
+          "ballad",
+          "coral",
+          "echo",
+          "sage",
+          "shimmer",
+          "verse"
+        ],
+        "stability": "beta",
+        "deactivated_at": "2027-07-31T00:00:00.000Z"
       }
     ],
     "pricing": {
@@ -19621,7 +20053,7 @@
     "description": "Cost-efficient variant of OpenAI's current speech-to-speech realtime model. Served via the gateway's /v1/realtime WebSocket endpoint with text and audio input/output and function calling.",
     "family": "openai",
     "architecture": {
-      "input_modalities": ["text", "audio"],
+      "input_modalities": ["text", "image", "audio"],
       "output_modalities": ["text", "audio"],
       "tokenizer": "GPT"
     },
@@ -19647,7 +20079,7 @@
         },
         "context_length": 128000,
         "streaming": false,
-        "vision": false,
+        "vision": true,
         "audio": true,
         "realtime": true,
         "cancellation": true,
@@ -19669,6 +20101,48 @@
           "verse"
         ],
         "stability": "beta"
+      },
+      {
+        "providerId": "azure",
+        "externalId": "gpt-realtime-2.1-mini",
+        "pricing": {
+          "prompt": "0.6e-6",
+          "completion": "2.4e-6",
+          "image": "0.8e-6",
+          "image_input_cache_read": "0.08e-6",
+          "input_audio": "10.0e-6",
+          "input_audio_cache_read": "0.3e-6",
+          "output_audio": "20.0e-6",
+          "request": "0",
+          "input_cache_read": "0.06e-6",
+          "input_cache_write": "0",
+          "input_cache_write_1h": "0"
+        },
+        "context_length": 128000,
+        "streaming": false,
+        "vision": true,
+        "audio": true,
+        "realtime": true,
+        "cancellation": true,
+        "tools": true,
+        "parallelToolCalls": false,
+        "json_output": false,
+        "reasoning": false,
+        "max_output": 32000,
+        "supported_voices": [
+          "marin",
+          "cedar",
+          "alloy",
+          "ash",
+          "ballad",
+          "coral",
+          "echo",
+          "sage",
+          "shimmer",
+          "verse"
+        ],
+        "stability": "beta",
+        "deactivated_at": "2027-07-31T00:00:00.000Z"
       }
     ],
     "pricing": {
@@ -19712,7 +20186,7 @@
     "description": "Legacy cost-efficient OpenAI speech-to-speech realtime model, superseded by gpt-realtime-2.1-mini. Served via the gateway's /v1/realtime WebSocket endpoint with text and audio input/output and function calling.",
     "family": "openai",
     "architecture": {
-      "input_modalities": ["text", "audio"],
+      "input_modalities": ["text", "image", "audio"],
       "output_modalities": ["text", "audio"],
       "tokenizer": "GPT"
     },
@@ -19726,7 +20200,8 @@
         "pricing": {
           "prompt": "0.6e-6",
           "completion": "2.4e-6",
-          "image": "0",
+          "image": "0.8e-6",
+          "image_input_cache_read": "0.08e-6",
           "input_audio": "10.0e-6",
           "input_audio_cache_read": "0.3e-6",
           "output_audio": "20.0e-6",
@@ -19737,7 +20212,7 @@
         },
         "context_length": 32768,
         "streaming": false,
-        "vision": false,
+        "vision": true,
         "audio": true,
         "realtime": true,
         "cancellation": true,
@@ -19761,12 +20236,55 @@
         "stability": "beta",
         "deprecated_at": "2026-07-20T00:00:00.000Z",
         "deactivated_at": "2027-01-20T00:00:00.000Z"
+      },
+      {
+        "providerId": "azure",
+        "externalId": "gpt-realtime-mini",
+        "pricing": {
+          "prompt": "0.6e-6",
+          "completion": "2.4e-6",
+          "image": "0.8e-6",
+          "image_input_cache_read": "0.08e-6",
+          "input_audio": "10.0e-6",
+          "input_audio_cache_read": "0.3e-6",
+          "output_audio": "20.0e-6",
+          "request": "0",
+          "input_cache_read": "0.06e-6",
+          "input_cache_write": "0",
+          "input_cache_write_1h": "0"
+        },
+        "context_length": 32768,
+        "streaming": false,
+        "vision": true,
+        "audio": true,
+        "realtime": true,
+        "cancellation": true,
+        "tools": true,
+        "parallelToolCalls": false,
+        "json_output": false,
+        "reasoning": false,
+        "max_output": 4096,
+        "supported_voices": [
+          "marin",
+          "cedar",
+          "alloy",
+          "ash",
+          "ballad",
+          "coral",
+          "echo",
+          "sage",
+          "shimmer",
+          "verse"
+        ],
+        "stability": "beta",
+        "deactivated_at": "2027-06-15T00:00:00.000Z"
       }
     ],
     "pricing": {
       "prompt": "0.6e-6",
       "completion": "2.4e-6",
-      "image": "0",
+      "image": "0.8e-6",
+      "image_input_cache_read": "0.08e-6",
       "input_audio": "10.0e-6",
       "input_audio_cache_read": "0.3e-6",
       "output_audio": "20.0e-6",
@@ -19792,8 +20310,7 @@
     "json_output": false,
     "structured_outputs": false,
     "free": false,
-    "deprecated_at": "2026-07-20T00:00:00.000Z",
-    "deactivated_at": "2027-01-20T00:00:00.000Z",
+    "deactivated_at": "2027-06-15T00:00:00.000Z",
     "stability": "beta"
   },
   {
@@ -19834,6 +20351,30 @@
         "json_output": false,
         "reasoning": false,
         "stability": "beta"
+      },
+      {
+        "providerId": "azure",
+        "externalId": "gpt-transcribe",
+        "pricing": {
+          "prompt": "0",
+          "completion": "0",
+          "image": "0",
+          "request": "0",
+          "input_cache_read": "0",
+          "input_cache_write": "0",
+          "input_cache_write_1h": "0",
+          "input_audio_hour": "0.27"
+        },
+        "streaming": false,
+        "vision": false,
+        "audio": true,
+        "cancellation": true,
+        "tools": false,
+        "parallelToolCalls": false,
+        "json_output": false,
+        "reasoning": false,
+        "stability": "beta",
+        "deactivated_at": "2028-02-01T00:00:00.000Z"
       }
     ],
     "pricing": {
@@ -25814,40 +26355,14 @@
         ],
         "max_output": 65536,
         "quantization": "fp8"
-      },
-      {
-        "providerId": "consensusprotocol",
-        "externalId": "MiMo-V2.6-Flash",
-        "pricing": {
-          "prompt": "0.00000012",
-          "completion": "0.00000025",
-          "image": "0",
-          "request": "0",
-          "input_cache_read": "0.0000000025",
-          "input_cache_write": "0",
-          "input_cache_write_1h": "0"
-        },
-        "context_length": 1048576,
-        "streaming": true,
-        "vision": false,
-        "audio": false,
-        "cancellation": false,
-        "tools": true,
-        "parallelToolCalls": false,
-        "json_output": true,
-        "structured_outputs": true,
-        "web_search": false,
-        "reasoning": true,
-        "reasoning_max_tokens": false,
-        "stability": "stable"
       }
     ],
     "pricing": {
-      "prompt": "0.00000012",
-      "completion": "0.00000025",
+      "prompt": "0.14e-6",
+      "completion": "0.28e-6",
       "image": "0",
       "request": "0",
-      "input_cache_read": "0.0000000025",
+      "input_cache_read": "0.0028e-6",
       "input_cache_write": "0",
       "input_cache_write_1h": "0",
       "web_search": "0",
@@ -26936,6 +27451,80 @@
         "deactivated_at": "2026-08-31T00:00:00.000Z"
       },
       {
+        "providerId": "deepinfra",
+        "externalId": "MiniMaxAI/MiniMax-M3",
+        "pricing": {
+          "prompt": "0.28e-6",
+          "completion": "1.1e-6",
+          "image": "0",
+          "request": "0",
+          "input_cache_read": "0.056e-6",
+          "input_cache_write": "0",
+          "input_cache_write_1h": "0"
+        },
+        "context_length": 524288,
+        "streaming": true,
+        "vision": true,
+        "cancellation": true,
+        "tools": true,
+        "parallelToolCalls": false,
+        "json_output": false,
+        "structured_outputs": true,
+        "reasoning": true,
+        "reasoning_efforts": [
+          "none",
+          "minimal",
+          "low",
+          "medium",
+          "high",
+          "xhigh",
+          "max"
+        ],
+        "max_output": 524288,
+        "quantization": "fp8"
+      },
+      {
+        "providerId": "novita",
+        "externalId": "minimax/minimax-m3",
+        "pricing": {
+          "prompt": "0.3e-6",
+          "completion": "1.2e-6",
+          "image": "0",
+          "request": "0",
+          "input_cache_read": "0.06e-6",
+          "input_cache_write": "0",
+          "input_cache_write_1h": "0",
+          "tiers": [
+            {
+              "name": "Up to 512K",
+              "up_to_tokens": 524287,
+              "prompt": "0.3e-6",
+              "completion": "1.2e-6",
+              "input_cache_read": "0.06e-6"
+            },
+            {
+              "name": "Over 512K",
+              "up_to_tokens": null,
+              "prompt": "0.6e-6",
+              "completion": "2.4e-6",
+              "input_cache_read": "0.12e-6"
+            }
+          ]
+        },
+        "context_length": 1000000,
+        "streaming": true,
+        "vision": true,
+        "cancellation": true,
+        "tools": true,
+        "parallelToolCalls": false,
+        "json_output": true,
+        "structured_outputs": false,
+        "reasoning": true,
+        "reasoning_efforts": ["none"],
+        "max_output": 131072,
+        "quantization": "fp8"
+      },
+      {
         "providerId": "tencent",
         "externalId": "minimax-m3",
         "pricing": {
@@ -27002,11 +27591,11 @@
       }
     ],
     "pricing": {
-      "prompt": "0.00000028",
-      "completion": "0.0000011",
+      "prompt": "0.28e-6",
+      "completion": "1.1e-6",
       "image": "0",
       "request": "0",
-      "input_cache_read": "0.00000005",
+      "input_cache_read": "0.056e-6",
       "input_cache_write": "0",
       "input_cache_write_1h": "0",
       "web_search": "0",
@@ -36642,6 +37231,28 @@
         "parallelToolCalls": false,
         "json_output": false,
         "reasoning": false
+      },
+      {
+        "providerId": "azure",
+        "externalId": "text-embedding-3-large",
+        "pricing": {
+          "prompt": "0.13e-6",
+          "completion": "0",
+          "image": "0",
+          "request": "0",
+          "input_cache_read": "0",
+          "input_cache_write": "0",
+          "input_cache_write_1h": "0"
+        },
+        "context_length": 8192,
+        "streaming": false,
+        "vision": false,
+        "cancellation": true,
+        "tools": false,
+        "parallelToolCalls": false,
+        "json_output": false,
+        "reasoning": false,
+        "deactivated_at": "2028-02-09T00:00:00.000Z"
       }
     ],
     "pricing": {
@@ -36706,6 +37317,28 @@
         "parallelToolCalls": false,
         "json_output": false,
         "reasoning": false
+      },
+      {
+        "providerId": "azure",
+        "externalId": "text-embedding-3-small",
+        "pricing": {
+          "prompt": "0.02e-6",
+          "completion": "0",
+          "image": "0",
+          "request": "0",
+          "input_cache_read": "0",
+          "input_cache_write": "0",
+          "input_cache_write_1h": "0"
+        },
+        "context_length": 8192,
+        "streaming": false,
+        "vision": false,
+        "cancellation": true,
+        "tools": false,
+        "parallelToolCalls": false,
+        "json_output": false,
+        "reasoning": false,
+        "deactivated_at": "2028-02-09T00:00:00.000Z"
       }
     ],
     "pricing": {
@@ -36770,6 +37403,28 @@
         "parallelToolCalls": false,
         "json_output": false,
         "reasoning": false
+      },
+      {
+        "providerId": "azure",
+        "externalId": "text-embedding-ada-002",
+        "pricing": {
+          "prompt": "0.1e-6",
+          "completion": "0",
+          "image": "0",
+          "request": "0",
+          "input_cache_read": "0",
+          "input_cache_write": "0",
+          "input_cache_write_1h": "0"
+        },
+        "context_length": 8192,
+        "streaming": false,
+        "vision": false,
+        "cancellation": true,
+        "tools": false,
+        "parallelToolCalls": false,
+        "json_output": false,
+        "reasoning": false,
+        "deactivated_at": "2028-02-09T00:00:00.000Z"
       }
     ],
     "pricing": {
@@ -36911,6 +37566,37 @@
           "shimmer"
         ],
         "deactivated_at": "2027-01-06T00:00:00.000Z"
+      },
+      {
+        "providerId": "azure",
+        "externalId": "tts-1",
+        "pricing": {
+          "prompt": "0",
+          "completion": "0",
+          "image": "0",
+          "input_character": "15e-6",
+          "request": "0",
+          "input_cache_read": "0",
+          "input_cache_write": "0",
+          "input_cache_write_1h": "0"
+        },
+        "context_length": 4096,
+        "streaming": false,
+        "vision": false,
+        "cancellation": true,
+        "tools": false,
+        "parallelToolCalls": false,
+        "json_output": false,
+        "reasoning": false,
+        "supported_voices": [
+          "alloy",
+          "echo",
+          "fable",
+          "nova",
+          "onyx",
+          "shimmer"
+        ],
+        "deactivated_at": "2027-01-20T00:00:00.000Z"
       }
     ],
     "pricing": {
@@ -36939,7 +37625,7 @@
     "json_output": false,
     "structured_outputs": false,
     "free": false,
-    "deactivated_at": "2027-01-06T00:00:00.000Z"
+    "deactivated_at": "2027-01-20T00:00:00.000Z"
   },
   {
     "id": "tts-1-hd",
@@ -36990,6 +37676,37 @@
           "shimmer"
         ],
         "deactivated_at": "2027-01-06T00:00:00.000Z"
+      },
+      {
+        "providerId": "azure",
+        "externalId": "tts-1-hd",
+        "pricing": {
+          "prompt": "0",
+          "completion": "0",
+          "image": "0",
+          "input_character": "30e-6",
+          "request": "0",
+          "input_cache_read": "0",
+          "input_cache_write": "0",
+          "input_cache_write_1h": "0"
+        },
+        "context_length": 4096,
+        "streaming": false,
+        "vision": false,
+        "cancellation": true,
+        "tools": false,
+        "parallelToolCalls": false,
+        "json_output": false,
+        "reasoning": false,
+        "supported_voices": [
+          "alloy",
+          "echo",
+          "fable",
+          "nova",
+          "onyx",
+          "shimmer"
+        ],
+        "deactivated_at": "2027-01-20T00:00:00.000Z"
       }
     ],
     "pricing": {
@@ -37018,7 +37735,7 @@
     "json_output": false,
     "structured_outputs": false,
     "free": false,
-    "deactivated_at": "2027-01-06T00:00:00.000Z"
+    "deactivated_at": "2027-01-20T00:00:00.000Z"
   },
   {
     "id": "veed-fabric-1-0",

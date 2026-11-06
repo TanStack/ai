@@ -444,7 +444,7 @@ const _DEEPSEEK_DEEPSEEK_V4_FLASH_LATEST = {
   pricing: {
     text: {
       input: {
-        normal: 0.0566,
+        normal: 0.059,
         cached: 0.035,
       },
       output: {
@@ -550,11 +550,11 @@ const _MOONSHOTAI_KIMI_LATEST = {
   pricing: {
     text: {
       input: {
-        normal: 0.1824,
-        cached: 0.18,
+        normal: 0.1529,
+        cached: 0.15,
       },
       output: {
-        normal: 10.5448,
+        normal: 9.3388,
       },
     },
     image: 0,
@@ -2893,7 +2893,7 @@ const DEEPSEEK_DEEPSEEK_V4_FLASH_0731 = {
   pricing: {
     text: {
       input: {
-        normal: 0.0566,
+        normal: 0.059,
         cached: 0.035,
       },
       output: {
@@ -2927,15 +2927,15 @@ const DEEPSEEK_DEEPSEEK_V4_FLASH_VISION_EXP = {
     ],
   },
   context_window: 1048576,
-  max_output_tokens: 262144,
+  max_output_tokens: 943717,
   pricing: {
     text: {
       input: {
-        normal: 0.2156,
-        cached: 0.00686,
+        normal: 0.44,
+        cached: 0.014,
       },
       output: {
-        normal: 0.6468,
+        normal: 1.32,
       },
     },
     image: 0,
@@ -2966,15 +2966,15 @@ const DEEPSEEK_DEEPSEEK_V4_PRO = {
     ],
   },
   context_window: 1048576,
-  max_output_tokens: 393216,
+  max_output_tokens: 384000,
   pricing: {
     text: {
       input: {
-        normal: 1.6,
-        cached: 0.135,
+        normal: 0.95526,
+        cached: 0.079605,
       },
       output: {
-        normal: 3.2,
+        normal: 1.91052,
       },
     },
     image: 0,
@@ -3087,11 +3087,11 @@ const DEEPSEEK_DEEPSEEK_V4_1_FLASH_1017 = {
   pricing: {
     text: {
       input: {
-        normal: 0.15,
-        cached: 0.003,
+        normal: 0.3,
+        cached: 0.006,
       },
       output: {
-        normal: 0.6,
+        normal: 1.2,
       },
     },
     image: 0,
@@ -4235,6 +4235,64 @@ const GOOGLE_GEMINI_NANO_BANANA_2_1 = {
     image: 0,
   },
 } as const
+const GOOGLE_GEMINI_OMNI_1_1_FLASH = {
+  id: 'google/gemini-omni-1.1-flash',
+  name: 'Google: Gemini Omni 1.1 Flash',
+  supports: {
+    input: ['text', 'image', 'video'],
+    output: ['text', 'video'],
+    supports: [
+      'maxCompletionTokens',
+      'reasoning',
+      'seed',
+      'temperature',
+      'topP',
+    ],
+  },
+  context_window: 131072,
+  max_output_tokens: 65536,
+  pricing: {
+    text: {
+      input: {
+        normal: 1.5,
+        cached: 0,
+      },
+      output: {
+        normal: 9,
+      },
+    },
+    image: 0,
+  },
+} as const
+const GOOGLE_GEMINI_OMNI_1_2_FLASH = {
+  id: 'google/gemini-omni-1.2-flash',
+  name: 'Google: Gemini Omni 1.2 Flash',
+  supports: {
+    input: ['text', 'image', 'video'],
+    output: ['text', 'video'],
+    supports: [
+      'maxCompletionTokens',
+      'reasoning',
+      'seed',
+      'temperature',
+      'topP',
+    ],
+  },
+  context_window: 131072,
+  max_output_tokens: 65536,
+  pricing: {
+    text: {
+      input: {
+        normal: 1.5,
+        cached: 0,
+      },
+      output: {
+        normal: 9,
+      },
+    },
+    image: 0,
+  },
+} as const
 const GOOGLE_GEMMA_2_27B_IT = {
   id: 'google/gemma-2-27b-it',
   name: 'Google: Gemma 2 27B',
@@ -4396,15 +4454,15 @@ const GOOGLE_GEMMA_4_26B_A4B_IT = {
     ],
   },
   context_window: 262144,
-  max_output_tokens: 32768,
+  max_output_tokens: 235929,
   pricing: {
     text: {
       input: {
-        normal: 0.058,
-        cached: 0.029,
+        normal: 0.0765,
+        cached: 0.0425,
       },
       output: {
-        normal: 0.174,
+        normal: 0.255,
       },
     },
     image: 0,
@@ -5279,15 +5337,15 @@ const META_LLAMA_LLAMA_3_3_70B_INSTRUCT = {
     ],
   },
   context_window: 131072,
-  max_output_tokens: 128000,
+  max_output_tokens: 32768,
   pricing: {
     text: {
       input: {
-        normal: 0.2,
-        cached: 0.1,
+        normal: 0.59,
+        cached: 0.295,
       },
       output: {
-        normal: 0.52,
+        normal: 0.79,
       },
     },
     image: 0,
@@ -6843,7 +6901,7 @@ const MOONSHOTAI_KIMI_K2_7_CODE = {
     text: {
       input: {
         normal: 0.6,
-        cached: 0.15,
+        cached: 0.16,
       },
       output: {
         normal: 3.5,
@@ -10269,11 +10327,11 @@ const OPENAI_GPT_OSS_120B = {
   pricing: {
     text: {
       input: {
-        normal: 0.15,
-        cached: 0.075,
+        normal: 0.027,
+        cached: 0.025,
       },
       output: {
-        normal: 0.6,
+        normal: 0.102,
       },
     },
     image: 0,
@@ -12469,12 +12527,12 @@ const REFLECTION_BEAM_1_0_501B_A23B = {
     ],
   },
   context_window: 1048576,
-  max_output_tokens: 131072,
+  max_output_tokens: 943718,
   pricing: {
     text: {
       input: {
-        normal: 0.25,
-        cached: 0.05,
+        normal: 0.3,
+        cached: 0.04,
       },
       output: {
         normal: 1,
@@ -16090,6 +16148,16 @@ export type OpenRouterModelOptionsByName = {
       | 'temperature'
       | 'toolChoice'
       | 'topP'
+    >
+  [GOOGLE_GEMINI_OMNI_1_1_FLASH.id]: OpenRouterCommonOptions &
+    Pick<
+      OpenRouterBaseOptions,
+      'maxCompletionTokens' | 'seed' | 'temperature' | 'topP'
+    >
+  [GOOGLE_GEMINI_OMNI_1_2_FLASH.id]: OpenRouterCommonOptions &
+    Pick<
+      OpenRouterBaseOptions,
+      'maxCompletionTokens' | 'seed' | 'temperature' | 'topP'
     >
   [GOOGLE_GEMMA_2_27B_IT.id]: OpenRouterCommonOptions &
     Pick<
@@ -19943,6 +20011,8 @@ export type OpenRouterModelInputModalitiesByName = {
     'audio' | 'document' | 'image' | 'text' | 'video'
   >
   [GOOGLE_GEMINI_NANO_BANANA_2_1.id]: ReadonlyArray<'image' | 'text'>
+  [GOOGLE_GEMINI_OMNI_1_1_FLASH.id]: ReadonlyArray<'text' | 'image' | 'video'>
+  [GOOGLE_GEMINI_OMNI_1_2_FLASH.id]: ReadonlyArray<'text' | 'image' | 'video'>
   [GOOGLE_GEMMA_2_27B_IT.id]: ReadonlyArray<'text'>
   [GOOGLE_GEMMA_3_12B_IT.id]: ReadonlyArray<'text' | 'image'>
   [GOOGLE_GEMMA_3_27B_IT.id]: ReadonlyArray<'text' | 'image'>
@@ -20444,6 +20514,8 @@ export const OPENROUTER_CHAT_MODELS = [
   GOOGLE_GEMINI_4_ARGON.id,
   GOOGLE_GEMINI_4_ARGON_BATCH.id,
   GOOGLE_GEMINI_NANO_BANANA_2_1.id,
+  GOOGLE_GEMINI_OMNI_1_1_FLASH.id,
+  GOOGLE_GEMINI_OMNI_1_2_FLASH.id,
   GOOGLE_GEMMA_2_27B_IT.id,
   GOOGLE_GEMMA_3_12B_IT.id,
   GOOGLE_GEMMA_3_27B_IT.id,
@@ -20958,6 +21030,10 @@ export const OPENROUTER_MODEL_INPUT_MODALITIES: Readonly<
   [GOOGLE_GEMINI_4_ARGON_BATCH.id]: GOOGLE_GEMINI_4_ARGON_BATCH.supports.input,
   [GOOGLE_GEMINI_NANO_BANANA_2_1.id]:
     GOOGLE_GEMINI_NANO_BANANA_2_1.supports.input,
+  [GOOGLE_GEMINI_OMNI_1_1_FLASH.id]:
+    GOOGLE_GEMINI_OMNI_1_1_FLASH.supports.input,
+  [GOOGLE_GEMINI_OMNI_1_2_FLASH.id]:
+    GOOGLE_GEMINI_OMNI_1_2_FLASH.supports.input,
   [GOOGLE_GEMMA_2_27B_IT.id]: GOOGLE_GEMMA_2_27B_IT.supports.input,
   [GOOGLE_GEMMA_3_12B_IT.id]: GOOGLE_GEMMA_3_12B_IT.supports.input,
   [GOOGLE_GEMMA_3_27B_IT.id]: GOOGLE_GEMMA_3_27B_IT.supports.input,
@@ -21727,6 +21803,8 @@ export const OPENROUTER_VIDEO_MODELS = [
   'bytedance/seedance-2.0-fast',
   'bytedance/seedance-2.0-mini',
   'bytedance/seedance-2.5',
+  'google/gemini-omni-1.1-flash',
+  'google/gemini-omni-1.2-flash',
   'google/veo-3.1',
   'google/veo-3.1-fast',
   'google/veo-3.1-lite',
@@ -21744,6 +21822,8 @@ export const OPENROUTER_VIDEO_MODELS = [
   'x-ai/grok-imagine-video',
   'x-ai/grok-imagine-video-1.5',
   'x-ai/grok-imagine-video-1.5-lite',
+  GOOGLE_GEMINI_OMNI_1_1_FLASH.id,
+  GOOGLE_GEMINI_OMNI_1_2_FLASH.id,
 ] as const
 export const OPENROUTER_VIDEO_MODEL_META = {
   'alibaba/happyhorse-1.0': {
@@ -22021,6 +22101,44 @@ export const OPENROUTER_VIDEO_MODEL_META = {
       '834x1112',
       '720x1280',
       '1470x630',
+    ],
+    generateAudio: true,
+    seed: true,
+  },
+  'google/gemini-omni-1.1-flash': {
+    name: 'Google: Gemini Omni 1.1 Flash',
+    durations: [3, 4, 5, 6, 7, 8, 9, 10],
+    resolutions: ['720p', '1080p', '4K', '360p'],
+    aspectRatios: ['16:9', '9:16'],
+    frameImages: ['first_frame', 'last_frame'],
+    sizes: [
+      '1280x720',
+      '720x1280',
+      '1920x1080',
+      '1080x1920',
+      '3840x2160',
+      '2160x3840',
+      '640x360',
+      '360x640',
+    ],
+    generateAudio: true,
+    seed: true,
+  },
+  'google/gemini-omni-1.2-flash': {
+    name: 'Google: Gemini Omni 1.2 Flash',
+    durations: [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
+    resolutions: ['720p', '1080p', '4K', '360p'],
+    aspectRatios: ['16:9', '9:16'],
+    frameImages: ['first_frame', 'last_frame'],
+    sizes: [
+      '1280x720',
+      '720x1280',
+      '1920x1080',
+      '1080x1920',
+      '3840x2160',
+      '2160x3840',
+      '640x360',
+      '360x640',
     ],
     generateAudio: true,
     seed: true,

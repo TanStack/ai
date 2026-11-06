@@ -437,7 +437,7 @@
       "instruct_type": null
     },
     "pricing": {
-      "prompt": "0.0000000566",
+      "prompt": "0.000000059",
       "completion": "0.0000003",
       "input_cache_read": "0.000000035"
     },
@@ -657,9 +657,9 @@
       "instruct_type": null
     },
     "pricing": {
-      "prompt": "0.0000001824",
-      "completion": "0.0000105448",
-      "input_cache_read": "0.00000018"
+      "prompt": "0.0000001529",
+      "completion": "0.0000093388",
+      "input_cache_read": "0.00000015"
     },
     "top_provider": {
       "context_length": 1048576,
@@ -8691,7 +8691,7 @@
       "instruct_type": null
     },
     "pricing": {
-      "prompt": "0.0000000566",
+      "prompt": "0.000000059",
       "completion": "0.0000003",
       "input_cache_read": "0.000000035"
     },
@@ -8826,13 +8826,13 @@
       "instruct_type": null
     },
     "pricing": {
-      "prompt": "0.0000002156",
-      "completion": "0.0000006468",
-      "input_cache_read": "0.00000000686"
+      "prompt": "0.00000044",
+      "completion": "0.00000132",
+      "input_cache_read": "0.000000014"
     },
     "top_provider": {
-      "context_length": 1048576,
-      "max_completion_tokens": 262144,
+      "context_length": 1048575,
+      "max_completion_tokens": 943717,
       "is_moderated": false
     },
     "per_request_limits": null,
@@ -8902,13 +8902,13 @@
       "instruct_type": null
     },
     "pricing": {
-      "prompt": "0.0000016",
-      "completion": "0.0000032",
-      "input_cache_read": "0.000000135"
+      "prompt": "0.00000095526",
+      "completion": "0.00000191052",
+      "input_cache_read": "0.000000079605"
     },
     "top_provider": {
-      "context_length": 1048576,
-      "max_completion_tokens": 393216,
+      "context_length": 1024000,
+      "max_completion_tokens": 384000,
       "is_moderated": false
     },
     "per_request_limits": null,
@@ -9207,9 +9207,9 @@
       "instruct_type": null
     },
     "pricing": {
-      "prompt": "0.00000015",
-      "completion": "0.0000006",
-      "input_cache_read": "0.000000003",
+      "prompt": "0.0000003",
+      "completion": "0.0000012",
+      "input_cache_read": "0.000000006",
       "overrides": [
         {
           "utc_days": ["saturday", "sunday"],
@@ -13875,6 +13875,116 @@
     }
   },
   {
+    "id": "google/gemini-omni-1.1-flash",
+    "canonical_slug": "google/gemini-omni-1.1-flash-20260911",
+    "hugging_face_id": null,
+    "name": "Google: Gemini Omni 1.1 Flash",
+    "created": 1793825668,
+    "description": "Gemini Omni 1.1 Flash is Google's native multimodal video generation and editing model, the generally available successor to Gemini Omni Flash Preview. It is suited for text-to-video, image-to-video, first and...",
+    "context_length": 131072,
+    "architecture": {
+      "modality": "text+image+video->text+video",
+      "input_modalities": ["text", "image", "video"],
+      "output_modalities": ["text", "video"],
+      "tokenizer": "Gemini",
+      "instruct_type": null
+    },
+    "pricing": {
+      "prompt": "0.0000015",
+      "completion": "0.000009",
+      "web_search": "0.014"
+    },
+    "top_provider": {
+      "context_length": 131072,
+      "max_completion_tokens": 65536,
+      "is_moderated": false
+    },
+    "per_request_limits": null,
+    "supported_parameters": [
+      "include_reasoning",
+      "max_tokens",
+      "reasoning",
+      "reasoning_effort",
+      "seed",
+      "temperature",
+      "top_p"
+    ],
+    "default_parameters": {},
+    "supported_voices": null,
+    "knowledge_cutoff": null,
+    "expiration_date": null,
+    "links": {
+      "details": "/api/v1/models/google/gemini-omni-1.1-flash-20260911/endpoints"
+    },
+    "endpoints": [
+      "/api/v1/chat/completions",
+      "/api/v1/completions",
+      "/api/v1/messages",
+      "/api/v1/responses",
+      "/api/v1/videos"
+    ],
+    "reasoning": {
+      "mandatory": true,
+      "supported_efforts": ["high", "low"],
+      "default_effort": "low"
+    }
+  },
+  {
+    "id": "google/gemini-omni-1.2-flash",
+    "canonical_slug": "google/gemini-omni-1.2-flash-20261105",
+    "hugging_face_id": null,
+    "name": "Google: Gemini Omni 1.2 Flash",
+    "created": 1793898961,
+    "description": "Gemini Omni 1.2 Flash is Google's native multimodal video generation and editing model, the successor to Gemini Omni 1.1 Flash. It generates clips up to 15 seconds long with native...",
+    "context_length": 131072,
+    "architecture": {
+      "modality": "text+image+video->text+video",
+      "input_modalities": ["text", "image", "video"],
+      "output_modalities": ["text", "video"],
+      "tokenizer": "Gemini",
+      "instruct_type": null
+    },
+    "pricing": {
+      "prompt": "0.0000015",
+      "completion": "0.000009",
+      "web_search": "0.014"
+    },
+    "top_provider": {
+      "context_length": 131072,
+      "max_completion_tokens": 65536,
+      "is_moderated": false
+    },
+    "per_request_limits": null,
+    "supported_parameters": [
+      "include_reasoning",
+      "max_tokens",
+      "reasoning",
+      "reasoning_effort",
+      "seed",
+      "temperature",
+      "top_p"
+    ],
+    "default_parameters": {},
+    "supported_voices": null,
+    "knowledge_cutoff": null,
+    "expiration_date": null,
+    "links": {
+      "details": "/api/v1/models/google/gemini-omni-1.2-flash-20261105/endpoints"
+    },
+    "endpoints": [
+      "/api/v1/chat/completions",
+      "/api/v1/completions",
+      "/api/v1/messages",
+      "/api/v1/responses",
+      "/api/v1/videos"
+    ],
+    "reasoning": {
+      "mandatory": true,
+      "supported_efforts": ["high", "low"],
+      "default_effort": "low"
+    }
+  },
+  {
     "id": "google/gemma-2-27b-it",
     "canonical_slug": "google/gemma-2-27b-it",
     "hugging_face_id": "google/gemma-2-27b-it",
@@ -14140,13 +14250,13 @@
       "instruct_type": null
     },
     "pricing": {
-      "prompt": "0.000000058",
-      "completion": "0.000000174",
-      "input_cache_read": "0.000000029"
+      "prompt": "0.0000000765",
+      "completion": "0.000000255",
+      "input_cache_read": "0.0000000425"
     },
     "top_provider": {
       "context_length": 262144,
-      "max_completion_tokens": 32768,
+      "max_completion_tokens": 235929,
       "is_moderated": false
     },
     "per_request_limits": null,
@@ -15841,7 +15951,7 @@
     "default_parameters": {},
     "supported_voices": null,
     "knowledge_cutoff": "2023-12-31",
-    "expiration_date": null,
+    "expiration_date": "2026-11-15",
     "links": {
       "details": "/api/v1/models/meta-llama/llama-3.2-1b-instruct/endpoints"
     },
@@ -15896,7 +16006,7 @@
     "default_parameters": {},
     "supported_voices": null,
     "knowledge_cutoff": "2023-12-31",
-    "expiration_date": null,
+    "expiration_date": "2026-11-15",
     "links": {
       "details": "/api/v1/models/meta-llama/llama-3.2-3b-instruct/endpoints"
     },
@@ -15923,13 +16033,13 @@
       "instruct_type": "llama3"
     },
     "pricing": {
-      "prompt": "0.0000002",
-      "completion": "0.00000052",
-      "input_cache_read": "0.0000001"
+      "prompt": "0.00000059",
+      "completion": "0.00000079",
+      "input_cache_read": "0.000000295"
     },
     "top_provider": {
       "context_length": 131072,
-      "max_completion_tokens": 128000,
+      "max_completion_tokens": 32768,
       "is_moderated": false
     },
     "per_request_limits": null,
@@ -20450,7 +20560,7 @@
     "pricing": {
       "prompt": "0.0000006",
       "completion": "0.0000035",
-      "input_cache_read": "0.00000015"
+      "input_cache_read": "0.00000016"
     },
     "top_provider": {
       "context_length": 262144,
@@ -30444,9 +30554,9 @@
       "instruct_type": null
     },
     "pricing": {
-      "prompt": "0.00000015",
-      "completion": "0.0000006",
-      "input_cache_read": "0.000000075"
+      "prompt": "0.000000027",
+      "completion": "0.000000102",
+      "input_cache_read": "0.000000025"
     },
     "top_provider": {
       "context_length": 131072,
@@ -35435,13 +35545,13 @@
       "instruct_type": null
     },
     "pricing": {
-      "prompt": "0.00000025",
+      "prompt": "0.0000003",
       "completion": "0.000001",
-      "input_cache_read": "0.00000005"
+      "input_cache_read": "0.00000004"
     },
     "top_provider": {
       "context_length": 1048576,
-      "max_completion_tokens": 131072,
+      "max_completion_tokens": 943718,
       "is_moderated": false
     },
     "per_request_limits": null,

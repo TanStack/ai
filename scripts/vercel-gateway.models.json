@@ -1203,8 +1203,8 @@
     "owned_by": "alibaba",
     "name": "Qwen3.8 27B",
     "description": "Built on the architectural foundation of Qwen3.5, Qwen3.8 delivers substantial gains across coding, professional work, research, and long-horizon agentic tasks. Qwen3.8-27B brings these advances to a compact, deployment-friendly dense model: a native vision-language model that understands images and videos, with flexible thinking control, designed to carry complex, multi-step tasks through to completion with greater reliability.",
-    "context_window": 1000000,
-    "max_tokens": 131072,
+    "context_window": 262144,
+    "max_tokens": 262144,
     "type": "language",
     "zdr": "some",
     "no_training": "some",
@@ -1243,10 +1243,9 @@
       }
     ],
     "pricing": {
-      "input": "0.0000005",
-      "output": "0.000003",
-      "input_cache_read": "0.0000001",
-      "input_cache_write": "0.000000625",
+      "input": "0.00000006",
+      "output": "0.0000023",
+      "input_cache_read": "0.000000059",
       "varies_by_provider": true
     }
   },
@@ -8773,84 +8772,6 @@
     }
   },
   {
-    "id": "google/gemini-3.1-flash-image-preview",
-    "object": "model",
-    "created": 1755815280,
-    "released": 1772064000,
-    "owned_by": "google",
-    "name": "Gemini 3.1 Flash Image Preview (Nano Banana 2)",
-    "description": "Gemini 3.1 Flash Image (Nano Banana 2) is optimized for image understanding and generation and offers a balance of price and performance.",
-    "context_window": 131072,
-    "max_tokens": 32768,
-    "type": "language",
-    "zdr": "none",
-    "no_training": "all",
-    "tags": [
-      "image-generation",
-      "implicit-caching",
-      "reasoning",
-      "vision",
-      "web-search",
-      "structured-output"
-    ],
-    "supported_specifications": ["v2", "v3", "v4"],
-    "modalities": {
-      "input": ["text", "image"],
-      "output": ["text", "image"]
-    },
-    "supported_parameters": [
-      "max_tokens",
-      "temperature",
-      "stop",
-      "reasoning",
-      "include_reasoning",
-      "response_format",
-      "structured_outputs"
-    ],
-    "temperature": true,
-    "reasoning_options": [
-      {
-        "type": "effort",
-        "values": ["low", "high"]
-      }
-    ],
-    "knowledge": "2025-01",
-    "pricing": {
-      "input": "0.0000005",
-      "output": "0.000003",
-      "input_cache_read": "0.00000005",
-      "image_dimension_quality_pricing": [
-        {
-          "size": "512",
-          "cost": "0.045"
-        },
-        {
-          "size": "1K",
-          "cost": "0.067"
-        },
-        {
-          "size": "2K",
-          "cost": "0.101"
-        },
-        {
-          "size": "4K",
-          "cost": "0.151"
-        },
-        {
-          "size": "default",
-          "cost": "0.067"
-        }
-      ],
-      "web_search": "14",
-      "service_tiers": {
-        "flex": {
-          "input": "0.00000025",
-          "output": "0.0000015"
-        }
-      }
-    }
-  },
-  {
     "id": "google/gemini-3.1-flash-lite",
     "object": "model",
     "created": 1755815280,
@@ -9242,7 +9163,7 @@
     "context_window": 1000000,
     "max_tokens": 64000,
     "type": "language",
-    "zdr": "some",
+    "zdr": "all",
     "no_training": "all",
     "tags": [
       "reasoning",
@@ -9274,8 +9195,11 @@
     "temperature": true,
     "reasoning_options": [
       {
+        "type": "toggle"
+      },
+      {
         "type": "effort",
-        "values": ["low", "high"]
+        "values": ["none", "low", "medium", "high"]
       }
     ],
     "knowledge": "2025-01",
@@ -9309,58 +9233,6 @@
           "input_cache_read": "0.000000165"
         }
       }
-    }
-  },
-  {
-    "id": "google/gemini-3.5-flash-batch",
-    "object": "model",
-    "created": 1755815280,
-    "released": 1779148800,
-    "owned_by": "google",
-    "name": "Gemini 3.5 Flash (Batch)",
-    "description": "Google's latest model, highly optimized for coding proficiency and parallel agentic execution loops. Defaults to medium thinking effort for faster and more cost-efficient responses.",
-    "context_window": 1000000,
-    "max_tokens": 64000,
-    "type": "language",
-    "zdr": "none",
-    "no_training": "all",
-    "tags": [
-      "reasoning",
-      "file-input",
-      "vision",
-      "tool-use",
-      "implicit-caching",
-      "video-input",
-      "structured-output"
-    ],
-    "supported_specifications": ["v4"],
-    "modalities": {
-      "input": ["text", "image", "pdf", "video"],
-      "output": ["text"]
-    },
-    "supported_parameters": [
-      "max_tokens",
-      "temperature",
-      "stop",
-      "tools",
-      "tool_choice",
-      "reasoning",
-      "include_reasoning",
-      "response_format",
-      "structured_outputs"
-    ],
-    "temperature": true,
-    "reasoning_options": [
-      {
-        "type": "effort",
-        "values": ["low", "high"]
-      }
-    ],
-    "knowledge": "2025-01",
-    "pricing": {
-      "input": "0.00000075",
-      "output": "0.0000045",
-      "input_cache_read": "0.000000075"
     }
   },
   {
@@ -9694,7 +9566,7 @@
     "context_window": 1000000,
     "max_tokens": 65535,
     "type": "language",
-    "zdr": "some",
+    "zdr": "all",
     "no_training": "all",
     "tags": [
       "reasoning",
@@ -9726,11 +9598,15 @@
     "temperature": true,
     "reasoning_options": [
       {
+        "type": "toggle"
+      },
+      {
         "type": "effort",
-        "values": ["low", "high"]
+        "values": ["none", "low", "medium", "high"]
       }
     ],
     "knowledge": "2026-03",
+    "deprecated_at": 1801112700000,
     "pricing": {
       "input": "0.00000075",
       "output": "0.00000375",
@@ -9761,58 +9637,6 @@
           "input_cache_read": "0.0000000825"
         }
       }
-    }
-  },
-  {
-    "id": "google/gemini-3.7-flash-batch",
-    "object": "model",
-    "created": 1755815280,
-    "released": 1786579200,
-    "owned_by": "google",
-    "name": "Gemini 3.7 Flash (Batch)",
-    "description": "Gemini 3.7 Flash is the next iteration in the Gemini 3 model family, featuring algorithmic improvements to its core reasoning foundation. It supports customizable thinking configurations to control the mix of quality, cost and latency.",
-    "context_window": 1000000,
-    "max_tokens": 65535,
-    "type": "language",
-    "zdr": "none",
-    "no_training": "all",
-    "tags": [
-      "reasoning",
-      "file-input",
-      "vision",
-      "tool-use",
-      "implicit-caching",
-      "video-input",
-      "structured-output"
-    ],
-    "supported_specifications": ["v4"],
-    "modalities": {
-      "input": ["text", "image", "pdf", "video"],
-      "output": ["text"]
-    },
-    "supported_parameters": [
-      "max_tokens",
-      "temperature",
-      "stop",
-      "tools",
-      "tool_choice",
-      "reasoning",
-      "include_reasoning",
-      "response_format",
-      "structured_outputs"
-    ],
-    "temperature": true,
-    "reasoning_options": [
-      {
-        "type": "effort",
-        "values": ["low", "high"]
-      }
-    ],
-    "knowledge": "2026-03",
-    "pricing": {
-      "input": "0.000000375",
-      "output": "0.000001875",
-      "input_cache_read": "0.0000000375"
     }
   },
   {
@@ -10234,6 +10058,53 @@
     }
   },
   {
+    "id": "google/gemini-omni-1.2-flash",
+    "object": "model",
+    "created": 1755815280,
+    "released": 1793836800,
+    "owned_by": "google",
+    "name": "Gemini Omni 1.2 Flash",
+    "description": "Gemini Omni 1.2 Flash is Google’s multimodal model for video generation and visual content creation. It combines text, image, and video inputs with text and video outputs, helping developers build creative applications that work across multiple media formats.",
+    "context_window": 131072,
+    "max_tokens": 260640,
+    "type": "language",
+    "zdr": "some",
+    "no_training": "all",
+    "tags": [
+      "file-input",
+      "reasoning",
+      "vision",
+      "video-generation",
+      "video-input"
+    ],
+    "supported_specifications": ["v2", "v3", "v4"],
+    "modalities": {
+      "input": ["text", "image", "pdf", "video"],
+      "output": ["text", "video"]
+    },
+    "supported_parameters": [
+      "max_tokens",
+      "temperature",
+      "stop",
+      "reasoning",
+      "include_reasoning"
+    ],
+    "temperature": true,
+    "reasoning_options": [
+      {
+        "type": "toggle"
+      },
+      {
+        "type": "effort",
+        "values": ["none", "low", "medium", "high"]
+      }
+    ],
+    "pricing": {
+      "input": "0.0000015",
+      "output": "0.000009"
+    }
+  },
+  {
     "id": "google/gemini-omni-flash-preview",
     "object": "model",
     "created": 1755815280,
@@ -10244,7 +10115,7 @@
     "context_window": 1000000,
     "max_tokens": 57920,
     "type": "language",
-    "zdr": "some",
+    "zdr": "all",
     "no_training": "all",
     "tags": [
       "file-input",
@@ -10416,126 +10287,6 @@
     },
     "pricing": {
       "input": "0.000000025"
-    }
-  },
-  {
-    "id": "google/veo-3.0-fast-generate-001",
-    "object": "model",
-    "created": 1755815280,
-    "released": 1753920000,
-    "owned_by": "google",
-    "name": "Veo 3.0 Fast Generate",
-    "description": "Veo 3 Fast is a quicker and more cost effective version of Veo 3, allowing developers to create videos with sound while maintaining high quality and optimizing for speed and business use cases. Veo 3 Fast offers both text-to-video and image-to-video modalities.",
-    "context_window": 0,
-    "max_tokens": 0,
-    "type": "video",
-    "zdr": "all",
-    "no_training": "all",
-    "supported_specifications": ["v3", "v4"],
-    "modalities": {
-      "input": ["text"],
-      "output": ["video"]
-    },
-    "video_capabilities": {
-      "supported_operations": ["text-to-video", "image-to-video"],
-      "supported_resolutions": ["720p", "1080p"],
-      "supported_aspect_ratios": ["16:9", "9:16"],
-      "supported_durations_seconds": [4, 6, 8],
-      "generate_audio": true,
-      "supported_fps": [24],
-      "max_sample_count": 4,
-      "input_limits": {
-        "image": {
-          "max_count": 1,
-          "max_file_size_mb": 20,
-          "supported_formats": ["jpg", "jpeg", "png"],
-          "supported_sources": ["url", "base64"]
-        }
-      }
-    },
-    "pricing": {
-      "video_duration_pricing": [
-        {
-          "resolution": "720p",
-          "audio": false,
-          "cost_per_second": "0.1"
-        },
-        {
-          "resolution": "720p",
-          "audio": true,
-          "cost_per_second": "0.15"
-        },
-        {
-          "resolution": "1080p",
-          "audio": false,
-          "cost_per_second": "0.1"
-        },
-        {
-          "resolution": "1080p",
-          "audio": true,
-          "cost_per_second": "0.15"
-        }
-      ]
-    }
-  },
-  {
-    "id": "google/veo-3.0-generate-001",
-    "object": "model",
-    "created": 1755815280,
-    "released": 1747699200,
-    "owned_by": "google",
-    "name": "Veo 3.0",
-    "description": "Veo 3 is designed to handle a range of video generation tasks, from cinematic narratives to dynamic character animations. With Veo 3, you can create more immersive experiences by not only generating stunning visuals, but also audio like dialogue and sound effects.",
-    "context_window": 0,
-    "max_tokens": 0,
-    "type": "video",
-    "zdr": "all",
-    "no_training": "all",
-    "supported_specifications": ["v3", "v4"],
-    "modalities": {
-      "input": ["text"],
-      "output": ["video"]
-    },
-    "video_capabilities": {
-      "supported_operations": ["text-to-video", "image-to-video"],
-      "supported_resolutions": ["720p", "1080p"],
-      "supported_aspect_ratios": ["16:9", "9:16"],
-      "supported_durations_seconds": [4, 6, 8],
-      "generate_audio": true,
-      "supported_fps": [24],
-      "max_sample_count": 4,
-      "input_limits": {
-        "image": {
-          "max_count": 1,
-          "max_file_size_mb": 20,
-          "supported_formats": ["jpg", "jpeg", "png"],
-          "supported_sources": ["url", "base64"]
-        }
-      }
-    },
-    "pricing": {
-      "video_duration_pricing": [
-        {
-          "resolution": "720p",
-          "audio": false,
-          "cost_per_second": "0.2"
-        },
-        {
-          "resolution": "720p",
-          "audio": true,
-          "cost_per_second": "0.4"
-        },
-        {
-          "resolution": "1080p",
-          "audio": false,
-          "cost_per_second": "0.2"
-        },
-        {
-          "resolution": "1080p",
-          "audio": true,
-          "cost_per_second": "0.4"
-        }
-      ]
     }
   },
   {
@@ -22914,7 +22665,7 @@
     "context_window": 1050000,
     "max_tokens": 128000,
     "type": "language",
-    "zdr": "all",
+    "zdr": "some",
     "no_training": "all",
     "tags": [
       "explicit-caching",
@@ -23293,7 +23044,7 @@
     "context_window": 1050000,
     "max_tokens": 128000,
     "type": "language",
-    "zdr": "all",
+    "zdr": "some",
     "no_training": "all",
     "tags": [
       "explicit-caching",
@@ -27639,8 +27390,7 @@
     "pricing": {
       "input": "0.000001",
       "output": "0.0000027",
-      "input_cache_read": "0.0000001",
-      "varies_by_provider": true
+      "input_cache_read": "0.0000001"
     }
   },
   {

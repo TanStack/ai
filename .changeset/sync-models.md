@@ -1,4 +1,5 @@
 ---
+'@tanstack/ai-gemini': patch
 '@tanstack/ai-llmgateway': patch
 '@tanstack/ai-neon': patch
 '@tanstack/ai-openrouter': patch
