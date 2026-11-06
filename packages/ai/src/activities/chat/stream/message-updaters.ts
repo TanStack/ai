@@ -140,7 +140,43 @@ export function updateToolResultPart(
         : undefined
     // Preserve existing metadata when a later result update does not include
     // metadata, and merge partial metadata (including metadata.tanstack).
-    const mergedMetadata = mergeMetadata(existingResultPart?.metadata, metadata)
+    let mergedMetadata = mergeMetadata(existingResultPart?.metadata, metadata)
+    const incomingTanstack = metadata?.tanstack
+    const hasIncomingToolResultOutcome =
+      incomingTanstack != null &&
+      typeof incomingTanstack === 'object' &&
+      !Array.isArray(incomingTanstack) &&
+      'toolResultOutcome' in incomingTanstack &&
+      incomingTanstack.toolResultOutcome !== undefined
+
+    // A successful retry supersedes a previous denial/cancellation. Do not
+    // carry the old control outcome into the new result, or snapshot hydration
+    // will incorrectly restore the successful result as an error.
+    if (
+      state === 'complete' &&
+      outcome === undefined &&
+      !hasIncomingToolResultOutcome &&
+      mergedMetadata
+    ) {
+      const tanstack = mergedMetadata.tanstack
+      if (
+        tanstack != null &&
+        typeof tanstack === 'object' &&
+        !Array.isArray(tanstack) &&
+        'toolResultOutcome' in tanstack
+      ) {
+        const { toolResultOutcome: _staleOutcome, ...restTanstack } =
+          tanstack as Record<string, unknown>
+        const nextMetadata = { ...mergedMetadata }
+        if (Object.keys(restTanstack).length > 0) {
+          nextMetadata.tanstack = restTanstack
+        } else {
+          delete nextMetadata.tanstack
+        }
+        mergedMetadata =
+          Object.keys(nextMetadata).length > 0 ? nextMetadata : undefined
+      }
+    }
 
     const toolResultPart: ToolResultPart = {
       type: 'tool-result',
