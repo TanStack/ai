@@ -1,8 +1,8 @@
 <script lang="ts">
-  import { page } from '$app/stores'
-  import guitars from '$data/example-guitars'
+  import { page } from '$app/state'
+  import guitars from '#data/example-guitars.ts'
 
-  const guitarId = $derived(parseInt($page.params.guitarId || '0'))
+  const guitarId = $derived(parseInt(page.params.guitarId || '0'))
   const guitar = $derived(guitars.find((g) => g.id === guitarId))
 </script>
 

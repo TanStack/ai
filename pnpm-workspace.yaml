@@ -114,6 +114,10 @@ packageExtensions:
   knip:
     dependencies:
       typescript: 'npm:@typescript/typescript6@6.0.2'
+  # tsup 9 builds .d.ts with the TS JS API (`ts.parseJsonConfigFileContent`).
+  tsup:
+    dependencies:
+      typescript: 'npm:@typescript/typescript6@6.0.2'
   # typedoc (pnpm generate-docs, via @tanstack/typedoc-config) imports the
   # TypeScript JS Compiler API at module load (`ts.SyntaxKind`). TS7 dropped
   # that API. typedoc 0.28.x supports TS 5–6 only (TS7 support is unreleased,
@@ -128,12 +132,12 @@ packageExtensions:
       typescript: 'npm:@typescript/typescript6@6.0.2'
   # @analogjs/vite-plugin-angular (ai-angular's vitest transform) declares no
   # typescript, so it grabs the root-hoisted TS7 and calls JS-API functions
-  # (ts.createIncrementalCompilerHost) that TS7 dropped. Angular 22 peers
-  # typescript >=6.0 <6.1, so pin the real 6.0.2 package (same pin as
-  # ai-angular), not the TS7 root and not the @typescript/typescript6 alias.
+  # (ts.createIncrementalCompilerHost) that TS7 dropped. Angular also can't run
+  # on TS7 at all, so pin it to 6.0.3 (ai-angular's own version; Angular 22
+  # needs >=6.0 <6.1) rather than the 6.0.2 shim.
   '@analogjs/vite-plugin-angular':
     dependencies:
-      typescript: 6.0.2
+      typescript: 6.0.3
 
 # Keep @types/bun out of pnpm's shared virtual store (node_modules/.pnpm/node_modules).
 # @types/bun (a devDep of @tanstack/ai-isolate-quickjs-bun) globally augments Node/DOM
@@ -147,9 +151,6 @@ packageExtensions:
 hoistPattern:
   - '*'
   - '!@types/bun'
-
-patchedDependencies:
-  '@changesets/assemble-release-plan@6.0.9': patches/@changesets__assemble-release-plan@6.0.9.patch
 
 packages:
   - 'packages/*'

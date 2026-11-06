@@ -410,15 +410,16 @@ function blockOrderEntries(message: ModelMessage): Array<BlockOrderEntry> {
     })
   }
   return [
-    ...(message.thinking ?? []).map(
-      (): BlockOrderEntry => ({ type: 'thinking' }),
-    ),
+    ...(message.thinking ?? []).map((): BlockOrderEntry => ({
+      type: 'thinking',
+    })),
     ...(typeof message.content === 'string'
       ? [{ type: 'text' as const, text: message.content }]
       : []),
-    ...(message.toolCalls ?? []).map(
-      (toolCall): BlockOrderEntry => ({ type: 'tool-call', id: toolCall.id }),
-    ),
+    ...(message.toolCalls ?? []).map((toolCall): BlockOrderEntry => ({
+      type: 'tool-call',
+      id: toolCall.id,
+    })),
   ]
 }
 

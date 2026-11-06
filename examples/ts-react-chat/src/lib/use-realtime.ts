@@ -13,7 +13,7 @@ import { realtimeClientTools } from '@/lib/realtime-tools'
 type Provider = 'openai' | 'elevenlabs' | 'gemini' | 'grok'
 
 const getRealtimeTokenFn = createServerFn({ method: 'POST' })
-  .inputValidator((data: { provider: Provider; language?: string }) => {
+  .validator((data: { provider: Provider; language?: string }) => {
     if (!data.provider) throw new Error('Provider is required')
     return data
   })

@@ -3,7 +3,7 @@ import { createFileRoute } from '@tanstack/react-router'
 import {
   AlertTriangle,
   FileText,
-  Github,
+  GitBranch,
   Play,
   Server,
   Square,
@@ -777,7 +777,7 @@ function TriagePane({
     // full-height flex shell, and a second viewport-height box would scroll twice.
     <div className="flex min-h-full flex-col bg-gray-900 text-white">
       <header className="flex items-center gap-3 border-b border-indigo-500/10 bg-gray-900/80 px-4 py-3 backdrop-blur-sm">
-        <Github className="w-5 h-5 text-indigo-400" />
+        <GitBranch className="w-5 h-5 text-indigo-400" />
         <span className="font-semibold">Sandbox Issue Triage</span>
         <span className="text-xs text-gray-500">
           clone a repo · investigate · root-cause

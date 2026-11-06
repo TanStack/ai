@@ -1,6 +1,6 @@
 import { VideoGenerationClient } from '@tanstack/ai-client'
 import { createVideoDevtoolsBridge } from '@tanstack/ai-client/devtools'
-import type { Handle } from 'remix/ui'
+import type { Handle } from 'remix/component'
 import type { StreamChunk } from '@tanstack/ai'
 import type {
   AIDevtoolsDisplayOptions,
@@ -141,7 +141,7 @@ export interface CreateGenerateVideoReturn<TOutput = VideoGenerateResult> {
  * ```tsx
  * import { createGenerateVideo } from '@tanstack/ai-remix'
  * import { fetchServerSentEvents } from '@tanstack/ai-client'
- * import type { Handle } from 'remix/ui'
+ * import type { Handle } from 'remix/component'
  *
  * function VideoGenerator(handle: Handle) {
  *   const video = createGenerateVideo(handle, {

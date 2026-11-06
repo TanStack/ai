@@ -1,5 +1,5 @@
 import { createChat, fetchServerSentEvents } from '@tanstack/ai-remix'
-import { clientEntry, css, on, type Handle } from 'remix/ui'
+import { clientEntry, css, on, type Handle } from 'remix/component'
 import guitars from '../data/guitars.ts'
 import { clientTools } from '../lib/guitar-tools.ts'
 import { routes } from '../routes.ts'

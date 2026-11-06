@@ -54,7 +54,7 @@
   },
   "peerDependencies": {
     "@tanstack/ai": "workspace:^",
-    "vitest": "^4.1.10"
+    "vitest": "^4.1.10 || ^5.0.0"
   },
   "peerDependenciesMeta": {
     "vitest": {
@@ -62,12 +62,12 @@
     }
   },
   "devDependencies": {
-    "@electric-sql/pglite": "^0.5.11",
+    "@electric-sql/pglite": "^0.5.15",
     "@tanstack/ai": "workspace:*",
     "@types/pg": "^8.23.1",
-    "@vitest/coverage-v8": "4.1.10",
+    "@vitest/coverage-v8": "5.1.0",
     "drizzle-orm": "^0.45.4",
     "pg": "^8.23.1",
-    "vitest": "^4.1.10"
+    "vitest": "^5.1.0"
   }
 }

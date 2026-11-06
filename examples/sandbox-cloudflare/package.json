@@ -22,29 +22,29 @@
     "@tanstack/ai-sandbox": "workspace:*",
     "@tanstack/ai-sandbox-cloudflare": "workspace:*",
     "@tanstack/ai-sandbox-local-process": "workspace:*",
-    "@tanstack/react-router": "^1.170.41",
-    "@tanstack/react-start": "^1.168.60",
-    "lucide-react": "^0.561.0",
-    "react": "^19.2.3",
-    "react-dom": "^19.2.3",
+    "@tanstack/react-router": "^1.170.46",
+    "@tanstack/react-start": "^1.169.4",
+    "lucide-react": "^1.68.0",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
     "react-markdown": "^10.1.0",
     "rehype-highlight": "^7.0.2",
     "rehype-raw": "^7.0.0",
     "rehype-sanitize": "^6.0.0",
     "remark-gfm": "^4.0.1",
-    "zod": "^4.2.0"
+    "zod": "^4.6.7"
   },
   "devDependencies": {
-    "@cloudflare/vite-plugin": "^1.42.1",
-    "@tailwindcss/vite": "^4.1.18",
-    "@tanstack/router-plugin": "^1.168.42",
+    "@cloudflare/vite-plugin": "^1.67.0",
+    "@tailwindcss/vite": "^4.3.4",
+    "@tanstack/router-plugin": "^1.168.48",
     "@types/node": "^24.10.1",
-    "@types/react": "^19.2.7",
-    "@types/react-dom": "^19.2.3",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
     "@vitejs/plugin-react": "^6.2.1",
-    "tailwindcss": "^4.1.18",
+    "tailwindcss": "^4.3.4",
     "typescript": "5.9.3",
-    "vite": "^8.2.1",
-    "wrangler": "^4.103.0"
+    "vite": "^8.3.5",
+    "wrangler": "^4.157.0"
   }
 }

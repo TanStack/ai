@@ -30,7 +30,7 @@ import type {
   ToolResultPart,
   UIMessage,
 } from '@tanstack/ai-client'
-import type { Handle, RemixNode } from 'remix/ui'
+import type { Handle, RemixNode } from 'remix/component'
 import type { CreateChatReturn } from '../types.ts'
 
 export type ChatUIHost<TOptions = unknown> = CreateChatReturn<

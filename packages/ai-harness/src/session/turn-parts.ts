@@ -998,18 +998,15 @@ export abstract class SessionTurnParts<
           }))
         : []
       const joined = [
-        ...steers.map(
-          (steer): ModelMessage => ({
-            // Under the id of its input, so `eraseUser` finds its sender.
-            id: inputMessageId(steer.inputId),
-            role: 'user',
-            content: steer.message,
-            ...(steer.wake ? { metadata: WAKE_METADATA } : {}),
-          }),
-        ),
-        ...(added?.messages ?? []).map(
-          (message): ModelMessage =>
-            message.id ? message : { ...message, id: createMessageId() },
+        ...steers.map((steer): ModelMessage => ({
+          // Under the id of its input, so `eraseUser` finds its sender.
+          id: inputMessageId(steer.inputId),
+          role: 'user',
+          content: steer.message,
+          ...(steer.wake ? { metadata: WAKE_METADATA } : {}),
+        })),
+        ...(added?.messages ?? []).map((message): ModelMessage =>
+          message.id ? message : { ...message, id: createMessageId() },
         ),
       ]
       const list = [...messages, ...joined]
@@ -1232,9 +1229,8 @@ export abstract class SessionTurnParts<
    */
   protected async addToTurn(added: TurnAdditions): Promise<boolean> {
     const records = added.records ?? []
-    const messages = (added.messages ?? []).map(
-      (message): ModelMessage =>
-        message.id ? message : { ...message, id: createMessageId() },
+    const messages = (added.messages ?? []).map((message): ModelMessage =>
+      message.id ? message : { ...message, id: createMessageId() },
     )
     checkHostRecords(records)
     const before = this.writer.state.messages

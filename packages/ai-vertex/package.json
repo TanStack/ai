@@ -60,9 +60,9 @@
     "@tanstack/ai": "workspace:^"
   },
   "devDependencies": {
-    "@google/genai": "^2.10.0",
+    "@google/genai": "^2.32.0",
     "@tanstack/ai": "workspace:*",
-    "@vitest/coverage-v8": "4.1.10",
-    "vite": "^8.2.1"
+    "@vitest/coverage-v8": "5.1.0",
+    "vite": "^8.3.5"
   }
 }
