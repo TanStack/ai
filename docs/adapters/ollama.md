@@ -212,6 +212,18 @@ const stream = chat({
 
 Sampling options do not go at the root of `chat()`. For Ollama, they go to `modelOptions.options.temperature`, `modelOptions.options.top_p`, and `modelOptions.options.num_predict`. See [Moving Sampling Options into modelOptions](../migration/sampling-options-to-model-options). The full option list is in [All runner options](#all-runner-options).
 
+### Cut-off responses
+
+When the model stops because it reached the `num_predict` limit (Ollama reports `done_reason: "length"`), the stream still ends with `RUN_FINISHED`, and its `metadata.tanstack.finishReason` is `"length"` instead of `"stop"`. Check it to tell a cut-off reply from a complete one. Raise `num_predict` (or `num_ctx`) to let the model finish:
+
+```typescript
+for await (const chunk of stream) {
+  if (chunk.type === "RUN_FINISHED" && chunk.metadata?.tanstack?.finishReason === "length") {
+    console.warn("The reply was cut off.");
+  }
+}
+```
+
 ### Reasoning
 
 Running a thinking model like Qwen 3 or gpt-oss? Set `reasoning` on `chat()`:

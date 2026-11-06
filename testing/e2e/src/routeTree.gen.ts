@@ -154,6 +154,7 @@ import { Route as ApiMoonshotUsageDetailsRouteImport } from './routes/api.moonsh
 import { Route as ApiMultimodalToolResultWireRouteImport } from './routes/api.multimodal-tool-result-wire'
 import { Route as ApiNeonWireRouteImport } from './routes/api.neon-wire'
 import { Route as ApiNonStreamingRunErrorRouteImport } from './routes/api.non-streaming-run-error'
+import { Route as ApiOllamaLengthTruncationRouteImport } from './routes/api.ollama-length-truncation'
 import { Route as ApiOpenaiApplyPatchWireRouteImport } from './routes/api.openai-apply-patch-wire'
 import { Route as ApiOpenaiCompletedResponseTextRouteImport } from './routes/api.openai-completed-response-text'
 import { Route as ApiOpenaiComputerUseWireRouteImport } from './routes/api.openai-computer-use-wire'
@@ -972,6 +973,12 @@ const ApiNonStreamingRunErrorRoute = ApiNonStreamingRunErrorRouteImport.update({
   path: '/api/non-streaming-run-error',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiOllamaLengthTruncationRoute =
+  ApiOllamaLengthTruncationRouteImport.update({
+    id: '/api/ollama-length-truncation',
+    path: '/api/ollama-length-truncation',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiOpenaiApplyPatchWireRoute = ApiOpenaiApplyPatchWireRouteImport.update({
   id: '/api/openai-apply-patch-wire',
   path: '/api/openai-apply-patch-wire',
@@ -1449,6 +1456,7 @@ export interface FileRoutesByFullPath {
   '/api/multimodal-tool-result-wire': typeof ApiMultimodalToolResultWireRoute
   '/api/neon-wire': typeof ApiNeonWireRoute
   '/api/non-streaming-run-error': typeof ApiNonStreamingRunErrorRoute
+  '/api/ollama-length-truncation': typeof ApiOllamaLengthTruncationRoute
   '/api/openai-apply-patch-wire': typeof ApiOpenaiApplyPatchWireRoute
   '/api/openai-completed-response-text': typeof ApiOpenaiCompletedResponseTextRoute
   '/api/openai-computer-use-wire': typeof ApiOpenaiComputerUseWireRoute
@@ -1658,6 +1666,7 @@ export interface FileRoutesByTo {
   '/api/multimodal-tool-result-wire': typeof ApiMultimodalToolResultWireRoute
   '/api/neon-wire': typeof ApiNeonWireRoute
   '/api/non-streaming-run-error': typeof ApiNonStreamingRunErrorRoute
+  '/api/ollama-length-truncation': typeof ApiOllamaLengthTruncationRoute
   '/api/openai-apply-patch-wire': typeof ApiOpenaiApplyPatchWireRoute
   '/api/openai-completed-response-text': typeof ApiOpenaiCompletedResponseTextRoute
   '/api/openai-computer-use-wire': typeof ApiOpenaiComputerUseWireRoute
@@ -1868,6 +1877,7 @@ export interface FileRoutesById {
   '/api/multimodal-tool-result-wire': typeof ApiMultimodalToolResultWireRoute
   '/api/neon-wire': typeof ApiNeonWireRoute
   '/api/non-streaming-run-error': typeof ApiNonStreamingRunErrorRoute
+  '/api/ollama-length-truncation': typeof ApiOllamaLengthTruncationRoute
   '/api/openai-apply-patch-wire': typeof ApiOpenaiApplyPatchWireRoute
   '/api/openai-completed-response-text': typeof ApiOpenaiCompletedResponseTextRoute
   '/api/openai-computer-use-wire': typeof ApiOpenaiComputerUseWireRoute
@@ -2079,6 +2089,7 @@ export interface FileRouteTypes {
     | '/api/multimodal-tool-result-wire'
     | '/api/neon-wire'
     | '/api/non-streaming-run-error'
+    | '/api/ollama-length-truncation'
     | '/api/openai-apply-patch-wire'
     | '/api/openai-completed-response-text'
     | '/api/openai-computer-use-wire'
@@ -2288,6 +2299,7 @@ export interface FileRouteTypes {
     | '/api/multimodal-tool-result-wire'
     | '/api/neon-wire'
     | '/api/non-streaming-run-error'
+    | '/api/ollama-length-truncation'
     | '/api/openai-apply-patch-wire'
     | '/api/openai-completed-response-text'
     | '/api/openai-computer-use-wire'
@@ -2497,6 +2509,7 @@ export interface FileRouteTypes {
     | '/api/multimodal-tool-result-wire'
     | '/api/neon-wire'
     | '/api/non-streaming-run-error'
+    | '/api/ollama-length-truncation'
     | '/api/openai-apply-patch-wire'
     | '/api/openai-completed-response-text'
     | '/api/openai-computer-use-wire'
@@ -2707,6 +2720,7 @@ export interface RootRouteChildren {
   ApiMultimodalToolResultWireRoute: typeof ApiMultimodalToolResultWireRoute
   ApiNeonWireRoute: typeof ApiNeonWireRoute
   ApiNonStreamingRunErrorRoute: typeof ApiNonStreamingRunErrorRoute
+  ApiOllamaLengthTruncationRoute: typeof ApiOllamaLengthTruncationRoute
   ApiOpenaiApplyPatchWireRoute: typeof ApiOpenaiApplyPatchWireRoute
   ApiOpenaiCompletedResponseTextRoute: typeof ApiOpenaiCompletedResponseTextRoute
   ApiOpenaiComputerUseWireRoute: typeof ApiOpenaiComputerUseWireRoute
@@ -3784,6 +3798,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiNonStreamingRunErrorRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/ollama-length-truncation': {
+      id: '/api/ollama-length-truncation'
+      path: '/api/ollama-length-truncation'
+      fullPath: '/api/ollama-length-truncation'
+      preLoaderRoute: typeof ApiOllamaLengthTruncationRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/openai-apply-patch-wire': {
       id: '/api/openai-apply-patch-wire'
       path: '/api/openai-apply-patch-wire'
@@ -4429,6 +4450,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiMultimodalToolResultWireRoute: ApiMultimodalToolResultWireRoute,
   ApiNeonWireRoute: ApiNeonWireRoute,
   ApiNonStreamingRunErrorRoute: ApiNonStreamingRunErrorRoute,
+  ApiOllamaLengthTruncationRoute: ApiOllamaLengthTruncationRoute,
   ApiOpenaiApplyPatchWireRoute: ApiOpenaiApplyPatchWireRoute,
   ApiOpenaiCompletedResponseTextRoute: ApiOpenaiCompletedResponseTextRoute,
   ApiOpenaiComputerUseWireRoute: ApiOpenaiComputerUseWireRoute,

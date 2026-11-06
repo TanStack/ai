@@ -456,7 +456,12 @@ export class OllamaTextAdapter<TModel extends string> extends BaseTextAdapter<
           threadId,
           model: chunk.model,
           timestamp: Date.now(),
-          finishReason: toolCallsEmitted.size > 0 ? 'tool_calls' : 'stop',
+          finishReason:
+            toolCallsEmitted.size > 0
+              ? 'tool_calls'
+              : chunk.done_reason === 'length'
+                ? 'length'
+                : 'stop',
           // usage is optional under exactOptionalPropertyTypes; omit the key
           // entirely when Ollama reported no token counts.
           ...(finishUsage && { usage: finishUsage }),

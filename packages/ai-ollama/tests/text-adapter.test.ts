@@ -136,6 +136,44 @@ describe('OllamaTextAdapter.chatStream (content streaming)', () => {
   })
 })
 
+describe('OllamaTextAdapter.chatStream (truncated responses)', () => {
+  it('reports finishReason length on RUN_FINISHED when done_reason is length', async () => {
+    chatMock.mockResolvedValueOnce(
+      asyncIterable([
+        {
+          model: 'llama3.2',
+          message: { role: 'assistant', content: 'Once upon' },
+          done: false,
+        },
+        {
+          model: 'llama3.2',
+          message: { role: 'assistant', content: '' },
+          done: true,
+          done_reason: 'length',
+        },
+      ]),
+    )
+
+    const adapter = createOllamaChat('llama3.2')
+    const chunks = await collectStream(
+      adapter.chatStream({
+        threadId: 'thread-1',
+        logger: testLogger,
+        model: 'llama3.2',
+        messages: [{ role: 'user', content: 'hi' }],
+      }),
+    )
+
+    const types = chunks.map((c) => c.type)
+    expect(types).toContain('TEXT_MESSAGE_END')
+    expect(types).not.toContain('RUN_ERROR')
+    const finished = chunks.find((c) => c.type === 'RUN_FINISHED') as
+      | { finishReason?: string }
+      | undefined
+    expect(finished?.finishReason).toBe('length')
+  })
+})
+
 describe('OllamaTextAdapter.chatStream (tool calls)', () => {
   it('emits TOOL_CALL lifecycle events when Ollama returns a tool call', async () => {
     chatMock.mockResolvedValueOnce(
