@@ -24,12 +24,13 @@
     "zone.js": "^0.15.0"
   },
   "devDependencies": {
-    "@analogjs/vite-plugin-angular": "^2.6.2",
-    "@angular/build": "^21.2.21",
+    "@analogjs/vite-plugin-angular": "^2.9.6",
+    "@angular/build": "22.2.4",
+    "@angular/compiler-cli": "22.2.4",
     "@tailwindcss/vite": "^4.1.18",
     "@types/node": "^24.10.1",
     "dotenv": "^17.2.3",
-    "typescript": "5.9.3",
+    "typescript": "6.0.2",
     "vite": "^8.2.1"
   }
 }
