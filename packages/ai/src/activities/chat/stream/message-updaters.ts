@@ -6,6 +6,7 @@
  */
 
 import { isRedactedThinkingId } from '../../../utilities/reasoning-encrypted-value'
+import { mergeMetadata } from '../../../utilities/merge-metadata'
 import { parsePartialJSON } from './json-parser'
 import type {
   ContentPart,
@@ -120,6 +121,7 @@ export function updateToolResultPart(
   state: ToolResultState,
   error?: string,
   outcome?: ToolResultOutcome,
+  metadata?: Record<string, unknown>,
 ): Array<UIMessage> {
   return messages.map((msg) => {
     if (msg.id !== messageId) {
@@ -132,6 +134,14 @@ export function updateToolResultPart(
         p.type === 'tool-result' && p.toolCallId === toolCallId,
     )
 
+    const existingResultPart =
+      resultPartIndex >= 0
+        ? (parts[resultPartIndex] as ToolResultPart)
+        : undefined
+    // Preserve existing metadata when a later result update does not include
+    // metadata, and merge partial metadata (including metadata.tanstack).
+    const mergedMetadata = mergeMetadata(existingResultPart?.metadata, metadata)
+
     const toolResultPart: ToolResultPart = {
       type: 'tool-result',
       toolCallId,
@@ -139,6 +149,7 @@ export function updateToolResultPart(
       state,
       ...(outcome !== undefined && { outcome }),
       ...(error && { error }),
+      ...(mergedMetadata !== undefined && { metadata: mergedMetadata }),
     }
 
     if (resultPartIndex >= 0) {
