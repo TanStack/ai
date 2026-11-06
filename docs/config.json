@@ -936,13 +936,13 @@
           "label": "Video Generation",
           "to": "media/video-generation",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-11-02"
+          "updatedAt": "2026-11-06"
         },
         {
           "label": "Video Generation: Advanced",
           "to": "media/video-generation-advanced",
           "addedAt": "2026-10-21",
-          "updatedAt": "2026-11-02"
+          "updatedAt": "2026-11-06"
         },
         {
           "label": "Live Generation",
@@ -1705,7 +1705,7 @@
           "label": "Google Gemini",
           "to": "adapters/gemini",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-10-22"
+          "updatedAt": "2026-11-06"
         },
         {
           "label": "Google Gemini: Advanced",
