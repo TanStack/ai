@@ -1,6 +1,6 @@
 {
   "name": "@tanstack/ai-effect",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "Effect 4 bindings for TanStack AI: every activity as an Effect or Stream, plus Effect server tools.",
   "author": "",
   "license": "MIT",
