@@ -1,5 +1,15 @@
 # @tanstack/ai-gemini
 
+## 1.2.0
+
+### Minor Changes
+
+- [#2066](https://github.com/TanStack/ai/pull/2066) [`5dc23d5`](https://github.com/TanStack/ai/commit/5dc23d5d78f7109023207ebd7b84652f31b50b33) - Add Gemini Omni 1.2 Flash (`gemini-omni-1.2-flash`) as an Interactions video model. Clips are 3 to 15 seconds (default 10). `generation_config.video_config.task: 'extend'` appends 3 to 10 seconds per turn, up to 30 seconds total. `gemini-omni-1.1-flash` stays until 2026-12-03, then Google routes it to 1.2.
+
+### Patch Changes
+
+- [#2055](https://github.com/TanStack/ai/pull/2055) [`af23e5d`](https://github.com/TanStack/ai/commit/af23e5d12042a989ed8a931207f05992b8a81279) - Update model metadata from OpenRouter API
+
 ## 1.1.1
 
 ### Patch Changes
