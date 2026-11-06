@@ -176,6 +176,25 @@ function spyEvents(): MockedEvents {
 // ============================================================================
 
 describe('StreamProcessor', () => {
+  it('preserves metadata on snapshot tool messages', () => {
+    const metadata = {
+      displayType: 'account-assets',
+      accountId: 'A001',
+    }
+    const message = aguiSnapshotMessageToUIMessage({
+      id: 'tool-1',
+      role: 'tool',
+      toolCallId: 'call-1',
+      content: '{"totalAssets":1000000}',
+      metadata,
+    } as unknown as AGUIMessage)
+
+    const toolResultPart = message.parts.find(
+      (part): part is ToolResultPart => part.type === 'tool-result',
+    )
+    expect(toolResultPart?.metadata).toEqual(metadata)
+  })
+
   it('normalizes nested dates on snapshot existing tool-result parts', () => {
     const message = aguiSnapshotMessageToUIMessage({
       id: 'a1',
