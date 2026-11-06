@@ -1,4 +1,4 @@
-// `files.upload` of @google/genai 2.10.0 for a Blob. Loaded on the first
+// `files.upload` of @google/genai 2.32.0 for a Blob. Loaded on the first
 // upload, so the text adapters do not bundle it.
 import type { ApiClient } from './api'
 import type { File as GeminiFile, UploadFileParameters } from '@google/genai'
@@ -87,7 +87,6 @@ export async function uploadBlob(
           headers: {
             'X-Goog-Upload-Command': isLast ? 'upload, finalize' : 'upload',
             'X-Goog-Upload-Offset': String(offset),
-            'Content-Length': String(chunkSize),
           },
         },
       })

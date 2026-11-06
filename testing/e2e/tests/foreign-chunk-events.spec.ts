@@ -10,6 +10,7 @@ test.describe('AG-UI *_CHUNK events from a foreign server', () => {
     page,
   }) => {
     await page.goto('/foreign-chunk-events?case=turn')
+    await page.getByTestId('send').click()
 
     const message = page.getByTestId('message-msg-chunked')
     await expect(message.getByTestId('text')).toHaveText('It is sunny in Kyiv.')
@@ -26,6 +27,7 @@ test.describe('AG-UI *_CHUNK events from a foreign server', () => {
     page,
   }) => {
     await page.goto('/foreign-chunk-events?case=error')
+    await page.getByTestId('send').click()
 
     const message = page.getByTestId('message-msg-error')
     await expect(message.getByTestId('text')).toHaveText('the run failed')

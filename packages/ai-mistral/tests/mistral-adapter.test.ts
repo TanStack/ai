@@ -1,4 +1,6 @@
 import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest'
+import type { AdapterYieldChunk, TextOptions, Tool } from '@tanstack/ai'
+import type { MistralTextProviderOptions } from '../src/adapters/text'
 
 const { mockComplete } = vi.hoisted(() => ({
   mockComplete: vi.fn<(...args: Array<unknown>) => unknown>(),
@@ -11,9 +13,6 @@ vi.mock('../src/client', () => ({
     },
   }),
 }))
-
-import type { AdapterYieldChunk, TextOptions, Tool } from '@tanstack/ai'
-import type { MistralTextProviderOptions } from '../src/adapters/text'
 
 const { chat, createChatOptions, maxIterations, toolDefinition } =
   await import('@tanstack/ai')

@@ -10,6 +10,7 @@ test.describe('call ownership (#1533)', () => {
     page,
   }) => {
     await page.goto('/call-ownership')
+    await page.getByTestId('send').click()
 
     await expect(page.getByTestId('assistants')).toHaveText(
       'msg-1 thinking:think A,text:hello,tool-call,tool-result;msg-2 tool-call,tool-result;msg-3 thinking:think B,text:bye',

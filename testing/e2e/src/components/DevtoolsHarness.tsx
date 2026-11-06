@@ -83,7 +83,9 @@ export function DevtoolsHarness({
         className="min-h-[620px] bg-gray-950"
         hidden={!isOpen}
       >
-        {hasOpened ? <AiDevtoolsPanel /> : null}
+        {hasOpened ? (
+          <AiDevtoolsPanel theme="dark" devtoolsOpen={isOpen} />
+        ) : null}
       </aside>
     </div>
   )

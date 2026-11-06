@@ -4,7 +4,8 @@ import type { ClientOptions } from '@anthropic-ai/sdk'
 
 /**
  * How the adapter sends the credential.
- * - `'api-key'`: the `x-api-key` header.
+ * - `'api-key'`: an Anthropic API key. Like SDK 1.x, the client sends it as
+ *   `Authorization: Bearer`.
  * - `'bearer'`: `Authorization: Bearer`, and no `x-api-key`.
  * - `'oauth'`: the same as `'bearer'`, plus the Claude Code identity that a
  *   Claude OAuth token needs.

@@ -89,15 +89,14 @@ const MODEL_NONSTREAMING_TOKENS: Record<string, number> = {
   'claude-opus-4-1@20250805': 8192,
 }
 
-// The stream events of the Messages API. The SDK skips every other name.
-const MESSAGE_EVENTS = new Set([
-  'message_start',
-  'message_delta',
-  'message_stop',
-  'content_block_start',
-  'content_block_delta',
-  'content_block_stop',
-])
+// The SDK `CREDENTIAL_OPTIONS`: a client takes at most one of them.
+const CREDENTIAL_OPTIONS = [
+  'apiKey',
+  'authToken',
+  'credentials',
+  'config',
+  'profile',
+] as const
 
 /** Same as the SDK `readEnv`: trimmed, and an empty value is no value. */
 function readEnv(name: string) {
@@ -157,7 +156,7 @@ function filePath(fileID: string) {
       `Path parameters result in path with invalid segments:\nValue "${encoded}" can't be safely passed as a path parameter`,
     )
   }
-  return `/v1/files/${encoded}?beta=true`
+  return `/v1/files/${encoded}`
 }
 
 /** True when the OpenTelemetry API has a global tracer, context, or propagator. */
@@ -208,8 +207,8 @@ async function readBody(response: Response) {
 }
 
 /**
- * The SDK `Stream.fromSSEResponse` for the Messages API: yields the message
- * events, skips `ping` and unknown events, and throws an `APIError` for an
+ * The SDK `Stream.fromSSEResponse`: yields every named event with data, also
+ * the ones it does not know, skips `ping`, and throws an `APIError` for an
  * `error` event. An abort ends the stream without an error.
  */
 async function* messageEvents(
@@ -235,7 +234,7 @@ async function* messageEvents(
           typeof body === 'string' ? undefined : body.error?.type,
         )
       }
-      if (sse.event !== undefined && MESSAGE_EVENTS.has(sse.event)) {
+      if (sse.event !== undefined && sse.event !== 'ping' && sse.data) {
         const event: BetaRawMessageStreamEvent = JSON.parse(sse.data)
         yield event
       }
@@ -263,16 +262,17 @@ function betaHeaders(params: BetaParams) {
 
 /**
  * The SDK `validateHeaders`: a request needs an auth header, or a `null` that
- * removes one on purpose.
+ * removes `authorization` on purpose.
  */
 function assertAuth(sources: Array<HeadersLike>) {
   const headers = mergeHeaders(...sources)
   if (headers.get('x-api-key') || headers.get('authorization')) return
   // A probe value stays unless a later `null` removes the header.
-  const probe = mergeHeaders({ 'x-api-key': '', authorization: '' }, ...sources)
-  if (!probe.has('x-api-key') || !probe.has('authorization')) return
+  if (!mergeHeaders({ authorization: '' }, ...sources).has('authorization')) {
+    return
+  }
   throw new Error(
-    'Could not resolve authentication method. Expected one of apiKey, authToken, credentials, config, or profile to be set. Or for one of the "X-Api-Key" or "Authorization" headers to be explicitly omitted',
+    'Could not resolve authentication method. Expected one of apiKey, authToken, credentials, config, or profile to be set. Or for the "Authorization" header to be explicitly omitted',
   )
 }
 
@@ -301,7 +301,7 @@ function nonStreamingTimeout(maxTokens: number, model: string) {
     (maxNonStreamingTokens !== undefined && maxTokens > maxNonStreamingTokens)
   if (tooLong) {
     throw new AnthropicError(
-      'Streaming is required for operations that may take longer than 10 minutes. See https://github.com/anthropics/anthropic-sdk-typescript#long-requests for more details',
+      'Streaming is required for operations that may take longer than 10 minutes. See https://platform.claude.com/docs/en/cli-sdks-libraries/sdks/typescript#long-requests for more details',
     )
   }
   return DEFAULT_TIMEOUT
@@ -363,13 +363,18 @@ function createFetchClient(options: ClientOptions): AnthropicClient {
   const clientHeaders: Array<HeadersLike> = [
     {
       accept: 'application/json',
-      'anthropic-version': '2023-06-01',
+      'anthropic-version': '2026-10-21',
       'anthropic-dangerous-direct-browser-access': dangerouslyAllowBrowser
         ? 'true'
         : undefined,
-      // The SDK ignores an `apiKey` that is not a string.
-      'x-api-key': typeof apiKey === 'string' ? apiKey : undefined,
-      authorization: authToken == null ? undefined : `Bearer ${authToken}`,
+      // Both credentials are a bearer token. The SDK ignores an `apiKey`
+      // that is not a string.
+      authorization:
+        typeof apiKey === 'string'
+          ? `Bearer ${apiKey}`
+          : authToken == null
+            ? undefined
+            : `Bearer ${authToken}`,
     },
     customHeadersFromEnv(),
     options.defaultHeaders,
@@ -437,7 +442,7 @@ function createFetchClient(options: ClientOptions): AnthropicClient {
             (body.stream ? DEFAULT_TIMEOUT : undefined) ??
             nonStreamingTimeout(body.max_tokens, body.model)
           const response = await send(
-            { method: 'post', path: '/v1/messages?beta=true', body, timeout },
+            { method: 'post', path: '/v1/messages', body, timeout },
             transformed,
             requestOptions,
           )
@@ -455,7 +460,7 @@ function createFetchClient(options: ClientOptions): AnthropicClient {
             await send(
               {
                 method: 'post',
-                path: '/v1/files?beta=true',
+                path: '/v1/files',
                 body: toFormData({ file }),
               },
               params,
@@ -494,8 +499,7 @@ function createFetchClient(options: ClientOptions): AnthropicClient {
 /**
  * Creates an Anthropic client with the SDK `ClientOptions`. It sends the same
  * requests as the SDK client (auth, `anthropic-version`, `anthropic-beta`,
- * `?beta=true`, retries, timeouts) with `fetch`, and throws the SDK error
- * classes.
+ * retries, timeouts) with `fetch`, and throws the SDK error classes.
  *
  * Options that only the SDK implements (`middleware`, OpenTelemetry tracing,
  * `logLevel` `info` or `debug`, and the credential chain) load the real SDK
@@ -507,21 +511,33 @@ function createFetchClient(options: ClientOptions): AnthropicClient {
  *
  * @throws AnthropicError in a browser without `dangerouslyAllowBrowser`, or
  * for a `maxRetries` that is not a positive integer.
+ * @throws TypeError for more than one of `apiKey`, `authToken`,
+ * `credentials`, `config` and `profile`.
  */
 export function createAnthropicClient(options: ClientOptions = {}) {
-  // An explicit `profile` stops the environment credentials, as in the SDK.
-  const fromEnv = (name: string) =>
-    options.profile == null ? (readEnv(name) ?? null) : null
+  const passed = CREDENTIAL_OPTIONS.filter((name) => options[name] != null)
+  if (passed.length > 1) {
+    const list = (names: ReadonlyArray<string>) =>
+      names.map((name) => `\`${name}\``).join(', ')
+    throw new TypeError(
+      `Pass at most one of ${list(CREDENTIAL_OPTIONS)}. Received ${list(passed)}.`,
+    )
+  }
+  // Like the SDK: a credential in code stops the environment ones, and
+  // `ANTHROPIC_API_KEY` wins over `ANTHROPIC_AUTH_TOKEN`. A `null` keeps
+  // that option's variable unread.
+  const envKey =
+    passed.length === 0 && options.apiKey === undefined
+      ? readEnv('ANTHROPIC_API_KEY')
+      : undefined
+  const envToken =
+    passed.length === 0 && options.authToken === undefined && !envKey
+      ? readEnv('ANTHROPIC_AUTH_TOKEN')
+      : undefined
   const resolved: ClientOptions = {
     ...options,
-    apiKey:
-      options.apiKey === undefined
-        ? fromEnv('ANTHROPIC_API_KEY')
-        : options.apiKey,
-    authToken:
-      options.authToken === undefined
-        ? fromEnv('ANTHROPIC_AUTH_TOKEN')
-        : options.authToken,
+    apiKey: options.apiKey ?? envKey ?? null,
+    authToken: options.authToken ?? envToken ?? null,
   }
   const isBrowser =
     typeof window !== 'undefined' &&

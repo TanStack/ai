@@ -13,7 +13,7 @@ import type {
   VideoGenerationReferenceType as SdkVideoGenerationReferenceType,
 } from '@google/genai'
 
-// Copies of the @google/genai 2.10.0 string enums. In each SDK enum, every
+// Copies of the @google/genai 2.32.0 string enums. In each SDK enum, every
 // member value is the same as its name, so one key list builds the object.
 // The type is the SDK enum type, so values keep the same type identity.
 // The three public enums (re-exported from the package) also get their
@@ -116,10 +116,12 @@ export const FinishReason = /* @__PURE__ */ sdkEnum<typeof SdkFinishReason>([
   'MALFORMED_FUNCTION_CALL',
   'IMAGE_SAFETY',
   'UNEXPECTED_TOOL_CALL',
+  'TOO_MANY_TOOL_CALLS',
   'IMAGE_PROHIBITED_CONTENT',
   'NO_IMAGE',
   'IMAGE_RECITATION',
   'IMAGE_OTHER',
+  'CONTINUATION',
 ])
 
 export type FunctionCallingConfigMode = SdkFunctionCallingConfigMode
