@@ -106,9 +106,11 @@ test.describe('subagents', () => {
       'Squids have three hearts.',
     )
     // The card's own thinking widget, not the root one.
-    await expect(card.getByTestId('card-thinking')).toHaveText(
-      'Look up the facts first.',
-    )
+    await expect(
+      card
+        .getByTestId('card-thinking')
+        .filter({ hasText: 'Look up the facts first.' }),
+    ).toHaveCount(1)
     await expect(card.getByTestId('root-thinking')).toHaveCount(0)
     // No card override for the tool, so the root widget renders it.
     await expect(card.getByTestId('root-tool')).toContainText('lookupFacts:')

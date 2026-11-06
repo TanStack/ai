@@ -8,6 +8,7 @@ import {
   createElement,
   useEffect,
   useLayoutEffect,
+  useRef,
   useState,
 } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -1114,6 +1115,46 @@ describe('useChat', () => {
       // rejoin completed (content above) and was not aborted before attach.
       expect(joinRun).toHaveBeenCalled()
       expect(joinRun).toHaveBeenCalledWith('r1', expect.anything())
+    })
+
+    it('keeps a send from a mount effect running through a StrictMode replay', async () => {
+      // Strict Mode runs the effect cleanups and then the effects again. React
+      // 19.3 does this during hydration too. The replay must not abort the run
+      // that the first mount effect started. The ref keeps the app to one send,
+      // as Strict Mode-safe code does.
+      const aborted = vi.fn()
+      const connection = createMockConnectionAdapter({
+        chunks: createTextChunks('Hi', 'a1'),
+        chunkDelay: 5,
+        onAbort: (signal) => {
+          if (signal.aborted) aborted()
+        },
+      })
+      let latest: ReadonlyArray<UIMessage> = []
+      function SendOnMount() {
+        const { messages, sendMessage } = useChat({
+          threadId: 'strict-send',
+          connection,
+        })
+        latest = messages
+        const sent = useRef(false)
+        useEffect(() => {
+          if (sent.current) return
+          sent.current = true
+          void sendMessage('go')
+          // eslint-disable-next-line react-hooks/exhaustive-deps
+        }, [])
+        return null
+      }
+
+      render(createElement(StrictMode, null, createElement(SendOnMount)))
+
+      await waitFor(() => {
+        const assistant = latest.find((m) => m.role === 'assistant')
+        const text = assistant?.parts.find((p) => p.type === 'text')
+        expect(text && 'content' in text && text.content).toBe('Hi')
+      })
+      expect(aborted).not.toHaveBeenCalled()
     })
   })
 

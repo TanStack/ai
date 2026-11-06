@@ -12,8 +12,10 @@ import type {
   ChatCompletionChoice,
   ChatCompletionRequest,
   ChatCompletionResponse,
+  ChatCompletionResponseChoiceLogprobs,
   ContentChunk,
   ContentChunk$Outbound,
+  DeltaMessage,
   EmbeddingRequest,
   EmbeddingResponse,
   EmbeddingResponseData,
@@ -120,6 +122,7 @@ function thinkChunkToWire(chunk: ThinkChunk) {
       }
       return { type: 'text', text: part.text }
     }),
+    signature: chunk.signature,
     closed: chunk.closed,
   }
 }
@@ -138,7 +141,7 @@ function messageToWire(message: ChatCompletionRequest['messages'][number]) {
         content: contentToWire(message.content),
         tool_calls: message.toolCalls?.map((call) => ({
           id: call.id ?? 'null',
-          type: call.type,
+          type: call.type ?? 'function',
           function: call.function,
           index: call.index ?? 0,
         })),
@@ -188,6 +191,13 @@ export function chatCompletionRequestToWire(request: ChatCompletionRequest) {
     tool_choice: request.toolChoice,
     presence_penalty: request.presencePenalty,
     frequency_penalty: request.frequencyPenalty,
+    min_tokens: request.minTokens,
+    repetition_penalty: request.repetitionPenalty,
+    top_k: request.topK,
+    logprobs: request.logprobs,
+    top_logprobs: request.topLogprobs,
+    prompt_logprobs: request.promptLogprobs,
+    top_prompt_logprobs: request.topPromptLogprobs,
     n: request.n,
     prediction: prediction && {
       type: prediction.type ?? 'content',
@@ -197,6 +207,8 @@ export function chatCompletionRequestToWire(request: ChatCompletionRequest) {
     reasoning_effort: request.reasoningEffort,
     prompt_mode: request.promptMode,
     guardrails: request.guardrails,
+    prompt_cache_key: request.promptCacheKey,
+    service_tier: request.serviceTier,
     safe_prompt: request.safePrompt,
   }
 }
@@ -236,11 +248,36 @@ type WireContentChunk =
 /** Usage on the wire. The SDK fills missing token counts with 0. */
 type WireUsage = Partial<UsageInfo$Outbound>
 
+/** A `choices[].messages` entry on the wire (the SDK `DeltaMessage`). */
+interface WireDelta {
+  role?: string | null
+  content?: string | Array<WireContentChunk> | null
+  tool_calls?: Array<ToolCall> | null
+  tool_call_id?: string | null
+  index?: number | null
+  metadata?: DeltaMessage['metadata']
+}
+
+interface WireTokenLogprob {
+  token: string
+  logprob: number
+  bytes: Array<number>
+  token_id: number
+}
+
+interface WireLogprobs {
+  content: Array<
+    WireTokenLogprob & { top_logprobs?: Array<WireTokenLogprob> | null }
+  >
+}
+
 interface WireChoice {
   index: number
   message?: WireAssistant
-  messages?: Array<WireAssistant>
+  messages?: Array<WireDelta>
   finish_reason: ChatCompletionChoice['finishReason']
+  logprobs?: WireLogprobs | null
+  prompt_logprobs?: WireLogprobs | null
 }
 
 interface WireChatCompletion {
@@ -314,6 +351,7 @@ function chunkFromWire(chunk: WireContentChunk): ContentChunk {
       return {
         type: chunk.type,
         thinking: chunk.thinking.map(thinkingFromWire),
+        signature: chunk.signature,
         closed: chunk.closed,
       }
     case 'input_audio':
@@ -329,20 +367,57 @@ function chunkFromWire(chunk: WireContentChunk): ContentChunk {
 function toolCallFromWire(call: ToolCall): ToolCall {
   return {
     id: call.id ?? 'null',
-    type: call.type,
+    type: call.type ?? 'function',
     function: { name: call.function.name, arguments: call.function.arguments },
     index: call.index ?? 0,
   }
 }
 
+const contentFromWire = (
+  content: string | Array<WireContentChunk> | null | undefined,
+) => (Array.isArray(content) ? content.map(chunkFromWire) : content)
+
 function assistantFromWire(message: WireAssistant): AssistantMessage {
-  const { content, tool_calls: toolCalls } = message
+  const { tool_calls: toolCalls } = message
   return {
     role: message.role ?? 'assistant',
-    content: Array.isArray(content) ? content.map(chunkFromWire) : content,
+    content: contentFromWire(message.content),
     toolCalls: toolCalls && toolCalls.map(toolCallFromWire),
     prefix: message.prefix ?? false,
   }
+}
+
+function deltaFromWire(message: WireDelta): DeltaMessage {
+  const { tool_calls: toolCalls } = message
+  return {
+    role: message.role,
+    content: contentFromWire(message.content),
+    toolCalls: toolCalls && toolCalls.map(toolCallFromWire),
+    toolCallId: message.tool_call_id,
+    index: message.index,
+    metadata: message.metadata,
+  }
+}
+
+const tokenLogprobFromWire = (item: WireTokenLogprob) => ({
+  token: item.token,
+  logprob: item.logprob,
+  bytes: item.bytes,
+  tokenId: item.token_id,
+})
+
+function logprobsFromWire(
+  logprobs: WireLogprobs | null | undefined,
+): ChatCompletionResponseChoiceLogprobs | null | undefined {
+  return (
+    logprobs && {
+      content: logprobs.content.map((item) => ({
+        ...tokenLogprobFromWire(item),
+        topLogprobs:
+          item.top_logprobs && item.top_logprobs.map(tokenLogprobFromWire),
+      })),
+    }
+  )
 }
 
 /** The SDK `ChatCompletionResponse` for a wire response. */
@@ -358,8 +433,10 @@ export function chatCompletionResponseFromWire(
     choices: wire.choices.map((choice) => ({
       index: choice.index,
       message: choice.message && assistantFromWire(choice.message),
-      messages: choice.messages?.map(assistantFromWire),
+      messages: choice.messages?.map(deltaFromWire),
       finishReason: choice.finish_reason,
+      logprobs: logprobsFromWire(choice.logprobs),
+      promptLogprobs: logprobsFromWire(choice.prompt_logprobs),
     })),
   }
 }

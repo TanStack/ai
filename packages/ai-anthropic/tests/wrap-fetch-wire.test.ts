@@ -85,7 +85,8 @@ describe('anthropic wrapFetch', () => {
 
   it('sends the stream request through the wrapper', async () => {
     expect(await streamTag(addTag)).toBe('yes')
-    expect(sentKey).toBe('test-key')
+    expect(sentAuthorization).toBe('Bearer test-key')
+    expect(sentKey).toBe(null)
   })
 
   it('sends the same request without a wrapper', async () => {
@@ -125,6 +126,7 @@ describe('anthropic wrapFetch', () => {
       outputSchema: { type: 'object', properties: {} },
     })
     expect(sentTag).toBe('yes')
-    expect(sentKey).toBe('test-key')
+    expect(sentAuthorization).toBe('Bearer test-key')
+    expect(sentKey).toBe(null)
   })
 })
