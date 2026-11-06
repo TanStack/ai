@@ -43,7 +43,7 @@ ANTHROPIC_API_KEY=sk-ant-...
 
 1. `ANTHROPIC_AUTH_TOKEN`: sent as a Bearer token. An `sk-ant-oat` token here turns on OAuth mode.
 2. `ANTHROPIC_OAUTH_TOKEN`: sent as a Bearer token, in OAuth mode.
-3. `ANTHROPIC_API_KEY`: sent as `x-api-key`.
+3. `ANTHROPIC_API_KEY`: sent as a Bearer token.
 
 If none of them is set, these factories throw. To pass the credential in code, use `createAnthropicChat`. The `create*` factories never read a credential from the environment:
 
