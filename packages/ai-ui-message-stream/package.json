@@ -1,0 +1,60 @@
+{
+  "name": "@tanstack/ai-ui-message-stream",
+  "version": "0.0.1",
+  "description": "A stop gap for porting from the Vercel AI SDK one side at a time: serve AI SDK useChat from chat(), or call an AI SDK route from TanStack useChat, over the AI SDK UI message stream.",
+  "author": "",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/TanStack/ai.git",
+    "directory": "packages/ai-ui-message-stream"
+  },
+  "keywords": [
+    "ai",
+    "tanstack",
+    "ai-sdk",
+    "ag-ui",
+    "ui-message-stream",
+    "usechat"
+  ],
+  "type": "module",
+  "module": "./dist/esm/index.js",
+  "types": "./dist/esm/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/esm/index.d.ts",
+      "import": "./dist/esm/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "src"
+  ],
+  "scripts": {
+    "build": "vite build",
+    "clean": "premove ./build ./dist",
+    "lint:fix": "oxlint src --type-aware --fix",
+    "test:build": "publint --strict",
+    "test:oxlint": "oxlint src --type-aware",
+    "test:coverage": "vitest run --coverage --coverage.include='src/**' --coverage.reporter=text-summary --coverage.reporter=json-summary",
+    "test:lib": "vitest run",
+    "test:lib:dev": "pnpm test:lib --watch",
+    "test:types": "tsc"
+  },
+  "dependencies": {
+    "fast-json-patch": "^3.1.1"
+  },
+  "peerDependencies": {
+    "@tanstack/ai": "workspace:^",
+    "@tanstack/ai-client": "workspace:^",
+    "ai": "^7.0.0"
+  },
+  "devDependencies": {
+    "@ag-ui/core": "1.0.0",
+    "@tanstack/ai": "workspace:*",
+    "@tanstack/ai-client": "workspace:*",
+    "@vitest/coverage-v8": "4.1.10",
+    "ai": "7.0.148",
+    "zod": "^4.2.0"
+  }
+}
