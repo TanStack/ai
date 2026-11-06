@@ -1,5 +1,5 @@
-// The Bun-only test suite of @tanstack/ai-isolate-quickjs-bun.
-// Ported from .github/workflows/bun-test.yml.
+// .github/workflows/bun-test.yml on TanStack Source: the Bun-only tests of
+// @tanstack/ai-isolate-quickjs-bun, which the Node test job skips.
 import { defineWorkflow, pullRequest, setup } from '@tanstack-source/ci'
 
 export default defineWorkflow('bun-test', {
@@ -13,25 +13,28 @@ export default defineWorkflow('bun-test', {
     }),
   ],
 }).job('test', {
-  // ponytail: Nx Cloud off, so Nx uses the forge's own task cache.
+  // The browser image has the Chromium of Playwright 1.57.0. `pnpm install` runs the
+  // `playwright install chromium` postinstall of testing/e2e, which then downloads nothing.
+  image: 'browser',
+  // Nx Cloud is off, so Nx uses the task cache of the forge, and the job needs no secret.
   env: { NX_NO_CLOUD: 'true' },
+  // npm for packages and pnpm, nodejs.org when .nvmrc names another Node than the image,
+  // and the Playwright CDNs when the locked Playwright changes.
   egress: [
     'registry.npmjs.org',
     'nodejs.org',
-    // setup.bun() downloads from the GitHub release of Bun.
-    'github.com',
-    'objects.githubusercontent.com',
-    'release-assets.githubusercontent.com',
+    'cdn.playwright.dev',
+    'playwright.download.prss.microsoft.com',
   ],
   steps: [
+    // The steps of TanStack/config/.github/setup: pnpm, Node from .nvmrc, then the install.
     setup.node(),
     setup.pnpm(),
-    // The driver needs Bun >= 1.3.14 (see the package `engines` field).
-    setup.bun({ version: '1.4.4' }),
-    { name: 'Install', run: 'pnpm install --frozen-lockfile' },
+    { name: 'Install dependencies', run: 'pnpm install --frozen-lockfile' },
+    // The repository has no .bun-version, so the job uses the bun of the image (1.4.4).
+    // The driver needs bun 1.3.14 or later.
+    setup.bun(),
     {
-      // `@tanstack/ai-code-mode` is imported at runtime by the driver, so nx
-      // builds it to `dist/` first via `^build`.
       name: 'Build package and its workspace dependencies',
       run: 'pnpm exec nx build @tanstack/ai-isolate-quickjs-bun',
     },
