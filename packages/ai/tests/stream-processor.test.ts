@@ -3893,6 +3893,81 @@ describe('StreamProcessor', () => {
       ])
     })
 
+    it('preserves streamed tool-result metadata when a snapshot omits it', () => {
+      const processor = new StreamProcessor()
+      const streamedMetadata = {
+        displayType: 'account-assets',
+        accountId: 'A001',
+      }
+
+      processor.processChunk(ev.runStarted())
+      processor.processChunk(ev.textStart('a1'))
+      processor.processChunk(ev.textContent('Checking.', 'a1'))
+      processor.processChunk(ev.toolStart('tc-1', 'getWeather'))
+      processor.processChunk(ev.toolEnd('tc-1', 'getWeather'))
+      processor.processChunk(
+        chunk(EventType.TOOL_CALL_RESULT, {
+          messageId: 't1',
+          toolCallId: 'tc-1',
+          content: '{"temp":72}',
+          role: 'tool',
+          metadata: streamedMetadata,
+        }),
+      )
+      processor.processChunk(ev.runFinished('tool_calls'))
+
+      const snapshotMessages = (metadata?: Record<string, unknown>) => [
+        {
+          id: 'a1',
+          role: 'assistant',
+          content: 'Checking.',
+          toolCalls: [
+            {
+              id: 'tc-1',
+              type: 'function',
+              function: { name: 'getWeather', arguments: '{"loc":"Berlin"}' },
+            },
+          ],
+        },
+        {
+          id: 't1',
+          role: 'tool',
+          content: '{"temp":72}',
+          toolCallId: 'tc-1',
+          ...(metadata !== undefined && { metadata }),
+        },
+      ]
+
+      processor.processChunk({
+        type: EventType.MESSAGES_SNAPSHOT,
+        messages: snapshotMessages(),
+        timestamp: Date.now(),
+      } as unknown as StreamChunk)
+
+      const getToolResult = () =>
+        processor
+          .getMessages()
+          .flatMap((message) => message.parts)
+          .find(
+            (part): part is ToolResultPart =>
+              part.type === 'tool-result' && part.toolCallId === 'tc-1',
+          )
+
+      expect(getToolResult()?.metadata).toEqual(streamedMetadata)
+
+      const snapshotMetadata = {
+        displayType: 'snapshot-account-assets',
+        accountId: 'A002',
+      }
+      processor.processChunk({
+        type: EventType.MESSAGES_SNAPSHOT,
+        messages: snapshotMessages(snapshotMetadata),
+        timestamp: Date.now(),
+      } as unknown as StreamChunk)
+
+      expect(getToolResult()?.metadata).toEqual(snapshotMetadata)
+    })
+
     it('anchors a tool message that also has a valid UI resource', () => {
       const processor = new StreamProcessor()
       const uiResource = {
