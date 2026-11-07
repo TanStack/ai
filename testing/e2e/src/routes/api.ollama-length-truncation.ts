@@ -8,7 +8,7 @@ import { createOllamaChat } from '@tanstack/ai-ollama'
  * (`done_reason: 'length'`). aimock always answers Ollama with
  * `done_reason: 'stop'`, so this route serves the NDJSON stream itself from a
  * throwaway local server. Returns the `finishReason` of the
- * `RUN_FINISHED` it ends with.
+ * `RUN_FINISHED` chunk.
  */
 export const Route = createFileRoute('/api/ollama-length-truncation')({
   server: {
@@ -46,7 +46,6 @@ export const Route = createFileRoute('/api/ollama-length-truncation')({
 
         let runError: Record<string, unknown> | undefined
         let finishReason: string | null | undefined
-        let usage: Record<string, unknown> | undefined
         try {
           const adapter = createOllamaChat('mistral', {
             baseURL: `http://127.0.0.1:${port}`,
@@ -59,7 +58,6 @@ export const Route = createFileRoute('/api/ollama-length-truncation')({
             if (chunk.type === 'RUN_ERROR') runError = { code: chunk.code }
             if (chunk.type === 'RUN_FINISHED') {
               finishReason = chunk.metadata?.tanstack?.finishReason
-              usage = chunk.usage
             }
           }
         } catch (error) {
@@ -71,7 +69,7 @@ export const Route = createFileRoute('/api/ollama-length-truncation')({
           stub.close()
         }
 
-        return Response.json({ ok: true, runError, finishReason, usage })
+        return Response.json({ ok: true, runError, finishReason })
       },
     },
   },

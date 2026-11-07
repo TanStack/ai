@@ -188,7 +188,7 @@ Ollama does not make images. For images, use [OpenAI](./openai) or [Gemini](./ge
 
 Ollama nests its sampling and runner options in an `options` object **inside** `modelOptions`. This includes `temperature`, `top_p`, and `num_predict` (the token limit):
 
-```typescript
+```typescript group=ollama-options
 import { chat } from "@tanstack/ai";
 import { ollamaText } from "@tanstack/ai-ollama";
 
@@ -216,7 +216,7 @@ Sampling options do not go at the root of `chat()`. For Ollama, they go to `mode
 
 When Ollama stops a reply at `num_predict`, it sends `done_reason: "length"`. The stream still ends with `RUN_FINISHED`. `metadata.tanstack.finishReason` is `"length"`. A tool call that stops the same way also uses `"length"`, so that call does not run. To get the rest of the reply, raise `modelOptions.options.num_predict`:
 
-```typescript
+```typescript group=ollama-options
 for await (const chunk of stream) {
   if (chunk.type === "RUN_FINISHED" && chunk.metadata?.tanstack?.finishReason === "length") {
     console.warn("The reply was cut off.");
