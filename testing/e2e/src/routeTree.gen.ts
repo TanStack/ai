@@ -125,6 +125,7 @@ import { Route as ApiJsonTransportRouteImport } from './routes/api.json-transpor
 import { Route as ApiKeyedAdapterRouteImport } from './routes/api.keyed-adapter'
 import { Route as ApiLazyToolsWireRouteImport } from './routes/api.lazy-tools-wire'
 import { Route as ApiLoneSurrogatesWireRouteImport } from './routes/api.lone-surrogates-wire'
+import { Route as ApiLoopStoppedRouteImport } from './routes/api.loop-stopped'
 import { Route as ApiMaxToolCallsWireRouteImport } from './routes/api.max-tool-calls-wire'
 import { Route as ApiMcpAppsCallRouteImport } from './routes/api.mcp-apps-call'
 import { Route as ApiMcpAppsChatRouteImport } from './routes/api.mcp-apps-chat'
@@ -825,6 +826,11 @@ const ApiLoneSurrogatesWireRoute = ApiLoneSurrogatesWireRouteImport.update({
   path: '/api/lone-surrogates-wire',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiLoopStoppedRoute = ApiLoopStoppedRouteImport.update({
+  id: '/api/loop-stopped',
+  path: '/api/loop-stopped',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiMaxToolCallsWireRoute = ApiMaxToolCallsWireRouteImport.update({
   id: '/api/max-tool-calls-wire',
   path: '/api/max-tool-calls-wire',
@@ -1426,6 +1432,7 @@ export interface FileRoutesByFullPath {
   '/api/keyed-adapter': typeof ApiKeyedAdapterRoute
   '/api/lazy-tools-wire': typeof ApiLazyToolsWireRoute
   '/api/lone-surrogates-wire': typeof ApiLoneSurrogatesWireRoute
+  '/api/loop-stopped': typeof ApiLoopStoppedRoute
   '/api/max-tool-calls-wire': typeof ApiMaxToolCallsWireRoute
   '/api/mcp-apps-call': typeof ApiMcpAppsCallRoute
   '/api/mcp-apps-chat': typeof ApiMcpAppsChatRoute
@@ -1636,6 +1643,7 @@ export interface FileRoutesByTo {
   '/api/keyed-adapter': typeof ApiKeyedAdapterRoute
   '/api/lazy-tools-wire': typeof ApiLazyToolsWireRoute
   '/api/lone-surrogates-wire': typeof ApiLoneSurrogatesWireRoute
+  '/api/loop-stopped': typeof ApiLoopStoppedRoute
   '/api/max-tool-calls-wire': typeof ApiMaxToolCallsWireRoute
   '/api/mcp-apps-call': typeof ApiMcpAppsCallRoute
   '/api/mcp-apps-chat': typeof ApiMcpAppsChatRoute
@@ -1847,6 +1855,7 @@ export interface FileRoutesById {
   '/api/keyed-adapter': typeof ApiKeyedAdapterRoute
   '/api/lazy-tools-wire': typeof ApiLazyToolsWireRoute
   '/api/lone-surrogates-wire': typeof ApiLoneSurrogatesWireRoute
+  '/api/loop-stopped': typeof ApiLoopStoppedRoute
   '/api/max-tool-calls-wire': typeof ApiMaxToolCallsWireRoute
   '/api/mcp-apps-call': typeof ApiMcpAppsCallRoute
   '/api/mcp-apps-chat': typeof ApiMcpAppsChatRoute
@@ -2059,6 +2068,7 @@ export interface FileRouteTypes {
     | '/api/keyed-adapter'
     | '/api/lazy-tools-wire'
     | '/api/lone-surrogates-wire'
+    | '/api/loop-stopped'
     | '/api/max-tool-calls-wire'
     | '/api/mcp-apps-call'
     | '/api/mcp-apps-chat'
@@ -2269,6 +2279,7 @@ export interface FileRouteTypes {
     | '/api/keyed-adapter'
     | '/api/lazy-tools-wire'
     | '/api/lone-surrogates-wire'
+    | '/api/loop-stopped'
     | '/api/max-tool-calls-wire'
     | '/api/mcp-apps-call'
     | '/api/mcp-apps-chat'
@@ -2479,6 +2490,7 @@ export interface FileRouteTypes {
     | '/api/keyed-adapter'
     | '/api/lazy-tools-wire'
     | '/api/lone-surrogates-wire'
+    | '/api/loop-stopped'
     | '/api/max-tool-calls-wire'
     | '/api/mcp-apps-call'
     | '/api/mcp-apps-chat'
@@ -2690,6 +2702,7 @@ export interface RootRouteChildren {
   ApiKeyedAdapterRoute: typeof ApiKeyedAdapterRoute
   ApiLazyToolsWireRoute: typeof ApiLazyToolsWireRoute
   ApiLoneSurrogatesWireRoute: typeof ApiLoneSurrogatesWireRoute
+  ApiLoopStoppedRoute: typeof ApiLoopStoppedRoute
   ApiMaxToolCallsWireRoute: typeof ApiMaxToolCallsWireRoute
   ApiMcpAppsCallRoute: typeof ApiMcpAppsCallRoute
   ApiMcpAppsChatRoute: typeof ApiMcpAppsChatRoute
@@ -3594,6 +3607,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiLoneSurrogatesWireRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/loop-stopped': {
+      id: '/api/loop-stopped'
+      path: '/api/loop-stopped'
+      fullPath: '/api/loop-stopped'
+      preLoaderRoute: typeof ApiLoopStoppedRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/max-tool-calls-wire': {
       id: '/api/max-tool-calls-wire'
       path: '/api/max-tool-calls-wire'
@@ -4420,6 +4440,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiKeyedAdapterRoute: ApiKeyedAdapterRoute,
   ApiLazyToolsWireRoute: ApiLazyToolsWireRoute,
   ApiLoneSurrogatesWireRoute: ApiLoneSurrogatesWireRoute,
+  ApiLoopStoppedRoute: ApiLoopStoppedRoute,
   ApiMaxToolCallsWireRoute: ApiMaxToolCallsWireRoute,
   ApiMcpAppsCallRoute: ApiMcpAppsCallRoute,
   ApiMcpAppsChatRoute: ApiMcpAppsChatRoute,
