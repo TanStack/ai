@@ -350,6 +350,7 @@ function outputsImage(model: OpenRouterModel): boolean {
 const NON_CHAT_MODEL_PREFIXES = [
   'lyria-', // Google music generation
   'veo-', // Google video generation
+  'gemini-omni-', // Gemini Omni video (Interactions API), not chat
   'imagen-', // Google image generation
   'sora-', // OpenAI video generation
   'dall-e-', // OpenAI image generation

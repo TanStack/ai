@@ -182,7 +182,7 @@ function shouldShowResponding(request: ClaudeRequest | null): boolean {
 }
 
 export class ClaudeService {
-  private adapter = anthropicText('claude-sonnet-4-5') // Uses ANTHROPIC_API_KEY from env
+  private adapter = anthropicText('claude-sonnet-4-6') // Uses ANTHROPIC_API_KEY from env
   private queue: Array<ClaudeRequest> = []
   private currentRequest: ClaudeRequest | null = null
   private isProcessing = false
