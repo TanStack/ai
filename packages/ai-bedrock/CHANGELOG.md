@@ -1,5 +1,15 @@
 # @tanstack/ai-bedrock
 
+## 1.2.1
+
+### Patch Changes
+
+- [#2057](https://github.com/TanStack/ai/pull/2057) [`844496a`](https://github.com/TanStack/ai/commit/844496a616f3858f21ed300662f7642d87dae063) - A Bedrock Converse chat stream that ends with `stopReason: 'guardrail_intervened'` now reports `finishReason: 'content_filter'` on `RUN_FINISHED`. Before, it was a normal `stop`. The structured-output stream uses the same finish reason when the body is valid JSON. When a guardrail leaves no JSON, that stream reports `RUN_ERROR` with code `content_filter` instead of `empty-response` or `parse-error`.
+
+- Updated dependencies [[`9393839`](https://github.com/TanStack/ai/commit/9393839d380dde91fa91e81b5e92448610e9782a), [`7157ef3`](https://github.com/TanStack/ai/commit/7157ef3e8556ac23c350822ba0f3c4bbf0abb118)]:
+  - @tanstack/ai@1.2.1
+  - @tanstack/openai-base@1.0.2
+
 ## 1.2.0
 
 ### Minor Changes

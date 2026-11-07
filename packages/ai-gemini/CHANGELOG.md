@@ -1,5 +1,14 @@
 # @tanstack/ai-gemini
 
+## 1.2.1
+
+### Patch Changes
+
+- [#2053](https://github.com/TanStack/ai/pull/2053) [`925a505`](https://github.com/TanStack/ai/commit/925a50536ee4ea43f8446d271eede7df8dd032fc) - Send a multimodal tool result's parts to Gemini once, inside its `functionResponse`. Before, the adapter also put them beside the `functionResponse` in the same turn, so each image was sent and billed twice.
+
+- Updated dependencies [[`9393839`](https://github.com/TanStack/ai/commit/9393839d380dde91fa91e81b5e92448610e9782a), [`7157ef3`](https://github.com/TanStack/ai/commit/7157ef3e8556ac23c350822ba0f3c4bbf0abb118)]:
+  - @tanstack/ai@1.2.1
+
 ## 1.2.0
 
 ### Minor Changes
