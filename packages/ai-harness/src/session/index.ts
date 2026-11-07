@@ -13,5 +13,4 @@ export type {
   SessionSnapshot,
   SessionInspection,
   SessionDescription,
-  SessionDependencies,
 } from './types'

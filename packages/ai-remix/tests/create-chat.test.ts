@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { ChatClient } from '@tanstack/ai-client'
 import { createChat } from '../src/create-chat'
 import type { AnyClientTool } from '@tanstack/ai-client'
-import type { Handle } from 'remix/ui'
+import type { Handle } from 'remix/component'
 import type { StreamChunk } from '@tanstack/ai/client'
 
 const abortControllers: Array<AbortController> = []

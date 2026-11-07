@@ -194,20 +194,20 @@ describe('client parity with the Anthropic SDK', () => {
     )
     expect(ours).toEqual(sdk)
     expect(ours!.requests[0]).toMatchObject({
-      url: 'https://api.anthropic.com/v1/messages?beta=true&team=a',
+      url: 'https://api.anthropic.com/v1/messages?team=a',
       method: 'POST',
       headers: {
         'anthropic-beta': 'files-api-2025-04-14,context-1m-2025-08-07',
-        'anthropic-version': '2023-06-01',
+        'anthropic-version': '2026-10-21',
         'anthropic-workspace-id': 'wrk_1',
-        'x-api-key': 'test-key',
+        authorization: 'Bearer test-key',
         'x-trace': 't1',
       },
     })
     expect(ours!.result).toEqual({ value: message })
   })
 
-  it('streams the same events, without ping and unknown events', async () => {
+  it('streams the same events, with unknown events but without ping', async () => {
     const start = {
       type: 'message_start',
       message: { ...message, content: [] },
@@ -231,7 +231,9 @@ describe('client parity with the Anthropic SDK', () => {
       async (client) => collect(await create(client, { stream: true })),
     )
     expect(ours).toEqual(sdk)
-    expect(ours!.result).toEqual({ value: [start, delta, stop] })
+    expect(ours!.result).toEqual({
+      value: [start, delta, { type: 'future_event' }, stop],
+    })
   })
 
   it('throws the same APIError for an SSE error event', async () => {
@@ -339,7 +341,7 @@ describe('client parity with the Anthropic SDK', () => {
     )
     expect(ours).toEqual(sdk)
     expect(ours!.requests[0]).toMatchObject({
-      url: 'https://api.anthropic.com/v1/files?beta=true',
+      url: 'https://api.anthropic.com/v1/files',
       body: [['file', 'notes.txt', 'text/plain', 'hello']],
     })
   })
@@ -363,8 +365,8 @@ describe('client parity with the Anthropic SDK', () => {
     )
     expect(ours).toEqual(sdk)
     expect(ours!.requests.map(({ method, url }) => [method, url])).toEqual([
-      ['GET', 'https://api.anthropic.com/v1/files/file%201?beta=true'],
-      ['DELETE', 'https://api.anthropic.com/v1/files/file%201?beta=true'],
+      ['GET', 'https://api.anthropic.com/v1/files/file%201'],
+      ['DELETE', 'https://api.anthropic.com/v1/files/file%201'],
     ])
     expect(ours!.requests[0]!.headers).toMatchObject({
       authorization: 'Bearer token',
@@ -383,19 +385,40 @@ describe('client parity with the Anthropic SDK', () => {
     )
     expect(ours).toEqual(sdk)
     expect(ours!.requests[0]).toMatchObject({
-      url: 'https://proxy.example/anthropic/v1/messages?beta=true',
+      url: 'https://proxy.example/anthropic/v1/messages',
       headers: { 'x-team': 'blue', 'x-env': 'test' },
     })
   })
 
-  it('refuses the same empty credential before any request', async () => {
+  it('sends an empty credential as the same bearer header', async () => {
     const [sdk, ours] = await onBoth(
       { apiKey: '', authToken: null },
       replyJSON(message),
       (client) => create(client, {}),
     )
     expect(ours).toEqual(sdk)
+    // `Request` trims the trailing space of `Bearer `.
+    expect(ours!.requests[0]!.headers).toMatchObject({
+      authorization: 'Bearer',
+    })
+  })
+
+  it('refuses a missing credential before any request', async () => {
+    const [sdk, ours] = await onBoth(
+      { apiKey: 'test-key', defaultHeaders: { authorization: '' } },
+      replyJSON(message),
+      (client) => create(client, {}),
+    )
+    expect(ours).toEqual(sdk)
     expect(ours!.requests).toHaveLength(0)
+  })
+
+  it('refuses more than one credential option', () => {
+    const options = { apiKey: 'test-key', authToken: 'token' }
+    expect(() => new Anthropic(options)).toThrow(TypeError)
+    expect(() => createAnthropicClient(options)).toThrow(
+      'Pass at most one of `apiKey`, `authToken`, `credentials`, `config`, `profile`. Received `apiKey`, `authToken`.',
+    )
   })
 })
 
@@ -414,7 +437,7 @@ describe('createAnthropicClient', () => {
       ],
     })
     expect(await create(client, {})).toEqual(message)
-    expect(seen).toEqual(['https://api.anthropic.com/v1/messages?beta=true'])
+    expect(seen).toEqual(['https://api.anthropic.com/v1/messages'])
   })
 
   it('throws the SDK browser error in a browser', () => {

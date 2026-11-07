@@ -1380,13 +1380,11 @@ export class SessionImpl<THarness extends AnyHarness = AnyHarness>
               ? { thinking: partial.thinking }
               : {}),
           },
-          ...notes.map(
-            (content): ModelMessage => ({
-              id: createMessageId(),
-              role: 'user',
-              content,
-            }),
-          ),
+          ...notes.map((content): ModelMessage => ({
+            id: createMessageId(),
+            role: 'user',
+            content,
+          })),
         ])
       }
       const operation = this.createTurnOperation()

@@ -129,17 +129,17 @@ parses it as SSE automatically:
 import { createServerFn } from '@tanstack/react-start'
 import { generateImage, toServerSentEventsResponse } from '@tanstack/ai'
 import { openaiImage } from '@tanstack/ai-openai'
-import type { OpenAIImageModel } from '@tanstack/ai-openai'
+import type { ImageGenerateInput } from '@tanstack/ai-client'
 
 export const generateImageStreamFn = createServerFn({ method: 'POST' })
-  .inputValidator(
-    (data: { prompt: string; model?: OpenAIImageModel; threadId: string }) =>
-      data,
-  )
+  .validator((data: ImageGenerateInput & { threadId: string }) => data)
   .handler(({ data }) => {
+    if (typeof data.prompt !== 'string') {
+      throw new Error('This endpoint accepts text prompts only.')
+    }
     return toServerSentEventsResponse(
       generateImage({
-        adapter: openaiImage(data.model ?? 'gpt-image-1'),
+        adapter: openaiImage('gpt-image-2.5-flare'),
         threadId: data.threadId,
         prompt: data.prompt,
         stream: true,
@@ -1120,7 +1120,7 @@ import { generateImage } from '@tanstack/ai'
 import { openaiImage } from '@tanstack/ai-openai'
 
 export const generateImageStreamFn = createServerFn({ method: 'POST' })
-  .inputValidator((data: { prompt: string }) => data)
+  .validator((data: { prompt: string }) => data)
   .handler(({ data }) => {
     // BUG: returning raw stream -- client cannot parse this
     // (also a type error: an AsyncIterable is not a valid server-function return)
@@ -1141,7 +1141,7 @@ import { generateImage, toServerSentEventsResponse } from '@tanstack/ai'
 import { openaiImage } from '@tanstack/ai-openai'
 
 export const generateImageStreamFn = createServerFn({ method: 'POST' })
-  .inputValidator((data: { prompt: string }) => data)
+  .validator((data: { prompt: string }) => data)
   .handler(({ data }) => {
     return toServerSentEventsResponse(
       generateImage({

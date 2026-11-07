@@ -1,6 +1,6 @@
 import { ChatClient } from '@tanstack/ai-client'
 import { createChatDevtoolsBridge } from '@tanstack/ai-client/devtools'
-import type { Handle } from 'remix/ui'
+import type { Handle } from 'remix/component'
 import type {
   ResolvableChatInterrupt,
   ChatResumeState,
@@ -28,7 +28,7 @@ import type {
 /**
  * Create a chat helper for a Remix component.
  *
- * Call this in setup with the component Handle from `remix/ui`. The helper
+ * Call this in setup with the component Handle from `remix/component`. The helper
  * wraps ChatClient and calls `handle.update()` when the client snapshot
  * changes, so render reads the latest frozen snapshot through getters.
  *
@@ -42,7 +42,7 @@ import type {
  * ```tsx
  * import { createChat } from '@tanstack/ai-remix'
  * import { fetchServerSentEvents } from '@tanstack/ai-client'
- * import type { Handle } from 'remix/ui'
+ * import type { Handle } from 'remix/component'
  *
  * function Chat(handle: Handle) {
  *   const chat = createChat(handle, {

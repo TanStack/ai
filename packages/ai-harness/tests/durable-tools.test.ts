@@ -82,23 +82,21 @@ function toolCalls(
   const now = Date.now()
   return [
     { type: EventType.RUN_STARTED, runId: 'r', threadId: 't', timestamp: now },
-    ...calls.flatMap(
-      ({ id, name }): Array<StreamChunk> => [
-        {
-          type: EventType.TOOL_CALL_START,
-          toolCallId: id,
-          toolCallName: name,
-          timestamp: now,
-        },
-        {
-          type: EventType.TOOL_CALL_ARGS,
-          toolCallId: id,
-          delta: '{}',
-          timestamp: now,
-        },
-        { type: EventType.TOOL_CALL_END, toolCallId: id, timestamp: now },
-      ],
-    ),
+    ...calls.flatMap(({ id, name }): Array<StreamChunk> => [
+      {
+        type: EventType.TOOL_CALL_START,
+        toolCallId: id,
+        toolCallName: name,
+        timestamp: now,
+      },
+      {
+        type: EventType.TOOL_CALL_ARGS,
+        toolCallId: id,
+        delta: '{}',
+        timestamp: now,
+      },
+      { type: EventType.TOOL_CALL_END, toolCallId: id, timestamp: now },
+    ]),
     {
       type: EventType.RUN_FINISHED,
       runId: 'r',

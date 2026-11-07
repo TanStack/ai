@@ -80,7 +80,7 @@
   "peerDependencies": {
     "@tanstack/ai": "workspace:^",
     "@tanstack/ai-harness": "workspace:^",
-    "vitest": "^4.1.10",
+    "vitest": "^4.1.10 || ^5.0.0",
     "zod": "^3.0.0 || ^4.0.0"
   },
   "peerDependenciesMeta": {
@@ -93,8 +93,8 @@
   },
   "devDependencies": {
     "@tanstack/ai-harness": "workspace:*",
-    "@vitest/coverage-v8": "4.1.10",
-    "vitest": "^4.1.10",
-    "zod": "^4.2.0"
+    "@vitest/coverage-v8": "5.1.0",
+    "vitest": "^5.1.0",
+    "zod": "^4.6.7"
   }
 }

@@ -1,6 +1,6 @@
 import { createGeneration } from './create-generation.ts'
 import { reconstructTranscriptionResult } from '@tanstack/ai-client'
-import type { Handle } from 'remix/ui'
+import type { Handle } from 'remix/component'
 import type { TranscriptionResult } from '@tanstack/ai'
 import type { TranscriptionGenerateInput } from '@tanstack/ai-client'
 import type {
@@ -44,7 +44,7 @@ export type CreateTranscriptionReturn<TOutput = TranscriptionResult> =
  * ```tsx
  * import { createTranscription } from '@tanstack/ai-remix'
  * import { fetchServerSentEvents } from '@tanstack/ai-client'
- * import type { Handle } from 'remix/ui'
+ * import type { Handle } from 'remix/component'
  *
  * function Transcriber(handle: Handle) {
  *   const transcription = createTranscription(handle, {

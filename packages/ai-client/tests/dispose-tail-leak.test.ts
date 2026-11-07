@@ -1,5 +1,6 @@
 ﻿import { describe, expect, it, vi } from 'vitest'
 import { ChatClient } from '../src/chat-client'
+import { createMockConnectionAdapter, createTextChunks } from './test-utils'
 import type { ResumableConnectConnectionAdapter } from '../src/connection-adapters'
 import type { ChatClientPersistence, ChatPersistedState } from '../src/types'
 
@@ -195,6 +196,31 @@ describe('dispose stops a late hydration from opening a tail', () => {
     await vi.waitFor(() => expect(opens).toBe(2))
     expect(joinRun).toHaveBeenLastCalledWith('r1', expect.anything())
 
+    client.dispose()
+  })
+
+  it('detach keeps a send this client started, so detach then attach loses nothing', async () => {
+    // React Strict Mode runs mount, cleanup, mount. A send started in the first
+    // mount must survive the cleanup's detach. A plain server has no log to
+    // rejoin, so an aborted send is gone for good.
+    const onAbort = vi.fn()
+    const connection = createMockConnectionAdapter({
+      chunks: createTextChunks('Hi', 'a1'),
+      chunkDelay: 5,
+      onAbort,
+    })
+    const client = mountedChatClient({ threadId: 't1', connection })
+
+    const sent = client.sendMessage('go')
+    client.detach()
+    client.attach()
+    await sent
+
+    expect(onAbort).not.toHaveBeenCalled()
+    const assistant = client.getMessages().find((m) => m.role === 'assistant')
+    expect(assistant?.parts).toContainEqual(
+      expect.objectContaining({ type: 'text', content: 'Hi' }),
+    )
     client.dispose()
   })
 

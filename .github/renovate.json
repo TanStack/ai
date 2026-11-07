@@ -27,6 +27,11 @@
   ],
   "packageRules": [
     {
+      "description": "@cloudflare/sandbox 1.0 is a different SDK (no Sandbox class, exec, or processes). Hold the npm package and the container image on 0.x until ai-sandbox-cloudflare is ported.",
+      "matchPackageNames": ["@cloudflare/sandbox", "docker.io/cloudflare/sandbox", "cloudflare/sandbox"],
+      "allowedVersions": "<1.0.0"
+    },
+    {
       "description": "Fallback: bundle any remaining non-major updates so we don't get one PR per dependency. Ecosystem rules below override this for their packages.",
       "matchUpdateTypes": ["minor", "patch", "pin", "digest"],
       "groupName": "all non-major dependencies",

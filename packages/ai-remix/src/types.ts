@@ -59,7 +59,7 @@ export type DeepPartial<T> =
  * Options for the createChat helper.
  *
  * Call `createChat(handle, options)` in Remix setup with Handle from
- * `remix/ui`. Handle is the first argument of the helper. It is not part of
+ * `remix/component`. Handle is the first argument of the helper. It is not part of
  * this type. `threadId` is required.
  *
  * Pass either `connection` or `fetcher`. The XOR is enforced at the type

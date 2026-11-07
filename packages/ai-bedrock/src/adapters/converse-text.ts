@@ -828,19 +828,21 @@ function restoreDocuments(request: unknown, input: ConverseDocuments): void {
   // Skip the parse and re-serialize of the body, which can be large (for
   // example with image bytes), unless a document has the key.
   if (!documents.some(hasProtoKey)) return
+  // Newer SDKs hold the body in a `JsonBytesStringAdapter`, whose `toString()`
+  // is the JSON text. Older ones hold the string itself.
   if (
     typeof request !== 'object' ||
     request === null ||
     !('body' in request) ||
-    typeof request.body !== 'string'
+    !String(request.body).startsWith('{')
   ) {
     throw new Error(
-      'Bedrock Converse: cannot keep a `__proto__` key because the request body is not a JSON string',
+      'Bedrock Converse: cannot keep a `__proto__` key because the request body is not JSON',
     )
   }
   // The SDK serialized this body from `input` one step earlier, so the two
   // line up by position.
-  const body: ConverseDocuments = JSON.parse(request.body)
+  const body: ConverseDocuments = JSON.parse(String(request.body))
   body.messages?.forEach((message, i) =>
     message.content?.forEach((block, j) => {
       const source = input.messages?.[i]?.content?.[j]?.toolUse?.input

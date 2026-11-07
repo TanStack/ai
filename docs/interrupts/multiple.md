@@ -18,7 +18,24 @@ every item has an answer, and the server validates the full batch.
 
 ## Quick setup
 
-This page uses the `transfer` tool from [Tool Approval](./tool-approval).
+This page uses the `transfer` tool from [Tool Approval](./tool-approval):
+
+```ts
+// tools/transfer.ts
+import { toolDefinition } from '@tanstack/ai'
+import { z } from 'zod'
+
+export const transferTool = toolDefinition({
+  name: 'transfer',
+  description: 'Transfer funds to a recipient',
+  needsApproval: true,
+  inputSchema: z.object({
+    amount: z.number().positive(),
+    recipient: z.string().min(1),
+  }),
+  outputSchema: z.object({ receiptId: z.string() }),
+})
+```
 
 ### 1. Render the queue
 

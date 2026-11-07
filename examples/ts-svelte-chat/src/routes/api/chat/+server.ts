@@ -12,7 +12,7 @@ import { anthropicText } from '@tanstack/ai-anthropic'
 import { geminiText } from '@tanstack/ai-gemini'
 
 import type { RequestHandler } from './$types'
-import { env } from '$env/dynamic/private'
+import * as env from '$app/env/private'
 
 import {
   addToCartToolDef,
@@ -20,7 +20,7 @@ import {
   getGuitars,
   getPersonalGuitarPreferenceToolDef,
   recommendGuitarToolDef,
-} from '$lib/guitar-tools'
+} from '#lib/guitar-tools.ts'
 
 type Provider = 'openai' | 'anthropic' | 'gemini' | 'ollama'
 

@@ -35,9 +35,8 @@ afterEach(() => {
 
 /** One model call that answers `content` and reports `usage`. */
 function textWithUsage(content: string, usage: TokenUsage) {
-  return text(content).map(
-    (chunk): StreamChunk =>
-      chunk.type === EventType.RUN_FINISHED ? { ...chunk, usage } : chunk,
+  return text(content).map((chunk): StreamChunk =>
+    chunk.type === EventType.RUN_FINISHED ? { ...chunk, usage } : chunk,
   )
 }
 

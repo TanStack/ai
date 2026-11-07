@@ -18,8 +18,6 @@ export default defineConfig({
       '@angular/core/testing',
       '@angular/platform-browser',
       '@angular/platform-browser/testing',
-      '@angular/platform-browser-dynamic',
-      '@angular/platform-browser-dynamic/testing',
       '@angular/common',
       '@angular/compiler',
     ],

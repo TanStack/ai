@@ -281,7 +281,9 @@ export const GROK_VIDEO_MAX_REFERENCE_IMAGES = 7
  * reference-capable model missing from the set is a compile error.
  */
 type GrokVideoReferenceModel = {
-  [TModel in GrokVideoModel]: 'reference_images' extends keyof GrokVideoModelProviderOptionsByName[TModel]
+  [
+    TModel in GrokVideoModel
+  ]: 'reference_images' extends keyof GrokVideoModelProviderOptionsByName[TModel]
     ? TModel
     : never
 }[GrokVideoModel]
@@ -308,7 +310,9 @@ export function isGrokVideoReferenceModel(model: string): boolean {
  * provably-in-sync construction as {@link GrokVideoReferenceModel}.
  */
 type GrokVideoSourceModel = {
-  [TModel in GrokVideoModel]: 'mode' extends keyof GrokVideoModelProviderOptionsByName[TModel]
+  [
+    TModel in GrokVideoModel
+  ]: 'mode' extends keyof GrokVideoModelProviderOptionsByName[TModel]
     ? TModel
     : never
 }[GrokVideoModel]

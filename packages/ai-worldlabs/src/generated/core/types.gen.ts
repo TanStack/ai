@@ -118,7 +118,9 @@ type IsExactlyNeverOrNeverUndefined<T> = [T] extends [never]
     : false
 
 export type OmitNever<T extends Record<string, unknown>> = {
-  [K in keyof T as IsExactlyNeverOrNeverUndefined<T[K]> extends true
-    ? never
-    : K]: T[K]
+  [
+    K in keyof T as IsExactlyNeverOrNeverUndefined<T[K]> extends true
+      ? never
+      : K
+  ]: T[K]
 }

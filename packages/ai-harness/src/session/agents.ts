@@ -2498,11 +2498,10 @@ export abstract class SessionAgents<
       const subagentRunId = waiting?.subagentRunId ?? record.subagentRunId
       if (!stopped || subagentRunId === undefined) continue
       const answers = {
-        resume: own.map(
-          ({ wait, outcome, value }): RunAgentResumeItem =>
-            outcome === 'answered'
-              ? { interruptId: wait.waitId, status: 'resolved', payload: value }
-              : { interruptId: wait.waitId, status: 'cancelled' },
+        resume: own.map(({ wait, outcome, value }): RunAgentResumeItem =>
+          outcome === 'answered'
+            ? { interruptId: wait.waitId, status: 'resolved', payload: value }
+            : { interruptId: wait.waitId, status: 'cancelled' },
         ),
         interruptedRunId: stopped.runId,
         subagentRunId,

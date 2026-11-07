@@ -685,12 +685,10 @@ describe('usage on media stream terminal events', () => {
       '~types': {} as any,
       snapDuration: () => undefined,
       createVideoJob: vi.fn(async () => ({ jobId: 'job-1', model: 'm' })),
-      getVideoStatus: vi.fn(
-        async (): Promise<VideoStatusResult> => ({
-          jobId: 'job-1',
-          status: 'completed',
-        }),
-      ),
+      getVideoStatus: vi.fn(async (): Promise<VideoStatusResult> => ({
+        jobId: 'job-1',
+        status: 'completed',
+      })),
       getVideo: vi.fn(async () => ({
         jobId: 'job-1',
         url: 'https://example.com/video.mp4',

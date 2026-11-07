@@ -83,7 +83,7 @@
     }
   },
   "dependencies": {
-    "@modelcontextprotocol/server": "^2.0.0",
+    "@modelcontextprotocol/server": "^2.4.0",
     "@tanstack/ai-skills": "workspace:^",
     "@tanstack/ai-utils": "workspace:^"
   },
@@ -92,7 +92,7 @@
     "@tanstack/ai": "workspace:^",
     "@tanstack/ai-harness": "workspace:^",
     "@tanstack/ai-persistence": "workspace:^",
-    "vitest": "^4.1.10"
+    "vitest": "^4.1.10 || ^5.0.0"
   },
   "peerDependenciesMeta": {
     "@tanstack/ai-harness": {
@@ -109,12 +109,12 @@
     }
   },
   "devDependencies": {
-    "@modelcontextprotocol/client": "^2.0.0",
+    "@modelcontextprotocol/client": "^2.4.0",
     "@ngrok/ngrok": "^1.7.0",
     "@tanstack/ai": "workspace:*",
     "@tanstack/ai-harness": "workspace:*",
     "@tanstack/ai-persistence": "workspace:*",
-    "@vitest/coverage-v8": "4.1.10",
-    "vitest": "^4.1.10"
+    "@vitest/coverage-v8": "5.1.0",
+    "vitest": "^5.1.0"
   }
 }

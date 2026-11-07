@@ -78,42 +78,34 @@ const NDJSON_FAKE_GROK = [
 
 /** A minimal ACP agent that replies "pong" and reports the SDK's protocol version. */
 const FAKE_GROK_ACP_AGENT = `
-import { AgentSideConnection, ndJsonStream, PROTOCOL_VERSION } from ${JSON.stringify(SDK_URL)}
+import { agent, methods, ndJsonStream, PROTOCOL_VERSION } from ${JSON.stringify(SDK_URL)}
 import { Readable, Writable } from 'node:stream'
 
 const input = Readable.toWeb(process.stdin)
 const output = Writable.toWeb(process.stdout)
 const stream = ndJsonStream(output, input)
 
-new AgentSideConnection((conn) => ({
-  async initialize() {
-    return {
-      protocolVersion: PROTOCOL_VERSION,
-      agentCapabilities: { loadSession: true },
-      authMethods: [
-        { id: 'xai.api_key', name: 'xai.api_key', description: null },
-        { id: 'grok.com', name: 'grok.com', description: null },
-      ],
-    }
-  },
-  async authenticate() {
-    return {}
-  },
-  async newSession() {
-    return { sessionId: 'sess-1' }
-  },
-  async loadSession() {
-    return {}
-  },
-  async prompt(params) {
-    await conn.sessionUpdate({
+agent()
+  .onRequest(methods.agent.initialize, () => ({
+    protocolVersion: PROTOCOL_VERSION,
+    agentCapabilities: { loadSession: true },
+    authMethods: [
+      { id: 'xai.api_key', name: 'xai.api_key', description: null },
+      { id: 'grok.com', name: 'grok.com', description: null },
+    ],
+  }))
+  .onRequest(methods.agent.authenticate, () => ({}))
+  .onRequest(methods.agent.session.new, () => ({ sessionId: 'sess-1' }))
+  .onRequest(methods.agent.session.load, () => ({}))
+  .onRequest(methods.agent.session.prompt, async ({ params, client }) => {
+    await client.notify(methods.client.session.update, {
       sessionId: params.sessionId,
       update: { sessionUpdate: 'agent_message_chunk', content: { type: 'text', text: 'pong' } },
     })
     return { stopReason: 'end_turn' }
-  },
-  async cancel() {},
-}), stream)
+  })
+  .onNotification(methods.agent.session.cancel, () => {})
+  .connect(stream)
 `
 
 const baseDir = path.join(

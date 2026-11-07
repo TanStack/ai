@@ -64,8 +64,8 @@
     "test:types": "tsc"
   },
   "dependencies": {
-    "@elevenlabs/client": "^1.25.0",
-    "@elevenlabs/elevenlabs-js": "^2.68.0",
+    "@elevenlabs/client": "^1.35.0",
+    "@elevenlabs/elevenlabs-js": "^2.76.0",
     "@tanstack/ai-utils": "workspace:^"
   },
   "peerDependencies": {
@@ -73,6 +73,6 @@
   },
   "devDependencies": {
     "@tanstack/ai": "workspace:*",
-    "@vitest/coverage-v8": "4.1.10"
+    "@vitest/coverage-v8": "5.1.0"
   }
 }

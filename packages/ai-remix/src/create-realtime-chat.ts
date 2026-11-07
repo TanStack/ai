@@ -5,7 +5,7 @@ import type {
   RealtimeSessionConfig,
   RealtimeStatus,
 } from '@tanstack/ai'
-import type { Handle } from 'remix/ui'
+import type { Handle } from 'remix/component'
 import type { CreateRealtimeChatOptions } from './realtime-types.ts'
 
 const emptyFrequencyData = new Uint8Array(128)
@@ -25,7 +25,7 @@ const emptyTimeDomainData = new Uint8Array(128).fill(128)
  * ```typescript
  * import { createRealtimeChat } from '@tanstack/ai-remix'
  * import { openaiRealtime } from '@tanstack/ai-openai'
- * import type { Handle } from 'remix/ui'
+ * import type { Handle } from 'remix/component'
  *
  * function VoiceChat(handle: Handle) {
  *   const chat = createRealtimeChat(handle, {
