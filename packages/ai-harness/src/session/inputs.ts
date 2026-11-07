@@ -44,7 +44,8 @@ import type { QueuedTurn, WaitingSteer } from './types'
  * How `accept` took an input. `offered`: another host owns the log, and the
  * input waits for that host in the input lane of the log. `refused`: the
  * `acceptInput` hook of the host refused it, with this reason. Nothing is
- * stored.
+ * stored. `rejected`: the input and `harness.input.rejected` landed in one
+ * append, with this reason.
  */
 export type Admission =
   | 'new'
@@ -54,6 +55,7 @@ export type Admission =
   | 'offered'
   | 'deleted'
   | { refused: string }
+  | { rejected: string }
 
 /** What `accept` stores with an input besides the input itself. */
 interface AcceptOptions {
@@ -74,6 +76,12 @@ interface AcceptOptions {
   offer?: () => Promise<OfferedHarnessInput>
   /** More records for the append of a new input. */
   records?: Array<HarnessRecord>
+  /**
+   * Called once the input is new, before its append. A reason stores
+   * `harness.input.rejected` in that same append and returns
+   * `{ rejected: reason }`. Turn records are left out.
+   */
+  rejectIf?: (input: HarnessInput) => string | undefined
 }
 
 /** The offer that the next `accept` applies. See `applyOffer`. */
@@ -625,7 +633,8 @@ export abstract class SessionInputs<
    * tick is a duplicate too. `user` is who sent it. The access check of
    * a `checked` call runs first: a refused input is not stored, and the
    * error rejects this call. The `turn` record goes in the append of the
-   * input, so a crash keeps both or neither.
+   * input, so a crash keeps both or neither. A rejection from `rejectIf`
+   * is in that append too: the receipt waits until the log has it.
    *
    * When another host owns the log, the input goes to that host through the
    * input lane (`offered`). An input from the lane (see `applyOffer`)
@@ -655,7 +664,12 @@ export abstract class SessionInputs<
         offer,
       })
       // A retry with the input as its caller sent it is the same input.
-      if (admission === 'new' && accepted !== input) {
+      // A rejection stores `accepted`, so the caller's payload is screened
+      // the same way.
+      const wasStored =
+        admission === 'new' ||
+        (typeof admission === 'object' && 'rejected' in admission)
+      if (wasStored && accepted !== input) {
         this.inputRecords.screened.set(
           inputId,
           inputKey(input, storedUser(user).user),
@@ -712,11 +726,17 @@ export abstract class SessionInputs<
     // for the next owner.
     if (this.closing && WORK_OPS.has(input.op)) return 'closed'
     this.admitted.set(inputId, inputKey(input, sender.user))
+    // Before the append, so the decision and the record are one batch.
+    // A crash then leaves the input absent, or rejected, never pending.
+    const reason = options.rejectIf?.(input)
     try {
-      const records = [
-        ...(options.turn ? turnRecords(inputId, options.turn) : []),
-        ...(options.records ?? []),
-      ]
+      const records =
+        reason !== undefined
+          ? [{ type: 'harness.input.rejected' as const, inputId, reason }]
+          : [
+              ...(options.turn ? turnRecords(inputId, options.turn) : []),
+              ...(options.records ?? []),
+            ]
       await this.writer.append(
         [
           {
@@ -742,15 +762,11 @@ export abstract class SessionInputs<
     }
     // An input with no work to run (a cancel, a setting) ends once stored.
     if (!WORK_OPS.has(input.op)) this.inputRecords.end(inputId)
-    this.feed.publish(
-      'session',
-      // The feed scrubs the session's secrets from the message.
-      customEvent(HARNESS_EVENTS.inputAccepted, {
-        inputId,
-        op: input.op,
-        ...('message' in input ? { message: input.message } : {}),
-      }),
-    )
+    this.publishAccepted(inputId, input)
+    if (reason !== undefined) {
+      this.recordRejection(inputId, reason)
+      return { rejected: reason }
+    }
     return 'new'
   }
 
@@ -1174,11 +1190,28 @@ export abstract class SessionInputs<
     )
   }
 
-  /** Refuse an input. Returns its rejected receipt. */
+  /** Refuse an input that is already in the log. Returns its rejected receipt. */
   protected reject(inputId: string, reason: string) {
     void this.writer
       .append([{ type: 'harness.input.rejected', inputId, reason }])
       .catch(() => {})
+    return this.recordRejection(inputId, reason)
+  }
+
+  /** Tell listeners the input is in the log. The feed scrubs secrets. */
+  private publishAccepted(inputId: string, input: HarnessInput) {
+    this.feed.publish(
+      'session',
+      customEvent(HARNESS_EVENTS.inputAccepted, {
+        inputId,
+        op: input.op,
+        ...('message' in input ? { message: input.message } : {}),
+      }),
+    )
+  }
+
+  /** Keep the rejected receipt and publish it. The log write is the caller's. */
+  private recordRejection(inputId: string, reason: string): Receipt {
     const receipt: Receipt = { inputId, status: 'rejected', reason }
     this.inputRecords.reject(receipt)
     this.feed.publish(
@@ -1348,7 +1381,9 @@ export abstract class SessionInputs<
     admission: Exclude<Admission, 'new'>,
   ): Receipt {
     if (typeof admission === 'object') {
-      return { inputId, status: 'rejected', reason: admission.refused }
+      const reason =
+        'rejected' in admission ? admission.rejected : admission.refused
+      return { inputId, status: 'rejected', reason }
     }
     if (admission !== 'duplicate' && admission !== 'offered') {
       return { inputId, status: 'rejected', reason: admission }

@@ -184,6 +184,31 @@ export abstract class SessionRequests<
   }
 
   /**
+   * Why a prompt, a steer, or a follow-up is refused before it is stored.
+   * `undefined`: it can run. The order matches the checks that used to run
+   * after the input was stored.
+   */
+  private refusalOfTurn(
+    accepted: HarnessInput & { op: 'prompt' | 'steer' | 'followUp' },
+    runId: string | undefined,
+  ): string | undefined {
+    if (runId !== undefined && this.isRunTaken(runId)) return 'conflict'
+    if (accepted.op === 'prompt' && accepted.as === 'operator') {
+      return this.humanHandoff() ? undefined : 'no_human_wait'
+    }
+    const busy =
+      accepted.op === 'prompt'
+        ? accepted.busy
+        : accepted.op === 'steer'
+          ? 'steer'
+          : 'queue'
+    if (this.activeTurn && busy === 'reject') return 'busy'
+    const running = busy === 'steer' ? this.activeTurn : undefined
+    if (!running && this.waitsForInterrupts()) return 'pending_interrupts'
+    return undefined
+  }
+
+  /**
    * Start the turn of `input` (a prompt, a steer, or a follow-up), with its
    * operation. `wake`: the harness wakes the session with the message (a
    * background job ended), so its user message is marked, not shown as
@@ -232,6 +257,12 @@ export abstract class SessionRequests<
         ...(traceparent !== undefined && parseTraceparent(traceparent)
           ? { traceparent }
           : {}),
+        rejectIf: (accepted) =>
+          accepted.op === 'prompt' ||
+          accepted.op === 'steer' ||
+          accepted.op === 'followUp'
+            ? this.refusalOfTurn(accepted, runId)
+            : undefined,
       }).then(
         async ({ admission, input: accepted }) => {
           if (admission !== 'new') {
@@ -246,25 +277,11 @@ export abstract class SessionRequests<
               : accepted.op === 'steer'
                 ? 'steer'
                 : 'queue'
-          // A client run id must be new in the log of this thread.
-          if (runId !== undefined && this.isRunTaken(runId)) {
-            this.reject(inputId, 'conflict')
-            this.refuse(operation, {
-              inputId,
-              status: 'rejected',
-              reason: 'conflict',
-            })
-            return
-          }
           const isWaiting =
             this.activeTurn !== undefined || this.queue.length > 0
           if (accepted.op === 'prompt' && accepted.as === 'operator') {
             // An operator reply runs no model. It needs an open handoff to
-            // a person.
-            if (!this.humanHandoff()) {
-              this.refuse(operation, this.reject(inputId, 'no_human_wait'))
-              return
-            }
+            // a person. `refusalOfTurn` already refused a missing handoff.
             this.answerTurn(operation, {
               inputId,
               status: isWaiting ? 'queued' : 'accepted',
@@ -279,26 +296,8 @@ export abstract class SessionRequests<
             })
             return
           }
-          if (this.activeTurn && busy === 'reject') {
-            this.reject(inputId, 'busy')
-            this.refuse(operation, {
-              inputId,
-              status: 'rejected',
-              reason: 'busy',
-            })
-            return
-          }
           // A steer joins the running turn, so the receipt names that turn.
           const running = busy === 'steer' ? this.activeTurn : undefined
-          if (!running && this.waitsForInterrupts()) {
-            this.reject(inputId, 'pending_interrupts')
-            this.refuse(operation, {
-              inputId,
-              status: 'rejected',
-              reason: 'pending_interrupts',
-            })
-            return
-          }
           // Without canJoin, a steer of another sender never joins (see
           // claimJoins): it waits, and runs as its own operation.
           const joins =
@@ -395,7 +394,12 @@ export abstract class SessionRequests<
     const operation = this.createTurnOperation()
     this.bindTurn(inputId, operation)
     void this.admitting(() =>
-      this.accept(inputId, input, user).then(
+      this.accept(inputId, input, user, {
+        rejectIf: (accepted) =>
+          accepted.op === 'tool' && this.waitsForInterrupts()
+            ? 'pending_interrupts'
+            : undefined,
+      }).then(
         ({ admission, input: accepted }) => {
           if (admission !== 'new') {
             this.answerDuplicate(operation, inputId, admission)
@@ -403,16 +407,6 @@ export abstract class SessionRequests<
           }
           // `acceptInput` can change the input.
           const { name, args, meta } = accepted
-          // As a prompt: the open interrupts are answered first.
-          if (this.waitsForInterrupts()) {
-            this.reject(inputId, 'pending_interrupts')
-            this.refuse(operation, {
-              inputId,
-              status: 'rejected',
-              reason: 'pending_interrupts',
-            })
-            return
-          }
           const isWaiting =
             this.activeTurn !== undefined || this.queue.length > 0
           this.answerTurn(operation, {
@@ -555,13 +549,17 @@ export abstract class SessionRequests<
         inputId,
         { op: 'reset', ...(sent !== undefined ? { note: sent } : {}) },
         user,
+        {
+          rejectIf: (accepted) =>
+            accepted.op === 'reset' && this.waitsForInterrupts()
+              ? 'pending_interrupts'
+              : undefined,
+        },
       )
       if (admission !== 'new') return this.duplicateReceipt(inputId, admission)
       // `acceptInput` can change the input.
       const text = input.note?.trim() ? input.note : undefined
       const isRunning = this.activeTurn !== undefined
-      if (this.waitsForInterrupts())
-        return this.reject(inputId, 'pending_interrupts')
       const operation = this.queueReset(inputId, text, user, 'front')
       return this.keep({
         inputId,
@@ -605,6 +603,71 @@ export abstract class SessionRequests<
   }
 
   /**
+   * Why a resolve is refused before it is stored. `undefined`: it can run.
+   * On the background-wait path that can run, the wait ids are claimed in
+   * `claimed` before the append, so a second resolve sees them.
+   */
+  private refusalOfResume(
+    resume: Extract<HarnessInput, { op: 'resolve' }>['resume'],
+    runId: string | undefined,
+    claimed: { ids: Array<string>; runId: string | undefined },
+  ): string | undefined {
+    const isTaken =
+      runId !== undefined &&
+      (this.operations.has(runId) ||
+        this.retiredIds.has(runId) ||
+        this.isRunTaken(runId))
+    if (isTaken) return 'conflict'
+    const logged = resume.map((item) => this.loggedWait(item.interruptId))
+    const open = logged.flatMap((state) =>
+      state !== undefined &&
+      state.outcome === undefined &&
+      state.live === undefined
+        ? [state]
+        : [],
+    )
+    const interrupts = this.logWriter?.state.thread.interrupts
+    // A `step.ask` question and the `human` wait of a handoff have no
+    // interrupt: `answer` checks their schema, keeps a secret out of the
+    // log, and ends the handoff.
+    if (
+      open.some(
+        ({ wait }) => interrupts?.get(wait.waitId)?.status !== 'pending',
+      )
+    ) {
+      return 'use_answer'
+    }
+    if (open.length > 0) {
+      // The access check saw the run of the first item: every item must
+      // be a wait of that run.
+      const backgroundRunId = open[0]?.wait.runId
+      const isOneRun =
+        open.length === resume.length &&
+        open.every(({ wait }) => wait.runId === backgroundRunId)
+      if (!isOneRun) return 'mixed_runs'
+      // Another answer ends one of these waits now.
+      if (open.some(({ wait }) => this.answering.has(wait.waitId))) {
+        return 'unknown_question'
+      }
+      const ids = open.map(({ wait }) => wait.waitId)
+      for (const id of ids) this.answering.add(id)
+      claimed.ids = ids
+      claimed.runId = backgroundRunId
+      return undefined
+    }
+    if (!this.interrupted) return 'no_pending_interrupts'
+    const answers = this.interrupted
+    const isEnding = this.activeTurn?.id === answers.runId
+    if (
+      (this.activeTurn && !isEnding) ||
+      this.queue.some((turn) => turn.answers?.runId === answers.runId)
+    ) {
+      return 'busy'
+    }
+    return undefined
+  }
+
+  /**
    * @internal `resolve`, with the AG-UI `runId` of a `POST run` request: the
    * turn runs as it. The HTTP handler and an offered resolve call it.
    */
@@ -628,141 +691,114 @@ export abstract class SessionRequests<
       const inputId = options.inputId ?? createInputId()
       const user = this.actor(options.user)
       const runId = options.runId
-      const { admission, input } = await this.accept(
-        inputId,
-        { op: 'resolve', resume: options.resume },
-        user,
-        runId !== undefined ? { runId } : {},
-      )
-      // `acceptInput` can change the input.
-      const { resume } = input
-      if (admission !== 'new') {
-        const receipt = this.duplicateReceipt(inputId, admission)
-        // The owner runs an offered resume as `runId`.
-        return admission === 'offered' &&
-          runId !== undefined &&
-          receipt.status !== 'rejected'
-          ? { ...receipt, operationId: runId }
-          : receipt
+      const claimed: { ids: Array<string>; runId: string | undefined } = {
+        ids: [],
+        runId: undefined,
       }
-      // A run id must not take the id of another operation or stored run.
-      const isTaken =
-        runId !== undefined &&
-        (this.operations.has(runId) ||
-          this.retiredIds.has(runId) ||
-          this.isRunTaken(runId))
-      if (isTaken) {
-        this.reject(inputId, 'conflict')
-        return { inputId, status: 'rejected', reason: 'conflict' }
+      const release = () => {
+        for (const id of claimed.ids) this.answering.delete(id)
+        claimed.ids.length = 0
       }
-      // The waits of a background agent run: the log ends them, and the
-      // run goes on (see `resumeWaitingRuns`).
-      const logged = resume.map((item) => this.loggedWait(item.interruptId))
-      const open = logged.flatMap((state) =>
-        state !== undefined &&
-        state.outcome === undefined &&
-        state.live === undefined
-          ? [state]
-          : [],
-      )
-      const interrupts = this.logWriter?.state.thread.interrupts
-      // A `step.ask` question and the `human` wait of a handoff have no
-      // interrupt: `answer` checks their schema, keeps a secret out of the
-      // log, and ends the handoff.
-      if (
-        open.some(
-          ({ wait }) => interrupts?.get(wait.waitId)?.status !== 'pending',
+      try {
+        const { admission, input } = await this.accept(
+          inputId,
+          { op: 'resolve', resume: options.resume },
+          user,
+          {
+            ...(runId !== undefined ? { runId } : {}),
+            rejectIf: (accepted) =>
+              accepted.op === 'resolve'
+                ? this.refusalOfResume(accepted.resume, runId, claimed)
+                : undefined,
+          },
         )
-      ) {
-        this.reject(inputId, 'use_answer')
-        return { inputId, status: 'rejected', reason: 'use_answer' }
-      }
-      if (open.length > 0) {
-        // The access check saw the run of the first item: every item must
-        // be a wait of that run.
-        const runId = open[0]?.wait.runId
-        const isOneRun =
-          open.length === resume.length &&
-          open.every(({ wait }) => wait.runId === runId)
-        if (!isOneRun) {
-          this.reject(inputId, 'mixed_runs')
-          return { inputId, status: 'rejected', reason: 'mixed_runs' }
+        // `acceptInput` can change the input.
+        const { resume } = input
+        if (admission !== 'new') {
+          release()
+          const receipt = this.duplicateReceipt(inputId, admission)
+          // The owner runs an offered resume as `runId`.
+          return admission === 'offered' &&
+            runId !== undefined &&
+            receipt.status !== 'rejected'
+            ? { ...receipt, operationId: runId }
+            : receipt
         }
-        // Another answer ends one of these waits now.
-        if (open.some(({ wait }) => this.answering.has(wait.waitId))) {
-          this.reject(inputId, 'unknown_question')
-          return { inputId, status: 'rejected', reason: 'unknown_question' }
+        if (claimed.ids.length > 0) {
+          // The receipt names the run of the wait, not the client's run id.
+          const backgroundRunId = claimed.runId
+          try {
+            // The input ends here, in the append that ends the waits.
+            await this.settleWith(
+              [{ inputId, outcome: 'completed' }],
+              resume.flatMap((item) =>
+                item.status === 'resolved'
+                  ? this.waitEndRecords(
+                      item.interruptId,
+                      'answered',
+                      item.payload,
+                    )
+                  : this.waitEndRecords(item.interruptId, 'cancelled'),
+              ),
+            )
+          } finally {
+            release()
+          }
+          for (const item of resume) await this.afterWaitEnd(item.interruptId)
+          return this.keep({
+            inputId,
+            status: 'accepted',
+            ...(backgroundRunId !== undefined
+              ? { operationId: backgroundRunId }
+              : {}),
+          })
         }
-        const ids = open.map(({ wait }) => wait.waitId)
-        for (const id of ids) this.answering.add(id)
-        try {
-          // The input ends here, in the append that ends the waits.
-          await this.settleWith(
-            [{ inputId, outcome: 'completed' }],
-            resume.flatMap((item) =>
-              item.status === 'resolved'
-                ? this.waitEndRecords(
-                    item.interruptId,
-                    'answered',
-                    item.payload,
-                  )
-                : this.waitEndRecords(item.interruptId, 'cancelled'),
-            ),
+        const answers = this.interrupted
+        if (!answers) {
+          return this.reject(inputId, 'no_pending_interrupts')
+        }
+        // A client answers on RUN_FINISHED, while the interrupted turn still
+        // ends. The resolve runs right after it.
+        const isEnding = this.activeTurn?.id === answers.runId
+        if (
+          (this.activeTurn && !isEnding) ||
+          this.queue.some((turn) => turn.answers?.runId === answers.runId)
+        ) {
+          return this.reject(inputId, 'busy')
+        }
+        // A cancelled sign-in fails its tool when the turn runs it again.
+        for (const entry of resume) {
+          const connector = signInConnector(
+            answers.interrupts.find((item) => item.id === entry.interruptId),
           )
-        } finally {
-          for (const id of ids) this.answering.delete(id)
+          if (connector && entry.status === 'cancelled')
+            this.declinedSignIns.add(connector)
         }
-        for (const item of resume) await this.afterWaitEnd(item.interruptId)
+        const operation = this.createTurnOperation(runId)
+        this.bindTurn(inputId, operation)
+        // The turn goes on as its sender, with the context its input sent:
+        // an owner who answers the turn of a member does not lend the member
+        // the owner's keys. A copy from an older version has no sender.
+        const turn: QueuedTurn = {
+          operation,
+          resume,
+          inputId,
+          answers,
+          user: answers.user ?? user,
+          ...(user ? { sender: user } : {}),
+          context: answers.context,
+        }
+        if (isEnding) this.queue.unshift(turn)
+        else this.enqueueTurn(turn)
         return this.keep({
           inputId,
           status: 'accepted',
-          ...(runId !== undefined ? { operationId: runId } : {}),
+          operationId: operation.id,
         })
+      } catch (error) {
+        release()
+        throw error
       }
-      const answers = this.interrupted
-      if (!answers) {
-        this.reject(inputId, 'no_pending_interrupts')
-        return { inputId, status: 'rejected', reason: 'no_pending_interrupts' }
-      }
-      // A client answers on RUN_FINISHED, while the interrupted turn still
-      // ends. The resolve runs right after it.
-      const isEnding = this.activeTurn?.id === answers.runId
-      if (
-        (this.activeTurn && !isEnding) ||
-        this.queue.some((turn) => turn.answers?.runId === answers.runId)
-      ) {
-        this.reject(inputId, 'busy')
-        return { inputId, status: 'rejected', reason: 'busy' }
-      }
-      // A cancelled sign-in fails its tool when the turn runs it again.
-      for (const entry of resume) {
-        const connector = signInConnector(
-          answers.interrupts.find((item) => item.id === entry.interruptId),
-        )
-        if (connector && entry.status === 'cancelled')
-          this.declinedSignIns.add(connector)
-      }
-      const operation = this.createTurnOperation(runId)
-      this.bindTurn(inputId, operation)
-      // The turn goes on as its sender, with the context its input sent:
-      // an owner who answers the turn of a member does not lend the member
-      // the owner's keys. A copy from an older version has no sender.
-      const turn: QueuedTurn = {
-        operation,
-        resume,
-        inputId,
-        answers,
-        user: answers.user ?? user,
-        ...(user ? { sender: user } : {}),
-        context: answers.context,
-      }
-      if (isEnding) this.queue.unshift(turn)
-      else this.enqueueTurn(turn)
-      return this.keep({
-        inputId,
-        status: 'accepted',
-        operationId: operation.id,
-      })
     })
   }
 
