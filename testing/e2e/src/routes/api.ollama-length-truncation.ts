@@ -54,7 +54,6 @@ export const Route = createFileRoute('/api/ollama-length-truncation')({
           for await (const chunk of chat({
             threadId: 'ollama-length-truncation',
             adapter,
-            modelOptions: { options: { num_predict: 3 } },
             messages: [{ role: 'user', content: 'say hello in five words' }],
           })) {
             if (chunk.type === 'RUN_ERROR') runError = { code: chunk.code }

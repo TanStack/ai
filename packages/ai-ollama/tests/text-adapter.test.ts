@@ -133,6 +133,33 @@ describe('OllamaTextAdapter.chatStream (content streaming)', () => {
       .join('')
     expect(contents).toContain('Hello')
     expect(contents).toContain('world')
+    expect(chunks.find((c) => c.type === 'RUN_FINISHED')).toMatchObject({
+      finishReason: 'stop',
+    })
+  })
+
+  it('reports finishReason stop when the final chunk has no done_reason', async () => {
+    chatMock.mockResolvedValueOnce(
+      asyncIterable([
+        {
+          message: { role: 'assistant', content: 'Hello' },
+          done: true,
+        },
+      ]),
+    )
+
+    const chunks = await collectStream(
+      createOllamaChat('llama3.2').chatStream({
+        threadId: 'thread-1',
+        logger: testLogger,
+        model: 'llama3.2',
+        messages: [{ role: 'user', content: 'hi' }],
+      }),
+    )
+
+    expect(chunks.find((c) => c.type === 'RUN_FINISHED')).toMatchObject({
+      finishReason: 'stop',
+    })
   })
 })
 
@@ -167,10 +194,49 @@ describe('OllamaTextAdapter.chatStream (truncated responses)', () => {
     const types = chunks.map((c) => c.type)
     expect(types).toContain('TEXT_MESSAGE_END')
     expect(types).not.toContain('RUN_ERROR')
-    const finished = chunks.find((c) => c.type === 'RUN_FINISHED') as
-      | { finishReason?: string }
-      | undefined
-    expect(finished?.finishReason).toBe('length')
+    expect(chunks.find((c) => c.type === 'RUN_FINISHED')).toMatchObject({
+      finishReason: 'length',
+    })
+  })
+
+  it('reports finishReason length when a tool call is cut off', async () => {
+    chatMock.mockResolvedValueOnce(
+      asyncIterable([
+        {
+          message: {
+            role: 'assistant',
+            content: '',
+            tool_calls: [
+              {
+                id: 'tc-123',
+                function: { name: 'search', arguments: { q: 'cats' } },
+              },
+            ],
+          },
+          done: false,
+        },
+        {
+          message: { role: 'assistant', content: '' },
+          done: true,
+          done_reason: 'length',
+        },
+      ]),
+    )
+
+    const chunks = await collectStream(
+      createOllamaChat('llama3.2').chatStream({
+        threadId: 'thread-1',
+        logger: testLogger,
+        model: 'llama3.2',
+        messages: [{ role: 'user', content: 'find cats' }],
+        tools: [searchTool],
+      }),
+    )
+
+    expect(chunks.map((c) => c.type)).toContain('TOOL_CALL_END')
+    expect(chunks.find((c) => c.type === 'RUN_FINISHED')).toMatchObject({
+      finishReason: 'length',
+    })
   })
 })
 
@@ -223,6 +289,9 @@ describe('OllamaTextAdapter.chatStream (tool calls)', () => {
       | undefined
     expect(startChunk!.toolCallName).toBe('search')
     expect(startChunk!.toolCallId).toBe('tc-123')
+    expect(chunks.find((c) => c.type === 'RUN_FINISHED')).toMatchObject({
+      finishReason: 'tool_calls',
+    })
   })
 
   it('emits parentMessageId on tool-first tool calls matching the assistant message id', async () => {

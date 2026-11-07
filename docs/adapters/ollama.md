@@ -214,7 +214,7 @@ Sampling options do not go at the root of `chat()`. For Ollama, they go to `mode
 
 ### Cut-off responses
 
-When the model stops because it reached the `num_predict` limit (Ollama reports `done_reason: "length"`), the stream still ends with `RUN_FINISHED`, and its `metadata.tanstack.finishReason` is `"length"` instead of `"stop"`. Check it to tell a cut-off reply from a complete one. Raise `num_predict` (or `num_ctx`) to let the model finish:
+When Ollama stops a reply at `num_predict`, it sends `done_reason: "length"`. The stream still ends with `RUN_FINISHED`. `metadata.tanstack.finishReason` is `"length"`. A tool call that stops the same way also uses `"length"`, so that call does not run. To get the rest of the reply, raise `modelOptions.options.num_predict`:
 
 ```typescript
 for await (const chunk of stream) {
