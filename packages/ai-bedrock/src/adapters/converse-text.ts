@@ -533,18 +533,20 @@ export class BedrockConverseTextAdapter<
       }
 
       if (accumulatedRaw.length === 0) {
+        const blocked = finishReason === 'content_filter'
+        const message = blocked
+          ? `${this.name}.structuredOutputStream: the response was blocked by a content filter`
+          : `${this.name}.structuredOutputStream: response contained no content`
+        const code = blocked ? 'content_filter' : 'empty-response'
         yield {
           type: EventType.RUN_ERROR,
           metadata: this.sourceMetadata(chatOptions.model),
           runId,
           model: chatOptions.model,
           timestamp: Date.now(),
-          message: `${this.name}.structuredOutputStream: response contained no content`,
-          code: 'empty-response',
-          error: {
-            message: `${this.name}.structuredOutputStream: response contained no content`,
-            code: 'empty-response',
-          },
+          message,
+          code,
+          error: { message, code },
           ...(usage && { usage }),
         }
         return
@@ -554,17 +556,24 @@ export class BedrockConverseTextAdapter<
       try {
         parsed = JSON.parse(accumulatedRaw)
       } catch {
+        const blocked = finishReason === 'content_filter'
+        const message = blocked
+          ? `${this.name}.structuredOutputStream: the response was blocked by a content filter`
+          : `Failed to parse structured output as JSON. Content: ${accumulatedRaw.slice(0, 200)}${accumulatedRaw.length > 200 ? '...' : ''}`
+        const code = blocked ? 'content_filter' : 'parse-error'
         yield {
           type: EventType.RUN_ERROR,
           metadata: this.sourceMetadata(chatOptions.model),
           runId,
           model: chatOptions.model,
           timestamp: Date.now(),
-          message: `Failed to parse structured output as JSON. Content: ${accumulatedRaw.slice(0, 200)}${accumulatedRaw.length > 200 ? '...' : ''}`,
-          code: 'parse-error',
+          message,
+          code,
           error: {
-            message: 'Failed to parse structured output as JSON',
-            code: 'parse-error',
+            message: blocked
+              ? message
+              : 'Failed to parse structured output as JSON',
+            code,
           },
           ...(usage && { usage }),
         }

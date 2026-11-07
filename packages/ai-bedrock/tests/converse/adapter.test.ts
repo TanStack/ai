@@ -629,6 +629,81 @@ describe('BedrockConverseTextAdapter', () => {
     expect(errors[0]?.code).toBe('parse-error')
   })
 
+  it('reports guardrail_intervened as content_filter when structured JSON is complete', async () => {
+    const a = new StubAdapter({ apiKey: 'k' }, 'us.amazon.nova-pro-v1:0')
+    a.streamEvents = [
+      { messageStart: { role: 'assistant' } },
+      {
+        contentBlockStart: {
+          start: { toolUse: { toolUseId: 's', name: 'structured_output' } },
+          contentBlockIndex: 0,
+        },
+      },
+      {
+        contentBlockDelta: {
+          delta: { toolUse: { input: '{"n":5}' } },
+          contentBlockIndex: 0,
+        },
+      },
+      { messageStop: { stopReason: 'guardrail_intervened' } },
+    ]
+    const events: Array<AdapterYieldChunk> = []
+    for await (const c of a.structuredOutputStream({
+      chatOptions: textOptions({ messages: [{ role: 'user', content: 'go' }] }),
+      outputSchema: { type: 'object', properties: { n: { type: 'number' } } },
+    })) {
+      events.push(c)
+    }
+    const finished = events.find((e) => e.type === EventType.RUN_FINISHED)
+    expect(
+      (finished as { finishReason?: string } | undefined)?.finishReason,
+    ).toBe('content_filter')
+  })
+
+  it.each(['', '{"n":'] as const)(
+    'reports guardrail_intervened as content_filter when structured output is %j',
+    async (input) => {
+      const a = new StubAdapter({ apiKey: 'k' }, 'us.amazon.nova-pro-v1:0')
+      a.streamEvents = [
+        { messageStart: { role: 'assistant' } },
+        ...(input
+          ? [
+              {
+                contentBlockStart: {
+                  start: {
+                    toolUse: { toolUseId: 's', name: 'structured_output' },
+                  },
+                  contentBlockIndex: 0,
+                },
+              },
+              {
+                contentBlockDelta: {
+                  delta: { toolUse: { input } },
+                  contentBlockIndex: 0,
+                },
+              },
+            ]
+          : []),
+        { messageStop: { stopReason: 'guardrail_intervened' } },
+      ]
+      const errors = [] as Array<{ code?: string }>
+      for await (const c of a.structuredOutputStream({
+        chatOptions: textOptions({
+          messages: [{ role: 'user', content: 'go' }],
+        }),
+        outputSchema: {
+          type: 'object',
+          properties: { n: { type: 'number' } },
+        },
+      })) {
+        if (c.type === EventType.RUN_ERROR)
+          errors.push(c as unknown as { code?: string })
+      }
+      expect(errors).toHaveLength(1)
+      expect(errors[0]?.code).toBe('content_filter')
+    },
+  )
+
   describe('reports the provider usage when structured output fails', () => {
     // SDK boundary: the metadata event requires `metrics` too.
     const metadataEvent = {
