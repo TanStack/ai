@@ -1398,12 +1398,15 @@ export class GeminiTextAdapter<
       const role: 'user' | 'model' = msg.role === 'assistant' ? 'model' : 'user'
       const parts: Array<Part> = []
 
-      if (Array.isArray(msg.content)) {
-        for (const contentPart of msg.content) {
-          parts.push(this.convertContentPartToGemini(contentPart))
+      // A tool message's content goes only in its functionResponse, below.
+      if (msg.role !== 'tool') {
+        if (Array.isArray(msg.content)) {
+          for (const contentPart of msg.content) {
+            parts.push(this.convertContentPartToGemini(contentPart))
+          }
+        } else if (msg.content) {
+          parts.push({ text: msg.content })
         }
-      } else if (msg.content && msg.role !== 'tool') {
-        parts.push({ text: msg.content })
       }
 
       if (msg.role === 'assistant' && msg.toolCalls?.length) {
