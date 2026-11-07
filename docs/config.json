@@ -104,6 +104,11 @@
           "label": "Subscribe to MCP Events",
           "to": "tutorials/mcp-events",
           "addedAt": "2026-10-17"
+        },
+        {
+          "label": "Effect Chat",
+          "to": "tutorials/effect-chat",
+          "addedAt": "2026-11-06"
         }
       ]
     },
@@ -155,6 +160,11 @@
           "label": "MCP Events",
           "to": "framework/react/examples/mcp-events",
           "addedAt": "2026-10-17"
+        },
+        {
+          "label": "Effect Chat",
+          "to": "framework/react/examples/effect-chat",
+          "addedAt": "2026-11-06"
         }
       ]
     },
@@ -936,13 +946,13 @@
           "label": "Video Generation",
           "to": "media/video-generation",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-11-02"
+          "updatedAt": "2026-11-06"
         },
         {
           "label": "Video Generation: Advanced",
           "to": "media/video-generation-advanced",
           "addedAt": "2026-10-21",
-          "updatedAt": "2026-11-02"
+          "updatedAt": "2026-11-06"
         },
         {
           "label": "Live Generation",
@@ -1675,6 +1685,27 @@
       "tab": "guides"
     },
     {
+      "label": "Effect",
+      "tab": "guides",
+      "children": [
+        {
+          "label": "Stream a Chat",
+          "to": "effect/index",
+          "addedAt": "2026-11-06"
+        },
+        {
+          "label": "Tools",
+          "to": "effect/tools",
+          "addedAt": "2026-11-06"
+        },
+        {
+          "label": "Activities",
+          "to": "effect/activities",
+          "addedAt": "2026-11-06"
+        }
+      ]
+    },
+    {
       "label": "Adapters",
       "children": [
         {
@@ -1705,7 +1736,7 @@
           "label": "Google Gemini",
           "to": "adapters/gemini",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-10-22"
+          "updatedAt": "2026-11-06"
         },
         {
           "label": "Google Gemini: Advanced",
@@ -2062,6 +2093,11 @@
           "to": "api/ai-remix",
           "addedAt": "2026-09-01",
           "updatedAt": "2026-10-21"
+        },
+        {
+          "label": "@tanstack/ai-effect",
+          "to": "api/ai-effect",
+          "addedAt": "2026-11-06"
         }
       ]
     },

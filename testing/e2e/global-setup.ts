@@ -1066,7 +1066,7 @@ function geminiOmniVideoMount(): Mountable {
             id: JOB_ID,
             object: 'interaction',
             status: 'in_progress',
-            model: 'gemini-omni-1.1-flash',
+            model: 'gemini-omni-1.2-flash',
           }),
         )
         return true
@@ -1081,7 +1081,7 @@ function geminiOmniVideoMount(): Mountable {
             id: pollMatch[1],
             object: 'interaction',
             status: 'completed',
-            model: 'gemini-omni-1.1-flash',
+            model: 'gemini-omni-1.2-flash',
             usage: {
               total_input_tokens: 12,
               total_output_tokens: 57920,
