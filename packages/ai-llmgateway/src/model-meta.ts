@@ -31,6 +31,7 @@ export const LLMGATEWAY_CHAT_MODELS = [
   'cogview-4',
   'deepseek-v3.2',
   'deepseek-v4-flash',
+  'deepseek-v4-flash-0731',
   'deepseek-v4-pro',
   'deepseek-v4.1-flash',
   'deepseek-v4.1-flash-1017',
@@ -268,6 +269,7 @@ export type LLMGatewayModelInputModalitiesByName = {
   'cogview-4': readonly ['text']
   'deepseek-v3.2': readonly ['text']
   'deepseek-v4-flash': readonly ['text']
+  'deepseek-v4-flash-0731': readonly ['text']
   'deepseek-v4-pro': readonly ['text']
   'deepseek-v4.1-flash': readonly ['text', 'image']
   'deepseek-v4.1-flash-1017': readonly ['text', 'image']
@@ -353,10 +355,10 @@ export type LLMGatewayModelInputModalitiesByName = {
   'gpt-live-transcribe': readonly ['text', 'audio']
   'gpt-oss-120b': readonly ['text']
   'gpt-oss-20b': readonly ['text']
-  'gpt-realtime': readonly ['text', 'audio']
-  'gpt-realtime-2.1': readonly ['text', 'audio']
-  'gpt-realtime-2.1-mini': readonly ['text', 'audio']
-  'gpt-realtime-mini': readonly ['text', 'audio']
+  'gpt-realtime': readonly ['text', 'image', 'audio']
+  'gpt-realtime-2.1': readonly ['text', 'image', 'audio']
+  'gpt-realtime-2.1-mini': readonly ['text', 'image', 'audio']
+  'gpt-realtime-mini': readonly ['text', 'image', 'audio']
   'gpt-transcribe': readonly ['text', 'audio']
   'granite-4.2-8b': readonly ['text']
   'grok-4': readonly ['text', 'image']
@@ -499,6 +501,7 @@ export const LLMGATEWAY_MODEL_INPUT_MODALITIES: Readonly<
   'cogview-4': ['text'] as const,
   'deepseek-v3.2': ['text'] as const,
   'deepseek-v4-flash': ['text'] as const,
+  'deepseek-v4-flash-0731': ['text'] as const,
   'deepseek-v4-pro': ['text'] as const,
   'deepseek-v4.1-flash': ['text', 'image'] as const,
   'deepseek-v4.1-flash-1017': ['text', 'image'] as const,
@@ -584,10 +587,10 @@ export const LLMGATEWAY_MODEL_INPUT_MODALITIES: Readonly<
   'gpt-live-transcribe': ['text', 'audio'] as const,
   'gpt-oss-120b': ['text'] as const,
   'gpt-oss-20b': ['text'] as const,
-  'gpt-realtime': ['text', 'audio'] as const,
-  'gpt-realtime-2.1': ['text', 'audio'] as const,
-  'gpt-realtime-2.1-mini': ['text', 'audio'] as const,
-  'gpt-realtime-mini': ['text', 'audio'] as const,
+  'gpt-realtime': ['text', 'image', 'audio'] as const,
+  'gpt-realtime-2.1': ['text', 'image', 'audio'] as const,
+  'gpt-realtime-2.1-mini': ['text', 'image', 'audio'] as const,
+  'gpt-realtime-mini': ['text', 'image', 'audio'] as const,
   'gpt-transcribe': ['text', 'audio'] as const,
   'granite-4.2-8b': ['text'] as const,
   'grok-4': ['text', 'image'] as const,

@@ -537,6 +537,72 @@
     "allowed_passthrough_parameters": ["watermark", "req_key", "output_format"]
   },
   {
+    "id": "google/gemini-omni-1.1-flash",
+    "canonical_slug": "google/gemini-omni-1.1-flash-20260911",
+    "hugging_face_id": null,
+    "name": "Google: Gemini Omni 1.1 Flash",
+    "created": 1793825668,
+    "description": "Gemini Omni 1.1 Flash is Google's native multimodal video generation and editing model, the generally available successor to Gemini Omni Flash Preview. It is suited for text-to-video, image-to-video, first and...",
+    "supported_resolutions": ["720p", "1080p", "4K", "360p"],
+    "supported_aspect_ratios": ["16:9", "9:16"],
+    "supported_sizes": [
+      "1280x720",
+      "720x1280",
+      "1920x1080",
+      "1080x1920",
+      "3840x2160",
+      "2160x3840",
+      "640x360",
+      "360x640"
+    ],
+    "supported_durations": [3, 4, 5, 6, 7, 8, 9, 10],
+    "supported_frame_images": ["first_frame", "last_frame"],
+    "upscale_factor": null,
+    "creativity": null,
+    "generate_audio": true,
+    "seed": true,
+    "pricing_skus": {
+      "duration_seconds_with_audio": "0.15204",
+      "duration_seconds_with_audio_4k": "0.30408",
+      "duration_seconds_with_audio_360p": "0.0337925",
+      "duration_seconds_with_audio_720p": "0.10136"
+    },
+    "allowed_passthrough_parameters": ["task"]
+  },
+  {
+    "id": "google/gemini-omni-1.2-flash",
+    "canonical_slug": "google/gemini-omni-1.2-flash-20261105",
+    "hugging_face_id": null,
+    "name": "Google: Gemini Omni 1.2 Flash",
+    "created": 1793898961,
+    "description": "Gemini Omni 1.2 Flash is Google's native multimodal video generation and editing model, the successor to Gemini Omni 1.1 Flash. It generates clips up to 15 seconds long with native...",
+    "supported_resolutions": ["720p", "1080p", "4K", "360p"],
+    "supported_aspect_ratios": ["16:9", "9:16"],
+    "supported_sizes": [
+      "1280x720",
+      "720x1280",
+      "1920x1080",
+      "1080x1920",
+      "3840x2160",
+      "2160x3840",
+      "640x360",
+      "360x640"
+    ],
+    "supported_durations": [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
+    "supported_frame_images": ["first_frame", "last_frame"],
+    "upscale_factor": null,
+    "creativity": null,
+    "generate_audio": true,
+    "seed": true,
+    "pricing_skus": {
+      "duration_seconds_with_audio": "0.104256",
+      "duration_seconds_with_audio_4k": "0.208512",
+      "duration_seconds_with_audio_360p": "0.023172",
+      "duration_seconds_with_audio_720p": "0.069504"
+    },
+    "allowed_passthrough_parameters": ["task"]
+  },
+  {
     "id": "google/veo-3.1",
     "canonical_slug": "google/veo-3.1-20260320",
     "hugging_face_id": null,

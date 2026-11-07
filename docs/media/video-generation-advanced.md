@@ -343,7 +343,7 @@ await generateVideo({
 
 ### Gemini Omni Flash (Interactions API)
 
-Gemini Omni Flash (`gemini-omni-1.1-flash`) is a multimodal video model from Google that can edit by conversation. It only runs on the [Interactions API](https://ai.google.dev/gemini-api/docs/omni). The same `geminiVideo()` adapter routes it automatically:
+Use `geminiVideo('gemini-omni-1.2-flash')` for Gemini Omni Flash. It is a multimodal video model from Google that can edit by conversation. It only runs on the [Interactions API](https://ai.google.dev/gemini-api/docs/omni). The same `geminiVideo()` adapter routes it automatically:
 
 - `generateVideo` creates a background interaction.
 - `getVideoJobStatus` polls it by id.
@@ -351,8 +351,9 @@ Gemini Omni Flash (`gemini-omni-1.1-flash`) is a multimodal video model from Goo
 
 Durations:
 
-- `duration` accepts any value from 3 to 10 seconds, fractions included. The default is 10 seconds.
-- `availableDurations()` returns `{ kind: 'range', min: 3, max: 10, unit: 'seconds' }`.
+- `duration` on `gemini-omni-1.2-flash` accepts any value from 3 to 15 seconds, fractions included. The default is 10 seconds.
+- `gemini-omni-1.1-flash` accepts 3 to 10 seconds. Google keeps that id until 2026-12-03, then routes it to 1.2 and bills at 1.2 rates.
+- `availableDurations()` returns `{ kind: 'range', min: 3, max: 15, unit: 'seconds' }` for 1.2.
 - A `duration` out of range is rejected when the job is created.
 - `snapDuration(n)` clamps raw seconds into the range and rounds to whole seconds.
 
@@ -362,14 +363,14 @@ Durations:
 import { generateVideo, getVideoJobStatus } from '@tanstack/ai'
 import { geminiVideo } from '@tanstack/ai-gemini'
 
-const adapter = geminiVideo('gemini-omni-1.1-flash')
+const adapter = geminiVideo('gemini-omni-1.2-flash')
 
 const { jobId } = await generateVideo({
   adapter,
   prompt: 'A woman playing violin outdoors at golden hour',
   threadId: 'thread-1',
   size: '9:16_1080p', // '16:9' | '9:16', optional _360p/_720p/_1080p/_4k
-  duration: 6, // 3-10 seconds. Leave it out for the 10s default.
+  duration: 12, // 3-15 seconds on 1.2. Leave it out for the 10s default.
 })
 
 const status = await getVideoJobStatus({ adapter, jobId })
@@ -387,7 +388,7 @@ To edit a video, pass the interaction id of an earlier generation (its `jobId`) 
 import { generateVideo } from '@tanstack/ai'
 import { geminiVideo } from '@tanstack/ai-gemini'
 
-const adapter = geminiVideo('gemini-omni-1.1-flash')
+const adapter = geminiVideo('gemini-omni-1.2-flash')
 
 // Turn 1: generate
 const first = await generateVideo({
@@ -407,7 +408,18 @@ const second = await generateVideo({
 })
 ```
 
-`modelOptions` also passes through the request fields of the Interactions API. For example, `generation_config.video_config.task` sets the task mode to `'text_to_video'`, `'image_to_video'`, `'reference_to_video'`, or `'edit'`. Without it, the model picks the mode.
+`modelOptions` also passes through the request fields of the Interactions API. For example, `generation_config.video_config.task` sets the task mode to `'text_to_video'`, `'image_to_video'`, `'reference_to_video'`, `'edit'`, or `'extend'`. Without it, the model picks the mode.
+
+On `gemini-omni-1.2-flash`, `'extend'` appends 3 to 10 seconds on each turn. The clip stops at 30 seconds total.
+
+Reference limits on 1.2:
+
+- Up to 6 reference images: 3 images for each character, and 2 characters.
+- Up to 3 reference videos of 3 seconds when the output is 3 to 10 seconds.
+- One reference video when the output is 11 to 15 seconds.
+- No reference video with `edit` or `extend`.
+- A first-frame and last-frame pair only for outputs of 3 to 10 seconds.
+- Audio input and voice editing are not supported.
 
 ### Grok (xAI Imagine)
 
