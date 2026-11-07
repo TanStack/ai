@@ -36,6 +36,7 @@ export const providers: Provider[] = [
   'mistral',
   'byteplus',
   'elevenlabs',
+  'cartesia',
   'llmgateway',
   'cloudflare',
   'neon',

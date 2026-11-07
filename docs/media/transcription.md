@@ -2,7 +2,7 @@
 title: Transcription
 id: transcription
 order: 4
-description: "Turn recorded speech into text with generateTranscription() and the useTranscription hook. Works with OpenAI, ElevenLabs, Groq, xAI, BytePlus, fal.ai, Cloudflare, and Lovable."
+description: "Turn recorded speech into text with generateTranscription() and the useTranscription hook. Works with OpenAI, ElevenLabs, Cartesia, Groq, xAI, BytePlus, fal.ai, Cloudflare, and Lovable."
 keywords:
   - tanstack ai
   - transcription
@@ -156,6 +156,7 @@ Swap the adapter to change the provider. Each adapter reads its key from the env
 | --- | --- | --- | --- |
 | OpenAI | `openaiTranscription` | `gpt-4o-transcribe`, `gpt-4o-mini-transcribe`, `gpt-4o-transcribe-diarize`, `whisper-1` | `OPENAI_API_KEY` |
 | ElevenLabs | `elevenlabsTranscription` | `scribe_v2`, `scribe_v2_medical` | `ELEVENLABS_API_KEY` |
+| Cartesia | `cartesiaTranscription` | `ink-whisper` | `CARTESIA_API_KEY` |
 | Groq | `groqTranscription` | `whisper-large-v3-turbo`, `whisper-large-v3` | `GROQ_API_KEY` |
 | xAI | `grokTranscription` | `grok-stt` | `XAI_API_KEY` |
 | BytePlus | `byteplusTranscription` | `seed-asr` | `BYTEPLUS_VOICE_API_KEY` |

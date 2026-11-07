@@ -134,6 +134,7 @@ Each adapter is its own package. Install only the ones you use.
 | `@tanstack/ai-grok` | xAI Grok. |
 | `@tanstack/ai-bedrock` | Amazon Bedrock (Claude, Nova, Llama, and more through AWS). |
 | `@tanstack/ai-byteplus` | BytePlus (Seed chat, Seedance video, Seedream image, Seed Speech). |
+| `@tanstack/ai-cartesia` | Cartesia (Sonic speech and Ink Whisper transcription). |
 | `@tanstack/ai-fal` | fal (image and video generation). |
 | `@tanstack/ai-reactor` | Reactor (live world and video generation: Orbis, Happy Oyster, LingBot, Helios, FastH3). |
 | `@tanstack/ai-worldlabs` | World Labs Marble (persistent 3D world generation). |
