@@ -25,7 +25,9 @@ export const Route = createFileRoute('/api/loop-stopped')({
           { toolCalls: [{ name: 'getWeather', input: { city: 'Oslo' } }] },
           done
             ? { text: 'Sunny in Oslo.' }
-            : { toolCalls: [{ name: 'getWeather', input: { city: 'Bergen' } }] },
+            : {
+                toolCalls: [{ name: 'getWeather', input: { city: 'Bergen' } }],
+              },
           { text: 'The loop never asks for this answer.' },
         ])
 
