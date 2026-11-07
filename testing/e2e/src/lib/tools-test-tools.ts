@@ -130,21 +130,38 @@ function timedServerTool(name: string) {
   })
 }
 
+/** The `then` counts of each pending `count_pending_subscriptions` call. */
+const activeThenCounts = new Set<Map<Promise<unknown>, number>>()
+let originalThen = Promise.prototype.then
+
+const countingThen = function (this: Promise<unknown>, ...args) {
+  const derived = originalThen.apply(this, args)
+  for (const thenCalls of activeThenCounts) {
+    const calls = thenCalls.get(this)
+    if (calls !== undefined) {
+      thenCalls.set(this, calls + 1)
+      thenCalls.set(derived, 0)
+    }
+  }
+  return derived
+} as typeof Promise.prototype.then
+
 /**
  * A server tool that stays pending for 400 ms. While it waits, it counts the
  * `then` calls on its own promise and on every promise derived from it, then
- * returns the highest count on one promise.
+ * returns the highest count on one promise. Overlapping calls share one
+ * `then` wrapper, and the last call to finish restores the original.
  */
 const countPendingSubscriptions = toolDefinition({
   name: 'count_pending_subscriptions',
   description: 'Stay pending and count subscriptions to the pending promise',
   inputSchema: z.object({}).passthrough(),
 }).server(() => {
-  const then = Promise.prototype.then
   const thenCalls = new Map<Promise<unknown>, number>()
   const execution = new Promise<string>((resolve) => {
     setTimeout(() => {
-      Promise.prototype.then = then
+      activeThenCounts.delete(thenCalls)
+      if (activeThenCounts.size === 0) Promise.prototype.then = originalThen
       resolve(
         JSON.stringify({
           mostThenCallsOnOnePromise: Math.max(...thenCalls.values()),
@@ -153,15 +170,11 @@ const countPendingSubscriptions = toolDefinition({
     }, 400)
   })
   thenCalls.set(execution, 0)
-  Promise.prototype.then = function (this: Promise<unknown>, ...args) {
-    const derived = then.apply(this, args)
-    const calls = thenCalls.get(this)
-    if (calls !== undefined) {
-      thenCalls.set(this, calls + 1)
-      thenCalls.set(derived, 0)
-    }
-    return derived
-  } as typeof then
+  if (activeThenCounts.size === 0) {
+    originalThen = Promise.prototype.then
+    Promise.prototype.then = countingThen
+  }
+  activeThenCounts.add(thenCalls)
   return execution
 })
 
