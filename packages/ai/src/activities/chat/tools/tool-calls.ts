@@ -655,8 +655,11 @@ async function* executeWithEventPolling<T>(
   while (!state.done) {
     // Wait for either the execution to complete or a short timeout
     await new Promise<void>((resolve) => {
-      state.wake = resolve
-      setTimeout(resolve, 10)
+      const timer = setTimeout(resolve, 10)
+      state.wake = () => {
+        clearTimeout(timer)
+        resolve()
+      }
     })
 
     // Flush any pending events
