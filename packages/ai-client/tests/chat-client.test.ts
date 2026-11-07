@@ -20,6 +20,11 @@ import type {
   UIMessage,
 } from '../src/types'
 
+// subscribeSnapshot coalesces notifications to the next frame (rAF, or a
+// setTimeout(0) macrotask off-DOM, which is this node test env). Awaiting a
+// macrotask lets the scheduled notification fire.
+const flushFrame = () => new Promise((resolve) => setTimeout(resolve, 0))
+
 describe('ChatClient', () => {
   const persistedMessage: UIMessage = {
     id: 'persisted-1',
@@ -96,6 +101,8 @@ describe('ChatClient', () => {
 
       const listener = vi.fn()
       const stop = client.subscribeSnapshot(listener)
+      // A single, discrete change notifies synchronously (the leading edge of
+      // the coalescer), like an uncoalesced subscription.
       client.setMessagesManually([])
       expect(listener).toHaveBeenCalledTimes(1)
       expect(client.getSnapshot().messages).toEqual([])
@@ -109,6 +116,51 @@ describe('ChatClient', () => {
         },
       ])
       expect(listener).toHaveBeenCalledTimes(1)
+    })
+
+    it('coalesces the per-chunk message storm during streaming', async () => {
+      // One delta per character — a 40-chunk burst. Each delta fires
+      // onMessagesChange; without coalescing that is 40 snapshot notifications.
+      const text = 'The quick brown fox jumps over the lazy!'
+      const client = new ChatClient({
+        threadId: 'thread-1',
+        connection: createMockConnectionAdapter({
+          chunks: createTextChunks(text),
+        }),
+      })
+      const listener = vi.fn()
+      const stop = client.subscribeSnapshot(listener)
+
+      await client.sendMessage('go')
+      await flushFrame()
+
+      // The message updates collapsed to far fewer notifications than chunks,
+      // and the final text is complete and readable synchronously.
+      expect(listener.mock.calls.length).toBeLessThan(text.length)
+      const assistant = client.getSnapshot().messages.at(-1)
+      expect(assistant?.role).toBe('assistant')
+      expect(
+        assistant?.parts.map((p) => ('content' in p ? p.content : '')).join(''),
+      ).toBe(text)
+      stop()
+    })
+
+    it('publishes a discrete (non-streaming) message change synchronously', () => {
+      const client = new ChatClient({
+        threadId: 'thread-1',
+        connection: createMockConnectionAdapter(),
+      })
+      const listener = vi.fn()
+      const stop = client.subscribeSnapshot(listener)
+
+      client.setMessagesManually([
+        { id: 'm-1', role: 'user', parts: [{ type: 'text', content: 'hi' }] },
+      ])
+
+      // Not inside chunk processing, so it notifies at once (no coalescing).
+      expect(listener).toHaveBeenCalledTimes(1)
+      expect(client.getSnapshot().messages[0]?.id).toBe('m-1')
+      stop()
     })
 
     it('isolates nested message parts from callers and old snapshots', () => {
@@ -285,11 +337,16 @@ describe('ChatClient', () => {
       })
 
       await client.sendMessage('Hello')
+      await flushFrame()
       stop()
 
       const messages = client.getSnapshot().messages
       expect(messages.length).toBeGreaterThan(2)
-      expect(seen.length).toBeGreaterThan(1)
+      // Notifications are coalesced (leading edge + one trailing flush per
+      // frame), so the exact count is not asserted; what matters is that every
+      // snapshot the listener observed kept the first message's identity (the
+      // freeze cache reuses unchanged messages).
+      expect(seen.length).toBeGreaterThan(0)
       for (const message of seen) {
         expect(message).toBe(first)
       }

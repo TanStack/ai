@@ -49,6 +49,20 @@ export function notifyListeners<TArgs extends Array<unknown>>(
   }
 }
 
+/**
+ * Run `cb` on the next animation frame, falling back to a macrotask off-DOM
+ * (SSR/node). Returns a canceller. Used to coalesce a burst of snapshot
+ * changes into roughly one notification per frame instead of one per chunk.
+ */
+export function scheduleFrame(cb: () => void): () => void {
+  if (typeof globalThis.requestAnimationFrame === 'function') {
+    const handle = globalThis.requestAnimationFrame(cb)
+    return () => globalThis.cancelAnimationFrame(handle)
+  }
+  const handle = setTimeout(cb, 0)
+  return () => clearTimeout(handle)
+}
+
 /** Deep-freeze plain JSON. Class instances stay as they are. */
 function freezePlainData(value: unknown): unknown {
   if (Array.isArray(value)) {

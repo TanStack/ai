@@ -923,6 +923,23 @@ export class ChatDevtoolsBridge extends ClientDevtoolsBridge<AIDevtoolsChatSnaps
     )
   }
 
+  private snapshotScheduled = false
+
+  /**
+   * Coalesced {@link emitSnapshot}: at most one full-state emit per microtask,
+   * however many events arrive. A high-frequency stream fires a per-chunk event
+   * (text/tool-call), each of which would otherwise rebuild and emit the whole
+   * snapshot; this caps that to one rebuild per microtask.
+   */
+  scheduleSnapshot(): void {
+    if (this.snapshotScheduled) return
+    this.snapshotScheduled = true
+    queueMicrotask(() => {
+      this.snapshotScheduled = false
+      this.emitSnapshot()
+    })
+  }
+
   // --- Stream / run context API -------------------------------------------
 
   setCurrentStreamId(streamId: string | null): void {
@@ -1981,7 +1998,7 @@ class ChatDevtoolsAwareEventEmitter extends DefaultChatClientEventEmitter {
 
   private afterEmit(streamId?: string): void {
     if (streamId) this.helper.recordStreamId(streamId)
-    this.helper.emitSnapshot()
+    this.helper.scheduleSnapshot()
   }
 
   // -- methods with run context --------------------------------------------
