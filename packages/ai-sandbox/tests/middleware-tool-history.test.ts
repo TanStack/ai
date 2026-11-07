@@ -8,9 +8,10 @@
  * the delivery log alone: away-and-back replayed it, a reload after completion had
  * nothing to replay and came back as the prompt plus the final answer.
  *
- * Every test drives the REAL middleware object returned by `withSandbox` — its
- * `setup`, `onChunk`, `onIteration`, `onConfig` and `onFinish` are called directly —
- * so the assertions pin production code, not a sketch of the hook bodies.
+ * Every test drives the REAL middleware object returned by `withSandbox`, so the
+ * assertions pin production code, not a sketch of the hook bodies. Most tests call
+ * its `setup`, `onChunk`, `onIteration`, `onConfig` and `onFinish` directly. The
+ * persistence block at the end runs them through `chat()`.
  */
 import { describe, expect, it } from 'vitest'
 import { EventType, chat } from '@tanstack/ai'
@@ -462,10 +463,16 @@ describe('withSandbox + withPersistence: tool history across runs', () => {
       }
 
       const messages = await persistence.stores.messages.loadThread('thread-1')
-      // Run 2's save must still hold run 1's tool card, not only its own.
-      expect(pairOf(messages, 'call-run-1').call).toBeDefined()
+      // Run 2's save must still hold run 1's tool card, once and in run order.
+      const callIds = messages.flatMap(
+        (m) => m.toolCalls?.map((c) => c.id) ?? [],
+      )
+      const resultIds = messages.flatMap((m) =>
+        m.role === 'tool' ? [m.toolCallId] : [],
+      )
+      expect(callIds).toEqual(['call-run-1', 'call-run-2'])
+      expect(resultIds).toEqual(['call-run-1', 'call-run-2'])
       expect(pairOf(messages, 'call-run-1').output?.content).toBe('out-run-1')
-      expect(pairOf(messages, 'call-run-2').call).toBeDefined()
       // The model still never sees the recorded calls.
       const sentToModel = seen.flat()
       expect(
