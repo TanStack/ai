@@ -1,5 +1,6 @@
 import {
   EventType,
+  PROTOCOL_VERSION,
   getChunkRunId as getNormalizedChunkRunId,
   restoreInboundChunk,
   uiMessagesToWire,
@@ -1521,6 +1522,7 @@ function buildRunAgentInputBody(
   return {
     threadId: runContext.threadId,
     runId: runContext.runId,
+    protocolVersion: PROTOCOL_VERSION,
     ...(runContext.parentRunId !== undefined && {
       parentRunId: runContext.parentRunId,
     }),
