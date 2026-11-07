@@ -1,0 +1,7 @@
+{
+  "PasswordManagerEnabled": false,
+  "AutofillAddressEnabled": false,
+  "AutofillCreditCardEnabled": false,
+  "URLBlocklist": ["javascript://*"],
+  "RestoreOnStartup": 1
+}

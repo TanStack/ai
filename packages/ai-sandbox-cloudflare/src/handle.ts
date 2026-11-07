@@ -59,6 +59,16 @@ function q(value: string): string {
 
 const LSTAT_MISSING = '__TANSTACK_LSTAT_MISSING__'
 
+/**
+ * Cloudflare runs every command in one long-lived shell session, so a bare
+ * `exit` ends the session and every later command fails. A subshell keeps
+ * `exit`, `cd`, and variables local to the command, like the other providers.
+ * The newlines keep a trailing `#` comment or heredoc from eating the `)`.
+ */
+function subshell(command: string) {
+  return `(\n${command}\n)`
+}
+
 /** Verify a missing path by listing parent entries. `test -e` also fails for inaccessible parents. */
 function lstatCommand(path: string): string {
   return `tanstack_lstat_path=${q(path)}; tanstack_lstat_output=$(stat -c '%f:%s' -- "$tanstack_lstat_path" 2>&1); tanstack_lstat_status=$?; if [ "$tanstack_lstat_status" -eq 0 ]; then printf '%s\n' "$tanstack_lstat_output"; else tanstack_lstat_missing() { tanstack_missing_path=$1; case "$tanstack_missing_path" in /|.) return 1 ;; */*) tanstack_parent=${'$'}{tanstack_missing_path%/*}; tanstack_name=${'$'}{tanstack_missing_path##*/}; [ -n "$tanstack_parent" ] || tanstack_parent=/ ;; *) tanstack_parent=.; tanstack_name=$tanstack_missing_path ;; esac; tanstack_parent_mode=$(stat -L -c '%f' -- "$tanstack_parent" 2>/dev/null); tanstack_parent_status=$?; if [ "$tanstack_parent_status" -ne 0 ]; then tanstack_lstat_missing "$tanstack_parent"; else case "$tanstack_parent_mode" in 4[0-9a-fA-F][0-9a-fA-F][0-9a-fA-F]) case "$tanstack_parent" in /*) tanstack_find_parent=$tanstack_parent ;; *) tanstack_find_parent=./$tanstack_parent ;; esac; tanstack_match=$(find -H "$tanstack_find_parent" -mindepth 1 -maxdepth 1 -exec sh -c 'tanstack_target=$1; shift; for tanstack_candidate do [ "${'$'}{tanstack_candidate##*/}" = "$tanstack_target" ] && { printf 1; exit 0; }; done; exit 0' sh "$tanstack_name" '{}' + 2>/dev/null); tanstack_find_status=$?; [ "$tanstack_find_status" -eq 0 ] && [ -z "$tanstack_match" ] ;; *) return 1 ;; esac; fi; }; if tanstack_lstat_missing "$tanstack_lstat_path"; then printf '%s' '${LSTAT_MISSING}'; else printf '%s\n' "$tanstack_lstat_output" >&2; exit "$tanstack_lstat_status"; fi; fi`
@@ -248,7 +258,7 @@ export class CloudflareHandle implements SandboxHandle {
     command: string,
     opts?: ProcessOptions,
   ): Promise<ExecResult> {
-    const result = await this.sandbox.exec(command, {
+    const result = await this.sandbox.exec(subshell(command), {
       ...(opts?.cwd ? { cwd: this.abs(opts.cwd) } : { cwd: this.workdir }),
       ...(opts?.env ? { env: opts.env } : {}),
     })
@@ -282,7 +292,7 @@ export class CloudflareHandle implements SandboxHandle {
     // before the command runs. Mid-run cancellation is therefore unavailable
     // on this provider; a stuck run is bounded by the coordinator's watchdog
     // and the Durable Object lifecycle instead. `kill()` is a best-effort no-op.
-    const settled = this.sandbox.exec(command, {
+    const settled = this.sandbox.exec(subshell(command), {
       ...(opts?.cwd ? { cwd: this.abs(opts.cwd) } : { cwd: this.workdir }),
       ...(opts?.env ? { env: opts.env } : {}),
       stream: true,
