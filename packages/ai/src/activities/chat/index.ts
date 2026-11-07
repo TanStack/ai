@@ -1123,8 +1123,13 @@ class TextEngine<
   private deferredModelRunFinishedChunks: Array<StreamChunk> = []
 
   private earlyTermination = false
-  /** The loop strategy or `onShouldContinue` ended the loop after a tool phase. */
+  /**
+   * The strategy or `onShouldContinue` refused another model call while tool
+   * results waited. A length cut sets this too. The synthetic RUN_FINISHED
+   * is skipped when that cut already sent its own finish.
+   */
   private loopStopped = false
+  private loopStoppedFinishSent = false
   private toolPhase: ToolPhaseResult = 'continue'
   private cyclePhase: CyclePhase = 'processText'
   // Client state extracted from initial messages (before conversion to ModelMessage)
@@ -1618,8 +1623,12 @@ class TextEngine<
             this.loopState(this.iterationCount),
           ),
         ))
-      if (isStoppedAfterResume && !this.finalStructuredOutput) {
-        yield* this.emitSuccessfulEarlyTermination()
+      if (isStoppedAfterResume) {
+        this.loopStopped = true
+        this.markLoopStoppedMessage()
+        if (!this.finalStructuredOutput) {
+          yield* this.emitSuccessfulEarlyTermination()
+        }
       }
 
       // Skip the agent loop entirely when there are no tools AND a separate
@@ -1713,7 +1722,11 @@ class TextEngine<
       // last one tells the client that the loop, not the model, ended the run.
       // A streamed finalization sends the outer RUN_FINISHED, so it carries
       // the flag instead.
-      if (this.loopStopped && !this.isCancelled()) {
+      if (
+        this.loopStopped &&
+        !this.loopStoppedFinishSent &&
+        !this.isCancelled()
+      ) {
         this.markLoopStoppedMessage()
         if (!this.finalizationOwnsLifecycle()) {
           yield* this.pipeThroughMiddleware(
@@ -2966,6 +2979,7 @@ class TextEngine<
       // Native combined structured output sends it after its harvest, and
       // drops it when the harvest fails.
       if (!continues) {
+        this.loopStopped = true
         this.markLoopStoppedMessage()
         this.deferredToolCallRunFinishedChunks =
           this.deferredToolCallRunFinishedChunks.map((chunk) =>
@@ -2975,11 +2989,13 @@ class TextEngine<
           )
       }
       if (!continues && this.finalStructuredOutput?.nativeCombined) {
+        this.loopStoppedFinishSent = true
         this.deferredModelRunFinishedChunks.push(
           ...this.deferredToolCallRunFinishedChunks,
         )
         this.deferredToolCallRunFinishedChunks = []
       } else if (!continues) {
+        this.loopStoppedFinishSent = true
         yield* this.flushDeferredToolCallRunFinishedChunks()
       }
       this.toolCallManager.clear()
@@ -3217,11 +3233,16 @@ class TextEngine<
     this.lastFinishReason = 'stop'
     const finishEvent = this.createSyntheticFinishedEvent('stop')
     yield* this.emitSyntheticRunStarted(finishEvent)
-    yield* this.pipeThroughMiddleware({
+    const finished = {
       ...finishEvent,
       timestamp: Date.now(),
-      outcome: { type: 'success' },
-    })
+      outcome: { type: 'success' as const },
+    }
+    yield* this.pipeThroughMiddleware(
+      this.loopStopped
+        ? withTanstackMetadata(finished, { loopStopped: true })
+        : finished,
+    )
   }
 
   private discardDeferredToolCallRunFinishedChunks(): void {

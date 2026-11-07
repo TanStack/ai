@@ -946,7 +946,9 @@ export function foldEntry(
             ? { outcome: 'failed', error: record.error }
             : {
                 outcome: record.outcome,
-                ...(record.loopStopped ? { loopStopped: true } : {}),
+                ...(record.outcome === 'completed' && record.loopStopped
+                  ? { loopStopped: true as const }
+                  : {}),
               }),
         },
       }))

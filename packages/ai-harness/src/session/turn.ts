@@ -1366,8 +1366,11 @@ export abstract class SessionTurn<
               ) {
                 isRunOpen = false
               }
-              if (chunk.type === EventType.RUN_FINISHED) {
-                loopStopped = chunk.metadata?.tanstack?.loopStopped === true
+              if (
+                chunk.type === EventType.RUN_FINISHED &&
+                chunk.metadata?.tanstack?.loopStopped === true
+              ) {
+                loopStopped = true
               }
               if (
                 chunk.type === EventType.TEXT_MESSAGE_CONTENT ||

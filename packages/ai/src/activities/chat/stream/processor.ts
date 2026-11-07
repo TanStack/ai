@@ -2723,7 +2723,8 @@ export class StreamProcessor {
       this.completeAllToolCalls()
       const isIntermediateToolTurn =
         this.finishReason === 'tool_calls' &&
-        chunk.outcome?.type !== 'interrupt'
+        chunk.outcome?.type !== 'interrupt' &&
+        tanstackMetadata(chunk)?.loopStopped !== true
       if (isIntermediateToolTurn) {
         // The next model call is a new assistant message. Leave this
         // call's messages closed so its reasoning cannot land here.
