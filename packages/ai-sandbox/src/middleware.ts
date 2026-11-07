@@ -1008,12 +1008,14 @@ export function withSandbox<TOffset extends string = string>(
     // Keep the recorded tool history OUT of the request to the model. It is stored
     // history for the next turn, it names tools the provider was never given, and one
     // triage-sized run is hundreds of kilobytes — so replaying it is wasteful at best
-    // and rejected at worst. `ctx.messages` keeps it (that is what gets stored and
-    // rendered); only `config.messages` loses it.
+    // and rejected at worst. Only `providerMessages` loses it. Returning `messages`
+    // would replace the engine's transcript, so persistence would save each run
+    // without the tool calls of earlier runs.
     onConfig(_ctx, config) {
-      const messages = stripObservedToolCalls(config.messages)
-      if (messages.length === config.messages.length) return
-      return { messages }
+      const outgoing = config.providerMessages ?? config.messages
+      const providerMessages = stripObservedToolCalls(outgoing)
+      if (providerMessages.length === outgoing.length) return
+      return { providerMessages }
     },
 
     // The engine re-syncs `middlewareCtx.messages` from its own array once per agent
