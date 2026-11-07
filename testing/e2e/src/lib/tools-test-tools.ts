@@ -130,6 +130,41 @@ function timedServerTool(name: string) {
   })
 }
 
+/**
+ * A server tool that stays pending for 400 ms. While it waits, it counts the
+ * `then` calls on its own promise and on every promise derived from it, then
+ * returns the highest count on one promise.
+ */
+const countPendingSubscriptions = toolDefinition({
+  name: 'count_pending_subscriptions',
+  description: 'Stay pending and count subscriptions to the pending promise',
+  inputSchema: z.object({}).passthrough(),
+}).server(() => {
+  const then = Promise.prototype.then
+  const thenCalls = new Map<Promise<unknown>, number>()
+  const execution = new Promise<string>((resolve) => {
+    setTimeout(() => {
+      Promise.prototype.then = then
+      resolve(
+        JSON.stringify({
+          mostThenCallsOnOnePromise: Math.max(...thenCalls.values()),
+        }),
+      )
+    }, 400)
+  })
+  thenCalls.set(execution, 0)
+  Promise.prototype.then = function (this: Promise<unknown>, ...args) {
+    const derived = then.apply(this, args)
+    const calls = thenCalls.get(this)
+    if (calls !== undefined) {
+      thenCalls.set(this, calls + 1)
+      thenCalls.set(derived, 0)
+    }
+    return derived
+  } as typeof then
+  return execution
+})
+
 /** The calls of the `parallel-tools` fixture, as slow tools that report their timing. */
 export const timedServerTools = {
   get_weather: timedServerTool('get_weather'),
@@ -268,6 +303,11 @@ export const SCENARIO_LIST = [
   {
     id: 'parallel-server-timing',
     label: 'Parallel Server Tool Timing',
+    category: 'basic',
+  },
+  {
+    id: 'pending-tool-subscriptions',
+    label: 'Pending Server Tool Subscriptions',
     category: 'basic',
   },
   {
@@ -420,6 +460,9 @@ export function getToolsForScenario(scenario: string) {
 
     case 'parallel-server-timing':
       return [timedServerTools.get_weather, timedServerTools.get_time]
+
+    case 'pending-tool-subscriptions':
+      return [countPendingSubscriptions]
 
     // Race condition / event flow scenarios
     case 'sequential-client-tools':
