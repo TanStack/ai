@@ -292,6 +292,43 @@ describe('withCompaction', () => {
     expect(appended).toHaveLength(5)
   })
 
+  it('reuses a persisted checkpoint when the store gives keys back in another order', async () => {
+    const store = memoryStore()
+    const summarize = vi.fn(async () => 'the gist')
+    const messages = [
+      big('user'),
+      big('assistant'),
+      big('user'),
+      big('assistant'),
+    ]
+    const options = {
+      maxTokens: 100,
+      strategy: summarizeOldest({ summarize, keepRecentTokens: 50 }),
+      strategyKey: 'summary-v1',
+    }
+
+    await runOnConfig(
+      withCompaction(options),
+      messages,
+      checkpointContext(store),
+    )
+    // As PostgreSQL jsonb gives them back: equal messages, keys reordered.
+    const loaded = messages.map(
+      ({ role, content, ...rest }): ModelMessage => ({
+        content,
+        ...rest,
+        role,
+      }),
+    )
+    await runOnConfig(
+      withCompaction(options),
+      [...loaded, text('user', 'new')],
+      checkpointContext(store),
+    )
+
+    expect(summarize).toHaveBeenCalledOnce()
+  })
+
   it('rejects a checkpoint when the canonical prefix changes', async () => {
     const store = memoryStore()
     const summarize = vi.fn(async () => 'the gist')

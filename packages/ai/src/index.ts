@@ -172,6 +172,7 @@ export {
   cloneAndDeepFreezeJson,
   digestInterruptJson,
 } from './interrupt-serialization'
+export { stableJson } from './utilities/stable-json'
 export {
   INTERRUPT_BINDING_METADATA_KEY,
   InterruptResumeValidationError,
