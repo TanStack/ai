@@ -6,7 +6,10 @@
  */
 
 import { isRedactedThinkingId } from '../../../utilities/reasoning-encrypted-value'
-import { mergeMetadata } from '../../../utilities/merge-metadata'
+import {
+  mergeMetadata,
+  tanstackMetadata,
+} from '../../../utilities/merge-metadata'
 import { parsePartialJSON } from './json-parser'
 import type {
   ContentPart,
@@ -110,6 +113,23 @@ export function updateToolCallPart(
   })
 }
 
+/** Drop a control outcome left on metadata after the result itself succeeded. */
+export function withoutStaleToolResultOutcome(
+  metadata: Record<string, unknown> | undefined,
+): Record<string, unknown> | undefined {
+  if (metadata == null) return undefined
+  const tanstack = tanstackMetadata({ metadata })
+  if (tanstack?.toolResultOutcome === undefined) return metadata
+  const { toolResultOutcome: _staleOutcome, ...restTanstack } = tanstack
+  const nextMetadata = { ...metadata }
+  if (Object.keys(restTanstack).length > 0) {
+    nextMetadata.tanstack = restTanstack
+  } else {
+    delete nextMetadata.tanstack
+  }
+  return Object.keys(nextMetadata).length > 0 ? nextMetadata : undefined
+}
+
 /**
  * Update or add a tool result part to a message.
  */
@@ -141,13 +161,8 @@ export function updateToolResultPart(
     // Preserve existing metadata when a later result update does not include
     // metadata, and merge partial metadata (including metadata.tanstack).
     let mergedMetadata = mergeMetadata(existingResultPart?.metadata, metadata)
-    const incomingTanstack = metadata?.tanstack
     const hasIncomingToolResultOutcome =
-      incomingTanstack != null &&
-      typeof incomingTanstack === 'object' &&
-      !Array.isArray(incomingTanstack) &&
-      'toolResultOutcome' in incomingTanstack &&
-      incomingTanstack.toolResultOutcome !== undefined
+      tanstackMetadata({ metadata })?.toolResultOutcome !== undefined
 
     // A successful retry supersedes a previous denial/cancellation. Do not
     // carry the old control outcome into the new result, or snapshot hydration
@@ -155,27 +170,9 @@ export function updateToolResultPart(
     if (
       state === 'complete' &&
       outcome === undefined &&
-      !hasIncomingToolResultOutcome &&
-      mergedMetadata
+      !hasIncomingToolResultOutcome
     ) {
-      const tanstack = mergedMetadata.tanstack
-      if (
-        tanstack != null &&
-        typeof tanstack === 'object' &&
-        !Array.isArray(tanstack) &&
-        'toolResultOutcome' in tanstack
-      ) {
-        const { toolResultOutcome: _staleOutcome, ...restTanstack } =
-          tanstack as Record<string, unknown>
-        const nextMetadata = { ...mergedMetadata }
-        if (Object.keys(restTanstack).length > 0) {
-          nextMetadata.tanstack = restTanstack
-        } else {
-          delete nextMetadata.tanstack
-        }
-        mergedMetadata =
-          Object.keys(nextMetadata).length > 0 ? nextMetadata : undefined
-      }
+      mergedMetadata = withoutStaleToolResultOutcome(mergedMetadata)
     }
 
     const toolResultPart: ToolResultPart = {

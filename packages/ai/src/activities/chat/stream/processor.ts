@@ -58,6 +58,7 @@ import {
   updateToolCallPart,
   updateToolCallWithOutput,
   updateToolResultPart,
+  withoutStaleToolResultOutcome,
 } from './message-updaters'
 import { ImmediateStrategy } from './strategies'
 import { INTERRUPT_BINDING_METADATA_KEY } from '../../../interrupt-resume'
@@ -2126,8 +2127,13 @@ export class StreamProcessor {
         if (part.type !== 'tool-result' || part.metadata != null) return part
         const previous = prevToolResults.get(part.toolCallId)
         if (previous?.metadata == null) return part
+        const metadata =
+          part.state === 'complete' && part.outcome === undefined
+            ? withoutStaleToolResultOutcome(previous.metadata)
+            : previous.metadata
+        if (metadata == null) return part
         restoredToolResultMetadata = true
-        return { ...part, metadata: previous.metadata }
+        return { ...part, metadata }
       })
       const snapshotMessage = restoredToolResultMetadata
         ? { ...msg, parts: snapshotParts }

@@ -3968,6 +3968,65 @@ describe('StreamProcessor', () => {
       expect(getToolResult()?.metadata).toEqual(snapshotMetadata)
     })
 
+    it('drops a stale denial when a snapshot success omits metadata', () => {
+      const processor = new StreamProcessor()
+
+      processor.processChunk(ev.runStarted())
+      processor.processChunk(ev.textStart('a1'))
+      processor.processChunk(ev.toolStart('tc-1', 'getWeather'))
+      processor.processChunk(
+        chunk(EventType.TOOL_CALL_RESULT, {
+          messageId: 't1',
+          toolCallId: 'tc-1',
+          content: '{"error":"User declined tool execution"}',
+          role: 'tool',
+          metadata: {
+            displayType: 'account-assets',
+            tanstack: { toolResultOutcome: 'denied', retained: true },
+          },
+        }),
+      )
+      processor.processChunk(ev.runFinished('tool_calls'))
+      processor.processChunk({
+        type: EventType.MESSAGES_SNAPSHOT,
+        messages: [
+          {
+            id: 'a1',
+            role: 'assistant',
+            content: 'Checking.',
+            toolCalls: [
+              {
+                id: 'tc-1',
+                type: 'function',
+                function: { name: 'getWeather', arguments: '{}' },
+              },
+            ],
+          },
+          {
+            id: 't1',
+            role: 'tool',
+            content: '{"temp":72}',
+            toolCallId: 'tc-1',
+          },
+        ],
+        timestamp: Date.now(),
+      } as unknown as StreamChunk)
+
+      const toolResult = processor
+        .getMessages()
+        .flatMap((message) => message.parts)
+        .find(
+          (part): part is ToolResultPart =>
+            part.type === 'tool-result' && part.toolCallId === 'tc-1',
+        )
+      expect(toolResult?.state).toBe('complete')
+      expect(toolResult?.outcome).toBeUndefined()
+      expect(toolResult?.metadata).toEqual({
+        displayType: 'account-assets',
+        tanstack: { retained: true },
+      })
+    })
+
     it('anchors a tool message that also has a valid UI resource', () => {
       const processor = new StreamProcessor()
       const uiResource = {
