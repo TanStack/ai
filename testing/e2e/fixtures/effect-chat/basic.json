@@ -1,0 +1,37 @@
+{
+  "fixtures": [
+    {
+      "match": {
+        "userMessage": "[effect-chat] weather in Oslo",
+        "sequenceIndex": 0
+      },
+      "response": {
+        "toolCalls": [
+          {
+            "name": "get_weather",
+            "arguments": "{\"city\":\"Oslo\"}"
+          }
+        ]
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[effect-chat] weather in Oslo",
+        "sequenceIndex": 1
+      },
+      "response": {
+        "content": "Pack sunglasses for Oslo."
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[effect-image] a red fox"
+      },
+      "response": {
+        "image": {
+          "b64Json": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR42mNgYPgPAAEDAQA2dBFAAAAAAElFTkSuQmCC"
+        }
+      }
+    }
+  ]
+}

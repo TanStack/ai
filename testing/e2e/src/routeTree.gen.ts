@@ -94,6 +94,7 @@ import { Route as ApiDurableDeliveryRouteImport } from './routes/api.durable-del
 import { Route as ApiDurableDeliveryCancelRouteImport } from './routes/api.durable-delivery-cancel'
 import { Route as ApiDurableMcpInputRouteImport } from './routes/api.durable-mcp-input'
 import { Route as ApiDurableTakeoverRouteImport } from './routes/api.durable-takeover'
+import { Route as ApiEffectChatRouteImport } from './routes/api.effect-chat'
 import { Route as ApiEmbeddingRouteImport } from './routes/api.embedding'
 import { Route as ApiEmbeddingAbortRouteImport } from './routes/api.embedding-abort'
 import { Route as ApiEvaluateHttpStatusRouteImport } from './routes/api.evaluate-http-status'
@@ -663,6 +664,11 @@ const ApiDurableMcpInputRoute = ApiDurableMcpInputRouteImport.update({
 const ApiDurableTakeoverRoute = ApiDurableTakeoverRouteImport.update({
   id: '/api/durable-takeover',
   path: '/api/durable-takeover',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiEffectChatRoute = ApiEffectChatRouteImport.update({
+  id: '/api/effect-chat',
+  path: '/api/effect-chat',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiEmbeddingRoute = ApiEmbeddingRouteImport.update({
@@ -1395,6 +1401,7 @@ export interface FileRoutesByFullPath {
   '/api/durable-delivery-cancel': typeof ApiDurableDeliveryCancelRoute
   '/api/durable-mcp-input': typeof ApiDurableMcpInputRoute
   '/api/durable-takeover': typeof ApiDurableTakeoverRoute
+  '/api/effect-chat': typeof ApiEffectChatRoute
   '/api/embedding': typeof ApiEmbeddingRoute
   '/api/embedding-abort': typeof ApiEmbeddingAbortRoute
   '/api/evaluate-http-status': typeof ApiEvaluateHttpStatusRoute
@@ -1605,6 +1612,7 @@ export interface FileRoutesByTo {
   '/api/durable-delivery-cancel': typeof ApiDurableDeliveryCancelRoute
   '/api/durable-mcp-input': typeof ApiDurableMcpInputRoute
   '/api/durable-takeover': typeof ApiDurableTakeoverRoute
+  '/api/effect-chat': typeof ApiEffectChatRoute
   '/api/embedding': typeof ApiEmbeddingRoute
   '/api/embedding-abort': typeof ApiEmbeddingAbortRoute
   '/api/evaluate-http-status': typeof ApiEvaluateHttpStatusRoute
@@ -1816,6 +1824,7 @@ export interface FileRoutesById {
   '/api/durable-delivery-cancel': typeof ApiDurableDeliveryCancelRoute
   '/api/durable-mcp-input': typeof ApiDurableMcpInputRoute
   '/api/durable-takeover': typeof ApiDurableTakeoverRoute
+  '/api/effect-chat': typeof ApiEffectChatRoute
   '/api/embedding': typeof ApiEmbeddingRoute
   '/api/embedding-abort': typeof ApiEmbeddingAbortRoute
   '/api/evaluate-http-status': typeof ApiEvaluateHttpStatusRoute
@@ -2028,6 +2037,7 @@ export interface FileRouteTypes {
     | '/api/durable-delivery-cancel'
     | '/api/durable-mcp-input'
     | '/api/durable-takeover'
+    | '/api/effect-chat'
     | '/api/embedding'
     | '/api/embedding-abort'
     | '/api/evaluate-http-status'
@@ -2238,6 +2248,7 @@ export interface FileRouteTypes {
     | '/api/durable-delivery-cancel'
     | '/api/durable-mcp-input'
     | '/api/durable-takeover'
+    | '/api/effect-chat'
     | '/api/embedding'
     | '/api/embedding-abort'
     | '/api/evaluate-http-status'
@@ -2448,6 +2459,7 @@ export interface FileRouteTypes {
     | '/api/durable-delivery-cancel'
     | '/api/durable-mcp-input'
     | '/api/durable-takeover'
+    | '/api/effect-chat'
     | '/api/embedding'
     | '/api/embedding-abort'
     | '/api/evaluate-http-status'
@@ -2659,6 +2671,7 @@ export interface RootRouteChildren {
   ApiDurableDeliveryCancelRoute: typeof ApiDurableDeliveryCancelRoute
   ApiDurableMcpInputRoute: typeof ApiDurableMcpInputRoute
   ApiDurableTakeoverRoute: typeof ApiDurableTakeoverRoute
+  ApiEffectChatRoute: typeof ApiEffectChatRoute
   ApiEmbeddingRoute: typeof ApiEmbeddingRoute
   ApiEmbeddingAbortRoute: typeof ApiEmbeddingAbortRoute
   ApiEvaluateHttpStatusRoute: typeof ApiEvaluateHttpStatusRoute
@@ -3375,6 +3388,13 @@ declare module '@tanstack/react-router' {
       path: '/api/durable-takeover'
       fullPath: '/api/durable-takeover'
       preLoaderRoute: typeof ApiDurableTakeoverRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/effect-chat': {
+      id: '/api/effect-chat'
+      path: '/api/effect-chat'
+      fullPath: '/api/effect-chat'
+      preLoaderRoute: typeof ApiEffectChatRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/embedding': {
@@ -4389,6 +4409,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiDurableDeliveryCancelRoute: ApiDurableDeliveryCancelRoute,
   ApiDurableMcpInputRoute: ApiDurableMcpInputRoute,
   ApiDurableTakeoverRoute: ApiDurableTakeoverRoute,
+  ApiEffectChatRoute: ApiEffectChatRoute,
   ApiEmbeddingRoute: ApiEmbeddingRoute,
   ApiEmbeddingAbortRoute: ApiEmbeddingAbortRoute,
   ApiEvaluateHttpStatusRoute: ApiEvaluateHttpStatusRoute,

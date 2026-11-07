@@ -35,7 +35,7 @@ if (env.GEMINI_API_KEY) process.env.GEMINI_API_KEY = env.GEMINI_API_KEY
 const adapterConfig = {
   anthropic: () =>
     createChatOptions({
-      adapter: anthropicText('claude-sonnet-4-5'),
+      adapter: anthropicText('claude-sonnet-4-6'),
     }),
   gemini: () =>
     createChatOptions({
