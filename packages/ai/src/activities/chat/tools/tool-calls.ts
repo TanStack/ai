@@ -643,19 +643,21 @@ async function* executeWithEventPolling<T>(
   pendingEvents: Array<CustomEvent | StreamChunk>,
 ): AsyncGenerator<CustomEvent | StreamChunk, T, void> {
   // Use an object to track mutable state across the async boundary
-  const state = { done: false, result: undefined as T }
-  const executionWithFlag = executionPromise.then((r) => {
+  const state = { done: false, wake: () => {} }
+  const settle = () => {
     state.done = true
-    state.result = r
-    return r
-  })
+    state.wake()
+  }
+  // Subscribe once. Racing the execution on every poll would add a reaction
+  // to it each time, and keep them all until the tool settles.
+  void executionPromise.then(settle, settle)
 
   while (!state.done) {
     // Wait for either the execution to complete or a short timeout
-    await Promise.race([
-      executionWithFlag,
-      new Promise((resolve) => setTimeout(resolve, 10)),
-    ])
+    await new Promise<void>((resolve) => {
+      state.wake = resolve
+      setTimeout(resolve, 10)
+    })
 
     // Flush any pending events
     let event: CustomEvent | StreamChunk | undefined
@@ -670,7 +672,7 @@ async function* executeWithEventPolling<T>(
     yield event
   }
 
-  return state.result
+  return await executionPromise
 }
 
 /**
