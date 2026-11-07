@@ -7241,6 +7241,59 @@
     }
   },
   {
+    "id": "deepseek/deepseek-v4.1-flash-1017-ultrafast",
+    "object": "model",
+    "created": 1755815280,
+    "released": 1793923200,
+    "owned_by": "deepseek",
+    "name": "DeepSeek V4.1 Flash 1017 Ultrafast",
+    "description": "DeepSeek V4.1 Flash 1017 Ultrafast serves the October 17, 2026 update of DeepSeek V4.1 Flash through Fireworks' accelerated serverless endpoint. It supports text and image input, configurable reasoning, tool calling, structured outputs, and automatic prefix caching. Available in public preview without a waitroom or session time limit.",
+    "context_window": 1048576,
+    "max_tokens": 1048576,
+    "type": "language",
+    "zdr": "all",
+    "no_training": "all",
+    "tags": [
+      "implicit-caching",
+      "reasoning",
+      "structured-output",
+      "tool-use",
+      "vision",
+      "open-weights"
+    ],
+    "supported_specifications": ["v2", "v3", "v4"],
+    "modalities": {
+      "input": ["text", "image"],
+      "output": ["text"]
+    },
+    "supported_parameters": [
+      "max_tokens",
+      "temperature",
+      "stop",
+      "tools",
+      "tool_choice",
+      "reasoning",
+      "include_reasoning",
+      "response_format",
+      "structured_outputs"
+    ],
+    "temperature": true,
+    "reasoning_options": [
+      {
+        "type": "toggle"
+      },
+      {
+        "type": "effort",
+        "values": ["none", "low", "high", "max"]
+      }
+    ],
+    "pricing": {
+      "input": "0.0000024",
+      "output": "0.0000096",
+      "input_cache_read": "0.000000048"
+    }
+  },
+  {
     "id": "deepseek/deepseek-v4.1-flash-fast",
     "object": "model",
     "created": 1755815280,
@@ -10673,6 +10726,46 @@
           "cost_per_second": "0.105"
         }
       ]
+    }
+  },
+  {
+    "id": "humansand/ampersand-v0.1",
+    "object": "model",
+    "created": 1755815280,
+    "released": 1793923200,
+    "owned_by": "humansand",
+    "name": "Ampersand v0.1",
+    "description": "Ampersand v0.1 is a collaborator model from Humans& for shared goals, group conversations, and long-running collaboration. Its Responses API supports text, reasoning, client-side function tools, and implicit prompt caching.",
+    "context_window": 1000000,
+    "max_tokens": 32768,
+    "type": "language",
+    "zdr": "none",
+    "no_training": "none",
+    "tags": ["implicit-caching", "reasoning", "tool-use"],
+    "supported_specifications": ["v2", "v3", "v4"],
+    "modalities": {
+      "input": ["text"],
+      "output": ["text"]
+    },
+    "supported_parameters": [
+      "max_tokens",
+      "temperature",
+      "stop",
+      "tools",
+      "tool_choice",
+      "reasoning",
+      "include_reasoning"
+    ],
+    "temperature": true,
+    "reasoning_options": [
+      {
+        "type": "effort",
+        "values": ["low", "medium", "high", "max"]
+      }
+    ],
+    "pricing": {
+      "input": "0",
+      "output": "0"
     }
   },
   {
@@ -14539,11 +14632,11 @@
     "released": 1786406400,
     "owned_by": "nvidia",
     "name": "Nemotron 3.5 Lightning 30B",
-    "description": "NVIDIA-Nemotron-3.5-Lightning-30B-A3B-NVFP4 is a large language model (LLM) trained by NVIDIA.\n\nThe model employs a hybrid Mixture-of-Experts architecture, utilizing interleaved Mamba-2 and MoE layers, along with select Attention layers. The Lightning 3.5 model is released alongside a number of speculative decoding methods for faster text generation. The model has 3B active parameters and 30B parameters in total.",
+    "description": "NVIDIA Nemotron 3.5 Lightning is NVIDIA's fastest open model for always-on agents and high-volume specialized tasks. It delivers a substantial leap in agentic capability over its predecessor Nemotron 3 Nano, with up to 4x higher throughput on a 1M-token context.",
     "context_window": 262144,
     "max_tokens": 131072,
     "type": "language",
-    "zdr": "some",
+    "zdr": "none",
     "no_training": "some",
     "tags": [
       "reasoning",
@@ -14579,9 +14672,9 @@
       }
     ],
     "pricing": {
-      "input": "0.00000005",
-      "output": "0.0000002",
-      "input_cache_read": "0.00000001",
+      "input": "0.00000006",
+      "output": "0.00000016",
+      "input_cache_read": "0.00000003",
       "varies_by_provider": true
     }
   },
@@ -24312,6 +24405,28 @@
     "pricing": {
       "input": "0.0000000001",
       "transcription_duration_cost_per_second": "0.0001"
+    }
+  },
+  {
+    "id": "parallel/parallel-decisions-fast",
+    "object": "model",
+    "created": 1755815280,
+    "released": 1793923200,
+    "owned_by": "parallel",
+    "name": "Decisions Fast",
+    "description": "Decisions Fast is Parallel AI’s evaluation model for fast classification and scoring grounded in live web evidence. It answers yes/no, multiple-choice, and ordered scoring questions with probabilities and citations. Each request supports up to 100 related questions sharing the same context and retrieved evidence, with flat per-request pricing.",
+    "context_window": 32000,
+    "max_tokens": 0,
+    "type": "evaluation",
+    "zdr": "none",
+    "no_training": "all",
+    "supported_specifications": ["v4"],
+    "modalities": {
+      "input": ["text"],
+      "output": ["text"]
+    },
+    "pricing": {
+      "request": "0.001"
     }
   },
   {

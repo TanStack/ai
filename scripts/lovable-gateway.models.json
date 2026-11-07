@@ -5634,6 +5634,190 @@
   },
   {
     "premium_output_modalities": [],
+    "id": "openai/gpt-6.1-terra",
+    "object": "model",
+    "created": 1793750400,
+    "released": 1792972800,
+    "expiration_date": null,
+    "deprecated": false,
+    "owned_by": "openai",
+    "name": "GPT-6.1 Terra",
+    "description": "Fast, efficient reasoning for visual tasks, computer use, and writing.",
+    "context_window": 1050000,
+    "max_tokens": 128000,
+    "knowledge": "2026-06-01",
+    "modalities": {
+      "input": [
+        "text",
+        "image"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "supported_surfaces": [
+      "chat-completions",
+      "responses"
+    ],
+    "pricing": {
+      "cost_currency": "credits",
+      "input": {
+        "image": {
+          "billed_as": "text"
+        },
+        "text": {
+          "tiers": [
+            {
+              "cost": "0.000004",
+              "min": 0,
+              "max": 272000
+            },
+            {
+              "cost": "0.000008",
+              "min": 272000
+            }
+          ],
+          "cache_read": {
+            "tiers": [
+              {
+                "cost": "0.0000002",
+                "min": 0,
+                "max": 272000
+              },
+              {
+                "cost": "0.0000004",
+                "min": 272000
+              }
+            ]
+          },
+          "cache_write": {
+            "tiers": [
+              {
+                "cost": "0.000005",
+                "min": 0,
+                "max": 272000
+              },
+              {
+                "cost": "0.00001",
+                "min": 272000
+              }
+            ]
+          },
+          "cache_write_12h": {
+            "tiers": [
+              {
+                "cost": "0.00001",
+                "min": 0,
+                "max": 272000
+              },
+              {
+                "cost": "0.00002",
+                "min": 272000
+              }
+            ]
+          }
+        }
+      },
+      "output": {
+        "text": {
+          "tiers": [
+            {
+              "cost": "0.00002",
+              "min": 0,
+              "max": 272000
+            },
+            {
+              "cost": "0.00003",
+              "min": 272000
+            }
+          ]
+        }
+      },
+      "service_tiers": {
+        "priority": {
+          "input": {
+            "image": {
+              "billed_as": "text"
+            },
+            "text": {
+              "tiers": [
+                {
+                  "cost": "0.000008",
+                  "min": 0,
+                  "max": 272000
+                },
+                {
+                  "cost": "0.000016",
+                  "min": 272000
+                }
+              ],
+              "cache_read": {
+                "tiers": [
+                  {
+                    "cost": "0.0000004",
+                    "min": 0,
+                    "max": 272000
+                  },
+                  {
+                    "cost": "0.0000008",
+                    "min": 272000
+                  }
+                ]
+              },
+              "cache_write": {
+                "tiers": [
+                  {
+                    "cost": "0.00001",
+                    "min": 0,
+                    "max": 272000
+                  },
+                  {
+                    "cost": "0.00002",
+                    "min": 272000
+                  }
+                ]
+              },
+              "cache_write_12h": {
+                "tiers": [
+                  {
+                    "cost": "0.00002",
+                    "min": 0,
+                    "max": 272000
+                  },
+                  {
+                    "cost": "0.00004",
+                    "min": 272000
+                  }
+                ]
+              }
+            }
+          },
+          "output": {
+            "text": {
+              "tiers": [
+                {
+                  "cost": "0.00004",
+                  "min": 0,
+                  "max": 272000
+                },
+                {
+                  "cost": "0.00006",
+                  "min": 272000
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    "data_retention": "provider_retained",
+    "data_retention_by_surface": {
+      "chat-completions": "provider_retained",
+      "responses": "provider_retained"
+    }
+  },
+  {
+    "premium_output_modalities": [],
     "id": "openai/gpt-image-1-mini",
     "object": "model",
     "created": 1779753600,
@@ -5835,6 +6019,132 @@
     "deprecated": false,
     "owned_by": "openai",
     "name": "GPT Image 2.5 Sunburst",
+    "description": "Quality-first OpenAI image generation and editing model.",
+    "context_window": 0,
+    "max_tokens": 0,
+    "modalities": {
+      "input": [
+        "text",
+        "image"
+      ],
+      "output": [
+        "image"
+      ]
+    },
+    "supported_surfaces": [
+      "image-generation",
+      "image-edit"
+    ],
+    "pricing": {
+      "cost_currency": "credits",
+      "input": {
+        "image": {
+          "tiers": [
+            {
+              "cost": "0.000032",
+              "min": 0
+            }
+          ]
+        },
+        "text": {
+          "tiers": [
+            {
+              "cost": "0.00002",
+              "min": 0
+            }
+          ]
+        }
+      },
+      "output": {
+        "image": {
+          "tiers": [
+            {
+              "cost": "0.00012",
+              "min": 0
+            }
+          ]
+        }
+      }
+    },
+    "data_retention": "zero",
+    "data_retention_by_surface": {
+      "image-edit": "zero",
+      "image-generation": "zero"
+    }
+  },
+  {
+    "premium_output_modalities": [],
+    "id": "openai/gpt-image-2.6-flare",
+    "object": "model",
+    "created": 1793923200,
+    "released": 1793750400,
+    "expiration_date": null,
+    "deprecated": false,
+    "owned_by": "openai",
+    "name": "GPT Image 2.6 Flare",
+    "description": "Latency-first OpenAI image generation and editing model.",
+    "context_window": 0,
+    "max_tokens": 0,
+    "modalities": {
+      "input": [
+        "text",
+        "image"
+      ],
+      "output": [
+        "image"
+      ]
+    },
+    "supported_surfaces": [
+      "image-generation",
+      "image-edit"
+    ],
+    "pricing": {
+      "cost_currency": "credits",
+      "input": {
+        "image": {
+          "tiers": [
+            {
+              "cost": "0.000032",
+              "min": 0
+            }
+          ]
+        },
+        "text": {
+          "tiers": [
+            {
+              "cost": "0.00002",
+              "min": 0
+            }
+          ]
+        }
+      },
+      "output": {
+        "image": {
+          "tiers": [
+            {
+              "cost": "0.00012",
+              "min": 0
+            }
+          ]
+        }
+      }
+    },
+    "data_retention": "zero",
+    "data_retention_by_surface": {
+      "image-edit": "zero",
+      "image-generation": "zero"
+    }
+  },
+  {
+    "premium_output_modalities": [],
+    "id": "openai/gpt-image-2.6-sunburst",
+    "object": "model",
+    "created": 1793923200,
+    "released": 1793750400,
+    "expiration_date": null,
+    "deprecated": false,
+    "owned_by": "openai",
+    "name": "GPT Image 2.6 Sunburst",
     "description": "Quality-first OpenAI image generation and editing model.",
     "context_window": 0,
     "max_tokens": 0,

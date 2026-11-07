@@ -97,6 +97,7 @@ export const VERCEL_GATEWAY_CHAT_MODELS = [
   'deepseek/deepseek-v4.1-flash',
   'deepseek/deepseek-v4.1-flash-1017',
   'deepseek/deepseek-v4.1-flash-1017-fast',
+  'deepseek/deepseek-v4.1-flash-1017-ultrafast',
   'deepseek/deepseek-v4.1-flash-fast',
   'elevenlabs/eleven-flash-v2',
   'elevenlabs/eleven-flash-v2.5',
@@ -154,6 +155,7 @@ export const VERCEL_GATEWAY_CHAT_MODELS = [
   'google/gemini-omni-flash-preview',
   'google/gemma-4-26b-a4b-it',
   'google/gemma-4-31b-it',
+  'humansand/ampersand-v0.1',
   'inception/mercury-2',
   'inception/mercury-2.5',
   'inception/mercury-3',
@@ -329,6 +331,7 @@ export const VERCEL_GATEWAY_CHAT_MODELS = [
   'openai/tts-1',
   'openai/tts-1-hd',
   'openai/whisper-1',
+  'parallel/parallel-decisions-fast',
   'particle/particle-1',
   'perplexity/pplx-decider-flash-v1.2',
   'perplexity/pplx-decider-v1.2',
@@ -419,6 +422,7 @@ export const VERCEL_GATEWAY_PROVIDERS = [
   'fish-audio',
   'google',
   'heygen',
+  'humansand',
   'inception',
   'inclusionai',
   'inference-net',
@@ -435,6 +439,7 @@ export const VERCEL_GATEWAY_PROVIDERS = [
   'morph',
   'nvidia',
   'openai',
+  'parallel',
   'particle',
   'perplexity',
   'poolside',
@@ -1258,6 +1263,16 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'response_format'
       | 'structured_outputs'
     >
+  'deepseek/deepseek-v4.1-flash-1017-ultrafast': VercelGatewayCommonOptions &
+    Pick<
+      VercelGatewayBaseOptions,
+      | 'max_tokens'
+      | 'max_output_tokens'
+      | 'temperature'
+      | 'stop'
+      | 'response_format'
+      | 'structured_outputs'
+    >
   'deepseek/deepseek-v4.1-flash-fast': VercelGatewayCommonOptions &
     Pick<
       VercelGatewayBaseOptions,
@@ -1593,6 +1608,11 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'stop'
       | 'response_format'
       | 'structured_outputs'
+    >
+  'humansand/ampersand-v0.1': VercelGatewayCommonOptions &
+    Pick<
+      VercelGatewayBaseOptions,
+      'max_tokens' | 'max_output_tokens' | 'temperature' | 'stop'
     >
   'inception/mercury-2': VercelGatewayCommonOptions &
     Pick<
@@ -3030,6 +3050,7 @@ export type VercelGatewayChatModelProviderOptionsByName = {
   'openai/tts-1': VercelGatewayCommonOptions
   'openai/tts-1-hd': VercelGatewayCommonOptions
   'openai/whisper-1': VercelGatewayCommonOptions
+  'parallel/parallel-decisions-fast': VercelGatewayCommonOptions
   'particle/particle-1': VercelGatewayCommonOptions &
     Pick<
       VercelGatewayBaseOptions,
@@ -3677,6 +3698,7 @@ export type VercelGatewayModelInputModalitiesByName = {
   'deepseek/deepseek-v4.1-flash': readonly ['text', 'image', 'document']
   'deepseek/deepseek-v4.1-flash-1017': readonly ['text', 'image']
   'deepseek/deepseek-v4.1-flash-1017-fast': readonly ['text', 'image']
+  'deepseek/deepseek-v4.1-flash-1017-ultrafast': readonly ['text', 'image']
   'deepseek/deepseek-v4.1-flash-fast': readonly ['text', 'image']
   'elevenlabs/eleven-flash-v2': readonly ['text']
   'elevenlabs/eleven-flash-v2.5': readonly ['text']
@@ -3759,6 +3781,7 @@ export type VercelGatewayModelInputModalitiesByName = {
   ]
   'google/gemma-4-26b-a4b-it': readonly ['text', 'image', 'document']
   'google/gemma-4-31b-it': readonly ['text', 'image', 'document']
+  'humansand/ampersand-v0.1': readonly ['text']
   'inception/mercury-2': readonly ['text']
   'inception/mercury-2.5': readonly ['text']
   'inception/mercury-3': readonly ['text']
@@ -3939,6 +3962,7 @@ export type VercelGatewayModelInputModalitiesByName = {
   'openai/tts-1': readonly ['text']
   'openai/tts-1-hd': readonly ['text']
   'openai/whisper-1': readonly ['text', 'audio']
+  'parallel/parallel-decisions-fast': readonly ['text']
   'particle/particle-1': readonly ['text', 'image']
   'perplexity/pplx-decider-flash-v1.2': readonly ['text', 'image']
   'perplexity/pplx-decider-v1.2': readonly ['text', 'image']

@@ -3452,7 +3452,8 @@
         "parallelToolCalls": false,
         "json_output": false,
         "reasoning": true,
-        "max_output": 32768
+        "max_output": 32768,
+        "deactivated_at": "2026-11-11T09:00:00.000Z"
       },
       {
         "providerId": "nebius",
@@ -4019,34 +4020,6 @@
         "max_output": 393216
       },
       {
-        "providerId": "flexai",
-        "externalId": "DeepSeek-V4-Flash-0731",
-        "pricing": {
-          "prompt": "0.000000119",
-          "completion": "0.000000238",
-          "image": "0",
-          "request": "0",
-          "input_cache_read": "0.000000004",
-          "input_cache_write": "0",
-          "input_cache_write_1h": "0",
-          "discount": "0.05"
-        },
-        "context_length": 1048576,
-        "streaming": true,
-        "vision": false,
-        "audio": false,
-        "cancellation": false,
-        "tools": true,
-        "parallelToolCalls": false,
-        "json_output": true,
-        "structured_outputs": true,
-        "web_search": false,
-        "reasoning": true,
-        "reasoning_efforts": ["low", "high", "medium", "max"],
-        "reasoning_max_tokens": false,
-        "stability": "stable"
-      },
-      {
         "providerId": "runware",
         "externalId": "deepseek-v4-flash",
         "pricing": {
@@ -4101,6 +4074,34 @@
         "reasoning_max_tokens": false,
         "quantization": "fp8",
         "stability": "stable"
+      },
+      {
+        "providerId": "flexai",
+        "externalId": "DeepSeek-V4-Flash-0731",
+        "pricing": {
+          "prompt": "0.000000119",
+          "completion": "0.000000238",
+          "image": "0",
+          "request": "0",
+          "input_cache_read": "0.000000004",
+          "input_cache_write": "0",
+          "input_cache_write_1h": "0",
+          "discount": "0.05"
+        },
+        "context_length": 1048576,
+        "streaming": true,
+        "vision": false,
+        "audio": false,
+        "cancellation": false,
+        "tools": true,
+        "parallelToolCalls": false,
+        "json_output": true,
+        "structured_outputs": true,
+        "web_search": false,
+        "reasoning": true,
+        "reasoning_efforts": ["low", "high", "medium", "max"],
+        "reasoning_max_tokens": false,
+        "stability": "stable"
       }
     ],
     "pricing": {
@@ -4132,80 +4133,6 @@
     "json_output": true,
     "structured_outputs": true,
     "free": false
-  },
-  {
-    "id": "deepseek-v4-flash-0731",
-    "name": "deepseek-v4-flash-0731",
-    "display_name": "deepseek-v4-flash-0731",
-    "aliases": [],
-    "created": 1793909710,
-    "description": "DeepSeek-V4-Flash-0731 is the official release of DeepSeek-V4-Flash, superseding the preview version, with substantially enhanced agentic capabilities. It has the same model structure as DeepSeek-V4-Flash-DSpark, i.e. it comes with a speculative decoding module attached.",
-    "family": "deepseek",
-    "architecture": {
-      "input_modalities": ["text"],
-      "output_modalities": ["text"],
-      "tokenizer": "GPT"
-    },
-    "top_provider": {
-      "is_moderated": true
-    },
-    "providers": [
-      {
-        "providerId": "canopywave",
-        "externalId": "deepseek/deepseek-v4-flash",
-        "pricing": {
-          "prompt": "0.00000014",
-          "completion": "0.00000028",
-          "image": "0",
-          "request": "0",
-          "input_cache_read": "0.00000003",
-          "input_cache_write": "0",
-          "input_cache_write_1h": "0"
-        },
-        "context_length": 1000000,
-        "streaming": true,
-        "vision": false,
-        "audio": false,
-        "cancellation": true,
-        "tools": true,
-        "parallelToolCalls": false,
-        "json_output": true,
-        "structured_outputs": false,
-        "web_search": false,
-        "reasoning": true,
-        "reasoning_max_tokens": false,
-        "quantization": "fp8",
-        "stability": "stable"
-      }
-    ],
-    "pricing": {
-      "prompt": "0.00000014",
-      "completion": "0.00000028",
-      "image": "0",
-      "request": "0",
-      "input_cache_read": "0.00000003",
-      "input_cache_write": "0",
-      "input_cache_write_1h": "0",
-      "web_search": "0",
-      "internal_reasoning": "0"
-    },
-    "context_length": 1000000,
-    "supported_parameters": [
-      "temperature",
-      "max_tokens",
-      "top_p",
-      "frequency_penalty",
-      "presence_penalty",
-      "response_format",
-      "tools",
-      "tool_choice",
-      "reasoning"
-    ],
-    "json_output": true,
-    "structured_outputs": false,
-    "free": false,
-    "image_input_required": false,
-    "stability": "stable"
   },
   {
     "id": "deepseek-v4-pro",
@@ -5659,6 +5586,34 @@
         "max_output": 393216
       },
       {
+        "providerId": "sciforium",
+        "externalId": "/deployments/serverless/deepseek-ai/DeepSeek-V4.1-Flash-1017",
+        "pricing": {
+          "prompt": "0.00000015",
+          "completion": "0.0000006",
+          "image": "0",
+          "request": "0",
+          "input_cache_read": "0.000000003",
+          "input_cache_write": "0",
+          "input_cache_write_1h": "0"
+        },
+        "context_length": 1048576,
+        "streaming": true,
+        "vision": true,
+        "audio": false,
+        "cancellation": false,
+        "tools": true,
+        "parallelToolCalls": false,
+        "json_output": true,
+        "structured_outputs": true,
+        "web_search": false,
+        "reasoning": true,
+        "reasoning_efforts": ["none", "low", "high", "xhigh", "max"],
+        "reasoning_max_tokens": false,
+        "quantization": "fp8",
+        "stability": "stable"
+      },
+      {
         "providerId": "reka-ai",
         "externalId": "deepseek41-flash-20261017",
         "pricing": {
@@ -5783,44 +5738,41 @@
         "stability": "stable"
       },
       {
-        "providerId": "sciforium",
-        "externalId": "/deployments/serverless/deepseek-ai/DeepSeek-V4.1-Flash-1017",
+        "providerId": "scx-ai-gp",
+        "externalId": "DeepSeek-V4.1-flash-1017",
         "pricing": {
-          "prompt": "0.00000015",
-          "completion": "0.0000006",
+          "prompt": "0.000000135",
+          "completion": "0.00000054",
           "image": "0",
           "request": "0",
           "input_cache_read": "0.000000003",
           "input_cache_write": "0",
           "input_cache_write_1h": "0"
         },
-        "context_length": 1048576,
+        "context_length": 1050000,
         "streaming": true,
-        "vision": true,
+        "vision": false,
         "audio": false,
         "cancellation": false,
-        "tools": true,
+        "tools": false,
         "parallelToolCalls": false,
-        "json_output": true,
-        "structured_outputs": true,
+        "json_output": false,
+        "structured_outputs": false,
         "web_search": false,
-        "reasoning": true,
-        "reasoning_efforts": ["none", "low", "high", "xhigh", "max"],
+        "reasoning": false,
         "reasoning_max_tokens": false,
-        "quantization": "fp8",
         "stability": "stable"
       }
     ],
     "pricing": {
-      "prompt": "0.0000002",
-      "completion": "0.0000008",
+      "prompt": "0.000000135",
+      "completion": "0.00000054",
       "image": "0",
       "request": "0",
-      "input_cache_read": "0.000000005",
+      "input_cache_read": "0.000000003",
       "input_cache_write": "0",
       "input_cache_write_1h": "0",
       "web_search": "0",
-      "discount": "0.31",
       "internal_reasoning": "0"
     },
     "context_length": 1050000,
@@ -11237,7 +11189,8 @@
         "parallelToolCalls": false,
         "json_output": false,
         "reasoning": true,
-        "max_output": 128000
+        "max_output": 128000,
+        "deactivated_at": "2026-11-11T09:00:00.000Z"
       },
       {
         "providerId": "together-ai",
@@ -14255,7 +14208,7 @@
         "reasoning": false,
         "max_output": 16384,
         "deprecated_at": "2026-01-09T00:00:00.000Z",
-        "deactivated_at": "2026-03-31T00:00:00.000Z"
+        "deactivated_at": "2027-04-14T00:00:00.000Z"
       }
     ],
     "pricing": {
@@ -19528,7 +19481,8 @@
         "parallelToolCalls": false,
         "json_output": false,
         "reasoning": true,
-        "max_output": 32000
+        "max_output": 32000,
+        "deactivated_at": "2026-11-11T09:00:00.000Z"
       },
       {
         "providerId": "nebius",
@@ -19628,17 +19582,47 @@
         "max_output": 32768,
         "quantization": "fp8",
         "stability": "stable"
+      },
+      {
+        "providerId": "flexai",
+        "externalId": "gpt-oss-120b",
+        "pricing": {
+          "prompt": "0.00000005",
+          "completion": "0.00000025",
+          "image": "0",
+          "request": "0",
+          "input_cache_read": "0.00000001",
+          "input_cache_write": "0",
+          "input_cache_write_1h": "0",
+          "discount": "0.05"
+        },
+        "context_length": 131072,
+        "streaming": true,
+        "vision": false,
+        "audio": false,
+        "cancellation": false,
+        "tools": true,
+        "parallelToolCalls": false,
+        "json_output": true,
+        "structured_outputs": true,
+        "web_search": false,
+        "reasoning": true,
+        "reasoning_efforts": ["low", "medium", "high"],
+        "reasoning_max_tokens": false,
+        "quantization": "fp4",
+        "stability": "stable"
       }
     ],
     "pricing": {
-      "prompt": "0.1e-6",
-      "completion": "0.5e-6",
+      "prompt": "0.00000005",
+      "completion": "0.00000025",
       "image": "0",
       "request": "0",
-      "input_cache_read": "0.02e-6",
+      "input_cache_read": "0.00000001",
       "input_cache_write": "0",
       "input_cache_write_1h": "0",
       "web_search": "0",
+      "discount": "0.05",
       "internal_reasoning": "0"
     },
     "context_length": 131072,
@@ -19653,7 +19637,7 @@
       "reasoning"
     ],
     "json_output": true,
-    "structured_outputs": false,
+    "structured_outputs": true,
     "free": false
   },
   {
@@ -20725,7 +20709,7 @@
       "internal_reasoning": "0"
     },
     "context_length": 2000000,
-    "max_output": 30000,
+    "max_output": 128000,
     "supported_parameters": [
       "temperature",
       "max_tokens",
@@ -24845,7 +24829,7 @@
     "name": "Kimi K3.1 Pro",
     "display_name": "Kimi K3.1 Pro",
     "created": 1792713600,
-    "description": "Kimi's flagship reasoning model with always-on thinking, vision input, tool calling, and a 1M-token context window.",
+    "description": "Kimi's flagship reasoning model with vision input, tool calling, and a 1M-token context window.",
     "family": "moonshot",
     "architecture": {
       "input_modalities": ["text", "image"],
@@ -24856,6 +24840,38 @@
       "is_moderated": true
     },
     "providers": [
+      {
+        "providerId": "inference.net",
+        "externalId": "moonshotai/kimi-k3.1-pro",
+        "pricing": {
+          "prompt": "2.0e-6",
+          "completion": "10.0e-6",
+          "image": "0",
+          "request": "0",
+          "input_cache_read": "0.2e-6",
+          "input_cache_write": "0",
+          "input_cache_write_1h": "0"
+        },
+        "context_length": 1048576,
+        "streaming": true,
+        "vision": true,
+        "cancellation": true,
+        "tools": true,
+        "parallelToolCalls": false,
+        "json_output": true,
+        "structured_outputs": true,
+        "reasoning": true,
+        "reasoning_efforts": [
+          "none",
+          "minimal",
+          "low",
+          "medium",
+          "high",
+          "xhigh",
+          "max"
+        ],
+        "max_output": 1048576
+      },
       {
         "providerId": "runpod",
         "externalId": "kimi-k3.1-pro",
@@ -27562,32 +27578,6 @@
         "reasoning": true,
         "reasoning_efforts": ["low", "medium", "high", "xhigh", "max"],
         "max_output": 131072
-      },
-      {
-        "providerId": "consensusprotocol",
-        "externalId": "MiniMax-M3",
-        "pricing": {
-          "prompt": "0.00000028",
-          "completion": "0.0000011",
-          "image": "0",
-          "request": "0",
-          "input_cache_read": "0.00000005",
-          "input_cache_write": "0",
-          "input_cache_write_1h": "0"
-        },
-        "context_length": 1048576,
-        "streaming": true,
-        "vision": false,
-        "audio": false,
-        "cancellation": false,
-        "tools": true,
-        "parallelToolCalls": false,
-        "json_output": true,
-        "structured_outputs": true,
-        "web_search": false,
-        "reasoning": true,
-        "reasoning_max_tokens": false,
-        "stability": "stable"
       }
     ],
     "pricing": {
@@ -34589,33 +34579,6 @@
           "tool_choice",
           "response_format"
         ]
-      },
-      {
-        "providerId": "canopywave",
-        "externalId": "qwen/qwen3.8-flash-next",
-        "pricing": {
-          "prompt": "0.00000015",
-          "completion": "0.0000005",
-          "image": "0",
-          "request": "0",
-          "input_cache_read": "0.00000002",
-          "input_cache_write": "0",
-          "input_cache_write_1h": "0"
-        },
-        "context_length": 1000000,
-        "streaming": true,
-        "vision": true,
-        "audio": false,
-        "cancellation": true,
-        "tools": true,
-        "parallelToolCalls": false,
-        "json_output": true,
-        "structured_outputs": false,
-        "web_search": false,
-        "reasoning": true,
-        "reasoning_max_tokens": false,
-        "quantization": "fp16",
-        "stability": "stable"
       }
     ],
     "pricing": {
@@ -35346,7 +35309,8 @@
         "parallelToolCalls": false,
         "json_output": true,
         "reasoning": true,
-        "reasoning_efforts": ["minimal", "low", "medium", "high"]
+        "reasoning_efforts": ["minimal", "low", "medium", "high"],
+        "deactivated_at": "2026-11-11T09:00:00.000Z"
       }
     ],
     "pricing": {
@@ -35374,7 +35338,8 @@
     ],
     "json_output": true,
     "structured_outputs": false,
-    "free": false
+    "free": false,
+    "deactivated_at": "2026-11-11T09:00:00.000Z"
   },
   {
     "id": "seed-1-6-250915",
@@ -35412,7 +35377,8 @@
         "parallelToolCalls": false,
         "json_output": true,
         "reasoning": true,
-        "reasoning_efforts": ["minimal", "low", "medium", "high"]
+        "reasoning_efforts": ["minimal", "low", "medium", "high"],
+        "deactivated_at": "2026-11-11T09:00:00.000Z"
       }
     ],
     "pricing": {
@@ -35440,7 +35406,8 @@
     ],
     "json_output": true,
     "structured_outputs": false,
-    "free": false
+    "free": false,
+    "deactivated_at": "2026-11-11T09:00:00.000Z"
   },
   {
     "id": "seed-1-6-flash-250715",
@@ -35478,7 +35445,8 @@
         "parallelToolCalls": false,
         "json_output": true,
         "reasoning": true,
-        "reasoning_efforts": ["minimal", "low", "medium", "high"]
+        "reasoning_efforts": ["minimal", "low", "medium", "high"],
+        "deactivated_at": "2026-11-11T09:00:00.000Z"
       }
     ],
     "pricing": {
@@ -35506,7 +35474,8 @@
     ],
     "json_output": true,
     "structured_outputs": false,
-    "free": false
+    "free": false,
+    "deactivated_at": "2026-11-11T09:00:00.000Z"
   },
   {
     "id": "seed-1-8-251228",
@@ -35544,7 +35513,8 @@
         "parallelToolCalls": false,
         "json_output": true,
         "reasoning": true,
-        "reasoning_efforts": ["minimal", "low", "medium", "high"]
+        "reasoning_efforts": ["minimal", "low", "medium", "high"],
+        "deactivated_at": "2026-11-11T09:00:00.000Z"
       }
     ],
     "pricing": {
@@ -35572,7 +35542,8 @@
     ],
     "json_output": true,
     "structured_outputs": false,
-    "free": false
+    "free": false,
+    "deactivated_at": "2026-11-11T09:00:00.000Z"
   },
   {
     "id": "seed-2-0-code-preview-260328",
@@ -36035,7 +36006,7 @@
         "json_output": false,
         "reasoning": false,
         "max_output": 1,
-        "deactivated_at": "2026-11-11T00:00:00.000Z"
+        "deactivated_at": "2026-11-11T09:00:00.000Z"
       }
     ],
     "pricing": {
@@ -36071,7 +36042,7 @@
     "json_output": false,
     "structured_outputs": false,
     "free": false,
-    "deactivated_at": "2026-11-11T00:00:00.000Z"
+    "deactivated_at": "2026-11-11T09:00:00.000Z"
   },
   {
     "id": "seedance-2-0",
