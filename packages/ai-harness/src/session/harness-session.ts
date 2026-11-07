@@ -89,6 +89,7 @@ type PublicSessionMember =
   | 'runCommand'
   | 'runTool'
   | 'schedule'
+  | 'seed'
   | 'send'
   | 'setPluginSetting'
   | 'settled'
