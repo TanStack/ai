@@ -12,17 +12,20 @@ export interface CartesiaSpeechOptions {
   volume?: number
 }
 
+/** Generate speech with a Cartesia Sonic model. */
 export class CartesiaSpeechAdapter<
   TModel extends CartesiaTTSModel,
 > extends BaseTTSAdapter<TModel, CartesiaSpeechOptions> {
   readonly name = 'cartesia' as const
   private readonly client: CartesiaClient
 
+  /** Configure the model and API connection for speech generation. */
   constructor(model: TModel, config?: CartesiaConfig) {
     super(model)
     this.client = new CartesiaClient(config)
   }
 
+  /** Generate audio for text using the requested voice and format. */
   async generateSpeech(
     options: TTSOptions<CartesiaSpeechOptions>,
   ): Promise<TTSResult> {
@@ -100,6 +103,7 @@ export class CartesiaSpeechAdapter<
   }
 }
 
+/** Create a speech adapter using the environment API key or supplied config. */
 export function cartesiaSpeech<TModel extends CartesiaTTSModel>(
   model: TModel,
   config?: CartesiaConfig,
@@ -107,6 +111,7 @@ export function cartesiaSpeech<TModel extends CartesiaTTSModel>(
   return new CartesiaSpeechAdapter(model, config)
 }
 
+/** Create a speech adapter with an explicit API key. */
 export function createCartesiaSpeech<TModel extends CartesiaTTSModel>(
   model: TModel,
   apiKey: string,

@@ -12,17 +12,20 @@ interface CartesiaTranscript {
   words?: Array<{ word: string; start: number; end: number }>
 }
 
+/** Transcribe recorded audio with a Cartesia model. */
 export class CartesiaTranscriptionAdapter<
   TModel extends CartesiaTranscriptionModel,
 > extends BaseTranscriptionAdapter<TModel> {
   readonly name = 'cartesia' as const
   private readonly client: CartesiaClient
 
+  /** Configure the model and API connection for transcription. */
   constructor(model: TModel, config?: CartesiaConfig) {
     super(model)
     this.client = new CartesiaClient(config)
   }
 
+  /** Transcribe audio and return text and available word timings. */
   async transcribe(
     options: TranscriptionOptions,
   ): Promise<TranscriptionResult> {
@@ -72,6 +75,7 @@ export class CartesiaTranscriptionAdapter<
   }
 }
 
+/** Create a transcription adapter using the environment API key or supplied config. */
 export function cartesiaTranscription<
   TModel extends CartesiaTranscriptionModel,
 >(
@@ -81,6 +85,7 @@ export function cartesiaTranscription<
   return new CartesiaTranscriptionAdapter(model, config)
 }
 
+/** Create a transcription adapter with an explicit API key. */
 export function createCartesiaTranscription<
   TModel extends CartesiaTranscriptionModel,
 >(

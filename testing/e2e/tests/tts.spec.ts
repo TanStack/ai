@@ -1,5 +1,6 @@
 import { generateSpeech } from '@tanstack/ai'
 import { createElevenLabsSpeech } from '@tanstack/ai-elevenlabs'
+import { createCartesiaSpeech } from '@tanstack/ai-cartesia'
 import { test, expect } from './fixtures'
 import {
   fillTextInput,
@@ -8,6 +9,52 @@ import {
   featureUrl,
 } from './helpers'
 import { providersFor } from './test-matrix'
+
+for (const format of ['wav', 'pcm'] as const) {
+  test(`cartesia -- generates ${format} audio`, async ({
+    testId,
+    aimockPort,
+  }) => {
+    const result = await generateSpeech({
+      threadId: testId,
+      adapter: createCartesiaSpeech('sonic-3.6', 'e2e-dummy', {
+        baseURL: `http://127.0.0.1:${aimockPort}`,
+        defaultHeaders: { 'X-Test-Id': testId },
+      }),
+      text: 'welcome to the guitar store',
+      voice: 'test-voice',
+      format,
+    })
+    const audio = Buffer.from(result.audio, 'base64')
+    expect(result.format).toBe(format)
+    expect(result.contentType).toBe(`audio/${format}`)
+    if (format === 'wav') {
+      expect(audio.toString('ascii', 0, 4)).toBe('RIFF')
+      expect(audio.readUInt32LE(24)).toBe(44100)
+    } else expect(audio).toEqual(Buffer.alloc(32))
+  })
+}
+
+test('cartesia mock rejects a different transcript', async ({
+  testId,
+  aimockPort,
+}) => {
+  const response = await fetch(`http://127.0.0.1:${aimockPort}/tts/bytes`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Cartesia-Version': '2026-08-14',
+      'X-Test-Id': testId,
+    },
+    body: JSON.stringify({
+      model_id: 'sonic-3.6',
+      transcript: 'wrong',
+      voice: 'test-voice',
+      output_format: { container: 'mp3' },
+    }),
+  })
+  expect(response.status).toBe(400)
+})
 
 test.describe('elevenlabs -- tts formats', () => {
   test('returns playable WAV from the PCM endpoint', async ({

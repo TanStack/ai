@@ -3,11 +3,11 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "vite dev --port 3010",
+    "dev": "pnpm --dir ../.. run build:all && vite dev --port 3010",
     "build": "vite build",
     "test:types": "tsc --noEmit",
-    "test:e2e": "playwright test",
-    "test:e2e:ui": "playwright test --ui",
+    "test:e2e": "pnpm --dir ../.. run build:all && playwright test",
+    "test:e2e:ui": "pnpm --dir ../.. run build:all && playwright test --ui",
     "record": "LLMOCK_RECORD=true pnpm dev",
     "postinstall": "playwright install chromium"
   },

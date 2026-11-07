@@ -137,6 +137,7 @@ export function createImageAdapter(
   return factory()
 }
 
+/** Create a speech adapter that sends requests to the test mock. */
 export function createTTSAdapter(
   provider: Provider,
   aimockPort?: number,
@@ -187,6 +188,7 @@ export function createTTSAdapter(
   return factory()
 }
 
+/** Create a transcription adapter that sends requests to the test mock. */
 export function createTranscriptionAdapter(
   provider: Provider,
   aimockPort?: number,

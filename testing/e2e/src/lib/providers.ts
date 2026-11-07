@@ -124,6 +124,7 @@ const defaultModels: Record<Provider, string> = {
   muse: 'muse-ember-1.0',
 }
 
+/** Create the selected chat adapter with the test mock configuration. */
 export function createTextAdapter(
   provider: Provider,
   modelOverride?: string,
