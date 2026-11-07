@@ -31,7 +31,6 @@ export const LLMGATEWAY_CHAT_MODELS = [
   'cogview-4',
   'deepseek-v3.2',
   'deepseek-v4-flash',
-  'deepseek-v4-flash-0731',
   'deepseek-v4-pro',
   'deepseek-v4.1-flash',
   'deepseek-v4.1-flash-1017',
@@ -269,7 +268,6 @@ export type LLMGatewayModelInputModalitiesByName = {
   'cogview-4': readonly ['text']
   'deepseek-v3.2': readonly ['text']
   'deepseek-v4-flash': readonly ['text']
-  'deepseek-v4-flash-0731': readonly ['text']
   'deepseek-v4-pro': readonly ['text']
   'deepseek-v4.1-flash': readonly ['text', 'image']
   'deepseek-v4.1-flash-1017': readonly ['text', 'image']
@@ -501,7 +499,6 @@ export const LLMGATEWAY_MODEL_INPUT_MODALITIES: Readonly<
   'cogview-4': ['text'] as const,
   'deepseek-v3.2': ['text'] as const,
   'deepseek-v4-flash': ['text'] as const,
-  'deepseek-v4-flash-0731': ['text'] as const,
   'deepseek-v4-pro': ['text'] as const,
   'deepseek-v4.1-flash': ['text', 'image'] as const,
   'deepseek-v4.1-flash-1017': ['text', 'image'] as const,

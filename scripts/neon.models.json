@@ -2840,57 +2840,6 @@
     "unsupported": "gte-large-en does not serve chat completions. It is an embedding model — see the embeddings use case."
   },
   {
-    "id": "inkling",
-    "name": "Inkling",
-    "lab": "thinkingmachines",
-    "provider": "databricks",
-    "family": "ling",
-    "released": true,
-    "attachment": true,
-    "reasoning": true,
-    "reasoning_options": [
-      {
-        "type": "toggle"
-      },
-      {
-        "type": "effort",
-        "values": ["none", "minimal", "low", "medium", "high", "max"]
-      }
-    ],
-    "tool_call": true,
-    "temperature": true,
-    "structured_output": false,
-    "open_weights": true,
-    "release_date": "2026-07-15",
-    "last_updated": "2026-07-15",
-    "modalities": {
-      "input": ["text", "image", "audio"],
-      "output": ["text"]
-    },
-    "limit": {
-      "context": 1048576,
-      "output": 65536
-    },
-    "cost": {
-      "input": 1,
-      "output": 4.05,
-      "cache_read": 0.17
-    },
-    "blended_cost": 1.763,
-    "capabilities": {
-      "entitled": true,
-      "chat": "conforms",
-      "deviations": [],
-      "native_dialect": "none",
-      "responses": false,
-      "web_search": false,
-      "image_generation": false,
-      "embeddings": false,
-      "decision": false
-    },
-    "use_case": "chat"
-  },
-  {
     "id": "kimi-k3",
     "name": "Kimi K3",
     "lab": "moonshotai",
@@ -2928,6 +2877,57 @@
       "cache_read": 0.3
     },
     "blended_cost": 6,
+    "capabilities": {
+      "entitled": true,
+      "chat": "conforms",
+      "deviations": [],
+      "native_dialect": "none",
+      "responses": false,
+      "web_search": false,
+      "image_generation": false,
+      "embeddings": false,
+      "decision": false
+    },
+    "use_case": "chat"
+  },
+  {
+    "id": "kimi-k3-1-pro",
+    "name": "Kimi K3.1 Pro",
+    "lab": "moonshotai",
+    "provider": "databricks",
+    "family": "kimi-k3-1",
+    "released": true,
+    "attachment": true,
+    "reasoning": true,
+    "reasoning_options": [
+      {
+        "type": "toggle"
+      },
+      {
+        "type": "effort",
+        "values": ["none", "minimal", "low", "medium", "high", "max"]
+      }
+    ],
+    "tool_call": true,
+    "temperature": true,
+    "structured_output": true,
+    "open_weights": true,
+    "release_date": "2026-11-04",
+    "last_updated": "2026-11-04",
+    "modalities": {
+      "input": ["text", "image"],
+      "output": ["text"]
+    },
+    "limit": {
+      "context": 1048576,
+      "output": 65536
+    },
+    "cost": {
+      "input": 0,
+      "output": 0,
+      "cache_read": 0
+    },
+    "blended_cost": 0,
     "capabilities": {
       "entitled": true,
       "chat": "conforms",
@@ -3070,7 +3070,7 @@
   {
     "id": "openjev-qwen35-4b",
     "name": "OpenJev (Qwen 3.5 4B)",
-    "lab": "typesafe",
+    "lab": "alibaba",
     "provider": "databricks",
     "family": "openjev",
     "released": true,
