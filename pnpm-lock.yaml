@@ -2462,9 +2462,6 @@ importers:
       '@angular/platform-browser':
         specifier: ^22.2.4
         version: 22.2.4(@angular/common@22.2.4(@angular/core@22.2.4(@angular/compiler@22.2.4)(rxjs@7.8.2)(zone.js@0.16.3))(rxjs@7.8.2))(@angular/core@22.2.4(@angular/compiler@22.2.4)(rxjs@7.8.2)(zone.js@0.16.3))
-      '@angular/platform-browser-dynamic':
-        specifier: ^22.2.4
-        version: 22.2.4(@angular/common@22.2.4(@angular/core@22.2.4(@angular/compiler@22.2.4)(rxjs@7.8.2)(zone.js@0.16.3))(rxjs@7.8.2))(@angular/compiler@22.2.4)(@angular/core@22.2.4(@angular/compiler@22.2.4)(rxjs@7.8.2)(zone.js@0.16.3))(@angular/platform-browser@22.2.4(@angular/common@22.2.4(@angular/core@22.2.4(@angular/compiler@22.2.4)(rxjs@7.8.2)(zone.js@0.16.3))(rxjs@7.8.2))(@angular/core@22.2.4(@angular/compiler@22.2.4)(rxjs@7.8.2)(zone.js@0.16.3)))
       '@tanstack/ai':
         specifier: workspace:*
         version: link:../ai
@@ -4751,16 +4748,6 @@ packages:
       '@angular/core': 22.2.4
       '@angular/platform-browser': 22.2.4
       rxjs: ^6.5.3 || ^7.4.0
-
-  '@angular/platform-browser-dynamic@22.2.4':
-    resolution: {integrity: sha512-952+4obWSfa0yJE2hOzL/dgOyXrriU1X72I5b3U8ER0jXmGoHLbcIZDRRuol8yxygnHi9GYKnScogRQCXIMxPg==}
-    engines: {node: ^22.22.3 || ^24.15.0 || >=26.0.0}
-    deprecated: '@angular/platform-browser-dynamic is deprecated. Use `@angular/platform-browser` instead.'
-    peerDependencies:
-      '@angular/common': 22.2.4
-      '@angular/compiler': 22.2.4
-      '@angular/core': 22.2.4
-      '@angular/platform-browser': 22.2.4
 
   '@angular/platform-browser@22.2.4':
     resolution: {integrity: sha512-NAQ8/Zcl8nRlNqxlXQGrQJ/c5V8lN5vJSlc8qkD3OUN+ClyNuS6UCXffYtKvvbovpyb/q1uYSQjqiEctz+5niw==}
@@ -19719,14 +19706,6 @@ snapshots:
       rxjs: 7.8.2
       tslib: 2.9.1
       zod: 4.6.7
-
-  '@angular/platform-browser-dynamic@22.2.4(@angular/common@22.2.4(@angular/core@22.2.4(@angular/compiler@22.2.4)(rxjs@7.8.2)(zone.js@0.16.3))(rxjs@7.8.2))(@angular/compiler@22.2.4)(@angular/core@22.2.4(@angular/compiler@22.2.4)(rxjs@7.8.2)(zone.js@0.16.3))(@angular/platform-browser@22.2.4(@angular/common@22.2.4(@angular/core@22.2.4(@angular/compiler@22.2.4)(rxjs@7.8.2)(zone.js@0.16.3))(rxjs@7.8.2))(@angular/core@22.2.4(@angular/compiler@22.2.4)(rxjs@7.8.2)(zone.js@0.16.3)))':
-    dependencies:
-      '@angular/common': 22.2.4(@angular/core@22.2.4(@angular/compiler@22.2.4)(rxjs@7.8.2)(zone.js@0.16.3))(rxjs@7.8.2)
-      '@angular/compiler': 22.2.4
-      '@angular/core': 22.2.4(@angular/compiler@22.2.4)(rxjs@7.8.2)(zone.js@0.16.3)
-      '@angular/platform-browser': 22.2.4(@angular/common@22.2.4(@angular/core@22.2.4(@angular/compiler@22.2.4)(rxjs@7.8.2)(zone.js@0.16.3))(rxjs@7.8.2))(@angular/core@22.2.4(@angular/compiler@22.2.4)(rxjs@7.8.2)(zone.js@0.16.3))
-      tslib: 2.9.1
 
   '@angular/platform-browser@22.2.4(@angular/common@22.2.4(@angular/core@22.2.4(@angular/compiler@22.2.4)(rxjs@7.8.2)(zone.js@0.16.3))(rxjs@7.8.2))(@angular/core@22.2.4(@angular/compiler@22.2.4)(rxjs@7.8.2)(zone.js@0.16.3))':
     dependencies:
