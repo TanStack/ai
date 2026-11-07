@@ -176,6 +176,25 @@ function spyEvents(): MockedEvents {
 // ============================================================================
 
 describe('StreamProcessor', () => {
+  it('preserves metadata on snapshot tool messages', () => {
+    const metadata = {
+      displayType: 'account-assets',
+      accountId: 'A001',
+    }
+    const message = aguiSnapshotMessageToUIMessage({
+      id: 'tool-1',
+      role: 'tool',
+      toolCallId: 'call-1',
+      content: '{"totalAssets":1000000}',
+      metadata,
+    } as unknown as AGUIMessage)
+
+    const toolResultPart = message.parts.find(
+      (part): part is ToolResultPart => part.type === 'tool-result',
+    )
+    expect(toolResultPart?.metadata).toEqual(metadata)
+  })
+
   it('normalizes nested dates on snapshot existing tool-result parts', () => {
     const message = aguiSnapshotMessageToUIMessage({
       id: 'a1',
@@ -3874,6 +3893,140 @@ describe('StreamProcessor', () => {
       ])
     })
 
+    it('preserves streamed tool-result metadata when a snapshot omits it', () => {
+      const processor = new StreamProcessor()
+      const streamedMetadata = {
+        displayType: 'account-assets',
+        accountId: 'A001',
+      }
+
+      processor.processChunk(ev.runStarted())
+      processor.processChunk(ev.textStart('a1'))
+      processor.processChunk(ev.textContent('Checking.', 'a1'))
+      processor.processChunk(ev.toolStart('tc-1', 'getWeather'))
+      processor.processChunk(ev.toolEnd('tc-1', 'getWeather'))
+      processor.processChunk(
+        chunk(EventType.TOOL_CALL_RESULT, {
+          messageId: 't1',
+          toolCallId: 'tc-1',
+          content: '{"temp":72}',
+          role: 'tool',
+          metadata: streamedMetadata,
+        }),
+      )
+      processor.processChunk(ev.runFinished('tool_calls'))
+
+      const snapshotMessages = (metadata?: Record<string, unknown>) => [
+        {
+          id: 'a1',
+          role: 'assistant',
+          content: 'Checking.',
+          toolCalls: [
+            {
+              id: 'tc-1',
+              type: 'function',
+              function: { name: 'getWeather', arguments: '{"loc":"Berlin"}' },
+            },
+          ],
+        },
+        {
+          id: 't1',
+          role: 'tool',
+          content: '{"temp":72}',
+          toolCallId: 'tc-1',
+          ...(metadata !== undefined && { metadata }),
+        },
+      ]
+
+      processor.processChunk({
+        type: EventType.MESSAGES_SNAPSHOT,
+        messages: snapshotMessages(),
+        timestamp: Date.now(),
+      } as unknown as StreamChunk)
+
+      const getToolResult = () =>
+        processor
+          .getMessages()
+          .flatMap((message) => message.parts)
+          .find(
+            (part): part is ToolResultPart =>
+              part.type === 'tool-result' && part.toolCallId === 'tc-1',
+          )
+
+      expect(getToolResult()?.metadata).toEqual(streamedMetadata)
+
+      const snapshotMetadata = {
+        displayType: 'snapshot-account-assets',
+        accountId: 'A002',
+      }
+      processor.processChunk({
+        type: EventType.MESSAGES_SNAPSHOT,
+        messages: snapshotMessages(snapshotMetadata),
+        timestamp: Date.now(),
+      } as unknown as StreamChunk)
+
+      expect(getToolResult()?.metadata).toEqual(snapshotMetadata)
+    })
+
+    it('drops a stale denial when a snapshot success omits metadata', () => {
+      const processor = new StreamProcessor()
+
+      processor.processChunk(ev.runStarted())
+      processor.processChunk(ev.textStart('a1'))
+      processor.processChunk(ev.toolStart('tc-1', 'getWeather'))
+      processor.processChunk(
+        chunk(EventType.TOOL_CALL_RESULT, {
+          messageId: 't1',
+          toolCallId: 'tc-1',
+          content: '{"error":"User declined tool execution"}',
+          role: 'tool',
+          metadata: {
+            displayType: 'account-assets',
+            tanstack: { toolResultOutcome: 'denied', retained: true },
+          },
+        }),
+      )
+      processor.processChunk(ev.runFinished('tool_calls'))
+      processor.processChunk({
+        type: EventType.MESSAGES_SNAPSHOT,
+        messages: [
+          {
+            id: 'a1',
+            role: 'assistant',
+            content: 'Checking.',
+            toolCalls: [
+              {
+                id: 'tc-1',
+                type: 'function',
+                function: { name: 'getWeather', arguments: '{}' },
+              },
+            ],
+          },
+          {
+            id: 't1',
+            role: 'tool',
+            content: '{"temp":72}',
+            toolCallId: 'tc-1',
+          },
+        ],
+        timestamp: Date.now(),
+      } as unknown as StreamChunk)
+
+      const toolResult = processor
+        .getMessages()
+        .flatMap((message) => message.parts)
+        .find(
+          (part): part is ToolResultPart =>
+            part.type === 'tool-result' && part.toolCallId === 'tc-1',
+        )
+      expect(toolResult?.state).toBe('complete')
+      expect(toolResult?.outcome).toBeUndefined()
+      expect(toolResult?.metadata).toEqual({
+        displayType: 'account-assets',
+        tanstack: { retained: true },
+      })
+    })
+
     it('anchors a tool message that also has a valid UI resource', () => {
       const processor = new StreamProcessor()
       const uiResource = {
@@ -6365,6 +6518,10 @@ describe('StreamProcessor', () => {
     it('should create tool-result part and update tool-call output', () => {
       const events = spyEvents()
       const processor = new StreamProcessor({ events })
+      const metadata = {
+        displayType: 'account-assets',
+        accountId: 'A001',
+      }
 
       processor.processChunk(ev.runStarted())
       processor.processChunk(ev.textStart())
@@ -6380,6 +6537,7 @@ describe('StreamProcessor', () => {
           toolCallId: 'tc-1',
           content: '{"temp": 72}',
           role: 'tool',
+          metadata,
         }),
       )
       processor.processChunk(ev.runFinished('tool_calls'))
@@ -6398,6 +6556,7 @@ describe('StreamProcessor', () => {
       expect(toolResultPart.toolCallId).toBe('tc-1')
       expect(toolResultPart.content).toBe('{"temp": 72}')
       expect(toolResultPart.state).toBe('complete')
+      expect(toolResultPart.metadata).toEqual(metadata)
     })
 
     it('should mark output-error tool results as errored message parts', () => {
