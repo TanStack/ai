@@ -98,6 +98,7 @@ import {
 import {
   hashSchemaInput,
   normalizeApprovalSchema,
+  schemaInputToJsonSchema,
 } from './tools/approval-schema'
 import {
   combineStrategies,
@@ -3663,6 +3664,9 @@ class TextEngine<
         tool?.approvalSchema,
         tool?.inputSchema,
       )
+      // Lets a client without the tool's definition (an MCP tool, for
+      // example) show the arguments. It hashes to `inputSchemaHash`.
+      const inputSchema = schemaInputToJsonSchema(tool?.inputSchema)
       interrupts.push({
         id: approval.approvalId,
         // Display hint only. `reason` is free-form AG-UI text that another
@@ -3676,6 +3680,7 @@ class TextEngine<
           kind: 'approval',
           toolName: approval.toolName,
           input: approval.input,
+          ...(inputSchema !== undefined && { inputSchema }),
           [interruptBindingMetadataKey]: {
             v: INTERRUPT_BINDING_VERSION,
             kind: 'tool-approval',
