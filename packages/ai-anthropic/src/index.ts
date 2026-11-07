@@ -43,8 +43,10 @@ export type {
 } from './model-meta'
 export {
   ANTHROPIC_MODELS,
+  ANTHROPIC_MODELS_WITHOUT_SAMPLING,
   ANTHROPIC_VERTEX_CHAT_MODELS,
   ANTHROPIC_COMBINED_TOOLS_AND_SCHEMA_MODELS,
+  anthropicModelSupportsSampling,
 } from './model-meta'
 export type {
   AnthropicTextMetadata,
