@@ -95,7 +95,7 @@ Mode is shared for the whole room and syncs live via Cap'n Web push.
 
 ## @Claude Integration
 
-Set `ANTHROPIC_API_KEY` in `.env`. Responses use `claude-sonnet-4-5`. Only one Claude request runs at a time; others wait in queue.
+Set `ANTHROPIC_API_KEY` in `.env`. Responses use `claude-sonnet-4-6`. Only one Claude request runs at a time; others wait in queue.
 
 ## Key Technologies
 
