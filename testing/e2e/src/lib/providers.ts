@@ -122,6 +122,7 @@ const defaultModels: Record<Provider, string> = {
   'neon-responses': 'gpt-5-3-codex',
 }
 
+/** Create the selected chat adapter with the test mock configuration. */
 export function createTextAdapter(
   provider: Provider,
   modelOverride?: string,

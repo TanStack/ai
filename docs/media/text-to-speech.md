@@ -105,6 +105,8 @@ Each provider has a fixed set of voices. If none of them fit, [create your own v
 
 Swap the adapter to change the provider. The rest of the route stays the same.
 
+For Cartesia, pass a voice ID as `voice` to `generateSpeech()`. In the route above, replace the default `'alloy'` with a Cartesia voice ID, such as `'db6b0ed5-d5d3-463d-ae85-518a07d3c2b4'`.
+
 | Provider | Adapter | Models | API key |
 | --- | --- | --- | --- |
 | OpenAI | `openaiSpeech` from `@tanstack/ai-openai` | `tts-1-hd`, `tts-1`, `gpt-4o-mini-tts` | `OPENAI_API_KEY` |

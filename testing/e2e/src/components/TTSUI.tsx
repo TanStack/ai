@@ -27,6 +27,7 @@ const DIALOGUE_TURNS: Array<TTSTurn> = [
   { text: 'what can I play for you', voice: 'e2e-voice-b' },
 ]
 
+/** Render the speech generation test UI for the selected provider and transport. */
 export function TTSUI({ provider, mode, testId, aimockPort }: TTSUIProps) {
   const [text, setText] = useState('')
   const defaultVoice =

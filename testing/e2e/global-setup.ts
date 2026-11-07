@@ -1180,9 +1180,9 @@ const FAKE_AUDIO_BY_FORMAT: Record<string, Buffer> = {
 
 /**
  * Minimal RIFF/WAV container: a 44-byte header describing 16-bit mono PCM at
- * 24 kHz, followed by silence.
+ * the requested sample rate, followed by silence.
  */
-function buildSilentWav(): Buffer {
+function buildSilentWav(sampleRate = 24000): Buffer {
   const samples = Buffer.alloc(64)
   const header = Buffer.alloc(44)
   header.write('RIFF', 0, 'ascii')
@@ -1192,8 +1192,8 @@ function buildSilentWav(): Buffer {
   header.writeUInt32LE(16, 16) // PCM chunk size
   header.writeUInt16LE(1, 20) // format: PCM
   header.writeUInt16LE(1, 22) // channels
-  header.writeUInt32LE(24000, 24) // sample rate
-  header.writeUInt32LE(24000 * 2, 28) // byte rate
+  header.writeUInt32LE(sampleRate, 24) // sample rate
+  header.writeUInt32LE(sampleRate * 2, 28) // byte rate
   header.writeUInt16LE(2, 32) // block align
   header.writeUInt16LE(16, 34) // bits per sample
   header.write('data', 36, 'ascii')
@@ -1669,6 +1669,7 @@ function byteplusASRMount(): Mountable {
   }
 }
 
+/** Validate Cartesia speech requests and return audio in the requested format. */
 function cartesiaTTSMount(): Mountable {
   return {
     async handleRequest(req, res, pathname): Promise<boolean> {
@@ -1677,30 +1678,50 @@ function cartesiaTTSMount(): Mountable {
       const output = asRecord(body?.output_format)
       if (
         body?.model_id !== 'sonic-3.6' ||
-        typeof body.transcript !== 'string' ||
+        body.transcript !== 'welcome to the guitar store' ||
         typeof body.voice !== 'string' ||
-        output?.container !== 'mp3' ||
+        (output?.container !== 'mp3' &&
+          output?.container !== 'wav' &&
+          output?.container !== 'raw') ||
         req.headers['cartesia-version'] !== '2026-08-14'
       ) {
         return rejectVoiceRequest(res, 'Invalid Cartesia speech request')
       }
       res.statusCode = 200
-      res.setHeader('Content-Type', 'audio/mpeg')
-      res.end(FAKE_MP3_BYTES)
+      const format = output.container === 'raw' ? 'pcm' : output.container
+      res.setHeader(
+        'Content-Type',
+        format === 'mp3' ? 'audio/mpeg' : `audio/${format}`,
+      )
+      res.end(
+        format === 'wav' ? buildSilentWav(44100) : FAKE_AUDIO_BY_FORMAT[format],
+      )
       return true
     },
   }
 }
 
+/** Validate Cartesia transcription uploads and return a fixed transcript. */
 function cartesiaSTTMount(): Mountable {
   return {
     async handleRequest(req, res, pathname): Promise<boolean> {
       if (pathname !== '/' || req.method !== 'POST') return false
-      const body = await readBody(req)
+      const chunks: Array<Buffer> = []
+      for await (const chunk of req) chunks.push(Buffer.from(chunk))
+      const contentType = req.headers['content-type'] ?? ''
+      let form: FormData
+      try {
+        form = await new Response(Buffer.concat(chunks), {
+          headers: { 'content-type': contentType },
+        }).formData()
+      } catch {
+        return rejectVoiceRequest(res, 'Invalid Cartesia transcription request')
+      }
+      const file = form.get('file')
       if (
-        !body.includes('name="file"') ||
-        !body.includes('name="model"') ||
-        !body.includes('ink-whisper') ||
+        !(file instanceof File) ||
+        !Buffer.from(await file.arrayBuffer()).equals(Buffer.from('Hello')) ||
+        form.get('model') !== 'ink-whisper' ||
         req.headers['cartesia-version'] !== '2026-08-14'
       ) {
         return rejectVoiceRequest(res, 'Invalid Cartesia transcription request')
