@@ -6,11 +6,11 @@ name: Maintainer Sweep
 
 on:
   schedule:
-    - cron: '17 */3 * * *'
+    - cron: "17 */3 * * *"
   workflow_dispatch:
     inputs:
       dry_run:
-        description: 'Print planned actions without executing them'
+        description: "Print planned actions without executing them"
         type: boolean
         default: true
 
@@ -35,10 +35,10 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - name: Setup Tools
-        uses: TanStack/config/.github/setup@190f659075ff0845850e330883eb26d7ffd0671f # main
+      - name: Setup Vite+
+        uses: voidzero-dev/setup-vp@cab1ab9eaff52d4857875f4f2c016e36af8f2c76 # v1.22.0
       - name: Run sweep
-        run: pnpm maintainer:sweep
+        run: vp run maintainer:sweep
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ github.token }}
           DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run && '1' || '' }}
