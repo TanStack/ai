@@ -56,7 +56,6 @@ const PROVIDER_MODELS: Record<
     { value: 'claude-sonnet-5', label: 'Claude Sonnet 5' },
     { value: 'claude-fable-5', label: 'Claude Fable 5' },
     { value: 'claude-opus-4-8', label: 'Claude Opus 4.8' },
-    { value: 'claude-sonnet-4-5', label: 'Claude Sonnet 4.5' },
     { value: 'claude-sonnet-4-6', label: 'Claude Sonnet 4.6' },
     { value: 'claude-opus-4-5', label: 'Claude Opus 4.5' },
     { value: 'claude-opus-4-6', label: 'Claude Opus 4.6' },

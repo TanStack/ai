@@ -73,7 +73,7 @@ export const Route = createFileRoute('/api/chat')({
           const mergedTools = mergeAgentTools(serverTools, params.tools)
           // Use the stream abort signal for proper cancellation handling
           const stream = chat({
-            adapter: anthropicText('claude-sonnet-4-5'),
+            adapter: anthropicText('claude-sonnet-4-6'),
             tools: mergedTools,
             systemPrompts: [SYSTEM_PROMPT],
             agentLoopStrategy: maxIterations(20),
