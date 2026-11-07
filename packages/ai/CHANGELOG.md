@@ -1,5 +1,13 @@
 # @tanstack/ai
 
+## 1.2.1
+
+### Patch Changes
+
+- [#2056](https://github.com/TanStack/ai/pull/2056) [`9393839`](https://github.com/TanStack/ai/commit/9393839d380dde91fa91e81b5e92448610e9782a) - `@tanstack/ai` exports `stableJson`: JSON text with the keys of every object in sorted order, for values that come back from a store with their keys reordered. `@tanstack/ai-harness` now imports it and no longer keeps its own copy.
+
+- [#2069](https://github.com/TanStack/ai/pull/2069) [`7157ef3`](https://github.com/TanStack/ai/commit/7157ef3e8556ac23c350822ba0f3c4bbf0abb118) - Preserve metadata from live AG-UI TOOL_CALL_RESULT events on ToolResultPart.
+
 ## 1.2.0
 
 ### Minor Changes

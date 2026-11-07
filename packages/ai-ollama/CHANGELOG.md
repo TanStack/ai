@@ -1,5 +1,14 @@
 # @tanstack/ai-ollama
 
+## 1.1.1
+
+### Patch Changes
+
+- [#2077](https://github.com/TanStack/ai/pull/2077) [`c32f641`](https://github.com/TanStack/ai/commit/c32f6417f40d8e3d06ae9006cea79683ca128601) - Report `finishReason: "length"` on `RUN_FINISHED` when an Ollama stream ends with `done_reason: "length"`. This includes a reply cut by `num_predict`, and a tool call cut the same way. A normal stop stays `"stop"`. A finished tool call stays `"tool_calls"`.
+
+- Updated dependencies [[`9393839`](https://github.com/TanStack/ai/commit/9393839d380dde91fa91e81b5e92448610e9782a), [`7157ef3`](https://github.com/TanStack/ai/commit/7157ef3e8556ac23c350822ba0f3c4bbf0abb118)]:
+  - @tanstack/ai@1.2.1
+
 ## 1.1.0
 
 ### Minor Changes
