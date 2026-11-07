@@ -520,6 +520,23 @@ function coerceStrictSchema(
     )
   }
 
+  // Definition pools (`$defs`, or `definitions` in draft-7) are reached through
+  // `$ref`, so they need the same strict conversion as the inline schemas.
+  // The null-widening map is positional and cannot follow a `$ref`, so widening
+  // inside a definition is not tracked here.
+  for (const defsKey of ['$defs', 'definitions']) {
+    const defs = result[defsKey]
+    if (!isSchemaObject(defs)) continue
+    result[defsKey] = Object.fromEntries(
+      Object.entries(defs).map(([name, def]) => {
+        if (!isSchemaObject(def)) return [name, def]
+        const nested = coerceStrictSchema(def, def.required || [])
+        hasUntrackableAnyOfWidening ||= nested.hasUntrackableAnyOfWidening
+        return [name, nested.schema]
+      }),
+    )
+  }
+
   return {
     schema: result,
     nullWideningMap: pruneMap(nullWideningMap),
