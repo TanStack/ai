@@ -110,6 +110,9 @@ For Vue, Solid, Svelte, Angular, and the other frameworks, see [Quick Start](../
 
 You now have a streaming Mistral chat. [Tools](../tools/tools) work the same as with every adapter. Mistral has no provider tools of its own, so define your tools with `toolDefinition()`.
 
+When Mistral reaches the token limit during a tool call, `RUN_FINISHED.finishReason` is `length`.
+The cut call ends with `TOOL_CALL_END` carrying the raw `args` and no `input`, because the arguments can be incomplete.
+
 ## Images in a message
 
 Send an image with the text to a vision model: `mistral-medium-latest` or `mistral-small-latest`.
