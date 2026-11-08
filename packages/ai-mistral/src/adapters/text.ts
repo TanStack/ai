@@ -791,10 +791,13 @@ export class MistralTextAdapter<
                 continue
               }
 
-              const parsedInput = parseToolCallInput(
-                toolCall,
-                normalizeToolInput,
-              )
+              // A call cut at the token limit has incomplete arguments, so
+              // skip the parse (it would throw) and end it with the raw args
+              // and no `input`.
+              const cutAtLimit = finishReason === 'length'
+              const parsedInput = cutAtLimit
+                ? undefined
+                : parseToolCallInput(toolCall, normalizeToolInput)
 
               toolCall.ended = true
               hasEmittedToolCall = true
@@ -805,16 +808,16 @@ export class MistralTextAdapter<
                 model: chunkModel,
                 timestamp,
                 args: toolCall.arguments,
-                input: parsedInput,
+                ...(cutAtLimit ? {} : { input: parsedInput }),
               })
             }
           }
 
           const computedFinishReason =
-            finishReason === 'tool_calls' || hasEmittedToolCall
-              ? 'tool_calls'
-              : finishReason === 'length'
-                ? 'length'
+            finishReason === 'length'
+              ? 'length'
+              : finishReason === 'tool_calls' || hasEmittedToolCall
+                ? 'tool_calls'
                 : 'stop'
 
           // If the run finished while reasoning was still open (no text or
