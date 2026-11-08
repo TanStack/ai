@@ -367,6 +367,8 @@ importers:
         specifier: ^4.23.15
         version: 4.23.15
 
+  examples/react: {}
+
   examples/react/basic-chat:
     dependencies:
       '@tailwindcss/vite':
@@ -486,7 +488,7 @@ importers:
   examples/react/effect-chat:
     dependencies:
       '@tailwindcss/vite':
-        specifier: ^4.1.18
+        specifier: ^4.3.4
         version: 4.3.4(vite@8.3.5(@types/node@24.19.2)(esbuild@0.28.2)(jiti@2.7.0)(less@4.9.1(supports-color@10.2.2))(sass-embedded@1.107.1)(sass@1.107.1)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
       '@tanstack/ai':
         specifier: workspace:*
@@ -501,35 +503,35 @@ importers:
         specifier: workspace:*
         version: link:../../../packages/ai-react
       '@tanstack/react-router':
-        specifier: ^1.170.41
+        specifier: ^1.170.46
         version: 1.170.46(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
       '@tanstack/react-start':
-        specifier: ^1.168.60
+        specifier: ^1.169.4
         version: 1.169.4(esbuild@0.28.2)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(rolldown@1.2.16)(rollup@4.67.5)(supports-color@10.2.2)(vite-plugin-solid@2.11.15(solid-js@1.9.18)(supports-color@10.2.2)(vite@8.3.5(@types/node@24.19.2)(esbuild@0.28.2)(jiti@2.7.0)(less@4.9.1(supports-color@10.2.2))(sass-embedded@1.107.1)(sass@1.107.1)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1)))(vite@8.3.5(@types/node@24.19.2)(esbuild@0.28.2)(jiti@2.7.0)(less@4.9.1(supports-color@10.2.2))(sass-embedded@1.107.1)(sass@1.107.1)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
       '@tanstack/router-plugin':
-        specifier: ^1.168.42
+        specifier: ^1.168.48
         version: 1.168.48(@tanstack/react-router@1.170.46(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(esbuild@0.28.2)(rolldown@1.2.16)(rollup@4.67.5)(supports-color@10.2.2)(vite-plugin-solid@2.11.15(solid-js@1.9.18)(supports-color@10.2.2)(vite@8.3.5(@types/node@24.19.2)(esbuild@0.28.2)(jiti@2.7.0)(less@4.9.1(supports-color@10.2.2))(sass-embedded@1.107.1)(sass@1.107.1)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1)))(vite@8.3.5(@types/node@24.19.2)(esbuild@0.28.2)(jiti@2.7.0)(less@4.9.1(supports-color@10.2.2))(sass-embedded@1.107.1)(sass@1.107.1)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
       effect:
         specifier: ^4.1.0
         version: 4.1.2
       react:
-        specifier: ^19.2.3
+        specifier: ^19.3.1
         version: 19.3.1
       react-dom:
-        specifier: ^19.2.3
+        specifier: ^19.3.1
         version: 19.3.1(react@19.3.1)
       tailwindcss:
-        specifier: ^4.1.18
+        specifier: ^4.3.4
         version: 4.3.4
     devDependencies:
       '@types/node':
         specifier: ^24.10.1
         version: 24.19.2
       '@types/react':
-        specifier: ^19.2.7
+        specifier: ^19.3.0
         version: 19.3.0
       '@types/react-dom':
-        specifier: ^19.2.3
+        specifier: ^19.3.0
         version: 19.3.0(@types/react@19.3.0)
       '@vitejs/plugin-react':
         specifier: ^6.2.1
@@ -538,7 +540,7 @@ importers:
         specifier: 5.9.3
         version: 5.9.3
       vite:
-        specifier: ^8.2.1
+        specifier: ^8.3.5
         version: 8.3.5(@types/node@24.19.2)(esbuild@0.28.2)(jiti@2.7.0)(less@4.9.1(supports-color@10.2.2))(sass-embedded@1.107.1)(sass@1.107.1)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1)
 
   examples/react/evaluate:
