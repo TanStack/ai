@@ -313,13 +313,11 @@ describe('withCompaction', () => {
       checkpointContext(store),
     )
     // As PostgreSQL jsonb gives them back: equal messages, keys reordered.
-    const loaded = messages.map(
-      ({ role, content, ...rest }): ModelMessage => ({
-        content,
-        ...rest,
-        role,
-      }),
-    )
+    const loaded = messages.map(({ role, content, ...rest }): ModelMessage => ({
+      content,
+      ...rest,
+      role,
+    }))
     await runOnConfig(
       withCompaction(options),
       [...loaded, text('user', 'new')],
