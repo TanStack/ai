@@ -1549,6 +1549,20 @@ class TextEngine<
   }
 
   async *run(): AsyncGenerator<StreamChunk> {
+    for await (const chunk of this.runSteps()) {
+      let resumed = false
+      try {
+        yield chunk
+        resumed = true
+      } finally {
+        // The consumer stopped iterating (`break` or `return()`). Abort before
+        // the loop closes `runSteps`, so its `finally` reports `onAbort`.
+        if (!resumed) this.middlewareAbortController?.abort()
+      }
+    }
+  }
+
+  private async *runSteps(): AsyncGenerator<StreamChunk> {
     this.beforeRun()
     this.logger.agentLoop('run started', {
       threadId: this.middlewareCtx.threadId,

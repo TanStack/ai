@@ -81,6 +81,7 @@ import { Route as ApiCallOwnershipWireRouteImport } from './routes/api.call-owne
 import { Route as ApiChatRouteImport } from './routes/api.chat'
 import { Route as ApiChatCallerAbortRouteImport } from './routes/api.chat-caller-abort'
 import { Route as ApiChatCompletionsIncompleteStreamRouteImport } from './routes/api.chat-completions-incomplete-stream'
+import { Route as ApiChatConsumerStopRouteImport } from './routes/api.chat-consumer-stop'
 import { Route as ApiClientToolResumeStoreRouteImport } from './routes/api.client-tool-resume-store'
 import { Route as ApiCloudflareBindingHeadersWireRouteImport } from './routes/api.cloudflare-binding-headers-wire'
 import { Route as ApiCloudflareBindingWireRouteImport } from './routes/api.cloudflare-binding-wire'
@@ -603,6 +604,11 @@ const ApiChatCompletionsIncompleteStreamRoute =
     path: '/api/chat-completions-incomplete-stream',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiChatConsumerStopRoute = ApiChatConsumerStopRouteImport.update({
+  id: '/api/chat-consumer-stop',
+  path: '/api/chat-consumer-stop',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiClientToolResumeStoreRoute =
   ApiClientToolResumeStoreRouteImport.update({
     id: '/api/client-tool-resume-store',
@@ -1426,6 +1432,7 @@ export interface FileRoutesByFullPath {
   '/api/chat': typeof ApiChatRoute
   '/api/chat-caller-abort': typeof ApiChatCallerAbortRoute
   '/api/chat-completions-incomplete-stream': typeof ApiChatCompletionsIncompleteStreamRoute
+  '/api/chat-consumer-stop': typeof ApiChatConsumerStopRoute
   '/api/client-tool-resume-store': typeof ApiClientToolResumeStoreRoute
   '/api/cloudflare-binding-headers-wire': typeof ApiCloudflareBindingHeadersWireRoute
   '/api/cloudflare-binding-wire': typeof ApiCloudflareBindingWireRoute
@@ -1643,6 +1650,7 @@ export interface FileRoutesByTo {
   '/api/chat': typeof ApiChatRoute
   '/api/chat-caller-abort': typeof ApiChatCallerAbortRoute
   '/api/chat-completions-incomplete-stream': typeof ApiChatCompletionsIncompleteStreamRoute
+  '/api/chat-consumer-stop': typeof ApiChatConsumerStopRoute
   '/api/client-tool-resume-store': typeof ApiClientToolResumeStoreRoute
   '/api/cloudflare-binding-headers-wire': typeof ApiCloudflareBindingHeadersWireRoute
   '/api/cloudflare-binding-wire': typeof ApiCloudflareBindingWireRoute
@@ -1861,6 +1869,7 @@ export interface FileRoutesById {
   '/api/chat': typeof ApiChatRoute
   '/api/chat-caller-abort': typeof ApiChatCallerAbortRoute
   '/api/chat-completions-incomplete-stream': typeof ApiChatCompletionsIncompleteStreamRoute
+  '/api/chat-consumer-stop': typeof ApiChatConsumerStopRoute
   '/api/client-tool-resume-store': typeof ApiClientToolResumeStoreRoute
   '/api/cloudflare-binding-headers-wire': typeof ApiCloudflareBindingHeadersWireRoute
   '/api/cloudflare-binding-wire': typeof ApiCloudflareBindingWireRoute
@@ -2080,6 +2089,7 @@ export interface FileRouteTypes {
     | '/api/chat'
     | '/api/chat-caller-abort'
     | '/api/chat-completions-incomplete-stream'
+    | '/api/chat-consumer-stop'
     | '/api/client-tool-resume-store'
     | '/api/cloudflare-binding-headers-wire'
     | '/api/cloudflare-binding-wire'
@@ -2297,6 +2307,7 @@ export interface FileRouteTypes {
     | '/api/chat'
     | '/api/chat-caller-abort'
     | '/api/chat-completions-incomplete-stream'
+    | '/api/chat-consumer-stop'
     | '/api/client-tool-resume-store'
     | '/api/cloudflare-binding-headers-wire'
     | '/api/cloudflare-binding-wire'
@@ -2514,6 +2525,7 @@ export interface FileRouteTypes {
     | '/api/chat'
     | '/api/chat-caller-abort'
     | '/api/chat-completions-incomplete-stream'
+    | '/api/chat-consumer-stop'
     | '/api/client-tool-resume-store'
     | '/api/cloudflare-binding-headers-wire'
     | '/api/cloudflare-binding-wire'
@@ -2732,6 +2744,7 @@ export interface RootRouteChildren {
   ApiChatRoute: typeof ApiChatRoute
   ApiChatCallerAbortRoute: typeof ApiChatCallerAbortRoute
   ApiChatCompletionsIncompleteStreamRoute: typeof ApiChatCompletionsIncompleteStreamRoute
+  ApiChatConsumerStopRoute: typeof ApiChatConsumerStopRoute
   ApiClientToolResumeStoreRoute: typeof ApiClientToolResumeStoreRoute
   ApiCloudflareBindingHeadersWireRoute: typeof ApiCloudflareBindingHeadersWireRoute
   ApiCloudflareBindingWireRoute: typeof ApiCloudflareBindingWireRoute
@@ -3377,6 +3390,13 @@ declare module '@tanstack/react-router' {
       path: '/api/chat-completions-incomplete-stream'
       fullPath: '/api/chat-completions-incomplete-stream'
       preLoaderRoute: typeof ApiChatCompletionsIncompleteStreamRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/chat-consumer-stop': {
+      id: '/api/chat-consumer-stop'
+      path: '/api/chat-consumer-stop'
+      fullPath: '/api/chat-consumer-stop'
+      preLoaderRoute: typeof ApiChatConsumerStopRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/client-tool-resume-store': {
@@ -4518,6 +4538,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiChatCallerAbortRoute: ApiChatCallerAbortRoute,
   ApiChatCompletionsIncompleteStreamRoute:
     ApiChatCompletionsIncompleteStreamRoute,
+  ApiChatConsumerStopRoute: ApiChatConsumerStopRoute,
   ApiClientToolResumeStoreRoute: ApiClientToolResumeStoreRoute,
   ApiCloudflareBindingHeadersWireRoute: ApiCloudflareBindingHeadersWireRoute,
   ApiCloudflareBindingWireRoute: ApiCloudflareBindingWireRoute,
