@@ -245,11 +245,13 @@ describe('OpenAI replay parity', () => {
             },
           })),
         },
-        ...ids.map((id): ModelMessage => ({
-          role: 'tool',
-          toolCallId: id,
-          content: '{"output":"ok"}',
-        })),
+        ...ids.map(
+          (id): ModelMessage => ({
+            role: 'tool',
+            toolCallId: id,
+            content: '{"output":"ok"}',
+          }),
+        ),
       ]
       const original = JSON.stringify(messages)
       for (const structured of [false, true]) {
@@ -692,11 +694,13 @@ describe('OpenAI replay parity', () => {
               : {}),
           })),
         },
-        ...ids.map((id): ModelMessage => ({
-          role: 'tool',
-          toolCallId: id,
-          content: 'ok',
-        })),
+        ...ids.map(
+          (id): ModelMessage => ({
+            role: 'tool',
+            toolCallId: id,
+            content: 'ok',
+          }),
+        ),
       ]
       const adapter =
         api === 'completions'
@@ -1232,14 +1236,60 @@ describe('Responses answer items on replay', () => {
     },
   )
 
-  it('keeps old single-item transcripts without text lengths working', async () => {
-    const saved = await firstTurn()
-    const item = saved.at(-1)!.metadata!.tanstack!.responseItems![0]!
-    delete item.textLength
-    expect(await secondTurnInput(saved)).toMatchObject([
-      { id: 'msg_answer', phase: 'final_answer' },
-    ])
-  })
+  it.each([
+    { textLength: 2, first: 'Hi', second: ' there' },
+    { textLength: 0, first: '', second: 'Hi there' },
+  ])(
+    'uses saved item lengths when text block counts match: $textLength',
+    async ({ textLength, first, second }) => {
+      const saved = await firstTurn()
+      const message = saved.at(-1)!
+      message.blockOrder = [
+        { type: 'text', length: 4 },
+        { type: 'text', length: 4 },
+      ]
+      message.metadata!.tanstack!.responseItems = [
+        { id: 'msg_first', phase: 'commentary', textLength },
+        { id: 'msg_second', phase: 'final_answer', textLength: 8 - textLength },
+      ]
+      const mock = sdk([responseCompleted], true)
+      await collect(
+        new Responses(mock.client).chatStream({
+          threadId: 'thread-1',
+          logger,
+          model,
+          messages: saved,
+        }),
+      )
+      const body = mock.bodies[0] as { input: Array<Record<string, unknown>> }
+      expect(
+        body.input.filter((item) => item.role === 'assistant'),
+      ).toMatchObject([
+        { id: 'msg_first', phase: 'commentary', content: [{ text: first }] },
+        {
+          id: 'msg_second',
+          phase: 'final_answer',
+          content: [{ text: second }],
+        },
+      ])
+    },
+  )
+
+  it.each([undefined, -1, 1.5, 99])(
+    'keeps count-matched text blocks when a stored length is invalid: %s',
+    async (textLength) => {
+      const saved = await firstTurn()
+      saved.at(-1)!.metadata!.tanstack!.responseItems![0]!.textLength =
+        textLength
+      expect(await secondTurnInput(saved)).toMatchObject([
+        {
+          id: 'msg_answer',
+          phase: 'final_answer',
+          content: [{ text: 'Hi there' }],
+        },
+      ])
+    },
+  )
 
   it.each([undefined, -1, 1.5, 99])(
     'does not guess boundaries with an invalid stored text length: %s',

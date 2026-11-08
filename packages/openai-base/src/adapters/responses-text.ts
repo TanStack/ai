@@ -178,25 +178,23 @@ function answerItems(
     block.type === 'text' ? [block.text] : [],
   ) ?? [text]
   if (!items) return undefined
-  if (items.length !== texts.length) {
-    // Core and UI conversion can merge adjacent text blocks. The adapter
-    // knows each item's length at completion, so restore those boundaries
-    // without storing another copy of the text or guessing for older saves.
-    const lengths = items.map((item) => item.textLength)
-    if (
-      !lengths.every(
-        (length): length is number =>
-          typeof length === 'number' && Number.isInteger(length) && length >= 0,
-      ) ||
-      lengths.reduce((sum, length) => sum + length, 0) !== text.length
-    )
-      return undefined
+  // Core and UI conversion can change text boundaries, even when counts match.
+  const lengths = items.map((item) => item.textLength)
+  if (
+    lengths.every(
+      (length): length is number =>
+        typeof length === 'number' && Number.isInteger(length) && length >= 0,
+    ) &&
+    lengths.reduce((sum, length) => sum + length, 0) === text.length
+  ) {
     let offset = 0
     texts = lengths.map((length) => {
       const start = offset
       offset += length
       return text.slice(start, offset)
     })
+  } else if (items.length !== texts.length) {
+    return undefined
   }
   return items.map((item, index) => ({
     type: 'message',

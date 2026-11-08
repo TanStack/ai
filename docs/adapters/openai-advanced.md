@@ -374,7 +374,7 @@ OpenAI gives each answer item an `id` and a `phase`: `commentary` for text befor
 
 When the same model gets that message again, for example on the next turn, the adapter sends each item back with its `id` and `phase`. Another model gets the plain text.
 
-Each saved item also has a `textLength`. This keeps adjacent commentary and final answers separate on replay, even when core or client conversion merges their text. Older records without lengths still use their existing text blocks.
+Each saved item also has a `textLength`. Valid lengths restore the original item boundaries on replay, even when the current text block count matches the item count. Records without valid lengths use their existing text blocks when the counts match.
 
 When the model call also sent a reasoning item, the adapter sets `metadata.tanstack.reasoningItem`. If a stored message lost that reasoning item, the adapter sends the text and tool calls without their item ids. OpenAI refuses a `msg_` or `fc_` item without the reasoning item that made it.
 
