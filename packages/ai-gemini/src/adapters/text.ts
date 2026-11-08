@@ -1256,6 +1256,17 @@ export class GeminiTextAdapter<
           }
         }
 
+        const contentFilterReasons = new Set([
+          FinishReason.SAFETY,
+          FinishReason.RECITATION,
+          FinishReason.BLOCKLIST,
+          FinishReason.PROHIBITED_CONTENT,
+          FinishReason.SPII,
+          FinishReason.IMAGE_SAFETY,
+          FinishReason.IMAGE_PROHIBITED_CONTENT,
+          FinishReason.IMAGE_RECITATION,
+        ])
+
         if (finishReason === FinishReason.MAX_TOKENS) {
           // RUN_ERROR ends the run (as in the Anthropic adapter), so it
           // carries the usage and no RUN_FINISHED follows.
@@ -1294,14 +1305,11 @@ export class GeminiTextAdapter<
           threadId,
           model,
           timestamp: Date.now(),
-          finishReason:
-            finishReason === FinishReason.SAFETY ||
-            finishReason === FinishReason.RECITATION ||
-            finishReason === FinishReason.BLOCKLIST
-              ? 'content_filter'
-              : toolCallMap.size > 0
-                ? 'tool_calls'
-                : 'stop',
+          finishReason: contentFilterReasons.has(finishReason)
+            ? 'content_filter'
+            : toolCallMap.size > 0
+              ? 'tool_calls'
+              : 'stop',
           ...(usage && { usage }),
         }
       }

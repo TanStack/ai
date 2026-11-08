@@ -371,5 +371,9 @@ These topics are on [Gemini: Advanced](./gemini-advanced):
 ## Filtered responses
 
 Check `RUN_FINISHED` metadata when Gemini stops a response because of a content filter.
-For `SAFETY`, `RECITATION`, and `BLOCKLIST` stops, `chat()` sets `metadata.tanstack.finishReason` to `"content_filter"`.
+`chat()` sets `metadata.tanstack.finishReason` to `"content_filter"` for these stops:
+
+- Text filters: `SAFETY`, `RECITATION`, `BLOCKLIST`, `PROHIBITED_CONTENT`, and `SPII`.
+- Image filters: `IMAGE_SAFETY`, `IMAGE_PROHIBITED_CONTENT`, and `IMAGE_RECITATION`.
+
 The stream can contain partial text before that event. A filtered response does not mean the model completed its answer.
