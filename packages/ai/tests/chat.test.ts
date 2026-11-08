@@ -3813,6 +3813,7 @@ describe('chat()', () => {
             rawText: '{"status":"ok"}',
           }),
         })
+        let transcript: Array<ModelMessage> = []
         const chunks = await collectChunks(
           chat({
             threadId: 'thread-1',
@@ -3826,12 +3827,21 @@ describe('chat()', () => {
               required: ['status'],
             },
             stream: true,
+            middleware: [
+              defineChatMiddleware({
+                onFinish(ctx) {
+                  transcript = [...ctx.messages]
+                },
+              }),
+            ],
           }) as AsyncIterable<StreamChunk>,
         )
 
         const finished = expectSingleRunFinished(chunks)
         expect(chunks.at(-1)).toBe(finished)
         expect(tanstackMetadata(finished)?.loopStopped).toBe(true)
+        const lastAssistant = transcript.findLast((m) => m.role === 'assistant')
+        expect(tanstackMetadata(lastAssistant)?.loopStopped).toBe(true)
       })
     })
 
