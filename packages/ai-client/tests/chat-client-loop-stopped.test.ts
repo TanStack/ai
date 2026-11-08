@@ -1,29 +1,28 @@
 import { describe, expect, it } from 'vitest'
+import { EventType, type StreamChunk } from '@tanstack/ai/client'
 import { ChatClient } from '../src/chat-client'
 import type { SubscribeConnectionAdapter } from '../src/connection-adapters'
 
-function finished(loopStopped: boolean) {
+function finished(loopStopped: boolean): StreamChunk {
   return {
-    type: 'RUN_FINISHED' as const,
+    type: EventType.RUN_FINISHED,
     runId: 'run-1',
     threadId: 'thread-1',
     timestamp: 1,
     metadata: {
       tanstack: {
-        finishReason: 'tool_calls' as const,
-        ...(loopStopped ? { loopStopped: true } : {}),
+        finishReason: 'tool_calls',
+        ...(loopStopped ? { loopStopped: true as const } : {}),
       },
     },
   }
 }
 
-function subscribeConnection(
-  chunk: ReturnType<typeof finished>,
-): SubscribeConnectionAdapter {
+function subscribeConnection(chunk: StreamChunk): SubscribeConnectionAdapter {
   return {
     async *subscribe() {
       yield {
-        type: 'RUN_STARTED',
+        type: EventType.RUN_STARTED,
         runId: 'run-1',
         threadId: 'thread-1',
         timestamp: 0,
