@@ -91,7 +91,7 @@ export default {
     const { messages, threadId, runId } = await chatParamsFromRequest(request);
 
     const stream = chat({
-      adapter: createCloudflareText("@cf/zai-org/glm-5.3-flash", {
+      adapter: createCloudflareText("@cf/deepseek-ai/deepseek-v4.1-flash-1017", {
         binding: env.AI,
       }),
       messages,
@@ -120,7 +120,7 @@ export async function POST(request: Request) {
   const { messages, threadId, runId } = await chatParamsFromRequest(request);
 
   const stream = chat({
-    adapter: cloudflareText("@cf/zai-org/glm-5.3-flash"),
+    adapter: cloudflareText("@cf/deepseek-ai/deepseek-v4.1-flash-1017"),
     messages,
     threadId,
     runId,
@@ -135,7 +135,7 @@ To pass the values in code, use `createCloudflareText`:
 ```typescript
 import { createCloudflareText } from "@tanstack/ai-cloudflare";
 
-const adapter = createCloudflareText("@cf/zai-org/glm-5.3-flash", {
+const adapter = createCloudflareText("@cf/deepseek-ai/deepseek-v4.1-flash-1017", {
   accountId: process.env.CLOUDFLARE_ACCOUNT_ID!,
   apiKey: process.env.CLOUDFLARE_API_TOKEN!,
 });
@@ -201,7 +201,7 @@ export default {
     const { messages, conversationId } = await request.json();
 
     const stream = chat({
-      adapter: createCloudflareText("@cf/zai-org/glm-5.3-flash", {
+      adapter: createCloudflareText("@cf/deepseek-ai/deepseek-v4.1-flash-1017", {
         binding: env.AI,
         defaultHeaders: { "x-session-affinity": `ses_${conversationId}` },
       }),
@@ -229,7 +229,7 @@ interface Env {
 }
 
 export function makeAdapter(env: Env) {
-  return createCloudflareText("@cf/zai-org/glm-5.3-flash", {
+  return createCloudflareText("@cf/deepseek-ai/deepseek-v4.1-flash-1017", {
     binding: env.AI,
     gateway: { id: "default", cacheTtl: 3600, skipCache: false },
   });
@@ -367,7 +367,7 @@ export async function POST(request: Request) {
 
   const { messages, threadId, runId } = await chatParamsFromRequest(request);
   const stream = chat({
-    adapter: createCloudflareText("@cf/zai-org/glm-5.3-flash", {
+    adapter: createCloudflareText("@cf/deepseek-ai/deepseek-v4.1-flash-1017", {
       accountId,
       apiKey,
     }),
@@ -473,7 +473,7 @@ import { summarize } from "@tanstack/ai";
 import { cloudflareSummarize } from "@tanstack/ai-cloudflare";
 
 const result = await summarize({
-  adapter: cloudflareSummarize("@cf/zai-org/glm-5.3-flash"),
+  adapter: cloudflareSummarize("@cf/deepseek-ai/deepseek-v4.1-flash-1017"),
   text: "Long article text...",
   threadId: "thread-1",
   stream: false,
@@ -566,7 +566,7 @@ import { chat } from "@tanstack/ai";
 import { cloudflareText } from "@tanstack/ai-cloudflare";
 
 const stream = chat({
-  adapter: cloudflareText("@cf/zai-org/glm-5.3-flash"),
+  adapter: cloudflareText("@cf/deepseek-ai/deepseek-v4.1-flash-1017"),
   messages: [{ role: "user", content: "Summarize this in one sentence." }],
   threadId: "thread-1",
   modelOptions: {
@@ -585,8 +585,8 @@ Some models and their levels:
 
 | Model | Levels |
 | --- | --- |
-| `@cf/zai-org/glm-5.3`, `@cf/zai-org/glm-5.3-flash` | `low`, `high`, `max` |
-| `@cf/deepseek-ai/deepseek-v4-pro-0813`, `@cf/deepseek-ai/deepseek-v4-flash-0731` | `off`, `low`, `high`, `max` |
+| `@cf/zai-org/glm-5.3` | `low`, `high`, `max` |
+| `@cf/deepseek-ai/deepseek-v4.1-flash-1017` | `off`, `low`, `high`, `max` |
 | `@cf/qwen/qwen3.8-27b` | `off`, `low`, `medium`, `xhigh` |
 | `@cf/openai/gpt-oss-120b`, `@cf/openai/gpt-oss-20b` | `low`, `medium`, `high` |
 

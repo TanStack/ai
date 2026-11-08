@@ -92,6 +92,7 @@ export type CloudflareEvaluateModel = 'typesafe/jev' | (string & {})
 
 const CLOUDFLARE_REASONING = {
   '@cf/google/gemma-4-26b-a4b-it': EFFORT_NONE_HIGH,
+  '@cf/deepseek-ai/deepseek-v4.1-flash-1017': EFFORT_NONE_LOW_HIGH_MAX,
   '@cf/deepseek-ai/deepseek-v4-flash-0731': EFFORT_NONE_LOW_HIGH_MAX,
   '@cf/deepseek-ai/deepseek-v4-pro-0813': EFFORT_NONE_LOW_HIGH_MAX,
   '@cf/moonshotai/kimi-k2.6': EFFORT_NONE_HIGH,

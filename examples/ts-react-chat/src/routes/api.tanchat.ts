@@ -102,7 +102,7 @@ const modelSelectionSchema = z
     }),
     z.object({
       provider: z.literal('cloudflare'),
-      model: z.string().catch('@cf/zai-org/glm-5.3-flash'),
+      model: z.string().catch('@cf/deepseek-ai/deepseek-v4.1-flash-1017'),
     }),
   ])
   .catch({ provider: 'openai', model: 'gpt-5.2' })
