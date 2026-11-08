@@ -69,6 +69,17 @@ for (const provider of ['openai', 'openai-compatible']) {
     expect(response.ok()).toBe(true)
     expect(await response.json()).toEqual({ errors: [], aborts: 1 })
   })
+
+  test(`${provider} — a caller abort before the response is an abort and logs no error`, async ({
+    request,
+    testId,
+  }) => {
+    const response = await request.post(
+      `/api/chat-caller-abort?at=before-response&provider=${provider}&testId=${encodeURIComponent(testId)}`,
+    )
+    expect(response.ok()).toBe(true)
+    expect(await response.json()).toEqual({ errors: [], code: 'aborted' })
+  })
 }
 
 test('preserves UI message IDs at the server conversion boundary', async ({

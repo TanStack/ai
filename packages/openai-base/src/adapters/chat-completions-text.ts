@@ -17,6 +17,7 @@ import {
   transformMessagesForReplay,
 } from '@tanstack/ai/adapter-internals'
 import { generateId } from '@tanstack/ai-utils'
+import { APIUserAbortError } from 'openai/core/error'
 import { clientFor, extractRequestOptions } from '../utils/request-options'
 import type { Fetch } from '../utils/request-options'
 import {
@@ -430,10 +431,15 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
     } catch (error: unknown) {
       // Narrow before logging: raw SDK errors can carry request metadata
       // (including auth headers) which we must never surface to user loggers.
-      chatOptions.logger.errors(`${this.name}.structuredOutput fatal`, {
-        error: toRunErrorPayload(error, `${this.name}.structuredOutput failed`),
-        source: `${this.name}.structuredOutput`,
-      })
+      if (!this.isAbortError(error)) {
+        chatOptions.logger.errors(`${this.name}.structuredOutput fatal`, {
+          error: toRunErrorPayload(
+            error,
+            `${this.name}.structuredOutput failed`,
+          ),
+          source: `${this.name}.structuredOutput`,
+        })
+      }
       throw error
     }
   }
@@ -779,6 +785,9 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
     error: unknown,
     fallbackMessage: string,
   ): { message: string; code: string | undefined } {
+    if (this.isAbortError(error)) {
+      return { message: 'Request aborted', code: 'aborted' }
+    }
     const payload = toRunErrorPayload(error, fallbackMessage)
     return this.isContextOverflow(payload)
       ? { ...payload, code: CONTEXT_OVERFLOW_CODE }
@@ -807,6 +816,8 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
     if (!error || typeof error !== 'object') return false
     const e = error as { name?: unknown; code?: unknown }
     return (
+      // The openai client's APIUserAbortError leaves `name` as 'Error'.
+      error instanceof APIUserAbortError ||
       e.name === 'APIUserAbortError' ||
       e.name === 'AbortError' ||
       e.code === 'ERR_CANCELED'
