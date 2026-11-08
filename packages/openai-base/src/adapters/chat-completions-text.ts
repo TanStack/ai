@@ -271,10 +271,13 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
       return
     }
 
-    options.logger.errors(`${this.name}.${source} fatal`, {
-      error: errorPayload,
-      source: `${this.name}.${source}`,
-    })
+    // A caller abort is not a failure, so it stays off the errors channel.
+    if (!this.isAbortError(error)) {
+      options.logger.errors(`${this.name}.${source} fatal`, {
+        error: errorPayload,
+        source: `${this.name}.${source}`,
+      })
+    }
 
     yield {
       type: EventType.RUN_ERROR,

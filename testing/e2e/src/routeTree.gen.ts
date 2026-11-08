@@ -78,6 +78,7 @@ import { Route as ApiByteplusEncryptedReasoningWireRouteImport } from './routes/
 import { Route as ApiByteplusSeedance1080pWireRouteImport } from './routes/api.byteplus-seedance-1080p-wire'
 import { Route as ApiCallOwnershipWireRouteImport } from './routes/api.call-ownership-wire'
 import { Route as ApiChatRouteImport } from './routes/api.chat'
+import { Route as ApiChatCallerAbortRouteImport } from './routes/api.chat-caller-abort'
 import { Route as ApiChatCompletionsIncompleteStreamRouteImport } from './routes/api.chat-completions-incomplete-stream'
 import { Route as ApiClientToolResumeStoreRouteImport } from './routes/api.client-tool-resume-store'
 import { Route as ApiCloudflareBindingHeadersWireRouteImport } from './routes/api.cloudflare-binding-headers-wire'
@@ -579,6 +580,11 @@ const ApiCallOwnershipWireRoute = ApiCallOwnershipWireRouteImport.update({
 const ApiChatRoute = ApiChatRouteImport.update({
   id: '/api/chat',
   path: '/api/chat',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiChatCallerAbortRoute = ApiChatCallerAbortRouteImport.update({
+  id: '/api/chat-caller-abort',
+  path: '/api/chat-caller-abort',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiChatCompletionsIncompleteStreamRoute =
@@ -1386,6 +1392,7 @@ export interface FileRoutesByFullPath {
   '/api/byteplus-seedance-1080p-wire': typeof ApiByteplusSeedance1080pWireRoute
   '/api/call-ownership-wire': typeof ApiCallOwnershipWireRoute
   '/api/chat': typeof ApiChatRoute
+  '/api/chat-caller-abort': typeof ApiChatCallerAbortRoute
   '/api/chat-completions-incomplete-stream': typeof ApiChatCompletionsIncompleteStreamRoute
   '/api/client-tool-resume-store': typeof ApiClientToolResumeStoreRoute
   '/api/cloudflare-binding-headers-wire': typeof ApiCloudflareBindingHeadersWireRoute
@@ -1597,6 +1604,7 @@ export interface FileRoutesByTo {
   '/api/byteplus-seedance-1080p-wire': typeof ApiByteplusSeedance1080pWireRoute
   '/api/call-ownership-wire': typeof ApiCallOwnershipWireRoute
   '/api/chat': typeof ApiChatRoute
+  '/api/chat-caller-abort': typeof ApiChatCallerAbortRoute
   '/api/chat-completions-incomplete-stream': typeof ApiChatCompletionsIncompleteStreamRoute
   '/api/client-tool-resume-store': typeof ApiClientToolResumeStoreRoute
   '/api/cloudflare-binding-headers-wire': typeof ApiCloudflareBindingHeadersWireRoute
@@ -1809,6 +1817,7 @@ export interface FileRoutesById {
   '/api/byteplus-seedance-1080p-wire': typeof ApiByteplusSeedance1080pWireRoute
   '/api/call-ownership-wire': typeof ApiCallOwnershipWireRoute
   '/api/chat': typeof ApiChatRoute
+  '/api/chat-caller-abort': typeof ApiChatCallerAbortRoute
   '/api/chat-completions-incomplete-stream': typeof ApiChatCompletionsIncompleteStreamRoute
   '/api/client-tool-resume-store': typeof ApiClientToolResumeStoreRoute
   '/api/cloudflare-binding-headers-wire': typeof ApiCloudflareBindingHeadersWireRoute
@@ -2022,6 +2031,7 @@ export interface FileRouteTypes {
     | '/api/byteplus-seedance-1080p-wire'
     | '/api/call-ownership-wire'
     | '/api/chat'
+    | '/api/chat-caller-abort'
     | '/api/chat-completions-incomplete-stream'
     | '/api/client-tool-resume-store'
     | '/api/cloudflare-binding-headers-wire'
@@ -2233,6 +2243,7 @@ export interface FileRouteTypes {
     | '/api/byteplus-seedance-1080p-wire'
     | '/api/call-ownership-wire'
     | '/api/chat'
+    | '/api/chat-caller-abort'
     | '/api/chat-completions-incomplete-stream'
     | '/api/client-tool-resume-store'
     | '/api/cloudflare-binding-headers-wire'
@@ -2444,6 +2455,7 @@ export interface FileRouteTypes {
     | '/api/byteplus-seedance-1080p-wire'
     | '/api/call-ownership-wire'
     | '/api/chat'
+    | '/api/chat-caller-abort'
     | '/api/chat-completions-incomplete-stream'
     | '/api/client-tool-resume-store'
     | '/api/cloudflare-binding-headers-wire'
@@ -2656,6 +2668,7 @@ export interface RootRouteChildren {
   ApiByteplusSeedance1080pWireRoute: typeof ApiByteplusSeedance1080pWireRoute
   ApiCallOwnershipWireRoute: typeof ApiCallOwnershipWireRoute
   ApiChatRoute: typeof ApiChatRoute
+  ApiChatCallerAbortRoute: typeof ApiChatCallerAbortRoute
   ApiChatCompletionsIncompleteStreamRoute: typeof ApiChatCompletionsIncompleteStreamRoute
   ApiClientToolResumeStoreRoute: typeof ApiClientToolResumeStoreRoute
   ApiCloudflareBindingHeadersWireRoute: typeof ApiCloudflareBindingHeadersWireRoute
@@ -3277,6 +3290,13 @@ declare module '@tanstack/react-router' {
       path: '/api/chat'
       fullPath: '/api/chat'
       preLoaderRoute: typeof ApiChatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/chat-caller-abort': {
+      id: '/api/chat-caller-abort'
+      path: '/api/chat-caller-abort'
+      fullPath: '/api/chat-caller-abort'
+      preLoaderRoute: typeof ApiChatCallerAbortRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/chat-completions-incomplete-stream': {
@@ -4393,6 +4413,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiByteplusSeedance1080pWireRoute: ApiByteplusSeedance1080pWireRoute,
   ApiCallOwnershipWireRoute: ApiCallOwnershipWireRoute,
   ApiChatRoute: ApiChatRoute,
+  ApiChatCallerAbortRoute: ApiChatCallerAbortRoute,
   ApiChatCompletionsIncompleteStreamRoute:
     ApiChatCompletionsIncompleteStreamRoute,
   ApiClientToolResumeStoreRoute: ApiClientToolResumeStoreRoute,

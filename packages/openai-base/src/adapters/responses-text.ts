@@ -2707,10 +2707,13 @@ export abstract class OpenAIBaseResponsesTextAdapter<
         error,
         `${this.name}.processStreamChunks failed`,
       )
-      options.logger.errors(`${this.name}.processStreamChunks fatal`, {
-        error: errorPayload,
-        source: `${this.name}.processStreamChunks`,
-      })
+      // A caller abort is not a failure, so it stays off the errors channel.
+      if (!this.isAbortError(error)) {
+        options.logger.errors(`${this.name}.processStreamChunks fatal`, {
+          error: errorPayload,
+          source: `${this.name}.processStreamChunks`,
+        })
+      }
       // A held refusal wins over a later stream error. A caller abort stays
       // an abort.
       if (pendingRunError && !this.isAbortError(error)) {
