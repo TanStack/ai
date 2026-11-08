@@ -1627,6 +1627,7 @@ class TextEngine<
         this.loopStopped = true
         this.markLoopStoppedMessage()
         if (!this.finalStructuredOutput) {
+          this.loopStoppedFinishSent = true
           yield* this.emitSuccessfulEarlyTermination()
         }
       }
@@ -3564,8 +3565,6 @@ class TextEngine<
     }
 
     this.messages = messages
-    this.middlewareCtx.messages = this.messages
-    if (this.loopStopped) this.markLoopStoppedMessage()
     this.closeTruncatedToolCalls(startedLength)
     // An in-place update does not grow the array. The assistant message is
     // already at existingStructuredIndex, so a search from the old length
@@ -3575,6 +3574,8 @@ class TextEngine<
         ? existingStructuredIndex
         : startedLength,
     )
+    if (this.loopStopped) this.markLoopStoppedMessage()
+    this.middlewareCtx.messages = this.messages
   }
 
   /**
