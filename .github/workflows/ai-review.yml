@@ -57,7 +57,7 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
       - name: Setup Tools
-        uses: TanStack/config/.github/setup@15c61ed484fc4bf635aea6e3059c523002f8c9af # main
+        uses: TanStack/config/.github/setup@a041f4eeb8e4d595aee89f8992b20c669288a741 # main
       - name: Build packages
         run: pnpm exec nx run-many -t build -p @tanstack/ai-grok-build @tanstack/ai-sandbox-docker
       - name: Guard review

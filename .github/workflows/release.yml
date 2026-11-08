@@ -26,7 +26,7 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
       - name: Setup Tools
-        uses: TanStack/config/.github/setup@15c61ed484fc4bf635aea6e3059c523002f8c9af # main
+        uses: TanStack/config/.github/setup@a041f4eeb8e4d595aee89f8992b20c669288a741 # main
       - name: Run Tests
         run: pnpm run test:ci
 
@@ -46,7 +46,7 @@ jobs:
           fetch-depth: 0
           persist-credentials: true
       - name: Setup Tools
-        uses: TanStack/config/.github/setup@15c61ed484fc4bf635aea6e3059c523002f8c9af # main
+        uses: TanStack/config/.github/setup@a041f4eeb8e4d595aee89f8992b20c669288a741 # main
       - name: Build packages
         # Fresh, cache-bypassing build so dist/ is on disk when changeset
         # publish packs tarballs. A cached build can report success without
@@ -84,6 +84,6 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: Comment on PRs about release
         if: steps.changesets.outputs.published == 'true'
-        uses: TanStack/config/.github/comment-on-release@15c61ed484fc4bf635aea6e3059c523002f8c9af # main
+        uses: TanStack/config/.github/comment-on-release@a041f4eeb8e4d595aee89f8992b20c669288a741 # main
         with:
           published-packages: ${{ steps.changesets.outputs.published-packages }}

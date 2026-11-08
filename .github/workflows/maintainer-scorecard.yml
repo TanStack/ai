@@ -38,7 +38,7 @@ jobs:
         with:
           persist-credentials: false
       - name: Setup Tools
-        uses: TanStack/config/.github/setup@15c61ed484fc4bf635aea6e3059c523002f8c9af # main
+        uses: TanStack/config/.github/setup@a041f4eeb8e4d595aee89f8992b20c669288a741 # main
       - name: Build and post scorecard
         run: pnpm maintainer:scorecard
         env:
