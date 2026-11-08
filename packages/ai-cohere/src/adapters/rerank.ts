@@ -1,5 +1,9 @@
 import { BaseRerankAdapter } from '@tanstack/ai/adapters'
-import { resolveCohereTransport, getCohereApiKeyFromEnv } from '../utils/client'
+import {
+  fetchWithTimeout,
+  resolveCohereTransport,
+  getCohereApiKeyFromEnv,
+} from '../utils/client'
 import type { CohereClientConfig } from '../utils/client'
 import type {
   CohereRerankModel,
@@ -46,6 +50,7 @@ export class CohereRerankAdapter<
 > extends BaseRerankAdapter<TModel, InferCohereRerankProviderOptions<TModel>> {
   readonly name = 'cohere' as const
 
+  private readonly timeout: number
   private readonly apiKey: string
   private readonly baseUrl: string
   private readonly headers: Record<string, string>
@@ -53,6 +58,7 @@ export class CohereRerankAdapter<
   constructor(config: CohereClientConfig, model: TModel) {
     super({}, model)
     this.apiKey = config.apiKey
+    this.timeout = config.timeout ?? 30_000
     const transport = resolveCohereTransport(config)
     this.baseUrl = transport.baseUrl
     this.headers = transport.headers
@@ -77,16 +83,20 @@ export class CohereRerankAdapter<
 
     let response: Response
     try {
-      response = await fetch(`${this.baseUrl}/v2/rerank`, {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${this.apiKey}`,
-          'Content-Type': 'application/json',
-          ...this.headers,
+      response = await fetchWithTimeout(
+        `${this.baseUrl}/v2/rerank`,
+        {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${this.apiKey}`,
+            'Content-Type': 'application/json',
+            ...this.headers,
+          },
+          body: JSON.stringify(body),
+          ...(abortSignal ? { signal: abortSignal } : {}),
         },
-        body: JSON.stringify(body),
-        ...(abortSignal ? { signal: abortSignal } : {}),
-      })
+        this.timeout,
+      )
     } catch (error) {
       logger.errors(`${this.name}.rerank fatal`, {
         error,

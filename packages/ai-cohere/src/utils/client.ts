@@ -67,3 +67,23 @@ export function resolveCohereTransport(config: CohereClientConfig): {
 export function getCohereApiKeyFromEnv(): string {
   return getApiKeyFromEnv('COHERE_API_KEY')
 }
+
+export async function fetchWithTimeout(
+  url: string,
+  init: RequestInit | undefined,
+  timeoutMs: number,
+): Promise<Response> {
+  const controller = new AbortController()
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs)
+  // Also abort when the caller's signal aborts.
+  const callerSignal = init?.signal
+  const onAbort = () => controller.abort(callerSignal?.reason)
+  if (callerSignal?.aborted) onAbort()
+  else callerSignal?.addEventListener('abort', onAbort, { once: true })
+  try {
+    return await fetch(url, { ...init, signal: controller.signal })
+  } finally {
+    clearTimeout(timeoutId)
+    callerSignal?.removeEventListener('abort', onAbort)
+  }
+}

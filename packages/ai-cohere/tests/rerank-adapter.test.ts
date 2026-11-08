@@ -10,6 +10,7 @@ beforeEach(() => {
 })
 
 afterEach(() => {
+  vi.useRealTimers()
   vi.unstubAllGlobals()
 })
 
@@ -43,6 +44,35 @@ const adapter = () => createCohereRerank('rerank-v3.5', 'test-key')
 const documents = ['sunny day at the beach', 'rainy afternoon in the city']
 
 describe('CohereRerankAdapter', () => {
+  it.each([25, undefined])(
+    'aborts a stalled request after timeout %s',
+    async (timeout) => {
+      vi.useFakeTimers()
+      fetchMock.mockImplementation(
+        (_url, init) =>
+          new Promise((_resolve, reject) => {
+            init?.signal?.addEventListener(
+              'abort',
+              () => reject(init.signal?.reason),
+              { once: true },
+            )
+          }),
+      )
+
+      const result = rerank({
+        adapter: createCohereRerank('rerank-v3.5', 'test-key', { timeout }),
+        query: 'beach',
+        documents,
+      })
+      const rejected = expect(result).rejects.toMatchObject({
+        name: 'AbortError',
+      })
+      await vi.advanceTimersByTimeAsync(timeout ?? 30_000)
+      expect(fetchMock.mock.calls[0]![1]?.signal?.aborted).toBe(true)
+      await rejected
+    },
+  )
+
   it('sends baseURL and defaultHeaders through to fetch', async () => {
     fetchMock.mockResolvedValue(cohereResponse(defaultBody()))
 
@@ -137,17 +167,31 @@ describe('CohereRerankAdapter', () => {
     ).rejects.toThrow('unexpected shape')
   })
 
-  it('forwards the abort signal to fetch', async () => {
-    fetchMock.mockResolvedValue(cohereResponse(defaultBody()))
+  it('propagates caller cancellation to fetch', async () => {
+    fetchMock.mockImplementation(
+      (_url, init) =>
+        new Promise((_resolve, reject) => {
+          init?.signal?.addEventListener(
+            'abort',
+            () => reject(init.signal?.reason),
+            { once: true },
+          )
+        }),
+    )
     const controller = new AbortController()
+    const reason = new Error('cancel rerank')
 
-    await rerank({
+    const result = rerank({
       adapter: adapter(),
       query: 'q',
       documents,
       abortSignal: controller.signal,
     })
+    const rejected = expect(result).rejects.toBe(reason)
+    await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledOnce())
+    controller.abort(reason)
 
-    expect(fetchMock.mock.calls[0]![1]?.signal).toBe(controller.signal)
+    expect(fetchMock.mock.calls[0]![1]?.signal?.aborted).toBe(true)
+    await rejected
   })
 })
