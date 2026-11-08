@@ -710,6 +710,8 @@ export interface TanStackMessageMetadata {
    * stopped at the output limit, so its tool calls are not complete.
    */
   finishReason?: TanStackRunMetadata['finishReason']
+  /** See `TanStackRunMetadata.loopStopped`. Set on the last assistant message of the run. */
+  loopStopped?: boolean
   /**
    * The provider's answer items of this assistant message, in order, for a
    * same-model replay. The OpenAI Responses adapter keeps each output
@@ -773,6 +775,14 @@ export interface TanStackRunMetadata {
   /** See `TanStackMessageMetadata.reasoningItem`. */
   reasoningItem?: boolean
   finishReason?: 'stop' | 'length' | 'content_filter' | 'tool_calls' | null
+  /**
+   * `true` on the last `RUN_FINISHED` of a run that the agent loop stopped
+   * before the model was done: `agentLoopStrategy` (for example
+   * `maxIterations`) or a middleware `onShouldContinue` returned `false`
+   * while tool results waited for the next model call. `finishReason` stays
+   * the reason of the last model call.
+   */
+  loopStopped?: boolean
   /** TokenUsage fields that have no AG-UI `usage[]` equivalent. */
   usage?: TokenUsageLeftover
   interruptErrors?: ReadonlyArray<InterruptSubmissionError>
