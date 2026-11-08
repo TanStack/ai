@@ -934,7 +934,12 @@ export function foldEntry(
           ...(record.operationId ? { operationId: record.operationId } : {}),
           ...(record.outcome === 'failed'
             ? { outcome: 'failed', error: record.error }
-            : { outcome: record.outcome }),
+            : {
+                outcome: record.outcome,
+                ...(record.outcome === 'completed' && record.loopStopped
+                  ? { loopStopped: true as const }
+                  : {}),
+              }),
         },
       }))
       state.thread = settleRunNode(state.thread, record)

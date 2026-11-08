@@ -1123,6 +1123,13 @@ class TextEngine<
   private deferredModelRunFinishedChunks: Array<StreamChunk> = []
 
   private earlyTermination = false
+  /**
+   * The strategy or `onShouldContinue` refused another model call while tool
+   * results waited. A length cut sets this too. The synthetic RUN_FINISHED
+   * is skipped when that cut already sent its own finish.
+   */
+  private loopStopped = false
+  private loopStoppedFinishSent = false
   private toolPhase: ToolPhaseResult = 'continue'
   private cyclePhase: CyclePhase = 'processText'
   // Client state extracted from initial messages (before conversion to ModelMessage)
@@ -1616,8 +1623,13 @@ class TextEngine<
             this.loopState(this.iterationCount),
           ),
         ))
-      if (isStoppedAfterResume && !this.finalStructuredOutput) {
-        yield* this.emitSuccessfulEarlyTermination()
+      if (isStoppedAfterResume) {
+        this.loopStopped = true
+        this.markLoopStoppedMessage()
+        if (!this.finalStructuredOutput) {
+          this.loopStoppedFinishSent = true
+          yield* this.emitSuccessfulEarlyTermination()
+        }
       }
 
       // Skip the agent loop entirely when there are no tools AND a separate
@@ -1704,7 +1716,27 @@ class TextEngine<
 
       this.logger.agentLoop('run finished', {
         finishReason: this.lastFinishReason,
+        loopStopped: this.loopStopped,
       })
+
+      // The `tool_calls` RUN_FINISHED went out before the tool results. A
+      // last one tells the client that the loop, not the model, ended the run.
+      // A streamed finalization sends the outer RUN_FINISHED, so it carries
+      // the flag instead.
+      if (
+        this.loopStopped &&
+        !this.loopStoppedFinishSent &&
+        !this.isCancelled()
+      ) {
+        this.markLoopStoppedMessage()
+        if (!this.finalizationOwnsLifecycle()) {
+          yield* this.pipeThroughMiddleware(
+            withTanstackMetadata(this.createSyntheticFinishedEvent(), {
+              loopStopped: true,
+            }),
+          )
+        }
+      }
 
       // After the agent loop ends, if a structured-output finalization was
       // requested AND the run hasn't already errored/aborted, run it through
@@ -2202,10 +2234,7 @@ class TextEngine<
       //
       // Native combined mode does NOT issue a second adapter stream — the
       // agent loop's lifecycle IS the outer pair the consumer sees.
-      const suppressAgentLifecycle =
-        !!this.finalStructuredOutput &&
-        this.finalStructuredOutput.yieldChunks &&
-        this.finalStructuredOutput.nativeCombined !== true
+      const suppressAgentLifecycle = this.finalizationOwnsLifecycle()
       for (const outputChunk of outputChunks) {
         this.recordPublicActivity(outputChunk, raw)
         for (const spec of normalizeStreamChunk(
@@ -2950,12 +2979,24 @@ class TextEngine<
       // A stopped run ends on the `length` RUN_FINISHED, after the results.
       // Native combined structured output sends it after its harvest, and
       // drops it when the harvest fails.
+      if (!continues) {
+        this.loopStopped = true
+        this.markLoopStoppedMessage()
+        this.deferredToolCallRunFinishedChunks =
+          this.deferredToolCallRunFinishedChunks.map((chunk) =>
+            chunk.type === EventType.RUN_FINISHED
+              ? withTanstackMetadata(chunk, { loopStopped: true })
+              : chunk,
+          )
+      }
       if (!continues && this.finalStructuredOutput?.nativeCombined) {
+        this.loopStoppedFinishSent = true
         this.deferredModelRunFinishedChunks.push(
           ...this.deferredToolCallRunFinishedChunks,
         )
         this.deferredToolCallRunFinishedChunks = []
       } else if (!continues) {
+        this.loopStoppedFinishSent = true
         yield* this.flushDeferredToolCallRunFinishedChunks()
       }
       this.toolCallManager.clear()
@@ -3193,11 +3234,16 @@ class TextEngine<
     this.lastFinishReason = 'stop'
     const finishEvent = this.createSyntheticFinishedEvent('stop')
     yield* this.emitSyntheticRunStarted(finishEvent)
-    yield* this.pipeThroughMiddleware({
+    const finished = {
       ...finishEvent,
       timestamp: Date.now(),
-      outcome: { type: 'success' },
-    })
+      outcome: { type: 'success' as const },
+    }
+    yield* this.pipeThroughMiddleware(
+      this.loopStopped
+        ? withTanstackMetadata(finished, { loopStopped: true })
+        : finished,
+    )
   }
 
   private discardDeferredToolCallRunFinishedChunks(): void {
@@ -3528,6 +3574,7 @@ class TextEngine<
         ? existingStructuredIndex
         : startedLength,
     )
+    if (this.loopStopped) this.markLoopStoppedMessage()
     this.middlewareCtx.messages = this.messages
   }
 
@@ -4567,10 +4614,38 @@ class TextEngine<
     const cutAnswerContinues = this.cutAnswerContinues
     this.cutAnswerContinues = undefined
 
+    const continues =
+      cutAnswerContinues ?? (await this.loopContinues(this.iterationCount))
+    // Tool results wait for the next model call, and the loop says no.
+    if (!continues && this.toolPhase === 'continue') this.loopStopped = true
+    return continues && this.toolPhase === 'continue'
+  }
+
+  /**
+   * A streamed structured-output finalization sends the one outer
+   * RUN_STARTED / RUN_FINISHED pair, not the agent loop.
+   */
+  private finalizationOwnsLifecycle(): boolean {
     return (
-      (cutAnswerContinues ?? (await this.loopContinues(this.iterationCount))) &&
-      this.toolPhase === 'continue'
+      !!this.finalStructuredOutput &&
+      this.finalStructuredOutput.yieldChunks &&
+      this.finalStructuredOutput.nativeCombined !== true
     )
+  }
+
+  /**
+   * Mark the last assistant message as stopped by the loop, so a stored
+   * transcript keeps the signal of the `RUN_FINISHED`.
+   */
+  private markLoopStoppedMessage(): void {
+    const index = this.messages.findLastIndex((m) => m.role === 'assistant')
+    if (index < 0) return
+    this.messages = this.messages.map((message, at) =>
+      at === index
+        ? withTanstackMetadata(message, { loopStopped: true })
+        : message,
+    )
+    this.middlewareCtx.messages = this.messages
   }
 
   /** What the loop strategy and middleware `onShouldContinue` get. */
@@ -5039,6 +5114,13 @@ class TextEngine<
           chunk.type === EventType.RUN_ERROR
         ) {
           await this.runOnUsageFromChunk(chunk)
+        }
+
+        // This is the outer RUN_FINISHED, so it carries the loop stop.
+        if (chunk.type === EventType.RUN_FINISHED && this.loopStopped) {
+          outboundChunk = withTanstackMetadata(chunk, {
+            loopStopped: true,
+          })
         }
 
         if (chunk.type === EventType.TEXT_MESSAGE_CONTENT) {
