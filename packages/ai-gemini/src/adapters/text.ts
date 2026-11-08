@@ -1294,7 +1294,14 @@ export class GeminiTextAdapter<
           threadId,
           model,
           timestamp: Date.now(),
-          finishReason: toolCallMap.size > 0 ? 'tool_calls' : 'stop',
+          finishReason:
+            finishReason === FinishReason.SAFETY ||
+            finishReason === FinishReason.RECITATION ||
+            finishReason === FinishReason.BLOCKLIST
+              ? 'content_filter'
+              : toolCallMap.size > 0
+                ? 'tool_calls'
+                : 'stop',
           ...(usage && { usage }),
         }
       }

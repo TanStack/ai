@@ -441,6 +441,49 @@ describe('GeminiAdapter through AI', () => {
     expect(config.imageConfig).toEqual(providerOptions?.imageConfig)
   })
 
+  it.each(['SAFETY', 'RECITATION', 'BLOCKLIST'])(
+    'reports %s as content_filter',
+    async (finishReason) => {
+      mocks.generateContentStreamSpy.mockResolvedValueOnce(
+        createStream([
+          { candidates: [{ content: { parts: [{ text: 'Partial' }] } }] },
+          {
+            candidates: [{ content: { parts: [] }, finishReason }],
+            usageMetadata: {
+              promptTokenCount: 4,
+              candidatesTokenCount: 2,
+              totalTokenCount: 6,
+            },
+          },
+        ]),
+      )
+
+      const chunks = await collectChunks(
+        createTextAdapter().chatStream({
+          threadId: 'filtered-thread',
+          model: 'gemini-2.5-pro',
+          logger: testLogger,
+          messages: [{ role: 'user', content: 'Continue' }],
+        }),
+      )
+
+      expect(chunks.filter((chunk) => chunk.type === 'RUN_ERROR')).toHaveLength(0)
+      expect(chunks.filter((chunk) => chunk.type === 'RUN_FINISHED')).toEqual([
+        expect.objectContaining({
+          finishReason: 'content_filter',
+          usage: expect.objectContaining({
+            promptTokens: 4,
+            completionTokens: 2,
+            totalTokens: 6,
+          }),
+        }),
+      ])
+      expect(chunks.findIndex((chunk) => chunk.type === 'TEXT_MESSAGE_END')).toBeLessThan(
+        chunks.findIndex((chunk) => chunk.type === 'RUN_FINISHED'),
+      )
+    },
+  )
+
   it('streams chat chunks using mapped provider config', async () => {
     const streamChunks = [
       {
