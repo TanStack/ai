@@ -11,6 +11,8 @@ import { createImageAdapter } from '@/lib/media-providers'
  * - Default: `AI.chat` with an Effect tool. The tool reads a `Weather`
  *   service that a `Layer` provides. The run streams back as SSE.
  * - `?kind=image`: `AI.generateImage` runs as an Effect and returns JSON.
+ * - `?kind=stop`: `Stream.take` stops the chat after its first text chunk,
+ *   and the JSON counts the middleware `onAbort` calls.
  */
 class Weather extends Context.Service<
   Weather,
@@ -53,6 +55,36 @@ export const Route = createFileRoute('/api/effect-chat')({
             }),
           )
           return Response.json(result)
+        }
+
+        if (url.searchParams.get('kind') === 'stop') {
+          let aborts = 0
+          await Effect.runPromise(
+            Stream.runDrain(
+              AI.chat({
+                ...createTextAdapter('openai', undefined, aimockPort, testId),
+                threadId: 'effect-stop',
+                messages: [
+                  {
+                    role: 'user',
+                    content: '[abort-test] tell me a long story',
+                  },
+                ],
+                middleware: [
+                  {
+                    name: 'count-aborts',
+                    onAbort: () => {
+                      aborts++
+                    },
+                  },
+                ],
+              }).pipe(
+                Stream.filter((chunk) => chunk.type === 'TEXT_MESSAGE_CONTENT'),
+                Stream.take(1),
+              ),
+            ),
+          )
+          return Response.json({ aborts })
         }
 
         const chunks = AI.chat({
