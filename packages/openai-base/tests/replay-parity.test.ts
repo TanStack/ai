@@ -245,13 +245,11 @@ describe('OpenAI replay parity', () => {
             },
           })),
         },
-        ...ids.map(
-          (id): ModelMessage => ({
-            role: 'tool',
-            toolCallId: id,
-            content: '{"output":"ok"}',
-          }),
-        ),
+        ...ids.map((id): ModelMessage => ({
+          role: 'tool',
+          toolCallId: id,
+          content: '{"output":"ok"}',
+        })),
       ]
       const original = JSON.stringify(messages)
       for (const structured of [false, true]) {
@@ -694,13 +692,11 @@ describe('OpenAI replay parity', () => {
               : {}),
           })),
         },
-        ...ids.map(
-          (id): ModelMessage => ({
-            role: 'tool',
-            toolCallId: id,
-            content: 'ok',
-          }),
-        ),
+        ...ids.map((id): ModelMessage => ({
+          role: 'tool',
+          toolCallId: id,
+          content: 'ok',
+        })),
       ]
       const adapter =
         api === 'completions'
@@ -1132,7 +1128,10 @@ describe('OpenAI replay parity', () => {
 
 describe('Responses answer items on replay', () => {
   /** Turn 1 with one answer item. Returns the saved transcript. */
-  async function firstTurn(before: Array<Record<string, unknown>> = []) {
+  async function firstTurn(
+    before: Array<Record<string, unknown>> = [],
+    answers?: Array<Record<string, unknown>>,
+  ) {
     const answer = {
       type: 'message',
       id: 'msg_answer',
@@ -1147,7 +1146,7 @@ describe('Responses answer items on replay', () => {
           ...responseCompleted,
           response: {
             ...responseCompleted.response,
-            output: [...before, answer],
+            output: [...before, ...(answers ?? [answer])],
           },
         },
       ],
@@ -1188,7 +1187,7 @@ describe('Responses answer items on replay', () => {
   it('sends the id and phase of the first answer on a same-model request', async () => {
     const saved = await firstTurn()
     expect(saved.at(-1)?.metadata?.tanstack?.responseItems).toEqual([
-      { id: 'msg_answer', phase: 'final_answer' },
+      { id: 'msg_answer', phase: 'final_answer', textLength: 8 },
     ])
     expect(await secondTurnInput(saved)).toEqual([
       {
@@ -1201,6 +1200,60 @@ describe('Responses answer items on replay', () => {
       },
     ])
   })
+
+  it.each([
+    ['Working', 'Done'],
+    ['Working😀', '完成'],
+    ['', 'Done'],
+  ])(
+    'keeps adjacent answer items after core merges %j and %j',
+    async (commentary, final) => {
+      const items = [
+        {
+          type: 'message',
+          id: 'msg_commentary',
+          role: 'assistant',
+          status: 'completed',
+          phase: 'commentary',
+          content: [{ type: 'output_text', text: commentary, annotations: [] }],
+        },
+        {
+          type: 'message',
+          id: 'msg_final',
+          role: 'assistant',
+          status: 'completed',
+          phase: 'final_answer',
+          content: [{ type: 'output_text', text: final, annotations: [] }],
+        },
+      ]
+      const saved = await firstTurn([], items)
+      expect(saved.at(-1)?.content).toBe(commentary + final)
+      expect(await secondTurnInput(saved)).toEqual(items)
+    },
+  )
+
+  it('keeps old single-item transcripts without text lengths working', async () => {
+    const saved = await firstTurn()
+    const item = saved.at(-1)!.metadata!.tanstack!.responseItems![0]!
+    delete item.textLength
+    expect(await secondTurnInput(saved)).toMatchObject([
+      { id: 'msg_answer', phase: 'final_answer' },
+    ])
+  })
+
+  it.each([undefined, -1, 1.5, 99])(
+    'does not guess boundaries with an invalid stored text length: %s',
+    async (textLength) => {
+      const saved = await firstTurn()
+      saved.at(-1)!.metadata!.tanstack!.responseItems = [
+        { id: 'msg_first', phase: 'commentary', textLength },
+        { id: 'msg_second', phase: 'final_answer', textLength: 0 },
+      ]
+      expect(await secondTurnInput(saved)).toEqual([
+        { type: 'message', role: 'assistant', content: 'Hi there' },
+      ])
+    },
+  )
 
   it('leaves the id out when the reasoning item of the answer is lost (B13)', async () => {
     const reasoning = { type: 'reasoning', id: 'rs_1', summary: [] }
