@@ -3,7 +3,7 @@ id: VideoUrlResult
 title: VideoUrlResult
 ---
 
-Defined in: [packages/ai/src/types.ts:2681](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2681)
+Defined in: [packages/ai/src/types.ts:2696](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2696)
 
 Result containing the URL to a generated video.
 
@@ -15,7 +15,7 @@ Result containing the URL to a generated video.
 optional artifacts?: PersistedArtifactRef[];
 ```
 
-Defined in: [packages/ai/src/types.ts:2695](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2695)
+Defined in: [packages/ai/src/types.ts:2710](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2710)
 
 Persisted artifact references for generated assets, when available
 
@@ -27,7 +27,7 @@ Persisted artifact references for generated assets, when available
 optional body?: undefined;
 ```
 
-Defined in: [packages/ai/src/types.ts:2696](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2696)
+Defined in: [packages/ai/src/types.ts:2711](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2711)
 
 ***
 
@@ -37,7 +37,7 @@ Defined in: [packages/ai/src/types.ts:2696](https://github.com/TanStack/ai/blob/
 optional expiresAt?: Date;
 ```
 
-Defined in: [packages/ai/src/types.ts:2687](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2687)
+Defined in: [packages/ai/src/types.ts:2702](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2702)
 
 When the URL expires, if applicable
 
@@ -49,7 +49,7 @@ When the URL expires, if applicable
 jobId: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:2683](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2683)
+Defined in: [packages/ai/src/types.ts:2698](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2698)
 
 Job identifier
 
@@ -61,7 +61,7 @@ Job identifier
 url: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:2685](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2685)
+Defined in: [packages/ai/src/types.ts:2700](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2700)
 
 URL to the generated video
 
@@ -73,7 +73,7 @@ URL to the generated video
 optional usage?: TokenUsage<ProviderUsageDetails>;
 ```
 
-Defined in: [packages/ai/src/types.ts:2693](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2693)
+Defined in: [packages/ai/src/types.ts:2708](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2708)
 
 Usage information for the completed generation, when the adapter can report
 it. For usage-based providers (e.g. fal) this carries `billed` — the real

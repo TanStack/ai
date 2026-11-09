@@ -7,7 +7,7 @@ title: createReplayStream
 function createReplayStream(recording): AsyncIterable<AGUIEvent>;
 ```
 
-Defined in: [packages/ai/src/activities/chat/stream/processor.ts:3690](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/stream/processor.ts#L3690)
+Defined in: [packages/ai/src/activities/chat/stream/processor.ts:3714](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/stream/processor.ts#L3714)
 
 Create an async iterable from a recording
 
