@@ -11,8 +11,12 @@
  * 2. Fetch `GET /v1/openapi/{provider}` for each provider in `providers.ts`.
  * 3. Skip a provider whose document is not available (`missing_connect`,
  *    `no_endpoints`, `unknown_provider`). Its committed client stays.
- * 4. Run Kubb into a scratch directory, then oxfmt.
- * 5. Write the result into the packages, or with `--check` compare it with
+ * 4. Fetch `GET /v1/openapi/{provider}?activity=` for each activity. One with
+ *    per-model schemas (Fal) gets a types-only `src/generated/{activity}`
+ *    holding a `{Provider}{Activity}Endpoints` map of model id to
+ *    `{ input, output }`.
+ * 5. Run Kubb into a scratch directory, then oxfmt.
+ * 6. Write the result into the packages, or with `--check` compare it with
  *    the committed files.
  */
 import { execFileSync } from 'node:child_process'
@@ -20,7 +24,13 @@ import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { diffFiles, docSkipReason, readTree, writeTree } from './files.ts'
+import {
+  diffFiles,
+  docSkipReason,
+  readTree,
+  withEndpointMap,
+  writeTree,
+} from './files.ts'
 import { GENERATED_DIR, PROVIDER_CLIENTS, RUNTIME_DIR } from './providers.ts'
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../..')
@@ -37,8 +47,9 @@ async function listProviders() {
 }
 
 /** The OpenAPI document text, or the reason it is skipped. */
-async function fetchDoc(id: string) {
-  const response = await fetch(`${API}/openapi/${id}`, {
+async function fetchDoc(id: string, activity?: string) {
+  const query = activity ? `?activity=${encodeURIComponent(activity)}` : ''
+  const response = await fetch(`${API}/openapi/${id}${query}`, {
     headers: { Accept: 'application/openapi+json' },
   })
   const text = await response.text()
@@ -50,6 +61,18 @@ async function fetchDoc(id: string) {
   return { text }
 }
 
+async function listActivities(id: string) {
+  const response = await fetch(`${API}/schemas/${id}`)
+  if (!response.ok) return []
+  const body: { activities?: Record<string, unknown> } = await response.json()
+  return Object.keys(body.activities ?? {}).sort()
+}
+
+const pascal = (text: string) =>
+  text.replace(/(^|[^a-z0-9])([a-z0-9])/gi, (_, _sep, c: string) =>
+    c.toUpperCase(),
+  )
+
 async function main() {
   const listed = await listProviders()
   const scratch = await mkdtemp(join(tmpdir(), 'provider-clients-'))
@@ -58,6 +81,9 @@ async function main() {
   try {
     await mkdir(docs, { recursive: true })
     const generated: typeof PROVIDER_CLIENTS = []
+    const activityTypes: Array<
+      (typeof PROVIDER_CLIENTS)[number] & { activity: string }
+    > = []
     for (const provider of PROVIDER_CLIENTS) {
       const result = listed.has(provider.id)
         ? await fetchDoc(provider.id)
@@ -68,6 +94,21 @@ async function main() {
       }
       await writeFile(join(docs, `${provider.id}.json`), result.text)
       generated.push(provider)
+
+      for (const activity of await listActivities(provider.id)) {
+        const doc = await fetchDoc(provider.id, activity)
+        if ('skip' in doc) continue
+        const mapped = withEndpointMap(
+          JSON.parse(doc.text),
+          `${pascal(provider.id)}${pascal(activity)}Endpoints`,
+        )
+        if (!mapped) continue
+        await writeFile(
+          join(docs, `${provider.id}@${activity}.json`),
+          JSON.stringify(mapped),
+        )
+        activityTypes.push({ ...provider, activity })
+      }
     }
     if (generated.length === 0) throw new Error('No provider document found')
 
@@ -105,6 +146,12 @@ async function main() {
       targets.set(
         join(packageDir, GENERATED_DIR),
         await readTree(join(out, id)),
+      )
+    }
+    for (const { id, packageDir, activity } of activityTypes) {
+      targets.set(
+        join(packageDir, 'src/generated', activity),
+        await readTree(join(out, `${id}@${activity}`)),
       )
     }
     // Each runtime file is the same in every run, so the union is the runtime.
