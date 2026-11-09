@@ -11,7 +11,20 @@ import {
   APIUserAbortError,
   OpenAIError,
 } from 'openai/core/error'
+import { sendWith } from '@tanstack/ai-utils/kubb'
+import {
+  openaiPostAudioSpeech,
+  openaiPostAudioTranscriptions,
+  openaiPostChatCompletions,
+  openaiPostEmbeddings,
+  openaiPostImagesEdits,
+  openaiPostImagesGenerations,
+  openaiPostResponses,
+  openaiPostResponsesCompact,
+  openaiPostVideos,
+} from '../generated/client/sdk'
 import type { HttpRequest } from '@tanstack/ai-utils/http'
+import type { ClientInstance } from '@tanstack/ai-utils/kubb'
 import type { ClientOptions, OpenAI } from 'openai'
 import type { AzureClientOptions } from 'openai/azure'
 import type {
@@ -53,6 +66,8 @@ interface ClientRequest extends Omit<HttpRequest, 'method' | 'headers'> {
   headers?: RequestOptions['headers']
   /** An `Accept` header that replaces the client one. */
   accept?: string
+  /** The headers of a generated body (its content type). Request headers win. */
+  bodyHeaders?: Record<string, string>
   /** Resolve to the raw `Response`, not the parsed body. */
   binary?: boolean
   /** The model of the body. Azure puts it in the deployment path. */
@@ -85,6 +100,12 @@ const DEPLOYMENT_PATHS = new Set([
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value)
+
+/**
+ * The one cast between the SDK param types (the public API) and the types of
+ * the generated client. Both describe the same request body.
+ */
+const wire = <T>(body: unknown) => body as T
 
 /** The SDK `readEnv`: the trimmed value, or `undefined` when unset or empty. */
 const readEnv = (name: string) =>
@@ -387,6 +408,7 @@ function fetchTransport(
         headers,
         // An `apiKey` function runs before each request, like in the SDK.
         typeof auth === 'function' ? await auth() : undefined,
+        request.bodyHeaders,
         request.accept ? { Accept: request.accept } : undefined,
         request.headers,
       ),
@@ -422,6 +444,7 @@ function sdkTransport(load: () => Promise<OpenAI>): Send {
   let client: Promise<OpenAI> | undefined
   return async ({
     accept,
+    bodyHeaders,
     binary: _binary,
     model: _model,
     timeout,
@@ -435,10 +458,15 @@ function sdkTransport(load: () => Promise<OpenAI>): Send {
         // The SDK checks a `timeout` key even when its value is undefined.
         ...(timeout !== undefined && { timeout }),
         // ponytail: this merge drops a `null` in the request headers. Only
-        // speech and video downloads set `accept`.
-        headers: accept
-          ? mergeHeaders({ Accept: accept }, request.headers)
-          : request.headers,
+        // generated bodies, speech, and video downloads take this path.
+        headers:
+          accept || bodyHeaders
+            ? mergeHeaders(
+                bodyHeaders,
+                accept ? { Accept: accept } : undefined,
+                request.headers,
+              )
+            : request.headers,
       })
       .asResponse()
   }
@@ -474,12 +502,13 @@ function withDeployment(
 
 /** The SDK resource methods on top of one transport. */
 function buildClient(send: Send, baseURL: string) {
+  // Reads a 2xx response: the SSE events of a stream, else the body.
   // `transform` maps each stream event, or the parsed body.
-  const call = async <T>(
-    request: ClientRequest,
+  const read = async <T>(
+    response: Response,
+    request: Omit<ClientRequest, 'method' | 'path'>,
     transform?: (value: unknown) => unknown,
   ) => {
-    const response = await send(request)
     if (request.stream) {
       const events = readEvents(response, request.signal ?? undefined)
       return (transform ? mapEvents(events, transform) : events) as T
@@ -488,22 +517,51 @@ function buildClient(send: Send, baseURL: string) {
     return (transform ? transform(value) : value) as T
   }
 
-  // The SDK resource call: the method's request plus the per-request options.
+  // An operation that the OpenAPI document does not have.
+  const call = async <T>(
+    request: ClientRequest,
+    transform?: (value: unknown) => unknown,
+  ) => read<T>(await send(request), request, transform)
+
+  // A generated operation: it builds the path and the body, and `send` sends
+  // it with the client headers, retries, and errors.
+  const generated = async <T>(
+    operation: (client: ClientInstance) => Promise<{ response: Response }>,
+    request: Omit<ClientRequest, 'method' | 'path'>,
+    transform?: (value: unknown) => unknown,
+  ) => {
+    const { response } = await operation(
+      sendWith((built) =>
+        send({
+          ...request,
+          method: 'post',
+          path: built.path,
+          body: built.body,
+          bodyHeaders: built.headers,
+        }),
+      ),
+    )
+    return read<T>(response, request, transform)
+  }
+
+  // The per-request options of an SDK resource call.
+  const options = (
+    requestOptions: RequestOptions | undefined,
+    extra: Omit<ClientRequest, 'method' | 'path'> = {},
+  ) => ({
+    headers: requestOptions?.headers,
+    signal: requestOptions?.signal,
+    timeout: requestOptions?.timeout,
+    maxRetries: requestOptions?.maxRetries,
+    query: isRecord(requestOptions?.query) ? requestOptions.query : undefined,
+    ...extra,
+  })
   const request = (
     method: ClientRequest['method'],
     path: string,
-    options: RequestOptions | undefined,
+    requestOptions: RequestOptions | undefined,
     extra: Omit<ClientRequest, 'method' | 'path'> = {},
-  ) => ({
-    method,
-    path,
-    headers: options?.headers,
-    signal: options?.signal,
-    timeout: options?.timeout,
-    maxRetries: options?.maxRetries,
-    query: isRecord(options?.query) ? options.query : undefined,
-    ...extra,
-  })
+  ) => ({ method, path, ...options(requestOptions, extra) })
 
   // Each method result is the intersection of its SDK overload results, so
   // it fits every overload. The overloads of `OpenAIClientLike` give each
@@ -514,11 +572,11 @@ function buildClient(send: Send, baseURL: string) {
       completions: {
         create: (
           body: ChatCompletionCreateParamsBase,
-          options?: RequestOptions,
+          requestOptions?: RequestOptions,
         ) =>
-          call<ChatCompletion & AsyncIterable<ChatCompletionChunk>>(
-            request('post', '/chat/completions', options, {
-              body,
+          generated<ChatCompletion & AsyncIterable<ChatCompletionChunk>>(
+            (client) => openaiPostChatCompletions({ client, body: wire(body) }),
+            options(requestOptions, {
               model: body.model,
               stream: Boolean(body.stream),
             }),
@@ -527,50 +585,57 @@ function buildClient(send: Send, baseURL: string) {
       },
     },
     responses: {
-      create: (body: ResponseCreateParamsBase, options?: RequestOptions) =>
-        call<OpenAIResponse & AsyncIterable<ResponseStreamEvent>>(
-          request('post', '/responses', options, {
-            body,
+      create: (
+        body: ResponseCreateParamsBase,
+        requestOptions?: RequestOptions,
+      ) =>
+        generated<OpenAIResponse & AsyncIterable<ResponseStreamEvent>>(
+          (client) => openaiPostResponses({ client, body: wire(body) }),
+          options(requestOptions, {
             model: body.model,
             stream: Boolean(body.stream),
           }),
           body.stream ? undefined : addOutputText,
         ),
-      compact: (body, options) =>
-        call(
-          request('post', '/responses/compact', options, {
-            body,
-            model: body.model ?? undefined,
-          }),
+      compact: (body, requestOptions) =>
+        generated(
+          (client) => openaiPostResponsesCompact({ client, body: wire(body) }),
+          options(requestOptions, { model: body.model ?? undefined }),
         ),
     },
     embeddings: {
-      create: (body: EmbeddingCreateParams, options?: RequestOptions) =>
-        call<CreateEmbeddingResponse & Base64EmbeddingResponse>(
+      create: (body: EmbeddingCreateParams, requestOptions?: RequestOptions) =>
+        generated<CreateEmbeddingResponse & Base64EmbeddingResponse>(
           // The SDK asks for base64 when no format is set, then decodes it.
-          request('post', '/embeddings', options, {
-            body: {
-              ...body,
-              encoding_format: body.encoding_format || 'base64',
-            },
-            model: body.model,
-          }),
+          (client) =>
+            openaiPostEmbeddings({
+              client,
+              body: wire({
+                ...body,
+                encoding_format: body.encoding_format || 'base64',
+              }),
+            }),
+          options(requestOptions, { model: body.model }),
           body.encoding_format ? undefined : decodeEmbeddings,
         ),
     },
     images: {
-      generate: (body: ImageGenerateParamsBase, options?: RequestOptions) =>
-        call<ImagesResponse & AsyncIterable<ImageGenStreamEvent>>(
-          request('post', '/images/generations', options, {
-            body,
+      generate: (
+        body: ImageGenerateParamsBase,
+        requestOptions?: RequestOptions,
+      ) =>
+        generated<ImagesResponse & AsyncIterable<ImageGenStreamEvent>>(
+          (client) => openaiPostImagesGenerations({ client, body: wire(body) }),
+          options(requestOptions, {
             model: body.model ?? undefined,
             stream: Boolean(body.stream),
           }),
         ),
-      edit: (body: ImageEditParamsBase, options?: RequestOptions) =>
-        call<ImagesResponse & AsyncIterable<ImageEditStreamEvent>>(
-          request('post', '/images/edits', options, {
-            body: toFormData(body),
+      edit: (body: ImageEditParamsBase, requestOptions?: RequestOptions) =>
+        generated<ImagesResponse & AsyncIterable<ImageEditStreamEvent>>(
+          (client) =>
+            openaiPostImagesEdits({ client, body: wire(toFormData(body)) }),
+          options(requestOptions, {
             model: body.model ?? undefined,
             stream: Boolean(body.stream),
           }),
@@ -578,10 +643,10 @@ function buildClient(send: Send, baseURL: string) {
     },
     audio: {
       speech: {
-        create: (body, options) =>
-          call(
-            request('post', '/audio/speech', options, {
-              body,
+        create: (body, requestOptions) =>
+          generated(
+            (client) => openaiPostAudioSpeech({ client, body: wire(body) }),
+            options(requestOptions, {
               model: body.model,
               accept: 'application/octet-stream',
               binary: true,
@@ -591,16 +656,20 @@ function buildClient(send: Send, baseURL: string) {
       transcriptions: {
         create: (
           body: TranscriptionCreateParamsBase,
-          options?: RequestOptions,
+          requestOptions?: RequestOptions,
         ) =>
-          call<
+          generated<
             string &
               Transcription &
               TranscriptionVerbose &
               AsyncIterable<TranscriptionStreamEvent>
           >(
-            request('post', '/audio/transcriptions', options, {
-              body: toFormData(body),
+            (client) =>
+              openaiPostAudioTranscriptions({
+                client,
+                body: wire(toFormData(body)),
+              }),
+            options(requestOptions, {
               model: body.model,
               stream: Boolean(body.stream),
             }),
@@ -616,8 +685,12 @@ function buildClient(send: Send, baseURL: string) {
         call(request('delete', `/files/${encodeURIPath(fileID)}`, options)),
     },
     videos: {
-      create: (body, options) =>
-        call(request('post', '/videos', options, { body: toFormData(body) })),
+      create: (body, requestOptions) =>
+        generated(
+          (client) =>
+            openaiPostVideos({ client, body: wire(toFormData(body)) }),
+          options(requestOptions),
+        ),
       retrieve: (videoID, options) =>
         call(request('get', `/videos/${encodeURIPath(videoID)}`, options)),
       downloadContent: (videoID, query, options) =>

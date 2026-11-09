@@ -20,6 +20,7 @@ const config = defineConfig({
         '**/*.test.ts',
         '**/*.config.ts',
         '**/types.ts',
+        'src/generated/',
       ],
       include: ['src/**/*.ts'],
     },
@@ -29,7 +30,7 @@ const config = defineConfig({
 export default mergeConfig(
   config,
   tanstackViteConfig({
-    entry: ['./src/index.ts', './src/http/index.ts'],
+    entry: ['./src/index.ts', './src/http/index.ts', './src/kubb.ts'],
     srcDir: './src',
     cjs: false,
   }),
