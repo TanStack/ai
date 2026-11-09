@@ -269,27 +269,35 @@ describe.skipIf(!apiKey)('tangle provider (gated on TANGLE_API_KEY)', () => {
   }, 600_000)
 
   // MEASURES the create-abort path: a sandbox the platform accepted after the
-  // caller gave up is deleted, not left running.
+  // caller gave up is deleted, not left running. The SDK create takes no
+  // signal, so the platform always receives the request.
   it('aborting create leaves no running sandbox behind', async () => {
     const run = `tanstack-ai-abort-${randomUUID()}`
     const provider = tangleSandbox({ apiKey, metadata: { run } })
-    const controller = new AbortController()
-    const pending = provider.create({ signal: controller.signal })
-    setTimeout(() => controller.abort(), 200)
-    await expect(pending).rejects.toThrow()
-
     const client = new Sandbox({
       apiKey: apiKey!,
       baseUrl: 'https://sandbox.tangle.tools',
     })
-    let live = ['unchecked']
-    for (let i = 0; i < 30 && live.length > 0; i++) {
-      await new Promise((r) => setTimeout(r, 2000))
-      const listed = await client.list({ run })
-      live = listed
-        .filter((s) => s.status !== 'deleted' && s.status !== 'failed')
-        .map((s) => s.id)
+    const controller = new AbortController()
+    const pending = provider.create({ signal: controller.signal })
+    setTimeout(() => controller.abort(), 200)
+    let generations: Awaited<ReturnType<typeof client.runGenerations>> = []
+    try {
+      await expect(pending).rejects.toThrow()
+      // Wait until the platform lists the sandbox, then until it is closed.
+      for (let i = 0; i < 60; i++) {
+        generations = await client.runGenerations(run)
+        if (generations.length > 0 && generations.every((g) => g.closedAt)) {
+          break
+        }
+        await new Promise((r) => setTimeout(r, 2000))
+      }
+      expect(generations.length).toBeGreaterThan(0)
+      expect(generations.filter((g) => !g.closedAt)).toEqual([])
+    } finally {
+      for (const g of generations.filter((x) => !x.closedAt)) {
+        await client.delete(g.sandboxId).catch(() => undefined)
+      }
     }
-    expect(live).toEqual([])
   }, 300_000)
 })

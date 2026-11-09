@@ -103,7 +103,7 @@ try {
 | `ports`               | ✅        | `ports.connect(port)` creates a preview link and returns its public HTTPS URL.                             |
 | `snapshots`           | ✅        | `snapshot()` captures the workspace. `restoreSnapshot()` creates a new sandbox from it.                    |
 | `durableFilesystem`   | ✅        | The workspace persists across stop and resume.                                                             |
-| `backgroundProcesses` | ✅        | `spawn()` returns a real sandbox pid and streams `stdout` and `stderr` separately.                         |
+| `backgroundProcesses` | ✅        | `spawn()` returns a real pid and separate streams. Past 8 MiB a stream is cut and the process killed.      |
 | `writableStdin`       | ❌        | The process API takes no stdin stream; harnesses get their prompt from a file.                             |
 | `killableProcesses`   | ✅        | `kill()` signals the process tree inside the sandbox, measured against a live sandbox.                     |
 | `networkPolicy`       | ✅        | `policy.capabilities.network: 'deny'` maps to egress mode `blocked`.                                       |
@@ -111,3 +111,6 @@ try {
 
 The native file calls reach the sandbox user's home (`/home/agent`) and
 `/tmp`. Read other paths with `process.exec`.
+
+A new sandbox is created without the account's stored secrets. A restore from
+a snapshot inherits them, because the API refuses an isolated restore.

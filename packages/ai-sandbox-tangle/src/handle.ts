@@ -132,29 +132,50 @@ class OutputLostError extends Error {
 
 /**
  * Read a process's output from one log stream, split into stdout and stderr.
- * A stream read again starts from the oldest output the sandbox kept, so the
- * output already delivered is skipped. A `gap` is an error, not a silent cut.
+ * Positions count UTF-8 bytes across both streams in log order. A stream read
+ * again replays from the oldest output the sandbox kept, after a `gap` for
+ * what it evicted, so output before the delivered position is skipped. A gap
+ * that reaches past that position lost output, and that is an error.
  */
 function readOutput(
   proc: TangleProcess,
   onChunk: (stream: 'stdout' | 'stderr', data: string) => void,
 ): Promise<void> {
-  const delivered = { stdout: 0, stderr: 0 }
+  let delivered = 0
   return retrying(async (progress) => {
-    const skip = { ...delivered }
+    let at = 0
     for await (const entry of proc.logs()) {
-      if (entry.type === 'gap') throw new OutputLostError(entry.missedBytes)
-      const data = entry.data.slice(skip[entry.type])
-      skip[entry.type] = Math.max(0, skip[entry.type] - entry.data.length)
-      if (data === '') continue
-      delivered[entry.type] += data.length
-      progress()
-      onChunk(entry.type, data)
+      if (entry.type === 'gap') {
+        if (entry.missedBytes === undefined) {
+          throw new OutputLostError(undefined)
+        }
+        at += entry.missedBytes
+        if (at > delivered) throw new OutputLostError(at - delivered)
+        continue
+      }
+      const bytes = Buffer.from(entry.data)
+      const end = at + bytes.length
+      if (end > delivered) {
+        const fresh =
+          at >= delivered
+            ? entry.data
+            : bytes.subarray(delivered - at).toString()
+        delivered = end
+        progress()
+        onChunk(entry.type, fresh)
+      }
+      at = end
     }
   })
 }
 
-/** A push-fed async iterable, so one log stream can feed stdout and stderr. */
+/** Byte cap per spawned stream; past it the stream is cut and the process killed. */
+const MAX_STREAM_BYTES = 8 * 1024 * 1024
+
+/**
+ * A push-fed async iterable with a byte cap, so one log stream can feed
+ * stdout and stderr without holding unread output without limit.
+ */
 class ChunkQueue implements AsyncIterable<string> {
   private readonly chunks: Array<string> = []
   private readonly waiters: Array<{
@@ -163,14 +184,35 @@ class ChunkQueue implements AsyncIterable<string> {
   }> = []
   private closed = false
   private error: unknown
+  private bytes = 0
+
+  constructor(
+    private readonly label: string,
+    private readonly onOverflow: () => void,
+  ) {}
 
   push(chunk: string): void {
+    if (this.closed) return
+    this.bytes += Buffer.byteLength(chunk)
+    if (this.bytes > MAX_STREAM_BYTES) {
+      this.emit(
+        `\n[tangle] ${this.label} exceeded ${MAX_STREAM_BYTES} bytes; output truncated\n`,
+      )
+      this.close()
+      this.onOverflow()
+      return
+    }
+    this.emit(chunk)
+  }
+
+  private emit(chunk: string): void {
     const waiter = this.waiters.shift()
     if (waiter) waiter.resolve({ value: chunk, done: false })
     else this.chunks.push(chunk)
   }
 
   close(error?: unknown): void {
+    if (this.closed) return
     this.closed = true
     this.error = error
     for (const waiter of this.waiters.splice(0)) {
@@ -289,7 +331,7 @@ export class TangleHandle implements SandboxHandle {
       },
       list: async (p, o) => {
         o?.signal?.throwIfAborted()
-        const r = await this.exec(`ls -1Ap -- ${q(this.abs(p))}`, o)
+        const r = await this.fsExec(`ls -1Ap -- ${q(this.abs(p))}`, o?.signal)
         if (r.exitCode !== 0) throw new Error(`list failed: ${errText(r)}`)
         const base = p.replace(/\/$/, '')
         return r.stdout
@@ -311,25 +353,25 @@ export class TangleHandle implements SandboxHandle {
       },
       mkdir: async (p, o) => {
         o?.signal?.throwIfAborted()
-        const r = await this.exec(`mkdir -p -- ${q(this.abs(p))}`, o)
+        const r = await this.fsExec(`mkdir -p -- ${q(this.abs(p))}`, o?.signal)
         if (r.exitCode !== 0) throw new Error(`mkdir failed: ${errText(r)}`)
       },
       remove: async (p, o) => {
         o?.signal?.throwIfAborted()
-        const r = await this.exec(`rm -rf -- ${q(this.abs(p))}`, o)
+        const r = await this.fsExec(`rm -rf -- ${q(this.abs(p))}`, o?.signal)
         if (r.exitCode !== 0) throw new Error(`remove failed: ${errText(r)}`)
       },
       rename: async (from, to, o) => {
         o?.signal?.throwIfAborted()
-        const r = await this.exec(
+        const r = await this.fsExec(
           `mv -- ${q(this.abs(from))} ${q(this.abs(to))}`,
-          o,
+          o?.signal,
         )
         if (r.exitCode !== 0) throw new Error(`rename failed: ${errText(r)}`)
       },
       exists: async (p, o) => {
         o?.signal?.throwIfAborted()
-        const r = await this.exec(`test -e ${q(this.abs(p))}`, o)
+        const r = await this.fsExec(`test -e ${q(this.abs(p))}`, o?.signal)
         return r.exitCode === 0
       },
     }
@@ -346,6 +388,16 @@ export class TangleHandle implements SandboxHandle {
         return Promise.resolve()
       },
     }
+  }
+
+  /** A command for an `fs` call: an abort rejects, as the contract asks. */
+  private async fsExec(
+    command: string,
+    signal: AbortSignal | undefined,
+  ): Promise<ExecResult> {
+    const r = await this.exec(command, signal ? { signal } : {})
+    signal?.throwIfAborted()
+    return r
   }
 
   /** Map the conventional `/workspace` virtual root to the sandbox workdir. */
@@ -373,7 +425,7 @@ export class TangleHandle implements SandboxHandle {
     path: string,
     signal?: AbortSignal,
   ): Promise<SandboxFsStat | undefined> {
-    const r = await this.exec(lstatCommand(path), signal ? { signal } : {})
+    const r = await this.fsExec(lstatCommand(path), signal)
     if (r.exitCode === 0 && r.stdout.trim() === LSTAT_MISSING) return undefined
     if (r.exitCode !== 0) throw new Error(`lstat failed: ${errText(r)}`)
     return parseLstatOutput(r.stdout)
@@ -456,8 +508,11 @@ export class TangleHandle implements SandboxHandle {
       void this.stop(proc)
     }
     opts?.signal?.addEventListener('abort', onAbort, { once: true })
-    const stdout = new ChunkQueue()
-    const stderr = new ChunkQueue()
+    const onOverflow = (): void => {
+      void this.stop(proc)
+    }
+    const stdout = new ChunkQueue('stdout', onOverflow)
+    const stderr = new ChunkQueue('stderr', onOverflow)
     void readOutput(proc, (stream, data) => {
       ;(stream === 'stdout' ? stdout : stderr).push(data)
     }).then(
