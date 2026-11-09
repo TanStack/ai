@@ -368,6 +368,51 @@ const handler = createMcpAppCallHandler({
 
 `phase` is `'call'` for a failure to connect, find, or run the tool. It is `'close'` for a failure to close the client after the call. A `'close'` failure does not change the result.
 
+### Send request context with widget calls
+
+Pass `meta` to the handler in your call route. The handler sends it as the `_meta` of the widget tool call:
+
+```ts ignore
+// src/routes/api.mcp-apps-call.ts  (TanStack Start)
+import { createFileRoute } from '@tanstack/react-router'
+import { createMCPClients } from '@tanstack/ai-mcp'
+import { createMcpAppCallHandler } from '@tanstack/ai-mcp/apps'
+
+const mcp = await createMCPClients({
+  weather: { transport: { type: 'http', url: process.env.WEATHER_MCP_URL ?? '' } },
+})
+
+const handler = createMcpAppCallHandler({ clients: mcp })
+
+export const Route = createFileRoute('/api/mcp-apps/call')({
+  server: {
+    handlers: {
+      POST: async ({ request }) => {
+        const body = await request.json()
+        const result = await handler(body, {
+          signal: request.signal,
+          // Use the same keys as the requestMeta of your chat route.
+          // Your auth gateway sets these headers after it checks the user.
+          meta: {
+            'acme.com/tenantId': request.headers.get('x-tenant-id'),
+            'acme.com/traceId': request.headers.get('x-trace-id'),
+          },
+        })
+        return new Response(JSON.stringify(result), {
+          headers: { 'Content-Type': 'application/json' },
+        })
+      },
+    },
+  },
+})
+```
+
+- A widget call is a new HTTP request, outside the `chat()` run. So the `requestMeta` of `chat()` does not reach it. Read the context from this request.
+- Only the `tools/call` gets the `_meta`. The connect and the tool list do not.
+- In the chat route, set `requestMeta` so that the `ui://` read of the widget gets the same context. See [Send request context to MCP servers](../tools/mcp-managed#send-request-context-to-mcp-servers).
+
+Now the server sees the same tenant on the chat tool call, the widget read, and each widget call.
+
 ### Links from a widget
 
 - If you pass no `onLink`, the bridge drops the link and logs a warning. `openLink` returns `{ isError: true }`, and the call does not hang.
@@ -409,7 +454,7 @@ const handler = createMcpAppCallHandler({ clients: mcp, store })
 
 ### API reference
 
-`createMcpAppCallHandler(options)` from `@tanstack/ai-mcp/apps` returns `(req) => Promise<{ ok: true; result: unknown } | { ok: false; error: string }>`.
+`createMcpAppCallHandler(options)` from `@tanstack/ai-mcp/apps` returns `(req, { signal?, meta? }?) => Promise<{ ok: true; result: unknown } | { ok: false; error: string }>`.
 
 | Option | Type | Description |
 | --- | --- | --- |

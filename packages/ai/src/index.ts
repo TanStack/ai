@@ -190,6 +190,8 @@ export {
 // MCP chat option types
 export type {
   MCPToolSource,
+  MCPRequestMeta,
+  MCPRequestMetaInput,
   ChatMCPOptions,
   MCPConnectionPolicy,
 } from './activities/chat/mcp/types'

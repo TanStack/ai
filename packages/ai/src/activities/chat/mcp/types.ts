@@ -16,6 +16,40 @@ export interface McpResourceReadResult {
 }
 
 /**
+ * The MCP request that an `MCPRequestMeta` hook is about to send.
+ *
+ * - `tools/call`: `toolName` is the server name of the tool (no prefix).
+ * - `resources/read`: `uri` is the resource that is read.
+ *
+ * `serverId` is the client prefix, or `undefined` when the client has none.
+ */
+export type MCPRequestMetaInput =
+  | {
+      method: 'tools/call'
+      serverId: string | undefined
+      toolName: string
+      args: Record<string, unknown>
+    }
+  | { method: 'resources/read'; serverId: string | undefined; uri: string }
+
+/**
+ * Gives the `_meta` for one MCP request.
+ *
+ * The hook runs once for each MCP request, when the request executes. Its
+ * result is sent as the request `_meta`. Return `undefined` to send no
+ * `_meta`. `@tanstack/ai-mcp` drops the keys that MCP reserves
+ * (`progressToken` and the `io.modelcontextprotocol/` style prefixes).
+ *
+ * If the hook throws or rejects, that one request fails with the error.
+ */
+export type MCPRequestMeta = (
+  request: MCPRequestMetaInput,
+) =>
+  | Record<string, unknown>
+  | undefined
+  | Promise<Record<string, unknown> | undefined>
+
+/**
  * Minimal structural shape that `chat({ mcp })` needs from an MCP client.
  *
  * `@tanstack/ai-mcp`'s `MCPClient` and `MCPClients` satisfy this interface by
@@ -29,20 +63,28 @@ export interface MCPToolSource {
   /**
    * Lists the tools. `chat()` passes the run's `signal` so that a cancelled
    * run also cancels discovery. A source that ignores `signal` still works.
+   * `chat()` passes `requestMeta` only when the caller set it.
    */
   tools: (options?: {
     lazy?: boolean
     signal?: AbortSignal
+    requestMeta?: MCPRequestMeta
   }) => Promise<Array<AnyServerTool>>
   close: () => Promise<void>
   /**
    * Reads an MCP resource by URI. Used by the chat manager to eagerly fetch
    * `ui://` resource widgets (MCP Apps) after a tool result resolves.
    *
+   * `options.serverId` is the server that owns the tool. `options.meta` is
+   * the `_meta` to send with the read.
+   *
    * Optional — sources that do not serve `ui://` resources need not implement
    * this method. `ai-mcp`'s `MCPClient` satisfies this structurally.
    */
-  readResource?: (uri: string) => Promise<McpResourceReadResult>
+  readResource?: (
+    uri: string,
+    options?: { serverId?: string; meta?: Record<string, unknown> },
+  ) => Promise<McpResourceReadResult>
 }
 
 /**
@@ -79,6 +121,16 @@ export interface ChatMCPOptions {
    * Defaults to `false`.
    */
   lazyTools?: boolean
+
+  /**
+   * Gives the `_meta` for each MCP request in this chat run. It covers tool
+   * calls and the MCP Apps `ui://` resource reads.
+   *
+   * The hook runs when the request executes, not at discovery. Meta is not
+   * part of the tool cache key: a `toolCacheMiddleware` hit sends no request,
+   * so the hook does not run.
+   */
+  requestMeta?: MCPRequestMeta
 
   /**
    * Called when tool discovery fails for a single source.
