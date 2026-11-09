@@ -99,7 +99,7 @@ try {
 | --------------------- | --------- | ---------------------------------------------------------------------------------------------------------- |
 | `fs`                  | ✅        | Native file API for `read`, `readBytes`, and `write`; the rest runs as commands. `lstat` reports symlinks. |
 | `exec`                | ✅        | Separate `stdout` and `stderr`, no run limit. An abort kills the process in the sandbox.                   |
-| `env`                 | ✅        | Env for each command, plus the `env.set` overlay. Values are never stored with the sandbox.                |
+| `env`                 | ✅        | Env for each command, plus the `env.set` overlay. Nothing is sent at create.                               |
 | `ports`               | ✅        | `ports.connect(port)` creates a preview link and returns its public HTTPS URL.                             |
 | `snapshots`           | ✅        | `snapshot()` captures the workspace. `restoreSnapshot()` creates a new sandbox from it.                    |
 | `durableFilesystem`   | ✅        | The workspace persists across stop and resume.                                                             |

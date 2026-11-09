@@ -209,8 +209,8 @@ class TangleProvider implements SandboxProvider {
       }),
       input.signal,
     )
-    // Env stays in the handle and travels with each command; it is never
-    // stored with the sandbox.
+    // Env stays in the handle and travels with each command; it is not
+    // sent at create.
     return this.prepare(sandbox, input.env, input.signal)
   }
 
