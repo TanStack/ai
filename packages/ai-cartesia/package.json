@@ -20,7 +20,10 @@
     }
   },
   "sideEffects": false,
-  "files": ["dist", "src"],
+  "files": [
+    "dist",
+    "src"
+  ],
   "scripts": {
     "build": "vite build",
     "clean": "premove ./build ./dist",
@@ -30,7 +33,13 @@
     "test:types": "tsc",
     "test:oxlint": "oxlint src --type-aware"
   },
-  "keywords": ["ai", "tanstack", "cartesia", "text-to-speech", "transcription"],
+  "keywords": [
+    "ai",
+    "tanstack",
+    "cartesia",
+    "text-to-speech",
+    "transcription"
+  ],
   "devDependencies": {
     "@tanstack/ai": "workspace:*",
     "@vitest/coverage-v8": "4.1.10",
