@@ -62,6 +62,15 @@ describe.each(apis)('$api adapter: isAbortError', ({ adapter }) => {
     ).isAbortError(new APIUserAbortError('Request was aborted.'))
     expect(isAbortError).toBe(true)
   })
+
+  it('returns false for an object with no prototype', () => {
+    const isAbortError = (
+      adapter(createOpenAIClient({ apiKey: 'test-key' })) as unknown as {
+        isAbortError: (error: unknown) => boolean
+      }
+    ).isAbortError(Object.create(null))
+    expect(isAbortError).toBe(false)
+  })
 })
 
 const failingFetch: Fetch = async () =>

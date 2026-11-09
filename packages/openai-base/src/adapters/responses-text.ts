@@ -1286,12 +1286,16 @@ export abstract class OpenAIBaseResponsesTextAdapter<
    */
   protected isAbortError(error: unknown): boolean {
     if (!error || typeof error !== 'object') return false
-    const e = error as { name?: unknown; code?: unknown }
+    const e = error as {
+      name?: unknown
+      code?: unknown
+      constructor?: { name?: unknown }
+    }
     return (
       // The openai client's APIUserAbortError leaves `name` as 'Error'.
       error instanceof APIUserAbortError ||
       // An injected client from another copy of `openai` has its own class.
-      error.constructor.name === 'APIUserAbortError' ||
+      e.constructor?.name === 'APIUserAbortError' ||
       e.name === 'APIUserAbortError' ||
       e.name === 'AbortError' ||
       e.code === 'ERR_CANCELED'
