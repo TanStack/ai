@@ -728,6 +728,46 @@ test.describe('durable runs — takeover', () => {
     // stored RUN_ERROR.
     expect(after.log.map((entry) => entry.type)).toEqual(FRESH_FULL_SEQUENCE)
   })
+
+  test('a reconnect during a quiet wait does not start a second driver', async () => {
+    const runId = uniqueRunId('quiet-reconnect')
+    const run = await SseStream.open(routeUrl({ runId, total: '6' }))
+    await tick(runId, 2)
+    expect(contentDeltas(await run.take(7))).toEqual(['1', '2'])
+    // Close the client only. `drop()` aborts the producer, which hides the
+    // bug: the producer must keep the claim while the journal is quiet.
+    run.close()
+
+    const attach = await SseStream.open(
+      routeUrl({ runId, offset: '-1', fenceQuietMs: '50' }),
+      { method: 'GET' },
+    )
+    // The replay proves the GET handler is up. The driver starts beside it.
+    // One quiet window is 50ms, so 300ms is long enough for a second driver
+    // to claim the run when the first host does not hold the lock.
+    expect(contentDeltas(await attach.take(7))).toEqual(['1', '2'])
+    await new Promise((resolve) => setTimeout(resolve, 300))
+    const mid = await state(runId)
+    expect(mid.record?.status).toBe('running')
+    expect(mid.record?.driverEpoch).toBe(1)
+    expect(mid.attachDrives).toBe(0)
+
+    await tick(runId, 4)
+    await attach.drain()
+    const after = await stateUntil(
+      runId,
+      'the original producer to finish the quiet run',
+      (body) => body.record?.status === 'completed',
+    )
+    expect(after.attachDrives).toBe(0)
+    expect(after.record?.driverEpoch).toBe(1)
+    expect(after.log.map((entry) => entry.type)).toEqual(FRESH_FULL_SEQUENCE)
+    expect(
+      after.log
+        .filter((entry) => entry.type === 'TEXT_MESSAGE_CONTENT')
+        .map((entry) => entry.delta),
+    ).toEqual(['1', '2', '3', '4', '5', '6'])
+  })
 })
 
 // ---------------------------------------------------------------------------
