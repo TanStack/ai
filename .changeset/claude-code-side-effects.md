@@ -2,4 +2,4 @@
 '@tanstack/ai-claude-code': patch
 ---
 
-`@tanstack/ai-claude-code` now sets `"sideEffects": false`. A bundler can drop the sandbox, MCP, and Hono modules when an app imports only `translateSdkStream`.
+`@tanstack/ai-claude-code` now sets `"sideEffects": false`. When an app imports only `translateSdkStream`, a bundler can drop the unused adapter modules.
