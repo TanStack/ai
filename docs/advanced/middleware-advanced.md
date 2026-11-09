@@ -788,7 +788,7 @@ Exactly **one** terminal hook runs per `chat()` call:
 | `onAbort` | The run was aborted: by `ctx.abort()`, by an external `AbortSignal`, by an `abort` decision from `onBeforeToolCall`, or by a consumer that stopped iterating (`break` or `return()`) |
 | `onError` | An error was not handled |
 
-`onFinish` also runs when the call pauses for a client tool or an approval. The run is not complete yet. To tell a pause from a completion, look in `onChunk` for a `RUN_FINISHED` chunk with `outcome.type === 'interrupt'`.
+`onFinish` also runs when the call pauses for a client tool or an approval. The run is not complete yet. To tell a pause from a completion, look in `onChunk` for a `RUN_FINISHED` chunk with `outcome.type === 'interrupt'`. A consumer that stops iterating at that pause's `RUN_FINISHED` chunk still gets `onFinish`. Stopping at any other chunk, including the final `RUN_FINISHED` of a completed run, runs `onAbort`.
 
 `onAbort` gets `info.cancelRequested`. It is `true` only when an explicit cancel aborted the run, never when the client only disconnected.
 

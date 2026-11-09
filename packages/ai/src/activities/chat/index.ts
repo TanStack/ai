@@ -1549,15 +1549,30 @@ class TextEngine<
   }
 
   async *run(): AsyncGenerator<StreamChunk> {
-    for await (const chunk of this.runSteps()) {
+    const steps = this.runSteps()
+    for await (const chunk of steps) {
       let resumed = false
       try {
         yield chunk
         resumed = true
       } finally {
-        // The consumer stopped iterating (`break` or `return()`). Abort before
-        // the loop closes `runSteps`, so its `finally` reports `onAbort`.
-        if (!resumed) this.middlewareAbortController?.abort()
+        // The consumer stopped iterating (`break` or `return()`).
+        if (!resumed) {
+          if (
+            chunk.type === EventType.RUN_FINISHED &&
+            chunk.outcome?.type === 'interrupt'
+          ) {
+            // A pause ends this invocation. Finish it unseen so it reports
+            // `onFinish`, as a drained run does, and keeps the paused state.
+            for await (const _chunk of steps) {
+              // discard
+            }
+          } else {
+            // Abort before the loop closes `runSteps`, so its `finally`
+            // reports `onAbort`.
+            this.middlewareAbortController?.abort()
+          }
+        }
       }
     }
   }
