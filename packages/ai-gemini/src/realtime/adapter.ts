@@ -2,6 +2,7 @@ import { createRealtimeEventEmitter } from '@tanstack/ai'
 import { AudioPlayer, AudioStreamer, base64ToArrayBuffer } from './utils'
 import { GeminiLiveClient } from './client'
 import type { LiveResponse } from './client'
+import type { UsageMetadata } from '@google/genai'
 import type {
   AnyClientTool,
   AudioVisualization,
@@ -12,6 +13,20 @@ import type {
   RealtimeToken,
 } from '@tanstack/ai'
 import type { GeminiRealtimeModel, GeminiRealtimeOptions } from './types'
+
+/**
+ * Map Gemini Live usage metadata to the realtime `usage` event payload.
+ * Thinking tokens are reported apart from `responseTokenCount` but billed as
+ * output, so completionTokens includes them (as buildGeminiUsage does).
+ */
+export function toRealtimeUsage(usage: UsageMetadata) {
+  return {
+    completionTokens:
+      (usage.responseTokenCount ?? 0) + (usage.thoughtsTokenCount ?? 0),
+    promptTokens: usage.promptTokenCount ?? 0,
+    totalTokens: usage.totalTokenCount ?? 0,
+  }
+}
 
 /**
  * Creates a Gemini realtime adapter for client-side use.
@@ -115,11 +130,7 @@ async function createWebSocketConnection(
         emit('go_away', { timeLeft: response.data.timeLeft })
         break
       case 'usage_metadata':
-        emit('usage', {
-          completionTokens: response.data.responseTokenCount ?? 0,
-          promptTokens: response.data.promptTokenCount ?? 0,
-          totalTokens: response.data.totalTokenCount ?? 0,
-        })
+        emit('usage', toRealtimeUsage(response.data))
         break
       case 'input_transcription':
         if (response.data.finished && currentMode !== 'thinking') {
