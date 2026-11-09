@@ -56,8 +56,8 @@ describe('elevenlabsVoiceDesign adapter', () => {
 
     expect(createMock).not.toHaveBeenCalled()
     expect(designMock.mock.calls[0]![0]).toMatchObject({
-      voiceDescription: 'A warm, gravelly narrator in his sixties',
-      modelId: 'eleven_ttv_v3',
+      voice_description: 'A warm, gravelly narrator in his sixties',
+      model_id: 'eleven_ttv_v3',
     })
     expect(result.previewText).toBe(
       'The quick brown fox jumps over the lazy dog.',
@@ -100,12 +100,12 @@ describe('elevenlabsVoiceDesign adapter', () => {
     })
 
     expect(createMock.mock.calls[0]![0]).toMatchObject({
-      voiceName: 'Demo Host',
-      voiceDescription: 'Bright, upbeat, mid-30s',
-      generatedVoiceId: 'gen-1',
+      voice_name: 'Demo Host',
+      voice_description: 'Bright, upbeat, mid-30s',
+      generated_voice_id: 'gen-1',
       labels: { use_case: 'demo' },
       // Losing candidates go back as RLHF signal.
-      playedNotSelectedVoiceIds: ['gen-2'],
+      played_not_selected_voice_ids: ['gen-2'],
     })
     expect(result.voices[0]).toMatchObject({
       voiceId: 'saved-voice',
@@ -127,7 +127,7 @@ describe('elevenlabsVoiceDesign adapter', () => {
     })
 
     expect(createMock.mock.calls[0]![0]).toMatchObject({
-      voiceDescription: 'A calm meditation guide',
+      voice_description: 'A calm meditation guide',
     })
   })
 
@@ -156,17 +156,19 @@ describe('elevenlabsVoiceDesign adapter', () => {
     })
 
     expect(designMock.mock.calls[0]![0]).toMatchObject({
-      outputFormat: 'opus_48000_128',
       text: 'A line the previews speak.',
-      autoGenerateText: false,
+      auto_generate_text: false,
       loudness: 0,
       seed: 0,
-      guidanceScale: 0,
+      guidance_scale: 0,
       quality: 0,
-      shouldEnhance: false,
-      promptStrength: 0,
-      remixingSessionId: 'sess-1',
-      remixingSessionIterationId: 'iter-1',
+      should_enhance: false,
+      prompt_strength: 0,
+      remixing_session_id: 'sess-1',
+      remixing_session_iteration_id: 'iter-1',
+    })
+    expect(designMock.mock.calls[0]![1]).toEqual({
+      output_format: 'opus_48000_128',
     })
   })
 
@@ -207,7 +209,7 @@ describe('elevenlabsVoiceDesign adapter', () => {
 
     // Without this the request keeps running after the caller gave up — and
     // the create half would still persist a voice.
-    expect(designMock.mock.calls[0]![1]).toEqual({ abortSignal: abort.signal })
+    expect(designMock.mock.calls[0]![2]).toEqual({ abortSignal: abort.signal })
     expect(createMock.mock.calls[0]![1]).toEqual({ abortSignal: abort.signal })
   })
 
@@ -251,7 +253,7 @@ describe('elevenlabsVoiceDesign adapter', () => {
       })
 
       expect(designMock.mock.calls[0]![0]).toMatchObject({
-        referenceAudioBase64: 'QUJD',
+        reference_audio_base64: 'QUJD',
       })
     })
 
@@ -268,7 +270,7 @@ describe('elevenlabsVoiceDesign adapter', () => {
       })
 
       expect(designMock.mock.calls[0]![0]).toMatchObject({
-        referenceAudioBase64: 'QUJD',
+        reference_audio_base64: 'QUJD',
       })
     })
 
@@ -283,7 +285,7 @@ describe('elevenlabsVoiceDesign adapter', () => {
         logger: makeLogger(),
       })
 
-      expect(designMock.mock.calls[0]![0].referenceAudioBase64).toBe('QUJD')
+      expect(designMock.mock.calls[0]![0].reference_audio_base64).toBe('QUJD')
     })
 
     it('rejects a data URL that is not base64', async () => {

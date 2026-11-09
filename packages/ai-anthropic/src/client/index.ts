@@ -21,6 +21,7 @@ import type {
   BetaRawMessageStreamEvent,
   MessageCreateParamsBase,
 } from '@anthropic-ai/sdk/resources/beta/messages/messages'
+import type { AnthropicPostV1MessagesBetaTrueBody } from '../generated/client/types'
 import type { HeadersLike, HttpRequest } from '@tanstack/ai-utils/http'
 import type {
   BetaDeletedFile,
@@ -36,6 +37,13 @@ type RequestOptions = NonNullable<
 >
 
 /**
+ * A Messages request: the generated body, plus the SDK fields that go out as
+ * headers.
+ */
+export type MessageCreateParams = AnthropicPostV1MessagesBetaTrueBody &
+  BetaParams
+
+/**
  * The part of the Anthropic SDK client that this package calls. Both the
  * fetch client and the lazy SDK client fit it.
  */
@@ -44,7 +52,7 @@ export interface AnthropicClient {
     readonly messages: {
       /** `stream: true` gives the raw stream events, else the message. */
       create: (
-        params: MessageCreateParamsBase,
+        params: MessageCreateParams,
         options?: RequestOptions,
       ) => Promise<AsyncIterable<BetaRawMessageStreamEvent> | BetaMessage>
     }
@@ -68,12 +76,6 @@ export interface AnthropicClient {
   /** A copy of this client with some options changed. */
   withOptions: (options: Partial<ClientOptions>) => AnthropicClient
 }
-
-/**
- * The one cast between the SDK param types (the public API) and the types of
- * the generated client. Both describe the same request body.
- */
-const wire = <T>(body: unknown) => body as T
 
 const DEFAULT_BASE_URL = 'https://api.anthropic.com'
 const DEFAULT_TIMEOUT = 600000
@@ -285,7 +287,7 @@ function assertAuth(sources: Array<HeadersLike>) {
 }
 
 /** The SDK `transformOutputFormat`: `output_format` moves to `output_config.format`. */
-function transformOutputFormat(params: MessageCreateParamsBase) {
+function transformOutputFormat(params: MessageCreateParams) {
   if (!params.output_format) return params
   if (params.output_config?.format) {
     throw new AnthropicError(
@@ -315,7 +317,7 @@ function nonStreamingTimeout(maxTokens: number, model: string) {
   return DEFAULT_TIMEOUT
 }
 
-function warnDeprecatedModel(params: MessageCreateParamsBase) {
+function warnDeprecatedModel(params: MessageCreateParams) {
   const endOfLife = DEPRECATED_MODELS[params.model]
   if (endOfLife) {
     console.warn(
@@ -339,8 +341,13 @@ function createSdkClient(load: () => Promise<Anthropic>): AnthropicClient {
   return {
     beta: {
       messages: {
+        // The same JSON body: only the declared types differ (the generated
+        // document against the SDK's own param types).
         create: async (params, options) =>
-          (await sdk()).beta.messages.create(params, options),
+          (await sdk()).beta.messages.create(
+            params as MessageCreateParamsBase,
+            options,
+          ),
       },
       files: {
         upload: async (params, options) =>
@@ -466,7 +473,7 @@ function createFetchClient(options: ClientOptions): AnthropicClient {
                 built.headers,
               ),
             ),
-            body: wire(body),
+            body,
             headers: { 'anthropic-version': '2023-06-01' },
           })
           if (body.stream) {

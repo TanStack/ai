@@ -1,6 +1,6 @@
 import { openrouterPostVideos } from '../generated/client/sdk'
-import { callGenerated, createCaller, readJSON, wire } from './http'
-import { remap } from './remap'
+import { callGenerated, createCaller, readJSON } from './http'
+import { toWire } from './remap'
 import {
   OBJECTS,
   VideoGenerationRequest,
@@ -30,14 +30,22 @@ export function createOpenRouterVideoClient(config: OpenRouterClientOptions) {
   const client: Pick<OpenRouterClient, 'videoGeneration'> = {
     videoGeneration: {
       async generate(request, requestOptions) {
-        const body = remap(
+        const body = toWire(
           request.videoGenerationRequest,
           VideoGenerationRequest,
           OBJECTS,
         )
         const exchange = await callGenerated(
           call,
-          (client) => openrouterPostVideos({ client, body: wire(body) }),
+          (http) =>
+            openrouterPostVideos({
+              client: http,
+              body: {
+                ...body,
+                // @ts-expect-error modelschemas gap: Videos `model` is a closed enum of known slugs, the API takes any model id
+                model: body.model,
+              },
+            }),
           {
             method: 'POST',
             accept: 'application/json',

@@ -18,10 +18,10 @@ describe('generated ElevenLabs client', () => {
     )
     const client = createElevenLabsClient({ apiKey: 'k', fetch })
 
-    const result = await client.textToVoice.design({
-      voiceDescription: 'A calm narrator',
-      outputFormat: 'mp3_44100_128',
-    })
+    const result = await client.textToVoice.design(
+      { voice_description: 'A calm narrator' },
+      { output_format: 'mp3_44100_128' },
+    )
 
     expect(result).toMatchObject({ text: 'Hi' })
     expect(calls[0]?.url).toBe(
@@ -45,7 +45,7 @@ describe('generated ElevenLabs client', () => {
 
     const stream = await client.textToSpeech.convert('voice/1', {
       text: 'Hello',
-      modelId: 'eleven_v3',
+      model_id: 'eleven_v3',
     })
 
     const bytes = new Uint8Array(await new Response(stream).arrayBuffer())

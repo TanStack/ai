@@ -93,11 +93,11 @@ describe('chat({ outputSchema }) with Mistral', () => {
 
     expect(mockComplete).toHaveBeenCalledWith(
       expect.objectContaining({
-        responseFormat: {
+        response_format: {
           type: 'json_schema',
-          jsonSchema: {
+          json_schema: {
             name: 'structured_output',
-            schemaDefinition: expect.objectContaining({
+            schema: expect.objectContaining({
               required: ['mode', 'note'],
               properties: expect.objectContaining({
                 mode: expect.objectContaining({

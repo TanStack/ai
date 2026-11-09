@@ -123,33 +123,35 @@ export class ElevenLabsVoiceAdapter<
 
       const previewResponse = await this.client.textToVoice.design(
         {
-          voiceDescription: options.prompt,
-          modelId: this.model,
-          ...(opts.outputFormat ? { outputFormat: opts.outputFormat } : {}),
+          voice_description: options.prompt,
+          model_id: this.model,
           ...(opts.text ? { text: opts.text } : {}),
           ...(opts.autoGenerateText != null
-            ? { autoGenerateText: opts.autoGenerateText }
+            ? { auto_generate_text: opts.autoGenerateText }
             : {}),
           ...(opts.loudness != null ? { loudness: opts.loudness } : {}),
           ...(opts.seed != null ? { seed: opts.seed } : {}),
           ...(opts.guidanceScale != null
-            ? { guidanceScale: opts.guidanceScale }
+            ? { guidance_scale: opts.guidanceScale }
             : {}),
           ...(opts.quality != null ? { quality: opts.quality } : {}),
           ...(opts.shouldEnhance != null
-            ? { shouldEnhance: opts.shouldEnhance }
+            ? { should_enhance: opts.shouldEnhance }
             : {}),
           ...(opts.promptStrength != null
-            ? { promptStrength: opts.promptStrength }
+            ? { prompt_strength: opts.promptStrength }
             : {}),
-          ...(referenceAudioBase64 ? { referenceAudioBase64 } : {}),
+          ...(referenceAudioBase64
+            ? { reference_audio_base64: referenceAudioBase64 }
+            : {}),
           ...(opts.remixingSessionId
-            ? { remixingSessionId: opts.remixingSessionId }
+            ? { remixing_session_id: opts.remixingSessionId }
             : {}),
           ...(opts.remixingSessionIterationId
-            ? { remixingSessionIterationId: opts.remixingSessionIterationId }
+            ? { remixing_session_iteration_id: opts.remixingSessionIterationId }
             : {}),
         },
+        opts.outputFormat ? { output_format: opts.outputFormat } : {},
         requestOptions,
       )
 
@@ -220,12 +222,14 @@ export class ElevenLabsVoiceAdapter<
 
     const saved = await this.client.textToVoice.create(
       {
-        voiceName,
-        voiceDescription,
-        generatedVoiceId: best.voiceId,
+        voice_name: voiceName,
+        voice_description: voiceDescription,
+        generated_voice_id: best.voiceId,
         ...(labels ? { labels } : {}),
         ...(rest.length > 0
-          ? { playedNotSelectedVoiceIds: rest.map((voice) => voice.voiceId) }
+          ? {
+              played_not_selected_voice_ids: rest.map((voice) => voice.voiceId),
+            }
           : {}),
       },
       requestOptions,

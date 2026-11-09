@@ -1,5 +1,6 @@
 import { openrouterPostChatCompletions } from '../generated/client/sdk'
-import { createCaller, sendText, wire } from './http'
+import { createCaller, sendText } from './http'
+import { toWire } from './remap'
 import {
   ChatRequest,
   ChatResult,
@@ -19,7 +20,6 @@ import type { SendChatCompletionRequestRequest } from '@openrouter/sdk/models/op
 
 const tables = {
   objects: OBJECTS,
-  body: ChatRequest,
   json: ChatResult,
   event: ChatStreamChunk,
 }
@@ -40,18 +40,26 @@ export function createOpenRouterChatClient(config: OpenRouterClientOptions) {
       send: (async (
         request: SendChatCompletionRequestRequest,
         requestOptions?: RequestOptions,
-      ) =>
-        (await sendText(
+      ) => {
+        const body = toWire(request.chatRequest, ChatRequest, OBJECTS)
+        const result = await sendText(
           call,
-          (body) => (client) =>
-            openrouterPostChatCompletions({ client, body: wire(body) }),
-          request.chatRequest,
+          (http) =>
+            openrouterPostChatCompletions({
+              client: http,
+              body: {
+                ...body,
+                // @ts-expect-error modelschemas gap: web plugin `user_location` rejects null
+                plugins: body.plugins,
+              },
+            }),
+          body.stream,
           request,
           tables,
           requestOptions,
-        )) as
-          | ChatResultModel
-          | EventStream<ChatStreamChunkModel>) as Chat['send'],
+        )
+        return result as ChatResultModel | EventStream<ChatStreamChunkModel>
+      }) as Chat['send'],
     },
   }
   return client

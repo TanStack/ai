@@ -11,8 +11,8 @@ import {
   isElevenLabsMusicModel,
   isElevenLabsSoundEffectsModel,
 } from '../model-meta'
-import type { ElevenLabs } from '@elevenlabs/elevenlabs-js'
 import type { ElevenLabsClient } from '../client/index'
+import type { MusicPrompt } from '../generated/client/types'
 import type {
   AudioGenerationOptions,
   AudioGenerationResult,
@@ -152,25 +152,25 @@ export class ElevenLabsAudioAdapter<
 
     const stream = await this.client.music.compose(
       {
-        modelId,
+        model_id: modelId,
         ...(options.prompt && !music.compositionPlan
           ? { prompt: options.prompt }
           : {}),
         ...(music.compositionPlan
-          ? { compositionPlan: toMusicPrompt(music.compositionPlan) }
+          ? { composition_plan: toMusicPrompt(music.compositionPlan) }
           : {}),
         ...(options.duration != null && !music.compositionPlan
-          ? { musicLengthMs: Math.round(options.duration * 1000) }
+          ? { music_length_ms: Math.round(options.duration * 1000) }
           : {}),
-        ...(outputFormat ? { outputFormat } : {}),
         ...(music.seed != null ? { seed: music.seed } : {}),
         ...(music.forceInstrumental != null
-          ? { forceInstrumental: music.forceInstrumental }
+          ? { force_instrumental: music.forceInstrumental }
           : {}),
         ...(music.respectSectionsDurations != null
-          ? { respectSectionsDurations: music.respectSectionsDurations }
+          ? { respect_sections_durations: music.respectSectionsDurations }
           : {}),
       },
+      outputFormat ? { output_format: outputFormat } : {},
       options.abortSignal ? { abortSignal: options.abortSignal } : {},
     )
 
@@ -189,17 +189,16 @@ export class ElevenLabsAudioAdapter<
     const stream = await this.client.textToSoundEffects.convert(
       {
         text: options.prompt,
-        // The SDK types list only the sound models it knew at release.
-        modelId: modelId as ElevenLabs.SfxModelId,
+        model_id: modelId,
         ...(options.duration != null
-          ? { durationSeconds: options.duration }
+          ? { duration_seconds: options.duration }
           : {}),
-        ...(outputFormat ? { outputFormat } : {}),
         ...(sfx.promptInfluence != null
-          ? { promptInfluence: sfx.promptInfluence }
+          ? { prompt_influence: sfx.promptInfluence }
           : {}),
         ...(sfx.loop != null ? { loop: sfx.loop } : {}),
       },
+      outputFormat ? { output_format: outputFormat } : {},
       options.abortSignal ? { abortSignal: options.abortSignal } : {},
     )
 
@@ -230,15 +229,15 @@ export class ElevenLabsAudioAdapter<
   }
 }
 
-function toMusicPrompt(plan: ElevenLabsMusicCompositionPlan) {
+function toMusicPrompt(plan: ElevenLabsMusicCompositionPlan): MusicPrompt {
   return {
-    positiveGlobalStyles: plan.positiveGlobalStyles ?? [],
-    negativeGlobalStyles: plan.negativeGlobalStyles ?? [],
+    positive_global_styles: plan.positiveGlobalStyles ?? [],
+    negative_global_styles: plan.negativeGlobalStyles ?? [],
     sections: (plan.sections ?? []).map((section) => ({
-      sectionName: section.sectionName,
-      positiveLocalStyles: section.positiveLocalStyles ?? [],
-      negativeLocalStyles: section.negativeLocalStyles ?? [],
-      durationMs: section.durationMs ?? 10000,
+      section_name: section.sectionName,
+      positive_local_styles: section.positiveLocalStyles ?? [],
+      negative_local_styles: section.negativeLocalStyles ?? [],
+      duration_ms: section.durationMs ?? 10000,
       lines: section.lines ?? [],
     })),
   }

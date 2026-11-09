@@ -63,6 +63,28 @@ export function diffFiles(
   return changes
 }
 
+/**
+ * Parses an OpenAPI document and drops `format: byte`. Kubb types it as
+ * `Blob`, but OpenAPI defines it as a base64 string, which is what the APIs
+ * take in JSON.
+ */
+export function parseDoc(text: string): OpenApiDoc {
+  return JSON.parse(text, (_key, value: unknown) => {
+    if (!isByteString(value)) return value
+    const { format: _format, ...rest } = value
+    return rest
+  })
+}
+
+function isByteString(value: unknown): value is { format: 'byte' } {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    'format' in value &&
+    value.format === 'byte'
+  )
+}
+
 interface OpenApiDoc {
   components?: { schemas?: Record<string, Record<string, unknown>> }
 }

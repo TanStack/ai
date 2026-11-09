@@ -35,12 +35,6 @@ export interface MistralClientConfig {
 }
 
 /**
- * The one cast between the wire bodies the client and the stream build and
- * the types of the generated client. Both describe the same request body.
- */
-export const wire = <T>(body: unknown) => body as T
-
-/**
  * Gets Mistral API key from environment variables.
  * @throws Error if MISTRAL_API_KEY is not found
  */

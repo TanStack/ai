@@ -40,7 +40,6 @@ describe('generated Mistral client', () => {
     expect(headers.get('authorization')).toBe('Bearer k')
     expect(JSON.parse(String(init.body))).toMatchObject({
       model,
-      stream: false,
       messages: [{ role: 'user', content: 'hi' }],
     })
     expect(result.usage.totalTokens).toBe(3)
@@ -76,6 +75,12 @@ describe('generated Mistral client', () => {
       logger: resolveDebugOption(false),
       model,
       messages: [{ role: 'user', content: 'hi' }],
+      modelOptions: {
+        response_format: {
+          type: 'json_schema',
+          jsonSchema: { name: 'out', schemaDefinition: { type: 'object' } },
+        },
+      },
       // The injected HTTP seam: the request never reaches `next`.
       wrapFetch: () => (input, init) => fetcher(String(input), init ?? {}),
     })) {
@@ -92,6 +97,11 @@ describe('generated Mistral client', () => {
       model,
       stream: true,
       stream_options: { include_usage: true },
+      // `modelOptions.response_format` goes out snake_case.
+      response_format: {
+        type: 'json_schema',
+        json_schema: { name: 'out', schema: { type: 'object' } },
+      },
     })
     expect(text).toBe('Hello')
   })

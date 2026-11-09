@@ -1,5 +1,6 @@
 import { openrouterPostResponses } from '../generated/client/sdk'
-import { createCaller, sendText, wire } from './http'
+import { createCaller, sendText } from './http'
+import { toWire } from './remap'
 import {
   OBJECTS,
   OpenResponsesResult,
@@ -19,7 +20,6 @@ import type { CreateResponsesRequest } from '@openrouter/sdk/models/operations'
 
 const tables = {
   objects: OBJECTS,
-  body: ResponsesRequest,
   json: OpenResponsesResult,
   event: StreamEvents,
 }
@@ -43,18 +43,38 @@ export function createOpenRouterResponsesClient(
         send: (async (
           request: CreateResponsesRequest,
           requestOptions?: RequestOptions,
-        ) =>
-          (await sendText(
-            call,
-            (body) => (client) =>
-              openrouterPostResponses({ client, body: wire(body) }),
+        ) => {
+          const body = toWire(
             request.responsesRequest,
+            ResponsesRequest,
+            OBJECTS,
+          )
+          const result = await sendText(
+            call,
+            (http) =>
+              openrouterPostResponses({
+                client: http,
+                body: {
+                  ...body,
+                  // @ts-expect-error modelschemas gap: ReasoningItem.content rejects null, input has no `openrouter:mcp` item; public type mismatch: SDK ShellCallOutputItem.output vs ShellCallOutputContent
+                  input: body.input,
+                  // @ts-expect-error modelschemas gap: Responses `model` is a closed enum of known slugs, the API takes any model id
+                  model: body.model,
+                  // @ts-expect-error modelschemas gap: web plugin `user_location` rejects null
+                  plugins: body.plugins,
+                  // @ts-expect-error modelschemas gap: TextConfig & TextExtendedConfig intersect `verbosity` and drop 'max'
+                  text: body.text,
+                },
+              }),
+            body.stream,
             request,
             tables,
             requestOptions,
-          )) as
+          )
+          return result as
             | OpenResponsesResultModel
-            | EventStream<StreamEventsModel>) as Responses['send'],
+            | EventStream<StreamEventsModel>
+        }) as Responses['send'],
       },
     },
   }

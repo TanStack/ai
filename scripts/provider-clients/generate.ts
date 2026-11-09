@@ -27,6 +27,7 @@ import { fileURLToPath } from 'node:url'
 import {
   diffFiles,
   docSkipReason,
+  parseDoc,
   readTree,
   withEndpointMap,
   writeTree,
@@ -92,14 +93,17 @@ async function main() {
         console.warn(`skip ${provider.id}: ${result.skip}`)
         continue
       }
-      await writeFile(join(docs, `${provider.id}.json`), result.text)
+      await writeFile(
+        join(docs, `${provider.id}.json`),
+        JSON.stringify(parseDoc(result.text)),
+      )
       generated.push(provider)
 
       for (const activity of await listActivities(provider.id)) {
         const doc = await fetchDoc(provider.id, activity)
         if ('skip' in doc) continue
         const mapped = withEndpointMap(
-          JSON.parse(doc.text),
+          parseDoc(doc.text),
           `${pascal(provider.id)}${pascal(activity)}Endpoints`,
         )
         if (!mapped) continue

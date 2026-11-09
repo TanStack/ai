@@ -13,14 +13,16 @@ import {
 } from '../generated/client/sdk'
 import type { ClientInstance, GeneratedRequest } from '@tanstack/ai-utils/kubb'
 import type {
+  MistralPostV1ChatCompletionsBody,
+  MistralPostV1EmbeddingsBody,
+} from '../generated/client/types'
+import type {
   AssistantMessage,
   AssistantMessage$Outbound,
   ChatCompletionChoice,
-  ChatCompletionRequest,
   ChatCompletionResponse,
   ContentChunk,
   ContentChunk$Outbound,
-  EmbeddingRequest,
   EmbeddingResponse,
   EmbeddingResponseData,
   ImageURLChunk,
@@ -31,23 +33,22 @@ import type {
   UsageInfo$Outbound,
   ValidationError,
 } from '@mistralai/mistralai/models/components'
-import { wire } from '../utils/client'
 import type { MistralClientConfig } from '../utils/client'
 
 /**
- * The part of the Mistral SDK client that the adapters call. A real
- * `Mistral` instance fits this type.
+ * The Mistral client the adapters call. Requests are the generated wire
+ * bodies; responses are the SDK types.
  */
 export interface MistralClient {
   chat: {
     complete: (
-      request: ChatCompletionRequest,
+      body: MistralPostV1ChatCompletionsBody,
       options?: MistralRequestOptions,
     ) => Promise<ChatCompletionResponse>
   }
   embeddings: {
     create: (
-      request: EmbeddingRequest,
+      body: MistralPostV1EmbeddingsBody,
       options?: MistralRequestOptions,
     ) => Promise<EmbeddingResponse>
   }
@@ -63,149 +64,6 @@ export interface MistralRequestOptions {
 }
 
 type Fetcher = (url: string, init: RequestInit) => Promise<Response>
-
-// ===========================
-// Outbound: SDK camelCase -> wire snake_case (the SDK `$outboundSchema`s)
-// ===========================
-
-function chunkToWire(chunk: ContentChunk) {
-  switch (chunk.type) {
-    case 'image_url':
-      return { type: chunk.type, image_url: chunk.imageUrl }
-    case 'document_url':
-      return {
-        type: chunk.type,
-        document_url: chunk.documentUrl,
-        document_name: chunk.documentName,
-      }
-    case 'text':
-      return { type: chunk.type, text: chunk.text }
-    case 'reference':
-      return { type: chunk.type, reference_ids: chunk.referenceIds }
-    case 'file':
-      return { type: chunk.type, file_id: chunk.fileId }
-    case 'thinking':
-      return thinkChunkToWire(chunk)
-    case 'input_audio':
-      return { type: chunk.type, input_audio: chunk.inputAudio }
-    case 'UNKNOWN':
-      // An unknown chunk read from a response. Send what came in.
-      return chunk.raw
-  }
-}
-
-function thinkChunkToWire(chunk: ThinkChunk) {
-  return {
-    type: 'thinking',
-    thinking: chunk.thinking.map((part) => {
-      if ('referenceIds' in part) {
-        return { type: 'reference', reference_ids: part.referenceIds }
-      }
-      if ('title' in part) {
-        const { tool, title, url, favicon, description } = part
-        return {
-          type: 'tool_reference',
-          tool,
-          title,
-          url,
-          favicon,
-          description,
-        }
-      }
-      return { type: 'text', text: part.text }
-    }),
-    closed: chunk.closed,
-  }
-}
-
-function contentToWire(
-  content: string | Array<ContentChunk> | null | undefined,
-) {
-  return Array.isArray(content) ? content.map(chunkToWire) : content
-}
-
-function messageToWire(message: ChatCompletionRequest['messages'][number]) {
-  switch (message.role) {
-    case 'assistant':
-      return {
-        role: message.role,
-        content: contentToWire(message.content),
-        tool_calls: message.toolCalls?.map((call) => ({
-          id: call.id ?? 'null',
-          type: call.type,
-          function: call.function,
-          index: call.index ?? 0,
-        })),
-        prefix: message.prefix ?? false,
-      }
-    case 'system':
-      return { role: message.role, content: contentToWire(message.content) }
-    case 'tool':
-      return {
-        role: message.role,
-        content: contentToWire(message.content),
-        tool_call_id: message.toolCallId,
-        name: message.name,
-      }
-    case 'user':
-      return { role: message.role, content: contentToWire(message.content) }
-  }
-}
-
-/** The JSON body the SDK sends for `chat.complete`. */
-export function chatCompletionRequestToWire(request: ChatCompletionRequest) {
-  const { responseFormat, prediction } = request
-  const jsonSchema = responseFormat?.jsonSchema
-  return {
-    model: request.model,
-    temperature: request.temperature,
-    top_p: request.topP,
-    max_tokens: request.maxTokens,
-    stream: request.stream ?? false,
-    stop: request.stop,
-    random_seed: request.randomSeed,
-    metadata: request.metadata,
-    messages: request.messages.map(messageToWire),
-    response_format: responseFormat && {
-      type: responseFormat.type,
-      json_schema: jsonSchema && {
-        name: jsonSchema.name,
-        description: jsonSchema.description,
-        schema: jsonSchema.schemaDefinition,
-        strict: jsonSchema.strict,
-      },
-    },
-    // ponytail: function tools and tool choice need no renames. Built-in
-    // connector tools and `guardrails` go out as given; the adapters never
-    // send them. Port their rename tables when an adapter does.
-    tools: request.tools,
-    tool_choice: request.toolChoice,
-    presence_penalty: request.presencePenalty,
-    frequency_penalty: request.frequencyPenalty,
-    n: request.n,
-    prediction: prediction && {
-      type: prediction.type ?? 'content',
-      content: prediction.content ?? '',
-    },
-    parallel_tool_calls: request.parallelToolCalls,
-    reasoning_effort: request.reasoningEffort,
-    prompt_mode: request.promptMode,
-    guardrails: request.guardrails,
-    safe_prompt: request.safePrompt,
-  }
-}
-
-/** The JSON body the SDK sends for `embeddings.create`. */
-export function embeddingRequestToWire(request: EmbeddingRequest) {
-  return {
-    model: request.model,
-    metadata: request.metadata,
-    input: request.inputs,
-    output_dimension: request.outputDimension,
-    output_dtype: request.outputDtype,
-    encoding_format: request.encodingFormat,
-  }
-}
 
 // ===========================
 // Inbound: wire snake_case -> SDK camelCase (the SDK `$inboundSchema`s)
@@ -590,26 +448,26 @@ export function createMistralClient(
 
   return {
     chat: {
-      complete: async (request, options) =>
+      complete: async (body, options) =>
         chatCompletionResponseFromWire(
           await post(
             (client) =>
               mistralPostV1ChatCompletions({
                 client,
-                body: wire(chatCompletionRequestToWire(request)),
+                body,
               }),
             options,
           ),
         ),
     },
     embeddings: {
-      create: async (request, options) =>
+      create: async (body, options) =>
         embeddingResponseFromWire(
           await post(
             (client) =>
               mistralPostV1Embeddings({
                 client,
-                body: wire(embeddingRequestToWire(request)),
+                body,
               }),
             options,
           ),

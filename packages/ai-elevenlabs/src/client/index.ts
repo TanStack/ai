@@ -3,11 +3,7 @@ import {
   ElevenLabsTimeoutError,
 } from '@elevenlabs/elevenlabs-js/errors/index.js'
 import { UnprocessableEntityError } from '@elevenlabs/elevenlabs-js/api/errors/UnprocessableEntityError.js'
-import {
-  createHttpClient,
-  mergeHeaders,
-  toFormData,
-} from '@tanstack/ai-utils/http'
+import { createHttpClient, mergeHeaders } from '@tanstack/ai-utils/http'
 import { sendWith } from '@tanstack/ai-utils/kubb'
 import {
   elevenlabsPostV1Music,
@@ -24,45 +20,37 @@ import { getElevenLabsApiKeyFromEnv } from '../utils/client'
 import type { ClientInstance } from '@tanstack/ai-utils/kubb'
 import type { ElevenLabs } from '@elevenlabs/elevenlabs-js'
 import type { ElevenLabsClientConfig } from '../utils/client'
+import type { ElevenLabsOutputFormat } from '../model-meta'
+import type {
+  ElevenlabsPostV1MusicBody,
+  ElevenlabsPostV1SoundGenerationBody,
+  ElevenlabsPostV1SpeechToTextBody,
+  ElevenlabsPostV1TextToDialogueBody,
+  ElevenlabsPostV1TextToDialogueWithTimestampsBody,
+  ElevenlabsPostV1TextToSpeechVoiceIdBody,
+  ElevenlabsPostV1TextToSpeechVoiceIdWithTimestampsBody,
+  ElevenlabsPostV1TextToVoiceBody,
+  ElevenlabsPostV1TextToVoiceDesignBody,
+} from '../generated/client/types'
 
 /** The per-call options of the SDK methods that this package uses. */
 interface RequestOptions {
   abortSignal?: AbortSignal
 }
 
-/** The `speechToText.convert` fields that this package sends. */
-type SpeechToTextRequest = Pick<
-  ElevenLabs.BodySpeechToTextV1SpeechToTextPost,
-  | 'modelId'
-  | 'cloudStorageUrl'
-  | 'languageCode'
-  | 'tagAudioEvents'
-  | 'numSpeakers'
-  | 'timestampsGranularity'
-  | 'diarize'
-  | 'diarizationThreshold'
-  | 'detectSpeakerRoles'
-  | 'keyterms'
-  | 'entityDetection'
-  | 'entityRedaction'
-  | 'entityRedactionMode'
-  | 'noVerbatim'
-  | 'temperature'
-  | 'seed'
-  | 'enableLogging'
-  | 'useMultiChannel'
-  | 'fileFormat'
-> & { file?: Blob }
+/**
+ * Query params the API takes but the OpenAPI document leaves out (each
+ * operation has `query?: never`). Each endpoint sends only its own keys.
+ */
+export interface ElevenLabsQuery {
+  output_format?: ElevenLabsOutputFormat
+  enable_logging?: boolean
+  optimize_streaming_latency?: number
+}
 
 type RawResponse = NonNullable<ElevenLabsError['rawResponse']>
 
 const DEFAULT_BASE_URL = 'https://api.elevenlabs.io'
-
-/**
- * The one cast between the SDK request types (the public API) and the types
- * of the generated client. Both describe the same request body.
- */
-const wire = <T>(body: unknown) => body as T
 
 // The SDK's `unknownRawResponse` and `abortRawResponse`.
 const unknownRawResponse = (): RawResponse => ({
@@ -148,9 +136,11 @@ const isRetryableStatus = (status: number) =>
   status === 408 || status === 429 || status >= 500
 
 /**
- * Creates a fetch client with the `@elevenlabs/elevenlabs-js` method names,
- * arguments, and results for the endpoints this package calls. It sends the
- * same requests as the SDK and throws the same `ElevenLabsError` classes.
+ * Creates a fetch client with the `@elevenlabs/elevenlabs-js` method names
+ * and results for the endpoints this package calls. POST methods take the
+ * generated (modelschemas) snake_case body, plus the query params the
+ * document leaves out. It sends the same requests as the SDK and throws the
+ * same `ElevenLabsError` classes.
  *
  * @param config - API key (default `ELEVENLABS_API_KEY`), `baseURL` /
  * `baseUrl`, `defaultHeaders` / `headers`, `timeoutInSeconds` (default 240),
@@ -248,25 +238,26 @@ export function createElevenLabsClient(config?: ElevenLabsClientConfig) {
     }
   }
 
-  // Splits SDK params: the `queryKeys` fields go in the query (in the SDK
-  // order), the rest is the body, all with snake_case names.
-  function split(params: object, queryKeys: ReadonlyArray<string>) {
-    const body: Record<string, unknown> = { ...params }
-    const query = Object.fromEntries(
-      queryKeys.map((key) => [toSnake(key), body[key]]),
-    )
-    for (const key of queryKeys) delete body[key]
-    return { query, body: renameKeys(body, toSnake) }
-  }
-
-  // A GET endpoint that the OpenAPI document does not have.
+  // A GET endpoint that the OpenAPI document does not have. The `queryKeys`
+  // SDK params go in the query, in the SDK order, with snake_case names.
   const get = (
     path: string,
     params: object,
     queryKeys: ReadonlyArray<string>,
     options: RequestOptions | undefined,
-  ) =>
-    send('GET', path, path, { query: split(params, queryKeys).query }, options)
+  ) => {
+    const values = new Map(Object.entries(params))
+    const query = Object.fromEntries(
+      queryKeys.map((key) => [toSnake(key), values.get(key)]),
+    )
+    return send('GET', path, path, { query }, options)
+  }
+
+  // The `keys` of `query`, in the SDK order (the URL order).
+  const pick = (
+    query: ElevenLabsQuery,
+    keys: ReadonlyArray<keyof ElevenLabsQuery>,
+  ) => Object.fromEntries(keys.map((key) => [key, query[key]]))
 
   // A generated operation: it builds the path and the body, and `send` adds
   // the query (the document declares none) and sends it with the client
@@ -291,8 +282,7 @@ export function createElevenLabsClient(config?: ElevenLabsClientConfig) {
     return response
   }
 
-  // The audio bytes of a response. The wide stream type is the SDK one, so a
-  // real SDK client also fits `ElevenLabsClient`.
+  // The audio bytes of a response.
   function readAudio(response: Response) {
     if (!response.body) {
       throw new ElevenLabsError({
@@ -304,46 +294,49 @@ export function createElevenLabsClient(config?: ElevenLabsClientConfig) {
     return audio
   }
 
-  const ttsQuery = ['enableLogging', 'optimizeStreamingLatency', 'outputFormat']
-  const dialogueQuery = ['outputFormat', 'enableLogging']
+  const ttsQuery = [
+    'enable_logging',
+    'optimize_streaming_latency',
+    'output_format',
+  ] as const
+  const dialogueQuery = ['output_format', 'enable_logging'] as const
 
   return {
     textToSpeech: {
       convert: async (
         voiceId: string,
-        request: ElevenLabs.BodyTextToSpeechFull,
+        body: ElevenlabsPostV1TextToSpeechVoiceIdBody,
+        query: ElevenLabsQuery = {},
         options?: RequestOptions,
-      ) => {
-        const { query, body } = split(request, ttsQuery)
-        return readAudio(
+      ) =>
+        readAudio(
           await generated(
             '/v1/text-to-speech/{voice_id}',
-            query,
+            pick(query, ttsQuery),
             options,
             (client) =>
               elevenlabsPostV1TextToSpeechVoiceId({
                 client,
                 path: { voice_id: voiceId },
-                body: wire(body),
+                body,
               }),
           ),
-        )
-      },
+        ),
       convertWithTimestamps: async (
         voiceId: string,
-        request: ElevenLabs.BodyTextToSpeechFullWithTimestamps,
+        body: ElevenlabsPostV1TextToSpeechVoiceIdWithTimestampsBody,
+        query: ElevenLabsQuery = {},
         options?: RequestOptions,
       ) => {
-        const { query, body } = split(request, ttsQuery)
         const response = await generated(
           '/v1/text-to-speech/{voice_id}/with-timestamps',
-          query,
+          pick(query, ttsQuery),
           options,
           (client) =>
             elevenlabsPostV1TextToSpeechVoiceIdWithTimestamps({
               client,
               path: { voice_id: voiceId },
-              body: wire(body),
+              body,
             }),
         )
         return (await readJSON(
@@ -353,30 +346,29 @@ export function createElevenLabsClient(config?: ElevenLabsClientConfig) {
     },
     textToDialogue: {
       convert: async (
-        request: ElevenLabs.BodyTextToDialogueMultiVoiceV1TextToDialoguePost,
+        body: ElevenlabsPostV1TextToDialogueBody,
+        query: ElevenLabsQuery = {},
         options?: RequestOptions,
-      ) => {
-        const { query, body } = split(request, dialogueQuery)
-        return readAudio(
-          await generated('/v1/text-to-dialogue', query, options, (client) =>
-            elevenlabsPostV1TextToDialogue({ client, body: wire(body) }),
+      ) =>
+        readAudio(
+          await generated(
+            '/v1/text-to-dialogue',
+            pick(query, dialogueQuery),
+            options,
+            (client) => elevenlabsPostV1TextToDialogue({ client, body }),
           ),
-        )
-      },
+        ),
       convertWithTimestamps: async (
-        request: ElevenLabs.BodyTextToDialogueFullWithTimestamps,
+        body: ElevenlabsPostV1TextToDialogueWithTimestampsBody,
+        query: ElevenLabsQuery = {},
         options?: RequestOptions,
       ) => {
-        const { query, body } = split(request, dialogueQuery)
         const response = await generated(
           '/v1/text-to-dialogue/with-timestamps',
-          query,
+          pick(query, dialogueQuery),
           options,
           (client) =>
-            elevenlabsPostV1TextToDialogueWithTimestamps({
-              client,
-              body: wire(body),
-            }),
+            elevenlabsPostV1TextToDialogueWithTimestamps({ client, body }),
         )
         return (await readJSON(
           response,
@@ -399,70 +391,46 @@ export function createElevenLabsClient(config?: ElevenLabsClientConfig) {
     },
     music: {
       compose: async (
-        // The SDK sends `signWithC2Pa` as `sign_with_c2pa`, which the plain
-        // snake_case rename would get wrong. This package never sets it.
-        request: Omit<ElevenLabs.BodyComposeMusicV1MusicPost, 'signWithC2Pa'>,
+        body: ElevenlabsPostV1MusicBody,
+        query: ElevenLabsQuery = {},
         options?: RequestOptions,
-      ) => {
-        const { query, body } = split(request, ['outputFormat'])
-        return readAudio(
-          await generated('/v1/music', query, options, (client) =>
-            elevenlabsPostV1Music({ client, body: wire(body) }),
+      ) =>
+        readAudio(
+          await generated(
+            '/v1/music',
+            pick(query, ['output_format']),
+            options,
+            (client) => elevenlabsPostV1Music({ client, body }),
           ),
-        )
-      },
+        ),
     },
     textToSoundEffects: {
       convert: async (
-        request: ElevenLabs.CreateSoundEffectRequest,
+        body: ElevenlabsPostV1SoundGenerationBody,
+        query: ElevenLabsQuery = {},
         options?: RequestOptions,
-      ) => {
-        const { query, body } = split(request, ['outputFormat'])
-        return readAudio(
-          await generated('/v1/sound-generation', query, options, (client) =>
-            elevenlabsPostV1SoundGeneration({ client, body: wire(body) }),
+      ) =>
+        readAudio(
+          await generated(
+            '/v1/sound-generation',
+            pick(query, ['output_format']),
+            options,
+            (client) => elevenlabsPostV1SoundGeneration({ client, body }),
           ),
-        )
-      },
+        ),
     },
     speechToText: {
+      // The generated operation sends `body` as multipart/form-data.
       convert: async (
-        request: SpeechToTextRequest,
+        body: ElevenlabsPostV1SpeechToTextBody,
+        query: ElevenLabsQuery = {},
         options?: RequestOptions,
       ) => {
-        const body = toFormData({
-          model_id: request.modelId,
-          file: request.file,
-          language_code: request.languageCode,
-          tag_audio_events: request.tagAudioEvents,
-          num_speakers: request.numSpeakers,
-          timestamps_granularity: request.timestampsGranularity,
-          diarize: request.diarize,
-          diarization_threshold: request.diarizationThreshold,
-          file_format: request.fileFormat,
-          cloud_storage_url: request.cloudStorageUrl,
-          temperature: request.temperature,
-          seed: request.seed,
-          use_multi_channel: request.useMultiChannel,
-          // ponytail: the SDK sends these two only when they are arrays and
-          // drops a plain string. Kept the same for parity.
-          entity_detection: Array.isArray(request.entityDetection)
-            ? request.entityDetection
-            : undefined,
-          no_verbatim: request.noVerbatim,
-          detect_speaker_roles: request.detectSpeakerRoles,
-          entity_redaction: Array.isArray(request.entityRedaction)
-            ? request.entityRedaction
-            : undefined,
-          entity_redaction_mode: request.entityRedactionMode,
-          keyterms: request.keyterms,
-        })
         const response = await generated(
           '/v1/speech-to-text',
-          { enable_logging: request.enableLogging },
+          pick(query, ['enable_logging']),
           options,
-          (client) =>
-            elevenlabsPostV1SpeechToText({ client, body: wire(body) }),
+          (client) => elevenlabsPostV1SpeechToText({ client, body }),
         )
         return (await readJSON(
           response,
@@ -471,34 +439,29 @@ export function createElevenLabsClient(config?: ElevenLabsClientConfig) {
     },
     textToVoice: {
       design: async (
-        request: ElevenLabs.VoiceDesignRequestModel,
+        body: ElevenlabsPostV1TextToVoiceDesignBody,
+        query: ElevenLabsQuery = {},
         options?: RequestOptions,
       ) => {
-        const { query, body } = split(request, ['outputFormat'])
         const response = await generated(
           '/v1/text-to-voice/design',
-          query,
+          pick(query, ['output_format']),
           options,
-          (client) =>
-            elevenlabsPostV1TextToVoiceDesign({ client, body: wire(body) }),
+          (client) => elevenlabsPostV1TextToVoiceDesign({ client, body }),
         )
         return (await readJSON(
           response,
         )) as ElevenLabs.VoiceDesignPreviewResponse
       },
       create: async (
-        request: ElevenLabs.BodyCreateANewVoiceFromVoicePreviewV1TextToVoicePost,
+        body: ElevenlabsPostV1TextToVoiceBody,
         options?: RequestOptions,
       ) => {
         const response = await generated(
           '/v1/text-to-voice',
           {},
           options,
-          (client) =>
-            elevenlabsPostV1TextToVoice({
-              client,
-              body: wire(renameKeys(request, toSnake)),
-            }),
+          (client) => elevenlabsPostV1TextToVoice({ client, body }),
         )
         return (await readJSON(response)) as ElevenLabs.Voice
       },

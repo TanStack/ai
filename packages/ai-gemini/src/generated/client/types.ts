@@ -200,11 +200,9 @@ export type Blob = {
   mimeType?: string
   /**
    * @description Raw bytes for media formats.
-   *
-   * Format: `byte`
    * @type string | undefined
    */
-  data?: Blob
+  data?: string
 }
 
 /**
@@ -403,11 +401,9 @@ export type FunctionResponseBlob = {
   displayName?: string
   /**
    * @description Raw bytes for media formats.
-   *
-   * Format: `byte`
    * @type string | undefined
    */
-  data?: Blob
+  data?: string
   /**
    * @description The IANA standard MIME type of the source data. Examples: - image/png - image/jpeg If an unsupported MIME type is provided, an error will be returned. For a complete list of supported types, see [Supported file formats](https://aistudio.google.com/docs/file-input-methods#supported-content-types).
    * @type string | undefined
@@ -666,11 +662,9 @@ export type Part = {
   mediaProcessing?: PartMediaProcessingEnumKey
   /**
    * @description Optional. An opaque signature for the thought so it can be reused in subsequent requests.
-   *
-   * Format: `byte`
    * @type string | undefined
    */
-  thoughtSignature?: Blob
+  thoughtSignature?: string
   /**
    * @description URI based data.
    * @type object | undefined
@@ -2098,11 +2092,9 @@ export type FunctionResponseFileData2600Bc66 = {
 export type FunctionResponseBlob15B14C79 = {
   /**
    * @description Raw bytes for media formats.
-   *
-   * Format: `byte`
    * @type string | undefined
    */
-  data?: Blob
+  data?: string
   /**
    * @description The IANA standard MIME type of the source data. Examples: - image/png - image/jpeg If an unsupported MIME type is provided, an error will be returned. For a complete list of supported types, see [Supported file formats](https://aistudio.google.com/docs/file-input-methods#supported-content-types).
    * @type string | undefined
@@ -2320,11 +2312,9 @@ export type Part7Cedfbde = {
   inlineData?: Blob
   /**
    * @description Optional. An opaque signature for the thought so it can be reused in subsequent requests.
-   *
-   * Format: `byte`
    * @type string | undefined
    */
-  thoughtSignature?: Blob
+  thoughtSignature?: string
   /**
    * @description Result of executing the `ExecutableCode`. Generated only when the `CodeExecution` tool is used.
    * @type object | undefined
@@ -2706,11 +2696,9 @@ export type SearchEntryPoint = {
   renderedContent?: string
   /**
    * @description Optional. Base64 encoded JSON representing array of tuple.
-   *
-   * Format: `byte`
    * @type string | undefined
    */
-  sdkBlob?: Blob
+  sdkBlob?: string
 }
 
 /**
@@ -3014,11 +3002,9 @@ export type Candidate = {
   safetyRatings?: SafetyRating[]
   /**
    * @description An optional opaque continuation token returned when `finish_reason` is `CONTINUATION`. Clients can pass this token in a subsequent `GenerateContentRequest` to continue generation.
-   *
-   * Format: `byte`
    * @type string | undefined
    */
-  continuationToken?: Blob
+  continuationToken?: string
 }
 
 export const modalityTokenCountModalityEnum = {
@@ -3407,11 +3393,9 @@ export type FunctionResponseFileData28A7Bef9 = {
 export type FunctionResponseBlob7Fa33D74 = {
   /**
    * @description Raw bytes for media formats.
-   *
-   * Format: `byte`
    * @type string | undefined
    */
-  data?: Blob
+  data?: string
   /**
    * @description The IANA standard MIME type of the source data. Examples: - image/png - image/jpeg If an unsupported MIME type is provided, an error will be returned. For a complete list of supported types, see [Supported file formats](https://aistudio.google.com/docs/file-input-methods#supported-content-types).
    * @type string | undefined
@@ -3629,11 +3613,9 @@ export type Part73330Ac1 = {
   inlineData?: Blob
   /**
    * @description Optional. An opaque signature for the thought so it can be reused in subsequent requests.
-   *
-   * Format: `byte`
    * @type string | undefined
    */
-  thoughtSignature?: Blob
+  thoughtSignature?: string
   /**
    * @description Result of executing the `ExecutableCode`. Generated only when the `CodeExecution` tool is used.
    * @type object | undefined
@@ -3809,11 +3791,9 @@ export type Candidate7Cd0B73F = {
   safetyRatings?: SafetyRating[]
   /**
    * @description An optional opaque continuation token returned when `finish_reason` is `CONTINUATION`. Clients can pass this token in a subsequent `GenerateContentRequest` to continue generation.
-   *
-   * Format: `byte`
    * @type string | undefined
    */
-  continuationToken?: Blob
+  continuationToken?: string
 }
 
 /**
@@ -4020,11 +4000,9 @@ export type FunctionResponseFileDataB3D553B5 = {
 export type FunctionResponseBlobA866199C = {
   /**
    * @description Raw bytes for media formats.
-   *
-   * Format: `byte`
    * @type string | undefined
    */
-  data?: Blob
+  data?: string
   /**
    * @description The IANA standard MIME type of the source data. Examples: - image/png - image/jpeg If an unsupported MIME type is provided, an error will be returned. For a complete list of supported types, see [Supported file formats](https://aistudio.google.com/docs/file-input-methods#supported-content-types).
    * @type string | undefined
@@ -4242,11 +4220,9 @@ export type Part32Dc32Ad = {
   inlineData?: Blob
   /**
    * @description Optional. An opaque signature for the thought so it can be reused in subsequent requests.
-   *
-   * Format: `byte`
    * @type string | undefined
    */
-  thoughtSignature?: Blob
+  thoughtSignature?: string
   /**
    * @description Result of executing the `ExecutableCode`. Generated only when the `CodeExecution` tool is used.
    * @type object | undefined
@@ -4606,11 +4582,9 @@ export type GenerateContentRequest = {
   cachedContent?: string
   /**
    * @description Optional. An opaque continuation token used to resume generation from a previous `GenerateContent` or `StreamGenerateContent` response that stopped with `finish_reason` set to `CONTINUATION`. Note that `contents` is mandatory and must identically replicate the prompt and conversation history from the initial request when continuation token is provided in a request.
-   *
-   * Format: `byte`
    * @type string | undefined
    */
-  continuationToken?: Blob
+  continuationToken?: string
   /**
    * @description Required. The name of the `Model` to use for generating the completion. Format: `models/{model}`.
    * @type string | undefined
@@ -4834,11 +4808,9 @@ export type FunctionResponseFileData870087B4 = {
 export type FunctionResponseBlob2D521745 = {
   /**
    * @description Raw bytes for media formats.
-   *
-   * Format: `byte`
    * @type string | undefined
    */
-  data?: Blob
+  data?: string
   /**
    * @description The IANA standard MIME type of the source data. Examples: - image/png - image/jpeg If an unsupported MIME type is provided, an error will be returned. For a complete list of supported types, see [Supported file formats](https://aistudio.google.com/docs/file-input-methods#supported-content-types).
    * @type string | undefined
@@ -5056,11 +5028,9 @@ export type Part37Dfc3Bc = {
   inlineData?: Blob
   /**
    * @description Optional. An opaque signature for the thought so it can be reused in subsequent requests.
-   *
-   * Format: `byte`
    * @type string | undefined
    */
-  thoughtSignature?: Blob
+  thoughtSignature?: string
   /**
    * @description Result of executing the `ExecutableCode`. Generated only when the `CodeExecution` tool is used.
    * @type object | undefined
@@ -5360,11 +5330,9 @@ export type FunctionResponseFileDataA2634D8C = {
 export type FunctionResponseBlob521D3705 = {
   /**
    * @description Raw bytes for media formats.
-   *
-   * Format: `byte`
    * @type string | undefined
    */
-  data?: Blob
+  data?: string
   /**
    * @description The IANA standard MIME type of the source data. Examples: - image/png - image/jpeg If an unsupported MIME type is provided, an error will be returned. For a complete list of supported types, see [Supported file formats](https://aistudio.google.com/docs/file-input-methods#supported-content-types).
    * @type string | undefined
@@ -5582,11 +5550,9 @@ export type Part091E48E4 = {
   inlineData?: Blob
   /**
    * @description Optional. An opaque signature for the thought so it can be reused in subsequent requests.
-   *
-   * Format: `byte`
    * @type string | undefined
    */
-  thoughtSignature?: Blob
+  thoughtSignature?: string
   /**
    * @description Result of executing the `ExecutableCode`. Generated only when the `CodeExecution` tool is used.
    * @type object | undefined
@@ -5929,11 +5895,9 @@ export type FunctionResponseFileDataAc2Ac965 = {
 export type FunctionResponseBlob6F143Aee = {
   /**
    * @description Raw bytes for media formats.
-   *
-   * Format: `byte`
    * @type string | undefined
    */
-  data?: Blob
+  data?: string
   /**
    * @description The IANA standard MIME type of the source data. Examples: - image/png - image/jpeg If an unsupported MIME type is provided, an error will be returned. For a complete list of supported types, see [Supported file formats](https://aistudio.google.com/docs/file-input-methods#supported-content-types).
    * @type string | undefined
@@ -6151,11 +6115,9 @@ export type Part1879F10D = {
   inlineData?: Blob
   /**
    * @description Optional. An opaque signature for the thought so it can be reused in subsequent requests.
-   *
-   * Format: `byte`
    * @type string | undefined
    */
-  thoughtSignature?: Blob
+  thoughtSignature?: string
   /**
    * @description Result of executing the `ExecutableCode`. Generated only when the `CodeExecution` tool is used.
    * @type object | undefined
@@ -6331,11 +6293,9 @@ export type CandidateE92B326B = {
   safetyRatings?: SafetyRating[]
   /**
    * @description An optional opaque continuation token returned when `finish_reason` is `CONTINUATION`. Clients can pass this token in a subsequent `GenerateContentRequest` to continue generation.
-   *
-   * Format: `byte`
    * @type string | undefined
    */
-  continuationToken?: Blob
+  continuationToken?: string
 }
 
 export const inputFeedbackBlockReasonEnum = {
@@ -7051,11 +7011,9 @@ export type GeminiPostV1BetaDynamicDynamicidGeneratecontentBody = {
   cachedContent?: string
   /**
    * @description Optional. An opaque continuation token used to resume generation from a previous `GenerateContent` or `StreamGenerateContent` response that stopped with `finish_reason` set to `CONTINUATION`. Note that `contents` is mandatory and must identically replicate the prompt and conversation history from the initial request when continuation token is provided in a request.
-   *
-   * Format: `byte`
    * @type string | undefined
    */
-  continuationToken?: Blob
+  continuationToken?: string
   /**
    * @description Required. The name of the `Model` to use for generating the completion. Format: `models/{model}`.
    * @type string | undefined
@@ -7264,11 +7222,9 @@ export type GeminiPostV1BetaDynamicDynamicidStreamgeneratecontentBody = {
   cachedContent?: string
   /**
    * @description Optional. An opaque continuation token used to resume generation from a previous `GenerateContent` or `StreamGenerateContent` response that stopped with `finish_reason` set to `CONTINUATION`. Note that `contents` is mandatory and must identically replicate the prompt and conversation history from the initial request when continuation token is provided in a request.
-   *
-   * Format: `byte`
    * @type string | undefined
    */
-  continuationToken?: Blob
+  continuationToken?: string
   /**
    * @description Required. The name of the `Model` to use for generating the completion. Format: `models/{model}`.
    * @type string | undefined
@@ -8120,11 +8076,9 @@ export type GeminiPostV1BetaModelsModelsidGeneratecontentBody = {
   cachedContent?: string
   /**
    * @description Optional. An opaque continuation token used to resume generation from a previous `GenerateContent` or `StreamGenerateContent` response that stopped with `finish_reason` set to `CONTINUATION`. Note that `contents` is mandatory and must identically replicate the prompt and conversation history from the initial request when continuation token is provided in a request.
-   *
-   * Format: `byte`
    * @type string | undefined
    */
-  continuationToken?: Blob
+  continuationToken?: string
   /**
    * @description Required. The name of the `Model` to use for generating the completion. Format: `models/{model}`.
    * @type string | undefined
@@ -8654,11 +8608,9 @@ export type GeminiPostV1BetaModelsModelsidStreamgeneratecontentBody = {
   cachedContent?: string
   /**
    * @description Optional. An opaque continuation token used to resume generation from a previous `GenerateContent` or `StreamGenerateContent` response that stopped with `finish_reason` set to `CONTINUATION`. Note that `contents` is mandatory and must identically replicate the prompt and conversation history from the initial request when continuation token is provided in a request.
-   *
-   * Format: `byte`
    * @type string | undefined
    */
-  continuationToken?: Blob
+  continuationToken?: string
   /**
    * @description Required. The name of the `Model` to use for generating the completion. Format: `models/{model}`.
    * @type string | undefined
@@ -8867,11 +8819,9 @@ export type GeminiPostV1BetaTunedmodelsTunedmodelsidGeneratecontentBody = {
   cachedContent?: string
   /**
    * @description Optional. An opaque continuation token used to resume generation from a previous `GenerateContent` or `StreamGenerateContent` response that stopped with `finish_reason` set to `CONTINUATION`. Note that `contents` is mandatory and must identically replicate the prompt and conversation history from the initial request when continuation token is provided in a request.
-   *
-   * Format: `byte`
    * @type string | undefined
    */
-  continuationToken?: Blob
+  continuationToken?: string
   /**
    * @description Required. The name of the `Model` to use for generating the completion. Format: `models/{model}`.
    * @type string | undefined
@@ -9183,11 +9133,9 @@ export type GeminiPostV1BetaTunedmodelsTunedmodelsidStreamgeneratecontentBody =
     cachedContent?: string
     /**
      * @description Optional. An opaque continuation token used to resume generation from a previous `GenerateContent` or `StreamGenerateContent` response that stopped with `finish_reason` set to `CONTINUATION`. Note that `contents` is mandatory and must identically replicate the prompt and conversation history from the initial request when continuation token is provided in a request.
-     *
-     * Format: `byte`
      * @type string | undefined
      */
-    continuationToken?: Blob
+    continuationToken?: string
     /**
      * @description Required. The name of the `Model` to use for generating the completion. Format: `models/{model}`.
      * @type string | undefined
