@@ -1736,7 +1736,7 @@
           "label": "Google Gemini",
           "to": "adapters/gemini",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-11-06"
+          "updatedAt": "2026-11-09"
         },
         {
           "label": "Google Gemini: Advanced",
