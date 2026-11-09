@@ -6,11 +6,11 @@ import {
   generateId as utilGenerateId,
 } from '../utils/client'
 import { buildFalUsage, takeBillableUnits } from '../utils/billing'
-import type { OutputType, Result } from '@fal-ai/client'
+import type { Result } from '@fal-ai/client'
 import type { TTSOptions, TTSResult } from '@tanstack/ai'
 import type { FalClientConfig } from '../utils/client'
 import type { FalClient } from '../client/index'
-import type { FalModel, FalModelInput } from '../model-meta'
+import type { FalModel, FalModelInput, FalModelOutput } from '../model-meta'
 
 /**
  * Provider options for TTS, excluding fields TanStack AI handles.
@@ -100,7 +100,7 @@ export class FalSpeechAdapter<TModel extends FalModel> extends BaseTTSAdapter<
   }
 
   private async transformResponse(
-    response: Result<OutputType<TModel>>,
+    response: Result<FalModelOutput<TModel>>,
     abortSignal: AbortSignal | undefined,
   ): Promise<TTSResult> {
     const data = response.data as Record<string, unknown>

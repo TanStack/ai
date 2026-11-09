@@ -1,12 +1,8 @@
-import { createHash } from 'node:crypto'
-import { readFileSync } from 'node:fs'
-import { createRequire } from 'node:module'
 import { describe, expect, it } from 'vitest'
 import {
   mapImageInputsToFalFields,
   mapImageInputsToFalVideoFields,
 } from '../src/image/image-inputs'
-import { FAL_ENDPOINTS_DTS_SHA256 } from '../src/image/generated/image-field-overrides'
 import type { ImagePart, MediaInputMetadata } from '@tanstack/ai'
 
 /** A model id unknown to the SDK — exercises the default field mapping. */
@@ -243,20 +239,5 @@ describe('mapImageInputsToFalVideoFields', () => {
         ),
       ).toThrow(/multiple inputs map to 'image_url'/)
     })
-  })
-})
-
-describe('generated image-field-overrides artifact', () => {
-  it('matches the installed @fal-ai/client endpoint types', () => {
-    const require = createRequire(import.meta.url)
-    const endpointsJs = require.resolve('@fal-ai/client/endpoints')
-    const endpointsDts = endpointsJs.replace(/\.js$/, '.d.ts')
-    const hash = createHash('sha256')
-      .update(readFileSync(endpointsDts))
-      .digest('hex')
-    expect(
-      hash,
-      'image-field-overrides.ts is stale for the installed @fal-ai/client. Run: pnpm generate:fal-image-fields',
-    ).toBe(FAL_ENDPOINTS_DTS_SHA256)
   })
 })

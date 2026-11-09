@@ -25,6 +25,13 @@ import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import {
+  falImageFieldOverrides,
+  falVideoDurations,
+  renderFalImageFieldOverrides,
+  renderFalVideoDurations,
+} from './fal.ts'
+import type { ActivityDoc } from './fal.ts'
+import {
   diffFiles,
   docSkipReason,
   parseDoc,
@@ -82,6 +89,7 @@ async function main() {
   try {
     await mkdir(docs, { recursive: true })
     const generated: typeof PROVIDER_CLIENTS = []
+    const falActivityDocs = new Map<string, ActivityDoc>()
     const activityTypes: Array<
       (typeof PROVIDER_CLIENTS)[number] & { activity: string }
     > = []
@@ -102,8 +110,10 @@ async function main() {
       for (const activity of await listActivities(provider.id)) {
         const doc = await fetchDoc(provider.id, activity)
         if ('skip' in doc) continue
+        const parsed = parseDoc(doc.text)
+        if (provider.id === 'fal') falActivityDocs.set(activity, parsed)
         const mapped = withEndpointMap(
-          parseDoc(doc.text),
+          parsed,
           `${pascal(provider.id)}${pascal(activity)}Endpoints`,
         )
         if (!mapped) continue
@@ -138,6 +148,27 @@ async function main() {
         },
       },
     )
+    // ponytail: fal-only step. Generalise when a second provider needs
+    // derived files from its activity documents.
+    const falFields = join(out, '_fal-image-fields')
+    const falDurations = join(out, '_fal-video-durations')
+    const falVideo = falActivityDocs.get('video')
+    if (falActivityDocs.size > 0) {
+      await mkdir(falFields, { recursive: true })
+      await writeFile(
+        join(falFields, 'image-field-overrides.ts'),
+        renderFalImageFieldOverrides(
+          falImageFieldOverrides([...falActivityDocs.values()]),
+        ),
+      )
+    }
+    if (falVideo) {
+      await mkdir(falDurations, { recursive: true })
+      await writeFile(
+        join(falDurations, 'video-durations.ts'),
+        renderFalVideoDurations(falVideoDurations(falVideo)),
+      )
+    }
     execFileSync(
       'pnpm',
       ['exec', 'oxfmt', '-c', join(ROOT, '.oxfmtrc.json'), out],
@@ -156,6 +187,18 @@ async function main() {
       targets.set(
         join(packageDir, 'src/generated', activity),
         await readTree(join(out, `${id}@${activity}`)),
+      )
+    }
+    if (falActivityDocs.size > 0) {
+      targets.set(
+        'packages/ai-fal/src/image/generated',
+        await readTree(falFields),
+      )
+    }
+    if (falVideo) {
+      targets.set(
+        'packages/ai-fal/src/video/generated',
+        await readTree(falDurations),
       )
     }
     // Each runtime file is the same in every run, so the union is the runtime.
