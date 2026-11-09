@@ -73,6 +73,22 @@ Do not rebase or hand-edit `automated/sync-models`. The next scheduled run force
 
 The workflow pushes with `GITHUB_TOKEN`, so GitHub does not start Test / E2E on that push. After a sync, a maintainer with write access can run the PR checks from the Actions tab, or push an empty commit to `automated/sync-models`.
 
+## Syncing provider clients
+
+The provider HTTP clients are generated. [Kubb](https://kubb.dev) reads the OpenAPI document that [modelschemas](https://modelschemas.com) publishes for each provider (`GET /v1/openapi/{provider}`). Do not edit the generated files by hand.
+
+| Goal                                     | Command                                |
+| ---------------------------------------- | -------------------------------------- |
+| Regenerate the clients                   | `pnpm generate:provider-clients`       |
+| Fail when a live document changes output | `pnpm generate:provider-clients:check` |
+
+- `scripts/provider-clients/providers.ts` lists the providers and the package of each one. A package that speaks another provider's API (Groq, Grok, Azure, and the gateways use the OpenAI API) uses that provider's client. It does not get its own copy.
+- Each client is written to `src/generated/client/` in its package (`sdk.ts` and `types.ts`). All clients share one runtime from `@tanstack/ai-utils/kubb`.
+- A provider is skipped when modelschemas has no document for it (`missing_connect`, `no_endpoints`, `unknown_provider`). Its committed client does not change.
+- The generated functions build the path and the body. The hand-written code in each package's `src/client/` still does auth, retries, errors, SSE parsing, and audio bytes. It also sends the calls that the documents do not describe, such as file uploads and job status.
+
+The daily **Sync Provider Clients** workflow runs the check. When a document changed, it regenerates the clients and opens a PR from `automated/sync-provider-clients`. Review the diff, then update the adapters if an operation that they call changed.
+
 ## Day-to-day commands
 
 All commands are run from the repo root. Nx handles affected detection and caching.
