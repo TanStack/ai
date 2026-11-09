@@ -27,8 +27,8 @@
  *   sync would overwrite probed facts with worse ones. Use `/gap-analysis
  *   byteplus` instead; the probe recipe is in that package's `model-meta.ts`.
  * - **fal** — media-only provider whose endpoint ids are not OpenRouter
- *   models. fal image fields have their own generator
- *   (`scripts/generate-fal-image-field-map.ts`).
+ *   models. Its endpoint types, image fields and video durations come from
+ *   the modelschemas activity documents (`pnpm generate:provider-clients`).
  * - **elevenlabs** — text-to-speech, music, sound effects, and voice design
  *   ids come from modelschemas via `scripts/sync-elevenlabs-models.ts`, not
  *   OpenRouter. Transcription stays hand-maintained.

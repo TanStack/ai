@@ -1,19 +1,44 @@
 /**
- * Re-export fal.ai's comprehensive type system for full model support.
- * The fal.ai SDK provides types for 600+ models through EndpointTypeMap.
- * These types give you full autocomplete and type safety for any model.
+ * fal endpoint types, generated from the modelschemas fal activity
+ * documents (`pnpm generate:provider-clients`). Each activity has its own
+ * map of endpoint id to `{ input, output }`.
  */
-import type { EndpointTypeMap } from '@fal-ai/client/endpoints'
 import type { MediaPromptModality } from '@tanstack/ai'
+import type { FalAudioEndpoints } from './generated/audio/types'
+import type { FalChatEndpoints } from './generated/chat/types'
+import type { FalImageEndpoints } from './generated/image/types'
+import type { FalVideoEndpoints } from './generated/video/types'
 import type { FalImageFieldName } from './image/generated/image-field-overrides'
 
-export type { EndpointTypeMap } from '@fal-ai/client/endpoints'
+export type {
+  FalAudioEndpoints,
+  FalChatEndpoints,
+  FalImageEndpoints,
+  FalVideoEndpoints,
+}
+
+/** Every fal endpoint id to its `{ input, output }`, across activities. */
+export interface EndpointTypeMap
+  extends
+    FalImageEndpoints,
+    FalVideoEndpoints,
+    FalAudioEndpoints,
+    FalChatEndpoints {}
 
 /**
  * All known fal.ai model IDs with autocomplete support.
  * Also accepts any string for custom/new models.
  */
 export type FalModel = keyof EndpointTypeMap | (string & {})
+
+/** fal image endpoint ids. Also accepts any string. */
+export type FalImageModel = keyof FalImageEndpoints | (string & {})
+
+/** fal video endpoint ids. Also accepts any string. */
+export type FalVideoModel = keyof FalVideoEndpoints | (string & {})
+
+/** fal audio endpoint ids (speech, transcription, music, sound). */
+export type FalAudioModel = keyof FalAudioEndpoints | (string & {})
 
 /**
  * Utility type to extract the input type for a specific fal model.
@@ -36,8 +61,11 @@ export type FalModelInput<TModel extends string> =
  */
 export type FalModelOutput<TModel extends string> =
   TModel extends keyof EndpointTypeMap
-    ? EndpointTypeMap[TModel]['output']
-    : unknown
+    ? // A schema that leaves the output untyped still returns a JSON object.
+      unknown extends EndpointTypeMap[TModel]['output']
+      ? Record<string, unknown>
+      : EndpointTypeMap[TModel]['output']
+    : Record<string, unknown>
 
 /**
  * Extract the image_size type supported by a specific fal model.
@@ -50,7 +78,7 @@ export type FalModelOutput<TModel extends string> =
 export type FalModelImageSize<TModel extends string> =
   TModel extends keyof EndpointTypeMap
     ? 'image_size' extends keyof EndpointTypeMap[TModel]['input']
-      ? NonNullable<Exclude<FalModelInput<TModel>['image_size'], object>>
+      ? Extract<NonNullable<FalModelInput<TModel>['image_size']>, string>
       : 'aspect_ratio' extends keyof EndpointTypeMap[TModel]['input']
         ? 'resolution' extends keyof EndpointTypeMap[TModel]['input']
           ? `${Extract<NonNullable<FalModelInput<TModel>['aspect_ratio']>, string>}_${Extract<NonNullable<FalModelInput<TModel>['resolution']>, string>}`

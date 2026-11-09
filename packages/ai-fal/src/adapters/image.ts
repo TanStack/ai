@@ -7,7 +7,7 @@ import {
 import { buildFalUsage, takeBillableUnits } from '../utils/billing'
 import { mapSizeToFalFormat } from '../image/image-provider-options'
 import { mapImageInputsToFalFields } from '../image/image-inputs'
-import type { OutputType, Result } from '@fal-ai/client'
+import type { Result } from '@fal-ai/client'
 import type { FalClientConfig } from '../utils/client'
 import type { FalClient } from '../client/index'
 import type {
@@ -22,6 +22,7 @@ import type {
   FalModel,
   FalModelImageSize,
   FalModelInput,
+  FalModelOutput,
 } from '../model-meta'
 
 /**
@@ -145,7 +146,7 @@ export class FalImageAdapter<TModel extends FalModel> extends BaseImageAdapter<
   }
 
   private transformResponse(
-    response: Result<OutputType<TModel>>,
+    response: Result<FalModelOutput<TModel>>,
   ): ImageGenerationResult {
     const images: Array<GeneratedImage> = []
     const data = response.data

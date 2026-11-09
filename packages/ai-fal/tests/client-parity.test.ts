@@ -74,13 +74,21 @@ async function runOn(
   return { calls: server.calls, outcome }
 }
 
+/**
+ * The SDK client takes the same calls at runtime. Its types use the SDK's own
+ * endpoint map instead of the generated one, so it is cast here to compare
+ * the wire output.
+ */
+const sdkClient = (options: FalClientOptions) =>
+  createSdkClient(options) as unknown as FalClient
+
 /** Runs the same calls on both clients and checks they match. */
 async function expectParity(
   makeRoute: () => Route,
   run: (client: FalClient) => Promise<unknown>,
   options: Partial<FalClientOptions> = {},
 ) {
-  const sdk = await runOn(createSdkClient, makeRoute, run, options)
+  const sdk = await runOn(sdkClient, makeRoute, run, options)
   const ours = await runOn(createFalClient, makeRoute, run, options)
   expect(ours.calls).toEqual(sdk.calls)
   expect(ours.outcome).toEqual(sdk.outcome)

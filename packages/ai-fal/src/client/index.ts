@@ -1,10 +1,12 @@
 import type {
   FalClient as SdkFalClient,
   QueueClient,
+  Result,
   StorageClient,
   StorageSettings,
   ValidationErrorInfo,
 } from '@fal-ai/client'
+import type { FalModel, FalModelInput, FalModelOutput } from '../model-meta'
 import { sendWith } from '@tanstack/ai-utils/kubb'
 import {
   falGetEndpointIdRequestsRequestId,
@@ -24,12 +26,34 @@ export interface FalClientOptions {
   proxyUrl?: string
 }
 
+/** `Omit` that keeps each member of a union (the SDK queue mode options). */
+type OmitEach<T, K extends PropertyKey> = T extends unknown ? Omit<T, K> : never
+
+/** An SDK options type with `input` typed by the generated endpoint map. */
+type WithInput<Options, Id extends string> = OmitEach<Options, 'input'> & {
+  input?: FalModelInput<Id>
+}
+
 /**
- * The part of the `@fal-ai/client` client that the adapters call. A real SDK
- * client also fits this type.
+ * The part of the `@fal-ai/client` client that the adapters call, with the
+ * SDK option and result shapes. Each endpoint's input and output come from
+ * the modelschemas types in `model-meta.ts`.
  */
-export type FalClient = Pick<SdkFalClient, 'subscribe'> & {
-  queue: Pick<QueueClient, 'submit' | 'status' | 'result' | 'cancel'>
+export interface FalClient {
+  subscribe: <Id extends FalModel>(
+    endpointId: Id,
+    options: WithInput<Parameters<SdkFalClient['subscribe']>[1], Id>,
+  ) => Promise<Result<FalModelOutput<Id>>>
+  queue: Pick<QueueClient, 'status' | 'cancel'> & {
+    submit: <Id extends FalModel>(
+      endpointId: Id,
+      options: WithInput<Parameters<QueueClient['submit']>[1], Id>,
+    ) => ReturnType<QueueClient['submit']>
+    result: <Id extends FalModel>(
+      endpointId: Id,
+      options: Parameters<QueueClient['result']>[1],
+    ) => Promise<Result<FalModelOutput<Id>>>
+  }
   storage: Pick<StorageClient, 'upload'>
 }
 
