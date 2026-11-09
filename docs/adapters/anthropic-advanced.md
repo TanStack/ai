@@ -256,6 +256,38 @@ export const throughProxy = anthropicText("claude-opus-5-5", {
 
 If that endpoint sends the request and the `anthropic-beta` header on to Anthropic without changes, set `true`. See [Mid-Conversation Changes](../advanced/mid-conversation-changes).
 
+## Native compaction
+
+Anthropic can compact a long conversation on its side. `createAnthropicChat` and `anthropicText` have a `compact` method for that call. Pass the adapter as `native`:
+
+```typescript
+import { chat } from "@tanstack/ai";
+import { createAnthropicChat } from "@tanstack/ai-anthropic";
+import { withCompaction } from "@tanstack/ai-compaction";
+
+const adapter = createAnthropicChat(
+  "claude-opus-5-5",
+  process.env.ANTHROPIC_API_KEY!,
+);
+
+const stream = chat({
+  adapter,
+  messages: [{ role: "user", content: "Hello!" }],
+  threadId: "thread-1",
+  middleware: [withCompaction({ maxTokens: 100_000, native: adapter })],
+});
+```
+
+The call is a Messages request. It sets `compaction` to `{ type: "summarize" }` and sends the beta `compact-2026-09-04`.
+
+- The request includes the system prompts, the tools, and `max_tokens` from the chat. The call does not run a tool.
+- The result is one assistant message. The message text is the summary.
+- `metadata.anthropicCompaction` holds the signed block. The block has `content` and `signature`.
+- The next request to the same model includes that block and the same beta.
+- A result with no signed block uses `strategy`. After a 404, a 405, or a 501, that adapter and model use `strategy` until the process restarts.
+
+See [Let the provider compact](../advanced/compaction#let-the-provider-compact).
+
 ## Provider tools
 
 Anthropic has tools of its own, next to the function tools that you define. Import them from `@tanstack/ai-anthropic/tools` and pass them into `chat({ tools: [...] })`.

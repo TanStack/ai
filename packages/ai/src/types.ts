@@ -1591,6 +1591,17 @@ export interface TextCompactOptions {
   wrapFetch?: FetchWrapper
   /** The system prompts of the chat call. */
   systemPrompts?: Array<SystemPrompt>
+  /**
+   * The tools of the chat call. The provider reads the definitions.
+   * The compaction call does not run a tool.
+   */
+  tools?: Array<AnyTool>
+  /** Provider model options of the chat call, including `max_tokens`. */
+  modelOptions?: Record<string, unknown>
+  /** How hard the model thinks on the chat call. */
+  reasoning?: ReasoningRequest
+  /** Report the token usage of the compaction call. */
+  addUsage?: (usage: TokenUsage) => void
 }
 
 // ============================================================================
