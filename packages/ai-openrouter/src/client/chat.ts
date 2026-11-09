@@ -1,4 +1,5 @@
-import { createCaller, sendText } from './http'
+import { openrouterPostChatCompletions } from '../generated/client/sdk'
+import { createCaller, sendText, wire } from './http'
 import {
   ChatRequest,
   ChatResult,
@@ -24,7 +25,7 @@ const tables = {
 }
 
 /**
- * The SDK `chat.send` over fetch: `POST /chat/completions`, JSON or SSE.
+ * The SDK `chat.send` over the generated `POST /chat/completions`, JSON or SSE.
  *
  * @example
  * const { chat } = createOpenRouterChatClient({ apiKey: 'sk-or-...' })
@@ -42,7 +43,8 @@ export function createOpenRouterChatClient(config: OpenRouterClientOptions) {
       ) =>
         (await sendText(
           call,
-          'chat/completions',
+          (body) => (client) =>
+            openrouterPostChatCompletions({ client, body: wire(body) }),
           request.chatRequest,
           request,
           tables,

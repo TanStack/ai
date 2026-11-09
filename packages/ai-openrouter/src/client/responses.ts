@@ -1,4 +1,5 @@
-import { createCaller, sendText } from './http'
+import { openrouterPostResponses } from '../generated/client/sdk'
+import { createCaller, sendText, wire } from './http'
 import {
   OBJECTS,
   OpenResponsesResult,
@@ -24,7 +25,7 @@ const tables = {
 }
 
 /**
- * The SDK `beta.responses.send` over fetch: `POST /responses`, JSON or SSE.
+ * The SDK `beta.responses.send` over the generated `POST /responses`, JSON or SSE.
  *
  * @example
  * const { beta } = createOpenRouterResponsesClient({ apiKey: 'sk-or-...' })
@@ -45,7 +46,8 @@ export function createOpenRouterResponsesClient(
         ) =>
           (await sendText(
             call,
-            'responses',
+            (body) => (client) =>
+              openrouterPostResponses({ client, body: wire(body) }),
             request.responsesRequest,
             request,
             tables,

@@ -7,6 +7,7 @@ import { createClient, getResponseContentType } from './generated/kubb/client'
 import type { ClientInstance } from './generated/kubb/client'
 
 export * from './generated/kubb/client'
+export * from './generated/kubb/sse'
 
 /** One request as a generated operation built it. */
 export interface GeneratedRequest {
