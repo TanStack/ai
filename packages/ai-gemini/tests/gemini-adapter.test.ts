@@ -441,6 +441,120 @@ describe('GeminiAdapter through AI', () => {
     expect(config.imageConfig).toEqual(providerOptions?.imageConfig)
   })
 
+  it('reports content_filter over tool_calls when a filter stops a tool call', async () => {
+    mocks.generateContentStreamSpy.mockResolvedValueOnce(
+      createStream([
+        {
+          candidates: [
+            {
+              content: {
+                parts: [
+                  {
+                    functionCall: {
+                      id: 'call_1',
+                      name: 'lookup_weather',
+                      args: { location: 'Berlin' },
+                    },
+                  },
+                ],
+              },
+              finishReason: 'SAFETY',
+            },
+          ],
+        },
+      ]),
+    )
+
+    const chunks = await collectChunks(
+      createTextAdapter().chatStream({
+        threadId: 'filtered-thread',
+        model: 'gemini-2.5-pro',
+        logger: testLogger,
+        messages: [{ role: 'user', content: 'Weather?' }],
+      }),
+    )
+
+    expect(
+      chunks.filter((chunk) => chunk.type === 'TOOL_CALL_END'),
+    ).toHaveLength(1)
+    expect(
+      chunks.filter((chunk) => chunk.type === 'TEXT_MESSAGE_START'),
+    ).toHaveLength(0)
+    expect(chunks.filter((chunk) => chunk.type === 'RUN_FINISHED')).toEqual([
+      expect.objectContaining({ finishReason: 'content_filter' }),
+    ])
+  })
+
+  it('keeps OTHER as a normal stop', async () => {
+    mocks.generateContentStreamSpy.mockResolvedValueOnce(
+      createStream([
+        { candidates: [{ content: { parts: [] }, finishReason: 'OTHER' }] },
+      ]),
+    )
+
+    const chunks = await collectChunks(
+      createTextAdapter().chatStream({
+        threadId: 'other-thread',
+        model: 'gemini-2.5-pro',
+        logger: testLogger,
+        messages: [{ role: 'user', content: 'Hi' }],
+      }),
+    )
+
+    expect(chunks.filter((chunk) => chunk.type === 'RUN_FINISHED')).toEqual([
+      expect.objectContaining({ finishReason: 'stop' }),
+    ])
+  })
+
+  it.each([
+    'SAFETY',
+    'RECITATION',
+    'BLOCKLIST',
+    'PROHIBITED_CONTENT',
+    'SPII',
+    'IMAGE_SAFETY',
+    'IMAGE_PROHIBITED_CONTENT',
+    'IMAGE_RECITATION',
+  ])('reports %s as content_filter', async (finishReason) => {
+    mocks.generateContentStreamSpy.mockResolvedValueOnce(
+      createStream([
+        { candidates: [{ content: { parts: [{ text: 'Partial' }] } }] },
+        {
+          candidates: [{ content: { parts: [] }, finishReason }],
+          usageMetadata: {
+            promptTokenCount: 4,
+            candidatesTokenCount: 2,
+            totalTokenCount: 6,
+          },
+        },
+      ]),
+    )
+
+    const chunks = await collectChunks(
+      createTextAdapter().chatStream({
+        threadId: 'filtered-thread',
+        model: 'gemini-2.5-pro',
+        logger: testLogger,
+        messages: [{ role: 'user', content: 'Continue' }],
+      }),
+    )
+
+    expect(chunks.filter((chunk) => chunk.type === 'RUN_ERROR')).toHaveLength(0)
+    expect(chunks.filter((chunk) => chunk.type === 'RUN_FINISHED')).toEqual([
+      expect.objectContaining({
+        finishReason: 'content_filter',
+        usage: expect.objectContaining({
+          promptTokens: 4,
+          completionTokens: 2,
+          totalTokens: 6,
+        }),
+      }),
+    ])
+    expect(
+      chunks.findIndex((chunk) => chunk.type === 'TEXT_MESSAGE_END'),
+    ).toBeLessThan(chunks.findIndex((chunk) => chunk.type === 'RUN_FINISHED'))
+  })
+
   it('streams chat chunks using mapped provider config', async () => {
     const streamChunks = [
       {
@@ -1878,6 +1992,66 @@ describe('GeminiAdapter through AI', () => {
         outputSchema: cityJsonSchema,
       }),
     ).rejects.toThrow(/maximum token limit was reached/)
+  })
+
+  it('reports a SAFETY stop as content_filter in structuredOutput', async () => {
+    mocks.generateContentSpy.mockResolvedValue({
+      candidates: [{ content: { parts: [] }, finishReason: 'SAFETY' }],
+    })
+
+    await expect(
+      createTextAdapter().structuredOutput({
+        chatOptions: {
+          threadId: 'thread-1',
+          model: 'gemini-2.5-pro',
+          messages: [{ role: 'user', content: 'Return a city' }],
+          logger: testLogger,
+        },
+        outputSchema: cityJsonSchema,
+      }),
+    ).rejects.toThrow(/content filter \(finishReason=SAFETY\)/)
+  })
+
+  it('emits content_filter when a filter stops the structured stream', async () => {
+    mocks.generateContentStreamSpy.mockResolvedValue(
+      createStream([
+        {
+          candidates: [
+            {
+              content: { parts: [{ text: '{"city":' }] },
+              finishReason: 'SAFETY',
+            },
+          ],
+          usageMetadata: {
+            promptTokenCount: 4,
+            candidatesTokenCount: 2,
+            totalTokenCount: 6,
+          },
+        },
+      ]),
+    )
+
+    const events = await collectChunks(
+      createTextAdapter().structuredOutputStream({
+        chatOptions: {
+          threadId: 'thread-1',
+          model: 'gemini-2.5-pro',
+          messages: [{ role: 'user', content: 'Return a city' }],
+          logger: testLogger,
+        },
+        outputSchema: cityJsonSchema,
+      }),
+    )
+
+    expect(events.filter((event) => event.type === 'RUN_ERROR')).toEqual([
+      expect.objectContaining({
+        code: 'content_filter',
+        usage: expect.objectContaining({ totalTokens: 6 }),
+      }),
+    ])
+    expect(
+      events.filter((event) => event.type === 'RUN_FINISHED'),
+    ).toHaveLength(0)
   })
 
   it('emits empty-response when the structured stream has no text', async () => {
