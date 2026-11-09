@@ -174,10 +174,28 @@ function answerItems(
 ): ResponseInput | undefined {
   const items: TanStackMessageMetadata['responseItems'] =
     message.metadata?.tanstack?.responseItems
-  const texts = orderedAssistantBlocks(message)?.flatMap((block) =>
+  let texts = orderedAssistantBlocks(message)?.flatMap((block) =>
     block.type === 'text' ? [block.text] : [],
   ) ?? [text]
-  if (!items || items.length !== texts.length) return undefined
+  if (!items) return undefined
+  // Core and UI conversion can change text boundaries, even when counts match.
+  const lengths = items.map((item) => item.textLength)
+  if (
+    lengths.every(
+      (length): length is number =>
+        typeof length === 'number' && Number.isInteger(length) && length >= 0,
+    ) &&
+    lengths.reduce((sum, length) => sum + length, 0) === text.length
+  ) {
+    let offset = 0
+    texts = lengths.map((length) => {
+      const start = offset
+      offset += length
+      return text.slice(start, offset)
+    })
+  } else if (items.length !== texts.length) {
+    return undefined
+  }
   return items.map((item, index) => ({
     type: 'message',
     role: 'assistant',
@@ -2599,7 +2617,18 @@ export abstract class OpenAIBaseResponsesTextAdapter<
           // keeps the plain-text replay.
           const answers = responseOutput.flatMap((item) =>
             item.type === 'message' && item.id
-              ? [{ id: item.id, ...(item.phase ? { phase: item.phase } : {}) }]
+              ? [
+                  {
+                    id: item.id,
+                    ...(item.phase ? { phase: item.phase } : {}),
+                    textLength: item.content.reduce(
+                      (length, part) =>
+                        length +
+                        (part.type === 'output_text' ? part.text.length : 0),
+                      0,
+                    ),
+                  },
+                ]
               : [],
           )
           const responseItems = answers.some((item) => item.phase)

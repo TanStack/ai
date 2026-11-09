@@ -717,7 +717,12 @@ export interface TanStackMessageMetadata {
    * same-model replay. The OpenAI Responses adapter keeps each output
    * message item's `id` and `phase` (`commentary` or `final_answer`).
    */
-  responseItems?: Array<{ id: string; phase?: string }>
+  responseItems?: Array<{
+    id: string
+    phase?: string
+    /** UTF-16 text length, retaining item boundaries when adjacent text is merged. */
+    textLength?: number
+  }>
   /**
    * The model call of this assistant message sent a reasoning item. The
    * OpenAI Responses adapter sets it. A replay that lost that reasoning item
