@@ -30,6 +30,8 @@ export interface ElevenLabsClientConfig {
   defaultHeaders?: Record<string, string>
   /** Alias of `defaultHeaders`. */
   headers?: Record<string, string>
+  /** A custom fetch implementation, like the SDK `fetch` option. */
+  fetch?: typeof fetch
 }
 
 interface EnvObject {

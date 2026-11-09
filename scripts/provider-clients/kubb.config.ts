@@ -40,7 +40,6 @@ const types = () =>
 const available = PROVIDER_CLIENTS.filter(({ id }) =>
   existsSync(join(docs, `${id}.json`)),
 )
-const [first] = available
 
 export default defineConfig([
   ...available.map(({ id }) => ({
@@ -55,17 +54,15 @@ export default defineConfig([
     ],
   })),
   // `plugin-fetch` writes the `.kubb` fetch runtime that `RUNTIME_IMPORT`
-  // serves. Only that runtime is kept from this run.
-  ...(first
-    ? [
-        {
-          input: join(docs, `${first.id}.json`),
-          output: output(join(out, '_runtime')),
-          plugins: [
-            types(),
-            pluginFetch({ output: { path: 'sdk.ts', barrel: false } }),
-          ],
-        },
-      ]
-    : []),
+  // serves. It only writes the files a document needs (`sse.ts` only for an
+  // operation that is only `text/event-stream`), so it runs on every
+  // document and `generate.ts` merges the runtimes. Only the runtime is kept.
+  ...available.map(({ id }) => ({
+    input: join(docs, `${id}.json`),
+    output: output(join(out, '_runtime', id)),
+    plugins: [
+      types(),
+      pluginFetch({ output: { path: 'sdk.ts', barrel: false } }),
+    ],
+  })),
 ])
