@@ -600,6 +600,15 @@ export abstract class OpenAIBaseResponsesTextAdapter<
       const rawEvent = toRunErrorRawEvent(error)
       const retryAfterMs = toRetryAfterMs(error)
 
+      // Log before yielding: a consumer that stops at RUN_ERROR closes this
+      // generator at the yield.
+      if (!this.isAbortError(error)) {
+        options.logger.errors(`${this.name}.chatStream fatal`, {
+          error: errorPayload,
+          source: `${this.name}.chatStream`,
+        })
+      }
+
       // Emit RUN_STARTED if not yet emitted
       if (!aguiState.hasEmittedRunStarted) {
         aguiState.hasEmittedRunStarted = true
@@ -637,13 +646,6 @@ export abstract class OpenAIBaseResponsesTextAdapter<
           message: errorPayload.message,
           code: errorPayload.code,
         },
-      }
-
-      if (!this.isAbortError(error)) {
-        options.logger.errors(`${this.name}.chatStream fatal`, {
-          error: errorPayload,
-          source: `${this.name}.chatStream`,
-        })
       }
     }
   }
@@ -1203,10 +1205,12 @@ export abstract class OpenAIBaseResponsesTextAdapter<
         },
       }
 
-      chatOptions.logger.errors(`${this.name}.structuredOutputStream fatal`, {
-        error: errorPayload,
-        source: `${this.name}.structuredOutputStream`,
-      })
+      if (!isAbort) {
+        chatOptions.logger.errors(`${this.name}.structuredOutputStream fatal`, {
+          error: errorPayload,
+          source: `${this.name}.structuredOutputStream`,
+        })
+      }
     }
   }
 
@@ -1286,6 +1290,8 @@ export abstract class OpenAIBaseResponsesTextAdapter<
     return (
       // The openai client's APIUserAbortError leaves `name` as 'Error'.
       error instanceof APIUserAbortError ||
+      // An injected client from another copy of `openai` has its own class.
+      error.constructor.name === 'APIUserAbortError' ||
       e.name === 'APIUserAbortError' ||
       e.name === 'AbortError' ||
       e.code === 'ERR_CANCELED'

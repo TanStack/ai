@@ -1,10 +1,11 @@
 import { describe, expect, it, vi } from 'vitest'
 import { chat } from '@tanstack/ai'
+import { resolveDebugOption } from '@tanstack/ai/adapter-internals'
 import { createOpenAIClient } from '../src/client'
 import { OpenAIBaseChatCompletionsTextAdapter } from '../src/adapters/chat-completions-text'
 import { OpenAIBaseResponsesTextAdapter } from '../src/adapters/responses-text'
 import type { ClientOptions } from 'openai'
-import type { Logger } from '@tanstack/ai'
+import type { AdapterYieldChunk, Logger } from '@tanstack/ai'
 
 type Fetch = NonNullable<ClientOptions['fetch']>
 
@@ -117,6 +118,36 @@ describe.each(adapters)('$name: a caller abort mid-stream', ({ make }) => {
 
     expect(onAbort).toHaveBeenCalledTimes(1)
     expect(onError).not.toHaveBeenCalled()
+    expect(vi.mocked(logger.error).mock.calls).toEqual([])
+  })
+
+  it('a drained structuredOutputStream logs nothing on the errors channel', async () => {
+    const logger: Logger = {
+      debug: vi.fn(),
+      info: vi.fn(),
+      warn: vi.fn(),
+      error: vi.fn(),
+    }
+    const controller = new AbortController()
+    const events: Array<AdapterYieldChunk> = []
+
+    for await (const event of make().structuredOutputStream({
+      chatOptions: {
+        threadId: 'thread-1',
+        model,
+        messages: [{ role: 'user', content: 'Hello' }],
+        request: { signal: controller.signal },
+        logger: resolveDebugOption({ logger }),
+      },
+      outputSchema: { type: 'object', properties: {} },
+    })) {
+      events.push(event)
+      if (event.type === 'TEXT_MESSAGE_CONTENT') {
+        setTimeout(() => controller.abort(), 10)
+      }
+    }
+
+    expect(events.at(-1)).toMatchObject({ type: 'RUN_ERROR', code: 'aborted' })
     expect(vi.mocked(logger.error).mock.calls).toEqual([])
   })
 })

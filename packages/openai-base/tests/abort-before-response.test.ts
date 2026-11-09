@@ -52,6 +52,52 @@ const apis = [
   },
 ]
 
+describe.each(apis)('$api adapter: isAbortError', ({ adapter }) => {
+  it('recognizes an APIUserAbortError from another copy of openai', () => {
+    class APIUserAbortError extends Error {}
+    const isAbortError = (
+      adapter(createOpenAIClient({ apiKey: 'test-key' })) as unknown as {
+        isAbortError: (error: unknown) => boolean
+      }
+    ).isAbortError(new APIUserAbortError('Request was aborted.'))
+    expect(isAbortError).toBe(true)
+  })
+})
+
+const failingFetch: Fetch = async () =>
+  new Response(JSON.stringify({ error: { message: 'boom' } }), {
+    status: 500,
+    headers: { 'content-type': 'application/json' },
+  })
+
+describe.each([
+  { api: 'Responses', Adapter: Responses },
+  { api: 'Chat Completions', Adapter: Completions },
+])('$api adapter: a request failure', ({ Adapter }) => {
+  it('logs fatal when the consumer stops at RUN_ERROR', async () => {
+    const { error, logger } = errorsLogger()
+    const client = createOpenAIClient({
+      apiKey: 'test-key',
+      maxRetries: 0,
+      fetch: failingFetch,
+    })
+    for await (const chunk of new Adapter(model, 'openai', client, {
+      fetch: failingFetch,
+    }).chatStream({
+      threadId: 'thread-1',
+      logger,
+      model,
+      messages: [{ role: 'user', content: 'Hi' }],
+    })) {
+      if (chunk.type === 'RUN_ERROR') break
+    }
+    expect(error).toHaveBeenCalledWith(
+      expect.stringContaining('.chatStream fatal'),
+      expect.anything(),
+    )
+  })
+})
+
 const cases = clients.flatMap((c) => apis.map((a) => ({ ...c, ...a })))
 
 function errorsLogger() {

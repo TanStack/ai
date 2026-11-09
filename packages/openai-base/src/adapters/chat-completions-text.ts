@@ -770,10 +770,12 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
         ...(lastUsage && { usage: lastUsage }),
       }
 
-      chatOptions.logger.errors(`${this.name}.structuredOutputStream fatal`, {
-        error: errorPayload,
-        source: `${this.name}.structuredOutputStream`,
-      })
+      if (!isAbort) {
+        chatOptions.logger.errors(`${this.name}.structuredOutputStream fatal`, {
+          error: errorPayload,
+          source: `${this.name}.structuredOutputStream`,
+        })
+      }
     }
   }
 
@@ -818,6 +820,8 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
     return (
       // The openai client's APIUserAbortError leaves `name` as 'Error'.
       error instanceof APIUserAbortError ||
+      // An injected client from another copy of `openai` has its own class.
+      error.constructor.name === 'APIUserAbortError' ||
       e.name === 'APIUserAbortError' ||
       e.name === 'AbortError' ||
       e.code === 'ERR_CANCELED'
