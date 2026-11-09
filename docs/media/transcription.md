@@ -145,7 +145,7 @@ console.log(result.text)
 
 - A `File` or a `Blob`.
 - An `ArrayBuffer`.
-- A base64 string. The OpenAI and Groq adapters treat plain base64 as `audio/mpeg`.
+- A base64 string. The OpenAI, Groq, and Cartesia adapters treat plain base64 as `audio/mpeg`.
 - A data URL, such as `data:audio/webm;base64,...`. The type in the URL goes to the provider.
 
 ## Providers
@@ -172,8 +172,8 @@ Need speaker labels? Use `gpt-4o-transcribe-diarize`, or BytePlus with `enable_s
 | --- | --- | --- |
 | `audio` | `string \| File \| Blob \| ArrayBuffer` | The audio to transcribe (required) |
 | `language` | `string` | The language in ISO-639-1 format, for example `"en"`, `"es"`, or `"ja"`. A correct language makes the result more accurate and faster. |
-| `prompt` | `string` | Words or names the model must expect, for example `"Technical terms: API, SDK, CLI"`. `gpt-4o-transcribe-diarize` does not support it. |
-| `responseFormat` | `'json' \| 'text' \| 'srt' \| 'verbose_json' \| 'vtt'` | The output format. `verbose_json` adds timestamps and segments. |
+| `prompt` | `string` | Words or names the model must expect, for example `"Technical terms: API, SDK, CLI"`. `gpt-4o-transcribe-diarize` and Cartesia do not support `prompt`. |
+| `responseFormat` | `'json' \| 'text' \| 'srt' \| 'verbose_json' \| 'vtt'` | The output format. `verbose_json` adds timestamps and segments. Cartesia accepts only `json` and `verbose_json`. For Cartesia, `verbose_json` returns word timestamps and does not return segments. |
 | `modelOptions` | `object` | Provider options. They are typed for the model you pass. |
 | `debug` | `DebugOption` | Log the request and every raw provider chunk. See [Debug Logging](../advanced/debug-logging). |
 

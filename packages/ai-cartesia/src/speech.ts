@@ -43,6 +43,23 @@ export class CartesiaSpeechAdapter<
       if (format !== 'mp3' && format !== 'wav' && format !== 'pcm') {
         throw new Error(`Cartesia speech does not support format '${format}'`)
       }
+      if (
+        options.speed != null &&
+        (options.speed < 0.6 || options.speed > 1.5)
+      ) {
+        throw new Error(
+          `Cartesia speech speed must be from 0.6 to 1.5 (received ${options.speed})`,
+        )
+      }
+      const modelOptions = options.modelOptions
+      if (
+        modelOptions?.volume != null &&
+        (modelOptions.volume < 0.5 || modelOptions.volume > 2)
+      ) {
+        throw new Error(
+          `Cartesia speech volume must be from 0.5 to 2 (received ${modelOptions.volume})`,
+        )
+      }
       const outputFormat =
         format === 'mp3'
           ? { container: 'mp3', sample_rate: 44100, bit_rate: 128000 }
@@ -51,7 +68,6 @@ export class CartesiaSpeechAdapter<
               encoding: 'pcm_s16le',
               sample_rate: 44100,
             }
-      const modelOptions = options.modelOptions
       const response = await this.client.post(
         '/tts/bytes',
         JSON.stringify({
@@ -81,10 +97,14 @@ export class CartesiaSpeechAdapter<
         }),
         options.abortSignal,
       )
+      const bytes = await response.arrayBuffer()
+      if (bytes.byteLength === 0) {
+        throw new Error('Cartesia speech returned empty audio')
+      }
       return {
         id: response.headers.get('x-request-id') ?? this.generateId(),
         model: this.model,
-        audio: arrayBufferToBase64(await response.arrayBuffer()),
+        audio: arrayBufferToBase64(bytes),
         format,
         contentType:
           format === 'mp3'
