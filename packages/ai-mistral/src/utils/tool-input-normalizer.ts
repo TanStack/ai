@@ -11,7 +11,7 @@ export type ToolInputNormalizer = (toolName: string, input: unknown) => unknown
  * untouched so we never guess.
  */
 export function createToolInputNormalizer(
-  tools: ReadonlyArray<Pick<Tool, 'name' | 'inputSchema'>> | undefined,
+  tools: Array<Tool> | undefined,
 ): ToolInputNormalizer {
   const maps = new Map<string, NullWideningMap>()
   const seenNames = new Set<string>()

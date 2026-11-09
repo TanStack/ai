@@ -2540,30 +2540,6 @@ describe('OpenRouter responses tool input normalizer — own keys', () => {
       ),
     ).toBe('{"keep":null}')
   })
-
-  it('removes a strict null from recorded arguments', () => {
-    const adapter = createAdapter()
-    const tool: Tool = {
-      name: 'bookFlight',
-      description: 'Book a flight',
-      inputSchema: {
-        type: 'object',
-        properties: {
-          destination: { type: 'string' },
-          date: { type: 'string' },
-        },
-        required: ['destination'],
-        additionalProperties: false,
-      },
-    }
-    expect(
-      adapter.normalizeToolInput(
-        'bookFlight',
-        { destination: 'Tokyo', date: null },
-        [tool],
-      ),
-    ).toEqual({ destination: 'Tokyo' })
-  })
 })
 
 describe('OpenRouter responses adapter — usage on errors', () => {

@@ -130,7 +130,7 @@ function diffNullWidening(
  * field as absent. Pass the same converter the request used.
  */
 export function createToolInputNormalizer(
-  tools: ReadonlyArray<Tool> | undefined,
+  tools: Array<Tool> | undefined,
   schemaConverter?: Parameters<typeof convertFunctionToolToResponsesFormat>[1],
 ): (toolName: string, input: unknown) => unknown {
   const maps = new Map<string, NullWideningMap>()

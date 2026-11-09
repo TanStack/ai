@@ -17,7 +17,6 @@ import {
   transformMessagesForReplay,
 } from '@tanstack/ai/adapter-internals'
 import type {
-  AnyTool,
   ContentPart,
   FetchWrapper,
   Modality,
@@ -327,15 +326,6 @@ export class MistralTextAdapter<
       config.getAccessToken && config.resolveRequestUrl
         ? 'google-vertex'
         : this.name
-  }
-
-  /** Undo strict-mode nulls before the engine checks recorded arguments. */
-  normalizeToolInput(
-    toolName: string,
-    input: unknown,
-    tools: ReadonlyArray<AnyTool> | undefined,
-  ): unknown {
-    return createToolInputNormalizer(tools)(toolName, input)
   }
 
   async *chatStream(
