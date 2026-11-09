@@ -3651,7 +3651,7 @@ importers:
   packages/ai-sandbox-tangle:
     dependencies:
       '@tangle-network/sandbox':
-        specifier: ^1.0.313
+        specifier: ^1.0.314
         version: 1.0.314
     devDependencies:
       '@tanstack/ai-sandbox':

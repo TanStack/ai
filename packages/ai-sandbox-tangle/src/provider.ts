@@ -4,6 +4,7 @@ import {
   TANGLE_CAPS,
   TangleHandle,
   parseSnapshotRefId,
+  q,
 } from './handle'
 import type {
   CreateSandboxOptions,
@@ -60,9 +61,18 @@ export const INSTANCE_KEY_METADATA = 'tanstack-ai-key'
 
 const DEFAULT_BASE_URL = 'https://sandbox.tangle.tools'
 
-/** POSIX single-quote escape for embedding a path in a shell command. */
-function shQuote(value: string): string {
-  return `'${value.replace(/'/g, `'\\''`)}'`
+/**
+ * The SDK sends the API key as a header to `baseUrl`, so a plain-http URL
+ * would leak it. Loopback is allowed for a local API.
+ */
+function assertHttps(baseUrl: string): void {
+  const url = new URL(baseUrl)
+  const loopback = url.hostname === 'localhost' || url.hostname === '127.0.0.1'
+  if (url.protocol !== 'https:' && !loopback) {
+    throw new Error(
+      `tangle: baseUrl must use https (got ${url.protocol}//${url.host}); the API key travels in a request header.`,
+    )
+  }
 }
 
 /** A deleted sandbox can still be read for a while; it is gone for `resume`. */
@@ -120,10 +130,9 @@ class TangleProvider implements SandboxProvider {
         'tangle: no API key. Pass `apiKey` or set the TANGLE_API_KEY env var.',
       )
     }
-    this.sdk = new Sandbox({
-      apiKey,
-      baseUrl: this.config.baseUrl ?? DEFAULT_BASE_URL,
-    })
+    const baseUrl = this.config.baseUrl ?? DEFAULT_BASE_URL
+    assertHttps(baseUrl)
+    this.sdk = new Sandbox({ apiKey, baseUrl })
     return this.sdk
   }
 
@@ -141,6 +150,11 @@ class TangleProvider implements SandboxProvider {
       // No model credentials, coding-agent backend or startup scripts: the
       // workspace brings its own.
       agent: false,
+      // Nor the account's stored secrets. The API refuses `isolated` on a
+      // restore (measured: 400 VALIDATION_ERROR), so a restore inherits.
+      ...(input.snapshot === undefined
+        ? { ownerContext: 'isolated' as const }
+        : {}),
       ...(this.config.environment !== undefined
         ? { environment: this.config.environment }
         : {}),
@@ -182,10 +196,13 @@ class TangleProvider implements SandboxProvider {
       ...(env !== undefined ? { env } : {}),
     })
     try {
-      await sandbox.waitFor('running')
+      await sandbox.waitFor('running', signal ? { signal } : {})
       // Not through the handle: its commands run in the workdir, which does
       // not exist yet.
-      const r = await sandbox.exec(`mkdir -p -- ${shQuote(this.workdir)}`)
+      const r = await sandbox.exec(
+        `mkdir -p -- ${q(this.workdir)}`,
+        signal ? { signal } : {},
+      )
       if (r.exitCode !== 0) {
         throw new Error(`tangle: could not create ${this.workdir}: ${r.stderr}`)
       }
@@ -229,14 +246,15 @@ class TangleProvider implements SandboxProvider {
   }
 
   async resume(input: SandboxResumeInput): Promise<SandboxHandle | null> {
-    input.signal?.throwIfAborted()
+    const { signal } = input
+    signal?.throwIfAborted()
     const sandbox = await this.client.get(input.id)
     if (sandbox === null || GONE_STATUSES.has(sandbox.status)) return null
     // A stopped or expired sandbox kept its workspace; start it again.
     if (sandbox.status === 'stopped' || sandbox.status === 'expired') {
-      await sandbox.resume()
+      await sandbox.resume(signal ? { signal } : {})
     }
-    await sandbox.waitFor('running')
+    await sandbox.waitFor('running', signal ? { signal } : {})
     return new TangleHandle({ sandbox, workdir: this.workdir })
   }
 
@@ -245,7 +263,7 @@ class TangleProvider implements SandboxProvider {
     const sandbox = await this.client.get(input.id)
     if (sandbox === null || sandbox.status === 'deleted') return
     // Resolves `already_absent` for a sandbox that is already gone.
-    await sandbox.delete()
+    await sandbox.delete(input.signal ? { signal: input.signal } : {})
   }
 }
 

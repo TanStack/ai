@@ -84,13 +84,13 @@ try {
 | Option               | Default                        | Notes                                                                                                                    |
 | -------------------- | ------------------------------ | ------------------------------------------------------------------------------------------------------------------------ |
 | `apiKey`             | `TANGLE_API_KEY`               | Tangle API key.                                                                                                          |
-| `baseUrl`            | `https://sandbox.tangle.tools` | Sandbox API URL.                                                                                                         |
-| `environment`        | platform default               | A catalog environment or a container image reference, such as `node:22`.                                                 |
+| `baseUrl`            | `https://sandbox.tangle.tools` | Sandbox API URL. Must use HTTPS.                                                                                         |
+| `environment`        | platform default               | A catalog environment or a container image, such as `node:22`. An image has a read-only root, and its `fork()` is slow.  |
 | `resources`          | platform default               | `{ cpuCores, memoryMB, diskGB }`.                                                                                        |
 | `maxLifetimeSeconds` | platform default               | Run time before the platform suspends the sandbox. The workspace is kept, and `resume` starts it again.                  |
 | `idleTimeoutSeconds` | platform default               | Idle time before the platform suspends the sandbox.                                                                      |
-| `egressPolicy`       | `{ mode: 'open' }`             | Outbound network policy (`open`, `strict` with `allowDomains`, or `blocked`). A `network: 'deny'` policy wins.           |
-| `workdir`            | `/home/agent/workspace`        | Where the `/workspace` virtual root maps.                                                                                |
+| `egressPolicy`       | `{ mode: 'open' }`             | `open`, `strict` with `allowDomains`, or `blocked`. The platform default is `strict`. A `network: 'deny'` policy wins.   |
+| `workdir`            | `/home/agent/workspace`        | Where the `/workspace` virtual root maps. Keep it under `/home/agent` or `/tmp`.                                         |
 | `metadata`           | none                           | Extra metadata on every created sandbox. The deterministic sandbox id from `ensure()` is stored under `tanstack-ai-key`. |
 
 ## Capabilities
@@ -98,7 +98,7 @@ try {
 | Capability            | Supported | Notes                                                                                                      |
 | --------------------- | --------- | ---------------------------------------------------------------------------------------------------------- |
 | `fs`                  | ✅        | Native file API for `read`, `readBytes`, and `write`; the rest runs as commands. `lstat` reports symlinks. |
-| `exec`                | ✅        | Separate `stdout` and `stderr`, no run limit. An abort kills the process in the sandbox.                   |
+| `exec`                | ✅        | Separate `stdout` and `stderr`, no run limit. Lost output is an error. An abort kills the process.         |
 | `env`                 | ✅        | Env for each command, plus the `env.set` overlay. Nothing is sent at create.                               |
 | `ports`               | ✅        | `ports.connect(port)` creates a preview link and returns its public HTTPS URL.                             |
 | `snapshots`           | ✅        | `snapshot()` captures the workspace. `restoreSnapshot()` creates a new sandbox from it.                    |

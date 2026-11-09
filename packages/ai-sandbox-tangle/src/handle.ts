@@ -5,9 +5,9 @@
  *
  * Every command, blocking or not, goes through the runtime's process API
  * (`process.spawn`): it has no run limit (the one-shot exec API stops at 10
- * minutes), stdout and stderr arrive on separate streams, and `kill()` signals
- * the process tree inside the sandbox. File reads and writes use the native
- * file API; the rest of `fs` desugars to commands.
+ * minutes), stdout and stderr arrive separately, and `kill()` signals the
+ * process tree inside the sandbox. File reads and writes use the native file
+ * API; the rest of `fs` desugars to commands.
  */
 import { Buffer } from 'node:buffer'
 import { randomUUID } from 'node:crypto'
@@ -73,6 +73,8 @@ const SIGNAL_NUMBERS: Record<number, ProcessSignal> = {
   2: 'SIGINT',
   3: 'SIGQUIT',
   9: 'SIGKILL',
+  10: 'SIGUSR1',
+  12: 'SIGUSR2',
   15: 'SIGTERM',
 }
 
@@ -83,7 +85,7 @@ function processSignal(signal?: NodeJS.Signals | number): ProcessSignal {
 }
 
 /** POSIX single-quote escape for embedding text in `sh -c`. */
-function q(value: string): string {
+export function q(value: string): string {
   return `'${value.replace(/'/g, `'\\''`)}'`
 }
 
@@ -91,10 +93,110 @@ function errText(r: { stdout: string; stderr: string }): string {
   return r.stderr.trim() || r.stdout.trim() || '(no output)'
 }
 
-async function collect(source: AsyncIterable<string>): Promise<string> {
-  let out = ''
-  for await (const chunk of source) out += chunk
-  return out
+/** Drops in a row, each within a minute, before a read gives up. */
+const MAX_QUICK_DROPS = 3
+
+/**
+ * Run `attempt` again when it fails. A status poll or log stream through the
+ * edge can drop during a long silent command (measured: a status poll timed
+ * out at 3.5 minutes and the log stream ended at 4.2 minutes while the
+ * process ran on). An attempt that made progress, or ran for a minute, resets
+ * the count, so only a dead API ends the read.
+ */
+async function retrying<T>(
+  attempt: (progress: () => void) => Promise<T>,
+): Promise<T> {
+  for (let drops = 0; ;) {
+    const started = Date.now()
+    let progressed = false
+    try {
+      return await attempt(() => {
+        progressed = true
+      })
+    } catch (error) {
+      if (error instanceof OutputLostError) throw error
+      drops = progressed || Date.now() - started > 60_000 ? 1 : drops + 1
+      if (drops >= MAX_QUICK_DROPS) throw error
+    }
+  }
+}
+
+/** The sandbox dropped output before it was read. */
+class OutputLostError extends Error {
+  constructor(missedBytes: number | undefined) {
+    super(
+      `tangle: the sandbox dropped ${missedBytes ?? 'some'} bytes of process output before they were read`,
+    )
+  }
+}
+
+/**
+ * Read a process's output from one log stream, split into stdout and stderr.
+ * A stream read again starts from the oldest output the sandbox kept, so the
+ * output already delivered is skipped. A `gap` is an error, not a silent cut.
+ */
+function readOutput(
+  proc: TangleProcess,
+  onChunk: (stream: 'stdout' | 'stderr', data: string) => void,
+): Promise<void> {
+  const delivered = { stdout: 0, stderr: 0 }
+  return retrying(async (progress) => {
+    const skip = { ...delivered }
+    for await (const entry of proc.logs()) {
+      if (entry.type === 'gap') throw new OutputLostError(entry.missedBytes)
+      const data = entry.data.slice(skip[entry.type])
+      skip[entry.type] = Math.max(0, skip[entry.type] - entry.data.length)
+      if (data === '') continue
+      delivered[entry.type] += data.length
+      progress()
+      onChunk(entry.type, data)
+    }
+  })
+}
+
+/** A push-fed async iterable, so one log stream can feed stdout and stderr. */
+class ChunkQueue implements AsyncIterable<string> {
+  private readonly chunks: Array<string> = []
+  private readonly waiters: Array<{
+    resolve: (r: IteratorResult<string>) => void
+    reject: (error: unknown) => void
+  }> = []
+  private closed = false
+  private error: unknown
+
+  push(chunk: string): void {
+    const waiter = this.waiters.shift()
+    if (waiter) waiter.resolve({ value: chunk, done: false })
+    else this.chunks.push(chunk)
+  }
+
+  close(error?: unknown): void {
+    this.closed = true
+    this.error = error
+    for (const waiter of this.waiters.splice(0)) {
+      if (error === undefined) waiter.resolve({ value: undefined, done: true })
+      else waiter.reject(error)
+    }
+  }
+
+  [Symbol.asyncIterator](): AsyncIterator<string> {
+    return {
+      next: () => {
+        const chunk = this.chunks.shift()
+        if (chunk !== undefined) {
+          return Promise.resolve({ value: chunk, done: false })
+        }
+        if (this.closed) {
+          return this.error === undefined
+            ? Promise.resolve({ value: undefined, done: true })
+            : Promise.reject(this.error)
+        }
+        return new Promise((resolve, reject) =>
+          this.waiters.push({ resolve, reject }),
+        )
+      },
+    }
+  }
 }
 
 /** A snapshot needs its source sandbox id to restore, so the ref carries both. */
@@ -187,7 +289,7 @@ export class TangleHandle implements SandboxHandle {
       },
       list: async (p, o) => {
         o?.signal?.throwIfAborted()
-        const r = await this.exec(`ls -1Ap -- ${q(this.abs(p))}`)
+        const r = await this.exec(`ls -1Ap -- ${q(this.abs(p))}`, o)
         if (r.exitCode !== 0) throw new Error(`list failed: ${errText(r)}`)
         const base = p.replace(/\/$/, '')
         return r.stdout
@@ -205,28 +307,29 @@ export class TangleHandle implements SandboxHandle {
       },
       lstat: async (p, o) => {
         o?.signal?.throwIfAborted()
-        return this.lstat(this.abs(p))
+        return this.lstat(this.abs(p), o?.signal)
       },
       mkdir: async (p, o) => {
         o?.signal?.throwIfAborted()
-        const r = await this.exec(`mkdir -p -- ${q(this.abs(p))}`)
+        const r = await this.exec(`mkdir -p -- ${q(this.abs(p))}`, o)
         if (r.exitCode !== 0) throw new Error(`mkdir failed: ${errText(r)}`)
       },
       remove: async (p, o) => {
         o?.signal?.throwIfAborted()
-        const r = await this.exec(`rm -rf -- ${q(this.abs(p))}`)
+        const r = await this.exec(`rm -rf -- ${q(this.abs(p))}`, o)
         if (r.exitCode !== 0) throw new Error(`remove failed: ${errText(r)}`)
       },
       rename: async (from, to, o) => {
         o?.signal?.throwIfAborted()
         const r = await this.exec(
           `mv -- ${q(this.abs(from))} ${q(this.abs(to))}`,
+          o,
         )
         if (r.exitCode !== 0) throw new Error(`rename failed: ${errText(r)}`)
       },
       exists: async (p, o) => {
         o?.signal?.throwIfAborted()
-        const r = await this.exec(`test -e ${q(this.abs(p))}`)
+        const r = await this.exec(`test -e ${q(this.abs(p))}`, o)
         return r.exitCode === 0
       },
     }
@@ -266,17 +369,21 @@ export class TangleHandle implements SandboxHandle {
     }
   }
 
-  private async lstat(path: string): Promise<SandboxFsStat | undefined> {
-    const r = await this.exec(lstatCommand(path))
+  private async lstat(
+    path: string,
+    signal?: AbortSignal,
+  ): Promise<SandboxFsStat | undefined> {
+    const r = await this.exec(lstatCommand(path), signal ? { signal } : {})
     if (r.exitCode === 0 && r.stdout.trim() === LSTAT_MISSING) return undefined
     if (r.exitCode !== 0) throw new Error(`lstat failed: ${errText(r)}`)
     return parseLstatOutput(r.stdout)
   }
 
   /**
-   * Start `command` in `cwd`. The runtime only accepts a `cwd` inside the
-   * user's home, so the command changes directory itself. `timeoutMs: 0` turns
-   * the runtime's run limit off; the sandbox lifetime still bounds it.
+   * Start `command` in `cwd` (relative to the workdir). The runtime only
+   * accepts a `cwd` inside the user's home, so the shell changes directory
+   * itself, and a missing `cwd` fails the command. `timeoutMs: 0` turns the
+   * runtime's run limit off; the sandbox lifetime still bounds it.
    */
   private start(
     command: string,
@@ -284,21 +391,28 @@ export class TangleHandle implements SandboxHandle {
   ): Promise<TangleProcess> {
     opts?.signal?.throwIfAborted()
     const cwd = opts?.cwd ? this.abs(opts.cwd) : this.workdir
+    const dir = cwd.startsWith('/') ? cwd : `${this.workdir}/${cwd}`
     const env = { ...this.envVars, ...opts?.env }
-    return this.sandbox.process.spawn(`cd ${q(cwd)} && ${command}`, {
-      ...(Object.keys(env).length > 0 ? { env } : {}),
-      timeoutMs: 0,
-    })
+    return this.sandbox.process.spawn(
+      `cd -- ${q(dir)} && exec sh -c ${q(command)}`,
+      {
+        ...(Object.keys(env).length > 0 ? { env } : {}),
+        timeoutMs: 0,
+      },
+    )
   }
 
-  /** Signal the whole process tree. A process that already exited is not an error. */
+  /** Signal the whole process tree. The SDK treats an exited process as done. */
   private kill(
     proc: TangleProcess,
     signal?: NodeJS.Signals | number,
   ): Promise<void> {
-    return proc
-      .kill(processSignal(signal), { tree: true })
-      .catch(() => undefined)
+    return proc.kill(processSignal(signal), { tree: true })
+  }
+
+  /** Stop a process on a failure path, where a kill error must not hide the cause. */
+  private stop(proc: TangleProcess): Promise<void> {
+    return this.kill(proc).catch(() => undefined)
   }
 
   /**
@@ -312,21 +426,21 @@ export class TangleHandle implements SandboxHandle {
   ): Promise<ExecResult> {
     const proc = await this.start(command, opts)
     const onAbort = (): void => {
-      void this.kill(proc)
+      void this.stop(proc)
     }
     opts?.signal?.addEventListener('abort', onAbort, { once: true })
     // An abort that landed during the start round trip has no listener yet.
     if (opts?.signal?.aborted === true) onAbort()
     try {
-      const [stdout, stderr] = await Promise.all([
-        collect(proc.stdout()),
-        collect(proc.stderr()),
-      ])
-      return { stdout, stderr, exitCode: await proc.wait() }
+      const out = { stdout: '', stderr: '' }
+      await readOutput(proc, (stream, data) => {
+        out[stream] += data
+      })
+      return { ...out, exitCode: await retrying(() => proc.wait()) }
     } catch (error) {
-      // A dropped stream says nothing about the process: stop it rather than
-      // leave it running until the sandbox expires.
-      await this.kill(proc)
+      // Lost output or a dead API: stop the process rather than leave it
+      // running until the sandbox expires.
+      await this.stop(proc)
       throw error
     } finally {
       opts?.signal?.removeEventListener('abort', onAbort)
@@ -339,13 +453,27 @@ export class TangleHandle implements SandboxHandle {
   ): Promise<SpawnHandle> {
     const proc = await this.start(command, opts)
     const onAbort = (): void => {
-      void this.kill(proc)
+      void this.stop(proc)
     }
     opts?.signal?.addEventListener('abort', onAbort, { once: true })
-    const exit = proc
-      .wait()
+    const stdout = new ChunkQueue()
+    const stderr = new ChunkQueue()
+    void readOutput(proc, (stream, data) => {
+      ;(stream === 'stdout' ? stdout : stderr).push(data)
+    }).then(
+      () => {
+        stdout.close()
+        stderr.close()
+      },
+      async (error: unknown) => {
+        stdout.close(error)
+        stderr.close(error)
+        await this.stop(proc)
+      },
+    )
+    const exit = retrying(() => proc.wait())
       .catch(async (error: unknown) => {
-        await this.kill(proc)
+        await this.stop(proc)
         throw error
       })
       .finally(() => {
@@ -358,8 +486,8 @@ export class TangleHandle implements SandboxHandle {
     }
     return {
       pid: proc.pid,
-      stdout: proc.stdout(),
-      stderr: proc.stderr(),
+      stdout,
+      stderr,
       stdin: {
         write: () =>
           Promise.reject(

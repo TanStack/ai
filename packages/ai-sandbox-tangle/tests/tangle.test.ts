@@ -1,3 +1,5 @@
+import { randomUUID } from 'node:crypto'
+import { Sandbox } from '@tangle-network/sandbox'
 import { describe, expect, it } from 'vitest'
 import { tangleSandbox } from '../src/index'
 import type { SandboxHandle } from '@tanstack/ai-sandbox'
@@ -24,9 +26,18 @@ describe.skipIf(!apiKey)('tangle provider (gated on TANGLE_API_KEY)', () => {
       expect(failed.stderr).toContain('nope')
       expect(failed.stdout).not.toContain('nope')
 
-      // A cwd outside the user's home works too.
+      // A cwd outside the user's home works too; a relative one resolves
+      // against the workdir, and a missing one fails the command.
       const tmp = await sbx.process.exec('pwd', { cwd: '/tmp' })
       expect(tmp.stdout.trim()).toBe('/tmp')
+      await sbx.fs.mkdir('/workspace/sub')
+      const rel = await sbx.process.exec('pwd', { cwd: 'sub' })
+      expect(rel.stdout.trim()).toBe('/home/agent/workspace/sub')
+      const missing = await sbx.process.exec('echo ran', {
+        cwd: '/nonexistent',
+      })
+      expect(missing.exitCode).not.toBe(0)
+      expect(missing.stdout).not.toContain('ran')
 
       // Per-command env arrives, and env.set overlays it.
       await sbx.env.set({ BASE_VAR: 'base' })
@@ -156,7 +167,9 @@ describe.skipIf(!apiKey)('tangle provider (gated on TANGLE_API_KEY)', () => {
     }
   }, 300_000)
 
-  it('snapshots a sandbox and restores it into a new one', async () => {
+  // `ensure()` restores only after `resume` found the source gone, so the
+  // source is destroyed first.
+  it('restores a snapshot into a new sandbox after its source is destroyed', async () => {
     const provider = tangleSandbox({ apiKey })
     let source: SandboxHandle | undefined
     let restored: SandboxHandle | undefined
@@ -167,6 +180,8 @@ describe.skipIf(!apiKey)('tangle provider (gated on TANGLE_API_KEY)', () => {
       const ref = await source.snapshot?.('after-setup')
       expect(ref?.id).toBeTruthy()
       expect(ref?.label).toBe('after-setup')
+      await source.destroy()
+      expect(await provider.resume({ id: source.id })).toBeNull()
 
       restored = await provider.restoreSnapshot!({ snapshotId: ref!.id })
       expect(restored.id).not.toBe(source.id)
@@ -221,6 +236,7 @@ describe.skipIf(!apiKey)('tangle provider (gated on TANGLE_API_KEY)', () => {
       'curl -s -m 10 -o /dev/null -w "%{http_code}" https://example.com'
     let denied: SandboxHandle | undefined
     let control: SandboxHandle | undefined
+    let forked: SandboxHandle | undefined
     try {
       const [deniedRes, controlRes] = await Promise.allSettled([
         provider.create({ policy: { capabilities: { network: 'deny' } } }),
@@ -239,8 +255,41 @@ describe.skipIf(!apiKey)('tangle provider (gated on TANGLE_API_KEY)', () => {
       expect((await denied!.process.exec('command -v curl')).exitCode).toBe(0)
       const blocked = await denied!.process.exec(PROBE)
       expect(blocked.stdout).not.toContain('200')
+
+      // A fork keeps the blocked egress of its parent.
+      forked = await denied!.fork!()
+      expect((await forked.process.exec(PROBE)).stdout).not.toContain('200')
     } finally {
-      await Promise.allSettled([denied?.destroy(), control?.destroy()])
+      await Promise.allSettled([
+        denied?.destroy(),
+        control?.destroy(),
+        forked?.destroy(),
+      ])
     }
   }, 600_000)
+
+  // MEASURES the create-abort path: a sandbox the platform accepted after the
+  // caller gave up is deleted, not left running.
+  it('aborting create leaves no running sandbox behind', async () => {
+    const run = `tanstack-ai-abort-${randomUUID()}`
+    const provider = tangleSandbox({ apiKey, metadata: { run } })
+    const controller = new AbortController()
+    const pending = provider.create({ signal: controller.signal })
+    setTimeout(() => controller.abort(), 200)
+    await expect(pending).rejects.toThrow()
+
+    const client = new Sandbox({
+      apiKey: apiKey!,
+      baseUrl: 'https://sandbox.tangle.tools',
+    })
+    let live = ['unchecked']
+    for (let i = 0; i < 30 && live.length > 0; i++) {
+      await new Promise((r) => setTimeout(r, 2000))
+      const listed = await client.list({ run })
+      live = listed
+        .filter((s) => s.status !== 'deleted' && s.status !== 'failed')
+        .map((s) => s.id)
+    }
+    expect(live).toEqual([])
+  }, 300_000)
 })

@@ -43,7 +43,7 @@
     "test:types": "tsc"
   },
   "dependencies": {
-    "@tangle-network/sandbox": "^1.0.313"
+    "@tangle-network/sandbox": "^1.0.314"
   },
   "peerDependencies": {
     "@tanstack/ai-sandbox": "workspace:^"
