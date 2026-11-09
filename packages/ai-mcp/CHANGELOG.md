@@ -1,5 +1,19 @@
 # @tanstack/ai-mcp
 
+## 1.2.0
+
+### Minor Changes
+
+- [#2116](https://github.com/TanStack/ai/pull/2116) [`702d639`](https://github.com/TanStack/ai/commit/702d639c36b7564875595845ebb7ec6ad437e484) - Send request context to MCP servers as `_meta`. Set `requestMeta` on `chat({ mcp })` or `tools()`, or pass `meta` to `callTool`, `readResource`, `getPrompt`, and the MCP Apps call handler.
+
+  `createMCPClients().readResource(uri, { serverId })` now reads only from the server with that key.
+
+### Patch Changes
+
+- Updated dependencies [[`702d639`](https://github.com/TanStack/ai/commit/702d639c36b7564875595845ebb7ec6ad437e484)]:
+  - @tanstack/ai@1.4.0
+  - @tanstack/ai-harness@0.3.0
+
 ## 1.1.1
 
 ### Patch Changes
