@@ -6,8 +6,10 @@ import {
 import { BaseTextAdapter } from '@tanstack/ai/adapters'
 import { undoNullWidening } from '@tanstack/ai-utils'
 import { convertToolsToProviderFormat } from '../tools/tool-converter'
+import { sendWith } from '@tanstack/ai-utils/kubb'
 import { createMistralClient } from '../client/index'
-import { generateId, getMistralApiKeyFromEnv } from '../utils/client'
+import { mistralPostV1ChatCompletions } from '../generated/client/sdk'
+import { generateId, getMistralApiKeyFromEnv, wire } from '../utils/client'
 import { makeMistralStructuredOutputCompatibleWithMap } from '../utils/schema-converter'
 import { createToolInputNormalizer } from '../utils/tool-input-normalizer'
 import {
@@ -1029,8 +1031,6 @@ export class MistralTextAdapter<
     )
       .replace(/\/+$/, '')
       .replace(/\/v1$/, '')
-    const url =
-      config.resolveRequestUrl?.(true) ?? `${serverURL}/v1/chat/completions`
 
     const accessToken =
       config.getAccessToken === undefined
@@ -1038,23 +1038,31 @@ export class MistralTextAdapter<
         : await config.getAccessToken()
 
     const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
       Authorization: `Bearer ${accessToken}`,
       ...config.defaultHeaders,
     }
 
     const send = wrapFetch ? wrapFetch(fetch) : fetch
-    const response = await send(url, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify(body),
-      signal,
+    const { response } = await mistralPostV1ChatCompletions({
+      client: sendWith(async (built) => {
+        const res = await send(
+          config.resolveRequestUrl?.(true) ?? `${serverURL}${built.path}`,
+          {
+            method: built.method,
+            // The generated content type goes first, so the config headers win.
+            headers: { ...built.headers, ...headers },
+            body: built.body,
+            signal,
+          },
+        )
+        if (!res.ok) {
+          const errorText = await res.text()
+          throw new Error(`Mistral API error ${res.status}: ${errorText}`)
+        }
+        return res
+      }),
+      body: wire(body),
     })
-
-    if (!response.ok) {
-      const errorText = await response.text()
-      throw new Error(`Mistral API error ${response.status}: ${errorText}`)
-    }
 
     if (!response.body) {
       throw new Error(

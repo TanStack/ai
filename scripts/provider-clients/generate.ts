@@ -107,7 +107,12 @@ async function main() {
         await readTree(join(out, id)),
       )
     }
-    targets.set(RUNTIME_DIR, await readTree(join(out, '_runtime/.kubb')))
+    // Each runtime file is the same in every run, so the union is the runtime.
+    const runtime: Record<string, string> = {}
+    for (const { id } of generated) {
+      Object.assign(runtime, await readTree(join(out, '_runtime', id, '.kubb')))
+    }
+    targets.set(RUNTIME_DIR, runtime)
 
     let stale = false
     for (const [dir, expected] of targets) {

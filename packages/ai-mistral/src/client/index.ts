@@ -6,6 +6,12 @@ import {
   RequestTimeoutError,
   UnexpectedClientError,
 } from '@mistralai/mistralai/models/errors/httpclienterrors.js'
+import { sendWith } from '@tanstack/ai-utils/kubb'
+import {
+  mistralPostV1ChatCompletions,
+  mistralPostV1Embeddings,
+} from '../generated/client/sdk'
+import type { ClientInstance, GeneratedRequest } from '@tanstack/ai-utils/kubb'
 import type {
   AssistantMessage,
   AssistantMessage$Outbound,
@@ -25,6 +31,7 @@ import type {
   UsageInfo$Outbound,
   ValidationError,
 } from '@mistralai/mistralai/models/components'
+import { wire } from '../utils/client'
 import type { MistralClientConfig } from '../utils/client'
 
 /**
@@ -331,15 +338,15 @@ function assistantFromWire(message: WireAssistant): AssistantMessage {
 
 /** The SDK `ChatCompletionResponse` for a wire response. */
 export function chatCompletionResponseFromWire(
-  wire: WireChatCompletion,
+  body: WireChatCompletion,
 ): ChatCompletionResponse {
   return {
-    id: wire.id,
-    object: wire.object,
-    model: wire.model,
-    usage: usageFromWire(wire.usage),
-    created: wire.created,
-    choices: wire.choices.map((choice) => ({
+    id: body.id,
+    object: body.object,
+    model: body.model,
+    usage: usageFromWire(body.usage),
+    created: body.created,
+    choices: body.choices.map((choice) => ({
       index: choice.index,
       message: choice.message && assistantFromWire(choice.message),
       messages: choice.messages?.map(assistantFromWire),
@@ -350,14 +357,14 @@ export function chatCompletionResponseFromWire(
 
 /** The SDK `EmbeddingResponse` for a wire response. */
 export function embeddingResponseFromWire(
-  wire: WireEmbedding,
+  body: WireEmbedding,
 ): EmbeddingResponse {
   return {
-    id: wire.id,
-    object: wire.object,
-    model: wire.model,
-    usage: usageFromWire(wire.usage),
-    data: wire.data.map((item) => ({
+    id: body.id,
+    object: body.object,
+    model: body.model,
+    usage: usageFromWire(body.usage),
+    data: body.data.map((item) => ({
       object: item.object,
       embedding: item.embedding,
       index: item.index,
@@ -468,15 +475,20 @@ export function createMistralClient(
   baseURL.pathname = `${baseURL.pathname.replace(/\/+$/, '')}/`
   const timeoutMs = config.timeoutMs || 30000
 
-  async function post(
-    path: string,
-    body: unknown,
+  // Sends one generated request. It resolves to a 200 JSON response, else
+  // throws the SDK error.
+  async function send(
+    built: GeneratedRequest,
     requestOptions?: MistralRequestOptions,
   ) {
-    const url = new URL(path, baseURL)
+    // The generated path starts with `/v1/`. Relative to `baseURL`, it keeps a
+    // path prefix of a custom base URL.
+    const url = new URL(built.path.replace(/^\/+/, ''), baseURL)
     url.hash = ''
+    // The generated body headers (its content type) go first, so the client
+    // headers win.
     const headers = new Headers({
-      'Content-Type': 'application/json',
+      ...built.headers,
       Accept: 'application/json',
     })
     if (apiKey) {
@@ -484,15 +496,15 @@ export function createMistralClient(
       headers.set('Authorization', isBearer ? apiKey : `Bearer ${apiKey}`)
     }
     const init: RequestInit = {
-      method: 'POST',
+      method: built.method,
       headers,
-      body: JSON.stringify(body),
+      body: built.body,
       signal:
         requestOptions?.signal ??
         requestOptions?.fetchOptions?.signal ??
         (timeoutMs > 0 ? AbortSignal.timeout(timeoutMs) : undefined),
     }
-    const send =
+    const doFetch =
       fetcher ??
       ((input: string, options: RequestInit) => fetch(input, options))
 
@@ -507,25 +519,16 @@ export function createMistralClient(
       if (getAccessToken !== undefined) {
         headers.set('Authorization', `Bearer ${await getAccessToken()}`)
       }
-      response = await send(requestURL, init)
+      response = await doFetch(requestURL, init)
     } catch (err) {
       throw toClientError(err)
     }
 
     const isJSON = isJSONResponse(response)
-    if (response.status === 200 && isJSON) {
-      const wire = JSON.parse(await response.text())
-      const deprecation = response.headers.get('x-model-deprecation-timestamp')
-      if (deprecation !== null) {
-        console.warn(
-          `WARNING: The model ${wire.model} is deprecated and will be removed on ${deprecation}. Please refer to https://docs.mistral.ai/getting-started/models/#api-versioning for more information.`,
-        )
-      }
-      return wire
-    }
+    if (response.status === 200 && isJSON) return response
 
     const request = new Request(requestURL, {
-      method: 'POST',
+      method: built.method,
       headers,
       body: init.body,
     })
@@ -567,13 +570,34 @@ export function createMistralClient(
     })
   }
 
+  // Runs a generated operation through `send` and parses the JSON body.
+  async function post(
+    operation: (client: ClientInstance) => Promise<{ response: Response }>,
+    requestOptions?: MistralRequestOptions,
+  ) {
+    const { response } = await operation(
+      sendWith((built) => send(built, requestOptions)),
+    )
+    const body = JSON.parse(await response.text())
+    const deprecation = response.headers.get('x-model-deprecation-timestamp')
+    if (deprecation !== null) {
+      console.warn(
+        `WARNING: The model ${body.model} is deprecated and will be removed on ${deprecation}. Please refer to https://docs.mistral.ai/getting-started/models/#api-versioning for more information.`,
+      )
+    }
+    return body
+  }
+
   return {
     chat: {
       complete: async (request, options) =>
         chatCompletionResponseFromWire(
           await post(
-            'v1/chat/completions',
-            chatCompletionRequestToWire(request),
+            (client) =>
+              mistralPostV1ChatCompletions({
+                client,
+                body: wire(chatCompletionRequestToWire(request)),
+              }),
             options,
           ),
         ),
@@ -581,7 +605,14 @@ export function createMistralClient(
     embeddings: {
       create: async (request, options) =>
         embeddingResponseFromWire(
-          await post('v1/embeddings', embeddingRequestToWire(request), options),
+          await post(
+            (client) =>
+              mistralPostV1Embeddings({
+                client,
+                body: wire(embeddingRequestToWire(request)),
+              }),
+            options,
+          ),
         ),
     },
   }

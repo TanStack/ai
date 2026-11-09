@@ -7,8 +7,10 @@ import {
   UnexpectedClientError,
 } from '@openrouter/sdk/models/errors/httpclienterrors.js'
 import { parseSSE } from '@tanstack/ai-utils/http'
+import { sendWith } from '@tanstack/ai-utils/kubb'
 import { fits, remap } from './remap'
 import type { RemapNode, RemapObjects } from './remap'
+import type { ClientInstance } from '@tanstack/ai-utils/kubb'
 import type { SDKOptions } from '@openrouter/sdk'
 import type { RequestOptions } from '@openrouter/sdk/lib/sdks.js'
 import type { RetryConfig } from '@openrouter/sdk/lib/retries.js'
@@ -28,8 +30,10 @@ export interface Operation {
   method: 'GET' | 'POST'
   path: string
   query?: string
-  /** The JSON body. `undefined` sends no body. */
-  body?: unknown
+  /** The serialized body, JSON unless `bodyHeaders` say otherwise. `undefined` sends no body. */
+  body?: BodyInit
+  /** The headers of a generated body (its content type). Request headers win. */
+  bodyHeaders?: Record<string, string>
   accept: string
   /** The request fields that override the client headers. */
   headers?: {
@@ -104,6 +108,18 @@ function withEnvDefaults(options: OpenRouterClientOptions) {
   }
 }
 
+/**
+ * The one cast between the SDK param types (the public API, renamed to the
+ * wire by the tables) and the types of the generated client. Both describe
+ * the same request body.
+ */
+export const wire = <T>(body: unknown) => body as T
+
+/** A generated operation, called with a client that sends through `send`. */
+export type GeneratedOperation = (
+  client: ClientInstance,
+) => Promise<{ response: Response }>
+
 /** The errors that have a typed class for chat and responses. */
 const TEXT_ERRORS = [
   400, 401, 402, 403, 404, 408, 413, 422, 429, 500, 502, 503, 524, 529,
@@ -120,6 +136,37 @@ export function createCaller(config: OpenRouterClientOptions) {
     send(options, baseURL, operation, requestOptions)
 }
 
+/**
+ * Sends a generated operation. It builds the path and the body; `call`
+ * sends them with the client headers, auth, retries, and errors.
+ */
+export async function callGenerated(
+  call: ReturnType<typeof createCaller>,
+  generated: GeneratedOperation,
+  operation: Omit<Operation, 'path' | 'body'>,
+  requestOptions: RequestOptions | undefined,
+) {
+  let exchange: Exchange | undefined
+  await generated(
+    sendWith(async (built) => {
+      exchange = await call(
+        {
+          ...operation,
+          // The generated path starts with `/`. The base URL can have a path
+          // (`/api/v1`), so the path stays relative to it.
+          path: built.path.slice(1),
+          body: built.body,
+          bodyHeaders: built.headers,
+        },
+        requestOptions,
+      )
+      return exchange.response
+    }),
+  )
+  if (!exchange) throw new Error('The generated operation sent no request')
+  return exchange
+}
+
 /** The tables to remap one text operation. */
 export interface TextTables {
   objects: RemapObjects
@@ -134,17 +181,17 @@ export interface TextTables {
  */
 export async function sendText(
   call: ReturnType<typeof createCaller>,
-  path: string,
+  operation: (body: unknown) => GeneratedOperation,
   body: Record<string, unknown> & { stream?: boolean | null },
   request: Operation['headers'],
   tables: TextTables,
   requestOptions: RequestOptions | undefined,
 ) {
-  const exchange = await call(
+  const exchange = await callGenerated(
+    call,
+    operation(remap(body, tables.body, tables.objects)),
     {
       method: 'POST',
-      path,
-      body: remap(body, tables.body, tables.objects),
       accept: body.stream ? 'text/event-stream' : 'application/json',
       headers: request,
       okStatus: 200,
@@ -237,7 +284,10 @@ async function send(
     'X-OpenRouter-Title': opHeaders?.appTitle ?? options.appTitle,
   }
   const headers = new Headers()
-  for (const [name, value] of Object.entries(headerValues)) {
+  for (const [name, value] of Object.entries({
+    ...headerValues,
+    ...operation.bodyHeaders,
+  })) {
     if (value !== undefined) headers.set(name, value)
   }
   const apiKey =
@@ -271,7 +321,7 @@ async function send(
     init.signal = AbortSignal.timeout(timeoutMs)
   const request = new Request(url, {
     ...init,
-    body: operation.body === undefined ? null : JSON.stringify(operation.body),
+    body: operation.body ?? null,
     headers,
     method: operation.method,
   })

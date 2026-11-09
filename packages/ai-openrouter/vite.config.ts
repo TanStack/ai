@@ -20,6 +20,7 @@ const config = defineConfig({
         '**/*.test.ts',
         '**/*.config.ts',
         '**/types.ts',
+        'src/generated/',
       ],
       include: ['src/**/*.ts'],
     },
