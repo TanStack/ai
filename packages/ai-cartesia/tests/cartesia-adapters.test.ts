@@ -164,4 +164,73 @@ describe('Cartesia adapters', () => {
     expect(result).toMatchObject({ id: 'stt-1', text: 'hello', duration: 1.5 })
     expect(result.words).toEqual([{ word: 'hello', start: 0, end: 1.5 }])
   })
+
+  it('throws the Cartesia status and body on a non-OK response', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => new Response('nope', { status: 400 })),
+    )
+    await expect(
+      createCartesiaSpeech('sonic-3.6', 'test-key').generateSpeech({
+        model: 'sonic-3.6',
+        text: 'hello',
+        voice: 'voice-1',
+        logger,
+      }),
+    ).rejects.toThrow('Cartesia API error 400: nope')
+  })
+
+  it('rejects speed and volume outside the Cartesia range before fetch', async () => {
+    const fetchMock = vi.fn(async () => new Response(new Uint8Array([1])))
+    vi.stubGlobal('fetch', fetchMock)
+    const speech = createCartesiaSpeech('sonic-3.6', 'test-key')
+    await expect(
+      speech.generateSpeech({
+        model: 'sonic-3.6',
+        text: 'hello',
+        voice: 'voice-1',
+        speed: 0.5,
+        logger,
+      }),
+    ).rejects.toThrow('Cartesia speech speed must be from 0.6 to 1.5')
+    await expect(
+      speech.generateSpeech({
+        model: 'sonic-3.6',
+        text: 'hello',
+        voice: 'voice-1',
+        modelOptions: { volume: 3 },
+        logger,
+      }),
+    ).rejects.toThrow('Cartesia speech volume must be from 0.5 to 2')
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it('rejects empty speech audio', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => new Response(new Uint8Array())),
+    )
+    await expect(
+      createCartesiaSpeech('sonic-3.6', 'test-key').generateSpeech({
+        model: 'sonic-3.6',
+        text: 'hello',
+        voice: 'voice-1',
+        logger,
+      }),
+    ).rejects.toThrow('Cartesia speech returned empty audio')
+  })
+
+  it('rejects a transcript response with no text', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => Response.json({ type: 'transcript' })),
+    )
+    await expect(
+      createCartesiaTranscription('ink-whisper', 'test-key').transcribe({
+        model: 'ink-whisper',
+        audio: new File([new Uint8Array([1])], 'a.mp3', { type: 'audio/mpeg' }),
+        logger,
+      }),
+    ).rejects.toThrow('Cartesia transcription response has no text')
+  })
 })

@@ -105,14 +105,14 @@ Each provider has a fixed set of voices. If none of them fit, [create your own v
 
 Swap the adapter to change the provider. The rest of the route stays the same.
 
-For Cartesia, pass a voice ID as `voice` to `generateSpeech()`. In the route above, replace the default `'alloy'` with a Cartesia voice ID, such as `'db6b0ed5-d5d3-463d-ae85-518a07d3c2b4'`.
+For Cartesia, use `cartesiaSpeech` from `@tanstack/ai-cartesia` in that route. Pass a Cartesia voice id as `voice`, for example `'db6b0ed5-d5d3-463d-ae85-518a07d3c2b4'`. Set `CARTESIA_API_KEY` on the server.
 
 | Provider | Adapter | Models | API key |
 | --- | --- | --- | --- |
 | OpenAI | `openaiSpeech` from `@tanstack/ai-openai` | `tts-1-hd`, `tts-1`, `gpt-4o-mini-tts` | `OPENAI_API_KEY` |
 | Gemini (experimental) | `geminiSpeech` from `@tanstack/ai-gemini` | `gemini-3.1-flash-tts-preview`, `gemini-2.5-flash-preview-tts`, `gemini-2.5-pro-preview-tts` | `GOOGLE_API_KEY` or `GEMINI_API_KEY` |
 | ElevenLabs | `elevenlabsSpeech` from `@tanstack/ai-elevenlabs` | `eleven_v4`, `eleven_v4_turbo`, `eleven_v3`, and more | `ELEVENLABS_API_KEY` |
-| Cartesia | `cartesiaSpeech` from `@tanstack/ai-cartesia` | `sonic-3.6` | `CARTESIA_API_KEY` |
+| Cartesia | `cartesiaSpeech` from `@tanstack/ai-cartesia` | `sonic-3.6`, `sonic-3.5`, `sonic-3`, `sonic-latest` | `CARTESIA_API_KEY` |
 | BytePlus | `byteplusSpeech` from `@tanstack/ai-byteplus` | `seed-audio-1.0` | `BYTEPLUS_VOICE_API_KEY` |
 | fal.ai | `falSpeech` from `@tanstack/ai-fal` | Kokoro, ElevenLabs, MiniMax, Gemini TTS, Chatterbox, and more | `FAL_KEY` |
 | Grok | `grokSpeech` from `@tanstack/ai-grok` | `grok-tts` | `XAI_API_KEY` |

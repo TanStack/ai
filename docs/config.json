@@ -1801,7 +1801,8 @@
         {
           "label": "Cartesia",
           "to": "adapters/cartesia",
-          "addedAt": "2026-11-05"
+          "addedAt": "2026-11-05",
+          "updatedAt": "2026-11-09"
         },
         {
           "label": "fal.ai",

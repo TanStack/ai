@@ -57,6 +57,9 @@ export class CartesiaTranscriptionAdapter<
         form.append('timestamp_granularities[]', 'word')
       const response = await this.client.post('/stt', form, options.abortSignal)
       const result = (await response.json()) as CartesiaTranscript
+      if (typeof result.text !== 'string') {
+        throw new Error('Cartesia transcription response has no text')
+      }
       return {
         id: result.request_id ?? this.generateId(),
         model: this.model,

@@ -55,7 +55,13 @@ const result = await generateSpeech({
 console.log(result.format, result.contentType)
 ```
 
-Set `format` to `mp3`, `wav`, or `pcm`. Set `speed` on `generateSpeech()` to control playback speed. Use `modelOptions` for `language`, `normalization`, `pronunciationDictId`, or `volume`.
+Set `format` to `mp3`, `wav`, or `pcm`. `pcm` audio is mono `pcm_s16le` at 44100 Hz and has no header.
+
+`speed` on `generateSpeech()` sets the speaking rate. Valid values are from 0.6 to 1.5. Values outside that range throw before the request.
+
+`modelOptions.volume` sets the loudness. Valid values are from 0.5 to 2. Values outside that range throw before the request.
+
+Use `modelOptions` for `language`, `normalization`, and `pronunciationDictId`.
 
 ## 4. Transcribe a recording
 
@@ -79,4 +85,6 @@ const result = await generateTranscription({
 console.log(result.text, result.words)
 ```
 
-For browser input and server routes, see [Text-to-Speech](../media/text-to-speech) and [Transcription](../media/transcription). Both calls now use Cartesia from your server.
+For browser input and server routes, see [Text-to-Speech](../media/text-to-speech) and [Transcription](../media/transcription). The samples on those pages use OpenAI.
+
+For Cartesia, call `cartesiaSpeech` or `cartesiaTranscription`. Set `CARTESIA_API_KEY` on the server. Pass a Cartesia voice id to `generateSpeech()`.
