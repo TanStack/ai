@@ -4,31 +4,44 @@ import { toolDefinition } from '../src'
 import { executeToolCalls } from '../src/activities/chat/tools/tool-calls'
 import { EventType } from '../src/types'
 
-const then = Promise.prototype.then
-
 afterEach(() => {
-  Promise.prototype.then = then
   vi.useRealTimers()
 })
 
+/**
+ * Count `then` calls on `promise` and on every promise derived from it.
+ * `Promise.race` and `Promise.resolve` look `then` up on the instance, so
+ * they are counted too. Native `await` is not.
+ */
+function countThenCalls<T>(
+  promise: Promise<T>,
+  counts: Map<Promise<unknown>, number>,
+): Promise<T> {
+  const then = promise.then.bind(promise)
+  counts.set(promise, 0)
+  promise.then = function (...args) {
+    counts.set(promise, (counts.get(promise) ?? 0) + 1)
+    return countThenCalls(then(...args), counts)
+  } as typeof promise.then
+  return promise
+}
+
 it('does not subscribe to a pending tool execution on every event poll', async () => {
   vi.useFakeTimers()
+  const thenCallsByPromise = new Map<Promise<unknown>, number>()
   let finish: (value: string) => void = () => {}
   const slowTool = toolDefinition({
     name: 'slow',
     description: 'Finishes when the test says so',
     inputSchema: z.object({}),
-  }).server(
-    () =>
+  }).server(() =>
+    countThenCalls(
       new Promise<string>((resolve) => {
         finish = resolve
       }),
+      thenCallsByPromise,
+    ),
   )
-  const thenCallsByPromise = new Map<Promise<unknown>, number>()
-  Promise.prototype.then = function (this: Promise<unknown>, ...args) {
-    thenCallsByPromise.set(this, (thenCallsByPromise.get(this) ?? 0) + 1)
-    return then.apply(this, args)
-  } as typeof then
 
   const run = executeToolCalls(
     [
@@ -42,15 +55,16 @@ it('does not subscribe to a pending tool execution on every event poll', async (
     'thread-1',
   )
   const done = run.next()
+  // About 100 polls at 10 ms each. Subscribing on every poll makes about 100.
   await vi.advanceTimersByTimeAsync(1_000)
   const mostThenCallsOnOnePromise = Math.max(...thenCallsByPromise.values())
-  Promise.prototype.then = then
 
+  // Settling wakes the poll at once and clears its timer.
   finish('done')
-  await vi.advanceTimersByTimeAsync(20)
   const result = await done
 
   expect(mostThenCallsOnOnePromise).toBeLessThan(5)
+  expect(vi.getTimerCount()).toBe(0)
   expect(result.done).toBe(true)
   expect(result.value).toMatchObject({
     results: [{ toolCallId: 'tc-slow', result: 'done' }],

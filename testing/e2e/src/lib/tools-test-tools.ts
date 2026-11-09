@@ -130,54 +130,6 @@ function timedServerTool(name: string) {
   })
 }
 
-/** The `then` counts of each pending `count_pending_subscriptions` call. */
-const activeThenCounts = new Set<Map<Promise<unknown>, number>>()
-let originalThen = Promise.prototype.then
-
-const countingThen = function (this: Promise<unknown>, ...args) {
-  const derived = originalThen.apply(this, args)
-  for (const thenCalls of activeThenCounts) {
-    const calls = thenCalls.get(this)
-    if (calls !== undefined) {
-      thenCalls.set(this, calls + 1)
-      thenCalls.set(derived, 0)
-    }
-  }
-  return derived
-} as typeof Promise.prototype.then
-
-/**
- * A server tool that stays pending for 400 ms. While it waits, it counts the
- * `then` calls on its own promise and on every promise derived from it, then
- * returns the highest count on one promise. Overlapping calls share one
- * `then` wrapper, and the last call to finish restores the original.
- */
-const countPendingSubscriptions = toolDefinition({
-  name: 'count_pending_subscriptions',
-  description: 'Stay pending and count subscriptions to the pending promise',
-  inputSchema: z.object({}).passthrough(),
-}).server(() => {
-  const thenCalls = new Map<Promise<unknown>, number>()
-  const execution = new Promise<string>((resolve) => {
-    setTimeout(() => {
-      activeThenCounts.delete(thenCalls)
-      if (activeThenCounts.size === 0) Promise.prototype.then = originalThen
-      resolve(
-        JSON.stringify({
-          mostThenCallsOnOnePromise: Math.max(...thenCalls.values()),
-        }),
-      )
-    }, 400)
-  })
-  thenCalls.set(execution, 0)
-  if (activeThenCounts.size === 0) {
-    originalThen = Promise.prototype.then
-    Promise.prototype.then = countingThen
-  }
-  activeThenCounts.add(thenCalls)
-  return execution
-})
-
 /** The calls of the `parallel-tools` fixture, as slow tools that report their timing. */
 export const timedServerTools = {
   get_weather: timedServerTool('get_weather'),
@@ -316,11 +268,6 @@ export const SCENARIO_LIST = [
   {
     id: 'parallel-server-timing',
     label: 'Parallel Server Tool Timing',
-    category: 'basic',
-  },
-  {
-    id: 'pending-tool-subscriptions',
-    label: 'Pending Server Tool Subscriptions',
     category: 'basic',
   },
   {
@@ -473,9 +420,6 @@ export function getToolsForScenario(scenario: string) {
 
     case 'parallel-server-timing':
       return [timedServerTools.get_weather, timedServerTools.get_time]
-
-    case 'pending-tool-subscriptions':
-      return [countPendingSubscriptions]
 
     // Race condition / event flow scenarios
     case 'sequential-client-tools':
