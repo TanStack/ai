@@ -481,8 +481,18 @@ export type InputSettlement = {
        * `interrupted`: the turn stopped for human input. The `resolve` that
        * answers it is a new input with its own settlement.
        */
-      outcome: 'completed' | 'aborted' | 'interrupted'
+      outcome: 'aborted' | 'interrupted'
       error?: never
+    }
+  | {
+      outcome: 'completed'
+      error?: never
+      /**
+       * The agent loop stopped before the model was done:
+       * `agentLoopStrategy` (default `maxIterations(50)`) or a middleware
+       * `onShouldContinue` said stop while tool results waited.
+       */
+      loopStopped?: true
     }
   | {
       outcome: 'failed'

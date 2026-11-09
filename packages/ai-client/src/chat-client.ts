@@ -220,6 +220,8 @@ function connectionDrainsOnSend(connection: ConnectionAdapter): boolean {
 function isIntermediateToolTurn(chunk: StreamChunk): boolean {
   if (chunk.type !== 'RUN_FINISHED') return false
   if (chunk.outcome?.type === 'interrupt') return false
+  // A loop stop keeps finishReason tool_calls. That event ends the stream.
+  if (tanstackMetadata(chunk)?.loopStopped === true) return false
   const extra = chunk as StreamChunk & { finishReason?: unknown }
   if (extra.finishReason !== undefined) {
     return extra.finishReason === 'tool_calls'
