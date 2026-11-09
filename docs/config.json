@@ -636,13 +636,13 @@
           "label": "Managed MCP with chat()",
           "to": "tools/mcp-managed",
           "addedAt": "2026-06-05",
-          "updatedAt": "2026-11-02"
+          "updatedAt": "2026-11-09"
         },
         {
           "label": "Manual MCP",
           "to": "tools/mcp-manual",
           "addedAt": "2026-06-05",
-          "updatedAt": "2026-11-02"
+          "updatedAt": "2026-11-09"
         },
         {
           "label": "MCP Type Generation",
@@ -670,7 +670,7 @@
           "label": "MCP Apps",
           "to": "mcp/apps",
           "addedAt": "2026-06-24",
-          "updatedAt": "2026-11-02"
+          "updatedAt": "2026-11-09"
         },
         {
           "label": "Serve Tools over HTTP",

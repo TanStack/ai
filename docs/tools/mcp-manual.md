@@ -297,6 +297,71 @@ export const Route = createFileRoute('/api/chat')({
 | Any other role | `{ role: 'user', content: text }` |
 | Content that is not text | `content` is the `JSON.stringify` output |
 
+## Send request context
+
+Pass `meta` to `callTool`, `readResource`, or `getPrompt`. The client sends it as the `_meta` of that request, so the MCP server knows who calls:
+
+```ts
+import { createMCPClient } from '@tanstack/ai-mcp'
+
+const mcp = await createMCPClient({
+  transport: { type: 'http', url: process.env.MCP_URL! },
+})
+
+const meta = { 'acme.com/tenantId': 'tenant-42', 'acme.com/traceId': 'trace-7' }
+
+const result = await mcp.callTool('search', { query: 'invoices' }, { meta })
+const doc = await mcp.readResource('docs://handbook', { meta })
+const prompt = await mcp.getPrompt('summarize', { language: 'english' }, { meta })
+console.log(result.content, doc.contents, prompt.messages)
+```
+
+`meta` goes on that one request only. The client sends no `_meta` with `tools/list`, `resources/list`, or `prompts/list`.
+
+On a `createMCPClients` pool, `readResource(uri, { serverId, meta })` reads only from the server with that config key. The other servers do not get the `_meta`.
+
+### Context for tools that you pass to chat()
+
+Set `requestMeta` on `tools()`. Each call of the returned tools runs the hook and sends its result as `_meta`. Call `tools()` once for each request, so the hook stays with that request:
+
+```ts
+import {
+  chat,
+  chatParamsFromRequest,
+  toServerSentEventsResponse,
+} from '@tanstack/ai'
+import { openaiText } from '@tanstack/ai-openai'
+import { createMCPClient } from '@tanstack/ai-mcp'
+
+// Made once when the module loads. All requests share it.
+const mcp = await createMCPClient({
+  transport: { type: 'http', url: process.env.MCP_URL! },
+})
+
+export async function POST(request: Request) {
+  const { messages, threadId, runId } = await chatParamsFromRequest(request)
+  // Your auth gateway sets this header after it checks the user.
+  const tenantId = request.headers.get('x-tenant-id')
+
+  // New tools for this request. Each tool call sends this tenant.
+  const tools = await mcp.tools({
+    requestMeta: () => ({ 'acme.com/tenantId': tenantId }),
+  })
+
+  const stream = chat({
+    adapter: openaiText('gpt-6.1-sol'),
+    messages,
+    threadId,
+    runId,
+    tools,
+  })
+
+  return toServerSentEventsResponse(stream)
+}
+```
+
+With typed tools, pass the options second: `mcp.tools([searchDef], { requestMeta })`. For what the hook gets and which keys the client removes, see [Send request context to MCP servers](./mcp-managed#send-request-context-to-mcp-servers).
+
 ## Cancellation
 
 A chat run can stop, for example when the user leaves the page or an `AbortController` fires. Then TanStack AI stops the wait for MCP tool calls in progress. The abort signal of the run goes to the execute function of each tool in `ToolExecutionContext.abortSignal`.
