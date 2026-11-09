@@ -7,7 +7,7 @@
  * The functions import the one shared fetch runtime from
  * `@tanstack/ai-utils/kubb`, so no package carries its own copy.
  */
-import { existsSync } from 'node:fs'
+import { existsSync, readdirSync } from 'node:fs'
 import { join } from 'node:path'
 import { defineConfig } from 'kubb/config'
 import { pluginClient } from '@kubb/plugin-client'
@@ -41,7 +41,15 @@ const available = PROVIDER_CLIENTS.filter(({ id }) =>
   existsSync(join(docs, `${id}.json`)),
 )
 
+// `{provider}@{activity}.json`: an activity document with a model map added.
+const activityDocs = readdirSync(docs).filter((file) => file.includes('@'))
+
 export default defineConfig([
+  ...activityDocs.map((file) => ({
+    input: join(docs, file),
+    output: output(join(out, file.replace(/\.json$/, ''))),
+    plugins: [types()],
+  })),
   ...available.map(({ id }) => ({
     input: join(docs, `${id}.json`),
     output: output(join(out, id)),
