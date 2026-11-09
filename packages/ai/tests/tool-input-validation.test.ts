@@ -43,6 +43,7 @@ async function runTool(
     middleware?: ToolExecutionMiddlewareHooks
     clientResults?: Map<string, unknown>
     repairToolInput?: TextOptions['repairToolInput']
+    normalizeToolInput?: (toolName: string, input: unknown) => unknown
   } = {},
 ) {
   const executed: Array<unknown> = []
@@ -78,6 +79,8 @@ async function runTool(
     undefined,
     undefined,
     options.repairToolInput,
+    undefined,
+    options.normalizeToolInput,
   )
   while (true) {
     const next = await generator.next()
@@ -1258,6 +1261,116 @@ describe('client tool input in chat()', () => {
         ?.metadata?.input,
     ).toEqual({ count: 2 })
     expect(clientInput(chunks)).toBeUndefined()
+  })
+
+  it('runs an approved tool when history arguments still have a strict null', async () => {
+    const { adapter } = createMockAdapter({
+      iterations: [[ev.runStarted(), ev.runFinished()]],
+    })
+    adapter.normalizeToolInput = (_toolName, input) => {
+      if (!input || typeof input !== 'object' || Array.isArray(input)) {
+        return input
+      }
+      const record = input as Record<string, unknown>
+      if (record.date !== null) return input
+      const { date: _date, ...rest } = record
+      return rest
+    }
+    const executed: Array<unknown> = []
+    const chunks = await collectChunks(
+      chat({
+        threadId: 'thread-1',
+        adapter,
+        parentRunId: 'old',
+        messages: history({ destination: 'Tokyo', date: null, note: null }),
+        tools: [
+          {
+            name: 'check',
+            description: 'Book a flight',
+            needsApproval: true,
+            inputSchema: {
+              type: 'object',
+              properties: {
+                destination: { type: 'string' },
+                date: { type: 'string' },
+                note: { type: ['string', 'null'] },
+              },
+              required: ['destination'],
+              additionalProperties: false,
+            },
+            execute: (input: unknown) => {
+              executed.push(input)
+              return { booked: true }
+            },
+          },
+        ],
+        resume: [
+          {
+            interruptId: 'approval_call',
+            status: 'resolved',
+            payload: { approved: true },
+          },
+        ],
+        repairToolInput: false,
+      }),
+    )
+    expect(executed).toEqual([{ destination: 'Tokyo', note: null }])
+    expect(
+      chunks.some(
+        (chunk) =>
+          chunk.type === EventType.TOOL_CALL_RESULT &&
+          typeof chunk.content === 'string' &&
+          chunk.content.includes('Input validation failed'),
+      ),
+    ).toBe(false)
+  })
+
+  it('keeps a strict null when the adapter does not undo it', async () => {
+    const { adapter } = createMockAdapter({
+      iterations: [[ev.runStarted(), ev.runFinished()]],
+    })
+    const chunks = await collectChunks(
+      chat({
+        threadId: 'thread-1',
+        adapter,
+        parentRunId: 'old',
+        messages: history({ destination: 'Tokyo', date: null }),
+        tools: [
+          {
+            name: 'check',
+            description: 'Book a flight',
+            needsApproval: true,
+            inputSchema: {
+              type: 'object',
+              properties: {
+                destination: { type: 'string' },
+                date: { type: 'string' },
+              },
+              required: ['destination'],
+              additionalProperties: false,
+            },
+            execute: () => ({ booked: true }),
+          },
+        ],
+        resume: [
+          {
+            interruptId: 'approval_call',
+            status: 'resolved',
+            payload: { approved: true },
+          },
+        ],
+        repairToolInput: false,
+      }),
+    )
+    expect(
+      chunks.some(
+        (chunk) =>
+          chunk.type === EventType.TOOL_CALL_RESULT &&
+          typeof chunk.content === 'string' &&
+          chunk.content.includes('Input validation failed') &&
+          chunk.content.includes('\\"date\\":null'),
+      ),
+    ).toBe(true)
   })
 
   it('checks an approval edit after middleware on resume', async () => {

@@ -57,6 +57,7 @@ import type {
   StructuredOutputResult,
 } from '@tanstack/ai/adapters'
 import type {
+  AnyTool,
   ContentPart,
   ImagePart,
   JSONSchema,
@@ -185,6 +186,18 @@ export class OpenRouterResponsesTextAdapter<
     super({}, model)
     this.sdkOptions = config
     this.orClient = createOpenRouterResponsesClient(config)
+  }
+
+  /** Undo strict-mode nulls before the engine checks recorded arguments. */
+  normalizeToolInput(
+    toolName: string,
+    input: unknown,
+    tools: ReadonlyArray<AnyTool> | undefined,
+  ): unknown {
+    return createToolInputNormalizer(
+      tools,
+      this.makeStructuredOutputCompatible.bind(this),
+    )(toolName, input)
   }
 
   async *chatStream(

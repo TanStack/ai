@@ -21,7 +21,7 @@ type SchemaConverterWithMap = (
  * null-widened on the wire.
  */
 export function createToolInputNormalizer(
-  tools: Array<Tool> | undefined,
+  tools: ReadonlyArray<Pick<Tool, 'name' | 'inputSchema'>> | undefined,
   convertSchema: SchemaConverterWithMap = makeStructuredOutputCompatibleWithMap,
 ): ToolInputNormalizer {
   const maps = new Map<string, NullWideningMap>()

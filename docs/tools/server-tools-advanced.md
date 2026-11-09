@@ -24,7 +24,7 @@ The `inputSchema` checks the input right before the tool runs:
 
 Malformed JSON arguments and failed input checks (Standard Schema or JSON Schema) become tool errors. The tool does not run. The agent loop can send the error back to the model, so the model can correct the call. This also applies to Chat Completions tools with no required input fields.
 
-For OpenAI-compatible providers, an omitted `.optional()` field is absent when your tool runs. A `.nullable()` field keeps `null`.
+For OpenAI-compatible providers, an omitted `.optional()` field is absent when your tool runs. A `.nullable()` field keeps `null`. The removal runs before the input check. When you resume an approved call, the optional field stays absent. `repairToolInput: false` does not put the `null` back.
 
 ### The built-in repair
 

@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { MistralTextAdapter } from '../adapters/text'
 import { createToolInputNormalizer } from './tool-input-normalizer'
 import type { Tool } from '@tanstack/ai'
 
@@ -19,6 +20,15 @@ describe('createToolInputNormalizer', () => {
     const normalize = createToolInputNormalizer([tool])
 
     expect(normalize(tool.name, { mode: null, note: null })).toEqual({
+      note: null,
+    })
+    const adapter = new MistralTextAdapter(
+      { apiKey: 'key' },
+      'mistral-small-latest',
+    )
+    expect(
+      adapter.normalizeToolInput(tool.name, { mode: null, note: null }, [tool]),
+    ).toEqual({
       note: null,
     })
   })
