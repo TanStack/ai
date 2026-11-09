@@ -138,8 +138,10 @@ import { Route as ApiMcpInputTestRouteImport } from './routes/api.mcp-input-test
 import { Route as ApiMcpLegacyInputServerRouteImport } from './routes/api.mcp-legacy-input-server'
 import { Route as ApiMcpLifecycleTestRouteImport } from './routes/api.mcp-lifecycle-test'
 import { Route as ApiMcpManagedTestRouteImport } from './routes/api.mcp-managed-test'
+import { Route as ApiMcpMetaServerRouteImport } from './routes/api.mcp-meta-server'
 import { Route as ApiMcpNoTasksServerRouteImport } from './routes/api.mcp-no-tasks-server'
 import { Route as ApiMcpPolicyTestRouteImport } from './routes/api.mcp-policy-test'
+import { Route as ApiMcpRequestMetaWireRouteImport } from './routes/api.mcp-request-meta-wire'
 import { Route as ApiMcpServerRouteImport } from './routes/api.mcp-server'
 import { Route as ApiMcpStatusTestRouteImport } from './routes/api.mcp-status-test'
 import { Route as ApiMcpTaskErrorsRouteImport } from './routes/api.mcp-task-errors'
@@ -892,6 +894,11 @@ const ApiMcpManagedTestRoute = ApiMcpManagedTestRouteImport.update({
   path: '/api/mcp-managed-test',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiMcpMetaServerRoute = ApiMcpMetaServerRouteImport.update({
+  id: '/api/mcp-meta-server',
+  path: '/api/mcp-meta-server',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiMcpNoTasksServerRoute = ApiMcpNoTasksServerRouteImport.update({
   id: '/api/mcp-no-tasks-server',
   path: '/api/mcp-no-tasks-server',
@@ -900,6 +907,11 @@ const ApiMcpNoTasksServerRoute = ApiMcpNoTasksServerRouteImport.update({
 const ApiMcpPolicyTestRoute = ApiMcpPolicyTestRouteImport.update({
   id: '/api/mcp-policy-test',
   path: '/api/mcp-policy-test',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiMcpRequestMetaWireRoute = ApiMcpRequestMetaWireRouteImport.update({
+  id: '/api/mcp-request-meta-wire',
+  path: '/api/mcp-request-meta-wire',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiMcpServerRoute = ApiMcpServerRouteImport.update({
@@ -1452,8 +1464,10 @@ export interface FileRoutesByFullPath {
   '/api/mcp-legacy-input-server': typeof ApiMcpLegacyInputServerRoute
   '/api/mcp-lifecycle-test': typeof ApiMcpLifecycleTestRoute
   '/api/mcp-managed-test': typeof ApiMcpManagedTestRoute
+  '/api/mcp-meta-server': typeof ApiMcpMetaServerRoute
   '/api/mcp-no-tasks-server': typeof ApiMcpNoTasksServerRoute
   '/api/mcp-policy-test': typeof ApiMcpPolicyTestRoute
+  '/api/mcp-request-meta-wire': typeof ApiMcpRequestMetaWireRoute
   '/api/mcp-server': typeof ApiMcpServerRoute
   '/api/mcp-status-test': typeof ApiMcpStatusTestRoute
   '/api/mcp-task-errors': typeof ApiMcpTaskErrorsRoute
@@ -1664,8 +1678,10 @@ export interface FileRoutesByTo {
   '/api/mcp-legacy-input-server': typeof ApiMcpLegacyInputServerRoute
   '/api/mcp-lifecycle-test': typeof ApiMcpLifecycleTestRoute
   '/api/mcp-managed-test': typeof ApiMcpManagedTestRoute
+  '/api/mcp-meta-server': typeof ApiMcpMetaServerRoute
   '/api/mcp-no-tasks-server': typeof ApiMcpNoTasksServerRoute
   '/api/mcp-policy-test': typeof ApiMcpPolicyTestRoute
+  '/api/mcp-request-meta-wire': typeof ApiMcpRequestMetaWireRoute
   '/api/mcp-server': typeof ApiMcpServerRoute
   '/api/mcp-status-test': typeof ApiMcpStatusTestRoute
   '/api/mcp-task-errors': typeof ApiMcpTaskErrorsRoute
@@ -1877,8 +1893,10 @@ export interface FileRoutesById {
   '/api/mcp-legacy-input-server': typeof ApiMcpLegacyInputServerRoute
   '/api/mcp-lifecycle-test': typeof ApiMcpLifecycleTestRoute
   '/api/mcp-managed-test': typeof ApiMcpManagedTestRoute
+  '/api/mcp-meta-server': typeof ApiMcpMetaServerRoute
   '/api/mcp-no-tasks-server': typeof ApiMcpNoTasksServerRoute
   '/api/mcp-policy-test': typeof ApiMcpPolicyTestRoute
+  '/api/mcp-request-meta-wire': typeof ApiMcpRequestMetaWireRoute
   '/api/mcp-server': typeof ApiMcpServerRoute
   '/api/mcp-status-test': typeof ApiMcpStatusTestRoute
   '/api/mcp-task-errors': typeof ApiMcpTaskErrorsRoute
@@ -2091,8 +2109,10 @@ export interface FileRouteTypes {
     | '/api/mcp-legacy-input-server'
     | '/api/mcp-lifecycle-test'
     | '/api/mcp-managed-test'
+    | '/api/mcp-meta-server'
     | '/api/mcp-no-tasks-server'
     | '/api/mcp-policy-test'
+    | '/api/mcp-request-meta-wire'
     | '/api/mcp-server'
     | '/api/mcp-status-test'
     | '/api/mcp-task-errors'
@@ -2303,8 +2323,10 @@ export interface FileRouteTypes {
     | '/api/mcp-legacy-input-server'
     | '/api/mcp-lifecycle-test'
     | '/api/mcp-managed-test'
+    | '/api/mcp-meta-server'
     | '/api/mcp-no-tasks-server'
     | '/api/mcp-policy-test'
+    | '/api/mcp-request-meta-wire'
     | '/api/mcp-server'
     | '/api/mcp-status-test'
     | '/api/mcp-task-errors'
@@ -2515,8 +2537,10 @@ export interface FileRouteTypes {
     | '/api/mcp-legacy-input-server'
     | '/api/mcp-lifecycle-test'
     | '/api/mcp-managed-test'
+    | '/api/mcp-meta-server'
     | '/api/mcp-no-tasks-server'
     | '/api/mcp-policy-test'
+    | '/api/mcp-request-meta-wire'
     | '/api/mcp-server'
     | '/api/mcp-status-test'
     | '/api/mcp-task-errors'
@@ -2728,8 +2752,10 @@ export interface RootRouteChildren {
   ApiMcpLegacyInputServerRoute: typeof ApiMcpLegacyInputServerRoute
   ApiMcpLifecycleTestRoute: typeof ApiMcpLifecycleTestRoute
   ApiMcpManagedTestRoute: typeof ApiMcpManagedTestRoute
+  ApiMcpMetaServerRoute: typeof ApiMcpMetaServerRoute
   ApiMcpNoTasksServerRoute: typeof ApiMcpNoTasksServerRoute
   ApiMcpPolicyTestRoute: typeof ApiMcpPolicyTestRoute
+  ApiMcpRequestMetaWireRoute: typeof ApiMcpRequestMetaWireRoute
   ApiMcpServerRoute: typeof ApiMcpServerRoute
   ApiMcpStatusTestRoute: typeof ApiMcpStatusTestRoute
   ApiMcpTaskErrorsRoute: typeof ApiMcpTaskErrorsRoute
@@ -3712,6 +3738,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiMcpManagedTestRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/mcp-meta-server': {
+      id: '/api/mcp-meta-server'
+      path: '/api/mcp-meta-server'
+      fullPath: '/api/mcp-meta-server'
+      preLoaderRoute: typeof ApiMcpMetaServerRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/mcp-no-tasks-server': {
       id: '/api/mcp-no-tasks-server'
       path: '/api/mcp-no-tasks-server'
@@ -3724,6 +3757,13 @@ declare module '@tanstack/react-router' {
       path: '/api/mcp-policy-test'
       fullPath: '/api/mcp-policy-test'
       preLoaderRoute: typeof ApiMcpPolicyTestRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/mcp-request-meta-wire': {
+      id: '/api/mcp-request-meta-wire'
+      path: '/api/mcp-request-meta-wire'
+      fullPath: '/api/mcp-request-meta-wire'
+      preLoaderRoute: typeof ApiMcpRequestMetaWireRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/mcp-server': {
@@ -4474,8 +4514,10 @@ const rootRouteChildren: RootRouteChildren = {
   ApiMcpLegacyInputServerRoute: ApiMcpLegacyInputServerRoute,
   ApiMcpLifecycleTestRoute: ApiMcpLifecycleTestRoute,
   ApiMcpManagedTestRoute: ApiMcpManagedTestRoute,
+  ApiMcpMetaServerRoute: ApiMcpMetaServerRoute,
   ApiMcpNoTasksServerRoute: ApiMcpNoTasksServerRoute,
   ApiMcpPolicyTestRoute: ApiMcpPolicyTestRoute,
+  ApiMcpRequestMetaWireRoute: ApiMcpRequestMetaWireRoute,
   ApiMcpServerRoute: ApiMcpServerRoute,
   ApiMcpStatusTestRoute: ApiMcpStatusTestRoute,
   ApiMcpTaskErrorsRoute: ApiMcpTaskErrorsRoute,
