@@ -7,18 +7,19 @@ const dialogueConvertMock = vi.fn()
 const dialogueConvertWithTimestampsMock = vi.fn()
 const getAllVoicesMock = vi.fn()
 
-vi.mock('@elevenlabs/elevenlabs-js', () => ({
-  ElevenLabsClient: class {
-    textToSpeech = {
+// The adapters build their client with `createElevenLabsClient`.
+vi.mock('../src/client', () => ({
+  createElevenLabsClient: () => ({
+    textToSpeech: {
       convert: convertMock,
       convertWithTimestamps: convertWithTimestampsMock,
-    }
-    textToDialogue = {
+    },
+    textToDialogue: {
       convert: dialogueConvertMock,
       convertWithTimestamps: dialogueConvertWithTimestampsMock,
-    }
-    voices = { getAll: getAllVoicesMock }
-  },
+    },
+    voices: { getAll: getAllVoicesMock },
+  }),
 }))
 
 import { elevenlabsSpeech } from '../src/adapters/speech'

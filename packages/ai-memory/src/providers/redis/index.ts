@@ -171,7 +171,8 @@ export function redis(options: RedisOptions): MemoryAdapter {
 
   return {
     id: 'redis',
-    recall: (scope, query) => recallRecords(store, scope, query, options),
+    recall: (scope, query, recallOptions) =>
+      recallRecords(store, scope, query, options, recallOptions?.signal),
     save: (scope, turn) => saveTurn(store, scope, turn, options),
     inspect: (scope) => inspectRecords(store, scope),
     listFacts: (scope) => listRecordFacts(store, scope),

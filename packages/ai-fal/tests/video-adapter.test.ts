@@ -36,15 +36,17 @@ let mockQueueResult: any
 let mockConfig: any
 
 // Mock the fal.ai client
-vi.mock('@fal-ai/client', () => {
+vi.mock('../src/client', () => {
   return {
-    fal: {
-      queue: {
-        submit: (...args: Array<unknown>) => mockQueueSubmit(...args),
-        status: (...args: Array<unknown>) => mockQueueStatus(...args),
-        result: (...args: Array<unknown>) => mockQueueResult(...args),
-      },
-      config: (...args: Array<unknown>) => mockConfig(...args),
+    createFalClient: (...args: Array<unknown>) => {
+      mockConfig(...args)
+      return {
+        queue: {
+          submit: (...args: Array<unknown>) => mockQueueSubmit(...args),
+          status: (...args: Array<unknown>) => mockQueueStatus(...args),
+          result: (...args: Array<unknown>) => mockQueueResult(...args),
+        },
+      }
     },
   }
 })

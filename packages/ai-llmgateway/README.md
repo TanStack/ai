@@ -84,6 +84,8 @@ Any model listed on [llmgateway.io/models](https://llmgateway.io/models) works â
 Model ids accept an optional `provider/` prefix to pin routing to a specific provider:
 
 ```typescript
+import { llmGatewayText } from '@tanstack/ai-llmgateway'
+
 llmGatewayText('kimi-k3') // gateway picks the best available provider
 llmGatewayText('moonshot/kimi-k3') // always routed to Moonshot
 ```

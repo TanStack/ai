@@ -86,8 +86,8 @@ const textEvents = [
 ]
 
 /**
- * Issue #1582: turn 1 stops mid tool call. `finalizeStream()` marks the call
- * `input-complete` with its partial arguments, and turn 2 replays it. The
+ * Issue #1582: turn 1 stops mid tool call, before any stop reason. The
+ * adapter reports `incomplete-stream`, so turn 2 does not replay the call. The
  * capturing `fetch` answers with synthetic Claude streams, so this needs no
  * fixture. The companion spec reads `requestBodies[1]`.
  */

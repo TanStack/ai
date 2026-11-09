@@ -1,3 +1,4 @@
+import { aiEventClient } from '@tanstack/ai-event-client'
 import { describe, it, expect, vi } from 'vitest'
 import {
   generateImage,
@@ -6,6 +7,7 @@ import {
   generateTranscription,
 } from '../src/index'
 import { tanstackMetadata } from '../src/utilities/merge-metadata'
+import { rebuildTokenUsage } from '../src/utilities/ag-ui-usage'
 import type { StreamChunk, VideoStatusResult } from '../src/types'
 
 // Helper to collect all chunks from an async iterable
@@ -609,5 +611,134 @@ describe('generateTranscription({ stream: true })', () => {
     if (chunks[1]!.type === 'RUN_ERROR') {
       expect(chunks[1]!.message).toBe('Transcription failed')
     }
+  })
+})
+
+// ============================================================================
+// Usage on the terminal events of a media stream
+// ============================================================================
+
+describe('usage on media stream terminal events', () => {
+  const usage = {
+    promptTokens: 7,
+    completionTokens: 0,
+    totalTokens: 7,
+    billed: { quantity: 2, unit: 'units' as const },
+  }
+
+  function imageAdapter(generateImages: () => Promise<unknown>) {
+    return {
+      kind: 'image' as const,
+      name: 'test-image',
+      model: 'test-model',
+      '~types': {} as any,
+      generateImages: vi.fn(generateImages),
+    } as any
+  }
+
+  function terminalUsage(chunks: Array<StreamChunk>, type: string) {
+    const chunk = chunks.find((c) => c.type === type)
+    if (chunk?.type !== 'RUN_FINISHED' && chunk?.type !== 'RUN_ERROR') {
+      return undefined
+    }
+    return rebuildTokenUsage(chunk.usage, tanstackMetadata(chunk)?.usage)
+  }
+
+  it('puts the result usage on RUN_FINISHED', async () => {
+    const chunks = await collectChunks(
+      generateImage({
+        threadId: 'thread-1',
+        adapter: imageAdapter(async () => ({
+          id: 'img-1',
+          model: 'test-model',
+          images: [{ url: 'https://example.com/image.png' }],
+          usage,
+        })),
+        prompt: 'A sunset',
+        stream: true,
+      }),
+    )
+
+    expect(terminalUsage(chunks, 'RUN_FINISHED')).toEqual(usage)
+  })
+
+  it('puts the usage of a thrown error on RUN_ERROR', async () => {
+    const chunks = await collectChunks(
+      generateImage({
+        threadId: 'thread-1',
+        adapter: imageAdapter(async () => {
+          throw Object.assign(new Error('no images'), { usage })
+        }),
+        prompt: 'A sunset',
+        stream: true,
+      }),
+    )
+
+    expect(terminalUsage(chunks, 'RUN_ERROR')).toEqual(usage)
+  })
+
+  it('puts the video usage on RUN_FINISHED', async () => {
+    const adapter = {
+      kind: 'video' as const,
+      name: 'test-video',
+      model: 'test-model',
+      '~types': {} as any,
+      snapDuration: () => undefined,
+      createVideoJob: vi.fn(async () => ({ jobId: 'job-1', model: 'm' })),
+      getVideoStatus: vi.fn(
+        async (): Promise<VideoStatusResult> => ({
+          jobId: 'job-1',
+          status: 'completed',
+        }),
+      ),
+      getVideo: vi.fn(async () => ({
+        jobId: 'job-1',
+        url: 'https://example.com/video.mp4',
+        usage,
+      })),
+    } as any
+
+    const chunks = await collectChunks(
+      generateVideo({
+        threadId: 'thread-1',
+        adapter,
+        prompt: 'test',
+        stream: true,
+        pollingInterval: 1,
+      }),
+    )
+
+    expect(terminalUsage(chunks, 'RUN_FINISHED')).toEqual(usage)
+  })
+
+  it('sends the transcription:usage devtools event', async () => {
+    const emitted: Array<unknown> = []
+    const off = aiEventClient.on(
+      'transcription:usage',
+      (e) => emitted.push(e.payload.usage),
+      { withEventTarget: true },
+    )
+    try {
+      await generateTranscription({
+        threadId: 'thread-1',
+        adapter: {
+          kind: 'transcription' as const,
+          name: 'test-stt',
+          model: 'whisper-1',
+          '~types': {} as any,
+          transcribe: vi.fn(async () => ({
+            id: 't-1',
+            model: 'whisper-1',
+            text: 'hi',
+            usage,
+          })),
+        } as any,
+        audio: 'data:audio/mp3;base64,AAAA',
+      })
+    } finally {
+      off()
+    }
+
+    expect(emitted).toEqual([usage])
   })
 })

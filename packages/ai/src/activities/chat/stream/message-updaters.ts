@@ -6,6 +6,10 @@
  */
 
 import { isRedactedThinkingId } from '../../../utilities/reasoning-encrypted-value'
+import {
+  mergeMetadata,
+  tanstackMetadata,
+} from '../../../utilities/merge-metadata'
 import { parsePartialJSON } from './json-parser'
 import type {
   ContentPart,
@@ -109,6 +113,23 @@ export function updateToolCallPart(
   })
 }
 
+/** Drop a control outcome left on metadata after the result itself succeeded. */
+export function withoutStaleToolResultOutcome(
+  metadata: Record<string, unknown> | undefined,
+): Record<string, unknown> | undefined {
+  if (metadata == null) return undefined
+  const tanstack = tanstackMetadata({ metadata })
+  if (tanstack?.toolResultOutcome === undefined) return metadata
+  const { toolResultOutcome: _staleOutcome, ...restTanstack } = tanstack
+  const nextMetadata = { ...metadata }
+  if (Object.keys(restTanstack).length > 0) {
+    nextMetadata.tanstack = restTanstack
+  } else {
+    delete nextMetadata.tanstack
+  }
+  return Object.keys(nextMetadata).length > 0 ? nextMetadata : undefined
+}
+
 /**
  * Update or add a tool result part to a message.
  */
@@ -120,6 +141,7 @@ export function updateToolResultPart(
   state: ToolResultState,
   error?: string,
   outcome?: ToolResultOutcome,
+  metadata?: Record<string, unknown>,
 ): Array<UIMessage> {
   return messages.map((msg) => {
     if (msg.id !== messageId) {
@@ -132,6 +154,27 @@ export function updateToolResultPart(
         p.type === 'tool-result' && p.toolCallId === toolCallId,
     )
 
+    const existingResultPart =
+      resultPartIndex >= 0
+        ? (parts[resultPartIndex] as ToolResultPart)
+        : undefined
+    // Preserve existing metadata when a later result update does not include
+    // metadata, and merge partial metadata (including metadata.tanstack).
+    let mergedMetadata = mergeMetadata(existingResultPart?.metadata, metadata)
+    const hasIncomingToolResultOutcome =
+      tanstackMetadata({ metadata })?.toolResultOutcome !== undefined
+
+    // A successful retry supersedes a previous denial/cancellation. Do not
+    // carry the old control outcome into the new result, or snapshot hydration
+    // will incorrectly restore the successful result as an error.
+    if (
+      state === 'complete' &&
+      outcome === undefined &&
+      !hasIncomingToolResultOutcome
+    ) {
+      mergedMetadata = withoutStaleToolResultOutcome(mergedMetadata)
+    }
+
     const toolResultPart: ToolResultPart = {
       type: 'tool-result',
       toolCallId,
@@ -139,6 +182,7 @@ export function updateToolResultPart(
       state,
       ...(outcome !== undefined && { outcome }),
       ...(error && { error }),
+      ...(mergedMetadata !== undefined && { metadata: mergedMetadata }),
     }
 
     if (resultPartIndex >= 0) {

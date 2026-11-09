@@ -7,7 +7,7 @@ title: uploadFile
 function uploadFile<TName>(options): Promise<FileHandle<TName>>;
 ```
 
-Defined in: packages/ai/src/activities/files/index.ts:27
+Defined in: [packages/ai/src/activities/files/index.ts:28](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/files/index.ts#L28)
 
 Upload a file to a provider's Files API and return its handle. The handle
 carries the provider name as a literal type, so passing it to another
@@ -22,6 +22,12 @@ provider's lifecycle call is a compile error.
 ## Parameters
 
 ### options
+
+#### abortSignal?
+
+`AbortSignal`
+
+Cancels the upload. The call rejects when the signal aborts.
 
 #### adapter
 

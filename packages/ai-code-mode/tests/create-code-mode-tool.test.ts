@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { toolDefinition } from '@tanstack/ai'
 import { createCodeModeTool } from '../src/create-code-mode-tool'
 import type {
+  CodeModeTool,
   CodeModeToolConfig,
   IsolateDriver,
   IsolateContext,
@@ -32,6 +33,21 @@ function createMockTool<TName extends string>(name: TName) {
     outputSchema: z.object({ result: z.string() }),
   })
   return def.server(async (input) => ({ result: input.query }))
+}
+
+// A `needsApproval: true` tool is rejected by the `CodeModeTool` *type*
+// (`needsApproval` is pinned to `false`). This models a runtime bypass — a JS
+// consumer, an `as` cast, or a dynamically built tool — which the runtime guard
+// must still reject. `extra` lets a test also flip e.g. `lazy`.
+function createApprovalTool(
+  name: string,
+  extra: Record<string, unknown> = {},
+): CodeModeTool {
+  return {
+    ...createMockTool(name),
+    needsApproval: true,
+    ...extra,
+  } as unknown as CodeModeTool
 }
 
 /**
@@ -66,6 +82,49 @@ describe('createCodeModeTool', () => {
     expect(() => createCodeModeTool({ driver, tools: [] })).toThrow(
       'At least one tool must be provided',
     )
+  })
+
+  it('throws when a tool requires approval', () => {
+    const { driver } = createMockDriver()
+
+    expect(() =>
+      createCodeModeTool({
+        driver,
+        tools: [createMockTool('safe'), createApprovalTool('runCommand')],
+      }),
+    ).toThrow(/Code Mode cannot expose tools that require approval: runCommand/)
+  })
+
+  it('lists every approval-gated tool in the error', () => {
+    const { driver } = createMockDriver()
+    const tools = [
+      createMockTool('safe'),
+      createApprovalTool('runCommand'),
+      createApprovalTool('deleteFiles'),
+    ]
+
+    expect(() => createCodeModeTool({ driver, tools })).toThrow(
+      /runCommand, deleteFiles/,
+    )
+  })
+
+  it('rejects an approval-gated tool even when it is marked lazy', () => {
+    const { driver } = createMockDriver()
+    const gated = createApprovalTool('runCommand', { lazy: true })
+
+    expect(() =>
+      createCodeModeTool({ driver, tools: [createMockTool('safe'), gated] }),
+    ).toThrow(/runCommand/)
+  })
+
+  it('allows tools with needsApproval explicitly false', () => {
+    const { driver } = createMockDriver()
+    const tool = {
+      ...createMockTool('fetchWeather'),
+      needsApproval: false as const,
+    }
+
+    expect(() => createCodeModeTool({ driver, tools: [tool] })).not.toThrow()
   })
 
   it('returns a tool named execute_typescript', () => {
@@ -620,5 +679,165 @@ describe('createCodeModeTool debug logging', () => {
     } finally {
       consoleWarn.mockRestore()
     }
+  })
+})
+
+describe('createCodeModeTool run abort', () => {
+  it('ends the program and disposes the isolate when the run aborts', async () => {
+    let programSignal: AbortSignal | undefined
+    const aroundCalls = vi.fn<NonNullable<CodeModeToolConfig['aroundCalls']>>(
+      (_context, signal) => {
+        programSignal = signal
+        return (_call, run) => run()
+      },
+    )
+    let isExecuting = false
+    let release = () => {}
+    const disposed = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    const dispose = vi.fn(async () => release())
+    // An isolate that runs until it is disposed.
+    const driver: IsolateDriver = {
+      createContext: async () => ({
+        execute: async () => {
+          isExecuting = true
+          await disposed
+          return {
+            success: false,
+            error: { name: 'DisposedError', message: 'Context was disposed' },
+            logs: [],
+          }
+        },
+        dispose,
+      }),
+    }
+    const tool = createCodeModeTool({
+      driver,
+      tools: [createMockTool('fetchWeather')],
+      aroundCalls,
+    })
+    const abort = new AbortController()
+
+    const running = tool.execute!(
+      { typescriptCode: 'return 1' },
+      { abortSignal: abort.signal, emitCustomEvent: vi.fn() },
+    )
+    await vi.waitFor(() => expect(isExecuting).toBe(true))
+    abort.abort()
+
+    // A call that waits for an approval stops with the program.
+    expect(programSignal?.aborted).toBe(true)
+    expect(dispose).toHaveBeenCalled()
+    // The model sees the abort, not the dispose.
+    expect(await running).toMatchObject({
+      success: false,
+      error: { name: 'AbortError' },
+    })
+  })
+
+  it('does not run the code when the run aborts while the context is made', async () => {
+    const execute = vi.fn()
+    const dispose = vi.fn(async () => {})
+    const abort = new AbortController()
+    const driver: IsolateDriver = {
+      createContext: async () => {
+        abort.abort()
+        return { execute, dispose }
+      },
+    }
+    const tool = createCodeModeTool({
+      driver,
+      tools: [createMockTool('fetchWeather')],
+    })
+
+    const result = await tool.execute!(
+      { typescriptCode: 'return 1' },
+      { abortSignal: abort.signal, emitCustomEvent: vi.fn() },
+    )
+
+    expect(execute).not.toHaveBeenCalled()
+    expect(result.success).toBe(false)
+    expect(dispose).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not make the context when the run aborts while the snippets load', async () => {
+    const createContext = vi.fn()
+    const abort = new AbortController()
+    const tool = createCodeModeTool({
+      driver: { createContext },
+      tools: [createMockTool('fetchWeather')],
+      getSnippetBindings: async () => {
+        abort.abort()
+        return {}
+      },
+    })
+
+    const result = await tool.execute!(
+      { typescriptCode: 'return 1' },
+      { abortSignal: abort.signal, emitCustomEvent: vi.fn() },
+    )
+
+    expect(createContext).not.toHaveBeenCalled()
+    expect(result.success).toBe(false)
+  })
+
+  it('loads no snippets when the run aborts while the code is transpiled', async () => {
+    const getSnippetBindings = vi.fn(async () => ({}))
+    const abort = new AbortController()
+    const tool = createCodeModeTool({
+      driver: { createContext: vi.fn() },
+      tools: [createMockTool('fetchWeather')],
+      transpile: async (code) => {
+        abort.abort()
+        return code
+      },
+      getSnippetBindings,
+    })
+
+    const result = await tool.execute!(
+      { typescriptCode: 'return 1' },
+      { abortSignal: abort.signal, emitCustomEvent: vi.fn() },
+    )
+
+    expect(getSnippetBindings).not.toHaveBeenCalled()
+    expect(result.success).toBe(false)
+  })
+
+  it('disposes the isolate once when the run aborts', async () => {
+    let release = () => {}
+    const disposed = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    const dispose = vi.fn(async () => release())
+    const driver: IsolateDriver = {
+      createContext: async () => ({
+        execute: async () => {
+          await disposed
+          return {
+            success: false,
+            error: { name: 'DisposedError', message: 'Context was disposed' },
+            logs: [],
+          }
+        },
+        dispose,
+      }),
+    }
+    const tool = createCodeModeTool({
+      driver,
+      tools: [createMockTool('fetchWeather')],
+    })
+    const abort = new AbortController()
+
+    const running = tool.execute!(
+      { typescriptCode: 'return 1' },
+      { abortSignal: abort.signal, emitCustomEvent: vi.fn() },
+    )
+    await vi.waitFor(() => expect(dispose).not.toHaveBeenCalled())
+    await new Promise((resolve) => setTimeout(resolve, 10))
+    abort.abort()
+    await running
+
+    expect(dispose).toHaveBeenCalledTimes(1)
   })
 })

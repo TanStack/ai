@@ -3,7 +3,7 @@ id: TTSTurn
 title: TTSTurn
 ---
 
-Defined in: packages/ai/src/types.ts:2835
+Defined in: [packages/ai/src/types.ts:2901](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2901)
 
 One turn of a multi-voice dialogue request.
 
@@ -19,7 +19,7 @@ single `text` + `voice` pair.
 text: string;
 ```
 
-Defined in: packages/ai/src/types.ts:2837
+Defined in: [packages/ai/src/types.ts:2903](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2903)
 
 The text this voice speaks.
 
@@ -31,6 +31,6 @@ The text this voice speaks.
 voice: string;
 ```
 
-Defined in: packages/ai/src/types.ts:2839
+Defined in: [packages/ai/src/types.ts:2905](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2905)
 
 Provider voice id (ElevenLabs) or voice name (Gemini) for this turn.

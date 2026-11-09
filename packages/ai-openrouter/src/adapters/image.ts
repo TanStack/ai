@@ -1,4 +1,5 @@
-import { OpenRouter } from '@openrouter/sdk'
+import { createOpenRouterChatClient } from '../client/index'
+import type { OpenRouterClient } from '../client/index'
 import {
   isFileSource,
   resolveMediaPrompt,
@@ -91,11 +92,11 @@ export class OpenRouterImageAdapter<
   override readonly kind = 'image' as const
   readonly name = 'openrouter' as const
 
-  private readonly client: OpenRouter
+  private readonly client: Pick<OpenRouterClient, 'chat'>
 
   constructor(config: OpenRouterImageConfig, model: TModel) {
     super(model, {})
-    this.client = new OpenRouter({
+    this.client = createOpenRouterChatClient({
       ...config,
       apiKey: config.apiKey,
       serverURL: config.baseURL,
@@ -157,40 +158,43 @@ export class OpenRouterImageAdapter<
       },
     )
 
-    const response = await this.client.chat.send({
-      chatRequest: {
-        model,
-        messages: [
-          {
-            role: 'user',
-            content,
+    const response = await this.client.chat.send(
+      {
+        chatRequest: {
+          model,
+          messages: [
+            {
+              role: 'user',
+              content,
+            },
+          ],
+          modalities: ['image'],
+          stream: false,
+          // The SDK serializes this record verbatim as `image_config`, so keys
+          // must match the HTTP API's documented snake_case fields — miskeyed
+          // entries are silently ignored by the gateway (verified live:
+          // `aspect_ratio` changes output dimensions, `aspectRatio` does not).
+          imageConfig: {
+            ...(aspectRatio
+              ? {
+                  aspect_ratio: aspectRatio,
+                }
+              : {}),
+            ...(modelOptions?.image_size
+              ? {
+                  image_size: modelOptions.image_size,
+                }
+              : {}),
+            ...(modelOptions?.strength !== undefined
+              ? {
+                  strength: modelOptions.strength,
+                }
+              : {}),
           },
-        ],
-        modalities: ['image'],
-        stream: false,
-        // The SDK serializes this record verbatim as `image_config`, so keys
-        // must match the HTTP API's documented snake_case fields — miskeyed
-        // entries are silently ignored by the gateway (verified live:
-        // `aspect_ratio` changes output dimensions, `aspectRatio` does not).
-        imageConfig: {
-          ...(aspectRatio
-            ? {
-                aspect_ratio: aspectRatio,
-              }
-            : {}),
-          ...(modelOptions?.image_size
-            ? {
-                image_size: modelOptions.image_size,
-              }
-            : {}),
-          ...(modelOptions?.strength !== undefined
-            ? {
-                strength: modelOptions.strength,
-              }
-            : {}),
         },
       },
-    })
+      { signal: options.abortSignal },
+    )
 
     // Check for error in response
     if ('error' in response && response.error) {
@@ -237,10 +241,6 @@ export class OpenRouterImageAdapter<
       }
     }
 
-    if (images.length === 0) {
-      throw new Error('Image generation failed: response contained no images')
-    }
-
     // OpenRouter routes image generation through the chat surface, so the
     // response carries the same `usage` shape as text. Surface it (with any
     // detail breakdowns and provider-reported cost) when present.
@@ -248,6 +248,14 @@ export class OpenRouterImageAdapter<
     const usage = baseUsage && {
       ...baseUsage,
       ...extractUsageCost(response.usage),
+    }
+
+    if (images.length === 0) {
+      // Core reads `error.usage`, so the billed tokens still count.
+      throw Object.assign(
+        new Error('Image generation failed: response contained no images'),
+        usage && { usage },
+      )
     }
 
     return {

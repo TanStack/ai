@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
-import { classifyAll } from './classify'
-import { buildScorecardEmbeds, chunkEmbeds } from './discord'
-import { computeScorecard, formatDuration, percentile } from './metrics'
+import { classifyAll } from './classify.ts'
+import { buildScorecardEmbeds, chunkEmbeds } from './discord.ts'
+import { computeScorecard, formatDuration, percentile } from './metrics.ts'
 import {
   NOW,
   review,
@@ -12,8 +12,8 @@ import {
   makeDiscussion,
   makeIssue,
   makePR,
-} from './fixtures'
-import type { RepoSnapshot } from './types'
+} from './fixtures.ts'
+import type { RepoSnapshot } from './types.ts'
 
 function snapshotFixture(): RepoSnapshot {
   return {

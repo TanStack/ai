@@ -1,5 +1,42 @@
 # @tanstack/ai-cloudflare
 
+## 1.2.0
+
+### Minor Changes
+
+- [#1973](https://github.com/TanStack/ai/pull/1973) [`374fb69`](https://github.com/TanStack/ai/commit/374fb69a534de7e200421056acf3a677fd833bce) - `@cloudflare/workers-types` is now an optional peer dependency. If you use TypeScript, install it as a dev dependency, because the adapter types use its `Ai` binding and AI Gateway types. The adapter needs no extra package at runtime.
+
+### Patch Changes
+
+- [#2036](https://github.com/TanStack/ai/pull/2036) [`382cb80`](https://github.com/TanStack/ai/commit/382cb808f3bc51fe6dd44c84cb327549569b67ac) - `embed()` with more than 100 inputs no longer fails on Workers AI embedding models that accept 100 texts per request, such as the BGE models. The adapter now sends the inputs in sequential requests of at most 100 texts and returns the vectors in input order. An aborted signal stops the remaining requests. Models with a lower limit, such as `@cf/qwen/qwen3-embedding-0.6b`, can still reject large inputs.
+
+- Updated dependencies [[`48cbc66`](https://github.com/TanStack/ai/commit/48cbc66d677896e75d242e9c52be67f7da259fd9), [`374fb69`](https://github.com/TanStack/ai/commit/374fb69a534de7e200421056acf3a677fd833bce), [`374fb69`](https://github.com/TanStack/ai/commit/374fb69a534de7e200421056acf3a677fd833bce)]:
+  - @tanstack/ai@1.2.0
+  - @tanstack/ai-utils@1.1.0
+  - @tanstack/openai-base@1.0.2
+
+## 1.1.0
+
+### Minor Changes
+
+- [#1977](https://github.com/TanStack/ai/pull/1977) [`9ac67f3`](https://github.com/TanStack/ai/commit/9ac67f3acbcecee88714503b205d602560fdc8c6) - Forward the new optional embedding `abortSignal` to the Workers AI REST request.
+
+### Patch Changes
+
+- [#1974](https://github.com/TanStack/ai/pull/1974) [`09dde65`](https://github.com/TanStack/ai/commit/09dde65b9fdcc312fd0459c98328c23abd1406cb) - Report token usage for every call that the provider billed, also when the call fails.
+  - Adapters put the usage that they received on `RUN_ERROR`: a cut-off response, a refusal, a parse failure, an empty response, or a stream that fails after usage arrived. Before, many of these paths dropped it.
+  - A non-streaming `structuredOutput()`, image, or speech call that fails after the response throws an error with a `usage` field. `chat()`, `generateImage()`, `generateSpeech()`, and `summarize()` report it.
+  - The `onUsage` middleware hook now also runs for a `RUN_ERROR` with usage. A structured output value that fails the schema check still reports the usage of its call.
+  - Media streams carry `usage` on `RUN_FINISHED` and `RUN_ERROR`. Devtools now gets the `summarize:usage` and `transcription:usage` events, and `text:usage` for a chat `RUN_ERROR` with usage. A call that `onModelError` or a rate-limit retry drops still reports its usage.
+  - Provider fields that were dropped are mapped: Anthropic thinking tokens, Claude Code `total_cost_usd` as `usage.cost`, OpenRouter Responses reasoning tokens, opencode cost and cache writes, ACP and Bedrock cache writes, OpenAI evaluate token details, Gemini Vertex embedding tokens, and audio duration as billed seconds for Whisper, Groq, Cloudflare, and Lovable transcription.
+  - opencode adds up the usage of every agent step in a turn. Before, it counted only the last step.
+  - Gemini Interactions usage (text, agentic video, and images) counts thought tokens in `completionTokens`, the same as `generateContent`.
+
+- Updated dependencies [[`9ac67f3`](https://github.com/TanStack/ai/commit/9ac67f3acbcecee88714503b205d602560fdc8c6), [`9ac67f3`](https://github.com/TanStack/ai/commit/9ac67f3acbcecee88714503b205d602560fdc8c6), [`e17cae7`](https://github.com/TanStack/ai/commit/e17cae7aa40ce5ebe0e78496931d49c793bdaf41), [`d6ead13`](https://github.com/TanStack/ai/commit/d6ead13def85f91782e20d6c1b8755fdf1c836c2), [`450950d`](https://github.com/TanStack/ai/commit/450950da860d58047c654c1497ddb48d651f9076), [`07d2e42`](https://github.com/TanStack/ai/commit/07d2e429c456a31d35748fecf7d8f8c0795eff31), [`13b1ca9`](https://github.com/TanStack/ai/commit/13b1ca918a0ac36761db2a6226973c5330d4221d), [`e17cae7`](https://github.com/TanStack/ai/commit/e17cae7aa40ce5ebe0e78496931d49c793bdaf41), [`940c402`](https://github.com/TanStack/ai/commit/940c402d8ca5220e3202326e03cc1f64654572a3), [`09dde65`](https://github.com/TanStack/ai/commit/09dde65b9fdcc312fd0459c98328c23abd1406cb)]:
+  - @tanstack/ai@1.1.0
+  - @tanstack/ai-utils@1.0.1
+  - @tanstack/openai-base@1.0.1
+
 ## 1.0.0
 
 ### Major Changes

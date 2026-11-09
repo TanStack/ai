@@ -198,4 +198,84 @@ describe('tool-approval follow-up after resolve', () => {
       .join('\n')
     expect(followUpText).toContain('follow-up')
   })
+
+  it('keeps a queued message until the server approval is answered', async () => {
+    const approval = normalizeApprovalSchema(undefined, cartTool.inputSchema)
+    const input = { guitarId: '1', quantity: 1 }
+    const requests: Array<string> = []
+    const connection: ConnectConnectionAdapter = {
+      // eslint-disable-next-line @typescript-eslint/require-await
+      async *connect(messages, _d, _s, runContext) {
+        requests.push(JSON.stringify(messages))
+        const runId = runContext?.runId ?? `r${requests.length}`
+        const threadId = runContext?.threadId ?? 't1'
+        const t = Date.now()
+        yield { type: EventType.RUN_STARTED, runId, threadId, timestamp: t }
+        yield {
+          type: EventType.RUN_FINISHED,
+          runId,
+          threadId,
+          timestamp: t,
+          outcome:
+            requests.length === 1
+              ? {
+                  type: 'interrupt',
+                  interrupts: [
+                    {
+                      id: 'approval_tc1',
+                      reason: 'tool_call',
+                      toolCallId: 'tc1',
+                      responseSchema: approval.responseSchema,
+                      metadata: {
+                        kind: 'approval',
+                        toolName: 'addToCart',
+                        input,
+                        'tanstack:interruptBinding': {
+                          kind: 'tool-approval',
+                          interruptId: 'approval_tc1',
+                          interruptedRunId: runId,
+                          generation: 0,
+                          toolName: 'addToCart',
+                          toolCallId: 'tc1',
+                          originalArgs: input,
+                          inputSchemaHash: hashSchemaInput(
+                            cartTool.inputSchema,
+                          ),
+                          approvalSchemaHash: approval.approvalSchemaHash,
+                          responseSchemaHash: approval.responseSchemaHash,
+                        },
+                      },
+                    },
+                  ],
+                }
+              : { type: 'success' },
+        } as StreamChunk
+      },
+    }
+    const client = new ChatClient({
+      connection,
+      threadId: 't1',
+      tools: [cartTool],
+    })
+
+    // The second message waits in the queue while the first run streams.
+    await Promise.all([
+      client.sendMessage('add the stratocaster'),
+      client.sendMessage('queued'),
+    ])
+    await new Promise((resolve) => setTimeout(resolve, 20))
+
+    const interrupt = client.getInterrupts()[0]
+    if (interrupt?.kind !== 'tool-approval') {
+      throw new Error('expected tool-approval')
+    }
+    expect(requests).toHaveLength(1)
+
+    interrupt.resolveInterrupt(true)
+
+    // The resume run goes first. The queued message follows it.
+    await vi.waitFor(() => expect(requests).toHaveLength(3))
+    expect(requests[1]).not.toContain('queued')
+    expect(requests[2]).toContain('queued')
+  })
 })

@@ -1,5 +1,35 @@
 # @tanstack/ai-code-mode
 
+## 1.1.0
+
+### Minor Changes
+
+- [#1978](https://github.com/TanStack/ai/pull/1978) [`4caefd7`](https://github.com/TanStack/ai/commit/4caefd7cb6783766fb2bdb9d34d65b367624dd32) - `IsolateContext.execute(code, options?)` takes an optional `{ signal }`. `execute_typescript` passes the abort signal of the tool call, so a driver can stop the run.
+
+### Patch Changes
+
+- [#1976](https://github.com/TanStack/ai/pull/1976) [`5f62940`](https://github.com/TanStack/ai/commit/5f62940bb15c871a205de70e4e6b58fbe5016960) - An abort of the run now ends the `execute_typescript` program: a call that waits for an approval stops, and the isolate is disposed.
+
+- Updated dependencies [[`5f62940`](https://github.com/TanStack/ai/commit/5f62940bb15c871a205de70e4e6b58fbe5016960), [`9ac67f3`](https://github.com/TanStack/ai/commit/9ac67f3acbcecee88714503b205d602560fdc8c6), [`9ac67f3`](https://github.com/TanStack/ai/commit/9ac67f3acbcecee88714503b205d602560fdc8c6), [`4caefd7`](https://github.com/TanStack/ai/commit/4caefd7cb6783766fb2bdb9d34d65b367624dd32), [`d6ead13`](https://github.com/TanStack/ai/commit/d6ead13def85f91782e20d6c1b8755fdf1c836c2), [`450950d`](https://github.com/TanStack/ai/commit/450950da860d58047c654c1497ddb48d651f9076), [`07d2e42`](https://github.com/TanStack/ai/commit/07d2e429c456a31d35748fecf7d8f8c0795eff31), [`13b1ca9`](https://github.com/TanStack/ai/commit/13b1ca918a0ac36761db2a6226973c5330d4221d), [`09dde65`](https://github.com/TanStack/ai/commit/09dde65b9fdcc312fd0459c98328c23abd1406cb)]:
+  - @tanstack/ai-harness@0.2.0
+  - @tanstack/ai@1.1.0
+
+## 1.0.1
+
+### Patch Changes
+
+- [#1949](https://github.com/TanStack/ai/pull/1949) [`44f225f`](https://github.com/TanStack/ai/commit/44f225fab82964f4d217c7f150b3a34185a90cbe) - Reject approval-gated tools in Code Mode. A tool marked `needsApproval: true` expects a human approval interrupt before it runs, but Code Mode invokes tools from inside the sandbox — the model only ever sees the outer `execute_typescript` call, so no per-tool interrupt is raised and the tool would run unattended.
+
+  The `CodeModeTool` type already pins `needsApproval` to `false`, so typed callers were blocked at compile time. This adds the matching runtime guard for callers that bypass the types (JavaScript consumers, `as` casts, or dynamically built tools):
+  - `createCodeModeTool` / `createCodeMode` now throw synchronously if any supplied tool has `needsApproval: true`, naming every offending tool.
+  - `toolToBinding` / `toolsToBindings` enforce the same rule as a lower-level backstop, so every binding path is covered.
+
+  Approving only the outer `execute_typescript` call would not preserve per-tool/per-argument approval semantics, so these tools are rejected rather than silently approved. Remove approval-gated tools from the Code Mode config, or drop `needsApproval` if they are safe to call unattended.
+
+- Updated dependencies [[`3061f4b`](https://github.com/TanStack/ai/commit/3061f4b22d44c21eb9b99fb7b1076808338caa74), [`f085015`](https://github.com/TanStack/ai/commit/f085015da1b77aee3cf95ca74a2e86ed9dbc1c29), [`ae97655`](https://github.com/TanStack/ai/commit/ae976552710726b13b524c307c1b5bbe78478eb0)]:
+  - @tanstack/ai-harness@0.1.1
+  - @tanstack/ai@1.0.1
+
 ## 1.0.0
 
 ### Major Changes

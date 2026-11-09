@@ -194,17 +194,35 @@ export class OllamaTextAdapter<TModel extends string> extends BaseTextAdapter<
         ...mappedOptions,
         stream: true,
       })
-      for await (const chunk of this.processOllamaStreamChunks(
-        response,
-        options,
-        logger,
-      )) {
-        yield {
-          ...chunk,
-          metadata: {
-            ...chunk.metadata,
-            tanstack: { ...tanstackMetadata(chunk), source },
-          },
+      // ponytail: an injected client has no per-call signal, so stop this
+      // stream with its own abort(). It cannot cancel before the headers.
+      const signal = this.clientConfig ? undefined : options.request?.signal
+      const onAbort = () => response.abort()
+      if (signal?.aborted) onAbort()
+      else signal?.addEventListener('abort', onAbort, { once: true })
+      let ended = false
+      try {
+        for await (const chunk of this.processOllamaStreamChunks(
+          response,
+          options,
+          logger,
+        )) {
+          yield {
+            ...chunk,
+            metadata: {
+              ...chunk.metadata,
+              tanstack: { ...tanstackMetadata(chunk), source },
+            },
+          }
+        }
+        ended = true
+      } finally {
+        if (signal) {
+          // chat() reuses one signal for every agent-loop step.
+          signal.removeEventListener('abort', onAbort)
+          // A consumer that stops early does not abort the request in
+          // `ollama`, and the listener is gone now, so stop it here.
+          if (!ended) response.abort()
         }
       }
     } catch (error: unknown) {
@@ -245,6 +263,7 @@ export class OllamaTextAdapter<TModel extends string> extends BaseTextAdapter<
     const { logger } = chatOptions
 
     const mappedOptions = this.mapCommonOptionsToOllama(chatOptions)
+    let usage: ReturnType<typeof buildOllamaUsage>
 
     try {
       logger.request(
@@ -257,6 +276,7 @@ export class OllamaTextAdapter<TModel extends string> extends BaseTextAdapter<
         stream: false,
         format: outputSchema,
       })
+      usage = buildOllamaUsage(response)
 
       // A response cut off at the output cap is a truncated JSON document;
       // report it before the parse error (issue #1426).
@@ -281,7 +301,7 @@ export class OllamaTextAdapter<TModel extends string> extends BaseTextAdapter<
       return {
         data: parsed,
         rawText,
-        usage: buildOllamaUsage(response),
+        usage,
       }
     } catch (error: unknown) {
       const err = error as Error
@@ -289,8 +309,12 @@ export class OllamaTextAdapter<TModel extends string> extends BaseTextAdapter<
         error,
         source: 'ollama.structuredOutput',
       })
-      throw new Error(
-        `Structured output generation failed: ${err.message || 'Unknown error occurred'}`,
+      // The model already ran, so the error keeps the usage for the caller.
+      throw Object.assign(
+        new Error(
+          `Structured output generation failed: ${err.message || 'Unknown error occurred'}`,
+        ),
+        usage && { usage },
       )
     }
   }
@@ -329,11 +353,11 @@ export class OllamaTextAdapter<TModel extends string> extends BaseTextAdapter<
 
       const handleToolCall = (toolCall: ToolCall): Array<AdapterYieldChunk> => {
         const actualToolCall = toolCall as ToolCall & {
-          id: string
-          function: { index: number }
+          id?: string
+          function: { index?: number }
         }
         const toolCallId =
-          actualToolCall.id || `${actualToolCall.function.name}_${Date.now()}`
+          actualToolCall.id || generateId(actualToolCall.function.name)
         const events: Array<AdapterYieldChunk> = []
 
         // Emit TOOL_CALL_START if not already emitted for this tool call
@@ -432,7 +456,12 @@ export class OllamaTextAdapter<TModel extends string> extends BaseTextAdapter<
           threadId,
           model: chunk.model,
           timestamp: Date.now(),
-          finishReason: toolCallsEmitted.size > 0 ? 'tool_calls' : 'stop',
+          finishReason:
+            chunk.done_reason === 'length'
+              ? 'length'
+              : toolCallsEmitted.size > 0
+                ? 'tool_calls'
+                : 'stop',
           // usage is optional under exactOptionalPropertyTypes; omit the key
           // entirely when Ollama reported no token counts.
           ...(finishUsage && { usage: finishUsage }),

@@ -118,7 +118,7 @@ export function createImageAdapter(
         defaultHeaders: headers,
       }),
     'vercel-gateway': () =>
-      createVercelGatewayImage('openai/gpt-image-1', DUMMY_KEY, {
+      createVercelGatewayImage('openai/gpt-image-2', DUMMY_KEY, {
         baseURL: openaiUrl(aimockPort),
         defaultHeaders: headers,
       }),
@@ -241,7 +241,7 @@ export function createVideoAdapter(
     if (provider !== 'gemini') {
       throw new Error(`No interactions-video adapter for provider: ${provider}`)
     }
-    return createGeminiVideo('gemini-omni-1.1-flash', DUMMY_KEY, {
+    return createGeminiVideo('gemini-omni-1.2-flash', DUMMY_KEY, {
       httpOptions: { baseUrl: `${llmockBase(aimockPort)}/omni-video`, headers },
     })
   }

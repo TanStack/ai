@@ -1,5 +1,40 @@
 # @tanstack/ai-anthropic
 
+## 1.1.1
+
+### Patch Changes
+
+- [#2042](https://github.com/TanStack/ai/pull/2042) [`1f777da`](https://github.com/TanStack/ai/commit/1f777da51534bde12c9af3efd6c73855836ee7d7) - Report `incomplete-stream` when an Anthropic stream ends before a stop reason (no `message_delta` with `stop_reason` and no `message_stop`). Before, the run had no terminal event and `onFinish` got the partial text as a success. An abort is not reported.
+
+- [#1973](https://github.com/TanStack/ai/pull/1973) [`374fb69`](https://github.com/TanStack/ai/commit/374fb69a534de7e200421056acf3a677fd833bce) - The adapters now call the provider HTTP API with `fetch` and do not create the `@anthropic-ai/sdk` client. At runtime they load only small SDK modules, for example the error classes from `@anthropic-ai/sdk/core/error`. With a bundler that splits chunks, the startup bundle is smaller. Errors keep the same classes and fields.
+
+  These options still load `@anthropic-ai/sdk` on first use: `middleware`, OpenTelemetry tracing, `logLevel: 'info'` or `'debug'` (or `ANTHROPIC_LOG`), and no `apiKey` and no `authToken`.
+
+- Updated dependencies [[`48cbc66`](https://github.com/TanStack/ai/commit/48cbc66d677896e75d242e9c52be67f7da259fd9), [`374fb69`](https://github.com/TanStack/ai/commit/374fb69a534de7e200421056acf3a677fd833bce)]:
+  - @tanstack/ai@1.2.0
+  - @tanstack/ai-utils@1.1.0
+
+## 1.1.0
+
+### Minor Changes
+
+- [#1977](https://github.com/TanStack/ai/pull/1977) [`9ac67f3`](https://github.com/TanStack/ai/commit/9ac67f3acbcecee88714503b205d602560fdc8c6) - Forward the new optional `abortSignal` of the files adapter to `upload`, `get`, and `delete`.
+
+### Patch Changes
+
+- [#1974](https://github.com/TanStack/ai/pull/1974) [`09dde65`](https://github.com/TanStack/ai/commit/09dde65b9fdcc312fd0459c98328c23abd1406cb) - Report token usage for every call that the provider billed, also when the call fails.
+  - Adapters put the usage that they received on `RUN_ERROR`: a cut-off response, a refusal, a parse failure, an empty response, or a stream that fails after usage arrived. Before, many of these paths dropped it.
+  - A non-streaming `structuredOutput()`, image, or speech call that fails after the response throws an error with a `usage` field. `chat()`, `generateImage()`, `generateSpeech()`, and `summarize()` report it.
+  - The `onUsage` middleware hook now also runs for a `RUN_ERROR` with usage. A structured output value that fails the schema check still reports the usage of its call.
+  - Media streams carry `usage` on `RUN_FINISHED` and `RUN_ERROR`. Devtools now gets the `summarize:usage` and `transcription:usage` events, and `text:usage` for a chat `RUN_ERROR` with usage. A call that `onModelError` or a rate-limit retry drops still reports its usage.
+  - Provider fields that were dropped are mapped: Anthropic thinking tokens, Claude Code `total_cost_usd` as `usage.cost`, OpenRouter Responses reasoning tokens, opencode cost and cache writes, ACP and Bedrock cache writes, OpenAI evaluate token details, Gemini Vertex embedding tokens, and audio duration as billed seconds for Whisper, Groq, Cloudflare, and Lovable transcription.
+  - opencode adds up the usage of every agent step in a turn. Before, it counted only the last step.
+  - Gemini Interactions usage (text, agentic video, and images) counts thought tokens in `completionTokens`, the same as `generateContent`.
+
+- Updated dependencies [[`9ac67f3`](https://github.com/TanStack/ai/commit/9ac67f3acbcecee88714503b205d602560fdc8c6), [`9ac67f3`](https://github.com/TanStack/ai/commit/9ac67f3acbcecee88714503b205d602560fdc8c6), [`e17cae7`](https://github.com/TanStack/ai/commit/e17cae7aa40ce5ebe0e78496931d49c793bdaf41), [`d6ead13`](https://github.com/TanStack/ai/commit/d6ead13def85f91782e20d6c1b8755fdf1c836c2), [`450950d`](https://github.com/TanStack/ai/commit/450950da860d58047c654c1497ddb48d651f9076), [`07d2e42`](https://github.com/TanStack/ai/commit/07d2e429c456a31d35748fecf7d8f8c0795eff31), [`13b1ca9`](https://github.com/TanStack/ai/commit/13b1ca918a0ac36761db2a6226973c5330d4221d), [`09dde65`](https://github.com/TanStack/ai/commit/09dde65b9fdcc312fd0459c98328c23abd1406cb)]:
+  - @tanstack/ai@1.1.0
+  - @tanstack/ai-utils@1.0.1
+
 ## 1.0.0
 
 ### Major Changes

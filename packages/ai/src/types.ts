@@ -710,12 +710,19 @@ export interface TanStackMessageMetadata {
    * stopped at the output limit, so its tool calls are not complete.
    */
   finishReason?: TanStackRunMetadata['finishReason']
+  /** See `TanStackRunMetadata.loopStopped`. Set on the last assistant message of the run. */
+  loopStopped?: boolean
   /**
    * The provider's answer items of this assistant message, in order, for a
    * same-model replay. The OpenAI Responses adapter keeps each output
    * message item's `id` and `phase` (`commentary` or `final_answer`).
    */
-  responseItems?: Array<{ id: string; phase?: string }>
+  responseItems?: Array<{
+    id: string
+    phase?: string
+    /** UTF-16 text length, retaining item boundaries when adjacent text is merged. */
+    textLength?: number
+  }>
   /**
    * The model call of this assistant message sent a reasoning item. The
    * OpenAI Responses adapter sets it. A replay that lost that reasoning item
@@ -773,6 +780,14 @@ export interface TanStackRunMetadata {
   /** See `TanStackMessageMetadata.reasoningItem`. */
   reasoningItem?: boolean
   finishReason?: 'stop' | 'length' | 'content_filter' | 'tool_calls' | null
+  /**
+   * `true` on the last `RUN_FINISHED` of a run that the agent loop stopped
+   * before the model was done: `agentLoopStrategy` (for example
+   * `maxIterations`) or a middleware `onShouldContinue` returned `false`
+   * while tool results waited for the next model call. `finishReason` stays
+   * the reason of the last model call.
+   */
+  loopStopped?: boolean
   /** TokenUsage fields that have no AG-UI `usage[]` equivalent. */
   usage?: TokenUsageLeftover
   interruptErrors?: ReadonlyArray<InterruptSubmissionError>
@@ -1878,6 +1893,21 @@ export interface SandboxFileDiffEvent extends CustomEvent {
   name: 'sandbox.file.diff'
   value: { path: string; diff: string }
 }
+/** `withSandbox` sends this before it creates or resumes the sandbox. */
+export interface SandboxStartingEvent extends CustomEvent {
+  name: 'sandbox.starting'
+  value: { provider: string }
+}
+/** `withSandbox` sends this after it creates a new sandbox. */
+export interface SandboxCreatedEvent extends CustomEvent {
+  name: 'sandbox.created'
+  value: { sandboxId: string; provider: string }
+}
+/** `withSandbox` sends this after it resumes an existing sandbox. */
+export interface SandboxResumedEvent extends CustomEvent {
+  name: 'sandbox.resumed'
+  value: { sandboxId: string; provider: string }
+}
 
 // ── Harness events ──────────────────────────────────────────────────────────
 export interface FileChangedEvent extends CustomEvent {
@@ -1944,6 +1974,9 @@ export interface SnippetRegisteredEvent extends CustomEvent {
 export type KnownCustomEvent =
   | SandboxFileCustomEvent
   | SandboxFileDiffEvent
+  | SandboxStartingEvent
+  | SandboxCreatedEvent
+  | SandboxResumedEvent
   | FileChangedEvent
   | SessionIdEvent
   | CodeModeExecutionStartedEvent
@@ -3355,6 +3388,12 @@ export interface EmbeddingOptions<TProviderOptions extends object = object> {
    * blocks.
    */
   logger: InternalLogger
+  /**
+   * Effective abort signal composed by the activity from caller `abortSignal`
+   * and/or `timeout`. Adapters should forward this to the provider SDK when
+   * supported. Request-specific — never store on a global client config.
+   */
+  abortSignal?: AbortSignal
 }
 
 /**

@@ -540,3 +540,57 @@ describe('createQuickJSIsolateDriver', () => {
     })
   })
 })
+
+describe('execute signal', () => {
+  it('stops a run that waits on a tool when the signal aborts', async () => {
+    const controller = new AbortController()
+    // The tool never settles, so only the abort can end the run.
+    const hang = makeBinding('hang', () => {
+      controller.abort()
+      return new Promise(() => {})
+    })
+    const driver = createQuickJSIsolateDriver({ timeout: 60_000 })
+    const context = await driver.createContext({ bindings: { hang } })
+    const result = await context.execute('await hang({}); return 1', {
+      signal: controller.signal,
+    })
+    expect(result.success).toBe(false)
+    expect(result.error?.name).toBe('AbortError')
+    const after = await context.execute('return 1')
+    expect(after.error?.name).toBe('DisposedError')
+  })
+
+  it('does not run the code when the signal is already aborted', async () => {
+    let called = false
+    const spy = makeBinding('spy', () => {
+      called = true
+      return Promise.resolve(1)
+    })
+    const driver = createQuickJSIsolateDriver()
+    const context = await driver.createContext({ bindings: { spy } })
+    const result = await context.execute('return await spy({})', {
+      signal: AbortSignal.abort(),
+    })
+    expect(result.error?.name).toBe('AbortError')
+    expect(called).toBe(false)
+    // Without a signal the same context still runs code.
+    const ok = await context.execute('return await spy({})')
+    expect(ok).toMatchObject({ success: true, value: 1 })
+    await context.dispose()
+  })
+
+  it('keeps the context when guest code throws its own AbortError', async () => {
+    const driver = createQuickJSIsolateDriver()
+    const context = await driver.createContext({ bindings: {} })
+    const code = "const e = new Error('x'); e.name = 'AbortError'; throw e"
+    const withoutSignal = await context.execute(code)
+    expect(withoutSignal.error?.name).toBe('AbortError')
+    const withSignal = await context.execute(code, {
+      signal: new AbortController().signal,
+    })
+    expect(withSignal.error?.name).toBe('AbortError')
+    const after = await context.execute('return 1')
+    expect(after).toMatchObject({ success: true, value: 1 })
+    await context.dispose()
+  })
+})

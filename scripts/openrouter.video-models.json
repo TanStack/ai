@@ -242,7 +242,7 @@
       "cents_per_second_video_continuation_720p": "41",
       "cents_per_second_video_continuation_1080p": "53"
     },
-    "allowed_passthrough_parameters": ["safety_tolerance", "version"]
+    "allowed_passthrough_parameters": ["safety_tolerance", "version", "draft"]
   },
   {
     "id": "black-forest-labs/flux-video-edit",
@@ -537,6 +537,72 @@
     "allowed_passthrough_parameters": ["watermark", "req_key", "output_format"]
   },
   {
+    "id": "google/gemini-omni-1.1-flash",
+    "canonical_slug": "google/gemini-omni-1.1-flash-20260911",
+    "hugging_face_id": null,
+    "name": "Google: Gemini Omni 1.1 Flash",
+    "created": 1793825668,
+    "description": "Gemini Omni 1.1 Flash is Google's native multimodal video generation and editing model, the generally available successor to Gemini Omni Flash Preview. It is suited for text-to-video, image-to-video, first and...",
+    "supported_resolutions": ["720p", "1080p", "4K", "360p"],
+    "supported_aspect_ratios": ["16:9", "9:16"],
+    "supported_sizes": [
+      "1280x720",
+      "720x1280",
+      "1920x1080",
+      "1080x1920",
+      "3840x2160",
+      "2160x3840",
+      "640x360",
+      "360x640"
+    ],
+    "supported_durations": [3, 4, 5, 6, 7, 8, 9, 10],
+    "supported_frame_images": ["first_frame", "last_frame"],
+    "upscale_factor": null,
+    "creativity": null,
+    "generate_audio": true,
+    "seed": true,
+    "pricing_skus": {
+      "duration_seconds_with_audio": "0.15204",
+      "duration_seconds_with_audio_4k": "0.30408",
+      "duration_seconds_with_audio_360p": "0.0337925",
+      "duration_seconds_with_audio_720p": "0.10136"
+    },
+    "allowed_passthrough_parameters": ["task"]
+  },
+  {
+    "id": "google/gemini-omni-1.2-flash",
+    "canonical_slug": "google/gemini-omni-1.2-flash-20261105",
+    "hugging_face_id": null,
+    "name": "Google: Gemini Omni 1.2 Flash",
+    "created": 1793898961,
+    "description": "Gemini Omni 1.2 Flash is Google's native multimodal video generation and editing model, the successor to Gemini Omni 1.1 Flash. It generates clips up to 15 seconds long with native...",
+    "supported_resolutions": ["720p", "1080p", "4K", "360p"],
+    "supported_aspect_ratios": ["16:9", "9:16"],
+    "supported_sizes": [
+      "1280x720",
+      "720x1280",
+      "1920x1080",
+      "1080x1920",
+      "3840x2160",
+      "2160x3840",
+      "640x360",
+      "360x640"
+    ],
+    "supported_durations": [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
+    "supported_frame_images": ["first_frame", "last_frame"],
+    "upscale_factor": null,
+    "creativity": null,
+    "generate_audio": true,
+    "seed": true,
+    "pricing_skus": {
+      "duration_seconds_with_audio": "0.104256",
+      "duration_seconds_with_audio_4k": "0.208512",
+      "duration_seconds_with_audio_360p": "0.023172",
+      "duration_seconds_with_audio_720p": "0.069504"
+    },
+    "allowed_passthrough_parameters": ["task"]
+  },
+  {
     "id": "google/veo-3.1",
     "canonical_slug": "google/veo-3.1-20260320",
     "hugging_face_id": null,
@@ -680,10 +746,13 @@
     "name": "HeyGen: HeyGen Video",
     "created": 1790798684,
     "description": "HeyGen Video is a general-purpose video generation model from HeyGen. It renders short clips with synthesized audio (dialogue, ambience, and sound effects) in a single call, working from a text...",
-    "supported_resolutions": ["480p", "768p", "2K"],
+    "supported_resolutions": ["480p", "768p", "1080p", "2K"],
     "supported_aspect_ratios": ["21:9", "16:9", "4:3", "1:1", "3:4", "9:16"],
     "supported_sizes": null,
-    "supported_durations": [5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
+    "supported_durations": [
+      5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24,
+      25, 26, 27, 28, 29, 30
+    ],
     "supported_frame_images": ["first_frame"],
     "upscale_factor": null,
     "creativity": null,
@@ -693,10 +762,16 @@
       "duration_seconds_2k": "0.1",
       "duration_seconds_480p": "0.02",
       "duration_seconds_768p": "0.036",
+      "duration_seconds_1080p": "0.1",
       "reference_input_images": "0.04",
+      "long_duration_seconds_2k": "0.105",
+      "long_duration_seconds_480p": "0.045",
+      "long_duration_seconds_768p": "0.075",
+      "long_duration_seconds_1080p": "0.105",
       "reference_duration_seconds_2k": "0.18",
       "reference_duration_seconds_480p": "0.07",
-      "reference_duration_seconds_768p": "0.1"
+      "reference_duration_seconds_768p": "0.1",
+      "reference_duration_seconds_1080p": "0.18"
     },
     "allowed_passthrough_parameters": ["prompt_enhancement"]
   },
@@ -892,6 +967,28 @@
       "cents_per_second_output": "12"
     },
     "allowed_passthrough_parameters": ["contentModeration"]
+  },
+  {
+    "id": "tbc/mischief-1",
+    "canonical_slug": "tbc/mischief-1-20261023",
+    "hugging_face_id": null,
+    "name": "TBC: mischief 1",
+    "created": 1793319378,
+    "description": "TBC mischief 1 is the world's first neuron-derived video model from The Biological Computing Co. It supports image to video and is a fast and affordable way to bring ideas...",
+    "supported_resolutions": ["480p", "720p"],
+    "supported_aspect_ratios": ["16:9"],
+    "supported_sizes": ["854x480", "1280x720"],
+    "supported_durations": [3, 5],
+    "supported_frame_images": ["first_frame"],
+    "upscale_factor": null,
+    "creativity": null,
+    "generate_audio": false,
+    "seed": true,
+    "pricing_skus": {
+      "cents_per_video_output_second_480p": "0.5",
+      "cents_per_video_output_second_720p": "1"
+    },
+    "allowed_passthrough_parameters": []
   },
   {
     "id": "x-ai/grok-imagine-video",

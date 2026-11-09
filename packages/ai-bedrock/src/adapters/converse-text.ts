@@ -5,7 +5,7 @@ import {
 } from '@tanstack/ai'
 import { BaseTextAdapter } from '@tanstack/ai/adapters'
 import { toRunErrorPayload } from '@tanstack/ai/adapter-internals'
-import { resolveBedrockAuth } from '../utils/auth'
+import { importOptionalPeer, resolveBedrockAuth } from '../utils/auth'
 import {
   toConverseMessages,
   toolBlocksToText,
@@ -148,7 +148,7 @@ export class BedrockConverseTextAdapter<
    */
   protected importBedrockRuntime(): Promise<typeof BedrockRuntime> {
     const mod = '@aws-sdk/client-bedrock-runtime'
-    return import(/* @vite-ignore */ mod) as Promise<typeof BedrockRuntime>
+    return importOptionalPeer<typeof BedrockRuntime>(mod)
   }
 
   /**
@@ -241,12 +241,13 @@ export class BedrockConverseTextAdapter<
 
   protected async sendStream(
     input: ConverseStreamCommandInput,
+    signal?: AbortSignal | null,
   ): Promise<AsyncIterable<ConverseStreamOutput>> {
     const { ConverseStreamCommand } = await this.importBedrockRuntime()
     const client = await this.getClient()
     const command = new ConverseStreamCommand(input)
     addRestoreDocuments(command, input)
-    const res = await client.send(command)
+    const res = await client.send(command, { abortSignal: signal ?? undefined })
     if (!res.stream) {
       throw new Error('Bedrock Converse: empty stream response')
     }
@@ -255,12 +256,13 @@ export class BedrockConverseTextAdapter<
 
   protected async send(
     input: ConverseCommandInput,
+    signal?: AbortSignal | null,
   ): Promise<ConverseCommandOutput> {
     const { ConverseCommand } = await this.importBedrockRuntime()
     const client = await this.getClient()
     const command = new ConverseCommand(input)
     addRestoreDocuments(command, input)
-    return client.send(command)
+    return client.send(command, { abortSignal: signal ?? undefined })
   }
 
   // ---------------------------------------------------------------------------
@@ -281,7 +283,7 @@ export class BedrockConverseTextAdapter<
       if (!input.toolConfig && input.messages) {
         input.messages = toolBlocksToText(input.messages)
       }
-      const stream = await this.sendStream(input)
+      const stream = await this.sendStream(input, options.request?.signal)
       for await (const chunk of processConverseStream(
         stream,
         () => this.generateId(),
@@ -344,25 +346,31 @@ export class BedrockConverseTextAdapter<
         ...this.buildInput(requestOptions),
         toolConfig: buildStructuredToolConfig(outputSchema),
       }
-      const res = await this.send(input)
+      const res = await this.send(input, chatOptions.request?.signal)
+      const usage = res.usage && buildConverseUsage(res.usage)
       // A forced tool call cut off at the output cap carries partial input,
       // which would read like a schema failure (issue #1426).
       if (res.stopReason === 'max_tokens') {
-        throw new Error(
-          `${this.name}.structuredOutput: the response was cut off because the maximum token limit was reached (stopReason=max_tokens); raise modelOptions.max_completion_tokens`,
+        throw Object.assign(
+          new Error(
+            `${this.name}.structuredOutput: the response was cut off because the maximum token limit was reached (stopReason=max_tokens); raise modelOptions.max_completion_tokens`,
+          ),
+          usage && { usage },
         )
       }
       const structured = extractStructuredToolInput(res)
       if (structured === undefined) {
-        throw new Error(
-          `${this.name}.structuredOutput: response contained no forced-tool output`,
+        throw Object.assign(
+          new Error(
+            `${this.name}.structuredOutput: response contained no forced-tool output`,
+          ),
+          usage && { usage },
         )
       }
-      const usage = res.usage
       return {
         data: structured,
         rawText: JSON.stringify(structured),
-        ...(usage && { usage: buildConverseUsage(usage) }),
+        ...(usage && { usage }),
       }
     } catch (error: unknown) {
       chatOptions.logger.errors(`${this.name}.structuredOutput fatal`, {
@@ -408,7 +416,7 @@ export class BedrockConverseTextAdapter<
         ...this.buildInput(requestOptions),
         toolConfig: buildStructuredToolConfig(outputSchema),
       }
-      const stream = await this.sendStream(input)
+      const stream = await this.sendStream(input, chatOptions.request?.signal)
 
       // The forced tool streams its `input` as partial-JSON fragments inside
       // `contentBlockDelta.delta.toolUse.input`. We surface them as
@@ -468,7 +476,8 @@ export class BedrockConverseTextAdapter<
           finishReason =
             stopReason === 'max_tokens'
               ? 'length'
-              : stopReason === 'content_filtered'
+              : stopReason === 'content_filtered' ||
+                  stopReason === 'guardrail_intervened'
                 ? 'content_filter'
                 : 'stop'
           continue
@@ -518,23 +527,27 @@ export class BedrockConverseTextAdapter<
           message,
           code: 'max_tokens',
           error: { message, code: 'max_tokens' },
+          ...(usage && { usage }),
         }
         return
       }
 
       if (accumulatedRaw.length === 0) {
+        const blocked = finishReason === 'content_filter'
+        const message = blocked
+          ? `${this.name}.structuredOutputStream: the response was blocked by a content filter`
+          : `${this.name}.structuredOutputStream: response contained no content`
+        const code = blocked ? 'content_filter' : 'empty-response'
         yield {
           type: EventType.RUN_ERROR,
           metadata: this.sourceMetadata(chatOptions.model),
           runId,
           model: chatOptions.model,
           timestamp: Date.now(),
-          message: `${this.name}.structuredOutputStream: response contained no content`,
-          code: 'empty-response',
-          error: {
-            message: `${this.name}.structuredOutputStream: response contained no content`,
-            code: 'empty-response',
-          },
+          message,
+          code,
+          error: { message, code },
+          ...(usage && { usage }),
         }
         return
       }
@@ -543,18 +556,26 @@ export class BedrockConverseTextAdapter<
       try {
         parsed = JSON.parse(accumulatedRaw)
       } catch {
+        const blocked = finishReason === 'content_filter'
+        const message = blocked
+          ? `${this.name}.structuredOutputStream: the response was blocked by a content filter`
+          : `Failed to parse structured output as JSON. Content: ${accumulatedRaw.slice(0, 200)}${accumulatedRaw.length > 200 ? '...' : ''}`
+        const code = blocked ? 'content_filter' : 'parse-error'
         yield {
           type: EventType.RUN_ERROR,
           metadata: this.sourceMetadata(chatOptions.model),
           runId,
           model: chatOptions.model,
           timestamp: Date.now(),
-          message: `Failed to parse structured output as JSON. Content: ${accumulatedRaw.slice(0, 200)}${accumulatedRaw.length > 200 ? '...' : ''}`,
-          code: 'parse-error',
+          message,
+          code,
           error: {
-            message: 'Failed to parse structured output as JSON',
-            code: 'parse-error',
+            message: blocked
+              ? message
+              : 'Failed to parse structured output as JSON',
+            code,
           },
+          ...(usage && { usage }),
         }
         return
       }
@@ -613,6 +634,7 @@ export class BedrockConverseTextAdapter<
           message: errorPayload.message,
           ...(errorPayload.code !== undefined && { code: errorPayload.code }),
         },
+        ...(usage && { usage }),
       }
     }
   }

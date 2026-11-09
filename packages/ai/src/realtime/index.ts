@@ -1,3 +1,4 @@
+import { raceWithAbort } from '../utilities/activity-abort'
 import type { RealtimeToken, RealtimeTokenOptions } from './types'
 
 export { createRealtimeEventEmitter } from './event-emitter'
@@ -29,6 +30,11 @@ export type * from './types'
 export async function realtimeToken(
   options: RealtimeTokenOptions,
 ): Promise<RealtimeToken> {
-  const { adapter } = options
-  return adapter.generateToken()
+  const { adapter, abortSignal } = options
+  return raceWithAbort(
+    abortSignal
+      ? adapter.generateToken({ abortSignal })
+      : adapter.generateToken(),
+    abortSignal,
+  )
 }

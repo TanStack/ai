@@ -38,7 +38,10 @@ pnpm add @tanstack/ai-isolate-e2b @tanstack/ai-code-mode e2b
 ```typescript
 import { Sandbox } from 'e2b'
 import { createCodeMode } from '@tanstack/ai-code-mode'
+import type { CodeModeTool } from '@tanstack/ai-code-mode'
 import { createE2BIsolateDriver } from '@tanstack/ai-isolate-e2b'
+
+declare const myServerTool: CodeModeTool
 
 const sandbox = await Sandbox.create()
 

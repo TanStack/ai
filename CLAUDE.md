@@ -24,14 +24,14 @@ TanStack AI is a type-safe, provider-agnostic AI SDK for building AI-powered app
 
 - **Package Manager**: pnpm@11.9.0 (required, see `packageManager` in
   `package.json`)
-- **Node**: 24.8.0 (see `.nvmrc`). On Node 22, Nx fails to load the
+- **Node**: the Node 24 version in `.nvmrc`. On Node 22, Nx fails to load the
   workspace plugin with `tsModule.readConfigFile is not a function`.
 - **Build System**: Nx for task orchestration and caching
 - **TypeScript**: 7.0.2 (native Go compiler). Framework build/typecheck tools
   that still need the pre-7 JS Compiler API (svelte-package, svelte-check,
   vue-tsc, knip, typedoc) run against the `@typescript/typescript6` (6.0.2)
   shim via `pnpm-workspace.yaml` packageExtensions. Angular cannot run on TS7,
-  so it pins `typescript@5.9.3` instead. kiira 0.6.0 is TS7-native and does
+  so the Angular packages pin `typescript@6.0.2` (Angular 22 requires `>=6.0 <6.1`). kiira 0.6.0 is TS7-native and does
   not need a shim. See that file's comments.
 - **Testing**: Vitest for unit tests
 - **Linting**: oxlint (incl. type-aware rules via `oxlint-tsgolint`); a few

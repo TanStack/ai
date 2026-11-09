@@ -45,6 +45,7 @@ import { Route as SubagentsUiTestRouteImport } from './routes/subagents-ui-test'
 import { Route as TextFirstToolRouteImport } from './routes/text-first-tool'
 import { Route as ToolFirstTextRouteImport } from './routes/tool-first-text'
 import { Route as ToolsTestRouteImport } from './routes/tools-test'
+import { Route as UseChatHiddenViewRouteImport } from './routes/use-chat-hidden-view'
 import { Route as WebMcpPageToolsRouteImport } from './routes/web-mcp-page-tools'
 import { Route as WebMcpToolsRouteImport } from './routes/web-mcp-tools'
 import { Route as WebsocketAdapterRouteImport } from './routes/websocket-adapter'
@@ -90,8 +91,12 @@ import { Route as ApiCopilotWireRouteImport } from './routes/api.copilot-wire'
 import { Route as ApiCrossModelReplayWireRouteImport } from './routes/api.cross-model-replay-wire'
 import { Route as ApiDevtoolsMemoryRouteImport } from './routes/api.devtools-memory'
 import { Route as ApiDurableDeliveryRouteImport } from './routes/api.durable-delivery'
+import { Route as ApiDurableDeliveryCancelRouteImport } from './routes/api.durable-delivery-cancel'
+import { Route as ApiDurableMcpInputRouteImport } from './routes/api.durable-mcp-input'
 import { Route as ApiDurableTakeoverRouteImport } from './routes/api.durable-takeover'
+import { Route as ApiEffectChatRouteImport } from './routes/api.effect-chat'
 import { Route as ApiEmbeddingRouteImport } from './routes/api.embedding'
+import { Route as ApiEmbeddingAbortRouteImport } from './routes/api.embedding-abort'
 import { Route as ApiEvaluateHttpStatusRouteImport } from './routes/api.evaluate-http-status'
 import { Route as ApiEvaluateRefusalRouteImport } from './routes/api.evaluate-refusal'
 import { Route as ApiEvaluateUsageOnFailureRouteImport } from './routes/api.evaluate-usage-on-failure'
@@ -120,6 +125,7 @@ import { Route as ApiJsonTransportRouteImport } from './routes/api.json-transpor
 import { Route as ApiKeyedAdapterRouteImport } from './routes/api.keyed-adapter'
 import { Route as ApiLazyToolsWireRouteImport } from './routes/api.lazy-tools-wire'
 import { Route as ApiLoneSurrogatesWireRouteImport } from './routes/api.lone-surrogates-wire'
+import { Route as ApiLoopStoppedRouteImport } from './routes/api.loop-stopped'
 import { Route as ApiMaxToolCallsWireRouteImport } from './routes/api.max-tool-calls-wire'
 import { Route as ApiMcpAppsCallRouteImport } from './routes/api.mcp-apps-call'
 import { Route as ApiMcpAppsChatRouteImport } from './routes/api.mcp-apps-chat'
@@ -150,6 +156,8 @@ import { Route as ApiMoonshotUsageDetailsRouteImport } from './routes/api.moonsh
 import { Route as ApiMultimodalToolResultWireRouteImport } from './routes/api.multimodal-tool-result-wire'
 import { Route as ApiNeonWireRouteImport } from './routes/api.neon-wire'
 import { Route as ApiNonStreamingRunErrorRouteImport } from './routes/api.non-streaming-run-error'
+import { Route as ApiOllamaLengthTruncationRouteImport } from './routes/api.ollama-length-truncation'
+import { Route as ApiOpenaiApplyPatchWireRouteImport } from './routes/api.openai-apply-patch-wire'
 import { Route as ApiOpenaiCompletedResponseTextRouteImport } from './routes/api.openai-completed-response-text'
 import { Route as ApiOpenaiComputerUseWireRouteImport } from './routes/api.openai-computer-use-wire'
 import { Route as ApiOpenaiImage25ModelsRouteImport } from './routes/api.openai-image-2-5-models'
@@ -194,6 +202,7 @@ import { Route as ApiToolFirstTextWireRouteImport } from './routes/api.tool-firs
 import { Route as ApiToolsTestRouteImport } from './routes/api.tools-test'
 import { Route as ApiTranscriptionRouteImport } from './routes/api.transcription'
 import { Route as ApiTtsRouteImport } from './routes/api.tts'
+import { Route as ApiUseChatHiddenViewRouteImport } from './routes/api.use-chat-hidden-view'
 import { Route as ApiVideoRouteImport } from './routes/api.video'
 import { Route as ApiVideoLiveRouteImport } from './routes/api.video-live'
 import { Route as ApiVoiceRouteImport } from './routes/api.voice'
@@ -392,6 +401,11 @@ const ToolFirstTextRoute = ToolFirstTextRouteImport.update({
 const ToolsTestRoute = ToolsTestRouteImport.update({
   id: '/tools-test',
   path: '/tools-test',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const UseChatHiddenViewRoute = UseChatHiddenViewRouteImport.update({
+  id: '/use-chat-hidden-view',
+  path: '/use-chat-hidden-view',
   getParentRoute: () => rootRouteImport,
 } as any)
 const WebMcpPageToolsRoute = WebMcpPageToolsRouteImport.update({
@@ -637,14 +651,35 @@ const ApiDurableDeliveryRoute = ApiDurableDeliveryRouteImport.update({
   path: '/api/durable-delivery',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiDurableDeliveryCancelRoute =
+  ApiDurableDeliveryCancelRouteImport.update({
+    id: '/api/durable-delivery-cancel',
+    path: '/api/durable-delivery-cancel',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiDurableMcpInputRoute = ApiDurableMcpInputRouteImport.update({
+  id: '/api/durable-mcp-input',
+  path: '/api/durable-mcp-input',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiDurableTakeoverRoute = ApiDurableTakeoverRouteImport.update({
   id: '/api/durable-takeover',
   path: '/api/durable-takeover',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiEffectChatRoute = ApiEffectChatRouteImport.update({
+  id: '/api/effect-chat',
+  path: '/api/effect-chat',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiEmbeddingRoute = ApiEmbeddingRouteImport.update({
   id: '/api/embedding',
   path: '/api/embedding',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiEmbeddingAbortRoute = ApiEmbeddingAbortRouteImport.update({
+  id: '/api/embedding-abort',
+  path: '/api/embedding-abort',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiEvaluateHttpStatusRoute = ApiEvaluateHttpStatusRouteImport.update({
@@ -790,6 +825,11 @@ const ApiLazyToolsWireRoute = ApiLazyToolsWireRouteImport.update({
 const ApiLoneSurrogatesWireRoute = ApiLoneSurrogatesWireRouteImport.update({
   id: '/api/lone-surrogates-wire',
   path: '/api/lone-surrogates-wire',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiLoopStoppedRoute = ApiLoopStoppedRouteImport.update({
+  id: '/api/loop-stopped',
+  path: '/api/loop-stopped',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiMaxToolCallsWireRoute = ApiMaxToolCallsWireRouteImport.update({
@@ -943,6 +983,17 @@ const ApiNeonWireRoute = ApiNeonWireRouteImport.update({
 const ApiNonStreamingRunErrorRoute = ApiNonStreamingRunErrorRouteImport.update({
   id: '/api/non-streaming-run-error',
   path: '/api/non-streaming-run-error',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiOllamaLengthTruncationRoute =
+  ApiOllamaLengthTruncationRouteImport.update({
+    id: '/api/ollama-length-truncation',
+    path: '/api/ollama-length-truncation',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiOpenaiApplyPatchWireRoute = ApiOpenaiApplyPatchWireRouteImport.update({
+  id: '/api/openai-apply-patch-wire',
+  path: '/api/openai-apply-patch-wire',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiOpenaiCompletedResponseTextRoute =
@@ -1184,6 +1235,11 @@ const ApiTtsRoute = ApiTtsRouteImport.update({
   path: '/api/tts',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiUseChatHiddenViewRoute = ApiUseChatHiddenViewRouteImport.update({
+  id: '/api/use-chat-hidden-view',
+  path: '/api/use-chat-hidden-view',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiVideoRoute = ApiVideoRouteImport.update({
   id: '/api/video',
   path: '/api/video',
@@ -1304,6 +1360,7 @@ export interface FileRoutesByFullPath {
   '/text-first-tool': typeof TextFirstToolRoute
   '/tool-first-text': typeof ToolFirstTextRoute
   '/tools-test': typeof ToolsTestRoute
+  '/use-chat-hidden-view': typeof UseChatHiddenViewRoute
   '/web-mcp-page-tools': typeof WebMcpPageToolsRoute
   '/web-mcp-tools': typeof WebMcpToolsRoute
   '/websocket-adapter': typeof WebsocketAdapterRoute
@@ -1348,8 +1405,12 @@ export interface FileRoutesByFullPath {
   '/api/cross-model-replay-wire': typeof ApiCrossModelReplayWireRoute
   '/api/devtools-memory': typeof ApiDevtoolsMemoryRoute
   '/api/durable-delivery': typeof ApiDurableDeliveryRoute
+  '/api/durable-delivery-cancel': typeof ApiDurableDeliveryCancelRoute
+  '/api/durable-mcp-input': typeof ApiDurableMcpInputRoute
   '/api/durable-takeover': typeof ApiDurableTakeoverRoute
+  '/api/effect-chat': typeof ApiEffectChatRoute
   '/api/embedding': typeof ApiEmbeddingRoute
+  '/api/embedding-abort': typeof ApiEmbeddingAbortRoute
   '/api/evaluate-http-status': typeof ApiEvaluateHttpStatusRoute
   '/api/evaluate-refusal': typeof ApiEvaluateRefusalRoute
   '/api/evaluate-usage-on-failure': typeof ApiEvaluateUsageOnFailureRoute
@@ -1378,6 +1439,7 @@ export interface FileRoutesByFullPath {
   '/api/keyed-adapter': typeof ApiKeyedAdapterRoute
   '/api/lazy-tools-wire': typeof ApiLazyToolsWireRoute
   '/api/lone-surrogates-wire': typeof ApiLoneSurrogatesWireRoute
+  '/api/loop-stopped': typeof ApiLoopStoppedRoute
   '/api/max-tool-calls-wire': typeof ApiMaxToolCallsWireRoute
   '/api/mcp-apps-call': typeof ApiMcpAppsCallRoute
   '/api/mcp-apps-chat': typeof ApiMcpAppsChatRoute
@@ -1408,6 +1470,8 @@ export interface FileRoutesByFullPath {
   '/api/multimodal-tool-result-wire': typeof ApiMultimodalToolResultWireRoute
   '/api/neon-wire': typeof ApiNeonWireRoute
   '/api/non-streaming-run-error': typeof ApiNonStreamingRunErrorRoute
+  '/api/ollama-length-truncation': typeof ApiOllamaLengthTruncationRoute
+  '/api/openai-apply-patch-wire': typeof ApiOpenaiApplyPatchWireRoute
   '/api/openai-completed-response-text': typeof ApiOpenaiCompletedResponseTextRoute
   '/api/openai-computer-use-wire': typeof ApiOpenaiComputerUseWireRoute
   '/api/openai-image-2-5-models': typeof ApiOpenaiImage25ModelsRoute
@@ -1452,6 +1516,7 @@ export interface FileRoutesByFullPath {
   '/api/tools-test': typeof ApiToolsTestRoute
   '/api/transcription': typeof ApiTranscriptionRouteWithChildren
   '/api/tts': typeof ApiTtsRouteWithChildren
+  '/api/use-chat-hidden-view': typeof ApiUseChatHiddenViewRoute
   '/api/video': typeof ApiVideoRouteWithChildren
   '/api/video-live': typeof ApiVideoLiveRoute
   '/api/voice': typeof ApiVoiceRoute
@@ -1507,6 +1572,7 @@ export interface FileRoutesByTo {
   '/text-first-tool': typeof TextFirstToolRoute
   '/tool-first-text': typeof ToolFirstTextRoute
   '/tools-test': typeof ToolsTestRoute
+  '/use-chat-hidden-view': typeof UseChatHiddenViewRoute
   '/web-mcp-page-tools': typeof WebMcpPageToolsRoute
   '/web-mcp-tools': typeof WebMcpToolsRoute
   '/websocket-adapter': typeof WebsocketAdapterRoute
@@ -1551,8 +1617,12 @@ export interface FileRoutesByTo {
   '/api/cross-model-replay-wire': typeof ApiCrossModelReplayWireRoute
   '/api/devtools-memory': typeof ApiDevtoolsMemoryRoute
   '/api/durable-delivery': typeof ApiDurableDeliveryRoute
+  '/api/durable-delivery-cancel': typeof ApiDurableDeliveryCancelRoute
+  '/api/durable-mcp-input': typeof ApiDurableMcpInputRoute
   '/api/durable-takeover': typeof ApiDurableTakeoverRoute
+  '/api/effect-chat': typeof ApiEffectChatRoute
   '/api/embedding': typeof ApiEmbeddingRoute
+  '/api/embedding-abort': typeof ApiEmbeddingAbortRoute
   '/api/evaluate-http-status': typeof ApiEvaluateHttpStatusRoute
   '/api/evaluate-refusal': typeof ApiEvaluateRefusalRoute
   '/api/evaluate-usage-on-failure': typeof ApiEvaluateUsageOnFailureRoute
@@ -1581,6 +1651,7 @@ export interface FileRoutesByTo {
   '/api/keyed-adapter': typeof ApiKeyedAdapterRoute
   '/api/lazy-tools-wire': typeof ApiLazyToolsWireRoute
   '/api/lone-surrogates-wire': typeof ApiLoneSurrogatesWireRoute
+  '/api/loop-stopped': typeof ApiLoopStoppedRoute
   '/api/max-tool-calls-wire': typeof ApiMaxToolCallsWireRoute
   '/api/mcp-apps-call': typeof ApiMcpAppsCallRoute
   '/api/mcp-apps-chat': typeof ApiMcpAppsChatRoute
@@ -1611,6 +1682,8 @@ export interface FileRoutesByTo {
   '/api/multimodal-tool-result-wire': typeof ApiMultimodalToolResultWireRoute
   '/api/neon-wire': typeof ApiNeonWireRoute
   '/api/non-streaming-run-error': typeof ApiNonStreamingRunErrorRoute
+  '/api/ollama-length-truncation': typeof ApiOllamaLengthTruncationRoute
+  '/api/openai-apply-patch-wire': typeof ApiOpenaiApplyPatchWireRoute
   '/api/openai-completed-response-text': typeof ApiOpenaiCompletedResponseTextRoute
   '/api/openai-computer-use-wire': typeof ApiOpenaiComputerUseWireRoute
   '/api/openai-image-2-5-models': typeof ApiOpenaiImage25ModelsRoute
@@ -1655,6 +1728,7 @@ export interface FileRoutesByTo {
   '/api/tools-test': typeof ApiToolsTestRoute
   '/api/transcription': typeof ApiTranscriptionRouteWithChildren
   '/api/tts': typeof ApiTtsRouteWithChildren
+  '/api/use-chat-hidden-view': typeof ApiUseChatHiddenViewRoute
   '/api/video': typeof ApiVideoRouteWithChildren
   '/api/video-live': typeof ApiVideoLiveRoute
   '/api/voice': typeof ApiVoiceRoute
@@ -1711,6 +1785,7 @@ export interface FileRoutesById {
   '/text-first-tool': typeof TextFirstToolRoute
   '/tool-first-text': typeof ToolFirstTextRoute
   '/tools-test': typeof ToolsTestRoute
+  '/use-chat-hidden-view': typeof UseChatHiddenViewRoute
   '/web-mcp-page-tools': typeof WebMcpPageToolsRoute
   '/web-mcp-tools': typeof WebMcpToolsRoute
   '/websocket-adapter': typeof WebsocketAdapterRoute
@@ -1755,8 +1830,12 @@ export interface FileRoutesById {
   '/api/cross-model-replay-wire': typeof ApiCrossModelReplayWireRoute
   '/api/devtools-memory': typeof ApiDevtoolsMemoryRoute
   '/api/durable-delivery': typeof ApiDurableDeliveryRoute
+  '/api/durable-delivery-cancel': typeof ApiDurableDeliveryCancelRoute
+  '/api/durable-mcp-input': typeof ApiDurableMcpInputRoute
   '/api/durable-takeover': typeof ApiDurableTakeoverRoute
+  '/api/effect-chat': typeof ApiEffectChatRoute
   '/api/embedding': typeof ApiEmbeddingRoute
+  '/api/embedding-abort': typeof ApiEmbeddingAbortRoute
   '/api/evaluate-http-status': typeof ApiEvaluateHttpStatusRoute
   '/api/evaluate-refusal': typeof ApiEvaluateRefusalRoute
   '/api/evaluate-usage-on-failure': typeof ApiEvaluateUsageOnFailureRoute
@@ -1785,6 +1864,7 @@ export interface FileRoutesById {
   '/api/keyed-adapter': typeof ApiKeyedAdapterRoute
   '/api/lazy-tools-wire': typeof ApiLazyToolsWireRoute
   '/api/lone-surrogates-wire': typeof ApiLoneSurrogatesWireRoute
+  '/api/loop-stopped': typeof ApiLoopStoppedRoute
   '/api/max-tool-calls-wire': typeof ApiMaxToolCallsWireRoute
   '/api/mcp-apps-call': typeof ApiMcpAppsCallRoute
   '/api/mcp-apps-chat': typeof ApiMcpAppsChatRoute
@@ -1815,6 +1895,8 @@ export interface FileRoutesById {
   '/api/multimodal-tool-result-wire': typeof ApiMultimodalToolResultWireRoute
   '/api/neon-wire': typeof ApiNeonWireRoute
   '/api/non-streaming-run-error': typeof ApiNonStreamingRunErrorRoute
+  '/api/ollama-length-truncation': typeof ApiOllamaLengthTruncationRoute
+  '/api/openai-apply-patch-wire': typeof ApiOpenaiApplyPatchWireRoute
   '/api/openai-completed-response-text': typeof ApiOpenaiCompletedResponseTextRoute
   '/api/openai-computer-use-wire': typeof ApiOpenaiComputerUseWireRoute
   '/api/openai-image-2-5-models': typeof ApiOpenaiImage25ModelsRoute
@@ -1859,6 +1941,7 @@ export interface FileRoutesById {
   '/api/tools-test': typeof ApiToolsTestRoute
   '/api/transcription': typeof ApiTranscriptionRouteWithChildren
   '/api/tts': typeof ApiTtsRouteWithChildren
+  '/api/use-chat-hidden-view': typeof ApiUseChatHiddenViewRoute
   '/api/video': typeof ApiVideoRouteWithChildren
   '/api/video-live': typeof ApiVideoLiveRoute
   '/api/voice': typeof ApiVoiceRoute
@@ -1916,6 +1999,7 @@ export interface FileRouteTypes {
     | '/text-first-tool'
     | '/tool-first-text'
     | '/tools-test'
+    | '/use-chat-hidden-view'
     | '/web-mcp-page-tools'
     | '/web-mcp-tools'
     | '/websocket-adapter'
@@ -1960,8 +2044,12 @@ export interface FileRouteTypes {
     | '/api/cross-model-replay-wire'
     | '/api/devtools-memory'
     | '/api/durable-delivery'
+    | '/api/durable-delivery-cancel'
+    | '/api/durable-mcp-input'
     | '/api/durable-takeover'
+    | '/api/effect-chat'
     | '/api/embedding'
+    | '/api/embedding-abort'
     | '/api/evaluate-http-status'
     | '/api/evaluate-refusal'
     | '/api/evaluate-usage-on-failure'
@@ -1990,6 +2078,7 @@ export interface FileRouteTypes {
     | '/api/keyed-adapter'
     | '/api/lazy-tools-wire'
     | '/api/lone-surrogates-wire'
+    | '/api/loop-stopped'
     | '/api/max-tool-calls-wire'
     | '/api/mcp-apps-call'
     | '/api/mcp-apps-chat'
@@ -2020,6 +2109,8 @@ export interface FileRouteTypes {
     | '/api/multimodal-tool-result-wire'
     | '/api/neon-wire'
     | '/api/non-streaming-run-error'
+    | '/api/ollama-length-truncation'
+    | '/api/openai-apply-patch-wire'
     | '/api/openai-completed-response-text'
     | '/api/openai-computer-use-wire'
     | '/api/openai-image-2-5-models'
@@ -2064,6 +2155,7 @@ export interface FileRouteTypes {
     | '/api/tools-test'
     | '/api/transcription'
     | '/api/tts'
+    | '/api/use-chat-hidden-view'
     | '/api/video'
     | '/api/video-live'
     | '/api/voice'
@@ -2119,6 +2211,7 @@ export interface FileRouteTypes {
     | '/text-first-tool'
     | '/tool-first-text'
     | '/tools-test'
+    | '/use-chat-hidden-view'
     | '/web-mcp-page-tools'
     | '/web-mcp-tools'
     | '/websocket-adapter'
@@ -2163,8 +2256,12 @@ export interface FileRouteTypes {
     | '/api/cross-model-replay-wire'
     | '/api/devtools-memory'
     | '/api/durable-delivery'
+    | '/api/durable-delivery-cancel'
+    | '/api/durable-mcp-input'
     | '/api/durable-takeover'
+    | '/api/effect-chat'
     | '/api/embedding'
+    | '/api/embedding-abort'
     | '/api/evaluate-http-status'
     | '/api/evaluate-refusal'
     | '/api/evaluate-usage-on-failure'
@@ -2193,6 +2290,7 @@ export interface FileRouteTypes {
     | '/api/keyed-adapter'
     | '/api/lazy-tools-wire'
     | '/api/lone-surrogates-wire'
+    | '/api/loop-stopped'
     | '/api/max-tool-calls-wire'
     | '/api/mcp-apps-call'
     | '/api/mcp-apps-chat'
@@ -2223,6 +2321,8 @@ export interface FileRouteTypes {
     | '/api/multimodal-tool-result-wire'
     | '/api/neon-wire'
     | '/api/non-streaming-run-error'
+    | '/api/ollama-length-truncation'
+    | '/api/openai-apply-patch-wire'
     | '/api/openai-completed-response-text'
     | '/api/openai-computer-use-wire'
     | '/api/openai-image-2-5-models'
@@ -2267,6 +2367,7 @@ export interface FileRouteTypes {
     | '/api/tools-test'
     | '/api/transcription'
     | '/api/tts'
+    | '/api/use-chat-hidden-view'
     | '/api/video'
     | '/api/video-live'
     | '/api/voice'
@@ -2322,6 +2423,7 @@ export interface FileRouteTypes {
     | '/text-first-tool'
     | '/tool-first-text'
     | '/tools-test'
+    | '/use-chat-hidden-view'
     | '/web-mcp-page-tools'
     | '/web-mcp-tools'
     | '/websocket-adapter'
@@ -2366,8 +2468,12 @@ export interface FileRouteTypes {
     | '/api/cross-model-replay-wire'
     | '/api/devtools-memory'
     | '/api/durable-delivery'
+    | '/api/durable-delivery-cancel'
+    | '/api/durable-mcp-input'
     | '/api/durable-takeover'
+    | '/api/effect-chat'
     | '/api/embedding'
+    | '/api/embedding-abort'
     | '/api/evaluate-http-status'
     | '/api/evaluate-refusal'
     | '/api/evaluate-usage-on-failure'
@@ -2396,6 +2502,7 @@ export interface FileRouteTypes {
     | '/api/keyed-adapter'
     | '/api/lazy-tools-wire'
     | '/api/lone-surrogates-wire'
+    | '/api/loop-stopped'
     | '/api/max-tool-calls-wire'
     | '/api/mcp-apps-call'
     | '/api/mcp-apps-chat'
@@ -2426,6 +2533,8 @@ export interface FileRouteTypes {
     | '/api/multimodal-tool-result-wire'
     | '/api/neon-wire'
     | '/api/non-streaming-run-error'
+    | '/api/ollama-length-truncation'
+    | '/api/openai-apply-patch-wire'
     | '/api/openai-completed-response-text'
     | '/api/openai-computer-use-wire'
     | '/api/openai-image-2-5-models'
@@ -2470,6 +2579,7 @@ export interface FileRouteTypes {
     | '/api/tools-test'
     | '/api/transcription'
     | '/api/tts'
+    | '/api/use-chat-hidden-view'
     | '/api/video'
     | '/api/video-live'
     | '/api/voice'
@@ -2526,6 +2636,7 @@ export interface RootRouteChildren {
   TextFirstToolRoute: typeof TextFirstToolRoute
   ToolFirstTextRoute: typeof ToolFirstTextRoute
   ToolsTestRoute: typeof ToolsTestRoute
+  UseChatHiddenViewRoute: typeof UseChatHiddenViewRoute
   WebMcpPageToolsRoute: typeof WebMcpPageToolsRoute
   WebMcpToolsRoute: typeof WebMcpToolsRoute
   WebsocketAdapterRoute: typeof WebsocketAdapterRoute
@@ -2570,8 +2681,12 @@ export interface RootRouteChildren {
   ApiCrossModelReplayWireRoute: typeof ApiCrossModelReplayWireRoute
   ApiDevtoolsMemoryRoute: typeof ApiDevtoolsMemoryRoute
   ApiDurableDeliveryRoute: typeof ApiDurableDeliveryRoute
+  ApiDurableDeliveryCancelRoute: typeof ApiDurableDeliveryCancelRoute
+  ApiDurableMcpInputRoute: typeof ApiDurableMcpInputRoute
   ApiDurableTakeoverRoute: typeof ApiDurableTakeoverRoute
+  ApiEffectChatRoute: typeof ApiEffectChatRoute
   ApiEmbeddingRoute: typeof ApiEmbeddingRoute
+  ApiEmbeddingAbortRoute: typeof ApiEmbeddingAbortRoute
   ApiEvaluateHttpStatusRoute: typeof ApiEvaluateHttpStatusRoute
   ApiEvaluateRefusalRoute: typeof ApiEvaluateRefusalRoute
   ApiEvaluateUsageOnFailureRoute: typeof ApiEvaluateUsageOnFailureRoute
@@ -2600,6 +2715,7 @@ export interface RootRouteChildren {
   ApiKeyedAdapterRoute: typeof ApiKeyedAdapterRoute
   ApiLazyToolsWireRoute: typeof ApiLazyToolsWireRoute
   ApiLoneSurrogatesWireRoute: typeof ApiLoneSurrogatesWireRoute
+  ApiLoopStoppedRoute: typeof ApiLoopStoppedRoute
   ApiMaxToolCallsWireRoute: typeof ApiMaxToolCallsWireRoute
   ApiMcpAppsCallRoute: typeof ApiMcpAppsCallRoute
   ApiMcpAppsChatRoute: typeof ApiMcpAppsChatRoute
@@ -2630,6 +2746,8 @@ export interface RootRouteChildren {
   ApiMultimodalToolResultWireRoute: typeof ApiMultimodalToolResultWireRoute
   ApiNeonWireRoute: typeof ApiNeonWireRoute
   ApiNonStreamingRunErrorRoute: typeof ApiNonStreamingRunErrorRoute
+  ApiOllamaLengthTruncationRoute: typeof ApiOllamaLengthTruncationRoute
+  ApiOpenaiApplyPatchWireRoute: typeof ApiOpenaiApplyPatchWireRoute
   ApiOpenaiCompletedResponseTextRoute: typeof ApiOpenaiCompletedResponseTextRoute
   ApiOpenaiComputerUseWireRoute: typeof ApiOpenaiComputerUseWireRoute
   ApiOpenaiImage25ModelsRoute: typeof ApiOpenaiImage25ModelsRoute
@@ -2674,6 +2792,7 @@ export interface RootRouteChildren {
   ApiToolsTestRoute: typeof ApiToolsTestRoute
   ApiTranscriptionRoute: typeof ApiTranscriptionRouteWithChildren
   ApiTtsRoute: typeof ApiTtsRouteWithChildren
+  ApiUseChatHiddenViewRoute: typeof ApiUseChatHiddenViewRoute
   ApiVideoRoute: typeof ApiVideoRouteWithChildren
   ApiVideoLiveRoute: typeof ApiVideoLiveRoute
   ApiVoiceRoute: typeof ApiVoiceRoute
@@ -2940,6 +3059,13 @@ declare module '@tanstack/react-router' {
       path: '/tools-test'
       fullPath: '/tools-test'
       preLoaderRoute: typeof ToolsTestRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/use-chat-hidden-view': {
+      id: '/use-chat-hidden-view'
+      path: '/use-chat-hidden-view'
+      fullPath: '/use-chat-hidden-view'
+      preLoaderRoute: typeof UseChatHiddenViewRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/web-mcp-page-tools': {
@@ -3257,6 +3383,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiDurableDeliveryRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/durable-delivery-cancel': {
+      id: '/api/durable-delivery-cancel'
+      path: '/api/durable-delivery-cancel'
+      fullPath: '/api/durable-delivery-cancel'
+      preLoaderRoute: typeof ApiDurableDeliveryCancelRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/durable-mcp-input': {
+      id: '/api/durable-mcp-input'
+      path: '/api/durable-mcp-input'
+      fullPath: '/api/durable-mcp-input'
+      preLoaderRoute: typeof ApiDurableMcpInputRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/durable-takeover': {
       id: '/api/durable-takeover'
       path: '/api/durable-takeover'
@@ -3264,11 +3404,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiDurableTakeoverRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/effect-chat': {
+      id: '/api/effect-chat'
+      path: '/api/effect-chat'
+      fullPath: '/api/effect-chat'
+      preLoaderRoute: typeof ApiEffectChatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/embedding': {
       id: '/api/embedding'
       path: '/api/embedding'
       fullPath: '/api/embedding'
       preLoaderRoute: typeof ApiEmbeddingRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/embedding-abort': {
+      id: '/api/embedding-abort'
+      path: '/api/embedding-abort'
+      fullPath: '/api/embedding-abort'
+      preLoaderRoute: typeof ApiEmbeddingAbortRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/evaluate-http-status': {
@@ -3465,6 +3619,13 @@ declare module '@tanstack/react-router' {
       path: '/api/lone-surrogates-wire'
       fullPath: '/api/lone-surrogates-wire'
       preLoaderRoute: typeof ApiLoneSurrogatesWireRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/loop-stopped': {
+      id: '/api/loop-stopped'
+      path: '/api/loop-stopped'
+      fullPath: '/api/loop-stopped'
+      preLoaderRoute: typeof ApiLoopStoppedRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/max-tool-calls-wire': {
@@ -3675,6 +3836,20 @@ declare module '@tanstack/react-router' {
       path: '/api/non-streaming-run-error'
       fullPath: '/api/non-streaming-run-error'
       preLoaderRoute: typeof ApiNonStreamingRunErrorRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/ollama-length-truncation': {
+      id: '/api/ollama-length-truncation'
+      path: '/api/ollama-length-truncation'
+      fullPath: '/api/ollama-length-truncation'
+      preLoaderRoute: typeof ApiOllamaLengthTruncationRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/openai-apply-patch-wire': {
+      id: '/api/openai-apply-patch-wire'
+      path: '/api/openai-apply-patch-wire'
+      fullPath: '/api/openai-apply-patch-wire'
+      preLoaderRoute: typeof ApiOpenaiApplyPatchWireRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/openai-completed-response-text': {
@@ -3985,6 +4160,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiTtsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/use-chat-hidden-view': {
+      id: '/api/use-chat-hidden-view'
+      path: '/api/use-chat-hidden-view'
+      fullPath: '/api/use-chat-hidden-view'
+      preLoaderRoute: typeof ApiUseChatHiddenViewRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/video': {
       id: '/api/video'
       path: '/api/video'
@@ -4195,6 +4377,7 @@ const rootRouteChildren: RootRouteChildren = {
   TextFirstToolRoute: TextFirstToolRoute,
   ToolFirstTextRoute: ToolFirstTextRoute,
   ToolsTestRoute: ToolsTestRoute,
+  UseChatHiddenViewRoute: UseChatHiddenViewRoute,
   WebMcpPageToolsRoute: WebMcpPageToolsRoute,
   WebMcpToolsRoute: WebMcpToolsRoute,
   WebsocketAdapterRoute: WebsocketAdapterRoute,
@@ -4244,8 +4427,12 @@ const rootRouteChildren: RootRouteChildren = {
   ApiCrossModelReplayWireRoute: ApiCrossModelReplayWireRoute,
   ApiDevtoolsMemoryRoute: ApiDevtoolsMemoryRoute,
   ApiDurableDeliveryRoute: ApiDurableDeliveryRoute,
+  ApiDurableDeliveryCancelRoute: ApiDurableDeliveryCancelRoute,
+  ApiDurableMcpInputRoute: ApiDurableMcpInputRoute,
   ApiDurableTakeoverRoute: ApiDurableTakeoverRoute,
+  ApiEffectChatRoute: ApiEffectChatRoute,
   ApiEmbeddingRoute: ApiEmbeddingRoute,
+  ApiEmbeddingAbortRoute: ApiEmbeddingAbortRoute,
   ApiEvaluateHttpStatusRoute: ApiEvaluateHttpStatusRoute,
   ApiEvaluateRefusalRoute: ApiEvaluateRefusalRoute,
   ApiEvaluateUsageOnFailureRoute: ApiEvaluateUsageOnFailureRoute,
@@ -4274,6 +4461,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiKeyedAdapterRoute: ApiKeyedAdapterRoute,
   ApiLazyToolsWireRoute: ApiLazyToolsWireRoute,
   ApiLoneSurrogatesWireRoute: ApiLoneSurrogatesWireRoute,
+  ApiLoopStoppedRoute: ApiLoopStoppedRoute,
   ApiMaxToolCallsWireRoute: ApiMaxToolCallsWireRoute,
   ApiMcpAppsCallRoute: ApiMcpAppsCallRoute,
   ApiMcpAppsChatRoute: ApiMcpAppsChatRoute,
@@ -4304,6 +4492,8 @@ const rootRouteChildren: RootRouteChildren = {
   ApiMultimodalToolResultWireRoute: ApiMultimodalToolResultWireRoute,
   ApiNeonWireRoute: ApiNeonWireRoute,
   ApiNonStreamingRunErrorRoute: ApiNonStreamingRunErrorRoute,
+  ApiOllamaLengthTruncationRoute: ApiOllamaLengthTruncationRoute,
+  ApiOpenaiApplyPatchWireRoute: ApiOpenaiApplyPatchWireRoute,
   ApiOpenaiCompletedResponseTextRoute: ApiOpenaiCompletedResponseTextRoute,
   ApiOpenaiComputerUseWireRoute: ApiOpenaiComputerUseWireRoute,
   ApiOpenaiImage25ModelsRoute: ApiOpenaiImage25ModelsRoute,
@@ -4349,6 +4539,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiToolsTestRoute: ApiToolsTestRoute,
   ApiTranscriptionRoute: ApiTranscriptionRouteWithChildren,
   ApiTtsRoute: ApiTtsRouteWithChildren,
+  ApiUseChatHiddenViewRoute: ApiUseChatHiddenViewRoute,
   ApiVideoRoute: ApiVideoRouteWithChildren,
   ApiVideoLiveRoute: ApiVideoLiveRoute,
   ApiVoiceRoute: ApiVoiceRoute,

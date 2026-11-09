@@ -11,7 +11,7 @@ function readUnopenedInterruptBinding(descriptor):
   | undefined;
 ```
 
-Defined in: packages/ai/src/interrupt-resume.ts:856
+Defined in: [packages/ai/src/interrupt-resume.ts:847](https://github.com/TanStack/ai/blob/main/packages/ai/src/interrupt-resume.ts#L847)
 
 ## Parameters
 

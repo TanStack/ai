@@ -213,6 +213,66 @@ A strategy is a function. It gets the loop state and returns `true` to allow one
 - `toolCallCount`: the tool calls so far in this run.
 - `lastTurnToolCallCount`: the tool calls in the last batch.
 
+### Know when the loop stopped the run
+
+Read `metadata.tanstack.loopStopped` on the last `RUN_FINISHED` event. It is `true` when the strategy, or a middleware `onShouldContinue`, stopped the loop while tool results waited for the model. In that case, the model did not finish its task.
+
+A run that the model ends has no `loopStopped`. The `finishReason` is always the reason of the last model call, often `tool_calls` for a stopped run.
+
+On the server:
+
+```typescript
+// api/chat.ts
+import { chat, maxIterations } from "@tanstack/ai";
+import { openaiText } from "@tanstack/ai-openai";
+import { getWeather } from "./tools";
+
+const stream = chat({
+  adapter: openaiText("gpt-6.1-sol"),
+  messages: [{ role: "user", content: "Plan my week of outfits." }],
+  threadId: "thread-1",
+  tools: [getWeather],
+  agentLoopStrategy: maxIterations(3),
+});
+
+for await (const chunk of stream) {
+  if (chunk.type === "RUN_FINISHED" && chunk.metadata?.tanstack?.loopStopped) {
+    console.log("The loop stopped before the model finished.");
+  }
+}
+```
+
+On the client, read the same event in `onChunk`:
+
+```tsx
+import { useState } from "react";
+import { useChat, fetchServerSentEvents } from "@tanstack/ai-react";
+
+export function Chat() {
+  const [loopStopped, setLoopStopped] = useState(false);
+  const { sendMessage } = useChat({
+    connection: fetchServerSentEvents("/api/chat"),
+    threadId: "support-chat",
+    onChunk: (chunk) => {
+      if (chunk.type === "RUN_FINISHED" && chunk.metadata?.tanstack?.loopStopped) {
+        setLoopStopped(true);
+      }
+    },
+  });
+
+  return (
+    <>
+      <button type="button" onClick={() => sendMessage("Plan my week of outfits.")}>
+        Ask
+      </button>
+      {loopStopped ? <p>The agent stopped at its step limit.</p> : null}
+    </>
+  );
+}
+```
+
+The last assistant message that `chat()` stores on the server also gets `metadata.tanstack.loopStopped: true`. So a saved transcript keeps the signal.
+
 ## Advanced
 
 ### When the output limit cuts a tool call
@@ -225,7 +285,7 @@ A model can run out of output tokens in the middle of a tool call, for example w
 - It starts no client tool.
 - Each cut call gets an error tool result.
 
-By default, the run then ends with the finish reason `length`. To let the model send the cut call again, use a strategy that does not stop on `length`:
+By default, the run then ends with the finish reason `length` and [`loopStopped`](#know-when-the-loop-stopped-the-run). To let the model send the cut call again, use a strategy that does not stop on `length`:
 
 ```typescript
 // api/chat.ts

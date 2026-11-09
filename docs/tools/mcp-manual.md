@@ -328,6 +328,27 @@ const stream = chat({
 controller.abort()
 ```
 
+Outside a chat run, pass `signal` to a client call yourself. Each of these calls takes it:
+
+```ts
+import { createMCPClient } from '@tanstack/ai-mcp'
+
+const controller = new AbortController()
+const { signal } = controller
+
+const mcp = await createMCPClient({
+  transport: { type: 'http', url: process.env.MCP_URL! },
+  signal, // cancels the connect only
+})
+
+const tools = await mcp.tools({ signal })
+const resources = await mcp.resources({ signal })
+const prompts = await mcp.prompts({ signal })
+console.log(tools.length, resources.length, prompts.length)
+```
+
+`readResource(uri, { signal })`, `resourceTemplates({ signal })`, and `getPrompt(name, args, { signal })` take it too. The client sends the signal to the MCP SDK, which sends `notifications/cancelled` to the server.
+
 ## Full server and client example
 
 This TanStack Start route connects to two MCP servers and streams the response to the browser.

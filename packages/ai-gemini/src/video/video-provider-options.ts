@@ -114,8 +114,9 @@ export type GeminiVideoProviderOptions = Omit<
  * - `previous_interaction_id` — conversational video editing: chain a new
  *   prompt onto a prior Omni interaction to refine its video
  * - `generation_config.video_config.task` — pin the task mode
- *   (`'text_to_video' | 'image_to_video' | 'reference_to_video' | 'edit'`)
- *   instead of letting the model infer it
+ *   (`'text_to_video' | 'image_to_video' | 'reference_to_video' | 'edit' |
+ *   'extend'`). `extend` (Omni 1.2) appends 3–10 seconds per turn, up to
+ *   30 seconds total, instead of letting the model infer the mode
  */
 export type GeminiOmniVideoProviderOptions = Omit<
   Interactions.CreateModelInteractionParamsNonStreaming,
@@ -163,14 +164,15 @@ export type GeminiVideoModelInputModalitiesByName = {
 /**
  * Per-model duration unions (seconds, as numbers — Veo's
  * `parameters.durationSeconds` field is numeric; Omni Flash accepts a
- * continuous 3–10 second range, fractional seconds included, so it stays
- * `number` — the adapter rejects out-of-range values at job creation,
- * against the range entry below).
+ * continuous range, fractional seconds included, so it stays `number`.
+ * The adapter rejects out-of-range values at job creation, against the
+ * range entry below. Omni 1.1 is 3–10 seconds. Omni 1.2 is 3–15 seconds.
  */
 export type GeminiVideoModelDurationByName = {
   'veo-3.1-generate-preview': 4 | 6 | 8
   'veo-3.1-fast-generate-preview': 4 | 6 | 8
   'veo-3.1-lite-generate-preview': 4 | 6 | 8
+  'gemini-omni-1.2-flash': number
   'gemini-omni-1.1-flash': number
 }
 
@@ -181,11 +183,11 @@ export type GeminiVideoModelDurationByName = {
  * (https://ai.google.dev/gemini-api/docs/video) — the Gemini OpenAPI spec
  * types the `:predictLongRunning` request's `parameters` as unconstrained,
  * so it carries no per-model duration information to derive these from.
- * Omni Flash's 3–10s range was verified against the live API
- * (2026-07-02): `response_format.duration` takes a `"<seconds>s"` string,
- * fractional values are accepted, out-of-range values are rejected with
- * "minimum allowed 3s" / "maximum allowed 10s", and omitting it defaults
- * to a 10-second clip.
+ * Omni Flash's range was verified against the live API (2026-07-02 for
+ * 1.1, 2026-11 for 1.2): `response_format.duration` takes a `"<seconds>s"`
+ * string, fractional values are accepted, out-of-range values are
+ * rejected, and omitting it defaults to a 10-second clip. Omni 1.2 max
+ * is 15 seconds.
  */
 export const GEMINI_VIDEO_DURATIONS: {
   readonly [TModel in GeminiVideoModel]: DurationOptions<
@@ -195,6 +197,12 @@ export const GEMINI_VIDEO_DURATIONS: {
   'veo-3.1-generate-preview': { kind: 'discrete', values: [4, 6, 8] },
   'veo-3.1-fast-generate-preview': { kind: 'discrete', values: [4, 6, 8] },
   'veo-3.1-lite-generate-preview': { kind: 'discrete', values: [4, 6, 8] },
+  'gemini-omni-1.2-flash': {
+    kind: 'range',
+    min: 3,
+    max: 15,
+    unit: 'seconds',
+  },
   'gemini-omni-1.1-flash': {
     kind: 'range',
     min: 3,

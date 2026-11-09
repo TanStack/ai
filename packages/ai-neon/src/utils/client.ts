@@ -5,7 +5,7 @@ import type { ClientOptions } from 'openai'
 /**
  * The gateway routes on the branch host. Chat Completions serves every chat
  * model, Responses serves the OpenAI models, and Anthropic serves Claude. The
- * Anthropic SDK appends `/v1/messages` itself.
+ * Anthropic client appends `/v1/messages` itself.
  */
 export const NEON_ROUTES = {
   chat: '/v1', // also serves embeddings

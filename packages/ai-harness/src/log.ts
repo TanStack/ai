@@ -1,4 +1,4 @@
-import { ConsoleLogger, EventType } from '@tanstack/ai'
+import { ConsoleLogger, EventType, stableJson } from '@tanstack/ai'
 import {
   LogConflictError,
   LogTruncatedError,
@@ -465,16 +465,6 @@ const isSameMessage = (
   a: ModelMessage | undefined,
   b: ModelMessage | undefined,
 ) => a === b || sameJson(a, b)
-
-/** JSON text with sorted object keys. A store (jsonb) can reorder keys. */
-export const stableJson = (value: unknown) =>
-  JSON.stringify(value, (_key, item: unknown) =>
-    isRecord(item) && !Array.isArray(item)
-      ? Object.fromEntries(
-          Object.entries(item).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)),
-        )
-      : item,
-  )
 
 /**
  * Run a host fold (`project` or `reduce`). One that throws skips its record
@@ -944,7 +934,12 @@ export function foldEntry(
           ...(record.operationId ? { operationId: record.operationId } : {}),
           ...(record.outcome === 'failed'
             ? { outcome: 'failed', error: record.error }
-            : { outcome: record.outcome }),
+            : {
+                outcome: record.outcome,
+                ...(record.outcome === 'completed' && record.loopStopped
+                  ? { loopStopped: true as const }
+                  : {}),
+              }),
         },
       }))
       state.thread = settleRunNode(state.thread, record)

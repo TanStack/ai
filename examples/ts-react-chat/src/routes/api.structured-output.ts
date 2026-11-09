@@ -155,7 +155,7 @@ function adapterFor(provider: Provider, model?: string): AnyTextAdapter {
       // endpoint. Earlier models fall back to the forced-tool-use
       // workaround in `structuredOutput` (no real streaming).
       return anthropicText(
-        (baseModel || 'claude-sonnet-4-5') as 'claude-sonnet-4-5',
+        (baseModel || 'claude-sonnet-4-6') as 'claude-sonnet-4-6',
       )
     case 'gemini':
       // Gemini 3.x supports native combined tools + schema-constrained

@@ -115,6 +115,7 @@ import type {
   AnthropicMessagesClient,
 } from '../utils/client'
 import type { ComputerUseSingleToolConfig } from '../tools/computer-use-tool'
+import type { AnthropicClient } from '../client/index'
 
 /**
  * The block type carried by an Anthropic provider-executed (server) tool's
@@ -575,8 +576,8 @@ export class AnthropicTextAdapter<
   /** The OAuth identity headers, with the caller's own values on top. */
   private readonly oauthHeaders = new Headers(OAUTH_IDENTITY_HEADERS)
 
-  /** The adapter's own SDK client. An injected client cannot take a fetch. */
-  private readonly sdkClient: Anthropic_SDK | undefined
+  /** The adapter's own client. An injected client cannot take a fetch. */
+  private readonly sdkClient: AnthropicClient | undefined
   private readonly baseFetch: typeof fetch | undefined
 
   constructor(config: AnthropicTextAdapterConfig, model: TModel) {
@@ -625,15 +626,17 @@ export class AnthropicTextAdapter<
         },
       }),
     })
-    this.client = this.sdkClient
+    this.client = asSdkAnthropicMessagesClient(this.sdkClient)
   }
 
   /** Use a client whose fetch goes through `wrapFetch` for one call. */
   private clientFor(wrapFetch: FetchWrapper | undefined) {
     if (!wrapFetch || !this.sdkClient) return this.client
-    return this.sdkClient.withOptions({
-      fetch: wrapFetch(this.baseFetch ?? globalThis.fetch),
-    })
+    return asSdkAnthropicMessagesClient(
+      this.sdkClient.withOptions({
+        fetch: wrapFetch(this.baseFetch ?? globalThis.fetch),
+      }),
+    )
   }
 
   /** With OAuth, the Claude Code betas go first. */
@@ -818,6 +821,9 @@ export class AnthropicTextAdapter<
       },
     }
 
+    // Set once the response arrives, so a later throw still reports it.
+    let usage: ReturnType<typeof buildAnthropicUsage>
+
     try {
       logger.request(
         `activity=chat provider=anthropic model=${this.model} messages=${chatOptions.messages.length} tools=${chatOptions.tools?.length ?? 0} stream=false`,
@@ -846,6 +852,7 @@ export class AnthropicTextAdapter<
           headers: this.requestHeaders(chatOptions.request?.headers, betas),
         },
       )
+      usage = buildAnthropicUsage(response.usage)
 
       // A forced tool call cut off at the output cap carries partial input,
       // which would read like a schema failure (issue #1426).
@@ -889,7 +896,7 @@ export class AnthropicTextAdapter<
       return {
         data: parsed,
         rawText,
-        usage: buildAnthropicUsage(response.usage),
+        usage,
         responseId: response.id,
         model: response.model,
       }
@@ -899,8 +906,11 @@ export class AnthropicTextAdapter<
         error,
         source: 'anthropic.structuredOutput',
       })
-      throw new Error(
-        `Structured output generation failed: ${err.message || 'Unknown error occurred'}`,
+      throw Object.assign(
+        new Error(
+          `Structured output generation failed: ${err.message || 'Unknown error occurred'}`,
+        ),
+        usage && { usage },
       )
     }
   }
@@ -2197,6 +2207,8 @@ export class AnthropicTextAdapter<
           // message_delta carries the real stop_reason (tool_use, end_turn, etc.),
           // while message_stop is just a completion signal.
           if (!hasEmittedRunFinished) {
+            hasEmittedRunFinished = true
+            const usage = buildAnthropicUsage(messageStartUsage)
             yield {
               type: EventType.RUN_FINISHED,
               ...(responseId !== undefined && { responseId }),
@@ -2205,6 +2217,7 @@ export class AnthropicTextAdapter<
               model,
               timestamp: Date.now(),
               finishReason: 'stop',
+              ...(usage && { usage }),
             }
           }
         } else if (event.type === 'message_delta') {
@@ -2337,6 +2350,16 @@ export class AnthropicTextAdapter<
             }
           }
         }
+      }
+      // The body ended before a stop reason (a message_delta with
+      // stop_reason, or message_stop), so the answer is cut off. The catch
+      // below reports it. An abort also ends the body, but that is the
+      // caller's choice and not an error.
+      if (!hasEmittedRunFinished && !options.request?.signal?.aborted) {
+        throw Object.assign(
+          new Error('Anthropic stream ended before a stop reason'),
+          { code: 'incomplete-stream' },
+        )
       }
     } catch (error: unknown) {
       const err = error as Error & { status?: number; code?: string }

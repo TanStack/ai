@@ -12,6 +12,7 @@ describe('CUSTOM_EVENT catalog', () => {
     expect(CUSTOM_EVENT.APPROVAL_REQUESTED).toBe('approval.requested')
     expect(CUSTOM_EVENT.APPROVAL_RESOLVED).toBe('approval.resolved')
     expect(CUSTOM_EVENT.ARTIFACT_CREATED).toBe('artifact.created')
+    expect(CUSTOM_EVENT.SANDBOX_STARTING).toBe('sandbox.starting')
     expect(CUSTOM_EVENT.SANDBOX_CREATED).toBe('sandbox.created')
     expect(CUSTOM_EVENT.SANDBOX_RESUMED).toBe('sandbox.resumed')
   })
@@ -47,6 +48,22 @@ describe('isCustomEvent', () => {
     if (isCustomEvent(fileChanged, CUSTOM_EVENT.FILE_CHANGED)) {
       // Type-level: value is FileChangedPayload — `.path` is a string.
       expect(fileChanged.value.path).toBe('/workspace/a.ts')
+    }
+  })
+
+  it('narrows a sandbox.starting event to its provider payload', () => {
+    const sandboxStarting: StreamChunk = {
+      type: EventType.CUSTOM,
+      name: 'sandbox.starting',
+      value: { provider: 'local-process' },
+      timestamp: 1,
+    }
+    expect(isCustomEvent(sandboxStarting, CUSTOM_EVENT.SANDBOX_STARTING)).toBe(
+      true,
+    )
+    if (isCustomEvent(sandboxStarting, CUSTOM_EVENT.SANDBOX_STARTING)) {
+      // Type-level: value is SandboxStartingPayload, so `.provider` is a string.
+      expect(sandboxStarting.value.provider).toBe('local-process')
     }
   })
 })

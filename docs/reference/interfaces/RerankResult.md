@@ -3,7 +3,7 @@ id: RerankResult
 title: RerankResult
 ---
 
-Defined in: packages/ai/src/types.ts:2227
+Defined in: [packages/ai/src/types.ts:2303](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2303)
 
 Public result of the `rerank()` activity, generic over the caller's document
 element type so `document` / `rerankedDocuments` carry the original values
@@ -23,7 +23,7 @@ element type so `document` / `rerankedDocuments` carry the original values
 id: string;
 ```
 
-Defined in: packages/ai/src/types.ts:2228
+Defined in: [packages/ai/src/types.ts:2304](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2304)
 
 ***
 
@@ -33,7 +33,7 @@ Defined in: packages/ai/src/types.ts:2228
 model: string;
 ```
 
-Defined in: packages/ai/src/types.ts:2229
+Defined in: [packages/ai/src/types.ts:2305](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2305)
 
 ***
 
@@ -43,7 +43,7 @@ Defined in: packages/ai/src/types.ts:2229
 ranking: object[];
 ```
 
-Defined in: packages/ai/src/types.ts:2231
+Defined in: [packages/ai/src/types.ts:2307](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2307)
 
 Scored results, highest relevance first.
 
@@ -73,7 +73,7 @@ score: number;
 rerankedDocuments: TDocument[];
 ```
 
-Defined in: packages/ai/src/types.ts:2233
+Defined in: [packages/ai/src/types.ts:2309](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2309)
 
 The documents reordered by relevance — `ranking.map(r => r.document)`.
 
@@ -85,7 +85,7 @@ The documents reordered by relevance — `ranking.map(r => r.document)`.
 usage: TokenUsage;
 ```
 
-Defined in: packages/ai/src/types.ts:2240
+Defined in: [packages/ai/src/types.ts:2316](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2316)
 
 Usage for the request. Rerank typically bills in provider-defined "search
 units" (`usage.billed = { quantity, unit: 'units' }`) rather than tokens.

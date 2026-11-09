@@ -3,7 +3,7 @@ id: VoiceResult
 title: VoiceResult
 ---
 
-Defined in: packages/ai/src/types.ts:3110
+Defined in: [packages/ai/src/types.ts:3176](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L3176)
 
 Result of voice creation.
 
@@ -18,7 +18,7 @@ models return exactly one.
 optional artifacts?: PersistedArtifactRef[];
 ```
 
-Defined in: packages/ai/src/types.ts:3122
+Defined in: [packages/ai/src/types.ts:3188](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L3188)
 
 Persisted artifact references for generated assets, when available
 
@@ -30,7 +30,7 @@ Persisted artifact references for generated assets, when available
 id: string;
 ```
 
-Defined in: packages/ai/src/types.ts:3112
+Defined in: [packages/ai/src/types.ts:3178](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L3178)
 
 Unique identifier for the generation
 
@@ -42,7 +42,7 @@ Unique identifier for the generation
 model: string;
 ```
 
-Defined in: packages/ai/src/types.ts:3114
+Defined in: [packages/ai/src/types.ts:3180](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L3180)
 
 Model used for generation
 
@@ -54,7 +54,7 @@ Model used for generation
 optional previewText?: string;
 ```
 
-Defined in: packages/ai/src/types.ts:3118
+Defined in: [packages/ai/src/types.ts:3184](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L3184)
 
 The line spoken in the previews, when the provider generated one
 
@@ -66,7 +66,7 @@ The line spoken in the previews, when the provider generated one
 optional usage?: TokenUsage<ProviderUsageDetails>;
 ```
 
-Defined in: packages/ai/src/types.ts:3120
+Defined in: [packages/ai/src/types.ts:3186](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L3186)
 
 Token usage information (if provided by the adapter)
 
@@ -78,6 +78,6 @@ Token usage information (if provided by the adapter)
 voices: GeneratedVoice[];
 ```
 
-Defined in: packages/ai/src/types.ts:3116
+Defined in: [packages/ai/src/types.ts:3182](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L3182)
 
 The voices produced, best-first when the provider ranks them

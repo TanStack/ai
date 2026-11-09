@@ -6,7 +6,10 @@ import type OpenAI from 'openai'
 import type { ClientOptions } from 'openai'
 import type { Modality } from '@tanstack/ai'
 import type { OpenAIMessageMetadataByModality } from '../message-types'
-import type { OpenAIBaseTextAdapterOptions } from '@tanstack/openai-base'
+import type {
+  OpenAIBaseTextAdapterOptions,
+  OpenAIClientLike,
+} from '@tanstack/openai-base'
 
 /**
  * Generic OpenAI-compatible adapter over the Chat Completions API
@@ -29,7 +32,7 @@ export class OpenAICompatibleChatAdapter<
   readonly maxTokensKey = 'max_tokens'
 
   constructor(
-    client: OpenAI,
+    client: OpenAIClientLike,
     model: TModel,
     name: string,
     options?: OpenAIBaseTextAdapterOptions & Pick<ClientOptions, 'fetch'>,
@@ -86,7 +89,7 @@ export class OpenAICompatibleResponsesAdapter<
   readonly maxTokensKey = 'max_output_tokens'
 
   constructor(
-    client: OpenAI,
+    client: OpenAIClientLike,
     model: TModel,
     name: string,
     options?: OpenAIBaseTextAdapterOptions & Pick<ClientOptions, 'fetch'>,

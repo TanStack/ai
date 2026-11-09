@@ -1,5 +1,44 @@
 # @tanstack/ai-client
 
+## 1.1.0
+
+### Minor Changes
+
+- [#1978](https://github.com/TanStack/ai/pull/1978) [`4caefd7`](https://github.com/TanStack/ai/commit/4caefd7cb6783766fb2bdb9d34d65b367624dd32) - `createMcpAppBridge().callTool(input, { signal })` passes the signal to the call request.
+
+- [#1977](https://github.com/TanStack/ai/pull/1977) [`9ac67f3`](https://github.com/TanStack/ai/commit/9ac67f3acbcecee88714503b205d602560fdc8c6) - A client tool now gets `abortSignal` in its execute context. It aborts when you call `stop()` on the `ChatClient`.
+
+- [#1977](https://github.com/TanStack/ai/pull/1977) [`9ac67f3`](https://github.com/TanStack/ai/commit/9ac67f3acbcecee88714503b205d602560fdc8c6) - New optional cancel features. Old code works the same.
+  - `fetchServerSentEvents` and `fetchHttpStream` take an optional `cancelUrl`. With it, `ChatClient.stop()` sends `POST cancelUrl` with `{ runId, threadId }`, so the server can cancel a durable run. Only `stop()` sends it, not an unmount or a reload.
+  - Connection adapters can have an optional `cancelRun({ runId, threadId })` method. `stop()` calls it.
+  - `RealtimeClient` passes an `abortSignal` to `adapter.connect()`. A `disconnect()` during `connect()` aborts the setup, and the status goes to `idle`, not `error`.
+
+### Patch Changes
+
+- [#1979](https://github.com/TanStack/ai/pull/1979) [`07d2e42`](https://github.com/TanStack/ai/commit/07d2e429c456a31d35748fecf7d8f8c0795eff31) - `stop()` no longer waits for a client tool that never settles. Fetch and XHR connection adapters now abort on the client's signal and on your own `options.signal`. `stream()` and `rpcStream()` end on abort even if the source ignores the signal. `RealtimeClient.disconnect()` during `connect()` or a token refresh no longer leaves a connection or a token refresh timer behind.
+
+- [#1979](https://github.com/TanStack/ai/pull/1979) [`07d2e42`](https://github.com/TanStack/ai/commit/07d2e429c456a31d35748fecf7d8f8c0795eff31) - A cancel now stops the request. `stop()` and an abort of the connection `options.signal` reach the fetch, XHR, `stream()`, and `rpcStream()` requests. A realtime `disconnect()` during `connect()` does not stop a pending `getToken()` or `adapter.connect()` call: it drops the late result and closes the connection that comes back. An abort of `options.signal` now ends the chat like `stop()`, not as a finished run. A realtime connection that a later `connect()` replaced no longer changes the status of the live session.
+
+- [#1969](https://github.com/TanStack/ai/pull/1969) [`1e13e87`](https://github.com/TanStack/ai/commit/1e13e87b26ccd2734455fc4a958c0690ef3ead06) - Ask for approval of a `needsApproval` client tool when the server does not ask for it, for example a custom AG-UI server or a connection adapter with no TanStack server. Before, the client logged a warning and the tool never ran. Now the call comes in `interrupts` as a `tool-approval` item, the same as with `chat()`. On approve, the client runs the tool and continues the loop. On deny, it sends a denied result and continues.
+
+- [#1968](https://github.com/TanStack/ai/pull/1968) [`450950d`](https://github.com/TanStack/ai/commit/450950da860d58047c654c1497ddb48d651f9076) - Run client tools when a custom AG-UI server ends a run with `finishReason: 'tool_calls'` and closes the stream. Before, the client waited for a next run that never came, so the tool did not run and the agent loop stopped. The client now runs the unanswered calls when the stream ends. A tool that needs approval asks the user first, the same as for a success outcome.
+
+- [#1972](https://github.com/TanStack/ai/pull/1972) [`f33f72a`](https://github.com/TanStack/ai/commit/f33f72ab6da9a0f95bd912e29d2cabc2eab17f27) - Keep queued messages in the queue while a run is paused on an interrupt, for example a tool approval. Before, the queue sent the next message as soon as the paused run ended, so a new run started while the tool call was still unanswered. Now the queue sends after the run that answers the interrupt ends with success.
+
+- Updated dependencies [[`9ac67f3`](https://github.com/TanStack/ai/commit/9ac67f3acbcecee88714503b205d602560fdc8c6), [`9ac67f3`](https://github.com/TanStack/ai/commit/9ac67f3acbcecee88714503b205d602560fdc8c6), [`e17cae7`](https://github.com/TanStack/ai/commit/e17cae7aa40ce5ebe0e78496931d49c793bdaf41), [`d6ead13`](https://github.com/TanStack/ai/commit/d6ead13def85f91782e20d6c1b8755fdf1c836c2), [`450950d`](https://github.com/TanStack/ai/commit/450950da860d58047c654c1497ddb48d651f9076), [`07d2e42`](https://github.com/TanStack/ai/commit/07d2e429c456a31d35748fecf7d8f8c0795eff31), [`13b1ca9`](https://github.com/TanStack/ai/commit/13b1ca918a0ac36761db2a6226973c5330d4221d), [`09dde65`](https://github.com/TanStack/ai/commit/09dde65b9fdcc312fd0459c98328c23abd1406cb)]:
+  - @tanstack/ai@1.1.0
+  - @tanstack/ai-utils@1.0.1
+  - @tanstack/ai-event-client@1.0.1
+
+## 1.0.1
+
+### Patch Changes
+
+- [#1904](https://github.com/TanStack/ai/pull/1904) [`f085015`](https://github.com/TanStack/ai/commit/f085015da1b77aee3cf95ca74a2e86ed9dbc1c29) - Show each package's own npm download count and npm version. The bundle-size badge uses bundlejs. Partner logos use image URLs that load.
+
+- Updated dependencies [[`f085015`](https://github.com/TanStack/ai/commit/f085015da1b77aee3cf95ca74a2e86ed9dbc1c29), [`ae97655`](https://github.com/TanStack/ai/commit/ae976552710726b13b524c307c1b5bbe78478eb0)]:
+  - @tanstack/ai@1.0.1
+
 ## 1.0.0
 
 ### Major Changes

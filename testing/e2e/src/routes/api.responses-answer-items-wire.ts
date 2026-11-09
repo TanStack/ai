@@ -9,7 +9,7 @@ import { createOpenaiChat } from '@tanstack/ai-openai'
 
 const DUMMY_KEY = 'sk-e2e-test-dummy-key'
 
-/** A Responses stream with one answer item. Only the first call has a phase. */
+/** The first response has adjacent commentary and final-answer items. */
 function answerStream(call: number): Response {
   const id = `msg_answer_${call}`
   const item = {
@@ -20,21 +20,35 @@ function answerStream(call: number): Response {
     ...(call === 1 ? { phase: 'final_answer' } : {}),
     content: [{ type: 'output_text', text: 'Hi there', annotations: [] }],
   }
+  const items =
+    call === 1
+      ? [
+          {
+            ...item,
+            id: 'msg_commentary_1',
+            phase: 'commentary',
+            content: [
+              { type: 'output_text', text: 'Working', annotations: [] },
+            ],
+          },
+          item,
+        ]
+      : [item]
   const events = [
-    {
+    ...items.map((answer, output_index) => ({
       type: 'response.output_text.delta',
-      item_id: id,
-      output_index: 0,
+      item_id: answer.id,
+      output_index,
       content_index: 0,
-      delta: 'Hi there',
-    },
+      delta: answer.content[0]!.text,
+    })),
     {
       type: 'response.completed',
       response: {
         id: `resp_answer_${call}`,
         object: 'response',
         status: 'completed',
-        output: [item],
+        output: items,
         usage: { input_tokens: 5, output_tokens: 2, total_tokens: 7 },
       },
     },
@@ -48,7 +62,7 @@ function answerStream(call: number): Response {
 type InputItem = Record<string, unknown> & { role?: string }
 
 /**
- * Turn 1 runs on OpenAI Responses and answers with one `final_answer` item.
+ * Turn 1 returns adjacent commentary and final-answer items.
  * The client keeps the turn and sends it back over the wire. Turn 2 sends
  * that history to the same model, then to another model. The route returns
  * the assistant items of each turn-2 request.

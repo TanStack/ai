@@ -385,8 +385,10 @@ export class BlaxelHandle implements SandboxHandle {
         ),
       commit: (message, dir) =>
         git.commit(message, dir !== undefined ? this.abs(dir) : undefined),
-      push: (dir) => git.push(dir !== undefined ? this.abs(dir) : undefined),
-      pull: (dir) => git.pull(dir !== undefined ? this.abs(dir) : undefined),
+      push: (dir, options) =>
+        git.push(dir !== undefined ? this.abs(dir) : undefined, options),
+      pull: (dir, options) =>
+        git.pull(dir !== undefined ? this.abs(dir) : undefined, options),
       branch: (dir) =>
         git.branch(dir !== undefined ? this.abs(dir) : undefined),
     }

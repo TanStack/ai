@@ -1,5 +1,56 @@
 # @tanstack/ai-openai
 
+## 1.1.1
+
+### Patch Changes
+
+- [#1986](https://github.com/TanStack/ai/pull/1986) [`b23df66`](https://github.com/TanStack/ai/commit/b23df66975997e35860df382ba57c699fd8c1b3e) - `embed()` with the OpenAI adapter now sends inputs in sequential requests of at most 2048 inputs each, the endpoint's limit, and sums the token usage. Before, more than 2048 texts failed with a 400 error. OpenAI also limits one request to 300,000 tokens across all inputs, so a large array of long texts can still fail. Split those calls yourself.
+
+- [#1973](https://github.com/TanStack/ai/pull/1973) [`374fb69`](https://github.com/TanStack/ai/commit/374fb69a534de7e200421056acf3a677fd833bce) - The adapters now call the provider HTTP API with `fetch` and do not create the `openai` SDK client. At runtime they load only small SDK modules, for example the error classes from `openai/core/error`. With a bundler that splits chunks, the startup bundle is smaller. A single-file bundle can be a little larger, because a few rare options still load the full SDK on first use. Errors keep the same classes and fields.
+
+- [#1895](https://github.com/TanStack/ai/pull/1895) [`e024981`](https://github.com/TanStack/ai/commit/e024981ed2c0481c506595dae1280a94a7fba2e4) - Update model metadata from OpenRouter API
+
+- Updated dependencies [[`48cbc66`](https://github.com/TanStack/ai/commit/48cbc66d677896e75d242e9c52be67f7da259fd9), [`374fb69`](https://github.com/TanStack/ai/commit/374fb69a534de7e200421056acf3a677fd833bce), [`374fb69`](https://github.com/TanStack/ai/commit/374fb69a534de7e200421056acf3a677fd833bce)]:
+  - @tanstack/ai@1.2.0
+  - @tanstack/ai-utils@1.1.0
+  - @tanstack/openai-base@1.0.2
+
+## 1.1.0
+
+### Minor Changes
+
+- [#1977](https://github.com/TanStack/ai/pull/1977) [`9ac67f3`](https://github.com/TanStack/ai/commit/9ac67f3acbcecee88714503b205d602560fdc8c6) - Forward the new optional `abortSignal` to the provider request in embeddings, video status and download, files upload/get/delete, the realtime token request, and the realtime WebRTC SDP request.
+
+### Patch Changes
+
+- [#1975](https://github.com/TanStack/ai/pull/1975) [`c7f8dfd`](https://github.com/TanStack/ai/commit/c7f8dfd58129c5538090fc9ab8c91cd93c6125ab) - Aborting `generateImage()`, `generateSpeech()`, `generateTranscription()` or `generateVideo()` now stops the OpenAI request. Before, the call rejected but the request kept running and was billed. This also covers the image fetch for an `allowUrlFetch` image input.
+
+- [#1974](https://github.com/TanStack/ai/pull/1974) [`09dde65`](https://github.com/TanStack/ai/commit/09dde65b9fdcc312fd0459c98328c23abd1406cb) - Report token usage for every call that the provider billed, also when the call fails.
+  - Adapters put the usage that they received on `RUN_ERROR`: a cut-off response, a refusal, a parse failure, an empty response, or a stream that fails after usage arrived. Before, many of these paths dropped it.
+  - A non-streaming `structuredOutput()`, image, or speech call that fails after the response throws an error with a `usage` field. `chat()`, `generateImage()`, `generateSpeech()`, and `summarize()` report it.
+  - The `onUsage` middleware hook now also runs for a `RUN_ERROR` with usage. A structured output value that fails the schema check still reports the usage of its call.
+  - Media streams carry `usage` on `RUN_FINISHED` and `RUN_ERROR`. Devtools now gets the `summarize:usage` and `transcription:usage` events, and `text:usage` for a chat `RUN_ERROR` with usage. A call that `onModelError` or a rate-limit retry drops still reports its usage.
+  - Provider fields that were dropped are mapped: Anthropic thinking tokens, Claude Code `total_cost_usd` as `usage.cost`, OpenRouter Responses reasoning tokens, opencode cost and cache writes, ACP and Bedrock cache writes, OpenAI evaluate token details, Gemini Vertex embedding tokens, and audio duration as billed seconds for Whisper, Groq, Cloudflare, and Lovable transcription.
+  - opencode adds up the usage of every agent step in a turn. Before, it counted only the last step.
+  - Gemini Interactions usage (text, agentic video, and images) counts thought tokens in `completionTokens`, the same as `generateContent`.
+
+- Updated dependencies [[`9ac67f3`](https://github.com/TanStack/ai/commit/9ac67f3acbcecee88714503b205d602560fdc8c6), [`9ac67f3`](https://github.com/TanStack/ai/commit/9ac67f3acbcecee88714503b205d602560fdc8c6), [`e17cae7`](https://github.com/TanStack/ai/commit/e17cae7aa40ce5ebe0e78496931d49c793bdaf41), [`d6ead13`](https://github.com/TanStack/ai/commit/d6ead13def85f91782e20d6c1b8755fdf1c836c2), [`450950d`](https://github.com/TanStack/ai/commit/450950da860d58047c654c1497ddb48d651f9076), [`07d2e42`](https://github.com/TanStack/ai/commit/07d2e429c456a31d35748fecf7d8f8c0795eff31), [`13b1ca9`](https://github.com/TanStack/ai/commit/13b1ca918a0ac36761db2a6226973c5330d4221d), [`e17cae7`](https://github.com/TanStack/ai/commit/e17cae7aa40ce5ebe0e78496931d49c793bdaf41), [`940c402`](https://github.com/TanStack/ai/commit/940c402d8ca5220e3202326e03cc1f64654572a3), [`09dde65`](https://github.com/TanStack/ai/commit/09dde65b9fdcc312fd0459c98328c23abd1406cb)]:
+  - @tanstack/ai@1.1.0
+  - @tanstack/ai-utils@1.0.1
+  - @tanstack/openai-base@1.0.1
+
+## 1.0.1
+
+### Patch Changes
+
+- [#1904](https://github.com/TanStack/ai/pull/1904) [`f085015`](https://github.com/TanStack/ai/commit/f085015da1b77aee3cf95ca74a2e86ed9dbc1c29) - Show each package's own npm download count and npm version. The bundle-size badge uses bundlejs. Partner logos use image URLs that load.
+
+- [#1912](https://github.com/TanStack/ai/pull/1912) [`ae97655`](https://github.com/TanStack/ai/commit/ae976552710726b13b524c307c1b5bbe78478eb0) - Video generation is no longer marked experimental. The `@experimental` tags are gone from `generateVideo()`, the video adapters, and their types, and the docs no longer say the API can change.
+
+- Updated dependencies [[`f085015`](https://github.com/TanStack/ai/commit/f085015da1b77aee3cf95ca74a2e86ed9dbc1c29), [`ae97655`](https://github.com/TanStack/ai/commit/ae976552710726b13b524c307c1b5bbe78478eb0)]:
+  - @tanstack/ai@1.0.1
+  - @tanstack/openai-base@1.0.0
+
 ## 1.0.0
 
 ### Major Changes

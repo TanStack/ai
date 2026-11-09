@@ -3,7 +3,7 @@ id: AudioGenerationResult
 title: AudioGenerationResult
 ---
 
-Defined in: packages/ai/src/types.ts:2511
+Defined in: [packages/ai/src/types.ts:2587](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2587)
 
 Result of audio generation
 
@@ -15,7 +15,7 @@ Result of audio generation
 optional artifacts?: PersistedArtifactRef[];
 ```
 
-Defined in: packages/ai/src/types.ts:2521
+Defined in: [packages/ai/src/types.ts:2597](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2597)
 
 Persisted artifact references for generated assets, when available
 
@@ -27,7 +27,7 @@ Persisted artifact references for generated assets, when available
 audio: GeneratedAudio;
 ```
 
-Defined in: packages/ai/src/types.ts:2517
+Defined in: [packages/ai/src/types.ts:2593](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2593)
 
 The generated audio
 
@@ -39,7 +39,7 @@ The generated audio
 id: string;
 ```
 
-Defined in: packages/ai/src/types.ts:2513
+Defined in: [packages/ai/src/types.ts:2589](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2589)
 
 Unique identifier for the generation
 
@@ -51,7 +51,7 @@ Unique identifier for the generation
 model: string;
 ```
 
-Defined in: packages/ai/src/types.ts:2515
+Defined in: [packages/ai/src/types.ts:2591](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2591)
 
 Model used for generation
 
@@ -63,6 +63,6 @@ Model used for generation
 optional usage?: TokenUsage<ProviderUsageDetails>;
 ```
 
-Defined in: packages/ai/src/types.ts:2519
+Defined in: [packages/ai/src/types.ts:2595](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2595)
 
 Token usage information (if available)

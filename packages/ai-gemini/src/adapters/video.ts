@@ -1,8 +1,4 @@
 import {
-  GenerateVideosOperation,
-  VideoGenerationReferenceType,
-} from '@google/genai'
-import {
   fileReferenceFor,
   isFileSource,
   resolveMediaPrompt,
@@ -10,7 +6,12 @@ import {
 } from '@tanstack/ai'
 import { BaseVideoAdapter } from '@tanstack/ai/adapters'
 import { arrayBufferToBase64 } from '@tanstack/ai-utils'
-import { createGeminiClient, getGeminiApiKeyFromEnv } from '../utils'
+import { VideoGenerationReferenceType } from '../client/enums'
+import {
+  createGeminiClient,
+  getGeminiApiKeyFromEnv,
+  withHttpTimeout,
+} from '../utils'
 import {
   getGeminiVideoDurationOptions,
   isInteractionsVideoModel,
@@ -29,7 +30,6 @@ import type {
 } from '@tanstack/ai'
 import type {
   GenerateVideosConfig,
-  GoogleGenAI,
   Image,
   Interactions,
   VideoGenerationReferenceImage,
@@ -44,6 +44,7 @@ import type {
   GeminiVideoProviderOptions,
 } from '../video/video-provider-options'
 import type { GeminiClientConfig } from '../utils/client'
+import type { GeminiClient, GeminiVideosOperation } from '../client/index'
 
 type Interaction = Interactions.Interaction
 type InteractionContent = Interactions.Content
@@ -89,6 +90,7 @@ function operationErrorMessage(error: Record<string, unknown>): string {
 async function imagePartToVeoImage(
   part: ImagePart<MediaInputMetadata>,
   allowUrlFetch: boolean,
+  abortSignal: AbortSignal | undefined,
 ): Promise<Image> {
   if (part.source.type === 'data') {
     return {
@@ -132,7 +134,9 @@ async function imagePartToVeoImage(
         `adapter config to opt into fetching. URL: ${url}`,
     )
   }
-  const response = await fetch(url)
+  const response = abortSignal
+    ? await fetch(url, { signal: abortSignal })
+    : await fetch(url)
   if (!response.ok) {
     throw new Error(
       `Failed to fetch image input (${response.status} ${response.statusText}): ${url}`,
@@ -245,7 +249,7 @@ function interactionUsageToTokenUsage(
  * requires the API key (`x-goog-api-key` header or `?key=` query
  * parameter) to download.
  *
- * **Gemini Omni Flash** (`gemini-omni-1.1-flash`) only serves the Interactions API:
+ * **Gemini Omni Flash** (`gemini-omni-1.2-flash`, `gemini-omni-1.1-flash`) only serves the Interactions API:
  * `createVideoJob` creates a background interaction with
  * `response_modalities: ['video']`, `getVideoStatus` polls it by id, and
  * `getVideo` returns the inline base64 MP4 as a `data:` URL (or the
@@ -273,13 +277,15 @@ export class GeminiVideoAdapter<
   // `uri`s; the Veo path still rejects them (raw bytes / gs:// only).
   override readonly supportsFileSources = true
 
-  protected client: GoogleGenAI
+  protected client: GeminiClient
   private readonly allowUrlFetch: boolean
+  private readonly timeoutMs: number | undefined
 
   constructor(config: GeminiVideoConfig, model: TModel) {
     super({}, model)
     this.client = createGeminiClient(config)
     this.allowUrlFetch = config.allowUrlFetch ?? false
+    this.timeoutMs = config.httpOptions?.timeout
   }
 
   async createVideoJob(
@@ -319,6 +325,7 @@ export class GeminiVideoAdapter<
 
       const { image, lastFrame, referenceImages } = await this.routeImageParts(
         resolved.images,
+        options.abortSignal,
       )
 
       const config: GenerateVideosConfig = {
@@ -327,6 +334,7 @@ export class GeminiVideoAdapter<
         ...(duration !== undefined && { durationSeconds: duration }),
         ...(lastFrame && { lastFrame }),
         ...(referenceImages.length > 0 && { referenceImages }),
+        ...(options.abortSignal && { abortSignal: options.abortSignal }),
       }
 
       const operation = await this.client.models.generateVideos({
@@ -427,14 +435,18 @@ export class GeminiVideoAdapter<
             }
           : {}
 
-      const interaction = await this.client.interactions.create({
+      const request = {
         ...modelOptions,
         model: this.model,
-        input: [{ type: 'user_input', content }],
-        response_modalities: ['video'],
+        input: [{ type: 'user_input' as const, content }],
+        response_modalities: ['video' as const],
         background: true,
         ...responseFormat,
-      })
+      }
+      const signal = withHttpTimeout(options.abortSignal, this.timeoutMs)
+      const interaction = signal
+        ? await this.client.interactions.create(request, { signal })
+        : await this.client.interactions.create(request)
 
       if (!interaction.id) {
         throw new Error(
@@ -457,6 +469,7 @@ export class GeminiVideoAdapter<
    */
   private async routeImageParts(
     parts: Array<ImagePart<MediaInputMetadata>>,
+    abortSignal: AbortSignal | undefined,
   ): Promise<{
     image: Image | undefined
     lastFrame: Image | undefined
@@ -475,13 +488,21 @@ export class GeminiVideoAdapter<
               `${this.name}: Veo accepts at most one 'end_frame' image.`,
             )
           }
-          lastFrame = await imagePartToVeoImage(part, this.allowUrlFetch)
+          lastFrame = await imagePartToVeoImage(
+            part,
+            this.allowUrlFetch,
+            abortSignal,
+          )
           break
         }
         case 'reference':
         case 'character': {
           referenceImages.push({
-            image: await imagePartToVeoImage(part, this.allowUrlFetch),
+            image: await imagePartToVeoImage(
+              part,
+              this.allowUrlFetch,
+              abortSignal,
+            ),
             referenceType: VideoGenerationReferenceType.ASSET,
           })
           break
@@ -493,7 +514,11 @@ export class GeminiVideoAdapter<
               `${this.name}: Veo accepts at most one starting image; received multiple 'start_frame'/un-roled images. Use metadata.role ('end_frame', 'reference') to disambiguate the others.`,
             )
           }
-          image = await imagePartToVeoImage(part, this.allowUrlFetch)
+          image = await imagePartToVeoImage(
+            part,
+            this.allowUrlFetch,
+            abortSignal,
+          )
           break
         }
         case 'mask':
@@ -507,11 +532,15 @@ export class GeminiVideoAdapter<
     return { image, lastFrame, referenceImages }
   }
 
-  async getVideoStatus(jobId: string): Promise<VideoStatusResult> {
+  async getVideoStatus(
+    jobId: string,
+    options?: { abortSignal?: AbortSignal },
+  ): Promise<VideoStatusResult> {
+    const signal = options?.abortSignal
     if (isInteractionsVideoModel(this.model)) {
-      return await this.getInteractionsVideoStatus(jobId)
+      return await this.getInteractionsVideoStatus(jobId, signal)
     }
-    const operation = await this.getOperation(jobId)
+    const operation = await this.getOperation(jobId, signal)
 
     if (!operation.done) {
       return { jobId, status: 'processing' }
@@ -555,8 +584,9 @@ export class GeminiVideoAdapter<
    */
   private async getInteractionsVideoStatus(
     jobId: string,
+    signal?: AbortSignal,
   ): Promise<VideoStatusResult> {
-    const interaction = await this.getInteraction(jobId)
+    const interaction = await this.getInteraction(jobId, signal)
     const status = interaction.status
 
     if (status === 'in_progress') {
@@ -588,11 +618,15 @@ export class GeminiVideoAdapter<
     }
   }
 
-  override async getVideo(jobId: string): Promise<VideoUrlResult> {
+  override async getVideo(
+    jobId: string,
+    options?: { abortSignal?: AbortSignal },
+  ): Promise<VideoUrlResult> {
+    const signal = options?.abortSignal
     if (isInteractionsVideoModel(this.model)) {
-      return await this.getInteractionsVideoUrl(jobId)
+      return await this.getInteractionsVideoUrl(jobId, signal)
     }
-    const operation = await this.getOperation(jobId)
+    const operation = await this.getOperation(jobId, signal)
 
     if (!operation.done) {
       throw new Error(
@@ -628,8 +662,9 @@ export class GeminiVideoAdapter<
    */
   private async getInteractionsVideoUrl(
     jobId: string,
+    signal?: AbortSignal,
   ): Promise<VideoUrlResult> {
-    const interaction = await this.getInteraction(jobId)
+    const interaction = await this.getInteraction(jobId, signal)
     const status = interaction.status
 
     if (status === 'in_progress') {
@@ -662,22 +697,28 @@ export class GeminiVideoAdapter<
   }
 
   /**
-   * Fetch the long-running operation by name. The SDK's
-   * `operations.getVideosOperation` needs a real `GenerateVideosOperation`
-   * instance (it calls `_fromAPIResponse` on it), so reconstruct one from
-   * the job ID rather than passing an object literal.
+   * Fetch the long-running operation by name.
    */
-  private async getOperation(jobId: string): Promise<GenerateVideosOperation> {
-    const operation = new GenerateVideosOperation()
-    operation.name = jobId
-    return await this.client.operations.getVideosOperation({ operation })
+  private async getOperation(
+    jobId: string,
+    signal?: AbortSignal,
+  ): Promise<GeminiVideosOperation> {
+    return await this.client.operations.getVideosOperation({
+      operation: { name: jobId },
+      ...(signal && { config: { abortSignal: signal } }),
+    })
   }
 
   /**
    * Fetch an Omni background interaction by id.
    */
-  private async getInteraction(jobId: string): Promise<Interaction> {
-    return await this.client.interactions.get(jobId)
+  private async getInteraction(
+    jobId: string,
+    signal?: AbortSignal,
+  ): Promise<Interaction> {
+    return signal
+      ? await this.client.interactions.get(jobId, undefined, { signal })
+      : await this.client.interactions.get(jobId)
   }
 }
 

@@ -136,13 +136,16 @@ describe('OpenAI Image Adapter', () => {
         logger: testLogger,
       })
 
-      expect(mockGenerate).toHaveBeenCalledWith({
-        model: 'gpt-image-1',
-        prompt: 'A cat wearing a hat',
-        n: 1,
-        size: '1024x1024',
-        stream: false,
-      })
+      expect(mockGenerate).toHaveBeenCalledWith(
+        {
+          model: 'gpt-image-1',
+          prompt: 'A cat wearing a hat',
+          n: 1,
+          size: '1024x1024',
+          stream: false,
+        },
+        { signal: undefined },
+      )
 
       expect(result.model).toBe('gpt-image-1')
       expect(result.images).toHaveLength(1)
@@ -176,14 +179,17 @@ describe('OpenAI Image Adapter', () => {
           logger: testLogger,
         })
 
-        expect(mockGenerate).toHaveBeenCalledWith({
-          model,
-          prompt: 'A cat wearing a hat',
-          n: 1,
-          size: '1536x1024',
-          quality: 'xhigh',
-          stream: false,
-        })
+        expect(mockGenerate).toHaveBeenCalledWith(
+          {
+            model,
+            prompt: 'A cat wearing a hat',
+            n: 1,
+            size: '1536x1024',
+            quality: 'xhigh',
+            stream: false,
+          },
+          { signal: undefined },
+        )
         expect(result.images[0]!.b64Json).toBe('img')
       },
     )
@@ -204,6 +210,33 @@ describe('OpenAI Image Adapter', () => {
           logger: testLogger,
         }),
       ).rejects.toThrow(/image response contained no images/)
+    })
+
+    it('attaches the response usage when the response contains no usable images', async () => {
+      const adapter = new TestOpenAIImageAdapter(
+        { apiKey: 'test-api-key' },
+        'gpt-image-1',
+      )
+      adapter.spyOnImagesGenerate().mockResolvedValueOnce({
+        created: 0,
+        data: [{}],
+        usage: {
+          input_tokens: 10,
+          input_tokens_details: { image_tokens: 0, text_tokens: 10 },
+          output_tokens: 0,
+          total_tokens: 10,
+        },
+      })
+
+      await expect(
+        adapter.generateImages({
+          model: 'gpt-image-1',
+          prompt: 'A cat',
+          logger: testLogger,
+        }),
+      ).rejects.toMatchObject({
+        usage: { promptTokens: 10, completionTokens: 0, totalTokens: 10 },
+      })
     })
 
     it('generates a unique ID for each response', async () => {
@@ -327,7 +360,10 @@ describe('OpenAI Image Adapter', () => {
           ],
           logger: testLogger,
         })
-        expect(fetchMock).toHaveBeenCalledWith('https://example.com/photo.jpg')
+        expect(fetchMock).toHaveBeenCalledWith(
+          'https://example.com/photo.jpg',
+          { signal: undefined },
+        )
         expect(editSpy).toHaveBeenCalledTimes(1)
         expect(editSpy.mock.calls[0]![0].image).toBeInstanceOf(File)
         expect(result.images[0]!.b64Json).toBe('edited-base64')
@@ -445,6 +481,39 @@ describe('OpenAI Image Adapter', () => {
           logger: testLogger,
         }),
       ).rejects.toThrow(/image edit response contained no images/)
+    })
+
+    it('attaches the response usage when the edit response contains no usable images', async () => {
+      const adapter = new TestOpenAIImageAdapter(
+        { apiKey: 'test-api-key' },
+        'gpt-image-1',
+      )
+      adapter.spyOnImagesEdit().mockResolvedValueOnce({
+        created: 0,
+        data: [{}],
+        usage: {
+          input_tokens: 10,
+          input_tokens_details: { image_tokens: 0, text_tokens: 10 },
+          output_tokens: 0,
+          total_tokens: 10,
+        },
+      })
+
+      await expect(
+        adapter.generateImages({
+          model: 'gpt-image-1',
+          prompt: [
+            { type: 'text', content: 'edit' },
+            {
+              type: 'image',
+              source: { type: 'data', value: 'aGk=', mimeType: 'image/png' },
+            },
+          ],
+          logger: testLogger,
+        }),
+      ).rejects.toMatchObject({
+        usage: { promptTokens: 10, completionTokens: 0, totalTokens: 10 },
+      })
     })
 
     it('rejects video or audio prompt parts', async () => {

@@ -109,6 +109,26 @@ export function createCodeModeTool(
     throw new Error('At least one tool must be provided to createCodeModeTool')
   }
 
+  // Reject approval-gated tools up front, before any binding work. A tool
+  // marked `needsApproval: true` expects a human approval interrupt before it
+  // runs. Code Mode invokes tools from inside the sandbox, where the model only
+  // sees the outer execute_typescript call — the per-tool interrupt is never
+  // raised, so the tool would run unattended. Approving only execute_typescript
+  // would not preserve per-tool/per-argument approval semantics. `toolToBinding`
+  // enforces the same rule as a lower-level backstop.
+  const approvalTools = tools.filter((t) => t.needsApproval)
+  if (approvalTools.length > 0) {
+    const names = approvalTools.map((t) => t.name).join(', ')
+    throw new Error(
+      `Code Mode cannot expose tools that require approval: ${names}. ` +
+        `A tool marked needsApproval: true expects a human approval interrupt ` +
+        `before it runs, but Code Mode invokes tools from inside the sandbox ` +
+        `where that interrupt cannot be raised. Remove these tools from the ` +
+        `Code Mode config, or drop needsApproval if they are safe to call ` +
+        `unattended.`,
+    )
+  }
+
   // Transform tools to bindings with external_ prefix (static bindings)
   const staticBindings = toolsToBindings(tools, 'external_')
 
@@ -196,6 +216,35 @@ export function createCodeModeTool(
       let isolateContext: IsolateContext | null = null
       // Aborts when this program ends, so a host call that still waits can stop.
       const programEnd = new AbortController()
+      // An abort of the run ends the program: a call that waits (for example
+      // for an approval) stops, and the isolate is disposed. How fast running
+      // code stops depends on the driver.
+      const runSignal = toolContext?.abortSignal
+      let disposing: Promise<void> | undefined
+      const disposeContext = () => {
+        if (isolateContext && !disposing) {
+          disposing = isolateContext.dispose()
+          // Marked as seen; the finally block still awaits it.
+          disposing.catch(() => {})
+        }
+        return disposing
+      }
+      const onRunAbort = () => {
+        programEnd.abort()
+        void disposeContext()
+      }
+      runSignal?.addEventListener('abort', onRunAbort, { once: true })
+      const abortedBeforeRun = () =>
+        finish(
+          {
+            success: false,
+            error: {
+              message: 'The run was aborted before the code ran',
+              name: 'AbortError',
+            },
+          },
+          'create-context',
+        )
 
       // Emit execution started event immediately
       emitCustomEvent('code_mode:execution_started', {
@@ -225,6 +274,9 @@ export function createCodeModeTool(
           )
         }
 
+        // An abort that came while the code was transpiled: load no snippets.
+        if (runSignal?.aborted) return abortedBeforeRun()
+
         // Step 2: Get dynamic snippet bindings if available
         const snippetBindings = getSnippetBindings
           ? await getSnippetBindings()
@@ -251,6 +303,9 @@ export function createCodeModeTool(
           aroundCalls?.(toolContext, programEnd.signal),
         )
 
+        // An abort that came while the snippets loaded: make no context.
+        if (runSignal?.aborted) return abortedBeforeRun()
+
         // Step 4: Create sandbox context with event-aware bindings
         try {
           isolateContext = await driver.createContext({
@@ -274,8 +329,16 @@ export function createCodeModeTool(
           )
         }
 
+        // An abort that came while the context was made: do not run the code.
+        if (runSignal?.aborted) {
+          onRunAbort()
+          return abortedBeforeRun()
+        }
+
         // Step 5: Execute the code in the sandbox
-        const executionResult = await isolateContext.execute(strippedCode)
+        const executionResult = runSignal
+          ? await isolateContext.execute(strippedCode, { signal: runSignal })
+          : await isolateContext.execute(strippedCode)
 
         // Emit console logs as custom events
         if (executionResult.logs && executionResult.logs.length > 0) {
@@ -317,15 +380,24 @@ export function createCodeModeTool(
         return finish(
           {
             success: false,
-            error: executionResult.error
-              ? {
-                  message: executionResult.error.message,
-                  name: executionResult.error.name,
-                  ...(executionResult.error.stack !== undefined && {
-                    stack: executionResult.error.stack,
-                  }),
-                }
-              : { message: 'Unknown execution error', name: 'UnknownError' },
+            // An abort also disposes the context, so the driver can report
+            // a DisposedError first. Report the abort.
+            error:
+              runSignal?.aborted &&
+              executionResult.error?.name === 'DisposedError'
+                ? { message: 'Execution was aborted.', name: 'AbortError' }
+                : executionResult.error
+                  ? {
+                      message: executionResult.error.message,
+                      name: executionResult.error.name,
+                      ...(executionResult.error.stack !== undefined && {
+                        stack: executionResult.error.stack,
+                      }),
+                    }
+                  : {
+                      message: 'Unknown execution error',
+                      name: 'UnknownError',
+                    },
             logs: executionResult.logs,
           },
           'execute',
@@ -344,12 +416,11 @@ export function createCodeModeTool(
           'unhandled',
         )
       } finally {
+        runSignal?.removeEventListener('abort', onRunAbort)
         // The program has ended (success, error, or timeout).
         programEnd.abort()
         // Always clean up the sandbox context
-        if (isolateContext) {
-          await isolateContext.dispose()
-        }
+        await disposeContext()
       }
     },
   )

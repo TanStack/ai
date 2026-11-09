@@ -1,6 +1,6 @@
 {
   "name": "@tanstack/solid-ai-devtools",
-  "version": "1.0.0",
+  "version": "1.0.2",
   "description": "Solid Devtools plugin for inspecting TanStack AI chat messages, tool calls, streams, and errors.",
   "author": "Tanner Linsley",
   "license": "MIT",
@@ -62,7 +62,7 @@
     "@tanstack/devtools-utils": "^0.7.0"
   },
   "peerDependencies": {
-    "solid-js": ">=1.9.7"
+    "solid-js": "^1.9.7"
   },
   "devDependencies": {
     "solid-js": "^1.9.10",

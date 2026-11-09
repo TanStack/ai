@@ -10,7 +10,7 @@ import type {
   AudioGenerationOptions,
   AudioGenerationResult,
 } from '@tanstack/ai'
-import type { GoogleGenAI } from '@google/genai'
+import type { GeminiClient } from '../client/index'
 import type { GeminiClientConfig } from '../utils/client'
 
 /**
@@ -67,7 +67,7 @@ export class GeminiAudioAdapter<
 > extends BaseAudioAdapter<TModel, GeminiAudioProviderOptions> {
   readonly name = 'gemini' as const
 
-  private readonly client: GoogleGenAI
+  private readonly client: GeminiClient
 
   constructor(config: GeminiAudioConfig, model: TModel) {
     super(model, config)
@@ -98,6 +98,7 @@ export class GeminiAudioAdapter<
         config: {
           responseModalities: ['AUDIO', 'TEXT'],
           ...(modelOptions?.seed != null ? { seed: modelOptions.seed } : {}),
+          ...(options.abortSignal && { abortSignal: options.abortSignal }),
         },
       })
 

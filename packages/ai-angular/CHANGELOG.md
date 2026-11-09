@@ -1,5 +1,21 @@
 # @tanstack/ai-angular
 
+## 1.1.0
+
+### Minor Changes
+
+- [#2047](https://github.com/TanStack/ai/pull/2047) [`2641779`](https://github.com/TanStack/ai/commit/26417799c614d12de26e74c2fed5dd0add341d16) - Raise the Angular peer range to `>=22.0.0 <23`. The package is built with Angular 22 and TypeScript 6.0.2.
+
+## 1.0.1
+
+### Patch Changes
+
+- [#1904](https://github.com/TanStack/ai/pull/1904) [`f085015`](https://github.com/TanStack/ai/commit/f085015da1b77aee3cf95ca74a2e86ed9dbc1c29) - Show each package's own npm download count and npm version. The bundle-size badge uses bundlejs. Partner logos use image URLs that load.
+
+- Updated dependencies [[`f085015`](https://github.com/TanStack/ai/commit/f085015da1b77aee3cf95ca74a2e86ed9dbc1c29), [`ae97655`](https://github.com/TanStack/ai/commit/ae976552710726b13b524c307c1b5bbe78478eb0)]:
+  - @tanstack/ai@1.0.1
+  - @tanstack/ai-client@1.0.1
+
 ## 1.0.0
 
 ### Major Changes

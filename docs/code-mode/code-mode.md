@@ -125,6 +125,10 @@ The three weather calls run in parallel inside the sandbox. The model gets one r
 
 The Node, QuickJS, QuickJS Bun, and Cloudflare drivers have no access to the host file system, network, or process. The Daytona and E2B drivers run the code in a full remote Linux sandbox, with its own file system, network, and processes.
 
+## Tool approval
+
+Code Mode rejects tools that need approval. A tool marked `needsApproval: true` expects a human to approve each call before it runs. Code Mode runs tools inside the sandbox from one `execute_typescript` call, so it cannot raise that per-tool approval. `createCodeMode` and `createCodeModeTool` throw when you pass such a tool. An approval tool belongs outside the Code Mode config. `chat()` runs it directly, where the approval interrupt works.
+
 ## Add more
 
 - **Show the run to your users:** [Showing Code Mode in the UI](./client-integration).
@@ -137,7 +141,7 @@ The Node, QuickJS, QuickJS Bun, and Cloudflare drivers have no access to the hos
 
 ### Stop tool calls when the run stops
 
-When a user stops a chat run, a tool call that the sandbox started keeps going, unless the tool listens for the abort. Each `external_*` call gets the `abortSignal` of the chat run in its second argument. Pass it to the slow work:
+When a user stops a chat run, Code Mode disposes the isolate. With the Node and E2B drivers the program stops at once. With other drivers, the running code can continue until it ends or until its timeout. A tool call that the program started keeps going, unless the tool listens for the abort. Each `external_*` call gets the `abortSignal` of the chat run in its second argument. Pass it to the slow work:
 
 ```typescript
 import { toolDefinition } from "@tanstack/ai";

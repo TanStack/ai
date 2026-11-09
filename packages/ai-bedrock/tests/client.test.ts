@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { resolveBedrockAuth, withBedrockDefaults } from '../src/utils/client'
+import { importOptionalPeer } from '../src/utils/auth'
 
 afterEach(() => {
   vi.unstubAllEnvs()
@@ -243,5 +244,26 @@ describe('resolveBedrockAuth', () => {
     vi.stubEnv('AWS_BEARER_TOKEN_BEDROCK', '')
     const r = resolveBedrockAuth({ region: 'us-east-1' }, 'runtime')
     expect(r.kind).toBe('sigv4')
+  })
+})
+
+describe('importOptionalPeer', () => {
+  it('names the package to install when the peer is missing', async () => {
+    const mod = '@tanstack/not-installed-bedrock-peer'
+    const error: unknown = await importOptionalPeer(mod).catch((e) => e)
+    expect(error).toBeInstanceOf(Error)
+    if (!(error instanceof Error)) return
+    expect(error.message).toBe(
+      `@tanstack/ai-bedrock could not load "${mod}". It is an optional peer ` +
+        `dependency. Install it: npm install ${mod}`,
+    )
+    expect(error.cause).toBeInstanceOf(Error)
+  })
+
+  it('returns the module when the peer is installed', async () => {
+    const mod = await importOptionalPeer<{ fromNodeProviderChain: unknown }>(
+      '@aws-sdk/credential-providers',
+    )
+    expect(typeof mod.fromNodeProviderChain).toBe('function')
   })
 })

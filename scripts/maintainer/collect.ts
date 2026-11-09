@@ -4,8 +4,8 @@
  * the shapes in types.ts. Read-only — never mutates anything.
  */
 
-import { isBotLogin } from './config'
-import type { GitHubClient } from './github'
+import { isBotLogin } from './config.ts'
+import type { GitHubClient } from './github.ts'
 import type {
   CIState,
   ClosedItem,
@@ -15,7 +15,7 @@ import type {
   RepoSnapshot,
   TimelineEvent,
   ToolsetConfig,
-} from './types'
+} from './types.ts'
 
 const CLOSED_LOOKBACK_DAYS = 14
 

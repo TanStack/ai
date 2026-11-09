@@ -3,7 +3,7 @@ id: VideoAdapter
 title: VideoAdapter
 ---
 
-Defined in: packages/ai/src/activities/generateVideo/adapter.ts:64
+Defined in: [packages/ai/src/activities/generateVideo/adapter.ts:64](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/generateVideo/adapter.ts#L64)
 
 Video adapter interface with pre-resolved generics.
 
@@ -55,7 +55,7 @@ Generic parameters:
 ~types: object;
 ```
 
-Defined in: packages/ai/src/activities/generateVideo/adapter.ts:94
+Defined in: [packages/ai/src/activities/generateVideo/adapter.ts:94](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/generateVideo/adapter.ts#L94)
 
 **`Internal`**
 
@@ -99,7 +99,7 @@ providerOptions: TProviderOptions;
 availableDurations: () => DurationOptions<TModelDurationByName[TModel]>;
 ```
 
-Defined in: packages/ai/src/activities/generateVideo/adapter.ts:131
+Defined in: [packages/ai/src/activities/generateVideo/adapter.ts:150](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/generateVideo/adapter.ts#L150)
 
 Describe the durations this adapter's model accepts. Returns a tagged
 union so consumers can render UI / coerce input without provider-specific
@@ -111,13 +111,44 @@ knowledge.
 
 ***
 
+### cancelVideoJob?
+
+```ts
+optional cancelVideoJob?: (jobId, options?) => Promise<void>;
+```
+
+Defined in: [packages/ai/src/activities/generateVideo/adapter.ts:140](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/generateVideo/adapter.ts#L140)
+
+Optional. Ask the provider to stop a job that is not finished. Implement
+it only when the provider has a real cancel API. Streaming
+`generateVideo()` calls it (best effort) when its `abortSignal` or
+`timeout` aborts after the job exists. A rejection is logged, not thrown.
+
+#### Parameters
+
+##### jobId
+
+`string`
+
+##### options?
+
+###### abortSignal?
+
+`AbortSignal`
+
+#### Returns
+
+`Promise`\<`void`\>
+
+***
+
 ### createVideoJob
 
 ```ts
 createVideoJob: (options) => Promise<VideoJobResult>;
 ```
 
-Defined in: packages/ai/src/activities/generateVideo/adapter.ts:106
+Defined in: [packages/ai/src/activities/generateVideo/adapter.ts:106](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/generateVideo/adapter.ts#L106)
 
 Create a new video generation job.
 Returns a job ID that can be used to poll for status and retrieve the video.
@@ -137,22 +168,29 @@ Returns a job ID that can be used to poll for status and retrieve the video.
 ### getVideo
 
 ```ts
-getVideo: (jobId) => Promise<
+getVideo: (jobId, options?) => Promise<
   | VideoUrlResult
 | VideoStreamResult>;
 ```
 
-Defined in: packages/ai/src/activities/generateVideo/adapter.ts:124
+Defined in: [packages/ai/src/activities/generateVideo/adapter.ts:129](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/generateVideo/adapter.ts#L129)
 
 Get the finished video: a public URL when the provider has one, or the
 download stream for generation middleware to host. Call only after
-status is 'completed'.
+status is 'completed'. Adapters should forward `options.abortSignal` to
+the provider request (and the download) when supported.
 
 #### Parameters
 
 ##### jobId
 
 `string`
+
+##### options?
+
+###### abortSignal?
+
+`AbortSignal`
 
 #### Returns
 
@@ -165,18 +203,25 @@ status is 'completed'.
 ### getVideoStatus
 
 ```ts
-getVideoStatus: (jobId) => Promise<VideoStatusResult>;
+getVideoStatus: (jobId, options?) => Promise<VideoStatusResult>;
 ```
 
-Defined in: packages/ai/src/activities/generateVideo/adapter.ts:117
+Defined in: [packages/ai/src/activities/generateVideo/adapter.ts:118](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/generateVideo/adapter.ts#L118)
 
-Get the current status of a video generation job.
+Get the current status of a video generation job. Adapters should forward
+`options.abortSignal` to the provider request when supported.
 
 #### Parameters
 
 ##### jobId
 
 `string`
+
+##### options?
+
+###### abortSignal?
+
+`AbortSignal`
 
 #### Returns
 
@@ -190,7 +235,7 @@ Get the current status of a video generation job.
 readonly kind: "video";
 ```
 
-Defined in: packages/ai/src/activities/generateVideo/adapter.ts:78
+Defined in: [packages/ai/src/activities/generateVideo/adapter.ts:78](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/generateVideo/adapter.ts#L78)
 
 Discriminator for adapter kind - used to determine API shape
 
@@ -202,7 +247,7 @@ Discriminator for adapter kind - used to determine API shape
 readonly model: TModel;
 ```
 
-Defined in: packages/ai/src/activities/generateVideo/adapter.ts:89
+Defined in: [packages/ai/src/activities/generateVideo/adapter.ts:89](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/generateVideo/adapter.ts#L89)
 
 The model this adapter is configured for
 
@@ -214,7 +259,7 @@ The model this adapter is configured for
 readonly name: string;
 ```
 
-Defined in: packages/ai/src/activities/generateVideo/adapter.ts:80
+Defined in: [packages/ai/src/activities/generateVideo/adapter.ts:80](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/generateVideo/adapter.ts#L80)
 
 Adapter name identifier
 
@@ -226,7 +271,7 @@ Adapter name identifier
 snapDuration: (input) => TModelDurationByName[TModel] | undefined;
 ```
 
-Defined in: packages/ai/src/activities/generateVideo/adapter.ts:140
+Defined in: [packages/ai/src/activities/generateVideo/adapter.ts:159](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/generateVideo/adapter.ts#L159)
 
 Coerce `input` to the closest duration this model accepts.
 `input` may be seconds (`7`), a numeric string (`"7"`), a template
@@ -252,7 +297,7 @@ Returns `undefined` when the model has no duration field, or when
 readonly optional supportsFileSources?: boolean;
 ```
 
-Defined in: packages/ai/src/activities/generateVideo/adapter.ts:87
+Defined in: [packages/ai/src/activities/generateVideo/adapter.ts:87](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/generateVideo/adapter.ts#L87)
 
 Declares that this adapter can consume `{ type: 'file' }` content
 sources (provider Files API references). The activity dispatcher rejects

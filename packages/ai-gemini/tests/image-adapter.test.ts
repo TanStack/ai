@@ -627,6 +627,47 @@ describe('Gemini Image Adapter', () => {
       expect(result.id).toBe('int_test')
     })
 
+    it('returns the images with a local id when store is false and Gemini returns no interaction id', async () => {
+      const mockCreate = vi
+        .fn()
+        .mockResolvedValueOnce(interactionWithImages('out', { id: undefined }))
+      const adapter = createGeminiImage(
+        'gemini-3.1-flash-image',
+        'test-api-key',
+      )
+      stubCreate(adapter, mockCreate)
+
+      const result = await generateImage({
+        threadId: 'thread-1',
+        adapter,
+        prompt: 'A red apple',
+        modelOptions: { store: false },
+      })
+
+      expect(result.images).toHaveLength(1)
+      expect(result.id).toEqual(expect.any(String))
+      expect(result.id).not.toBe('')
+    })
+
+    it('still throws when a stored interaction comes back without an id', async () => {
+      const mockCreate = vi
+        .fn()
+        .mockResolvedValueOnce(interactionWithImages('out', { id: undefined }))
+      const adapter = createGeminiImage(
+        'gemini-3.1-flash-image',
+        'test-api-key',
+      )
+      stubCreate(adapter, mockCreate)
+
+      await expect(
+        generateImage({
+          threadId: 'thread-1',
+          adapter,
+          prompt: 'A red apple',
+        }),
+      ).rejects.toThrow(/returned no id/)
+    })
+
     it('passes abortSignal only when one is set', async () => {
       const { adapter, mockCreate } = mockedNativeAdapter()
       const controller = new AbortController()
@@ -867,6 +908,42 @@ describe('Gemini Image Adapter', () => {
           logger: testLogger,
         }),
       ).rejects.toThrow(/audio prompt parts/)
+    })
+
+    it('attaches usage to the error when the interaction fails or has no image', async () => {
+      const usage = {
+        total_input_tokens: 12,
+        total_output_tokens: 34,
+        total_tokens: 46,
+      }
+      for (const interaction of [
+        { id: 'int_failed', status: 'failed', usage },
+        {
+          id: 'int_empty',
+          status: 'completed',
+          steps: [{ type: 'model_output', content: [] }],
+          usage,
+        },
+      ]) {
+        const adapter = createGeminiImage(
+          'gemini-3.1-flash-image',
+          'test-api-key',
+        )
+        stubCreate(adapter, vi.fn().mockResolvedValueOnce(interaction))
+
+        const error = await adapter
+          .generateImages({
+            model: 'gemini-3.1-flash-image',
+            prompt: 'A red circle',
+            logger: testLogger,
+          })
+          .catch((e: unknown) => e)
+
+        expect(error).toBeInstanceOf(Error)
+        expect(error).toMatchObject({
+          usage: { promptTokens: 12, completionTokens: 34, totalTokens: 46 },
+        })
+      }
     })
   })
 })

@@ -1,3 +1,4 @@
+import { stableJson } from '@tanstack/ai'
 import type { MetadataStore, ModelMessage, TokenUsage } from '@tanstack/ai'
 
 /** The MetadataStore namespace of the saved usage. The key is the thread id. */
@@ -16,10 +17,11 @@ export interface UsageCount {
   compacted: boolean
 }
 
+/** The hash of `messages` by value: the order of an object's keys does not change it. */
 export async function hashMessages(
   messages: ReadonlyArray<ModelMessage>,
 ): Promise<string> {
-  const bytes = new TextEncoder().encode(JSON.stringify(messages))
+  const bytes = new TextEncoder().encode(stableJson(messages))
   const digest = await globalThis.crypto.subtle.digest('SHA-256', bytes)
   return Array.from(new Uint8Array(digest), (byte) =>
     byte.toString(16).padStart(2, '0'),

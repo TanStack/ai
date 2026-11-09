@@ -3,7 +3,7 @@ import { chat } from '@tanstack/ai'
 import { OpenAIBaseChatCompletionsTextAdapter } from '../src/adapters/chat-completions-text'
 import { OpenAIBaseResponsesTextAdapter } from '../src/adapters/responses-text'
 import { convertToolsToProviderFormat } from '../src/tools/tool-converter'
-import type OpenAI from 'openai'
+import { stubClient } from './stub-client'
 import type { StreamChunk, Tool } from '@tanstack/ai'
 
 const safetyCheck = {
@@ -82,9 +82,9 @@ async function runLoop(model: string, call: Record<string, unknown>) {
     .fn()
     .mockResolvedValueOnce(completed([call]))
     .mockResolvedValueOnce(completed([answer]))
-  const client = {
-    responses: { create: (params: unknown) => create(params) },
-  } as unknown as OpenAI
+  const client = stubClient({
+    responses: (params: unknown) => create(params),
+  })
   const tool = genericComputerTool()
   for await (const _ of chat({
     threadId: 'thread-1',
@@ -158,9 +158,7 @@ class TestChatCompletionsAdapter extends OpenAIBaseChatCompletionsTextAdapter<st
 describe('portable computer tool on the Chat Completions API', () => {
   it('fails before any request', async () => {
     const create = vi.fn()
-    const client = {
-      chat: { completions: { create } },
-    } as unknown as OpenAI
+    const client = stubClient({ completions: create })
     const chunks: Array<StreamChunk> = []
     for await (const chunk of chat({
       threadId: 'thread-1',

@@ -1,7 +1,12 @@
 import { describe, expect, it } from 'vitest'
-import { globToRegExp, matchesGlob } from './glob'
-import { computeLoad, requiresCoreReview, routeIssue, routePR } from './route'
-import { config, daysAgo } from './fixtures'
+import { globToRegExp, matchesGlob } from './glob.ts'
+import {
+  computeLoad,
+  requiresCoreReview,
+  routeIssue,
+  routePR,
+} from './route.ts'
+import { config, daysAgo } from './fixtures.ts'
 
 describe('glob matcher', () => {
   it.each([

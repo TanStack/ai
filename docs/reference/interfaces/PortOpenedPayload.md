@@ -3,7 +3,7 @@ id: PortOpenedPayload
 title: PortOpenedPayload
 ---
 
-Defined in: packages/ai/src/custom-events.ts:51
+Defined in: [packages/ai/src/custom-events.ts:52](https://github.com/TanStack/ai/blob/main/packages/ai/src/custom-events.ts#L52)
 
 ## Properties
 
@@ -13,7 +13,7 @@ Defined in: packages/ai/src/custom-events.ts:51
 port: number;
 ```
 
-Defined in: packages/ai/src/custom-events.ts:52
+Defined in: [packages/ai/src/custom-events.ts:53](https://github.com/TanStack/ai/blob/main/packages/ai/src/custom-events.ts#L53)
 
 ***
 
@@ -23,6 +23,6 @@ Defined in: packages/ai/src/custom-events.ts:52
 optional url?: string;
 ```
 
-Defined in: packages/ai/src/custom-events.ts:54
+Defined in: [packages/ai/src/custom-events.ts:55](https://github.com/TanStack/ai/blob/main/packages/ai/src/custom-events.ts#L55)
 
 Externally reachable URL, when the provider exposes one.

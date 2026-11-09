@@ -100,4 +100,29 @@ describe('OpenAI transcription usage', () => {
       billed: { quantity: 12.5, unit: 'seconds' },
     })
   })
+
+  it('reads duration usage from a whisper-1 json response', async () => {
+    const adapter = new TestTranscriptionAdapter(
+      { apiKey: 'test-key' },
+      'whisper-1',
+    )
+    adapter.spyOnCreate().mockResolvedValue({
+      text: 'hello world',
+      usage: { type: 'duration', seconds: 7 },
+    } as never)
+
+    const result = await adapter.transcribe({
+      model: 'whisper-1',
+      audio: audioInput(),
+      responseFormat: 'json',
+      logger: testLogger,
+    })
+
+    expect(result.usage).toEqual({
+      promptTokens: 0,
+      completionTokens: 0,
+      totalTokens: 0,
+      billed: { quantity: 7, unit: 'seconds' },
+    })
+  })
 })

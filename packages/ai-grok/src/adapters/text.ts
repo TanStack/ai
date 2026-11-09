@@ -1,7 +1,7 @@
-import OpenAI from 'openai'
 import { fileReferenceFor, isFileSource } from '@tanstack/ai'
 import {
   OpenAIBaseResponsesTextAdapter,
+  createOpenAIClient,
   toResponsesToolChoice,
 } from '@tanstack/openai-base'
 import {
@@ -89,7 +89,7 @@ export class GrokTextAdapter<
 
   constructor(config: GrokTextConfig, model: TModel) {
     const options = withGrokDefaults(config)
-    super(model, 'grok', new OpenAI(options), { fetch: options.fetch })
+    super(model, 'grok', createOpenAIClient(options), { fetch: options.fetch })
   }
 
   /**

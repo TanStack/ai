@@ -23,16 +23,21 @@ import {
   ensureManagedLabels,
   executeMutations,
   planLabelChanges,
-} from './actions'
-import { classifyAll } from './classify'
-import { collectSnapshot } from './collect'
-import { buildAckComment, buildReproComment } from './comments'
-import { isRosterMaintainer, loadConfig } from './config'
-import { createGitHubClient } from './github'
-import { computeLoad, requiresCoreReview, routeIssue, routePR } from './route'
-import { isDryRun, resolveToken, writeStepSummary } from './env'
-import type { Mutation } from './actions'
-import type { PRItem, RepoSnapshot, ToolsetConfig } from './types'
+} from './actions.ts'
+import { classifyAll } from './classify.ts'
+import { collectSnapshot } from './collect.ts'
+import { buildAckComment, buildReproComment } from './comments.ts'
+import { isRosterMaintainer, loadConfig } from './config.ts'
+import { createGitHubClient } from './github.ts'
+import {
+  computeLoad,
+  requiresCoreReview,
+  routeIssue,
+  routePR,
+} from './route.ts'
+import { isDryRun, resolveToken, writeStepSummary } from './env.ts'
+import type { Mutation } from './actions.ts'
+import type { PRItem, RepoSnapshot, ToolsetConfig } from './types.ts'
 
 export interface SweepPlan {
   mutations: Array<Mutation>

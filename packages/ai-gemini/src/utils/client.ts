@@ -1,5 +1,5 @@
-import { GoogleGenAI } from '@google/genai'
 import { generateId as _generateId, getApiKeyFromEnv } from '@tanstack/ai-utils'
+import { createGoogleGenAI } from '../client/index'
 import type { GoogleGenAIOptions } from '@google/genai'
 
 export interface GeminiClientConfig extends GoogleGenAIOptions {
@@ -22,7 +22,7 @@ export interface GeminiClientConfig extends GoogleGenAIOptions {
  * AI Studio mode needs `apiKey`. Vertex / Enterprise mode (`vertexai` or
  * `enterprise`) uses project, location, and Google Cloud credentials instead.
  */
-export function createGeminiClient(config: GeminiClientConfig): GoogleGenAI {
+export function createGeminiClient(config: GeminiClientConfig) {
   const vertexMode = config.vertexai === true || config.enterprise === true
   if (
     !vertexMode &&
@@ -40,7 +40,22 @@ export function createGeminiClient(config: GeminiClientConfig): GoogleGenAI {
       ...(defaultHeaders !== undefined ? { headers: defaultHeaders } : {}),
     }
   }
-  return new GoogleGenAI(options)
+  return createGoogleGenAI(options)
+}
+
+/**
+ * The signal for a `client.interactions.create` call. That SDK client uses
+ * `httpOptions.timeout` only when the request has no signal. So with a caller
+ * signal, add the timeout to the signal here.
+ */
+export function withHttpTimeout(
+  signal: AbortSignal | null | undefined,
+  timeoutMs: number | undefined,
+): AbortSignal | undefined {
+  if (!signal || timeoutMs === undefined || timeoutMs <= 0) {
+    return signal ?? undefined
+  }
+  return AbortSignal.any([signal, AbortSignal.timeout(timeoutMs)])
 }
 
 /**

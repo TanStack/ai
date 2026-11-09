@@ -25,7 +25,7 @@ export interface BedrockClientConfig extends Omit<
 }
 
 const DEFAULT_REGION = 'us-east-1'
-/** OpenAI SDK requires a non-empty apiKey even when a signed fetch overrides Authorization. */
+/** The OpenAI client requires a non-empty apiKey even when a signed fetch overrides Authorization. */
 const SIGV4_PLACEHOLDER_KEY = 'bedrock-sigv4'
 
 function buildBaseURL(

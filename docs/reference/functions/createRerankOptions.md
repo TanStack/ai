@@ -7,7 +7,7 @@ title: createRerankOptions
 function createRerankOptions<TAdapter, TDocument>(options): RerankActivityOptions<TAdapter, TDocument>;
 ```
 
-Defined in: packages/ai/src/activities/rerank/index.ts:287
+Defined in: [packages/ai/src/activities/rerank/index.ts:307](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/rerank/index.ts#L307)
 
 Create typed options for the rerank() function without executing.
 
