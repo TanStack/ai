@@ -497,7 +497,16 @@ export class MistralTextAdapter<
     // A response cut off at the output cap is a truncated JSON document;
     // report it before the parse error (issue #1426). The errors carry the
     // usage, because the provider already billed the tokens.
-    if (response.choices[0]?.finishReason === 'length') {
+    const structuredFinishReason = response.choices[0]?.finishReason
+    if (structuredFinishReason === 'model_length') {
+      throw Object.assign(
+        new Error(
+          'mistral.structuredOutput: the response was cut off because the model reached the end of its context window (finish_reason=model_length); shorten the prompt or use a model with a larger context window',
+        ),
+        usage && { usage },
+      )
+    }
+    if (structuredFinishReason === 'length') {
       throw Object.assign(
         new Error(
           'mistral.structuredOutput: the response was cut off because the maximum token limit was reached (finish_reason=length); raise modelOptions.max_tokens',
@@ -813,7 +822,7 @@ export class MistralTextAdapter<
           const computedFinishReason =
             finishReason === 'tool_calls' || hasEmittedToolCall
               ? 'tool_calls'
-              : finishReason === 'length'
+              : finishReason === 'length' || finishReason === 'model_length'
                 ? 'length'
                 : 'stop'
 
