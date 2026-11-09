@@ -347,7 +347,16 @@ Image models keep their own `thinkingConfig` in `modelOptions`. See [Image model
 
 When a Gemini content filter stops a reply, the stream still ends with `RUN_FINISHED`. `metadata.tanstack.finishReason` is `"content_filter"`. The text before the stop is already in the message, so decide whether to show it:
 
-```typescript group=gemini-options
+```typescript
+import { chat } from "@tanstack/ai";
+import { geminiText } from "@tanstack/ai-gemini";
+
+const stream = chat({
+  adapter: geminiText("gemini-3.8-flash"),
+  messages: [{ role: "user", content: "Hello!" }],
+  threadId: "thread-1",
+});
+
 for await (const chunk of stream) {
   if (chunk.type === "RUN_FINISHED" && chunk.metadata?.tanstack?.finishReason === "content_filter") {
     console.warn("Gemini filtered the reply.");
