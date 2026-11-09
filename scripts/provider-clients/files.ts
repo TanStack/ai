@@ -62,3 +62,61 @@ export function diffFiles(
   }
   return changes
 }
+
+interface OpenApiDoc {
+  components?: { schemas?: Record<string, Record<string, unknown>> }
+}
+
+/**
+ * Adds a schema named `name` to an activity document: one required property
+ * per model id (from `x-modelschemas-model`) holding `{ input, output }`
+ * refs to that model's own schemas. Kubb then writes the map with the right
+ * type names. Returns `undefined` when the document has no per-model
+ * schemas.
+ */
+export function withEndpointMap(doc: OpenApiDoc, name: string) {
+  const schemas = doc.components?.schemas ?? {}
+  const models = new Map<string, { input?: string; output?: string }>()
+  for (const [key, schema] of Object.entries(schemas)) {
+    const model = schema['x-modelschemas-model']
+    const side = key.startsWith('input_')
+      ? 'input'
+      : key.startsWith('output_')
+        ? 'output'
+        : undefined
+    if (typeof model !== 'string' || !side) continue
+    models.set(model, { ...models.get(model), [side]: key })
+  }
+  if (models.size === 0) return undefined
+  const ref = (key?: string) =>
+    key ? { $ref: `#/components/schemas/${key}` } : {}
+  const ids = [...models.keys()].sort()
+  return {
+    ...doc,
+    components: {
+      ...doc.components,
+      schemas: {
+        ...schemas,
+        [name]: {
+          type: 'object',
+          additionalProperties: false,
+          required: ids,
+          properties: Object.fromEntries(
+            ids.map((id) => [
+              id,
+              {
+                type: 'object',
+                additionalProperties: false,
+                required: ['input', 'output'],
+                properties: {
+                  input: ref(models.get(id)?.input),
+                  output: ref(models.get(id)?.output),
+                },
+              },
+            ]),
+          ),
+        },
+      },
+    },
+  }
+}

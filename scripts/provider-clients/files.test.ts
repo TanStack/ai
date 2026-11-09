@@ -2,7 +2,13 @@ import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
-import { diffFiles, docSkipReason, readTree, writeTree } from './files'
+import {
+  diffFiles,
+  docSkipReason,
+  readTree,
+  withEndpointMap,
+  writeTree,
+} from './files'
 
 describe('diffFiles', () => {
   it('finds no drift when the trees match', () => {
@@ -56,5 +62,43 @@ describe('readTree and writeTree', () => {
 
   it('reads a missing directory as empty, so every file is "added"', async () => {
     expect(await readTree(join(tmpdir(), 'no-such-provider-dir'))).toEqual({})
+  })
+})
+
+describe('withEndpointMap', () => {
+  it('maps each model id to its input and output schemas', () => {
+    const doc = withEndpointMap(
+      {
+        components: {
+          schemas: {
+            'input_fal-ai_flux_dev': {
+              'x-modelschemas-model': 'fal-ai/flux/dev',
+            },
+            'output_fal-ai_flux_dev': {
+              'x-modelschemas-model': 'fal-ai/flux/dev',
+            },
+            Image: { type: 'object' },
+          },
+        },
+      },
+      'FalImageEndpoints',
+    )
+    expect(doc?.components.schemas.FalImageEndpoints).toMatchObject({
+      required: ['fal-ai/flux/dev'],
+      properties: {
+        'fal-ai/flux/dev': {
+          properties: {
+            input: { $ref: '#/components/schemas/input_fal-ai_flux_dev' },
+            output: { $ref: '#/components/schemas/output_fal-ai_flux_dev' },
+          },
+        },
+      },
+    })
+  })
+
+  it('skips a document with no per-model schemas', () => {
+    expect(
+      withEndpointMap({ components: { schemas: { A: {} } } }, 'X'),
+    ).toBeUndefined()
   })
 })
