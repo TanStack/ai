@@ -27,6 +27,7 @@ import { localProcessSandbox } from '@tanstack/ai-sandbox-local-process'
 import {
   DurableRunIdRequiredError,
   SandboxCapability,
+  isStoredReplayChunk,
   journalPaths,
   journaledCommand,
   provideSandboxDurability,
@@ -304,11 +305,13 @@ describe('codex attach wiring', () => {
       }),
     )
 
-    // The RUN_STARTED chunk was already "delivered" per the stored log, so
-    // alignment must suppress it — if `alignedIfAttaching` were bypassed, the
-    // freshly-translated RUN_STARTED would come through unsuppressed and this
-    // would fail.
-    expect(chunks.some((c) => c.type === 'RUN_STARTED')).toBe(false)
+    // The RUN_STARTED chunk was already in the stored log. It is yielded
+    // marked, for the transcript, and is not part of what gets appended.
+    // If `alignedIfAttaching` were bypassed, a fresh unmarked RUN_STARTED
+    // would come through and this would fail.
+    const delivered = chunks.filter((chunk) => !isStoredReplayChunk(chunk))
+    expect(delivered.some((c) => c.type === 'RUN_STARTED')).toBe(false)
+    expect(chunks.some(isStoredReplayChunk)).toBe(true)
     // Everything after the aligned prefix must still arrive.
     expect(textOf(chunks)).toContain('pong')
     expect(chunks.some((c) => c.type === 'RUN_FINISHED')).toBe(true)

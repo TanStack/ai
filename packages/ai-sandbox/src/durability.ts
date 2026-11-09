@@ -294,6 +294,11 @@ export function journalOptionsFor(
  * cannot reproduce; without it a bridged-tool run could not be taken over at
  * all. Wrap the merge RESULT, never the pre-merge translator, or the comparison
  * is against a stream the log never contained.
+ *
+ * A matching stored chunk is yielded marked ({@link isStoredReplayChunk}), not
+ * dropped. `chat()` records that prefix into the transcript. `withSandbox`
+ * then drops the mark from the public stream, and `pipeToRunLog` does not
+ * append it, so the event log still holds the prefix once.
  */
 export function alignedIfAttaching(
   chunks: AsyncIterable<StreamChunk>,
@@ -304,6 +309,7 @@ export function alignedIfAttaching(
   return alignToStoredLog(chunks, {
     durability: durability.adapter,
     isOutOfBand: isBridgeCustomChunk,
+    yieldStored: true,
     ...(logger === undefined ? {} : { logger }),
   })
 }

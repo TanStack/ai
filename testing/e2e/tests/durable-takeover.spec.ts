@@ -1057,11 +1057,9 @@ test.describe('durable runs — the reaper', () => {
     // conversation never lands at all. This is that transcript, and the
     // still-producing run's empty one (asserted below) is the control.
     //
-    // It holds the REMAINDER, not the whole message: alignment suppresses the
-    // delivered prefix inside the adapter, so `withPersistence`'s accumulator
-    // never sees '1','2' — the delivery log is the complete record, the saved
-    // message is not. That is a property of every takeover, not of the reaper,
-    // and it is pinned here because it is invisible in the log assertion above.
+    // The saved message is the whole answer, including deltas the first host
+    // already put in the log. The log assertion above is the other half: those
+    // chunks are not appended again.
     expect(
       after.messages.map((message) => `${message.role}:${message.text}`),
     ).toEqual(['user:go', 'assistant:123456'])

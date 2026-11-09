@@ -195,6 +195,39 @@ export interface AlignToStoredLogOptions<TOffset extends string = string> {
    * {@link DEFAULT_MAX_OUT_OF_BAND_SKIP}. Ignored when `isOutOfBand` is absent.
    */
   maxOutOfBandSkip?: number
+  /**
+   * Yield a stored chunk instead of dropping it. The copy is marked with
+   * {@link isStoredReplayChunk} so `withSandbox` can record it and then keep
+   * it off the public stream, and so `pipeToRunLog` does not append it again.
+   */
+  yieldStored?: boolean
+}
+
+/** Field set on a replayed chunk the event log already holds. Not an AG-UI key. */
+const STORED_REPLAY = 'tanstackStoredReplay'
+
+/**
+ * True when this chunk is the replay of one the event log already holds.
+ *
+ * The chat engine must see it (text and tool calls), and the live stream must
+ * not. `withSandbox` drops it after recording. `pipeToRunLog` does not append it.
+ */
+export function isStoredReplayChunk(chunk: StreamChunk): boolean {
+  if (
+    typeof chunk !== 'object' ||
+    chunk === null ||
+    !(STORED_REPLAY in chunk)
+  ) {
+    return false
+  }
+  return (chunk as Record<string, unknown>)[STORED_REPLAY] === true
+}
+
+function asStoredReplay(chunk: StreamChunk): StreamChunk {
+  // The flag is not an AG-UI field, so the spread is not a StreamChunk until
+  // it is checked on the way out.
+  const copy: Record<string, unknown> = { ...chunk, [STORED_REPLAY]: true }
+  return copy as unknown as StreamChunk
 }
 
 /**
@@ -254,6 +287,9 @@ export async function* alignToStoredLog<TOffset extends string = string>(
       if (expected === actual) {
         cursor += 1
         suppressed += 1
+        // The engine still has to fold this into the transcript. The mark is
+        // how the public stream and the event log skip it.
+        if (options.yieldStored) yield asStoredReplay(chunk)
         break
       }
       // Mismatch. Only a stored chunk the replay provably cannot reproduce may

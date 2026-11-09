@@ -44,6 +44,7 @@ import { computeWorkspaceHash } from './key'
 import { buildFileHookEvent, resolveFileEvents } from './file-diff'
 import { ProjectionCapability, provideWorkspaceProjection } from './projection'
 import { resolveAllSecrets, resolveSecret } from './secrets'
+import { isStoredReplayChunk } from './align'
 import {
   createToolHistoryRecorder,
   stripObservedToolCalls,
@@ -1151,11 +1152,12 @@ export function withSandbox<TOffset extends string = string>(
       runState.get(ctx)?.toolHistory.reconcile(ctx)
     },
 
-    // Record the harness's own tool calls as transcript messages. Observe only:
-    // returning nothing passes every chunk through untouched.
+    // Record the harness's own tool calls as transcript messages. A stored
+    // replay chunk is recorded, then dropped: the event log already has it.
     async onChunk(ctx, chunk) {
       const state = runState.get(ctx)
       state?.toolHistory.observe(chunk, ctx)
+      if (isStoredReplayChunk(chunk)) return null
       if (
         state &&
         chunk.type === 'RUN_FINISHED' &&
@@ -1165,6 +1167,7 @@ export function withSandbox<TOffset extends string = string>(
         await drainWatcher(state, 'pause')
         await stopSnapshotLease(state, { closePortable: true })
       }
+      return undefined
     },
 
     async onFinish(ctx) {

@@ -18,6 +18,7 @@ import { localProcessSandbox } from '@tanstack/ai-sandbox-local-process'
 import {
   chunkFingerprint,
   createRunScopedIdGen,
+  isStoredReplayChunk,
   exitSentinelLine,
   journalPaths,
 } from '@tanstack/ai-sandbox'
@@ -365,13 +366,16 @@ describe('claude-code durable-run wiring (attach path)', () => {
       }),
     )
 
-    // Every chunk in `alreadyDelivered` is suppressed; only the tail this
-    // durability adapter had NOT yet seen comes through. Compared via
-    // `chunkFingerprint` (key-order independent, excludes the wall-clock
-    // `timestamp`) since the two translations run at different instants.
-    expect(chunks.map(chunkFingerprint)).toEqual(
+    // Stored chunks are yielded marked so chat() can record them. The tail
+    // this durability adapter had NOT yet seen is the unmarked part.
+    // Compared via `chunkFingerprint` (key-order independent, excludes the
+    // wall-clock `timestamp`) since the two translations run at different
+    // instants.
+    const delivered = chunks.filter((chunk) => !isStoredReplayChunk(chunk))
+    expect(delivered.map(chunkFingerprint)).toEqual(
       notYetDelivered.map(chunkFingerprint),
     )
+    expect(chunks.length - delivered.length).toBe(alreadyDelivered.length)
 
     await sbx.destroy()
   })
