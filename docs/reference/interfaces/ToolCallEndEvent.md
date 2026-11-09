@@ -3,7 +3,7 @@ id: ToolCallEndEvent
 title: ToolCallEndEvent
 ---
 
-Defined in: [packages/ai/src/types.ts:1752](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1752)
+Defined in: [packages/ai/src/types.ts:1767](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1767)
 
 Emitted when a tool call completes.
 
@@ -21,7 +21,7 @@ Emitted when a tool call completes.
 optional input?: unknown;
 ```
 
-Defined in: [packages/ai/src/types.ts:1755](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1755)
+Defined in: [packages/ai/src/types.ts:1770](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1770)
 
 Parsed tool arguments when the adapter already parsed them.
 
@@ -33,7 +33,7 @@ Parsed tool arguments when the adapter already parsed them.
 optional metadata?: Record<string, any>;
 ```
 
-Defined in: [packages/ai/src/types.ts:1756](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1756)
+Defined in: [packages/ai/src/types.ts:1771](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1771)
 
 Extra information attached to this event.
 
@@ -51,4 +51,4 @@ Omit.metadata
 type: "TOOL_CALL_END";
 ```
 
-Defined in: [packages/ai/src/types.ts:1753](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1753)
+Defined in: [packages/ai/src/types.ts:1768](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1768)

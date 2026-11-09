@@ -3,7 +3,7 @@ id: ImageGenerationResult
 title: ImageGenerationResult
 ---
 
-Defined in: [packages/ai/src/types.ts:2528](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2528)
+Defined in: [packages/ai/src/types.ts:2543](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2543)
 
 Result of image generation
 
@@ -15,7 +15,7 @@ Result of image generation
 optional artifacts?: PersistedArtifactRef[];
 ```
 
-Defined in: [packages/ai/src/types.ts:2538](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2538)
+Defined in: [packages/ai/src/types.ts:2553](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2553)
 
 Persisted artifact references for generated assets, when available
 
@@ -27,7 +27,7 @@ Persisted artifact references for generated assets, when available
 id: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:2530](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2530)
+Defined in: [packages/ai/src/types.ts:2545](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2545)
 
 Unique identifier for the generation
 
@@ -39,7 +39,7 @@ Unique identifier for the generation
 images: GeneratedImage[];
 ```
 
-Defined in: [packages/ai/src/types.ts:2534](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2534)
+Defined in: [packages/ai/src/types.ts:2549](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2549)
 
 Array of generated images
 
@@ -51,7 +51,7 @@ Array of generated images
 model: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:2532](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2532)
+Defined in: [packages/ai/src/types.ts:2547](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2547)
 
 Model used for generation
 
@@ -63,6 +63,6 @@ Model used for generation
 optional usage?: TokenUsage<ProviderUsageDetails>;
 ```
 
-Defined in: [packages/ai/src/types.ts:2536](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2536)
+Defined in: [packages/ai/src/types.ts:2551](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2551)
 
 Token usage information (if available)

@@ -3,7 +3,7 @@ id: TTSOptions
 title: TTSOptions
 ---
 
-Defined in: [packages/ai/src/types.ts:2948](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2948)
+Defined in: [packages/ai/src/types.ts:2963](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2963)
 
 Options for text-to-speech generation.
 These are the common options supported across providers.
@@ -22,7 +22,7 @@ These are the common options supported across providers.
 optional abortSignal?: AbortSignal;
 ```
 
-Defined in: [packages/ai/src/types.ts:2988](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2988)
+Defined in: [packages/ai/src/types.ts:3003](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L3003)
 
 Effective abort signal composed by the activity from caller `abortSignal`
 and/or `timeout`. Adapters should forward this to the provider SDK when
@@ -36,7 +36,7 @@ supported. Request-specific — never store on a global client config.
 optional format?: "mp3" | "opus" | "aac" | "flac" | "wav" | "pcm";
 ```
 
-Defined in: [packages/ai/src/types.ts:2972](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2972)
+Defined in: [packages/ai/src/types.ts:2987](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2987)
 
 The output audio format
 
@@ -48,7 +48,7 @@ The output audio format
 logger: InternalLogger;
 ```
 
-Defined in: [packages/ai/src/types.ts:2982](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2982)
+Defined in: [packages/ai/src/types.ts:2997](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2997)
 
 Internal logger threaded from the generateSpeech() entry point. Adapters
 must call logger.request() before the SDK call and logger.errors() in
@@ -62,7 +62,7 @@ catch blocks.
 model: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:2950](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2950)
+Defined in: [packages/ai/src/types.ts:2965](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2965)
 
 The model to use for TTS generation
 
@@ -74,7 +74,7 @@ The model to use for TTS generation
 optional modelOptions?: TProviderOptions;
 ```
 
-Defined in: [packages/ai/src/types.ts:2976](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2976)
+Defined in: [packages/ai/src/types.ts:2991](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2991)
 
 Model-specific options for TTS generation
 
@@ -86,7 +86,7 @@ Model-specific options for TTS generation
 optional speed?: number;
 ```
 
-Defined in: [packages/ai/src/types.ts:2974](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2974)
+Defined in: [packages/ai/src/types.ts:2989](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2989)
 
 The speed of the generated audio (0.25 to 4.0)
 
@@ -98,7 +98,7 @@ The speed of the generated audio (0.25 to 4.0)
 text: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:2956](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2956)
+Defined in: [packages/ai/src/types.ts:2971](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2971)
 
 The text to convert to speech. When the caller passed `turns`, the
 activity fills this with the turn texts joined by newlines so adapters
@@ -112,7 +112,7 @@ that only read `text` still receive the full script.
 optional timestamps?: boolean;
 ```
 
-Defined in: [packages/ai/src/types.ts:2968](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2968)
+Defined in: [packages/ai/src/types.ts:2983](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2983)
 
 Ask for `alignment` / `segments` on the result. Rejected by the activity
 unless the adapter declares `capabilities.timestamps`, because on some
@@ -126,7 +126,7 @@ providers this is a different endpoint rather than free metadata.
 optional turns?: TTSTurn[];
 ```
 
-Defined in: [packages/ai/src/types.ts:2962](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2962)
+Defined in: [packages/ai/src/types.ts:2977](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2977)
 
 Multi-voice dialogue turns, when the caller asked for dialogue. Only
 adapters that declare `capabilities.maxSpeakers` ever see this — the
@@ -140,6 +140,6 @@ activity rejects `turns` for the rest.
 optional voice?: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:2970](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2970)
+Defined in: [packages/ai/src/types.ts:2985](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2985)
 
 The voice to use for generation

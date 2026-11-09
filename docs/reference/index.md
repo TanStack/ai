@@ -616,6 +616,7 @@ title: "@tanstack/ai"
 - [runAgentStream](functions/runAgentStream.md)
 - [score](functions/score.md)
 - [splitMidConversationChanges](functions/splitMidConversationChanges.md)
+- [stableJson](functions/stableJson.md)
 - [streamToText](functions/streamToText.md)
 - [subagentHostMessageId](functions/subagentHostMessageId.md)
 - [subagentInputOf](functions/subagentInputOf.md)

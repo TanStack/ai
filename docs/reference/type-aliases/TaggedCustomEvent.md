@@ -9,7 +9,7 @@ type TaggedCustomEvent<T> =
 | StructuredOutputCompleteEvent<T>;
 ```
 
-Defined in: [packages/ai/src/types.ts:2199](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2199)
+Defined in: [packages/ai/src/types.ts:2214](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2214)
 
 Discriminated union of the orchestrator-tagged `CUSTOM` events. Each variant
 has a literal `name`, so a single narrow on `chunk.name` yields a typed

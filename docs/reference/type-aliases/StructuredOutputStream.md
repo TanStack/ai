@@ -10,7 +10,7 @@ type StructuredOutputStream<T> = AsyncIterable<
 | StructuredOutputCompleteEvent<T>>;
 ```
 
-Defined in: [packages/ai/src/types.ts:2017](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2017)
+Defined in: [packages/ai/src/types.ts:2032](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2032)
 
 Public type for streams returned by `chat({ outputSchema, stream: true })`.
 
