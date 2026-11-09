@@ -93,8 +93,8 @@
   },
   "devDependencies": {
     "@tanstack/ai-harness": "workspace:*",
-    "@vitest/coverage-v8": "4.1.10",
-    "vitest": "^4.1.10",
+    "@vitest/coverage-v8": "4.1.12",
+    "vitest": "^4.1.12",
     "zod": "^4.2.0"
   }
 }

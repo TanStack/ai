@@ -99,11 +99,11 @@
   "devDependencies": {
     "@tanstack/ai-harness": "workspace:*",
     "@tanstack/ai-persistence": "workspace:*",
-    "@vitest/coverage-v8": "4.1.10",
+    "@vitest/coverage-v8": "4.1.12",
     "jiti": "^2.4.2",
     "json-schema-to-typescript": "^16.0.0",
     "tsup": "^8.5.1",
-    "vite": "^8.2.1",
+    "vite": "^8.3.6",
     "zod": "^4.2.0"
   }
 }

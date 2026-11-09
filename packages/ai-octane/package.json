@@ -68,10 +68,10 @@
     "@tanstack/ai": "workspace:*",
     "@tsrx/oxc": "0.20.0",
     "@types/node": "^24.10.1",
-    "@vitest/coverage-v8": "4.1.10",
-    "happy-dom": "^20.11.2",
+    "@vitest/coverage-v8": "4.1.12",
+    "happy-dom": "^20.14.6",
     "octane": "0.12.1",
-    "vite": "^8.2.1",
+    "vite": "^8.3.6",
     "zod": "^4.2.0"
   }
 }

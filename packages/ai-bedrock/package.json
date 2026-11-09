@@ -56,8 +56,8 @@
     "@aws-sdk/credential-providers": "^3.1057.0",
     "@smithy/signature-v4": "^5.4.5",
     "@smithy/types": "^4.14.2",
-    "@vitest/coverage-v8": "4.1.10",
-    "vite": "^8.2.1"
+    "@vitest/coverage-v8": "4.1.12",
+    "vite": "^8.3.6"
   },
   "peerDependencies": {
     "@aws-sdk/client-bedrock-runtime": "^3.1057.0",

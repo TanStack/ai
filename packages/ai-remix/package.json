@@ -64,10 +64,10 @@
   "devDependencies": {
     "@tanstack/ai": "workspace:*",
     "@types/node": "^24.10.1",
-    "@vitest/coverage-v8": "4.1.10",
-    "happy-dom": "^20.11.2",
+    "@vitest/coverage-v8": "4.1.12",
+    "happy-dom": "^20.14.6",
     "remix": "^3.0.0-rc.1",
-    "vite": "^8.2.1",
-    "vitest": "^4.1.10"
+    "vite": "^8.3.6",
+    "vitest": "^4.1.12"
   }
 }
