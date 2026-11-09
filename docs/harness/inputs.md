@@ -78,13 +78,16 @@ const settlement = await session.settled({
 if (settlement.outcome === 'failed') {
   console.log(settlement.error?.code) // 'attempts_exhausted', 'timeout', or undefined
 }
+if (settlement.outcome === 'completed' && settlement.loopStopped) {
+  console.log('The agent loop stopped the turn before the model finished.')
+}
 ```
 
 `signal` is optional. When it aborts first, `settled` rejects with its reason. The input keeps running.
 
 On a host that does not own the thread, the input waits for the owner. If the owner refuses it, `settled` rejects with `InputRejectedError`. The owner refuses an input when the thread is busy and the input has `busy: 'reject'`, or when the log has its id with another message. The log then has a `harness.offer.rejected` record.
 
-- `completed`: the turn has its answer.
+- `completed`: the turn has its answer. With `loopStopped: true`, the agent loop stopped the turn while tool results waited for the model, so the model did not finish. The default `agentLoopStrategy` of a harness is `maxIterations(50)`. See [Know when the loop stopped the run](../chat/agentic-cycle#know-when-the-loop-stopped-the-run).
 - `failed`: the turn failed. `error.code` is set for a limit.
 - `aborted`: someone cancelled the turn. The text that the model streamed before the cancel stays in the transcript as its answer.
 - `interrupted`: the turn waits for a person. The `resolve` that answers it is a new input. See [Wait for a person](./waits).
