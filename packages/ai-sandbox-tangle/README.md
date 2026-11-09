@@ -81,33 +81,33 @@ try {
 
 ## Configuration
 
-| Option               | Default                        | Notes                                                                                                                |
-| -------------------- | ------------------------------ | -------------------------------------------------------------------------------------------------------------------- |
-| `apiKey`             | `TANGLE_API_KEY`               | Tangle API key.                                                                                                      |
-| `baseUrl`            | `https://sandbox.tangle.tools` | Sandbox API URL.                                                                                                     |
-| `environment`        | platform default               | A catalog environment or a container image reference, such as `node:22`.                                             |
-| `resources`          | platform default               | `{ cpuCores, memoryMB, diskGB }`.                                                                                    |
-| `maxLifetimeSeconds` | platform default               | Run time before the platform suspends the sandbox. The workspace is kept, and `resume` starts it again.              |
-| `idleTimeoutSeconds` | platform default               | Idle time before the platform suspends the sandbox.                                                                  |
-| `egressPolicy`       | `{ mode: 'open' }`             | Outbound network policy (`open`, `strict` with `allowDomains`, or `blocked`). A `network: 'deny'` policy wins.       |
-| `workdir`            | `/home/agent/workspace`        | Where the `/workspace` virtual root maps.                                                                            |
+| Option               | Default                        | Notes                                                                                                                    |
+| -------------------- | ------------------------------ | ------------------------------------------------------------------------------------------------------------------------ |
+| `apiKey`             | `TANGLE_API_KEY`               | Tangle API key.                                                                                                          |
+| `baseUrl`            | `https://sandbox.tangle.tools` | Sandbox API URL.                                                                                                         |
+| `environment`        | platform default               | A catalog environment or a container image reference, such as `node:22`.                                                 |
+| `resources`          | platform default               | `{ cpuCores, memoryMB, diskGB }`.                                                                                        |
+| `maxLifetimeSeconds` | platform default               | Run time before the platform suspends the sandbox. The workspace is kept, and `resume` starts it again.                  |
+| `idleTimeoutSeconds` | platform default               | Idle time before the platform suspends the sandbox.                                                                      |
+| `egressPolicy`       | `{ mode: 'open' }`             | Outbound network policy (`open`, `strict` with `allowDomains`, or `blocked`). A `network: 'deny'` policy wins.           |
+| `workdir`            | `/home/agent/workspace`        | Where the `/workspace` virtual root maps.                                                                                |
 | `metadata`           | none                           | Extra metadata on every created sandbox. The deterministic sandbox id from `ensure()` is stored under `tanstack-ai-key`. |
 
 ## Capabilities
 
-| Capability            | Supported | Notes                                                                                                       |
-| --------------------- | --------- | ----------------------------------------------------------------------------------------------------------- |
-| `fs`                  | ✅        | Native file API for `read`, `readBytes`, and `write`; the rest runs as commands. `lstat` reports symlinks.  |
-| `exec`                | ✅        | Separate `stdout` and `stderr`, no run limit. An abort kills the process in the sandbox.                    |
-| `env`                 | ✅        | Env for each command, plus the `env.set` overlay. Values are never stored with the sandbox.                 |
-| `ports`               | ✅        | `ports.connect(port)` creates a preview link and returns its public HTTPS URL.                              |
-| `snapshots`           | ✅        | `snapshot()` captures the workspace. `restoreSnapshot()` creates a new sandbox from it.                     |
-| `durableFilesystem`   | ✅        | The workspace persists across stop and resume.                                                              |
-| `backgroundProcesses` | ✅        | `spawn()` returns a real sandbox pid and streams `stdout` and `stderr` separately.                           |
-| `writableStdin`       | ❌        | The process API takes no stdin stream; harnesses get their prompt from a file.                              |
-| `killableProcesses`   | ✅        | `kill()` signals the process tree inside the sandbox, measured against a live sandbox.                      |
-| `networkPolicy`       | ✅        | `policy.capabilities.network: 'deny'` maps to egress mode `blocked`.                                        |
-| `fork`                | ✅        | `fork()` branches the running sandbox into a new one.                                                       |
+| Capability            | Supported | Notes                                                                                                      |
+| --------------------- | --------- | ---------------------------------------------------------------------------------------------------------- |
+| `fs`                  | ✅        | Native file API for `read`, `readBytes`, and `write`; the rest runs as commands. `lstat` reports symlinks. |
+| `exec`                | ✅        | Separate `stdout` and `stderr`, no run limit. An abort kills the process in the sandbox.                   |
+| `env`                 | ✅        | Env for each command, plus the `env.set` overlay. Values are never stored with the sandbox.                |
+| `ports`               | ✅        | `ports.connect(port)` creates a preview link and returns its public HTTPS URL.                             |
+| `snapshots`           | ✅        | `snapshot()` captures the workspace. `restoreSnapshot()` creates a new sandbox from it.                    |
+| `durableFilesystem`   | ✅        | The workspace persists across stop and resume.                                                             |
+| `backgroundProcesses` | ✅        | `spawn()` returns a real sandbox pid and streams `stdout` and `stderr` separately.                         |
+| `writableStdin`       | ❌        | The process API takes no stdin stream; harnesses get their prompt from a file.                             |
+| `killableProcesses`   | ✅        | `kill()` signals the process tree inside the sandbox, measured against a live sandbox.                     |
+| `networkPolicy`       | ✅        | `policy.capabilities.network: 'deny'` maps to egress mode `blocked`.                                       |
+| `fork`                | ✅        | `fork()` branches the running sandbox into a new one.                                                      |
 
 The native file calls reach the sandbox user's home (`/home/agent`) and
 `/tmp`. Read other paths with `process.exec`.

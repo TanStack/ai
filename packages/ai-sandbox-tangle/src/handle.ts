@@ -394,9 +394,7 @@ export class TangleHandle implements SandboxHandle {
   ): Promise<SnapshotRef> => {
     options?.signal?.throwIfAborted()
     const tag = label !== undefined ? slug(label) : ''
-    const snap = await this.sandbox.snapshot(
-      tag !== '' ? { tags: [tag] } : {},
-    )
+    const snap = await this.sandbox.snapshot(tag !== '' ? { tags: [tag] } : {})
     return {
       id: snapshotRefId(this.id, snap.snapshotId),
       ...(label !== undefined ? { label } : {}),
