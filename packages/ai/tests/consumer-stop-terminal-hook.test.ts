@@ -98,23 +98,39 @@ describe('a consumer that stops iterating chat() runs one terminal hook', () => 
       'an approval',
       { ...serverTool('delete_file', () => 'deleted'), needsApproval: true },
     ],
-  ])(
-    'break after %s pause RUN_FINISHED runs onFinish',
-    async (_kind, tool) => {
-      const { hooks, middleware } = terminalRecorder()
-      const { stream, calls } = runWithTool(middleware, tool)
-      let stoppedAt: StreamChunk | undefined
-      for await (const chunk of stream) {
-        if (chunk.type === EventType.RUN_FINISHED) {
-          stoppedAt = chunk
-          break
-        }
+  ])('break after %s pause RUN_FINISHED runs onFinish', async (_kind, tool) => {
+    const { hooks, middleware } = terminalRecorder()
+    const { stream, calls } = runWithTool(middleware, tool)
+    let stoppedAt: StreamChunk | undefined
+    for await (const chunk of stream) {
+      if (chunk.type === EventType.RUN_FINISHED) {
+        stoppedAt = chunk
+        break
       }
-      expect(stoppedAt).toMatchObject({ outcome: { type: 'interrupt' } })
-      expect(hooks).toEqual(['onFinish'])
-      expect(calls).toHaveLength(1)
-    },
-  )
+    }
+    expect(stoppedAt).toMatchObject({ outcome: { type: 'interrupt' } })
+    expect(hooks).toEqual(['onFinish'])
+    expect(calls).toHaveLength(1)
+  })
+
+  it('break at a custom event from setup runs onAbort after setup ends', async () => {
+    const events: Array<string> = []
+    const middleware: ChatMiddleware = {
+      name: 'slow-setup',
+      async setup(ctx) {
+        ctx.emitCustomEvent('setup:progress', {})
+        await new Promise((resolve) => setTimeout(resolve, 20))
+        events.push('setup done')
+      },
+      onAbort: () => {
+        events.push('onAbort')
+      },
+    }
+    for await (const chunk of run(middleware)) {
+      if (chunk.type === EventType.CUSTOM) break
+    }
+    expect(events).toEqual(['setup done', 'onAbort'])
+  })
 
   it('return() after the first TEXT_MESSAGE_CONTENT runs onAbort', async () => {
     const { hooks, middleware } = terminalRecorder()

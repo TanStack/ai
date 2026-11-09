@@ -6172,22 +6172,28 @@ class TextEngine<
       },
     )
 
-    while (!settled) {
-      yield* this.drainMiddlewareCustomQueue()
-      if (settled) break
-      await Promise.race([
-        done,
-        new Promise<void>((resolve) => {
-          if (this.middlewareCustomQueue.length > 0) {
-            resolve()
-            return
-          }
-          this.middlewareCustomWaiters.push(resolve)
-        }),
-      ])
-    }
+    try {
+      while (!settled) {
+        yield* this.drainMiddlewareCustomQueue()
+        if (settled) break
+        await Promise.race([
+          done,
+          new Promise<void>((resolve) => {
+            if (this.middlewareCustomQueue.length > 0) {
+              resolve()
+              return
+            }
+            this.middlewareCustomWaiters.push(resolve)
+          }),
+        ])
+      }
 
-    yield* this.drainMiddlewareCustomQueue()
+      yield* this.drainMiddlewareCustomQueue()
+    } finally {
+      // A consumer that stops at a custom event closes this generator while
+      // the work runs. Wait for it, so no hook work outlives `onAbort`.
+      await done
+    }
     if (error !== undefined) throw error
     return result as T
   }
