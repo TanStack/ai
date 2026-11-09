@@ -86,7 +86,7 @@
     "kiira": "0.6.0",
     "knip": "^6.26.0",
     "markdown-link-extractor": "^4.0.3",
-    "nx": "23.1.1",
+    "nx": "24.0.5",
     "oxfmt": "^0.59.0",
     "oxlint": "^1.89.0",
     "oxlint-plugin-eslint": "^1.89.0",
