@@ -1,0 +1,102 @@
+name: Sync Provider Clients
+
+# Refetches the modelschemas OpenAPI documents and checks the generated
+# provider clients (scripts/provider-clients). When a document changed, it
+# regenerates the clients and opens a PR. Separate from Sync Model Metadata.
+
+on:
+  schedule:
+    - cron: '30 6 * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write # failure alert issue
+
+jobs:
+  sync:
+    name: Sync Provider Clients
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: true # sync job pushes regenerated clients
+
+      - name: Setup Tools
+        uses: TanStack/config/.github/setup@190f659075ff0845850e330883eb26d7ffd0671f # main
+
+      - name: Check provider clients
+        id: check
+        continue-on-error: true
+        run: pnpm generate:provider-clients:check
+
+      - name: Regenerate provider clients
+        if: steps.check.outcome == 'failure'
+        run: pnpm generate:provider-clients
+
+      - name: Check for package changes
+        id: changes
+        run: |
+          if git diff --quiet -- packages/; then
+            echo "changed=false" >> $GITHUB_OUTPUT
+          else
+            echo "changed=true" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Commit and force-push
+        if: steps.changes.outputs.changed == 'true'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add packages/
+          git commit -m "chore: sync provider clients"
+          # GITHUB_TOKEN pushes do not start the PR Test / E2E workflows.
+          # After this job, a maintainer must run those checks from the
+          # Actions tab or push an empty commit to automated/sync-provider-clients.
+          git push --force origin HEAD:automated/sync-provider-clients
+
+      - name: Create PR
+        if: steps.changes.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          BRANCH="automated/sync-provider-clients"
+          EXISTING_PR=$(gh pr list --head "$BRANCH" --base main --json number --jq '.[0].number' 2>/dev/null || true)
+          if [ -z "$EXISTING_PR" ] || [ "$EXISTING_PR" = "null" ]; then
+            gh pr create \
+              --title "chore: sync provider clients" \
+              --body "Automated regeneration of the provider HTTP clients from the modelschemas OpenAPI documents (\`pnpm generate:provider-clients\`). Review the generated diff, then update the adapters if an operation they call changed." \
+              --base main \
+              --head "$BRANCH"
+          fi
+
+      - name: Open or update failure issue
+        if: failure()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        shell: bash
+        run: |
+          gh label create sync-provider-clients --color B60205 --description "Daily provider client sync failures" --force
+          BODY=$(printf '%s\n' \
+            "Sync Provider Clients failed on $(date -u +%F)." \
+            "" \
+            "Run: $RUN_URL" \
+            "" \
+            "Close this issue when the sync is green again.")
+          ISSUE=$(gh issue list --label sync-provider-clients --state open --json number --jq '.[0].number // empty')
+          if [ -n "$ISSUE" ]; then
+            gh issue comment "$ISSUE" --body "$BODY"
+          else
+            gh issue create --label sync-provider-clients \
+              --title "Daily provider client sync is failing" \
+              --body "$BODY"
+          fi
