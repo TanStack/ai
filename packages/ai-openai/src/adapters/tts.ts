@@ -1,5 +1,8 @@
 import { createOpenAIClient } from '@tanstack/openai-base'
-import type { OpenAIClientLike } from '@tanstack/openai-base'
+import type {
+  OpenAIClientLike,
+  OpenaiPostAudioSpeechBody,
+} from '@tanstack/openai-base'
 import { BaseTTSAdapter } from '@tanstack/ai/adapters'
 import { toRunErrorPayload } from '@tanstack/ai/adapter-internals'
 import { arrayBufferToBase64, generateId } from '@tanstack/ai-utils'
@@ -10,7 +13,6 @@ import {
   validateSpeed,
 } from '../audio/audio-provider-options'
 import type { TTSOptions, TTSResult } from '@tanstack/ai'
-import type OpenAI_SDK from 'openai'
 import type { OpenAITTSModel } from '../model-meta'
 import type { OpenAITTSProviderOptions } from '../audio/tts-provider-options'
 import type { OpenAIClientConfig } from '../utils/client'
@@ -63,7 +65,7 @@ export class OpenAITTSAdapter<
 
     // With exactOptionalPropertyTypes, vendor SDK request shapes reject
     // `T | undefined` in optional fields; spread optional inputs conditionally.
-    const request: OpenAI_SDK.Audio.SpeechCreateParams = {
+    const request: OpenaiPostAudioSpeechBody = {
       model,
       input: text,
       voice: voice || 'alloy',

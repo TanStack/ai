@@ -49,11 +49,11 @@ describe('elevenlabsTranscription adapter', () => {
 
     expect(convertMock).toHaveBeenCalledTimes(1)
     expect(convertMock.mock.calls[0]![0]).toMatchObject({
-      modelId: 'scribe_v1',
-      languageCode: 'en',
+      model_id: 'scribe_v1',
+      language_code: 'en',
       diarize: true,
       keyterms: ['foo', 'bar'],
-      timestampsGranularity: 'word',
+      timestamps_granularity: 'word',
     })
     expect(result).toMatchObject({
       text: 'hello world',
@@ -77,10 +77,10 @@ describe('elevenlabsTranscription adapter', () => {
 
     const body = convertMock.mock.calls[0]![0]
     expect(body.file).toBeInstanceOf(Blob)
-    expect(body.cloudStorageUrl).toBeUndefined()
+    expect(body.cloud_storage_url).toBeUndefined()
   })
 
-  it('treats a plain https string as cloudStorageUrl', async () => {
+  it('treats a plain https string as cloud_storage_url', async () => {
     convertMock.mockResolvedValue({ text: '', words: [] })
     const adapter = elevenlabsTranscription('scribe_v1', { apiKey: 'k' })
 
@@ -91,7 +91,7 @@ describe('elevenlabsTranscription adapter', () => {
     })
 
     const body = convertMock.mock.calls[0]![0]
-    expect(body.cloudStorageUrl).toBe('https://example.com/audio.mp3')
+    expect(body.cloud_storage_url).toBe('https://example.com/audio.mp3')
     expect(body.file).toBeUndefined()
   })
 

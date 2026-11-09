@@ -16,20 +16,19 @@ import {
 } from '@mistralai/mistralai/models/errors'
 import {
   HTTPValidationError,
-  chatCompletionRequestToWire,
   chatCompletionResponseFromWire,
   createMistralClient,
-  embeddingRequestToWire,
   embeddingResponseFromWire,
 } from '../src/client'
 import type {
   ChatCompletionRequest,
   EmbeddingRequest,
 } from '@mistralai/mistralai/models/components'
+import type {
+  MistralPostV1ChatCompletionsBody,
+  MistralPostV1EmbeddingsBody,
+} from '../src/generated/client/types'
 import type { MistralClient } from '../src/client'
-
-/** The JSON that goes on the wire: `undefined` keys are dropped. */
-const wire = (value: unknown): unknown => JSON.parse(JSON.stringify(value))
 
 const chatRequest: ChatCompletionRequest = {
   model: 'mistral-large-latest',
@@ -149,6 +148,31 @@ const embeddingRequest: EmbeddingRequest = {
   encodingFormat: 'base64',
 }
 
+// Our client takes the wire body: the SDK's own serialization of the SDK
+// request, so the sent requests can be compared.
+const { chatBody, embeddingBody } = {
+  chatBody: ChatCompletionRequest$outboundSchema.parse(chatRequest),
+  embeddingBody: EmbeddingRequest$outboundSchema.parse(embeddingRequest),
+  // oxlint-disable-next-line eslint-js/no-restricted-syntax -- the SDK `$Outbound` types widen every enum (model, detail, dtype) to `string`; the values are the fixture literals above
+} as {
+  chatBody: MistralPostV1ChatCompletionsBody
+  embeddingBody: MistralPostV1EmbeddingsBody
+}
+
+/**
+ * The SDK as a `MistralClient`. The SDK takes the camelCase request, so it
+ * sends the fixture request that `chatBody` / `embeddingBody` serialize.
+ */
+const sdkClient = (sdk: Mistral): MistralClient => ({
+  chat: {
+    complete: (_body, options) => sdk.chat.complete(chatRequest, options),
+  },
+  embeddings: {
+    create: (_body, options) =>
+      sdk.embeddings.create(embeddingRequest, options),
+  },
+})
+
 const chatResponse = {
   id: 'cmpl-1',
   object: 'chat.completion',
@@ -225,18 +249,6 @@ const embeddingResponse = {
 }
 
 describe('Mistral remap matches the SDK schemas', () => {
-  it('chat request equals ChatCompletionRequest$outboundSchema', () => {
-    expect(wire(chatCompletionRequestToWire(chatRequest))).toEqual(
-      wire(ChatCompletionRequest$outboundSchema.parse(chatRequest)),
-    )
-  })
-
-  it('embedding request equals EmbeddingRequest$outboundSchema', () => {
-    expect(wire(embeddingRequestToWire(embeddingRequest))).toEqual(
-      wire(EmbeddingRequest$outboundSchema.parse(embeddingRequest)),
-    )
-  })
-
   it('chat response equals ChatCompletionResponse$inboundSchema', () => {
     expect(chatCompletionResponseFromWire(chatResponse)).toEqual(
       ChatCompletionResponse$inboundSchema.parse(chatResponse),
@@ -296,7 +308,9 @@ async function runBoth<T>(
   }
 
   const sdk = await run(
-    new Mistral({ apiKey: 'test-key', serverURL: 'https://gw.example/m' }),
+    sdkClient(
+      new Mistral({ apiKey: 'test-key', serverURL: 'https://gw.example/m' }),
+    ),
   )
   const ours = await run(
     createMistralClient({
@@ -325,7 +339,7 @@ function errorFields(error: unknown) {
   }
 }
 
-const complete = (client: MistralClient) => client.chat.complete(chatRequest)
+const complete = (client: MistralClient) => client.chat.complete(chatBody)
 
 describe('Mistral client parity with the SDK', () => {
   afterEach(() => {
@@ -373,7 +387,7 @@ describe('Mistral client parity with the SDK', () => {
 
   it('embeddings.create sends the same request and returns the same result', async () => {
     const { sdk, ours } = await runBoth(
-      (client) => client.embeddings.create(embeddingRequest),
+      (client) => client.embeddings.create(embeddingBody),
       () => Response.json(embeddingResponse),
     )
     expect(ours.sent).toEqual(sdk.sent)

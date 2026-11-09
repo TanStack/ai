@@ -69,7 +69,7 @@ describe('Mistral Embedding Adapter', () => {
 
       expect(spy).toHaveBeenCalledWith({
         model: 'mistral-embed',
-        inputs: ['a red guitar', 'a blue drum kit'],
+        input: ['a red guitar', 'a blue drum kit'],
       })
       expect(result.embeddings).toEqual([
         { vector: [0.1, 0.2], index: 0 },
@@ -83,7 +83,7 @@ describe('Mistral Embedding Adapter', () => {
       expect(result.model).toBe('mistral-embed')
     })
 
-    it('maps the top-level dimensions option to outputDimension for codestral-embed', async () => {
+    it('maps the top-level dimensions option to output_dimension for codestral-embed', async () => {
       const adapter = new TestMistralEmbeddingAdapter(
         { apiKey: 'test' },
         'codestral-embed',
@@ -99,7 +99,7 @@ describe('Mistral Embedding Adapter', () => {
       })
 
       expect(spy).toHaveBeenCalledWith(
-        expect.objectContaining({ outputDimension: 256 }),
+        expect.objectContaining({ output_dimension: 256 }),
       )
     })
 
@@ -138,9 +138,9 @@ describe('Mistral Embedding Adapter', () => {
 
       expect(spy).toHaveBeenCalledWith(
         expect.objectContaining({
-          outputDtype: 'int8',
+          output_dtype: 'int8',
           model: 'codestral-embed',
-          inputs: ['hello'],
+          input: ['hello'],
         }),
       )
     })

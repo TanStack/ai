@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 import {
   diffFiles,
   docSkipReason,
+  parseDoc,
   readTree,
   withEndpointMap,
   writeTree,
@@ -100,5 +101,20 @@ describe('withEndpointMap', () => {
     expect(
       withEndpointMap({ components: { schemas: { A: {} } } }, 'X'),
     ).toBeUndefined()
+  })
+})
+
+describe('parseDoc', () => {
+  it('drops format: byte and keeps other formats', () => {
+    const doc = parseDoc(
+      JSON.stringify({
+        a: { type: 'string', format: 'byte' },
+        b: { type: 'string', format: 'binary' },
+      }),
+    )
+    expect(doc).toEqual({
+      a: { type: 'string' },
+      b: { type: 'string', format: 'binary' },
+    })
   })
 })

@@ -8,8 +8,10 @@ import {
   withLovableDefaults,
 } from '../utils/client'
 import type { TTSOptions, TTSResult } from '@tanstack/ai'
-import type OpenAI_SDK from 'openai'
-import type { OpenAIClientLike } from '@tanstack/openai-base'
+import type {
+  OpenAIClientLike,
+  OpenaiPostAudioSpeechBody,
+} from '@tanstack/openai-base'
 import type { LovableTTSModel } from '../model-meta'
 import type { LovableTTSProviderOptions } from '../audio/tts-provider-options'
 import type { LovableClientConfig } from '../utils/client'
@@ -42,7 +44,7 @@ export class LovableTTSAdapter<
   ): Promise<TTSResult> {
     const { model, text, voice, format, speed, modelOptions } = options
 
-    const request: OpenAI_SDK.Audio.SpeechCreateParams = {
+    const request: OpenaiPostAudioSpeechBody = {
       model,
       input: text,
       voice: voice || 'alloy',

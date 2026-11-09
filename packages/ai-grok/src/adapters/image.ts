@@ -23,8 +23,10 @@ import type {
   MediaInputMetadata,
   ResolvedMediaPrompt,
 } from '@tanstack/ai'
-import type OpenAI_SDK from 'openai'
-import type { OpenAIClientLike } from '@tanstack/openai-base'
+import type {
+  OpenAIClientLike,
+  OpenaiPostImagesGenerationsBody,
+} from '@tanstack/openai-base'
 import type { GrokImageModel } from '../model-meta'
 import type {
   GrokImageModelInputModalitiesByName,
@@ -145,14 +147,14 @@ export class GrokImageAdapter<
     // The generic `size` option carries an "aspectRatio_resolution" template
     // (e.g. '16:9_2k', like Gemini native image models) and maps to the
     // Imagine API's `aspect_ratio` / `resolution` parameters.
-    const request = {
+    const request: OpenaiPostImagesGenerationsBody & { stream: false } = {
       model,
       prompt,
       n: numberOfImages ?? 1,
       ...imagineSizeParams(size),
       stream: false,
       ...modelOptions,
-    } as OpenAI_SDK.Images.ImageGenerateParamsNonStreaming
+    }
 
     try {
       options.logger.request(

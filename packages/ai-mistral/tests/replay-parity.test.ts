@@ -246,27 +246,7 @@ describe('Mistral replay parity', () => {
       const { bodies } = await run(path, ordinary)
       expect(bodies[0]).toEqual({
         model: 'mistral-small-latest',
-        messages:
-          path === 'stream'
-            ? ordinaryMessages
-            : [
-                ordinaryMessages[0],
-                ordinaryMessages[1],
-                {
-                  role: 'assistant',
-                  content: 'Hi',
-                  prefix: false,
-                  tool_calls: [
-                    {
-                      id: 'Abc123456',
-                      type: 'function',
-                      index: 0,
-                      function: { name: 'lookup', arguments: '{"value":1}' },
-                    },
-                  ],
-                },
-                ordinaryMessages[3],
-              ],
+        messages: ordinaryMessages,
         temperature: 0.2,
         max_tokens: 128,
         top_p: 0.8,
@@ -276,7 +256,6 @@ describe('Mistral replay parity', () => {
         ...(path === 'stream'
           ? { stream: true, stream_options: { include_usage: true } }
           : {
-              stream: false,
               response_format: {
                 type: 'json_schema',
                 json_schema: {

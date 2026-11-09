@@ -245,12 +245,7 @@ export type Base64ImageSourceMediaTypeEnumKey =
   (typeof base64ImageSourceMediaTypeEnum)[keyof typeof base64ImageSourceMediaTypeEnum]
 
 export type Base64ImageSource = {
-  /**
-   * @description
-   * Format: `byte`
-   * @type string
-   */
-  data: Blob
+  data: string
   media_type: Base64ImageSourceMediaTypeEnumKey
   type: 'base64'
 }
@@ -316,12 +311,7 @@ export type RequestCitationsConfig = {
 }
 
 export type Base64PDFSource = {
-  /**
-   * @description
-   * Format: `byte`
-   * @type string
-   */
-  data: Blob
+  data: string
   media_type: 'application/pdf'
   type: 'base64'
 }
@@ -4727,12 +4717,7 @@ export type BetaBase64ImageSourceMediaTypeEnumKey =
   (typeof betaBase64ImageSourceMediaTypeEnum)[keyof typeof betaBase64ImageSourceMediaTypeEnum]
 
 export type BetaBase64ImageSource = {
-  /**
-   * @description
-   * Format: `byte`
-   * @type string
-   */
-  data: Blob
+  data: string
   media_type: BetaBase64ImageSourceMediaTypeEnumKey
   type: 'base64'
 }
@@ -4798,12 +4783,7 @@ export type BetaRequestCitationsConfig = {
 }
 
 export type BetaBase64PDFSource = {
-  /**
-   * @description
-   * Format: `byte`
-   * @type string
-   */
-  data: Blob
+  data: string
   media_type: 'application/pdf'
   type: 'base64'
 }

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import OpenAI from 'openai'
+import { createOpenAIClient } from '@tanstack/openai-base'
 import { EventType } from '@tanstack/ai'
 import { resolveDebugOption } from '@tanstack/ai/adapter-internals'
 import { OpenAICompatibleChatAdapter } from '../src/compatible/adapter'
@@ -24,12 +24,14 @@ function createAsyncIterable<T>(chunks: Array<T>): AsyncIterable<T> {
 }
 
 function makeAdapter(streamChunks: Array<Record<string, unknown>>) {
-  const client = new OpenAI({ apiKey: 'test-api-key' })
-  client.chat.completions.create = vi
-    .fn()
-    .mockResolvedValue(
-      createAsyncIterable(streamChunks),
-    ) as typeof client.chat.completions.create
+  const client = createOpenAIClient({
+    apiKey: 'test-api-key',
+    fetch: () => Promise.reject(new Error('No network in this test')),
+  })
+  // The raw chunks stand in for SDK chunks; the test checks the events.
+  const create: (...args: Array<unknown>) => Promise<any> = async () =>
+    createAsyncIterable(streamChunks)
+  vi.spyOn(client.chat.completions, 'create').mockImplementation(create)
   return new OpenAICompatibleChatAdapter(
     client,
     'deepseek-reasoner',

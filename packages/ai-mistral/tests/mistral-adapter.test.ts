@@ -167,11 +167,11 @@ describe('Mistral adapters', () => {
       expect(result.data).toEqual({ note: null })
       expect(mockComplete).toHaveBeenCalledWith(
         expect.objectContaining({
-          responseFormat: {
+          response_format: {
             type: 'json_schema',
-            jsonSchema: {
+            json_schema: {
               name: 'structured_output',
-              schemaDefinition: {
+              schema: {
                 type: 'object',
                 properties: {
                   mode: {
@@ -216,11 +216,11 @@ describe('Mistral adapters', () => {
       expect(result.data).toEqual({ value: null })
       expect(mockComplete).toHaveBeenCalledWith(
         expect.objectContaining({
-          responseFormat: {
+          response_format: {
             type: 'json_schema',
-            jsonSchema: {
+            json_schema: {
               name: 'structured_output',
-              schemaDefinition: outputSchema,
+              schema: outputSchema,
               strict: false,
             },
           },

@@ -113,12 +113,6 @@ export interface GeminiClient {
 }
 /* oxlint-enable typescript/method-signature-style */
 
-/**
- * The one cast between the SDK param types (the public API) and the types of
- * the generated client. Both describe the same request body.
- */
-const wire = <T>(body: unknown) => body as T
-
 // Creates the real SDK client on first use.
 function lazySdk(options: GoogleGenAIOptions) {
   let sdk: Promise<GoogleGenAI> | undefined
@@ -271,12 +265,12 @@ function createFetchClient(
           ? geminiPostV1BetaTunedmodelsTunedmodelsidStreamgeneratecontent({
               client: http,
               path,
-              body: wire(body),
+              body,
             })
           : geminiPostV1BetaTunedmodelsTunedmodelsidGeneratecontent({
               client: http,
               path,
-              body: wire(body),
+              body,
             })
       }
       const path = { modelsId: id }
@@ -284,12 +278,12 @@ function createFetchClient(
         ? geminiPostV1BetaModelsModelsidStreamgeneratecontent({
             client: http,
             path,
-            body: wire(body),
+            body,
           })
         : geminiPostV1BetaModelsModelsidGeneratecontent({
             client: http,
             path,
-            body: wire(body),
+            body,
           })
     }, params.config)
   }
@@ -329,7 +323,7 @@ function createFetchClient(
                   geminiPostV1BetaModelsModelsidBatchembedcontents({
                     client: http,
                     path: { modelsId: target.id },
-                    body: wire(request),
+                    body: request,
                   }),
                 params.config,
               )
@@ -359,7 +353,7 @@ function createFetchClient(
                   geminiPostV1BetaModelsModelsidPredictlongrunning({
                     client: http,
                     path: { modelsId: target.id },
-                    body: wire(request),
+                    body: request,
                   }),
                 params.config,
               )

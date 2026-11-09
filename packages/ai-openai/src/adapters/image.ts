@@ -17,8 +17,11 @@ import type {
   ImagePart,
   MediaInputMetadata,
 } from '@tanstack/ai'
-import type OpenAI_SDK from 'openai'
-import type { OpenAIClientLike } from '@tanstack/openai-base'
+import type {
+  OpenAIClientLike,
+  OpenaiPostImagesEditsBody,
+  OpenaiPostImagesGenerationsBody,
+} from '@tanstack/openai-base'
 import type { OpenAIImageModel } from '../model-meta'
 import type {
   OpenAIImageModelInputModalitiesByName,
@@ -116,17 +119,14 @@ export class OpenAIImageAdapter<
       })
     }
 
-    // With exactOptionalPropertyTypes, vendor SDK request shapes reject
-    // `T | undefined` in optional fields. Build the request incrementally and
-    // only set `size` when it's actually defined. The SDK's `quality` type
-    // does not list the gpt-image-2.5 `xhigh` / `max` levels yet, so cast the
-    // spread.
-    const request: OpenAI_SDK.Images.ImageGenerateParams = {
+    // With exactOptionalPropertyTypes, request shapes reject `T | undefined`
+    // in optional fields. Build the request incrementally and only set `size`
+    // when it's actually defined.
+    const request: OpenaiPostImagesGenerationsBody = {
       model,
       prompt,
       n: numberOfImages ?? 1,
-      ...((modelOptions ??
-        {}) as Partial<OpenAI_SDK.Images.ImageGenerateParamsNonStreaming>),
+      ...modelOptions,
     }
     if (size !== undefined) {
       request.size = size
@@ -254,9 +254,7 @@ export class OpenAIImageAdapter<
         )
       : undefined
 
-    // The SDK's edit params do not list every gpt-image option (e.g. the
-    // gpt-image-2.5 `xhigh` / `max` quality levels), so cast the spread.
-    const request: OpenAI_SDK.Images.ImageEditParamsNonStreaming = {
+    const request: OpenaiPostImagesEditsBody & { stream: false } = {
       model,
       prompt,
       image:
@@ -265,8 +263,7 @@ export class OpenAIImageAdapter<
           : sourceFiles,
       n: numberOfImages ?? 1,
       stream: false,
-      ...((modelOptions ??
-        {}) as Partial<OpenAI_SDK.Images.ImageEditParamsNonStreaming>),
+      ...modelOptions,
     }
     if (size !== undefined) {
       request.size = size

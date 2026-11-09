@@ -1,5 +1,4 @@
 import { describe, expect, it } from 'vitest'
-import OpenAI from 'openai'
 import { EventType } from '@tanstack/ai'
 import { resolveDebugOption } from '@tanstack/ai/adapter-internals'
 import { OpenAIBaseChatCompletionsTextAdapter } from '../src/adapters/chat-completions-text'
@@ -9,8 +8,10 @@ import type { FetchWrapper } from '@tanstack/ai'
 import type { ClientOptions } from 'openai'
 import type { OpenAIClientLike } from '../src/client'
 
-// Callers pass a real `OpenAI` instance or our client to the base adapters.
-// Both must type-check and stream the same chat.
+// Our client streams one chat through the base adapters, with the given
+// fetch and wrapFetch. A real `OpenAI` instance no longer fits
+// `OpenAIClientLike`: its request types are the SDK params, ours are the
+// generated modelschemas bodies.
 
 type Fetch = NonNullable<ClientOptions['fetch']>
 
@@ -51,10 +52,6 @@ const responsesSSE = `data: ${JSON.stringify({
 })}\n\n`
 
 const clients = [
-  {
-    client: 'new OpenAI()',
-    make: (fetch: Fetch) => new OpenAI({ apiKey, fetch }),
-  },
   {
     client: 'createOpenAIClient()',
     make: (fetch: Fetch) => createOpenAIClient({ apiKey, fetch }),

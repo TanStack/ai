@@ -13,8 +13,10 @@ import type {
   ImageGenerationOptions,
   ImageGenerationResult,
 } from '@tanstack/ai'
-import type OpenAI_SDK from 'openai'
-import type { OpenAIClientLike } from '@tanstack/openai-base'
+import type {
+  OpenAIClientLike,
+  OpenaiPostImagesGenerationsBody,
+} from '@tanstack/openai-base'
 import type {
   VercelGatewayImageModel,
   VercelGatewayImageModelInputModalitiesByName,
@@ -76,7 +78,7 @@ export class VercelGatewayImageAdapter<
     const mapped = mapGatewayModelOptions(
       options.modelOptions as Record<string, unknown> | undefined,
     )
-    const request: OpenAI_SDK.Images.ImageGenerateParams = {
+    const request: OpenaiPostImagesGenerationsBody = {
       ...mapped,
       model,
       prompt,

@@ -108,13 +108,6 @@ function withEnvDefaults(options: OpenRouterClientOptions) {
   }
 }
 
-/**
- * The one cast between the SDK param types (the public API, renamed to the
- * wire by the tables) and the types of the generated client. Both describe
- * the same request body.
- */
-export const wire = <T>(body: unknown) => body as T
-
 /** A generated operation, called with a client that sends through `send`. */
 export type GeneratedOperation = (
   client: ClientInstance,
@@ -167,10 +160,9 @@ export async function callGenerated(
   return exchange
 }
 
-/** The tables to remap one text operation. */
+/** The tables to remap the result of one text operation. */
 export interface TextTables {
   objects: RemapObjects
-  body: RemapNode
   json: RemapNode
   event: RemapNode
 }
@@ -181,18 +173,18 @@ export interface TextTables {
  */
 export async function sendText(
   call: ReturnType<typeof createCaller>,
-  operation: (body: unknown) => GeneratedOperation,
-  body: Record<string, unknown> & { stream?: boolean | null },
+  operation: GeneratedOperation,
+  stream: boolean | null | undefined,
   request: Operation['headers'],
   tables: TextTables,
   requestOptions: RequestOptions | undefined,
 ) {
   const exchange = await callGenerated(
     call,
-    operation(remap(body, tables.body, tables.objects)),
+    operation,
     {
       method: 'POST',
-      accept: body.stream ? 'text/event-stream' : 'application/json',
+      accept: stream ? 'text/event-stream' : 'application/json',
       headers: request,
       okStatus: 200,
       okTypes: ['application/json', 'text/event-stream'],

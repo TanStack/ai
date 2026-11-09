@@ -9,6 +9,7 @@ import OpenAI from 'openai'
 import { resolveDebugOption } from '@tanstack/ai/adapter-internals'
 import { OpenAIBaseResponsesTextAdapter } from '../src/adapters/responses-text'
 import type { ClientOptions } from 'openai'
+import type { OpenAIClientLike } from '../src/client'
 
 type Fetch = NonNullable<ClientOptions['fetch']>
 
@@ -32,6 +33,13 @@ const completed = {
 }
 
 class Responses extends OpenAIBaseResponsesTextAdapter<string> {}
+
+/**
+ * The SDK client as an `OpenAIClientLike`. Its method types take the SDK
+ * request params, ours take the generated bodies; the runtime calls match.
+ * This test needs the SDK `Stream`: only it gives the drain an `abort`.
+ */
+const sdkClient = (client: OpenAI) => client as unknown as OpenAIClientLike
 
 interface Seen {
   /** Whether the request was aborted when the body ended by itself. */
@@ -75,9 +83,14 @@ function fakeFetch(closeAfterMs: number | null, seen: Seen) {
 }
 
 function adapterFor(fetch: Fetch) {
-  return new Responses(model, 'openai', new OpenAI({ apiKey: 'k', fetch }), {
-    fetch,
-  })
+  return new Responses(
+    model,
+    'openai',
+    sdkClient(new OpenAI({ apiKey: 'k', fetch })),
+    {
+      fetch,
+    },
+  )
 }
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))

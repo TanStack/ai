@@ -5,7 +5,7 @@ import { convertToolsToProviderFormat } from '../tools/tool-converter'
 import { sendWith } from '@tanstack/ai-utils/kubb'
 import { createMistralClient } from '../client/index'
 import { mistralPostV1ChatCompletions } from '../generated/client/sdk'
-import { generateId, getMistralApiKeyFromEnv, wire } from '../utils/client'
+import { generateId, getMistralApiKeyFromEnv } from '../utils/client'
 import { makeMistralStructuredOutputCompatibleWithMap } from '../utils/schema-converter'
 import { createToolInputNormalizer } from '../utils/tool-input-normalizer'
 import {
@@ -43,17 +43,16 @@ import type {
   StructuredOutputResult,
 } from '@tanstack/ai/adapters'
 import type {
-  AssistantMessage,
-  ChatCompletionStreamRequest,
   ContentChunk,
-  ReasoningEffort,
-} from '@mistralai/mistralai/models/components'
+  MistralPostV1ChatCompletionsBody,
+  ReasoningEffortKey,
+  ResponseFormat,
+} from '../generated/client/types'
 import type {
   ExternalTextProviderOptions,
   InternalTextProviderOptions,
 } from '../text/text-provider-options'
 import type {
-  ChatCompletionContentPart,
   MistralImageMetadata,
   MistralMessageMetadataByModality,
 } from '../message-types'
@@ -128,20 +127,20 @@ function mistralReasoning(
   model: string,
   request: ReasoningRequest | undefined,
   reasoning: ModelReasoning | undefined,
-): Pick<ChatCompletionStreamRequest, 'promptMode' | 'reasoningEffort'> {
+): Pick<ChatBody, 'prompt_mode' | 'reasoning_effort'> {
   const resolved = resolveReasoning(request, reasoning)
   if (!resolved) return {}
   if (model.startsWith('magistral')) {
-    return resolved.level === 'off' ? {} : { promptMode: 'reasoning' }
+    return resolved.level === 'off' ? {} : { prompt_mode: 'reasoning' }
   }
-  // `ReasoningEffort` is an open enum, so a newer value still goes out.
-  return { reasoningEffort: resolved.value as ReasoningEffort }
+  // The level values come from the generated model metadata, typed `string`.
+  return { reasoning_effort: resolved.value as ReasoningEffortKey }
 }
 
-/** Maps `chat({ toolChoice })` to the Mistral `toolChoice`. */
+/** Maps `chat({ toolChoice })` to the Mistral `tool_choice`. */
 function toMistralToolChoice(
   choice: ToolChoice,
-): NonNullable<ChatCompletionStreamRequest['toolChoice']> {
+): NonNullable<ChatBody['tool_choice']> {
   if (typeof choice === 'string') return choice
   return { type: 'function', function: { name: choice.name } }
 }
@@ -149,8 +148,7 @@ function toMistralToolChoice(
 /**
  * The Mistral wire field for `chat({ promptCache })`. Mistral caches without
  * a flag, so only the key goes out. There is no key for `'none'`. Send the
- * key only to `api.mistral.ai`. The SDK request schema drops unknown fields,
- * so structured output adds the key after that schema runs.
+ * key only to `api.mistral.ai`.
  */
 function mistralPromptCacheKey(promptCache: ResolvedPromptCache | undefined) {
   if (!promptCache?.key || promptCache.retention === 'none') return undefined
@@ -168,34 +166,15 @@ function mistralOwnApi(config: MistralClientConfig, provider: string) {
   }
 }
 
-/** Add `prompt_cache_key` to a JSON body the SDK has already serialized. */
-function withPromptCacheKey(next: typeof fetch, key: string): typeof fetch {
-  return async (input, init) => {
-    const body = init?.body
-    const text =
-      typeof body === 'string'
-        ? body
-        : body instanceof ArrayBuffer
-          ? new TextDecoder().decode(body)
-          : undefined
-    if (text === undefined) return next(input, init)
-    let parsed: unknown
-    try {
-      parsed = JSON.parse(text)
-    } catch {
-      return next(input, init)
-    }
-    if (
-      typeof parsed !== 'object' ||
-      parsed === null ||
-      Array.isArray(parsed)
-    ) {
-      return next(input, init)
-    }
-    return next(input, {
-      ...init,
-      body: JSON.stringify({ ...parsed, prompt_cache_key: key }),
-    })
+/** The `modelOptions.response_format` on the wire (snake_case). */
+function responseFormatToWire(
+  format: NonNullable<MistralTextProviderOptions['response_format']>,
+): ResponseFormat {
+  if (format.type !== 'json_schema') return format
+  const { name, description, schemaDefinition, strict } = format.jsonSchema
+  return {
+    type: format.type,
+    json_schema: { name, description, schema: schemaDefinition, strict },
   }
 }
 
@@ -218,6 +197,9 @@ function mistralCachedTokens(usage: Record<string, unknown>) {
     ? { promptTokensDetails: { cachedTokens } }
     : {}
 }
+
+type ChatBody = MistralPostV1ChatCompletionsBody
+type ChatMessage = ChatBody['messages'][number]
 
 type ResolveInputModalities<TModel extends string> =
   TModel extends keyof MistralModelInputModalitiesByName
@@ -355,8 +337,12 @@ export class MistralTextAdapter<
       const cacheKey = mistralOwnApi(this.rawConfig, this.provider)
         ? mistralPromptCacheKey(options.promptCache)
         : undefined
-      const body = {
-        ...this.toWireBody(requestParams),
+      const body: ChatBody = {
+        ...requestParams,
+        stream: true,
+        // Opt in to usage on the final streaming chunk.
+        // @ts-expect-error modelschemas gap: ChatCompletionRequest has no `stream_options`
+        stream_options: { include_usage: true },
         ...(cacheKey !== undefined && { prompt_cache_key: cacheKey }),
       }
       const stream = this.fetchRawMistralStream(
@@ -444,8 +430,7 @@ export class MistralTextAdapter<
     options: StructuredOutputOptions<TProviderOptions>,
   ): Promise<StructuredOutputResult<unknown>> {
     const { chatOptions, outputSchema } = options
-    const { stream: _stream, ...nonStreamParams } =
-      this.mapTextOptionsToMistral(chatOptions)
+    const params = this.mapTextOptionsToMistral(chatOptions)
 
     const {
       schema: jsonSchema,
@@ -459,35 +444,29 @@ export class MistralTextAdapter<
     const cacheKey = mistralOwnApi(this.rawConfig, this.provider)
       ? mistralPromptCacheKey(chatOptions.promptCache)
       : undefined
-    const next = chatOptions.wrapFetch ? chatOptions.wrapFetch(fetch) : fetch
-    const client = cacheKey
-      ? createMistralClient(this.rawConfig, withPromptCacheKey(next, cacheKey))
-      : chatOptions.wrapFetch
-        ? createMistralClient(this.rawConfig, next)
-        : this.client
+    const client = chatOptions.wrapFetch
+      ? createMistralClient(this.rawConfig, chatOptions.wrapFetch(fetch))
+      : this.client
     // The SDK drops its default 30 s timeout when the request has a signal
     // (lib/sdks.js), so keep that timeout next to the caller signal.
     const signal = chatOptions.request?.signal
     const timeoutMs = this.rawConfig.timeoutMs || 30_000
-    const params = {
-      ...nonStreamParams,
-      responseFormat: {
-        type: 'json_schema' as const,
-        jsonSchema: {
-          name: 'structured_output',
-          schemaDefinition: jsonSchema,
-          strict,
-        },
+    const body: ChatBody = {
+      ...params,
+      response_format: {
+        type: 'json_schema',
+        json_schema: { name: 'structured_output', schema: jsonSchema, strict },
       },
+      ...(cacheKey !== undefined && { prompt_cache_key: cacheKey }),
     }
     const response = signal
-      ? await client.chat.complete(params, {
+      ? await client.chat.complete(body, {
           signal:
             timeoutMs > 0
               ? AbortSignal.any([signal, AbortSignal.timeout(timeoutMs)])
               : signal,
         })
-      : await client.chat.complete(params)
+      : await client.chat.complete(body)
 
     const usage = response.usage && {
       promptTokens: response.usage.promptTokens ?? 0,
@@ -990,7 +969,7 @@ export class MistralTextAdapter<
    * rejects streaming tool call chunks that omit `name` in argument deltas.
    */
   private async *fetchRawMistralStream(
-    body: Record<string, unknown>,
+    body: ChatBody,
     config: MistralClientConfig,
     wrapFetch: FetchWrapper | undefined,
     signal: AbortSignal | undefined,
@@ -1032,7 +1011,7 @@ export class MistralTextAdapter<
         }
         return res
       }),
-      body: wire(body),
+      body,
     })
 
     if (!response.body) {
@@ -1105,52 +1084,6 @@ export class MistralTextAdapter<
   }
 
   /**
-   * Converts the SDK's camelCase `ChatCompletionStreamRequest` into the
-   * snake_case wire body, including converting messages.
-   */
-  private toWireBody(
-    params: ChatCompletionStreamRequest,
-  ): Record<string, unknown> {
-    const {
-      messages,
-      maxTokens,
-      topP,
-      randomSeed,
-      responseFormat,
-      toolChoice,
-      parallelToolCalls,
-      frequencyPenalty,
-      presencePenalty,
-      safePrompt,
-      reasoningEffort,
-      promptMode,
-      stream: _stream,
-      ...rest
-    } = params
-
-    return {
-      ...rest,
-      messages: messages.map(messageToWire),
-      stream: true,
-      // Opt in to usage on the final streaming chunk.
-      stream_options: { include_usage: true },
-      ...(maxTokens != null && { max_tokens: maxTokens }),
-      ...(topP != null && { top_p: topP }),
-      ...(randomSeed != null && { random_seed: randomSeed }),
-      ...(responseFormat != null && { response_format: responseFormat }),
-      ...(toolChoice != null && { tool_choice: toolChoice }),
-      ...(parallelToolCalls != null && {
-        parallel_tool_calls: parallelToolCalls,
-      }),
-      ...(frequencyPenalty != null && { frequency_penalty: frequencyPenalty }),
-      ...(presencePenalty != null && { presence_penalty: presencePenalty }),
-      ...(safePrompt != null && { safe_prompt: safePrompt }),
-      ...(reasoningEffort != null && { reasoning_effort: reasoningEffort }),
-      ...(promptMode != null && { prompt_mode: promptMode }),
-    }
-  }
-
-  /**
    * Splits a Mistral delta content payload into text and reasoning deltas.
    * Mistral reasoning models (magistral-*) stream reasoning content as
    * `{ type: 'thinking', thinking: [{ type: 'text', text }, ...] }` content
@@ -1193,7 +1126,7 @@ export class MistralTextAdapter<
    */
   private mapTextOptionsToMistral(
     options: TextOptions<TProviderOptions>,
-  ): ChatCompletionStreamRequest {
+  ): ChatBody {
     const modelOptions = options.modelOptions as
       | Omit<InternalTextProviderOptions, 'tools'>
       | undefined
@@ -1216,7 +1149,7 @@ export class MistralTextAdapter<
           .slice(0, 9)
       },
     )
-    const messages: ChatCompletionStreamRequest['messages'] = []
+    const messages: Array<ChatMessage> = []
 
     if (options.systemPrompts && options.systemPrompts.length > 0) {
       messages.push({
@@ -1233,18 +1166,19 @@ export class MistralTextAdapter<
     // before the `modelOptions` spread, so a `tool_choice` there wins.
     const toolChoiceField =
       tools?.length && options.toolChoice !== undefined
-        ? { toolChoice: toMistralToolChoice(options.toolChoice) }
+        ? { tool_choice: toMistralToolChoice(options.toolChoice) }
         : undefined
 
     return {
       ...toolChoiceField,
+      // @ts-expect-error modelschemas gap: ChatCompletionRequest.model is a closed enum, the API takes any model id
       model: this.rawConfig.requestModel ?? options.model,
-      messages: messages,
+      messages,
       temperature: modelOptions?.temperature ?? undefined,
-      maxTokens: modelOptions?.max_tokens ?? undefined,
-      topP: modelOptions?.top_p ?? undefined,
-      tools: tools as ChatCompletionStreamRequest['tools'],
-      stream: true,
+      max_tokens: modelOptions?.max_tokens ?? undefined,
+      top_p: modelOptions?.top_p ?? undefined,
+      // @ts-expect-error public type mismatch: ChatCompletionTool vs Tool, function.parameters optional vs required
+      tools,
       ...mistralReasoning(
         options.model,
         options.reasoning,
@@ -1253,29 +1187,29 @@ export class MistralTextAdapter<
       ...(modelOptions && {
         ...(modelOptions.stop != null && { stop: modelOptions.stop }),
         ...(modelOptions.random_seed != null && {
-          randomSeed: modelOptions.random_seed,
+          random_seed: modelOptions.random_seed,
         }),
         ...(modelOptions.response_format != null && {
-          responseFormat: modelOptions.response_format,
+          response_format: responseFormatToWire(modelOptions.response_format),
         }),
         ...(modelOptions.tool_choice != null && {
-          toolChoice: modelOptions.tool_choice,
+          tool_choice: modelOptions.tool_choice,
         }),
         ...(modelOptions.parallel_tool_calls != null && {
-          parallelToolCalls: modelOptions.parallel_tool_calls,
+          parallel_tool_calls: modelOptions.parallel_tool_calls,
         }),
         ...(modelOptions.frequency_penalty != null && {
-          frequencyPenalty: modelOptions.frequency_penalty,
+          frequency_penalty: modelOptions.frequency_penalty,
         }),
         ...(modelOptions.presence_penalty != null && {
-          presencePenalty: modelOptions.presence_penalty,
+          presence_penalty: modelOptions.presence_penalty,
         }),
         ...(modelOptions.n != null && { n: modelOptions.n }),
         ...(modelOptions.prediction != null && {
           prediction: modelOptions.prediction,
         }),
         ...(modelOptions.safe_prompt != null && {
-          safePrompt: modelOptions.safe_prompt,
+          safe_prompt: modelOptions.safe_prompt,
         }),
       }),
     }
@@ -1284,16 +1218,14 @@ export class MistralTextAdapter<
   /**
    * Converts a TanStack AI ModelMessage to a Mistral ChatCompletionMessageParam.
    */
-  private convertMessageToMistral(
-    message: ModelMessage,
-  ): ChatCompletionStreamRequest['messages'][number] {
+  private convertMessageToMistral(message: ModelMessage): ChatMessage {
     if (message.role === 'tool') {
       if (!message.toolCallId) {
         throw new Error('Missing toolCallId for tool message')
       }
       return {
         role: 'tool',
-        toolCallId: message.toolCallId,
+        tool_call_id: message.toolCallId,
         // Mistral accepts image chunks in a tool message, so send the parts.
         content: Array.isArray(message.content)
           ? message.content.map((part) =>
@@ -1321,7 +1253,7 @@ export class MistralTextAdapter<
       return {
         role: 'assistant',
         content: this.assistantContent(message),
-        ...(toolCalls && toolCalls.length > 0 ? { toolCalls } : {}),
+        ...(toolCalls && toolCalls.length > 0 ? { tool_calls: toolCalls } : {}),
       }
     }
 
@@ -1345,7 +1277,9 @@ export class MistralTextAdapter<
   }
 
   /** Readable thinking and text, in the stored block order. */
-  private assistantContent(message: ModelMessage): AssistantMessage['content'] {
+  private assistantContent(
+    message: ModelMessage,
+  ): string | Array<ContentChunk> {
     if (!message.thinking?.length)
       return this.extractTextContent(message.content)
     const blocks = orderedAssistantBlocks(message) ?? [
@@ -1377,9 +1311,7 @@ export class MistralTextAdapter<
    * Converts a ContentPart to a Mistral content part. Returns undefined for
    * unsupported part types.
    */
-  private convertContentPartToMistral(
-    part: ContentPart,
-  ): ChatCompletionContentPart {
+  private convertContentPartToMistral(part: ContentPart): ContentChunk {
     if (part.type === 'text') {
       return { type: 'text', text: part.content }
     }
@@ -1396,7 +1328,7 @@ export class MistralTextAdapter<
           : imageValue
       return {
         type: 'image_url',
-        imageUrl: imageMetadata?.detail
+        image_url: imageMetadata?.detail
           ? { url: imageUrl, detail: imageMetadata.detail }
           : imageUrl,
       }
@@ -1411,7 +1343,7 @@ export class MistralTextAdapter<
         part.source.type === 'data' && !documentValue.startsWith('data:')
           ? `data:${part.source.mimeType};base64,${documentValue}`
           : documentValue
-      return { type: 'document_url', documentUrl }
+      return { type: 'document_url', document_url: documentUrl }
     }
 
     throw new Error(
@@ -1443,57 +1375,6 @@ export class MistralTextAdapter<
       .map((p) => p.content)
       .join('')
   }
-}
-
-/**
- * Snake-cases a Mistral SDK message into the wire format expected by the API.
- */
-function messageToWire(msg: ChatCompletionStreamRequest['messages'][number]) {
-  if (msg.role === 'tool') {
-    return {
-      role: 'tool',
-      tool_call_id: msg.toolCallId,
-      content: Array.isArray(msg.content)
-        ? msg.content.map(contentPartToWire)
-        : msg.content,
-      ...(msg.name !== undefined ? { name: msg.name } : {}),
-    }
-  }
-  if (msg.role === 'assistant') {
-    const base: Record<string, unknown> = {
-      role: 'assistant',
-      content: msg.content ?? null,
-    }
-    if (msg.toolCalls && msg.toolCalls.length > 0) {
-      base.tool_calls = msg.toolCalls.map((tc) => ({
-        id: tc.id,
-        type: tc.type ?? 'function',
-        function: tc.function,
-      }))
-    }
-    if (msg.prefix !== undefined) base.prefix = msg.prefix
-    return base
-  }
-  if (msg.role === 'user' && Array.isArray(msg.content)) {
-    return {
-      role: 'user',
-      content: msg.content.map(contentPartToWire),
-    }
-  }
-  return msg
-}
-
-/**
- * Snake-cases one content chunk of a user or tool message.
- */
-function contentPartToWire(part: ContentChunk) {
-  if (part.type === 'image_url') {
-    return { type: 'image_url', image_url: part.imageUrl }
-  }
-  if (part.type === 'document_url') {
-    return { type: 'document_url', document_url: part.documentUrl }
-  }
-  return part
 }
 
 /**

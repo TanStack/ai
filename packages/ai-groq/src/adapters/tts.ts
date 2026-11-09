@@ -5,8 +5,10 @@ import { createOpenAIClient } from '@tanstack/openai-base'
 import { getGroqApiKeyFromEnv, withGroqDefaults } from '../utils/client'
 import { validateAudioInput } from '../audio/audio-provider-options'
 import type { TTSOptions, TTSResult } from '@tanstack/ai'
-import type OpenAI_SDK from 'openai'
-import type { OpenAIClientLike } from '@tanstack/openai-base'
+import type {
+  OpenAIClientLike,
+  OpenaiPostAudioSpeechBody,
+} from '@tanstack/openai-base'
 import type { GroqTTSModel } from '../model-meta'
 import type { GroqTTSProviderOptions } from '../audio/tts-provider-options'
 import type { GroqClientConfig } from '../utils/client'
@@ -57,7 +59,7 @@ export class GroqTTSAdapter<TModel extends GroqTTSModel> extends BaseTTSAdapter<
     // Spreading optional inputs conditionally keeps the request compatible
     // with the vendor SDK shape under exactOptionalPropertyTypes. `sample_rate`
     // is a Groq-only body field carried via modelOptions.
-    const request: OpenAI_SDK.Audio.SpeechCreateParams = {
+    const request: OpenaiPostAudioSpeechBody = {
       model,
       input: text,
       voice: voice ?? 'autumn',
