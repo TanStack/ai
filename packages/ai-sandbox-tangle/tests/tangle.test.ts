@@ -294,7 +294,16 @@ describe.skipIf(!apiKey)('tangle provider (gated on TANGLE_API_KEY)', () => {
       }
       expect(generations.length).toBeGreaterThan(0)
       expect(generations.filter((g) => !g.closedAt)).toEqual([])
+      // Closed could also mean stopped: the sandbox must be gone.
+      for (const g of generations) {
+        const sandbox = await client.get(g.sandboxId)
+        expect(sandbox === null || sandbox.status === 'deleted').toBe(true)
+      }
     } finally {
+      // A create that beat the abort leaves an open sandbox to delete.
+      if (generations.length === 0) {
+        generations = await client.runGenerations(run).catch(() => [])
+      }
       for (const g of generations.filter((x) => !x.closedAt)) {
         await client.delete(g.sandboxId).catch(() => undefined)
       }

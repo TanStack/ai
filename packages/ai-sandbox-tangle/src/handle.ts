@@ -132,7 +132,8 @@ class OutputLostError extends Error {
 
 /**
  * Read a process's output from one log stream, split into stdout and stderr.
- * Positions count UTF-8 bytes across both streams in log order. A stream read
+ * Positions count UTF-8 bytes across both streams in log order. They match the
+ * server's `missedBytes` only for UTF-8 output; other bytes arrive decoded. A stream read
  * again replays from the oldest output the sandbox kept, after a `gap` for
  * what it evicted, so output before the delivered position is skipped. A gap
  * that reaches past that position lost output, and that is an error.
