@@ -1,4 +1,4 @@
-import type { ServerTool, ToolDefinition } from '@tanstack/ai'
+import type { MCPRequestMeta, ServerTool, ToolDefinition } from '@tanstack/ai'
 import type {
   ClientOptions,
   PriorDiscovery,
@@ -257,6 +257,12 @@ export interface ToolsOptions {
   lazy?: boolean
   /** Cancels the `tools/list` requests. */
   signal?: AbortSignal
+  /**
+   * Called before each call of a returned tool. Its result is sent as the
+   * `tools/call` `_meta`. Each `tools()` call builds new tools, so a hook
+   * passed per request stays with that request.
+   */
+  requestMeta?: MCPRequestMeta
 }
 
 /**

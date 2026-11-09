@@ -217,6 +217,12 @@ export function createMcpAppCallHandler(opts: McpAppCallHandlerOptions) {
     options?: {
       /** Cancels the connect, the tool list, and the tool call. */
       signal?: AbortSignal
+      /**
+       * Sent as the `_meta` of the proxied `tools/call`. Pass the request
+       * context of the HTTP request that carries this widget call (tenant,
+       * trace).
+       */
+      meta?: Record<string, unknown>
     },
   ): Promise<{ ok: true; result: unknown } | { ok: false; error: string }> => {
     const signal = options?.signal
@@ -300,8 +306,9 @@ export function createMcpAppCallHandler(opts: McpAppCallHandlerOptions) {
       if (!isArgsRecord(args)) {
         return { ok: false, error: 'Invalid args: expected an object' }
       }
-      const result = signal
-        ? await client.callTool(req.toolName, args, { signal })
+      // Only the tools/call gets the meta. The connect and tools/list do not.
+      const result = options
+        ? await client.callTool(req.toolName, args, options)
         : await client.callTool(req.toolName, args)
       return { ok: true, result }
     } catch (err) {
