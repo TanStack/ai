@@ -89,6 +89,16 @@ async function runTool(
 }
 
 describe('final tool input validation', () => {
+  it('lets a tool-input undo throw instead of a JSON parse error', async () => {
+    await expect(
+      runTool('{"destination":"Tokyo"}', true, {
+        normalizeToolInput: () => {
+          throw new Error('normalizer broke')
+        },
+      }),
+    ).rejects.toThrow('normalizer broke')
+  })
+
   it('awaits an async Standard Schema validator', async () => {
     const asyncSchema: StandardSchemaV1<unknown, { count: number }> = {
       '~standard': {

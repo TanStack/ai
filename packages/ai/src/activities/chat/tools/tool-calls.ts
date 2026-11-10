@@ -1188,7 +1188,6 @@ export async function* executeToolCalls<TContext = unknown>(
         const parsed = JSON.parse(argsStr)
         // Normalize null/non-object to {} (e.g. Anthropic empty tool_use blocks)
         input = parsed && typeof parsed === 'object' ? parsed : {}
-        if (normalizeToolInput) input = normalizeToolInput(toolName, input)
       } catch {
         results.push({
           toolCallId: toolCall.id,
@@ -1202,6 +1201,7 @@ export async function* executeToolCalls<TContext = unknown>(
         continue
       }
     }
+    if (normalizeToolInput) input = normalizeToolInput(toolName, input)
     // The input that the model sent, to tell later edits apart from it.
     const sentInput = JSON.stringify(input)
 
