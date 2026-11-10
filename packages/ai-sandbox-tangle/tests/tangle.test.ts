@@ -193,11 +193,14 @@ describe.skipIf(!apiKey)('tangle provider (gated on TANGLE_API_KEY)', () => {
     }
   }, 600_000)
 
-  // MEASURES fork: the copy carries state and then diverges.
+  // MEASURES fork: the copy carries state and then diverges, and a parent
+  // cannot be destroyed while its fork exists.
   it('fork branches a sandbox from current state', async () => {
     const provider = tangleSandbox({ apiKey })
     let src: SandboxHandle | undefined
     let forked: SandboxHandle | undefined
+    let parentAlone: unknown
+    let destroyed: Array<PromiseSettledResult<void>> = []
     try {
       src = await provider.create({})
       await src.fs.write('/workspace/before-fork.txt', 'carried over')
@@ -208,14 +211,21 @@ describe.skipIf(!apiKey)('tangle provider (gated on TANGLE_API_KEY)', () => {
       )
       await forked.fs.write('/workspace/only-in-fork.txt', 'x')
       expect(await src.fs.exists('/workspace/only-in-fork.txt')).toBe(false)
+      parentAlone = await src.destroy().then(
+        () => 'destroyed',
+        (error: unknown) => error,
+      )
     } finally {
-      // Parent and fork at once: the parent's delete waits out the fork.
-      const destroyed = await Promise.allSettled([
-        src?.destroy(),
-        forked?.destroy(),
-      ])
-      expect(destroyed.filter((r) => r.status === 'rejected')).toEqual([])
+      // The fork first, then the parent.
+      destroyed = await Promise.allSettled([forked?.destroy()])
+      destroyed.push(...(await Promise.allSettled([src?.destroy()])))
     }
+    expect(parentAlone).toBeInstanceOf(Error)
+    expect((parentAlone as Error).message).toContain('has a live fork')
+    expect(((parentAlone as Error).cause as { code?: string }).code).toBe(
+      'CHILDREN_EXIST',
+    )
+    expect(destroyed.filter((r) => r.status === 'rejected')).toEqual([])
     expect(await provider.resume({ id: src!.id })).toBeNull()
     expect(await provider.resume({ id: forked!.id })).toBeNull()
   }, 600_000)
@@ -244,6 +254,7 @@ describe.skipIf(!apiKey)('tangle provider (gated on TANGLE_API_KEY)', () => {
     let denied: SandboxHandle | undefined
     let control: SandboxHandle | undefined
     let forked: SandboxHandle | undefined
+    let destroyed: Array<PromiseSettledResult<void>> = []
     try {
       const [deniedRes, controlRes] = await Promise.allSettled([
         provider.create({ policy: { capabilities: { network: 'deny' } } }),
@@ -267,13 +278,14 @@ describe.skipIf(!apiKey)('tangle provider (gated on TANGLE_API_KEY)', () => {
       forked = await denied!.fork!()
       expect((await forked.process.exec(PROBE)).stdout).not.toContain('200')
     } finally {
-      const destroyed = await Promise.allSettled([
+      // Parent and fork at once: the parent's delete waits out the fork.
+      destroyed = await Promise.allSettled([
         denied?.destroy(),
         control?.destroy(),
         forked?.destroy(),
       ])
-      expect(destroyed.filter((r) => r.status === 'rejected')).toEqual([])
     }
+    expect(destroyed.filter((r) => r.status === 'rejected')).toEqual([])
   }, 600_000)
 
   // MEASURES the create-abort path: a sandbox the platform accepted after the

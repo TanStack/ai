@@ -246,25 +246,35 @@ class ChunkQueue implements AsyncIterable<string> {
   }
 }
 
-/** Delete attempts, a second apart, while a fork parent's children go away. */
-const DELETE_ATTEMPTS = 10
+/** How long a fork parent's delete is tried again while its forks go away. */
+const DELETE_RETRY_MS = 30_000
 
 /**
  * Delete a sandbox. The API refuses to delete a fork parent while a fork of it
- * exists (measured: `CHILDREN_EXIST` when parent and fork are destroyed at
- * once, and the parent is left stopped), so that delete is tried again.
+ * exists: it stops the parent and answers `CHILDREN_EXIST`. Measured: the
+ * first refusal takes about 1 s and each later one 8 s, and once the fork's
+ * delete returns the parent's delete succeeds on the next try. So the delete
+ * is tried again for 30 s, which covers a parent and its forks destroyed at
+ * once, and then fails with an error that says to destroy the forks first.
  */
 export async function deleteSandbox(
   sandbox: SandboxInstance,
   signal?: AbortSignal,
 ): Promise<void> {
-  for (let attempt = 1; ; attempt++) {
+  const started = Date.now()
+  for (;;) {
     try {
       await sandbox.delete(signal ? { signal } : {})
       return
     } catch (error) {
       const code = (error as { code?: unknown } | null)?.code
-      if (code !== 'CHILDREN_EXIST' || attempt >= DELETE_ATTEMPTS) throw error
+      if (code !== 'CHILDREN_EXIST') throw error
+      if (Date.now() - started >= DELETE_RETRY_MS) {
+        throw new Error(
+          `tangle: sandbox ${sandbox.id} has a live fork; destroy the fork, then destroy this sandbox again`,
+          { cause: error },
+        )
+      }
       await new Promise((r) => setTimeout(r, 1000))
       signal?.throwIfAborted()
     }

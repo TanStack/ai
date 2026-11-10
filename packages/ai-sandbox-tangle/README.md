@@ -116,3 +116,7 @@ The native file calls reach the sandbox user's home (`/home/agent`) and
 
 A new sandbox is created without the account's stored secrets. A restore from
 a snapshot inherits them, because the API refuses an isolated restore.
+
+A parent cannot be destroyed while a fork of it exists. The API stops the
+parent and refuses the delete; `destroy()` tries again for 30 seconds, then
+rejects. Destroy the forks first, or destroy them together with the parent.
