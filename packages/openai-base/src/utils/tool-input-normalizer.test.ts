@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { z } from 'zod'
 import { OpenAIBaseChatCompletionsTextAdapter } from '../adapters/chat-completions-text'
 import { OpenAIBaseResponsesTextAdapter } from '../adapters/responses-text'
 import { createToolInputNormalizer } from './tool-input-normalizer'
@@ -173,6 +174,30 @@ describe('adapter normalizeToolInput', () => {
       new Responses('gpt-test', 'openai', {} as never),
     ]) {
       expect(adapter.normalizeToolInput(tool.name, input, [tool])).toEqual({
+        destination: 'Tokyo',
+        note: null,
+      })
+    }
+  })
+
+  it('undoes a strict null when the tool schema is still zod', () => {
+    const zodTool: Tool = {
+      name: 'bookFlight',
+      description: 'Book a flight',
+      inputSchema: z.object({
+        destination: z.string(),
+        date: z.string().optional(),
+        note: z.string().nullable(),
+      }),
+    }
+    const input = { destination: 'Tokyo', date: null, note: null }
+    for (const adapter of [
+      new Completions('gpt-test', 'openai', {} as never),
+      new Responses('gpt-test', 'openai', {} as never),
+    ]) {
+      expect(
+        adapter.normalizeToolInput(zodTool.name, input, [zodTool]),
+      ).toEqual({
         destination: 'Tokyo',
         note: null,
       })

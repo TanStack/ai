@@ -1,3 +1,4 @@
+import { convertSchemaToJsonSchema } from '@tanstack/ai'
 import { undoNullWidening } from '@tanstack/ai-utils'
 import {
   isStrictModeCompatible,
@@ -37,7 +38,9 @@ export function createToolInputNormalizer(
     }
     seenNames.add(tool.name)
 
-    const inputSchema = (tool.inputSchema ?? {
+    // Resume hands the tool's original schema. The request path already
+    // converted that to JSON Schema before strict widening.
+    const inputSchema = (convertSchemaToJsonSchema(tool.inputSchema) ?? {
       type: 'object',
       properties: {},
       required: [],
