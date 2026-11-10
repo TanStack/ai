@@ -12,7 +12,7 @@ type PromptCacheOptions =
 };
 ```
 
-Defined in: [packages/ai/src/types.ts:1312](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1312)
+Defined in: [packages/ai/src/types.ts:1327](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1327)
 
 The `promptCache` option of `chat()`: a retention, or an object with a
 retention and a cache key.
