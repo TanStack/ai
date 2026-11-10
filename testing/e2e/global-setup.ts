@@ -2609,6 +2609,8 @@ function bedrockConverseCacheMount(): Mountable {
       const toolConfig = body.toolConfig as { tools?: unknown } | undefined
       const messages = body.messages as Array<{ content?: unknown }> | undefined
       const observed = {
+        requestMetadata: body.requestMetadata,
+        serviceTier: body.serviceTier,
         tools: endsWithCachePoint(toolConfig?.tools),
         system: endsWithCachePoint(body.system),
         lastMessage: endsWithCachePoint(

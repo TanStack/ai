@@ -4,6 +4,7 @@ import { resolveDebugOption } from '@tanstack/ai/adapter-internals'
 import { BedrockConverseTextAdapter } from '../../src/adapters/converse-text'
 import type * as BedrockRuntime from '@aws-sdk/client-bedrock-runtime'
 import type {
+  ConverseCommandInput,
   ConverseCommandOutput,
   ConverseStreamCommandInput,
   ConverseStreamOutput,
@@ -20,6 +21,7 @@ class StubAdapter extends BedrockConverseTextAdapter<'us.amazon.nova-pro-v1:0'> 
   nonStreamOutput: ConverseCommandOutput =
     {} as unknown as ConverseCommandOutput
   capturedStreamInput?: ConverseStreamCommandInput
+  capturedInput?: ConverseCommandInput
 
   protected override async sendStream(
     input: ConverseStreamCommandInput,
@@ -31,7 +33,10 @@ class StubAdapter extends BedrockConverseTextAdapter<'us.amazon.nova-pro-v1:0'> 
     })()
   }
 
-  protected override async send(): Promise<ConverseCommandOutput> {
+  protected override async send(
+    input: ConverseCommandInput,
+  ): Promise<ConverseCommandOutput> {
+    this.capturedInput = input
     return this.nonStreamOutput
   }
 }
@@ -130,6 +135,63 @@ describe('BedrockConverseTextAdapter', () => {
       maxTokens: 128,
       stopSequences: ['STOP'],
     })
+  })
+
+  it.each(['priority', 'default', 'flex', 'reserved'] as const)(
+    'forwards request metadata and the %s service tier to ConverseStream',
+    async (serviceTier) => {
+      const a = new StubAdapter({ apiKey: 'k' }, 'us.amazon.nova-pro-v1:0')
+      const requestMetadata = {
+        application: 'my-app',
+        environment: 'production',
+      }
+      for await (const _ of a.chatStream(
+        textOptions({ modelOptions: { requestMetadata, serviceTier } }),
+      )) {
+        // drain
+      }
+      expect(a.capturedStreamInput).toMatchObject({
+        requestMetadata,
+        serviceTier: { type: serviceTier },
+      })
+      expect(a.capturedStreamInput).not.toHaveProperty('inferenceConfig')
+      expect(a.capturedStreamInput).not.toHaveProperty(
+        'additionalModelRequestFields',
+      )
+    },
+  )
+
+  it('forwards request metadata without a service tier', async () => {
+    const a = new StubAdapter({ apiKey: 'k' }, 'us.amazon.nova-pro-v1:0')
+    const requestMetadata = { application: 'my-app' }
+    for await (const _ of a.chatStream(
+      textOptions({ modelOptions: { requestMetadata } }),
+    )) {
+      // drain
+    }
+    expect(a.capturedStreamInput?.requestMetadata).toEqual(requestMetadata)
+    expect(a.capturedStreamInput).not.toHaveProperty('serviceTier')
+  })
+
+  it('forwards a service tier without request metadata', async () => {
+    const a = new StubAdapter({ apiKey: 'k' }, 'us.amazon.nova-pro-v1:0')
+    for await (const _ of a.chatStream(
+      textOptions({ modelOptions: { serviceTier: 'priority' } }),
+    )) {
+      // drain
+    }
+    expect(a.capturedStreamInput?.serviceTier).toEqual({ type: 'priority' })
+    expect(a.capturedStreamInput).not.toHaveProperty('requestMetadata')
+  })
+
+  it('omits request metadata and service tier when not configured', async () => {
+    const a = new StubAdapter({ apiKey: 'k' }, 'us.amazon.nova-pro-v1:0')
+    for await (const _ of a.chatStream(textOptions())) {
+      // drain
+    }
+    expect(a.capturedStreamInput).toBeDefined()
+    expect(a.capturedStreamInput).not.toHaveProperty('requestMetadata')
+    expect(a.capturedStreamInput).not.toHaveProperty('serviceTier')
   })
 
   it('sends tool history as text when the request has no tools', async () => {
@@ -280,11 +342,21 @@ describe('BedrockConverseTextAdapter', () => {
       // usage / metrics / $metadata — narrow through `unknown` for the fixture.
     } as unknown as ConverseCommandOutput
     const res = await a.structuredOutput({
-      chatOptions: textOptions({ messages: [{ role: 'user', content: 'go' }] }),
+      chatOptions: textOptions({
+        messages: [{ role: 'user', content: 'go' }],
+        modelOptions: {
+          requestMetadata: { application: 'my-app' },
+          serviceTier: 'priority',
+        },
+      }),
       outputSchema: { type: 'object', properties: { n: { type: 'number' } } },
     })
     expect(res.data).toEqual({ n: 5 })
     expect(JSON.parse(res.rawText)).toEqual({ n: 5 })
+    expect(a.capturedInput).toMatchObject({
+      requestMetadata: { application: 'my-app' },
+      serviceTier: { type: 'priority' },
+    })
   })
 
   it('forwards cache counts from the structuredOutput usage', async () => {
@@ -326,6 +398,13 @@ describe('BedrockConverseTextAdapter', () => {
 
   it('streams structured output through structuredOutputStream', async () => {
     const a = new StubAdapter({ apiKey: 'k' }, 'us.amazon.nova-pro-v1:0')
+    const options = textOptions({
+      messages: [{ role: 'user', content: 'go' }],
+      modelOptions: {
+        requestMetadata: { application: 'my-app' },
+        serviceTier: 'flex',
+      },
+    })
     a.streamEvents = [
       { messageStart: { role: 'assistant' } },
       {
@@ -345,7 +424,7 @@ describe('BedrockConverseTextAdapter', () => {
     ]
     const events: Array<AdapterYieldChunk> = []
     for await (const c of a.structuredOutputStream({
-      chatOptions: textOptions({ messages: [{ role: 'user', content: 'go' }] }),
+      chatOptions: options,
       outputSchema: { type: 'object', properties: { n: { type: 'number' } } },
     })) {
       events.push(c)
@@ -358,6 +437,10 @@ describe('BedrockConverseTextAdapter', () => {
     )
     expect(complete).toBeDefined()
     expect(complete?.value.object).toEqual({ n: 5 })
+    expect(a.capturedStreamInput).toMatchObject({
+      requestMetadata: { application: 'my-app' },
+      serviceTier: { type: 'flex' },
+    })
     // The forced-tool 'tool_use' stopReason is internal — a clean structured
     // run reports 'stop', not 'tool_calls'.
     const finished = events.find((e) => e.type === EventType.RUN_FINISHED)

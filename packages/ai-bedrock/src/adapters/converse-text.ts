@@ -730,6 +730,12 @@ export class BedrockConverseTextAdapter<
       ...(toolConfig && { toolConfig }),
       ...(inferenceConfig && { inferenceConfig }),
       ...(additionalModelRequestFields && { additionalModelRequestFields }),
+      ...(modelOptions?.requestMetadata !== undefined && {
+        requestMetadata: modelOptions.requestMetadata,
+      }),
+      ...(modelOptions?.serviceTier !== undefined && {
+        serviceTier: { type: modelOptions.serviceTier },
+      }),
     }
     return addPromptCachePoints(this.model, input, options.promptCache)
   }
