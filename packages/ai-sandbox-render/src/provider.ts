@@ -47,8 +47,12 @@ export interface RenderSandboxConfig {
    * sends `deny-all`.
    */
   networkPolicy?: SandboxNetworkPolicy
-  /** Boot every new sandbox from this Render sandbox build (a custom image). */
-  buildName?: string
+  /**
+   * Boot every new sandbox from this Render sandbox image, imported with
+   * `sandboxes.images.import()`. An image id (`sbb-…`) pins that version; a
+   * name uses its newest ready version.
+   */
+  image?: string
   /** Boot every new sandbox from this named snapshot. */
   snapshotName?: string
   /**
@@ -87,8 +91,8 @@ class RenderProvider implements SandboxProvider {
   private readonly client: SandboxesClient
 
   constructor(private readonly config: RenderSandboxConfig) {
-    if (config.buildName !== undefined && config.snapshotName !== undefined) {
-      throw new Error('render: pass either buildName or snapshotName, not both')
+    if (config.image !== undefined && config.snapshotName !== undefined) {
+      throw new Error('render: pass either image or snapshotName, not both')
     }
     // A pre-built client carries its own auth; these would be silently ignored.
     if (
@@ -175,8 +179,8 @@ class RenderProvider implements SandboxProvider {
     const source =
       c.snapshotName !== undefined
         ? { snapshotName: c.snapshotName }
-        : c.buildName !== undefined
-          ? { buildName: c.buildName }
+        : c.image !== undefined
+          ? { image: c.image }
           : {}
     return this.boot(
       {

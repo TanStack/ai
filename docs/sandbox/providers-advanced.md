@@ -396,7 +396,7 @@ const render = renderSandbox({
 })
 ```
 
-- **Isolation:** a managed [Render](https://render.com/docs/sandboxes) sandbox. It boots from the base image (Debian 12, `root` user), a custom image (`buildName`), or a named snapshot (`snapshotName`).
+- **Isolation:** a managed [Render](https://render.com/docs/sandboxes) sandbox. It boots from the base image (Debian 12, `root` user), a custom image (`image`), or a named snapshot (`snapshotName`).
 - **Auth:** the SDK reads `RENDER_API_KEY` and `RENDER_WORKSPACE_ID`. Pass `token` and `ownerId` to set them in code. Harness credentials are [workspace secrets](./provisioning). The provider uploads them to a shared file in `/dev/tsai` that only `root` can read. `/dev` is held in memory, so the secrets never reach the sandbox disk. Reconnecting with fresh secrets replaces that file and removes older overlays. No value goes into a command string.
 - **Lifetime:** Render suspends an idle sandbox after `idleTimeoutSeconds` (default 900) and keeps its disk, so `durableFilesystem` is `true`. The next command or file call resumes it. After `timeoutSeconds` (default 86400), Render terminates it.
 - **Network:** `policy.capabilities.network: 'deny'` sends `deny-all`, and Render enforces it. Otherwise the provider sends `networkPolicy`, or allows all egress.

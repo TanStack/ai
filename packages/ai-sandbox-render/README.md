@@ -86,7 +86,7 @@ try {
 | `timeoutSeconds`     | `86400`               | Maximum continuous runtime. Render terminates the sandbox after it.                                            |
 | `idleTimeoutSeconds` | `900`                 | Render suspends an idle sandbox and keeps its disk. `0` turns off idle suspension.                             |
 | `networkPolicy`      | `allow-all`           | Egress when the policy allows network, for example an `allow-list`. A `deny` policy sends `deny-all`.          |
-| `buildName`          | none                  | Boot every new sandbox from this Render sandbox build (a custom image).                                        |
+| `image`              | none                  | Boot every new sandbox from this Render sandbox image, by image id (`sbb-…`) or name.                          |
 | `snapshotName`       | none                  | Boot every new sandbox from this named snapshot.                                                               |
 | `snapshotKind`       | `filesystem`          | What `snapshot()` captures. `runtime` also keeps memory and processes, and needs the same `plan`.              |
 | `workdir`            | `/workspace`          | Where the `/workspace` virtual root maps. Created at boot.                                                     |

@@ -31,7 +31,7 @@ describe('create', () => {
     const { client, provider } = setup({
       plan: '2c-4g',
       idleTimeoutSeconds: 600,
-      buildName: 'node-22',
+      image: 'node-22',
     })
     const handle = await provider.create({ env: { K: 'v' } })
     expect(handle.id).toBe('sbx-1')
@@ -39,7 +39,7 @@ describe('create', () => {
       expect.objectContaining({
         plan: '2c-4g',
         idleTimeoutSeconds: 600,
-        buildName: 'node-22',
+        image: 'node-22',
         env: { K: 'v' },
         wait: expect.objectContaining({ timeoutMs: 120_000 }),
       }),
@@ -79,11 +79,11 @@ describe('create', () => {
     expect(client.terminate).toHaveBeenCalledWith('sbx-3')
   })
 
-  it('rejects buildName with snapshotName', () => {
+  it('rejects image with snapshotName', () => {
     expect(() =>
       renderSandbox({
         client: fakeClient().sdk,
-        buildName: 'a',
+        image: 'a',
         snapshotName: 'b',
       }),
     ).toThrow(/either/)
