@@ -1,6 +1,7 @@
 // The `Test` check of .github/workflows/pr.yml, on TanStack Source.
-// The Coverage and Preview jobs of pr.yml stay on GitHub for now.
-import { defineWorkflow, pullRequest, setup } from '@tanstack-source/ci'
+// The Coverage job of pr.yml stays on GitHub for now. The preview job publishes the packages of the pull
+// request into the assets of the repository, like the Preview job of pr.yml does with pkg.pr.new.
+import { defineWorkflow, packagePreview, pullRequest, setup } from '@tanstack-source/ci'
 
 export default defineWorkflow('pr', {
   on: [pullRequest()],
@@ -27,5 +28,24 @@ export default defineWorkflow('pr', {
     setup.pnpm(),
     { name: 'Install dependencies', run: 'pnpm install --frozen-lockfile' },
     { name: 'Run Checks', run: 'pnpm run test:pr' },
+  ],
+}).job('preview', {
+  // The same image and egress as test: pnpm install runs the Playwright postinstall of testing/e2e.
+  image: 'browser',
+  env: { NX_NO_CLOUD: 'true' },
+  egress: [
+    'registry.npmjs.org',
+    'nodejs.org',
+    'cdn.playwright.dev',
+    'playwright.download.prss.microsoft.com',
+  ],
+  // Upload the packed packages to package-previews/ in the assets, and keep one comment on the pull request.
+  permissions: { packages: 'preview' },
+  steps: [
+    setup.node(),
+    setup.pnpm(),
+    { name: 'Install dependencies', run: 'pnpm install --frozen-lockfile' },
+    { name: 'Build Packages', run: 'pnpm run build:all' },
+    packagePreview({ npm: ['packages/*'] }),
   ],
 })
