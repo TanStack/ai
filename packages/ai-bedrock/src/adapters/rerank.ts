@@ -152,7 +152,7 @@ export class BedrockRerankAdapter<
         )
         nextToken = page.nextToken
         if (nextToken) {
-          if (seenTokens.has(nextToken) || page.results.length === 0) {
+          if (seenTokens.has(nextToken)) {
             throw new Error('Bedrock rerank pagination did not advance')
           }
           seenTokens.add(nextToken)

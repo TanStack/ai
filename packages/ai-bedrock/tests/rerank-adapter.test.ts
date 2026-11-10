@@ -290,14 +290,23 @@ describe('BedrockRerankAdapter', () => {
     expect(fetchMock).toHaveBeenCalledTimes(2)
   })
 
-  it('rejects an empty continuation page', async () => {
-    fetchMock.mockResolvedValue(
-      bedrockResponse({ results: [], nextToken: 'again' }),
-    )
-    await expect(rerank(rerankOptions())).rejects.toThrow(
-      'pagination did not advance',
-    )
-    expect(fetchMock).toHaveBeenCalledTimes(1)
+  it('follows an empty intermediate page to collect later results', async () => {
+    fetchMock
+      .mockResolvedValueOnce(
+        bedrockResponse({ results: [results[0]], nextToken: 'page-2' }),
+      )
+      .mockResolvedValueOnce(
+        bedrockResponse({ results: [], nextToken: 'page-3' }, 'aws-request-2'),
+      )
+      .mockResolvedValueOnce(
+        bedrockResponse({ results: [results[1]] }, 'aws-request-3'),
+      )
+    const result = await rerank(rerankOptions())
+    expect(result.id).toBe('aws-request-1')
+    expect(result.rerankedDocuments).toEqual([documents[1], documents[0]])
+    expect(requestBody(1)).toMatchObject({ nextToken: 'page-2' })
+    expect(requestBody(2)).toMatchObject({ nextToken: 'page-3' })
+    expect(fetchMock).toHaveBeenCalledTimes(3)
   })
 
   it('accepts 1000 documents and rejects 1001 before resolving credentials', async () => {

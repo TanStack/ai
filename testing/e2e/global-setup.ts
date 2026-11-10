@@ -2689,7 +2689,9 @@ function bedrockRerankMount(): Mountable {
       if (
         !modelAllowed ||
         (count !== 1 && count !== 3) ||
-        (token !== undefined && (token !== 'rain-page-2' || count !== 3)) ||
+        (token !== undefined &&
+          ((token !== 'rain-page-2' && token !== 'rain-page-3') ||
+            count !== 3)) ||
         !isDeepStrictEqual(body, expectedBody) ||
         !authorization.startsWith(
           'AWS4-HMAC-SHA256 Credential=AKIA_BEDROCK_E2E/',
@@ -2710,8 +2712,12 @@ function bedrockRerankMount(): Mountable {
       }
       res.setHeader(
         'x-amzn-requestid',
-        token ? 'rerank-page-2' : 'rerank-page-1',
+        token ? token.replace('rain-', 'rerank-') : 'rerank-page-1',
       )
+      if (token === 'rain-page-2') {
+        res.end(JSON.stringify({ results: [], nextToken: 'rain-page-3' }))
+        return true
+      }
       res.end(
         JSON.stringify(
           token

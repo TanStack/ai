@@ -2,7 +2,7 @@ import { test, expect } from './fixtures'
 
 for (const model of ['cohere.rerank-v3-5:0', 'amazon.rerank-v1:0']) {
   for (const top of ['1', 'all']) {
-    test(`bedrock rerank ${model}: ${top === '1' ? 'top result' : 'all results across pages'}`, async ({
+    test(`bedrock rerank ${model}: ${top === '1' ? 'top result' : 'all results across an empty page'}`, async ({
       request,
       testId,
     }) => {
