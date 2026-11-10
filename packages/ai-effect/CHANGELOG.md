@@ -1,0 +1,7 @@
+# @tanstack/ai-effect
+
+## 0.1.0
+
+### Minor Changes
+
+- [#2074](https://github.com/TanStack/ai/pull/2074) [`4f2eea7`](https://github.com/TanStack/ai/commit/4f2eea7b4c62c937700c56357a6ab37dfc21264d) - Add `@tanstack/ai-effect`, a new package that runs every TanStack AI activity as an Effect or a Stream and lets you write server tools as Effects.

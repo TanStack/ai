@@ -629,6 +629,216 @@ describe('BedrockConverseTextAdapter', () => {
     expect(errors[0]?.code).toBe('parse-error')
   })
 
+  it('reports guardrail_intervened as content_filter when structured JSON is complete', async () => {
+    const a = new StubAdapter({ apiKey: 'k' }, 'us.amazon.nova-pro-v1:0')
+    a.streamEvents = [
+      { messageStart: { role: 'assistant' } },
+      {
+        contentBlockStart: {
+          start: { toolUse: { toolUseId: 's', name: 'structured_output' } },
+          contentBlockIndex: 0,
+        },
+      },
+      {
+        contentBlockDelta: {
+          delta: { toolUse: { input: '{"n":5}' } },
+          contentBlockIndex: 0,
+        },
+      },
+      { messageStop: { stopReason: 'guardrail_intervened' } },
+    ]
+    const events: Array<AdapterYieldChunk> = []
+    for await (const c of a.structuredOutputStream({
+      chatOptions: textOptions({ messages: [{ role: 'user', content: 'go' }] }),
+      outputSchema: { type: 'object', properties: { n: { type: 'number' } } },
+    })) {
+      events.push(c)
+    }
+    const finished = events.find((e) => e.type === EventType.RUN_FINISHED)
+    expect(
+      (finished as { finishReason?: string } | undefined)?.finishReason,
+    ).toBe('content_filter')
+  })
+
+  it.each(['', '{"n":'] as const)(
+    'reports guardrail_intervened as content_filter when structured output is %j',
+    async (input) => {
+      const a = new StubAdapter({ apiKey: 'k' }, 'us.amazon.nova-pro-v1:0')
+      a.streamEvents = [
+        { messageStart: { role: 'assistant' } },
+        ...(input
+          ? [
+              {
+                contentBlockStart: {
+                  start: {
+                    toolUse: { toolUseId: 's', name: 'structured_output' },
+                  },
+                  contentBlockIndex: 0,
+                },
+              },
+              {
+                contentBlockDelta: {
+                  delta: { toolUse: { input } },
+                  contentBlockIndex: 0,
+                },
+              },
+            ]
+          : []),
+        { messageStop: { stopReason: 'guardrail_intervened' } },
+      ]
+      const errors = [] as Array<{ code?: string }>
+      for await (const c of a.structuredOutputStream({
+        chatOptions: textOptions({
+          messages: [{ role: 'user', content: 'go' }],
+        }),
+        outputSchema: {
+          type: 'object',
+          properties: { n: { type: 'number' } },
+        },
+      })) {
+        if (c.type === EventType.RUN_ERROR)
+          errors.push(c as unknown as { code?: string })
+      }
+      expect(errors).toHaveLength(1)
+      expect(errors[0]?.code).toBe('content_filter')
+    },
+  )
+
+  describe('reports the provider usage when structured output fails', () => {
+    // SDK boundary: the metadata event requires `metrics` too.
+    const metadataEvent = {
+      metadata: {
+        usage: { inputTokens: 7, outputTokens: 11, totalTokens: 18 },
+      },
+    } as unknown as ConverseStreamOutput
+    const expectedUsage = {
+      promptTokens: 7,
+      completionTokens: 11,
+      totalTokens: 18,
+    }
+    const toolStart: ConverseStreamOutput = {
+      contentBlockStart: {
+        start: { toolUse: { toolUseId: 's', name: 'structured_output' } },
+        contentBlockIndex: 0,
+      },
+    }
+    const toolInput = (input: string): ConverseStreamOutput => ({
+      contentBlockDelta: {
+        delta: { toolUse: { input } },
+        contentBlockIndex: 0,
+      },
+    })
+
+    it.each([
+      [
+        'max_tokens',
+        [
+          toolStart,
+          toolInput('{"n":'),
+          { messageStop: { stopReason: 'max_tokens' } },
+          metadataEvent,
+        ],
+      ],
+      [
+        'empty-response',
+        [{ messageStop: { stopReason: 'end_turn' } }, metadataEvent],
+      ],
+      [
+        'parse-error',
+        [
+          toolStart,
+          toolInput('{"n":'),
+          { messageStop: { stopReason: 'tool_use' } },
+          metadataEvent,
+        ],
+      ],
+      [
+        'ThrottlingException',
+        [
+          toolStart,
+          toolInput('{"n":5}'),
+          { messageStop: { stopReason: 'tool_use' } },
+          metadataEvent,
+          {
+            throttlingException: new Error('rate limited'),
+          } as unknown as ConverseStreamOutput,
+        ],
+      ],
+    ] satisfies Array<[string, Array<ConverseStreamOutput>]>)(
+      'on the structuredOutputStream RUN_ERROR (%s)',
+      async (_, streamEvents) => {
+        const a = new StubAdapter({ apiKey: 'k' }, 'us.amazon.nova-pro-v1:0')
+        a.streamEvents = [
+          { messageStart: { role: 'assistant' } },
+          ...streamEvents,
+        ]
+        const errors: Array<AdapterYieldChunk> = []
+        for await (const c of a.structuredOutputStream({
+          chatOptions: textOptions({
+            messages: [{ role: 'user', content: 'go' }],
+          }),
+          outputSchema: {
+            type: 'object',
+            properties: { n: { type: 'number' } },
+          },
+        })) {
+          if (c.type === EventType.RUN_ERROR) errors.push(c)
+        }
+        expect(errors).toHaveLength(1)
+        expect((errors[0] as { usage?: unknown }).usage).toEqual(expectedUsage)
+      },
+    )
+
+    it.each([
+      [
+        'max_tokens',
+        {
+          stopReason: 'max_tokens',
+          output: {
+            message: {
+              role: 'assistant',
+              content: [
+                {
+                  toolUse: {
+                    toolUseId: 's',
+                    name: 'structured_output',
+                    input: {},
+                  },
+                },
+              ],
+            },
+          },
+        },
+      ],
+      [
+        'guardrail_intervened',
+        {
+          stopReason: 'guardrail_intervened',
+          output: {
+            message: { role: 'assistant', content: [{ text: 'Blocked.' }] },
+          },
+        },
+      ],
+    ])('on the structuredOutput error (%s)', async (_, outcome) => {
+      const a = new StubAdapter({ apiKey: 'k' }, 'us.amazon.nova-pro-v1:0')
+      a.nonStreamOutput = {
+        ...outcome,
+        usage: { inputTokens: 7, outputTokens: 11, totalTokens: 18 },
+      } as unknown as ConverseCommandOutput
+      await expect(
+        a.structuredOutput({
+          chatOptions: textOptions({
+            messages: [{ role: 'user', content: 'go' }],
+          }),
+          outputSchema: {
+            type: 'object',
+            properties: { n: { type: 'number' } },
+          },
+        }),
+      ).rejects.toMatchObject({ usage: expectedUsage })
+    })
+  })
+
   it('prefers the bearer auth scheme for a token (SDK defaults to SigV4 otherwise)', () => {
     class Probe extends BedrockConverseTextAdapter<'us.amazon.nova-pro-v1:0'> {
       bearer(token: string) {

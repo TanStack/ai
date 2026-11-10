@@ -11,15 +11,13 @@ const mocks = vi.hoisted(() => {
   }
 })
 
-vi.mock('@google/genai', async () => {
+vi.mock('../src/client', () => {
   const {
     constructorSpy,
     generateContentSpy,
     generateContentStreamSpy,
     getGenerativeModelSpy,
   } = mocks
-
-  const actual = await vi.importActual<any>('@google/genai')
   class MockGoogleGenAI {
     public models = {
       generateContent: generateContentSpy,
@@ -34,9 +32,9 @@ vi.mock('@google/genai', async () => {
   }
 
   return {
-    GoogleGenAI: MockGoogleGenAI,
-    Type: actual.Type,
-    FinishReason: actual.FinishReason,
+    createGoogleGenAI: (
+      options: ConstructorParameters<typeof MockGoogleGenAI>[0],
+    ) => new MockGoogleGenAI(options),
   }
 })
 
@@ -118,6 +116,8 @@ describe('gemini multimodal tool result', () => {
     expect(fr.parts).toEqual([
       { inlineData: { data: 'AAAA', mimeType: 'image/png' } },
     ])
+    // Not beside the functionResponse as well, which sends the image twice.
+    expect(contents.at(-1).parts).toEqual([{ functionResponse: fr }])
   })
 
   it('handles url-sourced media in tool results via fileData', async () => {

@@ -4,15 +4,14 @@ import { createGrokText } from '../src/adapters/text'
 import { GROK_CHAT_MODELS } from '../src/model-meta'
 import type { StreamChunk } from '@tanstack/ai'
 
-vi.mock('openai', () => {
-  return {
-    default: class {
-      responses = {
-        create: vi.fn(),
-      }
+vi.mock('@tanstack/openai-base', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@tanstack/openai-base')>()),
+  createOpenAIClient: () => ({
+    responses: {
+      create: vi.fn(),
     },
-  }
-})
+  }),
+}))
 
 function mockResponsesStream(): AsyncIterable<Record<string, unknown>> {
   return {

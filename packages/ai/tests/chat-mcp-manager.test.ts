@@ -8,7 +8,7 @@ import {
   type ToolResult,
 } from '../src/activities/chat/tools/tool-calls'
 import { EventType } from '../src/types'
-import type { AnyServerTool } from '../src'
+import type { AnyServerTool, MCPRequestMeta } from '../src'
 import type {
   CustomEvent,
   ToolCall,
@@ -83,6 +83,39 @@ describe('MCPManager', () => {
     const m = MCPManager.from({ clients: [a, b], lazyTools: true })
     expect((await m.discover()).map((t) => t.name)).toEqual(['a', 'b'])
     expect(spyA).toHaveBeenCalledWith({ lazy: true })
+  })
+
+  it('discover(signal) forwards the signal to every source', async () => {
+    const a = source([tool('a')])
+    const spyA = vi.spyOn(a, 'tools')
+    const controller = new AbortController()
+    await MCPManager.from({ clients: [a] }).discover(controller.signal)
+    expect(spyA).toHaveBeenCalledWith({
+      lazy: false,
+      signal: controller.signal,
+    })
+  })
+
+  it('discover() without a signal sends no signal key', async () => {
+    const a = source([tool('a')])
+    const spyA = vi.spyOn(a, 'tools')
+    await MCPManager.from({ clients: [a] }).discover()
+    expect(spyA).toHaveBeenCalledWith({ lazy: false })
+  })
+
+  it('discover() forwards requestMeta to every source', async () => {
+    const a = source([tool('a')])
+    const spyA = vi.spyOn(a, 'tools')
+    const requestMeta = () => ({ 'acme.com/t': 1 })
+    await MCPManager.from({ clients: [a], requestMeta }).discover()
+    expect(spyA).toHaveBeenCalledWith({ lazy: false, requestMeta })
+  })
+
+  it('discover() without requestMeta sends no requestMeta key', async () => {
+    const a = source([tool('a')])
+    const spyA = vi.spyOn(a, 'tools')
+    await MCPManager.from({ clients: [a] }).discover()
+    expect(spyA.mock.calls[0]?.[0]).not.toHaveProperty('requestMeta')
   })
 
   it('discover() throws MCPDuplicateToolNameError on collision', async () => {
@@ -263,6 +296,66 @@ describe('MCPManager.discover — ui:// readResource binding', () => {
     expect(discovered).toBeDefined()
     const mcp = readDiscoveredMcpMeta(discovered)
     expect(mcp?.readResource).toBeUndefined()
+  })
+})
+
+/**
+ * Discover one ui-linked tool from server `store` and return its bound
+ * `readResource`, plus the source read spy that the bound read calls.
+ */
+async function discoverStoreRead(requestMeta?: MCPRequestMeta) {
+  const sourceRead = vi.fn(
+    async (
+      _uri: string,
+      _options?: { serverId?: string; meta?: Record<string, unknown> },
+    ) => ({ contents: [] }),
+  )
+  const t = uiTool('store_show')
+  t.metadata.mcp = { uiResourceUri: 'ui://w', serverId: 'store' }
+  const m = MCPManager.from({
+    clients: [
+      {
+        tools: async () => [t],
+        close: async () => {},
+        readResource: sourceRead,
+      },
+    ],
+    requestMeta,
+  })
+  const read = readDiscoveredMcpMeta((await m.discover())[0])?.readResource
+  if (!read) throw new Error('readResource was not bound')
+  return { read, sourceRead }
+}
+
+describe('MCPManager.discover — readResource with requestMeta', () => {
+  it('bound readResource calls the hook and passes serverId and meta', async () => {
+    const hook = vi.fn(() => ({ 'acme.com/t': 1 }))
+    const { read, sourceRead } = await discoverStoreRead(hook)
+    await read('ui://w')
+    expect(hook).toHaveBeenCalledWith({
+      method: 'resources/read',
+      serverId: 'store',
+      uri: 'ui://w',
+    })
+    expect(sourceRead).toHaveBeenCalledWith('ui://w', {
+      serverId: 'store',
+      meta: { 'acme.com/t': 1 },
+    })
+  })
+
+  it('bound readResource without a hook passes serverId only', async () => {
+    const { read, sourceRead } = await discoverStoreRead()
+    await read('ui://w')
+    expect(sourceRead).toHaveBeenCalledWith('ui://w', { serverId: 'store' })
+    expect(sourceRead.mock.calls[0]?.[1]).not.toHaveProperty('meta')
+  })
+
+  it('hook rejection rejects the bound read', async () => {
+    const { read, sourceRead } = await discoverStoreRead(async () => {
+      throw new Error('meta failed')
+    })
+    await expect(read('ui://w')).rejects.toThrow('meta failed')
+    expect(sourceRead).not.toHaveBeenCalled()
   })
 })
 

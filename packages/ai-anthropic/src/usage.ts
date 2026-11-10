@@ -17,6 +17,18 @@ export type AnthropicProviderUsageDetails = {
     /** Number of web fetch requests made during the response */
     webFetchRequests?: number
   }
+  /**
+   * Per-iteration token usage (`usage.iterations`). A `compaction` entry's
+   * tokens are not in the top-level counts.
+   */
+  iterations?: Array<{
+    type: string
+    model?: string
+    inputTokens: number
+    outputTokens: number
+    cacheCreationInputTokens: number
+    cacheReadInputTokens: number
+  }>
 }
 
 /**
@@ -80,6 +92,13 @@ export function buildAnthropicUsage(
     result.promptTokensDetails = promptTokensDetails
   }
 
+  // The closing message_delta has the cumulative count, so a stream does not
+  // take message_start's. Zero is kept.
+  const thinkingTokens = usage.output_tokens_details?.thinking_tokens
+  if (thinkingTokens !== undefined) {
+    result.completionTokensDetails = { reasoningTokens: thinkingTokens }
+  }
+
   // Add provider-specific usage details for server tool use, again only when
   // the provider actually reported any server tool requests.
   const serverToolUse = usage.server_tool_use ?? start?.server_tool_use
@@ -91,10 +110,24 @@ export function buildAnthropicUsage(
       ? { webFetchRequests: serverToolUse.web_fetch_requests }
       : {}),
   }
-  if (Object.keys(serverToolUseDetails).length > 0) {
-    result.providerUsageDetails = {
-      serverToolUse: serverToolUseDetails,
-    } satisfies AnthropicProviderUsageDetails
+  const iterations = usage.iterations?.map((iteration) => ({
+    type: iteration.type,
+    ...('model' in iteration && iteration.model
+      ? { model: iteration.model }
+      : {}),
+    inputTokens: iteration.input_tokens,
+    outputTokens: iteration.output_tokens,
+    cacheCreationInputTokens: iteration.cache_creation_input_tokens,
+    cacheReadInputTokens: iteration.cache_read_input_tokens,
+  }))
+  const providerUsageDetails: AnthropicProviderUsageDetails = {
+    ...(Object.keys(serverToolUseDetails).length > 0
+      ? { serverToolUse: serverToolUseDetails }
+      : {}),
+    ...(iterations?.length ? { iterations } : {}),
+  }
+  if (Object.keys(providerUsageDetails).length > 0) {
+    result.providerUsageDetails = providerUsageDetails
   }
 
   return result

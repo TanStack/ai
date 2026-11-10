@@ -1,6 +1,6 @@
+export { createElevenLabsClient } from '../client/index'
 export {
   arrayBufferToBase64,
-  createElevenLabsClient,
   dataUrlToBlob,
   generateId,
   getElevenLabsApiKeyFromEnv,

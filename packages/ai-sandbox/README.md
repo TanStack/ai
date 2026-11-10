@@ -105,6 +105,21 @@ npm install @tanstack/ai-sandbox-blaxel
 Describe the working tree once, portably:
 
 ```typescript
+import {
+  bearer,
+  createSecrets,
+  defineWorkspace,
+  fileSkill,
+  gitSkill,
+  githubRepo,
+  mcpSkill,
+} from '@tanstack/ai-sandbox'
+
+const secrets = createSecrets({
+  GH: process.env.GH_TOKEN ?? '',
+  TOKEN: process.env.API_TOKEN ?? '',
+})
+
 defineWorkspace({
   source: githubRepo({ repo: 'owner/app' }), // shallow clone by default
   setup: ({ serial, parallel }) => {
@@ -122,7 +137,7 @@ defineWorkspace({
     fileSkill({ path: '.hints.md', content: '# Hints\nPrefer pnpm.' }),
   ],
   plugins: ['@anthropic/plugin-foo'], // Claude Code only; other harnesses warn+skip
-  secrets: createSecrets({ GH: process.env.GH_TOKEN ?? '' }),
+  secrets,
 })
 ```
 
@@ -133,6 +148,12 @@ Skills and plugins are **projected** into each harness's native format at run ti
 Guard what the agent may run:
 
 ```typescript
+import { defineSandbox, defineSandboxPolicy } from '@tanstack/ai-sandbox'
+import type { SandboxProvider, WorkspaceDefinition } from '@tanstack/ai-sandbox'
+
+declare const provider: SandboxProvider
+declare const workspace: WorkspaceDefinition
+
 const policy = defineSandboxPolicy({
   default: 'allow',
 })
@@ -145,6 +166,8 @@ Headless Grok Build and Codex stay on auto-approve when `default` is `'allow'` a
 Claude Code can use an interactive policy:
 
 ```typescript
+import { defineSandboxPolicy } from '@tanstack/ai-sandbox'
+
 defineSandboxPolicy({
   commands: {
     allow: ['pnpm test', 'git diff'],
@@ -161,9 +184,11 @@ Precedence is `deny` > `ask` > `allow`. Each harness adapter maps policy onto it
 ### Lifecycle
 
 ```typescript
-lifecycle: {
-  reuse: 'thread',           // resume one sandbox per threadId
-  snapshot: 'after-setup',   // skip bootstrap on subsequent runs (when provider supports it)
+import type { SandboxLifecycle } from '@tanstack/ai-sandbox'
+
+const lifecycle: SandboxLifecycle = {
+  reuse: 'thread', // resume one sandbox per threadId
+  snapshot: 'after-setup', // skip bootstrap on subsequent runs (when provider supports it)
   keepAlive: '30m',
   destroyOnComplete: false,
 }
@@ -178,6 +203,13 @@ provider sandbox is gone. Create one snapshots object, pass it to
 ```typescript
 import { withPersistence } from '@tanstack/ai-persistence'
 import { memorySandboxSnapshots, withSandbox } from '@tanstack/ai-sandbox'
+import type {
+  SandboxDefinition,
+  SandboxInstanceStore,
+} from '@tanstack/ai-sandbox'
+
+declare const sandbox: SandboxDefinition
+declare const instances: SandboxInstanceStore
 
 const snapshots = await memorySandboxSnapshots({ sandbox, instances })
 
@@ -198,6 +230,8 @@ for the full server setup.
 Use `createSecrets()` so values stay behind opaque `SecretRef` tokens. They are never written to snapshots, the sandbox store, or event logs. The sandbox layer resolves them onto the live handle at create, resume, and snapshot restore:
 
 ```typescript
+import { createSecrets } from '@tanstack/ai-sandbox'
+
 const secrets = createSecrets({ XAI_API_KEY: process.env.XAI_API_KEY ?? '' })
 // secrets.XAI_API_KEY is a ref, not the string
 ```

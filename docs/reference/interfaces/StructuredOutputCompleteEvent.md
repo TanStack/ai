@@ -3,7 +3,7 @@ id: StructuredOutputCompleteEvent
 title: StructuredOutputCompleteEvent
 ---
 
-Defined in: [packages/ai/src/types.ts:1835](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1835)
+Defined in: [packages/ai/src/types.ts:1850](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1850)
 
 Final event of a streaming structured-output run. Carries the validated
 `object` (typed as `T` after the orchestrator runs Standard Schema parsing),
@@ -40,7 +40,7 @@ if (chunk.type === 'CUSTOM' && chunk.name === 'structured-output.complete') {
 optional metadata?: Record<string, any>;
 ```
 
-Defined in: [packages/ai/src/types.ts:1814](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1814)
+Defined in: [packages/ai/src/types.ts:1829](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1829)
 
 Extra information attached to this event.
 
@@ -56,7 +56,7 @@ Extra information attached to this event.
 name: "structured-output.complete";
 ```
 
-Defined in: [packages/ai/src/types.ts:1838](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1838)
+Defined in: [packages/ai/src/types.ts:1853](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1853)
 
 What this custom event is. Required: without it a consumer cannot route
 the value.
@@ -75,7 +75,7 @@ CustomEvent.name
 type: "CUSTOM";
 ```
 
-Defined in: [packages/ai/src/types.ts:1813](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1813)
+Defined in: [packages/ai/src/types.ts:1828](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1828)
 
 #### Inherited from
 
@@ -89,7 +89,7 @@ Defined in: [packages/ai/src/types.ts:1813](https://github.com/TanStack/ai/blob/
 value: object;
 ```
 
-Defined in: [packages/ai/src/types.ts:1839](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1839)
+Defined in: [packages/ai/src/types.ts:1854](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1854)
 
 The payload. Any JSON value, and required.
 

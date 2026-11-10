@@ -3,7 +3,7 @@ import { chat } from '@tanstack/ai'
 import { OpenAIBaseResponsesTextAdapter } from '../src/adapters/responses-text'
 import { computerUseTool } from '../src/tools/computer-use-tool'
 import { convertToolsToProviderFormat } from '../src/tools/tool-converter'
-import type OpenAI from 'openai'
+import { stubClient } from './stub-client'
 import type { StreamChunk, Tool } from '@tanstack/ai'
 
 const safetyCheck = {
@@ -91,9 +91,9 @@ async function runLoop(
   const create = vi.fn()
   for (const call of calls) create.mockResolvedValueOnce(completed([call]))
   create.mockResolvedValueOnce(completed([answer]))
-  const client = {
-    responses: { create: (params: unknown) => create(params) },
-  } as unknown as OpenAI
+  const client = stubClient({
+    responses: (params: unknown) => create(params),
+  })
   const adapter = new TestAdapter('gpt-6.1-sol', 'openai', client)
   const tool = { ...computer, execute: vi.fn(execute) }
   const chunks: Array<StreamChunk> = []
@@ -191,9 +191,9 @@ describe('computer use loop', () => {
 
   it('reads no screenshot from the result of another app tool', async () => {
     const create = vi.fn().mockResolvedValueOnce(completed([answer]))
-    const client = {
-      responses: { create: (params: unknown) => create(params) },
-    } as unknown as OpenAI
+    const client = stubClient({
+      responses: (params: unknown) => create(params),
+    })
     // OpenAI takes file sources, but not a file from another provider, so a
     // screenshot read of this result would throw.
     const adapter = new FileAdapter('gpt-5.5', 'openai', client)

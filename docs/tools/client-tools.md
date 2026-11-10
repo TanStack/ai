@@ -336,6 +336,26 @@ const chat = useChat(chatOptions);
 
 Does the server also need a value from the client? Send it with `forwardedProps`, check it in your route, and put it in the server `chat({ context })`. See [Runtime Context](../advanced/runtime-context).
 
+### Stop a client tool when the chat stops
+
+The second argument also has `abortSignal`. It aborts when you call `stop()` on the chat. Pass it to `fetch` and other long work:
+
+```typescript
+import { toolDefinition } from "@tanstack/ai";
+import { z } from "zod";
+
+const searchDocs = toolDefinition({
+  name: "search_docs",
+  description: "Search the docs index of the app",
+  inputSchema: z.object({ query: z.string() }),
+}).client(async ({ query }, ctx) => {
+  const response = await fetch(`/api/search?q=${encodeURIComponent(query)}`, {
+    signal: ctx?.abortSignal,
+  });
+  return { results: await response.text() };
+});
+```
+
 ### One definition, two implementations
 
 A definition can have a `.server()` and a `.client()` implementation. The tool that you pass to `chat()` decides where it runs:

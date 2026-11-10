@@ -24,8 +24,9 @@ async function reasoningFor(
   reasoning: ReasoningRequest | undefined,
 ) {
   const adapter = new TestAdapter({ apiKey: 'test' }, model)
-  const create = vi.fn().mockResolvedValue(noEvents())
-  adapter.sdk.responses.create = create as typeof adapter.sdk.responses.create
+  const create = vi
+    .spyOn(adapter.sdk.responses, 'create')
+    .mockResolvedValue(noEvents())
   for await (const _chunk of adapter.chatStream({
     threadId: 'thread-1',
     logger,
@@ -92,9 +93,9 @@ describe('OpenAI Chat Completions chat({ reasoning })', () => {
 
   it('sends reasoning_effort, clamped to the model levels', async () => {
     const adapter = new ChatAdapter({ apiKey: 'test' }, 'gpt-5.2')
-    const create = vi.fn().mockResolvedValue(noEvents())
-    adapter.sdk.chat.completions.create =
-      create as typeof adapter.sdk.chat.completions.create
+    const create = vi
+      .spyOn(adapter.sdk.chat.completions, 'create')
+      .mockResolvedValue(noEvents())
     for await (const _chunk of adapter.chatStream({
       threadId: 'thread-1',
       logger,

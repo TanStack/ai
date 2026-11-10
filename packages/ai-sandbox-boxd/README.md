@@ -48,7 +48,7 @@ const sandbox = defineSandbox({
     org: 'acme', // or set BOXD_ORG
     vcpu: 2,
   }),
-  workspace: defineWorkspace({/* … */}),
+  workspace: defineWorkspace({ source: { type: 'none' } }),
 })
 
 // Then pass `withSandbox(sandbox)` as chat() middleware.

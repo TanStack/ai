@@ -110,6 +110,22 @@ type SchedulerWithYield = {
   yield?: () => Promise<void>
 }
 
+/**
+ * Wait for `promise`, but reject with an AbortError once `signal` aborts.
+ * A client tool that never settles must not block stop().
+ */
+function untilAborted<T>(promise: Promise<T>, signal: AbortSignal): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const onAbort = () =>
+      reject(Object.assign(new Error('Aborted'), { name: 'AbortError' }))
+    if (signal.aborted) return onAbort()
+    signal.addEventListener('abort', onAbort, { once: true })
+    promise.then(resolve, reject).finally(() => {
+      signal.removeEventListener('abort', onAbort)
+    })
+  })
+}
+
 function yieldToHost(): Promise<void> {
   const { scheduler } = globalThis as typeof globalThis & {
     scheduler?: SchedulerWithYield
@@ -204,6 +220,8 @@ function connectionDrainsOnSend(connection: ConnectionAdapter): boolean {
 function isIntermediateToolTurn(chunk: StreamChunk): boolean {
   if (chunk.type !== 'RUN_FINISHED') return false
   if (chunk.outcome?.type === 'interrupt') return false
+  // A loop stop keeps finishReason tool_calls. That event ends the stream.
+  if (tanstackMetadata(chunk)?.loopStopped === true) return false
   const extra = chunk as StreamChunk & { finishReason?: unknown }
   if (extra.finishReason !== undefined) {
     return extra.finishReason === 'tool_calls'
@@ -644,6 +662,8 @@ export class ChatClient<
   // Flag to deduplicate continuation checks during action draining
   private continuationPending = false
   private subscriptionAbortController: AbortController | null = null
+  /** Aborts the `abortSignal` of running client tools on `stop()`. */
+  private clientToolAbortController = new AbortController()
   private processingResolve: (() => void) | null = null
   /**
    * `connect()` adapters push the full HTTP body into the subscribe queue, then
@@ -2884,7 +2904,10 @@ export class ChatClient<
 
       // Wait for pending client tool executions
       if (this.pendingToolExecutions.size > 0) {
-        await Promise.all(this.pendingToolExecutions.values())
+        await untilAborted(
+          Promise.all(this.pendingToolExecutions.values()),
+          signal,
+        )
       }
 
       // Finalize (idempotent — may already be done by RUN_FINISHED handler).
@@ -2899,7 +2922,10 @@ export class ChatClient<
       this.raiseLocalApprovals()
       // Wait for the tools that finalizeStream() started, as above.
       if (this.pendingToolExecutions.size > 0) {
-        await Promise.all(this.pendingToolExecutions.values())
+        await untilAborted(
+          Promise.all(this.pendingToolExecutions.values()),
+          signal,
+        )
       }
       streamCompletedSuccessfully = true
     } catch (err: unknown) {
@@ -2912,6 +2938,11 @@ export class ChatClient<
             'cancelled',
           )
           runTerminalEventEmitted = true
+        }
+        // The abort came from the user's own `options.signal`, not from
+        // stop(). End the same way stop() does.
+        if (!signal.aborted && generation === this.streamGeneration) {
+          this.stop()
         }
         return false
       }
@@ -3076,7 +3107,15 @@ export class ChatClient<
     // This aborts the local request. A durable server run keeps going.
     this.continuationGeneration++
     const hadLocalStream = this.abortController !== null
+    const stoppedRunId = hadLocalStream ? this.currentRunId : null
+    if (stoppedRunId) {
+      // Opt-in server cancel (`cancelUrl`). Best effort: the local stop is done.
+      const run = { runId: stoppedRunId, threadId: this.threadId }
+      void (async () => this.connection.cancelRun?.(run))().catch(() => {})
+    }
     this.cancelInFlightStream({ setReadyStatus: true })
+    this.clientToolAbortController.abort()
+    this.clientToolAbortController = new AbortController()
     this.discardPendingSends()
     this.lastResume = null
     this.activeInterruptSubmission = undefined
@@ -3156,6 +3195,7 @@ export class ChatClient<
           toolCallId: args.toolCallId,
           threadId: this.threadId,
           context: context as TContext,
+          abortSignal: this.clientToolAbortController.signal,
           emitCustomEvent: () => {},
         })
         await this.addToolResultForClientTool(

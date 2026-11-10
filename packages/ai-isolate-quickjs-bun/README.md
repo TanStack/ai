@@ -40,6 +40,9 @@ bun add @tanstack/ai-isolate-quickjs-bun
 ```typescript
 import { createQuickJSBunIsolateDriver } from '@tanstack/ai-isolate-quickjs-bun'
 import { createCodeModeTool } from '@tanstack/ai-code-mode'
+import type { CodeModeTool } from '@tanstack/ai-code-mode'
+
+declare const myTool: CodeModeTool
 
 const driver = createQuickJSBunIsolateDriver({
   timeout: 30000, // execution timeout in ms (default: 30000)

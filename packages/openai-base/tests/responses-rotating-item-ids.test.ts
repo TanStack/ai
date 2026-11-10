@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import OpenAI from 'openai'
+import { createOpenAIClient } from '../src/client'
 import { resolveDebugOption } from '@tanstack/ai/adapter-internals'
 import { OpenAIBaseResponsesTextAdapter } from '../src/adapters/responses-text'
 import type { AdapterYieldChunk } from '@tanstack/ai'
@@ -62,7 +62,7 @@ const events = [
 ]
 
 async function run(stream: Array<unknown> = events) {
-  const client = new OpenAI({
+  const client = createOpenAIClient({
     apiKey: 'test-key',
     fetch: async () =>
       new Response(

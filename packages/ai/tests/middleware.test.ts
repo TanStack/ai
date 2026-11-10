@@ -1009,6 +1009,66 @@ describe('chat() middleware', () => {
       expect(onUsage).toHaveBeenCalledTimes(1)
       expect(onUsage.mock.calls[0]![1]).toEqual(usage)
     })
+
+    it('should call onUsage with the billed usage of a RUN_ERROR', async () => {
+      const onUsage = vi.fn()
+      const usage = {
+        promptTokens: 10,
+        completionTokens: 4096,
+        totalTokens: 4106,
+      }
+
+      const { adapter } = createMockAdapter({
+        iterations: [
+          [
+            ev.runStarted(),
+            ev.textContent('cut off'),
+            { ...ev.runError('max_tokens'), usage },
+          ],
+        ],
+      })
+
+      // A consumer that stops reading at the error still gets the usage.
+      for await (const chunk of chat({
+        threadId: 'thread-1',
+        adapter,
+        messages: [{ role: 'user', content: 'Hi' }],
+        middleware: [{ name: 'test', onUsage }],
+      }) as AsyncIterable<StreamChunk>) {
+        if (chunk.type === 'RUN_ERROR') break
+      }
+
+      expect(onUsage).toHaveBeenCalledTimes(1)
+      expect(onUsage.mock.calls[0]![1]).toEqual(usage)
+    })
+
+    it('should still yield the RUN_ERROR when onUsage throws for it', async () => {
+      const usage = { promptTokens: 10, completionTokens: 5, totalTokens: 15 }
+      const { adapter } = createMockAdapter({
+        iterations: [
+          [ev.runStarted(), { ...ev.runError('max_tokens'), usage }],
+        ],
+      })
+
+      const types: Array<string> = []
+      for await (const chunk of chat({
+        threadId: 'thread-1',
+        adapter,
+        messages: [{ role: 'user', content: 'Hi' }],
+        middleware: [
+          {
+            name: 'test',
+            onUsage: () => {
+              throw new Error('onUsage broke')
+            },
+          },
+        ],
+      }) as AsyncIterable<StreamChunk>) {
+        types.push(chunk.type)
+      }
+
+      expect(types).toContain('RUN_ERROR')
+    })
   })
 
   // ==========================================================================
@@ -3305,5 +3365,33 @@ describe('chat() middleware', () => {
       // onConfig called at init + 3 beforeModel iterations
       expect(onConfigCallCount).toBe(4)
     })
+  })
+
+  // A CUSTOM event from setup makes core send a synthetic RUN_STARTED and drop
+  // the adapter's own. The synthetic event must keep the run's parentRunId.
+  it('keeps parentRunId on the synthetic RUN_STARTED', async () => {
+    const { adapter } = createMockAdapter({
+      iterations: [[ev.runStarted(), ev.runFinished('stop')]],
+    })
+    const middleware: ChatMiddleware = {
+      name: 'emits-in-setup',
+      setup(ctx) {
+        ctx.emitCustomEvent('test.setup', {})
+      },
+    }
+
+    const chunks = await collectChunks(
+      chat({
+        threadId: 't1',
+        parentRunId: 'parent-1',
+        adapter,
+        messages: [{ role: 'user', content: 'Hi' }],
+        middleware: [middleware],
+      }) as AsyncIterable<StreamChunk>,
+    )
+
+    const started = chunks.filter((c) => c.type === EventType.RUN_STARTED)
+    expect(started).toHaveLength(1)
+    expect(started[0]).toMatchObject({ parentRunId: 'parent-1' })
   })
 })

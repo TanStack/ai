@@ -3,7 +3,7 @@ id: RealtimeMessage
 title: RealtimeMessage
 ---
 
-Defined in: [packages/ai/src/realtime/types.ts:162](https://github.com/TanStack/ai/blob/main/packages/ai/src/realtime/types.ts#L162)
+Defined in: [packages/ai/src/realtime/types.ts:171](https://github.com/TanStack/ai/blob/main/packages/ai/src/realtime/types.ts#L171)
 
 A message in a realtime conversation
 
@@ -15,7 +15,7 @@ A message in a realtime conversation
 optional audioId?: string;
 ```
 
-Defined in: [packages/ai/src/realtime/types.ts:174](https://github.com/TanStack/ai/blob/main/packages/ai/src/realtime/types.ts#L174)
+Defined in: [packages/ai/src/realtime/types.ts:183](https://github.com/TanStack/ai/blob/main/packages/ai/src/realtime/types.ts#L183)
 
 Reference to audio buffer if stored
 
@@ -27,7 +27,7 @@ Reference to audio buffer if stored
 optional durationMs?: number;
 ```
 
-Defined in: [packages/ai/src/realtime/types.ts:176](https://github.com/TanStack/ai/blob/main/packages/ai/src/realtime/types.ts#L176)
+Defined in: [packages/ai/src/realtime/types.ts:185](https://github.com/TanStack/ai/blob/main/packages/ai/src/realtime/types.ts#L185)
 
 Duration of the audio in milliseconds
 
@@ -39,7 +39,7 @@ Duration of the audio in milliseconds
 id: string;
 ```
 
-Defined in: [packages/ai/src/realtime/types.ts:164](https://github.com/TanStack/ai/blob/main/packages/ai/src/realtime/types.ts#L164)
+Defined in: [packages/ai/src/realtime/types.ts:173](https://github.com/TanStack/ai/blob/main/packages/ai/src/realtime/types.ts#L173)
 
 Unique message identifier
 
@@ -51,7 +51,7 @@ Unique message identifier
 optional interrupted?: boolean;
 ```
 
-Defined in: [packages/ai/src/realtime/types.ts:172](https://github.com/TanStack/ai/blob/main/packages/ai/src/realtime/types.ts#L172)
+Defined in: [packages/ai/src/realtime/types.ts:181](https://github.com/TanStack/ai/blob/main/packages/ai/src/realtime/types.ts#L181)
 
 Whether this message was interrupted
 
@@ -63,7 +63,7 @@ Whether this message was interrupted
 parts: RealtimeMessagePart[];
 ```
 
-Defined in: [packages/ai/src/realtime/types.ts:170](https://github.com/TanStack/ai/blob/main/packages/ai/src/realtime/types.ts#L170)
+Defined in: [packages/ai/src/realtime/types.ts:179](https://github.com/TanStack/ai/blob/main/packages/ai/src/realtime/types.ts#L179)
 
 Content parts of the message
 
@@ -75,7 +75,7 @@ Content parts of the message
 role: "assistant" | "user";
 ```
 
-Defined in: [packages/ai/src/realtime/types.ts:166](https://github.com/TanStack/ai/blob/main/packages/ai/src/realtime/types.ts#L166)
+Defined in: [packages/ai/src/realtime/types.ts:175](https://github.com/TanStack/ai/blob/main/packages/ai/src/realtime/types.ts#L175)
 
 Message role
 
@@ -87,6 +87,6 @@ Message role
 timestamp: number;
 ```
 
-Defined in: [packages/ai/src/realtime/types.ts:168](https://github.com/TanStack/ai/blob/main/packages/ai/src/realtime/types.ts#L168)
+Defined in: [packages/ai/src/realtime/types.ts:177](https://github.com/TanStack/ai/blob/main/packages/ai/src/realtime/types.ts#L177)
 
 Timestamp when the message was created

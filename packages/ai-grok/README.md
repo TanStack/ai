@@ -96,7 +96,7 @@ const result = await generateImage({
   size: '16:9',
 })
 
-console.log(result.images[0].url)
+console.log(result.images[0]?.url)
 ```
 
 ### With Explicit API Key

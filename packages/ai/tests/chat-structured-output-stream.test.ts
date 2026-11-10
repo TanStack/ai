@@ -206,6 +206,75 @@ describe('chat({ outputSchema, stream: true })', () => {
       ).toBe(false)
     })
 
+    it('keeps the billed usage when the value fails the schema', async () => {
+      const invalidObject = { name: 'X', email: 'not-an-email' }
+      const raw = JSON.stringify(invalidObject)
+      const usage: TokenUsage = {
+        promptTokens: 30,
+        completionTokens: 12,
+        totalTokens: 42,
+      }
+      const adapter = makeAdapter({
+        structuredOutputStream: () =>
+          (async function* () {
+            for (const c of structuredStreamChunks(raw, invalidObject)) {
+              yield c.type === EventType.RUN_FINISHED ? { ...c, usage } : c
+            }
+          })(),
+      })
+      const onUsage = vi.fn()
+
+      const chunks = await collectChunks(
+        chat({
+          threadId: 'thread-1',
+          adapter,
+          messages: [{ role: 'user', content: 'extract' }],
+          outputSchema: PersonSchema,
+          stream: true,
+          middleware: [{ name: 'usage', onUsage }],
+        }),
+      )
+
+      const runErrors = chunks.filter((c) => c.type === EventType.RUN_ERROR)
+      expect(runErrors).toHaveLength(1)
+      expect(runErrors[0]!.usage).toEqual(usage)
+      expect(chunks.some((c) => c.type === EventType.RUN_FINISHED)).toBe(false)
+      expect(onUsage).toHaveBeenCalledTimes(1)
+      expect(onUsage.mock.calls[0]![1]).toEqual(usage)
+    })
+
+    it('keeps the schema error when the stream throws after the value', async () => {
+      const invalidObject = { name: 'X', email: 'not-an-email' }
+      const raw = JSON.stringify(invalidObject)
+      const adapter = makeAdapter({
+        structuredOutputStream: () =>
+          (async function* () {
+            for (const c of structuredStreamChunks(raw, invalidObject)) {
+              if (c.type === EventType.RUN_FINISHED) {
+                throw new Error('socket closed')
+              }
+              yield c
+            }
+          })(),
+      })
+
+      const chunks = await collectChunks(
+        chat({
+          threadId: 'thread-1',
+          adapter,
+          messages: [{ role: 'user', content: 'extract' }],
+          outputSchema: PersonSchema,
+          stream: true,
+        }),
+      )
+
+      const runErrors = chunks.filter((c) => c.type === EventType.RUN_ERROR)
+      expect(runErrors).toHaveLength(1)
+      expect(runErrors[0]).toMatchObject({
+        code: 'structured-output-validation-failed',
+      })
+    })
+
     it('does not check a plain JSON Schema', async () => {
       const invalidObject = { name: 'X' }
       const adapter = makeAdapter({
@@ -576,6 +645,38 @@ describe('chat({ outputSchema, stream: true })', () => {
         totalTokens: 1471,
         promptTokensDetails: { cachedTokens: 5760 },
       })
+    })
+
+    it('puts the usage of a thrown structuredOutput error on RUN_ERROR and onUsage', async () => {
+      // The provider bills a call that stops at the token limit or returns
+      // bad JSON. The adapter throws with the usage on the error.
+      const usage: TokenUsage = {
+        promptTokens: 40,
+        completionTokens: 512,
+        totalTokens: 552,
+      }
+      const adapter = makeAdapter({
+        structuredOutput: async () => {
+          throw Object.assign(new Error('response was truncated'), { usage })
+        },
+      })
+      const onUsage = vi.fn()
+
+      const chunks = await collectChunks(
+        chat({
+          threadId: 'thread-1',
+          adapter,
+          messages: [{ role: 'user', content: 'extract' }],
+          outputSchema: PersonSchema,
+          stream: true,
+          middleware: [{ name: 'usage', onUsage }],
+        }),
+      )
+
+      const error = chunks.find((c) => c.type === EventType.RUN_ERROR)
+      expect(error?.usage).toEqual(usage)
+      expect(onUsage).toHaveBeenCalledTimes(1)
+      expect(onUsage.mock.calls[0]![1]).toEqual(usage)
     })
 
     it('omits usage on RUN_FINISHED when the adapter does not report it', async () => {

@@ -214,7 +214,18 @@ export function createMcpAppCallHandler(opts: McpAppCallHandlerOptions) {
 
   return async (
     req: McpAppCallRequest,
+    options?: {
+      /** Cancels the connect, the tool list, and the tool call. */
+      signal?: AbortSignal
+      /**
+       * Sent as the `_meta` of the proxied `tools/call`. Pass the request
+       * context of the HTTP request that carries this widget call (tenant,
+       * trace).
+       */
+      meta?: Record<string, unknown>
+    },
   ): Promise<{ ok: true; result: unknown } | { ok: false; error: string }> => {
+    const signal = options?.signal
     // Resolve server descriptor. The store WINS when it has an entry; otherwise
     // we fall back to the static `clients` registry (the base). A store miss
     // (null) must not reject when the registry can serve the request.
@@ -265,6 +276,7 @@ export function createMcpAppCallHandler(opts: McpAppCallHandlerOptions) {
       ...(needsApproval ? { needsApproval } : {}),
       ...(toolName ? { toolName } : {}),
       ...(requestOptions ? { requestOptions } : {}),
+      ...(signal && { signal }),
     })
 
     try {
@@ -273,9 +285,9 @@ export function createMcpAppCallHandler(opts: McpAppCallHandlerOptions) {
       // against the native names the server exposes — carried on
       // `metadata.mcp.serverToolName` (falling back to `name` for unprefixed
       // clients) — and forward `req.toolName` unchanged to `client.callTool`.
-      const exposed: ServerTool | undefined = (await client.tools()).find(
-        (t) => serverToolNameOf(t) === req.toolName,
-      )
+      const exposed: ServerTool | undefined = (
+        await (signal ? client.tools({ signal }) : client.tools())
+      ).find((t) => serverToolNameOf(t) === req.toolName)
       const customOk = opts.allowTool ? await opts.allowTool(req) : true
 
       if (!exposed || !customOk) {
@@ -294,7 +306,10 @@ export function createMcpAppCallHandler(opts: McpAppCallHandlerOptions) {
       if (!isArgsRecord(args)) {
         return { ok: false, error: 'Invalid args: expected an object' }
       }
-      const result = await client.callTool(req.toolName, args)
+      // Only the tools/call gets the meta. The connect and tools/list do not.
+      const result = options
+        ? await client.callTool(req.toolName, args, options)
+        : await client.callTool(req.toolName, args)
       return { ok: true, result }
     } catch (err) {
       // Surface the failure for server-side observability before flattening it

@@ -1,4 +1,4 @@
-import type { ServerTool, ToolDefinition } from '@tanstack/ai'
+import type { MCPRequestMeta, ServerTool, ToolDefinition } from '@tanstack/ai'
 import type {
   ClientOptions,
   PriorDiscovery,
@@ -166,6 +166,11 @@ export interface MCPClientOptions {
    */
   prior?: PriorDiscovery
   /**
+   * Cancels the connect handshake. It applies only while `createMCPClient`
+   * connects, not to later requests.
+   */
+  signal?: AbortSignal
+  /**
    * Choose the server tools the model gets. Default: every tool.
    *
    * - A function: keep the tools it returns `true` for. It receives the raw
@@ -250,6 +255,14 @@ export interface MCPClientOptions {
 export interface ToolsOptions {
   /** Mark tools `lazy: true` to defer schema-sending via LazyToolManager. */
   lazy?: boolean
+  /** Cancels the `tools/list` requests. */
+  signal?: AbortSignal
+  /**
+   * Called before each call of a returned tool. Its result is sent as the
+   * `tools/call` `_meta`. Each `tools()` call builds new tools, so a hook
+   * passed per request stays with that request.
+   */
+  requestMeta?: MCPRequestMeta
 }
 
 /**

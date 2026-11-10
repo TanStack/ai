@@ -1,5 +1,7 @@
-import OpenAI from 'openai'
-import { OpenAIBaseResponsesTextAdapter } from '@tanstack/openai-base'
+import {
+  OpenAIBaseResponsesTextAdapter,
+  createOpenAIClient,
+} from '@tanstack/openai-base'
 import {
   NEON_MODEL_INPUT_MODALITIES,
   NEON_MODEL_REASONING,
@@ -48,7 +50,7 @@ export class NeonResponsesTextAdapter<
     super(
       model,
       'neon',
-      new OpenAI(withNeonDefaults(config, 'responses')),
+      createOpenAIClient(withNeonDefaults(config, 'responses')),
       config,
     )
   }

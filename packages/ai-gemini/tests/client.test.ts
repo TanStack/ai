@@ -7,7 +7,7 @@ const mocks = vi.hoisted(() => {
   }
 })
 
-vi.mock('@google/genai', () => {
+vi.mock('../src/client', () => {
   class MockGoogleGenAI {
     constructor(options: Record<string, unknown>) {
       mocks.constructorSpy(options)
@@ -15,7 +15,9 @@ vi.mock('@google/genai', () => {
   }
 
   return {
-    GoogleGenAI: MockGoogleGenAI,
+    createGoogleGenAI: (
+      options: ConstructorParameters<typeof MockGoogleGenAI>[0],
+    ) => new MockGoogleGenAI(options),
   }
 })
 

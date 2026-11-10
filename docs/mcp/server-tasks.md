@@ -66,7 +66,7 @@ The host calls `build_report` and gets a task handle at once. After 5 seconds, t
 2. The handler returns a task handle before the work ends.
 3. The tool function continues in this process. There is no queue.
 4. When the tool function ends, the task store saves the value.
-5. The host polls until the status is `completed` or `failed`.
+5. The host polls until the status is `completed`, `failed`, or `cancelled`.
 
 The default task store keeps each task in memory for this process. A TanStack AI host polls until the task ends. See [MCP Server Tools](../tools/mcp).
 
@@ -76,7 +76,31 @@ The task keeps running after the call returns the task handle. As a result, the 
 
 - `ctx.context.requestInput` throws an error. Ask for input in a tool without `execution: 'task'`.
 - `ctx.context.sample` calls the `sample` option of `createMCPServer`. If you do not pass `sample`, it throws an error.
-- `ctx.abortSignal` does not abort when the call request ends.
+- `ctx.abortSignal` does not abort when the call request ends. It aborts when the host cancels the task. See [Stop a cancelled task](#stop-a-cancelled-task).
+
+## Stop a cancelled task
+
+A host sends `tasks/cancel` to stop a task. The task status becomes `cancelled`, and `ctx.abortSignal` of the tool aborts. Give that signal to the slow work, so the work stops too:
+
+```ts
+import { toolDefinition } from '@tanstack/ai'
+
+const buildReport = toolDefinition({
+  name: 'build_report',
+  description: 'Build a long report',
+  execution: 'task',
+}).server(async (_args, ctx) => {
+  const response = await fetch('https://reports.example.com/build', {
+    method: 'POST',
+    signal: ctx?.abortSignal,
+  })
+  return { text: await response.text() }
+})
+```
+
+- A task that ended (`completed`, `failed`, or `cancelled`) cannot be cancelled. `tasks/cancel` then returns an error.
+- A cancelled task keeps the status `cancelled`. A result that the tool returns after the cancel is not saved.
+- Only the process that runs the task can abort its signal. With a shared store on more than one instance, a cancel on another instance saves `cancelled`, but the tool runs on. Its late result then replaces `cancelled`.
 
 ## Run tasks on a Worker
 
@@ -172,7 +196,7 @@ On spec 2025, the call response is the `CreateTaskResult` from the spec. The `ta
 | Field | Value |
 | --- | --- |
 | `taskId` | The id from the call. |
-| `status` | `working`, `completed`, or `failed`. |
+| `status` | `working`, `completed`, `failed`, or `cancelled`. |
 | `ttl` | `null`. |
 | `createdAt` | The time of the first `set`. |
 | `lastUpdatedAt` | The time of the last `set`. |
@@ -185,6 +209,7 @@ On spec 2025, the call response is the `CreateTaskResult` from the spec. The `ta
 | `working` | The tool function is still at work. |
 | `completed` | The store holds the tool result. |
 | `failed` | The tool function threw an error. |
+| `cancelled` | A host sent `tasks/cancel`. `ctx.abortSignal` of the tool aborts only in the process that runs the task. With a shared store, see [Stop a cancelled task](#stop-a-cancelled-task). |
 
 If the tool function throws, the task keeps the text of that error in `statusMessage`. If that error has no text, the task keeps `The tool failed.`
 

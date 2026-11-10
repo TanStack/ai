@@ -104,6 +104,11 @@
           "label": "Subscribe to MCP Events",
           "to": "tutorials/mcp-events",
           "addedAt": "2026-10-17"
+        },
+        {
+          "label": "Effect Chat",
+          "to": "tutorials/effect-chat",
+          "addedAt": "2026-11-06"
         }
       ]
     },
@@ -155,6 +160,11 @@
           "label": "MCP Events",
           "to": "framework/react/examples/mcp-events",
           "addedAt": "2026-10-17"
+        },
+        {
+          "label": "Effect Chat",
+          "to": "framework/react/examples/effect-chat",
+          "addedAt": "2026-11-06"
         }
       ]
     },
@@ -182,7 +192,7 @@
           "label": "Streaming",
           "to": "chat/streaming",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-10-22"
+          "updatedAt": "2026-11-04"
         },
         {
           "label": "Stream Events",
@@ -206,7 +216,7 @@
           "label": "Agentic Cycle",
           "to": "chat/agentic-cycle",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-10-22"
+          "updatedAt": "2026-11-05"
         },
         {
           "label": "Thinking & Reasoning",
@@ -416,7 +426,7 @@
           "label": "Middleware: Advanced",
           "to": "advanced/middleware-advanced",
           "addedAt": "2026-10-21",
-          "updatedAt": "2026-10-22"
+          "updatedAt": "2026-11-02"
         },
         {
           "label": "Built-in Middleware",
@@ -434,7 +444,7 @@
           "label": "OpenTelemetry",
           "to": "advanced/otel",
           "addedAt": "2026-05-08",
-          "updatedAt": "2026-10-22"
+          "updatedAt": "2026-11-02"
         },
         {
           "label": "Compaction",
@@ -446,7 +456,7 @@
           "label": "Compaction: Advanced",
           "to": "advanced/compaction-advanced",
           "addedAt": "2026-10-21",
-          "updatedAt": "2026-10-22"
+          "updatedAt": "2026-11-07"
         }
       ],
       "tab": "guides"
@@ -626,13 +636,13 @@
           "label": "Managed MCP with chat()",
           "to": "tools/mcp-managed",
           "addedAt": "2026-06-05",
-          "updatedAt": "2026-10-22"
+          "updatedAt": "2026-11-09"
         },
         {
           "label": "Manual MCP",
           "to": "tools/mcp-manual",
           "addedAt": "2026-06-05",
-          "updatedAt": "2026-10-22"
+          "updatedAt": "2026-11-09"
         },
         {
           "label": "MCP Type Generation",
@@ -660,7 +670,7 @@
           "label": "MCP Apps",
           "to": "mcp/apps",
           "addedAt": "2026-06-24",
-          "updatedAt": "2026-10-22"
+          "updatedAt": "2026-11-09"
         },
         {
           "label": "Serve Tools over HTTP",
@@ -690,7 +700,7 @@
           "label": "MCP Server Tasks",
           "to": "mcp/server-tasks",
           "addedAt": "2026-09-22",
-          "updatedAt": "2026-10-22"
+          "updatedAt": "2026-11-02"
         },
         {
           "label": "MCP Server Auth",
@@ -751,7 +761,7 @@
           "label": "Advanced",
           "to": "resumable-streams/advanced",
           "addedAt": "2026-08-04",
-          "updatedAt": "2026-10-22"
+          "updatedAt": "2026-11-02"
         },
         {
           "label": "WebSockets",
@@ -884,7 +894,7 @@
           "label": "Realtime Voice Chat",
           "to": "media/realtime-chat",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-10-22"
+          "updatedAt": "2026-11-02"
         },
         {
           "label": "Text-to-Speech",
@@ -936,12 +946,13 @@
           "label": "Video Generation",
           "to": "media/video-generation",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-10-22"
+          "updatedAt": "2026-11-06"
         },
         {
           "label": "Video Generation: Advanced",
           "to": "media/video-generation-advanced",
-          "addedAt": "2026-10-21"
+          "addedAt": "2026-10-21",
+          "updatedAt": "2026-11-06"
         },
         {
           "label": "Live Generation",
@@ -971,7 +982,7 @@
           "label": "Embeddings",
           "to": "embeddings",
           "addedAt": "2026-07-10",
-          "updatedAt": "2026-10-22"
+          "updatedAt": "2026-11-02"
         }
       ],
       "tab": "guides"
@@ -983,7 +994,7 @@
           "label": "Reranking",
           "to": "rerank/rerank",
           "addedAt": "2026-06-25",
-          "updatedAt": "2026-10-22"
+          "updatedAt": "2026-11-02"
         }
       ],
       "tab": "guides"
@@ -995,7 +1006,7 @@
           "label": "Evaluate",
           "to": "evaluate/evaluate",
           "addedAt": "2026-09-18",
-          "updatedAt": "2026-10-22"
+          "updatedAt": "2026-11-02"
         }
       ],
       "tab": "guides"
@@ -1007,7 +1018,7 @@
           "label": "Code Mode",
           "to": "code-mode/code-mode",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-10-29"
+          "updatedAt": "2026-11-02"
         },
         {
           "label": "Showing Code Mode in the UI",
@@ -1025,7 +1036,7 @@
           "label": "Code Mode Isolate Drivers",
           "to": "code-mode/code-mode-isolates",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-10-22"
+          "updatedAt": "2026-11-02"
         },
         {
           "label": "Lazy Tools",
@@ -1061,7 +1072,7 @@
           "label": "Custom Driver",
           "to": "computer-use/custom-driver",
           "addedAt": "2026-10-20",
-          "updatedAt": "2026-10-22"
+          "updatedAt": "2026-11-02"
         }
       ],
       "tab": "guides"
@@ -1092,7 +1103,7 @@
           "label": "Connect clients",
           "to": "harness/connect",
           "addedAt": "2026-10-13",
-          "updatedAt": "2026-10-22"
+          "updatedAt": "2026-11-02"
         },
         {
           "label": "Write a client in any language",
@@ -1122,7 +1133,7 @@
           "label": "Send inputs safely",
           "to": "harness/inputs",
           "addedAt": "2026-10-13",
-          "updatedAt": "2026-10-22"
+          "updatedAt": "2026-11-05"
         },
         {
           "label": "Run a tool without a model",
@@ -1229,7 +1240,7 @@
           "label": "Sandbox and extend the coding tools",
           "to": "harness/coding-tools-backends",
           "addedAt": "2026-10-13",
-          "updatedAt": "2026-10-22"
+          "updatedAt": "2026-11-02"
         },
         {
           "label": "Run the coding tools for many threads",
@@ -1360,7 +1371,7 @@
           "label": "Providers",
           "to": "sandbox/providers",
           "addedAt": "2026-06-29",
-          "updatedAt": "2026-10-29"
+          "updatedAt": "2026-11-02"
         },
         {
           "label": "Harnesses",
@@ -1462,7 +1473,7 @@
           "label": "Events",
           "to": "sandbox/events",
           "addedAt": "2026-06-29",
-          "updatedAt": "2026-10-22"
+          "updatedAt": "2026-11-04"
         }
       ]
     },
@@ -1493,7 +1504,7 @@
           "label": "Takeover & Detached Runs",
           "to": "sandbox/takeover",
           "addedAt": "2026-08-04",
-          "updatedAt": "2026-10-22"
+          "updatedAt": "2026-11-02"
         },
         {
           "label": "Takeover Internals",
@@ -1556,7 +1567,7 @@
           "label": "Adapters",
           "to": "memory/adapters",
           "addedAt": "2026-08-04",
-          "updatedAt": "2026-10-22"
+          "updatedAt": "2026-11-02"
         },
         {
           "label": "Custom Adapter",
@@ -1609,7 +1620,7 @@
           "label": "Files API",
           "to": "advanced/files-api",
           "addedAt": "2026-09-11",
-          "updatedAt": "2026-10-22"
+          "updatedAt": "2026-11-02"
         },
         {
           "label": "Per-Model Type Safety",
@@ -1627,7 +1638,7 @@
           "label": "Tree-Shaking",
           "to": "advanced/tree-shaking",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-10-22"
+          "updatedAt": "2026-11-02"
         },
         {
           "label": "Extend Adapter",
@@ -1674,6 +1685,27 @@
       "tab": "guides"
     },
     {
+      "label": "Effect",
+      "tab": "guides",
+      "children": [
+        {
+          "label": "Stream a Chat",
+          "to": "effect/index",
+          "addedAt": "2026-11-06"
+        },
+        {
+          "label": "Tools",
+          "to": "effect/tools",
+          "addedAt": "2026-11-06"
+        },
+        {
+          "label": "Activities",
+          "to": "effect/activities",
+          "addedAt": "2026-11-06"
+        }
+      ]
+    },
+    {
       "label": "Adapters",
       "children": [
         {
@@ -1698,13 +1730,13 @@
           "label": "Anthropic: Advanced",
           "to": "adapters/anthropic-advanced",
           "addedAt": "2026-10-21",
-          "updatedAt": "2026-10-22"
+          "updatedAt": "2026-11-02"
         },
         {
           "label": "Google Gemini",
           "to": "adapters/gemini",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-10-22"
+          "updatedAt": "2026-11-09"
         },
         {
           "label": "Google Gemini: Advanced",
@@ -1793,7 +1825,8 @@
         {
           "label": "OpenRouter: Advanced",
           "to": "adapters/openrouter-advanced",
-          "addedAt": "2026-10-21"
+          "addedAt": "2026-10-21",
+          "updatedAt": "2026-11-02"
         },
         {
           "label": "Perplexity Search",
@@ -1834,7 +1867,7 @@
           "label": "Cloudflare",
           "to": "adapters/cloudflare",
           "addedAt": "2026-09-03",
-          "updatedAt": "2026-10-22"
+          "updatedAt": "2026-11-02"
         },
         {
           "label": "Neon AI Gateway",
@@ -1875,7 +1908,7 @@
           "label": "Amazon Bedrock",
           "to": "adapters/bedrock",
           "addedAt": "2026-06-25",
-          "updatedAt": "2026-10-22"
+          "updatedAt": "2026-11-02"
         },
         {
           "label": "BytePlus",
@@ -2005,7 +2038,7 @@
           "label": "@tanstack/ai",
           "to": "api/ai",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-10-21"
+          "updatedAt": "2026-11-05"
         },
         {
           "label": "@tanstack/ai-client",
@@ -2017,7 +2050,7 @@
           "label": "@tanstack/ai-react",
           "to": "api/ai-react",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-10-21"
+          "updatedAt": "2026-10-24"
         },
         {
           "label": "@tanstack/ai-solid",
@@ -2060,6 +2093,11 @@
           "to": "api/ai-remix",
           "addedAt": "2026-09-01",
           "updatedAt": "2026-10-21"
+        },
+        {
+          "label": "@tanstack/ai-effect",
+          "to": "api/ai-effect",
+          "addedAt": "2026-11-06"
         }
       ]
     },
@@ -2076,7 +2114,7 @@
           "label": "Custom Events Reference",
           "to": "protocol/custom-events",
           "addedAt": "2026-07-03",
-          "updatedAt": "2026-10-22"
+          "updatedAt": "2026-11-04"
         }
       ],
       "tab": "api"

@@ -1,8 +1,7 @@
-import { fal } from '@fal-ai/client'
 import { resolveMediaPrompt } from '@tanstack/ai'
 import { BaseImageAdapter } from '@tanstack/ai/adapters'
 import {
-  configureFalClient,
+  createAdapterFalClient,
   generateId as utilGenerateId,
 } from '../utils/client'
 import { buildFalUsage, takeBillableUnits } from '../utils/billing'
@@ -10,6 +9,7 @@ import { mapSizeToFalFormat } from '../image/image-provider-options'
 import { mapImageInputsToFalFields } from '../image/image-inputs'
 import type { OutputType, Result } from '@fal-ai/client'
 import type { FalClientConfig } from '../utils/client'
+import type { FalClient } from '../client/index'
 import type {
   GeneratedImage,
   ImageGenerationOptions,
@@ -53,12 +53,13 @@ export class FalImageAdapter<TModel extends FalModel> extends BaseImageAdapter<
 > {
   override readonly kind = 'image' as const
   readonly name = 'fal' as const
+  private readonly client: FalClient
   // Consumes fal storage URLs uploaded via falFiles().
   override readonly supportsFileSources = true
 
   constructor(model: TModel, config?: FalClientConfig) {
     super(model, {})
-    configureFalClient(config)
+    this.client = createAdapterFalClient(config)
   }
 
   async generateImages(
@@ -87,16 +88,25 @@ export class FalImageAdapter<TModel extends FalModel> extends BaseImageAdapter<
       )
     }
 
+    let requestId: string | undefined
     try {
       const input = this.buildInput(options, resolved)
-      // Pass request-specific abortSignal only — never via fal.config(), which
-      // is global and would cancel concurrent generations from other calls.
-      const result = await fal.subscribe(this.model, {
+      // Pass the abortSignal per request, not in the client config, so it
+      // cannot cancel other generations.
+      const result = await this.client.subscribe(this.model, {
         input,
         ...(options.abortSignal ? { abortSignal: options.abortSignal } : {}),
+        onEnqueue: (id) => {
+          requestId = id
+        },
       })
       return this.transformResponse(result)
     } catch (error) {
+      // The SDK stops waiting on abort but leaves the queued job running.
+      // Cancel it so it stops billing.
+      if (requestId && options.abortSignal?.aborted) {
+        this.client.queue.cancel(this.model, { requestId }).catch(() => {})
+      }
       logger.errors('fal.generateImage fatal', {
         error,
         source: 'fal.generateImage',

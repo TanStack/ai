@@ -65,6 +65,22 @@ console.log('Video ready:', videoUrl)
 
 If you use middleware, such as `withGenerationPersistence`, pass the same `middleware` and `threadId` to `generateVideo()` and to `getVideoJobStatus()`. The submit call only opens the run. The poll that sees the finished job closes the run and records the result.
 
+To cancel one poll, pass `abortSignal`. To limit it, pass `timeout` in milliseconds. The limit covers the status request and the video download.
+
+```typescript
+import { getVideoJobStatus } from '@tanstack/ai'
+import { openaiVideo } from '@tanstack/ai-openai'
+
+const status = await getVideoJobStatus({
+  adapter: openaiVideo('sora-2'),
+  jobId: 'video_123',
+  timeout: 15_000,
+})
+console.log(status.status)
+```
+
+A cancelled poll rejects. It does not change the job. The provider job keeps running, and a later poll can still read it.
+
 ### Server function that polls (fetcher)
 
 A TanStack Start server function can run the full loop and return the finished result as JSON:
@@ -153,6 +169,32 @@ export function VideoGenerator() {
   // Render the same way as in the quick setup.
 }
 ```
+
+## Cancel the provider job
+
+Pass `abortSignal` (or `timeout`) to a streaming `generateVideo()`. If it aborts after the provider accepts the job, `generateVideo()` asks the provider to cancel the job:
+
+```typescript
+import { generateVideo, toServerSentEventsResponse } from '@tanstack/ai'
+import { falVideo } from '@tanstack/ai-fal'
+
+export function POST(request: Request) {
+  const stream = generateVideo({
+    adapter: falVideo('fal-ai/veo3.1'),
+    prompt: 'A timelapse of a city skyline at dusk',
+    threadId: 'thread-1',
+    stream: true,
+    abortSignal: request.signal,
+  })
+  return toServerSentEventsResponse(stream)
+}
+```
+
+- fal.ai and BytePlus have a cancel API. fal can refuse a request that already runs. BytePlus cancels only a queued task.
+- The other adapters have no cancel API, so their job keeps running.
+- The cancel is best effort. A failed cancel goes to the error log, and the run still ends as aborted.
+- To cancel a job that you poll yourself, call `adapter.cancelVideoJob?.(jobId)`.
+- In your own adapter, add the optional `cancelVideoJob(jobId, options?)` method when the provider can cancel a job.
 
 ## Image-to-video support
 
@@ -301,7 +343,7 @@ await generateVideo({
 
 ### Gemini Omni Flash (Interactions API)
 
-Gemini Omni Flash (`gemini-omni-1.1-flash`) is a multimodal video model from Google that can edit by conversation. It only runs on the [Interactions API](https://ai.google.dev/gemini-api/docs/omni). The same `geminiVideo()` adapter routes it automatically:
+Use `geminiVideo('gemini-omni-1.2-flash')` for Gemini Omni Flash. It is a multimodal video model from Google that can edit by conversation. It only runs on the [Interactions API](https://ai.google.dev/gemini-api/docs/omni). The same `geminiVideo()` adapter routes it automatically:
 
 - `generateVideo` creates a background interaction.
 - `getVideoJobStatus` polls it by id.
@@ -309,8 +351,9 @@ Gemini Omni Flash (`gemini-omni-1.1-flash`) is a multimodal video model from Goo
 
 Durations:
 
-- `duration` accepts any value from 3 to 10 seconds, fractions included. The default is 10 seconds.
-- `availableDurations()` returns `{ kind: 'range', min: 3, max: 10, unit: 'seconds' }`.
+- `duration` on `gemini-omni-1.2-flash` accepts any value from 3 to 15 seconds, fractions included. The default is 10 seconds.
+- `gemini-omni-1.1-flash` accepts 3 to 10 seconds. Google keeps that id until 2026-12-03, then routes it to 1.2 and bills at 1.2 rates.
+- `availableDurations()` returns `{ kind: 'range', min: 3, max: 15, unit: 'seconds' }` for 1.2.
 - A `duration` out of range is rejected when the job is created.
 - `snapDuration(n)` clamps raw seconds into the range and rounds to whole seconds.
 
@@ -320,14 +363,14 @@ Durations:
 import { generateVideo, getVideoJobStatus } from '@tanstack/ai'
 import { geminiVideo } from '@tanstack/ai-gemini'
 
-const adapter = geminiVideo('gemini-omni-1.1-flash')
+const adapter = geminiVideo('gemini-omni-1.2-flash')
 
 const { jobId } = await generateVideo({
   adapter,
   prompt: 'A woman playing violin outdoors at golden hour',
   threadId: 'thread-1',
   size: '9:16_1080p', // '16:9' | '9:16', optional _360p/_720p/_1080p/_4k
-  duration: 6, // 3-10 seconds. Leave it out for the 10s default.
+  duration: 12, // 3-15 seconds on 1.2. Leave it out for the 10s default.
 })
 
 const status = await getVideoJobStatus({ adapter, jobId })
@@ -345,7 +388,7 @@ To edit a video, pass the interaction id of an earlier generation (its `jobId`) 
 import { generateVideo } from '@tanstack/ai'
 import { geminiVideo } from '@tanstack/ai-gemini'
 
-const adapter = geminiVideo('gemini-omni-1.1-flash')
+const adapter = geminiVideo('gemini-omni-1.2-flash')
 
 // Turn 1: generate
 const first = await generateVideo({
@@ -365,7 +408,18 @@ const second = await generateVideo({
 })
 ```
 
-`modelOptions` also passes through the request fields of the Interactions API. For example, `generation_config.video_config.task` sets the task mode to `'text_to_video'`, `'image_to_video'`, `'reference_to_video'`, or `'edit'`. Without it, the model picks the mode.
+`modelOptions` also passes through the request fields of the Interactions API. For example, `generation_config.video_config.task` sets the task mode to `'text_to_video'`, `'image_to_video'`, `'reference_to_video'`, `'edit'`, or `'extend'`. Without it, the model picks the mode.
+
+On `gemini-omni-1.2-flash`, `'extend'` appends 3 to 10 seconds on each turn. The clip stops at 30 seconds total.
+
+Reference limits on 1.2:
+
+- Up to 6 reference images: 3 images for each character, and 2 characters.
+- Up to 3 reference videos of 3 seconds when the output is 3 to 10 seconds.
+- One reference video when the output is 11 to 15 seconds.
+- No reference video with `edit` or `extend`.
+- A first-frame and last-frame pair only for outputs of 3 to 10 seconds.
+- Audio input and voice editing are not supported.
 
 ### Grok (xAI Imagine)
 

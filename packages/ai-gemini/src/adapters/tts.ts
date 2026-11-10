@@ -8,7 +8,8 @@ import { GEMINI_TTS_VOICES } from '../model-meta'
 import { buildGeminiUsage } from '../usage'
 import type { GEMINI_TTS_MODELS, GeminiTTSVoice } from '../model-meta'
 import type { TTSCapabilities, TTSOptions, TTSResult } from '@tanstack/ai'
-import type { GoogleGenAI, SpeechConfig } from '@google/genai'
+import type { SpeechConfig } from '@google/genai'
+import type { GeminiClient } from '../client/index'
 import type { GeminiClientConfig } from '../utils/client'
 
 /**
@@ -127,7 +128,7 @@ export class GeminiTTSAdapter<
    */
   override readonly capabilities: TTSCapabilities = { maxSpeakers: 2 }
 
-  private readonly client: GoogleGenAI
+  private readonly client: GeminiClient
 
   constructor(config: GeminiTTSConfig, model: TModel) {
     super(model, config)
@@ -215,6 +216,7 @@ export class GeminiTTSAdapter<
         config: {
           responseModalities: ['AUDIO'],
           speechConfig,
+          ...(options.abortSignal && { abortSignal: options.abortSignal }),
           // systemInstruction belongs inside `config` per the @google/genai
           // contract — matches sibling Gemini adapters (summarize, text).
           ...(modelOptions?.systemInstruction && {
@@ -223,12 +225,22 @@ export class GeminiTTSAdapter<
         },
       })
 
+      // Surface token usage (with per-modality breakdown) when Gemini reports
+      // it. Spread conditionally for exactOptionalPropertyTypes. The no-audio
+      // errors carry it too, because the provider already billed the tokens.
+      const usageField = response.usageMetadata
+        ? { usage: buildGeminiUsage(response.usageMetadata) }
+        : {}
+
       // Extract audio data from response
       const candidate = response.candidates?.[0]
       const parts = candidate?.content?.parts
 
       if (!parts || parts.length === 0) {
-        throw new Error('No audio output received from Gemini TTS')
+        throw Object.assign(
+          new Error('No audio output received from Gemini TTS'),
+          usageField,
+        )
       }
 
       // Look for inline data (audio)
@@ -237,19 +249,15 @@ export class GeminiTTSAdapter<
       )
 
       if (!audioPart || !audioPart.inlineData || !audioPart.inlineData.data) {
-        throw new Error('No audio data in Gemini TTS response')
+        throw Object.assign(
+          new Error('No audio data in Gemini TTS response'),
+          usageField,
+        )
       }
 
       const audioBase64 = audioPart.inlineData.data
       // mime is guaranteed by the `startsWith('audio/')` find predicate above.
       const mimeType = audioPart.inlineData.mimeType as string
-
-      // Surface token usage (with per-modality breakdown) when Gemini reports
-      // it. Spread conditionally for exactOptionalPropertyTypes — shared by both
-      // the PCM→WAV and pass-through return paths below.
-      const usageField = response.usageMetadata
-        ? { usage: buildGeminiUsage(response.usageMetadata) }
-        : {}
 
       // Gemini TTS models return raw 16-bit LE PCM with a mime type like
       // `audio/L16;codec=pcm;rate=24000`. That isn't playable in an <audio>

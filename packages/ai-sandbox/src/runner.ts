@@ -415,17 +415,24 @@ export async function* spawnNdjson(
     }
   })()
 
-  for await (const line of toLines(proc.stdout)) {
-    const trimmed = line.trim()
-    if (trimmed === '') continue
-    let parsed: unknown
-    try {
-      parsed = JSON.parse(trimmed)
-    } catch {
-      onNonJsonLine?.(trimmed)
-      continue
+  // A consumer that stops early (or throws) leaves the agent running. Kill it.
+  let isRead = false
+  try {
+    for await (const line of toLines(proc.stdout)) {
+      const trimmed = line.trim()
+      if (trimmed === '') continue
+      let parsed: unknown
+      try {
+        parsed = JSON.parse(trimmed)
+      } catch {
+        onNonJsonLine?.(trimmed)
+        continue
+      }
+      yield parsed
     }
-    yield parsed
+    isRead = true
+  } finally {
+    if (!isRead) await proc.kill().catch(() => undefined)
   }
 
   const exitCode = await proc.wait()

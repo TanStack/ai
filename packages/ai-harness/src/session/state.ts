@@ -1,6 +1,7 @@
 import {
   INTERRUPT_BINDING_METADATA_KEY,
   convertSchemaToJsonSchema,
+  stableJson,
   validateJsonSchema,
   validateWithStandardSchema,
 } from '@tanstack/ai'
@@ -11,7 +12,7 @@ import { transcriptText } from '../first-party/session-tools'
 import { LogOwnedElsewhereError } from '../ownership'
 import { isRecord } from '../utils'
 import { changedEntry } from '../session-entry'
-import { messageIdsOfUser, stableJson, visibleMessages } from '../log'
+import { messageIdsOfUser, visibleMessages } from '../log'
 import { agentRunThread, isHumanTarget } from '../log-records'
 import { mediaIdOf, mediaOfMessage, mediaPart } from '../media-ref'
 import {

@@ -190,6 +190,27 @@ const text = await handle.fs.read('/workspace/README.md', {
 
 `bootstrapWorkspace(handle, workspace, { signal })` gives its signal to each file call that it makes. A bring-your-own provider must reject a call when the signal is already aborted.
 
+### Stop a snapshot, fork, or port call
+
+`snapshot(label, { signal })`, `fork({ signal })`, and `ports.connect(port, { signal })` take a signal too:
+
+```ts
+import { e2bSandbox } from '@tanstack/ai-sandbox-e2b'
+
+const handle = await e2bSandbox().create({})
+const controller = new AbortController()
+
+const ref = await handle.snapshot?.('after-setup', {
+  signal: controller.signal,
+})
+```
+
+- E2B gives the signal to `snapshot` and `fork`.
+- Docker gives the signal to `snapshot`, `fork`, and `ports.connect`.
+- Sprites gives the signal to `snapshot`.
+- boxd stops waiting for the snapshot or the fork. An aborted fork is deleted.
+- The other bundled providers ignore the signal for these calls. Their SDKs take no signal.
+
 ## Advanced
 
 Each provider has its own options and limits: idle timers, ports, network rules, non-root users, and snapshot behavior. Read them in [Providers (Advanced)](./providers-advanced) before you go to production.

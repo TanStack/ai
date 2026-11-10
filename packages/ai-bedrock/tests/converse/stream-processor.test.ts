@@ -150,6 +150,7 @@ describe('processConverseStream', () => {
       ['tool_use', 'tool_calls'],
       ['max_tokens', 'length'],
       ['content_filtered', 'content_filter'],
+      ['guardrail_intervened', 'content_filter'],
       ['end_turn', 'stop'],
       ['some_unknown_reason', 'stop'],
     ]
@@ -229,6 +230,30 @@ describe('processConverseStream', () => {
       completionTokens: 7,
       totalTokens: 132,
       promptTokensDetails: { cachedTokens: 100, cacheWriteTokens: 20 },
+    })
+  })
+
+  it('reports the 1-hour cache write from cacheDetails as cacheWrite1hTokens', async () => {
+    const usage = await finishedUsage({
+      inputTokens: 5,
+      outputTokens: 7,
+      totalTokens: 1012,
+      cacheReadInputTokens: 0,
+      cacheWriteInputTokens: 1000,
+      cacheDetails: [
+        { ttl: '5m', inputTokens: 200 },
+        { ttl: '1h', inputTokens: 800 },
+      ],
+    })
+    expect(usage).toEqual({
+      promptTokens: 1005,
+      completionTokens: 7,
+      totalTokens: 1012,
+      promptTokensDetails: {
+        cachedTokens: 0,
+        cacheWriteTokens: 1000,
+        cacheWrite1hTokens: 800,
+      },
     })
   })
 

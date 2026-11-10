@@ -3,7 +3,7 @@ id: ScoreAnswer
 title: ScoreAnswer
 ---
 
-Defined in: [packages/ai/src/activities/evaluate/index.ts:78](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/evaluate/index.ts#L78)
+Defined in: [packages/ai/src/activities/evaluate/index.ts:83](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/evaluate/index.ts#L83)
 
 Public score answer. `.value` is the nearest level label.
 `.score` is the raw TypeSafe fraction.
@@ -22,7 +22,7 @@ Public score answer. `.value` is the nearest level label.
 confidence: number;
 ```
 
-Defined in: [packages/ai/src/activities/evaluate/index.ts:83](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/evaluate/index.ts#L83)
+Defined in: [packages/ai/src/activities/evaluate/index.ts:88](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/evaluate/index.ts#L88)
 
 ***
 
@@ -32,7 +32,7 @@ Defined in: [packages/ai/src/activities/evaluate/index.ts:83](https://github.com
 legend: Record<string, string>;
 ```
 
-Defined in: [packages/ai/src/activities/evaluate/index.ts:85](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/evaluate/index.ts#L85)
+Defined in: [packages/ai/src/activities/evaluate/index.ts:90](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/evaluate/index.ts#L90)
 
 ***
 
@@ -42,7 +42,7 @@ Defined in: [packages/ai/src/activities/evaluate/index.ts:85](https://github.com
 probabilities: Record<string, number>;
 ```
 
-Defined in: [packages/ai/src/activities/evaluate/index.ts:86](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/evaluate/index.ts#L86)
+Defined in: [packages/ai/src/activities/evaluate/index.ts:91](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/evaluate/index.ts#L91)
 
 ***
 
@@ -52,7 +52,7 @@ Defined in: [packages/ai/src/activities/evaluate/index.ts:86](https://github.com
 probability: number;
 ```
 
-Defined in: [packages/ai/src/activities/evaluate/index.ts:82](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/evaluate/index.ts#L82)
+Defined in: [packages/ai/src/activities/evaluate/index.ts:87](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/evaluate/index.ts#L87)
 
 P(nearest level).
 
@@ -64,7 +64,7 @@ P(nearest level).
 score: number;
 ```
 
-Defined in: [packages/ai/src/activities/evaluate/index.ts:84](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/evaluate/index.ts#L84)
+Defined in: [packages/ai/src/activities/evaluate/index.ts:89](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/evaluate/index.ts#L89)
 
 ***
 
@@ -74,7 +74,7 @@ Defined in: [packages/ai/src/activities/evaluate/index.ts:84](https://github.com
 type: "score";
 ```
 
-Defined in: [packages/ai/src/activities/evaluate/index.ts:79](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/evaluate/index.ts#L79)
+Defined in: [packages/ai/src/activities/evaluate/index.ts:84](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/evaluate/index.ts#L84)
 
 ***
 
@@ -84,4 +84,4 @@ Defined in: [packages/ai/src/activities/evaluate/index.ts:79](https://github.com
 value: TLevel;
 ```
 
-Defined in: [packages/ai/src/activities/evaluate/index.ts:80](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/evaluate/index.ts#L80)
+Defined in: [packages/ai/src/activities/evaluate/index.ts:85](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/evaluate/index.ts#L85)

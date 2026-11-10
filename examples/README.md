@@ -7,6 +7,7 @@ This directory contains comprehensive examples demonstrating TanStack AI across 
 Choose an example based on your use case:
 
 - **Want the smallest React + Start chat?** → [Basic Chat](#basic-chat)
+- **Want a chat server written with Effect?** → [Effect Chat](#effect-chat)
 - **Want an image from a prompt?** → [Generate Image](#generate-image)
 - **Want a table that fills as JSON streams?** → [Streaming Structured Table](#streaming-structured-table)
 - **Want typed ticket routing?** → [Evaluate](#evaluate)
@@ -38,6 +39,24 @@ pnpm --filter basic-chat dev
 Open http://localhost:3100. Paste an OpenRouter key. Send a message.
 
 📖 [Full Documentation](react/basic-chat/README.md)
+
+---
+
+### Effect Chat
+
+A slim TanStack Start chat with an Effect server. One provider (OpenAI). `@tanstack/ai-effect` streams the chat, and one tool is an Effect that reads a service from a Layer.
+
+**Path:** `examples/react/effect-chat`
+
+**Getting Started:**
+
+```bash
+pnpm --filter effect-chat dev
+```
+
+Put `OPENAI_API_KEY` in `.env.local`. Open http://localhost:3100. Send `What is the weather in Oslo?`.
+
+📖 [Full Documentation](react/effect-chat/README.md)
 
 ---
 

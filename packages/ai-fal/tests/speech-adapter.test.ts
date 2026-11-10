@@ -20,11 +20,13 @@ let mockSubscribe: any
 let mockConfig: any
 
 // Mock the fal.ai client
-vi.mock('@fal-ai/client', () => {
+vi.mock('../src/client', () => {
   return {
-    fal: {
-      subscribe: (...args: Array<unknown>) => mockSubscribe(...args),
-      config: (...args: Array<unknown>) => mockConfig(...args),
+    createFalClient: (...args: Array<unknown>) => {
+      mockConfig(...args)
+      return {
+        subscribe: (...args: Array<unknown>) => mockSubscribe(...args),
+      }
     },
   }
 })
@@ -190,7 +192,10 @@ describe('Fal Speech Adapter', () => {
     })
 
     expect(result.format).toBe('mp3')
-    expect(mockFetch).toHaveBeenCalledWith('https://fal.media/files/speech.mp3')
+    expect(mockFetch).toHaveBeenCalledWith(
+      'https://fal.media/files/speech.mp3',
+      undefined,
+    )
   })
 
   it('handles large audio payloads without blowing the stack', async () => {

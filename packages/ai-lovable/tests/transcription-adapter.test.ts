@@ -96,4 +96,30 @@ describe('Lovable transcription adapter', () => {
       }),
     ).rejects.toThrow(/Conflicting response formats/)
   })
+
+  it('maps duration usage to billed seconds', async () => {
+    const adapter = new TestLovableTranscriptionAdapter(
+      { apiKey: 'test-api-key' },
+      'openai/gpt-4o-mini-transcribe',
+    )
+    adapter.spyOnTranscriptionsCreate().mockResolvedValueOnce({
+      text: 'hello world',
+      usage: { type: 'duration', seconds: 7 },
+    })
+
+    const result = await adapter.transcribe({
+      model: 'openai/gpt-4o-mini-transcribe',
+      audio: new File([new Uint8Array([1, 2, 3])], 'clip.mp3', {
+        type: 'audio/mpeg',
+      }),
+      logger: testLogger,
+    })
+
+    expect(result.usage).toEqual({
+      promptTokens: 0,
+      completionTokens: 0,
+      totalTokens: 0,
+      billed: { quantity: 7, unit: 'seconds' },
+    })
+  })
 })

@@ -16,18 +16,17 @@ import type { AdapterYieldChunk, Tool } from '@tanstack/ai'
 
 const testLogger = resolveDebugOption(false)
 
-vi.mock('openai', () => {
-  return {
-    default: class {
-      responses = {
-        create: vi.fn(),
-      }
-      images = {
-        generate: vi.fn(),
-      }
+vi.mock('@tanstack/openai-base', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@tanstack/openai-base')>()),
+  createOpenAIClient: () => ({
+    responses: {
+      create: vi.fn(),
     },
-  }
-})
+    images: {
+      generate: vi.fn(),
+    },
+  }),
+}))
 
 function createAsyncIterable<T>(chunks: Array<T>): AsyncIterable<T> {
   return {
@@ -518,6 +517,7 @@ describe('Grok adapters', () => {
 
       expect(mockGenerate).toHaveBeenCalledWith(
         expect.objectContaining({ model: 'grok-imagine-image', prompt }),
+        expect.anything(),
       )
     })
 
@@ -541,6 +541,7 @@ describe('Grok adapters', () => {
           aspect_ratio: '16:9',
           resolution: '2k',
         }),
+        expect.anything(),
       )
       expect(mockGenerate.mock.calls[0]![0]).not.toHaveProperty('size')
     })
@@ -568,6 +569,7 @@ describe('Grok adapters', () => {
           aspect_ratio: '16:9',
           quality: 'low',
         }),
+        expect.anything(),
       )
     })
   })

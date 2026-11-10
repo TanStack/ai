@@ -237,6 +237,7 @@ async function runGenerateVoice<
 
   const mwCtx = createGenerationContext({
     requestId,
+    signal: abortControls.signal,
     activity: 'voice',
     provider: adapter.name,
     model,

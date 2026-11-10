@@ -360,6 +360,85 @@ describe('translateAcpStream', () => {
     expect(chunks.at(-1)).toMatchObject({ type: 'RUN_ERROR', code: 'refusal' })
   })
 
+  it('puts usage on the refusal RUN_ERROR', async () => {
+    const chunks = await collect([
+      session,
+      {
+        kind: 'done',
+        stopReason: 'refusal',
+        usage: { inputTokens: 50, outputTokens: 10, totalTokens: 60 },
+      },
+    ])
+    expect(chunks.at(-1)).toMatchObject({
+      type: 'RUN_ERROR',
+      code: 'refusal',
+      usage: { promptTokens: 50, completionTokens: 10, totalTokens: 60 },
+    })
+  })
+
+  it('maps cachedWriteTokens to cacheWriteTokens', async () => {
+    const chunks = await collect([
+      session,
+      {
+        kind: 'done',
+        stopReason: 'end_turn',
+        usage: {
+          inputTokens: 50,
+          outputTokens: 10,
+          totalTokens: 60,
+          cachedReadTokens: 20,
+          cachedWriteTokens: 7,
+        },
+      },
+    ])
+    expect(chunks.at(-1)).toMatchObject({
+      type: 'RUN_FINISHED',
+      usage: {
+        promptTokensDetails: { cachedTokens: 20, cacheWriteTokens: 7 },
+      },
+    })
+  })
+
+  it('keeps the session cost of the last usage_update in providerUsageDetails', async () => {
+    const chunks = await collect([
+      session,
+      {
+        kind: 'update',
+        update: {
+          sessionUpdate: 'usage_update',
+          used: 900,
+          size: 200000,
+          cost: { amount: 0.01, currency: 'USD' },
+        },
+      },
+      {
+        kind: 'update',
+        update: {
+          sessionUpdate: 'usage_update',
+          used: 1200,
+          size: 200000,
+          cost: { amount: 0.03, currency: 'USD' },
+        },
+      },
+      {
+        kind: 'done',
+        stopReason: 'end_turn',
+        usage: { inputTokens: 50, outputTokens: 10, totalTokens: 60 },
+      },
+    ])
+    const finished = chunks.at(-1)
+    expect(finished).toMatchObject({
+      type: 'RUN_FINISHED',
+      usage: {
+        providerUsageDetails: {
+          sessionCost: { amount: 0.03, currency: 'USD' },
+        },
+      },
+    })
+    // The session total includes earlier turns, so it is not the run cost.
+    expect(finished).not.toHaveProperty('usage.cost')
+  })
+
   it('reports usage from the prompt response when present', async () => {
     const chunks = await collect([
       session,

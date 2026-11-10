@@ -7,7 +7,7 @@ import { test, expect } from './fixtures'
  * of each request.
  */
 test.describe('OpenAI Responses answer items on replay', () => {
-  test('sends id and phase to the same model and plain text to another model', async ({
+  test('keeps both item ids and phases after a client and wire round trip', async ({
     request,
   }) => {
     const response = await request.post('/api/responses-answer-items-wire')
@@ -26,6 +26,14 @@ test.describe('OpenAI Responses answer items on replay', () => {
       {
         type: 'message',
         role: 'assistant',
+        id: 'msg_commentary_1',
+        status: 'completed',
+        phase: 'commentary',
+        content: [{ type: 'output_text', text: 'Working', annotations: [] }],
+      },
+      {
+        type: 'message',
+        role: 'assistant',
         id: 'msg_answer_1',
         status: 'completed',
         phase: 'final_answer',
@@ -33,7 +41,7 @@ test.describe('OpenAI Responses answer items on replay', () => {
       },
     ])
     expect(result.otherModel).toEqual([
-      { type: 'message', role: 'assistant', content: 'Hi there' },
+      { type: 'message', role: 'assistant', content: 'WorkingHi there' },
     ])
   })
 })

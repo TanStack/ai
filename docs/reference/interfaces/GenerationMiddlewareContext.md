@@ -39,7 +39,7 @@ Which activity this call is. Discriminates media from chat.
 optional artifactInputs?: unknown;
 ```
 
-Defined in: [packages/ai/src/activities/middleware/types.ts:108](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/middleware/types.ts#L108)
+Defined in: [packages/ai/src/activities/middleware/types.ts:114](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/middleware/types.ts#L114)
 
 Activity inputs captured for middleware that needs to transform or persist
 the result together with reconstructable request metadata.
@@ -137,7 +137,7 @@ hooks of a single activity call.
 resultTransforms: GenerationResultTransform<any, TContext>[];
 ```
 
-Defined in: [packages/ai/src/activities/middleware/types.ts:103](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/middleware/types.ts#L103)
+Defined in: [packages/ai/src/activities/middleware/types.ts:109](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/middleware/types.ts#L109)
 
 Result transforms registered by middleware during this activity call.
 Transforms run after the raw adapter result exists and before the final
@@ -163,6 +163,20 @@ optional runId?: string;
 Defined in: [packages/ai/src/activities/middleware/types.ts:76](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/middleware/types.ts#L76)
 
 Stable run id, when supplied by the caller.
+
+***
+
+### signal?
+
+```ts
+optional signal?: AbortSignal;
+```
+
+Defined in: [packages/ai/src/activities/middleware/types.ts:94](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/middleware/types.ts#L94)
+
+The activity's effective abort signal (caller `abortSignal` plus
+`timeout`), when the call has one. Pass it to async work in a result
+transform, such as an upload, so a cancelled call stops that work too.
 
 ***
 

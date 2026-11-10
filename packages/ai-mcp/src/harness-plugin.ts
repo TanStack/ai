@@ -642,7 +642,7 @@ export function askForInput(
  * never go to the user of another run.
  */
 export function elicitFor(calling: ReadonlyArray<Caller>): OnElicit {
-  return async (params) => {
+  return async (params, signal) => {
     const [caller] = calling
     if (!caller) return { action: 'decline' }
     const isOneRun = calling.every(
@@ -652,7 +652,7 @@ export function elicitFor(calling: ReadonlyArray<Caller>): OnElicit {
         other.run.runId === caller.run?.runId,
     )
     if (!isOneRun) return { action: 'decline' }
-    return elicitResult(await ask(caller.session, params, caller.run))
+    return elicitResult(await ask(caller.session, params, caller.run, signal))
   }
 }
 
@@ -665,6 +665,7 @@ async function ask(
   session: PluginSessionApi,
   request: unknown,
   run: RunContext | undefined,
+  signal?: AbortSignal,
 ) {
   if (!run) return { action: 'decline' }
   const body = isRecord(request) ? request : {}
@@ -679,6 +680,8 @@ async function ask(
       ? body.requestedSchema
       : undefined,
     ...(url ? { url } : {}),
+    // The server cancelled its request: the question stops too.
+    ...(signal ? { signal } : {}),
     live: { name: 'mcp-elicitation', run },
   })
   // A URL request has no content: the answer only says "done".

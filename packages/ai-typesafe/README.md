@@ -53,6 +53,8 @@ export TYPESAFE_API_KEY="..."
 import { boolean, choice, decide, score } from '@tanstack/ai'
 import { typesafeDecider } from '@tanstack/ai-typesafe'
 
+const ticket = 'My payouts have been failing for 3 days'
+
 const result = await decide({
   adapter: typesafeDecider('jev-latest'),
   state: ticket,

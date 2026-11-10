@@ -48,6 +48,8 @@ export class OllamaEmbeddingAdapter<
   readonly name = 'ollama' as const
 
   protected client: Ollama
+  /** The config of the adapter's own client. An injected client has none. */
+  private readonly clientConfig: OllamaEmbeddingConfig | undefined
 
   constructor(
     hostOrClientOrConfig: string | Ollama | OllamaEmbeddingConfig | undefined,
@@ -58,12 +60,14 @@ export class OllamaEmbeddingAdapter<
       typeof hostOrClientOrConfig === 'string' ||
       hostOrClientOrConfig === undefined
     ) {
-      this.client = createOllamaClient({ host: hostOrClientOrConfig })
+      this.clientConfig = { host: hostOrClientOrConfig }
+      this.client = createOllamaClient(this.clientConfig)
     } else if ('embed' in hostOrClientOrConfig) {
       // Ollama client instance (has an embed method)
       this.client = hostOrClientOrConfig
     } else {
       // OllamaEmbeddingConfig object
+      this.clientConfig = hostOrClientOrConfig
       this.client = createOllamaClient(hostOrClientOrConfig)
     }
   }
@@ -102,7 +106,16 @@ export class OllamaEmbeddingAdapter<
         { provider: this.name, model },
       )
 
-      const response: EmbedResponse = await this.client.embed(request)
+      // `ollama` takes no per-call signal, so a call with a signal uses a
+      // client whose fetch carries it. An injected client cannot take one.
+      const signal = options.abortSignal
+      const client =
+        signal && this.clientConfig
+          ? createOllamaClient(this.clientConfig, (input, init) =>
+              fetch(input, { ...init, signal }),
+            )
+          : this.client
+      const response: EmbedResponse = await client.embed(request)
 
       // Include usage only when Ollama actually reported a prompt token count.
       const promptEvalCount = extractPromptEvalCount(response)

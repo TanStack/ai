@@ -1,6 +1,6 @@
 {
   "name": "@tanstack/ai-groq",
-  "version": "1.0.0",
+  "version": "1.0.2",
   "description": "Groq adapter for TanStack AI low-latency chat, tool calling, and structured outputs.",
   "author": "Tanner Linsley",
   "license": "MIT",
@@ -34,6 +34,7 @@
       "import": "./dist/esm/tools/index.js"
     }
   },
+  "sideEffects": false,
   "files": [
     "dist",
     "src"

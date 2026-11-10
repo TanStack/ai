@@ -21,8 +21,10 @@ function finiteNumber(value: unknown): number | undefined {
  *
  * Responses puts it on `provider_metadata.gateway` (`cost`, `marketCost`,
  * `generationId`, `routing.finalProvider`). Chat Completions can put `cost`
- * and `market_cost` on `usage`. `cost` is the amount debited. `marketCost`
- * is the list price, stored as `costDetails.upstreamCost`.
+ * and `market_cost` on `usage`. `gatewayCost` is the amount debited: `cost`
+ * plus `surchargeCost` (Custom Reporting writes, Zero Data Retention), so it
+ * is preferred; `cost` alone leaves the surcharge out. `marketCost` is the
+ * list price, stored as `costDetails.upstreamCost`.
  */
 export function withGatewayCost(
   usage: TokenUsage | undefined,
@@ -38,7 +40,8 @@ export function withGatewayCost(
   const nestedUsage = asRecord(record.usage)
   const bag = gateway ?? nestedUsage ?? record
 
-  const cost = finiteNumber(bag.cost)
+  const cost =
+    finiteNumber(bag.gatewayCost ?? bag.gateway_cost) ?? finiteNumber(bag.cost)
   if (cost === undefined) return usage
 
   const market = finiteNumber(bag.marketCost ?? bag.market_cost)
