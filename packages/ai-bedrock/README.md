@@ -85,16 +85,35 @@ const adapter = createBedrockText(
 )
 ```
 
+## Reranking
+
+Call `rerank()` with `bedrockRerank()` on the server to sort documents by relevance.
+
+First, install `@aws-sdk/credential-providers` and configure AWS credentials. Bedrock API keys do not work for reranking. See [Bedrock reranking](https://tanstack.com/ai/latest/docs/adapters/bedrock#reranking) for permissions and model configuration.
+
+```typescript
+import { rerank } from '@tanstack/ai'
+import { bedrockRerank } from '@tanstack/ai-bedrock'
+
+const { rerankedDocuments } = await rerank({
+  adapter: bedrockRerank('cohere.rerank-v3-5:0'),
+  query: 'talk about rain',
+  documents: ['sunny day at the beach', 'rainy afternoon in the city'],
+  topN: 2,
+})
+```
+
 ## Authentication
 
-Auth is resolved in this order:
+For chat and embeddings, auth is resolved in this order:
 
 1. Explicit `apiKey` passed to the factory
 2. `BEDROCK_API_KEY` environment variable
 3. `AWS_BEARER_TOKEN_BEDROCK` environment variable
 4. SigV4 via the AWS credential chain
 
-SigV4 signing is built in — no additional packages required. On the Converse
+SigV4 signing is built in. The AWS credential chain requires
+`@aws-sdk/credential-providers`. On the Converse
 (default) path the `@aws-sdk/client-bedrock-runtime` client signs requests
 itself; the OpenAI-compatible chat/responses paths sign via the bundled
 `@smithy/signature-v4`. Set `auth: 'sigv4'` and provide AWS credentials through

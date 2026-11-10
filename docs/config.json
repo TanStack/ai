@@ -994,7 +994,7 @@
           "label": "Reranking",
           "to": "rerank/rerank",
           "addedAt": "2026-06-25",
-          "updatedAt": "2026-11-02"
+          "updatedAt": "2026-11-09"
         }
       ],
       "tab": "guides"
@@ -1908,7 +1908,7 @@
           "label": "Amazon Bedrock",
           "to": "adapters/bedrock",
           "addedAt": "2026-06-25",
-          "updatedAt": "2026-11-02"
+          "updatedAt": "2026-11-09"
         },
         {
           "label": "BytePlus",

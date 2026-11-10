@@ -19,7 +19,7 @@ keywords:
   - adapter
 ---
 
-The Bedrock adapter calls Claude, Nova, Llama, Mistral, DeepSeek, and gpt-oss in your AWS account. It supports streaming, tools, reasoning, and embeddings.
+The Bedrock adapter calls Claude, Nova, Llama, Mistral, DeepSeek, and gpt-oss in your AWS account. It supports streaming, tools, reasoning, embeddings, and reranking.
 
 ## 1. Install
 
@@ -65,6 +65,8 @@ If a package is missing, the first request fails with an error that names the pa
 
 Bedrock takes an API key or your AWS credentials. Pick one.
 
+For reranking, use AWS credentials (SigV4). Bedrock API keys are not supported.
+
 **API key.** Create a key in the AWS Console. See the [Bedrock API keys guide](https://docs.aws.amazon.com/bedrock/latest/userguide/api-keys.html). Then set one of these variables:
 
 ```bash
@@ -81,7 +83,7 @@ AWS_SECRET_ACCESS_KEY=...
 AWS_SESSION_TOKEN=...   # optional, for temporary credentials
 ```
 
-With `auth: 'auto'` (the default), the adapter uses the first of these that it finds:
+For chat and embeddings, `auth: 'auto'` (the default) uses the first of these that it finds:
 
 1. An explicit `apiKey` passed to the factory.
 2. The `BEDROCK_API_KEY` environment variable.
@@ -220,6 +222,78 @@ const result = await embed({
 
 See the [Embeddings guide](../embeddings.md).
 
+## Reranking
+
+Call `rerank()` with `bedrockRerank()` to rank documents in your AWS account.
+
+1. Install the rerank packages:
+
+<!-- ::start:tabs variant="package-manager" mode="install" -->
+
+react: @tanstack/ai @tanstack/ai-bedrock @aws-sdk/credential-providers
+vue: @tanstack/ai @tanstack/ai-bedrock @aws-sdk/credential-providers
+solid: @tanstack/ai @tanstack/ai-bedrock @aws-sdk/credential-providers
+svelte: @tanstack/ai @tanstack/ai-bedrock @aws-sdk/credential-providers
+preact: @tanstack/ai @tanstack/ai-bedrock @aws-sdk/credential-providers
+angular: @tanstack/ai @tanstack/ai-bedrock @aws-sdk/credential-providers
+vanilla: @tanstack/ai @tanstack/ai-bedrock @aws-sdk/credential-providers
+octane: @tanstack/ai @tanstack/ai-bedrock @aws-sdk/credential-providers
+
+<!-- ::end:tabs -->
+
+2. Configure [AWS credentials](#2-set-the-credentials) on the server. The adapter uses the AWS credential chain, including profiles and IAM roles. Bedrock API keys cannot authenticate Rerank requests.
+
+Your role needs model access and these [permissions](https://docs.aws.amazon.com/bedrock/latest/userguide/rerank-prereq.html):
+
+- `bedrock:Rerank`
+- `bedrock:InvokeModel` for the selected rerank model
+
+3. Call `rerank()` on the server:
+
+```typescript
+import { rerank } from '@tanstack/ai'
+import { bedrockRerank } from '@tanstack/ai-bedrock'
+
+const { ranking, rerankedDocuments } = await rerank({
+  adapter: bedrockRerank('cohere.rerank-v3-5:0'),
+  query: 'talk about rain',
+  documents: ['sunny day at the beach', 'rainy afternoon in the city'],
+  topN: 2,
+})
+
+console.log(rerankedDocuments[0]) // 'rainy afternoon in the city'
+console.log(ranking[0]?.index) // 1
+```
+
+| Model | ID | Example region |
+| --- | --- | --- |
+| Cohere Rerank 3.5 | `cohere.rerank-v3-5:0` | `us-east-1` (default) |
+| Amazon Rerank 1.0 | `amazon.rerank-v1:0` | `us-west-2` |
+
+Amazon Rerank is not available in `us-east-1`. Select a [supported region](https://docs.aws.amazon.com/bedrock/latest/userguide/rerank-supported.html):
+
+```typescript
+import { bedrockRerank } from '@tanstack/ai-bedrock'
+
+const adapter = bedrockRerank('amazon.rerank-v1:0', { region: 'us-west-2' })
+```
+
+Pass these options in `bedrockRerank(model, config)` (`BedrockRerankConfig`):
+
+| Option | Description |
+| --- | --- |
+| `region` | AWS region for both the model and request signing. Defaults to `us-east-1`. |
+| `baseURL` | Overrides the agent-runtime URL, without the `/rerank` suffix. |
+| `defaultHeaders` | Headers to add before SigV4 signing. |
+| `fetch` | Custom fetch transport. The adapter still signs each request. |
+
+- Pass 1 to 1,000 documents. `topN` must be an integer from 1 to 1,000.
+- Without `topN`, the adapter requests all documents and collects any result pages.
+- Pass model-specific inference fields through `modelOptions.additionalModelRequestFields`.
+- AWS reports no usage for this API. Token counts are zero, and `usage.billed` and `usage.cost` are absent. Zero counts do not mean the request is free.
+
+The result keeps your original documents in relevance order. For object documents and cancellation, see [Reranking](../rerank/rerank).
+
 ## Models and options
 
 ### Choose the API
@@ -277,6 +351,7 @@ The package ships a catalog of confirmed model ids (`src/model-catalog.generated
 | Meta Llama | `us.meta.llama4-maverick-17b-instruct-v1:0`, `us.meta.llama3-3-70b-instruct-v1:0` |
 | Other chat | `openai.gpt-oss-120b-1:0`, `openai.gpt-oss-20b-1:0`, `us.mistral.pixtral-large-2502-v1:0`, `us.deepseek.r1-v1:0`, `google.gemma-4-31b`, `google.gemma-4-26b-a4b`, `google.gemma-4-e2b` |
 | Embeddings | `amazon.titan-embed-text-v2:0`, `amazon.titan-embed-image-v1`, `cohere.embed-english-v3`, `cohere.embed-multilingual-v3` |
+| Reranking | `amazon.rerank-v1:0`, `cohere.rerank-v3-5:0` |
 
 `adapter.inputModalities` lists the input kinds of a model in the catalog. If this package does not know the model id, `bedrockText` and `createBedrockText` throw. `createBedrockChat`, `createBedrockResponsesText`, and `createBedrockConverse` return `undefined` for that id. See [Check what a model accepts](../advanced/extend-adapter#check-what-a-model-accepts).
 
@@ -457,8 +532,9 @@ for await (const chunk of chat({
 | `bedrockText(model, config?)` | Chat adapter with auth from the environment. Returns the adapter of the `api` that you pick |
 | `createBedrockText(model, apiKey, config?)` | Chat adapter with an explicit API key. Skips the environment lookup |
 | `bedrockEmbedding(model, config?)` / `createBedrockEmbedding(model, apiKey, config?)` | Embedding adapter for Titan and Cohere models |
+| `bedrockRerank(model, config?)` | Rerank adapter for Amazon and Cohere models. Uses AWS credentials only |
 
-`config` takes `api`, `region`, `auth`, `apiKey`, `baseURL`, `defaultHeaders`, and `endpoint`. See [Configuration](#configuration).
+For chat, `config` takes `api`, `region`, `auth`, `apiKey`, `baseURL`, `defaultHeaders`, and `endpoint`. See [Configuration](#configuration).
 
 More from AWS:
 

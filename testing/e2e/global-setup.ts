@@ -3,6 +3,7 @@ import fs from 'fs'
 import http from 'http'
 import path from 'path'
 import { fileURLToPath } from 'url'
+import { isDeepStrictEqual } from 'node:util'
 import { EventStreamCodec } from '@smithy/eventstream-codec'
 import type { Mountable } from '@copilotkit/aimock'
 
@@ -178,6 +179,7 @@ export default async function globalSetup() {
   // which request sections ended with a `cachePoint` block and answers with
   // Bedrock's cache usage counters; the companion spec asserts both.
   mock.mount('/bedrock-converse-cache', bedrockConverseCacheMount())
+  mock.mount('/bedrock-rerank', bedrockRerankMount())
 
   // decide() usage on a failed answer mapping. aimock has no OpenAI Decisions
   // endpoint, so this mount hand-crafts a `/v1/decisions` response with valid
@@ -2641,6 +2643,90 @@ function bedrockConverseCacheMount(): Mountable {
         }),
       )
       res.end()
+      return true
+    },
+  }
+}
+
+/** Validate the Bedrock Rerank wire format before serving stateless result pages. */
+function bedrockRerankMount(): Mountable {
+  return {
+    async handleRequest(req, res, pathname) {
+      if (req.method !== 'POST' || pathname !== '/rerank') return false
+      const body = await readJsonRequestBody(req)
+      const config = asRecord(
+        asRecord(body?.rerankingConfiguration)?.bedrockRerankingConfiguration,
+      )
+      const modelArn = asRecord(config?.modelConfiguration)?.modelArn
+      const count = config?.numberOfResults
+      const token = body?.nextToken
+      const authorization = req.headers.authorization ?? ''
+      const modelAllowed =
+        modelArn ===
+          'arn:aws:bedrock:us-west-2::foundation-model/cohere.rerank-v3-5:0' ||
+        modelArn ===
+          'arn:aws:bedrock:us-west-2::foundation-model/amazon.rerank-v1:0'
+      const expectedBody = {
+        queries: [{ type: 'TEXT', textQuery: { text: 'talk about rain' } }],
+        sources: [
+          '{"id":"sun","text":"sunny day at the beach"}',
+          '{"id":"rain","text":"rainy afternoon in the city"}',
+          '{"id":"snow","text":"snow in the mountains"}',
+        ].map((text) => ({
+          type: 'INLINE',
+          inlineDocumentSource: { type: 'TEXT', textDocument: { text } },
+        })),
+        rerankingConfiguration: {
+          type: 'BEDROCK_RERANKING_MODEL',
+          bedrockRerankingConfiguration: {
+            modelConfiguration: { modelArn },
+            numberOfResults: count,
+          },
+        },
+        ...(token === undefined ? {} : { nextToken: token }),
+      }
+      res.setHeader('Content-Type', 'application/json')
+      if (
+        !modelAllowed ||
+        (count !== 1 && count !== 3) ||
+        (token !== undefined && (token !== 'rain-page-2' || count !== 3)) ||
+        !isDeepStrictEqual(body, expectedBody) ||
+        !authorization.startsWith(
+          'AWS4-HMAC-SHA256 Credential=AKIA_BEDROCK_E2E/',
+        ) ||
+        !authorization.includes('/us-west-2/bedrock/aws4_request') ||
+        !authorization.includes('x-test-id') ||
+        !req.headers['x-test-id'] ||
+        !/^[a-f0-9]{64}$/.test(String(req.headers['x-amz-content-sha256'])) ||
+        req.headers['content-type'] !== 'application/json'
+      ) {
+        res.statusCode = 400
+        res.end(
+          JSON.stringify({
+            message: 'Invalid Bedrock rerank request or signing scope',
+          }),
+        )
+        return true
+      }
+      res.setHeader(
+        'x-amzn-requestid',
+        token ? 'rerank-page-2' : 'rerank-page-1',
+      )
+      res.end(
+        JSON.stringify(
+          token
+            ? {
+                results: [
+                  { index: 2, relevanceScore: 0.3 },
+                  { index: 0, relevanceScore: 0.1 },
+                ],
+              }
+            : {
+                results: [{ index: 1, relevanceScore: 0.98 }],
+                ...(count === 3 ? { nextToken: 'rain-page-2' } : {}),
+              },
+        ),
+      )
       return true
     },
   }

@@ -2,7 +2,7 @@
   "name": "@tanstack/ai-bedrock",
   "version": "1.2.1",
   "type": "module",
-  "description": "Amazon Bedrock adapter for TanStack AI — OpenAI-compatible chat, responses, tools, and reasoning.",
+  "description": "Amazon Bedrock adapter for TanStack AI with chat, tools, reasoning, embeddings, and reranking.",
   "author": "",
   "license": "MIT",
   "repository": {

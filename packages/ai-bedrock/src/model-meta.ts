@@ -150,6 +150,15 @@ export const BEDROCK_CLAUDE_NO_FORCED_TOOL_FAMILIES: ReadonlyArray<string> = [
   'claude-sonnet-5-5',
 ]
 
+/** Models supported by the Bedrock Rerank API, separate from the chat catalog. */
+export const BEDROCK_RERANK_MODELS = [
+  'amazon.rerank-v1:0',
+  'cohere.rerank-v3-5:0',
+] as const
+
+/** Short model IDs accepted by the Bedrock rerank adapter. */
+export type BedrockRerankModel = (typeof BEDROCK_RERANK_MODELS)[number]
+
 // ============================================================================
 // Embedding models
 // ============================================================================
