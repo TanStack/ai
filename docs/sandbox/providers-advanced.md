@@ -418,7 +418,7 @@ Processes on Render:
 - Each command has its own process group, recorded in `/tmp/tsai`. `kill(signal)` sends the requested signal and abort sends `TERM`, then `KILL` after 2 s if the group is still alive. Signals other than `TERM`, `INT`, `HUP`, `QUIT` and `KILL` become `KILL`. A cancellation marker prevents delayed commands from starting.
 - A supervising shell stops remaining children before it reports exit. A kill finishes on the confirmed remote exit. An aborted `exec` resolves with the exit code of the signal.
 - If the host disconnects, the command keeps running in the sandbox. The [run journal](./journal) owns run identity, so a new host reads the output from the journal.
-- `read`, `readBytes`, and `write` use native file transfer. Each other file call is one command, about 0.6 s. Render allows 1,000 commands per minute for each user.
+- `read`, `readBytes`, and `write` use native file transfer. A read larger than 256 MiB throws the SDK's `SandboxDownloadTooLargeError`. Each other file call is one command, about 0.6 s. Render allows 1,000 commands per minute for each user.
 
 ## `writableStdin` per provider
 

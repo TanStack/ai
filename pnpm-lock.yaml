@@ -3642,7 +3642,7 @@ importers:
   packages/ai-sandbox-render:
     dependencies:
       '@renderinc/sdk':
-        specifier: ^1.5.0
+        specifier: ^1.8.0
         version: 1.8.0(@opentelemetry/api@1.9.1)
     devDependencies:
       '@tanstack/ai-sandbox':

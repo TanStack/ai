@@ -43,7 +43,7 @@
     "test:types": "tsc"
   },
   "dependencies": {
-    "@renderinc/sdk": "^1.5.0"
+    "@renderinc/sdk": "^1.8.0"
   },
   "peerDependencies": {
     "@tanstack/ai-sandbox": "workspace:^"
