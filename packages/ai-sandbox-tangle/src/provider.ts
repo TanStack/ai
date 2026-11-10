@@ -3,6 +3,7 @@ import {
   DEFAULT_WORKDIR,
   TANGLE_CAPS,
   TangleHandle,
+  deleteSandbox,
   parseSnapshotRefId,
   q,
 } from './handle'
@@ -136,6 +137,7 @@ class TangleProvider implements SandboxProvider {
     return this.sdk
   }
 
+  /** The SDK create options for a fresh sandbox or a snapshot restore. */
   private createOptions(input: {
     id?: string
     policy?: SandboxPolicy
@@ -217,6 +219,7 @@ class TangleProvider implements SandboxProvider {
     return handle
   }
 
+  /** Create a sandbox and its workdir; `input.id` rides along as metadata. */
   async create(input: SandboxCreateInput): Promise<SandboxHandle> {
     const sandbox = await createSandbox(
       this.client,
@@ -231,6 +234,7 @@ class TangleProvider implements SandboxProvider {
     return this.prepare(sandbox, input.env, input.signal)
   }
 
+  /** Create a new sandbox from a snapshot ref that `snapshot()` returned. */
   async restoreSnapshot(input: SandboxRestoreInput): Promise<SandboxHandle> {
     // `SandboxRestoreInput` carries a policy too. Dropping it would restore a
     // snapshot taken under `network: 'deny'` into a sandbox with open egress.
@@ -245,6 +249,7 @@ class TangleProvider implements SandboxProvider {
     return this.prepare(sandbox, input.env, input.signal)
   }
 
+  /** Reconnect to a sandbox by id, starting it if it stopped; `null` once it is gone. */
   async resume(input: SandboxResumeInput): Promise<SandboxHandle | null> {
     const { signal } = input
     signal?.throwIfAborted()
@@ -258,12 +263,13 @@ class TangleProvider implements SandboxProvider {
     return new TangleHandle({ sandbox, workdir: this.workdir })
   }
 
+  /** Delete a sandbox by id; one that is already gone is not an error. */
   async destroy(input: SandboxDestroyInput): Promise<void> {
     input.signal?.throwIfAborted()
     const sandbox = await this.client.get(input.id)
     if (sandbox === null || sandbox.status === 'deleted') return
     // Resolves `already_absent` for a sandbox that is already gone.
-    await sandbox.delete(input.signal ? { signal: input.signal } : {})
+    await deleteSandbox(sandbox, input.signal)
   }
 }
 

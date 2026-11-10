@@ -72,8 +72,10 @@ try {
   const run = await sbx.process.exec('node --version')
   console.log('node', run.stdout.trim(), '(exit', run.exitCode, ')')
 
+  const server = await sbx.process.spawn('python3 -m http.server 3000')
   const channel = await sbx.ports.connect(3000)
   console.log('preview url:', channel.url)
+  await server.kill()
 } finally {
   await sbx.destroy()
 }

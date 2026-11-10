@@ -209,8 +209,15 @@ describe.skipIf(!apiKey)('tangle provider (gated on TANGLE_API_KEY)', () => {
       await forked.fs.write('/workspace/only-in-fork.txt', 'x')
       expect(await src.fs.exists('/workspace/only-in-fork.txt')).toBe(false)
     } finally {
-      await Promise.allSettled([src?.destroy(), forked?.destroy()])
+      // Parent and fork at once: the parent's delete waits out the fork.
+      const destroyed = await Promise.allSettled([
+        src?.destroy(),
+        forked?.destroy(),
+      ])
+      expect(destroyed.filter((r) => r.status === 'rejected')).toEqual([])
     }
+    expect(await provider.resume({ id: src!.id })).toBeNull()
+    expect(await provider.resume({ id: forked!.id })).toBeNull()
   }, 600_000)
 
   it('resume reconnects to a live sandbox and returns null once it is destroyed', async () => {
@@ -260,11 +267,12 @@ describe.skipIf(!apiKey)('tangle provider (gated on TANGLE_API_KEY)', () => {
       forked = await denied!.fork!()
       expect((await forked.process.exec(PROBE)).stdout).not.toContain('200')
     } finally {
-      await Promise.allSettled([
+      const destroyed = await Promise.allSettled([
         denied?.destroy(),
         control?.destroy(),
         forked?.destroy(),
       ])
+      expect(destroyed.filter((r) => r.status === 'rejected')).toEqual([])
     }
   }, 600_000)
 

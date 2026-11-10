@@ -89,6 +89,7 @@ export function q(value: string): string {
   return `'${value.replace(/'/g, `'\\''`)}'`
 }
 
+/** The most useful text of a failed command for an error message. */
 function errText(r: { stdout: string; stderr: string }): string {
   return r.stderr.trim() || r.stdout.trim() || '(no output)'
 }
@@ -192,6 +193,7 @@ class ChunkQueue implements AsyncIterable<string> {
     private readonly onOverflow: () => void,
   ) {}
 
+  /** Queue a chunk; past the byte cap, emit the marker, close, and overflow. */
   push(chunk: string): void {
     if (this.closed) return
     this.bytes += Buffer.byteLength(chunk)
@@ -206,12 +208,14 @@ class ChunkQueue implements AsyncIterable<string> {
     this.emit(chunk)
   }
 
+  /** Hand a chunk to a waiting reader, or keep it for the next one. */
   private emit(chunk: string): void {
     const waiter = this.waiters.shift()
     if (waiter) waiter.resolve({ value: chunk, done: false })
     else this.chunks.push(chunk)
   }
 
+  /** End the stream once: readers finish, or reject with `error`. */
   close(error?: unknown): void {
     if (this.closed) return
     this.closed = true
@@ -242,11 +246,37 @@ class ChunkQueue implements AsyncIterable<string> {
   }
 }
 
+/** Delete attempts, a second apart, while a fork parent's children go away. */
+const DELETE_ATTEMPTS = 10
+
+/**
+ * Delete a sandbox. The API refuses to delete a fork parent while a fork of it
+ * exists (measured: `CHILDREN_EXIST` when parent and fork are destroyed at
+ * once, and the parent is left stopped), so that delete is tried again.
+ */
+export async function deleteSandbox(
+  sandbox: SandboxInstance,
+  signal?: AbortSignal,
+): Promise<void> {
+  for (let attempt = 1; ; attempt++) {
+    try {
+      await sandbox.delete(signal ? { signal } : {})
+      return
+    } catch (error) {
+      const code = (error as { code?: unknown } | null)?.code
+      if (code !== 'CHILDREN_EXIST' || attempt >= DELETE_ATTEMPTS) throw error
+      await new Promise((r) => setTimeout(r, 1000))
+      signal?.throwIfAborted()
+    }
+  }
+}
+
 /** A snapshot needs its source sandbox id to restore, so the ref carries both. */
 export function snapshotRefId(sandboxId: string, snapshotId: string): string {
   return `${sandboxId}:${snapshotId}`
 }
 
+/** Split a snapshot ref id back into its source sandbox id and snapshot id. */
 export function parseSnapshotRefId(id: string): {
   sandboxId: string
   snapshotId: string
@@ -422,6 +452,7 @@ export class TangleHandle implements SandboxHandle {
     }
   }
 
+  /** `lstat` through a command; a missing path is `undefined`. */
   private async lstat(
     path: string,
     signal?: AbortSignal,
@@ -500,6 +531,10 @@ export class TangleHandle implements SandboxHandle {
     }
   }
 
+  /**
+   * Start a background process. One log stream feeds the capped `stdout` and
+   * `stderr` queues; lost output or a dead API kills the process.
+   */
   private async spawnProcess(
     command: string,
     opts?: ProcessOptions,
@@ -600,8 +635,9 @@ export class TangleHandle implements SandboxHandle {
     })
   }
 
+  /** Delete the sandbox, waiting out a fork that is being destroyed at the same time. */
   async destroy(): Promise<void> {
-    await this.sandbox.delete()
+    await deleteSandbox(this.sandbox)
   }
 }
 
@@ -612,6 +648,7 @@ function lstatCommand(path: string): string {
   return `tanstack_lstat_path=${q(path)}; tanstack_lstat_output=$(stat -c '%f:%s' -- "$tanstack_lstat_path" 2>&1); tanstack_lstat_status=$?; if [ "$tanstack_lstat_status" -eq 0 ]; then printf '%s\n' "$tanstack_lstat_output"; else tanstack_lstat_missing() { tanstack_missing_path=$1; case "$tanstack_missing_path" in /|.) return 1 ;; */*) tanstack_parent=${'$'}{tanstack_missing_path%/*}; tanstack_name=${'$'}{tanstack_missing_path##*/}; [ -n "$tanstack_parent" ] || tanstack_parent=/ ;; *) tanstack_parent=.; tanstack_name=$tanstack_missing_path ;; esac; tanstack_parent_mode=$(stat -L -c '%f' -- "$tanstack_parent" 2>/dev/null); tanstack_parent_status=$?; if [ "$tanstack_parent_status" -ne 0 ]; then tanstack_lstat_missing "$tanstack_parent"; else case "$tanstack_parent_mode" in 4[0-9a-fA-F][0-9a-fA-F][0-9a-fA-F]) case "$tanstack_parent" in /*) tanstack_find_parent=$tanstack_parent ;; *) tanstack_find_parent=./$tanstack_parent ;; esac; tanstack_match=$(find -H "$tanstack_find_parent" -mindepth 1 -maxdepth 1 -exec sh -c 'tanstack_target=$1; shift; for tanstack_candidate do [ "${'$'}{tanstack_candidate##*/}" = "$tanstack_target" ] && { printf 1; exit 0; }; done; exit 0' sh "$tanstack_name" '{}' + 2>/dev/null); tanstack_find_status=$?; [ "$tanstack_find_status" -eq 0 ] && [ -z "$tanstack_match" ] ;; *) return 1 ;; esac; fi; }; if tanstack_lstat_missing "$tanstack_lstat_path"; then printf '%s' '${LSTAT_MISSING}'; else printf '%s\n' "$tanstack_lstat_output" >&2; exit "$tanstack_lstat_status"; fi; fi`
 }
 
+/** Parse `stat -c '%f:%s'` output into a typed stat. */
 function parseLstatOutput(output: string): SandboxFsStat {
   const fields = /^(?<mode>[0-9a-fA-F]{4}):(?<size>\d+)\n?$/.exec(output)
   const mode = fields?.groups?.mode
