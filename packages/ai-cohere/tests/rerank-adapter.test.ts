@@ -51,27 +51,69 @@ describe('CohereRerankAdapter', () => {
       fetchMock.mockImplementation(
         (_url, init) =>
           new Promise((_resolve, reject) => {
-            init?.signal?.addEventListener(
-              'abort',
-              () => reject(init.signal?.reason),
-              { once: true },
-            )
+            const signal = init?.signal
+            const fail = () => reject(signal?.reason)
+            if (signal?.aborted) fail()
+            else signal?.addEventListener('abort', fail, { once: true })
           }),
       )
+      const caller = new AbortController()
+      const deadline = timeout ?? 30_000
 
       const result = rerank({
-        adapter: createCohereRerank('rerank-v3.5', 'test-key', { timeout }),
+        adapter: createCohereRerank(
+          'rerank-v3.5',
+          'test-key',
+          timeout === undefined ? undefined : { timeout },
+        ),
         query: 'beach',
         documents,
+        abortSignal: caller.signal,
       })
       const rejected = expect(result).rejects.toMatchObject({
-        name: 'AbortError',
+        name: 'TimeoutError',
       })
-      await vi.advanceTimersByTimeAsync(timeout ?? 30_000)
+      await vi.advanceTimersByTimeAsync(deadline - 1)
+      expect(fetchMock.mock.calls[0]![1]?.signal?.aborted).toBe(false)
+      expect(caller.signal.aborted).toBe(false)
+      await vi.advanceTimersByTimeAsync(1)
       expect(fetchMock.mock.calls[0]![1]?.signal?.aborted).toBe(true)
+      expect(caller.signal.aborted).toBe(false)
       await rejected
     },
   )
+
+  it('aborts a stalled response body at the timeout', async () => {
+    vi.useFakeTimers()
+    fetchMock.mockImplementation((_url, init) => {
+      const signal = init?.signal
+      const stream = new ReadableStream({
+        start(controller) {
+          const fail = () => controller.error(signal?.reason)
+          if (signal?.aborted) fail()
+          else signal?.addEventListener('abort', fail, { once: true })
+        },
+      })
+      return new Response(stream, {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      })
+    })
+
+    const result = rerank({
+      adapter: createCohereRerank('rerank-v3.5', 'test-key', { timeout: 25 }),
+      query: 'beach',
+      documents,
+      debug: false,
+    })
+    const rejected = expect(result).rejects.toMatchObject({
+      name: 'TimeoutError',
+    })
+    await vi.advanceTimersByTimeAsync(24)
+    expect(fetchMock.mock.calls[0]![1]?.signal?.aborted).toBe(false)
+    await vi.advanceTimersByTimeAsync(1)
+    await rejected
+  })
 
   it('sends baseURL and defaultHeaders through to fetch', async () => {
     fetchMock.mockResolvedValue(cohereResponse(defaultBody()))

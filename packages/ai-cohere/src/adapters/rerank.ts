@@ -81,9 +81,9 @@ export class CohereRerankAdapter<
       { provider: this.name, model },
     )
 
-    let response: Response
+    let json: unknown
     try {
-      response = await fetchWithTimeout(
+      json = await fetchWithTimeout(
         `${this.baseUrl}/v2/rerank`,
         {
           method: 'POST',
@@ -96,6 +96,17 @@ export class CohereRerankAdapter<
           ...(abortSignal ? { signal: abortSignal } : {}),
         },
         this.timeout,
+        async (response): Promise<unknown> => {
+          if (!response.ok) {
+            const detail = await response.text().catch(() => '')
+            throw new Error(
+              `Cohere rerank request failed: ${response.status} ${response.statusText}${
+                detail ? ` — ${detail}` : ''
+              }`,
+            )
+          }
+          return response.json()
+        },
       )
     } catch (error) {
       logger.errors(`${this.name}.rerank fatal`, {
@@ -104,22 +115,6 @@ export class CohereRerankAdapter<
       })
       throw error
     }
-
-    if (!response.ok) {
-      const detail = await response.text().catch(() => '')
-      const error = new Error(
-        `Cohere rerank request failed: ${response.status} ${response.statusText}${
-          detail ? ` — ${detail}` : ''
-        }`,
-      )
-      logger.errors(`${this.name}.rerank fatal`, {
-        error,
-        source: `${this.name}.rerank`,
-      })
-      throw error
-    }
-
-    const json: unknown = await response.json()
     if (!isCohereRerankResponse(json)) {
       throw new Error('Cohere rerank response had an unexpected shape')
     }

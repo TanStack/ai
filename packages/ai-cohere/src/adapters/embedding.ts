@@ -194,7 +194,7 @@ export class CohereEmbeddingAdapter<
           { provider: this.name, model },
         )
 
-        const response = await fetchWithTimeout(
+        const data = await fetchWithTimeout(
           `${transport.baseUrl}/v2/embed`,
           {
             method: 'POST',
@@ -207,30 +207,30 @@ export class CohereEmbeddingAdapter<
             ...(options.abortSignal && { signal: options.abortSignal }),
           },
           timeoutMs,
-        )
-
-        if (!response.ok) {
-          const bodyText = await response.text()
-          let message = bodyText
-          try {
-            const parsed: unknown = JSON.parse(bodyText)
-            if (
-              typeof parsed === 'object' &&
-              parsed !== null &&
-              'message' in parsed &&
-              typeof parsed.message === 'string'
-            ) {
-              message = parsed.message
+          async (response) => {
+            if (!response.ok) {
+              const bodyText = await response.text()
+              let message = bodyText
+              try {
+                const parsed: unknown = JSON.parse(bodyText)
+                if (
+                  typeof parsed === 'object' &&
+                  parsed !== null &&
+                  'message' in parsed &&
+                  typeof parsed.message === 'string'
+                ) {
+                  message = parsed.message
+                }
+              } catch {
+                // Not JSON — fall back to the raw body text.
+              }
+              throw new Error(
+                `Cohere embed failed (${response.status}): ${message}`,
+              )
             }
-          } catch {
-            // Not JSON — fall back to the raw body text.
-          }
-          throw new Error(
-            `Cohere embed failed (${response.status}): ${message}`,
-          )
-        }
-
-        const data = (await response.json()) as CohereEmbedResponse
+            return (await response.json()) as CohereEmbedResponse
+          },
+        )
 
         const batchVectors = data.embeddings?.float
         if (!batchVectors) {
@@ -308,22 +308,26 @@ export class CohereEmbeddingAdapter<
       )
     }
 
-    const response = await fetchWithTimeout(
+    const downloaded = await fetchWithTimeout(
       source.value,
       signal ? { signal } : undefined,
       this.clientConfig.timeout ?? DEFAULT_TIMEOUT_MS,
+      async (response) => {
+        if (!response.ok) {
+          throw new Error(
+            `Failed to fetch image URL for Cohere embedding (${response.status}): ${source.value}`,
+          )
+        }
+        return {
+          mimeType:
+            response.headers.get('content-type') ??
+            source.mimeType ??
+            'application/octet-stream',
+          bytes: await response.arrayBuffer(),
+        }
+      },
     )
-    if (!response.ok) {
-      throw new Error(
-        `Failed to fetch image URL for Cohere embedding (${response.status}): ${source.value}`,
-      )
-    }
-    const mimeType =
-      response.headers.get('content-type') ??
-      source.mimeType ??
-      'application/octet-stream'
-    const base64 = arrayBufferToBase64(await response.arrayBuffer())
-    return `data:${mimeType};base64,${base64}`
+    return `data:${downloaded.mimeType};base64,${arrayBufferToBase64(downloaded.bytes)}`
   }
 }
 

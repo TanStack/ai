@@ -68,20 +68,33 @@ export function getCohereApiKeyFromEnv(): string {
   return getApiKeyFromEnv('COHERE_API_KEY')
 }
 
-export async function fetchWithTimeout(
+/**
+ * `read` runs before the deadline is cleared, so a stall while consuming
+ * the body still aborts. A timeout rejects with `TimeoutError`. `AbortError`
+ * stays reserved for the caller's signal.
+ */
+export async function fetchWithTimeout<T>(
   url: string,
   init: RequestInit | undefined,
   timeoutMs: number,
-): Promise<Response> {
+  read: (response: Response) => Promise<T>,
+): Promise<T> {
   const controller = new AbortController()
-  const timeoutId = setTimeout(() => controller.abort(), timeoutMs)
-  // Also abort when the caller's signal aborts.
+  const timeoutId = setTimeout(() => {
+    controller.abort(
+      new DOMException(
+        `Request timed out after ${timeoutMs}ms`,
+        'TimeoutError',
+      ),
+    )
+  }, timeoutMs)
   const callerSignal = init?.signal
   const onAbort = () => controller.abort(callerSignal?.reason)
   if (callerSignal?.aborted) onAbort()
   else callerSignal?.addEventListener('abort', onAbort, { once: true })
   try {
-    return await fetch(url, { ...init, signal: controller.signal })
+    const response = await fetch(url, { ...init, signal: controller.signal })
+    return await read(response)
   } finally {
     clearTimeout(timeoutId)
     callerSignal?.removeEventListener('abort', onAbort)
