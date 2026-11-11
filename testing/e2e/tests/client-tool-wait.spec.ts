@@ -23,7 +23,6 @@ test.describe('Client-tool wait lifecycle', () => {
     baseURL,
   }) => {
     await page.goto(buildHarnessUrl(testId, aimockPort))
-    await page.waitForTimeout(2000)
 
     await page
       .locator('#mw-scenario-select')
