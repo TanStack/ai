@@ -106,6 +106,8 @@ Only one host can write a run. The client has no safety net below its offset de-
 2. **An epoch.** Each claim bumps `RunRecord.driverEpoch`. The log re-reads it from time to time and refuses to append once a higher epoch exists. This covers a lock that renews slower than the run appends, or one whose signal never fires.
 3. **Quiet time.** Before its first append, the new host waits for the stored log to stop growing. So it sees an old host that still writes, and does not race it. The wait is `DEFAULT_FENCE_QUIET_MS` (5 seconds). Change it with `fenceQuietMs` on `sandboxRunDriver`. If the log never goes quiet, the drive fails and appends nothing.
 
+The host that starts the run holds this same claim until that run ends. A reconnect while that host still writes only tails the log. The first host stays the only writer. A tool call can add no events for longer than the quiet window. The claim blocks a second writer for that whole call. When the first host is gone, the quiet window applies again.
+
 ### Both channels are fenced
 
 A run's facts live in two places: its event log and its record. If only the log is fenced, a superseded host turns its refused append into a terminal `runs.update`. The record then says `'failed'` for a run the new host streams without problems. Then anything that checks status (`isTerminalRunStatus`, `findActiveRun`, a status poller, the reaper) believes that a live run died.
