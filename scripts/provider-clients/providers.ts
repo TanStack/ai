@@ -9,6 +9,8 @@ export interface ProviderClient {
   id: string
   /** The package directory, relative to the repo root. */
   packageDir: string
+  /** Write `types.ts` only, for a package that sends through another SDK. */
+  typesOnly?: boolean
 }
 
 export const PROVIDER_CLIENTS: Array<ProviderClient> = [
@@ -25,6 +27,16 @@ export const PROVIDER_CLIENTS: Array<ProviderClient> = [
     packageDir: 'packages/ai-elevenlabs',
   },
   { id: 'fal', packageDir: 'packages/ai-fal' },
+  { id: 'cohere', packageDir: 'packages/ai-cohere' },
+  { id: 'ollama', packageDir: 'packages/ai-ollama' },
+  { id: 'worldlabs', packageDir: 'packages/ai-worldlabs' },
+  { id: 'ollaya', packageDir: 'packages/ai-ollaya' },
+  { id: 'typesafe', packageDir: 'packages/ai-typesafe' },
+  {
+    id: 'amazon-bedrock',
+    packageDir: 'packages/ai-bedrock',
+    typesOnly: true,
+  },
 ]
 
 /** Where a provider client is written inside its package. */
