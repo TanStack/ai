@@ -1477,7 +1477,7 @@ export type VoiceSharingResponseModel = {
    */
   history_item_sample_id?: string | null
   /**
-   * @description The date of the voice sharing in Unix time.
+   * @description The Unix time, in seconds, at which the voice was shared.
    * @type integer
    */
   date_unix: number
@@ -1525,7 +1525,7 @@ export type VoiceSharingResponseModel = {
    */
   notice_period: number
   /**
-   * @description The date of the voice sharing in Unix time.
+   * @description The Unix time, in seconds, at which users who added the voice from the Voice Library lose access to it.
    */
   disable_at_unix?: number | null
   /**
@@ -3209,6 +3209,14 @@ export type ElevenlabsPostV1SpeechToTextStatus200 =
   | MultichannelSpeechToTextResponseModel
   | SpeechToTextWebhookResponseModel
 
+export const elevenlabsPostV1SpeechToTextRequestNumbersFormat = {
+  digits: 'digits',
+  words: 'words',
+} as const
+
+export type ElevenlabsPostV1SpeechToTextRequestNumbersFormatKey =
+  (typeof elevenlabsPostV1SpeechToTextRequestNumbersFormat)[keyof typeof elevenlabsPostV1SpeechToTextRequestNumbersFormat]
+
 export const elevenlabsPostV1SpeechToTextRequestTimestampsGranularityEnum = {
   none: 'none',
   word: 'word',
@@ -3239,6 +3247,7 @@ export type ElevenlabsPostV1SpeechToTextBody = {
    * @description The ID of the model to use for transcription.
    * @example scribe_v2
    * @example scribe_v2_medical
+   * @example scribe_v3
    * @type string
    */
   model_id: string
@@ -3250,6 +3259,14 @@ export type ElevenlabsPostV1SpeechToTextBody = {
    * @description An ISO-639-1 or ISO-639-3 language_code corresponding to the language of the audio file. Can sometimes improve transcription performance if known beforehand. Defaults to null, in this case the language is predicted automatically.
    */
   language_code?: string | null
+  /**
+   * @description Additional ISO-639-1 or ISO-639-3 language codes that may be present in the audio, alongside language_code. Improves transcription accuracy for multilingual audio. Supported by scribe_v3.
+   */
+  secondary_language_codes?: string[] | null
+  /**
+   * @description How numbers are formatted in the transcript: 'digits' (e.g. '42') or 'words' (e.g. 'forty-two'). Supported by scribe_v3.
+   */
+  numbers_format?: ElevenlabsPostV1SpeechToTextRequestNumbersFormatKey | null
   /**
    * @description Natural-language instruction applied to the final transcript (max 2000 characters). The edited text is returned in 'edited_transcript' alongside the original transcript. Cannot be combined with entity_detection, entity_redaction or use_multi_channel. Usage of this parameter will incur an additional 30% surcharge on the base transcription cost, billed for at least 10 seconds of audio.
    */
@@ -3357,7 +3374,7 @@ export type ElevenlabsPostV1SpeechToTextBody = {
    */
   entity_detection?: string | string[] | null
   /**
-   * @description If true, the transcription will not have any filler words, false starts and non-speech sounds.
+   * @description If true, the transcription will not have any filler words, false starts and non-speech sounds. Supported by scribe_v2, scribe_v2_medical and scribe_v3.
    * @default false
    * @type boolean | undefined
    */
@@ -3949,6 +3966,7 @@ export type ElevenlabsPostV1TextToSpeechVoiceIdBody = {
   apply_text_normalization?: ElevenlabsPostV1TextToSpeechVoiceIdRequestApplyTextNormalizationEnumKey
   /**
    * @description This parameter controls language text normalization. This helps with proper pronunciation of text in some supported languages. WARNING: This parameter can heavily increase the latency of the request. Currently only supported for Japanese.
+   * @deprecated
    * @default false
    * @example true
    * @type boolean | undefined
@@ -4066,6 +4084,7 @@ export type ElevenlabsPostV1TextToSpeechVoiceIdStreamBody = {
   apply_text_normalization?: ElevenlabsPostV1TextToSpeechVoiceIdStreamRequestApplyTextNormalizationEnumKey
   /**
    * @description This parameter controls language text normalization. This helps with proper pronunciation of text in some supported languages. WARNING: This parameter can heavily increase the latency of the request. Currently only supported for Japanese.
+   * @deprecated
    * @default false
    * @example true
    * @type boolean | undefined
@@ -4196,6 +4215,7 @@ export type ElevenlabsPostV1TextToSpeechVoiceIdStreamWithTimestampsBody = {
   apply_text_normalization?: ElevenlabsPostV1TextToSpeechVoiceIdStreamWithTimestampsRequestApplyTextNormalizationEnumKey
   /**
    * @description This parameter controls language text normalization. This helps with proper pronunciation of text in some supported languages. WARNING: This parameter can heavily increase the latency of the request. Currently only supported for Japanese.
+   * @deprecated
    * @default false
    * @example true
    * @type boolean | undefined
@@ -4327,6 +4347,7 @@ export type ElevenlabsPostV1TextToSpeechVoiceIdWithTimestampsBody = {
   apply_text_normalization?: ElevenlabsPostV1TextToSpeechVoiceIdWithTimestampsRequestApplyTextNormalizationEnumKey
   /**
    * @description This parameter controls language text normalization. This helps with proper pronunciation of text in some supported languages. WARNING: This parameter can heavily increase the latency of the request. Currently only supported for Japanese.
+   * @deprecated
    * @default false
    * @example true
    * @type boolean | undefined

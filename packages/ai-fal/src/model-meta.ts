@@ -49,8 +49,27 @@ export type FalAudioModel = keyof FalAudioEndpoints | (string & {})
  */
 export type FalModelInput<TModel extends string> =
   TModel extends keyof EndpointTypeMap
-    ? EndpointTypeMap[TModel]['input']
+    ? WithUploads<EndpointTypeMap[TModel]['input']>
     : Record<string, unknown>
+
+/** A URL string, or a file that the fal client uploads first. */
+type Uploadable<V> = V extends string
+  ? V | Blob
+  : V extends Array<infer U>
+    ? Array<Uploadable<U>>
+    : V
+
+/**
+ * Lets each `*_url` / `*_urls` field take a `Blob` (or `File`), which the
+ * fal client uploads and replaces with its URL. The schemas have no file
+ * marker, so this keys on the field name, as `@fal-ai/client` does.
+ * ponytail: top-level fields only; nest it if a model takes files deeper.
+ */
+type WithUploads<T> = {
+  [K in keyof T]: K extends `${string}_url` | `${string}_urls`
+    ? Uploadable<T[K]>
+    : T[K]
+}
 
 /**
  * Utility type to extract the output type for a specific fal model.

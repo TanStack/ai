@@ -211,10 +211,6 @@ export const falPostEndpointIdEndpointId = {
   'fal-ai/bytedance/omnihuman/v1.5': 'fal-ai/bytedance/omnihuman/v1.5',
   'fal-ai/bytedance/seed-speech/tts/v2': 'fal-ai/bytedance/seed-speech/tts/v2',
   'fal-ai/bytedance/seed/v2/mini': 'fal-ai/bytedance/seed/v2/mini',
-  'fal-ai/bytedance/seedance/v1.5/pro/image-to-video':
-    'fal-ai/bytedance/seedance/v1.5/pro/image-to-video',
-  'fal-ai/bytedance/seedance/v1.5/pro/text-to-video':
-    'fal-ai/bytedance/seedance/v1.5/pro/text-to-video',
   'fal-ai/bytedance/seedance/v1/pro/fast/image-to-video':
     'fal-ai/bytedance/seedance/v1/pro/fast/image-to-video',
   'fal-ai/bytedance/seedance/v1/pro/fast/text-to-video':
@@ -1342,6 +1338,7 @@ export const falPostEndpointIdEndpointId = {
   'fal-ai/wan/v2.7/reference-to-video': 'fal-ai/wan/v2.7/reference-to-video',
   'fal-ai/wan/v2.7/text-to-image': 'fal-ai/wan/v2.7/text-to-image',
   'fal-ai/wan/v2.7/text-to-video': 'fal-ai/wan/v2.7/text-to-video',
+  'fal-ai/whisper': 'fal-ai/whisper',
   'fal-ai/wizper': 'fal-ai/wizper',
   'fal-ai/workflow-utilities/audio-compressor':
     'fal-ai/workflow-utilities/audio-compressor',
@@ -1443,18 +1440,22 @@ export const falPostEndpointIdEndpointId = {
   'krea/v3/edit': 'krea/v3/edit',
   'krea/v3/realtime': 'krea/v3/realtime',
   'krea/v3/text-to-image': 'krea/v3/text-to-image',
+  'lightricks/ltx-2.5/alpha-gen': 'lightricks/ltx-2.5/alpha-gen',
   'lightricks/ltx-2.5/audio-to-video/fast':
     'lightricks/ltx-2.5/audio-to-video/fast',
   'lightricks/ltx-2.5/audio-to-video/pro':
     'lightricks/ltx-2.5/audio-to-video/pro',
+  'lightricks/ltx-2.5/hdr': 'lightricks/ltx-2.5/hdr',
   'lightricks/ltx-2.5/image-to-video/fast':
     'lightricks/ltx-2.5/image-to-video/fast',
   'lightricks/ltx-2.5/image-to-video/pro':
     'lightricks/ltx-2.5/image-to-video/pro',
+  'lightricks/ltx-2.5/reframe': 'lightricks/ltx-2.5/reframe',
   'lightricks/ltx-2.5/text-to-video/fast':
     'lightricks/ltx-2.5/text-to-video/fast',
   'lightricks/ltx-2.5/text-to-video/pro':
     'lightricks/ltx-2.5/text-to-video/pro',
+  'lightricks/ltx-2.5/upscale': 'lightricks/ltx-2.5/upscale',
   'luma/agent/ray/v3.2/image-to-video': 'luma/agent/ray/v3.2/image-to-video',
   'luma/agent/ray/v3.2/reframe': 'luma/agent/ray/v3.2/reframe',
   'luma/agent/ray/v3.2/text-to-video': 'luma/agent/ray/v3.2/text-to-video',
@@ -1469,6 +1470,11 @@ export const falPostEndpointIdEndpointId = {
   'microsoft/mai-image-2.5-pro': 'microsoft/mai-image-2.5-pro',
   'microsoft/mai-image-2.5-pro/edit': 'microsoft/mai-image-2.5-pro/edit',
   'microsoft/mai-image-2.5/edit': 'microsoft/mai-image-2.5/edit',
+  'minimax/h3-image/edit': 'minimax/h3-image/edit',
+  'minimax/h3-image/highspeed/edit': 'minimax/h3-image/highspeed/edit',
+  'minimax/h3-image/highspeed/text-to-image':
+    'minimax/h3-image/highspeed/text-to-image',
+  'minimax/h3-image/text-to-image': 'minimax/h3-image/text-to-image',
   'minimax/h3-max-turbo/extend-video': 'minimax/h3-max-turbo/extend-video',
   'minimax/h3-max-turbo/image-to-video': 'minimax/h3-max-turbo/image-to-video',
   'minimax/h3-max-turbo/reference-to-video':
@@ -1557,6 +1563,7 @@ export const falPostEndpointIdEndpointId = {
   'openai/gpt-image-2.6/sunburst/text-to-image':
     'openai/gpt-image-2.6/sunburst/text-to-image',
   'openai/gpt-image-2/edit': 'openai/gpt-image-2/edit',
+  'openimaginglab/flashvsr-plus': 'openimaginglab/flashvsr-plus',
   'openrouter/router': 'openrouter/router',
   'openrouter/router/decisions': 'openrouter/router/decisions',
   'openrouter/router/enterprise': 'openrouter/router/enterprise',
@@ -1916,10 +1923,6 @@ export const falGetEndpointIdRequestsRequestIdEndpointId = {
   'fal-ai/bytedance/omnihuman/v1.5': 'fal-ai/bytedance/omnihuman/v1.5',
   'fal-ai/bytedance/seed-speech/tts/v2': 'fal-ai/bytedance/seed-speech/tts/v2',
   'fal-ai/bytedance/seed/v2/mini': 'fal-ai/bytedance/seed/v2/mini',
-  'fal-ai/bytedance/seedance/v1.5/pro/image-to-video':
-    'fal-ai/bytedance/seedance/v1.5/pro/image-to-video',
-  'fal-ai/bytedance/seedance/v1.5/pro/text-to-video':
-    'fal-ai/bytedance/seedance/v1.5/pro/text-to-video',
   'fal-ai/bytedance/seedance/v1/pro/fast/image-to-video':
     'fal-ai/bytedance/seedance/v1/pro/fast/image-to-video',
   'fal-ai/bytedance/seedance/v1/pro/fast/text-to-video':
@@ -3047,6 +3050,7 @@ export const falGetEndpointIdRequestsRequestIdEndpointId = {
   'fal-ai/wan/v2.7/reference-to-video': 'fal-ai/wan/v2.7/reference-to-video',
   'fal-ai/wan/v2.7/text-to-image': 'fal-ai/wan/v2.7/text-to-image',
   'fal-ai/wan/v2.7/text-to-video': 'fal-ai/wan/v2.7/text-to-video',
+  'fal-ai/whisper': 'fal-ai/whisper',
   'fal-ai/wizper': 'fal-ai/wizper',
   'fal-ai/workflow-utilities/audio-compressor':
     'fal-ai/workflow-utilities/audio-compressor',
@@ -3148,18 +3152,22 @@ export const falGetEndpointIdRequestsRequestIdEndpointId = {
   'krea/v3/edit': 'krea/v3/edit',
   'krea/v3/realtime': 'krea/v3/realtime',
   'krea/v3/text-to-image': 'krea/v3/text-to-image',
+  'lightricks/ltx-2.5/alpha-gen': 'lightricks/ltx-2.5/alpha-gen',
   'lightricks/ltx-2.5/audio-to-video/fast':
     'lightricks/ltx-2.5/audio-to-video/fast',
   'lightricks/ltx-2.5/audio-to-video/pro':
     'lightricks/ltx-2.5/audio-to-video/pro',
+  'lightricks/ltx-2.5/hdr': 'lightricks/ltx-2.5/hdr',
   'lightricks/ltx-2.5/image-to-video/fast':
     'lightricks/ltx-2.5/image-to-video/fast',
   'lightricks/ltx-2.5/image-to-video/pro':
     'lightricks/ltx-2.5/image-to-video/pro',
+  'lightricks/ltx-2.5/reframe': 'lightricks/ltx-2.5/reframe',
   'lightricks/ltx-2.5/text-to-video/fast':
     'lightricks/ltx-2.5/text-to-video/fast',
   'lightricks/ltx-2.5/text-to-video/pro':
     'lightricks/ltx-2.5/text-to-video/pro',
+  'lightricks/ltx-2.5/upscale': 'lightricks/ltx-2.5/upscale',
   'luma/agent/ray/v3.2/image-to-video': 'luma/agent/ray/v3.2/image-to-video',
   'luma/agent/ray/v3.2/reframe': 'luma/agent/ray/v3.2/reframe',
   'luma/agent/ray/v3.2/text-to-video': 'luma/agent/ray/v3.2/text-to-video',
@@ -3174,6 +3182,11 @@ export const falGetEndpointIdRequestsRequestIdEndpointId = {
   'microsoft/mai-image-2.5-pro': 'microsoft/mai-image-2.5-pro',
   'microsoft/mai-image-2.5-pro/edit': 'microsoft/mai-image-2.5-pro/edit',
   'microsoft/mai-image-2.5/edit': 'microsoft/mai-image-2.5/edit',
+  'minimax/h3-image/edit': 'minimax/h3-image/edit',
+  'minimax/h3-image/highspeed/edit': 'minimax/h3-image/highspeed/edit',
+  'minimax/h3-image/highspeed/text-to-image':
+    'minimax/h3-image/highspeed/text-to-image',
+  'minimax/h3-image/text-to-image': 'minimax/h3-image/text-to-image',
   'minimax/h3-max-turbo/extend-video': 'minimax/h3-max-turbo/extend-video',
   'minimax/h3-max-turbo/image-to-video': 'minimax/h3-max-turbo/image-to-video',
   'minimax/h3-max-turbo/reference-to-video':
@@ -3262,6 +3275,7 @@ export const falGetEndpointIdRequestsRequestIdEndpointId = {
   'openai/gpt-image-2.6/sunburst/text-to-image':
     'openai/gpt-image-2.6/sunburst/text-to-image',
   'openai/gpt-image-2/edit': 'openai/gpt-image-2/edit',
+  'openimaginglab/flashvsr-plus': 'openimaginglab/flashvsr-plus',
   'openrouter/router': 'openrouter/router',
   'openrouter/router/decisions': 'openrouter/router/decisions',
   'openrouter/router/enterprise': 'openrouter/router/enterprise',
