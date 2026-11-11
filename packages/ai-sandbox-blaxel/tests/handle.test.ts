@@ -17,6 +17,26 @@ import type {
   BlaxelSandboxLike,
 } from '../src/handle'
 
+/**
+ * The processes of group `pgid` that did not end. A zombie ended: it stays in
+ * its group only until PID 1 reaps it. A container whose PID 1 does not reap
+ * (for example `sleep infinity`) keeps zombies, so `kill(-pgid, 0)` still
+ * finds the group after every process in it ended.
+ */
+function liveGroupMembers(pgid: number): Array<string> {
+  const { stdout } = spawnSync('ps', ['-eo', 'pgid=,pid=,stat='], {
+    encoding: 'utf8',
+  })
+  return stdout
+    .split('\n')
+    .map((line) => line.trim().split(/\s+/))
+    .filter(
+      ([group, , stat]) =>
+        Number(group) === pgid && stat !== undefined && !stat.startsWith('Z'),
+    )
+    .map(([, pid, stat]) => `${pid} ${stat}`)
+}
+
 interface FakeOptions {
   files?: Record<string, string>
   directory?: {
@@ -1000,9 +1020,7 @@ describe('BlaxelHandle process', () => {
         child.kill('SIGTERM')
         await exited
         await vi.waitFor(() => {
-          for (const pid of pids) {
-            expect(() => process.kill(-pid, 0)).toThrow()
-          }
+          for (const pid of pids) expect(liveGroupMembers(pid)).toEqual([])
         })
       } finally {
         child.kill('SIGKILL')
