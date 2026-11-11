@@ -86,7 +86,9 @@ export const OPENAI_VIDEO_DURATIONS = {
   'sora-2': { kind: 'discrete', values: SORA_SECONDS },
   'sora-2-pro': { kind: 'discrete', values: SORA_SECONDS },
 } as const satisfies {
-  [Model in keyof OpenAIVideoModelDurationByName]: DurationOptions<OpenAIVideoSeconds>
+  [
+    Model in keyof OpenAIVideoModelDurationByName
+  ]: DurationOptions<OpenAIVideoSeconds>
 }
 
 /**

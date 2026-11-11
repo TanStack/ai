@@ -51,6 +51,6 @@
   "devDependencies": {
     "@jitsi/robotjs": "^0.6.24",
     "@tanstack/ai-computer-use": "workspace:*",
-    "@vitest/coverage-v8": "4.1.10"
+    "@vitest/coverage-v8": "5.1.0"
   }
 }

@@ -283,6 +283,10 @@ describe('models.generateContent', () => {
               includeServerSideToolInvocations: true,
             },
             cachedContent: 'my-cache',
+            labels: { team: 'a' },
+            audioTranscriptionConfig: { languageCodes: ['en-US'] },
+            continuationToken: 'token-1',
+            store: false,
             abortSignal: new AbortController().signal,
             httpOptions: { headers: { 'x-call': 'per-call' } },
           },
@@ -344,7 +348,9 @@ describe('models.generateContent', () => {
         client.models.generateContent({
           model: 'gemini-2.5-flash',
           contents: 'Hi',
-          config: { labels: { team: 'a' } },
+          config: {
+            generationOutputConfig: { outputUriPrefix: 'gs://bucket/' },
+          },
         }),
       [],
     )

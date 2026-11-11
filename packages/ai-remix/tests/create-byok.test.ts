@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { createByok } from '../src/create-byok'
 import type { ByokClient, ByokSnapshot } from '@tanstack/ai-client/byok'
-import type { Handle } from 'remix/ui'
+import type { Handle } from 'remix/component'
 
 const INITIAL: ByokSnapshot = {
   status: {},

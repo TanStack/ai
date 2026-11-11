@@ -24,6 +24,8 @@ test.describe('frontend tool from a spec-compliant AG-UI server', () => {
 
       await page.goto(`/foreign-client-tool?finish=${finish}`)
 
+      await page.getByTestId('send').click()
+
       await expect(page.getByTestId('ping-outputs')).toHaveText(
         '{"reply":"pong"}',
       )
@@ -43,6 +45,7 @@ test.describe('frontend tool from a spec-compliant AG-UI server', () => {
         page,
       }) => {
         await page.goto(`/foreign-client-tool?finish=${finish}&approval=1`)
+        await page.getByTestId('send').click()
 
         await page
           .getByTestId('approval')
@@ -69,6 +72,8 @@ test.describe('frontend tool from a spec-compliant AG-UI server', () => {
     })
 
     await page.goto('/foreign-client-tool?approval=1&queue=1')
+
+    await page.getByTestId('send').click()
     const approve = page
       .getByTestId('approval')
       .getByRole('button', { name: 'Approve' })

@@ -35,7 +35,9 @@ export type MissingCapabilities<TMissing extends string> = {
   // "Property '<key>' is missing in type ... but required in type ..." error
   // prints the explanation instead of an opaque `__missingCapabilities`. The
   // key distributes over a union of missing names (one required key each).
-  [K in `✖ Missing capability "${TMissing}": no configured middleware provides it. Add a middleware whose \`provides\` includes it (and, with createChatMiddleware().use(), order the provider before this consumer).`]: never
+  [
+    K in `✖ Missing capability "${TMissing}": no configured middleware provides it. Add a middleware whose \`provides\` includes it (and, with createChatMiddleware().use(), order the provider before this consumer).`
+  ]: never
 }
 
 /**

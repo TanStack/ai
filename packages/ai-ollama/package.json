@@ -61,14 +61,14 @@
   ],
   "dependencies": {
     "@tanstack/ai-utils": "workspace:^",
-    "ollama": "^0.6.3"
+    "ollama": "^0.6.4"
   },
   "peerDependencies": {
     "@tanstack/ai": "workspace:^"
   },
   "devDependencies": {
     "@tanstack/ai": "workspace:*",
-    "@vitest/coverage-v8": "4.1.10",
-    "vite": "^8.2.1"
+    "@vitest/coverage-v8": "5.1.0",
+    "vite": "^8.3.5"
   }
 }

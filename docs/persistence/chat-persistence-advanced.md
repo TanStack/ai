@@ -140,8 +140,9 @@ If your adapter provides `stores.metadata`, `withPersistence` gives it to other 
 Streaming snapshots are off by default, because the finish write is the true save. Turn them on to keep partial output, at the cost of more writes:
 
 ```ts
-import { withPersistence } from '@tanstack/ai-persistence'
-import { persistence } from './persistence'
+import { memoryPersistence, withPersistence } from '@tanstack/ai-persistence'
+
+const persistence = memoryPersistence()
 
 const streamingMiddleware = [
   withPersistence(persistence, {

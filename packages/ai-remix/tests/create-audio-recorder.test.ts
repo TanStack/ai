@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createAudioRecorder } from '../src/create-audio-recorder'
-import type { FrameHandle, Handle } from 'remix/ui'
+import type { FrameHandle, Handle } from 'remix/component'
 
 class FakeMediaRecorder {
   ondataavailable: ((event: { data: Blob }) => void) | null = null

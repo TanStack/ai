@@ -63,15 +63,16 @@
     "octane": ">=0.12.0"
   },
   "devDependencies": {
-    "@octanejs/testing-library": "0.1.62",
+    "@octanejs/testing-library": "0.1.68",
     "@standard-schema/spec": "^1.1.0",
     "@tanstack/ai": "workspace:*",
-    "@tsrx/oxc": "0.20.0",
+    "@tsrx/oxc": "0.23.0",
     "@types/node": "^24.10.1",
-    "@vitest/coverage-v8": "4.1.10",
-    "happy-dom": "^20.11.2",
-    "octane": "0.12.1",
-    "vite": "^8.2.1",
-    "zod": "^4.2.0"
+    "@vitest/coverage-v8": "5.1.0",
+    "happy-dom": "^21.0.4",
+    "jsdom": "^30.1.3",
+    "octane": "^0.16.7",
+    "vite": "^8.3.5",
+    "zod": "^4.6.7"
   }
 }

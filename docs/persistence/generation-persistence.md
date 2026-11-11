@@ -247,7 +247,7 @@ import type { ImageGenerateInput } from '@tanstack/ai-client'
 const persistence = memoryPersistence()
 
 export const generateImageFn = createServerFn({ method: 'POST' })
-  .inputValidator((data: ImageGenerateInput & { threadId: string }) => data)
+  .validator((data: ImageGenerateInput & { threadId: string }) => data)
   .handler(({ data: { threadId, ...input } }) => {
     if (typeof input.prompt !== 'string') {
       throw new Error('This endpoint accepts text image prompts only.')
@@ -299,7 +299,7 @@ const hydrationSchema = z.object({
 })
 
 export const getImageHydrationFn = createServerFn({ method: 'GET' })
-  .inputValidator(z.string().min(1))
+  .validator(z.string().min(1))
   .handler(async ({ data: threadId }) => {
     // `getGenerationHydration` does no auth. Check the session here, the
     // way you pass `authorize` to `reconstructGeneration`.
@@ -309,7 +309,7 @@ export const getImageHydrationFn = createServerFn({ method: 'GET' })
   })
 
 export const joinImageRunFn = createServerFn({ method: 'GET' })
-  .inputValidator(z.string().min(1))
+  .validator(z.string().min(1))
   .handler(({ data: runId }) =>
     // The same SSE envelope that `generateImageFn` returns, so one client-side
     // decoder covers both.

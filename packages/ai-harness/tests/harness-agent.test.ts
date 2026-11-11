@@ -445,12 +445,12 @@ describe('harnessAgent in a harness session', () => {
     // The child session that the run opens.
     let childSession: SessionImpl | undefined
     const open = SessionImpl.prototype.open
-    vi.spyOn(SessionImpl.prototype, 'open').mockImplementation(
-      function (this: SessionImpl) {
-        if (this.threadId.includes('/agent/')) childSession = this
-        return open.call(this)
-      },
-    )
+    vi.spyOn(SessionImpl.prototype, 'open').mockImplementation(function (
+      this: SessionImpl,
+    ) {
+      if (this.threadId.includes('/agent/')) childSession = this
+      return open.call(this)
+    })
     const deploy = toolDefinition({
       name: 'deploy',
       description: 'Deploy. Needs approval.',

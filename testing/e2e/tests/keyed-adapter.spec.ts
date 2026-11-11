@@ -40,7 +40,7 @@ test.describe('keyedAdapters', () => {
     const body = await response.json()
     expect(body.text).toContain('Fender Stratocaster')
     expect(body.provider).toBe('anthropic')
-    expect(body.credential).toBe('sk-e2e-keyed-5678')
+    expect(body.credential).toBe('Bearer sk-e2e-keyed-5678')
   })
 
   test('answers byok_missing when no provider has a key', async ({

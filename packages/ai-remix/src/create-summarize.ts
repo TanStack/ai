@@ -1,6 +1,6 @@
 import { createGeneration } from './create-generation.ts'
 import { reconstructSummarizeResult } from '@tanstack/ai-client'
-import type { Handle } from 'remix/ui'
+import type { Handle } from 'remix/component'
 import type { SummarizationResult } from '@tanstack/ai'
 import type { SummarizeGenerateInput } from '@tanstack/ai-client'
 import type {
@@ -40,7 +40,7 @@ export type CreateSummarizeReturn<TOutput = SummarizationResult> =
  * ```tsx
  * import { createSummarize } from '@tanstack/ai-remix'
  * import { fetchServerSentEvents } from '@tanstack/ai-client'
- * import type { Handle } from 'remix/ui'
+ * import type { Handle } from 'remix/component'
  *
  * function Summarizer(handle: Handle) {
  *   const summarizer = createSummarize(handle, {

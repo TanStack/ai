@@ -47,7 +47,7 @@ export type TicketEvaluateResult = EvaluateResult<typeof TICKET_QUESTIONS>
  * each call site keeps the adapter's literal model type.
  */
 export const evaluateTicketFn = createServerFn({ method: 'POST' })
-  .inputValidator((data: EvaluateInput) => {
+  .validator((data: EvaluateInput) => {
     if (!data.ticket.trim()) throw new Error('Ticket text is required')
     if (!isProvider(data.provider)) {
       throw new Error(`Unknown provider: ${data.provider}`)

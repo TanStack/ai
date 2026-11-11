@@ -21,7 +21,7 @@ A component has two phases:
 The component shape is `function Component(handle: Handle<Props>) { return () => ... }`. Props are available as `handle.props` in setup scope and are updated before every render.
 
 ```tsx
-import { on, type Handle } from 'remix/ui'
+import { on, type Handle } from 'remix/component'
 
 function Counter(handle: Handle<{ initialCount?: number; label: string }>) {
   let count = handle.props.initialCount ?? 0
@@ -214,7 +214,7 @@ function ThemedContent(handle: Handle) {
 For granular updates without re-rendering the full subtree, use `TypedEventTarget`:
 
 ```tsx
-import { TypedEventTarget } from 'remix/ui'
+import { TypedEventTarget } from 'remix/component'
 
 class Theme extends TypedEventTarget<{ change: Event }> {
   #value: 'light' | 'dark' = 'light'
@@ -259,7 +259,7 @@ function ThemedContent(handle: Handle) {
 Use `on(...)` for element events. For browser globals such as `window` or `document`, schedule setup with `handle.queueTask()` and pass `handle.signal` to `addEventListener()` so the listener is removed when the component disconnects:
 
 ```tsx
-import type { Handle } from 'remix/ui'
+import type { Handle } from 'remix/component'
 
 function ViewportWidth(handle: Handle) {
   let width: number | undefined

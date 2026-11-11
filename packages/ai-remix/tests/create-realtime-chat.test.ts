@@ -4,7 +4,7 @@ import type {
   RealtimeConnection,
   RealtimeToken,
 } from '@tanstack/ai'
-import type { Handle } from 'remix/ui'
+import type { Handle } from 'remix/component'
 import { createRealtimeChat } from '../src/create-realtime-chat'
 import type { CreateRealtimeChatOptions } from '../src/realtime-types'
 

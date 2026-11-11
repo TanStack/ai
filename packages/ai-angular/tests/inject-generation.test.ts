@@ -1,9 +1,9 @@
 import { Component } from '@angular/core'
 import { getTestBed, TestBed } from '@angular/core/testing'
 import {
-  BrowserDynamicTestingModule,
-  platformBrowserDynamicTesting,
-} from '@angular/platform-browser-dynamic/testing'
+  BrowserTestingModule,
+  platformBrowserTesting,
+} from '@angular/platform-browser/testing'
 import { describe, expect, it, vi } from 'vitest'
 import { injectGeneration } from '../src/inject-generation'
 import { injectGenerateVideo } from '../src/inject-generate-video'
@@ -25,8 +25,8 @@ if (
   testBedInstance._compiler === undefined
 ) {
   getTestBed().initTestEnvironment(
-    BrowserDynamicTestingModule,
-    platformBrowserDynamicTesting(),
+    BrowserTestingModule,
+    platformBrowserTesting(),
   )
 }
 

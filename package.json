@@ -5,10 +5,10 @@
     "type": "git",
     "url": "git+https://github.com/TanStack/ai.git"
   },
-  "packageManager": "pnpm@11.9.0",
+  "packageManager": "pnpm@12.18.0",
   "type": "module",
   "engines": {
-    "pnpm": ">=11.9.0"
+    "pnpm": ">=12.18.0"
   },
   "scripts": {
     "clean": "pnpm --filter \"./packages/**\" run clean",
@@ -68,36 +68,36 @@
     ]
   },
   "devDependencies": {
-    "@aws-sdk/client-bedrock": "^3.1057.0",
+    "@aws-sdk/client-bedrock": "^3.1162.0",
     "@changesets/changelog-github": "^1.0.1",
-    "@changesets/cli": "^2.30.0",
-    "@faker-js/faker": "^10.1.0",
+    "@changesets/cli": "^3.0.3",
+    "@faker-js/faker": "^10.6.0",
     "@stylistic/eslint-plugin": "^5.10.0",
     "@tanstack/ai": "workspace:*",
     "@tanstack/ai-grok-build": "workspace:*",
     "@tanstack/ai-sandbox": "workspace:*",
     "@tanstack/ai-sandbox-docker": "workspace:*",
-    "@tanstack/typedoc-config": "0.3.4",
+    "@tanstack/typedoc-config": "0.3.5",
     "@tanstack/vite-config": "0.6.0",
     "@types/node": "^24.10.1",
     "@typescript/typescript6": "6.0.2",
-    "eslint-plugin-unused-imports": "^4.3.0",
-    "happy-dom": "^20.11.2",
-    "kiira": "0.6.0",
-    "knip": "^6.26.0",
-    "markdown-link-extractor": "^4.0.3",
-    "nx": "23.1.1",
-    "oxfmt": "^0.59.0",
-    "oxlint": "^1.89.0",
-    "oxlint-plugin-eslint": "^1.89.0",
-    "oxlint-tsgolint": "^7.0.2004",
+    "eslint-plugin-unused-imports": "^4.4.1",
+    "happy-dom": "^21.0.4",
+    "kiira": "0.7.1",
+    "knip": "^6.44.1",
+    "markdown-link-extractor": "^4.0.4",
+    "nx": "24.0.4",
+    "oxfmt": "^0.76.0",
+    "oxlint": "^1.91.0",
+    "oxlint-plugin-eslint": "^1.91.0",
+    "oxlint-tsgolint": "^7.0.2005",
     "premove": "^4.0.0",
-    "publint": "^0.3.15",
-    "sherif": "^1.9.0",
+    "publint": "^0.3.25",
+    "sherif": "^1.13.0",
     "tinyglobby": "^0.2.17",
-    "tsx": "^4.23.12",
+    "tsx": "^4.23.15",
     "typescript": "7.0.2",
-    "vite": "^8.2.1",
-    "vitest": "^4.1.10"
+    "vite": "^8.3.5",
+    "vitest": "^5.1.0"
   }
 }

@@ -430,13 +430,11 @@ export function sandboxWorkspaceBackend(
       // A command that does not start gives exit code 1, like `hostBackend`.
       const run = handle.process
         .exec(command, { cwd, env, signal: controller.signal })
-        .catch(
-          (error: unknown): ExecResult => ({
-            exitCode: 1,
-            stdout: '',
-            stderr: String(error),
-          }),
-        )
+        .catch((error: unknown): ExecResult => ({
+          exitCode: 1,
+          stdout: '',
+          stderr: String(error),
+        }))
       return Promise.race([stopped, run]).finally(() => {
         clearTimeout(timer)
         signal?.removeEventListener('abort', onAbort)

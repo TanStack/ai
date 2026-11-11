@@ -41,13 +41,11 @@ export function staticSkills<T extends string>(
     revision: () => Promise.resolve(catalog.revision),
     list: () =>
       Promise.resolve(
-        catalog.skills.map(
-          (s): SkillMetadata => ({
-            name: s.name,
-            description: s.description,
-            ...(s.compatibility && { compatibility: s.compatibility }),
-          }),
-        ),
+        catalog.skills.map((s): SkillMetadata => ({
+          name: s.name,
+          description: s.description,
+          ...(s.compatibility && { compatibility: s.compatibility }),
+        })),
       ),
     // Methods are async so a missing-skill throw surfaces as a rejected
     // promise (what callers `await`), not a synchronous throw.

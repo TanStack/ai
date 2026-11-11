@@ -4,6 +4,9 @@
     // quickjs-bun ships TypeScript sources that use import attributes
     // (`with { type: "file" }`), which require a newer module target.
     "module": "ESNext",
+    // quickjs-bun 0.2 sources use ES2024 APIs (String#isWellFormed,
+    // SharedArrayBuffer#growable). Bun supports them.
+    "lib": ["DOM", "DOM.Iterable", "ES2024"],
     // The root base restricts `types` to ["node"], which suppresses
     // auto-inclusion of @types/bun. quickjs-bun's sources (and our driver)
     // rely on the `Bun` global and the `bun:ffi` module, so re-add "bun".

@@ -1,5 +1,4 @@
-import { useEffect } from 'react'
-import { createFileRoute } from '@tanstack/react-router'
+import { createFileRoute, useHydrated } from '@tanstack/react-router'
 import { fetchServerSentEvents, useChat } from '@tanstack/ai-react'
 
 /**
@@ -24,14 +23,18 @@ function ForeignInterruptPage() {
     )
     .join('')
 
-  useEffect(() => {
+  // Sending is a user action, so it runs from a click and not a mount effect.
+  // The button stays disabled until hydration, so the spec's click reaches React.
+  const hydrated = useHydrated()
+  const send = () => {
     void sendMessage('go')
-    // Fire the single run once on mount; the harness route ignores the content.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }
 
   return (
     <div data-testid="foreign-interrupt-page">
+      <button data-testid="send" disabled={!hydrated} onClick={send}>
+        Send
+      </button>
       <div data-testid="interrupt-count">{interrupts.length}</div>
       <div data-testid="assistant-text">{assistantText}</div>
       {interrupts.map((interrupt) => (

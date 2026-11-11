@@ -1,4 +1,4 @@
-// The Interactions API (`client.interactions`) of @google/genai 2.10.0, for
+// The Interactions API (`client.interactions`) of @google/genai 2.32.0, for
 // the Gemini Developer API with an API key. Same URL, headers, body, retries,
 // response shape (`steps`, `output_text`, ...), and error fields.
 import { createHttpClient, parseSSE } from '@tanstack/ai-utils/http'
@@ -45,8 +45,6 @@ export type InteractionResult<P> = 'stream' extends keyof P
       : AsyncIterable<InteractionSSEEvent> | GeminiInteraction
   : GeminiInteraction
 
-// The `Api-Revision` header the SDK sends.
-const API_REVISION = '2026-05-20'
 // ponytail: the SDK has no client timeout here; this is the largest delay
 // `setTimeout` accepts.
 const NO_TIMEOUT = 2 ** 31 - 1
@@ -195,14 +193,15 @@ export function createInteractions(client: {
   httpOptions: HttpOptions
 }) {
   const { apiKey, httpOptions } = client
+  // Like the SDK: `httpOptions.headers` are sent, but `Content-Type` wins
+  // over them, and a caller `x-goog-api-key` wins over `apiKey`.
+  const clientHeaders = new Headers(httpOptions.headers)
+  clientHeaders.set('Content-Type', 'application/json')
+  if (!clientHeaders.has('x-goog-api-key'))
+    clientHeaders.set('x-goog-api-key', apiKey)
   const http = createHttpClient({
     baseURL: (httpOptions.baseUrl ?? '').replace(/\/+$/, ''),
-    // The SDK sends its own default headers here, not `httpOptions.headers`.
-    headers: {
-      'Content-Type': 'application/json',
-      'Api-Revision': API_REVISION,
-      'x-goog-api-key': apiKey,
-    },
+    headers: clientHeaders,
     // The SDK default: 4 retries, exponential backoff from 0.5 s to 8 s.
     maxRetries: 4,
     timeout: httpOptions.timeout ?? NO_TIMEOUT,
@@ -254,6 +253,29 @@ export function createInteractions(client: {
         },
         body.stream === true,
       )
+      // The SDK lists the hop ids in `continuation_ids` when it can continue
+      // (not for background or agent interactions).
+      // ponytail: one hop only. A `requires_continuation` result is returned
+      // as is; the SDK sends more hops and merges them. Port that loop if an
+      // adapter needs long decodes.
+      if (
+        isPlainObject(result) &&
+        body.stream !== true &&
+        body.background !== true &&
+        Reflect.get(body, 'agent') == null &&
+        Reflect.get(body, 'agent_config') == null
+      ) {
+        const ids = Array.isArray(result.continuation_ids)
+          ? result.continuation_ids
+          : []
+        result.continuation_ids = [
+          ...new Set(
+            [...ids, result.id].filter(
+              (id) => typeof id === 'string' && id !== '',
+            ),
+          ),
+        ]
+      }
       // ponytail: `send` returns the shape that `stream` selects.
       return result as InteractionResult<P>
     },

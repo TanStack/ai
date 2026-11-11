@@ -71,7 +71,7 @@ const isThinkingComplete = (message: UIMessage, partIndex: number) => {
             <div v-if="part.type === 'thinking'" class="mt-2 mb-2">
               <ThinkingPart
                 :content="part.content"
-                :is-complete="isThinkingComplete(message, index)"
+                :is-complete="isThinkingComplete(message, Number(index))"
               />
             </div>
 

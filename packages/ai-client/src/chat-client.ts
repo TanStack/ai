@@ -635,6 +635,8 @@ export class ChatClient<
    */
   private deliverClaim = false
   private abortController: AbortController | null = null
+  /** The controller of the current rejoin tail. `detach()` aborts only this. */
+  private tailController: AbortController | null = null
   private readonly clientToolsRef: { current: Map<string, AnyClientTool> }
   private readonly devtoolsBridge: ChatDevtoolsBridge
   /**
@@ -1151,12 +1153,14 @@ export class ChatClient<
   }
 
   /**
-   * STOP TAILING: drop the connection, keep everything else.
+   * STOP TAILING: drop the rejoin connection, keep everything else.
    *
    * Called by a UI wrapper when its view unmounts. The transcript, the resume
    * pointer and the run id all stay, so a later {@link attach} repaints instantly
-   * and re-tails from the durable log — nothing is lost, because the run keeps
-   * going server-side and its log holds every chunk.
+   * and re-tails from the durable log. A send this client started keeps running:
+   * it is the user's action, not a view-bound tail, and on a server with no
+   * durable log aborting it would lose the run. So `detach()` then `attach()`
+   * is a no-op for an in-flight send, which is what Strict Mode checks.
    *
    * Deliberately NOT `dispose()`: this client is expected back. And deliberately
    * not `stop()`, which means "the user ended this run" — detaching says only that
@@ -1173,7 +1177,10 @@ export class ChatClient<
     // clears the resume pointer. A detach is not that — the run is fine and we
     // intend to come back — so the pointer must survive.
     this.tailing = false
-    this.cancelInFlightStream({ setReadyStatus: true })
+    // Only a tail is view-bound. The client's own send runs on (see above).
+    if (this.abortController && this.abortController === this.tailController) {
+      this.cancelInFlightStream({ setReadyStatus: true })
+    }
     this.rejoinedRunId = null
   }
 
@@ -2171,6 +2178,7 @@ export class ChatClient<
     if (!joinRun) return
     const controller = new AbortController()
     this.abortController = controller
+    this.tailController = controller
     this.setCurrentRunId(runId)
     // Record the resume state in-memory BEFORE replaying. Otherwise the
     // replayed `RUN_STARTED` (which carries the PROVIDER run id, not the
@@ -2248,6 +2256,7 @@ export class ChatClient<
           this.lastResume = null
           this.persistor?.persistResumeSnapshot(null)
         }
+        if (this.tailController === controller) this.tailController = null
         if (this.abortController === controller) {
           this.abortController = null
           this.setIsLoading(false)

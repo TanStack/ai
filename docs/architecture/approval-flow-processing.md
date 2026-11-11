@@ -92,7 +92,9 @@ export function ApprovalQueue() {
               Approve
             </button>
           ) : null}
-          <button onClick={() => interrupt.cancel()}>Cancel</button>
+          {interrupt.kind !== 'unbound' ? (
+            <button onClick={() => interrupt.cancel()}>Cancel</button>
+          ) : null}
           {interrupt.errors.map((error: ItemInterruptError) => (
             <p key={`${error.code}:${error.path?.join('.') ?? ''}`}>
               {error.message}

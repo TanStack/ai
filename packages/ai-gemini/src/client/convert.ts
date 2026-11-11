@@ -1,6 +1,6 @@
 // Request and response mapping for the Gemini Developer API. This is a port
 // of the `*ToMldev` / `*FromMldev` converters and the `t*` helpers of
-// @google/genai 2.10.0. Each converter copies only the fields that the SDK
+// @google/genai 2.32.0. Each converter copies only the fields that the SDK
 // converter copies, renames the same fields, and throws the same error for a
 // field that only Vertex AI supports.
 import type {
@@ -41,7 +41,12 @@ export type WithHttpHeaders<T> = Omit<T, 'sdkHttpResponse'> & {
 export type GeminiContentResponse = WithHttpHeaders<
   Omit<
     GenerateContentResponse,
-    'text' | 'data' | 'functionCalls' | 'executableCode' | 'codeExecutionResult'
+    | 'text'
+    | 'data'
+    | 'functionCalls'
+    | 'executableCode'
+    | 'codeExecutionResult'
+    | 'initialPromptTokenCount'
   >
 >
 
@@ -463,9 +468,9 @@ function generateContentConfigToWire(
   rejectVertexOnly(config, [
     'routingConfig',
     'modelSelectionConfig',
-    'labels',
     'audioTimestamp',
     'modelArmorConfig',
+    'generationOutputConfig',
   ])
   if (config.systemInstruction != null) {
     body.systemInstruction = contentToWire(tContent(config.systemInstruction))
@@ -477,10 +482,15 @@ function generateContentConfigToWire(
   if (config.toolConfig != null) {
     body.toolConfig = toolConfigToWire(config.toolConfig)
   }
+  if (config.labels != null) body.labels = config.labels
   if (config.cachedContent != null) {
     body.cachedContent = tCachedContentName(config.cachedContent)
   }
   if (config.serviceTier != null) body.serviceTier = config.serviceTier
+  if (config.continuationToken != null) {
+    body.continuationToken = config.continuationToken
+  }
+  if (config.store != null) body.store = config.store
   const generationConfig: WireObject = pick(config, [
     'temperature',
     'topP',
@@ -500,6 +510,7 @@ function generateContentConfigToWire(
     'mediaResolution',
     'speechConfig',
     'thinkingConfig',
+    'audioTranscriptionConfig',
     'imageConfig',
     'enableEnhancedCivicAnswers',
   ])

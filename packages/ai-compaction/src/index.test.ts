@@ -313,13 +313,11 @@ describe('withCompaction', () => {
       checkpointContext(store),
     )
     // As PostgreSQL jsonb gives them back: equal messages, keys reordered.
-    const loaded = messages.map(
-      ({ role, content, ...rest }): ModelMessage => ({
-        content,
-        ...rest,
-        role,
-      }),
-    )
+    const loaded = messages.map(({ role, content, ...rest }): ModelMessage => ({
+      content,
+      ...rest,
+      role,
+    }))
     await runOnConfig(
       withCompaction(options),
       [...loaded, text('user', 'new')],
@@ -1475,13 +1473,11 @@ describe('durable compaction', () => {
     ]
     const messages = [
       ...fold,
-      ...ids.map(
-        (id): ModelMessage => ({
-          role: 'tool',
-          content: 'r'.repeat(40),
-          toolCallId: id,
-        }),
-      ),
+      ...ids.map((id): ModelMessage => ({
+        role: 'tool',
+        content: 'r'.repeat(40),
+        toolCallId: id,
+      })),
     ]
     const mw = withCompaction({
       maxTokens: 20,
@@ -2528,9 +2524,8 @@ describe('conversationSummarizer', () => {
 
   it('adds the details tag only when details returns text', async () => {
     const withDetails = fakeSummaryModel()
-    const details = vi.fn(
-      ({ previousDetails }: { previousDetails?: string }) =>
-        previousDetails ? `${previousDetails}, b.ts` : 'a.ts',
+    const details = vi.fn(({ previousDetails }: { previousDetails?: string }) =>
+      previousDetails ? `${previousDetails}, b.ts` : 'a.ts',
     )
     const result = await conversationSummarizer({
       adapter: withDetails.fake,
