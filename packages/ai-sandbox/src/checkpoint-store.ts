@@ -22,6 +22,8 @@ export interface SandboxSnapshotFileEntry {
   kind: 'file'
   blobKey: string
   size: number
+  /** Permission bits of the file (`mode & 0o777`). Old snapshots have none. */
+  mode?: number
 }
 
 export interface SandboxSnapshotDirectoryEntry {
@@ -29,9 +31,17 @@ export interface SandboxSnapshotDirectoryEntry {
   kind: 'dir'
 }
 
+/** A symbolic link. `target` is the link text as `readlink` gives it. */
+export interface SandboxSnapshotSymlinkEntry {
+  path: string
+  kind: 'symlink'
+  target: string
+}
+
 export type SandboxSnapshotEntry =
   | SandboxSnapshotFileEntry
   | SandboxSnapshotDirectoryEntry
+  | SandboxSnapshotSymlinkEntry
 
 export interface SandboxSnapshotArtifact {
   artifactId: string
@@ -55,24 +65,147 @@ export interface SandboxCheckpoint {
   artifacts: ReadonlyArray<SandboxSnapshotArtifact>
 }
 
+/**
+ * Stores the checkpoints of each thread, the head of each thread, the writer
+ * leases, and a reference count for each blob key.
+ *
+ * Implement it against your own storage. For example, keep manifests, heads,
+ * leases and counts in SQL, and keep blob bytes in R2. The store only counts
+ * blob references. It never reads or deletes blob bytes.
+ *
+ * Rules for every method:
+ *
+ * - A thread is a chain. Each checkpoint points to its parent with
+ *   `parentCheckpointId`. The head is the newest checkpoint of the chain.
+ * - Checkpoint ids are unique across all threads.
+ * - A stored checkpoint never changes. Reads return copies. A change to a
+ *   returned value does not change the store.
+ * - Thread ids and checkpoint ids are non-empty, well-formed Unicode strings.
+ *   Other values throw `SandboxCheckpointInvalidIdError`.
+ * - A write is all or nothing. Do the checks and the write in one
+ *   transaction. When a write throws, the store does not change.
+ * - A write checks its writer first. `writer.threadId` must be the thread of
+ *   the write, and the lease must be current. Else the write throws
+ *   `SandboxCheckpointWriterLostError`.
+ *
+ * Prove an implementation with `runSandboxCheckpointStoreConformance` from
+ * `@tanstack/ai-sandbox/testkit`.
+ */
 export interface SandboxCheckpointStore {
+  /**
+   * Returns the checkpoint with this id, or `null` when there is none.
+   * A missing id does not throw.
+   */
   get: (id: string) => Promise<SandboxCheckpoint | null>
+  /**
+   * Returns all checkpoints of the thread, also the ones that are not on the
+   * head chain. Sort by `createdAt` (oldest first), then by the UTF-8 bytes
+   * of the id. An unknown thread returns `[]`.
+   */
   list: (threadId: string) => Promise<Array<SandboxCheckpoint>>
+  /** Returns the head id of the thread, or `null` when it has no head. */
   getHead: (threadId: string) => Promise<string | null>
+  /**
+   * Adds a checkpoint and makes it the head, as one compare-and-swap.
+   *
+   * Checks, in this order (each one throws and changes nothing):
+   *
+   * 1. Ids are valid: `SandboxCheckpointInvalidIdError`.
+   * 2. `files`, `artifacts` and a finite `createdAt` are valid:
+   *    `SandboxCheckpointInvalidEntryError`.
+   * 3. The writer is current: `SandboxCheckpointWriterLostError`.
+   * 4. The id is not used in any thread: `SandboxCheckpointDuplicateIdError`.
+   * 5. The current head is `expectedHeadId` (`null` for an empty thread):
+   *    `SandboxCheckpointConflictError`.
+   * 6. `parentCheckpointId` is `expectedHeadId`. A missing parent id counts as
+   *    `null`: `SandboxCheckpointParentMismatchError`.
+   *
+   * Then add 1 to the count of each distinct blob key of the checkpoint. The
+   * keys are the `blobKey` of each `file` entry and of each artifact.
+   * Directories and symlinks have no blob.
+   */
   append: (input: {
     checkpoint: SandboxCheckpoint
     expectedHeadId: string | null
     writer: SandboxCheckpointWriter
   }) => Promise<{ headId: string }>
+  /**
+   * Removes the head checkpoint of the thread.
+   *
+   * The writer must be current. `checkpointId` must be the current head, else
+   * it throws `SandboxCheckpointNotHeadError`. The head moves to the
+   * `parentCheckpointId` of the removed checkpoint. The thread has no head
+   * when that is `null`, or when that checkpoint was removed by
+   * `deleteCheckpoints`. Subtract 1 from the count of each distinct blob key of
+   * the removed checkpoint. Forget a key when its count gets to 0.
+   */
   deleteHead: (input: {
     threadId: string
     checkpointId: string
     writer: SandboxCheckpointWriter
   }) => Promise<void>
+  /**
+   * Takes the writer lease of the thread. It does not wait.
+   *
+   * When an unexpired lease exists, it throws
+   * `SandboxCheckpointWriterConflictError`. An expired lease can be taken
+   * over. Each new lease gets a new `ownerToken` and a `fence` that is higher
+   * than all earlier fences of the thread. Each thread has its own lease.
+   */
   acquireWriter: (threadId: string) => Promise<SandboxCheckpointWriterLease>
+  /**
+   * Returns each blob key with a count above 0, for all threads. Sort by the
+   * UTF-8 bytes of the key. Do not return keys with a count of 0.
+   *
+   * The count is the number of stored checkpoints that use the key. A
+   * checkpoint that uses a key two times counts one time. A blob sweep
+   * deletes only the blobs that are not in this list.
+   */
   listBlobReferences: () => Promise<Array<{ key: string; references: number }>>
-  /** Optional atomic fork capability. Stores without this method cannot fork. */
+  /**
+   * Optional. Copies one checkpoint into a new, empty thread as its root, in
+   * one transaction. Stores without this method cannot fork.
+   *
+   * The new checkpoint has `reason: 'fork-root'` and `parentCheckpointId:
+   * null`. It becomes the head of the new thread, and its blob keys get 1
+   * more reference. The writer must be the current writer of the destination
+   * thread. Errors are `SandboxCheckpointError` with these codes:
+   *
+   * - `SANDBOX_SNAPSHOT_FORK_SOURCE_NOT_FOUND`: no source checkpoint.
+   * - `SANDBOX_SNAPSHOT_FORK_SOURCE_THREAD_MISMATCH`: the source is in another
+   *   thread, or source and destination are the same thread.
+   * - `SANDBOX_SNAPSHOT_FORK_DESTINATION_NOT_EMPTY`: the destination thread
+   *   already has data, or the new id is used.
+   *
+   * Prove it with `runSandboxCheckpointForkConformance` from
+   * `@tanstack/ai-sandbox/testkit`.
+   */
   forkFromCheckpoint?: SandboxCheckpointForkCapability['forkFromCheckpoint']
+  /**
+   * Optional. Removes old checkpoints of a thread so that `keep` checkpoints
+   * stay: the head and the newest ones before it.
+   *
+   * - `keep` is a safe integer of 1 or more. Else it throws
+   *   `SandboxCheckpointInvalidEntryError`.
+   * - The writer is checked like in `deleteHead`.
+   * - "Newest" follows the parent chain from the head, not `createdAt`.
+   * - Checkpoints of the thread that are not on the head chain stay as they
+   *   are.
+   * - For each removed checkpoint, subtract its blob references like
+   *   `deleteHead` does.
+   * - The oldest kept checkpoint keeps its `parentCheckpointId`. That id can
+   *   point to a removed checkpoint, and `get` returns `null` for it. A
+   *   later `deleteHead` of that checkpoint leaves the thread with no head.
+   * - Remove all of them in one transaction, or none.
+   *
+   * Returns the removed ids, oldest first. A thread with `keep` or fewer
+   * checkpoints on its chain returns `{ deleted: [] }`.
+   */
+  deleteCheckpoints?: (input: {
+    threadId: string
+    keep: number
+    writer: SandboxCheckpointWriter
+  }) => Promise<{ deleted: Array<string> }>
 }
 
 export interface SandboxCheckpointForkInput {
@@ -99,16 +232,41 @@ export function isForkCapableSandboxCheckpointStore(
   return typeof store.forkFromCheckpoint === 'function'
 }
 
+/**
+ * Proof that the caller holds the writer lease of a thread. Each write sends
+ * it. The store compares all three fields with the current lease.
+ */
 export interface SandboxCheckpointWriter {
+  /** The thread that this lease guards. */
   threadId: string
+  /** A new random value for each `acquireWriter` call. */
   ownerToken: string
+  /**
+   * Goes up by at least 1 for each new lease of the thread. A write with an
+   * older fence throws `SandboxCheckpointWriterLostError`.
+   */
   fence: number
 }
 
+/** The lease that `acquireWriter` returns. */
 export interface SandboxCheckpointWriterLease extends SandboxCheckpointWriter {
+  /**
+   * Epoch ms (store clock) when the lease ends. At or after this time, writes
+   * with it throw `SandboxCheckpointWriterLostError`, and another caller can
+   * take a new lease.
+   */
   expiresAt: number
+  /** Call `renew` after this many ms. It is less than the lease duration. */
   renewAfterMs: number
+  /**
+   * Moves `expiresAt` to now plus the lease duration. Throws
+   * `SandboxCheckpointWriterLostError` when the lease expired or was replaced.
+   */
   renew: () => Promise<{ expiresAt: number }>
+  /**
+   * Ends the lease. It does nothing when the lease is not the current one
+   * (a newer lease replaced it). It does not throw.
+   */
   release: () => Promise<void>
 }
 
@@ -259,14 +417,18 @@ function hasOwn(value: object, key: string): boolean {
   return Object.prototype.hasOwnProperty.call(value, key)
 }
 
-function validateEntries(checkpoint: SandboxCheckpoint): void {
+/**
+ * Checks the `files` of a checkpoint before a store keeps it.
+ * Throws `SandboxCheckpointInvalidEntryError` for a bad entry.
+ */
+export function validateEntries(checkpoint: SandboxCheckpoint): void {
   if (!Array.isArray(checkpoint.files)) {
     throw new SandboxCheckpointInvalidEntryError(
       'Checkpoint files must be an array',
     )
   }
   const paths = new Set<string>()
-  const kinds = new Map<string, 'file' | 'dir'>()
+  const kinds = new Map<string, SandboxSnapshotEntry['kind']>()
   for (const entry of checkpoint.files as ReadonlyArray<unknown>) {
     if (entry === null || typeof entry !== 'object') {
       throw new SandboxCheckpointInvalidEntryError(
@@ -296,24 +458,27 @@ function validateEntries(checkpoint: SandboxCheckpoint): void {
         `Checkpoint contains duplicate entry path '${path}'`,
       )
     }
+    // Files and links are leaves: no entry can be beneath them.
     for (
       let separator = path.indexOf('/');
       separator !== -1;
       separator = path.indexOf('/', separator + 1)
     ) {
       const ancestor = path.slice(0, separator)
-      if (kinds.get(ancestor) === 'file') {
+      const ancestorKind = kinds.get(ancestor)
+      if (ancestorKind === 'file' || ancestorKind === 'symlink') {
         throw new SandboxCheckpointInvalidEntryError(
-          `Checkpoint entry '${path}' is beneath file '${ancestor}'`,
+          `Checkpoint entry '${path}' is beneath ${ancestorKind} '${ancestor}'`,
         )
       }
     }
+    const isLeaf = candidate.kind === 'file' || candidate.kind === 'symlink'
     if (
-      candidate.kind === 'file' &&
+      isLeaf &&
       Array.from(kinds.keys()).some((other) => other.startsWith(`${path}/`))
     ) {
       throw new SandboxCheckpointInvalidEntryError(
-        `Checkpoint file '${path}' is an ancestor of another entry`,
+        `Checkpoint ${candidate.kind} '${path}' is an ancestor of another entry`,
       )
     }
     paths.add(path)
@@ -325,7 +490,7 @@ function validateEntries(checkpoint: SandboxCheckpoint): void {
         !/^sandbox-files\/sha256\/[0-9a-f]{64}$/.test(candidate.blobKey)
       ) {
         throw new SandboxCheckpointInvalidEntryError(
-          'File entries require a non-empty blobKey',
+          'File entries require a valid content-addressed blobKey',
         )
       }
       if (
@@ -338,15 +503,45 @@ function validateEntries(checkpoint: SandboxCheckpoint): void {
           'File entry size must be a non-negative safe integer',
         )
       }
+      const hasValidMode =
+        !hasOwn(candidate, 'mode') ||
+        (typeof candidate.mode === 'number' &&
+          Number.isSafeInteger(candidate.mode) &&
+          candidate.mode >= 0 &&
+          candidate.mode <= 0o777)
+      if (!hasValidMode) {
+        throw new SandboxCheckpointInvalidEntryError(
+          'File entry mode must be an integer from 0 to 0o777',
+        )
+      }
     } else if (candidate.kind === 'dir') {
       if (hasOwn(candidate, 'blobKey') || hasOwn(candidate, 'size')) {
         throw new SandboxCheckpointInvalidEntryError(
           'Directory entries cannot contain file fields',
         )
       }
+    } else if (candidate.kind === 'symlink') {
+      if (
+        hasOwn(candidate, 'blobKey') ||
+        hasOwn(candidate, 'size') ||
+        hasOwn(candidate, 'mode')
+      ) {
+        throw new SandboxCheckpointInvalidEntryError(
+          'Symlink entries cannot contain file fields',
+        )
+      }
+      if (
+        typeof candidate.target !== 'string' ||
+        candidate.target.length === 0 ||
+        candidate.target.includes('\0')
+      ) {
+        throw new SandboxCheckpointInvalidEntryError(
+          'Symlink entries require a non-empty target without NUL',
+        )
+      }
     } else {
       throw new SandboxCheckpointInvalidEntryError(
-        'Checkpoint entry kind must be file or dir',
+        'Checkpoint entry kind must be file, dir, or symlink',
       )
     }
     kinds.set(path, candidate.kind)
@@ -573,11 +768,58 @@ export class InMemorySandboxCheckpointStore implements SandboxCheckpointStore {
       )
     }
     this.state.checkpoints.delete(checkpointId)
-    if (checkpoint.parentCheckpointId) {
+    // The parent can be gone after `deleteCheckpoints`. Then the thread has no head.
+    if (
+      checkpoint.parentCheckpointId &&
+      this.state.checkpoints.has(checkpoint.parentCheckpointId)
+    ) {
       this.state.heads.set(threadId, checkpoint.parentCheckpointId)
     } else {
       this.state.heads.delete(threadId)
     }
+    this.releaseReferences(checkpoint)
+  }
+
+  async deleteCheckpoints(input: {
+    threadId: string
+    keep: number
+    writer: SandboxCheckpointWriter
+  }) {
+    const { threadId, keep, writer } = input
+    assertValidIdentifier(threadId, 'Thread id')
+    assertValidIdentifier(writer.threadId, 'Writer thread id')
+    if (!Number.isSafeInteger(keep) || keep < 1) {
+      throw new SandboxCheckpointInvalidEntryError(
+        'keep must be a safe integer of 1 or more',
+      )
+    }
+    if (writer.threadId !== threadId) {
+      throw new SandboxCheckpointWriterLostError(
+        'Checkpoint writer thread does not match operation thread',
+      )
+    }
+    this.assertWriter(writer, threadId)
+    // Walk the parent chain from the head, newest first. The seen set stops
+    // the walk when a removed id was used again by a newer checkpoint.
+    const chain: Array<SandboxCheckpoint> = []
+    const seen = new Set<string>()
+    let id = this.state.heads.get(threadId) ?? null
+    while (id !== null && !seen.has(id)) {
+      seen.add(id)
+      const checkpoint = this.state.checkpoints.get(id)
+      if (!checkpoint || checkpoint.threadId !== threadId) break
+      chain.push(checkpoint)
+      id = checkpoint.parentCheckpointId
+    }
+    const removed = chain.slice(keep).reverse()
+    for (const checkpoint of removed) {
+      this.state.checkpoints.delete(checkpoint.id)
+      this.releaseReferences(checkpoint)
+    }
+    return { deleted: removed.map((checkpoint) => checkpoint.id) }
+  }
+
+  private releaseReferences(checkpoint: SandboxCheckpoint): void {
     for (const key of blobKeys(checkpoint)) {
       const references = (this.state.references.get(key) ?? 0) - 1
       if (references > 0) this.state.references.set(key, references)

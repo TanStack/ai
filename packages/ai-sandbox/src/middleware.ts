@@ -247,6 +247,130 @@ function canPublishPortableSnapshot(
 }
 
 /**
+ * Write one portable checkpoint (`checkpoint-${runId}`) of the sandbox files,
+ * the conversation, and the artifacts. Every await re-checks
+ * `canPublishPortableSnapshot`, so a lost lease or a closed run publishes
+ * nothing.
+ *
+ * Only `'finish'` waits for `waitForRunCompletion`. On `'error'` and `'abort'`
+ * that promise rejects with the run's own failure, or never settles for a
+ * detachable abort, so waiting there would skip the checkpoint or hang. The
+ * wait is also not needed there: core runs the terminal hooks one by one in
+ * middleware order, and `withPersistence` must come before `withSandbox`, so
+ * its `onError`/`onAbort` has already finished when this runs.
+ */
+async function capturePortableCheckpoint(
+  definition: SandboxDefinition,
+  state: SandboxRunState,
+  ctx: ChatMiddlewareContext,
+  phase: 'finish' | 'abort' | 'error',
+) {
+  const handle = state.handle
+  const task = Promise.resolve().then(async (): Promise<void> => {
+    const config = state.snapshotConfig
+    const runtime = state.snapshotRuntime
+    const lease = state.snapshotLease
+    if (!config || !runtime || !handle || !lease) {
+      if (state.snapshotLost) throw state.snapshotLost
+      return
+    }
+    if (!canPublishPortableSnapshot(state, lease)) return
+
+    if (phase === 'finish') {
+      await runtime.completion.waitForRunCompletion()
+      if (!canPublishPortableSnapshot(state, lease)) return
+    }
+
+    const conversation = await runtime.persistence.stores.messages.loadThread(
+      ctx.threadId,
+    )
+    if (!canPublishPortableSnapshot(state, lease)) return
+
+    const secrets =
+      definition.workspace?.secrets !== undefined
+        ? resolveAllSecrets(definition.workspace.secrets)
+        : {}
+    const files = await captureSandboxFiles(
+      handle,
+      {
+        blobs: config.persistence.stores.blobs,
+        workspaceRoot: definition.workspace?.root ?? DEFAULT_WORKSPACE_ROOT,
+      },
+      state.snapshotPolicy,
+      secrets,
+    )
+    if (!canPublishPortableSnapshot(state, lease)) return
+
+    const artifacts = await captureSandboxArtifacts(
+      {
+        blobs: config.persistence.stores.blobs,
+        artifacts: config.persistence.stores.artifacts,
+      },
+      ctx.threadId,
+      secrets,
+    )
+    if (!canPublishPortableSnapshot(state, lease)) return
+
+    const parentCheckpointId = await config.checkpoints.getHead(ctx.threadId)
+    if (!canPublishPortableSnapshot(state, lease)) return
+
+    try {
+      await config.checkpoints.append({
+        checkpoint: {
+          id: `checkpoint-${ctx.runId}`,
+          threadId: ctx.threadId,
+          parentCheckpointId,
+          createdAt: Date.now(),
+          reason: 'automatic',
+          sourceRunId: ctx.runId,
+          files: files.files,
+          conversation,
+          artifacts,
+        },
+        expectedHeadId: parentCheckpointId,
+        writer: lease,
+      })
+    } catch (error) {
+      if (state.snapshotLost) throw state.snapshotLost
+      throw error
+    }
+    if (state.snapshotLost) throw state.snapshotLost
+  })
+  // `stopSnapshotLease` awaits this task, so the lease is not released while
+  // an append is still in flight.
+  state.snapshotCaptureTask = task
+  try {
+    await task
+  } finally {
+    if (state.snapshotCaptureTask === task)
+      state.snapshotCaptureTask = undefined
+  }
+}
+
+/**
+ * Best-effort checkpoint for a run that failed or was aborted. A failed capture
+ * is logged and never thrown, so it cannot hide the run's own error. A run that
+ * paused at an interrupt is not done, so it gets no checkpoint.
+ */
+async function checkpointFailedRun(
+  definition: SandboxDefinition,
+  state: SandboxRunState,
+  ctx: ChatMiddlewareContext,
+  phase: 'abort' | 'error',
+) {
+  if (state.interrupted) return
+  try {
+    await capturePortableCheckpoint(definition, state, ctx, phase)
+  } catch (error) {
+    state.logger?.warn(`sandbox checkpoint on ${phase} failed`, {
+      runId: ctx.runId,
+      phase,
+      error,
+    })
+  }
+}
+
+/**
  * Record the two facts a later attach and the reaper both need, then publish the
  * detach verdict core reads.
  *
@@ -1060,85 +1184,7 @@ export function withSandbox<TOffset extends string = string>(
 
       let primaryError: unknown
       try {
-        const snapshotCaptureTask = Promise.resolve().then(
-          async (): Promise<void> => {
-            const config = state.snapshotConfig
-            const runtime = state.snapshotRuntime
-            const lease = state.snapshotLease
-            if (!config || !runtime || !handle || !lease) {
-              if (state.snapshotLost) throw state.snapshotLost
-              return
-            }
-            if (!canPublishPortableSnapshot(state, lease)) return
-
-            await runtime.completion.waitForRunCompletion()
-            if (!canPublishPortableSnapshot(state, lease)) return
-
-            const conversation =
-              await runtime.persistence.stores.messages.loadThread(ctx.threadId)
-            if (!canPublishPortableSnapshot(state, lease)) return
-
-            const files = await captureSandboxFiles(
-              handle,
-              {
-                blobs: config.persistence.stores.blobs,
-                workspaceRoot:
-                  definition.workspace?.root ?? DEFAULT_WORKSPACE_ROOT,
-              },
-              state.snapshotPolicy,
-              definition.workspace?.secrets !== undefined
-                ? resolveAllSecrets(definition.workspace.secrets)
-                : {},
-            )
-            if (!canPublishPortableSnapshot(state, lease)) return
-
-            const artifacts = await captureSandboxArtifacts(
-              {
-                blobs: config.persistence.stores.blobs,
-                artifacts: config.persistence.stores.artifacts,
-              },
-              ctx.threadId,
-              definition.workspace?.secrets !== undefined
-                ? resolveAllSecrets(definition.workspace.secrets)
-                : {},
-            )
-            if (!canPublishPortableSnapshot(state, lease)) return
-
-            const parentCheckpointId = await config.checkpoints.getHead(
-              ctx.threadId,
-            )
-            if (!canPublishPortableSnapshot(state, lease)) return
-
-            try {
-              await config.checkpoints.append({
-                checkpoint: {
-                  id: `checkpoint-${ctx.runId}`,
-                  threadId: ctx.threadId,
-                  parentCheckpointId,
-                  createdAt: Date.now(),
-                  reason: 'automatic',
-                  sourceRunId: ctx.runId,
-                  files: files.files,
-                  conversation,
-                  artifacts,
-                },
-                expectedHeadId: parentCheckpointId,
-                writer: lease,
-              })
-            } catch (error) {
-              if (state.snapshotLost) throw state.snapshotLost
-              throw error
-            }
-            if (state.snapshotLost) throw state.snapshotLost
-          },
-        )
-        state.snapshotCaptureTask = snapshotCaptureTask
-        try {
-          await snapshotCaptureTask
-        } finally {
-          if (state.snapshotCaptureTask === snapshotCaptureTask)
-            state.snapshotCaptureTask = undefined
-        }
+        await capturePortableCheckpoint(definition, state, ctx, 'finish')
 
         const lifecycle = definition.lifecycle
 
@@ -1213,6 +1259,8 @@ export function withSandbox<TOffset extends string = string>(
       // the sandbox is about to be destroyed or merely detached, or the final
       // file's diff is dropped.
       await drainWatcher(state, 'abort')
+      // Before the lease stops and before any destroy, while the files exist.
+      await checkpointFailedRun(definition, state, ctx, 'abort')
       let releaseError: unknown
       try {
         await stopSnapshotLease(state, { closePortable: true })
@@ -1272,6 +1320,8 @@ export function withSandbox<TOffset extends string = string>(
       if (!state) return
 
       await drainWatcher(state, 'error')
+      // Before the lease stops and before any destroy, while the files exist.
+      await checkpointFailedRun(definition, state, ctx, 'error')
       let releaseError: unknown
       try {
         await stopSnapshotLease(state)

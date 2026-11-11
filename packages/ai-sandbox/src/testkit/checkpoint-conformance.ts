@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import type { TestContext } from 'vitest'
 import type {
   SandboxCheckpoint,
   SandboxCheckpointStore,
@@ -40,6 +41,41 @@ async function deleteHead(
     ...input,
     writer: await writerFor(store, input.threadId),
   })
+}
+
+async function deleteCheckpoints(
+  store: SandboxCheckpointStore,
+  input: { threadId: string; keep: number; writer?: SandboxCheckpointWriter },
+) {
+  if (!store.deleteCheckpoints)
+    throw new Error('Store has no deleteCheckpoints')
+  return store.deleteCheckpoints({
+    ...input,
+    writer: input.writer ?? (await writerFor(store, input.threadId)),
+  })
+}
+
+/** Appends the checkpoints in order. Each one is the parent of the next. */
+async function appendChain(
+  store: SandboxCheckpointStore,
+  checkpoints: Array<SandboxCheckpoint>,
+) {
+  let head: string | null = null
+  for (const value of checkpoints) {
+    await append(store, {
+      checkpoint: { ...value, parentCheckpointId: head },
+      expectedHeadId: head,
+    })
+    head = value.id
+  }
+}
+
+async function threadState(store: SandboxCheckpointStore) {
+  return {
+    head: await store.getHead('thread-a'),
+    list: await store.list('thread-a'),
+    references: await store.listBlobReferences(),
+  }
 }
 
 async function expectThreadState(
@@ -245,20 +281,14 @@ export function runSandboxCheckpointStoreConformance(
       'rejects non-finite createdAt without changing state: %s',
       async (createdAt) => {
         const store = await makeStore(options)
-        const before = {
-          head: await store.getHead('thread-a'),
-          list: await store.list('thread-a'),
-          references: await store.listBlobReferences(),
-        }
+        const before = await threadState(store)
         await expect(
           append(store, {
             checkpoint: { ...checkpoint('invalid'), createdAt },
             expectedHeadId: null,
           }),
         ).rejects.toMatchObject({ code: 'SANDBOX_SNAPSHOT_INVALID_ENTRY' })
-        expect(await store.getHead('thread-a')).toBe(before.head)
-        expect(await store.list('thread-a')).toEqual(before.list)
-        expect(await store.listBlobReferences()).toEqual(before.references)
+        expect(await threadState(store)).toEqual(before)
       },
     )
 
@@ -467,6 +497,139 @@ export function runSandboxCheckpointStoreConformance(
       await deleteHead(store, { threadId: 'thread-a', checkpointId: '1' })
       expect(await store.getHead('thread-a')).toBeNull()
       expect(await store.listBlobReferences()).toEqual([])
+    })
+
+    // deleteCheckpoints is optional. These cases skip a store without it.
+    async function makeDeletingStore(
+      skip: TestContext['skip'],
+      storeOptions = options,
+    ) {
+      const store = await makeStore(storeOptions)
+      if (!store.deleteCheckpoints) skip('store has no deleteCheckpoints')
+      return store
+    }
+
+    it('deleteCheckpoints with keep 1 keeps only the head and lowers references', async ({
+      skip,
+    }) => {
+      const store = await makeDeletingStore(skip)
+      const shared = `sandbox-files/sha256/${'f'.repeat(64)}`
+      const withShared = (id: string) => {
+        const value = checkpoint(id)
+        return {
+          ...value,
+          files: [
+            ...value.files,
+            {
+              path: 'shared.txt',
+              kind: 'file' as const,
+              blobKey: shared,
+              size: 1,
+            },
+          ],
+        }
+      }
+      await appendChain(store, [
+        withShared('1'),
+        withShared('2'),
+        withShared('3'),
+      ])
+
+      await expect(
+        deleteCheckpoints(store, { threadId: 'thread-a', keep: 1 }),
+      ).resolves.toEqual({ deleted: ['1', '2'] })
+      expect(await store.getHead('thread-a')).toBe('3')
+      expect((await store.list('thread-a')).map((entry) => entry.id)).toEqual([
+        '3',
+      ])
+      expect(await store.get('1')).toBeNull()
+      expect(await store.listBlobReferences()).toEqual([
+        { key: `sandbox-files/sha256/${'0'.repeat(63)}3`, references: 1 },
+        { key: shared, references: 1 },
+      ])
+    })
+
+    it('deleteCheckpoints with keep 2 keeps the head and its parent', async ({
+      skip,
+    }) => {
+      const store = await makeDeletingStore(skip)
+      await appendChain(
+        store,
+        ['1', '2', '3', '4'].map((id) => checkpoint(id)),
+      )
+
+      await expect(
+        deleteCheckpoints(store, { threadId: 'thread-a', keep: 2 }),
+      ).resolves.toEqual({ deleted: ['1', '2'] })
+      expect(await store.getHead('thread-a')).toBe('4')
+      expect((await store.list('thread-a')).map((entry) => entry.id)).toEqual([
+        '3',
+        '4',
+      ])
+      expect(
+        (await store.listBlobReferences()).map((entry) => entry.key),
+      ).toEqual([
+        `sandbox-files/sha256/${'0'.repeat(63)}3`,
+        `sandbox-files/sha256/${'0'.repeat(63)}4`,
+      ])
+    })
+
+    it('deleteCheckpoints deletes nothing when the chain is not longer than keep', async ({
+      skip,
+    }) => {
+      const store = await makeDeletingStore(skip)
+      await expect(
+        deleteCheckpoints(store, { threadId: 'thread-a', keep: 1 }),
+      ).resolves.toEqual({ deleted: [] })
+      await appendChain(store, [checkpoint('1'), checkpoint('2')])
+      const before = await threadState(store)
+      await expect(
+        deleteCheckpoints(store, { threadId: 'thread-a', keep: 2 }),
+      ).resolves.toEqual({ deleted: [] })
+      expect(await threadState(store)).toEqual(before)
+    })
+
+    it('deleteCheckpoints rejects an invalid keep without changing state', async ({
+      skip,
+    }) => {
+      const store = await makeDeletingStore(skip)
+      await appendChain(store, [checkpoint('1'), checkpoint('2')])
+      const before = await threadState(store)
+      const invalidKeeps = [0, -1, 1.5, Number.NaN, Number.POSITIVE_INFINITY]
+      for (const keep of invalidKeeps) {
+        await expect(
+          deleteCheckpoints(store, { threadId: 'thread-a', keep }),
+        ).rejects.toMatchObject({ code: 'SANDBOX_SNAPSHOT_INVALID_ENTRY' })
+      }
+      expect(await threadState(store)).toEqual(before)
+    })
+
+    it('deleteCheckpoints rejects a wrong or stale writer without changing state', async ({
+      skip,
+    }) => {
+      const config = options ?? {}
+      let current = config.now?.() ?? 1_000
+      const store = await makeDeletingStore(skip, {
+        ...config,
+        now: () => current,
+      })
+      await appendChain(store, [checkpoint('1'), checkpoint('2')])
+      const before = await threadState(store)
+      const otherThreadWriter = await store.acquireWriter('thread-b')
+      await expect(
+        deleteCheckpoints(store, {
+          threadId: 'thread-a',
+          keep: 1,
+          writer: otherThreadWriter,
+        }),
+      ).rejects.toMatchObject({ code: 'SANDBOX_SNAPSHOT_WRITER_LOST' })
+      await otherThreadWriter.release()
+
+      current += (config.leaseDurationMs ?? 120_000) + 1
+      await expect(
+        deleteCheckpoints(store, { threadId: 'thread-a', keep: 1 }),
+      ).rejects.toMatchObject({ code: 'SANDBOX_SNAPSHOT_WRITER_LOST' })
+      expect(await threadState(store)).toEqual(before)
     })
   })
 }

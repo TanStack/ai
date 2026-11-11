@@ -49,6 +49,7 @@ export type {
   SandboxSnapshotEntry,
   SandboxSnapshotFileEntry,
   SandboxSnapshotDirectoryEntry,
+  SandboxSnapshotSymlinkEntry,
   SandboxSnapshotArtifact,
   SandboxCheckpointErrorCode,
   SandboxCheckpointWriter,
@@ -79,6 +80,16 @@ export type {
   SaveSandboxSnapshotInput,
   SnapshotPersistence,
 } from './snapshot-operations'
+export {
+  captureSandboxCheckpoint,
+  restoreSandboxCheckpoint,
+  sweepSandboxBlobs,
+} from './checkpoints'
+export type {
+  CaptureSandboxCheckpointInput,
+  RestoreSandboxCheckpointInput,
+  SweepSandboxBlobsInput,
+} from './checkpoints'
 export { createSnapshotTools } from './snapshot-tools'
 export type { CreateSnapshotToolsOptions } from './snapshot-tools'
 
