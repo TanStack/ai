@@ -39,14 +39,23 @@ export const toEffect = <A>(run: (signal: AbortSignal) => Promise<A>) =>
 export const toStream = <C>(run: (signal: AbortSignal) => AsyncIterable<C>) =>
   Stream.unwrap(
     Effect.gen(function* () {
-      const controller = yield* Effect.acquireRelease(
-        Effect.sync(() => new AbortController()),
-        (created) => Effect.sync(() => created.abort()),
+      const controller = new AbortController()
+      // Abort before return() so the run ends as aborted. fromAsyncIterable
+      // calls return() first and does not await it mid-pull, so it gets no return().
+      const iterator = yield* Effect.acquireRelease(
+        Effect.try({
+          try: () => run(controller.signal)[Symbol.asyncIterator](),
+          catch: toAIError,
+        }),
+        (created) =>
+          Effect.promise(async () => {
+            controller.abort()
+            await created.return?.()
+          }),
       )
-      const iterable = yield* Effect.try({
-        try: () => run(controller.signal),
-        catch: toAIError,
-      })
-      return Stream.fromAsyncIterable(iterable, toAIError)
+      return Stream.fromAsyncIterable(
+        { [Symbol.asyncIterator]: () => ({ next: () => iterator.next() }) },
+        toAIError,
+      )
     }),
   )
