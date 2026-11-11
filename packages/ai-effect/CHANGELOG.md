@@ -1,5 +1,11 @@
 # @tanstack/ai-effect
 
+## 0.1.1
+
+### Patch Changes
+
+- [#2094](https://github.com/TanStack/ai/pull/2094) [`a07f1dc`](https://github.com/TanStack/ai/commit/a07f1dc3cefc50bc484b5d55cdb757804c6f4065) - Interrupting a `chat` Stream, with `Stream.take` or `Fiber.interrupt`, now runs the middleware `onAbort` hook, and the interrupt completes after the run's teardown.
+
 ## 0.1.0
 
 ### Minor Changes

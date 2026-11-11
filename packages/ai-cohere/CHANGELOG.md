@@ -1,5 +1,11 @@
 # @tanstack/ai-cohere
 
+## 1.1.1
+
+### Patch Changes
+
+- [#2089](https://github.com/TanStack/ai/pull/2089) [`15d6974`](https://github.com/TanStack/ai/commit/15d6974309ce65e092c258c33ca092f6677adbf0) - Apply the configured request timeout (30 seconds by default) to Cohere rerank requests, including the response body. A timeout rejects with TimeoutError.
+
 ## 1.1.0
 
 ### Minor Changes

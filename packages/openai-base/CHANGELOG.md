@@ -1,5 +1,11 @@
 # @tanstack/openai-base
 
+## 1.0.4
+
+### Patch Changes
+
+- [#2095](https://github.com/TanStack/ai/pull/2095) [`be3850f`](https://github.com/TanStack/ai/commit/be3850f869f649aa750adf1d3f6a5b3f4d9c3635) - A caller abort no longer logs a `fatal` entry on the `errors` debug channel. A direct `chatStream()` call that is aborted before the response arrives now yields `RUN_ERROR` with `code: 'aborted'`.
+
 ## 1.0.3
 
 ### Patch Changes
