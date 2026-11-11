@@ -1,9 +1,5 @@
 import { describe, it, expect, vi, afterEach } from 'vitest'
-import {
-  MuseTextAdapter,
-  createMuseText,
-  museText,
-} from '../src/adapters/text'
+import { MuseTextAdapter, createMuseText, museText } from '../src/adapters/text'
 import { MUSE_CHAT_MODELS } from '../src/index'
 
 // Stub the OpenAI-compatible client factory so adapter construction does not
