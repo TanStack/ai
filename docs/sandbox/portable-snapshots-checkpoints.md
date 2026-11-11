@@ -142,7 +142,8 @@ Let the agent write a file, and wait one minute. Then remove the container and s
 
 Make the handle with [`containerSandbox`](./cloudflare-container) over the container of your Durable Object. Pass your R2 bucket as `blobs`:
 
-```ts
+```ts ignore
+// ignore: needs the Cloudflare Workers runtime types (cloudflare:workers, Env, R2Bucket), which the docs check does not load.
 // src/agent-container.ts
 import { Files } from '@cloudflare/sandbox'
 import { restoreSandboxCheckpoint } from '@tanstack/ai-sandbox'

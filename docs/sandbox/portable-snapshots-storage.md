@@ -144,7 +144,8 @@ export async function keepNewest(
 
 Run the sweep at a time with no captures, for example from a nightly cron. A capture does not upload a blob that already exists. So a capture during the sweep can use a blob that the sweep deletes.
 
-```ts
+```ts ignore
+// ignore: needs the Cloudflare Workers runtime types (cloudflare:workers, Env, R2Bucket), which the docs check does not load.
 // src/worker.ts
 import { sweepSandboxBlobs } from '@tanstack/ai-sandbox'
 import { createCheckpointStore } from './checkpoint-store'
