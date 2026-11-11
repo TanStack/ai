@@ -4,8 +4,8 @@ import { createTextAdapter } from '@/lib/providers'
 import type { Provider } from '@/lib/types'
 
 /**
- * Iterates `chat()` and stops with `break` at the first text chunk, with no
- * abort. Returns the terminal middleware hooks that ran.
+ * Iterates `chat()` and stops with `break` at the first text chunk, without
+ * an `AbortSignal`. Returns the terminal middleware hooks that ran.
  */
 export const Route = createFileRoute('/api/chat-consumer-stop')({
   server: {

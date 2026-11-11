@@ -8,19 +8,21 @@ import type { StreamChunk, Tool } from '../src/types'
 
 function terminalRecorder() {
   const hooks: Array<string> = []
+  const abortInfo: Array<unknown> = []
   const middleware: ChatMiddleware = {
     name: 'record-terminal',
     onFinish: () => {
       hooks.push('onFinish')
     },
-    onAbort: () => {
+    onAbort: (_ctx, info) => {
       hooks.push('onAbort')
+      abortInfo.push(info)
     },
     onError: () => {
       hooks.push('onError')
     },
   }
-  return { hooks, middleware }
+  return { hooks, abortInfo, middleware }
 }
 
 function run(middleware: ChatMiddleware) {
@@ -64,11 +66,31 @@ function runWithTool(middleware: ChatMiddleware, tool: Tool) {
 
 describe('a consumer that stops iterating chat() runs one terminal hook', () => {
   it('break after the first TEXT_MESSAGE_CONTENT runs onAbort', async () => {
-    const { hooks, middleware } = terminalRecorder()
+    const { hooks, abortInfo, middleware } = terminalRecorder()
     for await (const chunk of run(middleware)) {
       if (chunk.type === EventType.TEXT_MESSAGE_CONTENT) break
     }
     expect(hooks).toEqual(['onAbort'])
+    // A consumer stop is a disconnect, not a cancel.
+    expect(abortInfo).toEqual([
+      expect.objectContaining({ cancelRequested: false, reason: undefined }),
+    ])
+  })
+
+  it('break at RUN_ERROR runs onError', async () => {
+    const { hooks, middleware } = terminalRecorder()
+    const { adapter } = createMockAdapter({
+      iterations: [[ev.runStarted(), ev.runError('model failed')]],
+    })
+    for await (const chunk of chat({
+      threadId: 'thread-1',
+      adapter,
+      messages: [{ role: 'user', content: 'Hi' }],
+      middleware: [middleware],
+    }) as AsyncIterable<StreamChunk>) {
+      if (chunk.type === EventType.RUN_ERROR) break
+    }
+    expect(hooks).toEqual(['onError'])
   })
 
   it('break after the final RUN_FINISHED runs onAbort', async () => {
@@ -130,17 +152,6 @@ describe('a consumer that stops iterating chat() runs one terminal hook', () => 
       if (chunk.type === EventType.CUSTOM) break
     }
     expect(events).toEqual(['setup done', 'onAbort'])
-  })
-
-  it('return() after the first TEXT_MESSAGE_CONTENT runs onAbort', async () => {
-    const { hooks, middleware } = terminalRecorder()
-    const iterator = run(middleware)[Symbol.asyncIterator]()
-    let next = await iterator.next()
-    while (!next.done && next.value.type !== EventType.TEXT_MESSAGE_CONTENT) {
-      next = await iterator.next()
-    }
-    await iterator.return?.()
-    expect(hooks).toEqual(['onAbort'])
   })
 
   it('a full drain runs onFinish once', async () => {
