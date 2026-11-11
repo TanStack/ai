@@ -53,7 +53,7 @@ export const CLOUDFLARE_CAPS: SandboxCapabilities = {
 }
 
 /** POSIX single-quote escape for embedding paths in `sh -c`. */
-function q(value: string): string {
+export function q(value: string): string {
   return `'${value.replace(/'/g, `'\\''`)}'`
 }
 
@@ -86,7 +86,7 @@ function parseLstatOutput(output: string): SandboxFsStat {
 }
 
 /** A push-driven async string queue used to adapt CF's onOutput callback. */
-class OutputQueue {
+export class OutputQueue {
   private readonly buffer: Array<string> = []
   private readonly waiters: Array<(r: IteratorResult<string>) => void> = []
   private ended = false
