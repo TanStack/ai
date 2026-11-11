@@ -1210,17 +1210,16 @@ export type OutputOpenrouterRouter = {
 
 export type DecisionsNoulCriteria = {
   /**
-   * @description What should count as a no/false outcome.
-   */
-  false: string | object | unknown[]
-  /**
    * @description What should count as a yes/true outcome.
    */
   true: string | object | unknown[]
+  /**
+   * @description What should count as a no/false outcome.
+   */
+  false: string | object | unknown[]
 }
 
 export type DecisionsNoulQuestion = {
-  type: 'noul'
   /**
    * @description The yes/no question, as text or structured multimodal content.
    */
@@ -1229,10 +1228,10 @@ export type DecisionsNoulQuestion = {
    * @description Optional descriptions clarifying true and false outcomes.
    */
   criteria?: DecisionsNoulCriteria | null
+  type: 'noul'
 }
 
 export type DecisionsChoiceQuestion = {
-  type: 'choice'
   /**
    * @description The question, as text or structured multimodal content.
    */
@@ -1244,10 +1243,10 @@ export type DecisionsChoiceQuestion = {
   criteria: {
     [key: string]: string | object | unknown[] | null
   }
+  type: 'choice'
 }
 
 export type DecisionsScoreQuestion = {
-  type: 'score'
   /**
    * @description The property to score, as text or structured multimodal content.
    */
@@ -1257,6 +1256,7 @@ export type DecisionsScoreQuestion = {
    * @type array
    */
   criteria: (string | object | unknown[])[]
+  type: 'score'
 }
 
 export type InputOpenrouterRouterDecisions = {
@@ -1267,21 +1267,18 @@ export type InputOpenrouterRouterDecisions = {
    */
   enable_safety_checker?: boolean
   /**
+   * @description Identifier for grouping related decision requests.
+   */
+  session_id?: string | null
+  /**
    * @description Text, structured JSON, or an array mixing text strings with OpenRouter media parts: image_url, input_audio, and video_url. Images and videos use base64 data URLs; input_audio uses raw base64 data and a format. Media support and limits depend on the selected Decisions model. See https://openrouter.ai/docs/guides/community/multimodal-decisions.
    * @example My card was charged twice. Please refund the duplicate.
-   * @example ["Does this photo match the listing?",{"type":"image_url","image_url":{"url":"data:image/png;base64,<BASE64_IMAGE>"}}]
+   * @example ["Does this photo match the listing?",{"image_url":{"url":"data:image/png;base64,<BASE64_IMAGE>"},"type":"image_url"}]
    */
   state: string | object | unknown[]
   /**
-   * @description Any OpenRouter Decisions model ID or alias. Choose a model that supports the supplied input modalities.
-   * @default 'typesafe/jev-1.13'
-   * @example typesafe/jev-1.13
-   * @type string | undefined
-   */
-  model?: string
-  /**
    * @description Questions keyed by caller-defined IDs. Each question is evaluated independently against the same state.
-   * @example {"refund_requested":{"type":"noul","instructions":"Is the customer requesting a refund?"},"department":{"type":"choice","instructions":"Which team should handle this request?","criteria":{"billing":"Charges, invoices, or payment problems","returns":"Refunds, exchanges, or damaged items","shipping":"Delivery status, delays, or lost packages"}}}
+   * @example {"refund_requested":{"instructions":"Is the customer requesting a refund?","type":"noul"},"department":{"instructions":"Which team should handle this request?","criteria":{"shipping":"Delivery status, delays, or lost packages","billing":"Charges, invoices, or payment problems","returns":"Refunds, exchanges, or damaged items"},"type":"choice"}}
    * @type object
    */
   questions: {
@@ -1301,9 +1298,12 @@ export type InputOpenrouterRouterDecisions = {
    */
   image_urls?: string[] | null
   /**
-   * @description Identifier for grouping related decision requests.
+   * @description Any OpenRouter Decisions model ID or alias. Choose a model that supports the supplied input modalities.
+   * @default 'typesafe/jev-1.13'
+   * @example typesafe/jev-1.13
+   * @type string | undefined
    */
-  session_id?: string | null
+  model?: string
 }
 
 export type DecisionsUsage = {

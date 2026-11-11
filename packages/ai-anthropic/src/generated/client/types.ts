@@ -2366,6 +2366,36 @@ export type MemoryTool20250818 = {
   type: 'memory_20250818'
 }
 
+/**
+ * @description The model that will complete your prompt.
+ *
+ * See [models](https://docs.anthropic.com/en/docs/models-overview) for additional details and options.
+ */
+export type Model9B4054F0 =
+  | 'claude-fable-5-2'
+  | 'claude-mythos-5-2'
+  | 'claude-haiku-5-5'
+  | 'claude-sonnet-5-5'
+  | 'claude-fable-5-1'
+  | 'claude-opus-5-5'
+  | 'claude-mythos-5-1'
+  | 'claude-sonnet-5'
+  | 'claude-fable-5'
+  | 'claude-mythos-5'
+  | 'claude-opus-5'
+  | 'claude-opus-4-8'
+  | 'claude-opus-4-7'
+  | 'claude-mythos-preview'
+  | 'claude-opus-4-6'
+  | 'claude-sonnet-4-6'
+  | 'claude-haiku-4-5'
+  | 'claude-haiku-4-5-20251001'
+  | 'claude-opus-4-5'
+  | 'claude-opus-4-5-20251101'
+  | 'claude-sonnet-4-5'
+  | 'claude-sonnet-4-5-20250929'
+  | (string & {})
+
 export type OutputConfig = {
   /**
    * @description How much effort the model should put into its response. Higher effort levels may result in more thorough analysis but take longer.
@@ -4286,6 +4316,36 @@ export type Diagnostics = {
   cache_miss_reason: CacheMissReason | null
 }
 
+/**
+ * @description The model that will complete your prompt.
+ *
+ * See [models](https://docs.anthropic.com/en/docs/models-overview) for additional details and options.
+ */
+export type Model26876134 =
+  | 'claude-fable-5-2'
+  | 'claude-mythos-5-2'
+  | 'claude-haiku-5-5'
+  | 'claude-sonnet-5-5'
+  | 'claude-fable-5-1'
+  | 'claude-opus-5-5'
+  | 'claude-mythos-5-1'
+  | 'claude-sonnet-5'
+  | 'claude-fable-5'
+  | 'claude-mythos-5'
+  | 'claude-opus-5'
+  | 'claude-opus-4-8'
+  | 'claude-opus-4-7'
+  | 'claude-mythos-preview'
+  | 'claude-opus-4-6'
+  | 'claude-sonnet-4-6'
+  | 'claude-haiku-4-5'
+  | 'claude-haiku-4-5-20251001'
+  | 'claude-opus-4-5'
+  | 'claude-opus-4-5-20251101'
+  | 'claude-sonnet-4-5'
+  | 'claude-sonnet-4-5-20250929'
+  | (string & {})
+
 export type OutputTokensDetails = {
   /**
    * @description Number of output tokens the model generated as internal reasoning, including
@@ -4444,6 +4504,36 @@ export type Usage = {
   speed: SpeedKey | null
 }
 
+/**
+ * @description The model that will complete your prompt.
+ *
+ * See [models](https://docs.anthropic.com/en/docs/models-overview) for additional details and options.
+ */
+export type Model1920F581 =
+  | 'claude-fable-5-2'
+  | 'claude-mythos-5-2'
+  | 'claude-haiku-5-5'
+  | 'claude-sonnet-5-5'
+  | 'claude-fable-5-1'
+  | 'claude-opus-5-5'
+  | 'claude-mythos-5-1'
+  | 'claude-sonnet-5'
+  | 'claude-fable-5'
+  | 'claude-mythos-5'
+  | 'claude-opus-5'
+  | 'claude-opus-4-8'
+  | 'claude-opus-4-7'
+  | 'claude-mythos-preview'
+  | 'claude-opus-4-6'
+  | 'claude-sonnet-4-6'
+  | 'claude-haiku-4-5'
+  | 'claude-haiku-4-5-20251001'
+  | 'claude-opus-4-5'
+  | 'claude-opus-4-5-20251101'
+  | 'claude-sonnet-4-5'
+  | 'claude-sonnet-4-5-20250929'
+  | (string & {})
+
 export const betaAdvisorToolResultErrorCode = {
   max_uses_exceeded: 'max_uses_exceeded',
   prompt_too_long: 'prompt_too_long',
@@ -4490,6 +4580,36 @@ export type BetaCacheControlEphemeral = {
   type: 'ephemeral'
 }
 
+/**
+ * @description The model that will complete your prompt.
+ *
+ * See [models](https://docs.anthropic.com/en/docs/models-overview) for additional details and options.
+ */
+export type Model5Aca743B =
+  | 'claude-fable-5-2'
+  | 'claude-mythos-5-2'
+  | 'claude-haiku-5-5'
+  | 'claude-sonnet-5-5'
+  | 'claude-fable-5-1'
+  | 'claude-opus-5-5'
+  | 'claude-mythos-5-1'
+  | 'claude-sonnet-5'
+  | 'claude-fable-5'
+  | 'claude-mythos-5'
+  | 'claude-opus-5'
+  | 'claude-opus-4-8'
+  | 'claude-opus-4-7'
+  | 'claude-mythos-preview'
+  | 'claude-opus-4-6'
+  | 'claude-sonnet-4-6'
+  | 'claude-haiku-4-5'
+  | 'claude-haiku-4-5-20251001'
+  | 'claude-opus-4-5'
+  | 'claude-opus-4-5-20251101'
+  | 'claude-sonnet-4-5'
+  | 'claude-sonnet-4-5-20250929'
+  | (string & {})
+
 export type BetaAdvisorTool20260301 = {
   allowed_callers?: BetaAllowedCallerKey[]
   /**
@@ -4526,7 +4646,7 @@ export type BetaAdvisorTool20260301 = {
    *
    * See [models](https://docs.anthropic.com/en/docs/models-overview) for additional details and options.
    */
-  model: Model
+  model: Model5Aca743B
   /**
    * @description Name of the tool.
    *
@@ -8051,7 +8171,7 @@ export type BetaRequestFallbackHopInfo = {
    *
    * See [models](https://docs.anthropic.com/en/docs/models-overview) for additional details and options.
    */
-  model: Model
+  model: Model5Aca743B
 }
 
 /**
@@ -8644,6 +8764,350 @@ export type BetaContextManagementResponse = {
   original_input_tokens: number
 }
 
+/**
+ * @description The model that will complete your prompt.
+ *
+ * See [models](https://docs.anthropic.com/en/docs/models-overview) for additional details and options.
+ */
+export type Model7E79E482 =
+  | 'claude-fable-5-2'
+  | 'claude-mythos-5-2'
+  | 'claude-haiku-5-5'
+  | 'claude-sonnet-5-5'
+  | 'claude-fable-5-1'
+  | 'claude-opus-5-5'
+  | 'claude-mythos-5-1'
+  | 'claude-sonnet-5'
+  | 'claude-fable-5'
+  | 'claude-mythos-5'
+  | 'claude-opus-5'
+  | 'claude-opus-4-8'
+  | 'claude-opus-4-7'
+  | 'claude-mythos-preview'
+  | 'claude-opus-4-6'
+  | 'claude-sonnet-4-6'
+  | 'claude-haiku-4-5'
+  | 'claude-haiku-4-5-20251001'
+  | 'claude-opus-4-5'
+  | 'claude-opus-4-5-20251101'
+  | 'claude-sonnet-4-5'
+  | 'claude-sonnet-4-5-20250929'
+  | (string & {})
+
+export type BetaAdvisorTool20260301Cac44678 = {
+  allowed_callers?: BetaAllowedCallerKey[]
+  /**
+   * @description Create a cache control breakpoint at this content block.
+   */
+  cache_control?:
+    | (BetaCacheControlEphemeral & {
+        type: 'ephemeral'
+      })
+    | null
+  /**
+   * @description Caching for the advisor's own prompt. When set, each advisor call writes a cache entry at the given TTL so subsequent calls in the same conversation read the stable prefix. When omitted, the advisor prompt is not cached.
+   */
+  caching?:
+    | (BetaCacheControlEphemeral & {
+        type: 'ephemeral'
+      })
+    | null
+  /**
+   * @description If true, tool will not be included in initial system prompt. Only loaded when returned via tool_reference from tool search.
+   * @type boolean | undefined
+   */
+  defer_loading?: boolean
+  /**
+   * @description Bounds the advisor's total output (thinking + text) per call. When the advisor hits this cap, the returned advisor_result or advisor_redacted_result block carries stop_reason='max_tokens', and a truncation note is appended to the advice text the worker model sees (inside the encrypted blob in redacted mode). When set, the API also passes the advisor its remaining-token budget, so the advisor shapes its output toward the cap. When omitted, the advisor model's default output cap applies and the API doesn't pass a budget.
+   */
+  max_tokens?: number | null
+  /**
+   * @description Maximum number of times the tool can be used in the API request.
+   */
+  max_uses?: number | null
+  /**
+   * @description The model that will complete your prompt.
+   *
+   * See [models](https://docs.anthropic.com/en/docs/models-overview) for additional details and options.
+   */
+  model: Model7E79E482
+  /**
+   * @description Name of the tool.
+   *
+   * This is how the tool will be called by the model and in `tool_use` blocks.
+   * @type string
+   */
+  name: 'advisor'
+  /**
+   * @description When true, guarantees schema validation on tool names and inputs
+   * @type boolean | undefined
+   */
+  strict?: boolean
+  type: 'advisor_20260301'
+}
+
+export type BetaToolUnionE2807188 =
+  | BetaTool
+  | BetaBashTool20241022
+  | BetaBashTool20250124
+  | BetaCodeExecutionTool20250522
+  | BetaCodeExecutionTool20250825
+  | BetaCodeExecutionTool20260120
+  | BetaCodeExecutionTool20260521
+  | BetaBrowserToolset20260801
+  | BetaComputerUseTool20241022
+  | BetaMemoryTool20250818
+  | BetaComputerUseTool20250124
+  | BetaTextEditor20241022
+  | BetaComputerUseTool20251124
+  | BetaComputerToolset20260801
+  | BetaTextEditor20250124
+  | BetaTextEditor20250429
+  | BetaTextEditor20250728
+  | BetaWebSearchTool20250305
+  | BetaWebFetchTool20250910
+  | BetaWebSearchTool20260209
+  | BetaWebFetchTool20260209
+  | BetaWebFetchTool20260309
+  | BetaWebSearchTool20260318
+  | BetaWebFetchTool20260318
+  | BetaAdvisorTool20260301Cac44678
+  | BetaToolSearchToolBM2520251119
+  | BetaToolSearchToolRegex20251119
+  | BetaMCPToolset
+
+/**
+ * @description A tool defined by value: `definition` is a `tools` entry (any kind
+ * `tools` accepts, an MCP toolset included). An `mcp_toolset` given here
+ * also requires the `mcp-client-2026-09-15` beta.
+ * @type object
+ */
+export type BetaToolChangeToolDefinitionAc95540E = {
+  definition: BetaToolUnionE2807188
+  type: 'tool_definition'
+}
+
+/**
+ * @description Mid-conversation directive to make a tool available.
+ *
+ * ``tool`` is a reference to a tool (or MCP toolset) declared in the
+ * request's ``tools``. Under the ``inline-tools-2026-09-15`` beta it may
+ * instead be a reference to a tool defined earlier in ``messages``, or a
+ * ``tool_definition`` object that carries an inline tool definition in
+ * ``definition`` (the same object a ``tools`` entry holds). An ``mcp_toolset``
+ * definition also requires the ``mcp-client-2026-09-15`` beta. The tool is
+ * offered to the model from this point in the conversation onward.
+ * @type object
+ */
+export type BetaRequestToolAdditionBlockF1Ef8E85 = {
+  /**
+   * @description Create a cache control breakpoint at this content block.
+   */
+  cache_control?:
+    | (BetaCacheControlEphemeral & {
+        type: 'ephemeral'
+      })
+    | null
+  tool:
+    | (BetaToolChangeToolReference & {
+        type: 'tool_reference'
+      })
+    | (BetaToolChangeMCPToolReference & {
+        type: 'mcp_tool_reference'
+      })
+    | (BetaToolChangeMCPToolsetReference & {
+        type: 'mcp_toolset_reference'
+      })
+    | (BetaToolChangeToolDefinitionAc95540E & {
+        type: 'tool_definition'
+      })
+  type: 'tool_addition'
+}
+
+/**
+ * @description A compaction block containing summary of previous context.
+ *
+ * Users should round-trip these blocks from responses to subsequent requests
+ * to maintain context across compaction boundaries.
+ *
+ * When content is None, the block represents a failed compaction. The server
+ * treats these as no-ops. Empty string content is not allowed.
+ * @type object
+ */
+export type BetaRequestCompactionBlockCc2F83Ea = {
+  /**
+   * @description Create a cache control breakpoint at this content block.
+   */
+  cache_control?:
+    | (BetaCacheControlEphemeral & {
+        type: 'ephemeral'
+      })
+    | null
+  /**
+   * @description Summary of previously compacted content, or null if compaction failed
+   */
+  content?: string | null
+  /**
+   * @description Opaque metadata from prior compaction, to be round-tripped verbatim
+   */
+  encrypted_content?: string | null
+  /**
+   * @description The block's signature as returned, to be sent back verbatim
+   */
+  signature?: string | null
+  /**
+   * @description The tool changes of the compacted range, as the server returned them on this block: the `tool_addition` and `tool_removal` entries that take the request's `tools` to the tool set in effect at the end of the range. Send them back unchanged with the block.
+   */
+  tool_changes?:
+    | (
+        | (BetaRequestToolAdditionBlockF1Ef8E85 & {
+            type: 'tool_addition'
+          })
+        | (BetaRequestToolRemovalBlock & {
+            type: 'tool_removal'
+          })
+      )[]
+    | null
+  type: 'compaction'
+}
+
+/**
+ * @description Identifies one hop of a fallback transition.
+ * @type object
+ */
+export type BetaRequestFallbackHopInfoF3347Bcb = {
+  /**
+   * @description The model that will complete your prompt.
+   *
+   * See [models](https://docs.anthropic.com/en/docs/models-overview) for additional details and options.
+   */
+  model: Model7E79E482
+}
+
+/**
+ * @description A `fallback` block echoed back from a prior response.
+ *
+ * Accepted in `messages[].content` and not rendered into the prompt; not
+ * validated against the request's `fallbacks` chain or top-level `model`.
+ *
+ * When you send the assistant turn back, keep this block in its
+ * original position. The block marks the boundary between content produced
+ * before and after a fallback hop, and the server relies on that boundary
+ * to validate the turn: when thinking runs flank the boundary, omitting
+ * the block merges them into one span the server cannot validate (the
+ * request is rejected), and moving it into the middle of a single run is
+ * likewise rejected; between non-thinking blocks the block's placement has
+ * no effect on thinking validation.
+ *
+ * Some blocks from before the turn's final `fallback` block must be left
+ * out when you send the turn back, and no `tool_result` is sent for a
+ * `tool_use` block you left out.
+ *
+ * See the [refusals and fallback guide](https://platform.claude.com/docs/en/build-with-claude/refusals-and-fallback#continuing-the-conversation) to learn which blocks to keep.
+ * @type object
+ */
+export type BetaRequestFallbackBlock3C0B27F9 = {
+  /**
+   * @description Identifies one hop of a fallback transition.
+   * @type object
+   */
+  from: BetaRequestFallbackHopInfoF3347Bcb
+  /**
+   * @description Identifies one hop of a fallback transition.
+   * @type object
+   */
+  to: BetaRequestFallbackHopInfoF3347Bcb
+  /**
+   * @description The response block's `trigger`, echoed verbatim. Accepted and ignored by the server; any object or `null` is allowed.
+   * @type unknown | undefined
+   */
+  trigger?: unknown
+  type: 'fallback'
+}
+
+export type BetaInputContentBlock94Bb133D =
+  | (BetaRequestTextBlock & {
+      type: 'text'
+    })
+  | (BetaRequestImageBlock & {
+      type: 'image'
+    })
+  | (BetaRequestDocumentBlock & {
+      type: 'document'
+    })
+  | (BetaRequestSearchResultBlock & {
+      type: 'search_result'
+    })
+  | (BetaRequestThinkingBlock & {
+      type: 'thinking'
+    })
+  | (BetaRequestRedactedThinkingBlock & {
+      type: 'redacted_thinking'
+    })
+  | (BetaRequestToolUseBlock & {
+      type: 'tool_use'
+    })
+  | (BetaRequestToolResultBlock & {
+      type: 'tool_result'
+    })
+  | (BetaRequestServerToolUseBlock & {
+      type: 'server_tool_use'
+    })
+  | (BetaRequestWebSearchToolResultBlock & {
+      type: 'web_search_tool_result'
+    })
+  | (BetaRequestWebFetchToolResultBlock & {
+      type: 'web_fetch_tool_result'
+    })
+  | (BetaRequestAdvisorToolResultBlock & {
+      type: 'advisor_tool_result'
+    })
+  | (BetaRequestCodeExecutionToolResultBlock & {
+      type: 'code_execution_tool_result'
+    })
+  | (BetaRequestBashCodeExecutionToolResultBlock & {
+      type: 'bash_code_execution_tool_result'
+    })
+  | (BetaRequestTextEditorCodeExecutionToolResultBlock & {
+      type: 'text_editor_code_execution_tool_result'
+    })
+  | (BetaRequestToolSearchToolResultBlock & {
+      type: 'tool_search_tool_result'
+    })
+  | (BetaRequestMCPToolUseBlock & {
+      type: 'mcp_tool_use'
+    })
+  | (BetaRequestMCPToolResultBlock & {
+      type: 'mcp_tool_result'
+    })
+  | (BetaRequestContainerUploadBlock & {
+      type: 'container_upload'
+    })
+  | (BetaRequestCompactionBlockCc2F83Ea & {
+      type: 'compaction'
+    })
+  | (BetaRequestToolAdditionBlockF1Ef8E85 & {
+      type: 'tool_addition'
+    })
+  | (BetaRequestToolRemovalBlock & {
+      type: 'tool_removal'
+    })
+  | (BetaRequestMCPToolListingBlock & {
+      type: 'mcp_tool_listing'
+    })
+  | (BetaRequestFallbackBlock3C0B27F9 & {
+      type: 'fallback'
+    })
+
+export type BetaInputMessageContent5F405E5F =
+  | string
+  | BetaInputContentBlock94Bb133D[]
+
+export type BetaAssistantInputMessage81Ea261A = {
+  content: BetaInputMessageContent5F405E5F
+  role: 'assistant'
+}
+
 export const betaSkillParamsTypeEnum = {
   anthropic: 'anthropic',
   custom: 'custom',
@@ -8729,7 +9193,7 @@ export type BetaFallbackConfigV2 = {
    *
    * See [models](https://docs.anthropic.com/en/docs/models-overview) for additional details and options.
    */
-  model: Model
+  model: Model7E79E482
   /**
    * @description Output parameters for the fallback attempt that uses this `fallbacks` entry's `model`, combined with the request's `output_config` one field at a time.
    *
@@ -8809,6 +9273,52 @@ export type BetaFallbackCreditTokenParam = {
   token: string
 }
 
+export type BetaUserInputMessageD7B44C15 = {
+  content: BetaInputMessageContent5F405E5F
+  role: 'user'
+}
+
+export const betaSystemInputMessage00C75E6FClearAt = {
+  next_user_message: 'next_user_message',
+  never: 'never',
+} as const
+
+export type BetaSystemInputMessage00C75E6FClearAtKey =
+  (typeof betaSystemInputMessage00C75E6FClearAt)[keyof typeof betaSystemInputMessage00C75E6FClearAt]
+
+export type BetaSystemInputMessage00C75E6F = {
+  /**
+   * @description How long this system message's text stays in front of the model. `"never"` (the default) renders it on every request that includes it. `"next_user_message"` renders it only for the user turn it follows: once a later `role: "user"` message exists in `messages` the message stays in the array (send it unchanged) but is no longer shown to the model. Only permitted on `role: "system"` messages.
+   */
+  clear_at?: BetaSystemInputMessage00C75E6FClearAtKey | null
+  content?:
+    | string
+    | (
+        | (BetaRequestTextBlock & {
+            type: 'text'
+          })
+        | (BetaRequestToolAdditionBlockF1Ef8E85 & {
+            type: 'tool_addition'
+          })
+        | (BetaRequestToolRemovalBlock & {
+            type: 'tool_removal'
+          })
+      )[]
+  output_config?: BetaSystemMessageOutputConfig | null
+  role: 'system'
+}
+
+export type BetaInputMessageUnionD0Ecd1D1 =
+  | (BetaUserInputMessageD7B44C15 & {
+      role: 'user'
+    })
+  | (BetaAssistantInputMessage81Ea261A & {
+      role: 'assistant'
+    })
+  | (BetaSystemInputMessage00C75E6F & {
+      role: 'system'
+    })
+
 export type BetaMetadata = {
   /**
    * @description An external identifier for the user who is associated with the request.
@@ -8858,6 +9368,36 @@ export type BetaCacheCreation = {
 }
 
 /**
+ * @description The model that will complete your prompt.
+ *
+ * See [models](https://docs.anthropic.com/en/docs/models-overview) for additional details and options.
+ */
+export type ModelD5B6C4D5 =
+  | 'claude-fable-5-2'
+  | 'claude-mythos-5-2'
+  | 'claude-haiku-5-5'
+  | 'claude-sonnet-5-5'
+  | 'claude-fable-5-1'
+  | 'claude-opus-5-5'
+  | 'claude-mythos-5-1'
+  | 'claude-sonnet-5'
+  | 'claude-fable-5'
+  | 'claude-mythos-5'
+  | 'claude-opus-5'
+  | 'claude-opus-4-8'
+  | 'claude-opus-4-7'
+  | 'claude-mythos-preview'
+  | 'claude-opus-4-6'
+  | 'claude-sonnet-4-6'
+  | 'claude-haiku-4-5'
+  | 'claude-haiku-4-5-20251001'
+  | 'claude-opus-4-5'
+  | 'claude-opus-4-5-20251101'
+  | 'claude-sonnet-4-5'
+  | 'claude-sonnet-4-5-20250929'
+  | (string & {})
+
+/**
  * @description Token usage for an advisor sub-inference iteration.
  * @type object
  */
@@ -8892,7 +9432,7 @@ export type BetaAdvisorMessageIterationUsage = {
    *
    * See [models](https://docs.anthropic.com/en/docs/models-overview) for additional details and options.
    */
-  model: Model
+  model: ModelD5B6C4D5
   /**
    * @description The number of output tokens which were used.
    * @minimum 0
@@ -8907,36 +9447,13 @@ export type BetaAdvisorMessageIterationUsage = {
   type: 'advisor_message'
 }
 
-export const betaCacheControlEphemeralE964Bdd8TtlEnum = {
-  '5m': '5m',
-  '1h': '1h',
-} as const
-
-export type BetaCacheControlEphemeralE964Bdd8TtlEnumKey =
-  (typeof betaCacheControlEphemeralE964Bdd8TtlEnum)[keyof typeof betaCacheControlEphemeralE964Bdd8TtlEnum]
-
-export type BetaCacheControlEphemeralE964Bdd8 = {
-  /**
-   * @description The time-to-live for the cache control breakpoint.
-   *
-   * This may be one the following values:
-   * - `5m`: 5 minutes
-   * - `1h`: 1 hour
-   *
-   * Defaults to `5m`. See [prompt caching pricing](https://platform.claude.com/docs/en/build-with-claude/prompt-caching) for details.
-   * @type string | undefined
-   */
-  ttl?: BetaCacheControlEphemeralE964Bdd8TtlEnumKey
-  type: 'ephemeral'
-}
-
-export type BetaAdvisorTool202603017Db494Ff = {
+export type BetaAdvisorTool20260301A7552763 = {
   allowed_callers?: BetaAllowedCallerKey[]
   /**
    * @description Create a cache control breakpoint at this content block.
    */
   cache_control?:
-    | (BetaCacheControlEphemeralE964Bdd8 & {
+    | (BetaCacheControlEphemeral & {
         type: 'ephemeral'
       })
     | null
@@ -8944,7 +9461,7 @@ export type BetaAdvisorTool202603017Db494Ff = {
    * @description Caching for the advisor's own prompt. When set, each advisor call writes a cache entry at the given TTL so subsequent calls in the same conversation read the stable prefix. When omitted, the advisor prompt is not cached.
    */
   caching?:
-    | (BetaCacheControlEphemeralE964Bdd8 & {
+    | (BetaCacheControlEphemeral & {
         type: 'ephemeral'
       })
     | null
@@ -8966,7 +9483,7 @@ export type BetaAdvisorTool202603017Db494Ff = {
    *
    * See [models](https://docs.anthropic.com/en/docs/models-overview) for additional details and options.
    */
-  model: Model
+  model: ModelD5B6C4D5
   /**
    * @description Name of the tool.
    *
@@ -8980,95 +9497,6 @@ export type BetaAdvisorTool202603017Db494Ff = {
    */
   strict?: boolean
   type: 'advisor_20260301'
-}
-
-export type BetaBashTool202410226A82561A = {
-  allowed_callers?: BetaAllowedCallerKey[]
-  /**
-   * @description Create a cache control breakpoint at this content block.
-   */
-  cache_control?:
-    | (BetaCacheControlEphemeralE964Bdd8 & {
-        type: 'ephemeral'
-      })
-    | null
-  /**
-   * @description If true, tool will not be included in initial system prompt. Only loaded when returned via tool_reference from tool search.
-   * @type boolean | undefined
-   */
-  defer_loading?: boolean
-  input_examples?: {
-    [key: string]: BetaJsonValue
-  }[]
-  /**
-   * @description Name of the tool.
-   *
-   * This is how the tool will be called by the model and in `tool_use` blocks.
-   * @type string
-   */
-  name: 'bash'
-  /**
-   * @description When true, guarantees schema validation on tool names and inputs
-   * @type boolean | undefined
-   */
-  strict?: boolean
-  type: 'bash_20241022'
-}
-
-export type BetaBashTool202501240A3F30A9 = {
-  allowed_callers?: BetaAllowedCallerKey[]
-  /**
-   * @description Create a cache control breakpoint at this content block.
-   */
-  cache_control?:
-    | (BetaCacheControlEphemeralE964Bdd8 & {
-        type: 'ephemeral'
-      })
-    | null
-  /**
-   * @description If true, tool will not be included in initial system prompt. Only loaded when returned via tool_reference from tool search.
-   * @type boolean | undefined
-   */
-  defer_loading?: boolean
-  input_examples?: {
-    [key: string]: BetaJsonValue
-  }[]
-  /**
-   * @description Name of the tool.
-   *
-   * This is how the tool will be called by the model and in `tool_use` blocks.
-   * @type string
-   */
-  name: 'bash'
-  /**
-   * @description When true, guarantees schema validation on tool names and inputs
-   * @type boolean | undefined
-   */
-  strict?: boolean
-  type: 'bash_20250124'
-}
-
-/**
- * @description The browser toolset: a single ``tools[]`` entry (carrying no
- * ``name``) that declares the browser tool family. The model is served
- * the family's tool with any members disabled via ``configs`` removed
- * from its schema.
- * @type object
- */
-export type BetaBrowserToolset20260801D53Ee254 = {
-  /**
-   * @description Create a cache control breakpoint at this content block.
-   */
-  cache_control?:
-    | (BetaCacheControlEphemeralE964Bdd8 & {
-        type: 'ephemeral'
-      })
-    | null
-  /**
-   * @description Sparse per-member overrides, keyed by member name. Absent, null, and {} are equivalent; a member's defaults apply wherever its key is absent.
-   */
-  configs?: BetaBrowserToolsetConfigs | null
-  type: 'browser_toolset_20260801'
 }
 
 /**
@@ -9199,138 +9627,6 @@ export type BetaCacheMissReason =
       type: 'unavailable'
     })
 
-export type BetaCodeExecutionTool20250522A978Dea8 = {
-  allowed_callers?: BetaAllowedCallerKey[]
-  /**
-   * @description Create a cache control breakpoint at this content block.
-   */
-  cache_control?:
-    | (BetaCacheControlEphemeralE964Bdd8 & {
-        type: 'ephemeral'
-      })
-    | null
-  /**
-   * @description If true, tool will not be included in initial system prompt. Only loaded when returned via tool_reference from tool search.
-   * @type boolean | undefined
-   */
-  defer_loading?: boolean
-  /**
-   * @description Name of the tool.
-   *
-   * This is how the tool will be called by the model and in `tool_use` blocks.
-   * @type string
-   */
-  name: 'code_execution'
-  /**
-   * @description When true, guarantees schema validation on tool names and inputs
-   * @type boolean | undefined
-   */
-  strict?: boolean
-  type: 'code_execution_20250522'
-}
-
-export type BetaCodeExecutionTool2025082539B385D6 = {
-  allowed_callers?: BetaAllowedCallerKey[]
-  /**
-   * @description Create a cache control breakpoint at this content block.
-   */
-  cache_control?:
-    | (BetaCacheControlEphemeralE964Bdd8 & {
-        type: 'ephemeral'
-      })
-    | null
-  /**
-   * @description If true, tool will not be included in initial system prompt. Only loaded when returned via tool_reference from tool search.
-   * @type boolean | undefined
-   */
-  defer_loading?: boolean
-  /**
-   * @description Name of the tool.
-   *
-   * This is how the tool will be called by the model and in `tool_use` blocks.
-   * @type string
-   */
-  name: 'code_execution'
-  /**
-   * @description When true, guarantees schema validation on tool names and inputs
-   * @type boolean | undefined
-   */
-  strict?: boolean
-  type: 'code_execution_20250825'
-}
-
-/**
- * @description A `tools` entry for the code execution tool, version `code_execution_20260120`. It adds REPL state persistence to version `code_execution_20250825`.
- *
- * REPL state persistence applies with programmatic tool calling. With it, the Python interpreter state, such as variable bindings, persists across requests that reuse the container.
- *
- * See the [code execution tool guide](https://platform.claude.com/docs/en/agents-and-tools/tool-use/code-execution-tool#tool-versions) to learn what each tool version adds.
- * @type object
- */
-export type BetaCodeExecutionTool202601202B97F577 = {
-  allowed_callers?: BetaAllowedCallerKey[]
-  /**
-   * @description Create a cache control breakpoint at this content block.
-   */
-  cache_control?:
-    | (BetaCacheControlEphemeralE964Bdd8 & {
-        type: 'ephemeral'
-      })
-    | null
-  /**
-   * @description If true, tool will not be included in initial system prompt. Only loaded when returned via tool_reference from tool search.
-   * @type boolean | undefined
-   */
-  defer_loading?: boolean
-  /**
-   * @description Name of the tool.
-   *
-   * This is how the tool will be called by the model and in `tool_use` blocks.
-   * @type string
-   */
-  name: 'code_execution'
-  /**
-   * @description When true, guarantees schema validation on tool names and inputs
-   * @type boolean | undefined
-   */
-  strict?: boolean
-  type: 'code_execution_20260120'
-}
-
-/**
- * @description Code execution tool with REPL state persistence.
- * @type object
- */
-export type BetaCodeExecutionTool20260521Addcb1Ec = {
-  allowed_callers?: BetaAllowedCallerKey[]
-  /**
-   * @description Create a cache control breakpoint at this content block.
-   */
-  cache_control?:
-    | (BetaCacheControlEphemeralE964Bdd8 & {
-        type: 'ephemeral'
-      })
-    | null
-  /**
-   * @description If true, tool will not be included in initial system prompt. Only loaded when returned via tool_reference from tool search.
-   * @type boolean | undefined
-   */
-  defer_loading?: boolean
-  /**
-   * @description Name of the tool.
-   *
-   * This is how the tool will be called by the model and in `tool_use` blocks.
-   * @type string
-   */
-  name: 'code_execution'
-  /**
-   * @description When true, guarantees schema validation on tool names and inputs
-   * @type boolean | undefined
-   */
-  strict?: boolean
-  type: 'code_execution_20260521'
-}
-
 /**
  * @description Token usage for a compaction iteration.
  * @type object
@@ -9373,185 +9669,6 @@ export type BetaCompactionIterationUsage = {
    * @type string
    */
   type: 'compaction'
-}
-
-/**
- * @description The computer toolset: a single ``tools[]`` entry (carrying no
- * ``name``) that declares the computer tool family. The model is
- * served the family's tool with any members disabled via ``configs``
- * removed from its schema. Every member is enabled by default, zoom
- * included. The single-tool options ``display_number`` and
- * ``enable_zoom`` are not fields of a toolset entry — it carries only
- * ``type``, ``configs``, and ``cache_control``; zoom is controlled
- * via ``configs.zoom.enabled``.
- * @type object
- */
-export type BetaComputerToolset20260801Ccd80937 = {
-  /**
-   * @description Create a cache control breakpoint at this content block.
-   */
-  cache_control?:
-    | (BetaCacheControlEphemeralE964Bdd8 & {
-        type: 'ephemeral'
-      })
-    | null
-  /**
-   * @description Sparse per-member overrides, keyed by member name. Absent, null, and {} are equivalent; a member's defaults apply wherever its key is absent.
-   */
-  configs?: BetaComputerToolsetConfigs | null
-  type: 'computer_toolset_20260801'
-}
-
-export type BetaComputerUseTool20241022F5D98C22 = {
-  allowed_callers?: BetaAllowedCallerKey[]
-  /**
-   * @description Create a cache control breakpoint at this content block.
-   */
-  cache_control?:
-    | (BetaCacheControlEphemeralE964Bdd8 & {
-        type: 'ephemeral'
-      })
-    | null
-  /**
-   * @description If true, tool will not be included in initial system prompt. Only loaded when returned via tool_reference from tool search.
-   * @type boolean | undefined
-   */
-  defer_loading?: boolean
-  /**
-   * @description The height of the display in pixels.
-   * @minimum 1
-   * @type integer
-   */
-  display_height_px: number
-  /**
-   * @description The X11 display number (e.g. 0, 1) for the display.
-   */
-  display_number?: number | null
-  /**
-   * @description The width of the display in pixels.
-   * @minimum 1
-   * @type integer
-   */
-  display_width_px: number
-  input_examples?: {
-    [key: string]: BetaJsonValue
-  }[]
-  /**
-   * @description Name of the tool.
-   *
-   * This is how the tool will be called by the model and in `tool_use` blocks.
-   * @type string
-   */
-  name: 'computer'
-  /**
-   * @description When true, guarantees schema validation on tool names and inputs
-   * @type boolean | undefined
-   */
-  strict?: boolean
-  type: 'computer_20241022'
-}
-
-export type BetaComputerUseTool20250124511F8B11 = {
-  allowed_callers?: BetaAllowedCallerKey[]
-  /**
-   * @description Create a cache control breakpoint at this content block.
-   */
-  cache_control?:
-    | (BetaCacheControlEphemeralE964Bdd8 & {
-        type: 'ephemeral'
-      })
-    | null
-  /**
-   * @description If true, tool will not be included in initial system prompt. Only loaded when returned via tool_reference from tool search.
-   * @type boolean | undefined
-   */
-  defer_loading?: boolean
-  /**
-   * @description The height of the display in pixels.
-   * @minimum 1
-   * @type integer
-   */
-  display_height_px: number
-  /**
-   * @description The X11 display number (e.g. 0, 1) for the display.
-   */
-  display_number?: number | null
-  /**
-   * @description The width of the display in pixels.
-   * @minimum 1
-   * @type integer
-   */
-  display_width_px: number
-  input_examples?: {
-    [key: string]: BetaJsonValue
-  }[]
-  /**
-   * @description Name of the tool.
-   *
-   * This is how the tool will be called by the model and in `tool_use` blocks.
-   * @type string
-   */
-  name: 'computer'
-  /**
-   * @description When true, guarantees schema validation on tool names and inputs
-   * @type boolean | undefined
-   */
-  strict?: boolean
-  type: 'computer_20250124'
-}
-
-export type BetaComputerUseTool2025112487E41908 = {
-  allowed_callers?: BetaAllowedCallerKey[]
-  /**
-   * @description Create a cache control breakpoint at this content block.
-   */
-  cache_control?:
-    | (BetaCacheControlEphemeralE964Bdd8 & {
-        type: 'ephemeral'
-      })
-    | null
-  /**
-   * @description If true, tool will not be included in initial system prompt. Only loaded when returned via tool_reference from tool search.
-   * @type boolean | undefined
-   */
-  defer_loading?: boolean
-  /**
-   * @description The height of the display in pixels.
-   * @minimum 1
-   * @type integer
-   */
-  display_height_px: number
-  /**
-   * @description The X11 display number (e.g. 0, 1) for the display.
-   */
-  display_number?: number | null
-  /**
-   * @description The width of the display in pixels.
-   * @minimum 1
-   * @type integer
-   */
-  display_width_px: number
-  /**
-   * @description Whether to enable an action to take a zoomed-in screenshot of the screen.
-   * @type boolean | undefined
-   */
-  enable_zoom?: boolean
-  input_examples?: {
-    [key: string]: BetaJsonValue
-  }[]
-  /**
-   * @description Name of the tool.
-   *
-   * This is how the tool will be called by the model and in `tool_use` blocks.
-   * @type string
-   */
-  name: 'computer'
-  /**
-   * @description When true, guarantees schema validation on tool names and inputs
-   * @type boolean | undefined
-   */
-  strict?: boolean
-  type: 'computer_20251124'
 }
 
 export const betaContainerSkillTypeEnum = {
@@ -10555,715 +10672,35 @@ export type BetaResponseTool = {
   }[]
 }
 
-export type BetaMemoryTool202508186Bcb1Eba = {
-  allowed_callers?: BetaAllowedCallerKey[]
-  /**
-   * @description Create a cache control breakpoint at this content block.
-   */
-  cache_control?:
-    | (BetaCacheControlEphemeralE964Bdd8 & {
-        type: 'ephemeral'
-      })
-    | null
-  /**
-   * @description If true, tool will not be included in initial system prompt. Only loaded when returned via tool_reference from tool search.
-   * @type boolean | undefined
-   */
-  defer_loading?: boolean
-  input_examples?: {
-    [key: string]: BetaJsonValue
-  }[]
-  /**
-   * @description Name of the tool.
-   *
-   * This is how the tool will be called by the model and in `tool_use` blocks.
-   * @type string
-   */
-  name: 'memory'
-  /**
-   * @description When true, guarantees schema validation on tool names and inputs
-   * @type boolean | undefined
-   */
-  strict?: boolean
-  type: 'memory_20250818'
-}
-
-export type BetaTextEditor202410223Bbe81E4 = {
-  allowed_callers?: BetaAllowedCallerKey[]
-  /**
-   * @description Create a cache control breakpoint at this content block.
-   */
-  cache_control?:
-    | (BetaCacheControlEphemeralE964Bdd8 & {
-        type: 'ephemeral'
-      })
-    | null
-  /**
-   * @description If true, tool will not be included in initial system prompt. Only loaded when returned via tool_reference from tool search.
-   * @type boolean | undefined
-   */
-  defer_loading?: boolean
-  input_examples?: {
-    [key: string]: BetaJsonValue
-  }[]
-  /**
-   * @description Name of the tool.
-   *
-   * This is how the tool will be called by the model and in `tool_use` blocks.
-   * @type string
-   */
-  name: 'str_replace_editor'
-  /**
-   * @description When true, guarantees schema validation on tool names and inputs
-   * @type boolean | undefined
-   */
-  strict?: boolean
-  type: 'text_editor_20241022'
-}
-
-export type BetaTextEditor20250124F0374477 = {
-  allowed_callers?: BetaAllowedCallerKey[]
-  /**
-   * @description Create a cache control breakpoint at this content block.
-   */
-  cache_control?:
-    | (BetaCacheControlEphemeralE964Bdd8 & {
-        type: 'ephemeral'
-      })
-    | null
-  /**
-   * @description If true, tool will not be included in initial system prompt. Only loaded when returned via tool_reference from tool search.
-   * @type boolean | undefined
-   */
-  defer_loading?: boolean
-  input_examples?: {
-    [key: string]: BetaJsonValue
-  }[]
-  /**
-   * @description Name of the tool.
-   *
-   * This is how the tool will be called by the model and in `tool_use` blocks.
-   * @type string
-   */
-  name: 'str_replace_editor'
-  /**
-   * @description When true, guarantees schema validation on tool names and inputs
-   * @type boolean | undefined
-   */
-  strict?: boolean
-  type: 'text_editor_20250124'
-}
-
-export type BetaTextEditor202504298Eb582Ab = {
-  allowed_callers?: BetaAllowedCallerKey[]
-  /**
-   * @description Create a cache control breakpoint at this content block.
-   */
-  cache_control?:
-    | (BetaCacheControlEphemeralE964Bdd8 & {
-        type: 'ephemeral'
-      })
-    | null
-  /**
-   * @description If true, tool will not be included in initial system prompt. Only loaded when returned via tool_reference from tool search.
-   * @type boolean | undefined
-   */
-  defer_loading?: boolean
-  input_examples?: {
-    [key: string]: BetaJsonValue
-  }[]
-  /**
-   * @description Name of the tool.
-   *
-   * This is how the tool will be called by the model and in `tool_use` blocks.
-   * @type string
-   */
-  name: 'str_replace_based_edit_tool'
-  /**
-   * @description When true, guarantees schema validation on tool names and inputs
-   * @type boolean | undefined
-   */
-  strict?: boolean
-  type: 'text_editor_20250429'
-}
-
-export type BetaTextEditor202507284D5Ed9B9 = {
-  allowed_callers?: BetaAllowedCallerKey[]
-  /**
-   * @description Create a cache control breakpoint at this content block.
-   */
-  cache_control?:
-    | (BetaCacheControlEphemeralE964Bdd8 & {
-        type: 'ephemeral'
-      })
-    | null
-  /**
-   * @description If true, tool will not be included in initial system prompt. Only loaded when returned via tool_reference from tool search.
-   * @type boolean | undefined
-   */
-  defer_loading?: boolean
-  input_examples?: {
-    [key: string]: BetaJsonValue
-  }[]
-  /**
-   * @description Maximum number of characters to display when viewing a file. If not specified, defaults to displaying the full file.
-   */
-  max_characters?: number | null
-  /**
-   * @description Name of the tool.
-   *
-   * This is how the tool will be called by the model and in `tool_use` blocks.
-   * @type string
-   */
-  name: 'str_replace_based_edit_tool'
-  /**
-   * @description When true, guarantees schema validation on tool names and inputs
-   * @type boolean | undefined
-   */
-  strict?: boolean
-  type: 'text_editor_20250728'
-}
-
-export type BetaWebSearchTool2025030508De6E34 = {
-  allowed_callers?: BetaAllowedCallerKey[]
-  /**
-   * @description If provided, only these domains will be included in results. Cannot be used alongside `blocked_domains`.
-   */
-  allowed_domains?: string[] | null
-  /**
-   * @description If provided, these domains will never appear in results. Cannot be used alongside `allowed_domains`.
-   */
-  blocked_domains?: string[] | null
-  /**
-   * @description Create a cache control breakpoint at this content block.
-   */
-  cache_control?:
-    | (BetaCacheControlEphemeralE964Bdd8 & {
-        type: 'ephemeral'
-      })
-    | null
-  /**
-   * @description If true, tool will not be included in initial system prompt. Only loaded when returned via tool_reference from tool search.
-   * @type boolean | undefined
-   */
-  defer_loading?: boolean
-  /**
-   * @description Maximum number of times the tool can be used in the API request.
-   */
-  max_uses?: number | null
-  /**
-   * @description Name of the tool.
-   *
-   * This is how the tool will be called by the model and in `tool_use` blocks.
-   * @type string
-   */
-  name: 'web_search'
-  /**
-   * @description When true, guarantees schema validation on tool names and inputs
-   * @type boolean | undefined
-   */
-  strict?: boolean
-  type: 'web_search_20250305'
-  /**
-   * @description Parameters for the user's location. Used to provide more relevant search results.
-   */
-  user_location?: BetaUserLocation | null
-}
-
-export type BetaWebFetchTool2025091087919Ab2 = {
-  allowed_callers?: BetaAllowedCallerKey[]
-  /**
-   * @description List of domains to allow fetching from
-   */
-  allowed_domains?: string[] | null
-  /**
-   * @description List of domains to block fetching from
-   */
-  blocked_domains?: string[] | null
-  /**
-   * @description Create a cache control breakpoint at this content block.
-   */
-  cache_control?:
-    | (BetaCacheControlEphemeralE964Bdd8 & {
-        type: 'ephemeral'
-      })
-    | null
-  /**
-   * @description Citations configuration for fetched documents. Citations are disabled by default.
-   */
-  citations?: BetaRequestCitationsConfig | null
-  /**
-   * @description If true, tool will not be included in initial system prompt. Only loaded when returned via tool_reference from tool search.
-   * @type boolean | undefined
-   */
-  defer_loading?: boolean
-  /**
-   * @description Maximum number of tokens used by including web page text content in the context. The limit is approximate and does not apply to binary content such as PDFs.
-   */
-  max_content_tokens?: number | null
-  /**
-   * @description Maximum number of times the tool can be used in the API request.
-   */
-  max_uses?: number | null
-  /**
-   * @description Name of the tool.
-   *
-   * This is how the tool will be called by the model and in `tool_use` blocks.
-   * @type string
-   */
-  name: 'web_fetch'
-  /**
-   * @description When true, guarantees schema validation on tool names and inputs
-   * @type boolean | undefined
-   */
-  strict?: boolean
-  type: 'web_fetch_20250910'
-  /**
-   * @description Which sources contribute to the set of URLs the tool may fetch. Omitted means every source.
-   */
-  url_sources?: BetaWebFetchUrlSources | null
-}
-
-export type BetaWebSearchTool202602093Ac6Fb5A = {
-  allowed_callers?: BetaAllowedCallerKey[]
-  /**
-   * @description If provided, only these domains will be included in results. Cannot be used alongside `blocked_domains`.
-   */
-  allowed_domains?: string[] | null
-  /**
-   * @description If provided, these domains will never appear in results. Cannot be used alongside `allowed_domains`.
-   */
-  blocked_domains?: string[] | null
-  /**
-   * @description Create a cache control breakpoint at this content block.
-   */
-  cache_control?:
-    | (BetaCacheControlEphemeralE964Bdd8 & {
-        type: 'ephemeral'
-      })
-    | null
-  /**
-   * @description If true, tool will not be included in initial system prompt. Only loaded when returned via tool_reference from tool search.
-   * @type boolean | undefined
-   */
-  defer_loading?: boolean
-  /**
-   * @description Maximum number of times the tool can be used in the API request.
-   */
-  max_uses?: number | null
-  /**
-   * @description Name of the tool.
-   *
-   * This is how the tool will be called by the model and in `tool_use` blocks.
-   * @type string
-   */
-  name: 'web_search'
-  /**
-   * @description When true, guarantees schema validation on tool names and inputs
-   * @type boolean | undefined
-   */
-  strict?: boolean
-  type: 'web_search_20260209'
-  /**
-   * @description Parameters for the user's location. Used to provide more relevant search results.
-   */
-  user_location?: BetaUserLocation | null
-}
-
-export type BetaWebFetchTool20260209841B8870 = {
-  allowed_callers?: BetaAllowedCallerKey[]
-  /**
-   * @description List of domains to allow fetching from
-   */
-  allowed_domains?: string[] | null
-  /**
-   * @description List of domains to block fetching from
-   */
-  blocked_domains?: string[] | null
-  /**
-   * @description Create a cache control breakpoint at this content block.
-   */
-  cache_control?:
-    | (BetaCacheControlEphemeralE964Bdd8 & {
-        type: 'ephemeral'
-      })
-    | null
-  /**
-   * @description Citations configuration for fetched documents. Citations are disabled by default.
-   */
-  citations?: BetaRequestCitationsConfig | null
-  /**
-   * @description If true, tool will not be included in initial system prompt. Only loaded when returned via tool_reference from tool search.
-   * @type boolean | undefined
-   */
-  defer_loading?: boolean
-  /**
-   * @description Maximum number of tokens used by including web page text content in the context. The limit is approximate and does not apply to binary content such as PDFs.
-   */
-  max_content_tokens?: number | null
-  /**
-   * @description Maximum number of times the tool can be used in the API request.
-   */
-  max_uses?: number | null
-  /**
-   * @description Name of the tool.
-   *
-   * This is how the tool will be called by the model and in `tool_use` blocks.
-   * @type string
-   */
-  name: 'web_fetch'
-  /**
-   * @description When true, guarantees schema validation on tool names and inputs
-   * @type boolean | undefined
-   */
-  strict?: boolean
-  type: 'web_fetch_20260209'
-  /**
-   * @description Which sources contribute to the set of URLs the tool may fetch. Omitted means every source.
-   */
-  url_sources?: BetaWebFetchUrlSources | null
-}
-
-/**
- * @description Web fetch tool with use_cache parameter for bypassing cached content.
- * @type object
- */
-export type BetaWebFetchTool202603095Cd40B8F = {
-  allowed_callers?: BetaAllowedCallerKey[]
-  /**
-   * @description List of domains to allow fetching from
-   */
-  allowed_domains?: string[] | null
-  /**
-   * @description List of domains to block fetching from
-   */
-  blocked_domains?: string[] | null
-  /**
-   * @description Create a cache control breakpoint at this content block.
-   */
-  cache_control?:
-    | (BetaCacheControlEphemeralE964Bdd8 & {
-        type: 'ephemeral'
-      })
-    | null
-  /**
-   * @description Citations configuration for fetched documents. Citations are disabled by default.
-   */
-  citations?: BetaRequestCitationsConfig | null
-  /**
-   * @description If true, tool will not be included in initial system prompt. Only loaded when returned via tool_reference from tool search.
-   * @type boolean | undefined
-   */
-  defer_loading?: boolean
-  /**
-   * @description Maximum number of tokens used by including web page text content in the context. The limit is approximate and does not apply to binary content such as PDFs.
-   */
-  max_content_tokens?: number | null
-  /**
-   * @description Maximum number of times the tool can be used in the API request.
-   */
-  max_uses?: number | null
-  /**
-   * @description Name of the tool.
-   *
-   * This is how the tool will be called by the model and in `tool_use` blocks.
-   * @type string
-   */
-  name: 'web_fetch'
-  /**
-   * @description When true, guarantees schema validation on tool names and inputs
-   * @type boolean | undefined
-   */
-  strict?: boolean
-  type: 'web_fetch_20260309'
-  /**
-   * @description Which sources contribute to the set of URLs the tool may fetch. Omitted means every source.
-   */
-  url_sources?: BetaWebFetchUrlSources | null
-  /**
-   * @description Whether to use cached content. Set to false to bypass the cache and fetch fresh content. Only set to false when the user explicitly requests fresh content or when fetching rapidly-changing sources.
-   * @type boolean | undefined
-   */
-  use_cache?: boolean
-}
-
-export const betaWebSearchTool20260318F004454FResponseInclusionEnum = {
-  full: 'full',
-  excluded: 'excluded',
-} as const
-
-export type BetaWebSearchTool20260318F004454FResponseInclusionEnumKey =
-  (typeof betaWebSearchTool20260318F004454FResponseInclusionEnum)[keyof typeof betaWebSearchTool20260318F004454FResponseInclusionEnum]
-
-export type BetaWebSearchTool20260318F004454F = {
-  allowed_callers?: BetaAllowedCallerKey[]
-  /**
-   * @description If provided, only these domains will be included in results. Cannot be used alongside `blocked_domains`.
-   */
-  allowed_domains?: string[] | null
-  /**
-   * @description If provided, these domains will never appear in results. Cannot be used alongside `allowed_domains`.
-   */
-  blocked_domains?: string[] | null
-  /**
-   * @description Create a cache control breakpoint at this content block.
-   */
-  cache_control?:
-    | (BetaCacheControlEphemeralE964Bdd8 & {
-        type: 'ephemeral'
-      })
-    | null
-  /**
-   * @description If true, tool will not be included in initial system prompt. Only loaded when returned via tool_reference from tool search.
-   * @type boolean | undefined
-   */
-  defer_loading?: boolean
-  /**
-   * @description Maximum number of times the tool can be used in the API request.
-   */
-  max_uses?: number | null
-  /**
-   * @description Name of the tool.
-   *
-   * This is how the tool will be called by the model and in `tool_use` blocks.
-   * @type string
-   */
-  name: 'web_search'
-  /**
-   * @description How this tool's result blocks appear in the API response when the result was consumed by a completed code_execution call in the same turn. 'full' returns the complete content (default). 'excluded' drops the nested server_tool_use and result block pair entirely. Results from direct calls, or from code_execution calls that paused before completing, are always returned in full so they can be sent back on the next turn.
-   * @type string | undefined
-   */
-  response_inclusion?: BetaWebSearchTool20260318F004454FResponseInclusionEnumKey
-  /**
-   * @description When true, guarantees schema validation on tool names and inputs
-   * @type boolean | undefined
-   */
-  strict?: boolean
-  type: 'web_search_20260318'
-  /**
-   * @description Parameters for the user's location. Used to provide more relevant search results.
-   */
-  user_location?: BetaUserLocation | null
-}
-
-export const betaWebFetchTool20260318B512B845ResponseInclusionEnum = {
-  full: 'full',
-  excluded: 'excluded',
-} as const
-
-export type BetaWebFetchTool20260318B512B845ResponseInclusionEnumKey =
-  (typeof betaWebFetchTool20260318B512B845ResponseInclusionEnum)[keyof typeof betaWebFetchTool20260318B512B845ResponseInclusionEnum]
-
-export type BetaWebFetchTool20260318B512B845 = {
-  allowed_callers?: BetaAllowedCallerKey[]
-  /**
-   * @description List of domains to allow fetching from
-   */
-  allowed_domains?: string[] | null
-  /**
-   * @description List of domains to block fetching from
-   */
-  blocked_domains?: string[] | null
-  /**
-   * @description Create a cache control breakpoint at this content block.
-   */
-  cache_control?:
-    | (BetaCacheControlEphemeralE964Bdd8 & {
-        type: 'ephemeral'
-      })
-    | null
-  /**
-   * @description Citations configuration for fetched documents. Citations are disabled by default.
-   */
-  citations?: BetaRequestCitationsConfig | null
-  /**
-   * @description If true, tool will not be included in initial system prompt. Only loaded when returned via tool_reference from tool search.
-   * @type boolean | undefined
-   */
-  defer_loading?: boolean
-  /**
-   * @description Maximum number of tokens used by including web page text content in the context. The limit is approximate and does not apply to binary content such as PDFs.
-   */
-  max_content_tokens?: number | null
-  /**
-   * @description Maximum number of times the tool can be used in the API request.
-   */
-  max_uses?: number | null
-  /**
-   * @description Name of the tool.
-   *
-   * This is how the tool will be called by the model and in `tool_use` blocks.
-   * @type string
-   */
-  name: 'web_fetch'
-  /**
-   * @description How this tool's result blocks appear in the API response when the result was consumed by a completed code_execution call in the same turn. 'full' returns the complete content (default). 'excluded' drops the nested server_tool_use and result block pair entirely. Results from direct calls, or from code_execution calls that paused before completing, are always returned in full so they can be sent back on the next turn.
-   * @type string | undefined
-   */
-  response_inclusion?: BetaWebFetchTool20260318B512B845ResponseInclusionEnumKey
-  /**
-   * @description When true, guarantees schema validation on tool names and inputs
-   * @type boolean | undefined
-   */
-  strict?: boolean
-  type: 'web_fetch_20260318'
-  /**
-   * @description Which sources contribute to the set of URLs the tool may fetch. Omitted means every source.
-   */
-  url_sources?: BetaWebFetchUrlSources | null
-  /**
-   * @description Whether to use cached content. Set to false to bypass the cache and fetch fresh content. Only set to false when the user explicitly requests fresh content or when fetching rapidly-changing sources.
-   * @type boolean | undefined
-   */
-  use_cache?: boolean
-}
-
-export const betaToolSearchToolBM2520251119E56A62CcTypeEnum = {
-  tool_search_tool_bm25_20251119: 'tool_search_tool_bm25_20251119',
-  tool_search_tool_bm25: 'tool_search_tool_bm25',
-} as const
-
-export type BetaToolSearchToolBM2520251119E56A62CcTypeEnumKey =
-  (typeof betaToolSearchToolBM2520251119E56A62CcTypeEnum)[keyof typeof betaToolSearchToolBM2520251119E56A62CcTypeEnum]
-
-export type BetaToolSearchToolBM2520251119E56A62Cc = {
-  allowed_callers?: BetaAllowedCallerKey[]
-  /**
-   * @description Create a cache control breakpoint at this content block.
-   */
-  cache_control?:
-    | (BetaCacheControlEphemeralE964Bdd8 & {
-        type: 'ephemeral'
-      })
-    | null
-  /**
-   * @description If true, tool will not be included in initial system prompt. Only loaded when returned via tool_reference from tool search.
-   * @type boolean | undefined
-   */
-  defer_loading?: boolean
-  /**
-   * @description Name of the tool.
-   *
-   * This is how the tool will be called by the model and in `tool_use` blocks.
-   * @type string
-   */
-  name: 'tool_search_tool_bm25'
-  /**
-   * @description When true, guarantees schema validation on tool names and inputs
-   * @type boolean | undefined
-   */
-  strict?: boolean
-  type: BetaToolSearchToolBM2520251119E56A62CcTypeEnumKey
-}
-
-export const betaToolSearchToolRegex202511191Ecc7197TypeEnum = {
-  tool_search_tool_regex_20251119: 'tool_search_tool_regex_20251119',
-  tool_search_tool_regex: 'tool_search_tool_regex',
-} as const
-
-export type BetaToolSearchToolRegex202511191Ecc7197TypeEnumKey =
-  (typeof betaToolSearchToolRegex202511191Ecc7197TypeEnum)[keyof typeof betaToolSearchToolRegex202511191Ecc7197TypeEnum]
-
-export type BetaToolSearchToolRegex202511191Ecc7197 = {
-  allowed_callers?: BetaAllowedCallerKey[]
-  /**
-   * @description Create a cache control breakpoint at this content block.
-   */
-  cache_control?:
-    | (BetaCacheControlEphemeralE964Bdd8 & {
-        type: 'ephemeral'
-      })
-    | null
-  /**
-   * @description If true, tool will not be included in initial system prompt. Only loaded when returned via tool_reference from tool search.
-   * @type boolean | undefined
-   */
-  defer_loading?: boolean
-  /**
-   * @description Name of the tool.
-   *
-   * This is how the tool will be called by the model and in `tool_use` blocks.
-   * @type string
-   */
-  name: 'tool_search_tool_regex'
-  /**
-   * @description When true, guarantees schema validation on tool names and inputs
-   * @type boolean | undefined
-   */
-  strict?: boolean
-  type: BetaToolSearchToolRegex202511191Ecc7197TypeEnumKey
-}
-
-/**
- * @description Configuration for a group of tools from an MCP server.
- *
- * Allows configuring enabled status and defer_loading for all tools
- * from an MCP server, with optional per-tool overrides.
- * @type object
- */
-export type BetaMCPToolset75684906 = {
-  /**
-   * @description Create a cache control breakpoint at this content block.
-   */
-  cache_control?:
-    | (BetaCacheControlEphemeralE964Bdd8 & {
-        type: 'ephemeral'
-      })
-    | null
-  /**
-   * @description Configuration overrides for specific tools, keyed by tool name
-   */
-  configs?: {
-    [key: string]: BetaMCPToolConfig
-  } | null
-  /**
-   * @description Default configuration applied to all tools from this server
-   * @type object | undefined
-   */
-  default_config?: BetaMCPToolDefaultConfig
-  /**
-   * @description Name of the MCP server to configure tools for
-   * @minLength 1
-   * @maxLength 255
-   * @type string
-   */
-  mcp_server_name: string
-  /**
-   * @description The server's tool listing, pinned: when present, the server is not asked for its tools before sampling and exactly these entries, with `default_config` and `configs` applied, are the toolset's tools. Copy it from the `mcp_tool_listing` block of an earlier response.
-   */
-  tools?: BetaMCPTool[] | null
-  type: 'mcp_toolset'
-}
-
 export type BetaResponseToolUnion =
   | BetaResponseTool
-  | BetaBashTool202410226A82561A
-  | BetaBashTool202501240A3F30A9
-  | BetaCodeExecutionTool20250522A978Dea8
-  | BetaCodeExecutionTool2025082539B385D6
-  | BetaCodeExecutionTool202601202B97F577
-  | BetaCodeExecutionTool20260521Addcb1Ec
-  | BetaBrowserToolset20260801D53Ee254
-  | BetaComputerUseTool20241022F5D98C22
-  | BetaMemoryTool202508186Bcb1Eba
-  | BetaComputerUseTool20250124511F8B11
-  | BetaTextEditor202410223Bbe81E4
-  | BetaComputerUseTool2025112487E41908
-  | BetaComputerToolset20260801Ccd80937
-  | BetaTextEditor20250124F0374477
-  | BetaTextEditor202504298Eb582Ab
-  | BetaTextEditor202507284D5Ed9B9
-  | BetaWebSearchTool2025030508De6E34
-  | BetaWebFetchTool2025091087919Ab2
-  | BetaWebSearchTool202602093Ac6Fb5A
-  | BetaWebFetchTool20260209841B8870
-  | BetaWebFetchTool202603095Cd40B8F
-  | BetaWebSearchTool20260318F004454F
-  | BetaWebFetchTool20260318B512B845
-  | BetaAdvisorTool202603017Db494Ff
-  | BetaToolSearchToolBM2520251119E56A62Cc
-  | BetaToolSearchToolRegex202511191Ecc7197
-  | BetaMCPToolset75684906
+  | BetaBashTool20241022
+  | BetaBashTool20250124
+  | BetaCodeExecutionTool20250522
+  | BetaCodeExecutionTool20250825
+  | BetaCodeExecutionTool20260120
+  | BetaCodeExecutionTool20260521
+  | BetaBrowserToolset20260801
+  | BetaComputerUseTool20241022
+  | BetaMemoryTool20250818
+  | BetaComputerUseTool20250124
+  | BetaTextEditor20241022
+  | BetaComputerUseTool20251124
+  | BetaComputerToolset20260801
+  | BetaTextEditor20250124
+  | BetaTextEditor20250429
+  | BetaTextEditor20250728
+  | BetaWebSearchTool20250305
+  | BetaWebFetchTool20250910
+  | BetaWebSearchTool20260209
+  | BetaWebFetchTool20260209
+  | BetaWebFetchTool20260309
+  | BetaWebSearchTool20260318
+  | BetaWebFetchTool20260318
+  | BetaAdvisorTool20260301A7552763
+  | BetaToolSearchToolBM2520251119
+  | BetaToolSearchToolRegex20251119
+  | BetaMCPToolset
 
 /**
  * @description A tool defined by value, as a `compaction` block's `tool_changes` entry
@@ -11391,7 +10828,7 @@ export type BetaResponseFallbackHopInfo = {
    *
    * See [models](https://docs.anthropic.com/en/docs/models-overview) for additional details and options.
    */
-  model: Model
+  model: ModelD5B6C4D5
 }
 
 /**
@@ -11684,7 +11121,7 @@ export type BetaFallbackMessageIterationUsage = {
    *
    * See [models](https://docs.anthropic.com/en/docs/models-overview) for additional details and options.
    */
-  model: Model
+  model: ModelD5B6C4D5
   /**
    * @description The number of output tokens which were used.
    * @minimum 0
@@ -11828,7 +11265,7 @@ export type BetaMessageIterationUsage = {
   /**
    * @default null
    */
-  model: Model | null
+  model: ModelD5B6C4D5 | null
   /**
    * @description The number of output tokens which were used.
    * @minimum 0
@@ -12378,7 +11815,7 @@ export type AnthropicPostV1MessagesStatus200 = {
    *
    * See [models](https://docs.anthropic.com/en/docs/models-overview) for additional details and options.
    */
-  model: Model
+  model: Model26876134
   /**
    * @description The reason that we stopped.
    *
@@ -12457,7 +11894,7 @@ export type AnthropicPostV1MessagesBody = {
    *
    * See [models](https://docs.anthropic.com/en/docs/models-overview) for additional details and options.
    */
-  model: Model
+  model: Model9B4054F0
   /**
    * @description Input messages.
    *
@@ -12797,7 +12234,7 @@ export type AnthropicPostV1MessagesCountTokensBody = {
    *
    * See [models](https://docs.anthropic.com/en/docs/models-overview) for additional details and options.
    */
-  model: Model
+  model: Model1920F581
   /**
    * @description Configuration options for the model's output, such as the output format.
    * @type object | undefined
@@ -13045,7 +12482,7 @@ export type AnthropicPostV1MessagesCountTokensBetaTrueBody = {
    *
    * See [models](https://docs.anthropic.com/en/docs/models-overview) for additional details and options.
    */
-  model: Model
+  model: Model5Aca743B
   /**
    * @description Configuration options for the model's output, such as the output format.
    * @type object | undefined
@@ -13267,7 +12704,7 @@ export type AnthropicPostV1MessagesBetaTrueStatus200 = {
    *
    * See [models](https://docs.anthropic.com/en/docs/models-overview) for additional details and options.
    */
-  model: Model
+  model: ModelD5B6C4D5
   /**
    * @description The reason that we stopped.
    *
@@ -13377,7 +12814,7 @@ export type AnthropicPostV1MessagesBetaTrueBody = {
    *
    * See [models](https://docs.anthropic.com/en/docs/models-overview) for additional details and options.
    */
-  model: Model
+  model: Model7E79E482
   /**
    * @description Input messages.
    *
@@ -13429,7 +12866,7 @@ export type AnthropicPostV1MessagesBetaTrueBody = {
    * There is a limit of 100,000 messages in a single request.
    * @type array
    */
-  messages: BetaInputMessageUnion[]
+  messages: BetaInputMessageUnionD0Ecd1D1[]
   /**
    * @description Top-level cache control automatically applies a cache_control marker to the last cacheable block in the request.
    */
@@ -13653,7 +13090,7 @@ export type AnthropicPostV1MessagesBetaTrueBody = {
    * @example {"description":"Get the current weather in a given location","input_schema":{"properties":{"location":{"description":"The city and state, e.g. San Francisco, CA","type":"string"},"unit":{"description":"Unit for the output - one of (celsius, fahrenheit)","type":"string"}},"required":["location"],"type":"object"},"name":"get_weather"}
    * @type array | undefined
    */
-  tools?: BetaToolUnion[]
+  tools?: BetaToolUnionE2807188[]
 }
 
 export type AnthropicPostV1MessagesBetaTrueOptions = {

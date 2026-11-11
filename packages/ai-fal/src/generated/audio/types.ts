@@ -3356,6 +3356,131 @@ export type OutputFalAiDiaTtsVoiceClone = {
   audio: FileC91E3989
 }
 
+export const inputFalAiDiffrhythmMusicDurationEnum = {
+  '95s': '95s',
+  '285s': '285s',
+} as const
+
+export type InputFalAiDiffrhythmMusicDurationEnumKey =
+  (typeof inputFalAiDiffrhythmMusicDurationEnum)[keyof typeof inputFalAiDiffrhythmMusicDurationEnum]
+
+export const inputFalAiDiffrhythmSchedulerEnum = {
+  euler: 'euler',
+  midpoint: 'midpoint',
+  rk4: 'rk4',
+  implicit_adams: 'implicit_adams',
+} as const
+
+export type InputFalAiDiffrhythmSchedulerEnumKey =
+  (typeof inputFalAiDiffrhythmSchedulerEnum)[keyof typeof inputFalAiDiffrhythmSchedulerEnum]
+
+export type InputFalAiDiffrhythm = {
+  /**
+   * @description The CFG strength to use for the music generation.
+   * @minimum 1
+   * @maximum 10
+   * @default 4
+   * @type number | undefined
+   */
+  cfg_strength?: number
+  /**
+   * @description The URL of the reference audio to use for the music generation.
+   * @example https://storage.googleapis.com/falserverless/model_tests/diffrythm/rock_en.wav
+   * @type string | undefined
+   */
+  reference_audio_url?: string
+  /**
+   * @description The style prompt to use for the music generation.
+   * @example pop
+   * @type string | undefined
+   */
+  style_prompt?: string
+  /**
+   * @description The prompt to generate the song from. Must have two sections. Sections start with either [chorus] or a [verse].
+   * @example [00:10.00]Moonlight spills through broken blinds
+   * [00:13.20]Your shadow dances on the dashboard shrine
+   * [00:16.85]Neon ghosts in gasoline rain
+   * [00:20.40]I hear your laughter down the midnight train
+   * [00:24.15]Static whispers through frayed wires
+   * [00:27.65]Guitar strings hum our cathedral choirs
+   * [00:31.30]Flicker screens show reruns of June
+   * [00:34.90]I'm drowning in this mercury lagoon
+   * [00:38.55]Electric veins pulse through concrete skies
+   * [00:42.10]Your name echoes in the hollow where my heartbeat lies
+   * [00:45.75]We're satellites trapped in parallel light
+   * [00:49.25]Burning through the atmosphere of endless night
+   * [01:00.00]Dusty vinyl spins reverse
+   * [01:03.45]Our polaroid timeline bleeds through the verse
+   * [01:07.10]Telescope aimed at dead stars
+   * [01:10.65]Still tracing constellations through prison bars
+   * [01:14.30]Electric veins pulse through concrete skies
+   * [01:17.85]Your name echoes in the hollow where my heartbeat lies
+   * [01:21.50]We're satellites trapped in parallel light
+   * [01:25.05]Burning through the atmosphere of endless night
+   * [02:10.00]Clockwork gears grind moonbeams to rust
+   * [02:13.50]Our fingerprint smudged by interstellar dust
+   * [02:17.15]Velvet thunder rolls through my veins
+   * [02:20.70]Chasing phantom trains through solar plane
+   * [02:24.35]Electric veins pulse through concrete skies
+   * [02:27.90]Your name echoes in the hollow where my heartbeat lies
+   *
+   * @type string
+   */
+  lyrics: string
+  /**
+   * @description The number of inference steps to use for the music generation.
+   * @minimum 10
+   * @maximum 100
+   * @default 32
+   * @type integer | undefined
+   */
+  num_inference_steps?: number
+  /**
+   * @description The duration of the music to generate.
+   * @default '95s'
+   * @type string | undefined
+   */
+  music_duration?: InputFalAiDiffrhythmMusicDurationEnumKey
+  /**
+   * @description The scheduler to use for the music generation.
+   * @default 'euler'
+   * @type string | undefined
+   */
+  scheduler?: InputFalAiDiffrhythmSchedulerEnumKey
+}
+
+export type File3Df660Af = {
+  /**
+   * @description The URL where the file can be downloaded from.
+   * @type string
+   */
+  url: string
+  /**
+   * @description The mime type of the file.
+   * @example image/png
+   */
+  content_type?: string | null
+  /**
+   * @description The size of the file in bytes.
+   * @example 4404019
+   */
+  file_size?: number | null
+  /**
+   * @description The name of the file. It will be auto-generated if not provided.
+   * @example z9RV14K95DvU.png
+   */
+  file_name?: string | null
+}
+
+export type OutputFalAiDiffrhythm = {
+  /**
+   * @description Generated music file.
+   * @example {"url":"https://v3.fal.media/files/elephant/VV4wtKXBpZL1bNv6en36t_output.wav","content_type":"application/octet-stream","file_size":33554520,"file_name":"output.wav"}
+   * @type object
+   */
+  audio: File3Df660Af
+}
+
 export type InputFalAiElevenlabsAudioIsolation = {
   /**
    * @description Video file to use for audio isolation. Either `audio_url` or `video_url` must be provided.
@@ -6963,6 +7088,404 @@ export type OutputFalAiLyria3Pro = {
   audio: FileF6E8F2De
 }
 
+export const inputFalAiMayaOutputFormatEnum = {
+  wav: 'wav',
+  mp3: 'mp3',
+} as const
+
+export type InputFalAiMayaOutputFormatEnumKey =
+  (typeof inputFalAiMayaOutputFormatEnum)[keyof typeof inputFalAiMayaOutputFormatEnum]
+
+export const inputFalAiMayaSampleRateEnum = {
+  '48 kHz': '48 kHz',
+  '24 kHz': '24 kHz',
+} as const
+
+export type InputFalAiMayaSampleRateEnumKey =
+  (typeof inputFalAiMayaSampleRateEnum)[keyof typeof inputFalAiMayaSampleRateEnum]
+
+/**
+ * @description Input schema for Maya-1-Voice TTS generation
+ * @type object
+ */
+export type InputFalAiMaya = {
+  /**
+   * @description Output audio format for the generated speech
+   * @default 'wav'
+   * @example wav
+   * @example mp3
+   * @type string | undefined
+   */
+  output_format?: InputFalAiMayaOutputFormatEnumKey
+  /**
+   * @description Output audio sample rate. 48 kHz provides higher quality audio, 24 kHz is faster.
+   * @default '48 kHz'
+   * @example 48 kHz
+   * @example 24 kHz
+   * @type string | undefined
+   */
+  sample_rate?: InputFalAiMayaSampleRateEnumKey
+  /**
+   * @description Maximum number of SNAC tokens to generate (7 tokens per frame). Controls maximum audio length.
+   * @minimum 28
+   * @maximum 4000
+   * @default 2000
+   * @type integer | undefined
+   */
+  max_tokens?: number
+  /**
+   * @description Penalty for repeating tokens. Higher values reduce repetition artifacts.
+   * @minimum 1
+   * @maximum 2
+   * @default 1.1
+   * @type number | undefined
+   */
+  repetition_penalty?: number
+  /**
+   * @description Nucleus sampling parameter. Controls diversity of token selection.
+   * @minimum 0
+   * @maximum 1
+   * @default 0.9
+   * @type number | undefined
+   */
+  top_p?: number
+  /**
+   * @description Description of the voice/character. Includes attributes like age, accent, pitch, timbre, pacing, tone, and intensity. See examples for format.
+   * @maxLength 500
+   * @example Realistic male voice in the 30s age with american accent. Normal pitch, warm timbre, conversational pacing, neutral tone delivery at med intensity.
+   * @example Creative, dark_villain character. Male voice in their 40s with british accent. Low pitch, gravelly timbre, slow pacing, angry tone at high intensity.
+   * @type string
+   */
+  prompt: string
+  /**
+   * @description Sampling temperature. Lower values (0.2-0.5) produce more stable/consistent audio. Higher values add variation.
+   * @minimum 0
+   * @maximum 2
+   * @default 0.4
+   * @type number | undefined
+   */
+  temperature?: number
+  /**
+   * @description Authorized callers may set false to request relaxed screening.
+   * @default true
+   * @type boolean | undefined
+   */
+  enable_safety_checker?: boolean
+  /**
+   * @description The text to synthesize into speech. You can embed emotion tags anywhere in the text using the format <emotion_name>. Available emotions: laugh, laugh_harder, sigh, chuckle, gasp, angry, excited, whisper, cry, scream, sing, snort, exhale, gulp, giggle, sarcastic, curious. Example: 'Hello world! <excited> This is amazing!' or 'I can't believe this <sigh> happened again.'
+   * @maxLength 5000
+   * @example Hello world! This is a test of the Maya-1-Voice text-to-speech system.
+   * @example The darkness isn't coming... <angry> it's already here!
+   * @example That's hilarious! <laugh> I can't stop <laugh_harder> thinking about it!
+   * @example <whisper> I have a secret to tell you. <excited> You won't believe what happened!
+   * @type string
+   */
+  text: string
+}
+
+export type File1A0148A4 = {
+  /**
+   * @description The name of the file. It will be auto-generated if not provided.
+   * @example z9RV14K95DvU.png
+   */
+  file_name?: string | null
+  /**
+   * @description The mime type of the file.
+   * @example image/png
+   */
+  content_type?: string | null
+  /**
+   * @description The URL where the file can be downloaded from.
+   * @type string
+   */
+  url: string
+  /**
+   * @description The size of the file in bytes.
+   * @example 4404019
+   */
+  file_size?: number | null
+}
+
+/**
+ * @description Output schema for Maya-1-Voice TTS generation
+ * @type object
+ */
+export type OutputFalAiMaya = {
+  /**
+   * @description Time taken to generate the audio in seconds
+   * @example 2.3
+   * @type number
+   */
+  generation_time: number
+  /**
+   * @description Real-time factor (generation_time / audio_duration). Lower is better.
+   * @example 0.51
+   * @type number
+   */
+  rtf: number
+  /**
+   * @description The generated audio file containing the speech (WAV or MP3 format, 24kHz or 48kHz mono depending on upsampler)
+   * @type object
+   */
+  audio: File1A0148A4
+  /**
+   * @description Sample rate of the generated audio
+   * @example 48 kHz
+   * @example 24 kHz
+   * @type string
+   */
+  sample_rate: string
+  /**
+   * @description Duration of the generated audio in seconds
+   * @example 4.5
+   * @type number
+   */
+  duration: number
+}
+
+export const inputFalAiMayaBatchOutputFormatEnum = {
+  wav: 'wav',
+  mp3: 'mp3',
+} as const
+
+export type InputFalAiMayaBatchOutputFormatEnumKey =
+  (typeof inputFalAiMayaBatchOutputFormatEnum)[keyof typeof inputFalAiMayaBatchOutputFormatEnum]
+
+export const inputFalAiMayaBatchSampleRateEnum = {
+  '48 kHz': '48 kHz',
+  '24 kHz': '24 kHz',
+} as const
+
+export type InputFalAiMayaBatchSampleRateEnumKey =
+  (typeof inputFalAiMayaBatchSampleRateEnum)[keyof typeof inputFalAiMayaBatchSampleRateEnum]
+
+/**
+ * @description Input schema for batch Maya-1-Voice TTS generation
+ * @type object
+ */
+export type InputFalAiMayaBatch = {
+  /**
+   * @description Output audio format for all generated speech files
+   * @default 'wav'
+   * @example wav
+   * @example mp3
+   * @type string | undefined
+   */
+  output_format?: InputFalAiMayaBatchOutputFormatEnumKey
+  /**
+   * @description Output audio sample rate for all generations. 48 kHz provides higher quality, 24 kHz is faster.
+   * @default '48 kHz'
+   * @example 48 kHz
+   * @example 24 kHz
+   * @type string | undefined
+   */
+  sample_rate?: InputFalAiMayaBatchSampleRateEnumKey
+  /**
+   * @description List of texts to synthesize into speech. You can embed emotion tags in each text using the format <emotion_name>.
+   * @type array
+   */
+  texts: string[]
+  /**
+   * @description List of voice descriptions for each text. Must match the length of texts list. Each describes the voice/character attributes.
+   * @type array
+   */
+  prompts: string[]
+  /**
+   * @description Maximum SNAC tokens per generation.
+   * @minimum 28
+   * @maximum 4000
+   * @default 2000
+   * @type integer | undefined
+   */
+  max_tokens?: number
+  /**
+   * @description Repetition penalty for all generations.
+   * @minimum 1
+   * @maximum 2
+   * @default 1.1
+   * @type number | undefined
+   */
+  repetition_penalty?: number
+  /**
+   * @description Nucleus sampling parameter for all generations.
+   * @minimum 0
+   * @maximum 1
+   * @default 0.9
+   * @type number | undefined
+   */
+  top_p?: number
+  /**
+   * @description Authorized callers may set false to request relaxed screening.
+   * @default true
+   * @type boolean | undefined
+   */
+  enable_safety_checker?: boolean
+  /**
+   * @description Sampling temperature for all generations.
+   * @minimum 0
+   * @maximum 2
+   * @default 0.4
+   * @type number | undefined
+   */
+  temperature?: number
+}
+
+export type FileE0C0A87B = {
+  /**
+   * @description The name of the file. It will be auto-generated if not provided.
+   * @example z9RV14K95DvU.png
+   */
+  file_name?: string | null
+  /**
+   * @description The mime type of the file.
+   * @example image/png
+   */
+  content_type?: string | null
+  /**
+   * @description The URL where the file can be downloaded from.
+   * @type string
+   */
+  url: string
+  /**
+   * @description The size of the file in bytes.
+   * @example 4404019
+   */
+  file_size?: number | null
+}
+
+/**
+ * @description Output schema for batch Maya-1-Voice TTS generation
+ * @type object
+ */
+export type OutputFalAiMayaBatch = {
+  /**
+   * @description List of generated audio files
+   * @type array
+   */
+  audios: FileE0C0A87B[]
+  /**
+   * @description Duration of each generated audio in seconds
+   * @type array
+   */
+  durations: number[]
+  /**
+   * @description Sample rate of all generated audio files
+   * @example 48 kHz
+   * @example 24 kHz
+   * @type string
+   */
+  sample_rate: string
+  /**
+   * @description Average real-time factor across all generations
+   * @example 0.15
+   * @type number
+   */
+  average_rtf: number
+  /**
+   * @description Total time taken to generate all audio files in seconds
+   * @example 5.7
+   * @type number
+   */
+  total_generation_time: number
+}
+
+export const inputFalAiMayaStreamOutputFormatEnum = {
+  mp3: 'mp3',
+  wav: 'wav',
+  pcm: 'pcm',
+} as const
+
+export type InputFalAiMayaStreamOutputFormatEnumKey =
+  (typeof inputFalAiMayaStreamOutputFormatEnum)[keyof typeof inputFalAiMayaStreamOutputFormatEnum]
+
+export const inputFalAiMayaStreamSampleRateEnum = {
+  '48 kHz': '48 kHz',
+  '24 kHz': '24 kHz',
+} as const
+
+export type InputFalAiMayaStreamSampleRateEnumKey =
+  (typeof inputFalAiMayaStreamSampleRateEnum)[keyof typeof inputFalAiMayaStreamSampleRateEnum]
+
+/**
+ * @description Input schema for Maya-1-Voice streaming TTS generation
+ * @type object
+ */
+export type InputFalAiMayaStream = {
+  /**
+   * @description Output audio format. 'mp3' for browser-playable audio, 'wav' for uncompressed audio, 'pcm' for raw PCM (lowest latency, requires client-side decoding).
+   * @default 'mp3'
+   * @example mp3
+   * @example wav
+   * @example pcm
+   * @type string | undefined
+   */
+  output_format?: InputFalAiMayaStreamOutputFormatEnumKey
+  /**
+   * @description Output audio sample rate. 48 kHz uses upsampling for higher quality audio, 24 kHz is native SNAC output (faster, lower latency).
+   * @default '24 kHz'
+   * @example 48 kHz
+   * @example 24 kHz
+   * @type string | undefined
+   */
+  sample_rate?: InputFalAiMayaStreamSampleRateEnumKey
+  /**
+   * @description Maximum number of SNAC tokens to generate (7 tokens per frame). Controls maximum audio length.
+   * @minimum 28
+   * @maximum 4000
+   * @default 2000
+   * @type integer | undefined
+   */
+  max_tokens?: number
+  /**
+   * @description Penalty for repeating tokens. Higher values reduce repetition artifacts.
+   * @minimum 1
+   * @maximum 2
+   * @default 1.1
+   * @type number | undefined
+   */
+  repetition_penalty?: number
+  /**
+   * @description Nucleus sampling parameter. Controls diversity of token selection.
+   * @minimum 0
+   * @maximum 1
+   * @default 0.9
+   * @type number | undefined
+   */
+  top_p?: number
+  /**
+   * @description Description of the voice/character. Includes attributes like age, accent, pitch, timbre, pacing, tone, and intensity. See examples for format.
+   * @maxLength 500
+   * @example Realistic male voice in the 30s age with american accent. Normal pitch, warm timbre, conversational pacing, neutral tone delivery at med intensity.
+   * @example Creative, dark_villain character. Male voice in their 40s with british accent. Low pitch, gravelly timbre, slow pacing, angry tone at high intensity.
+   * @type string
+   */
+  prompt: string
+  /**
+   * @description Sampling temperature. Lower values (0.2-0.5) produce more stable/consistent audio. Higher values add variation.
+   * @minimum 0
+   * @maximum 2
+   * @default 0.4
+   * @type number | undefined
+   */
+  temperature?: number
+  /**
+   * @description Authorized callers may set false to request relaxed screening.
+   * @default true
+   * @type boolean | undefined
+   */
+  enable_safety_checker?: boolean
+  /**
+   * @description The text to synthesize into speech. You can embed emotion tags anywhere in the text using the format <emotion_name>. Available emotions: laugh, laugh_harder, sigh, chuckle, gasp, angry, excited, whisper, cry, scream, sing, snort, exhale, gulp, giggle, sarcastic, curious. Example: 'Hello world! <excited> This is amazing!' or 'I can't believe this <sigh> happened again.'
+   * @maxLength 5000
+   * @example Hello world! This is a test of the Maya-1-Voice text-to-speech system.
+   * @example The darkness isn't coming... <angry> it's already here!
+   * @type string
+   */
+  text: string
+}
+
+export type OutputFalAiMayaStream = unknown
+
 export type InputFalAiMinimaxMusic = {
   /**
    * @description Authorized callers may set false to request relaxed screening.
@@ -9512,6 +10035,261 @@ export type OutputFalAiOrpheusTts = {
   audio: File98Ce7686
 }
 
+export const inputFalAiPersonaplexVoiceEnum = {
+  NATF0: 'NATF0',
+  NATF1: 'NATF1',
+  NATF2: 'NATF2',
+  NATF3: 'NATF3',
+  NATM0: 'NATM0',
+  NATM1: 'NATM1',
+  NATM2: 'NATM2',
+  NATM3: 'NATM3',
+  VARF0: 'VARF0',
+  VARF1: 'VARF1',
+  VARF2: 'VARF2',
+  VARF3: 'VARF3',
+  VARF4: 'VARF4',
+  VARM0: 'VARM0',
+  VARM1: 'VARM1',
+  VARM2: 'VARM2',
+  VARM3: 'VARM3',
+  VARM4: 'VARM4',
+} as const
+
+export type InputFalAiPersonaplexVoiceEnumKey =
+  (typeof inputFalAiPersonaplexVoiceEnum)[keyof typeof inputFalAiPersonaplexVoiceEnum]
+
+export type InputFalAiPersonaplex = {
+  /**
+   * @description Text sampling temperature. Higher values produce more diverse outputs.
+   * @minimum 0
+   * @maximum 2
+   * @default 0.7
+   * @type number | undefined
+   */
+  temperature_text?: number
+  /**
+   * @description URL to the input audio file (user's speech).
+   * @example https://v3b.fal.media/files/b/0a8dd5a2/hS140ygvRuxn-eY_qPhlv_assets_test_input_service.wav
+   * @type string
+   */
+  audio_url: string
+  /**
+   * @description Text prompt describing the AI persona and conversation context.
+   * @default 'You are a wise and friendly teacher. Answer questions or provide advice in a clear and engaging way.'
+   * @example You work for SwiftPlex Appliances which is a appliance repair company and your name is Farhod Toshmatov. Information: The dishwasher model is out of stock for replacement parts; we can use an alternative part with a 3-day delay. Labor cost remains $60 per hour.
+   * @type string | undefined
+   */
+  prompt?: string
+  /**
+   * @description Audio sampling temperature. Higher values produce more diverse outputs.
+   * @minimum 0
+   * @maximum 2
+   * @default 0.8
+   * @type number | undefined
+   */
+  temperature_audio?: number
+  /**
+   * @description Voice ID for the AI response. NAT = natural, VAR = variety. F = female, M = male. Ignored when voice_audio_url is provided.
+   * @default 'NATF2'
+   * @type string | undefined
+   */
+  voice?: InputFalAiPersonaplexVoiceEnumKey
+  /**
+   * @description Random seed for reproducibility.
+   */
+  seed?: number | null
+  /**
+   * @description Top-K sampling for text tokens.
+   * @minimum 1
+   * @maximum 1000
+   * @default 25
+   * @type integer | undefined
+   */
+  top_k_text?: number
+  /**
+   * @description URL to a voice sample audio for on-the-fly voice cloning. When provided, the AI responds in the cloned voice instead of the preset 'voice'. 10+ seconds of clear speech recommended. Billed at 2x rate.
+   */
+  voice_audio_url?: string | null
+  /**
+   * @description Authorized callers may set false to request relaxed screening.
+   * @default true
+   * @type boolean | undefined
+   */
+  enable_safety_checker?: boolean
+  /**
+   * @description Top-K sampling for audio tokens.
+   * @minimum 1
+   * @maximum 2048
+   * @default 250
+   * @type integer | undefined
+   */
+  top_k_audio?: number
+}
+
+export type FileC3De72C1 = {
+  /**
+   * @description The URL where the file can be downloaded from.
+   * @type string
+   */
+  url: string
+  /**
+   * @description The name of the file. It will be auto-generated if not provided.
+   * @example z9RV14K95DvU.png
+   */
+  file_name?: string | null
+  /**
+   * @description The size of the file in bytes.
+   * @example 4404019
+   */
+  file_size?: number | null
+  /**
+   * @description The mime type of the file.
+   * @example image/png
+   */
+  content_type?: string | null
+}
+
+export type OutputFalAiPersonaplex = {
+  /**
+   * @description Duration of the generated audio in seconds.
+   * @example 20
+   * @type number
+   */
+  duration: number
+  /**
+   * @description Transcribed text of the AI's response.
+   * @example  Thank you for calling SwiftPlex Appliances. This is Farhod, how can I help you today? I understand your concern. The replacement part is out of stock, so we can't ship it right away. We can use an alternative part that will arrive in 3 days. Would you like to proceed with that?
+   * @type string
+   */
+  text: string
+  /**
+   * @description The generated AI response audio (WAV, 24kHz).
+   * @example https://v3b.fal.media/files/b/0a8dd5a4/9vFUMdauY7vobpLtXq4Np_output.wav
+   * @type object
+   */
+  audio: FileC3De72C1
+  /**
+   * @description The seed used for generation.
+   * @example 60112277
+   * @type integer
+   */
+  seed: number
+}
+
+export const inputFalAiPersonaplexRealtimeVoiceEnum = {
+  NATF0: 'NATF0',
+  NATF1: 'NATF1',
+  NATF2: 'NATF2',
+  NATF3: 'NATF3',
+  NATM0: 'NATM0',
+  NATM1: 'NATM1',
+  NATM2: 'NATM2',
+  NATM3: 'NATM3',
+  VARF0: 'VARF0',
+  VARF1: 'VARF1',
+  VARF2: 'VARF2',
+  VARF3: 'VARF3',
+  VARF4: 'VARF4',
+  VARM0: 'VARM0',
+  VARM1: 'VARM1',
+  VARM2: 'VARM2',
+  VARM3: 'VARM3',
+  VARM4: 'VARM4',
+} as const
+
+export type InputFalAiPersonaplexRealtimeVoiceEnumKey =
+  (typeof inputFalAiPersonaplexRealtimeVoiceEnum)[keyof typeof inputFalAiPersonaplexRealtimeVoiceEnum]
+
+/**
+ * @description Input for @fal.realtime endpoint. Audio is raw PCM s16le 24kHz mono.
+ * @type object
+ */
+export type InputFalAiPersonaplexRealtime = {
+  /**
+   * @description Top-K sampling for audio tokens.
+   * @minimum 1
+   * @maximum 2048
+   * @default 250
+   * @type integer | undefined
+   */
+  top_k_audio?: number
+  /**
+   * @description Text prompt describing the AI persona and conversation context.
+   * @default 'You are a wise and friendly teacher. Answer questions or provide advice in a clear and engaging way.'
+   * @example You work for SwiftPlex Appliances which is a appliance repair company and your name is Farhod Toshmatov. Information: The dishwasher model is out of stock for replacement parts; we can use an alternative part with a 3-day delay. Labor cost remains $60 per hour.
+   * @type string | undefined
+   */
+  prompt?: string
+  /**
+   * @description Input audio chunk (PCM s16le, 24kHz mono). Base64-encoded in JSON transport.
+   *
+   * Format: `binary`
+   * @type string
+   */
+  audio: Blob
+  /**
+   * @description Random seed for reproducibility.
+   * @default null
+   */
+  seed?: number | null
+  /**
+   * @description Text sampling temperature. Higher values produce more diverse outputs.
+   * @minimum 0
+   * @maximum 2
+   * @default 0.7
+   * @type number | undefined
+   */
+  temperature_text?: number
+  /**
+   * @description Top-K sampling for text tokens.
+   * @minimum 1
+   * @maximum 1000
+   * @default 25
+   * @type integer | undefined
+   */
+  top_k_text?: number
+  /**
+   * @description URL to a voice sample audio for on-the-fly voice cloning. When provided, the AI responds in the cloned voice instead of the preset 'voice'. 10+ seconds of clear speech recommended. Billed at 2x rate.
+   * @default null
+   */
+  voice_audio_url?: string | null
+  /**
+   * @description Voice ID for the AI response. NAT = natural, VAR = variety. F = female, M = male. Ignored when voice_audio_url is provided.
+   * @default 'NATF2'
+   * @type string | undefined
+   */
+  voice?: InputFalAiPersonaplexRealtimeVoiceEnumKey
+  /**
+   * @description Audio sampling temperature. Higher values produce more diverse outputs.
+   * @minimum 0
+   * @maximum 2
+   * @default 0.8
+   * @type number | undefined
+   */
+  temperature_audio?: number
+}
+
+/**
+ * @description Output from @fal.realtime endpoint.
+ * @type object
+ */
+export type OutputFalAiPersonaplexRealtime = {
+  /**
+   * @description Generated text tokens for this chunk.
+   * @default ''
+   * @type string | undefined
+   */
+  text?: string
+  /**
+   * @description Generated audio chunk (PCM s16le, 24kHz mono). Base64-encoded in JSON transport.
+   *
+   * Format: `binary`
+   * @type string
+   */
+  audio: Blob
+}
+
 export type InputFalAiQwen3TtsCloneVoice06B = {
   /**
    * @description Optional reference text that was used when creating the speaker embedding. Providing this can improve synthesis quality when using a cloned voice.
@@ -10557,6 +11335,33 @@ export type OutputFalAiSileroVad = {
    * @type array
    */
   timestamps: SpeechTimestamp[]
+}
+
+export type InputFalAiSmartTurn = {
+  /**
+   * @description The URL of the audio file to be processed.
+   * @example https://fal.media/files/panda/5-QaAOC32rB_hqWaVdqEH.mpga
+   * @type string
+   */
+  audio_url: string
+}
+
+export type OutputFalAiSmartTurn = {
+  /**
+   * @description The probability of the predicted turn type.
+   * @type number
+   */
+  probability: number
+  /**
+   * @description The predicted turn type. 1 for Complete, 0 for Incomplete.
+   * @type integer
+   */
+  prediction: number
+  /**
+   * @description The metrics of the inference.
+   * @type object
+   */
+  metrics: object
 }
 
 export type InputFalAiSpeechToText = {
@@ -15014,6 +15819,346 @@ export type OutputFalAiVibevoice7B = {
   duration: number
 }
 
+export const inputFalAiWhisperChunkLevelEnum = {
+  none: 'none',
+  segment: 'segment',
+  word: 'word',
+} as const
+
+export type InputFalAiWhisperChunkLevelEnumKey =
+  (typeof inputFalAiWhisperChunkLevelEnum)[keyof typeof inputFalAiWhisperChunkLevelEnum]
+
+export const inputFalAiWhisperLanguage = {
+  af: 'af',
+  am: 'am',
+  ar: 'ar',
+  as: 'as',
+  az: 'az',
+  ba: 'ba',
+  be: 'be',
+  bg: 'bg',
+  bn: 'bn',
+  bo: 'bo',
+  br: 'br',
+  bs: 'bs',
+  ca: 'ca',
+  cs: 'cs',
+  cy: 'cy',
+  da: 'da',
+  de: 'de',
+  el: 'el',
+  en: 'en',
+  es: 'es',
+  et: 'et',
+  eu: 'eu',
+  fa: 'fa',
+  fi: 'fi',
+  fo: 'fo',
+  fr: 'fr',
+  gl: 'gl',
+  gu: 'gu',
+  ha: 'ha',
+  haw: 'haw',
+  he: 'he',
+  hi: 'hi',
+  hr: 'hr',
+  ht: 'ht',
+  hu: 'hu',
+  hy: 'hy',
+  id: 'id',
+  is: 'is',
+  it: 'it',
+  ja: 'ja',
+  jw: 'jw',
+  ka: 'ka',
+  kk: 'kk',
+  km: 'km',
+  kn: 'kn',
+  ko: 'ko',
+  la: 'la',
+  lb: 'lb',
+  ln: 'ln',
+  lo: 'lo',
+  lt: 'lt',
+  lv: 'lv',
+  mg: 'mg',
+  mi: 'mi',
+  mk: 'mk',
+  ml: 'ml',
+  mn: 'mn',
+  mr: 'mr',
+  ms: 'ms',
+  mt: 'mt',
+  my: 'my',
+  ne: 'ne',
+  nl: 'nl',
+  nn: 'nn',
+  no: 'no',
+  oc: 'oc',
+  pa: 'pa',
+  pl: 'pl',
+  ps: 'ps',
+  pt: 'pt',
+  ro: 'ro',
+  ru: 'ru',
+  sa: 'sa',
+  sd: 'sd',
+  si: 'si',
+  sk: 'sk',
+  sl: 'sl',
+  sn: 'sn',
+  so: 'so',
+  sq: 'sq',
+  sr: 'sr',
+  su: 'su',
+  sv: 'sv',
+  sw: 'sw',
+  ta: 'ta',
+  te: 'te',
+  tg: 'tg',
+  th: 'th',
+  tk: 'tk',
+  tl: 'tl',
+  tr: 'tr',
+  tt: 'tt',
+  uk: 'uk',
+  ur: 'ur',
+  uz: 'uz',
+  vi: 'vi',
+  yi: 'yi',
+  yo: 'yo',
+  zh: 'zh',
+} as const
+
+export type InputFalAiWhisperLanguageKey =
+  (typeof inputFalAiWhisperLanguage)[keyof typeof inputFalAiWhisperLanguage]
+
+export const inputFalAiWhisperTaskEnum = {
+  transcribe: 'transcribe',
+  translate: 'translate',
+} as const
+
+export type InputFalAiWhisperTaskEnumKey =
+  (typeof inputFalAiWhisperTaskEnum)[keyof typeof inputFalAiWhisperTaskEnum]
+
+export type InputFalAiWhisper = {
+  /**
+   * @description
+   *             Number of speakers in the audio file. Defaults to null.
+   *             If not provided, the number of speakers will be automatically
+   *             detected.
+   *
+   * @example null
+   */
+  num_speakers?: number | null
+  /**
+   * @description Level of the chunks to return. Either none, segment or word. `none` would imply that all of the audio will be transcribed without the timestamp tokens, we suggest to switch to `none` if you are not satisfied with the transcription quality, since it will usually improve the quality of the results. Switching to `none` will also provide minor speed ups in the transcription due to less amount of generated tokens. Notice that setting to none will produce **a single chunk with the whole transcription**.
+   * @default 'segment'
+   * @type string | undefined
+   */
+  chunk_level?: InputFalAiWhisperChunkLevelEnumKey
+  /**
+   * @minimum 1
+   * @maximum 64
+   * @default 64
+   * @example 64
+   * @type integer | undefined
+   */
+  batch_size?: number
+  /**
+   * @description
+   *         Language of the audio file. If set to null, the language will be
+   *         automatically detected. Defaults to null.
+   *
+   *         If translate is selected as the task, the audio will be translated to
+   *         English, regardless of the language selected.
+   *
+   */
+  language?: InputFalAiWhisperLanguageKey | null
+  /**
+   * @description URL of the audio file to transcribe. Supported formats: mp3, mp4, mpeg, mpga, m4a, wav or webm.
+   * @example https://storage.googleapis.com/falserverless/model_tests/whisper/dinner_conversation.mp3
+   * @type string
+   */
+  audio_url: string
+  /**
+   * @description Whether to diarize the audio file. Defaults to false. Setting to true will add costs proportional to diarization inference time.
+   * @default false
+   * @type boolean | undefined
+   */
+  diarize?: boolean
+  /**
+   * @description Task to perform on the audio file. Either transcribe or translate.
+   * @default 'transcribe'
+   * @type string | undefined
+   */
+  task?: InputFalAiWhisperTaskEnumKey
+  /**
+   * @description Prompt to use for generation. Defaults to an empty string.
+   * @default ''
+   * @type string | undefined
+   */
+  prompt?: string
+}
+
+export type DiarizationSegment = {
+  /**
+   * @description Speaker ID of the segment
+   * @type string
+   */
+  speaker: string
+  /**
+   * @description Start and end timestamp of the segment
+   * @type array
+   */
+  timestamp: [number, number]
+}
+
+export type WhisperChunk = {
+  /**
+   * @description Speaker ID of the chunk. Only present if diarization is enabled.
+   */
+  speaker?: string | null
+  /**
+   * @description Transcription of the chunk
+   * @type string
+   */
+  text: string
+  /**
+   * @description Start and end timestamp of the chunk
+   * @type array
+   */
+  timestamp: [number | null, number | null]
+}
+
+export const outputFalAiWhisperInferredLanguagesEnum = {
+  af: 'af',
+  am: 'am',
+  ar: 'ar',
+  as: 'as',
+  az: 'az',
+  ba: 'ba',
+  be: 'be',
+  bg: 'bg',
+  bn: 'bn',
+  bo: 'bo',
+  br: 'br',
+  bs: 'bs',
+  ca: 'ca',
+  cs: 'cs',
+  cy: 'cy',
+  da: 'da',
+  de: 'de',
+  el: 'el',
+  en: 'en',
+  es: 'es',
+  et: 'et',
+  eu: 'eu',
+  fa: 'fa',
+  fi: 'fi',
+  fo: 'fo',
+  fr: 'fr',
+  gl: 'gl',
+  gu: 'gu',
+  ha: 'ha',
+  haw: 'haw',
+  he: 'he',
+  hi: 'hi',
+  hr: 'hr',
+  ht: 'ht',
+  hu: 'hu',
+  hy: 'hy',
+  id: 'id',
+  is: 'is',
+  it: 'it',
+  ja: 'ja',
+  jw: 'jw',
+  ka: 'ka',
+  kk: 'kk',
+  km: 'km',
+  kn: 'kn',
+  ko: 'ko',
+  la: 'la',
+  lb: 'lb',
+  ln: 'ln',
+  lo: 'lo',
+  lt: 'lt',
+  lv: 'lv',
+  mg: 'mg',
+  mi: 'mi',
+  mk: 'mk',
+  ml: 'ml',
+  mn: 'mn',
+  mr: 'mr',
+  ms: 'ms',
+  mt: 'mt',
+  my: 'my',
+  ne: 'ne',
+  nl: 'nl',
+  nn: 'nn',
+  no: 'no',
+  oc: 'oc',
+  pa: 'pa',
+  pl: 'pl',
+  ps: 'ps',
+  pt: 'pt',
+  ro: 'ro',
+  ru: 'ru',
+  sa: 'sa',
+  sd: 'sd',
+  si: 'si',
+  sk: 'sk',
+  sl: 'sl',
+  sn: 'sn',
+  so: 'so',
+  sq: 'sq',
+  sr: 'sr',
+  su: 'su',
+  sv: 'sv',
+  sw: 'sw',
+  ta: 'ta',
+  te: 'te',
+  tg: 'tg',
+  th: 'th',
+  tk: 'tk',
+  tl: 'tl',
+  tr: 'tr',
+  tt: 'tt',
+  uk: 'uk',
+  ur: 'ur',
+  uz: 'uz',
+  vi: 'vi',
+  yi: 'yi',
+  yo: 'yo',
+  zh: 'zh',
+} as const
+
+export type OutputFalAiWhisperInferredLanguagesEnumKey =
+  (typeof outputFalAiWhisperInferredLanguagesEnum)[keyof typeof outputFalAiWhisperInferredLanguagesEnum]
+
+export type OutputFalAiWhisper = {
+  /**
+   * @description Speaker diarization segments of the audio file. Only present if diarization is enabled.
+   * @type array
+   */
+  diarization_segments: DiarizationSegment[]
+  /**
+   * @description Timestamp chunks of the audio file
+   */
+  chunks?: WhisperChunk[] | null
+  /**
+   * @description Transcription of the audio file
+   * @example María, ¿qué cenamos hoy? No sé, ¿qué cenamos? ¿Cenamos pollo frito o pollo asado o algo? Mejor a la plancha, quiero una salada. A la plancha, vale. Y hacemos una ensalada con tomate y esas cosas. Vale. Pues eso lo hacemos, ¿vale? Venga, vale.
+   * @type string
+   */
+  text: string
+  /**
+   * @description List of languages that the audio file is inferred to be. Defaults to null.
+   * @type array
+   */
+  inferred_languages: OutputFalAiWhisperInferredLanguagesEnumKey[]
+}
+
 export const inputFalAiWizperLanguage = {
   af: 'af',
   am: 'am',
@@ -15180,7 +16325,7 @@ export type InputFalAiWizper = {
   version?: '3'
 }
 
-export type WhisperChunk = {
+export type WhisperChunk15Dfc575 = {
   /**
    * @description Transcription of the chunk
    * @type string
@@ -15308,7 +16453,7 @@ export type OutputFalAiWizper = {
    * @description Timestamp chunks of the audio file
    * @type array
    */
-  chunks: WhisperChunk[]
+  chunks: WhisperChunk15Dfc575[]
   /**
    * @description List of languages that the audio file is inferred to be. Defaults to null.
    * @type array
@@ -15719,12 +16864,6 @@ export type OutputFalAiZonos2 = {
 
 export type SpeechTurn = {
   /**
-   * @description Alias of a configured speaker.
-   * @minLength 1
-   * @type string
-   */
-  speaker_id: string
-  /**
    * @description Verbatim transcript for this turn.
    * @minLength 1
    * @type string
@@ -15734,9 +16873,15 @@ export type SpeechTurn = {
    * @description Optional delivery style for this turn.
    */
   style_instructions?: string | null
+  /**
+   * @description Alias of a configured speaker.
+   * @minLength 1
+   * @type string
+   */
+  speaker_id: string
 }
 
-export const speakerConfig462A1714VoiceEnum = {
+export const speakerConfig68C39D58VoiceEnum = {
   Achernar: 'Achernar',
   Achird: 'Achird',
   Algenib: 'Algenib',
@@ -15769,15 +16914,15 @@ export const speakerConfig462A1714VoiceEnum = {
   Zubenelgenubi: 'Zubenelgenubi',
 } as const
 
-export type SpeakerConfig462A1714VoiceEnumKey =
-  (typeof speakerConfig462A1714VoiceEnum)[keyof typeof speakerConfig462A1714VoiceEnum]
+export type SpeakerConfig68C39D58VoiceEnumKey =
+  (typeof speakerConfig68C39D58VoiceEnum)[keyof typeof speakerConfig68C39D58VoiceEnum]
 
-export type SpeakerConfig462A1714 = {
+export type SpeakerConfig68C39D58 = {
   /**
    * @description Prebuilt voice for this speaker.
    * @type string
    */
-  voice: SpeakerConfig462A1714VoiceEnumKey
+  voice: SpeakerConfig68C39D58VoiceEnumKey
   /**
    * @description Speaker alias used in each turn.
    * @minLength 1
@@ -15824,15 +16969,21 @@ export type InputGoogleGemini38FlashLiteTtsVoiceEnumKey =
 
 export type InputGoogleGemini38FlashLiteTts = {
   /**
-   * @description Verbatim text for single-speaker speech. Put delivery directions in style_instructions; inline vocal events may use <laugh> or <sigh>. For dialogue, omit prompt and provide speakers and turns instead. The provider limits the complete input to 8,192 tokens.
-   * @example Have a wonderful day!
+   * @description Delivery style, separate from the spoken transcript. Applies to all turns unless overridden.
+   * @example cheerful and friendly
    */
-  prompt?: string | null
+  style_instructions?: string | null
   /**
    * @description Ordered dialogue turns, each identifying a configured speaker.
    * @example null
    */
   turns?: SpeechTurn[] | null
+  /**
+   * @description Authorized callers may set false to request relaxed screening.
+   * @default true
+   * @type boolean | undefined
+   */
+  enable_safety_checker?: boolean
   /**
    * @description Prebuilt voice for single-speaker speech.
    * @default 'Kore'
@@ -15840,21 +16991,15 @@ export type InputGoogleGemini38FlashLiteTts = {
    */
   voice?: InputGoogleGemini38FlashLiteTtsVoiceEnumKey
   /**
-   * @description Delivery style, separate from the spoken transcript. Applies to all turns unless overridden.
-   * @example cheerful and friendly
+   * @description Verbatim text for single-speaker speech. Put delivery directions in style_instructions; inline vocal events may use <laugh> or <sigh>. For dialogue, omit prompt and provide speakers and turns instead. The provider limits the complete input to 8,192 tokens.
+   * @example Have a wonderful day!
    */
-  style_instructions?: string | null
+  prompt?: string | null
   /**
    * @description Exactly two distinct speaker aliases and their prebuilt voices for dialogue.
    * @example null
    */
-  speakers?: SpeakerConfig462A1714[] | null
-  /**
-   * @description Authorized callers may set false to request relaxed screening.
-   * @default true
-   * @type boolean | undefined
-   */
-  enable_safety_checker?: boolean
+  speakers?: SpeakerConfig68C39D58[] | null
 }
 
 export type FileEca7C340 = {
@@ -15888,26 +17033,7 @@ export type OutputGoogleGemini38FlashLiteTts = {
   audio: FileEca7C340
 }
 
-export type SpeechTurn181Cf96C = {
-  /**
-   * @description Optional delivery style for this turn.
-   */
-  style_instructions?: string | null
-  /**
-   * @description Verbatim transcript for this turn.
-   * @minLength 1
-   * @type string
-   */
-  text: string
-  /**
-   * @description Alias of a configured speaker.
-   * @minLength 1
-   * @type string
-   */
-  speaker_id: string
-}
-
-export const speakerConfig190A9D14VoiceEnum = {
+export const speakerConfigAd76Cf18VoiceEnum = {
   Achernar: 'Achernar',
   Achird: 'Achird',
   Algenib: 'Algenib',
@@ -15940,21 +17066,40 @@ export const speakerConfig190A9D14VoiceEnum = {
   Zubenelgenubi: 'Zubenelgenubi',
 } as const
 
-export type SpeakerConfig190A9D14VoiceEnumKey =
-  (typeof speakerConfig190A9D14VoiceEnum)[keyof typeof speakerConfig190A9D14VoiceEnum]
+export type SpeakerConfigAd76Cf18VoiceEnumKey =
+  (typeof speakerConfigAd76Cf18VoiceEnum)[keyof typeof speakerConfigAd76Cf18VoiceEnum]
 
-export type SpeakerConfig190A9D14 = {
+export type SpeakerConfigAd76Cf18 = {
   /**
    * @description Prebuilt voice for this speaker.
    * @type string
    */
-  voice: SpeakerConfig190A9D14VoiceEnumKey
+  voice: SpeakerConfigAd76Cf18VoiceEnumKey
   /**
    * @description Speaker alias used in each turn.
    * @minLength 1
    * @type string
    */
   speaker_id: string
+}
+
+export type SpeechTurnC588Cb90 = {
+  /**
+   * @description Verbatim transcript for this turn.
+   * @minLength 1
+   * @type string
+   */
+  text: string
+  /**
+   * @description Alias of a configured speaker.
+   * @minLength 1
+   * @type string
+   */
+  speaker_id: string
+  /**
+   * @description Optional delivery style for this turn.
+   */
+  style_instructions?: string | null
 }
 
 export const inputGoogleGemini38FlashTtsVoiceEnum = {
@@ -15995,37 +17140,37 @@ export type InputGoogleGemini38FlashTtsVoiceEnumKey =
 
 export type InputGoogleGemini38FlashTts = {
   /**
-   * @description Verbatim text for single-speaker speech. Put delivery directions in style_instructions; inline vocal events may use <laugh> or <sigh>. For dialogue, omit prompt and provide speakers and turns instead. The provider limits the complete input to 8,192 tokens.
-   * @example Have a wonderful day!
-   */
-  prompt?: string | null
-  /**
-   * @description Ordered dialogue turns, each identifying a configured speaker.
-   * @example null
-   */
-  turns?: SpeechTurn181Cf96C[] | null
-  /**
    * @description Prebuilt voice for single-speaker speech.
    * @default 'Kore'
    * @type string | undefined
    */
   voice?: InputGoogleGemini38FlashTtsVoiceEnumKey
   /**
+   * @description Exactly two distinct speaker aliases and their prebuilt voices for dialogue.
+   * @example null
+   */
+  speakers?: SpeakerConfigAd76Cf18[] | null
+  /**
    * @description Delivery style, separate from the spoken transcript. Applies to all turns unless overridden.
    * @example cheerful and friendly
    */
   style_instructions?: string | null
   /**
-   * @description Exactly two distinct speaker aliases and their prebuilt voices for dialogue.
-   * @example null
+   * @description Verbatim text for single-speaker speech. Put delivery directions in style_instructions; inline vocal events may use <laugh> or <sigh>. For dialogue, omit prompt and provide speakers and turns instead. The provider limits the complete input to 8,192 tokens.
+   * @example Have a wonderful day!
    */
-  speakers?: SpeakerConfig190A9D14[] | null
+  prompt?: string | null
   /**
    * @description Authorized callers may set false to request relaxed screening.
    * @default true
    * @type boolean | undefined
    */
   enable_safety_checker?: boolean
+  /**
+   * @description Ordered dialogue turns, each identifying a configured speaker.
+   * @example null
+   */
+  turns?: SpeechTurnC588Cb90[] | null
 }
 
 export type FileDfc6Db51 = {
@@ -16219,6 +17364,14 @@ export type InputHeygenHeygenVoice = {
    */
   enable_safety_checker?: boolean
   /**
+   * @description The text to speak.
+   * @minLength 1
+   * @maxLength 5000
+   * @example Hello! This is HeyGen Voice, speaking on fal.
+   * @type string
+   */
+  text: string
+  /**
    * @description Language of the text. Detected from the text when omitted.
    */
   language?: InputHeygenHeygenVoiceLanguageKey | null
@@ -16232,14 +17385,6 @@ export type InputHeygenHeygenVoice = {
    * @type string | undefined
    */
   voice?: InputHeygenHeygenVoiceVoiceEnumKey
-  /**
-   * @description The text to speak.
-   * @minLength 1
-   * @maxLength 5000
-   * @example Hello! This is HeyGen Voice, speaking on fal.
-   * @type string
-   */
-  text: string
 }
 
 export type File15F86Efb = {
@@ -16369,6 +17514,14 @@ export type InputHeygenHeygenVoiceTurbo = {
    */
   enable_safety_checker?: boolean
   /**
+   * @description The text to speak.
+   * @minLength 1
+   * @maxLength 5000
+   * @example Hello! This is HeyGen Voice, speaking on fal.
+   * @type string
+   */
+  text: string
+  /**
    * @description Language of the text. Detected from the text when omitted.
    */
   language?: InputHeygenHeygenVoiceTurboLanguageKey | null
@@ -16382,14 +17535,6 @@ export type InputHeygenHeygenVoiceTurbo = {
    * @type string | undefined
    */
   voice?: InputHeygenHeygenVoiceTurboVoiceEnumKey
-  /**
-   * @description The text to speak.
-   * @minLength 1
-   * @maxLength 5000
-   * @example Hello! This is HeyGen Voice, speaking on fal.
-   * @type string
-   */
-  text: string
 }
 
 export type FileD32310A4 = {
@@ -16602,6 +17747,460 @@ export type OutputMinimaxMusic3 = {
    * @type object
    */
   audio: File73Bb9896
+}
+
+export type InputMireloAiSfxV15VideoToAudio = {
+  /**
+   * @description The seed to use for the generation. If not provided, a random seed will be used
+   * @default 2814
+   */
+  seed?: number | null
+  /**
+   * @description The start offset in seconds to start the audio generation from
+   * @default 0
+   */
+  start_offset?: number | null
+  /**
+   * @description The duration of the generated audio in seconds
+   * @default 10
+   */
+  duration?: number | null
+  /**
+   * @description Additional description to guide the model
+   * @example
+   */
+  text_prompt?: string | null
+  /**
+   * @description The number of samples to generate from the model
+   * @default 2
+   */
+  num_samples?: number | null
+  /**
+   * @description A video url that can accessed from the API to process and add sound effects
+   *
+   * Format: `uri`
+   * @minLength 1
+   * @maxLength 2083
+   * @example https://di3otfzjg1gxa.cloudfront.net/battlefield_scene_silent.mp4
+   * @type string
+   */
+  video_url: string
+}
+
+export type Audio672930B0 = {
+  /**
+   * @description The URL where the file can be downloaded from.
+   * @type string
+   */
+  url: string
+  /**
+   * @description The name of the file. It will be auto-generated if not provided.
+   * @example z9RV14K95DvU.png
+   */
+  file_name?: string | null
+  /**
+   * @description The mime type of the file.
+   * @example image/png
+   */
+  content_type?: string | null
+  /**
+   * @description The size of the file in bytes.
+   * @example 4404019
+   */
+  file_size?: number | null
+}
+
+export type OutputMireloAiSfxV15VideoToAudio = {
+  /**
+   * @pattern ^sfx-[0-9]+\.[0-9]+$
+   * @type string
+   */
+  model: string
+  /**
+   * @description The generated sound effects audio
+   * @example [{"url":"https://v3b.fal.media/files/b/kangaroo/Cv3NHGnjVq3fz_sCddQh8_generated_audio.wav","file_name":"generated_audio_1.wav","content_type":"audio/wav"},{"url":"https://v3b.fal.media/files/b/zebra/EnTHS-6lClxK-H3i07YGP_generated_audio.wav","file_name":"generated_audio_2.wav","content_type":"audio/wav"}]
+   * @type array
+   */
+  audio: Audio672930B0[]
+}
+
+export type InputMireloAiSfxV1VideoToAudio = {
+  /**
+   * @description The seed to use for the generation. If not provided, a random seed will be used
+   * @default 2814
+   */
+  seed?: number | null
+  /**
+   * @description The start offset in seconds to start the audio generation from
+   * @default 0
+   */
+  start_offset?: number | null
+  /**
+   * @description The duration of the generated audio in seconds
+   * @default 10
+   */
+  duration?: number | null
+  /**
+   * @description Additional description to guide the model
+   * @example
+   */
+  text_prompt?: string | null
+  /**
+   * @description The number of samples to generate from the model
+   * @default 2
+   */
+  num_samples?: number | null
+  /**
+   * @description A video url that can accessed from the API to process and add sound effects
+   *
+   * Format: `uri`
+   * @minLength 1
+   * @maxLength 2083
+   * @example https://di3otfzjg1gxa.cloudfront.net/battlefield_scene_silent.mp4
+   * @type string
+   */
+  video_url: string
+}
+
+export type AudioF7Eb883D = {
+  /**
+   * @description The size of the file in bytes.
+   * @example 4404019
+   */
+  file_size?: number | null
+  /**
+   * @description The name of the file. It will be auto-generated if not provided.
+   * @example z9RV14K95DvU.png
+   */
+  file_name?: string | null
+  /**
+   * @description The mime type of the file.
+   * @example image/png
+   */
+  content_type?: string | null
+  /**
+   * @description The URL where the file can be downloaded from.
+   * @type string
+   */
+  url: string
+}
+
+export type OutputMireloAiSfxV1VideoToAudio = {
+  /**
+   * @pattern ^sfx-[0-9]+\.[0-9]+$
+   * @type string
+   */
+  model: string
+  /**
+   * @description The generated sound effects audio
+   * @example [{"url":"https://v3b.fal.media/files/b/kangaroo/Cv3NHGnjVq3fz_sCddQh8_generated_audio.wav","file_name":"generated_audio_1.wav","content_type":"audio/wav"},{"url":"https://v3b.fal.media/files/b/zebra/EnTHS-6lClxK-H3i07YGP_generated_audio.wav","file_name":"generated_audio_2.wav","content_type":"audio/wav"}]
+   * @type array
+   */
+  audio: AudioF7Eb883D[]
+}
+
+export const inputMireloAiSfx16ExtendAudioUploadAudioFormatEnum = {
+  wav: 'wav',
+  mp3: 'mp3',
+  aac: 'aac',
+  flac: 'flac',
+} as const
+
+export type InputMireloAiSfx16ExtendAudioUploadAudioFormatEnumKey =
+  (typeof inputMireloAiSfx16ExtendAudioUploadAudioFormatEnum)[keyof typeof inputMireloAiSfx16ExtendAudioUploadAudioFormatEnum]
+
+export type InputMireloAiSfx16ExtendAudio = {
+  /**
+   * @description How many seconds to add after the prefix. Total output = prefix duration + append_duration, capped at 60s. Minimum 1s, maximum 57s (60s cap minus the 3s prefix minimum).
+   * @minimum 1
+   * @maximum 57
+   * @default 10
+   * @type number | undefined
+   */
+  append_duration?: number
+  /**
+   * @description URL of the audio prefix to extend. The prefix duration must be 3–59 seconds; the total output (prefix + append_duration) is capped at 60 seconds.
+   * @example https://di3otfzjg1gxa.cloudfront.net/mirelo-ambience-birds_chirping.aac
+   * @type string
+   */
+  audio_url: string
+  /**
+   * @description Seed for generation. -1 or None for random.
+   */
+  seed?: number | null
+  /**
+   * @description Audio format for the returned files.
+   * @default 'wav'
+   * @type string | undefined
+   */
+  upload_audio_format?: InputMireloAiSfx16ExtendAudioUploadAudioFormatEnumKey
+  /**
+   * @description When true, run the extend+loop path: extend the prefix and stitch the end back to the prefix start so the tile loops seamlessly. When false, run a one-shot extension.
+   * @default false
+   * @type boolean | undefined
+   */
+  ambience?: boolean
+  /**
+   * @description Number of variations to generate.
+   * @minimum 1
+   * @maximum 4
+   * @default 2
+   * @type integer | undefined
+   */
+  num_samples?: number
+  /**
+   * @description Optional text prompt guiding the extension.
+   * @example birds chirping
+   */
+  text_prompt?: string | null
+  /**
+   * @description Only used when ambience=true: concatenate the loop with itself for a 2x-length output.
+   * @default false
+   * @type boolean | undefined
+   */
+  double_output?: boolean
+}
+
+export type Audio96442E2F = {
+  /**
+   * @description The name of the file. It will be auto-generated if not provided.
+   * @example z9RV14K95DvU.png
+   */
+  file_name?: string | null
+  /**
+   * @description The URL where the file can be downloaded from.
+   * @type string
+   */
+  url: string
+  /**
+   * @description The size of the file in bytes.
+   * @example 4404019
+   */
+  file_size?: number | null
+  /**
+   * @description The mime type of the file.
+   * @example image/png
+   */
+  content_type?: string | null
+}
+
+export type OutputMireloAiSfx16ExtendAudio = {
+  /**
+   * @description Audio with the input prefix preserved and a generated tail (and loop, if ambience=true).
+   * @example [{"file_name":"extended_audio_1.wav","url":"https://v3b.fal.media/files/b/kangaroo/extend_audio_example.wav","content_type":"audio/wav"}]
+   * @type array
+   */
+  audio: Audio96442E2F[]
+  /**
+   * @pattern ^sfx-[0-9]+\.[0-9]+$
+   * @type string
+   */
+  model: string
+}
+
+/**
+ * @description Region of the input audio to replace, in seconds.
+ *
+ * Stricter than upstream mireloverse.api.output_classes.AudioSegment:
+ *   - end_s <= 10 (matches upstream window cap)
+ *   - start_s >= 1 (1s left gap before the inpaint region)
+ *   - 1s <= end_s - start_s <= 8s (segment span)
+ * @type object
+ */
+export type AudioSegmentSpec = {
+  /**
+   * @description Start of the inpaint region in seconds. Must leave a 1s left gap (>= 1.0).
+   * @minimum 1
+   * @maximum 9
+   * @type number
+   */
+  start_s: number
+  /**
+   * @description End of the inpaint region in seconds. Must be <= 10.0.
+   * @minimum 2
+   * @maximum 10
+   * @type number
+   */
+  end_s: number
+}
+
+export const inputMireloAiSfx16InpaintAudioUploadAudioFormatEnum = {
+  wav: 'wav',
+  mp3: 'mp3',
+  aac: 'aac',
+  flac: 'flac',
+} as const
+
+export type InputMireloAiSfx16InpaintAudioUploadAudioFormatEnumKey =
+  (typeof inputMireloAiSfx16InpaintAudioUploadAudioFormatEnum)[keyof typeof inputMireloAiSfx16InpaintAudioUploadAudioFormatEnum]
+
+export type InputMireloAiSfx16InpaintAudio = {
+  /**
+   * @description URL of the source audio. Maximum 10 seconds — longer clips are rejected. The model regenerates only the region defined by `segment`; everything outside it is preserved.
+   * @example https://di3otfzjg1gxa.cloudfront.net/forest-ambience-10s.wav
+   * @type string
+   */
+  audio_url: string
+  /**
+   * @description Seed for generation. -1 or None for random.
+   */
+  seed?: number | null
+  /**
+   * @description Audio format for the returned files.
+   * @default 'wav'
+   * @type string | undefined
+   */
+  upload_audio_format?: InputMireloAiSfx16InpaintAudioUploadAudioFormatEnumKey
+  /**
+   * @description Region [start_s, end_s] (in seconds, 1s ≤ start < end ≤ 10s, 1–8s span) to regenerate. The audio outside this region is preserved.
+   * @example {"start_s":2,"end_s":6}
+   * @type object
+   */
+  segment: AudioSegmentSpec
+  /**
+   * @description Optional text prompt guiding the regenerated segment.
+   */
+  text_prompt?: string | null
+  /**
+   * @description Number of variations to generate.
+   * @minimum 1
+   * @maximum 4
+   * @default 2
+   * @type integer | undefined
+   */
+  num_samples?: number
+}
+
+export type Audio24484750 = {
+  /**
+   * @description The name of the file. It will be auto-generated if not provided.
+   * @example z9RV14K95DvU.png
+   */
+  file_name?: string | null
+  /**
+   * @description The URL where the file can be downloaded from.
+   * @type string
+   */
+  url: string
+  /**
+   * @description The size of the file in bytes.
+   * @example 4404019
+   */
+  file_size?: number | null
+  /**
+   * @description The mime type of the file.
+   * @example image/png
+   */
+  content_type?: string | null
+}
+
+export type OutputMireloAiSfx16InpaintAudio = {
+  /**
+   * @description Source audio with the requested segment regenerated; audio outside the segment is preserved.
+   * @example [{"file_name":"inpainted_audio_1.wav","url":"https://di3otfzjg1gxa.cloudfront.net/forest-ambience-10s.wav","content_type":"audio/wav"}]
+   * @type array
+   */
+  audio: Audio24484750[]
+  /**
+   * @pattern ^sfx-[0-9]+\.[0-9]+$
+   * @type string
+   */
+  model: string
+}
+
+export const inputMireloAiSfx16TextToAudioUploadAudioFormatEnum = {
+  wav: 'wav',
+  mp3: 'mp3',
+  aac: 'aac',
+  flac: 'flac',
+} as const
+
+export type InputMireloAiSfx16TextToAudioUploadAudioFormatEnumKey =
+  (typeof inputMireloAiSfx16TextToAudioUploadAudioFormatEnum)[keyof typeof inputMireloAiSfx16TextToAudioUploadAudioFormatEnum]
+
+export type InputMireloAiSfx16TextToAudio = {
+  /**
+   * @description Seed for generation. -1 or None for random.
+   */
+  seed?: number | null
+  /**
+   * @description Number of variations to generate.
+   * @minimum 1
+   * @maximum 4
+   * @default 2
+   * @type integer | undefined
+   */
+  num_samples?: number
+  /**
+   * @description Duration of the generated audio in seconds. The minimum is 0.1s for ordinary sound effects and 1s when ambience=true.
+   * @minimum 0.1
+   * @maximum 60
+   * @default 10
+   * @type number | undefined
+   */
+  duration?: number
+  /**
+   * @description Only used when ambience=true: concatenate the loop with itself for a 2x-length output.
+   * @default false
+   * @type boolean | undefined
+   */
+  double_output?: boolean
+  /**
+   * @description Text prompt for the generated audio.
+   * @minLength 4
+   * @example city ambience
+   * @type string
+   */
+  text_prompt: string
+  /**
+   * @description When true, generate a seamlessly loopable ambience tile (room tone, rain, drones, etc.). When false, generate a generic text-conditioned SFX of `duration` seconds.
+   * @default false
+   * @type boolean | undefined
+   */
+  ambience?: boolean
+  /**
+   * @description Audio format for the returned files.
+   * @default 'wav'
+   * @type string | undefined
+   */
+  upload_audio_format?: InputMireloAiSfx16TextToAudioUploadAudioFormatEnumKey
+}
+
+export type AudioE2B1B3Ee = {
+  /**
+   * @description The name of the file. It will be auto-generated if not provided.
+   * @example z9RV14K95DvU.png
+   */
+  file_name?: string | null
+  /**
+   * @description The URL where the file can be downloaded from.
+   * @type string
+   */
+  url: string
+  /**
+   * @description The size of the file in bytes.
+   * @example 4404019
+   */
+  file_size?: number | null
+  /**
+   * @description The mime type of the file.
+   * @example image/png
+   */
+  content_type?: string | null
+}
+
+export type OutputMireloAiSfx16TextToAudio = {
+  /**
+   * @description Generated SFX audio from a text prompt.
+   * @example [{"file_name":"text_to_audio_1.wav","url":"https://v3b.fal.media/files/b/kangaroo/text_to_audio_example.wav","content_type":"audio/wav"}]
+   * @type array
+   */
+  audio: AudioE2B1B3Ee[]
+  /**
+   * @pattern ^sfx-[0-9]+\.[0-9]+$
+   * @type string
+   */
+  model: string
 }
 
 export const inputMireloAiSfx20TextToAudioUploadAudioFormatEnum = {
@@ -16863,6 +18462,119 @@ export type OutputMireloAiSfx20VideoToAudio = {
   speech?: ReturnedSpeech | null
 }
 
+export const inputMurekaApiGenerateInstrumentalModelEnum = {
+  'mureka-7.6': 'mureka-7.6',
+  'mureka-8': 'mureka-8',
+  'mureka-9': 'mureka-9',
+  'mureka-9.5': 'mureka-9.5',
+} as const
+
+export type InputMurekaApiGenerateInstrumentalModelEnumKey =
+  (typeof inputMurekaApiGenerateInstrumentalModelEnum)[keyof typeof inputMurekaApiGenerateInstrumentalModelEnum]
+
+export type InputMurekaApiGenerateInstrumental = {
+  /**
+   * @description Authorized callers may set false to request relaxed screening.
+   * @default true
+   * @type boolean | undefined
+   */
+  enable_safety_checker?: boolean
+  /**
+   * @description Model used to generate the instrumental.
+   * @default 'mureka-9.5'
+   * @type string | undefined
+   */
+  model?: InputMurekaApiGenerateInstrumentalModelEnumKey
+  /**
+   * @description Instrumental ID returned by /files/upload with purpose='instrumental'. Provide exactly one of instrumental_id or prompt.
+   */
+  instrumental_id?: string | null
+  /**
+   * @description Description of the desired instrumental. Provide exactly one of prompt or instrumental_id.
+   */
+  prompt?: string | null
+}
+
+export type LyricsWord = {
+  end?: number | null
+  start?: number | null
+  text?: string | null
+}
+
+export type LyricsLine = {
+  end?: number | null
+  start?: number | null
+  words?: LyricsWord[] | null
+  text?: string | null
+}
+
+export const lyricsSectionSectionType = {
+  intro: 'intro',
+  verse: 'verse',
+  'pre-chorus': 'pre-chorus',
+  chorus: 'chorus',
+  bridge: 'bridge',
+  break: 'break',
+  outro: 'outro',
+} as const
+
+export type LyricsSectionSectionTypeKey =
+  (typeof lyricsSectionSectionType)[keyof typeof lyricsSectionSectionType]
+
+export type LyricsSection = {
+  end?: number | null
+  lines?: LyricsLine[] | null
+  section_type?: LyricsSectionSectionTypeKey | null
+  start?: number | null
+}
+
+export type File3D7Cb75F = {
+  /**
+   * @description The name of the file. It will be auto-generated if not provided.
+   * @example z9RV14K95DvU.png
+   */
+  file_name?: string | null
+  /**
+   * @description The size of the file in bytes.
+   * @example 4404019
+   */
+  file_size?: number | null
+  /**
+   * @description The URL where the file can be downloaded from.
+   * @type string
+   */
+  url: string
+  /**
+   * @description The mime type of the file.
+   * @example image/png
+   */
+  content_type?: string | null
+}
+
+/**
+ * @description A generated audio file and its reusable song identifier.
+ * @type object
+ */
+export type OutputMurekaApiGenerateInstrumental = {
+  /**
+   * @description Timed lyric sections for the generated audio, when available.
+   */
+  lyrics_sections?: LyricsSection[] | null
+  /**
+   * @description Duration of the generated audio in milliseconds, when available.
+   */
+  duration?: number | null
+  /**
+   * @description The generated audio file.
+   * @type object
+   */
+  audio: File3D7Cb75F
+  /**
+   * @description Reusable identifier for this audio. Pass it to endpoints that accept song_id.
+   */
+  song_id?: string | null
+}
+
 export const podcastConversationVoiceEnum = {
   Ethan: 'Ethan',
   Victoria: 'Victoria',
@@ -16901,39 +18613,6 @@ export type InputMurekaApiGeneratePodcast = {
    * @type array
    */
   conversations: PodcastConversation[]
-}
-
-export type LyricsWord = {
-  end?: number | null
-  start?: number | null
-  text?: string | null
-}
-
-export type LyricsLine = {
-  end?: number | null
-  start?: number | null
-  words?: LyricsWord[] | null
-  text?: string | null
-}
-
-export const lyricsSectionSectionType = {
-  intro: 'intro',
-  verse: 'verse',
-  'pre-chorus': 'pre-chorus',
-  chorus: 'chorus',
-  bridge: 'bridge',
-  break: 'break',
-  outro: 'outro',
-} as const
-
-export type LyricsSectionSectionTypeKey =
-  (typeof lyricsSectionSectionType)[keyof typeof lyricsSectionSectionType]
-
-export type LyricsSection = {
-  end?: number | null
-  lines?: LyricsLine[] | null
-  section_type?: LyricsSectionSectionTypeKey | null
-  start?: number | null
 }
 
 export type File43F6693F = {
@@ -16977,6 +18656,136 @@ export type OutputMurekaApiGeneratePodcast = {
    * @type object
    */
   audio: File43F6693F
+  /**
+   * @description Reusable identifier for this audio. Pass it to endpoints that accept song_id.
+   */
+  song_id?: string | null
+}
+
+export const inputMurekaApiGenerateSongGender = {
+  female: 'female',
+  male: 'male',
+} as const
+
+export type InputMurekaApiGenerateSongGenderKey =
+  (typeof inputMurekaApiGenerateSongGender)[keyof typeof inputMurekaApiGenerateSongGender]
+
+export const inputMurekaApiGenerateSongModelEnum = {
+  'mureka-7.6': 'mureka-7.6',
+  'mureka-o2': 'mureka-o2',
+  'mureka-8': 'mureka-8',
+  'mureka-9': 'mureka-9',
+  'mureka-9.5': 'mureka-9.5',
+} as const
+
+export type InputMurekaApiGenerateSongModelEnumKey =
+  (typeof inputMurekaApiGenerateSongModelEnum)[keyof typeof inputMurekaApiGenerateSongModelEnum]
+
+export const inputMurekaApiGenerateSongStylesEnum = {
+  pop: 'pop',
+  rock: 'rock',
+  jazz: 'jazz',
+  'r&b': 'r&b',
+  edm: 'edm',
+  ambient: 'ambient',
+  folk: 'folk',
+  latin: 'latin',
+  'k-pop': 'k-pop',
+  'j-pop': 'j-pop',
+  house: 'house',
+  gospel: 'gospel',
+  'lo-fi': 'lo-fi',
+} as const
+
+export type InputMurekaApiGenerateSongStylesEnumKey =
+  (typeof inputMurekaApiGenerateSongStylesEnum)[keyof typeof inputMurekaApiGenerateSongStylesEnum]
+
+export type InputMurekaApiGenerateSong = {
+  /**
+   * @description Voice ID returned by /voice/clone.
+   */
+  vocal_id?: string | null
+  /**
+   * @description Melody ID returned by /files/upload with purpose='melody'. This cannot be combined with prompt, reference_id, or vocal_id.
+   */
+  melody_id?: string | null
+  /**
+   * @description Lyrics to sing, up to 5,000 characters. Provide this for lyrics-to-song generation; otherwise provide prompt for prompt-to-song generation.
+   */
+  lyrics?: string | null
+  /**
+   * @description Reference-music ID returned by /files/upload with purpose='reference'.
+   */
+  reference_id?: string | null
+  /**
+   * @description Preferred vocal gender for lyrics-to-song generation. An uploaded or cloned voice takes precedence.
+   */
+  gender?: InputMurekaApiGenerateSongGenderKey | null
+  /**
+   * @description Describe the desired song, mood, instrumentation, and vocals. Required when lyrics is omitted; with lyrics, it acts as a music-style control.
+   * @example A bright summer love song with a catchy chorus
+   */
+  prompt?: string | null
+  /**
+   * @description Authorized callers may set false to request relaxed screening.
+   * @default true
+   * @type boolean | undefined
+   */
+  enable_safety_checker?: boolean
+  /**
+   * @description The model to use for song generation.
+   * @default 'mureka-9.5'
+   * @type string | undefined
+   */
+  model?: InputMurekaApiGenerateSongModelEnumKey
+  /**
+   * @description One or more musical genres for prompt-to-song generation. This cannot be used when lyrics is provided.
+   * @example ["pop","rock"]
+   */
+  styles?: InputMurekaApiGenerateSongStylesEnumKey[] | null
+}
+
+export type File2E37Fd16 = {
+  /**
+   * @description The name of the file. It will be auto-generated if not provided.
+   * @example z9RV14K95DvU.png
+   */
+  file_name?: string | null
+  /**
+   * @description The size of the file in bytes.
+   * @example 4404019
+   */
+  file_size?: number | null
+  /**
+   * @description The URL where the file can be downloaded from.
+   * @type string
+   */
+  url: string
+  /**
+   * @description The mime type of the file.
+   * @example image/png
+   */
+  content_type?: string | null
+}
+
+/**
+ * @description A generated audio file and its reusable song identifier.
+ * @type object
+ */
+export type OutputMurekaApiGenerateSong = {
+  /**
+   * @description Timed lyric sections for the generated audio, when available.
+   */
+  lyrics_sections?: LyricsSection[] | null
+  /**
+   * @description Duration of the generated audio in milliseconds, when available.
+   */
+  duration?: number | null
+  /**
+   * @description The generated audio file.
+   * @type object
+   */
+  audio: File2E37Fd16
   /**
    * @description Reusable identifier for this audio. Pass it to endpoints that accept song_id.
    */
@@ -19801,82 +21610,26 @@ export type OutputVeedCleanAudio = {
   audio: Audio044Fb3E2
 }
 
-export type GrokSearchLocation = {
-  /**
-   * @description IANA timezone name, for example America/New_York.
-   * @default null
-   */
-  timezone?: string | null
-  /**
-   * @description City used to localize web-search results.
-   * @default null
-   */
-  city?: string | null
-  /**
-   * @description Country used to localize web-search results.
-   * @default null
-   */
-  country?: string | null
-  /**
-   * @description Region used to localize web-search results.
-   * @default null
-   */
-  region?: string | null
-}
-
-/**
- * @description Configuration for one xAI web_search tool declaration.
- * @type object
- */
-export type GrokWebSearchTool = {
-  /**
-   * @description Restrict results to at most five domains, without protocol or path.
-   * @default null
-   */
-  allowed_domains?: string[] | null
-  /**
-   * @description Exclude results from at most five domains, without protocol or path.
-   * @default null
-   */
-  excluded_domains?: string[] | null
-  /**
-   * @description Whether to include web_search in session.tools. Disabled by default; set true to let the agent search the web.
-   * @default false
-   * @type boolean | undefined
-   */
-  enabled?: boolean
-  /**
-   * @description Optional location used to localize search results.
-   * @default null
-   */
-  location?: GrokSearchLocation | null
-  /**
-   * @description Allow the agent to inspect images found during web search.
-   * @default null
-   */
-  enable_image_understanding?: boolean | null
-}
-
 /**
  * @description Configuration for one xAI x_search tool declaration.
  * @type object
  */
 export type GrokXSearchTool = {
   /**
-   * @description Earliest post date, as ISO YYYY-MM-DD.
-   * @default null
-   */
-  from_date?: string | null
-  /**
-   * @description Restrict results to posts from at most 20 X handles.
-   * @default null
-   */
-  allowed_x_handles?: string[] | null
-  /**
    * @description Exclude posts from at most 20 X handles.
    * @default null
    */
   excluded_x_handles?: string[] | null
+  /**
+   * @description Allow the agent to inspect images found on X.
+   * @default null
+   */
+  enable_image_understanding?: boolean | null
+  /**
+   * @description Earliest post date, as ISO YYYY-MM-DD.
+   * @default null
+   */
+  from_date?: string | null
   /**
    * @description Whether to include x_search in session.tools. Disabled by default; set true to let the agent search X posts.
    * @default false
@@ -19894,10 +21647,10 @@ export type GrokXSearchTool = {
    */
   to_date?: string | null
   /**
-   * @description Allow the agent to inspect images found on X.
+   * @description Restrict results to posts from at most 20 X handles.
    * @default null
    */
-  enable_image_understanding?: boolean | null
+  allowed_x_handles?: string[] | null
 }
 
 /**
@@ -19915,10 +21668,13 @@ export type GrokRemoteMCPTool = {
    */
   server_description?: string | null
   /**
-   * @description Optional allow-list of tool names exposed from this server.
-   * @default null
+   * @description Caller-selected HTTP(S) MCP endpoint. xAI makes the remote connection and supports Streaming HTTP/SSE transports. Use at your own risk; fal does not connect to or SSRF-fetch this URL.
+   *
+   * Format: `uri`
+   * @minLength 1
+   * @type string
    */
-  allowed_tools?: string[] | null
+  server_url: string
   /**
    * @description Sensitive authorization value forwarded only to xAI.
    * @default null
@@ -19938,13 +21694,10 @@ export type GrokRemoteMCPTool = {
    */
   server_label: string
   /**
-   * @description Caller-selected HTTP(S) MCP endpoint. xAI makes the remote connection and supports Streaming HTTP/SSE transports. Use at your own risk; fal does not connect to or SSRF-fetch this URL.
-   *
-   * Format: `uri`
-   * @minLength 1
-   * @type string
+   * @description Optional allow-list of tool names exposed from this server.
+   * @default null
    */
-  server_url: string
+  allowed_tools?: string[] | null
   /**
    * @description Sensitive MCP request headers forwarded only to xAI.
    * @default null
@@ -19952,6 +21705,62 @@ export type GrokRemoteMCPTool = {
   headers?: {
     [key: string]: string
   } | null
+}
+
+export type GrokSearchLocation = {
+  /**
+   * @description City used to localize web-search results.
+   * @default null
+   */
+  city?: string | null
+  /**
+   * @description IANA timezone name, for example America/New_York.
+   * @default null
+   */
+  timezone?: string | null
+  /**
+   * @description Country used to localize web-search results.
+   * @default null
+   */
+  country?: string | null
+  /**
+   * @description Region used to localize web-search results.
+   * @default null
+   */
+  region?: string | null
+}
+
+/**
+ * @description Configuration for one xAI web_search tool declaration.
+ * @type object
+ */
+export type GrokWebSearchTool = {
+  /**
+   * @description Allow the agent to inspect images found during web search.
+   * @default null
+   */
+  enable_image_understanding?: boolean | null
+  /**
+   * @description Whether to include web_search in session.tools. Disabled by default; set true to let the agent search the web.
+   * @default false
+   * @type boolean | undefined
+   */
+  enabled?: boolean
+  /**
+   * @description Exclude results from at most five domains, without protocol or path.
+   * @default null
+   */
+  excluded_domains?: string[] | null
+  /**
+   * @description Restrict results to at most five domains, without protocol or path.
+   * @default null
+   */
+  allowed_domains?: string[] | null
+  /**
+   * @description Optional location used to localize search results.
+   * @default null
+   */
+  location?: GrokSearchLocation | null
 }
 
 /**
@@ -19970,14 +21779,8 @@ export type GrokRemoteMCPTool = {
  */
 export type GrokToolsConfiguration = {
   /**
-   * @description xAI-managed web search; off unless enabled is set true.
-   * @default {"allowed_domains":null,"excluded_domains":null,"enabled":false,"location":null,"enable_image_understanding":null}
-   * @type object | undefined
-   */
-  web_search?: GrokWebSearchTool
-  /**
    * @description xAI-managed X search; off unless enabled is set true.
-   * @default {"from_date":null,"allowed_x_handles":null,"excluded_x_handles":null,"enabled":false,"enable_video_understanding":null,"to_date":null,"enable_image_understanding":null}
+   * @default {"excluded_x_handles":null,"enable_image_understanding":null,"from_date":null,"enabled":false,"enable_video_understanding":null,"to_date":null,"allowed_x_handles":null}
    * @type object | undefined
    */
   x_search?: GrokXSearchTool
@@ -19986,6 +21789,12 @@ export type GrokToolsConfiguration = {
    * @type array | undefined
    */
   mcp_servers?: GrokRemoteMCPTool[]
+  /**
+   * @description xAI-managed web search; off unless enabled is set true.
+   * @default {"enable_image_understanding":null,"enabled":false,"excluded_domains":null,"allowed_domains":null,"location":null}
+   * @type object | undefined
+   */
+  web_search?: GrokWebSearchTool
 }
 
 export const inputXaiGrokVoiceVoice = {
@@ -20028,28 +21837,28 @@ export type InputXaiGrokVoice = {
    */
   voice?: InputXaiGrokVoiceVoiceKey | null
   /**
-   * @description Server-side tools available to the agent. Web, X, and remote MCP tools are supported; every tool is disabled by default. file_search/collections are unsupported by the typed configuration due to ZDR.
-   * @default {"web_search":{"enabled":false},"x_search":{"enabled":false},"mcp_servers":[]}
-   * @type object | undefined
-   */
-  tools?: GrokToolsConfiguration
-  /**
    * @description Optional system instructions describing the agent's persona and conversation context. Uses Grok's default persona when omitted.
    * @example You are a friendly assistant. Answer briefly and concretely.
    */
   prompt?: string | null
   /**
-   * @description Authorized callers may set false to request relaxed screening.
-   * @default true
-   * @type boolean | undefined
+   * @description Server-side tools available to the agent. Web, X, and remote MCP tools are supported; every tool is disabled by default. file_search/collections are unsupported by the typed configuration due to ZDR.
+   * @default {"x_search":{"enabled":false},"mcp_servers":[],"web_search":{"enabled":false}}
+   * @type object | undefined
    */
-  enable_safety_checker?: boolean
+  tools?: GrokToolsConfiguration
   /**
    * @description URL of the audio containing the user's speech. The Grok agent listens to it and replies with speech. Most common audio formats are supported; the audio is converted to 16-bit 24 kHz mono PCM before being sent to Grok. Maximum duration 10 minutes, maximum file size 50 MB.
    * @example https://v3b.fal.media/files/b/0a8dd5a2/hS140ygvRuxn-eY_qPhlv_assets_test_input_service.wav
    * @type string
    */
   audio_url: string
+  /**
+   * @description Authorized callers may set false to request relaxed screening.
+   * @default true
+   * @type boolean | undefined
+   */
+  enable_safety_checker?: boolean
 }
 
 export type File6C8Fd162 = {
@@ -21011,6 +22820,10 @@ export type FalAudioEndpoints = {
     input: InputFalAiDiaTtsVoiceClone
     output: OutputFalAiDiaTtsVoiceClone
   }
+  'fal-ai/diffrhythm': {
+    input: InputFalAiDiffrhythm
+    output: OutputFalAiDiffrhythm
+  }
   'fal-ai/elevenlabs/audio-isolation': {
     input: InputFalAiElevenlabsAudioIsolation
     output: OutputFalAiElevenlabsAudioIsolation
@@ -21199,6 +23012,38 @@ export type FalAudioEndpoints = {
     input: InputFalAiLyria3Pro
     output: OutputFalAiLyria3Pro
   }
+  'fal-ai/maya': {
+    /**
+     * @description Input schema for Maya-1-Voice TTS generation
+     * @type object
+     */
+    input: InputFalAiMaya
+    /**
+     * @description Output schema for Maya-1-Voice TTS generation
+     * @type object
+     */
+    output: OutputFalAiMaya
+  }
+  'fal-ai/maya/batch': {
+    /**
+     * @description Input schema for batch Maya-1-Voice TTS generation
+     * @type object
+     */
+    input: InputFalAiMayaBatch
+    /**
+     * @description Output schema for batch Maya-1-Voice TTS generation
+     * @type object
+     */
+    output: OutputFalAiMayaBatch
+  }
+  'fal-ai/maya/stream': {
+    /**
+     * @description Input schema for Maya-1-Voice streaming TTS generation
+     * @type object
+     */
+    input: InputFalAiMayaStream
+    output: OutputFalAiMayaStream
+  }
   'fal-ai/minimax-music': {
     input: InputFalAiMinimaxMusic
     output: OutputFalAiMinimaxMusic
@@ -21283,6 +23128,22 @@ export type FalAudioEndpoints = {
     input: InputFalAiOrpheusTts
     output: OutputFalAiOrpheusTts
   }
+  'fal-ai/personaplex': {
+    input: InputFalAiPersonaplex
+    output: OutputFalAiPersonaplex
+  }
+  'fal-ai/personaplex/realtime': {
+    /**
+     * @description Input for @fal.realtime endpoint. Audio is raw PCM s16le 24kHz mono.
+     * @type object
+     */
+    input: InputFalAiPersonaplexRealtime
+    /**
+     * @description Output from @fal.realtime endpoint.
+     * @type object
+     */
+    output: OutputFalAiPersonaplexRealtime
+  }
   'fal-ai/qwen-3-tts/clone-voice/0.6b': {
     input: InputFalAiQwen3TtsCloneVoice06B
     output: OutputFalAiQwen3TtsCloneVoice06B
@@ -21342,6 +23203,10 @@ export type FalAudioEndpoints = {
   'fal-ai/silero-vad': {
     input: InputFalAiSileroVad
     output: OutputFalAiSileroVad
+  }
+  'fal-ai/smart-turn': {
+    input: InputFalAiSmartTurn
+    output: OutputFalAiSmartTurn
   }
   'fal-ai/speech-to-text': {
     input: InputFalAiSpeechToText
@@ -21515,6 +23380,10 @@ export type FalAudioEndpoints = {
      */
     output: OutputFalAiVibevoice7B
   }
+  'fal-ai/whisper': {
+    input: InputFalAiWhisper
+    output: OutputFalAiWhisper
+  }
   'fal-ai/wizper': {
     input: InputFalAiWizper
     output: OutputFalAiWizper
@@ -21579,6 +23448,26 @@ export type FalAudioEndpoints = {
     input: InputMinimaxMusic3
     output: OutputMinimaxMusic3
   }
+  'mirelo-ai/sfx-v1.5/video-to-audio': {
+    input: InputMireloAiSfxV15VideoToAudio
+    output: OutputMireloAiSfxV15VideoToAudio
+  }
+  'mirelo-ai/sfx-v1/video-to-audio': {
+    input: InputMireloAiSfxV1VideoToAudio
+    output: OutputMireloAiSfxV1VideoToAudio
+  }
+  'mirelo-ai/sfx1.6/extend-audio': {
+    input: InputMireloAiSfx16ExtendAudio
+    output: OutputMireloAiSfx16ExtendAudio
+  }
+  'mirelo-ai/sfx1.6/inpaint-audio': {
+    input: InputMireloAiSfx16InpaintAudio
+    output: OutputMireloAiSfx16InpaintAudio
+  }
+  'mirelo-ai/sfx1.6/text-to-audio': {
+    input: InputMireloAiSfx16TextToAudio
+    output: OutputMireloAiSfx16TextToAudio
+  }
   'mirelo-ai/sfx2.0/text-to-audio': {
     /**
      * @description The text-to-SFX request of the Modal deployment's text_to_sfx endpoint; FAL names the request.
@@ -21591,6 +23480,14 @@ export type FalAudioEndpoints = {
     input: InputMireloAiSfx20VideoToAudio
     output: OutputMireloAiSfx20VideoToAudio
   }
+  'mureka/api/generate/instrumental': {
+    input: InputMurekaApiGenerateInstrumental
+    /**
+     * @description A generated audio file and its reusable song identifier.
+     * @type object
+     */
+    output: OutputMurekaApiGenerateInstrumental
+  }
   'mureka/api/generate/podcast': {
     input: InputMurekaApiGeneratePodcast
     /**
@@ -21598,6 +23495,14 @@ export type FalAudioEndpoints = {
      * @type object
      */
     output: OutputMurekaApiGeneratePodcast
+  }
+  'mureka/api/generate/song': {
+    input: InputMurekaApiGenerateSong
+    /**
+     * @description A generated audio file and its reusable song identifier.
+     * @type object
+     */
+    output: OutputMurekaApiGenerateSong
   }
   'mureka/api/generate/speech': {
     input: InputMurekaApiGenerateSpeech
@@ -21970,6 +23875,7 @@ export const falPostEndpointIdEndpointId = {
   'fal-ai/demucs': 'fal-ai/demucs',
   'fal-ai/dia-tts': 'fal-ai/dia-tts',
   'fal-ai/dia-tts/voice-clone': 'fal-ai/dia-tts/voice-clone',
+  'fal-ai/diffrhythm': 'fal-ai/diffrhythm',
   'fal-ai/elevenlabs/audio-isolation': 'fal-ai/elevenlabs/audio-isolation',
   'fal-ai/elevenlabs/forced-alignment': 'fal-ai/elevenlabs/forced-alignment',
   'fal-ai/elevenlabs/music': 'fal-ai/elevenlabs/music',
@@ -22009,6 +23915,9 @@ export const falPostEndpointIdEndpointId = {
   'fal-ai/lyria2': 'fal-ai/lyria2',
   'fal-ai/lyria3': 'fal-ai/lyria3',
   'fal-ai/lyria3/pro': 'fal-ai/lyria3/pro',
+  'fal-ai/maya': 'fal-ai/maya',
+  'fal-ai/maya/batch': 'fal-ai/maya/batch',
+  'fal-ai/maya/stream': 'fal-ai/maya/stream',
   'fal-ai/minimax-music': 'fal-ai/minimax-music',
   'fal-ai/minimax-music/v1.5': 'fal-ai/minimax-music/v1.5',
   'fal-ai/minimax-music/v2': 'fal-ai/minimax-music/v2',
@@ -22028,6 +23937,8 @@ export const falPostEndpointIdEndpointId = {
   'fal-ai/minimax/voice-design': 'fal-ai/minimax/voice-design',
   'fal-ai/mmaudio-v2/text-to-audio': 'fal-ai/mmaudio-v2/text-to-audio',
   'fal-ai/orpheus-tts': 'fal-ai/orpheus-tts',
+  'fal-ai/personaplex': 'fal-ai/personaplex',
+  'fal-ai/personaplex/realtime': 'fal-ai/personaplex/realtime',
   'fal-ai/qwen-3-tts/clone-voice/0.6b': 'fal-ai/qwen-3-tts/clone-voice/0.6b',
   'fal-ai/qwen-3-tts/clone-voice/1.7b': 'fal-ai/qwen-3-tts/clone-voice/1.7b',
   'fal-ai/qwen-3-tts/text-to-speech/0.6b':
@@ -22039,6 +23950,7 @@ export const falPostEndpointIdEndpointId = {
   'fal-ai/sam-audio/span-separate': 'fal-ai/sam-audio/span-separate',
   'fal-ai/sam-audio/visual-separate': 'fal-ai/sam-audio/visual-separate',
   'fal-ai/silero-vad': 'fal-ai/silero-vad',
+  'fal-ai/smart-turn': 'fal-ai/smart-turn',
   'fal-ai/speech-to-text': 'fal-ai/speech-to-text',
   'fal-ai/speech-to-text/stream': 'fal-ai/speech-to-text/stream',
   'fal-ai/speech-to-text/turbo': 'fal-ai/speech-to-text/turbo',
@@ -22102,6 +24014,7 @@ export const falPostEndpointIdEndpointId = {
   'fal-ai/vibevoice': 'fal-ai/vibevoice',
   'fal-ai/vibevoice/0.5b': 'fal-ai/vibevoice/0.5b',
   'fal-ai/vibevoice/7b': 'fal-ai/vibevoice/7b',
+  'fal-ai/whisper': 'fal-ai/whisper',
   'fal-ai/wizper': 'fal-ai/wizper',
   'fal-ai/workflow-utilities/audio-compressor':
     'fal-ai/workflow-utilities/audio-compressor',
@@ -22117,9 +24030,16 @@ export const falPostEndpointIdEndpointId = {
   'kotoba-technologies/kotoba-stt/v1/speech-to-text':
     'kotoba-technologies/kotoba-stt/v1/speech-to-text',
   'minimax/music-3': 'minimax/music-3',
+  'mirelo-ai/sfx-v1.5/video-to-audio': 'mirelo-ai/sfx-v1.5/video-to-audio',
+  'mirelo-ai/sfx-v1/video-to-audio': 'mirelo-ai/sfx-v1/video-to-audio',
+  'mirelo-ai/sfx1.6/extend-audio': 'mirelo-ai/sfx1.6/extend-audio',
+  'mirelo-ai/sfx1.6/inpaint-audio': 'mirelo-ai/sfx1.6/inpaint-audio',
+  'mirelo-ai/sfx1.6/text-to-audio': 'mirelo-ai/sfx1.6/text-to-audio',
   'mirelo-ai/sfx2.0/text-to-audio': 'mirelo-ai/sfx2.0/text-to-audio',
   'mirelo-ai/sfx2.0/video-to-audio': 'mirelo-ai/sfx2.0/video-to-audio',
+  'mureka/api/generate/instrumental': 'mureka/api/generate/instrumental',
   'mureka/api/generate/podcast': 'mureka/api/generate/podcast',
+  'mureka/api/generate/song': 'mureka/api/generate/song',
   'mureka/api/generate/speech': 'mureka/api/generate/speech',
   'mureka/api/song/describe': 'mureka/api/song/describe',
   'mureka/api/song/edit': 'mureka/api/song/edit',
@@ -22197,6 +24117,7 @@ export type FalPostEndpointIdBody =
   | InputFalAiDemucs
   | InputFalAiDiaTts
   | InputFalAiDiaTtsVoiceClone
+  | InputFalAiDiffrhythm
   | InputFalAiElevenlabsAudioIsolation
   | InputFalAiElevenlabsForcedAlignment
   | InputFalAiElevenlabsMusic
@@ -22231,6 +24152,9 @@ export type FalPostEndpointIdBody =
   | InputFalAiLyria2
   | InputFalAiLyria3
   | InputFalAiLyria3Pro
+  | InputFalAiMaya
+  | InputFalAiMayaBatch
+  | InputFalAiMayaStream
   | InputFalAiMinimaxMusic
   | InputFalAiMinimaxMusicV15
   | InputFalAiMinimaxMusicV2
@@ -22248,6 +24172,8 @@ export type FalPostEndpointIdBody =
   | InputFalAiMinimaxVoiceDesign
   | InputFalAiMmaudioV2TextToAudio
   | InputFalAiOrpheusTts
+  | InputFalAiPersonaplex
+  | InputFalAiPersonaplexRealtime
   | InputFalAiQwen3TtsCloneVoice06B
   | InputFalAiQwen3TtsCloneVoice17B
   | InputFalAiQwen3TtsTextToSpeech06B
@@ -22257,6 +24183,7 @@ export type FalPostEndpointIdBody =
   | InputFalAiSamAudioSpanSeparate
   | InputFalAiSamAudioVisualSeparate
   | InputFalAiSileroVad
+  | InputFalAiSmartTurn
   | InputFalAiSpeechToText
   | InputFalAiSpeechToTextStream
   | InputFalAiSpeechToTextTurbo
@@ -22294,6 +24221,7 @@ export type FalPostEndpointIdBody =
   | InputFalAiVibevoice
   | InputFalAiVibevoice05B
   | InputFalAiVibevoice7B
+  | InputFalAiWhisper
   | InputFalAiWizper
   | InputFalAiWorkflowUtilitiesAudioCompressor
   | InputFalAiWorkflowUtilitiesImpulseResponse
@@ -22306,9 +24234,16 @@ export type FalPostEndpointIdBody =
   | InputHeygenHeygenVoiceTurbo
   | InputKotobaTechnologiesKotobaSttV1SpeechToText
   | InputMinimaxMusic3
+  | InputMireloAiSfxV15VideoToAudio
+  | InputMireloAiSfxV1VideoToAudio
+  | InputMireloAiSfx16ExtendAudio
+  | InputMireloAiSfx16InpaintAudio
+  | InputMireloAiSfx16TextToAudio
   | InputMireloAiSfx20TextToAudio
   | InputMireloAiSfx20VideoToAudio
+  | InputMurekaApiGenerateInstrumental
   | InputMurekaApiGeneratePodcast
+  | InputMurekaApiGenerateSong
   | InputMurekaApiGenerateSpeech
   | InputMurekaApiSongDescribe
   | InputMurekaApiSongEdit
@@ -22386,6 +24321,7 @@ export const falGetEndpointIdRequestsRequestIdEndpointId = {
   'fal-ai/demucs': 'fal-ai/demucs',
   'fal-ai/dia-tts': 'fal-ai/dia-tts',
   'fal-ai/dia-tts/voice-clone': 'fal-ai/dia-tts/voice-clone',
+  'fal-ai/diffrhythm': 'fal-ai/diffrhythm',
   'fal-ai/elevenlabs/audio-isolation': 'fal-ai/elevenlabs/audio-isolation',
   'fal-ai/elevenlabs/forced-alignment': 'fal-ai/elevenlabs/forced-alignment',
   'fal-ai/elevenlabs/music': 'fal-ai/elevenlabs/music',
@@ -22425,6 +24361,9 @@ export const falGetEndpointIdRequestsRequestIdEndpointId = {
   'fal-ai/lyria2': 'fal-ai/lyria2',
   'fal-ai/lyria3': 'fal-ai/lyria3',
   'fal-ai/lyria3/pro': 'fal-ai/lyria3/pro',
+  'fal-ai/maya': 'fal-ai/maya',
+  'fal-ai/maya/batch': 'fal-ai/maya/batch',
+  'fal-ai/maya/stream': 'fal-ai/maya/stream',
   'fal-ai/minimax-music': 'fal-ai/minimax-music',
   'fal-ai/minimax-music/v1.5': 'fal-ai/minimax-music/v1.5',
   'fal-ai/minimax-music/v2': 'fal-ai/minimax-music/v2',
@@ -22444,6 +24383,8 @@ export const falGetEndpointIdRequestsRequestIdEndpointId = {
   'fal-ai/minimax/voice-design': 'fal-ai/minimax/voice-design',
   'fal-ai/mmaudio-v2/text-to-audio': 'fal-ai/mmaudio-v2/text-to-audio',
   'fal-ai/orpheus-tts': 'fal-ai/orpheus-tts',
+  'fal-ai/personaplex': 'fal-ai/personaplex',
+  'fal-ai/personaplex/realtime': 'fal-ai/personaplex/realtime',
   'fal-ai/qwen-3-tts/clone-voice/0.6b': 'fal-ai/qwen-3-tts/clone-voice/0.6b',
   'fal-ai/qwen-3-tts/clone-voice/1.7b': 'fal-ai/qwen-3-tts/clone-voice/1.7b',
   'fal-ai/qwen-3-tts/text-to-speech/0.6b':
@@ -22455,6 +24396,7 @@ export const falGetEndpointIdRequestsRequestIdEndpointId = {
   'fal-ai/sam-audio/span-separate': 'fal-ai/sam-audio/span-separate',
   'fal-ai/sam-audio/visual-separate': 'fal-ai/sam-audio/visual-separate',
   'fal-ai/silero-vad': 'fal-ai/silero-vad',
+  'fal-ai/smart-turn': 'fal-ai/smart-turn',
   'fal-ai/speech-to-text': 'fal-ai/speech-to-text',
   'fal-ai/speech-to-text/stream': 'fal-ai/speech-to-text/stream',
   'fal-ai/speech-to-text/turbo': 'fal-ai/speech-to-text/turbo',
@@ -22518,6 +24460,7 @@ export const falGetEndpointIdRequestsRequestIdEndpointId = {
   'fal-ai/vibevoice': 'fal-ai/vibevoice',
   'fal-ai/vibevoice/0.5b': 'fal-ai/vibevoice/0.5b',
   'fal-ai/vibevoice/7b': 'fal-ai/vibevoice/7b',
+  'fal-ai/whisper': 'fal-ai/whisper',
   'fal-ai/wizper': 'fal-ai/wizper',
   'fal-ai/workflow-utilities/audio-compressor':
     'fal-ai/workflow-utilities/audio-compressor',
@@ -22533,9 +24476,16 @@ export const falGetEndpointIdRequestsRequestIdEndpointId = {
   'kotoba-technologies/kotoba-stt/v1/speech-to-text':
     'kotoba-technologies/kotoba-stt/v1/speech-to-text',
   'minimax/music-3': 'minimax/music-3',
+  'mirelo-ai/sfx-v1.5/video-to-audio': 'mirelo-ai/sfx-v1.5/video-to-audio',
+  'mirelo-ai/sfx-v1/video-to-audio': 'mirelo-ai/sfx-v1/video-to-audio',
+  'mirelo-ai/sfx1.6/extend-audio': 'mirelo-ai/sfx1.6/extend-audio',
+  'mirelo-ai/sfx1.6/inpaint-audio': 'mirelo-ai/sfx1.6/inpaint-audio',
+  'mirelo-ai/sfx1.6/text-to-audio': 'mirelo-ai/sfx1.6/text-to-audio',
   'mirelo-ai/sfx2.0/text-to-audio': 'mirelo-ai/sfx2.0/text-to-audio',
   'mirelo-ai/sfx2.0/video-to-audio': 'mirelo-ai/sfx2.0/video-to-audio',
+  'mureka/api/generate/instrumental': 'mureka/api/generate/instrumental',
   'mureka/api/generate/podcast': 'mureka/api/generate/podcast',
+  'mureka/api/generate/song': 'mureka/api/generate/song',
   'mureka/api/generate/speech': 'mureka/api/generate/speech',
   'mureka/api/song/describe': 'mureka/api/song/describe',
   'mureka/api/song/edit': 'mureka/api/song/edit',
@@ -22612,6 +24562,7 @@ export type FalGetEndpointIdRequestsRequestIdStatus200 =
   | OutputFalAiDemucs
   | OutputFalAiDiaTts
   | OutputFalAiDiaTtsVoiceClone
+  | OutputFalAiDiffrhythm
   | OutputFalAiElevenlabsAudioIsolation
   | OutputFalAiElevenlabsForcedAlignment
   | OutputFalAiElevenlabsMusic
@@ -22646,6 +24597,9 @@ export type FalGetEndpointIdRequestsRequestIdStatus200 =
   | OutputFalAiLyria2
   | OutputFalAiLyria3
   | OutputFalAiLyria3Pro
+  | OutputFalAiMaya
+  | OutputFalAiMayaBatch
+  | OutputFalAiMayaStream
   | OutputFalAiMinimaxMusic
   | OutputFalAiMinimaxMusicV15
   | OutputFalAiMinimaxMusicV2
@@ -22663,6 +24617,8 @@ export type FalGetEndpointIdRequestsRequestIdStatus200 =
   | OutputFalAiMinimaxVoiceDesign
   | OutputFalAiMmaudioV2TextToAudio
   | OutputFalAiOrpheusTts
+  | OutputFalAiPersonaplex
+  | OutputFalAiPersonaplexRealtime
   | OutputFalAiQwen3TtsCloneVoice06B
   | OutputFalAiQwen3TtsCloneVoice17B
   | OutputFalAiQwen3TtsTextToSpeech06B
@@ -22672,6 +24628,7 @@ export type FalGetEndpointIdRequestsRequestIdStatus200 =
   | OutputFalAiSamAudioSpanSeparate
   | OutputFalAiSamAudioVisualSeparate
   | OutputFalAiSileroVad
+  | OutputFalAiSmartTurn
   | OutputFalAiSpeechToText
   | OutputFalAiSpeechToTextStream
   | OutputFalAiSpeechToTextTurbo
@@ -22709,6 +24666,7 @@ export type FalGetEndpointIdRequestsRequestIdStatus200 =
   | OutputFalAiVibevoice
   | OutputFalAiVibevoice05B
   | OutputFalAiVibevoice7B
+  | OutputFalAiWhisper
   | OutputFalAiWizper
   | OutputFalAiWorkflowUtilitiesAudioCompressor
   | OutputFalAiWorkflowUtilitiesImpulseResponse
@@ -22721,9 +24679,16 @@ export type FalGetEndpointIdRequestsRequestIdStatus200 =
   | OutputHeygenHeygenVoiceTurbo
   | OutputKotobaTechnologiesKotobaSttV1SpeechToText
   | OutputMinimaxMusic3
+  | OutputMireloAiSfxV15VideoToAudio
+  | OutputMireloAiSfxV1VideoToAudio
+  | OutputMireloAiSfx16ExtendAudio
+  | OutputMireloAiSfx16InpaintAudio
+  | OutputMireloAiSfx16TextToAudio
   | OutputMireloAiSfx20TextToAudio
   | OutputMireloAiSfx20VideoToAudio
+  | OutputMurekaApiGenerateInstrumental
   | OutputMurekaApiGeneratePodcast
+  | OutputMurekaApiGenerateSong
   | OutputMurekaApiGenerateSpeech
   | OutputMurekaApiSongDescribe
   | OutputMurekaApiSongEdit

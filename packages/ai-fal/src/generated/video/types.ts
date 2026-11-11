@@ -4750,6 +4750,180 @@ export type OutputBriaVideoIncreaseResolution = {
   video: VideoBe54Ecef | FileCf6D693E
 }
 
+export const inputBytedanceLynxResolutionEnum = {
+  '480p': '480p',
+  '580p': '580p',
+  '720p': '720p',
+} as const
+
+export type InputBytedanceLynxResolutionEnumKey =
+  (typeof inputBytedanceLynxResolutionEnum)[keyof typeof inputBytedanceLynxResolutionEnum]
+
+export const inputBytedanceLynxAspectRatioEnum = {
+  '16:9': '16:9',
+  '9:16': '9:16',
+  '1:1': '1:1',
+} as const
+
+export type InputBytedanceLynxAspectRatioEnumKey =
+  (typeof inputBytedanceLynxAspectRatioEnum)[keyof typeof inputBytedanceLynxAspectRatioEnum]
+
+export type InputBytedanceLynx = {
+  /**
+   * @description The URL of the subject image to be used for video generation
+   * @example https://storage.googleapis.com/falserverless/example_inputs/lynx/example_in.png
+   * @type string
+   */
+  image_url: string
+  /**
+   * @description Frames per second of the generated video. Must be between 5 to 30.
+   * @minimum 5
+   * @maximum 30
+   * @default 16
+   * @type integer | undefined
+   */
+  frames_per_second?: number
+  /**
+   * @description Identity preservation scale. Controls how closely the generated video preserves the subject's identity from the reference image.
+   * @minimum 0
+   * @maximum 2
+   * @default 1
+   * @type number | undefined
+   */
+  ip_scale?: number
+  /**
+   * @description Classifier-free guidance scale. Higher values give better adherence to the prompt but may decrease quality.
+   * @minimum 1
+   * @maximum 20
+   * @default 5
+   * @type number | undefined
+   */
+  guidance_scale?: number
+  /**
+   * @description Random seed for reproducibility. If None, a random seed is chosen.
+   */
+  seed?: number | null
+  /**
+   * @description Resolution of the generated video (480p, 580p, or 720p)
+   * @default '720p'
+   * @type string | undefined
+   */
+  resolution?: InputBytedanceLynxResolutionEnumKey
+  /**
+   * @description Negative prompt to guide what should not appear in the generated video
+   * @default 'Bright tones, overexposed, blurred background, static, subtitles, style, works, paintings, images, overall gray, worst quality, low quality, JPEG compression residue, ugly, incomplete, extra fingers, poorly drawn hands, poorly drawn faces, deformed, disfigured, misshapen limbs, fused fingers, still picture, messy background, three legs, many people in the background, walking backwards'
+   * @type string | undefined
+   */
+  negative_prompt?: string
+  /**
+   * @description Text prompt to guide video generation
+   * @example A person carves a pumpkin on a porch in the evening. The camera captures their upper body as they draw a face with a marker, carefully cut along the lines, then lift the lid with both hands. Their face lights up with excitement as they peek inside
+   * @type string
+   */
+  prompt: string
+  /**
+   * @description Aspect ratio of the generated video (16:9, 9:16, or 1:1)
+   * @default '16:9'
+   * @type string | undefined
+   */
+  aspect_ratio?: InputBytedanceLynxAspectRatioEnumKey
+  /**
+   * @description Reference image scale. Controls the influence of the reference image on the generated video.
+   * @minimum 0
+   * @maximum 2
+   * @default 1
+   * @type number | undefined
+   */
+  strength?: number
+  /**
+   * @description Authorized callers may set false to request relaxed screening.
+   * @default true
+   * @type boolean | undefined
+   */
+  enable_safety_checker?: boolean
+  /**
+   * @description Number of frames in the generated video. Must be between 9 to 100.
+   * @minimum 9
+   * @maximum 81
+   * @default 81
+   * @type integer | undefined
+   */
+  num_frames?: number
+  /**
+   * @description Image guidance scale. Controls how closely the generated video follows the reference image. Higher values increase adherence to the reference image but may decrease quality.
+   * @minimum 0
+   * @maximum 10
+   * @default 2
+   * @type number | undefined
+   */
+  guidance_scale_2?: number
+  /**
+   * @description Number of inference steps for sampling. Higher values give better quality but take longer.
+   * @minimum 1
+   * @maximum 75
+   * @default 50
+   * @type integer | undefined
+   */
+  num_inference_steps?: number
+}
+
+export type VideoFileD9863B60 = {
+  /**
+   * @description The number of frames in the video
+   */
+  num_frames?: number | null
+  /**
+   * @description The height of the video
+   */
+  height?: number | null
+  /**
+   * @description The size of the file in bytes.
+   * @example 4404019
+   */
+  file_size?: number | null
+  /**
+   * @description The FPS of the video
+   */
+  fps?: number | null
+  /**
+   * @description The URL where the file can be downloaded from.
+   * @type string
+   */
+  url: string
+  /**
+   * @description The name of the file. It will be auto-generated if not provided.
+   * @example z9RV14K95DvU.png
+   */
+  file_name?: string | null
+  /**
+   * @description The mime type of the file.
+   * @example image/png
+   */
+  content_type?: string | null
+  /**
+   * @description The duration of the video
+   */
+  duration?: number | null
+  /**
+   * @description The width of the video
+   */
+  width?: number | null
+}
+
+export type OutputBytedanceLynx = {
+  /**
+   * @description The generated video file
+   * @example {"url":"https://storage.googleapis.com/falserverless/example_outputs/lynx/example_out.mp4","content_type":"video/mp4"}
+   * @type object
+   */
+  video: VideoFileD9863B60
+  /**
+   * @description The seed used for generation
+   * @type integer
+   */
+  seed: number
+}
+
 export type InputBytedanceOmnihumanV2 = {
   /**
    * @description The URL of the image used to generate the video. Format: jpeg, png, webp, bmp, tiff, gif, heic or heif. Max size: 30 MB. Aspect ratio (width/height) between 0.4 and 2.5; width and height between 300 and 6000 pixels.
@@ -5276,6 +5450,166 @@ export type OutputBytedanceSeedance20FastTextToVideo = {
   seed: number
 }
 
+export const inputBytedanceSeedance20ImageToVideoAspectRatioEnum = {
+  auto: 'auto',
+  '21:9': '21:9',
+  '16:9': '16:9',
+  '4:3': '4:3',
+  '1:1': '1:1',
+  '3:4': '3:4',
+  '9:16': '9:16',
+} as const
+
+export type InputBytedanceSeedance20ImageToVideoAspectRatioEnumKey =
+  (typeof inputBytedanceSeedance20ImageToVideoAspectRatioEnum)[keyof typeof inputBytedanceSeedance20ImageToVideoAspectRatioEnum]
+
+export const inputBytedanceSeedance20ImageToVideoBitrateModeEnum = {
+  standard: 'standard',
+  high: 'high',
+} as const
+
+export type InputBytedanceSeedance20ImageToVideoBitrateModeEnumKey =
+  (typeof inputBytedanceSeedance20ImageToVideoBitrateModeEnum)[keyof typeof inputBytedanceSeedance20ImageToVideoBitrateModeEnum]
+
+export const inputBytedanceSeedance20ImageToVideoResolutionEnum = {
+  '480p': '480p',
+  '720p': '720p',
+  '1080p': '1080p',
+  '4k': '4k',
+} as const
+
+export type InputBytedanceSeedance20ImageToVideoResolutionEnumKey =
+  (typeof inputBytedanceSeedance20ImageToVideoResolutionEnum)[keyof typeof inputBytedanceSeedance20ImageToVideoResolutionEnum]
+
+export const inputBytedanceSeedance20ImageToVideoCodecEnum = {
+  auto: 'auto',
+  H264: 'H264',
+  H265: 'H265',
+} as const
+
+export type InputBytedanceSeedance20ImageToVideoCodecEnumKey =
+  (typeof inputBytedanceSeedance20ImageToVideoCodecEnum)[keyof typeof inputBytedanceSeedance20ImageToVideoCodecEnum]
+
+export const inputBytedanceSeedance20ImageToVideoDurationEnum = {
+  auto: 'auto',
+  '4': '4',
+  '5': '5',
+  '6': '6',
+  '7': '7',
+  '8': '8',
+  '9': '9',
+  '10': '10',
+  '11': '11',
+  '12': '12',
+  '13': '13',
+  '14': '14',
+  '15': '15',
+} as const
+
+export type InputBytedanceSeedance20ImageToVideoDurationEnumKey =
+  (typeof inputBytedanceSeedance20ImageToVideoDurationEnum)[keyof typeof inputBytedanceSeedance20ImageToVideoDurationEnum]
+
+export type InputBytedanceSeedance20ImageToVideo = {
+  /**
+   * @description Whether to generate synchronized audio for the video, including sound effects, ambient sounds, and lip-synced speech. The cost of video generation is the same regardless of whether audio is generated or not.
+   * @default true
+   * @type boolean | undefined
+   */
+  generate_audio?: boolean
+  /**
+   * @description The aspect ratio of the generated video. Use 16:9 for landscape, 9:16 for portrait/vertical, 1:1 for square, 21:9 for ultrawide cinematic, or auto to infer from the input image.
+   * @default 'auto'
+   * @type string | undefined
+   */
+  aspect_ratio?: InputBytedanceSeedance20ImageToVideoAspectRatioEnumKey
+  /**
+   * @description The text prompt describing the desired motion and action for the video.
+   * @example An octopus finds a football in the ocean and excitedly calls its octopus friends to come and play. Cut scene to an octopus football game under the sea.
+   * @type string
+   */
+  prompt: string
+  /**
+   * @description Output bitrate mode. 'high' requests a higher-quality, larger-file encode from the model; 'standard' uses the default bitrate.
+   * @default 'standard'
+   * @example standard
+   * @type string | undefined
+   */
+  bitrate_mode?: InputBytedanceSeedance20ImageToVideoBitrateModeEnumKey
+  /**
+   * @description Video resolution - 480p for faster generation, 720p for balance, 1080p for high quality, 4k for highest quality.
+   * @default '720p'
+   * @type string | undefined
+   */
+  resolution?: InputBytedanceSeedance20ImageToVideoResolutionEnumKey
+  /**
+   * @description 'auto' retains default video codec behaviour; 'H264' uses H.264; 'H265' uses H.265.
+   * @default 'auto'
+   * @example auto
+   * @example H264
+   * @example H265
+   * @type string | undefined
+   */
+  codec?: InputBytedanceSeedance20ImageToVideoCodecEnumKey
+  /**
+   * @description The URL of the starting frame image to animate. Supported formats: JPEG, PNG, WebP. Max 30 MB.
+   * @example https://v3b.fal.media/files/b/0a8eba37/Cqg-4Uwzyz4DELfceT1CF_a17e588773ec45b1a9e6f100a787b80b.jpg
+   * @type string
+   */
+  image_url: string
+  /**
+   * @description The unique user ID of the end user.
+   */
+  end_user_id?: string | null
+  /**
+   * @description Duration of the video in seconds. Supports 4 to 15 seconds, or auto to let the model decide based on the prompt.
+   * @default 'auto'
+   * @type string | undefined
+   */
+  duration?: InputBytedanceSeedance20ImageToVideoDurationEnumKey
+  /**
+   * @description The URL of the image to use as the last frame of the video. When provided, the generated video will transition from the starting image to this ending image. Supported formats: JPEG, PNG, WebP. Max 30 MB.
+   */
+  end_image_url?: string | null
+}
+
+export type File720A36D6 = {
+  /**
+   * @description The size of the file in bytes.
+   * @example 4404019
+   */
+  file_size?: number | null
+  /**
+   * @description The name of the file. It will be auto-generated if not provided.
+   * @example z9RV14K95DvU.png
+   */
+  file_name?: string | null
+  /**
+   * @description The URL where the file can be downloaded from.
+   * @type string
+   */
+  url: string
+  /**
+   * @description The mime type of the file.
+   * @example image/png
+   */
+  content_type?: string | null
+}
+
+export type OutputBytedanceSeedance20ImageToVideo = {
+  /**
+   * @description The generated video file.
+   * @example {"url":"https://storage.googleapis.com/falserverless/example_outputs/bytedance/seedance_2/output.mp4"}
+   * @type object
+   */
+  video: File720A36D6
+  /**
+   * @description The seed used for generation.
+   * @example 42
+   * @type integer
+   */
+  seed: number
+}
+
 export const inputBytedanceSeedance20MiniImageToVideoAspectRatioEnum = {
   auto: 'auto',
   '21:9': '21:9',
@@ -5693,6 +6027,322 @@ export type OutputBytedanceSeedance20MiniTextToVideo = {
    * @type object
    */
   video: File129Ea35C
+  /**
+   * @description The seed used for generation.
+   * @example 42
+   * @type integer
+   */
+  seed: number
+}
+
+export const inputBytedanceSeedance20ReferenceToVideoAspectRatioEnum = {
+  auto: 'auto',
+  '21:9': '21:9',
+  '16:9': '16:9',
+  '4:3': '4:3',
+  '1:1': '1:1',
+  '3:4': '3:4',
+  '9:16': '9:16',
+} as const
+
+export type InputBytedanceSeedance20ReferenceToVideoAspectRatioEnumKey =
+  (typeof inputBytedanceSeedance20ReferenceToVideoAspectRatioEnum)[keyof typeof inputBytedanceSeedance20ReferenceToVideoAspectRatioEnum]
+
+export const inputBytedanceSeedance20ReferenceToVideoBitrateModeEnum = {
+  standard: 'standard',
+  high: 'high',
+} as const
+
+export type InputBytedanceSeedance20ReferenceToVideoBitrateModeEnumKey =
+  (typeof inputBytedanceSeedance20ReferenceToVideoBitrateModeEnum)[keyof typeof inputBytedanceSeedance20ReferenceToVideoBitrateModeEnum]
+
+export const inputBytedanceSeedance20ReferenceToVideoResolutionEnum = {
+  '480p': '480p',
+  '720p': '720p',
+  '1080p': '1080p',
+  '4k': '4k',
+} as const
+
+export type InputBytedanceSeedance20ReferenceToVideoResolutionEnumKey =
+  (typeof inputBytedanceSeedance20ReferenceToVideoResolutionEnum)[keyof typeof inputBytedanceSeedance20ReferenceToVideoResolutionEnum]
+
+export const inputBytedanceSeedance20ReferenceToVideoCodecEnum = {
+  auto: 'auto',
+  H264: 'H264',
+  H265: 'H265',
+} as const
+
+export type InputBytedanceSeedance20ReferenceToVideoCodecEnumKey =
+  (typeof inputBytedanceSeedance20ReferenceToVideoCodecEnum)[keyof typeof inputBytedanceSeedance20ReferenceToVideoCodecEnum]
+
+export const inputBytedanceSeedance20ReferenceToVideoDurationEnum = {
+  auto: 'auto',
+  '4': '4',
+  '5': '5',
+  '6': '6',
+  '7': '7',
+  '8': '8',
+  '9': '9',
+  '10': '10',
+  '11': '11',
+  '12': '12',
+  '13': '13',
+  '14': '14',
+  '15': '15',
+} as const
+
+export type InputBytedanceSeedance20ReferenceToVideoDurationEnumKey =
+  (typeof inputBytedanceSeedance20ReferenceToVideoDurationEnum)[keyof typeof inputBytedanceSeedance20ReferenceToVideoDurationEnum]
+
+export type InputBytedanceSeedance20ReferenceToVideo = {
+  /**
+   * @description Reference images to guide video generation. Refer to them in the prompt as @Image1, @Image2, etc. Supported formats: JPEG, PNG, WebP. Max 30 MB per image. Up to 9 images. Total files across all modalities must not exceed 12.
+   * @example ["https://v3b.fal.media/files/b/0a8eba37/Cqg-4Uwzyz4DELfceT1CF_a17e588773ec45b1a9e6f100a787b80b.jpg"]
+   * @type array | undefined
+   */
+  image_urls?: string[]
+  /**
+   * @description Whether to generate synchronized audio for the video, including sound effects, ambient sounds, and lip-synced speech. The cost of video generation is the same regardless of whether audio is generated or not.
+   * @default true
+   * @type boolean | undefined
+   */
+  generate_audio?: boolean
+  /**
+   * @description The aspect ratio of the generated video. Use 16:9 for landscape, 9:16 for portrait/vertical, 1:1 for square, 21:9 for ultrawide cinematic, or auto to let the model decide.
+   * @default 'auto'
+   * @type string | undefined
+   */
+  aspect_ratio?: InputBytedanceSeedance20ReferenceToVideoAspectRatioEnumKey
+  /**
+   * @description The text prompt used to generate the video.
+   * @example An octopus finds a football in the ocean and excitedly calls its octopus friends to come and play. Cut scene to an octopus football game under the sea.
+   * @type string
+   */
+  prompt: string
+  /**
+   * @description Output bitrate mode. 'high' requests a higher-quality, larger-file encode from the model; 'standard' uses the default bitrate.
+   * @default 'standard'
+   * @example standard
+   * @type string | undefined
+   */
+  bitrate_mode?: InputBytedanceSeedance20ReferenceToVideoBitrateModeEnumKey
+  /**
+   * @description Video resolution - 480p for faster generation, 720p for balance, 1080p for high quality, 4k for highest quality.
+   * @default '720p'
+   * @type string | undefined
+   */
+  resolution?: InputBytedanceSeedance20ReferenceToVideoResolutionEnumKey
+  /**
+   * @description 'auto' retains default video codec behaviour; 'H264' uses H.264; 'H265' uses H.265.
+   * @default 'auto'
+   * @example auto
+   * @example H264
+   * @example H265
+   * @type string | undefined
+   */
+  codec?: InputBytedanceSeedance20ReferenceToVideoCodecEnumKey
+  /**
+   * @description The unique user ID of the end user.
+   */
+  end_user_id?: string | null
+  /**
+   * @description Duration of the video in seconds. Supports 4 to 15 seconds, or auto to let the model decide based on the prompt.
+   * @default 'auto'
+   * @type string | undefined
+   */
+  duration?: InputBytedanceSeedance20ReferenceToVideoDurationEnumKey
+  /**
+   * @description Reference audio to guide video generation. Refer to them in the prompt as @Audio1, @Audio2, etc. Supported formats: MP3, WAV. Up to 3 files, combined duration must not exceed 15 seconds. Max 15 MB per file. At least one reference image or video is required.
+   * @type array | undefined
+   */
+  audio_urls?: string[]
+  /**
+   * @description Reference videos to guide video generation. Refer to them in the prompt as @Video1, @Video2, etc. Supported formats: MP4, MOV. Up to 3 videos, combined duration must be between 2 and 15 seconds, total size under 50 MB. Each video must be between ~480p (640x640) and ~720p (834x1112) in resolution.
+   * @type array | undefined
+   */
+  video_urls?: string[]
+}
+
+export type File4C0B69B6 = {
+  /**
+   * @description The size of the file in bytes.
+   * @example 4404019
+   */
+  file_size?: number | null
+  /**
+   * @description The name of the file. It will be auto-generated if not provided.
+   * @example z9RV14K95DvU.png
+   */
+  file_name?: string | null
+  /**
+   * @description The URL where the file can be downloaded from.
+   * @type string
+   */
+  url: string
+  /**
+   * @description The mime type of the file.
+   * @example image/png
+   */
+  content_type?: string | null
+}
+
+export type OutputBytedanceSeedance20ReferenceToVideo = {
+  /**
+   * @description The generated video file.
+   * @example {"url":"https://storage.googleapis.com/falserverless/example_outputs/bytedance/seedance_2/output.mp4"}
+   * @type object
+   */
+  video: File4C0B69B6
+  /**
+   * @description The seed used for generation.
+   * @example 42
+   * @type integer
+   */
+  seed: number
+}
+
+export const inputBytedanceSeedance20TextToVideoAspectRatioEnum = {
+  auto: 'auto',
+  '21:9': '21:9',
+  '16:9': '16:9',
+  '4:3': '4:3',
+  '1:1': '1:1',
+  '3:4': '3:4',
+  '9:16': '9:16',
+} as const
+
+export type InputBytedanceSeedance20TextToVideoAspectRatioEnumKey =
+  (typeof inputBytedanceSeedance20TextToVideoAspectRatioEnum)[keyof typeof inputBytedanceSeedance20TextToVideoAspectRatioEnum]
+
+export const inputBytedanceSeedance20TextToVideoBitrateModeEnum = {
+  standard: 'standard',
+  high: 'high',
+} as const
+
+export type InputBytedanceSeedance20TextToVideoBitrateModeEnumKey =
+  (typeof inputBytedanceSeedance20TextToVideoBitrateModeEnum)[keyof typeof inputBytedanceSeedance20TextToVideoBitrateModeEnum]
+
+export const inputBytedanceSeedance20TextToVideoResolutionEnum = {
+  '480p': '480p',
+  '720p': '720p',
+  '1080p': '1080p',
+  '4k': '4k',
+} as const
+
+export type InputBytedanceSeedance20TextToVideoResolutionEnumKey =
+  (typeof inputBytedanceSeedance20TextToVideoResolutionEnum)[keyof typeof inputBytedanceSeedance20TextToVideoResolutionEnum]
+
+export const inputBytedanceSeedance20TextToVideoCodecEnum = {
+  auto: 'auto',
+  H264: 'H264',
+  H265: 'H265',
+} as const
+
+export type InputBytedanceSeedance20TextToVideoCodecEnumKey =
+  (typeof inputBytedanceSeedance20TextToVideoCodecEnum)[keyof typeof inputBytedanceSeedance20TextToVideoCodecEnum]
+
+export const inputBytedanceSeedance20TextToVideoDurationEnum = {
+  auto: 'auto',
+  '4': '4',
+  '5': '5',
+  '6': '6',
+  '7': '7',
+  '8': '8',
+  '9': '9',
+  '10': '10',
+  '11': '11',
+  '12': '12',
+  '13': '13',
+  '14': '14',
+  '15': '15',
+} as const
+
+export type InputBytedanceSeedance20TextToVideoDurationEnumKey =
+  (typeof inputBytedanceSeedance20TextToVideoDurationEnum)[keyof typeof inputBytedanceSeedance20TextToVideoDurationEnum]
+
+export type InputBytedanceSeedance20TextToVideo = {
+  /**
+   * @description Whether to generate synchronized audio for the video, including sound effects, ambient sounds, and lip-synced speech. The cost of video generation is the same regardless of whether audio is generated or not.
+   * @default true
+   * @type boolean | undefined
+   */
+  generate_audio?: boolean
+  /**
+   * @description The aspect ratio of the generated video. Use 16:9 for landscape, 9:16 for portrait/vertical, 1:1 for square, 21:9 for ultrawide cinematic, or auto to let the model decide.
+   * @default 'auto'
+   * @type string | undefined
+   */
+  aspect_ratio?: InputBytedanceSeedance20TextToVideoAspectRatioEnumKey
+  /**
+   * @description The text prompt used to generate the video
+   * @example An octopus finds a football in the ocean and excitedly calls its octopus friends to come and play. Cut scene to an octopus football game under the sea.
+   * @type string
+   */
+  prompt: string
+  /**
+   * @description Output bitrate mode. 'high' requests a higher-quality, larger-file encode from the model; 'standard' uses the default bitrate.
+   * @default 'standard'
+   * @example standard
+   * @type string | undefined
+   */
+  bitrate_mode?: InputBytedanceSeedance20TextToVideoBitrateModeEnumKey
+  /**
+   * @description Video resolution - 480p for faster generation, 720p for balance, 1080p for high quality, 4k for highest quality.
+   * @default '720p'
+   * @type string | undefined
+   */
+  resolution?: InputBytedanceSeedance20TextToVideoResolutionEnumKey
+  /**
+   * @description 'auto' retains default video codec behaviour; 'H264' uses H.264; 'H265' uses H.265.
+   * @default 'auto'
+   * @example auto
+   * @example H264
+   * @example H265
+   * @type string | undefined
+   */
+  codec?: InputBytedanceSeedance20TextToVideoCodecEnumKey
+  /**
+   * @description The unique user ID of the end user.
+   */
+  end_user_id?: string | null
+  /**
+   * @description Duration of the video in seconds. Supports 4 to 15 seconds, or auto to let the model decide based on the prompt.
+   * @default 'auto'
+   * @type string | undefined
+   */
+  duration?: InputBytedanceSeedance20TextToVideoDurationEnumKey
+}
+
+export type File138B56Ec = {
+  /**
+   * @description The size of the file in bytes.
+   * @example 4404019
+   */
+  file_size?: number | null
+  /**
+   * @description The name of the file. It will be auto-generated if not provided.
+   * @example z9RV14K95DvU.png
+   */
+  file_name?: string | null
+  /**
+   * @description The URL where the file can be downloaded from.
+   * @type string
+   */
+  url: string
+  /**
+   * @description The mime type of the file.
+   * @example image/png
+   */
+  content_type?: string | null
+}
+
+export type OutputBytedanceSeedance20TextToVideo = {
+  /**
+   * @description The generated video file.
+   * @example {"url":"https://storage.googleapis.com/falserverless/example_outputs/bytedance/seedance_2/output.mp4"}
+   * @type object
+   */
+  video: File138B56Ec
   /**
    * @description The seed used for generation.
    * @example 42
@@ -6175,6 +6825,634 @@ export type OutputBytedanceSeedance20UsTextToVideo = {
    * @type integer
    */
   seed: number
+}
+
+export const inputBytedanceSeedance25DraftCompleteCodecEnum = {
+  auto: 'auto',
+  H264: 'H264',
+  H265: 'H265',
+} as const
+
+export type InputBytedanceSeedance25DraftCompleteCodecEnumKey =
+  (typeof inputBytedanceSeedance25DraftCompleteCodecEnum)[keyof typeof inputBytedanceSeedance25DraftCompleteCodecEnum]
+
+export type InputBytedanceSeedance25DraftComplete = {
+  /**
+   * @description The draft_id returned with draft enabled. Valid for 14 days and only for the original caller.
+   * @minLength 1
+   * @maxLength 8192
+   * @type string
+   */
+  draft_id: string
+  /**
+   * @description 'auto' retains default video codec behaviour; 'H264' uses H.264; 'H265' uses H.265.
+   * @default 'auto'
+   * @example auto
+   * @example H264
+   * @example H265
+   * @type string | undefined
+   */
+  codec?: InputBytedanceSeedance25DraftCompleteCodecEnumKey
+  /**
+   * @description Completed drafts only support 1080p output.
+   * @default '1080p'
+   * @type string | undefined
+   */
+  resolution?: '1080p'
+}
+
+export type FileF4304059 = {
+  /**
+   * @description The mime type of the file.
+   * @example image/png
+   */
+  content_type?: string | null
+  /**
+   * @description The URL where the file can be downloaded from.
+   * @type string
+   */
+  url: string
+  /**
+   * @description The name of the file. It will be auto-generated if not provided.
+   * @example z9RV14K95DvU.png
+   */
+  file_name?: string | null
+  /**
+   * @description The size of the file in bytes.
+   * @example 4404019
+   */
+  file_size?: number | null
+}
+
+export type OutputBytedanceSeedance25DraftComplete = {
+  /**
+   * @description The draft ID, or null when draft mode is disabled. Complete this draft within 14 days using the same account.
+   */
+  draft_id?: string | null
+  /**
+   * @description The generated video file.
+   * @example {"url":"https://storage.googleapis.com/falserverless/example_outputs/bytedance/seedance_2/output.mp4"}
+   * @type object
+   */
+  video: FileF4304059
+  /**
+   * @description The seed used for generation.
+   * @example 42
+   * @type integer
+   */
+  seed: number
+}
+
+export const inputBytedanceSeedance25ImageToVideoCodecEnum = {
+  auto: 'auto',
+  H264: 'H264',
+  H265: 'H265',
+} as const
+
+export type InputBytedanceSeedance25ImageToVideoCodecEnumKey =
+  (typeof inputBytedanceSeedance25ImageToVideoCodecEnum)[keyof typeof inputBytedanceSeedance25ImageToVideoCodecEnum]
+
+export const inputBytedanceSeedance25ImageToVideoBitrateModeEnum = {
+  standard: 'standard',
+  high: 'high',
+} as const
+
+export type InputBytedanceSeedance25ImageToVideoBitrateModeEnumKey =
+  (typeof inputBytedanceSeedance25ImageToVideoBitrateModeEnum)[keyof typeof inputBytedanceSeedance25ImageToVideoBitrateModeEnum]
+
+export const inputBytedanceSeedance25ImageToVideoDurationEnum = {
+  auto: 'auto',
+  '4': '4',
+  '5': '5',
+  '6': '6',
+  '7': '7',
+  '8': '8',
+  '9': '9',
+  '10': '10',
+  '11': '11',
+  '12': '12',
+  '13': '13',
+  '14': '14',
+  '15': '15',
+  '16': '16',
+  '17': '17',
+  '18': '18',
+  '19': '19',
+  '20': '20',
+  '21': '21',
+  '22': '22',
+  '23': '23',
+  '24': '24',
+  '25': '25',
+  '26': '26',
+  '27': '27',
+  '28': '28',
+  '29': '29',
+  '30': '30',
+} as const
+
+export type InputBytedanceSeedance25ImageToVideoDurationEnumKey =
+  (typeof inputBytedanceSeedance25ImageToVideoDurationEnum)[keyof typeof inputBytedanceSeedance25ImageToVideoDurationEnum]
+
+export const inputBytedanceSeedance25ImageToVideoResolutionEnum = {
+  '480p': '480p',
+  '720p': '720p',
+  '1080p': '1080p',
+} as const
+
+export type InputBytedanceSeedance25ImageToVideoResolutionEnumKey =
+  (typeof inputBytedanceSeedance25ImageToVideoResolutionEnum)[keyof typeof inputBytedanceSeedance25ImageToVideoResolutionEnum]
+
+export type InputBytedanceSeedance25ImageToVideo = {
+  /**
+   * @description The text prompt describing the desired motion and action for the video.
+   * @example An octopus finds a football in the ocean and excitedly calls its octopus friends to come and play. Cut scene to an octopus football game under the sea.
+   */
+  prompt?: string | null
+  /**
+   * @description Generate a draft preview at 480p, overriding resolution. Returns a draft_id for completing the draft at 1080p within seven days.
+   * @default false
+   * @type boolean | undefined
+   */
+  draft?: boolean
+  /**
+   * @description 'auto' retains default video codec behaviour; 'H264' uses H.264; 'H265' uses H.265.
+   * @default 'auto'
+   * @example auto
+   * @example H264
+   * @example H265
+   * @type string | undefined
+   */
+  codec?: InputBytedanceSeedance25ImageToVideoCodecEnumKey
+  /**
+   * @description The aspect ratio of the generated video. Always "auto" for image-to-video
+   * @default 'auto'
+   * @type string | undefined
+   */
+  aspect_ratio?: 'auto'
+  /**
+   * @description The unique user ID of the end user.
+   */
+  end_user_id?: string | null
+  /**
+   * @description Output bitrate mode. 'high' requests a higher-quality, larger-file encode from the model; 'standard' uses the default bitrate.
+   * @default 'standard'
+   * @example standard
+   * @type string | undefined
+   */
+  bitrate_mode?: InputBytedanceSeedance25ImageToVideoBitrateModeEnumKey
+  /**
+   * @description Duration of the video in seconds. Supports 4 to 30 seconds, or auto to let the model decide based on the prompt.
+   * @default 'auto'
+   * @type string | undefined
+   */
+  duration?: InputBytedanceSeedance25ImageToVideoDurationEnumKey
+  /**
+   * @description Whether to generate synchronized audio for the video, including sound effects, ambient sounds, and lip-synced speech. The cost of video generation is the same regardless of whether audio is generated or not.
+   * @default true
+   * @type boolean | undefined
+   */
+  generate_audio?: boolean
+  /**
+   * @description Video resolution - 480p for faster generation, 720p for balance, 1080p for high quality.
+   * @default '720p'
+   * @type string | undefined
+   */
+  resolution?: InputBytedanceSeedance25ImageToVideoResolutionEnumKey
+  /**
+   * @description The URL of the starting frame image to animate. Supported formats: JPEG, PNG, WebP. Max 30 MB.
+   * @example https://v3b.fal.media/files/b/0a8eba37/Cqg-4Uwzyz4DELfceT1CF_a17e588773ec45b1a9e6f100a787b80b.jpg
+   * @type string
+   */
+  image_url: string
+  /**
+   * @description The URL of the image to use as the last frame of the video. When provided, the generated video will transition from the starting image to this ending image. Supported formats: JPEG, PNG, WebP. Max 30 MB.
+   */
+  end_image_url?: string | null
+}
+
+export type File6896Dc29 = {
+  /**
+   * @description The name of the file. It will be auto-generated if not provided.
+   * @example z9RV14K95DvU.png
+   */
+  file_name?: string | null
+  /**
+   * @description The mime type of the file.
+   * @example image/png
+   */
+  content_type?: string | null
+  /**
+   * @description The size of the file in bytes.
+   * @example 4404019
+   */
+  file_size?: number | null
+  /**
+   * @description The URL where the file can be downloaded from.
+   * @type string
+   */
+  url: string
+}
+
+export type OutputBytedanceSeedance25ImageToVideo = {
+  /**
+   * @description The seed used for generation.
+   * @example 42
+   * @type integer
+   */
+  seed: number
+  /**
+   * @description The generated video file.
+   * @example {"url":"https://storage.googleapis.com/falserverless/example_outputs/bytedance/seedance_2/output.mp4"}
+   * @type object
+   */
+  video: File6896Dc29
+  /**
+   * @description The draft ID, or null when draft mode is disabled. Complete this draft within seven days using the same account.
+   */
+  draft_id?: string | null
+}
+
+export const inputBytedanceSeedance25ReferenceToVideoCodecEnum = {
+  auto: 'auto',
+  H264: 'H264',
+  H265: 'H265',
+} as const
+
+export type InputBytedanceSeedance25ReferenceToVideoCodecEnumKey =
+  (typeof inputBytedanceSeedance25ReferenceToVideoCodecEnum)[keyof typeof inputBytedanceSeedance25ReferenceToVideoCodecEnum]
+
+export const inputBytedanceSeedance25ReferenceToVideoAspectRatioEnum = {
+  auto: 'auto',
+  '21:9': '21:9',
+  '16:9': '16:9',
+  '4:3': '4:3',
+  '1:1': '1:1',
+  '3:4': '3:4',
+  '9:16': '9:16',
+} as const
+
+export type InputBytedanceSeedance25ReferenceToVideoAspectRatioEnumKey =
+  (typeof inputBytedanceSeedance25ReferenceToVideoAspectRatioEnum)[keyof typeof inputBytedanceSeedance25ReferenceToVideoAspectRatioEnum]
+
+export const inputBytedanceSeedance25ReferenceToVideoBitrateModeEnum = {
+  standard: 'standard',
+  high: 'high',
+} as const
+
+export type InputBytedanceSeedance25ReferenceToVideoBitrateModeEnumKey =
+  (typeof inputBytedanceSeedance25ReferenceToVideoBitrateModeEnum)[keyof typeof inputBytedanceSeedance25ReferenceToVideoBitrateModeEnum]
+
+export const inputBytedanceSeedance25ReferenceToVideoDurationEnum = {
+  auto: 'auto',
+  '4': '4',
+  '5': '5',
+  '6': '6',
+  '7': '7',
+  '8': '8',
+  '9': '9',
+  '10': '10',
+  '11': '11',
+  '12': '12',
+  '13': '13',
+  '14': '14',
+  '15': '15',
+  '16': '16',
+  '17': '17',
+  '18': '18',
+  '19': '19',
+  '20': '20',
+  '21': '21',
+  '22': '22',
+  '23': '23',
+  '24': '24',
+  '25': '25',
+  '26': '26',
+  '27': '27',
+  '28': '28',
+  '29': '29',
+  '30': '30',
+} as const
+
+export type InputBytedanceSeedance25ReferenceToVideoDurationEnumKey =
+  (typeof inputBytedanceSeedance25ReferenceToVideoDurationEnum)[keyof typeof inputBytedanceSeedance25ReferenceToVideoDurationEnum]
+
+export const inputBytedanceSeedance25ReferenceToVideoTaskEnum = {
+  reference: 'reference',
+  editing: 'editing',
+  extension: 'extension',
+} as const
+
+export type InputBytedanceSeedance25ReferenceToVideoTaskEnumKey =
+  (typeof inputBytedanceSeedance25ReferenceToVideoTaskEnum)[keyof typeof inputBytedanceSeedance25ReferenceToVideoTaskEnum]
+
+export const inputBytedanceSeedance25ReferenceToVideoResolutionEnum = {
+  '480p': '480p',
+  '720p': '720p',
+  '1080p': '1080p',
+} as const
+
+export type InputBytedanceSeedance25ReferenceToVideoResolutionEnumKey =
+  (typeof inputBytedanceSeedance25ReferenceToVideoResolutionEnum)[keyof typeof inputBytedanceSeedance25ReferenceToVideoResolutionEnum]
+
+export type InputBytedanceSeedance25ReferenceToVideo = {
+  /**
+   * @description The text prompt used to generate the video.
+   * @example An octopus finds a football in the ocean and excitedly calls its octopus friends to come and play. Cut scene to an octopus football game under the sea.
+   */
+  prompt?: string | null
+  /**
+   * @description Generate a draft preview at 480p, overriding resolution. Returns a draft_id for completing the draft at 1080p within seven days.
+   * @default false
+   * @type boolean | undefined
+   */
+  draft?: boolean
+  /**
+   * @description 'auto' retains default video codec behaviour; 'H264' uses H.264; 'H265' uses H.265.
+   * @default 'auto'
+   * @example auto
+   * @example H264
+   * @example H265
+   * @type string | undefined
+   */
+  codec?: InputBytedanceSeedance25ReferenceToVideoCodecEnumKey
+  /**
+   * @description The aspect ratio of the generated video. Use 16:9 for landscape, 9:16 for portrait/vertical, 1:1 for square, 21:9 for ultrawide cinematic, or auto to let the model decide.
+   * @default 'auto'
+   * @type string | undefined
+   */
+  aspect_ratio?: InputBytedanceSeedance25ReferenceToVideoAspectRatioEnumKey
+  /**
+   * @description The unique user ID of the end user.
+   */
+  end_user_id?: string | null
+  /**
+   * @description Output bitrate mode. 'high' requests a higher-quality, larger-file encode from the model; 'standard' uses the default bitrate.
+   * @default 'standard'
+   * @example standard
+   * @type string | undefined
+   */
+  bitrate_mode?: InputBytedanceSeedance25ReferenceToVideoBitrateModeEnumKey
+  /**
+   * @description Duration of the video in seconds. Supports 4 to 30 seconds, or auto to let the model decide based on the prompt.
+   * @default 'auto'
+   * @type string | undefined
+   */
+  duration?: InputBytedanceSeedance25ReferenceToVideoDurationEnumKey
+  /**
+   * @description Whether to generate synchronized audio for the video, including sound effects, ambient sounds, and lip-synced speech. The cost of video generation is the same regardless of whether audio is generated or not.
+   * @default true
+   * @type boolean | undefined
+   */
+  generate_audio?: boolean
+  /**
+   * @description The type of video generation task. Reference uses the supplied media as guidance. Editing modifies a reference video and automatically coerces aspect_ratio and duration to auto. Extension continues a reference video and automatically coerces aspect_ratio to auto.
+   * @default 'reference'
+   * @type string | undefined
+   */
+  task?: InputBytedanceSeedance25ReferenceToVideoTaskEnumKey
+  /**
+   * @description Reference images to guide video generation. Refer to them in the prompt as @Image1, @Image2, etc. Supported formats: JPG, PNG, WebP, BMP, TIFF, GIF, HEIC, HEIF. Max 30 MB per image. Up to 30 images. Total files across all modalities must not exceed 50.
+   * @example ["https://v3b.fal.media/files/b/0a8eba37/Cqg-4Uwzyz4DELfceT1CF_a17e588773ec45b1a9e6f100a787b80b.jpg"]
+   * @type array | undefined
+   */
+  image_urls?: string[]
+  /**
+   * @description Reference audio to guide video generation. Refer to them in the prompt as @Audio1, @Audio2, etc. Supported formats: MP3, WAV. Up to 10 files. Each file must be 1.8 to 30.2 seconds and no larger than 15 MB; combined duration must not exceed 30.2 seconds.
+   * @type array | undefined
+   */
+  audio_urls?: string[]
+  /**
+   * @description Reference videos to guide video generation. Refer to them in the prompt as @Video1, @Video2, etc. Supported formats: MP4, MOV. Up to 10 videos. Each video must be 1.8 to 30.2 seconds and no larger than 200 MB; combined duration must not exceed 30.2 seconds. Dimensions must be 300 to 6,000 pixels per side, aspect ratio 0.4 to 2.5, and frame rate 24 to 60 FPS.
+   * @type array | undefined
+   */
+  video_urls?: string[]
+  /**
+   * @description Video resolution - 480p for faster generation, 720p for balance, 1080p for high quality.
+   * @default '720p'
+   * @type string | undefined
+   */
+  resolution?: InputBytedanceSeedance25ReferenceToVideoResolutionEnumKey
+  /**
+   * @description Random seed for reproducibility. Note that results may still vary slightly even with the same seed.
+   */
+  seed?: number | null
+}
+
+export type FileF772B1F1 = {
+  /**
+   * @description The name of the file. It will be auto-generated if not provided.
+   * @example z9RV14K95DvU.png
+   */
+  file_name?: string | null
+  /**
+   * @description The mime type of the file.
+   * @example image/png
+   */
+  content_type?: string | null
+  /**
+   * @description The size of the file in bytes.
+   * @example 4404019
+   */
+  file_size?: number | null
+  /**
+   * @description The URL where the file can be downloaded from.
+   * @type string
+   */
+  url: string
+}
+
+export type OutputBytedanceSeedance25ReferenceToVideo = {
+  /**
+   * @description The seed used for generation.
+   * @example 42
+   * @type integer
+   */
+  seed: number
+  /**
+   * @description The generated video file.
+   * @example {"url":"https://storage.googleapis.com/falserverless/example_outputs/bytedance/seedance_2/output.mp4"}
+   * @type object
+   */
+  video: FileF772B1F1
+  /**
+   * @description The draft ID, or null when draft mode is disabled. Complete this draft within seven days using the same account.
+   */
+  draft_id?: string | null
+}
+
+export const inputBytedanceSeedance25TextToVideoBitrateModeEnum = {
+  standard: 'standard',
+  high: 'high',
+} as const
+
+export type InputBytedanceSeedance25TextToVideoBitrateModeEnumKey =
+  (typeof inputBytedanceSeedance25TextToVideoBitrateModeEnum)[keyof typeof inputBytedanceSeedance25TextToVideoBitrateModeEnum]
+
+export const inputBytedanceSeedance25TextToVideoResolutionEnum = {
+  '480p': '480p',
+  '720p': '720p',
+  '1080p': '1080p',
+} as const
+
+export type InputBytedanceSeedance25TextToVideoResolutionEnumKey =
+  (typeof inputBytedanceSeedance25TextToVideoResolutionEnum)[keyof typeof inputBytedanceSeedance25TextToVideoResolutionEnum]
+
+export const inputBytedanceSeedance25TextToVideoAspectRatioEnum = {
+  auto: 'auto',
+  '21:9': '21:9',
+  '16:9': '16:9',
+  '4:3': '4:3',
+  '1:1': '1:1',
+  '3:4': '3:4',
+  '9:16': '9:16',
+} as const
+
+export type InputBytedanceSeedance25TextToVideoAspectRatioEnumKey =
+  (typeof inputBytedanceSeedance25TextToVideoAspectRatioEnum)[keyof typeof inputBytedanceSeedance25TextToVideoAspectRatioEnum]
+
+export const inputBytedanceSeedance25TextToVideoCodecEnum = {
+  auto: 'auto',
+  H264: 'H264',
+  H265: 'H265',
+} as const
+
+export type InputBytedanceSeedance25TextToVideoCodecEnumKey =
+  (typeof inputBytedanceSeedance25TextToVideoCodecEnum)[keyof typeof inputBytedanceSeedance25TextToVideoCodecEnum]
+
+export const inputBytedanceSeedance25TextToVideoDurationEnum = {
+  auto: 'auto',
+  '4': '4',
+  '5': '5',
+  '6': '6',
+  '7': '7',
+  '8': '8',
+  '9': '9',
+  '10': '10',
+  '11': '11',
+  '12': '12',
+  '13': '13',
+  '14': '14',
+  '15': '15',
+  '16': '16',
+  '17': '17',
+  '18': '18',
+  '19': '19',
+  '20': '20',
+  '21': '21',
+  '22': '22',
+  '23': '23',
+  '24': '24',
+  '25': '25',
+  '26': '26',
+  '27': '27',
+  '28': '28',
+  '29': '29',
+  '30': '30',
+} as const
+
+export type InputBytedanceSeedance25TextToVideoDurationEnumKey =
+  (typeof inputBytedanceSeedance25TextToVideoDurationEnum)[keyof typeof inputBytedanceSeedance25TextToVideoDurationEnum]
+
+export type InputBytedanceSeedance25TextToVideo = {
+  /**
+   * @description Output bitrate mode. 'high' requests a higher-quality, larger-file encode from the model; 'standard' uses the default bitrate.
+   * @default 'standard'
+   * @example standard
+   * @type string | undefined
+   */
+  bitrate_mode?: InputBytedanceSeedance25TextToVideoBitrateModeEnumKey
+  /**
+   * @description Generate a draft preview at 480p, overriding resolution. Returns a draft_id for completing the draft at 1080p within seven days.
+   * @default false
+   * @type boolean | undefined
+   */
+  draft?: boolean
+  /**
+   * @description Video resolution - 480p for faster generation, 720p for balance, 1080p for high quality.
+   * @default '720p'
+   * @type string | undefined
+   */
+  resolution?: InputBytedanceSeedance25TextToVideoResolutionEnumKey
+  /**
+   * @description The unique user ID of the end user.
+   */
+  end_user_id?: string | null
+  /**
+   * @description The text prompt used to generate the video
+   * @example An octopus finds a football in the ocean and excitedly calls its octopus friends to come and play. Cut scene to an octopus football game under the sea.
+   * @type string
+   */
+  prompt: string
+  /**
+   * @description Whether to generate synchronized audio for the video, including sound effects, ambient sounds, and lip-synced speech. The cost of video generation is the same regardless of whether audio is generated or not.
+   * @default true
+   * @type boolean | undefined
+   */
+  generate_audio?: boolean
+  /**
+   * @description The aspect ratio of the generated video. Use 16:9 for landscape, 9:16 for portrait/vertical, 1:1 for square, 21:9 for ultrawide cinematic, or auto to let the model decide.
+   * @default 'auto'
+   * @type string | undefined
+   */
+  aspect_ratio?: InputBytedanceSeedance25TextToVideoAspectRatioEnumKey
+  /**
+   * @description 'auto' retains default video codec behaviour; 'H264' uses H.264; 'H265' uses H.265.
+   * @default 'auto'
+   * @example auto
+   * @example H264
+   * @example H265
+   * @type string | undefined
+   */
+  codec?: InputBytedanceSeedance25TextToVideoCodecEnumKey
+  /**
+   * @description Duration of the video in seconds. Supports 4 to 30 seconds, or auto to let the model decide based on the prompt.
+   * @default 'auto'
+   * @type string | undefined
+   */
+  duration?: InputBytedanceSeedance25TextToVideoDurationEnumKey
+}
+
+export type FileEb30059D = {
+  /**
+   * @description The name of the file. It will be auto-generated if not provided.
+   * @example z9RV14K95DvU.png
+   */
+  file_name?: string | null
+  /**
+   * @description The mime type of the file.
+   * @example image/png
+   */
+  content_type?: string | null
+  /**
+   * @description The size of the file in bytes.
+   * @example 4404019
+   */
+  file_size?: number | null
+  /**
+   * @description The URL where the file can be downloaded from.
+   * @type string
+   */
+  url: string
+}
+
+export type OutputBytedanceSeedance25TextToVideo = {
+  /**
+   * @description The seed used for generation.
+   * @example 42
+   * @type integer
+   */
+  seed: number
+  /**
+   * @description The generated video file.
+   * @example {"url":"https://storage.googleapis.com/falserverless/example_outputs/bytedance/seedance_2/output.mp4"}
+   * @type object
+   */
+  video: FileEb30059D
+  /**
+   * @description The draft ID, or null when draft mode is disabled. Complete this draft within seven days using the same account.
+   */
+  draft_id?: string | null
 }
 
 export const inputBytedanceSeedance25UsDraftCompleteCodecEnum = {
@@ -7112,6 +8390,81 @@ export type OutputDecartLucy25Realtime = {
   candidate?: object | null
 }
 
+export type InputDecartLucyEditPro = {
+  /**
+   * @description Text description of the desired video content
+   * @maxLength 1500
+   * @example Transform the woman's outfit into a regal medieval gown with flowing velvet fabric, intricate gold embroidery, and a jeweled crown, giving her the appearance of a queen.
+   * @type string
+   */
+  prompt: string
+  /**
+   * @description Whether to enhance the prompt for better results.
+   * @default true
+   * @type boolean | undefined
+   */
+  enhance_prompt?: boolean
+  /**
+   * @description
+   *             If set to true, the function will wait for the video to be generated
+   *             and uploaded before returning the response. This will increase the
+   *             latency of the function but it allows you to get the video directly
+   *             in the response without going through the CDN.
+   *
+   * @default true
+   * @type boolean | undefined
+   */
+  sync_mode?: boolean
+  /**
+   * @description Resolution of the generated video
+   * @default '720p'
+   * @type string | undefined
+   */
+  resolution?: '720p'
+  /**
+   * @description Seed for video generation. If not provided, a random seed will be used.
+   */
+  seed?: number | null
+  /**
+   * @description URL of the video to edit
+   * @example https://v3.fal.media/files/monkey/GI7ArkqpQVk3M6V1C_epr_original.mp4
+   * @type string
+   */
+  video_url: string
+}
+
+export type File44110Ab9 = {
+  /**
+   * @description The name of the file. It will be auto-generated if not provided.
+   * @example z9RV14K95DvU.png
+   */
+  file_name?: string | null
+  /**
+   * @description The URL where the file can be downloaded from.
+   * @type string
+   */
+  url: string
+  /**
+   * @description The size of the file in bytes.
+   * @example 4404019
+   */
+  file_size?: number | null
+  /**
+   * @description The mime type of the file.
+   * @example image/png
+   */
+  content_type?: string | null
+}
+
+export type OutputDecartLucyEditPro = {
+  /**
+   * @description The generated video
+   * @example {"file_name":"generated_video.mp4","url":"https://v3b.fal.media/files/b/lion/j1BSX8UnGbBZeJXqSWg2E_generated_video.mp4","file_size":687298,"content_type":"video/mp4"}
+   * @type object
+   */
+  video: File44110Ab9
+}
+
 export type InputDecartLucyRestyle = {
   /**
    * @description Resolution of the generated video
@@ -7660,6 +9013,118 @@ export type OutputFalAiAiAvatarSingleText = {
   seed: number
 }
 
+export type InputFalAiAmtInterpolation = {
+  /**
+   * @description Number of recursive interpolation passes
+   * @default 2
+   * @type integer | undefined
+   */
+  recursive_interpolation_passes?: number
+  /**
+   * @description URL of the video to be processed
+   * @example https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/diffusers/animatediff-vid2vid-input-2.gif
+   * @type string
+   */
+  video_url: string
+  /**
+   * @description Output frames per second
+   * @default 24
+   * @type integer | undefined
+   */
+  output_fps?: number
+}
+
+export type FileE245821D = {
+  /**
+   * @description The URL where the file can be downloaded from.
+   * @type string
+   */
+  url: string
+  /**
+   * @description The size of the file in bytes.
+   * @example 4404019
+   */
+  file_size?: number | null
+  /**
+   * @description The mime type of the file.
+   * @example image/png
+   */
+  content_type?: string | null
+  /**
+   * @description The name of the file. It will be auto-generated if not provided.
+   * @example z9RV14K95DvU.png
+   */
+  file_name?: string | null
+}
+
+export type OutputFalAiAmtInterpolation = {
+  /**
+   * @description Generated video
+   * @type object
+   */
+  video: FileE245821D
+}
+
+export type Frame = {
+  /**
+   * @description URL of the frame
+   * @type string
+   */
+  url: string
+}
+
+export type InputFalAiAmtInterpolationFrameInterpolation = {
+  /**
+   * @description Number of recursive interpolation passes
+   * @default 4
+   * @type integer | undefined
+   */
+  recursive_interpolation_passes?: number
+  /**
+   * @description Output frames per second
+   * @default 24
+   * @type integer | undefined
+   */
+  output_fps?: number
+  /**
+   * @description Frames to interpolate
+   * @example [{"url":"https://storage.googleapis.com/falserverless/model_tests/amt-interpolation/start.png"},{"url":"https://storage.googleapis.com/falserverless/model_tests/amt-interpolation/end.png"}]
+   * @type array
+   */
+  frames: Frame[]
+}
+
+export type File033Fc1C8 = {
+  /**
+   * @description The URL where the file can be downloaded from.
+   * @type string
+   */
+  url: string
+  /**
+   * @description The size of the file in bytes.
+   * @example 4404019
+   */
+  file_size?: number | null
+  /**
+   * @description The mime type of the file.
+   * @example image/png
+   */
+  content_type?: string | null
+  /**
+   * @description The name of the file. It will be auto-generated if not provided.
+   * @example z9RV14K95DvU.png
+   */
+  file_name?: string | null
+}
+
+export type OutputFalAiAmtInterpolationFrameInterpolation = {
+  /**
+   * @description Generated video
+   * @type object
+   */
+  video: File033Fc1C8
+}
+
 export const inputFalAiAutoCaptionTextCaseEnum = {
   default: 'default',
   upper: 'upper',
@@ -7799,6 +9264,520 @@ export type OutputFalAiBenV2Video = {
    *             Seed of the generated Image. It will be the same value of the one passed in the
    *             input or the randomly generated that was used in case none was passed.
    *
+   * @type integer
+   */
+  seed: number
+}
+
+export const inputFalAiBerniniREditVideoAccelerationEnum = {
+  none: 'none',
+  regular: 'regular',
+} as const
+
+export type InputFalAiBerniniREditVideoAccelerationEnumKey =
+  (typeof inputFalAiBerniniREditVideoAccelerationEnum)[keyof typeof inputFalAiBerniniREditVideoAccelerationEnum]
+
+export type InputFalAiBerniniREditVideo = {
+  /**
+   * @description Output frames per second.
+   * @minimum 4
+   * @maximum 30
+   * @default 16
+   * @type integer | undefined
+   */
+  frames_per_second?: number
+  /**
+   * @description Number of frames. Snapped internally to 4k+1.
+   * @minimum 5
+   * @maximum 121
+   * @default 81
+   * @type integer | undefined
+   */
+  num_frames?: number
+  /**
+   * @description Seed for reproducibility. Random when omitted.
+   */
+  seed?: number | null
+  /**
+   * @description Number of denoising steps.
+   * @minimum 1
+   * @maximum 50
+   * @default 30
+   * @type integer | undefined
+   */
+  num_inference_steps?: number
+  /**
+   * @description Text prompt or editing instruction.
+   * @example A cute corgi leaping in a sunny park, Van Gogh oil-painting style.
+   * @type string
+   */
+  prompt: string
+  /**
+   * @description Authorized callers may set false to request relaxed screening.
+   * @default true
+   * @type boolean | undefined
+   */
+  enable_safety_checker?: boolean
+  /**
+   * @description Negative prompt. Defaults to the standard Wan2.2 negative prompt.
+   */
+  negative_prompt?: string | null
+  /**
+   * @description Source video to edit.
+   * @example https://storage.googleapis.com/falserverless/example_inputs/seedance_pro_i2v.mp4
+   * @type string
+   */
+  video_url: string
+  /**
+   * @description Long-edge size (px). Sets the output size for generation tasks and caps source/reference media for editing tasks.
+   * @minimum 256
+   * @maximum 1280
+   * @default 848
+   * @type integer | undefined
+   */
+  max_image_size?: number
+  /**
+   * @description Acceleration level. 'regular' enables MagCache step-skipping for faster generation at a small quality cost; 'none' (default) runs the full denoising schedule.
+   * @default 'none'
+   * @type string | undefined
+   */
+  acceleration?: InputFalAiBerniniREditVideoAccelerationEnumKey
+  /**
+   * @description Rewrite the prompt with an LLM before generation. The model is tuned on enhanced prompts; off by default.
+   * @default false
+   * @type boolean | undefined
+   */
+  enable_prompt_expansion?: boolean
+}
+
+export type FileD58E00Ad = {
+  /**
+   * @description The size of the file in bytes.
+   * @example 4404019
+   */
+  file_size?: number | null
+  /**
+   * @description The mime type of the file.
+   * @example image/png
+   */
+  content_type?: string | null
+  /**
+   * @description The URL where the file can be downloaded from.
+   * @type string
+   */
+  url: string
+  /**
+   * @description The name of the file. It will be auto-generated if not provided.
+   * @example z9RV14K95DvU.png
+   */
+  file_name?: string | null
+}
+
+export type OutputFalAiBerniniREditVideo = {
+  /**
+   * @description Generated / edited video.
+   * @type object
+   */
+  video: FileD58E00Ad
+  /**
+   * @description The final prompt after expansion (set only when prompt expansion ran).
+   */
+  actual_prompt?: string | null
+  /**
+   * @description Seed used for generation.
+   * @type integer
+   */
+  seed: number
+}
+
+export const inputFalAiBerniniRReferenceEditVideoAccelerationEnum = {
+  none: 'none',
+  regular: 'regular',
+} as const
+
+export type InputFalAiBerniniRReferenceEditVideoAccelerationEnumKey =
+  (typeof inputFalAiBerniniRReferenceEditVideoAccelerationEnum)[keyof typeof inputFalAiBerniniRReferenceEditVideoAccelerationEnum]
+
+export type InputFalAiBerniniRReferenceEditVideo = {
+  /**
+   * @description Rewrite the prompt with an LLM before generation. The model is tuned on enhanced prompts; off by default.
+   * @default false
+   * @type boolean | undefined
+   */
+  enable_prompt_expansion?: boolean
+  /**
+   * @description Number of frames. Snapped internally to 4k+1.
+   * @minimum 5
+   * @maximum 121
+   * @default 81
+   * @type integer | undefined
+   */
+  num_frames?: number
+  /**
+   * @description Seed for reproducibility. Random when omitted.
+   */
+  seed?: number | null
+  /**
+   * @description Reference image(s) guiding the edit; up to 5.
+   * @example ["https://storage.googleapis.com/falserverless/example_inputs/birefnet-input.jpeg"]
+   * @type array
+   */
+  reference_image_urls: string[]
+  /**
+   * @description Number of denoising steps.
+   * @minimum 1
+   * @maximum 50
+   * @default 30
+   * @type integer | undefined
+   */
+  num_inference_steps?: number
+  /**
+   * @description Text prompt or editing instruction.
+   * @example A cute corgi leaping in a sunny park, Van Gogh oil-painting style.
+   * @type string
+   */
+  prompt: string
+  /**
+   * @description Authorized callers may set false to request relaxed screening.
+   * @default true
+   * @type boolean | undefined
+   */
+  enable_safety_checker?: boolean
+  /**
+   * @description Negative prompt. Defaults to the standard Wan2.2 negative prompt.
+   */
+  negative_prompt?: string | null
+  /**
+   * @description Source video to edit.
+   * @example https://storage.googleapis.com/falserverless/example_inputs/seedance_pro_i2v.mp4
+   * @type string
+   */
+  video_url: string
+  /**
+   * @description Long-edge size (px). Sets the output size for generation tasks and caps source/reference media for editing tasks.
+   * @minimum 256
+   * @maximum 1280
+   * @default 848
+   * @type integer | undefined
+   */
+  max_image_size?: number
+  /**
+   * @description Acceleration level. 'regular' enables MagCache step-skipping for faster generation at a small quality cost; 'none' (default) runs the full denoising schedule.
+   * @default 'none'
+   * @type string | undefined
+   */
+  acceleration?: InputFalAiBerniniRReferenceEditVideoAccelerationEnumKey
+  /**
+   * @description Output frames per second.
+   * @minimum 4
+   * @maximum 30
+   * @default 16
+   * @type integer | undefined
+   */
+  frames_per_second?: number
+}
+
+export type FileBf9F1B09 = {
+  /**
+   * @description The size of the file in bytes.
+   * @example 4404019
+   */
+  file_size?: number | null
+  /**
+   * @description The mime type of the file.
+   * @example image/png
+   */
+  content_type?: string | null
+  /**
+   * @description The URL where the file can be downloaded from.
+   * @type string
+   */
+  url: string
+  /**
+   * @description The name of the file. It will be auto-generated if not provided.
+   * @example z9RV14K95DvU.png
+   */
+  file_name?: string | null
+}
+
+export type OutputFalAiBerniniRReferenceEditVideo = {
+  /**
+   * @description Generated / edited video.
+   * @type object
+   */
+  video: FileBf9F1B09
+  /**
+   * @description The final prompt after expansion (set only when prompt expansion ran).
+   */
+  actual_prompt?: string | null
+  /**
+   * @description Seed used for generation.
+   * @type integer
+   */
+  seed: number
+}
+
+export const inputFalAiBerniniRReferenceToVideoAspectRatioEnum = {
+  '16:9': '16:9',
+  '9:16': '9:16',
+  '1:1': '1:1',
+} as const
+
+export type InputFalAiBerniniRReferenceToVideoAspectRatioEnumKey =
+  (typeof inputFalAiBerniniRReferenceToVideoAspectRatioEnum)[keyof typeof inputFalAiBerniniRReferenceToVideoAspectRatioEnum]
+
+export const inputFalAiBerniniRReferenceToVideoAccelerationEnum = {
+  none: 'none',
+  regular: 'regular',
+} as const
+
+export type InputFalAiBerniniRReferenceToVideoAccelerationEnumKey =
+  (typeof inputFalAiBerniniRReferenceToVideoAccelerationEnum)[keyof typeof inputFalAiBerniniRReferenceToVideoAccelerationEnum]
+
+export type InputFalAiBerniniRReferenceToVideo = {
+  /**
+   * @description Rewrite the prompt with an LLM before generation. The model is tuned on enhanced prompts; off by default.
+   * @default false
+   * @type boolean | undefined
+   */
+  enable_prompt_expansion?: boolean
+  /**
+   * @description Output aspect ratio.
+   * @default '16:9'
+   * @type string | undefined
+   */
+  aspect_ratio?: InputFalAiBerniniRReferenceToVideoAspectRatioEnumKey
+  /**
+   * @description Number of frames. Snapped internally to 4k+1.
+   * @minimum 5
+   * @maximum 121
+   * @default 81
+   * @type integer | undefined
+   */
+  num_frames?: number
+  /**
+   * @description Seed for reproducibility. Random when omitted.
+   */
+  seed?: number | null
+  /**
+   * @description Reference subject image(s); up to 5.
+   * @example ["https://storage.googleapis.com/falserverless/example_inputs/birefnet-input.jpeg"]
+   * @type array
+   */
+  reference_image_urls: string[]
+  /**
+   * @description Number of denoising steps.
+   * @minimum 1
+   * @maximum 50
+   * @default 30
+   * @type integer | undefined
+   */
+  num_inference_steps?: number
+  /**
+   * @description Text prompt or editing instruction.
+   * @example A cute corgi leaping in a sunny park, Van Gogh oil-painting style.
+   * @type string
+   */
+  prompt: string
+  /**
+   * @description Authorized callers may set false to request relaxed screening.
+   * @default true
+   * @type boolean | undefined
+   */
+  enable_safety_checker?: boolean
+  /**
+   * @description Negative prompt. Defaults to the standard Wan2.2 negative prompt.
+   */
+  negative_prompt?: string | null
+  /**
+   * @description Long-edge size (px). Sets the output size for generation tasks and caps source/reference media for editing tasks.
+   * @minimum 256
+   * @maximum 1280
+   * @default 848
+   * @type integer | undefined
+   */
+  max_image_size?: number
+  /**
+   * @description Acceleration level. 'regular' enables MagCache step-skipping for faster generation at a small quality cost; 'none' (default) runs the full denoising schedule.
+   * @default 'none'
+   * @type string | undefined
+   */
+  acceleration?: InputFalAiBerniniRReferenceToVideoAccelerationEnumKey
+  /**
+   * @description Output frames per second.
+   * @minimum 4
+   * @maximum 30
+   * @default 16
+   * @type integer | undefined
+   */
+  frames_per_second?: number
+}
+
+export type FileA63Aa370 = {
+  /**
+   * @description The size of the file in bytes.
+   * @example 4404019
+   */
+  file_size?: number | null
+  /**
+   * @description The mime type of the file.
+   * @example image/png
+   */
+  content_type?: string | null
+  /**
+   * @description The URL where the file can be downloaded from.
+   * @type string
+   */
+  url: string
+  /**
+   * @description The name of the file. It will be auto-generated if not provided.
+   * @example z9RV14K95DvU.png
+   */
+  file_name?: string | null
+}
+
+export type OutputFalAiBerniniRReferenceToVideo = {
+  /**
+   * @description Generated / edited video.
+   * @type object
+   */
+  video: FileA63Aa370
+  /**
+   * @description The final prompt after expansion (set only when prompt expansion ran).
+   */
+  actual_prompt?: string | null
+  /**
+   * @description Seed used for generation.
+   * @type integer
+   */
+  seed: number
+}
+
+export const inputFalAiBerniniRTextToVideoAspectRatioEnum = {
+  '16:9': '16:9',
+  '9:16': '9:16',
+  '1:1': '1:1',
+} as const
+
+export type InputFalAiBerniniRTextToVideoAspectRatioEnumKey =
+  (typeof inputFalAiBerniniRTextToVideoAspectRatioEnum)[keyof typeof inputFalAiBerniniRTextToVideoAspectRatioEnum]
+
+export const inputFalAiBerniniRTextToVideoAccelerationEnum = {
+  none: 'none',
+  regular: 'regular',
+} as const
+
+export type InputFalAiBerniniRTextToVideoAccelerationEnumKey =
+  (typeof inputFalAiBerniniRTextToVideoAccelerationEnum)[keyof typeof inputFalAiBerniniRTextToVideoAccelerationEnum]
+
+export type InputFalAiBerniniRTextToVideo = {
+  /**
+   * @description Output frames per second.
+   * @minimum 4
+   * @maximum 30
+   * @default 16
+   * @type integer | undefined
+   */
+  frames_per_second?: number
+  /**
+   * @description Output aspect ratio.
+   * @default '16:9'
+   * @type string | undefined
+   */
+  aspect_ratio?: InputFalAiBerniniRTextToVideoAspectRatioEnumKey
+  /**
+   * @description Number of frames. Snapped internally to 4k+1.
+   * @minimum 5
+   * @maximum 121
+   * @default 81
+   * @type integer | undefined
+   */
+  num_frames?: number
+  /**
+   * @description Seed for reproducibility. Random when omitted.
+   */
+  seed?: number | null
+  /**
+   * @description Number of denoising steps.
+   * @minimum 1
+   * @maximum 50
+   * @default 30
+   * @type integer | undefined
+   */
+  num_inference_steps?: number
+  /**
+   * @description Text prompt or editing instruction.
+   * @example A cute corgi leaping in a sunny park, Van Gogh oil-painting style.
+   * @type string
+   */
+  prompt: string
+  /**
+   * @description Authorized callers may set false to request relaxed screening.
+   * @default true
+   * @type boolean | undefined
+   */
+  enable_safety_checker?: boolean
+  /**
+   * @description Negative prompt. Defaults to the standard Wan2.2 negative prompt.
+   */
+  negative_prompt?: string | null
+  /**
+   * @description Long-edge size (px). Sets the output size for generation tasks and caps source/reference media for editing tasks.
+   * @minimum 256
+   * @maximum 1280
+   * @default 848
+   * @type integer | undefined
+   */
+  max_image_size?: number
+  /**
+   * @description Acceleration level. 'regular' enables MagCache step-skipping for faster generation at a small quality cost; 'none' (default) runs the full denoising schedule.
+   * @default 'none'
+   * @type string | undefined
+   */
+  acceleration?: InputFalAiBerniniRTextToVideoAccelerationEnumKey
+  /**
+   * @description Rewrite the prompt with an LLM before generation. The model is tuned on enhanced prompts; off by default.
+   * @default false
+   * @type boolean | undefined
+   */
+  enable_prompt_expansion?: boolean
+}
+
+export type File3396C2E6 = {
+  /**
+   * @description The size of the file in bytes.
+   * @example 4404019
+   */
+  file_size?: number | null
+  /**
+   * @description The mime type of the file.
+   * @example image/png
+   */
+  content_type?: string | null
+  /**
+   * @description The URL where the file can be downloaded from.
+   * @type string
+   */
+  url: string
+  /**
+   * @description The name of the file. It will be auto-generated if not provided.
+   * @example z9RV14K95DvU.png
+   */
+  file_name?: string | null
+}
+
+export type OutputFalAiBerniniRTextToVideo = {
+  /**
+   * @description Generated / edited video.
+   * @type object
+   */
+  video: File3396C2E6
+  /**
+   * @description The final prompt after expansion (set only when prompt expansion ran).
+   */
+  actual_prompt?: string | null
+  /**
+   * @description Seed used for generation.
    * @type integer
    */
   seed: number
@@ -9085,6 +11064,1166 @@ export type OutputFalAiBytedanceSeedanceV1ProTextToVideo = {
   seed: number
 }
 
+export type LoraWeight = {
+  /**
+   * @description URL or the path to the LoRA weights.
+   * @type string
+   */
+  path: string
+  /**
+   * @description
+   *             The scale of the LoRA weight. This is used to scale the LoRA weight
+   *             before merging it with the base model.
+   *
+   * @minimum 0
+   * @maximum 4
+   * @default 1
+   * @type number | undefined
+   */
+  scale?: number
+}
+
+export type ImageSize = {
+  /**
+   * @description The width of the generated image.
+   * @maximum 14142
+   * @default 512
+   * @type integer | undefined
+   */
+  width?: number
+  /**
+   * @description The height of the generated image.
+   * @maximum 14142
+   * @default 512
+   * @type integer | undefined
+   */
+  height?: number
+}
+
+export const inputFalAiCogvideox5BVideoSize = {
+  square_hd: 'square_hd',
+  square: 'square',
+  portrait_4_3: 'portrait_4_3',
+  portrait_16_9: 'portrait_16_9',
+  landscape_4_3: 'landscape_4_3',
+  landscape_16_9: 'landscape_16_9',
+} as const
+
+export type InputFalAiCogvideox5BVideoSizeKey =
+  (typeof inputFalAiCogvideox5BVideoSize)[keyof typeof inputFalAiCogvideox5BVideoSize]
+
+export type InputFalAiCogvideox5B = {
+  /**
+   * @description The negative prompt to generate video from
+   * @default ''
+   * @example Distorted, discontinuous, Ugly, blurry, low resolution, motionless, static, disfigured, disconnected limbs, Ugly faces, incomplete arms
+   * @type string | undefined
+   */
+  negative_prompt?: string
+  /**
+   * @description
+   *             The LoRAs to use for the image generation. We currently support one lora.
+   *
+   * @default []
+   * @type array | undefined
+   */
+  loras?: LoraWeight[]
+  /**
+   * @description Use RIFE for video interpolation
+   * @default true
+   * @type boolean | undefined
+   */
+  use_rife?: boolean
+  /**
+   * @description Authorized callers may set false to request relaxed screening.
+   * @default true
+   * @type boolean | undefined
+   */
+  enable_safety_checker?: boolean
+  /**
+   * @description The target FPS of the video
+   * @minimum 4
+   * @maximum 32
+   * @default 16
+   * @type integer | undefined
+   */
+  export_fps?: number
+  /**
+   * @description The size of the generated video.
+   * @default {"width":720,"height":480}
+   */
+  video_size?: ImageSize | InputFalAiCogvideox5BVideoSizeKey
+  /**
+   * @description If `True`, the media will be returned as a data URI and the output data won't be available in the request history.
+   * @default false
+   * @type boolean | undefined
+   */
+  sync_mode?: boolean
+  /**
+   * @description
+   *             The CFG (Classifier Free Guidance) scale is a measure of how close you want
+   *             the model to stick to your prompt when looking for a related video to show you.
+   *
+   * @minimum 0
+   * @maximum 20
+   * @default 7
+   * @type number | undefined
+   */
+  guidance_scale?: number
+  /**
+   * @description The number of inference steps to perform.
+   * @minimum 1
+   * @maximum 50
+   * @default 50
+   * @type integer | undefined
+   */
+  num_inference_steps?: number
+  /**
+   * @description The prompt to generate the video from.
+   * @example A garden comes to life as a kaleidoscope of butterflies flutters amidst the blossoms, their delicate wings casting shadows on the petals below. In the background, a grand fountain cascades water with a gentle splendor, its rhythmic sound providing a soothing backdrop. Beneath the cool shade of a mature tree, a solitary wooden chair invites solitude and reflection, its smooth surface worn by the touch of countless visitors seeking a moment of tranquility in nature's embrace.
+   * @type string
+   */
+  prompt: string
+  /**
+   * @description
+   *             The same seed and the same prompt given to the same version of the model
+   *             will output the same video every time.
+   *
+   */
+  seed?: number | null
+}
+
+export type FileCb6D844A = {
+  /**
+   * @description The name of the file. It will be auto-generated if not provided.
+   * @example z9RV14K95DvU.png
+   */
+  file_name?: string | null
+  /**
+   * @description The mime type of the file.
+   * @example image/png
+   */
+  content_type?: string | null
+  /**
+   * @description The size of the file in bytes.
+   * @example 4404019
+   */
+  file_size?: number | null
+  /**
+   * @description The URL where the file can be downloaded from.
+   * @type string
+   */
+  url: string
+}
+
+export type OutputFalAiCogvideox5B = {
+  /**
+   * @description The URL to the generated video
+   * @type object
+   */
+  video: FileCb6D844A
+  timings: {
+    [key: string]: number
+  }
+  /**
+   * @description The prompt used for generating the video.
+   * @type string
+   */
+  prompt: string
+  /**
+   * @description
+   *             Seed of the generated video. It will be the same value of the one passed in the
+   *             input or the randomly generated that was used in case none was passed.
+   *
+   * @type integer
+   */
+  seed: number
+}
+
+export const inputFalAiCogvideox5BImageToVideoVideoSize = {
+  square_hd: 'square_hd',
+  square: 'square',
+  portrait_4_3: 'portrait_4_3',
+  portrait_16_9: 'portrait_16_9',
+  landscape_4_3: 'landscape_4_3',
+  landscape_16_9: 'landscape_16_9',
+} as const
+
+export type InputFalAiCogvideox5BImageToVideoVideoSizeKey =
+  (typeof inputFalAiCogvideox5BImageToVideoVideoSize)[keyof typeof inputFalAiCogvideox5BImageToVideoVideoSize]
+
+export type InputFalAiCogvideox5BImageToVideo = {
+  /**
+   * @description The negative prompt to generate video from
+   * @default ''
+   * @example Distorted, discontinuous, Ugly, blurry, low resolution, motionless, static, disfigured, disconnected limbs, Ugly faces, incomplete arms
+   * @type string | undefined
+   */
+  negative_prompt?: string
+  /**
+   * @description
+   *             The LoRAs to use for the image generation. We currently support one lora.
+   *
+   * @default []
+   * @type array | undefined
+   */
+  loras?: LoraWeight[]
+  /**
+   * @description Use RIFE for video interpolation
+   * @default true
+   * @type boolean | undefined
+   */
+  use_rife?: boolean
+  /**
+   * @description Authorized callers may set false to request relaxed screening.
+   * @default true
+   * @type boolean | undefined
+   */
+  enable_safety_checker?: boolean
+  /**
+   * @description The target FPS of the video
+   * @minimum 4
+   * @maximum 32
+   * @default 16
+   * @type integer | undefined
+   */
+  export_fps?: number
+  /**
+   * @description The size of the generated video.
+   * @default {"width":720,"height":480}
+   */
+  video_size?: ImageSize | InputFalAiCogvideox5BImageToVideoVideoSizeKey
+  /**
+   * @description If `True`, the media will be returned as a data URI and the output data won't be available in the request history.
+   * @default false
+   * @type boolean | undefined
+   */
+  sync_mode?: boolean
+  /**
+   * @description The URL to the image to generate the video from.
+   * @example https://d3phaj0sisr2ct.cloudfront.net/research/eugene.jpg
+   * @type string
+   */
+  image_url: string
+  /**
+   * @description
+   *             The CFG (Classifier Free Guidance) scale is a measure of how close you want
+   *             the model to stick to your prompt when looking for a related video to show you.
+   *
+   * @minimum 0
+   * @maximum 20
+   * @default 7
+   * @type number | undefined
+   */
+  guidance_scale?: number
+  /**
+   * @description The number of inference steps to perform.
+   * @minimum 1
+   * @maximum 50
+   * @default 50
+   * @type integer | undefined
+   */
+  num_inference_steps?: number
+  /**
+   * @description The prompt to generate the video from.
+   * @example A low angle shot of a man walking down a street, illuminated by the neon signs of the bars around him
+   * @type string
+   */
+  prompt: string
+  /**
+   * @description
+   *             The same seed and the same prompt given to the same version of the model
+   *             will output the same video every time.
+   *
+   */
+  seed?: number | null
+}
+
+export type File613Adb6A = {
+  /**
+   * @description The name of the file. It will be auto-generated if not provided.
+   * @example z9RV14K95DvU.png
+   */
+  file_name?: string | null
+  /**
+   * @description The mime type of the file.
+   * @example image/png
+   */
+  content_type?: string | null
+  /**
+   * @description The size of the file in bytes.
+   * @example 4404019
+   */
+  file_size?: number | null
+  /**
+   * @description The URL where the file can be downloaded from.
+   * @type string
+   */
+  url: string
+}
+
+export type OutputFalAiCogvideox5BImageToVideo = {
+  /**
+   * @description The URL to the generated video
+   * @type object
+   */
+  video: File613Adb6A
+  timings: {
+    [key: string]: number
+  }
+  /**
+   * @description The prompt used for generating the video.
+   * @type string
+   */
+  prompt: string
+  /**
+   * @description
+   *             Seed of the generated video. It will be the same value of the one passed in the
+   *             input or the randomly generated that was used in case none was passed.
+   *
+   * @type integer
+   */
+  seed: number
+}
+
+export const inputFalAiCogvideox5BVideoToVideoVideoSize = {
+  square_hd: 'square_hd',
+  square: 'square',
+  portrait_4_3: 'portrait_4_3',
+  portrait_16_9: 'portrait_16_9',
+  landscape_4_3: 'landscape_4_3',
+  landscape_16_9: 'landscape_16_9',
+} as const
+
+export type InputFalAiCogvideox5BVideoToVideoVideoSizeKey =
+  (typeof inputFalAiCogvideox5BVideoToVideoVideoSize)[keyof typeof inputFalAiCogvideox5BVideoToVideoVideoSize]
+
+export type InputFalAiCogvideox5BVideoToVideo = {
+  /**
+   * @description The negative prompt to generate video from
+   * @default ''
+   * @example Distorted, discontinuous, Ugly, blurry, low resolution, motionless, static, disfigured, disconnected limbs, Ugly faces, incomplete arms
+   * @type string | undefined
+   */
+  negative_prompt?: string
+  /**
+   * @description
+   *             The LoRAs to use for the image generation. We currently support one lora.
+   *
+   * @default []
+   * @type array | undefined
+   */
+  loras?: LoraWeight[]
+  /**
+   * @description Use RIFE for video interpolation
+   * @default true
+   * @type boolean | undefined
+   */
+  use_rife?: boolean
+  /**
+   * @description Authorized callers may set false to request relaxed screening.
+   * @default true
+   * @type boolean | undefined
+   */
+  enable_safety_checker?: boolean
+  /**
+   * @description The target FPS of the video
+   * @minimum 4
+   * @maximum 32
+   * @default 16
+   * @type integer | undefined
+   */
+  export_fps?: number
+  /**
+   * @description The size of the generated video.
+   * @default {"width":720,"height":480}
+   */
+  video_size?: ImageSize | InputFalAiCogvideox5BVideoToVideoVideoSizeKey
+  /**
+   * @description The video to generate the video from.
+   * @example https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/diffusers/hiker.mp4
+   * @type string
+   */
+  video_url: string
+  /**
+   * @description The strength to use for Video to Video.  1.0 completely remakes the video while 0.0 preserves the original.
+   * @minimum 0.05
+   * @maximum 1
+   * @default 0.8
+   * @type number | undefined
+   */
+  strength?: number
+  /**
+   * @description If `True`, the media will be returned as a data URI and the output data won't be available in the request history.
+   * @default false
+   * @type boolean | undefined
+   */
+  sync_mode?: boolean
+  /**
+   * @description
+   *             The CFG (Classifier Free Guidance) scale is a measure of how close you want
+   *             the model to stick to your prompt when looking for a related video to show you.
+   *
+   * @minimum 0
+   * @maximum 20
+   * @default 7
+   * @type number | undefined
+   */
+  guidance_scale?: number
+  /**
+   * @description The number of inference steps to perform.
+   * @minimum 1
+   * @maximum 50
+   * @default 50
+   * @type integer | undefined
+   */
+  num_inference_steps?: number
+  /**
+   * @description The prompt to generate the video from.
+   * @example An astronaut stands triumphantly at the peak of a towering mountain. Panorama of rugged peaks and valleys. Very futuristic vibe and animated aesthetic. Highlights of purple and golden colors in the scene. The sky is looks like an animated/cartoonish dream of galaxies, nebulae, stars, planets, moons, but the remainder of the scene is mostly realistic.
+   * @type string
+   */
+  prompt: string
+  /**
+   * @description
+   *             The same seed and the same prompt given to the same version of the model
+   *             will output the same video every time.
+   *
+   */
+  seed?: number | null
+}
+
+export type File8A32Af84 = {
+  /**
+   * @description The name of the file. It will be auto-generated if not provided.
+   * @example z9RV14K95DvU.png
+   */
+  file_name?: string | null
+  /**
+   * @description The mime type of the file.
+   * @example image/png
+   */
+  content_type?: string | null
+  /**
+   * @description The size of the file in bytes.
+   * @example 4404019
+   */
+  file_size?: number | null
+  /**
+   * @description The URL where the file can be downloaded from.
+   * @type string
+   */
+  url: string
+}
+
+export type OutputFalAiCogvideox5BVideoToVideo = {
+  /**
+   * @description The URL to the generated video
+   * @type object
+   */
+  video: File8A32Af84
+  timings: {
+    [key: string]: number
+  }
+  /**
+   * @description The prompt used for generating the video.
+   * @type string
+   */
+  prompt: string
+  /**
+   * @description
+   *             Seed of the generated video. It will be the same value of the one passed in the
+   *             input or the randomly generated that was used in case none was passed.
+   *
+   * @type integer
+   */
+  seed: number
+}
+
+export type InputFalAiControlfoley = {
+  /**
+   * @description Negative text prompt — describe audio characteristics to avoid.
+   * @default ''
+   * @type string | undefined
+   */
+  negative_prompt?: string
+  /**
+   * @description Classifier-free guidance strength.
+   * @minimum 0
+   * @maximum 20
+   * @default 4.5
+   * @type number | undefined
+   */
+  guidance_scale?: number
+  /**
+   * @description Optional text prompt describing the desired audio. When combined with the video it provides text-controlled video-to-audio (TC-V2A) generation; leave empty for pure video-to-audio (V2A).
+   * @default ''
+   * @example the skateboard wheels scraping and grinding on the ground
+   * @example gentle footsteps on a wooden floor
+   * @type string | undefined
+   */
+  prompt?: string
+  /**
+   * @description Target audio duration in seconds. Truncated to source video length when shorter.
+   * @minimum 1
+   * @maximum 30
+   * @default 8
+   * @type number | undefined
+   */
+  duration?: number
+  /**
+   * @description Random seed for reproducibility. If null, a random seed is used.
+   */
+  seed?: number | null
+  /**
+   * @description Optional URL to a 2-4 second reference audio clip whose timbre should be transferred to the generated audio (AC-V2A mode). Audio shorter than 2s is zero-padded; longer is truncated.
+   */
+  reference_audio_url?: string | null
+  /**
+   * @description URL of the video to generate synchronized audio for.
+   * @example https://storage.googleapis.com/falserverless/model_tests/video_models/mmaudio_input.mp4
+   * @type string
+   */
+  video_url: string
+  /**
+   * @description Number of flow-matching ODE steps.
+   * @minimum 4
+   * @maximum 100
+   * @default 25
+   * @type integer | undefined
+   */
+  num_inference_steps?: number
+  /**
+   * @description When True, disables the CLIP visual stream (text-driven mode).
+   * @default false
+   * @type boolean | undefined
+   */
+  mask_away_clip?: boolean
+}
+
+export type File3202Ceaa = {
+  /**
+   * @description The size of the file in bytes.
+   * @example 4404019
+   */
+  file_size?: number | null
+  /**
+   * @description The name of the file. It will be auto-generated if not provided.
+   * @example z9RV14K95DvU.png
+   */
+  file_name?: string | null
+  /**
+   * @description The URL where the file can be downloaded from.
+   * @type string
+   */
+  url: string
+  /**
+   * @description The mime type of the file.
+   * @example image/png
+   */
+  content_type?: string | null
+}
+
+export type OutputFalAiControlfoley = {
+  /**
+   * @description Generated audio waveform only (44.1 kHz mono WAV).
+   * @type object
+   */
+  audio: File3202Ceaa
+  /**
+   * @description Generated video with synchronized audio (H.264 + AAC).
+   * @example {"url":"https://storage.googleapis.com/falserverless/model_tests/video_models/mmaudio_output.mp4"}
+   * @type object
+   */
+  video: File3202Ceaa
+  /**
+   * @description The seed used for generation.
+   * @type integer
+   */
+  seed: number
+}
+
+export const inputFalAiCosmosPredict25DistilledTextToVideoVideoOutputTypeEnum =
+  {
+    'X264 (.mp4)': 'X264 (.mp4)',
+    'VP9 (.webm)': 'VP9 (.webm)',
+    'PRORES4444 (.mov)': 'PRORES4444 (.mov)',
+    'GIF (.gif)': 'GIF (.gif)',
+  } as const
+
+export type InputFalAiCosmosPredict25DistilledTextToVideoVideoOutputTypeEnumKey =
+  (typeof inputFalAiCosmosPredict25DistilledTextToVideoVideoOutputTypeEnum)[keyof typeof inputFalAiCosmosPredict25DistilledTextToVideoVideoOutputTypeEnum]
+
+export const inputFalAiCosmosPredict25DistilledTextToVideoVideoQualityEnum = {
+  low: 'low',
+  medium: 'medium',
+  high: 'high',
+  maximum: 'maximum',
+} as const
+
+export type InputFalAiCosmosPredict25DistilledTextToVideoVideoQualityEnumKey =
+  (typeof inputFalAiCosmosPredict25DistilledTextToVideoVideoQualityEnum)[keyof typeof inputFalAiCosmosPredict25DistilledTextToVideoVideoQualityEnum]
+
+export type InputFalAiCosmosPredict25DistilledTextToVideo = {
+  /**
+   * @description Number of denoising steps. Distilled model works well with fewer steps.
+   * @minimum 1
+   * @maximum 20
+   * @default 10
+   * @type integer | undefined
+   */
+  num_inference_steps?: number
+  /**
+   * @description If `True`, the media will be returned as a data URI and the output data won't be available in the request history.
+   * @default false
+   * @type boolean | undefined
+   */
+  sync_mode?: boolean
+  /**
+   * @description A negative prompt to guide generation away from undesired content.
+   * @default 'The video captures a series of frames showing ugly scenes, static with no motion, motion blur, over-saturation, shaky footage, low resolution, grainy texture, pixelated images, poorly lit areas, underexposed and overexposed scenes, poor color balance, washed out colors, choppy sequences, jerky movements, low frame rate, artifacting, color banding, unnatural transitions, outdated special effects, fake elements, unconvincing visuals, poorly edited content, jump cuts, visual noise, and flickering. Overall, the video is of poor quality.'
+   * @type string | undefined
+   */
+  negative_prompt?: string
+  /**
+   * @description Authorized callers may set false to request relaxed screening.
+   * @default true
+   * @type boolean | undefined
+   */
+  enable_safety_checker?: boolean
+  /**
+   * @description The format of the output video.
+   * @default 'X264 (.mp4)'
+   * @type string | undefined
+   */
+  video_output_type?: InputFalAiCosmosPredict25DistilledTextToVideoVideoOutputTypeEnumKey
+  /**
+   * @description The text prompt describing the video to generate.
+   * @example A static, locked-off camera frames an industrial conveyor belt steadily transporting rough rocks through a dimly lit quarry processing facility. The belt runs horizontally across the center of the frame, its thick black rubber surface textured with dust and fine gravel. Jagged gray and brown stones of varying sizes tumble forward in a slow, continuous motion, their sharp edges catching the light. Subtle vibrations ripple through the belt’s surface as small pebbles bounce and shift. In the background, blurred steel beams, pipes, and muted industrial machinery create depth without distraction. Cool, diffused overhead lighting casts soft shadows and highlights the gritty textures, emphasizing dust particles in the air and the raw, rugged surfaces of the rocks.
+   * @type string
+   */
+  prompt: string
+  /**
+   * @description The quality of the output video.
+   * @default 'high'
+   * @type string | undefined
+   */
+  video_quality?: InputFalAiCosmosPredict25DistilledTextToVideoVideoQualityEnumKey
+  /**
+   * @description Random seed for reproducible generation.
+   */
+  seed?: number | null
+  /**
+   * @description Number of frames to generate. Must be between 9 and 93.
+   * @minimum 9
+   * @maximum 93
+   * @default 93
+   * @type integer | undefined
+   */
+  num_frames?: number
+}
+
+export type VideoFile6A63Cd21 = {
+  /**
+   * @description The name of the file. It will be auto-generated if not provided.
+   * @example z9RV14K95DvU.png
+   */
+  file_name?: string | null
+  /**
+   * @description The width of the video
+   */
+  width?: number | null
+  /**
+   * @description The mime type of the file.
+   * @example image/png
+   */
+  content_type?: string | null
+  /**
+   * @description The URL where the file can be downloaded from.
+   * @type string
+   */
+  url: string
+  /**
+   * @description The duration of the video
+   */
+  duration?: number | null
+  /**
+   * @description The size of the file in bytes.
+   * @example 4404019
+   */
+  file_size?: number | null
+  /**
+   * @description The number of frames in the video
+   */
+  num_frames?: number | null
+  /**
+   * @description The height of the video
+   */
+  height?: number | null
+  /**
+   * @description The FPS of the video
+   */
+  fps?: number | null
+}
+
+export type OutputFalAiCosmosPredict25DistilledTextToVideo = {
+  /**
+   * @description The random seed used for generation.
+   * @type integer
+   */
+  seed: number
+  /**
+   * @description The generated video file.
+   * @example {"content_type":"video/mp4","url":"https://v3b.fal.media/files/b/0a8fabc5/qAi19s0dSuQHDZ3O7D_HV_FkSwbls1.mp4"}
+   * @type object
+   */
+  video: VideoFile6A63Cd21
+}
+
+export const inputFalAiCosmosPredict25ImageToVideoVideoOutputTypeEnum = {
+  'X264 (.mp4)': 'X264 (.mp4)',
+  'VP9 (.webm)': 'VP9 (.webm)',
+  'PRORES4444 (.mov)': 'PRORES4444 (.mov)',
+  'GIF (.gif)': 'GIF (.gif)',
+} as const
+
+export type InputFalAiCosmosPredict25ImageToVideoVideoOutputTypeEnumKey =
+  (typeof inputFalAiCosmosPredict25ImageToVideoVideoOutputTypeEnum)[keyof typeof inputFalAiCosmosPredict25ImageToVideoVideoOutputTypeEnum]
+
+export const inputFalAiCosmosPredict25ImageToVideoVideoQualityEnum = {
+  low: 'low',
+  medium: 'medium',
+  high: 'high',
+  maximum: 'maximum',
+} as const
+
+export type InputFalAiCosmosPredict25ImageToVideoVideoQualityEnumKey =
+  (typeof inputFalAiCosmosPredict25ImageToVideoVideoQualityEnum)[keyof typeof inputFalAiCosmosPredict25ImageToVideoVideoQualityEnum]
+
+export type InputFalAiCosmosPredict25ImageToVideo = {
+  /**
+   * @description Number of denoising steps. More steps yield higher quality but take longer.
+   * @minimum 1
+   * @maximum 50
+   * @default 35
+   * @type integer | undefined
+   */
+  num_inference_steps?: number
+  /**
+   * @description URL of the input image to use as first frame.
+   * @example https://v3b.fal.media/files/b/0a8fc99c/rOav2GLXy0psA9R43CQO2_c6c3b762e7f846fcab0a7bbf124eb03b.jpg
+   * @type string
+   */
+  image_url: string
+  /**
+   * @description If `True`, the media will be returned as a data URI and the output data won't be available in the request history.
+   * @default false
+   * @type boolean | undefined
+   */
+  sync_mode?: boolean
+  /**
+   * @description A negative prompt to guide generation away from undesired content.
+   * @default 'The video captures a series of frames showing ugly scenes, static with no motion, motion blur, over-saturation, shaky footage, low resolution, grainy texture, pixelated images, poorly lit areas, underexposed and overexposed scenes, poor color balance, washed out colors, choppy sequences, jerky movements, low frame rate, artifacting, color banding, unnatural transitions, outdated special effects, fake elements, unconvincing visuals, poorly edited content, jump cuts, visual noise, and flickering. Overall, the video is of poor quality.'
+   * @type string | undefined
+   */
+  negative_prompt?: string
+  /**
+   * @description Authorized callers may set false to request relaxed screening.
+   * @default true
+   * @type boolean | undefined
+   */
+  enable_safety_checker?: boolean
+  /**
+   * @description Classifier-free guidance scale. Higher values increase prompt adherence.
+   * @minimum 1
+   * @maximum 20
+   * @default 7
+   * @type number | undefined
+   */
+  guidance_scale?: number
+  /**
+   * @description The text prompt describing the video to generate.
+   * @example A static, locked-off camera frames an industrial conveyor belt steadily transporting rough rocks through a dimly lit quarry processing facility. The belt runs horizontally across the center of the frame, its thick black rubber surface textured with dust and fine gravel. Jagged gray and brown stones of varying sizes tumble forward in a slow, continuous motion, their sharp edges catching the light. Subtle vibrations ripple through the belt’s surface as small pebbles bounce and shift. In the background, blurred steel beams, pipes, and muted industrial machinery create depth without distraction. Cool, diffused overhead lighting casts soft shadows and highlights the gritty textures, emphasizing dust particles in the air and the raw, rugged surfaces of the rocks.
+   * @type string
+   */
+  prompt: string
+  /**
+   * @description The format of the output video.
+   * @default 'X264 (.mp4)'
+   * @type string | undefined
+   */
+  video_output_type?: InputFalAiCosmosPredict25ImageToVideoVideoOutputTypeEnumKey
+  /**
+   * @description Number of frames to generate. Must be between 9 and 93.
+   * @minimum 9
+   * @maximum 93
+   * @default 93
+   * @type integer | undefined
+   */
+  num_frames?: number
+  /**
+   * @description Random seed for reproducible generation.
+   */
+  seed?: number | null
+  /**
+   * @description The quality of the output video.
+   * @default 'high'
+   * @type string | undefined
+   */
+  video_quality?: InputFalAiCosmosPredict25ImageToVideoVideoQualityEnumKey
+}
+
+export type VideoFile0Aefde42 = {
+  /**
+   * @description The name of the file. It will be auto-generated if not provided.
+   * @example z9RV14K95DvU.png
+   */
+  file_name?: string | null
+  /**
+   * @description The width of the video
+   */
+  width?: number | null
+  /**
+   * @description The mime type of the file.
+   * @example image/png
+   */
+  content_type?: string | null
+  /**
+   * @description The URL where the file can be downloaded from.
+   * @type string
+   */
+  url: string
+  /**
+   * @description The duration of the video
+   */
+  duration?: number | null
+  /**
+   * @description The size of the file in bytes.
+   * @example 4404019
+   */
+  file_size?: number | null
+  /**
+   * @description The number of frames in the video
+   */
+  num_frames?: number | null
+  /**
+   * @description The height of the video
+   */
+  height?: number | null
+  /**
+   * @description The FPS of the video
+   */
+  fps?: number | null
+}
+
+export type OutputFalAiCosmosPredict25ImageToVideo = {
+  /**
+   * @description The random seed used for generation.
+   * @type integer
+   */
+  seed: number
+  /**
+   * @description The generated video file.
+   * @example {"content_type":"video/mp4","url":"https://v3b.fal.media/files/b/0a8fabc5/qAi19s0dSuQHDZ3O7D_HV_FkSwbls1.mp4"}
+   * @type object
+   */
+  video: VideoFile0Aefde42
+}
+
+export const inputFalAiCosmosPredict25TextToVideoVideoOutputTypeEnum = {
+  'X264 (.mp4)': 'X264 (.mp4)',
+  'VP9 (.webm)': 'VP9 (.webm)',
+  'PRORES4444 (.mov)': 'PRORES4444 (.mov)',
+  'GIF (.gif)': 'GIF (.gif)',
+} as const
+
+export type InputFalAiCosmosPredict25TextToVideoVideoOutputTypeEnumKey =
+  (typeof inputFalAiCosmosPredict25TextToVideoVideoOutputTypeEnum)[keyof typeof inputFalAiCosmosPredict25TextToVideoVideoOutputTypeEnum]
+
+export const inputFalAiCosmosPredict25TextToVideoVideoQualityEnum = {
+  low: 'low',
+  medium: 'medium',
+  high: 'high',
+  maximum: 'maximum',
+} as const
+
+export type InputFalAiCosmosPredict25TextToVideoVideoQualityEnumKey =
+  (typeof inputFalAiCosmosPredict25TextToVideoVideoQualityEnum)[keyof typeof inputFalAiCosmosPredict25TextToVideoVideoQualityEnum]
+
+export type InputFalAiCosmosPredict25TextToVideo = {
+  /**
+   * @description Number of denoising steps. More steps yield higher quality but take longer.
+   * @minimum 1
+   * @maximum 50
+   * @default 35
+   * @type integer | undefined
+   */
+  num_inference_steps?: number
+  /**
+   * @description If `True`, the media will be returned as a data URI and the output data won't be available in the request history.
+   * @default false
+   * @type boolean | undefined
+   */
+  sync_mode?: boolean
+  /**
+   * @description A negative prompt to guide generation away from undesired content.
+   * @default 'The video captures a series of frames showing ugly scenes, static with no motion, motion blur, over-saturation, shaky footage, low resolution, grainy texture, pixelated images, poorly lit areas, underexposed and overexposed scenes, poor color balance, washed out colors, choppy sequences, jerky movements, low frame rate, artifacting, color banding, unnatural transitions, outdated special effects, fake elements, unconvincing visuals, poorly edited content, jump cuts, visual noise, and flickering. Overall, the video is of poor quality.'
+   * @type string | undefined
+   */
+  negative_prompt?: string
+  /**
+   * @description Authorized callers may set false to request relaxed screening.
+   * @default true
+   * @type boolean | undefined
+   */
+  enable_safety_checker?: boolean
+  /**
+   * @description Classifier-free guidance scale. Higher values increase prompt adherence.
+   * @minimum 1
+   * @maximum 20
+   * @default 7
+   * @type number | undefined
+   */
+  guidance_scale?: number
+  /**
+   * @description The text prompt describing the video to generate.
+   * @example A static, locked-off camera frames an industrial conveyor belt steadily transporting rough rocks through a dimly lit quarry processing facility. The belt runs horizontally across the center of the frame, its thick black rubber surface textured with dust and fine gravel. Jagged gray and brown stones of varying sizes tumble forward in a slow, continuous motion, their sharp edges catching the light. Subtle vibrations ripple through the belt’s surface as small pebbles bounce and shift. In the background, blurred steel beams, pipes, and muted industrial machinery create depth without distraction. Cool, diffused overhead lighting casts soft shadows and highlights the gritty textures, emphasizing dust particles in the air and the raw, rugged surfaces of the rocks.
+   * @type string
+   */
+  prompt: string
+  /**
+   * @description The format of the output video.
+   * @default 'X264 (.mp4)'
+   * @type string | undefined
+   */
+  video_output_type?: InputFalAiCosmosPredict25TextToVideoVideoOutputTypeEnumKey
+  /**
+   * @description Number of frames to generate. Must be between 9 and 93.
+   * @minimum 9
+   * @maximum 93
+   * @default 93
+   * @type integer | undefined
+   */
+  num_frames?: number
+  /**
+   * @description Random seed for reproducible generation.
+   */
+  seed?: number | null
+  /**
+   * @description The quality of the output video.
+   * @default 'high'
+   * @type string | undefined
+   */
+  video_quality?: InputFalAiCosmosPredict25TextToVideoVideoQualityEnumKey
+}
+
+export type VideoFile6E6Abd90 = {
+  /**
+   * @description The name of the file. It will be auto-generated if not provided.
+   * @example z9RV14K95DvU.png
+   */
+  file_name?: string | null
+  /**
+   * @description The width of the video
+   */
+  width?: number | null
+  /**
+   * @description The mime type of the file.
+   * @example image/png
+   */
+  content_type?: string | null
+  /**
+   * @description The URL where the file can be downloaded from.
+   * @type string
+   */
+  url: string
+  /**
+   * @description The duration of the video
+   */
+  duration?: number | null
+  /**
+   * @description The size of the file in bytes.
+   * @example 4404019
+   */
+  file_size?: number | null
+  /**
+   * @description The number of frames in the video
+   */
+  num_frames?: number | null
+  /**
+   * @description The height of the video
+   */
+  height?: number | null
+  /**
+   * @description The FPS of the video
+   */
+  fps?: number | null
+}
+
+export type OutputFalAiCosmosPredict25TextToVideo = {
+  /**
+   * @description The random seed used for generation.
+   * @type integer
+   */
+  seed: number
+  /**
+   * @description The generated video file.
+   * @example {"content_type":"video/mp4","url":"https://v3b.fal.media/files/b/0a8fabc5/qAi19s0dSuQHDZ3O7D_HV_FkSwbls1.mp4"}
+   * @type object
+   */
+  video: VideoFile6E6Abd90
+}
+
+export const inputFalAiCosmosPredict25VideoToVideoVideoOutputTypeEnum = {
+  'X264 (.mp4)': 'X264 (.mp4)',
+  'VP9 (.webm)': 'VP9 (.webm)',
+  'PRORES4444 (.mov)': 'PRORES4444 (.mov)',
+  'GIF (.gif)': 'GIF (.gif)',
+} as const
+
+export type InputFalAiCosmosPredict25VideoToVideoVideoOutputTypeEnumKey =
+  (typeof inputFalAiCosmosPredict25VideoToVideoVideoOutputTypeEnum)[keyof typeof inputFalAiCosmosPredict25VideoToVideoVideoOutputTypeEnum]
+
+export const inputFalAiCosmosPredict25VideoToVideoVideoQualityEnum = {
+  low: 'low',
+  medium: 'medium',
+  high: 'high',
+  maximum: 'maximum',
+} as const
+
+export type InputFalAiCosmosPredict25VideoToVideoVideoQualityEnumKey =
+  (typeof inputFalAiCosmosPredict25VideoToVideoVideoQualityEnum)[keyof typeof inputFalAiCosmosPredict25VideoToVideoVideoQualityEnum]
+
+export type InputFalAiCosmosPredict25VideoToVideo = {
+  /**
+   * @description URL of the input video to use as conditioning.
+   * @example https://v3b.fal.media/files/b/0a8fabc5/qAi19s0dSuQHDZ3O7D_HV_FkSwbls1.mp4
+   * @type string
+   */
+  video_url: string
+  /**
+   * @description Number of denoising steps. More steps yield higher quality but take longer.
+   * @minimum 1
+   * @maximum 50
+   * @default 35
+   * @type integer | undefined
+   */
+  num_inference_steps?: number
+  /**
+   * @description If `True`, the media will be returned as a data URI and the output data won't be available in the request history.
+   * @default false
+   * @type boolean | undefined
+   */
+  sync_mode?: boolean
+  /**
+   * @description A negative prompt to guide generation away from undesired content.
+   * @default 'The video captures a series of frames showing ugly scenes, static with no motion, motion blur, over-saturation, shaky footage, low resolution, grainy texture, pixelated images, poorly lit areas, underexposed and overexposed scenes, poor color balance, washed out colors, choppy sequences, jerky movements, low frame rate, artifacting, color banding, unnatural transitions, outdated special effects, fake elements, unconvincing visuals, poorly edited content, jump cuts, visual noise, and flickering. Overall, the video is of poor quality.'
+   * @type string | undefined
+   */
+  negative_prompt?: string
+  /**
+   * @description Authorized callers may set false to request relaxed screening.
+   * @default true
+   * @type boolean | undefined
+   */
+  enable_safety_checker?: boolean
+  /**
+   * @description Classifier-free guidance scale. Higher values increase prompt adherence.
+   * @minimum 1
+   * @maximum 20
+   * @default 7
+   * @type number | undefined
+   */
+  guidance_scale?: number
+  /**
+   * @description The text prompt describing the video to generate.
+   * @example A static, locked-off camera frames an industrial conveyor belt steadily transporting rough rocks through a dimly lit quarry processing facility. The belt runs horizontally across the center of the frame, its thick black rubber surface textured with dust and fine gravel. Jagged gray and brown stones of varying sizes tumble forward in a slow, continuous motion, their sharp edges catching the light. Subtle vibrations ripple through the belt’s surface as small pebbles bounce and shift. In the background, blurred steel beams, pipes, and muted industrial machinery create depth without distraction. Cool, diffused overhead lighting casts soft shadows and highlights the gritty textures, emphasizing dust particles in the air and the raw, rugged surfaces of the rocks.
+   * @type string
+   */
+  prompt: string
+  /**
+   * @description The format of the output video.
+   * @default 'X264 (.mp4)'
+   * @type string | undefined
+   */
+  video_output_type?: InputFalAiCosmosPredict25VideoToVideoVideoOutputTypeEnumKey
+  /**
+   * @description Number of frames to generate. Must be between 9 and 93.
+   * @minimum 9
+   * @maximum 93
+   * @default 93
+   * @type integer | undefined
+   */
+  num_frames?: number
+  /**
+   * @description Random seed for reproducible generation.
+   */
+  seed?: number | null
+  /**
+   * @description The quality of the output video.
+   * @default 'high'
+   * @type string | undefined
+   */
+  video_quality?: InputFalAiCosmosPredict25VideoToVideoVideoQualityEnumKey
+}
+
+export type VideoFile29E34A1C = {
+  /**
+   * @description The name of the file. It will be auto-generated if not provided.
+   * @example z9RV14K95DvU.png
+   */
+  file_name?: string | null
+  /**
+   * @description The width of the video
+   */
+  width?: number | null
+  /**
+   * @description The mime type of the file.
+   * @example image/png
+   */
+  content_type?: string | null
+  /**
+   * @description The URL where the file can be downloaded from.
+   * @type string
+   */
+  url: string
+  /**
+   * @description The duration of the video
+   */
+  duration?: number | null
+  /**
+   * @description The size of the file in bytes.
+   * @example 4404019
+   */
+  file_size?: number | null
+  /**
+   * @description The number of frames in the video
+   */
+  num_frames?: number | null
+  /**
+   * @description The height of the video
+   */
+  height?: number | null
+  /**
+   * @description The FPS of the video
+   */
+  fps?: number | null
+}
+
+export type OutputFalAiCosmosPredict25VideoToVideo = {
+  /**
+   * @description The random seed used for generation.
+   * @type integer
+   */
+  seed: number
+  /**
+   * @description The generated video file.
+   * @example {"content_type":"video/mp4","url":"https://v3b.fal.media/files/b/0a8fabc5/qAi19s0dSuQHDZ3O7D_HV_FkSwbls1.mp4"}
+   * @type object
+   */
+  video: VideoFile29E34A1C
+}
+
 export const inputFalAiCreatifyAuroraResolutionEnum = {
   '480p': '480p',
   '720p': '720p',
@@ -9566,6 +12705,320 @@ export type OutputFalAiEchomimicV3 = {
   video: File150Ba2F2
 }
 
+export const inputFalAiEdittoAspectRatioEnum = {
+  auto: 'auto',
+  '16:9': '16:9',
+  '1:1': '1:1',
+  '9:16': '9:16',
+} as const
+
+export type InputFalAiEdittoAspectRatioEnumKey =
+  (typeof inputFalAiEdittoAspectRatioEnum)[keyof typeof inputFalAiEdittoAspectRatioEnum]
+
+export const inputFalAiEdittoResolutionEnum = {
+  auto: 'auto',
+  '240p': '240p',
+  '360p': '360p',
+  '480p': '480p',
+  '580p': '580p',
+  '720p': '720p',
+} as const
+
+export type InputFalAiEdittoResolutionEnumKey =
+  (typeof inputFalAiEdittoResolutionEnum)[keyof typeof inputFalAiEdittoResolutionEnum]
+
+export const inputFalAiEdittoVideoWriteModeEnum = {
+  fast: 'fast',
+  balanced: 'balanced',
+  small: 'small',
+} as const
+
+export type InputFalAiEdittoVideoWriteModeEnumKey =
+  (typeof inputFalAiEdittoVideoWriteModeEnum)[keyof typeof inputFalAiEdittoVideoWriteModeEnum]
+
+export const inputFalAiEdittoAcceleration = {
+  none: 'none',
+  low: 'low',
+  regular: 'regular',
+} as const
+
+export type InputFalAiEdittoAccelerationKey =
+  (typeof inputFalAiEdittoAcceleration)[keyof typeof inputFalAiEdittoAcceleration]
+
+export const inputFalAiEdittoVideoQualityEnum = {
+  low: 'low',
+  medium: 'medium',
+  high: 'high',
+  maximum: 'maximum',
+} as const
+
+export type InputFalAiEdittoVideoQualityEnumKey =
+  (typeof inputFalAiEdittoVideoQualityEnum)[keyof typeof inputFalAiEdittoVideoQualityEnum]
+
+export const inputFalAiEdittoSamplerEnum = {
+  unipc: 'unipc',
+  'dpm++': 'dpm++',
+  euler: 'euler',
+} as const
+
+export type InputFalAiEdittoSamplerEnumKey =
+  (typeof inputFalAiEdittoSamplerEnum)[keyof typeof inputFalAiEdittoSamplerEnum]
+
+export type InputFalAiEditto = {
+  /**
+   * @description If set to true, the safety checker will be enabled. Disabling it requires account authorization; unauthorized requests are always checked.
+   * @default false
+   * @example true
+   * @type boolean | undefined
+   */
+  enable_safety_checker?: boolean
+  /**
+   * @description Guidance scale for classifier-free guidance. Higher values encourage the model to generate images closely related to the text prompt.
+   * @minimum 1
+   * @maximum 10
+   * @default 5
+   * @example 5
+   * @type number | undefined
+   */
+  guidance_scale?: number
+  /**
+   * @description Aspect ratio of the generated video.
+   * @default 'auto'
+   * @type string | undefined
+   */
+  aspect_ratio?: InputFalAiEdittoAspectRatioEnumKey
+  /**
+   * @description Number of inference steps for sampling. Higher values give better quality but take longer.
+   * @minimum 2
+   * @maximum 50
+   * @default 30
+   * @example 50
+   * @type integer | undefined
+   */
+  num_inference_steps?: number
+  /**
+   * @description Resolution of the generated video.
+   * @default 'auto'
+   * @type string | undefined
+   */
+  resolution?: InputFalAiEdittoResolutionEnumKey
+  /**
+   * @description Random seed for reproducibility. If None, a random seed is chosen.
+   */
+  seed?: number | null
+  /**
+   * @description The write mode of the generated video.
+   * @default 'balanced'
+   * @example balanced
+   * @type string | undefined
+   */
+  video_write_mode?: InputFalAiEdittoVideoWriteModeEnumKey
+  /**
+   * @description If true, the number of frames in the generated video will match the number of frames in the input video. If false, the number of frames will be determined by the num_frames parameter.
+   * @default false
+   * @example true
+   * @type boolean | undefined
+   */
+  match_input_num_frames?: boolean
+  /**
+   * @description Frames per second of the generated video. Must be between 5 to 30. Ignored if match_input_frames_per_second is true.
+   * @default 16
+   */
+  frames_per_second?: number | null
+  /**
+   * @description If true, also return a ZIP file containing all generated frames.
+   * @default false
+   * @example false
+   * @type boolean | undefined
+   */
+  return_frames_zip?: boolean
+  /**
+   * @description Acceleration to use for inference. Options are 'none' or 'regular'. Accelerated inference will very slightly affect output, but will be significantly faster.
+   * @default regular
+   * @example regular
+   */
+  acceleration?: InputFalAiEdittoAccelerationKey | null
+  /**
+   * @description The text prompt to guide video generation.
+   * @example Make it a Pixel Art video.
+   * @type string
+   */
+  prompt: string
+  /**
+   * @description If true, the model will automatically temporally downsample the video to an appropriate frame length for the model, then will interpolate it back to the original frame length.
+   * @default false
+   * @example false
+   * @type boolean | undefined
+   */
+  enable_auto_downsample?: boolean
+  /**
+   * @description The quality of the generated video.
+   * @default 'high'
+   * @example high
+   * @type string | undefined
+   */
+  video_quality?: InputFalAiEdittoVideoQualityEnumKey
+  /**
+   * @description Shift parameter for video generation.
+   * @minimum 1
+   * @maximum 15
+   * @default 5
+   * @type number | undefined
+   */
+  shift?: number
+  /**
+   * @description If true, the frames per second of the generated video will match the input video. If false, the frames per second will be determined by the frames_per_second parameter.
+   * @default false
+   * @example true
+   * @type boolean | undefined
+   */
+  match_input_frames_per_second?: boolean
+  /**
+   * @description Number of frames to generate. Must be between 81 to 241 (inclusive).
+   * @minimum 17
+   * @maximum 241
+   * @default 81
+   * @type integer | undefined
+   */
+  num_frames?: number
+  /**
+   * @description Number of frames to interpolate between the original frames. A value of 0 means no interpolation.
+   * @minimum 0
+   * @maximum 5
+   * @default 0
+   * @example 0
+   * @type integer | undefined
+   */
+  num_interpolated_frames?: number
+  /**
+   * @description Temporal downsample factor for the video. This is an integer value that determines how many frames to skip in the video. A value of 0 means no downsampling. For each downsample factor, one upsample factor will automatically be applied.
+   * @minimum 0
+   * @maximum 5
+   * @default 0
+   * @example 0
+   * @type integer | undefined
+   */
+  temporal_downsample_factor?: number
+  /**
+   * @description If `True`, the media will be returned as a data URI and the output data won't be available in the request history.
+   * @default false
+   * @example false
+   * @type boolean | undefined
+   */
+  sync_mode?: boolean
+  /**
+   * @description Negative prompt for video generation.
+   * @default 'letterboxing, borders, black bars, bright colors, overexposed, static, blurred details, subtitles, style, artwork, painting, picture, still, overall gray, worst quality, low quality, JPEG compression residue, ugly, incomplete, extra fingers, poorly drawn hands, poorly drawn faces, deformed, disfigured, malformed limbs, fused fingers, still picture, cluttered background, three legs, many people in the background, walking backwards'
+   * @example 色调艳丽，过曝，静态，细节模糊不清，字幕，风格，作品，画作，画面，静止，整体发灰，最差质量，低质量，JPEG压缩残留，丑陋的，残缺的，多余的手指，画得不好的手部，画得不好的脸部，畸形的，毁容的，形态畸形的肢体，手指融合，静止不动的画面，杂乱的背景，三条腿，背景人很多，倒着走
+   * @type string | undefined
+   */
+  negative_prompt?: string
+  /**
+   * @description URL to the source video file. Required for inpainting.
+   * @example https://storage.googleapis.com/falserverless/example_inputs/editto/example_in.mp4
+   * @type string
+   */
+  video_url: string
+  /**
+   * @description Sampler to use for video generation.
+   * @default 'unipc'
+   * @example unipc
+   * @type string | undefined
+   */
+  sampler?: InputFalAiEdittoSamplerEnumKey
+}
+
+export type File4Ddd7D78 = {
+  /**
+   * @description The name of the file. It will be auto-generated if not provided.
+   * @example z9RV14K95DvU.png
+   */
+  file_name?: string | null
+  /**
+   * @description The URL where the file can be downloaded from.
+   * @type string
+   */
+  url: string
+  /**
+   * @description The size of the file in bytes.
+   * @example 4404019
+   */
+  file_size?: number | null
+  /**
+   * @description The mime type of the file.
+   * @example image/png
+   */
+  content_type?: string | null
+}
+
+export type VideoFile8Edde9Cd = {
+  /**
+   * @description The number of frames in the video
+   */
+  num_frames?: number | null
+  /**
+   * @description The height of the video
+   */
+  height?: number | null
+  /**
+   * @description The mime type of the file.
+   * @example image/png
+   */
+  content_type?: string | null
+  /**
+   * @description The name of the file. It will be auto-generated if not provided.
+   * @example z9RV14K95DvU.png
+   */
+  file_name?: string | null
+  /**
+   * @description The URL where the file can be downloaded from.
+   * @type string
+   */
+  url: string
+  /**
+   * @description The width of the video
+   */
+  width?: number | null
+  /**
+   * @description The size of the file in bytes.
+   * @example 4404019
+   */
+  file_size?: number | null
+  /**
+   * @description The FPS of the video
+   */
+  fps?: number | null
+  /**
+   * @description The duration of the video
+   */
+  duration?: number | null
+}
+
+export type OutputFalAiEditto = {
+  /**
+   * @description The seed used for generation.
+   * @example 1096772785
+   * @type integer
+   */
+  seed: number
+  /**
+   * @description ZIP archive of all video frames if requested.
+   */
+  frames_zip?: File4Ddd7D78 | null
+  /**
+   * @description The generated image to video file.
+   * @example {"num_frames":73,"height":480,"content_type":"video/mp4","file_name":"example_out.mp4","url":"https://storage.googleapis.com/falserverless/example_outputs/editto/example_out.mp4","width":832,"fps":15,"duration":4.86}
+   * @type object
+   */
+  video: VideoFile8Edde9Cd
+  /**
+   * @description The prompt used for generation.
+   * @example Make it a Pixel Art video.
+   * @type string
+   */
+  prompt: string
+}
+
 export type InputFalAiElevenlabsDubbing = {
   /**
    * @description Source language code. If not provided, will be auto-detected.
@@ -9651,6 +13104,971 @@ export type OutputFalAiElevenlabsDubbing = {
    * @description The dubbed audio file.
    */
   audio?: FileD3067Af7 | null
+}
+
+export type ImageSize8C070D21 = {
+  /**
+   * @description The height of the generated image.
+   * @maximum 14142
+   * @default 512
+   * @type integer | undefined
+   */
+  height?: number
+  /**
+   * @description The width of the generated image.
+   * @maximum 14142
+   * @default 512
+   * @type integer | undefined
+   */
+  width?: number
+}
+
+export const inputFalAiFastAnimatediffTextToVideoMotionsEnum = {
+  'zoom-out': 'zoom-out',
+  'zoom-in': 'zoom-in',
+  'pan-left': 'pan-left',
+  'pan-right': 'pan-right',
+  'tilt-up': 'tilt-up',
+  'tilt-down': 'tilt-down',
+} as const
+
+export type InputFalAiFastAnimatediffTextToVideoMotionsEnumKey =
+  (typeof inputFalAiFastAnimatediffTextToVideoMotionsEnum)[keyof typeof inputFalAiFastAnimatediffTextToVideoMotionsEnum]
+
+export const inputFalAiFastAnimatediffTextToVideoVideoSize = {
+  square_hd: 'square_hd',
+  square: 'square',
+  portrait_4_3: 'portrait_4_3',
+  portrait_16_9: 'portrait_16_9',
+  landscape_4_3: 'landscape_4_3',
+  landscape_16_9: 'landscape_16_9',
+} as const
+
+export type InputFalAiFastAnimatediffTextToVideoVideoSizeKey =
+  (typeof inputFalAiFastAnimatediffTextToVideoVideoSize)[keyof typeof inputFalAiFastAnimatediffTextToVideoVideoSize]
+
+export type InputFalAiFastAnimatediffTextToVideo = {
+  /**
+   * @description The number of inference steps to perform.
+   * @minimum 1
+   * @maximum 50
+   * @default 25
+   * @type integer | undefined
+   */
+  num_inference_steps?: number
+  /**
+   * @description
+   *             The negative prompt to use. Use it to address details that you don't want
+   *             in the image. This could be colors, objects, scenery and even the small details
+   *             (e.g. moustache, blurry, low resolution).
+   *
+   * @default '(bad quality, worst quality:1.2), ugly faces, bad anime'
+   * @type string | undefined
+   */
+  negative_prompt?: string
+  /**
+   * @description The motions to apply to the video.
+   * @type array | undefined
+   */
+  motions?: InputFalAiFastAnimatediffTextToVideoMotionsEnumKey[]
+  /**
+   * @description Authorized callers may set false to request relaxed screening.
+   * @default true
+   * @type boolean | undefined
+   */
+  enable_safety_checker?: boolean
+  /**
+   * @description The size of the video to generate.
+   * @default square
+   */
+  video_size?:
+    | ImageSize8C070D21
+    | InputFalAiFastAnimatediffTextToVideoVideoSizeKey
+  /**
+   * @description Number of frames per second to extract from the video.
+   * @minimum 1
+   * @maximum 16
+   * @default 8
+   * @type integer | undefined
+   */
+  fps?: number
+  /**
+   * @description The prompt to use for generating the video. Be as descriptive as possible for best results.
+   * @example masterpiece, best quality, 1girl, solo, cherry blossoms, hanami, pink flower, white flower, spring season, wisteria, petals, flower, plum blossoms, outdoors, falling petals, white hair, black eyes
+   * @example panda playing a guitar, on a boat, in the ocean, high quality, high quality, ultra HD, realistic
+   * @type string
+   */
+  prompt: string
+  /**
+   * @description The number of frames to generate for the video.
+   * @minimum 1
+   * @maximum 32
+   * @default 16
+   * @type integer | undefined
+   */
+  num_frames?: number
+  /**
+   * @description
+   *             The same seed and the same prompt given to the same version of Stable Diffusion
+   *             will output the same image every time.
+   *
+   */
+  seed?: number | null
+  /**
+   * @description
+   *             The CFG (Classifier Free Guidance) scale is a measure of how close you want
+   *             the model to stick to your prompt when looking for a related image to show you.
+   *
+   * @minimum 0
+   * @maximum 20
+   * @default 7.5
+   * @type number | undefined
+   */
+  guidance_scale?: number
+}
+
+export type File5D70Bbd5 = {
+  /**
+   * @description The name of the file. It will be auto-generated if not provided.
+   * @example z9RV14K95DvU.png
+   */
+  file_name?: string | null
+  /**
+   * @description The size of the file in bytes.
+   * @example 4404019
+   */
+  file_size?: number | null
+  /**
+   * @description The URL where the file can be downloaded from.
+   * @type string
+   */
+  url: string
+  /**
+   * @description The mime type of the file.
+   * @example image/png
+   */
+  content_type?: string | null
+}
+
+export type OutputFalAiFastAnimatediffTextToVideo = {
+  /**
+   * @description Generated video file.
+   * @example {"url":"https://fal-cdn.batuhan-941.workers.dev/files/kangaroo/DSrFBOk9XXIplm_kukI4n.mp4"}
+   * @type object
+   */
+  video: File5D70Bbd5
+  /**
+   * @description Seed used for generating the video.
+   * @type integer
+   */
+  seed: number
+}
+
+export type ImageSizeDd1F2172 = {
+  /**
+   * @description The height of the generated image.
+   * @maximum 14142
+   * @default 512
+   * @type integer | undefined
+   */
+  height?: number
+  /**
+   * @description The width of the generated image.
+   * @maximum 14142
+   * @default 512
+   * @type integer | undefined
+   */
+  width?: number
+}
+
+export const inputFalAiFastAnimatediffTurboTextToVideoVideoSize = {
+  square_hd: 'square_hd',
+  square: 'square',
+  portrait_4_3: 'portrait_4_3',
+  portrait_16_9: 'portrait_16_9',
+  landscape_4_3: 'landscape_4_3',
+  landscape_16_9: 'landscape_16_9',
+} as const
+
+export type InputFalAiFastAnimatediffTurboTextToVideoVideoSizeKey =
+  (typeof inputFalAiFastAnimatediffTurboTextToVideoVideoSize)[keyof typeof inputFalAiFastAnimatediffTurboTextToVideoVideoSize]
+
+export type InputFalAiFastAnimatediffTurboTextToVideo = {
+  /**
+   * @description The number of inference steps to perform. 4-12 is recommended for turbo mode.
+   * @minimum 1
+   * @maximum 50
+   * @default 8
+   * @type integer | undefined
+   */
+  num_inference_steps?: number
+  /**
+   * @description
+   *             The negative prompt to use. Use it to address details that you don't want
+   *             in the image. This could be colors, objects, scenery and even the small details
+   *             (e.g. moustache, blurry, low resolution).
+   *
+   * @default '(bad quality, worst quality:1.2), ugly faces, bad anime'
+   * @type string | undefined
+   */
+  negative_prompt?: string
+  /**
+   * @description Authorized callers may set false to request relaxed screening.
+   * @default true
+   * @type boolean | undefined
+   */
+  enable_safety_checker?: boolean
+  /**
+   * @description The size of the video to generate.
+   * @default square
+   */
+  video_size?:
+    | ImageSizeDd1F2172
+    | InputFalAiFastAnimatediffTurboTextToVideoVideoSizeKey
+  /**
+   * @description Number of frames per second to extract from the video.
+   * @minimum 1
+   * @maximum 16
+   * @default 8
+   * @type integer | undefined
+   */
+  fps?: number
+  /**
+   * @description The prompt to use for generating the video. Be as descriptive as possible for best results.
+   * @example masterpiece, best quality, 1girl, solo, cherry blossoms, hanami, pink flower, white flower, spring season, wisteria, petals, flower, plum blossoms, outdoors, falling petals, white hair, black eyes
+   * @example panda playing a guitar, on a boat, in the ocean, high quality, high quality, ultra HD, realistic
+   * @type string
+   */
+  prompt: string
+  /**
+   * @description The number of frames to generate for the video.
+   * @minimum 1
+   * @maximum 32
+   * @default 16
+   * @type integer | undefined
+   */
+  num_frames?: number
+  /**
+   * @description
+   *             The same seed and the same prompt given to the same version of Stable Diffusion
+   *             will output the same image every time.
+   *
+   */
+  seed?: number | null
+  /**
+   * @description The CFG (Classifier Free Guidance) scale is a measure of how close you want the model to stick to your prompt when looking for a related image to show you.
+   * @minimum 0
+   * @maximum 20
+   * @default 2
+   * @type number | undefined
+   */
+  guidance_scale?: number
+}
+
+export type File1C19C1A6 = {
+  /**
+   * @description The name of the file. It will be auto-generated if not provided.
+   * @example z9RV14K95DvU.png
+   */
+  file_name?: string | null
+  /**
+   * @description The size of the file in bytes.
+   * @example 4404019
+   */
+  file_size?: number | null
+  /**
+   * @description The URL where the file can be downloaded from.
+   * @type string
+   */
+  url: string
+  /**
+   * @description The mime type of the file.
+   * @example image/png
+   */
+  content_type?: string | null
+}
+
+export type OutputFalAiFastAnimatediffTurboTextToVideo = {
+  /**
+   * @description Generated video file.
+   * @example {"url":"https://fal-cdn.batuhan-941.workers.dev/files/kangaroo/DSrFBOk9XXIplm_kukI4n.mp4"}
+   * @type object
+   */
+  video: File1C19C1A6
+  /**
+   * @description Seed used for generating the video.
+   * @type integer
+   */
+  seed: number
+}
+
+export type InputFalAiFastAnimatediffTurboVideoToVideo = {
+  /**
+   * @description URL of the video.
+   * @example https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/diffusers/animatediff-vid2vid-input-2.gif
+   * @example https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/diffusers/animatediff-vid2vid-input-1.gif
+   * @type string
+   */
+  video_url: string
+  /**
+   * @description The number of inference steps to perform. 4-12 is recommended for turbo mode.
+   * @minimum 1
+   * @maximum 50
+   * @default 12
+   * @type integer | undefined
+   */
+  num_inference_steps?: number
+  /**
+   * @description The strength of the input video in the final output.
+   * @minimum 0
+   * @maximum 1
+   * @default 0.7
+   * @type number | undefined
+   */
+  strength?: number
+  /**
+   * @description
+   *             The negative prompt to use. Use it to address details that you don't want
+   *             in the image. This could be colors, objects, scenery and even the small details
+   *             (e.g. moustache, blurry, low resolution).
+   *
+   * @default '(bad quality, worst quality:1.2), ugly faces, bad anime'
+   * @type string | undefined
+   */
+  negative_prompt?: string
+  /**
+   * @description Authorized callers may set false to request relaxed screening.
+   * @default true
+   * @type boolean | undefined
+   */
+  enable_safety_checker?: boolean
+  /**
+   * @description The CFG (Classifier Free Guidance) scale is a measure of how close you want the model to stick to your prompt when looking for a related image to show you.
+   * @minimum 0
+   * @maximum 20
+   * @default 2
+   * @type number | undefined
+   */
+  guidance_scale?: number
+  /**
+   * @description Number of frames per second to extract from the video.
+   * @minimum 1
+   * @maximum 16
+   * @default 8
+   * @type integer | undefined
+   */
+  fps?: number
+  /**
+   * @description The prompt to use for generating the image. Be as descriptive as possible for best results.
+   * @example closeup of tony stark, robert downey jr, fireworks, high quality, ultra HD
+   * @example panda playing a guitar, on a boat, in the ocean, high quality, high quality, ultra HD, realistic
+   * @type string
+   */
+  prompt: string
+  /**
+   * @description The first N number of seconds of video to animate.
+   * @minimum 2
+   * @maximum 4
+   * @default 3
+   * @type integer | undefined
+   */
+  first_n_seconds?: number
+  /**
+   * @description
+   *             The same seed and the same prompt given to the same version of Stable Diffusion
+   *             will output the same image every time.
+   *
+   */
+  seed?: number | null
+}
+
+export type FileE9B0Ae26 = {
+  /**
+   * @description The name of the file. It will be auto-generated if not provided.
+   * @example z9RV14K95DvU.png
+   */
+  file_name?: string | null
+  /**
+   * @description The size of the file in bytes.
+   * @example 4404019
+   */
+  file_size?: number | null
+  /**
+   * @description The URL where the file can be downloaded from.
+   * @type string
+   */
+  url: string
+  /**
+   * @description The mime type of the file.
+   * @example image/png
+   */
+  content_type?: string | null
+}
+
+export type OutputFalAiFastAnimatediffTurboVideoToVideo = {
+  /**
+   * @description Generated video file.
+   * @example {"url":"https://fal-cdn.batuhan-941.workers.dev/files/koala/5Cb_6P_s9wW8f8-g9c4yj.mp4"}
+   * @type object
+   */
+  video: FileE9B0Ae26
+  /**
+   * @description Seed used for generating the video.
+   * @type integer
+   */
+  seed: number
+}
+
+export const inputFalAiFastAnimatediffVideoToVideoMotionsEnum = {
+  'zoom-out': 'zoom-out',
+  'zoom-in': 'zoom-in',
+  'pan-left': 'pan-left',
+  'pan-right': 'pan-right',
+  'tilt-up': 'tilt-up',
+  'tilt-down': 'tilt-down',
+} as const
+
+export type InputFalAiFastAnimatediffVideoToVideoMotionsEnumKey =
+  (typeof inputFalAiFastAnimatediffVideoToVideoMotionsEnum)[keyof typeof inputFalAiFastAnimatediffVideoToVideoMotionsEnum]
+
+export type InputFalAiFastAnimatediffVideoToVideo = {
+  /**
+   * @description The number of inference steps to perform.
+   * @minimum 1
+   * @maximum 50
+   * @default 25
+   * @type integer | undefined
+   */
+  num_inference_steps?: number
+  /**
+   * @description URL of the video.
+   * @example https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/diffusers/animatediff-vid2vid-input-2.gif
+   * @example https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/diffusers/animatediff-vid2vid-input-1.gif
+   * @type string
+   */
+  video_url: string
+  /**
+   * @description The strength of the input video in the final output.
+   * @minimum 0
+   * @maximum 1
+   * @default 0.7
+   * @type number | undefined
+   */
+  strength?: number
+  /**
+   * @description
+   *             The negative prompt to use. Use it to address details that you don't want
+   *             in the image. This could be colors, objects, scenery and even the small details
+   *             (e.g. moustache, blurry, low resolution).
+   *
+   * @default '(bad quality, worst quality:1.2), ugly faces, bad anime'
+   * @type string | undefined
+   */
+  negative_prompt?: string
+  /**
+   * @description The motions to apply to the video.
+   * @type array | undefined
+   */
+  motions?: InputFalAiFastAnimatediffVideoToVideoMotionsEnumKey[]
+  /**
+   * @description Authorized callers may set false to request relaxed screening.
+   * @default true
+   * @type boolean | undefined
+   */
+  enable_safety_checker?: boolean
+  /**
+   * @description
+   *             The CFG (Classifier Free Guidance) scale is a measure of how close you want
+   *             the model to stick to your prompt when looking for a related image to show you.
+   *
+   * @minimum 0
+   * @maximum 20
+   * @default 7.5
+   * @type number | undefined
+   */
+  guidance_scale?: number
+  /**
+   * @description Number of frames per second to extract from the video.
+   * @minimum 1
+   * @maximum 16
+   * @default 8
+   * @type integer | undefined
+   */
+  fps?: number
+  /**
+   * @description The prompt to use for generating the image. Be as descriptive as possible for best results.
+   * @example closeup of tony stark, robert downey jr, fireworks, high quality, ultra HD
+   * @example panda playing a guitar, on a boat, in the ocean, high quality, high quality, ultra HD, realistic
+   * @type string
+   */
+  prompt: string
+  /**
+   * @description The first N number of seconds of video to animate.
+   * @minimum 2
+   * @maximum 4
+   * @default 3
+   * @type integer | undefined
+   */
+  first_n_seconds?: number
+  /**
+   * @description
+   *             The same seed and the same prompt given to the same version of Stable Diffusion
+   *             will output the same image every time.
+   *
+   */
+  seed?: number | null
+}
+
+export type File6053B40B = {
+  /**
+   * @description The name of the file. It will be auto-generated if not provided.
+   * @example z9RV14K95DvU.png
+   */
+  file_name?: string | null
+  /**
+   * @description The size of the file in bytes.
+   * @example 4404019
+   */
+  file_size?: number | null
+  /**
+   * @description The URL where the file can be downloaded from.
+   * @type string
+   */
+  url: string
+  /**
+   * @description The mime type of the file.
+   * @example image/png
+   */
+  content_type?: string | null
+}
+
+export type OutputFalAiFastAnimatediffVideoToVideo = {
+  /**
+   * @description Generated video file.
+   * @example {"url":"https://fal-cdn.batuhan-941.workers.dev/files/koala/5Cb_6P_s9wW8f8-g9c4yj.mp4"}
+   * @type object
+   */
+  video: File6053B40B
+  /**
+   * @description Seed used for generating the video.
+   * @type integer
+   */
+  seed: number
+}
+
+export type InputFalAiFastSvdLcm = {
+  /**
+   * @description
+   *             The number of steps to run the model for. The higher the number the better
+   *             the quality and longer it will take to generate.
+   *
+   * @minimum 1
+   * @maximum 20
+   * @default 4
+   * @type integer | undefined
+   */
+  steps?: number
+  /**
+   * @description The URL of the image to use as a starting point for the generation.
+   * @example https://storage.googleapis.com/falserverless/model_tests/svd/rocket.png
+   * @example https://storage.googleapis.com/falserverless/model_tests/svd/mustang.png
+   * @example https://storage.googleapis.com/falserverless/model_tests/svd/ship.png
+   * @example https://storage.googleapis.com/falserverless/model_tests/svd/rocket2.png
+   * @type string
+   */
+  image_url: string
+  /**
+   * @description
+   *             The same seed and the same prompt given to the same version of Stable Diffusion
+   *             will output the same image every time.
+   *
+   */
+  seed?: number | null
+  /**
+   * @description
+   *             The motion bucket id determines the motion of the generated video. The
+   *             higher the number, the more motion there will be.
+   *
+   * @minimum 1
+   * @maximum 255
+   * @default 127
+   * @type integer | undefined
+   */
+  motion_bucket_id?: number
+  /**
+   * @description
+   *             The conditoning augmentation determines the amount of noise that will be
+   *             added to the conditioning frame. The higher the number, the more noise
+   *             there will be, and the less the video will look like the initial image.
+   *             Increase it for more motion.
+   *
+   * @minimum 0
+   * @maximum 10
+   * @default 0.02
+   * @type number | undefined
+   */
+  cond_aug?: number
+  /**
+   * @description
+   *             The FPS of the generated video. The higher the number, the faster the video will
+   *             play. Total video length is 25 frames.
+   *
+   * @minimum 1
+   * @maximum 25
+   * @default 10
+   * @type integer | undefined
+   */
+  fps?: number
+}
+
+export type File51894B6D = {
+  /**
+   * @description The URL where the file can be downloaded from.
+   * @type string
+   */
+  url: string
+  /**
+   * @description The size of the file in bytes.
+   * @example 4404019
+   */
+  file_size?: number | null
+  /**
+   * @description The mime type of the file.
+   * @example image/png
+   */
+  content_type?: string | null
+  /**
+   * @description The name of the file. It will be auto-generated if not provided.
+   * @example z9RV14K95DvU.png
+   */
+  file_name?: string | null
+}
+
+export type OutputFalAiFastSvdLcm = {
+  /**
+   * @description
+   *             Seed of the generated Image. It will be the same value of the one passed in the
+   *             input or the randomly generated that was used in case none was passed.
+   *
+   *
+   * @type integer
+   */
+  seed: number
+  /**
+   * @description The generated video file.
+   * @type object
+   */
+  video: File51894B6D
+}
+
+export type ImageSize24F8Fd35 = {
+  /**
+   * @description The height of the generated image.
+   * @maximum 14142
+   * @default 512
+   * @type integer | undefined
+   */
+  height?: number
+  /**
+   * @description The width of the generated image.
+   * @maximum 14142
+   * @default 512
+   * @type integer | undefined
+   */
+  width?: number
+}
+
+export const inputFalAiFastSvdLcmTextToVideoVideoSize = {
+  square_hd: 'square_hd',
+  square: 'square',
+  portrait_4_3: 'portrait_4_3',
+  portrait_16_9: 'portrait_16_9',
+  landscape_4_3: 'landscape_4_3',
+  landscape_16_9: 'landscape_16_9',
+} as const
+
+export type InputFalAiFastSvdLcmTextToVideoVideoSizeKey =
+  (typeof inputFalAiFastSvdLcmTextToVideoVideoSize)[keyof typeof inputFalAiFastSvdLcmTextToVideoVideoSize]
+
+export type InputFalAiFastSvdLcmTextToVideo = {
+  /**
+   * @description Authorized callers may set false to request relaxed screening.
+   * @default true
+   * @type boolean | undefined
+   */
+  enable_safety_checker?: boolean
+  /**
+   * @description The prompt to use as a starting point for the generation.
+   * @example A rocket flying that is about to take off
+   * @type string
+   */
+  prompt: string
+  /**
+   * @description
+   *             The number of steps to run the model for. The higher the number the better
+   *             the quality and longer it will take to generate.
+   *
+   * @minimum 1
+   * @maximum 20
+   * @default 4
+   * @type integer | undefined
+   */
+  steps?: number
+  /**
+   * @description
+   *             The conditoning augmentation determines the amount of noise that will be
+   *             added to the conditioning frame. The higher the number, the more noise
+   *             there will be, and the less the video will look like the initial image.
+   *             Increase it for more motion.
+   *
+   * @minimum 0
+   * @maximum 10
+   * @default 0.02
+   * @type number | undefined
+   */
+  cond_aug?: number
+  /**
+   * @description
+   *             The FPS of the generated video. The higher the number, the faster the video will
+   *             play. Total video length is 25 frames.
+   *
+   * @minimum 1
+   * @maximum 25
+   * @default 10
+   * @type integer | undefined
+   */
+  fps?: number
+  /**
+   * @description
+   *             The motion bucket id determines the motion of the generated video. The
+   *             higher the number, the more motion there will be.
+   *
+   * @minimum 1
+   * @maximum 255
+   * @default 127
+   * @type integer | undefined
+   */
+  motion_bucket_id?: number
+  /**
+   * @description
+   *             The same seed and the same prompt given to the same version of Stable Diffusion
+   *             will output the same image every time.
+   *
+   */
+  seed?: number | null
+  /**
+   * @description The size of the generated video.
+   * @default landscape_16_9
+   */
+  video_size?: ImageSize24F8Fd35 | InputFalAiFastSvdLcmTextToVideoVideoSizeKey
+}
+
+export type FileD6Daa9Db = {
+  /**
+   * @description The URL where the file can be downloaded from.
+   * @type string
+   */
+  url: string
+  /**
+   * @description The size of the file in bytes.
+   * @example 4404019
+   */
+  file_size?: number | null
+  /**
+   * @description The mime type of the file.
+   * @example image/png
+   */
+  content_type?: string | null
+  /**
+   * @description The name of the file. It will be auto-generated if not provided.
+   * @example z9RV14K95DvU.png
+   */
+  file_name?: string | null
+}
+
+export type OutputFalAiFastSvdLcmTextToVideo = {
+  /**
+   * @description
+   *             Seed of the generated Image. It will be the same value of the one passed in the
+   *             input or the randomly generated that was used in case none was passed.
+   *
+   *
+   * @type integer
+   */
+  seed: number
+  /**
+   * @description The generated video file.
+   * @type object
+   */
+  video: FileD6Daa9Db
+}
+
+export type ImageSize21D95Fa6 = {
+  /**
+   * @description The height of the generated image.
+   * @maximum 14142
+   * @default 512
+   * @type integer | undefined
+   */
+  height?: number
+  /**
+   * @description The width of the generated image.
+   * @maximum 14142
+   * @default 512
+   * @type integer | undefined
+   */
+  width?: number
+}
+
+export const inputFalAiFastSvdTextToVideoDeepCacheEnum = {
+  none: 'none',
+  minimum: 'minimum',
+  medium: 'medium',
+  high: 'high',
+} as const
+
+export type InputFalAiFastSvdTextToVideoDeepCacheEnumKey =
+  (typeof inputFalAiFastSvdTextToVideoDeepCacheEnum)[keyof typeof inputFalAiFastSvdTextToVideoDeepCacheEnum]
+
+export const inputFalAiFastSvdTextToVideoVideoSize = {
+  square_hd: 'square_hd',
+  square: 'square',
+  portrait_4_3: 'portrait_4_3',
+  portrait_16_9: 'portrait_16_9',
+  landscape_4_3: 'landscape_4_3',
+  landscape_16_9: 'landscape_16_9',
+} as const
+
+export type InputFalAiFastSvdTextToVideoVideoSizeKey =
+  (typeof inputFalAiFastSvdTextToVideoVideoSize)[keyof typeof inputFalAiFastSvdTextToVideoVideoSize]
+
+export type InputFalAiFastSvdTextToVideo = {
+  /**
+   * @description
+   *             This parameter is deprecated and has no effect. It is kept for backwards
+   *             compatibility.
+   *
+   * @deprecated
+   * @default 'none'
+   * @type string | undefined
+   */
+  deep_cache?: InputFalAiFastSvdTextToVideoDeepCacheEnumKey
+  /**
+   * @description
+   *             The number of steps to run the model for. The higher the number the better
+   *             the quality and longer it will take to generate.
+   *
+   * @minimum 1
+   * @maximum 100
+   * @default 20
+   * @type integer | undefined
+   */
+  steps?: number
+  /**
+   * @description The negative prompt to use as a starting point for the generation.
+   * @default 'unrealistic, saturated, high contrast, big nose, painting, drawing, sketch, cartoon, anime, manga, render, CG, 3d, watermark, signature, label'
+   * @type string | undefined
+   */
+  negative_prompt?: string
+  /**
+   * @description
+   *             The conditoning augmentation determines the amount of noise that will be
+   *             added to the conditioning frame. The higher the number, the more noise
+   *             there will be, and the less the video will look like the initial image.
+   *             Increase it for more motion.
+   *
+   * @minimum 0
+   * @maximum 10
+   * @default 0.02
+   * @type number | undefined
+   */
+  cond_aug?: number
+  /**
+   * @description The prompt to use as a starting point for the generation.
+   * @example A rocket flying that is about to take off
+   * @type string
+   */
+  prompt: string
+  /**
+   * @description
+   *             The same seed and the same prompt given to the same version of Stable Diffusion
+   *             will output the same image every time.
+   *
+   */
+  seed?: number | null
+  /**
+   * @description
+   *             The FPS of the generated video. The higher the number, the faster the video will
+   *             play. Total video length is 25 frames.
+   *
+   * @minimum 1
+   * @maximum 25
+   * @default 10
+   * @type integer | undefined
+   */
+  fps?: number
+  /**
+   * @description The size of the generated video.
+   * @default landscape_16_9
+   */
+  video_size?: ImageSize21D95Fa6 | InputFalAiFastSvdTextToVideoVideoSizeKey
+  /**
+   * @description Authorized callers may set false to request relaxed screening.
+   * @default true
+   * @type boolean | undefined
+   */
+  enable_safety_checker?: boolean
+  /**
+   * @description
+   *             The motion bucket id determines the motion of the generated video. The
+   *             higher the number, the more motion there will be.
+   *
+   * @minimum 1
+   * @maximum 255
+   * @default 127
+   * @type integer | undefined
+   */
+  motion_bucket_id?: number
+}
+
+export type File4Ea29Af4 = {
+  /**
+   * @description The mime type of the file.
+   * @example image/png
+   */
+  content_type?: string | null
+  /**
+   * @description The size of the file in bytes.
+   * @example 4404019
+   */
+  file_size?: number | null
+  /**
+   * @description The name of the file. It will be auto-generated if not provided.
+   * @example z9RV14K95DvU.png
+   */
+  file_name?: string | null
+  /**
+   * @description The URL where the file can be downloaded from.
+   * @type string
+   */
+  url: string
+}
+
+export type OutputFalAiFastSvdTextToVideo = {
+  /**
+   * @description
+   *             Seed of the generated Image. It will be the same value of the one passed in the
+   *             input or the randomly generated that was used in case none was passed.
+   *
+   *
+   * @type integer
+   */
+  seed: number
+  /**
+   * @description The generated video file.
+   * @type object
+   */
+  video: File4Ea29Af4
 }
 
 export type Keyframe = {
@@ -9827,7 +14245,7 @@ export type OutputFalAiFfmpegApiMergeAudioVideo = {
   video: FileD74Fcb62
 }
 
-export type ImageSize = {
+export type ImageSize22Cf2860 = {
   /**
    * @description The height of the generated image.
    * @maximum 14142
@@ -9868,7 +14286,10 @@ export type InputFalAiFfmpegApiMergeVideos = {
   /**
    * @description Resolution of the final video. Width and height must be between 512 and 2048.
    */
-  resolution?: ImageSize | InputFalAiFfmpegApiMergeVideosResolutionKey | null
+  resolution?:
+    | ImageSize22Cf2860
+    | InputFalAiFfmpegApiMergeVideosResolutionKey
+    | null
   /**
    * @description List of video URLs to merge in order
    * @type array
@@ -10158,6 +14579,224 @@ export type OutputFalAiFlashhead = {
   timings?: {
     [key: string]: number
   }
+}
+
+export type InputFalAiFlashtalk = {
+  /**
+   * @description URL of the face reference image.
+   * @example https://v3.fal.media/files/koala/gmpc0QevDF9bBsL1EAYVF_1c637094161147559f0910a68275dc34.png
+   * @type string
+   */
+  image_url: string
+  /**
+   * @description URL of the speech audio file (WAV, MP3, etc).
+   * @example https://v3.fal.media/files/penguin/PtiCYda53E9Dav25QmQYI_output.mp3
+   * @type string
+   */
+  audio_url: string
+  /**
+   * @description Random seed for reproducibility.
+   */
+  seed?: number | null
+}
+
+export type File534A37Fc = {
+  /**
+   * @description The URL where the file can be downloaded from.
+   * @type string
+   */
+  url: string
+  /**
+   * @description The name of the file. It will be auto-generated if not provided.
+   * @example z9RV14K95DvU.png
+   */
+  file_name?: string | null
+  /**
+   * @description The size of the file in bytes.
+   * @example 4404019
+   */
+  file_size?: number | null
+  /**
+   * @description The mime type of the file.
+   * @example image/png
+   */
+  content_type?: string | null
+}
+
+export type OutputFalAiFlashtalk = {
+  /**
+   * @description Video duration in seconds.
+   * @type number
+   */
+  duration: number
+  /**
+   * @description Timing breakdown.
+   * @type object | undefined
+   */
+  timings?: {
+    [key: string]: number
+  }
+  /**
+   * @description The seed used for generation.
+   * @type integer
+   */
+  seed: number
+  /**
+   * @description Generated lip-synced avatar video (768x448, 25 FPS).
+   * @type object
+   */
+  video: File534A37Fc
+}
+
+export const inputFalAiFlashvsrUpscaleVideoOutputQualityEnum = {
+  low: 'low',
+  medium: 'medium',
+  high: 'high',
+  maximum: 'maximum',
+} as const
+
+export type InputFalAiFlashvsrUpscaleVideoOutputQualityEnumKey =
+  (typeof inputFalAiFlashvsrUpscaleVideoOutputQualityEnum)[keyof typeof inputFalAiFlashvsrUpscaleVideoOutputQualityEnum]
+
+export const inputFalAiFlashvsrUpscaleVideoOutputWriteModeEnum = {
+  fast: 'fast',
+  balanced: 'balanced',
+  small: 'small',
+} as const
+
+export type InputFalAiFlashvsrUpscaleVideoOutputWriteModeEnumKey =
+  (typeof inputFalAiFlashvsrUpscaleVideoOutputWriteModeEnum)[keyof typeof inputFalAiFlashvsrUpscaleVideoOutputWriteModeEnum]
+
+export const inputFalAiFlashvsrUpscaleVideoOutputFormatEnum = {
+  'X264 (.mp4)': 'X264 (.mp4)',
+  'VP9 (.webm)': 'VP9 (.webm)',
+  'PRORES4444 (.mov)': 'PRORES4444 (.mov)',
+  'GIF (.gif)': 'GIF (.gif)',
+} as const
+
+export type InputFalAiFlashvsrUpscaleVideoOutputFormatEnumKey =
+  (typeof inputFalAiFlashvsrUpscaleVideoOutputFormatEnum)[keyof typeof inputFalAiFlashvsrUpscaleVideoOutputFormatEnum]
+
+export const inputFalAiFlashvsrUpscaleVideoAccelerationEnum = {
+  regular: 'regular',
+  high: 'high',
+  full: 'full',
+} as const
+
+export type InputFalAiFlashvsrUpscaleVideoAccelerationEnumKey =
+  (typeof inputFalAiFlashvsrUpscaleVideoAccelerationEnum)[keyof typeof inputFalAiFlashvsrUpscaleVideoAccelerationEnum]
+
+export type InputFalAiFlashvsrUpscaleVideo = {
+  /**
+   * @description The quality of the output video.
+   * @default 'high'
+   * @type string | undefined
+   */
+  output_quality?: InputFalAiFlashvsrUpscaleVideoOutputQualityEnumKey
+  /**
+   * @description Quality level for tile blending (0-100). Controls overlap between tiles to prevent grid artifacts. Higher values provide better quality with more overlap. Recommended: 70-85 for high-res videos, 50-70 for faster processing.
+   * @minimum 0
+   * @maximum 100
+   * @default 70
+   * @type integer | undefined
+   */
+  quality?: number
+  /**
+   * @description Copy the original audio tracks into the upscaled video using FFmpeg when possible.
+   * @default false
+   * @type boolean | undefined
+   */
+  preserve_audio?: boolean
+  /**
+   * @description The random seed used for the generation process.
+   */
+  seed?: number | null
+  /**
+   * @description Authorized callers may set false to request relaxed screening.
+   * @default true
+   * @type boolean | undefined
+   */
+  enable_safety_checker?: boolean
+  /**
+   * @description Upscaling factor to be used.
+   * @minimum 1
+   * @maximum 4
+   * @default 2
+   * @type number | undefined
+   */
+  upscale_factor?: number
+  /**
+   * @description The write mode of the output video.
+   * @default 'balanced'
+   * @type string | undefined
+   */
+  output_write_mode?: InputFalAiFlashvsrUpscaleVideoOutputWriteModeEnumKey
+  /**
+   * @description The format of the output video.
+   * @default 'X264 (.mp4)'
+   * @type string | undefined
+   */
+  output_format?: InputFalAiFlashvsrUpscaleVideoOutputFormatEnumKey
+  /**
+   * @description The input video to be upscaled
+   * @example https://v3b.fal.media/files/b/0a959993/ev11uf0rrsKkBafCw9QKe_video.mp4
+   * @type string
+   */
+  video_url: string
+  /**
+   * @description Color correction enabled.
+   * @default true
+   * @type boolean | undefined
+   */
+  color_fix?: boolean
+  /**
+   * @description Acceleration mode for VAE decoding. Options: regular (best quality), high (balanced), full (fastest). More accerleation means longer duration videos can be processed too.
+   * @default 'regular'
+   * @type string | undefined
+   */
+  acceleration?: InputFalAiFlashvsrUpscaleVideoAccelerationEnumKey
+  /**
+   * @description If `True`, the media will be returned inline and not stored in history.
+   * @default false
+   * @type boolean | undefined
+   */
+  sync_mode?: boolean
+}
+
+export type File41150E21 = {
+  /**
+   * @description The size of the file in bytes.
+   * @example 4404019
+   */
+  file_size?: number | null
+  /**
+   * @description The mime type of the file.
+   * @example image/png
+   */
+  content_type?: string | null
+  /**
+   * @description The name of the file. It will be auto-generated if not provided.
+   * @example z9RV14K95DvU.png
+   */
+  file_name?: string | null
+  /**
+   * @description The URL where the file can be downloaded from.
+   * @type string
+   */
+  url: string
+}
+
+export type OutputFalAiFlashvsrUpscaleVideo = {
+  /**
+   * @description Upscaled video file after processing
+   * @type object
+   */
+  video: File41150E21
+  /**
+   * @description The random seed used for the generation process.
+   * @type integer
+   */
+  seed: number
 }
 
 export type InputFalAiFlux3ActionSo101 = {
@@ -17136,6 +21775,62 @@ export type OutputFalAiHunyuanVideoImageToVideo = {
   video: File0B564Efa
 }
 
+export type InputFalAiHunyuanVideoImg2VidLora = {
+  /**
+   * @description The URL to the image to generate the video from. The image must be 960x544 or it will get cropped and resized to that size.
+   * @example https://d3phaj0sisr2ct.cloudfront.net/research/eugene.jpg
+   * @type string
+   */
+  image_url: string
+  /**
+   * @description The prompt to generate the video from.
+   * @example A low angle shot of a man walking down a street, illuminated by the neon signs of the bars around him
+   * @type string
+   */
+  prompt: string
+  /**
+   * @description The seed to use for generating the video.
+   */
+  seed?: number | null
+}
+
+export type File5127217E = {
+  /**
+   * @description The name of the file. It will be auto-generated if not provided.
+   * @example z9RV14K95DvU.png
+   */
+  file_name?: string | null
+  /**
+   * @description The mime type of the file.
+   * @example image/png
+   */
+  content_type?: string | null
+  /**
+   * @description The size of the file in bytes.
+   * @example 4404019
+   */
+  file_size?: number | null
+  /**
+   * @description The URL where the file can be downloaded from.
+   * @type string
+   */
+  url: string
+}
+
+export type OutputFalAiHunyuanVideoImg2VidLora = {
+  /**
+   * @description The generated video
+   * @example {"content_type":"video/mp4","url":"https://storage.googleapis.com/falserverless/gallery/man-smiles.mp4"}
+   * @type object
+   */
+  video: File5127217E
+  /**
+   * @description The seed used for generating the video.
+   * @type integer
+   */
+  seed: number
+}
+
 export const inputFalAiHunyuanVideoV15ImageToVideoAspectRatioEnum = {
   '16:9': '16:9',
   '9:16': '9:16',
@@ -17745,6 +22440,365 @@ export type OutputFalAiIdV2VRelight = {
    * @type object
    */
   video: File42228Fa2
+}
+
+export const inputFalAiInfinitalkAccelerationEnum = {
+  none: 'none',
+  regular: 'regular',
+  high: 'high',
+} as const
+
+export type InputFalAiInfinitalkAccelerationEnumKey =
+  (typeof inputFalAiInfinitalkAccelerationEnum)[keyof typeof inputFalAiInfinitalkAccelerationEnum]
+
+export const inputFalAiInfinitalkResolutionEnum = {
+  '480p': '480p',
+  '720p': '720p',
+} as const
+
+export type InputFalAiInfinitalkResolutionEnumKey =
+  (typeof inputFalAiInfinitalkResolutionEnum)[keyof typeof inputFalAiInfinitalkResolutionEnum]
+
+export type InputFalAiInfinitalk = {
+  /**
+   * @description The URL of the audio file.
+   * @example https://v3.fal.media/files/penguin/PtiCYda53E9Dav25QmQYI_output.mp3
+   * @type string
+   */
+  audio_url: string
+  /**
+   * @description The text prompt to guide video generation.
+   * @example A woman with colorful hair talking on a podcast.
+   * @type string
+   */
+  prompt: string
+  /**
+   * @description The acceleration level to use for generation.
+   * @default 'regular'
+   * @type string | undefined
+   */
+  acceleration?: InputFalAiInfinitalkAccelerationEnumKey
+  /**
+   * @description Random seed for reproducibility. If None, a random seed is chosen.
+   * @minimum 0
+   * @maximum 4294967295
+   * @default 42
+   * @type integer | undefined
+   */
+  seed?: number
+  /**
+   * @description Resolution of the video to generate. Must be either 480p or 720p.
+   * @default '480p'
+   * @type string | undefined
+   */
+  resolution?: InputFalAiInfinitalkResolutionEnumKey
+  /**
+   * @description Authorized callers may set false to request relaxed screening.
+   * @default true
+   * @type boolean | undefined
+   */
+  enable_safety_checker?: boolean
+  /**
+   * @description URL of the input image. If the input image does not match the chosen aspect ratio, it is resized and center cropped.
+   * @example https://v3.fal.media/files/koala/gmpc0QevDF9bBsL1EAYVF_1c637094161147559f0910a68275dc34.png
+   * @type string
+   */
+  image_url: string
+  /**
+   * @description Number of frames to generate. Must be between 41 to 721.
+   * @minimum 41
+   * @maximum 721
+   * @default 145
+   * @type integer | undefined
+   */
+  num_frames?: number
+}
+
+export type File839Db95F = {
+  /**
+   * @description The mime type of the file.
+   * @example image/png
+   */
+  content_type?: string | null
+  /**
+   * @description The size of the file in bytes.
+   * @example 4404019
+   */
+  file_size?: number | null
+  /**
+   * @description The name of the file. It will be auto-generated if not provided.
+   * @example z9RV14K95DvU.png
+   */
+  file_name?: string | null
+  /**
+   * @description The URL where the file can be downloaded from.
+   * @type string
+   */
+  url: string
+}
+
+export type OutputFalAiInfinitalk = {
+  /**
+   * @description The seed used for generation.
+   * @type integer
+   */
+  seed: number
+  /**
+   * @description The generated video file.
+   * @example {"content_type":"application/octet-stream","file_size":515275,"file_name":"74af6c0bdd6041c3b1130d54885e3eee.mp4","url":"https://v3.fal.media/files/kangaroo/z6VqUwNTwzuWa6YE1g7In_74af6c0bdd6041c3b1130d54885e3eee.mp4"}
+   * @type object
+   */
+  video: File839Db95F
+}
+
+export const inputFalAiInfinitalkSingleTextAccelerationEnum = {
+  none: 'none',
+  regular: 'regular',
+  high: 'high',
+} as const
+
+export type InputFalAiInfinitalkSingleTextAccelerationEnumKey =
+  (typeof inputFalAiInfinitalkSingleTextAccelerationEnum)[keyof typeof inputFalAiInfinitalkSingleTextAccelerationEnum]
+
+export const inputFalAiInfinitalkSingleTextVoiceEnum = {
+  Aria: 'Aria',
+  Roger: 'Roger',
+  Sarah: 'Sarah',
+  Laura: 'Laura',
+  Charlie: 'Charlie',
+  George: 'George',
+  Callum: 'Callum',
+  River: 'River',
+  Liam: 'Liam',
+  Charlotte: 'Charlotte',
+  Alice: 'Alice',
+  Matilda: 'Matilda',
+  Will: 'Will',
+  Jessica: 'Jessica',
+  Eric: 'Eric',
+  Chris: 'Chris',
+  Brian: 'Brian',
+  Daniel: 'Daniel',
+  Lily: 'Lily',
+  Bill: 'Bill',
+} as const
+
+export type InputFalAiInfinitalkSingleTextVoiceEnumKey =
+  (typeof inputFalAiInfinitalkSingleTextVoiceEnum)[keyof typeof inputFalAiInfinitalkSingleTextVoiceEnum]
+
+export const inputFalAiInfinitalkSingleTextResolutionEnum = {
+  '480p': '480p',
+  '720p': '720p',
+} as const
+
+export type InputFalAiInfinitalkSingleTextResolutionEnumKey =
+  (typeof inputFalAiInfinitalkSingleTextResolutionEnum)[keyof typeof inputFalAiInfinitalkSingleTextResolutionEnum]
+
+export type InputFalAiInfinitalkSingleText = {
+  /**
+   * @description The text input to guide video generation.
+   * @example Spend more time with people who make you feel alive, and less with things that drain your soul.
+   * @type string
+   */
+  text_input: string
+  /**
+   * @description The acceleration level to use for generation.
+   * @default 'regular'
+   * @type string | undefined
+   */
+  acceleration?: InputFalAiInfinitalkSingleTextAccelerationEnumKey
+  /**
+   * @description The text prompt to guide video generation.
+   * @example An elderly man with a white beard and headphones records audio with a microphone. He appears engaged and expressive, suggesting a podcast or voiceover.
+   * @type string
+   */
+  prompt: string
+  /**
+   * @description The voice to use for speech generation
+   * @example Bill
+   * @type string
+   */
+  voice: InputFalAiInfinitalkSingleTextVoiceEnumKey
+  /**
+   * @description Resolution of the video to generate. Must be either 480p or 720p.
+   * @default '480p'
+   * @type string | undefined
+   */
+  resolution?: InputFalAiInfinitalkSingleTextResolutionEnumKey
+  /**
+   * @description Random seed for reproducibility. If None, a random seed is chosen.
+   * @minimum 0
+   * @maximum 4294967295
+   * @default 42
+   * @type integer | undefined
+   */
+  seed?: number
+  /**
+   * @description Authorized callers may set false to request relaxed screening.
+   * @default true
+   * @type boolean | undefined
+   */
+  enable_safety_checker?: boolean
+  /**
+   * @description URL of the input image. If the input image does not match the chosen aspect ratio, it is resized and center cropped.
+   * @example https://v3.fal.media/files/panda/HuM21CXMf0q7OO2zbvwhV_c4533aada79a495b90e50e32dc9b83a8.png
+   * @type string
+   */
+  image_url: string
+  /**
+   * @description Number of frames to generate. Must be between 41 to 721.
+   * @minimum 41
+   * @maximum 721
+   * @default 145
+   * @type integer | undefined
+   */
+  num_frames?: number
+}
+
+export type File89C43910 = {
+  /**
+   * @description The mime type of the file.
+   * @example image/png
+   */
+  content_type?: string | null
+  /**
+   * @description The size of the file in bytes.
+   * @example 4404019
+   */
+  file_size?: number | null
+  /**
+   * @description The name of the file. It will be auto-generated if not provided.
+   * @example z9RV14K95DvU.png
+   */
+  file_name?: string | null
+  /**
+   * @description The URL where the file can be downloaded from.
+   * @type string
+   */
+  url: string
+}
+
+export type OutputFalAiInfinitalkSingleText = {
+  /**
+   * @description The seed used for generation.
+   * @type integer
+   */
+  seed: number
+  /**
+   * @description The generated video file.
+   * @example {"content_type":"application/octet-stream","file_size":797478,"file_name":"6c9dd31e1d9a4482877747a52a661a0a.mp4","url":"https://v3.fal.media/files/elephant/-huMN0zTaXmBr2CqzCMps_6c9dd31e1d9a4482877747a52a661a0a.mp4"}
+   * @type object
+   */
+  video: File89C43910
+}
+
+export const inputFalAiInfinitalkVideoToVideoAccelerationEnum = {
+  none: 'none',
+  regular: 'regular',
+  high: 'high',
+} as const
+
+export type InputFalAiInfinitalkVideoToVideoAccelerationEnumKey =
+  (typeof inputFalAiInfinitalkVideoToVideoAccelerationEnum)[keyof typeof inputFalAiInfinitalkVideoToVideoAccelerationEnum]
+
+export const inputFalAiInfinitalkVideoToVideoResolutionEnum = {
+  '480p': '480p',
+  '720p': '720p',
+} as const
+
+export type InputFalAiInfinitalkVideoToVideoResolutionEnumKey =
+  (typeof inputFalAiInfinitalkVideoToVideoResolutionEnum)[keyof typeof inputFalAiInfinitalkVideoToVideoResolutionEnum]
+
+export type InputFalAiInfinitalkVideoToVideo = {
+  /**
+   * @description The URL of the audio file.
+   * @example https://v3.fal.media/files/penguin/PtiCYda53E9Dav25QmQYI_output.mp3
+   * @type string
+   */
+  audio_url: string
+  /**
+   * @description The text prompt to guide video generation.
+   * @example A woman with colorful hair talking on a podcast.
+   * @type string
+   */
+  prompt: string
+  /**
+   * @description URL of the input video.
+   * @example https://storage.googleapis.com/falserverless/model_tests/video_models/ref_video.mp4
+   * @type string
+   */
+  video_url: string
+  /**
+   * @description The acceleration level to use for generation.
+   * @default 'regular'
+   * @type string | undefined
+   */
+  acceleration?: InputFalAiInfinitalkVideoToVideoAccelerationEnumKey
+  /**
+   * @description Resolution of the video to generate. Must be either 480p or 720p.
+   * @default '480p'
+   * @type string | undefined
+   */
+  resolution?: InputFalAiInfinitalkVideoToVideoResolutionEnumKey
+  /**
+   * @description Random seed for reproducibility. If None, a random seed is chosen.
+   * @minimum 0
+   * @maximum 4294967295
+   * @default 42
+   * @type integer | undefined
+   */
+  seed?: number
+  /**
+   * @description Authorized callers may set false to request relaxed screening.
+   * @default true
+   * @type boolean | undefined
+   */
+  enable_safety_checker?: boolean
+  /**
+   * @description Number of frames to generate. Must be between 81 to 129 (inclusive). If the number of frames is greater than 81, the video will be generated with 1.25x more billing units.
+   * @minimum 41
+   * @maximum 241
+   * @default 145
+   * @type integer | undefined
+   */
+  num_frames?: number
+}
+
+export type File61Dc46Ab = {
+  /**
+   * @description The mime type of the file.
+   * @example image/png
+   */
+  content_type?: string | null
+  /**
+   * @description The size of the file in bytes.
+   * @example 4404019
+   */
+  file_size?: number | null
+  /**
+   * @description The name of the file. It will be auto-generated if not provided.
+   * @example z9RV14K95DvU.png
+   */
+  file_name?: string | null
+  /**
+   * @description The URL where the file can be downloaded from.
+   * @type string
+   */
+  url: string
+}
+
+export type OutputFalAiInfinitalkVideoToVideo = {
+  /**
+   * @description The seed used for generation.
+   * @type integer
+   */
+  seed: number
+  /**
+   * @description The generated video file.
+   * @example {"url":"https://storage.googleapis.com/falserverless/model_tests/video_models/mk7Ar5IvTtyNjWLRMb-re_dbe605004b664258b38528615afd7e0f.mp4"}
+   * @type object
+   */
+  video: File61Dc46Ab
 }
 
 export const inputFalAiInfinityStarTextToVideoAspectRatioEnum = {
@@ -21811,6 +26865,228 @@ export type OutputFalAiKlingVideoV15ProEffects = {
   video: FileE98730E1
 }
 
+export type Trajectory = {
+  /**
+   * @description Y coordinate of the motion trajectory
+   * @example 219
+   * @type integer
+   */
+  y: number
+  /**
+   * @description X coordinate of the motion trajectory
+   * @example 279
+   * @type integer
+   */
+  x: number
+}
+
+export type DynamicMask = {
+  /**
+   * @description URL of the image for Dynamic Brush Application Area (Mask image created by users using the motion brush)
+   * @example https://storage.googleapis.com/falserverless/kling/new_dynamic_mask.png
+   * @type string
+   */
+  mask_url: string
+  /**
+   * @description List of trajectories
+   * @example [{"y":219,"x":279},{"y":65,"x":417}]
+   * @type array | undefined
+   */
+  trajectories?: Trajectory[]
+}
+
+export const inputFalAiKlingVideoV15ProImageToVideoAspectRatioEnum = {
+  '16:9': '16:9',
+  '9:16': '9:16',
+  '1:1': '1:1',
+} as const
+
+export type InputFalAiKlingVideoV15ProImageToVideoAspectRatioEnumKey =
+  (typeof inputFalAiKlingVideoV15ProImageToVideoAspectRatioEnum)[keyof typeof inputFalAiKlingVideoV15ProImageToVideoAspectRatioEnum]
+
+export const inputFalAiKlingVideoV15ProImageToVideoDurationEnum = {
+  '5': '5',
+  '10': '10',
+} as const
+
+export type InputFalAiKlingVideoV15ProImageToVideoDurationEnumKey =
+  (typeof inputFalAiKlingVideoV15ProImageToVideoDurationEnum)[keyof typeof inputFalAiKlingVideoV15ProImageToVideoDurationEnum]
+
+export type InputFalAiKlingVideoV15ProImageToVideo = {
+  /**
+   * @example https://storage.googleapis.com/falserverless/kling/kling_input.jpeg
+   * @type string
+   */
+  image_url: string
+  /**
+   * @maxLength 2500
+   * @example Snowflakes fall as a car moves along the road.
+   * @type string
+   */
+  prompt: string
+  /**
+   * @description The aspect ratio of the generated video frame
+   * @default '16:9'
+   * @type string | undefined
+   */
+  aspect_ratio?: InputFalAiKlingVideoV15ProImageToVideoAspectRatioEnumKey
+  /**
+   * @description URL of the image to be used for the end of the video
+   */
+  tail_image_url?: string | null
+  /**
+   * @description List of dynamic masks
+   */
+  dynamic_masks?: DynamicMask[] | null
+  /**
+   * @description URL of the image for Static Brush Application Area (Mask image created by users using the motion brush)
+   * @example https://storage.googleapis.com/falserverless/kling/new_static_mask.png
+   */
+  static_mask_url?: string | null
+  /**
+   * @maxLength 2500
+   * @default 'blur, distort, and low quality'
+   * @type string | undefined
+   */
+  negative_prompt?: string
+  /**
+   * @description
+   *             The CFG (Classifier Free Guidance) scale is a measure of how close you want
+   *             the model to stick to your prompt.
+   *
+   * @minimum 0
+   * @maximum 1
+   * @default 0.5
+   * @type number | undefined
+   */
+  cfg_scale?: number
+  /**
+   * @description The duration of the generated video in seconds
+   * @default '5'
+   * @type string | undefined
+   */
+  duration?: InputFalAiKlingVideoV15ProImageToVideoDurationEnumKey
+}
+
+export type File7Bd1Cfc8 = {
+  /**
+   * @description The size of the file in bytes.
+   * @example 4404019
+   */
+  file_size?: number | null
+  /**
+   * @description The mime type of the file.
+   * @example image/png
+   */
+  content_type?: string | null
+  /**
+   * @description The URL where the file can be downloaded from.
+   * @type string
+   */
+  url: string
+  /**
+   * @description The name of the file. It will be auto-generated if not provided.
+   * @example z9RV14K95DvU.png
+   */
+  file_name?: string | null
+}
+
+export type OutputFalAiKlingVideoV15ProImageToVideo = {
+  /**
+   * @description The generated video
+   * @example {"url":"https://storage.googleapis.com/falserverless/kling/kling_i2v_output.mp4"}
+   * @type object
+   */
+  video: File7Bd1Cfc8
+}
+
+export const inputFalAiKlingVideoV15ProTextToVideoDurationEnum = {
+  '5': '5',
+  '10': '10',
+} as const
+
+export type InputFalAiKlingVideoV15ProTextToVideoDurationEnumKey =
+  (typeof inputFalAiKlingVideoV15ProTextToVideoDurationEnum)[keyof typeof inputFalAiKlingVideoV15ProTextToVideoDurationEnum]
+
+export const inputFalAiKlingVideoV15ProTextToVideoAspectRatioEnum = {
+  '16:9': '16:9',
+  '9:16': '9:16',
+  '1:1': '1:1',
+} as const
+
+export type InputFalAiKlingVideoV15ProTextToVideoAspectRatioEnumKey =
+  (typeof inputFalAiKlingVideoV15ProTextToVideoAspectRatioEnum)[keyof typeof inputFalAiKlingVideoV15ProTextToVideoAspectRatioEnum]
+
+export type InputFalAiKlingVideoV15ProTextToVideo = {
+  /**
+   * @description
+   *             The CFG (Classifier Free Guidance) scale is a measure of how close you want
+   *             the model to stick to your prompt.
+   *
+   * @minimum 0
+   * @maximum 1
+   * @default 0.5
+   * @type number | undefined
+   */
+  cfg_scale?: number
+  /**
+   * @description The duration of the generated video in seconds
+   * @default '5'
+   * @type string | undefined
+   */
+  duration?: InputFalAiKlingVideoV15ProTextToVideoDurationEnumKey
+  /**
+   * @maxLength 2500
+   * @example A stylish woman walks down a Tokyo street filled with warm glowing neon and animated city signage. She wears a black leather jacket, a long red dress, and black boots, and carries a black purse.
+   * @type string
+   */
+  prompt: string
+  /**
+   * @description The aspect ratio of the generated video frame
+   * @default '16:9'
+   * @type string | undefined
+   */
+  aspect_ratio?: InputFalAiKlingVideoV15ProTextToVideoAspectRatioEnumKey
+  /**
+   * @maxLength 2500
+   * @default 'blur, distort, and low quality'
+   * @type string | undefined
+   */
+  negative_prompt?: string
+}
+
+export type FileFe020726 = {
+  /**
+   * @description The size of the file in bytes.
+   * @example 4404019
+   */
+  file_size?: number | null
+  /**
+   * @description The mime type of the file.
+   * @example image/png
+   */
+  content_type?: string | null
+  /**
+   * @description The URL where the file can be downloaded from.
+   * @type string
+   */
+  url: string
+  /**
+   * @description The name of the file. It will be auto-generated if not provided.
+   * @example z9RV14K95DvU.png
+   */
+  file_name?: string | null
+}
+
+export type OutputFalAiKlingVideoV15ProTextToVideo = {
+  /**
+   * @description The generated video
+   * @example {"url":"https://v2.fal.media/files/fb33a862b94d4d7195e610e4cbc5d392_output.mp4"}
+   * @type object
+   */
+  video: FileFe020726
+}
+
 export const inputFalAiKlingVideoV16ProEffectsDurationEnum = {
   '5': '5',
   '10': '10',
@@ -21974,6 +27250,271 @@ export type OutputFalAiKlingVideoV16ProEffects = {
   video: File7Bb8F3A4
 }
 
+export const inputFalAiKlingVideoV16ProElementsDurationEnum = {
+  '5': '5',
+  '10': '10',
+} as const
+
+export type InputFalAiKlingVideoV16ProElementsDurationEnumKey =
+  (typeof inputFalAiKlingVideoV16ProElementsDurationEnum)[keyof typeof inputFalAiKlingVideoV16ProElementsDurationEnum]
+
+export const inputFalAiKlingVideoV16ProElementsAspectRatioEnum = {
+  '16:9': '16:9',
+  '9:16': '9:16',
+  '1:1': '1:1',
+} as const
+
+export type InputFalAiKlingVideoV16ProElementsAspectRatioEnumKey =
+  (typeof inputFalAiKlingVideoV16ProElementsAspectRatioEnum)[keyof typeof inputFalAiKlingVideoV16ProElementsAspectRatioEnum]
+
+export type InputFalAiKlingVideoV16ProElements = {
+  /**
+   * @description List of image URLs to use for video generation. Supports up to 4 images.
+   * @example ["https://storage.googleapis.com/falserverless/web-examples/kling-elements/first_image.jpeg","https://storage.googleapis.com/falserverless/web-examples/kling-elements/second_image.png"]
+   * @type array
+   */
+  input_image_urls: string[]
+  /**
+   * @description The duration of the generated video in seconds
+   * @default '5'
+   * @type string | undefined
+   */
+  duration?: InputFalAiKlingVideoV16ProElementsDurationEnumKey
+  /**
+   * @maxLength 2500
+   * @example A cute girl and a baby cow sleeping together on a bed
+   * @type string
+   */
+  prompt: string
+  /**
+   * @description The aspect ratio of the generated video frame
+   * @default '16:9'
+   * @type string | undefined
+   */
+  aspect_ratio?: InputFalAiKlingVideoV16ProElementsAspectRatioEnumKey
+  /**
+   * @maxLength 2500
+   * @default 'blur, distort, and low quality'
+   * @type string | undefined
+   */
+  negative_prompt?: string
+}
+
+export type FileAdf81119 = {
+  /**
+   * @description The size of the file in bytes.
+   * @example 4404019
+   */
+  file_size?: number | null
+  /**
+   * @description The mime type of the file.
+   * @example image/png
+   */
+  content_type?: string | null
+  /**
+   * @description The URL where the file can be downloaded from.
+   * @type string
+   */
+  url: string
+  /**
+   * @description The name of the file. It will be auto-generated if not provided.
+   * @example z9RV14K95DvU.png
+   */
+  file_name?: string | null
+}
+
+export type OutputFalAiKlingVideoV16ProElements = {
+  /**
+   * @description The generated video
+   * @example {"file_size":3910577,"content_type":"video/mp4","url":"https://v3.fal.media/files/penguin/twy6u1yv09NvqsX0mMFM2_output.mp4","file_name":"output.mp4"}
+   * @type object
+   */
+  video: FileAdf81119
+}
+
+export const inputFalAiKlingVideoV16ProImageToVideoDurationEnum = {
+  '5': '5',
+  '10': '10',
+} as const
+
+export type InputFalAiKlingVideoV16ProImageToVideoDurationEnumKey =
+  (typeof inputFalAiKlingVideoV16ProImageToVideoDurationEnum)[keyof typeof inputFalAiKlingVideoV16ProImageToVideoDurationEnum]
+
+export const inputFalAiKlingVideoV16ProImageToVideoAspectRatioEnum = {
+  '16:9': '16:9',
+  '9:16': '9:16',
+  '1:1': '1:1',
+} as const
+
+export type InputFalAiKlingVideoV16ProImageToVideoAspectRatioEnumKey =
+  (typeof inputFalAiKlingVideoV16ProImageToVideoAspectRatioEnum)[keyof typeof inputFalAiKlingVideoV16ProImageToVideoAspectRatioEnum]
+
+export type InputFalAiKlingVideoV16ProImageToVideo = {
+  /**
+   * @maxLength 2500
+   * @default 'blur, distort, and low quality'
+   * @type string | undefined
+   */
+  negative_prompt?: string
+  /**
+   * @description The duration of the generated video in seconds
+   * @default '5'
+   * @type string | undefined
+   */
+  duration?: InputFalAiKlingVideoV16ProImageToVideoDurationEnumKey
+  /**
+   * @description
+   *             The CFG (Classifier Free Guidance) scale is a measure of how close you want
+   *             the model to stick to your prompt.
+   *
+   * @minimum 0
+   * @maximum 1
+   * @default 0.5
+   * @type number | undefined
+   */
+  cfg_scale?: number
+  /**
+   * @example https://storage.googleapis.com/falserverless/kling/kling_input.jpeg
+   * @type string
+   */
+  image_url: string
+  /**
+   * @maxLength 2500
+   * @example Snowflakes fall as a car moves along the road.
+   * @type string
+   */
+  prompt: string
+  /**
+   * @description The aspect ratio of the generated video frame
+   * @default '16:9'
+   * @type string | undefined
+   */
+  aspect_ratio?: InputFalAiKlingVideoV16ProImageToVideoAspectRatioEnumKey
+  /**
+   * @description URL of the image to be used for the end of the video
+   */
+  tail_image_url?: string | null
+}
+
+export type File6F2A3127 = {
+  /**
+   * @description The size of the file in bytes.
+   * @example 4404019
+   */
+  file_size?: number | null
+  /**
+   * @description The mime type of the file.
+   * @example image/png
+   */
+  content_type?: string | null
+  /**
+   * @description The URL where the file can be downloaded from.
+   * @type string
+   */
+  url: string
+  /**
+   * @description The name of the file. It will be auto-generated if not provided.
+   * @example z9RV14K95DvU.png
+   */
+  file_name?: string | null
+}
+
+export type OutputFalAiKlingVideoV16ProImageToVideo = {
+  /**
+   * @description The generated video
+   * @example {"url":"https://storage.googleapis.com/falserverless/kling/kling_i2v_output.mp4"}
+   * @type object
+   */
+  video: File6F2A3127
+}
+
+export const inputFalAiKlingVideoV16ProTextToVideoDurationEnum = {
+  '5': '5',
+  '10': '10',
+} as const
+
+export type InputFalAiKlingVideoV16ProTextToVideoDurationEnumKey =
+  (typeof inputFalAiKlingVideoV16ProTextToVideoDurationEnum)[keyof typeof inputFalAiKlingVideoV16ProTextToVideoDurationEnum]
+
+export const inputFalAiKlingVideoV16ProTextToVideoAspectRatioEnum = {
+  '16:9': '16:9',
+  '9:16': '9:16',
+  '1:1': '1:1',
+} as const
+
+export type InputFalAiKlingVideoV16ProTextToVideoAspectRatioEnumKey =
+  (typeof inputFalAiKlingVideoV16ProTextToVideoAspectRatioEnum)[keyof typeof inputFalAiKlingVideoV16ProTextToVideoAspectRatioEnum]
+
+export type InputFalAiKlingVideoV16ProTextToVideo = {
+  /**
+   * @description
+   *             The CFG (Classifier Free Guidance) scale is a measure of how close you want
+   *             the model to stick to your prompt.
+   *
+   * @minimum 0
+   * @maximum 1
+   * @default 0.5
+   * @type number | undefined
+   */
+  cfg_scale?: number
+  /**
+   * @description The duration of the generated video in seconds
+   * @default '5'
+   * @type string | undefined
+   */
+  duration?: InputFalAiKlingVideoV16ProTextToVideoDurationEnumKey
+  /**
+   * @maxLength 2500
+   * @example A stylish woman walks down a Tokyo street filled with warm glowing neon and animated city signage. She wears a black leather jacket, a long red dress, and black boots, and carries a black purse.
+   * @type string
+   */
+  prompt: string
+  /**
+   * @description The aspect ratio of the generated video frame
+   * @default '16:9'
+   * @type string | undefined
+   */
+  aspect_ratio?: InputFalAiKlingVideoV16ProTextToVideoAspectRatioEnumKey
+  /**
+   * @maxLength 2500
+   * @default 'blur, distort, and low quality'
+   * @type string | undefined
+   */
+  negative_prompt?: string
+}
+
+export type File37B0Af93 = {
+  /**
+   * @description The size of the file in bytes.
+   * @example 4404019
+   */
+  file_size?: number | null
+  /**
+   * @description The mime type of the file.
+   * @example image/png
+   */
+  content_type?: string | null
+  /**
+   * @description The URL where the file can be downloaded from.
+   * @type string
+   */
+  url: string
+  /**
+   * @description The name of the file. It will be auto-generated if not provided.
+   * @example z9RV14K95DvU.png
+   */
+  file_name?: string | null
+}
+
+export type OutputFalAiKlingVideoV16ProTextToVideo = {
+  /**
+   * @description The generated video
+   * @example {"url":"https://v2.fal.media/files/fb33a862b94d4d7195e610e4cbc5d392_output.mp4"}
+   * @type object
+   */
+  video: File37B0Af93
+}
+
 export const inputFalAiKlingVideoV16StandardEffectsDurationEnum = {
   '5': '5',
   '10': '10',
@@ -22135,6 +27676,252 @@ export type OutputFalAiKlingVideoV16StandardEffects = {
    * @type object
    */
   video: FileCdb8C914
+}
+
+export const inputFalAiKlingVideoV16StandardElementsDurationEnum = {
+  '5': '5',
+  '10': '10',
+} as const
+
+export type InputFalAiKlingVideoV16StandardElementsDurationEnumKey =
+  (typeof inputFalAiKlingVideoV16StandardElementsDurationEnum)[keyof typeof inputFalAiKlingVideoV16StandardElementsDurationEnum]
+
+export const inputFalAiKlingVideoV16StandardElementsAspectRatioEnum = {
+  '16:9': '16:9',
+  '9:16': '9:16',
+  '1:1': '1:1',
+} as const
+
+export type InputFalAiKlingVideoV16StandardElementsAspectRatioEnumKey =
+  (typeof inputFalAiKlingVideoV16StandardElementsAspectRatioEnum)[keyof typeof inputFalAiKlingVideoV16StandardElementsAspectRatioEnum]
+
+export type InputFalAiKlingVideoV16StandardElements = {
+  /**
+   * @description List of image URLs to use for video generation. Supports up to 4 images.
+   * @example ["https://storage.googleapis.com/falserverless/web-examples/kling-elements/first_image.jpeg","https://storage.googleapis.com/falserverless/web-examples/kling-elements/second_image.png"]
+   * @type array
+   */
+  input_image_urls: string[]
+  /**
+   * @description The duration of the generated video in seconds
+   * @default '5'
+   * @type string | undefined
+   */
+  duration?: InputFalAiKlingVideoV16StandardElementsDurationEnumKey
+  /**
+   * @maxLength 2500
+   * @example A cute girl and a baby cow sleeping together on a bed
+   * @type string
+   */
+  prompt: string
+  /**
+   * @description The aspect ratio of the generated video frame
+   * @default '16:9'
+   * @type string | undefined
+   */
+  aspect_ratio?: InputFalAiKlingVideoV16StandardElementsAspectRatioEnumKey
+  /**
+   * @maxLength 2500
+   * @default 'blur, distort, and low quality'
+   * @type string | undefined
+   */
+  negative_prompt?: string
+}
+
+export type File72475629 = {
+  /**
+   * @description The size of the file in bytes.
+   * @example 4404019
+   */
+  file_size?: number | null
+  /**
+   * @description The mime type of the file.
+   * @example image/png
+   */
+  content_type?: string | null
+  /**
+   * @description The URL where the file can be downloaded from.
+   * @type string
+   */
+  url: string
+  /**
+   * @description The name of the file. It will be auto-generated if not provided.
+   * @example z9RV14K95DvU.png
+   */
+  file_name?: string | null
+}
+
+export type OutputFalAiKlingVideoV16StandardElements = {
+  /**
+   * @description The generated video
+   * @example {"file_size":3910577,"content_type":"video/mp4","url":"https://v3.fal.media/files/penguin/twy6u1yv09NvqsX0mMFM2_output.mp4","file_name":"output.mp4"}
+   * @type object
+   */
+  video: File72475629
+}
+
+export const inputFalAiKlingVideoV16StandardImageToVideoDurationEnum = {
+  '5': '5',
+  '10': '10',
+} as const
+
+export type InputFalAiKlingVideoV16StandardImageToVideoDurationEnumKey =
+  (typeof inputFalAiKlingVideoV16StandardImageToVideoDurationEnum)[keyof typeof inputFalAiKlingVideoV16StandardImageToVideoDurationEnum]
+
+export type InputFalAiKlingVideoV16StandardImageToVideo = {
+  /**
+   * @description
+   *             The CFG (Classifier Free Guidance) scale is a measure of how close you want
+   *             the model to stick to your prompt.
+   *
+   * @minimum 0
+   * @maximum 1
+   * @default 0.5
+   * @type number | undefined
+   */
+  cfg_scale?: number
+  /**
+   * @example https://storage.googleapis.com/falserverless/kling/kling_input.jpeg
+   * @type string
+   */
+  image_url: string
+  /**
+   * @maxLength 2500
+   * @example Snowflakes fall as a car moves forward along the road.
+   * @type string
+   */
+  prompt: string
+  /**
+   * @maxLength 2500
+   * @default 'blur, distort, and low quality'
+   * @type string | undefined
+   */
+  negative_prompt?: string
+  /**
+   * @description The duration of the generated video in seconds
+   * @default '5'
+   * @type string | undefined
+   */
+  duration?: InputFalAiKlingVideoV16StandardImageToVideoDurationEnumKey
+}
+
+export type File3Fbab5B7 = {
+  /**
+   * @description The size of the file in bytes.
+   * @example 4404019
+   */
+  file_size?: number | null
+  /**
+   * @description The mime type of the file.
+   * @example image/png
+   */
+  content_type?: string | null
+  /**
+   * @description The URL where the file can be downloaded from.
+   * @type string
+   */
+  url: string
+  /**
+   * @description The name of the file. It will be auto-generated if not provided.
+   * @example z9RV14K95DvU.png
+   */
+  file_name?: string | null
+}
+
+export type OutputFalAiKlingVideoV16StandardImageToVideo = {
+  /**
+   * @description The generated video
+   * @example {"url":"https://storage.googleapis.com/falserverless/kling/kling_i2v_output.mp4"}
+   * @type object
+   */
+  video: File3Fbab5B7
+}
+
+export const inputFalAiKlingVideoV16StandardTextToVideoDurationEnum = {
+  '5': '5',
+  '10': '10',
+} as const
+
+export type InputFalAiKlingVideoV16StandardTextToVideoDurationEnumKey =
+  (typeof inputFalAiKlingVideoV16StandardTextToVideoDurationEnum)[keyof typeof inputFalAiKlingVideoV16StandardTextToVideoDurationEnum]
+
+export const inputFalAiKlingVideoV16StandardTextToVideoAspectRatioEnum = {
+  '16:9': '16:9',
+  '9:16': '9:16',
+  '1:1': '1:1',
+} as const
+
+export type InputFalAiKlingVideoV16StandardTextToVideoAspectRatioEnumKey =
+  (typeof inputFalAiKlingVideoV16StandardTextToVideoAspectRatioEnum)[keyof typeof inputFalAiKlingVideoV16StandardTextToVideoAspectRatioEnum]
+
+export type InputFalAiKlingVideoV16StandardTextToVideo = {
+  /**
+   * @description
+   *             The CFG (Classifier Free Guidance) scale is a measure of how close you want
+   *             the model to stick to your prompt.
+   *
+   * @minimum 0
+   * @maximum 1
+   * @default 0.5
+   * @type number | undefined
+   */
+  cfg_scale?: number
+  /**
+   * @description The duration of the generated video in seconds
+   * @default '5'
+   * @type string | undefined
+   */
+  duration?: InputFalAiKlingVideoV16StandardTextToVideoDurationEnumKey
+  /**
+   * @maxLength 2500
+   * @example A stylish woman walks down a Tokyo street filled with warm glowing neon and animated city signage. She wears a black leather jacket, a long red dress, and black boots, and carries a black purse.
+   * @type string
+   */
+  prompt: string
+  /**
+   * @description The aspect ratio of the generated video frame
+   * @default '16:9'
+   * @type string | undefined
+   */
+  aspect_ratio?: InputFalAiKlingVideoV16StandardTextToVideoAspectRatioEnumKey
+  /**
+   * @maxLength 2500
+   * @default 'blur, distort, and low quality'
+   * @type string | undefined
+   */
+  negative_prompt?: string
+}
+
+export type File53E52E23 = {
+  /**
+   * @description The size of the file in bytes.
+   * @example 4404019
+   */
+  file_size?: number | null
+  /**
+   * @description The mime type of the file.
+   * @example image/png
+   */
+  content_type?: string | null
+  /**
+   * @description The URL where the file can be downloaded from.
+   * @type string
+   */
+  url: string
+  /**
+   * @description The name of the file. It will be auto-generated if not provided.
+   * @example z9RV14K95DvU.png
+   */
+  file_name?: string | null
+}
+
+export type OutputFalAiKlingVideoV16StandardTextToVideo = {
+  /**
+   * @description The generated video
+   * @example {"url":"https://v2.fal.media/files/fb33a862b94d4d7195e610e4cbc5d392_output.mp4"}
+   * @type object
+   */
+  video: File53E52E23
 }
 
 export type InputFalAiKlingVideoV1ProAiAvatar = {
@@ -22426,6 +28213,557 @@ export type OutputFalAiKlingVideoV1StandardEffects = {
    * @type object
    */
   video: FileA4E4Bb48
+}
+
+export const inputFalAiKlingVideoV1StandardImageToVideoDurationEnum = {
+  '5': '5',
+  '10': '10',
+} as const
+
+export type InputFalAiKlingVideoV1StandardImageToVideoDurationEnumKey =
+  (typeof inputFalAiKlingVideoV1StandardImageToVideoDurationEnum)[keyof typeof inputFalAiKlingVideoV1StandardImageToVideoDurationEnum]
+
+export type InputFalAiKlingVideoV1StandardImageToVideo = {
+  /**
+   * @description URL of the image to be used for the video
+   * @example https://storage.googleapis.com/falserverless/kling/kling_input.jpeg
+   * @type string
+   */
+  image_url: string
+  /**
+   * @description The prompt for the video
+   * @maxLength 2500
+   * @example Snowflakes fall as a car moves forward along the road.
+   * @type string
+   */
+  prompt: string
+  /**
+   * @description URL of the image to be used for the end of the video
+   */
+  tail_image_url?: string | null
+  /**
+   * @description List of dynamic masks
+   */
+  dynamic_masks?: DynamicMask[] | null
+  /**
+   * @description URL of the image for Static Brush Application Area (Mask image created by users using the motion brush)
+   * @example https://storage.googleapis.com/falserverless/kling/new_static_mask.png
+   */
+  static_mask_url?: string | null
+  /**
+   * @description The duration of the generated video in seconds
+   * @default '5'
+   * @type string | undefined
+   */
+  duration?: InputFalAiKlingVideoV1StandardImageToVideoDurationEnumKey
+  /**
+   * @description
+   *             The CFG (Classifier Free Guidance) scale is a measure of how close you want
+   *             the model to stick to your prompt.
+   *
+   * @minimum 0
+   * @maximum 1
+   * @default 0.5
+   * @type number | undefined
+   */
+  cfg_scale?: number
+  /**
+   * @maxLength 2500
+   * @default 'blur, distort, and low quality'
+   * @type string | undefined
+   */
+  negative_prompt?: string
+}
+
+export type File94F8D083 = {
+  /**
+   * @description The size of the file in bytes.
+   * @example 4404019
+   */
+  file_size?: number | null
+  /**
+   * @description The mime type of the file.
+   * @example image/png
+   */
+  content_type?: string | null
+  /**
+   * @description The URL where the file can be downloaded from.
+   * @type string
+   */
+  url: string
+  /**
+   * @description The name of the file. It will be auto-generated if not provided.
+   * @example z9RV14K95DvU.png
+   */
+  file_name?: string | null
+}
+
+export type OutputFalAiKlingVideoV1StandardImageToVideo = {
+  /**
+   * @description The generated video
+   * @example {"url":"https://storage.googleapis.com/falserverless/kling/kling_i2v_output.mp4"}
+   * @type object
+   */
+  video: File94F8D083
+}
+
+export const cameraControlMovementTypeEnum = {
+  horizontal: 'horizontal',
+  vertical: 'vertical',
+  pan: 'pan',
+  tilt: 'tilt',
+  roll: 'roll',
+  zoom: 'zoom',
+} as const
+
+export type CameraControlMovementTypeEnumKey =
+  (typeof cameraControlMovementTypeEnum)[keyof typeof cameraControlMovementTypeEnum]
+
+export type CameraControl = {
+  /**
+   * @description The type of camera movement
+   * @example horizontal
+   * @type string
+   */
+  movement_type: CameraControlMovementTypeEnumKey
+  /**
+   * @description The value of the camera movement
+   * @minimum -10
+   * @maximum 10
+   * @example 10
+   * @type integer
+   */
+  movement_value: number
+}
+
+export const inputFalAiKlingVideoV1StandardTextToVideoCameraControl = {
+  down_back: 'down_back',
+  forward_up: 'forward_up',
+  right_turn_forward: 'right_turn_forward',
+  left_turn_forward: 'left_turn_forward',
+} as const
+
+export type InputFalAiKlingVideoV1StandardTextToVideoCameraControlKey =
+  (typeof inputFalAiKlingVideoV1StandardTextToVideoCameraControl)[keyof typeof inputFalAiKlingVideoV1StandardTextToVideoCameraControl]
+
+export const inputFalAiKlingVideoV1StandardTextToVideoDurationEnum = {
+  '5': '5',
+  '10': '10',
+} as const
+
+export type InputFalAiKlingVideoV1StandardTextToVideoDurationEnumKey =
+  (typeof inputFalAiKlingVideoV1StandardTextToVideoDurationEnum)[keyof typeof inputFalAiKlingVideoV1StandardTextToVideoDurationEnum]
+
+export const inputFalAiKlingVideoV1StandardTextToVideoAspectRatioEnum = {
+  '16:9': '16:9',
+  '9:16': '9:16',
+  '1:1': '1:1',
+} as const
+
+export type InputFalAiKlingVideoV1StandardTextToVideoAspectRatioEnumKey =
+  (typeof inputFalAiKlingVideoV1StandardTextToVideoAspectRatioEnum)[keyof typeof inputFalAiKlingVideoV1StandardTextToVideoAspectRatioEnum]
+
+export type InputFalAiKlingVideoV1StandardTextToVideo = {
+  /**
+   * @maxLength 2500
+   * @default 'blur, distort, and low quality'
+   * @type string | undefined
+   */
+  negative_prompt?: string
+  /**
+   * @description Camera control parameters
+   */
+  camera_control?: InputFalAiKlingVideoV1StandardTextToVideoCameraControlKey | null
+  /**
+   * @description
+   *             The CFG (Classifier Free Guidance) scale is a measure of how close you want
+   *             the model to stick to your prompt.
+   *
+   * @minimum 0
+   * @maximum 1
+   * @default 0.5
+   * @type number | undefined
+   */
+  cfg_scale?: number
+  /**
+   * @description The duration of the generated video in seconds
+   * @default '5'
+   * @type string | undefined
+   */
+  duration?: InputFalAiKlingVideoV1StandardTextToVideoDurationEnumKey
+  /**
+   * @maxLength 2500
+   * @example A stylish woman walks down a Tokyo street filled with warm glowing neon and animated city signage. She wears a black leather jacket, a long red dress, and black boots, and carries a black purse.
+   * @type string
+   */
+  prompt: string
+  /**
+   * @description The aspect ratio of the generated video frame
+   * @default '16:9'
+   * @type string | undefined
+   */
+  aspect_ratio?: InputFalAiKlingVideoV1StandardTextToVideoAspectRatioEnumKey
+  /**
+   * @description Advanced Camera control parameters
+   */
+  advanced_camera_control?: CameraControl | null
+}
+
+export type File2Ccf4Cf7 = {
+  /**
+   * @description The size of the file in bytes.
+   * @example 4404019
+   */
+  file_size?: number | null
+  /**
+   * @description The mime type of the file.
+   * @example image/png
+   */
+  content_type?: string | null
+  /**
+   * @description The URL where the file can be downloaded from.
+   * @type string
+   */
+  url: string
+  /**
+   * @description The name of the file. It will be auto-generated if not provided.
+   * @example z9RV14K95DvU.png
+   */
+  file_name?: string | null
+}
+
+export type OutputFalAiKlingVideoV1StandardTextToVideo = {
+  /**
+   * @description The generated video
+   * @example {"url":"https://v2.fal.media/files/fb33a862b94d4d7195e610e4cbc5d392_output.mp4"}
+   * @type object
+   */
+  video: File2Ccf4Cf7
+}
+
+export const inputFalAiKlingVideoV21MasterImageToVideoDurationEnum = {
+  '5': '5',
+  '10': '10',
+} as const
+
+export type InputFalAiKlingVideoV21MasterImageToVideoDurationEnumKey =
+  (typeof inputFalAiKlingVideoV21MasterImageToVideoDurationEnum)[keyof typeof inputFalAiKlingVideoV21MasterImageToVideoDurationEnum]
+
+export type InputFalAiKlingVideoV21MasterImageToVideo = {
+  /**
+   * @description
+   *             The CFG (Classifier Free Guidance) scale is a measure of how close you want
+   *             the model to stick to your prompt.
+   *
+   * @minimum 0
+   * @maximum 1
+   * @default 0.5
+   * @type number | undefined
+   */
+  cfg_scale?: number
+  /**
+   * @description URL of the image to be used for the video
+   * @example https://v3.fal.media/files/zebra/9Nrm22YyLojSTPJbZYNhh_image.webp
+   * @type string
+   */
+  image_url: string
+  /**
+   * @maxLength 2500
+   * @example Sunlight dapples through budding branches, illuminating a vibrant tapestry of greens and browns as a pair of robins meticulously weave twigs and mud into a cradle of life, their tiny forms a whirlwind of activity against a backdrop of blossoming spring.  The scene unfolds with a gentle, observational pace, allowing the viewer to fully appreciate the intricate details of nest construction, the soft textures of downy feathers contrasted against the rough bark of the branches, the delicate balance of strength and fragility in their creation.
+   * @type string
+   */
+  prompt: string
+  /**
+   * @maxLength 2500
+   * @default 'blur, distort, and low quality'
+   * @type string | undefined
+   */
+  negative_prompt?: string
+  /**
+   * @description The duration of the generated video in seconds
+   * @default '5'
+   * @type string | undefined
+   */
+  duration?: InputFalAiKlingVideoV21MasterImageToVideoDurationEnumKey
+}
+
+export type File23Bab5Ae = {
+  /**
+   * @description The size of the file in bytes.
+   * @example 4404019
+   */
+  file_size?: number | null
+  /**
+   * @description The mime type of the file.
+   * @example image/png
+   */
+  content_type?: string | null
+  /**
+   * @description The URL where the file can be downloaded from.
+   * @type string
+   */
+  url: string
+  /**
+   * @description The name of the file. It will be auto-generated if not provided.
+   * @example z9RV14K95DvU.png
+   */
+  file_name?: string | null
+}
+
+export type OutputFalAiKlingVideoV21MasterImageToVideo = {
+  /**
+   * @description The generated video
+   * @example {"url":"https://v3.fal.media/files/rabbit/YuUWKFq508zzWIiQ0i2vt_output.mp4"}
+   * @type object
+   */
+  video: File23Bab5Ae
+}
+
+export const inputFalAiKlingVideoV21MasterTextToVideoDurationEnum = {
+  '5': '5',
+  '10': '10',
+} as const
+
+export type InputFalAiKlingVideoV21MasterTextToVideoDurationEnumKey =
+  (typeof inputFalAiKlingVideoV21MasterTextToVideoDurationEnum)[keyof typeof inputFalAiKlingVideoV21MasterTextToVideoDurationEnum]
+
+export const inputFalAiKlingVideoV21MasterTextToVideoAspectRatioEnum = {
+  '16:9': '16:9',
+  '9:16': '9:16',
+  '1:1': '1:1',
+} as const
+
+export type InputFalAiKlingVideoV21MasterTextToVideoAspectRatioEnumKey =
+  (typeof inputFalAiKlingVideoV21MasterTextToVideoAspectRatioEnum)[keyof typeof inputFalAiKlingVideoV21MasterTextToVideoAspectRatioEnum]
+
+export type InputFalAiKlingVideoV21MasterTextToVideo = {
+  /**
+   * @description
+   *             The CFG (Classifier Free Guidance) scale is a measure of how close you want
+   *             the model to stick to your prompt.
+   *
+   * @minimum 0
+   * @maximum 1
+   * @default 0.5
+   * @type number | undefined
+   */
+  cfg_scale?: number
+  /**
+   * @description The duration of the generated video in seconds
+   * @default '5'
+   * @type string | undefined
+   */
+  duration?: InputFalAiKlingVideoV21MasterTextToVideoDurationEnumKey
+  /**
+   * @maxLength 2500
+   * @example Warm, earthy tones bathe the scene as the potter's hands, rough and calloused, coax a shapeless lump of clay into a vessel of elegant curves, the slow, deliberate movements highlighted by the subtle shifting light; the clay's cool, damp texture contrasts sharply with the warmth of the potter's touch, creating a captivating interplay between material and maker.
+   * @type string
+   */
+  prompt: string
+  /**
+   * @description The aspect ratio of the generated video frame
+   * @default '16:9'
+   * @type string | undefined
+   */
+  aspect_ratio?: InputFalAiKlingVideoV21MasterTextToVideoAspectRatioEnumKey
+  /**
+   * @maxLength 2500
+   * @default 'blur, distort, and low quality'
+   * @type string | undefined
+   */
+  negative_prompt?: string
+}
+
+export type File64Cdfae4 = {
+  /**
+   * @description The size of the file in bytes.
+   * @example 4404019
+   */
+  file_size?: number | null
+  /**
+   * @description The mime type of the file.
+   * @example image/png
+   */
+  content_type?: string | null
+  /**
+   * @description The URL where the file can be downloaded from.
+   * @type string
+   */
+  url: string
+  /**
+   * @description The name of the file. It will be auto-generated if not provided.
+   * @example z9RV14K95DvU.png
+   */
+  file_name?: string | null
+}
+
+export type OutputFalAiKlingVideoV21MasterTextToVideo = {
+  /**
+   * @description The generated video
+   * @example {"url":"https://v3.fal.media/files/lion/0wTlhR7GCXFI-_BZXGy99_output.mp4"}
+   * @type object
+   */
+  video: File64Cdfae4
+}
+
+export const inputFalAiKlingVideoV21ProImageToVideoDurationEnum = {
+  '5': '5',
+  '10': '10',
+} as const
+
+export type InputFalAiKlingVideoV21ProImageToVideoDurationEnumKey =
+  (typeof inputFalAiKlingVideoV21ProImageToVideoDurationEnum)[keyof typeof inputFalAiKlingVideoV21ProImageToVideoDurationEnum]
+
+export type InputFalAiKlingVideoV21ProImageToVideo = {
+  /**
+   * @description The duration of the generated video in seconds
+   * @default '5'
+   * @type string | undefined
+   */
+  duration?: InputFalAiKlingVideoV21ProImageToVideoDurationEnumKey
+  /**
+   * @description
+   *             The CFG (Classifier Free Guidance) scale is a measure of how close you want
+   *             the model to stick to your prompt.
+   *
+   * @minimum 0
+   * @maximum 1
+   * @default 0.5
+   * @type number | undefined
+   */
+  cfg_scale?: number
+  /**
+   * @description URL of the image to be used for the video
+   * @example https://v3.fal.media/files/lion/_I_io6Gtk83c72d-afXf8_image.webp
+   * @type string
+   */
+  image_url: string
+  /**
+   * @maxLength 2500
+   * @example Warm, incandescent streetlights paint the rain-slicked cobblestones in pools of amber light as a couple walks hand-in-hand, their silhouettes stark against the blurry backdrop of a city shrouded in a gentle downpour; the camera lingers on the subtle textures of their rain-soaked coats and the glistening reflections dancing on the wet pavement, creating a sense of intimate vulnerability and shared quietude.
+   * @type string
+   */
+  prompt: string
+  /**
+   * @maxLength 2500
+   * @default 'blur, distort, and low quality'
+   * @type string | undefined
+   */
+  negative_prompt?: string
+  /**
+   * @description URL of the image to be used for the end of the video
+   */
+  tail_image_url?: string | null
+}
+
+export type FileCcc4Bfdf = {
+  /**
+   * @description The size of the file in bytes.
+   * @example 4404019
+   */
+  file_size?: number | null
+  /**
+   * @description The mime type of the file.
+   * @example image/png
+   */
+  content_type?: string | null
+  /**
+   * @description The URL where the file can be downloaded from.
+   * @type string
+   */
+  url: string
+  /**
+   * @description The name of the file. It will be auto-generated if not provided.
+   * @example z9RV14K95DvU.png
+   */
+  file_name?: string | null
+}
+
+export type OutputFalAiKlingVideoV21ProImageToVideo = {
+  /**
+   * @description The generated video
+   * @example {"url":"https://v3.fal.media/files/rabbit/Y5I8-7u3e7ogVSvPin1TS_output.mp4"}
+   * @type object
+   */
+  video: FileCcc4Bfdf
+}
+
+export const inputFalAiKlingVideoV21StandardImageToVideoDurationEnum = {
+  '5': '5',
+  '10': '10',
+} as const
+
+export type InputFalAiKlingVideoV21StandardImageToVideoDurationEnumKey =
+  (typeof inputFalAiKlingVideoV21StandardImageToVideoDurationEnum)[keyof typeof inputFalAiKlingVideoV21StandardImageToVideoDurationEnum]
+
+export type InputFalAiKlingVideoV21StandardImageToVideo = {
+  /**
+   * @description
+   *             The CFG (Classifier Free Guidance) scale is a measure of how close you want
+   *             the model to stick to your prompt.
+   *
+   * @minimum 0
+   * @maximum 1
+   * @default 0.5
+   * @type number | undefined
+   */
+  cfg_scale?: number
+  /**
+   * @description URL of the image to be used for the video
+   * @example https://storage.googleapis.com/falserverless/model_tests/kling/kling-image-to-video.jpg
+   * @type string
+   */
+  image_url: string
+  /**
+   * @maxLength 2500
+   * @example As the sun dips below the horizon, painting the sky in fiery hues of orange and purple, powerful waves relentlessly crash against jagged, dark rocks, their white foam a stark contrast to the deepening twilight; the textured surface of the rocks, wet and glistening, reflects the vibrant colors, creating a mesmerizing spectacle of nature's raw power and breathtaking beauty
+   * @type string
+   */
+  prompt: string
+  /**
+   * @maxLength 2500
+   * @default 'blur, distort, and low quality'
+   * @type string | undefined
+   */
+  negative_prompt?: string
+  /**
+   * @description The duration of the generated video in seconds
+   * @default '5'
+   * @type string | undefined
+   */
+  duration?: InputFalAiKlingVideoV21StandardImageToVideoDurationEnumKey
+}
+
+export type File8453355F = {
+  /**
+   * @description The size of the file in bytes.
+   * @example 4404019
+   */
+  file_size?: number | null
+  /**
+   * @description The mime type of the file.
+   * @example image/png
+   */
+  content_type?: string | null
+  /**
+   * @description The URL where the file can be downloaded from.
+   * @type string
+   */
+  url: string
+  /**
+   * @description The name of the file. It will be auto-generated if not provided.
+   * @example z9RV14K95DvU.png
+   */
+  file_name?: string | null
+}
+
+export type OutputFalAiKlingVideoV21StandardImageToVideo = {
+  /**
+   * @description The generated video
+   * @example {"url":"https://v3.fal.media/files/koala/17e3xh08J4_PkHS_0cbwF_output.mp4"}
+   * @type object
+   */
+  video: File8453355F
 }
 
 export const inputFalAiKlingVideoV25TurboProImageToVideoDurationEnum = {
@@ -23046,6 +29384,171 @@ export type OutputFalAiKlingVideoV26StandardMotionControl = {
    * @type object
    */
   video: File2B9Bc55F
+}
+
+export const inputFalAiKlingVideoV2MasterImageToVideoDurationEnum = {
+  '5': '5',
+  '10': '10',
+} as const
+
+export type InputFalAiKlingVideoV2MasterImageToVideoDurationEnumKey =
+  (typeof inputFalAiKlingVideoV2MasterImageToVideoDurationEnum)[keyof typeof inputFalAiKlingVideoV2MasterImageToVideoDurationEnum]
+
+export type InputFalAiKlingVideoV2MasterImageToVideo = {
+  /**
+   * @description
+   *             The CFG (Classifier Free Guidance) scale is a measure of how close you want
+   *             the model to stick to your prompt.
+   *
+   * @minimum 0
+   * @maximum 1
+   * @default 0.5
+   * @type number | undefined
+   */
+  cfg_scale?: number
+  /**
+   * @description URL of the image to be used for the video
+   * @example https://v3.fal.media/files/elephant/rkH-9qoXtXu3rAYTsx9V5_image.webp
+   * @type string
+   */
+  image_url: string
+  /**
+   * @maxLength 2500
+   * @example slow-motion sequence captures the catastrophic implosion of a skyscraper, dust and debris billowing outwards in a chaotic ballet of destruction, while a haunting, orchestral score underscores the sheer power and finality of the event.
+   * @type string
+   */
+  prompt: string
+  /**
+   * @maxLength 2500
+   * @default 'blur, distort, and low quality'
+   * @type string | undefined
+   */
+  negative_prompt?: string
+  /**
+   * @description The duration of the generated video in seconds
+   * @default '5'
+   * @type string | undefined
+   */
+  duration?: InputFalAiKlingVideoV2MasterImageToVideoDurationEnumKey
+}
+
+export type FileEce8Af53 = {
+  /**
+   * @description The size of the file in bytes.
+   * @example 4404019
+   */
+  file_size?: number | null
+  /**
+   * @description The mime type of the file.
+   * @example image/png
+   */
+  content_type?: string | null
+  /**
+   * @description The URL where the file can be downloaded from.
+   * @type string
+   */
+  url: string
+  /**
+   * @description The name of the file. It will be auto-generated if not provided.
+   * @example z9RV14K95DvU.png
+   */
+  file_name?: string | null
+}
+
+export type OutputFalAiKlingVideoV2MasterImageToVideo = {
+  /**
+   * @description The generated video
+   * @example {"url":"https://v3.fal.media/files/koala/VvGXP5xEhTR9ovGjpulJ7_output.mp4"}
+   * @type object
+   */
+  video: FileEce8Af53
+}
+
+export const inputFalAiKlingVideoV2MasterTextToVideoDurationEnum = {
+  '5': '5',
+  '10': '10',
+} as const
+
+export type InputFalAiKlingVideoV2MasterTextToVideoDurationEnumKey =
+  (typeof inputFalAiKlingVideoV2MasterTextToVideoDurationEnum)[keyof typeof inputFalAiKlingVideoV2MasterTextToVideoDurationEnum]
+
+export const inputFalAiKlingVideoV2MasterTextToVideoAspectRatioEnum = {
+  '16:9': '16:9',
+  '9:16': '9:16',
+  '1:1': '1:1',
+} as const
+
+export type InputFalAiKlingVideoV2MasterTextToVideoAspectRatioEnumKey =
+  (typeof inputFalAiKlingVideoV2MasterTextToVideoAspectRatioEnum)[keyof typeof inputFalAiKlingVideoV2MasterTextToVideoAspectRatioEnum]
+
+export type InputFalAiKlingVideoV2MasterTextToVideo = {
+  /**
+   * @description
+   *             The CFG (Classifier Free Guidance) scale is a measure of how close you want
+   *             the model to stick to your prompt.
+   *
+   * @minimum 0
+   * @maximum 1
+   * @default 0.5
+   * @type number | undefined
+   */
+  cfg_scale?: number
+  /**
+   * @description The duration of the generated video in seconds
+   * @default '5'
+   * @type string | undefined
+   */
+  duration?: InputFalAiKlingVideoV2MasterTextToVideoDurationEnumKey
+  /**
+   * @maxLength 2500
+   * @example A slow-motion drone shot descending from above a maze of neon-lit Tokyo alleyways at night during heavy rainfall. The camera gradually focuses on a lone figure in a luminescent white raincoat standing perfectly still amid the bustling crowd, all carrying black umbrellas. As the camera continues its downward journey, we see the raindrops creating rippling patterns on puddles that reflect the kaleidoscope of colors from the surrounding signs, creating a mirror world beneath the city.
+   * @type string
+   */
+  prompt: string
+  /**
+   * @description The aspect ratio of the generated video frame
+   * @default '16:9'
+   * @type string | undefined
+   */
+  aspect_ratio?: InputFalAiKlingVideoV2MasterTextToVideoAspectRatioEnumKey
+  /**
+   * @maxLength 2500
+   * @default 'blur, distort, and low quality'
+   * @type string | undefined
+   */
+  negative_prompt?: string
+}
+
+export type FileAf463D47 = {
+  /**
+   * @description The size of the file in bytes.
+   * @example 4404019
+   */
+  file_size?: number | null
+  /**
+   * @description The mime type of the file.
+   * @example image/png
+   */
+  content_type?: string | null
+  /**
+   * @description The URL where the file can be downloaded from.
+   * @type string
+   */
+  url: string
+  /**
+   * @description The name of the file. It will be auto-generated if not provided.
+   * @example z9RV14K95DvU.png
+   */
+  file_name?: string | null
+}
+
+export type OutputFalAiKlingVideoV2MasterTextToVideo = {
+  /**
+   * @description The generated video
+   * @example {"url":"https://v3.fal.media/files/rabbit/5fu6OSZdvV825r2s_c0S8_output.mp4"}
+   * @type object
+   */
+  video: FileAf463D47
 }
 
 export const inputFalAiKlingVideoV34KImageToVideoDurationEnum = {
@@ -26762,6 +33265,6410 @@ export type OutputFalAiLongcatVideoTextToVideo720P = {
   prompt: string
 }
 
+export type ImageSize89237F75 = {
+  /**
+   * @description The height of the generated image.
+   * @maximum 14142
+   * @default 512
+   * @type integer | undefined
+   */
+  height?: number
+  /**
+   * @description The width of the generated image.
+   * @maximum 14142
+   * @default 512
+   * @type integer | undefined
+   */
+  width?: number
+}
+
+export const inputFalAiLtx219BAudioToVideoVideoSize = {
+  auto: 'auto',
+  square_hd: 'square_hd',
+  square: 'square',
+  portrait_4_3: 'portrait_4_3',
+  portrait_16_9: 'portrait_16_9',
+  landscape_4_3: 'landscape_4_3',
+  landscape_16_9: 'landscape_16_9',
+} as const
+
+export type InputFalAiLtx219BAudioToVideoVideoSizeKey =
+  (typeof inputFalAiLtx219BAudioToVideoVideoSize)[keyof typeof inputFalAiLtx219BAudioToVideoVideoSize]
+
+export const inputFalAiLtx219BAudioToVideoVideoOutputTypeEnum = {
+  'X264 (.mp4)': 'X264 (.mp4)',
+  'VP9 (.webm)': 'VP9 (.webm)',
+  'PRORES4444 (.mov)': 'PRORES4444 (.mov)',
+  'GIF (.gif)': 'GIF (.gif)',
+} as const
+
+export type InputFalAiLtx219BAudioToVideoVideoOutputTypeEnumKey =
+  (typeof inputFalAiLtx219BAudioToVideoVideoOutputTypeEnum)[keyof typeof inputFalAiLtx219BAudioToVideoVideoOutputTypeEnum]
+
+export const inputFalAiLtx219BAudioToVideoVideoQualityEnum = {
+  low: 'low',
+  medium: 'medium',
+  high: 'high',
+  maximum: 'maximum',
+} as const
+
+export type InputFalAiLtx219BAudioToVideoVideoQualityEnumKey =
+  (typeof inputFalAiLtx219BAudioToVideoVideoQualityEnum)[keyof typeof inputFalAiLtx219BAudioToVideoVideoQualityEnum]
+
+export const inputFalAiLtx219BAudioToVideoAccelerationEnum = {
+  none: 'none',
+  regular: 'regular',
+  high: 'high',
+  full: 'full',
+} as const
+
+export type InputFalAiLtx219BAudioToVideoAccelerationEnumKey =
+  (typeof inputFalAiLtx219BAudioToVideoAccelerationEnum)[keyof typeof inputFalAiLtx219BAudioToVideoAccelerationEnum]
+
+export const inputFalAiLtx219BAudioToVideoCameraLoraEnum = {
+  dolly_in: 'dolly_in',
+  dolly_out: 'dolly_out',
+  dolly_left: 'dolly_left',
+  dolly_right: 'dolly_right',
+  jib_up: 'jib_up',
+  jib_down: 'jib_down',
+  static: 'static',
+  none: 'none',
+} as const
+
+export type InputFalAiLtx219BAudioToVideoCameraLoraEnumKey =
+  (typeof inputFalAiLtx219BAudioToVideoCameraLoraEnum)[keyof typeof inputFalAiLtx219BAudioToVideoCameraLoraEnum]
+
+export const inputFalAiLtx219BAudioToVideoVideoWriteModeEnum = {
+  fast: 'fast',
+  balanced: 'balanced',
+  small: 'small',
+} as const
+
+export type InputFalAiLtx219BAudioToVideoVideoWriteModeEnumKey =
+  (typeof inputFalAiLtx219BAudioToVideoVideoWriteModeEnum)[keyof typeof inputFalAiLtx219BAudioToVideoVideoWriteModeEnum]
+
+export type InputFalAiLtx219BAudioToVideo = {
+  /**
+   * @description The number of inference steps to use.
+   * @minimum 8
+   * @maximum 50
+   * @default 40
+   * @type integer | undefined
+   */
+  num_inference_steps?: number
+  /**
+   * @description Whether to preprocess the audio before using it as conditioning.
+   * @default true
+   * @type boolean | undefined
+   */
+  preprocess_audio?: boolean
+  /**
+   * @description Whether to enable prompt expansion.
+   * @default true
+   * @type boolean | undefined
+   */
+  enable_prompt_expansion?: boolean
+  /**
+   * @description Whether to enable the safety checker.
+   * @default true
+   * @type boolean | undefined
+   */
+  enable_safety_checker?: boolean
+  /**
+   * @description The URL of the audio to generate the video from.
+   * @example https://storage.googleapis.com/falserverless/example_inputs/ltx-2-a2v-input-audio.mp3
+   * @type string
+   */
+  audio_url: string
+  /**
+   * @description The strength of the end image to use for the video generation.
+   * @minimum 0
+   * @maximum 1
+   * @default 1
+   * @type number | undefined
+   */
+  end_image_strength?: number
+  /**
+   * @description The scale of the camera LoRA to use. This allows you to control the camera movement of the generated video more accurately than just prompting the model to move the camera.
+   * @minimum 0
+   * @maximum 1
+   * @default 1
+   * @type number | undefined
+   */
+  camera_lora_scale?: number
+  /**
+   * @description The size of the generated video. Use 'auto' to match the input image dimensions if provided.
+   * @default landscape_4_3
+   */
+  video_size?: ImageSize89237F75 | InputFalAiLtx219BAudioToVideoVideoSizeKey
+  /**
+   * @description The guidance scale to use.
+   * @minimum 1
+   * @maximum 10
+   * @default 3
+   * @type number | undefined
+   */
+  guidance_scale?: number
+  /**
+   * @description The output type of the generated video.
+   * @default 'X264 (.mp4)'
+   * @type string | undefined
+   */
+  video_output_type?: InputFalAiLtx219BAudioToVideoVideoOutputTypeEnumKey
+  /**
+   * @description The prompt to generate the video from.
+   * @example A woman speaks to the camera
+   * @type string
+   */
+  prompt: string
+  /**
+   * @description The quality of the generated video.
+   * @default 'high'
+   * @type string | undefined
+   */
+  video_quality?: InputFalAiLtx219BAudioToVideoVideoQualityEnumKey
+  /**
+   * @description The acceleration level to use.
+   * @default 'regular'
+   * @example regular
+   * @type string | undefined
+   */
+  acceleration?: InputFalAiLtx219BAudioToVideoAccelerationEnumKey
+  /**
+   * @description The seed for the random number generator.
+   */
+  seed?: number | null
+  /**
+   * @description The URL of the image to use as the end of the video.
+   */
+  end_image_url?: string | null
+  /**
+   * @description The frames per second of the generated video.
+   * @minimum 1
+   * @maximum 60
+   * @default 25
+   * @type number | undefined
+   */
+  fps?: number
+  /**
+   * @description Optional URL of an image to use as the first frame of the video.
+   * @example https://storage.googleapis.com/falserverless/example_inputs/ltx-2-a2v-input-image.png
+   */
+  image_url?: string | null
+  /**
+   * @description The negative prompt to generate the video from.
+   * @default 'blurry, out of focus, overexposed, underexposed, low contrast, washed out colors, excessive noise, grainy texture, poor lighting, flickering, motion blur, distorted proportions, unnatural skin tones, deformed facial features, asymmetrical face, missing facial features, extra limbs, disfigured hands, wrong hand count, artifacts around text, inconsistent perspective, camera shake, incorrect depth of field, background too sharp, background clutter, distracting reflections, harsh shadows, inconsistent lighting direction, color banding, cartoonish rendering, 3D CGI look, unrealistic materials, uncanny valley effect, incorrect ethnicity, wrong gender, exaggerated expressions, wrong gaze direction, mismatched lip sync, silent or muted audio, distorted voice, robotic voice, echo, background noise, off-sync audio,incorrect dialogue, added dialogue, repetitive speech, jittery movement, awkward pauses, incorrect timing, unnatural transitions, inconsistent framing, tilted camera, flat lighting, inconsistent tone, cinematic oversaturation, stylized filters, or AI artifacts.'
+   * @type string | undefined
+   */
+  negative_prompt?: string
+  /**
+   * @description The strength of the image to use for the video generation.
+   * @minimum 0
+   * @maximum 1
+   * @default 1
+   * @type number | undefined
+   */
+  image_strength?: number
+  /**
+   * @description The camera LoRA to use. This allows you to control the camera movement of the generated video more accurately than just prompting the model to move the camera.
+   * @default 'none'
+   * @example none
+   * @type string | undefined
+   */
+  camera_lora?: InputFalAiLtx219BAudioToVideoCameraLoraEnumKey
+  /**
+   * @description Whether to use multi-scale generation. If True, the model will generate the video at a smaller scale first, then use the smaller video to guide the generation of a video at or above your requested size. This results in better coherence and details.
+   * @default true
+   * @type boolean | undefined
+   */
+  use_multiscale?: boolean
+  /**
+   * @description The write mode of the generated video.
+   * @default 'balanced'
+   * @type string | undefined
+   */
+  video_write_mode?: InputFalAiLtx219BAudioToVideoVideoWriteModeEnumKey
+  /**
+   * @description When enabled, the number of frames will be calculated based on the audio duration and FPS. When disabled, use the specified num_frames.
+   * @default true
+   * @type boolean | undefined
+   */
+  match_audio_length?: boolean
+  /**
+   * @description If `True`, the media will be returned as a data URI and the output data won't be available in the request history.
+   * @default false
+   * @type boolean | undefined
+   */
+  sync_mode?: boolean
+  /**
+   * @description The number of frames to generate.
+   * @minimum 9
+   * @maximum 481
+   * @default 121
+   * @type integer | undefined
+   */
+  num_frames?: number
+  /**
+   * @description Audio conditioning strength. Values below 1.0 will allow the model to change the audio, while a value of exactly 1.0 will use the input audio without modification.
+   * @minimum 0
+   * @maximum 1
+   * @default 1
+   * @type number | undefined
+   */
+  audio_strength?: number
+}
+
+export type VideoFileAc86Ee0F = {
+  /**
+   * @description The name of the file. It will be auto-generated if not provided.
+   * @example z9RV14K95DvU.png
+   */
+  file_name?: string | null
+  /**
+   * @description The FPS of the video
+   */
+  fps?: number | null
+  /**
+   * @description The size of the file in bytes.
+   * @example 4404019
+   */
+  file_size?: number | null
+  /**
+   * @description The duration of the video
+   */
+  duration?: number | null
+  /**
+   * @description The width of the video
+   */
+  width?: number | null
+  /**
+   * @description The height of the video
+   */
+  height?: number | null
+  /**
+   * @description The URL where the file can be downloaded from.
+   * @type string
+   */
+  url: string
+  /**
+   * @description The number of frames in the video
+   */
+  num_frames?: number | null
+  /**
+   * @description The mime type of the file.
+   * @example image/png
+   */
+  content_type?: string | null
+}
+
+export type OutputFalAiLtx219BAudioToVideo = {
+  /**
+   * @description The generated video.
+   * @example {"file_name":"ltx-2-a2v-output.mp4","url":"https://storage.googleapis.com/falserverless/example_outputs/ltx-2-a2v-output.mp4","content_type":"video/mp4"}
+   * @type object
+   */
+  video: VideoFileAc86Ee0F
+  /**
+   * @description The prompt used for the generation.
+   * @example A woman speaks to the camera
+   * @type string
+   */
+  prompt: string
+  /**
+   * @description The seed used for the random number generator.
+   * @example 175932751
+   * @type integer
+   */
+  seed: number
+}
+
+/**
+ * @description LoRA weight configuration.
+ * @type object
+ */
+export type LoRAInput = {
+  /**
+   * @description URL, HuggingFace repo ID (owner/repo) to lora weights.
+   * @type string
+   */
+  path: string
+  /**
+   * @description Name of the LoRA weight. Only used if `path` is a HuggingFace repository, and is only required when the repository contains multiple LoRA weights.
+   */
+  weight_name?: string | null
+  /**
+   * @description Scale factor for LoRA application (0.0 to 4.0).
+   * @minimum 0
+   * @maximum 4
+   * @default 1
+   * @type number | undefined
+   */
+  scale?: number
+}
+
+export type ImageSize66090169 = {
+  /**
+   * @description The height of the generated image.
+   * @maximum 14142
+   * @default 512
+   * @type integer | undefined
+   */
+  height?: number
+  /**
+   * @description The width of the generated image.
+   * @maximum 14142
+   * @default 512
+   * @type integer | undefined
+   */
+  width?: number
+}
+
+export const inputFalAiLtx219BAudioToVideoLoraVideoSize = {
+  auto: 'auto',
+  square_hd: 'square_hd',
+  square: 'square',
+  portrait_4_3: 'portrait_4_3',
+  portrait_16_9: 'portrait_16_9',
+  landscape_4_3: 'landscape_4_3',
+  landscape_16_9: 'landscape_16_9',
+} as const
+
+export type InputFalAiLtx219BAudioToVideoLoraVideoSizeKey =
+  (typeof inputFalAiLtx219BAudioToVideoLoraVideoSize)[keyof typeof inputFalAiLtx219BAudioToVideoLoraVideoSize]
+
+export const inputFalAiLtx219BAudioToVideoLoraVideoOutputTypeEnum = {
+  'X264 (.mp4)': 'X264 (.mp4)',
+  'VP9 (.webm)': 'VP9 (.webm)',
+  'PRORES4444 (.mov)': 'PRORES4444 (.mov)',
+  'GIF (.gif)': 'GIF (.gif)',
+} as const
+
+export type InputFalAiLtx219BAudioToVideoLoraVideoOutputTypeEnumKey =
+  (typeof inputFalAiLtx219BAudioToVideoLoraVideoOutputTypeEnum)[keyof typeof inputFalAiLtx219BAudioToVideoLoraVideoOutputTypeEnum]
+
+export const inputFalAiLtx219BAudioToVideoLoraVideoQualityEnum = {
+  low: 'low',
+  medium: 'medium',
+  high: 'high',
+  maximum: 'maximum',
+} as const
+
+export type InputFalAiLtx219BAudioToVideoLoraVideoQualityEnumKey =
+  (typeof inputFalAiLtx219BAudioToVideoLoraVideoQualityEnum)[keyof typeof inputFalAiLtx219BAudioToVideoLoraVideoQualityEnum]
+
+export const inputFalAiLtx219BAudioToVideoLoraAccelerationEnum = {
+  none: 'none',
+  regular: 'regular',
+  high: 'high',
+  full: 'full',
+} as const
+
+export type InputFalAiLtx219BAudioToVideoLoraAccelerationEnumKey =
+  (typeof inputFalAiLtx219BAudioToVideoLoraAccelerationEnum)[keyof typeof inputFalAiLtx219BAudioToVideoLoraAccelerationEnum]
+
+export const inputFalAiLtx219BAudioToVideoLoraCameraLoraEnum = {
+  dolly_in: 'dolly_in',
+  dolly_out: 'dolly_out',
+  dolly_left: 'dolly_left',
+  dolly_right: 'dolly_right',
+  jib_up: 'jib_up',
+  jib_down: 'jib_down',
+  static: 'static',
+  none: 'none',
+} as const
+
+export type InputFalAiLtx219BAudioToVideoLoraCameraLoraEnumKey =
+  (typeof inputFalAiLtx219BAudioToVideoLoraCameraLoraEnum)[keyof typeof inputFalAiLtx219BAudioToVideoLoraCameraLoraEnum]
+
+export const inputFalAiLtx219BAudioToVideoLoraVideoWriteModeEnum = {
+  fast: 'fast',
+  balanced: 'balanced',
+  small: 'small',
+} as const
+
+export type InputFalAiLtx219BAudioToVideoLoraVideoWriteModeEnumKey =
+  (typeof inputFalAiLtx219BAudioToVideoLoraVideoWriteModeEnum)[keyof typeof inputFalAiLtx219BAudioToVideoLoraVideoWriteModeEnum]
+
+export type InputFalAiLtx219BAudioToVideoLora = {
+  /**
+   * @description The number of inference steps to use.
+   * @minimum 8
+   * @maximum 50
+   * @default 40
+   * @type integer | undefined
+   */
+  num_inference_steps?: number
+  /**
+   * @description Whether to preprocess the audio before using it as conditioning.
+   * @default true
+   * @type boolean | undefined
+   */
+  preprocess_audio?: boolean
+  /**
+   * @description The LoRAs to use for the generation.
+   * @type array
+   */
+  loras: LoRAInput[]
+  /**
+   * @description Whether to enable the safety checker.
+   * @default true
+   * @type boolean | undefined
+   */
+  enable_safety_checker?: boolean
+  /**
+   * @description The URL of the audio to generate the video from.
+   * @example https://storage.googleapis.com/falserverless/example_inputs/ltx-2-a2v-input-audio.mp3
+   * @type string
+   */
+  audio_url: string
+  /**
+   * @description Whether to enable prompt expansion.
+   * @default true
+   * @type boolean | undefined
+   */
+  enable_prompt_expansion?: boolean
+  /**
+   * @description The strength of the end image to use for the video generation.
+   * @minimum 0
+   * @maximum 1
+   * @default 1
+   * @type number | undefined
+   */
+  end_image_strength?: number
+  /**
+   * @description The scale of the camera LoRA to use. This allows you to control the camera movement of the generated video more accurately than just prompting the model to move the camera.
+   * @minimum 0
+   * @maximum 1
+   * @default 1
+   * @type number | undefined
+   */
+  camera_lora_scale?: number
+  /**
+   * @description The size of the generated video. Use 'auto' to match the input image dimensions if provided.
+   * @default landscape_4_3
+   */
+  video_size?: ImageSize66090169 | InputFalAiLtx219BAudioToVideoLoraVideoSizeKey
+  /**
+   * @description The guidance scale to use.
+   * @minimum 1
+   * @maximum 10
+   * @default 3
+   * @type number | undefined
+   */
+  guidance_scale?: number
+  /**
+   * @description The output type of the generated video.
+   * @default 'X264 (.mp4)'
+   * @type string | undefined
+   */
+  video_output_type?: InputFalAiLtx219BAudioToVideoLoraVideoOutputTypeEnumKey
+  /**
+   * @description The prompt to generate the video from.
+   * @example A woman speaks to the camera
+   * @type string
+   */
+  prompt: string
+  /**
+   * @description The quality of the generated video.
+   * @default 'high'
+   * @type string | undefined
+   */
+  video_quality?: InputFalAiLtx219BAudioToVideoLoraVideoQualityEnumKey
+  /**
+   * @description The acceleration level to use.
+   * @default 'regular'
+   * @example regular
+   * @type string | undefined
+   */
+  acceleration?: InputFalAiLtx219BAudioToVideoLoraAccelerationEnumKey
+  /**
+   * @description The seed for the random number generator.
+   */
+  seed?: number | null
+  /**
+   * @description The URL of the image to use as the end of the video.
+   */
+  end_image_url?: string | null
+  /**
+   * @description The frames per second of the generated video.
+   * @minimum 1
+   * @maximum 60
+   * @default 25
+   * @type number | undefined
+   */
+  fps?: number
+  /**
+   * @description Optional URL of an image to use as the first frame of the video.
+   * @example https://storage.googleapis.com/falserverless/example_inputs/ltx-2-a2v-input-image.png
+   */
+  image_url?: string | null
+  /**
+   * @description The negative prompt to generate the video from.
+   * @default 'blurry, out of focus, overexposed, underexposed, low contrast, washed out colors, excessive noise, grainy texture, poor lighting, flickering, motion blur, distorted proportions, unnatural skin tones, deformed facial features, asymmetrical face, missing facial features, extra limbs, disfigured hands, wrong hand count, artifacts around text, inconsistent perspective, camera shake, incorrect depth of field, background too sharp, background clutter, distracting reflections, harsh shadows, inconsistent lighting direction, color banding, cartoonish rendering, 3D CGI look, unrealistic materials, uncanny valley effect, incorrect ethnicity, wrong gender, exaggerated expressions, wrong gaze direction, mismatched lip sync, silent or muted audio, distorted voice, robotic voice, echo, background noise, off-sync audio,incorrect dialogue, added dialogue, repetitive speech, jittery movement, awkward pauses, incorrect timing, unnatural transitions, inconsistent framing, tilted camera, flat lighting, inconsistent tone, cinematic oversaturation, stylized filters, or AI artifacts.'
+   * @type string | undefined
+   */
+  negative_prompt?: string
+  /**
+   * @description The strength of the image to use for the video generation.
+   * @minimum 0
+   * @maximum 1
+   * @default 1
+   * @type number | undefined
+   */
+  image_strength?: number
+  /**
+   * @description The camera LoRA to use. This allows you to control the camera movement of the generated video more accurately than just prompting the model to move the camera.
+   * @default 'none'
+   * @example none
+   * @type string | undefined
+   */
+  camera_lora?: InputFalAiLtx219BAudioToVideoLoraCameraLoraEnumKey
+  /**
+   * @description Whether to use multi-scale generation. If True, the model will generate the video at a smaller scale first, then use the smaller video to guide the generation of a video at or above your requested size. This results in better coherence and details.
+   * @default true
+   * @type boolean | undefined
+   */
+  use_multiscale?: boolean
+  /**
+   * @description The write mode of the generated video.
+   * @default 'balanced'
+   * @type string | undefined
+   */
+  video_write_mode?: InputFalAiLtx219BAudioToVideoLoraVideoWriteModeEnumKey
+  /**
+   * @description When enabled, the number of frames will be calculated based on the audio duration and FPS. When disabled, use the specified num_frames.
+   * @default true
+   * @type boolean | undefined
+   */
+  match_audio_length?: boolean
+  /**
+   * @description If `True`, the media will be returned as a data URI and the output data won't be available in the request history.
+   * @default false
+   * @type boolean | undefined
+   */
+  sync_mode?: boolean
+  /**
+   * @description The number of frames to generate.
+   * @minimum 9
+   * @maximum 481
+   * @default 121
+   * @type integer | undefined
+   */
+  num_frames?: number
+  /**
+   * @description Audio conditioning strength. Values below 1.0 will allow the model to change the audio, while a value of exactly 1.0 will use the input audio without modification.
+   * @minimum 0
+   * @maximum 1
+   * @default 1
+   * @type number | undefined
+   */
+  audio_strength?: number
+}
+
+export type VideoFile68Cfdcba = {
+  /**
+   * @description The name of the file. It will be auto-generated if not provided.
+   * @example z9RV14K95DvU.png
+   */
+  file_name?: string | null
+  /**
+   * @description The FPS of the video
+   */
+  fps?: number | null
+  /**
+   * @description The size of the file in bytes.
+   * @example 4404019
+   */
+  file_size?: number | null
+  /**
+   * @description The duration of the video
+   */
+  duration?: number | null
+  /**
+   * @description The width of the video
+   */
+  width?: number | null
+  /**
+   * @description The height of the video
+   */
+  height?: number | null
+  /**
+   * @description The URL where the file can be downloaded from.
+   * @type string
+   */
+  url: string
+  /**
+   * @description The number of frames in the video
+   */
+  num_frames?: number | null
+  /**
+   * @description The mime type of the file.
+   * @example image/png
+   */
+  content_type?: string | null
+}
+
+export type OutputFalAiLtx219BAudioToVideoLora = {
+  /**
+   * @description The generated video.
+   * @example {"file_name":"ltx-2-a2v-output.mp4","url":"https://storage.googleapis.com/falserverless/example_outputs/ltx-2-a2v-output.mp4","content_type":"video/mp4"}
+   * @type object
+   */
+  video: VideoFile68Cfdcba
+  /**
+   * @description The prompt used for the generation.
+   * @example A woman speaks to the camera
+   * @type string
+   */
+  prompt: string
+  /**
+   * @description The seed used for the random number generator.
+   * @example 175932751
+   * @type integer
+   */
+  seed: number
+}
+
+export type ImageSize22414652 = {
+  /**
+   * @description The height of the generated image.
+   * @maximum 14142
+   * @default 512
+   * @type integer | undefined
+   */
+  height?: number
+  /**
+   * @description The width of the generated image.
+   * @maximum 14142
+   * @default 512
+   * @type integer | undefined
+   */
+  width?: number
+}
+
+export const inputFalAiLtx219BDistilledAudioToVideoVideoSize = {
+  auto: 'auto',
+  square_hd: 'square_hd',
+  square: 'square',
+  portrait_4_3: 'portrait_4_3',
+  portrait_16_9: 'portrait_16_9',
+  landscape_4_3: 'landscape_4_3',
+  landscape_16_9: 'landscape_16_9',
+} as const
+
+export type InputFalAiLtx219BDistilledAudioToVideoVideoSizeKey =
+  (typeof inputFalAiLtx219BDistilledAudioToVideoVideoSize)[keyof typeof inputFalAiLtx219BDistilledAudioToVideoVideoSize]
+
+export const inputFalAiLtx219BDistilledAudioToVideoVideoOutputTypeEnum = {
+  'X264 (.mp4)': 'X264 (.mp4)',
+  'VP9 (.webm)': 'VP9 (.webm)',
+  'PRORES4444 (.mov)': 'PRORES4444 (.mov)',
+  'GIF (.gif)': 'GIF (.gif)',
+} as const
+
+export type InputFalAiLtx219BDistilledAudioToVideoVideoOutputTypeEnumKey =
+  (typeof inputFalAiLtx219BDistilledAudioToVideoVideoOutputTypeEnum)[keyof typeof inputFalAiLtx219BDistilledAudioToVideoVideoOutputTypeEnum]
+
+export const inputFalAiLtx219BDistilledAudioToVideoVideoQualityEnum = {
+  low: 'low',
+  medium: 'medium',
+  high: 'high',
+  maximum: 'maximum',
+} as const
+
+export type InputFalAiLtx219BDistilledAudioToVideoVideoQualityEnumKey =
+  (typeof inputFalAiLtx219BDistilledAudioToVideoVideoQualityEnum)[keyof typeof inputFalAiLtx219BDistilledAudioToVideoVideoQualityEnum]
+
+export const inputFalAiLtx219BDistilledAudioToVideoAccelerationEnum = {
+  none: 'none',
+  regular: 'regular',
+  high: 'high',
+  full: 'full',
+} as const
+
+export type InputFalAiLtx219BDistilledAudioToVideoAccelerationEnumKey =
+  (typeof inputFalAiLtx219BDistilledAudioToVideoAccelerationEnum)[keyof typeof inputFalAiLtx219BDistilledAudioToVideoAccelerationEnum]
+
+export const inputFalAiLtx219BDistilledAudioToVideoCameraLoraEnum = {
+  dolly_in: 'dolly_in',
+  dolly_out: 'dolly_out',
+  dolly_left: 'dolly_left',
+  dolly_right: 'dolly_right',
+  jib_up: 'jib_up',
+  jib_down: 'jib_down',
+  static: 'static',
+  none: 'none',
+} as const
+
+export type InputFalAiLtx219BDistilledAudioToVideoCameraLoraEnumKey =
+  (typeof inputFalAiLtx219BDistilledAudioToVideoCameraLoraEnum)[keyof typeof inputFalAiLtx219BDistilledAudioToVideoCameraLoraEnum]
+
+export const inputFalAiLtx219BDistilledAudioToVideoVideoWriteModeEnum = {
+  fast: 'fast',
+  balanced: 'balanced',
+  small: 'small',
+} as const
+
+export type InputFalAiLtx219BDistilledAudioToVideoVideoWriteModeEnumKey =
+  (typeof inputFalAiLtx219BDistilledAudioToVideoVideoWriteModeEnum)[keyof typeof inputFalAiLtx219BDistilledAudioToVideoVideoWriteModeEnum]
+
+export type InputFalAiLtx219BDistilledAudioToVideo = {
+  /**
+   * @description Whether to enable prompt expansion.
+   * @default true
+   * @type boolean | undefined
+   */
+  enable_prompt_expansion?: boolean
+  /**
+   * @description Whether to preprocess the audio before using it as conditioning.
+   * @default true
+   * @type boolean | undefined
+   */
+  preprocess_audio?: boolean
+  /**
+   * @description The URL of the audio to generate the video from.
+   * @example https://storage.googleapis.com/falserverless/example_inputs/ltx-2-a2v-input-audio.mp3
+   * @type string
+   */
+  audio_url: string
+  /**
+   * @description Whether to enable the safety checker.
+   * @default true
+   * @type boolean | undefined
+   */
+  enable_safety_checker?: boolean
+  /**
+   * @description The strength of the end image to use for the video generation.
+   * @minimum 0
+   * @maximum 1
+   * @default 1
+   * @type number | undefined
+   */
+  end_image_strength?: number
+  /**
+   * @description The scale of the camera LoRA to use. This allows you to control the camera movement of the generated video more accurately than just prompting the model to move the camera.
+   * @minimum 0
+   * @maximum 1
+   * @default 1
+   * @type number | undefined
+   */
+  camera_lora_scale?: number
+  /**
+   * @description The size of the generated video. Use 'auto' to match the input image dimensions if provided.
+   * @default landscape_4_3
+   */
+  video_size?:
+    | ImageSize22414652
+    | InputFalAiLtx219BDistilledAudioToVideoVideoSizeKey
+  /**
+   * @description The URL of the image to use as the end of the video.
+   */
+  end_image_url?: string | null
+  /**
+   * @description The output type of the generated video.
+   * @default 'X264 (.mp4)'
+   * @type string | undefined
+   */
+  video_output_type?: InputFalAiLtx219BDistilledAudioToVideoVideoOutputTypeEnumKey
+  /**
+   * @description The prompt to generate the video from.
+   * @example A woman speaks to the camera
+   * @type string
+   */
+  prompt: string
+  /**
+   * @description The quality of the generated video.
+   * @default 'high'
+   * @type string | undefined
+   */
+  video_quality?: InputFalAiLtx219BDistilledAudioToVideoVideoQualityEnumKey
+  /**
+   * @description The acceleration level to use.
+   * @default 'none'
+   * @example none
+   * @type string | undefined
+   */
+  acceleration?: InputFalAiLtx219BDistilledAudioToVideoAccelerationEnumKey
+  /**
+   * @description The seed for the random number generator.
+   */
+  seed?: number | null
+  /**
+   * @description The frames per second of the generated video.
+   * @minimum 1
+   * @maximum 60
+   * @default 25
+   * @type number | undefined
+   */
+  fps?: number
+  /**
+   * @description Optional URL of an image to use as the first frame of the video.
+   * @example https://storage.googleapis.com/falserverless/example_inputs/ltx-2-a2v-input-image.png
+   */
+  image_url?: string | null
+  /**
+   * @description The negative prompt to generate the video from.
+   * @default 'blurry, out of focus, overexposed, underexposed, low contrast, washed out colors, excessive noise, grainy texture, poor lighting, flickering, motion blur, distorted proportions, unnatural skin tones, deformed facial features, asymmetrical face, missing facial features, extra limbs, disfigured hands, wrong hand count, artifacts around text, inconsistent perspective, camera shake, incorrect depth of field, background too sharp, background clutter, distracting reflections, harsh shadows, inconsistent lighting direction, color banding, cartoonish rendering, 3D CGI look, unrealistic materials, uncanny valley effect, incorrect ethnicity, wrong gender, exaggerated expressions, wrong gaze direction, mismatched lip sync, silent or muted audio, distorted voice, robotic voice, echo, background noise, off-sync audio,incorrect dialogue, added dialogue, repetitive speech, jittery movement, awkward pauses, incorrect timing, unnatural transitions, inconsistent framing, tilted camera, flat lighting, inconsistent tone, cinematic oversaturation, stylized filters, or AI artifacts.'
+   * @type string | undefined
+   */
+  negative_prompt?: string
+  /**
+   * @description The strength of the image to use for the video generation.
+   * @minimum 0
+   * @maximum 1
+   * @default 1
+   * @type number | undefined
+   */
+  image_strength?: number
+  /**
+   * @description The camera LoRA to use. This allows you to control the camera movement of the generated video more accurately than just prompting the model to move the camera.
+   * @default 'none'
+   * @example none
+   * @type string | undefined
+   */
+  camera_lora?: InputFalAiLtx219BDistilledAudioToVideoCameraLoraEnumKey
+  /**
+   * @description Whether to use multi-scale generation. If True, the model will generate the video at a smaller scale first, then use the smaller video to guide the generation of a video at or above your requested size. This results in better coherence and details.
+   * @default true
+   * @type boolean | undefined
+   */
+  use_multiscale?: boolean
+  /**
+   * @description The write mode of the generated video.
+   * @default 'balanced'
+   * @type string | undefined
+   */
+  video_write_mode?: InputFalAiLtx219BDistilledAudioToVideoVideoWriteModeEnumKey
+  /**
+   * @description When enabled, the number of frames will be calculated based on the audio duration and FPS. When disabled, use the specified num_frames.
+   * @default true
+   * @type boolean | undefined
+   */
+  match_audio_length?: boolean
+  /**
+   * @description If `True`, the media will be returned as a data URI and the output data won't be available in the request history.
+   * @default false
+   * @type boolean | undefined
+   */
+  sync_mode?: boolean
+  /**
+   * @description The number of frames to generate.
+   * @minimum 9
+   * @maximum 481
+   * @default 121
+   * @type integer | undefined
+   */
+  num_frames?: number
+  /**
+   * @description Audio conditioning strength. Values below 1.0 will allow the model to change the audio, while a value of exactly 1.0 will use the input audio without modification.
+   * @minimum 0
+   * @maximum 1
+   * @default 1
+   * @type number | undefined
+   */
+  audio_strength?: number
+}
+
+export type VideoFile255Bd684 = {
+  /**
+   * @description The name of the file. It will be auto-generated if not provided.
+   * @example z9RV14K95DvU.png
+   */
+  file_name?: string | null
+  /**
+   * @description The FPS of the video
+   */
+  fps?: number | null
+  /**
+   * @description The size of the file in bytes.
+   * @example 4404019
+   */
+  file_size?: number | null
+  /**
+   * @description The duration of the video
+   */
+  duration?: number | null
+  /**
+   * @description The width of the video
+   */
+  width?: number | null
+  /**
+   * @description The height of the video
+   */
+  height?: number | null
+  /**
+   * @description The URL where the file can be downloaded from.
+   * @type string
+   */
+  url: string
+  /**
+   * @description The number of frames in the video
+   */
+  num_frames?: number | null
+  /**
+   * @description The mime type of the file.
+   * @example image/png
+   */
+  content_type?: string | null
+}
+
+export type OutputFalAiLtx219BDistilledAudioToVideo = {
+  /**
+   * @description The generated video.
+   * @example {"file_name":"ltx-2-a2v-output.mp4","url":"https://storage.googleapis.com/falserverless/example_outputs/ltx-2-a2v-output.mp4","content_type":"video/mp4"}
+   * @type object
+   */
+  video: VideoFile255Bd684
+  /**
+   * @description The prompt used for the generation.
+   * @example A woman speaks to the camera
+   * @type string
+   */
+  prompt: string
+  /**
+   * @description The seed used for the random number generator.
+   * @example 175932751
+   * @type integer
+   */
+  seed: number
+}
+
+export type ImageSize06A05Ea0 = {
+  /**
+   * @description The height of the generated image.
+   * @maximum 14142
+   * @default 512
+   * @type integer | undefined
+   */
+  height?: number
+  /**
+   * @description The width of the generated image.
+   * @maximum 14142
+   * @default 512
+   * @type integer | undefined
+   */
+  width?: number
+}
+
+export const inputFalAiLtx219BDistilledAudioToVideoLoraVideoSize = {
+  auto: 'auto',
+  square_hd: 'square_hd',
+  square: 'square',
+  portrait_4_3: 'portrait_4_3',
+  portrait_16_9: 'portrait_16_9',
+  landscape_4_3: 'landscape_4_3',
+  landscape_16_9: 'landscape_16_9',
+} as const
+
+export type InputFalAiLtx219BDistilledAudioToVideoLoraVideoSizeKey =
+  (typeof inputFalAiLtx219BDistilledAudioToVideoLoraVideoSize)[keyof typeof inputFalAiLtx219BDistilledAudioToVideoLoraVideoSize]
+
+export const inputFalAiLtx219BDistilledAudioToVideoLoraVideoOutputTypeEnum = {
+  'X264 (.mp4)': 'X264 (.mp4)',
+  'VP9 (.webm)': 'VP9 (.webm)',
+  'PRORES4444 (.mov)': 'PRORES4444 (.mov)',
+  'GIF (.gif)': 'GIF (.gif)',
+} as const
+
+export type InputFalAiLtx219BDistilledAudioToVideoLoraVideoOutputTypeEnumKey =
+  (typeof inputFalAiLtx219BDistilledAudioToVideoLoraVideoOutputTypeEnum)[keyof typeof inputFalAiLtx219BDistilledAudioToVideoLoraVideoOutputTypeEnum]
+
+export const inputFalAiLtx219BDistilledAudioToVideoLoraVideoQualityEnum = {
+  low: 'low',
+  medium: 'medium',
+  high: 'high',
+  maximum: 'maximum',
+} as const
+
+export type InputFalAiLtx219BDistilledAudioToVideoLoraVideoQualityEnumKey =
+  (typeof inputFalAiLtx219BDistilledAudioToVideoLoraVideoQualityEnum)[keyof typeof inputFalAiLtx219BDistilledAudioToVideoLoraVideoQualityEnum]
+
+export const inputFalAiLtx219BDistilledAudioToVideoLoraAccelerationEnum = {
+  none: 'none',
+  regular: 'regular',
+  high: 'high',
+  full: 'full',
+} as const
+
+export type InputFalAiLtx219BDistilledAudioToVideoLoraAccelerationEnumKey =
+  (typeof inputFalAiLtx219BDistilledAudioToVideoLoraAccelerationEnum)[keyof typeof inputFalAiLtx219BDistilledAudioToVideoLoraAccelerationEnum]
+
+export const inputFalAiLtx219BDistilledAudioToVideoLoraCameraLoraEnum = {
+  dolly_in: 'dolly_in',
+  dolly_out: 'dolly_out',
+  dolly_left: 'dolly_left',
+  dolly_right: 'dolly_right',
+  jib_up: 'jib_up',
+  jib_down: 'jib_down',
+  static: 'static',
+  none: 'none',
+} as const
+
+export type InputFalAiLtx219BDistilledAudioToVideoLoraCameraLoraEnumKey =
+  (typeof inputFalAiLtx219BDistilledAudioToVideoLoraCameraLoraEnum)[keyof typeof inputFalAiLtx219BDistilledAudioToVideoLoraCameraLoraEnum]
+
+export const inputFalAiLtx219BDistilledAudioToVideoLoraVideoWriteModeEnum = {
+  fast: 'fast',
+  balanced: 'balanced',
+  small: 'small',
+} as const
+
+export type InputFalAiLtx219BDistilledAudioToVideoLoraVideoWriteModeEnumKey =
+  (typeof inputFalAiLtx219BDistilledAudioToVideoLoraVideoWriteModeEnum)[keyof typeof inputFalAiLtx219BDistilledAudioToVideoLoraVideoWriteModeEnum]
+
+export type InputFalAiLtx219BDistilledAudioToVideoLora = {
+  /**
+   * @description Whether to enable prompt expansion.
+   * @default true
+   * @type boolean | undefined
+   */
+  enable_prompt_expansion?: boolean
+  /**
+   * @description Whether to preprocess the audio before using it as conditioning.
+   * @default true
+   * @type boolean | undefined
+   */
+  preprocess_audio?: boolean
+  /**
+   * @description The LoRAs to use for the generation.
+   * @type array
+   */
+  loras: LoRAInput[]
+  /**
+   * @description Whether to enable the safety checker.
+   * @default true
+   * @type boolean | undefined
+   */
+  enable_safety_checker?: boolean
+  /**
+   * @description The URL of the audio to generate the video from.
+   * @example https://storage.googleapis.com/falserverless/example_inputs/ltx-2-a2v-input-audio.mp3
+   * @type string
+   */
+  audio_url: string
+  /**
+   * @description The strength of the end image to use for the video generation.
+   * @minimum 0
+   * @maximum 1
+   * @default 1
+   * @type number | undefined
+   */
+  end_image_strength?: number
+  /**
+   * @description The scale of the camera LoRA to use. This allows you to control the camera movement of the generated video more accurately than just prompting the model to move the camera.
+   * @minimum 0
+   * @maximum 1
+   * @default 1
+   * @type number | undefined
+   */
+  camera_lora_scale?: number
+  /**
+   * @description The size of the generated video. Use 'auto' to match the input image dimensions if provided.
+   * @default landscape_4_3
+   */
+  video_size?:
+    | ImageSize06A05Ea0
+    | InputFalAiLtx219BDistilledAudioToVideoLoraVideoSizeKey
+  /**
+   * @description The URL of the image to use as the end of the video.
+   */
+  end_image_url?: string | null
+  /**
+   * @description The output type of the generated video.
+   * @default 'X264 (.mp4)'
+   * @type string | undefined
+   */
+  video_output_type?: InputFalAiLtx219BDistilledAudioToVideoLoraVideoOutputTypeEnumKey
+  /**
+   * @description The prompt to generate the video from.
+   * @example A woman speaks to the camera
+   * @type string
+   */
+  prompt: string
+  /**
+   * @description The quality of the generated video.
+   * @default 'high'
+   * @type string | undefined
+   */
+  video_quality?: InputFalAiLtx219BDistilledAudioToVideoLoraVideoQualityEnumKey
+  /**
+   * @description The acceleration level to use.
+   * @default 'none'
+   * @example none
+   * @type string | undefined
+   */
+  acceleration?: InputFalAiLtx219BDistilledAudioToVideoLoraAccelerationEnumKey
+  /**
+   * @description The seed for the random number generator.
+   */
+  seed?: number | null
+  /**
+   * @description The frames per second of the generated video.
+   * @minimum 1
+   * @maximum 60
+   * @default 25
+   * @type number | undefined
+   */
+  fps?: number
+  /**
+   * @description Optional URL of an image to use as the first frame of the video.
+   * @example https://storage.googleapis.com/falserverless/example_inputs/ltx-2-a2v-input-image.png
+   */
+  image_url?: string | null
+  /**
+   * @description The negative prompt to generate the video from.
+   * @default 'blurry, out of focus, overexposed, underexposed, low contrast, washed out colors, excessive noise, grainy texture, poor lighting, flickering, motion blur, distorted proportions, unnatural skin tones, deformed facial features, asymmetrical face, missing facial features, extra limbs, disfigured hands, wrong hand count, artifacts around text, inconsistent perspective, camera shake, incorrect depth of field, background too sharp, background clutter, distracting reflections, harsh shadows, inconsistent lighting direction, color banding, cartoonish rendering, 3D CGI look, unrealistic materials, uncanny valley effect, incorrect ethnicity, wrong gender, exaggerated expressions, wrong gaze direction, mismatched lip sync, silent or muted audio, distorted voice, robotic voice, echo, background noise, off-sync audio,incorrect dialogue, added dialogue, repetitive speech, jittery movement, awkward pauses, incorrect timing, unnatural transitions, inconsistent framing, tilted camera, flat lighting, inconsistent tone, cinematic oversaturation, stylized filters, or AI artifacts.'
+   * @type string | undefined
+   */
+  negative_prompt?: string
+  /**
+   * @description The strength of the image to use for the video generation.
+   * @minimum 0
+   * @maximum 1
+   * @default 1
+   * @type number | undefined
+   */
+  image_strength?: number
+  /**
+   * @description The camera LoRA to use. This allows you to control the camera movement of the generated video more accurately than just prompting the model to move the camera.
+   * @default 'none'
+   * @example none
+   * @type string | undefined
+   */
+  camera_lora?: InputFalAiLtx219BDistilledAudioToVideoLoraCameraLoraEnumKey
+  /**
+   * @description Whether to use multi-scale generation. If True, the model will generate the video at a smaller scale first, then use the smaller video to guide the generation of a video at or above your requested size. This results in better coherence and details.
+   * @default true
+   * @type boolean | undefined
+   */
+  use_multiscale?: boolean
+  /**
+   * @description The write mode of the generated video.
+   * @default 'balanced'
+   * @type string | undefined
+   */
+  video_write_mode?: InputFalAiLtx219BDistilledAudioToVideoLoraVideoWriteModeEnumKey
+  /**
+   * @description When enabled, the number of frames will be calculated based on the audio duration and FPS. When disabled, use the specified num_frames.
+   * @default true
+   * @type boolean | undefined
+   */
+  match_audio_length?: boolean
+  /**
+   * @description If `True`, the media will be returned as a data URI and the output data won't be available in the request history.
+   * @default false
+   * @type boolean | undefined
+   */
+  sync_mode?: boolean
+  /**
+   * @description The number of frames to generate.
+   * @minimum 9
+   * @maximum 481
+   * @default 121
+   * @type integer | undefined
+   */
+  num_frames?: number
+  /**
+   * @description Audio conditioning strength. Values below 1.0 will allow the model to change the audio, while a value of exactly 1.0 will use the input audio without modification.
+   * @minimum 0
+   * @maximum 1
+   * @default 1
+   * @type number | undefined
+   */
+  audio_strength?: number
+}
+
+export type VideoFileB0E4Ea67 = {
+  /**
+   * @description The name of the file. It will be auto-generated if not provided.
+   * @example z9RV14K95DvU.png
+   */
+  file_name?: string | null
+  /**
+   * @description The FPS of the video
+   */
+  fps?: number | null
+  /**
+   * @description The size of the file in bytes.
+   * @example 4404019
+   */
+  file_size?: number | null
+  /**
+   * @description The duration of the video
+   */
+  duration?: number | null
+  /**
+   * @description The width of the video
+   */
+  width?: number | null
+  /**
+   * @description The height of the video
+   */
+  height?: number | null
+  /**
+   * @description The URL where the file can be downloaded from.
+   * @type string
+   */
+  url: string
+  /**
+   * @description The number of frames in the video
+   */
+  num_frames?: number | null
+  /**
+   * @description The mime type of the file.
+   * @example image/png
+   */
+  content_type?: string | null
+}
+
+export type OutputFalAiLtx219BDistilledAudioToVideoLora = {
+  /**
+   * @description The generated video.
+   * @example {"file_name":"ltx-2-a2v-output.mp4","url":"https://storage.googleapis.com/falserverless/example_outputs/ltx-2-a2v-output.mp4","content_type":"video/mp4"}
+   * @type object
+   */
+  video: VideoFileB0E4Ea67
+  /**
+   * @description The prompt used for the generation.
+   * @example A woman speaks to the camera
+   * @type string
+   */
+  prompt: string
+  /**
+   * @description The seed used for the random number generator.
+   * @example 175932751
+   * @type integer
+   */
+  seed: number
+}
+
+export type ImageSize12E19656 = {
+  /**
+   * @description The height of the generated image.
+   * @maximum 14142
+   * @default 512
+   * @type integer | undefined
+   */
+  height?: number
+  /**
+   * @description The width of the generated image.
+   * @maximum 14142
+   * @default 512
+   * @type integer | undefined
+   */
+  width?: number
+}
+
+export const inputFalAiLtx219BDistilledExtendVideoVideoSize = {
+  auto: 'auto',
+  square_hd: 'square_hd',
+  square: 'square',
+  portrait_4_3: 'portrait_4_3',
+  portrait_16_9: 'portrait_16_9',
+  landscape_4_3: 'landscape_4_3',
+  landscape_16_9: 'landscape_16_9',
+} as const
+
+export type InputFalAiLtx219BDistilledExtendVideoVideoSizeKey =
+  (typeof inputFalAiLtx219BDistilledExtendVideoVideoSize)[keyof typeof inputFalAiLtx219BDistilledExtendVideoVideoSize]
+
+export const inputFalAiLtx219BDistilledExtendVideoVideoOutputTypeEnum = {
+  'X264 (.mp4)': 'X264 (.mp4)',
+  'VP9 (.webm)': 'VP9 (.webm)',
+  'PRORES4444 (.mov)': 'PRORES4444 (.mov)',
+  'GIF (.gif)': 'GIF (.gif)',
+} as const
+
+export type InputFalAiLtx219BDistilledExtendVideoVideoOutputTypeEnumKey =
+  (typeof inputFalAiLtx219BDistilledExtendVideoVideoOutputTypeEnum)[keyof typeof inputFalAiLtx219BDistilledExtendVideoVideoOutputTypeEnum]
+
+export const inputFalAiLtx219BDistilledExtendVideoAccelerationEnum = {
+  none: 'none',
+  regular: 'regular',
+  high: 'high',
+  full: 'full',
+} as const
+
+export type InputFalAiLtx219BDistilledExtendVideoAccelerationEnumKey =
+  (typeof inputFalAiLtx219BDistilledExtendVideoAccelerationEnum)[keyof typeof inputFalAiLtx219BDistilledExtendVideoAccelerationEnum]
+
+export const inputFalAiLtx219BDistilledExtendVideoVideoQualityEnum = {
+  low: 'low',
+  medium: 'medium',
+  high: 'high',
+  maximum: 'maximum',
+} as const
+
+export type InputFalAiLtx219BDistilledExtendVideoVideoQualityEnumKey =
+  (typeof inputFalAiLtx219BDistilledExtendVideoVideoQualityEnum)[keyof typeof inputFalAiLtx219BDistilledExtendVideoVideoQualityEnum]
+
+export const inputFalAiLtx219BDistilledExtendVideoExtendDirectionEnum = {
+  forward: 'forward',
+  backward: 'backward',
+} as const
+
+export type InputFalAiLtx219BDistilledExtendVideoExtendDirectionEnumKey =
+  (typeof inputFalAiLtx219BDistilledExtendVideoExtendDirectionEnum)[keyof typeof inputFalAiLtx219BDistilledExtendVideoExtendDirectionEnum]
+
+export const inputFalAiLtx219BDistilledExtendVideoCameraLoraEnum = {
+  dolly_in: 'dolly_in',
+  dolly_out: 'dolly_out',
+  dolly_left: 'dolly_left',
+  dolly_right: 'dolly_right',
+  jib_up: 'jib_up',
+  jib_down: 'jib_down',
+  static: 'static',
+  none: 'none',
+} as const
+
+export type InputFalAiLtx219BDistilledExtendVideoCameraLoraEnumKey =
+  (typeof inputFalAiLtx219BDistilledExtendVideoCameraLoraEnum)[keyof typeof inputFalAiLtx219BDistilledExtendVideoCameraLoraEnum]
+
+export const inputFalAiLtx219BDistilledExtendVideoVideoWriteModeEnum = {
+  fast: 'fast',
+  balanced: 'balanced',
+  small: 'small',
+} as const
+
+export type InputFalAiLtx219BDistilledExtendVideoVideoWriteModeEnumKey =
+  (typeof inputFalAiLtx219BDistilledExtendVideoVideoWriteModeEnum)[keyof typeof inputFalAiLtx219BDistilledExtendVideoVideoWriteModeEnum]
+
+export type InputFalAiLtx219BDistilledExtendVideo = {
+  /**
+   * @description Whether to enable prompt expansion.
+   * @default true
+   * @type boolean | undefined
+   */
+  enable_prompt_expansion?: boolean
+  /**
+   * @description Whether to enable the safety checker.
+   * @default true
+   * @type boolean | undefined
+   */
+  enable_safety_checker?: boolean
+  /**
+   * @description The strength of the end image to use for the video generation.
+   * @minimum 0
+   * @maximum 1
+   * @default 1
+   * @type number | undefined
+   */
+  end_image_strength?: number
+  /**
+   * @description The scale of the camera LoRA to use. This allows you to control the camera movement of the generated video more accurately than just prompting the model to move the camera.
+   * @minimum 0
+   * @maximum 1
+   * @default 1
+   * @type number | undefined
+   */
+  camera_lora_scale?: number
+  /**
+   * @description The URL of the image to use as the end of the extended video.
+   */
+  end_image_url?: string | null
+  /**
+   * @description The size of the generated video.
+   * @default auto
+   */
+  video_size?:
+    | ImageSize12E19656
+    | InputFalAiLtx219BDistilledExtendVideoVideoSizeKey
+  /**
+   * @description The output type of the generated video.
+   * @default 'X264 (.mp4)'
+   * @type string | undefined
+   */
+  video_output_type?: InputFalAiLtx219BDistilledExtendVideoVideoOutputTypeEnumKey
+  /**
+   * @description The prompt to generate the video from.
+   * @example Continue the scene naturally, maintaining the same style and motion.
+   * @type string
+   */
+  prompt: string
+  /**
+   * @description The URL of the video to extend.
+   * @example https://v3b.fal.media/files/b/0a8824b1/sdm0KfmenrlywesfzY1Y1_if6euPp1.mp4
+   * @type string
+   */
+  video_url: string
+  /**
+   * @description Video conditioning strength. Lower values represent more freedom given to the model to change the video content.
+   * @minimum 0
+   * @maximum 1
+   * @default 1
+   * @type number | undefined
+   */
+  video_strength?: number
+  /**
+   * @description Whether to generate audio for the video.
+   * @default true
+   * @type boolean | undefined
+   */
+  generate_audio?: boolean
+  /**
+   * @description The acceleration level to use.
+   * @default 'none'
+   * @example none
+   * @type string | undefined
+   */
+  acceleration?: InputFalAiLtx219BDistilledExtendVideoAccelerationEnumKey
+  /**
+   * @description The quality of the generated video.
+   * @default 'high'
+   * @type string | undefined
+   */
+  video_quality?: InputFalAiLtx219BDistilledExtendVideoVideoQualityEnumKey
+  /**
+   * @description The frames per second of the generated video.
+   * @minimum 1
+   * @maximum 60
+   * @default 25
+   * @type number | undefined
+   */
+  fps?: number
+  /**
+   * @description The seed for the random number generator.
+   */
+  seed?: number | null
+  /**
+   * @description The negative prompt to generate the video from.
+   * @default 'blurry, out of focus, overexposed, underexposed, low contrast, washed out colors, excessive noise, grainy texture, poor lighting, flickering, motion blur, distorted proportions, unnatural skin tones, deformed facial features, asymmetrical face, missing facial features, extra limbs, disfigured hands, wrong hand count, artifacts around text, inconsistent perspective, camera shake, incorrect depth of field, background too sharp, background clutter, distracting reflections, harsh shadows, inconsistent lighting direction, color banding, cartoonish rendering, 3D CGI look, unrealistic materials, uncanny valley effect, incorrect ethnicity, wrong gender, exaggerated expressions, wrong gaze direction, mismatched lip sync, silent or muted audio, distorted voice, robotic voice, echo, background noise, off-sync audio,incorrect dialogue, added dialogue, repetitive speech, jittery movement, awkward pauses, incorrect timing, unnatural transitions, inconsistent framing, tilted camera, flat lighting, inconsistent tone, cinematic oversaturation, stylized filters, or AI artifacts.'
+   * @type string | undefined
+   */
+  negative_prompt?: string
+  /**
+   * @description Direction to extend the video. 'forward' extends from the end of the video, 'backward' extends from the beginning.
+   * @default 'forward'
+   * @type string | undefined
+   */
+  extend_direction?: InputFalAiLtx219BDistilledExtendVideoExtendDirectionEnumKey
+  /**
+   * @description The number of frames to use as context for the extension.
+   * @minimum 0
+   * @maximum 121
+   * @default 25
+   * @type integer | undefined
+   */
+  num_context_frames?: number
+  /**
+   * @description The camera LoRA to use. This allows you to control the camera movement of the generated video more accurately than just prompting the model to move the camera.
+   * @default 'none'
+   * @example none
+   * @type string | undefined
+   */
+  camera_lora?: InputFalAiLtx219BDistilledExtendVideoCameraLoraEnumKey
+  /**
+   * @description Whether to use multi-scale generation. If True, the model will generate the video at a smaller scale first, then use the smaller video to guide the generation of a video at or above your requested size. This results in better coherence and details.
+   * @default true
+   * @type boolean | undefined
+   */
+  use_multiscale?: boolean
+  /**
+   * @description When true, match the output FPS to the input video's FPS instead of using the default target FPS.
+   * @default true
+   * @type boolean | undefined
+   */
+  match_input_fps?: boolean
+  /**
+   * @description The write mode of the generated video.
+   * @default 'balanced'
+   * @type string | undefined
+   */
+  video_write_mode?: InputFalAiLtx219BDistilledExtendVideoVideoWriteModeEnumKey
+  /**
+   * @description If `True`, the media will be returned as a data URI and the output data won't be available in the request history.
+   * @default false
+   * @type boolean | undefined
+   */
+  sync_mode?: boolean
+  /**
+   * @description The number of frames to generate.
+   * @minimum 9
+   * @maximum 481
+   * @default 121
+   * @type integer | undefined
+   */
+  num_frames?: number
+  /**
+   * @description Audio conditioning strength. Lower values represent more freedom given to the model to change the audio content.
+   * @minimum 0
+   * @maximum 1
+   * @default 1
+   * @type number | undefined
+   */
+  audio_strength?: number
+}
+
+export type VideoFileEb1E81C4 = {
+  /**
+   * @description The name of the file. It will be auto-generated if not provided.
+   * @example z9RV14K95DvU.png
+   */
+  file_name?: string | null
+  /**
+   * @description The FPS of the video
+   */
+  fps?: number | null
+  /**
+   * @description The size of the file in bytes.
+   * @example 4404019
+   */
+  file_size?: number | null
+  /**
+   * @description The duration of the video
+   */
+  duration?: number | null
+  /**
+   * @description The width of the video
+   */
+  width?: number | null
+  /**
+   * @description The height of the video
+   */
+  height?: number | null
+  /**
+   * @description The URL where the file can be downloaded from.
+   * @type string
+   */
+  url: string
+  /**
+   * @description The number of frames in the video
+   */
+  num_frames?: number | null
+  /**
+   * @description The mime type of the file.
+   * @example image/png
+   */
+  content_type?: string | null
+}
+
+export type OutputFalAiLtx219BDistilledExtendVideo = {
+  /**
+   * @description The generated video.
+   * @example {"file_name":"CJcQGDrxOSRg2YFl5GNDt_glXPMoji.mp4","fps":25,"duration":6.44,"width":1248,"height":704,"url":"https://v3b.fal.media/files/b/0a894013/N9lnMTq7W3uMC0lOQg845_BknRPV8I.mp4","num_frames":161,"content_type":"video/mp4"}
+   * @type object
+   */
+  video: VideoFileEb1E81C4
+  /**
+   * @description The prompt used for the generation.
+   * @example A woman stands still amid a busy neon-lit street at night. The camera slowly dollies in toward her face as people blur past, their motion emphasizing her calm presence. City lights flicker and reflections shift across her denim jacket.
+   * @type string
+   */
+  prompt: string
+  /**
+   * @description The seed used for the random number generator.
+   * @example 2078003885
+   * @type integer
+   */
+  seed: number
+}
+
+export type ImageSize72100768 = {
+  /**
+   * @description The height of the generated image.
+   * @maximum 14142
+   * @default 512
+   * @type integer | undefined
+   */
+  height?: number
+  /**
+   * @description The width of the generated image.
+   * @maximum 14142
+   * @default 512
+   * @type integer | undefined
+   */
+  width?: number
+}
+
+export const inputFalAiLtx219BDistilledExtendVideoLoraVideoSize = {
+  auto: 'auto',
+  square_hd: 'square_hd',
+  square: 'square',
+  portrait_4_3: 'portrait_4_3',
+  portrait_16_9: 'portrait_16_9',
+  landscape_4_3: 'landscape_4_3',
+  landscape_16_9: 'landscape_16_9',
+} as const
+
+export type InputFalAiLtx219BDistilledExtendVideoLoraVideoSizeKey =
+  (typeof inputFalAiLtx219BDistilledExtendVideoLoraVideoSize)[keyof typeof inputFalAiLtx219BDistilledExtendVideoLoraVideoSize]
+
+export const inputFalAiLtx219BDistilledExtendVideoLoraVideoOutputTypeEnum = {
+  'X264 (.mp4)': 'X264 (.mp4)',
+  'VP9 (.webm)': 'VP9 (.webm)',
+  'PRORES4444 (.mov)': 'PRORES4444 (.mov)',
+  'GIF (.gif)': 'GIF (.gif)',
+} as const
+
+export type InputFalAiLtx219BDistilledExtendVideoLoraVideoOutputTypeEnumKey =
+  (typeof inputFalAiLtx219BDistilledExtendVideoLoraVideoOutputTypeEnum)[keyof typeof inputFalAiLtx219BDistilledExtendVideoLoraVideoOutputTypeEnum]
+
+export const inputFalAiLtx219BDistilledExtendVideoLoraAccelerationEnum = {
+  none: 'none',
+  regular: 'regular',
+  high: 'high',
+  full: 'full',
+} as const
+
+export type InputFalAiLtx219BDistilledExtendVideoLoraAccelerationEnumKey =
+  (typeof inputFalAiLtx219BDistilledExtendVideoLoraAccelerationEnum)[keyof typeof inputFalAiLtx219BDistilledExtendVideoLoraAccelerationEnum]
+
+export const inputFalAiLtx219BDistilledExtendVideoLoraVideoQualityEnum = {
+  low: 'low',
+  medium: 'medium',
+  high: 'high',
+  maximum: 'maximum',
+} as const
+
+export type InputFalAiLtx219BDistilledExtendVideoLoraVideoQualityEnumKey =
+  (typeof inputFalAiLtx219BDistilledExtendVideoLoraVideoQualityEnum)[keyof typeof inputFalAiLtx219BDistilledExtendVideoLoraVideoQualityEnum]
+
+export const inputFalAiLtx219BDistilledExtendVideoLoraExtendDirectionEnum = {
+  forward: 'forward',
+  backward: 'backward',
+} as const
+
+export type InputFalAiLtx219BDistilledExtendVideoLoraExtendDirectionEnumKey =
+  (typeof inputFalAiLtx219BDistilledExtendVideoLoraExtendDirectionEnum)[keyof typeof inputFalAiLtx219BDistilledExtendVideoLoraExtendDirectionEnum]
+
+export const inputFalAiLtx219BDistilledExtendVideoLoraCameraLoraEnum = {
+  dolly_in: 'dolly_in',
+  dolly_out: 'dolly_out',
+  dolly_left: 'dolly_left',
+  dolly_right: 'dolly_right',
+  jib_up: 'jib_up',
+  jib_down: 'jib_down',
+  static: 'static',
+  none: 'none',
+} as const
+
+export type InputFalAiLtx219BDistilledExtendVideoLoraCameraLoraEnumKey =
+  (typeof inputFalAiLtx219BDistilledExtendVideoLoraCameraLoraEnum)[keyof typeof inputFalAiLtx219BDistilledExtendVideoLoraCameraLoraEnum]
+
+export const inputFalAiLtx219BDistilledExtendVideoLoraVideoWriteModeEnum = {
+  fast: 'fast',
+  balanced: 'balanced',
+  small: 'small',
+} as const
+
+export type InputFalAiLtx219BDistilledExtendVideoLoraVideoWriteModeEnumKey =
+  (typeof inputFalAiLtx219BDistilledExtendVideoLoraVideoWriteModeEnum)[keyof typeof inputFalAiLtx219BDistilledExtendVideoLoraVideoWriteModeEnum]
+
+export type InputFalAiLtx219BDistilledExtendVideoLora = {
+  /**
+   * @description Whether to enable prompt expansion.
+   * @default true
+   * @type boolean | undefined
+   */
+  enable_prompt_expansion?: boolean
+  /**
+   * @description The LoRAs to use for the generation.
+   * @type array
+   */
+  loras: LoRAInput[]
+  /**
+   * @description Whether to enable the safety checker.
+   * @default true
+   * @type boolean | undefined
+   */
+  enable_safety_checker?: boolean
+  /**
+   * @description The strength of the end image to use for the video generation.
+   * @minimum 0
+   * @maximum 1
+   * @default 1
+   * @type number | undefined
+   */
+  end_image_strength?: number
+  /**
+   * @description The scale of the camera LoRA to use. This allows you to control the camera movement of the generated video more accurately than just prompting the model to move the camera.
+   * @minimum 0
+   * @maximum 1
+   * @default 1
+   * @type number | undefined
+   */
+  camera_lora_scale?: number
+  /**
+   * @description The URL of the image to use as the end of the extended video.
+   */
+  end_image_url?: string | null
+  /**
+   * @description The size of the generated video.
+   * @default auto
+   */
+  video_size?:
+    | ImageSize72100768
+    | InputFalAiLtx219BDistilledExtendVideoLoraVideoSizeKey
+  /**
+   * @description The output type of the generated video.
+   * @default 'X264 (.mp4)'
+   * @type string | undefined
+   */
+  video_output_type?: InputFalAiLtx219BDistilledExtendVideoLoraVideoOutputTypeEnumKey
+  /**
+   * @description The prompt to generate the video from.
+   * @example Continue the scene naturally, maintaining the same style and motion.
+   * @type string
+   */
+  prompt: string
+  /**
+   * @description The URL of the video to extend.
+   * @example https://v3b.fal.media/files/b/0a8824b1/sdm0KfmenrlywesfzY1Y1_if6euPp1.mp4
+   * @type string
+   */
+  video_url: string
+  /**
+   * @description Video conditioning strength. Lower values represent more freedom given to the model to change the video content.
+   * @minimum 0
+   * @maximum 1
+   * @default 1
+   * @type number | undefined
+   */
+  video_strength?: number
+  /**
+   * @description Whether to generate audio for the video.
+   * @default true
+   * @type boolean | undefined
+   */
+  generate_audio?: boolean
+  /**
+   * @description The acceleration level to use.
+   * @default 'none'
+   * @example none
+   * @type string | undefined
+   */
+  acceleration?: InputFalAiLtx219BDistilledExtendVideoLoraAccelerationEnumKey
+  /**
+   * @description The quality of the generated video.
+   * @default 'high'
+   * @type string | undefined
+   */
+  video_quality?: InputFalAiLtx219BDistilledExtendVideoLoraVideoQualityEnumKey
+  /**
+   * @description The frames per second of the generated video.
+   * @minimum 1
+   * @maximum 60
+   * @default 25
+   * @type number | undefined
+   */
+  fps?: number
+  /**
+   * @description The seed for the random number generator.
+   */
+  seed?: number | null
+  /**
+   * @description The negative prompt to generate the video from.
+   * @default 'blurry, out of focus, overexposed, underexposed, low contrast, washed out colors, excessive noise, grainy texture, poor lighting, flickering, motion blur, distorted proportions, unnatural skin tones, deformed facial features, asymmetrical face, missing facial features, extra limbs, disfigured hands, wrong hand count, artifacts around text, inconsistent perspective, camera shake, incorrect depth of field, background too sharp, background clutter, distracting reflections, harsh shadows, inconsistent lighting direction, color banding, cartoonish rendering, 3D CGI look, unrealistic materials, uncanny valley effect, incorrect ethnicity, wrong gender, exaggerated expressions, wrong gaze direction, mismatched lip sync, silent or muted audio, distorted voice, robotic voice, echo, background noise, off-sync audio,incorrect dialogue, added dialogue, repetitive speech, jittery movement, awkward pauses, incorrect timing, unnatural transitions, inconsistent framing, tilted camera, flat lighting, inconsistent tone, cinematic oversaturation, stylized filters, or AI artifacts.'
+   * @type string | undefined
+   */
+  negative_prompt?: string
+  /**
+   * @description Direction to extend the video. 'forward' extends from the end of the video, 'backward' extends from the beginning.
+   * @default 'forward'
+   * @type string | undefined
+   */
+  extend_direction?: InputFalAiLtx219BDistilledExtendVideoLoraExtendDirectionEnumKey
+  /**
+   * @description The number of frames to use as context for the extension.
+   * @minimum 0
+   * @maximum 121
+   * @default 25
+   * @type integer | undefined
+   */
+  num_context_frames?: number
+  /**
+   * @description The camera LoRA to use. This allows you to control the camera movement of the generated video more accurately than just prompting the model to move the camera.
+   * @default 'none'
+   * @example none
+   * @type string | undefined
+   */
+  camera_lora?: InputFalAiLtx219BDistilledExtendVideoLoraCameraLoraEnumKey
+  /**
+   * @description Whether to use multi-scale generation. If True, the model will generate the video at a smaller scale first, then use the smaller video to guide the generation of a video at or above your requested size. This results in better coherence and details.
+   * @default true
+   * @type boolean | undefined
+   */
+  use_multiscale?: boolean
+  /**
+   * @description When true, match the output FPS to the input video's FPS instead of using the default target FPS.
+   * @default true
+   * @type boolean | undefined
+   */
+  match_input_fps?: boolean
+  /**
+   * @description The write mode of the generated video.
+   * @default 'balanced'
+   * @type string | undefined
+   */
+  video_write_mode?: InputFalAiLtx219BDistilledExtendVideoLoraVideoWriteModeEnumKey
+  /**
+   * @description If `True`, the media will be returned as a data URI and the output data won't be available in the request history.
+   * @default false
+   * @type boolean | undefined
+   */
+  sync_mode?: boolean
+  /**
+   * @description The number of frames to generate.
+   * @minimum 9
+   * @maximum 481
+   * @default 121
+   * @type integer | undefined
+   */
+  num_frames?: number
+  /**
+   * @description Audio conditioning strength. Lower values represent more freedom given to the model to change the audio content.
+   * @minimum 0
+   * @maximum 1
+   * @default 1
+   * @type number | undefined
+   */
+  audio_strength?: number
+}
+
+export type VideoFile698A1Aa7 = {
+  /**
+   * @description The name of the file. It will be auto-generated if not provided.
+   * @example z9RV14K95DvU.png
+   */
+  file_name?: string | null
+  /**
+   * @description The FPS of the video
+   */
+  fps?: number | null
+  /**
+   * @description The size of the file in bytes.
+   * @example 4404019
+   */
+  file_size?: number | null
+  /**
+   * @description The duration of the video
+   */
+  duration?: number | null
+  /**
+   * @description The width of the video
+   */
+  width?: number | null
+  /**
+   * @description The height of the video
+   */
+  height?: number | null
+  /**
+   * @description The URL where the file can be downloaded from.
+   * @type string
+   */
+  url: string
+  /**
+   * @description The number of frames in the video
+   */
+  num_frames?: number | null
+  /**
+   * @description The mime type of the file.
+   * @example image/png
+   */
+  content_type?: string | null
+}
+
+export type OutputFalAiLtx219BDistilledExtendVideoLora = {
+  /**
+   * @description The generated video.
+   * @example {"file_name":"CJcQGDrxOSRg2YFl5GNDt_glXPMoji.mp4","fps":25,"duration":6.44,"width":1248,"height":704,"url":"https://v3b.fal.media/files/b/0a894013/N9lnMTq7W3uMC0lOQg845_BknRPV8I.mp4","num_frames":161,"content_type":"video/mp4"}
+   * @type object
+   */
+  video: VideoFile698A1Aa7
+  /**
+   * @description The prompt used for the generation.
+   * @example A woman stands still amid a busy neon-lit street at night. The camera slowly dollies in toward her face as people blur past, their motion emphasizing her calm presence. City lights flicker and reflections shift across her denim jacket.
+   * @type string
+   */
+  prompt: string
+  /**
+   * @description The seed used for the random number generator.
+   * @example 2078003885
+   * @type integer
+   */
+  seed: number
+}
+
+export type ImageSize08A69E03 = {
+  /**
+   * @description The height of the generated image.
+   * @maximum 14142
+   * @default 512
+   * @type integer | undefined
+   */
+  height?: number
+  /**
+   * @description The width of the generated image.
+   * @maximum 14142
+   * @default 512
+   * @type integer | undefined
+   */
+  width?: number
+}
+
+export const inputFalAiLtx219BDistilledImageToVideoVideoSize = {
+  auto: 'auto',
+  square_hd: 'square_hd',
+  square: 'square',
+  portrait_4_3: 'portrait_4_3',
+  portrait_16_9: 'portrait_16_9',
+  landscape_4_3: 'landscape_4_3',
+  landscape_16_9: 'landscape_16_9',
+} as const
+
+export type InputFalAiLtx219BDistilledImageToVideoVideoSizeKey =
+  (typeof inputFalAiLtx219BDistilledImageToVideoVideoSize)[keyof typeof inputFalAiLtx219BDistilledImageToVideoVideoSize]
+
+export const inputFalAiLtx219BDistilledImageToVideoVideoOutputTypeEnum = {
+  'X264 (.mp4)': 'X264 (.mp4)',
+  'VP9 (.webm)': 'VP9 (.webm)',
+  'PRORES4444 (.mov)': 'PRORES4444 (.mov)',
+  'GIF (.gif)': 'GIF (.gif)',
+} as const
+
+export type InputFalAiLtx219BDistilledImageToVideoVideoOutputTypeEnumKey =
+  (typeof inputFalAiLtx219BDistilledImageToVideoVideoOutputTypeEnum)[keyof typeof inputFalAiLtx219BDistilledImageToVideoVideoOutputTypeEnum]
+
+export const inputFalAiLtx219BDistilledImageToVideoVideoQualityEnum = {
+  low: 'low',
+  medium: 'medium',
+  high: 'high',
+  maximum: 'maximum',
+} as const
+
+export type InputFalAiLtx219BDistilledImageToVideoVideoQualityEnumKey =
+  (typeof inputFalAiLtx219BDistilledImageToVideoVideoQualityEnum)[keyof typeof inputFalAiLtx219BDistilledImageToVideoVideoQualityEnum]
+
+export const inputFalAiLtx219BDistilledImageToVideoAccelerationEnum = {
+  none: 'none',
+  regular: 'regular',
+  high: 'high',
+  full: 'full',
+} as const
+
+export type InputFalAiLtx219BDistilledImageToVideoAccelerationEnumKey =
+  (typeof inputFalAiLtx219BDistilledImageToVideoAccelerationEnum)[keyof typeof inputFalAiLtx219BDistilledImageToVideoAccelerationEnum]
+
+export const inputFalAiLtx219BDistilledImageToVideoCameraLoraEnum = {
+  dolly_in: 'dolly_in',
+  dolly_out: 'dolly_out',
+  dolly_left: 'dolly_left',
+  dolly_right: 'dolly_right',
+  jib_up: 'jib_up',
+  jib_down: 'jib_down',
+  static: 'static',
+  none: 'none',
+} as const
+
+export type InputFalAiLtx219BDistilledImageToVideoCameraLoraEnumKey =
+  (typeof inputFalAiLtx219BDistilledImageToVideoCameraLoraEnum)[keyof typeof inputFalAiLtx219BDistilledImageToVideoCameraLoraEnum]
+
+export const inputFalAiLtx219BDistilledImageToVideoVideoWriteModeEnum = {
+  fast: 'fast',
+  balanced: 'balanced',
+  small: 'small',
+} as const
+
+export type InputFalAiLtx219BDistilledImageToVideoVideoWriteModeEnumKey =
+  (typeof inputFalAiLtx219BDistilledImageToVideoVideoWriteModeEnum)[keyof typeof inputFalAiLtx219BDistilledImageToVideoVideoWriteModeEnum]
+
+export const inputFalAiLtx219BDistilledImageToVideoInterpolationDirectionEnum =
+  {
+    forward: 'forward',
+    backward: 'backward',
+  } as const
+
+export type InputFalAiLtx219BDistilledImageToVideoInterpolationDirectionEnumKey =
+  (typeof inputFalAiLtx219BDistilledImageToVideoInterpolationDirectionEnum)[keyof typeof inputFalAiLtx219BDistilledImageToVideoInterpolationDirectionEnum]
+
+export type InputFalAiLtx219BDistilledImageToVideo = {
+  /**
+   * @description Whether to enable prompt expansion.
+   * @default true
+   * @type boolean | undefined
+   */
+  enable_prompt_expansion?: boolean
+  /**
+   * @description Whether to enable the safety checker.
+   * @default true
+   * @type boolean | undefined
+   */
+  enable_safety_checker?: boolean
+  /**
+   * @description The strength of the end image to use for the video generation.
+   * @minimum 0
+   * @maximum 1
+   * @default 1
+   * @type number | undefined
+   */
+  end_image_strength?: number
+  /**
+   * @description The scale of the camera LoRA to use. This allows you to control the camera movement of the generated video more accurately than just prompting the model to move the camera.
+   * @minimum 0
+   * @maximum 1
+   * @default 1
+   * @type number | undefined
+   */
+  camera_lora_scale?: number
+  /**
+   * @description The size of the generated video.
+   * @default auto
+   */
+  video_size?:
+    | ImageSize08A69E03
+    | InputFalAiLtx219BDistilledImageToVideoVideoSizeKey
+  /**
+   * @description The URL of the image to use as the end of the video.
+   */
+  end_image_url?: string | null
+  /**
+   * @description The output type of the generated video.
+   * @default 'X264 (.mp4)'
+   * @type string | undefined
+   */
+  video_output_type?: InputFalAiLtx219BDistilledImageToVideoVideoOutputTypeEnumKey
+  /**
+   * @description The prompt used for the generation.
+   * @example A woman stands still amid a busy neon-lit street at night. The camera slowly dollies in toward her face as people blur past, their motion emphasizing her calm presence. City lights flicker and reflections shift across her denim jacket.
+   * @type string
+   */
+  prompt: string
+  /**
+   * @description The quality of the generated video.
+   * @default 'high'
+   * @type string | undefined
+   */
+  video_quality?: InputFalAiLtx219BDistilledImageToVideoVideoQualityEnumKey
+  /**
+   * @description The acceleration level to use.
+   * @default 'none'
+   * @example none
+   * @type string | undefined
+   */
+  acceleration?: InputFalAiLtx219BDistilledImageToVideoAccelerationEnumKey
+  /**
+   * @description Whether to generate audio for the video.
+   * @default true
+   * @type boolean | undefined
+   */
+  generate_audio?: boolean
+  /**
+   * @description The seed for the random number generator.
+   */
+  seed?: number | null
+  /**
+   * @description The frames per second of the generated video.
+   * @minimum 1
+   * @maximum 60
+   * @default 25
+   * @type number | undefined
+   */
+  fps?: number
+  /**
+   * @description The URL of the image to generate the video from.
+   * @example https://storage.googleapis.com/falserverless/example_inputs/ltxv-2-i2v-input.jpg
+   * @type string
+   */
+  image_url: string
+  /**
+   * @description The negative prompt to generate the video from.
+   * @default 'blurry, out of focus, overexposed, underexposed, low contrast, washed out colors, excessive noise, grainy texture, poor lighting, flickering, motion blur, distorted proportions, unnatural skin tones, deformed facial features, asymmetrical face, missing facial features, extra limbs, disfigured hands, wrong hand count, artifacts around text, inconsistent perspective, camera shake, incorrect depth of field, background too sharp, background clutter, distracting reflections, harsh shadows, inconsistent lighting direction, color banding, cartoonish rendering, 3D CGI look, unrealistic materials, uncanny valley effect, incorrect ethnicity, wrong gender, exaggerated expressions, wrong gaze direction, mismatched lip sync, silent or muted audio, distorted voice, robotic voice, echo, background noise, off-sync audio,incorrect dialogue, added dialogue, repetitive speech, jittery movement, awkward pauses, incorrect timing, unnatural transitions, inconsistent framing, tilted camera, flat lighting, inconsistent tone, cinematic oversaturation, stylized filters, or AI artifacts.'
+   * @type string | undefined
+   */
+  negative_prompt?: string
+  /**
+   * @description The strength of the image to use for the video generation.
+   * @minimum 0
+   * @maximum 1
+   * @default 1
+   * @type number | undefined
+   */
+  image_strength?: number
+  /**
+   * @description The camera LoRA to use. This allows you to control the camera movement of the generated video more accurately than just prompting the model to move the camera.
+   * @default 'none'
+   * @example none
+   * @type string | undefined
+   */
+  camera_lora?: InputFalAiLtx219BDistilledImageToVideoCameraLoraEnumKey
+  /**
+   * @description Whether to use multi-scale generation. If True, the model will generate the video at a smaller scale first, then use the smaller video to guide the generation of a video at or above your requested size. This results in better coherence and details.
+   * @default true
+   * @type boolean | undefined
+   */
+  use_multiscale?: boolean
+  /**
+   * @description The write mode of the generated video.
+   * @default 'balanced'
+   * @type string | undefined
+   */
+  video_write_mode?: InputFalAiLtx219BDistilledImageToVideoVideoWriteModeEnumKey
+  /**
+   * @description If `True`, the media will be returned as a data URI and the output data won't be available in the request history.
+   * @default false
+   * @type boolean | undefined
+   */
+  sync_mode?: boolean
+  /**
+   * @description The number of frames to generate.
+   * @minimum 9
+   * @maximum 481
+   * @default 121
+   * @type integer | undefined
+   */
+  num_frames?: number
+  /**
+   * @description The direction to interpolate the image sequence in. 'Forward' goes from the start image to the end image, 'Backward' goes from the end image to the start image.
+   * @default 'forward'
+   * @type string | undefined
+   */
+  interpolation_direction?: InputFalAiLtx219BDistilledImageToVideoInterpolationDirectionEnumKey
+}
+
+export type VideoFile00Eae0F5 = {
+  /**
+   * @description The name of the file. It will be auto-generated if not provided.
+   * @example z9RV14K95DvU.png
+   */
+  file_name?: string | null
+  /**
+   * @description The FPS of the video
+   */
+  fps?: number | null
+  /**
+   * @description The size of the file in bytes.
+   * @example 4404019
+   */
+  file_size?: number | null
+  /**
+   * @description The duration of the video
+   */
+  duration?: number | null
+  /**
+   * @description The width of the video
+   */
+  width?: number | null
+  /**
+   * @description The height of the video
+   */
+  height?: number | null
+  /**
+   * @description The URL where the file can be downloaded from.
+   * @type string
+   */
+  url: string
+  /**
+   * @description The number of frames in the video
+   */
+  num_frames?: number | null
+  /**
+   * @description The mime type of the file.
+   * @example image/png
+   */
+  content_type?: string | null
+}
+
+export type OutputFalAiLtx219BDistilledImageToVideo = {
+  /**
+   * @description The generated video.
+   * @example {"file_name":"CJcQGDrxOSRg2YFl5GNDt_glXPMoji.mp4","fps":25,"duration":10.28,"width":1248,"height":704,"url":"https://v3b.fal.media/files/b/0a88289e/CJcQGDrxOSRg2YFl5GNDt_glXPMoji.mp4","num_frames":257,"content_type":"video/mp4"}
+   * @type object
+   */
+  video: VideoFile00Eae0F5
+  /**
+   * @description The prompt used for the generation.
+   * @example Continue the scene naturally, maintaining the same style and motion.
+   * @type string
+   */
+  prompt: string
+  /**
+   * @description The seed used for the random number generator.
+   * @example 866232447
+   * @type integer
+   */
+  seed: number
+}
+
+export type ImageSizeC1553003 = {
+  /**
+   * @description The height of the generated image.
+   * @maximum 14142
+   * @default 512
+   * @type integer | undefined
+   */
+  height?: number
+  /**
+   * @description The width of the generated image.
+   * @maximum 14142
+   * @default 512
+   * @type integer | undefined
+   */
+  width?: number
+}
+
+export const inputFalAiLtx219BDistilledImageToVideoLoraVideoSize = {
+  auto: 'auto',
+  square_hd: 'square_hd',
+  square: 'square',
+  portrait_4_3: 'portrait_4_3',
+  portrait_16_9: 'portrait_16_9',
+  landscape_4_3: 'landscape_4_3',
+  landscape_16_9: 'landscape_16_9',
+} as const
+
+export type InputFalAiLtx219BDistilledImageToVideoLoraVideoSizeKey =
+  (typeof inputFalAiLtx219BDistilledImageToVideoLoraVideoSize)[keyof typeof inputFalAiLtx219BDistilledImageToVideoLoraVideoSize]
+
+export const inputFalAiLtx219BDistilledImageToVideoLoraVideoOutputTypeEnum = {
+  'X264 (.mp4)': 'X264 (.mp4)',
+  'VP9 (.webm)': 'VP9 (.webm)',
+  'PRORES4444 (.mov)': 'PRORES4444 (.mov)',
+  'GIF (.gif)': 'GIF (.gif)',
+} as const
+
+export type InputFalAiLtx219BDistilledImageToVideoLoraVideoOutputTypeEnumKey =
+  (typeof inputFalAiLtx219BDistilledImageToVideoLoraVideoOutputTypeEnum)[keyof typeof inputFalAiLtx219BDistilledImageToVideoLoraVideoOutputTypeEnum]
+
+export const inputFalAiLtx219BDistilledImageToVideoLoraVideoQualityEnum = {
+  low: 'low',
+  medium: 'medium',
+  high: 'high',
+  maximum: 'maximum',
+} as const
+
+export type InputFalAiLtx219BDistilledImageToVideoLoraVideoQualityEnumKey =
+  (typeof inputFalAiLtx219BDistilledImageToVideoLoraVideoQualityEnum)[keyof typeof inputFalAiLtx219BDistilledImageToVideoLoraVideoQualityEnum]
+
+export const inputFalAiLtx219BDistilledImageToVideoLoraAccelerationEnum = {
+  none: 'none',
+  regular: 'regular',
+  high: 'high',
+  full: 'full',
+} as const
+
+export type InputFalAiLtx219BDistilledImageToVideoLoraAccelerationEnumKey =
+  (typeof inputFalAiLtx219BDistilledImageToVideoLoraAccelerationEnum)[keyof typeof inputFalAiLtx219BDistilledImageToVideoLoraAccelerationEnum]
+
+export const inputFalAiLtx219BDistilledImageToVideoLoraCameraLoraEnum = {
+  dolly_in: 'dolly_in',
+  dolly_out: 'dolly_out',
+  dolly_left: 'dolly_left',
+  dolly_right: 'dolly_right',
+  jib_up: 'jib_up',
+  jib_down: 'jib_down',
+  static: 'static',
+  none: 'none',
+} as const
+
+export type InputFalAiLtx219BDistilledImageToVideoLoraCameraLoraEnumKey =
+  (typeof inputFalAiLtx219BDistilledImageToVideoLoraCameraLoraEnum)[keyof typeof inputFalAiLtx219BDistilledImageToVideoLoraCameraLoraEnum]
+
+export const inputFalAiLtx219BDistilledImageToVideoLoraVideoWriteModeEnum = {
+  fast: 'fast',
+  balanced: 'balanced',
+  small: 'small',
+} as const
+
+export type InputFalAiLtx219BDistilledImageToVideoLoraVideoWriteModeEnumKey =
+  (typeof inputFalAiLtx219BDistilledImageToVideoLoraVideoWriteModeEnum)[keyof typeof inputFalAiLtx219BDistilledImageToVideoLoraVideoWriteModeEnum]
+
+export const inputFalAiLtx219BDistilledImageToVideoLoraInterpolationDirectionEnum =
+  {
+    forward: 'forward',
+    backward: 'backward',
+  } as const
+
+export type InputFalAiLtx219BDistilledImageToVideoLoraInterpolationDirectionEnumKey =
+  (typeof inputFalAiLtx219BDistilledImageToVideoLoraInterpolationDirectionEnum)[keyof typeof inputFalAiLtx219BDistilledImageToVideoLoraInterpolationDirectionEnum]
+
+export type InputFalAiLtx219BDistilledImageToVideoLora = {
+  /**
+   * @description Whether to enable prompt expansion.
+   * @default true
+   * @type boolean | undefined
+   */
+  enable_prompt_expansion?: boolean
+  /**
+   * @description The LoRAs to use for the generation.
+   * @type array
+   */
+  loras: LoRAInput[]
+  /**
+   * @description Whether to enable the safety checker.
+   * @default true
+   * @type boolean | undefined
+   */
+  enable_safety_checker?: boolean
+  /**
+   * @description The strength of the end image to use for the video generation.
+   * @minimum 0
+   * @maximum 1
+   * @default 1
+   * @type number | undefined
+   */
+  end_image_strength?: number
+  /**
+   * @description The scale of the camera LoRA to use. This allows you to control the camera movement of the generated video more accurately than just prompting the model to move the camera.
+   * @minimum 0
+   * @maximum 1
+   * @default 1
+   * @type number | undefined
+   */
+  camera_lora_scale?: number
+  /**
+   * @description The size of the generated video.
+   * @default auto
+   */
+  video_size?:
+    | ImageSizeC1553003
+    | InputFalAiLtx219BDistilledImageToVideoLoraVideoSizeKey
+  /**
+   * @description The URL of the image to use as the end of the video.
+   */
+  end_image_url?: string | null
+  /**
+   * @description The output type of the generated video.
+   * @default 'X264 (.mp4)'
+   * @type string | undefined
+   */
+  video_output_type?: InputFalAiLtx219BDistilledImageToVideoLoraVideoOutputTypeEnumKey
+  /**
+   * @description The prompt used for the generation.
+   * @example A woman stands still amid a busy neon-lit street at night. The camera slowly dollies in toward her face as people blur past, their motion emphasizing her calm presence. City lights flicker and reflections shift across her denim jacket.
+   * @type string
+   */
+  prompt: string
+  /**
+   * @description The quality of the generated video.
+   * @default 'high'
+   * @type string | undefined
+   */
+  video_quality?: InputFalAiLtx219BDistilledImageToVideoLoraVideoQualityEnumKey
+  /**
+   * @description The acceleration level to use.
+   * @default 'none'
+   * @example none
+   * @type string | undefined
+   */
+  acceleration?: InputFalAiLtx219BDistilledImageToVideoLoraAccelerationEnumKey
+  /**
+   * @description Whether to generate audio for the video.
+   * @default true
+   * @type boolean | undefined
+   */
+  generate_audio?: boolean
+  /**
+   * @description The seed for the random number generator.
+   */
+  seed?: number | null
+  /**
+   * @description The frames per second of the generated video.
+   * @minimum 1
+   * @maximum 60
+   * @default 25
+   * @type number | undefined
+   */
+  fps?: number
+  /**
+   * @description The URL of the image to generate the video from.
+   * @example https://storage.googleapis.com/falserverless/example_inputs/ltxv-2-i2v-input.jpg
+   * @type string
+   */
+  image_url: string
+  /**
+   * @description The negative prompt to generate the video from.
+   * @default 'blurry, out of focus, overexposed, underexposed, low contrast, washed out colors, excessive noise, grainy texture, poor lighting, flickering, motion blur, distorted proportions, unnatural skin tones, deformed facial features, asymmetrical face, missing facial features, extra limbs, disfigured hands, wrong hand count, artifacts around text, inconsistent perspective, camera shake, incorrect depth of field, background too sharp, background clutter, distracting reflections, harsh shadows, inconsistent lighting direction, color banding, cartoonish rendering, 3D CGI look, unrealistic materials, uncanny valley effect, incorrect ethnicity, wrong gender, exaggerated expressions, wrong gaze direction, mismatched lip sync, silent or muted audio, distorted voice, robotic voice, echo, background noise, off-sync audio,incorrect dialogue, added dialogue, repetitive speech, jittery movement, awkward pauses, incorrect timing, unnatural transitions, inconsistent framing, tilted camera, flat lighting, inconsistent tone, cinematic oversaturation, stylized filters, or AI artifacts.'
+   * @type string | undefined
+   */
+  negative_prompt?: string
+  /**
+   * @description The strength of the image to use for the video generation.
+   * @minimum 0
+   * @maximum 1
+   * @default 1
+   * @type number | undefined
+   */
+  image_strength?: number
+  /**
+   * @description The camera LoRA to use. This allows you to control the camera movement of the generated video more accurately than just prompting the model to move the camera.
+   * @default 'none'
+   * @example none
+   * @type string | undefined
+   */
+  camera_lora?: InputFalAiLtx219BDistilledImageToVideoLoraCameraLoraEnumKey
+  /**
+   * @description Whether to use multi-scale generation. If True, the model will generate the video at a smaller scale first, then use the smaller video to guide the generation of a video at or above your requested size. This results in better coherence and details.
+   * @default true
+   * @type boolean | undefined
+   */
+  use_multiscale?: boolean
+  /**
+   * @description The write mode of the generated video.
+   * @default 'balanced'
+   * @type string | undefined
+   */
+  video_write_mode?: InputFalAiLtx219BDistilledImageToVideoLoraVideoWriteModeEnumKey
+  /**
+   * @description If `True`, the media will be returned as a data URI and the output data won't be available in the request history.
+   * @default false
+   * @type boolean | undefined
+   */
+  sync_mode?: boolean
+  /**
+   * @description The number of frames to generate.
+   * @minimum 9
+   * @maximum 481
+   * @default 121
+   * @type integer | undefined
+   */
+  num_frames?: number
+  /**
+   * @description The direction to interpolate the image sequence in. 'Forward' goes from the start image to the end image, 'Backward' goes from the end image to the start image.
+   * @default 'forward'
+   * @type string | undefined
+   */
+  interpolation_direction?: InputFalAiLtx219BDistilledImageToVideoLoraInterpolationDirectionEnumKey
+}
+
+export type VideoFile8C234828 = {
+  /**
+   * @description The name of the file. It will be auto-generated if not provided.
+   * @example z9RV14K95DvU.png
+   */
+  file_name?: string | null
+  /**
+   * @description The FPS of the video
+   */
+  fps?: number | null
+  /**
+   * @description The size of the file in bytes.
+   * @example 4404019
+   */
+  file_size?: number | null
+  /**
+   * @description The duration of the video
+   */
+  duration?: number | null
+  /**
+   * @description The width of the video
+   */
+  width?: number | null
+  /**
+   * @description The height of the video
+   */
+  height?: number | null
+  /**
+   * @description The URL where the file can be downloaded from.
+   * @type string
+   */
+  url: string
+  /**
+   * @description The number of frames in the video
+   */
+  num_frames?: number | null
+  /**
+   * @description The mime type of the file.
+   * @example image/png
+   */
+  content_type?: string | null
+}
+
+export type OutputFalAiLtx219BDistilledImageToVideoLora = {
+  /**
+   * @description The generated video.
+   * @example {"file_name":"CJcQGDrxOSRg2YFl5GNDt_glXPMoji.mp4","fps":25,"duration":10.28,"width":1248,"height":704,"url":"https://v3b.fal.media/files/b/0a88289e/CJcQGDrxOSRg2YFl5GNDt_glXPMoji.mp4","num_frames":257,"content_type":"video/mp4"}
+   * @type object
+   */
+  video: VideoFile8C234828
+  /**
+   * @description The prompt used for the generation.
+   * @example Continue the scene naturally, maintaining the same style and motion.
+   * @type string
+   */
+  prompt: string
+  /**
+   * @description The seed used for the random number generator.
+   * @example 866232447
+   * @type integer
+   */
+  seed: number
+}
+
+export type ImageSize1Ba0B977 = {
+  /**
+   * @description The height of the generated image.
+   * @maximum 14142
+   * @default 512
+   * @type integer | undefined
+   */
+  height?: number
+  /**
+   * @description The width of the generated image.
+   * @maximum 14142
+   * @default 512
+   * @type integer | undefined
+   */
+  width?: number
+}
+
+export const inputFalAiLtx219BDistilledTextToVideoVideoSize = {
+  square_hd: 'square_hd',
+  square: 'square',
+  portrait_4_3: 'portrait_4_3',
+  portrait_16_9: 'portrait_16_9',
+  landscape_4_3: 'landscape_4_3',
+  landscape_16_9: 'landscape_16_9',
+} as const
+
+export type InputFalAiLtx219BDistilledTextToVideoVideoSizeKey =
+  (typeof inputFalAiLtx219BDistilledTextToVideoVideoSize)[keyof typeof inputFalAiLtx219BDistilledTextToVideoVideoSize]
+
+export const inputFalAiLtx219BDistilledTextToVideoVideoOutputTypeEnum = {
+  'X264 (.mp4)': 'X264 (.mp4)',
+  'VP9 (.webm)': 'VP9 (.webm)',
+  'PRORES4444 (.mov)': 'PRORES4444 (.mov)',
+  'GIF (.gif)': 'GIF (.gif)',
+} as const
+
+export type InputFalAiLtx219BDistilledTextToVideoVideoOutputTypeEnumKey =
+  (typeof inputFalAiLtx219BDistilledTextToVideoVideoOutputTypeEnum)[keyof typeof inputFalAiLtx219BDistilledTextToVideoVideoOutputTypeEnum]
+
+export const inputFalAiLtx219BDistilledTextToVideoVideoQualityEnum = {
+  low: 'low',
+  medium: 'medium',
+  high: 'high',
+  maximum: 'maximum',
+} as const
+
+export type InputFalAiLtx219BDistilledTextToVideoVideoQualityEnumKey =
+  (typeof inputFalAiLtx219BDistilledTextToVideoVideoQualityEnum)[keyof typeof inputFalAiLtx219BDistilledTextToVideoVideoQualityEnum]
+
+export const inputFalAiLtx219BDistilledTextToVideoAccelerationEnum = {
+  none: 'none',
+  regular: 'regular',
+  high: 'high',
+  full: 'full',
+} as const
+
+export type InputFalAiLtx219BDistilledTextToVideoAccelerationEnumKey =
+  (typeof inputFalAiLtx219BDistilledTextToVideoAccelerationEnum)[keyof typeof inputFalAiLtx219BDistilledTextToVideoAccelerationEnum]
+
+export const inputFalAiLtx219BDistilledTextToVideoCameraLoraEnum = {
+  dolly_in: 'dolly_in',
+  dolly_out: 'dolly_out',
+  dolly_left: 'dolly_left',
+  dolly_right: 'dolly_right',
+  jib_up: 'jib_up',
+  jib_down: 'jib_down',
+  static: 'static',
+  none: 'none',
+} as const
+
+export type InputFalAiLtx219BDistilledTextToVideoCameraLoraEnumKey =
+  (typeof inputFalAiLtx219BDistilledTextToVideoCameraLoraEnum)[keyof typeof inputFalAiLtx219BDistilledTextToVideoCameraLoraEnum]
+
+export const inputFalAiLtx219BDistilledTextToVideoVideoWriteModeEnum = {
+  fast: 'fast',
+  balanced: 'balanced',
+  small: 'small',
+} as const
+
+export type InputFalAiLtx219BDistilledTextToVideoVideoWriteModeEnumKey =
+  (typeof inputFalAiLtx219BDistilledTextToVideoVideoWriteModeEnum)[keyof typeof inputFalAiLtx219BDistilledTextToVideoVideoWriteModeEnum]
+
+export type InputFalAiLtx219BDistilledTextToVideo = {
+  /**
+   * @description Whether to enable prompt expansion.
+   * @default true
+   * @type boolean | undefined
+   */
+  enable_prompt_expansion?: boolean
+  /**
+   * @description Whether to enable the safety checker.
+   * @default true
+   * @type boolean | undefined
+   */
+  enable_safety_checker?: boolean
+  /**
+   * @description The scale of the camera LoRA to use. This allows you to control the camera movement of the generated video more accurately than just prompting the model to move the camera.
+   * @minimum 0
+   * @maximum 1
+   * @default 1
+   * @type number | undefined
+   */
+  camera_lora_scale?: number
+  /**
+   * @description The size of the generated video.
+   * @default landscape_4_3
+   */
+  video_size?:
+    | ImageSize1Ba0B977
+    | InputFalAiLtx219BDistilledTextToVideoVideoSizeKey
+  /**
+   * @description The output type of the generated video.
+   * @default 'X264 (.mp4)'
+   * @type string | undefined
+   */
+  video_output_type?: InputFalAiLtx219BDistilledTextToVideoVideoOutputTypeEnumKey
+  /**
+   * @description The prompt to generate the video from.
+   * @example A cowboy walking through a dusty town at high noon, camera following from behind, cinematic depth, realistic lighting, western mood, 4K film grain.
+   * @type string
+   */
+  prompt: string
+  /**
+   * @description The quality of the generated video.
+   * @default 'high'
+   * @type string | undefined
+   */
+  video_quality?: InputFalAiLtx219BDistilledTextToVideoVideoQualityEnumKey
+  /**
+   * @description The acceleration level to use.
+   * @default 'none'
+   * @example none
+   * @type string | undefined
+   */
+  acceleration?: InputFalAiLtx219BDistilledTextToVideoAccelerationEnumKey
+  /**
+   * @description Whether to generate audio for the video.
+   * @default true
+   * @type boolean | undefined
+   */
+  generate_audio?: boolean
+  /**
+   * @description The seed for the random number generator.
+   */
+  seed?: number | null
+  /**
+   * @description The frames per second of the generated video.
+   * @minimum 1
+   * @maximum 60
+   * @default 25
+   * @type number | undefined
+   */
+  fps?: number
+  /**
+   * @description The negative prompt to generate the video from.
+   * @default 'blurry, out of focus, overexposed, underexposed, low contrast, washed out colors, excessive noise, grainy texture, poor lighting, flickering, motion blur, distorted proportions, unnatural skin tones, deformed facial features, asymmetrical face, missing facial features, extra limbs, disfigured hands, wrong hand count, artifacts around text, inconsistent perspective, camera shake, incorrect depth of field, background too sharp, background clutter, distracting reflections, harsh shadows, inconsistent lighting direction, color banding, cartoonish rendering, 3D CGI look, unrealistic materials, uncanny valley effect, incorrect ethnicity, wrong gender, exaggerated expressions, wrong gaze direction, mismatched lip sync, silent or muted audio, distorted voice, robotic voice, echo, background noise, off-sync audio,incorrect dialogue, added dialogue, repetitive speech, jittery movement, awkward pauses, incorrect timing, unnatural transitions, inconsistent framing, tilted camera, flat lighting, inconsistent tone, cinematic oversaturation, stylized filters, or AI artifacts.'
+   * @type string | undefined
+   */
+  negative_prompt?: string
+  /**
+   * @description The camera LoRA to use. This allows you to control the camera movement of the generated video more accurately than just prompting the model to move the camera.
+   * @default 'none'
+   * @example none
+   * @type string | undefined
+   */
+  camera_lora?: InputFalAiLtx219BDistilledTextToVideoCameraLoraEnumKey
+  /**
+   * @description Whether to use multi-scale generation. If True, the model will generate the video at a smaller scale first, then use the smaller video to guide the generation of a video at or above your requested size. This results in better coherence and details.
+   * @default true
+   * @type boolean | undefined
+   */
+  use_multiscale?: boolean
+  /**
+   * @description The write mode of the generated video.
+   * @default 'balanced'
+   * @type string | undefined
+   */
+  video_write_mode?: InputFalAiLtx219BDistilledTextToVideoVideoWriteModeEnumKey
+  /**
+   * @description If `True`, the media will be returned as a data URI and the output data won't be available in the request history.
+   * @default false
+   * @type boolean | undefined
+   */
+  sync_mode?: boolean
+  /**
+   * @description The number of frames to generate.
+   * @minimum 9
+   * @maximum 481
+   * @default 121
+   * @type integer | undefined
+   */
+  num_frames?: number
+}
+
+export type VideoFile3A771791 = {
+  /**
+   * @description The name of the file. It will be auto-generated if not provided.
+   * @example z9RV14K95DvU.png
+   */
+  file_name?: string | null
+  /**
+   * @description The FPS of the video
+   */
+  fps?: number | null
+  /**
+   * @description The size of the file in bytes.
+   * @example 4404019
+   */
+  file_size?: number | null
+  /**
+   * @description The duration of the video
+   */
+  duration?: number | null
+  /**
+   * @description The width of the video
+   */
+  width?: number | null
+  /**
+   * @description The height of the video
+   */
+  height?: number | null
+  /**
+   * @description The URL where the file can be downloaded from.
+   * @type string
+   */
+  url: string
+  /**
+   * @description The number of frames in the video
+   */
+  num_frames?: number | null
+  /**
+   * @description The mime type of the file.
+   * @example image/png
+   */
+  content_type?: string | null
+}
+
+export type OutputFalAiLtx219BDistilledTextToVideo = {
+  /**
+   * @description The generated video.
+   * @example {"file_name":"sdm0KfmenrlywesfzY1Y1_if6euPp1.mp4","fps":25,"duration":6.44,"width":1248,"height":704,"url":"https://v3b.fal.media/files/b/0a8824b1/sdm0KfmenrlywesfzY1Y1_if6euPp1.mp4","num_frames":161,"content_type":"video/mp4"}
+   * @type object
+   */
+  video: VideoFile3A771791
+  /**
+   * @description The prompt used for the generation.
+   * @example A cowboy walking through a dusty town at high noon, camera following from behind, cinematic depth, realistic lighting, western mood, 4K film grain.
+   * @type string
+   */
+  prompt: string
+  /**
+   * @description The seed used for the random number generator.
+   * @example 149063119
+   * @type integer
+   */
+  seed: number
+}
+
+export type ImageSizeD0C9A259 = {
+  /**
+   * @description The height of the generated image.
+   * @maximum 14142
+   * @default 512
+   * @type integer | undefined
+   */
+  height?: number
+  /**
+   * @description The width of the generated image.
+   * @maximum 14142
+   * @default 512
+   * @type integer | undefined
+   */
+  width?: number
+}
+
+export const inputFalAiLtx219BDistilledTextToVideoLoraVideoSize = {
+  square_hd: 'square_hd',
+  square: 'square',
+  portrait_4_3: 'portrait_4_3',
+  portrait_16_9: 'portrait_16_9',
+  landscape_4_3: 'landscape_4_3',
+  landscape_16_9: 'landscape_16_9',
+} as const
+
+export type InputFalAiLtx219BDistilledTextToVideoLoraVideoSizeKey =
+  (typeof inputFalAiLtx219BDistilledTextToVideoLoraVideoSize)[keyof typeof inputFalAiLtx219BDistilledTextToVideoLoraVideoSize]
+
+export const inputFalAiLtx219BDistilledTextToVideoLoraVideoOutputTypeEnum = {
+  'X264 (.mp4)': 'X264 (.mp4)',
+  'VP9 (.webm)': 'VP9 (.webm)',
+  'PRORES4444 (.mov)': 'PRORES4444 (.mov)',
+  'GIF (.gif)': 'GIF (.gif)',
+} as const
+
+export type InputFalAiLtx219BDistilledTextToVideoLoraVideoOutputTypeEnumKey =
+  (typeof inputFalAiLtx219BDistilledTextToVideoLoraVideoOutputTypeEnum)[keyof typeof inputFalAiLtx219BDistilledTextToVideoLoraVideoOutputTypeEnum]
+
+export const inputFalAiLtx219BDistilledTextToVideoLoraVideoQualityEnum = {
+  low: 'low',
+  medium: 'medium',
+  high: 'high',
+  maximum: 'maximum',
+} as const
+
+export type InputFalAiLtx219BDistilledTextToVideoLoraVideoQualityEnumKey =
+  (typeof inputFalAiLtx219BDistilledTextToVideoLoraVideoQualityEnum)[keyof typeof inputFalAiLtx219BDistilledTextToVideoLoraVideoQualityEnum]
+
+export const inputFalAiLtx219BDistilledTextToVideoLoraAccelerationEnum = {
+  none: 'none',
+  regular: 'regular',
+  high: 'high',
+  full: 'full',
+} as const
+
+export type InputFalAiLtx219BDistilledTextToVideoLoraAccelerationEnumKey =
+  (typeof inputFalAiLtx219BDistilledTextToVideoLoraAccelerationEnum)[keyof typeof inputFalAiLtx219BDistilledTextToVideoLoraAccelerationEnum]
+
+export const inputFalAiLtx219BDistilledTextToVideoLoraCameraLoraEnum = {
+  dolly_in: 'dolly_in',
+  dolly_out: 'dolly_out',
+  dolly_left: 'dolly_left',
+  dolly_right: 'dolly_right',
+  jib_up: 'jib_up',
+  jib_down: 'jib_down',
+  static: 'static',
+  none: 'none',
+} as const
+
+export type InputFalAiLtx219BDistilledTextToVideoLoraCameraLoraEnumKey =
+  (typeof inputFalAiLtx219BDistilledTextToVideoLoraCameraLoraEnum)[keyof typeof inputFalAiLtx219BDistilledTextToVideoLoraCameraLoraEnum]
+
+export const inputFalAiLtx219BDistilledTextToVideoLoraVideoWriteModeEnum = {
+  fast: 'fast',
+  balanced: 'balanced',
+  small: 'small',
+} as const
+
+export type InputFalAiLtx219BDistilledTextToVideoLoraVideoWriteModeEnumKey =
+  (typeof inputFalAiLtx219BDistilledTextToVideoLoraVideoWriteModeEnum)[keyof typeof inputFalAiLtx219BDistilledTextToVideoLoraVideoWriteModeEnum]
+
+export type InputFalAiLtx219BDistilledTextToVideoLora = {
+  /**
+   * @description Whether to enable prompt expansion.
+   * @default true
+   * @type boolean | undefined
+   */
+  enable_prompt_expansion?: boolean
+  /**
+   * @description The LoRAs to use for the generation.
+   * @type array
+   */
+  loras: LoRAInput[]
+  /**
+   * @description Whether to enable the safety checker.
+   * @default true
+   * @type boolean | undefined
+   */
+  enable_safety_checker?: boolean
+  /**
+   * @description The scale of the camera LoRA to use. This allows you to control the camera movement of the generated video more accurately than just prompting the model to move the camera.
+   * @minimum 0
+   * @maximum 1
+   * @default 1
+   * @type number | undefined
+   */
+  camera_lora_scale?: number
+  /**
+   * @description The size of the generated video.
+   * @default landscape_4_3
+   */
+  video_size?:
+    | ImageSizeD0C9A259
+    | InputFalAiLtx219BDistilledTextToVideoLoraVideoSizeKey
+  /**
+   * @description The output type of the generated video.
+   * @default 'X264 (.mp4)'
+   * @type string | undefined
+   */
+  video_output_type?: InputFalAiLtx219BDistilledTextToVideoLoraVideoOutputTypeEnumKey
+  /**
+   * @description The prompt to generate the video from.
+   * @example A cowboy walking through a dusty town at high noon, camera following from behind, cinematic depth, realistic lighting, western mood, 4K film grain.
+   * @type string
+   */
+  prompt: string
+  /**
+   * @description The quality of the generated video.
+   * @default 'high'
+   * @type string | undefined
+   */
+  video_quality?: InputFalAiLtx219BDistilledTextToVideoLoraVideoQualityEnumKey
+  /**
+   * @description The acceleration level to use.
+   * @default 'none'
+   * @example none
+   * @type string | undefined
+   */
+  acceleration?: InputFalAiLtx219BDistilledTextToVideoLoraAccelerationEnumKey
+  /**
+   * @description Whether to generate audio for the video.
+   * @default true
+   * @type boolean | undefined
+   */
+  generate_audio?: boolean
+  /**
+   * @description The seed for the random number generator.
+   */
+  seed?: number | null
+  /**
+   * @description The frames per second of the generated video.
+   * @minimum 1
+   * @maximum 60
+   * @default 25
+   * @type number | undefined
+   */
+  fps?: number
+  /**
+   * @description The negative prompt to generate the video from.
+   * @default 'blurry, out of focus, overexposed, underexposed, low contrast, washed out colors, excessive noise, grainy texture, poor lighting, flickering, motion blur, distorted proportions, unnatural skin tones, deformed facial features, asymmetrical face, missing facial features, extra limbs, disfigured hands, wrong hand count, artifacts around text, inconsistent perspective, camera shake, incorrect depth of field, background too sharp, background clutter, distracting reflections, harsh shadows, inconsistent lighting direction, color banding, cartoonish rendering, 3D CGI look, unrealistic materials, uncanny valley effect, incorrect ethnicity, wrong gender, exaggerated expressions, wrong gaze direction, mismatched lip sync, silent or muted audio, distorted voice, robotic voice, echo, background noise, off-sync audio,incorrect dialogue, added dialogue, repetitive speech, jittery movement, awkward pauses, incorrect timing, unnatural transitions, inconsistent framing, tilted camera, flat lighting, inconsistent tone, cinematic oversaturation, stylized filters, or AI artifacts.'
+   * @type string | undefined
+   */
+  negative_prompt?: string
+  /**
+   * @description The camera LoRA to use. This allows you to control the camera movement of the generated video more accurately than just prompting the model to move the camera.
+   * @default 'none'
+   * @example none
+   * @type string | undefined
+   */
+  camera_lora?: InputFalAiLtx219BDistilledTextToVideoLoraCameraLoraEnumKey
+  /**
+   * @description Whether to use multi-scale generation. If True, the model will generate the video at a smaller scale first, then use the smaller video to guide the generation of a video at or above your requested size. This results in better coherence and details.
+   * @default true
+   * @type boolean | undefined
+   */
+  use_multiscale?: boolean
+  /**
+   * @description The write mode of the generated video.
+   * @default 'balanced'
+   * @type string | undefined
+   */
+  video_write_mode?: InputFalAiLtx219BDistilledTextToVideoLoraVideoWriteModeEnumKey
+  /**
+   * @description If `True`, the media will be returned as a data URI and the output data won't be available in the request history.
+   * @default false
+   * @type boolean | undefined
+   */
+  sync_mode?: boolean
+  /**
+   * @description The number of frames to generate.
+   * @minimum 9
+   * @maximum 481
+   * @default 121
+   * @type integer | undefined
+   */
+  num_frames?: number
+}
+
+export type VideoFile3D665Bb4 = {
+  /**
+   * @description The name of the file. It will be auto-generated if not provided.
+   * @example z9RV14K95DvU.png
+   */
+  file_name?: string | null
+  /**
+   * @description The FPS of the video
+   */
+  fps?: number | null
+  /**
+   * @description The size of the file in bytes.
+   * @example 4404019
+   */
+  file_size?: number | null
+  /**
+   * @description The duration of the video
+   */
+  duration?: number | null
+  /**
+   * @description The width of the video
+   */
+  width?: number | null
+  /**
+   * @description The height of the video
+   */
+  height?: number | null
+  /**
+   * @description The URL where the file can be downloaded from.
+   * @type string
+   */
+  url: string
+  /**
+   * @description The number of frames in the video
+   */
+  num_frames?: number | null
+  /**
+   * @description The mime type of the file.
+   * @example image/png
+   */
+  content_type?: string | null
+}
+
+export type OutputFalAiLtx219BDistilledTextToVideoLora = {
+  /**
+   * @description The generated video.
+   * @example {"file_name":"sdm0KfmenrlywesfzY1Y1_if6euPp1.mp4","fps":25,"duration":6.44,"width":1248,"height":704,"url":"https://v3b.fal.media/files/b/0a8824b1/sdm0KfmenrlywesfzY1Y1_if6euPp1.mp4","num_frames":161,"content_type":"video/mp4"}
+   * @type object
+   */
+  video: VideoFile3D665Bb4
+  /**
+   * @description The prompt used for the generation.
+   * @example A cowboy walking through a dusty town at high noon, camera following from behind, cinematic depth, realistic lighting, western mood, 4K film grain.
+   * @type string
+   */
+  prompt: string
+  /**
+   * @description The seed used for the random number generator.
+   * @example 149063119
+   * @type integer
+   */
+  seed: number
+}
+
+export type ImageSize71B360C9 = {
+  /**
+   * @description The height of the generated image.
+   * @maximum 14142
+   * @default 512
+   * @type integer | undefined
+   */
+  height?: number
+  /**
+   * @description The width of the generated image.
+   * @maximum 14142
+   * @default 512
+   * @type integer | undefined
+   */
+  width?: number
+}
+
+export const inputFalAiLtx219BDistilledVideoToVideoPreprocessorEnum = {
+  depth: 'depth',
+  canny: 'canny',
+  pose: 'pose',
+  none: 'none',
+} as const
+
+export type InputFalAiLtx219BDistilledVideoToVideoPreprocessorEnumKey =
+  (typeof inputFalAiLtx219BDistilledVideoToVideoPreprocessorEnum)[keyof typeof inputFalAiLtx219BDistilledVideoToVideoPreprocessorEnum]
+
+export const inputFalAiLtx219BDistilledVideoToVideoVideoSize = {
+  auto: 'auto',
+  square_hd: 'square_hd',
+  square: 'square',
+  portrait_4_3: 'portrait_4_3',
+  portrait_16_9: 'portrait_16_9',
+  landscape_4_3: 'landscape_4_3',
+  landscape_16_9: 'landscape_16_9',
+} as const
+
+export type InputFalAiLtx219BDistilledVideoToVideoVideoSizeKey =
+  (typeof inputFalAiLtx219BDistilledVideoToVideoVideoSize)[keyof typeof inputFalAiLtx219BDistilledVideoToVideoVideoSize]
+
+export const inputFalAiLtx219BDistilledVideoToVideoVideoOutputTypeEnum = {
+  'X264 (.mp4)': 'X264 (.mp4)',
+  'VP9 (.webm)': 'VP9 (.webm)',
+  'PRORES4444 (.mov)': 'PRORES4444 (.mov)',
+  'GIF (.gif)': 'GIF (.gif)',
+} as const
+
+export type InputFalAiLtx219BDistilledVideoToVideoVideoOutputTypeEnumKey =
+  (typeof inputFalAiLtx219BDistilledVideoToVideoVideoOutputTypeEnum)[keyof typeof inputFalAiLtx219BDistilledVideoToVideoVideoOutputTypeEnum]
+
+export const inputFalAiLtx219BDistilledVideoToVideoVideoQualityEnum = {
+  low: 'low',
+  medium: 'medium',
+  high: 'high',
+  maximum: 'maximum',
+} as const
+
+export type InputFalAiLtx219BDistilledVideoToVideoVideoQualityEnumKey =
+  (typeof inputFalAiLtx219BDistilledVideoToVideoVideoQualityEnum)[keyof typeof inputFalAiLtx219BDistilledVideoToVideoVideoQualityEnum]
+
+export const inputFalAiLtx219BDistilledVideoToVideoCameraLoraEnum = {
+  dolly_in: 'dolly_in',
+  dolly_out: 'dolly_out',
+  dolly_left: 'dolly_left',
+  dolly_right: 'dolly_right',
+  jib_up: 'jib_up',
+  jib_down: 'jib_down',
+  static: 'static',
+  none: 'none',
+} as const
+
+export type InputFalAiLtx219BDistilledVideoToVideoCameraLoraEnumKey =
+  (typeof inputFalAiLtx219BDistilledVideoToVideoCameraLoraEnum)[keyof typeof inputFalAiLtx219BDistilledVideoToVideoCameraLoraEnum]
+
+export const inputFalAiLtx219BDistilledVideoToVideoVideoWriteModeEnum = {
+  fast: 'fast',
+  balanced: 'balanced',
+  small: 'small',
+} as const
+
+export type InputFalAiLtx219BDistilledVideoToVideoVideoWriteModeEnumKey =
+  (typeof inputFalAiLtx219BDistilledVideoToVideoVideoWriteModeEnum)[keyof typeof inputFalAiLtx219BDistilledVideoToVideoVideoWriteModeEnum]
+
+export const inputFalAiLtx219BDistilledVideoToVideoAccelerationEnum = {
+  none: 'none',
+  regular: 'regular',
+  high: 'high',
+  full: 'full',
+} as const
+
+export type InputFalAiLtx219BDistilledVideoToVideoAccelerationEnumKey =
+  (typeof inputFalAiLtx219BDistilledVideoToVideoAccelerationEnum)[keyof typeof inputFalAiLtx219BDistilledVideoToVideoAccelerationEnum]
+
+export const inputFalAiLtx219BDistilledVideoToVideoIcLoraEnum = {
+  match_preprocessor: 'match_preprocessor',
+  canny: 'canny',
+  depth: 'depth',
+  pose: 'pose',
+  detailer: 'detailer',
+  none: 'none',
+} as const
+
+export type InputFalAiLtx219BDistilledVideoToVideoIcLoraEnumKey =
+  (typeof inputFalAiLtx219BDistilledVideoToVideoIcLoraEnum)[keyof typeof inputFalAiLtx219BDistilledVideoToVideoIcLoraEnum]
+
+export type InputFalAiLtx219BDistilledVideoToVideo = {
+  /**
+   * @description Whether to enable prompt expansion.
+   * @default true
+   * @type boolean | undefined
+   */
+  enable_prompt_expansion?: boolean
+  /**
+   * @description An optional URL of an audio to use as the audio for the video. If not provided, any audio present in the input video will be used.
+   */
+  audio_url?: string | null
+  /**
+   * @description The preprocessor to use for the video. When a preprocessor is used and `ic_lora_type` is set to `match_preprocessor`, the IC-LoRA will be loaded based on the preprocessor type.
+   * @default 'none'
+   * @example none
+   * @type string | undefined
+   */
+  preprocessor?: InputFalAiLtx219BDistilledVideoToVideoPreprocessorEnumKey
+  /**
+   * @description The scale of the camera LoRA to use. This allows you to control the camera movement of the generated video more accurately than just prompting the model to move the camera.
+   * @minimum 0
+   * @maximum 1
+   * @default 1
+   * @type number | undefined
+   */
+  camera_lora_scale?: number
+  /**
+   * @description The URL of the image to use as the end of the video.
+   */
+  end_image_url?: string | null
+  /**
+   * @description The size of the generated video.
+   * @default auto
+   */
+  video_size?:
+    | ImageSize71B360C9
+    | InputFalAiLtx219BDistilledVideoToVideoVideoSizeKey
+  /**
+   * @description The output type of the generated video.
+   * @default 'X264 (.mp4)'
+   * @type string | undefined
+   */
+  video_output_type?: InputFalAiLtx219BDistilledVideoToVideoVideoOutputTypeEnumKey
+  /**
+   * @description When enabled, the number of frames will be calculated based on the video duration and FPS. When disabled, use the specified num_frames.
+   * @default true
+   * @type boolean | undefined
+   */
+  match_video_length?: boolean
+  /**
+   * @description The quality of the generated video.
+   * @default 'high'
+   * @type string | undefined
+   */
+  video_quality?: InputFalAiLtx219BDistilledVideoToVideoVideoQualityEnumKey
+  /**
+   * @description The seed for the random number generator.
+   */
+  seed?: number | null
+  /**
+   * @description The scale of the IC-LoRA to use. This allows you to control the strength of the IC-LoRA.
+   * @minimum 0
+   * @maximum 1
+   * @default 1
+   * @type number | undefined
+   */
+  ic_lora_scale?: number
+  /**
+   * @description The negative prompt to generate the video from.
+   * @default 'blurry, out of focus, overexposed, underexposed, low contrast, washed out colors, excessive noise, grainy texture, poor lighting, flickering, motion blur, distorted proportions, unnatural skin tones, deformed facial features, asymmetrical face, missing facial features, extra limbs, disfigured hands, wrong hand count, artifacts around text, inconsistent perspective, camera shake, incorrect depth of field, background too sharp, background clutter, distracting reflections, harsh shadows, inconsistent lighting direction, color banding, cartoonish rendering, 3D CGI look, unrealistic materials, uncanny valley effect, incorrect ethnicity, wrong gender, exaggerated expressions, wrong gaze direction, mismatched lip sync, silent or muted audio, distorted voice, robotic voice, echo, background noise, off-sync audio,incorrect dialogue, added dialogue, repetitive speech, jittery movement, awkward pauses, incorrect timing, unnatural transitions, inconsistent framing, tilted camera, flat lighting, inconsistent tone, cinematic oversaturation, stylized filters, or AI artifacts.'
+   * @type string | undefined
+   */
+  negative_prompt?: string
+  /**
+   * @description The strength of the image to use for the video generation.
+   * @minimum 0
+   * @maximum 1
+   * @default 1
+   * @type number | undefined
+   */
+  image_strength?: number
+  /**
+   * @description The camera LoRA to use. This allows you to control the camera movement of the generated video more accurately than just prompting the model to move the camera.
+   * @default 'none'
+   * @example none
+   * @type string | undefined
+   */
+  camera_lora?: InputFalAiLtx219BDistilledVideoToVideoCameraLoraEnumKey
+  /**
+   * @description Whether to use multi-scale generation. If True, the model will generate the video at a smaller scale first, then use the smaller video to guide the generation of a video at or above your requested size. This results in better coherence and details.
+   * @default true
+   * @type boolean | undefined
+   */
+  use_multiscale?: boolean
+  /**
+   * @description The write mode of the generated video.
+   * @default 'balanced'
+   * @type string | undefined
+   */
+  video_write_mode?: InputFalAiLtx219BDistilledVideoToVideoVideoWriteModeEnumKey
+  /**
+   * @description When true, match the output FPS to the input video's FPS instead of using the default target FPS.
+   * @default true
+   * @type boolean | undefined
+   */
+  match_input_fps?: boolean
+  /**
+   * @description Whether to enable the safety checker.
+   * @default true
+   * @type boolean | undefined
+   */
+  enable_safety_checker?: boolean
+  /**
+   * @description The strength of the end image to use for the video generation.
+   * @minimum 0
+   * @maximum 1
+   * @default 1
+   * @type number | undefined
+   */
+  end_image_strength?: number
+  /**
+   * @description The prompt to generate the video from.
+   * @example black-and-white video, a cowboy walks through a dusty town, film grain
+   * @type string
+   */
+  prompt: string
+  /**
+   * @description The URL of the video to generate the video from.
+   * @example https://v3b.fal.media/files/b/0a8824b1/sdm0KfmenrlywesfzY1Y1_if6euPp1.mp4
+   * @type string
+   */
+  video_url: string
+  /**
+   * @description The acceleration level to use.
+   * @default 'none'
+   * @example none
+   * @type string | undefined
+   */
+  acceleration?: InputFalAiLtx219BDistilledVideoToVideoAccelerationEnumKey
+  /**
+   * @description Whether to generate audio for the video.
+   * @default true
+   * @type boolean | undefined
+   */
+  generate_audio?: boolean
+  /**
+   * @description Video conditioning strength. Lower values represent more freedom given to the model to change the video content.
+   * @minimum 0
+   * @maximum 1
+   * @default 1
+   * @type number | undefined
+   */
+  video_strength?: number
+  /**
+   * @description The frames per second of the generated video.
+   * @minimum 1
+   * @maximum 60
+   * @default 25
+   * @type number | undefined
+   */
+  fps?: number
+  /**
+   * @description An optional URL of an image to use as the first frame of the video.
+   */
+  image_url?: string | null
+  /**
+   * @description The type of IC-LoRA to load. In-Context LoRA weights are used to condition the video based on edge, depth, or pose videos. Only change this from `match_preprocessor` if your videos are already preprocessed (or you are using the detailer.)
+   * @default 'match_preprocessor'
+   * @example match_preprocessor
+   * @type string | undefined
+   */
+  ic_lora?: InputFalAiLtx219BDistilledVideoToVideoIcLoraEnumKey
+  /**
+   * @description Audio conditioning strength. Lower values represent more freedom given to the model to change the audio content.
+   * @minimum 0
+   * @maximum 1
+   * @default 1
+   * @type number | undefined
+   */
+  audio_strength?: number
+  /**
+   * @description If `True`, the media will be returned as a data URI and the output data won't be available in the request history.
+   * @default false
+   * @type boolean | undefined
+   */
+  sync_mode?: boolean
+  /**
+   * @description The number of frames to generate.
+   * @minimum 9
+   * @maximum 481
+   * @default 121
+   * @type integer | undefined
+   */
+  num_frames?: number
+}
+
+export type VideoFile56Ae96B7 = {
+  /**
+   * @description The name of the file. It will be auto-generated if not provided.
+   * @example z9RV14K95DvU.png
+   */
+  file_name?: string | null
+  /**
+   * @description The FPS of the video
+   */
+  fps?: number | null
+  /**
+   * @description The size of the file in bytes.
+   * @example 4404019
+   */
+  file_size?: number | null
+  /**
+   * @description The duration of the video
+   */
+  duration?: number | null
+  /**
+   * @description The width of the video
+   */
+  width?: number | null
+  /**
+   * @description The height of the video
+   */
+  height?: number | null
+  /**
+   * @description The URL where the file can be downloaded from.
+   * @type string
+   */
+  url: string
+  /**
+   * @description The number of frames in the video
+   */
+  num_frames?: number | null
+  /**
+   * @description The mime type of the file.
+   * @example image/png
+   */
+  content_type?: string | null
+}
+
+export type OutputFalAiLtx219BDistilledVideoToVideo = {
+  /**
+   * @description The generated video.
+   * @example {"file_name":"SaTGe87IpMUMiSq33w5Qb_RoCJFZhc.mp4","fps":25,"duration":6.44,"width":1248,"height":704,"url":"https://v3b.fal.media/files/b/0a895ed5/SaTGe87IpMUMiSq33w5Qb_RoCJFZhc.mp4","num_frames":161,"content_type":"video/mp4"}
+   * @type object
+   */
+  video: VideoFile56Ae96B7
+  /**
+   * @description The prompt used for the generation.
+   * @example black-and-white video, a cowboy walks through a dusty town, film grain
+   * @type string
+   */
+  prompt: string
+  /**
+   * @description The seed used for the random number generator.
+   * @example 1490631192028410600
+   * @type integer
+   */
+  seed: number
+}
+
+export type ImageSize1Aa0A0B9 = {
+  /**
+   * @description The height of the generated image.
+   * @maximum 14142
+   * @default 512
+   * @type integer | undefined
+   */
+  height?: number
+  /**
+   * @description The width of the generated image.
+   * @maximum 14142
+   * @default 512
+   * @type integer | undefined
+   */
+  width?: number
+}
+
+export const inputFalAiLtx219BDistilledVideoToVideoLoraPreprocessorEnum = {
+  depth: 'depth',
+  canny: 'canny',
+  pose: 'pose',
+  none: 'none',
+} as const
+
+export type InputFalAiLtx219BDistilledVideoToVideoLoraPreprocessorEnumKey =
+  (typeof inputFalAiLtx219BDistilledVideoToVideoLoraPreprocessorEnum)[keyof typeof inputFalAiLtx219BDistilledVideoToVideoLoraPreprocessorEnum]
+
+export const inputFalAiLtx219BDistilledVideoToVideoLoraVideoSize = {
+  auto: 'auto',
+  square_hd: 'square_hd',
+  square: 'square',
+  portrait_4_3: 'portrait_4_3',
+  portrait_16_9: 'portrait_16_9',
+  landscape_4_3: 'landscape_4_3',
+  landscape_16_9: 'landscape_16_9',
+} as const
+
+export type InputFalAiLtx219BDistilledVideoToVideoLoraVideoSizeKey =
+  (typeof inputFalAiLtx219BDistilledVideoToVideoLoraVideoSize)[keyof typeof inputFalAiLtx219BDistilledVideoToVideoLoraVideoSize]
+
+export const inputFalAiLtx219BDistilledVideoToVideoLoraVideoOutputTypeEnum = {
+  'X264 (.mp4)': 'X264 (.mp4)',
+  'VP9 (.webm)': 'VP9 (.webm)',
+  'PRORES4444 (.mov)': 'PRORES4444 (.mov)',
+  'GIF (.gif)': 'GIF (.gif)',
+} as const
+
+export type InputFalAiLtx219BDistilledVideoToVideoLoraVideoOutputTypeEnumKey =
+  (typeof inputFalAiLtx219BDistilledVideoToVideoLoraVideoOutputTypeEnum)[keyof typeof inputFalAiLtx219BDistilledVideoToVideoLoraVideoOutputTypeEnum]
+
+export const inputFalAiLtx219BDistilledVideoToVideoLoraVideoQualityEnum = {
+  low: 'low',
+  medium: 'medium',
+  high: 'high',
+  maximum: 'maximum',
+} as const
+
+export type InputFalAiLtx219BDistilledVideoToVideoLoraVideoQualityEnumKey =
+  (typeof inputFalAiLtx219BDistilledVideoToVideoLoraVideoQualityEnum)[keyof typeof inputFalAiLtx219BDistilledVideoToVideoLoraVideoQualityEnum]
+
+export const inputFalAiLtx219BDistilledVideoToVideoLoraCameraLoraEnum = {
+  dolly_in: 'dolly_in',
+  dolly_out: 'dolly_out',
+  dolly_left: 'dolly_left',
+  dolly_right: 'dolly_right',
+  jib_up: 'jib_up',
+  jib_down: 'jib_down',
+  static: 'static',
+  none: 'none',
+} as const
+
+export type InputFalAiLtx219BDistilledVideoToVideoLoraCameraLoraEnumKey =
+  (typeof inputFalAiLtx219BDistilledVideoToVideoLoraCameraLoraEnum)[keyof typeof inputFalAiLtx219BDistilledVideoToVideoLoraCameraLoraEnum]
+
+export const inputFalAiLtx219BDistilledVideoToVideoLoraVideoWriteModeEnum = {
+  fast: 'fast',
+  balanced: 'balanced',
+  small: 'small',
+} as const
+
+export type InputFalAiLtx219BDistilledVideoToVideoLoraVideoWriteModeEnumKey =
+  (typeof inputFalAiLtx219BDistilledVideoToVideoLoraVideoWriteModeEnum)[keyof typeof inputFalAiLtx219BDistilledVideoToVideoLoraVideoWriteModeEnum]
+
+export const inputFalAiLtx219BDistilledVideoToVideoLoraAccelerationEnum = {
+  none: 'none',
+  regular: 'regular',
+  high: 'high',
+  full: 'full',
+} as const
+
+export type InputFalAiLtx219BDistilledVideoToVideoLoraAccelerationEnumKey =
+  (typeof inputFalAiLtx219BDistilledVideoToVideoLoraAccelerationEnum)[keyof typeof inputFalAiLtx219BDistilledVideoToVideoLoraAccelerationEnum]
+
+export const inputFalAiLtx219BDistilledVideoToVideoLoraIcLoraEnum = {
+  match_preprocessor: 'match_preprocessor',
+  canny: 'canny',
+  depth: 'depth',
+  pose: 'pose',
+  detailer: 'detailer',
+  none: 'none',
+} as const
+
+export type InputFalAiLtx219BDistilledVideoToVideoLoraIcLoraEnumKey =
+  (typeof inputFalAiLtx219BDistilledVideoToVideoLoraIcLoraEnum)[keyof typeof inputFalAiLtx219BDistilledVideoToVideoLoraIcLoraEnum]
+
+export type InputFalAiLtx219BDistilledVideoToVideoLora = {
+  /**
+   * @description Whether to enable prompt expansion.
+   * @default true
+   * @type boolean | undefined
+   */
+  enable_prompt_expansion?: boolean
+  /**
+   * @description An optional URL of an audio to use as the audio for the video. If not provided, any audio present in the input video will be used.
+   */
+  audio_url?: string | null
+  /**
+   * @description The preprocessor to use for the video. When a preprocessor is used and `ic_lora_type` is set to `match_preprocessor`, the IC-LoRA will be loaded based on the preprocessor type.
+   * @default 'none'
+   * @example none
+   * @type string | undefined
+   */
+  preprocessor?: InputFalAiLtx219BDistilledVideoToVideoLoraPreprocessorEnumKey
+  /**
+   * @description The scale of the camera LoRA to use. This allows you to control the camera movement of the generated video more accurately than just prompting the model to move the camera.
+   * @minimum 0
+   * @maximum 1
+   * @default 1
+   * @type number | undefined
+   */
+  camera_lora_scale?: number
+  /**
+   * @description The URL of the image to use as the end of the video.
+   */
+  end_image_url?: string | null
+  /**
+   * @description The size of the generated video.
+   * @default auto
+   */
+  video_size?:
+    | ImageSize1Aa0A0B9
+    | InputFalAiLtx219BDistilledVideoToVideoLoraVideoSizeKey
+  /**
+   * @description The output type of the generated video.
+   * @default 'X264 (.mp4)'
+   * @type string | undefined
+   */
+  video_output_type?: InputFalAiLtx219BDistilledVideoToVideoLoraVideoOutputTypeEnumKey
+  /**
+   * @description When enabled, the number of frames will be calculated based on the video duration and FPS. When disabled, use the specified num_frames.
+   * @default true
+   * @type boolean | undefined
+   */
+  match_video_length?: boolean
+  /**
+   * @description The quality of the generated video.
+   * @default 'high'
+   * @type string | undefined
+   */
+  video_quality?: InputFalAiLtx219BDistilledVideoToVideoLoraVideoQualityEnumKey
+  /**
+   * @description The seed for the random number generator.
+   */
+  seed?: number | null
+  /**
+   * @description The scale of the IC-LoRA to use. This allows you to control the strength of the IC-LoRA.
+   * @minimum 0
+   * @maximum 1
+   * @default 1
+   * @type number | undefined
+   */
+  ic_lora_scale?: number
+  /**
+   * @description The negative prompt to generate the video from.
+   * @default 'blurry, out of focus, overexposed, underexposed, low contrast, washed out colors, excessive noise, grainy texture, poor lighting, flickering, motion blur, distorted proportions, unnatural skin tones, deformed facial features, asymmetrical face, missing facial features, extra limbs, disfigured hands, wrong hand count, artifacts around text, inconsistent perspective, camera shake, incorrect depth of field, background too sharp, background clutter, distracting reflections, harsh shadows, inconsistent lighting direction, color banding, cartoonish rendering, 3D CGI look, unrealistic materials, uncanny valley effect, incorrect ethnicity, wrong gender, exaggerated expressions, wrong gaze direction, mismatched lip sync, silent or muted audio, distorted voice, robotic voice, echo, background noise, off-sync audio,incorrect dialogue, added dialogue, repetitive speech, jittery movement, awkward pauses, incorrect timing, unnatural transitions, inconsistent framing, tilted camera, flat lighting, inconsistent tone, cinematic oversaturation, stylized filters, or AI artifacts.'
+   * @type string | undefined
+   */
+  negative_prompt?: string
+  /**
+   * @description The strength of the image to use for the video generation.
+   * @minimum 0
+   * @maximum 1
+   * @default 1
+   * @type number | undefined
+   */
+  image_strength?: number
+  /**
+   * @description The camera LoRA to use. This allows you to control the camera movement of the generated video more accurately than just prompting the model to move the camera.
+   * @default 'none'
+   * @example none
+   * @type string | undefined
+   */
+  camera_lora?: InputFalAiLtx219BDistilledVideoToVideoLoraCameraLoraEnumKey
+  /**
+   * @description Whether to use multi-scale generation. If True, the model will generate the video at a smaller scale first, then use the smaller video to guide the generation of a video at or above your requested size. This results in better coherence and details.
+   * @default true
+   * @type boolean | undefined
+   */
+  use_multiscale?: boolean
+  /**
+   * @description The write mode of the generated video.
+   * @default 'balanced'
+   * @type string | undefined
+   */
+  video_write_mode?: InputFalAiLtx219BDistilledVideoToVideoLoraVideoWriteModeEnumKey
+  /**
+   * @description When true, match the output FPS to the input video's FPS instead of using the default target FPS.
+   * @default true
+   * @type boolean | undefined
+   */
+  match_input_fps?: boolean
+  /**
+   * @description The LoRAs to use for the generation.
+   * @type array
+   */
+  loras: LoRAInput[]
+  /**
+   * @description Whether to enable the safety checker.
+   * @default true
+   * @type boolean | undefined
+   */
+  enable_safety_checker?: boolean
+  /**
+   * @description The strength of the end image to use for the video generation.
+   * @minimum 0
+   * @maximum 1
+   * @default 1
+   * @type number | undefined
+   */
+  end_image_strength?: number
+  /**
+   * @description The prompt to generate the video from.
+   * @example black-and-white video, a cowboy walks through a dusty town, film grain
+   * @type string
+   */
+  prompt: string
+  /**
+   * @description The URL of the video to generate the video from.
+   * @example https://v3b.fal.media/files/b/0a8824b1/sdm0KfmenrlywesfzY1Y1_if6euPp1.mp4
+   * @type string
+   */
+  video_url: string
+  /**
+   * @description The acceleration level to use.
+   * @default 'none'
+   * @example none
+   * @type string | undefined
+   */
+  acceleration?: InputFalAiLtx219BDistilledVideoToVideoLoraAccelerationEnumKey
+  /**
+   * @description Whether to generate audio for the video.
+   * @default true
+   * @type boolean | undefined
+   */
+  generate_audio?: boolean
+  /**
+   * @description Video conditioning strength. Lower values represent more freedom given to the model to change the video content.
+   * @minimum 0
+   * @maximum 1
+   * @default 1
+   * @type number | undefined
+   */
+  video_strength?: number
+  /**
+   * @description The frames per second of the generated video.
+   * @minimum 1
+   * @maximum 60
+   * @default 25
+   * @type number | undefined
+   */
+  fps?: number
+  /**
+   * @description An optional URL of an image to use as the first frame of the video.
+   */
+  image_url?: string | null
+  /**
+   * @description The type of IC-LoRA to load. In-Context LoRA weights are used to condition the video based on edge, depth, or pose videos. Only change this from `match_preprocessor` if your videos are already preprocessed (or you are using the detailer.)
+   * @default 'match_preprocessor'
+   * @example match_preprocessor
+   * @type string | undefined
+   */
+  ic_lora?: InputFalAiLtx219BDistilledVideoToVideoLoraIcLoraEnumKey
+  /**
+   * @description Audio conditioning strength. Lower values represent more freedom given to the model to change the audio content.
+   * @minimum 0
+   * @maximum 1
+   * @default 1
+   * @type number | undefined
+   */
+  audio_strength?: number
+  /**
+   * @description If `True`, the media will be returned as a data URI and the output data won't be available in the request history.
+   * @default false
+   * @type boolean | undefined
+   */
+  sync_mode?: boolean
+  /**
+   * @description The number of frames to generate.
+   * @minimum 9
+   * @maximum 481
+   * @default 121
+   * @type integer | undefined
+   */
+  num_frames?: number
+}
+
+export type VideoFile4C3570E2 = {
+  /**
+   * @description The name of the file. It will be auto-generated if not provided.
+   * @example z9RV14K95DvU.png
+   */
+  file_name?: string | null
+  /**
+   * @description The FPS of the video
+   */
+  fps?: number | null
+  /**
+   * @description The size of the file in bytes.
+   * @example 4404019
+   */
+  file_size?: number | null
+  /**
+   * @description The duration of the video
+   */
+  duration?: number | null
+  /**
+   * @description The width of the video
+   */
+  width?: number | null
+  /**
+   * @description The height of the video
+   */
+  height?: number | null
+  /**
+   * @description The URL where the file can be downloaded from.
+   * @type string
+   */
+  url: string
+  /**
+   * @description The number of frames in the video
+   */
+  num_frames?: number | null
+  /**
+   * @description The mime type of the file.
+   * @example image/png
+   */
+  content_type?: string | null
+}
+
+export type OutputFalAiLtx219BDistilledVideoToVideoLora = {
+  /**
+   * @description The generated video.
+   * @example {"file_name":"SaTGe87IpMUMiSq33w5Qb_RoCJFZhc.mp4","fps":25,"duration":6.44,"width":1248,"height":704,"url":"https://v3b.fal.media/files/b/0a895ed5/SaTGe87IpMUMiSq33w5Qb_RoCJFZhc.mp4","num_frames":161,"content_type":"video/mp4"}
+   * @type object
+   */
+  video: VideoFile4C3570E2
+  /**
+   * @description The prompt used for the generation.
+   * @example black-and-white video, a cowboy walks through a dusty town, film grain
+   * @type string
+   */
+  prompt: string
+  /**
+   * @description The seed used for the random number generator.
+   * @example 1490631192028410600
+   * @type integer
+   */
+  seed: number
+}
+
+export type ImageSizeD8Cd0D9D = {
+  /**
+   * @description The height of the generated image.
+   * @maximum 14142
+   * @default 512
+   * @type integer | undefined
+   */
+  height?: number
+  /**
+   * @description The width of the generated image.
+   * @maximum 14142
+   * @default 512
+   * @type integer | undefined
+   */
+  width?: number
+}
+
+export const inputFalAiLtx219BExtendVideoVideoOutputTypeEnum = {
+  'X264 (.mp4)': 'X264 (.mp4)',
+  'VP9 (.webm)': 'VP9 (.webm)',
+  'PRORES4444 (.mov)': 'PRORES4444 (.mov)',
+  'GIF (.gif)': 'GIF (.gif)',
+} as const
+
+export type InputFalAiLtx219BExtendVideoVideoOutputTypeEnumKey =
+  (typeof inputFalAiLtx219BExtendVideoVideoOutputTypeEnum)[keyof typeof inputFalAiLtx219BExtendVideoVideoOutputTypeEnum]
+
+export const inputFalAiLtx219BExtendVideoAccelerationEnum = {
+  none: 'none',
+  regular: 'regular',
+  high: 'high',
+  full: 'full',
+} as const
+
+export type InputFalAiLtx219BExtendVideoAccelerationEnumKey =
+  (typeof inputFalAiLtx219BExtendVideoAccelerationEnum)[keyof typeof inputFalAiLtx219BExtendVideoAccelerationEnum]
+
+export const inputFalAiLtx219BExtendVideoVideoQualityEnum = {
+  low: 'low',
+  medium: 'medium',
+  high: 'high',
+  maximum: 'maximum',
+} as const
+
+export type InputFalAiLtx219BExtendVideoVideoQualityEnumKey =
+  (typeof inputFalAiLtx219BExtendVideoVideoQualityEnum)[keyof typeof inputFalAiLtx219BExtendVideoVideoQualityEnum]
+
+export const inputFalAiLtx219BExtendVideoVideoSize = {
+  auto: 'auto',
+  square_hd: 'square_hd',
+  square: 'square',
+  portrait_4_3: 'portrait_4_3',
+  portrait_16_9: 'portrait_16_9',
+  landscape_4_3: 'landscape_4_3',
+  landscape_16_9: 'landscape_16_9',
+} as const
+
+export type InputFalAiLtx219BExtendVideoVideoSizeKey =
+  (typeof inputFalAiLtx219BExtendVideoVideoSize)[keyof typeof inputFalAiLtx219BExtendVideoVideoSize]
+
+export const inputFalAiLtx219BExtendVideoExtendDirectionEnum = {
+  forward: 'forward',
+  backward: 'backward',
+} as const
+
+export type InputFalAiLtx219BExtendVideoExtendDirectionEnumKey =
+  (typeof inputFalAiLtx219BExtendVideoExtendDirectionEnum)[keyof typeof inputFalAiLtx219BExtendVideoExtendDirectionEnum]
+
+export const inputFalAiLtx219BExtendVideoCameraLoraEnum = {
+  dolly_in: 'dolly_in',
+  dolly_out: 'dolly_out',
+  dolly_left: 'dolly_left',
+  dolly_right: 'dolly_right',
+  jib_up: 'jib_up',
+  jib_down: 'jib_down',
+  static: 'static',
+  none: 'none',
+} as const
+
+export type InputFalAiLtx219BExtendVideoCameraLoraEnumKey =
+  (typeof inputFalAiLtx219BExtendVideoCameraLoraEnum)[keyof typeof inputFalAiLtx219BExtendVideoCameraLoraEnum]
+
+export const inputFalAiLtx219BExtendVideoVideoWriteModeEnum = {
+  fast: 'fast',
+  balanced: 'balanced',
+  small: 'small',
+} as const
+
+export type InputFalAiLtx219BExtendVideoVideoWriteModeEnumKey =
+  (typeof inputFalAiLtx219BExtendVideoVideoWriteModeEnum)[keyof typeof inputFalAiLtx219BExtendVideoVideoWriteModeEnum]
+
+export type InputFalAiLtx219BExtendVideo = {
+  /**
+   * @description The number of inference steps to use.
+   * @minimum 8
+   * @maximum 50
+   * @default 40
+   * @type integer | undefined
+   */
+  num_inference_steps?: number
+  /**
+   * @description Whether to enable prompt expansion.
+   * @default true
+   * @type boolean | undefined
+   */
+  enable_prompt_expansion?: boolean
+  /**
+   * @description Whether to enable the safety checker.
+   * @default true
+   * @type boolean | undefined
+   */
+  enable_safety_checker?: boolean
+  /**
+   * @description The strength of the end image to use for the video generation.
+   * @minimum 0
+   * @maximum 1
+   * @default 1
+   * @type number | undefined
+   */
+  end_image_strength?: number
+  /**
+   * @description The scale of the camera LoRA to use. This allows you to control the camera movement of the generated video more accurately than just prompting the model to move the camera.
+   * @minimum 0
+   * @maximum 1
+   * @default 1
+   * @type number | undefined
+   */
+  camera_lora_scale?: number
+  /**
+   * @description The URL of the image to use as the end of the extended video.
+   */
+  end_image_url?: string | null
+  /**
+   * @description The guidance scale to use.
+   * @minimum 1
+   * @maximum 10
+   * @default 3
+   * @type number | undefined
+   */
+  guidance_scale?: number
+  /**
+   * @description The output type of the generated video.
+   * @default 'X264 (.mp4)'
+   * @type string | undefined
+   */
+  video_output_type?: InputFalAiLtx219BExtendVideoVideoOutputTypeEnumKey
+  /**
+   * @description The prompt to generate the video from.
+   * @example Continue the scene naturally, maintaining the same style and motion.
+   * @type string
+   */
+  prompt: string
+  /**
+   * @description The URL of the video to extend.
+   * @example https://v3b.fal.media/files/b/0a8824b1/sdm0KfmenrlywesfzY1Y1_if6euPp1.mp4
+   * @type string
+   */
+  video_url: string
+  /**
+   * @description Video conditioning strength. Lower values represent more freedom given to the model to change the video content.
+   * @minimum 0
+   * @maximum 1
+   * @default 1
+   * @type number | undefined
+   */
+  video_strength?: number
+  /**
+   * @description Whether to generate audio for the video.
+   * @default true
+   * @type boolean | undefined
+   */
+  generate_audio?: boolean
+  /**
+   * @description The acceleration level to use.
+   * @default 'regular'
+   * @example regular
+   * @type string | undefined
+   */
+  acceleration?: InputFalAiLtx219BExtendVideoAccelerationEnumKey
+  /**
+   * @description The quality of the generated video.
+   * @default 'high'
+   * @type string | undefined
+   */
+  video_quality?: InputFalAiLtx219BExtendVideoVideoQualityEnumKey
+  /**
+   * @description The frames per second of the generated video.
+   * @minimum 1
+   * @maximum 60
+   * @default 25
+   * @type number | undefined
+   */
+  fps?: number
+  /**
+   * @description The seed for the random number generator.
+   */
+  seed?: number | null
+  /**
+   * @description The size of the generated video.
+   * @default auto
+   */
+  video_size?: ImageSizeD8Cd0D9D | InputFalAiLtx219BExtendVideoVideoSizeKey
+  /**
+   * @description The negative prompt to generate the video from.
+   * @default 'blurry, out of focus, overexposed, underexposed, low contrast, washed out colors, excessive noise, grainy texture, poor lighting, flickering, motion blur, distorted proportions, unnatural skin tones, deformed facial features, asymmetrical face, missing facial features, extra limbs, disfigured hands, wrong hand count, artifacts around text, inconsistent perspective, camera shake, incorrect depth of field, background too sharp, background clutter, distracting reflections, harsh shadows, inconsistent lighting direction, color banding, cartoonish rendering, 3D CGI look, unrealistic materials, uncanny valley effect, incorrect ethnicity, wrong gender, exaggerated expressions, wrong gaze direction, mismatched lip sync, silent or muted audio, distorted voice, robotic voice, echo, background noise, off-sync audio,incorrect dialogue, added dialogue, repetitive speech, jittery movement, awkward pauses, incorrect timing, unnatural transitions, inconsistent framing, tilted camera, flat lighting, inconsistent tone, cinematic oversaturation, stylized filters, or AI artifacts.'
+   * @type string | undefined
+   */
+  negative_prompt?: string
+  /**
+   * @description Direction to extend the video. 'forward' extends from the end of the video, 'backward' extends from the beginning.
+   * @default 'forward'
+   * @type string | undefined
+   */
+  extend_direction?: InputFalAiLtx219BExtendVideoExtendDirectionEnumKey
+  /**
+   * @description The number of frames to use as context for the extension.
+   * @minimum 0
+   * @maximum 121
+   * @default 25
+   * @type integer | undefined
+   */
+  num_context_frames?: number
+  /**
+   * @description The camera LoRA to use. This allows you to control the camera movement of the generated video more accurately than just prompting the model to move the camera.
+   * @default 'none'
+   * @example none
+   * @type string | undefined
+   */
+  camera_lora?: InputFalAiLtx219BExtendVideoCameraLoraEnumKey
+  /**
+   * @description Whether to use multi-scale generation. If True, the model will generate the video at a smaller scale first, then use the smaller video to guide the generation of a video at or above your requested size. This results in better coherence and details.
+   * @default true
+   * @type boolean | undefined
+   */
+  use_multiscale?: boolean
+  /**
+   * @description When true, match the output FPS to the input video's FPS instead of using the default target FPS.
+   * @default true
+   * @type boolean | undefined
+   */
+  match_input_fps?: boolean
+  /**
+   * @description The write mode of the generated video.
+   * @default 'balanced'
+   * @type string | undefined
+   */
+  video_write_mode?: InputFalAiLtx219BExtendVideoVideoWriteModeEnumKey
+  /**
+   * @description If `True`, the media will be returned as a data URI and the output data won't be available in the request history.
+   * @default false
+   * @type boolean | undefined
+   */
+  sync_mode?: boolean
+  /**
+   * @description The number of frames to generate.
+   * @minimum 9
+   * @maximum 481
+   * @default 121
+   * @type integer | undefined
+   */
+  num_frames?: number
+  /**
+   * @description Audio conditioning strength. Lower values represent more freedom given to the model to change the audio content.
+   * @minimum 0
+   * @maximum 1
+   * @default 1
+   * @type number | undefined
+   */
+  audio_strength?: number
+}
+
+export type VideoFile20886033 = {
+  /**
+   * @description The name of the file. It will be auto-generated if not provided.
+   * @example z9RV14K95DvU.png
+   */
+  file_name?: string | null
+  /**
+   * @description The FPS of the video
+   */
+  fps?: number | null
+  /**
+   * @description The size of the file in bytes.
+   * @example 4404019
+   */
+  file_size?: number | null
+  /**
+   * @description The duration of the video
+   */
+  duration?: number | null
+  /**
+   * @description The width of the video
+   */
+  width?: number | null
+  /**
+   * @description The height of the video
+   */
+  height?: number | null
+  /**
+   * @description The URL where the file can be downloaded from.
+   * @type string
+   */
+  url: string
+  /**
+   * @description The number of frames in the video
+   */
+  num_frames?: number | null
+  /**
+   * @description The mime type of the file.
+   * @example image/png
+   */
+  content_type?: string | null
+}
+
+export type OutputFalAiLtx219BExtendVideo = {
+  /**
+   * @description The generated video.
+   * @example {"file_name":"CJcQGDrxOSRg2YFl5GNDt_glXPMoji.mp4","fps":25,"duration":6.44,"width":1248,"height":704,"url":"https://v3b.fal.media/files/b/0a894013/N9lnMTq7W3uMC0lOQg845_BknRPV8I.mp4","num_frames":161,"content_type":"video/mp4"}
+   * @type object
+   */
+  video: VideoFile20886033
+  /**
+   * @description The prompt used for the generation.
+   * @example A woman stands still amid a busy neon-lit street at night. The camera slowly dollies in toward her face as people blur past, their motion emphasizing her calm presence. City lights flicker and reflections shift across her denim jacket.
+   * @type string
+   */
+  prompt: string
+  /**
+   * @description The seed used for the random number generator.
+   * @example 2078003885
+   * @type integer
+   */
+  seed: number
+}
+
+export type ImageSizeE73B3735 = {
+  /**
+   * @description The height of the generated image.
+   * @maximum 14142
+   * @default 512
+   * @type integer | undefined
+   */
+  height?: number
+  /**
+   * @description The width of the generated image.
+   * @maximum 14142
+   * @default 512
+   * @type integer | undefined
+   */
+  width?: number
+}
+
+export const inputFalAiLtx219BExtendVideoLoraVideoOutputTypeEnum = {
+  'X264 (.mp4)': 'X264 (.mp4)',
+  'VP9 (.webm)': 'VP9 (.webm)',
+  'PRORES4444 (.mov)': 'PRORES4444 (.mov)',
+  'GIF (.gif)': 'GIF (.gif)',
+} as const
+
+export type InputFalAiLtx219BExtendVideoLoraVideoOutputTypeEnumKey =
+  (typeof inputFalAiLtx219BExtendVideoLoraVideoOutputTypeEnum)[keyof typeof inputFalAiLtx219BExtendVideoLoraVideoOutputTypeEnum]
+
+export const inputFalAiLtx219BExtendVideoLoraAccelerationEnum = {
+  none: 'none',
+  regular: 'regular',
+  high: 'high',
+  full: 'full',
+} as const
+
+export type InputFalAiLtx219BExtendVideoLoraAccelerationEnumKey =
+  (typeof inputFalAiLtx219BExtendVideoLoraAccelerationEnum)[keyof typeof inputFalAiLtx219BExtendVideoLoraAccelerationEnum]
+
+export const inputFalAiLtx219BExtendVideoLoraVideoQualityEnum = {
+  low: 'low',
+  medium: 'medium',
+  high: 'high',
+  maximum: 'maximum',
+} as const
+
+export type InputFalAiLtx219BExtendVideoLoraVideoQualityEnumKey =
+  (typeof inputFalAiLtx219BExtendVideoLoraVideoQualityEnum)[keyof typeof inputFalAiLtx219BExtendVideoLoraVideoQualityEnum]
+
+export const inputFalAiLtx219BExtendVideoLoraVideoSize = {
+  auto: 'auto',
+  square_hd: 'square_hd',
+  square: 'square',
+  portrait_4_3: 'portrait_4_3',
+  portrait_16_9: 'portrait_16_9',
+  landscape_4_3: 'landscape_4_3',
+  landscape_16_9: 'landscape_16_9',
+} as const
+
+export type InputFalAiLtx219BExtendVideoLoraVideoSizeKey =
+  (typeof inputFalAiLtx219BExtendVideoLoraVideoSize)[keyof typeof inputFalAiLtx219BExtendVideoLoraVideoSize]
+
+export const inputFalAiLtx219BExtendVideoLoraExtendDirectionEnum = {
+  forward: 'forward',
+  backward: 'backward',
+} as const
+
+export type InputFalAiLtx219BExtendVideoLoraExtendDirectionEnumKey =
+  (typeof inputFalAiLtx219BExtendVideoLoraExtendDirectionEnum)[keyof typeof inputFalAiLtx219BExtendVideoLoraExtendDirectionEnum]
+
+export const inputFalAiLtx219BExtendVideoLoraCameraLoraEnum = {
+  dolly_in: 'dolly_in',
+  dolly_out: 'dolly_out',
+  dolly_left: 'dolly_left',
+  dolly_right: 'dolly_right',
+  jib_up: 'jib_up',
+  jib_down: 'jib_down',
+  static: 'static',
+  none: 'none',
+} as const
+
+export type InputFalAiLtx219BExtendVideoLoraCameraLoraEnumKey =
+  (typeof inputFalAiLtx219BExtendVideoLoraCameraLoraEnum)[keyof typeof inputFalAiLtx219BExtendVideoLoraCameraLoraEnum]
+
+export const inputFalAiLtx219BExtendVideoLoraVideoWriteModeEnum = {
+  fast: 'fast',
+  balanced: 'balanced',
+  small: 'small',
+} as const
+
+export type InputFalAiLtx219BExtendVideoLoraVideoWriteModeEnumKey =
+  (typeof inputFalAiLtx219BExtendVideoLoraVideoWriteModeEnum)[keyof typeof inputFalAiLtx219BExtendVideoLoraVideoWriteModeEnum]
+
+export type InputFalAiLtx219BExtendVideoLora = {
+  /**
+   * @description The number of inference steps to use.
+   * @minimum 8
+   * @maximum 50
+   * @default 40
+   * @type integer | undefined
+   */
+  num_inference_steps?: number
+  /**
+   * @description Whether to enable prompt expansion.
+   * @default true
+   * @type boolean | undefined
+   */
+  enable_prompt_expansion?: boolean
+  /**
+   * @description The LoRAs to use for the generation.
+   * @type array
+   */
+  loras: LoRAInput[]
+  /**
+   * @description Whether to enable the safety checker.
+   * @default true
+   * @type boolean | undefined
+   */
+  enable_safety_checker?: boolean
+  /**
+   * @description The strength of the end image to use for the video generation.
+   * @minimum 0
+   * @maximum 1
+   * @default 1
+   * @type number | undefined
+   */
+  end_image_strength?: number
+  /**
+   * @description The scale of the camera LoRA to use. This allows you to control the camera movement of the generated video more accurately than just prompting the model to move the camera.
+   * @minimum 0
+   * @maximum 1
+   * @default 1
+   * @type number | undefined
+   */
+  camera_lora_scale?: number
+  /**
+   * @description The URL of the image to use as the end of the extended video.
+   */
+  end_image_url?: string | null
+  /**
+   * @description The guidance scale to use.
+   * @minimum 1
+   * @maximum 10
+   * @default 3
+   * @type number | undefined
+   */
+  guidance_scale?: number
+  /**
+   * @description The output type of the generated video.
+   * @default 'X264 (.mp4)'
+   * @type string | undefined
+   */
+  video_output_type?: InputFalAiLtx219BExtendVideoLoraVideoOutputTypeEnumKey
+  /**
+   * @description The prompt to generate the video from.
+   * @example Continue the scene naturally, maintaining the same style and motion.
+   * @type string
+   */
+  prompt: string
+  /**
+   * @description The URL of the video to extend.
+   * @example https://v3b.fal.media/files/b/0a8824b1/sdm0KfmenrlywesfzY1Y1_if6euPp1.mp4
+   * @type string
+   */
+  video_url: string
+  /**
+   * @description Video conditioning strength. Lower values represent more freedom given to the model to change the video content.
+   * @minimum 0
+   * @maximum 1
+   * @default 1
+   * @type number | undefined
+   */
+  video_strength?: number
+  /**
+   * @description Whether to generate audio for the video.
+   * @default true
+   * @type boolean | undefined
+   */
+  generate_audio?: boolean
+  /**
+   * @description The acceleration level to use.
+   * @default 'regular'
+   * @example regular
+   * @type string | undefined
+   */
+  acceleration?: InputFalAiLtx219BExtendVideoLoraAccelerationEnumKey
+  /**
+   * @description The quality of the generated video.
+   * @default 'high'
+   * @type string | undefined
+   */
+  video_quality?: InputFalAiLtx219BExtendVideoLoraVideoQualityEnumKey
+  /**
+   * @description The frames per second of the generated video.
+   * @minimum 1
+   * @maximum 60
+   * @default 25
+   * @type number | undefined
+   */
+  fps?: number
+  /**
+   * @description The seed for the random number generator.
+   */
+  seed?: number | null
+  /**
+   * @description The size of the generated video.
+   * @default auto
+   */
+  video_size?: ImageSizeE73B3735 | InputFalAiLtx219BExtendVideoLoraVideoSizeKey
+  /**
+   * @description The negative prompt to generate the video from.
+   * @default 'blurry, out of focus, overexposed, underexposed, low contrast, washed out colors, excessive noise, grainy texture, poor lighting, flickering, motion blur, distorted proportions, unnatural skin tones, deformed facial features, asymmetrical face, missing facial features, extra limbs, disfigured hands, wrong hand count, artifacts around text, inconsistent perspective, camera shake, incorrect depth of field, background too sharp, background clutter, distracting reflections, harsh shadows, inconsistent lighting direction, color banding, cartoonish rendering, 3D CGI look, unrealistic materials, uncanny valley effect, incorrect ethnicity, wrong gender, exaggerated expressions, wrong gaze direction, mismatched lip sync, silent or muted audio, distorted voice, robotic voice, echo, background noise, off-sync audio,incorrect dialogue, added dialogue, repetitive speech, jittery movement, awkward pauses, incorrect timing, unnatural transitions, inconsistent framing, tilted camera, flat lighting, inconsistent tone, cinematic oversaturation, stylized filters, or AI artifacts.'
+   * @type string | undefined
+   */
+  negative_prompt?: string
+  /**
+   * @description Direction to extend the video. 'forward' extends from the end of the video, 'backward' extends from the beginning.
+   * @default 'forward'
+   * @type string | undefined
+   */
+  extend_direction?: InputFalAiLtx219BExtendVideoLoraExtendDirectionEnumKey
+  /**
+   * @description The number of frames to use as context for the extension.
+   * @minimum 0
+   * @maximum 121
+   * @default 25
+   * @type integer | undefined
+   */
+  num_context_frames?: number
+  /**
+   * @description The camera LoRA to use. This allows you to control the camera movement of the generated video more accurately than just prompting the model to move the camera.
+   * @default 'none'
+   * @example none
+   * @type string | undefined
+   */
+  camera_lora?: InputFalAiLtx219BExtendVideoLoraCameraLoraEnumKey
+  /**
+   * @description Whether to use multi-scale generation. If True, the model will generate the video at a smaller scale first, then use the smaller video to guide the generation of a video at or above your requested size. This results in better coherence and details.
+   * @default true
+   * @type boolean | undefined
+   */
+  use_multiscale?: boolean
+  /**
+   * @description When true, match the output FPS to the input video's FPS instead of using the default target FPS.
+   * @default true
+   * @type boolean | undefined
+   */
+  match_input_fps?: boolean
+  /**
+   * @description The write mode of the generated video.
+   * @default 'balanced'
+   * @type string | undefined
+   */
+  video_write_mode?: InputFalAiLtx219BExtendVideoLoraVideoWriteModeEnumKey
+  /**
+   * @description If `True`, the media will be returned as a data URI and the output data won't be available in the request history.
+   * @default false
+   * @type boolean | undefined
+   */
+  sync_mode?: boolean
+  /**
+   * @description The number of frames to generate.
+   * @minimum 9
+   * @maximum 481
+   * @default 121
+   * @type integer | undefined
+   */
+  num_frames?: number
+  /**
+   * @description Audio conditioning strength. Lower values represent more freedom given to the model to change the audio content.
+   * @minimum 0
+   * @maximum 1
+   * @default 1
+   * @type number | undefined
+   */
+  audio_strength?: number
+}
+
+export type VideoFile2C1Ce66E = {
+  /**
+   * @description The name of the file. It will be auto-generated if not provided.
+   * @example z9RV14K95DvU.png
+   */
+  file_name?: string | null
+  /**
+   * @description The FPS of the video
+   */
+  fps?: number | null
+  /**
+   * @description The size of the file in bytes.
+   * @example 4404019
+   */
+  file_size?: number | null
+  /**
+   * @description The duration of the video
+   */
+  duration?: number | null
+  /**
+   * @description The width of the video
+   */
+  width?: number | null
+  /**
+   * @description The height of the video
+   */
+  height?: number | null
+  /**
+   * @description The URL where the file can be downloaded from.
+   * @type string
+   */
+  url: string
+  /**
+   * @description The number of frames in the video
+   */
+  num_frames?: number | null
+  /**
+   * @description The mime type of the file.
+   * @example image/png
+   */
+  content_type?: string | null
+}
+
+export type OutputFalAiLtx219BExtendVideoLora = {
+  /**
+   * @description The generated video.
+   * @example {"file_name":"CJcQGDrxOSRg2YFl5GNDt_glXPMoji.mp4","fps":25,"duration":6.44,"width":1248,"height":704,"url":"https://v3b.fal.media/files/b/0a894013/N9lnMTq7W3uMC0lOQg845_BknRPV8I.mp4","num_frames":161,"content_type":"video/mp4"}
+   * @type object
+   */
+  video: VideoFile2C1Ce66E
+  /**
+   * @description The prompt used for the generation.
+   * @example A woman stands still amid a busy neon-lit street at night. The camera slowly dollies in toward her face as people blur past, their motion emphasizing her calm presence. City lights flicker and reflections shift across her denim jacket.
+   * @type string
+   */
+  prompt: string
+  /**
+   * @description The seed used for the random number generator.
+   * @example 2078003885
+   * @type integer
+   */
+  seed: number
+}
+
+export type ImageSize903Babd8 = {
+  /**
+   * @description The height of the generated image.
+   * @maximum 14142
+   * @default 512
+   * @type integer | undefined
+   */
+  height?: number
+  /**
+   * @description The width of the generated image.
+   * @maximum 14142
+   * @default 512
+   * @type integer | undefined
+   */
+  width?: number
+}
+
+export const inputFalAiLtx219BImageToVideoVideoSize = {
+  auto: 'auto',
+  square_hd: 'square_hd',
+  square: 'square',
+  portrait_4_3: 'portrait_4_3',
+  portrait_16_9: 'portrait_16_9',
+  landscape_4_3: 'landscape_4_3',
+  landscape_16_9: 'landscape_16_9',
+} as const
+
+export type InputFalAiLtx219BImageToVideoVideoSizeKey =
+  (typeof inputFalAiLtx219BImageToVideoVideoSize)[keyof typeof inputFalAiLtx219BImageToVideoVideoSize]
+
+export const inputFalAiLtx219BImageToVideoVideoOutputTypeEnum = {
+  'X264 (.mp4)': 'X264 (.mp4)',
+  'VP9 (.webm)': 'VP9 (.webm)',
+  'PRORES4444 (.mov)': 'PRORES4444 (.mov)',
+  'GIF (.gif)': 'GIF (.gif)',
+} as const
+
+export type InputFalAiLtx219BImageToVideoVideoOutputTypeEnumKey =
+  (typeof inputFalAiLtx219BImageToVideoVideoOutputTypeEnum)[keyof typeof inputFalAiLtx219BImageToVideoVideoOutputTypeEnum]
+
+export const inputFalAiLtx219BImageToVideoVideoQualityEnum = {
+  low: 'low',
+  medium: 'medium',
+  high: 'high',
+  maximum: 'maximum',
+} as const
+
+export type InputFalAiLtx219BImageToVideoVideoQualityEnumKey =
+  (typeof inputFalAiLtx219BImageToVideoVideoQualityEnum)[keyof typeof inputFalAiLtx219BImageToVideoVideoQualityEnum]
+
+export const inputFalAiLtx219BImageToVideoAccelerationEnum = {
+  none: 'none',
+  regular: 'regular',
+  high: 'high',
+  full: 'full',
+} as const
+
+export type InputFalAiLtx219BImageToVideoAccelerationEnumKey =
+  (typeof inputFalAiLtx219BImageToVideoAccelerationEnum)[keyof typeof inputFalAiLtx219BImageToVideoAccelerationEnum]
+
+export const inputFalAiLtx219BImageToVideoCameraLoraEnum = {
+  dolly_in: 'dolly_in',
+  dolly_out: 'dolly_out',
+  dolly_left: 'dolly_left',
+  dolly_right: 'dolly_right',
+  jib_up: 'jib_up',
+  jib_down: 'jib_down',
+  static: 'static',
+  none: 'none',
+} as const
+
+export type InputFalAiLtx219BImageToVideoCameraLoraEnumKey =
+  (typeof inputFalAiLtx219BImageToVideoCameraLoraEnum)[keyof typeof inputFalAiLtx219BImageToVideoCameraLoraEnum]
+
+export const inputFalAiLtx219BImageToVideoVideoWriteModeEnum = {
+  fast: 'fast',
+  balanced: 'balanced',
+  small: 'small',
+} as const
+
+export type InputFalAiLtx219BImageToVideoVideoWriteModeEnumKey =
+  (typeof inputFalAiLtx219BImageToVideoVideoWriteModeEnum)[keyof typeof inputFalAiLtx219BImageToVideoVideoWriteModeEnum]
+
+export const inputFalAiLtx219BImageToVideoInterpolationDirectionEnum = {
+  forward: 'forward',
+  backward: 'backward',
+} as const
+
+export type InputFalAiLtx219BImageToVideoInterpolationDirectionEnumKey =
+  (typeof inputFalAiLtx219BImageToVideoInterpolationDirectionEnum)[keyof typeof inputFalAiLtx219BImageToVideoInterpolationDirectionEnum]
+
+export type InputFalAiLtx219BImageToVideo = {
+  /**
+   * @description The number of inference steps to use.
+   * @minimum 8
+   * @maximum 50
+   * @default 40
+   * @type integer | undefined
+   */
+  num_inference_steps?: number
+  /**
+   * @description Whether to enable prompt expansion.
+   * @default true
+   * @type boolean | undefined
+   */
+  enable_prompt_expansion?: boolean
+  /**
+   * @description Whether to enable the safety checker.
+   * @default true
+   * @type boolean | undefined
+   */
+  enable_safety_checker?: boolean
+  /**
+   * @description The strength of the end image to use for the video generation.
+   * @minimum 0
+   * @maximum 1
+   * @default 1
+   * @type number | undefined
+   */
+  end_image_strength?: number
+  /**
+   * @description The scale of the camera LoRA to use. This allows you to control the camera movement of the generated video more accurately than just prompting the model to move the camera.
+   * @minimum 0
+   * @maximum 1
+   * @default 1
+   * @type number | undefined
+   */
+  camera_lora_scale?: number
+  /**
+   * @description The size of the generated video.
+   * @default auto
+   */
+  video_size?: ImageSize903Babd8 | InputFalAiLtx219BImageToVideoVideoSizeKey
+  /**
+   * @description The guidance scale to use.
+   * @minimum 1
+   * @maximum 10
+   * @default 3
+   * @type number | undefined
+   */
+  guidance_scale?: number
+  /**
+   * @description The output type of the generated video.
+   * @default 'X264 (.mp4)'
+   * @type string | undefined
+   */
+  video_output_type?: InputFalAiLtx219BImageToVideoVideoOutputTypeEnumKey
+  /**
+   * @description The prompt used for the generation.
+   * @example A woman stands still amid a busy neon-lit street at night. The camera slowly dollies in toward her face as people blur past, their motion emphasizing her calm presence. City lights flicker and reflections shift across her denim jacket.
+   * @type string
+   */
+  prompt: string
+  /**
+   * @description The quality of the generated video.
+   * @default 'high'
+   * @type string | undefined
+   */
+  video_quality?: InputFalAiLtx219BImageToVideoVideoQualityEnumKey
+  /**
+   * @description The acceleration level to use.
+   * @default 'regular'
+   * @example regular
+   * @type string | undefined
+   */
+  acceleration?: InputFalAiLtx219BImageToVideoAccelerationEnumKey
+  /**
+   * @description Whether to generate audio for the video.
+   * @default true
+   * @type boolean | undefined
+   */
+  generate_audio?: boolean
+  /**
+   * @description The seed for the random number generator.
+   */
+  seed?: number | null
+  /**
+   * @description The URL of the image to use as the end of the video.
+   */
+  end_image_url?: string | null
+  /**
+   * @description The frames per second of the generated video.
+   * @minimum 1
+   * @maximum 60
+   * @default 25
+   * @type number | undefined
+   */
+  fps?: number
+  /**
+   * @description The URL of the image to generate the video from.
+   * @example https://storage.googleapis.com/falserverless/example_inputs/ltxv-2-i2v-input.jpg
+   * @type string
+   */
+  image_url: string
+  /**
+   * @description The negative prompt to generate the video from.
+   * @default 'blurry, out of focus, overexposed, underexposed, low contrast, washed out colors, excessive noise, grainy texture, poor lighting, flickering, motion blur, distorted proportions, unnatural skin tones, deformed facial features, asymmetrical face, missing facial features, extra limbs, disfigured hands, wrong hand count, artifacts around text, inconsistent perspective, camera shake, incorrect depth of field, background too sharp, background clutter, distracting reflections, harsh shadows, inconsistent lighting direction, color banding, cartoonish rendering, 3D CGI look, unrealistic materials, uncanny valley effect, incorrect ethnicity, wrong gender, exaggerated expressions, wrong gaze direction, mismatched lip sync, silent or muted audio, distorted voice, robotic voice, echo, background noise, off-sync audio,incorrect dialogue, added dialogue, repetitive speech, jittery movement, awkward pauses, incorrect timing, unnatural transitions, inconsistent framing, tilted camera, flat lighting, inconsistent tone, cinematic oversaturation, stylized filters, or AI artifacts.'
+   * @type string | undefined
+   */
+  negative_prompt?: string
+  /**
+   * @description The strength of the image to use for the video generation.
+   * @minimum 0
+   * @maximum 1
+   * @default 1
+   * @type number | undefined
+   */
+  image_strength?: number
+  /**
+   * @description The camera LoRA to use. This allows you to control the camera movement of the generated video more accurately than just prompting the model to move the camera.
+   * @default 'none'
+   * @example none
+   * @type string | undefined
+   */
+  camera_lora?: InputFalAiLtx219BImageToVideoCameraLoraEnumKey
+  /**
+   * @description Whether to use multi-scale generation. If True, the model will generate the video at a smaller scale first, then use the smaller video to guide the generation of a video at or above your requested size. This results in better coherence and details.
+   * @default true
+   * @type boolean | undefined
+   */
+  use_multiscale?: boolean
+  /**
+   * @description The write mode of the generated video.
+   * @default 'balanced'
+   * @type string | undefined
+   */
+  video_write_mode?: InputFalAiLtx219BImageToVideoVideoWriteModeEnumKey
+  /**
+   * @description If `True`, the media will be returned as a data URI and the output data won't be available in the request history.
+   * @default false
+   * @type boolean | undefined
+   */
+  sync_mode?: boolean
+  /**
+   * @description The number of frames to generate.
+   * @minimum 9
+   * @maximum 481
+   * @default 121
+   * @type integer | undefined
+   */
+  num_frames?: number
+  /**
+   * @description The direction to interpolate the image sequence in. 'Forward' goes from the start image to the end image, 'Backward' goes from the end image to the start image.
+   * @default 'forward'
+   * @type string | undefined
+   */
+  interpolation_direction?: InputFalAiLtx219BImageToVideoInterpolationDirectionEnumKey
+}
+
+export type VideoFile505099D2 = {
+  /**
+   * @description The name of the file. It will be auto-generated if not provided.
+   * @example z9RV14K95DvU.png
+   */
+  file_name?: string | null
+  /**
+   * @description The FPS of the video
+   */
+  fps?: number | null
+  /**
+   * @description The size of the file in bytes.
+   * @example 4404019
+   */
+  file_size?: number | null
+  /**
+   * @description The duration of the video
+   */
+  duration?: number | null
+  /**
+   * @description The width of the video
+   */
+  width?: number | null
+  /**
+   * @description The height of the video
+   */
+  height?: number | null
+  /**
+   * @description The URL where the file can be downloaded from.
+   * @type string
+   */
+  url: string
+  /**
+   * @description The number of frames in the video
+   */
+  num_frames?: number | null
+  /**
+   * @description The mime type of the file.
+   * @example image/png
+   */
+  content_type?: string | null
+}
+
+export type OutputFalAiLtx219BImageToVideo = {
+  /**
+   * @description The generated video.
+   * @example {"file_name":"CJcQGDrxOSRg2YFl5GNDt_glXPMoji.mp4","fps":25,"duration":10.28,"width":1248,"height":704,"url":"https://v3b.fal.media/files/b/0a88289e/CJcQGDrxOSRg2YFl5GNDt_glXPMoji.mp4","num_frames":257,"content_type":"video/mp4"}
+   * @type object
+   */
+  video: VideoFile505099D2
+  /**
+   * @description The prompt used for the generation.
+   * @example Continue the scene naturally, maintaining the same style and motion.
+   * @type string
+   */
+  prompt: string
+  /**
+   * @description The seed used for the random number generator.
+   * @example 866232447
+   * @type integer
+   */
+  seed: number
+}
+
+export type ImageSize1A3385Aa = {
+  /**
+   * @description The height of the generated image.
+   * @maximum 14142
+   * @default 512
+   * @type integer | undefined
+   */
+  height?: number
+  /**
+   * @description The width of the generated image.
+   * @maximum 14142
+   * @default 512
+   * @type integer | undefined
+   */
+  width?: number
+}
+
+export const inputFalAiLtx219BImageToVideoLoraVideoSize = {
+  auto: 'auto',
+  square_hd: 'square_hd',
+  square: 'square',
+  portrait_4_3: 'portrait_4_3',
+  portrait_16_9: 'portrait_16_9',
+  landscape_4_3: 'landscape_4_3',
+  landscape_16_9: 'landscape_16_9',
+} as const
+
+export type InputFalAiLtx219BImageToVideoLoraVideoSizeKey =
+  (typeof inputFalAiLtx219BImageToVideoLoraVideoSize)[keyof typeof inputFalAiLtx219BImageToVideoLoraVideoSize]
+
+export const inputFalAiLtx219BImageToVideoLoraVideoOutputTypeEnum = {
+  'X264 (.mp4)': 'X264 (.mp4)',
+  'VP9 (.webm)': 'VP9 (.webm)',
+  'PRORES4444 (.mov)': 'PRORES4444 (.mov)',
+  'GIF (.gif)': 'GIF (.gif)',
+} as const
+
+export type InputFalAiLtx219BImageToVideoLoraVideoOutputTypeEnumKey =
+  (typeof inputFalAiLtx219BImageToVideoLoraVideoOutputTypeEnum)[keyof typeof inputFalAiLtx219BImageToVideoLoraVideoOutputTypeEnum]
+
+export const inputFalAiLtx219BImageToVideoLoraVideoQualityEnum = {
+  low: 'low',
+  medium: 'medium',
+  high: 'high',
+  maximum: 'maximum',
+} as const
+
+export type InputFalAiLtx219BImageToVideoLoraVideoQualityEnumKey =
+  (typeof inputFalAiLtx219BImageToVideoLoraVideoQualityEnum)[keyof typeof inputFalAiLtx219BImageToVideoLoraVideoQualityEnum]
+
+export const inputFalAiLtx219BImageToVideoLoraAccelerationEnum = {
+  none: 'none',
+  regular: 'regular',
+  high: 'high',
+  full: 'full',
+} as const
+
+export type InputFalAiLtx219BImageToVideoLoraAccelerationEnumKey =
+  (typeof inputFalAiLtx219BImageToVideoLoraAccelerationEnum)[keyof typeof inputFalAiLtx219BImageToVideoLoraAccelerationEnum]
+
+export const inputFalAiLtx219BImageToVideoLoraCameraLoraEnum = {
+  dolly_in: 'dolly_in',
+  dolly_out: 'dolly_out',
+  dolly_left: 'dolly_left',
+  dolly_right: 'dolly_right',
+  jib_up: 'jib_up',
+  jib_down: 'jib_down',
+  static: 'static',
+  none: 'none',
+} as const
+
+export type InputFalAiLtx219BImageToVideoLoraCameraLoraEnumKey =
+  (typeof inputFalAiLtx219BImageToVideoLoraCameraLoraEnum)[keyof typeof inputFalAiLtx219BImageToVideoLoraCameraLoraEnum]
+
+export const inputFalAiLtx219BImageToVideoLoraVideoWriteModeEnum = {
+  fast: 'fast',
+  balanced: 'balanced',
+  small: 'small',
+} as const
+
+export type InputFalAiLtx219BImageToVideoLoraVideoWriteModeEnumKey =
+  (typeof inputFalAiLtx219BImageToVideoLoraVideoWriteModeEnum)[keyof typeof inputFalAiLtx219BImageToVideoLoraVideoWriteModeEnum]
+
+export const inputFalAiLtx219BImageToVideoLoraInterpolationDirectionEnum = {
+  forward: 'forward',
+  backward: 'backward',
+} as const
+
+export type InputFalAiLtx219BImageToVideoLoraInterpolationDirectionEnumKey =
+  (typeof inputFalAiLtx219BImageToVideoLoraInterpolationDirectionEnum)[keyof typeof inputFalAiLtx219BImageToVideoLoraInterpolationDirectionEnum]
+
+export type InputFalAiLtx219BImageToVideoLora = {
+  /**
+   * @description The number of inference steps to use.
+   * @minimum 8
+   * @maximum 50
+   * @default 40
+   * @type integer | undefined
+   */
+  num_inference_steps?: number
+  /**
+   * @description Whether to enable prompt expansion.
+   * @default true
+   * @type boolean | undefined
+   */
+  enable_prompt_expansion?: boolean
+  /**
+   * @description The LoRAs to use for the generation.
+   * @type array
+   */
+  loras: LoRAInput[]
+  /**
+   * @description Whether to enable the safety checker.
+   * @default true
+   * @type boolean | undefined
+   */
+  enable_safety_checker?: boolean
+  /**
+   * @description The strength of the end image to use for the video generation.
+   * @minimum 0
+   * @maximum 1
+   * @default 1
+   * @type number | undefined
+   */
+  end_image_strength?: number
+  /**
+   * @description The scale of the camera LoRA to use. This allows you to control the camera movement of the generated video more accurately than just prompting the model to move the camera.
+   * @minimum 0
+   * @maximum 1
+   * @default 1
+   * @type number | undefined
+   */
+  camera_lora_scale?: number
+  /**
+   * @description The size of the generated video.
+   * @default auto
+   */
+  video_size?: ImageSize1A3385Aa | InputFalAiLtx219BImageToVideoLoraVideoSizeKey
+  /**
+   * @description The guidance scale to use.
+   * @minimum 1
+   * @maximum 10
+   * @default 3
+   * @type number | undefined
+   */
+  guidance_scale?: number
+  /**
+   * @description The output type of the generated video.
+   * @default 'X264 (.mp4)'
+   * @type string | undefined
+   */
+  video_output_type?: InputFalAiLtx219BImageToVideoLoraVideoOutputTypeEnumKey
+  /**
+   * @description The prompt used for the generation.
+   * @example A woman stands still amid a busy neon-lit street at night. The camera slowly dollies in toward her face as people blur past, their motion emphasizing her calm presence. City lights flicker and reflections shift across her denim jacket.
+   * @type string
+   */
+  prompt: string
+  /**
+   * @description The quality of the generated video.
+   * @default 'high'
+   * @type string | undefined
+   */
+  video_quality?: InputFalAiLtx219BImageToVideoLoraVideoQualityEnumKey
+  /**
+   * @description The acceleration level to use.
+   * @default 'regular'
+   * @example regular
+   * @type string | undefined
+   */
+  acceleration?: InputFalAiLtx219BImageToVideoLoraAccelerationEnumKey
+  /**
+   * @description Whether to generate audio for the video.
+   * @default true
+   * @type boolean | undefined
+   */
+  generate_audio?: boolean
+  /**
+   * @description The seed for the random number generator.
+   */
+  seed?: number | null
+  /**
+   * @description The URL of the image to use as the end of the video.
+   */
+  end_image_url?: string | null
+  /**
+   * @description The frames per second of the generated video.
+   * @minimum 1
+   * @maximum 60
+   * @default 25
+   * @type number | undefined
+   */
+  fps?: number
+  /**
+   * @description The URL of the image to generate the video from.
+   * @example https://storage.googleapis.com/falserverless/example_inputs/ltxv-2-i2v-input.jpg
+   * @type string
+   */
+  image_url: string
+  /**
+   * @description The negative prompt to generate the video from.
+   * @default 'blurry, out of focus, overexposed, underexposed, low contrast, washed out colors, excessive noise, grainy texture, poor lighting, flickering, motion blur, distorted proportions, unnatural skin tones, deformed facial features, asymmetrical face, missing facial features, extra limbs, disfigured hands, wrong hand count, artifacts around text, inconsistent perspective, camera shake, incorrect depth of field, background too sharp, background clutter, distracting reflections, harsh shadows, inconsistent lighting direction, color banding, cartoonish rendering, 3D CGI look, unrealistic materials, uncanny valley effect, incorrect ethnicity, wrong gender, exaggerated expressions, wrong gaze direction, mismatched lip sync, silent or muted audio, distorted voice, robotic voice, echo, background noise, off-sync audio,incorrect dialogue, added dialogue, repetitive speech, jittery movement, awkward pauses, incorrect timing, unnatural transitions, inconsistent framing, tilted camera, flat lighting, inconsistent tone, cinematic oversaturation, stylized filters, or AI artifacts.'
+   * @type string | undefined
+   */
+  negative_prompt?: string
+  /**
+   * @description The strength of the image to use for the video generation.
+   * @minimum 0
+   * @maximum 1
+   * @default 1
+   * @type number | undefined
+   */
+  image_strength?: number
+  /**
+   * @description The camera LoRA to use. This allows you to control the camera movement of the generated video more accurately than just prompting the model to move the camera.
+   * @default 'none'
+   * @example none
+   * @type string | undefined
+   */
+  camera_lora?: InputFalAiLtx219BImageToVideoLoraCameraLoraEnumKey
+  /**
+   * @description Whether to use multi-scale generation. If True, the model will generate the video at a smaller scale first, then use the smaller video to guide the generation of a video at or above your requested size. This results in better coherence and details.
+   * @default true
+   * @type boolean | undefined
+   */
+  use_multiscale?: boolean
+  /**
+   * @description The write mode of the generated video.
+   * @default 'balanced'
+   * @type string | undefined
+   */
+  video_write_mode?: InputFalAiLtx219BImageToVideoLoraVideoWriteModeEnumKey
+  /**
+   * @description If `True`, the media will be returned as a data URI and the output data won't be available in the request history.
+   * @default false
+   * @type boolean | undefined
+   */
+  sync_mode?: boolean
+  /**
+   * @description The number of frames to generate.
+   * @minimum 9
+   * @maximum 481
+   * @default 121
+   * @type integer | undefined
+   */
+  num_frames?: number
+  /**
+   * @description The direction to interpolate the image sequence in. 'Forward' goes from the start image to the end image, 'Backward' goes from the end image to the start image.
+   * @default 'forward'
+   * @type string | undefined
+   */
+  interpolation_direction?: InputFalAiLtx219BImageToVideoLoraInterpolationDirectionEnumKey
+}
+
+export type VideoFileA54Fe0Cd = {
+  /**
+   * @description The name of the file. It will be auto-generated if not provided.
+   * @example z9RV14K95DvU.png
+   */
+  file_name?: string | null
+  /**
+   * @description The FPS of the video
+   */
+  fps?: number | null
+  /**
+   * @description The size of the file in bytes.
+   * @example 4404019
+   */
+  file_size?: number | null
+  /**
+   * @description The duration of the video
+   */
+  duration?: number | null
+  /**
+   * @description The width of the video
+   */
+  width?: number | null
+  /**
+   * @description The height of the video
+   */
+  height?: number | null
+  /**
+   * @description The URL where the file can be downloaded from.
+   * @type string
+   */
+  url: string
+  /**
+   * @description The number of frames in the video
+   */
+  num_frames?: number | null
+  /**
+   * @description The mime type of the file.
+   * @example image/png
+   */
+  content_type?: string | null
+}
+
+export type OutputFalAiLtx219BImageToVideoLora = {
+  /**
+   * @description The generated video.
+   * @example {"file_name":"CJcQGDrxOSRg2YFl5GNDt_glXPMoji.mp4","fps":25,"duration":10.28,"width":1248,"height":704,"url":"https://v3b.fal.media/files/b/0a88289e/CJcQGDrxOSRg2YFl5GNDt_glXPMoji.mp4","num_frames":257,"content_type":"video/mp4"}
+   * @type object
+   */
+  video: VideoFileA54Fe0Cd
+  /**
+   * @description The prompt used for the generation.
+   * @example Continue the scene naturally, maintaining the same style and motion.
+   * @type string
+   */
+  prompt: string
+  /**
+   * @description The seed used for the random number generator.
+   * @example 866232447
+   * @type integer
+   */
+  seed: number
+}
+
+export type ImageSize8D2Db8F6 = {
+  /**
+   * @description The height of the generated image.
+   * @maximum 14142
+   * @default 512
+   * @type integer | undefined
+   */
+  height?: number
+  /**
+   * @description The width of the generated image.
+   * @maximum 14142
+   * @default 512
+   * @type integer | undefined
+   */
+  width?: number
+}
+
+export const inputFalAiLtx219BTextToVideoVideoSize = {
+  square_hd: 'square_hd',
+  square: 'square',
+  portrait_4_3: 'portrait_4_3',
+  portrait_16_9: 'portrait_16_9',
+  landscape_4_3: 'landscape_4_3',
+  landscape_16_9: 'landscape_16_9',
+} as const
+
+export type InputFalAiLtx219BTextToVideoVideoSizeKey =
+  (typeof inputFalAiLtx219BTextToVideoVideoSize)[keyof typeof inputFalAiLtx219BTextToVideoVideoSize]
+
+export const inputFalAiLtx219BTextToVideoVideoOutputTypeEnum = {
+  'X264 (.mp4)': 'X264 (.mp4)',
+  'VP9 (.webm)': 'VP9 (.webm)',
+  'PRORES4444 (.mov)': 'PRORES4444 (.mov)',
+  'GIF (.gif)': 'GIF (.gif)',
+} as const
+
+export type InputFalAiLtx219BTextToVideoVideoOutputTypeEnumKey =
+  (typeof inputFalAiLtx219BTextToVideoVideoOutputTypeEnum)[keyof typeof inputFalAiLtx219BTextToVideoVideoOutputTypeEnum]
+
+export const inputFalAiLtx219BTextToVideoVideoQualityEnum = {
+  low: 'low',
+  medium: 'medium',
+  high: 'high',
+  maximum: 'maximum',
+} as const
+
+export type InputFalAiLtx219BTextToVideoVideoQualityEnumKey =
+  (typeof inputFalAiLtx219BTextToVideoVideoQualityEnum)[keyof typeof inputFalAiLtx219BTextToVideoVideoQualityEnum]
+
+export const inputFalAiLtx219BTextToVideoAccelerationEnum = {
+  none: 'none',
+  regular: 'regular',
+  high: 'high',
+  full: 'full',
+} as const
+
+export type InputFalAiLtx219BTextToVideoAccelerationEnumKey =
+  (typeof inputFalAiLtx219BTextToVideoAccelerationEnum)[keyof typeof inputFalAiLtx219BTextToVideoAccelerationEnum]
+
+export const inputFalAiLtx219BTextToVideoCameraLoraEnum = {
+  dolly_in: 'dolly_in',
+  dolly_out: 'dolly_out',
+  dolly_left: 'dolly_left',
+  dolly_right: 'dolly_right',
+  jib_up: 'jib_up',
+  jib_down: 'jib_down',
+  static: 'static',
+  none: 'none',
+} as const
+
+export type InputFalAiLtx219BTextToVideoCameraLoraEnumKey =
+  (typeof inputFalAiLtx219BTextToVideoCameraLoraEnum)[keyof typeof inputFalAiLtx219BTextToVideoCameraLoraEnum]
+
+export const inputFalAiLtx219BTextToVideoVideoWriteModeEnum = {
+  fast: 'fast',
+  balanced: 'balanced',
+  small: 'small',
+} as const
+
+export type InputFalAiLtx219BTextToVideoVideoWriteModeEnumKey =
+  (typeof inputFalAiLtx219BTextToVideoVideoWriteModeEnum)[keyof typeof inputFalAiLtx219BTextToVideoVideoWriteModeEnum]
+
+export type InputFalAiLtx219BTextToVideo = {
+  /**
+   * @description The number of inference steps to use.
+   * @minimum 8
+   * @maximum 50
+   * @default 40
+   * @type integer | undefined
+   */
+  num_inference_steps?: number
+  /**
+   * @description Whether to enable prompt expansion.
+   * @default true
+   * @type boolean | undefined
+   */
+  enable_prompt_expansion?: boolean
+  /**
+   * @description Whether to enable the safety checker.
+   * @default true
+   * @type boolean | undefined
+   */
+  enable_safety_checker?: boolean
+  /**
+   * @description The scale of the camera LoRA to use. This allows you to control the camera movement of the generated video more accurately than just prompting the model to move the camera.
+   * @minimum 0
+   * @maximum 1
+   * @default 1
+   * @type number | undefined
+   */
+  camera_lora_scale?: number
+  /**
+   * @description The size of the generated video.
+   * @default landscape_4_3
+   */
+  video_size?: ImageSize8D2Db8F6 | InputFalAiLtx219BTextToVideoVideoSizeKey
+  /**
+   * @description The guidance scale to use.
+   * @minimum 1
+   * @maximum 10
+   * @default 3
+   * @type number | undefined
+   */
+  guidance_scale?: number
+  /**
+   * @description The output type of the generated video.
+   * @default 'X264 (.mp4)'
+   * @type string | undefined
+   */
+  video_output_type?: InputFalAiLtx219BTextToVideoVideoOutputTypeEnumKey
+  /**
+   * @description The prompt to generate the video from.
+   * @example A cowboy walking through a dusty town at high noon, camera following from behind, cinematic depth, realistic lighting, western mood, 4K film grain.
+   * @type string
+   */
+  prompt: string
+  /**
+   * @description The quality of the generated video.
+   * @default 'high'
+   * @type string | undefined
+   */
+  video_quality?: InputFalAiLtx219BTextToVideoVideoQualityEnumKey
+  /**
+   * @description The acceleration level to use.
+   * @default 'regular'
+   * @example regular
+   * @type string | undefined
+   */
+  acceleration?: InputFalAiLtx219BTextToVideoAccelerationEnumKey
+  /**
+   * @description Whether to generate audio for the video.
+   * @default true
+   * @type boolean | undefined
+   */
+  generate_audio?: boolean
+  /**
+   * @description The seed for the random number generator.
+   */
+  seed?: number | null
+  /**
+   * @description The frames per second of the generated video.
+   * @minimum 1
+   * @maximum 60
+   * @default 25
+   * @type number | undefined
+   */
+  fps?: number
+  /**
+   * @description The negative prompt to generate the video from.
+   * @default 'blurry, out of focus, overexposed, underexposed, low contrast, washed out colors, excessive noise, grainy texture, poor lighting, flickering, motion blur, distorted proportions, unnatural skin tones, deformed facial features, asymmetrical face, missing facial features, extra limbs, disfigured hands, wrong hand count, artifacts around text, inconsistent perspective, camera shake, incorrect depth of field, background too sharp, background clutter, distracting reflections, harsh shadows, inconsistent lighting direction, color banding, cartoonish rendering, 3D CGI look, unrealistic materials, uncanny valley effect, incorrect ethnicity, wrong gender, exaggerated expressions, wrong gaze direction, mismatched lip sync, silent or muted audio, distorted voice, robotic voice, echo, background noise, off-sync audio,incorrect dialogue, added dialogue, repetitive speech, jittery movement, awkward pauses, incorrect timing, unnatural transitions, inconsistent framing, tilted camera, flat lighting, inconsistent tone, cinematic oversaturation, stylized filters, or AI artifacts.'
+   * @type string | undefined
+   */
+  negative_prompt?: string
+  /**
+   * @description The camera LoRA to use. This allows you to control the camera movement of the generated video more accurately than just prompting the model to move the camera.
+   * @default 'none'
+   * @example none
+   * @type string | undefined
+   */
+  camera_lora?: InputFalAiLtx219BTextToVideoCameraLoraEnumKey
+  /**
+   * @description Whether to use multi-scale generation. If True, the model will generate the video at a smaller scale first, then use the smaller video to guide the generation of a video at or above your requested size. This results in better coherence and details.
+   * @default true
+   * @type boolean | undefined
+   */
+  use_multiscale?: boolean
+  /**
+   * @description The write mode of the generated video.
+   * @default 'balanced'
+   * @type string | undefined
+   */
+  video_write_mode?: InputFalAiLtx219BTextToVideoVideoWriteModeEnumKey
+  /**
+   * @description If `True`, the media will be returned as a data URI and the output data won't be available in the request history.
+   * @default false
+   * @type boolean | undefined
+   */
+  sync_mode?: boolean
+  /**
+   * @description The number of frames to generate.
+   * @minimum 9
+   * @maximum 481
+   * @default 121
+   * @type integer | undefined
+   */
+  num_frames?: number
+}
+
+export type VideoFile951B0360 = {
+  /**
+   * @description The name of the file. It will be auto-generated if not provided.
+   * @example z9RV14K95DvU.png
+   */
+  file_name?: string | null
+  /**
+   * @description The FPS of the video
+   */
+  fps?: number | null
+  /**
+   * @description The size of the file in bytes.
+   * @example 4404019
+   */
+  file_size?: number | null
+  /**
+   * @description The duration of the video
+   */
+  duration?: number | null
+  /**
+   * @description The width of the video
+   */
+  width?: number | null
+  /**
+   * @description The height of the video
+   */
+  height?: number | null
+  /**
+   * @description The URL where the file can be downloaded from.
+   * @type string
+   */
+  url: string
+  /**
+   * @description The number of frames in the video
+   */
+  num_frames?: number | null
+  /**
+   * @description The mime type of the file.
+   * @example image/png
+   */
+  content_type?: string | null
+}
+
+export type OutputFalAiLtx219BTextToVideo = {
+  /**
+   * @description The generated video.
+   * @example {"file_name":"sdm0KfmenrlywesfzY1Y1_if6euPp1.mp4","fps":25,"duration":6.44,"width":1248,"height":704,"url":"https://v3b.fal.media/files/b/0a8824b1/sdm0KfmenrlywesfzY1Y1_if6euPp1.mp4","num_frames":161,"content_type":"video/mp4"}
+   * @type object
+   */
+  video: VideoFile951B0360
+  /**
+   * @description The prompt used for the generation.
+   * @example A cowboy walking through a dusty town at high noon, camera following from behind, cinematic depth, realistic lighting, western mood, 4K film grain.
+   * @type string
+   */
+  prompt: string
+  /**
+   * @description The seed used for the random number generator.
+   * @example 149063119
+   * @type integer
+   */
+  seed: number
+}
+
+export type ImageSizeA61Fdbc6 = {
+  /**
+   * @description The height of the generated image.
+   * @maximum 14142
+   * @default 512
+   * @type integer | undefined
+   */
+  height?: number
+  /**
+   * @description The width of the generated image.
+   * @maximum 14142
+   * @default 512
+   * @type integer | undefined
+   */
+  width?: number
+}
+
+export const inputFalAiLtx219BTextToVideoLoraVideoSize = {
+  square_hd: 'square_hd',
+  square: 'square',
+  portrait_4_3: 'portrait_4_3',
+  portrait_16_9: 'portrait_16_9',
+  landscape_4_3: 'landscape_4_3',
+  landscape_16_9: 'landscape_16_9',
+} as const
+
+export type InputFalAiLtx219BTextToVideoLoraVideoSizeKey =
+  (typeof inputFalAiLtx219BTextToVideoLoraVideoSize)[keyof typeof inputFalAiLtx219BTextToVideoLoraVideoSize]
+
+export const inputFalAiLtx219BTextToVideoLoraVideoOutputTypeEnum = {
+  'X264 (.mp4)': 'X264 (.mp4)',
+  'VP9 (.webm)': 'VP9 (.webm)',
+  'PRORES4444 (.mov)': 'PRORES4444 (.mov)',
+  'GIF (.gif)': 'GIF (.gif)',
+} as const
+
+export type InputFalAiLtx219BTextToVideoLoraVideoOutputTypeEnumKey =
+  (typeof inputFalAiLtx219BTextToVideoLoraVideoOutputTypeEnum)[keyof typeof inputFalAiLtx219BTextToVideoLoraVideoOutputTypeEnum]
+
+export const inputFalAiLtx219BTextToVideoLoraVideoQualityEnum = {
+  low: 'low',
+  medium: 'medium',
+  high: 'high',
+  maximum: 'maximum',
+} as const
+
+export type InputFalAiLtx219BTextToVideoLoraVideoQualityEnumKey =
+  (typeof inputFalAiLtx219BTextToVideoLoraVideoQualityEnum)[keyof typeof inputFalAiLtx219BTextToVideoLoraVideoQualityEnum]
+
+export const inputFalAiLtx219BTextToVideoLoraAccelerationEnum = {
+  none: 'none',
+  regular: 'regular',
+  high: 'high',
+  full: 'full',
+} as const
+
+export type InputFalAiLtx219BTextToVideoLoraAccelerationEnumKey =
+  (typeof inputFalAiLtx219BTextToVideoLoraAccelerationEnum)[keyof typeof inputFalAiLtx219BTextToVideoLoraAccelerationEnum]
+
+export const inputFalAiLtx219BTextToVideoLoraCameraLoraEnum = {
+  dolly_in: 'dolly_in',
+  dolly_out: 'dolly_out',
+  dolly_left: 'dolly_left',
+  dolly_right: 'dolly_right',
+  jib_up: 'jib_up',
+  jib_down: 'jib_down',
+  static: 'static',
+  none: 'none',
+} as const
+
+export type InputFalAiLtx219BTextToVideoLoraCameraLoraEnumKey =
+  (typeof inputFalAiLtx219BTextToVideoLoraCameraLoraEnum)[keyof typeof inputFalAiLtx219BTextToVideoLoraCameraLoraEnum]
+
+export const inputFalAiLtx219BTextToVideoLoraVideoWriteModeEnum = {
+  fast: 'fast',
+  balanced: 'balanced',
+  small: 'small',
+} as const
+
+export type InputFalAiLtx219BTextToVideoLoraVideoWriteModeEnumKey =
+  (typeof inputFalAiLtx219BTextToVideoLoraVideoWriteModeEnum)[keyof typeof inputFalAiLtx219BTextToVideoLoraVideoWriteModeEnum]
+
+export type InputFalAiLtx219BTextToVideoLora = {
+  /**
+   * @description The number of inference steps to use.
+   * @minimum 8
+   * @maximum 50
+   * @default 40
+   * @type integer | undefined
+   */
+  num_inference_steps?: number
+  /**
+   * @description Whether to enable prompt expansion.
+   * @default true
+   * @type boolean | undefined
+   */
+  enable_prompt_expansion?: boolean
+  /**
+   * @description The LoRAs to use for the generation.
+   * @type array
+   */
+  loras: LoRAInput[]
+  /**
+   * @description Whether to enable the safety checker.
+   * @default true
+   * @type boolean | undefined
+   */
+  enable_safety_checker?: boolean
+  /**
+   * @description The scale of the camera LoRA to use. This allows you to control the camera movement of the generated video more accurately than just prompting the model to move the camera.
+   * @minimum 0
+   * @maximum 1
+   * @default 1
+   * @type number | undefined
+   */
+  camera_lora_scale?: number
+  /**
+   * @description The size of the generated video.
+   * @default landscape_4_3
+   */
+  video_size?: ImageSizeA61Fdbc6 | InputFalAiLtx219BTextToVideoLoraVideoSizeKey
+  /**
+   * @description The guidance scale to use.
+   * @minimum 1
+   * @maximum 10
+   * @default 3
+   * @type number | undefined
+   */
+  guidance_scale?: number
+  /**
+   * @description The output type of the generated video.
+   * @default 'X264 (.mp4)'
+   * @type string | undefined
+   */
+  video_output_type?: InputFalAiLtx219BTextToVideoLoraVideoOutputTypeEnumKey
+  /**
+   * @description The prompt to generate the video from.
+   * @example A cowboy walking through a dusty town at high noon, camera following from behind, cinematic depth, realistic lighting, western mood, 4K film grain.
+   * @type string
+   */
+  prompt: string
+  /**
+   * @description The quality of the generated video.
+   * @default 'high'
+   * @type string | undefined
+   */
+  video_quality?: InputFalAiLtx219BTextToVideoLoraVideoQualityEnumKey
+  /**
+   * @description The acceleration level to use.
+   * @default 'regular'
+   * @example regular
+   * @type string | undefined
+   */
+  acceleration?: InputFalAiLtx219BTextToVideoLoraAccelerationEnumKey
+  /**
+   * @description Whether to generate audio for the video.
+   * @default true
+   * @type boolean | undefined
+   */
+  generate_audio?: boolean
+  /**
+   * @description The seed for the random number generator.
+   */
+  seed?: number | null
+  /**
+   * @description The frames per second of the generated video.
+   * @minimum 1
+   * @maximum 60
+   * @default 25
+   * @type number | undefined
+   */
+  fps?: number
+  /**
+   * @description The negative prompt to generate the video from.
+   * @default 'blurry, out of focus, overexposed, underexposed, low contrast, washed out colors, excessive noise, grainy texture, poor lighting, flickering, motion blur, distorted proportions, unnatural skin tones, deformed facial features, asymmetrical face, missing facial features, extra limbs, disfigured hands, wrong hand count, artifacts around text, inconsistent perspective, camera shake, incorrect depth of field, background too sharp, background clutter, distracting reflections, harsh shadows, inconsistent lighting direction, color banding, cartoonish rendering, 3D CGI look, unrealistic materials, uncanny valley effect, incorrect ethnicity, wrong gender, exaggerated expressions, wrong gaze direction, mismatched lip sync, silent or muted audio, distorted voice, robotic voice, echo, background noise, off-sync audio,incorrect dialogue, added dialogue, repetitive speech, jittery movement, awkward pauses, incorrect timing, unnatural transitions, inconsistent framing, tilted camera, flat lighting, inconsistent tone, cinematic oversaturation, stylized filters, or AI artifacts.'
+   * @type string | undefined
+   */
+  negative_prompt?: string
+  /**
+   * @description The camera LoRA to use. This allows you to control the camera movement of the generated video more accurately than just prompting the model to move the camera.
+   * @default 'none'
+   * @example none
+   * @type string | undefined
+   */
+  camera_lora?: InputFalAiLtx219BTextToVideoLoraCameraLoraEnumKey
+  /**
+   * @description Whether to use multi-scale generation. If True, the model will generate the video at a smaller scale first, then use the smaller video to guide the generation of a video at or above your requested size. This results in better coherence and details.
+   * @default true
+   * @type boolean | undefined
+   */
+  use_multiscale?: boolean
+  /**
+   * @description The write mode of the generated video.
+   * @default 'balanced'
+   * @type string | undefined
+   */
+  video_write_mode?: InputFalAiLtx219BTextToVideoLoraVideoWriteModeEnumKey
+  /**
+   * @description If `True`, the media will be returned as a data URI and the output data won't be available in the request history.
+   * @default false
+   * @type boolean | undefined
+   */
+  sync_mode?: boolean
+  /**
+   * @description The number of frames to generate.
+   * @minimum 9
+   * @maximum 481
+   * @default 121
+   * @type integer | undefined
+   */
+  num_frames?: number
+}
+
+export type VideoFileB134A473 = {
+  /**
+   * @description The name of the file. It will be auto-generated if not provided.
+   * @example z9RV14K95DvU.png
+   */
+  file_name?: string | null
+  /**
+   * @description The FPS of the video
+   */
+  fps?: number | null
+  /**
+   * @description The size of the file in bytes.
+   * @example 4404019
+   */
+  file_size?: number | null
+  /**
+   * @description The duration of the video
+   */
+  duration?: number | null
+  /**
+   * @description The width of the video
+   */
+  width?: number | null
+  /**
+   * @description The height of the video
+   */
+  height?: number | null
+  /**
+   * @description The URL where the file can be downloaded from.
+   * @type string
+   */
+  url: string
+  /**
+   * @description The number of frames in the video
+   */
+  num_frames?: number | null
+  /**
+   * @description The mime type of the file.
+   * @example image/png
+   */
+  content_type?: string | null
+}
+
+export type OutputFalAiLtx219BTextToVideoLora = {
+  /**
+   * @description The generated video.
+   * @example {"file_name":"sdm0KfmenrlywesfzY1Y1_if6euPp1.mp4","fps":25,"duration":6.44,"width":1248,"height":704,"url":"https://v3b.fal.media/files/b/0a8824b1/sdm0KfmenrlywesfzY1Y1_if6euPp1.mp4","num_frames":161,"content_type":"video/mp4"}
+   * @type object
+   */
+  video: VideoFileB134A473
+  /**
+   * @description The prompt used for the generation.
+   * @example A cowboy walking through a dusty town at high noon, camera following from behind, cinematic depth, realistic lighting, western mood, 4K film grain.
+   * @type string
+   */
+  prompt: string
+  /**
+   * @description The seed used for the random number generator.
+   * @example 149063119
+   * @type integer
+   */
+  seed: number
+}
+
+export type ImageSizeD7610296 = {
+  /**
+   * @description The height of the generated image.
+   * @maximum 14142
+   * @default 512
+   * @type integer | undefined
+   */
+  height?: number
+  /**
+   * @description The width of the generated image.
+   * @maximum 14142
+   * @default 512
+   * @type integer | undefined
+   */
+  width?: number
+}
+
+export const inputFalAiLtx219BVideoToVideoPreprocessorEnum = {
+  depth: 'depth',
+  canny: 'canny',
+  pose: 'pose',
+  none: 'none',
+} as const
+
+export type InputFalAiLtx219BVideoToVideoPreprocessorEnumKey =
+  (typeof inputFalAiLtx219BVideoToVideoPreprocessorEnum)[keyof typeof inputFalAiLtx219BVideoToVideoPreprocessorEnum]
+
+export const inputFalAiLtx219BVideoToVideoVideoOutputTypeEnum = {
+  'X264 (.mp4)': 'X264 (.mp4)',
+  'VP9 (.webm)': 'VP9 (.webm)',
+  'PRORES4444 (.mov)': 'PRORES4444 (.mov)',
+  'GIF (.gif)': 'GIF (.gif)',
+} as const
+
+export type InputFalAiLtx219BVideoToVideoVideoOutputTypeEnumKey =
+  (typeof inputFalAiLtx219BVideoToVideoVideoOutputTypeEnum)[keyof typeof inputFalAiLtx219BVideoToVideoVideoOutputTypeEnum]
+
+export const inputFalAiLtx219BVideoToVideoVideoQualityEnum = {
+  low: 'low',
+  medium: 'medium',
+  high: 'high',
+  maximum: 'maximum',
+} as const
+
+export type InputFalAiLtx219BVideoToVideoVideoQualityEnumKey =
+  (typeof inputFalAiLtx219BVideoToVideoVideoQualityEnum)[keyof typeof inputFalAiLtx219BVideoToVideoVideoQualityEnum]
+
+export const inputFalAiLtx219BVideoToVideoVideoSize = {
+  auto: 'auto',
+  square_hd: 'square_hd',
+  square: 'square',
+  portrait_4_3: 'portrait_4_3',
+  portrait_16_9: 'portrait_16_9',
+  landscape_4_3: 'landscape_4_3',
+  landscape_16_9: 'landscape_16_9',
+} as const
+
+export type InputFalAiLtx219BVideoToVideoVideoSizeKey =
+  (typeof inputFalAiLtx219BVideoToVideoVideoSize)[keyof typeof inputFalAiLtx219BVideoToVideoVideoSize]
+
+export const inputFalAiLtx219BVideoToVideoCameraLoraEnum = {
+  dolly_in: 'dolly_in',
+  dolly_out: 'dolly_out',
+  dolly_left: 'dolly_left',
+  dolly_right: 'dolly_right',
+  jib_up: 'jib_up',
+  jib_down: 'jib_down',
+  static: 'static',
+  none: 'none',
+} as const
+
+export type InputFalAiLtx219BVideoToVideoCameraLoraEnumKey =
+  (typeof inputFalAiLtx219BVideoToVideoCameraLoraEnum)[keyof typeof inputFalAiLtx219BVideoToVideoCameraLoraEnum]
+
+export const inputFalAiLtx219BVideoToVideoVideoWriteModeEnum = {
+  fast: 'fast',
+  balanced: 'balanced',
+  small: 'small',
+} as const
+
+export type InputFalAiLtx219BVideoToVideoVideoWriteModeEnumKey =
+  (typeof inputFalAiLtx219BVideoToVideoVideoWriteModeEnum)[keyof typeof inputFalAiLtx219BVideoToVideoVideoWriteModeEnum]
+
+export const inputFalAiLtx219BVideoToVideoAccelerationEnum = {
+  none: 'none',
+  regular: 'regular',
+  high: 'high',
+  full: 'full',
+} as const
+
+export type InputFalAiLtx219BVideoToVideoAccelerationEnumKey =
+  (typeof inputFalAiLtx219BVideoToVideoAccelerationEnum)[keyof typeof inputFalAiLtx219BVideoToVideoAccelerationEnum]
+
+export const inputFalAiLtx219BVideoToVideoIcLoraEnum = {
+  match_preprocessor: 'match_preprocessor',
+  canny: 'canny',
+  depth: 'depth',
+  pose: 'pose',
+  detailer: 'detailer',
+  none: 'none',
+} as const
+
+export type InputFalAiLtx219BVideoToVideoIcLoraEnumKey =
+  (typeof inputFalAiLtx219BVideoToVideoIcLoraEnum)[keyof typeof inputFalAiLtx219BVideoToVideoIcLoraEnum]
+
+export type InputFalAiLtx219BVideoToVideo = {
+  /**
+   * @description Whether to enable prompt expansion.
+   * @default true
+   * @type boolean | undefined
+   */
+  enable_prompt_expansion?: boolean
+  /**
+   * @description An optional URL of an audio to use as the audio for the video. If not provided, any audio present in the input video will be used.
+   */
+  audio_url?: string | null
+  /**
+   * @description The preprocessor to use for the video. When a preprocessor is used and `ic_lora_type` is set to `match_preprocessor`, the IC-LoRA will be loaded based on the preprocessor type.
+   * @default 'none'
+   * @example none
+   * @type string | undefined
+   */
+  preprocessor?: InputFalAiLtx219BVideoToVideoPreprocessorEnumKey
+  /**
+   * @description The scale of the camera LoRA to use. This allows you to control the camera movement of the generated video more accurately than just prompting the model to move the camera.
+   * @minimum 0
+   * @maximum 1
+   * @default 1
+   * @type number | undefined
+   */
+  camera_lora_scale?: number
+  /**
+   * @description The URL of the image to use as the end of the video.
+   */
+  end_image_url?: string | null
+  /**
+   * @description The guidance scale to use.
+   * @minimum 1
+   * @maximum 10
+   * @default 3
+   * @type number | undefined
+   */
+  guidance_scale?: number
+  /**
+   * @description The output type of the generated video.
+   * @default 'X264 (.mp4)'
+   * @type string | undefined
+   */
+  video_output_type?: InputFalAiLtx219BVideoToVideoVideoOutputTypeEnumKey
+  /**
+   * @description When enabled, the number of frames will be calculated based on the video duration and FPS. When disabled, use the specified num_frames.
+   * @default true
+   * @type boolean | undefined
+   */
+  match_video_length?: boolean
+  /**
+   * @description The quality of the generated video.
+   * @default 'high'
+   * @type string | undefined
+   */
+  video_quality?: InputFalAiLtx219BVideoToVideoVideoQualityEnumKey
+  /**
+   * @description The seed for the random number generator.
+   */
+  seed?: number | null
+  /**
+   * @description The size of the generated video.
+   * @default auto
+   */
+  video_size?: ImageSizeD7610296 | InputFalAiLtx219BVideoToVideoVideoSizeKey
+  /**
+   * @description The scale of the IC-LoRA to use. This allows you to control the strength of the IC-LoRA.
+   * @minimum 0
+   * @maximum 1
+   * @default 1
+   * @type number | undefined
+   */
+  ic_lora_scale?: number
+  /**
+   * @description The negative prompt to generate the video from.
+   * @default 'blurry, out of focus, overexposed, underexposed, low contrast, washed out colors, excessive noise, grainy texture, poor lighting, flickering, motion blur, distorted proportions, unnatural skin tones, deformed facial features, asymmetrical face, missing facial features, extra limbs, disfigured hands, wrong hand count, artifacts around text, inconsistent perspective, camera shake, incorrect depth of field, background too sharp, background clutter, distracting reflections, harsh shadows, inconsistent lighting direction, color banding, cartoonish rendering, 3D CGI look, unrealistic materials, uncanny valley effect, incorrect ethnicity, wrong gender, exaggerated expressions, wrong gaze direction, mismatched lip sync, silent or muted audio, distorted voice, robotic voice, echo, background noise, off-sync audio,incorrect dialogue, added dialogue, repetitive speech, jittery movement, awkward pauses, incorrect timing, unnatural transitions, inconsistent framing, tilted camera, flat lighting, inconsistent tone, cinematic oversaturation, stylized filters, or AI artifacts.'
+   * @type string | undefined
+   */
+  negative_prompt?: string
+  /**
+   * @description The strength of the image to use for the video generation.
+   * @minimum 0
+   * @maximum 1
+   * @default 1
+   * @type number | undefined
+   */
+  image_strength?: number
+  /**
+   * @description The camera LoRA to use. This allows you to control the camera movement of the generated video more accurately than just prompting the model to move the camera.
+   * @default 'none'
+   * @example none
+   * @type string | undefined
+   */
+  camera_lora?: InputFalAiLtx219BVideoToVideoCameraLoraEnumKey
+  /**
+   * @description Whether to use multi-scale generation. If True, the model will generate the video at a smaller scale first, then use the smaller video to guide the generation of a video at or above your requested size. This results in better coherence and details.
+   * @default true
+   * @type boolean | undefined
+   */
+  use_multiscale?: boolean
+  /**
+   * @description The write mode of the generated video.
+   * @default 'balanced'
+   * @type string | undefined
+   */
+  video_write_mode?: InputFalAiLtx219BVideoToVideoVideoWriteModeEnumKey
+  /**
+   * @description When true, match the output FPS to the input video's FPS instead of using the default target FPS.
+   * @default true
+   * @type boolean | undefined
+   */
+  match_input_fps?: boolean
+  /**
+   * @description The number of inference steps to use.
+   * @minimum 8
+   * @maximum 50
+   * @default 40
+   * @type integer | undefined
+   */
+  num_inference_steps?: number
+  /**
+   * @description Whether to enable the safety checker.
+   * @default true
+   * @type boolean | undefined
+   */
+  enable_safety_checker?: boolean
+  /**
+   * @description The strength of the end image to use for the video generation.
+   * @minimum 0
+   * @maximum 1
+   * @default 1
+   * @type number | undefined
+   */
+  end_image_strength?: number
+  /**
+   * @description The prompt to generate the video from.
+   * @example black-and-white video, a cowboy walks through a dusty town, film grain
+   * @type string
+   */
+  prompt: string
+  /**
+   * @description The URL of the video to generate the video from.
+   * @example https://v3b.fal.media/files/b/0a8824b1/sdm0KfmenrlywesfzY1Y1_if6euPp1.mp4
+   * @type string
+   */
+  video_url: string
+  /**
+   * @description The acceleration level to use.
+   * @default 'regular'
+   * @example regular
+   * @type string | undefined
+   */
+  acceleration?: InputFalAiLtx219BVideoToVideoAccelerationEnumKey
+  /**
+   * @description Whether to generate audio for the video.
+   * @default true
+   * @type boolean | undefined
+   */
+  generate_audio?: boolean
+  /**
+   * @description Video conditioning strength. Lower values represent more freedom given to the model to change the video content.
+   * @minimum 0
+   * @maximum 1
+   * @default 1
+   * @type number | undefined
+   */
+  video_strength?: number
+  /**
+   * @description The frames per second of the generated video.
+   * @minimum 1
+   * @maximum 60
+   * @default 25
+   * @type number | undefined
+   */
+  fps?: number
+  /**
+   * @description An optional URL of an image to use as the first frame of the video.
+   */
+  image_url?: string | null
+  /**
+   * @description The type of IC-LoRA to load. In-Context LoRA weights are used to condition the video based on edge, depth, or pose videos. Only change this from `match_preprocessor` if your videos are already preprocessed (or you are using the detailer.)
+   * @default 'match_preprocessor'
+   * @example match_preprocessor
+   * @type string | undefined
+   */
+  ic_lora?: InputFalAiLtx219BVideoToVideoIcLoraEnumKey
+  /**
+   * @description Audio conditioning strength. Lower values represent more freedom given to the model to change the audio content.
+   * @minimum 0
+   * @maximum 1
+   * @default 1
+   * @type number | undefined
+   */
+  audio_strength?: number
+  /**
+   * @description If `True`, the media will be returned as a data URI and the output data won't be available in the request history.
+   * @default false
+   * @type boolean | undefined
+   */
+  sync_mode?: boolean
+  /**
+   * @description The number of frames to generate.
+   * @minimum 9
+   * @maximum 481
+   * @default 121
+   * @type integer | undefined
+   */
+  num_frames?: number
+}
+
+export type VideoFileBded948C = {
+  /**
+   * @description The name of the file. It will be auto-generated if not provided.
+   * @example z9RV14K95DvU.png
+   */
+  file_name?: string | null
+  /**
+   * @description The FPS of the video
+   */
+  fps?: number | null
+  /**
+   * @description The size of the file in bytes.
+   * @example 4404019
+   */
+  file_size?: number | null
+  /**
+   * @description The duration of the video
+   */
+  duration?: number | null
+  /**
+   * @description The width of the video
+   */
+  width?: number | null
+  /**
+   * @description The height of the video
+   */
+  height?: number | null
+  /**
+   * @description The URL where the file can be downloaded from.
+   * @type string
+   */
+  url: string
+  /**
+   * @description The number of frames in the video
+   */
+  num_frames?: number | null
+  /**
+   * @description The mime type of the file.
+   * @example image/png
+   */
+  content_type?: string | null
+}
+
+export type OutputFalAiLtx219BVideoToVideo = {
+  /**
+   * @description The generated video.
+   * @example {"file_name":"SaTGe87IpMUMiSq33w5Qb_RoCJFZhc.mp4","fps":25,"duration":6.44,"width":1248,"height":704,"url":"https://v3b.fal.media/files/b/0a895ed5/SaTGe87IpMUMiSq33w5Qb_RoCJFZhc.mp4","num_frames":161,"content_type":"video/mp4"}
+   * @type object
+   */
+  video: VideoFileBded948C
+  /**
+   * @description The prompt used for the generation.
+   * @example black-and-white video, a cowboy walks through a dusty town, film grain
+   * @type string
+   */
+  prompt: string
+  /**
+   * @description The seed used for the random number generator.
+   * @example 1490631192028410600
+   * @type integer
+   */
+  seed: number
+}
+
+export type ImageSize7D9D8Dc0 = {
+  /**
+   * @description The height of the generated image.
+   * @maximum 14142
+   * @default 512
+   * @type integer | undefined
+   */
+  height?: number
+  /**
+   * @description The width of the generated image.
+   * @maximum 14142
+   * @default 512
+   * @type integer | undefined
+   */
+  width?: number
+}
+
+export const inputFalAiLtx219BVideoToVideoLoraPreprocessorEnum = {
+  depth: 'depth',
+  canny: 'canny',
+  pose: 'pose',
+  none: 'none',
+} as const
+
+export type InputFalAiLtx219BVideoToVideoLoraPreprocessorEnumKey =
+  (typeof inputFalAiLtx219BVideoToVideoLoraPreprocessorEnum)[keyof typeof inputFalAiLtx219BVideoToVideoLoraPreprocessorEnum]
+
+export const inputFalAiLtx219BVideoToVideoLoraVideoOutputTypeEnum = {
+  'X264 (.mp4)': 'X264 (.mp4)',
+  'VP9 (.webm)': 'VP9 (.webm)',
+  'PRORES4444 (.mov)': 'PRORES4444 (.mov)',
+  'GIF (.gif)': 'GIF (.gif)',
+} as const
+
+export type InputFalAiLtx219BVideoToVideoLoraVideoOutputTypeEnumKey =
+  (typeof inputFalAiLtx219BVideoToVideoLoraVideoOutputTypeEnum)[keyof typeof inputFalAiLtx219BVideoToVideoLoraVideoOutputTypeEnum]
+
+export const inputFalAiLtx219BVideoToVideoLoraVideoQualityEnum = {
+  low: 'low',
+  medium: 'medium',
+  high: 'high',
+  maximum: 'maximum',
+} as const
+
+export type InputFalAiLtx219BVideoToVideoLoraVideoQualityEnumKey =
+  (typeof inputFalAiLtx219BVideoToVideoLoraVideoQualityEnum)[keyof typeof inputFalAiLtx219BVideoToVideoLoraVideoQualityEnum]
+
+export const inputFalAiLtx219BVideoToVideoLoraVideoSize = {
+  auto: 'auto',
+  square_hd: 'square_hd',
+  square: 'square',
+  portrait_4_3: 'portrait_4_3',
+  portrait_16_9: 'portrait_16_9',
+  landscape_4_3: 'landscape_4_3',
+  landscape_16_9: 'landscape_16_9',
+} as const
+
+export type InputFalAiLtx219BVideoToVideoLoraVideoSizeKey =
+  (typeof inputFalAiLtx219BVideoToVideoLoraVideoSize)[keyof typeof inputFalAiLtx219BVideoToVideoLoraVideoSize]
+
+export const inputFalAiLtx219BVideoToVideoLoraCameraLoraEnum = {
+  dolly_in: 'dolly_in',
+  dolly_out: 'dolly_out',
+  dolly_left: 'dolly_left',
+  dolly_right: 'dolly_right',
+  jib_up: 'jib_up',
+  jib_down: 'jib_down',
+  static: 'static',
+  none: 'none',
+} as const
+
+export type InputFalAiLtx219BVideoToVideoLoraCameraLoraEnumKey =
+  (typeof inputFalAiLtx219BVideoToVideoLoraCameraLoraEnum)[keyof typeof inputFalAiLtx219BVideoToVideoLoraCameraLoraEnum]
+
+export const inputFalAiLtx219BVideoToVideoLoraVideoWriteModeEnum = {
+  fast: 'fast',
+  balanced: 'balanced',
+  small: 'small',
+} as const
+
+export type InputFalAiLtx219BVideoToVideoLoraVideoWriteModeEnumKey =
+  (typeof inputFalAiLtx219BVideoToVideoLoraVideoWriteModeEnum)[keyof typeof inputFalAiLtx219BVideoToVideoLoraVideoWriteModeEnum]
+
+export const inputFalAiLtx219BVideoToVideoLoraAccelerationEnum = {
+  none: 'none',
+  regular: 'regular',
+  high: 'high',
+  full: 'full',
+} as const
+
+export type InputFalAiLtx219BVideoToVideoLoraAccelerationEnumKey =
+  (typeof inputFalAiLtx219BVideoToVideoLoraAccelerationEnum)[keyof typeof inputFalAiLtx219BVideoToVideoLoraAccelerationEnum]
+
+export const inputFalAiLtx219BVideoToVideoLoraIcLoraEnum = {
+  match_preprocessor: 'match_preprocessor',
+  canny: 'canny',
+  depth: 'depth',
+  pose: 'pose',
+  detailer: 'detailer',
+  none: 'none',
+} as const
+
+export type InputFalAiLtx219BVideoToVideoLoraIcLoraEnumKey =
+  (typeof inputFalAiLtx219BVideoToVideoLoraIcLoraEnum)[keyof typeof inputFalAiLtx219BVideoToVideoLoraIcLoraEnum]
+
+export type InputFalAiLtx219BVideoToVideoLora = {
+  /**
+   * @description Whether to enable prompt expansion.
+   * @default true
+   * @type boolean | undefined
+   */
+  enable_prompt_expansion?: boolean
+  /**
+   * @description An optional URL of an audio to use as the audio for the video. If not provided, any audio present in the input video will be used.
+   */
+  audio_url?: string | null
+  /**
+   * @description The preprocessor to use for the video. When a preprocessor is used and `ic_lora_type` is set to `match_preprocessor`, the IC-LoRA will be loaded based on the preprocessor type.
+   * @default 'none'
+   * @example none
+   * @type string | undefined
+   */
+  preprocessor?: InputFalAiLtx219BVideoToVideoLoraPreprocessorEnumKey
+  /**
+   * @description The scale of the camera LoRA to use. This allows you to control the camera movement of the generated video more accurately than just prompting the model to move the camera.
+   * @minimum 0
+   * @maximum 1
+   * @default 1
+   * @type number | undefined
+   */
+  camera_lora_scale?: number
+  /**
+   * @description The URL of the image to use as the end of the video.
+   */
+  end_image_url?: string | null
+  /**
+   * @description The guidance scale to use.
+   * @minimum 1
+   * @maximum 10
+   * @default 3
+   * @type number | undefined
+   */
+  guidance_scale?: number
+  /**
+   * @description The output type of the generated video.
+   * @default 'X264 (.mp4)'
+   * @type string | undefined
+   */
+  video_output_type?: InputFalAiLtx219BVideoToVideoLoraVideoOutputTypeEnumKey
+  /**
+   * @description When enabled, the number of frames will be calculated based on the video duration and FPS. When disabled, use the specified num_frames.
+   * @default true
+   * @type boolean | undefined
+   */
+  match_video_length?: boolean
+  /**
+   * @description The quality of the generated video.
+   * @default 'high'
+   * @type string | undefined
+   */
+  video_quality?: InputFalAiLtx219BVideoToVideoLoraVideoQualityEnumKey
+  /**
+   * @description The seed for the random number generator.
+   */
+  seed?: number | null
+  /**
+   * @description The size of the generated video.
+   * @default auto
+   */
+  video_size?: ImageSize7D9D8Dc0 | InputFalAiLtx219BVideoToVideoLoraVideoSizeKey
+  /**
+   * @description The scale of the IC-LoRA to use. This allows you to control the strength of the IC-LoRA.
+   * @minimum 0
+   * @maximum 1
+   * @default 1
+   * @type number | undefined
+   */
+  ic_lora_scale?: number
+  /**
+   * @description The negative prompt to generate the video from.
+   * @default 'blurry, out of focus, overexposed, underexposed, low contrast, washed out colors, excessive noise, grainy texture, poor lighting, flickering, motion blur, distorted proportions, unnatural skin tones, deformed facial features, asymmetrical face, missing facial features, extra limbs, disfigured hands, wrong hand count, artifacts around text, inconsistent perspective, camera shake, incorrect depth of field, background too sharp, background clutter, distracting reflections, harsh shadows, inconsistent lighting direction, color banding, cartoonish rendering, 3D CGI look, unrealistic materials, uncanny valley effect, incorrect ethnicity, wrong gender, exaggerated expressions, wrong gaze direction, mismatched lip sync, silent or muted audio, distorted voice, robotic voice, echo, background noise, off-sync audio,incorrect dialogue, added dialogue, repetitive speech, jittery movement, awkward pauses, incorrect timing, unnatural transitions, inconsistent framing, tilted camera, flat lighting, inconsistent tone, cinematic oversaturation, stylized filters, or AI artifacts.'
+   * @type string | undefined
+   */
+  negative_prompt?: string
+  /**
+   * @description The strength of the image to use for the video generation.
+   * @minimum 0
+   * @maximum 1
+   * @default 1
+   * @type number | undefined
+   */
+  image_strength?: number
+  /**
+   * @description The camera LoRA to use. This allows you to control the camera movement of the generated video more accurately than just prompting the model to move the camera.
+   * @default 'none'
+   * @example none
+   * @type string | undefined
+   */
+  camera_lora?: InputFalAiLtx219BVideoToVideoLoraCameraLoraEnumKey
+  /**
+   * @description Whether to use multi-scale generation. If True, the model will generate the video at a smaller scale first, then use the smaller video to guide the generation of a video at or above your requested size. This results in better coherence and details.
+   * @default true
+   * @type boolean | undefined
+   */
+  use_multiscale?: boolean
+  /**
+   * @description The write mode of the generated video.
+   * @default 'balanced'
+   * @type string | undefined
+   */
+  video_write_mode?: InputFalAiLtx219BVideoToVideoLoraVideoWriteModeEnumKey
+  /**
+   * @description When true, match the output FPS to the input video's FPS instead of using the default target FPS.
+   * @default true
+   * @type boolean | undefined
+   */
+  match_input_fps?: boolean
+  /**
+   * @description The number of inference steps to use.
+   * @minimum 8
+   * @maximum 50
+   * @default 40
+   * @type integer | undefined
+   */
+  num_inference_steps?: number
+  /**
+   * @description The LoRAs to use for the generation.
+   * @type array
+   */
+  loras: LoRAInput[]
+  /**
+   * @description Whether to enable the safety checker.
+   * @default true
+   * @type boolean | undefined
+   */
+  enable_safety_checker?: boolean
+  /**
+   * @description The strength of the end image to use for the video generation.
+   * @minimum 0
+   * @maximum 1
+   * @default 1
+   * @type number | undefined
+   */
+  end_image_strength?: number
+  /**
+   * @description The prompt to generate the video from.
+   * @example black-and-white video, a cowboy walks through a dusty town, film grain
+   * @type string
+   */
+  prompt: string
+  /**
+   * @description The URL of the video to generate the video from.
+   * @example https://v3b.fal.media/files/b/0a8824b1/sdm0KfmenrlywesfzY1Y1_if6euPp1.mp4
+   * @type string
+   */
+  video_url: string
+  /**
+   * @description The acceleration level to use.
+   * @default 'regular'
+   * @example regular
+   * @type string | undefined
+   */
+  acceleration?: InputFalAiLtx219BVideoToVideoLoraAccelerationEnumKey
+  /**
+   * @description Whether to generate audio for the video.
+   * @default true
+   * @type boolean | undefined
+   */
+  generate_audio?: boolean
+  /**
+   * @description Video conditioning strength. Lower values represent more freedom given to the model to change the video content.
+   * @minimum 0
+   * @maximum 1
+   * @default 1
+   * @type number | undefined
+   */
+  video_strength?: number
+  /**
+   * @description The frames per second of the generated video.
+   * @minimum 1
+   * @maximum 60
+   * @default 25
+   * @type number | undefined
+   */
+  fps?: number
+  /**
+   * @description An optional URL of an image to use as the first frame of the video.
+   */
+  image_url?: string | null
+  /**
+   * @description The type of IC-LoRA to load. In-Context LoRA weights are used to condition the video based on edge, depth, or pose videos. Only change this from `match_preprocessor` if your videos are already preprocessed (or you are using the detailer.)
+   * @default 'match_preprocessor'
+   * @example match_preprocessor
+   * @type string | undefined
+   */
+  ic_lora?: InputFalAiLtx219BVideoToVideoLoraIcLoraEnumKey
+  /**
+   * @description Audio conditioning strength. Lower values represent more freedom given to the model to change the audio content.
+   * @minimum 0
+   * @maximum 1
+   * @default 1
+   * @type number | undefined
+   */
+  audio_strength?: number
+  /**
+   * @description If `True`, the media will be returned as a data URI and the output data won't be available in the request history.
+   * @default false
+   * @type boolean | undefined
+   */
+  sync_mode?: boolean
+  /**
+   * @description The number of frames to generate.
+   * @minimum 9
+   * @maximum 481
+   * @default 121
+   * @type integer | undefined
+   */
+  num_frames?: number
+}
+
+export type VideoFileB490F5Ef = {
+  /**
+   * @description The name of the file. It will be auto-generated if not provided.
+   * @example z9RV14K95DvU.png
+   */
+  file_name?: string | null
+  /**
+   * @description The FPS of the video
+   */
+  fps?: number | null
+  /**
+   * @description The size of the file in bytes.
+   * @example 4404019
+   */
+  file_size?: number | null
+  /**
+   * @description The duration of the video
+   */
+  duration?: number | null
+  /**
+   * @description The width of the video
+   */
+  width?: number | null
+  /**
+   * @description The height of the video
+   */
+  height?: number | null
+  /**
+   * @description The URL where the file can be downloaded from.
+   * @type string
+   */
+  url: string
+  /**
+   * @description The number of frames in the video
+   */
+  num_frames?: number | null
+  /**
+   * @description The mime type of the file.
+   * @example image/png
+   */
+  content_type?: string | null
+}
+
+export type OutputFalAiLtx219BVideoToVideoLora = {
+  /**
+   * @description The generated video.
+   * @example {"file_name":"SaTGe87IpMUMiSq33w5Qb_RoCJFZhc.mp4","fps":25,"duration":6.44,"width":1248,"height":704,"url":"https://v3b.fal.media/files/b/0a895ed5/SaTGe87IpMUMiSq33w5Qb_RoCJFZhc.mp4","num_frames":161,"content_type":"video/mp4"}
+   * @type object
+   */
+  video: VideoFileB490F5Ef
+  /**
+   * @description The prompt used for the generation.
+   * @example black-and-white video, a cowboy walks through a dusty town, film grain
+   * @type string
+   */
+  prompt: string
+  /**
+   * @description The seed used for the random number generator.
+   * @example 1490631192028410600
+   * @type integer
+   */
+  seed: number
+}
+
 export type ImageSize614F8A40 = {
   /**
    * @description The height of the generated image.
@@ -27182,7 +40089,7 @@ export type OutputFalAiLtx2322BAudioToVideo = {
   seed: number
 }
 
-export type ImageSizeFe8135Aa = {
+export type ImageSizeE52B16B2 = {
   /**
    * @description The height of the generated image.
    * @maximum 14142
@@ -27203,7 +40110,7 @@ export type ImageSizeFe8135Aa = {
  * @description LoRA weight configuration.
  * @type object
  */
-export type LoRAInput = {
+export type LoRAInput71F82336 = {
   /**
    * @description Scale factor for LoRA application (0.0 to 4.0).
    * @minimum 0
@@ -27507,13 +40414,13 @@ export type InputFalAiLtx2322BAudioToVideoLora = {
    * @default landscape_16_9
    */
   video_size?:
-    | ImageSizeFe8135Aa
+    | ImageSizeE52B16B2
     | InputFalAiLtx2322BAudioToVideoLoraVideoSizeKey
   /**
    * @description The LoRAs to use for the generation.
    * @type array
    */
-  loras: LoRAInput[]
+  loras: LoRAInput71F82336[]
   /**
    * @description The camera LoRA to use. This allows you to control the camera movement of the generated video more accurately than just prompting the model to move the camera.
    * @default 'none'
@@ -27961,7 +40868,7 @@ export type OutputFalAiLtx2322BDistilledAudioToVideo = {
   seed: number
 }
 
-export type ImageSize868205B7 = {
+export type ImageSizeCdfaf84F = {
   /**
    * @description The height of the generated image.
    * @maximum 14142
@@ -27976,6 +40883,30 @@ export type ImageSize868205B7 = {
    * @type integer | undefined
    */
   width?: number
+}
+
+/**
+ * @description LoRA weight configuration.
+ * @type object
+ */
+export type LoRAInput8978Ed1B = {
+  /**
+   * @description Scale factor for LoRA application (0.0 to 4.0).
+   * @minimum 0
+   * @maximum 4
+   * @default 1
+   * @type number | undefined
+   */
+  scale?: number
+  /**
+   * @description URL, HuggingFace repo ID (owner/repo) to lora weights.
+   * @type string
+   */
+  path: string
+  /**
+   * @description Name of the LoRA weight. Only used if `path` is a HuggingFace repository, and is only required when the repository contains multiple LoRA weights.
+   */
+  weight_name?: string | null
 }
 
 export const inputFalAiLtx2322BDistilledAudioToVideoLoraVideoWriteModeEnum = {
@@ -28131,13 +41062,13 @@ export type InputFalAiLtx2322BDistilledAudioToVideoLora = {
    * @default landscape_16_9
    */
   video_size?:
-    | ImageSize868205B7
+    | ImageSizeCdfaf84F
     | InputFalAiLtx2322BDistilledAudioToVideoLoraVideoSizeKey
   /**
    * @description The LoRAs to use for the generation.
    * @type array
    */
-  loras: LoRAInput[]
+  loras: LoRAInput8978Ed1B[]
   /**
    * @description Whether to preprocess the audio before using it as conditioning.
    * @default true
@@ -28618,7 +41549,7 @@ export type OutputFalAiLtx2322BDistilledImageToVideo = {
   seed: number
 }
 
-export type ImageSizeA09Bba58 = {
+export type ImageSize9674Fc50 = {
   /**
    * @description The height of the generated image.
    * @maximum 14142
@@ -28633,6 +41564,30 @@ export type ImageSizeA09Bba58 = {
    * @type integer | undefined
    */
   width?: number
+}
+
+/**
+ * @description LoRA weight configuration.
+ * @type object
+ */
+export type LoRAInput34514Bbc = {
+  /**
+   * @description Scale factor for LoRA application (0.0 to 4.0).
+   * @minimum 0
+   * @maximum 4
+   * @default 1
+   * @type number | undefined
+   */
+  scale?: number
+  /**
+   * @description URL, HuggingFace repo ID (owner/repo) to lora weights.
+   * @type string
+   */
+  path: string
+  /**
+   * @description Name of the LoRA weight. Only used if `path` is a HuggingFace repository, and is only required when the repository contains multiple LoRA weights.
+   */
+  weight_name?: string | null
 }
 
 export const inputFalAiLtx2322BDistilledImageToVideoLoraVideoWriteModeEnum = {
@@ -28790,13 +41745,13 @@ export type InputFalAiLtx2322BDistilledImageToVideoLora = {
    * @default auto
    */
   video_size?:
-    | ImageSizeA09Bba58
+    | ImageSize9674Fc50
     | InputFalAiLtx2322BDistilledImageToVideoLoraVideoSizeKey
   /**
    * @description The LoRAs to use for the generation.
    * @type array
    */
-  loras: LoRAInput[]
+  loras: LoRAInput34514Bbc[]
   /**
    * @description The camera LoRA to use. This allows you to control the camera movement of the generated video more accurately than just prompting the model to move the camera.
    * @default 'none'
@@ -29314,7 +42269,7 @@ export type OutputFalAiLtx2322BDistilledReferenceVideoToVideo = {
   seed: number
 }
 
-export type ImageSizeA2699126 = {
+export type ImageSizeFe449E9E = {
   /**
    * @description The height of the generated image.
    * @maximum 14142
@@ -29329,6 +42284,30 @@ export type ImageSizeA2699126 = {
    * @type integer | undefined
    */
   width?: number
+}
+
+/**
+ * @description LoRA weight configuration.
+ * @type object
+ */
+export type LoRAInput9Dc11B3A = {
+  /**
+   * @description Scale factor for LoRA application (0.0 to 4.0).
+   * @minimum 0
+   * @maximum 4
+   * @default 1
+   * @type number | undefined
+   */
+  scale?: number
+  /**
+   * @description URL, HuggingFace repo ID (owner/repo) to lora weights.
+   * @type string
+   */
+  path: string
+  /**
+   * @description Name of the LoRA weight. Only used if `path` is a HuggingFace repository, and is only required when the repository contains multiple LoRA weights.
+   */
+  weight_name?: string | null
 }
 
 export const inputFalAiLtx2322BDistilledReferenceVideoToVideoLoraAccelerationEnum =
@@ -29568,13 +42547,13 @@ export type InputFalAiLtx2322BDistilledReferenceVideoToVideoLora = {
    * @default auto
    */
   video_size?:
-    | ImageSizeA2699126
+    | ImageSizeFe449E9E
     | InputFalAiLtx2322BDistilledReferenceVideoToVideoLoraVideoSizeKey
   /**
    * @description The LoRAs to use for the generation.
    * @type array
    */
-  loras: LoRAInput[]
+  loras: LoRAInput9Dc11B3A[]
   /**
    * @description The camera LoRA to use. This allows you to control the camera movement of the generated video more accurately than just prompting the model to move the camera.
    * @default 'none'
@@ -29971,7 +42950,7 @@ export type OutputFalAiLtx2322BDistilledTextToVideo = {
   seed: number
 }
 
-export type ImageSizeB75C25E4 = {
+export type ImageSize135F789C = {
   /**
    * @description The height of the generated image.
    * @maximum 14142
@@ -29986,6 +42965,30 @@ export type ImageSizeB75C25E4 = {
    * @type integer | undefined
    */
   width?: number
+}
+
+/**
+ * @description LoRA weight configuration.
+ * @type object
+ */
+export type LoRAInput1995C780 = {
+  /**
+   * @description Scale factor for LoRA application (0.0 to 4.0).
+   * @minimum 0
+   * @maximum 4
+   * @default 1
+   * @type number | undefined
+   */
+  scale?: number
+  /**
+   * @description URL, HuggingFace repo ID (owner/repo) to lora weights.
+   * @type string
+   */
+  path: string
+  /**
+   * @description Name of the LoRA weight. Only used if `path` is a HuggingFace repository, and is only required when the repository contains multiple LoRA weights.
+   */
+  weight_name?: string | null
 }
 
 export const inputFalAiLtx2322BDistilledTextToVideoLoraVideoWriteModeEnum = {
@@ -30127,13 +43130,13 @@ export type InputFalAiLtx2322BDistilledTextToVideoLora = {
    * @default landscape_16_9
    */
   video_size?:
-    | ImageSizeB75C25E4
+    | ImageSize135F789C
     | InputFalAiLtx2322BDistilledTextToVideoLoraVideoSizeKey
   /**
    * @description The LoRAs to use for the generation.
    * @type array
    */
-  loras: LoRAInput[]
+  loras: LoRAInput1995C780[]
   /**
    * @description The camera LoRA to use. This allows you to control the camera movement of the generated video more accurately than just prompting the model to move the camera.
    * @default 'none'
@@ -30575,7 +43578,7 @@ export type OutputFalAiLtx2322BDistilledVideoToVideo = {
   seed: number
 }
 
-export type ImageSize003Fa032 = {
+export type ImageSize1Fdfed0A = {
   /**
    * @description The height of the generated image.
    * @maximum 14142
@@ -30590,6 +43593,30 @@ export type ImageSize003Fa032 = {
    * @type integer | undefined
    */
   width?: number
+}
+
+/**
+ * @description LoRA weight configuration.
+ * @type object
+ */
+export type LoRAInputCb5838Be = {
+  /**
+   * @description Scale factor for LoRA application (0.0 to 4.0).
+   * @minimum 0
+   * @maximum 4
+   * @default 1
+   * @type number | undefined
+   */
+  scale?: number
+  /**
+   * @description URL, HuggingFace repo ID (owner/repo) to lora weights.
+   * @type string
+   */
+  path: string
+  /**
+   * @description Name of the LoRA weight. Only used if `path` is a HuggingFace repository, and is only required when the repository contains multiple LoRA weights.
+   */
+  weight_name?: string | null
 }
 
 export const inputFalAiLtx2322BDistilledVideoToVideoLoraVideoWriteModeEnum = {
@@ -30760,13 +43787,13 @@ export type InputFalAiLtx2322BDistilledVideoToVideoLora = {
    * @default auto
    */
   video_size?:
-    | ImageSize003Fa032
+    | ImageSize1Fdfed0A
     | InputFalAiLtx2322BDistilledVideoToVideoLoraVideoSizeKey
   /**
    * @description The LoRAs to use for the generation.
    * @type array
    */
-  loras: LoRAInput[]
+  loras: LoRAInputCb5838Be[]
   /**
    * @description The camera LoRA to use. This allows you to control the camera movement of the generated video more accurately than just prompting the model to move the camera.
    * @default 'none'
@@ -31334,7 +44361,7 @@ export type OutputFalAiLtx2322BExtendVideo = {
   seed: number
 }
 
-export type ImageSize11Ccf61E = {
+export type ImageSize691998E6 = {
   /**
    * @description The height of the generated image.
    * @maximum 14142
@@ -31349,6 +44376,30 @@ export type ImageSize11Ccf61E = {
    * @type integer | undefined
    */
   width?: number
+}
+
+/**
+ * @description LoRA weight configuration.
+ * @type object
+ */
+export type LoRAInputDbfc5992 = {
+  /**
+   * @description Scale factor for LoRA application (0.0 to 4.0).
+   * @minimum 0
+   * @maximum 4
+   * @default 1
+   * @type number | undefined
+   */
+  scale?: number
+  /**
+   * @description URL, HuggingFace repo ID (owner/repo) to lora weights.
+   * @type string
+   */
+  path: string
+  /**
+   * @description Name of the LoRA weight. Only used if `path` is a HuggingFace repository, and is only required when the repository contains multiple LoRA weights.
+   */
+  weight_name?: string | null
 }
 
 export const inputFalAiLtx2322BExtendVideoLoraAccelerationEnum = {
@@ -31645,12 +44696,12 @@ export type InputFalAiLtx2322BExtendVideoLora = {
    * @description The size of the generated video.
    * @default auto
    */
-  video_size?: ImageSize11Ccf61E | InputFalAiLtx2322BExtendVideoLoraVideoSizeKey
+  video_size?: ImageSize691998E6 | InputFalAiLtx2322BExtendVideoLoraVideoSizeKey
   /**
    * @description The LoRAs to use for the generation.
    * @type array
    */
-  loras: LoRAInput[]
+  loras: LoRAInputDbfc5992[]
   /**
    * @description The camera LoRA to use. This allows you to control the camera movement of the generated video more accurately than just prompting the model to move the camera.
    * @default 'none'
@@ -32191,7 +45242,7 @@ export type OutputFalAiLtx2322BImageToVideo = {
   seed: number
 }
 
-export type ImageSize0Be7F49D = {
+export type ImageSize826D1A65 = {
   /**
    * @description The height of the generated image.
    * @maximum 14142
@@ -32206,6 +45257,30 @@ export type ImageSize0Be7F49D = {
    * @type integer | undefined
    */
   width?: number
+}
+
+/**
+ * @description LoRA weight configuration.
+ * @type object
+ */
+export type LoRAInput1Ec0B329 = {
+  /**
+   * @description Scale factor for LoRA application (0.0 to 4.0).
+   * @minimum 0
+   * @maximum 4
+   * @default 1
+   * @type number | undefined
+   */
+  scale?: number
+  /**
+   * @description URL, HuggingFace repo ID (owner/repo) to lora weights.
+   * @type string
+   */
+  path: string
+  /**
+   * @description Name of the LoRA weight. Only used if `path` is a HuggingFace repository, and is only required when the repository contains multiple LoRA weights.
+   */
+  weight_name?: string | null
 }
 
 export const inputFalAiLtx2322BImageToVideoLoraAccelerationEnum = {
@@ -32493,13 +45568,13 @@ export type InputFalAiLtx2322BImageToVideoLora = {
    * @default auto
    */
   video_size?:
-    | ImageSize0Be7F49D
+    | ImageSize826D1A65
     | InputFalAiLtx2322BImageToVideoLoraVideoSizeKey
   /**
    * @description The LoRAs to use for the generation.
    * @type array
    */
-  loras: LoRAInput[]
+  loras: LoRAInput1Ec0B329[]
   /**
    * @description The camera LoRA to use. This allows you to control the camera movement of the generated video more accurately than just prompting the model to move the camera.
    * @default 'none'
@@ -33069,7 +46144,7 @@ export type OutputFalAiLtx2322BReferenceVideoToVideo = {
   seed: number
 }
 
-export type ImageSize5A055E57 = {
+export type ImageSizeEaccff7F = {
   /**
    * @description The height of the generated image.
    * @maximum 14142
@@ -33084,6 +46159,30 @@ export type ImageSize5A055E57 = {
    * @type integer | undefined
    */
   width?: number
+}
+
+/**
+ * @description LoRA weight configuration.
+ * @type object
+ */
+export type LoRAInputB94Ddfd3 = {
+  /**
+   * @description Scale factor for LoRA application (0.0 to 4.0).
+   * @minimum 0
+   * @maximum 4
+   * @default 1
+   * @type number | undefined
+   */
+  scale?: number
+  /**
+   * @description URL, HuggingFace repo ID (owner/repo) to lora weights.
+   * @type string
+   */
+  path: string
+  /**
+   * @description Name of the LoRA weight. Only used if `path` is a HuggingFace repository, and is only required when the repository contains multiple LoRA weights.
+   */
+  weight_name?: string | null
 }
 
 export const inputFalAiLtx2322BReferenceVideoToVideoLoraAccelerationEnum = {
@@ -33393,13 +46492,13 @@ export type InputFalAiLtx2322BReferenceVideoToVideoLora = {
    * @default auto
    */
   video_size?:
-    | ImageSize5A055E57
+    | ImageSizeEaccff7F
     | InputFalAiLtx2322BReferenceVideoToVideoLoraVideoSizeKey
   /**
    * @description The LoRAs to use for the generation.
    * @type array
    */
-  loras: LoRAInput[]
+  loras: LoRAInputB94Ddfd3[]
   /**
    * @description The camera LoRA to use. This allows you to control the camera movement of the generated video more accurately than just prompting the model to move the camera.
    * @default 'none'
@@ -33904,7 +47003,7 @@ export type OutputFalAiLtx2322BTextToVideo = {
   seed: number
 }
 
-export type ImageSize933Ff403 = {
+export type ImageSizeE56D4Bcb = {
   /**
    * @description The height of the generated image.
    * @maximum 14142
@@ -33919,6 +47018,30 @@ export type ImageSize933Ff403 = {
    * @type integer | undefined
    */
   width?: number
+}
+
+/**
+ * @description LoRA weight configuration.
+ * @type object
+ */
+export type LoRAInput659Ec237 = {
+  /**
+   * @description Scale factor for LoRA application (0.0 to 4.0).
+   * @minimum 0
+   * @maximum 4
+   * @default 1
+   * @type number | undefined
+   */
+  scale?: number
+  /**
+   * @description URL, HuggingFace repo ID (owner/repo) to lora weights.
+   * @type string
+   */
+  path: string
+  /**
+   * @description Name of the LoRA weight. Only used if `path` is a HuggingFace repository, and is only required when the repository contains multiple LoRA weights.
+   */
+  weight_name?: string | null
 }
 
 export const inputFalAiLtx2322BTextToVideoLoraAccelerationEnum = {
@@ -34168,12 +47291,12 @@ export type InputFalAiLtx2322BTextToVideoLora = {
    * @description The size of the generated video.
    * @default landscape_16_9
    */
-  video_size?: ImageSize933Ff403 | InputFalAiLtx2322BTextToVideoLoraVideoSizeKey
+  video_size?: ImageSizeE56D4Bcb | InputFalAiLtx2322BTextToVideoLoraVideoSizeKey
   /**
    * @description The LoRAs to use for the generation.
    * @type array
    */
-  loras: LoRAInput[]
+  loras: LoRAInput659Ec237[]
   /**
    * @description The camera LoRA to use. This allows you to control the camera movement of the generated video more accurately than just prompting the model to move the camera.
    * @default 'none'
@@ -34692,7 +47815,7 @@ export type OutputFalAiLtx2322BVideoToVideo = {
   seed: number
 }
 
-export type ImageSizeAa81Badf = {
+export type ImageSize3457E207 = {
   /**
    * @description The height of the generated image.
    * @maximum 14142
@@ -34707,6 +47830,30 @@ export type ImageSizeAa81Badf = {
    * @type integer | undefined
    */
   width?: number
+}
+
+/**
+ * @description LoRA weight configuration.
+ * @type object
+ */
+export type LoRAInputFfc0B743 = {
+  /**
+   * @description Scale factor for LoRA application (0.0 to 4.0).
+   * @minimum 0
+   * @maximum 4
+   * @default 1
+   * @type number | undefined
+   */
+  scale?: number
+  /**
+   * @description URL, HuggingFace repo ID (owner/repo) to lora weights.
+   * @type string
+   */
+  path: string
+  /**
+   * @description Name of the LoRA weight. Only used if `path` is a HuggingFace repository, and is only required when the repository contains multiple LoRA weights.
+   */
+  weight_name?: string | null
 }
 
 export const inputFalAiLtx2322BVideoToVideoLoraAccelerationEnum = {
@@ -34986,13 +48133,13 @@ export type InputFalAiLtx2322BVideoToVideoLora = {
    * @default auto
    */
   video_size?:
-    | ImageSizeAa81Badf
+    | ImageSize3457E207
     | InputFalAiLtx2322BVideoToVideoLoraVideoSizeKey
   /**
    * @description The LoRAs to use for the generation.
    * @type array
    */
-  loras: LoRAInput[]
+  loras: LoRAInputFfc0B743[]
   /**
    * @description The camera LoRA to use. This allows you to control the camera movement of the generated video more accurately than just prompting the model to move the camera.
    * @default 'none'
@@ -41808,6 +54955,747 @@ export type OutputFalAiLtx23TextToVideoFast = {
   video: VideoFileB10E7Be5
 }
 
+export type InputFalAiLtx2AudioToVideo = {
+  /**
+   * @description Guidance scale for video generation. Higher values make the output more closely follow the prompt. Defaults to 5 for text-to-video, or 9 when providing an image.
+   */
+  guidance_scale?: number | null
+  /**
+   * @description URL of an image to use as the first frame of the video. If not provided, prompt is required.
+   * @example https://v3b.fal.media/files/b/0a90de1e/UY1yK7JVK3BJuJULcISI2_GnLc3bHv.png
+   */
+  image_url?: string | null
+  /**
+   * @description URL of the audio file to generate a video from. Duration must be between 2 and 20 seconds. Must be publicly accessible or base64 data URI.
+   * @example https://v3b.fal.media/files/b/0a90de09/am7s1zXzVQL52FUC3xvXU_output.mp3
+   * @type string
+   */
+  audio_url: string
+  /**
+   * @description Text description of how the video should be generated. Required if image_url is not provided. When image_url is provided, this describes how the image should be animated.
+   * @example An angry man speaking
+   */
+  prompt?: string | null
+}
+
+export type VideoFile147D275E = {
+  /**
+   * @description The mime type of the file.
+   * @example image/png
+   */
+  content_type?: string | null
+  /**
+   * @description The name of the file. It will be auto-generated if not provided.
+   * @example z9RV14K95DvU.png
+   */
+  file_name?: string | null
+  /**
+   * @description The duration of the video
+   */
+  duration?: number | null
+  /**
+   * @description The number of frames in the video
+   */
+  num_frames?: number | null
+  /**
+   * @description The width of the video
+   */
+  width?: number | null
+  /**
+   * @description The FPS of the video
+   */
+  fps?: number | null
+  /**
+   * @description The height of the video
+   */
+  height?: number | null
+  /**
+   * @description The size of the file in bytes.
+   * @example 4404019
+   */
+  file_size?: number | null
+  /**
+   * @description The URL where the file can be downloaded from.
+   * @type string
+   */
+  url: string
+}
+
+export type OutputFalAiLtx2AudioToVideo = {
+  /**
+   * @description The generated video file
+   * @example {"content_type":"video/mp4","file_name":"mItaWijZCwrk4WRZ86I8d_lbFJoefY.mp4","url":"https://v3b.fal.media/files/b/0a90dfb3/mItaWijZCwrk4WRZ86I8d_lbFJoefY.mp4"}
+   * @type object
+   */
+  video: VideoFile147D275E
+}
+
+export const inputFalAiLtx2ExtendVideoModeEnum = {
+  start: 'start',
+  end: 'end',
+} as const
+
+export type InputFalAiLtx2ExtendVideoModeEnumKey =
+  (typeof inputFalAiLtx2ExtendVideoModeEnum)[keyof typeof inputFalAiLtx2ExtendVideoModeEnum]
+
+export type InputFalAiLtx2ExtendVideo = {
+  /**
+   * @description Where to extend the video: 'end' extends at the end, 'start' extends at the beginning.
+   * @default 'end'
+   * @type string | undefined
+   */
+  mode?: InputFalAiLtx2ExtendVideoModeEnumKey
+  /**
+   * @description Number of seconds from the input video to use as context for the extension (minimum 1 second, maximum 20 seconds). If not provided, defaults to maximize available context within the 505 frame limit.
+   */
+  context?: number | null
+  /**
+   * @description The URL of the video to extend
+   * @example https://v3b.fal.media/files/b/0a90dffd/eMLEPeY2lCHdduXt1urcw_000_video.mp4
+   * @type string
+   */
+  video_url: string
+  /**
+   * @description Duration in seconds to extend the video. Minimum 2 seconds, maximum 20 seconds.
+   * @minimum 2
+   * @maximum 20
+   * @default 5
+   * @type number | undefined
+   */
+  duration?: number
+  /**
+   * @description Description of what should happen in the extended portion of the video.
+   * @example Continue the motion smoothly
+   */
+  prompt?: string | null
+}
+
+export type VideoFileBd9E1A9A = {
+  /**
+   * @description The mime type of the file.
+   * @example image/png
+   */
+  content_type?: string | null
+  /**
+   * @description The name of the file. It will be auto-generated if not provided.
+   * @example z9RV14K95DvU.png
+   */
+  file_name?: string | null
+  /**
+   * @description The duration of the video
+   */
+  duration?: number | null
+  /**
+   * @description The number of frames in the video
+   */
+  num_frames?: number | null
+  /**
+   * @description The width of the video
+   */
+  width?: number | null
+  /**
+   * @description The FPS of the video
+   */
+  fps?: number | null
+  /**
+   * @description The height of the video
+   */
+  height?: number | null
+  /**
+   * @description The size of the file in bytes.
+   * @example 4404019
+   */
+  file_size?: number | null
+  /**
+   * @description The URL where the file can be downloaded from.
+   * @type string
+   */
+  url: string
+}
+
+export type OutputFalAiLtx2ExtendVideo = {
+  /**
+   * @description The extended video file
+   * @example {"content_type":"video/mp4","file_name":"w2IZUmc6LDzsgZeGgCTww_igXa340O.mp4","url":"https://v3b.fal.media/files/b/0a90dfff/w2IZUmc6LDzsgZeGgCTww_igXa340O.mp4"}
+   * @type object
+   */
+  video: VideoFileBd9E1A9A
+}
+
+export const inputFalAiLtx2ImageToVideoFpsEnum = {
+  '25': 25,
+  '50': 50,
+} as const
+
+export type InputFalAiLtx2ImageToVideoFpsEnumKey =
+  (typeof inputFalAiLtx2ImageToVideoFpsEnum)[keyof typeof inputFalAiLtx2ImageToVideoFpsEnum]
+
+export const inputFalAiLtx2ImageToVideoResolutionEnum = {
+  '1080p': '1080p',
+  '1440p': '1440p',
+  '2160p': '2160p',
+} as const
+
+export type InputFalAiLtx2ImageToVideoResolutionEnumKey =
+  (typeof inputFalAiLtx2ImageToVideoResolutionEnum)[keyof typeof inputFalAiLtx2ImageToVideoResolutionEnum]
+
+export const inputFalAiLtx2ImageToVideoDurationEnum = {
+  '6': 6,
+  '8': 8,
+  '10': 10,
+} as const
+
+export type InputFalAiLtx2ImageToVideoDurationEnumKey =
+  (typeof inputFalAiLtx2ImageToVideoDurationEnum)[keyof typeof inputFalAiLtx2ImageToVideoDurationEnum]
+
+export type InputFalAiLtx2ImageToVideo = {
+  /**
+   * @description Whether to generate audio for the generated video
+   * @default true
+   * @type boolean | undefined
+   */
+  generate_audio?: boolean
+  /**
+   * @description The frames per second of the generated video
+   * @default 25
+   * @type number | undefined
+   */
+  fps?: InputFalAiLtx2ImageToVideoFpsEnumKey
+  /**
+   * @description The resolution of the generated video
+   * @default '1080p'
+   * @type string | undefined
+   */
+  resolution?: InputFalAiLtx2ImageToVideoResolutionEnumKey
+  /**
+   * @description URL of the image to generate the video from. Must be publicly accessible or base64 data URI. Supports PNG, JPEG, WebP, AVIF, and HEIF formats.
+   * @example https://storage.googleapis.com/falserverless/example_inputs/ltxv-2-i2v-input.jpg
+   * @type string
+   */
+  image_url: string
+  /**
+   * @description The duration of the generated video in seconds
+   * @default 6
+   * @type number | undefined
+   */
+  duration?: InputFalAiLtx2ImageToVideoDurationEnumKey
+  /**
+   * @description The prompt to generate the video from
+   * @minLength 1
+   * @maxLength 5000
+   * @example A woman stands still amid a busy neon-lit street at night. The camera slowly dollies in toward her face as people blur past, their motion emphasizing her calm presence. City lights flicker and reflections shift across her denim jacket.
+   * @type string
+   */
+  prompt: string
+}
+
+export type VideoFile9C9Be67F = {
+  /**
+   * @description The mime type of the file.
+   * @example image/png
+   */
+  content_type?: string | null
+  /**
+   * @description The name of the file. It will be auto-generated if not provided.
+   * @example z9RV14K95DvU.png
+   */
+  file_name?: string | null
+  /**
+   * @description The duration of the video
+   */
+  duration?: number | null
+  /**
+   * @description The number of frames in the video
+   */
+  num_frames?: number | null
+  /**
+   * @description The width of the video
+   */
+  width?: number | null
+  /**
+   * @description The FPS of the video
+   */
+  fps?: number | null
+  /**
+   * @description The height of the video
+   */
+  height?: number | null
+  /**
+   * @description The size of the file in bytes.
+   * @example 4404019
+   */
+  file_size?: number | null
+  /**
+   * @description The URL where the file can be downloaded from.
+   * @type string
+   */
+  url: string
+}
+
+export type OutputFalAiLtx2ImageToVideo = {
+  /**
+   * @description The generated video file
+   * @example {"content_type":"video/mp4","file_name":"ltxv-2-i2v-output.mp4","url":"https://storage.googleapis.com/falserverless/example_outputs/ltxv-2-i2v-output.mp4"}
+   * @type object
+   */
+  video: VideoFile9C9Be67F
+}
+
+export const inputFalAiLtx2ImageToVideoFastFpsEnum = {
+  '25': 25,
+  '50': 50,
+} as const
+
+export type InputFalAiLtx2ImageToVideoFastFpsEnumKey =
+  (typeof inputFalAiLtx2ImageToVideoFastFpsEnum)[keyof typeof inputFalAiLtx2ImageToVideoFastFpsEnum]
+
+export const inputFalAiLtx2ImageToVideoFastResolutionEnum = {
+  '1080p': '1080p',
+  '1440p': '1440p',
+  '2160p': '2160p',
+} as const
+
+export type InputFalAiLtx2ImageToVideoFastResolutionEnumKey =
+  (typeof inputFalAiLtx2ImageToVideoFastResolutionEnum)[keyof typeof inputFalAiLtx2ImageToVideoFastResolutionEnum]
+
+export const inputFalAiLtx2ImageToVideoFastDurationEnum = {
+  '6': 6,
+  '8': 8,
+  '10': 10,
+  '12': 12,
+  '14': 14,
+  '16': 16,
+  '18': 18,
+  '20': 20,
+} as const
+
+export type InputFalAiLtx2ImageToVideoFastDurationEnumKey =
+  (typeof inputFalAiLtx2ImageToVideoFastDurationEnum)[keyof typeof inputFalAiLtx2ImageToVideoFastDurationEnum]
+
+export type InputFalAiLtx2ImageToVideoFast = {
+  /**
+   * @description Whether to generate audio for the generated video
+   * @default true
+   * @type boolean | undefined
+   */
+  generate_audio?: boolean
+  /**
+   * @description The frames per second of the generated video
+   * @default 25
+   * @type number | undefined
+   */
+  fps?: InputFalAiLtx2ImageToVideoFastFpsEnumKey
+  /**
+   * @description The resolution of the generated video
+   * @default '1080p'
+   * @type string | undefined
+   */
+  resolution?: InputFalAiLtx2ImageToVideoFastResolutionEnumKey
+  /**
+   * @description URL of the image to generate the video from. Must be publicly accessible or base64 data URI. Supports PNG, JPEG, WebP, AVIF, and HEIF formats.
+   * @example https://storage.googleapis.com/falserverless/example_inputs/ltxv-2-i2v-input.jpg
+   * @type string
+   */
+  image_url: string
+  /**
+   * @description The duration of the generated video in seconds. The fast model supports 6-20 seconds. Note: Durations longer than 10 seconds (12, 14, 16, 18, 20) are only supported with 25 FPS and 1080p resolution.
+   * @default 6
+   * @type number | undefined
+   */
+  duration?: InputFalAiLtx2ImageToVideoFastDurationEnumKey
+  /**
+   * @description The prompt to generate the video from
+   * @minLength 1
+   * @maxLength 5000
+   * @example A woman stands still amid a busy neon-lit street at night. The camera slowly dollies in toward her face as people blur past, their motion emphasizing her calm presence. City lights flicker and reflections shift across her denim jacket.
+   * @type string
+   */
+  prompt: string
+}
+
+export type VideoFileB7Df7Eb4 = {
+  /**
+   * @description The mime type of the file.
+   * @example image/png
+   */
+  content_type?: string | null
+  /**
+   * @description The name of the file. It will be auto-generated if not provided.
+   * @example z9RV14K95DvU.png
+   */
+  file_name?: string | null
+  /**
+   * @description The duration of the video
+   */
+  duration?: number | null
+  /**
+   * @description The number of frames in the video
+   */
+  num_frames?: number | null
+  /**
+   * @description The width of the video
+   */
+  width?: number | null
+  /**
+   * @description The FPS of the video
+   */
+  fps?: number | null
+  /**
+   * @description The height of the video
+   */
+  height?: number | null
+  /**
+   * @description The size of the file in bytes.
+   * @example 4404019
+   */
+  file_size?: number | null
+  /**
+   * @description The URL where the file can be downloaded from.
+   * @type string
+   */
+  url: string
+}
+
+export type OutputFalAiLtx2ImageToVideoFast = {
+  /**
+   * @description The generated video file
+   * @example {"content_type":"video/mp4","file_name":"ltxv-2-i2v-output.mp4","url":"https://storage.googleapis.com/falserverless/example_outputs/ltxv-2-i2v-output.mp4"}
+   * @type object
+   */
+  video: VideoFileB7Df7Eb4
+}
+
+export const inputFalAiLtx2RetakeVideoRetakeModeEnum = {
+  replace_audio: 'replace_audio',
+  replace_video: 'replace_video',
+  replace_audio_and_video: 'replace_audio_and_video',
+} as const
+
+export type InputFalAiLtx2RetakeVideoRetakeModeEnumKey =
+  (typeof inputFalAiLtx2RetakeVideoRetakeModeEnum)[keyof typeof inputFalAiLtx2RetakeVideoRetakeModeEnum]
+
+export type InputFalAiLtx2RetakeVideo = {
+  /**
+   * @description The retake mode to use for the retake
+   * @default 'replace_audio_and_video'
+   * @type string | undefined
+   */
+  retake_mode?: InputFalAiLtx2RetakeVideoRetakeModeEnumKey
+  /**
+   * @description The URL of the video to retake
+   * @example https://v3b.fal.media/files/b/kangaroo/409mvS2FMwb6S7WcwkSW7_output.mp4
+   * @type string
+   */
+  video_url: string
+  /**
+   * @description The start time of the video to retake in seconds
+   * @minimum 0
+   * @maximum 20
+   * @default 0
+   * @type number | undefined
+   */
+  start_time?: number
+  /**
+   * @description The duration of the video to retake in seconds
+   * @minimum 2
+   * @maximum 20
+   * @default 5
+   * @type number | undefined
+   */
+  duration?: number
+  /**
+   * @description The prompt to retake the video with
+   * @minLength 1
+   * @maxLength 5000
+   * @example Remove the man
+   * @type string
+   */
+  prompt: string
+}
+
+export type VideoFile7D87D670 = {
+  /**
+   * @description The mime type of the file.
+   * @example image/png
+   */
+  content_type?: string | null
+  /**
+   * @description The name of the file. It will be auto-generated if not provided.
+   * @example z9RV14K95DvU.png
+   */
+  file_name?: string | null
+  /**
+   * @description The duration of the video
+   */
+  duration?: number | null
+  /**
+   * @description The number of frames in the video
+   */
+  num_frames?: number | null
+  /**
+   * @description The width of the video
+   */
+  width?: number | null
+  /**
+   * @description The FPS of the video
+   */
+  fps?: number | null
+  /**
+   * @description The height of the video
+   */
+  height?: number | null
+  /**
+   * @description The size of the file in bytes.
+   * @example 4404019
+   */
+  file_size?: number | null
+  /**
+   * @description The URL where the file can be downloaded from.
+   * @type string
+   */
+  url: string
+}
+
+export type OutputFalAiLtx2RetakeVideo = {
+  /**
+   * @description The generated video file
+   * @example {"content_type":"video/mp4","file_name":"ltxv-2-retake-output.mp4","url":"https://v3b.fal.media/files/b/zebra/qM8Ve4OM8BcYnX23hoxd8_zvgLuC4m.mp4"}
+   * @type object
+   */
+  video: VideoFile7D87D670
+}
+
+export const inputFalAiLtx2TextToVideoFpsEnum = {
+  '25': 25,
+  '50': 50,
+} as const
+
+export type InputFalAiLtx2TextToVideoFpsEnumKey =
+  (typeof inputFalAiLtx2TextToVideoFpsEnum)[keyof typeof inputFalAiLtx2TextToVideoFpsEnum]
+
+export const inputFalAiLtx2TextToVideoResolutionEnum = {
+  '1080p': '1080p',
+  '1440p': '1440p',
+  '2160p': '2160p',
+} as const
+
+export type InputFalAiLtx2TextToVideoResolutionEnumKey =
+  (typeof inputFalAiLtx2TextToVideoResolutionEnum)[keyof typeof inputFalAiLtx2TextToVideoResolutionEnum]
+
+export const inputFalAiLtx2TextToVideoDurationEnum = {
+  '6': 6,
+  '8': 8,
+  '10': 10,
+} as const
+
+export type InputFalAiLtx2TextToVideoDurationEnumKey =
+  (typeof inputFalAiLtx2TextToVideoDurationEnum)[keyof typeof inputFalAiLtx2TextToVideoDurationEnum]
+
+export type InputFalAiLtx2TextToVideo = {
+  /**
+   * @description Whether to generate audio for the generated video
+   * @default true
+   * @type boolean | undefined
+   */
+  generate_audio?: boolean
+  /**
+   * @description The frames per second of the generated video
+   * @default 25
+   * @type number | undefined
+   */
+  fps?: InputFalAiLtx2TextToVideoFpsEnumKey
+  /**
+   * @description The resolution of the generated video
+   * @default '1080p'
+   * @type string | undefined
+   */
+  resolution?: InputFalAiLtx2TextToVideoResolutionEnumKey
+  /**
+   * @description The duration of the generated video in seconds
+   * @default 6
+   * @type number | undefined
+   */
+  duration?: InputFalAiLtx2TextToVideoDurationEnumKey
+  /**
+   * @description The prompt to generate the video from
+   * @minLength 1
+   * @maxLength 5000
+   * @example A cowboy walking through a dusty town at high noon, camera following from behind, cinematic depth, realistic lighting, western mood, 4K film grain.
+   * @type string
+   */
+  prompt: string
+}
+
+export type VideoFile45C835Cb = {
+  /**
+   * @description The mime type of the file.
+   * @example image/png
+   */
+  content_type?: string | null
+  /**
+   * @description The name of the file. It will be auto-generated if not provided.
+   * @example z9RV14K95DvU.png
+   */
+  file_name?: string | null
+  /**
+   * @description The duration of the video
+   */
+  duration?: number | null
+  /**
+   * @description The number of frames in the video
+   */
+  num_frames?: number | null
+  /**
+   * @description The width of the video
+   */
+  width?: number | null
+  /**
+   * @description The FPS of the video
+   */
+  fps?: number | null
+  /**
+   * @description The height of the video
+   */
+  height?: number | null
+  /**
+   * @description The size of the file in bytes.
+   * @example 4404019
+   */
+  file_size?: number | null
+  /**
+   * @description The URL where the file can be downloaded from.
+   * @type string
+   */
+  url: string
+}
+
+export type OutputFalAiLtx2TextToVideo = {
+  /**
+   * @description The generated video file
+   * @example {"content_type":"video/mp4","file_name":"ltxv-2-t2v-output.mp4","url":"https://storage.googleapis.com/falserverless/example_outputs/ltxv-2-t2v-output.mp4"}
+   * @type object
+   */
+  video: VideoFile45C835Cb
+}
+
+export const inputFalAiLtx2TextToVideoFastFpsEnum = {
+  '25': 25,
+  '50': 50,
+} as const
+
+export type InputFalAiLtx2TextToVideoFastFpsEnumKey =
+  (typeof inputFalAiLtx2TextToVideoFastFpsEnum)[keyof typeof inputFalAiLtx2TextToVideoFastFpsEnum]
+
+export const inputFalAiLtx2TextToVideoFastResolutionEnum = {
+  '1080p': '1080p',
+  '1440p': '1440p',
+  '2160p': '2160p',
+} as const
+
+export type InputFalAiLtx2TextToVideoFastResolutionEnumKey =
+  (typeof inputFalAiLtx2TextToVideoFastResolutionEnum)[keyof typeof inputFalAiLtx2TextToVideoFastResolutionEnum]
+
+export const inputFalAiLtx2TextToVideoFastDurationEnum = {
+  '6': 6,
+  '8': 8,
+  '10': 10,
+  '12': 12,
+  '14': 14,
+  '16': 16,
+  '18': 18,
+  '20': 20,
+} as const
+
+export type InputFalAiLtx2TextToVideoFastDurationEnumKey =
+  (typeof inputFalAiLtx2TextToVideoFastDurationEnum)[keyof typeof inputFalAiLtx2TextToVideoFastDurationEnum]
+
+export type InputFalAiLtx2TextToVideoFast = {
+  /**
+   * @description Whether to generate audio for the generated video
+   * @default true
+   * @type boolean | undefined
+   */
+  generate_audio?: boolean
+  /**
+   * @description The frames per second of the generated video
+   * @default 25
+   * @type number | undefined
+   */
+  fps?: InputFalAiLtx2TextToVideoFastFpsEnumKey
+  /**
+   * @description The resolution of the generated video
+   * @default '1080p'
+   * @type string | undefined
+   */
+  resolution?: InputFalAiLtx2TextToVideoFastResolutionEnumKey
+  /**
+   * @description The duration of the generated video in seconds. The fast model supports 6-20 seconds. Note: Durations longer than 10 seconds (12, 14, 16, 18, 20) are only supported with 25 FPS and 1080p resolution.
+   * @default 6
+   * @type number | undefined
+   */
+  duration?: InputFalAiLtx2TextToVideoFastDurationEnumKey
+  /**
+   * @description The prompt to generate the video from
+   * @minLength 1
+   * @maxLength 5000
+   * @example A cowboy walking through a dusty town at high noon, camera following from behind, cinematic depth, realistic lighting, western mood, 4K film grain.
+   * @type string
+   */
+  prompt: string
+}
+
+export type VideoFile729D9510 = {
+  /**
+   * @description The mime type of the file.
+   * @example image/png
+   */
+  content_type?: string | null
+  /**
+   * @description The name of the file. It will be auto-generated if not provided.
+   * @example z9RV14K95DvU.png
+   */
+  file_name?: string | null
+  /**
+   * @description The duration of the video
+   */
+  duration?: number | null
+  /**
+   * @description The number of frames in the video
+   */
+  num_frames?: number | null
+  /**
+   * @description The width of the video
+   */
+  width?: number | null
+  /**
+   * @description The FPS of the video
+   */
+  fps?: number | null
+  /**
+   * @description The height of the video
+   */
+  height?: number | null
+  /**
+   * @description The size of the file in bytes.
+   * @example 4404019
+   */
+  file_size?: number | null
+  /**
+   * @description The URL where the file can be downloaded from.
+   * @type string
+   */
+  url: string
+}
+
+export type OutputFalAiLtx2TextToVideoFast = {
+  /**
+   * @description The generated video file
+   * @example {"content_type":"video/mp4","file_name":"ltxv-2-t2v-output.mp4","url":"https://storage.googleapis.com/falserverless/example_outputs/ltxv-2-t2v-output.mp4"}
+   * @type object
+   */
+  video: VideoFile729D9510
+}
+
 export type InputFalAiLtxVideo = {
   /**
    * @description Authorized callers may set false to request relaxed screening.
@@ -42887,6 +56775,386 @@ export type OutputFalAiLtxVideo13BDistilledMulticonditioning = {
    * @type string
    */
   prompt: string
+}
+
+export const inputFalAiLtxVideoV095AspectRatioEnum = {
+  '9:16': '9:16',
+  '16:9': '16:9',
+} as const
+
+export type InputFalAiLtxVideoV095AspectRatioEnumKey =
+  (typeof inputFalAiLtxVideoV095AspectRatioEnum)[keyof typeof inputFalAiLtxVideoV095AspectRatioEnum]
+
+export const inputFalAiLtxVideoV095ResolutionEnum = {
+  '480p': '480p',
+  '720p': '720p',
+} as const
+
+export type InputFalAiLtxVideoV095ResolutionEnumKey =
+  (typeof inputFalAiLtxVideoV095ResolutionEnum)[keyof typeof inputFalAiLtxVideoV095ResolutionEnum]
+
+export type InputFalAiLtxVideoV095 = {
+  /**
+   * @description Authorized callers may set false to request relaxed screening.
+   * @default true
+   * @type boolean | undefined
+   */
+  enable_safety_checker?: boolean
+  /**
+   * @description Text prompt to guide generation
+   * @example A cute cat walking on a sidewalk
+   * @type string
+   */
+  prompt: string
+  /**
+   * @description Aspect ratio of the generated video (16:9 or 9:16).
+   * @default '16:9'
+   * @type string | undefined
+   */
+  aspect_ratio?: InputFalAiLtxVideoV095AspectRatioEnumKey
+  /**
+   * @description Random seed for generation
+   */
+  seed?: number | null
+  /**
+   * @description Negative prompt for generation
+   * @default 'worst quality, inconsistent motion, blurry, jittery, distorted'
+   * @type string | undefined
+   */
+  negative_prompt?: string
+  /**
+   * @description Resolution of the generated video (480p or 720p).
+   * @default '720p'
+   * @type string | undefined
+   */
+  resolution?: InputFalAiLtxVideoV095ResolutionEnumKey
+  /**
+   * @description Whether to expand the prompt using the model's own capabilities.
+   * @default true
+   * @type boolean | undefined
+   */
+  expand_prompt?: boolean
+  /**
+   * @description Number of inference steps
+   * @minimum 2
+   * @maximum 50
+   * @default 40
+   * @type integer | undefined
+   */
+  num_inference_steps?: number
+}
+
+export type File3082B9Df = {
+  /**
+   * @description The size of the file in bytes.
+   * @example 4404019
+   */
+  file_size?: number | null
+  /**
+   * @description The mime type of the file.
+   * @example image/png
+   */
+  content_type?: string | null
+  /**
+   * @description The name of the file. It will be auto-generated if not provided.
+   * @example z9RV14K95DvU.png
+   */
+  file_name?: string | null
+  /**
+   * @description The URL where the file can be downloaded from.
+   * @type string
+   */
+  url: string
+}
+
+export type OutputFalAiLtxVideoV095 = {
+  /**
+   * @description The generated video file.
+   * @example {"url":"https://storage.googleapis.com/falserverless/example_outputs/ltx-t2v_output.mp4"}
+   * @type object
+   */
+  video: File3082B9Df
+  /**
+   * @description The seed used for generation.
+   * @type integer
+   */
+  seed: number
+}
+
+export type VideoConditioningInput74019Fb6 = {
+  /**
+   * @description URL of video to be extended
+   * @type string
+   */
+  video_url: string
+  /**
+   * @description Frame number of the video from which the conditioning starts. Must be a multiple of 8.
+   * @minimum 0
+   * @maximum 120
+   * @type integer
+   */
+  start_frame_num: number
+}
+
+export const inputFalAiLtxVideoV095ExtendAspectRatioEnum = {
+  '9:16': '9:16',
+  '16:9': '16:9',
+} as const
+
+export type InputFalAiLtxVideoV095ExtendAspectRatioEnumKey =
+  (typeof inputFalAiLtxVideoV095ExtendAspectRatioEnum)[keyof typeof inputFalAiLtxVideoV095ExtendAspectRatioEnum]
+
+export const inputFalAiLtxVideoV095ExtendResolutionEnum = {
+  '480p': '480p',
+  '720p': '720p',
+} as const
+
+export type InputFalAiLtxVideoV095ExtendResolutionEnumKey =
+  (typeof inputFalAiLtxVideoV095ExtendResolutionEnum)[keyof typeof inputFalAiLtxVideoV095ExtendResolutionEnum]
+
+export type InputFalAiLtxVideoV095Extend = {
+  /**
+   * @description Authorized callers may set false to request relaxed screening.
+   * @default true
+   * @type boolean | undefined
+   */
+  enable_safety_checker?: boolean
+  /**
+   * @description Text prompt to guide generation
+   * @example Woman walking on a street in Tokyo
+   * @type string
+   */
+  prompt: string
+  /**
+   * @description Aspect ratio of the generated video (16:9 or 9:16).
+   * @default '16:9'
+   * @type string | undefined
+   */
+  aspect_ratio?: InputFalAiLtxVideoV095ExtendAspectRatioEnumKey
+  /**
+   * @description Negative prompt for generation
+   * @default 'worst quality, inconsistent motion, blurry, jittery, distorted'
+   * @type string | undefined
+   */
+  negative_prompt?: string
+  /**
+   * @description Random seed for generation
+   */
+  seed?: number | null
+  /**
+   * @description Resolution of the generated video (480p or 720p).
+   * @default '720p'
+   * @type string | undefined
+   */
+  resolution?: InputFalAiLtxVideoV095ExtendResolutionEnumKey
+  /**
+   * @description Whether to expand the prompt using the model's own capabilities.
+   * @default true
+   * @type boolean | undefined
+   */
+  expand_prompt?: boolean
+  /**
+   * @description Number of inference steps
+   * @minimum 2
+   * @maximum 50
+   * @default 40
+   * @type integer | undefined
+   */
+  num_inference_steps?: number
+  /**
+   * @description Video to be extended.
+   * @example {"video_url":"https://storage.googleapis.com/falserverless/web-examples/wan/t2v.mp4","start_frame_num":24}
+   * @type object
+   */
+  video: VideoConditioningInput74019Fb6
+}
+
+export type File3D8F5A4E = {
+  /**
+   * @description The size of the file in bytes.
+   * @example 4404019
+   */
+  file_size?: number | null
+  /**
+   * @description The mime type of the file.
+   * @example image/png
+   */
+  content_type?: string | null
+  /**
+   * @description The name of the file. It will be auto-generated if not provided.
+   * @example z9RV14K95DvU.png
+   */
+  file_name?: string | null
+  /**
+   * @description The URL where the file can be downloaded from.
+   * @type string
+   */
+  url: string
+}
+
+export type OutputFalAiLtxVideoV095Extend = {
+  /**
+   * @description The generated video file.
+   * @example {"url":"https://storage.googleapis.com/falserverless/example_outputs/ltx-v095_extend.mp4"}
+   * @type object
+   */
+  video: File3D8F5A4E
+  /**
+   * @description The seed used for generation.
+   * @type integer
+   */
+  seed: number
+}
+
+export type VideoConditioningInputDf01852D = {
+  /**
+   * @description URL of video to be extended
+   * @type string
+   */
+  video_url: string
+  /**
+   * @description Frame number of the video from which the conditioning starts. Must be a multiple of 8.
+   * @minimum 0
+   * @maximum 120
+   * @type integer
+   */
+  start_frame_num: number
+}
+
+export type ImageConditioningInput0D73A637 = {
+  /**
+   * @description URL of image to use as conditioning
+   * @type string
+   */
+  image_url: string
+  /**
+   * @description Frame number of the image from which the conditioning starts. Must be a multiple of 8.
+   * @minimum 0
+   * @maximum 120
+   * @type integer
+   */
+  start_frame_num: number
+}
+
+export const inputFalAiLtxVideoV095MulticonditioningAspectRatioEnum = {
+  '9:16': '9:16',
+  '16:9': '16:9',
+} as const
+
+export type InputFalAiLtxVideoV095MulticonditioningAspectRatioEnumKey =
+  (typeof inputFalAiLtxVideoV095MulticonditioningAspectRatioEnum)[keyof typeof inputFalAiLtxVideoV095MulticonditioningAspectRatioEnum]
+
+export const inputFalAiLtxVideoV095MulticonditioningResolutionEnum = {
+  '480p': '480p',
+  '720p': '720p',
+} as const
+
+export type InputFalAiLtxVideoV095MulticonditioningResolutionEnumKey =
+  (typeof inputFalAiLtxVideoV095MulticonditioningResolutionEnum)[keyof typeof inputFalAiLtxVideoV095MulticonditioningResolutionEnum]
+
+export type InputFalAiLtxVideoV095Multiconditioning = {
+  /**
+   * @description Authorized callers may set false to request relaxed screening.
+   * @default true
+   * @type boolean | undefined
+   */
+  enable_safety_checker?: boolean
+  /**
+   * @description Text prompt to guide generation
+   * @example
+   *             A vibrant, abstract composition featuring a person with outstretched arms, rendered in a kaleidoscope of colors against a deep, dark background. The figure is composed of intricate, swirling patterns reminiscent of a mosaic, with hues of orange, yellow, blue, and green that evoke the style of artists such as Wassily Kandinsky or Bridget Riley.
+   *
+   * The camera zooms into the face striking portrait of a man, reimagined through the lens of old-school video-game graphics. The subject's face is rendered in a kaleidoscope of colors, with bold blues and reds set against a vibrant yellow backdrop. His dark hair is pulled back, framing his profile in a dramatic pose
+   *
+   * @type string
+   */
+  prompt: string
+  /**
+   * @description Aspect ratio of the generated video (16:9 or 9:16).
+   * @default '16:9'
+   * @type string | undefined
+   */
+  aspect_ratio?: InputFalAiLtxVideoV095MulticonditioningAspectRatioEnumKey
+  /**
+   * @description Videos to use as conditioning
+   * @default []
+   * @type array | undefined
+   */
+  videos?: VideoConditioningInputDf01852D[]
+  /**
+   * @description Negative prompt for generation
+   * @default 'worst quality, inconsistent motion, blurry, jittery, distorted'
+   * @type string | undefined
+   */
+  negative_prompt?: string
+  /**
+   * @description Random seed for generation
+   */
+  seed?: number | null
+  /**
+   * @description Resolution of the generated video (480p or 720p).
+   * @default '720p'
+   * @type string | undefined
+   */
+  resolution?: InputFalAiLtxVideoV095MulticonditioningResolutionEnumKey
+  /**
+   * @description Number of inference steps
+   * @minimum 2
+   * @maximum 50
+   * @default 40
+   * @type integer | undefined
+   */
+  num_inference_steps?: number
+  /**
+   * @description Whether to expand the prompt using the model's own capabilities.
+   * @default true
+   * @type boolean | undefined
+   */
+  expand_prompt?: boolean
+  /**
+   * @description URL of images to use as conditioning
+   * @default []
+   * @example [{"image_url":"https://storage.googleapis.com/falserverless/model_tests/ltx/NswO1P8sCLzrh1WefqQFK_9a6bdbfa54b944c9a770338159a113fd.jpg","start_frame_num":0},{"image_url":"https://storage.googleapis.com/falserverless/model_tests/ltx/YAPOGvmS2tM_Krdp7q6-d_267c97e017c34f679844a4477dfcec38.jpg","start_frame_num":120}]
+   * @type array | undefined
+   */
+  images?: ImageConditioningInput0D73A637[]
+}
+
+export type File0C1Aafda = {
+  /**
+   * @description The size of the file in bytes.
+   * @example 4404019
+   */
+  file_size?: number | null
+  /**
+   * @description The mime type of the file.
+   * @example image/png
+   */
+  content_type?: string | null
+  /**
+   * @description The name of the file. It will be auto-generated if not provided.
+   * @example z9RV14K95DvU.png
+   */
+  file_name?: string | null
+  /**
+   * @description The URL where the file can be downloaded from.
+   * @type string
+   */
+  url: string
+}
+
+export type OutputFalAiLtxVideoV095Multiconditioning = {
+  /**
+   * @description The generated video file.
+   * @example {"url":"https://storage.googleapis.com/falserverless/gallery/ltx-multicondition.mp4"}
+   * @type object
+   */
+  video: File0C1Aafda
+  /**
+   * @description The seed used for generation.
+   * @type integer
+   */
+  seed: number
 }
 
 export type InputFalAiLtxVideoImageToVideo = {
@@ -44034,6 +58302,730 @@ export type OutputFalAiLtxv13B098DistilledMulticonditioning = {
    * @type string
    */
   prompt: string
+}
+
+export const inputFalAiLumaDreamMachineRay2ResolutionEnum = {
+  '540p': '540p',
+  '720p': '720p',
+  '1080p': '1080p',
+} as const
+
+export type InputFalAiLumaDreamMachineRay2ResolutionEnumKey =
+  (typeof inputFalAiLumaDreamMachineRay2ResolutionEnum)[keyof typeof inputFalAiLumaDreamMachineRay2ResolutionEnum]
+
+export const inputFalAiLumaDreamMachineRay2DurationEnum = {
+  '5s': '5s',
+  '9s': '9s',
+} as const
+
+export type InputFalAiLumaDreamMachineRay2DurationEnumKey =
+  (typeof inputFalAiLumaDreamMachineRay2DurationEnum)[keyof typeof inputFalAiLumaDreamMachineRay2DurationEnum]
+
+export const inputFalAiLumaDreamMachineRay2AspectRatioEnum = {
+  '16:9': '16:9',
+  '9:16': '9:16',
+  '4:3': '4:3',
+  '3:4': '3:4',
+  '21:9': '21:9',
+  '9:21': '9:21',
+} as const
+
+export type InputFalAiLumaDreamMachineRay2AspectRatioEnumKey =
+  (typeof inputFalAiLumaDreamMachineRay2AspectRatioEnum)[keyof typeof inputFalAiLumaDreamMachineRay2AspectRatioEnum]
+
+export type InputFalAiLumaDreamMachineRay2 = {
+  /**
+   * @description The resolution of the generated video (720p costs 2x more, 1080p costs 4x more)
+   * @default '540p'
+   * @type string | undefined
+   */
+  resolution?: InputFalAiLumaDreamMachineRay2ResolutionEnumKey
+  /**
+   * @description The duration of the generated video (9s costs 2x more)
+   * @default '5s'
+   * @type string | undefined
+   */
+  duration?: InputFalAiLumaDreamMachineRay2DurationEnumKey
+  /**
+   * @minLength 3
+   * @maxLength 5000
+   * @example A herd of wild horses galloping across a dusty desert plain under a blazing midday sun, their manes flying in the wind; filmed in a wide tracking shot with dynamic motion, warm natural lighting, and an epic.
+   * @type string
+   */
+  prompt: string
+  /**
+   * @description Whether the video should loop (end of video is blended with the beginning)
+   * @default false
+   * @type boolean | undefined
+   */
+  loop?: boolean
+  /**
+   * @description The aspect ratio of the generated video
+   * @default '16:9'
+   * @type string | undefined
+   */
+  aspect_ratio?: InputFalAiLumaDreamMachineRay2AspectRatioEnumKey
+}
+
+export type File70961E69 = {
+  /**
+   * @description The name of the file. It will be auto-generated if not provided.
+   * @example z9RV14K95DvU.png
+   */
+  file_name?: string | null
+  /**
+   * @description The size of the file in bytes.
+   * @example 4404019
+   */
+  file_size?: number | null
+  /**
+   * @description The mime type of the file.
+   * @example image/png
+   */
+  content_type?: string | null
+  /**
+   * @description The URL where the file can be downloaded from.
+   * @type string
+   */
+  url: string
+}
+
+export type OutputFalAiLumaDreamMachineRay2 = {
+  /**
+   * @description The generated video
+   * @example {"url":"https://v3.fal.media/files/penguin/Om3xjcOwiSCJwrXs7DUi__output.mp4"}
+   * @type object
+   */
+  video: File70961E69
+}
+
+export const inputFalAiLumaDreamMachineRay2FlashResolutionEnum = {
+  '540p': '540p',
+  '720p': '720p',
+  '1080p': '1080p',
+} as const
+
+export type InputFalAiLumaDreamMachineRay2FlashResolutionEnumKey =
+  (typeof inputFalAiLumaDreamMachineRay2FlashResolutionEnum)[keyof typeof inputFalAiLumaDreamMachineRay2FlashResolutionEnum]
+
+export const inputFalAiLumaDreamMachineRay2FlashDurationEnum = {
+  '5s': '5s',
+  '9s': '9s',
+} as const
+
+export type InputFalAiLumaDreamMachineRay2FlashDurationEnumKey =
+  (typeof inputFalAiLumaDreamMachineRay2FlashDurationEnum)[keyof typeof inputFalAiLumaDreamMachineRay2FlashDurationEnum]
+
+export const inputFalAiLumaDreamMachineRay2FlashAspectRatioEnum = {
+  '16:9': '16:9',
+  '9:16': '9:16',
+  '4:3': '4:3',
+  '3:4': '3:4',
+  '21:9': '21:9',
+  '9:21': '9:21',
+} as const
+
+export type InputFalAiLumaDreamMachineRay2FlashAspectRatioEnumKey =
+  (typeof inputFalAiLumaDreamMachineRay2FlashAspectRatioEnum)[keyof typeof inputFalAiLumaDreamMachineRay2FlashAspectRatioEnum]
+
+export type InputFalAiLumaDreamMachineRay2Flash = {
+  /**
+   * @description The resolution of the generated video (720p costs 2x more, 1080p costs 4x more)
+   * @default '540p'
+   * @type string | undefined
+   */
+  resolution?: InputFalAiLumaDreamMachineRay2FlashResolutionEnumKey
+  /**
+   * @description The duration of the generated video (9s costs 2x more)
+   * @default '5s'
+   * @type string | undefined
+   */
+  duration?: InputFalAiLumaDreamMachineRay2FlashDurationEnumKey
+  /**
+   * @minLength 3
+   * @maxLength 5000
+   * @example A herd of wild horses galloping across a dusty desert plain under a blazing midday sun, their manes flying in the wind; filmed in a wide tracking shot with dynamic motion, warm natural lighting, and an epic.
+   * @type string
+   */
+  prompt: string
+  /**
+   * @description Whether the video should loop (end of video is blended with the beginning)
+   * @default false
+   * @type boolean | undefined
+   */
+  loop?: boolean
+  /**
+   * @description The aspect ratio of the generated video
+   * @default '16:9'
+   * @type string | undefined
+   */
+  aspect_ratio?: InputFalAiLumaDreamMachineRay2FlashAspectRatioEnumKey
+}
+
+export type File0D9Af1Ce = {
+  /**
+   * @description The name of the file. It will be auto-generated if not provided.
+   * @example z9RV14K95DvU.png
+   */
+  file_name?: string | null
+  /**
+   * @description The size of the file in bytes.
+   * @example 4404019
+   */
+  file_size?: number | null
+  /**
+   * @description The mime type of the file.
+   * @example image/png
+   */
+  content_type?: string | null
+  /**
+   * @description The URL where the file can be downloaded from.
+   * @type string
+   */
+  url: string
+}
+
+export type OutputFalAiLumaDreamMachineRay2Flash = {
+  /**
+   * @description The generated video
+   * @example {"url":"https://v3.fal.media/files/penguin/Om3xjcOwiSCJwrXs7DUi__output.mp4"}
+   * @type object
+   */
+  video: File0D9Af1Ce
+}
+
+export const inputFalAiLumaDreamMachineRay2FlashImageToVideoResolutionEnum = {
+  '540p': '540p',
+  '720p': '720p',
+  '1080p': '1080p',
+} as const
+
+export type InputFalAiLumaDreamMachineRay2FlashImageToVideoResolutionEnumKey =
+  (typeof inputFalAiLumaDreamMachineRay2FlashImageToVideoResolutionEnum)[keyof typeof inputFalAiLumaDreamMachineRay2FlashImageToVideoResolutionEnum]
+
+export const inputFalAiLumaDreamMachineRay2FlashImageToVideoDurationEnum = {
+  '5s': '5s',
+  '9s': '9s',
+} as const
+
+export type InputFalAiLumaDreamMachineRay2FlashImageToVideoDurationEnumKey =
+  (typeof inputFalAiLumaDreamMachineRay2FlashImageToVideoDurationEnum)[keyof typeof inputFalAiLumaDreamMachineRay2FlashImageToVideoDurationEnum]
+
+export const inputFalAiLumaDreamMachineRay2FlashImageToVideoAspectRatioEnum = {
+  '16:9': '16:9',
+  '9:16': '9:16',
+  '4:3': '4:3',
+  '3:4': '3:4',
+  '21:9': '21:9',
+  '9:21': '9:21',
+} as const
+
+export type InputFalAiLumaDreamMachineRay2FlashImageToVideoAspectRatioEnumKey =
+  (typeof inputFalAiLumaDreamMachineRay2FlashImageToVideoAspectRatioEnum)[keyof typeof inputFalAiLumaDreamMachineRay2FlashImageToVideoAspectRatioEnum]
+
+export type InputFalAiLumaDreamMachineRay2FlashImageToVideo = {
+  /**
+   * @description The resolution of the generated video (720p costs 2x more, 1080p costs 4x more)
+   * @default '540p'
+   * @type string | undefined
+   */
+  resolution?: InputFalAiLumaDreamMachineRay2FlashImageToVideoResolutionEnumKey
+  /**
+   * @description Initial image to start the video from. Can be used together with end_image_url.
+   * @example https://storage.googleapis.com/falserverless/model_tests/wan/dragon-warrior.jpg
+   */
+  image_url?: string | null
+  /**
+   * @minLength 3
+   * @maxLength 5000
+   * @example A stylish woman walks down a Tokyo street filled with warm glowing neon and animated city signage.
+   * @type string
+   */
+  prompt: string
+  /**
+   * @description The duration of the generated video
+   * @default '5s'
+   * @type string | undefined
+   */
+  duration?: InputFalAiLumaDreamMachineRay2FlashImageToVideoDurationEnumKey
+  /**
+   * @description Whether the video should loop (end of video is blended with the beginning)
+   * @default false
+   * @type boolean | undefined
+   */
+  loop?: boolean
+  /**
+   * @description The aspect ratio of the generated video
+   * @default '16:9'
+   * @type string | undefined
+   */
+  aspect_ratio?: InputFalAiLumaDreamMachineRay2FlashImageToVideoAspectRatioEnumKey
+  /**
+   * @description Final image to end the video with. Can be used together with image_url.
+   */
+  end_image_url?: string | null
+}
+
+export type File783Ea666 = {
+  /**
+   * @description The name of the file. It will be auto-generated if not provided.
+   * @example z9RV14K95DvU.png
+   */
+  file_name?: string | null
+  /**
+   * @description The size of the file in bytes.
+   * @example 4404019
+   */
+  file_size?: number | null
+  /**
+   * @description The mime type of the file.
+   * @example image/png
+   */
+  content_type?: string | null
+  /**
+   * @description The URL where the file can be downloaded from.
+   * @type string
+   */
+  url: string
+}
+
+export type OutputFalAiLumaDreamMachineRay2FlashImageToVideo = {
+  /**
+   * @description URL of the generated video
+   * @example {"url":"https://v3.fal.media/files/zebra/9aDde3Te2kuJYHdR0Kz8R_output.mp4"}
+   * @type object
+   */
+  video: File783Ea666
+}
+
+export const inputFalAiLumaDreamMachineRay2FlashModifyModeEnum = {
+  adhere_1: 'adhere_1',
+  adhere_2: 'adhere_2',
+  adhere_3: 'adhere_3',
+  flex_1: 'flex_1',
+  flex_2: 'flex_2',
+  flex_3: 'flex_3',
+  reimagine_1: 'reimagine_1',
+  reimagine_2: 'reimagine_2',
+  reimagine_3: 'reimagine_3',
+} as const
+
+export type InputFalAiLumaDreamMachineRay2FlashModifyModeEnumKey =
+  (typeof inputFalAiLumaDreamMachineRay2FlashModifyModeEnum)[keyof typeof inputFalAiLumaDreamMachineRay2FlashModifyModeEnum]
+
+export type InputFalAiLumaDreamMachineRay2FlashModify = {
+  /**
+   * @description Optional URL of the first frame image for modification
+   * @example https://fal.media/files/koala/Kv2821G03ggpKK2AiZX71_d5fa7bacf06049cfaeb9588f6003b6d5.jpg
+   */
+  image_url?: string | null
+  /**
+   * @description Amount of modification to apply to the video, adhere_1 is the least amount of modification, reimagine_3 is the most
+   * @default 'flex_1'
+   * @type string | undefined
+   */
+  mode?: InputFalAiLumaDreamMachineRay2FlashModifyModeEnumKey
+  /**
+   * @description Instruction for modifying the video
+   */
+  prompt?: string | null
+  /**
+   * @description URL of the input video to modify
+   * @example https://v3.fal.media/files/zebra/9aDde3Te2kuJYHdR0Kz8R_output.mp4
+   * @type string
+   */
+  video_url: string
+}
+
+export type File63Fb943B = {
+  /**
+   * @description The name of the file. It will be auto-generated if not provided.
+   * @example z9RV14K95DvU.png
+   */
+  file_name?: string | null
+  /**
+   * @description The size of the file in bytes.
+   * @example 4404019
+   */
+  file_size?: number | null
+  /**
+   * @description The mime type of the file.
+   * @example image/png
+   */
+  content_type?: string | null
+  /**
+   * @description The URL where the file can be downloaded from.
+   * @type string
+   */
+  url: string
+}
+
+export type OutputFalAiLumaDreamMachineRay2FlashModify = {
+  /**
+   * @description URL of the modified video
+   * @example {"url":"https://v3.fal.media/files/lion/_2UO2QC26T_R8vKeVGAdX_output.mp4"}
+   * @type object
+   */
+  video: File63Fb943B
+}
+
+export const inputFalAiLumaDreamMachineRay2FlashReframeAspectRatioEnum = {
+  '1:1': '1:1',
+  '16:9': '16:9',
+  '9:16': '9:16',
+  '4:3': '4:3',
+  '3:4': '3:4',
+  '21:9': '21:9',
+  '9:21': '9:21',
+} as const
+
+export type InputFalAiLumaDreamMachineRay2FlashReframeAspectRatioEnumKey =
+  (typeof inputFalAiLumaDreamMachineRay2FlashReframeAspectRatioEnum)[keyof typeof inputFalAiLumaDreamMachineRay2FlashReframeAspectRatioEnum]
+
+export type InputFalAiLumaDreamMachineRay2FlashReframe = {
+  /**
+   * @description End Y coordinate for reframing
+   */
+  y_end?: number | null
+  /**
+   * @description Start X coordinate for reframing
+   */
+  x_start?: number | null
+  /**
+   * @description End X coordinate for reframing
+   */
+  x_end?: number | null
+  /**
+   * @description Optional URL of the first frame image for reframing
+   */
+  image_url?: string | null
+  /**
+   * @description Optional prompt for reframing
+   */
+  prompt?: string | null
+  /**
+   * @description Start Y coordinate for reframing
+   */
+  y_start?: number | null
+  /**
+   * @description The aspect ratio of the reframed video
+   * @example 9:16
+   * @type string
+   */
+  aspect_ratio: InputFalAiLumaDreamMachineRay2FlashReframeAspectRatioEnumKey
+  /**
+   * @description URL of the input video to reframe
+   * @example https://v3.fal.media/files/zebra/9aDde3Te2kuJYHdR0Kz8R_output.mp4
+   * @type string
+   */
+  video_url: string
+  /**
+   * @description Y position of the grid for reframing
+   */
+  grid_position_y?: number | null
+  /**
+   * @description X position of the grid for reframing
+   */
+  grid_position_x?: number | null
+}
+
+export type File3417746F = {
+  /**
+   * @description The name of the file. It will be auto-generated if not provided.
+   * @example z9RV14K95DvU.png
+   */
+  file_name?: string | null
+  /**
+   * @description The size of the file in bytes.
+   * @example 4404019
+   */
+  file_size?: number | null
+  /**
+   * @description The mime type of the file.
+   * @example image/png
+   */
+  content_type?: string | null
+  /**
+   * @description The URL where the file can be downloaded from.
+   * @type string
+   */
+  url: string
+}
+
+export type OutputFalAiLumaDreamMachineRay2FlashReframe = {
+  /**
+   * @description URL of the reframed video
+   * @example {"url":"https://v3.fal.media/files/lion/L9nkXSW1MCj2oDimeJ4w5_output.mp4"}
+   * @type object
+   */
+  video: File3417746F
+}
+
+export const inputFalAiLumaDreamMachineRay2ImageToVideoResolutionEnum = {
+  '540p': '540p',
+  '720p': '720p',
+  '1080p': '1080p',
+} as const
+
+export type InputFalAiLumaDreamMachineRay2ImageToVideoResolutionEnumKey =
+  (typeof inputFalAiLumaDreamMachineRay2ImageToVideoResolutionEnum)[keyof typeof inputFalAiLumaDreamMachineRay2ImageToVideoResolutionEnum]
+
+export const inputFalAiLumaDreamMachineRay2ImageToVideoDurationEnum = {
+  '5s': '5s',
+  '9s': '9s',
+} as const
+
+export type InputFalAiLumaDreamMachineRay2ImageToVideoDurationEnumKey =
+  (typeof inputFalAiLumaDreamMachineRay2ImageToVideoDurationEnum)[keyof typeof inputFalAiLumaDreamMachineRay2ImageToVideoDurationEnum]
+
+export const inputFalAiLumaDreamMachineRay2ImageToVideoAspectRatioEnum = {
+  '16:9': '16:9',
+  '9:16': '9:16',
+  '4:3': '4:3',
+  '3:4': '3:4',
+  '21:9': '21:9',
+  '9:21': '9:21',
+} as const
+
+export type InputFalAiLumaDreamMachineRay2ImageToVideoAspectRatioEnumKey =
+  (typeof inputFalAiLumaDreamMachineRay2ImageToVideoAspectRatioEnum)[keyof typeof inputFalAiLumaDreamMachineRay2ImageToVideoAspectRatioEnum]
+
+export type InputFalAiLumaDreamMachineRay2ImageToVideo = {
+  /**
+   * @description The resolution of the generated video (720p costs 2x more, 1080p costs 4x more)
+   * @default '540p'
+   * @type string | undefined
+   */
+  resolution?: InputFalAiLumaDreamMachineRay2ImageToVideoResolutionEnumKey
+  /**
+   * @description Initial image to start the video from. Can be used together with end_image_url.
+   * @example https://storage.googleapis.com/falserverless/model_tests/wan/dragon-warrior.jpg
+   */
+  image_url?: string | null
+  /**
+   * @minLength 3
+   * @maxLength 5000
+   * @example A stylish woman walks down a Tokyo street filled with warm glowing neon and animated city signage.
+   * @type string
+   */
+  prompt: string
+  /**
+   * @description The duration of the generated video
+   * @default '5s'
+   * @type string | undefined
+   */
+  duration?: InputFalAiLumaDreamMachineRay2ImageToVideoDurationEnumKey
+  /**
+   * @description Whether the video should loop (end of video is blended with the beginning)
+   * @default false
+   * @type boolean | undefined
+   */
+  loop?: boolean
+  /**
+   * @description The aspect ratio of the generated video
+   * @default '16:9'
+   * @type string | undefined
+   */
+  aspect_ratio?: InputFalAiLumaDreamMachineRay2ImageToVideoAspectRatioEnumKey
+  /**
+   * @description Final image to end the video with. Can be used together with image_url.
+   */
+  end_image_url?: string | null
+}
+
+export type FileD06A5C03 = {
+  /**
+   * @description The name of the file. It will be auto-generated if not provided.
+   * @example z9RV14K95DvU.png
+   */
+  file_name?: string | null
+  /**
+   * @description The size of the file in bytes.
+   * @example 4404019
+   */
+  file_size?: number | null
+  /**
+   * @description The mime type of the file.
+   * @example image/png
+   */
+  content_type?: string | null
+  /**
+   * @description The URL where the file can be downloaded from.
+   * @type string
+   */
+  url: string
+}
+
+export type OutputFalAiLumaDreamMachineRay2ImageToVideo = {
+  /**
+   * @description URL of the generated video
+   * @example {"url":"https://v3.fal.media/files/zebra/9aDde3Te2kuJYHdR0Kz8R_output.mp4"}
+   * @type object
+   */
+  video: FileD06A5C03
+}
+
+export const inputFalAiLumaDreamMachineRay2ModifyModeEnum = {
+  adhere_1: 'adhere_1',
+  adhere_2: 'adhere_2',
+  adhere_3: 'adhere_3',
+  flex_1: 'flex_1',
+  flex_2: 'flex_2',
+  flex_3: 'flex_3',
+  reimagine_1: 'reimagine_1',
+  reimagine_2: 'reimagine_2',
+  reimagine_3: 'reimagine_3',
+} as const
+
+export type InputFalAiLumaDreamMachineRay2ModifyModeEnumKey =
+  (typeof inputFalAiLumaDreamMachineRay2ModifyModeEnum)[keyof typeof inputFalAiLumaDreamMachineRay2ModifyModeEnum]
+
+export type InputFalAiLumaDreamMachineRay2Modify = {
+  /**
+   * @description Optional URL of the first frame image for modification
+   * @example https://fal.media/files/koala/Kv2821G03ggpKK2AiZX71_d5fa7bacf06049cfaeb9588f6003b6d5.jpg
+   */
+  image_url?: string | null
+  /**
+   * @description Amount of modification to apply to the video, adhere_1 is the least amount of modification, reimagine_3 is the most
+   * @default 'flex_1'
+   * @type string | undefined
+   */
+  mode?: InputFalAiLumaDreamMachineRay2ModifyModeEnumKey
+  /**
+   * @description Instruction for modifying the video
+   */
+  prompt?: string | null
+  /**
+   * @description URL of the input video to modify
+   * @example https://v3.fal.media/files/zebra/9aDde3Te2kuJYHdR0Kz8R_output.mp4
+   * @type string
+   */
+  video_url: string
+}
+
+export type FileF31D88Ea = {
+  /**
+   * @description The name of the file. It will be auto-generated if not provided.
+   * @example z9RV14K95DvU.png
+   */
+  file_name?: string | null
+  /**
+   * @description The size of the file in bytes.
+   * @example 4404019
+   */
+  file_size?: number | null
+  /**
+   * @description The mime type of the file.
+   * @example image/png
+   */
+  content_type?: string | null
+  /**
+   * @description The URL where the file can be downloaded from.
+   * @type string
+   */
+  url: string
+}
+
+export type OutputFalAiLumaDreamMachineRay2Modify = {
+  /**
+   * @description URL of the modified video
+   * @example {"url":"https://v3.fal.media/files/lion/_2UO2QC26T_R8vKeVGAdX_output.mp4"}
+   * @type object
+   */
+  video: FileF31D88Ea
+}
+
+export const inputFalAiLumaDreamMachineRay2ReframeAspectRatioEnum = {
+  '1:1': '1:1',
+  '16:9': '16:9',
+  '9:16': '9:16',
+  '4:3': '4:3',
+  '3:4': '3:4',
+  '21:9': '21:9',
+  '9:21': '9:21',
+} as const
+
+export type InputFalAiLumaDreamMachineRay2ReframeAspectRatioEnumKey =
+  (typeof inputFalAiLumaDreamMachineRay2ReframeAspectRatioEnum)[keyof typeof inputFalAiLumaDreamMachineRay2ReframeAspectRatioEnum]
+
+export type InputFalAiLumaDreamMachineRay2Reframe = {
+  /**
+   * @description End Y coordinate for reframing
+   */
+  y_end?: number | null
+  /**
+   * @description Start X coordinate for reframing
+   */
+  x_start?: number | null
+  /**
+   * @description End X coordinate for reframing
+   */
+  x_end?: number | null
+  /**
+   * @description Optional URL of the first frame image for reframing
+   */
+  image_url?: string | null
+  /**
+   * @description Optional prompt for reframing
+   */
+  prompt?: string | null
+  /**
+   * @description Start Y coordinate for reframing
+   */
+  y_start?: number | null
+  /**
+   * @description The aspect ratio of the reframed video
+   * @example 9:16
+   * @type string
+   */
+  aspect_ratio: InputFalAiLumaDreamMachineRay2ReframeAspectRatioEnumKey
+  /**
+   * @description URL of the input video to reframe
+   * @example https://v3.fal.media/files/zebra/9aDde3Te2kuJYHdR0Kz8R_output.mp4
+   * @type string
+   */
+  video_url: string
+  /**
+   * @description Y position of the grid for reframing
+   */
+  grid_position_y?: number | null
+  /**
+   * @description X position of the grid for reframing
+   */
+  grid_position_x?: number | null
+}
+
+export type File9F8A75F0 = {
+  /**
+   * @description The name of the file. It will be auto-generated if not provided.
+   * @example z9RV14K95DvU.png
+   */
+  file_name?: string | null
+  /**
+   * @description The size of the file in bytes.
+   * @example 4404019
+   */
+  file_size?: number | null
+  /**
+   * @description The mime type of the file.
+   * @example image/png
+   */
+  content_type?: string | null
+  /**
+   * @description The URL where the file can be downloaded from.
+   * @type string
+   */
+  url: string
+}
+
+export type OutputFalAiLumaDreamMachineRay2Reframe = {
+  /**
+   * @description URL of the reframed video
+   * @example {"url":"https://v3.fal.media/files/lion/L9nkXSW1MCj2oDimeJ4w5_output.mp4"}
+   * @type object
+   */
+  video: File9F8A75F0
 }
 
 export const inputFalAiMagiDistilledAspectRatioEnum = {
@@ -45971,6 +60963,52 @@ export type OutputFalAiMotionToCodeGsap = {
   video: VideoFile11A6740F
 }
 
+export type InputFalAiMusetalk = {
+  /**
+   * @description URL of the audio
+   * @example https://raw.githubusercontent.com/TMElyralab/MuseTalk/main/data/audio/sun.wav
+   * @type string
+   */
+  audio_url: string
+  /**
+   * @description URL of the source video
+   * @example https://raw.githubusercontent.com/TMElyralab/MuseTalk/main/data/video/sun.mp4
+   * @type string
+   */
+  source_video_url: string
+}
+
+export type File2651D122 = {
+  /**
+   * @description The name of the file. It will be auto-generated if not provided.
+   * @example z9RV14K95DvU.png
+   */
+  file_name?: string | null
+  /**
+   * @description The size of the file in bytes.
+   * @example 4404019
+   */
+  file_size?: number | null
+  /**
+   * @description The mime type of the file.
+   * @example image/png
+   */
+  content_type?: string | null
+  /**
+   * @description The URL where the file can be downloaded from.
+   * @type string
+   */
+  url: string
+}
+
+export type OutputFalAiMusetalk = {
+  /**
+   * @description The generated video file.
+   * @type object
+   */
+  video: File2651D122
+}
+
 export const inputFalAiOneToAllAnimation13BResolutionEnum = {
   '480p': '480p',
   '580p': '580p',
@@ -46352,6 +61390,943 @@ export type OutputFalAiOviImageToVideo = {
    * @type integer
    */
   seed: number
+}
+
+export const inputFalAiPikaV15PikaffectsPikaffectEnum = {
+  'Cake-ify': 'Cake-ify',
+  Crumble: 'Crumble',
+  Crush: 'Crush',
+  Decapitate: 'Decapitate',
+  Deflate: 'Deflate',
+  Dissolve: 'Dissolve',
+  Explode: 'Explode',
+  'Eye-pop': 'Eye-pop',
+  Inflate: 'Inflate',
+  Levitate: 'Levitate',
+  Melt: 'Melt',
+  Peel: 'Peel',
+  Poke: 'Poke',
+  Squish: 'Squish',
+  'Ta-da': 'Ta-da',
+  Tear: 'Tear',
+} as const
+
+export type InputFalAiPikaV15PikaffectsPikaffectEnumKey =
+  (typeof inputFalAiPikaV15PikaffectsPikaffectEnum)[keyof typeof inputFalAiPikaV15PikaffectsPikaffectEnum]
+
+/**
+ * @description Request model for Pikaffects endpoint
+ * @type object
+ */
+export type InputFalAiPikaV15Pikaffects = {
+  /**
+   * @description URL of the input image
+   * @example https://storage.googleapis.com/falserverless/example_inputs/pika/pika_effects/cake.png
+   * @type string
+   */
+  image_url: string
+  /**
+   * @description Negative prompt to guide the model
+   */
+  negative_prompt?: string | null
+  /**
+   * @description The Pikaffect to apply
+   * @example Cake-ify
+   * @type string
+   */
+  pikaffect: InputFalAiPikaV15PikaffectsPikaffectEnumKey
+  /**
+   * @description The seed for the random number generator
+   */
+  seed?: number | null
+  /**
+   * @description Text prompt to guide the effect
+   * @example Cake-ify it
+   */
+  prompt?: string | null
+}
+
+export type File825Ac535 = {
+  /**
+   * @description The name of the file. It will be auto-generated if not provided.
+   * @example z9RV14K95DvU.png
+   */
+  file_name?: string | null
+  /**
+   * @description The URL where the file can be downloaded from.
+   * @type string
+   */
+  url: string
+  /**
+   * @description The mime type of the file.
+   * @example image/png
+   */
+  content_type?: string | null
+  /**
+   * @description The size of the file in bytes.
+   * @example 4404019
+   */
+  file_size?: number | null
+}
+
+/**
+ * @description Output from Pikaffects generation
+ * @type object
+ */
+export type OutputFalAiPikaV15Pikaffects = {
+  /**
+   * @description The generated video with applied effect
+   * @example {"url":"https://storage.googleapis.com/falserverless/example_outputs/pika/pika_effects/cake.mp4"}
+   * @type object
+   */
+  video: File825Ac535
+}
+
+export const inputFalAiPikaV21ImageToVideoResolutionEnum = {
+  '720p': '720p',
+  '1080p': '1080p',
+} as const
+
+export type InputFalAiPikaV21ImageToVideoResolutionEnumKey =
+  (typeof inputFalAiPikaV21ImageToVideoResolutionEnum)[keyof typeof inputFalAiPikaV21ImageToVideoResolutionEnum]
+
+export type InputFalAiPikaV21ImageToVideo = {
+  /**
+   * @example https://storage.googleapis.com/falserverless/example_inputs/pika/pika_i2v_v21_input.png
+   * @type string
+   */
+  image_url: string
+  /**
+   * @description A negative prompt to guide the model
+   * @default ''
+   * @type string | undefined
+   */
+  negative_prompt?: string
+  /**
+   * @description The duration of the generated video in seconds
+   * @default 5
+   * @type integer | undefined
+   */
+  duration?: number
+  /**
+   * @description The resolution of the generated video
+   * @default '720p'
+   * @type string | undefined
+   */
+  resolution?: InputFalAiPikaV21ImageToVideoResolutionEnumKey
+  /**
+   * @description The seed for the random number generator
+   */
+  seed?: number | null
+  /**
+   * @example The flower blossoms into a vibrant pink lily. The lily's wide-open petals are lavishly adorned with sparkling glitter and an array of tiny, iridescent, multicolored gem-like stickers in shapes like stars, moons, and dolphins, catching the light playfully as a developing bud rises from the top of the main bloom.
+   * @type string
+   */
+  prompt: string
+}
+
+export type File851A5297 = {
+  /**
+   * @description The name of the file. It will be auto-generated if not provided.
+   * @example z9RV14K95DvU.png
+   */
+  file_name?: string | null
+  /**
+   * @description The URL where the file can be downloaded from.
+   * @type string
+   */
+  url: string
+  /**
+   * @description The mime type of the file.
+   * @example image/png
+   */
+  content_type?: string | null
+  /**
+   * @description The size of the file in bytes.
+   * @example 4404019
+   */
+  file_size?: number | null
+}
+
+export type OutputFalAiPikaV21ImageToVideo = {
+  /**
+   * @description The generated video
+   * @example {"url":"https://storage.googleapis.com/falserverless/example_outputs/pika/pika_i2v_v21_output.mp4"}
+   * @type object
+   */
+  video: File851A5297
+}
+
+export const inputFalAiPikaV21TextToVideoAspectRatioEnum = {
+  '16:9': '16:9',
+  '9:16': '9:16',
+  '1:1': '1:1',
+  '4:5': '4:5',
+  '5:4': '5:4',
+  '3:2': '3:2',
+  '2:3': '2:3',
+} as const
+
+export type InputFalAiPikaV21TextToVideoAspectRatioEnumKey =
+  (typeof inputFalAiPikaV21TextToVideoAspectRatioEnum)[keyof typeof inputFalAiPikaV21TextToVideoAspectRatioEnum]
+
+export const inputFalAiPikaV21TextToVideoResolutionEnum = {
+  '720p': '720p',
+  '1080p': '1080p',
+} as const
+
+export type InputFalAiPikaV21TextToVideoResolutionEnumKey =
+  (typeof inputFalAiPikaV21TextToVideoResolutionEnum)[keyof typeof inputFalAiPikaV21TextToVideoResolutionEnum]
+
+export type InputFalAiPikaV21TextToVideo = {
+  /**
+   * @description The duration of the generated video in seconds
+   * @default 5
+   * @type integer | undefined
+   */
+  duration?: number
+  /**
+   * @description Authorized callers may set false to request relaxed screening.
+   * @default true
+   * @type boolean | undefined
+   */
+  enable_safety_checker?: boolean
+  /**
+   * @description The seed for the random number generator
+   */
+  seed?: number | null
+  /**
+   * @description The aspect ratio of the generated video
+   * @default '16:9'
+   * @type string | undefined
+   */
+  aspect_ratio?: InputFalAiPikaV21TextToVideoAspectRatioEnumKey
+  /**
+   * @description The resolution of the generated video
+   * @default '720p'
+   * @type string | undefined
+   */
+  resolution?: InputFalAiPikaV21TextToVideoResolutionEnumKey
+  /**
+   * @example A woman styled in a high-fashion brand editorial. the woman stands confidently in a whimsical outdoor setting against a soft, cloudy sky. She wears a bright yellow luxury brand monogram jacket over a crisp striped shirt, paired with flowing pink trousers, accessorized with oversized sunglasses, a golden chain necklace, and a bold luxury brand belt. Delicate flowers in the foreground add a dreamy and artistic touch, evoking a retro yet luxurious high fashion campaign aesthetic. the camera crane up from the flowers to the woman
+   * @type string
+   */
+  prompt: string
+  /**
+   * @description A negative prompt to guide the model
+   * @default ''
+   * @type string | undefined
+   */
+  negative_prompt?: string
+}
+
+export type File7C655283 = {
+  /**
+   * @description The name of the file. It will be auto-generated if not provided.
+   * @example z9RV14K95DvU.png
+   */
+  file_name?: string | null
+  /**
+   * @description The URL where the file can be downloaded from.
+   * @type string
+   */
+  url: string
+  /**
+   * @description The mime type of the file.
+   * @example image/png
+   */
+  content_type?: string | null
+  /**
+   * @description The size of the file in bytes.
+   * @example 4404019
+   */
+  file_size?: number | null
+}
+
+export type OutputFalAiPikaV21TextToVideo = {
+  /**
+   * @description The generated video
+   * @example {"url":"https://storage.googleapis.com/falserverless/example_outputs/pika/pika_t2v_v21_output.mp4"}
+   * @type object
+   */
+  video: File7C655283
+}
+
+export const inputFalAiPikaV22ImageToVideoDurationEnum = {
+  '5': 5,
+  '10': 10,
+} as const
+
+export type InputFalAiPikaV22ImageToVideoDurationEnumKey =
+  (typeof inputFalAiPikaV22ImageToVideoDurationEnum)[keyof typeof inputFalAiPikaV22ImageToVideoDurationEnum]
+
+export const inputFalAiPikaV22ImageToVideoResolutionEnum = {
+  '720p': '720p',
+  '1080p': '1080p',
+} as const
+
+export type InputFalAiPikaV22ImageToVideoResolutionEnumKey =
+  (typeof inputFalAiPikaV22ImageToVideoResolutionEnum)[keyof typeof inputFalAiPikaV22ImageToVideoResolutionEnum]
+
+/**
+ * @description Request model for Pika 2.2 image-to-video generation
+ * @type object
+ */
+export type InputFalAiPikaV22ImageToVideo = {
+  /**
+   * @description URL of the image to use as the first frame
+   * @example https://storage.googleapis.com/falserverless/example_inputs/pika/pika_i2v_v22_input.png
+   * @type string
+   */
+  image_url: string
+  /**
+   * @description A negative prompt to guide the model
+   * @default ''
+   * @type string | undefined
+   */
+  negative_prompt?: string
+  /**
+   * @description The duration of the generated video in seconds
+   * @default 5
+   * @type number | undefined
+   */
+  duration?: InputFalAiPikaV22ImageToVideoDurationEnumKey
+  /**
+   * @description The resolution of the generated video
+   * @default '720p'
+   * @example 1080p
+   * @example 720p
+   * @type string | undefined
+   */
+  resolution?: InputFalAiPikaV22ImageToVideoResolutionEnumKey
+  /**
+   * @description The seed for the random number generator
+   */
+  seed?: number | null
+  /**
+   * @example The man and the horse are slowly walking towards the camera, the camera orbits and dolly out
+   * @type string
+   */
+  prompt: string
+}
+
+export type FileC04Ce828 = {
+  /**
+   * @description The name of the file. It will be auto-generated if not provided.
+   * @example z9RV14K95DvU.png
+   */
+  file_name?: string | null
+  /**
+   * @description The URL where the file can be downloaded from.
+   * @type string
+   */
+  url: string
+  /**
+   * @description The mime type of the file.
+   * @example image/png
+   */
+  content_type?: string | null
+  /**
+   * @description The size of the file in bytes.
+   * @example 4404019
+   */
+  file_size?: number | null
+}
+
+/**
+ * @description Output model for Pika 2.2 image-to-video generation
+ * @type object
+ */
+export type OutputFalAiPikaV22ImageToVideo = {
+  /**
+   * @description The generated video
+   * @example {"url":"https://storage.googleapis.com/falserverless/example_outputs/pika/pika_i2v_v22_output.mp4"}
+   * @type object
+   */
+  video: FileC04Ce828
+}
+
+/**
+ * @description Configuration for a transition between two keyframes
+ * @type object
+ */
+export type KeyframeTransition = {
+  /**
+   * @description Duration of this transition in seconds
+   * @minimum 1
+   * @maximum 25
+   * @default 5
+   * @type integer | undefined
+   */
+  duration?: number
+  /**
+   * @description Specific prompt for this transition. Overrides the global prompt if provided.
+   * @example null
+   */
+  prompt?: string | null
+}
+
+export const inputFalAiPikaV22PikaframesResolutionEnum = {
+  '720p': '720p',
+  '1080p': '1080p',
+} as const
+
+export type InputFalAiPikaV22PikaframesResolutionEnumKey =
+  (typeof inputFalAiPikaV22PikaframesResolutionEnum)[keyof typeof inputFalAiPikaV22PikaframesResolutionEnum]
+
+export type InputFalAiPikaV22Pikaframes = {
+  /**
+   * @description The resolution of the generated video
+   * @default '720p'
+   * @example 1080p
+   * @example 720p
+   * @type string | undefined
+   */
+  resolution?: InputFalAiPikaV22PikaframesResolutionEnumKey
+  /**
+   * @description A negative prompt to guide the model
+   * @default ''
+   * @type string | undefined
+   */
+  negative_prompt?: string
+  /**
+   * @description Configuration for each transition. Length must be len(image_urls) - 1. Total duration of all transitions must not exceed 25 seconds. If not provided, uses default 5-second transitions with the global prompt.
+   * @type array | undefined
+   */
+  transitions?: KeyframeTransition[]
+  /**
+   * @description URLs of keyframe images (2-5 images) to create transitions between
+   * @example ["https://v3b.fal.media/files/b/tiger/-YohU0xcPcWe_eiUB9_i6_keyframes-apple-start.png","https://v3b.fal.media/files/b/tiger/LarvwQGEFqEmF8fkgDB8R_keyframes-apple-end.png"]
+   * @type array
+   */
+  image_urls: string[]
+  /**
+   * @description The seed for the random number generator
+   */
+  seed?: number | null
+  /**
+   * @description Default prompt for all transitions. Individual transition prompts override this.
+   * @example smooth cinematic transition
+   * @example seamless blend between scenes
+   */
+  prompt?: string | null
+}
+
+export type File37C5Dbce = {
+  /**
+   * @description The name of the file. It will be auto-generated if not provided.
+   * @example z9RV14K95DvU.png
+   */
+  file_name?: string | null
+  /**
+   * @description The URL where the file can be downloaded from.
+   * @type string
+   */
+  url: string
+  /**
+   * @description The mime type of the file.
+   * @example image/png
+   */
+  content_type?: string | null
+  /**
+   * @description The size of the file in bytes.
+   * @example 4404019
+   */
+  file_size?: number | null
+}
+
+/**
+ * @description Output model for Pika 2.2 keyframes-to-video generation
+ * @type object
+ */
+export type OutputFalAiPikaV22Pikaframes = {
+  /**
+   * @description The generated video with transitions between keyframes
+   * @example {"file_name":"tmpjfwlno11.mp4","url":"https://v3b.fal.media/files/b/lion/0KxHFdw-mp0OzGsLrQLIy_tmpjfwlno11.mp4","content_type":"video/mp4","file_size":1583228}
+   * @type object
+   */
+  video: File37C5Dbce
+}
+
+export const inputFalAiPikaV22PikascenesIngredientsModeEnum = {
+  precise: 'precise',
+  creative: 'creative',
+} as const
+
+export type InputFalAiPikaV22PikascenesIngredientsModeEnumKey =
+  (typeof inputFalAiPikaV22PikascenesIngredientsModeEnum)[keyof typeof inputFalAiPikaV22PikascenesIngredientsModeEnum]
+
+export const inputFalAiPikaV22PikascenesAspectRatioEnum = {
+  '16:9': '16:9',
+  '9:16': '9:16',
+  '1:1': '1:1',
+  '4:5': '4:5',
+  '5:4': '5:4',
+  '3:2': '3:2',
+  '2:3': '2:3',
+} as const
+
+export type InputFalAiPikaV22PikascenesAspectRatioEnumKey =
+  (typeof inputFalAiPikaV22PikascenesAspectRatioEnum)[keyof typeof inputFalAiPikaV22PikascenesAspectRatioEnum]
+
+export const inputFalAiPikaV22PikascenesResolutionEnum = {
+  '720p': '720p',
+  '1080p': '1080p',
+} as const
+
+export type InputFalAiPikaV22PikascenesResolutionEnumKey =
+  (typeof inputFalAiPikaV22PikascenesResolutionEnum)[keyof typeof inputFalAiPikaV22PikascenesResolutionEnum]
+
+export const inputFalAiPikaV22PikascenesDurationEnum = {
+  '5': 5,
+  '10': 10,
+} as const
+
+export type InputFalAiPikaV22PikascenesDurationEnumKey =
+  (typeof inputFalAiPikaV22PikascenesDurationEnum)[keyof typeof inputFalAiPikaV22PikascenesDurationEnum]
+
+/**
+ * @description Request model for Pika 2.2 Pikascenes (collection-to-video) generation
+ * @type object
+ */
+export type InputFalAiPikaV22Pikascenes = {
+  /**
+   * @description Text prompt describing the desired video
+   * @example The gorilla is wearing the coat and sitting in the living room, cinematic scene, camera orbit and dolly out
+   * @type string
+   */
+  prompt: string
+  /**
+   * @description A negative prompt to guide the model
+   * @default 'ugly, bad, terrible'
+   * @type string | undefined
+   */
+  negative_prompt?: string
+  /**
+   * @description Mode for integrating multiple images. Precise mode is more accurate, creative mode is more creative.
+   * @default 'precise'
+   * @type string | undefined
+   */
+  ingredients_mode?: InputFalAiPikaV22PikascenesIngredientsModeEnumKey
+  /**
+   * @description URLs of images to combine into a video
+   * @example ["https://storage.googleapis.com/falserverless/example_inputs/pika/pika_scenes/a.png","https://storage.googleapis.com/falserverless/example_inputs/pika/pika_scenes/b.png","https://storage.googleapis.com/falserverless/example_inputs/pika/pika_scenes/c.png"]
+   * @type array
+   */
+  image_urls: string[]
+  /**
+   * @description The aspect ratio of the generated video
+   * @default '16:9'
+   * @type string | undefined
+   */
+  aspect_ratio?: InputFalAiPikaV22PikascenesAspectRatioEnumKey
+  /**
+   * @description The resolution of the generated video
+   * @default '1080p'
+   * @example 1080p
+   * @example 720p
+   * @type string | undefined
+   */
+  resolution?: InputFalAiPikaV22PikascenesResolutionEnumKey
+  /**
+   * @description The seed for the random number generator
+   */
+  seed?: number | null
+  /**
+   * @description The duration of the generated video in seconds
+   * @default 5
+   * @example 5
+   * @example 10
+   * @type number | undefined
+   */
+  duration?: InputFalAiPikaV22PikascenesDurationEnumKey
+}
+
+export type FileD0A3Acf1 = {
+  /**
+   * @description The name of the file. It will be auto-generated if not provided.
+   * @example z9RV14K95DvU.png
+   */
+  file_name?: string | null
+  /**
+   * @description The URL where the file can be downloaded from.
+   * @type string
+   */
+  url: string
+  /**
+   * @description The mime type of the file.
+   * @example image/png
+   */
+  content_type?: string | null
+  /**
+   * @description The size of the file in bytes.
+   * @example 4404019
+   */
+  file_size?: number | null
+}
+
+/**
+ * @description Output model for Pika 2.2 Pikascenes generation
+ * @type object
+ */
+export type OutputFalAiPikaV22Pikascenes = {
+  /**
+   * @description The generated video combining multiple images
+   * @example {"url":"https://storage.googleapis.com/falserverless/example_outputs/pika/pika_scenes/output.mp4"}
+   * @type object
+   */
+  video: FileD0A3Acf1
+}
+
+export const inputFalAiPikaV22TextToVideoDurationEnum = {
+  '5': 5,
+  '10': 10,
+} as const
+
+export type InputFalAiPikaV22TextToVideoDurationEnumKey =
+  (typeof inputFalAiPikaV22TextToVideoDurationEnum)[keyof typeof inputFalAiPikaV22TextToVideoDurationEnum]
+
+export const inputFalAiPikaV22TextToVideoAspectRatioEnum = {
+  '16:9': '16:9',
+  '9:16': '9:16',
+  '1:1': '1:1',
+  '4:5': '4:5',
+  '5:4': '5:4',
+  '3:2': '3:2',
+  '2:3': '2:3',
+} as const
+
+export type InputFalAiPikaV22TextToVideoAspectRatioEnumKey =
+  (typeof inputFalAiPikaV22TextToVideoAspectRatioEnum)[keyof typeof inputFalAiPikaV22TextToVideoAspectRatioEnum]
+
+export const inputFalAiPikaV22TextToVideoResolutionEnum = {
+  '1080p': '1080p',
+  '720p': '720p',
+} as const
+
+export type InputFalAiPikaV22TextToVideoResolutionEnumKey =
+  (typeof inputFalAiPikaV22TextToVideoResolutionEnum)[keyof typeof inputFalAiPikaV22TextToVideoResolutionEnum]
+
+/**
+ * @description Request model for Pika 2.2 text-to-video generation
+ * @type object
+ */
+export type InputFalAiPikaV22TextToVideo = {
+  /**
+   * @description The duration of the generated video in seconds
+   * @default 5
+   * @type number | undefined
+   */
+  duration?: InputFalAiPikaV22TextToVideoDurationEnumKey
+  /**
+   * @description Authorized callers may set false to request relaxed screening.
+   * @default true
+   * @type boolean | undefined
+   */
+  enable_safety_checker?: boolean
+  /**
+   * @description The seed for the random number generator
+   */
+  seed?: number | null
+  /**
+   * @description The aspect ratio of the generated video
+   * @default '16:9'
+   * @type string | undefined
+   */
+  aspect_ratio?: InputFalAiPikaV22TextToVideoAspectRatioEnumKey
+  /**
+   * @description The resolution of the generated video
+   * @default '720p'
+   * @example 1080p
+   * @example 720p
+   * @type string | undefined
+   */
+  resolution?: InputFalAiPikaV22TextToVideoResolutionEnumKey
+  /**
+   * @example Large elegant white poodle standing proudly on the deck of a white yacht, wearing oversized glamorous sunglasses and a luxurious silk Gucci-style scarf tied around its neck, layered pearl necklaces draped across its chest, photographed from outside the yacht at a low upward angle, clear blue sky background, strong midday sunlight, washed-out faded tones, slightly overexposed 2000s fashion editorial aesthetic, cinematic analog film texture, playful luxury mood, glossy magazine style, bright harsh light and soft shadows, stylish and extravagant atmosphere. camera slow orbit and dolly in
+   * @type string
+   */
+  prompt: string
+  /**
+   * @description A negative prompt to guide the model
+   * @default 'ugly, bad, terrible'
+   * @type string | undefined
+   */
+  negative_prompt?: string
+}
+
+export type File5B83C286 = {
+  /**
+   * @description The name of the file. It will be auto-generated if not provided.
+   * @example z9RV14K95DvU.png
+   */
+  file_name?: string | null
+  /**
+   * @description The URL where the file can be downloaded from.
+   * @type string
+   */
+  url: string
+  /**
+   * @description The mime type of the file.
+   * @example image/png
+   */
+  content_type?: string | null
+  /**
+   * @description The size of the file in bytes.
+   * @example 4404019
+   */
+  file_size?: number | null
+}
+
+/**
+ * @description Output model for Pika 2.2 text-to-video generation
+ * @type object
+ */
+export type OutputFalAiPikaV22TextToVideo = {
+  /**
+   * @description The generated video
+   * @example {"url":"https://storage.googleapis.com/falserverless/example_outputs/pika/pika_t2v_v22_output.mp4"}
+   * @type object
+   */
+  video: File5B83C286
+}
+
+/**
+ * @description Request model for Pikadditions endpoint
+ * @type object
+ */
+export type InputFalAiPikaV2Pikadditions = {
+  /**
+   * @description URL of the image to add
+   * @example https://fal.media/files/zebra/V3_Kpw_eqbVoOAIpNKb3Z_c0f2425a9d224d8b9b8d9b800612b782.jpg
+   * @type string
+   */
+  image_url: string
+  /**
+   * @description Negative prompt to guide the model
+   */
+  negative_prompt?: string | null
+  /**
+   * @description Text prompt describing what to add
+   * @example A parrot in the shoulder of the person picking up cookies
+   */
+  prompt?: string | null
+  /**
+   * @description The seed for the random number generator
+   */
+  seed?: number | null
+  /**
+   * @description URL of the input video
+   * @example https://v3.fal.media/files/monkey/vXi5n_oq0Qpnbs7Eb2k-b_output.mp4
+   * @type string
+   */
+  video_url: string
+}
+
+export type FileAc8Dba32 = {
+  /**
+   * @description The name of the file. It will be auto-generated if not provided.
+   * @example z9RV14K95DvU.png
+   */
+  file_name?: string | null
+  /**
+   * @description The URL where the file can be downloaded from.
+   * @type string
+   */
+  url: string
+  /**
+   * @description The mime type of the file.
+   * @example image/png
+   */
+  content_type?: string | null
+  /**
+   * @description The size of the file in bytes.
+   * @example 4404019
+   */
+  file_size?: number | null
+}
+
+/**
+ * @description Output from Pikadditions generation
+ * @type object
+ */
+export type OutputFalAiPikaV2Pikadditions = {
+  /**
+   * @description The generated video with added objects/images
+   * @example {"url":"https://v3.fal.media/files/lion/sbM48rVVi7y0yh5EuMtoC_output.mp4"}
+   * @type object
+   */
+  video: FileAc8Dba32
+}
+
+export const inputFalAiPikaV2TurboImageToVideoResolutionEnum = {
+  '720p': '720p',
+  '1080p': '1080p',
+} as const
+
+export type InputFalAiPikaV2TurboImageToVideoResolutionEnumKey =
+  (typeof inputFalAiPikaV2TurboImageToVideoResolutionEnum)[keyof typeof inputFalAiPikaV2TurboImageToVideoResolutionEnum]
+
+export type InputFalAiPikaV2TurboImageToVideo = {
+  /**
+   * @example https://storage.googleapis.com/falserverless/example_inputs/pika/pika_i2v_v2_turbo_input.png
+   * @type string
+   */
+  image_url: string
+  /**
+   * @description A negative prompt to guide the model
+   * @default ''
+   * @type string | undefined
+   */
+  negative_prompt?: string
+  /**
+   * @description The duration of the generated video in seconds
+   * @default 5
+   * @type integer | undefined
+   */
+  duration?: number
+  /**
+   * @description The resolution of the generated video
+   * @default '720p'
+   * @type string | undefined
+   */
+  resolution?: InputFalAiPikaV2TurboImageToVideoResolutionEnumKey
+  /**
+   * @description The seed for the random number generator
+   */
+  seed?: number | null
+  /**
+   * @example Camera slow dolly out
+   * @type string
+   */
+  prompt: string
+}
+
+export type File69B4Ac85 = {
+  /**
+   * @description The name of the file. It will be auto-generated if not provided.
+   * @example z9RV14K95DvU.png
+   */
+  file_name?: string | null
+  /**
+   * @description The URL where the file can be downloaded from.
+   * @type string
+   */
+  url: string
+  /**
+   * @description The mime type of the file.
+   * @example image/png
+   */
+  content_type?: string | null
+  /**
+   * @description The size of the file in bytes.
+   * @example 4404019
+   */
+  file_size?: number | null
+}
+
+export type OutputFalAiPikaV2TurboImageToVideo = {
+  /**
+   * @description The generated video
+   * @example {"url":"https://storage.googleapis.com/falserverless/example_outputs/pika/pika_i2v_v2_turbo_output.mp4"}
+   * @type object
+   */
+  video: File69B4Ac85
+}
+
+export const inputFalAiPikaV2TurboTextToVideoAspectRatioEnum = {
+  '16:9': '16:9',
+  '9:16': '9:16',
+  '1:1': '1:1',
+  '4:5': '4:5',
+  '5:4': '5:4',
+  '3:2': '3:2',
+  '2:3': '2:3',
+} as const
+
+export type InputFalAiPikaV2TurboTextToVideoAspectRatioEnumKey =
+  (typeof inputFalAiPikaV2TurboTextToVideoAspectRatioEnum)[keyof typeof inputFalAiPikaV2TurboTextToVideoAspectRatioEnum]
+
+export const inputFalAiPikaV2TurboTextToVideoResolutionEnum = {
+  '720p': '720p',
+  '1080p': '1080p',
+} as const
+
+export type InputFalAiPikaV2TurboTextToVideoResolutionEnumKey =
+  (typeof inputFalAiPikaV2TurboTextToVideoResolutionEnum)[keyof typeof inputFalAiPikaV2TurboTextToVideoResolutionEnum]
+
+export type InputFalAiPikaV2TurboTextToVideo = {
+  /**
+   * @description The duration of the generated video in seconds
+   * @default 5
+   * @type integer | undefined
+   */
+  duration?: number
+  /**
+   * @description Authorized callers may set false to request relaxed screening.
+   * @default true
+   * @type boolean | undefined
+   */
+  enable_safety_checker?: boolean
+  /**
+   * @description The seed for the random number generator
+   */
+  seed?: number | null
+  /**
+   * @description The aspect ratio of the generated video
+   * @default '16:9'
+   * @type string | undefined
+   */
+  aspect_ratio?: InputFalAiPikaV2TurboTextToVideoAspectRatioEnumKey
+  /**
+   * @description The resolution of the generated video
+   * @default '720p'
+   * @type string | undefined
+   */
+  resolution?: InputFalAiPikaV2TurboTextToVideoResolutionEnumKey
+  /**
+   * @example A luxurious tea scene where a luxury brand teapot pours tea into an oversized luxury cup. Steam rises, creating an ethereal moment. camera dolly in
+   * @type string
+   */
+  prompt: string
+  /**
+   * @description A negative prompt to guide the model
+   * @default ''
+   * @type string | undefined
+   */
+  negative_prompt?: string
+}
+
+export type File428Baaa1 = {
+  /**
+   * @description The name of the file. It will be auto-generated if not provided.
+   * @example z9RV14K95DvU.png
+   */
+  file_name?: string | null
+  /**
+   * @description The URL where the file can be downloaded from.
+   * @type string
+   */
+  url: string
+  /**
+   * @description The mime type of the file.
+   * @example image/png
+   */
+  content_type?: string | null
+  /**
+   * @description The size of the file in bytes.
+   * @example 4404019
+   */
+  file_size?: number | null
+}
+
+export type OutputFalAiPikaV2TurboTextToVideo = {
+  /**
+   * @description The generated video
+   * @example {"url":"https://storage.googleapis.com/falserverless/example_outputs/pika/pika_t2v_v2_turbo_output.mp4"}
+   * @type object
+   */
+  video: File428Baaa1
 }
 
 export const inputFalAiPixverseC1ImageToVideoResolutionEnum = {
@@ -53487,6 +69462,972 @@ export type OutputFalAiSeedvrUpscaleVideo = {
   seed: number
 }
 
+/**
+ * @description Input for creating a Sora 2 character from a short video clip.
+ * @type object
+ */
+export type InputFalAiSora2Characters = {
+  /**
+   * @description Name for the character (1–80 characters). Refer to this name in prompts when using the character.
+   * @minLength 1
+   * @maxLength 80
+   * @type string
+   */
+  name: string
+  /**
+   * @description URL of an MP4 video (minimum 720p, max ~2.67:1 aspect ratio) to define the character. Videos exceeding 1080p are automatically scaled down. Non-standard aspect ratios are automatically padded to 16:9 (landscape) or 9:16 (portrait). Videos longer than 4 seconds are trimmed to the first 4 seconds.
+   * @minLength 1
+   * @type string
+   */
+  video_url: string
+}
+
+/**
+ * @description Character creation response with API character ID.
+ * @type object
+ */
+export type OutputFalAiSora2Characters = {
+  /**
+   * @description The character name
+   * @type string
+   */
+  name: string
+  /**
+   * @description API character ID (format char_...). Use this in character_ids when generating video.
+   * @example char_123
+   * @type string
+   */
+  id: string
+}
+
+export const inputFalAiSora2ImageToVideoModelEnum = {
+  'sora-2': 'sora-2',
+  'sora-2-2025-12-08': 'sora-2-2025-12-08',
+  'sora-2-2025-10-06': 'sora-2-2025-10-06',
+} as const
+
+export type InputFalAiSora2ImageToVideoModelEnumKey =
+  (typeof inputFalAiSora2ImageToVideoModelEnum)[keyof typeof inputFalAiSora2ImageToVideoModelEnum]
+
+export const inputFalAiSora2ImageToVideoDurationEnum = {
+  '4': 4,
+  '8': 8,
+  '12': 12,
+  '16': 16,
+  '20': 20,
+} as const
+
+export type InputFalAiSora2ImageToVideoDurationEnumKey =
+  (typeof inputFalAiSora2ImageToVideoDurationEnum)[keyof typeof inputFalAiSora2ImageToVideoDurationEnum]
+
+export const inputFalAiSora2ImageToVideoResolutionEnum = {
+  auto: 'auto',
+  '720p': '720p',
+} as const
+
+export type InputFalAiSora2ImageToVideoResolutionEnumKey =
+  (typeof inputFalAiSora2ImageToVideoResolutionEnum)[keyof typeof inputFalAiSora2ImageToVideoResolutionEnum]
+
+export const inputFalAiSora2ImageToVideoAspectRatioEnum = {
+  auto: 'auto',
+  '9:16': '9:16',
+  '16:9': '16:9',
+} as const
+
+export type InputFalAiSora2ImageToVideoAspectRatioEnumKey =
+  (typeof inputFalAiSora2ImageToVideoAspectRatioEnum)[keyof typeof inputFalAiSora2ImageToVideoAspectRatioEnum]
+
+export type InputFalAiSora2ImageToVideo = {
+  /**
+   * @description The URL of the image to use as the first frame
+   * @example https://storage.googleapis.com/falserverless/example_inputs/sora-2-i2v-input.png
+   * @type string
+   */
+  image_url: string
+  /**
+   * @description Up to two character IDs (from create-character) to use in the video. Refer to characters by name in the prompt. When set, only the OpenAI provider is used.
+   */
+  character_ids?: string[] | null
+  /**
+   * @description The model to use for the generation. When the default model is selected, the latest snapshot of the model will be used - otherwise, select a specific snapshot of the model.
+   * @default 'sora-2'
+   * @type string | undefined
+   */
+  model?: InputFalAiSora2ImageToVideoModelEnumKey
+  /**
+   * @description Duration of the generated video in seconds
+   * @default 4
+   * @type number | undefined
+   */
+  duration?: InputFalAiSora2ImageToVideoDurationEnumKey
+  /**
+   * @description The resolution of the generated video
+   * @default 'auto'
+   * @type string | undefined
+   */
+  resolution?: InputFalAiSora2ImageToVideoResolutionEnumKey
+  /**
+   * @description Whether to delete the video after generation for privacy reasons. If True, the video cannot be used for remixing and will be permanently deleted.
+   * @default true
+   * @type boolean | undefined
+   */
+  delete_video?: boolean
+  /**
+   * @description The text prompt describing the video you want to generate
+   * @minLength 1
+   * @maxLength 5000
+   * @example Front-facing 'invisible' action-cam on a skydiver in freefall above bright clouds; camera locked on his face. He speaks over the wind with clear lipsync: 'This is insanely fun! You've got to try it—book a tandem and go!' Natural wind roar, voice close-mic'd and slightly compressed so it's intelligible. Midday sun, goggles and jumpsuit flutter, altimeter visible, parachute rig on shoulders. Energetic but stable framing with subtle shake; brief horizon roll. End on first tug of canopy and wind noise dropping.
+   * @type string
+   */
+  prompt: string
+  /**
+   * @description If enabled, the prompt (and image for image-to-video) will be checked for known intellectual property references and the request will be blocked if any are detected.
+   * @default false
+   * @type boolean | undefined
+   */
+  detect_and_block_ip?: boolean
+  /**
+   * @description The aspect ratio of the generated video
+   * @default 'auto'
+   * @type string | undefined
+   */
+  aspect_ratio?: InputFalAiSora2ImageToVideoAspectRatioEnumKey
+}
+
+export type ImageFile9C87Fb81 = {
+  /**
+   * @description The width of the image
+   */
+  width?: number | null
+  /**
+   * @description The name of the file. It will be auto-generated if not provided.
+   * @example z9RV14K95DvU.png
+   */
+  file_name?: string | null
+  /**
+   * @description The height of the image
+   */
+  height?: number | null
+  /**
+   * @description The size of the file in bytes.
+   * @example 4404019
+   */
+  file_size?: number | null
+  /**
+   * @description The mime type of the file.
+   * @example image/png
+   */
+  content_type?: string | null
+  /**
+   * @description The URL where the file can be downloaded from.
+   * @type string
+   */
+  url: string
+}
+
+export type VideoFile4F677787 = {
+  /**
+   * @description The FPS of the video
+   */
+  fps?: number | null
+  /**
+   * @description The URL where the file can be downloaded from.
+   * @type string
+   */
+  url: string
+  /**
+   * @description The duration of the video
+   */
+  duration?: number | null
+  /**
+   * @description The size of the file in bytes.
+   * @example 4404019
+   */
+  file_size?: number | null
+  /**
+   * @description The mime type of the file.
+   * @example image/png
+   */
+  content_type?: string | null
+  /**
+   * @description The number of frames in the video
+   */
+  num_frames?: number | null
+  /**
+   * @description The height of the video
+   */
+  height?: number | null
+  /**
+   * @description The width of the video
+   */
+  width?: number | null
+  /**
+   * @description The name of the file. It will be auto-generated if not provided.
+   * @example z9RV14K95DvU.png
+   */
+  file_name?: string | null
+}
+
+export type OutputFalAiSora2ImageToVideo = {
+  /**
+   * @description The ID of the generated video
+   * @example video_123
+   * @type string
+   */
+  video_id: string
+  /**
+   * @description Spritesheet image for the video
+   */
+  spritesheet?: ImageFile9C87Fb81 | null
+  /**
+   * @description Thumbnail image for the video
+   */
+  thumbnail?: ImageFile9C87Fb81 | null
+  /**
+   * @description The generated video
+   * @example {"content_type":"video/mp4","url":"https://storage.googleapis.com/falserverless/example_outputs/sora_2_i2v_output.mp4"}
+   * @type object
+   */
+  video: VideoFile4F677787
+}
+
+export const inputFalAiSora2ImageToVideoProDurationEnum = {
+  '4': 4,
+  '8': 8,
+  '12': 12,
+  '16': 16,
+  '20': 20,
+} as const
+
+export type InputFalAiSora2ImageToVideoProDurationEnumKey =
+  (typeof inputFalAiSora2ImageToVideoProDurationEnum)[keyof typeof inputFalAiSora2ImageToVideoProDurationEnum]
+
+export const inputFalAiSora2ImageToVideoProResolutionEnum = {
+  auto: 'auto',
+  '720p': '720p',
+  '1080p': '1080p',
+  true_1080p: 'true_1080p',
+} as const
+
+export type InputFalAiSora2ImageToVideoProResolutionEnumKey =
+  (typeof inputFalAiSora2ImageToVideoProResolutionEnum)[keyof typeof inputFalAiSora2ImageToVideoProResolutionEnum]
+
+export const inputFalAiSora2ImageToVideoProAspectRatioEnum = {
+  auto: 'auto',
+  '9:16': '9:16',
+  '16:9': '16:9',
+} as const
+
+export type InputFalAiSora2ImageToVideoProAspectRatioEnumKey =
+  (typeof inputFalAiSora2ImageToVideoProAspectRatioEnum)[keyof typeof inputFalAiSora2ImageToVideoProAspectRatioEnum]
+
+export type InputFalAiSora2ImageToVideoPro = {
+  /**
+   * @description The URL of the image to use as the first frame
+   * @example https://storage.googleapis.com/falserverless/example_inputs/sora-2-i2v-input.png
+   * @type string
+   */
+  image_url: string
+  /**
+   * @description Up to two character IDs (from create-character) to use in the video. Refer to characters by name in the prompt. When set, only the OpenAI provider is used.
+   */
+  character_ids?: string[] | null
+  /**
+   * @description Duration of the generated video in seconds
+   * @default 4
+   * @type number | undefined
+   */
+  duration?: InputFalAiSora2ImageToVideoProDurationEnumKey
+  /**
+   * @description The resolution of the generated video
+   * @default 'auto'
+   * @type string | undefined
+   */
+  resolution?: InputFalAiSora2ImageToVideoProResolutionEnumKey
+  /**
+   * @description Whether to delete the video after generation for privacy reasons. If True, the video cannot be used for remixing and will be permanently deleted.
+   * @default true
+   * @type boolean | undefined
+   */
+  delete_video?: boolean
+  /**
+   * @description The text prompt describing the video you want to generate
+   * @minLength 1
+   * @maxLength 5000
+   * @example Front-facing 'invisible' action-cam on a skydiver in freefall above bright clouds; camera locked on his face. He speaks over the wind with clear lipsync: 'This is insanely fun! You've got to try it—book a tandem and go!' Natural wind roar, voice close-mic'd and slightly compressed so it's intelligible. Midday sun, goggles and jumpsuit flutter, altimeter visible, parachute rig on shoulders. Energetic but stable framing with subtle shake; brief horizon roll. End on first tug of canopy and wind noise dropping.
+   * @type string
+   */
+  prompt: string
+  /**
+   * @description If enabled, the prompt (and image for image-to-video) will be checked for known intellectual property references and the request will be blocked if any are detected.
+   * @default false
+   * @type boolean | undefined
+   */
+  detect_and_block_ip?: boolean
+  /**
+   * @description The aspect ratio of the generated video
+   * @default 'auto'
+   * @type string | undefined
+   */
+  aspect_ratio?: InputFalAiSora2ImageToVideoProAspectRatioEnumKey
+}
+
+export type ImageFile50E61D81 = {
+  /**
+   * @description The width of the image
+   */
+  width?: number | null
+  /**
+   * @description The name of the file. It will be auto-generated if not provided.
+   * @example z9RV14K95DvU.png
+   */
+  file_name?: string | null
+  /**
+   * @description The height of the image
+   */
+  height?: number | null
+  /**
+   * @description The size of the file in bytes.
+   * @example 4404019
+   */
+  file_size?: number | null
+  /**
+   * @description The mime type of the file.
+   * @example image/png
+   */
+  content_type?: string | null
+  /**
+   * @description The URL where the file can be downloaded from.
+   * @type string
+   */
+  url: string
+}
+
+export type VideoFile56A30A8B = {
+  /**
+   * @description The FPS of the video
+   */
+  fps?: number | null
+  /**
+   * @description The URL where the file can be downloaded from.
+   * @type string
+   */
+  url: string
+  /**
+   * @description The duration of the video
+   */
+  duration?: number | null
+  /**
+   * @description The size of the file in bytes.
+   * @example 4404019
+   */
+  file_size?: number | null
+  /**
+   * @description The mime type of the file.
+   * @example image/png
+   */
+  content_type?: string | null
+  /**
+   * @description The number of frames in the video
+   */
+  num_frames?: number | null
+  /**
+   * @description The height of the video
+   */
+  height?: number | null
+  /**
+   * @description The width of the video
+   */
+  width?: number | null
+  /**
+   * @description The name of the file. It will be auto-generated if not provided.
+   * @example z9RV14K95DvU.png
+   */
+  file_name?: string | null
+}
+
+export type OutputFalAiSora2ImageToVideoPro = {
+  /**
+   * @description The ID of the generated video
+   * @example video_123
+   * @type string
+   */
+  video_id: string
+  /**
+   * @description Spritesheet image for the video
+   */
+  spritesheet?: ImageFile50E61D81 | null
+  /**
+   * @description Thumbnail image for the video
+   */
+  thumbnail?: ImageFile50E61D81 | null
+  /**
+   * @description The generated video
+   * @example {"content_type":"video/mp4","url":"https://storage.googleapis.com/falserverless/example_outputs/sora-2-pro-i2v-output.mp4"}
+   * @type object
+   */
+  video: VideoFile56A30A8B
+}
+
+export const inputFalAiSora2TextToVideoModelEnum = {
+  'sora-2': 'sora-2',
+  'sora-2-2025-12-08': 'sora-2-2025-12-08',
+  'sora-2-2025-10-06': 'sora-2-2025-10-06',
+} as const
+
+export type InputFalAiSora2TextToVideoModelEnumKey =
+  (typeof inputFalAiSora2TextToVideoModelEnum)[keyof typeof inputFalAiSora2TextToVideoModelEnum]
+
+export const inputFalAiSora2TextToVideoDurationEnum = {
+  '4': 4,
+  '8': 8,
+  '12': 12,
+  '16': 16,
+  '20': 20,
+} as const
+
+export type InputFalAiSora2TextToVideoDurationEnumKey =
+  (typeof inputFalAiSora2TextToVideoDurationEnum)[keyof typeof inputFalAiSora2TextToVideoDurationEnum]
+
+export const inputFalAiSora2TextToVideoAspectRatioEnum = {
+  '9:16': '9:16',
+  '16:9': '16:9',
+} as const
+
+export type InputFalAiSora2TextToVideoAspectRatioEnumKey =
+  (typeof inputFalAiSora2TextToVideoAspectRatioEnum)[keyof typeof inputFalAiSora2TextToVideoAspectRatioEnum]
+
+export type InputFalAiSora2TextToVideo = {
+  /**
+   * @description Up to two character IDs (from create-character) to use in the video. Refer to characters by name in the prompt. When set, only the OpenAI provider is used.
+   */
+  character_ids?: string[] | null
+  /**
+   * @description The model to use for the generation. When the default model is selected, the latest snapshot of the model will be used - otherwise, select a specific snapshot of the model.
+   * @default 'sora-2'
+   * @type string | undefined
+   */
+  model?: InputFalAiSora2TextToVideoModelEnumKey
+  /**
+   * @description Duration of the generated video in seconds
+   * @default 4
+   * @type number | undefined
+   */
+  duration?: InputFalAiSora2TextToVideoDurationEnumKey
+  /**
+   * @description The resolution of the generated video
+   * @default '720p'
+   * @type string | undefined
+   */
+  resolution?: '720p'
+  /**
+   * @description Whether to delete the video after generation for privacy reasons. If True, the video cannot be used for remixing and will be permanently deleted.
+   * @default true
+   * @type boolean | undefined
+   */
+  delete_video?: boolean
+  /**
+   * @description The text prompt describing the video you want to generate
+   * @minLength 1
+   * @maxLength 5000
+   * @example A dramatic Hollywood breakup scene at dusk on a quiet suburban street. A man and a woman in their 30s face each other, speaking softly but emotionally, lips syncing to breakup dialogue. Cinematic lighting, warm sunset tones, shallow depth of field, gentle breeze moving autumn leaves, realistic natural sound, no background music
+   * @type string
+   */
+  prompt: string
+  /**
+   * @description If enabled, the prompt (and image for image-to-video) will be checked for known intellectual property references and the request will be blocked if any are detected.
+   * @default false
+   * @type boolean | undefined
+   */
+  detect_and_block_ip?: boolean
+  /**
+   * @description The aspect ratio of the generated video
+   * @default '16:9'
+   * @type string | undefined
+   */
+  aspect_ratio?: InputFalAiSora2TextToVideoAspectRatioEnumKey
+}
+
+export type ImageFileA98936B5 = {
+  /**
+   * @description The width of the image
+   */
+  width?: number | null
+  /**
+   * @description The name of the file. It will be auto-generated if not provided.
+   * @example z9RV14K95DvU.png
+   */
+  file_name?: string | null
+  /**
+   * @description The height of the image
+   */
+  height?: number | null
+  /**
+   * @description The size of the file in bytes.
+   * @example 4404019
+   */
+  file_size?: number | null
+  /**
+   * @description The mime type of the file.
+   * @example image/png
+   */
+  content_type?: string | null
+  /**
+   * @description The URL where the file can be downloaded from.
+   * @type string
+   */
+  url: string
+}
+
+export type VideoFileB005Fa73 = {
+  /**
+   * @description The FPS of the video
+   */
+  fps?: number | null
+  /**
+   * @description The URL where the file can be downloaded from.
+   * @type string
+   */
+  url: string
+  /**
+   * @description The duration of the video
+   */
+  duration?: number | null
+  /**
+   * @description The size of the file in bytes.
+   * @example 4404019
+   */
+  file_size?: number | null
+  /**
+   * @description The mime type of the file.
+   * @example image/png
+   */
+  content_type?: string | null
+  /**
+   * @description The number of frames in the video
+   */
+  num_frames?: number | null
+  /**
+   * @description The height of the video
+   */
+  height?: number | null
+  /**
+   * @description The width of the video
+   */
+  width?: number | null
+  /**
+   * @description The name of the file. It will be auto-generated if not provided.
+   * @example z9RV14K95DvU.png
+   */
+  file_name?: string | null
+}
+
+export type OutputFalAiSora2TextToVideo = {
+  /**
+   * @description The ID of the generated video
+   * @example video_123
+   * @type string
+   */
+  video_id: string
+  /**
+   * @description Spritesheet image for the video
+   */
+  spritesheet?: ImageFileA98936B5 | null
+  /**
+   * @description Thumbnail image for the video
+   */
+  thumbnail?: ImageFileA98936B5 | null
+  /**
+   * @description The generated video
+   * @example {"content_type":"video/mp4","url":"https://storage.googleapis.com/falserverless/example_outputs/sora_t2v_output.mp4"}
+   * @type object
+   */
+  video: VideoFileB005Fa73
+}
+
+export const inputFalAiSora2TextToVideoProResolutionEnum = {
+  '720p': '720p',
+  '1080p': '1080p',
+  true_1080p: 'true_1080p',
+} as const
+
+export type InputFalAiSora2TextToVideoProResolutionEnumKey =
+  (typeof inputFalAiSora2TextToVideoProResolutionEnum)[keyof typeof inputFalAiSora2TextToVideoProResolutionEnum]
+
+export const inputFalAiSora2TextToVideoProDurationEnum = {
+  '4': 4,
+  '8': 8,
+  '12': 12,
+  '16': 16,
+  '20': 20,
+} as const
+
+export type InputFalAiSora2TextToVideoProDurationEnumKey =
+  (typeof inputFalAiSora2TextToVideoProDurationEnum)[keyof typeof inputFalAiSora2TextToVideoProDurationEnum]
+
+export const inputFalAiSora2TextToVideoProAspectRatioEnum = {
+  '9:16': '9:16',
+  '16:9': '16:9',
+} as const
+
+export type InputFalAiSora2TextToVideoProAspectRatioEnumKey =
+  (typeof inputFalAiSora2TextToVideoProAspectRatioEnum)[keyof typeof inputFalAiSora2TextToVideoProAspectRatioEnum]
+
+export type InputFalAiSora2TextToVideoPro = {
+  /**
+   * @description The resolution of the generated video
+   * @default '1080p'
+   * @type string | undefined
+   */
+  resolution?: InputFalAiSora2TextToVideoProResolutionEnumKey
+  /**
+   * @description Whether to delete the video after generation for privacy reasons. If True, the video cannot be used for remixing and will be permanently deleted.
+   * @default true
+   * @type boolean | undefined
+   */
+  delete_video?: boolean
+  /**
+   * @description The text prompt describing the video you want to generate
+   * @minLength 1
+   * @maxLength 5000
+   * @example A dramatic Hollywood breakup scene at dusk on a quiet suburban street. A man and a woman in their 30s face each other, speaking softly but emotionally, lips syncing to breakup dialogue. Cinematic lighting, warm sunset tones, shallow depth of field, gentle breeze moving autumn leaves, realistic natural sound, no background music
+   * @type string
+   */
+  prompt: string
+  /**
+   * @description Duration of the generated video in seconds
+   * @default 4
+   * @type number | undefined
+   */
+  duration?: InputFalAiSora2TextToVideoProDurationEnumKey
+  /**
+   * @description The aspect ratio of the generated video
+   * @default '16:9'
+   * @type string | undefined
+   */
+  aspect_ratio?: InputFalAiSora2TextToVideoProAspectRatioEnumKey
+  /**
+   * @description Up to two character IDs (from create-character) to use in the video. Refer to characters by name in the prompt. When set, only the OpenAI provider is used.
+   */
+  character_ids?: string[] | null
+  /**
+   * @description If enabled, the prompt (and image for image-to-video) will be checked for known intellectual property references and the request will be blocked if any are detected.
+   * @default false
+   * @type boolean | undefined
+   */
+  detect_and_block_ip?: boolean
+}
+
+export type ImageFile766Ae055 = {
+  /**
+   * @description The width of the image
+   */
+  width?: number | null
+  /**
+   * @description The name of the file. It will be auto-generated if not provided.
+   * @example z9RV14K95DvU.png
+   */
+  file_name?: string | null
+  /**
+   * @description The height of the image
+   */
+  height?: number | null
+  /**
+   * @description The size of the file in bytes.
+   * @example 4404019
+   */
+  file_size?: number | null
+  /**
+   * @description The mime type of the file.
+   * @example image/png
+   */
+  content_type?: string | null
+  /**
+   * @description The URL where the file can be downloaded from.
+   * @type string
+   */
+  url: string
+}
+
+export type VideoFile905211D7 = {
+  /**
+   * @description The FPS of the video
+   */
+  fps?: number | null
+  /**
+   * @description The URL where the file can be downloaded from.
+   * @type string
+   */
+  url: string
+  /**
+   * @description The duration of the video
+   */
+  duration?: number | null
+  /**
+   * @description The size of the file in bytes.
+   * @example 4404019
+   */
+  file_size?: number | null
+  /**
+   * @description The mime type of the file.
+   * @example image/png
+   */
+  content_type?: string | null
+  /**
+   * @description The number of frames in the video
+   */
+  num_frames?: number | null
+  /**
+   * @description The height of the video
+   */
+  height?: number | null
+  /**
+   * @description The width of the video
+   */
+  width?: number | null
+  /**
+   * @description The name of the file. It will be auto-generated if not provided.
+   * @example z9RV14K95DvU.png
+   */
+  file_name?: string | null
+}
+
+export type OutputFalAiSora2TextToVideoPro = {
+  /**
+   * @description The ID of the generated video
+   * @example video_123
+   * @type string
+   */
+  video_id: string
+  /**
+   * @description Spritesheet image for the video
+   */
+  spritesheet?: ImageFile766Ae055 | null
+  /**
+   * @description Thumbnail image for the video
+   */
+  thumbnail?: ImageFile766Ae055 | null
+  /**
+   * @description The generated video
+   * @example {"content_type":"video/mp4","url":"https://storage.googleapis.com/falserverless/example_outputs/sora-2-pro-t2v-output.mp4"}
+   * @type object
+   */
+  video: VideoFile905211D7
+}
+
+export type InputFalAiSora2VideoToVideoRemix = {
+  /**
+   * @description Whether to delete the video after generation for privacy reasons. If True, the video cannot be used for remixing and will be permanently deleted.
+   * @default true
+   * @type boolean | undefined
+   */
+  delete_video?: boolean
+  /**
+   * @description The video_id from a previous Sora 2 generation. Note: You can only remix videos that were generated by Sora (via text-to-video or image-to-video endpoints), not arbitrary uploaded videos.
+   * @example video_123
+   * @type string
+   */
+  video_id: string
+  /**
+   * @description Updated text prompt that directs the remix generation
+   * @minLength 1
+   * @maxLength 5000
+   * @example Change the cat's fur color to purple.
+   * @type string
+   */
+  prompt: string
+}
+
+export type ImageFileA077D995 = {
+  /**
+   * @description The width of the image
+   */
+  width?: number | null
+  /**
+   * @description The name of the file. It will be auto-generated if not provided.
+   * @example z9RV14K95DvU.png
+   */
+  file_name?: string | null
+  /**
+   * @description The height of the image
+   */
+  height?: number | null
+  /**
+   * @description The size of the file in bytes.
+   * @example 4404019
+   */
+  file_size?: number | null
+  /**
+   * @description The mime type of the file.
+   * @example image/png
+   */
+  content_type?: string | null
+  /**
+   * @description The URL where the file can be downloaded from.
+   * @type string
+   */
+  url: string
+}
+
+export type VideoFile98B17Fe7 = {
+  /**
+   * @description The FPS of the video
+   */
+  fps?: number | null
+  /**
+   * @description The URL where the file can be downloaded from.
+   * @type string
+   */
+  url: string
+  /**
+   * @description The duration of the video
+   */
+  duration?: number | null
+  /**
+   * @description The size of the file in bytes.
+   * @example 4404019
+   */
+  file_size?: number | null
+  /**
+   * @description The mime type of the file.
+   * @example image/png
+   */
+  content_type?: string | null
+  /**
+   * @description The number of frames in the video
+   */
+  num_frames?: number | null
+  /**
+   * @description The height of the video
+   */
+  height?: number | null
+  /**
+   * @description The width of the video
+   */
+  width?: number | null
+  /**
+   * @description The name of the file. It will be auto-generated if not provided.
+   * @example z9RV14K95DvU.png
+   */
+  file_name?: string | null
+}
+
+export type OutputFalAiSora2VideoToVideoRemix = {
+  /**
+   * @description The ID of the generated video
+   * @example video_123
+   * @type string
+   */
+  video_id: string
+  /**
+   * @description Spritesheet image for the video
+   */
+  spritesheet?: ImageFileA077D995 | null
+  /**
+   * @description Thumbnail image for the video
+   */
+  thumbnail?: ImageFileA077D995 | null
+  /**
+   * @description The generated video
+   * @example {"content_type":"video/mp4","url":"https://v3b.fal.media/files/b/rabbit/nk1MK6LY90QqScvI4_Yn8.mp4"}
+   * @type object
+   */
+  video: VideoFile98B17Fe7
+}
+
+export type InputFalAiStableVideo = {
+  /**
+   * @description
+   *             The conditoning augmentation determines the amount of noise that will be
+   *             added to the conditioning frame. The higher the number, the more noise
+   *             there will be, and the less the video will look like the initial image.
+   *             Increase it for more motion.
+   *
+   * @minimum 0
+   * @maximum 10
+   * @default 0.02
+   * @type number | undefined
+   */
+  cond_aug?: number
+  /**
+   * @description
+   *             The motion bucket id determines the motion of the generated video. The
+   *             higher the number, the more motion there will be.
+   *
+   * @minimum 1
+   * @maximum 255
+   * @default 127
+   * @type integer | undefined
+   */
+  motion_bucket_id?: number
+  /**
+   * @description The frames per second of the generated video.
+   * @minimum 10
+   * @maximum 100
+   * @default 25
+   * @type integer | undefined
+   */
+  fps?: number
+  /**
+   * @description
+   *             The same seed and the same prompt given to the same version of Stable Diffusion
+   *             will output the same image every time.
+   *
+   */
+  seed?: number | null
+  /**
+   * @default true
+   * @type boolean | undefined
+   */
+  enable_safety_checker?: boolean
+  /**
+   * @description The URL of the image to use as a starting point for the generation.
+   * @minLength 1
+   * @example https://storage.googleapis.com/falserverless/model_tests/svd/rocket.png
+   * @example https://storage.googleapis.com/falserverless/model_tests/svd/mustang.png
+   * @example https://storage.googleapis.com/falserverless/model_tests/svd/ship.png
+   * @example https://storage.googleapis.com/falserverless/model_tests/svd/rocket2.png
+   * @type string
+   */
+  image_url: string
+}
+
+export type File379492Eb = {
+  /**
+   * @description The size of the file in bytes.
+   * @example 4404019
+   */
+  file_size?: number | null
+  /**
+   * @description The mime type of the file.
+   * @example image/png
+   */
+  content_type?: string | null
+  /**
+   * @description The name of the file. It will be auto-generated if not provided.
+   * @example z9RV14K95DvU.png
+   */
+  file_name?: string | null
+  /**
+   * @description The URL where the file can be downloaded from.
+   * @type string
+   */
+  url: string
+}
+
+export type OutputFalAiStableVideo = {
+  /**
+   * @description Seed for random number generator
+   * @type integer
+   */
+  seed: number
+  /**
+   * @description Generated video
+   * @type object
+   */
+  video: File379492Eb
+}
+
 export const inputFalAiSyncLipsyncModelEnum = {
   'lipsync-1.8.0': 'lipsync-1.8.0',
   'lipsync-1.7.1': 'lipsync-1.7.1',
@@ -54078,6 +71019,88 @@ export type OutputFalAiSyncLipsyncV3ImageToVideo = {
   video: File789Ff550
 }
 
+export type InputFalAiT2VTurbo = {
+  /**
+   * @description The FPS of the exported video
+   * @minimum 1
+   * @maximum 24
+   * @default 8
+   * @type integer | undefined
+   */
+  export_fps?: number
+  /**
+   * @description The prompt to generate images from
+   * @example a dog wearing vr goggles on a boat
+   * @type string
+   */
+  prompt: string
+  /**
+   * @description The guidance scale
+   * @minimum 0.1
+   * @maximum 30
+   * @default 7.5
+   * @type number | undefined
+   */
+  guidance_scale?: number
+  /**
+   * @description The number of frames to generate
+   * @minimum 16
+   * @maximum 32
+   * @default 16
+   * @type integer | undefined
+   */
+  num_frames?: number
+  /**
+   * @description Authorized callers may set false to request relaxed screening.
+   * @default true
+   * @type boolean | undefined
+   */
+  enable_safety_checker?: boolean
+  /**
+   * @description The number of steps to sample
+   * @minimum 1
+   * @maximum 30
+   * @default 4
+   * @type integer | undefined
+   */
+  num_inference_steps?: number
+  /**
+   * @description The seed to use for the random number generator
+   */
+  seed?: number | null
+}
+
+export type FileE08Dfa3D = {
+  /**
+   * @description The URL where the file can be downloaded from.
+   * @type string
+   */
+  url: string
+  /**
+   * @description The mime type of the file.
+   * @example image/png
+   */
+  content_type?: string | null
+  /**
+   * @description The size of the file in bytes.
+   * @example 4404019
+   */
+  file_size?: number | null
+  /**
+   * @description The name of the file. It will be auto-generated if not provided.
+   * @example z9RV14K95DvU.png
+   */
+  file_name?: string | null
+}
+
+export type OutputFalAiT2VTurbo = {
+  /**
+   * @description The URL to the generated video
+   * @type object
+   */
+  video: FileE08Dfa3D
+}
+
 export type InputFalAiThinksound = {
   /**
    * @description A prompt to guide the audio generation. If not provided, it will be extracted from the video.
@@ -54248,6 +71271,2413 @@ export type OutputFalAiThinksoundAudio = {
    * @type string
    */
   prompt: string
+}
+
+export const inputFalAiTopazUpscaleVideoModelEnum = {
+  Proteus: 'Proteus',
+  'Artemis HQ': 'Artemis HQ',
+  'Artemis MQ': 'Artemis MQ',
+  'Artemis LQ': 'Artemis LQ',
+  'Gaia HQ': 'Gaia HQ',
+  'Gaia CG': 'Gaia CG',
+  'Gaia 2': 'Gaia 2',
+  Nyx: 'Nyx',
+  'Nyx Fast': 'Nyx Fast',
+  'Nyx XL': 'Nyx XL',
+  'Nyx HF': 'Nyx HF',
+  'Starlight Precise 2.5': 'Starlight Precise 2.5',
+  'Starlight HQ': 'Starlight HQ',
+  'Starlight Mini': 'Starlight Mini',
+  'Starlight Sharp': 'Starlight Sharp',
+  'Starlight Fast 2': 'Starlight Fast 2',
+  'Starlight Precise 1': 'Starlight Precise 1',
+  'Starlight Precise 2': 'Starlight Precise 2',
+  'Starlight Fast 1': 'Starlight Fast 1',
+} as const
+
+export type InputFalAiTopazUpscaleVideoModelEnumKey =
+  (typeof inputFalAiTopazUpscaleVideoModelEnum)[keyof typeof inputFalAiTopazUpscaleVideoModelEnum]
+
+export type InputFalAiTopazUpscaleVideo = {
+  /**
+   * @description Target FPS for frame interpolation. If set, frame interpolation will be enabled.
+   */
+  target_fps?: number | null
+  /**
+   * @description Noise reduction level (0.0-1.0). Default varies by model.
+   */
+  noise?: number | null
+  /**
+   * @description Factor to upscale the video by (e.g. 2.0 doubles width and height)
+   * @minimum 1
+   * @maximum 4
+   * @default 2
+   * @type number | undefined
+   */
+  upscale_factor?: number
+  /**
+   * @description Halo reduction level (0.0-1.0). Default varies by model.
+   */
+  halo?: number | null
+  /**
+   * @description Film grain amount (0.0-0.1). Default varies by model.
+   */
+  grain?: number | null
+  /**
+   * @description Compression artifact removal level (0.0-1.0). Default varies by model.
+   */
+  compression?: number | null
+  /**
+   * @description Whether to use H264 codec for output video. Default is H265.
+   * @default false
+   * @type boolean | undefined
+   */
+  H264_output?: boolean
+  /**
+   * @description Recover original detail level (0.0-1.0). Higher values preserve more original detail.
+   */
+  recover_detail?: number | null
+  /**
+   * @description Video enhancement model, grouped by family. Precision — Proteus fits most footage, Artemis denoises and sharpens degraded sources, Gaia HQ/CG refine rendered content, Gaia 2 handles animation and motion graphics at 2x. Denoise — Nyx models are dedicated noise reduction. Generative — Starlight models use diffusion for restoration and upscaling. Starlight Precise 1, Starlight Precise 2 and Starlight Fast 1 are deprecated by Topaz; prefer Starlight Precise 2.5 or Starlight Fast 2.
+   * @default 'Proteus'
+   * @type string | undefined
+   */
+  model?: InputFalAiTopazUpscaleVideoModelEnumKey
+  /**
+   * @description URL of the video to upscale
+   * @example https://v3.fal.media/files/kangaroo/y5-1YTGpun17eSeggZMzX_video-1733468228.mp4
+   * @type string
+   */
+  video_url: string
+}
+
+export type File9E138A70 = {
+  /**
+   * @description The size of the file in bytes.
+   * @example 4404019
+   */
+  file_size?: number | null
+  /**
+   * @description The name of the file. It will be auto-generated if not provided.
+   * @example z9RV14K95DvU.png
+   */
+  file_name?: string | null
+  /**
+   * @description The mime type of the file.
+   * @example image/png
+   */
+  content_type?: string | null
+  /**
+   * @description The URL where the file can be downloaded from.
+   * @type string
+   */
+  url: string
+}
+
+export type OutputFalAiTopazUpscaleVideo = {
+  /**
+   * @description The upscaled video file
+   * @example {"url":"https://v3.fal.media/files/penguin/ztj_LB4gQlW6HIfVs8zX4_upscaled.mp4"}
+   * @type object
+   */
+  video: File9E138A70
+}
+
+export const inputFalAiVeo2DurationEnum = {
+  '5s': '5s',
+  '6s': '6s',
+  '7s': '7s',
+  '8s': '8s',
+} as const
+
+export type InputFalAiVeo2DurationEnumKey =
+  (typeof inputFalAiVeo2DurationEnum)[keyof typeof inputFalAiVeo2DurationEnum]
+
+export const inputFalAiVeo2AspectRatioEnum = {
+  '9:16': '9:16',
+  '16:9': '16:9',
+  '1:1': '1:1',
+} as const
+
+export type InputFalAiVeo2AspectRatioEnumKey =
+  (typeof inputFalAiVeo2AspectRatioEnum)[keyof typeof inputFalAiVeo2AspectRatioEnum]
+
+export type InputFalAiVeo2 = {
+  /**
+   * @description The duration of the generated video in seconds
+   * @default '5s'
+   * @type string | undefined
+   */
+  duration?: InputFalAiVeo2DurationEnumKey
+  /**
+   * @description A negative prompt to guide the video generation
+   */
+  negative_prompt?: string | null
+  /**
+   * @description The aspect ratio of the generated video
+   * @default '16:9'
+   * @type string | undefined
+   */
+  aspect_ratio?: InputFalAiVeo2AspectRatioEnumKey
+  /**
+   * @description A seed to use for the video generation
+   */
+  seed?: number | null
+  /**
+   * @description Whether to automatically attempt to fix prompts that fail content policy or other validation checks by rewriting them
+   * @default true
+   * @type boolean | undefined
+   */
+  auto_fix?: boolean
+  /**
+   * @description Whether to enhance the video generation
+   * @default true
+   * @type boolean | undefined
+   */
+  enhance_prompt?: boolean
+  /**
+   * @description The text prompt describing the video you want to generate
+   * @minLength 1
+   * @example The camera floats gently through rows of pastel-painted wooden beehives, buzzing honeybees gliding in and out of frame. The motion settles on the refined farmer standing at the center, his pristine white beekeeping suit gleaming in the golden afternoon light. He lifts a jar of honey, tilting it slightly to catch the light. Behind him, tall sunflowers sway rhythmically in the breeze, their petals glowing in the warm sunlight. The camera tilts upward to reveal a retro farmhouse with mint-green shutters, its walls dappled with shadows from swaying trees. Shot with a 35mm lens on Kodak Portra 400 film, the golden light creates rich textures on the farmer's gloves, marmalade jar, and weathered wood of the beehives.
+   * @type string
+   */
+  prompt: string
+}
+
+export type File13D2B324 = {
+  /**
+   * @description The name of the file. It will be auto-generated if not provided.
+   * @example z9RV14K95DvU.png
+   */
+  file_name?: string | null
+  /**
+   * @description The URL where the file can be downloaded from.
+   * @type string
+   */
+  url: string
+  /**
+   * @description The mime type of the file.
+   * @example image/png
+   */
+  content_type?: string | null
+  /**
+   * @description The size of the file in bytes.
+   * @example 4404019
+   */
+  file_size?: number | null
+}
+
+export type OutputFalAiVeo2 = {
+  /**
+   * @description The generated video
+   * @example {"url":"https://v3.fal.media/files/tiger/83-YzufmOlsnhqq5ed382_output.mp4"}
+   * @type object
+   */
+  video: File13D2B324
+}
+
+export const inputFalAiVeo2ImageToVideoDurationEnum = {
+  '5s': '5s',
+  '6s': '6s',
+  '7s': '7s',
+  '8s': '8s',
+} as const
+
+export type InputFalAiVeo2ImageToVideoDurationEnumKey =
+  (typeof inputFalAiVeo2ImageToVideoDurationEnum)[keyof typeof inputFalAiVeo2ImageToVideoDurationEnum]
+
+export type InputFalAiVeo2ImageToVideo = {
+  /**
+   * @description URL of the input image to animate. Should be 720p or higher resolution in 16:9 or 9:16 aspect ratio. If the image is not in 16:9 or 9:16 aspect ratio, it will be cropped to fit.
+   * @example https://storage.googleapis.com/falserverless/example_inputs/veo3-i2v-input.png
+   * @type string
+   */
+  image_url: string
+  /**
+   * @description The text prompt describing how the image should be animated
+   * @example A woman looks into the camera, breathes in, then exclaims energetically, "have you guys checked out Veo3 Image-to-Video on Fal? It's incredible!"
+   * @type string
+   */
+  prompt: string
+  /**
+   * @description The duration of the generated video in seconds
+   * @default '5s'
+   * @type string | undefined
+   */
+  duration?: InputFalAiVeo2ImageToVideoDurationEnumKey
+}
+
+export type FileA97B062C = {
+  /**
+   * @description The name of the file. It will be auto-generated if not provided.
+   * @example z9RV14K95DvU.png
+   */
+  file_name?: string | null
+  /**
+   * @description The URL where the file can be downloaded from.
+   * @type string
+   */
+  url: string
+  /**
+   * @description The mime type of the file.
+   * @example image/png
+   */
+  content_type?: string | null
+  /**
+   * @description The size of the file in bytes.
+   * @example 4404019
+   */
+  file_size?: number | null
+}
+
+export type OutputFalAiVeo2ImageToVideo = {
+  /**
+   * @description The generated video
+   * @example {"url":"https://storage.googleapis.com/falserverless/example_outputs/veo3-i2v-output.mp4"}
+   * @type object
+   */
+  video: FileA97B062C
+}
+
+export const inputFalAiVeo3DurationEnum = {
+  '4s': '4s',
+  '6s': '6s',
+  '8s': '8s',
+} as const
+
+export type InputFalAiVeo3DurationEnumKey =
+  (typeof inputFalAiVeo3DurationEnum)[keyof typeof inputFalAiVeo3DurationEnum]
+
+export const inputFalAiVeo3SafetyToleranceEnum = {
+  '1': '1',
+  '2': '2',
+  '3': '3',
+  '4': '4',
+  '5': '5',
+  '6': '6',
+} as const
+
+export type InputFalAiVeo3SafetyToleranceEnumKey =
+  (typeof inputFalAiVeo3SafetyToleranceEnum)[keyof typeof inputFalAiVeo3SafetyToleranceEnum]
+
+export const inputFalAiVeo3ResolutionEnum = {
+  '720p': '720p',
+  '1080p': '1080p',
+} as const
+
+export type InputFalAiVeo3ResolutionEnumKey =
+  (typeof inputFalAiVeo3ResolutionEnum)[keyof typeof inputFalAiVeo3ResolutionEnum]
+
+export const inputFalAiVeo3AspectRatioEnum = {
+  '16:9': '16:9',
+  '9:16': '9:16',
+} as const
+
+export type InputFalAiVeo3AspectRatioEnumKey =
+  (typeof inputFalAiVeo3AspectRatioEnum)[keyof typeof inputFalAiVeo3AspectRatioEnum]
+
+export type InputFalAiVeo3 = {
+  /**
+   * @description The text prompt describing the video you want to generate
+   * @maxLength 20000
+   * @example A casual street interview on a busy New York City sidewalk in the afternoon. The interviewer holds a plain, unbranded microphone and asks: Have you seen Google's new Veo3 model It is a super good model. Person replies: Yeah I saw it, it's already available on fal. It's crazy good.
+   * @type string
+   */
+  prompt: string
+  /**
+   * @description Whether to generate audio for the video.
+   * @default true
+   * @type boolean | undefined
+   */
+  generate_audio?: boolean
+  /**
+   * @description The duration of the generated video.
+   * @default '8s'
+   * @type string | undefined
+   */
+  duration?: InputFalAiVeo3DurationEnumKey
+  /**
+   * @description The safety tolerance level for content moderation. 1 is the most strict (blocks most content), 6 is the least strict.
+   * @default '4'
+   * @type string | undefined
+   */
+  safety_tolerance?: InputFalAiVeo3SafetyToleranceEnumKey
+  /**
+   * @description The resolution of the generated video.
+   * @default '720p'
+   * @type string | undefined
+   */
+  resolution?: InputFalAiVeo3ResolutionEnumKey
+  /**
+   * @description A negative prompt to guide the video generation.
+   */
+  negative_prompt?: string | null
+  /**
+   * @description The seed for the random number generator.
+   */
+  seed?: number | null
+  /**
+   * @description The aspect ratio of the generated video.
+   * @default '16:9'
+   * @type string | undefined
+   */
+  aspect_ratio?: InputFalAiVeo3AspectRatioEnumKey
+  /**
+   * @description Whether to automatically attempt to fix prompts that fail content policy or other validation checks by rewriting them.
+   * @default true
+   * @type boolean | undefined
+   */
+  auto_fix?: boolean
+}
+
+export type FileD597F091 = {
+  /**
+   * @description The size of the file in bytes.
+   * @example 4404019
+   */
+  file_size?: number | null
+  /**
+   * @description The mime type of the file.
+   * @example image/png
+   */
+  content_type?: string | null
+  /**
+   * @description The name of the file. It will be auto-generated if not provided.
+   * @example z9RV14K95DvU.png
+   */
+  file_name?: string | null
+  /**
+   * @description The URL where the file can be downloaded from.
+   * @type string
+   */
+  url: string
+}
+
+export type OutputFalAiVeo3 = {
+  /**
+   * @description The generated video.
+   * @example {"url":"https://v3.fal.media/files/penguin/Q-2dpcjIoQOldJRL3grsc_output.mp4"}
+   * @type object
+   */
+  video: FileD597F091
+}
+
+export const inputFalAiVeo31AspectRatioEnum = {
+  '16:9': '16:9',
+  '9:16': '9:16',
+} as const
+
+export type InputFalAiVeo31AspectRatioEnumKey =
+  (typeof inputFalAiVeo31AspectRatioEnum)[keyof typeof inputFalAiVeo31AspectRatioEnum]
+
+export const inputFalAiVeo31DurationEnum = {
+  '4s': '4s',
+  '6s': '6s',
+  '8s': '8s',
+} as const
+
+export type InputFalAiVeo31DurationEnumKey =
+  (typeof inputFalAiVeo31DurationEnum)[keyof typeof inputFalAiVeo31DurationEnum]
+
+export const inputFalAiVeo31ResolutionEnum = {
+  '720p': '720p',
+  '1080p': '1080p',
+  '4k': '4k',
+} as const
+
+export type InputFalAiVeo31ResolutionEnumKey =
+  (typeof inputFalAiVeo31ResolutionEnum)[keyof typeof inputFalAiVeo31ResolutionEnum]
+
+export const inputFalAiVeo31SafetyToleranceEnum = {
+  '1': '1',
+  '2': '2',
+  '3': '3',
+  '4': '4',
+  '5': '5',
+  '6': '6',
+} as const
+
+export type InputFalAiVeo31SafetyToleranceEnumKey =
+  (typeof inputFalAiVeo31SafetyToleranceEnum)[keyof typeof inputFalAiVeo31SafetyToleranceEnum]
+
+export type InputFalAiVeo31 = {
+  /**
+   * @description Aspect ratio of the generated video
+   * @default '16:9'
+   * @type string | undefined
+   */
+  aspect_ratio?: InputFalAiVeo31AspectRatioEnumKey
+  /**
+   * @description The duration of the generated video.
+   * @default '8s'
+   * @type string | undefined
+   */
+  duration?: InputFalAiVeo31DurationEnumKey
+  /**
+   * @description Whether to automatically attempt to fix prompts that fail content policy or other validation checks by rewriting them.
+   * @default true
+   * @type boolean | undefined
+   */
+  auto_fix?: boolean
+  /**
+   * @description The seed for the random number generator.
+   */
+  seed?: number | null
+  /**
+   * @description A negative prompt to guide the video generation.
+   */
+  negative_prompt?: string | null
+  /**
+   * @description The resolution of the generated video.
+   * @default '720p'
+   * @type string | undefined
+   */
+  resolution?: InputFalAiVeo31ResolutionEnumKey
+  /**
+   * @description Whether to generate audio for the video.
+   * @default true
+   * @type boolean | undefined
+   */
+  generate_audio?: boolean
+  /**
+   * @description The text prompt describing the video you want to generate
+   * @maxLength 20000
+   * @example Two person street interview in New York City.
+   * Sample Dialogue:
+   * Host: "Did you hear the news?"
+   * Person: "Yes! Veo 3.1 is now available on fal. If you want to see it, go check their website."
+   * @type string
+   */
+  prompt: string
+  /**
+   * @description The safety tolerance level for content moderation. 1 is the most strict (blocks most content), 6 is the least strict.
+   * @default '4'
+   * @type string | undefined
+   */
+  safety_tolerance?: InputFalAiVeo31SafetyToleranceEnumKey
+}
+
+export type File8F24354E = {
+  /**
+   * @description The size of the file in bytes.
+   * @example 4404019
+   */
+  file_size?: number | null
+  /**
+   * @description The mime type of the file.
+   * @example image/png
+   */
+  content_type?: string | null
+  /**
+   * @description The URL where the file can be downloaded from.
+   * @type string
+   */
+  url: string
+  /**
+   * @description The name of the file. It will be auto-generated if not provided.
+   * @example z9RV14K95DvU.png
+   */
+  file_name?: string | null
+}
+
+export type OutputFalAiVeo31 = {
+  /**
+   * @description The generated video.
+   * @example {"url":"https://v3b.fal.media/files/b/kangaroo/oUCiZjQwEy6bIQdPUSLDF_output.mp4"}
+   * @type object
+   */
+  video: File8F24354E
+}
+
+export const inputFalAiVeo31ExtendVideoAspectRatioEnum = {
+  auto: 'auto',
+  '16:9': '16:9',
+  '9:16': '9:16',
+} as const
+
+export type InputFalAiVeo31ExtendVideoAspectRatioEnumKey =
+  (typeof inputFalAiVeo31ExtendVideoAspectRatioEnum)[keyof typeof inputFalAiVeo31ExtendVideoAspectRatioEnum]
+
+export const inputFalAiVeo31ExtendVideoSafetyToleranceEnum = {
+  '1': '1',
+  '2': '2',
+  '3': '3',
+  '4': '4',
+  '5': '5',
+  '6': '6',
+} as const
+
+export type InputFalAiVeo31ExtendVideoSafetyToleranceEnumKey =
+  (typeof inputFalAiVeo31ExtendVideoSafetyToleranceEnum)[keyof typeof inputFalAiVeo31ExtendVideoSafetyToleranceEnum]
+
+export type InputFalAiVeo31ExtendVideo = {
+  /**
+   * @description The aspect ratio of the generated video.
+   * @default 'auto'
+   * @type string | undefined
+   */
+  aspect_ratio?: InputFalAiVeo31ExtendVideoAspectRatioEnumKey
+  /**
+   * @description The duration of the generated video.
+   * @default '7s'
+   * @type string | undefined
+   */
+  duration?: '7s'
+  /**
+   * @description Whether to automatically attempt to fix prompts that fail content policy or other validation checks by rewriting them.
+   * @default false
+   * @type boolean | undefined
+   */
+  auto_fix?: boolean
+  /**
+   * @description URL of the video to extend. The video should be 720p or 1080p resolution in 16:9 or 9:16 aspect ratio.
+   * @example https://v3b.fal.media/files/b/0a8670fe/pY8UGl4_C452wOm9XUBYO_9ae04df8771c4f3f979fa5cabeca6ada.mp4
+   * @type string
+   */
+  video_url: string
+  /**
+   * @description The seed for the random number generator.
+   */
+  seed?: number | null
+  /**
+   * @description A negative prompt to guide the video generation.
+   */
+  negative_prompt?: string | null
+  /**
+   * @description The resolution of the generated video.
+   * @default '720p'
+   * @type string | undefined
+   */
+  resolution?: '720p'
+  /**
+   * @description Whether to generate audio for the video.
+   * @default true
+   * @type boolean | undefined
+   */
+  generate_audio?: boolean
+  /**
+   * @description The text prompt describing how the video should be extended
+   * @maxLength 20000
+   * @example Continue the scene naturally, maintaining the same style and motion.
+   * @type string
+   */
+  prompt: string
+  /**
+   * @description The safety tolerance level for content moderation. 1 is the most strict (blocks most content), 6 is the least strict.
+   * @default '4'
+   * @type string | undefined
+   */
+  safety_tolerance?: InputFalAiVeo31ExtendVideoSafetyToleranceEnumKey
+}
+
+export type File0Ddcf14F = {
+  /**
+   * @description The size of the file in bytes.
+   * @example 4404019
+   */
+  file_size?: number | null
+  /**
+   * @description The mime type of the file.
+   * @example image/png
+   */
+  content_type?: string | null
+  /**
+   * @description The URL where the file can be downloaded from.
+   * @type string
+   */
+  url: string
+  /**
+   * @description The name of the file. It will be auto-generated if not provided.
+   * @example z9RV14K95DvU.png
+   */
+  file_name?: string | null
+}
+
+export type OutputFalAiVeo31ExtendVideo = {
+  /**
+   * @description The extended video.
+   * @example {"url":"https://v3b.fal.media/files/b/0a86711b/B_Z96VS4X9Dfd4M5ArB4H_c666e63f729f4a8fa1145c6727cef97d.mp4"}
+   * @type object
+   */
+  video: File0Ddcf14F
+}
+
+export const inputFalAiVeo31FastAspectRatioEnum = {
+  '16:9': '16:9',
+  '9:16': '9:16',
+} as const
+
+export type InputFalAiVeo31FastAspectRatioEnumKey =
+  (typeof inputFalAiVeo31FastAspectRatioEnum)[keyof typeof inputFalAiVeo31FastAspectRatioEnum]
+
+export const inputFalAiVeo31FastDurationEnum = {
+  '4s': '4s',
+  '6s': '6s',
+  '8s': '8s',
+} as const
+
+export type InputFalAiVeo31FastDurationEnumKey =
+  (typeof inputFalAiVeo31FastDurationEnum)[keyof typeof inputFalAiVeo31FastDurationEnum]
+
+export const inputFalAiVeo31FastResolutionEnum = {
+  '720p': '720p',
+  '1080p': '1080p',
+  '4k': '4k',
+} as const
+
+export type InputFalAiVeo31FastResolutionEnumKey =
+  (typeof inputFalAiVeo31FastResolutionEnum)[keyof typeof inputFalAiVeo31FastResolutionEnum]
+
+export const inputFalAiVeo31FastSafetyToleranceEnum = {
+  '1': '1',
+  '2': '2',
+  '3': '3',
+  '4': '4',
+  '5': '5',
+  '6': '6',
+} as const
+
+export type InputFalAiVeo31FastSafetyToleranceEnumKey =
+  (typeof inputFalAiVeo31FastSafetyToleranceEnum)[keyof typeof inputFalAiVeo31FastSafetyToleranceEnum]
+
+export type InputFalAiVeo31Fast = {
+  /**
+   * @description Aspect ratio of the generated video
+   * @default '16:9'
+   * @type string | undefined
+   */
+  aspect_ratio?: InputFalAiVeo31FastAspectRatioEnumKey
+  /**
+   * @description The duration of the generated video.
+   * @default '8s'
+   * @type string | undefined
+   */
+  duration?: InputFalAiVeo31FastDurationEnumKey
+  /**
+   * @description Whether to automatically attempt to fix prompts that fail content policy or other validation checks by rewriting them.
+   * @default true
+   * @type boolean | undefined
+   */
+  auto_fix?: boolean
+  /**
+   * @description The seed for the random number generator.
+   */
+  seed?: number | null
+  /**
+   * @description A negative prompt to guide the video generation.
+   */
+  negative_prompt?: string | null
+  /**
+   * @description The resolution of the generated video.
+   * @default '720p'
+   * @type string | undefined
+   */
+  resolution?: InputFalAiVeo31FastResolutionEnumKey
+  /**
+   * @description Whether to generate audio for the video.
+   * @default true
+   * @type boolean | undefined
+   */
+  generate_audio?: boolean
+  /**
+   * @description The text prompt describing the video you want to generate
+   * @maxLength 20000
+   * @example Two person street interview in New York City.
+   * Sample Dialogue:
+   * Host: "Did you hear the news?"
+   * Person: "Yes! Veo 3.1 is now available on fal. If you want to see it, go check their website."
+   * @type string
+   */
+  prompt: string
+  /**
+   * @description The safety tolerance level for content moderation. 1 is the most strict (blocks most content), 6 is the least strict.
+   * @default '4'
+   * @type string | undefined
+   */
+  safety_tolerance?: InputFalAiVeo31FastSafetyToleranceEnumKey
+}
+
+export type File0909D57B = {
+  /**
+   * @description The size of the file in bytes.
+   * @example 4404019
+   */
+  file_size?: number | null
+  /**
+   * @description The mime type of the file.
+   * @example image/png
+   */
+  content_type?: string | null
+  /**
+   * @description The URL where the file can be downloaded from.
+   * @type string
+   */
+  url: string
+  /**
+   * @description The name of the file. It will be auto-generated if not provided.
+   * @example z9RV14K95DvU.png
+   */
+  file_name?: string | null
+}
+
+export type OutputFalAiVeo31Fast = {
+  /**
+   * @description The generated video.
+   * @example {"url":"https://v3b.fal.media/files/b/kangaroo/oUCiZjQwEy6bIQdPUSLDF_output.mp4"}
+   * @type object
+   */
+  video: File0909D57B
+}
+
+export const inputFalAiVeo31FastExtendVideoAspectRatioEnum = {
+  auto: 'auto',
+  '16:9': '16:9',
+  '9:16': '9:16',
+} as const
+
+export type InputFalAiVeo31FastExtendVideoAspectRatioEnumKey =
+  (typeof inputFalAiVeo31FastExtendVideoAspectRatioEnum)[keyof typeof inputFalAiVeo31FastExtendVideoAspectRatioEnum]
+
+export const inputFalAiVeo31FastExtendVideoSafetyToleranceEnum = {
+  '1': '1',
+  '2': '2',
+  '3': '3',
+  '4': '4',
+  '5': '5',
+  '6': '6',
+} as const
+
+export type InputFalAiVeo31FastExtendVideoSafetyToleranceEnumKey =
+  (typeof inputFalAiVeo31FastExtendVideoSafetyToleranceEnum)[keyof typeof inputFalAiVeo31FastExtendVideoSafetyToleranceEnum]
+
+export type InputFalAiVeo31FastExtendVideo = {
+  /**
+   * @description The aspect ratio of the generated video.
+   * @default 'auto'
+   * @type string | undefined
+   */
+  aspect_ratio?: InputFalAiVeo31FastExtendVideoAspectRatioEnumKey
+  /**
+   * @description The duration of the generated video.
+   * @default '7s'
+   * @type string | undefined
+   */
+  duration?: '7s'
+  /**
+   * @description Whether to automatically attempt to fix prompts that fail content policy or other validation checks by rewriting them.
+   * @default false
+   * @type boolean | undefined
+   */
+  auto_fix?: boolean
+  /**
+   * @description URL of the video to extend. The video should be 720p or 1080p resolution in 16:9 or 9:16 aspect ratio.
+   * @example https://v3b.fal.media/files/b/0a8670fe/pY8UGl4_C452wOm9XUBYO_9ae04df8771c4f3f979fa5cabeca6ada.mp4
+   * @type string
+   */
+  video_url: string
+  /**
+   * @description The seed for the random number generator.
+   */
+  seed?: number | null
+  /**
+   * @description A negative prompt to guide the video generation.
+   */
+  negative_prompt?: string | null
+  /**
+   * @description The resolution of the generated video.
+   * @default '720p'
+   * @type string | undefined
+   */
+  resolution?: '720p'
+  /**
+   * @description Whether to generate audio for the video.
+   * @default true
+   * @type boolean | undefined
+   */
+  generate_audio?: boolean
+  /**
+   * @description The text prompt describing how the video should be extended
+   * @maxLength 20000
+   * @example Continue the scene naturally, maintaining the same style and motion.
+   * @type string
+   */
+  prompt: string
+  /**
+   * @description The safety tolerance level for content moderation. 1 is the most strict (blocks most content), 6 is the least strict.
+   * @default '4'
+   * @type string | undefined
+   */
+  safety_tolerance?: InputFalAiVeo31FastExtendVideoSafetyToleranceEnumKey
+}
+
+export type File3Dad5744 = {
+  /**
+   * @description The size of the file in bytes.
+   * @example 4404019
+   */
+  file_size?: number | null
+  /**
+   * @description The mime type of the file.
+   * @example image/png
+   */
+  content_type?: string | null
+  /**
+   * @description The URL where the file can be downloaded from.
+   * @type string
+   */
+  url: string
+  /**
+   * @description The name of the file. It will be auto-generated if not provided.
+   * @example z9RV14K95DvU.png
+   */
+  file_name?: string | null
+}
+
+export type OutputFalAiVeo31FastExtendVideo = {
+  /**
+   * @description The extended video.
+   * @example {"url":"https://v3b.fal.media/files/b/0a86711b/B_Z96VS4X9Dfd4M5ArB4H_c666e63f729f4a8fa1145c6727cef97d.mp4"}
+   * @type object
+   */
+  video: File3Dad5744
+}
+
+export const inputFalAiVeo31FastFirstLastFrameToVideoAspectRatioEnum = {
+  auto: 'auto',
+  '16:9': '16:9',
+  '9:16': '9:16',
+} as const
+
+export type InputFalAiVeo31FastFirstLastFrameToVideoAspectRatioEnumKey =
+  (typeof inputFalAiVeo31FastFirstLastFrameToVideoAspectRatioEnum)[keyof typeof inputFalAiVeo31FastFirstLastFrameToVideoAspectRatioEnum]
+
+export const inputFalAiVeo31FastFirstLastFrameToVideoDurationEnum = {
+  '4s': '4s',
+  '6s': '6s',
+  '8s': '8s',
+} as const
+
+export type InputFalAiVeo31FastFirstLastFrameToVideoDurationEnumKey =
+  (typeof inputFalAiVeo31FastFirstLastFrameToVideoDurationEnum)[keyof typeof inputFalAiVeo31FastFirstLastFrameToVideoDurationEnum]
+
+export const inputFalAiVeo31FastFirstLastFrameToVideoResolutionEnum = {
+  '720p': '720p',
+  '1080p': '1080p',
+  '4k': '4k',
+} as const
+
+export type InputFalAiVeo31FastFirstLastFrameToVideoResolutionEnumKey =
+  (typeof inputFalAiVeo31FastFirstLastFrameToVideoResolutionEnum)[keyof typeof inputFalAiVeo31FastFirstLastFrameToVideoResolutionEnum]
+
+export const inputFalAiVeo31FastFirstLastFrameToVideoSafetyToleranceEnum = {
+  '1': '1',
+  '2': '2',
+  '3': '3',
+  '4': '4',
+  '5': '5',
+  '6': '6',
+} as const
+
+export type InputFalAiVeo31FastFirstLastFrameToVideoSafetyToleranceEnumKey =
+  (typeof inputFalAiVeo31FastFirstLastFrameToVideoSafetyToleranceEnum)[keyof typeof inputFalAiVeo31FastFirstLastFrameToVideoSafetyToleranceEnum]
+
+export type InputFalAiVeo31FastFirstLastFrameToVideo = {
+  /**
+   * @description The aspect ratio of the generated video.
+   * @default 'auto'
+   * @type string | undefined
+   */
+  aspect_ratio?: InputFalAiVeo31FastFirstLastFrameToVideoAspectRatioEnumKey
+  /**
+   * @description URL of the last frame of the video
+   * @example https://storage.googleapis.com/falserverless/example_inputs/veo31-flf2v-input-2.jpeg
+   * @type string
+   */
+  last_frame_url: string
+  /**
+   * @description The duration of the generated video.
+   * @default '8s'
+   * @type string | undefined
+   */
+  duration?: InputFalAiVeo31FastFirstLastFrameToVideoDurationEnumKey
+  /**
+   * @description Whether to automatically attempt to fix prompts that fail content policy or other validation checks by rewriting them.
+   * @default false
+   * @type boolean | undefined
+   */
+  auto_fix?: boolean
+  /**
+   * @description The seed for the random number generator.
+   */
+  seed?: number | null
+  /**
+   * @description A negative prompt to guide the video generation.
+   */
+  negative_prompt?: string | null
+  /**
+   * @description The resolution of the generated video.
+   * @default '720p'
+   * @type string | undefined
+   */
+  resolution?: InputFalAiVeo31FastFirstLastFrameToVideoResolutionEnumKey
+  /**
+   * @description The text prompt describing the video you want to generate
+   * @maxLength 20000
+   * @example A woman looks into the camera, breathes in, then exclaims energetically, "have you guys checked out Veo3.1 First-Last-Frame-to-Video on Fal? It's incredible!"
+   * @type string
+   */
+  prompt: string
+  /**
+   * @description Whether to generate audio for the video.
+   * @default true
+   * @type boolean | undefined
+   */
+  generate_audio?: boolean
+  /**
+   * @description URL of the first frame of the video
+   * @example https://storage.googleapis.com/falserverless/example_inputs/veo31-flf2v-input-1.jpeg
+   * @type string
+   */
+  first_frame_url: string
+  /**
+   * @description The safety tolerance level for content moderation. 1 is the most strict (blocks most content), 6 is the least strict.
+   * @default '4'
+   * @type string | undefined
+   */
+  safety_tolerance?: InputFalAiVeo31FastFirstLastFrameToVideoSafetyToleranceEnumKey
+}
+
+export type File269A46B7 = {
+  /**
+   * @description The size of the file in bytes.
+   * @example 4404019
+   */
+  file_size?: number | null
+  /**
+   * @description The mime type of the file.
+   * @example image/png
+   */
+  content_type?: string | null
+  /**
+   * @description The URL where the file can be downloaded from.
+   * @type string
+   */
+  url: string
+  /**
+   * @description The name of the file. It will be auto-generated if not provided.
+   * @example z9RV14K95DvU.png
+   */
+  file_name?: string | null
+}
+
+export type OutputFalAiVeo31FastFirstLastFrameToVideo = {
+  /**
+   * @description The generated video.
+   * @example {"url":"https://storage.googleapis.com/falserverless/example_outputs/veo31-flf2v-output.mp4"}
+   * @type object
+   */
+  video: File269A46B7
+}
+
+export const inputFalAiVeo31FastImageToVideoAspectRatioEnum = {
+  auto: 'auto',
+  '16:9': '16:9',
+  '9:16': '9:16',
+} as const
+
+export type InputFalAiVeo31FastImageToVideoAspectRatioEnumKey =
+  (typeof inputFalAiVeo31FastImageToVideoAspectRatioEnum)[keyof typeof inputFalAiVeo31FastImageToVideoAspectRatioEnum]
+
+export const inputFalAiVeo31FastImageToVideoDurationEnum = {
+  '4s': '4s',
+  '6s': '6s',
+  '8s': '8s',
+} as const
+
+export type InputFalAiVeo31FastImageToVideoDurationEnumKey =
+  (typeof inputFalAiVeo31FastImageToVideoDurationEnum)[keyof typeof inputFalAiVeo31FastImageToVideoDurationEnum]
+
+export const inputFalAiVeo31FastImageToVideoResolutionEnum = {
+  '720p': '720p',
+  '1080p': '1080p',
+  '4k': '4k',
+} as const
+
+export type InputFalAiVeo31FastImageToVideoResolutionEnumKey =
+  (typeof inputFalAiVeo31FastImageToVideoResolutionEnum)[keyof typeof inputFalAiVeo31FastImageToVideoResolutionEnum]
+
+export const inputFalAiVeo31FastImageToVideoSafetyToleranceEnum = {
+  '1': '1',
+  '2': '2',
+  '3': '3',
+  '4': '4',
+  '5': '5',
+  '6': '6',
+} as const
+
+export type InputFalAiVeo31FastImageToVideoSafetyToleranceEnumKey =
+  (typeof inputFalAiVeo31FastImageToVideoSafetyToleranceEnum)[keyof typeof inputFalAiVeo31FastImageToVideoSafetyToleranceEnum]
+
+export type InputFalAiVeo31FastImageToVideo = {
+  /**
+   * @description The aspect ratio of the generated video. Only 16:9 and 9:16 are supported.
+   * @default 'auto'
+   * @type string | undefined
+   */
+  aspect_ratio?: InputFalAiVeo31FastImageToVideoAspectRatioEnumKey
+  /**
+   * @description URL of the input image to animate. Should be 720p or higher resolution in 16:9 or 9:16 aspect ratio. If the image is not in 16:9 or 9:16 aspect ratio, it will be cropped to fit.
+   * @example https://storage.googleapis.com/falserverless/example_inputs/veo31_i2v_input.jpg
+   * @type string
+   */
+  image_url: string
+  /**
+   * @description The duration of the generated video.
+   * @default '8s'
+   * @type string | undefined
+   */
+  duration?: InputFalAiVeo31FastImageToVideoDurationEnumKey
+  /**
+   * @description Whether to automatically attempt to fix prompts that fail content policy or other validation checks by rewriting them.
+   * @default false
+   * @type boolean | undefined
+   */
+  auto_fix?: boolean
+  /**
+   * @description The seed for the random number generator.
+   */
+  seed?: number | null
+  /**
+   * @description A negative prompt to guide the video generation.
+   */
+  negative_prompt?: string | null
+  /**
+   * @description The resolution of the generated video.
+   * @default '720p'
+   * @type string | undefined
+   */
+  resolution?: InputFalAiVeo31FastImageToVideoResolutionEnumKey
+  /**
+   * @description The safety tolerance level for content moderation. 1 is the most strict (blocks most content), 6 is the least strict.
+   * @default '4'
+   * @type string | undefined
+   */
+  safety_tolerance?: InputFalAiVeo31FastImageToVideoSafetyToleranceEnumKey
+  /**
+   * @description The text prompt describing the video you want to generate
+   * @maxLength 20000
+   * @example A monkey and polar bear host a casual podcast about AI inference, bringing their unique perspectives from different environments (tropical vs. arctic) to discuss how AI systems make decisions and process information.
+   * Sample Dialogue:
+   * Monkey (Banana): "Welcome back to Bananas & Ice! I am Banana"
+   * Polar Bear (Ice): "And I'm Ice!"
+   * @type string
+   */
+  prompt: string
+  /**
+   * @description Whether to generate audio for the video.
+   * @default true
+   * @type boolean | undefined
+   */
+  generate_audio?: boolean
+}
+
+export type File9A3F7275 = {
+  /**
+   * @description The size of the file in bytes.
+   * @example 4404019
+   */
+  file_size?: number | null
+  /**
+   * @description The mime type of the file.
+   * @example image/png
+   */
+  content_type?: string | null
+  /**
+   * @description The URL where the file can be downloaded from.
+   * @type string
+   */
+  url: string
+  /**
+   * @description The name of the file. It will be auto-generated if not provided.
+   * @example z9RV14K95DvU.png
+   */
+  file_name?: string | null
+}
+
+export type OutputFalAiVeo31FastImageToVideo = {
+  /**
+   * @description The generated video.
+   * @example {"url":"https://storage.googleapis.com/falserverless/model_tests/gallery/veo3-1-i2v.mp4"}
+   * @type object
+   */
+  video: File9A3F7275
+}
+
+export const inputFalAiVeo31FastReferenceToVideoAspectRatioEnum = {
+  '16:9': '16:9',
+  '9:16': '9:16',
+} as const
+
+export type InputFalAiVeo31FastReferenceToVideoAspectRatioEnumKey =
+  (typeof inputFalAiVeo31FastReferenceToVideoAspectRatioEnum)[keyof typeof inputFalAiVeo31FastReferenceToVideoAspectRatioEnum]
+
+export const inputFalAiVeo31FastReferenceToVideoResolutionEnum = {
+  '720p': '720p',
+  '1080p': '1080p',
+  '4k': '4k',
+} as const
+
+export type InputFalAiVeo31FastReferenceToVideoResolutionEnumKey =
+  (typeof inputFalAiVeo31FastReferenceToVideoResolutionEnum)[keyof typeof inputFalAiVeo31FastReferenceToVideoResolutionEnum]
+
+export const inputFalAiVeo31FastReferenceToVideoSafetyToleranceEnum = {
+  '1': '1',
+  '2': '2',
+  '3': '3',
+  '4': '4',
+  '5': '5',
+  '6': '6',
+} as const
+
+export type InputFalAiVeo31FastReferenceToVideoSafetyToleranceEnumKey =
+  (typeof inputFalAiVeo31FastReferenceToVideoSafetyToleranceEnum)[keyof typeof inputFalAiVeo31FastReferenceToVideoSafetyToleranceEnum]
+
+export type InputFalAiVeo31FastReferenceToVideo = {
+  /**
+   * @description The aspect ratio of the generated video.
+   * @default '16:9'
+   * @type string | undefined
+   */
+  aspect_ratio?: InputFalAiVeo31FastReferenceToVideoAspectRatioEnumKey
+  /**
+   * @description The duration of the generated video.
+   * @default '8s'
+   * @type string | undefined
+   */
+  duration?: '8s'
+  /**
+   * @description Whether to automatically attempt to fix prompts that fail content policy or other validation checks by rewriting them.
+   * @default false
+   * @type boolean | undefined
+   */
+  auto_fix?: boolean
+  /**
+   * @description The resolution of the generated video.
+   * @default '720p'
+   * @type string | undefined
+   */
+  resolution?: InputFalAiVeo31FastReferenceToVideoResolutionEnumKey
+  /**
+   * @description The safety tolerance level for content moderation. 1 is the most strict (blocks most content), 6 is the least strict.
+   * @default '4'
+   * @type string | undefined
+   */
+  safety_tolerance?: InputFalAiVeo31FastReferenceToVideoSafetyToleranceEnumKey
+  /**
+   * @description The text prompt describing the video you want to generate
+   * @maxLength 20000
+   * @example A chimpanzee wearing overalls frolics in the grassy field, gently playing with the butterflies. In the background, a circus tent and carousel beckon.
+   * @type string
+   */
+  prompt: string
+  /**
+   * @description Whether to generate audio for the video.
+   * @default true
+   * @type boolean | undefined
+   */
+  generate_audio?: boolean
+  /**
+   * @description URLs of the reference images to use for consistent subject appearance
+   * @example ["https://storage.googleapis.com/falserverless/example_inputs/veo31-r2v-input-1.png","https://storage.googleapis.com/falserverless/example_inputs/veo31-r2v-input-2.png","https://storage.googleapis.com/falserverless/example_inputs/veo31-r2v-input-3.png"]
+   * @type array
+   */
+  image_urls: string[]
+}
+
+export type File1Ef89F85 = {
+  /**
+   * @description The size of the file in bytes.
+   * @example 4404019
+   */
+  file_size?: number | null
+  /**
+   * @description The mime type of the file.
+   * @example image/png
+   */
+  content_type?: string | null
+  /**
+   * @description The URL where the file can be downloaded from.
+   * @type string
+   */
+  url: string
+  /**
+   * @description The name of the file. It will be auto-generated if not provided.
+   * @example z9RV14K95DvU.png
+   */
+  file_name?: string | null
+}
+
+export type OutputFalAiVeo31FastReferenceToVideo = {
+  /**
+   * @description The generated video.
+   * @example {"url":"https://storage.googleapis.com/falserverless/example_outputs/veo31-r2v-output.mp4"}
+   * @type object
+   */
+  video: File1Ef89F85
+}
+
+export const inputFalAiVeo31FirstLastFrameToVideoAspectRatioEnum = {
+  auto: 'auto',
+  '16:9': '16:9',
+  '9:16': '9:16',
+} as const
+
+export type InputFalAiVeo31FirstLastFrameToVideoAspectRatioEnumKey =
+  (typeof inputFalAiVeo31FirstLastFrameToVideoAspectRatioEnum)[keyof typeof inputFalAiVeo31FirstLastFrameToVideoAspectRatioEnum]
+
+export const inputFalAiVeo31FirstLastFrameToVideoDurationEnum = {
+  '4s': '4s',
+  '6s': '6s',
+  '8s': '8s',
+} as const
+
+export type InputFalAiVeo31FirstLastFrameToVideoDurationEnumKey =
+  (typeof inputFalAiVeo31FirstLastFrameToVideoDurationEnum)[keyof typeof inputFalAiVeo31FirstLastFrameToVideoDurationEnum]
+
+export const inputFalAiVeo31FirstLastFrameToVideoResolutionEnum = {
+  '720p': '720p',
+  '1080p': '1080p',
+  '4k': '4k',
+} as const
+
+export type InputFalAiVeo31FirstLastFrameToVideoResolutionEnumKey =
+  (typeof inputFalAiVeo31FirstLastFrameToVideoResolutionEnum)[keyof typeof inputFalAiVeo31FirstLastFrameToVideoResolutionEnum]
+
+export const inputFalAiVeo31FirstLastFrameToVideoSafetyToleranceEnum = {
+  '1': '1',
+  '2': '2',
+  '3': '3',
+  '4': '4',
+  '5': '5',
+  '6': '6',
+} as const
+
+export type InputFalAiVeo31FirstLastFrameToVideoSafetyToleranceEnumKey =
+  (typeof inputFalAiVeo31FirstLastFrameToVideoSafetyToleranceEnum)[keyof typeof inputFalAiVeo31FirstLastFrameToVideoSafetyToleranceEnum]
+
+export type InputFalAiVeo31FirstLastFrameToVideo = {
+  /**
+   * @description The aspect ratio of the generated video.
+   * @default 'auto'
+   * @type string | undefined
+   */
+  aspect_ratio?: InputFalAiVeo31FirstLastFrameToVideoAspectRatioEnumKey
+  /**
+   * @description URL of the last frame of the video
+   * @example https://storage.googleapis.com/falserverless/example_inputs/veo31-flf2v-input-2.jpeg
+   * @type string
+   */
+  last_frame_url: string
+  /**
+   * @description The duration of the generated video.
+   * @default '8s'
+   * @type string | undefined
+   */
+  duration?: InputFalAiVeo31FirstLastFrameToVideoDurationEnumKey
+  /**
+   * @description Whether to automatically attempt to fix prompts that fail content policy or other validation checks by rewriting them.
+   * @default false
+   * @type boolean | undefined
+   */
+  auto_fix?: boolean
+  /**
+   * @description The seed for the random number generator.
+   */
+  seed?: number | null
+  /**
+   * @description A negative prompt to guide the video generation.
+   */
+  negative_prompt?: string | null
+  /**
+   * @description The resolution of the generated video.
+   * @default '720p'
+   * @type string | undefined
+   */
+  resolution?: InputFalAiVeo31FirstLastFrameToVideoResolutionEnumKey
+  /**
+   * @description The text prompt describing the video you want to generate
+   * @maxLength 20000
+   * @example A woman looks into the camera, breathes in, then exclaims energetically, "have you guys checked out Veo3.1 First-Last-Frame-to-Video on Fal? It's incredible!"
+   * @type string
+   */
+  prompt: string
+  /**
+   * @description Whether to generate audio for the video.
+   * @default true
+   * @type boolean | undefined
+   */
+  generate_audio?: boolean
+  /**
+   * @description URL of the first frame of the video
+   * @example https://storage.googleapis.com/falserverless/example_inputs/veo31-flf2v-input-1.jpeg
+   * @type string
+   */
+  first_frame_url: string
+  /**
+   * @description The safety tolerance level for content moderation. 1 is the most strict (blocks most content), 6 is the least strict.
+   * @default '4'
+   * @type string | undefined
+   */
+  safety_tolerance?: InputFalAiVeo31FirstLastFrameToVideoSafetyToleranceEnumKey
+}
+
+export type File061E66E6 = {
+  /**
+   * @description The size of the file in bytes.
+   * @example 4404019
+   */
+  file_size?: number | null
+  /**
+   * @description The mime type of the file.
+   * @example image/png
+   */
+  content_type?: string | null
+  /**
+   * @description The URL where the file can be downloaded from.
+   * @type string
+   */
+  url: string
+  /**
+   * @description The name of the file. It will be auto-generated if not provided.
+   * @example z9RV14K95DvU.png
+   */
+  file_name?: string | null
+}
+
+export type OutputFalAiVeo31FirstLastFrameToVideo = {
+  /**
+   * @description The generated video.
+   * @example {"url":"https://storage.googleapis.com/falserverless/example_outputs/veo31-flf2v-output.mp4"}
+   * @type object
+   */
+  video: File061E66E6
+}
+
+export const inputFalAiVeo31ImageToVideoAspectRatioEnum = {
+  auto: 'auto',
+  '16:9': '16:9',
+  '9:16': '9:16',
+} as const
+
+export type InputFalAiVeo31ImageToVideoAspectRatioEnumKey =
+  (typeof inputFalAiVeo31ImageToVideoAspectRatioEnum)[keyof typeof inputFalAiVeo31ImageToVideoAspectRatioEnum]
+
+export const inputFalAiVeo31ImageToVideoDurationEnum = {
+  '4s': '4s',
+  '6s': '6s',
+  '8s': '8s',
+} as const
+
+export type InputFalAiVeo31ImageToVideoDurationEnumKey =
+  (typeof inputFalAiVeo31ImageToVideoDurationEnum)[keyof typeof inputFalAiVeo31ImageToVideoDurationEnum]
+
+export const inputFalAiVeo31ImageToVideoResolutionEnum = {
+  '720p': '720p',
+  '1080p': '1080p',
+  '4k': '4k',
+} as const
+
+export type InputFalAiVeo31ImageToVideoResolutionEnumKey =
+  (typeof inputFalAiVeo31ImageToVideoResolutionEnum)[keyof typeof inputFalAiVeo31ImageToVideoResolutionEnum]
+
+export const inputFalAiVeo31ImageToVideoSafetyToleranceEnum = {
+  '1': '1',
+  '2': '2',
+  '3': '3',
+  '4': '4',
+  '5': '5',
+  '6': '6',
+} as const
+
+export type InputFalAiVeo31ImageToVideoSafetyToleranceEnumKey =
+  (typeof inputFalAiVeo31ImageToVideoSafetyToleranceEnum)[keyof typeof inputFalAiVeo31ImageToVideoSafetyToleranceEnum]
+
+export type InputFalAiVeo31ImageToVideo = {
+  /**
+   * @description The aspect ratio of the generated video. Only 16:9 and 9:16 are supported.
+   * @default 'auto'
+   * @type string | undefined
+   */
+  aspect_ratio?: InputFalAiVeo31ImageToVideoAspectRatioEnumKey
+  /**
+   * @description URL of the input image to animate. Should be 720p or higher resolution in 16:9 or 9:16 aspect ratio. If the image is not in 16:9 or 9:16 aspect ratio, it will be cropped to fit.
+   * @example https://storage.googleapis.com/falserverless/example_inputs/veo31_i2v_input.jpg
+   * @type string
+   */
+  image_url: string
+  /**
+   * @description The duration of the generated video.
+   * @default '8s'
+   * @type string | undefined
+   */
+  duration?: InputFalAiVeo31ImageToVideoDurationEnumKey
+  /**
+   * @description Whether to automatically attempt to fix prompts that fail content policy or other validation checks by rewriting them.
+   * @default false
+   * @type boolean | undefined
+   */
+  auto_fix?: boolean
+  /**
+   * @description The seed for the random number generator.
+   */
+  seed?: number | null
+  /**
+   * @description A negative prompt to guide the video generation.
+   */
+  negative_prompt?: string | null
+  /**
+   * @description The resolution of the generated video.
+   * @default '720p'
+   * @type string | undefined
+   */
+  resolution?: InputFalAiVeo31ImageToVideoResolutionEnumKey
+  /**
+   * @description The safety tolerance level for content moderation. 1 is the most strict (blocks most content), 6 is the least strict.
+   * @default '4'
+   * @type string | undefined
+   */
+  safety_tolerance?: InputFalAiVeo31ImageToVideoSafetyToleranceEnumKey
+  /**
+   * @description The text prompt describing the video you want to generate
+   * @maxLength 20000
+   * @example A monkey and polar bear host a casual podcast about AI inference, bringing their unique perspectives from different environments (tropical vs. arctic) to discuss how AI systems make decisions and process information.
+   * Sample Dialogue:
+   * Monkey (Banana): "Welcome back to Bananas & Ice! I am Banana"
+   * Polar Bear (Ice): "And I'm Ice!"
+   * @type string
+   */
+  prompt: string
+  /**
+   * @description Whether to generate audio for the video.
+   * @default true
+   * @type boolean | undefined
+   */
+  generate_audio?: boolean
+}
+
+export type File9B3D24E6 = {
+  /**
+   * @description The size of the file in bytes.
+   * @example 4404019
+   */
+  file_size?: number | null
+  /**
+   * @description The mime type of the file.
+   * @example image/png
+   */
+  content_type?: string | null
+  /**
+   * @description The URL where the file can be downloaded from.
+   * @type string
+   */
+  url: string
+  /**
+   * @description The name of the file. It will be auto-generated if not provided.
+   * @example z9RV14K95DvU.png
+   */
+  file_name?: string | null
+}
+
+export type OutputFalAiVeo31ImageToVideo = {
+  /**
+   * @description The generated video.
+   * @example {"url":"https://storage.googleapis.com/falserverless/model_tests/gallery/veo3-1-i2v.mp4"}
+   * @type object
+   */
+  video: File9B3D24E6
+}
+
+export const inputFalAiVeo31LiteAspectRatioEnum = {
+  '16:9': '16:9',
+  '9:16': '9:16',
+} as const
+
+export type InputFalAiVeo31LiteAspectRatioEnumKey =
+  (typeof inputFalAiVeo31LiteAspectRatioEnum)[keyof typeof inputFalAiVeo31LiteAspectRatioEnum]
+
+export const inputFalAiVeo31LiteDurationEnum = {
+  '4s': '4s',
+  '6s': '6s',
+  '8s': '8s',
+} as const
+
+export type InputFalAiVeo31LiteDurationEnumKey =
+  (typeof inputFalAiVeo31LiteDurationEnum)[keyof typeof inputFalAiVeo31LiteDurationEnum]
+
+export const inputFalAiVeo31LiteResolutionEnum = {
+  '720p': '720p',
+  '1080p': '1080p',
+} as const
+
+export type InputFalAiVeo31LiteResolutionEnumKey =
+  (typeof inputFalAiVeo31LiteResolutionEnum)[keyof typeof inputFalAiVeo31LiteResolutionEnum]
+
+export const inputFalAiVeo31LiteSafetyToleranceEnum = {
+  '1': '1',
+  '2': '2',
+  '3': '3',
+  '4': '4',
+  '5': '5',
+  '6': '6',
+} as const
+
+export type InputFalAiVeo31LiteSafetyToleranceEnumKey =
+  (typeof inputFalAiVeo31LiteSafetyToleranceEnum)[keyof typeof inputFalAiVeo31LiteSafetyToleranceEnum]
+
+export type InputFalAiVeo31Lite = {
+  /**
+   * @description Aspect ratio of the generated video
+   * @default '16:9'
+   * @type string | undefined
+   */
+  aspect_ratio?: InputFalAiVeo31LiteAspectRatioEnumKey
+  /**
+   * @description The duration of the generated video.
+   * @default '8s'
+   * @type string | undefined
+   */
+  duration?: InputFalAiVeo31LiteDurationEnumKey
+  /**
+   * @description Whether to automatically attempt to fix prompts that fail content policy or other validation checks by rewriting them.
+   * @default true
+   * @type boolean | undefined
+   */
+  auto_fix?: boolean
+  /**
+   * @description The seed for the random number generator.
+   */
+  seed?: number | null
+  /**
+   * @description A negative prompt to guide the video generation.
+   */
+  negative_prompt?: string | null
+  /**
+   * @description The resolution of the generated video.
+   * @default '720p'
+   * @type string | undefined
+   */
+  resolution?: InputFalAiVeo31LiteResolutionEnumKey
+  /**
+   * @description Whether to generate audio for the video.
+   * @default true
+   * @type boolean | undefined
+   */
+  generate_audio?: boolean
+  /**
+   * @description The text prompt describing the video you want to generate
+   * @maxLength 20000
+   * @example A massive blue whale glides through crystal-clear deep ocean water, sunlight rays piercing through the surface above, bioluminescent plankton scattered around, cinematic slow motion
+   * @type string
+   */
+  prompt: string
+  /**
+   * @description The safety tolerance level for content moderation. 1 is the most strict (blocks most content), 6 is the least strict.
+   * @default '4'
+   * @type string | undefined
+   */
+  safety_tolerance?: InputFalAiVeo31LiteSafetyToleranceEnumKey
+}
+
+export type File6Fc7E4Cd = {
+  /**
+   * @description The size of the file in bytes.
+   * @example 4404019
+   */
+  file_size?: number | null
+  /**
+   * @description The mime type of the file.
+   * @example image/png
+   */
+  content_type?: string | null
+  /**
+   * @description The URL where the file can be downloaded from.
+   * @type string
+   */
+  url: string
+  /**
+   * @description The name of the file. It will be auto-generated if not provided.
+   * @example z9RV14K95DvU.png
+   */
+  file_name?: string | null
+}
+
+export type OutputFalAiVeo31Lite = {
+  /**
+   * @description The generated video.
+   * @example {"url":"https://v3b.fal.media/files/b/0a94683f/r4vLtNmFDi_qpglfEX_q9_0a7258527ac84509a0997639765f5c79.mp4"}
+   * @type object
+   */
+  video: File6Fc7E4Cd
+}
+
+export const inputFalAiVeo31LiteFirstLastFrameToVideoDurationEnum = {
+  '4s': '4s',
+  '6s': '6s',
+  '8s': '8s',
+} as const
+
+export type InputFalAiVeo31LiteFirstLastFrameToVideoDurationEnumKey =
+  (typeof inputFalAiVeo31LiteFirstLastFrameToVideoDurationEnum)[keyof typeof inputFalAiVeo31LiteFirstLastFrameToVideoDurationEnum]
+
+export const inputFalAiVeo31LiteFirstLastFrameToVideoAspectRatioEnum = {
+  auto: 'auto',
+  '16:9': '16:9',
+  '9:16': '9:16',
+} as const
+
+export type InputFalAiVeo31LiteFirstLastFrameToVideoAspectRatioEnumKey =
+  (typeof inputFalAiVeo31LiteFirstLastFrameToVideoAspectRatioEnum)[keyof typeof inputFalAiVeo31LiteFirstLastFrameToVideoAspectRatioEnum]
+
+export const inputFalAiVeo31LiteFirstLastFrameToVideoSafetyToleranceEnum = {
+  '1': '1',
+  '2': '2',
+  '3': '3',
+  '4': '4',
+  '5': '5',
+  '6': '6',
+} as const
+
+export type InputFalAiVeo31LiteFirstLastFrameToVideoSafetyToleranceEnumKey =
+  (typeof inputFalAiVeo31LiteFirstLastFrameToVideoSafetyToleranceEnum)[keyof typeof inputFalAiVeo31LiteFirstLastFrameToVideoSafetyToleranceEnum]
+
+export const inputFalAiVeo31LiteFirstLastFrameToVideoResolutionEnum = {
+  '720p': '720p',
+  '1080p': '1080p',
+} as const
+
+export type InputFalAiVeo31LiteFirstLastFrameToVideoResolutionEnumKey =
+  (typeof inputFalAiVeo31LiteFirstLastFrameToVideoResolutionEnum)[keyof typeof inputFalAiVeo31LiteFirstLastFrameToVideoResolutionEnum]
+
+export type InputFalAiVeo31LiteFirstLastFrameToVideo = {
+  /**
+   * @description Whether to generate audio for the video.
+   * @default true
+   * @type boolean | undefined
+   */
+  generate_audio?: boolean
+  /**
+   * @description Whether to automatically attempt to fix prompts that fail content policy or other validation checks by rewriting them.
+   * @default false
+   * @type boolean | undefined
+   */
+  auto_fix?: boolean
+  /**
+   * @description The duration of the generated video.
+   * @default '8s'
+   * @type string | undefined
+   */
+  duration?: InputFalAiVeo31LiteFirstLastFrameToVideoDurationEnumKey
+  /**
+   * @description The aspect ratio of the generated video.
+   * @default 'auto'
+   * @type string | undefined
+   */
+  aspect_ratio?: InputFalAiVeo31LiteFirstLastFrameToVideoAspectRatioEnumKey
+  /**
+   * @description A negative prompt to guide the video generation.
+   */
+  negative_prompt?: string | null
+  /**
+   * @description The seed for the random number generator.
+   */
+  seed?: number | null
+  /**
+   * @description URL of the first frame of the video
+   * @example https://storage.googleapis.com/falserverless/example_inputs/veo31-flf2v-input-1.jpeg
+   * @type string
+   */
+  first_frame_url: string
+  /**
+   * @description URL of the last frame of the video
+   * @example https://storage.googleapis.com/falserverless/example_inputs/veo31-flf2v-input-2.jpeg
+   * @type string
+   */
+  last_frame_url: string
+  /**
+   * @description The text prompt describing the video you want to generate
+   * @maxLength 20000
+   * @example A smooth transition between the two frames with natural motion.
+   * @type string
+   */
+  prompt: string
+  /**
+   * @description The safety tolerance level for content moderation. 1 is the most strict (blocks most content), 6 is the least strict.
+   * @default '4'
+   * @type string | undefined
+   */
+  safety_tolerance?: InputFalAiVeo31LiteFirstLastFrameToVideoSafetyToleranceEnumKey
+  /**
+   * @description The resolution of the generated video.
+   * @default '720p'
+   * @type string | undefined
+   */
+  resolution?: InputFalAiVeo31LiteFirstLastFrameToVideoResolutionEnumKey
+}
+
+export type File04Af36E1 = {
+  /**
+   * @description The size of the file in bytes.
+   * @example 4404019
+   */
+  file_size?: number | null
+  /**
+   * @description The mime type of the file.
+   * @example image/png
+   */
+  content_type?: string | null
+  /**
+   * @description The URL where the file can be downloaded from.
+   * @type string
+   */
+  url: string
+  /**
+   * @description The name of the file. It will be auto-generated if not provided.
+   * @example z9RV14K95DvU.png
+   */
+  file_name?: string | null
+}
+
+export type OutputFalAiVeo31LiteFirstLastFrameToVideo = {
+  /**
+   * @description The generated video.
+   * @type object
+   */
+  video: File04Af36E1
+}
+
+export const inputFalAiVeo31LiteImageToVideoAspectRatioEnum = {
+  auto: 'auto',
+  '16:9': '16:9',
+  '9:16': '9:16',
+} as const
+
+export type InputFalAiVeo31LiteImageToVideoAspectRatioEnumKey =
+  (typeof inputFalAiVeo31LiteImageToVideoAspectRatioEnum)[keyof typeof inputFalAiVeo31LiteImageToVideoAspectRatioEnum]
+
+export const inputFalAiVeo31LiteImageToVideoDurationEnum = {
+  '4s': '4s',
+  '6s': '6s',
+  '8s': '8s',
+} as const
+
+export type InputFalAiVeo31LiteImageToVideoDurationEnumKey =
+  (typeof inputFalAiVeo31LiteImageToVideoDurationEnum)[keyof typeof inputFalAiVeo31LiteImageToVideoDurationEnum]
+
+export const inputFalAiVeo31LiteImageToVideoResolutionEnum = {
+  '720p': '720p',
+  '1080p': '1080p',
+} as const
+
+export type InputFalAiVeo31LiteImageToVideoResolutionEnumKey =
+  (typeof inputFalAiVeo31LiteImageToVideoResolutionEnum)[keyof typeof inputFalAiVeo31LiteImageToVideoResolutionEnum]
+
+export const inputFalAiVeo31LiteImageToVideoSafetyToleranceEnum = {
+  '1': '1',
+  '2': '2',
+  '3': '3',
+  '4': '4',
+  '5': '5',
+  '6': '6',
+} as const
+
+export type InputFalAiVeo31LiteImageToVideoSafetyToleranceEnumKey =
+  (typeof inputFalAiVeo31LiteImageToVideoSafetyToleranceEnum)[keyof typeof inputFalAiVeo31LiteImageToVideoSafetyToleranceEnum]
+
+export type InputFalAiVeo31LiteImageToVideo = {
+  /**
+   * @description The aspect ratio of the generated video.
+   * @default 'auto'
+   * @type string | undefined
+   */
+  aspect_ratio?: InputFalAiVeo31LiteImageToVideoAspectRatioEnumKey
+  /**
+   * @description URL of the input image to animate. Should be 720p or higher resolution in 16:9 or 9:16 aspect ratio.
+   * @example https://storage.googleapis.com/falserverless/example_inputs/veo3-i2v-input.png
+   * @type string
+   */
+  image_url: string
+  /**
+   * @description The duration of the generated video.
+   * @default '8s'
+   * @type string | undefined
+   */
+  duration?: InputFalAiVeo31LiteImageToVideoDurationEnumKey
+  /**
+   * @description Whether to automatically attempt to fix prompts that fail content policy or other validation checks by rewriting them.
+   * @default false
+   * @type boolean | undefined
+   */
+  auto_fix?: boolean
+  /**
+   * @description The seed for the random number generator.
+   */
+  seed?: number | null
+  /**
+   * @description A negative prompt to guide the video generation.
+   */
+  negative_prompt?: string | null
+  /**
+   * @description The resolution of the generated video.
+   * @default '720p'
+   * @type string | undefined
+   */
+  resolution?: InputFalAiVeo31LiteImageToVideoResolutionEnumKey
+  /**
+   * @description The safety tolerance level for content moderation. 1 is the most strict (blocks most content), 6 is the least strict.
+   * @default '4'
+   * @type string | undefined
+   */
+  safety_tolerance?: InputFalAiVeo31LiteImageToVideoSafetyToleranceEnumKey
+  /**
+   * @description The text prompt describing how the image should be animated
+   * @maxLength 20000
+   * @example The subject turns to face the camera and smiles warmly.
+   * @type string
+   */
+  prompt: string
+  /**
+   * @description Whether to generate audio for the video.
+   * @default true
+   * @type boolean | undefined
+   */
+  generate_audio?: boolean
+}
+
+export type File9585F86F = {
+  /**
+   * @description The size of the file in bytes.
+   * @example 4404019
+   */
+  file_size?: number | null
+  /**
+   * @description The mime type of the file.
+   * @example image/png
+   */
+  content_type?: string | null
+  /**
+   * @description The URL where the file can be downloaded from.
+   * @type string
+   */
+  url: string
+  /**
+   * @description The name of the file. It will be auto-generated if not provided.
+   * @example z9RV14K95DvU.png
+   */
+  file_name?: string | null
+}
+
+export type OutputFalAiVeo31LiteImageToVideo = {
+  /**
+   * @description The generated video.
+   * @type object
+   */
+  video: File9585F86F
+}
+
+export const inputFalAiVeo31ReferenceToVideoAspectRatioEnum = {
+  '16:9': '16:9',
+  '9:16': '9:16',
+} as const
+
+export type InputFalAiVeo31ReferenceToVideoAspectRatioEnumKey =
+  (typeof inputFalAiVeo31ReferenceToVideoAspectRatioEnum)[keyof typeof inputFalAiVeo31ReferenceToVideoAspectRatioEnum]
+
+export const inputFalAiVeo31ReferenceToVideoResolutionEnum = {
+  '720p': '720p',
+  '1080p': '1080p',
+  '4k': '4k',
+} as const
+
+export type InputFalAiVeo31ReferenceToVideoResolutionEnumKey =
+  (typeof inputFalAiVeo31ReferenceToVideoResolutionEnum)[keyof typeof inputFalAiVeo31ReferenceToVideoResolutionEnum]
+
+export const inputFalAiVeo31ReferenceToVideoSafetyToleranceEnum = {
+  '1': '1',
+  '2': '2',
+  '3': '3',
+  '4': '4',
+  '5': '5',
+  '6': '6',
+} as const
+
+export type InputFalAiVeo31ReferenceToVideoSafetyToleranceEnumKey =
+  (typeof inputFalAiVeo31ReferenceToVideoSafetyToleranceEnum)[keyof typeof inputFalAiVeo31ReferenceToVideoSafetyToleranceEnum]
+
+export type InputFalAiVeo31ReferenceToVideo = {
+  /**
+   * @description The aspect ratio of the generated video.
+   * @default '16:9'
+   * @type string | undefined
+   */
+  aspect_ratio?: InputFalAiVeo31ReferenceToVideoAspectRatioEnumKey
+  /**
+   * @description The duration of the generated video.
+   * @default '8s'
+   * @type string | undefined
+   */
+  duration?: '8s'
+  /**
+   * @description Whether to automatically attempt to fix prompts that fail content policy or other validation checks by rewriting them.
+   * @default false
+   * @type boolean | undefined
+   */
+  auto_fix?: boolean
+  /**
+   * @description The resolution of the generated video.
+   * @default '720p'
+   * @type string | undefined
+   */
+  resolution?: InputFalAiVeo31ReferenceToVideoResolutionEnumKey
+  /**
+   * @description The safety tolerance level for content moderation. 1 is the most strict (blocks most content), 6 is the least strict.
+   * @default '4'
+   * @type string | undefined
+   */
+  safety_tolerance?: InputFalAiVeo31ReferenceToVideoSafetyToleranceEnumKey
+  /**
+   * @description The text prompt describing the video you want to generate
+   * @maxLength 20000
+   * @example A chimpanzee wearing overalls frolics in the grassy field, gently playing with the butterflies. In the background, a circus tent and carousel beckon.
+   * @type string
+   */
+  prompt: string
+  /**
+   * @description Whether to generate audio for the video.
+   * @default true
+   * @type boolean | undefined
+   */
+  generate_audio?: boolean
+  /**
+   * @description URLs of the reference images to use for consistent subject appearance
+   * @example ["https://storage.googleapis.com/falserverless/example_inputs/veo31-r2v-input-1.png","https://storage.googleapis.com/falserverless/example_inputs/veo31-r2v-input-2.png","https://storage.googleapis.com/falserverless/example_inputs/veo31-r2v-input-3.png"]
+   * @type array
+   */
+  image_urls: string[]
+}
+
+export type FileF3360306 = {
+  /**
+   * @description The size of the file in bytes.
+   * @example 4404019
+   */
+  file_size?: number | null
+  /**
+   * @description The mime type of the file.
+   * @example image/png
+   */
+  content_type?: string | null
+  /**
+   * @description The URL where the file can be downloaded from.
+   * @type string
+   */
+  url: string
+  /**
+   * @description The name of the file. It will be auto-generated if not provided.
+   * @example z9RV14K95DvU.png
+   */
+  file_name?: string | null
+}
+
+export type OutputFalAiVeo31ReferenceToVideo = {
+  /**
+   * @description The generated video.
+   * @example {"url":"https://storage.googleapis.com/falserverless/example_outputs/veo31-r2v-output.mp4"}
+   * @type object
+   */
+  video: FileF3360306
+}
+
+export const inputFalAiVeo3FastDurationEnum = {
+  '4s': '4s',
+  '6s': '6s',
+  '8s': '8s',
+} as const
+
+export type InputFalAiVeo3FastDurationEnumKey =
+  (typeof inputFalAiVeo3FastDurationEnum)[keyof typeof inputFalAiVeo3FastDurationEnum]
+
+export const inputFalAiVeo3FastSafetyToleranceEnum = {
+  '1': '1',
+  '2': '2',
+  '3': '3',
+  '4': '4',
+  '5': '5',
+  '6': '6',
+} as const
+
+export type InputFalAiVeo3FastSafetyToleranceEnumKey =
+  (typeof inputFalAiVeo3FastSafetyToleranceEnum)[keyof typeof inputFalAiVeo3FastSafetyToleranceEnum]
+
+export const inputFalAiVeo3FastResolutionEnum = {
+  '720p': '720p',
+  '1080p': '1080p',
+} as const
+
+export type InputFalAiVeo3FastResolutionEnumKey =
+  (typeof inputFalAiVeo3FastResolutionEnum)[keyof typeof inputFalAiVeo3FastResolutionEnum]
+
+export const inputFalAiVeo3FastAspectRatioEnum = {
+  '16:9': '16:9',
+  '9:16': '9:16',
+} as const
+
+export type InputFalAiVeo3FastAspectRatioEnumKey =
+  (typeof inputFalAiVeo3FastAspectRatioEnum)[keyof typeof inputFalAiVeo3FastAspectRatioEnum]
+
+export type InputFalAiVeo3Fast = {
+  /**
+   * @description The text prompt describing the video you want to generate
+   * @maxLength 20000
+   * @example A casual street interview on a busy New York City sidewalk in the afternoon. The interviewer holds a plain, unbranded microphone and asks: Have you seen Google's new Veo3 model It is a super good model. Person replies: Yeah I saw it, it's already available on fal. It's crazy good.
+   * @type string
+   */
+  prompt: string
+  /**
+   * @description Whether to generate audio for the video.
+   * @default true
+   * @type boolean | undefined
+   */
+  generate_audio?: boolean
+  /**
+   * @description The duration of the generated video.
+   * @default '8s'
+   * @type string | undefined
+   */
+  duration?: InputFalAiVeo3FastDurationEnumKey
+  /**
+   * @description The safety tolerance level for content moderation. 1 is the most strict (blocks most content), 6 is the least strict.
+   * @default '4'
+   * @type string | undefined
+   */
+  safety_tolerance?: InputFalAiVeo3FastSafetyToleranceEnumKey
+  /**
+   * @description The resolution of the generated video.
+   * @default '720p'
+   * @type string | undefined
+   */
+  resolution?: InputFalAiVeo3FastResolutionEnumKey
+  /**
+   * @description A negative prompt to guide the video generation.
+   */
+  negative_prompt?: string | null
+  /**
+   * @description The seed for the random number generator.
+   */
+  seed?: number | null
+  /**
+   * @description The aspect ratio of the generated video.
+   * @default '16:9'
+   * @type string | undefined
+   */
+  aspect_ratio?: InputFalAiVeo3FastAspectRatioEnumKey
+  /**
+   * @description Whether to automatically attempt to fix prompts that fail content policy or other validation checks by rewriting them.
+   * @default true
+   * @type boolean | undefined
+   */
+  auto_fix?: boolean
+}
+
+export type File7B170D66 = {
+  /**
+   * @description The size of the file in bytes.
+   * @example 4404019
+   */
+  file_size?: number | null
+  /**
+   * @description The mime type of the file.
+   * @example image/png
+   */
+  content_type?: string | null
+  /**
+   * @description The name of the file. It will be auto-generated if not provided.
+   * @example z9RV14K95DvU.png
+   */
+  file_name?: string | null
+  /**
+   * @description The URL where the file can be downloaded from.
+   * @type string
+   */
+  url: string
+}
+
+export type OutputFalAiVeo3Fast = {
+  /**
+   * @description The generated video.
+   * @example {"url":"https://v3.fal.media/files/penguin/Q-2dpcjIoQOldJRL3grsc_output.mp4"}
+   * @type object
+   */
+  video: File7B170D66
+}
+
+export const inputFalAiVeo3FastImageToVideoDurationEnum = {
+  '4s': '4s',
+  '6s': '6s',
+  '8s': '8s',
+} as const
+
+export type InputFalAiVeo3FastImageToVideoDurationEnumKey =
+  (typeof inputFalAiVeo3FastImageToVideoDurationEnum)[keyof typeof inputFalAiVeo3FastImageToVideoDurationEnum]
+
+export const inputFalAiVeo3FastImageToVideoSafetyToleranceEnum = {
+  '1': '1',
+  '2': '2',
+  '3': '3',
+  '4': '4',
+  '5': '5',
+  '6': '6',
+} as const
+
+export type InputFalAiVeo3FastImageToVideoSafetyToleranceEnumKey =
+  (typeof inputFalAiVeo3FastImageToVideoSafetyToleranceEnum)[keyof typeof inputFalAiVeo3FastImageToVideoSafetyToleranceEnum]
+
+export const inputFalAiVeo3FastImageToVideoResolutionEnum = {
+  '720p': '720p',
+  '1080p': '1080p',
+} as const
+
+export type InputFalAiVeo3FastImageToVideoResolutionEnumKey =
+  (typeof inputFalAiVeo3FastImageToVideoResolutionEnum)[keyof typeof inputFalAiVeo3FastImageToVideoResolutionEnum]
+
+export const inputFalAiVeo3FastImageToVideoAspectRatioEnum = {
+  auto: 'auto',
+  '16:9': '16:9',
+  '9:16': '9:16',
+} as const
+
+export type InputFalAiVeo3FastImageToVideoAspectRatioEnumKey =
+  (typeof inputFalAiVeo3FastImageToVideoAspectRatioEnum)[keyof typeof inputFalAiVeo3FastImageToVideoAspectRatioEnum]
+
+export type InputFalAiVeo3FastImageToVideo = {
+  /**
+   * @description The text prompt describing how the image should be animated
+   * @maxLength 20000
+   * @example A woman looks into the camera, breathes in, then exclaims energetically, "have you guys checked out Veo3 Image-to-Video on Fal? It's incredible!"
+   * @type string
+   */
+  prompt: string
+  /**
+   * @description Whether to generate audio for the video.
+   * @default true
+   * @type boolean | undefined
+   */
+  generate_audio?: boolean
+  /**
+   * @description The duration of the generated video.
+   * @default '8s'
+   * @type string | undefined
+   */
+  duration?: InputFalAiVeo3FastImageToVideoDurationEnumKey
+  /**
+   * @description URL of the input image to animate. Should be 720p or higher resolution in 16:9 or 9:16 aspect ratio. If the image is not in 16:9 or 9:16 aspect ratio, it will be cropped to fit.
+   * @example https://storage.googleapis.com/falserverless/example_inputs/veo3-i2v-input.png
+   * @type string
+   */
+  image_url: string
+  /**
+   * @description The safety tolerance level for content moderation. 1 is the most strict (blocks most content), 6 is the least strict.
+   * @default '4'
+   * @type string | undefined
+   */
+  safety_tolerance?: InputFalAiVeo3FastImageToVideoSafetyToleranceEnumKey
+  /**
+   * @description The resolution of the generated video.
+   * @default '720p'
+   * @type string | undefined
+   */
+  resolution?: InputFalAiVeo3FastImageToVideoResolutionEnumKey
+  /**
+   * @description A negative prompt to guide the video generation.
+   */
+  negative_prompt?: string | null
+  /**
+   * @description The seed for the random number generator.
+   */
+  seed?: number | null
+  /**
+   * @description The aspect ratio of the generated video.
+   * @default 'auto'
+   * @type string | undefined
+   */
+  aspect_ratio?: InputFalAiVeo3FastImageToVideoAspectRatioEnumKey
+  /**
+   * @description Whether to automatically attempt to fix prompts that fail content policy or other validation checks by rewriting them.
+   * @default false
+   * @type boolean | undefined
+   */
+  auto_fix?: boolean
+}
+
+export type File45De1E2E = {
+  /**
+   * @description The size of the file in bytes.
+   * @example 4404019
+   */
+  file_size?: number | null
+  /**
+   * @description The mime type of the file.
+   * @example image/png
+   */
+  content_type?: string | null
+  /**
+   * @description The name of the file. It will be auto-generated if not provided.
+   * @example z9RV14K95DvU.png
+   */
+  file_name?: string | null
+  /**
+   * @description The URL where the file can be downloaded from.
+   * @type string
+   */
+  url: string
+}
+
+export type OutputFalAiVeo3FastImageToVideo = {
+  /**
+   * @description The generated video.
+   * @example {"url":"https://storage.googleapis.com/falserverless/example_outputs/veo3-i2v-output.mp4"}
+   * @type object
+   */
+  video: File45De1E2E
+}
+
+export const inputFalAiVeo3ImageToVideoDurationEnum = {
+  '4s': '4s',
+  '6s': '6s',
+  '8s': '8s',
+} as const
+
+export type InputFalAiVeo3ImageToVideoDurationEnumKey =
+  (typeof inputFalAiVeo3ImageToVideoDurationEnum)[keyof typeof inputFalAiVeo3ImageToVideoDurationEnum]
+
+export const inputFalAiVeo3ImageToVideoSafetyToleranceEnum = {
+  '1': '1',
+  '2': '2',
+  '3': '3',
+  '4': '4',
+  '5': '5',
+  '6': '6',
+} as const
+
+export type InputFalAiVeo3ImageToVideoSafetyToleranceEnumKey =
+  (typeof inputFalAiVeo3ImageToVideoSafetyToleranceEnum)[keyof typeof inputFalAiVeo3ImageToVideoSafetyToleranceEnum]
+
+export const inputFalAiVeo3ImageToVideoResolutionEnum = {
+  '720p': '720p',
+  '1080p': '1080p',
+} as const
+
+export type InputFalAiVeo3ImageToVideoResolutionEnumKey =
+  (typeof inputFalAiVeo3ImageToVideoResolutionEnum)[keyof typeof inputFalAiVeo3ImageToVideoResolutionEnum]
+
+export const inputFalAiVeo3ImageToVideoAspectRatioEnum = {
+  auto: 'auto',
+  '16:9': '16:9',
+  '9:16': '9:16',
+} as const
+
+export type InputFalAiVeo3ImageToVideoAspectRatioEnumKey =
+  (typeof inputFalAiVeo3ImageToVideoAspectRatioEnum)[keyof typeof inputFalAiVeo3ImageToVideoAspectRatioEnum]
+
+export type InputFalAiVeo3ImageToVideo = {
+  /**
+   * @description The text prompt describing how the image should be animated
+   * @maxLength 20000
+   * @example A woman looks into the camera, breathes in, then exclaims energetically, "have you guys checked out Veo3 Image-to-Video on Fal? It's incredible!"
+   * @type string
+   */
+  prompt: string
+  /**
+   * @description Whether to generate audio for the video.
+   * @default true
+   * @type boolean | undefined
+   */
+  generate_audio?: boolean
+  /**
+   * @description The duration of the generated video.
+   * @default '8s'
+   * @type string | undefined
+   */
+  duration?: InputFalAiVeo3ImageToVideoDurationEnumKey
+  /**
+   * @description URL of the input image to animate. Should be 720p or higher resolution in 16:9 or 9:16 aspect ratio. If the image is not in 16:9 or 9:16 aspect ratio, it will be cropped to fit.
+   * @example https://storage.googleapis.com/falserverless/example_inputs/veo3-i2v-input.png
+   * @type string
+   */
+  image_url: string
+  /**
+   * @description The safety tolerance level for content moderation. 1 is the most strict (blocks most content), 6 is the least strict.
+   * @default '4'
+   * @type string | undefined
+   */
+  safety_tolerance?: InputFalAiVeo3ImageToVideoSafetyToleranceEnumKey
+  /**
+   * @description The resolution of the generated video.
+   * @default '720p'
+   * @type string | undefined
+   */
+  resolution?: InputFalAiVeo3ImageToVideoResolutionEnumKey
+  /**
+   * @description A negative prompt to guide the video generation.
+   */
+  negative_prompt?: string | null
+  /**
+   * @description The seed for the random number generator.
+   */
+  seed?: number | null
+  /**
+   * @description The aspect ratio of the generated video.
+   * @default 'auto'
+   * @type string | undefined
+   */
+  aspect_ratio?: InputFalAiVeo3ImageToVideoAspectRatioEnumKey
+  /**
+   * @description Whether to automatically attempt to fix prompts that fail content policy or other validation checks by rewriting them.
+   * @default false
+   * @type boolean | undefined
+   */
+  auto_fix?: boolean
+}
+
+export type File375078Bb = {
+  /**
+   * @description The size of the file in bytes.
+   * @example 4404019
+   */
+  file_size?: number | null
+  /**
+   * @description The mime type of the file.
+   * @example image/png
+   */
+  content_type?: string | null
+  /**
+   * @description The name of the file. It will be auto-generated if not provided.
+   * @example z9RV14K95DvU.png
+   */
+  file_name?: string | null
+  /**
+   * @description The URL where the file can be downloaded from.
+   * @type string
+   */
+  url: string
+}
+
+export type OutputFalAiVeo3ImageToVideo = {
+  /**
+   * @description The generated video.
+   * @example {"url":"https://storage.googleapis.com/falserverless/example_outputs/veo3-i2v-output.mp4"}
+   * @type object
+   */
+  video: File375078Bb
 }
 
 export type InputFalAiVideoUpscaler = {
@@ -58436,6 +77866,368 @@ export type OutputFalAiWan25PreviewTextToVideo = {
   actual_prompt?: string | null
 }
 
+export const inputFalAiWanEffectsAspectRatioEnum = {
+  '16:9': '16:9',
+  '9:16': '9:16',
+  '1:1': '1:1',
+} as const
+
+export type InputFalAiWanEffectsAspectRatioEnumKey =
+  (typeof inputFalAiWanEffectsAspectRatioEnum)[keyof typeof inputFalAiWanEffectsAspectRatioEnum]
+
+export const inputFalAiWanEffectsEffectTypeEnum = {
+  squish: 'squish',
+  muscle: 'muscle',
+  inflate: 'inflate',
+  crush: 'crush',
+  rotate: 'rotate',
+  'gun-shooting': 'gun-shooting',
+  deflate: 'deflate',
+  cakeify: 'cakeify',
+  hulk: 'hulk',
+  baby: 'baby',
+  bride: 'bride',
+  classy: 'classy',
+  puppy: 'puppy',
+  'snow-white': 'snow-white',
+  'disney-princess': 'disney-princess',
+  'mona-lisa': 'mona-lisa',
+  painting: 'painting',
+  'pirate-captain': 'pirate-captain',
+  princess: 'princess',
+  jungle: 'jungle',
+  samurai: 'samurai',
+  vip: 'vip',
+  warrior: 'warrior',
+  zen: 'zen',
+  assassin: 'assassin',
+  timelapse: 'timelapse',
+  tsunami: 'tsunami',
+  fire: 'fire',
+  'zoom-call': 'zoom-call',
+  'doom-fps': 'doom-fps',
+  'fus-ro-dah': 'fus-ro-dah',
+  'hug-jesus': 'hug-jesus',
+  'robot-face-reveal': 'robot-face-reveal',
+  'super-saiyan': 'super-saiyan',
+  jumpscare: 'jumpscare',
+  laughing: 'laughing',
+  'cartoon-jaw-drop': 'cartoon-jaw-drop',
+  crying: 'crying',
+  kissing: 'kissing',
+  'angry-face': 'angry-face',
+  'selfie-younger-self': 'selfie-younger-self',
+  animeify: 'animeify',
+  blast: 'blast',
+} as const
+
+export type InputFalAiWanEffectsEffectTypeEnumKey =
+  (typeof inputFalAiWanEffectsEffectTypeEnum)[keyof typeof inputFalAiWanEffectsEffectTypeEnum]
+
+export type InputFalAiWanEffects = {
+  /**
+   * @description Aspect ratio of the output video.
+   * @default '16:9'
+   * @type string | undefined
+   */
+  aspect_ratio?: InputFalAiWanEffectsAspectRatioEnumKey
+  /**
+   * @description The scale of the LoRA weight. Used to adjust effect intensity.
+   * @minimum 0.1
+   * @maximum 2
+   * @default 1
+   * @type number | undefined
+   */
+  lora_scale?: number
+  /**
+   * @description Random seed for reproducibility. If None, a random seed is chosen.
+   */
+  seed?: number | null
+  /**
+   * @description Number of inference steps for sampling. Higher values give better quality but take longer.
+   * @minimum 2
+   * @maximum 40
+   * @default 30
+   * @type integer | undefined
+   */
+  num_inference_steps?: number
+  /**
+   * @description The type of effect to apply to the video.
+   * @default 'cakeify'
+   * @type string | undefined
+   */
+  effect_type?: InputFalAiWanEffectsEffectTypeEnumKey
+  /**
+   * @description Number of frames to generate.
+   * @minimum 81
+   * @maximum 100
+   * @default 81
+   * @type integer | undefined
+   */
+  num_frames?: number
+  /**
+   * @description Authorized callers may set false to request relaxed screening.
+   * @default true
+   * @type boolean | undefined
+   */
+  enable_safety_checker?: boolean
+  /**
+   * @description The subject to insert into the predefined prompt template for the selected effect.
+   * @example a cute kitten
+   * @example Donald Trump
+   * @example a tank
+   * @example a ceramic vase
+   * @type string
+   */
+  subject: string
+  /**
+   * @description URL of the input image.
+   * @example https://storage.googleapis.com/falserverless/web-examples/wan-effects/cat.jpg
+   * @example https://storage.googleapis.com/falserverless/web-examples/wan-effects/man_1.png
+   * @example https://storage.googleapis.com/falserverless/web-examples/wan-effects/woman_2.png
+   * @type string
+   */
+  image_url: string
+  /**
+   * @description Whether to use turbo mode. If True, the video will be generated faster but with lower quality.
+   * @default false
+   * @type boolean | undefined
+   */
+  turbo_mode?: boolean
+  /**
+   * @description Frames per second of the generated video.
+   * @minimum 5
+   * @maximum 24
+   * @default 16
+   * @type integer | undefined
+   */
+  frames_per_second?: number
+}
+
+export type File40Cdfc09 = {
+  /**
+   * @description The size of the file in bytes.
+   * @example 4404019
+   */
+  file_size?: number | null
+  /**
+   * @description The mime type of the file.
+   * @example image/png
+   */
+  content_type?: string | null
+  /**
+   * @description The name of the file. It will be auto-generated if not provided.
+   * @example z9RV14K95DvU.png
+   */
+  file_name?: string | null
+  /**
+   * @description The URL where the file can be downloaded from.
+   * @type string
+   */
+  url: string
+}
+
+export type OutputFalAiWanEffects = {
+  /**
+   * @description The generated video
+   * @example {"url":"https://storage.googleapis.com/falserverless/web-examples/wan-effects/cat_video.mp4"}
+   * @type object
+   */
+  video: File40Cdfc09
+  seed: number
+}
+
+export type LoraWeight3695B35E = {
+  /**
+   * @description URL or the path to the LoRA weights.
+   * @type string
+   */
+  path: string
+  /**
+   * @description
+   *             The scale of the LoRA weight. This is used to scale the LoRA weight
+   *             before merging it with the base model.
+   *
+   * @minimum 0
+   * @maximum 4
+   * @default 1
+   * @type number | undefined
+   */
+  scale?: number
+  /**
+   * @description Name of the LoRA weight. Used only if `path` is a Hugging Face repository, and required only if you have more than 1 safetensors file in the repo.
+   */
+  weight_name?: string | null
+}
+
+export const inputFalAiWanFlf2VAspectRatioEnum = {
+  auto: 'auto',
+  '16:9': '16:9',
+  '9:16': '9:16',
+  '1:1': '1:1',
+} as const
+
+export type InputFalAiWanFlf2VAspectRatioEnumKey =
+  (typeof inputFalAiWanFlf2VAspectRatioEnum)[keyof typeof inputFalAiWanFlf2VAspectRatioEnum]
+
+export const inputFalAiWanFlf2VResolutionEnum = {
+  '480p': '480p',
+  '720p': '720p',
+} as const
+
+export type InputFalAiWanFlf2VResolutionEnumKey =
+  (typeof inputFalAiWanFlf2VResolutionEnum)[keyof typeof inputFalAiWanFlf2VResolutionEnum]
+
+export const inputFalAiWanFlf2VAccelerationEnum = {
+  none: 'none',
+  regular: 'regular',
+} as const
+
+export type InputFalAiWanFlf2VAccelerationEnumKey =
+  (typeof inputFalAiWanFlf2VAccelerationEnum)[keyof typeof inputFalAiWanFlf2VAccelerationEnum]
+
+export type InputFalAiWanFlf2V = {
+  /**
+   * @description Whether to enable prompt expansion.
+   * @default false
+   * @example false
+   * @type boolean | undefined
+   */
+  enable_prompt_expansion?: boolean
+  /**
+   * @description Shift parameter for video generation.
+   * @minimum 1
+   * @maximum 10
+   * @default 5
+   * @type number | undefined
+   */
+  shift?: number
+  /**
+   * @description Number of inference steps for sampling. Higher values give better quality but take longer.
+   * @minimum 2
+   * @maximum 40
+   * @default 30
+   * @type integer | undefined
+   */
+  num_inference_steps?: number
+  /**
+   * @description Negative prompt for video generation.
+   * @default 'bright colors, overexposed, static, blurred details, subtitles, style, artwork, painting, picture, still, overall gray, worst quality, low quality, JPEG compression residue, ugly, incomplete, extra fingers, poorly drawn hands, poorly drawn faces, deformed, disfigured, malformed limbs, fused fingers, still picture, cluttered background, three legs, many people in the background, walking backwards'
+   * @example bright colors, overexposed, static, blurred details, subtitles, style, artwork, painting, picture, still, overall gray, worst quality, low quality, JPEG compression residue, ugly, incomplete, extra fingers, poorly drawn hands, poorly drawn faces, deformed, disfigured, malformed limbs, fused fingers, still picture, cluttered background, three legs, many people in the background, walking backwards
+   * @type string | undefined
+   */
+  negative_prompt?: string
+  /**
+   * @description URL of the ending image. If the input image does not match the chosen aspect ratio, it is resized and center cropped.
+   * @example https://storage.googleapis.com/falserverless/web-examples/wan_flf/last_frame.png
+   * @type string
+   */
+  end_image_url: string
+  /**
+   * @description LoRA weights to be used in the inference.
+   * @default []
+   * @type array | undefined
+   */
+  loras?: LoraWeight3695B35E[]
+  /**
+   * @description Classifier-free guidance scale. Higher values give better adherence to the prompt but may decrease quality.
+   * @minimum 1
+   * @maximum 10
+   * @default 5
+   * @type number | undefined
+   */
+  guide_scale?: number
+  /**
+   * @description Aspect ratio of the generated video. If 'auto', the aspect ratio will be determined automatically based on the input image.
+   * @default 'auto'
+   * @type string | undefined
+   */
+  aspect_ratio?: InputFalAiWanFlf2VAspectRatioEnumKey
+  /**
+   * @description Frames per second of the generated video. Must be between 5 to 24.
+   * @default 16
+   */
+  frames_per_second?: number | null
+  /**
+   * @description Resolution of the generated video (480p or 720p). 480p is 0.5 billing units, and 720p is 1 billing unit.
+   * @default '720p'
+   * @type string | undefined
+   */
+  resolution?: InputFalAiWanFlf2VResolutionEnumKey
+  /**
+   * @description URL of the starting image. If the input image does not match the chosen aspect ratio, it is resized and center cropped.
+   * @example https://storage.googleapis.com/falserverless/web-examples/wan_flf/first_frame.png
+   * @type string
+   */
+  start_image_url: string
+  /**
+   * @description Acceleration level to use. The more acceleration, the faster the generation, but with lower quality. The recommended value is 'regular'.
+   * @default 'regular'
+   * @example regular
+   * @type string | undefined
+   */
+  acceleration?: InputFalAiWanFlf2VAccelerationEnumKey
+  /**
+   * @description Random seed for reproducibility. If None, a random seed is chosen.
+   */
+  seed?: number | null
+  /**
+   * @description If set to true, the safety checker will be enabled. Disabling it requires account authorization; unauthorized requests are always checked.
+   * @default false
+   * @example true
+   * @type boolean | undefined
+   */
+  enable_safety_checker?: boolean
+  /**
+   * @description Number of frames to generate. Must be between 81 to 100 (inclusive). If the number of frames is greater than 81, the video will be generated with 1.25x more billing units.
+   * @default 81
+   */
+  num_frames?: number | null
+  /**
+   * @description The text prompt to guide video generation.
+   * @example A tabby cat is confidely strolling toward the camera, when it spins and with a flash of magic reveals itself to be a cat-dragon hybrid with glistening amber scales.
+   * @type string
+   */
+  prompt: string
+}
+
+export type File35484093 = {
+  /**
+   * @description The name of the file. It will be auto-generated if not provided.
+   * @example z9RV14K95DvU.png
+   */
+  file_name?: string | null
+  /**
+   * @description The URL where the file can be downloaded from.
+   * @type string
+   */
+  url: string
+  /**
+   * @description The size of the file in bytes.
+   * @example 4404019
+   */
+  file_size?: number | null
+  /**
+   * @description The mime type of the file.
+   * @example image/png
+   */
+  content_type?: string | null
+}
+
+export type OutputFalAiWanFlf2V = {
+  /**
+   * @description The generated video file.
+   * @example {"url":"https://storage.googleapis.com/falserverless/example_outputs/flf2v.mp4"}
+   * @type object
+   */
+  video: File35484093
+  /**
+   * @description The seed used for generation.
+   * @type integer
+   */
+  seed: number
+}
+
 export const inputFalAiWanI2VAspectRatioEnum = {
   auto: 'auto',
   '16:9': '16:9',
@@ -58592,7 +78384,7 @@ export type OutputFalAiWanI2V = {
   video: File9628D274
 }
 
-export type LoraWeight = {
+export type LoraWeightA7C445Ee = {
   /**
    * @description Name of the LoRA weight. Used only if `path` is a Hugging Face repository, and required only if you have more than 1 safetensors file in the repo.
    */
@@ -58665,7 +78457,7 @@ export type InputFalAiWanI2VLora = {
    * @default []
    * @type array | undefined
    */
-  loras?: LoraWeight[]
+  loras?: LoraWeightA7C445Ee[]
   /**
    * @description Aspect ratio of the output video.
    * @default '16:9'
@@ -58774,6 +78566,109 @@ export type OutputFalAiWanI2VLora = {
   seed: number
 }
 
+export const inputFalAiWanMotionAccelerationEnum = {
+  none: 'none',
+  regular: 'regular',
+} as const
+
+export type InputFalAiWanMotionAccelerationEnumKey =
+  (typeof inputFalAiWanMotionAccelerationEnum)[keyof typeof inputFalAiWanMotionAccelerationEnum]
+
+export type InputFalAiWanMotion = {
+  /**
+   * @description If set to true, input and output will be checked for safety. Disabling it requires account authorization; unauthorized requests are always checked.
+   * @default true
+   * @type boolean | undefined
+   */
+  enable_safety_checker?: boolean
+  /**
+   * @description Random seed for reproducibility.
+   */
+  seed?: number | null
+  /**
+   * @description Adapts the driving video's motion to match the reference image's body proportions. Recommended when the driving video subject and reference image have different body shapes or sizes.
+   * @default true
+   * @type boolean | undefined
+   */
+  adapt_motion?: boolean
+  /**
+   * @description Acceleration level to use. 'regular' enables caching for faster generation, 'none' disables it.
+   * @default 'regular'
+   * @type string | undefined
+   */
+  acceleration?: InputFalAiWanMotionAccelerationEnumKey
+  /**
+   * @description URL of the driving video (provides the motion).
+   * @example https://v3b.fal.media/files/b/0a8f0997/JuDW2xl0mr6sJ_Kjz3Vxe_vidoeook.mp4
+   * @type string
+   */
+  video_url: string
+  /**
+   * @description URL of the reference image (provides the character appearance).
+   * @example https://v3b.fal.media/files/b/0a8f0995/slF9l2eNL_YSD7SqU7tUz_i35fsR92.jpg
+   * @type string
+   */
+  image_url: string
+  /**
+   * @description Enhances identity preservation by preprocessing the reference image with Flux Kontext Edit before animation. Produces more faithful face and appearance transfer at the cost of slightly longer processing time.
+   * @default false
+   * @type boolean | undefined
+   */
+  enhance_identity?: boolean
+  /**
+   * @description Optional text prompt to guide the generation.
+   * @default ''
+   * @example woman dancing
+   * @type string | undefined
+   */
+  prompt?: string
+}
+
+export type FileAe76F8C9 = {
+  /**
+   * @description The mime type of the file.
+   * @example image/png
+   */
+  content_type?: string | null
+  /**
+   * @description The size of the file in bytes.
+   * @example 4404019
+   */
+  file_size?: number | null
+  /**
+   * @description The name of the file. It will be auto-generated if not provided.
+   * @example z9RV14K95DvU.png
+   */
+  file_name?: string | null
+  /**
+   * @description The URL where the file can be downloaded from.
+   * @type string
+   */
+  url: string
+}
+
+export type OutputFalAiWanMotion = {
+  /**
+   * @description The seed used for generation.
+   * @example 924575000
+   * @type integer
+   */
+  seed: number
+  /**
+   * @description The generated video file.
+   * @example {"url":"https://v3b.fal.media/files/b/0a8f2447/EjMyhbOyYfxL8tDM9T59K_wan_animate_output.mp4"}
+   * @type object
+   */
+  video: FileAe76F8C9
+  /**
+   * @description The prompt used for generation.
+   * @default ''
+   * @example woman dancing
+   * @type string | undefined
+   */
+  prompt?: string
+}
+
 export type InputFalAiWanProImageToVideo = {
   /**
    * @description The URL of the image to generate the video from
@@ -58880,6 +78775,130 @@ export type OutputFalAiWanProTextToVideo = {
    * @type object
    */
   video: FileA3B4Ae48
+}
+
+export const inputFalAiWanT2VAspectRatioEnum = {
+  '9:16': '9:16',
+  '16:9': '16:9',
+} as const
+
+export type InputFalAiWanT2VAspectRatioEnumKey =
+  (typeof inputFalAiWanT2VAspectRatioEnum)[keyof typeof inputFalAiWanT2VAspectRatioEnum]
+
+export const inputFalAiWanT2VResolutionEnum = {
+  '480p': '480p',
+  '580p': '580p',
+  '720p': '720p',
+} as const
+
+export type InputFalAiWanT2VResolutionEnumKey =
+  (typeof inputFalAiWanT2VResolutionEnum)[keyof typeof inputFalAiWanT2VResolutionEnum]
+
+export type InputFalAiWanT2V = {
+  /**
+   * @description Number of frames to generate. Must be between 81 to 100 (inclusive).
+   * @default 81
+   */
+  num_frames?: number | null
+  /**
+   * @description If true, the video will be generated faster with no noticeable degradation in the visual quality.
+   * @default false
+   * @type boolean | undefined
+   */
+  turbo_mode?: boolean
+  /**
+   * @description Random seed for reproducibility. If None, a random seed is chosen.
+   */
+  seed?: number | null
+  /**
+   * @description The text prompt to guide video generation.
+   * @example A stylish woman walks down a Tokyo street filled with warm glowing neon and animated city signage. She wears a black leather jacket, a long red dress, and black boots, and carries a black purse.
+   * @type string
+   */
+  prompt: string
+  /**
+   * @description Number of inference steps for sampling. Higher values give better quality but take longer.
+   * @minimum 2
+   * @maximum 40
+   * @default 30
+   * @type integer | undefined
+   */
+  num_inference_steps?: number
+  /**
+   * @description If set to true, the safety checker will be enabled. Disabling it requires account authorization; unauthorized requests are always checked.
+   * @default false
+   * @example true
+   * @type boolean | undefined
+   */
+  enable_safety_checker?: boolean
+  /**
+   * @description Whether to enable prompt expansion.
+   * @default false
+   * @example false
+   * @type boolean | undefined
+   */
+  enable_prompt_expansion?: boolean
+  /**
+   * @description Aspect ratio of the generated video (16:9 or 9:16).
+   * @default '16:9'
+   * @type string | undefined
+   */
+  aspect_ratio?: InputFalAiWanT2VAspectRatioEnumKey
+  /**
+   * @description Negative prompt for video generation.
+   * @default 'bright colors, overexposed, static, blurred details, subtitles, style, artwork, painting, picture, still, overall gray, worst quality, low quality, JPEG compression residue, ugly, incomplete, extra fingers, poorly drawn hands, poorly drawn faces, deformed, disfigured, malformed limbs, fused fingers, still picture, cluttered background, three legs, many people in the background, walking backwards'
+   * @example bright colors, overexposed, static, blurred details, subtitles, style, artwork, painting, picture, still, overall gray, worst quality, low quality, JPEG compression residue, ugly, incomplete, extra fingers, poorly drawn hands, poorly drawn faces, deformed, disfigured, malformed limbs, fused fingers, still picture, cluttered background, three legs, many people in the background, walking backwards
+   * @type string | undefined
+   */
+  negative_prompt?: string
+  /**
+   * @description Frames per second of the generated video. Must be between 5 to 24.
+   * @default 16
+   */
+  frames_per_second?: number | null
+  /**
+   * @description Resolution of the generated video (480p, 580p, or 720p).
+   * @default '720p'
+   * @type string | undefined
+   */
+  resolution?: InputFalAiWanT2VResolutionEnumKey
+}
+
+export type FileCe2F6517 = {
+  /**
+   * @description The size of the file in bytes.
+   * @example 4404019
+   */
+  file_size?: number | null
+  /**
+   * @description The mime type of the file.
+   * @example image/png
+   */
+  content_type?: string | null
+  /**
+   * @description The name of the file. It will be auto-generated if not provided.
+   * @example z9RV14K95DvU.png
+   */
+  file_name?: string | null
+  /**
+   * @description The URL where the file can be downloaded from.
+   * @type string
+   */
+  url: string
+}
+
+export type OutputFalAiWanT2V = {
+  /**
+   * @description The generated video file.
+   * @example {"url":"https://storage.googleapis.com/falserverless/web-examples/wan/t2v.mp4"}
+   * @type object
+   */
+  video: FileCe2F6517
+  /**
+   * @description The seed used for generation.
+   * @type integer
+   */
+  seed: number
 }
 
 export type LoraWeightE66Bf9B3 = {
@@ -67326,11 +87345,11 @@ export type InputHeygenHeygenVideoImageToVideoPromptEnhancementEnumKey =
 
 export type InputHeygenHeygenVideoImageToVideo = {
   /**
-   * @minLength 1
-   * @maxLength 32000
-   * @type string
+   * @default '768p'
+   * @type string | undefined
    */
-  prompt: string
+  resolution?: InputHeygenHeygenVideoImageToVideoResolutionEnumKey
+  seed?: number | null
   /**
    * @description Authorized callers may set false to request relaxed screening.
    * @default true
@@ -67338,10 +87357,11 @@ export type InputHeygenHeygenVideoImageToVideo = {
    */
   enable_safety_checker?: boolean
   /**
-   * @default '768p'
-   * @type string | undefined
+   * @minLength 1
+   * @maxLength 32000
+   * @type string
    */
-  resolution?: InputHeygenHeygenVideoImageToVideoResolutionEnumKey
+  prompt: string
   /**
    * @minimum 5
    * @maximum 15
@@ -67349,17 +87369,16 @@ export type InputHeygenHeygenVideoImageToVideo = {
    * @type integer | undefined
    */
   duration?: number
-  seed?: number | null
-  /**
-   * @description Image to use as the first frame
-   * @type string
-   */
-  image_url: string
   /**
    * @default 'turbo'
    * @type string | undefined
    */
   prompt_enhancement?: InputHeygenHeygenVideoImageToVideoPromptEnhancementEnumKey
+  /**
+   * @description Image to use as the first frame
+   * @type string
+   */
+  image_url: string
 }
 
 export type File679F1D80 = {
@@ -67424,13 +87443,6 @@ export type InputHeygenHeygenVideoReferenceToVideoPromptEnhancementEnumKey =
   (typeof inputHeygenHeygenVideoReferenceToVideoPromptEnhancementEnum)[keyof typeof inputHeygenHeygenVideoReferenceToVideoPromptEnhancementEnum]
 
 export type InputHeygenHeygenVideoReferenceToVideo = {
-  reference_video_urls?: string[]
-  /**
-   * @description Authorized callers may set false to request relaxed screening.
-   * @default true
-   * @type boolean | undefined
-   */
-  enable_safety_checker?: boolean
   /**
    * @default '768p'
    * @type string | undefined
@@ -67448,7 +87460,9 @@ export type InputHeygenHeygenVideoReferenceToVideo = {
    * @type integer | undefined
    */
   duration?: number
-  reference_audio_urls?: string[]
+  reference_video_urls?: string[]
+  reference_image_urls?: string[]
+  seed?: number | null
   /**
    * @default 'turbo'
    * @type string | undefined
@@ -67460,8 +87474,13 @@ export type InputHeygenHeygenVideoReferenceToVideo = {
    * @type string
    */
   prompt: string
-  seed?: number | null
-  reference_image_urls?: string[]
+  reference_audio_urls?: string[]
+  /**
+   * @description Authorized callers may set false to request relaxed screening.
+   * @default true
+   * @type boolean | undefined
+   */
+  enable_safety_checker?: boolean
 }
 
 export type FileB9486A38 = {
@@ -67525,23 +87544,23 @@ export type InputHeygenHeygenVideoTextToVideoPromptEnhancementEnumKey =
   (typeof inputHeygenHeygenVideoTextToVideoPromptEnhancementEnum)[keyof typeof inputHeygenHeygenVideoTextToVideoPromptEnhancementEnum]
 
 export type InputHeygenHeygenVideoTextToVideo = {
-  seed?: number | null
-  /**
-   * @description Authorized callers may set false to request relaxed screening.
-   * @default true
-   * @type boolean | undefined
-   */
-  enable_safety_checker?: boolean
   /**
    * @default '768p'
    * @type string | undefined
    */
   resolution?: InputHeygenHeygenVideoTextToVideoResolutionEnumKey
+  seed?: number | null
   /**
    * @default '16:9'
    * @type string | undefined
    */
   aspect_ratio?: InputHeygenHeygenVideoTextToVideoAspectRatioEnumKey
+  /**
+   * @minLength 1
+   * @maxLength 32000
+   * @type string
+   */
+  prompt: string
   /**
    * @minimum 5
    * @maximum 15
@@ -67550,16 +87569,16 @@ export type InputHeygenHeygenVideoTextToVideo = {
    */
   duration?: number
   /**
-   * @minLength 1
-   * @maxLength 32000
-   * @type string
-   */
-  prompt: string
-  /**
    * @default 'turbo'
    * @type string | undefined
    */
   prompt_enhancement?: InputHeygenHeygenVideoTextToVideoPromptEnhancementEnumKey
+  /**
+   * @description Authorized callers may set false to request relaxed screening.
+   * @default true
+   * @type boolean | undefined
+   */
+  enable_safety_checker?: boolean
 }
 
 export type File9B0C49Be = {
@@ -68442,6 +88461,55 @@ export type OutputKlingV4VideoToVideoEdit = {
   video: File5Bf8Edc0
 }
 
+export type InputLightricksLtx25AlphaGen = {
+  /**
+   * @description URL of the source video, at most 200 MB and 3072 frames. Long side must not exceed 3840 pixels, short side 2160 pixels, and the ratio of long to short side must not exceed 32:9.
+   * @type string
+   */
+  video_url: string
+  /**
+   * @default true
+   * @type boolean | undefined
+   */
+  enable_safety_checker?: boolean
+}
+
+export type FileB14200A0 = {
+  /**
+   * @description The mime type of the file.
+   * @example image/png
+   */
+  content_type?: string | null
+  /**
+   * @description The size of the file in bytes.
+   * @example 4404019
+   */
+  file_size?: number | null
+  /**
+   * @description The name of the file. It will be auto-generated if not provided.
+   * @example z9RV14K95DvU.png
+   */
+  file_name?: string | null
+  /**
+   * @description The URL where the file can be downloaded from.
+   * @type string
+   */
+  url: string
+}
+
+export type OutputLightricksLtx25AlphaGen = {
+  /**
+   * @description Foreground cutout, ProRes 4444 MOV with straight alpha.
+   * @type object
+   */
+  cutout_video: FileB14200A0
+  /**
+   * @description Grayscale foreground alpha matte, MP4.
+   * @type object
+   */
+  matte_video: FileB14200A0
+}
+
 export const inputLightricksLtx25AudioToVideoFastAspectRatioEnum = {
   auto: 'auto',
   '16:9': '16:9',
@@ -68624,6 +88692,71 @@ export type OutputLightricksLtx25AudioToVideoPro = {
    * @type object
    */
   video: VideoFile398Ee039
+}
+
+export const inputLightricksLtx25HdrOutputColorspaceEnum = {
+  acescg: 'acescg',
+  acescct: 'acescct',
+  srgb_linear: 'srgb_linear',
+  'aces2065-1': 'aces2065-1',
+} as const
+
+export type InputLightricksLtx25HdrOutputColorspaceEnumKey =
+  (typeof inputLightricksLtx25HdrOutputColorspaceEnum)[keyof typeof inputLightricksLtx25HdrOutputColorspaceEnum]
+
+export type InputLightricksLtx25Hdr = {
+  /**
+   * @description Color space of the OpenEXR frames.
+   * @default 'acescg'
+   * @type string | undefined
+   */
+  output_colorspace?: InputLightricksLtx25HdrOutputColorspaceEnumKey
+  /**
+   * @description URL of the source video.
+   * @type string
+   */
+  video_url: string
+  /**
+   * @default true
+   * @type boolean | undefined
+   */
+  enable_safety_checker?: boolean
+}
+
+export type File6Fb70B55 = {
+  /**
+   * @description The mime type of the file.
+   * @example image/png
+   */
+  content_type?: string | null
+  /**
+   * @description The size of the file in bytes.
+   * @example 4404019
+   */
+  file_size?: number | null
+  /**
+   * @description The name of the file. It will be auto-generated if not provided.
+   * @example z9RV14K95DvU.png
+   */
+  file_name?: string | null
+  /**
+   * @description The URL where the file can be downloaded from.
+   * @type string
+   */
+  url: string
+}
+
+export type OutputLightricksLtx25Hdr = {
+  /**
+   * @description ZIP archive of 16-bit half-float OpenEXR frames.
+   * @type object
+   */
+  exr_frames: File6Fb70B55
+  /**
+   * @description Processed video.
+   * @type object
+   */
+  video: File6Fb70B55
 }
 
 export const inputLightricksLtx25ImageToVideoFastFpsEnum = {
@@ -68948,6 +89081,155 @@ export type OutputLightricksLtx25ImageToVideoPro = {
   video: VideoFileD98Ba38C
 }
 
+export const LTX25ReframeAnchorAnchorEnum = {
+  center: 'center',
+  top: 'top',
+  bottom: 'bottom',
+  left: 'left',
+  right: 'right',
+  top_left: 'top_left',
+  top_right: 'top_right',
+  bottom_left: 'bottom_left',
+  bottom_right: 'bottom_right',
+} as const
+
+export type LTX25ReframeAnchorAnchorEnumKey =
+  (typeof LTX25ReframeAnchorAnchorEnum)[keyof typeof LTX25ReframeAnchorAnchorEnum]
+
+export type LTX25ReframeAnchor = {
+  /**
+   * @description Fit and align the source video within the output frame.
+   * @type string
+   */
+  anchor: LTX25ReframeAnchorAnchorEnumKey
+}
+
+export type LTX25ReframeRectangle = {
+  height?: number | null
+  /**
+   * @description Left edge as a fraction of output width.
+   * @minimum 0
+   * @type number
+   */
+  x: number
+  width?: number | null
+  /**
+   * @description Top edge as a fraction of output height.
+   * @minimum 0
+   * @type number
+   */
+  y: number
+}
+
+export const inputLightricksLtx25ReframeAspectRatioEnum = {
+  '1:1': '1:1',
+  '4:5': '4:5',
+  '5:4': '5:4',
+  '9:16': '9:16',
+  '16:9': '16:9',
+} as const
+
+export type InputLightricksLtx25ReframeAspectRatioEnumKey =
+  (typeof inputLightricksLtx25ReframeAspectRatioEnum)[keyof typeof inputLightricksLtx25ReframeAspectRatioEnum]
+
+export const inputLightricksLtx25ReframeResolutionEnum = {
+  '720p': '720p',
+  '1080p': '1080p',
+  '720x720': '720x720',
+  '1080x1080': '1080x1080',
+  '720x900': '720x900',
+  '1080x1350': '1080x1350',
+  '900x720': '900x720',
+  '1350x1080': '1350x1080',
+  '720x1280': '720x1280',
+  '1080x1920': '1080x1920',
+  '1280x720': '1280x720',
+  '1920x1080': '1920x1080',
+} as const
+
+export type InputLightricksLtx25ReframeResolutionEnumKey =
+  (typeof inputLightricksLtx25ReframeResolutionEnum)[keyof typeof inputLightricksLtx25ReframeResolutionEnum]
+
+export type InputLightricksLtx25Reframe = {
+  /**
+   * @default '16:9'
+   * @type string | undefined
+   */
+  aspect_ratio?: InputLightricksLtx25ReframeAspectRatioEnumKey
+  /**
+   * @description URL of the source video.
+   * @type string
+   */
+  video_url: string
+  /**
+   * @description Output tier or explicit frame dimensions. Explicit WxH dimensions must agree with aspect_ratio when both are explicitly provided.
+   * @default '1080p'
+   * @type string | undefined
+   */
+  resolution?: InputLightricksLtx25ReframeResolutionEnumKey
+  /**
+   * @default true
+   * @type boolean | undefined
+   */
+  enable_safety_checker?: boolean
+  /**
+   * @description Source placement. Omit to center at the largest size that fits. Rectangles preserve source aspect ratio, must fit in the frame, and cannot enlarge the source more than 2x.
+   */
+  placement?: LTX25ReframeAnchor | LTX25ReframeRectangle | null
+}
+
+export type VideoFile50F8Be85 = {
+  /**
+   * @description The width of the video
+   */
+  width?: number | null
+  /**
+   * @description The number of frames in the video
+   */
+  num_frames?: number | null
+  /**
+   * @description The FPS of the video
+   */
+  fps?: number | null
+  /**
+   * @description The URL where the file can be downloaded from.
+   * @type string
+   */
+  url: string
+  /**
+   * @description The height of the video
+   */
+  height?: number | null
+  /**
+   * @description The size of the file in bytes.
+   * @example 4404019
+   */
+  file_size?: number | null
+  /**
+   * @description The mime type of the file.
+   * @example image/png
+   */
+  content_type?: string | null
+  /**
+   * @description The name of the file. It will be auto-generated if not provided.
+   * @example z9RV14K95DvU.png
+   */
+  file_name?: string | null
+  /**
+   * @description The duration of the video
+   */
+  duration?: number | null
+}
+
+export type OutputLightricksLtx25Reframe = {
+  /**
+   * @description The reframed video file
+   * @example {"content_type":"video/mp4","file_name":"ltxv-2-3-reframe-output.mp4","url":"https://v3b.fal.media/files/b/0a90e00f/xvl9SlF6b7a8327wKJDvm_JW6crfr3.mp4"}
+   * @type object
+   */
+  video: VideoFile50F8Be85
+}
+
 export const inputLightricksLtx25TextToVideoFastFpsEnum = {
   '24': 24,
   '25': 25,
@@ -69246,6 +89528,64 @@ export type OutputLightricksLtx25TextToVideoPro = {
    * @type object
    */
   video: VideoFile3D433486
+}
+
+export const inputLightricksLtx25UpscaleResolutionEnum = {
+  '1080p': '1080p',
+  '4k': '4k',
+  '8k': '8k',
+} as const
+
+export type InputLightricksLtx25UpscaleResolutionEnumKey =
+  (typeof inputLightricksLtx25UpscaleResolutionEnum)[keyof typeof inputLightricksLtx25UpscaleResolutionEnum]
+
+export type InputLightricksLtx25Upscale = {
+  /**
+   * @description Target output resolution.
+   * @type string
+   */
+  resolution: InputLightricksLtx25UpscaleResolutionEnumKey
+  /**
+   * @description URL of an H.264 or HEVC video, at most 200 MB. Input must have at least 2 frames and 1 fps, a short side of at least 480 pixels, a long side at most 7680 and short side at most 4320 pixels. Maximum frames: 2401 for 1080p, 601 for 4k, 241 for 8k. Output keeps input audio in stereo and rounds input fps to an integer.
+   * @type string
+   */
+  video_url: string
+  /**
+   * @default true
+   * @type boolean | undefined
+   */
+  enable_safety_checker?: boolean
+}
+
+export type File4Af99576 = {
+  /**
+   * @description The mime type of the file.
+   * @example image/png
+   */
+  content_type?: string | null
+  /**
+   * @description The size of the file in bytes.
+   * @example 4404019
+   */
+  file_size?: number | null
+  /**
+   * @description The name of the file. It will be auto-generated if not provided.
+   * @example z9RV14K95DvU.png
+   */
+  file_name?: string | null
+  /**
+   * @description The URL where the file can be downloaded from.
+   * @type string
+   */
+  url: string
+}
+
+export type OutputLightricksLtx25Upscale = {
+  /**
+   * @description Processed video.
+   * @type object
+   */
+  video: File4Af99576
 }
 
 export const inputLumaAgentRayV32ImageToVideoDurationEnum = {
@@ -69638,19 +89978,6 @@ export type OutputLumaAgentRayV32TextToVideo = {
   exr_file?: File64Ace8C7 | null
 }
 
-export type RayEditNormalsControl = {
-  /**
-   * @description Enable surface-normals conditioning for the edit.
-   * @default true
-   * @type boolean | undefined
-   */
-  enabled?: boolean
-  /**
-   * @description Surface-normals augmentation. Higher values allow more reinterpretation of surface geometry. Leave unset for the default.
-   */
-  augmentation?: number | null
-}
-
 export type RayEditDepthControl = {
   /**
    * @description Enable depth / scene-geometry conditioning for the edit.
@@ -69662,6 +89989,15 @@ export type RayEditDepthControl = {
    * @description Depth blur. Higher values allow more geometric freedom. Leave unset for the default.
    */
   blur?: number | null
+}
+
+export type RayEditFaceControl = {
+  /**
+   * @description Enable face-identity conditioning for the edit.
+   * @default true
+   * @type boolean | undefined
+   */
+  enabled?: boolean
 }
 
 export type RayEditTrajectoryControl = {
@@ -69698,13 +90034,17 @@ export type RayEditPoseControl = {
   strength?: RayEditPoseControlStrengthKey | null
 }
 
-export type RayEditFaceControl = {
+export type RayEditNormalsControl = {
   /**
-   * @description Enable face-identity conditioning for the edit.
+   * @description Enable surface-normals conditioning for the edit.
    * @default true
    * @type boolean | undefined
    */
   enabled?: boolean
+  /**
+   * @description Surface-normals augmentation. Higher values allow more reinterpretation of surface geometry. Leave unset for the default.
+   */
+  augmentation?: number | null
 }
 
 /**
@@ -69717,13 +90057,13 @@ export type RayEditFaceControl = {
  */
 export type RayEditControls = {
   /**
-   * @description Surface-normals conditioning.
-   */
-  normals?: RayEditNormalsControl | null
-  /**
    * @description Depth / scene-geometry conditioning.
    */
   depth?: RayEditDepthControl | null
+  /**
+   * @description Face-identity conditioning.
+   */
+  face?: RayEditFaceControl | null
   /**
    * @description Motion-trajectory conditioning.
    */
@@ -69733,9 +90073,9 @@ export type RayEditControls = {
    */
   pose?: RayEditPoseControl | null
   /**
-   * @description Face-identity conditioning.
+   * @description Surface-normals conditioning.
    */
-  face?: RayEditFaceControl | null
+  normals?: RayEditNormalsControl | null
 }
 
 export const inputLumaAgentRayV32VideoToVideoEditStrength = {
@@ -69772,35 +90112,20 @@ export type InputLumaAgentRayV32VideoToVideoResolutionEnumKey =
 
 export type InputLumaAgentRayV32VideoToVideo = {
   /**
-   * @description Generate an HDR-encoded MP4. Requires HDR access on the account and a resolution of 720p or 1080p.
-   * @default false
-   * @type boolean | undefined
-   */
-  hdr?: boolean
-  /**
-   * @description Also export an EXR file alongside the MP4. Requires hdr=true and HDR access.
-   * @default false
-   * @type boolean | undefined
-   */
-  exr_export?: boolean
-  /**
-   * @description URL of the source video to edit.
-   * @minLength 1
-   * @example https://storage.googleapis.com/falserverless/example_inputs/birefnet-video-input.mp4
-   * @type string
-   */
-  video_url: string
-  /**
-   * @description Let the model derive the edit conditioning schedule from the source video. Cannot be combined with edit_strength.
-   * @default false
-   * @type boolean | undefined
-   */
-  auto_controls?: boolean
-  /**
    * @description Optional URL of an image to use as the edited video's first frame — e.g. a restyled version of the source's opening frame to steer the look of the edit. Leave unset to let the model derive the first frame from the source video.
    * @example https://storage.googleapis.com/falserverless/gallery/example_inputs_liuyifei.png
    */
   start_image_url?: string | null
+  /**
+   * @description Multi-keyframe edit guide frames: up to 64 image URLs pinned at the source-frame positions given by keyframe_indexes. Mutually exclusive with start_image_url. Provide keyframes and keyframe_indexes together (same length).
+   */
+  keyframes?: string[] | null
+  /**
+   * @description Authorized callers may set false to request relaxed screening.
+   * @default true
+   * @type boolean | undefined
+   */
+  enable_safety_checker?: boolean
   /**
    * @description How closely the edit preserves the source video. 'adhere_*' stays closest to the source, 'flex_*' is balanced, and 'reimagine_*' diverges most. Leave unset to use Luma's default. Cannot be combined with auto_controls.
    */
@@ -69812,9 +90137,48 @@ export type InputLumaAgentRayV32VideoToVideo = {
    */
   duration?: InputLumaAgentRayV32VideoToVideoDurationEnumKey
   /**
+   * @description Per-signal conditioning controls (pose, depth, normals, trajectory, face) for finer control than edit_strength. Cannot be combined with auto_controls.
+   */
+  controls?: RayEditControls | null
+  /**
+   * @description Generate an HDR-encoded MP4. Requires HDR access on the account and a resolution of 720p or 1080p.
+   * @default false
+   * @type boolean | undefined
+   */
+  hdr?: boolean
+  /**
+   * @description Optional opaque identifier for the end user making the request. Used only for abuse attribution; never interpreted by fal.
+   */
+  user?: string | null
+  /**
+   * @description Also export an EXR file alongside the MP4. Requires hdr=true and HDR access.
+   * @default false
+   * @type boolean | undefined
+   */
+  exr_export?: boolean
+  /**
+   * @description Let the model derive the edit conditioning schedule from the source video. Cannot be combined with edit_strength.
+   * @default false
+   * @type boolean | undefined
+   */
+  auto_controls?: boolean
+  /**
    * @description Source-video frame positions where each keyframes[i] is anchored. Non-negative, unique, and the same length as keyframes.
    */
   keyframe_indexes?: number[] | null
+  /**
+   * @description URL of the source video to edit.
+   * @minLength 1
+   * @example https://storage.googleapis.com/falserverless/example_inputs/birefnet-video-input.mp4
+   * @type string
+   */
+  video_url: string
+  /**
+   * @description Resolution of the edited video. Higher resolutions cost more.
+   * @default '540p'
+   * @type string | undefined
+   */
+  resolution?: InputLumaAgentRayV32VideoToVideoResolutionEnumKey
   /**
    * @description Text prompt describing how to edit the source video.
    * @minLength 1
@@ -69823,30 +90187,6 @@ export type InputLumaAgentRayV32VideoToVideo = {
    * @type string
    */
   prompt: string
-  /**
-   * @description Optional opaque identifier for the end user making the request. Used only for abuse attribution; never interpreted by fal.
-   */
-  user?: string | null
-  /**
-   * @description Per-signal conditioning controls (pose, depth, normals, trajectory, face) for finer control than edit_strength. Cannot be combined with auto_controls.
-   */
-  controls?: RayEditControls | null
-  /**
-   * @description Resolution of the edited video. Higher resolutions cost more.
-   * @default '540p'
-   * @type string | undefined
-   */
-  resolution?: InputLumaAgentRayV32VideoToVideoResolutionEnumKey
-  /**
-   * @description Multi-keyframe edit guide frames: up to 64 image URLs pinned at the source-frame positions given by keyframe_indexes. Mutually exclusive with start_image_url. Provide keyframes and keyframe_indexes together (same length).
-   */
-  keyframes?: string[] | null
-  /**
-   * @description Authorized callers may set false to request relaxed screening.
-   * @default true
-   * @type boolean | undefined
-   */
-  enable_safety_checker?: boolean
 }
 
 export type File3823D839 = {
@@ -70468,17 +90808,15 @@ export type InputMinimaxH3Max3DToVideoResolutionEnumKey =
 
 export type InputMinimaxH3Max3DToVideo = {
   /**
+   * @description Authorized callers may set false to request relaxed screening.
+   * @default true
+   * @type boolean | undefined
+   */
+  enable_safety_checker?: boolean
+  /**
    * @description Optional clarification of what your proxies represent or how they move, for example: 'The moving block represents a running person.' Camera, trajectories, timing and object count remain defined by the video.
    */
   prompt?: string | null
-  /**
-   * @description Maximum NEW images to generate when no reference images are supplied. Ignored when reference images are supplied. Uses fewer when enough views are covered. Uncovered shots stay in the video.
-   * @minimum 1
-   * @maximum 8
-   * @default 2
-   * @type integer | undefined
-   */
-  max_generated_reference_images?: number
   /**
    * @description Optional environment, subject, interior or detail references. When supplied, uses these images directly without visual planning or generating new images; Scene Intent is optional. Without references, automatically creates appearance references within your new-image limit. Camera and movement always come from the video.
    * @type array | undefined
@@ -70491,16 +90829,18 @@ export type InputMinimaxH3Max3DToVideo = {
    */
   resolution?: InputMinimaxH3Max3DToVideoResolutionEnumKey
   /**
-   * @description Authorized callers may set false to request relaxed screening.
-   * @default true
-   * @type boolean | undefined
-   */
-  enable_safety_checker?: boolean
-  /**
    * @description Blender video, up to 15 seconds and 32 shots, at a public HTTPS URL.
    * @type string
    */
   video_url: string
+  /**
+   * @description Maximum NEW images to generate when no reference images are supplied. Ignored when reference images are supplied. Uses fewer when enough views are covered. Uncovered shots stay in the video.
+   * @minimum 1
+   * @maximum 8
+   * @default 2
+   * @type integer | undefined
+   */
+  max_generated_reference_images?: number
 }
 
 export type VideoBb9Fb16B = {
@@ -71016,29 +91356,11 @@ export type InputMinimaxH3MaxInsertVideoResolutionEnumKey =
   (typeof inputMinimaxH3MaxInsertVideoResolutionEnum)[keyof typeof inputMinimaxH3MaxInsertVideoResolutionEnum]
 
 export type InputMinimaxH3MaxInsertVideo = {
-  seed?: number | null
-  /**
-   * @default '768p'
-   * @type string | undefined
-   */
-  resolution?: InputMinimaxH3MaxInsertVideoResolutionEnumKey
-  /**
-   * @minimum 1.625
-   * @maximum 60
-   * @type number
-   */
-  start_time: number
   /**
    * @default true
    * @type boolean | undefined
    */
   enable_prompt_expansion?: boolean
-  /**
-   * @default true
-   * @type boolean | undefined
-   */
-  color_match?: boolean
-  prompt?: string | null
   /**
    * @minimum 5
    * @maximum 13
@@ -71046,7 +91368,14 @@ export type InputMinimaxH3MaxInsertVideo = {
    * @type number | undefined
    */
   duration?: number
-  reference_video_urls?: string[]
+  seed?: number | null
+  /**
+   * @minimum 1.625
+   * @maximum 60
+   * @type number
+   */
+  start_time: number
+  prompt?: string | null
   reference_image_urls?: string[]
   /**
    * @maximum 60
@@ -71054,10 +91383,21 @@ export type InputMinimaxH3MaxInsertVideo = {
    */
   resume_time: number
   /**
+   * @default '768p'
+   * @type string | undefined
+   */
+  resolution?: InputMinimaxH3MaxInsertVideoResolutionEnumKey
+  reference_video_urls?: string[]
+  /**
    * @minLength 1
    * @type string
    */
   video_url: string
+  /**
+   * @default true
+   * @type boolean | undefined
+   */
+  color_match?: boolean
 }
 
 export type VideoFileD58Ef4Bd = {
@@ -71212,6 +91552,153 @@ export type OutputMinimaxH3MaxLipSyncImageToVideo = {
   seed: number
 }
 
+/**
+ * @description One camera pose at a normalized point in the generated clip.
+ * @type object
+ */
+export type H3MaxCameraKeyframe041681F4 = {
+  /**
+   * @description Camera distance from the subject in normalized scene units.
+   * @type number
+   */
+  distance: number
+  /**
+   * @description Vertical camera angle around the subject, in degrees.
+   * @minimum -90
+   * @maximum 90
+   * @type number
+   */
+  elevation: number
+  /**
+   * @description Horizontal camera angle around the subject, in degrees.
+   * @type number
+   */
+  azimuth: number
+  /**
+   * @description Normalized video time, from 0 at the start to 1 at the end.
+   * @minimum 0
+   * @maximum 1
+   * @type number
+   */
+  time: number
+}
+
+export const inputMinimaxH3MaxMultiAngleImageToVideoResolutionEnum = {
+  '480P': '480P',
+  '768P': '768P',
+  '1080P': '1080P',
+} as const
+
+export type InputMinimaxH3MaxMultiAngleImageToVideoResolutionEnumKey =
+  (typeof inputMinimaxH3MaxMultiAngleImageToVideoResolutionEnum)[keyof typeof inputMinimaxH3MaxMultiAngleImageToVideoResolutionEnum]
+
+/**
+ * @description MiniMax H3 Multi-angle input with a fixed internal camera LoRA.
+ * @type object
+ */
+export type InputMinimaxH3MaxMultiAngleImageToVideo = {
+  /**
+   * @description Text prompt for video generation. When omitted or blank, defaults to preserving the frozen reference scene while only the camera moves.
+   * @maxLength 50000
+   * @default 'The same elements in the reference are rigid. Preserve every element exactly. The entire scene is frozen. Only the camera moves. no scene motion only camera motion'
+   * @example Orbit precisely around the subject while preserving its identity and the scene.
+   * @type string | undefined
+   */
+  prompt?: string
+  /**
+   * @description Return the generated video as base64 instead of a CDN URL.
+   * @default false
+   * @type boolean | undefined
+   */
+  sync_mode?: boolean
+  /**
+   * @description If set to true, the safety checker will be enabled.
+   * @default true
+   * @type boolean | undefined
+   */
+  enable_safety_checker?: boolean
+  /**
+   * @description URL of the image to use as the first frame.
+   * @minLength 1
+   * @example https://storage.googleapis.com/falserverless/example_inputs/hailuo23/pro_i2v_in.jpg
+   * @type string
+   */
+  image_url: string
+  /**
+   * @description How much effort to spend rewriting the prompt before generation. 'balanced' returns in about a second. 'quality' spends up to ~30s on a richer prompt.
+   * @default 'balanced'
+   * @example balanced
+   * @example quality
+   * @type string
+   */
+  prompt_expansion_mode: string
+  /**
+   * @description The native generation resolution, or 1080P latent refinement from a native 768P source.
+   * @default '480P'
+   * @type string | undefined
+   */
+  resolution?: InputMinimaxH3MaxMultiAngleImageToVideoResolutionEnumKey
+  /**
+   * @description Ordered camera keyframes. The first pose is held before its time and the final pose is held for the remainder of the video. Signed full turns are preserved, with at most 32 turns of total azimuth travel.
+   * @example [{"distance":1,"elevation":0,"azimuth":0,"time":0},{"distance":0.2,"elevation":15,"azimuth":45,"time":0.3},{"distance":1,"elevation":-90,"azimuth":90,"time":0.8}]
+   * @type array | undefined
+   */
+  camera_trajectory?: H3MaxCameraKeyframe041681F4[]
+  /**
+   * @description The duration of the video in seconds.
+   * @minimum 5
+   * @maximum 15
+   * @default 5
+   * @type integer | undefined
+   */
+  duration?: number
+  /**
+   * @description Random seed. A random seed is selected when omitted.
+   */
+  seed?: number | null
+}
+
+export type File3C41Ad3B = {
+  /**
+   * @description The URL where the file can be downloaded from.
+   * @type string
+   */
+  url: string
+  /**
+   * @description The mime type of the file.
+   * @example image/png
+   */
+  content_type?: string | null
+  /**
+   * @description The size of the file in bytes.
+   * @example 4404019
+   */
+  file_size?: number | null
+  /**
+   * @description The name of the file. It will be auto-generated if not provided.
+   * @example z9RV14K95DvU.png
+   */
+  file_name?: string | null
+}
+
+export type OutputMinimaxH3MaxMultiAngleImageToVideo = {
+  /**
+   * @description The prompt after expansion, as sent to the model. Null when prompt expansion was disabled, left the prompt unchanged, or was performed internally by MiniMax's hosted API.
+   */
+  expanded_prompt?: string | null
+  /**
+   * @description The generated video
+   * @type object
+   */
+  video: File3C41Ad3B
+  /**
+   * @description Timing breakdown in seconds. 'inference' is the DiT denoising time on the GPU backend. Null on routes that do not report backend timings.
+   */
+  timings?: {
+    [key: string]: number
+  } | null
+}
+
 export const inputMinimaxH3MaxRecastResolutionEnum = {
   '768P': '768P',
   '1080P': '1080P',
@@ -71222,16 +91709,13 @@ export type InputMinimaxH3MaxRecastResolutionEnumKey =
 
 export type InputMinimaxH3MaxRecast = {
   /**
-   * @default '1080P'
-   * @type string | undefined
+   * @description Random seed. Leave empty for a random one.
    */
-  resolution?: InputMinimaxH3MaxRecastResolutionEnumKey
+  seed?: number | null
   /**
-   * @description One photo per new person. By default they replace the main people in the video from left to right, each in every shot they appear in.
-   * @example ["https://v3b.fal.media/files/b/0aac8d26/HVno2j68vj7tkAwGo3Qii_Nolan%203.jpg"]
-   * @type array
+   * @description Optional: who becomes whom, or what else to keep or change.
    */
-  reference_image_urls: string[]
+  prompt?: string | null
   /**
    * @description The source video, 5 to 30 seconds long, with no single shot longer than 15 seconds.
    * @example https://v3b.fal.media/files/b/0aac8cc6/lOHY4Mitfg5x1UDerR3RB_dw9Hs7ChHU-Fqwzz0W9cq_video.mp4
@@ -71239,9 +91723,10 @@ export type InputMinimaxH3MaxRecast = {
    */
   video_url: string
   /**
-   * @description Random seed. Leave empty for a random one.
+   * @default '1080P'
+   * @type string | undefined
    */
-  seed?: number | null
+  resolution?: InputMinimaxH3MaxRecastResolutionEnumKey
   /**
    * @description More natural skin textures and better blending of the new people into the scene. Off unless set.
    * @default false
@@ -71256,9 +91741,11 @@ export type InputMinimaxH3MaxRecast = {
    */
   enable_safety_checker?: boolean
   /**
-   * @description Optional: who becomes whom, or what else to keep or change.
+   * @description One photo per new person. By default they replace the main people in the video from left to right, each in every shot they appear in.
+   * @example ["https://v3b.fal.media/files/b/0aac8d26/HVno2j68vj7tkAwGo3Qii_Nolan%203.jpg"]
+   * @type array
    */
-  prompt?: string | null
+  reference_image_urls: string[]
 }
 
 export type File3238798A = {
@@ -71490,13 +91977,18 @@ export type InputMinimaxH3MaxReframeVideoAspectRatioEnumKey =
   (typeof inputMinimaxH3MaxReframeVideoAspectRatioEnum)[keyof typeof inputMinimaxH3MaxReframeVideoAspectRatioEnum]
 
 export type InputMinimaxH3MaxReframeVideo = {
-  seed?: number | null
   /**
    * @description Target canvas resolution profile. 1080p uses learned latent upscaling from a native 768p reframe.
    * @default '768p'
    * @type string | undefined
    */
   resolution?: InputMinimaxH3MaxReframeVideoResolutionEnumKey
+  /**
+   * @description Target canvas aspect ratio; the source is contain-fitted and the rest is outpainted.
+   * @default '16:9'
+   * @type string | undefined
+   */
+  aspect_ratio?: InputMinimaxH3MaxReframeVideoAspectRatioEnumKey
   /**
    * @description Optional guidance for the new surroundings. Expansion captions the source automatically.
    * @maxLength 50000
@@ -71505,16 +91997,11 @@ export type InputMinimaxH3MaxReframeVideo = {
    */
   prompt?: string
   /**
-   * @description Target canvas aspect ratio; the source is contain-fitted and the rest is outpainted.
-   * @default '16:9'
-   * @type string | undefined
-   */
-  aspect_ratio?: InputMinimaxH3MaxReframeVideoAspectRatioEnumKey
-  /**
    * @description Source video, 0.25 to 300 seconds; fitted onto the target canvas with its timeline and audio preserved.
    * @type string
    */
   video_url: string
+  seed?: number | null
   /**
    * @default true
    * @type boolean | undefined
@@ -71580,6 +92067,16 @@ export type OutputMinimaxH3MaxReframeVideo = {
   }
 }
 
+export const inputMinimaxH3MaxRelightResolutionEnum = {
+  '480P': '480P',
+  '768P': '768P',
+  '1080P': '1080P',
+  '2K': '2K',
+} as const
+
+export type InputMinimaxH3MaxRelightResolutionEnumKey =
+  (typeof inputMinimaxH3MaxRelightResolutionEnum)[keyof typeof inputMinimaxH3MaxRelightResolutionEnum]
+
 export const inputMinimaxH3MaxRelightAspectRatioEnum = {
   adaptive: 'adaptive',
   '21:9': '21:9',
@@ -71593,33 +92090,7 @@ export const inputMinimaxH3MaxRelightAspectRatioEnum = {
 export type InputMinimaxH3MaxRelightAspectRatioEnumKey =
   (typeof inputMinimaxH3MaxRelightAspectRatioEnum)[keyof typeof inputMinimaxH3MaxRelightAspectRatioEnum]
 
-export const inputMinimaxH3MaxRelightResolutionEnum = {
-  '480P': '480P',
-  '768P': '768P',
-  '1080P': '1080P',
-  '2K': '2K',
-} as const
-
-export type InputMinimaxH3MaxRelightResolutionEnumKey =
-  (typeof inputMinimaxH3MaxRelightResolutionEnum)[keyof typeof inputMinimaxH3MaxRelightResolutionEnum]
-
 export type InputMinimaxH3MaxRelight = {
-  /**
-   * @description Output video aspect ratio.
-   * @default '16:9'
-   * @type string | undefined
-   */
-  aspect_ratio?: InputMinimaxH3MaxRelightAspectRatioEnumKey
-  /**
-   * @description Output video resolution. 480P and 768P generate natively; 1080P and 2K (1440p) use latent upscaling and refinement from 768P.
-   * @default '768P'
-   * @type string | undefined
-   */
-  resolution?: InputMinimaxH3MaxRelightResolutionEnumKey
-  /**
-   * @description Random seed for video generation.
-   */
-  seed?: number | null
   /**
    * @description Sphere render showing the target lighting.
    * @minLength 1
@@ -71627,11 +92098,15 @@ export type InputMinimaxH3MaxRelight = {
    */
   reference_image_url: string
   /**
-   * @description Enable safety checking.
-   * @default true
-   * @type boolean | undefined
+   * @description Source video up to 15 seconds long. Converted to constant 24 fps and trimmed at the end to the closest 17n+5 frame count, with at least 56 frames (about 2.33 seconds) remaining. The output matches this prepared video's frame count and duration.
+   * @minLength 1
+   * @type string
    */
-  enable_safety_checker?: boolean
+  video_url: string
+  /**
+   * @description Random seed for video generation.
+   */
+  seed?: number | null
   /**
    * @description Return video as a data URI.
    * @default false
@@ -71639,11 +92114,23 @@ export type InputMinimaxH3MaxRelight = {
    */
   sync_mode?: boolean
   /**
-   * @description Source video up to 15 seconds long. Converted to constant 24 fps and trimmed at the end to the closest 17n+5 frame count, with at least 56 frames (about 2.33 seconds) remaining. The output matches this prepared video's frame count and duration.
-   * @minLength 1
-   * @type string
+   * @description Output video resolution. 480P and 768P generate natively; 1080P and 2K (1440p) use latent upscaling and refinement from 768P.
+   * @default '768P'
+   * @type string | undefined
    */
-  video_url: string
+  resolution?: InputMinimaxH3MaxRelightResolutionEnumKey
+  /**
+   * @description Output video aspect ratio.
+   * @default '16:9'
+   * @type string | undefined
+   */
+  aspect_ratio?: InputMinimaxH3MaxRelightAspectRatioEnumKey
+  /**
+   * @description Enable safety checking.
+   * @default true
+   * @type boolean | undefined
+   */
+  enable_safety_checker?: boolean
 }
 
 export type File5029B771 = {
@@ -71702,18 +92189,6 @@ export type InputMinimaxH3MaxStyles16BitPixelAspectRatioEnumKey =
 
 export type InputMinimaxH3MaxStyles16BitPixel = {
   /**
-   * @description Describe the scene, action, camera and sound. The 16-bit pixel style is applied automatically.
-   * @minLength 1
-   * @maxLength 49815
-   * @example A young bicycle courier pedals through a sunlit flower market. Medium side view, steady tracking camera, measured pedaling. Bicycle chain clicks and gentle market ambience.
-   * @type string
-   */
-  prompt: string
-  /**
-   * @description Random seed. Omit to choose one automatically.
-   */
-  seed?: number | null
-  /**
    * @description Requested video duration in seconds.
    * @minimum 5
    * @maximum 15
@@ -71731,6 +92206,18 @@ export type InputMinimaxH3MaxStyles16BitPixel = {
    * @type string | undefined
    */
   aspect_ratio?: InputMinimaxH3MaxStyles16BitPixelAspectRatioEnumKey
+  /**
+   * @description Random seed. Omit to choose one automatically.
+   */
+  seed?: number | null
+  /**
+   * @description Describe the scene, action, camera and sound. The 16-bit pixel style is applied automatically.
+   * @minLength 1
+   * @maxLength 49815
+   * @example A young bicycle courier pedals through a sunlit flower market. Medium side view, steady tracking camera, measured pedaling. Bicycle chain clicks and gentle market ambience.
+   * @type string
+   */
+  prompt: string
 }
 
 export type FileC79676Ae = {
@@ -71783,18 +92270,6 @@ export type InputMinimaxH3MaxStylesHandDrawnAspectRatioEnumKey =
 
 export type InputMinimaxH3MaxStylesHandDrawn = {
   /**
-   * @description Describe the scene, action, camera and sound. The Hand drawn style is applied automatically.
-   * @minLength 1
-   * @maxLength 49868
-   * @example A weary office worker watches his neck stretch upward as a tiny bird lands on his head. Medium locked shot, exaggerated surprise. Soft wing flutters and distant city ambience, no speech.
-   * @type string
-   */
-  prompt: string
-  /**
-   * @description Random seed. Omit to choose one automatically.
-   */
-  seed?: number | null
-  /**
    * @description Requested video duration in seconds.
    * @minimum 5
    * @maximum 15
@@ -71812,6 +92287,18 @@ export type InputMinimaxH3MaxStylesHandDrawn = {
    * @type string | undefined
    */
   aspect_ratio?: InputMinimaxH3MaxStylesHandDrawnAspectRatioEnumKey
+  /**
+   * @description Random seed. Omit to choose one automatically.
+   */
+  seed?: number | null
+  /**
+   * @description Describe the scene, action, camera and sound. The Hand drawn style is applied automatically.
+   * @minLength 1
+   * @maxLength 49868
+   * @example A weary office worker watches his neck stretch upward as a tiny bird lands on his head. Medium locked shot, exaggerated surprise. Soft wing flutters and distant city ambience, no speech.
+   * @type string
+   */
+  prompt: string
 }
 
 export type File41910B31 = {
@@ -71864,18 +92351,6 @@ export type InputMinimaxH3MaxStylesLowPolyAspectRatioEnumKey =
 
 export type InputMinimaxH3MaxStylesLowPoly = {
   /**
-   * @description Describe the scene, action, camera and sound. The retro low-poly 3D style is applied automatically.
-   * @minLength 1
-   * @maxLength 49914
-   * @example A woman in a red coat runs across a rainy rooftop at night, jumps over a low ventilation duct and keeps running. A helicopter searchlight sweeps the buildings behind her. The camera tracks alongside her.
-   * @type string
-   */
-  prompt: string
-  /**
-   * @description Random seed. Omit to choose one automatically.
-   */
-  seed?: number | null
-  /**
    * @description Requested video duration in seconds.
    * @minimum 5
    * @maximum 15
@@ -71893,6 +92368,18 @@ export type InputMinimaxH3MaxStylesLowPoly = {
    * @type string | undefined
    */
   aspect_ratio?: InputMinimaxH3MaxStylesLowPolyAspectRatioEnumKey
+  /**
+   * @description Random seed. Omit to choose one automatically.
+   */
+  seed?: number | null
+  /**
+   * @description Describe the scene, action, camera and sound. The retro low-poly 3D style is applied automatically.
+   * @minLength 1
+   * @maxLength 49914
+   * @example A woman in a red coat runs across a rainy rooftop at night, jumps over a low ventilation duct and keeps running. A helicopter searchlight sweeps the buildings behind her. The camera tracks alongside her.
+   * @type string
+   */
+  prompt: string
 }
 
 export type FileDe64Ece6 = {
@@ -71945,18 +92432,6 @@ export type InputMinimaxH3MaxStylesRetroToon70SAspectRatioEnumKey =
 
 export type InputMinimaxH3MaxStylesRetroToon70S = {
   /**
-   * @description Describe the scene, action, camera and sound. The retro 1970s hand-painted animation style is applied automatically.
-   * @minLength 1
-   * @maxLength 49864
-   * @example A lone warrior with a broadsword stands on a windswept rocky ridge at sunset as an enormous dragon glides past below him. Wide heroic shot. Wind and the slow beat of dragon wings, no speech.
-   * @type string
-   */
-  prompt: string
-  /**
-   * @description Random seed. Omit to choose one automatically.
-   */
-  seed?: number | null
-  /**
    * @description Requested video duration in seconds.
    * @minimum 5
    * @maximum 15
@@ -71974,6 +92449,18 @@ export type InputMinimaxH3MaxStylesRetroToon70S = {
    * @type string | undefined
    */
   aspect_ratio?: InputMinimaxH3MaxStylesRetroToon70SAspectRatioEnumKey
+  /**
+   * @description Random seed. Omit to choose one automatically.
+   */
+  seed?: number | null
+  /**
+   * @description Describe the scene, action, camera and sound. The retro 1970s hand-painted animation style is applied automatically.
+   * @minLength 1
+   * @maxLength 49864
+   * @example A lone warrior with a broadsword stands on a windswept rocky ridge at sunset as an enormous dragon glides past below him. Wide heroic shot. Wind and the slow beat of dragon wings, no speech.
+   * @type string
+   */
+  prompt: string
 }
 
 export type File46369Dc7 = {
@@ -72012,15 +92499,6 @@ export type OutputMinimaxH3MaxStylesRetroToon70S = {
   seed: number
 }
 
-export const inputMinimaxH3MaxStylesVhsDamageLevelEnum = {
-  light: 'light',
-  medium: 'medium',
-  heavy: 'heavy',
-} as const
-
-export type InputMinimaxH3MaxStylesVhsDamageLevelEnumKey =
-  (typeof inputMinimaxH3MaxStylesVhsDamageLevelEnum)[keyof typeof inputMinimaxH3MaxStylesVhsDamageLevelEnum]
-
 export const inputMinimaxH3MaxStylesVhsAspectRatioEnum = {
   '21:9': '21:9',
   '16:9': '16:9',
@@ -72033,25 +92511,16 @@ export const inputMinimaxH3MaxStylesVhsAspectRatioEnum = {
 export type InputMinimaxH3MaxStylesVhsAspectRatioEnumKey =
   (typeof inputMinimaxH3MaxStylesVhsAspectRatioEnum)[keyof typeof inputMinimaxH3MaxStylesVhsAspectRatioEnum]
 
+export const inputMinimaxH3MaxStylesVhsDamageLevelEnum = {
+  light: 'light',
+  medium: 'medium',
+  heavy: 'heavy',
+} as const
+
+export type InputMinimaxH3MaxStylesVhsDamageLevelEnumKey =
+  (typeof inputMinimaxH3MaxStylesVhsDamageLevelEnum)[keyof typeof inputMinimaxH3MaxStylesVhsDamageLevelEnum]
+
 export type InputMinimaxH3MaxStylesVhs = {
-  /**
-   * @description Describe the scene, action, camera and sound. VHS style and tape damage are applied automatically.
-   * @minLength 1
-   * @maxLength 49910
-   * @example A camcorder explores an abandoned shopping mall at midnight. A lone carousel starts turning beneath flickering fluorescent lights. Handheld push-in, mechanical creaks and distant music.
-   * @type string
-   */
-  prompt: string
-  /**
-   * @description Tape wear: light adds subtle analog noise, medium adds visible damage, and heavy adds strong tracking errors and distortion.
-   * @default 'medium'
-   * @type string | undefined
-   */
-  damage_level?: InputMinimaxH3MaxStylesVhsDamageLevelEnumKey
-  /**
-   * @description Random seed. Omit to choose one automatically.
-   */
-  seed?: number | null
   /**
    * @description Requested video duration in seconds.
    * @minimum 5
@@ -72070,6 +92539,24 @@ export type InputMinimaxH3MaxStylesVhs = {
    * @type string | undefined
    */
   aspect_ratio?: InputMinimaxH3MaxStylesVhsAspectRatioEnumKey
+  /**
+   * @description Random seed. Omit to choose one automatically.
+   */
+  seed?: number | null
+  /**
+   * @description Describe the scene, action, camera and sound. VHS style and tape damage are applied automatically.
+   * @minLength 1
+   * @maxLength 49910
+   * @example A camcorder explores an abandoned shopping mall at midnight. A lone carousel starts turning beneath flickering fluorescent lights. Handheld push-in, mechanical creaks and distant music.
+   * @type string
+   */
+  prompt: string
+  /**
+   * @description Tape wear: light adds subtle analog noise, medium adds visible damage, and heavy adds strong tracking errors and distortion.
+   * @default 'medium'
+   * @type string | undefined
+   */
+  damage_level?: InputMinimaxH3MaxStylesVhsDamageLevelEnumKey
 }
 
 export type FileF9308Eee = {
@@ -72347,17 +92834,7 @@ export type OutputMinimaxH3ImageToVideo = {
  * @description A single LoRA adapter to apply to the transformer.
  * @type object
  */
-export type LoRAInputAf5C4446 = {
-  /**
-   * @description URL or HuggingFace repo id (owner/repo) of the LoRA weights.
-   * @example https://huggingface.co/owner/repo/resolve/main/lora.safetensors
-   * @type string
-   */
-  path: string
-  /**
-   * @description Name of the LoRA weight file. Only used when `path` is a HuggingFace repo and it holds more than one LoRA.
-   */
-  weight_name?: string | null
+export type LoRAInput09F027Ba = {
   /**
    * @description Strength of the LoRA (0.0 to 4.0).
    * @minimum 0
@@ -72366,6 +92843,16 @@ export type LoRAInputAf5C4446 = {
    * @type number | undefined
    */
   scale?: number
+  /**
+   * @description Name of the LoRA weight file. Only used when `path` is a HuggingFace repo and it holds more than one LoRA.
+   */
+  weight_name?: string | null
+  /**
+   * @description URL or HuggingFace repo id (owner/repo) of the LoRA weights.
+   * @example https://huggingface.co/owner/repo/resolve/main/lora.safetensors
+   * @type string
+   */
+  path: string
 }
 
 export const inputMinimaxH3ImageToVideoLoraResolutionEnum = {
@@ -72378,7 +92865,28 @@ export const inputMinimaxH3ImageToVideoLoraResolutionEnum = {
 export type InputMinimaxH3ImageToVideoLoraResolutionEnumKey =
   (typeof inputMinimaxH3ImageToVideoLoraResolutionEnum)[keyof typeof inputMinimaxH3ImageToVideoLoraResolutionEnum]
 
+export const inputMinimaxH3ImageToVideoLoraAspectRatioEnum = {
+  adaptive: 'adaptive',
+  '21:9': '21:9',
+  '16:9': '16:9',
+  '4:3': '4:3',
+  '1:1': '1:1',
+  '3:4': '3:4',
+  '9:16': '9:16',
+} as const
+
+export type InputMinimaxH3ImageToVideoLoraAspectRatioEnumKey =
+  (typeof inputMinimaxH3ImageToVideoLoraAspectRatioEnum)[keyof typeof inputMinimaxH3ImageToVideoLoraAspectRatioEnum]
+
 export type InputMinimaxH3ImageToVideoLora = {
+  /**
+   * @description Text prompt for video generation
+   * @minLength 1
+   * @maxLength 50000
+   * @example The camera slowly pulls back from the scene, revealing the full landscape as clouds drift overhead and light shifts across the terrain.
+   * @type string
+   */
+  prompt: string
   /**
    * @description The resolution of the generated video. 480P and 768P are native generation modes; 2K and 4K upscale a 768P base result.
    * @default '2K'
@@ -72386,15 +92894,20 @@ export type InputMinimaxH3ImageToVideoLora = {
    */
   resolution?: InputMinimaxH3ImageToVideoLoraResolutionEnumKey
   /**
-   * @description Optional URL of the image to use as the last frame. It may be provided alone for end-only keyframe generation; in that case the output canvas follows this image.
+   * @description Optional URL of the image to use as the first frame. When provided, the output canvas follows this image. If only end_image_url is provided, the canvas follows that last frame instead. If both images are omitted, the request is handled as text-to-video (16:9 by default).
+   * @example https://storage.googleapis.com/falserverless/example_inputs/hailuo23/pro_i2v_in.jpg
    */
-  end_image_url?: string | null
+  image_url?: string | null
   /**
-   * @description Return the generated video as base64 instead of a CDN URL.
-   * @default false
+   * @description If set to true, the safety checker will be enabled.
+   * @default true
    * @type boolean | undefined
    */
-  sync_mode?: boolean
+  enable_safety_checker?: boolean
+  /**
+   * @description Optional URL of an audio clip at least 2 seconds long (maximum 15 MB) to pin to the generated soundtrack. Longer clips are trimmed to the generated video's length, keeping the beginning. The original audio replaces the output soundtrack, padded with silence if shorter than the video, without changing playback speed. Exceptionally high sample rates may be resampled to 96 kHz. Accepts an HTTP(S) URL or a base64 data URI.
+   */
+  target_audio_url?: string | null
   /**
    * @description The duration of the video in seconds.
    * @minimum 5
@@ -72404,11 +92917,14 @@ export type InputMinimaxH3ImageToVideoLora = {
    */
   duration?: number
   /**
-   * @description If set to true, the safety checker will be enabled.
-   * @default true
-   * @type boolean | undefined
+   * @description Random seed. A random seed is selected when omitted.
    */
-  enable_safety_checker?: boolean
+  seed?: number | null
+  /**
+   * @description List of LoRA adapters to apply to the transformer.
+   * @type array
+   */
+  loras: LoRAInput09F027Ba[]
   /**
    * @description How much effort to spend rewriting the prompt before generation. 'disabled' skips prompt expansion. 'fast' returns in about a second. 'balanced' picks per request. 'quality' spends up to ~30s on a richer prompt.
    * @default balanced
@@ -72419,31 +92935,21 @@ export type InputMinimaxH3ImageToVideoLora = {
    */
   prompt_expansion_mode?: string | null
   /**
-   * @description List of LoRA adapters to apply to the transformer.
-   * @type array
+   * @description The aspect ratio of the generated video. 'adaptive' follows the input image; a fixed ratio center-crops the keyframes to fit. Without keyframes, 'adaptive' generates 16:9.
+   * @default 'adaptive'
+   * @type string | undefined
    */
-  loras: LoRAInputAf5C4446[]
+  aspect_ratio?: InputMinimaxH3ImageToVideoLoraAspectRatioEnumKey
   /**
-   * @description Optional URL of an audio clip at least 2 seconds long (maximum 15 MB) to pin to the generated soundtrack. Longer clips are trimmed to the generated video's length, keeping the beginning. The original audio replaces the output soundtrack, padded with silence if shorter than the video, without changing playback speed. Exceptionally high sample rates may be resampled to 96 kHz. Accepts an HTTP(S) URL or a base64 data URI.
+   * @description Optional URL of the image to use as the last frame. It may be provided alone for end-only keyframe generation; in that case the output canvas follows this image.
    */
-  target_audio_url?: string | null
+  end_image_url?: string | null
   /**
-   * @description Optional URL of the image to use as the first frame. When provided, the output canvas follows this image. If only end_image_url is provided, the canvas follows that last frame instead. If both images are omitted, the request is handled as text-to-video (16:9 by default).
-   * @example https://storage.googleapis.com/falserverless/example_inputs/hailuo23/pro_i2v_in.jpg
+   * @description Return the generated video as base64 instead of a CDN URL.
+   * @default false
+   * @type boolean | undefined
    */
-  image_url?: string | null
-  /**
-   * @description Text prompt for video generation
-   * @minLength 1
-   * @maxLength 50000
-   * @example The camera slowly pulls back from the scene, revealing the full landscape as clouds drift overhead and light shifts across the terrain.
-   * @type string
-   */
-  prompt: string
-  /**
-   * @description Random seed. A random seed is selected when omitted.
-   */
-  seed?: number | null
+  sync_mode?: boolean
 }
 
 export type File30Bd245B = {
@@ -73043,6 +93549,396 @@ export type OutputMinimaxH3TextToVideoLora = {
    * @description The prompt after expansion, as sent to the model. Null when prompt expansion was disabled, left the prompt unchanged, or was performed internally by MiniMax's hosted API.
    */
   expanded_prompt?: string | null
+}
+
+export const inputMirageApiAvatarXReferenceToVideoAvatar = {
+  None: 'None',
+  Ayesha: 'Ayesha',
+  'Ayesha (16:9)': 'Ayesha (16:9)',
+  Farhan: 'Farhan',
+  'Farhan (16:9)': 'Farhan (16:9)',
+  Giulia: 'Giulia',
+  'Giulia (16:9)': 'Giulia (16:9)',
+  Jasmine: 'Jasmine',
+  'Jasmine (16:9)': 'Jasmine (16:9)',
+  Luke: 'Luke',
+  'Luke (16:9)': 'Luke (16:9)',
+  Maya: 'Maya',
+  'Maya (16:9)': 'Maya (16:9)',
+  Michael: 'Michael',
+  'Michael (16:9)': 'Michael (16:9)',
+  Neha: 'Neha',
+  'Neha (16:9)': 'Neha (16:9)',
+  Tariq: 'Tariq',
+  'Tariq (16:9)': 'Tariq (16:9)',
+  Valerie: 'Valerie',
+  'Valerie (16:9)': 'Valerie (16:9)',
+} as const
+
+export type InputMirageApiAvatarXReferenceToVideoAvatarKey =
+  (typeof inputMirageApiAvatarXReferenceToVideoAvatar)[keyof typeof inputMirageApiAvatarXReferenceToVideoAvatar]
+
+/**
+ * @description Inputs for driving a stock or caller-supplied visual with audio.
+ * @type object
+ */
+export type InputMirageApiAvatarXReferenceToVideo = {
+  /**
+   * @description Publicly fetchable HTTPS URL of the reference video; no cookies or authorization headers. Takes precedence over image_reference_url when both are supplied. Supports H.264, H.265/HEVC, or ProRes in .mp4, .mov, or .m4v and VP8 or VP9 in .webm, from 1 to 120 seconds and up to 1 GiB, with exactly one video stream and a 9:16 or 16:9 display aspect ratio (within 5%). The video must contain a usable one-second reference window; any audio track is ignored.
+   * @example https://v3b.fal.media/files/b/0aa596d5/q8taheXQ-KlmtoC-uKViG_mirage-avatar-x-luke-reference-to-video-demo.mp4
+   */
+  video_reference_url?: string | null
+  /**
+   * @description Publicly fetchable HTTPS URL of the reference image; no cookies or authorization headers. Ignored when video_reference_url is also supplied. Supports one static .jpg, .jpeg, .png, or .webp image up to 25 MiB, with a short edge of at least 512 px, no edge over 8192 px, at most 25 megapixels, and a 9:16 or 16:9 aspect ratio (within 5%).
+   */
+  image_reference_url?: string | null
+  /**
+   * @description Stock visual that can be used instead of an image or video reference; it does not supply audio. Browse the [avatar catalog](https://captions.ai/help/docs/api/actor-catalog) to preview the available visuals and copy the exact Avatar value. Default and None both mean no avatar. Any supplied image or video reference overrides the selection, and audio always comes from audio_url.
+   */
+  avatar?: InputMirageApiAvatarXReferenceToVideoAvatarKey | null
+  /**
+   * @description Publicly fetchable HTTPS URL of the driving audio; no cookies or authorization headers. Supports MP3, PCM WAV or AIFF, AAC or ALAC, Opus or Vorbis, and FLAC audio from 3 to 180 seconds and up to 64 MiB, with one mono or stereo stream sampled from 8 to 48 kHz. The generated video follows this audio.
+   * @example https://v3b.fal.media/files/b/0aa596e6/ko0yoMiCNRRAnMU5PQAHK_mirage-avatar-x-luke-reference-audio.wav
+   * @type string
+   */
+  audio_url: string
+}
+
+export type Video0A599442 = {
+  /**
+   * @description The name of the file. It will be auto-generated if not provided.
+   * @example z9RV14K95DvU.png
+   */
+  file_name?: string | null
+  /**
+   * @description The size of the file in bytes.
+   * @example 4404019
+   */
+  file_size?: number | null
+  /**
+   * @description The URL where the file can be downloaded from.
+   * @type string
+   */
+  url: string
+  /**
+   * @description The mime type of the file.
+   * @example image/png
+   */
+  content_type?: string | null
+}
+
+export type OutputMirageApiAvatarXReferenceToVideo = {
+  /**
+   * @example {"file_name":"mirage-avatar-x-luke-reference-to-video-demo.mp4","file_size":11833398,"url":"https://v3b.fal.media/files/b/0aa596d5/q8taheXQ-KlmtoC-uKViG_mirage-avatar-x-luke-reference-to-video-demo.mp4","content_type":"video/mp4"}
+   * @type object
+   */
+  video: Video0A599442
+}
+
+export const inputMirageApiAvatarXTextToVideoAvatar = {
+  None: 'None',
+  Ayesha: 'Ayesha',
+  'Ayesha (16:9)': 'Ayesha (16:9)',
+  Farhan: 'Farhan',
+  'Farhan (16:9)': 'Farhan (16:9)',
+  Giulia: 'Giulia',
+  'Giulia (16:9)': 'Giulia (16:9)',
+  Jasmine: 'Jasmine',
+  'Jasmine (16:9)': 'Jasmine (16:9)',
+  Luke: 'Luke',
+  'Luke (16:9)': 'Luke (16:9)',
+  Maya: 'Maya',
+  'Maya (16:9)': 'Maya (16:9)',
+  Michael: 'Michael',
+  'Michael (16:9)': 'Michael (16:9)',
+  Neha: 'Neha',
+  'Neha (16:9)': 'Neha (16:9)',
+  Tariq: 'Tariq',
+  'Tariq (16:9)': 'Tariq (16:9)',
+  Valerie: 'Valerie',
+  'Valerie (16:9)': 'Valerie (16:9)',
+} as const
+
+export type InputMirageApiAvatarXTextToVideoAvatarKey =
+  (typeof inputMirageApiAvatarXTextToVideoAvatar)[keyof typeof inputMirageApiAvatarXTextToVideoAvatar]
+
+/**
+ * @description Inputs for generating stock-avatar speech and a lip-synced video.
+ * @type object
+ */
+export type InputMirageApiAvatarXTextToVideo = {
+  /**
+   * @description Publicly fetchable HTTPS URL of a reference video. When supplied, audio_reference_url is also required and the selected avatar is ignored; no cookies or authorization headers. Supports H.264, H.265/HEVC, or ProRes in .mp4, .mov, or .m4v and VP8 or VP9 in .webm, from 1 to 120 seconds and up to 1 GiB, with a 9:16 or 16:9 display aspect ratio (within 5%). Any audio track is ignored.
+   */
+  video_reference_url?: string | null
+  /**
+   * @description Stock visual and voice. Browse the [avatar catalog](https://captions.ai/help/docs/api/actor-catalog) to preview every available avatar and copy the exact Avatar value. Select None to send no avatar. When video_reference_url and audio_reference_url are both supplied, the references replace the avatar entirely and it may be omitted.
+   * @default Jasmine
+   */
+  avatar?: InputMirageApiAvatarXTextToVideoAvatarKey | null
+  /**
+   * @description Publicly fetchable HTTPS URL of a voice reference. When supplied, video_reference_url is also required and the selected avatar is ignored; no cookies or authorization headers. Supports MP3, PCM WAV or AIFF, AAC or ALAC, Opus or Vorbis, and FLAC audio from 10 to 180 seconds and up to 64 MiB, with one mono or stereo stream sampled from 8 to 48 kHz. Only the first 60 seconds are used.
+   */
+  audio_reference_url?: string | null
+  /**
+   * @description Use 50 to 1,500 characters. The 50-character minimum typically produces about four seconds of speech. Generated speech must be 180 seconds or shorter; speaking pace may cause shorter scripts to exceed this limit.
+   * @minLength 50
+   * @maxLength 1500
+   * @example Put in a script, and Mirage Avatar X turns it into a clear, expressive video. Let’s bring your next idea to life.
+   * @type string
+   */
+  script: string
+}
+
+export type VideoBeea9918 = {
+  /**
+   * @description The name of the file. It will be auto-generated if not provided.
+   * @example z9RV14K95DvU.png
+   */
+  file_name?: string | null
+  /**
+   * @description The size of the file in bytes.
+   * @example 4404019
+   */
+  file_size?: number | null
+  /**
+   * @description The URL where the file can be downloaded from.
+   * @type string
+   */
+  url: string
+  /**
+   * @description The mime type of the file.
+   * @example image/png
+   */
+  content_type?: string | null
+}
+
+export type OutputMirageApiAvatarXTextToVideo = {
+  /**
+   * @example {"file_name":"mirage-avatar-x-jasmine-text-to-video-demo.mp4","file_size":7338484,"url":"https://v3b.fal.media/files/b/0aa596e6/n-l_tkXZNWU4rdTylTkMX_mirage-avatar-x-jasmine-text-to-video-demo.mp4","content_type":"video/mp4"}
+   * @type object
+   */
+  video: VideoBeea9918
+}
+
+export type InputMireloAiSfxV15VideoToVideo = {
+  /**
+   * @description The seed to use for the generation. If not provided, a random seed will be used
+   * @default 2814
+   */
+  seed?: number | null
+  /**
+   * @description The start offset in seconds to start the audio generation from
+   * @default 0
+   */
+  start_offset?: number | null
+  /**
+   * @description The duration of the generated audio in seconds
+   * @default 10
+   */
+  duration?: number | null
+  /**
+   * @description Additional description to guide the model
+   * @example
+   */
+  text_prompt?: string | null
+  /**
+   * @description The number of samples to generate from the model
+   * @default 2
+   */
+  num_samples?: number | null
+  /**
+   * @description A video url that can accessed from the API to process and add sound effects
+   *
+   * Format: `uri`
+   * @minLength 1
+   * @maxLength 2083
+   * @example https://di3otfzjg1gxa.cloudfront.net/battlefield_scene_silent.mp4
+   * @type string
+   */
+  video_url: string
+}
+
+export type Video8D686Af1 = {
+  /**
+   * @description The URL where the file can be downloaded from.
+   * @type string
+   */
+  url: string
+  /**
+   * @description The name of the file. It will be auto-generated if not provided.
+   * @example z9RV14K95DvU.png
+   */
+  file_name?: string | null
+  /**
+   * @description The mime type of the file.
+   * @example image/png
+   */
+  content_type?: string | null
+  /**
+   * @description The size of the file in bytes.
+   * @example 4404019
+   */
+  file_size?: number | null
+}
+
+export type OutputMireloAiSfxV15VideoToVideo = {
+  /**
+   * @pattern ^sfx-[0-9]+\.[0-9]+$
+   * @type string
+   */
+  model: string
+  /**
+   * @description The processed video with sound effects
+   * @example [{"url":"https://di3otfzjg1gxa.cloudfront.net/battlefield_scene_output_1.mp4","file_name":"generated_output_1.mp4","content_type":"video/mp4"},{"url":"https://di3otfzjg1gxa.cloudfront.net/battlefield_scene_output_2.mp4","file_name":"generated_output_2.mp4","content_type":"video/mp4"}]
+   * @type array
+   */
+  video: Video8D686Af1[]
+}
+
+export type InputMireloAiSfxV1VideoToVideo = {
+  /**
+   * @description The seed to use for the generation. If not provided, a random seed will be used
+   * @default 2814
+   */
+  seed?: number | null
+  /**
+   * @description The start offset in seconds to start the audio generation from
+   * @default 0
+   */
+  start_offset?: number | null
+  /**
+   * @description The duration of the generated audio in seconds
+   * @default 10
+   */
+  duration?: number | null
+  /**
+   * @description Additional description to guide the model
+   * @example
+   */
+  text_prompt?: string | null
+  /**
+   * @description The number of samples to generate from the model
+   * @default 2
+   */
+  num_samples?: number | null
+  /**
+   * @description A video url that can accessed from the API to process and add sound effects
+   *
+   * Format: `uri`
+   * @minLength 1
+   * @maxLength 2083
+   * @example https://di3otfzjg1gxa.cloudfront.net/battlefield_scene_silent.mp4
+   * @type string
+   */
+  video_url: string
+}
+
+export type Video8E14051C = {
+  /**
+   * @description The size of the file in bytes.
+   * @example 4404019
+   */
+  file_size?: number | null
+  /**
+   * @description The name of the file. It will be auto-generated if not provided.
+   * @example z9RV14K95DvU.png
+   */
+  file_name?: string | null
+  /**
+   * @description The mime type of the file.
+   * @example image/png
+   */
+  content_type?: string | null
+  /**
+   * @description The URL where the file can be downloaded from.
+   * @type string
+   */
+  url: string
+}
+
+export type OutputMireloAiSfxV1VideoToVideo = {
+  /**
+   * @pattern ^sfx-[0-9]+\.[0-9]+$
+   * @type string
+   */
+  model: string
+  /**
+   * @description The processed video with sound effects
+   * @example [{"url":"https://di3otfzjg1gxa.cloudfront.net/battlefield_scene_output_1.mp4","file_name":"generated_output_1.mp4","content_type":"video/mp4"},{"url":"https://di3otfzjg1gxa.cloudfront.net/battlefield_scene_output_2.mp4","file_name":"generated_output_2.mp4","content_type":"video/mp4"}]
+   * @type array
+   */
+  video: Video8E14051C[]
+}
+
+export type InputMireloAiSfx16VideoToVideo = {
+  /**
+   * @description Seed for generation. -1 or None for random.
+   */
+  seed?: number | null
+  /**
+   * @description Number of variations to generate.
+   * @minimum 1
+   * @maximum 4
+   * @default 2
+   * @type integer | undefined
+   */
+  num_samples?: number
+  /**
+   * @description Duration of the generated SFX in seconds. Values >10 use sliding-window extended generation.
+   * @minimum 1
+   * @maximum 60
+   * @default 10
+   * @type number | undefined
+   */
+  duration?: number
+  /**
+   * @description Optional text prompt guiding generation.
+   */
+  text_prompt?: string | null
+  /**
+   * @description Video URL to add SFX to.
+   * @example https://di3otfzjg1gxa.cloudfront.net/cute_spider_silent.mp4
+   * @type string
+   */
+  video_url: string
+}
+
+export type Video17B10A11 = {
+  /**
+   * @description The name of the file. It will be auto-generated if not provided.
+   * @example z9RV14K95DvU.png
+   */
+  file_name?: string | null
+  /**
+   * @description The URL where the file can be downloaded from.
+   * @type string
+   */
+  url: string
+  /**
+   * @description The size of the file in bytes.
+   * @example 4404019
+   */
+  file_size?: number | null
+  /**
+   * @description The mime type of the file.
+   * @example image/png
+   */
+  content_type?: string | null
+}
+
+export type OutputMireloAiSfx16VideoToVideo = {
+  /**
+   * @description The processed video with sound effects
+   * @example [{"file_name":"generated_output_1.mp4","url":"https://di3otfzjg1gxa.cloudfront.net/cute_spider.mp4","content_type":"video/mp4"}]
+   * @type array
+   */
+  video: Video17B10A11[]
+  /**
+   * @pattern ^sfx-[0-9]+\.[0-9]+$
+   * @type string
+   */
+  model: string
 }
 
 export type InputMireloAiSfx20VideoToVideo = {
@@ -73758,6 +94654,164 @@ export type OutputNvidiaCosmos3SuperImageToVideo = {
   video: VideoFileA1Cead9D
 }
 
+export const inputOpenimaginglabFlashvsrPlusVideoWriteModeEnum = {
+  fast: 'fast',
+  balanced: 'balanced',
+  small: 'small',
+} as const
+
+export type InputOpenimaginglabFlashvsrPlusVideoWriteModeEnumKey =
+  (typeof inputOpenimaginglabFlashvsrPlusVideoWriteModeEnum)[keyof typeof inputOpenimaginglabFlashvsrPlusVideoWriteModeEnum]
+
+export const inputOpenimaginglabFlashvsrPlusVideoQualityEnum = {
+  low: 'low',
+  medium: 'medium',
+  high: 'high',
+  maximum: 'maximum',
+} as const
+
+export type InputOpenimaginglabFlashvsrPlusVideoQualityEnumKey =
+  (typeof inputOpenimaginglabFlashvsrPlusVideoQualityEnum)[keyof typeof inputOpenimaginglabFlashvsrPlusVideoQualityEnum]
+
+export const inputOpenimaginglabFlashvsrPlusTemporalCompressionEnum = {
+  '1': 1,
+  '2': 2,
+  '4': 4,
+} as const
+
+export type InputOpenimaginglabFlashvsrPlusTemporalCompressionEnumKey =
+  (typeof inputOpenimaginglabFlashvsrPlusTemporalCompressionEnum)[keyof typeof inputOpenimaginglabFlashvsrPlusTemporalCompressionEnum]
+
+export const inputOpenimaginglabFlashvsrPlusVideoOutputTypeEnum = {
+  'X264 (.mp4)': 'X264 (.mp4)',
+  'VP9 (.webm)': 'VP9 (.webm)',
+  'PRORES4444 (.mov)': 'PRORES4444 (.mov)',
+  'GIF (.gif)': 'GIF (.gif)',
+} as const
+
+export type InputOpenimaginglabFlashvsrPlusVideoOutputTypeEnumKey =
+  (typeof inputOpenimaginglabFlashvsrPlusVideoOutputTypeEnum)[keyof typeof inputOpenimaginglabFlashvsrPlusVideoOutputTypeEnum]
+
+export const inputOpenimaginglabFlashvsrPlusModelEnum = {
+  turbo: 'turbo',
+  base: 'base',
+  v1: 'v1',
+} as const
+
+export type InputOpenimaginglabFlashvsrPlusModelEnumKey =
+  (typeof inputOpenimaginglabFlashvsrPlusModelEnum)[keyof typeof inputOpenimaginglabFlashvsrPlusModelEnum]
+
+export type InputOpenimaginglabFlashvsrPlus = {
+  /**
+   * @description Copy the input audio track into the output.
+   * @default true
+   * @type boolean | undefined
+   */
+  preserve_audio?: boolean
+  /**
+   * @description Spatial upscaling factor. Output is capped at about 4K.
+   * @minimum 1
+   * @maximum 4
+   * @default 2
+   * @type number | undefined
+   */
+  upscale_factor?: number
+  /**
+   * @description Authorized callers may set false to request relaxed screening.
+   * @default true
+   * @type boolean | undefined
+   */
+  enable_safety_checker?: boolean
+  /**
+   * @description The random seed used for the generation process.
+   */
+  seed?: number | null
+  /**
+   * @description If `True`, the media will be returned inline and not stored in history.
+   * @default false
+   * @type boolean | undefined
+   */
+  sync_mode?: boolean
+  /**
+   * @description Output write mode.
+   * @default 'balanced'
+   * @type string | undefined
+   */
+  video_write_mode?: InputOpenimaginglabFlashvsrPlusVideoWriteModeEnumKey
+  /**
+   * @description Output encoding quality.
+   * @default 'high'
+   * @type string | undefined
+   */
+  video_quality?: InputOpenimaginglabFlashvsrPlusVideoQualityEnumKey
+  /**
+   * @description Input frames per latent frame. Use 2 or 1 for large motion; inference cost rises about 2x or 4x.
+   * @default 4
+   * @type number | undefined
+   */
+  temporal_compression?: InputOpenimaginglabFlashvsrPlusTemporalCompressionEnumKey
+  /**
+   * @description The input video to upscale.
+   * @example https://storage.googleapis.com/falserverless/example_inputs/birefnet-video-input.mp4
+   * @type string
+   */
+  video_url: string
+  /**
+   * @description Output container/codec.
+   * @default 'X264 (.mp4)'
+   * @type string | undefined
+   */
+  video_output_type?: InputOpenimaginglabFlashvsrPlusVideoOutputTypeEnumKey
+  /**
+   * @description turbo: fastest (hybrid sliding attention). base: highest quality. v1: FlashVSR v1.1 weights with the base configuration.
+   * @default 'turbo'
+   * @type string | undefined
+   */
+  model?: InputOpenimaginglabFlashvsrPlusModelEnumKey
+  /**
+   * @description Apply low-frequency wavelet color correction.
+   * @default false
+   * @type boolean | undefined
+   */
+  color_fix?: boolean
+}
+
+export type File40064553 = {
+  /**
+   * @description The mime type of the file.
+   * @example image/png
+   */
+  content_type?: string | null
+  /**
+   * @description The size of the file in bytes.
+   * @example 4404019
+   */
+  file_size?: number | null
+  /**
+   * @description The URL where the file can be downloaded from.
+   * @type string
+   */
+  url: string
+  /**
+   * @description The name of the file. It will be auto-generated if not provided.
+   * @example z9RV14K95DvU.png
+   */
+  file_name?: string | null
+}
+
+export type OutputOpenimaginglabFlashvsrPlus = {
+  /**
+   * @description The random seed used for the generation process.
+   * @type integer
+   */
+  seed: number
+  /**
+   * @description The upscaled video.
+   * @type object
+   */
+  video: File40064553
+}
+
 export const inputPixelcutLoopingVideoMotionEnum = {
   subtle: 'subtle',
   spin: 'spin',
@@ -74119,6 +95173,77 @@ export type OutputPixverseMusicVideoVibemv = {
   video: File7E308E23
 }
 
+export type InputSoniloV11VideoToVideo = {
+  /**
+   * @description Optional. Start scoring from this offset (seconds) into the video. Requires Start Offset + Duration <= Video Duration.
+   */
+  start_offset?: number | null
+  /**
+   * @description Public http(s) URL of the source video to score.
+   * @example https://v3b.fal.media/files/b/0a9ddd00/2QssaYyFxstvVlmIraSns_Sonilo_Demo_Original_1.mp4
+   * @type string
+   */
+  video_url: string
+  /**
+   * @description Keep the original video's speech/vocals. When on, the source audio is separated (music source separation), and only the isolated vocals are blended over the generated music with automatic ducking (the music dips under speech). When off (default), the original soundtrack is dropped and the video carries only the generated music.
+   * @default false
+   * @type boolean | undefined
+   */
+  keep_speech_vocal?: boolean
+  /**
+   * @description Optional text prompt steering the musical style. If omitted, a prompt is generated automatically from the video.
+   */
+  prompt?: string | null
+  /**
+   * @description How many distinct scored videos to generate.
+   * @minimum 1
+   * @maximum 3
+   * @default 1
+   * @type integer | undefined
+   */
+  num_samples?: number
+  /**
+   * @description Optional. Length (seconds) of the video segment to score. When set, scores a segment of this length starting at Start Offset (or from the beginning if Start Offset is unset). Defaults (None) to the rest of the video.
+   */
+  duration?: number | null
+}
+
+export type Video54B334Fe = {
+  /**
+   * @description The mime type of the file.
+   * @example image/png
+   */
+  content_type?: string | null
+  /**
+   * @description The name of the file. It will be auto-generated if not provided.
+   * @example z9RV14K95DvU.png
+   */
+  file_name?: string | null
+  /**
+   * @description The URL where the file can be downloaded from.
+   * @type string
+   */
+  url: string
+  /**
+   * @description The size of the file in bytes.
+   * @example 4404019
+   */
+  file_size?: number | null
+}
+
+export type OutputSoniloV11VideoToVideo = {
+  /**
+   * @description The first scored video (source video muxed with generated music).
+   * @type object
+   */
+  video: Video54B334Fe
+  /**
+   * @description All scored videos (mp4), one per sample.
+   * @type array
+   */
+  videos: Video54B334Fe[]
+}
+
 export type InputSoniloV11VideoToVideoMusic = {
   /**
    * @description Turn it up to match the text prompt
@@ -74441,6 +95566,53 @@ export type OutputTbcMischief1ImageToVideo = {
    * @type object
    */
   video: FileF67E280F
+}
+
+export type InputTopazColorizeVideo = {
+  /**
+   * @description Whether to use H264 codec for output video. Default is H265.
+   * @default false
+   * @type boolean | undefined
+   */
+  H264_output?: boolean
+  /**
+   * @description URL of the black-and-white video to colorize
+   * @example https://v3.fal.media/files/kangaroo/y5-1YTGpun17eSeggZMzX_video-1733468228.mp4
+   * @type string
+   */
+  video_url: string
+}
+
+export type FileC7699245 = {
+  /**
+   * @description The URL where the file can be downloaded from.
+   * @type string
+   */
+  url: string
+  /**
+   * @description The size of the file in bytes.
+   * @example 4404019
+   */
+  file_size?: number | null
+  /**
+   * @description The name of the file. It will be auto-generated if not provided.
+   * @example z9RV14K95DvU.png
+   */
+  file_name?: string | null
+  /**
+   * @description The mime type of the file.
+   * @example image/png
+   */
+  content_type?: string | null
+}
+
+export type OutputTopazColorizeVideo = {
+  /**
+   * @description The upscaled video file
+   * @example {"url":"https://v3.fal.media/files/penguin/ztj_LB4gQlW6HIfVs8zX4_upscaled.mp4"}
+   * @type object
+   */
+  video: FileC7699245
 }
 
 export type InputTopazDeblurVideo = {
@@ -79011,6 +100183,10 @@ export type FalVideoEndpoints = {
     input: InputBriaVideoIncreaseResolution
     output: OutputBriaVideoIncreaseResolution
   }
+  'bytedance/lynx': {
+    input: InputBytedanceLynx
+    output: OutputBytedanceLynx
+  }
   'bytedance/omnihuman/v2': {
     input: InputBytedanceOmnihumanV2
     output: OutputBytedanceOmnihumanV2
@@ -79027,6 +100203,10 @@ export type FalVideoEndpoints = {
     input: InputBytedanceSeedance20FastTextToVideo
     output: OutputBytedanceSeedance20FastTextToVideo
   }
+  'bytedance/seedance-2.0/image-to-video': {
+    input: InputBytedanceSeedance20ImageToVideo
+    output: OutputBytedanceSeedance20ImageToVideo
+  }
   'bytedance/seedance-2.0/mini/image-to-video': {
     input: InputBytedanceSeedance20MiniImageToVideo
     output: OutputBytedanceSeedance20MiniImageToVideo
@@ -79039,6 +100219,14 @@ export type FalVideoEndpoints = {
     input: InputBytedanceSeedance20MiniTextToVideo
     output: OutputBytedanceSeedance20MiniTextToVideo
   }
+  'bytedance/seedance-2.0/reference-to-video': {
+    input: InputBytedanceSeedance20ReferenceToVideo
+    output: OutputBytedanceSeedance20ReferenceToVideo
+  }
+  'bytedance/seedance-2.0/text-to-video': {
+    input: InputBytedanceSeedance20TextToVideo
+    output: OutputBytedanceSeedance20TextToVideo
+  }
   'bytedance/seedance-2.0/us/image-to-video': {
     input: InputBytedanceSeedance20UsImageToVideo
     output: OutputBytedanceSeedance20UsImageToVideo
@@ -79050,6 +100238,22 @@ export type FalVideoEndpoints = {
   'bytedance/seedance-2.0/us/text-to-video': {
     input: InputBytedanceSeedance20UsTextToVideo
     output: OutputBytedanceSeedance20UsTextToVideo
+  }
+  'bytedance/seedance-2.5/draft/complete': {
+    input: InputBytedanceSeedance25DraftComplete
+    output: OutputBytedanceSeedance25DraftComplete
+  }
+  'bytedance/seedance-2.5/image-to-video': {
+    input: InputBytedanceSeedance25ImageToVideo
+    output: OutputBytedanceSeedance25ImageToVideo
+  }
+  'bytedance/seedance-2.5/reference-to-video': {
+    input: InputBytedanceSeedance25ReferenceToVideo
+    output: OutputBytedanceSeedance25ReferenceToVideo
+  }
+  'bytedance/seedance-2.5/text-to-video': {
+    input: InputBytedanceSeedance25TextToVideo
+    output: OutputBytedanceSeedance25TextToVideo
   }
   'bytedance/seedance-2.5/us/draft/complete': {
     input: InputBytedanceSeedance25UsDraftComplete
@@ -79091,6 +100295,10 @@ export type FalVideoEndpoints = {
     input: InputDecartLucy25Realtime
     output: OutputDecartLucy25Realtime
   }
+  'decart/lucy-edit/pro': {
+    input: InputDecartLucyEditPro
+    output: OutputDecartLucyEditPro
+  }
   'decart/lucy-restyle': {
     input: InputDecartLucyRestyle
     output: OutputDecartLucyRestyle
@@ -79119,6 +100327,14 @@ export type FalVideoEndpoints = {
     input: InputFalAiAiAvatarSingleText
     output: OutputFalAiAiAvatarSingleText
   }
+  'fal-ai/amt-interpolation': {
+    input: InputFalAiAmtInterpolation
+    output: OutputFalAiAmtInterpolation
+  }
+  'fal-ai/amt-interpolation/frame-interpolation': {
+    input: InputFalAiAmtInterpolationFrameInterpolation
+    output: OutputFalAiAmtInterpolationFrameInterpolation
+  }
   'fal-ai/auto-caption': {
     input: InputFalAiAutoCaption
     output: OutputFalAiAutoCaption
@@ -79126,6 +100342,22 @@ export type FalVideoEndpoints = {
   'fal-ai/ben/v2/video': {
     input: InputFalAiBenV2Video
     output: OutputFalAiBenV2Video
+  }
+  'fal-ai/bernini-r/edit-video': {
+    input: InputFalAiBerniniREditVideo
+    output: OutputFalAiBerniniREditVideo
+  }
+  'fal-ai/bernini-r/reference-edit-video': {
+    input: InputFalAiBerniniRReferenceEditVideo
+    output: OutputFalAiBerniniRReferenceEditVideo
+  }
+  'fal-ai/bernini-r/reference-to-video': {
+    input: InputFalAiBerniniRReferenceToVideo
+    output: OutputFalAiBerniniRReferenceToVideo
+  }
+  'fal-ai/bernini-r/text-to-video': {
+    input: InputFalAiBerniniRTextToVideo
+    output: OutputFalAiBerniniRTextToVideo
   }
   'fal-ai/birefnet/v2/video': {
     input: InputFalAiBirefnetV2Video
@@ -79171,6 +100403,38 @@ export type FalVideoEndpoints = {
     input: InputFalAiBytedanceSeedanceV1ProTextToVideo
     output: OutputFalAiBytedanceSeedanceV1ProTextToVideo
   }
+  'fal-ai/cogvideox-5b': {
+    input: InputFalAiCogvideox5B
+    output: OutputFalAiCogvideox5B
+  }
+  'fal-ai/cogvideox-5b/image-to-video': {
+    input: InputFalAiCogvideox5BImageToVideo
+    output: OutputFalAiCogvideox5BImageToVideo
+  }
+  'fal-ai/cogvideox-5b/video-to-video': {
+    input: InputFalAiCogvideox5BVideoToVideo
+    output: OutputFalAiCogvideox5BVideoToVideo
+  }
+  'fal-ai/controlfoley': {
+    input: InputFalAiControlfoley
+    output: OutputFalAiControlfoley
+  }
+  'fal-ai/cosmos-predict-2.5/distilled/text-to-video': {
+    input: InputFalAiCosmosPredict25DistilledTextToVideo
+    output: OutputFalAiCosmosPredict25DistilledTextToVideo
+  }
+  'fal-ai/cosmos-predict-2.5/image-to-video': {
+    input: InputFalAiCosmosPredict25ImageToVideo
+    output: OutputFalAiCosmosPredict25ImageToVideo
+  }
+  'fal-ai/cosmos-predict-2.5/text-to-video': {
+    input: InputFalAiCosmosPredict25TextToVideo
+    output: OutputFalAiCosmosPredict25TextToVideo
+  }
+  'fal-ai/cosmos-predict-2.5/video-to-video': {
+    input: InputFalAiCosmosPredict25VideoToVideo
+    output: OutputFalAiCosmosPredict25VideoToVideo
+  }
   'fal-ai/creatify/aurora': {
     input: InputFalAiCreatifyAurora
     output: OutputFalAiCreatifyAurora
@@ -79199,9 +100463,41 @@ export type FalVideoEndpoints = {
     input: InputFalAiEchomimicV3
     output: OutputFalAiEchomimicV3
   }
+  'fal-ai/editto': {
+    input: InputFalAiEditto
+    output: OutputFalAiEditto
+  }
   'fal-ai/elevenlabs/dubbing': {
     input: InputFalAiElevenlabsDubbing
     output: OutputFalAiElevenlabsDubbing
+  }
+  'fal-ai/fast-animatediff/text-to-video': {
+    input: InputFalAiFastAnimatediffTextToVideo
+    output: OutputFalAiFastAnimatediffTextToVideo
+  }
+  'fal-ai/fast-animatediff/turbo/text-to-video': {
+    input: InputFalAiFastAnimatediffTurboTextToVideo
+    output: OutputFalAiFastAnimatediffTurboTextToVideo
+  }
+  'fal-ai/fast-animatediff/turbo/video-to-video': {
+    input: InputFalAiFastAnimatediffTurboVideoToVideo
+    output: OutputFalAiFastAnimatediffTurboVideoToVideo
+  }
+  'fal-ai/fast-animatediff/video-to-video': {
+    input: InputFalAiFastAnimatediffVideoToVideo
+    output: OutputFalAiFastAnimatediffVideoToVideo
+  }
+  'fal-ai/fast-svd-lcm': {
+    input: InputFalAiFastSvdLcm
+    output: OutputFalAiFastSvdLcm
+  }
+  'fal-ai/fast-svd-lcm/text-to-video': {
+    input: InputFalAiFastSvdLcmTextToVideo
+    output: OutputFalAiFastSvdLcmTextToVideo
+  }
+  'fal-ai/fast-svd/text-to-video': {
+    input: InputFalAiFastSvdTextToVideo
+    output: OutputFalAiFastSvdTextToVideo
   }
   'fal-ai/ffmpeg-api/compose': {
     input: InputFalAiFfmpegApiCompose
@@ -79226,6 +100522,14 @@ export type FalVideoEndpoints = {
   'fal-ai/flashhead': {
     input: InputFalAiFlashhead
     output: OutputFalAiFlashhead
+  }
+  'fal-ai/flashtalk': {
+    input: InputFalAiFlashtalk
+    output: OutputFalAiFlashtalk
+  }
+  'fal-ai/flashvsr/upscale/video': {
+    input: InputFalAiFlashvsrUpscaleVideo
+    output: OutputFalAiFlashvsrUpscaleVideo
   }
   'fal-ai/flux-3-action/so101': {
     input: InputFalAiFlux3ActionSo101
@@ -79351,6 +100655,10 @@ export type FalVideoEndpoints = {
     input: InputFalAiHunyuanVideoImageToVideo
     output: OutputFalAiHunyuanVideoImageToVideo
   }
+  'fal-ai/hunyuan-video-img2vid-lora': {
+    input: InputFalAiHunyuanVideoImg2VidLora
+    output: OutputFalAiHunyuanVideoImg2VidLora
+  }
   'fal-ai/hunyuan-video-v1.5/image-to-video': {
     input: InputFalAiHunyuanVideoV15ImageToVideo
     output: OutputFalAiHunyuanVideoV15ImageToVideo
@@ -79370,6 +100678,18 @@ export type FalVideoEndpoints = {
   'fal-ai/id-v2v/relight': {
     input: InputFalAiIdV2VRelight
     output: OutputFalAiIdV2VRelight
+  }
+  'fal-ai/infinitalk': {
+    input: InputFalAiInfinitalk
+    output: OutputFalAiInfinitalk
+  }
+  'fal-ai/infinitalk/single-text': {
+    input: InputFalAiInfinitalkSingleText
+    output: OutputFalAiInfinitalkSingleText
+  }
+  'fal-ai/infinitalk/video-to-video': {
+    input: InputFalAiInfinitalkVideoToVideo
+    output: OutputFalAiInfinitalkVideoToVideo
   }
   'fal-ai/infinity-star/text-to-video': {
     /**
@@ -79595,13 +100915,45 @@ export type FalVideoEndpoints = {
     input: InputFalAiKlingVideoV15ProEffects
     output: OutputFalAiKlingVideoV15ProEffects
   }
+  'fal-ai/kling-video/v1.5/pro/image-to-video': {
+    input: InputFalAiKlingVideoV15ProImageToVideo
+    output: OutputFalAiKlingVideoV15ProImageToVideo
+  }
+  'fal-ai/kling-video/v1.5/pro/text-to-video': {
+    input: InputFalAiKlingVideoV15ProTextToVideo
+    output: OutputFalAiKlingVideoV15ProTextToVideo
+  }
   'fal-ai/kling-video/v1.6/pro/effects': {
     input: InputFalAiKlingVideoV16ProEffects
     output: OutputFalAiKlingVideoV16ProEffects
   }
+  'fal-ai/kling-video/v1.6/pro/elements': {
+    input: InputFalAiKlingVideoV16ProElements
+    output: OutputFalAiKlingVideoV16ProElements
+  }
+  'fal-ai/kling-video/v1.6/pro/image-to-video': {
+    input: InputFalAiKlingVideoV16ProImageToVideo
+    output: OutputFalAiKlingVideoV16ProImageToVideo
+  }
+  'fal-ai/kling-video/v1.6/pro/text-to-video': {
+    input: InputFalAiKlingVideoV16ProTextToVideo
+    output: OutputFalAiKlingVideoV16ProTextToVideo
+  }
   'fal-ai/kling-video/v1.6/standard/effects': {
     input: InputFalAiKlingVideoV16StandardEffects
     output: OutputFalAiKlingVideoV16StandardEffects
+  }
+  'fal-ai/kling-video/v1.6/standard/elements': {
+    input: InputFalAiKlingVideoV16StandardElements
+    output: OutputFalAiKlingVideoV16StandardElements
+  }
+  'fal-ai/kling-video/v1.6/standard/image-to-video': {
+    input: InputFalAiKlingVideoV16StandardImageToVideo
+    output: OutputFalAiKlingVideoV16StandardImageToVideo
+  }
+  'fal-ai/kling-video/v1.6/standard/text-to-video': {
+    input: InputFalAiKlingVideoV16StandardTextToVideo
+    output: OutputFalAiKlingVideoV16StandardTextToVideo
   }
   'fal-ai/kling-video/v1/pro/ai-avatar': {
     input: InputFalAiKlingVideoV1ProAiAvatar
@@ -79614,6 +100966,30 @@ export type FalVideoEndpoints = {
   'fal-ai/kling-video/v1/standard/effects': {
     input: InputFalAiKlingVideoV1StandardEffects
     output: OutputFalAiKlingVideoV1StandardEffects
+  }
+  'fal-ai/kling-video/v1/standard/image-to-video': {
+    input: InputFalAiKlingVideoV1StandardImageToVideo
+    output: OutputFalAiKlingVideoV1StandardImageToVideo
+  }
+  'fal-ai/kling-video/v1/standard/text-to-video': {
+    input: InputFalAiKlingVideoV1StandardTextToVideo
+    output: OutputFalAiKlingVideoV1StandardTextToVideo
+  }
+  'fal-ai/kling-video/v2.1/master/image-to-video': {
+    input: InputFalAiKlingVideoV21MasterImageToVideo
+    output: OutputFalAiKlingVideoV21MasterImageToVideo
+  }
+  'fal-ai/kling-video/v2.1/master/text-to-video': {
+    input: InputFalAiKlingVideoV21MasterTextToVideo
+    output: OutputFalAiKlingVideoV21MasterTextToVideo
+  }
+  'fal-ai/kling-video/v2.1/pro/image-to-video': {
+    input: InputFalAiKlingVideoV21ProImageToVideo
+    output: OutputFalAiKlingVideoV21ProImageToVideo
+  }
+  'fal-ai/kling-video/v2.1/standard/image-to-video': {
+    input: InputFalAiKlingVideoV21StandardImageToVideo
+    output: OutputFalAiKlingVideoV21StandardImageToVideo
   }
   'fal-ai/kling-video/v2.5-turbo/pro/image-to-video': {
     input: InputFalAiKlingVideoV25TurboProImageToVideo
@@ -79658,6 +101034,14 @@ export type FalVideoEndpoints = {
      * @type object
      */
     output: OutputFalAiKlingVideoV26StandardMotionControl
+  }
+  'fal-ai/kling-video/v2/master/image-to-video': {
+    input: InputFalAiKlingVideoV2MasterImageToVideo
+    output: OutputFalAiKlingVideoV2MasterImageToVideo
+  }
+  'fal-ai/kling-video/v2/master/text-to-video': {
+    input: InputFalAiKlingVideoV2MasterTextToVideo
+    output: OutputFalAiKlingVideoV2MasterTextToVideo
   }
   'fal-ai/kling-video/v3/4k/image-to-video': {
     input: InputFalAiKlingVideoV34KImageToVideo
@@ -79810,6 +101194,86 @@ export type FalVideoEndpoints = {
   'fal-ai/longcat-video/text-to-video/720p': {
     input: InputFalAiLongcatVideoTextToVideo720P
     output: OutputFalAiLongcatVideoTextToVideo720P
+  }
+  'fal-ai/ltx-2-19b/audio-to-video': {
+    input: InputFalAiLtx219BAudioToVideo
+    output: OutputFalAiLtx219BAudioToVideo
+  }
+  'fal-ai/ltx-2-19b/audio-to-video/lora': {
+    input: InputFalAiLtx219BAudioToVideoLora
+    output: OutputFalAiLtx219BAudioToVideoLora
+  }
+  'fal-ai/ltx-2-19b/distilled/audio-to-video': {
+    input: InputFalAiLtx219BDistilledAudioToVideo
+    output: OutputFalAiLtx219BDistilledAudioToVideo
+  }
+  'fal-ai/ltx-2-19b/distilled/audio-to-video/lora': {
+    input: InputFalAiLtx219BDistilledAudioToVideoLora
+    output: OutputFalAiLtx219BDistilledAudioToVideoLora
+  }
+  'fal-ai/ltx-2-19b/distilled/extend-video': {
+    input: InputFalAiLtx219BDistilledExtendVideo
+    output: OutputFalAiLtx219BDistilledExtendVideo
+  }
+  'fal-ai/ltx-2-19b/distilled/extend-video/lora': {
+    input: InputFalAiLtx219BDistilledExtendVideoLora
+    output: OutputFalAiLtx219BDistilledExtendVideoLora
+  }
+  'fal-ai/ltx-2-19b/distilled/image-to-video': {
+    input: InputFalAiLtx219BDistilledImageToVideo
+    output: OutputFalAiLtx219BDistilledImageToVideo
+  }
+  'fal-ai/ltx-2-19b/distilled/image-to-video/lora': {
+    input: InputFalAiLtx219BDistilledImageToVideoLora
+    output: OutputFalAiLtx219BDistilledImageToVideoLora
+  }
+  'fal-ai/ltx-2-19b/distilled/text-to-video': {
+    input: InputFalAiLtx219BDistilledTextToVideo
+    output: OutputFalAiLtx219BDistilledTextToVideo
+  }
+  'fal-ai/ltx-2-19b/distilled/text-to-video/lora': {
+    input: InputFalAiLtx219BDistilledTextToVideoLora
+    output: OutputFalAiLtx219BDistilledTextToVideoLora
+  }
+  'fal-ai/ltx-2-19b/distilled/video-to-video': {
+    input: InputFalAiLtx219BDistilledVideoToVideo
+    output: OutputFalAiLtx219BDistilledVideoToVideo
+  }
+  'fal-ai/ltx-2-19b/distilled/video-to-video/lora': {
+    input: InputFalAiLtx219BDistilledVideoToVideoLora
+    output: OutputFalAiLtx219BDistilledVideoToVideoLora
+  }
+  'fal-ai/ltx-2-19b/extend-video': {
+    input: InputFalAiLtx219BExtendVideo
+    output: OutputFalAiLtx219BExtendVideo
+  }
+  'fal-ai/ltx-2-19b/extend-video/lora': {
+    input: InputFalAiLtx219BExtendVideoLora
+    output: OutputFalAiLtx219BExtendVideoLora
+  }
+  'fal-ai/ltx-2-19b/image-to-video': {
+    input: InputFalAiLtx219BImageToVideo
+    output: OutputFalAiLtx219BImageToVideo
+  }
+  'fal-ai/ltx-2-19b/image-to-video/lora': {
+    input: InputFalAiLtx219BImageToVideoLora
+    output: OutputFalAiLtx219BImageToVideoLora
+  }
+  'fal-ai/ltx-2-19b/text-to-video': {
+    input: InputFalAiLtx219BTextToVideo
+    output: OutputFalAiLtx219BTextToVideo
+  }
+  'fal-ai/ltx-2-19b/text-to-video/lora': {
+    input: InputFalAiLtx219BTextToVideoLora
+    output: OutputFalAiLtx219BTextToVideoLora
+  }
+  'fal-ai/ltx-2-19b/video-to-video': {
+    input: InputFalAiLtx219BVideoToVideo
+    output: OutputFalAiLtx219BVideoToVideo
+  }
+  'fal-ai/ltx-2-19b/video-to-video/lora': {
+    input: InputFalAiLtx219BVideoToVideoLora
+    output: OutputFalAiLtx219BVideoToVideoLora
   }
   'fal-ai/ltx-2.3-22b/audio-to-video': {
     input: InputFalAiLtx2322BAudioToVideo
@@ -80327,6 +101791,34 @@ export type FalVideoEndpoints = {
     input: InputFalAiLtx23TextToVideoFast
     output: OutputFalAiLtx23TextToVideoFast
   }
+  'fal-ai/ltx-2/audio-to-video': {
+    input: InputFalAiLtx2AudioToVideo
+    output: OutputFalAiLtx2AudioToVideo
+  }
+  'fal-ai/ltx-2/extend-video': {
+    input: InputFalAiLtx2ExtendVideo
+    output: OutputFalAiLtx2ExtendVideo
+  }
+  'fal-ai/ltx-2/image-to-video': {
+    input: InputFalAiLtx2ImageToVideo
+    output: OutputFalAiLtx2ImageToVideo
+  }
+  'fal-ai/ltx-2/image-to-video/fast': {
+    input: InputFalAiLtx2ImageToVideoFast
+    output: OutputFalAiLtx2ImageToVideoFast
+  }
+  'fal-ai/ltx-2/retake-video': {
+    input: InputFalAiLtx2RetakeVideo
+    output: OutputFalAiLtx2RetakeVideo
+  }
+  'fal-ai/ltx-2/text-to-video': {
+    input: InputFalAiLtx2TextToVideo
+    output: OutputFalAiLtx2TextToVideo
+  }
+  'fal-ai/ltx-2/text-to-video/fast': {
+    input: InputFalAiLtx2TextToVideoFast
+    output: OutputFalAiLtx2TextToVideoFast
+  }
   'fal-ai/ltx-video': {
     input: InputFalAiLtxVideo
     output: OutputFalAiLtxVideo
@@ -80351,6 +101843,18 @@ export type FalVideoEndpoints = {
     input: InputFalAiLtxVideo13BDistilledMulticonditioning
     output: OutputFalAiLtxVideo13BDistilledMulticonditioning
   }
+  'fal-ai/ltx-video-v095': {
+    input: InputFalAiLtxVideoV095
+    output: OutputFalAiLtxVideoV095
+  }
+  'fal-ai/ltx-video-v095/extend': {
+    input: InputFalAiLtxVideoV095Extend
+    output: OutputFalAiLtxVideoV095Extend
+  }
+  'fal-ai/ltx-video-v095/multiconditioning': {
+    input: InputFalAiLtxVideoV095Multiconditioning
+    output: OutputFalAiLtxVideoV095Multiconditioning
+  }
   'fal-ai/ltx-video/image-to-video': {
     input: InputFalAiLtxVideoImageToVideo
     output: OutputFalAiLtxVideoImageToVideo
@@ -80374,6 +101878,38 @@ export type FalVideoEndpoints = {
   'fal-ai/ltxv-13b-098-distilled/multiconditioning': {
     input: InputFalAiLtxv13B098DistilledMulticonditioning
     output: OutputFalAiLtxv13B098DistilledMulticonditioning
+  }
+  'fal-ai/luma-dream-machine/ray-2': {
+    input: InputFalAiLumaDreamMachineRay2
+    output: OutputFalAiLumaDreamMachineRay2
+  }
+  'fal-ai/luma-dream-machine/ray-2-flash': {
+    input: InputFalAiLumaDreamMachineRay2Flash
+    output: OutputFalAiLumaDreamMachineRay2Flash
+  }
+  'fal-ai/luma-dream-machine/ray-2-flash/image-to-video': {
+    input: InputFalAiLumaDreamMachineRay2FlashImageToVideo
+    output: OutputFalAiLumaDreamMachineRay2FlashImageToVideo
+  }
+  'fal-ai/luma-dream-machine/ray-2-flash/modify': {
+    input: InputFalAiLumaDreamMachineRay2FlashModify
+    output: OutputFalAiLumaDreamMachineRay2FlashModify
+  }
+  'fal-ai/luma-dream-machine/ray-2-flash/reframe': {
+    input: InputFalAiLumaDreamMachineRay2FlashReframe
+    output: OutputFalAiLumaDreamMachineRay2FlashReframe
+  }
+  'fal-ai/luma-dream-machine/ray-2/image-to-video': {
+    input: InputFalAiLumaDreamMachineRay2ImageToVideo
+    output: OutputFalAiLumaDreamMachineRay2ImageToVideo
+  }
+  'fal-ai/luma-dream-machine/ray-2/modify': {
+    input: InputFalAiLumaDreamMachineRay2Modify
+    output: OutputFalAiLumaDreamMachineRay2Modify
+  }
+  'fal-ai/luma-dream-machine/ray-2/reframe': {
+    input: InputFalAiLumaDreamMachineRay2Reframe
+    output: OutputFalAiLumaDreamMachineRay2Reframe
   }
   'fal-ai/magi-distilled': {
     input: InputFalAiMagiDistilled
@@ -80471,6 +102007,10 @@ export type FalVideoEndpoints = {
     input: InputFalAiMotionToCodeGsap
     output: OutputFalAiMotionToCodeGsap
   }
+  'fal-ai/musetalk': {
+    input: InputFalAiMusetalk
+    output: OutputFalAiMusetalk
+  }
   'fal-ai/one-to-all-animation/1.3b': {
     input: InputFalAiOneToAllAnimation13B
     output: OutputFalAiOneToAllAnimation13B
@@ -80486,6 +102026,90 @@ export type FalVideoEndpoints = {
   'fal-ai/ovi/image-to-video': {
     input: InputFalAiOviImageToVideo
     output: OutputFalAiOviImageToVideo
+  }
+  'fal-ai/pika/v1.5/pikaffects': {
+    /**
+     * @description Request model for Pikaffects endpoint
+     * @type object
+     */
+    input: InputFalAiPikaV15Pikaffects
+    /**
+     * @description Output from Pikaffects generation
+     * @type object
+     */
+    output: OutputFalAiPikaV15Pikaffects
+  }
+  'fal-ai/pika/v2.1/image-to-video': {
+    input: InputFalAiPikaV21ImageToVideo
+    output: OutputFalAiPikaV21ImageToVideo
+  }
+  'fal-ai/pika/v2.1/text-to-video': {
+    input: InputFalAiPikaV21TextToVideo
+    output: OutputFalAiPikaV21TextToVideo
+  }
+  'fal-ai/pika/v2.2/image-to-video': {
+    /**
+     * @description Request model for Pika 2.2 image-to-video generation
+     * @type object
+     */
+    input: InputFalAiPikaV22ImageToVideo
+    /**
+     * @description Output model for Pika 2.2 image-to-video generation
+     * @type object
+     */
+    output: OutputFalAiPikaV22ImageToVideo
+  }
+  'fal-ai/pika/v2.2/pikaframes': {
+    input: InputFalAiPikaV22Pikaframes
+    /**
+     * @description Output model for Pika 2.2 keyframes-to-video generation
+     * @type object
+     */
+    output: OutputFalAiPikaV22Pikaframes
+  }
+  'fal-ai/pika/v2.2/pikascenes': {
+    /**
+     * @description Request model for Pika 2.2 Pikascenes (collection-to-video) generation
+     * @type object
+     */
+    input: InputFalAiPikaV22Pikascenes
+    /**
+     * @description Output model for Pika 2.2 Pikascenes generation
+     * @type object
+     */
+    output: OutputFalAiPikaV22Pikascenes
+  }
+  'fal-ai/pika/v2.2/text-to-video': {
+    /**
+     * @description Request model for Pika 2.2 text-to-video generation
+     * @type object
+     */
+    input: InputFalAiPikaV22TextToVideo
+    /**
+     * @description Output model for Pika 2.2 text-to-video generation
+     * @type object
+     */
+    output: OutputFalAiPikaV22TextToVideo
+  }
+  'fal-ai/pika/v2/pikadditions': {
+    /**
+     * @description Request model for Pikadditions endpoint
+     * @type object
+     */
+    input: InputFalAiPikaV2Pikadditions
+    /**
+     * @description Output from Pikadditions generation
+     * @type object
+     */
+    output: OutputFalAiPikaV2Pikadditions
+  }
+  'fal-ai/pika/v2/turbo/image-to-video': {
+    input: InputFalAiPikaV2TurboImageToVideo
+    output: OutputFalAiPikaV2TurboImageToVideo
+  }
+  'fal-ai/pika/v2/turbo/text-to-video': {
+    input: InputFalAiPikaV2TurboTextToVideo
+    output: OutputFalAiPikaV2TurboTextToVideo
   }
   'fal-ai/pixverse/c1/image-to-video': {
     input: InputFalAiPixverseC1ImageToVideo
@@ -80691,6 +102315,42 @@ export type FalVideoEndpoints = {
     input: InputFalAiSeedvrUpscaleVideo
     output: OutputFalAiSeedvrUpscaleVideo
   }
+  'fal-ai/sora-2/characters': {
+    /**
+     * @description Input for creating a Sora 2 character from a short video clip.
+     * @type object
+     */
+    input: InputFalAiSora2Characters
+    /**
+     * @description Character creation response with API character ID.
+     * @type object
+     */
+    output: OutputFalAiSora2Characters
+  }
+  'fal-ai/sora-2/image-to-video': {
+    input: InputFalAiSora2ImageToVideo
+    output: OutputFalAiSora2ImageToVideo
+  }
+  'fal-ai/sora-2/image-to-video/pro': {
+    input: InputFalAiSora2ImageToVideoPro
+    output: OutputFalAiSora2ImageToVideoPro
+  }
+  'fal-ai/sora-2/text-to-video': {
+    input: InputFalAiSora2TextToVideo
+    output: OutputFalAiSora2TextToVideo
+  }
+  'fal-ai/sora-2/text-to-video/pro': {
+    input: InputFalAiSora2TextToVideoPro
+    output: OutputFalAiSora2TextToVideoPro
+  }
+  'fal-ai/sora-2/video-to-video/remix': {
+    input: InputFalAiSora2VideoToVideoRemix
+    output: OutputFalAiSora2VideoToVideoRemix
+  }
+  'fal-ai/stable-video': {
+    input: InputFalAiStableVideo
+    output: OutputFalAiStableVideo
+  }
   'fal-ai/sync-lipsync': {
     input: InputFalAiSyncLipsync
     output: OutputFalAiSyncLipsync
@@ -80715,6 +102375,10 @@ export type FalVideoEndpoints = {
     input: InputFalAiSyncLipsyncV3ImageToVideo
     output: OutputFalAiSyncLipsyncV3ImageToVideo
   }
+  'fal-ai/t2v-turbo': {
+    input: InputFalAiT2VTurbo
+    output: OutputFalAiT2VTurbo
+  }
   'fal-ai/thinksound': {
     input: InputFalAiThinksound
     output: OutputFalAiThinksound
@@ -80722,6 +102386,86 @@ export type FalVideoEndpoints = {
   'fal-ai/thinksound/audio': {
     input: InputFalAiThinksoundAudio
     output: OutputFalAiThinksoundAudio
+  }
+  'fal-ai/topaz/upscale/video': {
+    input: InputFalAiTopazUpscaleVideo
+    output: OutputFalAiTopazUpscaleVideo
+  }
+  'fal-ai/veo2': {
+    input: InputFalAiVeo2
+    output: OutputFalAiVeo2
+  }
+  'fal-ai/veo2/image-to-video': {
+    input: InputFalAiVeo2ImageToVideo
+    output: OutputFalAiVeo2ImageToVideo
+  }
+  'fal-ai/veo3': {
+    input: InputFalAiVeo3
+    output: OutputFalAiVeo3
+  }
+  'fal-ai/veo3.1': {
+    input: InputFalAiVeo31
+    output: OutputFalAiVeo31
+  }
+  'fal-ai/veo3.1/extend-video': {
+    input: InputFalAiVeo31ExtendVideo
+    output: OutputFalAiVeo31ExtendVideo
+  }
+  'fal-ai/veo3.1/fast': {
+    input: InputFalAiVeo31Fast
+    output: OutputFalAiVeo31Fast
+  }
+  'fal-ai/veo3.1/fast/extend-video': {
+    input: InputFalAiVeo31FastExtendVideo
+    output: OutputFalAiVeo31FastExtendVideo
+  }
+  'fal-ai/veo3.1/fast/first-last-frame-to-video': {
+    input: InputFalAiVeo31FastFirstLastFrameToVideo
+    output: OutputFalAiVeo31FastFirstLastFrameToVideo
+  }
+  'fal-ai/veo3.1/fast/image-to-video': {
+    input: InputFalAiVeo31FastImageToVideo
+    output: OutputFalAiVeo31FastImageToVideo
+  }
+  'fal-ai/veo3.1/fast/reference-to-video': {
+    input: InputFalAiVeo31FastReferenceToVideo
+    output: OutputFalAiVeo31FastReferenceToVideo
+  }
+  'fal-ai/veo3.1/first-last-frame-to-video': {
+    input: InputFalAiVeo31FirstLastFrameToVideo
+    output: OutputFalAiVeo31FirstLastFrameToVideo
+  }
+  'fal-ai/veo3.1/image-to-video': {
+    input: InputFalAiVeo31ImageToVideo
+    output: OutputFalAiVeo31ImageToVideo
+  }
+  'fal-ai/veo3.1/lite': {
+    input: InputFalAiVeo31Lite
+    output: OutputFalAiVeo31Lite
+  }
+  'fal-ai/veo3.1/lite/first-last-frame-to-video': {
+    input: InputFalAiVeo31LiteFirstLastFrameToVideo
+    output: OutputFalAiVeo31LiteFirstLastFrameToVideo
+  }
+  'fal-ai/veo3.1/lite/image-to-video': {
+    input: InputFalAiVeo31LiteImageToVideo
+    output: OutputFalAiVeo31LiteImageToVideo
+  }
+  'fal-ai/veo3.1/reference-to-video': {
+    input: InputFalAiVeo31ReferenceToVideo
+    output: OutputFalAiVeo31ReferenceToVideo
+  }
+  'fal-ai/veo3/fast': {
+    input: InputFalAiVeo3Fast
+    output: OutputFalAiVeo3Fast
+  }
+  'fal-ai/veo3/fast/image-to-video': {
+    input: InputFalAiVeo3FastImageToVideo
+    output: OutputFalAiVeo3FastImageToVideo
+  }
+  'fal-ai/veo3/image-to-video': {
+    input: InputFalAiVeo3ImageToVideo
+    output: OutputFalAiVeo3ImageToVideo
   }
   'fal-ai/video-upscaler': {
     input: InputFalAiVideoUpscaler
@@ -80851,6 +102595,14 @@ export type FalVideoEndpoints = {
      */
     output: OutputFalAiWan25PreviewTextToVideo
   }
+  'fal-ai/wan-effects': {
+    input: InputFalAiWanEffects
+    output: OutputFalAiWanEffects
+  }
+  'fal-ai/wan-flf2v': {
+    input: InputFalAiWanFlf2V
+    output: OutputFalAiWanFlf2V
+  }
   'fal-ai/wan-i2v': {
     input: InputFalAiWanI2V
     output: OutputFalAiWanI2V
@@ -80859,6 +102611,10 @@ export type FalVideoEndpoints = {
     input: InputFalAiWanI2VLora
     output: OutputFalAiWanI2VLora
   }
+  'fal-ai/wan-motion': {
+    input: InputFalAiWanMotion
+    output: OutputFalAiWanMotion
+  }
   'fal-ai/wan-pro/image-to-video': {
     input: InputFalAiWanProImageToVideo
     output: OutputFalAiWanProImageToVideo
@@ -80866,6 +102622,10 @@ export type FalVideoEndpoints = {
   'fal-ai/wan-pro/text-to-video': {
     input: InputFalAiWanProTextToVideo
     output: OutputFalAiWanProTextToVideo
+  }
+  'fal-ai/wan-t2v': {
+    input: InputFalAiWanT2V
+    output: OutputFalAiWanT2V
   }
   'fal-ai/wan-t2v-lora': {
     input: InputFalAiWanT2VLora
@@ -81186,6 +102946,10 @@ export type FalVideoEndpoints = {
     input: InputKlingV4VideoToVideoEdit
     output: OutputKlingV4VideoToVideoEdit
   }
+  'lightricks/ltx-2.5/alpha-gen': {
+    input: InputLightricksLtx25AlphaGen
+    output: OutputLightricksLtx25AlphaGen
+  }
   'lightricks/ltx-2.5/audio-to-video/fast': {
     input: InputLightricksLtx25AudioToVideoFast
     output: OutputLightricksLtx25AudioToVideoFast
@@ -81193,6 +102957,10 @@ export type FalVideoEndpoints = {
   'lightricks/ltx-2.5/audio-to-video/pro': {
     input: InputLightricksLtx25AudioToVideoPro
     output: OutputLightricksLtx25AudioToVideoPro
+  }
+  'lightricks/ltx-2.5/hdr': {
+    input: InputLightricksLtx25Hdr
+    output: OutputLightricksLtx25Hdr
   }
   'lightricks/ltx-2.5/image-to-video/fast': {
     input: InputLightricksLtx25ImageToVideoFast
@@ -81202,6 +102970,10 @@ export type FalVideoEndpoints = {
     input: InputLightricksLtx25ImageToVideoPro
     output: OutputLightricksLtx25ImageToVideoPro
   }
+  'lightricks/ltx-2.5/reframe': {
+    input: InputLightricksLtx25Reframe
+    output: OutputLightricksLtx25Reframe
+  }
   'lightricks/ltx-2.5/text-to-video/fast': {
     input: InputLightricksLtx25TextToVideoFast
     output: OutputLightricksLtx25TextToVideoFast
@@ -81209,6 +102981,10 @@ export type FalVideoEndpoints = {
   'lightricks/ltx-2.5/text-to-video/pro': {
     input: InputLightricksLtx25TextToVideoPro
     output: OutputLightricksLtx25TextToVideoPro
+  }
+  'lightricks/ltx-2.5/upscale': {
+    input: InputLightricksLtx25Upscale
+    output: OutputLightricksLtx25Upscale
   }
   'luma/agent/ray/v3.2/image-to-video': {
     input: InputLumaAgentRayV32ImageToVideo
@@ -81282,6 +103058,14 @@ export type FalVideoEndpoints = {
     input: InputMinimaxH3MaxLipSyncImageToVideo
     output: OutputMinimaxH3MaxLipSyncImageToVideo
   }
+  'minimax/h3-max/multi-angle/image-to-video': {
+    /**
+     * @description MiniMax H3 Multi-angle input with a fixed internal camera LoRA.
+     * @type object
+     */
+    input: InputMinimaxH3MaxMultiAngleImageToVideo
+    output: OutputMinimaxH3MaxMultiAngleImageToVideo
+  }
   'minimax/h3-max/recast': {
     input: InputMinimaxH3MaxRecast
     output: OutputMinimaxH3MaxRecast
@@ -81350,6 +103134,34 @@ export type FalVideoEndpoints = {
     input: InputMinimaxH3TextToVideoLora
     output: OutputMinimaxH3TextToVideoLora
   }
+  'mirage-api/avatar-x/reference-to-video': {
+    /**
+     * @description Inputs for driving a stock or caller-supplied visual with audio.
+     * @type object
+     */
+    input: InputMirageApiAvatarXReferenceToVideo
+    output: OutputMirageApiAvatarXReferenceToVideo
+  }
+  'mirage-api/avatar-x/text-to-video': {
+    /**
+     * @description Inputs for generating stock-avatar speech and a lip-synced video.
+     * @type object
+     */
+    input: InputMirageApiAvatarXTextToVideo
+    output: OutputMirageApiAvatarXTextToVideo
+  }
+  'mirelo-ai/sfx-v1.5/video-to-video': {
+    input: InputMireloAiSfxV15VideoToVideo
+    output: OutputMireloAiSfxV15VideoToVideo
+  }
+  'mirelo-ai/sfx-v1/video-to-video': {
+    input: InputMireloAiSfxV1VideoToVideo
+    output: OutputMireloAiSfxV1VideoToVideo
+  }
+  'mirelo-ai/sfx1.6/video-to-video': {
+    input: InputMireloAiSfx16VideoToVideo
+    output: OutputMireloAiSfx16VideoToVideo
+  }
   'mirelo-ai/sfx2.0/video-to-video': {
     input: InputMireloAiSfx20VideoToVideo
     output: OutputMireloAiSfx20VideoToVideo
@@ -81378,6 +103190,10 @@ export type FalVideoEndpoints = {
     input: InputNvidiaCosmos3SuperImageToVideo
     output: OutputNvidiaCosmos3SuperImageToVideo
   }
+  'openimaginglab/flashvsr-plus': {
+    input: InputOpenimaginglabFlashvsrPlus
+    output: OutputOpenimaginglabFlashvsrPlus
+  }
   'pixelcut/looping-video': {
     input: InputPixelcutLoopingVideo
     output: OutputPixelcutLoopingVideo
@@ -81398,6 +103214,10 @@ export type FalVideoEndpoints = {
     input: InputPixverseMusicVideoVibemv
     output: OutputPixverseMusicVideoVibemv
   }
+  'sonilo/v1.1/video-to-video': {
+    input: InputSoniloV11VideoToVideo
+    output: OutputSoniloV11VideoToVideo
+  }
   'sonilo/v1.1/video-to-video-music': {
     input: InputSoniloV11VideoToVideoMusic
     output: OutputSoniloV11VideoToVideoMusic
@@ -81415,6 +103235,10 @@ export type FalVideoEndpoints = {
   'tbc/mischief-1/image-to-video': {
     input: InputTbcMischief1ImageToVideo
     output: OutputTbcMischief1ImageToVideo
+  }
+  'topaz/colorize/video': {
+    input: InputTopazColorizeVideo
+    output: OutputTopazColorizeVideo
   }
   'topaz/deblur/video': {
     input: InputTopazDeblurVideo
@@ -81697,6 +103521,7 @@ export const falPostEndpointIdEndpointId = {
   'bria/video/erase/mask': 'bria/video/erase/mask',
   'bria/video/erase/prompt': 'bria/video/erase/prompt',
   'bria/video/increase-resolution': 'bria/video/increase-resolution',
+  'bytedance/lynx': 'bytedance/lynx',
   'bytedance/omnihuman/v2': 'bytedance/omnihuman/v2',
   'bytedance/seedance-2.0/fast/image-to-video':
     'bytedance/seedance-2.0/fast/image-to-video',
@@ -81704,18 +103529,32 @@ export const falPostEndpointIdEndpointId = {
     'bytedance/seedance-2.0/fast/reference-to-video',
   'bytedance/seedance-2.0/fast/text-to-video':
     'bytedance/seedance-2.0/fast/text-to-video',
+  'bytedance/seedance-2.0/image-to-video':
+    'bytedance/seedance-2.0/image-to-video',
   'bytedance/seedance-2.0/mini/image-to-video':
     'bytedance/seedance-2.0/mini/image-to-video',
   'bytedance/seedance-2.0/mini/reference-to-video':
     'bytedance/seedance-2.0/mini/reference-to-video',
   'bytedance/seedance-2.0/mini/text-to-video':
     'bytedance/seedance-2.0/mini/text-to-video',
+  'bytedance/seedance-2.0/reference-to-video':
+    'bytedance/seedance-2.0/reference-to-video',
+  'bytedance/seedance-2.0/text-to-video':
+    'bytedance/seedance-2.0/text-to-video',
   'bytedance/seedance-2.0/us/image-to-video':
     'bytedance/seedance-2.0/us/image-to-video',
   'bytedance/seedance-2.0/us/reference-to-video':
     'bytedance/seedance-2.0/us/reference-to-video',
   'bytedance/seedance-2.0/us/text-to-video':
     'bytedance/seedance-2.0/us/text-to-video',
+  'bytedance/seedance-2.5/draft/complete':
+    'bytedance/seedance-2.5/draft/complete',
+  'bytedance/seedance-2.5/image-to-video':
+    'bytedance/seedance-2.5/image-to-video',
+  'bytedance/seedance-2.5/reference-to-video':
+    'bytedance/seedance-2.5/reference-to-video',
+  'bytedance/seedance-2.5/text-to-video':
+    'bytedance/seedance-2.5/text-to-video',
   'bytedance/seedance-2.5/us/draft/complete':
     'bytedance/seedance-2.5/us/draft/complete',
   'bytedance/seedance-2.5/us/image-to-video':
@@ -81729,13 +103568,22 @@ export const falPostEndpointIdEndpointId = {
   'clarityai/crystal-video-upscaler': 'clarityai/crystal-video-upscaler',
   'creatify/boreal': 'creatify/boreal',
   'decart/lucy-2-5/realtime': 'decart/lucy-2-5/realtime',
+  'decart/lucy-edit/pro': 'decart/lucy-edit/pro',
   'decart/lucy-restyle': 'decart/lucy-restyle',
   'decart/lucy2-vton/realtime': 'decart/lucy2-vton/realtime',
   'fal-ai/ai-avatar/multi': 'fal-ai/ai-avatar/multi',
   'fal-ai/ai-avatar/multi-text': 'fal-ai/ai-avatar/multi-text',
   'fal-ai/ai-avatar/single-text': 'fal-ai/ai-avatar/single-text',
+  'fal-ai/amt-interpolation': 'fal-ai/amt-interpolation',
+  'fal-ai/amt-interpolation/frame-interpolation':
+    'fal-ai/amt-interpolation/frame-interpolation',
   'fal-ai/auto-caption': 'fal-ai/auto-caption',
   'fal-ai/ben/v2/video': 'fal-ai/ben/v2/video',
+  'fal-ai/bernini-r/edit-video': 'fal-ai/bernini-r/edit-video',
+  'fal-ai/bernini-r/reference-edit-video':
+    'fal-ai/bernini-r/reference-edit-video',
+  'fal-ai/bernini-r/reference-to-video': 'fal-ai/bernini-r/reference-to-video',
+  'fal-ai/bernini-r/text-to-video': 'fal-ai/bernini-r/text-to-video',
   'fal-ai/birefnet/v2/video': 'fal-ai/birefnet/v2/video',
   'fal-ai/bytedance-upscaler/upscale/video':
     'fal-ai/bytedance-upscaler/upscale/video',
@@ -81754,18 +103602,44 @@ export const falPostEndpointIdEndpointId = {
     'fal-ai/bytedance/seedance/v1/pro/image-to-video',
   'fal-ai/bytedance/seedance/v1/pro/text-to-video':
     'fal-ai/bytedance/seedance/v1/pro/text-to-video',
+  'fal-ai/cogvideox-5b': 'fal-ai/cogvideox-5b',
+  'fal-ai/cogvideox-5b/image-to-video': 'fal-ai/cogvideox-5b/image-to-video',
+  'fal-ai/cogvideox-5b/video-to-video': 'fal-ai/cogvideox-5b/video-to-video',
+  'fal-ai/controlfoley': 'fal-ai/controlfoley',
+  'fal-ai/cosmos-predict-2.5/distilled/text-to-video':
+    'fal-ai/cosmos-predict-2.5/distilled/text-to-video',
+  'fal-ai/cosmos-predict-2.5/image-to-video':
+    'fal-ai/cosmos-predict-2.5/image-to-video',
+  'fal-ai/cosmos-predict-2.5/text-to-video':
+    'fal-ai/cosmos-predict-2.5/text-to-video',
+  'fal-ai/cosmos-predict-2.5/video-to-video':
+    'fal-ai/cosmos-predict-2.5/video-to-video',
   'fal-ai/creatify/aurora': 'fal-ai/creatify/aurora',
   'fal-ai/davinci-magihuman': 'fal-ai/davinci-magihuman',
   'fal-ai/depth-anything-video': 'fal-ai/depth-anything-video',
   'fal-ai/dwpose/video': 'fal-ai/dwpose/video',
   'fal-ai/echomimic-v3': 'fal-ai/echomimic-v3',
+  'fal-ai/editto': 'fal-ai/editto',
   'fal-ai/elevenlabs/dubbing': 'fal-ai/elevenlabs/dubbing',
+  'fal-ai/fast-animatediff/text-to-video':
+    'fal-ai/fast-animatediff/text-to-video',
+  'fal-ai/fast-animatediff/turbo/text-to-video':
+    'fal-ai/fast-animatediff/turbo/text-to-video',
+  'fal-ai/fast-animatediff/turbo/video-to-video':
+    'fal-ai/fast-animatediff/turbo/video-to-video',
+  'fal-ai/fast-animatediff/video-to-video':
+    'fal-ai/fast-animatediff/video-to-video',
+  'fal-ai/fast-svd-lcm': 'fal-ai/fast-svd-lcm',
+  'fal-ai/fast-svd-lcm/text-to-video': 'fal-ai/fast-svd-lcm/text-to-video',
+  'fal-ai/fast-svd/text-to-video': 'fal-ai/fast-svd/text-to-video',
   'fal-ai/ffmpeg-api/compose': 'fal-ai/ffmpeg-api/compose',
   'fal-ai/ffmpeg-api/images-to-video': 'fal-ai/ffmpeg-api/images-to-video',
   'fal-ai/ffmpeg-api/merge-audio-video': 'fal-ai/ffmpeg-api/merge-audio-video',
   'fal-ai/ffmpeg-api/merge-videos': 'fal-ai/ffmpeg-api/merge-videos',
   'fal-ai/film/video': 'fal-ai/film/video',
   'fal-ai/flashhead': 'fal-ai/flashhead',
+  'fal-ai/flashtalk': 'fal-ai/flashtalk',
+  'fal-ai/flashvsr/upscale/video': 'fal-ai/flashvsr/upscale/video',
   'fal-ai/flux-3-action/so101': 'fal-ai/flux-3-action/so101',
   'fal-ai/framepack': 'fal-ai/framepack',
   'fal-ai/framepack/f1': 'fal-ai/framepack/f1',
@@ -81787,6 +103661,7 @@ export const falPostEndpointIdEndpointId = {
   'fal-ai/hunyuan-video': 'fal-ai/hunyuan-video',
   'fal-ai/hunyuan-video-foley': 'fal-ai/hunyuan-video-foley',
   'fal-ai/hunyuan-video-image-to-video': 'fal-ai/hunyuan-video-image-to-video',
+  'fal-ai/hunyuan-video-img2vid-lora': 'fal-ai/hunyuan-video-img2vid-lora',
   'fal-ai/hunyuan-video-v1.5/image-to-video':
     'fal-ai/hunyuan-video-v1.5/image-to-video',
   'fal-ai/hunyuan-video-v1.5/text-to-video':
@@ -81794,6 +103669,9 @@ export const falPostEndpointIdEndpointId = {
   'fal-ai/hunyuan-video/video-to-video': 'fal-ai/hunyuan-video/video-to-video',
   'fal-ai/id-v2v': 'fal-ai/id-v2v',
   'fal-ai/id-v2v/relight': 'fal-ai/id-v2v/relight',
+  'fal-ai/infinitalk': 'fal-ai/infinitalk',
+  'fal-ai/infinitalk/single-text': 'fal-ai/infinitalk/single-text',
+  'fal-ai/infinitalk/video-to-video': 'fal-ai/infinitalk/video-to-video',
   'fal-ai/infinity-star/text-to-video': 'fal-ai/infinity-star/text-to-video',
   'fal-ai/kandinsky5-pro/image-to-video':
     'fal-ai/kandinsky5-pro/image-to-video',
@@ -81864,14 +103742,42 @@ export const falPostEndpointIdEndpointId = {
   'fal-ai/kling-video/o3/standard/video-to-video/reference':
     'fal-ai/kling-video/o3/standard/video-to-video/reference',
   'fal-ai/kling-video/v1.5/pro/effects': 'fal-ai/kling-video/v1.5/pro/effects',
+  'fal-ai/kling-video/v1.5/pro/image-to-video':
+    'fal-ai/kling-video/v1.5/pro/image-to-video',
+  'fal-ai/kling-video/v1.5/pro/text-to-video':
+    'fal-ai/kling-video/v1.5/pro/text-to-video',
   'fal-ai/kling-video/v1.6/pro/effects': 'fal-ai/kling-video/v1.6/pro/effects',
+  'fal-ai/kling-video/v1.6/pro/elements':
+    'fal-ai/kling-video/v1.6/pro/elements',
+  'fal-ai/kling-video/v1.6/pro/image-to-video':
+    'fal-ai/kling-video/v1.6/pro/image-to-video',
+  'fal-ai/kling-video/v1.6/pro/text-to-video':
+    'fal-ai/kling-video/v1.6/pro/text-to-video',
   'fal-ai/kling-video/v1.6/standard/effects':
     'fal-ai/kling-video/v1.6/standard/effects',
+  'fal-ai/kling-video/v1.6/standard/elements':
+    'fal-ai/kling-video/v1.6/standard/elements',
+  'fal-ai/kling-video/v1.6/standard/image-to-video':
+    'fal-ai/kling-video/v1.6/standard/image-to-video',
+  'fal-ai/kling-video/v1.6/standard/text-to-video':
+    'fal-ai/kling-video/v1.6/standard/text-to-video',
   'fal-ai/kling-video/v1/pro/ai-avatar': 'fal-ai/kling-video/v1/pro/ai-avatar',
   'fal-ai/kling-video/v1/standard/ai-avatar':
     'fal-ai/kling-video/v1/standard/ai-avatar',
   'fal-ai/kling-video/v1/standard/effects':
     'fal-ai/kling-video/v1/standard/effects',
+  'fal-ai/kling-video/v1/standard/image-to-video':
+    'fal-ai/kling-video/v1/standard/image-to-video',
+  'fal-ai/kling-video/v1/standard/text-to-video':
+    'fal-ai/kling-video/v1/standard/text-to-video',
+  'fal-ai/kling-video/v2.1/master/image-to-video':
+    'fal-ai/kling-video/v2.1/master/image-to-video',
+  'fal-ai/kling-video/v2.1/master/text-to-video':
+    'fal-ai/kling-video/v2.1/master/text-to-video',
+  'fal-ai/kling-video/v2.1/pro/image-to-video':
+    'fal-ai/kling-video/v2.1/pro/image-to-video',
+  'fal-ai/kling-video/v2.1/standard/image-to-video':
+    'fal-ai/kling-video/v2.1/standard/image-to-video',
   'fal-ai/kling-video/v2.5-turbo/pro/image-to-video':
     'fal-ai/kling-video/v2.5-turbo/pro/image-to-video',
   'fal-ai/kling-video/v2.5-turbo/pro/text-to-video':
@@ -81886,6 +103792,10 @@ export const falPostEndpointIdEndpointId = {
     'fal-ai/kling-video/v2.6/pro/text-to-video',
   'fal-ai/kling-video/v2.6/standard/motion-control':
     'fal-ai/kling-video/v2.6/standard/motion-control',
+  'fal-ai/kling-video/v2/master/image-to-video':
+    'fal-ai/kling-video/v2/master/image-to-video',
+  'fal-ai/kling-video/v2/master/text-to-video':
+    'fal-ai/kling-video/v2/master/text-to-video',
   'fal-ai/kling-video/v3/4k/image-to-video':
     'fal-ai/kling-video/v3/4k/image-to-video',
   'fal-ai/kling-video/v3/4k/text-to-video':
@@ -81936,6 +103846,39 @@ export const falPostEndpointIdEndpointId = {
     'fal-ai/longcat-video/text-to-video/480p',
   'fal-ai/longcat-video/text-to-video/720p':
     'fal-ai/longcat-video/text-to-video/720p',
+  'fal-ai/ltx-2-19b/audio-to-video': 'fal-ai/ltx-2-19b/audio-to-video',
+  'fal-ai/ltx-2-19b/audio-to-video/lora':
+    'fal-ai/ltx-2-19b/audio-to-video/lora',
+  'fal-ai/ltx-2-19b/distilled/audio-to-video':
+    'fal-ai/ltx-2-19b/distilled/audio-to-video',
+  'fal-ai/ltx-2-19b/distilled/audio-to-video/lora':
+    'fal-ai/ltx-2-19b/distilled/audio-to-video/lora',
+  'fal-ai/ltx-2-19b/distilled/extend-video':
+    'fal-ai/ltx-2-19b/distilled/extend-video',
+  'fal-ai/ltx-2-19b/distilled/extend-video/lora':
+    'fal-ai/ltx-2-19b/distilled/extend-video/lora',
+  'fal-ai/ltx-2-19b/distilled/image-to-video':
+    'fal-ai/ltx-2-19b/distilled/image-to-video',
+  'fal-ai/ltx-2-19b/distilled/image-to-video/lora':
+    'fal-ai/ltx-2-19b/distilled/image-to-video/lora',
+  'fal-ai/ltx-2-19b/distilled/text-to-video':
+    'fal-ai/ltx-2-19b/distilled/text-to-video',
+  'fal-ai/ltx-2-19b/distilled/text-to-video/lora':
+    'fal-ai/ltx-2-19b/distilled/text-to-video/lora',
+  'fal-ai/ltx-2-19b/distilled/video-to-video':
+    'fal-ai/ltx-2-19b/distilled/video-to-video',
+  'fal-ai/ltx-2-19b/distilled/video-to-video/lora':
+    'fal-ai/ltx-2-19b/distilled/video-to-video/lora',
+  'fal-ai/ltx-2-19b/extend-video': 'fal-ai/ltx-2-19b/extend-video',
+  'fal-ai/ltx-2-19b/extend-video/lora': 'fal-ai/ltx-2-19b/extend-video/lora',
+  'fal-ai/ltx-2-19b/image-to-video': 'fal-ai/ltx-2-19b/image-to-video',
+  'fal-ai/ltx-2-19b/image-to-video/lora':
+    'fal-ai/ltx-2-19b/image-to-video/lora',
+  'fal-ai/ltx-2-19b/text-to-video': 'fal-ai/ltx-2-19b/text-to-video',
+  'fal-ai/ltx-2-19b/text-to-video/lora': 'fal-ai/ltx-2-19b/text-to-video/lora',
+  'fal-ai/ltx-2-19b/video-to-video': 'fal-ai/ltx-2-19b/video-to-video',
+  'fal-ai/ltx-2-19b/video-to-video/lora':
+    'fal-ai/ltx-2-19b/video-to-video/lora',
   'fal-ai/ltx-2.3-22b/audio-to-video': 'fal-ai/ltx-2.3-22b/audio-to-video',
   'fal-ai/ltx-2.3-22b/audio-to-video/lora':
     'fal-ai/ltx-2.3-22b/audio-to-video/lora',
@@ -82023,6 +103966,13 @@ export const falPostEndpointIdEndpointId = {
   'fal-ai/ltx-2.3/retake-video': 'fal-ai/ltx-2.3/retake-video',
   'fal-ai/ltx-2.3/text-to-video': 'fal-ai/ltx-2.3/text-to-video',
   'fal-ai/ltx-2.3/text-to-video/fast': 'fal-ai/ltx-2.3/text-to-video/fast',
+  'fal-ai/ltx-2/audio-to-video': 'fal-ai/ltx-2/audio-to-video',
+  'fal-ai/ltx-2/extend-video': 'fal-ai/ltx-2/extend-video',
+  'fal-ai/ltx-2/image-to-video': 'fal-ai/ltx-2/image-to-video',
+  'fal-ai/ltx-2/image-to-video/fast': 'fal-ai/ltx-2/image-to-video/fast',
+  'fal-ai/ltx-2/retake-video': 'fal-ai/ltx-2/retake-video',
+  'fal-ai/ltx-2/text-to-video': 'fal-ai/ltx-2/text-to-video',
+  'fal-ai/ltx-2/text-to-video/fast': 'fal-ai/ltx-2/text-to-video/fast',
   'fal-ai/ltx-video': 'fal-ai/ltx-video',
   'fal-ai/ltx-video-13b-distilled': 'fal-ai/ltx-video-13b-distilled',
   'fal-ai/ltx-video-13b-distilled/extend':
@@ -82031,6 +103981,10 @@ export const falPostEndpointIdEndpointId = {
     'fal-ai/ltx-video-13b-distilled/image-to-video',
   'fal-ai/ltx-video-13b-distilled/multiconditioning':
     'fal-ai/ltx-video-13b-distilled/multiconditioning',
+  'fal-ai/ltx-video-v095': 'fal-ai/ltx-video-v095',
+  'fal-ai/ltx-video-v095/extend': 'fal-ai/ltx-video-v095/extend',
+  'fal-ai/ltx-video-v095/multiconditioning':
+    'fal-ai/ltx-video-v095/multiconditioning',
   'fal-ai/ltx-video/image-to-video': 'fal-ai/ltx-video/image-to-video',
   'fal-ai/ltxv-13b-098-distilled': 'fal-ai/ltxv-13b-098-distilled',
   'fal-ai/ltxv-13b-098-distilled/extend':
@@ -82039,6 +103993,21 @@ export const falPostEndpointIdEndpointId = {
     'fal-ai/ltxv-13b-098-distilled/image-to-video',
   'fal-ai/ltxv-13b-098-distilled/multiconditioning':
     'fal-ai/ltxv-13b-098-distilled/multiconditioning',
+  'fal-ai/luma-dream-machine/ray-2': 'fal-ai/luma-dream-machine/ray-2',
+  'fal-ai/luma-dream-machine/ray-2-flash':
+    'fal-ai/luma-dream-machine/ray-2-flash',
+  'fal-ai/luma-dream-machine/ray-2-flash/image-to-video':
+    'fal-ai/luma-dream-machine/ray-2-flash/image-to-video',
+  'fal-ai/luma-dream-machine/ray-2-flash/modify':
+    'fal-ai/luma-dream-machine/ray-2-flash/modify',
+  'fal-ai/luma-dream-machine/ray-2-flash/reframe':
+    'fal-ai/luma-dream-machine/ray-2-flash/reframe',
+  'fal-ai/luma-dream-machine/ray-2/image-to-video':
+    'fal-ai/luma-dream-machine/ray-2/image-to-video',
+  'fal-ai/luma-dream-machine/ray-2/modify':
+    'fal-ai/luma-dream-machine/ray-2/modify',
+  'fal-ai/luma-dream-machine/ray-2/reframe':
+    'fal-ai/luma-dream-machine/ray-2/reframe',
   'fal-ai/magi-distilled': 'fal-ai/magi-distilled',
   'fal-ai/magi-distilled/extend-video': 'fal-ai/magi-distilled/extend-video',
   'fal-ai/magi-distilled/image-to-video':
@@ -82079,10 +104048,21 @@ export const falPostEndpointIdEndpointId = {
   'fal-ai/mmaudio-v2': 'fal-ai/mmaudio-v2',
   'fal-ai/motion-to-code/glsl': 'fal-ai/motion-to-code/glsl',
   'fal-ai/motion-to-code/gsap': 'fal-ai/motion-to-code/gsap',
+  'fal-ai/musetalk': 'fal-ai/musetalk',
   'fal-ai/one-to-all-animation/1.3b': 'fal-ai/one-to-all-animation/1.3b',
   'fal-ai/one-to-all-animation/14b': 'fal-ai/one-to-all-animation/14b',
   'fal-ai/ovi': 'fal-ai/ovi',
   'fal-ai/ovi/image-to-video': 'fal-ai/ovi/image-to-video',
+  'fal-ai/pika/v1.5/pikaffects': 'fal-ai/pika/v1.5/pikaffects',
+  'fal-ai/pika/v2.1/image-to-video': 'fal-ai/pika/v2.1/image-to-video',
+  'fal-ai/pika/v2.1/text-to-video': 'fal-ai/pika/v2.1/text-to-video',
+  'fal-ai/pika/v2.2/image-to-video': 'fal-ai/pika/v2.2/image-to-video',
+  'fal-ai/pika/v2.2/pikaframes': 'fal-ai/pika/v2.2/pikaframes',
+  'fal-ai/pika/v2.2/pikascenes': 'fal-ai/pika/v2.2/pikascenes',
+  'fal-ai/pika/v2.2/text-to-video': 'fal-ai/pika/v2.2/text-to-video',
+  'fal-ai/pika/v2/pikadditions': 'fal-ai/pika/v2/pikadditions',
+  'fal-ai/pika/v2/turbo/image-to-video': 'fal-ai/pika/v2/turbo/image-to-video',
+  'fal-ai/pika/v2/turbo/text-to-video': 'fal-ai/pika/v2/turbo/text-to-video',
   'fal-ai/pixverse/c1/image-to-video': 'fal-ai/pixverse/c1/image-to-video',
   'fal-ai/pixverse/c1/reference-to-video':
     'fal-ai/pixverse/c1/reference-to-video',
@@ -82141,6 +104121,13 @@ export const falPostEndpointIdEndpointId = {
   'fal-ai/sam2/video': 'fal-ai/sam2/video',
   'fal-ai/scail-2': 'fal-ai/scail-2',
   'fal-ai/seedvr/upscale/video': 'fal-ai/seedvr/upscale/video',
+  'fal-ai/sora-2/characters': 'fal-ai/sora-2/characters',
+  'fal-ai/sora-2/image-to-video': 'fal-ai/sora-2/image-to-video',
+  'fal-ai/sora-2/image-to-video/pro': 'fal-ai/sora-2/image-to-video/pro',
+  'fal-ai/sora-2/text-to-video': 'fal-ai/sora-2/text-to-video',
+  'fal-ai/sora-2/text-to-video/pro': 'fal-ai/sora-2/text-to-video/pro',
+  'fal-ai/sora-2/video-to-video/remix': 'fal-ai/sora-2/video-to-video/remix',
+  'fal-ai/stable-video': 'fal-ai/stable-video',
   'fal-ai/sync-lipsync': 'fal-ai/sync-lipsync',
   'fal-ai/sync-lipsync/react-1': 'fal-ai/sync-lipsync/react-1',
   'fal-ai/sync-lipsync/v2': 'fal-ai/sync-lipsync/v2',
@@ -82148,8 +104135,33 @@ export const falPostEndpointIdEndpointId = {
   'fal-ai/sync-lipsync/v3': 'fal-ai/sync-lipsync/v3',
   'fal-ai/sync-lipsync/v3/image-to-video':
     'fal-ai/sync-lipsync/v3/image-to-video',
+  'fal-ai/t2v-turbo': 'fal-ai/t2v-turbo',
   'fal-ai/thinksound': 'fal-ai/thinksound',
   'fal-ai/thinksound/audio': 'fal-ai/thinksound/audio',
+  'fal-ai/topaz/upscale/video': 'fal-ai/topaz/upscale/video',
+  'fal-ai/veo2': 'fal-ai/veo2',
+  'fal-ai/veo2/image-to-video': 'fal-ai/veo2/image-to-video',
+  'fal-ai/veo3': 'fal-ai/veo3',
+  'fal-ai/veo3.1': 'fal-ai/veo3.1',
+  'fal-ai/veo3.1/extend-video': 'fal-ai/veo3.1/extend-video',
+  'fal-ai/veo3.1/fast': 'fal-ai/veo3.1/fast',
+  'fal-ai/veo3.1/fast/extend-video': 'fal-ai/veo3.1/fast/extend-video',
+  'fal-ai/veo3.1/fast/first-last-frame-to-video':
+    'fal-ai/veo3.1/fast/first-last-frame-to-video',
+  'fal-ai/veo3.1/fast/image-to-video': 'fal-ai/veo3.1/fast/image-to-video',
+  'fal-ai/veo3.1/fast/reference-to-video':
+    'fal-ai/veo3.1/fast/reference-to-video',
+  'fal-ai/veo3.1/first-last-frame-to-video':
+    'fal-ai/veo3.1/first-last-frame-to-video',
+  'fal-ai/veo3.1/image-to-video': 'fal-ai/veo3.1/image-to-video',
+  'fal-ai/veo3.1/lite': 'fal-ai/veo3.1/lite',
+  'fal-ai/veo3.1/lite/first-last-frame-to-video':
+    'fal-ai/veo3.1/lite/first-last-frame-to-video',
+  'fal-ai/veo3.1/lite/image-to-video': 'fal-ai/veo3.1/lite/image-to-video',
+  'fal-ai/veo3.1/reference-to-video': 'fal-ai/veo3.1/reference-to-video',
+  'fal-ai/veo3/fast': 'fal-ai/veo3/fast',
+  'fal-ai/veo3/fast/image-to-video': 'fal-ai/veo3/fast/image-to-video',
+  'fal-ai/veo3/image-to-video': 'fal-ai/veo3/image-to-video',
   'fal-ai/video-upscaler': 'fal-ai/video-upscaler',
   'fal-ai/vidu/image-to-video': 'fal-ai/vidu/image-to-video',
   'fal-ai/vidu/q1/image-to-video': 'fal-ai/vidu/q1/image-to-video',
@@ -82183,10 +104195,14 @@ export const falPostEndpointIdEndpointId = {
   'fal-ai/wan-25-preview/image-to-video':
     'fal-ai/wan-25-preview/image-to-video',
   'fal-ai/wan-25-preview/text-to-video': 'fal-ai/wan-25-preview/text-to-video',
+  'fal-ai/wan-effects': 'fal-ai/wan-effects',
+  'fal-ai/wan-flf2v': 'fal-ai/wan-flf2v',
   'fal-ai/wan-i2v': 'fal-ai/wan-i2v',
   'fal-ai/wan-i2v-lora': 'fal-ai/wan-i2v-lora',
+  'fal-ai/wan-motion': 'fal-ai/wan-motion',
   'fal-ai/wan-pro/image-to-video': 'fal-ai/wan-pro/image-to-video',
   'fal-ai/wan-pro/text-to-video': 'fal-ai/wan-pro/text-to-video',
+  'fal-ai/wan-t2v': 'fal-ai/wan-t2v',
   'fal-ai/wan-t2v-lora': 'fal-ai/wan-t2v-lora',
   'fal-ai/wan-vace-14b': 'fal-ai/wan-vace-14b',
   'fal-ai/wan-vace-14b/depth': 'fal-ai/wan-vace-14b/depth',
@@ -82266,18 +104282,22 @@ export const falPostEndpointIdEndpointId = {
   'kling/v4/reference-to-video': 'kling/v4/reference-to-video',
   'kling/v4/text-to-video': 'kling/v4/text-to-video',
   'kling/v4/video-to-video/edit': 'kling/v4/video-to-video/edit',
+  'lightricks/ltx-2.5/alpha-gen': 'lightricks/ltx-2.5/alpha-gen',
   'lightricks/ltx-2.5/audio-to-video/fast':
     'lightricks/ltx-2.5/audio-to-video/fast',
   'lightricks/ltx-2.5/audio-to-video/pro':
     'lightricks/ltx-2.5/audio-to-video/pro',
+  'lightricks/ltx-2.5/hdr': 'lightricks/ltx-2.5/hdr',
   'lightricks/ltx-2.5/image-to-video/fast':
     'lightricks/ltx-2.5/image-to-video/fast',
   'lightricks/ltx-2.5/image-to-video/pro':
     'lightricks/ltx-2.5/image-to-video/pro',
+  'lightricks/ltx-2.5/reframe': 'lightricks/ltx-2.5/reframe',
   'lightricks/ltx-2.5/text-to-video/fast':
     'lightricks/ltx-2.5/text-to-video/fast',
   'lightricks/ltx-2.5/text-to-video/pro':
     'lightricks/ltx-2.5/text-to-video/pro',
+  'lightricks/ltx-2.5/upscale': 'lightricks/ltx-2.5/upscale',
   'luma/agent/ray/v3.2/image-to-video': 'luma/agent/ray/v3.2/image-to-video',
   'luma/agent/ray/v3.2/reframe': 'luma/agent/ray/v3.2/reframe',
   'luma/agent/ray/v3.2/text-to-video': 'luma/agent/ray/v3.2/text-to-video',
@@ -82294,6 +104314,8 @@ export const falPostEndpointIdEndpointId = {
   'minimax/h3-max/insert-video': 'minimax/h3-max/insert-video',
   'minimax/h3-max/lip-sync/image-to-video':
     'minimax/h3-max/lip-sync/image-to-video',
+  'minimax/h3-max/multi-angle/image-to-video':
+    'minimax/h3-max/multi-angle/image-to-video',
   'minimax/h3-max/recast': 'minimax/h3-max/recast',
   'minimax/h3-max/reference-to-video': 'minimax/h3-max/reference-to-video',
   'minimax/h3-max/reframe-video': 'minimax/h3-max/reframe-video',
@@ -82311,6 +104333,12 @@ export const falPostEndpointIdEndpointId = {
   'minimax/h3/reference-to-video/lora': 'minimax/h3/reference-to-video/lora',
   'minimax/h3/text-to-video': 'minimax/h3/text-to-video',
   'minimax/h3/text-to-video/lora': 'minimax/h3/text-to-video/lora',
+  'mirage-api/avatar-x/reference-to-video':
+    'mirage-api/avatar-x/reference-to-video',
+  'mirage-api/avatar-x/text-to-video': 'mirage-api/avatar-x/text-to-video',
+  'mirelo-ai/sfx-v1.5/video-to-video': 'mirelo-ai/sfx-v1.5/video-to-video',
+  'mirelo-ai/sfx-v1/video-to-video': 'mirelo-ai/sfx-v1/video-to-video',
+  'mirelo-ai/sfx1.6/video-to-video': 'mirelo-ai/sfx1.6/video-to-video',
   'mirelo-ai/sfx2.0/video-to-video': 'mirelo-ai/sfx2.0/video-to-video',
   'moonvalley/marey/i2v': 'moonvalley/marey/i2v',
   'moonvalley/marey/motion-transfer': 'moonvalley/marey/motion-transfer',
@@ -82319,13 +104347,16 @@ export const falPostEndpointIdEndpointId = {
   'mureka/api/generate/lyrics-video': 'mureka/api/generate/lyrics-video',
   'nvidia/cosmos-3-super/image-to-video':
     'nvidia/cosmos-3-super/image-to-video',
+  'openimaginglab/flashvsr-plus': 'openimaginglab/flashvsr-plus',
   'pixelcut/looping-video': 'pixelcut/looping-video',
   'pixelcut/video-background-removal': 'pixelcut/video-background-removal',
   'pixverse/music-video/vibemv': 'pixverse/music-video/vibemv',
+  'sonilo/v1.1/video-to-video': 'sonilo/v1.1/video-to-video',
   'sonilo/v1.1/video-to-video-music': 'sonilo/v1.1/video-to-video-music',
   'sonilo/v1.1/video-to-video-sound-effects':
     'sonilo/v1.1/video-to-video-sound-effects',
   'tbc/mischief-1/image-to-video': 'tbc/mischief-1/image-to-video',
+  'topaz/colorize/video': 'topaz/colorize/video',
   'topaz/deblur/video': 'topaz/deblur/video',
   'topaz/denoise/video': 'topaz/denoise/video',
   'topaz/interpolate/video': 'topaz/interpolate/video',
@@ -82430,16 +104461,24 @@ export type FalPostEndpointIdBody =
   | InputBriaVideoEraseMask
   | InputBriaVideoErasePrompt
   | InputBriaVideoIncreaseResolution
+  | InputBytedanceLynx
   | InputBytedanceOmnihumanV2
   | InputBytedanceSeedance20FastImageToVideo
   | InputBytedanceSeedance20FastReferenceToVideo
   | InputBytedanceSeedance20FastTextToVideo
+  | InputBytedanceSeedance20ImageToVideo
   | InputBytedanceSeedance20MiniImageToVideo
   | InputBytedanceSeedance20MiniReferenceToVideo
   | InputBytedanceSeedance20MiniTextToVideo
+  | InputBytedanceSeedance20ReferenceToVideo
+  | InputBytedanceSeedance20TextToVideo
   | InputBytedanceSeedance20UsImageToVideo
   | InputBytedanceSeedance20UsReferenceToVideo
   | InputBytedanceSeedance20UsTextToVideo
+  | InputBytedanceSeedance25DraftComplete
+  | InputBytedanceSeedance25ImageToVideo
+  | InputBytedanceSeedance25ReferenceToVideo
+  | InputBytedanceSeedance25TextToVideo
   | InputBytedanceSeedance25UsDraftComplete
   | InputBytedanceSeedance25UsImageToVideo
   | InputBytedanceSeedance25UsReferenceToVideo
@@ -82448,13 +104487,20 @@ export type FalPostEndpointIdBody =
   | InputClarityaiCrystalVideoUpscaler
   | InputCreatifyBoreal
   | InputDecartLucy25Realtime
+  | InputDecartLucyEditPro
   | InputDecartLucyRestyle
   | InputDecartLucy2VtonRealtime
   | InputFalAiAiAvatarMulti
   | InputFalAiAiAvatarMultiText
   | InputFalAiAiAvatarSingleText
+  | InputFalAiAmtInterpolation
+  | InputFalAiAmtInterpolationFrameInterpolation
   | InputFalAiAutoCaption
   | InputFalAiBenV2Video
+  | InputFalAiBerniniREditVideo
+  | InputFalAiBerniniRReferenceEditVideo
+  | InputFalAiBerniniRReferenceToVideo
+  | InputFalAiBerniniRTextToVideo
   | InputFalAiBirefnetV2Video
   | InputFalAiBytedanceUpscalerUpscaleVideo
   | InputFalAiBytedanceDreamactorV2
@@ -82466,18 +104512,36 @@ export type FalPostEndpointIdBody =
   | InputFalAiBytedanceSeedanceV1ProFastTextToVideo
   | InputFalAiBytedanceSeedanceV1ProImageToVideo
   | InputFalAiBytedanceSeedanceV1ProTextToVideo
+  | InputFalAiCogvideox5B
+  | InputFalAiCogvideox5BImageToVideo
+  | InputFalAiCogvideox5BVideoToVideo
+  | InputFalAiControlfoley
+  | InputFalAiCosmosPredict25DistilledTextToVideo
+  | InputFalAiCosmosPredict25ImageToVideo
+  | InputFalAiCosmosPredict25TextToVideo
+  | InputFalAiCosmosPredict25VideoToVideo
   | InputFalAiCreatifyAurora
   | InputFalAiDavinciMagihuman
   | InputFalAiDepthAnythingVideo
   | InputFalAiDwposeVideo
   | InputFalAiEchomimicV3
+  | InputFalAiEditto
   | InputFalAiElevenlabsDubbing
+  | InputFalAiFastAnimatediffTextToVideo
+  | InputFalAiFastAnimatediffTurboTextToVideo
+  | InputFalAiFastAnimatediffTurboVideoToVideo
+  | InputFalAiFastAnimatediffVideoToVideo
+  | InputFalAiFastSvdLcm
+  | InputFalAiFastSvdLcmTextToVideo
+  | InputFalAiFastSvdTextToVideo
   | InputFalAiFfmpegApiCompose
   | InputFalAiFfmpegApiImagesToVideo
   | InputFalAiFfmpegApiMergeAudioVideo
   | InputFalAiFfmpegApiMergeVideos
   | InputFalAiFilmVideo
   | InputFalAiFlashhead
+  | InputFalAiFlashtalk
+  | InputFalAiFlashvsrUpscaleVideo
   | InputFalAiFlux3ActionSo101
   | InputFalAiFramepack
   | InputFalAiFramepackF1
@@ -82496,11 +104560,15 @@ export type FalPostEndpointIdBody =
   | InputFalAiHunyuanVideo
   | InputFalAiHunyuanVideoFoley
   | InputFalAiHunyuanVideoImageToVideo
+  | InputFalAiHunyuanVideoImg2VidLora
   | InputFalAiHunyuanVideoV15ImageToVideo
   | InputFalAiHunyuanVideoV15TextToVideo
   | InputFalAiHunyuanVideoVideoToVideo
   | InputFalAiIdV2V
   | InputFalAiIdV2VRelight
+  | InputFalAiInfinitalk
+  | InputFalAiInfinitalkSingleText
+  | InputFalAiInfinitalkVideoToVideo
   | InputFalAiInfinityStarTextToVideo
   | InputFalAiKandinsky5ProImageToVideo
   | InputFalAiKandinsky5ProTextToVideo
@@ -82540,11 +104608,25 @@ export type FalPostEndpointIdBody =
   | InputFalAiKlingVideoO3StandardVideoToVideoEdit
   | InputFalAiKlingVideoO3StandardVideoToVideoReference
   | InputFalAiKlingVideoV15ProEffects
+  | InputFalAiKlingVideoV15ProImageToVideo
+  | InputFalAiKlingVideoV15ProTextToVideo
   | InputFalAiKlingVideoV16ProEffects
+  | InputFalAiKlingVideoV16ProElements
+  | InputFalAiKlingVideoV16ProImageToVideo
+  | InputFalAiKlingVideoV16ProTextToVideo
   | InputFalAiKlingVideoV16StandardEffects
+  | InputFalAiKlingVideoV16StandardElements
+  | InputFalAiKlingVideoV16StandardImageToVideo
+  | InputFalAiKlingVideoV16StandardTextToVideo
   | InputFalAiKlingVideoV1ProAiAvatar
   | InputFalAiKlingVideoV1StandardAiAvatar
   | InputFalAiKlingVideoV1StandardEffects
+  | InputFalAiKlingVideoV1StandardImageToVideo
+  | InputFalAiKlingVideoV1StandardTextToVideo
+  | InputFalAiKlingVideoV21MasterImageToVideo
+  | InputFalAiKlingVideoV21MasterTextToVideo
+  | InputFalAiKlingVideoV21ProImageToVideo
+  | InputFalAiKlingVideoV21StandardImageToVideo
   | InputFalAiKlingVideoV25TurboProImageToVideo
   | InputFalAiKlingVideoV25TurboProTextToVideo
   | InputFalAiKlingVideoV25TurboStandardImageToVideo
@@ -82552,6 +104634,8 @@ export type FalPostEndpointIdBody =
   | InputFalAiKlingVideoV26ProMotionControl
   | InputFalAiKlingVideoV26ProTextToVideo
   | InputFalAiKlingVideoV26StandardMotionControl
+  | InputFalAiKlingVideoV2MasterImageToVideo
+  | InputFalAiKlingVideoV2MasterTextToVideo
   | InputFalAiKlingVideoV34KImageToVideo
   | InputFalAiKlingVideoV34KTextToVideo
   | InputFalAiKlingVideoV3ProImageToVideo
@@ -82580,6 +104664,26 @@ export type FalPostEndpointIdBody =
   | InputFalAiLongcatVideoImageToVideo720P
   | InputFalAiLongcatVideoTextToVideo480P
   | InputFalAiLongcatVideoTextToVideo720P
+  | InputFalAiLtx219BAudioToVideo
+  | InputFalAiLtx219BAudioToVideoLora
+  | InputFalAiLtx219BDistilledAudioToVideo
+  | InputFalAiLtx219BDistilledAudioToVideoLora
+  | InputFalAiLtx219BDistilledExtendVideo
+  | InputFalAiLtx219BDistilledExtendVideoLora
+  | InputFalAiLtx219BDistilledImageToVideo
+  | InputFalAiLtx219BDistilledImageToVideoLora
+  | InputFalAiLtx219BDistilledTextToVideo
+  | InputFalAiLtx219BDistilledTextToVideoLora
+  | InputFalAiLtx219BDistilledVideoToVideo
+  | InputFalAiLtx219BDistilledVideoToVideoLora
+  | InputFalAiLtx219BExtendVideo
+  | InputFalAiLtx219BExtendVideoLora
+  | InputFalAiLtx219BImageToVideo
+  | InputFalAiLtx219BImageToVideoLora
+  | InputFalAiLtx219BTextToVideo
+  | InputFalAiLtx219BTextToVideoLora
+  | InputFalAiLtx219BVideoToVideo
+  | InputFalAiLtx219BVideoToVideoLora
   | InputFalAiLtx2322BAudioToVideo
   | InputFalAiLtx2322BAudioToVideoLora
   | InputFalAiLtx2322BDistilledAudioToVideo
@@ -82636,16 +104740,34 @@ export type FalPostEndpointIdBody =
   | InputFalAiLtx23RetakeVideo
   | InputFalAiLtx23TextToVideo
   | InputFalAiLtx23TextToVideoFast
+  | InputFalAiLtx2AudioToVideo
+  | InputFalAiLtx2ExtendVideo
+  | InputFalAiLtx2ImageToVideo
+  | InputFalAiLtx2ImageToVideoFast
+  | InputFalAiLtx2RetakeVideo
+  | InputFalAiLtx2TextToVideo
+  | InputFalAiLtx2TextToVideoFast
   | InputFalAiLtxVideo
   | InputFalAiLtxVideo13BDistilled
   | InputFalAiLtxVideo13BDistilledExtend
   | InputFalAiLtxVideo13BDistilledImageToVideo
   | InputFalAiLtxVideo13BDistilledMulticonditioning
+  | InputFalAiLtxVideoV095
+  | InputFalAiLtxVideoV095Extend
+  | InputFalAiLtxVideoV095Multiconditioning
   | InputFalAiLtxVideoImageToVideo
   | InputFalAiLtxv13B098Distilled
   | InputFalAiLtxv13B098DistilledExtend
   | InputFalAiLtxv13B098DistilledImageToVideo
   | InputFalAiLtxv13B098DistilledMulticonditioning
+  | InputFalAiLumaDreamMachineRay2
+  | InputFalAiLumaDreamMachineRay2Flash
+  | InputFalAiLumaDreamMachineRay2FlashImageToVideo
+  | InputFalAiLumaDreamMachineRay2FlashModify
+  | InputFalAiLumaDreamMachineRay2FlashReframe
+  | InputFalAiLumaDreamMachineRay2ImageToVideo
+  | InputFalAiLumaDreamMachineRay2Modify
+  | InputFalAiLumaDreamMachineRay2Reframe
   | InputFalAiMagiDistilled
   | InputFalAiMagiDistilledExtendVideo
   | InputFalAiMagiDistilledImageToVideo
@@ -82670,10 +104792,21 @@ export type FalPostEndpointIdBody =
   | InputFalAiMmaudioV2
   | InputFalAiMotionToCodeGlsl
   | InputFalAiMotionToCodeGsap
+  | InputFalAiMusetalk
   | InputFalAiOneToAllAnimation13B
   | InputFalAiOneToAllAnimation14B
   | InputFalAiOvi
   | InputFalAiOviImageToVideo
+  | InputFalAiPikaV15Pikaffects
+  | InputFalAiPikaV21ImageToVideo
+  | InputFalAiPikaV21TextToVideo
+  | InputFalAiPikaV22ImageToVideo
+  | InputFalAiPikaV22Pikaframes
+  | InputFalAiPikaV22Pikascenes
+  | InputFalAiPikaV22TextToVideo
+  | InputFalAiPikaV2Pikadditions
+  | InputFalAiPikaV2TurboImageToVideo
+  | InputFalAiPikaV2TurboTextToVideo
   | InputFalAiPixverseC1ImageToVideo
   | InputFalAiPixverseC1ReferenceToVideo
   | InputFalAiPixverseC1TextToVideo
@@ -82725,14 +104858,42 @@ export type FalPostEndpointIdBody =
   | InputFalAiSam2Video
   | InputFalAiScail2
   | InputFalAiSeedvrUpscaleVideo
+  | InputFalAiSora2Characters
+  | InputFalAiSora2ImageToVideo
+  | InputFalAiSora2ImageToVideoPro
+  | InputFalAiSora2TextToVideo
+  | InputFalAiSora2TextToVideoPro
+  | InputFalAiSora2VideoToVideoRemix
+  | InputFalAiStableVideo
   | InputFalAiSyncLipsync
   | InputFalAiSyncLipsyncReact1
   | InputFalAiSyncLipsyncV2
   | InputFalAiSyncLipsyncV2Pro
   | InputFalAiSyncLipsyncV3
   | InputFalAiSyncLipsyncV3ImageToVideo
+  | InputFalAiT2VTurbo
   | InputFalAiThinksound
   | InputFalAiThinksoundAudio
+  | InputFalAiTopazUpscaleVideo
+  | InputFalAiVeo2
+  | InputFalAiVeo2ImageToVideo
+  | InputFalAiVeo3
+  | InputFalAiVeo31
+  | InputFalAiVeo31ExtendVideo
+  | InputFalAiVeo31Fast
+  | InputFalAiVeo31FastExtendVideo
+  | InputFalAiVeo31FastFirstLastFrameToVideo
+  | InputFalAiVeo31FastImageToVideo
+  | InputFalAiVeo31FastReferenceToVideo
+  | InputFalAiVeo31FirstLastFrameToVideo
+  | InputFalAiVeo31ImageToVideo
+  | InputFalAiVeo31Lite
+  | InputFalAiVeo31LiteFirstLastFrameToVideo
+  | InputFalAiVeo31LiteImageToVideo
+  | InputFalAiVeo31ReferenceToVideo
+  | InputFalAiVeo3Fast
+  | InputFalAiVeo3FastImageToVideo
+  | InputFalAiVeo3ImageToVideo
   | InputFalAiVideoUpscaler
   | InputFalAiViduImageToVideo
   | InputFalAiViduQ1ImageToVideo
@@ -82761,10 +104922,14 @@ export type FalPostEndpointIdBody =
   | InputFalAiWan22VaceFunA14BReframe
   | InputFalAiWan25PreviewImageToVideo
   | InputFalAiWan25PreviewTextToVideo
+  | InputFalAiWanEffects
+  | InputFalAiWanFlf2V
   | InputFalAiWanI2V
   | InputFalAiWanI2VLora
+  | InputFalAiWanMotion
   | InputFalAiWanProImageToVideo
   | InputFalAiWanProTextToVideo
+  | InputFalAiWanT2V
   | InputFalAiWanT2VLora
   | InputFalAiWanVace14B
   | InputFalAiWanVace14BDepth
@@ -82822,12 +104987,16 @@ export type FalPostEndpointIdBody =
   | InputKlingV4ReferenceToVideo
   | InputKlingV4TextToVideo
   | InputKlingV4VideoToVideoEdit
+  | InputLightricksLtx25AlphaGen
   | InputLightricksLtx25AudioToVideoFast
   | InputLightricksLtx25AudioToVideoPro
+  | InputLightricksLtx25Hdr
   | InputLightricksLtx25ImageToVideoFast
   | InputLightricksLtx25ImageToVideoPro
+  | InputLightricksLtx25Reframe
   | InputLightricksLtx25TextToVideoFast
   | InputLightricksLtx25TextToVideoPro
+  | InputLightricksLtx25Upscale
   | InputLumaAgentRayV32ImageToVideo
   | InputLumaAgentRayV32Reframe
   | InputLumaAgentRayV32TextToVideo
@@ -82842,6 +105011,7 @@ export type FalPostEndpointIdBody =
   | InputMinimaxH3MaxImageToVideo
   | InputMinimaxH3MaxInsertVideo
   | InputMinimaxH3MaxLipSyncImageToVideo
+  | InputMinimaxH3MaxMultiAngleImageToVideo
   | InputMinimaxH3MaxRecast
   | InputMinimaxH3MaxReferenceToVideo
   | InputMinimaxH3MaxReframeVideo
@@ -82858,6 +105028,11 @@ export type FalPostEndpointIdBody =
   | InputMinimaxH3ReferenceToVideoLora
   | InputMinimaxH3TextToVideo
   | InputMinimaxH3TextToVideoLora
+  | InputMirageApiAvatarXReferenceToVideo
+  | InputMirageApiAvatarXTextToVideo
+  | InputMireloAiSfxV15VideoToVideo
+  | InputMireloAiSfxV1VideoToVideo
+  | InputMireloAiSfx16VideoToVideo
   | InputMireloAiSfx20VideoToVideo
   | InputMoonvalleyMareyI2V
   | InputMoonvalleyMareyMotionTransfer
@@ -82865,12 +105040,15 @@ export type FalPostEndpointIdBody =
   | InputMoonvalleyMareyT2V
   | InputMurekaApiGenerateLyricsVideo
   | InputNvidiaCosmos3SuperImageToVideo
+  | InputOpenimaginglabFlashvsrPlus
   | InputPixelcutLoopingVideo
   | InputPixelcutVideoBackgroundRemoval
   | InputPixverseMusicVideoVibemv
+  | InputSoniloV11VideoToVideo
   | InputSoniloV11VideoToVideoMusic
   | InputSoniloV11VideoToVideoSoundEffects
   | InputTbcMischief1ImageToVideo
+  | InputTopazColorizeVideo
   | InputTopazDeblurVideo
   | InputTopazDenoiseVideo
   | InputTopazInterpolateVideo
@@ -82990,6 +105168,7 @@ export const falGetEndpointIdRequestsRequestIdEndpointId = {
   'bria/video/erase/mask': 'bria/video/erase/mask',
   'bria/video/erase/prompt': 'bria/video/erase/prompt',
   'bria/video/increase-resolution': 'bria/video/increase-resolution',
+  'bytedance/lynx': 'bytedance/lynx',
   'bytedance/omnihuman/v2': 'bytedance/omnihuman/v2',
   'bytedance/seedance-2.0/fast/image-to-video':
     'bytedance/seedance-2.0/fast/image-to-video',
@@ -82997,18 +105176,32 @@ export const falGetEndpointIdRequestsRequestIdEndpointId = {
     'bytedance/seedance-2.0/fast/reference-to-video',
   'bytedance/seedance-2.0/fast/text-to-video':
     'bytedance/seedance-2.0/fast/text-to-video',
+  'bytedance/seedance-2.0/image-to-video':
+    'bytedance/seedance-2.0/image-to-video',
   'bytedance/seedance-2.0/mini/image-to-video':
     'bytedance/seedance-2.0/mini/image-to-video',
   'bytedance/seedance-2.0/mini/reference-to-video':
     'bytedance/seedance-2.0/mini/reference-to-video',
   'bytedance/seedance-2.0/mini/text-to-video':
     'bytedance/seedance-2.0/mini/text-to-video',
+  'bytedance/seedance-2.0/reference-to-video':
+    'bytedance/seedance-2.0/reference-to-video',
+  'bytedance/seedance-2.0/text-to-video':
+    'bytedance/seedance-2.0/text-to-video',
   'bytedance/seedance-2.0/us/image-to-video':
     'bytedance/seedance-2.0/us/image-to-video',
   'bytedance/seedance-2.0/us/reference-to-video':
     'bytedance/seedance-2.0/us/reference-to-video',
   'bytedance/seedance-2.0/us/text-to-video':
     'bytedance/seedance-2.0/us/text-to-video',
+  'bytedance/seedance-2.5/draft/complete':
+    'bytedance/seedance-2.5/draft/complete',
+  'bytedance/seedance-2.5/image-to-video':
+    'bytedance/seedance-2.5/image-to-video',
+  'bytedance/seedance-2.5/reference-to-video':
+    'bytedance/seedance-2.5/reference-to-video',
+  'bytedance/seedance-2.5/text-to-video':
+    'bytedance/seedance-2.5/text-to-video',
   'bytedance/seedance-2.5/us/draft/complete':
     'bytedance/seedance-2.5/us/draft/complete',
   'bytedance/seedance-2.5/us/image-to-video':
@@ -83022,13 +105215,22 @@ export const falGetEndpointIdRequestsRequestIdEndpointId = {
   'clarityai/crystal-video-upscaler': 'clarityai/crystal-video-upscaler',
   'creatify/boreal': 'creatify/boreal',
   'decart/lucy-2-5/realtime': 'decart/lucy-2-5/realtime',
+  'decart/lucy-edit/pro': 'decart/lucy-edit/pro',
   'decart/lucy-restyle': 'decart/lucy-restyle',
   'decart/lucy2-vton/realtime': 'decart/lucy2-vton/realtime',
   'fal-ai/ai-avatar/multi': 'fal-ai/ai-avatar/multi',
   'fal-ai/ai-avatar/multi-text': 'fal-ai/ai-avatar/multi-text',
   'fal-ai/ai-avatar/single-text': 'fal-ai/ai-avatar/single-text',
+  'fal-ai/amt-interpolation': 'fal-ai/amt-interpolation',
+  'fal-ai/amt-interpolation/frame-interpolation':
+    'fal-ai/amt-interpolation/frame-interpolation',
   'fal-ai/auto-caption': 'fal-ai/auto-caption',
   'fal-ai/ben/v2/video': 'fal-ai/ben/v2/video',
+  'fal-ai/bernini-r/edit-video': 'fal-ai/bernini-r/edit-video',
+  'fal-ai/bernini-r/reference-edit-video':
+    'fal-ai/bernini-r/reference-edit-video',
+  'fal-ai/bernini-r/reference-to-video': 'fal-ai/bernini-r/reference-to-video',
+  'fal-ai/bernini-r/text-to-video': 'fal-ai/bernini-r/text-to-video',
   'fal-ai/birefnet/v2/video': 'fal-ai/birefnet/v2/video',
   'fal-ai/bytedance-upscaler/upscale/video':
     'fal-ai/bytedance-upscaler/upscale/video',
@@ -83047,18 +105249,44 @@ export const falGetEndpointIdRequestsRequestIdEndpointId = {
     'fal-ai/bytedance/seedance/v1/pro/image-to-video',
   'fal-ai/bytedance/seedance/v1/pro/text-to-video':
     'fal-ai/bytedance/seedance/v1/pro/text-to-video',
+  'fal-ai/cogvideox-5b': 'fal-ai/cogvideox-5b',
+  'fal-ai/cogvideox-5b/image-to-video': 'fal-ai/cogvideox-5b/image-to-video',
+  'fal-ai/cogvideox-5b/video-to-video': 'fal-ai/cogvideox-5b/video-to-video',
+  'fal-ai/controlfoley': 'fal-ai/controlfoley',
+  'fal-ai/cosmos-predict-2.5/distilled/text-to-video':
+    'fal-ai/cosmos-predict-2.5/distilled/text-to-video',
+  'fal-ai/cosmos-predict-2.5/image-to-video':
+    'fal-ai/cosmos-predict-2.5/image-to-video',
+  'fal-ai/cosmos-predict-2.5/text-to-video':
+    'fal-ai/cosmos-predict-2.5/text-to-video',
+  'fal-ai/cosmos-predict-2.5/video-to-video':
+    'fal-ai/cosmos-predict-2.5/video-to-video',
   'fal-ai/creatify/aurora': 'fal-ai/creatify/aurora',
   'fal-ai/davinci-magihuman': 'fal-ai/davinci-magihuman',
   'fal-ai/depth-anything-video': 'fal-ai/depth-anything-video',
   'fal-ai/dwpose/video': 'fal-ai/dwpose/video',
   'fal-ai/echomimic-v3': 'fal-ai/echomimic-v3',
+  'fal-ai/editto': 'fal-ai/editto',
   'fal-ai/elevenlabs/dubbing': 'fal-ai/elevenlabs/dubbing',
+  'fal-ai/fast-animatediff/text-to-video':
+    'fal-ai/fast-animatediff/text-to-video',
+  'fal-ai/fast-animatediff/turbo/text-to-video':
+    'fal-ai/fast-animatediff/turbo/text-to-video',
+  'fal-ai/fast-animatediff/turbo/video-to-video':
+    'fal-ai/fast-animatediff/turbo/video-to-video',
+  'fal-ai/fast-animatediff/video-to-video':
+    'fal-ai/fast-animatediff/video-to-video',
+  'fal-ai/fast-svd-lcm': 'fal-ai/fast-svd-lcm',
+  'fal-ai/fast-svd-lcm/text-to-video': 'fal-ai/fast-svd-lcm/text-to-video',
+  'fal-ai/fast-svd/text-to-video': 'fal-ai/fast-svd/text-to-video',
   'fal-ai/ffmpeg-api/compose': 'fal-ai/ffmpeg-api/compose',
   'fal-ai/ffmpeg-api/images-to-video': 'fal-ai/ffmpeg-api/images-to-video',
   'fal-ai/ffmpeg-api/merge-audio-video': 'fal-ai/ffmpeg-api/merge-audio-video',
   'fal-ai/ffmpeg-api/merge-videos': 'fal-ai/ffmpeg-api/merge-videos',
   'fal-ai/film/video': 'fal-ai/film/video',
   'fal-ai/flashhead': 'fal-ai/flashhead',
+  'fal-ai/flashtalk': 'fal-ai/flashtalk',
+  'fal-ai/flashvsr/upscale/video': 'fal-ai/flashvsr/upscale/video',
   'fal-ai/flux-3-action/so101': 'fal-ai/flux-3-action/so101',
   'fal-ai/framepack': 'fal-ai/framepack',
   'fal-ai/framepack/f1': 'fal-ai/framepack/f1',
@@ -83080,6 +105308,7 @@ export const falGetEndpointIdRequestsRequestIdEndpointId = {
   'fal-ai/hunyuan-video': 'fal-ai/hunyuan-video',
   'fal-ai/hunyuan-video-foley': 'fal-ai/hunyuan-video-foley',
   'fal-ai/hunyuan-video-image-to-video': 'fal-ai/hunyuan-video-image-to-video',
+  'fal-ai/hunyuan-video-img2vid-lora': 'fal-ai/hunyuan-video-img2vid-lora',
   'fal-ai/hunyuan-video-v1.5/image-to-video':
     'fal-ai/hunyuan-video-v1.5/image-to-video',
   'fal-ai/hunyuan-video-v1.5/text-to-video':
@@ -83087,6 +105316,9 @@ export const falGetEndpointIdRequestsRequestIdEndpointId = {
   'fal-ai/hunyuan-video/video-to-video': 'fal-ai/hunyuan-video/video-to-video',
   'fal-ai/id-v2v': 'fal-ai/id-v2v',
   'fal-ai/id-v2v/relight': 'fal-ai/id-v2v/relight',
+  'fal-ai/infinitalk': 'fal-ai/infinitalk',
+  'fal-ai/infinitalk/single-text': 'fal-ai/infinitalk/single-text',
+  'fal-ai/infinitalk/video-to-video': 'fal-ai/infinitalk/video-to-video',
   'fal-ai/infinity-star/text-to-video': 'fal-ai/infinity-star/text-to-video',
   'fal-ai/kandinsky5-pro/image-to-video':
     'fal-ai/kandinsky5-pro/image-to-video',
@@ -83157,14 +105389,42 @@ export const falGetEndpointIdRequestsRequestIdEndpointId = {
   'fal-ai/kling-video/o3/standard/video-to-video/reference':
     'fal-ai/kling-video/o3/standard/video-to-video/reference',
   'fal-ai/kling-video/v1.5/pro/effects': 'fal-ai/kling-video/v1.5/pro/effects',
+  'fal-ai/kling-video/v1.5/pro/image-to-video':
+    'fal-ai/kling-video/v1.5/pro/image-to-video',
+  'fal-ai/kling-video/v1.5/pro/text-to-video':
+    'fal-ai/kling-video/v1.5/pro/text-to-video',
   'fal-ai/kling-video/v1.6/pro/effects': 'fal-ai/kling-video/v1.6/pro/effects',
+  'fal-ai/kling-video/v1.6/pro/elements':
+    'fal-ai/kling-video/v1.6/pro/elements',
+  'fal-ai/kling-video/v1.6/pro/image-to-video':
+    'fal-ai/kling-video/v1.6/pro/image-to-video',
+  'fal-ai/kling-video/v1.6/pro/text-to-video':
+    'fal-ai/kling-video/v1.6/pro/text-to-video',
   'fal-ai/kling-video/v1.6/standard/effects':
     'fal-ai/kling-video/v1.6/standard/effects',
+  'fal-ai/kling-video/v1.6/standard/elements':
+    'fal-ai/kling-video/v1.6/standard/elements',
+  'fal-ai/kling-video/v1.6/standard/image-to-video':
+    'fal-ai/kling-video/v1.6/standard/image-to-video',
+  'fal-ai/kling-video/v1.6/standard/text-to-video':
+    'fal-ai/kling-video/v1.6/standard/text-to-video',
   'fal-ai/kling-video/v1/pro/ai-avatar': 'fal-ai/kling-video/v1/pro/ai-avatar',
   'fal-ai/kling-video/v1/standard/ai-avatar':
     'fal-ai/kling-video/v1/standard/ai-avatar',
   'fal-ai/kling-video/v1/standard/effects':
     'fal-ai/kling-video/v1/standard/effects',
+  'fal-ai/kling-video/v1/standard/image-to-video':
+    'fal-ai/kling-video/v1/standard/image-to-video',
+  'fal-ai/kling-video/v1/standard/text-to-video':
+    'fal-ai/kling-video/v1/standard/text-to-video',
+  'fal-ai/kling-video/v2.1/master/image-to-video':
+    'fal-ai/kling-video/v2.1/master/image-to-video',
+  'fal-ai/kling-video/v2.1/master/text-to-video':
+    'fal-ai/kling-video/v2.1/master/text-to-video',
+  'fal-ai/kling-video/v2.1/pro/image-to-video':
+    'fal-ai/kling-video/v2.1/pro/image-to-video',
+  'fal-ai/kling-video/v2.1/standard/image-to-video':
+    'fal-ai/kling-video/v2.1/standard/image-to-video',
   'fal-ai/kling-video/v2.5-turbo/pro/image-to-video':
     'fal-ai/kling-video/v2.5-turbo/pro/image-to-video',
   'fal-ai/kling-video/v2.5-turbo/pro/text-to-video':
@@ -83179,6 +105439,10 @@ export const falGetEndpointIdRequestsRequestIdEndpointId = {
     'fal-ai/kling-video/v2.6/pro/text-to-video',
   'fal-ai/kling-video/v2.6/standard/motion-control':
     'fal-ai/kling-video/v2.6/standard/motion-control',
+  'fal-ai/kling-video/v2/master/image-to-video':
+    'fal-ai/kling-video/v2/master/image-to-video',
+  'fal-ai/kling-video/v2/master/text-to-video':
+    'fal-ai/kling-video/v2/master/text-to-video',
   'fal-ai/kling-video/v3/4k/image-to-video':
     'fal-ai/kling-video/v3/4k/image-to-video',
   'fal-ai/kling-video/v3/4k/text-to-video':
@@ -83229,6 +105493,39 @@ export const falGetEndpointIdRequestsRequestIdEndpointId = {
     'fal-ai/longcat-video/text-to-video/480p',
   'fal-ai/longcat-video/text-to-video/720p':
     'fal-ai/longcat-video/text-to-video/720p',
+  'fal-ai/ltx-2-19b/audio-to-video': 'fal-ai/ltx-2-19b/audio-to-video',
+  'fal-ai/ltx-2-19b/audio-to-video/lora':
+    'fal-ai/ltx-2-19b/audio-to-video/lora',
+  'fal-ai/ltx-2-19b/distilled/audio-to-video':
+    'fal-ai/ltx-2-19b/distilled/audio-to-video',
+  'fal-ai/ltx-2-19b/distilled/audio-to-video/lora':
+    'fal-ai/ltx-2-19b/distilled/audio-to-video/lora',
+  'fal-ai/ltx-2-19b/distilled/extend-video':
+    'fal-ai/ltx-2-19b/distilled/extend-video',
+  'fal-ai/ltx-2-19b/distilled/extend-video/lora':
+    'fal-ai/ltx-2-19b/distilled/extend-video/lora',
+  'fal-ai/ltx-2-19b/distilled/image-to-video':
+    'fal-ai/ltx-2-19b/distilled/image-to-video',
+  'fal-ai/ltx-2-19b/distilled/image-to-video/lora':
+    'fal-ai/ltx-2-19b/distilled/image-to-video/lora',
+  'fal-ai/ltx-2-19b/distilled/text-to-video':
+    'fal-ai/ltx-2-19b/distilled/text-to-video',
+  'fal-ai/ltx-2-19b/distilled/text-to-video/lora':
+    'fal-ai/ltx-2-19b/distilled/text-to-video/lora',
+  'fal-ai/ltx-2-19b/distilled/video-to-video':
+    'fal-ai/ltx-2-19b/distilled/video-to-video',
+  'fal-ai/ltx-2-19b/distilled/video-to-video/lora':
+    'fal-ai/ltx-2-19b/distilled/video-to-video/lora',
+  'fal-ai/ltx-2-19b/extend-video': 'fal-ai/ltx-2-19b/extend-video',
+  'fal-ai/ltx-2-19b/extend-video/lora': 'fal-ai/ltx-2-19b/extend-video/lora',
+  'fal-ai/ltx-2-19b/image-to-video': 'fal-ai/ltx-2-19b/image-to-video',
+  'fal-ai/ltx-2-19b/image-to-video/lora':
+    'fal-ai/ltx-2-19b/image-to-video/lora',
+  'fal-ai/ltx-2-19b/text-to-video': 'fal-ai/ltx-2-19b/text-to-video',
+  'fal-ai/ltx-2-19b/text-to-video/lora': 'fal-ai/ltx-2-19b/text-to-video/lora',
+  'fal-ai/ltx-2-19b/video-to-video': 'fal-ai/ltx-2-19b/video-to-video',
+  'fal-ai/ltx-2-19b/video-to-video/lora':
+    'fal-ai/ltx-2-19b/video-to-video/lora',
   'fal-ai/ltx-2.3-22b/audio-to-video': 'fal-ai/ltx-2.3-22b/audio-to-video',
   'fal-ai/ltx-2.3-22b/audio-to-video/lora':
     'fal-ai/ltx-2.3-22b/audio-to-video/lora',
@@ -83316,6 +105613,13 @@ export const falGetEndpointIdRequestsRequestIdEndpointId = {
   'fal-ai/ltx-2.3/retake-video': 'fal-ai/ltx-2.3/retake-video',
   'fal-ai/ltx-2.3/text-to-video': 'fal-ai/ltx-2.3/text-to-video',
   'fal-ai/ltx-2.3/text-to-video/fast': 'fal-ai/ltx-2.3/text-to-video/fast',
+  'fal-ai/ltx-2/audio-to-video': 'fal-ai/ltx-2/audio-to-video',
+  'fal-ai/ltx-2/extend-video': 'fal-ai/ltx-2/extend-video',
+  'fal-ai/ltx-2/image-to-video': 'fal-ai/ltx-2/image-to-video',
+  'fal-ai/ltx-2/image-to-video/fast': 'fal-ai/ltx-2/image-to-video/fast',
+  'fal-ai/ltx-2/retake-video': 'fal-ai/ltx-2/retake-video',
+  'fal-ai/ltx-2/text-to-video': 'fal-ai/ltx-2/text-to-video',
+  'fal-ai/ltx-2/text-to-video/fast': 'fal-ai/ltx-2/text-to-video/fast',
   'fal-ai/ltx-video': 'fal-ai/ltx-video',
   'fal-ai/ltx-video-13b-distilled': 'fal-ai/ltx-video-13b-distilled',
   'fal-ai/ltx-video-13b-distilled/extend':
@@ -83324,6 +105628,10 @@ export const falGetEndpointIdRequestsRequestIdEndpointId = {
     'fal-ai/ltx-video-13b-distilled/image-to-video',
   'fal-ai/ltx-video-13b-distilled/multiconditioning':
     'fal-ai/ltx-video-13b-distilled/multiconditioning',
+  'fal-ai/ltx-video-v095': 'fal-ai/ltx-video-v095',
+  'fal-ai/ltx-video-v095/extend': 'fal-ai/ltx-video-v095/extend',
+  'fal-ai/ltx-video-v095/multiconditioning':
+    'fal-ai/ltx-video-v095/multiconditioning',
   'fal-ai/ltx-video/image-to-video': 'fal-ai/ltx-video/image-to-video',
   'fal-ai/ltxv-13b-098-distilled': 'fal-ai/ltxv-13b-098-distilled',
   'fal-ai/ltxv-13b-098-distilled/extend':
@@ -83332,6 +105640,21 @@ export const falGetEndpointIdRequestsRequestIdEndpointId = {
     'fal-ai/ltxv-13b-098-distilled/image-to-video',
   'fal-ai/ltxv-13b-098-distilled/multiconditioning':
     'fal-ai/ltxv-13b-098-distilled/multiconditioning',
+  'fal-ai/luma-dream-machine/ray-2': 'fal-ai/luma-dream-machine/ray-2',
+  'fal-ai/luma-dream-machine/ray-2-flash':
+    'fal-ai/luma-dream-machine/ray-2-flash',
+  'fal-ai/luma-dream-machine/ray-2-flash/image-to-video':
+    'fal-ai/luma-dream-machine/ray-2-flash/image-to-video',
+  'fal-ai/luma-dream-machine/ray-2-flash/modify':
+    'fal-ai/luma-dream-machine/ray-2-flash/modify',
+  'fal-ai/luma-dream-machine/ray-2-flash/reframe':
+    'fal-ai/luma-dream-machine/ray-2-flash/reframe',
+  'fal-ai/luma-dream-machine/ray-2/image-to-video':
+    'fal-ai/luma-dream-machine/ray-2/image-to-video',
+  'fal-ai/luma-dream-machine/ray-2/modify':
+    'fal-ai/luma-dream-machine/ray-2/modify',
+  'fal-ai/luma-dream-machine/ray-2/reframe':
+    'fal-ai/luma-dream-machine/ray-2/reframe',
   'fal-ai/magi-distilled': 'fal-ai/magi-distilled',
   'fal-ai/magi-distilled/extend-video': 'fal-ai/magi-distilled/extend-video',
   'fal-ai/magi-distilled/image-to-video':
@@ -83372,10 +105695,21 @@ export const falGetEndpointIdRequestsRequestIdEndpointId = {
   'fal-ai/mmaudio-v2': 'fal-ai/mmaudio-v2',
   'fal-ai/motion-to-code/glsl': 'fal-ai/motion-to-code/glsl',
   'fal-ai/motion-to-code/gsap': 'fal-ai/motion-to-code/gsap',
+  'fal-ai/musetalk': 'fal-ai/musetalk',
   'fal-ai/one-to-all-animation/1.3b': 'fal-ai/one-to-all-animation/1.3b',
   'fal-ai/one-to-all-animation/14b': 'fal-ai/one-to-all-animation/14b',
   'fal-ai/ovi': 'fal-ai/ovi',
   'fal-ai/ovi/image-to-video': 'fal-ai/ovi/image-to-video',
+  'fal-ai/pika/v1.5/pikaffects': 'fal-ai/pika/v1.5/pikaffects',
+  'fal-ai/pika/v2.1/image-to-video': 'fal-ai/pika/v2.1/image-to-video',
+  'fal-ai/pika/v2.1/text-to-video': 'fal-ai/pika/v2.1/text-to-video',
+  'fal-ai/pika/v2.2/image-to-video': 'fal-ai/pika/v2.2/image-to-video',
+  'fal-ai/pika/v2.2/pikaframes': 'fal-ai/pika/v2.2/pikaframes',
+  'fal-ai/pika/v2.2/pikascenes': 'fal-ai/pika/v2.2/pikascenes',
+  'fal-ai/pika/v2.2/text-to-video': 'fal-ai/pika/v2.2/text-to-video',
+  'fal-ai/pika/v2/pikadditions': 'fal-ai/pika/v2/pikadditions',
+  'fal-ai/pika/v2/turbo/image-to-video': 'fal-ai/pika/v2/turbo/image-to-video',
+  'fal-ai/pika/v2/turbo/text-to-video': 'fal-ai/pika/v2/turbo/text-to-video',
   'fal-ai/pixverse/c1/image-to-video': 'fal-ai/pixverse/c1/image-to-video',
   'fal-ai/pixverse/c1/reference-to-video':
     'fal-ai/pixverse/c1/reference-to-video',
@@ -83434,6 +105768,13 @@ export const falGetEndpointIdRequestsRequestIdEndpointId = {
   'fal-ai/sam2/video': 'fal-ai/sam2/video',
   'fal-ai/scail-2': 'fal-ai/scail-2',
   'fal-ai/seedvr/upscale/video': 'fal-ai/seedvr/upscale/video',
+  'fal-ai/sora-2/characters': 'fal-ai/sora-2/characters',
+  'fal-ai/sora-2/image-to-video': 'fal-ai/sora-2/image-to-video',
+  'fal-ai/sora-2/image-to-video/pro': 'fal-ai/sora-2/image-to-video/pro',
+  'fal-ai/sora-2/text-to-video': 'fal-ai/sora-2/text-to-video',
+  'fal-ai/sora-2/text-to-video/pro': 'fal-ai/sora-2/text-to-video/pro',
+  'fal-ai/sora-2/video-to-video/remix': 'fal-ai/sora-2/video-to-video/remix',
+  'fal-ai/stable-video': 'fal-ai/stable-video',
   'fal-ai/sync-lipsync': 'fal-ai/sync-lipsync',
   'fal-ai/sync-lipsync/react-1': 'fal-ai/sync-lipsync/react-1',
   'fal-ai/sync-lipsync/v2': 'fal-ai/sync-lipsync/v2',
@@ -83441,8 +105782,33 @@ export const falGetEndpointIdRequestsRequestIdEndpointId = {
   'fal-ai/sync-lipsync/v3': 'fal-ai/sync-lipsync/v3',
   'fal-ai/sync-lipsync/v3/image-to-video':
     'fal-ai/sync-lipsync/v3/image-to-video',
+  'fal-ai/t2v-turbo': 'fal-ai/t2v-turbo',
   'fal-ai/thinksound': 'fal-ai/thinksound',
   'fal-ai/thinksound/audio': 'fal-ai/thinksound/audio',
+  'fal-ai/topaz/upscale/video': 'fal-ai/topaz/upscale/video',
+  'fal-ai/veo2': 'fal-ai/veo2',
+  'fal-ai/veo2/image-to-video': 'fal-ai/veo2/image-to-video',
+  'fal-ai/veo3': 'fal-ai/veo3',
+  'fal-ai/veo3.1': 'fal-ai/veo3.1',
+  'fal-ai/veo3.1/extend-video': 'fal-ai/veo3.1/extend-video',
+  'fal-ai/veo3.1/fast': 'fal-ai/veo3.1/fast',
+  'fal-ai/veo3.1/fast/extend-video': 'fal-ai/veo3.1/fast/extend-video',
+  'fal-ai/veo3.1/fast/first-last-frame-to-video':
+    'fal-ai/veo3.1/fast/first-last-frame-to-video',
+  'fal-ai/veo3.1/fast/image-to-video': 'fal-ai/veo3.1/fast/image-to-video',
+  'fal-ai/veo3.1/fast/reference-to-video':
+    'fal-ai/veo3.1/fast/reference-to-video',
+  'fal-ai/veo3.1/first-last-frame-to-video':
+    'fal-ai/veo3.1/first-last-frame-to-video',
+  'fal-ai/veo3.1/image-to-video': 'fal-ai/veo3.1/image-to-video',
+  'fal-ai/veo3.1/lite': 'fal-ai/veo3.1/lite',
+  'fal-ai/veo3.1/lite/first-last-frame-to-video':
+    'fal-ai/veo3.1/lite/first-last-frame-to-video',
+  'fal-ai/veo3.1/lite/image-to-video': 'fal-ai/veo3.1/lite/image-to-video',
+  'fal-ai/veo3.1/reference-to-video': 'fal-ai/veo3.1/reference-to-video',
+  'fal-ai/veo3/fast': 'fal-ai/veo3/fast',
+  'fal-ai/veo3/fast/image-to-video': 'fal-ai/veo3/fast/image-to-video',
+  'fal-ai/veo3/image-to-video': 'fal-ai/veo3/image-to-video',
   'fal-ai/video-upscaler': 'fal-ai/video-upscaler',
   'fal-ai/vidu/image-to-video': 'fal-ai/vidu/image-to-video',
   'fal-ai/vidu/q1/image-to-video': 'fal-ai/vidu/q1/image-to-video',
@@ -83476,10 +105842,14 @@ export const falGetEndpointIdRequestsRequestIdEndpointId = {
   'fal-ai/wan-25-preview/image-to-video':
     'fal-ai/wan-25-preview/image-to-video',
   'fal-ai/wan-25-preview/text-to-video': 'fal-ai/wan-25-preview/text-to-video',
+  'fal-ai/wan-effects': 'fal-ai/wan-effects',
+  'fal-ai/wan-flf2v': 'fal-ai/wan-flf2v',
   'fal-ai/wan-i2v': 'fal-ai/wan-i2v',
   'fal-ai/wan-i2v-lora': 'fal-ai/wan-i2v-lora',
+  'fal-ai/wan-motion': 'fal-ai/wan-motion',
   'fal-ai/wan-pro/image-to-video': 'fal-ai/wan-pro/image-to-video',
   'fal-ai/wan-pro/text-to-video': 'fal-ai/wan-pro/text-to-video',
+  'fal-ai/wan-t2v': 'fal-ai/wan-t2v',
   'fal-ai/wan-t2v-lora': 'fal-ai/wan-t2v-lora',
   'fal-ai/wan-vace-14b': 'fal-ai/wan-vace-14b',
   'fal-ai/wan-vace-14b/depth': 'fal-ai/wan-vace-14b/depth',
@@ -83559,18 +105929,22 @@ export const falGetEndpointIdRequestsRequestIdEndpointId = {
   'kling/v4/reference-to-video': 'kling/v4/reference-to-video',
   'kling/v4/text-to-video': 'kling/v4/text-to-video',
   'kling/v4/video-to-video/edit': 'kling/v4/video-to-video/edit',
+  'lightricks/ltx-2.5/alpha-gen': 'lightricks/ltx-2.5/alpha-gen',
   'lightricks/ltx-2.5/audio-to-video/fast':
     'lightricks/ltx-2.5/audio-to-video/fast',
   'lightricks/ltx-2.5/audio-to-video/pro':
     'lightricks/ltx-2.5/audio-to-video/pro',
+  'lightricks/ltx-2.5/hdr': 'lightricks/ltx-2.5/hdr',
   'lightricks/ltx-2.5/image-to-video/fast':
     'lightricks/ltx-2.5/image-to-video/fast',
   'lightricks/ltx-2.5/image-to-video/pro':
     'lightricks/ltx-2.5/image-to-video/pro',
+  'lightricks/ltx-2.5/reframe': 'lightricks/ltx-2.5/reframe',
   'lightricks/ltx-2.5/text-to-video/fast':
     'lightricks/ltx-2.5/text-to-video/fast',
   'lightricks/ltx-2.5/text-to-video/pro':
     'lightricks/ltx-2.5/text-to-video/pro',
+  'lightricks/ltx-2.5/upscale': 'lightricks/ltx-2.5/upscale',
   'luma/agent/ray/v3.2/image-to-video': 'luma/agent/ray/v3.2/image-to-video',
   'luma/agent/ray/v3.2/reframe': 'luma/agent/ray/v3.2/reframe',
   'luma/agent/ray/v3.2/text-to-video': 'luma/agent/ray/v3.2/text-to-video',
@@ -83587,6 +105961,8 @@ export const falGetEndpointIdRequestsRequestIdEndpointId = {
   'minimax/h3-max/insert-video': 'minimax/h3-max/insert-video',
   'minimax/h3-max/lip-sync/image-to-video':
     'minimax/h3-max/lip-sync/image-to-video',
+  'minimax/h3-max/multi-angle/image-to-video':
+    'minimax/h3-max/multi-angle/image-to-video',
   'minimax/h3-max/recast': 'minimax/h3-max/recast',
   'minimax/h3-max/reference-to-video': 'minimax/h3-max/reference-to-video',
   'minimax/h3-max/reframe-video': 'minimax/h3-max/reframe-video',
@@ -83604,6 +105980,12 @@ export const falGetEndpointIdRequestsRequestIdEndpointId = {
   'minimax/h3/reference-to-video/lora': 'minimax/h3/reference-to-video/lora',
   'minimax/h3/text-to-video': 'minimax/h3/text-to-video',
   'minimax/h3/text-to-video/lora': 'minimax/h3/text-to-video/lora',
+  'mirage-api/avatar-x/reference-to-video':
+    'mirage-api/avatar-x/reference-to-video',
+  'mirage-api/avatar-x/text-to-video': 'mirage-api/avatar-x/text-to-video',
+  'mirelo-ai/sfx-v1.5/video-to-video': 'mirelo-ai/sfx-v1.5/video-to-video',
+  'mirelo-ai/sfx-v1/video-to-video': 'mirelo-ai/sfx-v1/video-to-video',
+  'mirelo-ai/sfx1.6/video-to-video': 'mirelo-ai/sfx1.6/video-to-video',
   'mirelo-ai/sfx2.0/video-to-video': 'mirelo-ai/sfx2.0/video-to-video',
   'moonvalley/marey/i2v': 'moonvalley/marey/i2v',
   'moonvalley/marey/motion-transfer': 'moonvalley/marey/motion-transfer',
@@ -83612,13 +105994,16 @@ export const falGetEndpointIdRequestsRequestIdEndpointId = {
   'mureka/api/generate/lyrics-video': 'mureka/api/generate/lyrics-video',
   'nvidia/cosmos-3-super/image-to-video':
     'nvidia/cosmos-3-super/image-to-video',
+  'openimaginglab/flashvsr-plus': 'openimaginglab/flashvsr-plus',
   'pixelcut/looping-video': 'pixelcut/looping-video',
   'pixelcut/video-background-removal': 'pixelcut/video-background-removal',
   'pixverse/music-video/vibemv': 'pixverse/music-video/vibemv',
+  'sonilo/v1.1/video-to-video': 'sonilo/v1.1/video-to-video',
   'sonilo/v1.1/video-to-video-music': 'sonilo/v1.1/video-to-video-music',
   'sonilo/v1.1/video-to-video-sound-effects':
     'sonilo/v1.1/video-to-video-sound-effects',
   'tbc/mischief-1/image-to-video': 'tbc/mischief-1/image-to-video',
+  'topaz/colorize/video': 'topaz/colorize/video',
   'topaz/deblur/video': 'topaz/deblur/video',
   'topaz/denoise/video': 'topaz/denoise/video',
   'topaz/interpolate/video': 'topaz/interpolate/video',
@@ -83722,16 +106107,24 @@ export type FalGetEndpointIdRequestsRequestIdStatus200 =
   | OutputBriaVideoEraseMask
   | OutputBriaVideoErasePrompt
   | OutputBriaVideoIncreaseResolution
+  | OutputBytedanceLynx
   | OutputBytedanceOmnihumanV2
   | OutputBytedanceSeedance20FastImageToVideo
   | OutputBytedanceSeedance20FastReferenceToVideo
   | OutputBytedanceSeedance20FastTextToVideo
+  | OutputBytedanceSeedance20ImageToVideo
   | OutputBytedanceSeedance20MiniImageToVideo
   | OutputBytedanceSeedance20MiniReferenceToVideo
   | OutputBytedanceSeedance20MiniTextToVideo
+  | OutputBytedanceSeedance20ReferenceToVideo
+  | OutputBytedanceSeedance20TextToVideo
   | OutputBytedanceSeedance20UsImageToVideo
   | OutputBytedanceSeedance20UsReferenceToVideo
   | OutputBytedanceSeedance20UsTextToVideo
+  | OutputBytedanceSeedance25DraftComplete
+  | OutputBytedanceSeedance25ImageToVideo
+  | OutputBytedanceSeedance25ReferenceToVideo
+  | OutputBytedanceSeedance25TextToVideo
   | OutputBytedanceSeedance25UsDraftComplete
   | OutputBytedanceSeedance25UsImageToVideo
   | OutputBytedanceSeedance25UsReferenceToVideo
@@ -83740,13 +106133,20 @@ export type FalGetEndpointIdRequestsRequestIdStatus200 =
   | OutputClarityaiCrystalVideoUpscaler
   | OutputCreatifyBoreal
   | OutputDecartLucy25Realtime
+  | OutputDecartLucyEditPro
   | OutputDecartLucyRestyle
   | OutputDecartLucy2VtonRealtime
   | OutputFalAiAiAvatarMulti
   | OutputFalAiAiAvatarMultiText
   | OutputFalAiAiAvatarSingleText
+  | OutputFalAiAmtInterpolation
+  | OutputFalAiAmtInterpolationFrameInterpolation
   | OutputFalAiAutoCaption
   | OutputFalAiBenV2Video
+  | OutputFalAiBerniniREditVideo
+  | OutputFalAiBerniniRReferenceEditVideo
+  | OutputFalAiBerniniRReferenceToVideo
+  | OutputFalAiBerniniRTextToVideo
   | OutputFalAiBirefnetV2Video
   | OutputFalAiBytedanceUpscalerUpscaleVideo
   | OutputFalAiBytedanceDreamactorV2
@@ -83758,18 +106158,36 @@ export type FalGetEndpointIdRequestsRequestIdStatus200 =
   | OutputFalAiBytedanceSeedanceV1ProFastTextToVideo
   | OutputFalAiBytedanceSeedanceV1ProImageToVideo
   | OutputFalAiBytedanceSeedanceV1ProTextToVideo
+  | OutputFalAiCogvideox5B
+  | OutputFalAiCogvideox5BImageToVideo
+  | OutputFalAiCogvideox5BVideoToVideo
+  | OutputFalAiControlfoley
+  | OutputFalAiCosmosPredict25DistilledTextToVideo
+  | OutputFalAiCosmosPredict25ImageToVideo
+  | OutputFalAiCosmosPredict25TextToVideo
+  | OutputFalAiCosmosPredict25VideoToVideo
   | OutputFalAiCreatifyAurora
   | OutputFalAiDavinciMagihuman
   | OutputFalAiDepthAnythingVideo
   | OutputFalAiDwposeVideo
   | OutputFalAiEchomimicV3
+  | OutputFalAiEditto
   | OutputFalAiElevenlabsDubbing
+  | OutputFalAiFastAnimatediffTextToVideo
+  | OutputFalAiFastAnimatediffTurboTextToVideo
+  | OutputFalAiFastAnimatediffTurboVideoToVideo
+  | OutputFalAiFastAnimatediffVideoToVideo
+  | OutputFalAiFastSvdLcm
+  | OutputFalAiFastSvdLcmTextToVideo
+  | OutputFalAiFastSvdTextToVideo
   | OutputFalAiFfmpegApiCompose
   | OutputFalAiFfmpegApiImagesToVideo
   | OutputFalAiFfmpegApiMergeAudioVideo
   | OutputFalAiFfmpegApiMergeVideos
   | OutputFalAiFilmVideo
   | OutputFalAiFlashhead
+  | OutputFalAiFlashtalk
+  | OutputFalAiFlashvsrUpscaleVideo
   | OutputFalAiFlux3ActionSo101
   | OutputFalAiFramepack
   | OutputFalAiFramepackF1
@@ -83788,11 +106206,15 @@ export type FalGetEndpointIdRequestsRequestIdStatus200 =
   | OutputFalAiHunyuanVideo
   | OutputFalAiHunyuanVideoFoley
   | OutputFalAiHunyuanVideoImageToVideo
+  | OutputFalAiHunyuanVideoImg2VidLora
   | OutputFalAiHunyuanVideoV15ImageToVideo
   | OutputFalAiHunyuanVideoV15TextToVideo
   | OutputFalAiHunyuanVideoVideoToVideo
   | OutputFalAiIdV2V
   | OutputFalAiIdV2VRelight
+  | OutputFalAiInfinitalk
+  | OutputFalAiInfinitalkSingleText
+  | OutputFalAiInfinitalkVideoToVideo
   | OutputFalAiInfinityStarTextToVideo
   | OutputFalAiKandinsky5ProImageToVideo
   | OutputFalAiKandinsky5ProTextToVideo
@@ -83832,11 +106254,25 @@ export type FalGetEndpointIdRequestsRequestIdStatus200 =
   | OutputFalAiKlingVideoO3StandardVideoToVideoEdit
   | OutputFalAiKlingVideoO3StandardVideoToVideoReference
   | OutputFalAiKlingVideoV15ProEffects
+  | OutputFalAiKlingVideoV15ProImageToVideo
+  | OutputFalAiKlingVideoV15ProTextToVideo
   | OutputFalAiKlingVideoV16ProEffects
+  | OutputFalAiKlingVideoV16ProElements
+  | OutputFalAiKlingVideoV16ProImageToVideo
+  | OutputFalAiKlingVideoV16ProTextToVideo
   | OutputFalAiKlingVideoV16StandardEffects
+  | OutputFalAiKlingVideoV16StandardElements
+  | OutputFalAiKlingVideoV16StandardImageToVideo
+  | OutputFalAiKlingVideoV16StandardTextToVideo
   | OutputFalAiKlingVideoV1ProAiAvatar
   | OutputFalAiKlingVideoV1StandardAiAvatar
   | OutputFalAiKlingVideoV1StandardEffects
+  | OutputFalAiKlingVideoV1StandardImageToVideo
+  | OutputFalAiKlingVideoV1StandardTextToVideo
+  | OutputFalAiKlingVideoV21MasterImageToVideo
+  | OutputFalAiKlingVideoV21MasterTextToVideo
+  | OutputFalAiKlingVideoV21ProImageToVideo
+  | OutputFalAiKlingVideoV21StandardImageToVideo
   | OutputFalAiKlingVideoV25TurboProImageToVideo
   | OutputFalAiKlingVideoV25TurboProTextToVideo
   | OutputFalAiKlingVideoV25TurboStandardImageToVideo
@@ -83844,6 +106280,8 @@ export type FalGetEndpointIdRequestsRequestIdStatus200 =
   | OutputFalAiKlingVideoV26ProMotionControl
   | OutputFalAiKlingVideoV26ProTextToVideo
   | OutputFalAiKlingVideoV26StandardMotionControl
+  | OutputFalAiKlingVideoV2MasterImageToVideo
+  | OutputFalAiKlingVideoV2MasterTextToVideo
   | OutputFalAiKlingVideoV34KImageToVideo
   | OutputFalAiKlingVideoV34KTextToVideo
   | OutputFalAiKlingVideoV3ProImageToVideo
@@ -83872,6 +106310,26 @@ export type FalGetEndpointIdRequestsRequestIdStatus200 =
   | OutputFalAiLongcatVideoImageToVideo720P
   | OutputFalAiLongcatVideoTextToVideo480P
   | OutputFalAiLongcatVideoTextToVideo720P
+  | OutputFalAiLtx219BAudioToVideo
+  | OutputFalAiLtx219BAudioToVideoLora
+  | OutputFalAiLtx219BDistilledAudioToVideo
+  | OutputFalAiLtx219BDistilledAudioToVideoLora
+  | OutputFalAiLtx219BDistilledExtendVideo
+  | OutputFalAiLtx219BDistilledExtendVideoLora
+  | OutputFalAiLtx219BDistilledImageToVideo
+  | OutputFalAiLtx219BDistilledImageToVideoLora
+  | OutputFalAiLtx219BDistilledTextToVideo
+  | OutputFalAiLtx219BDistilledTextToVideoLora
+  | OutputFalAiLtx219BDistilledVideoToVideo
+  | OutputFalAiLtx219BDistilledVideoToVideoLora
+  | OutputFalAiLtx219BExtendVideo
+  | OutputFalAiLtx219BExtendVideoLora
+  | OutputFalAiLtx219BImageToVideo
+  | OutputFalAiLtx219BImageToVideoLora
+  | OutputFalAiLtx219BTextToVideo
+  | OutputFalAiLtx219BTextToVideoLora
+  | OutputFalAiLtx219BVideoToVideo
+  | OutputFalAiLtx219BVideoToVideoLora
   | OutputFalAiLtx2322BAudioToVideo
   | OutputFalAiLtx2322BAudioToVideoLora
   | OutputFalAiLtx2322BDistilledAudioToVideo
@@ -83928,16 +106386,34 @@ export type FalGetEndpointIdRequestsRequestIdStatus200 =
   | OutputFalAiLtx23RetakeVideo
   | OutputFalAiLtx23TextToVideo
   | OutputFalAiLtx23TextToVideoFast
+  | OutputFalAiLtx2AudioToVideo
+  | OutputFalAiLtx2ExtendVideo
+  | OutputFalAiLtx2ImageToVideo
+  | OutputFalAiLtx2ImageToVideoFast
+  | OutputFalAiLtx2RetakeVideo
+  | OutputFalAiLtx2TextToVideo
+  | OutputFalAiLtx2TextToVideoFast
   | OutputFalAiLtxVideo
   | OutputFalAiLtxVideo13BDistilled
   | OutputFalAiLtxVideo13BDistilledExtend
   | OutputFalAiLtxVideo13BDistilledImageToVideo
   | OutputFalAiLtxVideo13BDistilledMulticonditioning
+  | OutputFalAiLtxVideoV095
+  | OutputFalAiLtxVideoV095Extend
+  | OutputFalAiLtxVideoV095Multiconditioning
   | OutputFalAiLtxVideoImageToVideo
   | OutputFalAiLtxv13B098Distilled
   | OutputFalAiLtxv13B098DistilledExtend
   | OutputFalAiLtxv13B098DistilledImageToVideo
   | OutputFalAiLtxv13B098DistilledMulticonditioning
+  | OutputFalAiLumaDreamMachineRay2
+  | OutputFalAiLumaDreamMachineRay2Flash
+  | OutputFalAiLumaDreamMachineRay2FlashImageToVideo
+  | OutputFalAiLumaDreamMachineRay2FlashModify
+  | OutputFalAiLumaDreamMachineRay2FlashReframe
+  | OutputFalAiLumaDreamMachineRay2ImageToVideo
+  | OutputFalAiLumaDreamMachineRay2Modify
+  | OutputFalAiLumaDreamMachineRay2Reframe
   | OutputFalAiMagiDistilled
   | OutputFalAiMagiDistilledExtendVideo
   | OutputFalAiMagiDistilledImageToVideo
@@ -83962,10 +106438,21 @@ export type FalGetEndpointIdRequestsRequestIdStatus200 =
   | OutputFalAiMmaudioV2
   | OutputFalAiMotionToCodeGlsl
   | OutputFalAiMotionToCodeGsap
+  | OutputFalAiMusetalk
   | OutputFalAiOneToAllAnimation13B
   | OutputFalAiOneToAllAnimation14B
   | OutputFalAiOvi
   | OutputFalAiOviImageToVideo
+  | OutputFalAiPikaV15Pikaffects
+  | OutputFalAiPikaV21ImageToVideo
+  | OutputFalAiPikaV21TextToVideo
+  | OutputFalAiPikaV22ImageToVideo
+  | OutputFalAiPikaV22Pikaframes
+  | OutputFalAiPikaV22Pikascenes
+  | OutputFalAiPikaV22TextToVideo
+  | OutputFalAiPikaV2Pikadditions
+  | OutputFalAiPikaV2TurboImageToVideo
+  | OutputFalAiPikaV2TurboTextToVideo
   | OutputFalAiPixverseC1ImageToVideo
   | OutputFalAiPixverseC1ReferenceToVideo
   | OutputFalAiPixverseC1TextToVideo
@@ -84017,14 +106504,42 @@ export type FalGetEndpointIdRequestsRequestIdStatus200 =
   | OutputFalAiSam2Video
   | OutputFalAiScail2
   | OutputFalAiSeedvrUpscaleVideo
+  | OutputFalAiSora2Characters
+  | OutputFalAiSora2ImageToVideo
+  | OutputFalAiSora2ImageToVideoPro
+  | OutputFalAiSora2TextToVideo
+  | OutputFalAiSora2TextToVideoPro
+  | OutputFalAiSora2VideoToVideoRemix
+  | OutputFalAiStableVideo
   | OutputFalAiSyncLipsync
   | OutputFalAiSyncLipsyncReact1
   | OutputFalAiSyncLipsyncV2
   | OutputFalAiSyncLipsyncV2Pro
   | OutputFalAiSyncLipsyncV3
   | OutputFalAiSyncLipsyncV3ImageToVideo
+  | OutputFalAiT2VTurbo
   | OutputFalAiThinksound
   | OutputFalAiThinksoundAudio
+  | OutputFalAiTopazUpscaleVideo
+  | OutputFalAiVeo2
+  | OutputFalAiVeo2ImageToVideo
+  | OutputFalAiVeo3
+  | OutputFalAiVeo31
+  | OutputFalAiVeo31ExtendVideo
+  | OutputFalAiVeo31Fast
+  | OutputFalAiVeo31FastExtendVideo
+  | OutputFalAiVeo31FastFirstLastFrameToVideo
+  | OutputFalAiVeo31FastImageToVideo
+  | OutputFalAiVeo31FastReferenceToVideo
+  | OutputFalAiVeo31FirstLastFrameToVideo
+  | OutputFalAiVeo31ImageToVideo
+  | OutputFalAiVeo31Lite
+  | OutputFalAiVeo31LiteFirstLastFrameToVideo
+  | OutputFalAiVeo31LiteImageToVideo
+  | OutputFalAiVeo31ReferenceToVideo
+  | OutputFalAiVeo3Fast
+  | OutputFalAiVeo3FastImageToVideo
+  | OutputFalAiVeo3ImageToVideo
   | OutputFalAiVideoUpscaler
   | OutputFalAiViduImageToVideo
   | OutputFalAiViduQ1ImageToVideo
@@ -84053,10 +106568,14 @@ export type FalGetEndpointIdRequestsRequestIdStatus200 =
   | OutputFalAiWan22VaceFunA14BReframe
   | OutputFalAiWan25PreviewImageToVideo
   | OutputFalAiWan25PreviewTextToVideo
+  | OutputFalAiWanEffects
+  | OutputFalAiWanFlf2V
   | OutputFalAiWanI2V
   | OutputFalAiWanI2VLora
+  | OutputFalAiWanMotion
   | OutputFalAiWanProImageToVideo
   | OutputFalAiWanProTextToVideo
+  | OutputFalAiWanT2V
   | OutputFalAiWanT2VLora
   | OutputFalAiWanVace14B
   | OutputFalAiWanVace14BDepth
@@ -84114,12 +106633,16 @@ export type FalGetEndpointIdRequestsRequestIdStatus200 =
   | OutputKlingV4ReferenceToVideo
   | OutputKlingV4TextToVideo
   | OutputKlingV4VideoToVideoEdit
+  | OutputLightricksLtx25AlphaGen
   | OutputLightricksLtx25AudioToVideoFast
   | OutputLightricksLtx25AudioToVideoPro
+  | OutputLightricksLtx25Hdr
   | OutputLightricksLtx25ImageToVideoFast
   | OutputLightricksLtx25ImageToVideoPro
+  | OutputLightricksLtx25Reframe
   | OutputLightricksLtx25TextToVideoFast
   | OutputLightricksLtx25TextToVideoPro
+  | OutputLightricksLtx25Upscale
   | OutputLumaAgentRayV32ImageToVideo
   | OutputLumaAgentRayV32Reframe
   | OutputLumaAgentRayV32TextToVideo
@@ -84134,6 +106657,7 @@ export type FalGetEndpointIdRequestsRequestIdStatus200 =
   | OutputMinimaxH3MaxImageToVideo
   | OutputMinimaxH3MaxInsertVideo
   | OutputMinimaxH3MaxLipSyncImageToVideo
+  | OutputMinimaxH3MaxMultiAngleImageToVideo
   | OutputMinimaxH3MaxRecast
   | OutputMinimaxH3MaxReferenceToVideo
   | OutputMinimaxH3MaxReframeVideo
@@ -84150,6 +106674,11 @@ export type FalGetEndpointIdRequestsRequestIdStatus200 =
   | OutputMinimaxH3ReferenceToVideoLora
   | OutputMinimaxH3TextToVideo
   | OutputMinimaxH3TextToVideoLora
+  | OutputMirageApiAvatarXReferenceToVideo
+  | OutputMirageApiAvatarXTextToVideo
+  | OutputMireloAiSfxV15VideoToVideo
+  | OutputMireloAiSfxV1VideoToVideo
+  | OutputMireloAiSfx16VideoToVideo
   | OutputMireloAiSfx20VideoToVideo
   | OutputMoonvalleyMareyI2V
   | OutputMoonvalleyMareyMotionTransfer
@@ -84157,12 +106686,15 @@ export type FalGetEndpointIdRequestsRequestIdStatus200 =
   | OutputMoonvalleyMareyT2V
   | OutputMurekaApiGenerateLyricsVideo
   | OutputNvidiaCosmos3SuperImageToVideo
+  | OutputOpenimaginglabFlashvsrPlus
   | OutputPixelcutLoopingVideo
   | OutputPixelcutVideoBackgroundRemoval
   | OutputPixverseMusicVideoVibemv
+  | OutputSoniloV11VideoToVideo
   | OutputSoniloV11VideoToVideoMusic
   | OutputSoniloV11VideoToVideoSoundEffects
   | OutputTbcMischief1ImageToVideo
+  | OutputTopazColorizeVideo
   | OutputTopazDeblurVideo
   | OutputTopazDenoiseVideo
   | OutputTopazInterpolateVideo

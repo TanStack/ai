@@ -8178,6 +8178,121 @@ export type OutputClarityaiCrystalUpscaler = {
   images: Image45B39Fdb[]
 }
 
+export type InputFalAiAuraFlow = {
+  /**
+   * @description If set to true, the safety checker will be enabled. Disabling it requires account authorization; unauthorized requests are always checked, and images flagged as unsafe are returned as black images.
+   * @default true
+   * @type boolean | undefined
+   */
+  enable_safety_checker?: boolean
+  /**
+   * @description Classifier free guidance scale
+   * @minimum 0
+   * @maximum 20
+   * @default 3.5
+   * @type number | undefined
+   */
+  guidance_scale?: number
+  /**
+   * @description Whether to perform prompt expansion (recommended)
+   * @default true
+   * @type boolean | undefined
+   */
+  expand_prompt?: boolean
+  /**
+   * @description The seed to use for generating images
+   */
+  seed?: number | null
+  /**
+   * @description The number of images to generate
+   * @minimum 1
+   * @maximum 2
+   * @default 1
+   * @type integer | undefined
+   */
+  num_images?: number
+  /**
+   * @description The number of inference steps to take
+   * @minimum 20
+   * @maximum 50
+   * @default 50
+   * @type integer | undefined
+   */
+  num_inference_steps?: number
+  /**
+   * @description If `True`, the media will be returned as a data URI and the output data won't be available in the request history.
+   * @default false
+   * @type boolean | undefined
+   */
+  sync_mode?: boolean
+  /**
+   * @description The prompt to generate images from
+   * @example Close-up portrait of a majestic iguana with vibrant blue-green scales, piercing amber eyes, and orange spiky crest. Intricate textures and details visible on scaly skin. Wrapped in dark hood, giving regal appearance. Dramatic lighting against black background. Hyper-realistic, high-resolution image showcasing the reptile's expressive features and coloration.
+   * @type string
+   */
+  prompt: string
+}
+
+/**
+ * @description Represents an image file.
+ * @type object
+ */
+export type ImageA45102Cf = {
+  /**
+   * @description The width of the image in pixels.
+   * @example 1024
+   */
+  width?: number | null
+  /**
+   * @description The mime type of the file.
+   * @example image/png
+   */
+  content_type?: string | null
+  /**
+   * @description The name of the file. It will be auto-generated if not provided.
+   * @example z9RV14K95DvU.png
+   */
+  file_name?: string | null
+  /**
+   * @description The size of the file in bytes.
+   * @example 4404019
+   */
+  file_size?: number | null
+  /**
+   * @description The height of the image in pixels.
+   * @example 1024
+   */
+  height?: number | null
+  /**
+   * @description The URL where the file can be downloaded from.
+   * @type string
+   */
+  url: string
+}
+
+export type OutputFalAiAuraFlow = {
+  /**
+   * @description The seed used to generate the images
+   * @type integer
+   */
+  seed: number
+  /**
+   * @description The generated images
+   * @type array
+   */
+  images: ImageA45102Cf[]
+  /**
+   * @description Whether the generated images contain NSFW concepts.
+   * @type array
+   */
+  has_nsfw_concepts: boolean[]
+  /**
+   * @description The expanded prompt
+   * @type string
+   */
+  prompt: string
+}
+
 export const inputFalAiAuraSrCheckpointEnum = {
   v1: 'v1',
   v2: 'v2',
@@ -8531,6 +8646,111 @@ export type OutputFalAiBenV2Image = {
   seed: number
 }
 
+export type InputFalAiBerniniREditImage = {
+  /**
+   * @description Rewrite the prompt with an LLM before generation. The model is tuned on enhanced prompts; off by default.
+   * @default false
+   * @type boolean | undefined
+   */
+  enable_prompt_expansion?: boolean
+  /**
+   * @description Number of denoising steps.
+   * @minimum 1
+   * @maximum 50
+   * @default 30
+   * @type integer | undefined
+   */
+  num_inference_steps?: number
+  /**
+   * @description Source image to edit.
+   * @example https://storage.googleapis.com/falserverless/example_inputs/birefnet-input.jpeg
+   * @type string
+   */
+  image_url: string
+  /**
+   * @description Negative prompt. Defaults to the standard Wan2.2 negative prompt.
+   */
+  negative_prompt?: string | null
+  /**
+   * @description Authorized callers may set false to request relaxed screening.
+   * @default true
+   * @type boolean | undefined
+   */
+  enable_safety_checker?: boolean
+  /**
+   * @description Text prompt or editing instruction.
+   * @example A cute corgi leaping in a sunny park, Van Gogh oil-painting style.
+   * @type string
+   */
+  prompt: string
+  /**
+   * @description Long-edge size (px). Sets the output size for generation tasks and caps source/reference media for editing tasks.
+   * @minimum 256
+   * @maximum 1280
+   * @default 848
+   * @type integer | undefined
+   */
+  max_image_size?: number
+  /**
+   * @description Seed for reproducibility. Random when omitted.
+   */
+  seed?: number | null
+}
+
+/**
+ * @description Represents an image file.
+ * @type object
+ */
+export type Image387F3A5C = {
+  /**
+   * @description The URL where the file can be downloaded from.
+   * @type string
+   */
+  url: string
+  /**
+   * @description The name of the file. It will be auto-generated if not provided.
+   * @example z9RV14K95DvU.png
+   */
+  file_name?: string | null
+  /**
+   * @description The height of the image in pixels.
+   * @example 1024
+   */
+  height?: number | null
+  /**
+   * @description The mime type of the file.
+   * @example image/png
+   */
+  content_type?: string | null
+  /**
+   * @description The size of the file in bytes.
+   * @example 4404019
+   */
+  file_size?: number | null
+  /**
+   * @description The width of the image in pixels.
+   * @example 1024
+   */
+  width?: number | null
+}
+
+export type OutputFalAiBerniniREditImage = {
+  /**
+   * @description The final prompt after expansion (set only when prompt expansion ran).
+   */
+  actual_prompt?: string | null
+  /**
+   * @description Generated / edited image.
+   * @type object
+   */
+  image: Image387F3A5C
+  /**
+   * @description Seed used for generation.
+   * @type integer
+   */
+  seed: number
+}
+
 export const inputFalAiBirefnetOperatingResolutionEnum = {
   '1024x1024': '1024x1024',
   '2048x2048': '2048x2048',
@@ -8797,6 +9017,165 @@ export type OutputFalAiBirefnetV2 = {
    * @type object
    */
   image: ImageFile6B9Fd502
+}
+
+export type ImageSize008B016A = {
+  /**
+   * @description The height of the generated image.
+   * @maximum 14142
+   * @default 512
+   * @type integer | undefined
+   */
+  height?: number
+  /**
+   * @description The width of the generated image.
+   * @maximum 14142
+   * @default 512
+   * @type integer | undefined
+   */
+  width?: number
+}
+
+export const inputFalAiBitdanceImageSize = {
+  square_hd: 'square_hd',
+  square: 'square',
+  portrait_4_3: 'portrait_4_3',
+  portrait_16_9: 'portrait_16_9',
+  landscape_4_3: 'landscape_4_3',
+  landscape_16_9: 'landscape_16_9',
+} as const
+
+export type InputFalAiBitdanceImageSizeKey =
+  (typeof inputFalAiBitdanceImageSize)[keyof typeof inputFalAiBitdanceImageSize]
+
+export const inputFalAiBitdanceOutputFormatEnum = {
+  jpeg: 'jpeg',
+  png: 'png',
+} as const
+
+export type InputFalAiBitdanceOutputFormatEnumKey =
+  (typeof inputFalAiBitdanceOutputFormatEnum)[keyof typeof inputFalAiBitdanceOutputFormatEnum]
+
+export type InputFalAiBitdance = {
+  /**
+   * @description If true, the media will be returned as a data URI.
+   * @default false
+   * @type boolean | undefined
+   */
+  sync_mode?: boolean
+  /**
+   * @description If set to true, the safety checker will be enabled. Disabling it requires account authorization; unauthorized requests are always checked, and images flagged as unsafe are returned as black images.
+   * @default true
+   * @type boolean | undefined
+   */
+  enable_safety_checker?: boolean
+  /**
+   * @description Random seed for reproducibility. The same seed and prompt will produce the same image.
+   */
+  seed?: number | null
+  /**
+   * @description Number of diffusion sampling steps per decoding step. Higher values (e.g. 50) improve quality at the cost of speed.
+   * @minimum 10
+   * @maximum 100
+   * @default 25
+   * @type integer | undefined
+   */
+  num_inference_steps?: number
+  /**
+   * @description Text prompt for image generation.
+   * @example A close-up portrait of a cat wearing a tiny top hat, cinematic photography style
+   * @type string
+   */
+  prompt: string
+  /**
+   * @description The size of the generated image. Will be snapped to the nearest supported resolution.
+   * @default square_hd
+   */
+  image_size?: ImageSize008B016A | InputFalAiBitdanceImageSizeKey
+  /**
+   * @description Classifier-free guidance scale. Higher values follow the prompt more closely.
+   * @minimum 1
+   * @maximum 15
+   * @default 7.5
+   * @type number | undefined
+   */
+  guidance_scale?: number
+  /**
+   * @description The format of the generated image.
+   * @default 'jpeg'
+   * @type string | undefined
+   */
+  output_format?: InputFalAiBitdanceOutputFormatEnumKey
+  /**
+   * @description Number of images to generate.
+   * @minimum 1
+   * @maximum 4
+   * @default 1
+   * @type integer | undefined
+   */
+  num_images?: number
+}
+
+/**
+ * @description Represents an image file.
+ * @type object
+ */
+export type ImageE2D542Db = {
+  /**
+   * @description The height of the image in pixels.
+   * @example 1024
+   */
+  height?: number | null
+  /**
+   * @description The width of the image in pixels.
+   * @example 1024
+   */
+  width?: number | null
+  /**
+   * @description The name of the file. It will be auto-generated if not provided.
+   * @example z9RV14K95DvU.png
+   */
+  file_name?: string | null
+  /**
+   * @description The size of the file in bytes.
+   * @example 4404019
+   */
+  file_size?: number | null
+  /**
+   * @description The mime type of the file.
+   * @example image/png
+   */
+  content_type?: string | null
+  /**
+   * @description The URL where the file can be downloaded from.
+   * @type string
+   */
+  url: string
+}
+
+export type OutputFalAiBitdance = {
+  /**
+   * @description Seed of the generated image.
+   * @type integer
+   */
+  seed: number
+  /**
+   * @description Whether the generated images contain NSFW concepts.
+   * @type array
+   */
+  has_nsfw_concepts: boolean[]
+  /**
+   * @description The generated image files info.
+   * @example [{"height":1024,"width":1024,"content_type":"image/jpeg","url":"https://v3b.fal.media/files/b/0a8f4d70/JxZtUW5HcyjcZAEOSzJEl.jpg"}]
+   * @type array
+   */
+  images: ImageE2D542Db[]
+  /**
+   * @description The prompt used for generating the image.
+   * @example A close-up portrait of a cat wearing a tiny top hat, cinematic photography style
+   * @type string
+   */
+  prompt: string
 }
 
 export type ImageSize8Feee94C = {
@@ -10360,6 +10739,127 @@ export type OutputFalAiBriaTextToImageHd = {
   seed: number
 }
 
+export type ImageSize268Cce76 = {
+  /**
+   * @description The height of the generated image.
+   * @maximum 14142
+   * @default 512
+   * @type integer | undefined
+   */
+  height?: number
+  /**
+   * @description The width of the generated image.
+   * @maximum 14142
+   * @default 512
+   * @type integer | undefined
+   */
+  width?: number
+}
+
+export const inputFalAiBytedanceDreaminaV31TextToImageImageSize = {
+  square_hd: 'square_hd',
+  square: 'square',
+  portrait_4_3: 'portrait_4_3',
+  portrait_16_9: 'portrait_16_9',
+  landscape_4_3: 'landscape_4_3',
+  landscape_16_9: 'landscape_16_9',
+} as const
+
+export type InputFalAiBytedanceDreaminaV31TextToImageImageSizeKey =
+  (typeof inputFalAiBytedanceDreaminaV31TextToImageImageSize)[keyof typeof inputFalAiBytedanceDreaminaV31TextToImageImageSize]
+
+export type InputFalAiBytedanceDreaminaV31TextToImage = {
+  /**
+   * @description Number of images to generate
+   * @minimum 1
+   * @maximum 4
+   * @default 1
+   * @type integer | undefined
+   */
+  num_images?: number
+  /**
+   * @description The text prompt used to generate the image
+   * @example A 25-year-old korean woman selfie, front facing camera, lighting is soft and natural. If background is visible, it's a clean, modern apartment interior. The clothing color is clearly visible and distinct, adding a hint of color contrast
+   * @type string
+   */
+  prompt: string
+  /**
+   * @description Whether to use an LLM to enhance the prompt
+   * @default false
+   * @type boolean | undefined
+   */
+  enhance_prompt?: boolean
+  /**
+   * @description If `True`, the media will be returned as a data URI and the output data won't be available in the request history.
+   * @default false
+   * @type boolean | undefined
+   */
+  sync_mode?: boolean
+  /**
+   * @description The size of the generated image. Width and height must be between 512 and 2048.
+   * @default {"height":1536,"width":2048}
+   */
+  image_size?:
+    | ImageSize268Cce76
+    | InputFalAiBytedanceDreaminaV31TextToImageImageSizeKey
+  /**
+   * @description Random seed to control the stochasticity of image generation.
+   */
+  seed?: number | null
+}
+
+/**
+ * @description Represents an image file.
+ * @type object
+ */
+export type ImageDbd2894B = {
+  /**
+   * @description The width of the image in pixels.
+   * @example 1024
+   */
+  width?: number | null
+  /**
+   * @description The size of the file in bytes.
+   * @example 4404019
+   */
+  file_size?: number | null
+  /**
+   * @description The mime type of the file.
+   * @example image/png
+   */
+  content_type?: string | null
+  /**
+   * @description The name of the file. It will be auto-generated if not provided.
+   * @example z9RV14K95DvU.png
+   */
+  file_name?: string | null
+  /**
+   * @description The height of the image in pixels.
+   * @example 1024
+   */
+  height?: number | null
+  /**
+   * @description The URL where the file can be downloaded from.
+   * @type string
+   */
+  url: string
+}
+
+export type OutputFalAiBytedanceDreaminaV31TextToImage = {
+  /**
+   * @description Generated images
+   * @example [{"url":"https://v3.fal.media/files/panda/4mddd7PmDvbbBZDs-xnUW_4294a9041c9d46eaa7b98d15ce6300fb.png"}]
+   * @type array
+   */
+  images: ImageDbd2894B[]
+  /**
+   * @description Seed used for generation
+   * @example 746406749
+   * @type integer
+   */
+  seed: number
+}
+
 export type ImageSize035F9Fb9 = {
   /**
    * @description The height of the generated image.
@@ -10926,6 +11426,364 @@ export type OutputFalAiBytedanceSeedreamV4TextToImage = {
   seed: number
 }
 
+export type ImageSize2Dacfb64 = {
+  /**
+   * @description The height of the generated image.
+   * @maximum 14142
+   * @default 512
+   * @type integer | undefined
+   */
+  height?: number
+  /**
+   * @description The width of the generated image.
+   * @maximum 14142
+   * @default 512
+   * @type integer | undefined
+   */
+  width?: number
+}
+
+export const inputFalAiBytedanceSeedreamV5LiteEditImageSize = {
+  square_hd: 'square_hd',
+  square: 'square',
+  portrait_4_3: 'portrait_4_3',
+  portrait_16_9: 'portrait_16_9',
+  landscape_4_3: 'landscape_4_3',
+  landscape_16_9: 'landscape_16_9',
+  auto_2K: 'auto_2K',
+  auto_3K: 'auto_3K',
+  auto_4K: 'auto_4K',
+} as const
+
+export type InputFalAiBytedanceSeedreamV5LiteEditImageSizeKey =
+  (typeof inputFalAiBytedanceSeedreamV5LiteEditImageSize)[keyof typeof inputFalAiBytedanceSeedreamV5LiteEditImageSize]
+
+export type InputFalAiBytedanceSeedreamV5LiteEdit = {
+  /**
+   * @description Number of separate model generations to be run with the prompt.
+   * @minimum 1
+   * @maximum 6
+   * @default 1
+   * @type integer | undefined
+   */
+  num_images?: number
+  /**
+   * @description If set to a number greater than one, enables multi-image generation. The model will potentially return up to `max_images` images every generation, and in total, `num_images` generations will be carried out. In total, the number of images generated will be between `num_images` and `max_images*num_images`.
+   * @minimum 1
+   * @maximum 6
+   * @default 1
+   * @type integer | undefined
+   */
+  max_images?: number
+  /**
+   * @description The text prompt used to edit the image
+   * @example Replace the product in Figure 1 with that in Figure 2. Seamlessly render logo in Figure 3 into the product design, in frosted glass texture. Remove any extra text in Figure 1, and design a catchy tagline for the perfume.
+   * @type string
+   */
+  prompt: string
+  /**
+   * @description If `True`, the media will be returned as a data URI and the output data won't be available in the request history.
+   * @default false
+   * @type boolean | undefined
+   */
+  sync_mode?: boolean
+  /**
+   * @description If set to true, the safety checker will be enabled.
+   * @default true
+   * @example true
+   * @type boolean | undefined
+   */
+  enable_safety_checker?: boolean
+  /**
+   * @description The size of the generated image. Total pixels must be between 2560x1440 and 4096x4096. In case the image size does not fall within these parameters, the image size will be adjusted to by scaling.
+   * @default auto_2K
+   */
+  image_size?:
+    | ImageSize2Dacfb64
+    | InputFalAiBytedanceSeedreamV5LiteEditImageSizeKey
+  /**
+   * @description List of URLs of input images for editing. Presently, up to 10 image inputs are allowed. If over 10 images are sent, only the last 10 will be used.
+   * @example ["https://v3b.fal.media/files/b/0a8f9936/KOsb_qPB_W0ZJ0Ee2OsnU_586e2892841d46f09049ee7199b303d3.png","https://v3b.fal.media/files/b/0a8f994e/JroWTogO6jOTFk9b6B3XM_591ca38cef2f44bbba2843cbf80fb1b2.png","https://v3b.fal.media/files/b/0a8f9960/Q6pzwXAiFaFPOpSScoE-D_0eca5db19e5242739f127efe49b38922.png"]
+   * @type array
+   */
+  image_urls: string[]
+}
+
+/**
+ * @description Represents an image file.
+ * @type object
+ */
+export type Image14A063E1 = {
+  /**
+   * @description The width of the image in pixels.
+   * @example 1024
+   */
+  width?: number | null
+  /**
+   * @description The size of the file in bytes.
+   * @example 4404019
+   */
+  file_size?: number | null
+  /**
+   * @description The mime type of the file.
+   * @example image/png
+   */
+  content_type?: string | null
+  /**
+   * @description The name of the file. It will be auto-generated if not provided.
+   * @example z9RV14K95DvU.png
+   */
+  file_name?: string | null
+  /**
+   * @description The height of the image in pixels.
+   * @example 1024
+   */
+  height?: number | null
+  /**
+   * @description The URL where the file can be downloaded from.
+   * @type string
+   */
+  url: string
+}
+
+export type OutputFalAiBytedanceSeedreamV5LiteEdit = {
+  /**
+   * @description Generated images
+   * @example [{"url":"https://v3b.fal.media/files/b/0a8fbf56/wu9vcxO3xO6lkHv5zdiIs_7aa8564f6e4f4cc795ecb8e923deb2fb.png"}]
+   * @type array
+   */
+  images: Image14A063E1[]
+  /**
+   * @description Seed used for generation.
+   * @example 42
+   * @type integer
+   */
+  seed: number
+}
+
+export type ImageSizeE3282255 = {
+  /**
+   * @description The height of the generated image.
+   * @maximum 14142
+   * @default 512
+   * @type integer | undefined
+   */
+  height?: number
+  /**
+   * @description The width of the generated image.
+   * @maximum 14142
+   * @default 512
+   * @type integer | undefined
+   */
+  width?: number
+}
+
+export const inputFalAiBytedanceSeedreamV5LiteTextToImageImageSize = {
+  square_hd: 'square_hd',
+  square: 'square',
+  portrait_4_3: 'portrait_4_3',
+  portrait_16_9: 'portrait_16_9',
+  landscape_4_3: 'landscape_4_3',
+  landscape_16_9: 'landscape_16_9',
+  auto_2K: 'auto_2K',
+  auto_3K: 'auto_3K',
+  auto_4K: 'auto_4K',
+} as const
+
+export type InputFalAiBytedanceSeedreamV5LiteTextToImageImageSizeKey =
+  (typeof inputFalAiBytedanceSeedreamV5LiteTextToImageImageSize)[keyof typeof inputFalAiBytedanceSeedreamV5LiteTextToImageImageSize]
+
+export type InputFalAiBytedanceSeedreamV5LiteTextToImage = {
+  /**
+   * @description Number of separate model generations to be run with the prompt.
+   * @minimum 1
+   * @maximum 6
+   * @default 1
+   * @type integer | undefined
+   */
+  num_images?: number
+  /**
+   * @description If set to a number greater than one, enables multi-image generation. The model will potentially return up to `max_images` images every generation, and in total, `num_images` generations will be carried out. In total, the number of images generated will be between `num_images` and `max_images*num_images`.
+   * @minimum 1
+   * @maximum 6
+   * @default 1
+   * @type integer | undefined
+   */
+  max_images?: number
+  /**
+   * @description The text prompt used to generate the image
+   * @example Realistic DSLR photograph of anthropomorphic Penkingese dog enjoying a bowl of ramen on the Great Wall of China with the words "Seedream 5.0 Lite available on fal" visible at the top.
+   * @type string
+   */
+  prompt: string
+  /**
+   * @description If `True`, the media will be returned as a data URI and the output data won't be available in the request history.
+   * @default false
+   * @type boolean | undefined
+   */
+  sync_mode?: boolean
+  /**
+   * @description If set to true, the safety checker will be enabled.
+   * @default true
+   * @example true
+   * @type boolean | undefined
+   */
+  enable_safety_checker?: boolean
+  /**
+   * @description The size of the generated image. Total pixels must be between 2560x1440 and 4096x4096. In case the image size does not fall within these parameters, the image size will be adjusted to by scaling.
+   * @default auto_2K
+   */
+  image_size?:
+    | ImageSizeE3282255
+    | InputFalAiBytedanceSeedreamV5LiteTextToImageImageSizeKey
+  /**
+   * @description If set to true returns seedance-2 trusted URLs. Please note these urls expire in 24 hours.
+   * @default false
+   * @type boolean | undefined
+   */
+  return_byteplus_urls?: boolean
+}
+
+/**
+ * @description Represents an image file.
+ * @type object
+ */
+export type ImageCf2A7972 = {
+  /**
+   * @description The width of the image in pixels.
+   * @example 1024
+   */
+  width?: number | null
+  /**
+   * @description The size of the file in bytes.
+   * @example 4404019
+   */
+  file_size?: number | null
+  /**
+   * @description The mime type of the file.
+   * @example image/png
+   */
+  content_type?: string | null
+  /**
+   * @description The name of the file. It will be auto-generated if not provided.
+   * @example z9RV14K95DvU.png
+   */
+  file_name?: string | null
+  /**
+   * @description The height of the image in pixels.
+   * @example 1024
+   */
+  height?: number | null
+  /**
+   * @description The URL where the file can be downloaded from.
+   * @type string
+   */
+  url: string
+}
+
+export type OutputFalAiBytedanceSeedreamV5LiteTextToImage = {
+  /**
+   * @description Generated images
+   * @example [{"url":"https://v3b.fal.media/files/b/0a8fbf48/fv693UaOADKqnujJRZN90_4518fc5e1fed4fb29963b22a8cc3d5a6.png"}]
+   * @type array
+   */
+  images: ImageCf2A7972[]
+  /**
+   * @description Seed used for generation.
+   * @example 42
+   * @type integer
+   */
+  seed: number
+}
+
+export type InputFalAiCartoonify = {
+  /**
+   * @description Guidance scale for the generation
+   * @minimum 0
+   * @maximum 20
+   * @default 3.5
+   * @type number | undefined
+   */
+  guidance_scale?: number
+  /**
+   * @description The seed for image generation. Same seed with same parameters will generate same image.
+   */
+  seed?: number | null
+  /**
+   * @description Whether to use CFG zero
+   * @default false
+   * @type boolean | undefined
+   */
+  use_cfg_zero?: boolean
+  /**
+   * @description Scale factor for the Cartoon effect
+   * @minimum 0.1
+   * @maximum 2
+   * @default 1
+   * @type number | undefined
+   */
+  scale?: number
+  /**
+   * @description Whether to enable the safety checker
+   * @default true
+   * @type boolean | undefined
+   */
+  enable_safety_checker?: boolean
+  /**
+   * @description Number of inference steps
+   * @minimum 1
+   * @maximum 50
+   * @default 28
+   * @type integer | undefined
+   */
+  num_inference_steps?: number
+  /**
+   * @description URL of the image to apply cartoon style to
+   * @example https://v3.fal.media/files/tiger/c8VSfX5XtJ3DCzV-4Bxg8_kid_image.png
+   * @type string
+   */
+  image_url: string
+}
+
+export type Image9B92C2Aa = {
+  width: number
+  /**
+   * @default image/jpeg
+   */
+  content_type?: string | null
+  url: string
+  height: number
+}
+
+export type OutputFalAiCartoonify = {
+  /**
+   * @description The prompt used for generating the image.
+   * @type string
+   */
+  prompt: string
+  /**
+   * @description
+   *             Seed of the generated Image. It will be the same value of the one passed in the
+   *             input or the randomly generated that was used in case none was passed.
+   *
+   * @type integer
+   */
+  seed: number
+  /**
+   * @description Whether the generated images contain NSFW concepts.
+   * @type array
+   */
+  has_nsfw_concepts: boolean[]
+  timings: {
+    [key: string]: number
+  }
+  /**
+   * @description The generated image files info.
+   * @type array
+   */
+  images: Image9B92C2Aa[]
+}
+
 export type ImageSize2D70Ab8E = {
   /**
    * @description The height of the generated image.
@@ -11080,6 +11938,847 @@ export type OutputFalAiCatVton = {
    * @type object
    */
   image: Image2Ab23D1B
+}
+
+export const inputFalAiCcsrTileDiffusionEnum = {
+  none: 'none',
+  mix: 'mix',
+  gaussian: 'gaussian',
+} as const
+
+export type InputFalAiCcsrTileDiffusionEnumKey =
+  (typeof inputFalAiCcsrTileDiffusionEnum)[keyof typeof inputFalAiCcsrTileDiffusionEnum]
+
+export const inputFalAiCcsrColorFixTypeEnum = {
+  none: 'none',
+  wavelet: 'wavelet',
+  adain: 'adain',
+} as const
+
+export type InputFalAiCcsrColorFixTypeEnumKey =
+  (typeof inputFalAiCcsrColorFixTypeEnum)[keyof typeof inputFalAiCcsrColorFixTypeEnum]
+
+export type InputFalAiCcsr = {
+  /**
+   * @description If specified, a patch-based sampling strategy will be used for sampling.
+   * @default 'none'
+   * @example none
+   * @example mix
+   * @example gaussian
+   * @type string | undefined
+   */
+  tile_diffusion?: InputFalAiCcsrTileDiffusionEnumKey
+  /**
+   * @description Seed for reproducibility. Different seeds will make slightly different results.
+   */
+  seed?: number | null
+  /**
+   * @description Stride of sliding patch.
+   * @minimum 128
+   * @maximum 1024
+   * @default 512
+   * @type integer | undefined
+   */
+  tile_diffusion_stride?: number
+  /**
+   * @description The starting point of uniform sampling strategy.
+   * @minimum 0
+   * @maximum 1
+   * @default 0.3333
+   * @type number | undefined
+   */
+  t_min?: number
+  /**
+   * @description The URL or data URI of the image to upscale.
+   * @example https://storage.googleapis.com/falserverless/gallery/blue-bird.jpeg
+   * @type string
+   */
+  image_url: string
+  /**
+   * @description Size of latent image
+   * @minimum 128
+   * @maximum 2048
+   * @default 1024
+   * @type integer | undefined
+   */
+  tile_vae_encoder_size?: number
+  /**
+   * @description The scale of the output image. The higher the scale, the bigger the output image will be.
+   * @minimum 1
+   * @maximum 4
+   * @default 2
+   * @type number | undefined
+   */
+  scale?: number
+  /**
+   * @description Type of color correction for samples.
+   * @default 'adain'
+   * @example adain
+   * @example wavelet
+   * @example none
+   * @type string | undefined
+   */
+  color_fix_type?: InputFalAiCcsrColorFixTypeEnumKey
+  /**
+   * @description Size of patch.
+   * @minimum 256
+   * @maximum 2048
+   * @default 1024
+   * @type integer | undefined
+   */
+  tile_diffusion_size?: number
+  /**
+   * @description The number of steps to run the model for. The higher the number the better the quality and longer it will take to generate.
+   * @minimum 10
+   * @maximum 100
+   * @default 50
+   * @type integer | undefined
+   */
+  steps?: number
+  /**
+   * @description The ending point of uniform sampling strategy.
+   * @minimum 0
+   * @maximum 1
+   * @default 0.6667
+   * @type number | undefined
+   */
+  t_max?: number
+  /**
+   * @description If specified, a patch-based sampling strategy will be used for VAE decoding.
+   * @default false
+   * @type boolean | undefined
+   */
+  tile_vae?: boolean
+  /**
+   * @description Size of VAE patch.
+   * @minimum 64
+   * @maximum 2048
+   * @default 226
+   * @type integer | undefined
+   */
+  tile_vae_decoder_size?: number
+}
+
+/**
+ * @description Represents an image file.
+ * @type object
+ */
+export type Image7E622Ae6 = {
+  /**
+   * @description The name of the file. It will be auto-generated if not provided.
+   * @example z9RV14K95DvU.png
+   */
+  file_name?: string | null
+  /**
+   * @description The size of the file in bytes.
+   * @example 4404019
+   */
+  file_size?: number | null
+  /**
+   * @description The URL where the file can be downloaded from.
+   * @type string
+   */
+  url: string
+  /**
+   * @description The height of the image in pixels.
+   * @example 1024
+   */
+  height?: number | null
+  /**
+   * @description The width of the image in pixels.
+   * @example 1024
+   */
+  width?: number | null
+  /**
+   * @description The mime type of the file.
+   * @example image/png
+   */
+  content_type?: string | null
+}
+
+export type OutputFalAiCcsr = {
+  /**
+   * @description The seed used for the generation.
+   * @type integer
+   */
+  seed: number
+  /**
+   * @description The generated image file info.
+   * @example {"url":"https://v3b.fal.media/files/b/0a986463/mgXaFOmEboE9P5jqKNgjJ_8303468d318840d5a2f70ad10940bf58.png"}
+   * @type object
+   */
+  image: Image7E622Ae6
+}
+
+export const inputFalAiChronoEditOutputFormatEnum = {
+  jpeg: 'jpeg',
+  png: 'png',
+  webp: 'webp',
+} as const
+
+export type InputFalAiChronoEditOutputFormatEnumKey =
+  (typeof inputFalAiChronoEditOutputFormatEnum)[keyof typeof inputFalAiChronoEditOutputFormatEnum]
+
+export const inputFalAiChronoEditResolutionEnum = {
+  '480p': '480p',
+  '720p': '720p',
+} as const
+
+export type InputFalAiChronoEditResolutionEnumKey =
+  (typeof inputFalAiChronoEditResolutionEnum)[keyof typeof inputFalAiChronoEditResolutionEnum]
+
+/**
+ * @description Input model for ChronoEdit standard editing operations
+ * @type object
+ */
+export type InputFalAiChronoEdit = {
+  /**
+   * @description The format of the output image.
+   * @default 'jpeg'
+   * @type string | undefined
+   */
+  output_format?: InputFalAiChronoEditOutputFormatEnumKey
+  /**
+   * @description Whether to enable temporal reasoning.
+   * @default false
+   * @type boolean | undefined
+   */
+  enable_temporal_reasoning?: boolean
+  /**
+   * @description The prompt to edit the image.
+   * @example Add a surfer to the wave in the illustration.
+   * @type string
+   */
+  prompt: string
+  /**
+   * @description Whether to enable prompt expansion.
+   * @default true
+   * @example true
+   * @type boolean | undefined
+   */
+  enable_prompt_expansion?: boolean
+  /**
+   * @description Whether to enable the safety checker. Disabling it requires account authorization; unauthorized requests are always checked.
+   * @default true
+   * @type boolean | undefined
+   */
+  enable_safety_checker?: boolean
+  /**
+   * @description The guidance scale for the inference.
+   * @minimum 0
+   * @maximum 10
+   * @default 1
+   * @type number | undefined
+   */
+  guidance_scale?: number
+  /**
+   * @description Whether to return the image in sync mode.
+   * @default false
+   * @type boolean | undefined
+   */
+  sync_mode?: boolean
+  /**
+   * @description The image to edit.
+   * @example https://v3b.fal.media/files/b/zebra/yRvp9rTyDeDGHnbmtcsgK_original-wave.jpg
+   * @type string
+   */
+  image_url: string
+  /**
+   * @description The seed for the inference.
+   */
+  seed?: number | null
+  /**
+   * @description The number of inference steps to perform.
+   * @minimum 2
+   * @maximum 50
+   * @default 8
+   * @type integer | undefined
+   */
+  num_inference_steps?: number
+  /**
+   * @description The resolution of the output image.
+   * @default '480p'
+   * @type string | undefined
+   */
+  resolution?: InputFalAiChronoEditResolutionEnumKey
+  /**
+   * @description The number of temporal reasoning steps to perform.
+   * @minimum 2
+   * @maximum 12
+   * @default 8
+   * @type integer | undefined
+   */
+  num_temporal_reasoning_steps?: number
+  /**
+   * @description Enable turbo mode to use for faster inference.
+   * @default true
+   * @type boolean | undefined
+   */
+  turbo_mode?: boolean
+}
+
+export type ImageFile8217B922 = {
+  /**
+   * @description The size of the file in bytes.
+   * @example 4404019
+   */
+  file_size?: number | null
+  /**
+   * @description The height of the image
+   */
+  height?: number | null
+  /**
+   * @description The width of the image
+   */
+  width?: number | null
+  /**
+   * @description The URL where the file can be downloaded from.
+   * @type string
+   */
+  url: string
+  /**
+   * @description The name of the file. It will be auto-generated if not provided.
+   * @example z9RV14K95DvU.png
+   */
+  file_name?: string | null
+  /**
+   * @description The mime type of the file.
+   * @example image/png
+   */
+  content_type?: string | null
+}
+
+/**
+ * @description Unified output model for all ChronoEdit operations
+ * @type object
+ */
+export type OutputFalAiChronoEdit = {
+  /**
+   * @description The prompt used for the inference.
+   * @example The user wants to add a surfer to the wave in the illustration while preserving the original ukiyo-e woodblock art style. The surfer should be depicted mid-action, crouched low on a modern-style surfboard, carving through the crest of the wave with one arm extended for balance and the other gripping the board. Their wavy hair and athletic physique should match the dynamic motion. The background must remain unchanged, including the iconic Mount Fuji and the traditional Japanese text, to maintain the artwork's historical aesthetic and composition.
+   * @type string
+   */
+  prompt: string
+  /**
+   * @description The seed for the inference.
+   * @type integer
+   */
+  seed: number
+  /**
+   * @description The edited image.
+   * @example [{"height":768,"width":1152,"url":"https://v3b.fal.media/files/b/koala/2_gRhwfsnmNKYtZ_dveyV.jpg","file_name":"2_gRhwfsnmNKYtZ_dveyV.jpg","content_type":"image/jpeg"}]
+   * @type array
+   */
+  images: ImageFile8217B922[]
+}
+
+export type ChronoLoraWeight = {
+  /**
+   * @description Scale factor controlling LoRA strength.
+   * @minimum 0
+   * @maximum 4
+   * @default 1
+   * @type number | undefined
+   */
+  scale?: number
+  /**
+   * @description URL or path to the LoRA weights (Safetensors).
+   * @type string
+   */
+  path: string
+}
+
+export const inputFalAiChronoEditLoraResolutionEnum = {
+  '480p': '480p',
+  '720p': '720p',
+} as const
+
+export type InputFalAiChronoEditLoraResolutionEnumKey =
+  (typeof inputFalAiChronoEditLoraResolutionEnum)[keyof typeof inputFalAiChronoEditLoraResolutionEnum]
+
+export const inputFalAiChronoEditLoraOutputFormatEnum = {
+  jpeg: 'jpeg',
+  png: 'png',
+  webp: 'webp',
+} as const
+
+export type InputFalAiChronoEditLoraOutputFormatEnumKey =
+  (typeof inputFalAiChronoEditLoraOutputFormatEnum)[keyof typeof inputFalAiChronoEditLoraOutputFormatEnum]
+
+/**
+ * @description ChronoEdit input with optional custom LoRAs.
+ * @type object
+ */
+export type InputFalAiChronoEditLora = {
+  /**
+   * @description Whether to enable the safety checker. Disabling it requires account authorization; unauthorized requests are always checked.
+   * @default true
+   * @type boolean | undefined
+   */
+  enable_safety_checker?: boolean
+  /**
+   * @description Enable turbo mode to use for faster inference.
+   * @default true
+   * @type boolean | undefined
+   */
+  turbo_mode?: boolean
+  /**
+   * @description Whether to enable prompt expansion.
+   * @default true
+   * @example true
+   * @type boolean | undefined
+   */
+  enable_prompt_expansion?: boolean
+  /**
+   * @description The number of temporal reasoning steps to perform.
+   * @minimum 2
+   * @maximum 12
+   * @default 8
+   * @type integer | undefined
+   */
+  num_temporal_reasoning_steps?: number
+  /**
+   * @description Optional additional LoRAs to merge for this request (max 3).
+   * @default []
+   * @type array | undefined
+   */
+  loras?: ChronoLoraWeight[]
+  /**
+   * @description The image to edit.
+   * @example https://v3b.fal.media/files/b/zebra/yRvp9rTyDeDGHnbmtcsgK_original-wave.jpg
+   * @type string
+   */
+  image_url: string
+  /**
+   * @description Whether to enable temporal reasoning.
+   * @default false
+   * @type boolean | undefined
+   */
+  enable_temporal_reasoning?: boolean
+  /**
+   * @description The seed for the inference.
+   */
+  seed?: number | null
+  /**
+   * @description The prompt to edit the image.
+   * @example Add a surfer to the wave in the illustration.
+   * @type string
+   */
+  prompt: string
+  /**
+   * @description The resolution of the output image.
+   * @default '480p'
+   * @type string | undefined
+   */
+  resolution?: InputFalAiChronoEditLoraResolutionEnumKey
+  /**
+   * @description The number of inference steps to perform.
+   * @minimum 2
+   * @maximum 50
+   * @default 8
+   * @type integer | undefined
+   */
+  num_inference_steps?: number
+  /**
+   * @description Whether to return the image in sync mode.
+   * @default false
+   * @type boolean | undefined
+   */
+  sync_mode?: boolean
+  /**
+   * @description The guidance scale for the inference.
+   * @minimum 0
+   * @maximum 10
+   * @default 1
+   * @type number | undefined
+   */
+  guidance_scale?: number
+  /**
+   * @description The format of the output image.
+   * @default 'jpeg'
+   * @type string | undefined
+   */
+  output_format?: InputFalAiChronoEditLoraOutputFormatEnumKey
+}
+
+export type ImageFileBb0B41B1 = {
+  /**
+   * @description The width of the image
+   */
+  width?: number | null
+  /**
+   * @description The height of the image
+   */
+  height?: number | null
+  /**
+   * @description The size of the file in bytes.
+   * @example 4404019
+   */
+  file_size?: number | null
+  /**
+   * @description The mime type of the file.
+   * @example image/png
+   */
+  content_type?: string | null
+  /**
+   * @description The name of the file. It will be auto-generated if not provided.
+   * @example z9RV14K95DvU.png
+   */
+  file_name?: string | null
+  /**
+   * @description The URL where the file can be downloaded from.
+   * @type string
+   */
+  url: string
+}
+
+/**
+ * @description Unified output model for all ChronoEdit operations
+ * @type object
+ */
+export type OutputFalAiChronoEditLora = {
+  /**
+   * @description The prompt used for the inference.
+   * @example The user wants to add a surfer to the wave in the illustration while preserving the original ukiyo-e woodblock art style. The surfer should be depicted mid-action, crouched low on a modern-style surfboard, carving through the crest of the wave with one arm extended for balance and the other gripping the board. Their wavy hair and athletic physique should match the dynamic motion. The background must remain unchanged, including the iconic Mount Fuji and the traditional Japanese text, to maintain the artwork's historical aesthetic and composition.
+   * @type string
+   */
+  prompt: string
+  /**
+   * @description The edited image.
+   * @example [{"width":1152,"height":768,"content_type":"image/jpeg","file_name":"2_gRhwfsnmNKYtZ_dveyV.jpg","url":"https://v3b.fal.media/files/b/koala/2_gRhwfsnmNKYtZ_dveyV.jpg"}]
+   * @type array
+   */
+  images: ImageFileBb0B41B1[]
+  /**
+   * @description The seed for the inference.
+   * @type integer
+   */
+  seed: number
+}
+
+export type ChronoLoraWeight36B02F3D = {
+  /**
+   * @description URL or path to the LoRA weights (Safetensors).
+   * @type string
+   */
+  path: string
+  /**
+   * @description Scale factor controlling LoRA strength.
+   * @minimum 0
+   * @maximum 4
+   * @default 1
+   * @type number | undefined
+   */
+  scale?: number
+}
+
+export const inputFalAiChronoEditLoraGalleryPaintbrushOutputFormatEnum = {
+  jpeg: 'jpeg',
+  png: 'png',
+  webp: 'webp',
+} as const
+
+export type InputFalAiChronoEditLoraGalleryPaintbrushOutputFormatEnumKey =
+  (typeof inputFalAiChronoEditLoraGalleryPaintbrushOutputFormatEnum)[keyof typeof inputFalAiChronoEditLoraGalleryPaintbrushOutputFormatEnum]
+
+export const inputFalAiChronoEditLoraGalleryPaintbrushResolutionEnum = {
+  '480p': '480p',
+  '720p': '720p',
+} as const
+
+export type InputFalAiChronoEditLoraGalleryPaintbrushResolutionEnumKey =
+  (typeof inputFalAiChronoEditLoraGalleryPaintbrushResolutionEnum)[keyof typeof inputFalAiChronoEditLoraGalleryPaintbrushResolutionEnum]
+
+/**
+ * @description Input for paintbrush mode
+ * @type object
+ */
+export type InputFalAiChronoEditLoraGalleryPaintbrush = {
+  /**
+   * @description The format of the output image.
+   * @default 'png'
+   * @type string | undefined
+   */
+  output_format?: InputFalAiChronoEditLoraGalleryPaintbrushOutputFormatEnumKey
+  /**
+   * @description The scale factor for the LoRA adapter.
+   * @minimum 0
+   * @maximum 2
+   * @default 1
+   * @type number | undefined
+   */
+  lora_scale?: number
+  /**
+   * @description Optional additional LoRAs to merge (max 3).
+   * @default []
+   * @type array | undefined
+   */
+  loras?: ChronoLoraWeight36B02F3D[]
+  /**
+   * @description The resolution of the output image.
+   * @default '480p'
+   * @type string | undefined
+   */
+  resolution?: InputFalAiChronoEditLoraGalleryPaintbrushResolutionEnumKey
+  /**
+   * @description Describe how to transform the sketched regions.
+   * @type string
+   */
+  prompt: string
+  /**
+   * @description Whether to return the image in sync mode.
+   * @default false
+   * @type boolean | undefined
+   */
+  sync_mode?: boolean
+  /**
+   * @description The seed for the inference.
+   */
+  seed?: number | null
+  /**
+   * @description Whether to enable the safety checker. Disabling it requires account authorization; unauthorized requests are always checked.
+   * @default true
+   * @type boolean | undefined
+   */
+  enable_safety_checker?: boolean
+  /**
+   * @description The image to edit.
+   * @type string
+   */
+  image_url: string
+  /**
+   * @description Optional mask image where black areas indicate regions to sketch/paint.
+   */
+  mask_url?: string | null
+  /**
+   * @description Classifier-free guidance scale.
+   * @minimum 0
+   * @maximum 10
+   * @default 1
+   * @type number | undefined
+   */
+  guidance_scale?: number
+  /**
+   * @description Number of denoising steps to run.
+   * @minimum 2
+   * @maximum 50
+   * @default 8
+   * @type integer | undefined
+   */
+  num_inference_steps?: number
+  /**
+   * @description Enable turbo mode to use faster inference.
+   * @default true
+   * @type boolean | undefined
+   */
+  turbo_mode?: boolean
+}
+
+export type ImageFileA02Fb321 = {
+  /**
+   * @description The size of the file in bytes.
+   * @example 4404019
+   */
+  file_size?: number | null
+  /**
+   * @description The URL where the file can be downloaded from.
+   * @type string
+   */
+  url: string
+  /**
+   * @description The width of the image
+   */
+  width?: number | null
+  /**
+   * @description The name of the file. It will be auto-generated if not provided.
+   * @example z9RV14K95DvU.png
+   */
+  file_name?: string | null
+  /**
+   * @description The mime type of the file.
+   * @example image/png
+   */
+  content_type?: string | null
+  /**
+   * @description The height of the image
+   */
+  height?: number | null
+}
+
+/**
+ * @description Unified output model for all ChronoEdit operations
+ * @type object
+ */
+export type OutputFalAiChronoEditLoraGalleryPaintbrush = {
+  /**
+   * @description The seed for the inference.
+   * @type integer
+   */
+  seed: number
+  /**
+   * @description The prompt used for the inference.
+   * @example The user wants to add a surfer to the wave in the illustration while preserving the original ukiyo-e woodblock art style. The surfer should be depicted mid-action, crouched low on a modern-style surfboard, carving through the crest of the wave with one arm extended for balance and the other gripping the board. Their wavy hair and athletic physique should match the dynamic motion. The background must remain unchanged, including the iconic Mount Fuji and the traditional Japanese text, to maintain the artwork's historical aesthetic and composition.
+   * @type string
+   */
+  prompt: string
+  /**
+   * @description The edited image.
+   * @example [{"width":1152,"url":"https://v3b.fal.media/files/b/koala/2_gRhwfsnmNKYtZ_dveyV.jpg","file_name":"2_gRhwfsnmNKYtZ_dveyV.jpg","content_type":"image/jpeg","height":768}]
+   * @type array
+   */
+  images: ImageFileA02Fb321[]
+}
+
+export type ChronoLoraWeightBa20Fb54 = {
+  /**
+   * @description Scale factor controlling LoRA strength.
+   * @minimum 0
+   * @maximum 4
+   * @default 1
+   * @type number | undefined
+   */
+  scale?: number
+  /**
+   * @description URL or path to the LoRA weights (Safetensors).
+   * @type string
+   */
+  path: string
+}
+
+export const inputFalAiChronoEditLoraGalleryUpscalerOutputFormatEnum = {
+  jpeg: 'jpeg',
+  png: 'png',
+  webp: 'webp',
+} as const
+
+export type InputFalAiChronoEditLoraGalleryUpscalerOutputFormatEnumKey =
+  (typeof inputFalAiChronoEditLoraGalleryUpscalerOutputFormatEnum)[keyof typeof inputFalAiChronoEditLoraGalleryUpscalerOutputFormatEnum]
+
+/**
+ * @description Input for upscaler mode
+ * @type object
+ */
+export type InputFalAiChronoEditLoraGalleryUpscaler = {
+  /**
+   * @description Whether to return the image in sync mode.
+   * @default false
+   * @type boolean | undefined
+   */
+  sync_mode?: boolean
+  /**
+   * @description Whether to enable the safety checker. Disabling it requires account authorization; unauthorized requests are always checked.
+   * @default true
+   * @type boolean | undefined
+   */
+  enable_safety_checker?: boolean
+  /**
+   * @description Target scale factor for the output resolution.
+   * @minimum 1
+   * @maximum 4
+   * @default 2
+   * @type number | undefined
+   */
+  upscale_factor?: number
+  /**
+   * @description Number of inference steps for the upscaling pass.
+   * @minimum 2
+   * @maximum 50
+   * @default 30
+   * @type integer | undefined
+   */
+  num_inference_steps?: number
+  /**
+   * @description The scale factor for the LoRA adapter.
+   * @minimum 0
+   * @maximum 2
+   * @default 1
+   * @type number | undefined
+   */
+  lora_scale?: number
+  /**
+   * @description Optional additional LoRAs to merge (max 3).
+   * @default []
+   * @type array | undefined
+   */
+  loras?: ChronoLoraWeightBa20Fb54[]
+  /**
+   * @description The format of the output image.
+   * @default 'jpeg'
+   * @type string | undefined
+   */
+  output_format?: InputFalAiChronoEditLoraGalleryUpscalerOutputFormatEnumKey
+  /**
+   * @description The guidance scale for the inference.
+   * @minimum 0
+   * @maximum 10
+   * @default 1
+   * @type number | undefined
+   */
+  guidance_scale?: number
+  /**
+   * @description The seed for the inference.
+   */
+  seed?: number | null
+  /**
+   * @description The image to upscale.
+   * @type string
+   */
+  image_url: string
+}
+
+export type ImageFile94A7A278 = {
+  /**
+   * @description The size of the file in bytes.
+   * @example 4404019
+   */
+  file_size?: number | null
+  /**
+   * @description The URL where the file can be downloaded from.
+   * @type string
+   */
+  url: string
+  /**
+   * @description The width of the image
+   */
+  width?: number | null
+  /**
+   * @description The name of the file. It will be auto-generated if not provided.
+   * @example z9RV14K95DvU.png
+   */
+  file_name?: string | null
+  /**
+   * @description The mime type of the file.
+   * @example image/png
+   */
+  content_type?: string | null
+  /**
+   * @description The height of the image
+   */
+  height?: number | null
+}
+
+/**
+ * @description Unified output model for all ChronoEdit operations
+ * @type object
+ */
+export type OutputFalAiChronoEditLoraGalleryUpscaler = {
+  /**
+   * @description The seed for the inference.
+   * @type integer
+   */
+  seed: number
+  /**
+   * @description The prompt used for the inference.
+   * @example The user wants to add a surfer to the wave in the illustration while preserving the original ukiyo-e woodblock art style. The surfer should be depicted mid-action, crouched low on a modern-style surfboard, carving through the crest of the wave with one arm extended for balance and the other gripping the board. Their wavy hair and athletic physique should match the dynamic motion. The background must remain unchanged, including the iconic Mount Fuji and the traditional Japanese text, to maintain the artwork's historical aesthetic and composition.
+   * @type string
+   */
+  prompt: string
+  /**
+   * @description The edited image.
+   * @example [{"width":1152,"url":"https://v3b.fal.media/files/b/koala/2_gRhwfsnmNKYtZ_dveyV.jpg","file_name":"2_gRhwfsnmNKYtZ_dveyV.jpg","content_type":"image/jpeg","height":768}]
+   * @type array
+   */
+  images: ImageFile94A7A278[]
 }
 
 export type InputFalAiClarityUpscaler = {
@@ -11326,6 +13025,187 @@ export type OutputFalAiCodeformer = {
    * @type object
    */
   image: ImageC7A40C99
+}
+
+export type ImageSize7Ab557Ea = {
+  /**
+   * @description The width of the generated image.
+   * @maximum 14142
+   * @default 512
+   * @type integer | undefined
+   */
+  width?: number
+  /**
+   * @description The height of the generated image.
+   * @maximum 14142
+   * @default 512
+   * @type integer | undefined
+   */
+  height?: number
+}
+
+export const inputFalAiCogview4ImageSize = {
+  square_hd: 'square_hd',
+  square: 'square',
+  portrait_4_3: 'portrait_4_3',
+  portrait_16_9: 'portrait_16_9',
+  landscape_4_3: 'landscape_4_3',
+  landscape_16_9: 'landscape_16_9',
+} as const
+
+export type InputFalAiCogview4ImageSizeKey =
+  (typeof inputFalAiCogview4ImageSize)[keyof typeof inputFalAiCogview4ImageSize]
+
+export const inputFalAiCogview4OutputFormatEnum = {
+  jpeg: 'jpeg',
+  png: 'png',
+} as const
+
+export type InputFalAiCogview4OutputFormatEnumKey =
+  (typeof inputFalAiCogview4OutputFormatEnum)[keyof typeof inputFalAiCogview4OutputFormatEnum]
+
+export type InputFalAiCogview4 = {
+  /**
+   * @description The size of the generated image.
+   * @default landscape_4_3
+   */
+  image_size?: ImageSize7Ab557Ea | InputFalAiCogview4ImageSizeKey
+  /**
+   * @description The number of images to generate.
+   * @minimum 1
+   * @maximum 4
+   * @default 1
+   * @type integer | undefined
+   */
+  num_images?: number
+  /**
+   * @description
+   *             The same seed and the same prompt given to the same version of the model
+   *             will output the same image every time.
+   *
+   */
+  seed?: number | null
+  /**
+   * @description The prompt to generate an image from.
+   * @example A vibrant and artistic digital composition featuring colorful splashes of paint in the background, creating an energetic and dynamic effect. The text 'CogView4 on Fal' is elegantly integrated into the scene, standing out with a modern, bold, and slightly futuristic font. The colors are bright and varied, including neon blues, purples, pinks, and oranges, blending seamlessly in a fluid, abstract style. The text appears slightly illuminated, complementing the vivid splashes around it.
+   * @type string
+   */
+  prompt: string
+  /**
+   * @description
+   *             The negative prompt to use. Use it to address details that you don't want
+   *             in the image. This could be colors, objects, scenery and even the small details
+   *             (e.g. moustache, blurry, low resolution).
+   *
+   * @default ''
+   * @example
+   * @type string | undefined
+   */
+  negative_prompt?: string
+  /**
+   * @description The format of the generated image.
+   * @default 'jpeg'
+   * @type string | undefined
+   */
+  output_format?: InputFalAiCogview4OutputFormatEnumKey
+  /**
+   * @description
+   *             The CFG (Classifier Free Guidance) scale is a measure of how close you want
+   *             the model to stick to your prompt when looking for a related image to show you.
+   *
+   * @minimum 0
+   * @maximum 20
+   * @default 3.5
+   * @type number | undefined
+   */
+  guidance_scale?: number
+  /**
+   * @description The number of inference steps to perform.
+   * @minimum 1
+   * @maximum 50
+   * @default 50
+   * @type integer | undefined
+   */
+  num_inference_steps?: number
+  /**
+   * @description If set to true, the safety checker will be enabled.
+   * @default true
+   * @type boolean | undefined
+   */
+  enable_safety_checker?: boolean
+  /**
+   * @description If `True`, the media will be returned as a data URI and the output data won't be available in the request history.
+   * @default false
+   * @type boolean | undefined
+   */
+  sync_mode?: boolean
+}
+
+/**
+ * @description Represents an image file.
+ * @type object
+ */
+export type Image363F5Daf = {
+  /**
+   * @description The name of the file. It will be auto-generated if not provided.
+   * @example z9RV14K95DvU.png
+   */
+  file_name?: string | null
+  /**
+   * @description The width of the image in pixels.
+   * @example 1024
+   */
+  width?: number | null
+  /**
+   * @description The mime type of the file.
+   * @example image/png
+   */
+  content_type?: string | null
+  /**
+   * @description The URL where the file can be downloaded from.
+   * @type string
+   */
+  url: string
+  /**
+   * @description The height of the image in pixels.
+   * @example 1024
+   */
+  height?: number | null
+  /**
+   * @description The size of the file in bytes.
+   * @example 4404019
+   */
+  file_size?: number | null
+}
+
+export type OutputFalAiCogview4 = {
+  /**
+   * @description The prompt used for generating the image.
+   * @type string
+   */
+  prompt: string
+  /**
+   * @description
+   *             Seed of the generated Image. It will be the same value of the one passed in the
+   *             input or the randomly generated that was used in case none was passed.
+   *
+   * @type integer
+   */
+  seed: number
+  /**
+   * @description Whether the generated images contain NSFW concepts.
+   * @type array
+   */
+  has_nsfw_concepts: boolean[]
+  timings: {
+    [key: string]: number
+  }
+  /**
+   * @description The generated images
+   * @example [{"width":1024,"content_type":"image/jpeg","url":"https://v3.fal.media/files/tiger/rN6_PpE-o8QlSecqFku6h.jpeg","height":768}]
+   * @type array
+   */
+  images: Image363F5Daf[]
 }
 
 export const inputFalAiControlLightOutputFormatEnum = {
@@ -11722,6 +13602,511 @@ export type OutputFalAiDdcolor = {
    * @type object
    */
   image: Image3F8Ec326
+}
+
+export const inputFalAiDocresTaskEnum = {
+  deshadowing: 'deshadowing',
+  appearance: 'appearance',
+  deblurring: 'deblurring',
+  binarization: 'binarization',
+} as const
+
+export type InputFalAiDocresTaskEnumKey =
+  (typeof inputFalAiDocresTaskEnum)[keyof typeof inputFalAiDocresTaskEnum]
+
+export type InputFalAiDocres = {
+  /**
+   * @description
+   *             The same seed and the same prompt given to the same version of the model
+   *             will output the same image every time.
+   *
+   * @type integer | undefined
+   */
+  seed?: number
+  /**
+   * @description Task to perform
+   * @type string
+   */
+  task: InputFalAiDocresTaskEnumKey
+  /**
+   * @description URL of image to be used for relighting
+   * @example https://storage.googleapis.com/falserverless/docres_ckpt/218_in.png
+   * @type string
+   */
+  image_url: string
+}
+
+/**
+ * @description Represents an image file.
+ * @type object
+ */
+export type Image61140661 = {
+  /**
+   * @description The name of the file. It will be auto-generated if not provided.
+   * @example z9RV14K95DvU.png
+   */
+  file_name?: string | null
+  /**
+   * @description The URL where the file can be downloaded from.
+   * @type string
+   */
+  url: string
+  /**
+   * @description The size of the file in bytes.
+   * @example 4404019
+   */
+  file_size?: number | null
+  /**
+   * @description The height of the image in pixels.
+   * @example 1024
+   */
+  height?: number | null
+  /**
+   * @description The width of the image in pixels.
+   * @example 1024
+   */
+  width?: number | null
+  /**
+   * @description The mime type of the file.
+   * @example image/png
+   */
+  content_type?: string | null
+}
+
+export type OutputFalAiDocres = {
+  /**
+   * @description The generated image file info.
+   * @example {"file_name":"36d3ca4791a647678b2ff01a35c87f5a.png","file_size":423052,"url":"https://storage.googleapis.com/falserverless/docres_ckpt/Xssvg5K39QiD6mn9K5toF_f4942abeef8d4c7bbe236b59aed5e382.png","height":512,"width":512,"content_type":"image/png"}
+   * @type object
+   */
+  image: Image61140661
+}
+
+export type InputFalAiDocresDewarp = {
+  /**
+   * @description
+   *             The same seed and the same prompt given to the same version of the model
+   *             will output the same image every time.
+   *
+   * @type integer | undefined
+   */
+  seed?: number
+  /**
+   * @description URL of image to be used for relighting
+   * @example https://storage.googleapis.com/falserverless/docres_ckpt/218_in.png
+   * @type string
+   */
+  image_url: string
+}
+
+/**
+ * @description Represents an image file.
+ * @type object
+ */
+export type ImageE14D72D1 = {
+  /**
+   * @description The name of the file. It will be auto-generated if not provided.
+   * @example z9RV14K95DvU.png
+   */
+  file_name?: string | null
+  /**
+   * @description The URL where the file can be downloaded from.
+   * @type string
+   */
+  url: string
+  /**
+   * @description The size of the file in bytes.
+   * @example 4404019
+   */
+  file_size?: number | null
+  /**
+   * @description The height of the image in pixels.
+   * @example 1024
+   */
+  height?: number | null
+  /**
+   * @description The width of the image in pixels.
+   * @example 1024
+   */
+  width?: number | null
+  /**
+   * @description The mime type of the file.
+   * @example image/png
+   */
+  content_type?: string | null
+}
+
+export type OutputFalAiDocresDewarp = {
+  /**
+   * @description The generated image file info.
+   * @example {"file_name":"36d3ca4791a647678b2ff01a35c87f5a.png","file_size":423052,"url":"https://storage.googleapis.com/falserverless/docres_ckpt/Xssvg5K39QiD6mn9K5toF_f4942abeef8d4c7bbe236b59aed5e382.png","height":512,"width":512,"content_type":"image/png"}
+   * @type object
+   */
+  image: ImageE14D72D1
+}
+
+export type InputFalAiDrctSuperResolution = {
+  /**
+   * @description URL of the image to upscale.
+   * @example https://storage.googleapis.com/falserverless/model_tests/svd/rocket.png
+   * @example https://storage.googleapis.com/falserverless/example_inputs/dog.png
+   * @example https://storage.googleapis.com/falserverless/example_inputs/girl.jpg
+   * @example https://storage.googleapis.com/falserverless/model_tests/codeformer/codeformer_poor_1.jpeg
+   * @example https://storage.googleapis.com/falserverless/model_tests/musepose/ref.png
+   * @type string
+   */
+  image_url: string
+  /**
+   * @description Upscaling factor.
+   * @default 4
+   * @example 4
+   * @type number | undefined
+   */
+  upscale_factor?: 4
+}
+
+/**
+ * @description Represents an image file.
+ * @type object
+ */
+export type ImageB0F98555 = {
+  /**
+   * @description The mime type of the file.
+   * @example image/png
+   */
+  content_type?: string | null
+  /**
+   * @description The size of the file in bytes.
+   * @example 4404019
+   */
+  file_size?: number | null
+  /**
+   * @description The height of the image in pixels.
+   * @example 1024
+   */
+  height?: number | null
+  /**
+   * @description The name of the file. It will be auto-generated if not provided.
+   * @example z9RV14K95DvU.png
+   */
+  file_name?: string | null
+  /**
+   * @description The width of the image in pixels.
+   * @example 1024
+   */
+  width?: number | null
+  /**
+   * @description The URL where the file can be downloaded from.
+   * @type string
+   */
+  url: string
+}
+
+export type OutputFalAiDrctSuperResolution = {
+  /**
+   * @description Upscaled image
+   * @type object
+   */
+  image: ImageB0F98555
+}
+
+export type InputFalAiDreamomni2Edit = {
+  /**
+   * @description The prompt to edit the image.
+   * @example Replace the first image have the same image style as the second image.
+   * @type string
+   */
+  prompt: string
+  /**
+   * @description Authorized callers may set false to request relaxed screening.
+   * @default true
+   * @type boolean | undefined
+   */
+  enable_safety_checker?: boolean
+  /**
+   * @description List of URLs of input images for editing.
+   * @example ["https://v3b.fal.media/files/b/koala/HB33rtG0ue7KzcIdQOTTX_dreamomni_ref_0.jpg","https://v3b.fal.media/files/b/koala/BJMlXeNzOgGzyoO7XyGxr_dreamomni_ref_1.jpg"]
+   * @type array
+   */
+  image_urls: string[]
+}
+
+/**
+ * @description Represents an image file.
+ * @type object
+ */
+export type ImageD0A2Bc72 = {
+  /**
+   * @description The size of the file in bytes.
+   * @example 4404019
+   */
+  file_size?: number | null
+  /**
+   * @description The width of the image in pixels.
+   * @example 1024
+   */
+  width?: number | null
+  /**
+   * @description The mime type of the file.
+   * @example image/png
+   */
+  content_type?: string | null
+  /**
+   * @description The URL where the file can be downloaded from.
+   * @type string
+   */
+  url: string
+  /**
+   * @description The name of the file. It will be auto-generated if not provided.
+   * @example z9RV14K95DvU.png
+   */
+  file_name?: string | null
+  /**
+   * @description The height of the image in pixels.
+   * @example 1024
+   */
+  height?: number | null
+}
+
+export type OutputFalAiDreamomni2Edit = {
+  /**
+   * @description Generated image
+   * @example {"file_size":1473707,"content_type":"image/png","url":"https://v3b.fal.media/files/b/koala/prmop69b1g5lNFPE4RbCb_c9ab07096fdd47269a60bc556e01132b.png","file_name":"c9ab07096fdd47269a60bc556e01132b.png"}
+   * @type object
+   */
+  image: ImageD0A2Bc72
+}
+
+export type ImageSizeD308509F = {
+  /**
+   * @description The height of the generated image.
+   * @maximum 14142
+   * @default 512
+   * @type integer | undefined
+   */
+  height?: number
+  /**
+   * @description The width of the generated image.
+   * @maximum 14142
+   * @default 512
+   * @type integer | undefined
+   */
+  width?: number
+}
+
+export type LoraWeight = {
+  /**
+   * @description If set to true, the embedding will be forced to be used.
+   * @default false
+   * @type boolean | undefined
+   */
+  force?: boolean
+  /**
+   * @description
+   *             The scale of the LoRA weight. This is used to scale the LoRA weight
+   *             before merging it with the base model.
+   *
+   * @minimum 0
+   * @maximum 1
+   * @default 1
+   * @type number | undefined
+   */
+  scale?: number
+  /**
+   * @description URL or path to a LoRA safetensors file. Or HF model name that resolves to safetensors weights.
+   * @example https://huggingface.co/nerijs/pixel-art-xl/resolve/8bf4a4d9ea283e00a51fafda8e0539f8248ea037/pixel-art-xl.safetensors
+   * @example https://filebin.net/3chfqasxpqu21y8n/my-custom-lora-v1.safetensors
+   * @type string
+   */
+  path: string
+}
+
+export type Embedding = {
+  /**
+   * @description URL or the path to the embedding weights.
+   * @example https://huggingface.co/RyuusouI/Negativexld/resolve/20515981675c6e76d5b91e2343b958d27c5ad0ab/negativeXL_D.safetensors
+   * @example https://filebin.net/3chfqasxpqu21y8n/my-custom-lora-v1.safetensors
+   * @type string
+   */
+  path: string
+  /**
+   * @description
+   *             The list of tokens to use for the embedding. When omitted, tokens
+   *             are generated as <s0>, <s1>, ... to match the number of vectors in
+   *             the embedding file.
+   *
+   * @default null
+   */
+  tokens?: string[] | null
+}
+
+export const inputFalAiDreamshaperImageSize = {
+  square_hd: 'square_hd',
+  square: 'square',
+  portrait_4_3: 'portrait_4_3',
+  portrait_16_9: 'portrait_16_9',
+  landscape_4_3: 'landscape_4_3',
+  landscape_16_9: 'landscape_16_9',
+} as const
+
+export type InputFalAiDreamshaperImageSizeKey =
+  (typeof inputFalAiDreamshaperImageSize)[keyof typeof inputFalAiDreamshaperImageSize]
+
+export const inputFalAiDreamshaperFormatEnum = {
+  jpeg: 'jpeg',
+  png: 'png',
+} as const
+
+export type InputFalAiDreamshaperFormatEnumKey =
+  (typeof inputFalAiDreamshaperFormatEnum)[keyof typeof inputFalAiDreamshaperFormatEnum]
+
+export const inputFalAiDreamshaperSafetyCheckerVersionEnum = {
+  v1: 'v1',
+  v2: 'v2',
+} as const
+
+export type InputFalAiDreamshaperSafetyCheckerVersionEnumKey =
+  (typeof inputFalAiDreamshaperSafetyCheckerVersionEnum)[keyof typeof inputFalAiDreamshaperSafetyCheckerVersionEnum]
+
+export type InputFalAiDreamshaper = {
+  /**
+   * @default {"height":1024,"width":1024}
+   */
+  image_size?: ImageSizeD308509F | InputFalAiDreamshaperImageSizeKey
+  /**
+   * @description The CFG (Classifier Free Guidance) scale is a measure of how close you want the model to stick to your prompt when looking for a related image to show you.
+   * @minimum 0
+   * @maximum 20
+   * @default 5
+   * @type number | undefined
+   */
+  guidance_scale?: number
+  /**
+   * @description If set to true, the safety checker will be enabled.
+   * @default true
+   * @type boolean | undefined
+   */
+  enable_safety_checker?: boolean
+  /**
+   * @description
+   *             An id bound to a request, can be used with response to identify the request
+   *             itself.
+   *
+   * @default ''
+   * @type string | undefined
+   */
+  request_id?: string
+  /**
+   * @description The list of LoRA weights to use.
+   * @default []
+   * @type array | undefined
+   */
+  loras?: LoraWeight[]
+  /**
+   * @description The number of images to generate.
+   * @minimum 1
+   * @maximum 8
+   * @default 1
+   * @type integer | undefined
+   */
+  num_images?: number
+  /**
+   * @description The number of inference steps to perform.
+   * @minimum 1
+   * @maximum 70
+   * @default 35
+   * @type integer | undefined
+   */
+  num_inference_steps?: number
+  /**
+   * @description The negative prompt to use. Use it to address details that you don't want in the image.
+   * @default '(worst quality, low quality, normal quality, lowres, low details, oversaturated, undersaturated, overexposed, underexposed, grayscale, bw, bad photo, bad photography, bad art:1.4), (watermark, signature, text font, username, error, logo, words, letters, digits, autograph, trademark, name:1.2), (blur, blurry, grainy), morbid, ugly, asymmetrical, mutated malformed, mutilated, poorly lit, bad shadow, draft, cropped, out of frame, cut off, censored, jpeg artifacts, out of focus, glitch, duplicate, (airbrushed, cartoon, anime, semi-realistic, cgi, render, blender, digital art, manga, amateur:1.3), (3D ,3D Game, 3D Game Scene, 3D Character:1.1), (bad hands, bad anatomy, bad body, bad face, bad teeth, bad arms, bad legs, deformities:1.3)'
+   * @type string | undefined
+   */
+  negative_prompt?: string
+  /**
+   * @description The list of embeddings to use.
+   * @default []
+   * @type array | undefined
+   */
+  embeddings?: Embedding[]
+  /**
+   * @description The prompt to use for generating the image. Be as descriptive as possible for best results.
+   * @example A hyperdetailed photograph of a Cat dressed as a mafia boss holding a fish walking down a Japanese fish market with an angry face, 8k resolution, best quality, beautiful photograph, dynamic lighting,
+   * @type string
+   */
+  prompt: string
+  /**
+   * @description If `True`, the media will be returned as a data URI and the output data won't be available in the request history.
+   * @default false
+   * @type boolean | undefined
+   */
+  sync_mode?: boolean
+  /**
+   * @description The format of the generated image.
+   * @default 'jpeg'
+   * @type string | undefined
+   */
+  format?: InputFalAiDreamshaperFormatEnumKey
+  /**
+   * @description If set to true, the prompt will be expanded with additional prompts.
+   * @default false
+   * @type boolean | undefined
+   */
+  expand_prompt?: boolean
+  /**
+   * @description The version of the safety checker to use. v1 is the default CompVis safety checker. v2 uses a custom ViT model.
+   * @default 'v1'
+   * @type string | undefined
+   */
+  safety_checker_version?: InputFalAiDreamshaperSafetyCheckerVersionEnumKey
+  /**
+   * @description
+   *             The same seed and the same prompt given to the same version of Stable Diffusion
+   *             will output the same image every time.
+   *
+   * @default null
+   */
+  seed?: number | null
+}
+
+export type Image90A04Ff6 = {
+  width: number
+  /**
+   * @default image/jpeg
+   */
+  content_type?: string | null
+  height: number
+  url: string
+}
+
+export type OutputFalAiDreamshaper = {
+  timings: {
+    [key: string]: number
+  }
+  /**
+   * @description
+   *             Seed of the generated Image. It will be the same value of the one passed in the
+   *             input or the randomly generated that was used in case none was passed.
+   *
+   * @type integer
+   */
+  seed: number
+  /**
+   * @description Whether the generated images contain NSFW concepts.
+   * @type array
+   */
+  has_nsfw_concepts: boolean[]
+  /**
+   * @description The generated image files info.
+   * @type array
+   */
+  images: Image90A04Ff6[]
+  /**
+   * @description The prompt used for generating the image.
+   * @type string
+   */
+  prompt: string
 }
 
 export const inputFalAiDwposeDrawModeEnum = {
@@ -12212,7 +14597,7 @@ export type OutputFalAiErnieImage = {
   prompt: string
 }
 
-export type LoraWeight = {
+export type LoraWeight8Ee34E6F = {
   /**
    * @description URL or the path to the LoRA weights.
    * @type string
@@ -12231,7 +14616,7 @@ export type LoraWeight = {
   scale?: number
 }
 
-export type ImageSizeA4556963 = {
+export type ImageSize4B7D81C9 = {
   /**
    * @description The width of the generated image.
    * @maximum 14142
@@ -12288,7 +14673,7 @@ export type InputFalAiErnieImageLora = {
    * @default []
    * @type array | undefined
    */
-  loras?: LoraWeight[]
+  loras?: LoraWeight8Ee34E6F[]
   /**
    * @description Output image format.
    * @default 'jpeg'
@@ -12311,7 +14696,7 @@ export type InputFalAiErnieImageLora = {
    * @description The size of the generated image.
    * @default square_hd
    */
-  image_size?: ImageSizeA4556963 | InputFalAiErnieImageLoraImageSizeKey
+  image_size?: ImageSize4B7D81C9 | InputFalAiErnieImageLoraImageSizeKey
   /**
    * @description Number of images to generate.
    * @minimum 1
@@ -13263,6 +15648,253 @@ export type OutputFalAiFashnTryonV16 = {
   images: FileFf29Dd7B[]
 }
 
+export type ImageSize176A37Aa = {
+  /**
+   * @description The width of the generated image.
+   * @maximum 14142
+   * @default 512
+   * @type integer | undefined
+   */
+  width?: number
+  /**
+   * @description The height of the generated image.
+   * @maximum 14142
+   * @default 512
+   * @type integer | undefined
+   */
+  height?: number
+}
+
+export type Embedding7D1Caffb = {
+  /**
+   * @description
+   *             The list of tokens to use for the embedding. When omitted, tokens
+   *             are generated as <s0>, <s1>, ... to match the number of vectors in
+   *             the embedding file.
+   *
+   * @default null
+   */
+  tokens?: string[] | null
+  /**
+   * @description URL or the path to the embedding weights.
+   * @example https://civitai.com/api/download/models/135931
+   * @example https://filebin.net/3chfqasxpqu21y8n/my-custom-lora-v1.safetensors
+   * @type string
+   */
+  path: string
+}
+
+export const inputFalAiFastFooocusSdxlImageToImageImageSize = {
+  square_hd: 'square_hd',
+  square: 'square',
+  portrait_4_3: 'portrait_4_3',
+  portrait_16_9: 'portrait_16_9',
+  landscape_4_3: 'landscape_4_3',
+  landscape_16_9: 'landscape_16_9',
+} as const
+
+export type InputFalAiFastFooocusSdxlImageToImageImageSizeKey =
+  (typeof inputFalAiFastFooocusSdxlImageToImageImageSize)[keyof typeof inputFalAiFastFooocusSdxlImageToImageImageSize]
+
+export const inputFalAiFastFooocusSdxlImageToImageFormatEnum = {
+  jpeg: 'jpeg',
+  png: 'png',
+} as const
+
+export type InputFalAiFastFooocusSdxlImageToImageFormatEnumKey =
+  (typeof inputFalAiFastFooocusSdxlImageToImageFormatEnum)[keyof typeof inputFalAiFastFooocusSdxlImageToImageFormatEnum]
+
+export const inputFalAiFastFooocusSdxlImageToImageSafetyCheckerVersionEnum = {
+  v1: 'v1',
+  v2: 'v2',
+} as const
+
+export type InputFalAiFastFooocusSdxlImageToImageSafetyCheckerVersionEnumKey =
+  (typeof inputFalAiFastFooocusSdxlImageToImageSafetyCheckerVersionEnum)[keyof typeof inputFalAiFastFooocusSdxlImageToImageSafetyCheckerVersionEnum]
+
+export type InputFalAiFastFooocusSdxlImageToImage = {
+  /**
+   * @description
+   *             The negative prompt to use.Use it to address details that you don't want
+   *             in the image. This could be colors, objects, scenery and even the small details
+   *             (e.g. moustache, blurry, low resolution).
+   *
+   * @default ''
+   * @example cartoon, illustration, animation. face. male, female
+   * @type string | undefined
+   */
+  negative_prompt?: string
+  /**
+   * @description
+   *             The CFG (Classifier Free Guidance) scale is a measure of how close you want
+   *             the model to stick to your prompt when looking for a related image to show you.
+   *
+   * @minimum 0
+   * @maximum 20
+   * @default 2
+   * @type number | undefined
+   */
+  guidance_scale?: number
+  /**
+   * @description
+   *             An id bound to a request, can be used with response to identify the request
+   *             itself.
+   *
+   * @default ''
+   * @type string | undefined
+   */
+  request_id?: string
+  /**
+   * @description The URL of the image to use as a starting point for the generation.
+   * @example https://fal-cdn.batuhan-941.workers.dev/files/tiger/IExuP-WICqaIesLZAZPur.jpeg
+   * @type string
+   */
+  image_url: string
+  /**
+   * @description The size of the generated image. Leave it none to automatically infer from the prompt image.
+   * @default null
+   * @example null
+   */
+  image_size?:
+    | ImageSize176A37Aa
+    | InputFalAiFastFooocusSdxlImageToImageImageSizeKey
+    | null
+  /**
+   * @description If set to true, the safety checker will be enabled.
+   * @default true
+   * @type boolean | undefined
+   */
+  enable_safety_checker?: boolean
+  /**
+   * @description determines how much the generated image resembles the initial image
+   * @minimum 0.05
+   * @maximum 1
+   * @default 0.95
+   * @type number | undefined
+   */
+  strength?: number
+  /**
+   * @description If set to true, a smaller model will try to refine the output after it was processed.
+   * @default true
+   * @type boolean | undefined
+   */
+  enable_refiner?: boolean
+  /**
+   * @description If set to true, the prompt will be expanded with additional prompts.
+   * @default true
+   * @type boolean | undefined
+   */
+  expand_prompt?: boolean
+  /**
+   * @description The format of the generated image.
+   * @default 'jpeg'
+   * @type string | undefined
+   */
+  format?: InputFalAiFastFooocusSdxlImageToImageFormatEnumKey
+  /**
+   * @description
+   *         If set to true, the aspect ratio of the generated image will be preserved even
+   *         if the image size is too large. However, if the image is not a multiple of 32
+   *         in width or height, it will be resized to the nearest multiple of 32. By default,
+   *         this snapping to the nearest multiple of 32 will not preserve the aspect ratio.
+   *         Set crop_output to True, to crop the output to the proper aspect ratio
+   *         after generating.
+   *
+   * @default false
+   * @type boolean | undefined
+   */
+  preserve_aspect_ratio?: boolean
+  /**
+   * @description The prompt to use for generating the image. Be as descriptive as possible for best results.
+   * @example an island near sea, with seagulls, moon shining over the sea, light house, boats int he background, fish flying over the sea
+   * @type string
+   */
+  prompt: string
+  /**
+   * @description The number of images to generate.
+   * @minimum 1
+   * @maximum 8
+   * @default 1
+   * @type integer | undefined
+   */
+  num_images?: number
+  /**
+   * @description The list of embeddings to use.
+   * @default []
+   * @type array | undefined
+   */
+  embeddings?: Embedding7D1Caffb[]
+  /**
+   * @description
+   *         If set to true, the output cropped to the proper aspect ratio after generating.
+   *
+   * @default false
+   * @type boolean | undefined
+   */
+  crop_output?: boolean
+  /**
+   * @description The version of the safety checker to use. v1 is the default CompVis safety checker. v2 uses a custom ViT model.
+   * @default 'v1'
+   * @type string | undefined
+   */
+  safety_checker_version?: InputFalAiFastFooocusSdxlImageToImageSafetyCheckerVersionEnumKey
+  /**
+   * @description The number of inference steps to perform.
+   * @minimum 1
+   * @maximum 24
+   * @default 8
+   * @type integer | undefined
+   */
+  num_inference_steps?: number
+  /**
+   * @description
+   *             The same seed and the same prompt given to the same version of Stable Diffusion
+   *             will output the same image every time.
+   *
+   * @default null
+   */
+  seed?: number | null
+}
+
+export type Image50Cec553 = {
+  url: string
+  height: number
+  /**
+   * @default image/jpeg
+   */
+  content_type?: string | null
+  width: number
+}
+
+export type OutputFalAiFastFooocusSdxlImageToImage = {
+  /**
+   * @description The generated image files info.
+   * @type array
+   */
+  images: Image50Cec553[]
+  timings: {
+    [key: string]: number
+  }
+  /**
+   * @description
+   *             Seed of the generated Image. It will be the same value of the one passed in the
+   *             input or the randomly generated that was used in case none was passed.
+   *
+   * @type integer
+   */
+  seed: number
+  /**
+   * @description The prompt used for generating the image.
+   * @type string
+   */
+  prompt: string
+  /**
+   * @description Whether the generated images contain NSFW concepts.
+   * @type array
+   */
+  has_nsfw_concepts: boolean[]
+}
+
 export type ImageSize45F97527 = {
   /**
    * @description The width of the generated image.
@@ -13872,7 +16504,7 @@ export type OutputFalAiFastLcmDiffusionInpainting = {
   prompt: string
 }
 
-export type ImageSize0673068E = {
+export type ImageSize559E8777 = {
   /**
    * @description The width of the generated image.
    * @maximum 14142
@@ -13889,7 +16521,7 @@ export type ImageSize0673068E = {
   height?: number
 }
 
-export type Embedding = {
+export type Embedding1331B79A = {
   /**
    * @description URL or the path to the embedding weights.
    * @example https://huggingface.co/RyuusouI/Negativexld/resolve/20515981675c6e76d5b91e2343b958d27c5ad0ab/negativeXL_D.safetensors
@@ -14012,7 +16644,7 @@ export type InputFalAiFastLightningSdxl = {
    * @description The size of the generated image.
    * @default square_hd
    */
-  image_size?: ImageSize0673068E | InputFalAiFastLightningSdxlImageSizeKey
+  image_size?: ImageSize559E8777 | InputFalAiFastLightningSdxlImageSizeKey
   /**
    * @description The version of the safety checker to use. v1 is the default CompVis safety checker. v2 uses a custom ViT model.
    * @default 'v1'
@@ -14024,7 +16656,7 @@ export type InputFalAiFastLightningSdxl = {
    * @default []
    * @type array | undefined
    */
-  embeddings?: Embedding[]
+  embeddings?: Embedding1331B79A[]
 }
 
 export type Image16Fa62D9 = {
@@ -14066,7 +16698,7 @@ export type OutputFalAiFastLightningSdxl = {
   prompt: string
 }
 
-export type ImageSize17185Af4 = {
+export type ImageSize4978Eabb = {
   /**
    * @description The width of the generated image.
    * @maximum 14142
@@ -14081,6 +16713,25 @@ export type ImageSize17185Af4 = {
    * @type integer | undefined
    */
   height?: number
+}
+
+export type Embedding6Cb3D660 = {
+  /**
+   * @description URL or the path to the embedding weights.
+   * @example https://huggingface.co/RyuusouI/Negativexld/resolve/20515981675c6e76d5b91e2343b958d27c5ad0ab/negativeXL_D.safetensors
+   * @example https://filebin.net/3chfqasxpqu21y8n/my-custom-lora-v1.safetensors
+   * @type string
+   */
+  path: string
+  /**
+   * @description
+   *             The list of tokens to use for the embedding. When omitted, tokens
+   *             are generated as <s0>, <s1>, ... to match the number of vectors in
+   *             the embedding file.
+   *
+   * @default null
+   */
+  tokens?: string[] | null
 }
 
 export const inputFalAiFastLightningSdxlImageToImageImageSize = {
@@ -14127,7 +16778,7 @@ export type InputFalAiFastLightningSdxlImageToImage = {
    * @default square_hd
    */
   image_size?:
-    | ImageSize17185Af4
+    | ImageSize4978Eabb
     | InputFalAiFastLightningSdxlImageToImageImageSizeKey
   /**
    * @description
@@ -14148,7 +16799,7 @@ export type InputFalAiFastLightningSdxlImageToImage = {
    * @default []
    * @type array | undefined
    */
-  embeddings?: Embedding[]
+  embeddings?: Embedding6Cb3D660[]
   /**
    * @description The number of inference steps to perform.
    * @default 4
@@ -14277,7 +16928,7 @@ export type OutputFalAiFastLightningSdxlImageToImage = {
   prompt: string
 }
 
-export type ImageSizeCd289Aba = {
+export type ImageSizeFdf55349 = {
   /**
    * @description The width of the generated image.
    * @maximum 14142
@@ -14292,6 +16943,25 @@ export type ImageSizeCd289Aba = {
    * @type integer | undefined
    */
   height?: number
+}
+
+export type EmbeddingD5C04Fee = {
+  /**
+   * @description URL or the path to the embedding weights.
+   * @example https://huggingface.co/RyuusouI/Negativexld/resolve/20515981675c6e76d5b91e2343b958d27c5ad0ab/negativeXL_D.safetensors
+   * @example https://filebin.net/3chfqasxpqu21y8n/my-custom-lora-v1.safetensors
+   * @type string
+   */
+  path: string
+  /**
+   * @description
+   *             The list of tokens to use for the embedding. When omitted, tokens
+   *             are generated as <s0>, <s1>, ... to match the number of vectors in
+   *             the embedding file.
+   *
+   * @default null
+   */
+  tokens?: string[] | null
 }
 
 export const inputFalAiFastLightningSdxlInpaintingImageSize = {
@@ -14344,7 +17014,7 @@ export type InputFalAiFastLightningSdxlInpainting = {
    * @default square_hd
    */
   image_size?:
-    | ImageSizeCd289Aba
+    | ImageSizeFdf55349
     | InputFalAiFastLightningSdxlInpaintingImageSizeKey
   /**
    * @description The prompt to use for generating the image. Be as descriptive as possible for best results.
@@ -14357,7 +17027,7 @@ export type InputFalAiFastLightningSdxlInpainting = {
    * @default []
    * @type array | undefined
    */
-  embeddings?: Embedding[]
+  embeddings?: EmbeddingD5C04Fee[]
   /**
    * @description The number of inference steps to perform.
    * @default 4
@@ -14714,6 +17384,841 @@ export type OutputFalAiFastSdxl = {
    * @type string
    */
   prompt: string
+}
+
+export type ImageSizeE781320B = {
+  /**
+   * @description The height of the generated image.
+   * @maximum 14142
+   * @default 512
+   * @type integer | undefined
+   */
+  height?: number
+  /**
+   * @description The width of the generated image.
+   * @maximum 14142
+   * @default 512
+   * @type integer | undefined
+   */
+  width?: number
+}
+
+export type EmbeddingC6E57D6E = {
+  /**
+   * @description
+   *             The list of tokens to use for the embedding. When omitted, tokens
+   *             are generated as <s0>, <s1>, ... to match the number of vectors in
+   *             the embedding file.
+   *
+   * @default null
+   */
+  tokens?: string[] | null
+  /**
+   * @description URL or the path to the embedding weights.
+   * @example https://huggingface.co/RyuusouI/Negativexld/resolve/20515981675c6e76d5b91e2343b958d27c5ad0ab/negativeXL_D.safetensors
+   * @example https://filebin.net/3chfqasxpqu21y8n/my-custom-lora-v1.safetensors
+   * @type string
+   */
+  path: string
+}
+
+export type LoraWeightE9D6B461 = {
+  /**
+   * @description
+   *             The scale of the LoRA weight. This is used to scale the LoRA weight
+   *             before merging it with the base model.
+   *
+   * @minimum 0
+   * @maximum 1
+   * @default 1
+   * @type number | undefined
+   */
+  scale?: number
+  /**
+   * @description If set to true, the embedding will be forced to be used.
+   * @default false
+   * @type boolean | undefined
+   */
+  force?: boolean
+  /**
+   * @description URL or path to a LoRA safetensors file. Or HF model name that resolves to safetensors weights.
+   * @example https://huggingface.co/nerijs/pixel-art-xl/resolve/8bf4a4d9ea283e00a51fafda8e0539f8248ea037/pixel-art-xl.safetensors
+   * @example https://filebin.net/3chfqasxpqu21y8n/my-custom-lora-v1.safetensors
+   * @type string
+   */
+  path: string
+}
+
+export const inputFalAiFastSdxlControlnetCannyFormatEnum = {
+  jpeg: 'jpeg',
+  png: 'png',
+} as const
+
+export type InputFalAiFastSdxlControlnetCannyFormatEnumKey =
+  (typeof inputFalAiFastSdxlControlnetCannyFormatEnum)[keyof typeof inputFalAiFastSdxlControlnetCannyFormatEnum]
+
+export const inputFalAiFastSdxlControlnetCannySafetyCheckerVersionEnum = {
+  v1: 'v1',
+  v2: 'v2',
+} as const
+
+export type InputFalAiFastSdxlControlnetCannySafetyCheckerVersionEnumKey =
+  (typeof inputFalAiFastSdxlControlnetCannySafetyCheckerVersionEnum)[keyof typeof inputFalAiFastSdxlControlnetCannySafetyCheckerVersionEnum]
+
+export const inputFalAiFastSdxlControlnetCannyImageSize = {
+  square_hd: 'square_hd',
+  square: 'square',
+  portrait_4_3: 'portrait_4_3',
+  portrait_16_9: 'portrait_16_9',
+  landscape_4_3: 'landscape_4_3',
+  landscape_16_9: 'landscape_16_9',
+} as const
+
+export type InputFalAiFastSdxlControlnetCannyImageSizeKey =
+  (typeof inputFalAiFastSdxlControlnetCannyImageSize)[keyof typeof inputFalAiFastSdxlControlnetCannyImageSize]
+
+export type InputFalAiFastSdxlControlnetCanny = {
+  /**
+   * @description
+   *             The negative prompt to use. Use it to address details that you don't want
+   *             in the image. This could be colors, objects, scenery and even the small details
+   *             (e.g. moustache, blurry, low resolution).
+   *
+   * @default ''
+   * @example cartoon, illustration, animation. face. male, female
+   * @example ugly, deformed
+   * @type string | undefined
+   */
+  negative_prompt?: string
+  /**
+   * @description The format of the generated image.
+   * @default 'jpeg'
+   * @type string | undefined
+   */
+  format?: InputFalAiFastSdxlControlnetCannyFormatEnumKey
+  /**
+   * @description The scale of the controlnet conditioning.
+   * @minimum 0
+   * @maximum 1
+   * @default 0.5
+   * @type number | undefined
+   */
+  controlnet_conditioning_scale?: number
+  /**
+   * @description
+   *             An id bound to a request, can be used with response to identify the request
+   *             itself.
+   *
+   * @default ''
+   * @type string | undefined
+   */
+  request_id?: string
+  /**
+   * @description The number of images to generate.
+   * @minimum 1
+   * @maximum 8
+   * @default 1
+   * @type integer | undefined
+   */
+  num_images?: number
+  /**
+   * @description The prompt to use for generating the image. Be as descriptive as possible for best results.
+   * @example Ice fortress, aurora skies, polar wildlife, twilight
+   * @type string
+   */
+  prompt: string
+  /**
+   * @description
+   *             The same seed and the same prompt given to the same version of Stable Diffusion
+   *             will output the same image every time.
+   *
+   * @default null
+   */
+  seed?: number | null
+  /**
+   * @description If set to true, the safety checker will be enabled.
+   * @default true
+   * @type boolean | undefined
+   */
+  enable_safety_checker?: boolean
+  /**
+   * @description The number of inference steps to perform.
+   * @minimum 1
+   * @maximum 70
+   * @default 35
+   * @type integer | undefined
+   */
+  num_inference_steps?: number
+  /**
+   * @description The version of the safety checker to use. v1 is the default CompVis safety checker. v2 uses a custom ViT model.
+   * @default 'v1'
+   * @type string | undefined
+   */
+  safety_checker_version?: InputFalAiFastSdxlControlnetCannySafetyCheckerVersionEnumKey
+  /**
+   * @description If set to true, the prompt will be expanded with additional prompts.
+   * @default false
+   * @type boolean | undefined
+   */
+  expand_prompt?: boolean
+  /**
+   * @description The size of the generated image. Leave it none to automatically infer from the control image.
+   * @default null
+   * @example null
+   */
+  image_size?:
+    | ImageSizeE781320B
+    | InputFalAiFastSdxlControlnetCannyImageSizeKey
+    | null
+  /**
+   * @description The list of embeddings to use.
+   * @default []
+   * @type array | undefined
+   */
+  embeddings?: EmbeddingC6E57D6E[]
+  /**
+   * @description
+   *             The CFG (Classifier Free Guidance) scale is a measure of how close you want
+   *             the model to stick to your prompt when looking for a related image to show you.
+   *
+   * @minimum 0
+   * @maximum 20
+   * @default 7.5
+   * @type number | undefined
+   */
+  guidance_scale?: number
+  /**
+   * @description If `True`, the media will be returned as a data URI and the output data won't be available in the request history.
+   * @default false
+   * @type boolean | undefined
+   */
+  sync_mode?: boolean
+  /**
+   * @description The list of LoRA weights to use.
+   * @default []
+   * @type array | undefined
+   */
+  loras?: LoraWeightE9D6B461[]
+  /**
+   * @description The URL of the control image.
+   * @example https://fal-cdn.batuhan-941.workers.dev/files/rabbit/MiN_j3St9B8esJleCZKMU.jpeg
+   * @type string
+   */
+  control_image_url: string
+}
+
+export type Image75025F4B = {
+  width: number
+  /**
+   * @default image/jpeg
+   */
+  content_type?: string | null
+  url: string
+  height: number
+}
+
+export type OutputFalAiFastSdxlControlnetCanny = {
+  /**
+   * @description Whether the generated images contain NSFW concepts.
+   * @type array
+   */
+  has_nsfw_concepts: boolean[]
+  /**
+   * @description The prompt used for generating the image.
+   * @type string
+   */
+  prompt: string
+  /**
+   * @description The generated image files info.
+   * @type array
+   */
+  images: Image75025F4B[]
+  timings: {
+    [key: string]: number
+  }
+  /**
+   * @description
+   *             Seed of the generated Image. It will be the same value of the one passed in the
+   *             input or the randomly generated that was used in case none was passed.
+   *
+   * @type integer
+   */
+  seed: number
+}
+
+export type EmbeddingD8F39D14 = {
+  /**
+   * @description
+   *             The list of tokens to use for the embedding. When omitted, tokens
+   *             are generated as <s0>, <s1>, ... to match the number of vectors in
+   *             the embedding file.
+   *
+   * @default null
+   */
+  tokens?: string[] | null
+  /**
+   * @description URL or the path to the embedding weights.
+   * @example https://huggingface.co/RyuusouI/Negativexld/resolve/20515981675c6e76d5b91e2343b958d27c5ad0ab/negativeXL_D.safetensors
+   * @example https://filebin.net/3chfqasxpqu21y8n/my-custom-lora-v1.safetensors
+   * @type string
+   */
+  path: string
+}
+
+export type ImageSize98Fd783F = {
+  /**
+   * @description The height of the generated image.
+   * @maximum 14142
+   * @default 512
+   * @type integer | undefined
+   */
+  height?: number
+  /**
+   * @description The width of the generated image.
+   * @maximum 14142
+   * @default 512
+   * @type integer | undefined
+   */
+  width?: number
+}
+
+export type LoraWeightBdc63689 = {
+  /**
+   * @description
+   *             The scale of the LoRA weight. This is used to scale the LoRA weight
+   *             before merging it with the base model.
+   *
+   * @minimum 0
+   * @maximum 1
+   * @default 1
+   * @type number | undefined
+   */
+  scale?: number
+  /**
+   * @description If set to true, the embedding will be forced to be used.
+   * @default false
+   * @type boolean | undefined
+   */
+  force?: boolean
+  /**
+   * @description URL or path to a LoRA safetensors file. Or HF model name that resolves to safetensors weights.
+   * @example https://huggingface.co/nerijs/pixel-art-xl/resolve/8bf4a4d9ea283e00a51fafda8e0539f8248ea037/pixel-art-xl.safetensors
+   * @example https://filebin.net/3chfqasxpqu21y8n/my-custom-lora-v1.safetensors
+   * @type string
+   */
+  path: string
+}
+
+export const inputFalAiFastSdxlControlnetCannyImageToImageFormatEnum = {
+  jpeg: 'jpeg',
+  png: 'png',
+} as const
+
+export type InputFalAiFastSdxlControlnetCannyImageToImageFormatEnumKey =
+  (typeof inputFalAiFastSdxlControlnetCannyImageToImageFormatEnum)[keyof typeof inputFalAiFastSdxlControlnetCannyImageToImageFormatEnum]
+
+export const inputFalAiFastSdxlControlnetCannyImageToImageSafetyCheckerVersionEnum =
+  {
+    v1: 'v1',
+    v2: 'v2',
+  } as const
+
+export type InputFalAiFastSdxlControlnetCannyImageToImageSafetyCheckerVersionEnumKey =
+  (typeof inputFalAiFastSdxlControlnetCannyImageToImageSafetyCheckerVersionEnum)[keyof typeof inputFalAiFastSdxlControlnetCannyImageToImageSafetyCheckerVersionEnum]
+
+export const inputFalAiFastSdxlControlnetCannyImageToImageImageSize = {
+  square_hd: 'square_hd',
+  square: 'square',
+  portrait_4_3: 'portrait_4_3',
+  portrait_16_9: 'portrait_16_9',
+  landscape_4_3: 'landscape_4_3',
+  landscape_16_9: 'landscape_16_9',
+} as const
+
+export type InputFalAiFastSdxlControlnetCannyImageToImageImageSizeKey =
+  (typeof inputFalAiFastSdxlControlnetCannyImageToImageImageSize)[keyof typeof inputFalAiFastSdxlControlnetCannyImageToImageImageSize]
+
+export type InputFalAiFastSdxlControlnetCannyImageToImage = {
+  /**
+   * @description
+   *             The negative prompt to use.Use it to address details that you don't want
+   *             in the image. This could be colors, objects, scenery and even the small details
+   *             (e.g. moustache, blurry, low resolution).
+   *
+   * @default ''
+   * @example cartoon, illustration, animation. face. male, female
+   * @type string | undefined
+   */
+  negative_prompt?: string
+  /**
+   * @description The format of the generated image.
+   * @default 'jpeg'
+   * @type string | undefined
+   */
+  format?: InputFalAiFastSdxlControlnetCannyImageToImageFormatEnumKey
+  /**
+   * @description The scale of the controlnet conditioning.
+   * @minimum 0
+   * @maximum 1
+   * @default 0.5
+   * @type number | undefined
+   */
+  controlnet_conditioning_scale?: number
+  /**
+   * @description
+   *             An id bound to a request, can be used with response to identify the request
+   *             itself.
+   *
+   * @default ''
+   * @type string | undefined
+   */
+  request_id?: string
+  /**
+   * @description
+   *         If set to true, the aspect ratio of the generated image will be preserved even
+   *         if the image size is too large. However, if the image is not a multiple of 32
+   *         in width or height, it will be resized to the nearest multiple of 32. By default,
+   *         this snapping to the nearest multiple of 32 will not preserve the aspect ratio.
+   *         Set crop_output to True, to crop the output to the proper aspect ratio
+   *         after generating.
+   *
+   * @default false
+   * @type boolean | undefined
+   */
+  preserve_aspect_ratio?: boolean
+  /**
+   * @description The number of images to generate.
+   * @minimum 1
+   * @maximum 8
+   * @default 1
+   * @type integer | undefined
+   */
+  num_images?: number
+  /**
+   * @description If set to true, the safety checker will be enabled.
+   * @default true
+   * @type boolean | undefined
+   */
+  enable_safety_checker?: boolean
+  /**
+   * @description
+   *             The same seed and the same prompt given to the same version of Stable Diffusion
+   *             will output the same image every time.
+   *
+   * @default null
+   */
+  seed?: number | null
+  /**
+   * @description The prompt to use for generating the image. Be as descriptive as possible for best results.
+   * @example Ice fortress, aurora skies, polar wildlife, twilight
+   * @type string
+   */
+  prompt: string
+  /**
+   * @description The number of inference steps to perform.
+   * @minimum 1
+   * @maximum 70
+   * @default 35
+   * @type integer | undefined
+   */
+  num_inference_steps?: number
+  /**
+   * @description The version of the safety checker to use. v1 is the default CompVis safety checker. v2 uses a custom ViT model.
+   * @default 'v1'
+   * @type string | undefined
+   */
+  safety_checker_version?: InputFalAiFastSdxlControlnetCannyImageToImageSafetyCheckerVersionEnumKey
+  /**
+   * @description The URL of the image to use as a starting point for the generation.
+   * @example https://fal-cdn.batuhan-941.workers.dev/files/tiger/IExuP-WICqaIesLZAZPur.jpeg
+   * @type string
+   */
+  image_url: string
+  /**
+   * @description If set to true, the prompt will be expanded with additional prompts.
+   * @default false
+   * @type boolean | undefined
+   */
+  expand_prompt?: boolean
+  /**
+   * @description determines how much the generated image resembles the initial image
+   * @minimum 0.05
+   * @maximum 1
+   * @default 0.95
+   * @type number | undefined
+   */
+  strength?: number
+  /**
+   * @description The list of embeddings to use.
+   * @default []
+   * @type array | undefined
+   */
+  embeddings?: EmbeddingD8F39D14[]
+  /**
+   * @description
+   *             The CFG (Classifier Free Guidance) scale is a measure of how close you want
+   *             the model to stick to your prompt when looking for a related image to show you.
+   *
+   * @minimum 0
+   * @maximum 20
+   * @default 7.5
+   * @type number | undefined
+   */
+  guidance_scale?: number
+  /**
+   * @description If `True`, the media will be returned as a data URI and the output data won't be available in the request history.
+   * @default false
+   * @type boolean | undefined
+   */
+  sync_mode?: boolean
+  /**
+   * @description The size of the generated image. Leave it none to automatically infer from the control image.
+   * @default null
+   * @example null
+   */
+  image_size?:
+    | ImageSize98Fd783F
+    | InputFalAiFastSdxlControlnetCannyImageToImageImageSizeKey
+    | null
+  /**
+   * @description
+   *         If set to true, the output cropped to the proper aspect ratio after generating.
+   *
+   * @default false
+   * @type boolean | undefined
+   */
+  crop_output?: boolean
+  /**
+   * @description The list of LoRA weights to use.
+   * @default []
+   * @type array | undefined
+   */
+  loras?: LoraWeightBdc63689[]
+  /**
+   * @description The URL of the control image.
+   * @example https://fal-cdn.batuhan-941.workers.dev/files/rabbit/MiN_j3St9B8esJleCZKMU.jpeg
+   * @type string
+   */
+  control_image_url: string
+}
+
+export type Image0955777F = {
+  width: number
+  /**
+   * @default image/jpeg
+   */
+  content_type?: string | null
+  url: string
+  height: number
+}
+
+export type OutputFalAiFastSdxlControlnetCannyImageToImage = {
+  /**
+   * @description Whether the generated images contain NSFW concepts.
+   * @type array
+   */
+  has_nsfw_concepts: boolean[]
+  /**
+   * @description The prompt used for generating the image.
+   * @type string
+   */
+  prompt: string
+  /**
+   * @description The generated image files info.
+   * @type array
+   */
+  images: Image0955777F[]
+  timings: {
+    [key: string]: number
+  }
+  /**
+   * @description
+   *             Seed of the generated Image. It will be the same value of the one passed in the
+   *             input or the randomly generated that was used in case none was passed.
+   *
+   * @type integer
+   */
+  seed: number
+}
+
+export type ImageSize34D37415 = {
+  /**
+   * @description The height of the generated image.
+   * @maximum 14142
+   * @default 512
+   * @type integer | undefined
+   */
+  height?: number
+  /**
+   * @description The width of the generated image.
+   * @maximum 14142
+   * @default 512
+   * @type integer | undefined
+   */
+  width?: number
+}
+
+export type EmbeddingE412025A = {
+  /**
+   * @description
+   *             The list of tokens to use for the embedding. When omitted, tokens
+   *             are generated as <s0>, <s1>, ... to match the number of vectors in
+   *             the embedding file.
+   *
+   * @default null
+   */
+  tokens?: string[] | null
+  /**
+   * @description URL or the path to the embedding weights.
+   * @example https://huggingface.co/RyuusouI/Negativexld/resolve/20515981675c6e76d5b91e2343b958d27c5ad0ab/negativeXL_D.safetensors
+   * @example https://filebin.net/3chfqasxpqu21y8n/my-custom-lora-v1.safetensors
+   * @type string
+   */
+  path: string
+}
+
+export type LoraWeight5Aab1Fd3 = {
+  /**
+   * @description
+   *             The scale of the LoRA weight. This is used to scale the LoRA weight
+   *             before merging it with the base model.
+   *
+   * @minimum 0
+   * @maximum 1
+   * @default 1
+   * @type number | undefined
+   */
+  scale?: number
+  /**
+   * @description If set to true, the embedding will be forced to be used.
+   * @default false
+   * @type boolean | undefined
+   */
+  force?: boolean
+  /**
+   * @description URL or path to a LoRA safetensors file. Or HF model name that resolves to safetensors weights.
+   * @example https://huggingface.co/nerijs/pixel-art-xl/resolve/8bf4a4d9ea283e00a51fafda8e0539f8248ea037/pixel-art-xl.safetensors
+   * @example https://filebin.net/3chfqasxpqu21y8n/my-custom-lora-v1.safetensors
+   * @type string
+   */
+  path: string
+}
+
+export const inputFalAiFastSdxlControlnetCannyInpaintingFormatEnum = {
+  jpeg: 'jpeg',
+  png: 'png',
+} as const
+
+export type InputFalAiFastSdxlControlnetCannyInpaintingFormatEnumKey =
+  (typeof inputFalAiFastSdxlControlnetCannyInpaintingFormatEnum)[keyof typeof inputFalAiFastSdxlControlnetCannyInpaintingFormatEnum]
+
+export const inputFalAiFastSdxlControlnetCannyInpaintingSafetyCheckerVersionEnum =
+  {
+    v1: 'v1',
+    v2: 'v2',
+  } as const
+
+export type InputFalAiFastSdxlControlnetCannyInpaintingSafetyCheckerVersionEnumKey =
+  (typeof inputFalAiFastSdxlControlnetCannyInpaintingSafetyCheckerVersionEnum)[keyof typeof inputFalAiFastSdxlControlnetCannyInpaintingSafetyCheckerVersionEnum]
+
+export const inputFalAiFastSdxlControlnetCannyInpaintingImageSize = {
+  square_hd: 'square_hd',
+  square: 'square',
+  portrait_4_3: 'portrait_4_3',
+  portrait_16_9: 'portrait_16_9',
+  landscape_4_3: 'landscape_4_3',
+  landscape_16_9: 'landscape_16_9',
+} as const
+
+export type InputFalAiFastSdxlControlnetCannyInpaintingImageSizeKey =
+  (typeof inputFalAiFastSdxlControlnetCannyInpaintingImageSize)[keyof typeof inputFalAiFastSdxlControlnetCannyInpaintingImageSize]
+
+export type InputFalAiFastSdxlControlnetCannyInpainting = {
+  /**
+   * @description
+   *             The negative prompt to use.Use it to address details that you don't want
+   *             in the image. This could be colors, objects, scenery and even the small details
+   *             (e.g. moustache, blurry, low resolution).
+   *
+   * @default ''
+   * @example cartoon, illustration, animation. face. male, female
+   * @type string | undefined
+   */
+  negative_prompt?: string
+  /**
+   * @description The format of the generated image.
+   * @default 'jpeg'
+   * @type string | undefined
+   */
+  format?: InputFalAiFastSdxlControlnetCannyInpaintingFormatEnumKey
+  /**
+   * @description The scale of the controlnet conditioning.
+   * @minimum 0
+   * @maximum 1
+   * @default 0.5
+   * @type number | undefined
+   */
+  controlnet_conditioning_scale?: number
+  /**
+   * @description
+   *             An id bound to a request, can be used with response to identify the request
+   *             itself.
+   *
+   * @default ''
+   * @type string | undefined
+   */
+  request_id?: string
+  /**
+   * @description The number of images to generate.
+   * @minimum 1
+   * @maximum 8
+   * @default 1
+   * @type integer | undefined
+   */
+  num_images?: number
+  /**
+   * @description The prompt to use for generating the image. Be as descriptive as possible for best results.
+   * @example Ice fortress, aurora skies, polar wildlife, twilight
+   * @type string
+   */
+  prompt: string
+  /**
+   * @description
+   *             The same seed and the same prompt given to the same version of Stable Diffusion
+   *             will output the same image every time.
+   *
+   * @default null
+   */
+  seed?: number | null
+  /**
+   * @description If set to true, the safety checker will be enabled.
+   * @default true
+   * @type boolean | undefined
+   */
+  enable_safety_checker?: boolean
+  /**
+   * @description The number of inference steps to perform.
+   * @minimum 1
+   * @maximum 70
+   * @default 35
+   * @type integer | undefined
+   */
+  num_inference_steps?: number
+  /**
+   * @description The version of the safety checker to use. v1 is the default CompVis safety checker. v2 uses a custom ViT model.
+   * @default 'v1'
+   * @type string | undefined
+   */
+  safety_checker_version?: InputFalAiFastSdxlControlnetCannyInpaintingSafetyCheckerVersionEnumKey
+  /**
+   * @description The URL of the image to use as a starting point for the generation.
+   * @example https://raw.githubusercontent.com/CompVis/latent-diffusion/main/data/inpainting_examples/overture-creations-5sI6fQgYIuo.png
+   * @type string
+   */
+  image_url: string
+  /**
+   * @description If set to true, the prompt will be expanded with additional prompts.
+   * @default false
+   * @type boolean | undefined
+   */
+  expand_prompt?: boolean
+  /**
+   * @description determines how much the generated image resembles the initial image
+   * @minimum 0.01
+   * @maximum 1
+   * @default 0.95
+   * @type number | undefined
+   */
+  strength?: number
+  /**
+   * @description The size of the generated image. Leave it none to automatically infer from the control image.
+   * @default null
+   * @example null
+   */
+  image_size?:
+    | ImageSize34D37415
+    | InputFalAiFastSdxlControlnetCannyInpaintingImageSizeKey
+    | null
+  /**
+   * @description
+   *             The CFG (Classifier Free Guidance) scale is a measure of how close you want
+   *             the model to stick to your prompt when looking for a related image to show you.
+   *
+   * @minimum 0
+   * @maximum 20
+   * @default 7.5
+   * @type number | undefined
+   */
+  guidance_scale?: number
+  /**
+   * @description If `True`, the media will be returned as a data URI and the output data won't be available in the request history.
+   * @default false
+   * @type boolean | undefined
+   */
+  sync_mode?: boolean
+  /**
+   * @description The list of embeddings to use.
+   * @default []
+   * @type array | undefined
+   */
+  embeddings?: EmbeddingE412025A[]
+  /**
+   * @description The URL of the mask to use for inpainting.
+   * @example https://raw.githubusercontent.com/CompVis/latent-diffusion/main/data/inpainting_examples/overture-creations-5sI6fQgYIuo_mask.png
+   * @type string
+   */
+  mask_url: string
+  /**
+   * @description The URL of the control image.
+   * @example https://fal-cdn.batuhan-941.workers.dev/files/rabbit/MiN_j3St9B8esJleCZKMU.jpeg
+   * @type string
+   */
+  control_image_url: string
+  /**
+   * @description The list of LoRA weights to use.
+   * @default []
+   * @type array | undefined
+   */
+  loras?: LoraWeight5Aab1Fd3[]
+}
+
+export type Image24Cc7B55 = {
+  width: number
+  /**
+   * @default image/jpeg
+   */
+  content_type?: string | null
+  url: string
+  height: number
+}
+
+export type OutputFalAiFastSdxlControlnetCannyInpainting = {
+  /**
+   * @description Whether the generated images contain NSFW concepts.
+   * @type array
+   */
+  has_nsfw_concepts: boolean[]
+  /**
+   * @description The prompt used for generating the image.
+   * @type string
+   */
+  prompt: string
+  /**
+   * @description The generated image files info.
+   * @type array
+   */
+  images: Image24Cc7B55[]
+  timings: {
+    [key: string]: number
+  }
+  /**
+   * @description
+   *             Seed of the generated Image. It will be the same value of the one passed in the
+   *             input or the randomly generated that was used in case none was passed.
+   *
+   * @type integer
+   */
+  seed: number
 }
 
 export type ImageSizeA93Ddf16 = {
@@ -15840,6 +19345,173 @@ export type OutputFalAiFinegrainEraserMask = {
   image: File9F4Aeb2F
 }
 
+export type ImageSize4C8Cbfb4 = {
+  /**
+   * @description The width of the generated image.
+   * @maximum 14142
+   * @default 512
+   * @type integer | undefined
+   */
+  width?: number
+  /**
+   * @description The height of the generated image.
+   * @maximum 14142
+   * @default 512
+   * @type integer | undefined
+   */
+  height?: number
+}
+
+export const inputFalAiFireredImageEditImageSize = {
+  square_hd: 'square_hd',
+  square: 'square',
+  portrait_4_3: 'portrait_4_3',
+  portrait_16_9: 'portrait_16_9',
+  landscape_4_3: 'landscape_4_3',
+  landscape_16_9: 'landscape_16_9',
+} as const
+
+export type InputFalAiFireredImageEditImageSizeKey =
+  (typeof inputFalAiFireredImageEditImageSize)[keyof typeof inputFalAiFireredImageEditImageSize]
+
+export const inputFalAiFireredImageEditAccelerationEnum = {
+  none: 'none',
+  regular: 'regular',
+  high: 'high',
+} as const
+
+export type InputFalAiFireredImageEditAccelerationEnumKey =
+  (typeof inputFalAiFireredImageEditAccelerationEnum)[keyof typeof inputFalAiFireredImageEditAccelerationEnum]
+
+export const inputFalAiFireredImageEditOutputFormatEnum = {
+  jpeg: 'jpeg',
+  png: 'png',
+} as const
+
+export type InputFalAiFireredImageEditOutputFormatEnumKey =
+  (typeof inputFalAiFireredImageEditOutputFormatEnum)[keyof typeof inputFalAiFireredImageEditOutputFormatEnum]
+
+export type InputFalAiFireredImageEdit = {
+  /**
+   * @description The number of images to generate.
+   * @minimum 1
+   * @maximum 4
+   * @default 1
+   * @type integer | undefined
+   */
+  num_images?: number
+  /**
+   * @description The editing instruction describing what changes to make to the image. Supports both English and Chinese instructions.
+   * @example Move the whirling dervishes to this colorful room
+   * @type string
+   */
+  prompt: string
+  /**
+   * @description The number of inference steps to perform. More steps generally produce higher quality results.
+   * @minimum 2
+   * @maximum 50
+   * @default 30
+   * @type integer | undefined
+   */
+  num_inference_steps?: number
+  /**
+   * @description The size of the generated image. If None, uses the input image dimensions.
+   * @example {"width":1536,"height":768}
+   */
+  image_size?: ImageSize4C8Cbfb4 | InputFalAiFireredImageEditImageSizeKey | null
+  /**
+   * @description The URLs of the images to edit. Supports single image editing and multi-image references (e.g., virtual try-on, style transfer from reference).
+   * @example ["https://v3b.fal.media/files/b/0a8ed7f7/ElaLDgkUJiEazYH90eqJ3.jpg","https://v3b.fal.media/files/b/0a8ed7f9/4keTvi5q_yV4pCIUzAyFR.jpg"]
+   * @type array
+   */
+  image_urls: string[]
+  /**
+   * @description The negative prompt for the generation.
+   * @default ''
+   * @type string | undefined
+   */
+  negative_prompt?: string
+  /**
+   * @description If `True`, the media will be returned as a data URI and the output data won't be available in the request history.
+   * @default false
+   * @type boolean | undefined
+   */
+  sync_mode?: boolean
+  /**
+   * @description If set to true, the safety checker will be enabled. Disabling it requires account authorization; unauthorized requests are always checked, and images flagged as unsafe are returned as black images.
+   * @default true
+   * @type boolean | undefined
+   */
+  enable_safety_checker?: boolean
+  /**
+   * @description
+   *             The same seed and the same prompt given to the same version of the model
+   *             will output the same image every time.
+   *
+   */
+  seed?: number | null
+  /**
+   * @description Classifier-free guidance scale. Higher values make the model follow the prompt more closely.
+   * @minimum 1
+   * @maximum 10
+   * @default 4
+   * @type number | undefined
+   */
+  guidance_scale?: number
+  /**
+   * @description The acceleration level to use for inference speed optimization.
+   * @default 'regular'
+   * @type string | undefined
+   */
+  acceleration?: InputFalAiFireredImageEditAccelerationEnumKey
+  /**
+   * @description The format of the generated image.
+   * @default 'png'
+   * @type string | undefined
+   */
+  output_format?: InputFalAiFireredImageEditOutputFormatEnumKey
+}
+
+export type Image7Db295Da = {
+  /**
+   * @default image/jpeg
+   */
+  content_type?: string | null
+  width: number
+  url: string
+  height: number
+}
+
+export type OutputFalAiFireredImageEdit = {
+  timings: {
+    [key: string]: number
+  }
+  /**
+   * @description The prompt used for generating the image.
+   * @type string
+   */
+  prompt: string
+  /**
+   * @description Whether the generated images contain NSFW concepts.
+   * @type array
+   */
+  has_nsfw_concepts: boolean[]
+  /**
+   * @description
+   *             Seed of the generated Image. It will be the same value of the one passed in the
+   *             input or the randomly generated that was used in case none was passed.
+   *
+   * @type integer
+   */
+  seed: number
+  /**
+   * @description The edited image files info.
+   * @example [{"content_type":"image/jpeg","width":1376,"url":"https://v3b.fal.media/files/b/0a8ed7fa/pHsp1KWzqkNNYfAcZ_bkY.jpg","height":768}]
+   * @type array
+   */
+  images: Image7Db295Da[]
+}
+
 export type ImageSizeA86B9F99 = {
   /**
    * @description The height of the generated image.
@@ -16778,6 +20450,125 @@ export type OutputFalAiFlorence2LargeRegionToSegmentation = {
    * @type object | undefined
    */
   image?: Image2A2379C9
+}
+
+export type InputFalAiFlowedit = {
+  /**
+   * @description Average step count
+   * @default 1
+   */
+  n_avg?: number | null
+  /**
+   * @description URL of image to be used for relighting
+   * @example https://storage.googleapis.com/falserverless/model_tests/FlowEdit/lighthouse.png
+   * @type string
+   */
+  image_url: string
+  /**
+   * @description Steps for which the model should run.
+   * @default 28
+   */
+  num_inference_steps?: number | null
+  /**
+   * @description Control the strength of the edit
+   * @default 23
+   */
+  n_max?: number | null
+  /**
+   * @description Authorized callers may set false to request relaxed screening.
+   * @default true
+   * @type boolean | undefined
+   */
+  enable_safety_checker?: boolean
+  /**
+   * @description Prompt of the image to be used.
+   * @example The image features a tall white lighthouse standing prominently
+   *       on a hill, with a beautiful blue sky in the background. The lighthouse is illuminated
+   *       by a bright light, making it a prominent landmark in the scene.
+   * @type string
+   */
+  source_prompt: string
+  /**
+   * @description Random seed for reproducible generation. If set none, a random seed will be used.
+   */
+  seed?: number | null
+  /**
+   * @description Guidance scale for target.
+   * @default 5.5
+   */
+  tar_guidance_scale?: number | null
+  /**
+   * @description Prompt of the image to be made.
+   * @example The image features Big ben clock tower standing prominently
+   *       on a hill, with a beautiful blue sky in the background. The Big ben clock tower is illuminated
+   *       by a bright light, making it a prominent landmark in the scene.
+   * @type string
+   */
+  target_prompt: string
+  /**
+   * @description Guidance scale for the source.
+   * @default 1.5
+   */
+  src_guidance_scale?: number | null
+  /**
+   * @description Minimum step for improved style edits
+   * @default 0
+   */
+  n_min?: number | null
+}
+
+/**
+ * @description Represents an image file.
+ * @type object
+ */
+export type ImageBa81E0C7 = {
+  /**
+   * @description The name of the file. It will be auto-generated if not provided.
+   * @example z9RV14K95DvU.png
+   */
+  file_name?: string | null
+  /**
+   * @description The URL where the file can be downloaded from.
+   * @type string
+   */
+  url: string
+  /**
+   * @description The height of the image in pixels.
+   * @example 1024
+   */
+  height?: number | null
+  /**
+   * @description The width of the image in pixels.
+   * @example 1024
+   */
+  width?: number | null
+  /**
+   * @description The mime type of the file.
+   * @example image/png
+   */
+  content_type?: string | null
+  /**
+   * @description The size of the file in bytes.
+   * @example 4404019
+   */
+  file_size?: number | null
+}
+
+export type OutputFalAiFlowedit = {
+  /**
+   * @description The generated image file info.
+   * @example {"file_name":"36d3ca4791a647678b2ff01a35c87f5a.png","url":"https://storage.googleapis.com/falserverless/model_tests/FlowEdit/aa5c3d028ad04800a54f70f928198d91.png","height":1024,"width":1024,"content_type":"image/png","file_size":423052}
+   * @type object
+   */
+  image: ImageBa81E0C7
+  /**
+   * @description
+   *             Seed of the generated Image. It will be the same value of the one passed in the
+   *             input or the randomly generated that was used in case none was passed.
+   *
+   * @type integer
+   */
+  seed: number
 }
 
 export type ImageSizeBeea61F3 = {
@@ -25642,6 +29433,806 @@ export type OutputFalAiFlux2TurboEdit = {
   prompt: string
 }
 
+export type ImageSize64F78009 = {
+  /**
+   * @description The height of the generated image.
+   * @maximum 14142
+   * @default 512
+   * @type integer | undefined
+   */
+  height?: number
+  /**
+   * @description The width of the generated image.
+   * @maximum 14142
+   * @default 512
+   * @type integer | undefined
+   */
+  width?: number
+}
+
+export type LoraWeightCdaca44F = {
+  /**
+   * @description
+   *             The scale of the LoRA weight. This is used to scale the LoRA weight
+   *             before merging it with the base model.
+   *
+   * @minimum 0
+   * @maximum 4
+   * @default 1
+   * @type number | undefined
+   */
+  scale?: number
+  /**
+   * @description URL or the path to the LoRA weights.
+   * @type string
+   */
+  path: string
+}
+
+export const inputFalAiFluxControlLoraCannyImageSize = {
+  square_hd: 'square_hd',
+  square: 'square',
+  portrait_4_3: 'portrait_4_3',
+  portrait_16_9: 'portrait_16_9',
+  landscape_4_3: 'landscape_4_3',
+  landscape_16_9: 'landscape_16_9',
+} as const
+
+export type InputFalAiFluxControlLoraCannyImageSizeKey =
+  (typeof inputFalAiFluxControlLoraCannyImageSize)[keyof typeof inputFalAiFluxControlLoraCannyImageSize]
+
+export const inputFalAiFluxControlLoraCannyOutputFormatEnum = {
+  jpeg: 'jpeg',
+  png: 'png',
+} as const
+
+export type InputFalAiFluxControlLoraCannyOutputFormatEnumKey =
+  (typeof inputFalAiFluxControlLoraCannyOutputFormatEnum)[keyof typeof inputFalAiFluxControlLoraCannyOutputFormatEnum]
+
+export type InputFalAiFluxControlLoraCanny = {
+  /**
+   * @description URL of image to use for image-to-image generation.
+   */
+  image_url?: string | null
+  /**
+   * @description
+   *             If set to true, the input image will be preprocessed to extract depth information.
+   *             This is useful for generating depth maps from images.
+   *
+   * @default true
+   * @type boolean | undefined
+   */
+  preprocess_depth?: boolean
+  /**
+   * @description The size of the generated image.
+   * @default landscape_4_3
+   */
+  image_size?: ImageSize64F78009 | InputFalAiFluxControlLoraCannyImageSizeKey
+  /**
+   * @description The number of images to generate.
+   * @minimum 1
+   * @maximum 4
+   * @default 1
+   * @type integer | undefined
+   */
+  num_images?: number
+  /**
+   * @description
+   *             The image to use for control lora. This is used to control the style of the generated image.
+   *
+   * @example https://storage.googleapis.com/falserverless/flux-lora/example-images/knight.jpeg
+   * @type string
+   */
+  control_lora_image_url: string
+  /**
+   * @description The prompt to generate an image from.
+   * @example Extreme close-up of a single tiger eye, direct frontal view. Detailed iris and pupil. Sharp focus on eye texture and color. Natural lighting to capture authentic eye shine and depth. The word "FLUX" is painted over it in big, white brush strokes with visible texture.
+   * @type string
+   */
+  prompt: string
+  /**
+   * @description
+   *             The same seed and the same prompt given to the same version of the model
+   *             will output the same image every time.
+   *
+   */
+  seed?: number | null
+  /**
+   * @description If `True`, the media will be returned as a data URI and the output data won't be available in the request history.
+   * @default false
+   * @type boolean | undefined
+   */
+  sync_mode?: boolean
+  /**
+   * @description
+   *             The CFG (Classifier Free Guidance) scale is a measure of how close you want
+   *             the model to stick to your prompt when looking for a related image to show you.
+   *
+   * @minimum 0
+   * @maximum 35
+   * @default 3.5
+   * @type number | undefined
+   */
+  guidance_scale?: number
+  /**
+   * @description The number of inference steps to perform.
+   * @minimum 1
+   * @maximum 50
+   * @default 28
+   * @type integer | undefined
+   */
+  num_inference_steps?: number
+  /**
+   * @description The format of the generated image.
+   * @default 'jpeg'
+   * @type string | undefined
+   */
+  output_format?: InputFalAiFluxControlLoraCannyOutputFormatEnumKey
+  /**
+   * @description
+   *             The LoRAs to use for the image generation. You can use any number of LoRAs
+   *             and they will be merged together to generate the final image.
+   *
+   * @default []
+   * @type array | undefined
+   */
+  loras?: LoraWeightCdaca44F[]
+  /**
+   * @description The strength of the control lora.
+   * @minimum 0
+   * @maximum 2
+   * @default 1
+   * @type number | undefined
+   */
+  control_lora_strength?: number
+  /**
+   * @description If set to true, the safety checker will be enabled. Disabling it requires account authorization; unauthorized requests are always checked, and images flagged as unsafe are returned as black images.
+   * @default true
+   * @type boolean | undefined
+   */
+  enable_safety_checker?: boolean
+}
+
+export type Image0D444Ef8 = {
+  url: string
+  height: number
+  width: number
+  /**
+   * @default image/jpeg
+   */
+  content_type?: string | null
+}
+
+export type OutputFalAiFluxControlLoraCanny = {
+  /**
+   * @description
+   *             Seed of the generated Image. It will be the same value of the one passed in the
+   *             input or the randomly generated that was used in case none was passed.
+   *
+   * @type integer
+   */
+  seed: number
+  /**
+   * @description Whether the generated images contain NSFW concepts.
+   * @type array
+   */
+  has_nsfw_concepts: boolean[]
+  /**
+   * @description The generated image files info.
+   * @type array
+   */
+  images: Image0D444Ef8[]
+  timings: {
+    [key: string]: number
+  }
+  /**
+   * @description The prompt used for generating the image.
+   * @type string
+   */
+  prompt: string
+}
+
+export type ImageSize70De0C81 = {
+  /**
+   * @description The height of the generated image.
+   * @maximum 14142
+   * @default 512
+   * @type integer | undefined
+   */
+  height?: number
+  /**
+   * @description The width of the generated image.
+   * @maximum 14142
+   * @default 512
+   * @type integer | undefined
+   */
+  width?: number
+}
+
+export type LoraWeightC75Bc983 = {
+  /**
+   * @description
+   *             The scale of the LoRA weight. This is used to scale the LoRA weight
+   *             before merging it with the base model.
+   *
+   * @minimum 0
+   * @maximum 4
+   * @default 1
+   * @type number | undefined
+   */
+  scale?: number
+  /**
+   * @description URL or the path to the LoRA weights.
+   * @type string
+   */
+  path: string
+}
+
+export const inputFalAiFluxControlLoraCannyImageToImageImageSize = {
+  square_hd: 'square_hd',
+  square: 'square',
+  portrait_4_3: 'portrait_4_3',
+  portrait_16_9: 'portrait_16_9',
+  landscape_4_3: 'landscape_4_3',
+  landscape_16_9: 'landscape_16_9',
+} as const
+
+export type InputFalAiFluxControlLoraCannyImageToImageImageSizeKey =
+  (typeof inputFalAiFluxControlLoraCannyImageToImageImageSize)[keyof typeof inputFalAiFluxControlLoraCannyImageToImageImageSize]
+
+export const inputFalAiFluxControlLoraCannyImageToImageOutputFormatEnum = {
+  jpeg: 'jpeg',
+  png: 'png',
+} as const
+
+export type InputFalAiFluxControlLoraCannyImageToImageOutputFormatEnumKey =
+  (typeof inputFalAiFluxControlLoraCannyImageToImageOutputFormatEnum)[keyof typeof inputFalAiFluxControlLoraCannyImageToImageOutputFormatEnum]
+
+export type InputFalAiFluxControlLoraCannyImageToImage = {
+  /**
+   * @description The number of inference steps to perform.
+   * @minimum 1
+   * @maximum 50
+   * @default 28
+   * @type integer | undefined
+   */
+  num_inference_steps?: number
+  /**
+   * @description URL of image to use for inpainting. or img2img
+   * @example https://raw.githubusercontent.com/CompVis/latent-diffusion/main/data/inpainting_examples/overture-creations-5sI6fQgYIuo.png
+   * @type string
+   */
+  image_url: string
+  /**
+   * @description The size of the generated image.
+   */
+  image_size?:
+    | ImageSize70De0C81
+    | InputFalAiFluxControlLoraCannyImageToImageImageSizeKey
+  /**
+   * @description The strength to use for inpainting/image-to-image. Only used if the image_url is provided. 1.0 is completely remakes the image while 0.0 preserves the original.
+   * @minimum 0.01
+   * @maximum 1
+   * @default 0.85
+   * @type number | undefined
+   */
+  strength?: number
+  /**
+   * @description
+   *             The image to use for control lora. This is used to control the style of the generated image.
+   *
+   * @example https://storage.googleapis.com/falserverless/flux-lora/example-images/knight.jpeg
+   * @type string
+   */
+  control_lora_image_url: string
+  /**
+   * @description The prompt to generate an image from.
+   * @example A photo of a lion sitting on a stone bench
+   * @type string
+   */
+  prompt: string
+  /**
+   * @description
+   *             The CFG (Classifier Free Guidance) scale is a measure of how close you want
+   *             the model to stick to your prompt when looking for a related image to show you.
+   *
+   * @minimum 0
+   * @maximum 35
+   * @default 3.5
+   * @type number | undefined
+   */
+  guidance_scale?: number
+  /**
+   * @description If `True`, the media will be returned as a data URI and the output data won't be available in the request history.
+   * @default false
+   * @type boolean | undefined
+   */
+  sync_mode?: boolean
+  /**
+   * @description The number of images to generate.
+   * @minimum 1
+   * @maximum 4
+   * @default 1
+   * @type integer | undefined
+   */
+  num_images?: number
+  /**
+   * @description The format of the generated image.
+   * @default 'jpeg'
+   * @type string | undefined
+   */
+  output_format?: InputFalAiFluxControlLoraCannyImageToImageOutputFormatEnumKey
+  /**
+   * @description
+   *             The same seed and the same prompt given to the same version of the model
+   *             will output the same image every time.
+   *
+   */
+  seed?: number | null
+  /**
+   * @description
+   *             The LoRAs to use for the image generation. You can use any number of LoRAs
+   *             and they will be merged together to generate the final image.
+   *
+   * @default []
+   * @type array | undefined
+   */
+  loras?: LoraWeightC75Bc983[]
+  /**
+   * @description The strength of the control lora.
+   * @minimum 0
+   * @maximum 2
+   * @default 1
+   * @type number | undefined
+   */
+  control_lora_strength?: number
+  /**
+   * @description If set to true, the safety checker will be enabled. Disabling it requires account authorization; unauthorized requests are always checked, and images flagged as unsafe are returned as black images.
+   * @default true
+   * @type boolean | undefined
+   */
+  enable_safety_checker?: boolean
+}
+
+export type ImageFc931E72 = {
+  url: string
+  height: number
+  width: number
+  /**
+   * @default image/jpeg
+   */
+  content_type?: string | null
+}
+
+export type OutputFalAiFluxControlLoraCannyImageToImage = {
+  /**
+   * @description
+   *             Seed of the generated Image. It will be the same value of the one passed in the
+   *             input or the randomly generated that was used in case none was passed.
+   *
+   * @type integer
+   */
+  seed: number
+  /**
+   * @description Whether the generated images contain NSFW concepts.
+   * @type array
+   */
+  has_nsfw_concepts: boolean[]
+  /**
+   * @description The generated image files info.
+   * @type array
+   */
+  images: ImageFc931E72[]
+  timings: {
+    [key: string]: number
+  }
+  /**
+   * @description The prompt used for generating the image.
+   * @type string
+   */
+  prompt: string
+}
+
+export type LoraWeightF9383Cf9 = {
+  /**
+   * @description
+   *             The scale of the LoRA weight. This is used to scale the LoRA weight
+   *             before merging it with the base model.
+   *
+   * @minimum 0
+   * @maximum 4
+   * @default 1
+   * @type number | undefined
+   */
+  scale?: number
+  /**
+   * @description URL or the path to the LoRA weights.
+   * @type string
+   */
+  path: string
+}
+
+export type ImageSizeD58Dcedf = {
+  /**
+   * @description The width of the generated image.
+   * @maximum 14142
+   * @default 512
+   * @type integer | undefined
+   */
+  width?: number
+  /**
+   * @description The height of the generated image.
+   * @maximum 14142
+   * @default 512
+   * @type integer | undefined
+   */
+  height?: number
+}
+
+export const inputFalAiFluxControlLoraDepthOutputFormatEnum = {
+  jpeg: 'jpeg',
+  png: 'png',
+} as const
+
+export type InputFalAiFluxControlLoraDepthOutputFormatEnumKey =
+  (typeof inputFalAiFluxControlLoraDepthOutputFormatEnum)[keyof typeof inputFalAiFluxControlLoraDepthOutputFormatEnum]
+
+export const inputFalAiFluxControlLoraDepthImageSize = {
+  square_hd: 'square_hd',
+  square: 'square',
+  portrait_4_3: 'portrait_4_3',
+  portrait_16_9: 'portrait_16_9',
+  landscape_4_3: 'landscape_4_3',
+  landscape_16_9: 'landscape_16_9',
+} as const
+
+export type InputFalAiFluxControlLoraDepthImageSizeKey =
+  (typeof inputFalAiFluxControlLoraDepthImageSize)[keyof typeof inputFalAiFluxControlLoraDepthImageSize]
+
+export type InputFalAiFluxControlLoraDepth = {
+  /**
+   * @description The prompt to generate an image from.
+   * @example Extreme close-up of a single tiger eye, direct frontal view. Detailed iris and pupil. Sharp focus on eye texture and color. Natural lighting to capture authentic eye shine and depth. The word "FLUX" is painted over it in big, white brush strokes with visible texture.
+   * @type string
+   */
+  prompt: string
+  /**
+   * @description
+   *             If set to true, the input image will be preprocessed to extract depth information.
+   *             This is useful for generating depth maps from images.
+   *
+   * @default true
+   * @type boolean | undefined
+   */
+  preprocess_depth?: boolean
+  /**
+   * @description The format of the generated image.
+   * @default 'jpeg'
+   * @type string | undefined
+   */
+  output_format?: InputFalAiFluxControlLoraDepthOutputFormatEnumKey
+  /**
+   * @description The number of images to generate.
+   * @minimum 1
+   * @maximum 4
+   * @default 1
+   * @type integer | undefined
+   */
+  num_images?: number
+  /**
+   * @description If set to true, the safety checker will be enabled. Disabling it requires account authorization; unauthorized requests are always checked, and images flagged as unsafe are returned as black images.
+   * @default true
+   * @type boolean | undefined
+   */
+  enable_safety_checker?: boolean
+  /**
+   * @description
+   *             The LoRAs to use for the image generation. You can use any number of LoRAs
+   *             and they will be merged together to generate the final image.
+   *
+   * @default []
+   * @type array | undefined
+   */
+  loras?: LoraWeightF9383Cf9[]
+  /**
+   * @description
+   *             The CFG (Classifier Free Guidance) scale is a measure of how close you want
+   *             the model to stick to your prompt when looking for a related image to show you.
+   *
+   * @minimum 0
+   * @maximum 35
+   * @default 3.5
+   * @type number | undefined
+   */
+  guidance_scale?: number
+  /**
+   * @description The strength of the control lora.
+   * @minimum 0
+   * @maximum 2
+   * @default 1
+   * @type number | undefined
+   */
+  control_lora_strength?: number
+  /**
+   * @description
+   *             The image to use for control lora. This is used to control the style of the generated image.
+   *
+   * @example https://storage.googleapis.com/falserverless/flux-lora/example-images/knight.jpeg
+   * @type string
+   */
+  control_lora_image_url: string
+  /**
+   * @description
+   *             The same seed and the same prompt given to the same version of the model
+   *             will output the same image every time.
+   *
+   */
+  seed?: number | null
+  /**
+   * @description The size of the generated image.
+   * @default landscape_4_3
+   */
+  image_size?: ImageSizeD58Dcedf | InputFalAiFluxControlLoraDepthImageSizeKey
+  /**
+   * @description The number of inference steps to perform.
+   * @minimum 1
+   * @maximum 50
+   * @default 28
+   * @type integer | undefined
+   */
+  num_inference_steps?: number
+  /**
+   * @description If `True`, the media will be returned as a data URI and the output data won't be available in the request history.
+   * @default false
+   * @type boolean | undefined
+   */
+  sync_mode?: boolean
+  /**
+   * @description URL of image to use for image-to-image generation.
+   */
+  image_url?: string | null
+}
+
+export type Image6Bf00298 = {
+  /**
+   * @default image/jpeg
+   */
+  content_type?: string | null
+  height: number
+  url: string
+  width: number
+}
+
+export type OutputFalAiFluxControlLoraDepth = {
+  timings: {
+    [key: string]: number
+  }
+  /**
+   * @description The generated image files info.
+   * @type array
+   */
+  images: Image6Bf00298[]
+  /**
+   * @description Whether the generated images contain NSFW concepts.
+   * @type array
+   */
+  has_nsfw_concepts: boolean[]
+  /**
+   * @description
+   *             Seed of the generated Image. It will be the same value of the one passed in the
+   *             input or the randomly generated that was used in case none was passed.
+   *
+   * @type integer
+   */
+  seed: number
+  /**
+   * @description The prompt used for generating the image.
+   * @type string
+   */
+  prompt: string
+}
+
+export type LoraWeight9E7Bca91 = {
+  /**
+   * @description
+   *             The scale of the LoRA weight. This is used to scale the LoRA weight
+   *             before merging it with the base model.
+   *
+   * @minimum 0
+   * @maximum 4
+   * @default 1
+   * @type number | undefined
+   */
+  scale?: number
+  /**
+   * @description URL or the path to the LoRA weights.
+   * @type string
+   */
+  path: string
+}
+
+export type ImageSize8F1863B3 = {
+  /**
+   * @description The width of the generated image.
+   * @maximum 14142
+   * @default 512
+   * @type integer | undefined
+   */
+  width?: number
+  /**
+   * @description The height of the generated image.
+   * @maximum 14142
+   * @default 512
+   * @type integer | undefined
+   */
+  height?: number
+}
+
+export const inputFalAiFluxControlLoraDepthImageToImageOutputFormatEnum = {
+  jpeg: 'jpeg',
+  png: 'png',
+} as const
+
+export type InputFalAiFluxControlLoraDepthImageToImageOutputFormatEnumKey =
+  (typeof inputFalAiFluxControlLoraDepthImageToImageOutputFormatEnum)[keyof typeof inputFalAiFluxControlLoraDepthImageToImageOutputFormatEnum]
+
+export const inputFalAiFluxControlLoraDepthImageToImageImageSize = {
+  square_hd: 'square_hd',
+  square: 'square',
+  portrait_4_3: 'portrait_4_3',
+  portrait_16_9: 'portrait_16_9',
+  landscape_4_3: 'landscape_4_3',
+  landscape_16_9: 'landscape_16_9',
+} as const
+
+export type InputFalAiFluxControlLoraDepthImageToImageImageSizeKey =
+  (typeof inputFalAiFluxControlLoraDepthImageToImageImageSize)[keyof typeof inputFalAiFluxControlLoraDepthImageToImageImageSize]
+
+export type InputFalAiFluxControlLoraDepthImageToImage = {
+  /**
+   * @description The prompt to generate an image from.
+   * @example A photo of a lion sitting on a stone bench
+   * @type string
+   */
+  prompt: string
+  /**
+   * @description The strength to use for inpainting/image-to-image. Only used if the image_url is provided. 1.0 is completely remakes the image while 0.0 preserves the original.
+   * @minimum 0.01
+   * @maximum 1
+   * @default 0.85
+   * @type number | undefined
+   */
+  strength?: number
+  /**
+   * @description The format of the generated image.
+   * @default 'jpeg'
+   * @type string | undefined
+   */
+  output_format?: InputFalAiFluxControlLoraDepthImageToImageOutputFormatEnumKey
+  /**
+   * @description The number of images to generate.
+   * @minimum 1
+   * @maximum 4
+   * @default 1
+   * @type integer | undefined
+   */
+  num_images?: number
+  /**
+   * @description If set to true, the safety checker will be enabled. Disabling it requires account authorization; unauthorized requests are always checked, and images flagged as unsafe are returned as black images.
+   * @default true
+   * @type boolean | undefined
+   */
+  enable_safety_checker?: boolean
+  /**
+   * @description
+   *             The LoRAs to use for the image generation. You can use any number of LoRAs
+   *             and they will be merged together to generate the final image.
+   *
+   * @default []
+   * @type array | undefined
+   */
+  loras?: LoraWeight9E7Bca91[]
+  /**
+   * @description
+   *             The CFG (Classifier Free Guidance) scale is a measure of how close you want
+   *             the model to stick to your prompt when looking for a related image to show you.
+   *
+   * @minimum 0
+   * @maximum 35
+   * @default 3.5
+   * @type number | undefined
+   */
+  guidance_scale?: number
+  /**
+   * @description The strength of the control lora.
+   * @minimum 0
+   * @maximum 2
+   * @default 1
+   * @type number | undefined
+   */
+  control_lora_strength?: number
+  /**
+   * @description
+   *             The image to use for control lora. This is used to control the style of the generated image.
+   *
+   * @example https://storage.googleapis.com/falserverless/flux-lora/example-images/knight.jpeg
+   * @type string
+   */
+  control_lora_image_url: string
+  /**
+   * @description
+   *             The same seed and the same prompt given to the same version of the model
+   *             will output the same image every time.
+   *
+   */
+  seed?: number | null
+  /**
+   * @description The size of the generated image.
+   */
+  image_size?:
+    | ImageSize8F1863B3
+    | InputFalAiFluxControlLoraDepthImageToImageImageSizeKey
+  /**
+   * @description The number of inference steps to perform.
+   * @minimum 1
+   * @maximum 50
+   * @default 28
+   * @type integer | undefined
+   */
+  num_inference_steps?: number
+  /**
+   * @description If `True`, the media will be returned as a data URI and the output data won't be available in the request history.
+   * @default false
+   * @type boolean | undefined
+   */
+  sync_mode?: boolean
+  /**
+   * @description URL of image to use for inpainting. or img2img
+   * @example https://raw.githubusercontent.com/CompVis/latent-diffusion/main/data/inpainting_examples/overture-creations-5sI6fQgYIuo.png
+   * @type string
+   */
+  image_url: string
+}
+
+export type ImageF7B0D8D2 = {
+  /**
+   * @default image/jpeg
+   */
+  content_type?: string | null
+  height: number
+  url: string
+  width: number
+}
+
+export type OutputFalAiFluxControlLoraDepthImageToImage = {
+  timings: {
+    [key: string]: number
+  }
+  /**
+   * @description The generated image files info.
+   * @type array
+   */
+  images: ImageF7B0D8D2[]
+  /**
+   * @description Whether the generated images contain NSFW concepts.
+   * @type array
+   */
+  has_nsfw_concepts: boolean[]
+  /**
+   * @description
+   *             Seed of the generated Image. It will be the same value of the one passed in the
+   *             input or the randomly generated that was used in case none was passed.
+   *
+   * @type integer
+   */
+  seed: number
+  /**
+   * @description The prompt used for generating the image.
+   * @type string
+   */
+  prompt: string
+}
+
 export type LoraWeight2668077C = {
   /**
    * @description
@@ -32869,6 +37460,154 @@ export type OutputFalAiFluxPulid = {
   seed: number
 }
 
+export type ImageSize0Cd8635C = {
+  /**
+   * @description The height of the generated image.
+   * @maximum 14142
+   * @default 512
+   * @type integer | undefined
+   */
+  height?: number
+  /**
+   * @description The width of the generated image.
+   * @maximum 14142
+   * @default 512
+   * @type integer | undefined
+   */
+  width?: number
+}
+
+export const inputFalAiFluxSubjectOutputFormatEnum = {
+  jpeg: 'jpeg',
+  png: 'png',
+} as const
+
+export type InputFalAiFluxSubjectOutputFormatEnumKey =
+  (typeof inputFalAiFluxSubjectOutputFormatEnum)[keyof typeof inputFalAiFluxSubjectOutputFormatEnum]
+
+export const inputFalAiFluxSubjectImageSize = {
+  square_hd: 'square_hd',
+  square: 'square',
+  portrait_4_3: 'portrait_4_3',
+  portrait_16_9: 'portrait_16_9',
+  landscape_4_3: 'landscape_4_3',
+  landscape_16_9: 'landscape_16_9',
+} as const
+
+export type InputFalAiFluxSubjectImageSizeKey =
+  (typeof inputFalAiFluxSubjectImageSize)[keyof typeof inputFalAiFluxSubjectImageSize]
+
+export type InputFalAiFluxSubject = {
+  /**
+   * @description The format of the generated image.
+   * @default 'png'
+   * @type string | undefined
+   */
+  output_format?: InputFalAiFluxSubjectOutputFormatEnumKey
+  /**
+   * @description
+   *             The CFG (Classifier Free Guidance) scale is a measure of how close you want
+   *             the model to stick to your prompt when looking for a related image to show you.
+   *
+   * @minimum 0
+   * @maximum 20
+   * @default 3.5
+   * @type number | undefined
+   */
+  guidance_scale?: number
+  /**
+   * @description The prompt to generate an image from.
+   * @example On the beach, a lady sits under a beach umbrella with 'Omini' written on it. She's wearing this shirt and has a big smile on her face, with her surfboard hehind her. The sun is setting in the background. The sky is a beautiful shade of orange and purple.
+   * @type string
+   */
+  prompt: string
+  /**
+   * @description If `True`, the media will be returned as a data URI and the output data won't be available in the request history.
+   * @default false
+   * @type boolean | undefined
+   */
+  sync_mode?: boolean
+  /**
+   * @description If set to true, the safety checker will be enabled. Disabling it requires account authorization; unauthorized requests are always checked, and images flagged as unsafe are returned as black images.
+   * @default true
+   * @type boolean | undefined
+   */
+  enable_safety_checker?: boolean
+  /**
+   * @description URL of image of the subject
+   * @example https://storage.googleapis.com/falserverless/model_tests/ominicontrol/ominishirt.jpg
+   * @type string
+   */
+  image_url: string
+  /**
+   * @description The size of the generated image.
+   * @default square_hd
+   */
+  image_size?: ImageSize0Cd8635C | InputFalAiFluxSubjectImageSizeKey
+  /**
+   * @description
+   *             The same seed and the same prompt given to the same version of the model
+   *             will output the same image every time.
+   *
+   */
+  seed?: number | null
+  /**
+   * @description The number of inference steps to perform.
+   * @minimum 1
+   * @maximum 50
+   * @default 8
+   * @type integer | undefined
+   */
+  num_inference_steps?: number
+  /**
+   * @description The number of images to generate.
+   * @minimum 1
+   * @maximum 4
+   * @default 1
+   * @type integer | undefined
+   */
+  num_images?: number
+}
+
+export type Image15866878 = {
+  height: number
+  /**
+   * @default image/jpeg
+   */
+  content_type?: string | null
+  url: string
+  width: number
+}
+
+export type OutputFalAiFluxSubject = {
+  /**
+   * @description The prompt used for generating the image.
+   * @type string
+   */
+  prompt: string
+  timings: {
+    [key: string]: number
+  }
+  /**
+   * @description
+   *             Seed of the generated Image. It will be the same value of the one passed in the
+   *             input or the randomly generated that was used in case none was passed.
+   *
+   * @type integer
+   */
+  seed: number
+  /**
+   * @description Whether the generated images contain NSFW concepts.
+   * @type array
+   */
+  has_nsfw_concepts: boolean[]
+  /**
+   * @description The generated image files info.
+   * @type array
+   */
+  images: Image15866878[]
+}
+
 export type InputFalAiFluxVisionUpscaler = {
   /**
    * @description The URL of the image to upscale.
@@ -34494,7 +39233,7 @@ export type OutputFalAiFluxSrpoImageToImage = {
   prompt: string
 }
 
-export type LoraWeight7Aab8269 = {
+export type LoraWeight48C553Cf = {
   /**
    * @description URL or the path to the LoRA weights.
    * @example https://huggingface.co/stabilityai/stable-diffusion-xl-base-1.0/resolve/main/sd_xl_offset_example-lora_1.0.safetensors
@@ -34513,6 +39252,35 @@ export type LoraWeight7Aab8269 = {
    */
   scale?: number
 }
+
+export const inputFalAiFooocusPerformanceEnum = {
+  Speed: 'Speed',
+  Quality: 'Quality',
+  'Extreme Speed': 'Extreme Speed',
+  Lightning: 'Lightning',
+} as const
+
+export type InputFalAiFooocusPerformanceEnumKey =
+  (typeof inputFalAiFooocusPerformanceEnum)[keyof typeof inputFalAiFooocusPerformanceEnum]
+
+export const inputFalAiFooocusControlTypeEnum = {
+  ImagePrompt: 'ImagePrompt',
+  PyraCanny: 'PyraCanny',
+  CPDS: 'CPDS',
+  FaceSwap: 'FaceSwap',
+} as const
+
+export type InputFalAiFooocusControlTypeEnumKey =
+  (typeof inputFalAiFooocusControlTypeEnum)[keyof typeof inputFalAiFooocusControlTypeEnum]
+
+export const inputFalAiFooocusRefinerModelEnum = {
+  None: 'None',
+  'realisticVisionV60B1_v51VAE.safetensors':
+    'realisticVisionV60B1_v51VAE.safetensors',
+} as const
+
+export type InputFalAiFooocusRefinerModelEnumKey =
+  (typeof inputFalAiFooocusRefinerModelEnum)[keyof typeof inputFalAiFooocusRefinerModelEnum]
 
 export const inputFalAiFooocusOutputFormatEnum = {
   png: 'png',
@@ -34806,36 +39574,19 @@ export const inputFalAiFooocusStylesEnum = {
 export type InputFalAiFooocusStylesEnumKey =
   (typeof inputFalAiFooocusStylesEnum)[keyof typeof inputFalAiFooocusStylesEnum]
 
-export const inputFalAiFooocusRefinerModelEnum = {
-  None: 'None',
-  'realisticVisionV60B1_v51VAE.safetensors':
-    'realisticVisionV60B1_v51VAE.safetensors',
-} as const
-
-export type InputFalAiFooocusRefinerModelEnumKey =
-  (typeof inputFalAiFooocusRefinerModelEnum)[keyof typeof inputFalAiFooocusRefinerModelEnum]
-
-export const inputFalAiFooocusPerformanceEnum = {
-  Speed: 'Speed',
-  Quality: 'Quality',
-  'Extreme Speed': 'Extreme Speed',
-  Lightning: 'Lightning',
-} as const
-
-export type InputFalAiFooocusPerformanceEnumKey =
-  (typeof inputFalAiFooocusPerformanceEnum)[keyof typeof inputFalAiFooocusPerformanceEnum]
-
-export const inputFalAiFooocusControlTypeEnum = {
-  ImagePrompt: 'ImagePrompt',
-  PyraCanny: 'PyraCanny',
-  CPDS: 'CPDS',
-  FaceSwap: 'FaceSwap',
-} as const
-
-export type InputFalAiFooocusControlTypeEnumKey =
-  (typeof inputFalAiFooocusControlTypeEnum)[keyof typeof inputFalAiFooocusControlTypeEnum]
-
 export type InputFalAiFooocus = {
+  /**
+   * @description
+   *             The same seed and the same prompt given to the same version of Stable Diffusion
+   *             will output the same image every time.
+   *
+   * @example 176400
+   */
+  seed?: number | null
+  /**
+   * @description The image to use as a mask for the generated image.
+   */
+  mask_image_url?: string | null
   /**
    * @description
    *             The size of the generated image. You can choose between some presets or
@@ -34847,153 +39598,12 @@ export type InputFalAiFooocus = {
   aspect_ratio?: string
   /**
    * @description
-   *             The CFG (Classifier Free Guidance) scale is a measure of how close you want
-   *             the model to stick to your prompt when looking for a related image to show you.
-   *
-   * @minimum 1
-   * @maximum 30
-   * @default 4
-   * @type number | undefined
-   */
-  guidance_scale?: number
-  /**
-   * @description The image to use as a reference for inpainting.
-   */
-  inpaint_image_url?: string | null
-  /**
-   * @description The format of the generated image.
-   * @default 'jpeg'
-   * @type string | undefined
-   */
-  output_format?: InputFalAiFooocusOutputFormatEnumKey
-  /**
-   * @description
-   *             The negative prompt to use. Use it to address details that you don't want
-   *             in the image. This could be colors, objects, scenery and even the small details
-   *             (e.g. moustache, blurry, low resolution).
-   *
-   * @default ''
-   * @example (worst quality, low quality, normal quality, lowres, low details, oversaturated, undersaturated, overexposed, underexposed, grayscale, bw, bad photo, bad photography, bad art:1.4), (watermark, signature, text font, username, error, logo, words, letters, digits, autograph, trademark, name:1.2), (blur, blurry, grainy), morbid, ugly, asymmetrical, mutated malformed, mutilated, poorly lit, bad shadow, draft, cropped, out of frame, cut off, censored, jpeg artifacts, out of focus, glitch, duplicate, (airbrushed, cartoon, anime, semi-realistic, cgi, render, blender, digital art, manga, amateur:1.3), (3D ,3D Game, 3D Game Scene, 3D Character:1.1), (bad hands, bad anatomy, bad body, bad face, bad teeth, bad arms, bad legs, deformities:1.3)
-   * @type string | undefined
-   */
-  negative_prompt?: string
-  /**
-   * @description
-   *             The style to use.
-   *
-   * @default ["Fooocus V2","Fooocus Sharp","Fooocus Enhance"]
-   * @type array | undefined
-   */
-  styles?: InputFalAiFooocusStylesEnumKey[]
-  /**
-   * @description
-   *             The LoRAs to use for the image generation. You can use up to 5 LoRAs
-   *             and they will be merged together to generate the final image.
-   *
-   * @default [{"path":"https://huggingface.co/stabilityai/stable-diffusion-xl-base-1.0/resolve/main/sd_xl_offset_example-lora_1.0.safetensors","scale":0.1}]
-   * @type array | undefined
-   */
-  loras?: LoraWeight7Aab8269[]
-  /**
-   * @description
-   *             The sharpness of the generated image. Use it to control how sharp the generated
-   *             image should be. Higher value means image and texture are sharper.
-   *
-   * @minimum 0
-   * @maximum 30
-   * @default 2
-   * @type number | undefined
-   */
-  sharpness?: number
-  /**
-   * @default false
-   * @type boolean | undefined
-   */
-  mixing_image_prompt_and_inpaint?: boolean
-  /**
-   * @description Refiner (SDXL or SD 1.5)
-   * @default 'None'
-   * @type string | undefined
-   */
-  refiner_model?: InputFalAiFooocusRefinerModelEnumKey
-  /**
-   * @description
-   *             Number of images to generate in one request
-   *
-   * @minimum 1
-   * @maximum 4
-   * @default 1
-   * @type integer | undefined
-   */
-  num_images?: number
-  /**
-   * @description
-   *             The strength of the control image. Use it to control how much the generated image
-   *             should look like the control image.
-   *
-   * @minimum 0
-   * @maximum 2
-   * @default 1
-   * @type number | undefined
-   */
-  control_image_weight?: number
-  /**
-   * @description The prompt to use for generating the image. Be as descriptive as possible for best results.
-   * @default ''
-   * @example an astronaut in the jungle, cold color palette with butterflies in the background, highly detailed, 8k
-   * @type string | undefined
-   */
-  prompt?: string
-  /**
-   * @description If `True`, the media will be returned as a data URI and the output data won't be available in the request history.
-   * @default false
-   * @type boolean | undefined
-   */
-  sync_mode?: boolean
-  /**
-   * @description The image to use as a mask for the generated image.
-   */
-  mask_image_url?: string | null
-  /**
-   * @description
-   *             Use 0.4 for SD1.5 realistic models; 0.667 for SD1.5 anime models
-   *             0.8 for XL-refiners; or any value for switching two SDXL models.
-   *
-   * @minimum 0
-   * @maximum 1
-   * @default 0.8
-   * @type number | undefined
-   */
-  refiner_switch?: number
-  /**
-   * @description The image to use as a reference for the generated image.
-   */
-  control_image_url?: string | null
-  /**
-   * @description
    *             You can choose Speed or Quality
    *
    * @default 'Extreme Speed'
    * @type string | undefined
    */
   performance?: InputFalAiFooocusPerformanceEnumKey
-  /**
-   * @description
-   *             The stop at value of the control image. Use it to control how much the generated image
-   *             should look like the control image.
-   *
-   * @minimum 0
-   * @maximum 1
-   * @default 1
-   * @type number | undefined
-   */
-  control_image_stop_at?: number
-  /**
-   * @description If set to false, the safety checker will be disabled. Disabling it requires account authorization; unauthorized requests are always checked, and images flagged as unsafe are returned as black images.
-   * @default true
-   * @type boolean | undefined
-   */
-  enable_safety_checker?: boolean
   /**
    * @description The type of image control
    * @default 'PyraCanny'
@@ -35006,12 +39616,141 @@ export type InputFalAiFooocus = {
   control_type?: InputFalAiFooocusControlTypeEnumKey
   /**
    * @description
-   *             The same seed and the same prompt given to the same version of Stable Diffusion
-   *             will output the same image every time.
+   *             The LoRAs to use for the image generation. You can use up to 5 LoRAs
+   *             and they will be merged together to generate the final image.
    *
-   * @example 176400
+   * @default [{"path":"https://huggingface.co/stabilityai/stable-diffusion-xl-base-1.0/resolve/main/sd_xl_offset_example-lora_1.0.safetensors","scale":0.1}]
+   * @type array | undefined
    */
-  seed?: number | null
+  loras?: LoraWeight48C553Cf[]
+  /**
+   * @description If set to false, the safety checker will be disabled. Disabling it requires account authorization; unauthorized requests are always checked, and images flagged as unsafe are returned as black images.
+   * @default true
+   * @type boolean | undefined
+   */
+  enable_safety_checker?: boolean
+  /**
+   * @description
+   *             Number of images to generate in one request
+   *
+   * @minimum 1
+   * @maximum 4
+   * @default 1
+   * @type integer | undefined
+   */
+  num_images?: number
+  /**
+   * @description Refiner (SDXL or SD 1.5)
+   * @default 'None'
+   * @type string | undefined
+   */
+  refiner_model?: InputFalAiFooocusRefinerModelEnumKey
+  /**
+   * @description The image to use as a reference for inpainting.
+   */
+  inpaint_image_url?: string | null
+  /**
+   * @description
+   *             Use 0.4 for SD1.5 realistic models; 0.667 for SD1.5 anime models
+   *             0.8 for XL-refiners; or any value for switching two SDXL models.
+   *
+   * @minimum 0
+   * @maximum 1
+   * @default 0.8
+   * @type number | undefined
+   */
+  refiner_switch?: number
+  /**
+   * @description If `True`, the media will be returned as a data URI and the output data won't be available in the request history.
+   * @default false
+   * @type boolean | undefined
+   */
+  sync_mode?: boolean
+  /**
+   * @description The prompt to use for generating the image. Be as descriptive as possible for best results.
+   * @default ''
+   * @example an astronaut in the jungle, cold color palette with butterflies in the background, highly detailed, 8k
+   * @type string | undefined
+   */
+  prompt?: string
+  /**
+   * @description
+   *             The strength of the control image. Use it to control how much the generated image
+   *             should look like the control image.
+   *
+   * @minimum 0
+   * @maximum 2
+   * @default 1
+   * @type number | undefined
+   */
+  control_image_weight?: number
+  /**
+   * @description
+   *             The negative prompt to use. Use it to address details that you don't want
+   *             in the image. This could be colors, objects, scenery and even the small details
+   *             (e.g. moustache, blurry, low resolution).
+   *
+   * @default ''
+   * @example (worst quality, low quality, normal quality, lowres, low details, oversaturated, undersaturated, overexposed, underexposed, grayscale, bw, bad photo, bad photography, bad art:1.4), (watermark, signature, text font, username, error, logo, words, letters, digits, autograph, trademark, name:1.2), (blur, blurry, grainy), morbid, ugly, asymmetrical, mutated malformed, mutilated, poorly lit, bad shadow, draft, cropped, out of frame, cut off, censored, jpeg artifacts, out of focus, glitch, duplicate, (airbrushed, cartoon, anime, semi-realistic, cgi, render, blender, digital art, manga, amateur:1.3), (3D ,3D Game, 3D Game Scene, 3D Character:1.1), (bad hands, bad anatomy, bad body, bad face, bad teeth, bad arms, bad legs, deformities:1.3)
+   * @type string | undefined
+   */
+  negative_prompt?: string
+  /**
+   * @description The format of the generated image.
+   * @default 'jpeg'
+   * @type string | undefined
+   */
+  output_format?: InputFalAiFooocusOutputFormatEnumKey
+  /**
+   * @description
+   *             The style to use.
+   *
+   * @default ["Fooocus V2","Fooocus Enhance","Fooocus Sharp"]
+   * @type array | undefined
+   */
+  styles?: InputFalAiFooocusStylesEnumKey[]
+  /**
+   * @description
+   *             The stop at value of the control image. Use it to control how much the generated image
+   *             should look like the control image.
+   *
+   * @minimum 0
+   * @maximum 1
+   * @default 1
+   * @type number | undefined
+   */
+  control_image_stop_at?: number
+  /**
+   * @default false
+   * @type boolean | undefined
+   */
+  mixing_image_prompt_and_inpaint?: boolean
+  /**
+   * @description
+   *             The sharpness of the generated image. Use it to control how sharp the generated
+   *             image should be. Higher value means image and texture are sharper.
+   *
+   * @minimum 0
+   * @maximum 30
+   * @default 2
+   * @type number | undefined
+   */
+  sharpness?: number
+  /**
+   * @description The image to use as a reference for the generated image.
+   */
+  control_image_url?: string | null
+  /**
+   * @description
+   *             The CFG (Classifier Free Guidance) scale is a measure of how close you want
+   *             the model to stick to your prompt when looking for a related image to show you.
+   *
+   * @minimum 1
+   * @maximum 30
+   * @default 4
+   * @type number | undefined
+   */
+  guidance_scale?: number
 }
 
 /**
@@ -35083,6 +39822,12 @@ export type ImagePromptTypeEnumKey =
 
 export type ImagePrompt = {
   /**
+   * @default 'ImagePrompt'
+   * @type string | undefined
+   */
+  type?: ImagePromptTypeEnumKey
+  image_url?: string | null
+  /**
    * @minimum 0
    * @maximum 2
    * @default 1
@@ -35090,21 +39835,15 @@ export type ImagePrompt = {
    */
   weight?: number
   /**
-   * @default 'ImagePrompt'
-   * @type string | undefined
-   */
-  type?: ImagePromptTypeEnumKey
-  /**
    * @minimum 0
    * @maximum 1
    * @default 0.5
    * @type number | undefined
    */
   stop_at?: number
-  image_url?: string | null
 }
 
-export type LoraWeight2610393C = {
+export type LoraWeight18Bc170C = {
   /**
    * @description URL or the path to the LoRA weights.
    * @example https://huggingface.co/stabilityai/stable-diffusion-xl-base-1.0/resolve/main/sd_xl_offset_example-lora_1.0.safetensors
@@ -35134,14 +39873,35 @@ export const inputFalAiFooocusImagePromptPerformanceEnum = {
 export type InputFalAiFooocusImagePromptPerformanceEnumKey =
   (typeof inputFalAiFooocusImagePromptPerformanceEnum)[keyof typeof inputFalAiFooocusImagePromptPerformanceEnum]
 
-export const inputFalAiFooocusImagePromptOutputFormatEnum = {
-  png: 'png',
-  jpeg: 'jpeg',
-  webp: 'webp',
+export const inputFalAiFooocusImagePromptInpaintModeEnum = {
+  'Inpaint or Outpaint (default)': 'Inpaint or Outpaint (default)',
+  'Improve Detail (face, hand, eyes, etc.)':
+    'Improve Detail (face, hand, eyes, etc.)',
+  'Modify Content (add objects, change background, etc.)':
+    'Modify Content (add objects, change background, etc.)',
 } as const
 
-export type InputFalAiFooocusImagePromptOutputFormatEnumKey =
-  (typeof inputFalAiFooocusImagePromptOutputFormatEnum)[keyof typeof inputFalAiFooocusImagePromptOutputFormatEnum]
+export type InputFalAiFooocusImagePromptInpaintModeEnumKey =
+  (typeof inputFalAiFooocusImagePromptInpaintModeEnum)[keyof typeof inputFalAiFooocusImagePromptInpaintModeEnum]
+
+export const inputFalAiFooocusImagePromptRefinerModelEnum = {
+  None: 'None',
+  'realisticVisionV60B1_v51VAE.safetensors':
+    'realisticVisionV60B1_v51VAE.safetensors',
+} as const
+
+export type InputFalAiFooocusImagePromptRefinerModelEnumKey =
+  (typeof inputFalAiFooocusImagePromptRefinerModelEnum)[keyof typeof inputFalAiFooocusImagePromptRefinerModelEnum]
+
+export const inputFalAiFooocusImagePromptOutpaintSelectionsEnum = {
+  Left: 'Left',
+  Right: 'Right',
+  Top: 'Top',
+  Bottom: 'Bottom',
+} as const
+
+export type InputFalAiFooocusImagePromptOutpaintSelectionsEnumKey =
+  (typeof inputFalAiFooocusImagePromptOutpaintSelectionsEnum)[keyof typeof inputFalAiFooocusImagePromptOutpaintSelectionsEnum]
 
 export const inputFalAiFooocusImagePromptStylesEnum = {
   'Fooocus V2': 'Fooocus V2',
@@ -35438,37 +40198,28 @@ export const inputFalAiFooocusImagePromptUovMethodEnum = {
 export type InputFalAiFooocusImagePromptUovMethodEnumKey =
   (typeof inputFalAiFooocusImagePromptUovMethodEnum)[keyof typeof inputFalAiFooocusImagePromptUovMethodEnum]
 
-export const inputFalAiFooocusImagePromptRefinerModelEnum = {
-  None: 'None',
-  'realisticVisionV60B1_v51VAE.safetensors':
-    'realisticVisionV60B1_v51VAE.safetensors',
+export const inputFalAiFooocusImagePromptOutputFormatEnum = {
+  png: 'png',
+  jpeg: 'jpeg',
+  webp: 'webp',
 } as const
 
-export type InputFalAiFooocusImagePromptRefinerModelEnumKey =
-  (typeof inputFalAiFooocusImagePromptRefinerModelEnum)[keyof typeof inputFalAiFooocusImagePromptRefinerModelEnum]
-
-export const inputFalAiFooocusImagePromptOutpaintSelectionsEnum = {
-  Left: 'Left',
-  Right: 'Right',
-  Top: 'Top',
-  Bottom: 'Bottom',
-} as const
-
-export type InputFalAiFooocusImagePromptOutpaintSelectionsEnumKey =
-  (typeof inputFalAiFooocusImagePromptOutpaintSelectionsEnum)[keyof typeof inputFalAiFooocusImagePromptOutpaintSelectionsEnum]
-
-export const inputFalAiFooocusImagePromptInpaintModeEnum = {
-  'Inpaint or Outpaint (default)': 'Inpaint or Outpaint (default)',
-  'Improve Detail (face, hand, eyes, etc.)':
-    'Improve Detail (face, hand, eyes, etc.)',
-  'Modify Content (add objects, change background, etc.)':
-    'Modify Content (add objects, change background, etc.)',
-} as const
-
-export type InputFalAiFooocusImagePromptInpaintModeEnumKey =
-  (typeof inputFalAiFooocusImagePromptInpaintModeEnum)[keyof typeof inputFalAiFooocusImagePromptInpaintModeEnum]
+export type InputFalAiFooocusImagePromptOutputFormatEnumKey =
+  (typeof inputFalAiFooocusImagePromptOutputFormatEnum)[keyof typeof inputFalAiFooocusImagePromptOutputFormatEnum]
 
 export type InputFalAiFooocusImagePrompt = {
+  /**
+   * @description
+   *             The same seed and the same prompt given to the same version of Stable Diffusion
+   *             will output the same image every time.
+   *
+   * @example 176400
+   */
+  seed?: number | null
+  /**
+   * @description The image to use as a mask for the generated image.
+   */
+  mask_image_url?: string | null
   /**
    * @description
    *             The size of the generated image. You can choose between some presets or
@@ -35487,32 +40238,6 @@ export type InputFalAiFooocusImagePrompt = {
    */
   performance?: InputFalAiFooocusImagePromptPerformanceEnumKey
   /**
-   * @description The image to use as a reference for inpainting.
-   */
-  inpaint_image_url?: string | null
-  /**
-   * @description The format of the generated image.
-   * @default 'jpeg'
-   * @type string | undefined
-   */
-  output_format?: InputFalAiFooocusImagePromptOutputFormatEnumKey
-  /**
-   * @example {"weight":1,"type":"PyraCanny","stop_at":1,"image_url":"https://storage.googleapis.com/falserverless/model_tests/fooocus/Pikachu.webp"}
-   * @type object
-   */
-  image_prompt_1: ImagePrompt
-  /**
-   * @description
-   *             The negative prompt to use. Use it to address details that you don't want
-   *             in the image. This could be colors, objects, scenery and even the small details
-   *             (e.g. moustache, blurry, low resolution).
-   *
-   * @default ''
-   * @example (worst quality, low quality, normal quality, lowres, low details, oversaturated, undersaturated, overexposed, underexposed, grayscale, bw, bad photo, bad photography, bad art:1.4), (watermark, signature, text font, username, error, logo, words, letters, digits, autograph, trademark, name:1.2), (blur, blurry, grainy), morbid, ugly, asymmetrical, mutated malformed, mutilated, poorly lit, bad shadow, draft, cropped, out of frame, cut off, censored, jpeg artifacts, out of focus, glitch, duplicate, (airbrushed, cartoon, anime, semi-realistic, cgi, render, blender, digital art, manga, amateur:1.3), (3D ,3D Game, 3D Game Scene, 3D Character:1.1), (bad hands, bad anatomy, bad body, bad face, bad teeth, bad arms, bad legs, deformities:1.3)
-   * @type string | undefined
-   */
-  negative_prompt?: string
-  /**
    * @description Mixing Image Prompt and Vary/Upscale
    * @default false
    * @type boolean | undefined
@@ -35524,53 +40249,22 @@ export type InputFalAiFooocusImagePrompt = {
    * @type string | undefined
    */
   inpaint_additional_prompt?: string
-  image_prompt_3?: ImagePrompt
   /**
-   * @description
-   *             The style to use.
-   *
-   * @default ["Fooocus V2","Fooocus Sharp","Fooocus Enhance"]
-   * @type array | undefined
-   */
-  styles?: InputFalAiFooocusImagePromptStylesEnumKey[]
-  /**
-   * @description
-   *             The LoRAs to use for the image generation. You can use up to 5 LoRAs
-   *             and they will be merged together to generate the final image.
-   *
-   * @default [{"path":"https://huggingface.co/stabilityai/stable-diffusion-xl-base-1.0/resolve/main/sd_xl_offset_example-lora_1.0.safetensors","scale":0.1}]
-   * @type array | undefined
-   */
-  loras?: LoraWeight2610393C[]
-  /**
-   * @description The method to use for upscaling or varying.
-   * @default 'Disabled'
-   * @type string | undefined
-   */
-  uov_method?: InputFalAiFooocusImagePromptUovMethodEnumKey
-  /**
-   * @description
-   *             The sharpness of the generated image. Use it to control how sharp the generated
-   *             image should be. Higher value means image and texture are sharper.
-   *
-   * @minimum 0
-   * @maximum 30
-   * @default 2
-   * @type number | undefined
-   */
-  sharpness?: number
-  /**
-   * @description Mixing Image Prompt and Inpaint
-   * @default false
+   * @description If set to false, the safety checker will be disabled.
+   * @default true
    * @type boolean | undefined
    */
-  mixing_image_prompt_and_inpaint?: boolean
+  enable_safety_checker?: boolean
   /**
-   * @description Refiner (SDXL or SD 1.5)
-   * @default 'None'
+   * @description The mode to use for inpainting.
+   * @default 'Inpaint or Outpaint (default)'
    * @type string | undefined
    */
-  refiner_model?: InputFalAiFooocusImagePromptRefinerModelEnumKey
+  inpaint_mode?: InputFalAiFooocusImagePromptInpaintModeEnumKey
+  /**
+   * @description The image to upscale or vary.
+   */
+  uov_image_url?: string | null
   /**
    * @description
    *             Number of images to generate in one request
@@ -35581,29 +40275,18 @@ export type InputFalAiFooocusImagePrompt = {
    * @type integer | undefined
    */
   num_images?: number
+  image_prompt_4?: ImagePrompt
+  image_prompt_2?: ImagePrompt
   /**
-   * @description The image to use as a mask for the generated image.
-   */
-  mask_image_url?: string | null
-  /**
-   * @description The prompt to use for generating the image. Be as descriptive as possible for best results.
-   * @default ''
-   * @example pikachu
+   * @description Refiner (SDXL or SD 1.5)
+   * @default 'None'
    * @type string | undefined
    */
-  prompt?: string
+  refiner_model?: InputFalAiFooocusImagePromptRefinerModelEnumKey
   /**
-   * @description If `True`, the media will be returned as a data URI and the output data won't be available in the request history.
-   * @default false
-   * @type boolean | undefined
+   * @description The image to use as a reference for inpainting.
    */
-  sync_mode?: boolean
-  /**
-   * @description The directions to outpaint.
-   * @default []
-   * @type array | undefined
-   */
-  outpaint_selections?: InputFalAiFooocusImagePromptOutpaintSelectionsEnumKey[]
+  inpaint_image_url?: string | null
   /**
    * @description
    *             Use 0.4 for SD1.5 realistic models; 0.667 for SD1.5 anime models
@@ -35616,23 +40299,87 @@ export type InputFalAiFooocusImagePrompt = {
    */
   refiner_switch?: number
   /**
-   * @description The image to upscale or vary.
-   */
-  uov_image_url?: string | null
-  image_prompt_2?: ImagePrompt
-  image_prompt_4?: ImagePrompt
-  /**
-   * @description The mode to use for inpainting.
-   * @default 'Inpaint or Outpaint (default)'
-   * @type string | undefined
-   */
-  inpaint_mode?: InputFalAiFooocusImagePromptInpaintModeEnumKey
-  /**
-   * @description If set to false, the safety checker will be disabled.
-   * @default true
+   * @description If `True`, the media will be returned as a data URI and the output data won't be available in the request history.
+   * @default false
    * @type boolean | undefined
    */
-  enable_safety_checker?: boolean
+  sync_mode?: boolean
+  image_prompt_3?: ImagePrompt
+  /**
+   * @description The directions to outpaint.
+   * @default []
+   * @type array | undefined
+   */
+  outpaint_selections?: InputFalAiFooocusImagePromptOutpaintSelectionsEnumKey[]
+  /**
+   * @description The prompt to use for generating the image. Be as descriptive as possible for best results.
+   * @default ''
+   * @example pikachu
+   * @type string | undefined
+   */
+  prompt?: string
+  /**
+   * @description
+   *             The style to use.
+   *
+   * @default ["Fooocus V2","Fooocus Enhance","Fooocus Sharp"]
+   * @type array | undefined
+   */
+  styles?: InputFalAiFooocusImagePromptStylesEnumKey[]
+  /**
+   * @description The method to use for upscaling or varying.
+   * @default 'Disabled'
+   * @type string | undefined
+   */
+  uov_method?: InputFalAiFooocusImagePromptUovMethodEnumKey
+  /**
+   * @description The format of the generated image.
+   * @default 'jpeg'
+   * @type string | undefined
+   */
+  output_format?: InputFalAiFooocusImagePromptOutputFormatEnumKey
+  /**
+   * @example {"type":"PyraCanny","image_url":"https://storage.googleapis.com/falserverless/model_tests/fooocus/Pikachu.webp","weight":1,"stop_at":1}
+   * @type object
+   */
+  image_prompt_1: ImagePrompt
+  /**
+   * @description Mixing Image Prompt and Inpaint
+   * @default false
+   * @type boolean | undefined
+   */
+  mixing_image_prompt_and_inpaint?: boolean
+  /**
+   * @description
+   *             The negative prompt to use. Use it to address details that you don't want
+   *             in the image. This could be colors, objects, scenery and even the small details
+   *             (e.g. moustache, blurry, low resolution).
+   *
+   * @default ''
+   * @example (worst quality, low quality, normal quality, lowres, low details, oversaturated, undersaturated, overexposed, underexposed, grayscale, bw, bad photo, bad photography, bad art:1.4), (watermark, signature, text font, username, error, logo, words, letters, digits, autograph, trademark, name:1.2), (blur, blurry, grainy), morbid, ugly, asymmetrical, mutated malformed, mutilated, poorly lit, bad shadow, draft, cropped, out of frame, cut off, censored, jpeg artifacts, out of focus, glitch, duplicate, (airbrushed, cartoon, anime, semi-realistic, cgi, render, blender, digital art, manga, amateur:1.3), (3D ,3D Game, 3D Game Scene, 3D Character:1.1), (bad hands, bad anatomy, bad body, bad face, bad teeth, bad arms, bad legs, deformities:1.3)
+   * @type string | undefined
+   */
+  negative_prompt?: string
+  /**
+   * @description
+   *             The sharpness of the generated image. Use it to control how sharp the generated
+   *             image should be. Higher value means image and texture are sharper.
+   *
+   * @minimum 0
+   * @maximum 30
+   * @default 2
+   * @type number | undefined
+   */
+  sharpness?: number
+  /**
+   * @description
+   *             The LoRAs to use for the image generation. You can use up to 5 LoRAs
+   *             and they will be merged together to generate the final image.
+   *
+   * @default [{"path":"https://huggingface.co/stabilityai/stable-diffusion-xl-base-1.0/resolve/main/sd_xl_offset_example-lora_1.0.safetensors","scale":0.1}]
+   * @type array | undefined
+   */
+  loras?: LoraWeight18Bc170C[]
   /**
    * @description
    *             The CFG (Classifier Free Guidance) scale is a measure of how close you want
@@ -35644,14 +40391,6 @@ export type InputFalAiFooocusImagePrompt = {
    * @type number | undefined
    */
   guidance_scale?: number
-  /**
-   * @description
-   *             The same seed and the same prompt given to the same version of Stable Diffusion
-   *             will output the same image every time.
-   *
-   * @example 176400
-   */
-  seed?: number | null
 }
 
 /**
@@ -35711,7 +40450,7 @@ export type OutputFalAiFooocusImagePrompt = {
   }
 }
 
-export type LoraWeightFafca8D1 = {
+export type LoraWeight5478D481 = {
   /**
    * @description URL or the path to the LoRA weights.
    * @example https://huggingface.co/stabilityai/stable-diffusion-xl-base-1.0/resolve/main/sd_xl_offset_example-lora_1.0.safetensors
@@ -35731,6 +40470,16 @@ export type LoraWeightFafca8D1 = {
   scale?: number
 }
 
+export const inputFalAiFooocusInpaintPerformanceEnum = {
+  Speed: 'Speed',
+  Quality: 'Quality',
+  'Extreme Speed': 'Extreme Speed',
+  Lightning: 'Lightning',
+} as const
+
+export type InputFalAiFooocusInpaintPerformanceEnumKey =
+  (typeof inputFalAiFooocusInpaintPerformanceEnum)[keyof typeof inputFalAiFooocusInpaintPerformanceEnum]
+
 export const inputFalAiFooocusInpaintOutputFormatEnum = {
   png: 'png',
   jpeg: 'jpeg',
@@ -35739,6 +40488,46 @@ export const inputFalAiFooocusInpaintOutputFormatEnum = {
 
 export type InputFalAiFooocusInpaintOutputFormatEnumKey =
   (typeof inputFalAiFooocusInpaintOutputFormatEnum)[keyof typeof inputFalAiFooocusInpaintOutputFormatEnum]
+
+export const inputFalAiFooocusInpaintInpaintModeEnum = {
+  'Inpaint or Outpaint (default)': 'Inpaint or Outpaint (default)',
+  'Improve Detail (face, hand, eyes, etc.)':
+    'Improve Detail (face, hand, eyes, etc.)',
+  'Modify Content (add objects, change background, etc.)':
+    'Modify Content (add objects, change background, etc.)',
+} as const
+
+export type InputFalAiFooocusInpaintInpaintModeEnumKey =
+  (typeof inputFalAiFooocusInpaintInpaintModeEnum)[keyof typeof inputFalAiFooocusInpaintInpaintModeEnum]
+
+export const inputFalAiFooocusInpaintRefinerModelEnum = {
+  None: 'None',
+  'realisticVisionV60B1_v51VAE.safetensors':
+    'realisticVisionV60B1_v51VAE.safetensors',
+} as const
+
+export type InputFalAiFooocusInpaintRefinerModelEnumKey =
+  (typeof inputFalAiFooocusInpaintRefinerModelEnum)[keyof typeof inputFalAiFooocusInpaintRefinerModelEnum]
+
+export const inputFalAiFooocusInpaintInpaintEngineEnum = {
+  None: 'None',
+  v1: 'v1',
+  'v2.5': 'v2.5',
+  'v2.6': 'v2.6',
+} as const
+
+export type InputFalAiFooocusInpaintInpaintEngineEnumKey =
+  (typeof inputFalAiFooocusInpaintInpaintEngineEnum)[keyof typeof inputFalAiFooocusInpaintInpaintEngineEnum]
+
+export const inputFalAiFooocusInpaintOutpaintSelectionsEnum = {
+  Left: 'Left',
+  Right: 'Right',
+  Top: 'Top',
+  Bottom: 'Bottom',
+} as const
+
+export type InputFalAiFooocusInpaintOutpaintSelectionsEnumKey =
+  (typeof inputFalAiFooocusInpaintOutpaintSelectionsEnum)[keyof typeof inputFalAiFooocusInpaintOutpaintSelectionsEnum]
 
 export const inputFalAiFooocusInpaintStylesEnum = {
   'Fooocus V2': 'Fooocus V2',
@@ -36023,123 +40812,15 @@ export const inputFalAiFooocusInpaintStylesEnum = {
 export type InputFalAiFooocusInpaintStylesEnumKey =
   (typeof inputFalAiFooocusInpaintStylesEnum)[keyof typeof inputFalAiFooocusInpaintStylesEnum]
 
-export const inputFalAiFooocusInpaintInpaintEngineEnum = {
-  None: 'None',
-  v1: 'v1',
-  'v2.5': 'v2.5',
-  'v2.6': 'v2.6',
-} as const
-
-export type InputFalAiFooocusInpaintInpaintEngineEnumKey =
-  (typeof inputFalAiFooocusInpaintInpaintEngineEnum)[keyof typeof inputFalAiFooocusInpaintInpaintEngineEnum]
-
-export const inputFalAiFooocusInpaintOutpaintSelectionsEnum = {
-  Left: 'Left',
-  Right: 'Right',
-  Top: 'Top',
-  Bottom: 'Bottom',
-} as const
-
-export type InputFalAiFooocusInpaintOutpaintSelectionsEnumKey =
-  (typeof inputFalAiFooocusInpaintOutpaintSelectionsEnum)[keyof typeof inputFalAiFooocusInpaintOutpaintSelectionsEnum]
-
-export const inputFalAiFooocusInpaintPerformanceEnum = {
-  Speed: 'Speed',
-  Quality: 'Quality',
-  'Extreme Speed': 'Extreme Speed',
-  Lightning: 'Lightning',
-} as const
-
-export type InputFalAiFooocusInpaintPerformanceEnumKey =
-  (typeof inputFalAiFooocusInpaintPerformanceEnum)[keyof typeof inputFalAiFooocusInpaintPerformanceEnum]
-
-export const inputFalAiFooocusInpaintRefinerModelEnum = {
-  None: 'None',
-  'realisticVisionV60B1_v51VAE.safetensors':
-    'realisticVisionV60B1_v51VAE.safetensors',
-} as const
-
-export type InputFalAiFooocusInpaintRefinerModelEnumKey =
-  (typeof inputFalAiFooocusInpaintRefinerModelEnum)[keyof typeof inputFalAiFooocusInpaintRefinerModelEnum]
-
-export const inputFalAiFooocusInpaintInpaintModeEnum = {
-  'Inpaint or Outpaint (default)': 'Inpaint or Outpaint (default)',
-  'Improve Detail (face, hand, eyes, etc.)':
-    'Improve Detail (face, hand, eyes, etc.)',
-  'Modify Content (add objects, change background, etc.)':
-    'Modify Content (add objects, change background, etc.)',
-} as const
-
-export type InputFalAiFooocusInpaintInpaintModeEnumKey =
-  (typeof inputFalAiFooocusInpaintInpaintModeEnum)[keyof typeof inputFalAiFooocusInpaintInpaintModeEnum]
-
 export type InputFalAiFooocusInpaint = {
   /**
    * @description
-   *             The size of the generated image. You can choose between some presets or
-   *             custom height and width that **must be multiples of 8**.
+   *             The same seed and the same prompt given to the same version of Stable Diffusion
+   *             will output the same image every time.
    *
-   * @default '1024x1024'
-   * @type string | undefined
+   * @example 176400
    */
-  aspect_ratio?: string
-  /**
-   * @description
-   *             Positive value will make white area in the mask larger, negative value will
-   *             make white area smaller. (default is 0, always process before any mask
-   *             invert)
-   *
-   * @minimum -64
-   * @maximum 64
-   * @default 0
-   * @type number | undefined
-   */
-  inpaint_erode_or_dilate?: number
-  /**
-   * @description The image to use as a reference for inpainting.
-   * @example https://raw.githubusercontent.com/CompVis/latent-diffusion/main/data/inpainting_examples/overture-creations-5sI6fQgYIuo.png
-   * @type string
-   */
-  inpaint_image_url: string
-  /**
-   * @description The format of the generated image.
-   * @default 'jpeg'
-   * @type string | undefined
-   */
-  output_format?: InputFalAiFooocusInpaintOutputFormatEnumKey
-  /**
-   * @description Describe what you want to inpaint.
-   * @default ''
-   * @type string | undefined
-   */
-  inpaint_additional_prompt?: string
-  image_prompt_3?: ImagePrompt
-  /**
-   * @description
-   *             The style to use.
-   *
-   * @default ["Fooocus V2","Fooocus Sharp","Fooocus Enhance"]
-   * @type array | undefined
-   */
-  styles?: InputFalAiFooocusInpaintStylesEnumKey[]
-  /**
-   * @description
-   *             The area to inpaint. Value 0 is same as "Only Masked" in A1111. Value 1 is
-   *             same as "Whole Image" in A1111. Only used in inpaint, not used in outpaint.
-   *             (Outpaint always use 1.0)
-   *
-   * @minimum 0
-   * @maximum 1
-   * @default 0.618
-   * @type number | undefined
-   */
-  inpaint_respective_field?: number
-  /**
-   * @description Version of Fooocus inpaint model
-   * @default 'v2.6'
-   * @type string | undefined
-   */
-  inpaint_engine?: InputFalAiFooocusInpaintInpaintEngineEnumKey
+  seed?: number | null
   /**
    * @description The image to use as a mask for the generated image.
    * @example https://raw.githubusercontent.com/CompVis/latent-diffusion/main/data/inpainting_examples/overture-creations-5sI6fQgYIuo_mask.png
@@ -36147,57 +40828,36 @@ export type InputFalAiFooocusInpaint = {
   mask_image_url?: string | null
   /**
    * @description
-   *             Number of images to generate in one request
+   *             You can choose Speed or Quality
    *
-   * @minimum 1
-   * @maximum 4
-   * @default 1
-   * @type integer | undefined
-   */
-  num_images?: number
-  /**
-   * @description The directions to outpaint.
-   * @default []
-   * @type array | undefined
-   */
-  outpaint_selections?: InputFalAiFooocusInpaintOutpaintSelectionsEnumKey[]
-  /**
-   * @description The prompt to use for generating the image. Be as descriptive as possible for best results.
-   * @default ''
-   * @example a cat on a bench, realistic, highly detailed, 8k
+   * @default 'Extreme Speed'
    * @type string | undefined
    */
-  prompt?: string
+  performance?: InputFalAiFooocusInpaintPerformanceEnumKey
+  /**
+   * @description Describe what you want to inpaint.
+   * @default ''
+   * @type string | undefined
+   */
+  inpaint_additional_prompt?: string
+  /**
+   * @description
+   *             Use 0.4 for SD1.5 realistic models; 0.667 for SD1.5 anime models
+   *             0.8 for XL-refiners; or any value for switching two SDXL models.
+   *
+   * @minimum 0
+   * @maximum 1
+   * @default 0.8
+   * @type number | undefined
+   */
+  refiner_switch?: number
   /**
    * @description If `True`, the media will be returned as a data URI and the output data won't be available in the request history.
    * @default false
    * @type boolean | undefined
    */
   sync_mode?: boolean
-  /**
-   * @description If set to true, the initial preprocessing will be disabled.
-   * @default false
-   * @type boolean | undefined
-   */
-  inpaint_disable_initial_latent?: boolean
-  /**
-   * @description
-   *             The CFG (Classifier Free Guidance) scale is a measure of how close you want
-   *             the model to stick to your prompt when looking for a related image to show you.
-   *
-   * @minimum 1
-   * @maximum 30
-   * @default 4
-   * @type number | undefined
-   */
-  guidance_scale?: number
-  /**
-   * @description If set to false, the safety checker will be disabled.
-   * @default true
-   * @type boolean | undefined
-   */
-  enable_safety_checker?: boolean
-  image_prompt_1?: ImagePrompt
+  image_prompt_3?: ImagePrompt
   /**
    * @description
    *             The negative prompt to use. Use it to address details that you don't want
@@ -36211,17 +40871,6 @@ export type InputFalAiFooocusInpaint = {
   negative_prompt?: string
   /**
    * @description
-   *             If set to true, the advanced inpaint options ('inpaint_disable_initial_latent',
-   *             'inpaint_engine', 'inpaint_strength', 'inpaint_respective_field',
-   *             'inpaint_erode_or_dilate') will be overridden.
-   *             Otherwise, the default values will be used.
-   *
-   * @default false
-   * @type boolean | undefined
-   */
-  override_inpaint_options?: boolean
-  /**
-   * @description
    *             Same as the denoising strength in A1111 inpaint. Only used in inpaint, not
    *             used in outpaint. (Outpaint always use 1.0)
    *
@@ -36230,15 +40879,25 @@ export type InputFalAiFooocusInpaint = {
    * @type number | undefined
    */
   inpaint_strength?: number
+  image_prompt_1?: ImagePrompt
   /**
-   * @description
-   *             The LoRAs to use for the image generation. You can use up to 5 LoRAs
-   *             and they will be merged together to generate the final image.
-   *
-   * @default [{"path":"https://huggingface.co/stabilityai/stable-diffusion-xl-base-1.0/resolve/main/sd_xl_offset_example-lora_1.0.safetensors","scale":0.1}]
-   * @type array | undefined
+   * @description The format of the generated image.
+   * @default 'jpeg'
+   * @type string | undefined
    */
-  loras?: LoraWeightFafca8D1[]
+  output_format?: InputFalAiFooocusInpaintOutputFormatEnumKey
+  /**
+   * @description Mixing Image Prompt and Inpaint
+   * @default false
+   * @type boolean | undefined
+   */
+  mixing_image_prompt_and_inpaint?: boolean
+  /**
+   * @description If set to true, the initial preprocessing will be disabled.
+   * @default false
+   * @type boolean | undefined
+   */
+  inpaint_disable_initial_latent?: boolean
   /**
    * @description
    *             The sharpness of the generated image. Use it to control how sharp the generated
@@ -36251,44 +40910,54 @@ export type InputFalAiFooocusInpaint = {
    */
   sharpness?: number
   /**
-   * @description Mixing Image Prompt and Inpaint
-   * @default false
-   * @type boolean | undefined
-   */
-  mixing_image_prompt_and_inpaint?: boolean
-  /**
-   * @description If set to true, the mask will be inverted.
-   * @default false
-   * @type boolean | undefined
-   */
-  invert_mask?: boolean
-  /**
    * @description
-   *             You can choose Speed or Quality
+   *             If set to true, the advanced inpaint options ('inpaint_disable_initial_latent',
+   *             'inpaint_engine', 'inpaint_strength', 'inpaint_respective_field',
+   *             'inpaint_erode_or_dilate') will be overridden.
+   *             Otherwise, the default values will be used.
    *
-   * @default 'Extreme Speed'
-   * @type string | undefined
+   * @default false
+   * @type boolean | undefined
    */
-  performance?: InputFalAiFooocusInpaintPerformanceEnumKey
-  /**
-   * @description Refiner (SDXL or SD 1.5)
-   * @default 'None'
-   * @type string | undefined
-   */
-  refiner_model?: InputFalAiFooocusInpaintRefinerModelEnumKey
-  image_prompt_4?: ImagePrompt
+  override_inpaint_options?: boolean
   /**
    * @description
-   *             Use 0.4 for SD1.5 realistic models; 0.667 for SD1.5 anime models
-   *             0.8 for XL-refiners; or any value for switching two SDXL models.
+   *             The CFG (Classifier Free Guidance) scale is a measure of how close you want
+   *             the model to stick to your prompt when looking for a related image to show you.
+   *
+   * @minimum 1
+   * @maximum 30
+   * @default 4
+   * @type number | undefined
+   */
+  guidance_scale?: number
+  /**
+   * @description
+   *             The size of the generated image. You can choose between some presets or
+   *             custom height and width that **must be multiples of 8**.
+   *
+   * @default '1024x1024'
+   * @type string | undefined
+   */
+  aspect_ratio?: string
+  /**
+   * @description
+   *             The area to inpaint. Value 0 is same as "Only Masked" in A1111. Value 1 is
+   *             same as "Whole Image" in A1111. Only used in inpaint, not used in outpaint.
+   *             (Outpaint always use 1.0)
    *
    * @minimum 0
    * @maximum 1
-   * @default 0.8
+   * @default 0.618
    * @type number | undefined
    */
-  refiner_switch?: number
-  image_prompt_2?: ImagePrompt
+  inpaint_respective_field?: number
+  /**
+   * @description If set to false, the safety checker will be disabled.
+   * @default true
+   * @type boolean | undefined
+   */
+  enable_safety_checker?: boolean
   /**
    * @description The mode to use for inpainting.
    * @default 'Inpaint or Outpaint (default)'
@@ -36297,12 +40966,82 @@ export type InputFalAiFooocusInpaint = {
   inpaint_mode?: InputFalAiFooocusInpaintInpaintModeEnumKey
   /**
    * @description
-   *             The same seed and the same prompt given to the same version of Stable Diffusion
-   *             will output the same image every time.
+   *             Number of images to generate in one request
    *
-   * @example 176400
+   * @minimum 1
+   * @maximum 4
+   * @default 1
+   * @type integer | undefined
    */
-  seed?: number | null
+  num_images?: number
+  image_prompt_4?: ImagePrompt
+  image_prompt_2?: ImagePrompt
+  /**
+   * @description Refiner (SDXL or SD 1.5)
+   * @default 'None'
+   * @type string | undefined
+   */
+  refiner_model?: InputFalAiFooocusInpaintRefinerModelEnumKey
+  /**
+   * @description Version of Fooocus inpaint model
+   * @default 'v2.6'
+   * @type string | undefined
+   */
+  inpaint_engine?: InputFalAiFooocusInpaintInpaintEngineEnumKey
+  /**
+   * @description The image to use as a reference for inpainting.
+   * @example https://raw.githubusercontent.com/CompVis/latent-diffusion/main/data/inpainting_examples/overture-creations-5sI6fQgYIuo.png
+   * @type string
+   */
+  inpaint_image_url: string
+  /**
+   * @description The directions to outpaint.
+   * @default []
+   * @type array | undefined
+   */
+  outpaint_selections?: InputFalAiFooocusInpaintOutpaintSelectionsEnumKey[]
+  /**
+   * @description If set to true, the mask will be inverted.
+   * @default false
+   * @type boolean | undefined
+   */
+  invert_mask?: boolean
+  /**
+   * @description The prompt to use for generating the image. Be as descriptive as possible for best results.
+   * @default ''
+   * @example a cat on a bench, realistic, highly detailed, 8k
+   * @type string | undefined
+   */
+  prompt?: string
+  /**
+   * @description
+   *             The style to use.
+   *
+   * @default ["Fooocus V2","Fooocus Enhance","Fooocus Sharp"]
+   * @type array | undefined
+   */
+  styles?: InputFalAiFooocusInpaintStylesEnumKey[]
+  /**
+   * @description
+   *             Positive value will make white area in the mask larger, negative value will
+   *             make white area smaller. (default is 0, always process before any mask
+   *             invert)
+   *
+   * @minimum -64
+   * @maximum 64
+   * @default 0
+   * @type number | undefined
+   */
+  inpaint_erode_or_dilate?: number
+  /**
+   * @description
+   *             The LoRAs to use for the image generation. You can use up to 5 LoRAs
+   *             and they will be merged together to generate the final image.
+   *
+   * @default [{"path":"https://huggingface.co/stabilityai/stable-diffusion-xl-base-1.0/resolve/main/sd_xl_offset_example-lora_1.0.safetensors","scale":0.1}]
+   * @type array | undefined
+   */
+  loras?: LoraWeight5478D481[]
 }
 
 /**
@@ -36362,7 +41101,7 @@ export type OutputFalAiFooocusInpaint = {
   }
 }
 
-export type LoraWeight291287C4 = {
+export type LoraWeightF163Bc54 = {
   /**
    * @description URL or the path to the LoRA weights.
    * @example https://huggingface.co/stabilityai/stable-diffusion-xl-base-1.0/resolve/main/sd_xl_offset_example-lora_1.0.safetensors
@@ -36382,14 +41121,24 @@ export type LoraWeight291287C4 = {
   scale?: number
 }
 
-export const inputFalAiFooocusUpscaleOrVaryOutputFormatEnum = {
-  png: 'png',
-  jpeg: 'jpeg',
-  webp: 'webp',
+export const inputFalAiFooocusUpscaleOrVaryPerformanceEnum = {
+  Speed: 'Speed',
+  Quality: 'Quality',
+  'Extreme Speed': 'Extreme Speed',
+  Lightning: 'Lightning',
 } as const
 
-export type InputFalAiFooocusUpscaleOrVaryOutputFormatEnumKey =
-  (typeof inputFalAiFooocusUpscaleOrVaryOutputFormatEnum)[keyof typeof inputFalAiFooocusUpscaleOrVaryOutputFormatEnum]
+export type InputFalAiFooocusUpscaleOrVaryPerformanceEnumKey =
+  (typeof inputFalAiFooocusUpscaleOrVaryPerformanceEnum)[keyof typeof inputFalAiFooocusUpscaleOrVaryPerformanceEnum]
+
+export const inputFalAiFooocusUpscaleOrVaryRefinerModelEnum = {
+  None: 'None',
+  'realisticVisionV60B1_v51VAE.safetensors':
+    'realisticVisionV60B1_v51VAE.safetensors',
+} as const
+
+export type InputFalAiFooocusUpscaleOrVaryRefinerModelEnumKey =
+  (typeof inputFalAiFooocusUpscaleOrVaryRefinerModelEnum)[keyof typeof inputFalAiFooocusUpscaleOrVaryRefinerModelEnum]
 
 export const inputFalAiFooocusUpscaleOrVaryStylesEnum = {
   'Fooocus V2': 'Fooocus V2',
@@ -36686,150 +41435,24 @@ export const inputFalAiFooocusUpscaleOrVaryUovMethodEnum = {
 export type InputFalAiFooocusUpscaleOrVaryUovMethodEnumKey =
   (typeof inputFalAiFooocusUpscaleOrVaryUovMethodEnum)[keyof typeof inputFalAiFooocusUpscaleOrVaryUovMethodEnum]
 
-export const inputFalAiFooocusUpscaleOrVaryPerformanceEnum = {
-  Speed: 'Speed',
-  Quality: 'Quality',
-  'Extreme Speed': 'Extreme Speed',
-  Lightning: 'Lightning',
+export const inputFalAiFooocusUpscaleOrVaryOutputFormatEnum = {
+  png: 'png',
+  jpeg: 'jpeg',
+  webp: 'webp',
 } as const
 
-export type InputFalAiFooocusUpscaleOrVaryPerformanceEnumKey =
-  (typeof inputFalAiFooocusUpscaleOrVaryPerformanceEnum)[keyof typeof inputFalAiFooocusUpscaleOrVaryPerformanceEnum]
-
-export const inputFalAiFooocusUpscaleOrVaryRefinerModelEnum = {
-  None: 'None',
-  'realisticVisionV60B1_v51VAE.safetensors':
-    'realisticVisionV60B1_v51VAE.safetensors',
-} as const
-
-export type InputFalAiFooocusUpscaleOrVaryRefinerModelEnumKey =
-  (typeof inputFalAiFooocusUpscaleOrVaryRefinerModelEnum)[keyof typeof inputFalAiFooocusUpscaleOrVaryRefinerModelEnum]
+export type InputFalAiFooocusUpscaleOrVaryOutputFormatEnumKey =
+  (typeof inputFalAiFooocusUpscaleOrVaryOutputFormatEnum)[keyof typeof inputFalAiFooocusUpscaleOrVaryOutputFormatEnum]
 
 export type InputFalAiFooocusUpscaleOrVary = {
   /**
    * @description
-   *             The size of the generated image. You can choose between some presets or
-   *             custom height and width that **must be multiples of 8**.
+   *             The same seed and the same prompt given to the same version of Stable Diffusion
+   *             will output the same image every time.
    *
-   * @default '1024x1024'
-   * @type string | undefined
+   * @example 176400
    */
-  aspect_ratio?: string
-  /**
-   * @description The format of the generated image.
-   * @default 'jpeg'
-   * @type string | undefined
-   */
-  output_format?: InputFalAiFooocusUpscaleOrVaryOutputFormatEnumKey
-  image_prompt_1?: ImagePrompt
-  /**
-   * @description
-   *             The negative prompt to use. Use it to address details that you don't want
-   *             in the image. This could be colors, objects, scenery and even the small details
-   *             (e.g. moustache, blurry, low resolution).
-   *
-   * @default ''
-   * @example (worst quality, low quality, normal quality, lowres, low details, oversaturated, undersaturated, overexposed, underexposed, grayscale, bw, bad photo, bad photography, bad art:1.4), (watermark, signature, text font, username, error, logo, words, letters, digits, autograph, trademark, name:1.2), (blur, blurry, grainy), morbid, ugly, asymmetrical, mutated malformed, mutilated, poorly lit, bad shadow, draft, cropped, out of frame, cut off, censored, jpeg artifacts, out of focus, glitch, duplicate, (airbrushed, cartoon, anime, semi-realistic, cgi, render, blender, digital art, manga, amateur:1.3), (3D ,3D Game, 3D Game Scene, 3D Character:1.1), (bad hands, bad anatomy, bad body, bad face, bad teeth, bad arms, bad legs, deformities:1.3)
-   * @type string | undefined
-   */
-  negative_prompt?: string
-  /**
-   * @description Mixing Image Prompt and Vary/Upscale
-   * @default false
-   * @type boolean | undefined
-   */
-  mixing_image_prompt_and_vary_upscale?: boolean
-  image_prompt_3?: ImagePrompt
-  /**
-   * @description
-   *             The style to use.
-   *
-   * @default ["Fooocus V2","Fooocus Sharp","Fooocus Enhance"]
-   * @type array | undefined
-   */
-  styles?: InputFalAiFooocusUpscaleOrVaryStylesEnumKey[]
-  /**
-   * @description
-   *             The LoRAs to use for the image generation. You can use up to 5 LoRAs
-   *             and they will be merged together to generate the final image.
-   *
-   * @default [{"path":"https://huggingface.co/stabilityai/stable-diffusion-xl-base-1.0/resolve/main/sd_xl_offset_example-lora_1.0.safetensors","scale":0.1}]
-   * @type array | undefined
-   */
-  loras?: LoraWeight291287C4[]
-  /**
-   * @description The method to use for upscaling or varying.
-   * @default 'Vary (Strong)'
-   * @type string | undefined
-   */
-  uov_method?: InputFalAiFooocusUpscaleOrVaryUovMethodEnumKey
-  /**
-   * @description
-   *             The sharpness of the generated image. Use it to control how sharp the generated
-   *             image should be. Higher value means image and texture are sharper.
-   *
-   * @minimum 0
-   * @maximum 30
-   * @default 2
-   * @type number | undefined
-   */
-  sharpness?: number
-  /**
-   * @description
-   *             You can choose Speed or Quality
-   *
-   * @default 'Extreme Speed'
-   * @type string | undefined
-   */
-  performance?: InputFalAiFooocusUpscaleOrVaryPerformanceEnumKey
-  /**
-   * @description Refiner (SDXL or SD 1.5)
-   * @default 'None'
-   * @type string | undefined
-   */
-  refiner_model?: InputFalAiFooocusUpscaleOrVaryRefinerModelEnumKey
-  /**
-   * @description
-   *             Number of images to generate in one request
-   *
-   * @minimum 1
-   * @maximum 4
-   * @default 1
-   * @type integer | undefined
-   */
-  num_images?: number
-  /**
-   * @description The prompt to use for generating the image. Be as descriptive as possible for best results.
-   * @default ''
-   * @example a basket of various fruits, bokeh, realistic, masterpiece
-   * @type string | undefined
-   */
-  prompt?: string
-  /**
-   * @description If `True`, the media will be returned as a data URI and the output data won't be available in the request history.
-   * @default false
-   * @type boolean | undefined
-   */
-  sync_mode?: boolean
-  /**
-   * @description
-   *             Use 0.4 for SD1.5 realistic models; 0.667 for SD1.5 anime models
-   *             0.8 for XL-refiners; or any value for switching two SDXL models.
-   *
-   * @minimum 0
-   * @maximum 1
-   * @default 0.8
-   * @type number | undefined
-   */
-  refiner_switch?: number
-  image_prompt_2?: ImagePrompt
-  /**
-   * @description The image to upscale or vary.
-   * @example https://storage.googleapis.com/falserverless/model_tests/fooocus/fruit_basket.jpeg
-   * @type string
-   */
-  uov_image_url: string
-  image_prompt_4?: ImagePrompt
+  seed?: number | null
   /**
    * @description
    *             The CFG (Classifier Free Guidance) scale is a measure of how close you want
@@ -36842,6 +41465,23 @@ export type InputFalAiFooocusUpscaleOrVary = {
    */
   guidance_scale?: number
   /**
+   * @description
+   *             The size of the generated image. You can choose between some presets or
+   *             custom height and width that **must be multiples of 8**.
+   *
+   * @default '1024x1024'
+   * @type string | undefined
+   */
+  aspect_ratio?: string
+  /**
+   * @description
+   *             You can choose Speed or Quality
+   *
+   * @default 'Extreme Speed'
+   * @type string | undefined
+   */
+  performance?: InputFalAiFooocusUpscaleOrVaryPerformanceEnumKey
+  /**
    * @description If set to false, the safety checker will be disabled.
    * @default true
    * @type boolean | undefined
@@ -36849,12 +41489,111 @@ export type InputFalAiFooocusUpscaleOrVary = {
   enable_safety_checker?: boolean
   /**
    * @description
-   *             The same seed and the same prompt given to the same version of Stable Diffusion
-   *             will output the same image every time.
+   *             Number of images to generate in one request
    *
-   * @example 176400
+   * @minimum 1
+   * @maximum 4
+   * @default 1
+   * @type integer | undefined
    */
-  seed?: number | null
+  num_images?: number
+  image_prompt_4?: ImagePrompt
+  image_prompt_2?: ImagePrompt
+  /**
+   * @description Refiner (SDXL or SD 1.5)
+   * @default 'None'
+   * @type string | undefined
+   */
+  refiner_model?: InputFalAiFooocusUpscaleOrVaryRefinerModelEnumKey
+  /**
+   * @description
+   *             Use 0.4 for SD1.5 realistic models; 0.667 for SD1.5 anime models
+   *             0.8 for XL-refiners; or any value for switching two SDXL models.
+   *
+   * @minimum 0
+   * @maximum 1
+   * @default 0.8
+   * @type number | undefined
+   */
+  refiner_switch?: number
+  /**
+   * @description If `True`, the media will be returned as a data URI and the output data won't be available in the request history.
+   * @default false
+   * @type boolean | undefined
+   */
+  sync_mode?: boolean
+  image_prompt_3?: ImagePrompt
+  /**
+   * @description The prompt to use for generating the image. Be as descriptive as possible for best results.
+   * @default ''
+   * @example a basket of various fruits, bokeh, realistic, masterpiece
+   * @type string | undefined
+   */
+  prompt?: string
+  /**
+   * @description
+   *             The style to use.
+   *
+   * @default ["Fooocus V2","Fooocus Enhance","Fooocus Sharp"]
+   * @type array | undefined
+   */
+  styles?: InputFalAiFooocusUpscaleOrVaryStylesEnumKey[]
+  /**
+   * @description The method to use for upscaling or varying.
+   * @default 'Vary (Strong)'
+   * @type string | undefined
+   */
+  uov_method?: InputFalAiFooocusUpscaleOrVaryUovMethodEnumKey
+  /**
+   * @description The format of the generated image.
+   * @default 'jpeg'
+   * @type string | undefined
+   */
+  output_format?: InputFalAiFooocusUpscaleOrVaryOutputFormatEnumKey
+  image_prompt_1?: ImagePrompt
+  /**
+   * @description
+   *             The LoRAs to use for the image generation. You can use up to 5 LoRAs
+   *             and they will be merged together to generate the final image.
+   *
+   * @default [{"path":"https://huggingface.co/stabilityai/stable-diffusion-xl-base-1.0/resolve/main/sd_xl_offset_example-lora_1.0.safetensors","scale":0.1}]
+   * @type array | undefined
+   */
+  loras?: LoraWeightF163Bc54[]
+  /**
+   * @description
+   *             The negative prompt to use. Use it to address details that you don't want
+   *             in the image. This could be colors, objects, scenery and even the small details
+   *             (e.g. moustache, blurry, low resolution).
+   *
+   * @default ''
+   * @example (worst quality, low quality, normal quality, lowres, low details, oversaturated, undersaturated, overexposed, underexposed, grayscale, bw, bad photo, bad photography, bad art:1.4), (watermark, signature, text font, username, error, logo, words, letters, digits, autograph, trademark, name:1.2), (blur, blurry, grainy), morbid, ugly, asymmetrical, mutated malformed, mutilated, poorly lit, bad shadow, draft, cropped, out of frame, cut off, censored, jpeg artifacts, out of focus, glitch, duplicate, (airbrushed, cartoon, anime, semi-realistic, cgi, render, blender, digital art, manga, amateur:1.3), (3D ,3D Game, 3D Game Scene, 3D Character:1.1), (bad hands, bad anatomy, bad body, bad face, bad teeth, bad arms, bad legs, deformities:1.3)
+   * @type string | undefined
+   */
+  negative_prompt?: string
+  /**
+   * @description
+   *             The sharpness of the generated image. Use it to control how sharp the generated
+   *             image should be. Higher value means image and texture are sharper.
+   *
+   * @minimum 0
+   * @maximum 30
+   * @default 2
+   * @type number | undefined
+   */
+  sharpness?: number
+  /**
+   * @description Mixing Image Prompt and Vary/Upscale
+   * @default false
+   * @type boolean | undefined
+   */
+  mixing_image_prompt_and_vary_upscale?: boolean
+  /**
+   * @description The image to upscale or vary.
+   * @example https://storage.googleapis.com/falserverless/model_tests/fooocus/fruit_basket.jpeg
+   * @type string
+   */
+  uov_image_url: string
 }
 
 /**
@@ -37192,26 +41931,31 @@ export type OutputFalAiGemini25FlashImageEdit = {
 
 export type GeminiTextPart = {
   /**
-   * @description Text at this position in the conversation.
-   * @type string
-   */
-  text: string
-  /**
    * @description Provider thought marker, preserved when replaying a returned conversation.
    */
   thought?: boolean | null
-  /**
-   * @description Opaque provider-issued thought signature. Replay it unchanged on its original part.
-   */
-  thought_signature?: string | null
   /**
    * @description The text part discriminator.
    * @type string
    */
   type: 'text'
+  /**
+   * @description Text at this position in the conversation.
+   * @type string
+   */
+  text: string
+  /**
+   * @description Opaque provider-issued thought signature. Replay it unchanged on its original part.
+   */
+  thought_signature?: string | null
 }
 
 export type GeminiImagePart = {
+  /**
+   * @description Original image URL or data URI. Replayed without resizing or re-encoding.
+   * @type string
+   */
+  image_url: string
   /**
    * @description The image part discriminator.
    * @type string
@@ -37225,11 +41969,6 @@ export type GeminiImagePart = {
    * @description Opaque provider-issued thought signature. Replay it unchanged on its original part.
    */
   thought_signature?: string | null
-  /**
-   * @description Original image URL or data URI. Replayed without resizing or re-encoding.
-   * @type string
-   */
-  image_url: string
 }
 
 export const geminiDocumentPartMimeTypeEnum = {
@@ -37242,28 +41981,28 @@ export type GeminiDocumentPartMimeTypeEnumKey =
 
 export type GeminiDocumentPart = {
   /**
-   * @description The document's media type.
-   * @type string
-   */
-  mime_type: GeminiDocumentPartMimeTypeEnumKey
-  /**
-   * @description Provider thought marker, preserved when replaying a returned conversation.
-   */
-  thought?: boolean | null
-  /**
    * @description PDF or UTF-8 plain-text document URL or data URI (up to 15 MB).
    * @type string
    */
   file_url: string
   /**
-   * @description Opaque provider-issued thought signature. Replay it unchanged on its original part.
+   * @description Provider thought marker, preserved when replaying a returned conversation.
    */
-  thought_signature?: string | null
+  thought?: boolean | null
   /**
    * @description The document part discriminator.
    * @type string
    */
   type: 'document'
+  /**
+   * @description The document's media type.
+   * @type string
+   */
+  mime_type: GeminiDocumentPartMimeTypeEnumKey
+  /**
+   * @description Opaque provider-issued thought signature. Replay it unchanged on its original part.
+   */
+  thought_signature?: string | null
 }
 
 export type GeminiSignaturePart = {
@@ -37272,16 +42011,16 @@ export type GeminiSignaturePart = {
    */
   thought?: boolean | null
   /**
+   * @description The signature part discriminator.
+   * @type string
+   */
+  type: 'signature'
+  /**
    * @description Provider-issued signature-only part, replayed unchanged.
    * @minLength 1
    * @type string
    */
   thought_signature: string
-  /**
-   * @description The signature part discriminator.
-   * @type string
-   */
-  type: 'signature'
 }
 
 export const geminiMessageRoleEnum = {
@@ -37317,6 +42056,15 @@ export type GeminiMessage = {
       })
   )[]
 }
+
+export const inputFalAiGemini3ProImagePreviewResolutionEnum = {
+  '1K': '1K',
+  '2K': '2K',
+  '4K': '4K',
+} as const
+
+export type InputFalAiGemini3ProImagePreviewResolutionEnumKey =
+  (typeof inputFalAiGemini3ProImagePreviewResolutionEnum)[keyof typeof inputFalAiGemini3ProImagePreviewResolutionEnum]
 
 export const inputFalAiGemini3ProImagePreviewSafetyToleranceEnum = {
   '1': '1',
@@ -37360,54 +42108,46 @@ export const inputFalAiGemini3ProImagePreviewAspectRatio = {
 export type InputFalAiGemini3ProImagePreviewAspectRatioKey =
   (typeof inputFalAiGemini3ProImagePreviewAspectRatio)[keyof typeof inputFalAiGemini3ProImagePreviewAspectRatio]
 
-export const inputFalAiGemini3ProImagePreviewResolutionEnum = {
-  '1K': '1K',
-  '2K': '2K',
-  '4K': '4K',
-} as const
-
-export type InputFalAiGemini3ProImagePreviewResolutionEnumKey =
-  (typeof inputFalAiGemini3ProImagePreviewResolutionEnum)[keyof typeof inputFalAiGemini3ProImagePreviewResolutionEnum]
-
 export type InputFalAiGemini3ProImagePreview = {
-  /**
-   * @description The seed for the random number generator.
-   */
-  seed?: number | null
-  /**
-   * @description Enable web search for the image generation task. This will allow the model to use the latest information from the web to generate the image.
-   * @default false
-   * @type boolean | undefined
-   */
-  enable_web_search?: boolean
-  /**
-   * @description Whether to include thought summaries. Omit to preserve the existing behavior: an explicit thinking_level requests summaries. Set limit_generations=false to return summary text in description. This does not disable thinking or return intermediate thought images.
-   */
-  include_thoughts?: boolean | null
   /**
    * @description Sampling temperature. Omit to use the provider default of 1. Explicit values use a direct Google or Vertex API.
    */
   temperature?: number | null
+  /**
+   * @description The number of images to generate.
+   * @minimum 1
+   * @maximum 4
+   * @default 1
+   * @type integer | undefined
+   */
+  num_images?: number
+  /**
+   * @description Nucleus sampling probability. Omit to use the provider default of 0.95. Explicit values use a direct Google or Vertex API.
+   */
+  top_p?: number | null
   /**
    * @description Previous native user/model turns. Replay a returned conversation's messages unchanged, including thought signatures; the current prompt is appended as a new user turn.
    * @type array | undefined
    */
   history?: GeminiMessage[]
   /**
-   * @description Maximum output tokens for the generation. Omit to retain the provider default. Explicit values use a direct Google or Vertex API.
-   */
-  max_output_tokens?: number | null
-  /**
-   * @description Thinking effort. Pro Image supports only high; omit to retain its provider default. An explicit level requests summaries unless include_thoughts overrides it. Thinking cannot be disabled.
-   */
-  thinking_level?: 'high' | null
-  /**
-   * @description Optional system instruction that steers the model's persona and output style across the request. Leave blank to omit; when provided, it is sent as the system instruction to Gemini (or as a system message on OpenAI-compatible providers).
-   * @maxLength 50000
-   * @default ''
+   * @description The resolution of the image to generate.
+   * @default '1K'
    * @type string | undefined
    */
-  system_prompt?: string
+  resolution?: InputFalAiGemini3ProImagePreviewResolutionEnumKey
+  /**
+   * @description Return reusable native conversations with original image parts and provider thought signatures. Uses a native provider. Each generated conversation is independent; send its messages as history for the next turn.
+   * @default false
+   * @type boolean | undefined
+   */
+  return_history?: boolean
+  /**
+   * @description The safety tolerance level for content moderation. 1 is the most strict (blocks most content), 6 is the least strict.
+   * @default '4'
+   * @type string | undefined
+   */
+  safety_tolerance?: InputFalAiGemini3ProImagePreviewSafetyToleranceEnumKey
   /**
    * @description Ordered text, original images, PDF or UTF-8 text documents appended to the current prompt. Uses a native provider. Images count toward the total 14-reference limit.
    * @type array | undefined
@@ -37427,6 +42167,12 @@ export type InputFalAiGemini3ProImagePreview = {
       })
   )[]
   /**
+   * @description Enable web search for the image generation task. This will allow the model to use the latest information from the web to generate the image.
+   * @default false
+   * @type boolean | undefined
+   */
+  enable_web_search?: boolean
+  /**
    * @description The text prompt to generate an image from.
    * @minLength 3
    * @maxLength 50000
@@ -37434,36 +42180,6 @@ export type InputFalAiGemini3ProImagePreview = {
    * @type string
    */
   prompt: string
-  /**
-   * @description Nucleus sampling probability. Omit to use the provider default of 0.95. Explicit values use a direct Google or Vertex API.
-   */
-  top_p?: number | null
-  /**
-   * @description Return reusable native conversations with original image parts and provider thought signatures. Uses a native provider. Each generated conversation is independent; send its messages as history for the next turn.
-   * @default false
-   * @type boolean | undefined
-   */
-  return_history?: boolean
-  /**
-   * @description The safety tolerance level for content moderation. 1 is the most strict (blocks most content), 6 is the least strict.
-   * @default '4'
-   * @type string | undefined
-   */
-  safety_tolerance?: InputFalAiGemini3ProImagePreviewSafetyToleranceEnumKey
-  /**
-   * @description The number of images to generate.
-   * @minimum 1
-   * @maximum 4
-   * @default 1
-   * @type integer | undefined
-   */
-  num_images?: number
-  /**
-   * @description The format of the generated image.
-   * @default 'png'
-   * @type string | undefined
-   */
-  output_format?: InputFalAiGemini3ProImagePreviewOutputFormatEnumKey
   /**
    * @description If `True`, the media will be returned as a data URI and the output data won't be available in the request history.
    * @default false
@@ -37477,135 +42193,42 @@ export type InputFalAiGemini3ProImagePreview = {
    */
   limit_generations?: boolean
   /**
+   * @description Thinking effort. Pro Image supports only high; omit to retain its provider default. An explicit level requests summaries unless include_thoughts overrides it. Thinking cannot be disabled.
+   */
+  thinking_level?: 'high' | null
+  /**
+   * @description The format of the generated image.
+   * @default 'png'
+   * @type string | undefined
+   */
+  output_format?: InputFalAiGemini3ProImagePreviewOutputFormatEnumKey
+  /**
+   * @description Optional system instruction that steers the model's persona and output style across the request. Leave blank to omit; when provided, it is sent as the system instruction to Gemini (or as a system message on OpenAI-compatible providers).
+   * @maxLength 50000
+   * @default ''
+   * @type string | undefined
+   */
+  system_prompt?: string
+  /**
+   * @description Whether to include thought summaries. Omit to preserve the existing behavior: an explicit thinking_level requests summaries. Set limit_generations=false to return summary text in description. This does not disable thinking or return intermediate thought images.
+   */
+  include_thoughts?: boolean | null
+  /**
+   * @description Maximum output tokens for the generation. Omit to retain the provider default. Explicit values use a direct Google or Vertex API.
+   */
+  max_output_tokens?: number | null
+  /**
+   * @description The seed for the random number generator.
+   */
+  seed?: number | null
+  /**
    * @description The aspect ratio of the generated image.
    * @default 1:1
    */
   aspect_ratio?: InputFalAiGemini3ProImagePreviewAspectRatioKey | null
-  /**
-   * @description The resolution of the image to generate.
-   * @default '1K'
-   * @type string | undefined
-   */
-  resolution?: InputFalAiGemini3ProImagePreviewResolutionEnumKey
-}
-
-export type ImageFile13Ca7D44 = {
-  /**
-   * @description The name of the file. It will be auto-generated if not provided.
-   * @example z9RV14K95DvU.png
-   */
-  file_name?: string | null
-  /**
-   * @description The width of the image
-   */
-  width?: number | null
-  /**
-   * @description The URL where the file can be downloaded from.
-   * @type string
-   */
-  url: string
-  /**
-   * @description The size of the file in bytes.
-   * @example 4404019
-   */
-  file_size?: number | null
-  /**
-   * @description The mime type of the file.
-   * @example image/png
-   */
-  content_type?: string | null
-  /**
-   * @description The height of the image
-   */
-  height?: number | null
-}
-
-export type GeminiTextPartA9664164 = {
-  /**
-   * @description Text at this position in the conversation.
-   * @type string
-   */
-  text: string
-  /**
-   * @description Opaque provider-issued thought signature. Replay it unchanged on its original part.
-   */
-  thought_signature?: string | null
-  /**
-   * @description The text part discriminator.
-   * @type string
-   */
-  type: 'text'
-  /**
-   * @description Provider thought marker, preserved when replaying a returned conversation.
-   */
-  thought?: boolean | null
-}
-
-export type GeminiImagePartA018E7De = {
-  /**
-   * @description Original image URL or data URI. Replayed without resizing or re-encoding.
-   * @type string
-   */
-  image_url: string
-  /**
-   * @description Opaque provider-issued thought signature. Replay it unchanged on its original part.
-   */
-  thought_signature?: string | null
-  /**
-   * @description The image part discriminator.
-   * @type string
-   */
-  type: 'image'
-  /**
-   * @description Provider thought marker, preserved when replaying a returned conversation.
-   */
-  thought?: boolean | null
-}
-
-export const geminiDocumentPart466101EeMimeTypeEnum = {
-  'application/pdf': 'application/pdf',
-  'text/plain': 'text/plain',
-} as const
-
-export type GeminiDocumentPart466101EeMimeTypeEnumKey =
-  (typeof geminiDocumentPart466101EeMimeTypeEnum)[keyof typeof geminiDocumentPart466101EeMimeTypeEnum]
-
-export type GeminiDocumentPart466101Ee = {
-  /**
-   * @description Opaque provider-issued thought signature. Replay it unchanged on its original part.
-   */
-  thought_signature?: string | null
-  /**
-   * @description The document part discriminator.
-   * @type string
-   */
-  type: 'document'
-  /**
-   * @description PDF or UTF-8 plain-text document URL or data URI (up to 15 MB).
-   * @type string
-   */
-  file_url: string
-  /**
-   * @description The document's media type.
-   * @type string
-   */
-  mime_type: GeminiDocumentPart466101EeMimeTypeEnumKey
-  /**
-   * @description Provider thought marker, preserved when replaying a returned conversation.
-   */
-  thought?: boolean | null
 }
 
 export type GeminiVideoPart = {
-  /**
-   * @description Opaque provider-issued thought signature. Replay it unchanged on its original part.
-   */
-  thought_signature?: string | null
-  /**
-   * @description The video part discriminator.
-   * @type string
-   */
-  type: 'video'
   /**
    * @description Video URL or data URI (up to 15 MB and 120 seconds), or a YouTube URL. Supported by Flash Image only.
    * @type string
@@ -37615,31 +42238,22 @@ export type GeminiVideoPart = {
    * @description Provider thought marker, preserved when replaying a returned conversation.
    */
   thought?: boolean | null
-}
-
-export type GeminiSignaturePartA5B41925 = {
   /**
-   * @description Provider-issued signature-only part, replayed unchanged.
-   * @minLength 1
+   * @description The video part discriminator.
    * @type string
    */
-  thought_signature: string
-  /**
-   * @description The signature part discriminator.
-   * @type string
-   */
-  type: 'signature'
-  /**
-   * @description Provider thought marker, preserved when replaying a returned conversation.
-   */
-  thought?: boolean | null
-}
-
-export type GeminiAudioPart = {
+  type: 'video'
   /**
    * @description Opaque provider-issued thought signature. Replay it unchanged on its original part.
    */
   thought_signature?: string | null
+}
+
+export type GeminiAudioPart = {
+  /**
+   * @description Provider thought marker, preserved when replaying a returned conversation.
+   */
+  thought?: boolean | null
   /**
    * @description The audio part discriminator.
    * @type string
@@ -37651,9 +42265,9 @@ export type GeminiAudioPart = {
    */
   audio_url: string
   /**
-   * @description Provider thought marker, preserved when replaying a returned conversation.
+   * @description Opaque provider-issued thought signature. Replay it unchanged on its original part.
    */
-  thought?: boolean | null
+  thought_signature?: string | null
 }
 
 export const geminiVideoMessageRoleEnum = {
@@ -37675,19 +42289,19 @@ export type GeminiVideoMessage = {
    * @type array
    */
   parts: (
-    | (GeminiTextPartA9664164 & {
+    | (GeminiTextPart & {
         type: 'text'
       })
-    | (GeminiImagePartA018E7De & {
+    | (GeminiImagePart & {
         type: 'image'
       })
-    | (GeminiDocumentPart466101Ee & {
+    | (GeminiDocumentPart & {
         type: 'document'
       })
     | (GeminiVideoPart & {
         type: 'video'
       })
-    | (GeminiSignaturePartA5B41925 & {
+    | (GeminiSignaturePart & {
         type: 'signature'
       })
     | (GeminiAudioPart & {
@@ -37704,13 +42318,38 @@ export type GeminiConversation = {
   messages: GeminiVideoMessage[]
 }
 
-export type OutputFalAiGemini3ProImagePreview = {
+export type ImageFile90782Ab0 = {
   /**
-   * @description The generated images.
-   * @example [{"file_name":"nano-banana-pro-t2i-output.png","url":"https://storage.googleapis.com/falserverless/example_outputs/nano-banana-pro-t2i-output.png","content_type":"image/png"}]
-   * @type array
+   * @description The name of the file. It will be auto-generated if not provided.
+   * @example z9RV14K95DvU.png
    */
-  images: ImageFile13Ca7D44[]
+  file_name?: string | null
+  /**
+   * @description The size of the file in bytes.
+   * @example 4404019
+   */
+  file_size?: number | null
+  /**
+   * @description The URL where the file can be downloaded from.
+   * @type string
+   */
+  url: string
+  /**
+   * @description The height of the image
+   */
+  height?: number | null
+  /**
+   * @description The mime type of the file.
+   * @example image/png
+   */
+  content_type?: string | null
+  /**
+   * @description The width of the image
+   */
+  width?: number | null
+}
+
+export type OutputFalAiGemini3ProImagePreview = {
   /**
    * @description Provider grounding metadata for the generated images, including search queries, source pages and image-source attribution when available.
    * @type array | undefined
@@ -37722,11 +42361,26 @@ export type OutputFalAiGemini3ProImagePreview = {
    */
   conversations?: GeminiConversation[]
   /**
+   * @description The generated images.
+   * @example [{"file_name":"nano-banana-pro-t2i-output.png","url":"https://storage.googleapis.com/falserverless/example_outputs/nano-banana-pro-t2i-output.png","content_type":"image/png"}]
+   * @type array
+   */
+  images: ImageFile90782Ab0[]
+  /**
    * @description The description of the generated images.
    * @type string
    */
   description: string
 }
+
+export const inputFalAiGemini3ProImagePreviewEditResolutionEnum = {
+  '1K': '1K',
+  '2K': '2K',
+  '4K': '4K',
+} as const
+
+export type InputFalAiGemini3ProImagePreviewEditResolutionEnumKey =
+  (typeof inputFalAiGemini3ProImagePreviewEditResolutionEnum)[keyof typeof inputFalAiGemini3ProImagePreviewEditResolutionEnum]
 
 export const inputFalAiGemini3ProImagePreviewEditSafetyToleranceEnum = {
   '1': '1',
@@ -37770,54 +42424,46 @@ export const inputFalAiGemini3ProImagePreviewEditAspectRatio = {
 export type InputFalAiGemini3ProImagePreviewEditAspectRatioKey =
   (typeof inputFalAiGemini3ProImagePreviewEditAspectRatio)[keyof typeof inputFalAiGemini3ProImagePreviewEditAspectRatio]
 
-export const inputFalAiGemini3ProImagePreviewEditResolutionEnum = {
-  '1K': '1K',
-  '2K': '2K',
-  '4K': '4K',
-} as const
-
-export type InputFalAiGemini3ProImagePreviewEditResolutionEnumKey =
-  (typeof inputFalAiGemini3ProImagePreviewEditResolutionEnum)[keyof typeof inputFalAiGemini3ProImagePreviewEditResolutionEnum]
-
 export type InputFalAiGemini3ProImagePreviewEdit = {
-  /**
-   * @description The seed for the random number generator.
-   */
-  seed?: number | null
-  /**
-   * @description Enable web search for the image generation task. This will allow the model to use the latest information from the web to generate the image.
-   * @default false
-   * @type boolean | undefined
-   */
-  enable_web_search?: boolean
-  /**
-   * @description Whether to include thought summaries. Omit to preserve the existing behavior: an explicit thinking_level requests summaries. Set limit_generations=false to return summary text in description. This does not disable thinking or return intermediate thought images.
-   */
-  include_thoughts?: boolean | null
   /**
    * @description Sampling temperature. Omit to use the provider default of 1. Explicit values use a direct Google or Vertex API.
    */
   temperature?: number | null
+  /**
+   * @description The number of images to generate.
+   * @minimum 1
+   * @maximum 4
+   * @default 1
+   * @type integer | undefined
+   */
+  num_images?: number
+  /**
+   * @description Nucleus sampling probability. Omit to use the provider default of 0.95. Explicit values use a direct Google or Vertex API.
+   */
+  top_p?: number | null
   /**
    * @description Previous native user/model turns. Replay a returned conversation's messages unchanged, including thought signatures; the current prompt is appended as a new user turn.
    * @type array | undefined
    */
   history?: GeminiMessage[]
   /**
-   * @description Maximum output tokens for the generation. Omit to retain the provider default. Explicit values use a direct Google or Vertex API.
-   */
-  max_output_tokens?: number | null
-  /**
-   * @description Thinking effort. Pro Image supports only high; omit to retain its provider default. An explicit level requests summaries unless include_thoughts overrides it. Thinking cannot be disabled.
-   */
-  thinking_level?: 'high' | null
-  /**
-   * @description Optional system instruction that steers the model's persona and output style across the request. Leave blank to omit; when provided, it is sent as the system instruction to Gemini (or as a system message on OpenAI-compatible providers).
-   * @maxLength 50000
-   * @default ''
+   * @description The resolution of the image to generate.
+   * @default '1K'
    * @type string | undefined
    */
-  system_prompt?: string
+  resolution?: InputFalAiGemini3ProImagePreviewEditResolutionEnumKey
+  /**
+   * @description Return reusable native conversations with original image parts and provider thought signatures. Uses a native provider. Each generated conversation is independent; send its messages as history for the next turn.
+   * @default false
+   * @type boolean | undefined
+   */
+  return_history?: boolean
+  /**
+   * @description The safety tolerance level for content moderation. 1 is the most strict (blocks most content), 6 is the least strict.
+   * @default '4'
+   * @type string | undefined
+   */
+  safety_tolerance?: InputFalAiGemini3ProImagePreviewEditSafetyToleranceEnumKey
   /**
    * @description Ordered text, original images, PDF or UTF-8 text documents appended to the current prompt. Uses a native provider. Images count toward the total 14-reference limit.
    * @type array | undefined
@@ -37837,6 +42483,12 @@ export type InputFalAiGemini3ProImagePreviewEdit = {
       })
   )[]
   /**
+   * @description Enable web search for the image generation task. This will allow the model to use the latest information from the web to generate the image.
+   * @default false
+   * @type boolean | undefined
+   */
+  enable_web_search?: boolean
+  /**
    * @description The prompt for image editing.
    * @minLength 3
    * @maxLength 50000
@@ -37844,42 +42496,6 @@ export type InputFalAiGemini3ProImagePreviewEdit = {
    * @type string
    */
   prompt: string
-  /**
-   * @description The URLs of the images to use for image-to-image generation or image editing.
-   * @example ["https://storage.googleapis.com/falserverless/example_inputs/nano-banana-edit-input.png","https://storage.googleapis.com/falserverless/example_inputs/nano-banana-edit-input-2.png"]
-   * @type array | undefined
-   */
-  image_urls?: string[]
-  /**
-   * @description Nucleus sampling probability. Omit to use the provider default of 0.95. Explicit values use a direct Google or Vertex API.
-   */
-  top_p?: number | null
-  /**
-   * @description Return reusable native conversations with original image parts and provider thought signatures. Uses a native provider. Each generated conversation is independent; send its messages as history for the next turn.
-   * @default false
-   * @type boolean | undefined
-   */
-  return_history?: boolean
-  /**
-   * @description The safety tolerance level for content moderation. 1 is the most strict (blocks most content), 6 is the least strict.
-   * @default '4'
-   * @type string | undefined
-   */
-  safety_tolerance?: InputFalAiGemini3ProImagePreviewEditSafetyToleranceEnumKey
-  /**
-   * @description The number of images to generate.
-   * @minimum 1
-   * @maximum 4
-   * @default 1
-   * @type integer | undefined
-   */
-  num_images?: number
-  /**
-   * @description The format of the generated image.
-   * @default 'png'
-   * @type string | undefined
-   */
-  output_format?: InputFalAiGemini3ProImagePreviewEditOutputFormatEnumKey
   /**
    * @description If `True`, the media will be returned as a data URI and the output data won't be available in the request history.
    * @default false
@@ -37893,198 +42509,79 @@ export type InputFalAiGemini3ProImagePreviewEdit = {
    */
   limit_generations?: boolean
   /**
+   * @description Thinking effort. Pro Image supports only high; omit to retain its provider default. An explicit level requests summaries unless include_thoughts overrides it. Thinking cannot be disabled.
+   */
+  thinking_level?: 'high' | null
+  /**
+   * @description The format of the generated image.
+   * @default 'png'
+   * @type string | undefined
+   */
+  output_format?: InputFalAiGemini3ProImagePreviewEditOutputFormatEnumKey
+  /**
+   * @description Optional system instruction that steers the model's persona and output style across the request. Leave blank to omit; when provided, it is sent as the system instruction to Gemini (or as a system message on OpenAI-compatible providers).
+   * @maxLength 50000
+   * @default ''
+   * @type string | undefined
+   */
+  system_prompt?: string
+  /**
+   * @description The URLs of the images to use for image-to-image generation or image editing.
+   * @example ["https://storage.googleapis.com/falserverless/example_inputs/nano-banana-edit-input.png","https://storage.googleapis.com/falserverless/example_inputs/nano-banana-edit-input-2.png"]
+   * @type array | undefined
+   */
+  image_urls?: string[]
+  /**
+   * @description Whether to include thought summaries. Omit to preserve the existing behavior: an explicit thinking_level requests summaries. Set limit_generations=false to return summary text in description. This does not disable thinking or return intermediate thought images.
+   */
+  include_thoughts?: boolean | null
+  /**
+   * @description Maximum output tokens for the generation. Omit to retain the provider default. Explicit values use a direct Google or Vertex API.
+   */
+  max_output_tokens?: number | null
+  /**
+   * @description The seed for the random number generator.
+   */
+  seed?: number | null
+  /**
    * @description The aspect ratio of the generated image, including 1:4, 4:1, 1:8 and 8:1.
    * @default auto
    */
   aspect_ratio?: InputFalAiGemini3ProImagePreviewEditAspectRatioKey | null
-  /**
-   * @description The resolution of the image to generate.
-   * @default '1K'
-   * @type string | undefined
-   */
-  resolution?: InputFalAiGemini3ProImagePreviewEditResolutionEnumKey
 }
 
-export type ImageFileE5Ad38F2 = {
+export type ImageFile8475Ec0F = {
   /**
    * @description The name of the file. It will be auto-generated if not provided.
    * @example z9RV14K95DvU.png
    */
   file_name?: string | null
   /**
-   * @description The width of the image
+   * @description The size of the file in bytes.
+   * @example 4404019
    */
-  width?: number | null
+  file_size?: number | null
   /**
    * @description The URL where the file can be downloaded from.
    * @type string
    */
   url: string
   /**
-   * @description The size of the file in bytes.
-   * @example 4404019
+   * @description The height of the image
    */
-  file_size?: number | null
+  height?: number | null
   /**
    * @description The mime type of the file.
    * @example image/png
    */
   content_type?: string | null
   /**
-   * @description The height of the image
+   * @description The width of the image
    */
-  height?: number | null
-}
-
-export type GeminiTextPart9E7E5C12 = {
-  /**
-   * @description Text at this position in the conversation.
-   * @type string
-   */
-  text: string
-  /**
-   * @description Opaque provider-issued thought signature. Replay it unchanged on its original part.
-   */
-  thought_signature?: string | null
-  /**
-   * @description The text part discriminator.
-   * @type string
-   */
-  type: 'text'
-  /**
-   * @description Provider thought marker, preserved when replaying a returned conversation.
-   */
-  thought?: boolean | null
-}
-
-export type GeminiImagePart3Faa7A28 = {
-  /**
-   * @description Original image URL or data URI. Replayed without resizing or re-encoding.
-   * @type string
-   */
-  image_url: string
-  /**
-   * @description Opaque provider-issued thought signature. Replay it unchanged on its original part.
-   */
-  thought_signature?: string | null
-  /**
-   * @description The image part discriminator.
-   * @type string
-   */
-  type: 'image'
-  /**
-   * @description Provider thought marker, preserved when replaying a returned conversation.
-   */
-  thought?: boolean | null
-}
-
-export const geminiDocumentPartC9571B38MimeTypeEnum = {
-  'application/pdf': 'application/pdf',
-  'text/plain': 'text/plain',
-} as const
-
-export type GeminiDocumentPartC9571B38MimeTypeEnumKey =
-  (typeof geminiDocumentPartC9571B38MimeTypeEnum)[keyof typeof geminiDocumentPartC9571B38MimeTypeEnum]
-
-export type GeminiDocumentPartC9571B38 = {
-  /**
-   * @description Opaque provider-issued thought signature. Replay it unchanged on its original part.
-   */
-  thought_signature?: string | null
-  /**
-   * @description The document part discriminator.
-   * @type string
-   */
-  type: 'document'
-  /**
-   * @description PDF or UTF-8 plain-text document URL or data URI (up to 15 MB).
-   * @type string
-   */
-  file_url: string
-  /**
-   * @description The document's media type.
-   * @type string
-   */
-  mime_type: GeminiDocumentPartC9571B38MimeTypeEnumKey
-  /**
-   * @description Provider thought marker, preserved when replaying a returned conversation.
-   */
-  thought?: boolean | null
-}
-
-export type GeminiSignaturePart4F30C921 = {
-  /**
-   * @description Provider-issued signature-only part, replayed unchanged.
-   * @minLength 1
-   * @type string
-   */
-  thought_signature: string
-  /**
-   * @description The signature part discriminator.
-   * @type string
-   */
-  type: 'signature'
-  /**
-   * @description Provider thought marker, preserved when replaying a returned conversation.
-   */
-  thought?: boolean | null
-}
-
-export const geminiVideoMessageDd6Aeb82RoleEnum = {
-  user: 'user',
-  model: 'model',
-} as const
-
-export type GeminiVideoMessageDd6Aeb82RoleEnumKey =
-  (typeof geminiVideoMessageDd6Aeb82RoleEnum)[keyof typeof geminiVideoMessageDd6Aeb82RoleEnum]
-
-export type GeminiVideoMessageDd6Aeb82 = {
-  /**
-   * @description Native Gemini conversation role.
-   * @type string
-   */
-  role: GeminiVideoMessageDd6Aeb82RoleEnumKey
-  /**
-   * @description Ordered text, image, document, video, audio, and signature parts.
-   * @type array
-   */
-  parts: (
-    | (GeminiTextPart9E7E5C12 & {
-        type: 'text'
-      })
-    | (GeminiImagePart3Faa7A28 & {
-        type: 'image'
-      })
-    | (GeminiDocumentPartC9571B38 & {
-        type: 'document'
-      })
-    | (GeminiVideoPart & {
-        type: 'video'
-      })
-    | (GeminiSignaturePart4F30C921 & {
-        type: 'signature'
-      })
-    | (GeminiAudioPart & {
-        type: 'audio'
-      })
-  )[]
-}
-
-export type GeminiConversationDa2Fea8D = {
-  /**
-   * @description One complete provider conversation. Pass messages as history in the next request, retaining every signature and part.
-   * @type array
-   */
-  messages: GeminiVideoMessageDd6Aeb82[]
+  width?: number | null
 }
 
 export type OutputFalAiGemini3ProImagePreviewEdit = {
-  /**
-   * @description The edited images.
-   * @example [{"file_name":"nano-banana-pro-edit-output.png","url":"https://storage.googleapis.com/falserverless/example_outputs/nano-banana-pro-edit-output.png","content_type":"image/png"}]
-   * @type array
-   */
-  images: ImageFileE5Ad38F2[]
   /**
    * @description Provider grounding metadata for the generated images, including search queries, source pages and image-source attribution when available.
    * @type array | undefined
@@ -38094,7 +42591,13 @@ export type OutputFalAiGemini3ProImagePreviewEdit = {
    * @description Reusable per-generation conversations, populated only when return_history is true. Retain every part and thought signature when continuing a conversation.
    * @type array | undefined
    */
-  conversations?: GeminiConversationDa2Fea8D[]
+  conversations?: GeminiConversation[]
+  /**
+   * @description The edited images.
+   * @example [{"file_name":"nano-banana-pro-edit-output.png","url":"https://storage.googleapis.com/falserverless/example_outputs/nano-banana-pro-edit-output.png","content_type":"image/png"}]
+   * @type array
+   */
+  images: ImageFile8475Ec0F[]
   /**
    * @description The description of the generated images.
    * @type string
@@ -38102,28 +42605,37 @@ export type OutputFalAiGemini3ProImagePreviewEdit = {
   description: string
 }
 
-export type GeminiTextPartCf062Fba = {
-  /**
-   * @description Provider thought marker, preserved when replaying a returned conversation.
-   */
-  thought?: boolean | null
+export type GeminiTextPart5D1557Df = {
   /**
    * @description Text at this position in the conversation.
    * @type string
    */
   text: string
   /**
+   * @description Opaque provider-issued thought signature. Replay it unchanged on its original part.
+   */
+  thought_signature?: string | null
+  /**
+   * @description Provider thought marker, preserved when replaying a returned conversation.
+   */
+  thought?: boolean | null
+  /**
    * @description The text part discriminator.
    * @type string
    */
   type: 'text'
+}
+
+export type GeminiImagePart9E6F4Bb9 = {
   /**
    * @description Opaque provider-issued thought signature. Replay it unchanged on its original part.
    */
   thought_signature?: string | null
-}
-
-export type GeminiImagePartE407Fd24 = {
+  /**
+   * @description The image part discriminator.
+   * @type string
+   */
+  type: 'image'
   /**
    * @description Provider thought marker, preserved when replaying a returned conversation.
    */
@@ -38133,52 +42645,47 @@ export type GeminiImagePartE407Fd24 = {
    * @type string
    */
   image_url: string
-  /**
-   * @description The image part discriminator.
-   * @type string
-   */
-  type: 'image'
-  /**
-   * @description Opaque provider-issued thought signature. Replay it unchanged on its original part.
-   */
-  thought_signature?: string | null
 }
 
-export const geminiDocumentPart43D07734MimeTypeEnum = {
+export const geminiDocumentPart18E2C509MimeTypeEnum = {
   'application/pdf': 'application/pdf',
   'text/plain': 'text/plain',
 } as const
 
-export type GeminiDocumentPart43D07734MimeTypeEnumKey =
-  (typeof geminiDocumentPart43D07734MimeTypeEnum)[keyof typeof geminiDocumentPart43D07734MimeTypeEnum]
+export type GeminiDocumentPart18E2C509MimeTypeEnumKey =
+  (typeof geminiDocumentPart18E2C509MimeTypeEnum)[keyof typeof geminiDocumentPart18E2C509MimeTypeEnum]
 
-export type GeminiDocumentPart43D07734 = {
+export type GeminiDocumentPart18E2C509 = {
+  /**
+   * @description Opaque provider-issued thought signature. Replay it unchanged on its original part.
+   */
+  thought_signature?: string | null
   /**
    * @description Provider thought marker, preserved when replaying a returned conversation.
    */
   thought?: boolean | null
   /**
-   * @description The document part discriminator.
-   * @type string
-   */
-  type: 'document'
-  /**
-   * @description Opaque provider-issued thought signature. Replay it unchanged on its original part.
-   */
-  thought_signature?: string | null
-  /**
-   * @description The document's media type.
-   * @type string
-   */
-  mime_type: GeminiDocumentPart43D07734MimeTypeEnumKey
-  /**
    * @description PDF or UTF-8 plain-text document URL or data URI (up to 15 MB).
    * @type string
    */
   file_url: string
+  /**
+   * @description The document's media type.
+   * @type string
+   */
+  mime_type: GeminiDocumentPart18E2C509MimeTypeEnumKey
+  /**
+   * @description The document part discriminator.
+   * @type string
+   */
+  type: 'document'
 }
 
-export type GeminiVideoPart6B6B51Da = {
+export type GeminiVideoPart3E9256Bf = {
+  /**
+   * @description Opaque provider-issued thought signature. Replay it unchanged on its original part.
+   */
+  thought_signature?: string | null
   /**
    * @description Provider thought marker, preserved when replaying a returned conversation.
    */
@@ -38193,13 +42700,15 @@ export type GeminiVideoPart6B6B51Da = {
    * @type string
    */
   type: 'video'
-  /**
-   * @description Opaque provider-issued thought signature. Replay it unchanged on its original part.
-   */
-  thought_signature?: string | null
 }
 
-export type GeminiSignaturePart815D09F9 = {
+export type GeminiSignaturePart35D813Ca = {
+  /**
+   * @description Provider-issued signature-only part, replayed unchanged.
+   * @minLength 1
+   * @type string
+   */
+  thought_signature: string
   /**
    * @description Provider thought marker, preserved when replaying a returned conversation.
    */
@@ -38209,15 +42718,13 @@ export type GeminiSignaturePart815D09F9 = {
    * @type string
    */
   type: 'signature'
-  /**
-   * @description Provider-issued signature-only part, replayed unchanged.
-   * @minLength 1
-   * @type string
-   */
-  thought_signature: string
 }
 
-export type GeminiAudioPart29B20245 = {
+export type GeminiAudioPart465E20Be = {
+  /**
+   * @description Opaque provider-issued thought signature. Replay it unchanged on its original part.
+   */
+  thought_signature?: string | null
   /**
    * @description Provider thought marker, preserved when replaying a returned conversation.
    */
@@ -38232,42 +42739,38 @@ export type GeminiAudioPart29B20245 = {
    * @type string
    */
   type: 'audio'
-  /**
-   * @description Opaque provider-issued thought signature. Replay it unchanged on its original part.
-   */
-  thought_signature?: string | null
 }
 
-export const geminiVideoMessage3B354EeaRoleEnum = {
+export const geminiVideoMessageC04Ea00FRoleEnum = {
   user: 'user',
   model: 'model',
 } as const
 
-export type GeminiVideoMessage3B354EeaRoleEnumKey =
-  (typeof geminiVideoMessage3B354EeaRoleEnum)[keyof typeof geminiVideoMessage3B354EeaRoleEnum]
+export type GeminiVideoMessageC04Ea00FRoleEnumKey =
+  (typeof geminiVideoMessageC04Ea00FRoleEnum)[keyof typeof geminiVideoMessageC04Ea00FRoleEnum]
 
-export type GeminiVideoMessage3B354Eea = {
+export type GeminiVideoMessageC04Ea00F = {
   /**
    * @description Ordered text, image, document, video, audio, and signature parts.
    * @type array
    */
   parts: (
-    | (GeminiTextPartCf062Fba & {
+    | (GeminiTextPart5D1557Df & {
         type: 'text'
       })
-    | (GeminiImagePartE407Fd24 & {
+    | (GeminiImagePart9E6F4Bb9 & {
         type: 'image'
       })
-    | (GeminiDocumentPart43D07734 & {
+    | (GeminiDocumentPart18E2C509 & {
         type: 'document'
       })
-    | (GeminiVideoPart6B6B51Da & {
+    | (GeminiVideoPart3E9256Bf & {
         type: 'video'
       })
-    | (GeminiSignaturePart815D09F9 & {
+    | (GeminiSignaturePart35D813Ca & {
         type: 'signature'
       })
-    | (GeminiAudioPart29B20245 & {
+    | (GeminiAudioPart465E20Be & {
         type: 'audio'
       })
   )[]
@@ -38275,16 +42778,17 @@ export type GeminiVideoMessage3B354Eea = {
    * @description Native Gemini conversation role.
    * @type string
    */
-  role: GeminiVideoMessage3B354EeaRoleEnumKey
+  role: GeminiVideoMessageC04Ea00FRoleEnumKey
 }
 
-export const inputFalAiGemini31FlashImagePreviewThinkingLevel = {
-  minimal: 'minimal',
-  high: 'high',
+export const inputFalAiGemini31FlashImagePreviewOutputFormatEnum = {
+  jpeg: 'jpeg',
+  png: 'png',
+  webp: 'webp',
 } as const
 
-export type InputFalAiGemini31FlashImagePreviewThinkingLevelKey =
-  (typeof inputFalAiGemini31FlashImagePreviewThinkingLevel)[keyof typeof inputFalAiGemini31FlashImagePreviewThinkingLevel]
+export type InputFalAiGemini31FlashImagePreviewOutputFormatEnumKey =
+  (typeof inputFalAiGemini31FlashImagePreviewOutputFormatEnum)[keyof typeof inputFalAiGemini31FlashImagePreviewOutputFormatEnum]
 
 export const inputFalAiGemini31FlashImagePreviewResolutionEnum = {
   '0.5K': '0.5K',
@@ -38295,15 +42799,6 @@ export const inputFalAiGemini31FlashImagePreviewResolutionEnum = {
 
 export type InputFalAiGemini31FlashImagePreviewResolutionEnumKey =
   (typeof inputFalAiGemini31FlashImagePreviewResolutionEnum)[keyof typeof inputFalAiGemini31FlashImagePreviewResolutionEnum]
-
-export const inputFalAiGemini31FlashImagePreviewOutputFormatEnum = {
-  jpeg: 'jpeg',
-  png: 'png',
-  webp: 'webp',
-} as const
-
-export type InputFalAiGemini31FlashImagePreviewOutputFormatEnumKey =
-  (typeof inputFalAiGemini31FlashImagePreviewOutputFormatEnum)[keyof typeof inputFalAiGemini31FlashImagePreviewOutputFormatEnum]
 
 export const inputFalAiGemini31FlashImagePreviewSafetyToleranceEnum = {
   '1': '1',
@@ -38338,41 +42833,21 @@ export const inputFalAiGemini31FlashImagePreviewAspectRatio = {
 export type InputFalAiGemini31FlashImagePreviewAspectRatioKey =
   (typeof inputFalAiGemini31FlashImagePreviewAspectRatio)[keyof typeof inputFalAiGemini31FlashImagePreviewAspectRatio]
 
+export const inputFalAiGemini31FlashImagePreviewThinkingLevel = {
+  minimal: 'minimal',
+  high: 'high',
+} as const
+
+export type InputFalAiGemini31FlashImagePreviewThinkingLevelKey =
+  (typeof inputFalAiGemini31FlashImagePreviewThinkingLevel)[keyof typeof inputFalAiGemini31FlashImagePreviewThinkingLevel]
+
 export type InputFalAiGemini31FlashImagePreview = {
   /**
-   * @description Whether to include thought summaries. Omit to preserve the existing behavior: an explicit thinking_level requests summaries. Set limit_generations=false to return summary text in description. This does not disable thinking or return intermediate thought images.
+   * @description Experimental parameter to limit the number of generations from each round of prompting to 1. Set to `True` to to disregard any instructions in the prompt regarding the number of images to generate and ignore any intermediate images generated by the model. This may affect generation quality.
+   * @default true
+   * @type boolean | undefined
    */
-  include_thoughts?: boolean | null
-  /**
-   * @description Controls thinking effort ('minimal' or 'high') and requests thought summaries. Omit to use the provider default ('minimal'); thinking cannot be disabled.
-   */
-  thinking_level?: InputFalAiGemini31FlashImagePreviewThinkingLevelKey | null
-  /**
-   * @description Ordered text, image, PDF, UTF-8 text-file or video parts appended to the current prompt. Original media bytes are preserved; images count toward the total 14-reference limit.
-   * @type array | undefined
-   */
-  context?: (
-    | (GeminiTextPartCf062Fba & {
-        type: 'text'
-      })
-    | (GeminiImagePartE407Fd24 & {
-        type: 'image'
-      })
-    | (GeminiDocumentPart43D07734 & {
-        type: 'document'
-      })
-    | (GeminiVideoPart6B6B51Da & {
-        type: 'video'
-      })
-    | (GeminiSignaturePart815D09F9 & {
-        type: 'signature'
-      })
-  )[]
-  /**
-   * @description Previous native Gemini turns, including original parts and thought signatures from conversations. The current prompt starts a new user turn.
-   * @type array | undefined
-   */
-  history?: GeminiVideoMessage3B354Eea[]
+  limit_generations?: boolean
   /**
    * @description Enable web search for the image generation task. This will allow the model to use the latest information from the web to generate the image.
    * @default false
@@ -38380,33 +42855,9 @@ export type InputFalAiGemini31FlashImagePreview = {
    */
   enable_web_search?: boolean
   /**
-   * @description The number of images to generate.
-   * @minimum 1
-   * @maximum 4
-   * @default 1
-   * @type integer | undefined
+   * @description The seed for the random number generator.
    */
-  num_images?: number
-  /**
-   * @description Ground image generation with Google Image Search. Can be combined with enable_web_search; source attribution is returned in grounding_metadata. Uses direct Google or Vertex APIs.
-   * @default false
-   * @type boolean | undefined
-   */
-  enable_image_search?: boolean
-  /**
-   * @description The text prompt to generate an image from.
-   * @minLength 3
-   * @maxLength 50000
-   * @example An action shot of a black lab swimming in an inground suburban swimming pool. The camera is placed meticulously on the water line, dividing the image in half, revealing both the dogs head above water holding a tennis ball in it's mouth, and it's paws paddling underwater.
-   * @type string
-   */
-  prompt: string
-  /**
-   * @description The resolution of the image to generate.
-   * @default '1K'
-   * @type string | undefined
-   */
-  resolution?: InputFalAiGemini31FlashImagePreviewResolutionEnumKey
+  seed?: number | null
   /**
    * @description The format of the generated image.
    * @default 'png'
@@ -38414,21 +42865,11 @@ export type InputFalAiGemini31FlashImagePreview = {
    */
   output_format?: InputFalAiGemini31FlashImagePreviewOutputFormatEnumKey
   /**
-   * @description The seed for the random number generator.
-   */
-  seed?: number | null
-  /**
-   * @description The safety tolerance level for content moderation. 1 is the most strict (blocks most content), 6 is the least strict.
-   * @default '4'
-   * @type string | undefined
-   */
-  safety_tolerance?: InputFalAiGemini31FlashImagePreviewSafetyToleranceEnumKey
-  /**
-   * @description Experimental parameter to limit the number of generations from each round of prompting to 1. Set to `True` to to disregard any instructions in the prompt regarding the number of images to generate and ignore any intermediate images generated by the model. This may affect generation quality.
-   * @default true
+   * @description If `True`, the media will be returned as a data URI and the output data won't be available in the request history.
+   * @default false
    * @type boolean | undefined
    */
-  limit_generations?: boolean
+  sync_mode?: boolean
   /**
    * @description Return reusable native conversations with original image parts and provider thought signatures. Uses a native provider. Each generated conversation is independent; send its messages as history for the next turn.
    * @default false
@@ -38440,9 +42881,23 @@ export type InputFalAiGemini31FlashImagePreview = {
    */
   temperature?: number | null
   /**
+   * @description Maximum output tokens for the generation. Omit to retain the provider default. Explicit values use a direct Google or Vertex API.
+   */
+  max_output_tokens?: number | null
+  /**
+   * @description The resolution of the image to generate.
+   * @default '1K'
+   * @type string | undefined
+   */
+  resolution?: InputFalAiGemini31FlashImagePreviewResolutionEnumKey
+  /**
    * @description Nucleus sampling probability. Omit to use the provider default of 0.95. Explicit values use a direct Google or Vertex API.
    */
   top_p?: number | null
+  /**
+   * @description Whether to include thought summaries. Omit to preserve the existing behavior: an explicit thinking_level requests summaries. Set limit_generations=false to return summary text in description. This does not disable thinking or return intermediate thought images.
+   */
+  include_thoughts?: boolean | null
   /**
    * @description Optional system instruction that steers the model's persona and output style across the request. Leave blank to omit; when provided, it is sent as the system instruction to Gemini (or as a system message on OpenAI-compatible providers).
    * @maxLength 50000
@@ -38451,283 +42906,340 @@ export type InputFalAiGemini31FlashImagePreview = {
    */
   system_prompt?: string
   /**
-   * @description Maximum output tokens for the generation. Omit to retain the provider default. Explicit values use a direct Google or Vertex API.
+   * @description The safety tolerance level for content moderation. 1 is the most strict (blocks most content), 6 is the least strict.
+   * @default '4'
+   * @type string | undefined
    */
-  max_output_tokens?: number | null
-  /**
-   * @description If `True`, the media will be returned as a data URI and the output data won't be available in the request history.
-   * @default false
-   * @type boolean | undefined
-   */
-  sync_mode?: boolean
+  safety_tolerance?: InputFalAiGemini31FlashImagePreviewSafetyToleranceEnumKey
   /**
    * @description The aspect ratio of the generated image. Supports extreme ratios: 4:1, 1:4, 8:1, 1:8. Use "auto" to let the model decide based on the prompt.
    * @default auto
    */
   aspect_ratio?: InputFalAiGemini31FlashImagePreviewAspectRatioKey | null
+  /**
+   * @description The number of images to generate.
+   * @minimum 1
+   * @maximum 4
+   * @default 1
+   * @type integer | undefined
+   */
+  num_images?: number
+  /**
+   * @description Previous native Gemini turns, including original parts and thought signatures from conversations. The current prompt starts a new user turn.
+   * @type array | undefined
+   */
+  history?: GeminiVideoMessageC04Ea00F[]
+  /**
+   * @description Ordered text, image, PDF, UTF-8 text-file or video parts appended to the current prompt. Original media bytes are preserved; images count toward the total 14-reference limit.
+   * @type array | undefined
+   */
+  context?: (
+    | (GeminiTextPart5D1557Df & {
+        type: 'text'
+      })
+    | (GeminiImagePart9E6F4Bb9 & {
+        type: 'image'
+      })
+    | (GeminiDocumentPart18E2C509 & {
+        type: 'document'
+      })
+    | (GeminiVideoPart3E9256Bf & {
+        type: 'video'
+      })
+    | (GeminiSignaturePart35D813Ca & {
+        type: 'signature'
+      })
+  )[]
+  /**
+   * @description The text prompt to generate an image from.
+   * @minLength 3
+   * @maxLength 50000
+   * @example An action shot of a black lab swimming in an inground suburban swimming pool. The camera is placed meticulously on the water line, dividing the image in half, revealing both the dogs head above water holding a tennis ball in it's mouth, and it's paws paddling underwater.
+   * @type string
+   */
+  prompt: string
+  /**
+   * @description Ground image generation with Google Image Search. Can be combined with enable_web_search; source attribution is returned in grounding_metadata. Uses direct Google or Vertex APIs.
+   * @default false
+   * @type boolean | undefined
+   */
+  enable_image_search?: boolean
+  /**
+   * @description Controls thinking effort ('minimal' or 'high') and requests thought summaries. Omit to use the provider default ('minimal'); thinking cannot be disabled.
+   */
+  thinking_level?: InputFalAiGemini31FlashImagePreviewThinkingLevelKey | null
 }
 
-export type ImageFile7F94C478 = {
+export type GeminiTextPart892Dc195 = {
   /**
-   * @description The name of the file. It will be auto-generated if not provided.
-   * @example z9RV14K95DvU.png
+   * @description Text at this position in the conversation.
+   * @type string
    */
-  file_name?: string | null
+  text: string
+  /**
+   * @description Opaque provider-issued thought signature. Replay it unchanged on its original part.
+   */
+  thought_signature?: string | null
+  /**
+   * @description Provider thought marker, preserved when replaying a returned conversation.
+   */
+  thought?: boolean | null
+  /**
+   * @description The text part discriminator.
+   * @type string
+   */
+  type: 'text'
+}
+
+export type GeminiImagePart56225A5B = {
+  /**
+   * @description Opaque provider-issued thought signature. Replay it unchanged on its original part.
+   */
+  thought_signature?: string | null
+  /**
+   * @description The image part discriminator.
+   * @type string
+   */
+  type: 'image'
+  /**
+   * @description Provider thought marker, preserved when replaying a returned conversation.
+   */
+  thought?: boolean | null
+  /**
+   * @description Original image URL or data URI. Replayed without resizing or re-encoding.
+   * @type string
+   */
+  image_url: string
+}
+
+export const geminiDocumentPart5E42E10BMimeTypeEnum = {
+  'application/pdf': 'application/pdf',
+  'text/plain': 'text/plain',
+} as const
+
+export type GeminiDocumentPart5E42E10BMimeTypeEnumKey =
+  (typeof geminiDocumentPart5E42E10BMimeTypeEnum)[keyof typeof geminiDocumentPart5E42E10BMimeTypeEnum]
+
+export type GeminiDocumentPart5E42E10B = {
+  /**
+   * @description Opaque provider-issued thought signature. Replay it unchanged on its original part.
+   */
+  thought_signature?: string | null
+  /**
+   * @description Provider thought marker, preserved when replaying a returned conversation.
+   */
+  thought?: boolean | null
+  /**
+   * @description PDF or UTF-8 plain-text document URL or data URI (up to 15 MB).
+   * @type string
+   */
+  file_url: string
+  /**
+   * @description The document's media type.
+   * @type string
+   */
+  mime_type: GeminiDocumentPart5E42E10BMimeTypeEnumKey
+  /**
+   * @description The document part discriminator.
+   * @type string
+   */
+  type: 'document'
+}
+
+export type GeminiVideoPart6Badf6B5 = {
+  /**
+   * @description Opaque provider-issued thought signature. Replay it unchanged on its original part.
+   */
+  thought_signature?: string | null
+  /**
+   * @description Provider thought marker, preserved when replaying a returned conversation.
+   */
+  thought?: boolean | null
+  /**
+   * @description Video URL or data URI (up to 15 MB and 120 seconds), or a YouTube URL. Supported by Flash Image only.
+   * @type string
+   */
+  video_url: string
+  /**
+   * @description The video part discriminator.
+   * @type string
+   */
+  type: 'video'
+}
+
+export type GeminiSignaturePartC83Caf92 = {
+  /**
+   * @description Provider-issued signature-only part, replayed unchanged.
+   * @minLength 1
+   * @type string
+   */
+  thought_signature: string
+  /**
+   * @description Provider thought marker, preserved when replaying a returned conversation.
+   */
+  thought?: boolean | null
+  /**
+   * @description The signature part discriminator.
+   * @type string
+   */
+  type: 'signature'
+}
+
+export type GeminiAudioPart9D15D33E = {
+  /**
+   * @description Opaque provider-issued thought signature. Replay it unchanged on its original part.
+   */
+  thought_signature?: string | null
+  /**
+   * @description Provider thought marker, preserved when replaying a returned conversation.
+   */
+  thought?: boolean | null
+  /**
+   * @description Original audio URL or data URI from a previous Flash Image request (up to 15 MB).
+   * @type string
+   */
+  audio_url: string
+  /**
+   * @description The audio part discriminator.
+   * @type string
+   */
+  type: 'audio'
+}
+
+export const geminiVideoMessage362F95A5RoleEnum = {
+  user: 'user',
+  model: 'model',
+} as const
+
+export type GeminiVideoMessage362F95A5RoleEnumKey =
+  (typeof geminiVideoMessage362F95A5RoleEnum)[keyof typeof geminiVideoMessage362F95A5RoleEnum]
+
+export type GeminiVideoMessage362F95A5 = {
+  /**
+   * @description Ordered text, image, document, video, audio, and signature parts.
+   * @type array
+   */
+  parts: (
+    | (GeminiTextPart892Dc195 & {
+        type: 'text'
+      })
+    | (GeminiImagePart56225A5B & {
+        type: 'image'
+      })
+    | (GeminiDocumentPart5E42E10B & {
+        type: 'document'
+      })
+    | (GeminiVideoPart6Badf6B5 & {
+        type: 'video'
+      })
+    | (GeminiSignaturePartC83Caf92 & {
+        type: 'signature'
+      })
+    | (GeminiAudioPart9D15D33E & {
+        type: 'audio'
+      })
+  )[]
+  /**
+   * @description Native Gemini conversation role.
+   * @type string
+   */
+  role: GeminiVideoMessage362F95A5RoleEnumKey
+}
+
+export type GeminiConversation6Fe9E346 = {
+  /**
+   * @description One complete provider conversation. Pass messages as history in the next request, retaining every signature and part.
+   * @type array
+   */
+  messages: GeminiVideoMessage362F95A5[]
+}
+
+export type ImageFile113C3Ef5 = {
   /**
    * @description The size of the file in bytes.
    * @example 4404019
    */
   file_size?: number | null
   /**
-   * @description The height of the image
-   */
-  height?: number | null
-  /**
    * @description The width of the image
    */
   width?: number | null
+  /**
+   * @description The name of the file. It will be auto-generated if not provided.
+   * @example z9RV14K95DvU.png
+   */
+  file_name?: string | null
+  /**
+   * @description The URL where the file can be downloaded from.
+   * @type string
+   */
+  url: string
   /**
    * @description The mime type of the file.
    * @example image/png
    */
   content_type?: string | null
   /**
-   * @description The URL where the file can be downloaded from.
-   * @type string
+   * @description The height of the image
    */
-  url: string
-}
-
-export type GeminiTextPart98E10D58 = {
-  /**
-   * @description Text at this position in the conversation.
-   * @type string
-   */
-  text: string
-  /**
-   * @description Provider thought marker, preserved when replaying a returned conversation.
-   */
-  thought?: boolean | null
-  /**
-   * @description The text part discriminator.
-   * @type string
-   */
-  type: 'text'
-  /**
-   * @description Opaque provider-issued thought signature. Replay it unchanged on its original part.
-   */
-  thought_signature?: string | null
-}
-
-export type GeminiImagePartAc10C99E = {
-  /**
-   * @description Original image URL or data URI. Replayed without resizing or re-encoding.
-   * @type string
-   */
-  image_url: string
-  /**
-   * @description Provider thought marker, preserved when replaying a returned conversation.
-   */
-  thought?: boolean | null
-  /**
-   * @description The image part discriminator.
-   * @type string
-   */
-  type: 'image'
-  /**
-   * @description Opaque provider-issued thought signature. Replay it unchanged on its original part.
-   */
-  thought_signature?: string | null
-}
-
-export const geminiDocumentPart746939CeMimeTypeEnum = {
-  'application/pdf': 'application/pdf',
-  'text/plain': 'text/plain',
-} as const
-
-export type GeminiDocumentPart746939CeMimeTypeEnumKey =
-  (typeof geminiDocumentPart746939CeMimeTypeEnum)[keyof typeof geminiDocumentPart746939CeMimeTypeEnum]
-
-export type GeminiDocumentPart746939Ce = {
-  /**
-   * @description Provider thought marker, preserved when replaying a returned conversation.
-   */
-  thought?: boolean | null
-  /**
-   * @description The document's media type.
-   * @type string
-   */
-  mime_type: GeminiDocumentPart746939CeMimeTypeEnumKey
-  /**
-   * @description The document part discriminator.
-   * @type string
-   */
-  type: 'document'
-  /**
-   * @description PDF or UTF-8 plain-text document URL or data URI (up to 15 MB).
-   * @type string
-   */
-  file_url: string
-  /**
-   * @description Opaque provider-issued thought signature. Replay it unchanged on its original part.
-   */
-  thought_signature?: string | null
-}
-
-export type GeminiVideoPart5C8F9C38 = {
-  /**
-   * @description Video URL or data URI (up to 15 MB and 120 seconds), or a YouTube URL. Supported by Flash Image only.
-   * @type string
-   */
-  video_url: string
-  /**
-   * @description The video part discriminator.
-   * @type string
-   */
-  type: 'video'
-  /**
-   * @description Provider thought marker, preserved when replaying a returned conversation.
-   */
-  thought?: boolean | null
-  /**
-   * @description Opaque provider-issued thought signature. Replay it unchanged on its original part.
-   */
-  thought_signature?: string | null
-}
-
-export type GeminiSignaturePart9Ea53B9D = {
-  /**
-   * @description Provider thought marker, preserved when replaying a returned conversation.
-   */
-  thought?: boolean | null
-  /**
-   * @description The signature part discriminator.
-   * @type string
-   */
-  type: 'signature'
-  /**
-   * @description Provider-issued signature-only part, replayed unchanged.
-   * @minLength 1
-   * @type string
-   */
-  thought_signature: string
-}
-
-export type GeminiAudioPart7Ceb8Bf1 = {
-  /**
-   * @description Original audio URL or data URI from a previous Flash Image request (up to 15 MB).
-   * @type string
-   */
-  audio_url: string
-  /**
-   * @description The audio part discriminator.
-   * @type string
-   */
-  type: 'audio'
-  /**
-   * @description Provider thought marker, preserved when replaying a returned conversation.
-   */
-  thought?: boolean | null
-  /**
-   * @description Opaque provider-issued thought signature. Replay it unchanged on its original part.
-   */
-  thought_signature?: string | null
-}
-
-export const geminiVideoMessage3878Bae8RoleEnum = {
-  user: 'user',
-  model: 'model',
-} as const
-
-export type GeminiVideoMessage3878Bae8RoleEnumKey =
-  (typeof geminiVideoMessage3878Bae8RoleEnum)[keyof typeof geminiVideoMessage3878Bae8RoleEnum]
-
-export type GeminiVideoMessage3878Bae8 = {
-  /**
-   * @description Native Gemini conversation role.
-   * @type string
-   */
-  role: GeminiVideoMessage3878Bae8RoleEnumKey
-  /**
-   * @description Ordered text, image, document, video, audio, and signature parts.
-   * @type array
-   */
-  parts: (
-    | (GeminiTextPart98E10D58 & {
-        type: 'text'
-      })
-    | (GeminiImagePartAc10C99E & {
-        type: 'image'
-      })
-    | (GeminiDocumentPart746939Ce & {
-        type: 'document'
-      })
-    | (GeminiVideoPart5C8F9C38 & {
-        type: 'video'
-      })
-    | (GeminiSignaturePart9Ea53B9D & {
-        type: 'signature'
-      })
-    | (GeminiAudioPart7Ceb8Bf1 & {
-        type: 'audio'
-      })
-  )[]
-}
-
-export type GeminiConversationCb50C489 = {
-  /**
-   * @description One complete provider conversation. Pass messages as history in the next request, retaining every signature and part.
-   * @type array
-   */
-  messages: GeminiVideoMessage3878Bae8[]
+  height?: number | null
 }
 
 export type OutputFalAiGemini31FlashImagePreview = {
+  /**
+   * @description Reusable per-generation conversations, populated only when return_history is true. Retain every part and thought signature when continuing a conversation.
+   * @type array | undefined
+   */
+  conversations?: GeminiConversation6Fe9E346[]
   /**
    * @description The description of the generated images.
    * @type string
    */
   description: string
   /**
-   * @description The generated images.
-   * @example [{"file_name":"nano-banana-2-t2i-output.png","content_type":"image/png","url":"https://storage.googleapis.com/falserverless/example_outputs/nano-banana-2-t2i-output.png"}]
-   * @type array
-   */
-  images: ImageFile7F94C478[]
-  /**
    * @description Provider grounding metadata for the generated images, including search queries, source pages and image-source attribution when available.
    * @type array | undefined
    */
   grounding_metadata?: object[]
   /**
-   * @description Reusable per-generation conversations, populated only when return_history is true. Retain every part and thought signature when continuing a conversation.
-   * @type array | undefined
+   * @description The generated images.
+   * @example [{"url":"https://storage.googleapis.com/falserverless/example_outputs/nano-banana-2-t2i-output.png","content_type":"image/png","file_name":"nano-banana-2-t2i-output.png"}]
+   * @type array
    */
-  conversations?: GeminiConversationCb50C489[]
+  images: ImageFile113C3Ef5[]
 }
 
-export type GeminiTextPartC2A07Ca1 = {
-  /**
-   * @description Provider thought marker, preserved when replaying a returned conversation.
-   */
-  thought?: boolean | null
+export type GeminiTextPart51Fc8Cca = {
   /**
    * @description Text at this position in the conversation.
    * @type string
    */
   text: string
   /**
+   * @description Opaque provider-issued thought signature. Replay it unchanged on its original part.
+   */
+  thought_signature?: string | null
+  /**
+   * @description Provider thought marker, preserved when replaying a returned conversation.
+   */
+  thought?: boolean | null
+  /**
    * @description The text part discriminator.
    * @type string
    */
   type: 'text'
+}
+
+export type GeminiImagePart7A87896C = {
   /**
    * @description Opaque provider-issued thought signature. Replay it unchanged on its original part.
    */
   thought_signature?: string | null
-}
-
-export type GeminiImagePartC41F699B = {
+  /**
+   * @description The image part discriminator.
+   * @type string
+   */
+  type: 'image'
   /**
    * @description Provider thought marker, preserved when replaying a returned conversation.
    */
@@ -38737,52 +43249,47 @@ export type GeminiImagePartC41F699B = {
    * @type string
    */
   image_url: string
-  /**
-   * @description The image part discriminator.
-   * @type string
-   */
-  type: 'image'
-  /**
-   * @description Opaque provider-issued thought signature. Replay it unchanged on its original part.
-   */
-  thought_signature?: string | null
 }
 
-export const geminiDocumentPart822B1F0BMimeTypeEnum = {
+export const geminiDocumentPartC18Bf4DcMimeTypeEnum = {
   'application/pdf': 'application/pdf',
   'text/plain': 'text/plain',
 } as const
 
-export type GeminiDocumentPart822B1F0BMimeTypeEnumKey =
-  (typeof geminiDocumentPart822B1F0BMimeTypeEnum)[keyof typeof geminiDocumentPart822B1F0BMimeTypeEnum]
+export type GeminiDocumentPartC18Bf4DcMimeTypeEnumKey =
+  (typeof geminiDocumentPartC18Bf4DcMimeTypeEnum)[keyof typeof geminiDocumentPartC18Bf4DcMimeTypeEnum]
 
-export type GeminiDocumentPart822B1F0B = {
+export type GeminiDocumentPartC18Bf4Dc = {
+  /**
+   * @description Opaque provider-issued thought signature. Replay it unchanged on its original part.
+   */
+  thought_signature?: string | null
   /**
    * @description Provider thought marker, preserved when replaying a returned conversation.
    */
   thought?: boolean | null
   /**
-   * @description The document part discriminator.
-   * @type string
-   */
-  type: 'document'
-  /**
-   * @description Opaque provider-issued thought signature. Replay it unchanged on its original part.
-   */
-  thought_signature?: string | null
-  /**
-   * @description The document's media type.
-   * @type string
-   */
-  mime_type: GeminiDocumentPart822B1F0BMimeTypeEnumKey
-  /**
    * @description PDF or UTF-8 plain-text document URL or data URI (up to 15 MB).
    * @type string
    */
   file_url: string
+  /**
+   * @description The document's media type.
+   * @type string
+   */
+  mime_type: GeminiDocumentPartC18Bf4DcMimeTypeEnumKey
+  /**
+   * @description The document part discriminator.
+   * @type string
+   */
+  type: 'document'
 }
 
-export type GeminiVideoPart5B7D7B81 = {
+export type GeminiVideoPartDd0466Ea = {
+  /**
+   * @description Opaque provider-issued thought signature. Replay it unchanged on its original part.
+   */
+  thought_signature?: string | null
   /**
    * @description Provider thought marker, preserved when replaying a returned conversation.
    */
@@ -38797,13 +43304,15 @@ export type GeminiVideoPart5B7D7B81 = {
    * @type string
    */
   type: 'video'
-  /**
-   * @description Opaque provider-issued thought signature. Replay it unchanged on its original part.
-   */
-  thought_signature?: string | null
 }
 
-export type GeminiSignaturePart2C42B3Ac = {
+export type GeminiSignaturePart093D2611 = {
+  /**
+   * @description Provider-issued signature-only part, replayed unchanged.
+   * @minLength 1
+   * @type string
+   */
+  thought_signature: string
   /**
    * @description Provider thought marker, preserved when replaying a returned conversation.
    */
@@ -38813,15 +43322,13 @@ export type GeminiSignaturePart2C42B3Ac = {
    * @type string
    */
   type: 'signature'
-  /**
-   * @description Provider-issued signature-only part, replayed unchanged.
-   * @minLength 1
-   * @type string
-   */
-  thought_signature: string
 }
 
-export type GeminiAudioPart630D0590 = {
+export type GeminiAudioPart5A52Afad = {
+  /**
+   * @description Opaque provider-issued thought signature. Replay it unchanged on its original part.
+   */
+  thought_signature?: string | null
   /**
    * @description Provider thought marker, preserved when replaying a returned conversation.
    */
@@ -38836,42 +43343,38 @@ export type GeminiAudioPart630D0590 = {
    * @type string
    */
   type: 'audio'
-  /**
-   * @description Opaque provider-issued thought signature. Replay it unchanged on its original part.
-   */
-  thought_signature?: string | null
 }
 
-export const geminiVideoMessage5Ebde171RoleEnum = {
+export const geminiVideoMessageCcaf675ARoleEnum = {
   user: 'user',
   model: 'model',
 } as const
 
-export type GeminiVideoMessage5Ebde171RoleEnumKey =
-  (typeof geminiVideoMessage5Ebde171RoleEnum)[keyof typeof geminiVideoMessage5Ebde171RoleEnum]
+export type GeminiVideoMessageCcaf675ARoleEnumKey =
+  (typeof geminiVideoMessageCcaf675ARoleEnum)[keyof typeof geminiVideoMessageCcaf675ARoleEnum]
 
-export type GeminiVideoMessage5Ebde171 = {
+export type GeminiVideoMessageCcaf675A = {
   /**
    * @description Ordered text, image, document, video, audio, and signature parts.
    * @type array
    */
   parts: (
-    | (GeminiTextPartC2A07Ca1 & {
+    | (GeminiTextPart51Fc8Cca & {
         type: 'text'
       })
-    | (GeminiImagePartC41F699B & {
+    | (GeminiImagePart7A87896C & {
         type: 'image'
       })
-    | (GeminiDocumentPart822B1F0B & {
+    | (GeminiDocumentPartC18Bf4Dc & {
         type: 'document'
       })
-    | (GeminiVideoPart5B7D7B81 & {
+    | (GeminiVideoPartDd0466Ea & {
         type: 'video'
       })
-    | (GeminiSignaturePart2C42B3Ac & {
+    | (GeminiSignaturePart093D2611 & {
         type: 'signature'
       })
-    | (GeminiAudioPart630D0590 & {
+    | (GeminiAudioPart5A52Afad & {
         type: 'audio'
       })
   )[]
@@ -38879,16 +43382,17 @@ export type GeminiVideoMessage5Ebde171 = {
    * @description Native Gemini conversation role.
    * @type string
    */
-  role: GeminiVideoMessage5Ebde171RoleEnumKey
+  role: GeminiVideoMessageCcaf675ARoleEnumKey
 }
 
-export const inputFalAiGemini31FlashImagePreviewEditThinkingLevel = {
-  minimal: 'minimal',
-  high: 'high',
+export const inputFalAiGemini31FlashImagePreviewEditOutputFormatEnum = {
+  jpeg: 'jpeg',
+  png: 'png',
+  webp: 'webp',
 } as const
 
-export type InputFalAiGemini31FlashImagePreviewEditThinkingLevelKey =
-  (typeof inputFalAiGemini31FlashImagePreviewEditThinkingLevel)[keyof typeof inputFalAiGemini31FlashImagePreviewEditThinkingLevel]
+export type InputFalAiGemini31FlashImagePreviewEditOutputFormatEnumKey =
+  (typeof inputFalAiGemini31FlashImagePreviewEditOutputFormatEnum)[keyof typeof inputFalAiGemini31FlashImagePreviewEditOutputFormatEnum]
 
 export const inputFalAiGemini31FlashImagePreviewEditResolutionEnum = {
   '0.5K': '0.5K',
@@ -38899,15 +43403,6 @@ export const inputFalAiGemini31FlashImagePreviewEditResolutionEnum = {
 
 export type InputFalAiGemini31FlashImagePreviewEditResolutionEnumKey =
   (typeof inputFalAiGemini31FlashImagePreviewEditResolutionEnum)[keyof typeof inputFalAiGemini31FlashImagePreviewEditResolutionEnum]
-
-export const inputFalAiGemini31FlashImagePreviewEditOutputFormatEnum = {
-  jpeg: 'jpeg',
-  png: 'png',
-  webp: 'webp',
-} as const
-
-export type InputFalAiGemini31FlashImagePreviewEditOutputFormatEnumKey =
-  (typeof inputFalAiGemini31FlashImagePreviewEditOutputFormatEnum)[keyof typeof inputFalAiGemini31FlashImagePreviewEditOutputFormatEnum]
 
 export const inputFalAiGemini31FlashImagePreviewEditSafetyToleranceEnum = {
   '1': '1',
@@ -38942,101 +43437,15 @@ export const inputFalAiGemini31FlashImagePreviewEditAspectRatio = {
 export type InputFalAiGemini31FlashImagePreviewEditAspectRatioKey =
   (typeof inputFalAiGemini31FlashImagePreviewEditAspectRatio)[keyof typeof inputFalAiGemini31FlashImagePreviewEditAspectRatio]
 
+export const inputFalAiGemini31FlashImagePreviewEditThinkingLevel = {
+  minimal: 'minimal',
+  high: 'high',
+} as const
+
+export type InputFalAiGemini31FlashImagePreviewEditThinkingLevelKey =
+  (typeof inputFalAiGemini31FlashImagePreviewEditThinkingLevel)[keyof typeof inputFalAiGemini31FlashImagePreviewEditThinkingLevel]
+
 export type InputFalAiGemini31FlashImagePreviewEdit = {
-  /**
-   * @description Whether to include thought summaries. Omit to preserve the existing behavior: an explicit thinking_level requests summaries. Set limit_generations=false to return summary text in description. This does not disable thinking or return intermediate thought images.
-   */
-  include_thoughts?: boolean | null
-  /**
-   * @description Controls thinking effort ('minimal' or 'high') and requests thought summaries. Omit to use the provider default ('minimal'); thinking cannot be disabled.
-   */
-  thinking_level?: InputFalAiGemini31FlashImagePreviewEditThinkingLevelKey | null
-  /**
-   * @description Ordered text, image, PDF, UTF-8 text-file or video parts appended to the current prompt. Original media bytes are preserved; images count toward the total 14-reference limit.
-   * @type array | undefined
-   */
-  context?: (
-    | (GeminiTextPartC2A07Ca1 & {
-        type: 'text'
-      })
-    | (GeminiImagePartC41F699B & {
-        type: 'image'
-      })
-    | (GeminiDocumentPart822B1F0B & {
-        type: 'document'
-      })
-    | (GeminiVideoPart5B7D7B81 & {
-        type: 'video'
-      })
-    | (GeminiSignaturePart2C42B3Ac & {
-        type: 'signature'
-      })
-  )[]
-  /**
-   * @description Previous native Gemini turns, including original parts and thought signatures from conversations. The current prompt starts a new user turn.
-   * @type array | undefined
-   */
-  history?: GeminiVideoMessage5Ebde171[]
-  /**
-   * @description Enable web search for the image generation task. This will allow the model to use the latest information from the web to generate the image.
-   * @default false
-   * @type boolean | undefined
-   */
-  enable_web_search?: boolean
-  /**
-   * @description The number of images to generate.
-   * @minimum 1
-   * @maximum 4
-   * @default 1
-   * @type integer | undefined
-   */
-  num_images?: number
-  /**
-   * @description Optional PDF document to use as input context. Accepts an http(s)/data URL (downloaded and sent inline, max 15MB).
-   */
-  pdf_url?: string | null
-  /**
-   * @description The URLs of the images to use for image-to-image generation or image editing. Optional when at least one of `video_url`, `audio_url`, or `pdf_url` is provided.
-   * @example ["https://storage.googleapis.com/falserverless/example_inputs/nano-banana-edit-input.png","https://storage.googleapis.com/falserverless/example_inputs/nano-banana-edit-input-2.png"]
-   * @type array | undefined
-   */
-  image_urls?: string[]
-  /**
-   * @description Ground image generation with Google Image Search. Can be combined with enable_web_search; source attribution is returned in grounding_metadata. Uses direct Google or Vertex APIs.
-   * @default false
-   * @type boolean | undefined
-   */
-  enable_image_search?: boolean
-  /**
-   * @description The resolution of the image to generate.
-   * @default '1K'
-   * @type string | undefined
-   */
-  resolution?: InputFalAiGemini31FlashImagePreviewEditResolutionEnumKey
-  /**
-   * @description The prompt for image editing.
-   * @minLength 3
-   * @maxLength 50000
-   * @example make a photo of the man driving the car down the california coastline
-   * @type string
-   */
-  prompt: string
-  /**
-   * @description The format of the generated image.
-   * @default 'png'
-   * @type string | undefined
-   */
-  output_format?: InputFalAiGemini31FlashImagePreviewEditOutputFormatEnumKey
-  /**
-   * @description The seed for the random number generator.
-   */
-  seed?: number | null
-  /**
-   * @description The safety tolerance level for content moderation. 1 is the most strict (blocks most content), 6 is the least strict.
-   * @default '4'
-   * @type string | undefined
-   */
-  safety_tolerance?: InputFalAiGemini31FlashImagePreviewEditSafetyToleranceEnumKey
   /**
    * @description Experimental parameter to limit the number of generations from each round of prompting to 1. Set to `True` to to disregard any instructions in the prompt regarding the number of images to generate and ignore any intermediate images generated by the model. This may affect generation quality.
    * @default true
@@ -39044,19 +43453,15 @@ export type InputFalAiGemini31FlashImagePreviewEdit = {
    */
   limit_generations?: boolean
   /**
-   * @description Return reusable native conversations with original image parts and provider thought signatures. Uses a native provider. Each generated conversation is independent; send its messages as history for the next turn.
+   * @description Enable web search for the image generation task. This will allow the model to use the latest information from the web to generate the image.
    * @default false
    * @type boolean | undefined
    */
-  return_history?: boolean
+  enable_web_search?: boolean
   /**
-   * @description Sampling temperature. Omit to use the provider default of 1. Explicit values use a direct Google or Vertex API.
+   * @description The seed for the random number generator.
    */
-  temperature?: number | null
-  /**
-   * @description Nucleus sampling probability. Omit to use the provider default of 0.95. Explicit values use a direct Google or Vertex API.
-   */
-  top_p?: number | null
+  seed?: number | null
   /**
    * @description Optional audio file to use as input context. Accepts an http(s)/data URL (downloaded and sent inline, max 15MB).
    */
@@ -39066,16 +43471,11 @@ export type InputFalAiGemini31FlashImagePreviewEdit = {
    */
   video_url?: string | null
   /**
-   * @description Optional system instruction that steers the model's persona and output style across the request. Leave blank to omit; when provided, it is sent as the system instruction to Gemini (or as a system message on OpenAI-compatible providers).
-   * @maxLength 50000
-   * @default ''
+   * @description The format of the generated image.
+   * @default 'png'
    * @type string | undefined
    */
-  system_prompt?: string
-  /**
-   * @description Maximum output tokens for the generation. Omit to retain the provider default. Explicit values use a direct Google or Vertex API.
-   */
-  max_output_tokens?: number | null
+  output_format?: InputFalAiGemini31FlashImagePreviewEditOutputFormatEnumKey
   /**
    * @description If `True`, the media will be returned as a data URI and the output data won't be available in the request history.
    * @default false
@@ -39083,49 +43483,125 @@ export type InputFalAiGemini31FlashImagePreviewEdit = {
    */
   sync_mode?: boolean
   /**
+   * @description Return reusable native conversations with original image parts and provider thought signatures. Uses a native provider. Each generated conversation is independent; send its messages as history for the next turn.
+   * @default false
+   * @type boolean | undefined
+   */
+  return_history?: boolean
+  /**
+   * @description Optional PDF document to use as input context. Accepts an http(s)/data URL (downloaded and sent inline, max 15MB).
+   */
+  pdf_url?: string | null
+  /**
+   * @description Sampling temperature. Omit to use the provider default of 1. Explicit values use a direct Google or Vertex API.
+   */
+  temperature?: number | null
+  /**
+   * @description Maximum output tokens for the generation. Omit to retain the provider default. Explicit values use a direct Google or Vertex API.
+   */
+  max_output_tokens?: number | null
+  /**
+   * @description The resolution of the image to generate.
+   * @default '1K'
+   * @type string | undefined
+   */
+  resolution?: InputFalAiGemini31FlashImagePreviewEditResolutionEnumKey
+  /**
+   * @description Nucleus sampling probability. Omit to use the provider default of 0.95. Explicit values use a direct Google or Vertex API.
+   */
+  top_p?: number | null
+  /**
+   * @description Whether to include thought summaries. Omit to preserve the existing behavior: an explicit thinking_level requests summaries. Set limit_generations=false to return summary text in description. This does not disable thinking or return intermediate thought images.
+   */
+  include_thoughts?: boolean | null
+  /**
+   * @description Optional system instruction that steers the model's persona and output style across the request. Leave blank to omit; when provided, it is sent as the system instruction to Gemini (or as a system message on OpenAI-compatible providers).
+   * @maxLength 50000
+   * @default ''
+   * @type string | undefined
+   */
+  system_prompt?: string
+  /**
+   * @description The safety tolerance level for content moderation. 1 is the most strict (blocks most content), 6 is the least strict.
+   * @default '4'
+   * @type string | undefined
+   */
+  safety_tolerance?: InputFalAiGemini31FlashImagePreviewEditSafetyToleranceEnumKey
+  /**
+   * @description The number of images to generate.
+   * @minimum 1
+   * @maximum 4
+   * @default 1
+   * @type integer | undefined
+   */
+  num_images?: number
+  /**
    * @description The aspect ratio of the generated image. Supports extreme ratios: 4:1, 1:4, 8:1, 1:8.
    * @default auto
    */
   aspect_ratio?: InputFalAiGemini31FlashImagePreviewEditAspectRatioKey | null
-}
-
-export type ImageFile56358287 = {
   /**
-   * @description The name of the file. It will be auto-generated if not provided.
-   * @example z9RV14K95DvU.png
+   * @description Previous native Gemini turns, including original parts and thought signatures from conversations. The current prompt starts a new user turn.
+   * @type array | undefined
    */
-  file_name?: string | null
+  history?: GeminiVideoMessageCcaf675A[]
   /**
-   * @description The size of the file in bytes.
-   * @example 4404019
+   * @description The URLs of the images to use for image-to-image generation or image editing. Optional when at least one of `video_url`, `audio_url`, or `pdf_url` is provided.
+   * @example ["https://storage.googleapis.com/falserverless/example_inputs/nano-banana-edit-input.png","https://storage.googleapis.com/falserverless/example_inputs/nano-banana-edit-input-2.png"]
+   * @type array | undefined
    */
-  file_size?: number | null
+  image_urls?: string[]
   /**
-   * @description The height of the image
+   * @description Ordered text, image, PDF, UTF-8 text-file or video parts appended to the current prompt. Original media bytes are preserved; images count toward the total 14-reference limit.
+   * @type array | undefined
    */
-  height?: number | null
+  context?: (
+    | (GeminiTextPart51Fc8Cca & {
+        type: 'text'
+      })
+    | (GeminiImagePart7A87896C & {
+        type: 'image'
+      })
+    | (GeminiDocumentPartC18Bf4Dc & {
+        type: 'document'
+      })
+    | (GeminiVideoPartDd0466Ea & {
+        type: 'video'
+      })
+    | (GeminiSignaturePart093D2611 & {
+        type: 'signature'
+      })
+  )[]
   /**
-   * @description The width of the image
-   */
-  width?: number | null
-  /**
-   * @description The mime type of the file.
-   * @example image/png
-   */
-  content_type?: string | null
-  /**
-   * @description The URL where the file can be downloaded from.
+   * @description The prompt for image editing.
+   * @minLength 3
+   * @maxLength 50000
+   * @example make a photo of the man driving the car down the california coastline
    * @type string
    */
-  url: string
+  prompt: string
+  /**
+   * @description Ground image generation with Google Image Search. Can be combined with enable_web_search; source attribution is returned in grounding_metadata. Uses direct Google or Vertex APIs.
+   * @default false
+   * @type boolean | undefined
+   */
+  enable_image_search?: boolean
+  /**
+   * @description Controls thinking effort ('minimal' or 'high') and requests thought summaries. Omit to use the provider default ('minimal'); thinking cannot be disabled.
+   */
+  thinking_level?: InputFalAiGemini31FlashImagePreviewEditThinkingLevelKey | null
 }
 
-export type GeminiTextPartF9394927 = {
+export type GeminiTextPartBf860780 = {
   /**
    * @description Text at this position in the conversation.
    * @type string
    */
   text: string
+  /**
+   * @description Opaque provider-issued thought signature. Replay it unchanged on its original part.
+   */
+  thought_signature?: string | null
   /**
    * @description Provider thought marker, preserved when replaying a returned conversation.
    */
@@ -39135,68 +43611,72 @@ export type GeminiTextPartF9394927 = {
    * @type string
    */
   type: 'text'
+}
+
+export type GeminiImagePart954C472E = {
   /**
    * @description Opaque provider-issued thought signature. Replay it unchanged on its original part.
    */
   thought_signature?: string | null
-}
-
-export type GeminiImagePart3B1A0E4D = {
-  /**
-   * @description Original image URL or data URI. Replayed without resizing or re-encoding.
-   * @type string
-   */
-  image_url: string
-  /**
-   * @description Provider thought marker, preserved when replaying a returned conversation.
-   */
-  thought?: boolean | null
   /**
    * @description The image part discriminator.
    * @type string
    */
   type: 'image'
   /**
-   * @description Opaque provider-issued thought signature. Replay it unchanged on its original part.
-   */
-  thought_signature?: string | null
-}
-
-export const geminiDocumentPartB2E61C1DMimeTypeEnum = {
-  'application/pdf': 'application/pdf',
-  'text/plain': 'text/plain',
-} as const
-
-export type GeminiDocumentPartB2E61C1DMimeTypeEnumKey =
-  (typeof geminiDocumentPartB2E61C1DMimeTypeEnum)[keyof typeof geminiDocumentPartB2E61C1DMimeTypeEnum]
-
-export type GeminiDocumentPartB2E61C1D = {
-  /**
    * @description Provider thought marker, preserved when replaying a returned conversation.
    */
   thought?: boolean | null
   /**
-   * @description The document's media type.
+   * @description Original image URL or data URI. Replayed without resizing or re-encoding.
    * @type string
    */
-  mime_type: GeminiDocumentPartB2E61C1DMimeTypeEnumKey
+  image_url: string
+}
+
+export const geminiDocumentPart704Ad1FeMimeTypeEnum = {
+  'application/pdf': 'application/pdf',
+  'text/plain': 'text/plain',
+} as const
+
+export type GeminiDocumentPart704Ad1FeMimeTypeEnumKey =
+  (typeof geminiDocumentPart704Ad1FeMimeTypeEnum)[keyof typeof geminiDocumentPart704Ad1FeMimeTypeEnum]
+
+export type GeminiDocumentPart704Ad1Fe = {
   /**
-   * @description The document part discriminator.
-   * @type string
+   * @description Opaque provider-issued thought signature. Replay it unchanged on its original part.
    */
-  type: 'document'
+  thought_signature?: string | null
+  /**
+   * @description Provider thought marker, preserved when replaying a returned conversation.
+   */
+  thought?: boolean | null
   /**
    * @description PDF or UTF-8 plain-text document URL or data URI (up to 15 MB).
    * @type string
    */
   file_url: string
   /**
+   * @description The document's media type.
+   * @type string
+   */
+  mime_type: GeminiDocumentPart704Ad1FeMimeTypeEnumKey
+  /**
+   * @description The document part discriminator.
+   * @type string
+   */
+  type: 'document'
+}
+
+export type GeminiVideoPart25053460 = {
+  /**
    * @description Opaque provider-issued thought signature. Replay it unchanged on its original part.
    */
   thought_signature?: string | null
-}
-
-export type GeminiVideoPartD7Aba347 = {
+  /**
+   * @description Provider thought marker, preserved when replaying a returned conversation.
+   */
+  thought?: boolean | null
   /**
    * @description Video URL or data URI (up to 15 MB and 120 seconds), or a YouTube URL. Supported by Flash Image only.
    * @type string
@@ -39207,17 +43687,15 @@ export type GeminiVideoPartD7Aba347 = {
    * @type string
    */
   type: 'video'
-  /**
-   * @description Provider thought marker, preserved when replaying a returned conversation.
-   */
-  thought?: boolean | null
-  /**
-   * @description Opaque provider-issued thought signature. Replay it unchanged on its original part.
-   */
-  thought_signature?: string | null
 }
 
-export type GeminiSignaturePart505Ed9F8 = {
+export type GeminiSignaturePart0Bf79769 = {
+  /**
+   * @description Provider-issued signature-only part, replayed unchanged.
+   * @minLength 1
+   * @type string
+   */
+  thought_signature: string
   /**
    * @description Provider thought marker, preserved when replaying a returned conversation.
    */
@@ -39227,15 +43705,17 @@ export type GeminiSignaturePart505Ed9F8 = {
    * @type string
    */
   type: 'signature'
-  /**
-   * @description Provider-issued signature-only part, replayed unchanged.
-   * @minLength 1
-   * @type string
-   */
-  thought_signature: string
 }
 
-export type GeminiAudioPart0306D094 = {
+export type GeminiAudioPartCc41272D = {
+  /**
+   * @description Opaque provider-issued thought signature. Replay it unchanged on its original part.
+   */
+  thought_signature?: string | null
+  /**
+   * @description Provider thought marker, preserved when replaying a returned conversation.
+   */
+  thought?: boolean | null
   /**
    * @description Original audio URL or data URI from a previous Flash Image request (up to 15 MB).
    * @type string
@@ -39246,86 +43726,174 @@ export type GeminiAudioPart0306D094 = {
    * @type string
    */
   type: 'audio'
-  /**
-   * @description Provider thought marker, preserved when replaying a returned conversation.
-   */
-  thought?: boolean | null
-  /**
-   * @description Opaque provider-issued thought signature. Replay it unchanged on its original part.
-   */
-  thought_signature?: string | null
 }
 
-export const geminiVideoMessage453F6Dd7RoleEnum = {
+export const geminiVideoMessage8Fb14F30RoleEnum = {
   user: 'user',
   model: 'model',
 } as const
 
-export type GeminiVideoMessage453F6Dd7RoleEnumKey =
-  (typeof geminiVideoMessage453F6Dd7RoleEnum)[keyof typeof geminiVideoMessage453F6Dd7RoleEnum]
+export type GeminiVideoMessage8Fb14F30RoleEnumKey =
+  (typeof geminiVideoMessage8Fb14F30RoleEnum)[keyof typeof geminiVideoMessage8Fb14F30RoleEnum]
 
-export type GeminiVideoMessage453F6Dd7 = {
-  /**
-   * @description Native Gemini conversation role.
-   * @type string
-   */
-  role: GeminiVideoMessage453F6Dd7RoleEnumKey
+export type GeminiVideoMessage8Fb14F30 = {
   /**
    * @description Ordered text, image, document, video, audio, and signature parts.
    * @type array
    */
   parts: (
-    | (GeminiTextPartF9394927 & {
+    | (GeminiTextPartBf860780 & {
         type: 'text'
       })
-    | (GeminiImagePart3B1A0E4D & {
+    | (GeminiImagePart954C472E & {
         type: 'image'
       })
-    | (GeminiDocumentPartB2E61C1D & {
+    | (GeminiDocumentPart704Ad1Fe & {
         type: 'document'
       })
-    | (GeminiVideoPartD7Aba347 & {
+    | (GeminiVideoPart25053460 & {
         type: 'video'
       })
-    | (GeminiSignaturePart505Ed9F8 & {
+    | (GeminiSignaturePart0Bf79769 & {
         type: 'signature'
       })
-    | (GeminiAudioPart0306D094 & {
+    | (GeminiAudioPartCc41272D & {
         type: 'audio'
       })
   )[]
+  /**
+   * @description Native Gemini conversation role.
+   * @type string
+   */
+  role: GeminiVideoMessage8Fb14F30RoleEnumKey
 }
 
-export type GeminiConversationD9B2135C = {
+export type GeminiConversation21Bf8F25 = {
   /**
    * @description One complete provider conversation. Pass messages as history in the next request, retaining every signature and part.
    * @type array
    */
-  messages: GeminiVideoMessage453F6Dd7[]
+  messages: GeminiVideoMessage8Fb14F30[]
+}
+
+export type ImageFileF94908A0 = {
+  /**
+   * @description The size of the file in bytes.
+   * @example 4404019
+   */
+  file_size?: number | null
+  /**
+   * @description The width of the image
+   */
+  width?: number | null
+  /**
+   * @description The name of the file. It will be auto-generated if not provided.
+   * @example z9RV14K95DvU.png
+   */
+  file_name?: string | null
+  /**
+   * @description The URL where the file can be downloaded from.
+   * @type string
+   */
+  url: string
+  /**
+   * @description The mime type of the file.
+   * @example image/png
+   */
+  content_type?: string | null
+  /**
+   * @description The height of the image
+   */
+  height?: number | null
 }
 
 export type OutputFalAiGemini31FlashImagePreviewEdit = {
+  /**
+   * @description Reusable per-generation conversations, populated only when return_history is true. Retain every part and thought signature when continuing a conversation.
+   * @type array | undefined
+   */
+  conversations?: GeminiConversation21Bf8F25[]
   /**
    * @description The description of the generated images.
    * @type string
    */
   description: string
   /**
-   * @description The edited images.
-   * @example [{"file_name":"nano-banana-2-edit-output.png","content_type":"image/png","url":"https://storage.googleapis.com/falserverless/example_outputs/nano-banana-2-edit-output.png"}]
-   * @type array
-   */
-  images: ImageFile56358287[]
-  /**
    * @description Provider grounding metadata for the generated images, including search queries, source pages and image-source attribution when available.
    * @type array | undefined
    */
   grounding_metadata?: object[]
   /**
-   * @description Reusable per-generation conversations, populated only when return_history is true. Retain every part and thought signature when continuing a conversation.
-   * @type array | undefined
+   * @description The edited images.
+   * @example [{"url":"https://storage.googleapis.com/falserverless/example_outputs/nano-banana-2-edit-output.png","content_type":"image/png","file_name":"nano-banana-2-edit-output.png"}]
+   * @type array
    */
-  conversations?: GeminiConversationD9B2135C[]
+  images: ImageFileF94908A0[]
+}
+
+export type InputFalAiGhiblify = {
+  /**
+   * @description The seed to use for the upscale. If not provided, a random seed will be used.
+   * @example null
+   */
+  seed?: number | null
+  /**
+   * @description Whether to enable the safety checker.
+   * @default true
+   * @type boolean | undefined
+   */
+  enable_safety_checker?: boolean
+  /**
+   * @description The URL of the image to upscale.
+   * @example https://storage.googleapis.com/falserverless/example_inputs/girl.jpg
+   * @type string
+   */
+  image_url: string
+}
+
+/**
+ * @description Represents an image file.
+ * @type object
+ */
+export type Image2016A233 = {
+  /**
+   * @description The name of the file. It will be auto-generated if not provided.
+   * @example z9RV14K95DvU.png
+   */
+  file_name?: string | null
+  /**
+   * @description The width of the image in pixels.
+   * @example 1024
+   */
+  width?: number | null
+  /**
+   * @description The mime type of the file.
+   * @example image/png
+   */
+  content_type?: string | null
+  /**
+   * @description The size of the file in bytes.
+   * @example 4404019
+   */
+  file_size?: number | null
+  /**
+   * @description The height of the image in pixels.
+   * @example 1024
+   */
+  height?: number | null
+  /**
+   * @description The URL where the file can be downloaded from.
+   * @type string
+   */
+  url: string
+}
+
+export type OutputFalAiGhiblify = {
+  /**
+   * @description The URL of the generated image.
+   * @type object
+   */
+  image: Image2016A233
 }
 
 export type ImageSize16551C12 = {
@@ -40209,6 +44777,434 @@ export type OutputFalAiGptImage15Edit = {
    * @type array
    */
   images: ImageFileDd700A7D[]
+}
+
+export const inputFalAiGptImage1EditImageOutputFormatEnum = {
+  jpeg: 'jpeg',
+  png: 'png',
+  webp: 'webp',
+} as const
+
+export type InputFalAiGptImage1EditImageOutputFormatEnumKey =
+  (typeof inputFalAiGptImage1EditImageOutputFormatEnum)[keyof typeof inputFalAiGptImage1EditImageOutputFormatEnum]
+
+export const inputFalAiGptImage1EditImageImageSizeEnum = {
+  auto: 'auto',
+  '1024x1024': '1024x1024',
+  '1536x1024': '1536x1024',
+  '1024x1536': '1024x1536',
+} as const
+
+export type InputFalAiGptImage1EditImageImageSizeEnumKey =
+  (typeof inputFalAiGptImage1EditImageImageSizeEnum)[keyof typeof inputFalAiGptImage1EditImageImageSizeEnum]
+
+export const inputFalAiGptImage1EditImageInputFidelityEnum = {
+  low: 'low',
+  high: 'high',
+} as const
+
+export type InputFalAiGptImage1EditImageInputFidelityEnumKey =
+  (typeof inputFalAiGptImage1EditImageInputFidelityEnum)[keyof typeof inputFalAiGptImage1EditImageInputFidelityEnum]
+
+export const inputFalAiGptImage1EditImageBackgroundEnum = {
+  auto: 'auto',
+  transparent: 'transparent',
+  opaque: 'opaque',
+} as const
+
+export type InputFalAiGptImage1EditImageBackgroundEnumKey =
+  (typeof inputFalAiGptImage1EditImageBackgroundEnum)[keyof typeof inputFalAiGptImage1EditImageBackgroundEnum]
+
+export const inputFalAiGptImage1EditImageQualityEnum = {
+  auto: 'auto',
+  low: 'low',
+  medium: 'medium',
+  high: 'high',
+} as const
+
+export type InputFalAiGptImage1EditImageQualityEnumKey =
+  (typeof inputFalAiGptImage1EditImageQualityEnum)[keyof typeof inputFalAiGptImage1EditImageQualityEnum]
+
+export type InputFalAiGptImage1EditImage = {
+  /**
+   * @description The URLs of the images to use as a reference for the generation.
+   * @example ["https://storage.googleapis.com/falserverless/model_tests/gpt-image-1/cyberpunk.png"]
+   * @type array
+   */
+  image_urls: string[]
+  /**
+   * @description Number of images to generate
+   * @minimum 1
+   * @maximum 4
+   * @default 1
+   * @example 1
+   * @type integer | undefined
+   */
+  num_images?: number
+  /**
+   * @description Output format for the images
+   * @default 'png'
+   * @type string | undefined
+   */
+  output_format?: InputFalAiGptImage1EditImageOutputFormatEnumKey
+  /**
+   * @description Aspect ratio for the generated image
+   * @default 'auto'
+   * @type string | undefined
+   */
+  image_size?: InputFalAiGptImage1EditImageImageSizeEnumKey
+  /**
+   * @description Input fidelity for the generated image
+   * @default 'high'
+   * @type string | undefined
+   */
+  input_fidelity?: InputFalAiGptImage1EditImageInputFidelityEnumKey
+  /**
+   * @description The prompt for image generation
+   * @minLength 2
+   * @example Make this pixel-art style.
+   * @type string
+   */
+  prompt: string
+  /**
+   * @description Background for the generated image
+   * @default 'auto'
+   * @type string | undefined
+   */
+  background?: InputFalAiGptImage1EditImageBackgroundEnumKey
+  /**
+   * @description Authorized callers may set false to request relaxed screening.
+   * @default true
+   * @type boolean | undefined
+   */
+  enable_safety_checker?: boolean
+  /**
+   * @description Quality for the generated image
+   * @default 'auto'
+   * @type string | undefined
+   */
+  quality?: InputFalAiGptImage1EditImageQualityEnumKey
+  /**
+   * @description If `True`, the media will be returned as a data URI and the output data won't be available in the request history.
+   * @default false
+   * @type boolean | undefined
+   */
+  sync_mode?: boolean
+}
+
+export type ImageFile1E616A42 = {
+  /**
+   * @description The width of the image
+   */
+  width?: number | null
+  /**
+   * @description The URL where the file can be downloaded from.
+   * @type string
+   */
+  url: string
+  /**
+   * @description The height of the image
+   */
+  height?: number | null
+  /**
+   * @description The mime type of the file.
+   * @example image/png
+   */
+  content_type?: string | null
+  /**
+   * @description The size of the file in bytes.
+   * @example 4404019
+   */
+  file_size?: number | null
+  /**
+   * @description The name of the file. It will be auto-generated if not provided.
+   * @example z9RV14K95DvU.png
+   */
+  file_name?: string | null
+}
+
+export type OutputFalAiGptImage1EditImage = {
+  /**
+   * @description The generated images.
+   * @example [{"width":1024,"url":"https://storage.googleapis.com/falserverless/model_tests/gpt-image-1/cyberpunk_pixel.png","content_type":"image/png","height":1536,"file_name":"cyberpunk_pixel.png"}]
+   * @type array
+   */
+  images: ImageFile1E616A42[]
+}
+
+export const inputFalAiGptImage1TextToImageImageSizeEnum = {
+  auto: 'auto',
+  '1024x1024': '1024x1024',
+  '1536x1024': '1536x1024',
+  '1024x1536': '1024x1536',
+} as const
+
+export type InputFalAiGptImage1TextToImageImageSizeEnumKey =
+  (typeof inputFalAiGptImage1TextToImageImageSizeEnum)[keyof typeof inputFalAiGptImage1TextToImageImageSizeEnum]
+
+export const inputFalAiGptImage1TextToImageOutputFormatEnum = {
+  jpeg: 'jpeg',
+  png: 'png',
+  webp: 'webp',
+} as const
+
+export type InputFalAiGptImage1TextToImageOutputFormatEnumKey =
+  (typeof inputFalAiGptImage1TextToImageOutputFormatEnum)[keyof typeof inputFalAiGptImage1TextToImageOutputFormatEnum]
+
+export const inputFalAiGptImage1TextToImageBackgroundEnum = {
+  auto: 'auto',
+  transparent: 'transparent',
+  opaque: 'opaque',
+} as const
+
+export type InputFalAiGptImage1TextToImageBackgroundEnumKey =
+  (typeof inputFalAiGptImage1TextToImageBackgroundEnum)[keyof typeof inputFalAiGptImage1TextToImageBackgroundEnum]
+
+export const inputFalAiGptImage1TextToImageQualityEnum = {
+  auto: 'auto',
+  low: 'low',
+  medium: 'medium',
+  high: 'high',
+} as const
+
+export type InputFalAiGptImage1TextToImageQualityEnumKey =
+  (typeof inputFalAiGptImage1TextToImageQualityEnum)[keyof typeof inputFalAiGptImage1TextToImageQualityEnum]
+
+export type InputFalAiGptImage1TextToImage = {
+  /**
+   * @description Number of images to generate
+   * @minimum 1
+   * @maximum 4
+   * @default 1
+   * @example 1
+   * @type integer | undefined
+   */
+  num_images?: number
+  /**
+   * @description The prompt for image generation
+   * @minLength 2
+   * @example A serene cyberpunk cityscape at twilight, with neon signs glowing in vibrant blues and purples, reflecting on rain-slick streets. Sleek futuristic buildings tower above, connected by glowing skybridges. A lone figure in a hooded jacket stands under a streetlamp, backlit by soft mist. The atmosphere is cinematic, moody
+   * @type string
+   */
+  prompt: string
+  /**
+   * @description Aspect ratio for the generated image
+   * @default 'auto'
+   * @type string | undefined
+   */
+  image_size?: InputFalAiGptImage1TextToImageImageSizeEnumKey
+  /**
+   * @description Output format for the images
+   * @default 'png'
+   * @type string | undefined
+   */
+  output_format?: InputFalAiGptImage1TextToImageOutputFormatEnumKey
+  /**
+   * @description Background for the generated image
+   * @default 'auto'
+   * @type string | undefined
+   */
+  background?: InputFalAiGptImage1TextToImageBackgroundEnumKey
+  /**
+   * @description Authorized callers may set false to request relaxed screening.
+   * @default true
+   * @type boolean | undefined
+   */
+  enable_safety_checker?: boolean
+  /**
+   * @description Quality for the generated image
+   * @default 'auto'
+   * @type string | undefined
+   */
+  quality?: InputFalAiGptImage1TextToImageQualityEnumKey
+  /**
+   * @description If `True`, the media will be returned as a data URI and the output data won't be available in the request history.
+   * @default false
+   * @type boolean | undefined
+   */
+  sync_mode?: boolean
+}
+
+export type ImageFile0562E4D3 = {
+  /**
+   * @description The width of the image
+   */
+  width?: number | null
+  /**
+   * @description The URL where the file can be downloaded from.
+   * @type string
+   */
+  url: string
+  /**
+   * @description The height of the image
+   */
+  height?: number | null
+  /**
+   * @description The mime type of the file.
+   * @example image/png
+   */
+  content_type?: string | null
+  /**
+   * @description The size of the file in bytes.
+   * @example 4404019
+   */
+  file_size?: number | null
+  /**
+   * @description The name of the file. It will be auto-generated if not provided.
+   * @example z9RV14K95DvU.png
+   */
+  file_name?: string | null
+}
+
+export type OutputFalAiGptImage1TextToImage = {
+  /**
+   * @description The generated images.
+   * @example [{"width":1024,"url":"https://storage.googleapis.com/falserverless/model_tests/gpt-image-1/cyberpunk.png","content_type":"image/png","height":1536,"file_name":"cyberpunk.png"}]
+   * @type array
+   */
+  images: ImageFile0562E4D3[]
+}
+
+export type ImageSize3913Bd11 = {
+  /**
+   * @description The width of the generated image.
+   * @maximum 14142
+   * @default 512
+   * @type integer | undefined
+   */
+  width?: number
+  /**
+   * @description The height of the generated image.
+   * @maximum 14142
+   * @default 512
+   * @type integer | undefined
+   */
+  height?: number
+}
+
+export const inputFalAiHidreamI1DevImageSize = {
+  square_hd: 'square_hd',
+  square: 'square',
+  portrait_4_3: 'portrait_4_3',
+  portrait_16_9: 'portrait_16_9',
+  landscape_4_3: 'landscape_4_3',
+  landscape_16_9: 'landscape_16_9',
+} as const
+
+export type InputFalAiHidreamI1DevImageSizeKey =
+  (typeof inputFalAiHidreamI1DevImageSize)[keyof typeof inputFalAiHidreamI1DevImageSize]
+
+export const inputFalAiHidreamI1DevOutputFormatEnum = {
+  jpeg: 'jpeg',
+  png: 'png',
+} as const
+
+export type InputFalAiHidreamI1DevOutputFormatEnumKey =
+  (typeof inputFalAiHidreamI1DevOutputFormatEnum)[keyof typeof inputFalAiHidreamI1DevOutputFormatEnum]
+
+export type InputFalAiHidreamI1Dev = {
+  /**
+   * @description If set to true, the safety checker will be enabled. Disabling it requires account authorization; unauthorized requests are always checked, and images flagged as unsafe are returned as black images.
+   * @default true
+   * @type boolean | undefined
+   */
+  enable_safety_checker?: boolean
+  /**
+   * @description
+   *             The negative prompt to use. Use it to address details that you don't want
+   *             in the image. This could be colors, objects, scenery and even the small details
+   *             (e.g. moustache, blurry, low resolution).
+   *
+   * @default ''
+   * @example
+   * @type string | undefined
+   */
+  negative_prompt?: string
+  /**
+   * @description The size of the generated image.
+   * @default {"width":1024,"height":1024}
+   */
+  image_size?: ImageSize3913Bd11 | InputFalAiHidreamI1DevImageSizeKey
+  /**
+   * @description The number of images to generate.
+   * @minimum 1
+   * @maximum 4
+   * @default 1
+   * @type integer | undefined
+   */
+  num_images?: number
+  /**
+   * @description The format of the generated image.
+   * @default 'jpeg'
+   * @type string | undefined
+   */
+  output_format?: InputFalAiHidreamI1DevOutputFormatEnumKey
+  /**
+   * @description The prompt to generate an image from.
+   * @example a cat holding a skateboard which has 'fal' written on it in red spray paint
+   * @type string
+   */
+  prompt: string
+  /**
+   * @description If `True`, the media will be returned as a data URI and the output data won't be available in the request history.
+   * @default false
+   * @type boolean | undefined
+   */
+  sync_mode?: boolean
+  /**
+   * @description The number of inference steps to perform.
+   * @minimum 1
+   * @maximum 50
+   * @default 28
+   * @type integer | undefined
+   */
+  num_inference_steps?: number
+  /**
+   * @description
+   *             The same seed and the same prompt given to the same version of the model
+   *             will output the same image every time.
+   *
+   */
+  seed?: number | null
+}
+
+export type ImageF4A7A6A7 = {
+  url: string
+  height: number
+  width: number
+  /**
+   * @default image/jpeg
+   */
+  content_type?: string | null
+}
+
+export type OutputFalAiHidreamI1Dev = {
+  /**
+   * @description
+   *             Seed of the generated Image. It will be the same value of the one passed in the
+   *             input or the randomly generated that was used in case none was passed.
+   *
+   * @type integer
+   */
+  seed: number
+  /**
+   * @description The prompt used for generating the image.
+   * @type string
+   */
+  prompt: string
+  /**
+   * @description The generated image files info.
+   * @type array
+   */
+  images: ImageF4A7A6A7[]
+  timings: {
+    [key: string]: number
+  }
+  /**
+   * @description Whether the generated images contain NSFW concepts.
+   * @type array
+   */
+  has_nsfw_concepts: boolean[]
 }
 
 export type ImageSizeAa2Cc9Be = {
@@ -43052,6 +48048,138 @@ export type OutputFalAiIdeogramCharacterRemix = {
    * @type integer
    */
   seed: number
+}
+
+export const inputFalAiIdeogramCustomModelsGenerateRenderingSpeedEnum = {
+  TURBO: 'TURBO',
+  BALANCED: 'BALANCED',
+  QUALITY: 'QUALITY',
+} as const
+
+export type InputFalAiIdeogramCustomModelsGenerateRenderingSpeedEnumKey =
+  (typeof inputFalAiIdeogramCustomModelsGenerateRenderingSpeedEnum)[keyof typeof inputFalAiIdeogramCustomModelsGenerateRenderingSpeedEnum]
+
+export const inputFalAiIdeogramCustomModelsGenerateAspectRatioEnum = {
+  '1:3': '1:3',
+  '3:1': '3:1',
+  '1:2': '1:2',
+  '2:1': '2:1',
+  '9:16': '9:16',
+  '16:9': '16:9',
+  '10:16': '10:16',
+  '16:10': '16:10',
+  '2:3': '2:3',
+  '3:2': '3:2',
+  '3:4': '3:4',
+  '4:3': '4:3',
+  '4:5': '4:5',
+  '5:4': '5:4',
+  '1:1': '1:1',
+} as const
+
+export type InputFalAiIdeogramCustomModelsGenerateAspectRatioEnumKey =
+  (typeof inputFalAiIdeogramCustomModelsGenerateAspectRatioEnum)[keyof typeof inputFalAiIdeogramCustomModelsGenerateAspectRatioEnum]
+
+export type InputFalAiIdeogramCustomModelsGenerate = {
+  /**
+   * @description The id of a trained custom model returned by /train. The model must have finished training (status COMPLETED).
+   * @minLength 1
+   * @type string
+   */
+  model_id: string
+  /**
+   * @description The rendering speed to use.
+   * @default 'BALANCED'
+   * @type string | undefined
+   */
+  rendering_speed?: InputFalAiIdeogramCustomModelsGenerateRenderingSpeedEnumKey
+  /**
+   * @description If `True`, the media will be returned as a data URI and the output data won't be available in the request history.
+   * @default false
+   * @type boolean | undefined
+   */
+  sync_mode?: boolean
+  /**
+   * @description Text prompt describing the image to generate.
+   * @minLength 1
+   * @example A photo in my custom style
+   * @type string
+   */
+  prompt: string
+  /**
+   * @description The aspect ratio of the generated image.
+   * @default '1:1'
+   * @type string | undefined
+   */
+  aspect_ratio?: InputFalAiIdeogramCustomModelsGenerateAspectRatioEnumKey
+  /**
+   * @description Seed for the random number generator.
+   */
+  seed?: number | null
+  /**
+   * @description Whether to expand the prompt with MagicPrompt functionality.
+   * @default true
+   * @type boolean | undefined
+   */
+  expand_prompt?: boolean
+  /**
+   * @description Authorized callers may set false to request relaxed screening.
+   * @default true
+   * @type boolean | undefined
+   */
+  enable_safety_checker?: boolean
+  /**
+   * @description Number of images to generate.
+   * @minimum 1
+   * @maximum 8
+   * @default 1
+   * @type integer | undefined
+   */
+  num_images?: number
+  /**
+   * @description Description of what to exclude from the image. Descriptions in the prompt take precedence over descriptions in the negative prompt.
+   * @default ''
+   * @type string | undefined
+   */
+  negative_prompt?: string
+}
+
+export type File84F5Ae01 = {
+  /**
+   * @description The size of the file in bytes.
+   * @example 4404019
+   */
+  file_size?: number | null
+  /**
+   * @description The name of the file. It will be auto-generated if not provided.
+   * @example z9RV14K95DvU.png
+   */
+  file_name?: string | null
+  /**
+   * @description The URL where the file can be downloaded from.
+   * @type string
+   */
+  url: string
+  /**
+   * @description The mime type of the file.
+   * @example image/png
+   */
+  content_type?: string | null
+}
+
+export type OutputFalAiIdeogramCustomModelsGenerate = {
+  /**
+   * @description Seed used for the random number generator.
+   * @example 123456
+   * @type integer
+   */
+  seed: number
+  /**
+   * @description The generated images.
+   * @example [{"url":"https://v3.fal.media/files/penguin/lHdRabS80guysb8Zw1kul_image.png"}]
+   * @type array
+   */
+  images: File84F5Ae01[]
 }
 
 export type InputFalAiIdeogramObjectRemoval = {
@@ -51631,6 +56759,137 @@ export type OutputFalAiImageutilsRembg = {
   image: Image95A37817
 }
 
+export type InputFalAiInpaint = {
+  /**
+   * @description Input mask for inpaint mode. Black areas will be preserved, white areas will be inpainted.
+   * @example https://raw.githubusercontent.com/CompVis/latent-diffusion/main/data/inpainting_examples/overture-creations-5sI6fQgYIuo_mask.png
+   * @type string
+   */
+  mask_url: string
+  /**
+   * @description
+   *             The CFG (Classifier Free Guidance) scale is a measure of how close you want
+   *             the model to stick to your prompt when looking for a related image to show you.
+   *
+   * @minimum 0
+   * @maximum 20
+   * @default 7.5
+   * @type number | undefined
+   */
+  guidance_scale?: number
+  /**
+   * @description
+   *             Increasing the amount of steps tells Stable Diffusion that it should take more steps
+   *             to generate your final result which can increase the amount of detail in your image.
+   *
+   * @minimum 0
+   * @maximum 150
+   * @default 30
+   * @type integer | undefined
+   */
+  num_inference_steps?: number
+  /**
+   * @description
+   *             The same seed and the same prompt given to the same version of Stable Diffusion
+   *             will output the same image every time.
+   *
+   * @example 1234
+   */
+  seed?: number | null
+  /**
+   * @description The prompt to use for generating the image. Be as descriptive as possible for best results.
+   * @example a photo of a cat
+   * @type string
+   */
+  prompt: string
+  /**
+   * @description Authorized callers may set false to request relaxed screening.
+   * @default true
+   * @type boolean | undefined
+   */
+  enable_safety_checker?: boolean
+  /**
+   * @description
+   *             The negative prompt to use. Use it to address details that you don't want
+   *             in the image. This could be colors, objects, scenery and even the small details
+   *             (e.g. moustache, blurry, low resolution).
+   *
+   * @default ''
+   * @example cartoon, painting, illustration, (worst quality, low quality, normal quality:2)
+   * @example nsfw, cartoon, (epicnegative:0.9)
+   * @type string | undefined
+   */
+  negative_prompt?: string
+  /**
+   * @description Input image for img2img or inpaint mode
+   * @example https://raw.githubusercontent.com/CompVis/latent-diffusion/main/data/inpainting_examples/overture-creations-5sI6fQgYIuo.png
+   * @type string
+   */
+  image_url: string
+  /**
+   * @description URL or HuggingFace ID of the base model to generate the image.
+   * @example diffusers/stable-diffusion-xl-1.0-inpainting-0.1
+   * @example stabilityai/stable-diffusion-xl-base-1.0
+   * @example runwayml/stable-diffusion-v1-5
+   * @example SG161222/Realistic_Vision_V2.0
+   * @type string
+   */
+  model_name: string
+}
+
+/**
+ * @description Represents an image file.
+ * @type object
+ */
+export type ImageF2841942 = {
+  /**
+   * @description The size of the file in bytes.
+   * @example 4404019
+   */
+  file_size?: number | null
+  /**
+   * @description The height of the image in pixels.
+   * @example 1024
+   */
+  height?: number | null
+  /**
+   * @description The width of the image in pixels.
+   * @example 1024
+   */
+  width?: number | null
+  /**
+   * @description The URL where the file can be downloaded from.
+   * @type string
+   */
+  url: string
+  /**
+   * @description The name of the file. It will be auto-generated if not provided.
+   * @example z9RV14K95DvU.png
+   */
+  file_name?: string | null
+  /**
+   * @description The mime type of the file.
+   * @example image/png
+   */
+  content_type?: string | null
+}
+
+export type OutputFalAiInpaint = {
+  /**
+   * @description The generated image files info.
+   * @type object
+   */
+  image: ImageF2841942
+  /**
+   * @description
+   *             Seed of the generated Image. It will be the same value of the one passed in the
+   *             input or the randomly generated that was used in case none was passed.
+   *
+   * @type integer
+   */
+  seed: number
+}
+
 export type ImageSize4E6699E9 = {
   /**
    * @description The height of the generated image.
@@ -51824,6 +57083,90 @@ export type OutputFalAiInstantCharacter = {
    * @type array
    */
   has_nsfw_concepts: boolean[]
+}
+
+export type InputFalAiInvisibleWatermark = {
+  /**
+   * @description Whether to decode a watermark from the image instead of encoding
+   * @default false
+   * @type boolean | undefined
+   */
+  decode?: boolean
+  /**
+   * @description Text to use as watermark (for encoding only)
+   * @default 'watermark'
+   * @example watermark
+   * @type string | undefined
+   */
+  watermark?: string
+  /**
+   * @description URL of image to be watermarked or decoded
+   * @example https://storage.googleapis.com/falserverless/web-examples/watermark/watermark_ex.png
+   * @type string
+   */
+  image_url: string
+  /**
+   * @description Length of watermark bits to decode (required when decode=True)
+   * @default 0
+   * @type integer | undefined
+   */
+  length?: number
+}
+
+/**
+ * @description Represents an image file.
+ * @type object
+ */
+export type Image1099762B = {
+  /**
+   * @description The size of the file in bytes.
+   * @example 4404019
+   */
+  file_size?: number | null
+  /**
+   * @description The height of the image in pixels.
+   * @example 1024
+   */
+  height?: number | null
+  /**
+   * @description The width of the image in pixels.
+   * @example 1024
+   */
+  width?: number | null
+  /**
+   * @description The URL where the file can be downloaded from.
+   * @type string
+   */
+  url: string
+  /**
+   * @description The name of the file. It will be auto-generated if not provided.
+   * @example z9RV14K95DvU.png
+   */
+  file_name?: string | null
+  /**
+   * @description The mime type of the file.
+   * @example image/png
+   */
+  content_type?: string | null
+}
+
+export type OutputFalAiInvisibleWatermark = {
+  /**
+   * @description The watermarked image file info (when encoding)
+   * @type object | undefined
+   */
+  image?: Image1099762B
+  /**
+   * @description The extracted watermark text (when decoding)
+   * @type string | undefined
+   */
+  extracted_watermark?: string
+  /**
+   * @description Length of the watermark bits used (helpful for future decoding)
+   * @default 0
+   * @type integer | undefined
+   */
+  length?: number
 }
 
 export const inputFalAiIpAdapterFaceIdModelTypeEnum = {
@@ -52025,6 +57368,276 @@ export type OutputFalAiIpAdapterFaceId = {
    * @type object
    */
   image: Image5Fa7E6Ba
+}
+
+export type ImageSizeB449D26D = {
+  /**
+   * @description The height of the generated image.
+   * @maximum 14142
+   * @default 512
+   * @type integer | undefined
+   */
+  height?: number
+  /**
+   * @description The width of the generated image.
+   * @maximum 14142
+   * @default 512
+   * @type integer | undefined
+   */
+  width?: number
+}
+
+export const inputFalAiJanusOutputFormatEnum = {
+  jpeg: 'jpeg',
+  png: 'png',
+} as const
+
+export type InputFalAiJanusOutputFormatEnumKey =
+  (typeof inputFalAiJanusOutputFormatEnum)[keyof typeof inputFalAiJanusOutputFormatEnum]
+
+export const inputFalAiJanusImageSize = {
+  square_hd: 'square_hd',
+  square: 'square',
+  portrait_4_3: 'portrait_4_3',
+  portrait_16_9: 'portrait_16_9',
+  landscape_4_3: 'landscape_4_3',
+  landscape_16_9: 'landscape_16_9',
+} as const
+
+export type InputFalAiJanusImageSizeKey =
+  (typeof inputFalAiJanusImageSize)[keyof typeof inputFalAiJanusImageSize]
+
+export type InputFalAiJanus = {
+  /**
+   * @description Controls randomness in the generation. Higher values make output more random.
+   * @minimum 0.1
+   * @maximum 2
+   * @default 1
+   * @type number | undefined
+   */
+  temperature?: number
+  /**
+   * @description If `True`, the media will be returned as a data URI and the output data won't be available in the request history.
+   * @default false
+   * @type boolean | undefined
+   */
+  sync_mode?: boolean
+  /**
+   * @description Random seed for reproducible generation.
+   */
+  seed?: number | null
+  /**
+   * @description The format of the generated image.
+   * @default 'png'
+   * @type string | undefined
+   */
+  output_format?: InputFalAiJanusOutputFormatEnumKey
+  /**
+   * @description If set to true, the safety checker will be enabled. Disabling it requires account authorization; unauthorized requests are always checked, and images flagged as unsafe are returned as black images.
+   * @default true
+   * @type boolean | undefined
+   */
+  enable_safety_checker?: boolean
+  /**
+   * @description The size of the generated image.
+   * @default square
+   */
+  image_size?: ImageSizeB449D26D | InputFalAiJanusImageSizeKey
+  /**
+   * @description The prompt to generate an image from.
+   * @example beautiful girl, inside a house
+   * @type string
+   */
+  prompt: string
+  /**
+   * @description Classifier Free Guidance scale - how closely to follow the prompt.
+   * @minimum 1
+   * @maximum 20
+   * @default 5
+   * @type number | undefined
+   */
+  cfg_weight?: number
+  /**
+   * @description Number of images to generate in parallel.
+   * @minimum 1
+   * @maximum 16
+   * @default 1
+   * @type integer | undefined
+   */
+  num_images?: number
+}
+
+export type Image520Ad52F = {
+  height: number
+  width: number
+  url: string
+  /**
+   * @default image/jpeg
+   */
+  content_type?: string | null
+}
+
+export type OutputFalAiJanus = {
+  /**
+   * @description Whether the generated images contain NSFW concepts.
+   * @type array
+   */
+  has_nsfw_concepts: boolean[]
+  timings: {
+    [key: string]: number
+  }
+  /**
+   * @description The prompt used for generating the image.
+   * @type string
+   */
+  prompt: string
+  /**
+   * @description
+   *             Seed of the generated Image. It will be the same value of the one passed in the
+   *             input or the randomly generated that was used in case none was passed.
+   *
+   * @type integer
+   */
+  seed: number
+  /**
+   * @description The generated image files info.
+   * @type array
+   */
+  images: Image520Ad52F[]
+}
+
+export const inputFalAiJoyaiImageEditOutputFormatEnum = {
+  jpeg: 'jpeg',
+  png: 'png',
+} as const
+
+export type InputFalAiJoyaiImageEditOutputFormatEnumKey =
+  (typeof inputFalAiJoyaiImageEditOutputFormatEnum)[keyof typeof inputFalAiJoyaiImageEditOutputFormatEnum]
+
+export type InputFalAiJoyaiImageEdit = {
+  /**
+   * @description Output image format.
+   * @default 'jpeg'
+   * @type string | undefined
+   */
+  output_format?: InputFalAiJoyaiImageEditOutputFormatEnumKey
+  /**
+   * @description Text describing what should not appear in the output image.
+   * @default ''
+   * @type string | undefined
+   */
+  negative_prompt?: string
+  /**
+   * @description Enable safety checking on input and output.
+   * @default true
+   * @type boolean | undefined
+   */
+  enable_safety_checker?: boolean
+  /**
+   * @description If True, return image as data URI.
+   * @default false
+   * @type boolean | undefined
+   */
+  sync_mode?: boolean
+  /**
+   * @description Number of denoising steps.
+   * @minimum 1
+   * @maximum 50
+   * @default 30
+   * @type integer | undefined
+   */
+  num_inference_steps?: number
+  /**
+   * @description Random seed for reproducibility.
+   */
+  seed?: number | null
+  /**
+   * @description URL of the input image to edit.
+   * @example https://storage.googleapis.com/falserverless/example_inputs/dog.png
+   * @type string
+   */
+  image_url: string
+  /**
+   * @description The edit instruction describing what changes to make to the image.
+   * @example Add a red hat to the dog
+   * @type string
+   */
+  prompt: string
+  /**
+   * @description Controls how closely the output follows the edit instruction.
+   * @minimum 1
+   * @maximum 15
+   * @default 5
+   * @type number | undefined
+   */
+  guidance_scale?: number
+}
+
+/**
+ * @description Represents an image file.
+ * @type object
+ */
+export type ImageDc48B636 = {
+  /**
+   * @description The height of the image in pixels.
+   * @example 1024
+   */
+  height?: number | null
+  /**
+   * @description The size of the file in bytes.
+   * @example 4404019
+   */
+  file_size?: number | null
+  /**
+   * @description The mime type of the file.
+   * @example image/png
+   */
+  content_type?: string | null
+  /**
+   * @description The name of the file. It will be auto-generated if not provided.
+   * @example z9RV14K95DvU.png
+   */
+  file_name?: string | null
+  /**
+   * @description The URL where the file can be downloaded from.
+   * @type string
+   */
+  url: string
+  /**
+   * @description The width of the image in pixels.
+   * @example 1024
+   */
+  width?: number | null
+}
+
+export type OutputFalAiJoyaiImageEdit = {
+  /**
+   * @description Whether the generated images contain NSFW concepts.
+   * @type array
+   */
+  has_nsfw_concepts: boolean[]
+  /**
+   * @description The edited output image.
+   * @example [{"width":1024,"content_type":"image/jpeg","url":"https://v3b.fal.media/files/b/0a951738/yWOL7Oie3FQfzM9_HD5BJ.jpg","height":1024}]
+   * @type array
+   */
+  images: ImageDc48B636[]
+  /**
+   * @description The prompt used for generating the image.
+   * @type string
+   */
+  prompt: string
+  timings: {
+    [key: string]: number
+  }
+  /**
+   * @description
+   *             Seed of the generated Image. It will be the same value of the one passed in the
+   *             input or the randomly generated that was used in case none was passed.
+   *
+   * @type integer
+   */
+  seed: number
 }
 
 /**
@@ -52789,6 +58402,73 @@ export type OutputFalAiKlingImageV3TextToImage = {
    * @type array
    */
   images: Image0Bd2D812[]
+}
+
+export type InputFalAiKlingV15KolorsVirtualTryOn = {
+  /**
+   * @description Url to the garment image.
+   * @example https://storage.googleapis.com/falserverless/model_tests/leffa/tshirt_image.jpg
+   * @type string
+   */
+  garment_image_url: string
+  /**
+   * @description Url for the human image.
+   * @example https://storage.googleapis.com/falserverless/model_tests/leffa/person_image.jpg
+   * @type string
+   */
+  human_image_url: string
+  /**
+   * @description If true, the function will return the image in the response.
+   * @default false
+   * @type boolean | undefined
+   */
+  sync_mode?: boolean
+}
+
+/**
+ * @description Represents an image file.
+ * @type object
+ */
+export type Image3Da2F6F1 = {
+  /**
+   * @description The name of the file. It will be auto-generated if not provided.
+   * @example z9RV14K95DvU.png
+   */
+  file_name?: string | null
+  /**
+   * @description The URL where the file can be downloaded from.
+   * @type string
+   */
+  url: string
+  /**
+   * @description The mime type of the file.
+   * @example image/png
+   */
+  content_type?: string | null
+  /**
+   * @description The size of the file in bytes.
+   * @example 4404019
+   */
+  file_size?: number | null
+  /**
+   * @description The width of the image in pixels.
+   * @example 1024
+   */
+  width?: number | null
+  /**
+   * @description The height of the image in pixels.
+   * @example 1024
+   */
+  height?: number | null
+}
+
+export type OutputFalAiKlingV15KolorsVirtualTryOn = {
+  /**
+   * @description The output image.
+   * @example {"file_name":"result.png","url":"https://v3.fal.media/files/panda/Hoy3zhimzVKi3F2uoGBnh_result.png","content_type":"image/png","file_size":595094,"width":768,"height":1024}
+   * @type object
+   */
+  image: Image3Da2F6F1
 }
 
 export type ImageSize389Eb024 = {
@@ -53688,6 +59368,175 @@ export type OutputFalAiKrea2TurboStyle = {
    * @type integer
    */
   seed: number
+}
+
+export type InputFalAiLcmSd15I2I = {
+  /**
+   * @description The prompt to use for generating the image. Be as descriptive as possible for best results.
+   * @example masterpiece, colorful, photo of a beach in hawaii, sun
+   * @type string
+   */
+  prompt: string
+  /**
+   * @description
+   *             The CFG (Classifier Free Guidance) scale is a measure of how close you want
+   *             the model to stick to your prompt when looking for a related image to show you.
+   *
+   * @minimum 0
+   * @maximum 16
+   * @default 1
+   * @type number | undefined
+   */
+  guidance_scale?: number
+  /**
+   * @description
+   *             The number of images to generate. The function will return a list of images
+   *             with the same prompt and negative prompt but different seeds.
+   *
+   * @minimum 1
+   * @maximum 8
+   * @default 1
+   * @type integer | undefined
+   */
+  num_images?: number
+  /**
+   * @description The image to use as a base.
+   * @example https://storage.googleapis.com/falserverless/model_tests/lcm/beach.png
+   * @type string
+   */
+  image_url: string
+  /**
+   * @description Authorized callers may set false to request relaxed screening.
+   * @default true
+   * @type boolean | undefined
+   */
+  enable_safety_checker?: boolean
+  /**
+   * @description
+   *             The number of inference steps to use for generating the image. The more steps
+   *             the better the image will be but it will also take longer to generate.
+   *
+   * @minimum 1
+   * @maximum 12
+   * @default 4
+   * @type integer | undefined
+   */
+  num_inference_steps?: number
+  /**
+   * @description
+   *             The same seed and the same prompt given to the same version of Stable Diffusion
+   *             will output the same image every time.
+   *
+   * @example 42
+   */
+  seed?: number | null
+  /**
+   * @description
+   *             The negative prompt to use.Use it to address details that you don't want
+   *             in the image. This could be colors, objects, scenery and even the small details
+   *             (e.g. moustache, blurry, low resolution).
+   *
+   * @default ''
+   * @example cartoon, illustration, animation. face. male, female
+   * @example ugly, deformed
+   * @type string | undefined
+   */
+  negative_prompt?: string
+  /**
+   * @description If `True`, the media will be returned as a data URI and the output data won't be available in the request history.
+   * @default false
+   * @type boolean | undefined
+   */
+  sync_mode?: boolean
+  /**
+   * @description
+   *             An id bound to a request, can be used with response to identify the request
+   *             itself.
+   *
+   * @default ''
+   * @type string | undefined
+   */
+  request_id?: string
+  /**
+   * @description Mask URL for compatibility with generic LCM processing.
+   */
+  mask_url?: string | null
+  /**
+   * @description
+   *             If set to true, the resulting image will be checked whether it includes any
+   *             potentially unsafe content. If it does, it will be replaced with a black
+   *             image. Disabling safety checks requires account authorization; unauthorized
+   *             requests are always checked.
+   *
+   * @default true
+   * @type boolean | undefined
+   */
+  enable_safety_checks?: boolean
+  /**
+   * @description The strength of the image.
+   * @minimum 0
+   * @maximum 1
+   * @default 0.8
+   * @type number | undefined
+   */
+  strength?: number
+}
+
+export type Image4C8D4991 = {
+  /**
+   * @default 'image/jpeg'
+   * @type string | undefined
+   */
+  content_type?: string
+  height: number
+  url: string
+  width: number
+}
+
+export type OutputFalAiLcmSd15I2I = {
+  /**
+   * @description
+   *             A list of booleans indicating whether the generated image contains any
+   *             potentially unsafe content. If the safety check is disabled, this field
+   *             will have a false for each generated image.
+   *
+   * @type array
+   */
+  nsfw_content_detected: boolean[]
+  timings: {
+    [key: string]: number
+  }
+  /**
+   * @description The generated image files info.
+   * @type array
+   */
+  images: Image4C8D4991[]
+  /**
+   * @description
+   *             Seed of the generated Image. It will be the same value of the one passed in the
+   *             input or the randomly generated that was used in case none was passed.
+   *
+   * @type integer
+   */
+  seed: number
+  /**
+   * @description
+   *             An id bound to a request, can be used with response to identify the request
+   *             itself.
+   *
+   * @default ''
+   * @type string | undefined
+   */
+  request_id?: string
+  /**
+   * @description
+   *             Number of inference steps used to generate the image. It will be the same value of the one passed in the
+   *             input or the default one in case none was passed.
+   *
+   * @default 4
+   * @type integer | undefined
+   */
+  num_inference_steps?: number
 }
 
 export const inputFalAiLeffaPoseTransferOutputFormatEnum = {
@@ -57948,12 +63797,7 @@ export type OutputFalAiNanoBanana = {
   images: ImageFileBd2C3Eb8[]
 }
 
-export type GeminiTextPart93Cfb4F1 = {
-  /**
-   * @description Text at this position in the conversation.
-   * @type string
-   */
-  text: string
+export type GeminiTextPartC591F96C = {
   /**
    * @description Provider thought marker, preserved when replaying a returned conversation.
    */
@@ -57964,16 +63808,22 @@ export type GeminiTextPart93Cfb4F1 = {
    */
   type: 'text'
   /**
+   * @description Text at this position in the conversation.
+   * @type string
+   */
+  text: string
+  /**
    * @description Opaque provider-issued thought signature. Replay it unchanged on its original part.
    */
   thought_signature?: string | null
 }
 
-export type GeminiImagePart7D8Eeb8B = {
+export type GeminiImagePart6F007276 = {
   /**
-   * @description Opaque provider-issued thought signature. Replay it unchanged on its original part.
+   * @description Original image URL or data URI. Replayed without resizing or re-encoding.
+   * @type string
    */
-  thought_signature?: string | null
+  image_url: string
   /**
    * @description Provider thought marker, preserved when replaying a returned conversation.
    */
@@ -57984,26 +63834,24 @@ export type GeminiImagePart7D8Eeb8B = {
    */
   type: 'image'
   /**
-   * @description Original image URL or data URI. Replayed without resizing or re-encoding.
-   * @type string
+   * @description Opaque provider-issued thought signature. Replay it unchanged on its original part.
    */
-  image_url: string
+  thought_signature?: string | null
 }
 
-export const geminiDocumentPart6494B27BMimeTypeEnum = {
+export const geminiDocumentPartF29D8A66MimeTypeEnum = {
   'application/pdf': 'application/pdf',
   'text/plain': 'text/plain',
 } as const
 
-export type GeminiDocumentPart6494B27BMimeTypeEnumKey =
-  (typeof geminiDocumentPart6494B27BMimeTypeEnum)[keyof typeof geminiDocumentPart6494B27BMimeTypeEnum]
+export type GeminiDocumentPartF29D8A66MimeTypeEnumKey =
+  (typeof geminiDocumentPartF29D8A66MimeTypeEnum)[keyof typeof geminiDocumentPartF29D8A66MimeTypeEnum]
 
-export type GeminiDocumentPart6494B27B = {
+export type GeminiDocumentPartF29D8A66 = {
   /**
-   * @description The document's media type.
-   * @type string
+   * @description Opaque provider-issued thought signature. Replay it unchanged on its original part.
    */
-  mime_type: GeminiDocumentPart6494B27BMimeTypeEnumKey
+  thought_signature?: string | null
   /**
    * @description Provider thought marker, preserved when replaying a returned conversation.
    */
@@ -58019,16 +63867,13 @@ export type GeminiDocumentPart6494B27B = {
    */
   type: 'document'
   /**
-   * @description Opaque provider-issued thought signature. Replay it unchanged on its original part.
+   * @description The document's media type.
+   * @type string
    */
-  thought_signature?: string | null
+  mime_type: GeminiDocumentPartF29D8A66MimeTypeEnumKey
 }
 
-export type GeminiVideoPart066B4611 = {
-  /**
-   * @description Opaque provider-issued thought signature. Replay it unchanged on its original part.
-   */
-  thought_signature?: string | null
+export type GeminiVideoPart576C83Cc = {
   /**
    * @description Provider thought marker, preserved when replaying a returned conversation.
    */
@@ -58043,9 +63888,13 @@ export type GeminiVideoPart066B4611 = {
    * @type string
    */
   video_url: string
+  /**
+   * @description Opaque provider-issued thought signature. Replay it unchanged on its original part.
+   */
+  thought_signature?: string | null
 }
 
-export type GeminiSignaturePartFc1D8650 = {
+export type GeminiSignaturePart3903E237 = {
   /**
    * @description Provider thought marker, preserved when replaying a returned conversation.
    */
@@ -58063,74 +63912,66 @@ export type GeminiSignaturePartFc1D8650 = {
   thought_signature: string
 }
 
-export type GeminiAudioPartA2Fb20Bc = {
+export type GeminiAudioPart81B5312B = {
   /**
    * @description Provider thought marker, preserved when replaying a returned conversation.
    */
   thought?: boolean | null
-  /**
-   * @description Original audio URL or data URI from a previous Flash Image request (up to 15 MB).
-   * @type string
-   */
-  audio_url: string
   /**
    * @description The audio part discriminator.
    * @type string
    */
   type: 'audio'
   /**
+   * @description Original audio URL or data URI from a previous Flash Image request (up to 15 MB).
+   * @type string
+   */
+  audio_url: string
+  /**
    * @description Opaque provider-issued thought signature. Replay it unchanged on its original part.
    */
   thought_signature?: string | null
 }
 
-export const geminiVideoMessageB5B1E141RoleEnum = {
+export const geminiVideoMessage381423BcRoleEnum = {
   user: 'user',
   model: 'model',
 } as const
 
-export type GeminiVideoMessageB5B1E141RoleEnumKey =
-  (typeof geminiVideoMessageB5B1E141RoleEnum)[keyof typeof geminiVideoMessageB5B1E141RoleEnum]
+export type GeminiVideoMessage381423BcRoleEnumKey =
+  (typeof geminiVideoMessage381423BcRoleEnum)[keyof typeof geminiVideoMessage381423BcRoleEnum]
 
-export type GeminiVideoMessageB5B1E141 = {
+export type GeminiVideoMessage381423Bc = {
   /**
    * @description Native Gemini conversation role.
    * @type string
    */
-  role: GeminiVideoMessageB5B1E141RoleEnumKey
+  role: GeminiVideoMessage381423BcRoleEnumKey
   /**
    * @description Ordered text, image, document, video, audio, and signature parts.
    * @type array
    */
   parts: (
-    | (GeminiTextPart93Cfb4F1 & {
+    | (GeminiTextPartC591F96C & {
         type: 'text'
       })
-    | (GeminiImagePart7D8Eeb8B & {
+    | (GeminiImagePart6F007276 & {
         type: 'image'
       })
-    | (GeminiDocumentPart6494B27B & {
+    | (GeminiDocumentPartF29D8A66 & {
         type: 'document'
       })
-    | (GeminiVideoPart066B4611 & {
+    | (GeminiVideoPart576C83Cc & {
         type: 'video'
       })
-    | (GeminiSignaturePartFc1D8650 & {
+    | (GeminiSignaturePart3903E237 & {
         type: 'signature'
       })
-    | (GeminiAudioPartA2Fb20Bc & {
+    | (GeminiAudioPart81B5312B & {
         type: 'audio'
       })
   )[]
 }
-
-export const inputFalAiNanoBanana2ThinkingLevel = {
-  minimal: 'minimal',
-  high: 'high',
-} as const
-
-export type InputFalAiNanoBanana2ThinkingLevelKey =
-  (typeof inputFalAiNanoBanana2ThinkingLevel)[keyof typeof inputFalAiNanoBanana2ThinkingLevel]
 
 export const inputFalAiNanoBanana2SafetyToleranceEnum = {
   '1': '1',
@@ -58143,6 +63984,14 @@ export const inputFalAiNanoBanana2SafetyToleranceEnum = {
 
 export type InputFalAiNanoBanana2SafetyToleranceEnumKey =
   (typeof inputFalAiNanoBanana2SafetyToleranceEnum)[keyof typeof inputFalAiNanoBanana2SafetyToleranceEnum]
+
+export const inputFalAiNanoBanana2ThinkingLevel = {
+  minimal: 'minimal',
+  high: 'high',
+} as const
+
+export type InputFalAiNanoBanana2ThinkingLevelKey =
+  (typeof inputFalAiNanoBanana2ThinkingLevel)[keyof typeof inputFalAiNanoBanana2ThinkingLevel]
 
 export const inputFalAiNanoBanana2OutputFormatEnum = {
   jpeg: 'jpeg',
@@ -58186,42 +64035,23 @@ export type InputFalAiNanoBanana2ResolutionEnumKey =
 
 export type InputFalAiNanoBanana2 = {
   /**
-   * @description The seed for the random number generator.
-   */
-  seed?: number | null
-  /**
-   * @description Enable web search for the image generation task. This will allow the model to use the latest information from the web to generate the image.
-   * @default false
-   * @type boolean | undefined
-   */
-  enable_web_search?: boolean
-  /**
    * @description Whether to include thought summaries. Omit to preserve the existing behavior: an explicit thinking_level requests summaries. Set limit_generations=false to return summary text in description. This does not disable thinking or return intermediate thought images.
    */
   include_thoughts?: boolean | null
-  /**
-   * @description Sampling temperature. Omit to use the provider default of 1. Explicit values use a direct Google or Vertex API.
-   */
-  temperature?: number | null
-  /**
-   * @description Maximum output tokens for the generation. Omit to retain the provider default. Explicit values use a direct Google or Vertex API.
-   */
-  max_output_tokens?: number | null
-  /**
-   * @description Previous native Gemini turns, including original parts and thought signatures from conversations. The current prompt starts a new user turn.
-   * @type array | undefined
-   */
-  history?: GeminiVideoMessageB5B1E141[]
-  /**
-   * @description Controls thinking effort ('minimal' or 'high') and requests thought summaries. Omit to use the provider default ('minimal'); thinking cannot be disabled.
-   */
-  thinking_level?: InputFalAiNanoBanana2ThinkingLevelKey | null
   /**
    * @description Ground image generation with Google Image Search. Can be combined with enable_web_search; source attribution is returned in grounding_metadata. Uses direct Google or Vertex APIs.
    * @default false
    * @type boolean | undefined
    */
   enable_image_search?: boolean
+  /**
+   * @description The number of images to generate.
+   * @minimum 1
+   * @maximum 4
+   * @default 1
+   * @type integer | undefined
+   */
+  num_images?: number
   /**
    * @description Optional system instruction that steers the model's persona and output style across the request. Leave blank to omit; when provided, it is sent as the system instruction to Gemini (or as a system message on OpenAI-compatible providers).
    * @maxLength 50000
@@ -58230,26 +64060,15 @@ export type InputFalAiNanoBanana2 = {
    */
   system_prompt?: string
   /**
-   * @description Ordered text, image, PDF, UTF-8 text-file or video parts appended to the current prompt. Original media bytes are preserved; images count toward the total 14-reference limit.
-   * @type array | undefined
+   * @description The safety tolerance level for content moderation. 1 is the most strict (blocks most content), 6 is the least strict.
+   * @default '4'
+   * @type string | undefined
    */
-  context?: (
-    | (GeminiTextPart93Cfb4F1 & {
-        type: 'text'
-      })
-    | (GeminiImagePart7D8Eeb8B & {
-        type: 'image'
-      })
-    | (GeminiDocumentPart6494B27B & {
-        type: 'document'
-      })
-    | (GeminiVideoPart066B4611 & {
-        type: 'video'
-      })
-    | (GeminiSignaturePartFc1D8650 & {
-        type: 'signature'
-      })
-  )[]
+  safety_tolerance?: InputFalAiNanoBanana2SafetyToleranceEnumKey
+  /**
+   * @description Controls thinking effort ('minimal' or 'high') and requests thought summaries. Omit to use the provider default ('minimal'); thinking cannot be disabled.
+   */
+  thinking_level?: InputFalAiNanoBanana2ThinkingLevelKey | null
   /**
    * @description The text prompt to generate an image from.
    * @minLength 3
@@ -58263,37 +64082,45 @@ export type InputFalAiNanoBanana2 = {
    */
   top_p?: number | null
   /**
-   * @description Return reusable native conversations with original image parts and provider thought signatures. Uses a native provider. Each generated conversation is independent; send its messages as history for the next turn.
-   * @default false
-   * @type boolean | undefined
-   */
-  return_history?: boolean
-  /**
-   * @description The safety tolerance level for content moderation. 1 is the most strict (blocks most content), 6 is the least strict.
-   * @default '4'
-   * @type string | undefined
-   */
-  safety_tolerance?: InputFalAiNanoBanana2SafetyToleranceEnumKey
-  /**
-   * @description The number of images to generate.
-   * @minimum 1
-   * @maximum 4
-   * @default 1
-   * @type integer | undefined
-   */
-  num_images?: number
-  /**
-   * @description The format of the generated image.
-   * @default 'png'
-   * @type string | undefined
-   */
-  output_format?: InputFalAiNanoBanana2OutputFormatEnumKey
-  /**
    * @description If `True`, the media will be returned as a data URI and the output data won't be available in the request history.
    * @default false
    * @type boolean | undefined
    */
   sync_mode?: boolean
+  /**
+   * @description The seed for the random number generator.
+   */
+  seed?: number | null
+  /**
+   * @description Ordered text, image, PDF, UTF-8 text-file or video parts appended to the current prompt. Original media bytes are preserved; images count toward the total 14-reference limit.
+   * @type array | undefined
+   */
+  context?: (
+    | (GeminiTextPartC591F96C & {
+        type: 'text'
+      })
+    | (GeminiImagePart6F007276 & {
+        type: 'image'
+      })
+    | (GeminiDocumentPartF29D8A66 & {
+        type: 'document'
+      })
+    | (GeminiVideoPart576C83Cc & {
+        type: 'video'
+      })
+    | (GeminiSignaturePart3903E237 & {
+        type: 'signature'
+      })
+  )[]
+  /**
+   * @description Maximum output tokens for the generation. Omit to retain the provider default. Explicit values use a direct Google or Vertex API.
+   */
+  max_output_tokens?: number | null
+  /**
+   * @description Previous native Gemini turns, including original parts and thought signatures from conversations. The current prompt starts a new user turn.
+   * @type array | undefined
+   */
+  history?: GeminiVideoMessage381423Bc[]
   /**
    * @description Experimental parameter to limit the number of generations from each round of prompting to 1. Set to `True` to to disregard any instructions in the prompt regarding the number of images to generate and ignore any intermediate images generated by the model. This may affect generation quality.
    * @default true
@@ -58301,10 +64128,32 @@ export type InputFalAiNanoBanana2 = {
    */
   limit_generations?: boolean
   /**
+   * @description The format of the generated image.
+   * @default 'png'
+   * @type string | undefined
+   */
+  output_format?: InputFalAiNanoBanana2OutputFormatEnumKey
+  /**
+   * @description Enable web search for the image generation task. This will allow the model to use the latest information from the web to generate the image.
+   * @default false
+   * @type boolean | undefined
+   */
+  enable_web_search?: boolean
+  /**
+   * @description Sampling temperature. Omit to use the provider default of 1. Explicit values use a direct Google or Vertex API.
+   */
+  temperature?: number | null
+  /**
    * @description The aspect ratio of the generated image. Supports extreme ratios: 4:1, 1:4, 8:1, 1:8. Use "auto" to let the model decide based on the prompt.
    * @default auto
    */
   aspect_ratio?: InputFalAiNanoBanana2AspectRatioKey | null
+  /**
+   * @description Return reusable native conversations with original image parts and provider thought signatures. Uses a native provider. Each generated conversation is independent; send its messages as history for the next turn.
+   * @default false
+   * @type boolean | undefined
+   */
+  return_history?: boolean
   /**
    * @description The resolution of the image to generate.
    * @default '1K'
@@ -58313,64 +64162,37 @@ export type InputFalAiNanoBanana2 = {
   resolution?: InputFalAiNanoBanana2ResolutionEnumKey
 }
 
-export type ImageFileF1F7D039 = {
+export type GeminiTextPart2Abd25C2 = {
   /**
-   * @description The height of the image
+   * @description Provider thought marker, preserved when replaying a returned conversation.
    */
-  height?: number | null
-  /**
-   * @description The width of the image
-   */
-  width?: number | null
-  /**
-   * @description The URL where the file can be downloaded from.
-   * @type string
-   */
-  url: string
-  /**
-   * @description The size of the file in bytes.
-   * @example 4404019
-   */
-  file_size?: number | null
-  /**
-   * @description The mime type of the file.
-   * @example image/png
-   */
-  content_type?: string | null
-  /**
-   * @description The name of the file. It will be auto-generated if not provided.
-   * @example z9RV14K95DvU.png
-   */
-  file_name?: string | null
-}
-
-export type GeminiTextPart88724519 = {
-  /**
-   * @description Text at this position in the conversation.
-   * @type string
-   */
-  text: string
+  thought?: boolean | null
   /**
    * @description The text part discriminator.
    * @type string
    */
   type: 'text'
   /**
+   * @description Text at this position in the conversation.
+   * @type string
+   */
+  text: string
+  /**
    * @description Opaque provider-issued thought signature. Replay it unchanged on its original part.
    */
   thought_signature?: string | null
-  /**
-   * @description Provider thought marker, preserved when replaying a returned conversation.
-   */
-  thought?: boolean | null
 }
 
-export type GeminiImagePart8D362F4F = {
+export type GeminiImagePart22Ce8Da8 = {
   /**
    * @description Original image URL or data URI. Replayed without resizing or re-encoding.
    * @type string
    */
   image_url: string
+  /**
+   * @description Provider thought marker, preserved when replaying a returned conversation.
+   */
+  thought?: boolean | null
   /**
    * @description The image part discriminator.
    * @type string
@@ -58380,68 +64202,68 @@ export type GeminiImagePart8D362F4F = {
    * @description Opaque provider-issued thought signature. Replay it unchanged on its original part.
    */
   thought_signature?: string | null
-  /**
-   * @description Provider thought marker, preserved when replaying a returned conversation.
-   */
-  thought?: boolean | null
 }
 
-export const geminiDocumentPart8676239FMimeTypeEnum = {
+export const geminiDocumentPart134E66F8MimeTypeEnum = {
   'application/pdf': 'application/pdf',
   'text/plain': 'text/plain',
 } as const
 
-export type GeminiDocumentPart8676239FMimeTypeEnumKey =
-  (typeof geminiDocumentPart8676239FMimeTypeEnum)[keyof typeof geminiDocumentPart8676239FMimeTypeEnum]
+export type GeminiDocumentPart134E66F8MimeTypeEnumKey =
+  (typeof geminiDocumentPart134E66F8MimeTypeEnum)[keyof typeof geminiDocumentPart134E66F8MimeTypeEnum]
 
-export type GeminiDocumentPart8676239F = {
-  /**
-   * @description The document part discriminator.
-   * @type string
-   */
-  type: 'document'
+export type GeminiDocumentPart134E66F8 = {
   /**
    * @description Opaque provider-issued thought signature. Replay it unchanged on its original part.
    */
   thought_signature?: string | null
+  /**
+   * @description Provider thought marker, preserved when replaying a returned conversation.
+   */
+  thought?: boolean | null
   /**
    * @description PDF or UTF-8 plain-text document URL or data URI (up to 15 MB).
    * @type string
    */
   file_url: string
   /**
+   * @description The document part discriminator.
+   * @type string
+   */
+  type: 'document'
+  /**
    * @description The document's media type.
    * @type string
    */
-  mime_type: GeminiDocumentPart8676239FMimeTypeEnumKey
+  mime_type: GeminiDocumentPart134E66F8MimeTypeEnumKey
+}
+
+export type GeminiVideoPart0Dc32D62 = {
   /**
    * @description Provider thought marker, preserved when replaying a returned conversation.
    */
   thought?: boolean | null
-}
-
-export type GeminiVideoPartB857F6F9 = {
   /**
    * @description The video part discriminator.
    * @type string
    */
   type: 'video'
   /**
-   * @description Opaque provider-issued thought signature. Replay it unchanged on its original part.
-   */
-  thought_signature?: string | null
-  /**
    * @description Video URL or data URI (up to 15 MB and 120 seconds), or a YouTube URL. Supported by Flash Image only.
    * @type string
    */
   video_url: string
   /**
+   * @description Opaque provider-issued thought signature. Replay it unchanged on its original part.
+   */
+  thought_signature?: string | null
+}
+
+export type GeminiSignaturePartA74Bc787 = {
+  /**
    * @description Provider thought marker, preserved when replaying a returned conversation.
    */
   thought?: boolean | null
-}
-
-export type GeminiSignaturePart98D7C3E6 = {
   /**
    * @description The signature part discriminator.
    * @type string
@@ -58453,82 +64275,114 @@ export type GeminiSignaturePart98D7C3E6 = {
    * @type string
    */
   thought_signature: string
+}
+
+export type GeminiAudioPart87E5A433 = {
   /**
    * @description Provider thought marker, preserved when replaying a returned conversation.
    */
   thought?: boolean | null
-}
-
-export type GeminiAudioPartA7F4B0Ba = {
   /**
    * @description The audio part discriminator.
    * @type string
    */
   type: 'audio'
   /**
-   * @description Opaque provider-issued thought signature. Replay it unchanged on its original part.
-   */
-  thought_signature?: string | null
-  /**
    * @description Original audio URL or data URI from a previous Flash Image request (up to 15 MB).
    * @type string
    */
   audio_url: string
   /**
-   * @description Provider thought marker, preserved when replaying a returned conversation.
+   * @description Opaque provider-issued thought signature. Replay it unchanged on its original part.
    */
-  thought?: boolean | null
+  thought_signature?: string | null
 }
 
-export const geminiVideoMessageA322Bf49RoleEnum = {
+export const geminiVideoMessageF118Abb2RoleEnum = {
   user: 'user',
   model: 'model',
 } as const
 
-export type GeminiVideoMessageA322Bf49RoleEnumKey =
-  (typeof geminiVideoMessageA322Bf49RoleEnum)[keyof typeof geminiVideoMessageA322Bf49RoleEnum]
+export type GeminiVideoMessageF118Abb2RoleEnumKey =
+  (typeof geminiVideoMessageF118Abb2RoleEnum)[keyof typeof geminiVideoMessageF118Abb2RoleEnum]
 
-export type GeminiVideoMessageA322Bf49 = {
+export type GeminiVideoMessageF118Abb2 = {
   /**
    * @description Native Gemini conversation role.
    * @type string
    */
-  role: GeminiVideoMessageA322Bf49RoleEnumKey
+  role: GeminiVideoMessageF118Abb2RoleEnumKey
   /**
    * @description Ordered text, image, document, video, audio, and signature parts.
    * @type array
    */
   parts: (
-    | (GeminiTextPart88724519 & {
+    | (GeminiTextPart2Abd25C2 & {
         type: 'text'
       })
-    | (GeminiImagePart8D362F4F & {
+    | (GeminiImagePart22Ce8Da8 & {
         type: 'image'
       })
-    | (GeminiDocumentPart8676239F & {
+    | (GeminiDocumentPart134E66F8 & {
         type: 'document'
       })
-    | (GeminiVideoPartB857F6F9 & {
+    | (GeminiVideoPart0Dc32D62 & {
         type: 'video'
       })
-    | (GeminiSignaturePart98D7C3E6 & {
+    | (GeminiSignaturePartA74Bc787 & {
         type: 'signature'
       })
-    | (GeminiAudioPartA7F4B0Ba & {
+    | (GeminiAudioPart87E5A433 & {
         type: 'audio'
       })
   )[]
 }
 
-export type GeminiConversation9Ebfac92 = {
+export type GeminiConversation817E36Fb = {
   /**
    * @description One complete provider conversation. Pass messages as history in the next request, retaining every signature and part.
    * @type array
    */
-  messages: GeminiVideoMessageA322Bf49[]
+  messages: GeminiVideoMessageF118Abb2[]
+}
+
+export type ImageFileD9E8Aca2 = {
+  /**
+   * @description The URL where the file can be downloaded from.
+   * @type string
+   */
+  url: string
+  /**
+   * @description The mime type of the file.
+   * @example image/png
+   */
+  content_type?: string | null
+  /**
+   * @description The width of the image
+   */
+  width?: number | null
+  /**
+   * @description The name of the file. It will be auto-generated if not provided.
+   * @example z9RV14K95DvU.png
+   */
+  file_name?: string | null
+  /**
+   * @description The size of the file in bytes.
+   * @example 4404019
+   */
+  file_size?: number | null
+  /**
+   * @description The height of the image
+   */
+  height?: number | null
 }
 
 export type OutputFalAiNanoBanana2 = {
+  /**
+   * @description Reusable per-generation conversations, populated only when return_history is true. Retain every part and thought signature when continuing a conversation.
+   * @type array | undefined
+   */
+  conversations?: GeminiConversation817E36Fb[]
   /**
    * @description Provider grounding metadata for the generated images, including search queries, source pages and image-source attribution when available.
    * @type array | undefined
@@ -58536,15 +64390,10 @@ export type OutputFalAiNanoBanana2 = {
   grounding_metadata?: object[]
   /**
    * @description The generated images.
-   * @example [{"file_name":"nano-banana-2-t2i-output.png","url":"https://storage.googleapis.com/falserverless/example_outputs/nano-banana-2-t2i-output.png","content_type":"image/png"}]
+   * @example [{"url":"https://storage.googleapis.com/falserverless/example_outputs/nano-banana-2-t2i-output.png","content_type":"image/png","file_name":"nano-banana-2-t2i-output.png"}]
    * @type array
    */
-  images: ImageFileF1F7D039[]
-  /**
-   * @description Reusable per-generation conversations, populated only when return_history is true. Retain every part and thought signature when continuing a conversation.
-   * @type array | undefined
-   */
-  conversations?: GeminiConversation9Ebfac92[]
+  images: ImageFileD9E8Aca2[]
   /**
    * @description The description of the generated images.
    * @type string
@@ -58552,12 +64401,7 @@ export type OutputFalAiNanoBanana2 = {
   description: string
 }
 
-export type GeminiTextPart79310B94 = {
-  /**
-   * @description Text at this position in the conversation.
-   * @type string
-   */
-  text: string
+export type GeminiTextPart1E6A6513 = {
   /**
    * @description Provider thought marker, preserved when replaying a returned conversation.
    */
@@ -58568,16 +64412,22 @@ export type GeminiTextPart79310B94 = {
    */
   type: 'text'
   /**
+   * @description Text at this position in the conversation.
+   * @type string
+   */
+  text: string
+  /**
    * @description Opaque provider-issued thought signature. Replay it unchanged on its original part.
    */
   thought_signature?: string | null
 }
 
-export type GeminiImagePart37A0517E = {
+export type GeminiImagePart2Fb4E975 = {
   /**
-   * @description Opaque provider-issued thought signature. Replay it unchanged on its original part.
+   * @description Original image URL or data URI. Replayed without resizing or re-encoding.
+   * @type string
    */
-  thought_signature?: string | null
+  image_url: string
   /**
    * @description Provider thought marker, preserved when replaying a returned conversation.
    */
@@ -58588,26 +64438,24 @@ export type GeminiImagePart37A0517E = {
    */
   type: 'image'
   /**
-   * @description Original image URL or data URI. Replayed without resizing or re-encoding.
-   * @type string
+   * @description Opaque provider-issued thought signature. Replay it unchanged on its original part.
    */
-  image_url: string
+  thought_signature?: string | null
 }
 
-export const geminiDocumentPart44B7Ec0EMimeTypeEnum = {
+export const geminiDocumentPartB10Bc885MimeTypeEnum = {
   'application/pdf': 'application/pdf',
   'text/plain': 'text/plain',
 } as const
 
-export type GeminiDocumentPart44B7Ec0EMimeTypeEnumKey =
-  (typeof geminiDocumentPart44B7Ec0EMimeTypeEnum)[keyof typeof geminiDocumentPart44B7Ec0EMimeTypeEnum]
+export type GeminiDocumentPartB10Bc885MimeTypeEnumKey =
+  (typeof geminiDocumentPartB10Bc885MimeTypeEnum)[keyof typeof geminiDocumentPartB10Bc885MimeTypeEnum]
 
-export type GeminiDocumentPart44B7Ec0E = {
+export type GeminiDocumentPartB10Bc885 = {
   /**
-   * @description The document's media type.
-   * @type string
+   * @description Opaque provider-issued thought signature. Replay it unchanged on its original part.
    */
-  mime_type: GeminiDocumentPart44B7Ec0EMimeTypeEnumKey
+  thought_signature?: string | null
   /**
    * @description Provider thought marker, preserved when replaying a returned conversation.
    */
@@ -58623,16 +64471,13 @@ export type GeminiDocumentPart44B7Ec0E = {
    */
   type: 'document'
   /**
-   * @description Opaque provider-issued thought signature. Replay it unchanged on its original part.
+   * @description The document's media type.
+   * @type string
    */
-  thought_signature?: string | null
+  mime_type: GeminiDocumentPartB10Bc885MimeTypeEnumKey
 }
 
-export type GeminiVideoPart3E0B4C74 = {
-  /**
-   * @description Opaque provider-issued thought signature. Replay it unchanged on its original part.
-   */
-  thought_signature?: string | null
+export type GeminiVideoPartC74761B3 = {
   /**
    * @description Provider thought marker, preserved when replaying a returned conversation.
    */
@@ -58647,9 +64492,13 @@ export type GeminiVideoPart3E0B4C74 = {
    * @type string
    */
   video_url: string
+  /**
+   * @description Opaque provider-issued thought signature. Replay it unchanged on its original part.
+   */
+  thought_signature?: string | null
 }
 
-export type GeminiSignaturePart88263Aef = {
+export type GeminiSignaturePart618Dbbf2 = {
   /**
    * @description Provider thought marker, preserved when replaying a returned conversation.
    */
@@ -58667,74 +64516,66 @@ export type GeminiSignaturePart88263Aef = {
   thought_signature: string
 }
 
-export type GeminiAudioPartBa86Fec3 = {
+export type GeminiAudioPart0F745B5E = {
   /**
    * @description Provider thought marker, preserved when replaying a returned conversation.
    */
   thought?: boolean | null
-  /**
-   * @description Original audio URL or data URI from a previous Flash Image request (up to 15 MB).
-   * @type string
-   */
-  audio_url: string
   /**
    * @description The audio part discriminator.
    * @type string
    */
   type: 'audio'
   /**
+   * @description Original audio URL or data URI from a previous Flash Image request (up to 15 MB).
+   * @type string
+   */
+  audio_url: string
+  /**
    * @description Opaque provider-issued thought signature. Replay it unchanged on its original part.
    */
   thought_signature?: string | null
 }
 
-export const geminiVideoMessage61Ee4284RoleEnum = {
+export const geminiVideoMessage316947C3RoleEnum = {
   user: 'user',
   model: 'model',
 } as const
 
-export type GeminiVideoMessage61Ee4284RoleEnumKey =
-  (typeof geminiVideoMessage61Ee4284RoleEnum)[keyof typeof geminiVideoMessage61Ee4284RoleEnum]
+export type GeminiVideoMessage316947C3RoleEnumKey =
+  (typeof geminiVideoMessage316947C3RoleEnum)[keyof typeof geminiVideoMessage316947C3RoleEnum]
 
-export type GeminiVideoMessage61Ee4284 = {
+export type GeminiVideoMessage316947C3 = {
   /**
    * @description Native Gemini conversation role.
    * @type string
    */
-  role: GeminiVideoMessage61Ee4284RoleEnumKey
+  role: GeminiVideoMessage316947C3RoleEnumKey
   /**
    * @description Ordered text, image, document, video, audio, and signature parts.
    * @type array
    */
   parts: (
-    | (GeminiTextPart79310B94 & {
+    | (GeminiTextPart1E6A6513 & {
         type: 'text'
       })
-    | (GeminiImagePart37A0517E & {
+    | (GeminiImagePart2Fb4E975 & {
         type: 'image'
       })
-    | (GeminiDocumentPart44B7Ec0E & {
+    | (GeminiDocumentPartB10Bc885 & {
         type: 'document'
       })
-    | (GeminiVideoPart3E0B4C74 & {
+    | (GeminiVideoPartC74761B3 & {
         type: 'video'
       })
-    | (GeminiSignaturePart88263Aef & {
+    | (GeminiSignaturePart618Dbbf2 & {
         type: 'signature'
       })
-    | (GeminiAudioPartBa86Fec3 & {
+    | (GeminiAudioPart0F745B5E & {
         type: 'audio'
       })
   )[]
 }
-
-export const inputFalAiNanoBanana2EditThinkingLevel = {
-  minimal: 'minimal',
-  high: 'high',
-} as const
-
-export type InputFalAiNanoBanana2EditThinkingLevelKey =
-  (typeof inputFalAiNanoBanana2EditThinkingLevel)[keyof typeof inputFalAiNanoBanana2EditThinkingLevel]
 
 export const inputFalAiNanoBanana2EditSafetyToleranceEnum = {
   '1': '1',
@@ -58747,6 +64588,14 @@ export const inputFalAiNanoBanana2EditSafetyToleranceEnum = {
 
 export type InputFalAiNanoBanana2EditSafetyToleranceEnumKey =
   (typeof inputFalAiNanoBanana2EditSafetyToleranceEnum)[keyof typeof inputFalAiNanoBanana2EditSafetyToleranceEnum]
+
+export const inputFalAiNanoBanana2EditThinkingLevel = {
+  minimal: 'minimal',
+  high: 'high',
+} as const
+
+export type InputFalAiNanoBanana2EditThinkingLevelKey =
+  (typeof inputFalAiNanoBanana2EditThinkingLevel)[keyof typeof inputFalAiNanoBanana2EditThinkingLevel]
 
 export const inputFalAiNanoBanana2EditOutputFormatEnum = {
   jpeg: 'jpeg',
@@ -58790,54 +64639,25 @@ export type InputFalAiNanoBanana2EditResolutionEnumKey =
 
 export type InputFalAiNanoBanana2Edit = {
   /**
-   * @description The seed for the random number generator.
+   * @description The safety tolerance level for content moderation. 1 is the most strict (blocks most content), 6 is the least strict.
+   * @default '4'
+   * @type string | undefined
    */
-  seed?: number | null
-  /**
-   * @description Enable web search for the image generation task. This will allow the model to use the latest information from the web to generate the image.
-   * @default false
-   * @type boolean | undefined
-   */
-  enable_web_search?: boolean
-  /**
-   * @description Whether to include thought summaries. Omit to preserve the existing behavior: an explicit thinking_level requests summaries. Set limit_generations=false to return summary text in description. This does not disable thinking or return intermediate thought images.
-   */
-  include_thoughts?: boolean | null
-  /**
-   * @description Optional PDF document to use as input context. Accepts an http(s)/data URL (downloaded and sent inline, max 15MB).
-   */
-  pdf_url?: string | null
-  /**
-   * @description Sampling temperature. Omit to use the provider default of 1. Explicit values use a direct Google or Vertex API.
-   */
-  temperature?: number | null
-  /**
-   * @description Optional audio file to use as input context. Accepts an http(s)/data URL (downloaded and sent inline, max 15MB).
-   */
-  audio_url?: string | null
-  /**
-   * @description Optional video to use as input context. Accepts an http(s)/data URL to a video file (downloaded and sent inline, max 15MB) or a YouTube URL (passed through to the model without downloading).
-   */
-  video_url?: string | null
-  /**
-   * @description Maximum output tokens for the generation. Omit to retain the provider default. Explicit values use a direct Google or Vertex API.
-   */
-  max_output_tokens?: number | null
-  /**
-   * @description Previous native Gemini turns, including original parts and thought signatures from conversations. The current prompt starts a new user turn.
-   * @type array | undefined
-   */
-  history?: GeminiVideoMessage61Ee4284[]
-  /**
-   * @description Controls thinking effort ('minimal' or 'high') and requests thought summaries. Omit to use the provider default ('minimal'); thinking cannot be disabled.
-   */
-  thinking_level?: InputFalAiNanoBanana2EditThinkingLevelKey | null
+  safety_tolerance?: InputFalAiNanoBanana2EditSafetyToleranceEnumKey
   /**
    * @description Ground image generation with Google Image Search. Can be combined with enable_web_search; source attribution is returned in grounding_metadata. Uses direct Google or Vertex APIs.
    * @default false
    * @type boolean | undefined
    */
   enable_image_search?: boolean
+  /**
+   * @description The number of images to generate.
+   * @minimum 1
+   * @maximum 4
+   * @default 1
+   * @type integer | undefined
+   */
+  num_images?: number
   /**
    * @description Optional system instruction that steers the model's persona and output style across the request. Leave blank to omit; when provided, it is sent as the system instruction to Gemini (or as a system message on OpenAI-compatible providers).
    * @maxLength 50000
@@ -58846,32 +64666,13 @@ export type InputFalAiNanoBanana2Edit = {
    */
   system_prompt?: string
   /**
-   * @description Ordered text, image, PDF, UTF-8 text-file or video parts appended to the current prompt. Original media bytes are preserved; images count toward the total 14-reference limit.
-   * @type array | undefined
+   * @description Optional audio file to use as input context. Accepts an http(s)/data URL (downloaded and sent inline, max 15MB).
    */
-  context?: (
-    | (GeminiTextPart79310B94 & {
-        type: 'text'
-      })
-    | (GeminiImagePart37A0517E & {
-        type: 'image'
-      })
-    | (GeminiDocumentPart44B7Ec0E & {
-        type: 'document'
-      })
-    | (GeminiVideoPart3E0B4C74 & {
-        type: 'video'
-      })
-    | (GeminiSignaturePart88263Aef & {
-        type: 'signature'
-      })
-  )[]
+  audio_url?: string | null
   /**
-   * @description The URLs of the images to use for image-to-image generation or image editing. Optional when at least one of `video_url`, `audio_url`, or `pdf_url` is provided.
-   * @example ["https://storage.googleapis.com/falserverless/example_inputs/nano-banana-edit-input.png","https://storage.googleapis.com/falserverless/example_inputs/nano-banana-edit-input-2.png"]
-   * @type array | undefined
+   * @description Controls thinking effort ('minimal' or 'high') and requests thought summaries. Omit to use the provider default ('minimal'); thinking cannot be disabled.
    */
-  image_urls?: string[]
+  thinking_level?: InputFalAiNanoBanana2EditThinkingLevelKey | null
   /**
    * @description The prompt for image editing.
    * @minLength 3
@@ -58885,37 +64686,53 @@ export type InputFalAiNanoBanana2Edit = {
    */
   top_p?: number | null
   /**
-   * @description Return reusable native conversations with original image parts and provider thought signatures. Uses a native provider. Each generated conversation is independent; send its messages as history for the next turn.
-   * @default false
-   * @type boolean | undefined
-   */
-  return_history?: boolean
-  /**
-   * @description The safety tolerance level for content moderation. 1 is the most strict (blocks most content), 6 is the least strict.
-   * @default '4'
-   * @type string | undefined
-   */
-  safety_tolerance?: InputFalAiNanoBanana2EditSafetyToleranceEnumKey
-  /**
-   * @description The number of images to generate.
-   * @minimum 1
-   * @maximum 4
-   * @default 1
-   * @type integer | undefined
-   */
-  num_images?: number
-  /**
-   * @description The format of the generated image.
-   * @default 'png'
-   * @type string | undefined
-   */
-  output_format?: InputFalAiNanoBanana2EditOutputFormatEnumKey
-  /**
    * @description If `True`, the media will be returned as a data URI and the output data won't be available in the request history.
    * @default false
    * @type boolean | undefined
    */
   sync_mode?: boolean
+  /**
+   * @description The seed for the random number generator.
+   */
+  seed?: number | null
+  /**
+   * @description Whether to include thought summaries. Omit to preserve the existing behavior: an explicit thinking_level requests summaries. Set limit_generations=false to return summary text in description. This does not disable thinking or return intermediate thought images.
+   */
+  include_thoughts?: boolean | null
+  /**
+   * @description Optional video to use as input context. Accepts an http(s)/data URL to a video file (downloaded and sent inline, max 15MB) or a YouTube URL (passed through to the model without downloading).
+   */
+  video_url?: string | null
+  /**
+   * @description Ordered text, image, PDF, UTF-8 text-file or video parts appended to the current prompt. Original media bytes are preserved; images count toward the total 14-reference limit.
+   * @type array | undefined
+   */
+  context?: (
+    | (GeminiTextPart1E6A6513 & {
+        type: 'text'
+      })
+    | (GeminiImagePart2Fb4E975 & {
+        type: 'image'
+      })
+    | (GeminiDocumentPartB10Bc885 & {
+        type: 'document'
+      })
+    | (GeminiVideoPartC74761B3 & {
+        type: 'video'
+      })
+    | (GeminiSignaturePart618Dbbf2 & {
+        type: 'signature'
+      })
+  )[]
+  /**
+   * @description Maximum output tokens for the generation. Omit to retain the provider default. Explicit values use a direct Google or Vertex API.
+   */
+  max_output_tokens?: number | null
+  /**
+   * @description Previous native Gemini turns, including original parts and thought signatures from conversations. The current prompt starts a new user turn.
+   * @type array | undefined
+   */
+  history?: GeminiVideoMessage316947C3[]
   /**
    * @description Experimental parameter to limit the number of generations from each round of prompting to 1. Set to `True` to to disregard any instructions in the prompt regarding the number of images to generate and ignore any intermediate images generated by the model. This may affect generation quality.
    * @default true
@@ -58923,76 +64740,81 @@ export type InputFalAiNanoBanana2Edit = {
    */
   limit_generations?: boolean
   /**
+   * @description The format of the generated image.
+   * @default 'png'
+   * @type string | undefined
+   */
+  output_format?: InputFalAiNanoBanana2EditOutputFormatEnumKey
+  /**
+   * @description Enable web search for the image generation task. This will allow the model to use the latest information from the web to generate the image.
+   * @default false
+   * @type boolean | undefined
+   */
+  enable_web_search?: boolean
+  /**
+   * @description Sampling temperature. Omit to use the provider default of 1. Explicit values use a direct Google or Vertex API.
+   */
+  temperature?: number | null
+  /**
    * @description The aspect ratio of the generated image. Supports extreme ratios: 4:1, 1:4, 8:1, 1:8.
    * @default auto
    */
   aspect_ratio?: InputFalAiNanoBanana2EditAspectRatioKey | null
+  /**
+   * @description Optional PDF document to use as input context. Accepts an http(s)/data URL (downloaded and sent inline, max 15MB).
+   */
+  pdf_url?: string | null
+  /**
+   * @description Return reusable native conversations with original image parts and provider thought signatures. Uses a native provider. Each generated conversation is independent; send its messages as history for the next turn.
+   * @default false
+   * @type boolean | undefined
+   */
+  return_history?: boolean
   /**
    * @description The resolution of the image to generate.
    * @default '1K'
    * @type string | undefined
    */
   resolution?: InputFalAiNanoBanana2EditResolutionEnumKey
+  /**
+   * @description The URLs of the images to use for image-to-image generation or image editing. Optional when at least one of `video_url`, `audio_url`, or `pdf_url` is provided.
+   * @example ["https://storage.googleapis.com/falserverless/example_inputs/nano-banana-edit-input.png","https://storage.googleapis.com/falserverless/example_inputs/nano-banana-edit-input-2.png"]
+   * @type array | undefined
+   */
+  image_urls?: string[]
 }
 
-export type ImageFile67C3F6Ec = {
+export type GeminiTextPart149B4679 = {
   /**
-   * @description The height of the image
+   * @description Provider thought marker, preserved when replaying a returned conversation.
    */
-  height?: number | null
-  /**
-   * @description The width of the image
-   */
-  width?: number | null
-  /**
-   * @description The URL where the file can be downloaded from.
-   * @type string
-   */
-  url: string
-  /**
-   * @description The size of the file in bytes.
-   * @example 4404019
-   */
-  file_size?: number | null
-  /**
-   * @description The mime type of the file.
-   * @example image/png
-   */
-  content_type?: string | null
-  /**
-   * @description The name of the file. It will be auto-generated if not provided.
-   * @example z9RV14K95DvU.png
-   */
-  file_name?: string | null
-}
-
-export type GeminiTextPartAee4318C = {
-  /**
-   * @description Text at this position in the conversation.
-   * @type string
-   */
-  text: string
+  thought?: boolean | null
   /**
    * @description The text part discriminator.
    * @type string
    */
   type: 'text'
   /**
+   * @description Text at this position in the conversation.
+   * @type string
+   */
+  text: string
+  /**
    * @description Opaque provider-issued thought signature. Replay it unchanged on its original part.
    */
   thought_signature?: string | null
-  /**
-   * @description Provider thought marker, preserved when replaying a returned conversation.
-   */
-  thought?: boolean | null
 }
 
-export type GeminiImagePart12Bafc9A = {
+export type GeminiImagePart6B168597 = {
   /**
    * @description Original image URL or data URI. Replayed without resizing or re-encoding.
    * @type string
    */
   image_url: string
+  /**
+   * @description Provider thought marker, preserved when replaying a returned conversation.
+   */
+  thought?: boolean | null
   /**
    * @description The image part discriminator.
    * @type string
@@ -59002,68 +64824,68 @@ export type GeminiImagePart12Bafc9A = {
    * @description Opaque provider-issued thought signature. Replay it unchanged on its original part.
    */
   thought_signature?: string | null
-  /**
-   * @description Provider thought marker, preserved when replaying a returned conversation.
-   */
-  thought?: boolean | null
 }
 
-export const geminiDocumentPartCdbdef8AMimeTypeEnum = {
+export const geminiDocumentPart5A2Dca07MimeTypeEnum = {
   'application/pdf': 'application/pdf',
   'text/plain': 'text/plain',
 } as const
 
-export type GeminiDocumentPartCdbdef8AMimeTypeEnumKey =
-  (typeof geminiDocumentPartCdbdef8AMimeTypeEnum)[keyof typeof geminiDocumentPartCdbdef8AMimeTypeEnum]
+export type GeminiDocumentPart5A2Dca07MimeTypeEnumKey =
+  (typeof geminiDocumentPart5A2Dca07MimeTypeEnum)[keyof typeof geminiDocumentPart5A2Dca07MimeTypeEnum]
 
-export type GeminiDocumentPartCdbdef8A = {
-  /**
-   * @description The document part discriminator.
-   * @type string
-   */
-  type: 'document'
+export type GeminiDocumentPart5A2Dca07 = {
   /**
    * @description Opaque provider-issued thought signature. Replay it unchanged on its original part.
    */
   thought_signature?: string | null
+  /**
+   * @description Provider thought marker, preserved when replaying a returned conversation.
+   */
+  thought?: boolean | null
   /**
    * @description PDF or UTF-8 plain-text document URL or data URI (up to 15 MB).
    * @type string
    */
   file_url: string
   /**
+   * @description The document part discriminator.
+   * @type string
+   */
+  type: 'document'
+  /**
    * @description The document's media type.
    * @type string
    */
-  mime_type: GeminiDocumentPartCdbdef8AMimeTypeEnumKey
+  mime_type: GeminiDocumentPart5A2Dca07MimeTypeEnumKey
+}
+
+export type GeminiVideoPartF4F5D959 = {
   /**
    * @description Provider thought marker, preserved when replaying a returned conversation.
    */
   thought?: boolean | null
-}
-
-export type GeminiVideoPart40203Aac = {
   /**
    * @description The video part discriminator.
    * @type string
    */
   type: 'video'
   /**
-   * @description Opaque provider-issued thought signature. Replay it unchanged on its original part.
-   */
-  thought_signature?: string | null
-  /**
    * @description Video URL or data URI (up to 15 MB and 120 seconds), or a YouTube URL. Supported by Flash Image only.
    * @type string
    */
   video_url: string
   /**
+   * @description Opaque provider-issued thought signature. Replay it unchanged on its original part.
+   */
+  thought_signature?: string | null
+}
+
+export type GeminiSignaturePart57575022 = {
+  /**
    * @description Provider thought marker, preserved when replaying a returned conversation.
    */
   thought?: boolean | null
-}
-
-export type GeminiSignaturePartF7D81505 = {
   /**
    * @description The signature part discriminator.
    * @type string
@@ -59075,82 +64897,114 @@ export type GeminiSignaturePartF7D81505 = {
    * @type string
    */
   thought_signature: string
+}
+
+export type GeminiAudioPart29Fbf0B6 = {
   /**
    * @description Provider thought marker, preserved when replaying a returned conversation.
    */
   thought?: boolean | null
-}
-
-export type GeminiAudioPart4D13Bfa1 = {
   /**
    * @description The audio part discriminator.
    * @type string
    */
   type: 'audio'
   /**
-   * @description Opaque provider-issued thought signature. Replay it unchanged on its original part.
-   */
-  thought_signature?: string | null
-  /**
    * @description Original audio URL or data URI from a previous Flash Image request (up to 15 MB).
    * @type string
    */
   audio_url: string
   /**
-   * @description Provider thought marker, preserved when replaying a returned conversation.
+   * @description Opaque provider-issued thought signature. Replay it unchanged on its original part.
    */
-  thought?: boolean | null
+  thought_signature?: string | null
 }
 
-export const geminiVideoMessageC4Ebe01CRoleEnum = {
+export const geminiVideoMessage604580C9RoleEnum = {
   user: 'user',
   model: 'model',
 } as const
 
-export type GeminiVideoMessageC4Ebe01CRoleEnumKey =
-  (typeof geminiVideoMessageC4Ebe01CRoleEnum)[keyof typeof geminiVideoMessageC4Ebe01CRoleEnum]
+export type GeminiVideoMessage604580C9RoleEnumKey =
+  (typeof geminiVideoMessage604580C9RoleEnum)[keyof typeof geminiVideoMessage604580C9RoleEnum]
 
-export type GeminiVideoMessageC4Ebe01C = {
+export type GeminiVideoMessage604580C9 = {
   /**
    * @description Native Gemini conversation role.
    * @type string
    */
-  role: GeminiVideoMessageC4Ebe01CRoleEnumKey
+  role: GeminiVideoMessage604580C9RoleEnumKey
   /**
    * @description Ordered text, image, document, video, audio, and signature parts.
    * @type array
    */
   parts: (
-    | (GeminiTextPartAee4318C & {
+    | (GeminiTextPart149B4679 & {
         type: 'text'
       })
-    | (GeminiImagePart12Bafc9A & {
+    | (GeminiImagePart6B168597 & {
         type: 'image'
       })
-    | (GeminiDocumentPartCdbdef8A & {
+    | (GeminiDocumentPart5A2Dca07 & {
         type: 'document'
       })
-    | (GeminiVideoPart40203Aac & {
+    | (GeminiVideoPartF4F5D959 & {
         type: 'video'
       })
-    | (GeminiSignaturePartF7D81505 & {
+    | (GeminiSignaturePart57575022 & {
         type: 'signature'
       })
-    | (GeminiAudioPart4D13Bfa1 & {
+    | (GeminiAudioPart29Fbf0B6 & {
         type: 'audio'
       })
   )[]
 }
 
-export type GeminiConversationD0E94E69 = {
+export type GeminiConversation7Dd7598E = {
   /**
    * @description One complete provider conversation. Pass messages as history in the next request, retaining every signature and part.
    * @type array
    */
-  messages: GeminiVideoMessageC4Ebe01C[]
+  messages: GeminiVideoMessage604580C9[]
+}
+
+export type ImageFileE9B68C99 = {
+  /**
+   * @description The URL where the file can be downloaded from.
+   * @type string
+   */
+  url: string
+  /**
+   * @description The mime type of the file.
+   * @example image/png
+   */
+  content_type?: string | null
+  /**
+   * @description The width of the image
+   */
+  width?: number | null
+  /**
+   * @description The name of the file. It will be auto-generated if not provided.
+   * @example z9RV14K95DvU.png
+   */
+  file_name?: string | null
+  /**
+   * @description The size of the file in bytes.
+   * @example 4404019
+   */
+  file_size?: number | null
+  /**
+   * @description The height of the image
+   */
+  height?: number | null
 }
 
 export type OutputFalAiNanoBanana2Edit = {
+  /**
+   * @description Reusable per-generation conversations, populated only when return_history is true. Retain every part and thought signature when continuing a conversation.
+   * @type array | undefined
+   */
+  conversations?: GeminiConversation7Dd7598E[]
   /**
    * @description Provider grounding metadata for the generated images, including search queries, source pages and image-source attribution when available.
    * @type array | undefined
@@ -59158,15 +65012,10 @@ export type OutputFalAiNanoBanana2Edit = {
   grounding_metadata?: object[]
   /**
    * @description The edited images.
-   * @example [{"file_name":"nano-banana-2-edit-output.png","url":"https://storage.googleapis.com/falserverless/example_outputs/nano-banana-2-edit-output.png","content_type":"image/png"}]
+   * @example [{"url":"https://storage.googleapis.com/falserverless/example_outputs/nano-banana-2-edit-output.png","content_type":"image/png","file_name":"nano-banana-2-edit-output.png"}]
    * @type array
    */
-  images: ImageFile67C3F6Ec[]
-  /**
-   * @description Reusable per-generation conversations, populated only when return_history is true. Retain every part and thought signature when continuing a conversation.
-   * @type array | undefined
-   */
-  conversations?: GeminiConversationD0E94E69[]
+  images: ImageFileE9B68C99[]
   /**
    * @description The description of the generated images.
    * @type string
@@ -59174,28 +65023,36 @@ export type OutputFalAiNanoBanana2Edit = {
   description: string
 }
 
-export type GeminiTextPartC7D3Ef77 = {
+export type GeminiTextPart8C4A2Ace = {
+  /**
+   * @description Opaque provider-issued thought signature. Replay it unchanged on its original part.
+   */
+  thought_signature?: string | null
   /**
    * @description Text at this position in the conversation.
    * @type string
    */
   text: string
   /**
-   * @description The text part discriminator.
-   * @type string
-   */
-  type: 'text'
-  /**
    * @description Provider thought marker, preserved when replaying a returned conversation.
    */
   thought?: boolean | null
   /**
+   * @description The text part discriminator.
+   * @type string
+   */
+  type: 'text'
+}
+
+export type GeminiImagePart92954A58 = {
+  /**
    * @description Opaque provider-issued thought signature. Replay it unchanged on its original part.
    */
   thought_signature?: string | null
-}
-
-export type GeminiImagePartCc325Eb1 = {
+  /**
+   * @description Provider thought marker, preserved when replaying a returned conversation.
+   */
+  thought?: boolean | null
   /**
    * @description Original image URL or data URI. Replayed without resizing or re-encoding.
    * @type string
@@ -59206,25 +65063,25 @@ export type GeminiImagePartCc325Eb1 = {
    * @type string
    */
   type: 'image'
-  /**
-   * @description Provider thought marker, preserved when replaying a returned conversation.
-   */
-  thought?: boolean | null
-  /**
-   * @description Opaque provider-issued thought signature. Replay it unchanged on its original part.
-   */
-  thought_signature?: string | null
 }
 
-export const geminiDocumentPart05Cd40C1MimeTypeEnum = {
+export const geminiDocumentPart40325868MimeTypeEnum = {
   'application/pdf': 'application/pdf',
   'text/plain': 'text/plain',
 } as const
 
-export type GeminiDocumentPart05Cd40C1MimeTypeEnumKey =
-  (typeof geminiDocumentPart05Cd40C1MimeTypeEnum)[keyof typeof geminiDocumentPart05Cd40C1MimeTypeEnum]
+export type GeminiDocumentPart40325868MimeTypeEnumKey =
+  (typeof geminiDocumentPart40325868MimeTypeEnum)[keyof typeof geminiDocumentPart40325868MimeTypeEnum]
 
-export type GeminiDocumentPart05Cd40C1 = {
+export type GeminiDocumentPart40325868 = {
+  /**
+   * @description Opaque provider-issued thought signature. Replay it unchanged on its original part.
+   */
+  thought_signature?: string | null
+  /**
+   * @description Provider thought marker, preserved when replaying a returned conversation.
+   */
+  thought?: boolean | null
   /**
    * @description PDF or UTF-8 plain-text document URL or data URI (up to 15 MB).
    * @type string
@@ -59234,91 +65091,77 @@ export type GeminiDocumentPart05Cd40C1 = {
    * @description The document's media type.
    * @type string
    */
-  mime_type: GeminiDocumentPart05Cd40C1MimeTypeEnumKey
+  mime_type: GeminiDocumentPart40325868MimeTypeEnumKey
   /**
    * @description The document part discriminator.
    * @type string
    */
   type: 'document'
-  /**
-   * @description Provider thought marker, preserved when replaying a returned conversation.
-   */
-  thought?: boolean | null
-  /**
-   * @description Opaque provider-issued thought signature. Replay it unchanged on its original part.
-   */
-  thought_signature?: string | null
 }
 
-export type GeminiSignaturePartC0D526F4 = {
-  /**
-   * @description The signature part discriminator.
-   * @type string
-   */
-  type: 'signature'
-  /**
-   * @description Provider thought marker, preserved when replaying a returned conversation.
-   */
-  thought?: boolean | null
+export type GeminiSignaturePart473Ed447 = {
   /**
    * @description Provider-issued signature-only part, replayed unchanged.
    * @minLength 1
    * @type string
    */
   thought_signature: string
+  /**
+   * @description Provider thought marker, preserved when replaying a returned conversation.
+   */
+  thought?: boolean | null
+  /**
+   * @description The signature part discriminator.
+   * @type string
+   */
+  type: 'signature'
 }
 
-export const geminiMessage65233Fe8RoleEnum = {
+export const geminiMessageF4D0C873RoleEnum = {
   user: 'user',
   model: 'model',
 } as const
 
-export type GeminiMessage65233Fe8RoleEnumKey =
-  (typeof geminiMessage65233Fe8RoleEnum)[keyof typeof geminiMessage65233Fe8RoleEnum]
+export type GeminiMessageF4D0C873RoleEnumKey =
+  (typeof geminiMessageF4D0C873RoleEnum)[keyof typeof geminiMessageF4D0C873RoleEnum]
 
-export type GeminiMessage65233Fe8 = {
-  /**
-   * @description Native Gemini conversation role.
-   * @type string
-   */
-  role: GeminiMessage65233Fe8RoleEnumKey
+export type GeminiMessageF4D0C873 = {
   /**
    * @description Ordered text, image, document, and signature parts.
    * @type array
    */
   parts: (
-    | (GeminiTextPartC7D3Ef77 & {
+    | (GeminiTextPart8C4A2Ace & {
         type: 'text'
       })
-    | (GeminiImagePartCc325Eb1 & {
+    | (GeminiImagePart92954A58 & {
         type: 'image'
       })
-    | (GeminiDocumentPart05Cd40C1 & {
+    | (GeminiDocumentPart40325868 & {
         type: 'document'
       })
-    | (GeminiSignaturePartC0D526F4 & {
+    | (GeminiSignaturePart473Ed447 & {
         type: 'signature'
       })
   )[]
+  /**
+   * @description Native Gemini conversation role.
+   * @type string
+   */
+  role: GeminiMessageF4D0C873RoleEnumKey
 }
 
-export const inputFalAiNanoBananaProResolutionEnum = {
-  '1K': '1K',
-  '2K': '2K',
-  '4K': '4K',
+export const inputFalAiNanoBananaProSafetyToleranceEnum = {
+  '1': '1',
+  '2': '2',
+  '3': '3',
+  '4': '4',
+  '5': '5',
+  '6': '6',
 } as const
 
-export type InputFalAiNanoBananaProResolutionEnumKey =
-  (typeof inputFalAiNanoBananaProResolutionEnum)[keyof typeof inputFalAiNanoBananaProResolutionEnum]
-
-export const inputFalAiNanoBananaProOutputFormatEnum = {
-  jpeg: 'jpeg',
-  png: 'png',
-  webp: 'webp',
-} as const
-
-export type InputFalAiNanoBananaProOutputFormatEnumKey =
-  (typeof inputFalAiNanoBananaProOutputFormatEnum)[keyof typeof inputFalAiNanoBananaProOutputFormatEnum]
+export type InputFalAiNanoBananaProSafetyToleranceEnumKey =
+  (typeof inputFalAiNanoBananaProSafetyToleranceEnum)[keyof typeof inputFalAiNanoBananaProSafetyToleranceEnum]
 
 export const inputFalAiNanoBananaProAspectRatio = {
   auto: 'auto',
@@ -59341,19 +65184,63 @@ export const inputFalAiNanoBananaProAspectRatio = {
 export type InputFalAiNanoBananaProAspectRatioKey =
   (typeof inputFalAiNanoBananaProAspectRatio)[keyof typeof inputFalAiNanoBananaProAspectRatio]
 
-export const inputFalAiNanoBananaProSafetyToleranceEnum = {
-  '1': '1',
-  '2': '2',
-  '3': '3',
-  '4': '4',
-  '5': '5',
-  '6': '6',
+export const inputFalAiNanoBananaProResolutionEnum = {
+  '1K': '1K',
+  '2K': '2K',
+  '4K': '4K',
 } as const
 
-export type InputFalAiNanoBananaProSafetyToleranceEnumKey =
-  (typeof inputFalAiNanoBananaProSafetyToleranceEnum)[keyof typeof inputFalAiNanoBananaProSafetyToleranceEnum]
+export type InputFalAiNanoBananaProResolutionEnumKey =
+  (typeof inputFalAiNanoBananaProResolutionEnum)[keyof typeof inputFalAiNanoBananaProResolutionEnum]
+
+export const inputFalAiNanoBananaProOutputFormatEnum = {
+  jpeg: 'jpeg',
+  png: 'png',
+  webp: 'webp',
+} as const
+
+export type InputFalAiNanoBananaProOutputFormatEnumKey =
+  (typeof inputFalAiNanoBananaProOutputFormatEnum)[keyof typeof inputFalAiNanoBananaProOutputFormatEnum]
 
 export type InputFalAiNanoBananaPro = {
+  /**
+   * @description Maximum output tokens for the generation. Omit to retain the provider default. Explicit values use a direct Google or Vertex API.
+   */
+  max_output_tokens?: number | null
+  /**
+   * @description Whether to include thought summaries. Omit to preserve the existing behavior: an explicit thinking_level requests summaries. Set limit_generations=false to return summary text in description. This does not disable thinking or return intermediate thought images.
+   */
+  include_thoughts?: boolean | null
+  /**
+   * @description The safety tolerance level for content moderation. 1 is the most strict (blocks most content), 6 is the least strict.
+   * @default '4'
+   * @type string | undefined
+   */
+  safety_tolerance?: InputFalAiNanoBananaProSafetyToleranceEnumKey
+  /**
+   * @description Return reusable native conversations with original image parts and provider thought signatures. Uses a native provider. Each generated conversation is independent; send its messages as history for the next turn.
+   * @default false
+   * @type boolean | undefined
+   */
+  return_history?: boolean
+  /**
+   * @description The aspect ratio of the generated image.
+   * @default 1:1
+   */
+  aspect_ratio?: InputFalAiNanoBananaProAspectRatioKey | null
+  /**
+   * @description Previous native user/model turns. Replay a returned conversation's messages unchanged, including thought signatures; the current prompt is appended as a new user turn.
+   * @type array | undefined
+   */
+  history?: GeminiMessageF4D0C873[]
+  /**
+   * @description Sampling temperature. Omit to use the provider default of 1. Explicit values use a direct Google or Vertex API.
+   */
+  temperature?: number | null
+  /**
+   * @description The seed for the random number generator.
+   */
+  seed?: number | null
   /**
    * @description If `True`, the media will be returned as a data URI and the output data won't be available in the request history.
    * @default false
@@ -59361,38 +65248,40 @@ export type InputFalAiNanoBananaPro = {
    */
   sync_mode?: boolean
   /**
-   * @description Whether to include thought summaries. Omit to preserve the existing behavior: an explicit thinking_level requests summaries. Set limit_generations=false to return summary text in description. This does not disable thinking or return intermediate thought images.
-   */
-  include_thoughts?: boolean | null
-  /**
-   * @description The seed for the random number generator.
-   */
-  seed?: number | null
-  /**
-   * @description Nucleus sampling probability. Omit to use the provider default of 0.95. Explicit values use a direct Google or Vertex API.
-   */
-  top_p?: number | null
-  /**
    * @description The resolution of the image to generate.
    * @default '1K'
    * @type string | undefined
    */
   resolution?: InputFalAiNanoBananaProResolutionEnumKey
   /**
+   * @description Optional system instruction that steers the model's persona and output style across the request. Leave blank to omit; when provided, it is sent as the system instruction to Gemini (or as a system message on OpenAI-compatible providers).
+   * @maxLength 50000
+   * @default ''
+   * @type string | undefined
+   */
+  system_prompt?: string
+  /**
+   * @description Experimental parameter to limit the number of generations from each round of prompting to 1. Set to `True` to to disregard any instructions in the prompt regarding the number of images to generate.
+   * @default true
+   * @type boolean | undefined
+   */
+  limit_generations?: boolean
+  /**
+   * @description Nucleus sampling probability. Omit to use the provider default of 0.95. Explicit values use a direct Google or Vertex API.
+   */
+  top_p?: number | null
+  /**
+   * @description Enable web search for the image generation task. This will allow the model to use the latest information from the web to generate the image.
+   * @default false
+   * @type boolean | undefined
+   */
+  enable_web_search?: boolean
+  /**
    * @description The format of the generated image.
    * @default 'png'
    * @type string | undefined
    */
   output_format?: InputFalAiNanoBananaProOutputFormatEnumKey
-  /**
-   * @description The aspect ratio of the generated image.
-   * @default 1:1
-   */
-  aspect_ratio?: InputFalAiNanoBananaProAspectRatioKey | null
-  /**
-   * @description Maximum output tokens for the generation. Omit to retain the provider default. Explicit values use a direct Google or Vertex API.
-   */
-  max_output_tokens?: number | null
   /**
    * @description The number of images to generate.
    * @minimum 1
@@ -59402,45 +65291,27 @@ export type InputFalAiNanoBananaPro = {
    */
   num_images?: number
   /**
+   * @description Thinking effort. Pro Image supports only high; omit to retain its provider default. An explicit level requests summaries unless include_thoughts overrides it. Thinking cannot be disabled.
+   */
+  thinking_level?: 'high' | null
+  /**
    * @description Ordered text, original images, PDF or UTF-8 text documents appended to the current prompt. Uses a native provider. Images count toward the total 14-reference limit.
    * @type array | undefined
    */
   context?: (
-    | (GeminiTextPartC7D3Ef77 & {
+    | (GeminiTextPart8C4A2Ace & {
         type: 'text'
       })
-    | (GeminiImagePartCc325Eb1 & {
+    | (GeminiImagePart92954A58 & {
         type: 'image'
       })
-    | (GeminiDocumentPart05Cd40C1 & {
+    | (GeminiDocumentPart40325868 & {
         type: 'document'
       })
-    | (GeminiSignaturePartC0D526F4 & {
+    | (GeminiSignaturePart473Ed447 & {
         type: 'signature'
       })
   )[]
-  /**
-   * @description Previous native user/model turns. Replay a returned conversation's messages unchanged, including thought signatures; the current prompt is appended as a new user turn.
-   * @type array | undefined
-   */
-  history?: GeminiMessage65233Fe8[]
-  /**
-   * @description Optional system instruction that steers the model's persona and output style across the request. Leave blank to omit; when provided, it is sent as the system instruction to Gemini (or as a system message on OpenAI-compatible providers).
-   * @maxLength 50000
-   * @default ''
-   * @type string | undefined
-   */
-  system_prompt?: string
-  /**
-   * @description Sampling temperature. Omit to use the provider default of 1. Explicit values use a direct Google or Vertex API.
-   */
-  temperature?: number | null
-  /**
-   * @description Return reusable native conversations with original image parts and provider thought signatures. Uses a native provider. Each generated conversation is independent; send its messages as history for the next turn.
-   * @default false
-   * @type boolean | undefined
-   */
-  return_history?: boolean
   /**
    * @description The text prompt to generate an image from.
    * @minLength 3
@@ -59449,31 +65320,13 @@ export type InputFalAiNanoBananaPro = {
    * @type string
    */
   prompt: string
-  /**
-   * @description Thinking effort. Pro Image supports only high; omit to retain its provider default. An explicit level requests summaries unless include_thoughts overrides it. Thinking cannot be disabled.
-   */
-  thinking_level?: 'high' | null
-  /**
-   * @description The safety tolerance level for content moderation. 1 is the most strict (blocks most content), 6 is the least strict.
-   * @default '4'
-   * @type string | undefined
-   */
-  safety_tolerance?: InputFalAiNanoBananaProSafetyToleranceEnumKey
-  /**
-   * @description Experimental parameter to limit the number of generations from each round of prompting to 1. Set to `True` to to disregard any instructions in the prompt regarding the number of images to generate.
-   * @default true
-   * @type boolean | undefined
-   */
-  limit_generations?: boolean
-  /**
-   * @description Enable web search for the image generation task. This will allow the model to use the latest information from the web to generate the image.
-   * @default false
-   * @type boolean | undefined
-   */
-  enable_web_search?: boolean
 }
 
-export type GeminiTextPart435A7510 = {
+export type GeminiTextPart80Ab108F = {
+  /**
+   * @description Opaque provider-issued thought signature. Replay it unchanged on its original part.
+   */
+  thought_signature?: string | null
   /**
    * @description Text at this position in the conversation.
    * @type string
@@ -59484,30 +65337,26 @@ export type GeminiTextPart435A7510 = {
    */
   thought?: boolean | null
   /**
-   * @description Opaque provider-issued thought signature. Replay it unchanged on its original part.
-   */
-  thought_signature?: string | null
-  /**
    * @description The text part discriminator.
    * @type string
    */
   type: 'text'
 }
 
-export type GeminiImagePart62729E02 = {
+export type GeminiImagePartA66C6B31 = {
   /**
-   * @description Original image URL or data URI. Replayed without resizing or re-encoding.
-   * @type string
+   * @description Opaque provider-issued thought signature. Replay it unchanged on its original part.
    */
-  image_url: string
+  thought_signature?: string | null
   /**
    * @description Provider thought marker, preserved when replaying a returned conversation.
    */
   thought?: boolean | null
   /**
-   * @description Opaque provider-issued thought signature. Replay it unchanged on its original part.
+   * @description Original image URL or data URI. Replayed without resizing or re-encoding.
+   * @type string
    */
-  thought_signature?: string | null
+  image_url: string
   /**
    * @description The image part discriminator.
    * @type string
@@ -59515,41 +65364,41 @@ export type GeminiImagePart62729E02 = {
   type: 'image'
 }
 
-export const geminiDocumentPart349Df7B2MimeTypeEnum = {
+export const geminiDocumentPartBb68Dbe1MimeTypeEnum = {
   'application/pdf': 'application/pdf',
   'text/plain': 'text/plain',
 } as const
 
-export type GeminiDocumentPart349Df7B2MimeTypeEnumKey =
-  (typeof geminiDocumentPart349Df7B2MimeTypeEnum)[keyof typeof geminiDocumentPart349Df7B2MimeTypeEnum]
+export type GeminiDocumentPartBb68Dbe1MimeTypeEnumKey =
+  (typeof geminiDocumentPartBb68Dbe1MimeTypeEnum)[keyof typeof geminiDocumentPartBb68Dbe1MimeTypeEnum]
 
-export type GeminiDocumentPart349Df7B2 = {
+export type GeminiDocumentPartBb68Dbe1 = {
   /**
-   * @description The document part discriminator.
-   * @type string
+   * @description Opaque provider-issued thought signature. Replay it unchanged on its original part.
    */
-  type: 'document'
+  thought_signature?: string | null
+  /**
+   * @description Provider thought marker, preserved when replaying a returned conversation.
+   */
+  thought?: boolean | null
   /**
    * @description PDF or UTF-8 plain-text document URL or data URI (up to 15 MB).
    * @type string
    */
   file_url: string
   /**
-   * @description Provider thought marker, preserved when replaying a returned conversation.
-   */
-  thought?: boolean | null
-  /**
-   * @description Opaque provider-issued thought signature. Replay it unchanged on its original part.
-   */
-  thought_signature?: string | null
-  /**
    * @description The document's media type.
    * @type string
    */
-  mime_type: GeminiDocumentPart349Df7B2MimeTypeEnumKey
+  mime_type: GeminiDocumentPartBb68Dbe1MimeTypeEnumKey
+  /**
+   * @description The document part discriminator.
+   * @type string
+   */
+  type: 'document'
 }
 
-export type GeminiVideoPart35441470 = {
+export type GeminiVideoPart6Ab6B92F = {
   /**
    * @description Video URL or data URI (up to 15 MB and 120 seconds), or a YouTube URL. Supported by Flash Image only.
    * @type string
@@ -59570,11 +65419,7 @@ export type GeminiVideoPart35441470 = {
   type: 'video'
 }
 
-export type GeminiSignaturePartF132F99F = {
-  /**
-   * @description Provider thought marker, preserved when replaying a returned conversation.
-   */
-  thought?: boolean | null
+export type GeminiSignaturePartC8F21F8A = {
   /**
    * @description Provider-issued signature-only part, replayed unchanged.
    * @minLength 1
@@ -59582,26 +65427,30 @@ export type GeminiSignaturePartF132F99F = {
    */
   thought_signature: string
   /**
+   * @description Provider thought marker, preserved when replaying a returned conversation.
+   */
+  thought?: boolean | null
+  /**
    * @description The signature part discriminator.
    * @type string
    */
   type: 'signature'
 }
 
-export type GeminiAudioPart3C382C1B = {
+export type GeminiAudioPart1C7197Ce = {
   /**
-   * @description Original audio URL or data URI from a previous Flash Image request (up to 15 MB).
-   * @type string
+   * @description Opaque provider-issued thought signature. Replay it unchanged on its original part.
    */
-  audio_url: string
+  thought_signature?: string | null
   /**
    * @description Provider thought marker, preserved when replaying a returned conversation.
    */
   thought?: boolean | null
   /**
-   * @description Opaque provider-issued thought signature. Replay it unchanged on its original part.
+   * @description Original audio URL or data URI from a previous Flash Image request (up to 15 MB).
+   * @type string
    */
-  thought_signature?: string | null
+  audio_url: string
   /**
    * @description The audio part discriminator.
    * @type string
@@ -59609,36 +65458,36 @@ export type GeminiAudioPart3C382C1B = {
   type: 'audio'
 }
 
-export const geminiVideoMessageC58087E0RoleEnum = {
+export const geminiVideoMessage85B0645FRoleEnum = {
   user: 'user',
   model: 'model',
 } as const
 
-export type GeminiVideoMessageC58087E0RoleEnumKey =
-  (typeof geminiVideoMessageC58087E0RoleEnum)[keyof typeof geminiVideoMessageC58087E0RoleEnum]
+export type GeminiVideoMessage85B0645FRoleEnumKey =
+  (typeof geminiVideoMessage85B0645FRoleEnum)[keyof typeof geminiVideoMessage85B0645FRoleEnum]
 
-export type GeminiVideoMessageC58087E0 = {
+export type GeminiVideoMessage85B0645F = {
   /**
    * @description Ordered text, image, document, video, audio, and signature parts.
    * @type array
    */
   parts: (
-    | (GeminiTextPart435A7510 & {
+    | (GeminiTextPart80Ab108F & {
         type: 'text'
       })
-    | (GeminiImagePart62729E02 & {
+    | (GeminiImagePartA66C6B31 & {
         type: 'image'
       })
-    | (GeminiDocumentPart349Df7B2 & {
+    | (GeminiDocumentPartBb68Dbe1 & {
         type: 'document'
       })
-    | (GeminiVideoPart35441470 & {
+    | (GeminiVideoPart6Ab6B92F & {
         type: 'video'
       })
-    | (GeminiSignaturePartF132F99F & {
+    | (GeminiSignaturePartC8F21F8A & {
         type: 'signature'
       })
-    | (GeminiAudioPart3C382C1B & {
+    | (GeminiAudioPart1C7197Ce & {
         type: 'audio'
       })
   )[]
@@ -59646,27 +65495,18 @@ export type GeminiVideoMessageC58087E0 = {
    * @description Native Gemini conversation role.
    * @type string
    */
-  role: GeminiVideoMessageC58087E0RoleEnumKey
+  role: GeminiVideoMessage85B0645FRoleEnumKey
 }
 
-export type GeminiConversation227E2263 = {
+export type GeminiConversationB7Be7026 = {
   /**
    * @description One complete provider conversation. Pass messages as history in the next request, retaining every signature and part.
    * @type array
    */
-  messages: GeminiVideoMessageC58087E0[]
+  messages: GeminiVideoMessage85B0645F[]
 }
 
-export type ImageFileD322Fd30 = {
-  /**
-   * @description The URL where the file can be downloaded from.
-   * @type string
-   */
-  url: string
-  /**
-   * @description The height of the image
-   */
-  height?: number | null
+export type ImageFile5Db1A4Ef = {
   /**
    * @description The name of the file. It will be auto-generated if not provided.
    * @example z9RV14K95DvU.png
@@ -59678,9 +65518,18 @@ export type ImageFileD322Fd30 = {
    */
   file_size?: number | null
   /**
+   * @description The URL where the file can be downloaded from.
+   * @type string
+   */
+  url: string
+  /**
    * @description The width of the image
    */
   width?: number | null
+  /**
+   * @description The height of the image
+   */
+  height?: number | null
   /**
    * @description The mime type of the file.
    * @example image/png
@@ -59690,50 +65539,58 @@ export type ImageFileD322Fd30 = {
 
 export type OutputFalAiNanoBananaPro = {
   /**
-   * @description Reusable per-generation conversations, populated only when return_history is true. Retain every part and thought signature when continuing a conversation.
+   * @description Provider grounding metadata for the generated images, including search queries, source pages and image-source attribution when available.
    * @type array | undefined
    */
-  conversations?: GeminiConversation227E2263[]
-  /**
-   * @description The generated images.
-   * @example [{"url":"https://storage.googleapis.com/falserverless/example_outputs/nano-banana-pro-t2i-output.png","file_name":"nano-banana-pro-t2i-output.png","content_type":"image/png"}]
-   * @type array
-   */
-  images: ImageFileD322Fd30[]
+  grounding_metadata?: object[]
   /**
    * @description The description of the generated images.
    * @type string
    */
   description: string
   /**
-   * @description Provider grounding metadata for the generated images, including search queries, source pages and image-source attribution when available.
+   * @description Reusable per-generation conversations, populated only when return_history is true. Retain every part and thought signature when continuing a conversation.
    * @type array | undefined
    */
-  grounding_metadata?: object[]
+  conversations?: GeminiConversationB7Be7026[]
+  /**
+   * @description The generated images.
+   * @example [{"file_name":"nano-banana-pro-t2i-output.png","url":"https://storage.googleapis.com/falserverless/example_outputs/nano-banana-pro-t2i-output.png","content_type":"image/png"}]
+   * @type array
+   */
+  images: ImageFile5Db1A4Ef[]
 }
 
-export type GeminiTextPart8D9C2C32 = {
+export type GeminiTextPart7D14Af1D = {
+  /**
+   * @description Opaque provider-issued thought signature. Replay it unchanged on its original part.
+   */
+  thought_signature?: string | null
   /**
    * @description Text at this position in the conversation.
    * @type string
    */
   text: string
   /**
-   * @description The text part discriminator.
-   * @type string
-   */
-  type: 'text'
-  /**
    * @description Provider thought marker, preserved when replaying a returned conversation.
    */
   thought?: boolean | null
   /**
+   * @description The text part discriminator.
+   * @type string
+   */
+  type: 'text'
+}
+
+export type GeminiImagePartF56Ec027 = {
+  /**
    * @description Opaque provider-issued thought signature. Replay it unchanged on its original part.
    */
   thought_signature?: string | null
-}
-
-export type GeminiImagePartD3D9Ce54 = {
+  /**
+   * @description Provider thought marker, preserved when replaying a returned conversation.
+   */
+  thought?: boolean | null
   /**
    * @description Original image URL or data URI. Replayed without resizing or re-encoding.
    * @type string
@@ -59744,25 +65601,25 @@ export type GeminiImagePartD3D9Ce54 = {
    * @type string
    */
   type: 'image'
-  /**
-   * @description Provider thought marker, preserved when replaying a returned conversation.
-   */
-  thought?: boolean | null
-  /**
-   * @description Opaque provider-issued thought signature. Replay it unchanged on its original part.
-   */
-  thought_signature?: string | null
 }
 
-export const geminiDocumentPart4Ac48104MimeTypeEnum = {
+export const geminiDocumentPart60D0E657MimeTypeEnum = {
   'application/pdf': 'application/pdf',
   'text/plain': 'text/plain',
 } as const
 
-export type GeminiDocumentPart4Ac48104MimeTypeEnumKey =
-  (typeof geminiDocumentPart4Ac48104MimeTypeEnum)[keyof typeof geminiDocumentPart4Ac48104MimeTypeEnum]
+export type GeminiDocumentPart60D0E657MimeTypeEnumKey =
+  (typeof geminiDocumentPart60D0E657MimeTypeEnum)[keyof typeof geminiDocumentPart60D0E657MimeTypeEnum]
 
-export type GeminiDocumentPart4Ac48104 = {
+export type GeminiDocumentPart60D0E657 = {
+  /**
+   * @description Opaque provider-issued thought signature. Replay it unchanged on its original part.
+   */
+  thought_signature?: string | null
+  /**
+   * @description Provider thought marker, preserved when replaying a returned conversation.
+   */
+  thought?: boolean | null
   /**
    * @description PDF or UTF-8 plain-text document URL or data URI (up to 15 MB).
    * @type string
@@ -59772,91 +65629,77 @@ export type GeminiDocumentPart4Ac48104 = {
    * @description The document's media type.
    * @type string
    */
-  mime_type: GeminiDocumentPart4Ac48104MimeTypeEnumKey
+  mime_type: GeminiDocumentPart60D0E657MimeTypeEnumKey
   /**
    * @description The document part discriminator.
    * @type string
    */
   type: 'document'
-  /**
-   * @description Provider thought marker, preserved when replaying a returned conversation.
-   */
-  thought?: boolean | null
-  /**
-   * @description Opaque provider-issued thought signature. Replay it unchanged on its original part.
-   */
-  thought_signature?: string | null
 }
 
-export type GeminiSignaturePart39F8B9Cb = {
-  /**
-   * @description The signature part discriminator.
-   * @type string
-   */
-  type: 'signature'
-  /**
-   * @description Provider thought marker, preserved when replaying a returned conversation.
-   */
-  thought?: boolean | null
+export type GeminiSignaturePart0Bb793E2 = {
   /**
    * @description Provider-issued signature-only part, replayed unchanged.
    * @minLength 1
    * @type string
    */
   thought_signature: string
+  /**
+   * @description Provider thought marker, preserved when replaying a returned conversation.
+   */
+  thought?: boolean | null
+  /**
+   * @description The signature part discriminator.
+   * @type string
+   */
+  type: 'signature'
 }
 
-export const geminiMessage5905Bcd7RoleEnum = {
+export const geminiMessage77B795F6RoleEnum = {
   user: 'user',
   model: 'model',
 } as const
 
-export type GeminiMessage5905Bcd7RoleEnumKey =
-  (typeof geminiMessage5905Bcd7RoleEnum)[keyof typeof geminiMessage5905Bcd7RoleEnum]
+export type GeminiMessage77B795F6RoleEnumKey =
+  (typeof geminiMessage77B795F6RoleEnum)[keyof typeof geminiMessage77B795F6RoleEnum]
 
-export type GeminiMessage5905Bcd7 = {
-  /**
-   * @description Native Gemini conversation role.
-   * @type string
-   */
-  role: GeminiMessage5905Bcd7RoleEnumKey
+export type GeminiMessage77B795F6 = {
   /**
    * @description Ordered text, image, document, and signature parts.
    * @type array
    */
   parts: (
-    | (GeminiTextPart8D9C2C32 & {
+    | (GeminiTextPart7D14Af1D & {
         type: 'text'
       })
-    | (GeminiImagePartD3D9Ce54 & {
+    | (GeminiImagePartF56Ec027 & {
         type: 'image'
       })
-    | (GeminiDocumentPart4Ac48104 & {
+    | (GeminiDocumentPart60D0E657 & {
         type: 'document'
       })
-    | (GeminiSignaturePart39F8B9Cb & {
+    | (GeminiSignaturePart0Bb793E2 & {
         type: 'signature'
       })
   )[]
+  /**
+   * @description Native Gemini conversation role.
+   * @type string
+   */
+  role: GeminiMessage77B795F6RoleEnumKey
 }
 
-export const inputFalAiNanoBananaProEditResolutionEnum = {
-  '1K': '1K',
-  '2K': '2K',
-  '4K': '4K',
+export const inputFalAiNanoBananaProEditSafetyToleranceEnum = {
+  '1': '1',
+  '2': '2',
+  '3': '3',
+  '4': '4',
+  '5': '5',
+  '6': '6',
 } as const
 
-export type InputFalAiNanoBananaProEditResolutionEnumKey =
-  (typeof inputFalAiNanoBananaProEditResolutionEnum)[keyof typeof inputFalAiNanoBananaProEditResolutionEnum]
-
-export const inputFalAiNanoBananaProEditOutputFormatEnum = {
-  jpeg: 'jpeg',
-  png: 'png',
-  webp: 'webp',
-} as const
-
-export type InputFalAiNanoBananaProEditOutputFormatEnumKey =
-  (typeof inputFalAiNanoBananaProEditOutputFormatEnum)[keyof typeof inputFalAiNanoBananaProEditOutputFormatEnum]
+export type InputFalAiNanoBananaProEditSafetyToleranceEnumKey =
+  (typeof inputFalAiNanoBananaProEditSafetyToleranceEnum)[keyof typeof inputFalAiNanoBananaProEditSafetyToleranceEnum]
 
 export const inputFalAiNanoBananaProEditAspectRatio = {
   auto: 'auto',
@@ -59879,54 +65722,59 @@ export const inputFalAiNanoBananaProEditAspectRatio = {
 export type InputFalAiNanoBananaProEditAspectRatioKey =
   (typeof inputFalAiNanoBananaProEditAspectRatio)[keyof typeof inputFalAiNanoBananaProEditAspectRatio]
 
-export const inputFalAiNanoBananaProEditSafetyToleranceEnum = {
-  '1': '1',
-  '2': '2',
-  '3': '3',
-  '4': '4',
-  '5': '5',
-  '6': '6',
+export const inputFalAiNanoBananaProEditResolutionEnum = {
+  '1K': '1K',
+  '2K': '2K',
+  '4K': '4K',
 } as const
 
-export type InputFalAiNanoBananaProEditSafetyToleranceEnumKey =
-  (typeof inputFalAiNanoBananaProEditSafetyToleranceEnum)[keyof typeof inputFalAiNanoBananaProEditSafetyToleranceEnum]
+export type InputFalAiNanoBananaProEditResolutionEnumKey =
+  (typeof inputFalAiNanoBananaProEditResolutionEnum)[keyof typeof inputFalAiNanoBananaProEditResolutionEnum]
+
+export const inputFalAiNanoBananaProEditOutputFormatEnum = {
+  jpeg: 'jpeg',
+  png: 'png',
+  webp: 'webp',
+} as const
+
+export type InputFalAiNanoBananaProEditOutputFormatEnumKey =
+  (typeof inputFalAiNanoBananaProEditOutputFormatEnum)[keyof typeof inputFalAiNanoBananaProEditOutputFormatEnum]
 
 export type InputFalAiNanoBananaProEdit = {
   /**
-   * @description If `True`, the media will be returned as a data URI and the output data won't be available in the request history.
-   * @default false
-   * @type boolean | undefined
+   * @description Maximum output tokens for the generation. Omit to retain the provider default. Explicit values use a direct Google or Vertex API.
    */
-  sync_mode?: boolean
+  max_output_tokens?: number | null
   /**
    * @description Whether to include thought summaries. Omit to preserve the existing behavior: an explicit thinking_level requests summaries. Set limit_generations=false to return summary text in description. This does not disable thinking or return intermediate thought images.
    */
   include_thoughts?: boolean | null
   /**
-   * @description The seed for the random number generator.
-   */
-  seed?: number | null
-  /**
-   * @description Nucleus sampling probability. Omit to use the provider default of 0.95. Explicit values use a direct Google or Vertex API.
-   */
-  top_p?: number | null
-  /**
-   * @description The resolution of the image to generate.
-   * @default '1K'
+   * @description The safety tolerance level for content moderation. 1 is the most strict (blocks most content), 6 is the least strict.
+   * @default '4'
    * @type string | undefined
    */
-  resolution?: InputFalAiNanoBananaProEditResolutionEnumKey
+  safety_tolerance?: InputFalAiNanoBananaProEditSafetyToleranceEnumKey
   /**
-   * @description The format of the generated image.
-   * @default 'png'
-   * @type string | undefined
+   * @description Return reusable native conversations with original image parts and provider thought signatures. Uses a native provider. Each generated conversation is independent; send its messages as history for the next turn.
+   * @default false
+   * @type boolean | undefined
    */
-  output_format?: InputFalAiNanoBananaProEditOutputFormatEnumKey
+  return_history?: boolean
   /**
    * @description The aspect ratio of the generated image, including 1:4, 4:1, 1:8 and 8:1.
    * @default auto
    */
   aspect_ratio?: InputFalAiNanoBananaProEditAspectRatioKey | null
+  /**
+   * @description Sampling temperature. Omit to use the provider default of 1. Explicit values use a direct Google or Vertex API.
+   */
+  temperature?: number | null
+  /**
+   * @description Previous native user/model turns. Replay a returned conversation's messages unchanged, including thought signatures; the current prompt is appended as a new user turn.
+   * @type array | undefined
+   */
+  history?: GeminiMessage77B795F6[]
   /**
    * @description The URLs of the images to use for image-to-image generation or image editing.
    * @example ["https://storage.googleapis.com/falserverless/example_inputs/nano-banana-edit-input.png","https://storage.googleapis.com/falserverless/example_inputs/nano-banana-edit-input-2.png"]
@@ -59934,9 +65782,50 @@ export type InputFalAiNanoBananaProEdit = {
    */
   image_urls?: string[]
   /**
-   * @description Maximum output tokens for the generation. Omit to retain the provider default. Explicit values use a direct Google or Vertex API.
+   * @description The seed for the random number generator.
    */
-  max_output_tokens?: number | null
+  seed?: number | null
+  /**
+   * @description Experimental parameter to limit the number of generations from each round of prompting to 1. Set to `True` to to disregard any instructions in the prompt regarding the number of images to generate.
+   * @default true
+   * @type boolean | undefined
+   */
+  limit_generations?: boolean
+  /**
+   * @description The resolution of the image to generate.
+   * @default '1K'
+   * @type string | undefined
+   */
+  resolution?: InputFalAiNanoBananaProEditResolutionEnumKey
+  /**
+   * @description Optional system instruction that steers the model's persona and output style across the request. Leave blank to omit; when provided, it is sent as the system instruction to Gemini (or as a system message on OpenAI-compatible providers).
+   * @maxLength 50000
+   * @default ''
+   * @type string | undefined
+   */
+  system_prompt?: string
+  /**
+   * @description If `True`, the media will be returned as a data URI and the output data won't be available in the request history.
+   * @default false
+   * @type boolean | undefined
+   */
+  sync_mode?: boolean
+  /**
+   * @description Nucleus sampling probability. Omit to use the provider default of 0.95. Explicit values use a direct Google or Vertex API.
+   */
+  top_p?: number | null
+  /**
+   * @description Enable web search for the image generation task. This will allow the model to use the latest information from the web to generate the image.
+   * @default false
+   * @type boolean | undefined
+   */
+  enable_web_search?: boolean
+  /**
+   * @description The format of the generated image.
+   * @default 'png'
+   * @type string | undefined
+   */
+  output_format?: InputFalAiNanoBananaProEditOutputFormatEnumKey
   /**
    * @description The number of images to generate.
    * @minimum 1
@@ -59946,45 +65835,27 @@ export type InputFalAiNanoBananaProEdit = {
    */
   num_images?: number
   /**
+   * @description Thinking effort. Pro Image supports only high; omit to retain its provider default. An explicit level requests summaries unless include_thoughts overrides it. Thinking cannot be disabled.
+   */
+  thinking_level?: 'high' | null
+  /**
    * @description Ordered text, original images, PDF or UTF-8 text documents appended to the current prompt. Uses a native provider. Images count toward the total 14-reference limit.
    * @type array | undefined
    */
   context?: (
-    | (GeminiTextPart8D9C2C32 & {
+    | (GeminiTextPart7D14Af1D & {
         type: 'text'
       })
-    | (GeminiImagePartD3D9Ce54 & {
+    | (GeminiImagePartF56Ec027 & {
         type: 'image'
       })
-    | (GeminiDocumentPart4Ac48104 & {
+    | (GeminiDocumentPart60D0E657 & {
         type: 'document'
       })
-    | (GeminiSignaturePart39F8B9Cb & {
+    | (GeminiSignaturePart0Bb793E2 & {
         type: 'signature'
       })
   )[]
-  /**
-   * @description Previous native user/model turns. Replay a returned conversation's messages unchanged, including thought signatures; the current prompt is appended as a new user turn.
-   * @type array | undefined
-   */
-  history?: GeminiMessage5905Bcd7[]
-  /**
-   * @description Optional system instruction that steers the model's persona and output style across the request. Leave blank to omit; when provided, it is sent as the system instruction to Gemini (or as a system message on OpenAI-compatible providers).
-   * @maxLength 50000
-   * @default ''
-   * @type string | undefined
-   */
-  system_prompt?: string
-  /**
-   * @description Sampling temperature. Omit to use the provider default of 1. Explicit values use a direct Google or Vertex API.
-   */
-  temperature?: number | null
-  /**
-   * @description Return reusable native conversations with original image parts and provider thought signatures. Uses a native provider. Each generated conversation is independent; send its messages as history for the next turn.
-   * @default false
-   * @type boolean | undefined
-   */
-  return_history?: boolean
   /**
    * @description The prompt for image editing.
    * @minLength 3
@@ -59993,31 +65864,13 @@ export type InputFalAiNanoBananaProEdit = {
    * @type string
    */
   prompt: string
-  /**
-   * @description Thinking effort. Pro Image supports only high; omit to retain its provider default. An explicit level requests summaries unless include_thoughts overrides it. Thinking cannot be disabled.
-   */
-  thinking_level?: 'high' | null
-  /**
-   * @description The safety tolerance level for content moderation. 1 is the most strict (blocks most content), 6 is the least strict.
-   * @default '4'
-   * @type string | undefined
-   */
-  safety_tolerance?: InputFalAiNanoBananaProEditSafetyToleranceEnumKey
-  /**
-   * @description Experimental parameter to limit the number of generations from each round of prompting to 1. Set to `True` to to disregard any instructions in the prompt regarding the number of images to generate.
-   * @default true
-   * @type boolean | undefined
-   */
-  limit_generations?: boolean
-  /**
-   * @description Enable web search for the image generation task. This will allow the model to use the latest information from the web to generate the image.
-   * @default false
-   * @type boolean | undefined
-   */
-  enable_web_search?: boolean
 }
 
-export type GeminiTextPartEb739Daf = {
+export type GeminiTextPart59Cc98Da = {
+  /**
+   * @description Opaque provider-issued thought signature. Replay it unchanged on its original part.
+   */
+  thought_signature?: string | null
   /**
    * @description Text at this position in the conversation.
    * @type string
@@ -60028,30 +65881,26 @@ export type GeminiTextPartEb739Daf = {
    */
   thought?: boolean | null
   /**
-   * @description Opaque provider-issued thought signature. Replay it unchanged on its original part.
-   */
-  thought_signature?: string | null
-  /**
    * @description The text part discriminator.
    * @type string
    */
   type: 'text'
 }
 
-export type GeminiImagePart15Aa1Cb9 = {
+export type GeminiImagePart4F08D3D4 = {
   /**
-   * @description Original image URL or data URI. Replayed without resizing or re-encoding.
-   * @type string
+   * @description Opaque provider-issued thought signature. Replay it unchanged on its original part.
    */
-  image_url: string
+  thought_signature?: string | null
   /**
    * @description Provider thought marker, preserved when replaying a returned conversation.
    */
   thought?: boolean | null
   /**
-   * @description Opaque provider-issued thought signature. Replay it unchanged on its original part.
+   * @description Original image URL or data URI. Replayed without resizing or re-encoding.
+   * @type string
    */
-  thought_signature?: string | null
+  image_url: string
   /**
    * @description The image part discriminator.
    * @type string
@@ -60059,41 +65908,41 @@ export type GeminiImagePart15Aa1Cb9 = {
   type: 'image'
 }
 
-export const geminiDocumentPart5Ae264C9MimeTypeEnum = {
+export const geminiDocumentPart4B2A5E64MimeTypeEnum = {
   'application/pdf': 'application/pdf',
   'text/plain': 'text/plain',
 } as const
 
-export type GeminiDocumentPart5Ae264C9MimeTypeEnumKey =
-  (typeof geminiDocumentPart5Ae264C9MimeTypeEnum)[keyof typeof geminiDocumentPart5Ae264C9MimeTypeEnum]
+export type GeminiDocumentPart4B2A5E64MimeTypeEnumKey =
+  (typeof geminiDocumentPart4B2A5E64MimeTypeEnum)[keyof typeof geminiDocumentPart4B2A5E64MimeTypeEnum]
 
-export type GeminiDocumentPart5Ae264C9 = {
+export type GeminiDocumentPart4B2A5E64 = {
   /**
-   * @description The document part discriminator.
-   * @type string
+   * @description Opaque provider-issued thought signature. Replay it unchanged on its original part.
    */
-  type: 'document'
+  thought_signature?: string | null
+  /**
+   * @description Provider thought marker, preserved when replaying a returned conversation.
+   */
+  thought?: boolean | null
   /**
    * @description PDF or UTF-8 plain-text document URL or data URI (up to 15 MB).
    * @type string
    */
   file_url: string
   /**
-   * @description Provider thought marker, preserved when replaying a returned conversation.
-   */
-  thought?: boolean | null
-  /**
-   * @description Opaque provider-issued thought signature. Replay it unchanged on its original part.
-   */
-  thought_signature?: string | null
-  /**
    * @description The document's media type.
    * @type string
    */
-  mime_type: GeminiDocumentPart5Ae264C9MimeTypeEnumKey
+  mime_type: GeminiDocumentPart4B2A5E64MimeTypeEnumKey
+  /**
+   * @description The document part discriminator.
+   * @type string
+   */
+  type: 'document'
 }
 
-export type GeminiVideoPart2104D1Cf = {
+export type GeminiVideoPartBbc64Cba = {
   /**
    * @description Video URL or data URI (up to 15 MB and 120 seconds), or a YouTube URL. Supported by Flash Image only.
    * @type string
@@ -60114,11 +65963,7 @@ export type GeminiVideoPart2104D1Cf = {
   type: 'video'
 }
 
-export type GeminiSignaturePart14Eef18A = {
-  /**
-   * @description Provider thought marker, preserved when replaying a returned conversation.
-   */
-  thought?: boolean | null
+export type GeminiSignaturePartF1Ca02D1 = {
   /**
    * @description Provider-issued signature-only part, replayed unchanged.
    * @minLength 1
@@ -60126,26 +65971,30 @@ export type GeminiSignaturePart14Eef18A = {
    */
   thought_signature: string
   /**
+   * @description Provider thought marker, preserved when replaying a returned conversation.
+   */
+  thought?: boolean | null
+  /**
    * @description The signature part discriminator.
    * @type string
    */
   type: 'signature'
 }
 
-export type GeminiAudioPart87D20Dee = {
+export type GeminiAudioPart5557B61D = {
   /**
-   * @description Original audio URL or data URI from a previous Flash Image request (up to 15 MB).
-   * @type string
+   * @description Opaque provider-issued thought signature. Replay it unchanged on its original part.
    */
-  audio_url: string
+  thought_signature?: string | null
   /**
    * @description Provider thought marker, preserved when replaying a returned conversation.
    */
   thought?: boolean | null
   /**
-   * @description Opaque provider-issued thought signature. Replay it unchanged on its original part.
+   * @description Original audio URL or data URI from a previous Flash Image request (up to 15 MB).
+   * @type string
    */
-  thought_signature?: string | null
+  audio_url: string
   /**
    * @description The audio part discriminator.
    * @type string
@@ -60153,36 +66002,36 @@ export type GeminiAudioPart87D20Dee = {
   type: 'audio'
 }
 
-export const geminiVideoMessage2402535FRoleEnum = {
+export const geminiVideoMessage680E924ARoleEnum = {
   user: 'user',
   model: 'model',
 } as const
 
-export type GeminiVideoMessage2402535FRoleEnumKey =
-  (typeof geminiVideoMessage2402535FRoleEnum)[keyof typeof geminiVideoMessage2402535FRoleEnum]
+export type GeminiVideoMessage680E924ARoleEnumKey =
+  (typeof geminiVideoMessage680E924ARoleEnum)[keyof typeof geminiVideoMessage680E924ARoleEnum]
 
-export type GeminiVideoMessage2402535F = {
+export type GeminiVideoMessage680E924A = {
   /**
    * @description Ordered text, image, document, video, audio, and signature parts.
    * @type array
    */
   parts: (
-    | (GeminiTextPartEb739Daf & {
+    | (GeminiTextPart59Cc98Da & {
         type: 'text'
       })
-    | (GeminiImagePart15Aa1Cb9 & {
+    | (GeminiImagePart4F08D3D4 & {
         type: 'image'
       })
-    | (GeminiDocumentPart5Ae264C9 & {
+    | (GeminiDocumentPart4B2A5E64 & {
         type: 'document'
       })
-    | (GeminiVideoPart2104D1Cf & {
+    | (GeminiVideoPartBbc64Cba & {
         type: 'video'
       })
-    | (GeminiSignaturePart14Eef18A & {
+    | (GeminiSignaturePartF1Ca02D1 & {
         type: 'signature'
       })
-    | (GeminiAudioPart87D20Dee & {
+    | (GeminiAudioPart5557B61D & {
         type: 'audio'
       })
   )[]
@@ -60190,27 +66039,18 @@ export type GeminiVideoMessage2402535F = {
    * @description Native Gemini conversation role.
    * @type string
    */
-  role: GeminiVideoMessage2402535FRoleEnumKey
+  role: GeminiVideoMessage680E924ARoleEnumKey
 }
 
-export type GeminiConversationE6Db0D06 = {
+export type GeminiConversation0D588C45 = {
   /**
    * @description One complete provider conversation. Pass messages as history in the next request, retaining every signature and part.
    * @type array
    */
-  messages: GeminiVideoMessage2402535F[]
+  messages: GeminiVideoMessage680E924A[]
 }
 
-export type ImageFileFe75C38F = {
-  /**
-   * @description The URL where the file can be downloaded from.
-   * @type string
-   */
-  url: string
-  /**
-   * @description The height of the image
-   */
-  height?: number | null
+export type ImageFile56Fe6D7A = {
   /**
    * @description The name of the file. It will be auto-generated if not provided.
    * @example z9RV14K95DvU.png
@@ -60222,9 +66062,18 @@ export type ImageFileFe75C38F = {
    */
   file_size?: number | null
   /**
+   * @description The URL where the file can be downloaded from.
+   * @type string
+   */
+  url: string
+  /**
    * @description The width of the image
    */
   width?: number | null
+  /**
+   * @description The height of the image
+   */
+  height?: number | null
   /**
    * @description The mime type of the file.
    * @example image/png
@@ -60234,26 +66083,26 @@ export type ImageFileFe75C38F = {
 
 export type OutputFalAiNanoBananaProEdit = {
   /**
-   * @description Reusable per-generation conversations, populated only when return_history is true. Retain every part and thought signature when continuing a conversation.
+   * @description Provider grounding metadata for the generated images, including search queries, source pages and image-source attribution when available.
    * @type array | undefined
    */
-  conversations?: GeminiConversationE6Db0D06[]
-  /**
-   * @description The edited images.
-   * @example [{"url":"https://storage.googleapis.com/falserverless/example_outputs/nano-banana-pro-edit-output.png","file_name":"nano-banana-pro-edit-output.png","content_type":"image/png"}]
-   * @type array
-   */
-  images: ImageFileFe75C38F[]
+  grounding_metadata?: object[]
   /**
    * @description The description of the generated images.
    * @type string
    */
   description: string
   /**
-   * @description Provider grounding metadata for the generated images, including search queries, source pages and image-source attribution when available.
+   * @description Reusable per-generation conversations, populated only when return_history is true. Retain every part and thought signature when continuing a conversation.
    * @type array | undefined
    */
-  grounding_metadata?: object[]
+  conversations?: GeminiConversation0D588C45[]
+  /**
+   * @description The edited images.
+   * @example [{"file_name":"nano-banana-pro-edit-output.png","url":"https://storage.googleapis.com/falserverless/example_outputs/nano-banana-pro-edit-output.png","content_type":"image/png"}]
+   * @type array
+   */
+  images: ImageFile56Fe6D7A[]
 }
 
 export const inputFalAiNanoBananaEditOutputFormatEnum = {
@@ -60831,6 +66680,320 @@ export type OutputFalAiObjectRemovalMask = {
   images: Image7B8Fb7C0[]
 }
 
+export type InputFalAiOmniZero = {
+  /**
+   * @description Face strength.
+   * @default 1
+   * @example 1
+   * @type number | undefined
+   */
+  face_strength?: number
+  /**
+   * @description Composition strength.
+   * @default 1
+   * @example 1
+   * @type number | undefined
+   */
+  composition_strength?: number
+  /**
+   * @description Negative prompt to guide the image generation.
+   * @default ''
+   * @example
+   * @type string | undefined
+   */
+  negative_prompt?: string
+  /**
+   * @description Style strength.
+   * @default 1
+   * @example 1
+   * @type number | undefined
+   */
+  style_strength?: number
+  /**
+   * @description Authorized callers may set false to request relaxed screening.
+   * @default true
+   * @type boolean | undefined
+   */
+  enable_safety_checker?: boolean
+  /**
+   * @description Input image url.
+   * @example https://storage.googleapis.com/falserverless/model_tests/omni_zero/structure.jpg
+   * @type string
+   */
+  image_url: string
+  /**
+   * @description Image strength.
+   * @default 0.75
+   * @example 0.75
+   * @type number | undefined
+   */
+  image_strength?: number
+  /**
+   * @description Prompt to guide the image generation.
+   * @example A woman
+   * @type string
+   */
+  prompt: string
+  /**
+   * @description Guidance scale.
+   * @default 5
+   * @example 5
+   * @type number | undefined
+   */
+  guidance_scale?: number
+  /**
+   * @description Identity image url.
+   * @example https://storage.googleapis.com/falserverless/model_tests/omni_zero/identity.jpg
+   * @type string
+   */
+  identity_image_url: string
+  /**
+   * @description Seed.
+   * @default 42
+   * @example 42
+   * @type integer | undefined
+   */
+  seed?: number
+  /**
+   * @description Identity strength.
+   * @default 1
+   * @example 1
+   * @type number | undefined
+   */
+  identity_strength?: number
+  /**
+   * @description Style image url.
+   * @example https://storage.googleapis.com/falserverless/model_tests/omni_zero/style.jpg
+   * @type string
+   */
+  style_image_url: string
+  /**
+   * @description Number of images.
+   * @default 1
+   * @example 1
+   * @type integer | undefined
+   */
+  number_of_images?: number
+  /**
+   * @description Depth strength.
+   * @default 0.5
+   * @example 0.5
+   * @type number | undefined
+   */
+  depth_strength?: number
+  /**
+   * @description Composition image url.
+   * @example https://storage.googleapis.com/falserverless/model_tests/omni_zero/structure.jpg
+   * @type string
+   */
+  composition_image_url: string
+}
+
+/**
+ * @description Represents an image file.
+ * @type object
+ */
+export type ImageB4286419 = {
+  /**
+   * @description The size of the file in bytes.
+   * @example 4404019
+   */
+  file_size?: number | null
+  /**
+   * @description The height of the image in pixels.
+   * @example 1024
+   */
+  height?: number | null
+  /**
+   * @description The width of the image in pixels.
+   * @example 1024
+   */
+  width?: number | null
+  /**
+   * @description The URL where the file can be downloaded from.
+   * @type string
+   */
+  url: string
+  /**
+   * @description The name of the file. It will be auto-generated if not provided.
+   * @example z9RV14K95DvU.png
+   */
+  file_name?: string | null
+  /**
+   * @description The mime type of the file.
+   * @example image/png
+   */
+  content_type?: string | null
+}
+
+export type OutputFalAiOmniZero = {
+  /**
+   * @description The generated image.
+   * @example {"height":1024,"width":1024,"url":"https://storage.googleapis.com/falserverless/model_tests/omni_zero/result.png","content_type":"image/png"}
+   * @type object
+   */
+  image: ImageB4286419
+}
+
+export type ImageSizeE6Db39D3 = {
+  /**
+   * @description The height of the generated image.
+   * @maximum 14142
+   * @default 512
+   * @type integer | undefined
+   */
+  height?: number
+  /**
+   * @description The width of the generated image.
+   * @maximum 14142
+   * @default 512
+   * @type integer | undefined
+   */
+  width?: number
+}
+
+export const inputFalAiOmnigenV1OutputFormatEnum = {
+  jpeg: 'jpeg',
+  png: 'png',
+} as const
+
+export type InputFalAiOmnigenV1OutputFormatEnumKey =
+  (typeof inputFalAiOmnigenV1OutputFormatEnum)[keyof typeof inputFalAiOmnigenV1OutputFormatEnum]
+
+export const inputFalAiOmnigenV1ImageSize = {
+  square_hd: 'square_hd',
+  square: 'square',
+  portrait_4_3: 'portrait_4_3',
+  portrait_16_9: 'portrait_16_9',
+  landscape_4_3: 'landscape_4_3',
+  landscape_16_9: 'landscape_16_9',
+} as const
+
+export type InputFalAiOmnigenV1ImageSizeKey =
+  (typeof inputFalAiOmnigenV1ImageSize)[keyof typeof inputFalAiOmnigenV1ImageSize]
+
+export type InputFalAiOmnigenV1 = {
+  /**
+   * @description The format of the generated image.
+   * @default 'jpeg'
+   * @type string | undefined
+   */
+  output_format?: InputFalAiOmnigenV1OutputFormatEnumKey
+  /**
+   * @description The prompt to generate an image from.
+   * @example Neon words "Omni Gen" are flashing in the prosperous future city, the sense of science and technology, quality details, hyper realistic, high definition, 8K, photo, best quality, high quality.
+   * @type string
+   */
+  prompt: string
+  /**
+   * @description
+   *             The same seed and the same prompt given to the same version of the model
+   *             will output the same image every time.
+   *
+   */
+  seed?: number | null
+  /**
+   * @description
+   *             The CFG (Classifier Free Guidance) scale is a measure of how close you want
+   *             the model to stick to your prompt when looking for a related image to show you.
+   *
+   * @minimum 0
+   * @maximum 20
+   * @default 3
+   * @type number | undefined
+   */
+  guidance_scale?: number
+  /**
+   * @description The number of inference steps to perform.
+   * @minimum 1
+   * @maximum 50
+   * @default 50
+   * @type integer | undefined
+   */
+  num_inference_steps?: number
+  /**
+   * @description The size of the generated image.
+   * @default square_hd
+   */
+  image_size?: ImageSizeE6Db39D3 | InputFalAiOmnigenV1ImageSizeKey
+  /**
+   * @description If `True`, the media will be returned as a data URI and the output data won't be available in the request history.
+   * @default false
+   * @type boolean | undefined
+   */
+  sync_mode?: boolean
+  /**
+   * @description If set to true, the safety checker will be enabled. Disabling it requires account authorization; unauthorized requests are always checked, and images flagged as unsafe are returned as black images.
+   * @default true
+   * @type boolean | undefined
+   */
+  enable_safety_checker?: boolean
+  /**
+   * @description URL of images to use while generating the image, Use <img><|image_1|></img> for the first image and so on.
+   * @default []
+   * @type array | undefined
+   */
+  input_image_urls?: string[]
+  /**
+   * @description
+   *             The Image Guidance scale is a measure of how close you want
+   *             the model to stick to your input image when looking for a related image to show you.
+   *
+   * @minimum 0
+   * @maximum 20
+   * @default 1.6
+   * @type number | undefined
+   */
+  img_guidance_scale?: number
+  /**
+   * @description The number of images to generate.
+   * @minimum 1
+   * @maximum 4
+   * @default 1
+   * @type integer | undefined
+   */
+  num_images?: number
+}
+
+export type ImageEdd1Fcd3 = {
+  height: number
+  /**
+   * @default image/jpeg
+   */
+  content_type?: string | null
+  width: number
+  url: string
+}
+
+export type OutputFalAiOmnigenV1 = {
+  timings: {
+    [key: string]: number
+  }
+  /**
+   * @description
+   *             Seed of the generated Image. It will be the same value of the one passed in the
+   *             input or the randomly generated that was used in case none was passed.
+   *
+   * @type integer
+   */
+  seed: number
+  /**
+   * @description The generated image files info.
+   * @type array
+   */
+  images: ImageEdd1Fcd3[]
+  /**
+   * @description Whether the generated images contain NSFW concepts.
+   * @type array
+   */
+  has_nsfw_concepts: boolean[]
+  /**
+   * @description The prompt used for generating the image.
+   * @type string
+   */
+  prompt: string
+}
+
 export type ImageSizeB863A47A = {
   /**
    * @description The width of the generated image.
@@ -61029,6 +67192,260 @@ export type OutputFalAiOmnigenV2 = {
    * @type array
    */
   has_nsfw_concepts: boolean[]
+}
+
+export type ImageSize07054E45 = {
+  /**
+   * @description The width of the generated image.
+   * @maximum 14142
+   * @default 512
+   * @type integer | undefined
+   */
+  width?: number
+  /**
+   * @description The height of the generated image.
+   * @maximum 14142
+   * @default 512
+   * @type integer | undefined
+   */
+  height?: number
+}
+
+export const inputFalAiOvisImageImageSize = {
+  square_hd: 'square_hd',
+  square: 'square',
+  portrait_4_3: 'portrait_4_3',
+  portrait_16_9: 'portrait_16_9',
+  landscape_4_3: 'landscape_4_3',
+  landscape_16_9: 'landscape_16_9',
+} as const
+
+export type InputFalAiOvisImageImageSizeKey =
+  (typeof inputFalAiOvisImageImageSize)[keyof typeof inputFalAiOvisImageImageSize]
+
+export const inputFalAiOvisImageOutputFormatEnum = {
+  jpeg: 'jpeg',
+  png: 'png',
+  webp: 'webp',
+} as const
+
+export type InputFalAiOvisImageOutputFormatEnumKey =
+  (typeof inputFalAiOvisImageOutputFormatEnum)[keyof typeof inputFalAiOvisImageOutputFormatEnum]
+
+export const inputFalAiOvisImageAccelerationEnum = {
+  none: 'none',
+  regular: 'regular',
+  high: 'high',
+} as const
+
+export type InputFalAiOvisImageAccelerationEnumKey =
+  (typeof inputFalAiOvisImageAccelerationEnum)[keyof typeof inputFalAiOvisImageAccelerationEnum]
+
+export type InputFalAiOvisImage = {
+  /**
+   * @description The prompt to generate an image from.
+   * @example The moment of digital upload, a human breaking apart into 3D voxels, leaving a grey world for a technicolor void, dynamic action shot, particle physics simulation, bright neon colors.
+   * @type string
+   */
+  prompt: string
+  /**
+   * @description The number of images to generate.
+   * @minimum 1
+   * @maximum 4
+   * @default 1
+   * @type integer | undefined
+   */
+  num_images?: number
+  /**
+   * @description The number of inference steps to perform.
+   * @minimum 1
+   * @maximum 50
+   * @default 28
+   * @type integer | undefined
+   */
+  num_inference_steps?: number
+  /**
+   * @description The guidance scale to use for the image generation.
+   * @minimum 1
+   * @maximum 20
+   * @default 5
+   * @type number | undefined
+   */
+  guidance_scale?: number
+  /**
+   * @description If set to true, the safety checker will be enabled. Disabling it requires account authorization; unauthorized requests are always checked, and images flagged as unsafe are returned as black images.
+   * @default true
+   * @type boolean | undefined
+   */
+  enable_safety_checker?: boolean
+  /**
+   * @description
+   *             The same seed and the same prompt given to the same version of the model
+   *             will output the same image every time.
+   *
+   */
+  seed?: number | null
+  /**
+   * @description The size of the generated image.
+   * @default landscape_4_3
+   */
+  image_size?: ImageSize07054E45 | InputFalAiOvisImageImageSizeKey
+  /**
+   * @description The format of the generated image.
+   * @default 'png'
+   * @type string | undefined
+   */
+  output_format?: InputFalAiOvisImageOutputFormatEnumKey
+  /**
+   * @description If `True`, the media will be returned as a data URI and the output data won't be available in the request history.
+   * @default false
+   * @type boolean | undefined
+   */
+  sync_mode?: boolean
+  /**
+   * @description The negative prompt to generate an image from.
+   * @default ''
+   * @type string | undefined
+   */
+  negative_prompt?: string
+  /**
+   * @description The acceleration level to use.
+   * @default 'regular'
+   * @type string | undefined
+   */
+  acceleration?: InputFalAiOvisImageAccelerationEnumKey
+}
+
+export type Image1917Acff = {
+  /**
+   * @default image/jpeg
+   */
+  content_type?: string | null
+  height: number
+  width: number
+  url: string
+}
+
+export type OutputFalAiOvisImage = {
+  timings: {
+    [key: string]: number
+  }
+  /**
+   * @description The generated image files info.
+   * @example [{"content_type":"image/png","height":768,"width":1024,"url":"https://storage.googleapis.com/falserverless/example_outputs/ovis_image_output.png"}]
+   * @type array
+   */
+  images: Image1917Acff[]
+  /**
+   * @description Whether the generated images contain NSFW concepts.
+   * @type array
+   */
+  has_nsfw_concepts: boolean[]
+  /**
+   * @description
+   *             Seed of the generated Image. It will be the same value of the one passed in the
+   *             input or the randomly generated that was used in case none was passed.
+   *
+   * @type integer
+   */
+  seed: number
+  /**
+   * @description The prompt used for generating the image.
+   * @type string
+   */
+  prompt: string
+}
+
+export type InputFalAiPasd = {
+  /**
+   * @description Number of inference steps (10-50)
+   * @default 25
+   */
+  steps?: number | null
+  /**
+   * @description Input image to super-resolve
+   * @example https://storage.googleapis.com/falserverless/model_tests/svd/rocket.png
+   * @type string
+   */
+  image_url: string
+  /**
+   * @description Additional prompt to guide super-resolution
+   * @default
+   */
+  prompt?: string | null
+  /**
+   * @description Guidance scale for diffusion (1.0-20.0)
+   * @default 7
+   */
+  guidance_scale?: number | null
+  /**
+   * @description Negative prompt to avoid unwanted artifacts
+   * @default blurry, dirty, messy, frames, deformed, dotted, noise, raster lines, unclear, lowres, over-smoothed, painting, ai generated
+   */
+  negative_prompt?: string | null
+  /**
+   * @description Upscaling factor (1-4x)
+   * @default 2
+   */
+  scale?: number | null
+  /**
+   * @description ControlNet conditioning scale (0.1-1.0)
+   * @default 0.8
+   */
+  conditioning_scale?: number | null
+}
+
+/**
+ * @description Represents an image file.
+ * @type object
+ */
+export type Image266Aa983 = {
+  /**
+   * @description The URL where the file can be downloaded from.
+   * @type string
+   */
+  url: string
+  /**
+   * @description The width of the image in pixels.
+   * @example 1024
+   */
+  width?: number | null
+  /**
+   * @description The height of the image in pixels.
+   * @example 1024
+   */
+  height?: number | null
+  /**
+   * @description The size of the file in bytes.
+   * @example 4404019
+   */
+  file_size?: number | null
+  /**
+   * @description The mime type of the file.
+   * @example image/png
+   */
+  content_type?: string | null
+  /**
+   * @description The name of the file. It will be auto-generated if not provided.
+   * @example z9RV14K95DvU.png
+   */
+  file_name?: string | null
+}
+
+export type OutputFalAiPasd = {
+  /**
+   * @description Timing information for different processing stages
+   * @type object | undefined
+   */
+  timings?: {
+    [key: string]: number
+  }
+  /**
+   * @description The generated super-resolved images
+   * @example [{"url":"https://v3.fal.media/files/koala/ncEbdm4Ig6dAGBp-3dR63_4732818e18b542ca8dc3f0e6c1775ac8.png","width":1024,"height":1024,"file_size":2010575,"content_type":"image/png","file_name":"4732818e18b542ca8dc3f0e6c1775ac8.png"}]
+   * @type array
+   */
+  images: Image266Aa983[]
 }
 
 export const inputFalAiPatinaMapsEnum = {
@@ -62058,6 +68475,1242 @@ export type OutputFalAiPhotaEnhance = {
    * @type array
    */
   images: ImageFile4Abd33Bd[]
+}
+
+export const inputFalAiPhotomakerStyleEnum = {
+  '(No style)': '(No style)',
+  Cinematic: 'Cinematic',
+  'Disney Character': 'Disney Character',
+  'Digital Art': 'Digital Art',
+  Photographic: 'Photographic',
+  'Fantasy art': 'Fantasy art',
+  Neonpunk: 'Neonpunk',
+  Enhance: 'Enhance',
+  'Comic book': 'Comic book',
+  Lowpoly: 'Lowpoly',
+  'Line art': 'Line art',
+} as const
+
+export type InputFalAiPhotomakerStyleEnumKey =
+  (typeof inputFalAiPhotomakerStyleEnum)[keyof typeof inputFalAiPhotomakerStyleEnum]
+
+export const inputFalAiPhotomakerBasePipelineEnum = {
+  photomaker: 'photomaker',
+  'photomaker-style': 'photomaker-style',
+} as const
+
+export type InputFalAiPhotomakerBasePipelineEnumKey =
+  (typeof inputFalAiPhotomakerBasePipelineEnum)[keyof typeof inputFalAiPhotomakerBasePipelineEnum]
+
+export type InputFalAiPhotomaker = {
+  /**
+   * @minimum 15
+   * @maximum 50
+   * @default 20
+   * @type integer | undefined
+   */
+  style_strength?: number
+  /**
+   * @description How much noise to add to the latent image. O for no noise, 1 for maximum noise.
+   * @minimum 0
+   * @maximum 1
+   * @default 0.5
+   * @type number | undefined
+   */
+  initial_image_strength?: number
+  /**
+   * @description
+   *             The CFG (Classifier Free Guidance) scale is a measure of how close you want
+   *             the model to stick to your prompt when looking for a related image to show you.
+   *
+   * @minimum 1
+   * @maximum 10
+   * @default 5
+   * @type number | undefined
+   */
+  guidance_scale?: number
+  /**
+   * @description The prompt to use for generating the image. Be as descriptive as possible for best results.
+   * @example instagram photo, portrait photo of a man img, colorful, perfect face, natural skin, hard shadows, film grain
+   * @type string
+   */
+  prompt: string
+  /**
+   * @description
+   *             Number of images to generate in one request. Note that the higher the batch size,
+   *             the longer it will take to generate the images.
+   *
+   * @minimum 1
+   * @maximum 4
+   * @default 1
+   * @type integer | undefined
+   */
+  num_images?: number
+  /**
+   * @default 'Photographic'
+   * @type string | undefined
+   */
+  style?: InputFalAiPhotomakerStyleEnumKey
+  /**
+   * @description
+   *             Increasing the amount of steps tells Stable Diffusion that it should take more steps
+   *             to generate your final result which can increase the amount of detail in your image.
+   *
+   * @minimum 20
+   * @maximum 100
+   * @default 50
+   * @type integer | undefined
+   */
+  num_inference_steps?: number
+  /**
+   * @description
+   *             The negative prompt to use.Use it to address details that you don't want
+   *             in the image. This could be colors, objects, scenery and even the small details
+   *             (e.g. moustache, blurry, low resolution).
+   *
+   * @default ''
+   * @example nsfw, lowres, bad anatomy, bad hands, text, error, missing fingers, extra digit, fewer digits, cropped, worst quality, low quality, normal quality, jpeg artifacts, signature, watermark, username, blurry
+   * @type string | undefined
+   */
+  negative_prompt?: string
+  /**
+   * @description
+   *             The same seed and the same prompt given to the same version of Stable Diffusion
+   *             will output the same image every time.
+   *
+   * @example 42
+   */
+  seed?: number | null
+  /**
+   * @description Optional initial image for img2img
+   */
+  initial_image_url?: string | null
+  /**
+   * @description The URL of the image archive containing the images you want to use.
+   * @example https://storage.googleapis.com/falserverless/model_tests/photomaker/elon.zip
+   * @type string
+   */
+  image_archive_url: string
+  /**
+   * @description The base pipeline to use for generating the image.
+   * @default 'photomaker'
+   * @type string | undefined
+   */
+  base_pipeline?: InputFalAiPhotomakerBasePipelineEnumKey
+  /**
+   * @description Authorized callers may set false to request relaxed screening.
+   * @default true
+   * @type boolean | undefined
+   */
+  enable_safety_checker?: boolean
+}
+
+/**
+ * @description Represents an image file.
+ * @type object
+ */
+export type Image76C202Bf = {
+  /**
+   * @description The name of the file. It will be auto-generated if not provided.
+   * @example z9RV14K95DvU.png
+   */
+  file_name?: string | null
+  /**
+   * @description The height of the image in pixels.
+   * @example 1024
+   */
+  height?: number | null
+  /**
+   * @description The mime type of the file.
+   * @example image/png
+   */
+  content_type?: string | null
+  /**
+   * @description The URL where the file can be downloaded from.
+   * @type string
+   */
+  url: string
+  /**
+   * @description The size of the file in bytes.
+   * @example 4404019
+   */
+  file_size?: number | null
+  /**
+   * @description The width of the image in pixels.
+   * @example 1024
+   */
+  width?: number | null
+}
+
+export type OutputFalAiPhotomaker = {
+  /**
+   * @example [{"file_name":"87374b9db2b74f5792839b19d9b29a9a.png","width":1024,"height":1024,"url":"https://storage.googleapis.com/falserverless/model_tests/photomaker/elon-output.png","file_size":1785567,"content_type":"image/png"}]
+   * @type array
+   */
+  images: Image76C202Bf[]
+  seed: number
+}
+
+export type ImageSizeF3704Cbc = {
+  /**
+   * @description The width of the generated image.
+   * @maximum 14142
+   * @default 512
+   * @type integer | undefined
+   */
+  width?: number
+  /**
+   * @description The height of the generated image.
+   * @maximum 14142
+   * @default 512
+   * @type integer | undefined
+   */
+  height?: number
+}
+
+export const inputFalAiPixartSigmaImageSize = {
+  square_hd: 'square_hd',
+  square: 'square',
+  portrait_4_3: 'portrait_4_3',
+  portrait_16_9: 'portrait_16_9',
+  landscape_4_3: 'landscape_4_3',
+  landscape_16_9: 'landscape_16_9',
+} as const
+
+export type InputFalAiPixartSigmaImageSizeKey =
+  (typeof inputFalAiPixartSigmaImageSize)[keyof typeof inputFalAiPixartSigmaImageSize]
+
+export const inputFalAiPixartSigmaStyleEnum = {
+  '(No style)': '(No style)',
+  Cinematic: 'Cinematic',
+  Photographic: 'Photographic',
+  Anime: 'Anime',
+  Manga: 'Manga',
+  'Digital Art': 'Digital Art',
+  'Pixel art': 'Pixel art',
+  'Fantasy art': 'Fantasy art',
+  Neonpunk: 'Neonpunk',
+  '3D Model': '3D Model',
+} as const
+
+export type InputFalAiPixartSigmaStyleEnumKey =
+  (typeof inputFalAiPixartSigmaStyleEnum)[keyof typeof inputFalAiPixartSigmaStyleEnum]
+
+export const inputFalAiPixartSigmaSchedulerEnum = {
+  'DPM-SOLVER': 'DPM-SOLVER',
+  'SA-SOLVER': 'SA-SOLVER',
+} as const
+
+export type InputFalAiPixartSigmaSchedulerEnumKey =
+  (typeof inputFalAiPixartSigmaSchedulerEnum)[keyof typeof inputFalAiPixartSigmaSchedulerEnum]
+
+export type InputFalAiPixartSigma = {
+  /**
+   * @description The size of the generated image.
+   * @default square_hd
+   */
+  image_size?: ImageSizeF3704Cbc | InputFalAiPixartSigmaImageSizeKey
+  /**
+   * @description The number of images to generate.
+   * @minimum 1
+   * @maximum 8
+   * @default 1
+   * @type integer | undefined
+   */
+  num_images?: number
+  /**
+   * @description The style to apply to the image.
+   * @default '(No style)'
+   * @type string | undefined
+   */
+  style?: InputFalAiPixartSigmaStyleEnumKey
+  /**
+   * @description The prompt to use for generating the image. Be as descriptive as possible for best results.
+   * @example Photorealistic closeup video of two pirate ships battling each other as they sail inside a cup of coffee.
+   * @example an astronaut sitting in a diner, eating fries, cinematic, analog film
+   * @example Pirate ship trapped in a cosmic maelstrom nebula, rendered in cosmic beach whirlpool engine, volumetric lighting, spectacular, ambient lights, light pollution, cinematic atmosphere, art nouveau style, illustration art artwork by SenseiJaye, intricate detail.
+   * @example stars, water, brilliantly, gorgeous large scale scene, a little girl, in the style of dreamy realism, light gold and amber, blue and pink, brilliantly illuminated in the background.
+   * @example professional portrait photo of an anthropomorphic cat wearing fancy gentleman hat and jacket walking in autumn forest.
+   * @example beautiful lady, freckles, big smile, blue eyes, short ginger hair, dark makeup, wearing a floral blue vest top, soft light, dark grey background
+   * @example Spectacular Tiny World in the Transparent Jar On the Table, interior of the Great Hall, Elaborate, Carved Architecture, Anatomy, Symmetrical, Geometric and Parameteric Details, Precision Flat line Details, Pattern, Dark fantasy, Dark errie mood and ineffably mysterious mood, Technical design, Intricate Ultra Detail, Ornate Detail, Stylized and Futuristic and Biomorphic Details, Architectural Concept, Low contrast Details, Cinematic Lighting, 8k, by moebius, Fullshot, Epic, Fullshot, Octane render, Unreal ,Photorealistic, Hyperrealism
+   * @example anthropomorphic profile of the white snow owl Crystal priestess , art deco painting, pretty and expressive eyes, ornate costume, mythical, ethereal, intricate, elaborate, hyperrealism, hyper detailed, 3D, 8K, Ultra Realistic, high octane, ultra resolution, amazing detail, perfection, In frame, photorealistic, cinematic lighting, visual clarity, shading , Lumen Reflections, Super-Resolution, gigapixel, color grading, retouch, enhanced, PBR, Blender, V-ray, Procreate, zBrush, Unreal Engine 5, cinematic, volumetric, dramatic, neon lighting, wide angle lens ,no digital painting blur
+   * @example The parametric hotel lobby is a sleek and modern space with plenty of natural light. The lobby is spacious and open with a variety of seating options. The front desk is a sleek white counter with a parametric design. The walls are a light blue color with parametric patterns. The floor is a light wood color with a parametric design. There are plenty of plants and flowers throughout the space. The overall effect is a calm and relaxing space. occlusion, moody, sunset, concept art, octane rendering, 8k, highly detailed, concept art, highly detailed, beautiful scenery, cinematic, beautiful light, hyperreal, octane render, hdr, long exposure, 8K, realistic, fog, moody, fire and explosions, smoke, 50mm f2.8
+   * @type string
+   */
+  prompt: string
+  /**
+   * @description
+   *             The negative prompt to use. Use it to address details that you don't want
+   *             in the image. This could be colors, objects, scenery and even the small details
+   *             (e.g. moustache, blurry, low resolution).
+   *
+   * @default ''
+   * @example cartoon, illustration, animation. face. male, female
+   * @example ugly, deformed
+   * @type string | undefined
+   */
+  negative_prompt?: string
+  /**
+   * @description
+   *             The same seed and the same prompt given to the same version of Stable Diffusion
+   *             will output the same image every time.
+   *
+   */
+  seed?: number | null
+  /**
+   * @description
+   *             The CFG (Classifier Free Guidance) scale is a measure of how close you want
+   *             the model to stick to your prompt when looking for a related image to show you.
+   *
+   * @minimum 1
+   * @maximum 10
+   * @default 4.5
+   * @type number | undefined
+   */
+  guidance_scale?: number
+  /**
+   * @description The scheduler to use for the model.
+   * @default 'DPM-SOLVER'
+   * @type string | undefined
+   */
+  scheduler?: InputFalAiPixartSigmaSchedulerEnumKey
+  /**
+   * @description The number of inference steps to perform.
+   * @minimum 5
+   * @maximum 50
+   * @default 35
+   * @type integer | undefined
+   */
+  num_inference_steps?: number
+  /**
+   * @description If set to true, the safety checker will be enabled.
+   * @default false
+   * @type boolean | undefined
+   */
+  enable_safety_checker?: boolean
+  /**
+   * @description If `True`, the media will be returned as a data URI and the output data won't be available in the request history.
+   * @default false
+   * @type boolean | undefined
+   */
+  sync_mode?: boolean
+}
+
+/**
+ * @description Represents an image file.
+ * @type object
+ */
+export type Image3Ce6196B = {
+  /**
+   * @description The name of the file. It will be auto-generated if not provided.
+   * @example z9RV14K95DvU.png
+   */
+  file_name?: string | null
+  /**
+   * @description The width of the image in pixels.
+   * @example 1024
+   */
+  width?: number | null
+  /**
+   * @description The mime type of the file.
+   * @example image/png
+   */
+  content_type?: string | null
+  /**
+   * @description The URL where the file can be downloaded from.
+   * @type string
+   */
+  url: string
+  /**
+   * @description The height of the image in pixels.
+   * @example 1024
+   */
+  height?: number | null
+  /**
+   * @description The size of the file in bytes.
+   * @example 4404019
+   */
+  file_size?: number | null
+}
+
+export type OutputFalAiPixartSigma = {
+  /**
+   * @description The prompt used for generating the image.
+   * @type string
+   */
+  prompt: string
+  /**
+   * @description
+   *             Seed of the generated Image. It will be the same value of the one passed in the
+   *             input or the randomly generated that was used in case none was passed.
+   *
+   * @type integer
+   */
+  seed: number
+  /**
+   * @description The timings of the different steps of the generation process.
+   * @type object
+   */
+  timings: {
+    [key: string]: number
+  }
+  /**
+   * @description Whether the generated images contain NSFW concepts.
+   * @type array
+   */
+  has_nsfw_concepts: boolean[]
+  /**
+   * @description The generated image files info.
+   * @type array
+   */
+  images: Image3Ce6196B[]
+}
+
+export type ImageSizeBf7F84E3 = {
+  /**
+   * @description The height of the generated image.
+   * @maximum 14142
+   * @default 512
+   * @type integer | undefined
+   */
+  height?: number
+  /**
+   * @description The width of the generated image.
+   * @maximum 14142
+   * @default 512
+   * @type integer | undefined
+   */
+  width?: number
+}
+
+export type EmbeddingAf4De8Fc = {
+  /**
+   * @description
+   *             The list of tokens to use for the embedding. When omitted, tokens
+   *             are generated as <s0>, <s1>, ... to match the number of vectors in
+   *             the embedding file.
+   *
+   * @default null
+   */
+  tokens?: string[] | null
+  /**
+   * @description URL or the path to the embedding weights.
+   * @example https://huggingface.co/RyuusouI/Negativexld/resolve/20515981675c6e76d5b91e2343b958d27c5ad0ab/negativeXL_D.safetensors
+   * @example https://filebin.net/3chfqasxpqu21y8n/my-custom-lora-v1.safetensors
+   * @type string
+   */
+  path: string
+}
+
+export const inputFalAiPlaygroundV25ImageSize = {
+  square_hd: 'square_hd',
+  square: 'square',
+  portrait_4_3: 'portrait_4_3',
+  portrait_16_9: 'portrait_16_9',
+  landscape_4_3: 'landscape_4_3',
+  landscape_16_9: 'landscape_16_9',
+} as const
+
+export type InputFalAiPlaygroundV25ImageSizeKey =
+  (typeof inputFalAiPlaygroundV25ImageSize)[keyof typeof inputFalAiPlaygroundV25ImageSize]
+
+export const inputFalAiPlaygroundV25FormatEnum = {
+  jpeg: 'jpeg',
+  png: 'png',
+} as const
+
+export type InputFalAiPlaygroundV25FormatEnumKey =
+  (typeof inputFalAiPlaygroundV25FormatEnum)[keyof typeof inputFalAiPlaygroundV25FormatEnum]
+
+export const inputFalAiPlaygroundV25SafetyCheckerVersionEnum = {
+  v1: 'v1',
+  v2: 'v2',
+} as const
+
+export type InputFalAiPlaygroundV25SafetyCheckerVersionEnumKey =
+  (typeof inputFalAiPlaygroundV25SafetyCheckerVersionEnum)[keyof typeof inputFalAiPlaygroundV25SafetyCheckerVersionEnum]
+
+export type InputFalAiPlaygroundV25 = {
+  /**
+   * @description
+   *             The same seed and the same prompt given to the same version of Stable Diffusion
+   *             will output the same image every time.
+   *
+   * @default null
+   */
+  seed?: number | null
+  /**
+   * @description The number of images to generate.
+   * @minimum 1
+   * @maximum 8
+   * @default 1
+   * @type integer | undefined
+   */
+  num_images?: number
+  /**
+   * @description
+   *             The negative prompt to use. Use it to address details that you don't want
+   *             in the image. This could be colors, objects, scenery and even the small details
+   *             (e.g. moustache, blurry, low resolution).
+   *
+   * @default ''
+   * @example cartoon, illustration, animation. face. male, female
+   * @example ugly, deformed
+   * @type string | undefined
+   */
+  negative_prompt?: string
+  /**
+   * @description
+   *             The CFG (Classifier Free Guidance) scale is a measure of how close you want
+   *             the model to stick to your prompt when looking for a related image to show you.
+   *
+   * @minimum 0
+   * @maximum 20
+   * @default 3
+   * @type number | undefined
+   */
+  guidance_scale?: number
+  /**
+   * @description The size of the generated image.
+   * @default square_hd
+   */
+  image_size?: ImageSizeBf7F84E3 | InputFalAiPlaygroundV25ImageSizeKey
+  /**
+   * @description The prompt to use for generating the image. Be as descriptive as possible for best results.
+   * @example Masterpiece (wide angle shot) , Easterbunny crafting an incantation, (creating a little colorful magic egg in a nest:1.6), standing on an old carved table in a colorful factory laboratory. fantastic view
+   * @type string
+   */
+  prompt: string
+  /**
+   * @description If set to true, the safety checker will be enabled.
+   * @default true
+   * @type boolean | undefined
+   */
+  enable_safety_checker?: boolean
+  /**
+   * @description The format of the generated image.
+   * @default 'jpeg'
+   * @type string | undefined
+   */
+  format?: InputFalAiPlaygroundV25FormatEnumKey
+  /**
+   * @description The version of the safety checker to use. v1 is the default CompVis safety checker. v2 uses a custom ViT model.
+   * @default 'v1'
+   * @type string | undefined
+   */
+  safety_checker_version?: InputFalAiPlaygroundV25SafetyCheckerVersionEnumKey
+  /**
+   * @description The list of embeddings to use.
+   * @default []
+   * @type array | undefined
+   */
+  embeddings?: EmbeddingAf4De8Fc[]
+  /**
+   * @description The number of inference steps to perform.
+   * @minimum 1
+   * @maximum 50
+   * @default 25
+   * @type integer | undefined
+   */
+  num_inference_steps?: number
+  /**
+   * @description
+   *             An id bound to a request, can be used with response to identify the request
+   *             itself.
+   *
+   * @default ''
+   * @type string | undefined
+   */
+  request_id?: string
+  /**
+   * @description If set to true, the prompt will be expanded with additional prompts.
+   * @default false
+   * @type boolean | undefined
+   */
+  expand_prompt?: boolean
+}
+
+export type Image81Fd22E1 = {
+  height: number
+  width: number
+  url: string
+  /**
+   * @default image/jpeg
+   */
+  content_type?: string | null
+}
+
+export type OutputFalAiPlaygroundV25 = {
+  /**
+   * @description Whether the generated images contain NSFW concepts.
+   * @type array
+   */
+  has_nsfw_concepts: boolean[]
+  /**
+   * @description
+   *             Seed of the generated Image. It will be the same value of the one passed in the
+   *             input or the randomly generated that was used in case none was passed.
+   *
+   * @type integer
+   */
+  seed: number
+  timings: {
+    [key: string]: number
+  }
+  /**
+   * @description The prompt used for generating the image.
+   * @type string
+   */
+  prompt: string
+  /**
+   * @description The generated image files info.
+   * @type array
+   */
+  images: Image81Fd22E1[]
+}
+
+export type ImageSizeCbad8687 = {
+  /**
+   * @description The height of the generated image.
+   * @maximum 14142
+   * @default 512
+   * @type integer | undefined
+   */
+  height?: number
+  /**
+   * @description The width of the generated image.
+   * @maximum 14142
+   * @default 512
+   * @type integer | undefined
+   */
+  width?: number
+}
+
+export type EmbeddingC6C15Fb6 = {
+  /**
+   * @description
+   *             The list of tokens to use for the embedding. When omitted, tokens
+   *             are generated as <s0>, <s1>, ... to match the number of vectors in
+   *             the embedding file.
+   *
+   * @default null
+   */
+  tokens?: string[] | null
+  /**
+   * @description URL or the path to the embedding weights.
+   * @example https://huggingface.co/RyuusouI/Negativexld/resolve/20515981675c6e76d5b91e2343b958d27c5ad0ab/negativeXL_D.safetensors
+   * @example https://filebin.net/3chfqasxpqu21y8n/my-custom-lora-v1.safetensors
+   * @type string
+   */
+  path: string
+}
+
+export const inputFalAiPlaygroundV25ImageToImageFormatEnum = {
+  jpeg: 'jpeg',
+  png: 'png',
+} as const
+
+export type InputFalAiPlaygroundV25ImageToImageFormatEnumKey =
+  (typeof inputFalAiPlaygroundV25ImageToImageFormatEnum)[keyof typeof inputFalAiPlaygroundV25ImageToImageFormatEnum]
+
+export const inputFalAiPlaygroundV25ImageToImageImageSize = {
+  square_hd: 'square_hd',
+  square: 'square',
+  portrait_4_3: 'portrait_4_3',
+  portrait_16_9: 'portrait_16_9',
+  landscape_4_3: 'landscape_4_3',
+  landscape_16_9: 'landscape_16_9',
+} as const
+
+export type InputFalAiPlaygroundV25ImageToImageImageSizeKey =
+  (typeof inputFalAiPlaygroundV25ImageToImageImageSize)[keyof typeof inputFalAiPlaygroundV25ImageToImageImageSize]
+
+export const inputFalAiPlaygroundV25ImageToImageSafetyCheckerVersionEnum = {
+  v1: 'v1',
+  v2: 'v2',
+} as const
+
+export type InputFalAiPlaygroundV25ImageToImageSafetyCheckerVersionEnumKey =
+  (typeof inputFalAiPlaygroundV25ImageToImageSafetyCheckerVersionEnum)[keyof typeof inputFalAiPlaygroundV25ImageToImageSafetyCheckerVersionEnum]
+
+export type InputFalAiPlaygroundV25ImageToImage = {
+  /**
+   * @description The URL of the image to use as a starting point for the generation.
+   * @example https://fal-cdn.batuhan-941.workers.dev/files/tiger/IExuP-WICqaIesLZAZPur.jpeg
+   * @type string
+   */
+  image_url: string
+  /**
+   * @description The number of images to generate.
+   * @minimum 1
+   * @maximum 8
+   * @default 1
+   * @type integer | undefined
+   */
+  num_images?: number
+  /**
+   * @description The prompt to use for generating the image. Be as descriptive as possible for best results.
+   * @example an island near sea, with seagulls, moon shining over the sea, light house, boats int he background, fish flying over the sea
+   * @type string
+   */
+  prompt: string
+  /**
+   * @description
+   *             The CFG (Classifier Free Guidance) scale is a measure of how close you want
+   *             the model to stick to your prompt when looking for a related image to show you.
+   *
+   * @minimum 0
+   * @maximum 20
+   * @default 3
+   * @type number | undefined
+   */
+  guidance_scale?: number
+  /**
+   * @description
+   *         If set to true, the aspect ratio of the generated image will be preserved even
+   *         if the image size is too large. However, if the image is not a multiple of 32
+   *         in width or height, it will be resized to the nearest multiple of 32. By default,
+   *         this snapping to the nearest multiple of 32 will not preserve the aspect ratio.
+   *         Set crop_output to True, to crop the output to the proper aspect ratio
+   *         after generating.
+   *
+   * @default false
+   * @type boolean | undefined
+   */
+  preserve_aspect_ratio?: boolean
+  /**
+   * @description The format of the generated image.
+   * @default 'jpeg'
+   * @type string | undefined
+   */
+  format?: InputFalAiPlaygroundV25ImageToImageFormatEnumKey
+  /**
+   * @description
+   *             An id bound to a request, can be used with response to identify the request
+   *             itself.
+   *
+   * @default ''
+   * @type string | undefined
+   */
+  request_id?: string
+  /**
+   * @description The number of inference steps to perform.
+   * @minimum 1
+   * @maximum 65
+   * @default 25
+   * @type integer | undefined
+   */
+  num_inference_steps?: number
+  /**
+   * @description
+   *         If set to true, the output cropped to the proper aspect ratio after generating.
+   *
+   * @default false
+   * @type boolean | undefined
+   */
+  crop_output?: boolean
+  /**
+   * @description
+   *             The same seed and the same prompt given to the same version of Stable Diffusion
+   *             will output the same image every time.
+   *
+   * @default null
+   */
+  seed?: number | null
+  /**
+   * @description
+   *             The negative prompt to use.Use it to address details that you don't want
+   *             in the image. This could be colors, objects, scenery and even the small details
+   *             (e.g. moustache, blurry, low resolution).
+   *
+   * @default ''
+   * @example cartoon, illustration, animation. face. male, female
+   * @type string | undefined
+   */
+  negative_prompt?: string
+  /**
+   * @description The size of the generated image.
+   * @default square_hd
+   */
+  image_size?:
+    | ImageSizeCbad8687
+    | InputFalAiPlaygroundV25ImageToImageImageSizeKey
+  /**
+   * @description If set to true, the safety checker will be enabled.
+   * @default true
+   * @type boolean | undefined
+   */
+  enable_safety_checker?: boolean
+  /**
+   * @description determines how much the generated image resembles the initial image
+   * @minimum 0.05
+   * @maximum 1
+   * @default 0.95
+   * @type number | undefined
+   */
+  strength?: number
+  /**
+   * @description The list of embeddings to use.
+   * @default []
+   * @type array | undefined
+   */
+  embeddings?: EmbeddingC6C15Fb6[]
+  /**
+   * @description The version of the safety checker to use. v1 is the default CompVis safety checker. v2 uses a custom ViT model.
+   * @default 'v1'
+   * @type string | undefined
+   */
+  safety_checker_version?: InputFalAiPlaygroundV25ImageToImageSafetyCheckerVersionEnumKey
+  /**
+   * @description If set to true, the prompt will be expanded with additional prompts.
+   * @default false
+   * @type boolean | undefined
+   */
+  expand_prompt?: boolean
+}
+
+export type Image8C2Dfe09 = {
+  height: number
+  width: number
+  url: string
+  /**
+   * @default image/jpeg
+   */
+  content_type?: string | null
+}
+
+export type OutputFalAiPlaygroundV25ImageToImage = {
+  /**
+   * @description Whether the generated images contain NSFW concepts.
+   * @type array
+   */
+  has_nsfw_concepts: boolean[]
+  /**
+   * @description
+   *             Seed of the generated Image. It will be the same value of the one passed in the
+   *             input or the randomly generated that was used in case none was passed.
+   *
+   * @type integer
+   */
+  seed: number
+  timings: {
+    [key: string]: number
+  }
+  /**
+   * @description The prompt used for generating the image.
+   * @type string
+   */
+  prompt: string
+  /**
+   * @description The generated image files info.
+   * @type array
+   */
+  images: Image8C2Dfe09[]
+}
+
+export type ImageSize26E2234D = {
+  /**
+   * @description The height of the generated image.
+   * @maximum 14142
+   * @default 512
+   * @type integer | undefined
+   */
+  height?: number
+  /**
+   * @description The width of the generated image.
+   * @maximum 14142
+   * @default 512
+   * @type integer | undefined
+   */
+  width?: number
+}
+
+export type Embedding57Aed038 = {
+  /**
+   * @description
+   *             The list of tokens to use for the embedding. When omitted, tokens
+   *             are generated as <s0>, <s1>, ... to match the number of vectors in
+   *             the embedding file.
+   *
+   * @default null
+   */
+  tokens?: string[] | null
+  /**
+   * @description URL or the path to the embedding weights.
+   * @example https://huggingface.co/RyuusouI/Negativexld/resolve/20515981675c6e76d5b91e2343b958d27c5ad0ab/negativeXL_D.safetensors
+   * @example https://filebin.net/3chfqasxpqu21y8n/my-custom-lora-v1.safetensors
+   * @type string
+   */
+  path: string
+}
+
+export const inputFalAiPlaygroundV25InpaintingFormatEnum = {
+  jpeg: 'jpeg',
+  png: 'png',
+} as const
+
+export type InputFalAiPlaygroundV25InpaintingFormatEnumKey =
+  (typeof inputFalAiPlaygroundV25InpaintingFormatEnum)[keyof typeof inputFalAiPlaygroundV25InpaintingFormatEnum]
+
+export const inputFalAiPlaygroundV25InpaintingImageSize = {
+  square_hd: 'square_hd',
+  square: 'square',
+  portrait_4_3: 'portrait_4_3',
+  portrait_16_9: 'portrait_16_9',
+  landscape_4_3: 'landscape_4_3',
+  landscape_16_9: 'landscape_16_9',
+} as const
+
+export type InputFalAiPlaygroundV25InpaintingImageSizeKey =
+  (typeof inputFalAiPlaygroundV25InpaintingImageSize)[keyof typeof inputFalAiPlaygroundV25InpaintingImageSize]
+
+export const inputFalAiPlaygroundV25InpaintingSafetyCheckerVersionEnum = {
+  v1: 'v1',
+  v2: 'v2',
+} as const
+
+export type InputFalAiPlaygroundV25InpaintingSafetyCheckerVersionEnumKey =
+  (typeof inputFalAiPlaygroundV25InpaintingSafetyCheckerVersionEnum)[keyof typeof inputFalAiPlaygroundV25InpaintingSafetyCheckerVersionEnum]
+
+export type InputFalAiPlaygroundV25Inpainting = {
+  /**
+   * @description The URL of the image to use as a starting point for the generation.
+   * @example https://raw.githubusercontent.com/CompVis/latent-diffusion/main/data/inpainting_examples/overture-creations-5sI6fQgYIuo.png
+   * @type string
+   */
+  image_url: string
+  /**
+   * @description The number of images to generate.
+   * @minimum 1
+   * @maximum 8
+   * @default 1
+   * @type integer | undefined
+   */
+  num_images?: number
+  /**
+   * @description The URL of the mask to use for inpainting.
+   * @example https://raw.githubusercontent.com/CompVis/latent-diffusion/main/data/inpainting_examples/overture-creations-5sI6fQgYIuo_mask.png
+   * @type string
+   */
+  mask_url: string
+  /**
+   * @description The prompt to use for generating the image. Be as descriptive as possible for best results.
+   * @example a tiger sitting on a park bench
+   * @type string
+   */
+  prompt: string
+  /**
+   * @description
+   *             The CFG (Classifier Free Guidance) scale is a measure of how close you want
+   *             the model to stick to your prompt when looking for a related image to show you.
+   *
+   * @minimum 0
+   * @maximum 20
+   * @default 3
+   * @type number | undefined
+   */
+  guidance_scale?: number
+  /**
+   * @description The format of the generated image.
+   * @default 'jpeg'
+   * @type string | undefined
+   */
+  format?: InputFalAiPlaygroundV25InpaintingFormatEnumKey
+  /**
+   * @description The number of inference steps to perform.
+   * @minimum 1
+   * @maximum 65
+   * @default 25
+   * @type integer | undefined
+   */
+  num_inference_steps?: number
+  /**
+   * @description
+   *             An id bound to a request, can be used with response to identify the request
+   *             itself.
+   *
+   * @default ''
+   * @type string | undefined
+   */
+  request_id?: string
+  /**
+   * @description
+   *             The same seed and the same prompt given to the same version of Stable Diffusion
+   *             will output the same image every time.
+   *
+   * @default null
+   */
+  seed?: number | null
+  /**
+   * @description
+   *             The negative prompt to use.Use it to address details that you don't want
+   *             in the image. This could be colors, objects, scenery and even the small details
+   *             (e.g. moustache, blurry, low resolution).
+   *
+   * @default ''
+   * @example cartoon, illustration, animation. face. male, female
+   * @type string | undefined
+   */
+  negative_prompt?: string
+  /**
+   * @description The size of the generated image.
+   * @default square_hd
+   */
+  image_size?: ImageSize26E2234D | InputFalAiPlaygroundV25InpaintingImageSizeKey
+  /**
+   * @description If set to true, the safety checker will be enabled.
+   * @default true
+   * @type boolean | undefined
+   */
+  enable_safety_checker?: boolean
+  /**
+   * @description determines how much the generated image resembles the initial image
+   * @minimum 0.01
+   * @maximum 1
+   * @default 0.95
+   * @type number | undefined
+   */
+  strength?: number
+  /**
+   * @description The list of embeddings to use.
+   * @default []
+   * @type array | undefined
+   */
+  embeddings?: Embedding57Aed038[]
+  /**
+   * @description The version of the safety checker to use. v1 is the default CompVis safety checker. v2 uses a custom ViT model.
+   * @default 'v1'
+   * @type string | undefined
+   */
+  safety_checker_version?: InputFalAiPlaygroundV25InpaintingSafetyCheckerVersionEnumKey
+  /**
+   * @description If set to true, the prompt will be expanded with additional prompts.
+   * @default false
+   * @type boolean | undefined
+   */
+  expand_prompt?: boolean
+}
+
+export type Image225D6F53 = {
+  height: number
+  width: number
+  url: string
+  /**
+   * @default image/jpeg
+   */
+  content_type?: string | null
+}
+
+export type OutputFalAiPlaygroundV25Inpainting = {
+  /**
+   * @description Whether the generated images contain NSFW concepts.
+   * @type array
+   */
+  has_nsfw_concepts: boolean[]
+  /**
+   * @description
+   *             Seed of the generated Image. It will be the same value of the one passed in the
+   *             input or the randomly generated that was used in case none was passed.
+   *
+   * @type integer
+   */
+  seed: number
+  timings: {
+    [key: string]: number
+  }
+  /**
+   * @description The prompt used for generating the image.
+   * @type string
+   */
+  prompt: string
+  /**
+   * @description The generated image files info.
+   * @type array
+   */
+  images: Image225D6F53[]
+}
+
+export type ImageSize1F9932A4 = {
+  /**
+   * @description The height of the generated image.
+   * @maximum 14142
+   * @default 512
+   * @type integer | undefined
+   */
+  height?: number
+  /**
+   * @description The width of the generated image.
+   * @maximum 14142
+   * @default 512
+   * @type integer | undefined
+   */
+  width?: number
+}
+
+export const inputFalAiPonyV7OutputFormatEnum = {
+  jpeg: 'jpeg',
+  png: 'png',
+} as const
+
+export type InputFalAiPonyV7OutputFormatEnumKey =
+  (typeof inputFalAiPonyV7OutputFormatEnum)[keyof typeof inputFalAiPonyV7OutputFormatEnum]
+
+export const inputFalAiPonyV7ImageSize = {
+  square_hd: 'square_hd',
+  square: 'square',
+  portrait_4_3: 'portrait_4_3',
+  portrait_16_9: 'portrait_16_9',
+  landscape_4_3: 'landscape_4_3',
+  landscape_16_9: 'landscape_16_9',
+} as const
+
+export type InputFalAiPonyV7ImageSizeKey =
+  (typeof inputFalAiPonyV7ImageSize)[keyof typeof inputFalAiPonyV7ImageSize]
+
+export const inputFalAiPonyV7NoiseSourceEnum = {
+  gpu: 'gpu',
+  cpu: 'cpu',
+} as const
+
+export type InputFalAiPonyV7NoiseSourceEnumKey =
+  (typeof inputFalAiPonyV7NoiseSourceEnum)[keyof typeof inputFalAiPonyV7NoiseSourceEnum]
+
+export type InputFalAiPonyV7 = {
+  /**
+   * @description If `True`, the media will be returned as a data URI and the output data won't be available in the request history.
+   * @default false
+   * @type boolean | undefined
+   */
+  sync_mode?: boolean
+  /**
+   * @description The format of the generated image.
+   * @default 'jpeg'
+   * @type string | undefined
+   */
+  output_format?: InputFalAiPonyV7OutputFormatEnumKey
+  /**
+   * @description The number of inference steps to take
+   * @minimum 20
+   * @maximum 50
+   * @default 40
+   * @type integer | undefined
+   */
+  num_inference_steps?: number
+  /**
+   * @description The seed to use for generating images
+   */
+  seed?: number | null
+  /**
+   * @description The number of images to generate
+   * @minimum 1
+   * @maximum 2
+   * @default 1
+   * @type integer | undefined
+   */
+  num_images?: number
+  /**
+   * @description The size of the generated image.
+   * @default square_hd
+   */
+  image_size?: ImageSize1F9932A4 | InputFalAiPonyV7ImageSizeKey
+  /**
+   * @description
+   *             The source of the noise to use for generating images.
+   *             If set to 'gpu', the noise will be generated on the GPU.
+   *             If set to 'cpu', the noise will be generated on the CPU.
+   *
+   * @default 'gpu'
+   * @type string | undefined
+   */
+  noise_source?: InputFalAiPonyV7NoiseSourceEnumKey
+  /**
+   * @description Classifier free guidance scale
+   * @minimum 0
+   * @maximum 20
+   * @default 3.5
+   * @type number | undefined
+   */
+  guidance_scale?: number
+  /**
+   * @description If set to true, the safety checker will be enabled. Disabling it requires account authorization; unauthorized requests are always checked.
+   * @default false
+   * @example true
+   * @type boolean | undefined
+   */
+  enable_safety_checker?: boolean
+  /**
+   * @description The prompt to generate images from
+   * @example Close-up portrait of a majestic iguana with vibrant blue-green scales, piercing amber eyes, and orange spiky crest. Intricate textures and details visible on scaly skin. Wrapped in dark hood, giving regal appearance. Dramatic lighting against black background. Hyper-realistic, high-resolution image showcasing the reptile's expressive features and coloration.
+   * @type string
+   */
+  prompt: string
+}
+
+/**
+ * @description Represents an image file.
+ * @type object
+ */
+export type Image765880F1 = {
+  /**
+   * @description The width of the image in pixels.
+   * @example 1024
+   */
+  width?: number | null
+  /**
+   * @description The height of the image in pixels.
+   * @example 1024
+   */
+  height?: number | null
+  /**
+   * @description The mime type of the file.
+   * @example image/png
+   */
+  content_type?: string | null
+  /**
+   * @description The name of the file. It will be auto-generated if not provided.
+   * @example z9RV14K95DvU.png
+   */
+  file_name?: string | null
+  /**
+   * @description The size of the file in bytes.
+   * @example 4404019
+   */
+  file_size?: number | null
+  /**
+   * @description The URL where the file can be downloaded from.
+   * @type string
+   */
+  url: string
+}
+
+export type OutputFalAiPonyV7 = {
+  timings: {
+    [key: string]: number
+  }
+  /**
+   * @description
+   *             Seed of the generated Image. It will be the same value of the one passed in the
+   *             input or the randomly generated that was used in case none was passed.
+   *
+   * @type integer
+   */
+  seed: number
+  /**
+   * @description The generated images
+   * @example [{"height":1024,"content_type":"image/jpeg","url":"https://v3.fal.media/files/monkey/cfJDLaR5mCnlbfoEWXZhm.jpeg","width":1024}]
+   * @type array
+   */
+  images: Image765880F1[]
+  /**
+   * @description Whether the generated images contain NSFW concepts.
+   * @type array
+   */
+  has_nsfw_concepts: boolean[]
+  /**
+   * @description The prompt used for generating the image.
+   * @type string
+   */
+  prompt: string
 }
 
 export const inputFalAiPostProcessingBlueDirectionEnum = {
@@ -63642,6 +71295,180 @@ export type OutputFalAiPostProcessingVignette = {
   images: ImageA4821Bd2[]
 }
 
+export type ReferenceFace = {
+  /**
+   * @description URL of the reference face image
+   * @type string
+   */
+  image_url: string
+}
+
+export type ImageSize721E9676 = {
+  /**
+   * @description The height of the generated image.
+   * @maximum 14142
+   * @default 512
+   * @type integer | undefined
+   */
+  height?: number
+  /**
+   * @description The width of the generated image.
+   * @maximum 14142
+   * @default 512
+   * @type integer | undefined
+   */
+  width?: number
+}
+
+export const inputFalAiPulidImageSize = {
+  square_hd: 'square_hd',
+  square: 'square',
+  portrait_4_3: 'portrait_4_3',
+  portrait_16_9: 'portrait_16_9',
+  landscape_4_3: 'landscape_4_3',
+  landscape_16_9: 'landscape_16_9',
+} as const
+
+export type InputFalAiPulidImageSizeKey =
+  (typeof inputFalAiPulidImageSize)[keyof typeof inputFalAiPulidImageSize]
+
+export const inputFalAiPulidModeEnum = {
+  fidelity: 'fidelity',
+  'extreme style': 'extreme style',
+} as const
+
+export type InputFalAiPulidModeEnumKey =
+  (typeof inputFalAiPulidModeEnum)[keyof typeof inputFalAiPulidModeEnum]
+
+export type InputFalAiPulid = {
+  /**
+   * @description List of reference faces, ideally 4 images.
+   * @example [{"image_url":"https://storage.googleapis.com/falserverless/pulid/img2.png"},{"image_url":"https://storage.googleapis.com/falserverless/pulid/img1.png"}]
+   * @type array
+   */
+  reference_images: ReferenceFace[]
+  /**
+   * @description Guidance scale
+   * @minimum 1
+   * @maximum 1.5
+   * @default 1.2
+   * @type number | undefined
+   */
+  guidance_scale?: number
+  /**
+   * @description ID scale
+   * @maximum 5
+   * @default 0.8
+   * @type number | undefined
+   */
+  id_scale?: number
+  /**
+   * @description Authorized callers may set false to request relaxed screening.
+   * @default true
+   * @type boolean | undefined
+   */
+  enable_safety_checker?: boolean
+  /**
+   * @description Random seed for reproducibility
+   */
+  seed?: number | null
+  /**
+   * @description Size of the generated image
+   * @default {"height":1024,"width":768}
+   */
+  image_size?: ImageSize721E9676 | InputFalAiPulidImageSizeKey
+  /**
+   * @description if you want to mix two ID image, please turn this on, otherwise, turn this off
+   * @default false
+   * @type boolean | undefined
+   */
+  id_mix?: boolean
+  /**
+   * @description Number of images to generate
+   * @minimum 1
+   * @maximum 8
+   * @default 1
+   * @type integer | undefined
+   */
+  num_images?: number
+  /**
+   * @description Negative prompt to generate the face from
+   * @default 'flaws in the eyes, flaws in the face, flaws, lowres, non-HDRi, low quality, worst quality,artifacts noise, text, watermark, glitch, deformed, mutated, ugly, disfigured, hands, low resolution, partially rendered objects,  deformed or partially rendered eyes, deformed, deformed eyeballs, cross-eyed,blurry'
+   * @type string | undefined
+   */
+  negative_prompt?: string
+  /**
+   * @description Mode of generation
+   * @default 'fidelity'
+   * @type string | undefined
+   */
+  mode?: InputFalAiPulidModeEnumKey
+  /**
+   * @description Number of steps to take
+   * @minimum 1
+   * @maximum 12
+   * @default 4
+   * @type integer | undefined
+   */
+  num_inference_steps?: number
+  /**
+   * @description Prompt to generate the face from
+   * @example portrait, impressionist painting, loose brushwork, vibrant color, light and shadow play
+   * @type string
+   */
+  prompt: string
+}
+
+/**
+ * @description Represents an image file.
+ * @type object
+ */
+export type Image768D76F9 = {
+  /**
+   * @description The URL where the file can be downloaded from.
+   * @type string
+   */
+  url: string
+  /**
+   * @description The size of the file in bytes.
+   * @example 4404019
+   */
+  file_size?: number | null
+  /**
+   * @description The mime type of the file.
+   * @example image/png
+   */
+  content_type?: string | null
+  /**
+   * @description The name of the file. It will be auto-generated if not provided.
+   * @example z9RV14K95DvU.png
+   */
+  file_name?: string | null
+  /**
+   * @description The width of the image in pixels.
+   * @example 1024
+   */
+  width?: number | null
+  /**
+   * @description The height of the image in pixels.
+   * @example 1024
+   */
+  height?: number | null
+}
+
+export type OutputFalAiPulid = {
+  /**
+   * @description List of generated images
+   * @type array
+   */
+  images: Image768D76F9[]
+  /**
+   * @description Random seed used for reproducibility
+   * @type integer
+   */
+  seed: number
+}
+
 export type LoraWeight8A581Ec6 = {
   /**
    * @description URL or the path to the LoRA weights.
@@ -63841,6 +71668,626 @@ export type OutputFalAiQwenImage = {
    * @type array
    */
   images: ImageF7Ab6189[]
+}
+
+export type ImageSize379Af2D3 = {
+  /**
+   * @description The height of the generated image.
+   * @maximum 14142
+   * @default 512
+   * @type integer | undefined
+   */
+  height?: number
+  /**
+   * @description The width of the generated image.
+   * @maximum 14142
+   * @default 512
+   * @type integer | undefined
+   */
+  width?: number
+}
+
+export const inputFalAiQwenImage2EditOutputFormatEnum = {
+  jpeg: 'jpeg',
+  png: 'png',
+  webp: 'webp',
+} as const
+
+export type InputFalAiQwenImage2EditOutputFormatEnumKey =
+  (typeof inputFalAiQwenImage2EditOutputFormatEnum)[keyof typeof inputFalAiQwenImage2EditOutputFormatEnum]
+
+export const inputFalAiQwenImage2EditImageSize = {
+  square_hd: 'square_hd',
+  square: 'square',
+  portrait_4_3: 'portrait_4_3',
+  portrait_16_9: 'portrait_16_9',
+  landscape_4_3: 'landscape_4_3',
+  landscape_16_9: 'landscape_16_9',
+} as const
+
+export type InputFalAiQwenImage2EditImageSizeKey =
+  (typeof inputFalAiQwenImage2EditImageSize)[keyof typeof inputFalAiQwenImage2EditImageSize]
+
+/**
+ * @description Input for Qwen Image 2 image editing with reference images
+ * @type object
+ */
+export type InputFalAiQwenImage2Edit = {
+  /**
+   * @description Content to avoid in the generated image. Max 500 characters.
+   * @default
+   * @example low resolution, error, worst quality, low quality, deformed
+   */
+  negative_prompt?: string | null
+  /**
+   * @description Text prompt describing the desired image. Supports Chinese and English. Max 800 characters.
+   * @minLength 1
+   * @example Replace the cute kid with a chinese warrior.
+   * @type string
+   */
+  prompt: string
+  /**
+   * @description The format of the generated image.
+   * @default 'png'
+   * @type string | undefined
+   */
+  output_format?: InputFalAiQwenImage2EditOutputFormatEnumKey
+  /**
+   * @description Reference images for editing (1-3 images required). Order matters: reference as 'image 1', 'image 2', 'image 3' in prompt. Resolution: 384-5000px each dimension. Max size: 10MB each. Formats: JPEG, JPG, PNG (no alpha), WEBP.
+   * @example ["https://v3b.fal.media/files/b/0a90b2a1/i89tMXz0SmiwL0ZvbnUvS_image_00240.png"]
+   * @type array
+   */
+  image_urls: string[]
+  /**
+   * @description Enable content moderation for input and output. Disabling it requires account authorization; unauthorized requests are always checked.
+   * @default true
+   * @type boolean | undefined
+   */
+  enable_safety_checker?: boolean
+  /**
+   * @description The number of images to generate.
+   * @minimum 1
+   * @maximum 6
+   * @default 1
+   * @type integer | undefined
+   */
+  num_images?: number
+  /**
+   * @description Random seed for reproducibility (0-2147483647).
+   */
+  seed?: number | null
+  /**
+   * @description If `True`, the media will be returned as a data URI and the output data won't be available in the request history.
+   * @default false
+   * @type boolean | undefined
+   */
+  sync_mode?: boolean
+  /**
+   * @description The size of the generated image. If not provided, the size of the final input image will be used.  Total number of pixels must be between 512x512 and 2048x2048.
+   */
+  image_size?: ImageSize379Af2D3 | InputFalAiQwenImage2EditImageSizeKey | null
+  /**
+   * @description Enable LLM prompt optimization for better results.
+   * @default true
+   * @type boolean | undefined
+   */
+  enable_prompt_expansion?: boolean
+}
+
+export type FileE4D80B3B = {
+  /**
+   * @description The URL where the file can be downloaded from.
+   * @type string
+   */
+  url: string
+  /**
+   * @description The mime type of the file.
+   * @example image/png
+   */
+  content_type?: string | null
+  /**
+   * @description The size of the file in bytes.
+   * @example 4404019
+   */
+  file_size?: number | null
+  /**
+   * @description The name of the file. It will be auto-generated if not provided.
+   * @example z9RV14K95DvU.png
+   */
+  file_name?: string | null
+}
+
+export type OutputFalAiQwenImage2Edit = {
+  /**
+   * @description The seed used for generation
+   * @example 42
+   * @type integer
+   */
+  seed: number
+  /**
+   * @description Generated images
+   * @example [{"url":"https://v3b.fal.media/files/b/0a90b2a1/VJ2suw3jKT7_VZ_6uz1Jb_TAY2WhAB.png"}]
+   * @type array
+   */
+  images: FileE4D80B3B[]
+}
+
+export type ImageSizeB8E220A3 = {
+  /**
+   * @description The height of the generated image.
+   * @maximum 14142
+   * @default 512
+   * @type integer | undefined
+   */
+  height?: number
+  /**
+   * @description The width of the generated image.
+   * @maximum 14142
+   * @default 512
+   * @type integer | undefined
+   */
+  width?: number
+}
+
+export const inputFalAiQwenImage2ProEditOutputFormatEnum = {
+  jpeg: 'jpeg',
+  png: 'png',
+  webp: 'webp',
+} as const
+
+export type InputFalAiQwenImage2ProEditOutputFormatEnumKey =
+  (typeof inputFalAiQwenImage2ProEditOutputFormatEnum)[keyof typeof inputFalAiQwenImage2ProEditOutputFormatEnum]
+
+export const inputFalAiQwenImage2ProEditImageSize = {
+  square_hd: 'square_hd',
+  square: 'square',
+  portrait_4_3: 'portrait_4_3',
+  portrait_16_9: 'portrait_16_9',
+  landscape_4_3: 'landscape_4_3',
+  landscape_16_9: 'landscape_16_9',
+} as const
+
+export type InputFalAiQwenImage2ProEditImageSizeKey =
+  (typeof inputFalAiQwenImage2ProEditImageSize)[keyof typeof inputFalAiQwenImage2ProEditImageSize]
+
+export type InputFalAiQwenImage2ProEdit = {
+  /**
+   * @description Content to avoid in the generated image. Max 500 characters.
+   * @default
+   * @example low resolution, error, worst quality, low quality, deformed
+   */
+  negative_prompt?: string | null
+  /**
+   * @description Text prompt describing the desired image. Supports Chinese and English;.
+   * @minLength 1
+   * @example Make this scene summer setting.
+   * @type string
+   */
+  prompt: string
+  /**
+   * @description The format of the generated image.
+   * @default 'png'
+   * @type string | undefined
+   */
+  output_format?: InputFalAiQwenImage2ProEditOutputFormatEnumKey
+  /**
+   * @description Reference images for editing (1-3 images required). Order matters: reference as 'image 1', 'image 2', 'image 3' in prompt. Resolution: 384-5000px each dimension. Max size: 10MB each. Formats: JPEG, JPG, PNG (no alpha), WEBP.
+   * @example ["https://v3b.fal.media/files/b/0a90b28f/45QiEHyDMwQiB3jFyZ79F_image_00079.png"]
+   * @type array
+   */
+  image_urls: string[]
+  /**
+   * @description Enable content moderation for input and output. Disabling it requires account authorization; unauthorized requests are always checked.
+   * @default true
+   * @type boolean | undefined
+   */
+  enable_safety_checker?: boolean
+  /**
+   * @description The number of images to generate.
+   * @minimum 1
+   * @maximum 6
+   * @default 1
+   * @type integer | undefined
+   */
+  num_images?: number
+  /**
+   * @description Random seed for reproducibility (0-2147483647).
+   */
+  seed?: number | null
+  /**
+   * @description If `True`, the media will be returned as a data URI and the output data won't be available in the request history.
+   * @default false
+   * @type boolean | undefined
+   */
+  sync_mode?: boolean
+  /**
+   * @description The size of the generated image. If not provided, the size of the final input image will be used.  Total number of pixels must be between 512x512 and 2048x2048.
+   */
+  image_size?:
+    | ImageSizeB8E220A3
+    | InputFalAiQwenImage2ProEditImageSizeKey
+    | null
+  /**
+   * @description Enable LLM prompt optimization for better results.
+   * @default true
+   * @type boolean | undefined
+   */
+  enable_prompt_expansion?: boolean
+}
+
+export type File2Af5Bcab = {
+  /**
+   * @description The URL where the file can be downloaded from.
+   * @type string
+   */
+  url: string
+  /**
+   * @description The mime type of the file.
+   * @example image/png
+   */
+  content_type?: string | null
+  /**
+   * @description The size of the file in bytes.
+   * @example 4404019
+   */
+  file_size?: number | null
+  /**
+   * @description The name of the file. It will be auto-generated if not provided.
+   * @example z9RV14K95DvU.png
+   */
+  file_name?: string | null
+}
+
+export type OutputFalAiQwenImage2ProEdit = {
+  /**
+   * @description The seed used for generation
+   * @example 42
+   * @type integer
+   */
+  seed: number
+  /**
+   * @description Generated images
+   * @example [{"url":"https://v3b.fal.media/files/b/0a90b290/axCNP0ohkN-dRzHMD4gYy_YMJTfAo2.png"}]
+   * @type array
+   */
+  images: File2Af5Bcab[]
+}
+
+export type ImageSize8A52E610 = {
+  /**
+   * @description The height of the generated image.
+   * @maximum 14142
+   * @default 512
+   * @type integer | undefined
+   */
+  height?: number
+  /**
+   * @description The width of the generated image.
+   * @maximum 14142
+   * @default 512
+   * @type integer | undefined
+   */
+  width?: number
+}
+
+export const inputFalAiQwenImage2ProTextToImageOutputFormatEnum = {
+  jpeg: 'jpeg',
+  png: 'png',
+  webp: 'webp',
+} as const
+
+export type InputFalAiQwenImage2ProTextToImageOutputFormatEnumKey =
+  (typeof inputFalAiQwenImage2ProTextToImageOutputFormatEnum)[keyof typeof inputFalAiQwenImage2ProTextToImageOutputFormatEnum]
+
+export const inputFalAiQwenImage2ProTextToImageImageSize = {
+  square_hd: 'square_hd',
+  square: 'square',
+  portrait_4_3: 'portrait_4_3',
+  portrait_16_9: 'portrait_16_9',
+  landscape_4_3: 'landscape_4_3',
+  landscape_16_9: 'landscape_16_9',
+} as const
+
+export type InputFalAiQwenImage2ProTextToImageImageSizeKey =
+  (typeof inputFalAiQwenImage2ProTextToImageImageSize)[keyof typeof inputFalAiQwenImage2ProTextToImageImageSize]
+
+export type InputFalAiQwenImage2ProTextToImage = {
+  /**
+   * @description Content to avoid in the generated image. Max 500 characters.
+   * @default
+   * @example low resolution, error, worst quality, low quality, deformed
+   */
+  negative_prompt?: string | null
+  /**
+   * @description Text prompt describing the desired image. Supports Chinese and English;.
+   * @minLength 1
+   * @example # 1930s Luxury Automobile Manufacturing – 11-Stage Infographic
+   * ## LAYOUT
+   * - 3 rows, flowchart with arrows left→right, curving down between rows
+   * - Row 1: Stages 1–3 | Row 2: Stages 4–6 | Row 3: Stages 7–11
+   * - Style: hand-drawn sketch, watercolor coloring. Car color: deep burgundy/cream accents
+   * - Car style: 1930s grand tourer (long hood, flowing fenders, wire wheels, art deco chrome)
+   * ---
+   * ## ROW 1
+   * ### STAGE 1 – DESIGN & COACHBUILDING PLANNING
+   * - Isometric design studio with wooden drafting tables
+   * - 3 designers in waistcoats: one drawing side-profile with French curves, one sculpting a cream clay scale model on turntable, one reviewing a full-size blueprint on wall
+   * - Art Deco posters on walls, inkwells, callipers, blackboard with chassis dimensions
+   * ### STAGE 2 – SUPPLY CHAIN & RAW MATERIALS
+   * - Components spread out with label lines:
+   *   - **STEEL INGOTS & BILLETS** – dark gray blocks, warm foundry glow
+   *   - **ALUMINUM SHEETS** – silver sheets on wooden pallet
+   *   - **ASH WOOD TIMBER** – honey-brown planks bundled (for body frame)
+   *   - **LEATHER HIDES** – rolled cognac-brown full-grain hides
+   *   - **WIRE SPOKES & HUB CASTINGS** – bundled steel spokes, gray castings
+   *   - **GLASS PANES** – transparent sheets in straw-packed crates
+   *   - **CHROME & BRASS FITTINGS** – shiny strips, handles, hood ornament blanks
+   * - Background: foundry/tannery silhouettes with smoking chimneys
+   * ### STAGE 3 – PART FABRICATION (METALWORK & WOODWORK)
+   * Two bordered sub-boxes:
+   * **Top – "METALWORK & FORGING":**
+   * Steel billets → **DROP FORGE** (hammer press, glowing orange part) → **PRECISION LATHE** (belt-driven, machinist in flat cap) → **HAND GAUGING** (micrometers, go/no-go gauges on wooden bench)
+   * **Bottom – "COACHWORK FRAME & PANEL BEATING":**
+   * **ASH CUTTING** (bandsaw, sawdust) → **FRAME JIG ASSEMBLY** (skeletal wooden body on jig, car shape visible) → **HAND PANEL BEATING** (craftsman hammering aluminum over wooden buck) → **ENGLISH WHEEL** (rolling panel for smooth curves)
+   * ---
+   * ## ROW 2
+   * ### STAGE 4 – CHASSIS & MECHANICAL ASSEMBLY
+   * - **LADDER CHASSIS** – dark steel twin rails + cross-members on trestles, riveted. Workers fitting braces
+   * - **FRONT AXLE & LEAF SPRINGS** – beam axle with semi-elliptic springs, worker with wrench
+   * - **REAR AXLE & DIFFERENTIAL** – live axle with pumpkin-shaped housing
+   * - **DRUM BRAKES** – cable-operated assemblies at each wheel position
+   * - **STEERING GEARBOX** – worm-and-sector box, drag link to front axle
+   * ### STAGE 5 – ENGINE BUILDING & INSTALLATION
+   * - Left: **ENGINE BENCH** – inline-8 block (dark green/gray), forged crankshaft being lowered in, pistons in a row, twin brass carburetors, magneto ignition, cylinder head being torqued. Oil cans, rags, hand tools
+   * - Right: **ENGINE DROP-IN** – completed engine lowered by chain hoist on A-frame crane into chassis. Two workers guiding. Transmission bell housing visible
+   * ### STAGE 6 – BODY MOUNTING
+   * - Bare aluminum body shell (silver, on wooden frame) lowered by overhead gantry onto rolling chassis
+   * - 4–5 workers guiding body down. Red alignment lines between mount points
+   * - Labels: "Body mount bolts", "Firewall alignment", "Running board brackets"
+   * - Full car silhouette now recognizable: long hood, set-back cabin, swept tail
+   * ---
+   * ## ROW 3
+   * ### STAGE 7 – PAINTING & FINISHING
+   * - Painter in white coveralls spraying with gun: gray primer on rear half, deep burgundy lacquer on front half
+   * - Second worker wet-sanding between coats
+   * - Labels: "Lead filler & primer", "Nitrocellulose lacquer", "Hand rubbing & polishing"
+   * ### STAGE 8 – INTERIOR TRIMMING
+   * - Cabin cutaway showing: hand-stitched diamond-tufted cognac leather seats, burled walnut dashboard with round gauge holes and chrome bezels, leather door panels with chrome cranks, dark maroon wool carpet, cream cloth headliner
+   * ### STAGE 9 – CHROME & BRIGHTWORK
+   * - Vignettes: chrome bumpers bolted on, art deco hood ornament (leaping figurine) on radiator cap, round chrome headlamps on fenders, tall vertical-bar radiator grille, trim strips and door handles. Worker polishing fender to mirror shine
+   * ### STAGE 10 – MECHANICAL TESTING
+   * - Completed burgundy car with cream fenders and full chrome
+   * - Labels: "Ignition timing & carburetor tuning" (mechanic with timing light), "Brake balance test", "Wheel alignment" (string method), "Electrical check" (lights glowing), "Fluid fill & leak check"
+   * - Handwritten checklist on clipboard resting on fender
+   * ### STAGE 11 – ROAD TEST & DELIVERY
+   * - Left: car in motion on country road, dust trail, driver in goggles/leather cap. Green hills in watercolor background
+   * - Right: car at Art Deco showroom entrance. Factory director in three-piece suit, client in top hat receiving leather key fob, chauffeur in uniform by driver's door
+   * ---
+   * ## STYLE GUIDE
+   * - **Colors:** Burgundy body (#6B1024), cream accents (#F5E6C8), dark steel chassis, silver aluminum, honey-brown ash wood, cognac leather, bright chrome highlights
+   * - **Typography:** Bold uppercase sans-serif titles ("STAGE [#] – [NAME]"), smaller labels with thin connector lines
+   * - **Style:** Ink outlines, watercolor flat fill, isometric/3/4 view, period-correct details (belt-driven machines, chain hoists, flat caps, Art Deco flourishes)
+   * - **Arrows:** Thin black, left→right, curving down between rows
+   * - **Proportions:** Landscape ~3:1, 3 equal rows, Stage 3 taller, Row 3 has 5 narrower stages
+   * @type string
+   */
+  prompt: string
+  /**
+   * @description The format of the generated image.
+   * @default 'png'
+   * @type string | undefined
+   */
+  output_format?: InputFalAiQwenImage2ProTextToImageOutputFormatEnumKey
+  /**
+   * @description Enable content moderation for input and output. Disabling it requires account authorization; unauthorized requests are always checked.
+   * @default true
+   * @type boolean | undefined
+   */
+  enable_safety_checker?: boolean
+  /**
+   * @description The number of images to generate.
+   * @minimum 1
+   * @maximum 4
+   * @default 1
+   * @type integer | undefined
+   */
+  num_images?: number
+  /**
+   * @description Random seed for reproducibility (0-2147483647).
+   */
+  seed?: number | null
+  /**
+   * @description If `True`, the media will be returned as a data URI and the output data won't be available in the request history.
+   * @default false
+   * @type boolean | undefined
+   */
+  sync_mode?: boolean
+  /**
+   * @description The size of the generated image. Total number of pixels must be between 512x512 and 2048x2048.
+   * @default square_hd
+   * @example {"height":2048,"width":2048}
+   */
+  image_size?:
+    | ImageSize8A52E610
+    | InputFalAiQwenImage2ProTextToImageImageSizeKey
+  /**
+   * @description Enable LLM prompt optimization for better results.
+   * @default true
+   * @type boolean | undefined
+   */
+  enable_prompt_expansion?: boolean
+}
+
+export type File7C016218 = {
+  /**
+   * @description The URL where the file can be downloaded from.
+   * @type string
+   */
+  url: string
+  /**
+   * @description The mime type of the file.
+   * @example image/png
+   */
+  content_type?: string | null
+  /**
+   * @description The size of the file in bytes.
+   * @example 4404019
+   */
+  file_size?: number | null
+  /**
+   * @description The name of the file. It will be auto-generated if not provided.
+   * @example z9RV14K95DvU.png
+   */
+  file_name?: string | null
+}
+
+export type OutputFalAiQwenImage2ProTextToImage = {
+  /**
+   * @description The seed used for generation
+   * @example 42
+   * @type integer
+   */
+  seed: number
+  /**
+   * @description Generated images
+   * @example [{"url":"https://v3b.fal.media/files/b/0a90b238/SBKPCfmygQb1BivJjt6Ck_zvpXi8Qy.png"}]
+   * @type array
+   */
+  images: File7C016218[]
+}
+
+export type ImageSize6D3Efe40 = {
+  /**
+   * @description The height of the generated image.
+   * @maximum 14142
+   * @default 512
+   * @type integer | undefined
+   */
+  height?: number
+  /**
+   * @description The width of the generated image.
+   * @maximum 14142
+   * @default 512
+   * @type integer | undefined
+   */
+  width?: number
+}
+
+export const inputFalAiQwenImage2TextToImageOutputFormatEnum = {
+  jpeg: 'jpeg',
+  png: 'png',
+  webp: 'webp',
+} as const
+
+export type InputFalAiQwenImage2TextToImageOutputFormatEnumKey =
+  (typeof inputFalAiQwenImage2TextToImageOutputFormatEnum)[keyof typeof inputFalAiQwenImage2TextToImageOutputFormatEnum]
+
+export const inputFalAiQwenImage2TextToImageImageSize = {
+  square_hd: 'square_hd',
+  square: 'square',
+  portrait_4_3: 'portrait_4_3',
+  portrait_16_9: 'portrait_16_9',
+  landscape_4_3: 'landscape_4_3',
+  landscape_16_9: 'landscape_16_9',
+} as const
+
+export type InputFalAiQwenImage2TextToImageImageSizeKey =
+  (typeof inputFalAiQwenImage2TextToImageImageSize)[keyof typeof inputFalAiQwenImage2TextToImageImageSize]
+
+export type InputFalAiQwenImage2TextToImage = {
+  /**
+   * @description Content to avoid in the generated image. Max 500 characters.
+   * @default
+   * @example low resolution, error, worst quality, low quality, deformed
+   */
+  negative_prompt?: string | null
+  /**
+   * @description Text prompt describing the desired image. Supports Chinese and English.
+   * @minLength 1
+   * @example A cute baby koala holding a card says 'Qwen Image 2 is now available on fal' while on a water slider
+   * @type string
+   */
+  prompt: string
+  /**
+   * @description The format of the generated image.
+   * @default 'png'
+   * @type string | undefined
+   */
+  output_format?: InputFalAiQwenImage2TextToImageOutputFormatEnumKey
+  /**
+   * @description Enable content moderation for input and output. Disabling it requires account authorization; unauthorized requests are always checked.
+   * @default true
+   * @type boolean | undefined
+   */
+  enable_safety_checker?: boolean
+  /**
+   * @description The number of images to generate.
+   * @minimum 1
+   * @maximum 4
+   * @default 1
+   * @type integer | undefined
+   */
+  num_images?: number
+  /**
+   * @description Random seed for reproducibility (0-2147483647).
+   */
+  seed?: number | null
+  /**
+   * @description If `True`, the media will be returned as a data URI and the output data won't be available in the request history.
+   * @default false
+   * @type boolean | undefined
+   */
+  sync_mode?: boolean
+  /**
+   * @description The size of the generated image. Total number of pixels must be between 512x512 and 2048x2048.
+   * @default square_hd
+   * @example {"height":2048,"width":2048}
+   */
+  image_size?: ImageSize6D3Efe40 | InputFalAiQwenImage2TextToImageImageSizeKey
+  /**
+   * @description Enable LLM prompt optimization for better results.
+   * @default true
+   * @type boolean | undefined
+   */
+  enable_prompt_expansion?: boolean
+}
+
+export type FileD78F7468 = {
+  /**
+   * @description The URL where the file can be downloaded from.
+   * @type string
+   */
+  url: string
+  /**
+   * @description The mime type of the file.
+   * @example image/png
+   */
+  content_type?: string | null
+  /**
+   * @description The size of the file in bytes.
+   * @example 4404019
+   */
+  file_size?: number | null
+  /**
+   * @description The name of the file. It will be auto-generated if not provided.
+   * @example z9RV14K95DvU.png
+   */
+  file_name?: string | null
+}
+
+export type OutputFalAiQwenImage2TextToImage = {
+  /**
+   * @description The seed used for generation
+   * @example 42
+   * @type integer
+   */
+  seed: number
+  /**
+   * @description Generated images.
+   * @example [{"url":"https://v3b.fal.media/files/b/0a90b32f/SuH1rqlI4Us26LffsOWyV_4HJ5a5RO.png"}]
+   * @type array
+   */
+  images: FileD78F7468[]
 }
 
 export type ImageSize8010Ef20 = {
@@ -64193,6 +72640,177 @@ export type OutputFalAiQwenImage2512Lora = {
    * @type array
    */
   has_nsfw_concepts: boolean[]
+}
+
+export type ImageSize67823E18 = {
+  /**
+   * @description The width of the generated image.
+   * @maximum 14142
+   * @default 512
+   * @type integer | undefined
+   */
+  width?: number
+  /**
+   * @description The height of the generated image.
+   * @maximum 14142
+   * @default 512
+   * @type integer | undefined
+   */
+  height?: number
+}
+
+export const inputFalAiQwenImageEditOutputFormatEnum = {
+  jpeg: 'jpeg',
+  png: 'png',
+} as const
+
+export type InputFalAiQwenImageEditOutputFormatEnumKey =
+  (typeof inputFalAiQwenImageEditOutputFormatEnum)[keyof typeof inputFalAiQwenImageEditOutputFormatEnum]
+
+export const inputFalAiQwenImageEditImageSize = {
+  square_hd: 'square_hd',
+  square: 'square',
+  portrait_4_3: 'portrait_4_3',
+  portrait_16_9: 'portrait_16_9',
+  landscape_4_3: 'landscape_4_3',
+  landscape_16_9: 'landscape_16_9',
+} as const
+
+export type InputFalAiQwenImageEditImageSizeKey =
+  (typeof inputFalAiQwenImageEditImageSize)[keyof typeof inputFalAiQwenImageEditImageSize]
+
+export const inputFalAiQwenImageEditAccelerationEnum = {
+  none: 'none',
+  regular: 'regular',
+  high: 'high',
+} as const
+
+export type InputFalAiQwenImageEditAccelerationEnumKey =
+  (typeof inputFalAiQwenImageEditAccelerationEnum)[keyof typeof inputFalAiQwenImageEditAccelerationEnum]
+
+export type InputFalAiQwenImageEdit = {
+  /**
+   * @description If set to true, the safety checker will be enabled. Disabling it requires account authorization; unauthorized requests are always checked, and images flagged as unsafe are returned as black images.
+   * @default true
+   * @type boolean | undefined
+   */
+  enable_safety_checker?: boolean
+  /**
+   * @description The negative prompt for the generation
+   * @default ' '
+   * @example blurry, ugly
+   * @type string | undefined
+   */
+  negative_prompt?: string
+  /**
+   * @description The number of images to generate.
+   * @minimum 1
+   * @maximum 4
+   * @default 1
+   * @type integer | undefined
+   */
+  num_images?: number
+  /**
+   * @description The URL of the image to edit.
+   * @example https://v3.fal.media/files/koala/oei_-iPIYFnhdB8SxojND_qwen-edit-res.png
+   * @type string
+   */
+  image_url: string
+  /**
+   * @description If `True`, the media will be returned as a data URI and the output data won't be available in the request history.
+   * @default false
+   * @type boolean | undefined
+   */
+  sync_mode?: boolean
+  /**
+   * @description
+   *             The CFG (Classifier Free Guidance) scale is a measure of how close you want
+   *             the model to stick to your prompt when looking for a related image to show you.
+   *
+   * @minimum 0
+   * @maximum 20
+   * @default 4
+   * @type number | undefined
+   */
+  guidance_scale?: number
+  /**
+   * @description
+   *             The same seed and the same prompt given to the same version of the model
+   *             will output the same image every time.
+   *
+   */
+  seed?: number | null
+  /**
+   * @description The format of the generated image.
+   * @default 'png'
+   * @type string | undefined
+   */
+  output_format?: InputFalAiQwenImageEditOutputFormatEnumKey
+  /**
+   * @description The prompt to generate the image with
+   * @example Change bag to apple macbook
+   * @type string
+   */
+  prompt: string
+  /**
+   * @description The number of inference steps to perform.
+   * @minimum 2
+   * @maximum 50
+   * @default 30
+   * @type integer | undefined
+   */
+  num_inference_steps?: number
+  /**
+   * @description The size of the generated image.
+   */
+  image_size?: ImageSize67823E18 | InputFalAiQwenImageEditImageSizeKey | null
+  /**
+   * @description Acceleration level for image generation. Options: 'none', 'regular'. Higher acceleration increases speed. 'regular' balances speed and quality.
+   * @default 'regular'
+   * @example regular
+   * @type string | undefined
+   */
+  acceleration?: InputFalAiQwenImageEditAccelerationEnumKey
+}
+
+export type Image1Bae395C = {
+  width: number
+  height: number
+  /**
+   * @default image/jpeg
+   */
+  content_type?: string | null
+  url: string
+}
+
+export type OutputFalAiQwenImageEdit = {
+  /**
+   * @description
+   *             Seed of the generated Image. It will be the same value of the one passed in the
+   *             input or the randomly generated that was used in case none was passed.
+   *
+   * @type integer
+   */
+  seed: number
+  timings: {
+    [key: string]: number
+  }
+  /**
+   * @description The generated image files info.
+   * @example [{"width":1024,"height":768,"content_type":"image/jpeg","url":"https://v3.fal.media/files/elephant/P-YCIAg6wtFn1hsF34fzL_qwen-edit.png"}]
+   * @type array
+   */
+  images: Image1Bae395C[]
+  /**
+   * @description Whether the generated images contain NSFW concepts.
+   * @type array
+   */
+  has_nsfw_concepts: boolean[]
+  /**
+   * @description The prompt used for generating the image.
+   * @type string
+   */
+  prompt: string
 }
 
 export type ImageSize3304Cd7B = {
@@ -70295,6 +78913,283 @@ export type OutputFalAiQwenImageLayeredLora = {
   prompt?: string | null
 }
 
+export type ImageSize5737E773 = {
+  /**
+   * @description The height of the generated image.
+   * @maximum 14142
+   * @default 512
+   * @type integer | undefined
+   */
+  height?: number
+  /**
+   * @description The width of the generated image.
+   * @maximum 14142
+   * @default 512
+   * @type integer | undefined
+   */
+  width?: number
+}
+
+export const inputFalAiQwenImageMaxEditOutputFormatEnum = {
+  jpeg: 'jpeg',
+  png: 'png',
+  webp: 'webp',
+} as const
+
+export type InputFalAiQwenImageMaxEditOutputFormatEnumKey =
+  (typeof inputFalAiQwenImageMaxEditOutputFormatEnum)[keyof typeof inputFalAiQwenImageMaxEditOutputFormatEnum]
+
+export const inputFalAiQwenImageMaxEditImageSize = {
+  square_hd: 'square_hd',
+  square: 'square',
+  portrait_4_3: 'portrait_4_3',
+  portrait_16_9: 'portrait_16_9',
+  landscape_4_3: 'landscape_4_3',
+  landscape_16_9: 'landscape_16_9',
+} as const
+
+export type InputFalAiQwenImageMaxEditImageSizeKey =
+  (typeof inputFalAiQwenImageMaxEditImageSize)[keyof typeof inputFalAiQwenImageMaxEditImageSize]
+
+/**
+ * @description Input for Qwen Image Max image editing with reference images
+ * @type object
+ */
+export type InputFalAiQwenImageMaxEdit = {
+  /**
+   * @description If `True`, the media will be returned as a data URI and the output data won't be available in the request history.
+   * @default false
+   * @type boolean | undefined
+   */
+  sync_mode?: boolean
+  /**
+   * @description Content to avoid in the generated image. Max 500 characters.
+   * @default
+   * @example low resolution, error, worst quality, low quality, deformed
+   */
+  negative_prompt?: string | null
+  /**
+   * @description The format of the generated image.
+   * @default 'png'
+   * @type string | undefined
+   */
+  output_format?: InputFalAiQwenImageMaxEditOutputFormatEnumKey
+  /**
+   * @description Enable content moderation for input and output. Disabling it requires account authorization; unauthorized requests are always checked.
+   * @default true
+   * @type boolean | undefined
+   */
+  enable_safety_checker?: boolean
+  /**
+   * @description Text prompt describing the desired image. Supports Chinese and English. Max 800 characters.
+   * @minLength 1
+   * @maxLength 800
+   * @example Change wolves with extremely realistic small puppies of different colors.
+   * @type string
+   */
+  prompt: string
+  /**
+   * @description The size of the generated image. If not provided, the size of the final input image will be used.
+   */
+  image_size?: ImageSize5737E773 | InputFalAiQwenImageMaxEditImageSizeKey | null
+  /**
+   * @description Reference images for editing (1-3 images required). Order matters: reference as 'image 1', 'image 2', 'image 3' in prompt. Resolution: 384-5000px each dimension. Max size: 10MB each. Formats: JPEG, JPG, PNG (no alpha), WEBP.
+   * @example ["https://v3b.fal.media/files/b/0a8bf01f/TUehdcnBygWa1-SnEbp3K_image_123.png"]
+   * @type array
+   */
+  image_urls: string[]
+  /**
+   * @description Enable LLM prompt optimization for better results.
+   * @default true
+   * @type boolean | undefined
+   */
+  enable_prompt_expansion?: boolean
+  /**
+   * @description Random seed for reproducibility (0-2147483647).
+   */
+  seed?: number | null
+  /**
+   * @description The number of images to generate.
+   * @minimum 1
+   * @maximum 6
+   * @default 1
+   * @type integer | undefined
+   */
+  num_images?: number
+}
+
+export type File99675A65 = {
+  /**
+   * @description The name of the file. It will be auto-generated if not provided.
+   * @example z9RV14K95DvU.png
+   */
+  file_name?: string | null
+  /**
+   * @description The URL where the file can be downloaded from.
+   * @type string
+   */
+  url: string
+  /**
+   * @description The size of the file in bytes.
+   * @example 4404019
+   */
+  file_size?: number | null
+  /**
+   * @description The mime type of the file.
+   * @example image/png
+   */
+  content_type?: string | null
+}
+
+export type OutputFalAiQwenImageMaxEdit = {
+  /**
+   * @description The seed used for generation
+   * @example 42
+   * @type integer
+   */
+  seed: number
+  /**
+   * @description Generated images
+   * @example [{"url":"https://v3b.fal.media/files/b/0a8bf01f/5ZVeoOz6DtJUq6-f4SIsc_WawZPkPJ.png"}]
+   * @type array
+   */
+  images: File99675A65[]
+}
+
+export type ImageSize7313B660 = {
+  /**
+   * @description The height of the generated image.
+   * @maximum 14142
+   * @default 512
+   * @type integer | undefined
+   */
+  height?: number
+  /**
+   * @description The width of the generated image.
+   * @maximum 14142
+   * @default 512
+   * @type integer | undefined
+   */
+  width?: number
+}
+
+export const inputFalAiQwenImageMaxTextToImageOutputFormatEnum = {
+  jpeg: 'jpeg',
+  png: 'png',
+  webp: 'webp',
+} as const
+
+export type InputFalAiQwenImageMaxTextToImageOutputFormatEnumKey =
+  (typeof inputFalAiQwenImageMaxTextToImageOutputFormatEnum)[keyof typeof inputFalAiQwenImageMaxTextToImageOutputFormatEnum]
+
+export const inputFalAiQwenImageMaxTextToImageImageSize = {
+  square_hd: 'square_hd',
+  square: 'square',
+  portrait_4_3: 'portrait_4_3',
+  portrait_16_9: 'portrait_16_9',
+  landscape_4_3: 'landscape_4_3',
+  landscape_16_9: 'landscape_16_9',
+} as const
+
+export type InputFalAiQwenImageMaxTextToImageImageSizeKey =
+  (typeof inputFalAiQwenImageMaxTextToImageImageSize)[keyof typeof inputFalAiQwenImageMaxTextToImageImageSize]
+
+export type InputFalAiQwenImageMaxTextToImage = {
+  /**
+   * @description If `True`, the media will be returned as a data URI and the output data won't be available in the request history.
+   * @default false
+   * @type boolean | undefined
+   */
+  sync_mode?: boolean
+  /**
+   * @description Content to avoid in the generated image. Max 500 characters.
+   * @default
+   * @example low resolution, error, worst quality, low quality, deformed
+   */
+  negative_prompt?: string | null
+  /**
+   * @description The format of the generated image.
+   * @default 'png'
+   * @type string | undefined
+   */
+  output_format?: InputFalAiQwenImageMaxTextToImageOutputFormatEnumKey
+  /**
+   * @description The number of images to generate.
+   * @minimum 1
+   * @maximum 4
+   * @default 1
+   * @type integer | undefined
+   */
+  num_images?: number
+  /**
+   * @description Text prompt describing the desired image. Supports Chinese and English. Max 800 characters.
+   * @minLength 1
+   * @maxLength 800
+   * @example A cute baby koala holding a card says "Qwen Image Max is now available on fal" while on a water slider
+   * @type string
+   */
+  prompt: string
+  /**
+   * @description The size of the generated image.
+   * @default square_hd
+   */
+  image_size?: ImageSize7313B660 | InputFalAiQwenImageMaxTextToImageImageSizeKey
+  /**
+   * @description Enable LLM prompt optimization for better results.
+   * @default true
+   * @type boolean | undefined
+   */
+  enable_prompt_expansion?: boolean
+  /**
+   * @description Random seed for reproducibility (0-2147483647).
+   */
+  seed?: number | null
+  /**
+   * @description Enable content moderation for input and output. Disabling it requires account authorization; unauthorized requests are always checked.
+   * @default true
+   * @type boolean | undefined
+   */
+  enable_safety_checker?: boolean
+}
+
+export type FileB8C8B406 = {
+  /**
+   * @description The name of the file. It will be auto-generated if not provided.
+   * @example z9RV14K95DvU.png
+   */
+  file_name?: string | null
+  /**
+   * @description The URL where the file can be downloaded from.
+   * @type string
+   */
+  url: string
+  /**
+   * @description The size of the file in bytes.
+   * @example 4404019
+   */
+  file_size?: number | null
+  /**
+   * @description The mime type of the file.
+   * @example image/png
+   */
+  content_type?: string | null
+}
+
+export type OutputFalAiQwenImageMaxTextToImage = {
+  /**
+   * @description The seed used for generation
+   * @example 42
+   * @type integer
+   */
+  seed: number
+  /**
+   * @description Generated images.
+   * @example [{"url":"https://v3b.fal.media/files/b/0a8bf02b/bKyzcdmA_kYq4ru5s9H7k_sQ893ydD.png"}]
+   * @type array
+   */
+  images: FileB8C8B406[]
+}
+
 export type LoraWeight7E657C9C = {
   /**
    * @description URL or the path to the LoRA weights.
@@ -70511,6 +79406,238 @@ export type OutputFalAiQwenImageImageToImage = {
    * @type array
    */
   images: Image1260B501[]
+}
+
+export type Embedding308Eea92 = {
+  /**
+   * @description URL or the path to the embedding weights.
+   * @example https://huggingface.co/RyuusouI/Negativexld/resolve/20515981675c6e76d5b91e2343b958d27c5ad0ab/negativeXL_D.safetensors
+   * @example https://filebin.net/3chfqasxpqu21y8n/my-custom-lora-v1.safetensors
+   * @type string
+   */
+  path: string
+  /**
+   * @description
+   *             The list of tokens to use for the embedding. When omitted, tokens
+   *             are generated as <s0>, <s1>, ... to match the number of vectors in
+   *             the embedding file.
+   *
+   * @default null
+   */
+  tokens?: string[] | null
+}
+
+export type ImageSizeD2Dcd047 = {
+  /**
+   * @description The width of the generated image.
+   * @maximum 14142
+   * @default 512
+   * @type integer | undefined
+   */
+  width?: number
+  /**
+   * @description The height of the generated image.
+   * @maximum 14142
+   * @default 512
+   * @type integer | undefined
+   */
+  height?: number
+}
+
+export type LoraWeight79558661 = {
+  /**
+   * @description If set to true, the embedding will be forced to be used.
+   * @default false
+   * @type boolean | undefined
+   */
+  force?: boolean
+  /**
+   * @description URL or path to a LoRA safetensors file. Or HF model name that resolves to safetensors weights.
+   * @example https://huggingface.co/nerijs/pixel-art-xl/resolve/8bf4a4d9ea283e00a51fafda8e0539f8248ea037/pixel-art-xl.safetensors
+   * @example https://filebin.net/3chfqasxpqu21y8n/my-custom-lora-v1.safetensors
+   * @type string
+   */
+  path: string
+  /**
+   * @description
+   *             The scale of the LoRA weight. This is used to scale the LoRA weight
+   *             before merging it with the base model.
+   *
+   * @minimum 0
+   * @maximum 1
+   * @default 1
+   * @type number | undefined
+   */
+  scale?: number
+}
+
+export const inputFalAiRealisticVisionSafetyCheckerVersionEnum = {
+  v1: 'v1',
+  v2: 'v2',
+} as const
+
+export type InputFalAiRealisticVisionSafetyCheckerVersionEnumKey =
+  (typeof inputFalAiRealisticVisionSafetyCheckerVersionEnum)[keyof typeof inputFalAiRealisticVisionSafetyCheckerVersionEnum]
+
+export const inputFalAiRealisticVisionImageSize = {
+  square_hd: 'square_hd',
+  square: 'square',
+  portrait_4_3: 'portrait_4_3',
+  portrait_16_9: 'portrait_16_9',
+  landscape_4_3: 'landscape_4_3',
+  landscape_16_9: 'landscape_16_9',
+} as const
+
+export type InputFalAiRealisticVisionImageSizeKey =
+  (typeof inputFalAiRealisticVisionImageSize)[keyof typeof inputFalAiRealisticVisionImageSize]
+
+export const inputFalAiRealisticVisionFormatEnum = {
+  jpeg: 'jpeg',
+  png: 'png',
+} as const
+
+export type InputFalAiRealisticVisionFormatEnumKey =
+  (typeof inputFalAiRealisticVisionFormatEnum)[keyof typeof inputFalAiRealisticVisionFormatEnum]
+
+export type InputFalAiRealisticVision = {
+  /**
+   * @description If set to true, the safety checker will be enabled.
+   * @default true
+   * @type boolean | undefined
+   */
+  enable_safety_checker?: boolean
+  /**
+   * @description The list of embeddings to use.
+   * @default []
+   * @type array | undefined
+   */
+  embeddings?: Embedding308Eea92[]
+  /**
+   * @description If set to true, the prompt will be expanded with additional prompts.
+   * @default false
+   * @type boolean | undefined
+   */
+  expand_prompt?: boolean
+  /**
+   * @description The version of the safety checker to use. v1 is the default CompVis safety checker. v2 uses a custom ViT model.
+   * @default 'v1'
+   * @type string | undefined
+   */
+  safety_checker_version?: InputFalAiRealisticVisionSafetyCheckerVersionEnumKey
+  /**
+   * @default {"width":1024,"height":1024}
+   */
+  image_size?: ImageSizeD2Dcd047 | InputFalAiRealisticVisionImageSizeKey
+  /**
+   * @description The list of LoRA weights to use.
+   * @default []
+   * @type array | undefined
+   */
+  loras?: LoraWeight79558661[]
+  /**
+   * @description The number of images to generate.
+   * @minimum 1
+   * @maximum 8
+   * @default 1
+   * @type integer | undefined
+   */
+  num_images?: number
+  /**
+   * @description If `True`, the media will be returned as a data URI and the output data won't be available in the request history.
+   * @default false
+   * @type boolean | undefined
+   */
+  sync_mode?: boolean
+  /**
+   * @description The prompt to use for generating the image. Be as descriptive as possible for best results.
+   * @example A hyperdetailed photograph of a Cat dressed as a mafia boss holding a fish walking down a Japanese fish market with an angry face, 8k resolution, best quality, beautiful photograph, dynamic lighting,
+   * @type string
+   */
+  prompt: string
+  /**
+   * @description The format of the generated image.
+   * @default 'jpeg'
+   * @type string | undefined
+   */
+  format?: InputFalAiRealisticVisionFormatEnumKey
+  /**
+   * @description The CFG (Classifier Free Guidance) scale is a measure of how close you want the model to stick to your prompt when looking for a related image to show you.
+   * @minimum 0
+   * @maximum 20
+   * @default 5
+   * @type number | undefined
+   */
+  guidance_scale?: number
+  /**
+   * @description The number of inference steps to perform.
+   * @minimum 1
+   * @maximum 70
+   * @default 35
+   * @type integer | undefined
+   */
+  num_inference_steps?: number
+  /**
+   * @description
+   *             An id bound to a request, can be used with response to identify the request
+   *             itself.
+   *
+   * @default ''
+   * @type string | undefined
+   */
+  request_id?: string
+  /**
+   * @description The negative prompt to use. Use it to address details that you don't want in the image.
+   * @default '(worst quality, low quality, normal quality, lowres, low details, oversaturated, undersaturated, overexposed, underexposed, grayscale, bw, bad photo, bad photography, bad art:1.4), (watermark, signature, text font, username, error, logo, words, letters, digits, autograph, trademark, name:1.2), (blur, blurry, grainy), morbid, ugly, asymmetrical, mutated malformed, mutilated, poorly lit, bad shadow, draft, cropped, out of frame, cut off, censored, jpeg artifacts, out of focus, glitch, duplicate, (airbrushed, cartoon, anime, semi-realistic, cgi, render, blender, digital art, manga, amateur:1.3), (3D ,3D Game, 3D Game Scene, 3D Character:1.1), (bad hands, bad anatomy, bad body, bad face, bad teeth, bad arms, bad legs, deformities:1.3)'
+   * @type string | undefined
+   */
+  negative_prompt?: string
+  /**
+   * @description
+   *             The same seed and the same prompt given to the same version of Stable Diffusion
+   *             will output the same image every time.
+   *
+   * @default null
+   */
+  seed?: number | null
+}
+
+export type Image5D8C8971 = {
+  /**
+   * @default image/jpeg
+   */
+  content_type?: string | null
+  height: number
+  width: number
+  url: string
+}
+
+export type OutputFalAiRealisticVision = {
+  /**
+   * @description The generated image files info.
+   * @type array
+   */
+  images: Image5D8C8971[]
+  /**
+   * @description
+   *             Seed of the generated Image. It will be the same value of the one passed in the
+   *             input or the randomly generated that was used in case none was passed.
+   *
+   * @type integer
+   */
+  seed: number
+  timings: {
+    [key: string]: number
+  }
+  /**
+   * @description Whether the generated images contain NSFW concepts.
+   * @type array
+   */
+  has_nsfw_concepts: boolean[]
+  /**
+   * @description The prompt used for generating the image.
+   * @type string
+   */
+  prompt: string
 }
 
 export type ImageSize7695279F = {
@@ -75738,6 +84865,140 @@ export type OutputFalAiSeedvrUpscaleImageSeamless = {
   image: ImageFile8498075D
 }
 
+export const inputFalAiSensenovaU1InfographicOutputFormatEnum = {
+  jpeg: 'jpeg',
+  png: 'png',
+} as const
+
+export type InputFalAiSensenovaU1InfographicOutputFormatEnumKey =
+  (typeof inputFalAiSensenovaU1InfographicOutputFormatEnum)[keyof typeof inputFalAiSensenovaU1InfographicOutputFormatEnum]
+
+export const inputFalAiSensenovaU1InfographicAspectRatioEnum = {
+  '1:1': '1:1',
+  '16:9': '16:9',
+  '9:16': '9:16',
+  '3:2': '3:2',
+  '2:3': '2:3',
+  '4:3': '4:3',
+  '3:4': '3:4',
+  '1:2': '1:2',
+  '2:1': '2:1',
+} as const
+
+export type InputFalAiSensenovaU1InfographicAspectRatioEnumKey =
+  (typeof inputFalAiSensenovaU1InfographicAspectRatioEnum)[keyof typeof inputFalAiSensenovaU1InfographicAspectRatioEnum]
+
+export type InputFalAiSensenovaU1Infographic = {
+  /**
+   * @description The format of the generated image.
+   * @default 'jpeg'
+   * @type string | undefined
+   */
+  output_format?: InputFalAiSensenovaU1InfographicOutputFormatEnumKey
+  /**
+   * @description If set to true, the safety checker will be enabled.
+   * @default true
+   * @type boolean | undefined
+   */
+  enable_safety_checker?: boolean
+  /**
+   * @description If True, the media will be returned as a data URI and the output data won't be available in the request history.
+   * @default false
+   * @type boolean | undefined
+   */
+  sync_mode?: boolean
+  /**
+   * @description Number of flow-matching denoising steps.
+   * @minimum 10
+   * @maximum 100
+   * @default 50
+   * @type integer | undefined
+   */
+  num_inference_steps?: number
+  /**
+   * @description The same seed and the same prompt given to the same version of the model will output the same image every time.
+   */
+  seed?: number | null
+  /**
+   * @description If True, run chain-of-thought before image generation. Improves complex-prompt fidelity but is slower and billed at 1.2x.
+   * @default false
+   * @type boolean | undefined
+   */
+  use_thinking?: boolean
+  /**
+   * @description Timestep shifting factor for the flow-matching sampler. Higher values bias sampling towards earlier timesteps.
+   * @minimum 1
+   * @maximum 8
+   * @default 3
+   * @type number | undefined
+   */
+  timestep_shift?: number
+  /**
+   * @description Text prompt describing the infographic to generate. Detailed prompts that specify layout, sections, color palette, typography, and the data being visualized work best.
+   * @example A flat-design infographic titled 'The Lifecycle of a Tree' with five labeled stages laid out left-to-right (seed, sapling, young tree, mature tree, decomposition), soft pastel green-and-brown palette, minimal sans-serif headings, hand-drawn vector illustrations, white background, subtle drop-shadow on cards.
+   * @type string
+   */
+  prompt: string
+  /**
+   * @description Classifier-free guidance scale. Higher values follow the prompt more strictly.
+   * @minimum 1
+   * @maximum 10
+   * @default 4
+   * @type number | undefined
+   */
+  guidance_scale?: number
+  /**
+   * @description Aspect ratio for the generated image. Maps to the trained resolution buckets — using ratios outside this set is not supported. Defaults to 16:9, which fits most poster / presentation-style infographics.
+   * @default '16:9'
+   * @type string | undefined
+   */
+  aspect_ratio?: InputFalAiSensenovaU1InfographicAspectRatioEnumKey
+}
+
+export type Image13664Cf8 = {
+  width: number
+  /**
+   * @default image/jpeg
+   */
+  content_type?: string | null
+  url: string
+  height: number
+}
+
+export type OutputFalAiSensenovaU1Infographic = {
+  /**
+   * @description Whether the generated images contain NSFW concepts.
+   * @type array
+   */
+  has_nsfw_concepts: boolean[]
+  /**
+   * @description The generated image(s).
+   * @type array
+   */
+  images: Image13664Cf8[]
+  /**
+   * @description The prompt used for the generation.
+   * @type string
+   */
+  prompt: string
+  /**
+   * @description Per-stage timings in seconds.
+   * @type object
+   */
+  timings: {
+    [key: string]: number
+  }
+  /**
+   * @description Chain-of-thought trace emitted when ``use_thinking`` is True, else ``null``.
+   */
+  thinking?: string | null
+  /**
+   * @description The seed used for the generation.
+   * @type integer
+   */
+  seed: number
+}
+
 export const inputFalAiSmartResizeOutputFormatEnum = {
   jpeg: 'jpeg',
   png: 'png',
@@ -75913,6 +85174,324 @@ export type OutputFalAiSmartResize = {
    * @type array
    */
   results: SmartResizeResult[]
+}
+
+export type ImageSizeA2654A64 = {
+  /**
+   * @description The width of the generated image.
+   * @maximum 14142
+   * @default 512
+   * @type integer | undefined
+   */
+  width?: number
+  /**
+   * @description The height of the generated image.
+   * @maximum 14142
+   * @default 512
+   * @type integer | undefined
+   */
+  height?: number
+}
+
+export const inputFalAiStableCascadeImageSize = {
+  square_hd: 'square_hd',
+  square: 'square',
+  portrait_4_3: 'portrait_4_3',
+  portrait_16_9: 'portrait_16_9',
+  landscape_4_3: 'landscape_4_3',
+  landscape_16_9: 'landscape_16_9',
+} as const
+
+export type InputFalAiStableCascadeImageSizeKey =
+  (typeof inputFalAiStableCascadeImageSize)[keyof typeof inputFalAiStableCascadeImageSize]
+
+export type InputFalAiStableCascade = {
+  /**
+   * @description Number of steps to run the first stage for.
+   * @minimum 4
+   * @maximum 40
+   * @default 20
+   * @type integer | undefined
+   */
+  first_stage_steps?: number
+  /**
+   * @description If set to false, the safety checker will be disabled. Disabling it requires account authorization; unauthorized requests are always checked, and images flagged as unsafe are returned as black images.
+   * @default true
+   * @type boolean | undefined
+   */
+  enable_safety_checker?: boolean
+  /**
+   * @description Number of steps to run the second stage for.
+   * @minimum 4
+   * @maximum 24
+   * @default 10
+   * @type integer | undefined
+   */
+  second_stage_steps?: number
+  /**
+   * @description
+   *             The negative prompt to use. Use it to address details that you don't want
+   *             in the image. This could be colors, objects, scenery and even the small details
+   *             (e.g. moustache, blurry, low resolution).
+   *
+   * @default ''
+   * @example ugly, deformed
+   * @type string | undefined
+   */
+  negative_prompt?: string
+  /**
+   * @description The size of the generated image.
+   * @default square_hd
+   */
+  image_size?: ImageSizeA2654A64 | InputFalAiStableCascadeImageSizeKey
+  /**
+   * @description The number of images to generate.
+   * @minimum 1
+   * @maximum 4
+   * @default 1
+   * @type integer | undefined
+   */
+  num_images?: number
+  /**
+   * @description
+   *             The CFG (Classifier Free Guidance) scale is a measure of how close you want
+   *             the model to stick to your prompt when looking for a related image to show you.
+   *
+   * @minimum 0
+   * @maximum 20
+   * @default 0
+   * @type number | undefined
+   */
+  second_stage_guidance_scale?: number
+  /**
+   * @description The prompt to use for generating the image. Be as descriptive as possible for best results.
+   * @example An image of a shiba inu, donning a spacesuit and helmet
+   * @type string
+   */
+  prompt: string
+  /**
+   * @description If `True`, the media will be returned as a data URI and the output data won't be available in the request history.
+   * @default false
+   * @type boolean | undefined
+   */
+  sync_mode?: boolean
+  /**
+   * @description
+   *             The CFG (Classifier Free Guidance) scale is a measure of how close you want
+   *             the model to stick to your prompt when looking for a related image to show you.
+   *
+   * @minimum 0
+   * @maximum 20
+   * @default 4
+   * @type number | undefined
+   */
+  guidance_scale?: number
+  /**
+   * @description
+   *             The same seed and the same prompt given to the same version of Stable Cascade
+   *             will output the same image every time.
+   *
+   */
+  seed?: number | null
+}
+
+export type Image732Ce78E = {
+  url: string
+  height: number
+  width: number
+  /**
+   * @default image/jpeg
+   */
+  content_type?: string | null
+}
+
+export type OutputFalAiStableCascade = {
+  /**
+   * @description
+   *             Seed of the generated Image. It will be the same value of the one passed in the
+   *             input or the randomly generated that was used in case none was passed.
+   *
+   * @type integer
+   */
+  seed: number
+  /**
+   * @description Whether the generated images contain NSFW concepts.
+   * @type array
+   */
+  has_nsfw_concepts: boolean[]
+  /**
+   * @description The generated image files info.
+   * @type array
+   */
+  images: Image732Ce78E[]
+  timings: {
+    [key: string]: number
+  }
+  /**
+   * @description The prompt used for generating the image.
+   * @type string
+   */
+  prompt: string
+}
+
+export type ImageSizeFe0Dd774 = {
+  /**
+   * @description The width of the generated image.
+   * @maximum 14142
+   * @default 512
+   * @type integer | undefined
+   */
+  width?: number
+  /**
+   * @description The height of the generated image.
+   * @maximum 14142
+   * @default 512
+   * @type integer | undefined
+   */
+  height?: number
+}
+
+export const inputFalAiStableCascadeSoteDiffusionImageSize = {
+  square_hd: 'square_hd',
+  square: 'square',
+  portrait_4_3: 'portrait_4_3',
+  portrait_16_9: 'portrait_16_9',
+  landscape_4_3: 'landscape_4_3',
+  landscape_16_9: 'landscape_16_9',
+} as const
+
+export type InputFalAiStableCascadeSoteDiffusionImageSizeKey =
+  (typeof inputFalAiStableCascadeSoteDiffusionImageSize)[keyof typeof inputFalAiStableCascadeSoteDiffusionImageSize]
+
+export type InputFalAiStableCascadeSoteDiffusion = {
+  /**
+   * @description Number of steps to run the first stage for.
+   * @minimum 4
+   * @maximum 50
+   * @default 25
+   * @type integer | undefined
+   */
+  first_stage_steps?: number
+  /**
+   * @description If set to false, the safety checker will be disabled. Disabling it requires account authorization; unauthorized requests are always checked, and images flagged as unsafe are returned as black images.
+   * @default true
+   * @type boolean | undefined
+   */
+  enable_safety_checker?: boolean
+  /**
+   * @description Number of steps to run the second stage for.
+   * @minimum 4
+   * @maximum 24
+   * @default 10
+   * @type integer | undefined
+   */
+  second_stage_steps?: number
+  /**
+   * @description
+   *             The negative prompt to use. Use it to address details that you don't want
+   *             in the image. This could be colors, objects, scenery and even the small details
+   *             (e.g. moustache, blurry, low resolution).
+   *
+   * @default ''
+   * @example very displeasing, worst quality, monochrome, realistic, oldest
+   * @type string | undefined
+   */
+  negative_prompt?: string
+  /**
+   * @description The size of the generated image.
+   * @default {"width":1024,"height":1536}
+   */
+  image_size?:
+    | ImageSizeFe0Dd774
+    | InputFalAiStableCascadeSoteDiffusionImageSizeKey
+  /**
+   * @description The number of images to generate.
+   * @minimum 1
+   * @maximum 4
+   * @default 1
+   * @type integer | undefined
+   */
+  num_images?: number
+  /**
+   * @description
+   *             The CFG (Classifier Free Guidance) scale is a measure of how close you want
+   *             the model to stick to your prompt when looking for a related image to show you.
+   *
+   * @minimum 0
+   * @maximum 20
+   * @default 2
+   * @type number | undefined
+   */
+  second_stage_guidance_scale?: number
+  /**
+   * @description The prompt to use for generating the image. Be as descriptive as possible for best results.
+   * @example newest, extremely aesthetic, best quality, 1girl, solo, pink hair, blue eyes, long hair, looking at viewer, smile, black background, holding a sign, the text on the sign says "Hello"
+   * @type string
+   */
+  prompt: string
+  /**
+   * @description If `True`, the media will be returned as a data URI and the output data won't be available in the request history.
+   * @default false
+   * @type boolean | undefined
+   */
+  sync_mode?: boolean
+  /**
+   * @description
+   *             The CFG (Classifier Free Guidance) scale is a measure of how close you want
+   *             the model to stick to your prompt when looking for a related image to show you.
+   *
+   * @minimum 0
+   * @maximum 20
+   * @default 8
+   * @type number | undefined
+   */
+  guidance_scale?: number
+  /**
+   * @description
+   *             The same seed and the same prompt given to the same version of Stable Cascade
+   *             will output the same image every time.
+   *
+   */
+  seed?: number | null
+}
+
+export type ImageE6910A5A = {
+  url: string
+  height: number
+  width: number
+  /**
+   * @default image/jpeg
+   */
+  content_type?: string | null
+}
+
+export type OutputFalAiStableCascadeSoteDiffusion = {
+  /**
+   * @description
+   *             Seed of the generated Image. It will be the same value of the one passed in the
+   *             input or the randomly generated that was used in case none was passed.
+   *
+   * @type integer
+   */
+  seed: number
+  /**
+   * @description Whether the generated images contain NSFW concepts.
+   * @type array
+   */
+  has_nsfw_concepts: boolean[]
+  /**
+   * @description The generated image files info.
+   * @type array
+   */
+  images: ImageE6910A5A[]
+  timings: {
+    [key: string]: number
+  }
+  /**
+   * @description The prompt used for generating the image.
+   * @type string
+   */
+  prompt: string
 }
 
 export type ImageSize84D015E0 = {
@@ -77273,6 +86852,360 @@ export type OutputFalAiTelestyleV2 = {
   prompt?: string
 }
 
+export const inputFalAiTopazUpscaleImageSubjectDetectionEnum = {
+  All: 'All',
+  Foreground: 'Foreground',
+  Background: 'Background',
+} as const
+
+export type InputFalAiTopazUpscaleImageSubjectDetectionEnumKey =
+  (typeof inputFalAiTopazUpscaleImageSubjectDetectionEnum)[keyof typeof inputFalAiTopazUpscaleImageSubjectDetectionEnum]
+
+export const inputFalAiTopazUpscaleImageEnhancementStrength = {
+  low: 'low',
+  medium: 'medium',
+  high: 'high',
+} as const
+
+export type InputFalAiTopazUpscaleImageEnhancementStrengthKey =
+  (typeof inputFalAiTopazUpscaleImageEnhancementStrength)[keyof typeof inputFalAiTopazUpscaleImageEnhancementStrength]
+
+export const inputFalAiTopazUpscaleImageModelEnum = {
+  'Standard V2': 'Standard V2',
+  'High Fidelity V2': 'High Fidelity V2',
+  'Low Resolution V2': 'Low Resolution V2',
+  CGI: 'CGI',
+  'Text Refine': 'Text Refine',
+  'Wonder 3': 'Wonder 3',
+  Wonder: 'Wonder',
+  'Standard MAX': 'Standard MAX',
+  Redefine: 'Redefine',
+  'Recovery V2': 'Recovery V2',
+  Recovery: 'Recovery',
+} as const
+
+export type InputFalAiTopazUpscaleImageModelEnumKey =
+  (typeof inputFalAiTopazUpscaleImageModelEnum)[keyof typeof inputFalAiTopazUpscaleImageModelEnum]
+
+export const inputFalAiTopazUpscaleImageOutputFormatEnum = {
+  jpeg: 'jpeg',
+  png: 'png',
+} as const
+
+export type InputFalAiTopazUpscaleImageOutputFormatEnumKey =
+  (typeof inputFalAiTopazUpscaleImageOutputFormatEnum)[keyof typeof inputFalAiTopazUpscaleImageOutputFormatEnum]
+
+export type InputFalAiTopazUpscaleImage = {
+  /**
+   * @description Url of the image to be upscaled
+   * @minLength 1
+   * @example https://storage.googleapis.com/falserverless/model_tests/codeformer/codeformer_poor_1.jpeg
+   * @type string
+   */
+  image_url: string
+  /**
+   * @description Creativity level for generative upscaling (1-6). Higher values produce more creative/hallucinated details. Applies to Redefine model only.
+   */
+  creativity?: number | null
+  /**
+   * @description Creativity level for face enhancement. 0.0 means no creativity, 1.0 means maximum creativity. Ignored if face enhancement is disabled.
+   * @minimum 0
+   * @maximum 1
+   * @default 0
+   * @type number | undefined
+   */
+  face_enhancement_creativity?: number
+  /**
+   * @description Strength of the face enhancement. 0.0 means no enhancement, 1.0 means maximum enhancement. Ignored if face enhancement is disabled.
+   * @minimum 0
+   * @maximum 1
+   * @default 0.8
+   * @type number | undefined
+   */
+  face_enhancement_strength?: number
+  /**
+   * @description Whether to apply face enhancement to the image. Applies to standard enhance and Recovery V2 models.
+   * @default true
+   * @type boolean | undefined
+   */
+  face_enhancement?: boolean
+  /**
+   * @default false
+   * @type boolean | undefined
+   */
+  crop_to_fill?: boolean
+  /**
+   * @description Enable automatic prompt generation for generative upscaling. Applies to Redefine model only.
+   */
+  autoprompt?: boolean | null
+  /**
+   * @description Subject detection mode for the image enhancement. Applies to standard enhance and Recovery V2 models.
+   * @default 'All'
+   * @type string | undefined
+   */
+  subject_detection?: InputFalAiTopazUpscaleImageSubjectDetectionEnumKey
+  /**
+   * @description Enhancement strength for generative upscaling. Applies to Wonder 3 model only. When omitted, Topaz auto-configures it.
+   */
+  enhancement_strength?: InputFalAiTopazUpscaleImageEnhancementStrengthKey | null
+  /**
+   * @description Model to use for image enhancement, grouped by family. Precision — Standard V2 fits most photos, High Fidelity V2 preserves detail in professional shots, Low Resolution V2 recovers compressed sources, CGI targets art and rendered graphics, Text Refine keeps text and shapes crisp. Generative — Wonder 3 is Topaz's most advanced generative model, Redefine adds prompt-guided creative detail, Standard MAX maximizes quality, Recovery/Recovery V2 rebuild extreme low-resolution images.
+   * @default 'Standard V2'
+   * @type string | undefined
+   */
+  model?: InputFalAiTopazUpscaleImageModelEnumKey
+  /**
+   * @description Detail recovery level (0.0-1.0). Applies to Recovery V2 model only.
+   */
+  detail?: number | null
+  /**
+   * @description Denoising level (0.0-1.0). Applies to Standard V2, Low Resolution V2, CGI, High Fidelity V2, Text Refine, and Redefine models.
+   */
+  denoise?: number | null
+  /**
+   * @description Factor to upscale the image by (e.g. 2.0 doubles width and height)
+   * @minimum 1
+   * @maximum 4
+   * @default 2
+   * @type number | undefined
+   */
+  upscale_factor?: number
+  /**
+   * @description Sharpening level (0.0-1.0). Applies to Standard V2, Low Resolution V2, CGI, High Fidelity V2, Text Refine, and Redefine models.
+   */
+  sharpen?: number | null
+  /**
+   * @description Compression artifact removal level (0.0-1.0). Applies to Standard V2, Low Resolution V2, High Fidelity V2, and Text Refine models.
+   */
+  fix_compression?: number | null
+  /**
+   * @description Text prompt to guide generative upscaling (max 1024 chars). Applies to Redefine model only.
+   */
+  prompt?: string | null
+  /**
+   * @description Enhancement strength (0.01-1.0). Applies to Text Refine model only.
+   */
+  strength?: number | null
+  /**
+   * @description Output format of the upscaled image.
+   * @default 'jpeg'
+   * @type string | undefined
+   */
+  output_format?: InputFalAiTopazUpscaleImageOutputFormatEnumKey
+  /**
+   * @description Texture detail level for generative upscaling (1-5). Applies to Redefine model only.
+   */
+  texture?: number | null
+}
+
+export type File9Cc340Da = {
+  /**
+   * @description The size of the file in bytes.
+   * @example 4404019
+   */
+  file_size?: number | null
+  /**
+   * @description The name of the file. It will be auto-generated if not provided.
+   * @example z9RV14K95DvU.png
+   */
+  file_name?: string | null
+  /**
+   * @description The mime type of the file.
+   * @example image/png
+   */
+  content_type?: string | null
+  /**
+   * @description The URL where the file can be downloaded from.
+   * @type string
+   */
+  url: string
+}
+
+export type OutputFalAiTopazUpscaleImage = {
+  /**
+   * @description The upscaled image.
+   * @type object
+   */
+  image: File9Cc340Da
+}
+
+export type ImageSize8D9C9222 = {
+  /**
+   * @description The height of the generated image.
+   * @maximum 14142
+   * @default 512
+   * @type integer | undefined
+   */
+  height?: number
+  /**
+   * @description The width of the generated image.
+   * @maximum 14142
+   * @default 512
+   * @type integer | undefined
+   */
+  width?: number
+}
+
+export const inputFalAiUnoOutputFormatEnum = {
+  jpeg: 'jpeg',
+  png: 'png',
+} as const
+
+export type InputFalAiUnoOutputFormatEnumKey =
+  (typeof inputFalAiUnoOutputFormatEnum)[keyof typeof inputFalAiUnoOutputFormatEnum]
+
+export const inputFalAiUnoImageSize = {
+  square_hd: 'square_hd',
+  square: 'square',
+  portrait_4_3: 'portrait_4_3',
+  portrait_16_9: 'portrait_16_9',
+  landscape_4_3: 'landscape_4_3',
+  landscape_16_9: 'landscape_16_9',
+} as const
+
+export type InputFalAiUnoImageSizeKey =
+  (typeof inputFalAiUnoImageSize)[keyof typeof inputFalAiUnoImageSize]
+
+export type InputFalAiUno = {
+  /**
+   * @description If `True`, the media will be returned as a data URI and the output data won't be available in the request history.
+   * @default false
+   * @type boolean | undefined
+   */
+  sync_mode?: boolean
+  /**
+   * @description The format of the generated image.
+   * @default 'jpeg'
+   * @type string | undefined
+   */
+  output_format?: InputFalAiUnoOutputFormatEnumKey
+  /**
+   * @description The number of images to generate.
+   * @minimum 1
+   * @maximum 4
+   * @default 1
+   * @type integer | undefined
+   */
+  num_images?: number
+  /**
+   * @description The number of inference steps to perform.
+   * @minimum 1
+   * @maximum 50
+   * @default 28
+   * @type integer | undefined
+   */
+  num_inference_steps?: number
+  /**
+   * @description The prompt to generate an image from.
+   * @example The figurine is in the crystal ball
+   * @type string
+   */
+  prompt: string
+  /**
+   * @description
+   *             The size of the generated image. You can choose between some presets or custom height and width
+   *             that **must be multiples of 8**.
+   *
+   * @default square_hd
+   */
+  image_size?: ImageSize8D9C9222 | InputFalAiUnoImageSizeKey | null
+  /**
+   * @description URL of images to use while generating the image.
+   * @example ["https://storage.googleapis.com/falserverless/UNO/figurine.png","https://storage.googleapis.com/falserverless/UNO/crystal_ball.png"]
+   * @type array
+   */
+  input_image_urls: string[]
+  /**
+   * @description
+   *             The CFG (Classifier Free Guidance) scale is a measure of how close you want
+   *             the model to stick to your prompt when looking for a related image to show you.
+   *
+   * @minimum 1
+   * @maximum 20
+   * @default 3.5
+   * @type number | undefined
+   */
+  guidance_scale?: number
+  /**
+   * @description Random seed for reproducible generation. If set none, a random seed will be used.
+   */
+  seed?: number | null
+  /**
+   * @description If set to true, the safety checker will be enabled. Disabling it requires account authorization; unauthorized requests are always checked.
+   * @default true
+   * @type boolean | undefined
+   */
+  enable_safety_checker?: boolean
+}
+
+/**
+ * @description Represents an image file.
+ * @type object
+ */
+export type Image1Bd81735 = {
+  /**
+   * @description The height of the image in pixels.
+   * @example 1024
+   */
+  height?: number | null
+  /**
+   * @description The width of the image in pixels.
+   * @example 1024
+   */
+  width?: number | null
+  /**
+   * @description The URL where the file can be downloaded from.
+   * @type string
+   */
+  url: string
+  /**
+   * @description The size of the file in bytes.
+   * @example 4404019
+   */
+  file_size?: number | null
+  /**
+   * @description The mime type of the file.
+   * @example image/png
+   */
+  content_type?: string | null
+  /**
+   * @description The name of the file. It will be auto-generated if not provided.
+   * @example z9RV14K95DvU.png
+   */
+  file_name?: string | null
+}
+
+export type OutputFalAiUno = {
+  /**
+   * @description The prompt used to generate the image.
+   * @example The figurine is in the crystal ball
+   * @type string
+   */
+  prompt: string
+  timings: {
+    [key: string]: number
+  }
+  /**
+   * @description Whether the generated images contain NSFW concepts.
+   * @type array
+   */
+  has_nsfw_concepts: boolean[]
+  /**
+   * @description The URLs of the generated images.
+   * @example ["https://storage.googleapis.com/falserverless/UNO/output.jpeg"]
+   * @type array
+   */
+  images: Image1Bd81735[]
+  /**
+   * @description
+   *             Seed of the generated Image. It will be the same value of the one passed in the
+   *             input or the randomly generated that was used in case none was passed.
+   *
+   * @type integer
+   */
+  seed: number
+}
+
 export type ImageSizeC06A90C5 = {
   /**
    * @description The width of the generated image.
@@ -77456,6 +87389,305 @@ export type OutputFalAiUso = {
    * @type array
    */
   has_nsfw_concepts: boolean[]
+}
+
+export type InputFalAiVecglypher = {
+  /**
+   * @description Enable input safety checking.
+   * @default true
+   * @type boolean | undefined
+   */
+  enable_safety_checker?: boolean
+  /**
+   * @description Sampling temperature. Lower values produce more deterministic output.
+   * @minimum 0
+   * @maximum 2
+   * @default 0.1
+   * @type number | undefined
+   */
+  temperature?: number
+  /**
+   * @description Maximum dimension (width or height) of the output SVG in pixels. The aspect ratio is preserved.
+   * @minimum 64
+   * @maximum 4096
+   * @default 512
+   * @type integer | undefined
+   */
+  output_size?: number
+  /**
+   * @description Stroke width in SVG units. Only applies when stroke_color is set.
+   * @minimum 0.1
+   * @maximum 50
+   * @default 1
+   * @type number | undefined
+   */
+  stroke_width?: number
+  /**
+   * @description Top-k sampling parameter.
+   * @minimum -1
+   * @maximum 100
+   * @default 5
+   * @type integer | undefined
+   */
+  top_k?: number
+  /**
+   * @description Fill color for the generated glyphs. Accepts any valid SVG/CSS color value.
+   * @default 'black'
+   * @example black
+   * @example #FF5733
+   * @example rgb(255,87,51)
+   * @example none
+   * @type string | undefined
+   */
+  fill_color?: string
+  /**
+   * @description Maximum tokens to generate. Increase for longer text.
+   * @minimum 256
+   * @maximum 16384
+   * @default 8192
+   * @type integer | undefined
+   */
+  max_tokens?: number
+  /**
+   * @description Font style description using typography terms such as weight (100-900), style (italic, oblique), category (serif, sans-serif, display, handwriting, monospace), and characteristics (geometric, humanist, condensed, rounded).
+   * @default 'italic style, 400 weight, serif, text, elegant'
+   * @example italic style, 400 weight, serif, text, elegant
+   * @type string | undefined
+   */
+  style_description?: string
+  /**
+   * @description Repetition penalty to reduce repeated SVG path segments.
+   * @minimum 0
+   * @maximum 2
+   * @default 1
+   * @type number | undefined
+   */
+  repetition_penalty?: number
+  /**
+   * @description Top-p (nucleus) sampling parameter.
+   * @minimum 0
+   * @maximum 1
+   * @default 0.95
+   * @type number | undefined
+   */
+  top_p?: number
+  /**
+   * @description Optional stroke (outline) color for the generated glyphs. When set, adds an outline around each glyph path.
+   * @example black
+   * @example #333333
+   * @example none
+   */
+  stroke_color?: string | null
+  /**
+   * @description Random seed for reproducibility.
+   */
+  seed?: number | null
+  /**
+   * @description The target text to generate as vector glyphs. Each character is rendered as a separate SVG path element.
+   * @example g
+   * @type string
+   */
+  prompt: string
+}
+
+export type File00091D41 = {
+  /**
+   * @description The size of the file in bytes.
+   * @example 4404019
+   */
+  file_size?: number | null
+  /**
+   * @description The name of the file. It will be auto-generated if not provided.
+   * @example z9RV14K95DvU.png
+   */
+  file_name?: string | null
+  /**
+   * @description The mime type of the file.
+   * @example image/png
+   */
+  content_type?: string | null
+  /**
+   * @description The URL where the file can be downloaded from.
+   * @type string
+   */
+  url: string
+}
+
+export type OutputFalAiVecglypher = {
+  /**
+   * @description The seed used for generation.
+   * @example 1835785439
+   * @type integer
+   */
+  seed: number
+  /**
+   * @description Raw SVG content as a string.
+   * @type string
+   */
+  svg_content: string
+  /**
+   * @description The generated SVG file containing vector glyphs.
+   * @example {"file_size":959,"file_name":"180c718ac5d8407092d0688ea2605f0c.svg","content_type":"image/svg+xml","url":"https://v3b.fal.media/files/b/0a90bfc3/0f8Su2aQUzPQy4NZMDQpp_180c718ac5d8407092d0688ea2605f0c.svg"}
+   * @type object
+   */
+  image: File00091D41
+  /**
+   * @description Timing breakdown of the generation process.
+   * @example {"inference":10.83}
+   * @type object
+   */
+  timings: {
+    [key: string]: number
+  }
+}
+
+export type InputFalAiVecglypherImageToSvg = {
+  /**
+   * @description Enable input safety checking.
+   * @default true
+   * @type boolean | undefined
+   */
+  enable_safety_checker?: boolean
+  /**
+   * @description Sampling temperature.
+   * @minimum 0
+   * @maximum 2
+   * @default 0.1
+   * @type number | undefined
+   */
+  temperature?: number
+  /**
+   * @description Maximum dimension (width or height) of the output SVG in pixels. The aspect ratio is preserved.
+   * @minimum 64
+   * @maximum 4096
+   * @default 512
+   * @type integer | undefined
+   */
+  output_size?: number
+  /**
+   * @description Stroke width in SVG units. Only applies when stroke_color is set.
+   * @minimum 0.1
+   * @maximum 50
+   * @default 1
+   * @type number | undefined
+   */
+  stroke_width?: number
+  /**
+   * @description Top-k sampling parameter.
+   * @minimum -1
+   * @maximum 100
+   * @default 5
+   * @type integer | undefined
+   */
+  top_k?: number
+  /**
+   * @description Fill color for the generated glyphs. Accepts any valid SVG/CSS color value.
+   * @default 'black'
+   * @example black
+   * @example #FF5733
+   * @example rgb(255,87,51)
+   * @example none
+   * @type string | undefined
+   */
+  fill_color?: string
+  /**
+   * @description Maximum tokens to generate.
+   * @minimum 256
+   * @maximum 16384
+   * @default 8192
+   * @type integer | undefined
+   */
+  max_tokens?: number
+  /**
+   * @description URLs of reference glyph images whose style should be matched. Provide 1 to 8 images of individual glyph characters.
+   * @example ["https://v3b.fal.media/files/b/0a90bfc2/IUtUCjqyIosJpS9_tcOIP_Screenshot%202026-03-03%20at%207.26.15%3FPM.png"]
+   * @type array
+   */
+  reference_image_urls: string[]
+  /**
+   * @description Repetition penalty.
+   * @minimum 0
+   * @maximum 2
+   * @default 1
+   * @type number | undefined
+   */
+  repetition_penalty?: number
+  /**
+   * @description Top-p (nucleus) sampling parameter.
+   * @minimum 0
+   * @maximum 1
+   * @default 0.95
+   * @type number | undefined
+   */
+  top_p?: number
+  /**
+   * @description Optional stroke (outline) color for the generated glyphs. When set, adds an outline around each glyph path.
+   * @example black
+   * @example #333333
+   * @example none
+   */
+  stroke_color?: string | null
+  /**
+   * @description Random seed for reproducibility.
+   */
+  seed?: number | null
+  /**
+   * @description The target text to generate as vector glyphs, styled to match the reference images.
+   * @example g
+   * @type string
+   */
+  prompt: string
+}
+
+export type File0Ee2Ae2E = {
+  /**
+   * @description The size of the file in bytes.
+   * @example 4404019
+   */
+  file_size?: number | null
+  /**
+   * @description The name of the file. It will be auto-generated if not provided.
+   * @example z9RV14K95DvU.png
+   */
+  file_name?: string | null
+  /**
+   * @description The mime type of the file.
+   * @example image/png
+   */
+  content_type?: string | null
+  /**
+   * @description The URL where the file can be downloaded from.
+   * @type string
+   */
+  url: string
+}
+
+export type OutputFalAiVecglypherImageToSvg = {
+  /**
+   * @description The generated SVG file containing vector glyphs.
+   * @example {"file_size":959,"file_name":"180c718ac5d8407092d0688ea2605f0c.svg","content_type":"image/svg+xml","url":"https://v3b.fal.media/files/b/0a90bfc3/0f8Su2aQUzPQy4NZMDQpp_180c718ac5d8407092d0688ea2605f0c.svg"}
+   * @type object
+   */
+  image: File0Ee2Ae2E
+  /**
+   * @description The seed used for generation.
+   * @example 1835785439
+   * @type integer
+   */
+  seed: number
+  /**
+   * @description Timing breakdown of the generation process.
+   * @example {"inference":10.83}
+   * @type object
+   */
+  timings: {
+    [key: string]: number
+  }
+  /**
+   * @description Raw SVG content as a string.
+   * @type string
+   */
+  svg_content: string
 }
 
 export const inputFalAiViduQ2ReferenceToImageAspectRatioEnum = {
@@ -83146,14 +93378,7 @@ export type OutputIdeogramV4 = {
   images: ImageFile4A31F448[]
 }
 
-export type ImageSize7762160D = {
-  /**
-   * @description The height of the generated image.
-   * @maximum 14142
-   * @default 512
-   * @type integer | undefined
-   */
-  height?: number
+export type ImageSizeBa349143 = {
   /**
    * @description The width of the generated image.
    * @maximum 14142
@@ -83161,6 +93386,13 @@ export type ImageSize7762160D = {
    * @type integer | undefined
    */
   width?: number
+  /**
+   * @description The height of the generated image.
+   * @maximum 14142
+   * @default 512
+   * @type integer | undefined
+   */
+  height?: number
 }
 
 export const inputIdeogramV45ImageSize = {
@@ -83186,16 +93418,13 @@ export type InputIdeogramV45QualityEnumKey =
 
 export type InputIdeogramV45 = {
   /**
-   * @description Output size. square is promoted to square_hd (1024x1024). 4:3 presets use 1152x864 or 864x1152; 16:9 presets use 1280x720 or 720x1280. Explicit dimensions must match a supported size: 1024x1024, 1024x3072, 1120x896, 1152x2944, 1152x864, 1248x3328, 1248x832, 1280x3072, 1280x720, 1280x800, 1296x3168, 1440x2560, 1440x2880, 1440x720, 1600x2560, 1664x2496, 1728x2304, 1792x2240, 2048x2048, 2240x1792, 2304x1728, 2496x1664, 2560x1440, 2560x1600, 2880x1440, 2944x1152, 3072x1024, 3072x1280, 3168x1296, 3328x1248, 720x1280, 720x1440, 800x1280, 832x1248, 864x1152, 896x1120
-   * @default square_hd
+   * @description The generation or editing prompt.
+   * @minLength 1
+   * @maxLength 10000
+   * @example A colorful storefront with a sign reading hello
+   * @type string
    */
-  image_size?: ImageSize7762160D | InputIdeogramV45ImageSizeKey
-  /**
-   * @description Return image data directly in the response.
-   * @default false
-   * @type boolean | undefined
-   */
-  sync_mode?: boolean
+  prompt: string
   /**
    * @description Number of images to generate.
    * @minimum 1
@@ -83205,25 +93434,10 @@ export type InputIdeogramV45 = {
    */
   num_images?: number
   /**
-   * @description The generation or editing prompt.
-   * @minLength 1
-   * @maxLength 10000
-   * @example A colorful storefront with a sign reading hello
-   * @type string
+   * @description Output size. square is promoted to square_hd (1024x1024). 4:3 presets use 1152x864 or 864x1152; 16:9 presets use 1280x720 or 720x1280. Explicit dimensions must match a supported size: 1024x1024, 1024x3072, 1120x896, 1152x2944, 1152x864, 1248x3328, 1248x832, 1280x3072, 1280x720, 1280x800, 1296x3168, 1440x2560, 1440x2880, 1440x720, 1600x2560, 1664x2496, 1728x2304, 1792x2240, 2048x2048, 2240x1792, 2304x1728, 2496x1664, 2560x1440, 2560x1600, 2880x1440, 2944x1152, 3072x1024, 3072x1280, 3168x1296, 3328x1248, 720x1280, 720x1440, 800x1280, 832x1248, 864x1152, 896x1120
+   * @default square_hd
    */
-  prompt: string
-  /**
-   * @description Text-to-image quality.
-   * @default 'medium'
-   * @type string | undefined
-   */
-  quality?: InputIdeogramV45QualityEnumKey
-  /**
-   * @description Enable partner prompt expansion.
-   * @default true
-   * @type boolean | undefined
-   */
-  enable_prompt_expansion?: boolean
+  image_size?: ImageSizeBa349143 | InputIdeogramV45ImageSizeKey
   /**
    * @description Authorized callers may set false to request relaxed screening.
    * @default true
@@ -83234,6 +93448,24 @@ export type InputIdeogramV45 = {
    * @description Random seed. Omit to choose automatically.
    */
   seed?: number | null
+  /**
+   * @description Text-to-image quality.
+   * @default 'medium'
+   * @type string | undefined
+   */
+  quality?: InputIdeogramV45QualityEnumKey
+  /**
+   * @description Return image data directly in the response.
+   * @default false
+   * @type boolean | undefined
+   */
+  sync_mode?: boolean
+  /**
+   * @description Enable partner prompt expansion.
+   * @default true
+   * @type boolean | undefined
+   */
+  enable_prompt_expansion?: boolean
 }
 
 export type File7Fbec231 = {
@@ -83273,7 +93505,7 @@ export type OutputIdeogramV45 = {
   images: File7Fbec231[]
 }
 
-export type ImageSize361Be43F = {
+export type ImageSizeBe2D4Dcd = {
   /**
    * @description The width of the generated image.
    * @maximum 14142
@@ -83292,6 +93524,18 @@ export type ImageSize361Be43F = {
 
 export type ContextWindowBox = {
   /**
+   * @description Left edge in source pixels (inclusive).
+   * @minimum 0
+   * @type integer
+   */
+  x_min: number
+  /**
+   * @description Bottom edge in source pixels (exclusive).
+   * @minimum 0
+   * @type integer
+   */
+  y_max: number
+  /**
    * @description Top edge in source pixels (inclusive).
    * @minimum 0
    * @type integer
@@ -83303,27 +93547,7 @@ export type ContextWindowBox = {
    * @type integer
    */
   x_max: number
-  /**
-   * @description Bottom edge in source pixels (exclusive).
-   * @minimum 0
-   * @type integer
-   */
-  y_max: number
-  /**
-   * @description Left edge in source pixels (inclusive).
-   * @minimum 0
-   * @type integer
-   */
-  x_min: number
 }
-
-export const inputIdeogramV45EditEditPrecisionEnum = {
-  regular: 'regular',
-  high: 'high',
-} as const
-
-export type InputIdeogramV45EditEditPrecisionEnumKey =
-  (typeof inputIdeogramV45EditEditPrecisionEnum)[keyof typeof inputIdeogramV45EditEditPrecisionEnum]
 
 export const inputIdeogramV45EditImageSize = {
   auto: 'auto',
@@ -83338,6 +93562,14 @@ export const inputIdeogramV45EditImageSize = {
 export type InputIdeogramV45EditImageSizeKey =
   (typeof inputIdeogramV45EditImageSize)[keyof typeof inputIdeogramV45EditImageSize]
 
+export const inputIdeogramV45EditContextWindowEnum = {
+  none: 'none',
+  auto: 'auto',
+} as const
+
+export type InputIdeogramV45EditContextWindowEnumKey =
+  (typeof inputIdeogramV45EditContextWindowEnum)[keyof typeof inputIdeogramV45EditContextWindowEnum]
+
 export const inputIdeogramV45EditQualityEnum = {
   very_low: 'very_low',
   low: 'low',
@@ -83348,65 +93580,15 @@ export const inputIdeogramV45EditQualityEnum = {
 export type InputIdeogramV45EditQualityEnumKey =
   (typeof inputIdeogramV45EditQualityEnum)[keyof typeof inputIdeogramV45EditQualityEnum]
 
-export const inputIdeogramV45EditContextWindowEnum = {
-  none: 'none',
-  auto: 'auto',
+export const inputIdeogramV45EditEditPrecisionEnum = {
+  regular: 'regular',
+  high: 'high',
 } as const
 
-export type InputIdeogramV45EditContextWindowEnumKey =
-  (typeof inputIdeogramV45EditContextWindowEnum)[keyof typeof inputIdeogramV45EditContextWindowEnum]
+export type InputIdeogramV45EditEditPrecisionEnumKey =
+  (typeof inputIdeogramV45EditEditPrecisionEnum)[keyof typeof inputIdeogramV45EditEditPrecisionEnum]
 
 export type InputIdeogramV45Edit = {
-  /**
-   * @description regular uses Generate; high uses Precise Edit with unchanged-pixel restoration. Both always prepare structured edit instructions.
-   * @default 'regular'
-   * @type string | undefined
-   */
-  edit_precision?: InputIdeogramV45EditEditPrecisionEnumKey
-  /**
-   * @description Number of images to generate.
-   * @minimum 1
-   * @maximum 8
-   * @default 1
-   * @type integer | undefined
-   */
-  num_images?: number
-  /**
-   * @description Random seed. Omit to choose automatically.
-   */
-  seed?: number | null
-  /**
-   * @description Authorized callers may set false to request relaxed screening.
-   * @default true
-   * @type boolean | undefined
-   */
-  enable_safety_checker?: boolean
-  /**
-   * @description Return image data directly in the response.
-   * @default false
-   * @type boolean | undefined
-   */
-  sync_mode?: boolean
-  /**
-   * @description auto preserves source geometry, downscaled by the provider if needed. Only unmasked regular edits accept named presets or custom sizes: dimensions >=256, multiples of 32, area <=4194304, ratio <=6:1. Named presets use standard fal dimensions.
-   * @default auto
-   */
-  image_size?: ImageSize361Be43F | InputIdeogramV45EditImageSizeKey
-  /**
-   * @description Quality tier for either edit precision. Defaults to medium.
-   * @default 'medium'
-   * @type string | undefined
-   */
-  quality?: InputIdeogramV45EditQualityEnumKey
-  /**
-   * @description Mask matching the source dimensions. Black edits, white preserves. Must contain both regions after rounding.
-   */
-  mask_url?: string | null
-  /**
-   * @description Primary source image to edit.
-   * @type string
-   */
-  image_url: string
   /**
    * @description The generation or editing prompt.
    * @minLength 1
@@ -83416,20 +93598,70 @@ export type InputIdeogramV45Edit = {
    */
   prompt: string
   /**
+   * @description Primary source image to edit.
+   * @type string
+   */
+  image_url: string
+  /**
    * @description Up to four references plus the primary source, or three references plus the primary source and mask.
    * @type array | undefined
    */
   reference_image_urls?: string[]
   /**
-   * @description Explicit region to edit with high edit_precision, in source pixels with exclusive x_max/y_max. Must lie inside the image, measure at least 256 pixels per side, cover at most 4194304 pixels, and have an aspect ratio within 1:6 and 6:1. A mask may select only pixels inside it. Cannot be combined with context_window auto. Leave unset to edit the whole image.
+   * @description Number of images to generate.
+   * @minimum 1
+   * @maximum 8
+   * @default 1
+   * @type integer | undefined
    */
-  context_window_box?: ContextWindowBox | null
+  num_images?: number
+  /**
+   * @description auto preserves source geometry, downscaled by the provider if needed. Only unmasked regular edits accept named presets or custom sizes: dimensions >=256, multiples of 32, area <=4194304, ratio <=6:1. Named presets use standard fal dimensions.
+   * @default auto
+   */
+  image_size?: ImageSizeBe2D4Dcd | InputIdeogramV45EditImageSizeKey
+  /**
+   * @description Authorized callers may set false to request relaxed screening.
+   * @default true
+   * @type boolean | undefined
+   */
+  enable_safety_checker?: boolean
   /**
    * @description Region to edit with high edit_precision. none edits the whole image, downscaled to at most 4194304 pixels. auto requires mask_url and fits the region around the mask; an oversized mask falls back to whole-image editing. Set context_window_box instead to pick the region yourself. Localized edits preserve the original image resolution and every pixel outside the region.
    * @default 'none'
    * @type string | undefined
    */
   context_window?: InputIdeogramV45EditContextWindowEnumKey
+  /**
+   * @description Random seed. Omit to choose automatically.
+   */
+  seed?: number | null
+  /**
+   * @description Quality tier for either edit precision. Defaults to medium.
+   * @default 'medium'
+   * @type string | undefined
+   */
+  quality?: InputIdeogramV45EditQualityEnumKey
+  /**
+   * @description Explicit region to edit with high edit_precision, in source pixels with exclusive x_max/y_max. Must lie inside the image, measure at least 256 pixels per side, cover at most 4194304 pixels, and have an aspect ratio within 1:6 and 6:1. A mask may select only pixels inside it. Cannot be combined with context_window auto. Leave unset to edit the whole image.
+   */
+  context_window_box?: ContextWindowBox | null
+  /**
+   * @description Return image data directly in the response.
+   * @default false
+   * @type boolean | undefined
+   */
+  sync_mode?: boolean
+  /**
+   * @description Mask matching the source dimensions. Black edits, white preserves. Must contain both regions after rounding.
+   */
+  mask_url?: string | null
+  /**
+   * @description regular uses Generate; high uses Precise Edit with unchanged-pixel restoration. Both always prepare structured edit instructions.
+   * @default 'regular'
+   * @type string | undefined
+   */
+  edit_precision?: InputIdeogramV45EditEditPrecisionEnumKey
 }
 
 export type File6Fe218D4 = {
@@ -85011,18 +95243,6 @@ export type InputIdeogramVectorTextToVectorAspectRatioEnumKey =
 
 export type InputIdeogramVectorTextToVector = {
   /**
-   * @description Generation quality. `low` is fastest, `high` is highest quality.
-   * @default 'medium'
-   * @type string | undefined
-   */
-  quality?: InputIdeogramVectorTextToVectorQualityEnumKey
-  /**
-   * @description The aspect ratio of the generated SVG.
-   * @default 'auto'
-   * @type string | undefined
-   */
-  aspect_ratio?: InputIdeogramVectorTextToVectorAspectRatioEnumKey
-  /**
    * @description Optional reference images (up to 5, max 10MB each). The first image is the primary source; the others are additional references.
    */
   image_urls?: string[] | null
@@ -85043,9 +95263,21 @@ export type InputIdeogramVectorTextToVector = {
    */
   num_images?: number
   /**
+   * @description Generation quality. `low` is fastest, `high` is highest quality.
+   * @default 'medium'
+   * @type string | undefined
+   */
+  quality?: InputIdeogramVectorTextToVectorQualityEnumKey
+  /**
    * @description Seed for reproducible generation.
    */
   seed?: number | null
+  /**
+   * @description The aspect ratio of the generated SVG.
+   * @default 'auto'
+   * @type string | undefined
+   */
+  aspect_ratio?: InputIdeogramVectorTextToVectorAspectRatioEnumKey
 }
 
 export type File03Aad769 = {
@@ -85081,6 +95313,395 @@ export type OutputIdeogramVectorTextToVector = {
    * @description Seed used for generation, if provided.
    */
   seed?: number | null
+}
+
+export const inputImagineartImagineart15PreviewTextToImageAspectRatioEnum = {
+  '1:1': '1:1',
+  '3:1': '3:1',
+  '1:3': '1:3',
+  '16:9': '16:9',
+  '9:16': '9:16',
+  '4:3': '4:3',
+  '3:4': '3:4',
+  '3:2': '3:2',
+  '2:3': '2:3',
+} as const
+
+export type InputImagineartImagineart15PreviewTextToImageAspectRatioEnumKey =
+  (typeof inputImagineartImagineart15PreviewTextToImageAspectRatioEnum)[keyof typeof inputImagineartImagineart15PreviewTextToImageAspectRatioEnum]
+
+export type InputImagineartImagineart15PreviewTextToImage = {
+  /**
+   * @description Image aspect ratio: 1:1, 3:1, 1:3, 16:9, 9:16, 4:3, 3:4, 3:2, 2:3
+   * @default '1:1'
+   * @example 1:1
+   * @type string | undefined
+   */
+  aspect_ratio?: InputImagineartImagineart15PreviewTextToImageAspectRatioEnumKey
+  /**
+   * @description Text prompt describing the desired image. Accepts either a raw string or a JSON string/fenced JSON with positive_prompt and optional negative_prompt.
+   * @example Photorealistic cinematic portrait of a stressed young woman with dark skin and long brown dreadlocks styled in a messy high bun, wearing black-rimmed glasses and a peach-colored collared shirt. She is sitting at a desk, sipping coffee from a white ceramic mug held in her right hand, with a focused and slightly overwhelmed expression while looking at a silver laptop in front of her.
+   *
+   * Her face, hair, glasses, and entire upper body are completely covered with dozens of colorful sticky notes in yellow, pink, blue, orange, red, and green, many with no written text. Sticky notes are stuck to her forehead, cheeks, dreadlocks, and all over her shirt.
+   *
+   * The scene is set in a modern office with soft cool blue-toned natural lighting coming from the side. Blurred green plants are visible in the background and "ImagineArt" is written on the Wall. On the desk in the foreground there is another white mug, scattered papers, and more sticky notes.
+   *
+   * Highly detailed, sharp focus on the woman, shallow depth of field, realistic skin texture, natural fabric folds, cinematic lighting, moody atmosphere capturing information overload and multitasking, 8k resolution, photorealistic.
+   * @type string
+   */
+  prompt: string
+  /**
+   * @description Seed for generation. 0 and -1 are treated as random.
+   * @example 0
+   */
+  seed?: number | null
+}
+
+/**
+ * @description Represents an image file.
+ * @type object
+ */
+export type ImageC4Daecd7 = {
+  /**
+   * @description The size of the file in bytes.
+   * @example 4404019
+   */
+  file_size?: number | null
+  /**
+   * @description The width of the image in pixels.
+   * @example 1024
+   */
+  width?: number | null
+  /**
+   * @description The mime type of the file.
+   * @example image/png
+   */
+  content_type?: string | null
+  /**
+   * @description The URL where the file can be downloaded from.
+   * @type string
+   */
+  url: string
+  /**
+   * @description The name of the file. It will be auto-generated if not provided.
+   * @example z9RV14K95DvU.png
+   */
+  file_name?: string | null
+  /**
+   * @description The height of the image in pixels.
+   * @example 1024
+   */
+  height?: number | null
+}
+
+export type OutputImagineartImagineart15PreviewTextToImage = {
+  /**
+   * @description Generated image
+   * @example [{"width":2048,"content_type":"image/png","url":"https://v3b.fal.media/files/b/0a961724/CX6N_t6PCQujw0ZxIQMYF_generated_ImagineArt_1_5.png","height":2048}]
+   * @type array
+   */
+  images: ImageC4Daecd7[]
+}
+
+export const inputImagineartImagineart15ProPreviewTextToImageAspectRatioEnum = {
+  '1:1': '1:1',
+  '3:1': '3:1',
+  '1:3': '1:3',
+  '16:9': '16:9',
+  '9:16': '9:16',
+  '4:3': '4:3',
+  '3:4': '3:4',
+  '3:2': '3:2',
+  '2:3': '2:3',
+} as const
+
+export type InputImagineartImagineart15ProPreviewTextToImageAspectRatioEnumKey =
+  (typeof inputImagineartImagineart15ProPreviewTextToImageAspectRatioEnum)[keyof typeof inputImagineartImagineart15ProPreviewTextToImageAspectRatioEnum]
+
+export type InputImagineartImagineart15ProPreviewTextToImage = {
+  /**
+   * @description Seed for generation. 0 and -1 are treated as random.
+   * @example 0
+   */
+  seed?: number | null
+  /**
+   * @description Text prompt describing the desired image. Accepts either a raw string or a JSON string/fenced JSON with positive_prompt and optional negative_prompt.
+   * @example Photorealistic cinematic portrait of a stressed young woman with dark skin and long brown dreadlocks styled in a messy high bun, wearing black-rimmed glasses and a peach-colored collared shirt. She is sitting at a desk, sipping coffee from a white ceramic mug held in her right hand, with a focused and slightly overwhelmed expression while looking at a silver laptop in front of her.
+   *
+   * Her face, hair, glasses, and entire upper body are completely covered with dozens of colorful sticky notes in yellow, pink, blue, orange, red, and green, many with no written text. Sticky notes are stuck to her forehead, cheeks, dreadlocks, and all over her shirt.
+   *
+   * The scene is set in a modern office with soft cool blue-toned natural lighting coming from the side. Blurred green plants are visible in the background and "ImagineArt" is written on the Wall. On the desk in the foreground there is another white mug, scattered papers, and more sticky notes.
+   *
+   * Highly detailed, sharp focus on the woman, shallow depth of field, realistic skin texture, natural fabric folds, cinematic lighting, moody atmosphere capturing information overload and multitasking, 8k resolution, photorealistic.
+   * @type string
+   */
+  prompt: string
+  /**
+   * @description Image aspect ratio: 1:1, 3:1, 1:3, 16:9, 9:16, 4:3, 3:4, 3:2, 2:3
+   * @default '1:1'
+   * @example 1:1
+   * @type string | undefined
+   */
+  aspect_ratio?: InputImagineartImagineart15ProPreviewTextToImageAspectRatioEnumKey
+}
+
+/**
+ * @description Represents an image file.
+ * @type object
+ */
+export type Image4D5Fbdff = {
+  /**
+   * @description The width of the image in pixels.
+   * @example 1024
+   */
+  width?: number | null
+  /**
+   * @description The name of the file. It will be auto-generated if not provided.
+   * @example z9RV14K95DvU.png
+   */
+  file_name?: string | null
+  /**
+   * @description The size of the file in bytes.
+   * @example 4404019
+   */
+  file_size?: number | null
+  /**
+   * @description The height of the image in pixels.
+   * @example 1024
+   */
+  height?: number | null
+  /**
+   * @description The mime type of the file.
+   * @example image/png
+   */
+  content_type?: string | null
+  /**
+   * @description The URL where the file can be downloaded from.
+   * @type string
+   */
+  url: string
+}
+
+export type OutputImagineartImagineart15ProPreviewTextToImage = {
+  /**
+   * @description Generated image
+   * @example [{"width":2048,"height":2048,"content_type":"image/png","url":"https://v3b.fal.media/files/b/0a961724/CX6N_t6PCQujw0ZxIQMYF_generated_ImagineArt_1_5_Pro.png"}]
+   * @type array
+   */
+  images: Image4D5Fbdff[]
+}
+
+export const inputImagineartImagineart20EditPreviewImageToImageAspectRatioEnum =
+  {
+    auto: 'auto',
+    '1:1': '1:1',
+    '9:16': '9:16',
+    '16:9': '16:9',
+    '3:2': '3:2',
+    '2:3': '2:3',
+    '4:3': '4:3',
+    '3:4': '3:4',
+    '4:5': '4:5',
+    '5:4': '5:4',
+    '3:1': '3:1',
+    '1:3': '1:3',
+    '21:9': '21:9',
+  } as const
+
+export type InputImagineartImagineart20EditPreviewImageToImageAspectRatioEnumKey =
+  (typeof inputImagineartImagineart20EditPreviewImageToImageAspectRatioEnum)[keyof typeof inputImagineartImagineart20EditPreviewImageToImageAspectRatioEnum]
+
+/**
+ * @description Request payload for image-to-image editing.
+ * @type object
+ */
+export type InputImagineartImagineart20EditPreviewImageToImage = {
+  /**
+   * @description Output aspect ratio. 'auto' = match the first input image's aspect ratio, sized to fill
+   * @default 'auto'
+   * @type string | undefined
+   */
+  aspect_ratio?: InputImagineartImagineart20EditPreviewImageToImageAspectRatioEnumKey
+  /**
+   * @description Editing instruction (e.g. 'replace the background with a sunset beach').
+   * @type string
+   */
+  prompt: string
+  /**
+   * @description Reference image URL(s). Up to 4 images.
+   * @type array
+   */
+  image_urls: string[]
+}
+
+/**
+ * @description Represents an image file.
+ * @type object
+ */
+export type Image57D0F16E = {
+  /**
+   * @description The height of the image in pixels.
+   * @example 1024
+   */
+  height?: number | null
+  /**
+   * @description The width of the image in pixels.
+   * @example 1024
+   */
+  width?: number | null
+  /**
+   * @description The name of the file. It will be auto-generated if not provided.
+   * @example z9RV14K95DvU.png
+   */
+  file_name?: string | null
+  /**
+   * @description The mime type of the file.
+   * @example image/png
+   */
+  content_type?: string | null
+  /**
+   * @description The URL where the file can be downloaded from.
+   * @type string
+   */
+  url: string
+  /**
+   * @description The size of the file in bytes.
+   * @example 4404019
+   */
+  file_size?: number | null
+}
+
+export type OutputImagineartImagineart20EditPreviewImageToImage = {
+  /**
+   * @description Edited image
+   * @example [{"width":2048,"url":"https://v3b.fal.media/files/b/0a9513b1/to-rcKHMkC7e9jQFN7tZE_U8VLyc50wRU6V_UbIh0Hi_generated_ImagineArt_2_0.png","content_type":"image/png","height":2048}]
+   * @type array
+   */
+  images: Image57D0F16E[]
+}
+
+export const inputImagineartImagineart20PreviewTextToImageResolutionEnum = {
+  '1K': '1K',
+  '2K': '2K',
+} as const
+
+export type InputImagineartImagineart20PreviewTextToImageResolutionEnumKey =
+  (typeof inputImagineartImagineart20PreviewTextToImageResolutionEnum)[keyof typeof inputImagineartImagineart20PreviewTextToImageResolutionEnum]
+
+export const inputImagineartImagineart20PreviewTextToImageAspectRatioEnum = {
+  '1:1': '1:1',
+  '16:9': '16:9',
+  '9:16': '9:16',
+  '4:3': '4:3',
+  '3:4': '3:4',
+  '3:1': '3:1',
+  '1:3': '1:3',
+  '3:2': '3:2',
+  '2:3': '2:3',
+  '21:9': '21:9',
+  '4:5': '4:5',
+  '5:4': '5:4',
+  '4:1': '4:1',
+  '1:4': '1:4',
+} as const
+
+export type InputImagineartImagineart20PreviewTextToImageAspectRatioEnumKey =
+  (typeof inputImagineartImagineart20PreviewTextToImageAspectRatioEnum)[keyof typeof inputImagineartImagineart20PreviewTextToImageAspectRatioEnum]
+
+export const inputImagineartImagineart20PreviewTextToImageReasoningEnum = {
+  high: 'high',
+  low: 'low',
+} as const
+
+export type InputImagineartImagineart20PreviewTextToImageReasoningEnumKey =
+  (typeof inputImagineartImagineart20PreviewTextToImageReasoningEnum)[keyof typeof inputImagineartImagineart20PreviewTextToImageReasoningEnum]
+
+export type InputImagineartImagineart20PreviewTextToImage = {
+  /**
+   * @description Output resolution: '1K' targets ~1024px and will be faster. '2K' targets ~2048px image size and will be slower but with higher quality.
+   * @default '2K'
+   * @example 2K
+   * @type string | undefined
+   */
+  resolution?: InputImagineartImagineart20PreviewTextToImageResolutionEnumKey
+  /**
+   * @description Image aspect ratio: 1:1, 3:1, 1:3, 16:9, 9:16, 4:3, 3:4, 3:2, 2:3, 21:9, 4:5, 5:4, 4:1, 1:4
+   * @default '1:1'
+   * @example 1:1
+   * @type string | undefined
+   */
+  aspect_ratio?: InputImagineartImagineart20PreviewTextToImageAspectRatioEnumKey
+  /**
+   * @description Visual Understanding Level: low (default) or high. High reasoning takes more time but generates better images.
+   * @default 'low'
+   * @example low
+   * @type string | undefined
+   */
+  reasoning?: InputImagineartImagineart20PreviewTextToImageReasoningEnumKey
+  /**
+   * @description Default is random (0 and -1 are treated as random)
+   * @example 0
+   * @type integer | undefined
+   */
+  seed?: number
+  /**
+   * @description Text prompt describing the desired image
+   * @example Photorealistic cinematic portrait of a stressed young woman with dark skin and long brown dreadlocks styled in a messy high bun, wearing black-rimmed glasses and a peach-colored collared shirt. She is sitting at a desk, sipping coffee from a white ceramic mug held in her right hand, with a focused and slightly overwhelmed expression while looking at a silver laptop in front of her.
+   *
+   * Her face, hair, glasses, and entire upper body are completely covered with dozens of colorful sticky notes in yellow, pink, blue, orange, red, and green, many with no written text. Sticky notes are stuck to her forehead, cheeks, dreadlocks, and all over her shirt.
+   *
+   * The scene is set in a modern office with soft cool blue-toned natural lighting coming from the side. Blurred green plants are visible in the background and "ImagineArt" is written on the Wall. On the desk in the foreground there is another white mug, scattered papers, and more sticky notes.
+   *
+   * Highly detailed, sharp focus on the woman, shallow depth of field, realistic skin texture, natural fabric folds, cinematic lighting, moody atmosphere capturing information overload and multitasking, 8k resolution, photorealistic.
+   * @type string
+   */
+  prompt: string
+}
+
+/**
+ * @description Represents an image file.
+ * @type object
+ */
+export type Image0976Fd9B = {
+  /**
+   * @description The height of the image in pixels.
+   * @example 1024
+   */
+  height?: number | null
+  /**
+   * @description The size of the file in bytes.
+   * @example 4404019
+   */
+  file_size?: number | null
+  /**
+   * @description The name of the file. It will be auto-generated if not provided.
+   * @example z9RV14K95DvU.png
+   */
+  file_name?: string | null
+  /**
+   * @description The mime type of the file.
+   * @example image/png
+   */
+  content_type?: string | null
+  /**
+   * @description The width of the image in pixels.
+   * @example 1024
+   */
+  width?: number | null
+  /**
+   * @description The URL where the file can be downloaded from.
+   * @type string
+   */
+  url: string
+}
+
+export type OutputImagineartImagineart20PreviewTextToImage = {
+  /**
+   * @description Generated image
+   * @example [{"height":2048,"content_type":"image/png","width":2048,"url":"https://v3b.fal.media/files/b/0a9513b1/to-rcKHMkC7e9jQFN7tZE_U8VLyc50wRU6V_UbIh0Hi_generated_ImagineArt_2_0.png"}]
+   * @type array
+   */
+  images: Image0976Fd9B[]
 }
 
 export type ImageStyleReference = {
@@ -86985,6 +97606,626 @@ export type OutputMicrosoftMaiImage25Edit = {
   description: string
 }
 
+export type ImageSize0C8743A3 = {
+  /**
+   * @description The height of the generated image.
+   * @maximum 14142
+   * @default 512
+   * @type integer | undefined
+   */
+  height?: number
+  /**
+   * @description The width of the generated image.
+   * @maximum 14142
+   * @default 512
+   * @type integer | undefined
+   */
+  width?: number
+}
+
+export const inputMinimaxH3ImageEditOutputFormatEnum = {
+  jpeg: 'jpeg',
+  png: 'png',
+  webp: 'webp',
+  jpg: 'jpg',
+} as const
+
+export type InputMinimaxH3ImageEditOutputFormatEnumKey =
+  (typeof inputMinimaxH3ImageEditOutputFormatEnum)[keyof typeof inputMinimaxH3ImageEditOutputFormatEnum]
+
+export const inputMinimaxH3ImageEditImageSize = {
+  square_hd: 'square_hd',
+  square: 'square',
+  portrait_4_3: 'portrait_4_3',
+  portrait_16_9: 'portrait_16_9',
+  landscape_4_3: 'landscape_4_3',
+  landscape_16_9: 'landscape_16_9',
+  auto: 'auto',
+} as const
+
+export type InputMinimaxH3ImageEditImageSizeKey =
+  (typeof inputMinimaxH3ImageEditImageSize)[keyof typeof inputMinimaxH3ImageEditImageSize]
+
+export type InputMinimaxH3ImageEdit = {
+  /**
+   * @description The images to edit or compose, at most 16, in the order the prompt cites them. Each side must be 128 to 8192 pixels.
+   * @example ["https://storage.googleapis.com/falserverless/example_inputs/dog.png"]
+   * @type array
+   */
+  image_urls: string[]
+  /**
+   * @description The edit to make. Refer to the input images as Image 1, Image 2, ... in `image_urls` order.
+   * @minLength 1
+   * @maxLength 32000
+   * @example Put a red knitted scarf on the dog and keep everything else
+   * @type string
+   */
+  prompt: string
+  /**
+   * @description The number of images to generate, all from one expanded prompt.
+   * @minimum 1
+   * @maximum 10
+   * @default 1
+   * @type integer | undefined
+   */
+  num_images?: number
+  /**
+   * @description The format of the generated image.
+   * @default 'png'
+   * @type string | undefined
+   */
+  output_format?: InputMinimaxH3ImageEditOutputFormatEnumKey
+  /**
+   * @description The size of the generated image. Output area must be 655360 to 20000000 pixels, inclusive, with aspect ratio between 1:3 and 3:1, inclusive. `auto` keeps the first image's aspect ratio, limited to 1:3..3:1, within a 2048x2048 area.
+   * @default auto
+   */
+  image_size?: ImageSize0C8743A3 | InputMinimaxH3ImageEditImageSizeKey
+  /**
+   * @description If `True`, the media will be returned as a data URI and the output data won't be available in the request history.
+   * @default false
+   * @type boolean | undefined
+   */
+  sync_mode?: boolean
+}
+
+export type TokenDetails = {
+  /**
+   * @minimum 0
+   * @type integer
+   */
+  image_tokens: number
+  [key: string]: unknown
+}
+
+export type InputTokenDetails = {
+  /**
+   * @minimum 0
+   * @type integer
+   */
+  image_tokens: number
+  /**
+   * @minimum 0
+   * @type integer
+   */
+  text_tokens: number
+  [key: string]: unknown
+}
+
+/**
+ * @description Successful-image usage, including the provider's enhancement conversion.
+ *
+ * Totals are checksums, not additional billable categories. Unknown provider
+ * fields are retained in the public usage object.
+ * @type object
+ */
+export type ImageUsage = {
+  output_tokens_details: TokenDetails
+  /**
+   * @minimum 0
+   * @type integer
+   */
+  generated_images: number
+  /**
+   * @minimum 0
+   * @type integer
+   */
+  input_tokens: number
+  /**
+   * @minimum 0
+   * @type integer
+   */
+  output_tokens: number
+  input_tokens_details: InputTokenDetails
+  /**
+   * @minimum 0
+   * @type integer
+   */
+  total_tokens: number
+  [key: string]: unknown
+}
+
+export type ImageFileD4D4C03C = {
+  /**
+   * @description The height of the image
+   */
+  height?: number | null
+  /**
+   * @description The URL where the file can be downloaded from.
+   * @type string
+   */
+  url: string
+  /**
+   * @description The width of the image
+   */
+  width?: number | null
+  /**
+   * @description The mime type of the file.
+   * @example image/png
+   */
+  content_type?: string | null
+  /**
+   * @description The size of the file in bytes.
+   * @example 4404019
+   */
+  file_size?: number | null
+  /**
+   * @description The name of the file. It will be auto-generated if not provided.
+   * @example z9RV14K95DvU.png
+   */
+  file_name?: string | null
+}
+
+export type OutputMinimaxH3ImageEdit = {
+  /**
+   * @description Validated successful-image token usage, including prompt enhancement in input text tokens.
+   */
+  usage?: ImageUsage | null
+  /**
+   * @description Seconds spent in each generation stage.
+   * @type object
+   */
+  timings: {
+    [key: string]: number
+  }
+  /**
+   * @description The expanded prompt when available; null when expansion was disabled or the partner omitted it.
+   */
+  actual_prompt?: string | null
+  /**
+   * @description Whether each generated image was flagged by the safety checker.
+   * @type array
+   */
+  has_nsfw_concepts: boolean[]
+  /**
+   * @description The generated images.
+   * @type array
+   */
+  images: ImageFileD4D4C03C[]
+}
+
+export type ImageSize770Bc297 = {
+  /**
+   * @description The height of the generated image.
+   * @maximum 14142
+   * @default 512
+   * @type integer | undefined
+   */
+  height?: number
+  /**
+   * @description The width of the generated image.
+   * @maximum 14142
+   * @default 512
+   * @type integer | undefined
+   */
+  width?: number
+}
+
+export const inputMinimaxH3ImageHighspeedEditOutputFormatEnum = {
+  jpeg: 'jpeg',
+  png: 'png',
+  webp: 'webp',
+  jpg: 'jpg',
+} as const
+
+export type InputMinimaxH3ImageHighspeedEditOutputFormatEnumKey =
+  (typeof inputMinimaxH3ImageHighspeedEditOutputFormatEnum)[keyof typeof inputMinimaxH3ImageHighspeedEditOutputFormatEnum]
+
+export const inputMinimaxH3ImageHighspeedEditImageSize = {
+  square_hd: 'square_hd',
+  square: 'square',
+  portrait_4_3: 'portrait_4_3',
+  portrait_16_9: 'portrait_16_9',
+  landscape_4_3: 'landscape_4_3',
+  landscape_16_9: 'landscape_16_9',
+  auto: 'auto',
+} as const
+
+export type InputMinimaxH3ImageHighspeedEditImageSizeKey =
+  (typeof inputMinimaxH3ImageHighspeedEditImageSize)[keyof typeof inputMinimaxH3ImageHighspeedEditImageSize]
+
+export type InputMinimaxH3ImageHighspeedEdit = {
+  /**
+   * @description The images to edit or compose, at most 16, in the order the prompt cites them. Each side must be 128 to 8192 pixels.
+   * @example ["https://storage.googleapis.com/falserverless/example_inputs/dog.png"]
+   * @type array
+   */
+  image_urls: string[]
+  /**
+   * @description The edit to make. Refer to the input images as Image 1, Image 2, ... in `image_urls` order.
+   * @minLength 1
+   * @maxLength 32000
+   * @example Put a red knitted scarf on the dog and keep everything else
+   * @type string
+   */
+  prompt: string
+  /**
+   * @description The number of images to generate, all from one expanded prompt.
+   * @minimum 1
+   * @maximum 10
+   * @default 1
+   * @type integer | undefined
+   */
+  num_images?: number
+  /**
+   * @description The format of the generated image.
+   * @default 'png'
+   * @type string | undefined
+   */
+  output_format?: InputMinimaxH3ImageHighspeedEditOutputFormatEnumKey
+  /**
+   * @description The size of the generated image. Output area must be 655360 to 20000000 pixels, inclusive, with aspect ratio between 1:3 and 3:1, inclusive. `auto` keeps the first image's aspect ratio, limited to 1:3..3:1, within a 2048x2048 area.
+   * @default auto
+   */
+  image_size?: ImageSize770Bc297 | InputMinimaxH3ImageHighspeedEditImageSizeKey
+  /**
+   * @description If `True`, the media will be returned as a data URI and the output data won't be available in the request history.
+   * @default false
+   * @type boolean | undefined
+   */
+  sync_mode?: boolean
+}
+
+export type ImageFile753F082C = {
+  /**
+   * @description The height of the image
+   */
+  height?: number | null
+  /**
+   * @description The URL where the file can be downloaded from.
+   * @type string
+   */
+  url: string
+  /**
+   * @description The width of the image
+   */
+  width?: number | null
+  /**
+   * @description The mime type of the file.
+   * @example image/png
+   */
+  content_type?: string | null
+  /**
+   * @description The size of the file in bytes.
+   * @example 4404019
+   */
+  file_size?: number | null
+  /**
+   * @description The name of the file. It will be auto-generated if not provided.
+   * @example z9RV14K95DvU.png
+   */
+  file_name?: string | null
+}
+
+export type OutputMinimaxH3ImageHighspeedEdit = {
+  /**
+   * @description Validated successful-image token usage, including prompt enhancement in input text tokens.
+   */
+  usage?: ImageUsage | null
+  /**
+   * @description Seconds spent in each generation stage.
+   * @type object
+   */
+  timings: {
+    [key: string]: number
+  }
+  /**
+   * @description The expanded prompt when available; null when expansion was disabled or the partner omitted it.
+   */
+  actual_prompt?: string | null
+  /**
+   * @description Whether each generated image was flagged by the safety checker.
+   * @type array
+   */
+  has_nsfw_concepts: boolean[]
+  /**
+   * @description The generated images.
+   * @type array
+   */
+  images: ImageFile753F082C[]
+}
+
+export type ImageSize484D9784 = {
+  /**
+   * @description The height of the generated image.
+   * @maximum 14142
+   * @default 512
+   * @type integer | undefined
+   */
+  height?: number
+  /**
+   * @description The width of the generated image.
+   * @maximum 14142
+   * @default 512
+   * @type integer | undefined
+   */
+  width?: number
+}
+
+export const inputMinimaxH3ImageHighspeedTextToImageOutputFormatEnum = {
+  jpeg: 'jpeg',
+  png: 'png',
+  webp: 'webp',
+  jpg: 'jpg',
+} as const
+
+export type InputMinimaxH3ImageHighspeedTextToImageOutputFormatEnumKey =
+  (typeof inputMinimaxH3ImageHighspeedTextToImageOutputFormatEnum)[keyof typeof inputMinimaxH3ImageHighspeedTextToImageOutputFormatEnum]
+
+export const inputMinimaxH3ImageHighspeedTextToImageImageSize = {
+  square_hd: 'square_hd',
+  square: 'square',
+  portrait_4_3: 'portrait_4_3',
+  portrait_16_9: 'portrait_16_9',
+  landscape_4_3: 'landscape_4_3',
+  landscape_16_9: 'landscape_16_9',
+} as const
+
+export type InputMinimaxH3ImageHighspeedTextToImageImageSizeKey =
+  (typeof inputMinimaxH3ImageHighspeedTextToImageImageSize)[keyof typeof inputMinimaxH3ImageHighspeedTextToImageImageSize]
+
+export type InputMinimaxH3ImageHighspeedTextToImage = {
+  /**
+   * @description The prompt to generate an image from. With prompt expansion on, it is rewritten into the long, complete description the model works best with; with it off, it is used verbatim.
+   * @minLength 1
+   * @maxLength 32000
+   * @example A rustic farm-to-table feast on a weathered wooden table, overhead food photograph, warm side light
+   * @type string
+   */
+  prompt: string
+  /**
+   * @description Rewrite the prompt with a language model into a detailed image description before generation. If expansion fails, the request fails instead of generating from the unexpanded prompt.
+   * @default true
+   * @type boolean | undefined
+   */
+  enable_prompt_expansion?: boolean
+  /**
+   * @description The number of images to generate, all from one expanded prompt.
+   * @minimum 1
+   * @maximum 10
+   * @default 1
+   * @type integer | undefined
+   */
+  num_images?: number
+  /**
+   * @description The format of the generated image.
+   * @default 'png'
+   * @type string | undefined
+   */
+  output_format?: InputMinimaxH3ImageHighspeedTextToImageOutputFormatEnumKey
+  /**
+   * @description The exact output size. Output area must be 655360 to 20000000 pixels, inclusive, with aspect ratio between 1:3 and 3:1, inclusive.
+   * @default {"height":2048,"width":2048}
+   */
+  image_size?:
+    | ImageSize484D9784
+    | InputMinimaxH3ImageHighspeedTextToImageImageSizeKey
+  /**
+   * @description If `True`, the media will be returned as a data URI and the output data won't be available in the request history.
+   * @default false
+   * @type boolean | undefined
+   */
+  sync_mode?: boolean
+}
+
+export type ImageFileE86990Dd = {
+  /**
+   * @description The height of the image
+   */
+  height?: number | null
+  /**
+   * @description The URL where the file can be downloaded from.
+   * @type string
+   */
+  url: string
+  /**
+   * @description The width of the image
+   */
+  width?: number | null
+  /**
+   * @description The mime type of the file.
+   * @example image/png
+   */
+  content_type?: string | null
+  /**
+   * @description The size of the file in bytes.
+   * @example 4404019
+   */
+  file_size?: number | null
+  /**
+   * @description The name of the file. It will be auto-generated if not provided.
+   * @example z9RV14K95DvU.png
+   */
+  file_name?: string | null
+}
+
+export type OutputMinimaxH3ImageHighspeedTextToImage = {
+  /**
+   * @description Validated successful-image token usage, including prompt enhancement in input text tokens.
+   */
+  usage?: ImageUsage | null
+  /**
+   * @description Seconds spent in each generation stage.
+   * @type object
+   */
+  timings: {
+    [key: string]: number
+  }
+  /**
+   * @description The expanded prompt when available; null when expansion was disabled or the partner omitted it.
+   */
+  actual_prompt?: string | null
+  /**
+   * @description Whether each generated image was flagged by the safety checker.
+   * @type array
+   */
+  has_nsfw_concepts: boolean[]
+  /**
+   * @description The generated images.
+   * @type array
+   */
+  images: ImageFileE86990Dd[]
+}
+
+export type ImageSizeA2531F10 = {
+  /**
+   * @description The height of the generated image.
+   * @maximum 14142
+   * @default 512
+   * @type integer | undefined
+   */
+  height?: number
+  /**
+   * @description The width of the generated image.
+   * @maximum 14142
+   * @default 512
+   * @type integer | undefined
+   */
+  width?: number
+}
+
+export const inputMinimaxH3ImageTextToImageOutputFormatEnum = {
+  jpeg: 'jpeg',
+  png: 'png',
+  webp: 'webp',
+  jpg: 'jpg',
+} as const
+
+export type InputMinimaxH3ImageTextToImageOutputFormatEnumKey =
+  (typeof inputMinimaxH3ImageTextToImageOutputFormatEnum)[keyof typeof inputMinimaxH3ImageTextToImageOutputFormatEnum]
+
+export const inputMinimaxH3ImageTextToImageImageSize = {
+  square_hd: 'square_hd',
+  square: 'square',
+  portrait_4_3: 'portrait_4_3',
+  portrait_16_9: 'portrait_16_9',
+  landscape_4_3: 'landscape_4_3',
+  landscape_16_9: 'landscape_16_9',
+} as const
+
+export type InputMinimaxH3ImageTextToImageImageSizeKey =
+  (typeof inputMinimaxH3ImageTextToImageImageSize)[keyof typeof inputMinimaxH3ImageTextToImageImageSize]
+
+export type InputMinimaxH3ImageTextToImage = {
+  /**
+   * @description The prompt to generate an image from. With prompt expansion on, it is rewritten into the long, complete description the model works best with; with it off, it is used verbatim.
+   * @minLength 1
+   * @maxLength 32000
+   * @example A rustic farm-to-table feast on a weathered wooden table, overhead food photograph, warm side light
+   * @type string
+   */
+  prompt: string
+  /**
+   * @description Rewrite the prompt with a language model into a detailed image description before generation. If expansion fails, the request fails instead of generating from the unexpanded prompt.
+   * @default true
+   * @type boolean | undefined
+   */
+  enable_prompt_expansion?: boolean
+  /**
+   * @description The number of images to generate, all from one expanded prompt.
+   * @minimum 1
+   * @maximum 10
+   * @default 1
+   * @type integer | undefined
+   */
+  num_images?: number
+  /**
+   * @description The format of the generated image.
+   * @default 'png'
+   * @type string | undefined
+   */
+  output_format?: InputMinimaxH3ImageTextToImageOutputFormatEnumKey
+  /**
+   * @description The exact output size. Output area must be 655360 to 20000000 pixels, inclusive, with aspect ratio between 1:3 and 3:1, inclusive.
+   * @default {"height":2048,"width":2048}
+   */
+  image_size?: ImageSizeA2531F10 | InputMinimaxH3ImageTextToImageImageSizeKey
+  /**
+   * @description If `True`, the media will be returned as a data URI and the output data won't be available in the request history.
+   * @default false
+   * @type boolean | undefined
+   */
+  sync_mode?: boolean
+}
+
+export type ImageFile375Dea6D = {
+  /**
+   * @description The height of the image
+   */
+  height?: number | null
+  /**
+   * @description The URL where the file can be downloaded from.
+   * @type string
+   */
+  url: string
+  /**
+   * @description The width of the image
+   */
+  width?: number | null
+  /**
+   * @description The mime type of the file.
+   * @example image/png
+   */
+  content_type?: string | null
+  /**
+   * @description The size of the file in bytes.
+   * @example 4404019
+   */
+  file_size?: number | null
+  /**
+   * @description The name of the file. It will be auto-generated if not provided.
+   * @example z9RV14K95DvU.png
+   */
+  file_name?: string | null
+}
+
+export type OutputMinimaxH3ImageTextToImage = {
+  /**
+   * @description Validated successful-image token usage, including prompt enhancement in input text tokens.
+   */
+  usage?: ImageUsage | null
+  /**
+   * @description Seconds spent in each generation stage.
+   * @type object
+   */
+  timings: {
+    [key: string]: number
+  }
+  /**
+   * @description The expanded prompt when available; null when expansion was disabled or the partner omitted it.
+   */
+  actual_prompt?: string | null
+  /**
+   * @description Whether each generated image was flagged by the safety checker.
+   * @type array
+   */
+  has_nsfw_concepts: boolean[]
+  /**
+   * @description The generated images.
+   * @type array
+   */
+  images: ImageFile375Dea6D[]
+}
+
 export type ImageSizeBddff223 = {
   /**
    * @description The width of the generated image.
@@ -88223,7 +99464,7 @@ export type OutputOpenaiGptImage26FlareEdit = {
   images: ImageFile63Bc82Dc[]
 }
 
-export type ImageSize0Ecdd851 = {
+export type ImageSizeB058Dfcd = {
   /**
    * @description The width of the generated image.
    * @maximum 14142
@@ -88240,14 +99481,17 @@ export type ImageSize0Ecdd851 = {
   height?: number
 }
 
-export const inputOpenaiGptImage26FlareTextToImageReasoningEffortEnum = {
-  low: 'low',
-  medium: 'medium',
-  high: 'high',
+export const inputOpenaiGptImage26FlareTextToImageSvgModelEnum = {
+  'gpt-6-astra': 'gpt-6-astra',
+  'gpt-5.5': 'gpt-5.5',
+  'gpt-5.4': 'gpt-5.4',
+  'gpt-5.6-terra': 'gpt-5.6-terra',
+  'gpt-6-luna': 'gpt-6-luna',
+  'gpt-6-sol': 'gpt-6-sol',
 } as const
 
-export type InputOpenaiGptImage26FlareTextToImageReasoningEffortEnumKey =
-  (typeof inputOpenaiGptImage26FlareTextToImageReasoningEffortEnum)[keyof typeof inputOpenaiGptImage26FlareTextToImageReasoningEffortEnum]
+export type InputOpenaiGptImage26FlareTextToImageSvgModelEnumKey =
+  (typeof inputOpenaiGptImage26FlareTextToImageSvgModelEnum)[keyof typeof inputOpenaiGptImage26FlareTextToImageSvgModelEnum]
 
 export const inputOpenaiGptImage26FlareTextToImageQualityEnum = {
   auto: 'auto',
@@ -88272,16 +99516,23 @@ export const inputOpenaiGptImage26FlareTextToImageOutputFormatEnum = {
 export type InputOpenaiGptImage26FlareTextToImageOutputFormatEnumKey =
   (typeof inputOpenaiGptImage26FlareTextToImageOutputFormatEnum)[keyof typeof inputOpenaiGptImage26FlareTextToImageOutputFormatEnum]
 
-export const inputOpenaiGptImage26FlareTextToImageSvgModelEnum = {
-  'gpt-6-astra': 'gpt-6-astra',
-  'gpt-5.5': 'gpt-5.5',
-  'gpt-5.4': 'gpt-5.4',
-  'gpt-5.6-terra': 'gpt-5.6-terra',
-  'gpt-6-luna': 'gpt-6-luna',
+export const inputOpenaiGptImage26FlareTextToImageBackgroundEnum = {
+  auto: 'auto',
+  transparent: 'transparent',
+  opaque: 'opaque',
 } as const
 
-export type InputOpenaiGptImage26FlareTextToImageSvgModelEnumKey =
-  (typeof inputOpenaiGptImage26FlareTextToImageSvgModelEnum)[keyof typeof inputOpenaiGptImage26FlareTextToImageSvgModelEnum]
+export type InputOpenaiGptImage26FlareTextToImageBackgroundEnumKey =
+  (typeof inputOpenaiGptImage26FlareTextToImageBackgroundEnum)[keyof typeof inputOpenaiGptImage26FlareTextToImageBackgroundEnum]
+
+export const inputOpenaiGptImage26FlareTextToImageReasoningEffortEnum = {
+  low: 'low',
+  medium: 'medium',
+  high: 'high',
+} as const
+
+export type InputOpenaiGptImage26FlareTextToImageReasoningEffortEnumKey =
+  (typeof inputOpenaiGptImage26FlareTextToImageReasoningEffortEnum)[keyof typeof inputOpenaiGptImage26FlareTextToImageReasoningEffortEnum]
 
 export const inputOpenaiGptImage26FlareTextToImageImageSize = {
   square_hd: 'square_hd',
@@ -88296,46 +99547,11 @@ export const inputOpenaiGptImage26FlareTextToImageImageSize = {
 export type InputOpenaiGptImage26FlareTextToImageImageSizeKey =
   (typeof inputOpenaiGptImage26FlareTextToImageImageSize)[keyof typeof inputOpenaiGptImage26FlareTextToImageImageSize]
 
-export const inputOpenaiGptImage26FlareTextToImageBackgroundEnum = {
-  auto: 'auto',
-  transparent: 'transparent',
-  opaque: 'opaque',
-} as const
-
-export type InputOpenaiGptImage26FlareTextToImageBackgroundEnumKey =
-  (typeof inputOpenaiGptImage26FlareTextToImageBackgroundEnum)[keyof typeof inputOpenaiGptImage26FlareTextToImageBackgroundEnum]
-
 /**
  * @description GPT Image 2.6 generation inputs.
  * @type object
  */
 export type InputOpenaiGptImage26FlareTextToImage = {
-  /**
-   * @description The prompt for image generation
-   * @minLength 1
-   * @maxLength 32000
-   * @example create a realistic image taken with iphone at these coordinates 41°43′32″N 49°56′49″W 15 April 1912
-   * @type string
-   */
-  prompt: string
-  /**
-   * @description Compression level from 0 to 100. Only supported when output_format is 'jpeg' or 'webp'.
-   */
-  output_compression?: number | null
-  /**
-   * @description GIF only: number of frames. image_size applies to each frame; reduce size or count if the request exceeds the pixel budget.
-   * @minimum 2
-   * @maximum 16
-   * @default 9
-   * @type integer | undefined
-   */
-  frame_count?: number
-  /**
-   * @description How much the model plans before rendering, independently of quality (OpenAI `complexity`). Higher levels can help with dense text and complex layouts but add latency.
-   * @default 'high'
-   * @type string | undefined
-   */
-  reasoning_effort?: InputOpenaiGptImage26FlareTextToImageReasoningEffortEnumKey
   /**
    * @description Number of images to generate. Must be 1 for SVG output. For GIF output, all frames of all outputs share the request's pixel budget.
    * @minimum 1
@@ -88346,11 +99562,31 @@ export type InputOpenaiGptImage26FlareTextToImage = {
    */
   num_images?: number
   /**
-   * @description If `True`, the media will be returned as a data URI and the output data won't be available in the request history.
-   * @default false
-   * @type boolean | undefined
+   * @description SVG only: the model that converts the generated reference image into vector paths. Larger models produce more accurate shapes.
+   * @default 'gpt-6-astra'
+   * @type string | undefined
    */
-  sync_mode?: boolean
+  svg_model?: InputOpenaiGptImage26FlareTextToImageSvgModelEnumKey
+  /**
+   * @description GIF only: number of frames. image_size applies to each frame; reduce size or count if the request exceeds the pixel budget.
+   * @minimum 2
+   * @maximum 16
+   * @default 9
+   * @type integer | undefined
+   */
+  frame_count?: number
+  /**
+   * @description GIF only: milliseconds per frame, rounded to 10 ms.
+   * @minimum 20
+   * @maximum 2000
+   * @default 200
+   * @type integer | undefined
+   */
+  frame_duration_ms?: number
+  /**
+   * @description Compression level from 0 to 100. Only supported when output_format is 'jpeg' or 'webp'.
+   */
+  output_compression?: number | null
   /**
    * @description Rendering quality for the generated image. For SVG output it controls the reference image used to create the vector.
    * @default 'high'
@@ -88364,26 +99600,17 @@ export type InputOpenaiGptImage26FlareTextToImage = {
    */
   output_format?: InputOpenaiGptImage26FlareTextToImageOutputFormatEnumKey
   /**
-   * @description GIF only: milliseconds per frame, rounded to 10 ms.
-   * @minimum 20
-   * @maximum 2000
-   * @default 200
-   * @type integer | undefined
+   * @description Authorized callers may set false to request relaxed screening.
+   * @default true
+   * @type boolean | undefined
    */
-  frame_duration_ms?: number
+  enable_safety_checker?: boolean
   /**
-   * @description SVG only: the model that converts the generated reference image into vector paths. Larger models produce more accurate shapes.
-   * @default 'gpt-6-astra'
-   * @type string | undefined
+   * @description If `True`, the media will be returned as a data URI and the output data won't be available in the request history.
+   * @default false
+   * @type boolean | undefined
    */
-  svg_model?: InputOpenaiGptImage26FlareTextToImageSvgModelEnumKey
-  /**
-   * @description The size of the generated image. Supports preset names, explicit {width, height}, or 'auto' to let the model pick the best size. Concrete sizes must have both dimensions as multiples of 16, max edge 3840px, aspect ratio <= 3:1, total pixels between 655,360 and 8,294,400.
-   * @default landscape_4_3
-   */
-  image_size?:
-    | ImageSize0Ecdd851
-    | InputOpenaiGptImage26FlareTextToImageImageSizeKey
+  sync_mode?: boolean
   /**
    * @description Background for the generated image
    * @default 'auto'
@@ -88391,11 +99618,26 @@ export type InputOpenaiGptImage26FlareTextToImage = {
    */
   background?: InputOpenaiGptImage26FlareTextToImageBackgroundEnumKey
   /**
-   * @description Authorized callers may set false to request relaxed screening.
-   * @default true
-   * @type boolean | undefined
+   * @description How much the model plans before rendering, independently of quality (OpenAI `complexity`). Higher levels can help with dense text and complex layouts but add latency.
+   * @default 'high'
+   * @type string | undefined
    */
-  enable_safety_checker?: boolean
+  reasoning_effort?: InputOpenaiGptImage26FlareTextToImageReasoningEffortEnumKey
+  /**
+   * @description The size of the generated image. Supports preset names, explicit {width, height}, or 'auto' to let the model pick the best size. Concrete sizes must have both dimensions as multiples of 16, max edge 3840px, aspect ratio <= 3:1, total pixels between 655,360 and 8,294,400.
+   * @default landscape_4_3
+   */
+  image_size?:
+    | ImageSizeB058Dfcd
+    | InputOpenaiGptImage26FlareTextToImageImageSizeKey
+  /**
+   * @description The prompt for image generation
+   * @minLength 1
+   * @maxLength 32000
+   * @example create a realistic image taken with iphone at these coordinates 41°43′32″N 49°56′49″W 15 April 1912
+   * @type string
+   */
+  prompt: string
 }
 
 export type ImageFile0C60100D = {
@@ -88647,7 +99889,7 @@ export type OutputOpenaiGptImage26SunburstEdit = {
   images: ImageFile82855854[]
 }
 
-export type ImageSize62F6Ffe9 = {
+export type ImageSize334D32C5 = {
   /**
    * @description The width of the generated image.
    * @maximum 14142
@@ -88664,14 +99906,17 @@ export type ImageSize62F6Ffe9 = {
   height?: number
 }
 
-export const inputOpenaiGptImage26SunburstTextToImageReasoningEffortEnum = {
-  low: 'low',
-  medium: 'medium',
-  high: 'high',
+export const inputOpenaiGptImage26SunburstTextToImageSvgModelEnum = {
+  'gpt-6-astra': 'gpt-6-astra',
+  'gpt-5.5': 'gpt-5.5',
+  'gpt-5.4': 'gpt-5.4',
+  'gpt-5.6-terra': 'gpt-5.6-terra',
+  'gpt-6-luna': 'gpt-6-luna',
+  'gpt-6-sol': 'gpt-6-sol',
 } as const
 
-export type InputOpenaiGptImage26SunburstTextToImageReasoningEffortEnumKey =
-  (typeof inputOpenaiGptImage26SunburstTextToImageReasoningEffortEnum)[keyof typeof inputOpenaiGptImage26SunburstTextToImageReasoningEffortEnum]
+export type InputOpenaiGptImage26SunburstTextToImageSvgModelEnumKey =
+  (typeof inputOpenaiGptImage26SunburstTextToImageSvgModelEnum)[keyof typeof inputOpenaiGptImage26SunburstTextToImageSvgModelEnum]
 
 export const inputOpenaiGptImage26SunburstTextToImageQualityEnum = {
   auto: 'auto',
@@ -88696,16 +99941,23 @@ export const inputOpenaiGptImage26SunburstTextToImageOutputFormatEnum = {
 export type InputOpenaiGptImage26SunburstTextToImageOutputFormatEnumKey =
   (typeof inputOpenaiGptImage26SunburstTextToImageOutputFormatEnum)[keyof typeof inputOpenaiGptImage26SunburstTextToImageOutputFormatEnum]
 
-export const inputOpenaiGptImage26SunburstTextToImageSvgModelEnum = {
-  'gpt-6-astra': 'gpt-6-astra',
-  'gpt-5.5': 'gpt-5.5',
-  'gpt-5.4': 'gpt-5.4',
-  'gpt-5.6-terra': 'gpt-5.6-terra',
-  'gpt-6-luna': 'gpt-6-luna',
+export const inputOpenaiGptImage26SunburstTextToImageBackgroundEnum = {
+  auto: 'auto',
+  transparent: 'transparent',
+  opaque: 'opaque',
 } as const
 
-export type InputOpenaiGptImage26SunburstTextToImageSvgModelEnumKey =
-  (typeof inputOpenaiGptImage26SunburstTextToImageSvgModelEnum)[keyof typeof inputOpenaiGptImage26SunburstTextToImageSvgModelEnum]
+export type InputOpenaiGptImage26SunburstTextToImageBackgroundEnumKey =
+  (typeof inputOpenaiGptImage26SunburstTextToImageBackgroundEnum)[keyof typeof inputOpenaiGptImage26SunburstTextToImageBackgroundEnum]
+
+export const inputOpenaiGptImage26SunburstTextToImageReasoningEffortEnum = {
+  low: 'low',
+  medium: 'medium',
+  high: 'high',
+} as const
+
+export type InputOpenaiGptImage26SunburstTextToImageReasoningEffortEnumKey =
+  (typeof inputOpenaiGptImage26SunburstTextToImageReasoningEffortEnum)[keyof typeof inputOpenaiGptImage26SunburstTextToImageReasoningEffortEnum]
 
 export const inputOpenaiGptImage26SunburstTextToImageImageSize = {
   square_hd: 'square_hd',
@@ -88720,46 +99972,11 @@ export const inputOpenaiGptImage26SunburstTextToImageImageSize = {
 export type InputOpenaiGptImage26SunburstTextToImageImageSizeKey =
   (typeof inputOpenaiGptImage26SunburstTextToImageImageSize)[keyof typeof inputOpenaiGptImage26SunburstTextToImageImageSize]
 
-export const inputOpenaiGptImage26SunburstTextToImageBackgroundEnum = {
-  auto: 'auto',
-  transparent: 'transparent',
-  opaque: 'opaque',
-} as const
-
-export type InputOpenaiGptImage26SunburstTextToImageBackgroundEnumKey =
-  (typeof inputOpenaiGptImage26SunburstTextToImageBackgroundEnum)[keyof typeof inputOpenaiGptImage26SunburstTextToImageBackgroundEnum]
-
 /**
  * @description GPT Image 2.6 generation inputs.
  * @type object
  */
 export type InputOpenaiGptImage26SunburstTextToImage = {
-  /**
-   * @description The prompt for image generation
-   * @minLength 1
-   * @maxLength 32000
-   * @example create a realistic image taken with iphone at these coordinates 41°43′32″N 49°56′49″W 15 April 1912
-   * @type string
-   */
-  prompt: string
-  /**
-   * @description Compression level from 0 to 100. Only supported when output_format is 'jpeg' or 'webp'.
-   */
-  output_compression?: number | null
-  /**
-   * @description GIF only: number of frames. image_size applies to each frame; reduce size or count if the request exceeds the pixel budget.
-   * @minimum 2
-   * @maximum 16
-   * @default 9
-   * @type integer | undefined
-   */
-  frame_count?: number
-  /**
-   * @description How much the model plans before rendering, independently of quality (OpenAI `complexity`). Higher levels can help with dense text and complex layouts but add latency.
-   * @default 'high'
-   * @type string | undefined
-   */
-  reasoning_effort?: InputOpenaiGptImage26SunburstTextToImageReasoningEffortEnumKey
   /**
    * @description Number of images to generate. Must be 1 for SVG output. For GIF output, all frames of all outputs share the request's pixel budget.
    * @minimum 1
@@ -88770,11 +99987,31 @@ export type InputOpenaiGptImage26SunburstTextToImage = {
    */
   num_images?: number
   /**
-   * @description If `True`, the media will be returned as a data URI and the output data won't be available in the request history.
-   * @default false
-   * @type boolean | undefined
+   * @description SVG only: the model that converts the generated reference image into vector paths. Larger models produce more accurate shapes.
+   * @default 'gpt-6-astra'
+   * @type string | undefined
    */
-  sync_mode?: boolean
+  svg_model?: InputOpenaiGptImage26SunburstTextToImageSvgModelEnumKey
+  /**
+   * @description GIF only: number of frames. image_size applies to each frame; reduce size or count if the request exceeds the pixel budget.
+   * @minimum 2
+   * @maximum 16
+   * @default 9
+   * @type integer | undefined
+   */
+  frame_count?: number
+  /**
+   * @description GIF only: milliseconds per frame, rounded to 10 ms.
+   * @minimum 20
+   * @maximum 2000
+   * @default 200
+   * @type integer | undefined
+   */
+  frame_duration_ms?: number
+  /**
+   * @description Compression level from 0 to 100. Only supported when output_format is 'jpeg' or 'webp'.
+   */
+  output_compression?: number | null
   /**
    * @description Rendering quality for the generated image. For SVG output it controls the reference image used to create the vector.
    * @default 'high'
@@ -88788,26 +100025,17 @@ export type InputOpenaiGptImage26SunburstTextToImage = {
    */
   output_format?: InputOpenaiGptImage26SunburstTextToImageOutputFormatEnumKey
   /**
-   * @description GIF only: milliseconds per frame, rounded to 10 ms.
-   * @minimum 20
-   * @maximum 2000
-   * @default 200
-   * @type integer | undefined
+   * @description Authorized callers may set false to request relaxed screening.
+   * @default true
+   * @type boolean | undefined
    */
-  frame_duration_ms?: number
+  enable_safety_checker?: boolean
   /**
-   * @description SVG only: the model that converts the generated reference image into vector paths. Larger models produce more accurate shapes.
-   * @default 'gpt-6-astra'
-   * @type string | undefined
+   * @description If `True`, the media will be returned as a data URI and the output data won't be available in the request history.
+   * @default false
+   * @type boolean | undefined
    */
-  svg_model?: InputOpenaiGptImage26SunburstTextToImageSvgModelEnumKey
-  /**
-   * @description The size of the generated image. Supports preset names, explicit {width, height}, or 'auto' to let the model pick the best size. Concrete sizes must have both dimensions as multiples of 16, max edge 3840px, aspect ratio <= 3:1, total pixels between 655,360 and 8,294,400.
-   * @default landscape_4_3
-   */
-  image_size?:
-    | ImageSize62F6Ffe9
-    | InputOpenaiGptImage26SunburstTextToImageImageSizeKey
+  sync_mode?: boolean
   /**
    * @description Background for the generated image
    * @default 'auto'
@@ -88815,11 +100043,26 @@ export type InputOpenaiGptImage26SunburstTextToImage = {
    */
   background?: InputOpenaiGptImage26SunburstTextToImageBackgroundEnumKey
   /**
-   * @description Authorized callers may set false to request relaxed screening.
-   * @default true
-   * @type boolean | undefined
+   * @description How much the model plans before rendering, independently of quality (OpenAI `complexity`). Higher levels can help with dense text and complex layouts but add latency.
+   * @default 'high'
+   * @type string | undefined
    */
-  enable_safety_checker?: boolean
+  reasoning_effort?: InputOpenaiGptImage26SunburstTextToImageReasoningEffortEnumKey
+  /**
+   * @description The size of the generated image. Supports preset names, explicit {width, height}, or 'auto' to let the model pick the best size. Concrete sizes must have both dimensions as multiples of 16, max edge 3840px, aspect ratio <= 3:1, total pixels between 655,360 and 8,294,400.
+   * @default landscape_4_3
+   */
+  image_size?:
+    | ImageSize334D32C5
+    | InputOpenaiGptImage26SunburstTextToImageImageSizeKey
+  /**
+   * @description The prompt for image generation
+   * @minLength 1
+   * @maxLength 32000
+   * @example create a realistic image taken with iphone at these coordinates 41°43′32″N 49°56′49″W 15 April 1912
+   * @type string
+   */
+  prompt: string
 }
 
 export type ImageFile7360Da05 = {
@@ -90230,6 +101473,794 @@ export type OutputRecraftV4StyleTextToVector = {
    * @description The custom style used or created for this generation.
    */
   style_id?: string | null
+}
+
+export const inputReve21EditOutputFormatEnum = {
+  png: 'png',
+  jpeg: 'jpeg',
+  webp: 'webp',
+} as const
+
+export type InputReve21EditOutputFormatEnumKey =
+  (typeof inputReve21EditOutputFormatEnum)[keyof typeof inputReve21EditOutputFormatEnum]
+
+export const inputReve21EditAspectRatioEnum = {
+  '4:1': '4:1',
+  '3:1': '3:1',
+  '21:9': '21:9',
+  '2:1': '2:1',
+  '17:9': '17:9',
+  '16:9': '16:9',
+  '3:2': '3:2',
+  '4:3': '4:3',
+  '5:4': '5:4',
+  '1:1': '1:1',
+  '4:5': '4:5',
+  '3:4': '3:4',
+  '2:3': '2:3',
+  '9:16': '9:16',
+  '1:2': '1:2',
+  '1:3': '1:3',
+  '1:4': '1:4',
+  auto: 'auto',
+} as const
+
+export type InputReve21EditAspectRatioEnumKey =
+  (typeof inputReve21EditAspectRatioEnum)[keyof typeof inputReve21EditAspectRatioEnum]
+
+/**
+ * @description Input for Reve Image 2 (v2) image editing
+ * @type object
+ */
+export type InputReve21Edit = {
+  /**
+   * @description The text description of how to edit the provided image. You can refer to the reference image with `<frame>0</frame>`.
+   * @minLength 1
+   * @maxLength 4000
+   * @example Give him a friend
+   * @type string
+   */
+  prompt: string
+  /**
+   * @description Number of images to generate
+   * @minimum 1
+   * @maximum 4
+   * @default 1
+   * @example 1
+   * @type integer | undefined
+   */
+  num_images?: number
+  /**
+   * @description If `True`, the media will be returned as a data URI and the output data won't be available in the request history.
+   * @default false
+   * @type boolean | undefined
+   */
+  sync_mode?: boolean
+  /**
+   * @description URL of the reference image to edit. Must be publicly accessible or base64 data URI. Supports PNG, JPEG, WebP, AVIF, and HEIF formats.
+   * @example https://v3b.fal.media/files/b/koala/sZE6zNTKjOKc4kcUdVlu__26bac54c-3e94-43e9-aeff-f2efc2631ef0.webp
+   * @type string
+   */
+  image_url: string
+  /**
+   * @description Output format for the generated image.
+   * @default 'png'
+   * @example png
+   * @type string | undefined
+   */
+  output_format?: InputReve21EditOutputFormatEnumKey
+  /**
+   * @description The desired aspect ratio of the generated image. With `auto`, the model picks an appropriate aspect ratio for the request.
+   * @default 'auto'
+   * @example auto
+   * @type string | undefined
+   */
+  aspect_ratio?: InputReve21EditAspectRatioEnumKey
+}
+
+/**
+ * @description Represents an image file.
+ * @type object
+ */
+export type ImageC2B74381 = {
+  /**
+   * @description The width of the image in pixels.
+   * @example 1024
+   */
+  width?: number | null
+  /**
+   * @description The name of the file. It will be auto-generated if not provided.
+   * @example z9RV14K95DvU.png
+   */
+  file_name?: string | null
+  /**
+   * @description The mime type of the file.
+   * @example image/png
+   */
+  content_type?: string | null
+  /**
+   * @description The size of the file in bytes.
+   * @example 4404019
+   */
+  file_size?: number | null
+  /**
+   * @description The URL where the file can be downloaded from.
+   * @type string
+   */
+  url: string
+  /**
+   * @description The height of the image in pixels.
+   * @example 1024
+   */
+  height?: number | null
+}
+
+/**
+ * @description Output for Reve Image 2 (v2) image editing
+ * @type object
+ */
+export type OutputReve21Edit = {
+  /**
+   * @description The edited images
+   * @example [{"url":"https://v3b.fal.media/files/b/tiger/4mt5HxYSH-YIE3vhqV8L9.png"}]
+   * @type array
+   */
+  images: ImageC2B74381[]
+}
+
+export const inputReve21RemixOutputFormatEnum = {
+  png: 'png',
+  jpeg: 'jpeg',
+  webp: 'webp',
+} as const
+
+export type InputReve21RemixOutputFormatEnumKey =
+  (typeof inputReve21RemixOutputFormatEnum)[keyof typeof inputReve21RemixOutputFormatEnum]
+
+export const inputReve21RemixAspectRatioEnum = {
+  '4:1': '4:1',
+  '3:1': '3:1',
+  '21:9': '21:9',
+  '2:1': '2:1',
+  '17:9': '17:9',
+  '16:9': '16:9',
+  '3:2': '3:2',
+  '4:3': '4:3',
+  '5:4': '5:4',
+  '1:1': '1:1',
+  '4:5': '4:5',
+  '3:4': '3:4',
+  '2:3': '2:3',
+  '9:16': '9:16',
+  '1:2': '1:2',
+  '1:3': '1:3',
+  '1:4': '1:4',
+  auto: 'auto',
+} as const
+
+export type InputReve21RemixAspectRatioEnumKey =
+  (typeof inputReve21RemixAspectRatioEnum)[keyof typeof inputReve21RemixAspectRatioEnum]
+
+/**
+ * @description Input for Reve Image 2 (v2) image remixing
+ * @type object
+ */
+export type InputReve21Remix = {
+  /**
+   * @description The text description of the desired image. Refer to a reference image by frame: `<frame>N</frame>` is the Nth entry in `image_urls` (0-based, so the first reference is `<frame>0</frame>`).
+   * @minLength 1
+   * @maxLength 4000
+   * @example Dress the model in the clothes and hat. Add a cat to the scene and change the background to a Victorian era building.
+   * @type string
+   */
+  prompt: string
+  /**
+   * @description Number of images to generate
+   * @minimum 1
+   * @maximum 4
+   * @default 1
+   * @example 1
+   * @type integer | undefined
+   */
+  num_images?: number
+  /**
+   * @description If `True`, the media will be returned as a data URI and the output data won't be available in the request history.
+   * @default false
+   * @type boolean | undefined
+   */
+  sync_mode?: boolean
+  /**
+   * @description Output format for the generated image.
+   * @default 'png'
+   * @example png
+   * @type string | undefined
+   */
+  output_format?: InputReve21RemixOutputFormatEnumKey
+  /**
+   * @description List of reference images. Refer to them from the prompt with `<frame>N</frame>` (0-based). Must provide between 1 and 8 images (inclusive). Each image must be less than 10 MB. Supports PNG, JPEG, WebP, AVIF, and HEIF formats.
+   * @example ["https://v3b.fal.media/files/b/monkey/lsPBOhBws_FnTzd5G9KZ9_seedream4_edit_input_4.png","https://v3b.fal.media/files/b/monkey/ZrW5ouDj8vjLtvl1Cj9l9_seedream4_edit_input_2.png","https://v3b.fal.media/files/b/elephant/sd0k6YhlQEKfR6d_hAmIH_seedream4_edit_input_3.png"]
+   * @type array
+   */
+  image_urls: string[]
+  /**
+   * @description The desired aspect ratio of the generated image. With `auto`, the model picks an appropriate aspect ratio for the request.
+   * @default 'auto'
+   * @example 16:9
+   * @type string | undefined
+   */
+  aspect_ratio?: InputReve21RemixAspectRatioEnumKey
+}
+
+/**
+ * @description Represents an image file.
+ * @type object
+ */
+export type Image6B9Aa96C = {
+  /**
+   * @description The width of the image in pixels.
+   * @example 1024
+   */
+  width?: number | null
+  /**
+   * @description The name of the file. It will be auto-generated if not provided.
+   * @example z9RV14K95DvU.png
+   */
+  file_name?: string | null
+  /**
+   * @description The mime type of the file.
+   * @example image/png
+   */
+  content_type?: string | null
+  /**
+   * @description The size of the file in bytes.
+   * @example 4404019
+   */
+  file_size?: number | null
+  /**
+   * @description The URL where the file can be downloaded from.
+   * @type string
+   */
+  url: string
+  /**
+   * @description The height of the image in pixels.
+   * @example 1024
+   */
+  height?: number | null
+}
+
+/**
+ * @description Output for Reve Image 2 (v2) image remixing
+ * @type object
+ */
+export type OutputReve21Remix = {
+  /**
+   * @description The remixed images
+   * @example [{"url":"https://v3b.fal.media/files/b/zebra/r0J_UFupv3BfooTwv2ifJ.png"}]
+   * @type array
+   */
+  images: Image6B9Aa96C[]
+}
+
+export const inputReve21TextToImageOutputFormatEnum = {
+  png: 'png',
+  jpeg: 'jpeg',
+  webp: 'webp',
+} as const
+
+export type InputReve21TextToImageOutputFormatEnumKey =
+  (typeof inputReve21TextToImageOutputFormatEnum)[keyof typeof inputReve21TextToImageOutputFormatEnum]
+
+export const inputReve21TextToImageAspectRatioEnum = {
+  '4:1': '4:1',
+  '3:1': '3:1',
+  '21:9': '21:9',
+  '2:1': '2:1',
+  '17:9': '17:9',
+  '16:9': '16:9',
+  '3:2': '3:2',
+  '4:3': '4:3',
+  '5:4': '5:4',
+  '1:1': '1:1',
+  '4:5': '4:5',
+  '3:4': '3:4',
+  '2:3': '2:3',
+  '9:16': '9:16',
+  '1:2': '1:2',
+  '1:3': '1:3',
+  '1:4': '1:4',
+  auto: 'auto',
+} as const
+
+export type InputReve21TextToImageAspectRatioEnumKey =
+  (typeof inputReve21TextToImageAspectRatioEnum)[keyof typeof inputReve21TextToImageAspectRatioEnum]
+
+/**
+ * @description Input for Reve Image 2 (v2) text-to-image generation
+ * @type object
+ */
+export type InputReve21TextToImage = {
+  /**
+   * @description The text description of the desired image.
+   * @minLength 1
+   * @maxLength 4000
+   * @example A towering stack of golden fluffy pancakes drizzled with amber honey syrup, topped with fresh blackberries and sliced bananas, served on a white ceramic plate on a rustic wooden table with a soft blue-gray background.
+   * @type string
+   */
+  prompt: string
+  /**
+   * @description Number of images to generate
+   * @minimum 1
+   * @maximum 4
+   * @default 1
+   * @example 1
+   * @type integer | undefined
+   */
+  num_images?: number
+  /**
+   * @description If `True`, the media will be returned as a data URI and the output data won't be available in the request history.
+   * @default false
+   * @type boolean | undefined
+   */
+  sync_mode?: boolean
+  /**
+   * @description Output format for the generated image.
+   * @default 'png'
+   * @example png
+   * @type string | undefined
+   */
+  output_format?: InputReve21TextToImageOutputFormatEnumKey
+  /**
+   * @description The desired aspect ratio of the generated image. With `auto`, the model picks an appropriate aspect ratio for the request.
+   * @default 'auto'
+   * @example 16:9
+   * @type string | undefined
+   */
+  aspect_ratio?: InputReve21TextToImageAspectRatioEnumKey
+}
+
+/**
+ * @description Represents an image file.
+ * @type object
+ */
+export type ImageC7D68D12 = {
+  /**
+   * @description The width of the image in pixels.
+   * @example 1024
+   */
+  width?: number | null
+  /**
+   * @description The name of the file. It will be auto-generated if not provided.
+   * @example z9RV14K95DvU.png
+   */
+  file_name?: string | null
+  /**
+   * @description The mime type of the file.
+   * @example image/png
+   */
+  content_type?: string | null
+  /**
+   * @description The size of the file in bytes.
+   * @example 4404019
+   */
+  file_size?: number | null
+  /**
+   * @description The URL where the file can be downloaded from.
+   * @type string
+   */
+  url: string
+  /**
+   * @description The height of the image in pixels.
+   * @example 1024
+   */
+  height?: number | null
+}
+
+/**
+ * @description Output for Reve Image 2 (v2) text-to-image generation
+ * @type object
+ */
+export type OutputReve21TextToImage = {
+  /**
+   * @description The generated images
+   * @example [{"url":"https://v3b.fal.media/files/b/panda/-WnGcaJCtfrT6Q2oms97E.png"}]
+   * @type array
+   */
+  images: ImageC7D68D12[]
+}
+
+export type ImageSize441B2Bb6 = {
+  /**
+   * @description The height of the generated image.
+   * @maximum 14142
+   * @default 512
+   * @type integer | undefined
+   */
+  height?: number
+  /**
+   * @description The width of the generated image.
+   * @maximum 14142
+   * @default 512
+   * @type integer | undefined
+   */
+  width?: number
+}
+
+export type LoraWeight95Ff5590 = {
+  /**
+   * @description
+   *             The scale of the LoRA weight. This is used to scale the LoRA weight
+   *             before merging it with the base model.
+   *
+   * @minimum 0
+   * @maximum 4
+   * @default 1
+   * @type number | undefined
+   */
+  scale?: number
+  /**
+   * @description URL or the path to the LoRA weights.
+   * @type string
+   */
+  path: string
+}
+
+export const inputRundiffusionFalJuggernautFluxLoraAccelerationEnum = {
+  none: 'none',
+  regular: 'regular',
+} as const
+
+export type InputRundiffusionFalJuggernautFluxLoraAccelerationEnumKey =
+  (typeof inputRundiffusionFalJuggernautFluxLoraAccelerationEnum)[keyof typeof inputRundiffusionFalJuggernautFluxLoraAccelerationEnum]
+
+export const inputRundiffusionFalJuggernautFluxLoraImageSize = {
+  square_hd: 'square_hd',
+  square: 'square',
+  portrait_4_3: 'portrait_4_3',
+  portrait_16_9: 'portrait_16_9',
+  landscape_4_3: 'landscape_4_3',
+  landscape_16_9: 'landscape_16_9',
+} as const
+
+export type InputRundiffusionFalJuggernautFluxLoraImageSizeKey =
+  (typeof inputRundiffusionFalJuggernautFluxLoraImageSize)[keyof typeof inputRundiffusionFalJuggernautFluxLoraImageSize]
+
+export const inputRundiffusionFalJuggernautFluxLoraOutputFormatEnum = {
+  jpeg: 'jpeg',
+  png: 'png',
+} as const
+
+export type InputRundiffusionFalJuggernautFluxLoraOutputFormatEnumKey =
+  (typeof inputRundiffusionFalJuggernautFluxLoraOutputFormatEnum)[keyof typeof inputRundiffusionFalJuggernautFluxLoraOutputFormatEnum]
+
+export type InputRundiffusionFalJuggernautFluxLora = {
+  /**
+   * @description Acceleration level for image generation. 'regular' balances speed and quality.
+   * @default 'none'
+   * @type string | undefined
+   */
+  acceleration?: InputRundiffusionFalJuggernautFluxLoraAccelerationEnumKey
+  /**
+   * @description The size of the generated image.
+   * @default landscape_4_3
+   */
+  image_size?:
+    | ImageSize441B2Bb6
+    | InputRundiffusionFalJuggernautFluxLoraImageSizeKey
+  /**
+   * @description
+   *             The CFG (Classifier Free Guidance) scale is a measure of how close you want
+   *             the model to stick to your prompt when looking for a related image to show you.
+   *
+   * @minimum 0
+   * @maximum 35
+   * @default 3.5
+   * @type number | undefined
+   */
+  guidance_scale?: number
+  /**
+   * @description The format of the generated image.
+   * @default 'jpeg'
+   * @type string | undefined
+   */
+  output_format?: InputRundiffusionFalJuggernautFluxLoraOutputFormatEnumKey
+  /**
+   * @description The prompt to generate an image from.
+   * @example Extreme close-up of a single tiger eye, direct frontal view. Detailed iris and pupil. Sharp focus on eye texture and color. Natural lighting to capture authentic eye shine and depth. The word "FLUX" is painted over it in big, white brush strokes with visible texture.
+   * @type string
+   */
+  prompt: string
+  /**
+   * @description
+   *             The same seed and the same prompt given to the same version of the model
+   *             will output the same image every time.
+   *
+   */
+  seed?: number | null
+  /**
+   * @description The number of images to generate. This is always set to 1 for streaming output.
+   * @minimum 1
+   * @maximum 4
+   * @default 1
+   * @type integer | undefined
+   */
+  num_images?: number
+  /**
+   * @description If `True`, the media will be returned as a data URI and the output data won't be available in the request history.
+   * @default false
+   * @type boolean | undefined
+   */
+  sync_mode?: boolean
+  /**
+   * @description If set to true, the safety checker will be enabled. Disabling it requires account authorization; unauthorized requests are always checked, and images flagged as unsafe are returned as black images.
+   * @default true
+   * @type boolean | undefined
+   */
+  enable_safety_checker?: boolean
+  /**
+   * @description
+   *             The LoRAs to use for the image generation. You can use any number of LoRAs
+   *             and they will be merged together to generate the final image.
+   *
+   * @default []
+   * @type array | undefined
+   */
+  loras?: LoraWeight95Ff5590[]
+  /**
+   * @description The number of inference steps to perform.
+   * @minimum 1
+   * @maximum 50
+   * @default 28
+   * @type integer | undefined
+   */
+  num_inference_steps?: number
+}
+
+export type Image360Fdacd = {
+  height: number
+  /**
+   * @default image/jpeg
+   */
+  content_type?: string | null
+  width: number
+  url: string
+}
+
+export type OutputRundiffusionFalJuggernautFluxLora = {
+  /**
+   * @description Whether the generated images contain NSFW concepts.
+   * @type array
+   */
+  has_nsfw_concepts: boolean[]
+  /**
+   * @description The generated image files info.
+   * @type array
+   */
+  images: Image360Fdacd[]
+  /**
+   * @description The prompt used for generating the image.
+   * @type string
+   */
+  prompt: string
+  timings: {
+    [key: string]: number
+  }
+  /**
+   * @description
+   *             Seed of the generated Image. It will be the same value of the one passed in the
+   *             input or the randomly generated that was used in case none was passed.
+   *
+   * @type integer
+   */
+  seed: number
+}
+
+export type LoraWeight9941Fef6 = {
+  /**
+   * @description URL or the path to the LoRA weights.
+   * @type string
+   */
+  path: string
+  /**
+   * @description
+   *             The scale of the LoRA weight. This is used to scale the LoRA weight
+   *             before merging it with the base model.
+   *
+   * @minimum 0
+   * @maximum 4
+   * @default 1
+   * @type number | undefined
+   */
+  scale?: number
+}
+
+export type ImageSizeFe676B24 = {
+  /**
+   * @description The height of the generated image.
+   * @maximum 14142
+   * @default 512
+   * @type integer | undefined
+   */
+  height?: number
+  /**
+   * @description The width of the generated image.
+   * @maximum 14142
+   * @default 512
+   * @type integer | undefined
+   */
+  width?: number
+}
+
+export const inputRundiffusionFalJuggernautFluxLoraInpaintingOutputFormatEnum =
+  {
+    jpeg: 'jpeg',
+    png: 'png',
+  } as const
+
+export type InputRundiffusionFalJuggernautFluxLoraInpaintingOutputFormatEnumKey =
+  (typeof inputRundiffusionFalJuggernautFluxLoraInpaintingOutputFormatEnum)[keyof typeof inputRundiffusionFalJuggernautFluxLoraInpaintingOutputFormatEnum]
+
+export const inputRundiffusionFalJuggernautFluxLoraInpaintingImageSize = {
+  square_hd: 'square_hd',
+  square: 'square',
+  portrait_4_3: 'portrait_4_3',
+  portrait_16_9: 'portrait_16_9',
+  landscape_4_3: 'landscape_4_3',
+  landscape_16_9: 'landscape_16_9',
+} as const
+
+export type InputRundiffusionFalJuggernautFluxLoraInpaintingImageSizeKey =
+  (typeof inputRundiffusionFalJuggernautFluxLoraInpaintingImageSize)[keyof typeof inputRundiffusionFalJuggernautFluxLoraInpaintingImageSize]
+
+export const inputRundiffusionFalJuggernautFluxLoraInpaintingAccelerationEnum =
+  {
+    none: 'none',
+    regular: 'regular',
+  } as const
+
+export type InputRundiffusionFalJuggernautFluxLoraInpaintingAccelerationEnumKey =
+  (typeof inputRundiffusionFalJuggernautFluxLoraInpaintingAccelerationEnum)[keyof typeof inputRundiffusionFalJuggernautFluxLoraInpaintingAccelerationEnum]
+
+export type InputRundiffusionFalJuggernautFluxLoraInpainting = {
+  /**
+   * @description The format of the generated image.
+   * @default 'jpeg'
+   * @type string | undefined
+   */
+  output_format?: InputRundiffusionFalJuggernautFluxLoraInpaintingOutputFormatEnumKey
+  /**
+   * @description
+   *             The LoRAs to use for the image generation. You can use any number of LoRAs
+   *             and they will be merged together to generate the final image.
+   *
+   * @default []
+   * @type array | undefined
+   */
+  loras?: LoraWeight9941Fef6[]
+  /**
+   * @description The size of the generated image.
+   */
+  image_size?:
+    | ImageSizeFe676B24
+    | InputRundiffusionFalJuggernautFluxLoraInpaintingImageSizeKey
+  /**
+   * @description The prompt to generate an image from.
+   * @example A photo of a lion sitting on a stone bench
+   * @type string
+   */
+  prompt: string
+  /**
+   * @description If `True`, the media will be returned as a data URI and the output data won't be available in the request history.
+   * @default false
+   * @type boolean | undefined
+   */
+  sync_mode?: boolean
+  /**
+   * @description If set to true, the safety checker will be enabled. Disabling it requires account authorization; unauthorized requests are always checked, and images flagged as unsafe are returned as black images.
+   * @default true
+   * @type boolean | undefined
+   */
+  enable_safety_checker?: boolean
+  /**
+   * @description URL of image to use for inpainting. or img2img
+   * @example https://storage.googleapis.com/falserverless/example_inputs/dog.png
+   * @type string
+   */
+  image_url: string
+  /**
+   * @description Acceleration level for image generation. 'regular' balances speed and quality.
+   * @default 'none'
+   * @type string | undefined
+   */
+  acceleration?: InputRundiffusionFalJuggernautFluxLoraInpaintingAccelerationEnumKey
+  /**
+   * @description
+   *             The same seed and the same prompt given to the same version of the model
+   *             will output the same image every time.
+   *
+   */
+  seed?: number | null
+  /**
+   * @description The number of inference steps to perform.
+   * @minimum 1
+   * @maximum 50
+   * @default 28
+   * @type integer | undefined
+   */
+  num_inference_steps?: number
+  /**
+   * @description The strength to use for inpainting/image-to-image. Only used if the image_url is provided. 1.0 is completely remakes the image while 0.0 preserves the original.
+   * @minimum 0.01
+   * @maximum 1
+   * @default 0.85
+   * @type number | undefined
+   */
+  strength?: number
+  /**
+   * @description The number of images to generate. This is always set to 1 for streaming output.
+   * @minimum 1
+   * @maximum 4
+   * @default 1
+   * @type integer | undefined
+   */
+  num_images?: number
+  /**
+   * @description
+   *             The CFG (Classifier Free Guidance) scale is a measure of how close you want
+   *             the model to stick to your prompt when looking for a related image to show you.
+   *
+   * @minimum 0
+   * @maximum 35
+   * @default 3.5
+   * @type number | undefined
+   */
+  guidance_scale?: number
+  /**
+   * @description
+   *             The mask to area to Inpaint in.
+   *
+   * @example https://storage.googleapis.com/falserverless/example_inputs/dog_mask.png
+   * @type string
+   */
+  mask_url: string
+}
+
+export type Image04A69057 = {
+  height: number
+  /**
+   * @default image/jpeg
+   */
+  content_type?: string | null
+  width: number
+  url: string
+}
+
+export type OutputRundiffusionFalJuggernautFluxLoraInpainting = {
+  /**
+   * @description Whether the generated images contain NSFW concepts.
+   * @type array
+   */
+  has_nsfw_concepts: boolean[]
+  /**
+   * @description The generated image files info.
+   * @type array
+   */
+  images: Image04A69057[]
+  /**
+   * @description The prompt used for generating the image.
+   * @type string
+   */
+  prompt: string
+  timings: {
+    [key: string]: number
+  }
+  /**
+   * @description
+   *             Seed of the generated Image. It will be the same value of the one passed in the
+   *             input or the randomly generated that was used in case none was passed.
+   *
+   * @type integer
+   */
+  seed: number
 }
 
 export type ImageSize86B29962 = {
@@ -93193,6 +105224,10 @@ export type FalImageEndpoints = {
     input: InputClarityaiCrystalUpscaler
     output: OutputClarityaiCrystalUpscaler
   }
+  'fal-ai/aura-flow': {
+    input: InputFalAiAuraFlow
+    output: OutputFalAiAuraFlow
+  }
   'fal-ai/aura-sr': {
     input: InputFalAiAuraSr
     output: OutputFalAiAuraSr
@@ -93209,6 +105244,10 @@ export type FalImageEndpoints = {
     input: InputFalAiBenV2Image
     output: OutputFalAiBenV2Image
   }
+  'fal-ai/bernini-r/edit-image': {
+    input: InputFalAiBerniniREditImage
+    output: OutputFalAiBerniniREditImage
+  }
   'fal-ai/birefnet': {
     input: InputFalAiBirefnet
     output: OutputFalAiBirefnet
@@ -93216,6 +105255,10 @@ export type FalImageEndpoints = {
   'fal-ai/birefnet/v2': {
     input: InputFalAiBirefnetV2
     output: OutputFalAiBirefnetV2
+  }
+  'fal-ai/bitdance': {
+    input: InputFalAiBitdance
+    output: OutputFalAiBitdance
   }
   'fal-ai/boogu-image': {
     input: InputFalAiBooguImage
@@ -93265,6 +105308,10 @@ export type FalImageEndpoints = {
     input: InputFalAiBriaTextToImageHd
     output: OutputFalAiBriaTextToImageHd
   }
+  'fal-ai/bytedance/dreamina/v3.1/text-to-image': {
+    input: InputFalAiBytedanceDreaminaV31TextToImage
+    output: OutputFalAiBytedanceDreaminaV31TextToImage
+  }
   'fal-ai/bytedance/seedream/v4.5/edit': {
     input: InputFalAiBytedanceSeedreamV45Edit
     output: OutputFalAiBytedanceSeedreamV45Edit
@@ -93281,9 +105328,73 @@ export type FalImageEndpoints = {
     input: InputFalAiBytedanceSeedreamV4TextToImage
     output: OutputFalAiBytedanceSeedreamV4TextToImage
   }
+  'fal-ai/bytedance/seedream/v5/lite/edit': {
+    input: InputFalAiBytedanceSeedreamV5LiteEdit
+    output: OutputFalAiBytedanceSeedreamV5LiteEdit
+  }
+  'fal-ai/bytedance/seedream/v5/lite/text-to-image': {
+    input: InputFalAiBytedanceSeedreamV5LiteTextToImage
+    output: OutputFalAiBytedanceSeedreamV5LiteTextToImage
+  }
+  'fal-ai/cartoonify': {
+    input: InputFalAiCartoonify
+    output: OutputFalAiCartoonify
+  }
   'fal-ai/cat-vton': {
     input: InputFalAiCatVton
     output: OutputFalAiCatVton
+  }
+  'fal-ai/ccsr': {
+    input: InputFalAiCcsr
+    output: OutputFalAiCcsr
+  }
+  'fal-ai/chrono-edit': {
+    /**
+     * @description Input model for ChronoEdit standard editing operations
+     * @type object
+     */
+    input: InputFalAiChronoEdit
+    /**
+     * @description Unified output model for all ChronoEdit operations
+     * @type object
+     */
+    output: OutputFalAiChronoEdit
+  }
+  'fal-ai/chrono-edit-lora': {
+    /**
+     * @description ChronoEdit input with optional custom LoRAs.
+     * @type object
+     */
+    input: InputFalAiChronoEditLora
+    /**
+     * @description Unified output model for all ChronoEdit operations
+     * @type object
+     */
+    output: OutputFalAiChronoEditLora
+  }
+  'fal-ai/chrono-edit-lora-gallery/paintbrush': {
+    /**
+     * @description Input for paintbrush mode
+     * @type object
+     */
+    input: InputFalAiChronoEditLoraGalleryPaintbrush
+    /**
+     * @description Unified output model for all ChronoEdit operations
+     * @type object
+     */
+    output: OutputFalAiChronoEditLoraGalleryPaintbrush
+  }
+  'fal-ai/chrono-edit-lora-gallery/upscaler': {
+    /**
+     * @description Input for upscaler mode
+     * @type object
+     */
+    input: InputFalAiChronoEditLoraGalleryUpscaler
+    /**
+     * @description Unified output model for all ChronoEdit operations
+     * @type object
+     */
+    output: OutputFalAiChronoEditLoraGalleryUpscaler
   }
   'fal-ai/clarity-upscaler': {
     input: InputFalAiClarityUpscaler
@@ -93292,6 +105403,10 @@ export type FalImageEndpoints = {
   'fal-ai/codeformer': {
     input: InputFalAiCodeformer
     output: OutputFalAiCodeformer
+  }
+  'fal-ai/cogview4': {
+    input: InputFalAiCogview4
+    output: OutputFalAiCogview4
   }
   'fal-ai/control-light': {
     input: InputFalAiControlLight
@@ -93304,6 +105419,26 @@ export type FalImageEndpoints = {
   'fal-ai/ddcolor': {
     input: InputFalAiDdcolor
     output: OutputFalAiDdcolor
+  }
+  'fal-ai/docres': {
+    input: InputFalAiDocres
+    output: OutputFalAiDocres
+  }
+  'fal-ai/docres/dewarp': {
+    input: InputFalAiDocresDewarp
+    output: OutputFalAiDocresDewarp
+  }
+  'fal-ai/drct-super-resolution': {
+    input: InputFalAiDrctSuperResolution
+    output: OutputFalAiDrctSuperResolution
+  }
+  'fal-ai/dreamomni2/edit': {
+    input: InputFalAiDreamomni2Edit
+    output: OutputFalAiDreamomni2Edit
+  }
+  'fal-ai/dreamshaper': {
+    input: InputFalAiDreamshaper
+    output: OutputFalAiDreamshaper
   }
   'fal-ai/dwpose': {
     input: InputFalAiDwpose
@@ -93349,6 +105484,10 @@ export type FalImageEndpoints = {
     input: InputFalAiFashnTryonV16
     output: OutputFalAiFashnTryonV16
   }
+  'fal-ai/fast-fooocus-sdxl/image-to-image': {
+    input: InputFalAiFastFooocusSdxlImageToImage
+    output: OutputFalAiFastFooocusSdxlImageToImage
+  }
   'fal-ai/fast-lcm-diffusion': {
     input: InputFalAiFastLcmDiffusion
     output: OutputFalAiFastLcmDiffusion
@@ -93376,6 +105515,18 @@ export type FalImageEndpoints = {
   'fal-ai/fast-sdxl': {
     input: InputFalAiFastSdxl
     output: OutputFalAiFastSdxl
+  }
+  'fal-ai/fast-sdxl-controlnet-canny': {
+    input: InputFalAiFastSdxlControlnetCanny
+    output: OutputFalAiFastSdxlControlnetCanny
+  }
+  'fal-ai/fast-sdxl-controlnet-canny/image-to-image': {
+    input: InputFalAiFastSdxlControlnetCannyImageToImage
+    output: OutputFalAiFastSdxlControlnetCannyImageToImage
+  }
+  'fal-ai/fast-sdxl-controlnet-canny/inpainting': {
+    input: InputFalAiFastSdxlControlnetCannyInpainting
+    output: OutputFalAiFastSdxlControlnetCannyInpainting
   }
   'fal-ai/fast-sdxl/image-to-image': {
     input: InputFalAiFastSdxlImageToImage
@@ -93408,6 +105559,10 @@ export type FalImageEndpoints = {
   'fal-ai/finegrain-eraser/mask': {
     input: InputFalAiFinegrainEraserMask
     output: OutputFalAiFinegrainEraserMask
+  }
+  'fal-ai/firered-image-edit': {
+    input: InputFalAiFireredImageEdit
+    output: OutputFalAiFireredImageEdit
   }
   'fal-ai/firered-image-edit-v1.1': {
     input: InputFalAiFireredImageEditV11
@@ -93444,6 +105599,10 @@ export type FalImageEndpoints = {
   'fal-ai/florence-2-large/region-to-segmentation': {
     input: InputFalAiFlorence2LargeRegionToSegmentation
     output: OutputFalAiFlorence2LargeRegionToSegmentation
+  }
+  'fal-ai/flowedit': {
+    input: InputFalAiFlowedit
+    output: OutputFalAiFlowedit
   }
   'fal-ai/flux-1/dev': {
     input: InputFalAiFlux1Dev
@@ -93701,6 +105860,22 @@ export type FalImageEndpoints = {
     input: InputFalAiFlux2TurboEdit
     output: OutputFalAiFlux2TurboEdit
   }
+  'fal-ai/flux-control-lora-canny': {
+    input: InputFalAiFluxControlLoraCanny
+    output: OutputFalAiFluxControlLoraCanny
+  }
+  'fal-ai/flux-control-lora-canny/image-to-image': {
+    input: InputFalAiFluxControlLoraCannyImageToImage
+    output: OutputFalAiFluxControlLoraCannyImageToImage
+  }
+  'fal-ai/flux-control-lora-depth': {
+    input: InputFalAiFluxControlLoraDepth
+    output: OutputFalAiFluxControlLoraDepth
+  }
+  'fal-ai/flux-control-lora-depth/image-to-image': {
+    input: InputFalAiFluxControlLoraDepthImageToImage
+    output: OutputFalAiFluxControlLoraDepthImageToImage
+  }
   'fal-ai/flux-general': {
     input: InputFalAiFluxGeneral
     output: OutputFalAiFluxGeneral
@@ -93851,6 +106026,10 @@ export type FalImageEndpoints = {
     input: InputFalAiFluxPulid
     output: OutputFalAiFluxPulid
   }
+  'fal-ai/flux-subject': {
+    input: InputFalAiFluxSubject
+    output: OutputFalAiFluxSubject
+  }
   'fal-ai/flux-vision-upscaler': {
     input: InputFalAiFluxVisionUpscaler
     output: OutputFalAiFluxVisionUpscaler
@@ -93935,6 +106114,10 @@ export type FalImageEndpoints = {
     input: InputFalAiGemini31FlashImagePreviewEdit
     output: OutputFalAiGemini31FlashImagePreviewEdit
   }
+  'fal-ai/ghiblify': {
+    input: InputFalAiGhiblify
+    output: OutputFalAiGhiblify
+  }
   'fal-ai/glm-image': {
     input: InputFalAiGlmImage
     output: OutputFalAiGlmImage
@@ -93958,6 +106141,18 @@ export type FalImageEndpoints = {
   'fal-ai/gpt-image-1.5/edit': {
     input: InputFalAiGptImage15Edit
     output: OutputFalAiGptImage15Edit
+  }
+  'fal-ai/gpt-image-1/edit-image': {
+    input: InputFalAiGptImage1EditImage
+    output: OutputFalAiGptImage1EditImage
+  }
+  'fal-ai/gpt-image-1/text-to-image': {
+    input: InputFalAiGptImage1TextToImage
+    output: OutputFalAiGptImage1TextToImage
+  }
+  'fal-ai/hidream-i1-dev': {
+    input: InputFalAiHidreamI1Dev
+    output: OutputFalAiHidreamI1Dev
   }
   'fal-ai/hidream-i1-fast': {
     input: InputFalAiHidreamI1Fast
@@ -94026,6 +106221,10 @@ export type FalImageEndpoints = {
   'fal-ai/ideogram/character/remix': {
     input: InputFalAiIdeogramCharacterRemix
     output: OutputFalAiIdeogramCharacterRemix
+  }
+  'fal-ai/ideogram/custom-models/generate': {
+    input: InputFalAiIdeogramCustomModelsGenerate
+    output: OutputFalAiIdeogramCustomModelsGenerate
   }
   'fal-ai/ideogram/object-removal': {
     input: InputFalAiIdeogramObjectRemoval
@@ -94371,13 +106570,29 @@ export type FalImageEndpoints = {
     input: InputFalAiImageutilsRembg
     output: OutputFalAiImageutilsRembg
   }
+  'fal-ai/inpaint': {
+    input: InputFalAiInpaint
+    output: OutputFalAiInpaint
+  }
   'fal-ai/instant-character': {
     input: InputFalAiInstantCharacter
     output: OutputFalAiInstantCharacter
   }
+  'fal-ai/invisible-watermark': {
+    input: InputFalAiInvisibleWatermark
+    output: OutputFalAiInvisibleWatermark
+  }
   'fal-ai/ip-adapter-face-id': {
     input: InputFalAiIpAdapterFaceId
     output: OutputFalAiIpAdapterFaceId
+  }
+  'fal-ai/janus': {
+    input: InputFalAiJanus
+    output: OutputFalAiJanus
+  }
+  'fal-ai/joyai-image-edit': {
+    input: InputFalAiJoyaiImageEdit
+    output: OutputFalAiJoyaiImageEdit
   }
   'fal-ai/kling-image/o1': {
     /**
@@ -94435,6 +106650,10 @@ export type FalImageEndpoints = {
      */
     output: OutputFalAiKlingImageV3TextToImage
   }
+  'fal-ai/kling/v1-5/kolors-virtual-try-on': {
+    input: InputFalAiKlingV15KolorsVirtualTryOn
+    output: OutputFalAiKlingV15KolorsVirtualTryOn
+  }
   'fal-ai/kolors': {
     input: InputFalAiKolors
     output: OutputFalAiKolors
@@ -94454,6 +106673,10 @@ export type FalImageEndpoints = {
   'fal-ai/krea-2/turbo/style': {
     input: InputFalAiKrea2TurboStyle
     output: OutputFalAiKrea2TurboStyle
+  }
+  'fal-ai/lcm-sd15-i2i': {
+    input: InputFalAiLcmSd15I2I
+    output: OutputFalAiLcmSd15I2I
   }
   'fal-ai/leffa/pose-transfer': {
     input: InputFalAiLeffaPoseTransfer
@@ -94587,9 +106810,25 @@ export type FalImageEndpoints = {
     input: InputFalAiObjectRemovalMask
     output: OutputFalAiObjectRemovalMask
   }
+  'fal-ai/omni-zero': {
+    input: InputFalAiOmniZero
+    output: OutputFalAiOmniZero
+  }
+  'fal-ai/omnigen-v1': {
+    input: InputFalAiOmnigenV1
+    output: OutputFalAiOmnigenV1
+  }
   'fal-ai/omnigen-v2': {
     input: InputFalAiOmnigenV2
     output: OutputFalAiOmnigenV2
+  }
+  'fal-ai/ovis-image': {
+    input: InputFalAiOvisImage
+    output: OutputFalAiOvisImage
+  }
+  'fal-ai/pasd': {
+    input: InputFalAiPasd
+    output: OutputFalAiPasd
   }
   'fal-ai/patina': {
     input: InputFalAiPatina
@@ -94614,6 +106853,30 @@ export type FalImageEndpoints = {
   'fal-ai/phota/enhance': {
     input: InputFalAiPhotaEnhance
     output: OutputFalAiPhotaEnhance
+  }
+  'fal-ai/photomaker': {
+    input: InputFalAiPhotomaker
+    output: OutputFalAiPhotomaker
+  }
+  'fal-ai/pixart-sigma': {
+    input: InputFalAiPixartSigma
+    output: OutputFalAiPixartSigma
+  }
+  'fal-ai/playground-v25': {
+    input: InputFalAiPlaygroundV25
+    output: OutputFalAiPlaygroundV25
+  }
+  'fal-ai/playground-v25/image-to-image': {
+    input: InputFalAiPlaygroundV25ImageToImage
+    output: OutputFalAiPlaygroundV25ImageToImage
+  }
+  'fal-ai/playground-v25/inpainting': {
+    input: InputFalAiPlaygroundV25Inpainting
+    output: OutputFalAiPlaygroundV25Inpainting
+  }
+  'fal-ai/pony-v7': {
+    input: InputFalAiPonyV7
+    output: OutputFalAiPonyV7
   }
   'fal-ai/post-processing': {
     input: InputFalAiPostProcessing
@@ -94667,9 +106930,33 @@ export type FalImageEndpoints = {
     input: InputFalAiPostProcessingVignette
     output: OutputFalAiPostProcessingVignette
   }
+  'fal-ai/pulid': {
+    input: InputFalAiPulid
+    output: OutputFalAiPulid
+  }
   'fal-ai/qwen-image': {
     input: InputFalAiQwenImage
     output: OutputFalAiQwenImage
+  }
+  'fal-ai/qwen-image-2/edit': {
+    /**
+     * @description Input for Qwen Image 2 image editing with reference images
+     * @type object
+     */
+    input: InputFalAiQwenImage2Edit
+    output: OutputFalAiQwenImage2Edit
+  }
+  'fal-ai/qwen-image-2/pro/edit': {
+    input: InputFalAiQwenImage2ProEdit
+    output: OutputFalAiQwenImage2ProEdit
+  }
+  'fal-ai/qwen-image-2/pro/text-to-image': {
+    input: InputFalAiQwenImage2ProTextToImage
+    output: OutputFalAiQwenImage2ProTextToImage
+  }
+  'fal-ai/qwen-image-2/text-to-image': {
+    input: InputFalAiQwenImage2TextToImage
+    output: OutputFalAiQwenImage2TextToImage
   }
   'fal-ai/qwen-image-2512': {
     input: InputFalAiQwenImage2512
@@ -94678,6 +106965,10 @@ export type FalImageEndpoints = {
   'fal-ai/qwen-image-2512/lora': {
     input: InputFalAiQwenImage2512Lora
     output: OutputFalAiQwenImage2512Lora
+  }
+  'fal-ai/qwen-image-edit': {
+    input: InputFalAiQwenImageEdit
+    output: OutputFalAiQwenImageEdit
   }
   'fal-ai/qwen-image-edit-2509': {
     input: InputFalAiQwenImageEdit2509
@@ -94896,9 +107187,25 @@ export type FalImageEndpoints = {
     input: InputFalAiQwenImageLayeredLora
     output: OutputFalAiQwenImageLayeredLora
   }
+  'fal-ai/qwen-image-max/edit': {
+    /**
+     * @description Input for Qwen Image Max image editing with reference images
+     * @type object
+     */
+    input: InputFalAiQwenImageMaxEdit
+    output: OutputFalAiQwenImageMaxEdit
+  }
+  'fal-ai/qwen-image-max/text-to-image': {
+    input: InputFalAiQwenImageMaxTextToImage
+    output: OutputFalAiQwenImageMaxTextToImage
+  }
   'fal-ai/qwen-image/image-to-image': {
     input: InputFalAiQwenImageImageToImage
     output: OutputFalAiQwenImageImageToImage
+  }
+  'fal-ai/realistic-vision': {
+    input: InputFalAiRealisticVision
+    output: OutputFalAiRealisticVision
   }
   'fal-ai/recraft-20b': {
     input: InputFalAiRecraft20B
@@ -95036,9 +107343,21 @@ export type FalImageEndpoints = {
     input: InputFalAiSeedvrUpscaleImageSeamless
     output: OutputFalAiSeedvrUpscaleImageSeamless
   }
+  'fal-ai/sensenova-u1-infographic': {
+    input: InputFalAiSensenovaU1Infographic
+    output: OutputFalAiSensenovaU1Infographic
+  }
   'fal-ai/smart-resize': {
     input: InputFalAiSmartResize
     output: OutputFalAiSmartResize
+  }
+  'fal-ai/stable-cascade': {
+    input: InputFalAiStableCascade
+    output: OutputFalAiStableCascade
+  }
+  'fal-ai/stable-cascade/sote-diffusion': {
+    input: InputFalAiStableCascadeSoteDiffusion
+    output: OutputFalAiStableCascadeSoteDiffusion
   }
   'fal-ai/stable-diffusion-v15': {
     input: InputFalAiStableDiffusionV15
@@ -95068,9 +107387,25 @@ export type FalImageEndpoints = {
     input: InputFalAiTelestyleV2
     output: OutputFalAiTelestyleV2
   }
+  'fal-ai/topaz/upscale/image': {
+    input: InputFalAiTopazUpscaleImage
+    output: OutputFalAiTopazUpscaleImage
+  }
+  'fal-ai/uno': {
+    input: InputFalAiUno
+    output: OutputFalAiUno
+  }
   'fal-ai/uso': {
     input: InputFalAiUso
     output: OutputFalAiUso
+  }
+  'fal-ai/vecglypher': {
+    input: InputFalAiVecglypher
+    output: OutputFalAiVecglypher
+  }
+  'fal-ai/vecglypher/image-to-svg': {
+    input: InputFalAiVecglypherImageToSvg
+    output: OutputFalAiVecglypherImageToSvg
   }
   'fal-ai/vidu/q2/reference-to-image': {
     input: InputFalAiViduQ2ReferenceToImage
@@ -95284,6 +107619,26 @@ export type FalImageEndpoints = {
     input: InputIdeogramVectorTextToVector
     output: OutputIdeogramVectorTextToVector
   }
+  'imagineart/imagineart-1.5-preview/text-to-image': {
+    input: InputImagineartImagineart15PreviewTextToImage
+    output: OutputImagineartImagineart15PreviewTextToImage
+  }
+  'imagineart/imagineart-1.5-pro-preview/text-to-image': {
+    input: InputImagineartImagineart15ProPreviewTextToImage
+    output: OutputImagineartImagineart15ProPreviewTextToImage
+  }
+  'imagineart/imagineart-2.0-edit-preview/image-to-image': {
+    /**
+     * @description Request payload for image-to-image editing.
+     * @type object
+     */
+    input: InputImagineartImagineart20EditPreviewImageToImage
+    output: OutputImagineartImagineart20EditPreviewImageToImage
+  }
+  'imagineart/imagineart-2.0-preview/text-to-image': {
+    input: InputImagineartImagineart20PreviewTextToImage
+    output: OutputImagineartImagineart20PreviewTextToImage
+  }
   'krea/v2/large/text-to-image': {
     /**
      * @description Input for Krea-2 Large image generation.
@@ -95365,6 +107720,22 @@ export type FalImageEndpoints = {
   'microsoft/mai-image-2.5/edit': {
     input: InputMicrosoftMaiImage25Edit
     output: OutputMicrosoftMaiImage25Edit
+  }
+  'minimax/h3-image/edit': {
+    input: InputMinimaxH3ImageEdit
+    output: OutputMinimaxH3ImageEdit
+  }
+  'minimax/h3-image/highspeed/edit': {
+    input: InputMinimaxH3ImageHighspeedEdit
+    output: OutputMinimaxH3ImageHighspeedEdit
+  }
+  'minimax/h3-image/highspeed/text-to-image': {
+    input: InputMinimaxH3ImageHighspeedTextToImage
+    output: OutputMinimaxH3ImageHighspeedTextToImage
+  }
+  'minimax/h3-image/text-to-image': {
+    input: InputMinimaxH3ImageTextToImage
+    output: OutputMinimaxH3ImageTextToImage
   }
   'nvidia/cosmos-3-super/text-to-image': {
     input: InputNvidiaCosmos3SuperTextToImage
@@ -95469,6 +107840,50 @@ export type FalImageEndpoints = {
   'recraft/v4/style/text-to-vector': {
     input: InputRecraftV4StyleTextToVector
     output: OutputRecraftV4StyleTextToVector
+  }
+  'reve/2.1/edit': {
+    /**
+     * @description Input for Reve Image 2 (v2) image editing
+     * @type object
+     */
+    input: InputReve21Edit
+    /**
+     * @description Output for Reve Image 2 (v2) image editing
+     * @type object
+     */
+    output: OutputReve21Edit
+  }
+  'reve/2.1/remix': {
+    /**
+     * @description Input for Reve Image 2 (v2) image remixing
+     * @type object
+     */
+    input: InputReve21Remix
+    /**
+     * @description Output for Reve Image 2 (v2) image remixing
+     * @type object
+     */
+    output: OutputReve21Remix
+  }
+  'reve/2.1/text-to-image': {
+    /**
+     * @description Input for Reve Image 2 (v2) text-to-image generation
+     * @type object
+     */
+    input: InputReve21TextToImage
+    /**
+     * @description Output for Reve Image 2 (v2) text-to-image generation
+     * @type object
+     */
+    output: OutputReve21TextToImage
+  }
+  'rundiffusion-fal/juggernaut-flux-lora': {
+    input: InputRundiffusionFalJuggernautFluxLora
+    output: OutputRundiffusionFalJuggernautFluxLora
+  }
+  'rundiffusion-fal/juggernaut-flux-lora/inpainting': {
+    input: InputRundiffusionFalJuggernautFluxLoraInpainting
+    output: OutputRundiffusionFalJuggernautFluxLoraInpainting
   }
   'rundiffusion-fal/juggernaut-flux/base': {
     input: InputRundiffusionFalJuggernautFluxBase
@@ -95643,12 +108058,15 @@ export const falPostEndpointIdEndpointId = {
   'bytedance/seedream/v5/pro/text-to-image':
     'bytedance/seedream/v5/pro/text-to-image',
   'clarityai/crystal-upscaler': 'clarityai/crystal-upscaler',
+  'fal-ai/aura-flow': 'fal-ai/aura-flow',
   'fal-ai/aura-sr': 'fal-ai/aura-sr',
   'fal-ai/bagel': 'fal-ai/bagel',
   'fal-ai/bagel/edit': 'fal-ai/bagel/edit',
   'fal-ai/ben/v2/image': 'fal-ai/ben/v2/image',
+  'fal-ai/bernini-r/edit-image': 'fal-ai/bernini-r/edit-image',
   'fal-ai/birefnet': 'fal-ai/birefnet',
   'fal-ai/birefnet/v2': 'fal-ai/birefnet/v2',
+  'fal-ai/bitdance': 'fal-ai/bitdance',
   'fal-ai/boogu-image': 'fal-ai/boogu-image',
   'fal-ai/boogu-image/edit': 'fal-ai/boogu-image/edit',
   'fal-ai/bria/background/remove': 'fal-ai/bria/background/remove',
@@ -95661,18 +108079,38 @@ export const falPostEndpointIdEndpointId = {
   'fal-ai/bria/text-to-image/base': 'fal-ai/bria/text-to-image/base',
   'fal-ai/bria/text-to-image/fast': 'fal-ai/bria/text-to-image/fast',
   'fal-ai/bria/text-to-image/hd': 'fal-ai/bria/text-to-image/hd',
+  'fal-ai/bytedance/dreamina/v3.1/text-to-image':
+    'fal-ai/bytedance/dreamina/v3.1/text-to-image',
   'fal-ai/bytedance/seedream/v4.5/edit': 'fal-ai/bytedance/seedream/v4.5/edit',
   'fal-ai/bytedance/seedream/v4.5/text-to-image':
     'fal-ai/bytedance/seedream/v4.5/text-to-image',
   'fal-ai/bytedance/seedream/v4/edit': 'fal-ai/bytedance/seedream/v4/edit',
   'fal-ai/bytedance/seedream/v4/text-to-image':
     'fal-ai/bytedance/seedream/v4/text-to-image',
+  'fal-ai/bytedance/seedream/v5/lite/edit':
+    'fal-ai/bytedance/seedream/v5/lite/edit',
+  'fal-ai/bytedance/seedream/v5/lite/text-to-image':
+    'fal-ai/bytedance/seedream/v5/lite/text-to-image',
+  'fal-ai/cartoonify': 'fal-ai/cartoonify',
   'fal-ai/cat-vton': 'fal-ai/cat-vton',
+  'fal-ai/ccsr': 'fal-ai/ccsr',
+  'fal-ai/chrono-edit': 'fal-ai/chrono-edit',
+  'fal-ai/chrono-edit-lora': 'fal-ai/chrono-edit-lora',
+  'fal-ai/chrono-edit-lora-gallery/paintbrush':
+    'fal-ai/chrono-edit-lora-gallery/paintbrush',
+  'fal-ai/chrono-edit-lora-gallery/upscaler':
+    'fal-ai/chrono-edit-lora-gallery/upscaler',
   'fal-ai/clarity-upscaler': 'fal-ai/clarity-upscaler',
   'fal-ai/codeformer': 'fal-ai/codeformer',
+  'fal-ai/cogview4': 'fal-ai/cogview4',
   'fal-ai/control-light': 'fal-ai/control-light',
   'fal-ai/creative-upscaler': 'fal-ai/creative-upscaler',
   'fal-ai/ddcolor': 'fal-ai/ddcolor',
+  'fal-ai/docres': 'fal-ai/docres',
+  'fal-ai/docres/dewarp': 'fal-ai/docres/dewarp',
+  'fal-ai/drct-super-resolution': 'fal-ai/drct-super-resolution',
+  'fal-ai/dreamomni2/edit': 'fal-ai/dreamomni2/edit',
+  'fal-ai/dreamshaper': 'fal-ai/dreamshaper',
   'fal-ai/dwpose': 'fal-ai/dwpose',
   'fal-ai/emu-3.5-image/edit-image': 'fal-ai/emu-3.5-image/edit-image',
   'fal-ai/emu-3.5-image/text-to-image': 'fal-ai/emu-3.5-image/text-to-image',
@@ -95684,6 +108122,8 @@ export const falPostEndpointIdEndpointId = {
   'fal-ai/evf-sam': 'fal-ai/evf-sam',
   'fal-ai/fashn/tryon/v1.5': 'fal-ai/fashn/tryon/v1.5',
   'fal-ai/fashn/tryon/v1.6': 'fal-ai/fashn/tryon/v1.6',
+  'fal-ai/fast-fooocus-sdxl/image-to-image':
+    'fal-ai/fast-fooocus-sdxl/image-to-image',
   'fal-ai/fast-lcm-diffusion': 'fal-ai/fast-lcm-diffusion',
   'fal-ai/fast-lcm-diffusion/image-to-image':
     'fal-ai/fast-lcm-diffusion/image-to-image',
@@ -95695,6 +108135,11 @@ export const falPostEndpointIdEndpointId = {
   'fal-ai/fast-lightning-sdxl/inpainting':
     'fal-ai/fast-lightning-sdxl/inpainting',
   'fal-ai/fast-sdxl': 'fal-ai/fast-sdxl',
+  'fal-ai/fast-sdxl-controlnet-canny': 'fal-ai/fast-sdxl-controlnet-canny',
+  'fal-ai/fast-sdxl-controlnet-canny/image-to-image':
+    'fal-ai/fast-sdxl-controlnet-canny/image-to-image',
+  'fal-ai/fast-sdxl-controlnet-canny/inpainting':
+    'fal-ai/fast-sdxl-controlnet-canny/inpainting',
   'fal-ai/fast-sdxl/image-to-image': 'fal-ai/fast-sdxl/image-to-image',
   'fal-ai/fast-sdxl/inpainting': 'fal-ai/fast-sdxl/inpainting',
   'fal-ai/feynobg': 'fal-ai/feynobg',
@@ -95703,6 +108148,7 @@ export const falPostEndpointIdEndpointId = {
   'fal-ai/finegrain-eraser': 'fal-ai/finegrain-eraser',
   'fal-ai/finegrain-eraser/bbox': 'fal-ai/finegrain-eraser/bbox',
   'fal-ai/finegrain-eraser/mask': 'fal-ai/finegrain-eraser/mask',
+  'fal-ai/firered-image-edit': 'fal-ai/firered-image-edit',
   'fal-ai/firered-image-edit-v1.1': 'fal-ai/firered-image-edit-v1.1',
   'fal-ai/florence-2-large/caption-to-phrase-grounding':
     'fal-ai/florence-2-large/caption-to-phrase-grounding',
@@ -95720,6 +108166,7 @@ export const falPostEndpointIdEndpointId = {
     'fal-ai/florence-2-large/region-proposal',
   'fal-ai/florence-2-large/region-to-segmentation':
     'fal-ai/florence-2-large/region-to-segmentation',
+  'fal-ai/flowedit': 'fal-ai/flowedit',
   'fal-ai/flux-1/dev': 'fal-ai/flux-1/dev',
   'fal-ai/flux-1/dev/image-to-image': 'fal-ai/flux-1/dev/image-to-image',
   'fal-ai/flux-1/dev/redux': 'fal-ai/flux-1/dev/redux',
@@ -95785,6 +108232,12 @@ export const falPostEndpointIdEndpointId = {
   'fal-ai/flux-2/lora/edit': 'fal-ai/flux-2/lora/edit',
   'fal-ai/flux-2/turbo': 'fal-ai/flux-2/turbo',
   'fal-ai/flux-2/turbo/edit': 'fal-ai/flux-2/turbo/edit',
+  'fal-ai/flux-control-lora-canny': 'fal-ai/flux-control-lora-canny',
+  'fal-ai/flux-control-lora-canny/image-to-image':
+    'fal-ai/flux-control-lora-canny/image-to-image',
+  'fal-ai/flux-control-lora-depth': 'fal-ai/flux-control-lora-depth',
+  'fal-ai/flux-control-lora-depth/image-to-image':
+    'fal-ai/flux-control-lora-depth/image-to-image',
   'fal-ai/flux-general': 'fal-ai/flux-general',
   'fal-ai/flux-general/differential-diffusion':
     'fal-ai/flux-general/differential-diffusion',
@@ -95827,6 +108280,7 @@ export const falPostEndpointIdEndpointId = {
   'fal-ai/flux-pro/v1/fill-finetuned': 'fal-ai/flux-pro/v1/fill-finetuned',
   'fal-ai/flux-pro/v1/vto': 'fal-ai/flux-pro/v1/vto',
   'fal-ai/flux-pulid': 'fal-ai/flux-pulid',
+  'fal-ai/flux-subject': 'fal-ai/flux-subject',
   'fal-ai/flux-vision-upscaler': 'fal-ai/flux-vision-upscaler',
   'fal-ai/flux/dev': 'fal-ai/flux/dev',
   'fal-ai/flux/dev/image-to-image': 'fal-ai/flux/dev/image-to-image',
@@ -95851,12 +108305,16 @@ export const falPostEndpointIdEndpointId = {
     'fal-ai/gemini-3.1-flash-image-preview',
   'fal-ai/gemini-3.1-flash-image-preview/edit':
     'fal-ai/gemini-3.1-flash-image-preview/edit',
+  'fal-ai/ghiblify': 'fal-ai/ghiblify',
   'fal-ai/glm-image': 'fal-ai/glm-image',
   'fal-ai/glm-image/image-to-image': 'fal-ai/glm-image/image-to-image',
   'fal-ai/gpt-image-1-mini': 'fal-ai/gpt-image-1-mini',
   'fal-ai/gpt-image-1-mini/edit': 'fal-ai/gpt-image-1-mini/edit',
   'fal-ai/gpt-image-1.5': 'fal-ai/gpt-image-1.5',
   'fal-ai/gpt-image-1.5/edit': 'fal-ai/gpt-image-1.5/edit',
+  'fal-ai/gpt-image-1/edit-image': 'fal-ai/gpt-image-1/edit-image',
+  'fal-ai/gpt-image-1/text-to-image': 'fal-ai/gpt-image-1/text-to-image',
+  'fal-ai/hidream-i1-dev': 'fal-ai/hidream-i1-dev',
   'fal-ai/hidream-i1-fast': 'fal-ai/hidream-i1-fast',
   'fal-ai/hidream-i1-full': 'fal-ai/hidream-i1-full',
   'fal-ai/hidream-i1-full/image-to-image':
@@ -95879,6 +108337,8 @@ export const falPostEndpointIdEndpointId = {
   'fal-ai/ideogram/character': 'fal-ai/ideogram/character',
   'fal-ai/ideogram/character/edit': 'fal-ai/ideogram/character/edit',
   'fal-ai/ideogram/character/remix': 'fal-ai/ideogram/character/remix',
+  'fal-ai/ideogram/custom-models/generate':
+    'fal-ai/ideogram/custom-models/generate',
   'fal-ai/ideogram/object-removal': 'fal-ai/ideogram/object-removal',
   'fal-ai/ideogram/remove-background': 'fal-ai/ideogram/remove-background',
   'fal-ai/ideogram/upscale': 'fal-ai/ideogram/upscale',
@@ -95977,8 +108437,12 @@ export const falPostEndpointIdEndpointId = {
   'fal-ai/imageutils/depth': 'fal-ai/imageutils/depth',
   'fal-ai/imageutils/marigold-depth': 'fal-ai/imageutils/marigold-depth',
   'fal-ai/imageutils/rembg': 'fal-ai/imageutils/rembg',
+  'fal-ai/inpaint': 'fal-ai/inpaint',
   'fal-ai/instant-character': 'fal-ai/instant-character',
+  'fal-ai/invisible-watermark': 'fal-ai/invisible-watermark',
   'fal-ai/ip-adapter-face-id': 'fal-ai/ip-adapter-face-id',
+  'fal-ai/janus': 'fal-ai/janus',
+  'fal-ai/joyai-image-edit': 'fal-ai/joyai-image-edit',
   'fal-ai/kling-image/o1': 'fal-ai/kling-image/o1',
   'fal-ai/kling-image/o3/image-to-image':
     'fal-ai/kling-image/o3/image-to-image',
@@ -95986,11 +108450,14 @@ export const falPostEndpointIdEndpointId = {
   'fal-ai/kling-image/v3/image-to-image':
     'fal-ai/kling-image/v3/image-to-image',
   'fal-ai/kling-image/v3/text-to-image': 'fal-ai/kling-image/v3/text-to-image',
+  'fal-ai/kling/v1-5/kolors-virtual-try-on':
+    'fal-ai/kling/v1-5/kolors-virtual-try-on',
   'fal-ai/kolors': 'fal-ai/kolors',
   'fal-ai/kolors/image-to-image': 'fal-ai/kolors/image-to-image',
   'fal-ai/krea-2/turbo': 'fal-ai/krea-2/turbo',
   'fal-ai/krea-2/turbo/lora': 'fal-ai/krea-2/turbo/lora',
   'fal-ai/krea-2/turbo/style': 'fal-ai/krea-2/turbo/style',
+  'fal-ai/lcm-sd15-i2i': 'fal-ai/lcm-sd15-i2i',
   'fal-ai/leffa/pose-transfer': 'fal-ai/leffa/pose-transfer',
   'fal-ai/leffa/virtual-tryon': 'fal-ai/leffa/virtual-tryon',
   'fal-ai/live-portrait/image': 'fal-ai/live-portrait/image',
@@ -96025,13 +108492,24 @@ export const falPostEndpointIdEndpointId = {
   'fal-ai/object-removal': 'fal-ai/object-removal',
   'fal-ai/object-removal/bbox': 'fal-ai/object-removal/bbox',
   'fal-ai/object-removal/mask': 'fal-ai/object-removal/mask',
+  'fal-ai/omni-zero': 'fal-ai/omni-zero',
+  'fal-ai/omnigen-v1': 'fal-ai/omnigen-v1',
   'fal-ai/omnigen-v2': 'fal-ai/omnigen-v2',
+  'fal-ai/ovis-image': 'fal-ai/ovis-image',
+  'fal-ai/pasd': 'fal-ai/pasd',
   'fal-ai/patina': 'fal-ai/patina',
   'fal-ai/patina/material': 'fal-ai/patina/material',
   'fal-ai/patina/material/extract': 'fal-ai/patina/material/extract',
   'fal-ai/phota': 'fal-ai/phota',
   'fal-ai/phota/edit': 'fal-ai/phota/edit',
   'fal-ai/phota/enhance': 'fal-ai/phota/enhance',
+  'fal-ai/photomaker': 'fal-ai/photomaker',
+  'fal-ai/pixart-sigma': 'fal-ai/pixart-sigma',
+  'fal-ai/playground-v25': 'fal-ai/playground-v25',
+  'fal-ai/playground-v25/image-to-image':
+    'fal-ai/playground-v25/image-to-image',
+  'fal-ai/playground-v25/inpainting': 'fal-ai/playground-v25/inpainting',
+  'fal-ai/pony-v7': 'fal-ai/pony-v7',
   'fal-ai/post-processing': 'fal-ai/post-processing',
   'fal-ai/post-processing/blur': 'fal-ai/post-processing/blur',
   'fal-ai/post-processing/chromatic-aberration':
@@ -96047,9 +108525,16 @@ export const falPostEndpointIdEndpointId = {
   'fal-ai/post-processing/sharpen': 'fal-ai/post-processing/sharpen',
   'fal-ai/post-processing/solarize': 'fal-ai/post-processing/solarize',
   'fal-ai/post-processing/vignette': 'fal-ai/post-processing/vignette',
+  'fal-ai/pulid': 'fal-ai/pulid',
   'fal-ai/qwen-image': 'fal-ai/qwen-image',
+  'fal-ai/qwen-image-2/edit': 'fal-ai/qwen-image-2/edit',
+  'fal-ai/qwen-image-2/pro/edit': 'fal-ai/qwen-image-2/pro/edit',
+  'fal-ai/qwen-image-2/pro/text-to-image':
+    'fal-ai/qwen-image-2/pro/text-to-image',
+  'fal-ai/qwen-image-2/text-to-image': 'fal-ai/qwen-image-2/text-to-image',
   'fal-ai/qwen-image-2512': 'fal-ai/qwen-image-2512',
   'fal-ai/qwen-image-2512/lora': 'fal-ai/qwen-image-2512/lora',
+  'fal-ai/qwen-image-edit': 'fal-ai/qwen-image-edit',
   'fal-ai/qwen-image-edit-2509': 'fal-ai/qwen-image-edit-2509',
   'fal-ai/qwen-image-edit-2509-lora': 'fal-ai/qwen-image-edit-2509-lora',
   'fal-ai/qwen-image-edit-2509-lora-gallery/add-background':
@@ -96104,7 +108589,10 @@ export const falPostEndpointIdEndpointId = {
   'fal-ai/qwen-image-edit/inpaint': 'fal-ai/qwen-image-edit/inpaint',
   'fal-ai/qwen-image-layered': 'fal-ai/qwen-image-layered',
   'fal-ai/qwen-image-layered/lora': 'fal-ai/qwen-image-layered/lora',
+  'fal-ai/qwen-image-max/edit': 'fal-ai/qwen-image-max/edit',
+  'fal-ai/qwen-image-max/text-to-image': 'fal-ai/qwen-image-max/text-to-image',
   'fal-ai/qwen-image/image-to-image': 'fal-ai/qwen-image/image-to-image',
+  'fal-ai/realistic-vision': 'fal-ai/realistic-vision',
   'fal-ai/recraft-20b': 'fal-ai/recraft-20b',
   'fal-ai/recraft/upscale/creative': 'fal-ai/recraft/upscale/creative',
   'fal-ai/recraft/upscale/crisp': 'fal-ai/recraft/upscale/crisp',
@@ -96146,7 +108634,11 @@ export const falPostEndpointIdEndpointId = {
   'fal-ai/seedvr/upscale/image': 'fal-ai/seedvr/upscale/image',
   'fal-ai/seedvr/upscale/image/seamless':
     'fal-ai/seedvr/upscale/image/seamless',
+  'fal-ai/sensenova-u1-infographic': 'fal-ai/sensenova-u1-infographic',
   'fal-ai/smart-resize': 'fal-ai/smart-resize',
+  'fal-ai/stable-cascade': 'fal-ai/stable-cascade',
+  'fal-ai/stable-cascade/sote-diffusion':
+    'fal-ai/stable-cascade/sote-diffusion',
   'fal-ai/stable-diffusion-v15': 'fal-ai/stable-diffusion-v15',
   'fal-ai/stable-diffusion-v3-medium': 'fal-ai/stable-diffusion-v3-medium',
   'fal-ai/stable-diffusion-v3-medium/image-to-image':
@@ -96155,7 +108647,11 @@ export const falPostEndpointIdEndpointId = {
   'fal-ai/stable-diffusion-v35-medium': 'fal-ai/stable-diffusion-v35-medium',
   'fal-ai/stepx-edit2': 'fal-ai/stepx-edit2',
   'fal-ai/telestyle-v2': 'fal-ai/telestyle-v2',
+  'fal-ai/topaz/upscale/image': 'fal-ai/topaz/upscale/image',
+  'fal-ai/uno': 'fal-ai/uno',
   'fal-ai/uso': 'fal-ai/uso',
+  'fal-ai/vecglypher': 'fal-ai/vecglypher',
+  'fal-ai/vecglypher/image-to-svg': 'fal-ai/vecglypher/image-to-svg',
   'fal-ai/vidu/q2/reference-to-image': 'fal-ai/vidu/q2/reference-to-image',
   'fal-ai/vidu/q2/text-to-image': 'fal-ai/vidu/q2/text-to-image',
   'fal-ai/vidu/reference-to-image': 'fal-ai/vidu/reference-to-image',
@@ -96206,6 +108702,14 @@ export const falPostEndpointIdEndpointId = {
   'ideogram/v4/tiling/lora': 'ideogram/v4/tiling/lora',
   'ideogram/vector/image-to-vector': 'ideogram/vector/image-to-vector',
   'ideogram/vector/text-to-vector': 'ideogram/vector/text-to-vector',
+  'imagineart/imagineart-1.5-preview/text-to-image':
+    'imagineart/imagineart-1.5-preview/text-to-image',
+  'imagineart/imagineart-1.5-pro-preview/text-to-image':
+    'imagineart/imagineart-1.5-pro-preview/text-to-image',
+  'imagineart/imagineart-2.0-edit-preview/image-to-image':
+    'imagineart/imagineart-2.0-edit-preview/image-to-image',
+  'imagineart/imagineart-2.0-preview/text-to-image':
+    'imagineart/imagineart-2.0-preview/text-to-image',
   'krea/v2/large/text-to-image': 'krea/v2/large/text-to-image',
   'krea/v2/medium/text-to-image': 'krea/v2/medium/text-to-image',
   'krea/v2/medium/turbo/text-to-image': 'krea/v2/medium/turbo/text-to-image',
@@ -96222,6 +108726,11 @@ export const falPostEndpointIdEndpointId = {
   'microsoft/mai-image-2.5-pro': 'microsoft/mai-image-2.5-pro',
   'microsoft/mai-image-2.5-pro/edit': 'microsoft/mai-image-2.5-pro/edit',
   'microsoft/mai-image-2.5/edit': 'microsoft/mai-image-2.5/edit',
+  'minimax/h3-image/edit': 'minimax/h3-image/edit',
+  'minimax/h3-image/highspeed/edit': 'minimax/h3-image/highspeed/edit',
+  'minimax/h3-image/highspeed/text-to-image':
+    'minimax/h3-image/highspeed/text-to-image',
+  'minimax/h3-image/text-to-image': 'minimax/h3-image/text-to-image',
   'nvidia/cosmos-3-super/text-to-image': 'nvidia/cosmos-3-super/text-to-image',
   'openai/gpt-image-2': 'openai/gpt-image-2',
   'openai/gpt-image-2.5/flare/edit': 'openai/gpt-image-2.5/flare/edit',
@@ -96244,6 +108753,13 @@ export const falPostEndpointIdEndpointId = {
   'recraft/v4/style/pro/text-to-vector': 'recraft/v4/style/pro/text-to-vector',
   'recraft/v4/style/text-to-image': 'recraft/v4/style/text-to-image',
   'recraft/v4/style/text-to-vector': 'recraft/v4/style/text-to-vector',
+  'reve/2.1/edit': 'reve/2.1/edit',
+  'reve/2.1/remix': 'reve/2.1/remix',
+  'reve/2.1/text-to-image': 'reve/2.1/text-to-image',
+  'rundiffusion-fal/juggernaut-flux-lora':
+    'rundiffusion-fal/juggernaut-flux-lora',
+  'rundiffusion-fal/juggernaut-flux-lora/inpainting':
+    'rundiffusion-fal/juggernaut-flux-lora/inpainting',
   'rundiffusion-fal/juggernaut-flux/base':
     'rundiffusion-fal/juggernaut-flux/base',
   'rundiffusion-fal/juggernaut-flux/base/image-to-image':
@@ -96340,12 +108856,15 @@ export type FalPostEndpointIdBody =
   | InputBytedanceSeedreamV5ProLayerize
   | InputBytedanceSeedreamV5ProTextToImage
   | InputClarityaiCrystalUpscaler
+  | InputFalAiAuraFlow
   | InputFalAiAuraSr
   | InputFalAiBagel
   | InputFalAiBagelEdit
   | InputFalAiBenV2Image
+  | InputFalAiBerniniREditImage
   | InputFalAiBirefnet
   | InputFalAiBirefnetV2
+  | InputFalAiBitdance
   | InputFalAiBooguImage
   | InputFalAiBooguImageEdit
   | InputFalAiBriaBackgroundRemove
@@ -96358,16 +108877,31 @@ export type FalPostEndpointIdBody =
   | InputFalAiBriaTextToImageBase
   | InputFalAiBriaTextToImageFast
   | InputFalAiBriaTextToImageHd
+  | InputFalAiBytedanceDreaminaV31TextToImage
   | InputFalAiBytedanceSeedreamV45Edit
   | InputFalAiBytedanceSeedreamV45TextToImage
   | InputFalAiBytedanceSeedreamV4Edit
   | InputFalAiBytedanceSeedreamV4TextToImage
+  | InputFalAiBytedanceSeedreamV5LiteEdit
+  | InputFalAiBytedanceSeedreamV5LiteTextToImage
+  | InputFalAiCartoonify
   | InputFalAiCatVton
+  | InputFalAiCcsr
+  | InputFalAiChronoEdit
+  | InputFalAiChronoEditLora
+  | InputFalAiChronoEditLoraGalleryPaintbrush
+  | InputFalAiChronoEditLoraGalleryUpscaler
   | InputFalAiClarityUpscaler
   | InputFalAiCodeformer
+  | InputFalAiCogview4
   | InputFalAiControlLight
   | InputFalAiCreativeUpscaler
   | InputFalAiDdcolor
+  | InputFalAiDocres
+  | InputFalAiDocresDewarp
+  | InputFalAiDrctSuperResolution
+  | InputFalAiDreamomni2Edit
+  | InputFalAiDreamshaper
   | InputFalAiDwpose
   | InputFalAiEmu35ImageEditImage
   | InputFalAiEmu35ImageTextToImage
@@ -96379,6 +108913,7 @@ export type FalPostEndpointIdBody =
   | InputFalAiEvfSam
   | InputFalAiFashnTryonV15
   | InputFalAiFashnTryonV16
+  | InputFalAiFastFooocusSdxlImageToImage
   | InputFalAiFastLcmDiffusion
   | InputFalAiFastLcmDiffusionImageToImage
   | InputFalAiFastLcmDiffusionInpainting
@@ -96386,6 +108921,9 @@ export type FalPostEndpointIdBody =
   | InputFalAiFastLightningSdxlImageToImage
   | InputFalAiFastLightningSdxlInpainting
   | InputFalAiFastSdxl
+  | InputFalAiFastSdxlControlnetCanny
+  | InputFalAiFastSdxlControlnetCannyImageToImage
+  | InputFalAiFastSdxlControlnetCannyInpainting
   | InputFalAiFastSdxlImageToImage
   | InputFalAiFastSdxlInpainting
   | InputFalAiFeynobg
@@ -96394,6 +108932,7 @@ export type FalPostEndpointIdBody =
   | InputFalAiFinegrainEraser
   | InputFalAiFinegrainEraserBbox
   | InputFalAiFinegrainEraserMask
+  | InputFalAiFireredImageEdit
   | InputFalAiFireredImageEditV11
   | InputFalAiFlorence2LargeCaptionToPhraseGrounding
   | InputFalAiFlorence2LargeDenseRegionCaption
@@ -96403,6 +108942,7 @@ export type FalPostEndpointIdBody =
   | InputFalAiFlorence2LargeReferringExpressionSegmentation
   | InputFalAiFlorence2LargeRegionProposal
   | InputFalAiFlorence2LargeRegionToSegmentation
+  | InputFalAiFlowedit
   | InputFalAiFlux1Dev
   | InputFalAiFlux1DevImageToImage
   | InputFalAiFlux1DevRedux
@@ -96456,6 +108996,10 @@ export type FalPostEndpointIdBody =
   | InputFalAiFlux2LoraEdit
   | InputFalAiFlux2Turbo
   | InputFalAiFlux2TurboEdit
+  | InputFalAiFluxControlLoraCanny
+  | InputFalAiFluxControlLoraCannyImageToImage
+  | InputFalAiFluxControlLoraDepth
+  | InputFalAiFluxControlLoraDepthImageToImage
   | InputFalAiFluxGeneral
   | InputFalAiFluxGeneralDifferentialDiffusion
   | InputFalAiFluxGeneralImageToImage
@@ -96492,6 +109036,7 @@ export type FalPostEndpointIdBody =
   | InputFalAiFluxProV1FillFinetuned
   | InputFalAiFluxProV1Vto
   | InputFalAiFluxPulid
+  | InputFalAiFluxSubject
   | InputFalAiFluxVisionUpscaler
   | InputFalAiFluxDev
   | InputFalAiFluxDevImageToImage
@@ -96513,12 +109058,16 @@ export type FalPostEndpointIdBody =
   | InputFalAiGemini3ProImagePreviewEdit
   | InputFalAiGemini31FlashImagePreview
   | InputFalAiGemini31FlashImagePreviewEdit
+  | InputFalAiGhiblify
   | InputFalAiGlmImage
   | InputFalAiGlmImageImageToImage
   | InputFalAiGptImage1Mini
   | InputFalAiGptImage1MiniEdit
   | InputFalAiGptImage15
   | InputFalAiGptImage15Edit
+  | InputFalAiGptImage1EditImage
+  | InputFalAiGptImage1TextToImage
+  | InputFalAiHidreamI1Dev
   | InputFalAiHidreamI1Fast
   | InputFalAiHidreamI1Full
   | InputFalAiHidreamI1FullImageToImage
@@ -96536,6 +109085,7 @@ export type FalPostEndpointIdBody =
   | InputFalAiIdeogramCharacter
   | InputFalAiIdeogramCharacterEdit
   | InputFalAiIdeogramCharacterRemix
+  | InputFalAiIdeogramCustomModelsGenerate
   | InputFalAiIdeogramObjectRemoval
   | InputFalAiIdeogramRemoveBackground
   | InputFalAiIdeogramUpscale
@@ -96613,18 +109163,24 @@ export type FalPostEndpointIdBody =
   | InputFalAiImageutilsDepth
   | InputFalAiImageutilsMarigoldDepth
   | InputFalAiImageutilsRembg
+  | InputFalAiInpaint
   | InputFalAiInstantCharacter
+  | InputFalAiInvisibleWatermark
   | InputFalAiIpAdapterFaceId
+  | InputFalAiJanus
+  | InputFalAiJoyaiImageEdit
   | InputFalAiKlingImageO1
   | InputFalAiKlingImageO3ImageToImage
   | InputFalAiKlingImageO3TextToImage
   | InputFalAiKlingImageV3ImageToImage
   | InputFalAiKlingImageV3TextToImage
+  | InputFalAiKlingV15KolorsVirtualTryOn
   | InputFalAiKolors
   | InputFalAiKolorsImageToImage
   | InputFalAiKrea2Turbo
   | InputFalAiKrea2TurboLora
   | InputFalAiKrea2TurboStyle
+  | InputFalAiLcmSd15I2I
   | InputFalAiLeffaPoseTransfer
   | InputFalAiLeffaVirtualTryon
   | InputFalAiLivePortraitImage
@@ -96658,13 +109214,23 @@ export type FalPostEndpointIdBody =
   | InputFalAiObjectRemoval
   | InputFalAiObjectRemovalBbox
   | InputFalAiObjectRemovalMask
+  | InputFalAiOmniZero
+  | InputFalAiOmnigenV1
   | InputFalAiOmnigenV2
+  | InputFalAiOvisImage
+  | InputFalAiPasd
   | InputFalAiPatina
   | InputFalAiPatinaMaterial
   | InputFalAiPatinaMaterialExtract
   | InputFalAiPhota
   | InputFalAiPhotaEdit
   | InputFalAiPhotaEnhance
+  | InputFalAiPhotomaker
+  | InputFalAiPixartSigma
+  | InputFalAiPlaygroundV25
+  | InputFalAiPlaygroundV25ImageToImage
+  | InputFalAiPlaygroundV25Inpainting
+  | InputFalAiPonyV7
   | InputFalAiPostProcessing
   | InputFalAiPostProcessingBlur
   | InputFalAiPostProcessingChromaticAberration
@@ -96678,9 +109244,15 @@ export type FalPostEndpointIdBody =
   | InputFalAiPostProcessingSharpen
   | InputFalAiPostProcessingSolarize
   | InputFalAiPostProcessingVignette
+  | InputFalAiPulid
   | InputFalAiQwenImage
+  | InputFalAiQwenImage2Edit
+  | InputFalAiQwenImage2ProEdit
+  | InputFalAiQwenImage2ProTextToImage
+  | InputFalAiQwenImage2TextToImage
   | InputFalAiQwenImage2512
   | InputFalAiQwenImage2512Lora
+  | InputFalAiQwenImageEdit
   | InputFalAiQwenImageEdit2509
   | InputFalAiQwenImageEdit2509Lora
   | InputFalAiQwenImageEdit2509LoraGalleryAddBackground
@@ -96713,7 +109285,10 @@ export type FalPostEndpointIdBody =
   | InputFalAiQwenImageEditInpaint
   | InputFalAiQwenImageLayered
   | InputFalAiQwenImageLayeredLora
+  | InputFalAiQwenImageMaxEdit
+  | InputFalAiQwenImageMaxTextToImage
   | InputFalAiQwenImageImageToImage
+  | InputFalAiRealisticVision
   | InputFalAiRecraft20B
   | InputFalAiRecraftUpscaleCreative
   | InputFalAiRecraftUpscaleCrisp
@@ -96747,7 +109322,10 @@ export type FalPostEndpointIdBody =
   | InputFalAiSdxlControlnetUnionInpainting
   | InputFalAiSeedvrUpscaleImage
   | InputFalAiSeedvrUpscaleImageSeamless
+  | InputFalAiSensenovaU1Infographic
   | InputFalAiSmartResize
+  | InputFalAiStableCascade
+  | InputFalAiStableCascadeSoteDiffusion
   | InputFalAiStableDiffusionV15
   | InputFalAiStableDiffusionV3Medium
   | InputFalAiStableDiffusionV3MediumImageToImage
@@ -96755,7 +109333,11 @@ export type FalPostEndpointIdBody =
   | InputFalAiStableDiffusionV35Medium
   | InputFalAiStepxEdit2
   | InputFalAiTelestyleV2
+  | InputFalAiTopazUpscaleImage
+  | InputFalAiUno
   | InputFalAiUso
+  | InputFalAiVecglypher
+  | InputFalAiVecglypherImageToSvg
   | InputFalAiViduQ2ReferenceToImage
   | InputFalAiViduQ2TextToImage
   | InputFalAiViduReferenceToImage
@@ -96801,6 +109383,10 @@ export type FalPostEndpointIdBody =
   | InputIdeogramV4TilingLora
   | InputIdeogramVectorImageToVector
   | InputIdeogramVectorTextToVector
+  | InputImagineartImagineart15PreviewTextToImage
+  | InputImagineartImagineart15ProPreviewTextToImage
+  | InputImagineartImagineart20EditPreviewImageToImage
+  | InputImagineartImagineart20PreviewTextToImage
   | InputKreaV2LargeTextToImage
   | InputKreaV2MediumTextToImage
   | InputKreaV2MediumTurboTextToImage
@@ -96817,6 +109403,10 @@ export type FalPostEndpointIdBody =
   | InputMicrosoftMaiImage25Pro
   | InputMicrosoftMaiImage25ProEdit
   | InputMicrosoftMaiImage25Edit
+  | InputMinimaxH3ImageEdit
+  | InputMinimaxH3ImageHighspeedEdit
+  | InputMinimaxH3ImageHighspeedTextToImage
+  | InputMinimaxH3ImageTextToImage
   | InputNvidiaCosmos3SuperTextToImage
   | InputOpenaiGptImage2
   | InputOpenaiGptImage25FlareEdit
@@ -96835,6 +109425,11 @@ export type FalPostEndpointIdBody =
   | InputRecraftV4StyleProTextToVector
   | InputRecraftV4StyleTextToImage
   | InputRecraftV4StyleTextToVector
+  | InputReve21Edit
+  | InputReve21Remix
+  | InputReve21TextToImage
+  | InputRundiffusionFalJuggernautFluxLora
+  | InputRundiffusionFalJuggernautFluxLoraInpainting
   | InputRundiffusionFalJuggernautFluxBase
   | InputRundiffusionFalJuggernautFluxBaseImageToImage
   | InputRundiffusionFalJuggernautFluxLightning
@@ -96938,12 +109533,15 @@ export const falGetEndpointIdRequestsRequestIdEndpointId = {
   'bytedance/seedream/v5/pro/text-to-image':
     'bytedance/seedream/v5/pro/text-to-image',
   'clarityai/crystal-upscaler': 'clarityai/crystal-upscaler',
+  'fal-ai/aura-flow': 'fal-ai/aura-flow',
   'fal-ai/aura-sr': 'fal-ai/aura-sr',
   'fal-ai/bagel': 'fal-ai/bagel',
   'fal-ai/bagel/edit': 'fal-ai/bagel/edit',
   'fal-ai/ben/v2/image': 'fal-ai/ben/v2/image',
+  'fal-ai/bernini-r/edit-image': 'fal-ai/bernini-r/edit-image',
   'fal-ai/birefnet': 'fal-ai/birefnet',
   'fal-ai/birefnet/v2': 'fal-ai/birefnet/v2',
+  'fal-ai/bitdance': 'fal-ai/bitdance',
   'fal-ai/boogu-image': 'fal-ai/boogu-image',
   'fal-ai/boogu-image/edit': 'fal-ai/boogu-image/edit',
   'fal-ai/bria/background/remove': 'fal-ai/bria/background/remove',
@@ -96956,18 +109554,38 @@ export const falGetEndpointIdRequestsRequestIdEndpointId = {
   'fal-ai/bria/text-to-image/base': 'fal-ai/bria/text-to-image/base',
   'fal-ai/bria/text-to-image/fast': 'fal-ai/bria/text-to-image/fast',
   'fal-ai/bria/text-to-image/hd': 'fal-ai/bria/text-to-image/hd',
+  'fal-ai/bytedance/dreamina/v3.1/text-to-image':
+    'fal-ai/bytedance/dreamina/v3.1/text-to-image',
   'fal-ai/bytedance/seedream/v4.5/edit': 'fal-ai/bytedance/seedream/v4.5/edit',
   'fal-ai/bytedance/seedream/v4.5/text-to-image':
     'fal-ai/bytedance/seedream/v4.5/text-to-image',
   'fal-ai/bytedance/seedream/v4/edit': 'fal-ai/bytedance/seedream/v4/edit',
   'fal-ai/bytedance/seedream/v4/text-to-image':
     'fal-ai/bytedance/seedream/v4/text-to-image',
+  'fal-ai/bytedance/seedream/v5/lite/edit':
+    'fal-ai/bytedance/seedream/v5/lite/edit',
+  'fal-ai/bytedance/seedream/v5/lite/text-to-image':
+    'fal-ai/bytedance/seedream/v5/lite/text-to-image',
+  'fal-ai/cartoonify': 'fal-ai/cartoonify',
   'fal-ai/cat-vton': 'fal-ai/cat-vton',
+  'fal-ai/ccsr': 'fal-ai/ccsr',
+  'fal-ai/chrono-edit': 'fal-ai/chrono-edit',
+  'fal-ai/chrono-edit-lora': 'fal-ai/chrono-edit-lora',
+  'fal-ai/chrono-edit-lora-gallery/paintbrush':
+    'fal-ai/chrono-edit-lora-gallery/paintbrush',
+  'fal-ai/chrono-edit-lora-gallery/upscaler':
+    'fal-ai/chrono-edit-lora-gallery/upscaler',
   'fal-ai/clarity-upscaler': 'fal-ai/clarity-upscaler',
   'fal-ai/codeformer': 'fal-ai/codeformer',
+  'fal-ai/cogview4': 'fal-ai/cogview4',
   'fal-ai/control-light': 'fal-ai/control-light',
   'fal-ai/creative-upscaler': 'fal-ai/creative-upscaler',
   'fal-ai/ddcolor': 'fal-ai/ddcolor',
+  'fal-ai/docres': 'fal-ai/docres',
+  'fal-ai/docres/dewarp': 'fal-ai/docres/dewarp',
+  'fal-ai/drct-super-resolution': 'fal-ai/drct-super-resolution',
+  'fal-ai/dreamomni2/edit': 'fal-ai/dreamomni2/edit',
+  'fal-ai/dreamshaper': 'fal-ai/dreamshaper',
   'fal-ai/dwpose': 'fal-ai/dwpose',
   'fal-ai/emu-3.5-image/edit-image': 'fal-ai/emu-3.5-image/edit-image',
   'fal-ai/emu-3.5-image/text-to-image': 'fal-ai/emu-3.5-image/text-to-image',
@@ -96979,6 +109597,8 @@ export const falGetEndpointIdRequestsRequestIdEndpointId = {
   'fal-ai/evf-sam': 'fal-ai/evf-sam',
   'fal-ai/fashn/tryon/v1.5': 'fal-ai/fashn/tryon/v1.5',
   'fal-ai/fashn/tryon/v1.6': 'fal-ai/fashn/tryon/v1.6',
+  'fal-ai/fast-fooocus-sdxl/image-to-image':
+    'fal-ai/fast-fooocus-sdxl/image-to-image',
   'fal-ai/fast-lcm-diffusion': 'fal-ai/fast-lcm-diffusion',
   'fal-ai/fast-lcm-diffusion/image-to-image':
     'fal-ai/fast-lcm-diffusion/image-to-image',
@@ -96990,6 +109610,11 @@ export const falGetEndpointIdRequestsRequestIdEndpointId = {
   'fal-ai/fast-lightning-sdxl/inpainting':
     'fal-ai/fast-lightning-sdxl/inpainting',
   'fal-ai/fast-sdxl': 'fal-ai/fast-sdxl',
+  'fal-ai/fast-sdxl-controlnet-canny': 'fal-ai/fast-sdxl-controlnet-canny',
+  'fal-ai/fast-sdxl-controlnet-canny/image-to-image':
+    'fal-ai/fast-sdxl-controlnet-canny/image-to-image',
+  'fal-ai/fast-sdxl-controlnet-canny/inpainting':
+    'fal-ai/fast-sdxl-controlnet-canny/inpainting',
   'fal-ai/fast-sdxl/image-to-image': 'fal-ai/fast-sdxl/image-to-image',
   'fal-ai/fast-sdxl/inpainting': 'fal-ai/fast-sdxl/inpainting',
   'fal-ai/feynobg': 'fal-ai/feynobg',
@@ -96998,6 +109623,7 @@ export const falGetEndpointIdRequestsRequestIdEndpointId = {
   'fal-ai/finegrain-eraser': 'fal-ai/finegrain-eraser',
   'fal-ai/finegrain-eraser/bbox': 'fal-ai/finegrain-eraser/bbox',
   'fal-ai/finegrain-eraser/mask': 'fal-ai/finegrain-eraser/mask',
+  'fal-ai/firered-image-edit': 'fal-ai/firered-image-edit',
   'fal-ai/firered-image-edit-v1.1': 'fal-ai/firered-image-edit-v1.1',
   'fal-ai/florence-2-large/caption-to-phrase-grounding':
     'fal-ai/florence-2-large/caption-to-phrase-grounding',
@@ -97015,6 +109641,7 @@ export const falGetEndpointIdRequestsRequestIdEndpointId = {
     'fal-ai/florence-2-large/region-proposal',
   'fal-ai/florence-2-large/region-to-segmentation':
     'fal-ai/florence-2-large/region-to-segmentation',
+  'fal-ai/flowedit': 'fal-ai/flowedit',
   'fal-ai/flux-1/dev': 'fal-ai/flux-1/dev',
   'fal-ai/flux-1/dev/image-to-image': 'fal-ai/flux-1/dev/image-to-image',
   'fal-ai/flux-1/dev/redux': 'fal-ai/flux-1/dev/redux',
@@ -97080,6 +109707,12 @@ export const falGetEndpointIdRequestsRequestIdEndpointId = {
   'fal-ai/flux-2/lora/edit': 'fal-ai/flux-2/lora/edit',
   'fal-ai/flux-2/turbo': 'fal-ai/flux-2/turbo',
   'fal-ai/flux-2/turbo/edit': 'fal-ai/flux-2/turbo/edit',
+  'fal-ai/flux-control-lora-canny': 'fal-ai/flux-control-lora-canny',
+  'fal-ai/flux-control-lora-canny/image-to-image':
+    'fal-ai/flux-control-lora-canny/image-to-image',
+  'fal-ai/flux-control-lora-depth': 'fal-ai/flux-control-lora-depth',
+  'fal-ai/flux-control-lora-depth/image-to-image':
+    'fal-ai/flux-control-lora-depth/image-to-image',
   'fal-ai/flux-general': 'fal-ai/flux-general',
   'fal-ai/flux-general/differential-diffusion':
     'fal-ai/flux-general/differential-diffusion',
@@ -97122,6 +109755,7 @@ export const falGetEndpointIdRequestsRequestIdEndpointId = {
   'fal-ai/flux-pro/v1/fill-finetuned': 'fal-ai/flux-pro/v1/fill-finetuned',
   'fal-ai/flux-pro/v1/vto': 'fal-ai/flux-pro/v1/vto',
   'fal-ai/flux-pulid': 'fal-ai/flux-pulid',
+  'fal-ai/flux-subject': 'fal-ai/flux-subject',
   'fal-ai/flux-vision-upscaler': 'fal-ai/flux-vision-upscaler',
   'fal-ai/flux/dev': 'fal-ai/flux/dev',
   'fal-ai/flux/dev/image-to-image': 'fal-ai/flux/dev/image-to-image',
@@ -97146,12 +109780,16 @@ export const falGetEndpointIdRequestsRequestIdEndpointId = {
     'fal-ai/gemini-3.1-flash-image-preview',
   'fal-ai/gemini-3.1-flash-image-preview/edit':
     'fal-ai/gemini-3.1-flash-image-preview/edit',
+  'fal-ai/ghiblify': 'fal-ai/ghiblify',
   'fal-ai/glm-image': 'fal-ai/glm-image',
   'fal-ai/glm-image/image-to-image': 'fal-ai/glm-image/image-to-image',
   'fal-ai/gpt-image-1-mini': 'fal-ai/gpt-image-1-mini',
   'fal-ai/gpt-image-1-mini/edit': 'fal-ai/gpt-image-1-mini/edit',
   'fal-ai/gpt-image-1.5': 'fal-ai/gpt-image-1.5',
   'fal-ai/gpt-image-1.5/edit': 'fal-ai/gpt-image-1.5/edit',
+  'fal-ai/gpt-image-1/edit-image': 'fal-ai/gpt-image-1/edit-image',
+  'fal-ai/gpt-image-1/text-to-image': 'fal-ai/gpt-image-1/text-to-image',
+  'fal-ai/hidream-i1-dev': 'fal-ai/hidream-i1-dev',
   'fal-ai/hidream-i1-fast': 'fal-ai/hidream-i1-fast',
   'fal-ai/hidream-i1-full': 'fal-ai/hidream-i1-full',
   'fal-ai/hidream-i1-full/image-to-image':
@@ -97174,6 +109812,8 @@ export const falGetEndpointIdRequestsRequestIdEndpointId = {
   'fal-ai/ideogram/character': 'fal-ai/ideogram/character',
   'fal-ai/ideogram/character/edit': 'fal-ai/ideogram/character/edit',
   'fal-ai/ideogram/character/remix': 'fal-ai/ideogram/character/remix',
+  'fal-ai/ideogram/custom-models/generate':
+    'fal-ai/ideogram/custom-models/generate',
   'fal-ai/ideogram/object-removal': 'fal-ai/ideogram/object-removal',
   'fal-ai/ideogram/remove-background': 'fal-ai/ideogram/remove-background',
   'fal-ai/ideogram/upscale': 'fal-ai/ideogram/upscale',
@@ -97272,8 +109912,12 @@ export const falGetEndpointIdRequestsRequestIdEndpointId = {
   'fal-ai/imageutils/depth': 'fal-ai/imageutils/depth',
   'fal-ai/imageutils/marigold-depth': 'fal-ai/imageutils/marigold-depth',
   'fal-ai/imageutils/rembg': 'fal-ai/imageutils/rembg',
+  'fal-ai/inpaint': 'fal-ai/inpaint',
   'fal-ai/instant-character': 'fal-ai/instant-character',
+  'fal-ai/invisible-watermark': 'fal-ai/invisible-watermark',
   'fal-ai/ip-adapter-face-id': 'fal-ai/ip-adapter-face-id',
+  'fal-ai/janus': 'fal-ai/janus',
+  'fal-ai/joyai-image-edit': 'fal-ai/joyai-image-edit',
   'fal-ai/kling-image/o1': 'fal-ai/kling-image/o1',
   'fal-ai/kling-image/o3/image-to-image':
     'fal-ai/kling-image/o3/image-to-image',
@@ -97281,11 +109925,14 @@ export const falGetEndpointIdRequestsRequestIdEndpointId = {
   'fal-ai/kling-image/v3/image-to-image':
     'fal-ai/kling-image/v3/image-to-image',
   'fal-ai/kling-image/v3/text-to-image': 'fal-ai/kling-image/v3/text-to-image',
+  'fal-ai/kling/v1-5/kolors-virtual-try-on':
+    'fal-ai/kling/v1-5/kolors-virtual-try-on',
   'fal-ai/kolors': 'fal-ai/kolors',
   'fal-ai/kolors/image-to-image': 'fal-ai/kolors/image-to-image',
   'fal-ai/krea-2/turbo': 'fal-ai/krea-2/turbo',
   'fal-ai/krea-2/turbo/lora': 'fal-ai/krea-2/turbo/lora',
   'fal-ai/krea-2/turbo/style': 'fal-ai/krea-2/turbo/style',
+  'fal-ai/lcm-sd15-i2i': 'fal-ai/lcm-sd15-i2i',
   'fal-ai/leffa/pose-transfer': 'fal-ai/leffa/pose-transfer',
   'fal-ai/leffa/virtual-tryon': 'fal-ai/leffa/virtual-tryon',
   'fal-ai/live-portrait/image': 'fal-ai/live-portrait/image',
@@ -97320,13 +109967,24 @@ export const falGetEndpointIdRequestsRequestIdEndpointId = {
   'fal-ai/object-removal': 'fal-ai/object-removal',
   'fal-ai/object-removal/bbox': 'fal-ai/object-removal/bbox',
   'fal-ai/object-removal/mask': 'fal-ai/object-removal/mask',
+  'fal-ai/omni-zero': 'fal-ai/omni-zero',
+  'fal-ai/omnigen-v1': 'fal-ai/omnigen-v1',
   'fal-ai/omnigen-v2': 'fal-ai/omnigen-v2',
+  'fal-ai/ovis-image': 'fal-ai/ovis-image',
+  'fal-ai/pasd': 'fal-ai/pasd',
   'fal-ai/patina': 'fal-ai/patina',
   'fal-ai/patina/material': 'fal-ai/patina/material',
   'fal-ai/patina/material/extract': 'fal-ai/patina/material/extract',
   'fal-ai/phota': 'fal-ai/phota',
   'fal-ai/phota/edit': 'fal-ai/phota/edit',
   'fal-ai/phota/enhance': 'fal-ai/phota/enhance',
+  'fal-ai/photomaker': 'fal-ai/photomaker',
+  'fal-ai/pixart-sigma': 'fal-ai/pixart-sigma',
+  'fal-ai/playground-v25': 'fal-ai/playground-v25',
+  'fal-ai/playground-v25/image-to-image':
+    'fal-ai/playground-v25/image-to-image',
+  'fal-ai/playground-v25/inpainting': 'fal-ai/playground-v25/inpainting',
+  'fal-ai/pony-v7': 'fal-ai/pony-v7',
   'fal-ai/post-processing': 'fal-ai/post-processing',
   'fal-ai/post-processing/blur': 'fal-ai/post-processing/blur',
   'fal-ai/post-processing/chromatic-aberration':
@@ -97342,9 +110000,16 @@ export const falGetEndpointIdRequestsRequestIdEndpointId = {
   'fal-ai/post-processing/sharpen': 'fal-ai/post-processing/sharpen',
   'fal-ai/post-processing/solarize': 'fal-ai/post-processing/solarize',
   'fal-ai/post-processing/vignette': 'fal-ai/post-processing/vignette',
+  'fal-ai/pulid': 'fal-ai/pulid',
   'fal-ai/qwen-image': 'fal-ai/qwen-image',
+  'fal-ai/qwen-image-2/edit': 'fal-ai/qwen-image-2/edit',
+  'fal-ai/qwen-image-2/pro/edit': 'fal-ai/qwen-image-2/pro/edit',
+  'fal-ai/qwen-image-2/pro/text-to-image':
+    'fal-ai/qwen-image-2/pro/text-to-image',
+  'fal-ai/qwen-image-2/text-to-image': 'fal-ai/qwen-image-2/text-to-image',
   'fal-ai/qwen-image-2512': 'fal-ai/qwen-image-2512',
   'fal-ai/qwen-image-2512/lora': 'fal-ai/qwen-image-2512/lora',
+  'fal-ai/qwen-image-edit': 'fal-ai/qwen-image-edit',
   'fal-ai/qwen-image-edit-2509': 'fal-ai/qwen-image-edit-2509',
   'fal-ai/qwen-image-edit-2509-lora': 'fal-ai/qwen-image-edit-2509-lora',
   'fal-ai/qwen-image-edit-2509-lora-gallery/add-background':
@@ -97399,7 +110064,10 @@ export const falGetEndpointIdRequestsRequestIdEndpointId = {
   'fal-ai/qwen-image-edit/inpaint': 'fal-ai/qwen-image-edit/inpaint',
   'fal-ai/qwen-image-layered': 'fal-ai/qwen-image-layered',
   'fal-ai/qwen-image-layered/lora': 'fal-ai/qwen-image-layered/lora',
+  'fal-ai/qwen-image-max/edit': 'fal-ai/qwen-image-max/edit',
+  'fal-ai/qwen-image-max/text-to-image': 'fal-ai/qwen-image-max/text-to-image',
   'fal-ai/qwen-image/image-to-image': 'fal-ai/qwen-image/image-to-image',
+  'fal-ai/realistic-vision': 'fal-ai/realistic-vision',
   'fal-ai/recraft-20b': 'fal-ai/recraft-20b',
   'fal-ai/recraft/upscale/creative': 'fal-ai/recraft/upscale/creative',
   'fal-ai/recraft/upscale/crisp': 'fal-ai/recraft/upscale/crisp',
@@ -97441,7 +110109,11 @@ export const falGetEndpointIdRequestsRequestIdEndpointId = {
   'fal-ai/seedvr/upscale/image': 'fal-ai/seedvr/upscale/image',
   'fal-ai/seedvr/upscale/image/seamless':
     'fal-ai/seedvr/upscale/image/seamless',
+  'fal-ai/sensenova-u1-infographic': 'fal-ai/sensenova-u1-infographic',
   'fal-ai/smart-resize': 'fal-ai/smart-resize',
+  'fal-ai/stable-cascade': 'fal-ai/stable-cascade',
+  'fal-ai/stable-cascade/sote-diffusion':
+    'fal-ai/stable-cascade/sote-diffusion',
   'fal-ai/stable-diffusion-v15': 'fal-ai/stable-diffusion-v15',
   'fal-ai/stable-diffusion-v3-medium': 'fal-ai/stable-diffusion-v3-medium',
   'fal-ai/stable-diffusion-v3-medium/image-to-image':
@@ -97450,7 +110122,11 @@ export const falGetEndpointIdRequestsRequestIdEndpointId = {
   'fal-ai/stable-diffusion-v35-medium': 'fal-ai/stable-diffusion-v35-medium',
   'fal-ai/stepx-edit2': 'fal-ai/stepx-edit2',
   'fal-ai/telestyle-v2': 'fal-ai/telestyle-v2',
+  'fal-ai/topaz/upscale/image': 'fal-ai/topaz/upscale/image',
+  'fal-ai/uno': 'fal-ai/uno',
   'fal-ai/uso': 'fal-ai/uso',
+  'fal-ai/vecglypher': 'fal-ai/vecglypher',
+  'fal-ai/vecglypher/image-to-svg': 'fal-ai/vecglypher/image-to-svg',
   'fal-ai/vidu/q2/reference-to-image': 'fal-ai/vidu/q2/reference-to-image',
   'fal-ai/vidu/q2/text-to-image': 'fal-ai/vidu/q2/text-to-image',
   'fal-ai/vidu/reference-to-image': 'fal-ai/vidu/reference-to-image',
@@ -97501,6 +110177,14 @@ export const falGetEndpointIdRequestsRequestIdEndpointId = {
   'ideogram/v4/tiling/lora': 'ideogram/v4/tiling/lora',
   'ideogram/vector/image-to-vector': 'ideogram/vector/image-to-vector',
   'ideogram/vector/text-to-vector': 'ideogram/vector/text-to-vector',
+  'imagineart/imagineart-1.5-preview/text-to-image':
+    'imagineart/imagineart-1.5-preview/text-to-image',
+  'imagineart/imagineart-1.5-pro-preview/text-to-image':
+    'imagineart/imagineart-1.5-pro-preview/text-to-image',
+  'imagineart/imagineart-2.0-edit-preview/image-to-image':
+    'imagineart/imagineart-2.0-edit-preview/image-to-image',
+  'imagineart/imagineart-2.0-preview/text-to-image':
+    'imagineart/imagineart-2.0-preview/text-to-image',
   'krea/v2/large/text-to-image': 'krea/v2/large/text-to-image',
   'krea/v2/medium/text-to-image': 'krea/v2/medium/text-to-image',
   'krea/v2/medium/turbo/text-to-image': 'krea/v2/medium/turbo/text-to-image',
@@ -97517,6 +110201,11 @@ export const falGetEndpointIdRequestsRequestIdEndpointId = {
   'microsoft/mai-image-2.5-pro': 'microsoft/mai-image-2.5-pro',
   'microsoft/mai-image-2.5-pro/edit': 'microsoft/mai-image-2.5-pro/edit',
   'microsoft/mai-image-2.5/edit': 'microsoft/mai-image-2.5/edit',
+  'minimax/h3-image/edit': 'minimax/h3-image/edit',
+  'minimax/h3-image/highspeed/edit': 'minimax/h3-image/highspeed/edit',
+  'minimax/h3-image/highspeed/text-to-image':
+    'minimax/h3-image/highspeed/text-to-image',
+  'minimax/h3-image/text-to-image': 'minimax/h3-image/text-to-image',
   'nvidia/cosmos-3-super/text-to-image': 'nvidia/cosmos-3-super/text-to-image',
   'openai/gpt-image-2': 'openai/gpt-image-2',
   'openai/gpt-image-2.5/flare/edit': 'openai/gpt-image-2.5/flare/edit',
@@ -97539,6 +110228,13 @@ export const falGetEndpointIdRequestsRequestIdEndpointId = {
   'recraft/v4/style/pro/text-to-vector': 'recraft/v4/style/pro/text-to-vector',
   'recraft/v4/style/text-to-image': 'recraft/v4/style/text-to-image',
   'recraft/v4/style/text-to-vector': 'recraft/v4/style/text-to-vector',
+  'reve/2.1/edit': 'reve/2.1/edit',
+  'reve/2.1/remix': 'reve/2.1/remix',
+  'reve/2.1/text-to-image': 'reve/2.1/text-to-image',
+  'rundiffusion-fal/juggernaut-flux-lora':
+    'rundiffusion-fal/juggernaut-flux-lora',
+  'rundiffusion-fal/juggernaut-flux-lora/inpainting':
+    'rundiffusion-fal/juggernaut-flux-lora/inpainting',
   'rundiffusion-fal/juggernaut-flux/base':
     'rundiffusion-fal/juggernaut-flux/base',
   'rundiffusion-fal/juggernaut-flux/base/image-to-image':
@@ -97634,12 +110330,15 @@ export type FalGetEndpointIdRequestsRequestIdStatus200 =
   | OutputBytedanceSeedreamV5ProLayerize
   | OutputBytedanceSeedreamV5ProTextToImage
   | OutputClarityaiCrystalUpscaler
+  | OutputFalAiAuraFlow
   | OutputFalAiAuraSr
   | OutputFalAiBagel
   | OutputFalAiBagelEdit
   | OutputFalAiBenV2Image
+  | OutputFalAiBerniniREditImage
   | OutputFalAiBirefnet
   | OutputFalAiBirefnetV2
+  | OutputFalAiBitdance
   | OutputFalAiBooguImage
   | OutputFalAiBooguImageEdit
   | OutputFalAiBriaBackgroundRemove
@@ -97652,16 +110351,31 @@ export type FalGetEndpointIdRequestsRequestIdStatus200 =
   | OutputFalAiBriaTextToImageBase
   | OutputFalAiBriaTextToImageFast
   | OutputFalAiBriaTextToImageHd
+  | OutputFalAiBytedanceDreaminaV31TextToImage
   | OutputFalAiBytedanceSeedreamV45Edit
   | OutputFalAiBytedanceSeedreamV45TextToImage
   | OutputFalAiBytedanceSeedreamV4Edit
   | OutputFalAiBytedanceSeedreamV4TextToImage
+  | OutputFalAiBytedanceSeedreamV5LiteEdit
+  | OutputFalAiBytedanceSeedreamV5LiteTextToImage
+  | OutputFalAiCartoonify
   | OutputFalAiCatVton
+  | OutputFalAiCcsr
+  | OutputFalAiChronoEdit
+  | OutputFalAiChronoEditLora
+  | OutputFalAiChronoEditLoraGalleryPaintbrush
+  | OutputFalAiChronoEditLoraGalleryUpscaler
   | OutputFalAiClarityUpscaler
   | OutputFalAiCodeformer
+  | OutputFalAiCogview4
   | OutputFalAiControlLight
   | OutputFalAiCreativeUpscaler
   | OutputFalAiDdcolor
+  | OutputFalAiDocres
+  | OutputFalAiDocresDewarp
+  | OutputFalAiDrctSuperResolution
+  | OutputFalAiDreamomni2Edit
+  | OutputFalAiDreamshaper
   | OutputFalAiDwpose
   | OutputFalAiEmu35ImageEditImage
   | OutputFalAiEmu35ImageTextToImage
@@ -97673,6 +110387,7 @@ export type FalGetEndpointIdRequestsRequestIdStatus200 =
   | OutputFalAiEvfSam
   | OutputFalAiFashnTryonV15
   | OutputFalAiFashnTryonV16
+  | OutputFalAiFastFooocusSdxlImageToImage
   | OutputFalAiFastLcmDiffusion
   | OutputFalAiFastLcmDiffusionImageToImage
   | OutputFalAiFastLcmDiffusionInpainting
@@ -97680,6 +110395,9 @@ export type FalGetEndpointIdRequestsRequestIdStatus200 =
   | OutputFalAiFastLightningSdxlImageToImage
   | OutputFalAiFastLightningSdxlInpainting
   | OutputFalAiFastSdxl
+  | OutputFalAiFastSdxlControlnetCanny
+  | OutputFalAiFastSdxlControlnetCannyImageToImage
+  | OutputFalAiFastSdxlControlnetCannyInpainting
   | OutputFalAiFastSdxlImageToImage
   | OutputFalAiFastSdxlInpainting
   | OutputFalAiFeynobg
@@ -97688,6 +110406,7 @@ export type FalGetEndpointIdRequestsRequestIdStatus200 =
   | OutputFalAiFinegrainEraser
   | OutputFalAiFinegrainEraserBbox
   | OutputFalAiFinegrainEraserMask
+  | OutputFalAiFireredImageEdit
   | OutputFalAiFireredImageEditV11
   | OutputFalAiFlorence2LargeCaptionToPhraseGrounding
   | OutputFalAiFlorence2LargeDenseRegionCaption
@@ -97697,6 +110416,7 @@ export type FalGetEndpointIdRequestsRequestIdStatus200 =
   | OutputFalAiFlorence2LargeReferringExpressionSegmentation
   | OutputFalAiFlorence2LargeRegionProposal
   | OutputFalAiFlorence2LargeRegionToSegmentation
+  | OutputFalAiFlowedit
   | OutputFalAiFlux1Dev
   | OutputFalAiFlux1DevImageToImage
   | OutputFalAiFlux1DevRedux
@@ -97750,6 +110470,10 @@ export type FalGetEndpointIdRequestsRequestIdStatus200 =
   | OutputFalAiFlux2LoraEdit
   | OutputFalAiFlux2Turbo
   | OutputFalAiFlux2TurboEdit
+  | OutputFalAiFluxControlLoraCanny
+  | OutputFalAiFluxControlLoraCannyImageToImage
+  | OutputFalAiFluxControlLoraDepth
+  | OutputFalAiFluxControlLoraDepthImageToImage
   | OutputFalAiFluxGeneral
   | OutputFalAiFluxGeneralDifferentialDiffusion
   | OutputFalAiFluxGeneralImageToImage
@@ -97786,6 +110510,7 @@ export type FalGetEndpointIdRequestsRequestIdStatus200 =
   | OutputFalAiFluxProV1FillFinetuned
   | OutputFalAiFluxProV1Vto
   | OutputFalAiFluxPulid
+  | OutputFalAiFluxSubject
   | OutputFalAiFluxVisionUpscaler
   | OutputFalAiFluxDev
   | OutputFalAiFluxDevImageToImage
@@ -97807,12 +110532,16 @@ export type FalGetEndpointIdRequestsRequestIdStatus200 =
   | OutputFalAiGemini3ProImagePreviewEdit
   | OutputFalAiGemini31FlashImagePreview
   | OutputFalAiGemini31FlashImagePreviewEdit
+  | OutputFalAiGhiblify
   | OutputFalAiGlmImage
   | OutputFalAiGlmImageImageToImage
   | OutputFalAiGptImage1Mini
   | OutputFalAiGptImage1MiniEdit
   | OutputFalAiGptImage15
   | OutputFalAiGptImage15Edit
+  | OutputFalAiGptImage1EditImage
+  | OutputFalAiGptImage1TextToImage
+  | OutputFalAiHidreamI1Dev
   | OutputFalAiHidreamI1Fast
   | OutputFalAiHidreamI1Full
   | OutputFalAiHidreamI1FullImageToImage
@@ -97830,6 +110559,7 @@ export type FalGetEndpointIdRequestsRequestIdStatus200 =
   | OutputFalAiIdeogramCharacter
   | OutputFalAiIdeogramCharacterEdit
   | OutputFalAiIdeogramCharacterRemix
+  | OutputFalAiIdeogramCustomModelsGenerate
   | OutputFalAiIdeogramObjectRemoval
   | OutputFalAiIdeogramRemoveBackground
   | OutputFalAiIdeogramUpscale
@@ -97907,18 +110637,24 @@ export type FalGetEndpointIdRequestsRequestIdStatus200 =
   | OutputFalAiImageutilsDepth
   | OutputFalAiImageutilsMarigoldDepth
   | OutputFalAiImageutilsRembg
+  | OutputFalAiInpaint
   | OutputFalAiInstantCharacter
+  | OutputFalAiInvisibleWatermark
   | OutputFalAiIpAdapterFaceId
+  | OutputFalAiJanus
+  | OutputFalAiJoyaiImageEdit
   | OutputFalAiKlingImageO1
   | OutputFalAiKlingImageO3ImageToImage
   | OutputFalAiKlingImageO3TextToImage
   | OutputFalAiKlingImageV3ImageToImage
   | OutputFalAiKlingImageV3TextToImage
+  | OutputFalAiKlingV15KolorsVirtualTryOn
   | OutputFalAiKolors
   | OutputFalAiKolorsImageToImage
   | OutputFalAiKrea2Turbo
   | OutputFalAiKrea2TurboLora
   | OutputFalAiKrea2TurboStyle
+  | OutputFalAiLcmSd15I2I
   | OutputFalAiLeffaPoseTransfer
   | OutputFalAiLeffaVirtualTryon
   | OutputFalAiLivePortraitImage
@@ -97952,13 +110688,23 @@ export type FalGetEndpointIdRequestsRequestIdStatus200 =
   | OutputFalAiObjectRemoval
   | OutputFalAiObjectRemovalBbox
   | OutputFalAiObjectRemovalMask
+  | OutputFalAiOmniZero
+  | OutputFalAiOmnigenV1
   | OutputFalAiOmnigenV2
+  | OutputFalAiOvisImage
+  | OutputFalAiPasd
   | OutputFalAiPatina
   | OutputFalAiPatinaMaterial
   | OutputFalAiPatinaMaterialExtract
   | OutputFalAiPhota
   | OutputFalAiPhotaEdit
   | OutputFalAiPhotaEnhance
+  | OutputFalAiPhotomaker
+  | OutputFalAiPixartSigma
+  | OutputFalAiPlaygroundV25
+  | OutputFalAiPlaygroundV25ImageToImage
+  | OutputFalAiPlaygroundV25Inpainting
+  | OutputFalAiPonyV7
   | OutputFalAiPostProcessing
   | OutputFalAiPostProcessingBlur
   | OutputFalAiPostProcessingChromaticAberration
@@ -97972,9 +110718,15 @@ export type FalGetEndpointIdRequestsRequestIdStatus200 =
   | OutputFalAiPostProcessingSharpen
   | OutputFalAiPostProcessingSolarize
   | OutputFalAiPostProcessingVignette
+  | OutputFalAiPulid
   | OutputFalAiQwenImage
+  | OutputFalAiQwenImage2Edit
+  | OutputFalAiQwenImage2ProEdit
+  | OutputFalAiQwenImage2ProTextToImage
+  | OutputFalAiQwenImage2TextToImage
   | OutputFalAiQwenImage2512
   | OutputFalAiQwenImage2512Lora
+  | OutputFalAiQwenImageEdit
   | OutputFalAiQwenImageEdit2509
   | OutputFalAiQwenImageEdit2509Lora
   | OutputFalAiQwenImageEdit2509LoraGalleryAddBackground
@@ -98007,7 +110759,10 @@ export type FalGetEndpointIdRequestsRequestIdStatus200 =
   | OutputFalAiQwenImageEditInpaint
   | OutputFalAiQwenImageLayered
   | OutputFalAiQwenImageLayeredLora
+  | OutputFalAiQwenImageMaxEdit
+  | OutputFalAiQwenImageMaxTextToImage
   | OutputFalAiQwenImageImageToImage
+  | OutputFalAiRealisticVision
   | OutputFalAiRecraft20B
   | OutputFalAiRecraftUpscaleCreative
   | OutputFalAiRecraftUpscaleCrisp
@@ -98041,7 +110796,10 @@ export type FalGetEndpointIdRequestsRequestIdStatus200 =
   | OutputFalAiSdxlControlnetUnionInpainting
   | OutputFalAiSeedvrUpscaleImage
   | OutputFalAiSeedvrUpscaleImageSeamless
+  | OutputFalAiSensenovaU1Infographic
   | OutputFalAiSmartResize
+  | OutputFalAiStableCascade
+  | OutputFalAiStableCascadeSoteDiffusion
   | OutputFalAiStableDiffusionV15
   | OutputFalAiStableDiffusionV3Medium
   | OutputFalAiStableDiffusionV3MediumImageToImage
@@ -98049,7 +110807,11 @@ export type FalGetEndpointIdRequestsRequestIdStatus200 =
   | OutputFalAiStableDiffusionV35Medium
   | OutputFalAiStepxEdit2
   | OutputFalAiTelestyleV2
+  | OutputFalAiTopazUpscaleImage
+  | OutputFalAiUno
   | OutputFalAiUso
+  | OutputFalAiVecglypher
+  | OutputFalAiVecglypherImageToSvg
   | OutputFalAiViduQ2ReferenceToImage
   | OutputFalAiViduQ2TextToImage
   | OutputFalAiViduReferenceToImage
@@ -98095,6 +110857,10 @@ export type FalGetEndpointIdRequestsRequestIdStatus200 =
   | OutputIdeogramV4TilingLora
   | OutputIdeogramVectorImageToVector
   | OutputIdeogramVectorTextToVector
+  | OutputImagineartImagineart15PreviewTextToImage
+  | OutputImagineartImagineart15ProPreviewTextToImage
+  | OutputImagineartImagineart20EditPreviewImageToImage
+  | OutputImagineartImagineart20PreviewTextToImage
   | OutputKreaV2LargeTextToImage
   | OutputKreaV2MediumTextToImage
   | OutputKreaV2MediumTurboTextToImage
@@ -98111,6 +110877,10 @@ export type FalGetEndpointIdRequestsRequestIdStatus200 =
   | OutputMicrosoftMaiImage25Pro
   | OutputMicrosoftMaiImage25ProEdit
   | OutputMicrosoftMaiImage25Edit
+  | OutputMinimaxH3ImageEdit
+  | OutputMinimaxH3ImageHighspeedEdit
+  | OutputMinimaxH3ImageHighspeedTextToImage
+  | OutputMinimaxH3ImageTextToImage
   | OutputNvidiaCosmos3SuperTextToImage
   | OutputOpenaiGptImage2
   | OutputOpenaiGptImage25FlareEdit
@@ -98129,6 +110899,11 @@ export type FalGetEndpointIdRequestsRequestIdStatus200 =
   | OutputRecraftV4StyleProTextToVector
   | OutputRecraftV4StyleTextToImage
   | OutputRecraftV4StyleTextToVector
+  | OutputReve21Edit
+  | OutputReve21Remix
+  | OutputReve21TextToImage
+  | OutputRundiffusionFalJuggernautFluxLora
+  | OutputRundiffusionFalJuggernautFluxLoraInpainting
   | OutputRundiffusionFalJuggernautFluxBase
   | OutputRundiffusionFalJuggernautFluxBaseImageToImage
   | OutputRundiffusionFalJuggernautFluxLightning
