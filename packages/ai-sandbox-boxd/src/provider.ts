@@ -6,6 +6,7 @@ import type { Machine, MachineConfig, MachineCreateParams } from '@boxd-sh/sdk'
 import type {
   SandboxCapabilities,
   SandboxCreateInput,
+  SandboxDeleteSnapshotInput,
   SandboxDestroyInput,
   SandboxHandle,
   SandboxProvider,
@@ -234,6 +235,19 @@ class BoxdProvider implements SandboxProvider {
     } catch (error) {
       // Already gone is success; anything else must surface so the caller does
       // not believe a still-running machine was destroyed.
+      if (!(error instanceof NotFoundError)) throw error
+    }
+  }
+
+  async deleteSnapshot(input: SandboxDeleteSnapshotInput): Promise<void> {
+    input.signal?.throwIfAborted()
+    try {
+      // The snapshot id is its name, scoped to the org it was captured in.
+      await this.client.snapshots.delete(
+        input.snapshotId,
+        this.org !== undefined ? { org: this.org } : {},
+      )
+    } catch (error) {
       if (!(error instanceof NotFoundError)) throw error
     }
   }

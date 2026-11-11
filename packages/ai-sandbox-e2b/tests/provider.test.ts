@@ -7,18 +7,25 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { INSTANCE_KEY_METADATA, e2bSandbox } from '../src/index'
 
-const { createMock, connectMock, killMock, MockNotFound } = vi.hoisted(() => {
-  class MockNotFound extends Error {}
-  return {
-    createMock: vi.fn(),
-    connectMock: vi.fn(),
-    killMock: vi.fn(),
-    MockNotFound,
-  }
-})
+const { createMock, connectMock, killMock, deleteSnapshotMock, MockNotFound } =
+  vi.hoisted(() => {
+    class MockNotFound extends Error {}
+    return {
+      createMock: vi.fn(),
+      connectMock: vi.fn(),
+      killMock: vi.fn(),
+      deleteSnapshotMock: vi.fn(),
+      MockNotFound,
+    }
+  })
 
 vi.mock('e2b', () => ({
-  Sandbox: { create: createMock, connect: connectMock, kill: killMock },
+  Sandbox: {
+    create: createMock,
+    connect: connectMock,
+    kill: killMock,
+    deleteSnapshot: deleteSnapshotMock,
+  },
   SandboxNotFoundError: MockNotFound,
   CommandExitError: class extends Error {},
 }))
@@ -37,6 +44,7 @@ beforeEach(() => {
   createMock.mockReset()
   connectMock.mockReset()
   killMock.mockReset()
+  deleteSnapshotMock.mockReset()
 })
 
 describe('e2bSandbox create', () => {
@@ -245,6 +253,26 @@ describe('e2bSandbox resume', () => {
     await expect(e2bSandbox().resume({ id: 'sbx_live' })).rejects.toThrow(
       'Invalid API key',
     )
+  })
+})
+
+describe('e2bSandbox deleteSnapshot', () => {
+  it('deletes by id and treats an already-gone snapshot as success', async () => {
+    deleteSnapshotMock.mockResolvedValue(false)
+    await expect(
+      e2bSandbox({ apiKey: 'k' }).deleteSnapshot!({ snapshotId: 'snap_1' }),
+    ).resolves.toBeUndefined()
+    expect(deleteSnapshotMock).toHaveBeenCalledWith(
+      'snap_1',
+      expect.objectContaining({ apiKey: 'k' }),
+    )
+  })
+
+  it('rethrows a failed delete', async () => {
+    deleteSnapshotMock.mockRejectedValue(new Error('401 Unauthorized'))
+    await expect(
+      e2bSandbox().deleteSnapshot!({ snapshotId: 'snap_1' }),
+    ).rejects.toThrow('401')
   })
 })
 

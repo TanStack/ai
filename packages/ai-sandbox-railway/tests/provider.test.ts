@@ -13,6 +13,8 @@ import { fakeSandbox } from './fakes'
 const {
   createMock,
   connectMock,
+  checkpointsMock,
+  deleteCheckpointMock,
   MockSandbox,
   MockNotFound,
   MockTimeout,
@@ -34,13 +36,19 @@ const {
   }
   const createMock = vi.fn()
   const connectMock = vi.fn()
+  const checkpointsMock = vi.fn()
+  const deleteCheckpointMock = vi.fn()
   class MockSandbox {
     static create = createMock
     static connect = connectMock
+    static checkpoints = checkpointsMock
+    static deleteCheckpoint = deleteCheckpointMock
   }
   return {
     createMock,
     connectMock,
+    checkpointsMock,
+    deleteCheckpointMock,
     MockSandbox,
     MockNotFound,
     MockTimeout,
@@ -58,6 +66,8 @@ vi.mock('railway', () => ({
 beforeEach(() => {
   createMock.mockReset()
   connectMock.mockReset()
+  checkpointsMock.mockReset()
+  deleteCheckpointMock.mockReset()
 })
 
 afterEach(() => {
@@ -464,5 +474,77 @@ describe('railwaySandbox destroy', () => {
       railwaySandbox().destroy({ id: 'x', signal: controller.signal }),
     ).rejects.toThrow()
     expect(connectMock).not.toHaveBeenCalled()
+  })
+})
+
+describe('railwaySandbox deleteSnapshot', () => {
+  const checkpoint = (id: string, key: string) => ({
+    id,
+    key,
+    environmentId: 'env_1',
+    createdAt: '2026-01-01T00:00:00Z',
+  })
+
+  it('resolves the checkpoint name to its id and deletes it', async () => {
+    checkpointsMock.mockResolvedValue([
+      checkpoint('ckpt_other', 'tsai-sbx_2-b'),
+      checkpoint('ckpt_1', 'tsai-sbx_1-a'),
+    ])
+    deleteCheckpointMock.mockResolvedValue(undefined)
+    await railwaySandbox({ token: 't', environmentId: 'env_1' })
+      .deleteSnapshot!({ snapshotId: 'tsai-sbx_1-a' })
+    expect(checkpointsMock).toHaveBeenCalledWith({
+      token: 't',
+      environmentId: 'env_1',
+    })
+    expect(deleteCheckpointMock).toHaveBeenCalledExactlyOnceWith('ckpt_1', {
+      token: 't',
+      environmentId: 'env_1',
+    })
+  })
+
+  it('treats a checkpoint that is not listed as already deleted', async () => {
+    checkpointsMock.mockResolvedValue([checkpoint('ckpt_2', 'tsai-sbx_2-b')])
+    await expect(
+      railwaySandbox().deleteSnapshot!({ snapshotId: 'tsai-sbx_1-a' }),
+    ).resolves.toBeUndefined()
+    expect(deleteCheckpointMock).not.toHaveBeenCalled()
+  })
+
+  it('treats a delete that lost a race as success', async () => {
+    checkpointsMock
+      .mockResolvedValueOnce([checkpoint('ckpt_1', 'tsai-sbx_1-a')])
+      .mockResolvedValueOnce([])
+    deleteCheckpointMock.mockRejectedValue(new Error('checkpoint not found'))
+    await expect(
+      railwaySandbox().deleteSnapshot!({ snapshotId: 'tsai-sbx_1-a' }),
+    ).resolves.toBeUndefined()
+  })
+
+  it('rethrows a failed delete when the checkpoint is still there', async () => {
+    checkpointsMock.mockResolvedValue([checkpoint('ckpt_1', 'tsai-sbx_1-a')])
+    deleteCheckpointMock.mockRejectedValue(new Error('403 Forbidden'))
+    await expect(
+      railwaySandbox().deleteSnapshot!({ snapshotId: 'tsai-sbx_1-a' }),
+    ).rejects.toThrow('403')
+  })
+
+  it('never deletes a checkpoint this provider did not name', async () => {
+    checkpointsMock.mockResolvedValue([checkpoint('ckpt_g', 'golden')])
+    await railwaySandbox().deleteSnapshot!({ snapshotId: 'golden' })
+    expect(checkpointsMock).not.toHaveBeenCalled()
+    expect(deleteCheckpointMock).not.toHaveBeenCalled()
+  })
+
+  it('rejects an already-aborted signal', async () => {
+    const controller = new AbortController()
+    controller.abort()
+    await expect(
+      railwaySandbox().deleteSnapshot!({
+        snapshotId: 'tsai-sbx_1-a',
+        signal: controller.signal,
+      }),
+    ).rejects.toThrow()
+    expect(checkpointsMock).not.toHaveBeenCalled()
   })
 })

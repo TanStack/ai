@@ -146,9 +146,30 @@ instance store.
 
 ### Checkpoint retention
 
-Checkpoints count against a per-plan quota, and the TanStack provider contract
-has no delete hook. A checkpoint is not deleted when its source sandbox is
-destroyed. Prune `tsai-*` checkpoints you no longer reference:
+Checkpoints outlive their sandbox and count against a per-environment cap set by
+your plan (10 on Trial and Free). Past the cap, a new checkpoint fails with "Too
+many sandbox checkpoints in environment".
+
+`defineSandbox` keeps one checkpoint per sandbox record (the `after-setup` one by
+default, or the latest `after-run` one) and deletes it through the provider's
+`deleteSnapshot` once nothing references it:
+
+- when a newer checkpoint replaces it on the record, and
+- when the sandbox is torn down (`destroy`, `destroyOnComplete`, an aborted run,
+  or the reaper's `reclaimSandbox`).
+
+Deletes are best effort: a failure is logged and never fails the run. Only
+`tsai-*` names are ever deleted, so a base `checkpoint` you configured is safe.
+
+A record that is never destroyed keeps its checkpoint, so one long-lived
+sandbox per thread still holds one checkpoint per thread. If that would exceed
+your cap, set `lifecycle.snapshot: 'none'` or tear sandboxes down when threads
+end. When a checkpoint does fail, the run continues without one and the next
+run re-creates the sandbox instead of restoring it.
+
+Checkpoints that earlier versions of this provider left behind (before
+`deleteSnapshot` existed) are not cleaned up retroactively. Prune leftover
+`tsai-*` checkpoints you no longer reference once:
 
 ```ts
 import { Sandbox } from 'railway'

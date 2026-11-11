@@ -23,7 +23,7 @@ const { machines, snapshots, ctorArgs } = vi.hoisted(() => ({
     files: { upload: vi.fn(), download: vi.fn() },
     proxies: { create: vi.fn(), list: vi.fn(), setPort: vi.fn() },
   },
-  snapshots: { create: vi.fn(), get: vi.fn() },
+  snapshots: { create: vi.fn(), get: vi.fn(), delete: vi.fn() },
   ctorArgs: [] as Array<unknown>,
 }))
 
@@ -63,6 +63,8 @@ beforeEach(() => {
   )
   machines.exec.mockResolvedValue(ok)
   machines.delete.mockResolvedValue(undefined)
+  snapshots.delete.mockReset()
+  snapshots.delete.mockResolvedValue(undefined)
   ctorArgs.length = 0
   delete process.env.BOXD_ORG
 })
@@ -288,6 +290,24 @@ describe('boxdSandbox provider: restoreSnapshot / destroy / config', () => {
     machines.delete.mockRejectedValueOnce(new Error('permission denied'))
     await expect(
       boxdSandbox({ apiKey: 'k' }).destroy({ id: 'vm-1' }),
+    ).rejects.toThrow('permission denied')
+  })
+
+  it('deleteSnapshot deletes by name in the org and swallows an already-deleted snapshot', async () => {
+    const provider = boxdSandbox({ apiKey: 'k', org: 'acme' })
+    await provider.deleteSnapshot!({ snapshotId: 'm-after-setup' })
+    expect(snapshots.delete).toHaveBeenCalledWith('m-after-setup', {
+      org: 'acme',
+    })
+    snapshots.delete.mockRejectedValueOnce(
+      new NotFoundError('snapshot not found', 5),
+    )
+    await expect(
+      provider.deleteSnapshot!({ snapshotId: 'gone' }),
+    ).resolves.toBeUndefined()
+    snapshots.delete.mockRejectedValueOnce(new Error('permission denied'))
+    await expect(
+      provider.deleteSnapshot!({ snapshotId: 'm-after-setup' }),
     ).rejects.toThrow('permission denied')
   })
 

@@ -128,6 +128,7 @@ export interface BoxdClientLike {
   snapshots: {
     create: (machine: string, name: string) => Promise<CreatedSnapshot>
     get: (name: string, params?: { org?: string }) => Promise<Snapshot>
+    delete: (name: string, params?: { org?: string }) => Promise<void>
   }
 }
 

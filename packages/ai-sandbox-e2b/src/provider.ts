@@ -4,6 +4,7 @@ import type { SandboxOpts } from 'e2b'
 import type {
   SandboxCapabilities,
   SandboxCreateInput,
+  SandboxDeleteSnapshotInput,
   SandboxDestroyInput,
   SandboxHandle,
   SandboxPolicy,
@@ -242,6 +243,15 @@ class E2BProvider implements SandboxProvider {
     input.signal?.throwIfAborted()
     // Resolves `false` for a sandbox that is already gone; that is success.
     await Sandbox.kill(input.id, {
+      ...this.connection,
+      ...(input.signal !== undefined ? { signal: input.signal } : {}),
+    })
+  }
+
+  async deleteSnapshot(input: SandboxDeleteSnapshotInput): Promise<void> {
+    input.signal?.throwIfAborted()
+    // Resolves `false` for a snapshot that is already gone; that is success.
+    await Sandbox.deleteSnapshot(input.snapshotId, {
       ...this.connection,
       ...(input.signal !== undefined ? { signal: input.signal } : {}),
     })

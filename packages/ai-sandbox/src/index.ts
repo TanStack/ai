@@ -172,6 +172,7 @@ export type {
   SandboxResumeInput,
   SandboxRestoreInput,
   SandboxDestroyInput,
+  SandboxDeleteSnapshotInput,
 } from './contracts'
 
 // Bootstrap engine (exported for provider/adapter authors + tests)
