@@ -85,7 +85,7 @@ describe('CohereRerankAdapter', () => {
 
   it('aborts a stalled response body at the timeout', async () => {
     vi.useFakeTimers()
-    fetchMock.mockImplementation((_url, init) => {
+    fetchMock.mockImplementation(async (_url, init) => {
       const signal = init?.signal
       const stream = new ReadableStream({
         start(controller) {
