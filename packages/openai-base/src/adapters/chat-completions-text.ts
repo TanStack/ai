@@ -751,6 +751,13 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
       // (absent vs explicit `undefined` matter).
       const resolvedCode = isAbort ? 'aborted' : errorPayload.code
       const rawEvent = isAbort ? undefined : toRunErrorRawEvent(error)
+      // Log before RUN_ERROR: chat() closes this generator at that yield.
+      if (!isAbort) {
+        chatOptions.logger.errors(`${this.name}.structuredOutputStream fatal`, {
+          error: errorPayload,
+          source: `${this.name}.structuredOutputStream`,
+        })
+      }
       yield {
         type: EventType.RUN_ERROR,
         metadata: this.sourceMetadata(
@@ -768,13 +775,6 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
           ...(resolvedCode !== undefined && { code: resolvedCode }),
         },
         ...(lastUsage && { usage: lastUsage }),
-      }
-
-      if (!isAbort) {
-        chatOptions.logger.errors(`${this.name}.structuredOutputStream fatal`, {
-          error: errorPayload,
-          source: `${this.name}.structuredOutputStream`,
-        })
       }
     }
   }

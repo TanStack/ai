@@ -1187,6 +1187,13 @@ export abstract class OpenAIBaseResponsesTextAdapter<
       // `exactOptionalPropertyTypes` (see chatStream catch).
       const resolvedCode = isAbort ? 'aborted' : errorPayload.code
       const rawEvent = isAbort ? undefined : toRunErrorRawEvent(error)
+      // Log before RUN_ERROR: chat() closes this generator at that yield.
+      if (!isAbort) {
+        chatOptions.logger.errors(`${this.name}.structuredOutputStream fatal`, {
+          error: errorPayload,
+          source: `${this.name}.structuredOutputStream`,
+        })
+      }
       yield {
         type: EventType.RUN_ERROR,
         metadata: this.sourceMetadata(
@@ -1203,13 +1210,6 @@ export abstract class OpenAIBaseResponsesTextAdapter<
           message: errorPayload.message,
           ...(resolvedCode !== undefined && { code: resolvedCode }),
         },
-      }
-
-      if (!isAbort) {
-        chatOptions.logger.errors(`${this.name}.structuredOutputStream fatal`, {
-          error: errorPayload,
-          source: `${this.name}.structuredOutputStream`,
-        })
       }
     }
   }

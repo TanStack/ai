@@ -105,6 +105,36 @@ describe.each([
       expect.anything(),
     )
   })
+
+  it('structuredOutputStream logs fatal when the consumer stops at RUN_ERROR', async () => {
+    const { error, logger } = errorsLogger()
+    const client = createOpenAIClient({
+      apiKey: 'test-key',
+      maxRetries: 0,
+      fetch: failingFetch,
+    })
+    for await (const chunk of new Adapter(model, 'openai', client, {
+      fetch: failingFetch,
+    }).structuredOutputStream({
+      chatOptions: {
+        threadId: 'thread-1',
+        logger,
+        model,
+        messages: [{ role: 'user', content: 'Hi' }],
+      },
+      outputSchema: {
+        type: 'object',
+        properties: { a: { type: 'string' } },
+        required: ['a'],
+      },
+    })) {
+      if (chunk.type === 'RUN_ERROR') break
+    }
+    expect(error).toHaveBeenCalledWith(
+      expect.stringContaining('.structuredOutputStream fatal'),
+      expect.anything(),
+    )
+  })
 })
 
 const cases = clients.flatMap((c) => apis.map((a) => ({ ...c, ...a })))
