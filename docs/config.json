@@ -1413,19 +1413,19 @@
           "label": "Portable Snapshots",
           "to": "sandbox/portable-snapshots",
           "addedAt": "2026-08-14",
-          "updatedAt": "2026-10-22"
+          "updatedAt": "2026-11-11"
         },
         {
           "label": "Keep Files After Reload",
           "to": "sandbox/portable-snapshots-configure",
           "addedAt": "2026-08-14",
-          "updatedAt": "2026-10-22"
+          "updatedAt": "2026-11-11"
         },
         {
           "label": "Save a Named Version",
           "to": "sandbox/portable-snapshots-save",
           "addedAt": "2026-08-14",
-          "updatedAt": "2026-10-22"
+          "updatedAt": "2026-11-11"
         },
         {
           "label": "Branch From a Version",
@@ -1449,13 +1449,23 @@
           "label": "Pick Which Files to Keep",
           "to": "sandbox/portable-snapshots-files",
           "addedAt": "2026-08-18",
-          "updatedAt": "2026-10-22"
+          "updatedAt": "2026-11-11"
         },
         {
           "label": "What a Snapshot Stores",
           "to": "sandbox/portable-snapshots-safety",
           "addedAt": "2026-08-14",
-          "updatedAt": "2026-10-22"
+          "updatedAt": "2026-11-11"
+        },
+        {
+          "label": "Checkpoint at Any Time",
+          "to": "sandbox/portable-snapshots-checkpoints",
+          "addedAt": "2026-11-11"
+        },
+        {
+          "label": "Store Checkpoints",
+          "to": "sandbox/portable-snapshots-storage",
+          "addedAt": "2026-11-11"
         },
         {
           "label": "Instance Durability",
@@ -1538,7 +1548,12 @@
           "label": "Cloudflare (Edge)",
           "to": "sandbox/cloudflare",
           "addedAt": "2026-06-29",
-          "updatedAt": "2026-10-22"
+          "updatedAt": "2026-11-11"
+        },
+        {
+          "label": "Your Own Cloudflare Container",
+          "to": "sandbox/cloudflare-container",
+          "addedAt": "2026-11-11"
         },
         {
           "label": "Cloudflare Edge Details",

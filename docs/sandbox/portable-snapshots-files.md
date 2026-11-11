@@ -93,11 +93,12 @@ cannot capture or restore that marker.
 ## How include and exclude run
 
 Each path is a workspace-relative string such as `src/app.ts`. `kind` is
-`file` or `dir`.
+`file` or `dir`. A symlink gets `file`.
 
 1. The projection marker is skipped.
 2. If `exclude(path, kind)` returns true, the path is skipped. For a
-   directory, the whole tree under it is skipped.
+   directory, the whole tree under it is skipped. This check runs first, so
+   an excluded path never fails the capture.
 3. For a file, `include(path, 'file')` must return true. If you omit
    `include`, every file that is not excluded is stored.
 4. Capture then walks parent directories so a nested file can still match.
@@ -206,6 +207,30 @@ const policy = {
 }
 ```
 
+## Skip a link that leaves the workspace
+
+A capture keeps each symlink as a link. When the target of a link is outside
+the workspace, the capture fails with `SandboxSnapshotError` code
+`SANDBOX_SNAPSHOT_UNSUPPORTED_ENTRY`. The error message names the path. Add
+that path to `exclude`:
+
+```ts
+import { defaultSandboxSnapshotPolicy } from '@tanstack/ai-sandbox'
+
+const defaults = defaultSandboxSnapshotPolicy()
+
+const policy = {
+  ...defaults,
+  exclude(path: string, kind: 'file' | 'dir') {
+    if (defaults.exclude?.(path, kind)) return true
+    return path === 'cache-link'
+  },
+}
+```
+
+Do the same for a fifo, a socket, or a device file. The next capture skips
+the path and stores the rest of the workspace.
+
 ## What the policy does not filter
 
 The file policy applies to workspace files and empty directories only.
@@ -220,6 +245,10 @@ exclusions, and restore safety.
 
 Restore uses the same policy. Files that the policy does not include stay on
 the destination disk. Restore does not delete those files.
+
+Each restored file gets its saved permission bits, so an executable script
+such as `gradlew` still runs. Each saved link is made again. See
+[Executable files and links](./portable-snapshots-safety#executable-files-and-links).
 
 Automatic restore still writes the latest checkpoint into a new private
 sandbox. It does not write into a live resumed sandbox.

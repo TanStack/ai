@@ -575,6 +575,60 @@ async function* failingStream(message: string): AsyncGenerator<StreamChunk> {
   throw new Error(message)
 }
 
+/** Run a chat whose adapter writes `/workspace/notes.md`, then fails. */
+async function runWriteThenFail(f: Fixture) {
+  let ready: SandboxHandle | undefined
+  const definition = defineSandbox({
+    id: 'fixture',
+    provider: f.provider,
+    lifecycle: { snapshot: 'after-run', destroyOnComplete: true },
+    workspace: { source: { type: 'none' } },
+    fileEvents: false,
+    hooks: {
+      onReady: (sandbox) => {
+        ready = sandbox
+      },
+    },
+  })
+  const writeThenFailAdapter: AnyTextAdapter = {
+    ...adapter,
+    chatStream: async function* () {
+      await ready?.fs.write('/workspace/notes.md', 'half done')
+      yield* failingStream('adapter stream failed')
+    },
+  }
+  await drain(
+    chat({
+      adapter: writeThenFailAdapter,
+      messages: [{ role: 'user', content: 'hello' }],
+      runId: 'run-1',
+      threadId: 'thread-1',
+      middleware: [
+        withPersistence(f.persistence),
+        snapshotMiddleware(f, { definition }),
+      ],
+    }),
+  )
+}
+
+/** Read a file's bytes, as text, from the `checkpoint-run-1` checkpoint. */
+async function capturedFileText(f: Fixture, path: string) {
+  const checkpoint = await f.checkpoints.get('checkpoint-run-1')
+  const entry = checkpoint?.files.find((file) => file.path === path)
+  if (!entry || entry.kind !== 'file')
+    throw new Error(`Expected ${path} in checkpoint-run-1`)
+  const blob = await f.persistence.stores.blobs.get(entry.blobKey)
+  if (!blob) throw new Error(`Expected the blob for ${path}`)
+  return blob.text()
+}
+
+/** Position of the first `method` event, so tests can pin call order. */
+function methodIndex(f: Fixture, method: string) {
+  const index = f.events.findIndex((event) => event.method === method)
+  if (index === -1) throw new Error(`Expected a ${method} event`)
+  return index
+}
+
 type CaptureBoundary =
   | 'completion'
   | 'conversation'
@@ -1020,26 +1074,59 @@ describe('sandbox snapshot lifecycle foundation', () => {
     }
   })
 
-  it('releases the writer without capture when a run aborts', async () => {
+  it('writes a checkpoint, then releases the writer and destroys, when a run aborts', async () => {
     const f = fixture()
     const ctx = makeMiddlewareCtx({ threadId: 'thread-1', runId: 'run-1' })
     const persistence = withPersistence(f.persistence)
-    const sandbox = withSandbox(f.definition, {
-      instances: f.instances,
-      snapshots: { persistence: f.persistence, checkpoints: f.checkpoints },
-    })
-    const append = vi.spyOn(f.checkpoints, 'append')
+    const sandbox = snapshotMiddleware(f)
     await persistence.setup?.(ctx)
     await sandbox.setup?.(ctx)
-    await sandbox.onAbort?.(ctx, {
-      cancelRequested: true,
-      reason: 'test abort',
-      duration: 1,
-    })
-    expect(append).not.toHaveBeenCalled()
+    await ctx.get(SandboxCapability).fs.write('/workspace/draft.ts', 'draft')
+    const abort = { cancelRequested: true, reason: 'test abort', duration: 1 }
+    await persistence.onAbort?.(ctx, abort)
+    await sandbox.onAbort?.(ctx, abort)
+
+    expect(await capturedFileText(f, 'draft.ts')).toBe('draft')
+    expect(await f.checkpoints.getHead('thread-1')).toBe('checkpoint-run-1')
+    expect(methodIndex(f, 'fs.list')).toBeLessThan(methodIndex(f, 'destroy'))
     const lease = await f.checkpoints.acquireWriter('thread-1')
     await lease.release()
   })
+
+  it.each(['abort', 'error'] as const)(
+    'writes no checkpoint on %s after the run paused at an interrupt',
+    async (phase) => {
+      const f = fixture()
+      const ctx = makeMiddlewareCtx({ threadId: 'thread-1', runId: 'run-1' })
+      const persistence = withPersistence(f.persistence)
+      const sandbox = snapshotMiddleware(f)
+      const append = vi.spyOn(f.checkpoints, 'append')
+      await persistence.setup?.(ctx)
+      await sandbox.setup?.(ctx)
+      await sandbox.onChunk?.(ctx, {
+        type: EventType.RUN_FINISHED,
+        runId: 'run-1',
+        threadId: 'thread-1',
+        finishReason: 'stop',
+        timestamp: 1,
+        outcome: { type: 'interrupt', interrupts: [] },
+      })
+      if (phase === 'abort')
+        await sandbox.onAbort?.(ctx, {
+          cancelRequested: true,
+          reason: 'test abort',
+          duration: 1,
+        })
+      else
+        await sandbox.onError?.(ctx, {
+          error: new Error('late failure'),
+          duration: 1,
+        })
+
+      expect(append).not.toHaveBeenCalled()
+      expect(await f.checkpoints.getHead('thread-1')).toBeNull()
+    },
+  )
 
   it('releases the writer without capture when an actionable interrupt pauses', async () => {
     const f = fixture()
@@ -1386,37 +1473,30 @@ describe('sandbox snapshot lifecycle foundation', () => {
     expect(f.events.some((event) => event.method === 'destroy')).toBe(true)
   })
 
-  it('does not capture or append when a created run adapter fails', async () => {
+  it('writes a checkpoint of the files an adapter wrote before it failed', async () => {
     const f = fixture()
-    const append = vi.spyOn(f.checkpoints, 'append')
-    const failingAdapter: AnyTextAdapter = {
-      ...adapter,
-      chatStream: () => failingStream('adapter stream failed'),
-    }
 
-    await expect(
-      drain(
-        chat({
-          adapter: failingAdapter,
-          messages: [{ role: 'user', content: 'hello' }],
-          runId: 'run-1',
-          threadId: 'thread-1',
-          middleware: [
-            withPersistence(f.persistence),
-            withSandbox(afterRunDefinition(f), {
-              instances: f.instances,
-              snapshots: {
-                persistence: f.persistence,
-                checkpoints: f.checkpoints,
-              },
-            }),
-          ],
-        }),
-      ),
-    ).rejects.toThrow('adapter stream failed')
+    await expect(runWriteThenFail(f)).rejects.toThrow('adapter stream failed')
 
-    expect(append).not.toHaveBeenCalled()
-    expect(f.events.some((event) => event.method === 'fs.list')).toBe(false)
+    expect(await capturedFileText(f, 'notes.md')).toBe('half done')
+    expect(await f.checkpoints.getHead('thread-1')).toBe('checkpoint-run-1')
+    expect(f.events.filter((event) => event.method === 'destroy')).toHaveLength(
+      1,
+    )
+    expect(methodIndex(f, 'fs.list')).toBeLessThan(methodIndex(f, 'destroy'))
+    const lease = await f.checkpoints.acquireWriter('thread-1')
+    await lease.release()
+  })
+
+  it('keeps the run error when the failure checkpoint cannot be written', async () => {
+    const f = fixture()
+    vi.spyOn(f.persistence.stores.blobs, 'put').mockRejectedValue(
+      new Error('blob store down'),
+    )
+
+    await expect(runWriteThenFail(f)).rejects.toThrow('adapter stream failed')
+
+    expect(await f.checkpoints.getHead('thread-1')).toBeNull()
     expect(f.events.filter((event) => event.method === 'destroy')).toHaveLength(
       1,
     )
@@ -1779,20 +1859,16 @@ describe('sandbox snapshot lifecycle foundation', () => {
       { role: 'assistant', content: 'The completed answer' },
     ])
     expect(checkpoint?.files).toEqual([
-      { kind: 'file', path: 'app.ts', size: 23, blobKey: expect.any(String) },
+      {
+        kind: 'file',
+        path: 'app.ts',
+        size: 23,
+        blobKey: expect.any(String),
+        mode: 0o644,
+      },
       { kind: 'dir', path: 'empty-dir' },
     ])
-    const capturedFile = checkpoint?.files.find(
-      (entry) => entry.kind === 'file' && entry.path === 'app.ts',
-    )
-    if (!capturedFile || capturedFile.kind !== 'file')
-      throw new Error('Expected the app.ts file to be captured')
-    const capturedFileBlob = await f.persistence.stores.blobs.get(
-      capturedFile.blobKey,
-    )
-    if (!capturedFileBlob)
-      throw new Error('Expected the captured app.ts blob to exist')
-    expect(await capturedFileBlob.text()).toBe('export const app = true')
+    expect(await capturedFileText(f, 'app.ts')).toBe('export const app = true')
     expect(checkpoint?.artifacts).toEqual([
       {
         artifactId: 'generated.txt',
@@ -2180,26 +2256,33 @@ describe('sandbox snapshot lifecycle foundation', () => {
         snapshots: { persistence: f.persistence, checkpoints: f.checkpoints },
       }),
     ]
-    const getHead = vi.spyOn(f.checkpoints, 'getHead')
-    const get = vi.spyOn(f.checkpoints, 'get')
-    const loadThread = vi.spyOn(f.persistence.stores.messages, 'loadThread')
-    const listForThread = vi
-      .spyOn(f.persistence.stores.artifacts, 'listForThread')
-      .mockRejectedValue(new Error('artifacts touched'))
-    const blobGet = vi
-      .spyOn(f.persistence.stores.blobs, 'get')
-      .mockRejectedValue(new Error('blobs touched'))
-    const blobHead = vi
-      .spyOn(f.persistence.stores.blobs, 'head')
-      .mockRejectedValue(new Error('blobs touched'))
-    const blobPut = vi
-      .spyOn(f.persistence.stores.blobs, 'put')
-      .mockRejectedValue(new Error('blobs touched'))
-    let baseline = 0
+    const snapshotSpies = [
+      vi.spyOn(f.checkpoints, 'getHead'),
+      vi.spyOn(f.checkpoints, 'get'),
+      vi
+        .spyOn(f.persistence.stores.artifacts, 'listForThread')
+        .mockRejectedValue(new Error('artifacts touched')),
+      vi
+        .spyOn(f.persistence.stores.blobs, 'get')
+        .mockRejectedValue(new Error('blobs touched')),
+      vi
+        .spyOn(f.persistence.stores.blobs, 'head')
+        .mockRejectedValue(new Error('blobs touched')),
+      vi
+        .spyOn(f.persistence.stores.blobs, 'put')
+        .mockRejectedValue(new Error('blobs touched')),
+    ]
+    // Read at run start: the failed run later writes a best-effort
+    // checkpoint, which may touch these stores on purpose.
+    let touchedInSetup: Array<string> = []
+    let methodsInSetup: Array<string> = []
     const liveAdapter: AnyTextAdapter = {
       ...adapter,
       chatStream: async function* () {
-        baseline = loadThread.mock.calls.length
+        touchedInSetup = snapshotSpies
+          .filter((spy) => spy.mock.calls.length > 0)
+          .map((spy) => spy.getMockName())
+        methodsInSetup = f.events.map((event) => event.method)
         yield* failingStream('stop')
       },
     }
@@ -2214,16 +2297,7 @@ describe('sandbox snapshot lifecycle foundation', () => {
         }),
       ),
     ).rejects.toThrow('stop')
-    expect(loadThread).toHaveBeenCalledTimes(baseline)
-    expect(f.events.map((event) => event.method)).toEqual(['resume'])
-    expect(f.events.some((event) => event.method === 'restoreSnapshot')).toBe(
-      false,
-    )
-    expect(getHead).not.toHaveBeenCalled()
-    expect(get).not.toHaveBeenCalled()
-    expect(listForThread).not.toHaveBeenCalled()
-    expect(blobGet).not.toHaveBeenCalled()
-    expect(blobHead).not.toHaveBeenCalled()
-    expect(blobPut).not.toHaveBeenCalled()
+    expect(methodsInSetup).toEqual(['resume'])
+    expect(touchedInSetup).toEqual([])
   })
 })

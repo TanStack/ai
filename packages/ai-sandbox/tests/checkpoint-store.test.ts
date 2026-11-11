@@ -338,6 +338,32 @@ describe('InMemorySandboxCheckpointStore', () => {
         size: 1.5,
       },
     },
+    ...[0o1000, -1, 1.5, '755'].map((mode) => ({
+      name: `file mode ${String(mode)}`,
+      entry: {
+        path: 'tool.sh',
+        kind: 'file',
+        blobKey: validFileKey,
+        size: 1,
+        mode,
+      },
+    })),
+    {
+      name: 'symlink with a blobKey',
+      entry: { path: 'l', kind: 'symlink', target: 'x', blobKey: validFileKey },
+    },
+    {
+      name: 'symlink with a mode',
+      entry: { path: 'l', kind: 'symlink', target: 'x', mode: 0o755 },
+    },
+    {
+      name: 'symlink without a target',
+      entry: { path: 'l', kind: 'symlink', target: '' },
+    },
+    {
+      name: 'symlink target with NUL',
+      entry: { path: 'l', kind: 'symlink', target: 'a\0b' },
+    },
   ]
   it.each(invalidEntries)(
     'rejects $name without changing checkpoint state',
@@ -488,6 +514,14 @@ describe('InMemorySandboxCheckpointStore', () => {
       [
         { path: 'a/b', kind: 'file' as const, blobKey: validFileKey, size: 1 },
         { path: 'a', kind: 'file' as const, blobKey: validFileKey, size: 1 },
+      ],
+      [
+        { path: 'a', kind: 'symlink' as const, target: 'x' },
+        { path: 'a/b', kind: 'dir' as const },
+      ],
+      [
+        { path: 'a/b', kind: 'file' as const, blobKey: validFileKey, size: 1 },
+        { path: 'a', kind: 'symlink' as const, target: 'x' },
       ],
     ]) {
       await expect(
@@ -642,6 +676,87 @@ describe('InMemorySandboxCheckpointStore', () => {
     expect(await store.getHead('thread-a')).toBeNull()
     expect(await store.list('thread-a')).toEqual([])
     expect(await store.listBlobReferences()).toEqual([])
+  })
+
+  describe('deleteCheckpoints', () => {
+    async function deleteOld(store: InMemorySandboxCheckpointStore) {
+      return store.deleteCheckpoints({
+        threadId: 'thread-a',
+        keep: 1,
+        writer: await writerFor(store, 'thread-a'),
+      })
+    }
+
+    async function storeWithChain() {
+      const store = new InMemorySandboxCheckpointStore()
+      await append(store, { checkpoint: checkpoint('a'), expectedHeadId: null })
+      await append(store, {
+        checkpoint: checkpoint('b', 'a'),
+        expectedHeadId: 'a',
+      })
+      await append(store, {
+        checkpoint: checkpoint('c', 'b'),
+        expectedHeadId: 'b',
+      })
+      return store
+    }
+
+    it('keeps the parent id of the oldest kept checkpoint', async () => {
+      const store = await storeWithChain()
+      await expect(deleteOld(store)).resolves.toEqual({ deleted: ['a', 'b'] })
+      expect((await store.get('c'))?.parentCheckpointId).toBe('b')
+      expect(await store.get('b')).toBeNull()
+    })
+
+    it('leaves no head when deleteHead removes the oldest kept checkpoint', async () => {
+      const store = await storeWithChain()
+      await deleteOld(store)
+      await deleteHead(store, { threadId: 'thread-a', checkpointId: 'c' })
+      expect(await store.getHead('thread-a')).toBeNull()
+      expect(await store.list('thread-a')).toEqual([])
+    })
+
+    it('stops at a removed id that a newer checkpoint uses again', async () => {
+      const store = await storeWithChain()
+      await deleteOld(store)
+      // The new 'b' is the head. Its parent 'c' still points to 'b'.
+      await append(store, {
+        checkpoint: checkpoint('b', 'c'),
+        expectedHeadId: 'c',
+      })
+      await expect(deleteOld(store)).resolves.toEqual({ deleted: ['c'] })
+      expect((await store.list('thread-a')).map((entry) => entry.id)).toEqual([
+        'b',
+      ])
+    })
+  })
+
+  it('keeps file modes and symlinks and counts only file blobs', async () => {
+    const memory = await memorySandboxSnapshots()
+    const stores: Array<SandboxCheckpointStore> = [
+      new InMemorySandboxCheckpointStore(),
+      memory.checkpoints,
+    ]
+    const files = [
+      {
+        path: 'bin/tool.sh',
+        kind: 'file' as const,
+        blobKey: validFileKey,
+        size: 1,
+        mode: 0o755,
+      },
+      { path: 'latest', kind: 'symlink' as const, target: 'bin/tool.sh' },
+    ]
+    for (const store of stores) {
+      await append(store, {
+        checkpoint: { ...checkpoint('root'), files, artifacts: [] },
+        expectedHeadId: null,
+      })
+      expect((await store.get('root'))?.files).toEqual(files)
+      expect(await store.listBlobReferences()).toEqual([
+        { key: validFileKey, references: 1 },
+      ])
+    }
   })
 
   it('rejects reentrant outer append for both checkpoint stores', async () => {

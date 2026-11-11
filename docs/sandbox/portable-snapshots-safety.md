@@ -7,12 +7,45 @@ description: "See which workspace paths a portable snapshot stores, and how capt
 
 The default snapshot policy excludes secrets, git metadata, and install trees. A capture or restore stops when it finds an unsafe filesystem entry.
 
-Portable snapshots store regular files and directories only. When a capture or
-restore finds a symlink, an executable file, or a special filesystem entry, it
-fails with `SandboxSnapshotError` code
-`SANDBOX_SNAPSHOT_UNSUPPORTED_ENTRY`. Exclude scripts, hooks, and other
-executable files in `policy.exclude`. An executable bit on a regular file
-stops the whole capture or restore.
+Portable snapshots store regular files with their permission bits,
+directories, and symlinks. A capture fails with `SandboxSnapshotError` code
+`SANDBOX_SNAPSHOT_UNSUPPORTED_ENTRY` when it finds one of these entries:
+
+- A symlink whose target is outside the workspace.
+- A fifo, a socket, or a device file.
+
+A restore fails with the same code when the destination workspace has a fifo,
+a socket, or a device file.
+
+Add the path to `policy.exclude`. The policy runs before this check, so an
+excluded path never fails. See
+[Skip a link that leaves the workspace](./portable-snapshots-files#skip-a-link-that-leaves-the-workspace).
+
+## When `withSandbox` writes a checkpoint
+
+- **A run finishes.** The checkpoint is written after persistence saves the
+  conversation.
+- **A run fails or is aborted.** The checkpoint is written while the sandbox
+  files still exist. This capture is best effort. A failed capture is logged
+  as a warning, and the run keeps its own error.
+- **A run pauses at an interrupt.** No checkpoint is written, because the run
+  is not done.
+
+To write a checkpoint at another time, see
+[Checkpoint at Any Time](./portable-snapshots-checkpoints).
+
+## Executable files and links
+
+- **Permission bits.** A capture saves the permission bits of each file. A
+  restore sets them again with `chmod`, so a script such as `gradlew` still
+  runs.
+- **Links.** A capture saves each symlink with its target text. A restore
+  makes the link again with `ln -s`. A target inside the workspace can be
+  missing.
+- **Provider needs.** The provider must implement `fs.lstat`. Without it, a
+  capture or restore fails with code `SANDBOX_SNAPSHOT_LSTAT_REQUIRED`. The
+  capture runs `readlink`, and the restore runs `ln -s` and `chmod`, through
+  `process.exec`.
 
 ## Default exclusions
 

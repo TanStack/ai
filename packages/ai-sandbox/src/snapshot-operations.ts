@@ -85,7 +85,11 @@ export interface SandboxSnapshots<
 
 type Failure = { error: unknown }
 
-async function withWriterLease<T>(
+/**
+ * Internal. Runs `operation` while this process holds the writer lease of a
+ * thread. It renews the lease when `renew` is true and always releases it.
+ */
+export async function withWriterLease<T>(
   acquire: () => Promise<SandboxCheckpointWriterLease>,
   renew: boolean,
   operation: (

@@ -31,6 +31,10 @@
       "types": "./dist/esm/agent.d.ts",
       "import": "./dist/esm/agent.js"
     },
+    "./container": {
+      "types": "./dist/esm/container.d.ts",
+      "import": "./dist/esm/container.js"
+    },
     "./runner": {
       "types": "./dist/esm/runner.d.ts",
       "import": "./dist/esm/runner.js"
@@ -59,6 +63,11 @@
     "@tanstack/ai-sandbox": "workspace:^",
     "@tanstack/ai-sandbox-local-process": "workspace:^",
     "zod": "^4.0.0"
+  },
+  "peerDependenciesMeta": {
+    "@tanstack/ai-sandbox-local-process": {
+      "optional": true
+    }
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20260317.1",
