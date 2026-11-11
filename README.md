@@ -354,3 +354,5 @@ on.
   virtualized rendering
 
 ...and more at <a href="https://tanstack.com"><b>TanStack.com</b></a>.
+
+<!-- Package preview card check, 2026-11-11. Do not merge. -->
