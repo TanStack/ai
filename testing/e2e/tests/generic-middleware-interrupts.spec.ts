@@ -29,8 +29,6 @@ async function startScenario(
         .getElementById('mw-metadata')
         ?.getAttribute('data-is-loading') === 'false',
   )
-  // Let React attach delegated handlers before interaction.
-  await page.waitForTimeout(300)
 
   const readCount = () =>
     page.evaluate(() =>
