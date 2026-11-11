@@ -491,6 +491,10 @@ export class BlaxelHandle implements SandboxHandle {
       const recordStart = q(recordPrefix + RECORD_STREAM_LABEL[label])
       return [
         '(',
+        // Stay alive through TERM until a foreground helper (dd/wc/base64)
+        // exits, so it is reaped here instead of remaining as a process-group
+        // zombie that `kill -0 -$pgid` still observes.
+        "trap ':' HUP INT TERM",
         // Count raw bytes explicitly because `ulimit -f` units vary between
         // shells. Every completed chunk is appended before the same bytes are
         // framed for the SDK; the one-byte probe detects exclusive overflow.
@@ -544,13 +548,21 @@ export class BlaxelHandle implements SandboxHandle {
       '  for __tanstack_pid in "${__tanstack_command:-}" "${__tanstack_stdout_reader:-}" "${__tanstack_stderr_reader:-}"; do',
       '    if [ -n "$__tanstack_pid" ]; then kill -TERM -- "-$__tanstack_pid" 2>/dev/null || true; fi',
       '  done',
-      '  sleep 0.1',
-      '  for __tanstack_pid in "${__tanstack_command:-}" "${__tanstack_stdout_reader:-}" "${__tanstack_stderr_reader:-}"; do',
-      '    if [ -n "$__tanstack_pid" ]; then kill -KILL -- "-$__tanstack_pid" 2>/dev/null || true; fi',
-      '  done',
+      // Wait for the groups to exit (and reap their helpers) before SIGKILL,
+      // so a racey group-KILL cannot leave dd zombies that keep the pgid alive.
+      '  (',
+      '    sleep 1',
+      '    for __tanstack_pid in "${__tanstack_command:-}" "${__tanstack_stdout_reader:-}" "${__tanstack_stderr_reader:-}"; do',
+      '      if [ -n "$__tanstack_pid" ]; then kill -KILL -- "-$__tanstack_pid" 2>/dev/null || true; fi',
+      '    done',
+      '  ) &',
+      '  __tanstack_watchdog=$!',
       '  for __tanstack_pid in "${__tanstack_command:-}" "${__tanstack_stdout_reader:-}" "${__tanstack_stderr_reader:-}"; do',
       '    if [ -n "$__tanstack_pid" ]; then wait "$__tanstack_pid" 2>/dev/null || true; fi',
       '  done',
+      '  kill "$__tanstack_watchdog" 2>/dev/null || true',
+      '  wait "$__tanstack_watchdog" 2>/dev/null || true',
+      '  wait 2>/dev/null || true',
       `  rm -f -- ${outPipe} ${errPipe} ${pidsFile}`,
       '  exit "$__tanstack_reap_status"',
       '}',
