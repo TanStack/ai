@@ -1,5 +1,9 @@
 import { BaseRerankAdapter } from '@tanstack/ai/adapters'
-import { resolveCohereTransport, getCohereApiKeyFromEnv } from '../utils/client'
+import {
+  fetchWithTimeout,
+  resolveCohereTransport,
+  getCohereApiKeyFromEnv,
+} from '../utils/client'
 import type { CohereClientConfig } from '../utils/client'
 import type {
   CohereRerankModel,
@@ -46,6 +50,7 @@ export class CohereRerankAdapter<
 > extends BaseRerankAdapter<TModel, InferCohereRerankProviderOptions<TModel>> {
   readonly name = 'cohere' as const
 
+  private readonly timeout: number
   private readonly apiKey: string
   private readonly baseUrl: string
   private readonly headers: Record<string, string>
@@ -53,6 +58,7 @@ export class CohereRerankAdapter<
   constructor(config: CohereClientConfig, model: TModel) {
     super({}, model)
     this.apiKey = config.apiKey
+    this.timeout = config.timeout ?? 30_000
     const transport = resolveCohereTransport(config)
     this.baseUrl = transport.baseUrl
     this.headers = transport.headers
@@ -75,18 +81,33 @@ export class CohereRerankAdapter<
       { provider: this.name, model },
     )
 
-    let response: Response
+    let json: unknown
     try {
-      response = await fetch(`${this.baseUrl}/v2/rerank`, {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${this.apiKey}`,
-          'Content-Type': 'application/json',
-          ...this.headers,
+      json = await fetchWithTimeout(
+        `${this.baseUrl}/v2/rerank`,
+        {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${this.apiKey}`,
+            'Content-Type': 'application/json',
+            ...this.headers,
+          },
+          body: JSON.stringify(body),
+          ...(abortSignal ? { signal: abortSignal } : {}),
         },
-        body: JSON.stringify(body),
-        ...(abortSignal ? { signal: abortSignal } : {}),
-      })
+        this.timeout,
+        async (response): Promise<unknown> => {
+          if (!response.ok) {
+            const detail = await response.text().catch(() => '')
+            throw new Error(
+              `Cohere rerank request failed: ${response.status} ${response.statusText}${
+                detail ? ` — ${detail}` : ''
+              }`,
+            )
+          }
+          return response.json()
+        },
+      )
     } catch (error) {
       logger.errors(`${this.name}.rerank fatal`, {
         error,
@@ -94,22 +115,6 @@ export class CohereRerankAdapter<
       })
       throw error
     }
-
-    if (!response.ok) {
-      const detail = await response.text().catch(() => '')
-      const error = new Error(
-        `Cohere rerank request failed: ${response.status} ${response.statusText}${
-          detail ? ` — ${detail}` : ''
-        }`,
-      )
-      logger.errors(`${this.name}.rerank fatal`, {
-        error,
-        source: `${this.name}.rerank`,
-      })
-      throw error
-    }
-
-    const json: unknown = await response.json()
     if (!isCohereRerankResponse(json)) {
       throw new Error('Cohere rerank response had an unexpected shape')
     }
