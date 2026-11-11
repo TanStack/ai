@@ -5,7 +5,7 @@ order: 12
 description: "Let a user mark one live sandbox workspace as a named checkpoint."
 ---
 
-`snapshots.save` writes the live sandbox to a named checkpoint. Automatic saves still run at the end of each completed run.
+`snapshots.save` writes the live sandbox to a named checkpoint. Automatic saves still run at the end of each run, also a run that fails or is aborted.
 
 The method needs a live, reusable sandbox for the thread. A lifecycle with
 `reuse: 'none'` cannot create a named checkpoint.
