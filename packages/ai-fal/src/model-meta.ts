@@ -31,15 +31,6 @@ export interface EndpointTypeMap
  */
 export type FalModel = keyof EndpointTypeMap | (string & {})
 
-/** fal image endpoint ids. Also accepts any string. */
-export type FalImageModel = keyof FalImageEndpoints | (string & {})
-
-/** fal video endpoint ids. Also accepts any string. */
-export type FalVideoModel = keyof FalVideoEndpoints | (string & {})
-
-/** fal audio endpoint ids (speech, transcription, music, sound). */
-export type FalAudioModel = keyof FalAudioEndpoints | (string & {})
-
 /**
  * Utility type to extract the input type for a specific fal model.
  *

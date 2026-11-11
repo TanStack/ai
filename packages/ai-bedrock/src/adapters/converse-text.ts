@@ -41,6 +41,10 @@ import type {
 } from '@aws-sdk/client-bedrock-runtime'
 import type { MiddlewareStack } from '@smithy/types'
 import type {
+  AmazonBedrockPostModelModelidConverseBody,
+  AmazonBedrockPostModelModelidConverseStreamBody,
+} from '../generated/client/types'
+import type {
   JSONSchema,
   Modality,
   AdapterYieldChunk,
@@ -245,6 +249,7 @@ export class BedrockConverseTextAdapter<
   ): Promise<AsyncIterable<ConverseStreamOutput>> {
     const { ConverseStreamCommand } = await this.importBedrockRuntime()
     const client = await this.getClient()
+    converseBody(input)
     const command = new ConverseStreamCommand(input)
     addRestoreDocuments(command, input)
     const res = await client.send(command, { abortSignal: signal ?? undefined })
@@ -260,6 +265,7 @@ export class BedrockConverseTextAdapter<
   ): Promise<ConverseCommandOutput> {
     const { ConverseCommand } = await this.importBedrockRuntime()
     const client = await this.getClient()
+    converseBody(input)
     const command = new ConverseCommand(input)
     addRestoreDocuments(command, input)
     return client.send(command, { abortSignal: signal ?? undefined })
@@ -808,6 +814,32 @@ function extractStructuredToolInput(
     }
   }
   return undefined
+}
+
+/**
+ * Type-checks a Converse or ConverseStream request against the generated REST
+ * body (`modelId` is the path param). The SDK command still takes `input`: the
+ * generated unions are not tagged, so the body does not type back as one.
+ */
+function converseBody({
+  modelId: _modelId,
+  messages,
+  system,
+  toolConfig,
+  ...rest
+}:
+  | ConverseCommandInput
+  | ConverseStreamCommandInput): AmazonBedrockPostModelModelidConverseBody &
+  AmazonBedrockPostModelModelidConverseStreamBody {
+  return {
+    // @ts-expect-error public type mismatch: the SDK marks every member optional (role) and takes blobs as Uint8Array, the REST body as base64
+    messages,
+    // @ts-expect-error public type mismatch: the SDK marks every member optional (cachePoint.type)
+    system,
+    // @ts-expect-error public type mismatch: the SDK marks every member optional (tools, toolChoice.tool.name)
+    toolConfig,
+    ...rest,
+  }
 }
 
 /** The parts of a Converse request that hold documents the adapter fills from user data. */

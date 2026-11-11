@@ -5,6 +5,7 @@ import {
   createOllamaChat,
   ollamaText,
 } from '../src/adapters/text'
+import { Ollama } from 'ollama'
 import type { Mock } from 'vitest'
 import type { AdapterYieldChunk, Tool } from '@tanstack/ai'
 
@@ -12,13 +13,11 @@ const testLogger = resolveDebugOption(false)
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 let chatMock: Mock<(...args: Array<any>) => any>
-let ollamaConstructorCalls: Array<{ host?: string } | undefined>
 
 vi.mock('ollama', () => {
   class Ollama {
     chat: (...args: Array<unknown>) => unknown
-    constructor(config?: { host?: string }) {
-      ollamaConstructorCalls.push(config)
+    constructor() {
       this.chat = (...args) => chatMock(...args)
     }
   }
@@ -49,7 +48,6 @@ const searchTool: Tool = {
 
 beforeEach(() => {
   chatMock = vi.fn()
-  ollamaConstructorCalls = []
 })
 
 afterEach(() => {
@@ -78,15 +76,24 @@ describe('OllamaTextAdapter construction', () => {
     expect(adapter).toBeInstanceOf(OllamaTextAdapter)
   })
 
-  it('ollamaText reads OLLAMA_HOST from env and forwards it to the Ollama client', () => {
+  it('ollamaText reads OLLAMA_HOST from env and sends to that host', async () => {
     vi.stubEnv('OLLAMA_HOST', 'http://from-env:11434')
     const adapter = ollamaText('llama3.2')
     expect(adapter.model).toBe('llama3.2')
-    // The adapter must instantiate the Ollama client with the env-derived host —
-    // asserting only on adapter.model would pass even if OLLAMA_HOST were ignored.
-    expect(ollamaConstructorCalls).toContainEqual(
-      expect.objectContaining({ host: 'http://from-env:11434' }),
+    const urls: Array<string> = []
+    await collectStream(
+      adapter.chatStream({
+        threadId: 'thread-1',
+        logger: testLogger,
+        model: 'llama3.2',
+        messages: [{ role: 'user', content: 'hi' }],
+        wrapFetch: () => async (input) => {
+          urls.push(String(input))
+          return new Response('{"done":true}\n')
+        },
+      }),
     )
+    expect(urls).toEqual(['http://from-env:11434/api/chat'])
   })
 })
 
@@ -110,7 +117,7 @@ describe('OllamaTextAdapter.chatStream (content streaming)', () => {
       ]),
     )
 
-    const adapter = createOllamaChat('llama3.2')
+    const adapter = new OllamaTextAdapter(new Ollama(), 'llama3.2')
     const chunks = await collectStream(
       adapter.chatStream({
         threadId: 'thread-1',
@@ -149,7 +156,7 @@ describe('OllamaTextAdapter.chatStream (content streaming)', () => {
     )
 
     const chunks = await collectStream(
-      createOllamaChat('llama3.2').chatStream({
+      new OllamaTextAdapter(new Ollama(), 'llama3.2').chatStream({
         threadId: 'thread-1',
         logger: testLogger,
         model: 'llama3.2',
@@ -181,7 +188,7 @@ describe('OllamaTextAdapter.chatStream (truncated responses)', () => {
       ]),
     )
 
-    const adapter = createOllamaChat('llama3.2')
+    const adapter = new OllamaTextAdapter(new Ollama(), 'llama3.2')
     const chunks = await collectStream(
       adapter.chatStream({
         threadId: 'thread-1',
@@ -224,7 +231,7 @@ describe('OllamaTextAdapter.chatStream (truncated responses)', () => {
     )
 
     const chunks = await collectStream(
-      createOllamaChat('llama3.2').chatStream({
+      new OllamaTextAdapter(new Ollama(), 'llama3.2').chatStream({
         threadId: 'thread-1',
         logger: testLogger,
         model: 'llama3.2',
@@ -268,7 +275,7 @@ describe('OllamaTextAdapter.chatStream (tool calls)', () => {
       ]),
     )
 
-    const adapter = createOllamaChat('llama3.2')
+    const adapter = new OllamaTextAdapter(new Ollama(), 'llama3.2')
     const chunks = await collectStream(
       adapter.chatStream({
         threadId: 'thread-1',
@@ -325,7 +332,7 @@ describe('OllamaTextAdapter.chatStream (tool calls)', () => {
       ]),
     )
 
-    const adapter = createOllamaChat('llama3.2')
+    const adapter = new OllamaTextAdapter(new Ollama(), 'llama3.2')
     const chunks = await collectStream(
       adapter.chatStream({
         threadId: 'thread-1',
@@ -372,7 +379,7 @@ describe('OllamaTextAdapter.chatStream (tool calls)', () => {
       ]),
     )
 
-    const adapter = createOllamaChat('llama3.2')
+    const adapter = new OllamaTextAdapter(new Ollama(), 'llama3.2')
     const chunks = await collectStream(
       adapter.chatStream({
         threadId: 'thread-1',
@@ -409,7 +416,7 @@ describe('OllamaTextAdapter.chatStream (tool calls)', () => {
     )
 
     const chunks = await collectStream(
-      createOllamaChat('llama3.2').chatStream({
+      new OllamaTextAdapter(new Ollama(), 'llama3.2').chatStream({
         threadId: 'thread-1',
         logger: testLogger,
         model: 'llama3.2',
@@ -444,7 +451,7 @@ describe('OllamaTextAdapter.chatStream (tool calls)', () => {
       ]),
     )
     const chunks = await collectStream(
-      createOllamaChat('llama3.2').chatStream({
+      new OllamaTextAdapter(new Ollama(), 'llama3.2').chatStream({
         threadId: 'thread-1',
         logger: testLogger,
         model: 'llama3.2',
@@ -486,7 +493,7 @@ describe('OllamaTextAdapter.chatStream (tool calls)', () => {
       ]),
     )
 
-    const adapter = createOllamaChat('llama3.2')
+    const adapter = new OllamaTextAdapter(new Ollama(), 'llama3.2')
     await collectStream(
       adapter.chatStream({
         threadId: 'thread-1',
@@ -518,7 +525,7 @@ describe('OllamaTextAdapter.chatStream (tool calls)', () => {
         },
       ]),
     )
-    const adapter = createOllamaChat('llama3.2')
+    const adapter = new OllamaTextAdapter(new Ollama(), 'llama3.2')
     await collectStream(
       adapter.chatStream({
         threadId: 'thread-1',
@@ -537,7 +544,7 @@ describe('OllamaTextAdapter.structuredOutput', () => {
     chatMock.mockResolvedValueOnce({
       message: { role: 'assistant', content: '{"result":42}' },
     })
-    const adapter = createOllamaChat('llama3.2')
+    const adapter = new OllamaTextAdapter(new Ollama(), 'llama3.2')
     const result = await adapter.structuredOutput({
       chatOptions: {
         logger: testLogger,
@@ -556,7 +563,7 @@ describe('OllamaTextAdapter.structuredOutput', () => {
     chatMock.mockResolvedValueOnce({
       message: { role: 'assistant', content: 'not json' },
     })
-    const adapter = createOllamaChat('llama3.2')
+    const adapter = new OllamaTextAdapter(new Ollama(), 'llama3.2')
     await expect(
       adapter.structuredOutput({
         chatOptions: {
@@ -573,7 +580,7 @@ describe('OllamaTextAdapter.structuredOutput', () => {
       message: { role: 'assistant', content: '{"result":' },
       done_reason: 'length',
     })
-    const adapter = createOllamaChat('llama3.2')
+    const adapter = new OllamaTextAdapter(new Ollama(), 'llama3.2')
     await expect(
       adapter.structuredOutput({
         chatOptions: {
@@ -596,7 +603,7 @@ describe('OllamaTextAdapter.structuredOutput', () => {
         prompt_eval_count: 9,
         eval_count: 4,
       })
-      const error = await createOllamaChat('llama3.2')
+      const error = await new OllamaTextAdapter(new Ollama(), 'llama3.2')
         .structuredOutput({
           chatOptions: {
             logger: testLogger,
@@ -614,7 +621,7 @@ describe('OllamaTextAdapter.structuredOutput', () => {
 
   it('surfaces upstream errors as structured-output errors', async () => {
     chatMock.mockRejectedValueOnce(new Error('network down'))
-    const adapter = createOllamaChat('llama3.2')
+    const adapter = new OllamaTextAdapter(new Ollama(), 'llama3.2')
     await expect(
       adapter.structuredOutput({
         chatOptions: {
@@ -639,7 +646,7 @@ describe('OllamaTextAdapter modelOptions (nested options contract)', () => {
       ]),
     )
 
-    const adapter = createOllamaChat('llama3.2')
+    const adapter = new OllamaTextAdapter(new Ollama(), 'llama3.2')
     await collectStream(
       adapter.chatStream({
         logger: testLogger,
@@ -676,7 +683,7 @@ describe('OllamaTextAdapter modelOptions (nested options contract)', () => {
       ]),
     )
 
-    const adapter = createOllamaChat('llama3.2')
+    const adapter = new OllamaTextAdapter(new Ollama(), 'llama3.2')
     await collectStream(
       adapter.chatStream({
         logger: testLogger,
@@ -707,7 +714,7 @@ describe('OllamaTextAdapter modelOptions (nested options contract)', () => {
       ]),
     )
 
-    const adapter = createOllamaChat('llama3.2')
+    const adapter = new OllamaTextAdapter(new Ollama(), 'llama3.2')
     await collectStream(
       adapter.chatStream({
         threadId: 'thread-1',
@@ -734,7 +741,7 @@ describe('OllamaTextAdapter modelOptions (nested options contract)', () => {
       ]),
     )
 
-    const adapter = createOllamaChat('llama3.2')
+    const adapter = new OllamaTextAdapter(new Ollama(), 'llama3.2')
     await collectStream(
       adapter.chatStream({
         logger: testLogger,
@@ -778,7 +785,7 @@ describe('OllamaTextAdapter modelOptions (nested options contract)', () => {
         ]),
       )
       await collectStream(
-        createOllamaChat(model).chatStream({
+        new OllamaTextAdapter(new Ollama(), model).chatStream({
           threadId: 'thread-1',
           logger: testLogger,
           model,
@@ -804,7 +811,7 @@ describe('OllamaTextAdapter system prompts', () => {
       ]),
     )
 
-    const adapter = createOllamaChat('llama3.2')
+    const adapter = new OllamaTextAdapter(new Ollama(), 'llama3.2')
     await collectStream(
       adapter.chatStream({
         threadId: 'thread-1',
@@ -852,7 +859,7 @@ describe('OllamaTextAdapter system prompts', () => {
       ]),
     )
 
-    const adapter = createOllamaChat('llama3.2')
+    const adapter = new OllamaTextAdapter(new Ollama(), 'llama3.2')
     await collectStream(
       adapter.chatStream({
         threadId: 'thread-1',
@@ -873,7 +880,7 @@ describe('OllamaTextAdapter system prompts', () => {
 describe('Ollama adapter error handling', () => {
   it('emits RUN_ERROR on pre-stream client.chat rejection without throwing', async () => {
     chatMock.mockRejectedValueOnce(new Error('connection refused'))
-    const adapter = createOllamaChat('llama3.2')
+    const adapter = new OllamaTextAdapter(new Ollama(), 'llama3.2')
     const chunks = await collectStream(
       adapter.chatStream({
         threadId: 'thread-1',

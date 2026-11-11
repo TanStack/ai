@@ -2,9 +2,15 @@ import { requireTextOnlyEmbeddingInput } from '@tanstack/ai'
 import { toRunErrorPayload } from '@tanstack/ai/adapter-internals'
 import { BaseEmbeddingAdapter } from '@tanstack/ai/adapters'
 import { generateId } from '@tanstack/ai-utils'
-import { createOllamaClient, getOllamaHostFromEnv } from '../utils'
+import {
+  createOllamaClient,
+  createOllamaFetchClient,
+  getOllamaHostFromEnv,
+} from '../utils'
+import { ollamaPostApiEmbed } from '../generated/client/sdk'
 import type { OllamaClientConfig } from '../utils/client'
-import type { EmbedRequest, EmbedResponse, Ollama } from 'ollama'
+import type { EmbedResponse, Ollama } from 'ollama'
+import type { OllamaPostApiEmbedBody } from '../generated/client/types'
 import type {
   EmbeddingOptions,
   EmbeddingResult,
@@ -86,7 +92,7 @@ export class OllamaEmbeddingAdapter<
       // Built incrementally so optional keys are omitted entirely when unset
       // (exactOptionalPropertyTypes). Provider options use camelCase
       // (`keepAlive`) and are mapped to the SDK's snake_case wire fields.
-      const request: EmbedRequest = {
+      const request: OllamaPostApiEmbedBody = {
         model,
         input: texts,
       }
@@ -94,6 +100,7 @@ export class OllamaEmbeddingAdapter<
         request.truncate = modelOptions.truncate
       }
       if (modelOptions?.keepAlive !== undefined) {
+        // @ts-expect-error modelschemas gap: EmbedRequest keep_alive is string only; Ollama takes a number of seconds too (api/types.go Duration)
         request.keep_alive = modelOptions.keepAlive
       }
       if (modelOptions?.options !== undefined) {
@@ -106,16 +113,17 @@ export class OllamaEmbeddingAdapter<
         { provider: this.name, model },
       )
 
-      // `ollama` takes no per-call signal, so a call with a signal uses a
-      // client whose fetch carries it. An injected client cannot take one.
-      const signal = options.abortSignal
-      const client =
-        signal && this.clientConfig
-          ? createOllamaClient(this.clientConfig, (input, init) =>
-              fetch(input, { ...init, signal }),
-            )
-          : this.client
-      const response: EmbedResponse = await client.embed(request)
+      // An injected client cannot take a per-call signal.
+      const response: EmbedResponse = this.clientConfig
+        ? await (
+            await ollamaPostApiEmbed({
+              client: createOllamaFetchClient(this.clientConfig),
+              body: request,
+              signal: options.abortSignal,
+            })
+          ).response.json()
+        : // @ts-expect-error public type mismatch: an injected `ollama` client takes the SDK EmbedRequest; same JSON
+          await this.client.embed(request)
 
       // Include usage only when Ollama actually reported a prompt token count.
       const promptEvalCount = extractPromptEvalCount(response)

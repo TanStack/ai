@@ -50,16 +50,18 @@ export default defineConfig([
     output: output(join(out, file.replace(/\.json$/, ''))),
     plugins: [types()],
   })),
-  ...available.map(({ id }) => ({
+  ...available.map(({ id, typesOnly }) => ({
     input: join(docs, `${id}.json`),
     output: output(join(out, id)),
-    plugins: [
-      types(),
-      pluginClient({
-        output: { path: 'sdk.ts', barrel: false },
-        importPath: RUNTIME_IMPORT,
-      }),
-    ],
+    plugins: typesOnly
+      ? [types()]
+      : [
+          types(),
+          pluginClient({
+            output: { path: 'sdk.ts', barrel: false },
+            importPath: RUNTIME_IMPORT,
+          }),
+        ],
   })),
   // `plugin-fetch` writes the `.kubb` fetch runtime that `RUNTIME_IMPORT`
   // serves. It only writes the files a document needs (`sse.ts` only for an

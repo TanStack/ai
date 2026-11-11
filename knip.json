@@ -31,7 +31,7 @@
     "codemods/**/__testfixtures__/**",
     "packages/ai-persistence/skills-test/stubs/**",
     "packages/*/src/generated/client/sdk.ts",
-    "packages/*/src/generated/client/types.ts",
+    "packages/*/src/generated/*/types.ts",
     "packages/ai-utils/src/generated/kubb/**"
   ],
   "ignoreExportsUsedInFile": true,
