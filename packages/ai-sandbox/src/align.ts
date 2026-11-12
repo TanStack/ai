@@ -227,6 +227,7 @@ function asStoredReplay(chunk: StreamChunk): StreamChunk {
   // The flag is not an AG-UI field, so the spread is not a StreamChunk until
   // it is checked on the way out.
   const copy: Record<string, unknown> = { ...chunk, [STORED_REPLAY]: true }
+  // oxlint-disable-next-line eslint-js/no-restricted-syntax -- the flag is not an AG-UI field, so the copy is not a StreamChunk until this cast
   return copy as unknown as StreamChunk
 }
 

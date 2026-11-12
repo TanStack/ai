@@ -38,7 +38,15 @@ function stamp(
   threadId: string,
   chunk: StreamChunk,
 ): StreamChunk {
-  return { ...chunk, runId, threadId, timestamp: 1 }
+  // Only the run lifecycle events carry runId. Stamping it onto every chunk
+  // is not a StreamChunk once the union includes events without that field.
+  if (
+    chunk.type === EventType.RUN_STARTED ||
+    chunk.type === EventType.RUN_FINISHED
+  ) {
+    return { ...chunk, runId, threadId, timestamp: 1 }
+  }
+  return { ...chunk, timestamp: 1 }
 }
 
 /** One harness reply: opening text, a bash call, its result, then the close. */
