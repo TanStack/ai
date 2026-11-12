@@ -107,6 +107,7 @@ import { Route as ApiFileSourceWireRouteImport } from './routes/api.file-source-
 import { Route as ApiForeignChunkEventsRouteImport } from './routes/api.foreign-chunk-events'
 import { Route as ApiForeignClientToolRouteImport } from './routes/api.foreign-client-tool'
 import { Route as ApiForeignInterruptRouteImport } from './routes/api.foreign-interrupt'
+import { Route as ApiGeminiCustomFetchWireRouteImport } from './routes/api.gemini-custom-fetch-wire'
 import { Route as ApiGeminiImageGaModelsRouteImport } from './routes/api.gemini-image-ga-models'
 import { Route as ApiGeminiNativeImageWireRouteImport } from './routes/api.gemini-native-image-wire'
 import { Route as ApiGeminiServerToolsWireRouteImport } from './routes/api.gemini-server-tools-wire'
@@ -737,6 +738,12 @@ const ApiForeignInterruptRoute = ApiForeignInterruptRouteImport.update({
   path: '/api/foreign-interrupt',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiGeminiCustomFetchWireRoute =
+  ApiGeminiCustomFetchWireRouteImport.update({
+    id: '/api/gemini-custom-fetch-wire',
+    path: '/api/gemini-custom-fetch-wire',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiGeminiImageGaModelsRoute = ApiGeminiImageGaModelsRouteImport.update({
   id: '/api/gemini-image-ga-models',
   path: '/api/gemini-image-ga-models',
@@ -1445,6 +1452,7 @@ export interface FileRoutesByFullPath {
   '/api/foreign-chunk-events': typeof ApiForeignChunkEventsRoute
   '/api/foreign-client-tool': typeof ApiForeignClientToolRoute
   '/api/foreign-interrupt': typeof ApiForeignInterruptRoute
+  '/api/gemini-custom-fetch-wire': typeof ApiGeminiCustomFetchWireRoute
   '/api/gemini-image-ga-models': typeof ApiGeminiImageGaModelsRoute
   '/api/gemini-native-image-wire': typeof ApiGeminiNativeImageWireRoute
   '/api/gemini-server-tools-wire': typeof ApiGeminiServerToolsWireRoute
@@ -1661,6 +1669,7 @@ export interface FileRoutesByTo {
   '/api/foreign-chunk-events': typeof ApiForeignChunkEventsRoute
   '/api/foreign-client-tool': typeof ApiForeignClientToolRoute
   '/api/foreign-interrupt': typeof ApiForeignInterruptRoute
+  '/api/gemini-custom-fetch-wire': typeof ApiGeminiCustomFetchWireRoute
   '/api/gemini-image-ga-models': typeof ApiGeminiImageGaModelsRoute
   '/api/gemini-native-image-wire': typeof ApiGeminiNativeImageWireRoute
   '/api/gemini-server-tools-wire': typeof ApiGeminiServerToolsWireRoute
@@ -1878,6 +1887,7 @@ export interface FileRoutesById {
   '/api/foreign-chunk-events': typeof ApiForeignChunkEventsRoute
   '/api/foreign-client-tool': typeof ApiForeignClientToolRoute
   '/api/foreign-interrupt': typeof ApiForeignInterruptRoute
+  '/api/gemini-custom-fetch-wire': typeof ApiGeminiCustomFetchWireRoute
   '/api/gemini-image-ga-models': typeof ApiGeminiImageGaModelsRoute
   '/api/gemini-native-image-wire': typeof ApiGeminiNativeImageWireRoute
   '/api/gemini-server-tools-wire': typeof ApiGeminiServerToolsWireRoute
@@ -2096,6 +2106,7 @@ export interface FileRouteTypes {
     | '/api/foreign-chunk-events'
     | '/api/foreign-client-tool'
     | '/api/foreign-interrupt'
+    | '/api/gemini-custom-fetch-wire'
     | '/api/gemini-image-ga-models'
     | '/api/gemini-native-image-wire'
     | '/api/gemini-server-tools-wire'
@@ -2312,6 +2323,7 @@ export interface FileRouteTypes {
     | '/api/foreign-chunk-events'
     | '/api/foreign-client-tool'
     | '/api/foreign-interrupt'
+    | '/api/gemini-custom-fetch-wire'
     | '/api/gemini-image-ga-models'
     | '/api/gemini-native-image-wire'
     | '/api/gemini-server-tools-wire'
@@ -2528,6 +2540,7 @@ export interface FileRouteTypes {
     | '/api/foreign-chunk-events'
     | '/api/foreign-client-tool'
     | '/api/foreign-interrupt'
+    | '/api/gemini-custom-fetch-wire'
     | '/api/gemini-image-ga-models'
     | '/api/gemini-native-image-wire'
     | '/api/gemini-server-tools-wire'
@@ -2745,6 +2758,7 @@ export interface RootRouteChildren {
   ApiForeignChunkEventsRoute: typeof ApiForeignChunkEventsRoute
   ApiForeignClientToolRoute: typeof ApiForeignClientToolRoute
   ApiForeignInterruptRoute: typeof ApiForeignInterruptRoute
+  ApiGeminiCustomFetchWireRoute: typeof ApiGeminiCustomFetchWireRoute
   ApiGeminiImageGaModelsRoute: typeof ApiGeminiImageGaModelsRoute
   ApiGeminiNativeImageWireRoute: typeof ApiGeminiNativeImageWireRoute
   ApiGeminiServerToolsWireRoute: typeof ApiGeminiServerToolsWireRoute
@@ -3545,6 +3559,13 @@ declare module '@tanstack/react-router' {
       path: '/api/foreign-interrupt'
       fullPath: '/api/foreign-interrupt'
       preLoaderRoute: typeof ApiForeignInterruptRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/gemini-custom-fetch-wire': {
+      id: '/api/gemini-custom-fetch-wire'
+      path: '/api/gemini-custom-fetch-wire'
+      fullPath: '/api/gemini-custom-fetch-wire'
+      preLoaderRoute: typeof ApiGeminiCustomFetchWireRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/gemini-image-ga-models': {
@@ -4523,6 +4544,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiForeignChunkEventsRoute: ApiForeignChunkEventsRoute,
   ApiForeignClientToolRoute: ApiForeignClientToolRoute,
   ApiForeignInterruptRoute: ApiForeignInterruptRoute,
+  ApiGeminiCustomFetchWireRoute: ApiGeminiCustomFetchWireRoute,
   ApiGeminiImageGaModelsRoute: ApiGeminiImageGaModelsRoute,
   ApiGeminiNativeImageWireRoute: ApiGeminiNativeImageWireRoute,
   ApiGeminiServerToolsWireRoute: ApiGeminiServerToolsWireRoute,

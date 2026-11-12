@@ -41,7 +41,7 @@ const adapter = createGeminiChat("gemini-3.8-flash", process.env.GEMINI_API_KEY!
 ```
 
 - `baseURL` sets `httpOptions.baseUrl`, and `defaultHeaders` sets `httpOptions.headers`. If you set both forms, `baseURL` and `defaultHeaders` win.
-- This adapter ignores [`wrapFetch`](../advanced/middleware#change-the-http-requests-of-a-call), because the `@google/genai` SDK does not take a custom fetch.
+- This adapter ignores [`wrapFetch`](../advanced/middleware#change-the-http-requests-of-a-call). To send the requests through your own `fetch`, set `httpOptions.fetch`. This option needs `@google/genai` 2.23.0 or later.
 
 ## Video understanding options
 
