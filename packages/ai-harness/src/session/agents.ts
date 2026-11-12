@@ -2821,12 +2821,15 @@ function childHandoff(from: string, handoffs: TurnHandoffs, withTool: boolean) {
 }
 
 /**
- * The input of a turn of the routed root `harnessAgent` named `name`: the
- * latest user message, after one text part with what happened in the shared
- * thread since the last answer of `name`. Other speakers come with their
- * labels, as `routing.history: 'own'` folds them. The child session keeps
- * its own turns, so they are not sent again. On its first turn, the context
- * is the conversation so far.
+ * The input of a turn of the routed root `harnessAgent` named `name`:
+ * what happened in the shared thread since the last answer of `name`, then
+ * the latest user message when that message is new (it comes after the last
+ * answer). Other speakers come with their labels, as `routing.history: 'own'`
+ * folds them. The child session keeps its own turns, so they are
+ * not sent again. A second pass in the same outer turn does not resend the
+ * already-answered request: only the context since the last answer, or a
+ * short continue prompt when that context is empty. On its first turn, the
+ * context is the conversation so far.
  */
 async function rootInput(messages: Array<ModelMessage>, name: string) {
   // A handoff note names its source agent too, but it is no answer.
@@ -2834,6 +2837,11 @@ async function rootInput(messages: Array<ModelMessage>, name: string) {
     routedAgent(message) === name && !isHandoffNote(message)
   const lastAnswer = messages.findLastIndex(isAnswer)
   const latest = messages.findLastIndex((message) => message.role === 'user')
+  // The latest user message is new input only when it comes after this
+  // agent last answered. A second pass in the same outer turn (desk →
+  // main → desk) has lastAnswer after latest, so the kept child session
+  // must not get that request again.
+  const hasNewUser = latest > lastAnswer
   const since = messages.filter(
     (_, index) => index > lastAnswer && index !== latest,
   )
@@ -2853,17 +2861,18 @@ async function rootInput(messages: Array<ModelMessage>, name: string) {
     if (line === '' || message.role === 'tool') return []
     return [fromUser.has(message) ? `user:\n${line}` : line]
   })
-  const input = lastUserInput(messages)
-  if (lines.length === 0) return input
+  const input = hasNewUser ? lastUserInput(messages) : undefined
+  if (lines.length === 0) return input ?? 'Continue.'
   const head =
     lastAnswer === -1 ? 'The conversation so far:' : 'Since your last turn:'
+  const context: ContentPart = {
+    type: 'text',
+    content: [head, ...lines].join('\n\n'),
+  }
+  if (input === undefined) return [context]
   const sent: Array<ContentPart> =
     typeof input === 'string' ? [{ type: 'text', content: input }] : input
-  const parts: Array<ContentPart> = [
-    { type: 'text', content: [head, ...lines].join('\n\n') },
-    ...sent,
-  ]
-  return parts
+  return [context, ...sent]
 }
 
 /**

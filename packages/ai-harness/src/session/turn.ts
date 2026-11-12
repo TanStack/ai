@@ -66,7 +66,7 @@ import {
   markRouted,
   stampHandoffNote,
 } from '../handoff'
-import { routedHistoryMiddleware } from '../routed-history'
+import { routedChildId, routedHistoryMiddleware } from '../routed-history'
 import type {
   AnyChatMiddleware,
   AnyTextAdapter,
@@ -980,18 +980,21 @@ export abstract class SessionTurn<
               // `KEPT_ENDED` ended runs. An older routed run has no children
               // there, so the model gets it as text. Keep the routed children
               // in the fold if that matters.
-              childrenOf: (runId) =>
-                [...this.writer.state.thread.runs.values()].flatMap(
+              childrenOf: (runId, message) => {
+                const childId = routedChildId(message)
+                return [...this.writer.state.thread.runs.values()].flatMap(
                   ({ parentRunId: parent, name, subagentRunId }) =>
                     parent === runId &&
                     name !== undefined &&
                     subagentRunId !== undefined &&
                     // Only routed root agents: a tool-mode child of the main
                     // model in the same run reports through its tool result.
-                    rootAgents.some((agent) => agent.name === name)
+                    rootAgents.some((agent) => agent.name === name) &&
+                    (childId === undefined || subagentRunId === childId)
                       ? [{ name, subagentRunId }]
                       : [],
-                ),
+                )
+              },
               transcriptOf: (subagentRunId) => {
                 const transcript =
                   transcripts.get(subagentRunId) ??
@@ -1571,8 +1574,18 @@ export abstract class SessionTurn<
         // The routed message of this part gets the name of its agent. A part
         // that waits for an answer gets it too.
         if (routed && failure === undefined && !signal.aborted) {
+          const childId =
+            typeof answerer === 'string'
+              ? [...this.writer.state.thread.runs.values()].findLast(
+                  (run) =>
+                    run.parentRunId === operation.id &&
+                    run.name === answerer &&
+                    run.subagentRunId !== undefined,
+                )?.subagentRunId
+              : undefined
           await markRouted(this.messages, this.threadId, operation.id, {
             ...(answerer ? { agent: answerer } : {}),
+            ...(childId !== undefined ? { subagentRunId: childId } : {}),
           })
         }
         const isFinished =

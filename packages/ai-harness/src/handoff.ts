@@ -506,17 +506,18 @@ export async function stampHandoffNote(
 
 /**
  * Mark the routed message of run `runId` with the agent that wrote it, in
- * `metadata.harness.agent`. A routed pass that runs again on the same run id
- * (a handoff to another root agent, a late join, a hook) first keeps this
- * message under its own id, so each pass keeps its own message.
+ * `metadata.harness.agent`, and the child run of that pass, in
+ * `metadata.harness.subagentRunId`. A routed pass that runs again on the
+ * same run id (a handoff to another root agent, a late join, a hook) first
+ * keeps this message under its own id, so each pass keeps its own message.
  */
 export async function markRouted(
   store: MessageStore,
   threadId: string,
   runId: string,
-  mark: { agent?: string },
+  mark: { agent?: string; subagentRunId?: string },
 ) {
-  const { agent } = mark
+  const { agent, subagentRunId } = mark
   if (agent === undefined) return
   const history = await store.loadThread(threadId)
   const index = routedIndex(history, runId)
@@ -529,7 +530,11 @@ export async function markRouted(
     ...message,
     metadata: {
       ...message.metadata,
-      harness: { ...harness, agent },
+      harness: {
+        ...harness,
+        agent,
+        ...(subagentRunId !== undefined ? { subagentRunId } : {}),
+      },
     },
   }
   await store.saveThread(threadId, history.with(index, updated))

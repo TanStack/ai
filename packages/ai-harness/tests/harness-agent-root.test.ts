@@ -198,6 +198,28 @@ describe('harnessAgent as a routed root agent', () => {
     await host.close()
   })
 
+  it('does not resend the original user message when invoked again in the same turn', async () => {
+    const desk = deskHarness([
+      () => toolCall('handoff', { to: 'main' }),
+      () => text('Desk again.'),
+    ])
+    const { host, session } = await openRouted({
+      child: desk.harness,
+      router: () => 'desk',
+      mainReplies: [() => toolCall('handoff', { to: 'desk' })],
+    })
+
+    await session.send('refund please')
+
+    expect(desk.model.calls).toHaveLength(2)
+    const second = desk.model.calls[1]
+    expect(
+      userTexts(second).filter((entry) => entry === 'refund please'),
+    ).toHaveLength(1)
+    expect(userTexts(second).at(-1)).not.toBe('refund please')
+    await host.close()
+  })
+
   it('fails the turn when the child harness has its own routing', async () => {
     const model = mockAdapter([() => text('Never.')])
     const child = defineHarness({

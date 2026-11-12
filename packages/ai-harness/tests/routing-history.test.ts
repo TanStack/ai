@@ -236,6 +236,47 @@ describe('routing.history', () => {
     await host.close()
   })
 
+  it('gives a later billing turn each tool call once after billing → main → billing in one turn', async () => {
+    const billing = modelAgent(
+      'billing',
+      [
+        () => toolCall('refund', {}, 'call_r'),
+        () => [
+          ...text('Refunded'),
+          ...toolCall('handoff', { to: 'main' }, 'call_hb'),
+        ],
+        () => toolCall('lookup', {}, 'call_l'),
+        () => text('Looked up.'),
+        () => text('Welcome'),
+      ],
+      [plainTool('refund'), plainTool('lookup')],
+    )
+    const { host, session } = await openRouting({
+      agents: [billing.agent],
+      router: routeBy({
+        'refund please': 'billing',
+        thanks: 'billing',
+      }),
+      replies: [() => toolCall('handoff', { to: 'billing' }, 'call_hm')],
+    })
+
+    expect((await session.send('refund please')).text).toBe(
+      'billing:\nLooked up.',
+    )
+    await session.send('thanks')
+
+    const later = billing.model.calls[4]
+    expect(calledTools(later).filter((name) => name === 'refund')).toEqual([
+      'refund',
+    ])
+    expect(calledTools(later).filter((name) => name === 'lookup')).toEqual([
+      'lookup',
+    ])
+    expect(answeredCalls(later).filter((id) => id === 'call_r')).toHaveLength(1)
+    expect(answeredCalls(later).filter((id) => id === 'call_l')).toHaveLength(1)
+    await host.close()
+  })
+
   it('gives a resumed routed agent the messages of its paused run', async () => {
     // No server implementation: the turn waits for the result of the client.
     const openScreen = toolDefinition({

@@ -17,8 +17,8 @@ interface HistorySource {
   mode: NonNullable<HarnessRouting['history']>
   /** The name of the handoff tool. `'handoff'` when not set. */
   handoffToolName?: string
-  /** The routed children of run `runId`, in order. */
-  childrenOf: (runId: string) => Array<RoutedChild>
+  /** The routed children of run `runId` for this host message, in order. */
+  childrenOf: (runId: string, message: ModelMessage) => Array<RoutedChild>
   /** The stored transcript of one routed child. */
   transcriptOf: (subagentRunId: string) => Promise<Array<ModelMessage>>
   /**
@@ -54,6 +54,14 @@ export function routedAgent(message: ModelMessage) {
   const harness = message.metadata?.harness
   return isRecord(harness) && typeof harness.agent === 'string'
     ? harness.agent
+    : undefined
+}
+
+/** The child run of a routed pass: `metadata.harness.subagentRunId`. */
+export function routedChildId(message: ModelMessage) {
+  const harness = message.metadata?.harness
+  return isRecord(harness) && typeof harness.subagentRunId === 'string'
+    ? harness.subagentRunId
     : undefined
 }
 
@@ -154,11 +162,16 @@ async function expandHost(
   transcriptOf: HistorySource['transcriptOf'],
 ) {
   // A host message of one agent holds only that agent's pass of the run.
+  // A pass-specific child id wins over agent name: two passes of the same
+  // agent in one turn share the outer run id and the agent name.
+  const childId = routedChildId(message)
   const agent = routedAgent(message)
   const own =
-    agent === undefined
-      ? children
-      : children.filter((child) => child.name === agent)
+    childId !== undefined
+      ? children.filter((child) => child.subagentRunId === childId)
+      : agent === undefined
+        ? children
+        : children.filter((child) => child.name === agent)
   if (!own.some((child) => wanted(child.name))) return undefined
   const parts: Array<ModelMessage> = []
   let expanded = false
@@ -264,7 +277,7 @@ export async function historyFor(
     const runId = passRunId(message)
     const children =
       message.role === 'assistant' && runId !== undefined
-        ? childrenOf(runId)
+        ? childrenOf(runId, message)
         : []
     const expanded =
       children.length > 0
