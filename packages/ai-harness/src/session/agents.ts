@@ -2854,7 +2854,11 @@ async function rootInput(messages: Array<ModelMessage>, name: string) {
   // must not get that request again.
   const hasNewUser = latest > lastAnswer
   const since = messages.filter(
-    (_, index) => index > lastAnswer && index !== latest,
+    (message, index) =>
+      index > lastAnswer &&
+      index !== latest &&
+      // This agent's own handoff is in its child session, not this context.
+      !(isHandoffNote(message) && routedAgent(message) === name),
   )
   // No transcripts: other runs stay as their `name:\ntext` host message.
   const folded = await historyFor({
