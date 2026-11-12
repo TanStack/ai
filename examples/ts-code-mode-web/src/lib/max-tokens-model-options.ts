@@ -25,6 +25,8 @@ export function maxTokensModelOptions(
       return { max_output_tokens: maxTokens }
     case 'anthropic':
     case 'grok':
+    // Muse is OpenAI-compatible Chat Completions and takes `max_tokens`.
+    case 'muse':
       return { max_tokens: maxTokens }
     case 'gemini':
       return { maxOutputTokens: maxTokens }

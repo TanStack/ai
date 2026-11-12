@@ -29,6 +29,7 @@
     "@tanstack/ai-isolate-node": "workspace:*",
     "@tanstack/ai-isolate-quickjs": "workspace:*",
     "@tanstack/ai-isolate-quickjs-bun": "workspace:*",
+    "@tanstack/ai-muse": "workspace:*",
     "@tanstack/ai-ollama": "workspace:*",
     "@tanstack/ai-openai": "workspace:*",
     "@tanstack/ai-react": "workspace:*",
