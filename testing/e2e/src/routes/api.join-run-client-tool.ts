@@ -20,10 +20,11 @@ import type {
  * client tool must drain the queued resume after replay, same as a live stream.
  *
  * The first POST emits a client-tool interrupt, then holds the producer until
- * the client disconnects (the spec reload) plus a short settle. That keeps
- * `activeRun` visible so the remount `joinRun`s the log while it is still
- * open. The client tool finishes during that hold; without the drain, the
- * continuation POST never happens and `JOIN_OK` never appears.
+ * the client disconnects (the spec reload) and the remount's hydrate GET has
+ * seen `activeRun`. A fixed settle loses when CI hydration is slower than the
+ * timer: the probe then finds no run and the page stays empty. The client
+ * tool finishes during that hold; without the drain, the continuation POST
+ * never happens and `JOIN_OK` never appears.
  *
  * Exempt from the aimock policy: a fixed AG-UI sequence, never an LLM provider.
  */
@@ -31,7 +32,6 @@ import type {
 const JOIN_OK = 'JOIN_OK the lookup is 42'
 const LATER_OK = 'LATER_OK the follow-up ran'
 const DISCONNECT_FALLBACK_MS = 3000
-const SETTLE_AFTER_DISCONNECT_MS = 1500
 
 const lookupTool = toolDefinition({
   name: 'lookup',
@@ -41,6 +41,9 @@ const lookupTool = toolDefinition({
 }).client()
 
 const runningByThread = new Map<string, string>()
+// Resolved once a mount probe has reported this run as still active. Armed
+// only after disconnect, so the first page's hydrate cannot release the hold.
+const releaseResultByRun = new Map<string, () => void>()
 // Issue #1429: the pending interrupt of the run that the held continuation
 // answers. The persistence store commits it only when the continuation ends.
 const parentInterruptByThread = new Map<
@@ -70,10 +73,6 @@ async function* recordInterrupt(
   }
 }
 
-function delay(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms))
-}
-
 function waitForDisconnect(signal: AbortSignal): Promise<void> {
   if (signal.aborted) return Promise.resolve()
   return new Promise((resolve) => {
@@ -90,15 +89,28 @@ function waitForDisconnect(signal: AbortSignal): Promise<void> {
 async function* holdAfter(
   stream: AsyncIterable<AdapterYieldChunk>,
   signal: AbortSignal,
+  runId: string,
   onRelease: () => void,
 ): AsyncGenerator<AdapterYieldChunk> {
+  let acceptProbe = false
+  let resolveProbe = () => {}
+  const probe = new Promise<void>((resolve) => {
+    resolveProbe = resolve
+  })
+  releaseResultByRun.set(runId, () => {
+    if (acceptProbe) resolveProbe()
+  })
   try {
     for await (const chunk of stream) {
       yield chunk
     }
     await waitForDisconnect(signal)
-    await delay(SETTLE_AFTER_DISCONNECT_MS)
+    // The reload's hydrate is what counts. The page that just disconnected
+    // already hydrated, before this run existed.
+    acceptProbe = true
+    await probe
   } finally {
+    releaseResultByRun.delete(runId)
     onRelease()
   }
 }
@@ -270,7 +282,7 @@ export const Route = createFileRoute('/api/join-run-client-tool')({
         })
 
         const body = shouldHold
-          ? holdAfter(stream, request.signal, () => {
+          ? holdAfter(stream, request.signal, params.runId, () => {
               runningByThread.delete(params.threadId)
               parentInterruptByThread.delete(params.threadId)
             })
@@ -293,6 +305,7 @@ export const Route = createFileRoute('/api/join-run-client-tool')({
         const runningRunId = threadId
           ? runningByThread.get(threadId)
           : undefined
+        if (runningRunId) releaseResultByRun.get(runningRunId)?.()
         const body = runningRunId
           ? {
               messages: [],

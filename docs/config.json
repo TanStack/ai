@@ -450,13 +450,13 @@
           "label": "Compaction",
           "to": "advanced/compaction",
           "addedAt": "2026-08-24",
-          "updatedAt": "2026-10-22"
+          "updatedAt": "2026-11-09"
         },
         {
           "label": "Compaction: Advanced",
           "to": "advanced/compaction-advanced",
           "addedAt": "2026-10-21",
-          "updatedAt": "2026-11-07"
+          "updatedAt": "2026-11-09"
         }
       ],
       "tab": "guides"
@@ -1739,13 +1739,13 @@
           "label": "Anthropic",
           "to": "adapters/anthropic",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-10-22"
+          "updatedAt": "2026-11-09"
         },
         {
           "label": "Anthropic: Advanced",
           "to": "adapters/anthropic-advanced",
           "addedAt": "2026-10-21",
-          "updatedAt": "2026-11-02"
+          "updatedAt": "2026-11-09"
         },
         {
           "label": "Google Gemini",
