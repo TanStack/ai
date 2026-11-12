@@ -233,6 +233,46 @@ describe('routing.history', () => {
     await host.close()
   })
 
+  it("'own' folds a root agent's handoff note so a later turn keeps only its real handoff", async () => {
+    const billing = modelAgent('billing', [
+      () => [
+        ...text('Refunded'),
+        ...toolCall('handoff', { to: 'main' }, 'call_hb'),
+      ],
+      () => text('Welcome'),
+    ])
+    const { host, session } = await openRouting({
+      agents: [billing.agent],
+      router: routeBy({
+        'refund please': 'billing',
+        thanks: 'billing',
+      }),
+      replies: [() => text('Main here')],
+    })
+
+    expect((await session.send('refund please')).text).toBe('Main here')
+    await session.send('thanks')
+
+    const later = billing.model.calls[1]
+    expect(calledTools(later).filter((name) => name === 'handoff')).toEqual([
+      'handoff',
+    ])
+    expect(answeredCalls(later).filter((id) => id === 'call_hb')).toEqual([
+      'call_hb',
+    ])
+    expect(
+      later.messages.some(
+        (message: ModelMessage) =>
+          message.role === 'assistant' &&
+          (message.id?.startsWith('handoff_') ||
+            (message.toolCalls ?? []).some((call) =>
+              call.id.startsWith('handoff_'),
+            )),
+      ),
+    ).toBe(false)
+    await host.close()
+  })
+
   it('gives each pass of a turn with two routed passes to its own agent', async () => {
     const billing = modelAgent(
       'billing',

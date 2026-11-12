@@ -192,12 +192,14 @@ async function expandHost(
 
 /**
  * Fold one message of the thread for `speaker` (`null` for the main model)
- * in `'own'` mode. A message of the speaker stays. A message of another
- * speaker becomes text in one user message, so the speaker does not read
- * it as its own: the main model's text as `main:\ntext`, a routed answer
- * as its `name:\ntext`, and each handoff call as one line. Other tool calls
- * of another speaker go. `folded` collects the ids of the tool calls that
- * this removes, so their results go too.
+ * in `'own'` mode. A message of the speaker stays, except a fabricated
+ * handoff note (`metadata.harness.handoff`): those fold for every speaker,
+ * including the owner, because they are not a model call. A message of
+ * another speaker becomes text in one user message, so the speaker does
+ * not read it as its own: the main model's text as `main:\ntext`, a routed
+ * answer as its `name:\ntext`, and each handoff call as one line. Other
+ * tool calls of another speaker go. `folded` collects the ids of the tool
+ * calls that this removes, so their results go too.
  */
 function foldFor(
   message: ModelMessage,
@@ -211,10 +213,13 @@ function foldFor(
     return answersFolded ? [] : [message]
   }
   // A note names the agent that handed off. A router note of the main
-  // model names none.
+  // model names none. Notes are fabricated: fold them for every speaker
+  // so a later turn does not keep a second handoff pair it never produced.
   const owner = routedAgent(message) ?? null
-  if (message.role !== 'assistant' || owner === speaker) return [message]
   const isNote = isHandoffNote(message)
+  if (message.role !== 'assistant' || (owner === speaker && !isNote)) {
+    return [message]
+  }
   const from = owner ?? 'main'
   const text = textOf(message).trim()
   const lines: Array<string> = []
