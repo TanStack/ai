@@ -31,6 +31,15 @@ export default defineConfig({
   globalTeardown: './global-teardown.ts',
   webServer: {
     command: 'pnpm run dev',
+    // Bedrock reranking signs requests to aimock, never to AWS.
+    env: {
+      AWS_ACCESS_KEY_ID: 'AKIA_BEDROCK_E2E',
+      AWS_SECRET_ACCESS_KEY: 'bedrock-e2e-secret',
+      AWS_SESSION_TOKEN: '',
+      AWS_PROFILE: '',
+      AWS_DEFAULT_PROFILE: '',
+      AWS_EC2_METADATA_DISABLED: 'true',
+    },
     url: 'http://localhost:3010',
     reuseExistingServer: !process.env.CI,
     timeout: 120_000,

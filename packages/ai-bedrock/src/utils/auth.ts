@@ -58,6 +58,14 @@ export interface BedrockAuthConfig {
 
 /** apiKey -> BEDROCK_API_KEY -> AWS_BEARER_TOKEN_BEDROCK -> SigV4 (credential chain). */
 export function resolveBedrockAuth(
+  config: BedrockAuthConfig & { auth: 'sigv4' },
+  endpoint: BedrockEndpoint,
+): Extract<ResolvedBedrockAuth, { kind: 'sigv4' }>
+export function resolveBedrockAuth(
+  config: BedrockAuthConfig,
+  endpoint: BedrockEndpoint,
+): ResolvedBedrockAuth
+export function resolveBedrockAuth(
   config: BedrockAuthConfig,
   endpoint: BedrockEndpoint,
 ): ResolvedBedrockAuth {
