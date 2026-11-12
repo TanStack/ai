@@ -1938,7 +1938,7 @@ importers:
         version: link:../../packages/ai-remix
       remix:
         specifier: ^3.0.0-rc.1
-        version: 3.0.0-rc.1(@emnapi/core@1.11.1)(@emnapi/runtime@1.11.3)(mysql2@3.15.3)(pg@8.23.1)
+        version: 3.0.0-rc.1(@emnapi/core@1.11.1)(@emnapi/runtime@1.11.3)(mysql2@3.15.3)(pg@8.23.1)(redis@5.12.1(@opentelemetry/api@1.9.1))
       zod:
         specifier: ^4.2.0
         version: 4.3.6
@@ -3494,7 +3494,7 @@ importers:
         version: 20.11.2
       remix:
         specifier: ^3.0.0-rc.1
-        version: 3.0.0-rc.1(@emnapi/core@1.11.1)(@emnapi/runtime@1.11.3)(mysql2@3.15.3)(pg@8.23.1)
+        version: 3.0.0-rc.1(@emnapi/core@1.11.1)(@emnapi/runtime@1.11.3)(mysql2@3.15.3)(pg@8.23.1)(redis@5.12.1(@opentelemetry/api@1.9.1))
       vite:
         specifier: ^8.2.1
         version: 8.2.1(@types/node@24.10.3)(esbuild@0.28.1)(jiti@2.7.0)(less@4.6.6)(sass-embedded@1.107.1)(sass@1.107.1)(terser@5.44.1)(tsx@4.23.12)(yaml@2.9.0)
@@ -3653,6 +3653,19 @@ importers:
       railway:
         specifier: ^3.13.0
         version: 3.13.0
+    devDependencies:
+      '@tanstack/ai-sandbox':
+        specifier: workspace:*
+        version: link:../ai-sandbox
+      '@vitest/coverage-v8':
+        specifier: 4.1.10
+        version: 4.1.10(vitest@4.1.11)
+
+  packages/ai-sandbox-render:
+    dependencies:
+      '@renderinc/sdk':
+        specifier: ^1.8.0
+        version: 1.8.0(@opentelemetry/api@1.9.1)
     devDependencies:
       '@tanstack/ai-sandbox':
         specifier: workspace:*
@@ -10102,11 +10115,29 @@ packages:
     peerDependencies:
       react: ^18.0.0 || ^19.0.0
 
+  '@redis/bloom@5.12.1':
+    resolution: {integrity: sha512-PUUfv+ms7jgPSBVoo/DN4AkPHj4D5TZSd6SbJX7egzBplkYUcKmHRE8RKia7UtZ8bSQbLguLvxVO+asKtQfZWA==}
+    engines: {node: '>= 18.19.0'}
+    peerDependencies:
+      '@redis/client': ^5.12.1
+
   '@redis/bloom@6.3.1':
     resolution: {integrity: sha512-dpF9j2yJDoPzSCaZn0MSB3xzmnXQVJeTSAWJcQVcgbmluwhpFeemmII0cF1t+WYfoVS+shEFq79+MmUItgzJLg==}
     engines: {node: '>= 20.0.0'}
     peerDependencies:
       '@redis/client': ^6.3.1
+
+  '@redis/client@5.12.1':
+    resolution: {integrity: sha512-7aPGWeqA3uFm43o19umzdl16CEjK/JQGtSXVPevplTaOU3VJA/rseBC1QvYUz9lLDIMBimc4SW/zrW4S89BaCA==}
+    engines: {node: '>= 18.19.0'}
+    peerDependencies:
+      '@node-rs/xxhash': ^1.1.0
+      '@opentelemetry/api': '>=1 <2'
+    peerDependenciesMeta:
+      '@node-rs/xxhash':
+        optional: true
+      '@opentelemetry/api':
+        optional: true
 
   '@redis/client@6.3.1':
     resolution: {integrity: sha512-masbfVKULdoAofwddepZxRhWa4w6zvBHn6TRn90TRPrRkVIlGCur3pFqwWaCbMxtYI9twepkz63e/T/tEH8GjA==}
@@ -10120,17 +10151,35 @@ packages:
       '@opentelemetry/api':
         optional: true
 
+  '@redis/json@5.12.1':
+    resolution: {integrity: sha512-eOze75esLve4vfqDel7aMX08CNaiLLQS2fV8mpRN9NxPe1rVR4vQyYiW/OgtGUysF6QOr9ANhfxABKNOJfXdKg==}
+    engines: {node: '>= 18.19.0'}
+    peerDependencies:
+      '@redis/client': ^5.12.1
+
   '@redis/json@6.3.1':
     resolution: {integrity: sha512-fMz4kUwJzEftcU9EMaqsjZcUwzpTQLOYRqhQsAD6uKvZWeamblK13ZhgO5SzVSZVk31jmwLeTRpU5GAl5egfUw==}
     engines: {node: '>= 20.0.0'}
     peerDependencies:
       '@redis/client': ^6.3.1
 
+  '@redis/search@5.12.1':
+    resolution: {integrity: sha512-ItlxbxC9cKI6IU1TLWoczwJCRb6TdmkEpWv05UrPawqaAnWGRu3rcIqsc5vN483T2fSociuyV1UkWIL5I4//2w==}
+    engines: {node: '>= 18.19.0'}
+    peerDependencies:
+      '@redis/client': ^5.12.1
+
   '@redis/search@6.3.1':
     resolution: {integrity: sha512-T67pvPUpW82VrZLvihO8O2DFMC7eY2oMAzMzapCbiPZn7mdWqHMEIlohYim12gIawT5kn6qT/Cvmm4WulKB+kQ==}
     engines: {node: '>= 20.0.0'}
     peerDependencies:
       '@redis/client': ^6.3.1
+
+  '@redis/time-series@5.12.1':
+    resolution: {integrity: sha512-c6JL6E3EcZJuNqKFz+KM+l9l5mpcQiKvTwgA3blt5glWJ8hjDk0yeHN3beE/MpqYIQ8UEX44ItQzgkE/gCBELQ==}
+    engines: {node: '>= 18.19.0'}
+    peerDependencies:
+      '@redis/client': ^5.12.1
 
   '@redis/time-series@6.3.1':
     resolution: {integrity: sha512-MNDgrm+i63M/1a+XA+HcDsScwt4uBh/fGGJ84swTQZTFK5K5wMmxdlTRa4ZgmNJzjxMaszW/ipPScMUGV3aAMg==}
@@ -10312,6 +10361,10 @@ packages:
 
   '@remix-run/ui@0.8.0':
     resolution: {integrity: sha512-4OdZ3oj0zbyVVaCFT/x2vjK5YxpD63KpLONkLZ2QVKIEBcLjJUGSenp2f08BOzC8oythLHCJgzHLKKulYJpIQA==}
+
+  '@renderinc/sdk@1.8.0':
+    resolution: {integrity: sha512-GeZ+LSMlqV7CNcbcVLOVBeokIJHGs2XTe/7I6WURUq2qKBx9gV2Uj+XjT+E5IMzLn7/kXhV+uC7LxC2rPM2cJw==}
+    engines: {node: '>=18.0.0'}
 
   '@rolldown/binding-android-arm-eabi@1.2.8':
     resolution: {integrity: sha512-tN5aztYkKCte4i5SIrrz5yK/HMjEuCqCSCJa418jOV8tZ1cBY3YF2otxB1ktPxzsLA1BeTqwapK0bfjxNvHJVw==}
@@ -14509,6 +14562,10 @@ packages:
     resolution: {integrity: sha512-CRT1WTyuQoD771GW56XEZFQ/ZoSfWid1alKGDYMmkt2yl8UXrVR4pspqWNEcqKvVIzg6PAltWjxcSSPrboA4iA==}
     engines: {node: '>=18.0.0'}
 
+  eventsource@4.1.1:
+    resolution: {integrity: sha512-D6bTRWh6KahHTK/m4WnjPQyEinNPf9eFLEZSEoj7d6fTibspnAVYfzHvirL7u/aoX5d9YYfIkBVAhmigUELk9w==}
+    engines: {node: '>=20.0.0'}
+
   execa@8.0.1:
     resolution: {integrity: sha512-VyhnebXciFV2DESc+p6B+y0LjSm0krU4OgJN44qFAhBY0TJ+1V61tYD2+wHusZ6F9n5K+vl8k0sTy7PEfV4qpg==}
     engines: {node: '>=16.17'}
@@ -17025,6 +17082,9 @@ packages:
   openapi-fetch@0.14.1:
     resolution: {integrity: sha512-l7RarRHxlEZYjMLd/PR0slfMVse2/vvIAGm75/F7J6MlQ8/b9uUQmUF2kCPrQhJqMXSxmYWObVgeYXbFYzZR+A==}
 
+  openapi-fetch@0.15.2:
+    resolution: {integrity: sha512-rdYTzUmSsJevmNqg7fwUVGuKc2Gfb9h6ph74EVPkPfIGJaZTfqdIbJahtbJ3qg1LKinln30hqZniLnKpH0RJBg==}
+
   openapi-typescript-helpers@0.0.15:
     resolution: {integrity: sha512-opyTPaunsklCBpTK8JGef6mfPhLSnyy5a0IN9vKtx3+4aExf+KxEqYwIy3hqkedXIB97u357uLMJsOnm3GVjsw==}
 
@@ -17859,6 +17919,10 @@ packages:
   redis-parser@3.0.0:
     resolution: {integrity: sha512-DJnGAeenTdpMEH6uAJRK/uiyEIH9WVsUmoLwzudwGJUwZPp80PDBWPHXSAGNPwNvIXAbe7MSUB1zQFugFml66A==}
     engines: {node: '>=4'}
+
+  redis@5.12.1:
+    resolution: {integrity: sha512-LDsoVvb/CpoV9EN3FXvgvSHNJWuCIzl9MiO3ppOevuGLpSGJhwfQjpEwfFJcQvNSddHADDdZaWx0HnmMxRXG7g==}
+    engines: {node: '>= 18.19.0'}
 
   redis@6.3.1:
     resolution: {integrity: sha512-mV96ZKxQ4CGn3SyEGaY0Lb9YA443mdVey3c+mdr0NAUaBxiOZGoYCWX8PoM55kictSOmxlJRtZJxIsmZm3jL+w==}
@@ -27586,21 +27650,43 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
+  '@redis/bloom@5.12.1(@redis/client@5.12.1(@opentelemetry/api@1.9.1))':
+    dependencies:
+      '@redis/client': 5.12.1(@opentelemetry/api@1.9.1)
+
   '@redis/bloom@6.3.1(@redis/client@6.3.1(@opentelemetry/api@1.9.1))':
     dependencies:
       '@redis/client': 6.3.1(@opentelemetry/api@1.9.1)
+
+  '@redis/client@5.12.1(@opentelemetry/api@1.9.1)':
+    dependencies:
+      cluster-key-slot: 1.1.2
+    optionalDependencies:
+      '@opentelemetry/api': 1.9.1
 
   '@redis/client@6.3.1(@opentelemetry/api@1.9.1)':
     optionalDependencies:
       '@opentelemetry/api': 1.9.1
 
+  '@redis/json@5.12.1(@redis/client@5.12.1(@opentelemetry/api@1.9.1))':
+    dependencies:
+      '@redis/client': 5.12.1(@opentelemetry/api@1.9.1)
+
   '@redis/json@6.3.1(@redis/client@6.3.1(@opentelemetry/api@1.9.1))':
     dependencies:
       '@redis/client': 6.3.1(@opentelemetry/api@1.9.1)
 
+  '@redis/search@5.12.1(@redis/client@5.12.1(@opentelemetry/api@1.9.1))':
+    dependencies:
+      '@redis/client': 5.12.1(@opentelemetry/api@1.9.1)
+
   '@redis/search@6.3.1(@redis/client@6.3.1(@opentelemetry/api@1.9.1))':
     dependencies:
       '@redis/client': 6.3.1(@opentelemetry/api@1.9.1)
+
+  '@redis/time-series@5.12.1(@redis/client@5.12.1(@opentelemetry/api@1.9.1))':
+    dependencies:
+      '@redis/client': 5.12.1(@opentelemetry/api@1.9.1)
 
   '@redis/time-series@6.3.1(@redis/client@6.3.1(@opentelemetry/api@1.9.1))':
     dependencies:
@@ -27822,9 +27908,11 @@ snapshots:
     dependencies:
       '@remix-run/session': 0.4.2
 
-  '@remix-run/session-storage-redis@0.1.1':
+  '@remix-run/session-storage-redis@0.1.1(redis@5.12.1(@opentelemetry/api@1.9.1))':
     dependencies:
       '@remix-run/session': 0.4.2
+    optionalDependencies:
+      redis: 5.12.1(@opentelemetry/api@1.9.1)
 
   '@remix-run/session@0.4.2': {}
 
@@ -27879,6 +27967,15 @@ snapshots:
   '@remix-run/ui@0.8.0':
     dependencies:
       '@types/dom-navigation': 1.0.7
+
+  '@renderinc/sdk@1.8.0(@opentelemetry/api@1.9.1)':
+    dependencies:
+      eventsource: 4.1.1
+      openapi-fetch: 0.15.2
+      redis: 5.12.1(@opentelemetry/api@1.9.1)
+    transitivePeerDependencies:
+      - '@node-rs/xxhash'
+      - '@opentelemetry/api'
 
   '@rolldown/binding-android-arm-eabi@1.2.8':
     optional: true
@@ -32829,6 +32926,10 @@ snapshots:
     dependencies:
       eventsource-parser: 3.1.1
 
+  eventsource@4.1.1:
+    dependencies:
+      eventsource-parser: 3.1.1
+
   execa@8.0.1:
     dependencies:
       cross-spawn: 7.0.6
@@ -36382,6 +36483,10 @@ snapshots:
     dependencies:
       openapi-typescript-helpers: 0.0.15
 
+  openapi-fetch@0.15.2:
+    dependencies:
+      openapi-typescript-helpers: 0.0.15
+
   openapi-typescript-helpers@0.0.15: {}
 
   optionator@0.9.4:
@@ -37767,6 +37872,17 @@ snapshots:
     dependencies:
       redis-errors: 1.2.0
 
+  redis@5.12.1(@opentelemetry/api@1.9.1):
+    dependencies:
+      '@redis/bloom': 5.12.1(@redis/client@5.12.1(@opentelemetry/api@1.9.1))
+      '@redis/client': 5.12.1(@opentelemetry/api@1.9.1)
+      '@redis/json': 5.12.1(@redis/client@5.12.1(@opentelemetry/api@1.9.1))
+      '@redis/search': 5.12.1(@redis/client@5.12.1(@opentelemetry/api@1.9.1))
+      '@redis/time-series': 5.12.1(@redis/client@5.12.1(@opentelemetry/api@1.9.1))
+    transitivePeerDependencies:
+      - '@node-rs/xxhash'
+      - '@opentelemetry/api'
+
   redis@6.3.1(@opentelemetry/api@1.9.1):
     dependencies:
       '@redis/bloom': 6.3.1(@redis/client@6.3.1(@opentelemetry/api@1.9.1))
@@ -37874,7 +37990,7 @@ snapshots:
   remeda@2.33.4:
     optional: true
 
-  remix@3.0.0-rc.1(@emnapi/core@1.11.1)(@emnapi/runtime@1.11.3)(mysql2@3.15.3)(pg@8.23.1):
+  remix@3.0.0-rc.1(@emnapi/core@1.11.1)(@emnapi/runtime@1.11.3)(mysql2@3.15.3)(pg@8.23.1)(redis@5.12.1(@opentelemetry/api@1.9.1)):
     dependencies:
       '@remix-run/assert': 0.3.0
       '@remix-run/assets': 0.6.0(@emnapi/core@1.11.1)(@emnapi/runtime@1.11.3)
@@ -37915,7 +38031,7 @@ snapshots:
       '@remix-run/session': 0.4.2
       '@remix-run/session-middleware': 0.4.0
       '@remix-run/session-storage-memcache': 0.1.2
-      '@remix-run/session-storage-redis': 0.1.1
+      '@remix-run/session-storage-redis': 0.1.1(redis@5.12.1(@opentelemetry/api@1.9.1))
       '@remix-run/spa': 0.1.0(@emnapi/core@1.11.1)(@emnapi/runtime@1.11.3)
       '@remix-run/static-middleware': 0.4.14
       '@remix-run/tar-parser': 0.7.1
@@ -37926,6 +38042,7 @@ snapshots:
     optionalDependencies:
       mysql2: 3.15.3
       pg: 8.23.1
+      redis: 5.12.1(@opentelemetry/api@1.9.1)
     transitivePeerDependencies:
       - '@emnapi/core'
       - '@emnapi/runtime'
