@@ -6,7 +6,8 @@ import {
   runAgentStream,
   validateWithStandardSchema,
 } from '@tanstack/ai'
-import { withPersistence, type BlobBody } from '@tanstack/ai-persistence'
+import { withPersistence } from '@tanstack/ai-persistence'
+import type { BlobBody } from '@tanstack/ai-persistence'
 import { redactMiddleware } from '../auth'
 import { BOUNDARY_INTERRUPTS, withoutBoundaryWaits } from '../boundary-waits'
 import { errorsOnlyDebug } from '../logger'
