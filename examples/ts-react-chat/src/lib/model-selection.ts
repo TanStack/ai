@@ -39,8 +39,8 @@ export const MODEL_OPTIONS: Array<ModelOption> = [
   // Cloudflare Workers AI. `provider/model` ids route through AI Gateway.
   {
     provider: 'cloudflare',
-    model: '@cf/zai-org/glm-5.3-flash',
-    label: 'Cloudflare - GLM 5.3 Flash',
+    model: '@cf/deepseek-ai/deepseek-v4.1-flash-1017',
+    label: 'Cloudflare - DeepSeek V4.1 Flash',
   },
   {
     provider: 'cloudflare',
