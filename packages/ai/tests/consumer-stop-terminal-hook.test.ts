@@ -1,0 +1,164 @@
+import { describe, expect, it } from 'vitest'
+import { chat } from '../src/activities/chat/index'
+import { fakeText } from '../src/testing'
+import { EventType } from '../src/types'
+import { clientTool, createMockAdapter, ev, serverTool } from './test-utils'
+import type { ChatMiddleware } from '../src/activities/chat/middleware/types'
+import type { StreamChunk, Tool } from '../src/types'
+
+function terminalRecorder() {
+  const hooks: Array<string> = []
+  const abortInfo: Array<unknown> = []
+  const middleware: ChatMiddleware = {
+    name: 'record-terminal',
+    onFinish: () => {
+      hooks.push('onFinish')
+    },
+    onAbort: (_ctx, info) => {
+      hooks.push('onAbort')
+      abortInfo.push(info)
+    },
+    onError: () => {
+      hooks.push('onError')
+    },
+  }
+  return { hooks, abortInfo, middleware }
+}
+
+function run(middleware: ChatMiddleware) {
+  const adapter = fakeText()
+  adapter.setResponses([{ text: 'a long answer in many chunks' }])
+  return chat({
+    threadId: 'thread-1',
+    adapter,
+    messages: [{ role: 'user', content: 'Hi' }],
+    middleware: [middleware],
+  }) as AsyncIterable<StreamChunk>
+}
+
+function runWithTool(middleware: ChatMiddleware, tool: Tool) {
+  const { adapter, calls } = createMockAdapter({
+    iterations: [
+      [
+        ev.runStarted(),
+        ev.toolStart('call-1', tool.name),
+        ev.toolArgs('call-1', '{}'),
+        ev.runFinished('tool_calls'),
+      ],
+      [
+        ev.runStarted('run-2'),
+        ev.textStart(),
+        ev.textContent('done'),
+        ev.textEnd(),
+        ev.runFinished('stop', 'run-2'),
+      ],
+    ],
+  })
+  const stream = chat({
+    threadId: 'thread-1',
+    adapter,
+    messages: [{ role: 'user', content: 'Use the tool' }],
+    tools: [tool],
+    middleware: [middleware],
+  }) as AsyncIterable<StreamChunk>
+  return { stream, calls }
+}
+
+describe('a consumer that stops iterating chat() runs one terminal hook', () => {
+  it('break after the first TEXT_MESSAGE_CONTENT runs onAbort', async () => {
+    const { hooks, abortInfo, middleware } = terminalRecorder()
+    for await (const chunk of run(middleware)) {
+      if (chunk.type === EventType.TEXT_MESSAGE_CONTENT) break
+    }
+    expect(hooks).toEqual(['onAbort'])
+    // A consumer stop is a disconnect, not a cancel.
+    expect(abortInfo).toEqual([
+      expect.objectContaining({ cancelRequested: false, reason: undefined }),
+    ])
+  })
+
+  it('break at RUN_ERROR runs onError', async () => {
+    const { hooks, middleware } = terminalRecorder()
+    const { adapter } = createMockAdapter({
+      iterations: [[ev.runStarted(), ev.runError('model failed')]],
+    })
+    for await (const chunk of chat({
+      threadId: 'thread-1',
+      adapter,
+      messages: [{ role: 'user', content: 'Hi' }],
+      middleware: [middleware],
+    }) as AsyncIterable<StreamChunk>) {
+      if (chunk.type === EventType.RUN_ERROR) break
+    }
+    expect(hooks).toEqual(['onError'])
+  })
+
+  it('break after the final RUN_FINISHED runs onAbort', async () => {
+    const { hooks, middleware } = terminalRecorder()
+    for await (const chunk of run(middleware)) {
+      if (chunk.type === EventType.RUN_FINISHED) break
+    }
+    expect(hooks).toEqual(['onAbort'])
+  })
+
+  it('break after a tool turn RUN_FINISHED runs onAbort and no next turn', async () => {
+    const { hooks, middleware } = terminalRecorder()
+    const { stream, calls } = runWithTool(
+      middleware,
+      serverTool('lookup', () => 'found'),
+    )
+    for await (const chunk of stream) {
+      if (chunk.type === EventType.RUN_FINISHED) break
+    }
+    expect(hooks).toEqual(['onAbort'])
+    expect(calls).toHaveLength(1)
+  })
+
+  it.each([
+    ['a client tool', clientTool('ask_client')],
+    [
+      'an approval',
+      { ...serverTool('delete_file', () => 'deleted'), needsApproval: true },
+    ],
+  ])('break after %s pause RUN_FINISHED runs onFinish', async (_kind, tool) => {
+    const { hooks, middleware } = terminalRecorder()
+    const { stream, calls } = runWithTool(middleware, tool)
+    let stoppedAt: StreamChunk | undefined
+    for await (const chunk of stream) {
+      if (chunk.type === EventType.RUN_FINISHED) {
+        stoppedAt = chunk
+        break
+      }
+    }
+    expect(stoppedAt).toMatchObject({ outcome: { type: 'interrupt' } })
+    expect(hooks).toEqual(['onFinish'])
+    expect(calls).toHaveLength(1)
+  })
+
+  it('break at a custom event from setup runs onAbort after setup ends', async () => {
+    const events: Array<string> = []
+    const middleware: ChatMiddleware = {
+      name: 'slow-setup',
+      async setup(ctx) {
+        ctx.emitCustomEvent('setup:progress', {})
+        await new Promise((resolve) => setTimeout(resolve, 20))
+        events.push('setup done')
+      },
+      onAbort: () => {
+        events.push('onAbort')
+      },
+    }
+    for await (const chunk of run(middleware)) {
+      if (chunk.type === EventType.CUSTOM) break
+    }
+    expect(events).toEqual(['setup done', 'onAbort'])
+  })
+
+  it('a full drain runs onFinish once', async () => {
+    const { hooks, middleware } = terminalRecorder()
+    for await (const _ of run(middleware)) {
+      // drain
+    }
+    expect(hooks).toEqual(['onFinish'])
+  })
+})

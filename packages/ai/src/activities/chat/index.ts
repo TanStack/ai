@@ -1549,6 +1549,37 @@ class TextEngine<
   }
 
   async *run(): AsyncGenerator<StreamChunk> {
+    const steps = this.runSteps()
+    for await (const chunk of steps) {
+      let resumed = false
+      try {
+        yield chunk
+        resumed = true
+      } finally {
+        // The consumer stopped iterating (`break` or `return()`).
+        if (!resumed) {
+          if (
+            chunk.type === EventType.RUN_ERROR ||
+            (chunk.type === EventType.RUN_FINISHED &&
+              chunk.outcome?.type === 'interrupt')
+          ) {
+            // A yielded error or a pause ends this invocation. Finish it
+            // unseen so it reports `onError` or `onFinish`, as a drained run
+            // does. A pause keeps its paused state.
+            for await (const _chunk of steps) {
+              // discard
+            }
+          } else {
+            // Abort before the loop closes `runSteps`, so its `finally`
+            // reports `onAbort`.
+            this.middlewareAbortController?.abort()
+          }
+        }
+      }
+    }
+  }
+
+  private async *runSteps(): AsyncGenerator<StreamChunk> {
     this.beforeRun()
     this.logger.agentLoop('run started', {
       threadId: this.middlewareCtx.threadId,
@@ -6143,22 +6174,39 @@ class TextEngine<
       },
     )
 
-    while (!settled) {
-      yield* this.drainMiddlewareCustomQueue()
-      if (settled) break
-      await Promise.race([
-        done,
-        new Promise<void>((resolve) => {
-          if (this.middlewareCustomQueue.length > 0) {
-            resolve()
-            return
-          }
-          this.middlewareCustomWaiters.push(resolve)
-        }),
-      ])
-    }
+    let finished = false
+    try {
+      while (!settled) {
+        yield* this.drainMiddlewareCustomQueue()
+        if (settled) break
+        await Promise.race([
+          done,
+          new Promise<void>((resolve) => {
+            if (this.middlewareCustomQueue.length > 0) {
+              resolve()
+              return
+            }
+            this.middlewareCustomWaiters.push(resolve)
+          }),
+        ])
+      }
 
-    yield* this.drainMiddlewareCustomQueue()
+      yield* this.drainMiddlewareCustomQueue()
+      finished = true
+    } finally {
+      // A consumer that stops at a custom event closes this generator while
+      // the work runs. Wait for it, so no hook work outlives `onAbort`.
+      await done
+      // The throw below is skipped on that path, so log the error instead.
+      if (!finished && error !== undefined) {
+        this.logger.errors(
+          'middleware hook failed after the consumer stopped',
+          {
+            error,
+          },
+        )
+      }
+    }
     if (error !== undefined) throw error
     return result as T
   }
