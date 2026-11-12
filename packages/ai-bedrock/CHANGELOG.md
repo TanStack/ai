@@ -1,5 +1,11 @@
 # @tanstack/ai-bedrock
 
+## 1.3.0
+
+### Minor Changes
+
+- [#2125](https://github.com/TanStack/ai/pull/2125) [`9bd6d7b`](https://github.com/TanStack/ai/commit/9bd6d7b803453b1c0f4d24728ccee31a920dcf2e) - Add `bedrockRerank()` for Amazon Rerank and Cohere Rerank models through the Bedrock Rerank API. Supports the existing `rerank()` activity with pagination and cancellation. Uses AWS credentials (SigV4), not Bedrock API keys.
+
 ## 1.2.1
 
 ### Patch Changes
