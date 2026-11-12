@@ -112,6 +112,28 @@ export default defineConfig({
       jsx: 'preserve',
       jsxImportSource: 'solid-js',
     },
+    // Solid 2 has a separate renderer and must not resolve Solid 1's types.
+    {
+      include: ['docs/framework/solid2.md', 'packages/ai-solid2/README.md'],
+      jsx: 'preserve',
+      jsxImportSource: '@solidjs/web',
+      paths: {
+        '@tanstack/ai-solid2': ['./packages/ai-solid2/src/index.ts'],
+        '@tanstack/ai-openai': ['./packages/ai-openai/src/index.ts'],
+        'solid-js': [
+          './packages/ai-solid2/node_modules/solid-js/types/index.d.ts',
+        ],
+        '@solidjs/web': [
+          './packages/ai-solid2/node_modules/@solidjs/web/types/index.d.ts',
+        ],
+        '@solidjs/web/jsx-runtime': [
+          './packages/ai-solid2/node_modules/@solidjs/web/types/jsx.d.ts',
+        ],
+        '@solidjs/vite-plugin': [
+          './packages/ai-solid2/node_modules/@solidjs/vite-plugin/dist/types/src/index.d.ts',
+        ],
+      },
+    },
     // Preact snippets compile JSX through preact.
     {
       include: ['docs/api/ai-preact.md', 'docs/ui/preact.md'],
