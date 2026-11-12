@@ -285,7 +285,17 @@ export async function historyFor(
         : undefined
     if (expanded) result.push(...expanded)
     else if (mode === 'all') result.push(message)
-    else result.push(...foldFor(message, speaker, handoffToolName, folded))
+    else if (
+      children.length > 0 &&
+      !children.some((child) => wanted(child.name))
+    ) {
+      // Unstamped multi-agent host (a list / { names } / { steps } pick
+      // never sets metadata.harness.agent). Fold as user text and keep
+      // the existing name: labels, so the main model does not read them
+      // as its own.
+      const text = textOf(message).trim()
+      if (text !== '') result.push(otherSpeaker(message, text))
+    } else result.push(...foldFor(message, speaker, handoffToolName, folded))
   }
   return result
 }

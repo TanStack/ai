@@ -223,6 +223,27 @@ describe('historyFor', () => {
     ])
   })
 
+  it("folds an unstamped multi-agent host as user text for the main model in 'own' mode", async () => {
+    const parallel: ModelMessage = {
+      id: 'assistant:r3',
+      role: 'assistant',
+      content: 'billing:\nRefunded\n\nshipping:\nShipped',
+      metadata: { tanstack: { runId: 'r3' } },
+    }
+    const result = await history({
+      messages: [USER, parallel],
+      speaker: null,
+      mode: 'own',
+      children: {
+        r3: [
+          { name: 'billing', subagentRunId: 's1' },
+          { name: 'shipping', subagentRunId: 's2' },
+        ],
+      },
+    })
+    expect(result).toEqual([USER, { ...parallel, role: 'user' }])
+  })
+
   it("keeps the main model's own calls and gives it routed answers as user text in 'own' mode", async () => {
     const call = handoffCall('call_h', 'handoff', { to: 'billing' })
     const messages = [USER, call, toolResult('call_h'), BILLING_HOST]

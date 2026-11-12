@@ -168,6 +168,44 @@ describe('routing.history', () => {
     await host.close()
   })
 
+  it("'own' gives the main model a parallel run as user text, not assistant", async () => {
+    const billing = modelAgent('billing', [() => text('Refunded')])
+    const shipping = modelAgent('shipping', [() => text('Shipped')])
+    const { host, session, main } = await openRouting({
+      agents: [billing.agent, shipping.agent],
+      router: ({ input }) =>
+        input === 'both'
+          ? { names: ['billing', 'shipping'], order: 'parallel' }
+          : 'main',
+      replies: [() => text('Main here')],
+    })
+
+    await session.send('both')
+    expect((await session.send('ask main')).text).toBe('Main here')
+
+    const [call] = main.calls
+    const labeled = call.messages.filter(
+      (message: ModelMessage) =>
+        typeof message.content === 'string' &&
+        message.content.includes('billing:') &&
+        message.content.includes('shipping:'),
+    )
+    expect(labeled.length).toBeGreaterThan(0)
+    expect(
+      labeled.every((message: ModelMessage) => message.role === 'user'),
+    ).toBe(true)
+    expect(
+      call.messages.some(
+        (message: ModelMessage) =>
+          message.role === 'assistant' &&
+          typeof message.content === 'string' &&
+          (message.content.includes('billing:') ||
+            message.content.includes('Refunded')),
+      ),
+    ).toBe(false)
+    await host.close()
+  })
+
   it("'own' gives a routed agent the handoff of main as a text line", async () => {
     const billing = modelAgent('billing', [
       () => text('Refunded'),

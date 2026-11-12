@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { defineAgent, toolDefinition } from '@tanstack/ai'
 import { memoryLogStore, memoryPersistence } from '@tanstack/ai-persistence'
 import { createHarnessHost, defineHarness, harnessAgent } from '../src'
+import { mediaPart } from '../src/media-entry'
 import { mockAdapter, storedThreadState, text, toolCall } from './helpers'
 import type { ModelMessage } from '@tanstack/ai'
 import type { AnyHarness, HarnessRouting } from '../src'
@@ -195,6 +196,49 @@ describe('harnessAgent as a routed root agent', () => {
     expect((await session.send('more')).text).toBe('Main again.')
     expect(desk.model.calls).toHaveLength(1)
     expect(main.calls).toHaveLength(2)
+    await host.close()
+  })
+
+  it('gives a routed root harnessAgent the bytes of parent-thread media', async () => {
+    const encoder = new TextEncoder()
+    const model = mockAdapter([() => text('A cat.')])
+    const child = defineHarness({
+      name: 'test/desk',
+      adapter: { ...model.adapter, inputModalities: ['text', 'image'] },
+    })
+    const main = mockAdapter([])
+    const host = createHarnessHost({ persistence: memoryPersistence() })
+    const session = await host.open(
+      defineHarness({
+        name: 'test/front',
+        adapter: { ...main.adapter, inputModalities: ['text', 'image'] },
+        agents: [harnessAgent(child, { name: 'desk' })],
+        routing: { router: () => ({ name: 'desk' }) },
+      }),
+      { threadId: THREAD },
+    )
+    const record = await session.putMedia({
+      body: encoder.encode('hello'),
+      mimeType: 'image/png',
+      name: 'cat.png',
+    })
+    await session.send([
+      { type: 'text', content: 'What is this?' },
+      mediaPart(record),
+    ])
+
+    const last = model.calls[0].messages.at(-1)
+    expect(last.role).toBe('user')
+    const parts = Array.isArray(last.content) ? last.content : []
+    expect(parts).toEqual(
+      expect.arrayContaining([
+        {
+          type: 'image',
+          source: { type: 'data', value: 'aGVsbG8=', mimeType: 'image/png' },
+        },
+      ]),
+    )
+    expect(JSON.stringify(last.content)).not.toContain('not found')
     await host.close()
   })
 

@@ -6,7 +6,7 @@ import {
   runAgentStream,
   validateWithStandardSchema,
 } from '@tanstack/ai'
-import { withPersistence } from '@tanstack/ai-persistence'
+import { withPersistence, type BlobBody } from '@tanstack/ai-persistence'
 import { redactMiddleware } from '../auth'
 import { BOUNDARY_INTERRUPTS, withoutBoundaryWaits } from '../boundary-waits'
 import { errorsOnlyDebug } from '../logger'
@@ -71,6 +71,7 @@ import type { AgentResultRecord, RunTreeNode } from '../log-records'
 import { NO_SESSION_CONTEXT, withHarnessChild } from '../agents'
 import { forwardTurn, lastUserInput } from '../harness-text'
 import { textOf } from '../first-party/session-tools'
+import { mediaIdOf, mediaPart } from '../media-ref'
 import { historyFor, isHandoffNote, routedAgent } from '../routed-history'
 import { wait as backoff, isTransientModelError } from '../turn'
 import { addCounts, emptyCounts } from '../usage'
@@ -926,7 +927,16 @@ export abstract class SessionAgents<
     try {
       const messages = convertMessagesToModelMessages(ctx.messages)
       operation = session.send(
-        root ? await rootInput(messages, root.name) : lastUserInput(messages),
+        root
+          ? await copyThreadMedia(
+              {
+                getMedia: (id) => this.getMedia({ id }),
+                open: (id) => this.mediaStore.open(id),
+              },
+              session,
+              await rootInput(messages, root.name),
+            )
+          : lastUserInput(messages),
       )
       if (signal.aborted) onAbort()
       let finished: InnerTurnEnd['finished'] = 'stop'
@@ -2856,23 +2866,87 @@ async function rootInput(messages: Array<ModelMessage>, name: string) {
   // A message of the user comes back as the same object. A folded message
   // of another speaker is a new user message that has its label already.
   const fromUser = new Set(since.filter((message) => message.role === 'user'))
-  const lines = folded.flatMap((message) => {
+  const lines: Array<string> = []
+  const earlierMedia: Array<ContentPart> = []
+  for (const message of folded) {
+    if (message.role === 'tool') continue
     const line = textOf(message).trim()
-    if (line === '' || message.role === 'tool') return []
-    return [fromUser.has(message) ? `user:\n${line}` : line]
-  })
+    if (fromUser.has(message)) {
+      if (line !== '') lines.push(`user:\n${line}`)
+      if (Array.isArray(message.content)) {
+        for (const part of message.content) {
+          if (mediaIdOf(part) !== undefined) earlierMedia.push(part)
+        }
+      }
+      continue
+    }
+    if (line !== '') lines.push(line)
+  }
   const input = hasNewUser ? lastUserInput(messages) : undefined
-  if (lines.length === 0) return input ?? 'Continue.'
+  const sent: Array<ContentPart> =
+    input === undefined
+      ? []
+      : typeof input === 'string'
+        ? [{ type: 'text', content: input }]
+        : input
+  if (lines.length === 0 && earlierMedia.length === 0) {
+    return input ?? 'Continue.'
+  }
   const head =
     lastAnswer === -1 ? 'The conversation so far:' : 'Since your last turn:'
-  const context: ContentPart = {
-    type: 'text',
-    content: [head, ...lines].join('\n\n'),
+  const context: Array<ContentPart> = [
+    {
+      type: 'text',
+      content: lines.length === 0 ? head : [head, ...lines].join('\n\n'),
+    },
+    ...earlierMedia,
+  ]
+  return sent.length === 0 ? context : [...context, ...sent]
+}
+
+/**
+ * Copy parent-thread `harness-media:` parts in `input` into `dest`, so the
+ * child session can read them. Same copy as `adoptMessages`: each file gets
+ * a new id on the child thread.
+ */
+async function copyThreadMedia(
+  source: {
+    getMedia: (id: string) => Promise<MediaRecord | null>
+    open: (id: string) => Promise<BlobBody>
+  },
+  dest: {
+    putMedia: (upload: {
+      body: BlobBody
+      mimeType: string
+      name: string
+    }) => Promise<MediaRecord>
+  },
+  input: UserInput,
+): Promise<UserInput> {
+  if (typeof input === 'string') return input
+  const copies = new Map<string, MediaRecord | null>()
+  const copy = async (id: string) => {
+    if (!copies.has(id)) {
+      const record = await source.getMedia(id)
+      copies.set(
+        id,
+        record &&
+          (await dest.putMedia({
+            body: await source.open(id),
+            mimeType: record.mimeType,
+            name: record.name,
+          })),
+      )
+    }
+    return copies.get(id) ?? undefined
   }
-  if (input === undefined) return [context]
-  const sent: Array<ContentPart> =
-    typeof input === 'string' ? [{ type: 'text', content: input }] : input
-  return [context, ...sent]
+  return Promise.all(
+    input.map(async (part) => {
+      const id = mediaIdOf(part)
+      const made = id === undefined ? undefined : await copy(id)
+      return made ? mediaPart(made) : part
+    }),
+  )
 }
 
 /**
