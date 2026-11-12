@@ -16,6 +16,7 @@ import type {
   SystemPrompt,
 } from '@tanstack/ai'
 import type { AnyAgent } from './agents'
+import type { HandoffOptions } from './handoff'
 import type { ProjectOptions, ReduceOptions } from './log'
 import type { MediaOptions } from './media'
 import type { HarnessPlugin, PluginMetadataCheck, PluginModel } from './plugins'
@@ -127,6 +128,26 @@ export type HarnessRouterPick =
   | undefined
 
 /**
+ * What `routing.handoffTool` gets for one speaker of the turn.
+ */
+export interface HandoffToolContext {
+  /** The speaker: `null` for the main model, else the root agent name. */
+  from: string | null
+  /**
+   * The names this speaker can hand off to: the root agents other than
+   * itself, plus `'main'` for an agent.
+   */
+  targets: Array<string>
+  /** The value of `routing.allowHandoffToHuman`. */
+  allowHuman: boolean
+  /**
+   * Record a handoff with `by: 'tool'` and end the part. It adds no note
+   * messages: the tool call is in the transcript.
+   */
+  handoff: (options: HandoffOptions) => Promise<void>
+}
+
+/**
  * The `routing` option. The other fields mean the same as in `subagents`.
  * `limits` defaults to `subagents.limits`. The `strategy` of `subagents` is
  * not here: use `afterAgentsAnswer`.
@@ -166,6 +187,40 @@ export interface HarnessRouting<TMetadataSchema = any> extends Pick<
    * hand off. Default `true`.
    */
   giveModelsHandoffTool?: boolean
+  /**
+   * How later turns see the routed runs of earlier turns. The router gets
+   * the same messages in every mode.
+   * - `'own'`: each speaker sees only its own tool calls. A routed agent
+   *   sees its own earlier routed runs in full. It sees the other speakers
+   *   as labeled text (`name:\ntext`, `main:\ntext`), and a handoff call as
+   *   a text line with the note. The main model sees routed runs as
+   *   `name:\ntext`.
+   * - `'all'`: every speaker sees every routed run in full.
+   * - `'text'`: every speaker sees routed runs as `name:\ntext`.
+   *
+   * Default `'own'`.
+   */
+  history?: 'own' | 'all' | 'text'
+  /**
+   * Make the handoff tool of each speaker. The harness calls it once per
+   * speaker (the main model and each root agent) per turn. The returned
+   * tool replaces the default `handoff` tool, and it can have any name.
+   * Not called when `giveModelsHandoffTool` is false.
+   *
+   * @example
+   * ```ts
+   * handoffTool: ({ from, targets, handoff }) =>
+   *   toolDefinition({
+   *     name: 'handoff',
+   *     description: 'Hand the user to another agent',
+   *     inputSchema: z.object({ to: z.enum(targets), note: z.string() }),
+   *   }).server(async ({ to, note }) => {
+   *     await handoff({ to, note: `${from ?? 'main'}: ${note}` })
+   *     return `Handed off to ${to}.`
+   *   })
+   * ```
+   */
+  handoffTool?: (ctx: HandoffToolContext) => AnyTool
 }
 
 /**

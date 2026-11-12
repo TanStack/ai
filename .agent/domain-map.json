@@ -44,9 +44,11 @@
         "packages/ai-claude-code",
         "packages/ai-codex",
         "packages/ai-opencode",
-        "packages/ai-grok-build"
+        "packages/ai-grok-build",
+        "packages/ai-harness",
+        "packages/ai-harness-cli"
       ],
-      "talksTo": ["core", "sandbox"]
+      "talksTo": ["core", "sandbox", "persistence"]
     },
     {
       "id": "client",

@@ -117,7 +117,9 @@ describe('prompt cache', () => {
         adapter: main.adapter,
         tools: [escalate],
         agents: [billing],
-        routing: { router: () => undefined },
+        // 'text' keeps the main model's messages as they are, so the target
+        // has them as its prefix. 'own' folds them to text for the target.
+        routing: { router: () => undefined, history: 'text' },
       }),
       { threadId: 't' },
     )
