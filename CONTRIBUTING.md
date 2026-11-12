@@ -235,7 +235,7 @@ The defensive `ignore` list in `.changeset/config.json` blocks accidental public
 
 1. Push your branch and open a PR against `main`.
 2. Fill the PR template. Tick **docs** and **changeset** honestly, or say why you skipped them.
-3. CI runs: `pnpm test:pr` (sherif workspace check, knip dead-code, docs link verification, oxlint, unit tests, typecheck, build artifacts, build), the `Coverage` regression gate, and the full E2E suite.
+3. CI runs: `pnpm test:pr` (sherif workspace check, knip dead-code, docs link verification, oxlint, unit tests, typecheck, the React Native smoke when `ai-react` or its dependencies change, build artifacts, build), the `Coverage` regression gate, and the full E2E suite.
 4. Address review comments.
 5. A maintainer merges. Releases are cut via Changesets. Your changeset entry lands in the next release.
 
