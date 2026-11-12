@@ -94,9 +94,13 @@ export interface UseGenerationOptions<TInput, TResult, TOutput = TResult> {
   /** Callback for each stream chunk (connect-based adapter mode only) */
   onChunk?: (chunk: StreamChunk) => void
   /**
-   * @internal Rebuild a typed result from a restored snapshot, injected by each
-   * specialized hook (image / speech / audio / transcription / summarize).
-   * Forwarded to the client so a server-hydrate restore repaints `result`.
+   * Rebuild a custom result from persisted metadata and durable artifact URLs.
+   * Supply this when using `useGeneration` directly with `persistence: true`
+   * to restore `result()`. Specialized hooks provide their own mapper.
+   * Without a mapper, hydration restores status but leaves `result()` null,
+   * even for a completed run. Arbitrary custom fields are not persisted.
+   * Return `null` if the stored fields cannot rebuild the result; a completed
+   * snapshot then reports an error. Rebuilt results pass through `onResult`.
    */
   reconstructResult?: (restored: GenerationRestoredResult) => TResult | null
 }
@@ -148,6 +152,7 @@ export interface UseGenerationReturn<
  * @example
  * ```tsx
  * const { generate, result, isLoading } = useGeneration<MyInput, MyResult>({
+ *   threadId: 'custom-generation',
  *   connection: fetchServerSentEvents('/api/generate/custom'),
  * })
  *
@@ -207,9 +212,9 @@ export function useGeneration<
       // The transform's raw return type (`TTransformed`) and the stored output
       // (`TOutput`, with null/void/undefined stripped) are identical at runtime;
       // the cast bridges the relationship that the conditional type hides.
-      onResult: ((r: TResult) => options.onResult?.(r)) as (
-        result: TResult,
-      ) => TOutput | null | void,
+      onResult: ((r: TResult) => {
+        return disposed ? undefined : options.onResult?.(r)
+      }) as (result: TResult) => TOutput | null | void,
       onError: (e: Error) => {
         if (!disposed) options.onError?.(e)
       },
@@ -255,7 +260,7 @@ export function useGeneration<
   createEffect(
     () => options.body,
     (body) => {
-      client.updateOptions({ ...(body !== undefined && { body }) })
+      client.updateOptions({ body: body ?? {} })
     },
   )
 

@@ -197,3 +197,11 @@ export function ThreadChat() {
 The next request carries the selected locale in `forwardedProps`. Your server decides how to use it.
 
 Create hooks inside a component or an owned root. Disposal releases subscriptions and aborts the local stream connection.
+
+## Restore custom generation results
+
+Supply `reconstructResult` when calling `useGeneration` directly with `persistence: true`. The mapper rebuilds your result from persisted metadata and durable artifact URLs. Arbitrary custom result fields are not persisted automatically.
+
+Without a mapper, hydration restores the run status but leaves `result()` null, even for a completed run. Return `null` from the mapper if the stored fields cannot rebuild your result. A completed snapshot then reports an error. Rebuilt results pass through `onResult`.
+
+The specialized generation hooks already provide their own mappers. Keep the same `threadId` across reloads and supply the server hydration handler through the connection or `hydrateGeneration`.

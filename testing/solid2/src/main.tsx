@@ -4,6 +4,7 @@ import { useChat } from '@tanstack/ai-solid2'
 import type { ConnectConnectionAdapter } from '@tanstack/ai-solid2'
 import { EventType } from '@tanstack/ai/client'
 import type { StreamChunk } from '@tanstack/ai'
+import { PartState } from './part-state'
 
 function App() {
   const [mounted, setMounted] = createSignal(true)
@@ -148,6 +149,7 @@ function App() {
       <output data-testid="active">{active()}</output>
       <output data-testid="aborted">{aborted()}</output>
       <output data-testid="finished">{finished()}</output>
+      <PartState />
       <Show when={mounted()}>
         <Chat />
       </Show>

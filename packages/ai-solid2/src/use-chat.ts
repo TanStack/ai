@@ -179,7 +179,8 @@ export function useChat<
     () => ({ target: client(), live: options.live }),
     ({ target, live }) => {
       if (live) target.subscribe()
-      else target.unsubscribe()
+      // Initial attach may already be tailing a persisted run without live mode.
+      else if (target.getSnapshot().isSubscribed) target.unsubscribe()
     },
   )
 

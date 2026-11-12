@@ -16,6 +16,23 @@ test.afterEach(async ({ page }) => {
   expect(errors).toEqual([])
 })
 
+test('keeps a part draft and focus when its message is replaced', async ({
+  page,
+}) => {
+  const input = page.getByRole('textbox', { name: 'Part draft' })
+  await input.fill('unfinished reply')
+  await input.focus()
+  // Invoke the fixture without moving focus to the update button.
+  await page.getByRole('button', { name: 'Update part' }).evaluate((button) => {
+    if (!(button instanceof HTMLButtonElement))
+      throw new Error('Expected a button')
+    button.click()
+  })
+  await expect(page.getByTestId('part-content')).toHaveText('partial complete')
+  await expect(input).toHaveValue('unfinished reply')
+  await expect(input).toBeFocused()
+})
+
 test('streams partial and final messages through the public root import', async ({
   page,
 }) => {

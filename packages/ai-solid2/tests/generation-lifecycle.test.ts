@@ -1,7 +1,9 @@
 import { renderHook } from '@solidjs/testing-library'
+import { EventType } from '@tanstack/ai/client'
 import { createEffect, createSignal, flush } from 'solid-js'
 import { describe, expect, it, vi } from 'vitest'
 import { GenerationClient } from '@tanstack/ai-client'
+import type { ConnectConnectionAdapter } from '@tanstack/ai-client'
 import type { useGeneration as UseGeneration } from '../src/use-generation'
 
 const lifecycle = vi.hoisted(() => ({
@@ -91,17 +93,30 @@ describe('Solid 2 generation lifecycle', () => {
     vi.restoreAllMocks()
   })
 
-  it('updates reactive body without constructing a second client', async () => {
+  it('updates and clears reactive body at the generation transport boundary', async () => {
     const useGeneration = await loadGeneration()
     expect(useGeneration).toBeTypeOf('function')
     if (!useGeneration) return
-    const update = vi.spyOn(GenerationClient.prototype, 'updateOptions')
+    const requests = vi.fn()
+    const connection: ConnectConnectionAdapter = {
+      async *connect(_messages, data) {
+        requests(data)
+        yield { type: EventType.CUSTOM, name: 'generation:result', value: 'ok' }
+        yield {
+          type: EventType.RUN_FINISHED,
+          threadId: 'options',
+          runId: 'run',
+        }
+      },
+    }
     const subscribe = lifecycle.subscribe.mockClear()
     const { result, cleanup } = renderHook(() => {
-      const [body, setBody] = createSignal({ model: 'first' })
+      const [body, setBody] = createSignal<{ model: string } | undefined>({
+        model: 'first',
+      })
       const generation = useGeneration({
         threadId: 'options',
-        fetcher: async () => 'ok',
+        connection,
         get body() {
           return body()
         },
@@ -109,11 +124,23 @@ describe('Solid 2 generation lifecycle', () => {
       return { generation, setBody }
     })
     flush()
+    await result.generation.generate({ prompt: 'first' })
+    expect(requests).toHaveBeenLastCalledWith({
+      model: 'first',
+      prompt: 'first',
+    })
     result.setBody({ model: 'second' })
     flush()
-    expect(update).toHaveBeenLastCalledWith({ body: { model: 'second' } })
+    await result.generation.generate({ prompt: 'second' })
+    expect(requests).toHaveBeenLastCalledWith({
+      model: 'second',
+      prompt: 'second',
+    })
+    result.setBody(undefined)
+    flush()
+    await result.generation.generate({ prompt: 'cleared' })
+    expect(requests).toHaveBeenLastCalledWith({ prompt: 'cleared' })
     expect(subscribe).toHaveBeenCalledOnce()
     cleanup()
-    vi.restoreAllMocks()
   })
 })

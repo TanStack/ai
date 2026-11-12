@@ -17,7 +17,11 @@ export interface TextPartProps {
   userClass?: string
   /** Additional class for assistant messages */
   assistantClass?: string
-  /** Extensions appended after the built-in streaming extension. */
+  /**
+   * Extensions appended after the built-in streaming extension. Custom
+   * extensions may return HTML, so escape or sanitize any untrusted content
+   * before returning it.
+   */
   extensions?: Array<MarkdownExtension>
   /**
    * Synchronous code highlighter. Its output is inserted as trusted HTML,
@@ -28,8 +32,10 @@ export interface TextPartProps {
 }
 
 /**
- * Renders streaming Markdown. Raw HTML is escaped and executable URLs are
- * removed by TanStack Markdown; custom highlighters must escape source text.
+ * Renders streaming Markdown. By default, TanStack Markdown escapes raw
+ * Markdown HTML and removes executable URLs. Custom extensions' `renderHtml`
+ * output is not sanitized: extensions must escape or sanitize untrusted
+ * content themselves. Custom highlighters must escape source text.
  */
 export function TextPart(props: TextPartProps) {
   const roleClass = () =>
@@ -41,7 +47,7 @@ export function TextPart(props: TextPartProps) {
   const combinedClass = () =>
     [props.class ?? '', roleClass()].filter(Boolean).join(' ')
 
-  // TanStack Markdown escapes this HTML string.
+  // Extension and highlighter HTML is trusted and inserted without sanitization.
   const html = () =>
     renderHtml(props.content, {
       extensions: props.extensions

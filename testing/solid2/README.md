@@ -21,6 +21,7 @@ The test command builds the adapter and its workspace dependencies first. Playwr
 - Reactive `forwardedProps` without transcript loss.
 - Reactive `threadId` with old-stream cancellation and fresh chat state.
 - Owner disposal with stream cancellation, no late finish callback, and a fresh remount.
+- Draft input and focus retained when a message part receives a streaming update through the public `/ui` entry.
 
 The transport emits deterministic test fixtures, not recorded or live AI responses. A button releases the final chunk, so assertions do not depend on timing. No provider API key is required.
 

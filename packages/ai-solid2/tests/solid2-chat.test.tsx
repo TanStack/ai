@@ -92,6 +92,102 @@ describe('Solid 2 chat lifecycle', () => {
     expect(dispose.mock.instances).toEqual(attach.mock.instances)
   })
 
+  it.each([undefined, false])(
+    'preserves the initial resumed run when live is %s',
+    async (live) => {
+      let release!: () => void
+      const ready = new Promise<void>((resolve) => {
+        release = resolve
+      })
+      const signals: Array<AbortSignal | undefined> = []
+      const joinRun = vi.fn(async function* (
+        _runId: string,
+        signal?: AbortSignal,
+      ) {
+        signals.push(signal)
+        await ready
+        if (signal?.aborted) return
+        yield* createTextChunks('Restored response')
+      })
+      const rendered = renderHook(() =>
+        useChat({
+          threadId: 'restored-thread',
+          connection: { async *connect() {}, joinRun },
+          initialResumeSnapshot: {
+            resumeState: { threadId: 'restored-thread', runId: 'restored-run' },
+          },
+          ...(live !== undefined && { live }),
+        }),
+      )
+      disposers.push(rendered.cleanup)
+      flush()
+      try {
+        expect(joinRun).toHaveBeenCalledExactlyOnceWith(
+          'restored-run',
+          expect.any(AbortSignal),
+        )
+        expect(signals[0]?.aborted).toBe(false)
+        release()
+        await vi.waitFor(() => {
+          flush()
+          expect(rendered.result.status()).toBe('ready')
+          expect(rendered.result.messages()).toEqual([
+            expect.objectContaining({
+              role: 'assistant',
+              parts: [{ type: 'text', content: 'Restored response' }],
+            }),
+          ])
+        })
+      } finally {
+        release()
+      }
+    },
+  )
+
+  it('still unsubscribes when live changes from true to false', () => {
+    const signals: Array<AbortSignal | undefined> = []
+    const cancelRun = vi.fn(async () => {})
+    const rendered = renderHook(() => {
+      const [live, setLive] = createSignal(true)
+      const chat = useChat({
+        threadId: 'live-thread',
+        get live() {
+          return live()
+        },
+        connection: {
+          cancelRun,
+          async send() {},
+          async *subscribe(signal) {
+            signals.push(signal)
+            await new Promise<void>((resolve) => {
+              signal?.addEventListener('abort', () => resolve(), { once: true })
+            })
+          },
+        },
+      })
+      return { chat, setLive }
+    })
+    disposers.push(rendered.cleanup)
+    flush()
+    expect(rendered.result.chat.isSubscribed()).toBe(true)
+    expect(signals).toHaveLength(1)
+    expect(signals[0]?.aborted).toBe(false)
+
+    rendered.result.setLive(false)
+    flush()
+    expect(rendered.result.chat.isSubscribed()).toBe(false)
+    expect(signals[0]?.aborted).toBe(true)
+
+    rendered.result.setLive(true)
+    flush()
+    expect(rendered.result.chat.isSubscribed()).toBe(true)
+    expect(signals).toHaveLength(2)
+    expect(signals[1]?.aborted).toBe(false)
+    rendered.cleanup()
+    expect(signals[1]?.aborted).toBe(true)
+    expect(cancelRun).not.toHaveBeenCalled()
+  })
+
   it('catches an update between construction and the effect subscribing', () => {
     const rendered = renderHook(() => {
       const chat = useChat({

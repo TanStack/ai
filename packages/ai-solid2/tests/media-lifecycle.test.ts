@@ -1,7 +1,9 @@
 import { renderHook } from '@solidjs/testing-library'
+import { EventType } from '@tanstack/ai/client'
 import { createSignal, flush } from 'solid-js'
 import { describe, expect, expectTypeOf, it, vi } from 'vitest'
 import { VideoGenerationClient } from '@tanstack/ai-client'
+import type { ConnectConnectionAdapter } from '@tanstack/ai-client'
 
 const lifecycle = vi.hoisted(() => ({
   subscribe: vi.fn(),
@@ -165,6 +167,57 @@ describe('Solid 2 media hooks', () => {
     await result.generate({ text: 'long text' })
     flush()
     expect(result.result()).toBe('short')
+    cleanup()
+  })
+
+  it('updates and clears reactive body at the video transport boundary', async () => {
+    const module = await load<typeof import('../src/use-generate-video')>(
+      '../src/use-generate-video',
+    )
+    expect(module?.useGenerateVideo).toBeTypeOf('function')
+    if (!module) return
+    const requests = vi.fn()
+    const connection: ConnectConnectionAdapter = {
+      async *connect(_messages, data) {
+        requests(data)
+        yield {
+          type: EventType.CUSTOM,
+          name: 'generation:result',
+          value: { jobId: 'video', status: 'completed', url: '/video.mp4' },
+        }
+        yield { type: EventType.RUN_FINISHED, threadId: 'video', runId: 'run' }
+      },
+    }
+    const { result, cleanup } = renderHook(() => {
+      const [body, setBody] = createSignal<{ model: string } | undefined>({
+        model: 'first',
+      })
+      const video = module.useGenerateVideo({
+        threadId: 'video',
+        connection,
+        get body() {
+          return body()
+        },
+      })
+      return { video, setBody }
+    })
+    flush()
+    await result.video.generate({ prompt: 'first' })
+    expect(requests).toHaveBeenLastCalledWith({
+      model: 'first',
+      prompt: 'first',
+    })
+    result.setBody({ model: 'second' })
+    flush()
+    await result.video.generate({ prompt: 'second' })
+    expect(requests).toHaveBeenLastCalledWith({
+      model: 'second',
+      prompt: 'second',
+    })
+    result.setBody(undefined)
+    flush()
+    await result.video.generate({ prompt: 'cleared' })
+    expect(requests).toHaveBeenLastCalledWith({ prompt: 'cleared' })
     cleanup()
   })
 

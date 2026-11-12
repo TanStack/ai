@@ -205,9 +205,9 @@ export function useGenerateVideo<TTransformed = void>(
       // The transform's raw return type (`TTransformed`) and the stored output
       // (`TOutput`, with null/void/undefined stripped) are identical at runtime;
       // the cast bridges the relationship that the conditional type hides.
-      onResult: ((r: VideoGenerateResult) => options.onResult?.(r)) as (
-        result: VideoGenerateResult,
-      ) => TOutput | null | void,
+      onResult: ((r: VideoGenerateResult) => {
+        return disposed ? undefined : options.onResult?.(r)
+      }) as (result: VideoGenerateResult) => TOutput | null | void,
       onError: (e: Error) => {
         if (!disposed) options.onError?.(e)
       },
@@ -260,7 +260,7 @@ export function useGenerateVideo<TTransformed = void>(
   createEffect(
     () => options.body,
     (body) => {
-      client.updateOptions({ ...(body !== undefined && { body }) })
+      client.updateOptions({ body: body ?? {} })
     },
   )
 

@@ -1,4 +1,11 @@
-import { For, Show, createContext, createMemo, useContext } from 'solid-js'
+import {
+  For,
+  Show,
+  createContext,
+  createMemo,
+  merge,
+  useContext,
+} from 'solid-js'
 import type { Accessor, Component, Context } from 'solid-js'
 import type { JSX } from '@solidjs/web'
 import {
@@ -464,12 +471,12 @@ export function createChatUI<
     const chat = useChatContext()
     if (props.children) return <>{props.children(messagesAccessor(chat))}</>
     return (
-      <For each={readMessages(chat)}>
+      <For each={readMessages(chat)} keyed={(message) => message.id}>
         {(message) => (
           <MessageView
             inlineToolNames={inlineToolNames}
             interrupts={readInterrupts(chat)}
-            message={message}
+            message={message()}
           />
         )}
       </For>
@@ -560,58 +567,117 @@ export function createChatUI<
         inlineToolNames: props.inlineToolNames,
       }),
     )
+    type PartRow = {
+      id: string | object
+      messageId: string
+      selected: ChatUISelectedPart
+    }
+    const rows = createMemo<Array<PartRow>>((previous = []) => {
+      const messageId = props.message.id
+      const current = selected().parts
+      const previousByPart = new Map<MessagePart, Array<PartRow>>()
+      for (const row of previous) {
+        if (row.messageId !== messageId) continue
+        const occurrences = previousByPart.get(row.selected.part) ?? []
+        occurrences.push(row)
+        previousByPart.set(row.selected.part, occurrences)
+      }
+      const used = new Set<PartRow>()
+      const currentParts = new Set(current.map((part) => part.part))
+      return current.map((part, index) => {
+        const old = previousByPart.get(part.part)?.shift() ?? previous[index]
+        // ID-less streaming parts use their source slot on replacement. Keep
+        // an existing object's identity when it moves, but never steal the
+        // identity of a part that is still present elsewhere in the message.
+        // Consume each occurrence once, including when falling back to a slot.
+        const reusable =
+          old?.messageId === messageId &&
+          !used.has(old) &&
+          old.selected.key === part.key &&
+          (old.selected.part === part.part ||
+            !currentParts.has(old.selected.part))
+        if (reusable) used.add(old)
+        return {
+          id:
+            part.key === 'toolCall' || part.key === 'toolResult'
+              ? JSON.stringify([
+                  messageId,
+                  part.key,
+                  part.key === 'toolCall' ? part.part.id : part.part.toolCallId,
+                ])
+              : reusable
+                ? old.id
+                : {},
+          messageId,
+          selected: part,
+        }
+      })
+    })
+    const visibleRows = createMemo(() => {
+      const visible = new Set(automaticPartsForMessage(selected()))
+      return rows().filter((row) => visible.has(row.selected))
+    })
     return (
-      <>
-        {automaticPartsForMessage(selected()).map((part) => (
-          <SelectedPartView selected={part} />
-        ))}
-      </>
+      <For each={visibleRows()} keyed={(row) => row.id}>
+        {(row) => <SelectedPartView selected={row().selected} />}
+      </For>
     )
   }
 
   function SelectedPartInner(props: { selected: ChatUISelectedPart }) {
-    if (props.selected.key === 'toolCall') {
-      const name = props.selected.part.name
-      const Tool = tools?.[name as ChatUIToolName<TOptions>] as
-        | Component<ToolProps<TOptions>>
-        | undefined
-      if (!Tool) {
-        warn(`tool:${name}`, `[tanstack-ai-ui] Missing tools.${name} component`)
-        return null
+    type Renderer = Component<{
+      part: MessagePart
+      result?: ToolResultPart
+      interrupt?: ChatUIInterrupt
+    }>
+    const renderer = createMemo<Renderer | undefined>(() => {
+      const selected = props.selected
+      if (selected.key === 'toolCall') {
+        const name = selected.part.name
+        const Tool = tools?.[name as ChatUIToolName<TOptions>]
+        if (!Tool) {
+          warn(
+            `tool:${name}`,
+            `[tanstack-ai-ui] Missing tools.${name} component`,
+          )
+        }
+        return Tool as Renderer | undefined
       }
-      return (
-        <Tool
-          part={props.selected.part as ToolProps<TOptions>['part']}
-          result={props.selected.result}
-          interrupt={
-            (props.selected.key === 'toolCall'
-              ? props.selected.interrupt
-              : undefined) as ToolProps<TOptions>['interrupt']
-          }
-        />
-      )
-    }
-    const PartComponent = (parts[props.selected.key] ?? parts.fallback) as
-      | Component<PartProps<TOptions>>
-      | undefined
-    if (!PartComponent) {
-      warn(
-        `part:${props.selected.key}`,
-        `[tanstack-ai-ui] Missing parts.${props.selected.key} component`,
-      )
-      return null
-    }
+      const PartComponent = parts[selected.key] ?? parts.fallback
+      if (!PartComponent) {
+        warn(
+          `part:${selected.key}`,
+          `[tanstack-ai-ui] Missing parts.${selected.key} component`,
+        )
+      }
+      return PartComponent as Renderer | undefined
+    })
     return (
-      <PartComponent
-        part={props.selected.part as PartProps<TOptions>['part']}
-      />
+      <Show when={renderer()} keyed>
+        {(Component) => (
+          <Component
+            part={props.selected.part}
+            result={
+              props.selected.key === 'toolCall'
+                ? props.selected.result
+                : undefined
+            }
+            interrupt={
+              props.selected.key === 'toolCall'
+                ? props.selected.interrupt
+                : undefined
+            }
+          />
+        )}
+      </Show>
     )
   }
 
   function SelectedPartView(props: { selected: ChatUISelectedPart }) {
+    const selected = merge(() => props.selected) as ChatUISelectedPart
     return (
-      <PartContext value={props.selected}>
-        <SelectedPartInner selected={props.selected} />
+      <PartContext value={selected}>
+        <SelectedPartInner selected={selected} />
       </PartContext>
     )
   }

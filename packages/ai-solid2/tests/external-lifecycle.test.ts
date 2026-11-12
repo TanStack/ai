@@ -1,5 +1,5 @@
 import { renderHook } from '@solidjs/testing-library'
-import { flush } from 'solid-js'
+import { createRoot, flush } from 'solid-js'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { AudioRecorder } from '@tanstack/ai-client'
 import { defineByok, memoryStorage } from '@tanstack/ai-client/byok'
@@ -76,20 +76,26 @@ describe('Solid 2 external source lifecycles', () => {
     const unsubscribe = vi.fn()
     const subscribe = vi
       .spyOn(client, 'subscribe')
-      .mockImplementation((listener) => {
-        listener()
-        return () => unsubscribe()
-      })
-    const { result, cleanup } = renderHook(() => {
-      const snapshot = useByok(client)
-      expect(snapshot()).toEqual(client.getSnapshot())
+      .mockImplementation(() => unsubscribe)
+    await client.ready()
+    const initial = client.getSnapshot()
+    // renderHook flushes onSettled before returning; a root exposes this gap.
+    const { result, cleanup } = createRoot((dispose) => ({
+      result: useByok(client),
+      cleanup: dispose,
+    }))
+    try {
+      expect(result()).toBe(initial)
       expect(subscribe).not.toHaveBeenCalled()
-      return snapshot
-    })
-    flush()
-    expect(subscribe).toHaveBeenCalledOnce()
-    expect(result()).toEqual(client.getSnapshot())
-    cleanup()
+      client.request('openai', 'missing')
+      expect(client.getSnapshot()).not.toBe(initial)
+      flush()
+      expect(subscribe).toHaveBeenCalledOnce()
+      expect(result()).toBe(client.getSnapshot())
+      expect(result().prompt).toEqual({ provider: 'openai', reason: 'missing' })
+    } finally {
+      cleanup()
+    }
     expect(unsubscribe).toHaveBeenCalledOnce()
   })
 

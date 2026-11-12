@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { renderToString } from '@solidjs/web'
 import {
   ChatClient,
@@ -16,6 +16,50 @@ import {
   useRegisterWebMCPTools,
 } from '../src/index'
 import { TextPart } from '../src/ui'
+
+const subscriptions = vi.hoisted(() => ({
+  generation: vi.fn(),
+  video: vi.fn(),
+}))
+vi.mock('@tanstack/ai-client', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@tanstack/ai-client')>()
+  return {
+    ...actual,
+    GenerationClient: class extends actual.GenerationClient<
+      Record<string, unknown>,
+      unknown
+    > {
+      constructor(
+        options: ConstructorParameters<
+          typeof actual.GenerationClient<Record<string, unknown>, unknown>
+        >[0],
+      ) {
+        super(options)
+        const subscribe = this.subscribe
+        this.subscribe = (listener) => {
+          subscriptions.generation()
+          return subscribe(listener)
+        }
+      }
+    },
+    VideoGenerationClient: class extends actual.VideoGenerationClient<unknown> {
+      constructor(
+        options: ConstructorParameters<typeof actual.VideoGenerationClient>[0],
+      ) {
+        super(options)
+        const subscribe = this.subscribe
+        this.subscribe = (listener) => {
+          subscriptions.video()
+          return subscribe(listener)
+        }
+      }
+    },
+  }
+})
+afterEach(() => {
+  vi.restoreAllMocks()
+  vi.clearAllMocks()
+})
 
 describe('Solid 2 server rendering', () => {
   it('renders initial messages per request without attaching clients or browser subscriptions', () => {
@@ -55,8 +99,15 @@ describe('Solid 2 server rendering', () => {
       useRegisterWebMCPTools([])
       return (
         <main>
-          <span>{chat.messages()[0]?.id}</span>
-          <TextPart content={props.text} />
+          <TextPart
+            content={
+              chat
+                .messages()[0]
+                ?.parts.filter((part) => part.type === 'text')
+                .map((part) => part.content)
+                .join('') ?? ''
+            }
+          />
           <span>
             {generation.status()}:{video.status()}:
             {String(recorder.isRecording())}:{tools().length}:
@@ -74,8 +125,9 @@ describe('Solid 2 server rendering', () => {
     expect(attach).not.toHaveBeenCalled()
     expect(mount).not.toHaveBeenCalled()
     expect(videoMount).not.toHaveBeenCalled()
+    expect(subscriptions.generation).not.toHaveBeenCalled()
+    expect(subscriptions.video).not.toHaveBeenCalled()
     expect(subscribe).not.toHaveBeenCalled()
     expect(fetcher).not.toHaveBeenCalled()
-    vi.restoreAllMocks()
   })
 })

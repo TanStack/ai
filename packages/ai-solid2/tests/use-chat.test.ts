@@ -1360,33 +1360,39 @@ describe('useChat', () => {
       })
 
       it('should clear error on successful operation', async () => {
-        const errorAdapter = createMockConnectionAdapter({
-          shouldError: true,
-          error: new Error('Initial error'),
+        let requests = 0
+        const adapter = createMockConnectionAdapter({
+          chunks: createTextChunks('Success'),
+          onConnect: () => {
+            requests++
+            if (requests === 1) throw new Error('Initial error')
+          },
         })
-        const { result, rerender } = renderUseChat({
+        const { result } = renderUseChat({
           threadId: 'thread-1',
-          connection: errorAdapter,
+          connection: adapter,
         })
 
-        await result.current.sendMessage('Test')
+        await result.current.sendMessage('First attempt')
 
         await waitFor(() => {
-          expect(result.current.error).toBeDefined()
+          expect(result.current.error?.message).toBe('Initial error')
           expect(result.current.status).toBe('error')
         })
 
-        // Switch to working adapter
-        const workingAdapter = createMockConnectionAdapter({
-          chunks: createTextChunks('Success'),
-        })
-        rerender({ threadId: 'thread-1', connection: workingAdapter })
-
-        await result.current.sendMessage('Test')
+        await result.current.sendMessage('Retry')
+        expect(requests).toBe(2)
 
         await waitFor(() => {
-          // Error should be cleared on success
-          expect(result.current.messages.length).toBeGreaterThan(0)
+          expect(result.current.error).toBeUndefined()
+          expect(result.current.status).toBe('ready')
+          expect(
+            result.current.messages
+              .filter((message) => message.role === 'assistant')
+              .at(-1),
+          ).toMatchObject({
+            parts: [{ type: 'text', content: 'Success' }],
+          })
         })
       })
 

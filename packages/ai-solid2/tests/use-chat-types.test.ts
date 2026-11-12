@@ -122,6 +122,7 @@ describe('useChat() return type (solid)', () => {
       expectTypeOf(options.context).toEqualTypeOf<ClientContext>()
 
       const missingLiteral: UseChatOptions<typeof tools> = {
+        threadId: 'thread-1',
         connection: {
           connect: async function* () {},
         },
@@ -133,6 +134,7 @@ describe('useChat() return type (solid)', () => {
 
       // @ts-expect-error - context is required when a client tool declares it
       const missingContext: UseChatOptions<typeof tools> = {
+        threadId: 'thread-1',
         connection: {
           connect: async function* () {},
         },

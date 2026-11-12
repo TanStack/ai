@@ -18,6 +18,7 @@ import type {
 import { EventType } from '@tanstack/ai'
 import type {
   ConnectConnectionAdapter,
+  GenerationHydrationResult,
   RunAgentInputContext,
 } from '@tanstack/ai-client'
 
@@ -133,12 +134,7 @@ function createRunContextCaptureAdapter(chunks: Array<StreamChunk>): {
   return { adapter, connect, runContexts }
 }
 
-// Helper to create error stream chunks.
-// NOTE: The AG-UI spec for RUN_ERROR carries `message` directly on the event
-// (not nested under `error`). We emit BOTH shapes here because GenerationClient
-// supports the legacy `chunk.error.message` fallback (see generation-client.ts:
-// `chunk.message ?? chunk.error?.message`). Once that fallback is removed, the
-// `error` field can drop.
+// AG-UI RUN_ERROR carries `message` directly on the event.
 function createErrorChunks(message: string): Array<StreamChunk> {
   return [
     {
@@ -150,11 +146,7 @@ function createErrorChunks(message: string): Array<StreamChunk> {
     {
       type: EventType.RUN_ERROR,
       message,
-      // Legacy shape preserved for the fallback branch in generation-client.ts.
-      // AGUIEventSchema is `passthrough` so unknown keys are allowed at runtime;
-      // the strict TS union still requires a cast on this single chunk.
-      error: { message },
-    } as StreamChunk,
+    },
   ]
 }
 
@@ -432,6 +424,13 @@ describe('useGeneration', () => {
 
       resolvePromise!({ id: '1' })
       await generatePromise
+      flush()
+
+      expect(result.isLoading()).toBe(false)
+      expect(result.status()).toBe('idle')
+      expect(result.result()).toBeNull()
+      expect(result.error()).toBeUndefined()
+      expect(result.runId()).toBeNull()
     })
 
     it('should reset all state', async () => {
@@ -475,6 +474,48 @@ describe('useGeneration', () => {
   })
 
   describe('persistence', () => {
+    it('reconstructs custom persisted results before applying onResult', async () => {
+      const { adapter, connect } = createRunContextCaptureAdapter([])
+      const reconstructResult = vi.fn((restored: { text?: string }) =>
+        restored.text === undefined ? null : { value: restored.text },
+      )
+      const onResult = vi.fn((raw: { value: string }) =>
+        raw.value.toUpperCase(),
+      )
+      const { result } = renderHook(() =>
+        useGeneration({
+          threadId: 'custom-persisted',
+          persistence: true,
+          connection: {
+            ...adapter,
+            hydrateGeneration: async () => ({
+              resumeSnapshot: {
+                schemaVersion: 1,
+                resumeState: null,
+                status: 'complete',
+                result: { text: 'restored text' },
+              },
+              activeRun: null,
+            }),
+          },
+          reconstructResult,
+          onResult,
+        }),
+      )
+      expectTypeOf(result.result()).toEqualTypeOf<string | null>()
+      await flushPromises()
+      flush()
+
+      expect(reconstructResult).toHaveBeenCalledWith({
+        text: 'restored text',
+        artifacts: [],
+      })
+      expect(onResult).toHaveBeenCalledWith({ value: 'restored text' })
+      expect(result.result()).toBe('RESTORED TEXT')
+      expect(result.status()).toBe('success')
+      expect(connect).not.toHaveBeenCalled()
+    })
+
     it('repaints status from a hydrated complete snapshot on mount without starting a run', async () => {
       const { adapter, connect } = createRunContextCaptureAdapter(
         createGenerationChunks({ id: '1' }),
@@ -1419,6 +1460,15 @@ describe('useGenerateVideo', () => {
         url: 'https://example.com/video.mp4',
       })
       await generatePromise
+      flush()
+
+      expect(result.isLoading()).toBe(false)
+      expect(result.status()).toBe('idle')
+      expect(result.result()).toBeNull()
+      expect(result.error()).toBeUndefined()
+      expect(result.runId()).toBeNull()
+      expect(result.jobId()).toBeNull()
+      expect(result.videoStatus()).toBeNull()
     })
 
     it('should be safe to call stop multiple times', () => {
@@ -1479,6 +1529,72 @@ describe('useGenerateVideo', () => {
       )
     })
   })
+})
+
+describe('generation cleanup', () => {
+  it.each(['generic', 'video'] as const)(
+    'does not call %s onResult when hydration finishes after cleanup',
+    async (kind) => {
+      let resolveHydration!: (value: GenerationHydrationResult) => void
+      const pending = new Promise<GenerationHydrationResult>((resolve) => {
+        resolveHydration = resolve
+      })
+      const hydrateGeneration = vi.fn(() => pending)
+      const onResult = vi.fn()
+      const { result, cleanup } = renderHook(() => {
+        const options = {
+          threadId: 'late-hydration',
+          persistence: true,
+          connection: {
+            ...createMockConnectionAdapter(),
+            hydrateGeneration,
+          },
+          onResult,
+        }
+        return kind === 'generic'
+          ? useGeneration({
+              ...options,
+              reconstructResult: (restored) => ({ id: restored.id }),
+            })
+          : useGenerateVideo(options)
+      })
+      flush()
+      expect(hydrateGeneration).toHaveBeenCalledOnce()
+      cleanup()
+
+      resolveHydration({
+        resumeSnapshot: {
+          schemaVersion: 1,
+          resumeState: null,
+          status: 'complete',
+          activity: 'video',
+          result: {
+            id: 'restored',
+            providerJobId: 'restored-job',
+            artifacts: [
+              {
+                ...restoredImageArtifact,
+                mimeType: 'video/mp4',
+                url: '/video.mp4',
+                source: {
+                  ...restoredImageArtifact.source,
+                  activity: 'video',
+                  mediaType: 'video',
+                },
+              },
+            ],
+          },
+        },
+        activeRun: null,
+      })
+      await flushPromises()
+      flush()
+
+      expect(onResult).not.toHaveBeenCalled()
+      expect(result.result()).toBeNull()
+      expect(result.status()).toBe('idle')
+    },
+  )
 })
 
 describe('onResult transform', () => {
