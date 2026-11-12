@@ -1,14 +1,20 @@
 import { toolDefinition } from '@tanstack/ai'
 import { isHumanTarget } from './log-records'
+import { isHandoffNote, routedRunId } from './routed-history'
 import { isRecord } from './utils'
 import type {
+  AfterToolCallInfo,
   AnyChatMiddleware,
+  AnyTool,
+  ChatMiddlewareConfig,
+  ChatMiddlewareContext,
   ModelMessage,
   SubagentRouterPick,
+  ToolCallHookContext,
 } from '@tanstack/ai'
 import type { MessageStore } from '@tanstack/ai-persistence'
 import type { AnyAgent } from './agents'
-import type { HarnessRouterPick } from './define'
+import type { HandoffToolContext, HarnessRouterPick } from './define'
 import type { HandoffRecord, HumanTarget } from './log-records'
 
 /** What `ctx.harness.handoff` takes. */
@@ -51,6 +57,53 @@ function handoffText(to: string | HumanTarget) {
     return 'Handed off to a person. The session waits for an operator.'
   }
   return `Handed off to ${to}. ${to} answers next.`
+}
+
+/** The middleware context fields that tell which chat runs. */
+type ChatOf = Pick<
+  ChatMiddlewareContext,
+  'subagentName' | 'parentSubagentRunId'
+>
+
+/**
+ * The built-in `handoff` tool. Its `to` lists `targets`, and
+ * `{ human: true }` when `allowHuman` is set.
+ */
+function defaultHandoffTool({
+  targets,
+  allowHuman,
+  handoff,
+}: HandoffToolContext) {
+  const agents = { type: 'string', enum: targets }
+  const person = {
+    type: 'object',
+    properties: { human: { type: 'boolean', const: true } },
+    required: ['human'],
+  }
+  return toolDefinition({
+    name: HANDOFF_TOOL,
+    description: `Hand the conversation to another agent. That agent answers the user next, in this turn and in later turns.${allowHuman ? ' Use { human: true } only when the user needs a person.' : ''} Stop after this call.`,
+    inputSchema: {
+      type: 'object',
+      properties: {
+        to: allowHuman ? { anyOf: [agents, person] } : agents,
+        note: {
+          type: 'string',
+          description: 'What the next agent must know.',
+        },
+      },
+      required: ['to'],
+    },
+  }).server(async (args: unknown) => {
+    const to = isRecord(args) ? args.to : undefined
+    const note = isRecord(args) ? args.note : undefined
+    const target = isHumanTarget(to) ? HUMAN : to
+    if (typeof target !== 'string' && !isHumanTarget(target)) {
+      throw new Error('A handoff needs `to`: the name of an agent.')
+    }
+    await handoff({ to: target, ...(typeof note === 'string' ? { note } : {}) })
+    return handoffText(target)
+  })
 }
 
 /**
@@ -116,6 +169,10 @@ export class TurnHandoffs {
   /** The handoff that ends the current part. */
   private pending: Handoff | undefined
   private count = 0
+  /** The handoff tool of each speaker, made once per turn. */
+  private readonly tools = new Map<string | null, AnyTool>()
+  /** The ids of the handoff tool calls that run now. */
+  private readonly activeCalls = new Set<string>()
 
   constructor(
     private readonly options: {
@@ -134,6 +191,8 @@ export class TurnHandoffs {
       humans: boolean
       /** `routing.giveModelsHandoffTool`: the root agents get the `handoff` tool. */
       tool: boolean
+      /** `routing.handoffTool`: makes the handoff tool of each speaker. */
+      handoffTool?: (ctx: HandoffToolContext) => AnyTool
       /**
        * Append the record. A handoff to a person opens its `human` wait in
        * the same append. Resolves with the record as the log keeps it.
@@ -163,11 +222,13 @@ export class TurnHandoffs {
   }
 
   /**
-   * The messages that show a router or code handoff in the transcript. None
-   * for a `handoff` tool call: the call of the model is there already.
+   * The messages that show a handoff in the transcript. None for a tool
+   * call of the main model: its call is in the thread already. A root agent
+   * keeps its tool calls in its own transcript, so its handoff gets them,
+   * and the next speaker reads who handed off.
    */
   messages(handoff: Handoff): Array<ModelMessage> {
-    if (handoff.by !== 'router' && handoff.by !== 'code') return []
+    if (handoff.by === 'tool' && handoff.from === null) return []
     // A turn that runs again after a crash makes the same ids, so the store
     // keeps each note once.
     const id = `handoff_${this.options.noteKey}_${this.count}`
@@ -180,12 +241,18 @@ export class TurnHandoffs {
    * A handoff to a person ends the turn, and the session pauses. Throws for
    * a target that is not a root agent, for a person without
    * `routing.allowHandoffToHuman`, and for a second handoff in the same part.
+   * A code handoff inside a call of the handoff tool counts as a tool
+   * handoff: the tool call is in the transcript.
    */
   async handoff(
     options: HandoffOptions,
     from: string | null,
     by: 'tool' | 'code',
   ): Promise<void> {
+    // ponytail: any running handoff tool call of the turn counts. A parallel
+    // tool that calls `run.handoff` while a handoff call runs is also 'tool'.
+    // Keep the speaker of each call if that matters.
+    const recordedBy = this.activeCalls.size > 0 ? 'tool' : by
     const { to, note } = options
     const isHuman = isHumanTarget(to)
     if (isHuman && !this.options.humans) {
@@ -227,7 +294,7 @@ export class TurnHandoffs {
       from,
       to: target,
       ...(typeof note === 'string' ? { note } : {}),
-      by,
+      by: recordedBy,
       // The agents an operator can hand back to: the ones this turn offers.
       ...(isHuman ? { agents: names } : {}),
     }
@@ -252,82 +319,81 @@ export class TurnHandoffs {
   }
 
   /**
-   * The `handoff` tool of `from`: the main model (`null`) or a root agent.
-   * Its `to` lists the root agents, and `'main'` for an agent, but not
-   * `from`. With `routing.allowHandoffToHuman`, `{ human: true }` hands the conversation
-   * to a person.
+   * The handoff tool of `from`: the main model (`null`) or a root agent.
+   * `routing.handoffTool` makes it, else the built-in `handoff` tool. Its
+   * targets are the root agents, and `'main'` for an agent, but not `from`.
+   * With `routing.allowHandoffToHuman`, `{ human: true }` hands the
+   * conversation to a person. Each speaker gets one tool per turn.
    */
   tool(from: string | null) {
-    const { humans } = this.options
+    const made = this.tools.get(from)
+    if (made) return made
     const targets = [
       ...this.options.rootAgents.map((agent) => agent.name),
       ...(from === null ? [] : ['main']),
     ].filter((name) => name !== from)
-    const agents = { type: 'string', enum: targets }
-    const person = {
-      type: 'object',
-      properties: { human: { type: 'boolean', const: true } },
-      required: ['human'],
+    const ctx: HandoffToolContext = {
+      from,
+      targets,
+      allowHuman: this.options.humans,
+      handoff: (options) => this.handoff(options, from, 'tool'),
     }
-    return toolDefinition({
-      name: HANDOFF_TOOL,
-      description: `Hand the conversation to another agent. That agent answers the user next, in this turn and in later turns.${humans ? ' Use { human: true } only when the user needs a person.' : ''} Stop after this call.`,
-      inputSchema: {
-        type: 'object',
-        properties: {
-          to: humans ? { anyOf: [agents, person] } : agents,
-          note: {
-            type: 'string',
-            description: 'What the next agent must know.',
-          },
-        },
-        required: ['to'],
-      },
-    }).server(async (args: unknown) => {
-      const to = isRecord(args) ? args.to : undefined
-      const note = isRecord(args) ? args.note : undefined
-      const target = isHumanTarget(to) ? HUMAN : to
-      if (typeof target !== 'string' && !isHumanTarget(target)) {
-        throw new Error('A handoff needs `to`: the name of an agent.')
-      }
-      await this.handoff(
-        { to: target, ...(typeof note === 'string' ? { note } : {}) },
-        from,
-        'tool',
-      )
-      return handoffText(target)
-    })
+    const tool = this.options.handoffTool?.(ctx) ?? defaultHandoffTool(ctx)
+    this.tools.set(from, tool)
+    return tool
   }
 
   /**
    * Middleware for the chat calls of a turn: a pending handoff stops the
    * tool loop of the chat that made it, so the target answers next. Other
    * chats of the part (a sibling root agent, a tool-mode child) go on. With
-   * `roots`, it also gives each routed root agent its `handoff` tool, unless
-   * `routing.giveModelsHandoffTool` is false. A nested child of a root agent gets no
-   * tool, so it cannot move the whole session.
+   * `roots`, it also gives each routed root agent its handoff tool, unless
+   * `routing.giveModelsHandoffTool` is false. A tool in `config.tools` with
+   * the same name wins. A nested child of a root agent gets no tool, so it
+   * cannot move the whole session. It also tracks the calls of the handoff
+   * tool, so a code handoff inside one records `by: 'tool'`.
    */
-  middleware(options: { roots?: boolean } = {}): AnyChatMiddleware {
+  middleware(options: { roots?: boolean } = {}) {
+    /** The name of the handoff tool of a chat. Undefined when it has none. */
+    const toolName = (ctx: ChatOf) =>
+      this.options.tool && ctx.parentSubagentRunId === undefined
+        ? this.tool(ctx.subagentName ?? null).name
+        : undefined
     return {
       name: 'harness:handoff',
-      onConfig: (ctx, config) => {
-        const isRoot =
-          options.roots === true &&
-          this.options.tool &&
-          ctx.subagentName !== undefined &&
-          ctx.parentSubagentRunId === undefined
-        if (!isRoot) return
-        if (config.tools.some((tool) => tool.name === HANDOFF_TOOL)) return
+      onConfig: (ctx: ChatOf, config: Pick<ChatMiddlewareConfig, 'tools'>) => {
+        const isRoot = options.roots === true && ctx.subagentName !== undefined
+        const name = isRoot ? toolName(ctx) : undefined
+        if (name === undefined) return undefined
+        if (config.tools.some((tool) => tool.name === name)) return undefined
         return { tools: [...config.tools, this.tool(ctx.subagentName ?? null)] }
       },
-      onShouldContinue: (ctx) => {
+      // The guard tier, not onBeforeToolCall: the first onBeforeToolCall
+      // decision (such as changed args) stops the hooks after it.
+      onGuardToolCall: (
+        ctx: ChatOf,
+        call: Pick<ToolCallHookContext, 'toolName' | 'toolCallId'>,
+      ) => {
+        if (call.toolName === toolName(ctx)) {
+          this.activeCalls.add(call.toolCallId)
+        }
+        return undefined
+      },
+      onAfterToolCall: (
+        _ctx: ChatOf,
+        info: Pick<AfterToolCallInfo, 'toolCallId'>,
+      ) => {
+        this.activeCalls.delete(info.toolCallId)
+        return undefined
+      },
+      onShouldContinue: (ctx: ChatOf) => {
         const { pending } = this
         if (!pending || ctx.parentSubagentRunId !== undefined) return undefined
         // ponytail: a chat is known by its agent name ('main' has none). The
         // root agents of one pick have different names.
         return (ctx.subagentName ?? null) === pending.from ? false : undefined
       },
-    }
+    } satisfies AnyChatMiddleware
   }
 
   private async write(handoff: Handoff) {
@@ -397,25 +463,61 @@ export function answererOf(pick: SubagentRouterPick | undefined) {
  * root agents of run `runId` in one assistant message.
  */
 function routedIndex(messages: ReadonlyArray<ModelMessage>, runId: string) {
-  return messages.findIndex((message) => {
-    const tanstack = message.metadata?.tanstack
-    return isRecord(tanstack) && tanstack.runId === runId
-  })
+  return messages.findIndex((message) => routedRunId(message) === runId)
+}
+
+/**
+ * Put the recorded note of a main-model tool handoff on that tool call.
+ * A custom `handoffTool` can pass a different note than the model put in
+ * the call. `'own'` then folds that note for the target. The stored call
+ * arguments stay as the model wrote them. No extra note messages.
+ */
+export async function stampHandoffNote(
+  store: MessageStore,
+  threadId: string,
+  toolName: string,
+  note: string,
+) {
+  const history = await store.loadThread(threadId)
+  for (let index = history.length - 1; index >= 0; index -= 1) {
+    const message = history[index]
+    if (
+      message?.role !== 'assistant' ||
+      isHandoffNote(message) ||
+      !message.toolCalls?.some((call) => call.function.name === toolName)
+    ) {
+      continue
+    }
+    const harness = isRecord(message.metadata?.harness)
+      ? message.metadata.harness
+      : {}
+    if (harness.handoffNote === note) return
+    const updated: ModelMessage = {
+      ...message,
+      metadata: {
+        ...message.metadata,
+        harness: { ...harness, handoffNote: note },
+      },
+    }
+    await store.saveThread(threadId, history.with(index, updated))
+    return
+  }
 }
 
 /**
  * Mark the routed message of run `runId` with the agent that wrote it, in
- * `metadata.harness.agent`. A routed pass that runs again on the same run id
- * (a handoff to another root agent, a late join, a hook) first keeps this
- * message under its own id, so each pass keeps its own message.
+ * `metadata.harness.agent`, and the child run of that pass, in
+ * `metadata.harness.subagentRunId`. A routed pass that runs again on the
+ * same run id (a handoff to another root agent, a late join, a hook) first
+ * keeps this message under its own id, so each pass keeps its own message.
  */
 export async function markRouted(
   store: MessageStore,
   threadId: string,
   runId: string,
-  mark: { agent?: string },
+  mark: { agent?: string; subagentRunId?: string },
 ) {
-  const { agent } = mark
+  const { agent, subagentRunId } = mark
   if (agent === undefined) return
   const history = await store.loadThread(threadId)
   const index = routedIndex(history, runId)
@@ -428,7 +530,11 @@ export async function markRouted(
     ...message,
     metadata: {
       ...message.metadata,
-      harness: { ...harness, agent },
+      harness: {
+        ...harness,
+        agent,
+        ...(subagentRunId !== undefined ? { subagentRunId } : {}),
+      },
     },
   }
   await store.saveThread(threadId, history.with(index, updated))

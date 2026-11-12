@@ -58,10 +58,62 @@ Send `I want a refund for order 42.` The main model calls its `handoff` tool wit
 What the handoff does:
 
 - The log keeps the active agent. Later turns go to billing until it hands off again, or until the router picks another agent.
-- The main model and each root agent get a `handoff` tool. Its `to` lists the root agents. A root agent can also hand back to `'main'`, the main model.
+- The main model and each root agent get a `handoff` tool. Its `to` lists the root agents. A root agent can also hand back to `'main'`, the main model. A whole harness in `agents` can hand back too. See [Make a harness a root agent](./subagents#make-a-harness-a-root-agent).
 - One turn can hand off 10 times at most.
 - An agent that is only in `subagents` cannot be a target. A child that an agent starts cannot hand off either.
-- If the app has its own tool named `handoff`, the turn fails with a duplicate tool error. Set `routing: { router, giveModelsHandoffTool: false }` to give no model the `handoff` tool. The router and your code can still hand off.
+- An app tool named `handoff` replaces the harness tool. See [Use your own handoff tool](#use-your-own-handoff-tool). To give no model the `handoff` tool, set `routing: { router, giveModelsHandoffTool: false }`. The router and your code can still hand off.
+
+### Use your own handoff tool
+
+The `handoff` tool takes only `to` and a short `note`. The target then often asks the user again for facts that the first agent had. Pass `routing.handoffTool` to set the description, the fields, and the note of the tool:
+
+```ts
+import { defineAgent, toolDefinition } from '@tanstack/ai'
+import { defineHarness } from '@tanstack/ai-harness'
+import { openaiText } from '@tanstack/ai-openai'
+import { z } from 'zod'
+
+const billing = defineAgent({
+  name: 'billing',
+  description: 'Handles refunds, invoices, and payments',
+  run: (ctx) =>
+    ctx.chat({
+      adapter: openaiText('gpt-6.1-sol'),
+      systemPrompts: ['You handle refunds, invoices, and payments.'],
+    }),
+})
+
+export const support = defineHarness({
+  name: 'acme/support',
+  adapter: openaiText('gpt-6.1-sol'),
+  agents: [billing],
+  routing: {
+    router: () => undefined,
+    handoffTool: ({ from, targets, handoff }) =>
+      toolDefinition({
+        name: 'handoff',
+        description: 'Hand the user to another agent. Say what you did and what the user still needs.',
+        inputSchema: z.object({
+          to: z.enum(targets),
+          done: z.string().describe('What you did for the user'),
+          next: z.string().describe('What the user still needs'),
+          orderId: z.string().optional(),
+        }),
+      }).server(async ({ to, done, next, orderId }) => {
+        const order = orderId ? ` Order: ${orderId}.` : ''
+        await handoff({ to, note: `From ${from ?? 'main'}. Done: ${done}. Next: ${next}.${order}` })
+        return `Handed off to ${to}.`
+      }),
+  },
+})
+```
+
+- The harness calls `handoffTool` once per turn for each speaker: the main model (`from: null`) and each root agent.
+- `targets` holds the names that this speaker can hand off to. `allowHuman` is the value of `routing.allowHandoffToHuman`.
+- `handoff({ to, note })` hands off. The tool call is the record in the transcript, so the harness adds no note messages.
+- The tool can have any name. With `giveModelsHandoffTool: false`, the harness does not call `handoffTool`.
+
+To change the tool of one speaker only, give that speaker an app tool named `handoff`. It replaces the harness tool. Its code hands off with `ctx.context.run.handoff` (main model) or `ctx.harness.handoff` (root agent), as in [Hand off from code](#2-hand-off-from-code).
 
 ## 2. Hand off from code
 
@@ -105,16 +157,22 @@ The router can hand off too. Return `{ handoff: 'billing', note }` from `routing
 ## What the target gets
 
 - Its own system prompts and tools. The tools of the agent that handed off do not go with it.
-- The saved transcript of the thread, the same messages that the members see.
+- The saved transcript of the thread. `routing.history` sets how it sees the turns of the other speakers. See [Choose what later turns see](./subagents#choose-what-later-turns-see).
 - The note, in the transcript, in the log, and in the `harness.handoff` event.
 - The provider keys of the user who sent the turn.
 
-The `handoff` tool call of a model is in the transcript already. A handoff from the router or from code adds the same two messages before the target answers:
+The `handoff` tool call of the main model is in the transcript already. A root agent keeps its own tool calls in its own transcript. So a handoff from a root agent, from the router, or from code adds the same two messages before the target answers:
 
 - An assistant message with a `handoff` tool call. Its arguments are `{ to, note }`.
 - The tool result, for example `Handed off to billing. billing answers next.`
 
-Both messages have `metadata.harness.handoff.by` (`'router'` or `'code'`). When an agent handed off, they also have its name in `metadata.harness.agent`. The messages go after the messages that the earlier model call got, so the prompt cache of the provider still holds.
+Both messages have `metadata.harness.handoff.by` (`'tool'`, `'router'`, or `'code'`). When an agent handed off, they also have its name in `metadata.harness.agent`.
+
+What the model of the target gets depends on `routing.history`:
+
+- `'own'` (default): the turns of the other speakers are labeled text in a user message, for example `main:\n...`. The handoff is one text line, for example `main handed off to billing. Note: Refund for order 42`. When billing hands back, the main model gets `billing handed off to main.` the same way.
+- `'text'`: the messages of the main model stay as they are, and the two handoff messages come after them. So the prompt cache of the provider still holds.
+- `'all'`: the messages of the main model and of each agent stay as they are, with their tool calls.
 
 With `routing.giveModelsHandoffTool: false`, the models have no `handoff` tool. Then the harness adds one assistant message with the same text and the note.
 
@@ -323,7 +381,7 @@ A [fork](./fork-and-reset) stays in its harness. `host.fork` with a thread of an
 
 ## What you have now
 
-- Agents that hand the conversation to each other, from a tool, from code, or from the router.
+- Agents that hand the conversation to each other, from a tool, from code, or from the router. The tool can be your own, with the fields that you need.
 - A log that keeps who answers, also after a restart.
 - A UI that shows the name of the agent on each message.
 - A pause for a person, operator replies, and a way to give the thread back.

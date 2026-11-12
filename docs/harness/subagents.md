@@ -669,7 +669,7 @@ export const studio = defineHarness({
 
 The router can also return a pick of its own: `'main'`, a name, a list of names, `{ names, order }`, or `{ steps }`. Anywhere a name goes, `{ name, input }` can go too, for example `{ name: 'pricer', input: { vendor: 'Acme' } }`. If a picked agent has an `inputSchema` and no input, the turn fails with `Agent "pricer" needs input. Return { name: 'pricer', input } from the router.` See [Route, or let the model pick](../chat/subagents#route-or-let-the-model-pick) for each pick.
 
-The router also gets `session`, the `input` of the turn as the user sent it, `operationId`, `inputId`, `abortSignal`, `activeAgent`, and `model`. Next to `router`, `routing` takes `order`, `limits`, `sandbox`, `afterAgentsAnswer`, `allowHandoffToHuman`, and `giveModelsHandoffTool`. The first three work the same as in `subagents`. `giveModelsHandoffTool: false` gives no model the `handoff` tool. See [Hand off a conversation](./handoffs).
+The router also gets `session`, the `input` of the turn as the user sent it, `operationId`, `inputId`, `abortSignal`, `activeAgent`, and `model`. Next to `router`, `routing` takes `order`, `limits`, `sandbox`, `afterAgentsAnswer`, `history`, `allowHandoffToHuman`, `giveModelsHandoffTool`, and `handoffTool`. The first three work the same as in `subagents`. For `history`, see [Choose what later turns see](#choose-what-later-turns-see). For the last three, see [Hand off a conversation](./handoffs).
 
 ### Count the model calls of the router
 
@@ -751,6 +751,40 @@ How each pick changes the active agent:
 
 Agents can also hand the turn to each other, or to a person. See [Hand off a conversation](./handoffs).
 
+### Choose what later turns see
+
+On turn 1, billing calls its `refund` tool and answers `I refunded order 42.` On turn 3, billing answers again. If billing reads only that text, with no tool call behind it, it can doubt the text and refund again. `routing.history` sets what each model call gets of the routed runs of earlier turns:
+
+```ts group=harness-routing
+const billing = defineAgent({
+  name: 'billing',
+  description: 'Handles refunds',
+  run: (ctx) => ctx.chat({ adapter: openaiText('gpt-6.1-sol'), stream: false }),
+})
+
+export const support = defineHarness({
+  name: 'acme/support',
+  adapter: openaiText('gpt-6.1-sol'),
+  agents: [billing],
+  routing: {
+    router: ({ input }) => (typeof input === 'string' && input.includes('refund') ? 'billing' : undefined),
+    history: 'own',
+  },
+})
+```
+
+| Value | A routed agent gets | The main model gets |
+| --- | --- | --- |
+| `'own'` (default) | Its own earlier runs in full, with tool calls and results. Other agents as `name:\ntext`, and the main model as `main:\ntext`. A handoff is one text line. | Its own tool calls in full. Routed runs as `billing:\n...` text, and a hand-back as one text line. |
+| `'all'` | Every routed run in full. | Every routed run in full. |
+| `'text'` | Every routed run as `name:\ntext`. | Every routed run as `name:\ntext`. |
+
+- With `'own'`, the text of another speaker reaches the model as a user message. So no model reads the words of another speaker as its own.
+- The router gets the same messages with each value.
+- The stored transcript does not change. Only the messages of each model call change.
+- With `'text'`, a handoff target keeps the prompt cache of the provider. See [What the target gets](./handoffs#what-the-target-gets).
+- The harness keeps the run records of the last 100 runs that ended. A routed run that is older reaches the model as text.
+
 ## Call a harness as a child
 
 `harnessAgent` turns a harness into an agent. Put it in `subagents.agents`, and the main model calls it as a tool. The child harness keeps its own tools, plugins, and history.
@@ -786,6 +820,32 @@ What you see in the parent session:
 - The child session closes, and its plugins are cleaned up, when the run settles.
 
 Outside a session, for example in a plain `chat()`, `harnessAgent` runs the child harness on the host that you pass as `host`. Without `host`, it makes a host with a memory log the first time it runs.
+
+### Make a harness a root agent
+
+The billing team has its own harness. Your front desk wants billing to answer whole turns and keep the conversation, not only answer one tool call. Put `harnessAgent` in `agents`, and add `routing`:
+
+```ts group=harness-subagents
+const billingTeam = defineHarness({
+  name: 'acme/billing',
+  description: 'Handles refunds, invoices, and payments',
+  adapter: openaiText('gpt-6.1-sol'),
+})
+
+export const frontDesk = defineHarness({
+  name: 'acme/front-desk',
+  adapter: openaiText('gpt-6.1-sol'),
+  agents: [harnessAgent(billingTeam, { name: 'billing' })],
+  routing: { router: () => undefined },
+})
+```
+
+- The agent keeps one child session for all turns, on the thread `<root thread id>/agent/billing`. So turn 2 sees turn 1 and its own tool calls.
+- Each turn sends the child what happened in the thread since its last turn, as labeled text. Then it sends the latest user message.
+- The model of the child gets the `handoff` tool of the outer turn, so it can hand back to `'main'`. A tool of the child can call `ctx.context.run.handoff`. See [Hand off a conversation](./handoffs).
+- The child harness cannot have its own `routing`. If it has one, the turn fails.
+
+In `subagents.agents`, the same `harnessAgent` stays a tool of the main model, with a new child session for each call.
 
 ## Stay within limits
 
@@ -894,5 +954,5 @@ const reader = defineAgent({
 - Plugins, commands, and agents that start typed agents, in parallel or in series, and message them while they run.
 - Background agents that continue on the next host after a crash, with steps and children that do not run twice.
 - Runs with their own budget and time limit, in a tree that stays within limits.
-- A router that sends each turn to the right agent, and a routed agent that takes steers like the main model.
-- Harnesses that call other harnesses as child runs, and agents that share state by key.
+- A router that sends each turn to the right agent, and a routed agent that takes steers like the main model and keeps its own tool calls.
+- Harnesses that call other harnesses as child runs or as root agents, and agents that share state by key.

@@ -355,7 +355,7 @@ describe('routing.router', () => {
     expect(main.calls).toHaveLength(1)
     expect(messageTexts(main.calls[0])).toEqual([
       'write it',
-      ...routedTo('writer'),
+      'main handed off to writer.',
       'writer:\nDraft',
     ])
     expect(

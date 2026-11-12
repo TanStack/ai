@@ -1,5 +1,6 @@
 import type { CredentialStore } from '@tanstack/ai/byok'
 import type {
+  AnyTool,
   SubagentBudget,
   Interrupt,
   Logger,
@@ -29,6 +30,7 @@ import type { SessionImpl } from './harness-session'
 import type { AgentInputOf, AgentResultOf, AnyAgent } from '../agents'
 import type { PendingWait } from '../waits'
 import type { HandoffRecord } from '../log-records'
+import type { HandoffOptions } from '../handoff'
 import type { AnyHarness, HarnessAgentsOf } from '../define'
 import type {
   HarnessPersistence,
@@ -472,6 +474,23 @@ export interface ChildSessionLink {
    * the budget of that run. The child keeps no usage of its own.
    */
   countUsage: (call: UsageCall) => Promise<void>
+  /**
+   * Set only for the child session of a `harnessAgent` that is a routed
+   * root agent. It lets the child hand off in the outer turn.
+   */
+  handoff?: {
+    /** The name of the agent in the outer turn. */
+    from: string
+    /**
+     * The outer handoff tool, for the main model of the child. None when
+     * `routing.giveModelsHandoffTool` is false.
+     */
+    tool?: AnyTool
+    /** Hand off in the outer turn. */
+    call: (options: HandoffOptions) => Promise<void>
+    /** True after a handoff. Then the child stops its tool loop. */
+    pending: () => boolean
+  }
 }
 
 /** A child session of `harnessAgent` that a run of a session has open. */

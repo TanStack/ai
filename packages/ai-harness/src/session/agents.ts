@@ -7,6 +7,7 @@ import {
   validateWithStandardSchema,
 } from '@tanstack/ai'
 import { withPersistence } from '@tanstack/ai-persistence'
+import type { BlobBody } from '@tanstack/ai-persistence'
 import { redactMiddleware } from '../auth'
 import { BOUNDARY_INTERRUPTS, withoutBoundaryWaits } from '../boundary-waits'
 import { errorsOnlyDebug } from '../logger'
@@ -55,6 +56,7 @@ import type { HeldPlugins } from './helpers'
 import { SessionTurnParts, stepWaitPrefix } from './turn-parts'
 import type {
   ChatMiddleware,
+  ContentPart,
   SubagentBudget,
   Interrupt,
   ModelMessage,
@@ -69,6 +71,9 @@ import type { InnerTurnEnd } from '../harness-text'
 import type { AgentResultRecord, RunTreeNode } from '../log-records'
 import { NO_SESSION_CONTEXT, withHarnessChild } from '../agents'
 import { forwardTurn, lastUserInput } from '../harness-text'
+import { textOf } from '../first-party/session-tools'
+import { mediaIdOf, mediaPart } from '../media-ref'
+import { historyFor, isHandoffNote, routedAgent } from '../routed-history'
 import { wait as backoff, isTransientModelError } from '../turn'
 import { addCounts, emptyCounts } from '../usage'
 import { isRecord } from '../utils'
@@ -537,15 +542,15 @@ export abstract class SessionAgents<
     const extend: SubagentBinding['extend'] =
       (turn || handoffs) &&
       ((child: SubagentRunContext) => {
-        const handoff =
+        // A routed root agent: a `harnessAgent` there keeps its child session.
+        const root =
           handoffs && child.parentSubagentRunId === undefined
-            ? (handoffOptions: HandoffOptions) =>
-                handoffs.handoff(
-                  handoffOptions,
-                  child.forward.subagentName,
-                  'code',
-                )
-            : NO_SESSION_CONTEXT.handoff
+            ? { name: child.forward.subagentName, handoffs }
+            : undefined
+        const handoff = root
+          ? (handoffOptions: HandoffOptions) =>
+              root.handoffs.handoff(handoffOptions, root.name, 'code')
+          : NO_SESSION_CONTEXT.handoff
         if (!turn) return { harness: { ...NO_SESSION_CONTEXT, handoff } }
         // The steps of the child are in the log under its run id: the same
         // id when it goes on after a wait of the turn.
@@ -561,7 +566,12 @@ export abstract class SessionAgents<
             state: (stateOptions) => this.sharedState(stateOptions),
             handoff,
           },
-          (inner, ctx) => this.runHarnessChild(inner, ctx, { operation, user }),
+          (inner, ctx) =>
+            this.runHarnessChild(inner, ctx, {
+              operation,
+              user,
+              ...(root && { root }),
+            }),
           run,
         )
         return { harness }
@@ -829,6 +839,12 @@ export abstract class SessionAgents<
    * child turns with `parentRunId`, then a RUN_FINISHED with the usage of
    * the child. A stop of the parent run cancels the child, and a recoverable
    * close stops it as on a crash. The child closes when the run ends.
+   *
+   * With `parent.root` (a routed root agent), the thread is
+   * `${rootThreadId}/agent/${name}`: one child session per agent, kept
+   * across turns. Each turn sends what happened in the shared thread since
+   * the last answer of the agent. Its main model gets the `handoff` tool of
+   * the outer turn, unless `routing.giveModelsHandoffTool` is false.
    */
   protected async *runHarnessChild(
     harness: AnyHarness,
@@ -836,13 +852,23 @@ export abstract class SessionAgents<
     parent: {
       operation: OperationImpl<unknown> | OperationImpl<ChatTurnResult>
       user: HarnessUser | undefined
+      root?: { name: string; handoffs: TurnHandoffs }
     },
   ): AsyncGenerator<StreamChunk> {
     const open = this.openChild
     if (!open) throw new Error('This session cannot open a child session.')
+    const { root } = parent
     const parentRunId = parent.operation.id
-    const threadId = `${this.rootThreadId}/agent/${ctx.subagentRunId}`
+    const threadId = `${this.rootThreadId}/agent/${root?.name ?? ctx.subagentRunId}`
     const used = emptyCounts()
+    // With the handoff tool off, the child still hands off from code.
+    const handoff = root
+      ? childHandoff(
+          root.name,
+          root.handoffs,
+          this.harness.routing?.giveModelsHandoffTool !== false,
+        )
+      : undefined
     const session = await open(harness, {
       threadId,
       user: parent.user,
@@ -857,6 +883,7 @@ export abstract class SessionAgents<
           })
           this.checkBudget(parent.operation)
         },
+        ...(handoff && { handoff }),
       },
     })
     let operation: Operation<unknown> | undefined
@@ -899,8 +926,18 @@ export abstract class SessionAgents<
     })
     signal.addEventListener('abort', onAbort, { once: true })
     try {
+      const messages = convertMessagesToModelMessages(ctx.messages)
       operation = session.send(
-        lastUserInput(convertMessagesToModelMessages(ctx.messages)),
+        root
+          ? await copyThreadMedia(
+              {
+                getMedia: (id) => this.getMedia({ id }),
+                open: (id) => this.mediaStore.open(id),
+              },
+              session,
+              await rootInput(messages, root.name),
+            )
+          : lastUserInput(messages),
       )
       if (signal.aborted) onAbort()
       let finished: InnerTurnEnd['finished'] = 'stop'
@@ -2775,6 +2812,146 @@ function withParentRun(chunk: StreamChunk, parentRunId: string): StreamChunk {
       tanstack: { ...tanstackMetadata(chunk), parentRunId },
     },
   })
+}
+
+/**
+ * The link that lets the child session of the routed root agent `from` hand
+ * off in the outer turn: the outer `handoff` tool, `run.handoff`, and a check
+ * that stops the tool loop of the child after a handoff.
+ */
+function childHandoff(from: string, handoffs: TurnHandoffs, withTool: boolean) {
+  // The outer middleware stops the chat of `from` after its handoff. The
+  // child asks it the same question.
+  const { onShouldContinue } = handoffs.middleware()
+  return {
+    from,
+    ...(withTool ? { tool: handoffs.tool(from) } : {}),
+    call: (options: HandoffOptions) => handoffs.handoff(options, from, 'code'),
+    pending: () => onShouldContinue({ subagentName: from }) === false,
+  }
+}
+
+/**
+ * The input of a turn of the routed root `harnessAgent` named `name`:
+ * what happened in the shared thread since the last answer of `name`, then
+ * the latest user message when that message is new (it comes after the last
+ * answer). Other speakers come with their labels, as `routing.history: 'own'`
+ * folds them. The child session keeps its own turns, so they are
+ * not sent again. A second pass in the same outer turn does not resend the
+ * already-answered request: only the context since the last answer, or a
+ * short continue prompt when that context is empty. On its first turn, the
+ * context is the conversation so far.
+ */
+async function rootInput(messages: Array<ModelMessage>, name: string) {
+  // A handoff note names its source agent too, but it is no answer.
+  const isAnswer = (message: ModelMessage) =>
+    routedAgent(message) === name && !isHandoffNote(message)
+  const lastAnswer = messages.findLastIndex(isAnswer)
+  const latest = messages.findLastIndex((message) => message.role === 'user')
+  // The latest user message is new input only when it comes after this
+  // agent last answered. A second pass in the same outer turn (desk →
+  // main → desk) has lastAnswer after latest, so the kept child session
+  // must not get that request again.
+  const hasNewUser = latest > lastAnswer
+  const since = messages.filter(
+    (message, index) =>
+      index > lastAnswer &&
+      index !== latest &&
+      // This agent's own handoff is in its child session, not this context.
+      !(isHandoffNote(message) && routedAgent(message) === name),
+  )
+  // No transcripts: other runs stay as their `name:\ntext` host message.
+  const folded = await historyFor({
+    messages: since,
+    speaker: name,
+    mode: 'own',
+    childrenOf: () => [],
+    transcriptOf: async () => [],
+  })
+  // A message of the user comes back as the same object. A folded message
+  // of another speaker is a new user message that has its label already.
+  const fromUser = new Set(since.filter((message) => message.role === 'user'))
+  const lines: Array<string> = []
+  const earlierMedia: Array<ContentPart> = []
+  for (const message of folded) {
+    if (message.role === 'tool') continue
+    const line = textOf(message).trim()
+    if (fromUser.has(message)) {
+      if (line !== '') lines.push(`user:\n${line}`)
+      if (Array.isArray(message.content)) {
+        for (const part of message.content) {
+          if (mediaIdOf(part) !== undefined) earlierMedia.push(part)
+        }
+      }
+      continue
+    }
+    if (line !== '') lines.push(line)
+  }
+  const input = hasNewUser ? lastUserInput(messages) : undefined
+  const sent: Array<ContentPart> =
+    input === undefined
+      ? []
+      : typeof input === 'string'
+        ? [{ type: 'text', content: input }]
+        : input
+  if (lines.length === 0 && earlierMedia.length === 0) {
+    return input ?? 'Continue.'
+  }
+  const head =
+    lastAnswer === -1 ? 'The conversation so far:' : 'Since your last turn:'
+  const context: Array<ContentPart> = [
+    {
+      type: 'text',
+      content: lines.length === 0 ? head : [head, ...lines].join('\n\n'),
+    },
+    ...earlierMedia,
+  ]
+  return sent.length === 0 ? context : [...context, ...sent]
+}
+
+/**
+ * Copy parent-thread `harness-media:` parts in `input` into `dest`, so the
+ * child session can read them. Same copy as `adoptMessages`: each file gets
+ * a new id on the child thread.
+ */
+async function copyThreadMedia(
+  source: {
+    getMedia: (id: string) => Promise<MediaRecord | null>
+    open: (id: string) => Promise<BlobBody>
+  },
+  dest: {
+    putMedia: (upload: {
+      body: BlobBody
+      mimeType: string
+      name: string
+    }) => Promise<MediaRecord>
+  },
+  input: UserInput,
+): Promise<UserInput> {
+  if (typeof input === 'string') return input
+  const copies = new Map<string, MediaRecord | null>()
+  const copy = async (id: string) => {
+    if (!copies.has(id)) {
+      const record = await source.getMedia(id)
+      copies.set(
+        id,
+        record &&
+          (await dest.putMedia({
+            body: await source.open(id),
+            mimeType: record.mimeType,
+            name: record.name,
+          })),
+      )
+    }
+    return copies.get(id) ?? undefined
+  }
+  return Promise.all(
+    input.map(async (part) => {
+      const id = mediaIdOf(part)
+      const made = id === undefined ? undefined : await copy(id)
+      return made ? mediaPart(made) : part
+    }),
+  )
 }
 
 /**
