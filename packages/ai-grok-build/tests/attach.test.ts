@@ -32,6 +32,7 @@ import {
   SandboxCapability,
   SandboxDurabilityCapability,
   chunkFingerprint,
+  isStoredReplayChunk,
   exitSentinelLine,
   journalPaths,
 } from '@tanstack/ai-sandbox'
@@ -362,7 +363,12 @@ describe(
           durability: durabilityWith(fakeLog(replayed), true),
         }),
       )
-      expect(nothingNew).toEqual([])
+      // Stored chunks are yielded marked so chat() can record them. What would
+      // be appended to the log is the unmarked tail, and here that tail is empty.
+      expect(nothingNew.filter((chunk) => !isStoredReplayChunk(chunk))).toEqual(
+        [],
+      )
+      expect(nothingNew.every(isStoredReplayChunk)).toBe(true)
 
       // Seeded with all but the last: exactly the undelivered tail comes through,
       // and it is fingerprint-identical to the final translated chunk.
@@ -374,7 +380,9 @@ describe(
           durability: durabilityWith(fakeLog(replayed.slice(0, -1)), true),
         }),
       )
-      expect(fingerprints(tail)).toEqual(fingerprints(replayed.slice(-1)))
+      expect(
+        fingerprints(tail.filter((chunk) => !isStoredReplayChunk(chunk))),
+      ).toEqual(fingerprints(replayed.slice(-1)))
 
       await sbx.destroy()
     })

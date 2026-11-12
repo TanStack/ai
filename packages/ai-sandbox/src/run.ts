@@ -22,6 +22,7 @@
  * invisible, each guard reports through the optional {@link RunDeps.logger}.
  */
 import { EventType } from '@tanstack/ai'
+import { isStoredReplayChunk } from './align'
 import { toRunErrorPayload } from '@tanstack/ai/adapter-internals'
 import type { InternalLogger } from '@tanstack/ai/adapter-internals'
 import type {
@@ -306,6 +307,8 @@ export async function pipeToRunLog<TOffset extends string = string>(
 
     for await (const chunk of stream) {
       if (signal?.aborted) return finish(ctx, 'aborted')
+      // Already in the log. Appending it again is the doubled live tail.
+      if (isStoredReplayChunk(chunk)) continue
       await durability.append([chunk])
       if (isRunErrorChunk(chunk)) {
         return finish(
