@@ -1,6 +1,6 @@
 {
   "name": "@tanstack/ai-muse",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "description": "Muse adapter for TanStack AI chat, tool calling, and structured outputs.",
   "author": "Tanner Linsley",
   "license": "MIT",

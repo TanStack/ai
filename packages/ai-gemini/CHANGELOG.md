@@ -1,5 +1,11 @@
 # @tanstack/ai-gemini
 
+## 1.2.2
+
+### Patch Changes
+
+- [#2113](https://github.com/TanStack/ai/pull/2113) [`c1c22e7`](https://github.com/TanStack/ai/commit/c1c22e74e7767d4ff17a806011cc5eea4eae74f9) - Send Gemini API requests through `httpOptions.fetch` again when the client has an `apiKey`. Since 1.1.1 the adapters called the global `fetch` and ignored a custom one, also for image generation through the Interactions API. The `httpOptions.fetch` type is in `@google/genai` 2.23.0 and later.
+
 ## 1.2.1
 
 ### Patch Changes
