@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest'
+import { z } from 'zod'
+import { OpenAIBaseChatCompletionsTextAdapter } from '../adapters/chat-completions-text'
+import { OpenAIBaseResponsesTextAdapter } from '../adapters/responses-text'
 import { createToolInputNormalizer } from './tool-input-normalizer'
 import type { Tool } from '@tanstack/ai'
+
+class Completions extends OpenAIBaseChatCompletionsTextAdapter<string> {}
+class Responses extends OpenAIBaseResponsesTextAdapter<string> {}
 
 describe('createToolInputNormalizer', () => {
   it('removes a null synthesized for an optional enum', () => {
@@ -142,5 +148,59 @@ describe('createToolInputNormalizer', () => {
       nullWideningMap: { properties: { note: { widened: true } } },
     }))
     expect(normalize(tool.name, { note: null })).toEqual({})
+  })
+})
+
+describe('adapter normalizeToolInput', () => {
+  const tool: Tool = {
+    name: 'bookFlight',
+    description: 'Book a flight',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        destination: { type: 'string' },
+        date: { type: 'string' },
+        note: { type: ['string', 'null'] },
+      },
+      required: ['destination'],
+      additionalProperties: false,
+    },
+  }
+
+  it('removes a strict null and keeps a nullable null', () => {
+    const input = { destination: 'Tokyo', date: null, note: null }
+    for (const adapter of [
+      new Completions('gpt-test', 'openai', {} as never),
+      new Responses('gpt-test', 'openai', {} as never),
+    ]) {
+      expect(adapter.normalizeToolInput(tool.name, input, [tool])).toEqual({
+        destination: 'Tokyo',
+        note: null,
+      })
+    }
+  })
+
+  it('undoes a strict null when the tool schema is still zod', () => {
+    const zodTool: Tool = {
+      name: 'bookFlight',
+      description: 'Book a flight',
+      inputSchema: z.object({
+        destination: z.string(),
+        date: z.string().optional(),
+        note: z.string().nullable(),
+      }),
+    }
+    const input = { destination: 'Tokyo', date: null, note: null }
+    for (const adapter of [
+      new Completions('gpt-test', 'openai', {} as never),
+      new Responses('gpt-test', 'openai', {} as never),
+    ]) {
+      expect(
+        adapter.normalizeToolInput(zodTool.name, input, [zodTool]),
+      ).toEqual({
+        destination: 'Tokyo',
+        note: null,
+      })
+    }
   })
 })

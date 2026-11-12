@@ -2829,6 +2829,9 @@ class TextEngine<
       this.params.toolExecution,
       this.params.repairToolInput,
       this.toolCapabilities(),
+      this.toolInputNormalizer(
+        this.resolveExecutableTools(executablePendingCalls),
+      ),
     )
 
     // Consume the async generator, yielding custom events and collecting the return value
@@ -3079,6 +3082,9 @@ class TextEngine<
       this.params.toolExecution,
       this.params.repairToolInput,
       this.toolCapabilities(),
+      this.toolInputNormalizer(
+        this.resolveExecutableTools(executableToolCalls),
+      ),
     )
 
     // Consume the async generator, yielding custom events and collecting the return value
@@ -4193,7 +4199,21 @@ class TextEngine<
       undefined,
       this.params.repairToolInput,
       this.toolCapabilities(),
+      this.toolInputNormalizer(tools),
     )
+  }
+
+  /**
+   * The adapter's undo for provider-rewritten tool arguments, closed over
+   * the tools of this batch. Absent when the adapter does not rewrite them.
+   */
+  private toolInputNormalizer(
+    tools: ReadonlyArray<AnyTool>,
+  ): ((toolName: string, input: unknown) => unknown) | undefined {
+    const normalize = this.adapter.normalizeToolInput
+    if (!normalize) return undefined
+    const adapter = this.adapter
+    return (toolName, input) => normalize.call(adapter, toolName, input, tools)
   }
 
   /** The run's capability readers, for each server tool's context. */
