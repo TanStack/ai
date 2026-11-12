@@ -48,6 +48,7 @@
     },
     "test:smoke": {
       "cache": true,
+      "dependsOn": ["^build"],
       "inputs": ["default", "^production"]
     },
     "test:build": {
