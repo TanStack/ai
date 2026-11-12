@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
+import { memorySandboxSnapshots } from '@tanstack/ai-sandbox'
 import { createSandboxComputerDriver, sandboxComputer } from '../src/index'
 import type {
   ExecResult,
@@ -19,10 +20,19 @@ interface FakeOptions {
   missing?: Array<string>
   /** The size xdpyinfo reports. */
   size?: string
+  /** The files of the sandbox, by absolute path. */
+  files?: Record<string, string>
 }
 
+let sandboxCount = 0
+
 /** A fake sandbox. Each command adds one line to `calls`, prefixed with `exec` or `spawn`. */
-function fakeSandbox({ running = true, missing = [], size }: FakeOptions = {}) {
+function fakeSandbox({
+  running = true,
+  missing = [],
+  size,
+  files = {},
+}: FakeOptions = {}) {
   const calls: Array<string> = []
   let started = running
   const ok = (stdout = ''): ExecResult => ({ stdout, stderr: '', exitCode: 0 })
@@ -51,11 +61,68 @@ function fakeSandbox({ running = true, missing = [], size }: FakeOptions = {}) {
   const destroy = vi.fn(async () => {
     calls.push('destroy')
   })
+  const fs = memoryFs(files)
   const sandbox = {
+    id: `sbx-${++sandboxCount}`,
     process: { exec, spawn },
+    fs,
     destroy,
   } as unknown as SandboxHandle
-  return { sandbox, calls, exec, destroy }
+  return { sandbox, calls, exec, destroy, files: fs.files }
+}
+
+/** An in-memory file system with the methods that snapshots use. */
+function memoryFs(initial: Record<string, string>) {
+  const encoder = new TextEncoder()
+  const files = new Map<string, Uint8Array>(
+    Object.entries(initial).map(([path, text]) => [path, encoder.encode(text)]),
+  )
+  const dirs = new Set<string>()
+  for (const path of files.keys()) {
+    const parts = path.split('/')
+    for (let i = 2; i < parts.length; i++) dirs.add(parts.slice(0, i).join('/'))
+  }
+  const children = (dir: string) => [
+    ...new Set(
+      [...files.keys(), ...dirs]
+        .filter((path) => path.startsWith(`${dir}/`))
+        .map((path) => path.slice(dir.length + 1).split('/')[0] ?? ''),
+    ),
+  ]
+  return {
+    files,
+    lstat: async (path: string) => {
+      const bytes = files.get(path)
+      if (bytes) return { type: 'file', mode: 0o100644, size: bytes.byteLength }
+      return dirs.has(path) ? { type: 'dir', mode: 0o40755 } : undefined
+    },
+    list: async (dir: string) =>
+      children(dir).map((name) => ({
+        name,
+        path: `${dir}/${name}`,
+        type: dirs.has(`${dir}/${name}`) ? 'dir' : 'file',
+      })),
+    exists: async (path: string) => files.has(path) || dirs.has(path),
+    readBytes: async (path: string) => {
+      const bytes = files.get(path)
+      if (!bytes) throw new Error(`No file ${path}`)
+      return bytes
+    },
+    write: async (path: string, data: Uint8Array | string) => {
+      files.set(path, typeof data === 'string' ? encoder.encode(data) : data)
+    },
+    mkdir: async (path: string) => {
+      dirs.add(path)
+    },
+    remove: async (path: string) => {
+      for (const key of [...files.keys(), ...dirs]) {
+        if (key === path || key.startsWith(`${path}/`)) {
+          files.delete(key)
+          dirs.delete(key)
+        }
+      }
+    },
+  }
 }
 
 /** A driver on a sandbox whose display already runs. `calls` holds only the actions. */
@@ -66,7 +133,11 @@ async function setup() {
   return { driver, calls: fake.calls }
 }
 
-function fakeProvider(fakes: Array<ReturnType<typeof fakeSandbox>>) {
+/** A provider that hands out `fakes` in order, and resumes only the `alive` sandboxes. */
+function fakeProvider(
+  fakes: Array<ReturnType<typeof fakeSandbox>>,
+  alive: Array<ReturnType<typeof fakeSandbox>> = [],
+) {
   let next = 0
   const provider = {
     name: 'fake',
@@ -75,8 +146,24 @@ function fakeProvider(fakes: Array<ReturnType<typeof fakeSandbox>>) {
       if (!fake) throw new Error('no more sandboxes')
       return fake.sandbox
     }),
+    resume: vi.fn(
+      async ({ id }: { id: string }) =>
+        alive.find((fake) => fake.sandbox.id === id)?.sandbox ?? null,
+    ),
   } as unknown as SandboxProvider
   return provider
+}
+
+/** An in-memory `sandboxIds` store. */
+function memoryIds(initial: Record<string, string> = {}) {
+  const ids = new Map(Object.entries(initial))
+  return {
+    ids,
+    get: async (threadId: string) => ids.get(threadId),
+    set: async (threadId: string, sandboxId: string) => {
+      ids.set(threadId, sandboxId)
+    },
+  }
 }
 
 describe('createSandboxComputerDriver', () => {
@@ -285,6 +372,94 @@ describe('sandboxComputer', () => {
       expect.any(Error),
     )
     error.mockRestore()
+  })
+
+  it('with sandboxIds, resumes the stored sandbox and never destroys it', async () => {
+    const kept = fakeSandbox()
+    const provider = fakeProvider([], [kept])
+    const sandboxIds = memoryIds({ a: kept.sandbox.id })
+    const factory = sandboxComputer({ provider, sandboxIds })
+    const driver = await factory.create({ threadId: 'a' })
+    expect(provider.create).not.toHaveBeenCalled()
+    expect(driver.close).toBeUndefined()
+    expect(kept.destroy).not.toHaveBeenCalled()
+  })
+
+  it('with sandboxIds, creates and stores a sandbox when the stored one is gone', async () => {
+    const created = fakeSandbox()
+    const provider = fakeProvider([created])
+    const sandboxIds = memoryIds({ a: 'gone' })
+    const factory = sandboxComputer({ provider, sandboxIds })
+    await factory.create({ threadId: 'a' })
+    expect(provider.resume).toHaveBeenCalledWith({ id: 'gone' })
+    expect(sandboxIds.ids.get('a')).toBe(created.sandbox.id)
+  })
+
+  it('with snapshots, saves the folder on close and restores it into the next new sandbox', async () => {
+    const first = fakeSandbox({
+      files: { '/p/Cookies': 'signed-in', '/p/Cache/data': 'big' },
+    })
+    const second = fakeSandbox({ files: { '/p/Cookies': 'new' } })
+    const log: Array<string> = []
+    const factory = sandboxComputer({
+      provider: fakeProvider([first, second]),
+      snapshots: {
+        store: await memorySandboxSnapshots(),
+        root: '/p',
+        policy: { exclude: (path) => path.split('/')[0] === 'Cache' },
+        before: async (sandbox) => {
+          log.push(`before ${sandbox.id}`)
+        },
+        after: async (sandbox) => {
+          log.push(`after ${sandbox.id}`)
+        },
+      },
+    })
+
+    const driver = await factory.create({ threadId: 'a' })
+    // A thread with no snapshot restores nothing.
+    expect(log).toEqual([])
+    await driver.close?.()
+    expect(first.destroy).toHaveBeenCalled()
+
+    await factory.create({ threadId: 'a' })
+    const { id: firstId } = first.sandbox
+    const { id: secondId } = second.sandbox
+    expect(log).toEqual([
+      `before ${firstId}`,
+      `after ${firstId}`,
+      `before ${secondId}`,
+      `after ${secondId}`,
+    ])
+    expect(new TextDecoder().decode(second.files.get('/p/Cookies'))).toBe(
+      'signed-in',
+    )
+    expect(second.files.has('/p/Cache/data')).toBe(false)
+  })
+
+  it('with snapshots and sandboxIds, restores into a resumed sandbox only when its disk is new', async () => {
+    const kept = fakeSandbox({ files: { '/p/Cookies': 'live' } })
+    const store = await memorySandboxSnapshots()
+    const factory = sandboxComputer({
+      provider: fakeProvider([], [kept]),
+      sandboxIds: memoryIds({ a: kept.sandbox.id }),
+      snapshots: { store, root: '/p' },
+    })
+    const driver = await factory.create({ threadId: 'a' })
+    await driver.close?.()
+    expect(kept.destroy).not.toHaveBeenCalled()
+    const head = await store.checkpoints.getHead('a')
+    expect(head).not.toBeNull()
+
+    // A second resume keeps the live files, with no restore.
+    kept.files.set('/p/Cookies', new TextEncoder().encode('newer'))
+    await factory.create({ threadId: 'a' })
+    expect(new TextDecoder().decode(kept.files.get('/p/Cookies'))).toBe('newer')
+
+    // A resume onto an empty disk, as on Cloudflare, gets the snapshot back.
+    kept.files.clear()
+    await factory.create({ threadId: 'a' })
+    expect(new TextDecoder().decode(kept.files.get('/p/Cookies'))).toBe('live')
   })
 })
 

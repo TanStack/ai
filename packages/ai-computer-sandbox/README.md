@@ -66,6 +66,68 @@ RUN apt-get update && apt-get install -y xvfb xdotool scrot x11-utils
 
 When a tool is missing, the driver throws an error with its name.
 
+## Keep the desktop for later
+
+Give `sandboxComputer()` a `sandboxIds` store, and set the provider to pause the sandbox. A user who comes back to a thread later gets the same desktop.
+
+```typescript
+import { createComputerUse } from '@tanstack/ai-computer-use'
+import { sandboxComputer } from '@tanstack/ai-computer-sandbox'
+import { e2bSandbox } from '@tanstack/ai-sandbox-e2b'
+
+// Your database.
+declare const db: {
+  getSandboxId: (threadId: string) => Promise<string | undefined>
+  setSandboxId: (threadId: string, sandboxId: string) => Promise<void>
+}
+
+const computerUse = createComputerUse({
+  driver: sandboxComputer({
+    provider: e2bSandbox({ template: 'desktop', onTimeout: 'pause' }),
+    sandboxIds: {
+      get: (threadId) => db.getSandboxId(threadId),
+      set: (threadId, sandboxId) => db.setSandboxId(threadId, sandboxId),
+    },
+  }),
+})
+```
+
+- A later call of the thread reconnects with `provider.resume`. If the sandbox is gone, the driver creates a new one and stores its id.
+- The driver never destroys a kept sandbox. The provider timeout pauses or removes it.
+
+## Restore files into a new sandbox
+
+Give `sandboxComputer()` a `snapshots` option. The driver saves the files of one folder, like the browser profile, when a thread closes or goes idle. The next new sandbox of the thread gets those files back. A kept sandbox that comes back with an empty disk gets them back too. This works with every provider.
+
+```typescript
+import { createComputerUse } from '@tanstack/ai-computer-use'
+import { sandboxComputer } from '@tanstack/ai-computer-sandbox'
+import { memorySandboxSnapshots } from '@tanstack/ai-sandbox'
+import type { SandboxHandle } from '@tanstack/ai-sandbox'
+import { e2bSandbox } from '@tanstack/ai-sandbox-e2b'
+
+// Your own functions that stop and start the browser.
+declare function stopBrowser(sandbox: SandboxHandle): Promise<void>
+declare function startBrowser(sandbox: SandboxHandle): Promise<void>
+
+const computerUse = createComputerUse({
+  driver: sandboxComputer({
+    provider: e2bSandbox({ template: 'desktop' }),
+    snapshots: {
+      store: await memorySandboxSnapshots(),
+      root: '/home/user/browser-profile',
+      before: (sandbox) => stopBrowser(sandbox),
+      after: (sandbox) => startBrowser(sandbox),
+    },
+  }),
+})
+```
+
+- `before` runs before each save and restore. Stop the programs that write in `root`. `after` starts them again.
+- To save right away, like after a sign-in, call `saveComputerSnapshot(sandbox, threadId, snapshots)`.
+- A snapshot of a browser profile holds its session cookies. Keep the store secret.
+- `memorySandboxSnapshots()` keeps the snapshots in memory. A server restart deletes them. For a durable store, use `createSandboxSnapshots` with your database.
+
 ## Share one sandbox
 
 To drive a sandbox that you already have, use `createSandboxComputerDriver`. Every thread shares this sandbox, so it serves one conversation at a time.

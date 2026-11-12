@@ -90,6 +90,7 @@ Each tutorial builds one small app from start to finish:
 - [Subagents](../tutorials/subagents): a researcher, an SEO agent, and a writer in one blog-writing chat.
 - [Build an MCP Server](../tutorials/mcp-server): serve a tool, a resource, and a prompt.
 - [Computer Use](../tutorials/computer-use): let the model use a web page from screenshots.
+- [Sign In Without the Model](../tutorials/computer-use-login): let the model sign in to a site, and keep the password away from it.
 
 ## Reference
 
