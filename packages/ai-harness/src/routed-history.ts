@@ -81,6 +81,26 @@ function handoffLine(from: string, args: string) {
   return typeof note === 'string' ? `${head} Note: ${note}` : head
 }
 
+/** The note a custom handoff tool recorded on this call, when it set one. */
+function recordedHandoffNote(message: ModelMessage) {
+  const harness = message.metadata?.harness
+  return isRecord(harness) && typeof harness.handoffNote === 'string'
+    ? harness.handoffNote
+    : undefined
+}
+
+/** `args` with `note` set, so a fold reads the recorded note. */
+function argumentsWithNote(args: string, note: string) {
+  try {
+    const parsed = JSON.parse(args)
+    if (!isRecord(parsed)) return JSON.stringify({ note })
+    if (parsed.note === note) return args
+    return JSON.stringify({ ...parsed, note })
+  } catch {
+    return JSON.stringify({ note })
+  }
+}
+
 /** The joined text of the assistant messages of a transcript. */
 function assistantText(messages: ReadonlyArray<ModelMessage>) {
   return messages
@@ -197,7 +217,17 @@ function foldFor(
     folded.add(call.id)
     // A note pair always uses the built-in tool name.
     if (isNote || call.function.name === handoffToolName) {
-      lines.push(handoffLine(from, call.function.arguments))
+      // A custom handoff tool can record a different note than the model
+      // put in the call. The target reads that note; the stored call stays.
+      const stamped = isNote ? undefined : recordedHandoffNote(message)
+      lines.push(
+        handoffLine(
+          from,
+          stamped === undefined
+            ? call.function.arguments
+            : argumentsWithNote(call.function.arguments, stamped),
+        ),
+      )
     }
   }
   return lines.length === 0 ? [] : [otherSpeaker(message, lines.join('\n\n'))]

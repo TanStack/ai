@@ -60,7 +60,12 @@ import {
 import { SessionAgents } from './agents'
 import { commandStepScope, stepWaitPrefix } from './turn-parts'
 import { ToolTurnAdapter } from '../tool-turn'
-import { TurnHandoffs, answererOf, markRouted } from '../handoff'
+import {
+  TurnHandoffs,
+  answererOf,
+  markRouted,
+  stampHandoffNote,
+} from '../handoff'
 import { routedHistoryMiddleware } from '../routed-history'
 import type {
   AnyChatMiddleware,
@@ -1577,6 +1582,22 @@ export abstract class SessionTurn<
         if (isFinished) break
         const handoff = handoffs?.take()
         const target = handoff?.to
+        // A custom handoff tool can rewrite the note. Stamp it on the main
+        // model's call so the target reads it. No extra note messages: the
+        // call is already in the thread.
+        if (
+          handoff?.by === 'tool' &&
+          handoff.from === null &&
+          typeof handoff.note === 'string' &&
+          handoffs
+        ) {
+          await stampHandoffNote(
+            this.messages,
+            this.threadId,
+            handoffs.tool(null).name,
+            handoff.note,
+          )
+        }
         // The note of a code handoff, for the transcript.
         const note = handoff ? (handoffs?.messages(handoff) ?? []) : []
         if (isHumanTarget(target)) {

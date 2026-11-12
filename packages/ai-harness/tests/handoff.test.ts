@@ -439,6 +439,11 @@ describe('handoffs', () => {
     ).toEqual([
       { from: null, to: 'billing', note: 'main: order 42', by: 'tool' },
     ])
+    // billing gets the rewritten note from the tool call, once.
+    expect(billing.model.calls[0].messages.at(-1)).toMatchObject({
+      role: 'user',
+      content: 'main handed off to billing. Note: main: order 42',
+    })
     await host.close()
   })
 

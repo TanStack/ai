@@ -171,6 +171,35 @@ describe('historyFor', () => {
     ])
   })
 
+  it('folds a stamped recorded note instead of the model call args', async () => {
+    const call = {
+      ...handoffCall('call_h', 'handoff', {
+        to: 'billing',
+        note: 'Refund for order 42.',
+      }),
+      metadata: {
+        harness: { handoffNote: 'from main: Refund for order 42.' },
+      },
+    }
+    const result = await history({
+      messages: [USER, call, toolResult('call_h')],
+      speaker: 'billing',
+      mode: 'own',
+    })
+    expect(result).toEqual([
+      USER,
+      {
+        id: 'm_call_h',
+        role: 'user',
+        content:
+          'main:\nLet me pass you on.\n\nmain handed off to billing. Note: from main: Refund for order 42.',
+        metadata: {
+          harness: { handoffNote: 'from main: Refund for order 42.' },
+        },
+      },
+    ])
+  })
+
   it('reads the handoff tool name from handoffToolName', async () => {
     const custom = handoffCall('call_t', 'transfer', { to: 'billing' })
     const builtIn = handoffCall('call_b', 'handoff', { to: 'research' })

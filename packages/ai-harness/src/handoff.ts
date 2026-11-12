@@ -1,6 +1,6 @@
 import { toolDefinition } from '@tanstack/ai'
 import { isHumanTarget } from './log-records'
-import { routedRunId } from './routed-history'
+import { isHandoffNote, routedRunId } from './routed-history'
 import { isRecord } from './utils'
 import type {
   AfterToolCallInfo,
@@ -464,6 +464,44 @@ export function answererOf(pick: SubagentRouterPick | undefined) {
  */
 function routedIndex(messages: ReadonlyArray<ModelMessage>, runId: string) {
   return messages.findIndex((message) => routedRunId(message) === runId)
+}
+
+/**
+ * Put the recorded note of a main-model tool handoff on that tool call.
+ * A custom `handoffTool` can pass a different note than the model put in
+ * the call. `'own'` then folds that note for the target. The stored call
+ * arguments stay as the model wrote them. No extra note messages.
+ */
+export async function stampHandoffNote(
+  store: MessageStore,
+  threadId: string,
+  toolName: string,
+  note: string,
+) {
+  const history = await store.loadThread(threadId)
+  for (let index = history.length - 1; index >= 0; index -= 1) {
+    const message = history[index]
+    if (
+      message?.role !== 'assistant' ||
+      isHandoffNote(message) ||
+      !message.toolCalls?.some((call) => call.function.name === toolName)
+    ) {
+      continue
+    }
+    const harness = isRecord(message.metadata?.harness)
+      ? message.metadata.harness
+      : {}
+    if (harness.handoffNote === note) return
+    const updated: ModelMessage = {
+      ...message,
+      metadata: {
+        ...message.metadata,
+        harness: { ...harness, handoffNote: note },
+      },
+    }
+    await store.saveThread(threadId, history.with(index, updated))
+    return
+  }
 }
 
 /**

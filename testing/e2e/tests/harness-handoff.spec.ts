@@ -238,7 +238,7 @@ test.describe('harness: handoffs inside one session', () => {
       const noteMessage = sentToBilling.at(-1)
       expect(noteMessage).toMatchObject({ role: 'user' })
       expect(JSON.stringify(noteMessage)).toContain(
-        'main handed off to billing. Note: Refund for order 42.',
+        'triage handed off to billing. Note: Refund for order 42.',
       )
       expect(
         blocksOf(sentToBilling).some(
