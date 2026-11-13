@@ -1,0 +1,19 @@
+{
+  "_comment": "Budget discipline (brief §7). The runner aborts when usdCap is hit and reports partial results AS partial. Dev iterations use small subsets and cheaper tiers. Fable runs require the --fable flag.",
+  "suite": "middle-critical",
+  "maxTrials": 48,
+  "usdCap": 15.0,
+  "arms": ["baseline", "global", "adorned", "universal"],
+  "models": {
+    "frontier": "claude-fable-5",
+    "production_default": ["claude-sonnet-4-6", "gpt-6.1-sol", "gemini-4-argon"],
+    "low_cost": ["claude-haiku-4-5-20251001", "gemini-2.5-flash-lite"]
+  },
+  "fableRequiresFlag": true,
+  "turnLimit": 30,
+  "dev": {
+    "_comment": "dev iteration: ~20 tasks, cheaper tiers only, no Fable. gemini-2.5-flash-lite ($0.10/$0.40) is the cheapest cell; there is no Gemini 4 flash/lite in the SDK, gemini-4-argon is the $2/$10 flagship.",
+    "maxTrials": 20,
+    "models": ["gemini-2.5-flash-lite"]
+  }
+}

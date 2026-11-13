@@ -1,0 +1,20 @@
+{
+  "name": "@tanstack/ai-optimize-evals",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Context-optimization eval harness (Harbor adapter + Node runner). Not published.",
+  "type": "module",
+  "scripts": {
+    "generate": "node suites/middle-critical/generate.mjs",
+    "report": "node report.mjs"
+  },
+  "dependencies": {
+    "@tanstack/ai": "workspace:*",
+    "@tanstack/ai-anthropic": "workspace:*",
+    "@tanstack/ai-code-mode": "workspace:*",
+    "@tanstack/ai-gemini": "workspace:*",
+    "@tanstack/ai-isolate-quickjs": "workspace:*",
+    "@tanstack/ai-openai": "workspace:*",
+    "@tanstack/ai-optimize": "workspace:*"
+  }
+}

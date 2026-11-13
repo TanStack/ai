@@ -160,6 +160,9 @@ export {
   type InputSchemaOf,
   type OutputSchemaOf,
   type NoSchema,
+  type TruncateStrategy,
+  type FieldProjection,
+  type ToolContextPolicy,
 } from './activities/chat/tools/tool-definition'
 export {
   hashSchemaInput,

@@ -34,6 +34,58 @@ export type ApprovalSchemaConfig =
   | { approve: SchemaInput; reject?: SchemaInput }
   | { approve?: SchemaInput; reject: SchemaInput }
 
+/**
+ * Deterministic projection strategies for a tool's message projection.
+ * No LLM summarization — history summarization belongs to
+ * `@tanstack/ai-compaction`. See `@tanstack/ai-optimize`.
+ *
+ * @public
+ */
+export type TruncateStrategy = 'head' | 'tail' | 'head_tail' | 'drop_with_ref'
+
+/**
+ * How one field of a tool result is projected into the message sent to the
+ * model. Declared by the tool author on {@link ToolContextPolicy}, or attached
+ * by a consumer via `optimize()` for tools they don't control.
+ *
+ * `@tanstack/ai` core only carries these types — nothing in core reads them.
+ * All behavior lives in `@tanstack/ai-optimize`.
+ *
+ * @public
+ */
+export interface FieldProjection {
+  /** Strategy to apply to this field's value in the message projection. */
+  truncate: TruncateStrategy
+  /** Only project when the field's estimated size exceeds this. Default 1500. */
+  aboveTokens?: number
+  /** Target size of the kept preview, in estimated tokens. Default 750.
+   *  Ignored for 'drop_with_ref'. */
+  maxTokens?: number
+  /** Keep a stash ref in the marker so the model can retrieve the original.
+   *  Default true. */
+  retrievable?: boolean
+}
+
+/**
+ * Author-declared projection policy for a tool. Threads through
+ * `toolDefinition()` / `.server()` / `.client()` like `needsApproval` and
+ * `replay`. `chat()` in core does not read it; `@tanstack/ai-optimize` does.
+ *
+ * @public
+ */
+export interface ToolContextPolicy {
+  result?: {
+    /** Field rules keyed by path. '$' = the whole result (for scalar /
+     *  string results). Paths are dot-separated object keys; array elements
+     *  are not individually addressable in v1 — a rule on an array field
+     *  applies to the array's serialized form. */
+    fields?: Record<string, FieldProjection>
+    /** Opt failed results into projection. Default false (errors exempt). */
+    includeErrors?: boolean
+  }
+  // NOTE: no `args` here in v1 — argument projection is optimize()-only.
+}
+
 type ApprovalConfig<
   TNeedsApproval extends boolean,
   TApprovalSchema extends ApprovalSchemaConfig | undefined,
@@ -100,6 +152,8 @@ export interface ServerTool<
   needsApproval?: TNeedsApproval
   approvalSchema?: TApprovalSchema
   execution?: 'task'
+  /** Author-declared projection policy. Read by `@tanstack/ai-optimize`. */
+  context?: ToolContextPolicy
 }
 
 /**
@@ -132,6 +186,8 @@ export interface ClientTool<
   lazy?: boolean
   replay?: 'safe' | 'never'
   metadata?: Record<string, unknown>
+  /** Author-declared projection policy. Read by `@tanstack/ai-optimize`. */
+  context?: ToolContextPolicy
   execute?: ToolExecuteFunction<TInput, TOutput, TContext>
 }
 
@@ -162,6 +218,8 @@ export interface ToolDefinitionInstance<
   needsApproval?: TNeedsApproval
   approvalSchema: TApprovalSchema
   execution?: 'task'
+  /** Author-declared projection policy. Read by `@tanstack/ai-optimize`. */
+  context?: ToolContextPolicy
   readonly [toolApprovalCapability]?: {
     needsApproval: TNeedsApproval
     approvalSchema: TApprovalSchema
@@ -233,6 +291,9 @@ export type ToolDefinitionConfig<
   replay?: 'safe' | 'never'
   metadata?: Record<string, unknown>
   execution?: 'task'
+  /** Author-declared projection policy. Read by `@tanstack/ai-optimize`;
+   *  `chat()` in core ignores it (same posture as `replay`). */
+  context?: ToolContextPolicy
 } & ApprovalConfig<TNeedsApproval, TApprovalSchema>
 
 /**

@@ -457,6 +457,11 @@
           "to": "advanced/compaction-advanced",
           "addedAt": "2026-10-21",
           "updatedAt": "2026-11-07"
+        },
+        {
+          "label": "Context Optimization",
+          "to": "advanced/context-optimization",
+          "addedAt": "2026-11-12"
         }
       ],
       "tab": "guides"

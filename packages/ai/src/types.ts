@@ -3,6 +3,7 @@ import type {
   StandardSchemaV1,
 } from '@standard-schema/spec'
 import type { InternalLogger } from './logger/internal-logger'
+import type { ToolContextPolicy } from './activities/chat/tools/tool-definition'
 import type { SystemPrompt } from './system-prompts'
 import type {
   Capability,
@@ -1139,6 +1140,14 @@ export interface Tool<
 
   /** Additional metadata for adapters or custom extensions */
   metadata?: Record<string, any> | undefined
+
+  /**
+   * Author-declared, field-level projection policy for this tool's message
+   * projection. `chat()` in core does not read it (same posture as `replay`);
+   * `@tanstack/ai-optimize` reads it to truncate adorned fields in the model
+   * projection only. See {@link ToolContextPolicy}.
+   */
+  context?: ToolContextPolicy
 }
 
 /**
