@@ -31,6 +31,8 @@ evals/
       multi-write/generate.mjs      read+edit+write SEVERAL files in one session (write-arg drop compounds)
       code-mode/generate.mjs        same work through execute_typescript; agent logs for debugging
       terminal-bench/generate.mjs   run noisy shell commands; answer in the tail (disposable logs, the Strands regime)
+      disposable-read/generate.mjs  read a large log via read_file (no shell), answer in the tail — the disposable-log
+                                    test that survives a capable model (Sonnet pipes around the shell variant)
 ```
 
 ## Arms (selected by `ARM` env, nothing else changes)
@@ -67,8 +69,12 @@ System prompt and turn limits are held constant across arms.
   every dump; `cm-adorned` clips them and keeps the returned result.
 - **terminal-bench** — the disposable-log regime Strands' headline comes from:
   noisy shell commands whose answer is a summary line in the tail. Size-based
-  truncation is nearly free here (~96% input cut, no retrievals). Run both this
-  and `multi-write` to see the effect flip sign with the workload. See
+  truncation is nearly free here (~96% input cut, no retrievals) on a model naive
+  enough to dump output. A capable model (Sonnet) pipes around it (`| tail`), so
+  the big logs never enter context — use `disposable-read` there instead.
+- **disposable-read** — the same disposable-log idea forced through `read_file`
+  with shell disabled, so a capable model can't pipe around it. On Sonnet,
+  truncating the read cut input ~94% and cost ~14x, 4/4 solved. See
   `results/RESULTS.md`.
 
 ## Model ladder (never Fable-anchored)

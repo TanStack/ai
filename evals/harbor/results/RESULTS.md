@@ -1,9 +1,11 @@
 # Context-optimization eval results
 
-Model: `gemini-3.8-flash`. Date: 2026-11-12. Raw per-trial JSONL in this folder
-(`terminal-bench.jsonl`, `multi-write.jsonl`, `code-mode.jsonl`). Token counts
-are estimates (`~`); dollars derive from the rate card in `report.mjs`, labelled
-`(est)`. Reported per model x arm, never pooled.
+Models: `gemini-3.8-flash` (sections 1-3) and `claude-sonnet-4-6` (section 4,
+with wall-clock). Dates: 2026-11-12 / 2026-11-13. Raw per-trial JSONL in this
+folder (`*.jsonl`; Sonnet runs are `sonnet-*.jsonl`). Token counts are estimates
+(`~`); dollars derive from the rate card in `report.mjs`, labelled `(est)`.
+Each trial also records `timing` (`duration_ms`, `first_token_ms`,
+`ms_per_step`). Reported per model x arm, never pooled.
 
 Rebuild: `node report.mjs results/*.jsonl` · Charts: `node chart.mjs`
 
@@ -87,6 +89,63 @@ replacements), so truncating them forces the agent to work around the loss.
 - **Code mode is the bigger lever**: ~8x cheaper than tool-call baseline
   ($0.0077 vs $0.0622), because file contents never enter the model context.
   optimize() adds nothing here (nothing large is disposable).
+
+## 4. Second model: Sonnet (`claude-sonnet-4-6`), with wall-clock
+
+Re-run on Sonnet to check the findings hold on a frontier model and to measure
+latency. Runs were sequential (one matrix at a time) to avoid rate-limit
+backoff. No prompt caching was active in this adapter path (`cache_read: 0`), so
+dollars are clean input-token figures. All cells solved 100%.
+
+**Multi-write (load-bearing edits, shell disabled), 2 tasks x 2 trials:**
+
+| arm | mode | input | output | $/task | wall-clock | steps | retrievals |
+| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| baseline | tool-calls | ~23.8K | ~6.9K | $0.174 | 72.7s | 3.0 | 0 |
+| adorned | tool-calls | ~70.3K | ~13.1K | $0.407 | 140.3s | 5.8 | 3.3 |
+| cm-baseline | code-mode | ~8.1K | ~0.6K | $0.034 | **9.9s** | 2.8 | 0 |
+| cm-adorned | code-mode | ~23.8K | ~2.3K | $0.106 | 29.0s | 4.5 | 0.3 |
+
+- **Code mode is ~7x faster (9.9s vs 72.7s), ~5x cheaper, 3x less input.** The
+  speed win is bigger than token count alone implies because tool-call mode makes
+  the model regenerate the whole file as `write_file` **output** (~6.9K output
+  tokens, slow to generate); code mode writes in the sandbox and emits a ~0.6K
+  program.
+- **optimize backfires harder on Sonnet** for load-bearing edits: `adorned`
+  costs 2.3x baseline at 2x the wall-clock, with ~3.3 retrievals/task. Sonnet
+  actually calls `retrieve_context`, so it loops pulling clipped reads back
+  (Gemini mostly did not, so it was less bad there).
+
+**Disposable-read (read a ~30K-token log via read_file, answer in the tail,
+shell disabled), 2 tasks x 2 trials:**
+
+| arm | input | $/task | wall-clock | steps | retrievals |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| baseline | ~54.6K | $0.165 | 3.4s | 2.0 | 0 |
+| universal | ~3.4K | $0.012 | 3.9s | 2.0 | 0 |
+| global | ~2.7K | $0.010 | 3.5s | 2.0 | 0 |
+| cm-baseline | ~3.1K | $0.013 | 4.1s | 2.0 | 0 |
+
+- **Truncating the disposable read cuts input ~94% and cost ~14x, 4/4 solved, 0
+  retrievals** — the tail-preserving preview keeps the summary line. This is the
+  optimize-wins case, forced through `read_file`.
+- **Wall-clock is flat (~3.5s all arms).** The task is 2 steps, so the 54K
+  context never rides across many turns; the compression saves tokens and dollars
+  but not time. The speed win appears only when big context is carried turn after
+  turn (the multi-write baseline's 72s), not on a read-once task.
+
+**Why not terminal-bench on Sonnet?** The shell-based terminal-bench suite is
+_invalid_ on a capable model: Sonnet pipes its own shell output (`| tail`,
+`| grep`), so the big logs never enter context (baseline ~5.9K input, `proj=0`).
+When it did run full commands, truncation fired but still left more context than
+its own piping. The lesson is its own finding: the smarter the model, the less a
+blind-truncation scenario even arises — capable agents minimize their own
+context, so a naive truncation layer has less to do and can add overhead. That
+is the disposable-read suite's reason for existing (shell disabled).
+
+**Cross-model.** Code mode wins on both models and by _more_ on Sonnet (~7x vs
+~5x wall-clock). optimize's sign still flips with the workload on both. Sonnet's
+time-to-first-token is much lower (~0.7-1.2s vs Gemini's ~3.6s).
 
 ## On the Strands 77% claim
 
