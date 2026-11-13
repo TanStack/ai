@@ -157,7 +157,7 @@ export async function generationParamsFromRequest<TKind extends GenerationKind>(
   return generationParamsFromBody(kind, body)
 }
 
-export { EventType } from '@ag-ui/core'
+export { EventType, PROTOCOL_VERSION } from '@ag-ui/core'
 export type { RunAgentInput } from '@ag-ui/core'
 
 export {
