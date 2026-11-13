@@ -82,7 +82,12 @@ mutates the caller's objects — and returns the middleware plus the tool set
 (with `retrieve_context` appended when any applicable rule is retrievable).
 
 ```ts
-import { optimize, truncateHeadTail, dropWithRef, aboveTokens } from '@tanstack/ai-optimize'
+import {
+  optimize,
+  truncateHeadTail,
+  dropWithRef,
+  aboveTokens,
+} from '@tanstack/ai-optimize'
 
 declare const toolsFromMcp: Parameters<typeof optimize>[0]
 
@@ -93,7 +98,9 @@ const opt = optimize(toolsFromMcp, {
   },
   tools: {
     write_file: { args: { fields: { content: dropWithRef() } } },
-    fetch_page: { result: { fields: { body: truncateHeadTail({ maxTokens: 1000 }) } } },
+    fetch_page: {
+      result: { fields: { body: truncateHeadTail({ maxTokens: 1000 }) } },
+    },
   },
   exclude: ['get_account_balance'],
   onEvent: (e) => console.log(e),
