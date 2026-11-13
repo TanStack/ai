@@ -99,12 +99,12 @@ dollars are clean input-token figures. All cells solved 100%.
 
 **Multi-write (load-bearing edits, shell disabled), 2 tasks x 2 trials:**
 
-| arm | mode | input | output | $/task | wall-clock | steps | retrievals |
-| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| baseline | tool-calls | ~23.8K | ~6.9K | $0.174 | 72.7s | 3.0 | 0 |
-| adorned | tool-calls | ~70.3K | ~13.1K | $0.407 | 140.3s | 5.8 | 3.3 |
-| cm-baseline | code-mode | ~8.1K | ~0.6K | $0.034 | **9.9s** | 2.8 | 0 |
-| cm-adorned | code-mode | ~23.8K | ~2.3K | $0.106 | 29.0s | 4.5 | 0.3 |
+| arm         | mode       |  input | output | $/task | wall-clock | steps | retrievals |
+| ----------- | ---------- | -----: | -----: | -----: | ---------: | ----: | ---------: |
+| baseline    | tool-calls | ~23.8K |  ~6.9K | $0.174 |      72.7s |   3.0 |          0 |
+| adorned     | tool-calls | ~70.3K | ~13.1K | $0.407 |     140.3s |   5.8 |        3.3 |
+| cm-baseline | code-mode  |  ~8.1K |  ~0.6K | $0.034 |   **9.9s** |   2.8 |          0 |
+| cm-adorned  | code-mode  | ~23.8K |  ~2.3K | $0.106 |      29.0s |   4.5 |        0.3 |
 
 - **Code mode is ~7x faster (9.9s vs 72.7s), ~5x cheaper, 3x less input.** The
   speed win is bigger than token count alone implies because tool-call mode makes
@@ -119,12 +119,12 @@ dollars are clean input-token figures. All cells solved 100%.
 **Disposable-read (read a ~30K-token log via read_file, answer in the tail,
 shell disabled), 2 tasks x 2 trials:**
 
-| arm | input | $/task | wall-clock | steps | retrievals |
-| --- | ---: | ---: | ---: | ---: | ---: |
-| baseline | ~54.6K | $0.165 | 3.4s | 2.0 | 0 |
-| universal | ~3.4K | $0.012 | 3.9s | 2.0 | 0 |
-| global | ~2.7K | $0.010 | 3.5s | 2.0 | 0 |
-| cm-baseline | ~3.1K | $0.013 | 4.1s | 2.0 | 0 |
+| arm         |  input | $/task | wall-clock | steps | retrievals |
+| ----------- | -----: | -----: | ---------: | ----: | ---------: |
+| baseline    | ~54.6K | $0.165 |       3.4s |   2.0 |          0 |
+| universal   |  ~3.4K | $0.012 |       3.9s |   2.0 |          0 |
+| global      |  ~2.7K | $0.010 |       3.5s |   2.0 |          0 |
+| cm-baseline |  ~3.1K | $0.013 |       4.1s |   2.0 |          0 |
 
 - **Truncating the disposable read cuts input ~94% and cost ~14x, 4/4 solved, 0
   retrievals** — the tail-preserving preview keeps the summary line. This is the
