@@ -67,6 +67,7 @@ export type {
   UnboundInterrupt,
   InterruptItemStatus,
   ToolApprovalInterrupt,
+  ServerToolApprovalInterrupt,
   ClientContextOptionFromTools,
   ChatResumeState,
   ChatRequestBody,

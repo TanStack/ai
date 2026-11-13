@@ -374,6 +374,7 @@ Generic interrupts always render in `Interrupts`. They never render inside a too
 
 - an interrupt id that you did not register.
 - an unbound interrupt. Something outside this chat owns it, so it cannot be resolved here.
+- a `server-tool-approval`: an approval for a tool that only the server knows, such as an MCP tool.
 
 If the copy for an unbound interrupt must be different, branch on `interrupt.kind === 'unbound'`.
 

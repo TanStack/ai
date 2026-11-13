@@ -45,6 +45,8 @@ export const Route = createFileRoute('/api/mcp-policy-test')({
           messages: params.messages,
           threadId: params.threadId,
           runId: params.runId,
+          ...(params.parentRunId && { parentRunId: params.parentRunId }),
+          ...(params.resume && { resume: params.resume }),
           mcp: { clients: [client] },
           agentLoopStrategy: maxIterations(5),
         })
