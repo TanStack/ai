@@ -15,6 +15,7 @@
  */
 import type { InternalLogger } from '@tanstack/ai/adapter-internals'
 import type { RunRecord } from '@tanstack/ai'
+import { deleteSnapshotQuietly } from './snapshot-cleanup'
 import type { SandboxProvider } from './contracts'
 import type { SandboxInstanceStore } from './instance-store'
 
@@ -112,6 +113,12 @@ export async function reclaimSandbox(
   // success when the destroy threw. Reporting `'destroyed'` here made a leaked,
   // now-unreachable sandbox indistinguishable from a clean teardown.
   await options.instances.delete(key)
+  // The record was the snapshot's only reference. Best effort, never part of
+  // the outcome: a leaked snapshot is logged by the helper.
+  await deleteSnapshotQuietly(options.provider, instance.latestSnapshotId, {
+    logger: options.logger,
+    meta: { runId: record.runId, sandboxKey: key },
+  })
   return destroyFailed ? 'destroy-failed' : 'destroyed'
 }
 

@@ -9,8 +9,10 @@
 import { bootstrapWorkspace } from './bootstrap'
 import { resolveAllSecrets } from './secrets'
 import { computeSandboxKey } from './key'
+import { deleteSnapshotQuietly } from './snapshot-cleanup'
 import { InMemoryLockStore } from '@tanstack/ai/locks'
 import type { LockStore } from '@tanstack/ai/locks'
+import type { InternalLogger } from '@tanstack/ai/adapter-internals'
 import type { SandboxFileHookEvent } from '@tanstack/ai'
 import { InMemorySandboxInstanceStore } from './instance-store'
 import type { SandboxInstanceStore } from './instance-store'
@@ -78,6 +80,11 @@ export interface SandboxEnsureContext {
   signal?: AbortSignal
   /** Harness adapter name (`grok-build`, `claude-code`, `codex`, `opencode`). Optional. */
   adapterName?: string
+  /**
+   * Receives non-fatal anomalies (a failed after-setup snapshot, a failed
+   * snapshot delete). `withSandbox` passes the chat runtime's logger.
+   */
+  logger?: InternalLogger
 }
 
 export interface SandboxDefinition {
@@ -310,24 +317,65 @@ export function defineSandbox(config: SandboxConfig): SandboxDefinition {
         }
       }
 
+      // The after-setup snapshot is an optimization for a later restore, not
+      // part of the sandbox the run needs. A failure (a provider quota, a
+      // transient API error) is logged and the run continues with no
+      // `latestSnapshotId`; a later turn whose sandbox is gone re-creates
+      // instead of restoring. Throwing here would also leak the sandbox: it is
+      // created and bootstrapped but not yet recorded, so nothing could reach
+      // it again.
       let latestSnapshotId: string | undefined
       if (
         effectiveSnapshot === 'after-setup' &&
         caps.snapshots &&
         created.snapshot
       ) {
-        latestSnapshotId = (await created.snapshot('after-setup')).id
+        try {
+          latestSnapshotId = (await created.snapshot('after-setup')).id
+        } catch (error) {
+          ctx.logger?.warn(
+            'sandbox after-setup snapshot failed; continuing without one',
+            {
+              provider: config.provider.name,
+              providerSandboxId: created.id,
+              runId: ctx.runId,
+              error,
+            },
+          )
+        }
       }
 
-      await store.upsert({
-        key,
-        provider: config.provider.name,
-        providerSandboxId: created.id,
-        latestSnapshotId,
-        threadId: ctx.threadId,
-        latestRunId: ctx.runId,
-        updatedAt: Date.now(),
-      })
+      try {
+        await store.upsert({
+          key,
+          provider: config.provider.name,
+          providerSandboxId: created.id,
+          latestSnapshotId,
+          threadId: ctx.threadId,
+          latestRunId: ctx.runId,
+          updatedAt: Date.now(),
+        })
+      } catch (error) {
+        // Unrecorded, so unreachable: tear it down rather than leak it. Keep a
+        // snapshot whose (deterministic) name the old record still points at.
+        await created.destroy().catch(() => {})
+        if (latestSnapshotId !== existing?.latestSnapshotId)
+          await deleteSnapshotQuietly(config.provider, latestSnapshotId, {
+            logger: ctx.logger,
+            meta: { runId: ctx.runId },
+          })
+        throw error
+      }
+      // The re-create replaced the record, so a snapshot it pointed at (a
+      // `snapshotMaxAge` expiry, or a provider that could not restore it) is
+      // now unreferenced. Some providers reuse a deterministic snapshot name,
+      // so an id equal to the new one is the new snapshot, not a stale one.
+      if (existing?.latestSnapshotId !== latestSnapshotId)
+        await deleteSnapshotQuietly(
+          config.provider,
+          existing?.latestSnapshotId,
+          { logger: ctx.logger, meta: { runId: ctx.runId } },
+        )
       return { handle: created, outcome: 'created' }
     })
   }
@@ -405,6 +453,12 @@ export function defineSandbox(config: SandboxConfig): SandboxDefinition {
       clearTimeout(timer)
     }
     await store.delete(key)
+    // The record was the only reference to its snapshot. Deleted after the
+    // record so a failed `store.delete` never leaves it pointing at nothing.
+    await deleteSnapshotQuietly(config.provider, existing.latestSnapshotId, {
+      logger: ctx.logger,
+      meta: { runId: ctx.runId },
+    })
   }
 
   const definition: SandboxDefinition = {

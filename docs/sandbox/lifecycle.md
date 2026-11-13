@@ -66,6 +66,12 @@ Providers without snapshot support (for example `localProcessSandbox`) skip the 
 
 `snapshotMaxAge` takes `'<n>h'` (hours) or `'<n>m'` (minutes). When the stored record is older than this limit, the sandbox is treated as stale. It is created from scratch: setup runs again, and a new snapshot is taken. If you leave it unset, snapshots stay forever.
 
+### Snapshot cleanup
+
+The sandbox record keeps one snapshot id. When a newer snapshot replaces it, or the sandbox is destroyed (`destroy`, `destroyOnComplete`, an aborted run, or `reclaimSandbox`), the old snapshot is deleted through the provider's optional `deleteSnapshot`. A failed delete is logged and does not fail the run. Providers without `deleteSnapshot` keep their snapshots.
+
+If the `'after-setup'` snapshot fails (for example, a provider quota is full), the run goes on without a snapshot and a warning is logged. The next run with no live sandbox creates one again instead of restoring.
+
 ### The sandbox instance key
 
 A sandbox is found by a compound key:

@@ -120,6 +120,8 @@ network. It is not configurable.
 page cache and be lost, so run `sync` before you stop a machine yourself.
 Suspend, hibernate, snapshot and fork keep memory and do not lose it.
 
-A snapshot is an org-level artifact. The framework never deletes one, so
-remove snapshots you no longer need with the boxd CLI or SDK, or set
+A snapshot is an org-level artifact. The provider implements `deleteSnapshot`,
+so the framework deletes a snapshot when a newer one replaces it on the
+sandbox record or the sandbox is destroyed. Snapshots you take yourself are
+never deleted; remove them with the boxd CLI or SDK, or set
 `lifecycle.snapshot: 'none'` on the sandbox.

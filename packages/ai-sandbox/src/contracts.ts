@@ -302,6 +302,13 @@ export interface SandboxDestroyInput {
   signal?: AbortSignal
 }
 
+/** Input passed to {@link SandboxProvider.deleteSnapshot}. */
+export interface SandboxDeleteSnapshotInput {
+  /** The {@link SnapshotRef.id} a prior `snapshot()` returned. */
+  snapshotId: string
+  signal?: AbortSignal
+}
+
 /**
  * Owns an isolation primitive. Implemented by `@tanstack/ai-sandbox-*`
  * provider packages.
@@ -315,5 +322,17 @@ export interface SandboxProvider {
   resume: (input: SandboxResumeInput) => Promise<SandboxHandle | null>
   /** Capability-gated: present only when `capabilities().snapshots` is true. */
   restoreSnapshot?: (input: SandboxRestoreInput) => Promise<SandboxHandle>
+  /**
+   * Optional. Delete a snapshot this provider created. `ensure()` and
+   * `destroy()` call it when a recorded snapshot goes stale: the instance
+   * record's `latestSnapshotId` is replaced, or the sandbox is torn down. A
+   * provider whose snapshots outlive the sandbox (and count against a quota)
+   * should implement it; without it those snapshots accumulate until pruned
+   * by hand.
+   *
+   * MUST resolve when the snapshot is already gone. Core treats a rejection as
+   * best effort: it is logged, never surfaced to the run or the teardown.
+   */
+  deleteSnapshot?: (input: SandboxDeleteSnapshotInput) => Promise<void>
   destroy: (input: SandboxDestroyInput) => Promise<void>
 }

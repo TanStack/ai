@@ -350,7 +350,7 @@ Snapshots and resume on Railway:
 - `snapshot(label)` saves a native Railway checkpoint named `tsai-<sandbox-id>-<uuid>`. The label stays only on the returned ref, because checkpoint names belong to the environment and a capture replaces an existing name.
 - Checkpoints belong to the environment, not the sandbox. So `restoreSnapshot()` boots a new sandbox from one after its source is destroyed. It applies env, network mode, domains, and idle timeout again from the provider config.
 - Restores and forks run in the region of the source, so `region` applies to fresh sandboxes only.
-- Checkpoints count against a quota for each plan, and the contract has no delete hook. Delete `tsai-*` checkpoints that you do not use with `Sandbox.checkpoints()` and `Sandbox.deleteCheckpoint()` from the `railway` SDK.
+- Checkpoints count against a cap for each environment, set by the plan. The provider implements `deleteSnapshot`, so a `tsai-*` checkpoint is deleted when its record replaces it or its sandbox is destroyed. A record that is never destroyed keeps one checkpoint. Delete checkpoints left by older versions with `Sandbox.checkpoints()` and `Sandbox.deleteCheckpoint()` from the `railway` SDK.
 - Resume by id uses `Sandbox.connect`. A missing, `DESTROYED`, `DESTROYING`, or `FAILED` sandbox resumes as `null`. The provider waits for a `CREATING` one. Auth and transport errors are thrown again.
 
 Processes on Railway:

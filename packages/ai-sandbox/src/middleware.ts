@@ -52,6 +52,7 @@ import { watchWorkspace } from './watch'
 import { DEFAULT_WORKSPACE_ROOT } from './bootstrap'
 import { resolveHarnessCwd } from './harness-cwd'
 import { ensureSandboxWithOutcome, hasEnsureOutcome } from './sandbox'
+import { deleteSnapshotQuietly } from './snapshot-cleanup'
 import {
   restoreSandboxFiles,
   captureSandboxFiles,
@@ -575,6 +576,7 @@ function buildEnsureCtx(
     tenant: tenantFrom(ctx.context),
     signal: ctx.signal,
     adapterName: ctx.provider,
+    logger: getSandboxRuntime(ctx, { optional: true })?.logger,
   }
 }
 
@@ -1206,6 +1208,16 @@ export function withSandbox<TOffset extends string = string>(
                 latestSnapshotId: snapshot.id,
                 updatedAt: Date.now(),
               })
+              // The previous snapshot is no longer referenced by anything.
+              if (existing.latestSnapshotId !== snapshot.id)
+                await deleteSnapshotQuietly(
+                  definition.provider,
+                  existing.latestSnapshotId,
+                  {
+                    logger: state.logger,
+                    meta: { runId: ctx.runId, phase: 'finish' },
+                  },
+                )
             }
           }
         }
