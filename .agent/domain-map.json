@@ -93,6 +93,7 @@
         "packages/ai-sandbox-local-process",
         "packages/ai-sandbox-railway",
         "packages/ai-sandbox-sprites",
+        "packages/ai-sandbox-tangle",
         "packages/ai-sandbox-upstash-box",
         "packages/ai-sandbox-vercel"
       ],

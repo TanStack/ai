@@ -361,6 +361,29 @@ Processes on Railway:
 - Blocking `exec` runs without a durable session. If the connection drops, the command dies.
 - `kill()` and an aborted `exec` send `TERM` to the process group, then `KILL` after 2 s. An aborted `spawn` sends `KILL` at once. All of them finish only on the confirmed remote exit. An aborted `exec` resolves with the exit code of the signal.
 
+## Tangle
+
+```ts
+import { tangleSandbox } from '@tanstack/ai-sandbox-tangle'
+
+const tangle = tangleSandbox({
+  apiKey: process.env.TANGLE_API_KEY,
+  environment: 'node:22',
+  resources: { cpuCores: 2, memoryMB: 4096 },
+})
+```
+
+- **Isolation:** a managed [Tangle](https://tangle.tools) sandbox that you do not run. Pick the image with `environment`: a catalog environment or a container image reference. The default is the platform's default environment. A container image runs with a read-only root filesystem as the image's user, and `fork()` on it takes minutes (measured: 551 s for `node:22`, against 3 to 8 s on the default environment).
+- **Auth and env:** needs `TANGLE_API_KEY` (or `apiKey`). Set `baseUrl` for another endpoint; it must use HTTPS. Sandboxes are created without platform model credentials, startup scripts, or the account's stored secrets. A restore inherits the account's secrets, because the API refuses an isolated restore. Harness credentials are [workspace secrets](./provisioning) and travel as env for each command. They are not sent at create.
+- **Lifetime:** the platform suspends a sandbox after `maxLifetimeSeconds` of run time or `idleTimeoutSeconds` without activity, and keeps the workspace. If you omit them, the platform defaults apply. Resume by id starts a stopped or expired sandbox again.
+- **Processes:** every command, blocking or not, runs through the runtime process API. It has no run limit (measured: a 10.5-minute command with an 8-minute silent stretch), and stdout and stderr stay separate. A dropped status poll or log stream is read again. Output that the sandbox dropped before it was read fails the command, so a result is never cut short without an error. A spawned process's `stdout` or `stderr` past 8 MiB is cut with a marker, and the process is killed. A relative `cwd` resolves against the workdir, and a missing `cwd` fails the command. `kill()` signals the process tree inside the sandbox, and an aborted `exec` does the same. The requested signal is used when the runtime supports it (`TERM`, `KILL`, `INT`, `HUP`, `QUIT`, `USR1`, `USR2`), and anything else is `KILL`. The process API takes no stdin stream, so `writableStdin` is `false`, and a command that reads stdin gets end of file.
+- **Snapshot and resume:** `snapshot()` captures the workspace. The returned id names the snapshot and its source sandbox, and `restoreSnapshot()` creates a new sandbox from it. A restore works after the source sandbox is destroyed (measured a few seconds after the delete). A missing, `deleted`, or `failed` sandbox resumes as `null`.
+- **Fork:** `fork()` branches the running sandbox into a new one with the same files. The fork gets a copy of the env overlay of the parent, and keeps its egress policy. A parent cannot be destroyed while a fork of it exists: the API stops the parent and refuses the delete. `destroy()` on a parent tries again for 30 to 40 seconds (a refusal takes about 8 seconds), which covers a parent and its forks destroyed at once. Then it rejects with an error that says to destroy the forks first, and the parent stays stopped. Destroy the forks first; destroying the parent again then works.
+- **Ports:** `ports.connect(port)` creates a preview link for the port, or reuses the existing one, and returns its HTTPS URL. The URL is public: anyone who has it can reach the port.
+- **Network:** egress is `{ mode: 'open' }` unless you set `egressPolicy`. The platform's own default, `strict`, allows only package registries and code hosts, so a harness that calls a model API needs `open` or `allowDomains`. The provider always sends an egress policy, so a team default policy does not apply. `policy.capabilities.network: 'deny'` maps to egress mode `blocked`, which blocks all outbound traffic.
+- **Paths:** `/workspace` maps to `/home/agent/workspace` by default. Set `workdir` to change it, and keep it under `/home/agent` or `/tmp`. Commands run as the `agent` user on the default environment. The native file calls (`read`, `readBytes`, and `write`) reach `/home/agent` and `/tmp`. Read other paths with `process.exec`.
+- **Bridge:** a remote sandbox, so bridged tools need the tunnel in local dev. See [Tools](./tools).
+
 ## Cloudflare
 
 ```ts
@@ -383,7 +406,7 @@ The agent coordinator, durable runs, live previews through a quick tunnel, callb
 ## `writableStdin` per provider
 
 - `true`: local process, Docker container, Upstash Box, E2B, boxd, and Railway.
-- `false`: Docker Sandboxes (`sbx`), Daytona, Vercel, Sprites, Blaxel, and Cloudflare. Daytona can write to stdin, but it cannot close stdin, so a process that reads to EOF never starts.
+- `false`: Docker Sandboxes (`sbx`), Daytona, Vercel, Sprites, Blaxel, Tangle, and Cloudflare. Daytona can write to stdin, but it cannot close stdin, so a process that reads to EOF never starts.
 
 When the value is `false`, a harness that reads its prompt from stdin gets the prompt from a file. The shell redirects that file into the process.
 
@@ -412,6 +435,7 @@ If a provider cannot be measured yet, it stays `false`. A `false` value only mak
 | Cloudflare | `false` | `kill()` does nothing. The `AbortSignal` of the caller reaches neither `exec` nor `spawn`, because Workers RPC cannot serialize one. |
 | boxd | `true` | **Measured.** The spawn wrapper runs under `setsid`, so the recorded pid leads its own process group. `kill()` runs a shell inside the machine that signals that group, then sends `KILL`, then checks with `kill -0`. Closing the stream alone is not a kill: the process survived it. Verified against production: a spawned `sleep 5 && touch <marker>` was killed, and the marker never appeared. Needs `BOXD_API_KEY`. |
 | Railway | `true` | **Measured.** `kill()` and an aborted `exec` send `TERM` to the process group, then `KILL` after 2 s. An aborted `spawn` sends `KILL` at once. Each one finishes only when the remote exit is confirmed. Verified against production: the shared journal conformance kill case passes. Spawned `sleep 5 && touch <marker>` commands (one with a background child) were killed before the marker appeared, for `kill()`, an aborted `exec`, and an aborted `spawn`. Needs `RAILWAY_API_TOKEN` or `RAILWAY_TOKEN` and `RAILWAY_ENVIRONMENT_ID`. |
+| Tangle | `true` | **Measured.** `kill()` asks the runtime to signal the process tree. Verified against production: a spawned `(sleep 5 && touch <marker>) & wait` was killed and the marker never appeared, an aborted `exec` of `sleep 5 && touch <marker>` left no marker, and the shared journal conformance kill case passes. Needs `TANGLE_API_KEY`. |
 
 Each remote provider registers the shared journal conformance suite, so you can test each claim:
 
