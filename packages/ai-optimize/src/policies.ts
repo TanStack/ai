@@ -30,7 +30,12 @@ function resolveAuthorField(fp: FieldProjection): ResolvedFieldProjection {
 function resolveFieldRule(rule: OptimizeFieldRule): ResolvedFieldProjection {
   const t = rule.truncate
   if (typeof t === 'string') {
-    return { truncate: t, aboveTokens: DEFAULT_ABOVE_TOKENS, maxTokens: DEFAULT_MAX_TOKENS, retrievable: true }
+    return {
+      truncate: t,
+      aboveTokens: DEFAULT_ABOVE_TOKENS,
+      maxTokens: DEFAULT_MAX_TOKENS,
+      retrievable: true,
+    }
   }
   return {
     truncate: t.strategy,
@@ -94,7 +99,8 @@ export class PolicyResolver {
     // No explicit fields and no universal default → nothing to project.
     if (Object.keys(fields).length === 0 && !dflt) return undefined
 
-    const includeErrors = author?.includeErrors ?? override?.includeErrors ?? false
+    const includeErrors =
+      author?.includeErrors ?? override?.includeErrors ?? false
     return { fields, default: dflt, includeErrors }
   }
 
@@ -107,7 +113,8 @@ export class PolicyResolver {
     if (tool.needsApproval) return undefined // forbidden in v1
 
     const override = this.config.tools?.[tool.name]?.args
-    if (!override?.fields || Object.keys(override.fields).length === 0) return undefined
+    if (!override?.fields || Object.keys(override.fields).length === 0)
+      return undefined
 
     const fields: Record<string, ResolvedFieldProjection> = {}
     for (const [path, rule] of Object.entries(override.fields)) {
@@ -123,10 +130,13 @@ export class PolicyResolver {
       const result = this.result(tool)
       if (result) {
         if (result.default?.projection.retrievable) return true
-        for (const f of Object.values(result.fields)) if (f.retrievable) return true
+        for (const f of Object.values(result.fields))
+          if (f.retrievable) return true
       }
       const args = this.args(tool)
-      if (args) for (const f of Object.values(args.fields)) if (f.retrievable) return true
+      if (args)
+        for (const f of Object.values(args.fields))
+          if (f.retrievable) return true
     }
     return false
   }

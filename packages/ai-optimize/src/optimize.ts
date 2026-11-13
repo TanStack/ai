@@ -23,7 +23,10 @@ export interface OptimizeResult {
  * `context` shape, and author adornment must still win per field. The returned
  * tools are shallow copies so the caller's objects are never mutated.
  */
-export function optimize(tools: Array<Tool>, config: OptimizeConfig = {}): OptimizeResult {
+export function optimize(
+  tools: Array<Tool>,
+  config: OptimizeConfig = {},
+): OptimizeResult {
   const runtime = createContextRuntime(config)
   const resolver = new PolicyResolver(config)
 
@@ -32,7 +35,9 @@ export function optimize(tools: Array<Tool>, config: OptimizeConfig = {}): Optim
 
   // Append retrieve_context iff any applicable rule is retrievable.
   const appendRetrieve = resolver.anyRetrievable(tools as Array<PolicyTool>)
-  const outTools: Array<Tool> = appendRetrieve ? [...copies, runtime.retrieveTool] : copies
+  const outTools: Array<Tool> = appendRetrieve
+    ? [...copies, runtime.retrieveTool]
+    : copies
 
   return { tools: outTools, middleware: runtime.middleware }
 }

@@ -56,7 +56,9 @@ function makeTask(n, cmds, rng, outDir) {
   for (let c = 0; c < cmds; c++) {
     const lines = 1200 + Math.floor(rng() * 1600) // ~1200-2800 noisy lines -> well over 1500 tokens
     const warnings = 1 + Math.floor(rng() * 40)
-    scripts.push(makeScript(outDir, `${String(n).padStart(3, '0')}-${c}`, lines, warnings))
+    scripts.push(
+      makeScript(outDir, `${String(n).padStart(3, '0')}-${c}`, lines, warnings),
+    )
   }
   const total = scripts.reduce((s, x) => s + x.warnings, 0)
   const list = scripts.map((s, i) => `  ${i + 1}. bash ${s.path}`).join('\n')
@@ -83,15 +85,23 @@ function makeTask(n, cmds, rng, outDir) {
 function main() {
   const count = Number(arg('--count', '3'))
   const cmds = Number(arg('--cmds', '3'))
-  const outDir = arg('--out', path.join(path.dirname(new URL(import.meta.url).pathname), 'out'))
+  const outDir = arg(
+    '--out',
+    path.join(path.dirname(new URL(import.meta.url).pathname), 'out'),
+  )
   const seed = Number(arg('--seed', '42'))
   mkdirSync(outDir, { recursive: true })
   const rng = mulberry32(seed)
   for (let n = 0; n < count; n++) {
     const task = makeTask(n, cmds, rng, outDir)
-    writeFileSync(path.join(outDir, `task-${String(n).padStart(3, '0')}.json`), JSON.stringify(task, null, 2) + '\n')
+    writeFileSync(
+      path.join(outDir, `task-${String(n).padStart(3, '0')}.json`),
+      JSON.stringify(task, null, 2) + '\n',
+    )
   }
-  console.log(`Wrote ${count} terminal-bench tasks (${cmds} noisy commands each) to ${outDir} (seed ${seed}).`)
+  console.log(
+    `Wrote ${count} terminal-bench tasks (${cmds} noisy commands each) to ${outDir} (seed ${seed}).`,
+  )
 }
 
 main()

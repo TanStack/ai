@@ -19,7 +19,7 @@ cost went up), so it gets rejected.
 
 Deterministic tool-result truncation is not a free win or a free loss, **its
 sign depends entirely on the workload** — a ~96% token cut when tool outputs are
-disposable, a ~99% token *increase* when they are load-bearing.
+disposable, a ~99% token _increase_ when they are load-bearing.
 
 ![optimize() helps or hurts depending on the workload](charts/effect-by-workload.png)
 
@@ -31,18 +31,18 @@ tail. This is the regime Strands' 77%/28% headline comes from.
 
 ![Terminal-bench input tokens per arm](charts/terminal-bench.png)
 
-| arm | mode | $/task (est) | avg input | steps | retrievals | solved |
-| --- | --- | ---: | ---: | ---: | ---: | ---: |
-| baseline | none | $0.3347 | ~393,000 | 4.0 | 0 | **8/9** |
-| global (Strands replica) | flatten | $0.0138 | ~15,000 | 4.3 | 0 | 9/9 |
-| universal | leaves | $0.0124 | ~13,200 | 4.0 | 0 | 9/9 |
-| adorned | leaves + rules | $0.0123 | ~13,200 | 4.0 | 0 | 9/9 |
+| arm                      | mode           | $/task (est) | avg input | steps | retrievals |  solved |
+| ------------------------ | -------------- | -----------: | --------: | ----: | ---------: | ------: |
+| baseline                 | none           |      $0.3347 |  ~393,000 |   4.0 |          0 | **8/9** |
+| global (Strands replica) | flatten        |      $0.0138 |   ~15,000 |   4.3 |          0 |     9/9 |
+| universal                | leaves         |      $0.0124 |   ~13,200 |   4.0 |          0 |     9/9 |
+| adorned                  | leaves + rules |      $0.0123 |   ~13,200 |   4.0 |          0 |     9/9 |
 
 - **adorned cut input 96.6% and cost ~27x** vs baseline (~393K → ~13K). This
   reproduces, and on pure tokens exceeds, Strands' published 77%.
 - **0 retrievals** — the clipped logs were never needed; the answer was in the tail.
 - **baseline solved only 8/9**: the ~393K raw-log context tripped the agent once.
-  Truncation here bought *reliability*, not just tokens.
+  Truncation here bought _reliability_, not just tokens.
 - `global` / `universal` / `adorned` are within noise of each other, because when
   the whole field is disposable, blind and precise truncation do the same thing.
 
@@ -52,11 +52,11 @@ Code mode keeps file contents in the sandbox, so the model context is already
 tiny. This suite adds a logging instruction (agents `console.log` to debug) to
 isolate what optimize() adds on top of code mode: clipping those log dumps.
 
-| arm | $/task (est) | avg input | steps | retrievals | solved |
-| --- | ---: | ---: | ---: | ---: | ---: |
-| cm-baseline | $0.0383 | ~46,000 | 2.0 | 0 | 9/9 |
-| cm-adorned | $0.0074 | ~4,800 | 2.0 | 0 | 9/9 |
-| cm-global | $0.0073 | ~4,800 | 2.0 | 0 | 9/9 |
+| arm         | $/task (est) | avg input | steps | retrievals | solved |
+| ----------- | -----------: | --------: | ----: | ---------: | -----: |
+| cm-baseline |      $0.0383 |   ~46,000 |   2.0 |          0 |    9/9 |
+| cm-adorned  |      $0.0074 |    ~4,800 |   2.0 |          0 |    9/9 |
+| cm-global   |      $0.0073 |    ~4,800 |   2.0 |          0 |    9/9 |
 
 - **cm-adorned cut input 9.5x and cost 5.2x** (46K → 4.8K), 9/9 solved, 0 retrievals.
 - Steps are constant at 2.0 — code mode has no step-count variance, so the
@@ -70,14 +70,14 @@ replacements), so truncating them forces the agent to work around the loss.
 
 ![Code mode vs tool-calls on the same edit](charts/code-mode-vs-tools.png)
 
-| arm | mode | $/task (est) | avg input | steps | retrievals | solved |
-| --- | --- | ---: | ---: | ---: | ---: | ---: |
-| cm-baseline | code-mode | $0.0077 | ~3,800 | 2.2 | 0 | 6/6 |
-| cm-adorned | code-mode | $0.0084 | ~4,700 | 2.5 | 0 | 6/6 |
-| baseline | tool-calls | $0.0622 | ~40,500 | 5.0 | 0 | 6/6 |
-| universal | tool-calls | $0.0784 | ~61,700 | 7.0 | 12 | 6/6 |
-| global | tool-calls | $0.0915 | ~69,000 | 7.2 | 12 | 6/6 |
-| adorned | tool-calls | $0.0966 | ~80,700 | 8.8 | 0 | 6/6 |
+| arm         | mode       | $/task (est) | avg input | steps | retrievals | solved |
+| ----------- | ---------- | -----------: | --------: | ----: | ---------: | -----: |
+| cm-baseline | code-mode  |      $0.0077 |    ~3,800 |   2.2 |          0 |    6/6 |
+| cm-adorned  | code-mode  |      $0.0084 |    ~4,700 |   2.5 |          0 |    6/6 |
+| baseline    | tool-calls |      $0.0622 |   ~40,500 |   5.0 |          0 |    6/6 |
+| universal   | tool-calls |      $0.0784 |   ~61,700 |   7.0 |         12 |    6/6 |
+| global      | tool-calls |      $0.0915 |   ~69,000 |   7.2 |         12 |    6/6 |
+| adorned     | tool-calls |      $0.0966 |   ~80,700 |   8.8 |          0 |    6/6 |
 
 - **Every tool-call optimize arm cost MORE than baseline.** `universal`/`global`
   truncated the load-bearing reads, so the agent called `retrieve_context` to pull
@@ -97,7 +97,7 @@ cherry-picked in three nameable ways:
 1. **Single-benchmark.** 77% is their best benchmark; their own average is **28%
    across six**.
 2. **Cost, not tokens.** It bundles prompt caching with truncation.
-3. **Cross-product baseline.** It is 77% less than *Claude Code*, not than Strands
+3. **Cross-product baseline.** It is 77% less than _Claude Code_, not than Strands
    with truncation off, so it never isolates the feature's contribution.
 
 Our params match their auto preset exactly (1500-token threshold, 750-token
@@ -111,16 +111,16 @@ preview, 60/40 head/tail, 85% summarization). Two differences in our favor:
 
 ## Recommendations: what to adorn, and what not to
 
-| Field / tool | Nature | Adornment | Expected effect | Risk |
-| --- | --- | --- | --- | --- |
-| shell `stdout` (build/test logs) | disposable, answer in tail | `result` head_tail (keep tail) | huge token cut | low |
-| code-mode `logs` | disposable debug dumps | `result` head_tail | huge token cut | low |
-| `write_file.content`, **terminal** write | redundant on disk | `args` drop_with_ref | saves | low |
-| `register_snippet.code` | lives in snippet store | `args` drop_with_ref | saves | low |
-| web page / `fetch` body read once | usually disposable | `result` head_tail | big cut | medium (needle may be mid-page) |
-| `write_file.content`, **mid-session** (more edits follow) | agent re-checks it | **leave whole** (or drop only the last write) | — | **high — backfires** |
-| `read_file.content` while editing | load-bearing | **keep whole** (pin high `aboveTokens`) | — | truncating → retrievals |
-| MCP id / status / short fields | load-bearing, already small | leaves mode passes them through | — | low |
+| Field / tool                                              | Nature                      | Adornment                                     | Expected effect | Risk                            |
+| --------------------------------------------------------- | --------------------------- | --------------------------------------------- | --------------- | ------------------------------- |
+| shell `stdout` (build/test logs)                          | disposable, answer in tail  | `result` head_tail (keep tail)                | huge token cut  | low                             |
+| code-mode `logs`                                          | disposable debug dumps      | `result` head_tail                            | huge token cut  | low                             |
+| `write_file.content`, **terminal** write                  | redundant on disk           | `args` drop_with_ref                          | saves           | low                             |
+| `register_snippet.code`                                   | lives in snippet store      | `args` drop_with_ref                          | saves           | low                             |
+| web page / `fetch` body read once                         | usually disposable          | `result` head_tail                            | big cut         | medium (needle may be mid-page) |
+| `write_file.content`, **mid-session** (more edits follow) | agent re-checks it          | **leave whole** (or drop only the last write) | —               | **high — backfires**            |
+| `read_file.content` while editing                         | load-bearing                | **keep whole** (pin high `aboveTokens`)       | —               | truncating → retrievals         |
+| MCP id / status / short fields                            | load-bearing, already small | leaves mode passes them through               | —               | low                             |
 
 Rules of thumb:
 

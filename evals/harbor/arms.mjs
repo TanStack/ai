@@ -12,7 +12,11 @@ const HEAD_TAIL = { strategy: 'head_tail', aboveTokens: 1500, maxTokens: 750 }
 //  - run_shell.stdout is a log -> safe to clip.
 //  - read_file.content is load-bearing while editing -> keep it WHOLE. Pin an
 //    effectively-infinite threshold so the leaves-mode default can never clip it.
-const KEEP_WHOLE = { strategy: 'head_tail', aboveTokens: 1_000_000_000, maxTokens: 750 }
+const KEEP_WHOLE = {
+  strategy: 'head_tail',
+  aboveTokens: 1_000_000_000,
+  maxTokens: 750,
+}
 const ADORNED_TOOL_RULES = {
   write_file: { args: { fields: { content: { truncate: 'drop_with_ref' } } } },
   run_shell: { result: { fields: { stdout: { truncate: HEAD_TAIL } } } },
@@ -36,19 +40,37 @@ const CODE_MODE_ADORNED_RULES = {
 const ARM_SPECS = {
   baseline: { codeMode: false, config: null },
   // Strands replica: flatten every result, 1500/750 head_tail, errors exempt.
-  global: { codeMode: false, config: { defaults: { truncate: HEAD_TAIL, mode: 'flatten' } } },
-  adorned: { codeMode: false, config: { defaults: { truncate: HEAD_TAIL, mode: 'leaves' }, tools: ADORNED_TOOL_RULES } },
-  universal: { codeMode: false, config: { defaults: { truncate: HEAD_TAIL, mode: 'leaves' } } },
+  global: {
+    codeMode: false,
+    config: { defaults: { truncate: HEAD_TAIL, mode: 'flatten' } },
+  },
+  adorned: {
+    codeMode: false,
+    config: {
+      defaults: { truncate: HEAD_TAIL, mode: 'leaves' },
+      tools: ADORNED_TOOL_RULES,
+    },
+  },
+  universal: {
+    codeMode: false,
+    config: { defaults: { truncate: HEAD_TAIL, mode: 'leaves' } },
+  },
   // Code-mode arms: same workload, run via execute_typescript.
   'cm-baseline': { codeMode: true, config: null },
   'cm-adorned': { codeMode: true, config: { tools: CODE_MODE_ADORNED_RULES } },
-  'cm-global': { codeMode: true, config: { defaults: { truncate: HEAD_TAIL, mode: 'flatten' } } },
+  'cm-global': {
+    codeMode: true,
+    config: { defaults: { truncate: HEAD_TAIL, mode: 'flatten' } },
+  },
 }
 
 /** Returns the spec { codeMode, config } for an arm. */
 export function armSpec(arm) {
   const spec = ARM_SPECS[arm]
-  if (!spec) throw new Error(`Unknown arm "${arm}". Use one of: ${Object.keys(ARM_SPECS).join(', ')}.`)
+  if (!spec)
+    throw new Error(
+      `Unknown arm "${arm}". Use one of: ${Object.keys(ARM_SPECS).join(', ')}.`,
+    )
   return spec
 }
 

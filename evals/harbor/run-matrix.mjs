@@ -9,7 +9,13 @@
 //
 // Then: node report.mjs results/multi-write.jsonl
 
-import { readFileSync, writeFileSync, mkdirSync, appendFileSync, globSync } from 'node:fs'
+import {
+  readFileSync,
+  writeFileSync,
+  mkdirSync,
+  appendFileSync,
+  globSync,
+} from 'node:fs'
 import path from 'node:path'
 import { runTask } from './tanstack_ai_runner.mjs'
 
@@ -27,7 +33,8 @@ async function main() {
     if (existsSync(p)) {
       for (const line of readFileSync(p, 'utf8').split('\n')) {
         const m = /^([A-Z0-9_]+)=(.*)$/.exec(line.trim())
-        if (m && process.env[m[1]] === undefined) process.env[m[1]] = m[2].replace(/^["']|["']$/g, '')
+        if (m && process.env[m[1]] === undefined)
+          process.env[m[1]] = m[2].replace(/^["']|["']$/g, '')
       }
       break
     }
@@ -35,12 +42,17 @@ async function main() {
   }
 
   const taskGlob = arg('--tasks')
-  const arms = arg('--arms', 'baseline,adorned').split(',').map((s) => s.trim()).filter(Boolean)
+  const arms = arg('--arms', 'baseline,adorned')
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean)
   const model = arg('--model', 'gemini-3.8-flash')
   const trials = Number(arg('--trials', '3'))
   const outFile = arg('--out', 'results/matrix.jsonl')
   if (!taskGlob) {
-    console.error('usage: node run-matrix.mjs --tasks "glob" --arms a,b,c --model M --trials N --out results/x.jsonl')
+    console.error(
+      'usage: node run-matrix.mjs --tasks "glob" --arms a,b,c --model M --trials N --out results/x.jsonl',
+    )
     process.exit(1)
   }
 
@@ -54,7 +66,9 @@ async function main() {
 
   const total = taskFiles.length * arms.length * trials
   let done = 0
-  console.error(`matrix: ${taskFiles.length} tasks x ${arms.length} arms x ${trials} trials = ${total} runs on ${model}`)
+  console.error(
+    `matrix: ${taskFiles.length} tasks x ${arms.length} arms x ${trials} trials = ${total} runs on ${model}`,
+  )
 
   for (const tf of taskFiles) {
     const task = JSON.parse(readFileSync(tf, 'utf8'))
@@ -66,9 +80,22 @@ async function main() {
           const rec = await runTask(task, { arm, model })
           rec.trial = trial
           appendFileSync(outFile, JSON.stringify(rec) + '\n')
-          console.error(`${tag} -> ${rec.outcome} in=${rec.tokens.input} proj=${rec.truncation.projections} retr=${rec.truncation.retrievals}`)
+          console.error(
+            `${tag} -> ${rec.outcome} in=${rec.tokens.input} proj=${rec.truncation.projections} retr=${rec.truncation.retrievals}`,
+          )
         } catch (err) {
-          const rec = { taskId: task.id, suite: task.suite, arm, model, trial, outcome: 'error', failureClass: 'runner-error', error: String(err?.message ?? err), tokens: { input: 0, output: 0 }, truncation: { projections: 0, retrievals: 0 } }
+          const rec = {
+            taskId: task.id,
+            suite: task.suite,
+            arm,
+            model,
+            trial,
+            outcome: 'error',
+            failureClass: 'runner-error',
+            error: String(err?.message ?? err),
+            tokens: { input: 0, output: 0 },
+            truncation: { projections: 0, retrievals: 0 },
+          }
           appendFileSync(outFile, JSON.stringify(rec) + '\n')
           console.error(`${tag} -> ERROR ${rec.error}`)
         }

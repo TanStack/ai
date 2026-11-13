@@ -6,7 +6,11 @@
   "arms": ["baseline", "global", "adorned", "universal"],
   "models": {
     "frontier": "claude-fable-5",
-    "production_default": ["claude-sonnet-4-6", "gpt-6.1-sol", "gemini-4-argon"],
+    "production_default": [
+      "claude-sonnet-4-6",
+      "gpt-6.1-sol",
+      "gemini-4-argon"
+    ],
     "low_cost": ["claude-haiku-4-5-20251001", "gemini-2.5-flash-lite"]
   },
   "fableRequiresFlag": true,

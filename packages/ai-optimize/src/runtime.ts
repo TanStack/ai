@@ -30,7 +30,9 @@ export interface ContextRuntime {
  * these internally; call `createContextRuntime()` directly for the
  * author-adorned path (no `optimize()` config needed).
  */
-export function createContextRuntime(config: OptimizeConfig = {}): ContextRuntime {
+export function createContextRuntime(
+  config: OptimizeConfig = {},
+): ContextRuntime {
   const resolver = new PolicyResolver(config)
   const stash = createStash()
 
@@ -71,8 +73,10 @@ export function createContextRuntime(config: OptimizeConfig = {}): ContextRuntim
       }
 
       const toolByName = new Map<string, PolicyTool>()
-      for (const t of mwConfig.tools ?? []) toolByName.set(t.name, t as PolicyTool)
-      const toolFor = (name: string): PolicyTool => toolByName.get(name) ?? { name }
+      for (const t of mwConfig.tools ?? [])
+        toolByName.set(t.name, t as PolicyTool)
+      const toolFor = (name: string): PolicyTool =>
+        toolByName.get(name) ?? { name }
 
       let changed = false
       const projected = source.map((m): ModelMessage => {
@@ -81,8 +85,10 @@ export function createContextRuntime(config: OptimizeConfig = {}): ContextRuntim
           const toolName = nameById.get(m.toolCallId) ?? m.name ?? ''
           const policy = resolver.result(toolFor(toolName))
           if (!policy) return m
-          const state: ToolResultState = m.error !== undefined ? 'error' : 'complete'
-          const output = typeof m.content === 'string' ? safeParse(m.content) : undefined
+          const state: ToolResultState =
+            m.error !== undefined ? 'error' : 'complete'
+          const output =
+            typeof m.content === 'string' ? safeParse(m.content) : undefined
           const { content, events } = projectToolResult({
             toolName,
             toolCallId: m.toolCallId,
@@ -115,7 +121,10 @@ export function createContextRuntime(config: OptimizeConfig = {}): ContextRuntim
             if (events.length === 0) return tc
             for (const e of events) emit(e)
             localChanged = true
-            return { ...tc, function: { ...tc.function, arguments: JSON.stringify(args) } }
+            return {
+              ...tc,
+              function: { ...tc.function, arguments: JSON.stringify(args) },
+            }
           })
           if (!localChanged) return m
           changed = true

@@ -31,9 +31,16 @@ function mulberry32(seed) {
 }
 
 function sourceLine(rng, i, carriesToken) {
-  const fns = ['handleRequest', 'parseConfig', 'buildIndex', 'flushQueue', 'retryWithBackoff']
+  const fns = [
+    'handleRequest',
+    'parseConfig',
+    'buildIndex',
+    'flushQueue',
+    'retryWithBackoff',
+  ]
   const fn = fns[Math.floor(rng() * fns.length)]
-  if (carriesToken) return `  const client = new ACME_OLD(config.endpoint); // line ${i}, wires ${fn}`
+  if (carriesToken)
+    return `  const client = new ACME_OLD(config.endpoint); // line ${i}, wires ${fn}`
   return `  // ${fn}: step ${i} handled in ${Math.floor(rng() * 500)}ms, retries=${Math.floor(rng() * 4)}`
 }
 
@@ -43,7 +50,8 @@ function makeSource(rng, outDir, tag) {
   const positions = new Set()
   while (positions.size < k) positions.add(Math.floor(rng() * totalLines))
   const lines = []
-  for (let i = 0; i < totalLines; i++) lines.push(sourceLine(rng, i, positions.has(i)))
+  for (let i = 0; i < totalLines; i++)
+    lines.push(sourceLine(rng, i, positions.has(i)))
   const srcPath = path.join(outDir, `cm-${tag}-src.txt`)
   const outPath = path.join(outDir, `cm-${tag}-out.txt`)
   writeFileSync(srcPath, lines.join('\n') + '\n')
@@ -53,9 +61,14 @@ function makeSource(rng, outDir, tag) {
 function makeTask(n, files, rng, outDir) {
   const id = `cm-${String(n).padStart(3, '0')}`
   const specs = []
-  for (let f = 0; f < files; f++) specs.push(makeSource(rng, outDir, `${String(n).padStart(3, '0')}-${f}`))
+  for (let f = 0; f < files; f++)
+    specs.push(makeSource(rng, outDir, `${String(n).padStart(3, '0')}-${f}`))
   const total = specs.reduce((s, x) => s + x.k, 0)
-  const fileList = specs.map((s, i) => `  ${i + 1}. read ${s.srcPath}, write result to ${s.outPath}`).join('\n')
+  const fileList = specs
+    .map(
+      (s, i) => `  ${i + 1}. read ${s.srcPath}, write result to ${s.outPath}`,
+    )
+    .join('\n')
 
   const prompt =
     `Process these ${files} files. For EACH file: read it, replace every occurrence of "ACME_OLD" ` +
@@ -80,15 +93,23 @@ function makeTask(n, files, rng, outDir) {
 function main() {
   const count = Number(arg('--count', '3'))
   const files = Number(arg('--files', '3'))
-  const outDir = arg('--out', path.join(path.dirname(new URL(import.meta.url).pathname), 'out'))
+  const outDir = arg(
+    '--out',
+    path.join(path.dirname(new URL(import.meta.url).pathname), 'out'),
+  )
   const seed = Number(arg('--seed', '77'))
   mkdirSync(outDir, { recursive: true })
   const rng = mulberry32(seed)
   for (let n = 0; n < count; n++) {
     const task = makeTask(n, files, rng, outDir)
-    writeFileSync(path.join(outDir, `task-${String(n).padStart(3, '0')}.json`), JSON.stringify(task, null, 2) + '\n')
+    writeFileSync(
+      path.join(outDir, `task-${String(n).padStart(3, '0')}.json`),
+      JSON.stringify(task, null, 2) + '\n',
+    )
   }
-  console.log(`Wrote ${count} code-mode tasks (${files} files each) to ${outDir} (seed ${seed}).`)
+  console.log(
+    `Wrote ${count} code-mode tasks (${files} files each) to ${outDir} (seed ${seed}).`,
+  )
 }
 
 main()

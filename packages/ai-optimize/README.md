@@ -91,8 +91,16 @@ const opt = optimize(toolsFromMcp, {
     mode: 'leaves',
   },
   tools: {
-    write_file: { args: { fields: { content: { truncate: 'drop_with_ref' } } } },
-    fetch_page: { result: { fields: { body: { truncate: { strategy: 'head_tail', maxTokens: 1000 } } } } },
+    write_file: {
+      args: { fields: { content: { truncate: 'drop_with_ref' } } },
+    },
+    fetch_page: {
+      result: {
+        fields: {
+          body: { truncate: { strategy: 'head_tail', maxTokens: 1000 } },
+        },
+      },
+    },
   },
   exclude: ['get_account_balance'],
   onEvent: (e) => console.log(e),

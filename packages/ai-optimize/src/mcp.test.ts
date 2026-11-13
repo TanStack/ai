@@ -11,12 +11,18 @@ const ctx = stubCtx()
 const bigLog = 'L'.repeat(8000)
 
 async function mcpToolsOverInMemory() {
-  const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair()
+  const [clientTransport, serverTransport] =
+    InMemoryTransport.createLinkedPair()
   const server = new McpServer({ name: 'logs', version: '1.0.0' })
   server.registerTool(
     'read_logs',
-    { description: 'Read a service log', inputSchema: z.object({ service: z.string() }) },
-    async ({ service }) => ({ content: [{ type: 'text' as const, text: `${service}: ${bigLog}` }] }),
+    {
+      description: 'Read a service log',
+      inputSchema: z.object({ service: z.string() }),
+    },
+    async ({ service }) => ({
+      content: [{ type: 'text' as const, text: `${service}: ${bigLog}` }],
+    }),
   )
   await server.connect(serverTransport)
   const client = await createMCPClientFromTransport(clientTransport)
@@ -30,7 +36,10 @@ describe('optimize() over MCP tools (InMemoryTransport)', () => {
 
     const events: Array<unknown> = []
     const opt = optimize(tools, {
-      defaults: { truncate: { strategy: 'head_tail', aboveTokens: 1500, maxTokens: 750 }, mode: 'flatten' },
+      defaults: {
+        truncate: { strategy: 'head_tail', aboveTokens: 1500, maxTokens: 750 },
+        mode: 'flatten',
+      },
       onEvent: (e) => events.push(e),
     })
     // MCP wrapping appends the retrieval tool.
@@ -41,13 +50,28 @@ describe('optimize() over MCP tools (InMemoryTransport)', () => {
       {
         role: 'assistant',
         content: '',
-        toolCalls: [{ id: 'c1', type: 'function', function: { name: 'read_logs', arguments: '{"service":"api"}' } }],
+        toolCalls: [
+          {
+            id: 'c1',
+            type: 'function',
+            function: { name: 'read_logs', arguments: '{"service":"api"}' },
+          },
+        ],
       },
-      { role: 'tool', toolCallId: 'c1', name: 'read_logs', content: `api: ${bigLog}` },
+      {
+        role: 'tool',
+        toolCallId: 'c1',
+        name: 'read_logs',
+        content: `api: ${bigLog}`,
+      },
     ]
-    const out = must(runConfig(opt.middleware, ctx, stubConfig(messages, opt.tools)))
+    const out = must(
+      runConfig(opt.middleware, ctx, stubConfig(messages, opt.tools)),
+    )
 
-    expect(at(out.providerMessages, 1).content).toMatch(/^\[Truncated for context: \$,/)
+    expect(at(out.providerMessages, 1).content).toMatch(
+      /^\[Truncated for context: \$,/,
+    )
     // Canonical message untouched.
     expect(at(messages, 1).content).toBe(`api: ${bigLog}`)
     expect(events).toHaveLength(1)

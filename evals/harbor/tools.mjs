@@ -9,9 +9,18 @@ import { toolDefinition } from '@tanstack/ai'
 
 function run(cmd, args, cwd) {
   return new Promise((resolve) => {
-    execFile(cmd, args, { cwd, maxBuffer: 64 * 1024 * 1024, timeout: 120_000 }, (err, stdout, stderr) => {
-      resolve({ stdout: String(stdout ?? ''), stderr: String(stderr ?? ''), exitCode: err?.code ?? 0 })
-    })
+    execFile(
+      cmd,
+      args,
+      { cwd, maxBuffer: 64 * 1024 * 1024, timeout: 120_000 },
+      (err, stdout, stderr) => {
+        resolve({
+          stdout: String(stdout ?? ''),
+          stderr: String(stderr ?? ''),
+          exitCode: err?.code ?? 0,
+        })
+      },
+    )
   })
 }
 
@@ -20,10 +29,13 @@ function run(cmd, args, cwd) {
 export function makeTools(cwd, { includeShell = true } = {}) {
   const runShell = toolDefinition({
     name: 'run_shell',
-    description: 'Run a shell command and return its stdout, stderr, and exit code.',
+    description:
+      'Run a shell command and return its stdout, stderr, and exit code.',
     inputSchema: {
       type: 'object',
-      properties: { command: { type: 'string', description: 'The command line to run.' } },
+      properties: {
+        command: { type: 'string', description: 'The command line to run.' },
+      },
       required: ['command'],
       additionalProperties: false,
     },
@@ -46,8 +58,14 @@ export function makeTools(cwd, { includeShell = true } = {}) {
       required: ['path'],
       additionalProperties: false,
     },
-    outputSchema: { type: 'object', properties: { path: { type: 'string' }, content: { type: 'string' } } },
-  }).server(async ({ path }) => ({ path, content: await readFile(path, 'utf8') }))
+    outputSchema: {
+      type: 'object',
+      properties: { path: { type: 'string' }, content: { type: 'string' } },
+    },
+  }).server(async ({ path }) => ({
+    path,
+    content: await readFile(path, 'utf8'),
+  }))
 
   const writeFileTool = toolDefinition({
     name: 'write_file',
@@ -58,11 +76,16 @@ export function makeTools(cwd, { includeShell = true } = {}) {
       required: ['path', 'content'],
       additionalProperties: false,
     },
-    outputSchema: { type: 'object', properties: { path: { type: 'string' }, bytes: { type: 'number' } } },
+    outputSchema: {
+      type: 'object',
+      properties: { path: { type: 'string' }, bytes: { type: 'number' } },
+    },
   }).server(async ({ path, content }) => {
     await writeFile(path, content, 'utf8')
     return { path, bytes: Buffer.byteLength(content) }
   })
 
-  return includeShell ? [runShell, readFileTool, writeFileTool] : [readFileTool, writeFileTool]
+  return includeShell
+    ? [runShell, readFileTool, writeFileTool]
+    : [readFileTool, writeFileTool]
 }
