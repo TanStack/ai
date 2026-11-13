@@ -165,6 +165,14 @@ export {
   type ToolContextPolicy,
 } from './activities/chat/tools/tool-definition'
 export {
+  truncateHead,
+  truncateTail,
+  truncateHeadTail,
+  dropWithRef,
+  aboveTokens,
+  type StrategyOptions,
+} from './activities/chat/tools/projection-builders'
+export {
   hashSchemaInput,
   normalizeApprovalSchema,
   type NormalizedApprovalSchema,

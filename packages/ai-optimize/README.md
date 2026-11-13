@@ -42,6 +42,7 @@ supplies the middleware and the `retrieve_context` tool.
 
 ```ts
 import { toolDefinition } from '@tanstack/ai'
+import { truncateHeadTail, aboveTokens } from '@tanstack/ai-optimize'
 import { z } from 'zod'
 
 const readFile = toolDefinition({
@@ -52,7 +53,7 @@ const readFile = toolDefinition({
   context: {
     result: {
       fields: {
-        content: { truncate: 'head_tail', aboveTokens: 1500, maxTokens: 750 },
+        content: aboveTokens(1500, truncateHeadTail({ maxTokens: 750 })),
       },
     },
   },
@@ -81,26 +82,18 @@ mutates the caller's objects — and returns the middleware plus the tool set
 (with `retrieve_context` appended when any applicable rule is retrievable).
 
 ```ts
-import { optimize } from '@tanstack/ai-optimize'
+import { optimize, truncateHeadTail, dropWithRef, aboveTokens } from '@tanstack/ai-optimize'
 
 declare const toolsFromMcp: Parameters<typeof optimize>[0]
 
 const opt = optimize(toolsFromMcp, {
   defaults: {
-    truncate: { strategy: 'head_tail', aboveTokens: 1500, maxTokens: 750 },
+    projection: aboveTokens(1500, truncateHeadTail({ maxTokens: 750 })),
     mode: 'leaves',
   },
   tools: {
-    write_file: {
-      args: { fields: { content: { truncate: 'drop_with_ref' } } },
-    },
-    fetch_page: {
-      result: {
-        fields: {
-          body: { truncate: { strategy: 'head_tail', maxTokens: 1000 } },
-        },
-      },
-    },
+    write_file: { args: { fields: { content: dropWithRef() } } },
+    fetch_page: { result: { fields: { body: truncateHeadTail({ maxTokens: 1000 }) } } },
   },
   exclude: ['get_account_balance'],
   onEvent: (e) => console.log(e),

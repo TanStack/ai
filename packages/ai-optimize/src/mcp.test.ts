@@ -4,6 +4,7 @@ import { McpServer } from '@modelcontextprotocol/server'
 import { createMCPClientFromTransport } from '@tanstack/ai-mcp'
 import { z } from 'zod'
 import { optimize } from './optimize'
+import { aboveTokens, truncateHeadTail } from './builders'
 import { at, must, runConfig, stubConfig, stubCtx } from './test-helpers'
 import type { ModelMessage } from '@tanstack/ai'
 
@@ -37,7 +38,7 @@ describe('optimize() over MCP tools (InMemoryTransport)', () => {
     const events: Array<unknown> = []
     const opt = optimize(tools, {
       defaults: {
-        truncate: { strategy: 'head_tail', aboveTokens: 1500, maxTokens: 750 },
+        projection: aboveTokens(1500, truncateHeadTail({ maxTokens: 750 })),
         mode: 'flatten',
       },
       onEvent: (e) => events.push(e),

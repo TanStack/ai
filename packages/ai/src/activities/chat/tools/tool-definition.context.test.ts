@@ -1,11 +1,12 @@
 import { describe, expect, it } from 'vitest'
 import { toolDefinition } from './tool-definition'
+import { aboveTokens, truncateHeadTail } from './projection-builders'
 import type { ToolContextPolicy } from './tool-definition'
 
 const context: ToolContextPolicy = {
   result: {
     fields: {
-      content: { truncate: 'head_tail', aboveTokens: 1500, maxTokens: 750 },
+      content: aboveTokens(1500, truncateHeadTail({ maxTokens: 750 })),
     },
     includeErrors: false,
   },

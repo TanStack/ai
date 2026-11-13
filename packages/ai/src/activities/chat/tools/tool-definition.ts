@@ -44,26 +44,38 @@ export type ApprovalSchemaConfig =
 export type TruncateStrategy = 'head' | 'tail' | 'head_tail' | 'drop_with_ref'
 
 /**
- * How one field of a tool result is projected into the message sent to the
- * model. Declared by the tool author on {@link ToolContextPolicy}, or attached
- * by a consumer via `optimize()` for tools they don't control.
+ * Type-level brand for {@link FieldProjection}. Exported only because a
+ * `unique symbol` referenced by an exported type must be nameable in the
+ * emitted declarations. It carries no runtime value.
  *
- * `@tanstack/ai` core only carries these types — nothing in core reads them.
- * All behavior lives in `@tanstack/ai-optimize`.
+ * @public
+ */
+export declare const fieldProjection: unique symbol
+
+/**
+ * How one field of a tool result (or completed-call argument) is projected into
+ * the message sent to the model. Build one with the combinators from
+ * `@tanstack/ai-optimize` — `truncateHead` / `truncateTail` / `truncateHeadTail`
+ * / `dropWithRef`, optionally wrapped in `aboveTokens(n, ...)`. The type is
+ * branded, so a bare object literal does not satisfy it.
+ *
+ * `@tanstack/ai` core only carries this type — nothing in core reads it. All
+ * behavior lives in `@tanstack/ai-optimize`.
  *
  * @public
  */
 export interface FieldProjection {
-  /** Strategy to apply to this field's value in the message projection. */
-  truncate: TruncateStrategy
+  readonly [fieldProjection]: true
+  /** Deterministic strategy applied to the field in the message projection. */
+  readonly strategy: TruncateStrategy
+  /** Kept-preview target size in estimated tokens. Ignored for 'drop_with_ref'.
+   *  Default 750. */
+  readonly maxTokens?: number
   /** Only project when the field's estimated size exceeds this. Default 1500. */
-  aboveTokens?: number
-  /** Target size of the kept preview, in estimated tokens. Default 750.
-   *  Ignored for 'drop_with_ref'. */
-  maxTokens?: number
+  readonly aboveTokens?: number
   /** Keep a stash ref in the marker so the model can retrieve the original.
    *  Default true. */
-  retrievable?: boolean
+  readonly retrievable?: boolean
 }
 
 /**

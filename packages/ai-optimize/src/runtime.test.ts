@@ -2,6 +2,12 @@ import { describe, expect, it } from 'vitest'
 import { createContextRuntime } from './runtime'
 import { optimize } from './optimize'
 import {
+  truncateHead,
+  truncateHeadTail,
+  dropWithRef,
+  aboveTokens,
+} from './builders'
+import {
   at,
   callTool,
   must,
@@ -28,7 +34,7 @@ function toolResult(id: string, name: string, output: unknown): ModelMessage {
 const adornedReadFile: Tool = {
   name: 'read_file',
   description: 'read',
-  context: { result: { fields: { content: { truncate: 'head_tail' } } } },
+  context: { result: { fields: { content: truncateHeadTail() } } },
 }
 
 describe('createContextRuntime middleware (author-adorned)', () => {
@@ -133,7 +139,7 @@ describe('optimize() middleware (consumer / MCP)', () => {
     const foreign: Tool = { name: 'fetch_page', description: 'fetch' }
     const opt = optimize([foreign], {
       defaults: {
-        truncate: { strategy: 'head_tail', aboveTokens: 1500, maxTokens: 750 },
+        projection: aboveTokens(1500, truncateHeadTail({ maxTokens: 750 })),
         mode: 'leaves',
       },
     })
@@ -160,11 +166,7 @@ describe('optimize() middleware (consumer / MCP)', () => {
       needsApproval: true,
     }
     const opt = optimize([writeFile], {
-      tools: {
-        write_file: {
-          args: { fields: { content: { truncate: 'drop_with_ref' } } },
-        },
-      },
+      tools: { write_file: { args: { fields: { content: dropWithRef() } } } },
     })
     const argsJson = JSON.stringify({ content: big, path: '/f' })
     const messages = [
@@ -183,11 +185,7 @@ describe('optimize() middleware (consumer / MCP)', () => {
   it('completed-call args ARE projected for non-approval tools', () => {
     const writeFile: Tool = { name: 'write_file', description: 'write' }
     const opt = optimize([writeFile], {
-      tools: {
-        write_file: {
-          args: { fields: { content: { truncate: 'drop_with_ref' } } },
-        },
-      },
+      tools: { write_file: { args: { fields: { content: dropWithRef() } } } },
     })
     const argsJson = JSON.stringify({ content: big, path: '/f' })
     const messages = [
@@ -209,11 +207,7 @@ describe('optimize() middleware (consumer / MCP)', () => {
   it('pending (no result yet) calls are not args-projected', () => {
     const writeFile: Tool = { name: 'write_file', description: 'write' }
     const opt = optimize([writeFile], {
-      tools: {
-        write_file: {
-          args: { fields: { content: { truncate: 'drop_with_ref' } } },
-        },
-      },
+      tools: { write_file: { args: { fields: { content: dropWithRef() } } } },
     })
     const argsJson = JSON.stringify({ content: big, path: '/f' })
     // No tool-result message → the call has not completed.
@@ -231,7 +225,7 @@ describe('optimize() tool-set shaping', () => {
   it('appends retrieve_context when a rule is retrievable, and clones inputs', () => {
     const foreign: Tool = { name: 'fetch_page', description: 'fetch' }
     const opt = optimize([foreign], {
-      defaults: { truncate: { strategy: 'head_tail' } },
+      defaults: { projection: truncateHeadTail() },
     })
     expect(opt.tools.map((t) => t.name)).toContain('retrieve_context')
     expect(at(opt.tools, 0)).not.toBe(foreign) // copy, not the caller's object
@@ -242,11 +236,7 @@ describe('optimize() tool-set shaping', () => {
     const opt = optimize([foreign], {
       tools: {
         fetch_page: {
-          result: {
-            fields: {
-              body: { truncate: { strategy: 'head', retrievable: false } },
-            },
-          },
+          result: { fields: { body: truncateHead({ retrievable: false }) } },
         },
       },
     })

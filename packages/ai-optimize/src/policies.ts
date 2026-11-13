@@ -2,7 +2,6 @@ import { RETRIEVE_TOOL_NAME } from './retrieve-tool'
 import type { FieldProjection, ToolContextPolicy } from '@tanstack/ai'
 import type {
   OptimizeConfig,
-  OptimizeFieldRule,
   ResolvedArgsPolicy,
   ResolvedFieldProjection,
   ResolvedResultPolicy,
@@ -18,30 +17,14 @@ export interface PolicyTool {
   context?: ToolContextPolicy
 }
 
-function resolveAuthorField(fp: FieldProjection): ResolvedFieldProjection {
+/** Fill the defaults into a built {@link FieldProjection}. Author adornment and
+ *  `optimize()` config are the same shape, so there is one resolver. */
+function resolveProjection(fp: FieldProjection): ResolvedFieldProjection {
   return {
-    truncate: fp.truncate,
+    truncate: fp.strategy,
     aboveTokens: fp.aboveTokens ?? DEFAULT_ABOVE_TOKENS,
     maxTokens: fp.maxTokens ?? DEFAULT_MAX_TOKENS,
     retrievable: fp.retrievable ?? true,
-  }
-}
-
-function resolveFieldRule(rule: OptimizeFieldRule): ResolvedFieldProjection {
-  const t = rule.truncate
-  if (typeof t === 'string') {
-    return {
-      truncate: t,
-      aboveTokens: DEFAULT_ABOVE_TOKENS,
-      maxTokens: DEFAULT_MAX_TOKENS,
-      retrievable: true,
-    }
-  }
-  return {
-    truncate: t.strategy,
-    aboveTokens: t.aboveTokens ?? DEFAULT_ABOVE_TOKENS,
-    maxTokens: t.maxTokens ?? DEFAULT_MAX_TOKENS,
-    retrievable: t.retrievable ?? true,
   }
 }
 
@@ -78,13 +61,13 @@ export class PolicyResolver {
     // Per-field: override first, then author on top (author wins).
     const fields: Record<string, ResolvedFieldProjection> = {}
     if (override?.fields) {
-      for (const [path, rule] of Object.entries(override.fields)) {
-        fields[path] = resolveFieldRule(rule)
+      for (const [path, fp] of Object.entries(override.fields)) {
+        fields[path] = resolveProjection(fp)
       }
     }
     if (author?.fields) {
       for (const [path, fp] of Object.entries(author.fields)) {
-        fields[path] = resolveAuthorField(fp)
+        fields[path] = resolveProjection(fp)
       }
     }
 
@@ -92,7 +75,7 @@ export class PolicyResolver {
     const dflt = defaults
       ? {
           mode: defaults.mode ?? ('leaves' as const),
-          projection: resolveFieldRule({ truncate: defaults.truncate }),
+          projection: resolveProjection(defaults.projection),
         }
       : undefined
 
@@ -117,8 +100,8 @@ export class PolicyResolver {
       return undefined
 
     const fields: Record<string, ResolvedFieldProjection> = {}
-    for (const [path, rule] of Object.entries(override.fields)) {
-      fields[path] = resolveFieldRule(rule)
+    for (const [path, fp] of Object.entries(override.fields)) {
+      fields[path] = resolveProjection(fp)
     }
     return { fields }
   }
