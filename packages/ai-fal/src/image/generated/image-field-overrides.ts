@@ -115,6 +115,10 @@ export const FAL_IMAGE_FIELD_OVERRIDES = {
     single: 'image_urls',
     reference: 'image_urls',
   },
+  'bytedance/seedream/v5.5/edit': {
+    single: 'image_urls',
+    reference: 'image_urls',
+  },
   'bytedance/seedream/v5/flash/edit': {
     single: 'image_urls',
     reference: 'image_urls',

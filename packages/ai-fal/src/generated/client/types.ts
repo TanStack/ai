@@ -147,6 +147,10 @@ export const falPostEndpointIdEndpointId = {
     'bytedance/seedance-2.5/us/reference-to-video',
   'bytedance/seedance-2.5/us/text-to-video':
     'bytedance/seedance-2.5/us/text-to-video',
+  'bytedance/seedream/v5.5/edit': 'bytedance/seedream/v5.5/edit',
+  'bytedance/seedream/v5.5/layerize': 'bytedance/seedream/v5.5/layerize',
+  'bytedance/seedream/v5.5/text-to-image':
+    'bytedance/seedream/v5.5/text-to-image',
   'bytedance/seedream/v5/flash/edit': 'bytedance/seedream/v5/flash/edit',
   'bytedance/seedream/v5/flash/layerize':
     'bytedance/seedream/v5/flash/layerize',
@@ -1860,6 +1864,10 @@ export const falGetEndpointIdRequestsRequestIdEndpointId = {
     'bytedance/seedance-2.5/us/reference-to-video',
   'bytedance/seedance-2.5/us/text-to-video':
     'bytedance/seedance-2.5/us/text-to-video',
+  'bytedance/seedream/v5.5/edit': 'bytedance/seedream/v5.5/edit',
+  'bytedance/seedream/v5.5/layerize': 'bytedance/seedream/v5.5/layerize',
+  'bytedance/seedream/v5.5/text-to-image':
+    'bytedance/seedream/v5.5/text-to-image',
   'bytedance/seedream/v5/flash/edit': 'bytedance/seedream/v5/flash/edit',
   'bytedance/seedream/v5/flash/layerize':
     'bytedance/seedream/v5/flash/layerize',

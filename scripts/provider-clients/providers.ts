@@ -33,6 +33,7 @@ export const PROVIDER_CLIENTS: Array<ProviderClient> = [
   { id: 'ollaya', packageDir: 'packages/ai-ollaya' },
   { id: 'typesafe', packageDir: 'packages/ai-typesafe' },
   { id: 'reactor', packageDir: 'packages/ai-reactor' },
+  { id: 'meta', packageDir: 'packages/ai-muse', typesOnly: true },
   {
     id: 'amazon-bedrock',
     packageDir: 'packages/ai-bedrock',

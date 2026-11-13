@@ -6830,6 +6830,576 @@ export type InputBriaUpscaleCreative = {
 
 export type OutputBriaUpscaleCreative = unknown
 
+export type ImageSize76Dc8599 = {
+  /**
+   * @description The height of the generated image.
+   * @maximum 14142
+   * @default 512
+   * @type integer | undefined
+   */
+  height?: number
+  /**
+   * @description The width of the generated image.
+   * @maximum 14142
+   * @default 512
+   * @type integer | undefined
+   */
+  width?: number
+}
+
+export const inputBytedanceSeedreamV55EditBackgroundEnum = {
+  auto: 'auto',
+  opaque: 'opaque',
+  transparent: 'transparent',
+} as const
+
+export type InputBytedanceSeedreamV55EditBackgroundEnumKey =
+  (typeof inputBytedanceSeedreamV55EditBackgroundEnum)[keyof typeof inputBytedanceSeedreamV55EditBackgroundEnum]
+
+export const inputBytedanceSeedreamV55EditOutputFormatEnum = {
+  jpeg: 'jpeg',
+  png: 'png',
+} as const
+
+export type InputBytedanceSeedreamV55EditOutputFormatEnumKey =
+  (typeof inputBytedanceSeedreamV55EditOutputFormatEnum)[keyof typeof inputBytedanceSeedreamV55EditOutputFormatEnum]
+
+export const inputBytedanceSeedreamV55EditImageSize = {
+  square_hd: 'square_hd',
+  square: 'square',
+  portrait_4_3: 'portrait_4_3',
+  portrait_16_9: 'portrait_16_9',
+  landscape_4_3: 'landscape_4_3',
+  landscape_16_9: 'landscape_16_9',
+  auto_1K: 'auto_1K',
+  'auto_1.5K': 'auto_1.5K',
+  auto_2K: 'auto_2K',
+} as const
+
+export type InputBytedanceSeedreamV55EditImageSizeKey =
+  (typeof inputBytedanceSeedreamV55EditImageSize)[keyof typeof inputBytedanceSeedreamV55EditImageSize]
+
+export type InputBytedanceSeedreamV55Edit = {
+  /**
+   * @description `auto` lets the model choose from the prompt and output format. `transparent` returns an RGBA image and requires `output_format=png`.
+   * @default 'auto'
+   * @type string | undefined
+   */
+  background?: InputBytedanceSeedreamV55EditBackgroundEnumKey
+  /**
+   * @description If `True`, the media will be returned as a data URI and the output data won't be available in the request history.
+   * @default false
+   * @type boolean | undefined
+   */
+  sync_mode?: boolean
+  /**
+   * @description The file format of the generated image.
+   * @default 'png'
+   * @example png
+   * @type string | undefined
+   */
+  output_format?: InputBytedanceSeedreamV55EditOutputFormatEnumKey
+  /**
+   * @description Whether to add the provider's visible watermark.
+   * @default false
+   * @type boolean | undefined
+   */
+  watermark?: boolean
+  /**
+   * @description The text prompt used to edit the image.
+   * @example Replace the product in Figure 1 with that in Figure 2. Seamlessly render the logo in Figure 3 into the product design, in a frosted glass texture.
+   * @type string
+   */
+  prompt: string
+  /**
+   * @description List of URLs of input reference images. Up to 10 images are supported; if more are sent, only the last 10 are used.
+   * @example ["https://storage.googleapis.com/falserverless/example_inputs/seedreamv45/seedream_v45_edit_input_1.png","https://storage.googleapis.com/falserverless/example_inputs/seedreamv45/seedream_v45_edit_input_2.png","https://storage.googleapis.com/falserverless/example_inputs/seedreamv45/seedream_v45_edit_input_3.png"]
+   * @type array
+   */
+  image_urls: string[]
+  /**
+   * @description The size of the generated image. Total pixels must be between 921600 and 4624220, with aspect ratio between 1/16 and 16.
+   * @default auto_2K
+   * @example auto_2K
+   */
+  image_size?: ImageSize76Dc8599 | InputBytedanceSeedreamV55EditImageSizeKey
+  /**
+   * @description Number of separate model generations to run with the prompt.
+   * @minimum 1
+   * @maximum 6
+   * @default 1
+   * @type integer | undefined
+   */
+  num_images?: number
+  /**
+   * @description If set to true, the safety checker will be enabled. Disabling it requires account authorization; unauthorized requests are always checked.
+   * @default true
+   * @example true
+   * @type boolean | undefined
+   */
+  enable_safety_checker?: boolean
+}
+
+/**
+ * @description Represents an image file.
+ * @type object
+ */
+export type ImageE1B7C152 = {
+  /**
+   * @description The size of the file in bytes.
+   * @example 4404019
+   */
+  file_size?: number | null
+  /**
+   * @description The width of the image in pixels.
+   * @example 1024
+   */
+  width?: number | null
+  /**
+   * @description The name of the file. It will be auto-generated if not provided.
+   * @example z9RV14K95DvU.png
+   */
+  file_name?: string | null
+  /**
+   * @description The height of the image in pixels.
+   * @example 1024
+   */
+  height?: number | null
+  /**
+   * @description The mime type of the file.
+   * @example image/png
+   */
+  content_type?: string | null
+  /**
+   * @description The URL where the file can be downloaded from.
+   * @type string
+   */
+  url: string
+}
+
+export type OutputBytedanceSeedreamV55Edit = {
+  /**
+   * @description Generated images.
+   * @example [{"url":"https://v3b.fal.media/files/b/0aa16df4/L8veDBOTxHhmpO5wQnioS_14c2d9c1736b4803a43796669c6d4fca.png"}]
+   * @type array
+   */
+  images: ImageE1B7C152[]
+}
+
+export const inputBytedanceSeedreamV55LayerizeOutputFormatEnum = {
+  jpeg: 'jpeg',
+  png: 'png',
+} as const
+
+export type InputBytedanceSeedreamV55LayerizeOutputFormatEnumKey =
+  (typeof inputBytedanceSeedreamV55LayerizeOutputFormatEnum)[keyof typeof inputBytedanceSeedreamV55LayerizeOutputFormatEnum]
+
+export const inputBytedanceSeedreamV55LayerizeImageSizeEnum = {
+  auto: 'auto',
+  auto_1K: 'auto_1K',
+  'auto_1.5K': 'auto_1.5K',
+  auto_2K: 'auto_2K',
+} as const
+
+export type InputBytedanceSeedreamV55LayerizeImageSizeEnumKey =
+  (typeof inputBytedanceSeedreamV55LayerizeImageSizeEnum)[keyof typeof inputBytedanceSeedreamV55LayerizeImageSizeEnum]
+
+export type InputBytedanceSeedreamV55Layerize = {
+  /**
+   * @description If `True`, the media will be returned as a data URI and the output data won't be available in the request history.
+   * @default false
+   * @type boolean | undefined
+   */
+  sync_mode?: boolean
+  /**
+   * @description Format of the base image. Separated layers always use PNG.
+   * @default 'png'
+   * @type string | undefined
+   */
+  output_format?: InputBytedanceSeedreamV55LayerizeOutputFormatEnumKey
+  /**
+   * @description Maximum number of output images, including the base image. Higher values usually produce a finer decomposition. Above 30, images are always returned as URLs and `sync_mode` is ignored.
+   * @minimum 2
+   * @maximum 100
+   * @default 30
+   * @type integer | undefined
+   */
+  max_images?: number
+  /**
+   * @description Whether to add the provider's visible watermark.
+   * @default false
+   * @type boolean | undefined
+   */
+  watermark?: boolean
+  /**
+   * @description Optional instructions describing which elements to separate. When empty, the model automatically separates the major elements. Normalized `<bbox>left top right bottom</bbox>` tags may be used for precise coordinate targeting.
+   * @default ''
+   * @example Return name and description in english.
+   * @type string | undefined
+   */
+  prompt?: string
+  /**
+   * @description URL of the image to decompose into a base image and independently editable layers. The image must contain between 512x512 and 6000x6000 total pixels, have an aspect ratio between 1/16 and 16, and be no larger than 30 MB.
+   * @example https://storage.googleapis.com/falserverless/example_inputs/kontext_example_input.webp
+   * @type string
+   */
+  image_url: string
+  /**
+   * @description Resolution tier for the output base image and layers. `auto` adapts to the input image while preserving each element's aspect ratio.
+   * @default 'auto'
+   * @example auto
+   * @type string | undefined
+   */
+  image_size?: InputBytedanceSeedreamV55LayerizeImageSizeEnumKey
+  /**
+   * @description If `True`, formatted text layers include a rich-text OCR result in `text_recognition`.
+   * @default false
+   * @type boolean | undefined
+   */
+  enable_text_recognition?: boolean
+  /**
+   * @description If set to true, the safety checker will be enabled. Disabling it requires account authorization; unauthorized requests are always checked.
+   * @default true
+   * @example true
+   * @type boolean | undefined
+   */
+  enable_safety_checker?: boolean
+}
+
+export type SeedDream50ProLayerBoundingBox = {
+  /**
+   * @description Layer bounds as [left, top, right, bottom] pixel coordinates in the output base image coordinate system.
+   * @type array
+   */
+  absolute: number[]
+  /**
+   * @description Layer bounds as [left, top, right, bottom] coordinates normalized to the integer range [0, 1000].
+   * @type array
+   */
+  normalized: number[]
+}
+
+export type SeedDream55TextStyle = {
+  /**
+   * @description Whether the text is bold.
+   * @default false
+   * @type boolean | undefined
+   */
+  bold?: boolean
+  /**
+   * @description Text color as uppercase `#RRGGBB`.
+   */
+  foreground_color?: string | null
+  /**
+   * @description Closest matching font, or `unknown` when it cannot be recognized.
+   * @default 'unknown'
+   * @type string | undefined
+   */
+  similar_font_family?: string
+  /**
+   * @description Whether the text has a drop shadow or glow.
+   * @default false
+   * @type boolean | undefined
+   */
+  shadow?: boolean
+  /**
+   * @description Whether the text is underlined.
+   * @default false
+   * @type boolean | undefined
+   */
+  underline?: boolean
+  /**
+   * @description Whether the text strokes are translucent.
+   * @default false
+   * @type boolean | undefined
+   */
+  translucent?: boolean
+  /**
+   * @description Whether the text is italic.
+   * @default false
+   * @type boolean | undefined
+   */
+  italic?: boolean
+  /**
+   * @description Whether the text has a strikethrough.
+   * @default false
+   * @type boolean | undefined
+   */
+  strikethrough?: boolean
+}
+
+export type SeedDream55TextRun = {
+  /**
+   * @description Approximate visual style.
+   * @type object
+   */
+  style: SeedDream55TextStyle
+  /**
+   * @description Text fragment that shares one style.
+   * @type string
+   */
+  text: string
+}
+
+export type SeedDream55TextLine = {
+  /**
+   * @description The line's position in the base image coordinate system.
+   * @type object
+   */
+  bounding_box: SeedDream50ProLayerBoundingBox
+  /**
+   * @description Styled fragments in order.
+   * @type array
+   */
+  runs: SeedDream55TextRun[]
+}
+
+export type SeedDream55TextRecognition = {
+  /**
+   * @description Text lines in order.
+   * @type array
+   */
+  lines: SeedDream55TextLine[]
+  /**
+   * @description Full text of the layer, lines separated by `\n`.
+   * @type string
+   */
+  text: string
+}
+
+/**
+ * @description Represents an image file.
+ * @type object
+ */
+export type Image65Fdf375 = {
+  /**
+   * @description The size of the file in bytes.
+   * @example 4404019
+   */
+  file_size?: number | null
+  /**
+   * @description The width of the image in pixels.
+   * @example 1024
+   */
+  width?: number | null
+  /**
+   * @description The name of the file. It will be auto-generated if not provided.
+   * @example z9RV14K95DvU.png
+   */
+  file_name?: string | null
+  /**
+   * @description The height of the image in pixels.
+   * @example 1024
+   */
+  height?: number | null
+  /**
+   * @description The mime type of the file.
+   * @example image/png
+   */
+  content_type?: string | null
+  /**
+   * @description The URL where the file can be downloaded from.
+   * @type string
+   */
+  url: string
+}
+
+export type SeedDream55Layer = {
+  /**
+   * @description Rich-text OCR result. Present only for formatted text layers when `enable_text_recognition` is set.
+   */
+  text_recognition?: SeedDream55TextRecognition | null
+  /**
+   * @description Model-generated label for the layer. Omitted for the base image.
+   */
+  name?: string | null
+  /**
+   * @description Stacking order from bottom to top. The base image always has z_index 0.
+   * @minimum 0
+   * @maximum 99
+   * @type integer
+   */
+  z_index: number
+  /**
+   * @description The layer's position in the base image coordinate system. Omitted for the base image.
+   */
+  bounding_box?: SeedDream50ProLayerBoundingBox | null
+  /**
+   * @description The generated base image or separated layer.
+   * @type object
+   */
+  image: Image65Fdf375
+  /**
+   * @description Detailed model-generated description of the layer. Omitted for the base image.
+   */
+  description?: string | null
+}
+
+export type OutputBytedanceSeedreamV55Layerize = {
+  /**
+   * @description The base image followed by up to 99 separated layers, ordered by increasing z_index.
+   * @type array
+   */
+  layers: SeedDream55Layer[]
+  /**
+   * @description The same images as `layers`, in the same order, flattened for gallery rendering.
+   * @type array
+   */
+  images: Image65Fdf375[]
+}
+
+export type ImageSizeD129004A = {
+  /**
+   * @description The height of the generated image.
+   * @maximum 14142
+   * @default 512
+   * @type integer | undefined
+   */
+  height?: number
+  /**
+   * @description The width of the generated image.
+   * @maximum 14142
+   * @default 512
+   * @type integer | undefined
+   */
+  width?: number
+}
+
+export const inputBytedanceSeedreamV55TextToImageBackgroundEnum = {
+  auto: 'auto',
+  opaque: 'opaque',
+  transparent: 'transparent',
+} as const
+
+export type InputBytedanceSeedreamV55TextToImageBackgroundEnumKey =
+  (typeof inputBytedanceSeedreamV55TextToImageBackgroundEnum)[keyof typeof inputBytedanceSeedreamV55TextToImageBackgroundEnum]
+
+export const inputBytedanceSeedreamV55TextToImageOutputFormatEnum = {
+  jpeg: 'jpeg',
+  png: 'png',
+} as const
+
+export type InputBytedanceSeedreamV55TextToImageOutputFormatEnumKey =
+  (typeof inputBytedanceSeedreamV55TextToImageOutputFormatEnum)[keyof typeof inputBytedanceSeedreamV55TextToImageOutputFormatEnum]
+
+export const inputBytedanceSeedreamV55TextToImageImageSize = {
+  square_hd: 'square_hd',
+  square: 'square',
+  portrait_4_3: 'portrait_4_3',
+  portrait_16_9: 'portrait_16_9',
+  landscape_4_3: 'landscape_4_3',
+  landscape_16_9: 'landscape_16_9',
+  auto_1K: 'auto_1K',
+  'auto_1.5K': 'auto_1.5K',
+  auto_2K: 'auto_2K',
+} as const
+
+export type InputBytedanceSeedreamV55TextToImageImageSizeKey =
+  (typeof inputBytedanceSeedreamV55TextToImageImageSize)[keyof typeof inputBytedanceSeedreamV55TextToImageImageSize]
+
+export type InputBytedanceSeedreamV55TextToImage = {
+  /**
+   * @description `auto` lets the model choose from the prompt and output format. `transparent` returns an RGBA image and requires `output_format=png`.
+   * @default 'auto'
+   * @type string | undefined
+   */
+  background?: InputBytedanceSeedreamV55TextToImageBackgroundEnumKey
+  /**
+   * @description If `True`, the media will be returned as a data URI and the output data won't be available in the request history.
+   * @default false
+   * @type boolean | undefined
+   */
+  sync_mode?: boolean
+  /**
+   * @description The file format of the generated image.
+   * @default 'png'
+   * @example png
+   * @type string | undefined
+   */
+  output_format?: InputBytedanceSeedreamV55TextToImageOutputFormatEnumKey
+  /**
+   * @description Whether to add the provider's visible watermark.
+   * @default false
+   * @type boolean | undefined
+   */
+  watermark?: boolean
+  /**
+   * @description The text prompt used to generate the image.
+   * @example Vibrant editorial of a model in contemporary fashion fused with West African textile patterns and beadwork, Campbell Addy bold aesthetic, saturated palette, dramatic studio lighting, celebratory cultural richness, striking contemporary portraiture
+   * @type string
+   */
+  prompt: string
+  /**
+   * @description The size of the generated image. Total pixels must be between 921600 and 4624220, with aspect ratio between 1/16 and 16.
+   * @default auto_2K
+   * @example auto_2K
+   */
+  image_size?:
+    | ImageSizeD129004A
+    | InputBytedanceSeedreamV55TextToImageImageSizeKey
+  /**
+   * @description Number of separate model generations to run with the prompt.
+   * @minimum 1
+   * @maximum 6
+   * @default 1
+   * @type integer | undefined
+   */
+  num_images?: number
+  /**
+   * @description If set to true, the safety checker will be enabled. Disabling it requires account authorization; unauthorized requests are always checked.
+   * @default true
+   * @example true
+   * @type boolean | undefined
+   */
+  enable_safety_checker?: boolean
+}
+
+/**
+ * @description Represents an image file.
+ * @type object
+ */
+export type Image2D1Da877 = {
+  /**
+   * @description The size of the file in bytes.
+   * @example 4404019
+   */
+  file_size?: number | null
+  /**
+   * @description The width of the image in pixels.
+   * @example 1024
+   */
+  width?: number | null
+  /**
+   * @description The name of the file. It will be auto-generated if not provided.
+   * @example z9RV14K95DvU.png
+   */
+  file_name?: string | null
+  /**
+   * @description The height of the image in pixels.
+   * @example 1024
+   */
+  height?: number | null
+  /**
+   * @description The mime type of the file.
+   * @example image/png
+   */
+  content_type?: string | null
+  /**
+   * @description The URL where the file can be downloaded from.
+   * @type string
+   */
+  url: string
+}
+
+export type OutputBytedanceSeedreamV55TextToImage = {
+  /**
+   * @description Generated images.
+   * @example [{"url":"https://v3b.fal.media/files/b/0aa16df4/ktjX_-2KKAw7bCTQgopGV_5b49dc459dfe484fbb1218fce0e24bc7.png"}]
+   * @type array
+   */
+  images: Image2D1Da877[]
+}
+
 export type ImageSizeD933Ede5 = {
   /**
    * @description The height of the generated image.
@@ -7055,7 +7625,7 @@ export type InputBytedanceSeedreamV5FlashLayerize = {
  * @description Represents an image file.
  * @type object
  */
-export type ImageA75Bee4C = {
+export type Image123F058C = {
   /**
    * @description The mime type of the file.
    * @example image/png
@@ -7088,7 +7658,7 @@ export type ImageA75Bee4C = {
   file_name?: string | null
 }
 
-export type SeedDream50ProLayerBoundingBox = {
+export type SeedDream50ProLayerBoundingBox9099810D = {
   /**
    * @description Layer bounds as [left, top, right, bottom] coordinates normalized to the integer range [0, 1000].
    * @type array
@@ -7112,7 +7682,7 @@ export type SeedDream50ProLayer = {
   /**
    * @description The layer's position in the base image coordinate system. Omitted for the base image.
    */
-  bounding_box?: SeedDream50ProLayerBoundingBox | null
+  bounding_box?: SeedDream50ProLayerBoundingBox9099810D | null
   /**
    * @description Model-generated label for the layer. Omitted for the base image.
    */
@@ -7125,7 +7695,7 @@ export type SeedDream50ProLayer = {
    * @description The generated base image or separated layer.
    * @type object
    */
-  image: ImageA75Bee4C
+  image: Image123F058C
 }
 
 export type OutputBytedanceSeedreamV5FlashLayerize = {
@@ -7134,7 +7704,7 @@ export type OutputBytedanceSeedreamV5FlashLayerize = {
    * @example [{"url":"https://v3b.fal.media/files/b/0aa54c02/95ZvKubW63JnC9ubRbDo2_74290e95fb6d4bd4bac756f3e2667317.png"}]
    * @type array
    */
-  images: ImageA75Bee4C[]
+  images: Image123F058C[]
   /**
    * @description The base image followed by up to 16 separated layers, ordered by increasing z_index.
    * @type array
@@ -14597,12 +15167,7 @@ export type OutputFalAiErnieImage = {
   prompt: string
 }
 
-export type LoraWeight8Ee34E6F = {
-  /**
-   * @description URL or the path to the LoRA weights.
-   * @type string
-   */
-  path: string
+export type LoraWeight0A438803 = {
   /**
    * @description
    *             The scale of the LoRA weight. This is used to scale the LoRA weight
@@ -14614,16 +15179,14 @@ export type LoraWeight8Ee34E6F = {
    * @type number | undefined
    */
   scale?: number
+  /**
+   * @description URL or the path to the LoRA weights.
+   * @type string
+   */
+  path: string
 }
 
-export type ImageSize4B7D81C9 = {
-  /**
-   * @description The width of the generated image.
-   * @maximum 14142
-   * @default 512
-   * @type integer | undefined
-   */
-  width?: number
+export type ImageSize42Bbb295 = {
   /**
    * @description The height of the generated image.
    * @maximum 14142
@@ -14631,6 +15194,13 @@ export type ImageSize4B7D81C9 = {
    * @type integer | undefined
    */
   height?: number
+  /**
+   * @description The width of the generated image.
+   * @maximum 14142
+   * @default 512
+   * @type integer | undefined
+   */
+  width?: number
 }
 
 export const inputFalAiErnieImageLoraOutputFormatEnum = {
@@ -14669,11 +15239,11 @@ export type InputFalAiErnieImageLoraAccelerationEnumKey =
 
 export type InputFalAiErnieImageLora = {
   /**
-   * @description The LoRAs to use for image generation. You can use up to 3 LoRAs and they will be merged together to generate the final image.
-   * @default []
-   * @type array | undefined
+   * @description Text prompt for image generation. Supports English, Chinese, and Japanese.
+   * @example A serene mountain landscape at sunset with golden light
+   * @type string
    */
-  loras?: LoraWeight8Ee34E6F[]
+  prompt: string
   /**
    * @description Output image format.
    * @default 'jpeg'
@@ -14681,49 +15251,19 @@ export type InputFalAiErnieImageLora = {
    */
   output_format?: InputFalAiErnieImageLoraOutputFormatEnumKey
   /**
-   * @description Enable NSFW safety checking on the generated images. Disabling it requires account authorization; unauthorized requests are always checked.
-   * @default true
-   * @type boolean | undefined
-   */
-  enable_safety_checker?: boolean
-  /**
-   * @description Negative prompt to guide what should not be in the image.
-   * @default ''
-   * @type string | undefined
-   */
-  negative_prompt?: string
-  /**
-   * @description The size of the generated image.
-   * @default square_hd
-   */
-  image_size?: ImageSize4B7D81C9 | InputFalAiErnieImageLoraImageSizeKey
-  /**
-   * @description Number of images to generate.
-   * @minimum 1
-   * @maximum 4
-   * @default 1
-   * @type integer | undefined
-   */
-  num_images?: number
-  /**
-   * @description The acceleration level to use for the image generation.
-   * @default 'regular'
-   * @example regular
-   * @type string | undefined
-   */
-  acceleration?: InputFalAiErnieImageLoraAccelerationEnumKey
-  /**
-   * @description Text prompt for image generation. Supports English, Chinese, and Japanese.
-   * @example A serene mountain landscape at sunset with golden light
-   * @type string
-   */
-  prompt: string
-  /**
    * @description If True, the prompt will be enhanced using an LLM for more detailed results.
    * @default true
    * @type boolean | undefined
    */
   enable_prompt_expansion?: boolean
+  /**
+   * @description Classifier-free guidance scale.
+   * @minimum 1
+   * @maximum 20
+   * @default 5
+   * @type number | undefined
+   */
+  guidance_scale?: number
   /**
    * @description If True, the image will be returned as a data URI instead of a URL.
    * @default false
@@ -14739,17 +15279,47 @@ export type InputFalAiErnieImageLora = {
    */
   num_inference_steps?: number
   /**
-   * @description Classifier-free guidance scale.
-   * @minimum 1
-   * @maximum 20
-   * @default 5
-   * @type number | undefined
+   * @description The LoRAs to use for image generation. You can use up to 3 LoRAs and they will be merged together to generate the final image.
+   * @default []
+   * @type array | undefined
    */
-  guidance_scale?: number
+  loras?: LoraWeight0A438803[]
+  /**
+   * @description The size of the generated image.
+   * @default square_hd
+   */
+  image_size?: ImageSize42Bbb295 | InputFalAiErnieImageLoraImageSizeKey
+  /**
+   * @description Number of images to generate.
+   * @minimum 1
+   * @maximum 4
+   * @default 1
+   * @type integer | undefined
+   */
+  num_images?: number
   /**
    * @description Random seed for reproducibility.
    */
   seed?: number | null
+  /**
+   * @description The acceleration level to use for the image generation.
+   * @default 'regular'
+   * @example regular
+   * @type string | undefined
+   */
+  acceleration?: InputFalAiErnieImageLoraAccelerationEnumKey
+  /**
+   * @description Negative prompt to guide what should not be in the image.
+   * @default ''
+   * @type string | undefined
+   */
+  negative_prompt?: string
+  /**
+   * @description Enable NSFW safety checking on the generated images. Disabling it requires account authorization; unauthorized requests are always checked.
+   * @default true
+   * @type boolean | undefined
+   */
+  enable_safety_checker?: boolean
 }
 
 export type ImageFd1988E8 = {
@@ -14787,7 +15357,7 @@ export type OutputFalAiErnieImageLora = {
   prompt: string
 }
 
-export type LoraWeight05Be29D6 = {
+export type LoraWeight171324Ac = {
   /**
    * @description
    *             The scale of the LoRA weight. This is used to scale the LoRA weight
@@ -14806,7 +15376,7 @@ export type LoraWeight05Be29D6 = {
   path: string
 }
 
-export type ImageSize9D7383A0 = {
+export type ImageSizeC6Bffc0E = {
   /**
    * @description The height of the generated image.
    * @maximum 14142
@@ -14822,15 +15392,6 @@ export type ImageSize9D7383A0 = {
    */
   width?: number
 }
-
-export const inputFalAiErnieImageLoraTurboAccelerationEnum = {
-  none: 'none',
-  regular: 'regular',
-  high: 'high',
-} as const
-
-export type InputFalAiErnieImageLoraTurboAccelerationEnumKey =
-  (typeof inputFalAiErnieImageLoraTurboAccelerationEnum)[keyof typeof inputFalAiErnieImageLoraTurboAccelerationEnum]
 
 export const inputFalAiErnieImageLoraTurboOutputFormatEnum = {
   jpeg: 'jpeg',
@@ -14857,21 +15418,34 @@ export const inputFalAiErnieImageLoraTurboImageSize = {
 export type InputFalAiErnieImageLoraTurboImageSizeKey =
   (typeof inputFalAiErnieImageLoraTurboImageSize)[keyof typeof inputFalAiErnieImageLoraTurboImageSize]
 
+export const inputFalAiErnieImageLoraTurboAccelerationEnum = {
+  none: 'none',
+  regular: 'regular',
+  high: 'high',
+} as const
+
+export type InputFalAiErnieImageLoraTurboAccelerationEnumKey =
+  (typeof inputFalAiErnieImageLoraTurboAccelerationEnum)[keyof typeof inputFalAiErnieImageLoraTurboAccelerationEnum]
+
 export type InputFalAiErnieImageLoraTurbo = {
   /**
-   * @description Number of images to generate.
-   * @minimum 1
-   * @maximum 4
-   * @default 1
-   * @type integer | undefined
+   * @description Text prompt for image generation. Supports English, Chinese, and Japanese.
+   * @example A serene mountain landscape at sunset with golden light
+   * @type string
    */
-  num_images?: number
+  prompt: string
   /**
-   * @description Enable NSFW safety checking on the generated images. Disabling it requires account authorization; unauthorized requests are always checked.
+   * @description Output image format.
+   * @default 'jpeg'
+   * @type string | undefined
+   */
+  output_format?: InputFalAiErnieImageLoraTurboOutputFormatEnumKey
+  /**
+   * @description If True, the prompt will be enhanced using an LLM for more detailed results.
    * @default true
    * @type boolean | undefined
    */
-  enable_safety_checker?: boolean
+  enable_prompt_expansion?: boolean
   /**
    * @description Classifier-free guidance scale.
    * @minimum 1
@@ -14881,6 +15455,12 @@ export type InputFalAiErnieImageLoraTurbo = {
    */
   guidance_scale?: number
   /**
+   * @description If True, the image will be returned as a data URI instead of a URL.
+   * @default false
+   * @type boolean | undefined
+   */
+  sync_mode?: boolean
+  /**
    * @description Number of denoising steps. Turbo model is optimized for 8 steps.
    * @minimum 1
    * @maximum 20
@@ -14889,11 +15469,28 @@ export type InputFalAiErnieImageLoraTurbo = {
    */
   num_inference_steps?: number
   /**
-   * @description Text prompt for image generation. Supports English, Chinese, and Japanese.
-   * @example A serene mountain landscape at sunset with golden light
-   * @type string
+   * @description The LoRAs to use for image generation. You can use up to 3 LoRAs and they will be merged together to generate the final image.
+   * @default []
+   * @type array | undefined
    */
-  prompt: string
+  loras?: LoraWeight171324Ac[]
+  /**
+   * @description The size of the generated image.
+   * @default square_hd
+   */
+  image_size?: ImageSizeC6Bffc0E | InputFalAiErnieImageLoraTurboImageSizeKey
+  /**
+   * @description Number of images to generate.
+   * @minimum 1
+   * @maximum 4
+   * @default 1
+   * @type integer | undefined
+   */
+  num_images?: number
+  /**
+   * @description Random seed for reproducibility.
+   */
+  seed?: number | null
   /**
    * @description The acceleration level to use for the image generation.
    * @default 'regular'
@@ -14902,44 +15499,17 @@ export type InputFalAiErnieImageLoraTurbo = {
    */
   acceleration?: InputFalAiErnieImageLoraTurboAccelerationEnumKey
   /**
-   * @description If True, the image will be returned as a data URI instead of a URL.
-   * @default false
-   * @type boolean | undefined
-   */
-  sync_mode?: boolean
-  /**
-   * @description Output image format.
-   * @default 'jpeg'
-   * @type string | undefined
-   */
-  output_format?: InputFalAiErnieImageLoraTurboOutputFormatEnumKey
-  /**
-   * @description Random seed for reproducibility.
-   */
-  seed?: number | null
-  /**
-   * @description If True, the prompt will be enhanced using an LLM for more detailed results.
-   * @default true
-   * @type boolean | undefined
-   */
-  enable_prompt_expansion?: boolean
-  /**
    * @description Negative prompt to guide what should not be in the image.
    * @default ''
    * @type string | undefined
    */
   negative_prompt?: string
   /**
-   * @description The LoRAs to use for image generation. You can use up to 3 LoRAs and they will be merged together to generate the final image.
-   * @default []
-   * @type array | undefined
+   * @description Enable NSFW safety checking on the generated images. Disabling it requires account authorization; unauthorized requests are always checked.
+   * @default true
+   * @type boolean | undefined
    */
-  loras?: LoraWeight05Be29D6[]
-  /**
-   * @description The size of the generated image.
-   * @default square_hd
-   */
-  image_size?: ImageSize9D7383A0 | InputFalAiErnieImageLoraTurboImageSizeKey
+  enable_safety_checker?: boolean
 }
 
 export type Image1F6Abd0F = {
@@ -26349,14 +26919,7 @@ export type OutputFalAiFlux2Klein4BBaseEdit = {
   has_nsfw_concepts: boolean[]
 }
 
-export type ImageSize67Dfdb5D = {
-  /**
-   * @description The height of the generated image.
-   * @maximum 14142
-   * @default 512
-   * @type integer | undefined
-   */
-  height?: number
+export type ImageSize308095De = {
   /**
    * @description The width of the generated image.
    * @maximum 14142
@@ -26364,14 +26927,16 @@ export type ImageSize67Dfdb5D = {
    * @type integer | undefined
    */
   width?: number
+  /**
+   * @description The height of the generated image.
+   * @maximum 14142
+   * @default 512
+   * @type integer | undefined
+   */
+  height?: number
 }
 
 export type FalAiFlux2KleinLoRAInput = {
-  /**
-   * @description URL, HuggingFace repo ID (owner/repo), or local path to LoRA weights.
-   * @type string
-   */
-  path: string
   /**
    * @description Scale factor for LoRA application (0.0 to 4.0).
    * @minimum 0
@@ -26380,16 +26945,21 @@ export type FalAiFlux2KleinLoRAInput = {
    * @type number | undefined
    */
   scale?: number
+  /**
+   * @description URL or HuggingFace repo ID (owner/repo) of the LoRA weights.
+   * @type string
+   */
+  path: string
 }
 
-export const inputFalAiFlux2Klein4BBaseEditLoraAccelerationEnum = {
-  none: 'none',
-  regular: 'regular',
-  high: 'high',
+export const inputFalAiFlux2Klein4BBaseEditLoraOutputFormatEnum = {
+  jpeg: 'jpeg',
+  png: 'png',
+  webp: 'webp',
 } as const
 
-export type InputFalAiFlux2Klein4BBaseEditLoraAccelerationEnumKey =
-  (typeof inputFalAiFlux2Klein4BBaseEditLoraAccelerationEnum)[keyof typeof inputFalAiFlux2Klein4BBaseEditLoraAccelerationEnum]
+export type InputFalAiFlux2Klein4BBaseEditLoraOutputFormatEnumKey =
+  (typeof inputFalAiFlux2Klein4BBaseEditLoraOutputFormatEnum)[keyof typeof inputFalAiFlux2Klein4BBaseEditLoraOutputFormatEnum]
 
 export const inputFalAiFlux2Klein4BBaseEditLoraImageSize = {
   square_hd: 'square_hd',
@@ -26403,16 +26973,60 @@ export const inputFalAiFlux2Klein4BBaseEditLoraImageSize = {
 export type InputFalAiFlux2Klein4BBaseEditLoraImageSizeKey =
   (typeof inputFalAiFlux2Klein4BBaseEditLoraImageSize)[keyof typeof inputFalAiFlux2Klein4BBaseEditLoraImageSize]
 
-export const inputFalAiFlux2Klein4BBaseEditLoraOutputFormatEnum = {
-  jpeg: 'jpeg',
-  png: 'png',
-  webp: 'webp',
+export const inputFalAiFlux2Klein4BBaseEditLoraAccelerationEnum = {
+  none: 'none',
+  regular: 'regular',
+  high: 'high',
 } as const
 
-export type InputFalAiFlux2Klein4BBaseEditLoraOutputFormatEnumKey =
-  (typeof inputFalAiFlux2Klein4BBaseEditLoraOutputFormatEnum)[keyof typeof inputFalAiFlux2Klein4BBaseEditLoraOutputFormatEnum]
+export type InputFalAiFlux2Klein4BBaseEditLoraAccelerationEnumKey =
+  (typeof inputFalAiFlux2Klein4BBaseEditLoraAccelerationEnum)[keyof typeof inputFalAiFlux2Klein4BBaseEditLoraAccelerationEnum]
 
 export type InputFalAiFlux2Klein4BBaseEditLora = {
+  /**
+   * @description If set to true, the safety checker will be enabled. Disabling it requires account authorization; unauthorized requests are always checked, and images flagged as unsafe are returned as black images.
+   * @default true
+   * @type boolean | undefined
+   */
+  enable_safety_checker?: boolean
+  /**
+   * @description The format of the generated image.
+   * @default 'png'
+   * @type string | undefined
+   */
+  output_format?: InputFalAiFlux2Klein4BBaseEditLoraOutputFormatEnumKey
+  /**
+   * @description The size of the generated image. If not provided, uses the input image size.
+   * @example {"width":2016,"height":1152}
+   */
+  image_size?:
+    | ImageSize308095De
+    | InputFalAiFlux2Klein4BBaseEditLoraImageSizeKey
+    | null
+  /**
+   * @description The number of inference steps to perform.
+   * @minimum 4
+   * @maximum 50
+   * @default 28
+   * @type integer | undefined
+   */
+  num_inference_steps?: number
+  /**
+   * @description Negative prompt for classifier-free guidance. Describes what to avoid in the image.
+   * @default ''
+   * @type string | undefined
+   */
+  negative_prompt?: string
+  /**
+   * @description The seed to use for the generation. If not provided, a random seed will be used.
+   */
+  seed?: number | null
+  /**
+   * @description The URLs of the images for editing. A maximum of 4 images are allowed.
+   * @example ["https://storage.googleapis.com/falserverless/example_inputs/flux2_dev_edit_input.png"]
+   * @type array
+   */
+  image_urls: string[]
   /**
    * @description The acceleration level to use for image generation.
    * @default 'regular'
@@ -26426,55 +27040,17 @@ export type InputFalAiFlux2Klein4BBaseEditLora = {
    */
   prompt: string
   /**
-   * @description The URLs of the images for editing. A maximum of 4 images are allowed.
-   * @example ["https://storage.googleapis.com/falserverless/example_inputs/flux2_dev_edit_input.png"]
-   * @type array
-   */
-  image_urls: string[]
-  /**
-   * @description The number of images to generate.
-   * @minimum 1
-   * @maximum 4
-   * @default 1
-   * @type integer | undefined
-   */
-  num_images?: number
-  /**
-   * @description If set to true, the safety checker will be enabled. Disabling it requires account authorization; unauthorized requests are always checked, and images flagged as unsafe are returned as black images.
-   * @default true
-   * @type boolean | undefined
-   */
-  enable_safety_checker?: boolean
-  /**
-   * @description The size of the generated image. If not provided, uses the input image size.
-   * @example {"height":1152,"width":2016}
-   */
-  image_size?:
-    | ImageSize67Dfdb5D
-    | InputFalAiFlux2Klein4BBaseEditLoraImageSizeKey
-    | null
-  /**
-   * @description If `True`, the media will be returned as a data URI. Output is not stored when this is True.
-   * @default false
-   * @type boolean | undefined
-   */
-  sync_mode?: boolean
-  /**
    * @description List of LoRA weights to apply (maximum 3).
    * @default []
    * @type array | undefined
    */
   loras?: FalAiFlux2KleinLoRAInput[]
   /**
-   * @description The seed to use for the generation. If not provided, a random seed will be used.
+   * @description If `True`, the media will be returned as a data URI. Output is not stored when this is True.
+   * @default false
+   * @type boolean | undefined
    */
-  seed?: number | null
-  /**
-   * @description The format of the generated image.
-   * @default 'png'
-   * @type string | undefined
-   */
-  output_format?: InputFalAiFlux2Klein4BBaseEditLoraOutputFormatEnumKey
+  sync_mode?: boolean
   /**
    * @description Guidance scale for classifier-free guidance.
    * @minimum 0
@@ -26484,19 +27060,13 @@ export type InputFalAiFlux2Klein4BBaseEditLora = {
    */
   guidance_scale?: number
   /**
-   * @description Negative prompt for classifier-free guidance. Describes what to avoid in the image.
-   * @default ''
-   * @type string | undefined
-   */
-  negative_prompt?: string
-  /**
-   * @description The number of inference steps to perform.
-   * @minimum 4
-   * @maximum 50
-   * @default 28
+   * @description The number of images to generate.
+   * @minimum 1
+   * @maximum 4
+   * @default 1
    * @type integer | undefined
    */
-  num_inference_steps?: number
+  num_images?: number
 }
 
 export type ImageFile4Adf3563 = {
@@ -26559,14 +27129,7 @@ export type OutputFalAiFlux2Klein4BBaseEditLora = {
   has_nsfw_concepts: boolean[]
 }
 
-export type ImageSize6Efa52F2 = {
-  /**
-   * @description The height of the generated image.
-   * @maximum 14142
-   * @default 512
-   * @type integer | undefined
-   */
-  height?: number
+export type ImageSizeBfda5B3F = {
   /**
    * @description The width of the generated image.
    * @maximum 14142
@@ -26574,16 +27137,23 @@ export type ImageSize6Efa52F2 = {
    * @type integer | undefined
    */
   width?: number
+  /**
+   * @description The height of the generated image.
+   * @maximum 14142
+   * @default 512
+   * @type integer | undefined
+   */
+  height?: number
 }
 
-export const inputFalAiFlux2Klein4BBaseLoraAccelerationEnum = {
-  none: 'none',
-  regular: 'regular',
-  high: 'high',
+export const inputFalAiFlux2Klein4BBaseLoraOutputFormatEnum = {
+  jpeg: 'jpeg',
+  png: 'png',
+  webp: 'webp',
 } as const
 
-export type InputFalAiFlux2Klein4BBaseLoraAccelerationEnumKey =
-  (typeof inputFalAiFlux2Klein4BBaseLoraAccelerationEnum)[keyof typeof inputFalAiFlux2Klein4BBaseLoraAccelerationEnum]
+export type InputFalAiFlux2Klein4BBaseLoraOutputFormatEnumKey =
+  (typeof inputFalAiFlux2Klein4BBaseLoraOutputFormatEnum)[keyof typeof inputFalAiFlux2Klein4BBaseLoraOutputFormatEnum]
 
 export const inputFalAiFlux2Klein4BBaseLoraImageSize = {
   square_hd: 'square_hd',
@@ -26597,16 +27167,51 @@ export const inputFalAiFlux2Klein4BBaseLoraImageSize = {
 export type InputFalAiFlux2Klein4BBaseLoraImageSizeKey =
   (typeof inputFalAiFlux2Klein4BBaseLoraImageSize)[keyof typeof inputFalAiFlux2Klein4BBaseLoraImageSize]
 
-export const inputFalAiFlux2Klein4BBaseLoraOutputFormatEnum = {
-  jpeg: 'jpeg',
-  png: 'png',
-  webp: 'webp',
+export const inputFalAiFlux2Klein4BBaseLoraAccelerationEnum = {
+  none: 'none',
+  regular: 'regular',
+  high: 'high',
 } as const
 
-export type InputFalAiFlux2Klein4BBaseLoraOutputFormatEnumKey =
-  (typeof inputFalAiFlux2Klein4BBaseLoraOutputFormatEnum)[keyof typeof inputFalAiFlux2Klein4BBaseLoraOutputFormatEnum]
+export type InputFalAiFlux2Klein4BBaseLoraAccelerationEnumKey =
+  (typeof inputFalAiFlux2Klein4BBaseLoraAccelerationEnum)[keyof typeof inputFalAiFlux2Klein4BBaseLoraAccelerationEnum]
 
 export type InputFalAiFlux2Klein4BBaseLora = {
+  /**
+   * @description If set to true, the safety checker will be enabled. Disabling it requires account authorization; unauthorized requests are always checked, and images flagged as unsafe are returned as black images.
+   * @default true
+   * @type boolean | undefined
+   */
+  enable_safety_checker?: boolean
+  /**
+   * @description The format of the generated image.
+   * @default 'png'
+   * @type string | undefined
+   */
+  output_format?: InputFalAiFlux2Klein4BBaseLoraOutputFormatEnumKey
+  /**
+   * @description The size of the image to generate.
+   * @default landscape_4_3
+   */
+  image_size?: ImageSizeBfda5B3F | InputFalAiFlux2Klein4BBaseLoraImageSizeKey
+  /**
+   * @description The number of inference steps to perform.
+   * @minimum 4
+   * @maximum 50
+   * @default 28
+   * @type integer | undefined
+   */
+  num_inference_steps?: number
+  /**
+   * @description Negative prompt for classifier-free guidance. Describes what to avoid in the image.
+   * @default ''
+   * @type string | undefined
+   */
+  negative_prompt?: string
+  /**
+   * @description The seed to use for the generation. If not provided, a random seed will be used.
+   */
+  seed?: number | null
   /**
    * @description The acceleration level to use for image generation.
    * @default 'regular'
@@ -26620,46 +27225,17 @@ export type InputFalAiFlux2Klein4BBaseLora = {
    */
   prompt: string
   /**
-   * @description The number of images to generate.
-   * @minimum 1
-   * @maximum 4
-   * @default 1
-   * @type integer | undefined
-   */
-  num_images?: number
-  /**
-   * @description If set to true, the safety checker will be enabled. Disabling it requires account authorization; unauthorized requests are always checked, and images flagged as unsafe are returned as black images.
-   * @default true
-   * @type boolean | undefined
-   */
-  enable_safety_checker?: boolean
-  /**
-   * @description The size of the image to generate.
-   * @default landscape_4_3
-   */
-  image_size?: ImageSize6Efa52F2 | InputFalAiFlux2Klein4BBaseLoraImageSizeKey
-  /**
-   * @description If `True`, the media will be returned as a data URI. Output is not stored when this is True.
-   * @default false
-   * @type boolean | undefined
-   */
-  sync_mode?: boolean
-  /**
    * @description List of LoRA weights to apply (maximum 3).
    * @default []
    * @type array | undefined
    */
   loras?: FalAiFlux2KleinLoRAInput[]
   /**
-   * @description The seed to use for the generation. If not provided, a random seed will be used.
+   * @description If `True`, the media will be returned as a data URI. Output is not stored when this is True.
+   * @default false
+   * @type boolean | undefined
    */
-  seed?: number | null
-  /**
-   * @description The format of the generated image.
-   * @default 'png'
-   * @type string | undefined
-   */
-  output_format?: InputFalAiFlux2Klein4BBaseLoraOutputFormatEnumKey
+  sync_mode?: boolean
   /**
    * @description Guidance scale for classifier-free guidance.
    * @minimum 0
@@ -26669,19 +27245,13 @@ export type InputFalAiFlux2Klein4BBaseLora = {
    */
   guidance_scale?: number
   /**
-   * @description Negative prompt for classifier-free guidance. Describes what to avoid in the image.
-   * @default ''
-   * @type string | undefined
-   */
-  negative_prompt?: string
-  /**
-   * @description The number of inference steps to perform.
-   * @minimum 4
-   * @maximum 50
-   * @default 28
+   * @description The number of images to generate.
+   * @minimum 1
+   * @maximum 4
+   * @default 1
    * @type integer | undefined
    */
-  num_inference_steps?: number
+  num_images?: number
 }
 
 export type ImageFileFbce1Ab8 = {
@@ -26901,14 +27471,7 @@ export type OutputFalAiFlux2Klein4BEdit = {
   has_nsfw_concepts: boolean[]
 }
 
-export type ImageSizeFfa76Ef5 = {
-  /**
-   * @description The height of the generated image.
-   * @maximum 14142
-   * @default 512
-   * @type integer | undefined
-   */
-  height?: number
+export type ImageSize9C8F1144 = {
   /**
    * @description The width of the generated image.
    * @maximum 14142
@@ -26916,6 +27479,13 @@ export type ImageSizeFfa76Ef5 = {
    * @type integer | undefined
    */
   width?: number
+  /**
+   * @description The height of the generated image.
+   * @maximum 14142
+   * @default 512
+   * @type integer | undefined
+   */
+  height?: number
 }
 
 export const inputFalAiFlux2Klein4BEditLoraOutputFormatEnum = {
@@ -26941,39 +27511,35 @@ export type InputFalAiFlux2Klein4BEditLoraImageSizeKey =
 
 export type InputFalAiFlux2Klein4BEditLora = {
   /**
-   * @description The prompt to edit the image.
-   * @example Turn this into a realistic image
-   * @type string
-   */
-  prompt: string
-  /**
-   * @description The URLs of the images for editing. A maximum of 4 images are allowed.
-   * @example ["https://v3b.fal.media/files/b/0a8a69d5/kkXxFfj1QeVtw35kxy5Py_1a7e3511-bd2c-46be-923a-8e6be2496f12.png"]
-   * @type array
-   */
-  image_urls: string[]
-  /**
-   * @description The number of images to generate.
-   * @minimum 1
-   * @maximum 4
-   * @default 1
-   * @type integer | undefined
-   */
-  num_images?: number
-  /**
    * @description If set to true, the safety checker will be enabled. Disabling it requires account authorization; unauthorized requests are always checked, and images flagged as unsafe are returned as black images.
    * @default true
    * @type boolean | undefined
    */
   enable_safety_checker?: boolean
   /**
-   * @description The number of inference steps to perform.
-   * @minimum 4
-   * @maximum 8
-   * @default 4
-   * @type integer | undefined
+   * @description The format of the generated image.
+   * @default 'png'
+   * @type string | undefined
    */
-  num_inference_steps?: number
+  output_format?: InputFalAiFlux2Klein4BEditLoraOutputFormatEnumKey
+  /**
+   * @description The size of the generated image. If not provided, uses the input image size.
+   * @example {"width":2016,"height":1152}
+   */
+  image_size?:
+    | ImageSize9C8F1144
+    | InputFalAiFlux2Klein4BEditLoraImageSizeKey
+    | null
+  /**
+   * @description The seed to use for the generation. If not provided, a random seed will be used.
+   */
+  seed?: number | null
+  /**
+   * @description The URLs of the images for editing. A maximum of 4 images are allowed.
+   * @example ["https://v3b.fal.media/files/b/0a8a69d5/kkXxFfj1QeVtw35kxy5Py_1a7e3511-bd2c-46be-923a-8e6be2496f12.png"]
+   * @type array
+   */
+  image_urls: string[]
   /**
    * @description If `True`, the media will be returned as a data URI. Output is not stored when this is True.
    * @default false
@@ -26987,23 +27553,27 @@ export type InputFalAiFlux2Klein4BEditLora = {
    */
   loras?: FalAiFlux2KleinLoRAInput[]
   /**
-   * @description The seed to use for the generation. If not provided, a random seed will be used.
+   * @description The prompt to edit the image.
+   * @example Turn this into a realistic image
+   * @type string
    */
-  seed?: number | null
+  prompt: string
   /**
-   * @description The format of the generated image.
-   * @default 'png'
-   * @type string | undefined
+   * @description The number of inference steps to perform.
+   * @minimum 4
+   * @maximum 8
+   * @default 4
+   * @type integer | undefined
    */
-  output_format?: InputFalAiFlux2Klein4BEditLoraOutputFormatEnumKey
+  num_inference_steps?: number
   /**
-   * @description The size of the generated image. If not provided, uses the input image size.
-   * @example {"height":1152,"width":2016}
+   * @description The number of images to generate.
+   * @minimum 1
+   * @maximum 4
+   * @default 1
+   * @type integer | undefined
    */
-  image_size?:
-    | ImageSizeFfa76Ef5
-    | InputFalAiFlux2Klein4BEditLoraImageSizeKey
-    | null
+  num_images?: number
 }
 
 export type ImageFile40Bdad1B = {
@@ -27067,14 +27637,7 @@ export type OutputFalAiFlux2Klein4BEditLora = {
   has_nsfw_concepts: boolean[]
 }
 
-export type ImageSize0A0Dee5A = {
-  /**
-   * @description The height of the generated image.
-   * @maximum 14142
-   * @default 512
-   * @type integer | undefined
-   */
-  height?: number
+export type ImageSize6B4F0C55 = {
   /**
    * @description The width of the generated image.
    * @maximum 14142
@@ -27082,6 +27645,13 @@ export type ImageSize0A0Dee5A = {
    * @type integer | undefined
    */
   width?: number
+  /**
+   * @description The height of the generated image.
+   * @maximum 14142
+   * @default 512
+   * @type integer | undefined
+   */
+  height?: number
 }
 
 export const inputFalAiFlux2Klein4BLoraOutputFormatEnum = {
@@ -27107,33 +27677,26 @@ export type InputFalAiFlux2Klein4BLoraImageSizeKey =
 
 export type InputFalAiFlux2Klein4BLora = {
   /**
-   * @description The prompt to generate an image from.
-   * @example Cheetah in pre-sprint crouch, muscles tensed, gazelle visible in distance, African savanna golden grass, dust particles in air, National Geographic wildlife photography
-   * @type string
-   */
-  prompt: string
-  /**
-   * @description The number of images to generate.
-   * @minimum 1
-   * @maximum 4
-   * @default 1
-   * @type integer | undefined
-   */
-  num_images?: number
-  /**
    * @description If set to true, the safety checker will be enabled. Disabling it requires account authorization; unauthorized requests are always checked, and images flagged as unsafe are returned as black images.
    * @default true
    * @type boolean | undefined
    */
   enable_safety_checker?: boolean
   /**
-   * @description The number of inference steps to perform.
-   * @minimum 4
-   * @maximum 8
-   * @default 4
-   * @type integer | undefined
+   * @description The format of the generated image.
+   * @default 'png'
+   * @type string | undefined
    */
-  num_inference_steps?: number
+  output_format?: InputFalAiFlux2Klein4BLoraOutputFormatEnumKey
+  /**
+   * @description The size of the image to generate.
+   * @default landscape_4_3
+   */
+  image_size?: ImageSize6B4F0C55 | InputFalAiFlux2Klein4BLoraImageSizeKey
+  /**
+   * @description The seed to use for the generation. If not provided, a random seed will be used.
+   */
+  seed?: number | null
   /**
    * @description If `True`, the media will be returned as a data URI. Output is not stored when this is True.
    * @default false
@@ -27147,20 +27710,27 @@ export type InputFalAiFlux2Klein4BLora = {
    */
   loras?: FalAiFlux2KleinLoRAInput[]
   /**
-   * @description The seed to use for the generation. If not provided, a random seed will be used.
+   * @description The prompt to generate an image from.
+   * @example Cheetah in pre-sprint crouch, muscles tensed, gazelle visible in distance, African savanna golden grass, dust particles in air, National Geographic wildlife photography
+   * @type string
    */
-  seed?: number | null
+  prompt: string
   /**
-   * @description The format of the generated image.
-   * @default 'png'
-   * @type string | undefined
+   * @description The number of inference steps to perform.
+   * @minimum 4
+   * @maximum 8
+   * @default 4
+   * @type integer | undefined
    */
-  output_format?: InputFalAiFlux2Klein4BLoraOutputFormatEnumKey
+  num_inference_steps?: number
   /**
-   * @description The size of the image to generate.
-   * @default landscape_4_3
+   * @description The number of images to generate.
+   * @minimum 1
+   * @maximum 4
+   * @default 1
+   * @type integer | undefined
    */
-  image_size?: ImageSize0A0Dee5A | InputFalAiFlux2Klein4BLoraImageSizeKey
+  num_images?: number
 }
 
 export type ImageFileFf9E91C0 = {
@@ -27744,14 +28314,7 @@ export type OutputFalAiFlux2Klein9BBaseEdit = {
   has_nsfw_concepts: boolean[]
 }
 
-export type ImageSize7065Fca6 = {
-  /**
-   * @description The height of the generated image.
-   * @maximum 14142
-   * @default 512
-   * @type integer | undefined
-   */
-  height?: number
+export type ImageSizeF03Ef205 = {
   /**
    * @description The width of the generated image.
    * @maximum 14142
@@ -27759,16 +28322,23 @@ export type ImageSize7065Fca6 = {
    * @type integer | undefined
    */
   width?: number
+  /**
+   * @description The height of the generated image.
+   * @maximum 14142
+   * @default 512
+   * @type integer | undefined
+   */
+  height?: number
 }
 
-export const inputFalAiFlux2Klein9BBaseEditLoraAccelerationEnum = {
-  none: 'none',
-  regular: 'regular',
-  high: 'high',
+export const inputFalAiFlux2Klein9BBaseEditLoraOutputFormatEnum = {
+  jpeg: 'jpeg',
+  png: 'png',
+  webp: 'webp',
 } as const
 
-export type InputFalAiFlux2Klein9BBaseEditLoraAccelerationEnumKey =
-  (typeof inputFalAiFlux2Klein9BBaseEditLoraAccelerationEnum)[keyof typeof inputFalAiFlux2Klein9BBaseEditLoraAccelerationEnum]
+export type InputFalAiFlux2Klein9BBaseEditLoraOutputFormatEnumKey =
+  (typeof inputFalAiFlux2Klein9BBaseEditLoraOutputFormatEnum)[keyof typeof inputFalAiFlux2Klein9BBaseEditLoraOutputFormatEnum]
 
 export const inputFalAiFlux2Klein9BBaseEditLoraImageSize = {
   square_hd: 'square_hd',
@@ -27782,16 +28352,60 @@ export const inputFalAiFlux2Klein9BBaseEditLoraImageSize = {
 export type InputFalAiFlux2Klein9BBaseEditLoraImageSizeKey =
   (typeof inputFalAiFlux2Klein9BBaseEditLoraImageSize)[keyof typeof inputFalAiFlux2Klein9BBaseEditLoraImageSize]
 
-export const inputFalAiFlux2Klein9BBaseEditLoraOutputFormatEnum = {
-  jpeg: 'jpeg',
-  png: 'png',
-  webp: 'webp',
+export const inputFalAiFlux2Klein9BBaseEditLoraAccelerationEnum = {
+  none: 'none',
+  regular: 'regular',
+  high: 'high',
 } as const
 
-export type InputFalAiFlux2Klein9BBaseEditLoraOutputFormatEnumKey =
-  (typeof inputFalAiFlux2Klein9BBaseEditLoraOutputFormatEnum)[keyof typeof inputFalAiFlux2Klein9BBaseEditLoraOutputFormatEnum]
+export type InputFalAiFlux2Klein9BBaseEditLoraAccelerationEnumKey =
+  (typeof inputFalAiFlux2Klein9BBaseEditLoraAccelerationEnum)[keyof typeof inputFalAiFlux2Klein9BBaseEditLoraAccelerationEnum]
 
 export type InputFalAiFlux2Klein9BBaseEditLora = {
+  /**
+   * @description If set to true, the safety checker will be enabled. Disabling it requires account authorization; unauthorized requests are always checked, and images flagged as unsafe are returned as black images.
+   * @default true
+   * @type boolean | undefined
+   */
+  enable_safety_checker?: boolean
+  /**
+   * @description The format of the generated image.
+   * @default 'png'
+   * @type string | undefined
+   */
+  output_format?: InputFalAiFlux2Klein9BBaseEditLoraOutputFormatEnumKey
+  /**
+   * @description The size of the generated image. If not provided, uses the input image size.
+   * @example {"width":2016,"height":1152}
+   */
+  image_size?:
+    | ImageSizeF03Ef205
+    | InputFalAiFlux2Klein9BBaseEditLoraImageSizeKey
+    | null
+  /**
+   * @description The number of inference steps to perform.
+   * @minimum 4
+   * @maximum 50
+   * @default 28
+   * @type integer | undefined
+   */
+  num_inference_steps?: number
+  /**
+   * @description Negative prompt for classifier-free guidance. Describes what to avoid in the image.
+   * @default ''
+   * @type string | undefined
+   */
+  negative_prompt?: string
+  /**
+   * @description The seed to use for the generation. If not provided, a random seed will be used.
+   */
+  seed?: number | null
+  /**
+   * @description The URLs of the images for editing. A maximum of 4 images are allowed.
+   * @example ["https://storage.googleapis.com/falserverless/example_inputs/flux2_dev_edit_input.png"]
+   * @type array
+   */
+  image_urls: string[]
   /**
    * @description The acceleration level to use for image generation.
    * @default 'regular'
@@ -27805,55 +28419,17 @@ export type InputFalAiFlux2Klein9BBaseEditLora = {
    */
   prompt: string
   /**
-   * @description The URLs of the images for editing. A maximum of 4 images are allowed.
-   * @example ["https://storage.googleapis.com/falserverless/example_inputs/flux2_dev_edit_input.png"]
-   * @type array
-   */
-  image_urls: string[]
-  /**
-   * @description The number of images to generate.
-   * @minimum 1
-   * @maximum 4
-   * @default 1
-   * @type integer | undefined
-   */
-  num_images?: number
-  /**
-   * @description If set to true, the safety checker will be enabled. Disabling it requires account authorization; unauthorized requests are always checked, and images flagged as unsafe are returned as black images.
-   * @default true
-   * @type boolean | undefined
-   */
-  enable_safety_checker?: boolean
-  /**
-   * @description The size of the generated image. If not provided, uses the input image size.
-   * @example {"height":1152,"width":2016}
-   */
-  image_size?:
-    | ImageSize7065Fca6
-    | InputFalAiFlux2Klein9BBaseEditLoraImageSizeKey
-    | null
-  /**
-   * @description If `True`, the media will be returned as a data URI. Output is not stored when this is True.
-   * @default false
-   * @type boolean | undefined
-   */
-  sync_mode?: boolean
-  /**
    * @description List of LoRA weights to apply (maximum 3).
    * @default []
    * @type array | undefined
    */
   loras?: FalAiFlux2KleinLoRAInput[]
   /**
-   * @description The seed to use for the generation. If not provided, a random seed will be used.
+   * @description If `True`, the media will be returned as a data URI. Output is not stored when this is True.
+   * @default false
+   * @type boolean | undefined
    */
-  seed?: number | null
-  /**
-   * @description The format of the generated image.
-   * @default 'png'
-   * @type string | undefined
-   */
-  output_format?: InputFalAiFlux2Klein9BBaseEditLoraOutputFormatEnumKey
+  sync_mode?: boolean
   /**
    * @description Guidance scale for classifier-free guidance.
    * @minimum 0
@@ -27863,19 +28439,13 @@ export type InputFalAiFlux2Klein9BBaseEditLora = {
    */
   guidance_scale?: number
   /**
-   * @description Negative prompt for classifier-free guidance. Describes what to avoid in the image.
-   * @default ''
-   * @type string | undefined
-   */
-  negative_prompt?: string
-  /**
-   * @description The number of inference steps to perform.
-   * @minimum 4
-   * @maximum 50
-   * @default 28
+   * @description The number of images to generate.
+   * @minimum 1
+   * @maximum 4
+   * @default 1
    * @type integer | undefined
    */
-  num_inference_steps?: number
+  num_images?: number
 }
 
 export type ImageFileF549Aa24 = {
@@ -27938,14 +28508,7 @@ export type OutputFalAiFlux2Klein9BBaseEditLora = {
   has_nsfw_concepts: boolean[]
 }
 
-export type ImageSize1C02Afb7 = {
-  /**
-   * @description The height of the generated image.
-   * @maximum 14142
-   * @default 512
-   * @type integer | undefined
-   */
-  height?: number
+export type ImageSize7B766Dca = {
   /**
    * @description The width of the generated image.
    * @maximum 14142
@@ -27953,16 +28516,23 @@ export type ImageSize1C02Afb7 = {
    * @type integer | undefined
    */
   width?: number
+  /**
+   * @description The height of the generated image.
+   * @maximum 14142
+   * @default 512
+   * @type integer | undefined
+   */
+  height?: number
 }
 
-export const inputFalAiFlux2Klein9BBaseLoraAccelerationEnum = {
-  none: 'none',
-  regular: 'regular',
-  high: 'high',
+export const inputFalAiFlux2Klein9BBaseLoraOutputFormatEnum = {
+  jpeg: 'jpeg',
+  png: 'png',
+  webp: 'webp',
 } as const
 
-export type InputFalAiFlux2Klein9BBaseLoraAccelerationEnumKey =
-  (typeof inputFalAiFlux2Klein9BBaseLoraAccelerationEnum)[keyof typeof inputFalAiFlux2Klein9BBaseLoraAccelerationEnum]
+export type InputFalAiFlux2Klein9BBaseLoraOutputFormatEnumKey =
+  (typeof inputFalAiFlux2Klein9BBaseLoraOutputFormatEnum)[keyof typeof inputFalAiFlux2Klein9BBaseLoraOutputFormatEnum]
 
 export const inputFalAiFlux2Klein9BBaseLoraImageSize = {
   square_hd: 'square_hd',
@@ -27976,16 +28546,51 @@ export const inputFalAiFlux2Klein9BBaseLoraImageSize = {
 export type InputFalAiFlux2Klein9BBaseLoraImageSizeKey =
   (typeof inputFalAiFlux2Klein9BBaseLoraImageSize)[keyof typeof inputFalAiFlux2Klein9BBaseLoraImageSize]
 
-export const inputFalAiFlux2Klein9BBaseLoraOutputFormatEnum = {
-  jpeg: 'jpeg',
-  png: 'png',
-  webp: 'webp',
+export const inputFalAiFlux2Klein9BBaseLoraAccelerationEnum = {
+  none: 'none',
+  regular: 'regular',
+  high: 'high',
 } as const
 
-export type InputFalAiFlux2Klein9BBaseLoraOutputFormatEnumKey =
-  (typeof inputFalAiFlux2Klein9BBaseLoraOutputFormatEnum)[keyof typeof inputFalAiFlux2Klein9BBaseLoraOutputFormatEnum]
+export type InputFalAiFlux2Klein9BBaseLoraAccelerationEnumKey =
+  (typeof inputFalAiFlux2Klein9BBaseLoraAccelerationEnum)[keyof typeof inputFalAiFlux2Klein9BBaseLoraAccelerationEnum]
 
 export type InputFalAiFlux2Klein9BBaseLora = {
+  /**
+   * @description If set to true, the safety checker will be enabled. Disabling it requires account authorization; unauthorized requests are always checked, and images flagged as unsafe are returned as black images.
+   * @default true
+   * @type boolean | undefined
+   */
+  enable_safety_checker?: boolean
+  /**
+   * @description The format of the generated image.
+   * @default 'png'
+   * @type string | undefined
+   */
+  output_format?: InputFalAiFlux2Klein9BBaseLoraOutputFormatEnumKey
+  /**
+   * @description The size of the image to generate.
+   * @default landscape_4_3
+   */
+  image_size?: ImageSize7B766Dca | InputFalAiFlux2Klein9BBaseLoraImageSizeKey
+  /**
+   * @description The number of inference steps to perform.
+   * @minimum 4
+   * @maximum 50
+   * @default 28
+   * @type integer | undefined
+   */
+  num_inference_steps?: number
+  /**
+   * @description Negative prompt for classifier-free guidance. Describes what to avoid in the image.
+   * @default ''
+   * @type string | undefined
+   */
+  negative_prompt?: string
+  /**
+   * @description The seed to use for the generation. If not provided, a random seed will be used.
+   */
+  seed?: number | null
   /**
    * @description The acceleration level to use for image generation.
    * @default 'regular'
@@ -27999,46 +28604,17 @@ export type InputFalAiFlux2Klein9BBaseLora = {
    */
   prompt: string
   /**
-   * @description The number of images to generate.
-   * @minimum 1
-   * @maximum 4
-   * @default 1
-   * @type integer | undefined
-   */
-  num_images?: number
-  /**
-   * @description If set to true, the safety checker will be enabled. Disabling it requires account authorization; unauthorized requests are always checked, and images flagged as unsafe are returned as black images.
-   * @default true
-   * @type boolean | undefined
-   */
-  enable_safety_checker?: boolean
-  /**
-   * @description The size of the image to generate.
-   * @default landscape_4_3
-   */
-  image_size?: ImageSize1C02Afb7 | InputFalAiFlux2Klein9BBaseLoraImageSizeKey
-  /**
-   * @description If `True`, the media will be returned as a data URI. Output is not stored when this is True.
-   * @default false
-   * @type boolean | undefined
-   */
-  sync_mode?: boolean
-  /**
    * @description List of LoRA weights to apply (maximum 3).
    * @default []
    * @type array | undefined
    */
   loras?: FalAiFlux2KleinLoRAInput[]
   /**
-   * @description The seed to use for the generation. If not provided, a random seed will be used.
+   * @description If `True`, the media will be returned as a data URI. Output is not stored when this is True.
+   * @default false
+   * @type boolean | undefined
    */
-  seed?: number | null
-  /**
-   * @description The format of the generated image.
-   * @default 'png'
-   * @type string | undefined
-   */
-  output_format?: InputFalAiFlux2Klein9BBaseLoraOutputFormatEnumKey
+  sync_mode?: boolean
   /**
    * @description Guidance scale for classifier-free guidance.
    * @minimum 0
@@ -28048,19 +28624,13 @@ export type InputFalAiFlux2Klein9BBaseLora = {
    */
   guidance_scale?: number
   /**
-   * @description Negative prompt for classifier-free guidance. Describes what to avoid in the image.
-   * @default ''
-   * @type string | undefined
-   */
-  negative_prompt?: string
-  /**
-   * @description The number of inference steps to perform.
-   * @minimum 4
-   * @maximum 50
-   * @default 28
+   * @description The number of images to generate.
+   * @minimum 1
+   * @maximum 4
+   * @default 1
    * @type integer | undefined
    */
-  num_inference_steps?: number
+  num_images?: number
 }
 
 export type ImageFile90719E75 = {
@@ -28279,14 +28849,7 @@ export type OutputFalAiFlux2Klein9BEdit = {
   has_nsfw_concepts: boolean[]
 }
 
-export type ImageSize49Efb38C = {
-  /**
-   * @description The height of the generated image.
-   * @maximum 14142
-   * @default 512
-   * @type integer | undefined
-   */
-  height?: number
+export type ImageSizeFe7Cbc1D = {
   /**
    * @description The width of the generated image.
    * @maximum 14142
@@ -28294,6 +28857,13 @@ export type ImageSize49Efb38C = {
    * @type integer | undefined
    */
   width?: number
+  /**
+   * @description The height of the generated image.
+   * @maximum 14142
+   * @default 512
+   * @type integer | undefined
+   */
+  height?: number
 }
 
 export const inputFalAiFlux2Klein9BEditLoraOutputFormatEnum = {
@@ -28319,39 +28889,35 @@ export type InputFalAiFlux2Klein9BEditLoraImageSizeKey =
 
 export type InputFalAiFlux2Klein9BEditLora = {
   /**
-   * @description The prompt to edit the image.
-   * @example Turn this into a realistic image
-   * @type string
-   */
-  prompt: string
-  /**
-   * @description The URLs of the images for editing. A maximum of 4 images are allowed.
-   * @example ["https://v3b.fal.media/files/b/0a8a69d5/kkXxFfj1QeVtw35kxy5Py_1a7e3511-bd2c-46be-923a-8e6be2496f12.png"]
-   * @type array
-   */
-  image_urls: string[]
-  /**
-   * @description The number of images to generate.
-   * @minimum 1
-   * @maximum 4
-   * @default 1
-   * @type integer | undefined
-   */
-  num_images?: number
-  /**
    * @description If set to true, the safety checker will be enabled. Disabling it requires account authorization; unauthorized requests are always checked, and images flagged as unsafe are returned as black images.
    * @default true
    * @type boolean | undefined
    */
   enable_safety_checker?: boolean
   /**
-   * @description The number of inference steps to perform.
-   * @minimum 4
-   * @maximum 8
-   * @default 4
-   * @type integer | undefined
+   * @description The format of the generated image.
+   * @default 'png'
+   * @type string | undefined
    */
-  num_inference_steps?: number
+  output_format?: InputFalAiFlux2Klein9BEditLoraOutputFormatEnumKey
+  /**
+   * @description The size of the generated image. If not provided, uses the input image size.
+   * @example {"width":2016,"height":1152}
+   */
+  image_size?:
+    | ImageSizeFe7Cbc1D
+    | InputFalAiFlux2Klein9BEditLoraImageSizeKey
+    | null
+  /**
+   * @description The seed to use for the generation. If not provided, a random seed will be used.
+   */
+  seed?: number | null
+  /**
+   * @description The URLs of the images for editing. A maximum of 4 images are allowed.
+   * @example ["https://v3b.fal.media/files/b/0a8a69d5/kkXxFfj1QeVtw35kxy5Py_1a7e3511-bd2c-46be-923a-8e6be2496f12.png"]
+   * @type array
+   */
+  image_urls: string[]
   /**
    * @description If `True`, the media will be returned as a data URI. Output is not stored when this is True.
    * @default false
@@ -28365,23 +28931,27 @@ export type InputFalAiFlux2Klein9BEditLora = {
    */
   loras?: FalAiFlux2KleinLoRAInput[]
   /**
-   * @description The seed to use for the generation. If not provided, a random seed will be used.
+   * @description The prompt to edit the image.
+   * @example Turn this into a realistic image
+   * @type string
    */
-  seed?: number | null
+  prompt: string
   /**
-   * @description The format of the generated image.
-   * @default 'png'
-   * @type string | undefined
+   * @description The number of inference steps to perform.
+   * @minimum 4
+   * @maximum 8
+   * @default 4
+   * @type integer | undefined
    */
-  output_format?: InputFalAiFlux2Klein9BEditLoraOutputFormatEnumKey
+  num_inference_steps?: number
   /**
-   * @description The size of the generated image. If not provided, uses the input image size.
-   * @example {"height":1152,"width":2016}
+   * @description The number of images to generate.
+   * @minimum 1
+   * @maximum 4
+   * @default 1
+   * @type integer | undefined
    */
-  image_size?:
-    | ImageSize49Efb38C
-    | InputFalAiFlux2Klein9BEditLoraImageSizeKey
-    | null
+  num_images?: number
 }
 
 export type ImageFile6Ef8Aec2 = {
@@ -28444,14 +29014,7 @@ export type OutputFalAiFlux2Klein9BEditLora = {
   has_nsfw_concepts: boolean[]
 }
 
-export type ImageSize7D9925Cd = {
-  /**
-   * @description The height of the generated image.
-   * @maximum 14142
-   * @default 512
-   * @type integer | undefined
-   */
-  height?: number
+export type ImageSize298678B2 = {
   /**
    * @description The width of the generated image.
    * @maximum 14142
@@ -28459,6 +29022,13 @@ export type ImageSize7D9925Cd = {
    * @type integer | undefined
    */
   width?: number
+  /**
+   * @description The height of the generated image.
+   * @maximum 14142
+   * @default 512
+   * @type integer | undefined
+   */
+  height?: number
 }
 
 export const inputFalAiFlux2Klein9BLoraOutputFormatEnum = {
@@ -28484,33 +29054,26 @@ export type InputFalAiFlux2Klein9BLoraImageSizeKey =
 
 export type InputFalAiFlux2Klein9BLora = {
   /**
-   * @description The prompt to generate an image from.
-   * @example A bright, surreal scene on a vast white salt flat under a clear blue sky, featuring two fluffy white alpacas standing in the foreground. Behind them sits a sleek white supercar with its scissor doors open, creating a dramatic futuristic silhouette. The sunlight is strong and crisp, casting sharp shadows on the ground and giving the image a clean, high-contrast cinematic look. Minimalist composition, playful luxury vibe, ultra sharp detail, wide-angle perspective, high resolution.
-   * @type string
-   */
-  prompt: string
-  /**
-   * @description The number of images to generate.
-   * @minimum 1
-   * @maximum 4
-   * @default 1
-   * @type integer | undefined
-   */
-  num_images?: number
-  /**
    * @description If set to true, the safety checker will be enabled. Disabling it requires account authorization; unauthorized requests are always checked, and images flagged as unsafe are returned as black images.
    * @default true
    * @type boolean | undefined
    */
   enable_safety_checker?: boolean
   /**
-   * @description The number of inference steps to perform.
-   * @minimum 4
-   * @maximum 8
-   * @default 4
-   * @type integer | undefined
+   * @description The format of the generated image.
+   * @default 'png'
+   * @type string | undefined
    */
-  num_inference_steps?: number
+  output_format?: InputFalAiFlux2Klein9BLoraOutputFormatEnumKey
+  /**
+   * @description The size of the image to generate.
+   * @default landscape_4_3
+   */
+  image_size?: ImageSize298678B2 | InputFalAiFlux2Klein9BLoraImageSizeKey
+  /**
+   * @description The seed to use for the generation. If not provided, a random seed will be used.
+   */
+  seed?: number | null
   /**
    * @description If `True`, the media will be returned as a data URI. Output is not stored when this is True.
    * @default false
@@ -28524,20 +29087,27 @@ export type InputFalAiFlux2Klein9BLora = {
    */
   loras?: FalAiFlux2KleinLoRAInput[]
   /**
-   * @description The seed to use for the generation. If not provided, a random seed will be used.
+   * @description The prompt to generate an image from.
+   * @example A bright, surreal scene on a vast white salt flat under a clear blue sky, featuring two fluffy white alpacas standing in the foreground. Behind them sits a sleek white supercar with its scissor doors open, creating a dramatic futuristic silhouette. The sunlight is strong and crisp, casting sharp shadows on the ground and giving the image a clean, high-contrast cinematic look. Minimalist composition, playful luxury vibe, ultra sharp detail, wide-angle perspective, high resolution.
+   * @type string
    */
-  seed?: number | null
+  prompt: string
   /**
-   * @description The format of the generated image.
-   * @default 'png'
-   * @type string | undefined
+   * @description The number of inference steps to perform.
+   * @minimum 4
+   * @maximum 8
+   * @default 4
+   * @type integer | undefined
    */
-  output_format?: InputFalAiFlux2Klein9BLoraOutputFormatEnumKey
+  num_inference_steps?: number
   /**
-   * @description The size of the image to generate.
-   * @default landscape_4_3
+   * @description The number of images to generate.
+   * @minimum 1
+   * @maximum 4
+   * @default 1
+   * @type integer | undefined
    */
-  image_size?: ImageSize7D9925Cd | InputFalAiFlux2Klein9BLoraImageSizeKey
+  num_images?: number
 }
 
 export type ImageFileD9F8E01B = {
@@ -28693,16 +29263,28 @@ export type OutputFalAiFlux2KleinRealtime = {
   images: RawImage[]
 }
 
+export type ImageSize47Be7384 = {
+  /**
+   * @description The width of the generated image.
+   * @maximum 14142
+   * @default 512
+   * @type integer | undefined
+   */
+  width?: number
+  /**
+   * @description The height of the generated image.
+   * @maximum 14142
+   * @default 512
+   * @type integer | undefined
+   */
+  height?: number
+}
+
 /**
  * @description LoRA weight configuration.
  * @type object
  */
-export type LoRAInput98A7E8C7 = {
-  /**
-   * @description URL, HuggingFace repo ID (owner/repo), or local path to LoRA weights.
-   * @type string
-   */
-  path: string
+export type LoRAInputFc541788 = {
   /**
    * @description Scale factor for LoRA application (0.0 to 4.0).
    * @minimum 0
@@ -28711,33 +29293,12 @@ export type LoRAInput98A7E8C7 = {
    * @type number | undefined
    */
   scale?: number
-}
-
-export type ImageSize439Bfc3B = {
   /**
-   * @description The height of the generated image.
-   * @maximum 14142
-   * @default 512
-   * @type integer | undefined
+   * @description URL or HuggingFace repo ID (owner/repo) of the LoRA weights.
+   * @type string
    */
-  height?: number
-  /**
-   * @description The width of the generated image.
-   * @maximum 14142
-   * @default 512
-   * @type integer | undefined
-   */
-  width?: number
+  path: string
 }
-
-export const inputFalAiFlux2LoraAccelerationEnum = {
-  none: 'none',
-  regular: 'regular',
-  high: 'high',
-} as const
-
-export type InputFalAiFlux2LoraAccelerationEnumKey =
-  (typeof inputFalAiFlux2LoraAccelerationEnum)[keyof typeof inputFalAiFlux2LoraAccelerationEnum]
 
 export const inputFalAiFlux2LoraImageSize = {
   square_hd: 'square_hd',
@@ -28760,7 +29321,33 @@ export const inputFalAiFlux2LoraOutputFormatEnum = {
 export type InputFalAiFlux2LoraOutputFormatEnumKey =
   (typeof inputFalAiFlux2LoraOutputFormatEnum)[keyof typeof inputFalAiFlux2LoraOutputFormatEnum]
 
+export const inputFalAiFlux2LoraAccelerationEnum = {
+  none: 'none',
+  regular: 'regular',
+  high: 'high',
+} as const
+
+export type InputFalAiFlux2LoraAccelerationEnumKey =
+  (typeof inputFalAiFlux2LoraAccelerationEnum)[keyof typeof inputFalAiFlux2LoraAccelerationEnum]
+
 export type InputFalAiFlux2Lora = {
+  /**
+   * @description The size of the image to generate. The width and height must be between 512 and 2048 pixels.
+   * @default landscape_4_3
+   */
+  image_size?: ImageSize47Be7384 | InputFalAiFlux2LoraImageSizeKey
+  /**
+   * @description If set to true, the prompt will be expanded for better results.
+   * @default false
+   * @type boolean | undefined
+   */
+  enable_prompt_expansion?: boolean
+  /**
+   * @description List of LoRA weights to apply (maximum 3). Each LoRA can be a URL or HuggingFace repo ID.
+   * @default []
+   * @type array | undefined
+   */
+  loras?: LoRAInputFc541788[]
   /**
    * @description The number of inference steps to perform.
    * @minimum 4
@@ -28770,27 +29357,17 @@ export type InputFalAiFlux2Lora = {
    */
   num_inference_steps?: number
   /**
-   * @description If `True`, the media will be returned as a data URI and the output data won't be available in the request history.
-   * @default false
-   * @type boolean | undefined
+   * @description The format of the generated image.
+   * @default 'png'
+   * @type string | undefined
    */
-  sync_mode?: boolean
+  output_format?: InputFalAiFlux2LoraOutputFormatEnumKey
   /**
-   * @description The seed to use for the generation. If not provided, a random seed will be used.
+   * @description The prompt to generate an image from.
+   * @example Close shot a pianist plays in a luxurious room with tall windows overlooking a rainy metropolis. Shot with a 50mm lens at a side profile angle, soft tungsten light highlighting hands moving over keys. Capture detailed reflections in polished black piano surfaces, raindrops sliding down glass, and atmospheric warm/cool lighting contrast.
+   * @type string
    */
-  seed?: number | null
-  /**
-   * @description List of LoRA weights to apply (maximum 3). Each LoRA can be a URL, HuggingFace repo ID, or local path.
-   * @default []
-   * @type array | undefined
-   */
-  loras?: LoRAInput98A7E8C7[]
-  /**
-   * @description If set to true, the prompt will be expanded for better results.
-   * @default false
-   * @type boolean | undefined
-   */
-  enable_prompt_expansion?: boolean
+  prompt: string
   /**
    * @description Guidance Scale is a measure of how close you want the model to stick to your prompt when looking for a related image to show you.
    * @minimum 0
@@ -28800,36 +29377,6 @@ export type InputFalAiFlux2Lora = {
    */
   guidance_scale?: number
   /**
-   * @description The acceleration level to use for the image generation.
-   * @default 'regular'
-   * @example regular
-   * @type string | undefined
-   */
-  acceleration?: InputFalAiFlux2LoraAccelerationEnumKey
-  /**
-   * @description The prompt to generate an image from.
-   * @example Close shot a pianist plays in a luxurious room with tall windows overlooking a rainy metropolis. Shot with a 50mm lens at a side profile angle, soft tungsten light highlighting hands moving over keys. Capture detailed reflections in polished black piano surfaces, raindrops sliding down glass, and atmospheric warm/cool lighting contrast.
-   * @type string
-   */
-  prompt: string
-  /**
-   * @description The size of the image to generate. The width and height must be between 512 and 2048 pixels.
-   * @default landscape_4_3
-   */
-  image_size?: ImageSize439Bfc3B | InputFalAiFlux2LoraImageSizeKey
-  /**
-   * @description The format of the generated image.
-   * @default 'png'
-   * @type string | undefined
-   */
-  output_format?: InputFalAiFlux2LoraOutputFormatEnumKey
-  /**
-   * @description If set to true, the safety checker will be enabled. Disabling it requires account authorization; unauthorized requests are always checked, and images flagged as unsafe are returned as black images.
-   * @default true
-   * @type boolean | undefined
-   */
-  enable_safety_checker?: boolean
-  /**
    * @description The number of images to generate.
    * @minimum 1
    * @maximum 4
@@ -28837,6 +29384,29 @@ export type InputFalAiFlux2Lora = {
    * @type integer | undefined
    */
   num_images?: number
+  /**
+   * @description If `True`, the media will be returned as a data URI and the output data won't be available in the request history.
+   * @default false
+   * @type boolean | undefined
+   */
+  sync_mode?: boolean
+  /**
+   * @description If set to true, the safety checker will be enabled. Disabling it requires account authorization; unauthorized requests are always checked, and images flagged as unsafe are returned as black images.
+   * @default true
+   * @type boolean | undefined
+   */
+  enable_safety_checker?: boolean
+  /**
+   * @description The acceleration level to use for the image generation.
+   * @default 'regular'
+   * @example regular
+   * @type string | undefined
+   */
+  acceleration?: InputFalAiFlux2LoraAccelerationEnumKey
+  /**
+   * @description The seed to use for the generation. If not provided, a random seed will be used.
+   */
+  seed?: number | null
 }
 
 export type ImageFileF6799Aed = {
@@ -28900,16 +29470,28 @@ export type OutputFalAiFlux2Lora = {
   prompt: string
 }
 
+export type ImageSize0E5C9Cbb = {
+  /**
+   * @description The width of the generated image.
+   * @maximum 14142
+   * @default 512
+   * @type integer | undefined
+   */
+  width?: number
+  /**
+   * @description The height of the generated image.
+   * @maximum 14142
+   * @default 512
+   * @type integer | undefined
+   */
+  height?: number
+}
+
 /**
  * @description LoRA weight configuration.
  * @type object
  */
-export type LoRAInput92F1B162 = {
-  /**
-   * @description URL, HuggingFace repo ID (owner/repo), or local path to LoRA weights.
-   * @type string
-   */
-  path: string
+export type LoRAInput9Dea4Ab7 = {
   /**
    * @description Scale factor for LoRA application (0.0 to 4.0).
    * @minimum 0
@@ -28918,33 +29500,12 @@ export type LoRAInput92F1B162 = {
    * @type number | undefined
    */
   scale?: number
-}
-
-export type ImageSizeA97C59Ce = {
   /**
-   * @description The height of the generated image.
-   * @maximum 14142
-   * @default 512
-   * @type integer | undefined
+   * @description URL or HuggingFace repo ID (owner/repo) of the LoRA weights.
+   * @type string
    */
-  height?: number
-  /**
-   * @description The width of the generated image.
-   * @maximum 14142
-   * @default 512
-   * @type integer | undefined
-   */
-  width?: number
+  path: string
 }
-
-export const inputFalAiFlux2LoraEditAccelerationEnum = {
-  none: 'none',
-  regular: 'regular',
-  high: 'high',
-} as const
-
-export type InputFalAiFlux2LoraEditAccelerationEnumKey =
-  (typeof inputFalAiFlux2LoraEditAccelerationEnum)[keyof typeof inputFalAiFlux2LoraEditAccelerationEnum]
 
 export const inputFalAiFlux2LoraEditImageSize = {
   square_hd: 'square_hd',
@@ -28967,7 +29528,31 @@ export const inputFalAiFlux2LoraEditOutputFormatEnum = {
 export type InputFalAiFlux2LoraEditOutputFormatEnumKey =
   (typeof inputFalAiFlux2LoraEditOutputFormatEnum)[keyof typeof inputFalAiFlux2LoraEditOutputFormatEnum]
 
+export const inputFalAiFlux2LoraEditAccelerationEnum = {
+  none: 'none',
+  regular: 'regular',
+  high: 'high',
+} as const
+
+export type InputFalAiFlux2LoraEditAccelerationEnumKey =
+  (typeof inputFalAiFlux2LoraEditAccelerationEnum)[keyof typeof inputFalAiFlux2LoraEditAccelerationEnum]
+
 export type InputFalAiFlux2LoraEdit = {
+  /**
+   * @description The seed to use for the generation. If not provided, a random seed will be used.
+   */
+  seed?: number | null
+  /**
+   * @description The size of the image to generate. The width and height must be between 512 and 2048 pixels.
+   * @example {"width":2016,"height":1152}
+   */
+  image_size?: ImageSize0E5C9Cbb | InputFalAiFlux2LoraEditImageSizeKey | null
+  /**
+   * @description If set to true, the prompt will be expanded for better results.
+   * @default false
+   * @type boolean | undefined
+   */
+  enable_prompt_expansion?: boolean
   /**
    * @description The number of inference steps to perform.
    * @minimum 4
@@ -28977,40 +29562,23 @@ export type InputFalAiFlux2LoraEdit = {
    */
   num_inference_steps?: number
   /**
-   * @description If `True`, the media will be returned as a data URI and the output data won't be available in the request history.
-   * @default false
-   * @type boolean | undefined
+   * @description The format of the generated image.
+   * @default 'png'
+   * @type string | undefined
    */
-  sync_mode?: boolean
+  output_format?: InputFalAiFlux2LoraEditOutputFormatEnumKey
   /**
-   * @description The seed to use for the generation. If not provided, a random seed will be used.
-   */
-  seed?: number | null
-  /**
-   * @description List of LoRA weights to apply (maximum 3). Each LoRA can be a URL, HuggingFace repo ID, or local path.
+   * @description List of LoRA weights to apply (maximum 3). Each LoRA can be a URL or HuggingFace repo ID.
    * @default []
    * @type array | undefined
    */
-  loras?: LoRAInput92F1B162[]
+  loras?: LoRAInput9Dea4Ab7[]
   /**
-   * @description If set to true, the prompt will be expanded for better results.
-   * @default false
-   * @type boolean | undefined
+   * @description The prompt to generate an image from.
+   * @example Make this donut realistic
+   * @type string
    */
-  enable_prompt_expansion?: boolean
-  /**
-   * @description The URLs of the images for editing. A maximum of 4 images are allowed.
-   * @example ["https://storage.googleapis.com/falserverless/example_inputs/flux2_dev_lora_edit_input.png"]
-   * @type array
-   */
-  image_urls: string[]
-  /**
-   * @description The acceleration level to use for the image generation.
-   * @default 'regular'
-   * @example regular
-   * @type string | undefined
-   */
-  acceleration?: InputFalAiFlux2LoraEditAccelerationEnumKey
+  prompt: string
   /**
    * @description Guidance Scale is a measure of how close you want the model to stick to your prompt when looking for a related image to show you.
    * @minimum 0
@@ -29020,23 +29588,6 @@ export type InputFalAiFlux2LoraEdit = {
    */
   guidance_scale?: number
   /**
-   * @description The size of the image to generate. The width and height must be between 512 and 2048 pixels.
-   * @example {"height":1152,"width":2016}
-   */
-  image_size?: ImageSizeA97C59Ce | InputFalAiFlux2LoraEditImageSizeKey | null
-  /**
-   * @description The format of the generated image.
-   * @default 'png'
-   * @type string | undefined
-   */
-  output_format?: InputFalAiFlux2LoraEditOutputFormatEnumKey
-  /**
-   * @description The prompt to generate an image from.
-   * @example Make this donut realistic
-   * @type string
-   */
-  prompt: string
-  /**
    * @description The number of images to generate.
    * @minimum 1
    * @maximum 4
@@ -29045,11 +29596,30 @@ export type InputFalAiFlux2LoraEdit = {
    */
   num_images?: number
   /**
+   * @description If `True`, the media will be returned as a data URI and the output data won't be available in the request history.
+   * @default false
+   * @type boolean | undefined
+   */
+  sync_mode?: boolean
+  /**
    * @description If set to true, the safety checker will be enabled. Disabling it requires account authorization; unauthorized requests are always checked, and images flagged as unsafe are returned as black images.
    * @default true
    * @type boolean | undefined
    */
   enable_safety_checker?: boolean
+  /**
+   * @description The acceleration level to use for the image generation.
+   * @default 'regular'
+   * @example regular
+   * @type string | undefined
+   */
+  acceleration?: InputFalAiFlux2LoraEditAccelerationEnumKey
+  /**
+   * @description The URLs of the images for editing. A maximum of 4 images are allowed.
+   * @example ["https://storage.googleapis.com/falserverless/example_inputs/flux2_dev_lora_edit_input.png"]
+   * @type array
+   */
+  image_urls: string[]
 }
 
 export type ImageFileE70025A8 = {
@@ -32466,12 +33036,7 @@ export type OutputFalAiFluxGeneralRfInversion = {
   seed: number
 }
 
-export type LoraWeightFf4E1422 = {
-  /**
-   * @description URL or the path to the LoRA weights.
-   * @type string
-   */
-  path: string
+export type LoraWeightBf3Fd90C = {
   /**
    * @description
    *             The scale of the LoRA weight. This is used to scale the LoRA weight
@@ -32483,7 +33048,20 @@ export type LoraWeightFf4E1422 = {
    * @type number | undefined
    */
   scale?: number
+  /**
+   * @description URL or the path to the LoRA weights.
+   * @type string
+   */
+  path: string
 }
+
+export const inputFalAiFluxKontextLoraOutputFormatEnum = {
+  jpeg: 'jpeg',
+  png: 'png',
+} as const
+
+export type InputFalAiFluxKontextLoraOutputFormatEnumKey =
+  (typeof inputFalAiFluxKontextLoraOutputFormatEnum)[keyof typeof inputFalAiFluxKontextLoraOutputFormatEnum]
 
 export const inputFalAiFluxKontextLoraAccelerationEnum = {
   none: 'none',
@@ -32493,14 +33071,6 @@ export const inputFalAiFluxKontextLoraAccelerationEnum = {
 
 export type InputFalAiFluxKontextLoraAccelerationEnumKey =
   (typeof inputFalAiFluxKontextLoraAccelerationEnum)[keyof typeof inputFalAiFluxKontextLoraAccelerationEnum]
-
-export const inputFalAiFluxKontextLoraOutputFormatEnum = {
-  jpeg: 'jpeg',
-  png: 'png',
-} as const
-
-export type InputFalAiFluxKontextLoraOutputFormatEnumKey =
-  (typeof inputFalAiFluxKontextLoraOutputFormatEnum)[keyof typeof inputFalAiFluxKontextLoraOutputFormatEnum]
 
 export const inputFalAiFluxKontextLoraResolutionModeEnum = {
   auto: 'auto',
@@ -32523,31 +33093,19 @@ export type InputFalAiFluxKontextLoraResolutionModeEnumKey =
 
 export type InputFalAiFluxKontextLora = {
   /**
-   * @description The prompt to edit the image.
-   * @example change the setting to a day time, add a lot of people walking the sidewalk while maintaining the same style of the painting
+   * @description The URL of the image to edit.
+   *
+   * Max file size: 100.0MB, Max width: 14142px, Max height: 14142px, Timeout: 20s
+   * @example https://storage.googleapis.com/falserverless/example_inputs/kontext_example_input.webp
    * @type string
    */
-  prompt: string
+  image_url: string
   /**
-   * @description The speed of the generation. The higher the speed, the faster the generation.
-   * @default 'none'
+   * @description The format of the generated image.
+   * @default 'png'
    * @type string | undefined
    */
-  acceleration?: InputFalAiFluxKontextLoraAccelerationEnumKey
-  /**
-   * @description The number of images to generate.
-   * @minimum 1
-   * @maximum 4
-   * @default 1
-   * @type integer | undefined
-   */
-  num_images?: number
-  /**
-   * @description If set to true, the safety checker will be enabled. Disabling it requires account authorization; unauthorized requests are always checked, and images flagged as unsafe are returned as black images.
-   * @default true
-   * @type boolean | undefined
-   */
-  enable_safety_checker?: boolean
+  output_format?: InputFalAiFluxKontextLoraOutputFormatEnumKey
   /**
    * @description
    *             The CFG (Classifier Free Guidance) scale is a measure of how close you want
@@ -32560,41 +33118,17 @@ export type InputFalAiFluxKontextLora = {
    */
   guidance_scale?: number
   /**
+   * @description The speed of the generation. The higher the speed, the faster the generation.
+   * @default 'none'
+   * @type string | undefined
+   */
+  acceleration?: InputFalAiFluxKontextLoraAccelerationEnumKey
+  /**
    * @description If `True`, the media will be returned as a data URI and the output data won't be available in the request history.
    * @default false
    * @type boolean | undefined
    */
   sync_mode?: boolean
-  /**
-   * @description
-   *             The LoRAs to use for the image generation. You can use any number of LoRAs
-   *             and they will be merged together to generate the final image.
-   *
-   * @default []
-   * @type array | undefined
-   */
-  loras?: LoraWeightFf4E1422[]
-  /**
-   * @description
-   *             The same seed and the same prompt given to the same version of the model
-   *             will output the same image every time.
-   *
-   */
-  seed?: number | null
-  /**
-   * @description The format of the generated image.
-   * @default 'png'
-   * @type string | undefined
-   */
-  output_format?: InputFalAiFluxKontextLoraOutputFormatEnumKey
-  /**
-   * @description The URL of the image to edit.
-   *
-   * Max width: 14142px, Max height: 14142px, Timeout: 20s
-   * @example https://storage.googleapis.com/falserverless/example_inputs/kontext_example_input.webp
-   * @type string
-   */
-  image_url: string
   /**
    * @description The number of inference steps to perform.
    * @minimum 10
@@ -32603,6 +33137,21 @@ export type InputFalAiFluxKontextLora = {
    * @type integer | undefined
    */
   num_inference_steps?: number
+  /**
+   * @description
+   *             The same seed and the same prompt given to the same version of the model
+   *             will output the same image every time.
+   *
+   */
+  seed?: number | null
+  /**
+   * @description The number of images to generate.
+   * @minimum 1
+   * @maximum 4
+   * @default 1
+   * @type integer | undefined
+   */
+  num_images?: number
   /**
    * @description
    *             Determines how the output resolution is set for image editing.
@@ -32614,6 +33163,27 @@ export type InputFalAiFluxKontextLora = {
    * @type string | undefined
    */
   resolution_mode?: InputFalAiFluxKontextLoraResolutionModeEnumKey
+  /**
+   * @description If set to true, the safety checker will be enabled. Disabling it requires account authorization; unauthorized requests are always checked, and images flagged as unsafe are returned as black images.
+   * @default true
+   * @type boolean | undefined
+   */
+  enable_safety_checker?: boolean
+  /**
+   * @description The prompt to edit the image.
+   * @example change the setting to a day time, add a lot of people walking the sidewalk while maintaining the same style of the painting
+   * @type string
+   */
+  prompt: string
+  /**
+   * @description
+   *             The LoRAs to use for the image generation. You can use any number of LoRAs
+   *             and they will be merged together to generate the final image.
+   *
+   * @default []
+   * @type array | undefined
+   */
+  loras?: LoraWeightBf3Fd90C[]
 }
 
 export type Image92B9A436 = {
@@ -33022,6 +33592,14 @@ export type OutputFalAiFluxKontextLoraTextToImage = {
   seed: number
 }
 
+export const inputFalAiFluxKontextDevOutputFormatEnum = {
+  jpeg: 'jpeg',
+  png: 'png',
+} as const
+
+export type InputFalAiFluxKontextDevOutputFormatEnumKey =
+  (typeof inputFalAiFluxKontextDevOutputFormatEnum)[keyof typeof inputFalAiFluxKontextDevOutputFormatEnum]
+
 export const inputFalAiFluxKontextDevAccelerationEnum = {
   none: 'none',
   regular: 'regular',
@@ -33030,14 +33608,6 @@ export const inputFalAiFluxKontextDevAccelerationEnum = {
 
 export type InputFalAiFluxKontextDevAccelerationEnumKey =
   (typeof inputFalAiFluxKontextDevAccelerationEnum)[keyof typeof inputFalAiFluxKontextDevAccelerationEnum]
-
-export const inputFalAiFluxKontextDevOutputFormatEnum = {
-  jpeg: 'jpeg',
-  png: 'png',
-} as const
-
-export type InputFalAiFluxKontextDevOutputFormatEnumKey =
-  (typeof inputFalAiFluxKontextDevOutputFormatEnum)[keyof typeof inputFalAiFluxKontextDevOutputFormatEnum]
 
 export const inputFalAiFluxKontextDevResolutionModeEnum = {
   auto: 'auto',
@@ -33060,31 +33630,19 @@ export type InputFalAiFluxKontextDevResolutionModeEnumKey =
 
 export type InputFalAiFluxKontextDev = {
   /**
-   * @description The prompt to edit the image.
-   * @example Change the setting to a day time, add a lot of people walking the sidewalk while maintaining the same style of the painting
+   * @description The URL of the image to edit.
+   *
+   * Max file size: 100.0MB, Max width: 14142px, Max height: 14142px, Timeout: 20s
+   * @example https://storage.googleapis.com/falserverless/example_inputs/kontext_example_input.webp
    * @type string
    */
-  prompt: string
+  image_url: string
   /**
-   * @description The speed of the generation. The higher the speed, the faster the generation.
-   * @default 'none'
+   * @description Output format
+   * @default 'jpeg'
    * @type string | undefined
    */
-  acceleration?: InputFalAiFluxKontextDevAccelerationEnumKey
-  /**
-   * @description The number of images to generate.
-   * @minimum 1
-   * @maximum 4
-   * @default 1
-   * @type integer | undefined
-   */
-  num_images?: number
-  /**
-   * @description If set to true, the safety checker will be enabled. Disabling it requires account authorization; unauthorized requests are always checked, and images flagged as unsafe are returned as black images.
-   * @default true
-   * @type boolean | undefined
-   */
-  enable_safety_checker?: boolean
+  output_format?: InputFalAiFluxKontextDevOutputFormatEnumKey
   /**
    * @description
    *             The CFG (Classifier Free Guidance) scale is a measure of how close you want
@@ -33097,32 +33655,17 @@ export type InputFalAiFluxKontextDev = {
    */
   guidance_scale?: number
   /**
+   * @description The speed of the generation. The higher the speed, the faster the generation.
+   * @default 'none'
+   * @type string | undefined
+   */
+  acceleration?: InputFalAiFluxKontextDevAccelerationEnumKey
+  /**
    * @description If `True`, the media will be returned as a data URI and the output data won't be available in the request history.
    * @default false
    * @type boolean | undefined
    */
   sync_mode?: boolean
-  /**
-   * @description The URL of the image to edit.
-   *
-   * Max width: 14142px, Max height: 14142px, Timeout: 20s
-   * @example https://storage.googleapis.com/falserverless/example_inputs/kontext_example_input.webp
-   * @type string
-   */
-  image_url: string
-  /**
-   * @description
-   *             The same seed and the same prompt given to the same version of the model
-   *             will output the same image every time.
-   *
-   */
-  seed?: number | null
-  /**
-   * @description Output format
-   * @default 'jpeg'
-   * @type string | undefined
-   */
-  output_format?: InputFalAiFluxKontextDevOutputFormatEnumKey
   /**
    * @description The number of inference steps to perform.
    * @minimum 10
@@ -33131,6 +33674,21 @@ export type InputFalAiFluxKontextDev = {
    * @type integer | undefined
    */
   num_inference_steps?: number
+  /**
+   * @description
+   *             The same seed and the same prompt given to the same version of the model
+   *             will output the same image every time.
+   *
+   */
+  seed?: number | null
+  /**
+   * @description The number of images to generate.
+   * @minimum 1
+   * @maximum 4
+   * @default 1
+   * @type integer | undefined
+   */
+  num_images?: number
   /**
    * @description
    *             Determines how the output resolution is set for image editing.
@@ -33142,6 +33700,18 @@ export type InputFalAiFluxKontextDev = {
    * @type string | undefined
    */
   resolution_mode?: InputFalAiFluxKontextDevResolutionModeEnumKey
+  /**
+   * @description If set to true, the safety checker will be enabled. Disabling it requires account authorization; unauthorized requests are always checked, and images flagged as unsafe are returned as black images.
+   * @default true
+   * @type boolean | undefined
+   */
+  enable_safety_checker?: boolean
+  /**
+   * @description The prompt to edit the image.
+   * @example Change the setting to a day time, add a lot of people walking the sidewalk while maintaining the same style of the painting
+   * @type string
+   */
+  prompt: string
 }
 
 export type ImageAfd9Ead1 = {
@@ -58997,7 +59567,24 @@ export type OutputFalAiKrea2Turbo = {
   actual_prompt?: string | null
 }
 
-export type LoRAInput94Fddaf6 = {
+export type ImageSizeB2A62997 = {
+  /**
+   * @description The width of the generated image.
+   * @maximum 14142
+   * @default 512
+   * @type integer | undefined
+   */
+  width?: number
+  /**
+   * @description The height of the generated image.
+   * @maximum 14142
+   * @default 512
+   * @type integer | undefined
+   */
+  height?: number
+}
+
+export type LoRAInputDd697Ddb = {
   /**
    * @description Scale factor for LoRA application (0.0 to 4.0).
    * @minimum 0
@@ -59007,36 +59594,11 @@ export type LoRAInput94Fddaf6 = {
    */
   scale?: number
   /**
-   * @description URL, HuggingFace repo ID (owner/repo), or local path to LoRA weights.
+   * @description URL or HuggingFace repo ID (owner/repo) of the LoRA weights.
    * @type string
    */
   path: string
 }
-
-export type ImageSize7261Aa9A = {
-  /**
-   * @description The height of the generated image.
-   * @maximum 14142
-   * @default 512
-   * @type integer | undefined
-   */
-  height?: number
-  /**
-   * @description The width of the generated image.
-   * @maximum 14142
-   * @default 512
-   * @type integer | undefined
-   */
-  width?: number
-}
-
-export const inputFalAiKrea2TurboLoraAccelerationEnum = {
-  none: 'none',
-  regular: 'regular',
-} as const
-
-export type InputFalAiKrea2TurboLoraAccelerationEnumKey =
-  (typeof inputFalAiKrea2TurboLoraAccelerationEnum)[keyof typeof inputFalAiKrea2TurboLoraAccelerationEnum]
 
 export const inputFalAiKrea2TurboLoraOutputFormatEnum = {
   jpeg: 'jpeg',
@@ -59058,13 +59620,42 @@ export const inputFalAiKrea2TurboLoraImageSize = {
 export type InputFalAiKrea2TurboLoraImageSizeKey =
   (typeof inputFalAiKrea2TurboLoraImageSize)[keyof typeof inputFalAiKrea2TurboLoraImageSize]
 
+export const inputFalAiKrea2TurboLoraAccelerationEnum = {
+  none: 'none',
+  regular: 'regular',
+} as const
+
+export type InputFalAiKrea2TurboLoraAccelerationEnumKey =
+  (typeof inputFalAiKrea2TurboLoraAccelerationEnum)[keyof typeof inputFalAiKrea2TurboLoraAccelerationEnum]
+
 export type InputFalAiKrea2TurboLora = {
   /**
-   * @description List of LoRA weights to apply (maximum 3).
-   * @default []
-   * @type array | undefined
+   * @description If true, the output safety checker is enabled. Disabling it requires account authorization; unauthorized requests are always checked, and images flagged as unsafe are returned as black images.
+   * @default true
+   * @type boolean | undefined
    */
-  loras?: LoRAInput94Fddaf6[]
+  enable_safety_checker?: boolean
+  /**
+   * @description The format of the generated image. Default value: "png".
+   * @default 'png'
+   * @type string | undefined
+   */
+  output_format?: InputFalAiKrea2TurboLoraOutputFormatEnumKey
+  /**
+   * @description The size of the generated image.
+   * @default square_hd
+   */
+  image_size?: ImageSizeB2A62997 | InputFalAiKrea2TurboLoraImageSizeKey
+  /**
+   * @description Random seed for reproducible generation. Image *i* uses `seed + i`.
+   */
+  seed?: number | null
+  /**
+   * @description If true, the prompt is expanded with an LLM into a more detailed image-generation prompt for higher quality results. On failure, the original prompt is used unchanged.
+   * @default false
+   * @type boolean | undefined
+   */
+  enable_prompt_expansion?: boolean
   /**
    * @description The acceleration level to use for the image generation.
    * @default 'none'
@@ -59072,11 +59663,17 @@ export type InputFalAiKrea2TurboLora = {
    */
   acceleration?: InputFalAiKrea2TurboLoraAccelerationEnumKey
   /**
-   * @description The format of the generated image. Default value: "png".
-   * @default 'png'
-   * @type string | undefined
+   * @description If `True`, the media will be returned as a data URI and the output data won't be available in the request history.
+   * @default false
+   * @type boolean | undefined
    */
-  output_format?: InputFalAiKrea2TurboLoraOutputFormatEnumKey
+  sync_mode?: boolean
+  /**
+   * @description List of LoRA weights to apply (maximum 3).
+   * @default []
+   * @type array | undefined
+   */
+  loras?: LoRAInputDd697Ddb[]
   /**
    * @description Base text description of the image to generate.
    * @minLength 1
@@ -59085,33 +59682,6 @@ export type InputFalAiKrea2TurboLora = {
    * @type string
    */
   prompt: string
-  /**
-   * @description If `True`, the media will be returned as a data URI and the output data won't be available in the request history.
-   * @default false
-   * @type boolean | undefined
-   */
-  sync_mode?: boolean
-  /**
-   * @description Random seed for reproducible generation. Image *i* uses `seed + i`.
-   */
-  seed?: number | null
-  /**
-   * @description If true, the output safety checker is enabled. Disabling it requires account authorization; unauthorized requests are always checked, and images flagged as unsafe are returned as black images.
-   * @default true
-   * @type boolean | undefined
-   */
-  enable_safety_checker?: boolean
-  /**
-   * @description If true, the prompt is expanded with an LLM into a more detailed image-generation prompt for higher quality results. On failure, the original prompt is used unchanged.
-   * @default false
-   * @type boolean | undefined
-   */
-  enable_prompt_expansion?: boolean
-  /**
-   * @description The size of the generated image.
-   * @default square_hd
-   */
-  image_size?: ImageSize7261Aa9A | InputFalAiKrea2TurboLoraImageSizeKey
   /**
    * @description The number of images to generate.
    * @minimum 1
@@ -60307,14 +60877,36 @@ export type OutputFalAiLongcatImageEdit = {
   prompt: string
 }
 
-export type ImageSize87F59103 = {
+export const timestepsInputMethodEnum = {
+  default: 'default',
+  array: 'array',
+} as const
+
+export type TimestepsInputMethodEnumKey =
+  (typeof timestepsInputMethodEnum)[keyof typeof timestepsInputMethodEnum]
+
+export type TimestepsInput = {
   /**
-   * @description The height of the generated image.
-   * @maximum 14142
-   * @default 512
-   * @type integer | undefined
+   * @description
+   *             The method to use for the timesteps. If set to 'array', the timesteps will be set based
+   *             on the provided timesteps schedule in the `array` field.
+   *             Defaults to 'default' which means the scheduler will use the `num_inference_steps` parameter.
+   *
+   * @default 'default'
+   * @type string | undefined
    */
-  height?: number
+  method?: TimestepsInputMethodEnumKey
+  /**
+   * @description
+   *            Timesteps schedule to be used if 'custom' method is selected.
+   *
+   * @default []
+   * @type array | undefined
+   */
+  array?: number[]
+}
+
+export type ImageSize4Fc79D8C = {
   /**
    * @description The width of the generated image.
    * @maximum 14142
@@ -60322,14 +60914,16 @@ export type ImageSize87F59103 = {
    * @type integer | undefined
    */
   width?: number
+  /**
+   * @description The height of the generated image.
+   * @maximum 14142
+   * @default 512
+   * @type integer | undefined
+   */
+  height?: number
 }
 
-export type Embedding87572350 = {
-  /**
-   * @description URL or the path to the embedding weights.
-   * @type string
-   */
-  path: string
+export type Embedding27640733 = {
   /**
    * @description
    *             The tokens to map the embedding weights to. Use these tokens in your
@@ -60338,9 +60932,143 @@ export type Embedding87572350 = {
    *
    */
   tokens?: string[] | null
+  /**
+   * @description URL or the path to the embedding weights.
+   * @type string
+   */
+  path: string
 }
 
-export type LoraWeight40Fdc945 = {
+export type IPAdapterA21D8Eac = {
+  /**
+   * @description
+   *             The value to set the image projection shortcut to. For FaceID plus V1 models,
+   *             this should be set to False. For FaceID plus V2 models, this should be set to True.
+   *             Default is True.
+   *
+   * @default true
+   * @type boolean | undefined
+   */
+  image_projection_shortcut?: boolean
+  /**
+   * @description URL or the path to the InsightFace model weights.
+   */
+  insight_face_model_path?: string | null
+  /**
+   * @description
+   *             The mask to use for the IP adapter. When using a mask, the ip-adapter image size and the mask size must be the same
+   *
+   */
+  ip_adapter_mask_url?: string | null
+  /**
+   * @description Subfolder in the model directory where the IP adapter weights are stored.
+   */
+  model_subfolder?: string | null
+  /**
+   * @description The factor to apply to the unconditional noising of the IP adapter.
+   * @minimum 0
+   * @maximum 1
+   * @default 0
+   * @type number | undefined
+   */
+  unconditional_noising_factor?: number
+  /**
+   * @description
+   *             The scale of the IP adapter weight. This is used to scale the IP adapter weight
+   *             before merging it with the base model.
+   *
+   * @minimum 0
+   * @default 1
+   * @type number | undefined
+   */
+  scale?: number
+  /**
+   * @description URL or the path to the IP adapter weights.
+   * @type string
+   */
+  path: string
+  /**
+   * @description
+   *             The scale of the IP adapter weight. This is used to scale the IP adapter weight
+   *             before merging it with the base model.
+   *
+   */
+  scale_json?: object | null
+  /**
+   * @description URL of the image to be used as the IP adapter, or a list of up to 5 URLs.
+   */
+  ip_adapter_image_url: string | string[]
+  /**
+   * @description Name of the weight file.
+   */
+  weight_name?: string | null
+}
+
+export type ControlNetA025B9Fa = {
+  /**
+   * @description optional URL to the controlnet config.json file.
+   */
+  config_url?: string | null
+  /**
+   * @description
+   *             The mask to use for the controlnet. When using a mask, the control image size and the mask size must be the same and divisible by 32.
+   *
+   */
+  mask_url?: string | null
+  /**
+   * @description URL of the image to be used as the control net.
+   * @type string
+   */
+  image_url: string
+  /**
+   * @description URL or the path to the control net weights.
+   * @type string
+   */
+  path: string
+  /**
+   * @description
+   *             The percentage of the image to start applying the controlnet in terms of the total timesteps.
+   *
+   * @minimum 0
+   * @maximum 1
+   * @default 0
+   * @type number | undefined
+   */
+  start_percentage?: number
+  /**
+   * @description
+   *             The scale of the control net weight. This is used to scale the control net weight
+   *             before merging it with the base model.
+   *
+   * @minimum 0
+   * @maximum 2
+   * @default 1
+   * @type number | undefined
+   */
+  conditioning_scale?: number
+  /**
+   * @description
+   *             The percentage of the image to end applying the controlnet in terms of the total timesteps.
+   *
+   * @minimum 0
+   * @maximum 1
+   * @default 1
+   * @type number | undefined
+   */
+  end_percentage?: number
+  /**
+   * @description
+   *             The index of the IP adapter to be applied to the controlnet. This is only needed for InstantID ControlNets.
+   *
+   */
+  ip_adapter_index?: number | null
+  /**
+   * @description The optional variant if a Hugging Face repo key is used.
+   */
+  variant?: string | null
+}
+
+export type LoraWeight3346Fc9E = {
   /**
    * @description
    *             The scale of the LoRA weight. This is used to scale the LoRA weight
@@ -60359,71 +61087,6 @@ export type LoraWeight40Fdc945 = {
   path: string
 }
 
-export type IPAdapterC9Dcba23 = {
-  /**
-   * @description Subfolder in the model directory where the IP adapter weights are stored.
-   */
-  model_subfolder?: string | null
-  /**
-   * @description Name of the weight file.
-   */
-  weight_name?: string | null
-  /**
-   * @description
-   *             The scale of the IP adapter weight. This is used to scale the IP adapter weight
-   *             before merging it with the base model.
-   *
-   * @minimum 0
-   * @default 1
-   * @type number | undefined
-   */
-  scale?: number
-  /**
-   * @description URL or the path to the IP adapter weights.
-   * @type string
-   */
-  path: string
-  /**
-   * @description
-   *             The value to set the image projection shortcut to. For FaceID plus V1 models,
-   *             this should be set to False. For FaceID plus V2 models, this should be set to True.
-   *             Default is True.
-   *
-   * @default true
-   * @type boolean | undefined
-   */
-  image_projection_shortcut?: boolean
-  /**
-   * @description The factor to apply to the unconditional noising of the IP adapter.
-   * @minimum 0
-   * @maximum 1
-   * @default 0
-   * @type number | undefined
-   */
-  unconditional_noising_factor?: number
-  /**
-   * @description URL or the path to the InsightFace model weights.
-   */
-  insight_face_model_path?: string | null
-  /**
-   * @description
-   *             The scale of the IP adapter weight. This is used to scale the IP adapter weight
-   *             before merging it with the base model.
-   *
-   */
-  scale_json?: object | null
-  /**
-   * @description
-   *             The mask to use for the IP adapter. When using a mask, the ip-adapter image size and the mask size must be the same
-   *
-   */
-  ip_adapter_mask_url?: string | null
-  /**
-   * @description URL of the image to be used as the IP adapter.
-   */
-  ip_adapter_image_url: string | string[]
-}
-
 export const sigmasInputMethodEnum = {
   default: 'default',
   array: 'array',
@@ -60435,14 +61098,6 @@ export type SigmasInputMethodEnumKey =
 export type SigmasInput = {
   /**
    * @description
-   *            Sigmas schedule to be used if 'custom' method is selected.
-   *
-   * @default []
-   * @type array | undefined
-   */
-  array?: number[]
-  /**
-   * @description
    *             The method to use for the sigmas. If set to 'custom', the sigmas will be set based
    *             on the provided sigmas schedule in the `array` field.
    *             Defaults to 'default' which means the scheduler will use the sigmas of the scheduler.
@@ -60451,99 +61106,14 @@ export type SigmasInput = {
    * @type string | undefined
    */
   method?: SigmasInputMethodEnumKey
-}
-
-export const timestepsInputMethodEnum = {
-  default: 'default',
-  array: 'array',
-} as const
-
-export type TimestepsInputMethodEnumKey =
-  (typeof timestepsInputMethodEnum)[keyof typeof timestepsInputMethodEnum]
-
-export type TimestepsInput = {
   /**
    * @description
-   *            Timesteps schedule to be used if 'custom' method is selected.
+   *            Sigmas schedule to be used if 'custom' method is selected.
    *
    * @default []
    * @type array | undefined
    */
   array?: number[]
-  /**
-   * @description
-   *             The method to use for the timesteps. If set to 'array', the timesteps will be set based
-   *             on the provided timesteps schedule in the `array` field.
-   *             Defaults to 'default' which means the scheduler will use the `num_inference_steps` parameter.
-   *
-   * @default 'default'
-   * @type string | undefined
-   */
-  method?: TimestepsInputMethodEnumKey
-}
-
-export type ControlNetE430Dd81 = {
-  /**
-   * @description
-   *             The percentage of the image to end applying the controlnet in terms of the total timesteps.
-   *
-   * @minimum 0
-   * @maximum 1
-   * @default 1
-   * @type number | undefined
-   */
-  end_percentage?: number
-  /**
-   * @description URL of the image to be used as the control net.
-   * @type string
-   */
-  image_url: string
-  /**
-   * @description URL or the path to the control net weights.
-   * @type string
-   */
-  path: string
-  /**
-   * @description
-   *             The mask to use for the controlnet. When using a mask, the control image size and the mask size must be the same and divisible by 32.
-   *
-   */
-  mask_url?: string | null
-  /**
-   * @description optional URL to the controlnet config.json file.
-   */
-  config_url?: string | null
-  /**
-   * @description
-   *             The percentage of the image to start applying the controlnet in terms of the total timesteps.
-   *
-   * @minimum 0
-   * @maximum 1
-   * @default 0
-   * @type number | undefined
-   */
-  start_percentage?: number
-  /**
-   * @description
-   *             The index of the IP adapter to be applied to the controlnet. This is only needed for InstantID ControlNets.
-   *
-   */
-  ip_adapter_index?: number | null
-  /**
-   * @description
-   *             The scale of the control net weight. This is used to scale the control net weight
-   *             before merging it with the base model.
-   *
-   * @minimum 0
-   * @maximum 2
-   * @default 1
-   * @type number | undefined
-   */
-  conditioning_scale?: number
-  /**
-   * @description The optional variant if a Hugging Face repo key is used.
-   */
-  variant?: string | null
 }
 
 export const inputFalAiLoraImageSize = {
@@ -60558,13 +61128,13 @@ export const inputFalAiLoraImageSize = {
 export type InputFalAiLoraImageSizeKey =
   (typeof inputFalAiLoraImageSize)[keyof typeof inputFalAiLoraImageSize]
 
-export const inputFalAiLoraPredictionTypeEnum = {
-  v_prediction: 'v_prediction',
-  epsilon: 'epsilon',
+export const inputFalAiLoraImageFormatEnum = {
+  jpeg: 'jpeg',
+  png: 'png',
 } as const
 
-export type InputFalAiLoraPredictionTypeEnumKey =
-  (typeof inputFalAiLoraPredictionTypeEnum)[keyof typeof inputFalAiLoraPredictionTypeEnum]
+export type InputFalAiLoraImageFormatEnumKey =
+  (typeof inputFalAiLoraImageFormatEnum)[keyof typeof inputFalAiLoraImageFormatEnum]
 
 export const inputFalAiLoraScheduler = {
   'DPM++ 2M': 'DPM++ 2M',
@@ -60583,15 +61153,115 @@ export const inputFalAiLoraScheduler = {
 export type InputFalAiLoraSchedulerKey =
   (typeof inputFalAiLoraScheduler)[keyof typeof inputFalAiLoraScheduler]
 
-export const inputFalAiLoraImageFormatEnum = {
-  jpeg: 'jpeg',
-  png: 'png',
+export const inputFalAiLoraPredictionTypeEnum = {
+  v_prediction: 'v_prediction',
+  epsilon: 'epsilon',
 } as const
 
-export type InputFalAiLoraImageFormatEnumKey =
-  (typeof inputFalAiLoraImageFormatEnum)[keyof typeof inputFalAiLoraImageFormatEnum]
+export type InputFalAiLoraPredictionTypeEnumKey =
+  (typeof inputFalAiLoraPredictionTypeEnum)[keyof typeof inputFalAiLoraPredictionTypeEnum]
 
 export type InputFalAiLora = {
+  /**
+   * @description
+   *             The negative prompt to use.Use it to address details that you don't want
+   *             in the image. This could be colors, objects, scenery and even the small details
+   *             (e.g. moustache, blurry, low resolution).
+   *
+   * @default ''
+   * @example cartoon, painting, illustration, worst quality, low quality, normal quality
+   * @type string | undefined
+   */
+  negative_prompt?: string
+  /**
+   * @description The size of the tiles to be used for the image generation.
+   * @minimum 128
+   * @maximum 4096
+   * @default 4096
+   * @type integer | undefined
+   */
+  tile_height?: number
+  /**
+   * @description
+   *             Optionally override the timesteps to use for the denoising process. Only works with schedulers which support the `timesteps` argument in their `set_timesteps` method.
+   *             Defaults to not overriding, in which case the scheduler automatically sets the timesteps based on the `num_inference_steps` parameter.
+   *             If set to a custom timestep schedule, the `num_inference_steps` parameter will be ignored. Cannot be set if `sigmas` is set.
+   *
+   * @default {"method":"default","array":[]}
+   * @type object | undefined
+   */
+  timesteps?: TimestepsInput
+  /**
+   * @description URL or HuggingFace ID of the custom U-Net model to use for the image generation.
+   */
+  unet_name?: string | null
+  /**
+   * @description
+   *             The weight name of the image encoder model to use for the image generation.
+   *
+   * @default pytorch_model.bin
+   * @example pytorch_model.bin
+   */
+  image_encoder_weight_name?: string | null
+  /**
+   * @description
+   *             The URL of the IC Light model background image to use for the image generation.
+   *             Make sure to use a background compatible with the model.
+   *
+   */
+  ic_light_model_background_image_url?: string | null
+  /**
+   * @description
+   *             Number of images to generate in one request. Note that the higher the batch size,
+   *             the longer it will take to generate the images.
+   *
+   * @minimum 1
+   * @maximum 8
+   * @default 1
+   * @type integer | undefined
+   */
+  num_images?: number
+  /**
+   * @description The size of the tiles to be used for the image generation.
+   * @minimum 128
+   * @maximum 4096
+   * @default 4096
+   * @type integer | undefined
+   */
+  tile_width?: number
+  /**
+   * @description
+   *             The size of the generated image. You can choose between some presets or custom height and width
+   *             that **must be multiples of 8**.
+   *
+   * @default square_hd
+   */
+  image_size?: ImageSize4Fc79D8C | InputFalAiLoraImageSizeKey | null
+  /**
+   * @description The variant of the model to use for huggingface models, e.g. 'fp16'.
+   */
+  variant?: string | null
+  /**
+   * @description
+   *             The URL of the IC Light model to use for the image generation.
+   *
+   */
+  ic_light_model_url?: string | null
+  /**
+   * @description URL or HuggingFace ID of the base model to generate the image.
+   * @example stabilityai/stable-diffusion-xl-base-1.0
+   * @example runwayml/stable-diffusion-v1-5
+   * @example SG161222/Realistic_Vision_V2.0
+   * @type string
+   */
+  model_name: string
+  /**
+   * @description The format of the generated image.
+   * @default 'png'
+   * @example jpeg
+   * @type string | undefined
+   */
+  image_format?: InputFalAiLoraImageFormatEnumKey
   /**
    * @description
    *             Increasing the amount of steps tells Stable Diffusion that it should take more steps
@@ -60605,153 +61275,13 @@ export type InputFalAiLora = {
   num_inference_steps?: number
   /**
    * @description
-   *             The negative prompt to use.Use it to address details that you don't want
-   *             in the image. This could be colors, objects, scenery and even the small details
-   *             (e.g. moustache, blurry, low resolution).
-   *
-   * @default ''
-   * @example cartoon, painting, illustration, worst quality, low quality, normal quality
-   * @type string | undefined
-   */
-  negative_prompt?: string
-  /**
-   * @description
-   *             The size of the generated image. You can choose between some presets or custom height and width
-   *             that **must be multiples of 8**.
-   *
-   * @default square_hd
-   */
-  image_size?: ImageSize87F59103 | InputFalAiLoraImageSizeKey | null
-  /**
-   * @description Subfolder containing the image encoder weights in image_encoder_path.
-   */
-  image_encoder_subfolder?: string | null
-  /**
-   * @description
    *             The embeddings to use for the image generation. Only a single embedding is supported at the moment.
    *             The embeddings will be used to map the tokens in the prompt to the embedding weights.
    *
    * @default []
    * @type array | undefined
    */
-  embeddings?: Embedding87572350[]
-  /**
-   * @description
-   *             Skips part of the image generation process, leading to slightly different results.
-   *             This means the image renders faster, too.
-   *
-   * @minimum 0
-   * @maximum 2
-   * @default 0
-   * @type integer | undefined
-   */
-  clip_skip?: number
-  /**
-   * @description The prompt to use for generating the image. Be as descriptive as possible for best results.
-   * @example Photo of a european medieval 40 year old queen, silver hair, highly detailed face, detailed eyes, head shot, intricate crown, age spots, wrinkles
-   * @example Photo of a classic red mustang car parked in las vegas strip at night
-   * @type string
-   */
-  prompt: string
-  /**
-   * @description
-   *             The type of prediction to use for the image generation.
-   *             The `epsilon` is the default.
-   *
-   * @default 'epsilon'
-   * @type string | undefined
-   */
-  prediction_type?: InputFalAiLoraPredictionTypeEnumKey
-  /**
-   * @description The stride of the tiles to be used for the image generation.
-   * @minimum 64
-   * @maximum 2048
-   * @default 2048
-   * @type integer | undefined
-   */
-  tile_stride_height?: number
-  /**
-   * @description The stride of the tiles to be used for the image generation.
-   * @minimum 64
-   * @maximum 2048
-   * @default 2048
-   * @type integer | undefined
-   */
-  tile_stride_width?: number
-  /**
-   * @description The variant of the model to use for huggingface models, e.g. 'fp16'.
-   */
-  variant?: string | null
-  /**
-   * @description
-   *             The weight name of the image encoder model to use for the image generation.
-   *
-   * @default pytorch_model.bin
-   * @example pytorch_model.bin
-   */
-  image_encoder_weight_name?: string | null
-  /**
-   * @description The size of the tiles to be used for the image generation.
-   * @minimum 128
-   * @maximum 4096
-   * @default 4096
-   * @type integer | undefined
-   */
-  tile_width?: number
-  /**
-   * @description
-   *             Number of images to generate in one request. Note that the higher the batch size,
-   *             the longer it will take to generate the images.
-   *
-   * @minimum 1
-   * @maximum 8
-   * @default 1
-   * @type integer | undefined
-   */
-  num_images?: number
-  /**
-   * @description
-   *             The same seed and the same prompt given to the same version of Stable Diffusion
-   *             will output the same image every time.
-   *
-   */
-  seed?: number | null
-  /**
-   * @description The size of the tiles to be used for the image generation.
-   * @minimum 128
-   * @maximum 4096
-   * @default 4096
-   * @type integer | undefined
-   */
-  tile_height?: number
-  /**
-   * @description The eta value to be used for the image generation.
-   * @minimum 0
-   * @maximum 1
-   * @default 0
-   * @type number | undefined
-   */
-  eta?: number
-  /**
-   * @description
-   *             The URL of the IC Light model image to use for the image generation.
-   *
-   */
-  ic_light_image_url?: string | null
-  /**
-   * @description Hugging Face ID or HTTPS URL of the image encoder; required when ip_adapter is non-empty. Choose an encoder compatible with the IP-Adapter weights. For h94/IP-Adapter SDXL weights, use h94/IP-Adapter with image_encoder_subfolder='sdxl_models/image_encoder'; for SD1.5 weights, use image_encoder_subfolder='models/image_encoder'.
-   */
-  image_encoder_path?: string | null
-  /**
-   * @description URL or HuggingFace ID of the custom U-Net model to use for the image generation.
-   */
-  unet_name?: string | null
-  /**
-   * @description If set to true, the safety checker will be enabled.
-   * @default false
-   * @type boolean | undefined
-   */
-  enable_safety_checker?: boolean
+  embeddings?: Embedding27640733[]
   /**
    * @description If set to true, the latents will be saved for debugging.
    * @default false
@@ -60759,54 +61289,30 @@ export type InputFalAiLora = {
    */
   debug_latents?: boolean
   /**
+   * @description Scheduler / sampler to use for the image denoising process.
+   */
+  scheduler?: InputFalAiLoraSchedulerKey | null
+  /**
+   * @description IP adapters for image generation (up to 5). A non-empty list requires image_encoder_path.
+   * @default []
+   * @type array | undefined
+   */
+  ip_adapter?: IPAdapterA21D8Eac[]
+  /**
    * @description
-   *             The LoRAs to use for the image generation. You can use any number of LoRAs
-   *             and they will be merged together to generate the final image.
+   *             The URL of the IC Light model image to use for the image generation.
+   *
+   */
+  ic_light_image_url?: string | null
+  /**
+   * @description
+   *             The control nets to use for the image generation. You can use up to 5 control nets
+   *             and they will be applied to the image at the specified timesteps.
    *
    * @default []
    * @type array | undefined
    */
-  loras?: LoraWeight40Fdc945[]
-  /**
-   * @description
-   *             If set to true, the controlnet will be applied to only the conditional predictions.
-   *
-   * @default false
-   * @type boolean | undefined
-   */
-  controlnet_guess_mode?: boolean
-  /**
-   * @description IP adapters for image generation. A non-empty list requires image_encoder_path.
-   * @default []
-   * @type array | undefined
-   */
-  ip_adapter?: IPAdapterC9Dcba23[]
-  /**
-   * @description
-   *             Optionally override the sigmas to use for the denoising process. Only works with schedulers which support the `sigmas` argument in their `set_sigmas` method.
-   *             Defaults to not overriding, in which case the scheduler automatically sets the sigmas based on the `num_inference_steps` parameter.
-   *             If set to a custom sigma schedule, the `num_inference_steps` parameter will be ignored. Cannot be set if `timesteps` is set.
-   *
-   * @default {"array":[],"method":"default"}
-   * @type object | undefined
-   */
-  sigmas?: SigmasInput
-  /**
-   * @description
-   *             If set to true, the prompt weighting syntax will be used.
-   *             Additionally, this will lift the 77 token limit by averaging embeddings.
-   *
-   * @default false
-   * @example true
-   * @type boolean | undefined
-   */
-  prompt_weighting?: boolean
-  /**
-   * @description
-   *             The URL of the IC Light model to use for the image generation.
-   *
-   */
-  ic_light_model_url?: string | null
+  controlnets?: ControlNetA025B9Fa[]
   /**
    * @description
    *             The CFG (Classifier Free Guidance) scale is a measure of how close you want
@@ -60819,25 +61325,21 @@ export type InputFalAiLora = {
    */
   guidance_scale?: number
   /**
-   * @description Scheduler / sampler to use for the image denoising process.
+   * @description
+   *             The same seed and the same prompt given to the same version of Stable Diffusion
+   *             will output the same image every time.
+   *
    */
-  scheduler?: InputFalAiLoraSchedulerKey | null
-  /**
-   * @description If set to true, the latents will be saved for debugging per pass.
-   * @default false
-   * @type boolean | undefined
-   */
-  debug_per_pass_latents?: boolean
+  seed?: number | null
   /**
    * @description
-   *             Optionally override the timesteps to use for the denoising process. Only works with schedulers which support the `timesteps` argument in their `set_timesteps` method.
-   *             Defaults to not overriding, in which case the scheduler automatically sets the timesteps based on the `num_inference_steps` parameter.
-   *             If set to a custom timestep schedule, the `num_inference_steps` parameter will be ignored. Cannot be set if `sigmas` is set.
+   *             The LoRAs to use for the image generation. You can use up to 10 LoRAs
+   *             and they will be merged together to generate the final image.
    *
-   * @default {"array":[],"method":"default"}
-   * @type object | undefined
+   * @default []
+   * @type array | undefined
    */
-  timesteps?: TimestepsInput
+  loras?: LoraWeight3346Fc9E[]
   /**
    * @description
    *             Whether to set the rescale_betas_snr_zero option or not for the sampler
@@ -60847,36 +61349,104 @@ export type InputFalAiLora = {
    */
   rescale_betas_snr_zero?: boolean
   /**
-   * @description The format of the generated image.
-   * @default 'png'
-   * @example jpeg
-   * @type string | undefined
+   * @description The stride of the tiles to be used for the image generation.
+   * @minimum 64
+   * @maximum 2048
+   * @default 2048
+   * @type integer | undefined
    */
-  image_format?: InputFalAiLoraImageFormatEnumKey
+  tile_stride_height?: number
+  /**
+   * @description Subfolder containing the image encoder weights in image_encoder_path.
+   */
+  image_encoder_subfolder?: string | null
+  /**
+   * @description If set to true, the safety checker will be enabled.
+   * @default false
+   * @type boolean | undefined
+   */
+  enable_safety_checker?: boolean
   /**
    * @description
-   *             The URL of the IC Light model background image to use for the image generation.
-   *             Make sure to use a background compatible with the model.
+   *             If set to true, the prompt weighting syntax will be used.
+   *             Additionally, this will lift the 77 token limit by averaging embeddings.
    *
+   * @default false
+   * @example true
+   * @type boolean | undefined
    */
-  ic_light_model_background_image_url?: string | null
+  prompt_weighting?: boolean
   /**
-   * @description
-   *             The control nets to use for the image generation. You can use any number of control nets
-   *             and they will be applied to the image at the specified timesteps.
-   *
-   * @default []
-   * @type array | undefined
-   */
-  controlnets?: ControlNetE430Dd81[]
-  /**
-   * @description URL or HuggingFace ID of the base model to generate the image.
-   * @example stabilityai/stable-diffusion-xl-base-1.0
-   * @example runwayml/stable-diffusion-v1-5
-   * @example SG161222/Realistic_Vision_V2.0
+   * @description The prompt to use for generating the image. Be as descriptive as possible for best results.
+   * @example Photo of a european medieval 40 year old queen, silver hair, highly detailed face, detailed eyes, head shot, intricate crown, age spots, wrinkles
+   * @example Photo of a classic red mustang car parked in las vegas strip at night
    * @type string
    */
-  model_name: string
+  prompt: string
+  /**
+   * @description
+   *             If set to true, the controlnet will be applied to only the conditional predictions.
+   *
+   * @default false
+   * @type boolean | undefined
+   */
+  controlnet_guess_mode?: boolean
+  /**
+   * @description The stride of the tiles to be used for the image generation.
+   * @minimum 64
+   * @maximum 2048
+   * @default 2048
+   * @type integer | undefined
+   */
+  tile_stride_width?: number
+  /**
+   * @description The eta value to be used for the image generation.
+   * @minimum 0
+   * @maximum 1
+   * @default 0
+   * @type number | undefined
+   */
+  eta?: number
+  /**
+   * @description Hugging Face ID or HTTPS URL of the image encoder; required when ip_adapter is non-empty. Choose an encoder compatible with the IP-Adapter weights. For h94/IP-Adapter SDXL weights, use h94/IP-Adapter with image_encoder_subfolder='sdxl_models/image_encoder'; for SD1.5 weights, use image_encoder_subfolder='models/image_encoder'.
+   */
+  image_encoder_path?: string | null
+  /**
+   * @description
+   *             The type of prediction to use for the image generation.
+   *             The `epsilon` is the default.
+   *
+   * @default 'epsilon'
+   * @type string | undefined
+   */
+  prediction_type?: InputFalAiLoraPredictionTypeEnumKey
+  /**
+   * @description
+   *             Skips part of the image generation process, leading to slightly different results.
+   *             This means the image renders faster, too.
+   *
+   * @minimum 0
+   * @maximum 2
+   * @default 0
+   * @type integer | undefined
+   */
+  clip_skip?: number
+  /**
+   * @description
+   *             Optionally override the sigmas to use for the denoising process. Only works with schedulers which support the `sigmas` argument in their `set_sigmas` method.
+   *             Defaults to not overriding, in which case the scheduler automatically sets the sigmas based on the `num_inference_steps` parameter.
+   *             If set to a custom sigma schedule, the `num_inference_steps` parameter will be ignored. Cannot be set if `timesteps` is set.
+   *
+   * @default {"method":"default","array":[]}
+   * @type object | undefined
+   */
+  sigmas?: SigmasInput
+  /**
+   * @description If set to true, the latents will be saved for debugging per pass.
+   * @default false
+   * @type boolean | undefined
+   */
+  debug_per_pass_latents?: boolean
 }
 
 export type File81797344 = {
@@ -60968,12 +61538,7 @@ export type OutputFalAiLora = {
   debug_latents: File81797344 | null
 }
 
-export type EmbeddingB7Cdd593 = {
-  /**
-   * @description URL or the path to the embedding weights.
-   * @type string
-   */
-  path: string
+export type EmbeddingDd53B60E = {
   /**
    * @description
    *             The tokens to map the embedding weights to. Use these tokens in your
@@ -60982,9 +61547,143 @@ export type EmbeddingB7Cdd593 = {
    *
    */
   tokens?: string[] | null
+  /**
+   * @description URL or the path to the embedding weights.
+   * @type string
+   */
+  path: string
 }
 
-export type LoraWeight7Fa3B828 = {
+export type IPAdapter4A8413Db = {
+  /**
+   * @description
+   *             The value to set the image projection shortcut to. For FaceID plus V1 models,
+   *             this should be set to False. For FaceID plus V2 models, this should be set to True.
+   *             Default is True.
+   *
+   * @default true
+   * @type boolean | undefined
+   */
+  image_projection_shortcut?: boolean
+  /**
+   * @description URL or the path to the InsightFace model weights.
+   */
+  insight_face_model_path?: string | null
+  /**
+   * @description
+   *             The mask to use for the IP adapter. When using a mask, the ip-adapter image size and the mask size must be the same
+   *
+   */
+  ip_adapter_mask_url?: string | null
+  /**
+   * @description Subfolder in the model directory where the IP adapter weights are stored.
+   */
+  model_subfolder?: string | null
+  /**
+   * @description The factor to apply to the unconditional noising of the IP adapter.
+   * @minimum 0
+   * @maximum 1
+   * @default 0
+   * @type number | undefined
+   */
+  unconditional_noising_factor?: number
+  /**
+   * @description
+   *             The scale of the IP adapter weight. This is used to scale the IP adapter weight
+   *             before merging it with the base model.
+   *
+   * @minimum 0
+   * @default 1
+   * @type number | undefined
+   */
+  scale?: number
+  /**
+   * @description URL or the path to the IP adapter weights.
+   * @type string
+   */
+  path: string
+  /**
+   * @description
+   *             The scale of the IP adapter weight. This is used to scale the IP adapter weight
+   *             before merging it with the base model.
+   *
+   */
+  scale_json?: object | null
+  /**
+   * @description URL of the image to be used as the IP adapter, or a list of up to 5 URLs.
+   */
+  ip_adapter_image_url: string | string[]
+  /**
+   * @description Name of the weight file.
+   */
+  weight_name?: string | null
+}
+
+export type ControlNetEc0Ea791 = {
+  /**
+   * @description optional URL to the controlnet config.json file.
+   */
+  config_url?: string | null
+  /**
+   * @description
+   *             The mask to use for the controlnet. When using a mask, the control image size and the mask size must be the same and divisible by 32.
+   *
+   */
+  mask_url?: string | null
+  /**
+   * @description URL of the image to be used as the control net.
+   * @type string
+   */
+  image_url: string
+  /**
+   * @description URL or the path to the control net weights.
+   * @type string
+   */
+  path: string
+  /**
+   * @description
+   *             The percentage of the image to start applying the controlnet in terms of the total timesteps.
+   *
+   * @minimum 0
+   * @maximum 1
+   * @default 0
+   * @type number | undefined
+   */
+  start_percentage?: number
+  /**
+   * @description
+   *             The scale of the control net weight. This is used to scale the control net weight
+   *             before merging it with the base model.
+   *
+   * @minimum 0
+   * @maximum 2
+   * @default 1
+   * @type number | undefined
+   */
+  conditioning_scale?: number
+  /**
+   * @description
+   *             The percentage of the image to end applying the controlnet in terms of the total timesteps.
+   *
+   * @minimum 0
+   * @maximum 1
+   * @default 1
+   * @type number | undefined
+   */
+  end_percentage?: number
+  /**
+   * @description
+   *             The index of the IP adapter to be applied to the controlnet. This is only needed for InstantID ControlNets.
+   *
+   */
+  ip_adapter_index?: number | null
+  /**
+   * @description The optional variant if a Hugging Face repo key is used.
+   */
+  variant?: string | null
+}
+
+export type LoraWeight2Ecc1Ddd = {
   /**
    * @description
    *             The scale of the LoRA weight. This is used to scale the LoRA weight
@@ -61003,142 +61702,13 @@ export type LoraWeight7Fa3B828 = {
   path: string
 }
 
-export type IPAdapter8790Eea6 = {
-  /**
-   * @description Subfolder in the model directory where the IP adapter weights are stored.
-   */
-  model_subfolder?: string | null
-  /**
-   * @description Name of the weight file.
-   */
-  weight_name?: string | null
-  /**
-   * @description
-   *             The scale of the IP adapter weight. This is used to scale the IP adapter weight
-   *             before merging it with the base model.
-   *
-   * @minimum 0
-   * @default 1
-   * @type number | undefined
-   */
-  scale?: number
-  /**
-   * @description URL or the path to the IP adapter weights.
-   * @type string
-   */
-  path: string
-  /**
-   * @description
-   *             The value to set the image projection shortcut to. For FaceID plus V1 models,
-   *             this should be set to False. For FaceID plus V2 models, this should be set to True.
-   *             Default is True.
-   *
-   * @default true
-   * @type boolean | undefined
-   */
-  image_projection_shortcut?: boolean
-  /**
-   * @description The factor to apply to the unconditional noising of the IP adapter.
-   * @minimum 0
-   * @maximum 1
-   * @default 0
-   * @type number | undefined
-   */
-  unconditional_noising_factor?: number
-  /**
-   * @description URL or the path to the InsightFace model weights.
-   */
-  insight_face_model_path?: string | null
-  /**
-   * @description
-   *             The scale of the IP adapter weight. This is used to scale the IP adapter weight
-   *             before merging it with the base model.
-   *
-   */
-  scale_json?: object | null
-  /**
-   * @description
-   *             The mask to use for the IP adapter. When using a mask, the ip-adapter image size and the mask size must be the same
-   *
-   */
-  ip_adapter_mask_url?: string | null
-  /**
-   * @description URL of the image to be used as the IP adapter.
-   */
-  ip_adapter_image_url: string | string[]
-}
-
-export type ControlNetAbfcc54C = {
-  /**
-   * @description
-   *             The percentage of the image to end applying the controlnet in terms of the total timesteps.
-   *
-   * @minimum 0
-   * @maximum 1
-   * @default 1
-   * @type number | undefined
-   */
-  end_percentage?: number
-  /**
-   * @description URL of the image to be used as the control net.
-   * @type string
-   */
-  image_url: string
-  /**
-   * @description URL or the path to the control net weights.
-   * @type string
-   */
-  path: string
-  /**
-   * @description
-   *             The mask to use for the controlnet. When using a mask, the control image size and the mask size must be the same and divisible by 32.
-   *
-   */
-  mask_url?: string | null
-  /**
-   * @description optional URL to the controlnet config.json file.
-   */
-  config_url?: string | null
-  /**
-   * @description
-   *             The percentage of the image to start applying the controlnet in terms of the total timesteps.
-   *
-   * @minimum 0
-   * @maximum 1
-   * @default 0
-   * @type number | undefined
-   */
-  start_percentage?: number
-  /**
-   * @description
-   *             The index of the IP adapter to be applied to the controlnet. This is only needed for InstantID ControlNets.
-   *
-   */
-  ip_adapter_index?: number | null
-  /**
-   * @description
-   *             The scale of the control net weight. This is used to scale the control net weight
-   *             before merging it with the base model.
-   *
-   * @minimum 0
-   * @maximum 2
-   * @default 1
-   * @type number | undefined
-   */
-  conditioning_scale?: number
-  /**
-   * @description The optional variant if a Hugging Face repo key is used.
-   */
-  variant?: string | null
-}
-
-export const inputFalAiLoraImageToImagePredictionTypeEnum = {
-  v_prediction: 'v_prediction',
-  epsilon: 'epsilon',
+export const inputFalAiLoraImageToImageImageFormatEnum = {
+  jpeg: 'jpeg',
+  png: 'png',
 } as const
 
-export type InputFalAiLoraImageToImagePredictionTypeEnumKey =
-  (typeof inputFalAiLoraImageToImagePredictionTypeEnum)[keyof typeof inputFalAiLoraImageToImagePredictionTypeEnum]
+export type InputFalAiLoraImageToImageImageFormatEnumKey =
+  (typeof inputFalAiLoraImageToImageImageFormatEnum)[keyof typeof inputFalAiLoraImageToImageImageFormatEnum]
 
 export const inputFalAiLoraImageToImageScheduler = {
   'DPM++ 2M': 'DPM++ 2M',
@@ -61157,15 +61727,107 @@ export const inputFalAiLoraImageToImageScheduler = {
 export type InputFalAiLoraImageToImageSchedulerKey =
   (typeof inputFalAiLoraImageToImageScheduler)[keyof typeof inputFalAiLoraImageToImageScheduler]
 
-export const inputFalAiLoraImageToImageImageFormatEnum = {
-  jpeg: 'jpeg',
-  png: 'png',
+export const inputFalAiLoraImageToImagePredictionTypeEnum = {
+  v_prediction: 'v_prediction',
+  epsilon: 'epsilon',
 } as const
 
-export type InputFalAiLoraImageToImageImageFormatEnumKey =
-  (typeof inputFalAiLoraImageToImageImageFormatEnum)[keyof typeof inputFalAiLoraImageToImageImageFormatEnum]
+export type InputFalAiLoraImageToImagePredictionTypeEnumKey =
+  (typeof inputFalAiLoraImageToImagePredictionTypeEnum)[keyof typeof inputFalAiLoraImageToImagePredictionTypeEnum]
 
 export type InputFalAiLoraImageToImage = {
+  /**
+   * @description
+   *             The negative prompt to use.Use it to address details that you don't want
+   *             in the image. This could be colors, objects, scenery and even the small details
+   *             (e.g. moustache, blurry, low resolution).
+   *
+   * @default ''
+   * @example cartoon, painting, illustration, worst quality, low quality, normal quality
+   * @type string | undefined
+   */
+  negative_prompt?: string
+  /**
+   * @description The size of the tiles to be used for the image generation.
+   * @minimum 128
+   * @maximum 4096
+   * @default 4096
+   * @type integer | undefined
+   */
+  tile_height?: number
+  /**
+   * @description
+   *             Optionally override the timesteps to use for the denoising process. Only works with schedulers which support the `timesteps` argument in their `set_timesteps` method.
+   *             Defaults to not overriding, in which case the scheduler automatically sets the timesteps based on the `num_inference_steps` parameter.
+   *             If set to a custom timestep schedule, the `num_inference_steps` parameter will be ignored. Cannot be set if `sigmas` is set.
+   *
+   * @default {"method":"default","array":[]}
+   * @type object | undefined
+   */
+  timesteps?: TimestepsInput
+  /**
+   * @description URL or HuggingFace ID of the custom U-Net model to use for the image generation.
+   */
+  unet_name?: string | null
+  /**
+   * @description
+   *             The weight name of the image encoder model to use for the image generation.
+   *
+   * @default pytorch_model.bin
+   * @example pytorch_model.bin
+   */
+  image_encoder_weight_name?: string | null
+  /**
+   * @description
+   *             The URL of the IC Light model background image to use for the image generation.
+   *             Make sure to use a background compatible with the model.
+   *
+   */
+  ic_light_model_background_image_url?: string | null
+  /**
+   * @description
+   *             Number of images to generate in one request. Note that the higher the batch size,
+   *             the longer it will take to generate the images.
+   *
+   * @minimum 1
+   * @maximum 8
+   * @default 1
+   * @type integer | undefined
+   */
+  num_images?: number
+  /**
+   * @description The size of the tiles to be used for the image generation.
+   * @minimum 128
+   * @maximum 4096
+   * @default 4096
+   * @type integer | undefined
+   */
+  tile_width?: number
+  /**
+   * @description The format of the generated image.
+   * @default 'png'
+   * @example jpeg
+   * @type string | undefined
+   */
+  image_format?: InputFalAiLoraImageToImageImageFormatEnumKey
+  /**
+   * @description The variant of the model to use for huggingface models, e.g. 'fp16'.
+   */
+  variant?: string | null
+  /**
+   * @description
+   *             The URL of the IC Light model to use for the image generation.
+   *
+   */
+  ic_light_model_url?: string | null
+  /**
+   * @description URL or HuggingFace ID of the base model to generate the image.
+   * @example stabilityai/stable-diffusion-xl-base-1.0
+   * @example runwayml/stable-diffusion-v1-5
+   * @example SG161222/Realistic_Vision_V2.0
+   * @type string
+   */
+  model_name: string
   /**
    * @description
    *             Increasing the amount of steps tells Stable Diffusion that it should take more steps
@@ -61179,135 +61841,23 @@ export type InputFalAiLoraImageToImage = {
   num_inference_steps?: number
   /**
    * @description
-   *             The negative prompt to use.Use it to address details that you don't want
-   *             in the image. This could be colors, objects, scenery and even the small details
-   *             (e.g. moustache, blurry, low resolution).
-   *
-   * @default ''
-   * @example cartoon, painting, illustration, worst quality, low quality, normal quality
-   * @type string | undefined
-   */
-  negative_prompt?: string
-  /**
-   * @description Subfolder containing the image encoder weights in image_encoder_path.
-   */
-  image_encoder_subfolder?: string | null
-  /**
-   * @description
    *             The embeddings to use for the image generation. Only a single embedding is supported at the moment.
    *             The embeddings will be used to map the tokens in the prompt to the embedding weights.
    *
    * @default []
    * @type array | undefined
    */
-  embeddings?: EmbeddingB7Cdd593[]
+  embeddings?: EmbeddingDd53B60E[]
   /**
-   * @description
-   *             Skips part of the image generation process, leading to slightly different results.
-   *             This means the image renders faster, too.
-   *
-   * @minimum 0
-   * @maximum 2
-   * @default 0
-   * @type integer | undefined
+   * @description If set to true, the latents will be saved for debugging.
+   * @default false
+   * @type boolean | undefined
    */
-  clip_skip?: number
+  debug_latents?: boolean
   /**
-   * @description The prompt to use for generating the image. Be as descriptive as possible for best results.
-   * @example Photo of a european medieval 40 year old queen, silver hair, highly detailed face, detailed eyes, head shot, intricate crown, age spots, wrinkles
-   * @example Photo of a classic red mustang car parked in las vegas strip at night
-   * @type string
+   * @description Scheduler / sampler to use for the image denoising process.
    */
-  prompt: string
-  /**
-   * @description
-   *             The type of prediction to use for the image generation.
-   *             The `epsilon` is the default.
-   *
-   * @default 'epsilon'
-   * @type string | undefined
-   */
-  prediction_type?: InputFalAiLoraImageToImagePredictionTypeEnumKey
-  /**
-   * @description The stride of the tiles to be used for the image generation.
-   * @minimum 64
-   * @maximum 2048
-   * @default 2048
-   * @type integer | undefined
-   */
-  tile_stride_height?: number
-  /**
-   * @description The stride of the tiles to be used for the image generation.
-   * @minimum 64
-   * @maximum 2048
-   * @default 2048
-   * @type integer | undefined
-   */
-  tile_stride_width?: number
-  /**
-   * @description The variant of the model to use for huggingface models, e.g. 'fp16'.
-   */
-  variant?: string | null
-  /**
-   * @description
-   *             The weight name of the image encoder model to use for the image generation.
-   *
-   * @default pytorch_model.bin
-   * @example pytorch_model.bin
-   */
-  image_encoder_weight_name?: string | null
-  /**
-   * @description The size of the tiles to be used for the image generation.
-   * @minimum 128
-   * @maximum 4096
-   * @default 4096
-   * @type integer | undefined
-   */
-  tile_width?: number
-  /**
-   * @description
-   *             Number of images to generate in one request. Note that the higher the batch size,
-   *             the longer it will take to generate the images.
-   *
-   * @minimum 1
-   * @maximum 8
-   * @default 1
-   * @type integer | undefined
-   */
-  num_images?: number
-  /**
-   * @description
-   *             The same seed and the same prompt given to the same version of Stable Diffusion
-   *             will output the same image every time.
-   *
-   */
-  seed?: number | null
-  /**
-   * @description The size of the tiles to be used for the image generation.
-   * @minimum 128
-   * @maximum 4096
-   * @default 4096
-   * @type integer | undefined
-   */
-  tile_height?: number
-  /**
-   * @description The eta value to be used for the image generation.
-   * @minimum 0
-   * @maximum 1
-   * @default 0
-   * @type number | undefined
-   */
-  eta?: number
-  /**
-   * @description
-   *             The URL of the IC Light model image to use for the image generation.
-   *
-   */
-  ic_light_image_url?: string | null
-  /**
-   * @description Hugging Face ID or HTTPS URL of the image encoder; required when ip_adapter is non-empty. Choose an encoder compatible with the IP-Adapter weights. For h94/IP-Adapter SDXL weights, use h94/IP-Adapter with image_encoder_subfolder='sdxl_models/image_encoder'; for SD1.5 weights, use image_encoder_subfolder='models/image_encoder'.
-   */
-  image_encoder_path?: string | null
+  scheduler?: InputFalAiLoraImageToImageSchedulerKey | null
   /**
    * @description The amount of noise to add to noise image for image. Only used if the image_url is provided. 1.0 is complete noise and values near 0 are minimal noise.
    * @maximum 1
@@ -61316,70 +61866,30 @@ export type InputFalAiLoraImageToImage = {
    */
   noise_strength?: number
   /**
-   * @description URL or HuggingFace ID of the custom U-Net model to use for the image generation.
+   * @description IP adapters for image generation (up to 5). A non-empty list requires image_encoder_path.
+   * @default []
+   * @type array | undefined
    */
-  unet_name?: string | null
+  ip_adapter?: IPAdapter4A8413Db[]
   /**
-   * @description If set to true, the safety checker will be enabled.
-   * @default false
-   * @type boolean | undefined
+   * @description URL of image to use for image to image/inpainting.
    */
-  enable_safety_checker?: boolean
-  /**
-   * @description If set to true, the latents will be saved for debugging.
-   * @default false
-   * @type boolean | undefined
-   */
-  debug_latents?: boolean
+  image_url?: string | null
   /**
    * @description
-   *             The LoRAs to use for the image generation. You can use any number of LoRAs
-   *             and they will be merged together to generate the final image.
+   *             The URL of the IC Light model image to use for the image generation.
+   *
+   */
+  ic_light_image_url?: string | null
+  /**
+   * @description
+   *             The control nets to use for the image generation. You can use up to 5 control nets
+   *             and they will be applied to the image at the specified timesteps.
    *
    * @default []
    * @type array | undefined
    */
-  loras?: LoraWeight7Fa3B828[]
-  /**
-   * @description
-   *             If set to true, the controlnet will be applied to only the conditional predictions.
-   *
-   * @default false
-   * @type boolean | undefined
-   */
-  controlnet_guess_mode?: boolean
-  /**
-   * @description IP adapters for image generation. A non-empty list requires image_encoder_path.
-   * @default []
-   * @type array | undefined
-   */
-  ip_adapter?: IPAdapter8790Eea6[]
-  /**
-   * @description
-   *             Optionally override the sigmas to use for the denoising process. Only works with schedulers which support the `sigmas` argument in their `set_sigmas` method.
-   *             Defaults to not overriding, in which case the scheduler automatically sets the sigmas based on the `num_inference_steps` parameter.
-   *             If set to a custom sigma schedule, the `num_inference_steps` parameter will be ignored. Cannot be set if `timesteps` is set.
-   *
-   * @default {"array":[],"method":"default"}
-   * @type object | undefined
-   */
-  sigmas?: SigmasInput
-  /**
-   * @description
-   *             If set to true, the prompt weighting syntax will be used.
-   *             Additionally, this will lift the 77 token limit by averaging embeddings.
-   *
-   * @default false
-   * @example true
-   * @type boolean | undefined
-   */
-  prompt_weighting?: boolean
-  /**
-   * @description
-   *             The URL of the IC Light model to use for the image generation.
-   *
-   */
-  ic_light_model_url?: string | null
+  controlnets?: ControlNetEc0Ea791[]
   /**
    * @description
    *             The CFG (Classifier Free Guidance) scale is a measure of how close you want
@@ -61392,25 +61902,21 @@ export type InputFalAiLoraImageToImage = {
    */
   guidance_scale?: number
   /**
-   * @description Scheduler / sampler to use for the image denoising process.
+   * @description
+   *             The same seed and the same prompt given to the same version of Stable Diffusion
+   *             will output the same image every time.
+   *
    */
-  scheduler?: InputFalAiLoraImageToImageSchedulerKey | null
-  /**
-   * @description If set to true, the latents will be saved for debugging per pass.
-   * @default false
-   * @type boolean | undefined
-   */
-  debug_per_pass_latents?: boolean
+  seed?: number | null
   /**
    * @description
-   *             Optionally override the timesteps to use for the denoising process. Only works with schedulers which support the `timesteps` argument in their `set_timesteps` method.
-   *             Defaults to not overriding, in which case the scheduler automatically sets the timesteps based on the `num_inference_steps` parameter.
-   *             If set to a custom timestep schedule, the `num_inference_steps` parameter will be ignored. Cannot be set if `sigmas` is set.
+   *             The LoRAs to use for the image generation. You can use up to 10 LoRAs
+   *             and they will be merged together to generate the final image.
    *
-   * @default {"array":[],"method":"default"}
-   * @type object | undefined
+   * @default []
+   * @type array | undefined
    */
-  timesteps?: TimestepsInput
+  loras?: LoraWeight2Ecc1Ddd[]
   /**
    * @description
    *             Whether to set the rescale_betas_snr_zero option or not for the sampler
@@ -61420,40 +61926,104 @@ export type InputFalAiLoraImageToImage = {
    */
   rescale_betas_snr_zero?: boolean
   /**
-   * @description The format of the generated image.
-   * @default 'png'
-   * @example jpeg
-   * @type string | undefined
+   * @description The stride of the tiles to be used for the image generation.
+   * @minimum 64
+   * @maximum 2048
+   * @default 2048
+   * @type integer | undefined
    */
-  image_format?: InputFalAiLoraImageToImageImageFormatEnumKey
+  tile_stride_height?: number
+  /**
+   * @description Subfolder containing the image encoder weights in image_encoder_path.
+   */
+  image_encoder_subfolder?: string | null
+  /**
+   * @description If set to true, the safety checker will be enabled.
+   * @default false
+   * @type boolean | undefined
+   */
+  enable_safety_checker?: boolean
   /**
    * @description
-   *             The URL of the IC Light model background image to use for the image generation.
-   *             Make sure to use a background compatible with the model.
+   *             If set to true, the prompt weighting syntax will be used.
+   *             Additionally, this will lift the 77 token limit by averaging embeddings.
    *
+   * @default false
+   * @example true
+   * @type boolean | undefined
    */
-  ic_light_model_background_image_url?: string | null
+  prompt_weighting?: boolean
   /**
-   * @description
-   *             The control nets to use for the image generation. You can use any number of control nets
-   *             and they will be applied to the image at the specified timesteps.
-   *
-   * @default []
-   * @type array | undefined
-   */
-  controlnets?: ControlNetAbfcc54C[]
-  /**
-   * @description URL of image to use for image to image/inpainting.
-   */
-  image_url?: string | null
-  /**
-   * @description URL or HuggingFace ID of the base model to generate the image.
-   * @example stabilityai/stable-diffusion-xl-base-1.0
-   * @example runwayml/stable-diffusion-v1-5
-   * @example SG161222/Realistic_Vision_V2.0
+   * @description The prompt to use for generating the image. Be as descriptive as possible for best results.
+   * @example Photo of a european medieval 40 year old queen, silver hair, highly detailed face, detailed eyes, head shot, intricate crown, age spots, wrinkles
+   * @example Photo of a classic red mustang car parked in las vegas strip at night
    * @type string
    */
-  model_name: string
+  prompt: string
+  /**
+   * @description
+   *             If set to true, the controlnet will be applied to only the conditional predictions.
+   *
+   * @default false
+   * @type boolean | undefined
+   */
+  controlnet_guess_mode?: boolean
+  /**
+   * @description The stride of the tiles to be used for the image generation.
+   * @minimum 64
+   * @maximum 2048
+   * @default 2048
+   * @type integer | undefined
+   */
+  tile_stride_width?: number
+  /**
+   * @description The eta value to be used for the image generation.
+   * @minimum 0
+   * @maximum 1
+   * @default 0
+   * @type number | undefined
+   */
+  eta?: number
+  /**
+   * @description Hugging Face ID or HTTPS URL of the image encoder; required when ip_adapter is non-empty. Choose an encoder compatible with the IP-Adapter weights. For h94/IP-Adapter SDXL weights, use h94/IP-Adapter with image_encoder_subfolder='sdxl_models/image_encoder'; for SD1.5 weights, use image_encoder_subfolder='models/image_encoder'.
+   */
+  image_encoder_path?: string | null
+  /**
+   * @description
+   *             The type of prediction to use for the image generation.
+   *             The `epsilon` is the default.
+   *
+   * @default 'epsilon'
+   * @type string | undefined
+   */
+  prediction_type?: InputFalAiLoraImageToImagePredictionTypeEnumKey
+  /**
+   * @description
+   *             Skips part of the image generation process, leading to slightly different results.
+   *             This means the image renders faster, too.
+   *
+   * @minimum 0
+   * @maximum 2
+   * @default 0
+   * @type integer | undefined
+   */
+  clip_skip?: number
+  /**
+   * @description
+   *             Optionally override the sigmas to use for the denoising process. Only works with schedulers which support the `sigmas` argument in their `set_sigmas` method.
+   *             Defaults to not overriding, in which case the scheduler automatically sets the sigmas based on the `num_inference_steps` parameter.
+   *             If set to a custom sigma schedule, the `num_inference_steps` parameter will be ignored. Cannot be set if `timesteps` is set.
+   *
+   * @default {"method":"default","array":[]}
+   * @type object | undefined
+   */
+  sigmas?: SigmasInput
+  /**
+   * @description If set to true, the latents will be saved for debugging per pass.
+   * @default false
+   * @type boolean | undefined
+   */
+  debug_per_pass_latents?: boolean
 }
 
 export type File9A935D8E = {
@@ -61545,12 +62115,7 @@ export type OutputFalAiLoraImageToImage = {
   debug_latents: File9A935D8E | null
 }
 
-export type Embedding05933389 = {
-  /**
-   * @description URL or the path to the embedding weights.
-   * @type string
-   */
-  path: string
+export type EmbeddingF10F3C42 = {
   /**
    * @description
    *             The tokens to map the embedding weights to. Use these tokens in your
@@ -61559,9 +62124,143 @@ export type Embedding05933389 = {
    *
    */
   tokens?: string[] | null
+  /**
+   * @description URL or the path to the embedding weights.
+   * @type string
+   */
+  path: string
 }
 
-export type LoraWeight8Bdaad14 = {
+export type IPAdapter54883611 = {
+  /**
+   * @description
+   *             The value to set the image projection shortcut to. For FaceID plus V1 models,
+   *             this should be set to False. For FaceID plus V2 models, this should be set to True.
+   *             Default is True.
+   *
+   * @default true
+   * @type boolean | undefined
+   */
+  image_projection_shortcut?: boolean
+  /**
+   * @description URL or the path to the InsightFace model weights.
+   */
+  insight_face_model_path?: string | null
+  /**
+   * @description
+   *             The mask to use for the IP adapter. When using a mask, the ip-adapter image size and the mask size must be the same
+   *
+   */
+  ip_adapter_mask_url?: string | null
+  /**
+   * @description Subfolder in the model directory where the IP adapter weights are stored.
+   */
+  model_subfolder?: string | null
+  /**
+   * @description The factor to apply to the unconditional noising of the IP adapter.
+   * @minimum 0
+   * @maximum 1
+   * @default 0
+   * @type number | undefined
+   */
+  unconditional_noising_factor?: number
+  /**
+   * @description
+   *             The scale of the IP adapter weight. This is used to scale the IP adapter weight
+   *             before merging it with the base model.
+   *
+   * @minimum 0
+   * @default 1
+   * @type number | undefined
+   */
+  scale?: number
+  /**
+   * @description URL or the path to the IP adapter weights.
+   * @type string
+   */
+  path: string
+  /**
+   * @description
+   *             The scale of the IP adapter weight. This is used to scale the IP adapter weight
+   *             before merging it with the base model.
+   *
+   */
+  scale_json?: object | null
+  /**
+   * @description URL of the image to be used as the IP adapter, or a list of up to 5 URLs.
+   */
+  ip_adapter_image_url: string | string[]
+  /**
+   * @description Name of the weight file.
+   */
+  weight_name?: string | null
+}
+
+export type ControlNet602B4D87 = {
+  /**
+   * @description optional URL to the controlnet config.json file.
+   */
+  config_url?: string | null
+  /**
+   * @description
+   *             The mask to use for the controlnet. When using a mask, the control image size and the mask size must be the same and divisible by 32.
+   *
+   */
+  mask_url?: string | null
+  /**
+   * @description URL of the image to be used as the control net.
+   * @type string
+   */
+  image_url: string
+  /**
+   * @description URL or the path to the control net weights.
+   * @type string
+   */
+  path: string
+  /**
+   * @description
+   *             The percentage of the image to start applying the controlnet in terms of the total timesteps.
+   *
+   * @minimum 0
+   * @maximum 1
+   * @default 0
+   * @type number | undefined
+   */
+  start_percentage?: number
+  /**
+   * @description
+   *             The scale of the control net weight. This is used to scale the control net weight
+   *             before merging it with the base model.
+   *
+   * @minimum 0
+   * @maximum 2
+   * @default 1
+   * @type number | undefined
+   */
+  conditioning_scale?: number
+  /**
+   * @description
+   *             The percentage of the image to end applying the controlnet in terms of the total timesteps.
+   *
+   * @minimum 0
+   * @maximum 1
+   * @default 1
+   * @type number | undefined
+   */
+  end_percentage?: number
+  /**
+   * @description
+   *             The index of the IP adapter to be applied to the controlnet. This is only needed for InstantID ControlNets.
+   *
+   */
+  ip_adapter_index?: number | null
+  /**
+   * @description The optional variant if a Hugging Face repo key is used.
+   */
+  variant?: string | null
+}
+
+export type LoraWeight0Ee534E3 = {
   /**
    * @description
    *             The scale of the LoRA weight. This is used to scale the LoRA weight
@@ -61580,142 +62279,13 @@ export type LoraWeight8Bdaad14 = {
   path: string
 }
 
-export type IPAdapterAe6A1B3A = {
-  /**
-   * @description Subfolder in the model directory where the IP adapter weights are stored.
-   */
-  model_subfolder?: string | null
-  /**
-   * @description Name of the weight file.
-   */
-  weight_name?: string | null
-  /**
-   * @description
-   *             The scale of the IP adapter weight. This is used to scale the IP adapter weight
-   *             before merging it with the base model.
-   *
-   * @minimum 0
-   * @default 1
-   * @type number | undefined
-   */
-  scale?: number
-  /**
-   * @description URL or the path to the IP adapter weights.
-   * @type string
-   */
-  path: string
-  /**
-   * @description
-   *             The value to set the image projection shortcut to. For FaceID plus V1 models,
-   *             this should be set to False. For FaceID plus V2 models, this should be set to True.
-   *             Default is True.
-   *
-   * @default true
-   * @type boolean | undefined
-   */
-  image_projection_shortcut?: boolean
-  /**
-   * @description The factor to apply to the unconditional noising of the IP adapter.
-   * @minimum 0
-   * @maximum 1
-   * @default 0
-   * @type number | undefined
-   */
-  unconditional_noising_factor?: number
-  /**
-   * @description URL or the path to the InsightFace model weights.
-   */
-  insight_face_model_path?: string | null
-  /**
-   * @description
-   *             The scale of the IP adapter weight. This is used to scale the IP adapter weight
-   *             before merging it with the base model.
-   *
-   */
-  scale_json?: object | null
-  /**
-   * @description
-   *             The mask to use for the IP adapter. When using a mask, the ip-adapter image size and the mask size must be the same
-   *
-   */
-  ip_adapter_mask_url?: string | null
-  /**
-   * @description URL of the image to be used as the IP adapter.
-   */
-  ip_adapter_image_url: string | string[]
-}
-
-export type ControlNet0Bb0Ccd8 = {
-  /**
-   * @description
-   *             The percentage of the image to end applying the controlnet in terms of the total timesteps.
-   *
-   * @minimum 0
-   * @maximum 1
-   * @default 1
-   * @type number | undefined
-   */
-  end_percentage?: number
-  /**
-   * @description URL of the image to be used as the control net.
-   * @type string
-   */
-  image_url: string
-  /**
-   * @description URL or the path to the control net weights.
-   * @type string
-   */
-  path: string
-  /**
-   * @description
-   *             The mask to use for the controlnet. When using a mask, the control image size and the mask size must be the same and divisible by 32.
-   *
-   */
-  mask_url?: string | null
-  /**
-   * @description optional URL to the controlnet config.json file.
-   */
-  config_url?: string | null
-  /**
-   * @description
-   *             The percentage of the image to start applying the controlnet in terms of the total timesteps.
-   *
-   * @minimum 0
-   * @maximum 1
-   * @default 0
-   * @type number | undefined
-   */
-  start_percentage?: number
-  /**
-   * @description
-   *             The index of the IP adapter to be applied to the controlnet. This is only needed for InstantID ControlNets.
-   *
-   */
-  ip_adapter_index?: number | null
-  /**
-   * @description
-   *             The scale of the control net weight. This is used to scale the control net weight
-   *             before merging it with the base model.
-   *
-   * @minimum 0
-   * @maximum 2
-   * @default 1
-   * @type number | undefined
-   */
-  conditioning_scale?: number
-  /**
-   * @description The optional variant if a Hugging Face repo key is used.
-   */
-  variant?: string | null
-}
-
-export const inputFalAiLoraInpaintPredictionTypeEnum = {
-  v_prediction: 'v_prediction',
-  epsilon: 'epsilon',
+export const inputFalAiLoraInpaintImageFormatEnum = {
+  jpeg: 'jpeg',
+  png: 'png',
 } as const
 
-export type InputFalAiLoraInpaintPredictionTypeEnumKey =
-  (typeof inputFalAiLoraInpaintPredictionTypeEnum)[keyof typeof inputFalAiLoraInpaintPredictionTypeEnum]
+export type InputFalAiLoraInpaintImageFormatEnumKey =
+  (typeof inputFalAiLoraInpaintImageFormatEnum)[keyof typeof inputFalAiLoraInpaintImageFormatEnum]
 
 export const inputFalAiLoraInpaintScheduler = {
   'DPM++ 2M': 'DPM++ 2M',
@@ -61734,15 +62304,107 @@ export const inputFalAiLoraInpaintScheduler = {
 export type InputFalAiLoraInpaintSchedulerKey =
   (typeof inputFalAiLoraInpaintScheduler)[keyof typeof inputFalAiLoraInpaintScheduler]
 
-export const inputFalAiLoraInpaintImageFormatEnum = {
-  jpeg: 'jpeg',
-  png: 'png',
+export const inputFalAiLoraInpaintPredictionTypeEnum = {
+  v_prediction: 'v_prediction',
+  epsilon: 'epsilon',
 } as const
 
-export type InputFalAiLoraInpaintImageFormatEnumKey =
-  (typeof inputFalAiLoraInpaintImageFormatEnum)[keyof typeof inputFalAiLoraInpaintImageFormatEnum]
+export type InputFalAiLoraInpaintPredictionTypeEnumKey =
+  (typeof inputFalAiLoraInpaintPredictionTypeEnum)[keyof typeof inputFalAiLoraInpaintPredictionTypeEnum]
 
 export type InputFalAiLoraInpaint = {
+  /**
+   * @description
+   *             The negative prompt to use.Use it to address details that you don't want
+   *             in the image. This could be colors, objects, scenery and even the small details
+   *             (e.g. moustache, blurry, low resolution).
+   *
+   * @default ''
+   * @example cartoon, painting, illustration, worst quality, low quality, normal quality
+   * @type string | undefined
+   */
+  negative_prompt?: string
+  /**
+   * @description The size of the tiles to be used for the image generation.
+   * @minimum 128
+   * @maximum 4096
+   * @default 4096
+   * @type integer | undefined
+   */
+  tile_height?: number
+  /**
+   * @description
+   *             Optionally override the timesteps to use for the denoising process. Only works with schedulers which support the `timesteps` argument in their `set_timesteps` method.
+   *             Defaults to not overriding, in which case the scheduler automatically sets the timesteps based on the `num_inference_steps` parameter.
+   *             If set to a custom timestep schedule, the `num_inference_steps` parameter will be ignored. Cannot be set if `sigmas` is set.
+   *
+   * @default {"method":"default","array":[]}
+   * @type object | undefined
+   */
+  timesteps?: TimestepsInput
+  /**
+   * @description URL or HuggingFace ID of the custom U-Net model to use for the image generation.
+   */
+  unet_name?: string | null
+  /**
+   * @description
+   *             The weight name of the image encoder model to use for the image generation.
+   *
+   * @default pytorch_model.bin
+   * @example pytorch_model.bin
+   */
+  image_encoder_weight_name?: string | null
+  /**
+   * @description
+   *             The URL of the IC Light model background image to use for the image generation.
+   *             Make sure to use a background compatible with the model.
+   *
+   */
+  ic_light_model_background_image_url?: string | null
+  /**
+   * @description
+   *             Number of images to generate in one request. Note that the higher the batch size,
+   *             the longer it will take to generate the images.
+   *
+   * @minimum 1
+   * @maximum 8
+   * @default 1
+   * @type integer | undefined
+   */
+  num_images?: number
+  /**
+   * @description The size of the tiles to be used for the image generation.
+   * @minimum 128
+   * @maximum 4096
+   * @default 4096
+   * @type integer | undefined
+   */
+  tile_width?: number
+  /**
+   * @description The format of the generated image.
+   * @default 'png'
+   * @example jpeg
+   * @type string | undefined
+   */
+  image_format?: InputFalAiLoraInpaintImageFormatEnumKey
+  /**
+   * @description The variant of the model to use for huggingface models, e.g. 'fp16'.
+   */
+  variant?: string | null
+  /**
+   * @description
+   *             The URL of the IC Light model to use for the image generation.
+   *
+   */
+  ic_light_model_url?: string | null
+  /**
+   * @description URL or HuggingFace ID of the base model to generate the image.
+   * @example stabilityai/stable-diffusion-xl-base-1.0
+   * @example runwayml/stable-diffusion-v1-5
+   * @example SG161222/Realistic_Vision_V2.0
+   * @type string
+   */
+  model_name: string
   /**
    * @description
    *             Increasing the amount of steps tells Stable Diffusion that it should take more steps
@@ -61756,135 +62418,23 @@ export type InputFalAiLoraInpaint = {
   num_inference_steps?: number
   /**
    * @description
-   *             The negative prompt to use.Use it to address details that you don't want
-   *             in the image. This could be colors, objects, scenery and even the small details
-   *             (e.g. moustache, blurry, low resolution).
-   *
-   * @default ''
-   * @example cartoon, painting, illustration, worst quality, low quality, normal quality
-   * @type string | undefined
-   */
-  negative_prompt?: string
-  /**
-   * @description Subfolder containing the image encoder weights in image_encoder_path.
-   */
-  image_encoder_subfolder?: string | null
-  /**
-   * @description
    *             The embeddings to use for the image generation. Only a single embedding is supported at the moment.
    *             The embeddings will be used to map the tokens in the prompt to the embedding weights.
    *
    * @default []
    * @type array | undefined
    */
-  embeddings?: Embedding05933389[]
+  embeddings?: EmbeddingF10F3C42[]
   /**
-   * @description
-   *             Skips part of the image generation process, leading to slightly different results.
-   *             This means the image renders faster, too.
-   *
-   * @minimum 0
-   * @maximum 2
-   * @default 0
-   * @type integer | undefined
+   * @description If set to true, the latents will be saved for debugging.
+   * @default false
+   * @type boolean | undefined
    */
-  clip_skip?: number
+  debug_latents?: boolean
   /**
-   * @description The prompt to use for generating the image. Be as descriptive as possible for best results.
-   * @example Photo of a european medieval 40 year old queen, silver hair, highly detailed face, detailed eyes, head shot, intricate crown, age spots, wrinkles
-   * @example Photo of a classic red mustang car parked in las vegas strip at night
-   * @type string
+   * @description Scheduler / sampler to use for the image denoising process.
    */
-  prompt: string
-  /**
-   * @description
-   *             The type of prediction to use for the image generation.
-   *             The `epsilon` is the default.
-   *
-   * @default 'epsilon'
-   * @type string | undefined
-   */
-  prediction_type?: InputFalAiLoraInpaintPredictionTypeEnumKey
-  /**
-   * @description The stride of the tiles to be used for the image generation.
-   * @minimum 64
-   * @maximum 2048
-   * @default 2048
-   * @type integer | undefined
-   */
-  tile_stride_height?: number
-  /**
-   * @description The stride of the tiles to be used for the image generation.
-   * @minimum 64
-   * @maximum 2048
-   * @default 2048
-   * @type integer | undefined
-   */
-  tile_stride_width?: number
-  /**
-   * @description The variant of the model to use for huggingface models, e.g. 'fp16'.
-   */
-  variant?: string | null
-  /**
-   * @description
-   *             The weight name of the image encoder model to use for the image generation.
-   *
-   * @default pytorch_model.bin
-   * @example pytorch_model.bin
-   */
-  image_encoder_weight_name?: string | null
-  /**
-   * @description The size of the tiles to be used for the image generation.
-   * @minimum 128
-   * @maximum 4096
-   * @default 4096
-   * @type integer | undefined
-   */
-  tile_width?: number
-  /**
-   * @description
-   *             Number of images to generate in one request. Note that the higher the batch size,
-   *             the longer it will take to generate the images.
-   *
-   * @minimum 1
-   * @maximum 8
-   * @default 1
-   * @type integer | undefined
-   */
-  num_images?: number
-  /**
-   * @description
-   *             The same seed and the same prompt given to the same version of Stable Diffusion
-   *             will output the same image every time.
-   *
-   */
-  seed?: number | null
-  /**
-   * @description The size of the tiles to be used for the image generation.
-   * @minimum 128
-   * @maximum 4096
-   * @default 4096
-   * @type integer | undefined
-   */
-  tile_height?: number
-  /**
-   * @description The eta value to be used for the image generation.
-   * @minimum 0
-   * @maximum 1
-   * @default 0
-   * @type number | undefined
-   */
-  eta?: number
-  /**
-   * @description
-   *             The URL of the IC Light model image to use for the image generation.
-   *
-   */
-  ic_light_image_url?: string | null
-  /**
-   * @description Hugging Face ID or HTTPS URL of the image encoder; required when ip_adapter is non-empty. Choose an encoder compatible with the IP-Adapter weights. For h94/IP-Adapter SDXL weights, use h94/IP-Adapter with image_encoder_subfolder='sdxl_models/image_encoder'; for SD1.5 weights, use image_encoder_subfolder='models/image_encoder'.
-   */
-  image_encoder_path?: string | null
+  scheduler?: InputFalAiLoraInpaintSchedulerKey | null
   /**
    * @description The amount of noise to add to noise image for image. Only used if the image_url is provided. 1.0 is complete noise and values near 0 are minimal noise.
    * @maximum 1
@@ -61893,74 +62443,30 @@ export type InputFalAiLoraInpaint = {
    */
   noise_strength?: number
   /**
-   * @description URL or HuggingFace ID of the custom U-Net model to use for the image generation.
+   * @description IP adapters for image generation (up to 5). A non-empty list requires image_encoder_path.
+   * @default []
+   * @type array | undefined
    */
-  unet_name?: string | null
+  ip_adapter?: IPAdapter54883611[]
   /**
-   * @description If set to true, the safety checker will be enabled.
-   * @default false
-   * @type boolean | undefined
+   * @description URL of image to use for image to image/inpainting.
    */
-  enable_safety_checker?: boolean
-  /**
-   * @description If set to true, the latents will be saved for debugging.
-   * @default false
-   * @type boolean | undefined
-   */
-  debug_latents?: boolean
-  /**
-   * @description URL of black-and-white image to use as mask during inpainting.
-   */
-  mask_url?: string | null
+  image_url?: string | null
   /**
    * @description
-   *             If set to true, the controlnet will be applied to only the conditional predictions.
+   *             The URL of the IC Light model image to use for the image generation.
    *
-   * @default false
-   * @type boolean | undefined
    */
-  controlnet_guess_mode?: boolean
+  ic_light_image_url?: string | null
   /**
    * @description
-   *             The LoRAs to use for the image generation. You can use any number of LoRAs
-   *             and they will be merged together to generate the final image.
+   *             The control nets to use for the image generation. You can use up to 5 control nets
+   *             and they will be applied to the image at the specified timesteps.
    *
    * @default []
    * @type array | undefined
    */
-  loras?: LoraWeight8Bdaad14[]
-  /**
-   * @description IP adapters for image generation. A non-empty list requires image_encoder_path.
-   * @default []
-   * @type array | undefined
-   */
-  ip_adapter?: IPAdapterAe6A1B3A[]
-  /**
-   * @description
-   *             Optionally override the sigmas to use for the denoising process. Only works with schedulers which support the `sigmas` argument in their `set_sigmas` method.
-   *             Defaults to not overriding, in which case the scheduler automatically sets the sigmas based on the `num_inference_steps` parameter.
-   *             If set to a custom sigma schedule, the `num_inference_steps` parameter will be ignored. Cannot be set if `timesteps` is set.
-   *
-   * @default {"array":[],"method":"default"}
-   * @type object | undefined
-   */
-  sigmas?: SigmasInput
-  /**
-   * @description
-   *             If set to true, the prompt weighting syntax will be used.
-   *             Additionally, this will lift the 77 token limit by averaging embeddings.
-   *
-   * @default false
-   * @example true
-   * @type boolean | undefined
-   */
-  prompt_weighting?: boolean
-  /**
-   * @description
-   *             The URL of the IC Light model to use for the image generation.
-   *
-   */
-  ic_light_model_url?: string | null
+  controlnets?: ControlNet602B4D87[]
   /**
    * @description
    *             The CFG (Classifier Free Guidance) scale is a measure of how close you want
@@ -61973,25 +62479,21 @@ export type InputFalAiLoraInpaint = {
    */
   guidance_scale?: number
   /**
-   * @description Scheduler / sampler to use for the image denoising process.
+   * @description
+   *             The same seed and the same prompt given to the same version of Stable Diffusion
+   *             will output the same image every time.
+   *
    */
-  scheduler?: InputFalAiLoraInpaintSchedulerKey | null
-  /**
-   * @description If set to true, the latents will be saved for debugging per pass.
-   * @default false
-   * @type boolean | undefined
-   */
-  debug_per_pass_latents?: boolean
+  seed?: number | null
   /**
    * @description
-   *             Optionally override the timesteps to use for the denoising process. Only works with schedulers which support the `timesteps` argument in their `set_timesteps` method.
-   *             Defaults to not overriding, in which case the scheduler automatically sets the timesteps based on the `num_inference_steps` parameter.
-   *             If set to a custom timestep schedule, the `num_inference_steps` parameter will be ignored. Cannot be set if `sigmas` is set.
+   *             The LoRAs to use for the image generation. You can use up to 10 LoRAs
+   *             and they will be merged together to generate the final image.
    *
-   * @default {"array":[],"method":"default"}
-   * @type object | undefined
+   * @default []
+   * @type array | undefined
    */
-  timesteps?: TimestepsInput
+  loras?: LoraWeight0Ee534E3[]
   /**
    * @description
    *             Whether to set the rescale_betas_snr_zero option or not for the sampler
@@ -62001,40 +62503,108 @@ export type InputFalAiLoraInpaint = {
    */
   rescale_betas_snr_zero?: boolean
   /**
-   * @description The format of the generated image.
-   * @default 'png'
-   * @example jpeg
-   * @type string | undefined
+   * @description The stride of the tiles to be used for the image generation.
+   * @minimum 64
+   * @maximum 2048
+   * @default 2048
+   * @type integer | undefined
    */
-  image_format?: InputFalAiLoraInpaintImageFormatEnumKey
+  tile_stride_height?: number
+  /**
+   * @description Subfolder containing the image encoder weights in image_encoder_path.
+   */
+  image_encoder_subfolder?: string | null
+  /**
+   * @description If set to true, the safety checker will be enabled.
+   * @default false
+   * @type boolean | undefined
+   */
+  enable_safety_checker?: boolean
   /**
    * @description
-   *             The URL of the IC Light model background image to use for the image generation.
-   *             Make sure to use a background compatible with the model.
+   *             If set to true, the prompt weighting syntax will be used.
+   *             Additionally, this will lift the 77 token limit by averaging embeddings.
    *
+   * @default false
+   * @example true
+   * @type boolean | undefined
    */
-  ic_light_model_background_image_url?: string | null
+  prompt_weighting?: boolean
   /**
-   * @description
-   *             The control nets to use for the image generation. You can use any number of control nets
-   *             and they will be applied to the image at the specified timesteps.
-   *
-   * @default []
-   * @type array | undefined
-   */
-  controlnets?: ControlNet0Bb0Ccd8[]
-  /**
-   * @description URL of image to use for image to image/inpainting.
-   */
-  image_url?: string | null
-  /**
-   * @description URL or HuggingFace ID of the base model to generate the image.
-   * @example stabilityai/stable-diffusion-xl-base-1.0
-   * @example runwayml/stable-diffusion-v1-5
-   * @example SG161222/Realistic_Vision_V2.0
+   * @description The prompt to use for generating the image. Be as descriptive as possible for best results.
+   * @example Photo of a european medieval 40 year old queen, silver hair, highly detailed face, detailed eyes, head shot, intricate crown, age spots, wrinkles
+   * @example Photo of a classic red mustang car parked in las vegas strip at night
    * @type string
    */
-  model_name: string
+  prompt: string
+  /**
+   * @description
+   *             If set to true, the controlnet will be applied to only the conditional predictions.
+   *
+   * @default false
+   * @type boolean | undefined
+   */
+  controlnet_guess_mode?: boolean
+  /**
+   * @description The stride of the tiles to be used for the image generation.
+   * @minimum 64
+   * @maximum 2048
+   * @default 2048
+   * @type integer | undefined
+   */
+  tile_stride_width?: number
+  /**
+   * @description The eta value to be used for the image generation.
+   * @minimum 0
+   * @maximum 1
+   * @default 0
+   * @type number | undefined
+   */
+  eta?: number
+  /**
+   * @description URL of black-and-white image to use as mask during inpainting.
+   */
+  mask_url?: string | null
+  /**
+   * @description Hugging Face ID or HTTPS URL of the image encoder; required when ip_adapter is non-empty. Choose an encoder compatible with the IP-Adapter weights. For h94/IP-Adapter SDXL weights, use h94/IP-Adapter with image_encoder_subfolder='sdxl_models/image_encoder'; for SD1.5 weights, use image_encoder_subfolder='models/image_encoder'.
+   */
+  image_encoder_path?: string | null
+  /**
+   * @description
+   *             The type of prediction to use for the image generation.
+   *             The `epsilon` is the default.
+   *
+   * @default 'epsilon'
+   * @type string | undefined
+   */
+  prediction_type?: InputFalAiLoraInpaintPredictionTypeEnumKey
+  /**
+   * @description
+   *             Skips part of the image generation process, leading to slightly different results.
+   *             This means the image renders faster, too.
+   *
+   * @minimum 0
+   * @maximum 2
+   * @default 0
+   * @type integer | undefined
+   */
+  clip_skip?: number
+  /**
+   * @description
+   *             Optionally override the sigmas to use for the denoising process. Only works with schedulers which support the `sigmas` argument in their `set_sigmas` method.
+   *             Defaults to not overriding, in which case the scheduler automatically sets the sigmas based on the `num_inference_steps` parameter.
+   *             If set to a custom sigma schedule, the `num_inference_steps` parameter will be ignored. Cannot be set if `timesteps` is set.
+   *
+   * @default {"method":"default","array":[]}
+   * @type object | undefined
+   */
+  sigmas?: SigmasInput
+  /**
+   * @description If set to true, the latents will be saved for debugging per pass.
+   * @default false
+   * @type boolean | undefined
+   */
+  debug_per_pass_latents?: boolean
 }
 
 export type FileCac69Ac2 = {
@@ -72452,14 +73022,7 @@ export type OutputFalAiQwenImage2512 = {
   has_nsfw_concepts: boolean[]
 }
 
-export type ImageSize4E306D64 = {
-  /**
-   * @description The width of the generated image.
-   * @maximum 14142
-   * @default 512
-   * @type integer | undefined
-   */
-  width?: number
+export type ImageSize77Af0574 = {
   /**
    * @description The height of the generated image.
    * @maximum 14142
@@ -72467,9 +73030,16 @@ export type ImageSize4E306D64 = {
    * @type integer | undefined
    */
   height?: number
+  /**
+   * @description The width of the generated image.
+   * @maximum 14142
+   * @default 512
+   * @type integer | undefined
+   */
+  width?: number
 }
 
-export type LoraWeight31D04102 = {
+export type LoraWeightE7Ac39B2 = {
   /**
    * @description
    *             The scale of the LoRA weight. This is used to scale the LoRA weight
@@ -72520,18 +73090,13 @@ export type InputFalAiQwenImage2512LoraImageSizeKey =
 
 export type InputFalAiQwenImage2512Lora = {
   /**
-   * @description If set to true, the safety checker will be enabled. Disabling it requires account authorization; unauthorized requests are always checked, and images flagged as unsafe are returned as black images.
-   * @default true
-   * @type boolean | undefined
+   * @description The guidance scale to use for the image generation.
+   * @minimum 0
+   * @maximum 20
+   * @default 4
+   * @type number | undefined
    */
-  enable_safety_checker?: boolean
-  /**
-   * @description
-   *             The same seed and the same prompt given to the same version of the model
-   *             will output the same image every time.
-   *
-   */
-  seed?: number | null
+  guidance_scale?: number
   /**
    * @description The format of the generated image.
    * @default 'png'
@@ -72551,6 +73116,25 @@ export type InputFalAiQwenImage2512Lora = {
    */
   acceleration?: InputFalAiQwenImage2512LoraAccelerationEnumKey
   /**
+   * @description If `True`, the media will be returned as a data URI and the output data won't be available in the request history.
+   * @default false
+   * @type boolean | undefined
+   */
+  sync_mode?: boolean
+  /**
+   * @description The prompt to generate an image from.
+   * @example Single red rose in a clear glass vase on white marble streaked with black and gold veins, harsh directional shadow, high contrast, editorial style, clean negative space.
+   * @type string
+   */
+  prompt: string
+  /**
+   * @description
+   *             The same seed and the same prompt given to the same version of the model
+   *             will output the same image every time.
+   *
+   */
+  seed?: number | null
+  /**
    * @description The number of images to generate.
    * @minimum 1
    * @maximum 4
@@ -72558,20 +73142,6 @@ export type InputFalAiQwenImage2512Lora = {
    * @type integer | undefined
    */
   num_images?: number
-  /**
-   * @description The size of the generated image.
-   * @default landscape_4_3
-   */
-  image_size?: ImageSize4E306D64 | InputFalAiQwenImage2512LoraImageSizeKey
-  /**
-   * @description
-   *             The LoRAs to use for the image generation. You can use up to 3 LoRAs
-   *             and they will be merged together to generate the final image.
-   *
-   * @default []
-   * @type array | undefined
-   */
-  loras?: LoraWeight31D04102[]
   /**
    * @description The number of inference steps to perform.
    * @minimum 1
@@ -72581,25 +73151,25 @@ export type InputFalAiQwenImage2512Lora = {
    */
   num_inference_steps?: number
   /**
-   * @description The prompt to generate an image from.
-   * @example Single red rose in a clear glass vase on white marble streaked with black and gold veins, harsh directional shadow, high contrast, editorial style, clean negative space.
-   * @type string
-   */
-  prompt: string
-  /**
-   * @description If `True`, the media will be returned as a data URI and the output data won't be available in the request history.
-   * @default false
+   * @description If set to true, the safety checker will be enabled. Disabling it requires account authorization; unauthorized requests are always checked, and images flagged as unsafe are returned as black images.
+   * @default true
    * @type boolean | undefined
    */
-  sync_mode?: boolean
+  enable_safety_checker?: boolean
   /**
-   * @description The guidance scale to use for the image generation.
-   * @minimum 0
-   * @maximum 20
-   * @default 4
-   * @type number | undefined
+   * @description The size of the generated image.
+   * @default landscape_4_3
    */
-  guidance_scale?: number
+  image_size?: ImageSize77Af0574 | InputFalAiQwenImage2512LoraImageSizeKey
+  /**
+   * @description
+   *             The LoRAs to use for the image generation. You can use up to 3 LoRAs
+   *             and they will be merged together to generate the final image.
+   *
+   * @default []
+   * @type array | undefined
+   */
+  loras?: LoraWeightE7Ac39B2[]
 }
 
 export type Image68C1D8Ef = {
@@ -105189,6 +105759,18 @@ export type FalImageEndpoints = {
     input: InputBriaUpscaleCreative
     output: OutputBriaUpscaleCreative
   }
+  'bytedance/seedream/v5.5/edit': {
+    input: InputBytedanceSeedreamV55Edit
+    output: OutputBytedanceSeedreamV55Edit
+  }
+  'bytedance/seedream/v5.5/layerize': {
+    input: InputBytedanceSeedreamV55Layerize
+    output: OutputBytedanceSeedreamV55Layerize
+  }
+  'bytedance/seedream/v5.5/text-to-image': {
+    input: InputBytedanceSeedreamV55TextToImage
+    output: OutputBytedanceSeedreamV55TextToImage
+  }
   'bytedance/seedream/v5/flash/edit': {
     input: InputBytedanceSeedreamV5FlashEdit
     output: OutputBytedanceSeedreamV5FlashEdit
@@ -108046,6 +108628,10 @@ export const falPostEndpointIdEndpointId = {
   'bria/product-dimensions': 'bria/product-dimensions',
   'bria/replace-background': 'bria/replace-background',
   'bria/upscale/creative': 'bria/upscale/creative',
+  'bytedance/seedream/v5.5/edit': 'bytedance/seedream/v5.5/edit',
+  'bytedance/seedream/v5.5/layerize': 'bytedance/seedream/v5.5/layerize',
+  'bytedance/seedream/v5.5/text-to-image':
+    'bytedance/seedream/v5.5/text-to-image',
   'bytedance/seedream/v5/flash/edit': 'bytedance/seedream/v5/flash/edit',
   'bytedance/seedream/v5/flash/layerize':
     'bytedance/seedream/v5/flash/layerize',
@@ -108848,6 +109434,9 @@ export type FalPostEndpointIdBody =
   | InputBriaProductDimensions
   | InputBriaReplaceBackground
   | InputBriaUpscaleCreative
+  | InputBytedanceSeedreamV55Edit
+  | InputBytedanceSeedreamV55Layerize
+  | InputBytedanceSeedreamV55TextToImage
   | InputBytedanceSeedreamV5FlashEdit
   | InputBytedanceSeedreamV5FlashLayerize
   | InputBytedanceSeedreamV5FlashTextToImage
@@ -109521,6 +110110,10 @@ export const falGetEndpointIdRequestsRequestIdEndpointId = {
   'bria/product-dimensions': 'bria/product-dimensions',
   'bria/replace-background': 'bria/replace-background',
   'bria/upscale/creative': 'bria/upscale/creative',
+  'bytedance/seedream/v5.5/edit': 'bytedance/seedream/v5.5/edit',
+  'bytedance/seedream/v5.5/layerize': 'bytedance/seedream/v5.5/layerize',
+  'bytedance/seedream/v5.5/text-to-image':
+    'bytedance/seedream/v5.5/text-to-image',
   'bytedance/seedream/v5/flash/edit': 'bytedance/seedream/v5/flash/edit',
   'bytedance/seedream/v5/flash/layerize':
     'bytedance/seedream/v5/flash/layerize',
@@ -110322,6 +110915,9 @@ export type FalGetEndpointIdRequestsRequestIdStatus200 =
   | OutputBriaProductDimensions
   | OutputBriaReplaceBackground
   | OutputBriaUpscaleCreative
+  | OutputBytedanceSeedreamV55Edit
+  | OutputBytedanceSeedreamV55Layerize
+  | OutputBytedanceSeedreamV55TextToImage
   | OutputBytedanceSeedreamV5FlashEdit
   | OutputBytedanceSeedreamV5FlashLayerize
   | OutputBytedanceSeedreamV5FlashTextToImage

@@ -8573,14 +8573,6 @@ export type OutputDecartLucy2VtonRealtime = {
   [key: string]: unknown
 }
 
-export const inputFalAiAiAvatarMultiResolutionEnum = {
-  '480p': '480p',
-  '720p': '720p',
-} as const
-
-export type InputFalAiAiAvatarMultiResolutionEnumKey =
-  (typeof inputFalAiAiAvatarMultiResolutionEnum)[keyof typeof inputFalAiAiAvatarMultiResolutionEnum]
-
 export const inputFalAiAiAvatarMultiAccelerationEnum = {
   none: 'none',
   regular: 'regular',
@@ -8590,13 +8582,21 @@ export const inputFalAiAiAvatarMultiAccelerationEnum = {
 export type InputFalAiAiAvatarMultiAccelerationEnumKey =
   (typeof inputFalAiAiAvatarMultiAccelerationEnum)[keyof typeof inputFalAiAiAvatarMultiAccelerationEnum]
 
+export const inputFalAiAiAvatarMultiResolutionEnum = {
+  '480p': '480p',
+  '720p': '720p',
+} as const
+
+export type InputFalAiAiAvatarMultiResolutionEnumKey =
+  (typeof inputFalAiAiAvatarMultiResolutionEnum)[keyof typeof inputFalAiAiAvatarMultiResolutionEnum]
+
 export type InputFalAiAiAvatarMulti = {
   /**
-   * @description The text prompt to guide video generation.
-   * @example A smiling man and woman wearing headphones sit in front of microphones, appearing to host a podcast. They are engaged in conversation, looking at each other and the camera as they speak. The scene captures a lively and collaborative podcasting session.
-   * @type string
+   * @description Whether to use only the first audio file.
+   * @default false
+   * @type boolean | undefined
    */
-  prompt: string
+  use_only_first_audio?: boolean
   /**
    * @description Number of frames to generate. Must be between 81 to 129 (inclusive). If the number of frames is greater than 81, the video will be generated with 1.25x more billing units.
    * @minimum 41
@@ -8606,16 +8606,46 @@ export type InputFalAiAiAvatarMulti = {
    */
   num_frames?: number
   /**
-   * @description The URL of the Person 2 audio file.
+   * @description The acceleration level to use for generation.
+   * @default 'regular'
+   * @type string | undefined
+   */
+  acceleration?: InputFalAiAiAvatarMultiAccelerationEnumKey
+  /**
+   * @description The URL of the Person 2 audio file (max 600 seconds).
    * @example https://v3.fal.media/files/zebra/oVKyL8JZ1K2GreeIMxVzm_output.mp3
    */
   second_audio_url?: string | null
   /**
-   * @description Whether to use only the first audio file.
-   * @default false
+   * @description Authorized callers may set false to request relaxed screening.
+   * @default true
    * @type boolean | undefined
    */
-  use_only_first_audio?: boolean
+  enable_safety_checker?: boolean
+  /**
+   * @description The text prompt to guide video generation.
+   * @example A smiling man and woman wearing headphones sit in front of microphones, appearing to host a podcast. They are engaged in conversation, looking at each other and the camera as they speak. The scene captures a lively and collaborative podcasting session.
+   * @type string
+   */
+  prompt: string
+  /**
+   * @description The URL of the Person 1 audio file (max 600 seconds).
+   * @example https://v3.fal.media/files/monkey/1XKPx3Xu-IhNLbuinVSwP_output.mp3
+   * @type string
+   */
+  first_audio_url: string
+  /**
+   * @description Resolution of the video to generate. Must be either 480p or 720p.
+   * @default '480p'
+   * @type string | undefined
+   */
+  resolution?: InputFalAiAiAvatarMultiResolutionEnumKey
+  /**
+   * @description URL of the input image. If the input image does not match the chosen aspect ratio, it is resized and center cropped.
+   * @example https://v3.fal.media/files/elephant/Q2ZU6q-d-1boGXhpDgWs9_15a22f816fd34cad969b2329946267b3.png
+   * @type string
+   */
+  image_url: string
   /**
    * @description Random seed for reproducibility. If None, a random seed is chosen.
    * @minimum 0
@@ -8624,36 +8654,6 @@ export type InputFalAiAiAvatarMulti = {
    * @type integer | undefined
    */
   seed?: number
-  /**
-   * @description URL of the input image. If the input image does not match the chosen aspect ratio, it is resized and center cropped.
-   * @example https://v3.fal.media/files/elephant/Q2ZU6q-d-1boGXhpDgWs9_15a22f816fd34cad969b2329946267b3.png
-   * @type string
-   */
-  image_url: string
-  /**
-   * @description Resolution of the video to generate. Must be either 480p or 720p.
-   * @default '480p'
-   * @type string | undefined
-   */
-  resolution?: InputFalAiAiAvatarMultiResolutionEnumKey
-  /**
-   * @description The URL of the Person 1 audio file.
-   * @example https://v3.fal.media/files/monkey/1XKPx3Xu-IhNLbuinVSwP_output.mp3
-   * @type string
-   */
-  first_audio_url: string
-  /**
-   * @description Authorized callers may set false to request relaxed screening.
-   * @default true
-   * @type boolean | undefined
-   */
-  enable_safety_checker?: boolean
-  /**
-   * @description The acceleration level to use for generation.
-   * @default 'regular'
-   * @type string | undefined
-   */
-  acceleration?: InputFalAiAiAvatarMultiAccelerationEnumKey
 }
 
 export type File496A8E5A = {
@@ -96668,6 +96668,98 @@ export type OutputVeedAvatarsTextToVideo = {
   video: File6F711D0E
 }
 
+export const inputVeedDubbingTargetLanguageEnum = {
+  af: 'af',
+  ar: 'ar',
+  as: 'as',
+  ast: 'ast',
+  az: 'az',
+  be: 'be',
+  bg: 'bg',
+  bn: 'bn',
+  bs: 'bs',
+  ca: 'ca',
+  ceb: 'ceb',
+  cs: 'cs',
+  cy: 'cy',
+  da: 'da',
+  de: 'de',
+  el: 'el',
+  en: 'en',
+  es: 'es',
+  et: 'et',
+  fa: 'fa',
+  fi: 'fi',
+  fil: 'fil',
+  fr: 'fr',
+  ga: 'ga',
+  gl: 'gl',
+  gu: 'gu',
+  ha: 'ha',
+  he: 'he',
+  hi: 'hi',
+  hr: 'hr',
+  hu: 'hu',
+  hy: 'hy',
+  id: 'id',
+  is: 'is',
+  it: 'it',
+  ja: 'ja',
+  jv: 'jv',
+  ka: 'ka',
+  kk: 'kk',
+  kn: 'kn',
+  ko: 'ko',
+  ky: 'ky',
+  lb: 'lb',
+  ln: 'ln',
+  lt: 'lt',
+  lv: 'lv',
+  mi: 'mi',
+  mk: 'mk',
+  ml: 'ml',
+  mn: 'mn',
+  mr: 'mr',
+  ms: 'ms',
+  mt: 'mt',
+  my: 'my',
+  ne: 'ne',
+  nl: 'nl',
+  no: 'no',
+  ny: 'ny',
+  oc: 'oc',
+  or: 'or',
+  pa: 'pa',
+  pl: 'pl',
+  ps: 'ps',
+  pt: 'pt',
+  ro: 'ro',
+  ru: 'ru',
+  sd: 'sd',
+  sk: 'sk',
+  sl: 'sl',
+  so: 'so',
+  sr: 'sr',
+  sv: 'sv',
+  sw: 'sw',
+  ta: 'ta',
+  te: 'te',
+  tg: 'tg',
+  th: 'th',
+  tl: 'tl',
+  tr: 'tr',
+  uk: 'uk',
+  ur: 'ur',
+  uz: 'uz',
+  vi: 'vi',
+  yo: 'yo',
+  yue: 'yue',
+  zh: 'zh',
+} as const
+
+export type InputVeedDubbingTargetLanguageEnumKey =
+  (typeof inputVeedDubbingTargetLanguageEnum)[keyof typeof inputVeedDubbingTargetLanguageEnum]
+
 export const inputVeedDubbingSourceLanguageEnum = {
   auto: 'auto',
   af: 'af',
@@ -96761,115 +96853,7 @@ export const inputVeedDubbingSourceLanguageEnum = {
 export type InputVeedDubbingSourceLanguageEnumKey =
   (typeof inputVeedDubbingSourceLanguageEnum)[keyof typeof inputVeedDubbingSourceLanguageEnum]
 
-export const inputVeedDubbingTargetLanguageEnum = {
-  af: 'af',
-  ar: 'ar',
-  as: 'as',
-  ast: 'ast',
-  az: 'az',
-  be: 'be',
-  bg: 'bg',
-  bn: 'bn',
-  bs: 'bs',
-  ca: 'ca',
-  ceb: 'ceb',
-  cs: 'cs',
-  cy: 'cy',
-  da: 'da',
-  de: 'de',
-  el: 'el',
-  en: 'en',
-  es: 'es',
-  et: 'et',
-  fa: 'fa',
-  fi: 'fi',
-  fil: 'fil',
-  fr: 'fr',
-  ga: 'ga',
-  gl: 'gl',
-  gu: 'gu',
-  ha: 'ha',
-  he: 'he',
-  hi: 'hi',
-  hr: 'hr',
-  hu: 'hu',
-  hy: 'hy',
-  id: 'id',
-  is: 'is',
-  it: 'it',
-  ja: 'ja',
-  jv: 'jv',
-  ka: 'ka',
-  kk: 'kk',
-  kn: 'kn',
-  ko: 'ko',
-  ky: 'ky',
-  lb: 'lb',
-  ln: 'ln',
-  lt: 'lt',
-  lv: 'lv',
-  mi: 'mi',
-  mk: 'mk',
-  ml: 'ml',
-  mn: 'mn',
-  mr: 'mr',
-  ms: 'ms',
-  mt: 'mt',
-  my: 'my',
-  ne: 'ne',
-  nl: 'nl',
-  no: 'no',
-  ny: 'ny',
-  oc: 'oc',
-  or: 'or',
-  pa: 'pa',
-  pl: 'pl',
-  ps: 'ps',
-  pt: 'pt',
-  ro: 'ro',
-  ru: 'ru',
-  sd: 'sd',
-  sk: 'sk',
-  sl: 'sl',
-  so: 'so',
-  sr: 'sr',
-  sv: 'sv',
-  sw: 'sw',
-  ta: 'ta',
-  te: 'te',
-  tg: 'tg',
-  th: 'th',
-  tl: 'tl',
-  tr: 'tr',
-  uk: 'uk',
-  ur: 'ur',
-  uz: 'uz',
-  vi: 'vi',
-  yo: 'yo',
-  yue: 'yue',
-  zh: 'zh',
-} as const
-
-export type InputVeedDubbingTargetLanguageEnumKey =
-  (typeof inputVeedDubbingTargetLanguageEnum)[keyof typeof inputVeedDubbingTargetLanguageEnum]
-
 export type InputVeedDubbing = {
-  /**
-   * @description Language spoken in the video. 'auto' (the default) detects it; set it explicitly if detection picks the wrong language.
-   * @default 'auto'
-   * @type string | undefined
-   */
-  source_language?: InputVeedDubbingSourceLanguageEnumKey
-  /**
-   * @description Video to dub, up to 10 minutes long and with speech in its audio track. The speech is translated into the target language, and the speakers' lips are synced to the dubbed voices.
-   *
-   * Format: `uri`
-   * @minLength 1
-   * @maxLength 2083
-   * @example https://v3.fal.media/files/monkey/q1fDPhrpfjfsaRmbhTed4_influencer.mp4
-   * @type string
-   */
-  video_url: string
   /**
    * @description Language to dub into. This model has no regional dialects: a regional tag such as 'fr-FR' is accepted and dubbed in the base language ('fr').
    * @example es
@@ -96882,6 +96866,22 @@ export type InputVeedDubbing = {
    * @type array | undefined
    */
   keyterms?: string[]
+  /**
+   * @description Video to dub, 8 seconds to 10 minutes long and with speech in its audio track. The speech is translated into the target language, and the speakers' lips are synced to the dubbed voices.
+   *
+   * Format: `uri`
+   * @minLength 1
+   * @maxLength 2083
+   * @example https://v3.fal.media/files/monkey/q1fDPhrpfjfsaRmbhTed4_influencer.mp4
+   * @type string
+   */
+  video_url: string
+  /**
+   * @description Language spoken in the video. 'auto' (the default) detects it; set it explicitly if detection picks the wrong language.
+   * @default 'auto'
+   * @type string | undefined
+   */
+  source_language?: InputVeedDubbingSourceLanguageEnumKey
 }
 
 export type FileBfa4E5F1 = {
@@ -96914,107 +96914,6 @@ export type OutputVeedDubbing = {
    */
   video: FileBfa4E5F1
 }
-
-export const inputVeedDubbingProSourceLanguageEnum = {
-  auto: 'auto',
-  af: 'af',
-  ak: 'ak',
-  am: 'am',
-  ar: 'ar',
-  as: 'as',
-  az: 'az',
-  be: 'be',
-  bg: 'bg',
-  bo: 'bo',
-  bs: 'bs',
-  ca: 'ca',
-  ceb: 'ceb',
-  cmn: 'cmn',
-  cs: 'cs',
-  cy: 'cy',
-  da: 'da',
-  de: 'de',
-  dgo: 'dgo',
-  el: 'el',
-  en: 'en',
-  es: 'es',
-  et: 'et',
-  eu: 'eu',
-  fa: 'fa',
-  fi: 'fi',
-  fil: 'fil',
-  fr: 'fr',
-  gl: 'gl',
-  gu: 'gu',
-  ha: 'ha',
-  he: 'he',
-  hi: 'hi',
-  hr: 'hr',
-  hu: 'hu',
-  hy: 'hy',
-  id: 'id',
-  is: 'is',
-  it: 'it',
-  ja: 'ja',
-  jv: 'jv',
-  ka: 'ka',
-  ki: 'ki',
-  kk: 'kk',
-  kn: 'kn',
-  ko: 'ko',
-  ky: 'ky',
-  lg: 'lg',
-  lt: 'lt',
-  lv: 'lv',
-  mk: 'mk',
-  ml: 'ml',
-  mn: 'mn',
-  mr: 'mr',
-  ms: 'ms',
-  my: 'my',
-  ne: 'ne',
-  nl: 'nl',
-  no: 'no',
-  nso: 'nso',
-  pa: 'pa',
-  pl: 'pl',
-  pt: 'pt',
-  rn: 'rn',
-  ro: 'ro',
-  ru: 'ru',
-  rw: 'rw',
-  sd: 'sd',
-  sk: 'sk',
-  sl: 'sl',
-  sq: 'sq',
-  ss: 'ss',
-  st: 'st',
-  su: 'su',
-  sv: 'sv',
-  sw: 'sw',
-  ta: 'ta',
-  te: 'te',
-  tg: 'tg',
-  th: 'th',
-  tn: 'tn',
-  tr: 'tr',
-  ts: 'ts',
-  ug: 'ug',
-  uk: 'uk',
-  ur: 'ur',
-  uz: 'uz',
-  ve: 've',
-  vi: 'vi',
-  war: 'war',
-  wo: 'wo',
-  yo: 'yo',
-  yue: 'yue',
-  zh: 'zh',
-  zu: 'zu',
-} as const
-
-export type InputVeedDubbingProSourceLanguageEnumKey =
-  (typeof inputVeedDubbingProSourceLanguageEnum)[keyof typeof inputVeedDubbingProSourceLanguageEnum]
 
 export const inputVeedDubbingProTargetLanguageEnum = {
   af: 'af',
@@ -97130,15 +97029,122 @@ export const inputVeedDubbingProTargetLanguageEnum = {
 export type InputVeedDubbingProTargetLanguageEnumKey =
   (typeof inputVeedDubbingProTargetLanguageEnum)[keyof typeof inputVeedDubbingProTargetLanguageEnum]
 
+export const inputVeedDubbingProSourceLanguageEnum = {
+  auto: 'auto',
+  af: 'af',
+  ak: 'ak',
+  am: 'am',
+  ar: 'ar',
+  as: 'as',
+  az: 'az',
+  be: 'be',
+  bg: 'bg',
+  bo: 'bo',
+  bs: 'bs',
+  ca: 'ca',
+  ceb: 'ceb',
+  cmn: 'cmn',
+  cs: 'cs',
+  cy: 'cy',
+  da: 'da',
+  de: 'de',
+  dgo: 'dgo',
+  el: 'el',
+  en: 'en',
+  es: 'es',
+  et: 'et',
+  eu: 'eu',
+  fa: 'fa',
+  fi: 'fi',
+  fil: 'fil',
+  fr: 'fr',
+  gl: 'gl',
+  gu: 'gu',
+  ha: 'ha',
+  he: 'he',
+  hi: 'hi',
+  hr: 'hr',
+  hu: 'hu',
+  hy: 'hy',
+  id: 'id',
+  is: 'is',
+  it: 'it',
+  ja: 'ja',
+  jv: 'jv',
+  ka: 'ka',
+  ki: 'ki',
+  kk: 'kk',
+  kn: 'kn',
+  ko: 'ko',
+  ky: 'ky',
+  lg: 'lg',
+  lt: 'lt',
+  lv: 'lv',
+  mk: 'mk',
+  ml: 'ml',
+  mn: 'mn',
+  mr: 'mr',
+  ms: 'ms',
+  my: 'my',
+  ne: 'ne',
+  nl: 'nl',
+  no: 'no',
+  nso: 'nso',
+  pa: 'pa',
+  pl: 'pl',
+  pt: 'pt',
+  rn: 'rn',
+  ro: 'ro',
+  ru: 'ru',
+  rw: 'rw',
+  sd: 'sd',
+  sk: 'sk',
+  sl: 'sl',
+  sq: 'sq',
+  ss: 'ss',
+  st: 'st',
+  su: 'su',
+  sv: 'sv',
+  sw: 'sw',
+  ta: 'ta',
+  te: 'te',
+  tg: 'tg',
+  th: 'th',
+  tn: 'tn',
+  tr: 'tr',
+  ts: 'ts',
+  ug: 'ug',
+  uk: 'uk',
+  ur: 'ur',
+  uz: 'uz',
+  ve: 've',
+  vi: 'vi',
+  war: 'war',
+  wo: 'wo',
+  yo: 'yo',
+  yue: 'yue',
+  zh: 'zh',
+  zu: 'zu',
+} as const
+
+export type InputVeedDubbingProSourceLanguageEnumKey =
+  (typeof inputVeedDubbingProSourceLanguageEnum)[keyof typeof inputVeedDubbingProSourceLanguageEnum]
+
 export type InputVeedDubbingPro = {
   /**
-   * @description Language spoken in the video. 'auto' (the default) detects it; set it explicitly if detection picks the wrong language.
-   * @default 'auto'
-   * @type string | undefined
+   * @description Language to dub into, optionally with a regional dialect (e.g. 'es-MX', 'pt-BR'). Case-insensitive; for a language without dialects the region is ignored ('de-DE' = 'de'), and an unsupported dialect is rejected.
+   * @example es
+   * @type string
    */
-  source_language?: InputVeedDubbingProSourceLanguageEnumKey
+  target_language: InputVeedDubbingProTargetLanguageEnumKey
   /**
-   * @description Video to dub, up to 10 minutes long and with speech in its audio track. The speech is translated into the target language, and the speakers' lips are synced to the dubbed voices.
+   * @description Names and terms to get right in the dub, such as brand, product or people's names: they help the speech recognition catch these words and the translation keep them as written. Up to 1,000 terms, each at most 50 characters and 5 words, without the characters < > { } [ ] \.
+   * @default []
+   * @type array | undefined
+   */
+  keyterms?: string[]
+  /**
+   * @description Video to dub, 8 seconds to 10 minutes long and with speech in its audio track. The speech is translated into the target language, and the speakers' lips are synced to the dubbed voices.
    *
    * Format: `uri`
    * @minLength 1
@@ -97148,12 +97154,6 @@ export type InputVeedDubbingPro = {
    */
   video_url: string
   /**
-   * @description Language to dub into, optionally with a regional dialect (e.g. 'es-MX', 'pt-BR'). Case-insensitive; for a language without dialects the region is ignored ('de-DE' = 'de'), and an unsupported dialect is rejected.
-   * @example es
-   * @type string
-   */
-  target_language: InputVeedDubbingProTargetLanguageEnumKey
-  /**
    * @description How closely the dubbed voices match the original speakers, from 0 to 10. Higher keeps more of each speaker's voice and accent; lower sounds more natural in the target language.
    * @minimum 0
    * @maximum 10
@@ -97162,11 +97162,11 @@ export type InputVeedDubbingPro = {
    */
   voice_cloning_strength?: number
   /**
-   * @description Names and terms to get right in the dub, such as brand, product or people's names: they help the speech recognition catch these words and the translation keep them as written. Up to 1,000 terms, each at most 50 characters and 5 words, without the characters < > { } [ ] \.
-   * @default []
-   * @type array | undefined
+   * @description Language spoken in the video. 'auto' (the default) detects it; set it explicitly if detection picks the wrong language.
+   * @default 'auto'
+   * @type string | undefined
    */
-  keyterms?: string[]
+  source_language?: InputVeedDubbingProSourceLanguageEnumKey
 }
 
 export type File1F16Ed11 = {

@@ -107,6 +107,7 @@ export const providerName = {
   Seed: 'Seed',
   SiliconFlow: 'SiliconFlow',
   Sourceful: 'Sourceful',
+  Speechify: 'Speechify',
   StepFun: 'StepFun',
   Stealth: 'Stealth',
   StreamLake: 'StreamLake',
@@ -536,6 +537,9 @@ export type ProviderOptions = {
   sourceful?: {
     [key: string]: unknown
   }
+  speechify?: {
+    [key: string]: unknown
+  }
   stealth?: {
     [key: string]: unknown
   }
@@ -627,7 +631,7 @@ export type SpeechTurn = {
 }
 
 /**
- * @description Text to synthesize, or a list of turns for multi-speaker input. Each turn has its own text, voice, and instructions. Multi-speaker input is supported by Gemini TTS models and by Fish Audio models other than S1.
+ * @description Text to synthesize, or a list of turns for multi-speaker input. Each turn has its own text, voice, and instructions. Multi-speaker input is supported by Gemini TTS models, by Fish Audio models other than S1, and by Speechify dialogue models.
  * @example Hello world
  */
 export type SpeechInput = string | SpeechTurn[]
@@ -3855,6 +3859,23 @@ export type ProviderPreferences = {
    */
   zdr?: boolean | null
 } | null
+
+export const reasoningContext = {
+  auto: 'auto',
+  all_turns: 'all_turns',
+  current_turn: 'current_turn',
+} as const
+
+export type ReasoningContextKey =
+  (typeof reasoningContext)[keyof typeof reasoningContext]
+
+export const reasoningMode = {
+  standard: 'standard',
+  pro: 'pro',
+} as const
+
+export type ReasoningModeKey =
+  (typeof reasoningMode)[keyof typeof reasoningMode]
 
 /**
  * @example {"enabled":true,"id":"response-healing"}
@@ -7362,6 +7383,7 @@ export const messagesStartEventMessageProviderEnum = {
   Seed: 'Seed',
   SiliconFlow: 'SiliconFlow',
   Sourceful: 'Sourceful',
+  Speechify: 'Speechify',
   StepFun: 'StepFun',
   Stealth: 'Stealth',
   StreamLake: 'StreamLake',
@@ -8550,15 +8572,6 @@ export type ApplyPatchCallOutputItem = {
   type: 'apply_patch_call_output'
 }
 
-export const reasoningContext = {
-  auto: 'auto',
-  all_turns: 'all_turns',
-  current_turn: 'current_turn',
-} as const
-
-export type ReasoningContextKey =
-  (typeof reasoningContext)[keyof typeof reasoningContext]
-
 export const reasoningEffort = {
   max: 'max',
   xhigh: 'xhigh',
@@ -8571,14 +8584,6 @@ export const reasoningEffort = {
 
 export type ReasoningEffortKey =
   (typeof reasoningEffort)[keyof typeof reasoningEffort]
-
-export const reasoningMode = {
-  standard: 'standard',
-  pro: 'pro',
-} as const
-
-export type ReasoningModeKey =
-  (typeof reasoningMode)[keyof typeof reasoningMode]
 
 export const reasoningSummaryVerbosity = {
   auto: 'auto',
@@ -13381,6 +13386,608 @@ export type VideoGenerationUsage = {
   is_byok?: boolean
 }
 
+export const providerName94A1A63D = {
+  Modal: 'Modal',
+  AkashML: 'AkashML',
+  AI21: 'AI21',
+  AionLabs: 'AionLabs',
+  Alibaba: 'Alibaba',
+  Ambient: 'Ambient',
+  'Ant Digital': 'Ant Digital',
+  Baidu: 'Baidu',
+  'Amazon Bedrock': 'Amazon Bedrock',
+  'Amazon Nova': 'Amazon Nova',
+  Anthropic: 'Anthropic',
+  'Arcee AI': 'Arcee AI',
+  AssemblyAI: 'AssemblyAI',
+  AtlasCloud: 'AtlasCloud',
+  Avian: 'Avian',
+  Azure: 'Azure',
+  BaseTen: 'BaseTen',
+  BytePlus: 'BytePlus',
+  'Black Forest Labs': 'Black Forest Labs',
+  Cerebras: 'Cerebras',
+  Chutes: 'Chutes',
+  Cirrascale: 'Cirrascale',
+  'Claude Platform on AWS': 'Claude Platform on AWS',
+  Clarifai: 'Clarifai',
+  Cloudflare: 'Cloudflare',
+  Cohere: 'Cohere',
+  CoreWeave: 'CoreWeave',
+  Cosine: 'Cosine',
+  Crucible: 'Crucible',
+  Crusoe: 'Crusoe',
+  Darkbloom: 'Darkbloom',
+  Databricks: 'Databricks',
+  Decart: 'Decart',
+  Deepgram: 'Deepgram',
+  DeepInfra: 'DeepInfra',
+  DeepSeek: 'DeepSeek',
+  DekaLLM: 'DekaLLM',
+  DigitalOcean: 'DigitalOcean',
+  ElevenLabs: 'ElevenLabs',
+  Featherless: 'Featherless',
+  Fireworks: 'Fireworks',
+  'Fish Audio': 'Fish Audio',
+  Friendli: 'Friendli',
+  GMICloud: 'GMICloud',
+  Google: 'Google',
+  'Google AI Studio': 'Google AI Studio',
+  Groq: 'Groq',
+  HeyGen: 'HeyGen',
+  Inception: 'Inception',
+  Inceptron: 'Inceptron',
+  InferenceNet: 'InferenceNet',
+  Ionstream: 'Ionstream',
+  Infermatic: 'Infermatic',
+  'Io Net': 'Io Net',
+  'Inferact vLLM': 'Inferact vLLM',
+  Inflection: 'Inflection',
+  KT: 'KT',
+  Liquid: 'Liquid',
+  Makora: 'Makora',
+  Mara: 'Mara',
+  'Mancer 2': 'Mancer 2',
+  Meta: 'Meta',
+  Minimax: 'Minimax',
+  ModelRun: 'ModelRun',
+  Mistral: 'Mistral',
+  Modular: 'Modular',
+  'Moonshot AI': 'Moonshot AI',
+  Morph: 'Morph',
+  'VoyageAI by MongoDB': 'VoyageAI by MongoDB',
+  TypeSafe: 'TypeSafe',
+  'Near AI': 'Near AI',
+  Nebius: 'Nebius',
+  'Nex AGI': 'Nex AGI',
+  NextBit: 'NextBit',
+  Novita: 'Novita',
+  Nvidia: 'Nvidia',
+  Ollama: 'Ollama',
+  OpenAI: 'OpenAI',
+  OpenInference: 'OpenInference',
+  Parallel: 'Parallel',
+  Parasail: 'Parasail',
+  ParetoAlpha: 'ParetoAlpha',
+  'Particle AI': 'Particle AI',
+  'Pearl Research': 'Pearl Research',
+  Poolside: 'Poolside',
+  PrimaLabs: 'PrimaLabs',
+  PrimeIntellect: 'PrimeIntellect',
+  Perceptron: 'Perceptron',
+  Perplexity: 'Perplexity',
+  Phala: 'Phala',
+  Recraft: 'Recraft',
+  Recursive: 'Recursive',
+  Reka: 'Reka',
+  Relace: 'Relace',
+  Respan: 'Respan',
+  River: 'River',
+  'Sail Research': 'Sail Research',
+  'Sakana AI': 'Sakana AI',
+  SambaNova: 'SambaNova',
+  ScaleDown: 'ScaleDown',
+  Seed: 'Seed',
+  SiliconFlow: 'SiliconFlow',
+  Sourceful: 'Sourceful',
+  StepFun: 'StepFun',
+  Stealth: 'Stealth',
+  StreamLake: 'StreamLake',
+  Switchpoint: 'Switchpoint',
+  Tencent: 'Tencent',
+  Tenstorrent: 'Tenstorrent',
+  'Thinking Machines': 'Thinking Machines',
+  Together: 'Together',
+  Unbiased: 'Unbiased',
+  Upstage: 'Upstage',
+  Venice: 'Venice',
+  Wafer: 'Wafer',
+  WandB: 'WandB',
+  Quiver: 'Quiver',
+  Krea: 'Krea',
+  Runway: 'Runway',
+  Xiaomi: 'Xiaomi',
+  xAI: 'xAI',
+  'Z.AI': 'Z.AI',
+  FakeProvider: 'FakeProvider',
+} as const
+
+export type ProviderName94A1A63DKey =
+  (typeof providerName94A1A63D)[keyof typeof providerName94A1A63D]
+
+/**
+ * @description Provider-specific options keyed by provider slug. The provider segment is case-insensitive; an endpoint tag after `/` must match the endpoint slug exactly. Only options for the matched provider are forwarded; the rest are ignored. Unrecognized keys are silently dropped.
+ * @example {"openai":{"max_tokens":1000}}
+ * @type object
+ */
+export type ProviderOptions206314A2 = {
+  '01ai'?: {
+    [key: string]: unknown
+  }
+  ai21?: {
+    [key: string]: unknown
+  }
+  'aion-labs'?: {
+    [key: string]: unknown
+  }
+  akashml?: {
+    [key: string]: unknown
+  }
+  alibaba?: {
+    [key: string]: unknown
+  }
+  'amazon-bedrock'?: {
+    [key: string]: unknown
+  }
+  'amazon-bedrock/claude-on-aws'?: {
+    [key: string]: unknown
+  }
+  'amazon-nova'?: {
+    [key: string]: unknown
+  }
+  ambient?: {
+    [key: string]: unknown
+  }
+  antdigital?: {
+    [key: string]: unknown
+  }
+  anthropic?: {
+    [key: string]: unknown
+  }
+  'anthropic/2'?: {
+    [key: string]: unknown
+  }
+  anyscale?: {
+    [key: string]: unknown
+  }
+  'arcee-ai'?: {
+    [key: string]: unknown
+  }
+  assemblyai?: {
+    [key: string]: unknown
+  }
+  'atlas-cloud'?: {
+    [key: string]: unknown
+  }
+  atoma?: {
+    [key: string]: unknown
+  }
+  avian?: {
+    [key: string]: unknown
+  }
+  azure?: {
+    [key: string]: unknown
+  }
+  baidu?: {
+    [key: string]: unknown
+  }
+  baseten?: {
+    [key: string]: unknown
+  }
+  'black-forest-labs'?: {
+    [key: string]: unknown
+  }
+  byteplus?: {
+    [key: string]: unknown
+  }
+  centml?: {
+    [key: string]: unknown
+  }
+  cerebras?: {
+    [key: string]: unknown
+  }
+  chutes?: {
+    [key: string]: unknown
+  }
+  cirrascale?: {
+    [key: string]: unknown
+  }
+  clarifai?: {
+    [key: string]: unknown
+  }
+  'claude-on-aws'?: {
+    [key: string]: unknown
+  }
+  cloudflare?: {
+    [key: string]: unknown
+  }
+  cohere?: {
+    [key: string]: unknown
+  }
+  coreweave?: {
+    [key: string]: unknown
+  }
+  cosine?: {
+    [key: string]: unknown
+  }
+  crofai?: {
+    [key: string]: unknown
+  }
+  crucible?: {
+    [key: string]: unknown
+  }
+  crusoe?: {
+    [key: string]: unknown
+  }
+  darkbloom?: {
+    [key: string]: unknown
+  }
+  databricks?: {
+    [key: string]: unknown
+  }
+  decart?: {
+    [key: string]: unknown
+  }
+  deepgram?: {
+    [key: string]: unknown
+  }
+  deepinfra?: {
+    [key: string]: unknown
+  }
+  deepseek?: {
+    [key: string]: unknown
+  }
+  dekallm?: {
+    [key: string]: unknown
+  }
+  digitalocean?: {
+    [key: string]: unknown
+  }
+  elevenlabs?: {
+    [key: string]: unknown
+  }
+  enfer?: {
+    [key: string]: unknown
+  }
+  'fake-provider'?: {
+    [key: string]: unknown
+  }
+  featherless?: {
+    [key: string]: unknown
+  }
+  fireworks?: {
+    [key: string]: unknown
+  }
+  'fish-audio'?: {
+    [key: string]: unknown
+  }
+  friendli?: {
+    [key: string]: unknown
+  }
+  gmicloud?: {
+    [key: string]: unknown
+  }
+  'google-ai-studio'?: {
+    [key: string]: unknown
+  }
+  'google-vertex'?: {
+    [key: string]: unknown
+  }
+  gopomelo?: {
+    [key: string]: unknown
+  }
+  groq?: {
+    [key: string]: unknown
+  }
+  heygen?: {
+    [key: string]: unknown
+  }
+  huggingface?: {
+    [key: string]: unknown
+  }
+  hyperbolic?: {
+    [key: string]: unknown
+  }
+  'hyperbolic-quantized'?: {
+    [key: string]: unknown
+  }
+  inception?: {
+    [key: string]: unknown
+  }
+  inceptron?: {
+    [key: string]: unknown
+  }
+  'inferact-vllm'?: {
+    [key: string]: unknown
+  }
+  'inference-net'?: {
+    [key: string]: unknown
+  }
+  infermatic?: {
+    [key: string]: unknown
+  }
+  inflection?: {
+    [key: string]: unknown
+  }
+  inocloud?: {
+    [key: string]: unknown
+  }
+  'io-net'?: {
+    [key: string]: unknown
+  }
+  ionstream?: {
+    [key: string]: unknown
+  }
+  klusterai?: {
+    [key: string]: unknown
+  }
+  krea?: {
+    [key: string]: unknown
+  }
+  kt?: {
+    [key: string]: unknown
+  }
+  lambda?: {
+    [key: string]: unknown
+  }
+  lepton?: {
+    [key: string]: unknown
+  }
+  liquid?: {
+    [key: string]: unknown
+  }
+  lynn?: {
+    [key: string]: unknown
+  }
+  'lynn-private'?: {
+    [key: string]: unknown
+  }
+  makora?: {
+    [key: string]: unknown
+  }
+  mancer?: {
+    [key: string]: unknown
+  }
+  'mancer-old'?: {
+    [key: string]: unknown
+  }
+  mara?: {
+    [key: string]: unknown
+  }
+  meta?: {
+    [key: string]: unknown
+  }
+  minimax?: {
+    [key: string]: unknown
+  }
+  mistral?: {
+    [key: string]: unknown
+  }
+  modal?: {
+    [key: string]: unknown
+  }
+  modelrun?: {
+    [key: string]: unknown
+  }
+  modular?: {
+    [key: string]: unknown
+  }
+  moonshotai?: {
+    [key: string]: unknown
+  }
+  morph?: {
+    [key: string]: unknown
+  }
+  ncompass?: {
+    [key: string]: unknown
+  }
+  'near-ai'?: {
+    [key: string]: unknown
+  }
+  nebius?: {
+    [key: string]: unknown
+  }
+  'nex-agi'?: {
+    [key: string]: unknown
+  }
+  nextbit?: {
+    [key: string]: unknown
+  }
+  nineteen?: {
+    [key: string]: unknown
+  }
+  novita?: {
+    [key: string]: unknown
+  }
+  nvidia?: {
+    [key: string]: unknown
+  }
+  octoai?: {
+    [key: string]: unknown
+  }
+  ollama?: {
+    [key: string]: unknown
+  }
+  'open-inference'?: {
+    [key: string]: unknown
+  }
+  openai?: {
+    [key: string]: unknown
+  }
+  parallel?: {
+    [key: string]: unknown
+  }
+  parasail?: {
+    [key: string]: unknown
+  }
+  'pareto-alpha'?: {
+    [key: string]: unknown
+  }
+  'particle-ai'?: {
+    [key: string]: unknown
+  }
+  'pearl-research'?: {
+    [key: string]: unknown
+  }
+  perceptron?: {
+    [key: string]: unknown
+  }
+  perplexity?: {
+    [key: string]: unknown
+  }
+  phala?: {
+    [key: string]: unknown
+  }
+  poolside?: {
+    [key: string]: unknown
+  }
+  primalabs?: {
+    [key: string]: unknown
+  }
+  primeintellect?: {
+    [key: string]: unknown
+  }
+  quiver?: {
+    [key: string]: unknown
+  }
+  recraft?: {
+    [key: string]: unknown
+  }
+  recursal?: {
+    [key: string]: unknown
+  }
+  recursive?: {
+    [key: string]: unknown
+  }
+  reflection?: {
+    [key: string]: unknown
+  }
+  reka?: {
+    [key: string]: unknown
+  }
+  relace?: {
+    [key: string]: unknown
+  }
+  replicate?: {
+    [key: string]: unknown
+  }
+  respan?: {
+    [key: string]: unknown
+  }
+  river?: {
+    [key: string]: unknown
+  }
+  runway?: {
+    [key: string]: unknown
+  }
+  'sail-research'?: {
+    [key: string]: unknown
+  }
+  sakana?: {
+    [key: string]: unknown
+  }
+  'sakana-ai'?: {
+    [key: string]: unknown
+  }
+  sambanova?: {
+    [key: string]: unknown
+  }
+  'sambanova-cloaked'?: {
+    [key: string]: unknown
+  }
+  scaledown?: {
+    [key: string]: unknown
+  }
+  seed?: {
+    [key: string]: unknown
+  }
+  'sf-compute'?: {
+    [key: string]: unknown
+  }
+  siliconflow?: {
+    [key: string]: unknown
+  }
+  sourceful?: {
+    [key: string]: unknown
+  }
+  stealth?: {
+    [key: string]: unknown
+  }
+  stepfun?: {
+    [key: string]: unknown
+  }
+  streamlake?: {
+    [key: string]: unknown
+  }
+  switchpoint?: {
+    [key: string]: unknown
+  }
+  targon?: {
+    [key: string]: unknown
+  }
+  tencent?: {
+    [key: string]: unknown
+  }
+  tenstorrent?: {
+    [key: string]: unknown
+  }
+  thinkingmachines?: {
+    [key: string]: unknown
+  }
+  together?: {
+    [key: string]: unknown
+  }
+  'together-lite'?: {
+    [key: string]: unknown
+  }
+  typesafe?: {
+    [key: string]: unknown
+  }
+  ubicloud?: {
+    [key: string]: unknown
+  }
+  unbiased?: {
+    [key: string]: unknown
+  }
+  upstage?: {
+    [key: string]: unknown
+  }
+  venice?: {
+    [key: string]: unknown
+  }
+  voyageai?: {
+    [key: string]: unknown
+  }
+  wafer?: {
+    [key: string]: unknown
+  }
+  wandb?: {
+    [key: string]: unknown
+  }
+  'wandb-legacy'?: {
+    [key: string]: unknown
+  }
+  xai?: {
+    [key: string]: unknown
+  }
+  xiaomi?: {
+    [key: string]: unknown
+  }
+  'z-ai'?: {
+    [key: string]: unknown
+  }
+}
+
 /**
  * @description Provider-specific options keyed by provider slug. Only options for the matched provider are forwarded; the rest are ignored. Unrecognized keys are silently dropped.
  * @example {"openai":{"max_tokens":1000}}
@@ -14353,7 +14960,7 @@ export type OpenrouterPostAudioSpeechRequestResponseFormatEnumKey =
  */
 export type OpenrouterPostAudioSpeechBody = {
   /**
-   * @description Text to synthesize, or a list of turns for multi-speaker input. Each turn has its own text, voice, and instructions. Multi-speaker input is supported by Gemini TTS models and by Fish Audio models other than S1.
+   * @description Text to synthesize, or a list of turns for multi-speaker input. Each turn has its own text, voice, and instructions. Multi-speaker input is supported by Gemini TTS models, by Fish Audio models other than S1, and by Speechify dialogue models.
    * @example Hello world
    */
   input: SpeechInput
@@ -15490,17 +16097,41 @@ export type OpenrouterPostChatCompletionsBody = {
    */
   reasoning?: {
     /**
+     * @description Controls which reasoning is available to the model. `auto` uses the model default (same as omitting); `all_turns` includes reasoning from earlier turns passed in input; `current_turn` limits to the current turn only. Only supported by OpenAI GPT-5.6 and newer.
+     * @example all_turns
+     * @type string | undefined
+     */
+    context?: ReasoningContextKey | null
+    /**
      * @description Constrains effort on reasoning for reasoning models
      * @example medium
      * @type string | undefined
      */
     effort?: OpenrouterPostChatCompletionsRequestReasoningEffortEnumKey | null
     /**
+     * @description Enables reasoning with default settings. Defaults to being inferred from `effort` or `max_tokens`.
+     * @example true
+     * @type boolean | undefined
+     */
+    enabled?: boolean
+    /**
+     * @description When true, the model still reasons but the reasoning is omitted from the response. Defaults to false.
+     * @example false
+     * @type boolean | undefined
+     */
+    exclude?: boolean
+    /**
      * @description Maximum number of tokens the model may spend on reasoning, for models that take a reasoning token budget instead of an effort level. Cannot be combined with `reasoning.effort` or the top-level `reasoning_effort`: a request that sets both is rejected with "Only one of "reasoning.effort" and "reasoning.max_tokens" can be specified".
      * @example 2000
      * @type integer | undefined
      */
     max_tokens?: number | null
+    /**
+     * @description Selects the reasoning mode. `standard` is the default; `pro` engages deeper reasoning on models that support it, billed at standard token rates. Only supported by OpenAI GPT-5.6 and newer.
+     * @example standard
+     * @type string | undefined
+     */
+    mode?: ReasoningModeKey | null
     /**
      * @example concise
      * @type string | undefined
@@ -15688,6 +16319,12 @@ export type OpenrouterPostEmbeddingsStatus200Json = {
    * @type array
    */
   data: {
+    /**
+     * @description Index of the source document when `input` was a list of documents (contextual embeddings). Absent otherwise.
+     * @example 0
+     * @type integer | undefined
+     */
+    document_index?: number
     /**
      * @description Embedding vector as an array of floats or a base64 string
      * @example [0.0023064255,-0.009327292,0.015797347]
@@ -16327,6 +16964,7 @@ export type OpenrouterPostEmbeddingsBody = {
   input:
     | string
     | string[]
+    | string[][]
     | number[]
     | number[][]
     | {
@@ -16351,7 +16989,7 @@ export type OpenrouterPostEmbeddingsBody = {
         )[]
       }[]
   /**
-   * @description The type of input (e.g. search_query, search_document)
+   * @description The type of input (e.g. search_query, search_document). Document-chunk input (`string[][]`) is only valid with a document input type.
    * @example search_query
    * @type string | undefined
    */
@@ -18893,7 +19531,7 @@ export type OpenrouterPostVideosRequestResolutionEnumKey =
  */
 export type OpenrouterPostVideosBody = {
   /**
-   * @description Aspect ratio of the generated video
+   * @description Aspect ratio of the generated video. Omit it to use the model default, which on models with adaptive aspect ratio (e.g. BytePlus Seedance) follows the input image or video.
    * @example 16:9
    * @type string | undefined
    */
@@ -18913,8 +19551,8 @@ export type OpenrouterPostVideosBody = {
    */
   creativity?: number
   /**
-   * @description Duration of the generated video in seconds
-   * @minimum 1
+   * @description Duration of the generated video in seconds, or -1 to let the provider choose the length (e.g. following an input video). -1 is only accepted by models that list it in supported_durations.
+   * @minimum -1
    * @example 8
    * @type integer | undefined
    */
@@ -19659,7 +20297,7 @@ export type OpenrouterPostVideosAlibabaHappyhorse10RequestSizeEnumKey =
  */
 export type OpenrouterPostVideosAlibabaHappyhorse10Body = {
   /**
-   * @description Aspect ratio of the generated video
+   * @description Aspect ratio of the generated video. Omit it to use the model default, which on models with adaptive aspect ratio (e.g. BytePlus Seedance) follows the input image or video.
    * @example 16:9
    * @type string | undefined
    */
@@ -19679,7 +20317,7 @@ export type OpenrouterPostVideosAlibabaHappyhorse10Body = {
    */
   creativity?: number
   /**
-   * @description Duration of the generated video in seconds
+   * @description Duration of the generated video in seconds, or -1 to let the provider choose the length (e.g. following an input video). -1 is only accepted by models that list it in supported_durations.
    * @example 8
    * @type number | undefined
    */
@@ -20423,7 +21061,7 @@ export type OpenrouterPostVideosAlibabaHappyhorse11RequestSizeEnumKey =
  */
 export type OpenrouterPostVideosAlibabaHappyhorse11Body = {
   /**
-   * @description Aspect ratio of the generated video
+   * @description Aspect ratio of the generated video. Omit it to use the model default, which on models with adaptive aspect ratio (e.g. BytePlus Seedance) follows the input image or video.
    * @example 16:9
    * @type string | undefined
    */
@@ -20443,7 +21081,7 @@ export type OpenrouterPostVideosAlibabaHappyhorse11Body = {
    */
   creativity?: number
   /**
-   * @description Duration of the generated video in seconds
+   * @description Duration of the generated video in seconds, or -1 to let the provider choose the length (e.g. following an input video). -1 is only accepted by models that list it in supported_durations.
    * @example 8
    * @type number | undefined
    */
@@ -21161,7 +21799,7 @@ export type OpenrouterPostVideosAlibabaWan26RequestSizeEnumKey =
  */
 export type OpenrouterPostVideosAlibabaWan26Body = {
   /**
-   * @description Aspect ratio of the generated video
+   * @description Aspect ratio of the generated video. Omit it to use the model default, which on models with adaptive aspect ratio (e.g. BytePlus Seedance) follows the input image or video.
    * @example 16:9
    * @type string | undefined
    */
@@ -21181,7 +21819,7 @@ export type OpenrouterPostVideosAlibabaWan26Body = {
    */
   creativity?: number
   /**
-   * @description Duration of the generated video in seconds
+   * @description Duration of the generated video in seconds, or -1 to let the provider choose the length (e.g. following an input video). -1 is only accepted by models that list it in supported_durations.
    * @example 8
    * @type number | undefined
    */
@@ -21921,7 +22559,7 @@ export type OpenrouterPostVideosAlibabaWan27RequestSizeEnumKey =
  */
 export type OpenrouterPostVideosAlibabaWan27Body = {
   /**
-   * @description Aspect ratio of the generated video
+   * @description Aspect ratio of the generated video. Omit it to use the model default, which on models with adaptive aspect ratio (e.g. BytePlus Seedance) follows the input image or video.
    * @example 16:9
    * @type string | undefined
    */
@@ -21941,7 +22579,7 @@ export type OpenrouterPostVideosAlibabaWan27Body = {
    */
   creativity?: number
   /**
-   * @description Duration of the generated video in seconds
+   * @description Duration of the generated video in seconds, or -1 to let the provider choose the length (e.g. following an input video). -1 is only accepted by models that list it in supported_durations.
    * @example 8
    * @type number | undefined
    */
@@ -22686,7 +23324,7 @@ export type OpenrouterPostVideosAlibabaWan30RequestResolutionEnumKey =
  */
 export type OpenrouterPostVideosAlibabaWan30Body = {
   /**
-   * @description Aspect ratio of the generated video
+   * @description Aspect ratio of the generated video. Omit it to use the model default, which on models with adaptive aspect ratio (e.g. BytePlus Seedance) follows the input image or video.
    * @example 16:9
    * @type string | undefined
    */
@@ -22706,7 +23344,7 @@ export type OpenrouterPostVideosAlibabaWan30Body = {
    */
   creativity?: number
   /**
-   * @description Duration of the generated video in seconds
+   * @description Duration of the generated video in seconds, or -1 to let the provider choose the length (e.g. following an input video). -1 is only accepted by models that list it in supported_durations.
    * @example 8
    * @type number | undefined
    */
@@ -23451,7 +24089,7 @@ export type OpenrouterPostVideosAlibabaWan30PrimeRequestResolutionEnumKey =
  */
 export type OpenrouterPostVideosAlibabaWan30PrimeBody = {
   /**
-   * @description Aspect ratio of the generated video
+   * @description Aspect ratio of the generated video. Omit it to use the model default, which on models with adaptive aspect ratio (e.g. BytePlus Seedance) follows the input image or video.
    * @example 16:9
    * @type string | undefined
    */
@@ -23471,7 +24109,7 @@ export type OpenrouterPostVideosAlibabaWan30PrimeBody = {
    */
   creativity?: number
   /**
-   * @description Duration of the generated video in seconds
+   * @description Duration of the generated video in seconds, or -1 to let the provider choose the length (e.g. following an input video). -1 is only accepted by models that list it in supported_durations.
    * @example 8
    * @type number | undefined
    */
@@ -24209,7 +24847,7 @@ export type OpenrouterPostVideosBlackForestLabsFlux3VideoRequestResolutionEnumKe
  */
 export type OpenrouterPostVideosBlackForestLabsFlux3VideoBody = {
   /**
-   * @description Aspect ratio of the generated video
+   * @description Aspect ratio of the generated video. Omit it to use the model default, which on models with adaptive aspect ratio (e.g. BytePlus Seedance) follows the input image or video.
    * @example 16:9
    * @type string | undefined
    */
@@ -24229,7 +24867,7 @@ export type OpenrouterPostVideosBlackForestLabsFlux3VideoBody = {
    */
   creativity?: number
   /**
-   * @description Duration of the generated video in seconds
+   * @description Duration of the generated video in seconds, or -1 to let the provider choose the length (e.g. following an input video). -1 is only accepted by models that list it in supported_durations.
    * @example 8
    * @type number | undefined
    */
@@ -24949,7 +25587,7 @@ export type OpenrouterPostVideosBlackForestLabsFluxVideoEditRequestResolutionEnu
  */
 export type OpenrouterPostVideosBlackForestLabsFluxVideoEditBody = {
   /**
-   * @description Aspect ratio of the generated video
+   * @description Aspect ratio of the generated video. Omit it to use the model default, which on models with adaptive aspect ratio (e.g. BytePlus Seedance) follows the input image or video.
    * @example 16:9
    * @type string | undefined
    */
@@ -24969,8 +25607,8 @@ export type OpenrouterPostVideosBlackForestLabsFluxVideoEditBody = {
    */
   creativity?: number
   /**
-   * @description Duration of the generated video in seconds
-   * @minimum 1
+   * @description Duration of the generated video in seconds, or -1 to let the provider choose the length (e.g. following an input video). -1 is only accepted by models that list it in supported_durations.
+   * @minimum -1
    * @example 8
    * @type integer | undefined
    */
@@ -25679,7 +26317,7 @@ export type OpenrouterPostVideosBlackForestLabsFluxVideoUpscaleRequestResolution
  */
 export type OpenrouterPostVideosBlackForestLabsFluxVideoUpscaleBody = {
   /**
-   * @description Aspect ratio of the generated video
+   * @description Aspect ratio of the generated video. Omit it to use the model default, which on models with adaptive aspect ratio (e.g. BytePlus Seedance) follows the input image or video.
    * @example 16:9
    * @type string | undefined
    */
@@ -25699,8 +26337,8 @@ export type OpenrouterPostVideosBlackForestLabsFluxVideoUpscaleBody = {
    */
   creativity?: number
   /**
-   * @description Duration of the generated video in seconds
-   * @minimum 1
+   * @description Duration of the generated video in seconds, or -1 to let the provider choose the length (e.g. following an input video). -1 is only accepted by models that list it in supported_durations.
+   * @minimum -1
    * @example 8
    * @type integer | undefined
    */
@@ -26508,25 +27146,25 @@ export type OpenrouterPostVideosBytedanceSeedance15ProBody = {
      * @example ["openai","anthropic"]
      * @type array | undefined
      */
-    ignore?: (ProviderNameKey | string)[] | null
+    ignore?: (ProviderName94A1A63DKey | string)[] | null
     /**
      * @description List of provider slugs to allow. If provided, this list is merged with your account-wide allowed provider settings for this request.
      * @example ["openai","anthropic"]
      * @type array | undefined
      */
-    only?: (ProviderNameKey | string)[] | null
+    only?: (ProviderName94A1A63DKey | string)[] | null
     /**
      * @description Provider-specific options keyed by provider slug. The provider segment is case-insensitive; an endpoint tag after `/` must match the endpoint slug exactly. Only options for the matched provider are forwarded; the rest are ignored. Unrecognized keys are silently dropped.
      * @example {"google-vertex":{"output_config":{"effort":"low"}}}
      * @type object | undefined
      */
-    options?: ProviderOptions
+    options?: ProviderOptions206314A2
     /**
      * @description An ordered list of provider slugs. The router will attempt to use the first provider in the subset of this list that supports your requested model, and fall back to the next if it is unavailable. If no providers are available, the request will fail with an error message.
      * @example ["openai","anthropic"]
      * @type array | undefined
      */
-    order?: (ProviderNameKey | string)[] | null
+    order?: (ProviderName94A1A63DKey | string)[] | null
   }
   /**
    * @description Resolution of the generated video
@@ -27221,7 +27859,7 @@ export type OpenrouterPostVideosBytedanceSeedance20RequestSizeEnumKey =
  */
 export type OpenrouterPostVideosBytedanceSeedance20Body = {
   /**
-   * @description Aspect ratio of the generated video
+   * @description Aspect ratio of the generated video. Omit it to use the model default, which on models with adaptive aspect ratio (e.g. BytePlus Seedance) follows the input image or video.
    * @example 16:9
    * @type string | undefined
    */
@@ -27241,7 +27879,7 @@ export type OpenrouterPostVideosBytedanceSeedance20Body = {
    */
   creativity?: number
   /**
-   * @description Duration of the generated video in seconds
+   * @description Duration of the generated video in seconds, or -1 to let the provider choose the length (e.g. following an input video). -1 is only accepted by models that list it in supported_durations.
    * @example 8
    * @type number | undefined
    */
@@ -27991,7 +28629,7 @@ export type OpenrouterPostVideosBytedanceSeedance20FastRequestSizeEnumKey =
  */
 export type OpenrouterPostVideosBytedanceSeedance20FastBody = {
   /**
-   * @description Aspect ratio of the generated video
+   * @description Aspect ratio of the generated video. Omit it to use the model default, which on models with adaptive aspect ratio (e.g. BytePlus Seedance) follows the input image or video.
    * @example 16:9
    * @type string | undefined
    */
@@ -28011,7 +28649,7 @@ export type OpenrouterPostVideosBytedanceSeedance20FastBody = {
    */
   creativity?: number
   /**
-   * @description Duration of the generated video in seconds
+   * @description Duration of the generated video in seconds, or -1 to let the provider choose the length (e.g. following an input video). -1 is only accepted by models that list it in supported_durations.
    * @example 8
    * @type number | undefined
    */
@@ -28761,7 +29399,7 @@ export type OpenrouterPostVideosBytedanceSeedance20MiniRequestSizeEnumKey =
  */
 export type OpenrouterPostVideosBytedanceSeedance20MiniBody = {
   /**
-   * @description Aspect ratio of the generated video
+   * @description Aspect ratio of the generated video. Omit it to use the model default, which on models with adaptive aspect ratio (e.g. BytePlus Seedance) follows the input image or video.
    * @example 16:9
    * @type string | undefined
    */
@@ -28781,7 +29419,7 @@ export type OpenrouterPostVideosBytedanceSeedance20MiniBody = {
    */
   creativity?: number
   /**
-   * @description Duration of the generated video in seconds
+   * @description Duration of the generated video in seconds, or -1 to let the provider choose the length (e.g. following an input video). -1 is only accepted by models that list it in supported_durations.
    * @example 8
    * @type number | undefined
    */
@@ -29542,7 +30180,7 @@ export type OpenrouterPostVideosBytedanceSeedance25RequestSizeEnumKey =
  */
 export type OpenrouterPostVideosBytedanceSeedance25Body = {
   /**
-   * @description Aspect ratio of the generated video
+   * @description Aspect ratio of the generated video. Omit it to use the model default, which on models with adaptive aspect ratio (e.g. BytePlus Seedance) follows the input image or video.
    * @example 16:9
    * @type string | undefined
    */
@@ -29562,7 +30200,7 @@ export type OpenrouterPostVideosBytedanceSeedance25Body = {
    */
   creativity?: number
   /**
-   * @description Duration of the generated video in seconds
+   * @description Duration of the generated video in seconds, or -1 to let the provider choose the length (e.g. following an input video). -1 is only accepted by models that list it in supported_durations.
    * @example 8
    * @type number | undefined
    */
@@ -30300,7 +30938,7 @@ export type OpenrouterPostVideosGoogleGeminiOmni11FlashRequestSizeEnumKey =
  */
 export type OpenrouterPostVideosGoogleGeminiOmni11FlashBody = {
   /**
-   * @description Aspect ratio of the generated video
+   * @description Aspect ratio of the generated video. Omit it to use the model default, which on models with adaptive aspect ratio (e.g. BytePlus Seedance) follows the input image or video.
    * @example 16:9
    * @type string | undefined
    */
@@ -30320,7 +30958,7 @@ export type OpenrouterPostVideosGoogleGeminiOmni11FlashBody = {
    */
   creativity?: number
   /**
-   * @description Duration of the generated video in seconds
+   * @description Duration of the generated video in seconds, or -1 to let the provider choose the length (e.g. following an input video). -1 is only accepted by models that list it in supported_durations.
    * @example 8
    * @type number | undefined
    */
@@ -31063,7 +31701,7 @@ export type OpenrouterPostVideosGoogleGeminiOmni12FlashRequestSizeEnumKey =
  */
 export type OpenrouterPostVideosGoogleGeminiOmni12FlashBody = {
   /**
-   * @description Aspect ratio of the generated video
+   * @description Aspect ratio of the generated video. Omit it to use the model default, which on models with adaptive aspect ratio (e.g. BytePlus Seedance) follows the input image or video.
    * @example 16:9
    * @type string | undefined
    */
@@ -31083,7 +31721,7 @@ export type OpenrouterPostVideosGoogleGeminiOmni12FlashBody = {
    */
   creativity?: number
   /**
-   * @description Duration of the generated video in seconds
+   * @description Duration of the generated video in seconds, or -1 to let the provider choose the length (e.g. following an input video). -1 is only accepted by models that list it in supported_durations.
    * @example 8
    * @type number | undefined
    */
@@ -31811,7 +32449,7 @@ export type OpenrouterPostVideosGoogleVeo31RequestSizeEnumKey =
  */
 export type OpenrouterPostVideosGoogleVeo31Body = {
   /**
-   * @description Aspect ratio of the generated video
+   * @description Aspect ratio of the generated video. Omit it to use the model default, which on models with adaptive aspect ratio (e.g. BytePlus Seedance) follows the input image or video.
    * @example 16:9
    * @type string | undefined
    */
@@ -31831,7 +32469,7 @@ export type OpenrouterPostVideosGoogleVeo31Body = {
    */
   creativity?: number
   /**
-   * @description Duration of the generated video in seconds
+   * @description Duration of the generated video in seconds, or -1 to let the provider choose the length (e.g. following an input video). -1 is only accepted by models that list it in supported_durations.
    * @example 8
    * @type number | undefined
    */
@@ -32559,7 +33197,7 @@ export type OpenrouterPostVideosGoogleVeo31FastRequestSizeEnumKey =
  */
 export type OpenrouterPostVideosGoogleVeo31FastBody = {
   /**
-   * @description Aspect ratio of the generated video
+   * @description Aspect ratio of the generated video. Omit it to use the model default, which on models with adaptive aspect ratio (e.g. BytePlus Seedance) follows the input image or video.
    * @example 16:9
    * @type string | undefined
    */
@@ -32579,7 +33217,7 @@ export type OpenrouterPostVideosGoogleVeo31FastBody = {
    */
   creativity?: number
   /**
-   * @description Duration of the generated video in seconds
+   * @description Duration of the generated video in seconds, or -1 to let the provider choose the length (e.g. following an input video). -1 is only accepted by models that list it in supported_durations.
    * @example 8
    * @type number | undefined
    */
@@ -33304,7 +33942,7 @@ export type OpenrouterPostVideosGoogleVeo31LiteRequestSizeEnumKey =
  */
 export type OpenrouterPostVideosGoogleVeo31LiteBody = {
   /**
-   * @description Aspect ratio of the generated video
+   * @description Aspect ratio of the generated video. Omit it to use the model default, which on models with adaptive aspect ratio (e.g. BytePlus Seedance) follows the input image or video.
    * @example 16:9
    * @type string | undefined
    */
@@ -33324,7 +33962,7 @@ export type OpenrouterPostVideosGoogleVeo31LiteBody = {
    */
   creativity?: number
   /**
-   * @description Duration of the generated video in seconds
+   * @description Duration of the generated video in seconds, or -1 to let the provider choose the length (e.g. following an input video). -1 is only accepted by models that list it in supported_durations.
    * @example 8
    * @type number | undefined
    */
@@ -34031,7 +34669,7 @@ export type OpenrouterPostVideosHeygenAvatarIvRequestResolutionEnumKey =
  */
 export type OpenrouterPostVideosHeygenAvatarIvBody = {
   /**
-   * @description Aspect ratio of the generated video
+   * @description Aspect ratio of the generated video. Omit it to use the model default, which on models with adaptive aspect ratio (e.g. BytePlus Seedance) follows the input image or video.
    * @example 16:9
    * @type string | undefined
    */
@@ -34051,8 +34689,8 @@ export type OpenrouterPostVideosHeygenAvatarIvBody = {
    */
   creativity?: number
   /**
-   * @description Duration of the generated video in seconds
-   * @minimum 1
+   * @description Duration of the generated video in seconds, or -1 to let the provider choose the length (e.g. following an input video). -1 is only accepted by models that list it in supported_durations.
+   * @minimum -1
    * @example 8
    * @type integer | undefined
    */
@@ -34780,7 +35418,7 @@ export type OpenrouterPostVideosHeygenHeygenVideo1RequestResolutionEnumKey =
  */
 export type OpenrouterPostVideosHeygenHeygenVideo1Body = {
   /**
-   * @description Aspect ratio of the generated video
+   * @description Aspect ratio of the generated video. Omit it to use the model default, which on models with adaptive aspect ratio (e.g. BytePlus Seedance) follows the input image or video.
    * @example 16:9
    * @type string | undefined
    */
@@ -34800,7 +35438,7 @@ export type OpenrouterPostVideosHeygenHeygenVideo1Body = {
    */
   creativity?: number
   /**
-   * @description Duration of the generated video in seconds
+   * @description Duration of the generated video in seconds, or -1 to let the provider choose the length (e.g. following an input video). -1 is only accepted by models that list it in supported_durations.
    * @example 8
    * @type number | undefined
    */
@@ -35521,7 +36159,7 @@ export type OpenrouterPostVideosKwaivgiKlingV30ProRequestSizeEnumKey =
  */
 export type OpenrouterPostVideosKwaivgiKlingV30ProBody = {
   /**
-   * @description Aspect ratio of the generated video
+   * @description Aspect ratio of the generated video. Omit it to use the model default, which on models with adaptive aspect ratio (e.g. BytePlus Seedance) follows the input image or video.
    * @example 16:9
    * @type string | undefined
    */
@@ -35541,7 +36179,7 @@ export type OpenrouterPostVideosKwaivgiKlingV30ProBody = {
    */
   creativity?: number
   /**
-   * @description Duration of the generated video in seconds
+   * @description Duration of the generated video in seconds, or -1 to let the provider choose the length (e.g. following an input video). -1 is only accepted by models that list it in supported_durations.
    * @example 8
    * @type number | undefined
    */
@@ -36263,7 +36901,7 @@ export type OpenrouterPostVideosKwaivgiKlingV30StdRequestSizeEnumKey =
  */
 export type OpenrouterPostVideosKwaivgiKlingV30StdBody = {
   /**
-   * @description Aspect ratio of the generated video
+   * @description Aspect ratio of the generated video. Omit it to use the model default, which on models with adaptive aspect ratio (e.g. BytePlus Seedance) follows the input image or video.
    * @example 16:9
    * @type string | undefined
    */
@@ -36283,7 +36921,7 @@ export type OpenrouterPostVideosKwaivgiKlingV30StdBody = {
    */
   creativity?: number
   /**
-   * @description Duration of the generated video in seconds
+   * @description Duration of the generated video in seconds, or -1 to let the provider choose the length (e.g. following an input video). -1 is only accepted by models that list it in supported_durations.
    * @example 8
    * @type number | undefined
    */
@@ -36994,7 +37632,7 @@ export type OpenrouterPostVideosKwaivgiKlingVideoO1RequestSizeEnumKey =
  */
 export type OpenrouterPostVideosKwaivgiKlingVideoO1Body = {
   /**
-   * @description Aspect ratio of the generated video
+   * @description Aspect ratio of the generated video. Omit it to use the model default, which on models with adaptive aspect ratio (e.g. BytePlus Seedance) follows the input image or video.
    * @example 16:9
    * @type string | undefined
    */
@@ -37014,7 +37652,7 @@ export type OpenrouterPostVideosKwaivgiKlingVideoO1Body = {
    */
   creativity?: number
   /**
-   * @description Duration of the generated video in seconds
+   * @description Duration of the generated video in seconds, or -1 to let the provider choose the length (e.g. following an input video). -1 is only accepted by models that list it in supported_durations.
    * @example 8
    * @type number | undefined
    */
@@ -37707,7 +38345,7 @@ export type OpenrouterPostVideosMinimaxHailuo23RequestModelEnumKey =
  */
 export type OpenrouterPostVideosMinimaxHailuo23Body = {
   /**
-   * @description Aspect ratio of the generated video
+   * @description Aspect ratio of the generated video. Omit it to use the model default, which on models with adaptive aspect ratio (e.g. BytePlus Seedance) follows the input image or video.
    * @example 16:9
    * @type string | undefined
    */
@@ -37727,7 +38365,7 @@ export type OpenrouterPostVideosMinimaxHailuo23Body = {
    */
   creativity?: number
   /**
-   * @description Duration of the generated video in seconds
+   * @description Duration of the generated video in seconds, or -1 to let the provider choose the length (e.g. following an input video). -1 is only accepted by models that list it in supported_durations.
    * @example 8
    * @type number | undefined
    */
@@ -38435,7 +39073,7 @@ export type OpenrouterPostVideosMinimaxHailuo3RequestModelEnumKey =
  */
 export type OpenrouterPostVideosMinimaxHailuo3Body = {
   /**
-   * @description Aspect ratio of the generated video
+   * @description Aspect ratio of the generated video. Omit it to use the model default, which on models with adaptive aspect ratio (e.g. BytePlus Seedance) follows the input image or video.
    * @example 16:9
    * @type string | undefined
    */
@@ -38455,7 +39093,7 @@ export type OpenrouterPostVideosMinimaxHailuo3Body = {
    */
   creativity?: number
   /**
-   * @description Duration of the generated video in seconds
+   * @description Duration of the generated video in seconds, or -1 to let the provider choose the length (e.g. following an input video). -1 is only accepted by models that list it in supported_durations.
    * @example 8
    * @type number | undefined
    */
@@ -39177,7 +39815,7 @@ export type OpenrouterPostVideosMinimaxHailuo3MaxRequestResolutionEnumKey =
  */
 export type OpenrouterPostVideosMinimaxHailuo3MaxBody = {
   /**
-   * @description Aspect ratio of the generated video
+   * @description Aspect ratio of the generated video. Omit it to use the model default, which on models with adaptive aspect ratio (e.g. BytePlus Seedance) follows the input image or video.
    * @example 16:9
    * @type string | undefined
    */
@@ -39197,7 +39835,7 @@ export type OpenrouterPostVideosMinimaxHailuo3MaxBody = {
    */
   creativity?: number
   /**
-   * @description Duration of the generated video in seconds
+   * @description Duration of the generated video in seconds, or -1 to let the provider choose the length (e.g. following an input video). -1 is only accepted by models that list it in supported_durations.
    * @example 8
    * @type number | undefined
    */
@@ -40607,7 +41245,7 @@ export type OpenrouterPostVideosRunwayAleph2RequestResolutionEnumKey =
  */
 export type OpenrouterPostVideosRunwayAleph2Body = {
   /**
-   * @description Aspect ratio of the generated video
+   * @description Aspect ratio of the generated video. Omit it to use the model default, which on models with adaptive aspect ratio (e.g. BytePlus Seedance) follows the input image or video.
    * @example 16:9
    * @type string | undefined
    */
@@ -40627,8 +41265,8 @@ export type OpenrouterPostVideosRunwayAleph2Body = {
    */
   creativity?: number
   /**
-   * @description Duration of the generated video in seconds
-   * @minimum 1
+   * @description Duration of the generated video in seconds, or -1 to let the provider choose the length (e.g. following an input video). -1 is only accepted by models that list it in supported_durations.
+   * @minimum -1
    * @example 8
    * @type integer | undefined
    */
@@ -41338,7 +41976,7 @@ export type OpenrouterPostVideosRunwayGen45RequestSizeEnumKey =
  */
 export type OpenrouterPostVideosRunwayGen45Body = {
   /**
-   * @description Aspect ratio of the generated video
+   * @description Aspect ratio of the generated video. Omit it to use the model default, which on models with adaptive aspect ratio (e.g. BytePlus Seedance) follows the input image or video.
    * @example 16:9
    * @type string | undefined
    */
@@ -41358,7 +41996,7 @@ export type OpenrouterPostVideosRunwayGen45Body = {
    */
   creativity?: number
   /**
-   * @description Duration of the generated video in seconds
+   * @description Duration of the generated video in seconds, or -1 to let the provider choose the length (e.g. following an input video). -1 is only accepted by models that list it in supported_durations.
    * @example 8
    * @type number | undefined
    */
@@ -42066,7 +42704,7 @@ export type OpenrouterPostVideosTbcMischief1RequestSizeEnumKey =
  */
 export type OpenrouterPostVideosTbcMischief1Body = {
   /**
-   * @description Aspect ratio of the generated video
+   * @description Aspect ratio of the generated video. Omit it to use the model default, which on models with adaptive aspect ratio (e.g. BytePlus Seedance) follows the input image or video.
    * @example 16:9
    * @type string | undefined
    */
@@ -42086,7 +42724,7 @@ export type OpenrouterPostVideosTbcMischief1Body = {
    */
   creativity?: number
   /**
-   * @description Duration of the generated video in seconds
+   * @description Duration of the generated video in seconds, or -1 to let the provider choose the length (e.g. following an input video). -1 is only accepted by models that list it in supported_durations.
    * @example 8
    * @type number | undefined
    */
@@ -42832,7 +43470,7 @@ export type OpenrouterPostVideosXAiGrokImagineVideoRequestSizeEnumKey =
  */
 export type OpenrouterPostVideosXAiGrokImagineVideoBody = {
   /**
-   * @description Aspect ratio of the generated video
+   * @description Aspect ratio of the generated video. Omit it to use the model default, which on models with adaptive aspect ratio (e.g. BytePlus Seedance) follows the input image or video.
    * @example 16:9
    * @type string | undefined
    */
@@ -42852,7 +43490,7 @@ export type OpenrouterPostVideosXAiGrokImagineVideoBody = {
    */
   creativity?: number
   /**
-   * @description Duration of the generated video in seconds
+   * @description Duration of the generated video in seconds, or -1 to let the provider choose the length (e.g. following an input video). -1 is only accepted by models that list it in supported_durations.
    * @example 8
    * @type number | undefined
    */
@@ -43574,7 +44212,7 @@ export type OpenrouterPostVideosXAiGrokImagineVideo15RequestResolutionEnumKey =
  */
 export type OpenrouterPostVideosXAiGrokImagineVideo15Body = {
   /**
-   * @description Aspect ratio of the generated video
+   * @description Aspect ratio of the generated video. Omit it to use the model default, which on models with adaptive aspect ratio (e.g. BytePlus Seedance) follows the input image or video.
    * @example 16:9
    * @type string | undefined
    */
@@ -43594,7 +44232,7 @@ export type OpenrouterPostVideosXAiGrokImagineVideo15Body = {
    */
   creativity?: number
   /**
-   * @description Duration of the generated video in seconds
+   * @description Duration of the generated video in seconds, or -1 to let the provider choose the length (e.g. following an input video). -1 is only accepted by models that list it in supported_durations.
    * @example 8
    * @type number | undefined
    */
@@ -44320,7 +44958,7 @@ export type OpenrouterPostVideosXAiGrokImagineVideo15LiteRequestResolutionEnumKe
  */
 export type OpenrouterPostVideosXAiGrokImagineVideo15LiteBody = {
   /**
-   * @description Aspect ratio of the generated video
+   * @description Aspect ratio of the generated video. Omit it to use the model default, which on models with adaptive aspect ratio (e.g. BytePlus Seedance) follows the input image or video.
    * @example 16:9
    * @type string | undefined
    */
@@ -44340,7 +44978,7 @@ export type OpenrouterPostVideosXAiGrokImagineVideo15LiteBody = {
    */
   creativity?: number
   /**
-   * @description Duration of the generated video in seconds
+   * @description Duration of the generated video in seconds, or -1 to let the provider choose the length (e.g. following an input video). -1 is only accepted by models that list it in supported_durations.
    * @example 8
    * @type number | undefined
    */
