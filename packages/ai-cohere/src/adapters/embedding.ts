@@ -67,7 +67,6 @@ function isPrivateOrInternalUrl(url: string): boolean {
   return false
 }
 
-
 /**
  * Cohere Embedding Adapter
  *
