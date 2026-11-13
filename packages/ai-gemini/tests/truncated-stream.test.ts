@@ -65,6 +65,43 @@ describe('Gemini stream that ends without a finishReason', () => {
     expect(result.chunks.at(-2)).toMatchObject({ type: 'TEXT_MESSAGE_END' })
   })
 
+  it('ends a started tool call before the RUN_ERROR', async () => {
+    const result = await run([
+      {
+        candidates: [
+          {
+            content: {
+              role: 'model',
+              parts: [
+                {
+                  functionCall: {
+                    id: 'call-1',
+                    name: 'lookup',
+                    args: { q: 'x' },
+                  },
+                },
+              ],
+            },
+            index: 0,
+          },
+        ],
+        modelVersion: 'gemini-2.5-flash',
+      },
+    ])
+    const types: Array<string> = result.chunks.map((chunk) => chunk.type)
+    expect(types).toContain('TOOL_CALL_START')
+    expect(types.indexOf('TOOL_CALL_END')).toBeGreaterThan(
+      types.indexOf('TOOL_CALL_START'),
+    )
+    expect(types.indexOf('TOOL_CALL_END')).toBeLessThan(
+      types.indexOf('RUN_ERROR'),
+    )
+    expect(result.chunks.at(-1)).toMatchObject({
+      type: 'RUN_ERROR',
+      code: 'truncated-stream',
+    })
+  })
+
   it('still finishes a stream with a finishReason', async () => {
     const result = await run([textChunk('Hel'), textChunk('lo', 'STOP')])
     expect(result.chunks.at(-1)).toMatchObject({ type: 'RUN_FINISHED' })
