@@ -7,7 +7,7 @@ import {
   MUSE_MODEL_REASONING,
 } from '../model-meta'
 import { getMuseApiKeyFromEnv, withMuseDefaults } from '../utils/client'
-import type { Modality } from '@tanstack/ai'
+import type { Modality, TextOptions } from '@tanstack/ai'
 import type {
   MUSE_CHAT_MODELS,
   MuseChatModelToolCapabilitiesByName,
@@ -18,6 +18,7 @@ import type {
 import type { MuseMessageMetadataByModality } from '../message-types'
 import type { MuseClientConfig } from '../utils/client'
 import type { OpenAIBaseTextAdapterOptions } from '@tanstack/openai-base'
+import type { MetaPostV1ChatCompletionsBody } from '../generated/client/types'
 
 /** The reasoning levels of a model, for `chat({ reasoning })`. `never`: none. */
 type ResolveReasoning<TModel extends string> =
@@ -75,6 +76,13 @@ export class MuseTextAdapter<
 
   protected override modelReasoning(model: string) {
     return MUSE_MODEL_REASONING[model]
+  }
+
+  /** The shared request, checked against Meta's own Chat Completions body. */
+  protected override mapOptionsToRequest(options: TextOptions) {
+    const params = super.mapOptionsToRequest(options)
+    // @ts-expect-error public type mismatch: the OpenAI SDK params allow null top_logprobs, safety_identifier and prompt_cache_key, a 'fast' service_tier, and custom tool calls, which Meta's document does not
+    return params satisfies MetaPostV1ChatCompletionsBody
   }
 }
 
