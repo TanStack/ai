@@ -158,6 +158,7 @@ import { Route as ApiMessageIdsRouteImport } from './routes/api.message-ids'
 import { Route as ApiMidConversationChangesWireRouteImport } from './routes/api.mid-conversation-changes-wire'
 import { Route as ApiMiddlewareTestRouteImport } from './routes/api.middleware-test'
 import { Route as ApiMistralStrictToolNullWireRouteImport } from './routes/api.mistral-strict-tool-null-wire'
+import { Route as ApiMistralTruncatedToolCallRouteImport } from './routes/api.mistral-truncated-tool-call'
 import { Route as ApiMoonshotUsageDetailsRouteImport } from './routes/api.moonshot-usage-details'
 import { Route as ApiMultimodalToolResultWireRouteImport } from './routes/api.multimodal-tool-result-wire'
 import { Route as ApiNeonWireRouteImport } from './routes/api.neon-wire'
@@ -1001,6 +1002,12 @@ const ApiMistralStrictToolNullWireRoute =
     path: '/api/mistral-strict-tool-null-wire',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiMistralTruncatedToolCallRoute =
+  ApiMistralTruncatedToolCallRouteImport.update({
+    id: '/api/mistral-truncated-tool-call',
+    path: '/api/mistral-truncated-tool-call',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiMoonshotUsageDetailsRoute = ApiMoonshotUsageDetailsRouteImport.update({
   id: '/api/moonshot-usage-details',
   path: '/api/moonshot-usage-details',
@@ -1509,6 +1516,7 @@ export interface FileRoutesByFullPath {
   '/api/mid-conversation-changes-wire': typeof ApiMidConversationChangesWireRoute
   '/api/middleware-test': typeof ApiMiddlewareTestRoute
   '/api/mistral-strict-tool-null-wire': typeof ApiMistralStrictToolNullWireRoute
+  '/api/mistral-truncated-tool-call': typeof ApiMistralTruncatedToolCallRoute
   '/api/moonshot-usage-details': typeof ApiMoonshotUsageDetailsRoute
   '/api/multimodal-tool-result-wire': typeof ApiMultimodalToolResultWireRoute
   '/api/neon-wire': typeof ApiNeonWireRoute
@@ -1727,6 +1735,7 @@ export interface FileRoutesByTo {
   '/api/mid-conversation-changes-wire': typeof ApiMidConversationChangesWireRoute
   '/api/middleware-test': typeof ApiMiddlewareTestRoute
   '/api/mistral-strict-tool-null-wire': typeof ApiMistralStrictToolNullWireRoute
+  '/api/mistral-truncated-tool-call': typeof ApiMistralTruncatedToolCallRoute
   '/api/moonshot-usage-details': typeof ApiMoonshotUsageDetailsRoute
   '/api/multimodal-tool-result-wire': typeof ApiMultimodalToolResultWireRoute
   '/api/neon-wire': typeof ApiNeonWireRoute
@@ -1946,6 +1955,7 @@ export interface FileRoutesById {
   '/api/mid-conversation-changes-wire': typeof ApiMidConversationChangesWireRoute
   '/api/middleware-test': typeof ApiMiddlewareTestRoute
   '/api/mistral-strict-tool-null-wire': typeof ApiMistralStrictToolNullWireRoute
+  '/api/mistral-truncated-tool-call': typeof ApiMistralTruncatedToolCallRoute
   '/api/moonshot-usage-details': typeof ApiMoonshotUsageDetailsRoute
   '/api/multimodal-tool-result-wire': typeof ApiMultimodalToolResultWireRoute
   '/api/neon-wire': typeof ApiNeonWireRoute
@@ -2166,6 +2176,7 @@ export interface FileRouteTypes {
     | '/api/mid-conversation-changes-wire'
     | '/api/middleware-test'
     | '/api/mistral-strict-tool-null-wire'
+    | '/api/mistral-truncated-tool-call'
     | '/api/moonshot-usage-details'
     | '/api/multimodal-tool-result-wire'
     | '/api/neon-wire'
@@ -2384,6 +2395,7 @@ export interface FileRouteTypes {
     | '/api/mid-conversation-changes-wire'
     | '/api/middleware-test'
     | '/api/mistral-strict-tool-null-wire'
+    | '/api/mistral-truncated-tool-call'
     | '/api/moonshot-usage-details'
     | '/api/multimodal-tool-result-wire'
     | '/api/neon-wire'
@@ -2602,6 +2614,7 @@ export interface FileRouteTypes {
     | '/api/mid-conversation-changes-wire'
     | '/api/middleware-test'
     | '/api/mistral-strict-tool-null-wire'
+    | '/api/mistral-truncated-tool-call'
     | '/api/moonshot-usage-details'
     | '/api/multimodal-tool-result-wire'
     | '/api/neon-wire'
@@ -2821,6 +2834,7 @@ export interface RootRouteChildren {
   ApiMidConversationChangesWireRoute: typeof ApiMidConversationChangesWireRoute
   ApiMiddlewareTestRoute: typeof ApiMiddlewareTestRoute
   ApiMistralStrictToolNullWireRoute: typeof ApiMistralStrictToolNullWireRoute
+  ApiMistralTruncatedToolCallRoute: typeof ApiMistralTruncatedToolCallRoute
   ApiMoonshotUsageDetailsRoute: typeof ApiMoonshotUsageDetailsRoute
   ApiMultimodalToolResultWireRoute: typeof ApiMultimodalToolResultWireRoute
   ApiNeonWireRoute: typeof ApiNeonWireRoute
@@ -3931,6 +3945,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiMistralStrictToolNullWireRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/mistral-truncated-tool-call': {
+      id: '/api/mistral-truncated-tool-call'
+      path: '/api/mistral-truncated-tool-call'
+      fullPath: '/api/mistral-truncated-tool-call'
+      preLoaderRoute: typeof ApiMistralTruncatedToolCallRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/moonshot-usage-details': {
       id: '/api/moonshot-usage-details'
       path: '/api/moonshot-usage-details'
@@ -4615,6 +4636,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiMidConversationChangesWireRoute: ApiMidConversationChangesWireRoute,
   ApiMiddlewareTestRoute: ApiMiddlewareTestRoute,
   ApiMistralStrictToolNullWireRoute: ApiMistralStrictToolNullWireRoute,
+  ApiMistralTruncatedToolCallRoute: ApiMistralTruncatedToolCallRoute,
   ApiMoonshotUsageDetailsRoute: ApiMoonshotUsageDetailsRoute,
   ApiMultimodalToolResultWireRoute: ApiMultimodalToolResultWireRoute,
   ApiNeonWireRoute: ApiNeonWireRoute,
