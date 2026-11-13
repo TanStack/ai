@@ -292,10 +292,9 @@ export function createMCPEventWebhook(
     if (isExpired(record, now())) {
       return fail(410, 'routing', 'Subscription lease expired')
     }
-    if (
-      classified.event.name !== record.name ||
-      classified.event.eventId !== webhookId
-    ) {
+    // webhook-id is a per-message id, not the eventId (SEP-3415). Senders
+    // that still send webhook-id = eventId are accepted too.
+    if (classified.event.name !== record.name) {
       return fail(400, 'envelope', 'Event does not match the subscription')
     }
     try {
