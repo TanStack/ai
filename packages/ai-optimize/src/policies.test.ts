@@ -26,7 +26,7 @@ describe('PolicyResolver precedence (§5.4)', () => {
     expect(r.result(authored)).toBeUndefined()
   })
 
-  it('2. author adornment wins over optimize per-tool override for that field', () => {
+  it('2. author optimization wins over optimize per-tool override for that field', () => {
     const r = new PolicyResolver({
       tools: { read_file: { result: { fields: { content: truncateHead() } } } },
     })
@@ -100,5 +100,17 @@ describe('PolicyResolver precedence (§5.4)', () => {
       },
     })
     expect(notRetrievable.anyRetrievable([{ name: 'foreign' }])).toBe(false)
+  })
+
+  it('a retrievable default needs retrieve_context even with no current tools', () => {
+    // Defaults apply to historical results too, so the tool may be gone from
+    // the set while its projected result still references retrieve_context.
+    const r = new PolicyResolver({ defaults: { projection: dropWithRef() } })
+    expect(r.anyRetrievable([])).toBe(true)
+
+    const nonRetrievable = new PolicyResolver({
+      defaults: { projection: dropWithRef({ retrievable: false }) },
+    })
+    expect(nonRetrievable.anyRetrievable([])).toBe(false)
   })
 })

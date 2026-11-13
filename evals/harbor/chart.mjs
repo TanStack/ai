@@ -12,19 +12,11 @@
 import { readFileSync, mkdirSync } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
+// playwright-core is a declared devDependency of this package; import by name so
+// the path survives a lockfile bump (no hardcoded pnpm store directory).
+import pwDefault from 'playwright-core'
 
 const HERE = path.dirname(fileURLToPath(import.meta.url))
-const PW = path.join(
-  HERE,
-  '..',
-  '..',
-  'node_modules',
-  '.pnpm',
-  'playwright-core@1.57.0',
-  'node_modules',
-  'playwright-core',
-  'index.js',
-)
 
 function avgByArm(file) {
   const rows = readFileSync(path.join(HERE, file), 'utf8')
@@ -111,7 +103,7 @@ async function main() {
   const mw = avgByArm('results/multi-write.jsonl')
   const cm = avgByArm('results/code-mode.jsonl')
 
-  const pw = (await import(PW)).default
+  const pw = pwDefault
   const browser = await pw.chromium.launch()
 
   // A. terminal-bench per-arm input (the replication)

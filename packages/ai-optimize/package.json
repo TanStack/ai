@@ -1,7 +1,7 @@
 {
   "name": "@tanstack/ai-optimize",
   "version": "0.0.1",
-  "description": "Adornment-driven, deterministic tool-result context projection middleware for TanStack AI chat()",
+  "description": "Deterministic, opt-in tool-result context optimization middleware for TanStack AI chat()",
   "author": "",
   "license": "MIT",
   "repository": {

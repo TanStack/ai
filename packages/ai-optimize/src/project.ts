@@ -1,4 +1,4 @@
-import { estimateChars } from './estimate'
+import { JSON_DIVISOR, TEXT_DIVISOR, estimateChars } from './estimate'
 import { makeRef } from './stash'
 import type { ContentPart } from '@tanstack/ai'
 import type {
@@ -7,7 +7,7 @@ import type {
   ResolvedFieldProjection,
   ResolvedResultPolicy,
 } from './types'
-import type { Stash } from './stash'
+import type { ProjectionOrigin, Stash } from './stash'
 
 /** State of a tool result in `ModelMessage` form — `'error'` maps to a tool
  *  message that carries an `error`; everything else is a success. */
@@ -36,11 +36,13 @@ export function truncateValue(input: {
   raw: unknown
   projection: ResolvedFieldProjection
   fieldPath: string
+  origin: ProjectionOrigin
   toolName: string
   toolCallId: string
   stash: Stash
 }): { value: string; event: OptimizationEvent } | null {
-  const { raw, projection, fieldPath, toolName, toolCallId, stash } = input
+  const { raw, projection, fieldPath, origin, toolName, toolCallId, stash } =
+    input
   const isText = typeof raw === 'string'
   const s = isText ? (raw as string) : safeStringify(raw)
   if (alreadyProjected(s)) return null
@@ -48,7 +50,7 @@ export function truncateValue(input: {
   const origTokens = estimateChars(s.length, isText)
   if (origTokens <= projection.aboveTokens) return null
 
-  const ref = makeRef(toolCallId, fieldPath)
+  const ref = makeRef(toolCallId, fieldPath, origin)
   const stashed = projection.retrievable
   if (stashed) stash.set(ref, { toolName, toolCallId, fieldPath, value: raw })
 
@@ -69,6 +71,7 @@ export function truncateValue(input: {
         toolName,
         toolCallId,
         fieldPath,
+        origin,
         'drop_with_ref',
         origTokens,
         0,
@@ -77,7 +80,9 @@ export function truncateValue(input: {
     }
   }
 
-  const budget = projection.maxTokens * 4 // chars
+  // Budget in chars, using the same divisor estimateChars used for origTokens,
+  // so maxTokens means the same thing for text and for serialized JSON.
+  const budget = projection.maxTokens * (isText ? TEXT_DIVISOR : JSON_DIVISOR)
   let head = ''
   let tail = ''
   if (projection.truncate === 'head') {
@@ -115,6 +120,7 @@ export function truncateValue(input: {
       toolName,
       toolCallId,
       fieldPath,
+      origin,
       projection.truncate,
       origTokens,
       keptTokens,
@@ -127,6 +133,7 @@ function event(
   toolName: string,
   toolCallId: string,
   fieldPath: string,
+  origin: ProjectionOrigin,
   strategy: ResolvedFieldProjection['truncate'],
   originalTokens: number,
   keptTokens: number,
@@ -137,6 +144,7 @@ function event(
     toolName,
     toolCallId,
     fieldPath,
+    origin,
     strategy,
     originalTokens,
     keptTokens,
@@ -212,8 +220,11 @@ function structuredField(
 ): { content: string; events: Array<OptimizationEvent> } {
   const clone = structuredClone(output) as Record<string, unknown>
   const events: Array<OptimizationEvent> = []
+  const origin: ProjectionOrigin = 'result'
 
-  // Explicit field rules first (author adornment + optimize overrides).
+  // Explicit field rules first (author policy + optimize overrides). These
+  // always take effect, even when the default is flatten — an author that drops
+  // `body` is never overridden (and re-stashed) by a consumer's flatten default.
   for (const [path, projection] of Object.entries(policy.fields)) {
     if (path === '$') continue
     const leaf = getPath(clone, path)
@@ -222,6 +233,7 @@ function structuredField(
       raw: leaf,
       projection,
       fieldPath: path,
+      origin,
       toolName,
       toolCallId,
       stash,
@@ -232,15 +244,16 @@ function structuredField(
     }
   }
 
-  // Universal 'leaves' default: every un-ruled oversized string leaf.
   const dflt = policy.default
   if (dflt?.mode === 'leaves') {
+    // Every un-ruled oversized string leaf, truncated on its own.
     walkStringLeaves(clone, '', (path, value) => {
       if (policy.fields[path]) return undefined // explicit rule already handled it
       const res = truncateValue({
         raw: value,
         projection: dflt.projection,
         fieldPath: path,
+        origin,
         toolName,
         toolCallId,
         stash,
@@ -249,6 +262,22 @@ function structuredField(
       events.push(res.event)
       return res.value
     })
+  } else if (dflt?.mode === 'flatten') {
+    // Serialize the (already field-surgered) result and truncate it as one
+    // string, so explicitly-ruled fields keep their projection.
+    const res = truncateValue({
+      raw: clone,
+      projection: dflt.projection,
+      fieldPath: '$',
+      origin,
+      toolName,
+      toolCallId,
+      stash,
+    })
+    if (res) {
+      events.push(res.event)
+      return { content: res.value, events }
+    }
   }
 
   return { content: JSON.stringify(clone), events }
@@ -257,7 +286,7 @@ function structuredField(
 /**
  * Pure projection of one tool result. `output` is the tool's raw output value
  * (pre-serialization) used for structured field surgery; `content` is its
- * `ModelMessage` form. Keys, IDs, and unadorned fields survive whole.
+ * `ModelMessage` form. Keys, IDs, and unoptimized fields survive whole.
  */
 export function projectToolResult(input: {
   toolName: string
@@ -288,6 +317,7 @@ export function projectToolResult(input: {
       raw: joined,
       projection: rule,
       fieldPath: '$',
+      origin: 'result',
       toolName,
       toolCallId,
       stash,
@@ -299,37 +329,37 @@ export function projectToolResult(input: {
     }
   }
 
-  const explicitPaths = Object.keys(policy.fields).filter((p) => p !== '$')
-  const flatten = policy.default?.mode === 'flatten'
+  // A `$` rule addresses the whole result and wins over the default; a
+  // non-object result has no fields to surger, so it also goes whole-value.
+  const wholeRule = policy.fields['$']
+  if (wholeRule || !isPlainObject(output)) {
+    const rule = wholeRule ?? policy.default?.projection
+    if (!rule) return { content, events: [] }
+    const res = truncateValue({
+      raw: output,
+      projection: rule,
+      fieldPath: '$',
+      origin: 'result',
+      toolName,
+      toolCallId,
+      stash,
+    })
+    if (!res) return { content, events: [] }
+    return { content: res.value, events: [res.event] }
+  }
 
-  // Structured output (plain object): field surgery, unless flattening.
-  if (
-    !flatten &&
-    isPlainObject(output) &&
-    (explicitPaths.length > 0 || policy.default?.mode === 'leaves')
-  ) {
+  // Plain object with explicit field rules and/or a default (leaves | flatten).
+  const explicitPaths = Object.keys(policy.fields).filter((p) => p !== '$')
+  if (explicitPaths.length > 0 || policy.default?.mode) {
     return structuredField(output, policy, toolName, toolCallId, stash)
   }
 
-  // Scalar / string result, or whole-result flatten: the `$` rule (or the
-  // flatten default) applies to the whole value.
-  const rule = policy.fields['$'] ?? policy.default?.projection
-  if (!rule) return { content, events: [] }
-  const res = truncateValue({
-    raw: output,
-    projection: rule,
-    fieldPath: '$',
-    toolName,
-    toolCallId,
-    stash,
-  })
-  if (!res) return { content, events: [] }
-  return { content: res.value, events: [res.event] }
+  return { content, events: [] }
 }
 
 /**
  * Pure projection of a completed tool call's arguments (D3). Args stay an
- * object — only adorned leaves become preview strings. Approval prompts and the
+ * object — only optimized leaves become preview strings. Approval prompts and the
  * live stream always show full arguments; this applies only to the *history
  * form of completed calls*.
  */
@@ -350,6 +380,7 @@ export function projectToolCallArgs(input: {
       raw: args,
       projection: rule,
       fieldPath: '$',
+      origin: 'args',
       toolName,
       toolCallId,
       stash,
@@ -367,6 +398,7 @@ export function projectToolCallArgs(input: {
       raw: leaf,
       projection,
       fieldPath: path,
+      origin: 'args',
       toolName,
       toolCallId,
       stash,

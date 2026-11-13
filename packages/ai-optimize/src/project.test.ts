@@ -35,6 +35,7 @@ describe('truncateValue golden markers', () => {
     const res = truncateValue({
       raw: big,
       projection: HEAD_TAIL,
+      origin: 'result',
       fieldPath: '$',
       toolName: 'read',
       toolCallId: 'call1',
@@ -42,27 +43,29 @@ describe('truncateValue golden markers', () => {
     })
     expect(res).not.toBeNull()
     expect(must(res).value).toBe(
-      `[Truncated for context: $, ~2000 tokens, kept ~750. Full content: retrieve_context(ref="ctx_call1_root")]\n\n` +
+      `[Truncated for context: $, ~2000 tokens, kept ~750. Full content: retrieve_context(ref="ctx_call1_result_root")]\n\n` +
         `${headChunk}\n\n[... 5000 chars elided ...]\n\n${tailChunk}`,
     )
     expect(must(res).event).toEqual({
       type: 'projected',
       toolName: 'read',
       toolCallId: 'call1',
+      origin: 'result',
       fieldPath: '$',
       strategy: 'head_tail',
       originalTokens: 2000,
       keptTokens: 750,
-      ref: 'ctx_call1_root',
+      ref: 'ctx_call1_result_root',
     })
     // The ORIGINAL value is stashed, verbatim.
-    expect(must(stash.get('ctx_call1_root')).value).toBe(big)
+    expect(must(stash.get('ctx_call1_result_root')).value).toBe(big)
   })
 
   it('head: keeps the head, elides the tail', () => {
     const res = truncateValue({
       raw: big,
       projection: { ...HEAD_TAIL, truncate: 'head' },
+      origin: 'result',
       fieldPath: '$',
       toolName: 'read',
       toolCallId: 'c',
@@ -70,7 +73,7 @@ describe('truncateValue golden markers', () => {
     })
     const head = big.slice(0, 3000)
     expect(must(res).value).toBe(
-      `[Truncated for context: $, ~2000 tokens, kept ~750. Full content: retrieve_context(ref="ctx_c_root")]\n\n` +
+      `[Truncated for context: $, ~2000 tokens, kept ~750. Full content: retrieve_context(ref="ctx_c_result_root")]\n\n` +
         `${head}\n\n[... 5000 chars elided ...]`,
     )
   })
@@ -79,6 +82,7 @@ describe('truncateValue golden markers', () => {
     const res = truncateValue({
       raw: big,
       projection: { ...HEAD_TAIL, truncate: 'tail' },
+      origin: 'result',
       fieldPath: '$',
       toolName: 'read',
       toolCallId: 'c',
@@ -86,7 +90,7 @@ describe('truncateValue golden markers', () => {
     })
     const tail = big.slice(big.length - 3000)
     expect(must(res).value).toBe(
-      `[Truncated for context: $, ~2000 tokens, kept ~750. Full content: retrieve_context(ref="ctx_c_root")]\n\n` +
+      `[Truncated for context: $, ~2000 tokens, kept ~750. Full content: retrieve_context(ref="ctx_c_result_root")]\n\n` +
         `[... 5000 chars elided ...]\n\n${tail}`,
     )
   })
@@ -95,13 +99,14 @@ describe('truncateValue golden markers', () => {
     const res = truncateValue({
       raw: big,
       projection: { ...HEAD_TAIL, truncate: 'drop_with_ref' },
+      origin: 'result',
       fieldPath: 'body',
       toolName: 'fetch',
       toolCallId: 'c2',
       stash: createStash(),
     })
     expect(must(res).value).toBe(
-      `[Dropped for context: body, ~2000 tokens. Full content: retrieve_context(ref="ctx_c2_body")]`,
+      `[Dropped for context: body, ~2000 tokens. Full content: retrieve_context(ref="ctx_c2_result_body")]`,
     )
     const ev = must(res).event
     expect(ev.type === 'projected' && ev.keptTokens).toBe(0)
@@ -112,6 +117,7 @@ describe('truncateValue golden markers', () => {
     const res = truncateValue({
       raw: big,
       projection: { ...HEAD_TAIL, retrievable: false },
+      origin: 'result',
       fieldPath: '$',
       toolName: 'read',
       toolCallId: 'c',
@@ -131,6 +137,7 @@ describe('truncateValue golden markers', () => {
     const res = truncateValue({
       raw: 'small',
       projection: HEAD_TAIL,
+      origin: 'result',
       fieldPath: '$',
       toolName: 't',
       toolCallId: 'c',
@@ -153,6 +160,7 @@ describe('truncateValue golden markers', () => {
         maxTokens: 750,
         retrievable: true,
       },
+      origin: 'result',
       fieldPath: 'a-very-long-field-path-that-would-blow-up-the-marker'.repeat(
         200,
       ),
@@ -166,10 +174,11 @@ describe('truncateValue golden markers', () => {
 
   it('idempotence: a value already projected is returned unchanged', () => {
     const projected =
-      '[Truncated for context: $, ~2000 tokens, kept ~750. Full content: retrieve_context(ref="ctx_c_root")]\n\nx'
+      '[Truncated for context: $, ~2000 tokens, kept ~750. Full content: retrieve_context(ref="ctx_c_result_root")]\n\nx'
     const res = truncateValue({
       raw: projected,
       projection: HEAD_TAIL,
+      origin: 'result',
       fieldPath: '$',
       toolName: 't',
       toolCallId: 'c',
@@ -180,7 +189,7 @@ describe('truncateValue golden markers', () => {
 })
 
 describe('projectToolResult', () => {
-  it('structured output: adorned field truncated, siblings byte-identical', () => {
+  it('structured output: optimized field truncated, siblings byte-identical', () => {
     const output = { id: 'abc-123', big, count: 5, nested: { keep: 'yes' } }
     const policy = resultPolicy({ big: HEAD_TAIL })
     const { content, events } = projectToolResult({
@@ -244,6 +253,41 @@ describe('projectToolResult', () => {
     )
   })
 
+  it('flatten default still honors an explicit field rule (author wins)', () => {
+    const output = { body: big, note: 'Y'.repeat(4000) }
+    // Author drops `body` and forbids stashing it; consumer adds a retrievable
+    // flatten default. The author rule must still apply, and body must not be
+    // re-stashed by the flatten pass.
+    const policy = resultPolicy(
+      {
+        body: {
+          truncate: 'drop_with_ref',
+          aboveTokens: 1500,
+          maxTokens: 750,
+          retrievable: false,
+        },
+      },
+      { default: { mode: 'flatten', projection: HEAD_TAIL } },
+    )
+    const stash = createStash()
+    const { content, events } = projectToolResult({
+      toolName: 'fetch',
+      toolCallId: 'c',
+      state: 'complete',
+      content: JSON.stringify(output),
+      output,
+      policy,
+      stash,
+    })
+    // body (explicit drop) + $ (flatten) both projected.
+    expect(events.map((e) => e.fieldPath).sort()).toEqual(['$', 'body'])
+    expect((content as string).startsWith('[Truncated for context: $,')).toBe(
+      true,
+    )
+    // body was retrievable:false, so only the flatten `$` original is stashed.
+    expect([...stash.keys()]).toEqual(['ctx_c_result_root'])
+  })
+
   it('opaque content parts pass through after the preview', () => {
     const parts: Array<ContentPart> = [
       { type: 'text', content: big },
@@ -301,7 +345,7 @@ describe('projectToolResult', () => {
 })
 
 describe('projectToolCallArgs', () => {
-  it('projects adorned arg leaves, keeps args an object, siblings intact', () => {
+  it('projects optimized arg leaves, keeps args an object, siblings intact', () => {
     const args = { content: big, path: '/tmp/f' }
     const { args: out, events } = projectToolCallArgs({
       toolName: 'write_file',

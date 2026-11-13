@@ -20,7 +20,7 @@ export interface OptimizeResult {
  * Consumer policy (defaults + per-tool result/args overrides + exclude) lives
  * in the middleware's resolver, keyed by tool name — it is NOT baked onto the
  * tool objects: args rules and `defaults.mode` have no place in the author
- * `context` shape, and author adornment must still win per field. The returned
+ * `context` shape, and author optimization must still win per field. The returned
  * tools are shallow copies so the caller's objects are never mutated.
  */
 export function optimize(

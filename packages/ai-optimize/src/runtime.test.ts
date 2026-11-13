@@ -31,13 +31,13 @@ function toolResult(id: string, name: string, output: unknown): ModelMessage {
   return { role: 'tool', toolCallId: id, name, content: JSON.stringify(output) }
 }
 
-const adornedReadFile: Tool = {
+const optimizedReadFile: Tool = {
   name: 'read_file',
   description: 'read',
   context: { result: { fields: { content: truncateHeadTail() } } },
 }
 
-describe('createContextRuntime middleware (author-adorned)', () => {
+describe('createContextRuntime middleware (author-optimized)', () => {
   it('projects the tool result into providerMessages; canonical messages untouched', () => {
     const runtime = createContextRuntime()
     const messages = [
@@ -49,7 +49,7 @@ describe('createContextRuntime middleware (author-adorned)', () => {
       runConfig(
         runtime.middleware,
         ctx,
-        stubConfig(messages, [adornedReadFile]),
+        stubConfig(messages, [optimizedReadFile]),
       ),
     )
 
@@ -68,9 +68,13 @@ describe('createContextRuntime middleware (author-adorned)', () => {
       assistantCall('call1', 'read_file'),
       toolResult('call1', 'read_file', { content: big }),
     ]
-    runConfig(runtime.middleware, ctx, stubConfig(messages, [adornedReadFile]))
+    runConfig(
+      runtime.middleware,
+      ctx,
+      stubConfig(messages, [optimizedReadFile]),
+    )
     const retrieved = await callTool(runtime.retrieveTool, {
-      ref: 'ctx_call1_content',
+      ref: 'ctx_call1_result_content',
     })
     expect(retrieved).toBe(big)
   })
@@ -92,14 +96,14 @@ describe('createContextRuntime middleware (author-adorned)', () => {
       runConfig(
         runtime.middleware,
         ctx,
-        stubConfig(messages, [adornedReadFile]),
+        stubConfig(messages, [optimizedReadFile]),
       ),
     )
     const b = must(
       runConfig(
         runtime.middleware,
         ctx,
-        stubConfig(messages, [adornedReadFile]),
+        stubConfig(messages, [optimizedReadFile]),
       ),
     )
     expect(JSON.stringify(a.providerMessages)).toBe(
@@ -116,7 +120,7 @@ describe('createContextRuntime middleware (author-adorned)', () => {
     const out = runConfig(
       runtime.middleware,
       stubCtx('init'),
-      stubConfig(messages, [adornedReadFile]),
+      stubConfig(messages, [optimizedReadFile]),
     )
     expect(out).toBeUndefined()
   })
@@ -128,8 +132,16 @@ describe('createContextRuntime middleware (author-adorned)', () => {
       assistantCall('call1', 'read_file'),
       toolResult('call1', 'read_file', { content: big }),
     ]
-    runConfig(runtime.middleware, ctx, stubConfig(messages, [adornedReadFile]))
-    runConfig(runtime.middleware, ctx, stubConfig(messages, [adornedReadFile]))
+    runConfig(
+      runtime.middleware,
+      ctx,
+      stubConfig(messages, [optimizedReadFile]),
+    )
+    runConfig(
+      runtime.middleware,
+      ctx,
+      stubConfig(messages, [optimizedReadFile]),
+    )
     expect(events).toHaveLength(1)
   })
 })
@@ -202,6 +214,54 @@ describe('optimize() middleware (consumer / MCP)', () => {
     expect(
       projectedArgs.content.startsWith('[Dropped for context: content,'),
     ).toBe(true)
+  })
+
+  it('args and result projections on the same field do not collide in the stash', async () => {
+    const writeFile: Tool = { name: 'write_file', description: 'write' }
+    const opt = optimize([writeFile], {
+      tools: {
+        write_file: {
+          args: { fields: { content: dropWithRef() } },
+          result: { fields: { content: truncateHeadTail() } },
+        },
+      },
+    })
+    const argContent = 'A'.repeat(8000)
+    const resultContent = 'R'.repeat(8000)
+    const messages = [
+      assistantCall('c', 'write_file', JSON.stringify({ content: argContent })),
+      toolResult('c', 'write_file', { content: resultContent }),
+    ]
+    runConfig(opt.middleware, ctx, stubConfig(messages, opt.tools))
+    const retrieveTool = must(
+      opt.tools.find((t) => t.name === 'retrieve_context'),
+    )
+    // Distinct refs: the args original and the result original are both intact.
+    const fromArgs = await callTool(retrieveTool, { ref: 'ctx_c_args_content' })
+    const fromResult = await callTool(retrieveTool, {
+      ref: 'ctx_c_result_content',
+    })
+    expect(fromArgs).toBe(argContent)
+    expect(fromResult).toBe(resultContent)
+  })
+
+  it('onStart clears per-run state so a reused runtime does not leak', async () => {
+    const runtime = createContextRuntime()
+    const messages = [
+      assistantCall('call1', 'read_file'),
+      toolResult('call1', 'read_file', { content: big }),
+    ]
+    runConfig(
+      runtime.middleware,
+      ctx,
+      stubConfig(messages, [optimizedReadFile]),
+    )
+    expect(runtime.stash.size).toBe(1)
+    await runtime.middleware.onStart?.(stubCtx())
+    expect(runtime.stash.size).toBe(0)
+    await expect(
+      callTool(runtime.retrieveTool, { ref: 'ctx_call1_result_content' }),
+    ).rejects.toThrow(/Unknown context ref/)
   })
 
   it('pending (no result yet) calls are not args-projected', () => {

@@ -24,12 +24,22 @@ export function createStash(): Stash {
   return new Map<string, StashEntry>()
 }
 
-/** Deterministic ref: `ctx_<toolCallId>_<slug>` where slug is the field path
- *  with non-alphanumerics collapsed to `_` (`$` → `root`). */
-export function makeRef(toolCallId: string, fieldPath: string): string {
+/** Where a projection came from: a tool result, or a completed call's args.
+ *  Part of the ref so an args projection and a result projection on the same
+ *  field path of the same call do not collide in the stash. */
+export type ProjectionOrigin = 'result' | 'args'
+
+/** Deterministic ref: `ctx_<toolCallId>_<origin>_<slug>`. The slug keeps `.`
+ *  path separators (so `a.b` and `a_b` stay distinct) and collapses other
+ *  non-alphanumerics to `_`; `$` becomes `root`. */
+export function makeRef(
+  toolCallId: string,
+  fieldPath: string,
+  origin: ProjectionOrigin,
+): string {
   const slug =
     fieldPath === '$'
       ? 'root'
-      : fieldPath.replace(/[^a-zA-Z0-9]+/g, '_').replace(/^_+|_+$/g, '')
-  return `ctx_${toolCallId}_${slug || 'root'}`
+      : fieldPath.replace(/[^a-zA-Z0-9.]+/g, '_').replace(/^[._]+|[._]+$/g, '')
+  return `ctx_${toolCallId}_${origin}_${slug || 'root'}`
 }

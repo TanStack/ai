@@ -5,6 +5,7 @@
 
 import { execFile } from 'node:child_process'
 import { readFile, writeFile } from 'node:fs/promises'
+import nodePath from 'node:path'
 import { toolDefinition } from '@tanstack/ai'
 
 function run(cmd, args, cwd) {
@@ -64,7 +65,7 @@ export function makeTools(cwd, { includeShell = true } = {}) {
     },
   }).server(async ({ path }) => ({
     path,
-    content: await readFile(path, 'utf8'),
+    content: await readFile(nodePath.resolve(cwd, path), 'utf8'),
   }))
 
   const writeFileTool = toolDefinition({
@@ -81,7 +82,7 @@ export function makeTools(cwd, { includeShell = true } = {}) {
       properties: { path: { type: 'string' }, bytes: { type: 'number' } },
     },
   }).server(async ({ path, content }) => {
-    await writeFile(path, content, 'utf8')
+    await writeFile(nodePath.resolve(cwd, path), content, 'utf8')
     return { path, bytes: Buffer.byteLength(content) }
   })
 

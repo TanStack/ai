@@ -1,4 +1,4 @@
-// Public API — deterministic, adornment-driven tool-result context projection.
+// Public API — deterministic, optimization-driven tool-result context projection.
 
 // Projection combinators — the only way to build a FieldProjection.
 export {
@@ -53,5 +53,5 @@ export type {
   FieldProjection,
 } from './types'
 
-// Re-export the core adornment types for convenience.
+// Re-export the core optimization types for convenience.
 export type { TruncateStrategy, ToolContextPolicy } from '@tanstack/ai'

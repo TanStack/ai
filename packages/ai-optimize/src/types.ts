@@ -1,4 +1,5 @@
 import type { FieldProjection, TruncateStrategy } from '@tanstack/ai'
+import type { ProjectionOrigin } from './stash'
 
 /**
  * A projection event. One is emitted per projected field, and one per
@@ -11,6 +12,8 @@ export type OptimizationEvent =
       toolName: string
       toolCallId: string
       fieldPath: string
+      /** Whether a tool result or a completed call's args was projected. */
+      origin: ProjectionOrigin
       strategy: TruncateStrategy
       /** Estimate — surfaced with a `~`. */
       originalTokens: number
@@ -39,7 +42,7 @@ export interface ResolvedFieldProjection {
 
 /** Resolved projection policy for one tool's result. */
 export interface ResolvedResultPolicy {
-  /** Explicit per-path field rules (author adornment + optimize per-tool
+  /** Explicit per-path field rules (author optimization + optimize per-tool
    *  override, author wins per field). `$` = the whole result. */
   fields: Record<string, ResolvedFieldProjection>
   /** Universal default applied to un-ruled content. `leaves` truncates each
@@ -57,7 +60,7 @@ export interface ResolvedArgsPolicy {
 
 // ---- Consumer-facing `optimize()` config (§5.5) -------------------------
 //
-// Every projection — author adornment and `optimize()` config alike — is a
+// Every projection — author optimization and `optimize()` config alike — is a
 // {@link FieldProjection} built with the combinators (`truncateHeadTail`,
 // `dropWithRef`, `aboveTokens`, ...). There is one shape, not two.
 
