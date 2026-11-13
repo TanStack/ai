@@ -103,6 +103,7 @@ import { Route as ApiDurableTakeoverRouteImport } from './routes/api.durable-tak
 import { Route as ApiEffectChatRouteImport } from './routes/api.effect-chat'
 import { Route as ApiEmbeddingRouteImport } from './routes/api.embedding'
 import { Route as ApiEmbeddingAbortRouteImport } from './routes/api.embedding-abort'
+import { Route as ApiEvaluateGeminiRouteImport } from './routes/api.evaluate-gemini'
 import { Route as ApiEvaluateHttpStatusRouteImport } from './routes/api.evaluate-http-status'
 import { Route as ApiEvaluateRefusalRouteImport } from './routes/api.evaluate-refusal'
 import { Route as ApiEvaluateUsageOnFailureRouteImport } from './routes/api.evaluate-usage-on-failure'
@@ -724,6 +725,11 @@ const ApiEmbeddingRoute = ApiEmbeddingRouteImport.update({
 const ApiEmbeddingAbortRoute = ApiEmbeddingAbortRouteImport.update({
   id: '/api/embedding-abort',
   path: '/api/embedding-abort',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiEvaluateGeminiRoute = ApiEvaluateGeminiRouteImport.update({
+  id: '/api/evaluate-gemini',
+  path: '/api/evaluate-gemini',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiEvaluateHttpStatusRoute = ApiEvaluateHttpStatusRouteImport.update({
@@ -1504,6 +1510,7 @@ export interface FileRoutesByFullPath {
   '/api/effect-chat': typeof ApiEffectChatRoute
   '/api/embedding': typeof ApiEmbeddingRoute
   '/api/embedding-abort': typeof ApiEmbeddingAbortRoute
+  '/api/evaluate-gemini': typeof ApiEvaluateGeminiRoute
   '/api/evaluate-http-status': typeof ApiEvaluateHttpStatusRoute
   '/api/evaluate-refusal': typeof ApiEvaluateRefusalRoute
   '/api/evaluate-usage-on-failure': typeof ApiEvaluateUsageOnFailureRoute
@@ -1730,6 +1737,7 @@ export interface FileRoutesByTo {
   '/api/effect-chat': typeof ApiEffectChatRoute
   '/api/embedding': typeof ApiEmbeddingRoute
   '/api/embedding-abort': typeof ApiEmbeddingAbortRoute
+  '/api/evaluate-gemini': typeof ApiEvaluateGeminiRoute
   '/api/evaluate-http-status': typeof ApiEvaluateHttpStatusRoute
   '/api/evaluate-refusal': typeof ApiEvaluateRefusalRoute
   '/api/evaluate-usage-on-failure': typeof ApiEvaluateUsageOnFailureRoute
@@ -1957,6 +1965,7 @@ export interface FileRoutesById {
   '/api/effect-chat': typeof ApiEffectChatRoute
   '/api/embedding': typeof ApiEmbeddingRoute
   '/api/embedding-abort': typeof ApiEmbeddingAbortRoute
+  '/api/evaluate-gemini': typeof ApiEvaluateGeminiRoute
   '/api/evaluate-http-status': typeof ApiEvaluateHttpStatusRoute
   '/api/evaluate-refusal': typeof ApiEvaluateRefusalRoute
   '/api/evaluate-usage-on-failure': typeof ApiEvaluateUsageOnFailureRoute
@@ -2185,6 +2194,7 @@ export interface FileRouteTypes {
     | '/api/effect-chat'
     | '/api/embedding'
     | '/api/embedding-abort'
+    | '/api/evaluate-gemini'
     | '/api/evaluate-http-status'
     | '/api/evaluate-refusal'
     | '/api/evaluate-usage-on-failure'
@@ -2411,6 +2421,7 @@ export interface FileRouteTypes {
     | '/api/effect-chat'
     | '/api/embedding'
     | '/api/embedding-abort'
+    | '/api/evaluate-gemini'
     | '/api/evaluate-http-status'
     | '/api/evaluate-refusal'
     | '/api/evaluate-usage-on-failure'
@@ -2637,6 +2648,7 @@ export interface FileRouteTypes {
     | '/api/effect-chat'
     | '/api/embedding'
     | '/api/embedding-abort'
+    | '/api/evaluate-gemini'
     | '/api/evaluate-http-status'
     | '/api/evaluate-refusal'
     | '/api/evaluate-usage-on-failure'
@@ -2864,6 +2876,7 @@ export interface RootRouteChildren {
   ApiEffectChatRoute: typeof ApiEffectChatRoute
   ApiEmbeddingRoute: typeof ApiEmbeddingRoute
   ApiEmbeddingAbortRoute: typeof ApiEmbeddingAbortRoute
+  ApiEvaluateGeminiRoute: typeof ApiEvaluateGeminiRoute
   ApiEvaluateHttpStatusRoute: typeof ApiEvaluateHttpStatusRoute
   ApiEvaluateRefusalRoute: typeof ApiEvaluateRefusalRoute
   ApiEvaluateUsageOnFailureRoute: typeof ApiEvaluateUsageOnFailureRoute
@@ -3650,6 +3663,13 @@ declare module '@tanstack/react-router' {
       path: '/api/embedding-abort'
       fullPath: '/api/embedding-abort'
       preLoaderRoute: typeof ApiEmbeddingAbortRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/evaluate-gemini': {
+      id: '/api/evaluate-gemini'
+      path: '/api/evaluate-gemini'
+      fullPath: '/api/evaluate-gemini'
+      preLoaderRoute: typeof ApiEvaluateGeminiRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/evaluate-http-status': {
@@ -4722,6 +4742,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiEffectChatRoute: ApiEffectChatRoute,
   ApiEmbeddingRoute: ApiEmbeddingRoute,
   ApiEmbeddingAbortRoute: ApiEmbeddingAbortRoute,
+  ApiEvaluateGeminiRoute: ApiEvaluateGeminiRoute,
   ApiEvaluateHttpStatusRoute: ApiEvaluateHttpStatusRoute,
   ApiEvaluateRefusalRoute: ApiEvaluateRefusalRoute,
   ApiEvaluateUsageOnFailureRoute: ApiEvaluateUsageOnFailureRoute,
