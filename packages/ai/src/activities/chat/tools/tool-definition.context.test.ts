@@ -12,7 +12,7 @@ const context: ToolContextPolicy = {
   },
 }
 
-describe('toolDefinition context adornment (T1)', () => {
+describe('toolDefinition context optimization (T1)', () => {
   const def = toolDefinition({
     name: 'read_file',
     description: 'Read a file',

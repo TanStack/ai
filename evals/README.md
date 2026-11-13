@@ -111,8 +111,13 @@ cd evals/harbor
 TURN_LIMIT=18 node run-matrix.mjs \
   --tasks "suites/multi-write/out/task-*.json" \
   --arms baseline,adorned,universal,global,cm-baseline,cm-adorned \
-  --model gemini-3.8-flash --trials 3 --out results/multi-write.jsonl
+  --model gemini-3.8-flash --trials 3 --out results/multi-write.jsonl \
+  --max-usd 5
 ```
+
+`--max-usd <n>` stops before the next request once the estimated spend (from the
+`report.mjs` rate card) passes the cap, keeping the partial results. A Fable
+model requires `--fable` to confirm the spend.
 
 Summarize per-trial JSONL into the headline table:
 

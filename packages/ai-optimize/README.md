@@ -20,10 +20,10 @@
 
 # @tanstack/ai-optimize
 
-Deterministic, adornment-driven tool-result context projection as a `chat()`
-middleware. Nothing is truncated unless it is **adorned** — by the tool author
+Deterministic, optimization-driven tool-result context projection as a `chat()`
+middleware. Nothing is truncated unless it is **optimized** — by the tool author
 at field level (`context` on the tool definition), or by the consumer via
-`optimize()` for tools they don't control (MCP above all). Unadorned tool
+`optimize()` for tools they don't control (MCP above all). Unoptimized tool
 results arrive whole.
 
 Projection applies only to the **message projection** sent to the model.
@@ -35,7 +35,7 @@ injected `retrieve_context` tool.
 npm install @tanstack/ai-optimize
 ```
 
-## Author-adorned tools
+## Author-optimized tools
 
 Declare field-level projection on the tool definition. A `createContextRuntime()`
 supplies the middleware and the `retrieve_context` tool.
@@ -121,7 +121,7 @@ chat({ adapter, messages, tools: opt.tools, middleware: [opt.middleware] })
   messages plus the resolved policies, so the cached prefix is stable across
   iterations. Projecting a projected set is a no-op.
 - **Errors are sacred.** Failed tool results (`state === 'error'`) are exempt
-  unless the adornment sets `includeErrors: true`.
+  unless the optimization sets `includeErrors: true`.
 - **Observable.** Every projection and every retrieval emits an
   `OptimizationEvent` (via `onEvent`) and a `tanstack.optimize` log record.
 

@@ -154,15 +154,27 @@ export async function runTask(task, { arm, model }) {
     agentLoopStrategy: maxIterations(TURN_LIMIT),
   })
 
-  for await (const chunk of stream) {
-    if (
-      chunk.type === 'TEXT_MESSAGE_CONTENT' &&
-      typeof chunk.delta === 'string'
-    )
-      finalText += chunk.delta
+  // Catch a mid-stream failure so the record still carries the tokens the run
+  // consumed before it threw (the usage middleware has already counted them).
+  let runError
+  try {
+    for await (const chunk of stream) {
+      // Grade only the LAST assistant message: reset at each new text message so
+      // an answer mentioned before a tool call doesn't count as the final answer.
+      if (chunk.type === 'TEXT_MESSAGE_START') finalText = ''
+      if (
+        chunk.type === 'TEXT_MESSAGE_CONTENT' &&
+        typeof chunk.delta === 'string'
+      )
+        finalText += chunk.delta
+    }
+  } catch (err) {
+    runError = err
   }
 
-  const { solved, failureClass } = classify(task, finalText, events)
+  const { solved, failureClass } = runError
+    ? { solved: false, failureClass: 'runner-error' }
+    : classify(task, finalText, events)
   const cacheHitRate = usage.input > 0 ? usage.cacheRead / usage.input : 0
 
   return {
@@ -175,7 +187,8 @@ export async function runTask(task, { arm, model }) {
       package: '@tanstack/ai-optimize',
       version: packageVersion(),
     },
-    outcome: solved ? 'solved' : 'failed',
+    outcome: runError ? 'error' : solved ? 'solved' : 'failed',
+    error: runError ? String(runError?.message ?? runError) : undefined,
     failureClass,
     tokens: {
       input: usage.input,

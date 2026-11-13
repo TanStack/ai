@@ -68,6 +68,10 @@ function makeTask(n, rng, outDir) {
     prompt,
     cwd: path.resolve(outDir),
     answer: token,
+    // Force the log through read_file: with shell on, the agent would grep the
+    // decisive line and no oversized result would ever reach the optimizer, so
+    // the held-out missing-middle test would not actually exercise truncation.
+    disableShell: true,
     needleDepth: Number(depth.toFixed(3)),
     totalLines,
   }

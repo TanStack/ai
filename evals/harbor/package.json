@@ -16,5 +16,8 @@
     "@tanstack/ai-isolate-quickjs": "workspace:*",
     "@tanstack/ai-openai": "workspace:*",
     "@tanstack/ai-optimize": "workspace:*"
+  },
+  "devDependencies": {
+    "playwright-core": "^1.57.0"
   }
 }

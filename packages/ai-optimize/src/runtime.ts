@@ -28,7 +28,7 @@ export interface ContextRuntime {
 /**
  * Build a projection runtime over a shared stash. `optimize()` builds one of
  * these internally; call `createContextRuntime()` directly for the
- * author-adorned path (no `optimize()` config needed).
+ * author-optimized path (no `optimize()` config needed).
  */
 export function createContextRuntime(
   config: OptimizeConfig = {},
@@ -43,7 +43,9 @@ export function createContextRuntime(
   const emittedProjections = new Set<string>()
   const emit = (e: OptimizationEvent) => {
     if (e.type === 'projected') {
-      const key = `${e.toolCallId}|${e.fieldPath}`
+      // Keyed by origin too, so an args projection and a result projection on
+      // the same field path of the same call are both recorded.
+      const key = `${e.origin}|${e.toolCallId}|${e.fieldPath}`
       if (emittedProjections.has(key)) return
       emittedProjections.add(key)
     }
@@ -55,6 +57,16 @@ export function createContextRuntime(
 
   const middleware: ChatMiddleware = {
     name: 'optimize',
+
+    onStart() {
+      // The stash, event log, and dedup set are run-scoped. Clear them when a
+      // run starts so a reused runtime never leaks a prior run's originals,
+      // events, or dedup keys. Each onConfig re-projects the full history, so
+      // the stash refills before the model uses any projected ref.
+      stash.clear()
+      collected.length = 0
+      emittedProjections.clear()
+    },
 
     onConfig(ctx, mwConfig) {
       // init is discarded by the engine rebuild and can run before the thread

@@ -17,7 +17,7 @@ export interface PolicyTool {
   context?: ToolContextPolicy
 }
 
-/** Fill the defaults into a built {@link FieldProjection}. Author adornment and
+/** Fill the defaults into a built {@link FieldProjection}. Author optimization and
  *  `optimize()` config are the same shape, so there is one resolver. */
 function resolveProjection(fp: FieldProjection): ResolvedFieldProjection {
   return {
@@ -33,8 +33,8 @@ function resolveProjection(fp: FieldProjection): ResolvedFieldProjection {
  * match wins):
  *
  * 1. `optimize()` `exclude` — tool is never projected (beats everything).
- * 2. Author adornment (`tool.context`) — a field adorned by the author cannot
- *    be re-adorned or un-adorned by `optimize()` for that field.
+ * 2. Author optimization (`tool.context`) — a field optimized by the author cannot
+ *    be re-optimized or un-optimized by `optimize()` for that field.
  * 3. `optimize()` per-tool override (`tools.<name>.result.fields.<path>`, and
  *    `.args.fields.<path>` — args rules exist only here, per D3).
  * 4. `optimize()` universal `defaults` — result fields only.
@@ -109,6 +109,11 @@ export class PolicyResolver {
   /** True when any applicable (non-excluded) rule across the tool set is
    *  retrievable — i.e. `retrieve_context` should be injected. */
   anyRetrievable(tools: Array<PolicyTool>): boolean {
+    // Universal defaults apply to results from any tool, including historical
+    // calls whose tool is no longer in the set. A retrievable default therefore
+    // always needs retrieve_context, even for an empty tool list.
+    const dflt = this.config.defaults
+    if (dflt && dflt.projection.retrievable !== false) return true
     for (const tool of tools) {
       const result = this.result(tool)
       if (result) {

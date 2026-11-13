@@ -2,7 +2,7 @@
 title: Context Optimization
 id: context-optimization
 order: 6
-description: "Shrink large tool results before they reach the model, without losing anything. optimize() and tool adornments from @tanstack/ai-optimize truncate only the fields you mark, only in the model projection."
+description: "Shrink large tool results before they reach the model, without losing anything. optimize() and tool optimizations from @tanstack/ai-optimize truncate only the fields you mark, only in the model projection."
 keywords:
   - tanstack ai
   - context optimization
@@ -15,7 +15,7 @@ keywords:
 
 A tool that returns a 40 KB log, a full web page, or a long file listing spends that whole payload on the model, every turn, for the rest of the run. Most of it is never read. The same is true of what a tool was *called with*: the full file body handed to `write_file` sits in history long after the file is on disk. But the harness cannot know which lines matter, so blind, size-based truncation risks cutting the one line that did.
 
-`@tanstack/ai-optimize` puts the decision where the meaning lives. Nothing is trimmed unless it is **adorned**, either by the tool author at field level, or by you with `optimize()` for tools you did not write (MCP above all). It trims two things: the **results** a tool returns, and the **arguments** of a call that has already completed. An unadorned tool arrives whole.
+`@tanstack/ai-optimize` puts the decision where the meaning lives. Nothing is trimmed unless it is **optimized**, either by the tool author at field level, or by you with `optimize()` for tools you did not write (MCP above all). It trims two things: the **results** a tool returns, and the **arguments** of a call that has already completed. An unoptimized tool arrives whole.
 
 Trimming only ever touches the **projection**: the copy of the conversation sent to the model. Execution, the saved transcript, the event stream, and the UI always keep the full value. The model can pull the original back with a `retrieve_context` tool call. That is the one idea to hold onto, everything below changes what the model *sees*, never what actually happened.
 
@@ -42,9 +42,9 @@ Reach for this once your agent already works. The order that holds up:
 2. **Lock that behavior in with evals.** A handful of tasks whose outcomes you trust, run unoptimized. This is your reference for what "working" means.
 3. **Then add `optimize()` and re-run the same evals.** Keep a rule only if the evals still pass *and* the token count drops. If accuracy slips, or a field gets pulled back with `retrieve_context` on most turns, that rule cost more than it saved, so back it off.
 
-Optimization is a cost pass over behavior you have already proven, not something you design in from the start. Truncating a field the agent needed is a regression, and your evals are what catch it before your users do. This is also why nothing here is on by default: an unadorned tool arrives whole.
+Optimization is a cost pass over behavior you have already proven, not something you design in from the start. Truncating a field the agent needed is a regression, and your evals are what catch it before your users do. This is also why nothing here is on by default: an unoptimized tool arrives whole.
 
-## Adorn a tool you own
+## Optimize a tool you own
 
 Mark the field that gets large with a `context` policy on the tool definition. Here, a file reader keeps the `path` whole and truncates only `content` when it runs long:
 
@@ -114,7 +114,7 @@ const opt = optimize(mcpTools, {
     projection: aboveTokens(1500, truncateHeadTail({ maxTokens: 750 })),
     mode: 'leaves',
   },
-  // Per-tool rules. These win over defaults; a field the author adorned wins over these.
+  // Per-tool rules. These win over defaults; a field the author optimized wins over these.
   tools: {
     fetch_page: {
       result: { fields: { body: truncateHeadTail({ maxTokens: 1000 }) } },
@@ -159,7 +159,12 @@ This changes the **completed call** only. The approval prompt, the live stream, 
 - It is `optimize()`-only. A tool author cannot declare argument trimming, it is a consumer decision about history.
 - It never applies to `needsApproval` tools. Their arguments are the exact thing a human approved, so they stay whole.
 
-Drop an argument only when nothing later in the run needs to see it. A **terminal** write (the last thing the agent does with that file) is free to drop. Dropping writes an agent keeps working against mid-session can cost more than it saves, because the model re-checks work it can no longer see in its own history.
+`dropWithRef()` still honors the size gate: it uses the default 1500-token threshold (wrap it in `aboveTokens(n, ...)` to change that), so a small argument stays whole. A large one stays whole too if the marker would not be shorter than it.
+
+Two cases to watch:
+
+- **Drop only when nothing later in the run reads it.** A terminal write (the last thing the agent does with that file) is free to drop. Dropping writes an agent keeps working against mid-session can cost more than it saves, because the model re-checks work it can no longer see in its own history.
+- **A failed call still counts as completed.** If a large write fails, its arguments can still be dropped even though the file was never saved, and the model must retrieve them before it can retry. Don't drop arguments for a tool whose failures you can't distinguish.
 
 ## Code mode
 
@@ -168,7 +173,7 @@ Drop an argument only when nothing later in the run needs to see it. A **termina
 - The **program source** (`typescriptCode`). It ran once; after that the model needs the *result*, not the code it already submitted. This is the `write_file` story again.
 - The **logs**. Agents `console.log` to debug ("let me print what I'm working with"), and one program can dump whole files into `logs`. Pure noise once the step is done.
 
-Adorn `execute_typescript` the same way you adorn any tool: drop the completed program, clip the logs, keep the returned result whole.
+Optimize `execute_typescript` the same way you optimize any tool: drop the completed program, clip the logs, keep the returned result whole.
 
 ```ts ignore
 import { chat } from '@tanstack/ai'
@@ -178,7 +183,8 @@ import { optimize, truncateHeadTail, dropWithRef, aboveTokens } from '@tanstack/
 
 const { tools, systemPrompt } = createCodeMode({
   driver: createQuickJSIsolateDriver(),
-  tools: [readFile, writeFile],
+  // Code mode runs the tools, so pass server-backed tools, not bare definitions.
+  tools: [readFile.server(readFromDisk), writeFile.server(writeToDisk)],
 })
 
 const opt = optimize(tools, {
@@ -234,7 +240,7 @@ context: {
 Every truncation leaves a marker the model can act on:
 
 ```
-[Truncated for context: content, ~2000 tokens, kept ~750. Full content: retrieve_context(ref="ctx_call_17_content")]
+[Truncated for context: content, ~2000 tokens, kept ~750. Full content: retrieve_context(ref="ctx_call_17_result_content")]
 
 <first 1800 chars>
 
@@ -243,7 +249,7 @@ Every truncation leaves a marker the model can act on:
 <last 1200 chars>
 ```
 
-The model calls `retrieve_context(ref="ctx_call_17_content")` and gets the full original field back. That result is itself exempt from projection, so it never gets re-truncated.
+The model calls `retrieve_context(ref="ctx_call_17_result_content")` and gets the full original field back. That result is itself exempt from projection, so it never gets re-truncated.
 
 Retrieval is also a tuning signal. If a field is retrieved on most turns, it was the wrong field to truncate. Watch for it through `onEvent` or the `tanstack.optimize` log record, which carries one entry per projection and per retrieval.
 
@@ -253,7 +259,7 @@ The stash that backs retrieval is scoped to a single run. Within the run that tr
 
 Trimming is not a free win. Whether it saves tokens or costs them depends on one thing: **is the field disposable, or load-bearing?** A build log the agent reads once is disposable. A file the agent is still editing is load-bearing. Truncate the first and you save almost all of it for free. Truncate the second and the model calls `retrieve_context` to pull it back, or works around the gap, and you spend *more* than you saved.
 
-In our evals the same `truncateHeadTail()` rule cut input ~96% on disposable shell logs and *raised* it ~99% on load-bearing file edits. Pick by the field, not by size.
+In our evals, clipping disposable shell logs cut input ~96%. On a load-bearing multi-file edit the picture flipped: truncating the file reads forced the agent to retrieve them back (input up ~50 to ~70%), and the config that kept the reads whole but dropped completed `write_file` arguments mid-session fared worst of all (~99% more input, because the agent re-checked work it could no longer see). Pick by the field, not by size.
 
 | Field | Nature | What to do | Risk |
 | --- | --- | --- | --- |

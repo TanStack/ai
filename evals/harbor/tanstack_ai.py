@@ -19,6 +19,8 @@ from __future__ import annotations
 
 import json
 import os
+import re
+import shlex
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -31,14 +33,33 @@ except Exception:  # pragma: no cover - lets this file import without Harbor pre
 
 
 RUNNER = "tanstack_ai_runner.mjs"
-# Pin these to the exact versions whose numbers you publish (brief §7: "every
-# number names its implementation — language, package, version").
-PINNED_PACKAGES = [
-    "@tanstack/ai@<pin>",
-    "@tanstack/ai-optimize@<pin>",
-    "@tanstack/ai-anthropic@<pin>",
-    "@tanstack/ai-openai@<pin>",
+# Everything the runner needs at container runtime. The static imports
+# (ai, ai-optimize, ai-code-mode, ai-isolate-quickjs) load at startup; the
+# adapters (anthropic / openai / gemini) load dynamically per arm. Omitting any
+# of these makes the runner fail before the first trial.
+RUNTIME_PACKAGES = [
+    "@tanstack/ai",
+    "@tanstack/ai-optimize",
+    "@tanstack/ai-code-mode",
+    "@tanstack/ai-isolate-quickjs",
+    "@tanstack/ai-anthropic",
+    "@tanstack/ai-openai",
+    "@tanstack/ai-gemini",
 ]
+
+
+def _pinned_specs() -> list[str]:
+    """Pin every runtime package to the published version (brief §7: "every
+    number names its implementation — language, package, version"). The pin
+    comes from ``TANSTACK_AI_PIN``; we refuse to build the install command
+    without a valid one, so a placeholder never reaches the shell."""
+    pin = os.environ.get("TANSTACK_AI_PIN", "")
+    if not re.fullmatch(r"[0-9A-Za-z][0-9A-Za-z.\-]*", pin):
+        raise RuntimeError(
+            "Set TANSTACK_AI_PIN to the published version to install "
+            "(e.g. TANSTACK_AI_PIN=0.1.0)."
+        )
+    return [f"{pkg}@{pin}" for pkg in RUNTIME_PACKAGES]
 
 
 @dataclass
@@ -63,7 +84,8 @@ class TanStackAIAgent(BaseInstalledAgent):
         container.upload(str(Path(__file__).with_name(RUNNER)), f"/agent/{RUNNER}")
         container.upload(str(Path(__file__).with_name("arms.mjs")), "/agent/arms.mjs")
         container.upload(str(Path(__file__).with_name("tools.mjs")), "/agent/tools.mjs")
-        container.exec(["bash", "-lc", f"cd /agent && npm init -y >/dev/null 2>&1 && npm install {' '.join(PINNED_PACKAGES)}"])
+        specs = " ".join(shlex.quote(s) for s in _pinned_specs())
+        container.exec(["bash", "-lc", f"cd /agent && npm init -y >/dev/null 2>&1 && npm install {specs}"])
 
     # --- the run ---------------------------------------------------------------
     def run(self, container, task) -> dict:

@@ -11,7 +11,7 @@ export const RETRIEVE_TOOL_NAME = 'retrieve_context'
  * original field value for a known ref and emits a `retrieved` event. An
  * unknown ref produces a tool error result with a plain message (itself exempt
  * from projection per the errors rule). The result is exempt from projection:
- * the tool is never adorned and is excluded from `optimize()` defaults.
+ * the tool is never optimized and is excluded from `optimize()` defaults.
  */
 export function createRetrieveTool(
   stash: Stash,

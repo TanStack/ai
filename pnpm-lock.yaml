@@ -155,6 +155,10 @@ importers:
       '@tanstack/ai-optimize':
         specifier: workspace:*
         version: link:../../packages/ai-optimize
+    devDependencies:
+      playwright-core:
+        specifier: ^1.57.0
+        version: 1.57.0
 
   examples/ag-ui:
     dependencies:
