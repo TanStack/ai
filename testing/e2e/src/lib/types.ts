@@ -23,6 +23,7 @@ export type Provider =
   | 'mistral'
   | 'byteplus'
   | 'elevenlabs'
+  | 'cartesia'
   | 'llmgateway'
   | 'cloudflare'
   | 'neon'
@@ -89,6 +90,7 @@ export const ALL_PROVIDERS: Provider[] = [
   'mistral',
   'byteplus',
   'elevenlabs',
+  'cartesia',
   'llmgateway',
   'cloudflare',
   'neon',

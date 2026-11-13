@@ -2416,6 +2416,22 @@ importers:
         specifier: ^8.2.1
         version: 8.2.1(@types/node@24.10.3)(esbuild@0.28.1)(jiti@2.7.0)(less@4.6.6)(sass-embedded@1.107.1)(sass@1.107.1)(terser@5.44.1)(tsx@4.23.12)(yaml@2.9.0)
 
+  packages/ai-cartesia:
+    dependencies:
+      '@tanstack/ai-utils':
+        specifier: workspace:^
+        version: link:../ai-utils
+    devDependencies:
+      '@tanstack/ai':
+        specifier: workspace:*
+        version: link:../ai
+      '@vitest/coverage-v8':
+        specifier: 4.1.10
+        version: 4.1.10(vitest@4.1.11)
+      vite:
+        specifier: ^8.2.1
+        version: 8.3.0(@types/node@24.13.6)(esbuild@0.28.2)(jiti@2.7.0)(less@4.6.6)(sass-embedded@1.107.1)(sass@1.107.1)(terser@5.44.1)(tsx@4.23.12)(yaml@2.9.0)
+
   packages/ai-claude-code:
     devDependencies:
       '@tanstack/ai':
@@ -4101,6 +4117,9 @@ importers:
       '@tanstack/ai-byteplus':
         specifier: workspace:*
         version: link:../../packages/ai-byteplus
+      '@tanstack/ai-cartesia':
+        specifier: workspace:*
+        version: link:../../packages/ai-cartesia
       '@tanstack/ai-claude-code':
         specifier: workspace:*
         version: link:../../packages/ai-claude-code
