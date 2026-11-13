@@ -40,7 +40,8 @@ function loadEnvLocal() {
     if (existsSync(p)) {
       for (const line of readFileSync(p, 'utf8').split('\n')) {
         const m = /^([A-Z0-9_]+)=(.*)$/.exec(line.trim())
-        if (m && process.env[m[1]] === undefined) process.env[m[1]] = m[2].replace(/^["']|["']$/g, '')
+        if (m && process.env[m[1]] === undefined)
+          process.env[m[1]] = m[2].replace(/^["']|["']$/g, '')
       }
       return
     }
@@ -74,8 +75,10 @@ function makeUsageMiddleware(collector) {
     onUsage(_ctx, usage) {
       collector.input += usage.inputTokens ?? usage.promptTokens ?? 0
       collector.output += usage.outputTokens ?? usage.completionTokens ?? 0
-      collector.cacheRead += usage.cacheReadTokens ?? usage.cachedInputTokens ?? 0
-      collector.cacheWrite += usage.cacheWriteTokens ?? usage.cacheCreationTokens ?? 0
+      collector.cacheRead +=
+        usage.cacheReadTokens ?? usage.cachedInputTokens ?? 0
+      collector.cacheWrite +=
+        usage.cacheWriteTokens ?? usage.cacheCreationTokens ?? 0
     },
   }
 }
@@ -89,7 +92,10 @@ function buildAgent(arm, cwd, events, includeShell) {
   let agentTools
   if (codeMode) {
     const fileTools = makeTools(cwd, { includeShell: false })
-    const cm = createCodeMode({ driver: createQuickJSIsolateDriver(), tools: fileTools })
+    const cm = createCodeMode({
+      driver: createQuickJSIsolateDriver(),
+      tools: fileTools,
+    })
     systemPrompts.push(cm.systemPrompt)
     agentTools = cm.tools
   } else {
@@ -97,13 +103,18 @@ function buildAgent(arm, cwd, events, includeShell) {
   }
 
   if (!config) return { tools: agentTools, middleware: [], systemPrompts }
-  const opt = optimize(agentTools, { ...config, onEvent: (e) => events.push(e) })
+  const opt = optimize(agentTools, {
+    ...config,
+    onEvent: (e) => events.push(e),
+  })
   return { tools: opt.tools, middleware: [opt.middleware], systemPrompts }
 }
 
 // --- grading + truncation-attributed failure classification ----------------
 function classify(task, finalText, events) {
-  const solved = typeof task.answer === 'string' && finalText.toLowerCase().includes(task.answer.toLowerCase())
+  const solved =
+    typeof task.answer === 'string' &&
+    finalText.toLowerCase().includes(task.answer.toLowerCase())
   if (solved) return { solved: true, failureClass: null }
 
   const retrievals = events.filter((e) => e.type === 'retrieved')
@@ -113,7 +124,8 @@ function classify(task, finalText, events) {
   //    it was never retrieved.
   //  - failed-retrieval: retrieval happened but the task still failed.
   let failureClass = 'other'
-  if (projections.length > 0 && retrievals.length === 0) failureClass = 'missing-middle'
+  if (projections.length > 0 && retrievals.length === 0)
+    failureClass = 'missing-middle'
   else if (retrievals.length > 0) failureClass = 'failed-retrieval'
   return { solved: false, failureClass }
 }
@@ -122,7 +134,12 @@ export async function runTask(task, { arm, model }) {
   const cwd = task.cwd ?? process.cwd()
   const events = []
   const usage = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, steps: 0 }
-  const { tools, middleware, systemPrompts } = buildAgent(arm, cwd, events, task.disableShell !== true)
+  const { tools, middleware, systemPrompts } = buildAgent(
+    arm,
+    cwd,
+    events,
+    task.disableShell !== true,
+  )
   const adapter = await resolveAdapter(model)
 
   let finalText = ''
@@ -138,7 +155,11 @@ export async function runTask(task, { arm, model }) {
   })
 
   for await (const chunk of stream) {
-    if (chunk.type === 'TEXT_MESSAGE_CONTENT' && typeof chunk.delta === 'string') finalText += chunk.delta
+    if (
+      chunk.type === 'TEXT_MESSAGE_CONTENT' &&
+      typeof chunk.delta === 'string'
+    )
+      finalText += chunk.delta
   }
 
   const { solved, failureClass } = classify(task, finalText, events)
@@ -149,7 +170,11 @@ export async function runTask(task, { arm, model }) {
     suite: task.suite ?? 'unknown',
     arm,
     model,
-    implementation: { language: 'typescript', package: '@tanstack/ai-optimize', version: packageVersion() },
+    implementation: {
+      language: 'typescript',
+      package: '@tanstack/ai-optimize',
+      version: packageVersion(),
+    },
     outcome: solved ? 'solved' : 'failed',
     failureClass,
     tokens: {
@@ -169,7 +194,10 @@ export async function runTask(task, { arm, model }) {
 
 function packageVersion() {
   try {
-    const p = new URL('../../packages/ai-optimize/package.json', import.meta.url)
+    const p = new URL(
+      '../../packages/ai-optimize/package.json',
+      import.meta.url,
+    )
     return JSON.parse(readFileSync(p, 'utf8')).version
   } catch {
     return 'unknown'
@@ -184,7 +212,9 @@ async function main() {
   if (smokeIdx === -1) {
     // TODO(harbor): read the task from Harbor's container contract (argv/stdin)
     // and write the trajectory files Harbor converts. See tanstack_ai.py.
-    console.error('Harbor container mode not wired yet. Use --smoke <task.json> for a local run.')
+    console.error(
+      'Harbor container mode not wired yet. Use --smoke <task.json> for a local run.',
+    )
     process.exit(2)
   }
   const taskPath = process.argv[smokeIdx + 1]
@@ -195,7 +225,10 @@ async function main() {
 }
 
 // Only run the CLI when invoked directly (not when imported by run-matrix.mjs).
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+if (
+  process.argv[1] &&
+  import.meta.url === pathToFileURL(process.argv[1]).href
+) {
   main().catch((err) => {
     console.error(err)
     process.exit(1)

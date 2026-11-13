@@ -13,7 +13,10 @@ export const RETRIEVE_TOOL_NAME = 'retrieve_context'
  * from projection per the errors rule). The result is exempt from projection:
  * the tool is never adorned and is excluded from `optimize()` defaults.
  */
-export function createRetrieveTool(stash: Stash, onEvent?: (e: OptimizationEvent) => void) {
+export function createRetrieveTool(
+  stash: Stash,
+  onEvent?: (e: OptimizationEvent) => void,
+) {
   return toolDefinition({
     name: RETRIEVE_TOOL_NAME,
     description:
@@ -22,16 +25,24 @@ export function createRetrieveTool(stash: Stash, onEvent?: (e: OptimizationEvent
     inputSchema: {
       type: 'object',
       properties: {
-        ref: { type: 'string', description: 'The ctx_… ref from a projection marker.' },
+        ref: {
+          type: 'string',
+          description: 'The ctx_… ref from a projection marker.',
+        },
       },
       required: ['ref'],
       additionalProperties: false,
     },
   }).server(async (args: unknown) => {
-    const ref = typeof args === 'object' && args !== null ? (args as { ref?: unknown }).ref : undefined
+    const ref =
+      typeof args === 'object' && args !== null
+        ? (args as { ref?: unknown }).ref
+        : undefined
     const entry = typeof ref === 'string' ? stash.get(ref) : undefined
     if (!entry || typeof ref !== 'string') {
-      throw new Error(`Unknown context ref "${String(ref)}". It may be from a different run (the stash is run-scoped).`)
+      throw new Error(
+        `Unknown context ref "${String(ref)}". It may be from a different run (the stash is run-scoped).`,
+      )
     }
     onEvent?.({
       type: 'retrieved',

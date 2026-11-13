@@ -31,7 +31,9 @@ export type OptimizeRecord = {
   }>
 }
 
-export function optimizeRecord(events: ReadonlyArray<OptimizationEvent>): OptimizeRecord {
+export function optimizeRecord(
+  events: ReadonlyArray<OptimizationEvent>,
+): OptimizeRecord {
   const projections: OptimizeRecord['projections'] = []
   const retrievals: OptimizeRecord['retrievals'] = []
   for (const e of events) {
@@ -46,7 +48,12 @@ export function optimizeRecord(events: ReadonlyArray<OptimizationEvent>): Optimi
         ...(e.ref ? { ref: e.ref } : {}),
       })
     } else {
-      retrievals.push({ toolName: e.toolName, toolCallId: e.toolCallId, fieldPath: e.fieldPath, ref: e.ref })
+      retrievals.push({
+        toolName: e.toolName,
+        toolCallId: e.toolCallId,
+        fieldPath: e.fieldPath,
+        ref: e.ref,
+      })
     }
   }
   return { type: OPTIMIZE_RECORD_TYPE, projections, retrievals }

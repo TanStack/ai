@@ -35,7 +35,13 @@ function mulberry32(seed) {
 
 // A line of plausible source, occasionally carrying the token to replace.
 function sourceLine(rng, i, carriesToken) {
-  const fns = ['handleRequest', 'parseConfig', 'buildIndex', 'flushQueue', 'retryWithBackoff']
+  const fns = [
+    'handleRequest',
+    'parseConfig',
+    'buildIndex',
+    'flushQueue',
+    'retryWithBackoff',
+  ]
   const fn = fns[Math.floor(rng() * fns.length)]
   if (carriesToken) {
     return `  const client = new ACME_OLD(config.endpoint); // line ${i}, wires ${fn}`
@@ -52,9 +58,16 @@ function makeTask(n, rng, outDir) {
   while (positions.size < k) positions.add(Math.floor(rng() * totalLines))
 
   const lines = []
-  for (let i = 0; i < totalLines; i++) lines.push(sourceLine(rng, i, positions.has(i)))
-  const sourcePath = path.join(outDir, `source-${String(n).padStart(3, '0')}.txt`)
-  const outputPath = path.join(outDir, `output-${String(n).padStart(3, '0')}.txt`)
+  for (let i = 0; i < totalLines; i++)
+    lines.push(sourceLine(rng, i, positions.has(i)))
+  const sourcePath = path.join(
+    outDir,
+    `source-${String(n).padStart(3, '0')}.txt`,
+  )
+  const outputPath = path.join(
+    outDir,
+    `output-${String(n).padStart(3, '0')}.txt`,
+  )
   writeFileSync(sourcePath, lines.join('\n') + '\n')
 
   const prompt =
@@ -80,15 +93,23 @@ function makeTask(n, rng, outDir) {
 
 function main() {
   const count = Number(arg('--count', '3'))
-  const outDir = arg('--out', path.join(path.dirname(new URL(import.meta.url).pathname), 'out'))
+  const outDir = arg(
+    '--out',
+    path.join(path.dirname(new URL(import.meta.url).pathname), 'out'),
+  )
   const seed = Number(arg('--seed', '42'))
   mkdirSync(outDir, { recursive: true })
   const rng = mulberry32(seed)
   for (let n = 0; n < count; n++) {
     const task = makeTask(n, rng, outDir)
-    writeFileSync(path.join(outDir, `task-${String(n).padStart(3, '0')}.json`), JSON.stringify(task, null, 2) + '\n')
+    writeFileSync(
+      path.join(outDir, `task-${String(n).padStart(3, '0')}.json`),
+      JSON.stringify(task, null, 2) + '\n',
+    )
   }
-  console.log(`Wrote ${count} agentic-coding tasks + sources to ${outDir} (seed ${seed}).`)
+  console.log(
+    `Wrote ${count} agentic-coding tasks + sources to ${outDir} (seed ${seed}).`,
+  )
 }
 
 main()

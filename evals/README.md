@@ -40,15 +40,15 @@ Two modes. The tool-call arms give the agent `read_file` / `write_file` (and
 `execute_typescript`, that runs its program in a QuickJS sandbox with the file
 tools exposed as `external_*` functions.
 
-| Arm           | Mode       | Middleware                                                              |
-| ------------- | ---------- | ---------------------------------------------------------------------- |
-| `baseline`    | tool-calls | none                                                                    |
-| `global`      | tool-calls | `optimize()` `defaults.mode: 'flatten'`, 1500/750 head_tail (Strands replica) |
+| Arm           | Mode       | Middleware                                                                                                                 |
+| ------------- | ---------- | -------------------------------------------------------------------------------------------------------------------------- |
+| `baseline`    | tool-calls | none                                                                                                                       |
+| `global`      | tool-calls | `optimize()` `defaults.mode: 'flatten'`, 1500/750 head_tail (Strands replica)                                              |
 | `adorned`     | tool-calls | leaves mode + per-tool rules: drop completed `write_file.content`, clip `run_shell.stdout`, keep `read_file.content` whole |
-| `universal`   | tool-calls | leaves-mode defaults only                                              |
-| `cm-baseline` | code-mode  | none                                                                    |
-| `cm-adorned`  | code-mode  | drop completed `execute_typescript.typescriptCode`, clip `logs`        |
-| `cm-global`   | code-mode  | flatten the whole `execute_typescript` result (over-truncation control) |
+| `universal`   | tool-calls | leaves-mode defaults only                                                                                                  |
+| `cm-baseline` | code-mode  | none                                                                                                                       |
+| `cm-adorned`  | code-mode  | drop completed `execute_typescript.typescriptCode`, clip `logs`                                                            |
+| `cm-global`   | code-mode  | flatten the whole `execute_typescript` result (over-truncation control)                                                    |
 
 System prompt and turn limits are held constant across arms.
 
@@ -62,7 +62,7 @@ System prompt and turn limits are held constant across arms.
   it. Also the clearest place to see that full-file rewrites grow context
   quadratically.
 - **code-mode** — code mode already keeps file contents in the sandbox, so the
-  model context is tiny. This suite isolates what `optimize()` adds *on top of*
+  model context is tiny. This suite isolates what `optimize()` adds _on top of_
   code mode: clipping the debug `logs` an agent prints. `cm-baseline` carries
   every dump; `cm-adorned` clips them and keeps the returned result.
 - **terminal-bench** — the disposable-log regime Strands' headline comes from:

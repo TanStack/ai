@@ -1,7 +1,12 @@
 import { estimateChars } from './estimate'
 import { makeRef } from './stash'
 import type { ContentPart } from '@tanstack/ai'
-import type { OptimizationEvent, ResolvedArgsPolicy, ResolvedFieldProjection, ResolvedResultPolicy } from './types'
+import type {
+  OptimizationEvent,
+  ResolvedArgsPolicy,
+  ResolvedFieldProjection,
+  ResolvedResultPolicy,
+} from './types'
 import type { Stash } from './stash'
 
 /** State of a tool result in `ModelMessage` form — `'error'` maps to a tool
@@ -60,7 +65,15 @@ export function truncateValue(input: {
     if (value.length >= s.length) return fail()
     return {
       value,
-      event: event(toolName, toolCallId, fieldPath, 'drop_with_ref', origTokens, 0, stashed ? ref : undefined),
+      event: event(
+        toolName,
+        toolCallId,
+        fieldPath,
+        'drop_with_ref',
+        origTokens,
+        0,
+        stashed ? ref : undefined,
+      ),
     }
   }
 
@@ -83,7 +96,9 @@ export function truncateValue(input: {
 
   const keptTokens = estimateChars(keptChars, isText)
   const base = `${TRUNCATED_PREFIX} ${fieldPath}, ~${origTokens} tokens, kept ~${keptTokens}.`
-  const header = stashed ? `${base} Full content: retrieve_context(ref="${ref}")]` : `${base}]`
+  const header = stashed
+    ? `${base} Full content: retrieve_context(ref="${ref}")]`
+    : `${base}]`
   const elideLine = `[... ${elided} chars elided ...]`
   const segments = [header]
   if (head) segments.push(head)
@@ -96,7 +111,15 @@ export function truncateValue(input: {
 
   return {
     value,
-    event: event(toolName, toolCallId, fieldPath, projection.truncate, origTokens, keptTokens, stashed ? ref : undefined),
+    event: event(
+      toolName,
+      toolCallId,
+      fieldPath,
+      projection.truncate,
+      origTokens,
+      keptTokens,
+      stashed ? ref : undefined,
+    ),
   }
 }
 
@@ -109,7 +132,16 @@ function event(
   keptTokens: number,
   ref: string | undefined,
 ): OptimizationEvent {
-  return { type: 'projected', toolName, toolCallId, fieldPath, strategy, originalTokens, keptTokens, ref }
+  return {
+    type: 'projected',
+    toolName,
+    toolCallId,
+    fieldPath,
+    strategy,
+    originalTokens,
+    keptTokens,
+    ref,
+  }
 }
 
 function safeStringify(value: unknown): string {
@@ -135,7 +167,11 @@ function getPath(root: unknown, path: string): unknown {
   return cur
 }
 
-function setPath(root: Record<string, unknown>, path: string, value: unknown): void {
+function setPath(
+  root: Record<string, unknown>,
+  path: string,
+  value: unknown,
+): void {
   const keys = path.split('.')
   const last = keys.pop()
   if (last === undefined) return
@@ -182,7 +218,14 @@ function structuredField(
     if (path === '$') continue
     const leaf = getPath(clone, path)
     if (leaf === undefined) continue
-    const res = truncateValue({ raw: leaf, projection, fieldPath: path, toolName, toolCallId, stash })
+    const res = truncateValue({
+      raw: leaf,
+      projection,
+      fieldPath: path,
+      toolName,
+      toolCallId,
+      stash,
+    })
     if (res) {
       setPath(clone, path, res.value)
       events.push(res.event)
@@ -194,7 +237,14 @@ function structuredField(
   if (dflt?.mode === 'leaves') {
     walkStringLeaves(clone, '', (path, value) => {
       if (policy.fields[path]) return undefined // explicit rule already handled it
-      const res = truncateValue({ raw: value, projection: dflt.projection, fieldPath: path, toolName, toolCallId, stash })
+      const res = truncateValue({
+        raw: value,
+        projection: dflt.projection,
+        fieldPath: path,
+        toolName,
+        toolCallId,
+        stash,
+      })
       if (!res) return undefined
       events.push(res.event)
       return res.value
@@ -228,20 +278,36 @@ export function projectToolResult(input: {
   if (Array.isArray(content)) {
     const rule = policy.fields['$'] ?? policy.default?.projection
     if (!rule) return { content, events: [] }
-    const textParts = content.filter((p): p is Extract<ContentPart, { type: 'text' }> => p.type === 'text')
+    const textParts = content.filter(
+      (p): p is Extract<ContentPart, { type: 'text' }> => p.type === 'text',
+    )
     const nonText = content.filter((p) => p.type !== 'text')
     const joined = textParts.map((p) => p.content).join('\n\n')
     if (!joined) return { content, events: [] }
-    const res = truncateValue({ raw: joined, projection: rule, fieldPath: '$', toolName, toolCallId, stash })
+    const res = truncateValue({
+      raw: joined,
+      projection: rule,
+      fieldPath: '$',
+      toolName,
+      toolCallId,
+      stash,
+    })
     if (!res) return { content, events: [] }
-    return { content: [{ type: 'text', content: res.value }, ...nonText], events: [res.event] }
+    return {
+      content: [{ type: 'text', content: res.value }, ...nonText],
+      events: [res.event],
+    }
   }
 
   const explicitPaths = Object.keys(policy.fields).filter((p) => p !== '$')
   const flatten = policy.default?.mode === 'flatten'
 
   // Structured output (plain object): field surgery, unless flattening.
-  if (!flatten && isPlainObject(output) && (explicitPaths.length > 0 || policy.default?.mode === 'leaves')) {
+  if (
+    !flatten &&
+    isPlainObject(output) &&
+    (explicitPaths.length > 0 || policy.default?.mode === 'leaves')
+  ) {
     return structuredField(output, policy, toolName, toolCallId, stash)
   }
 
@@ -249,7 +315,14 @@ export function projectToolResult(input: {
   // flatten default) applies to the whole value.
   const rule = policy.fields['$'] ?? policy.default?.projection
   if (!rule) return { content, events: [] }
-  const res = truncateValue({ raw: output, projection: rule, fieldPath: '$', toolName, toolCallId, stash })
+  const res = truncateValue({
+    raw: output,
+    projection: rule,
+    fieldPath: '$',
+    toolName,
+    toolCallId,
+    stash,
+  })
   if (!res) return { content, events: [] }
   return { content: res.value, events: [res.event] }
 }
@@ -273,7 +346,14 @@ export function projectToolCallArgs(input: {
   if (!isPlainObject(args)) {
     const rule = policy.fields['$']
     if (!rule) return { args, events: [] }
-    const res = truncateValue({ raw: args, projection: rule, fieldPath: '$', toolName, toolCallId, stash })
+    const res = truncateValue({
+      raw: args,
+      projection: rule,
+      fieldPath: '$',
+      toolName,
+      toolCallId,
+      stash,
+    })
     return res ? { args: res.value, events: [res.event] } : { args, events: [] }
   }
 
@@ -283,7 +363,14 @@ export function projectToolCallArgs(input: {
     if (path === '$') continue
     const leaf = getPath(clone, path)
     if (leaf === undefined) continue
-    const res = truncateValue({ raw: leaf, projection, fieldPath: path, toolName, toolCallId, stash })
+    const res = truncateValue({
+      raw: leaf,
+      projection,
+      fieldPath: path,
+      toolName,
+      toolCallId,
+      stash,
+    })
     if (res) {
       setPath(clone, path, res.value)
       events.push(res.event)

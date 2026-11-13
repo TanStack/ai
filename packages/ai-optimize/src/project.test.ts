@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import type { ContentPart } from '@tanstack/ai'
-import { projectToolCallArgs, projectToolResult, truncateValue } from './project'
+import {
+  projectToolCallArgs,
+  projectToolResult,
+  truncateValue,
+} from './project'
 import { createStash } from './stash'
 import { at, must } from './test-helpers'
 import type { ResolvedFieldProjection, ResolvedResultPolicy } from './types'
@@ -18,7 +22,10 @@ const big = 'H'.repeat(4000) + 'T'.repeat(4000)
 const headChunk = 'H'.repeat(1800)
 const tailChunk = 'T'.repeat(1200)
 
-function resultPolicy(fields: Record<string, ResolvedFieldProjection>, extra?: Partial<ResolvedResultPolicy>): ResolvedResultPolicy {
+function resultPolicy(
+  fields: Record<string, ResolvedFieldProjection>,
+  extra?: Partial<ResolvedResultPolicy>,
+): ResolvedResultPolicy {
   return { fields, includeErrors: false, ...extra }
 }
 
@@ -110,7 +117,11 @@ describe('truncateValue golden markers', () => {
       toolCallId: 'c',
       stash,
     })
-    expect(must(res).value.startsWith('[Truncated for context: $, ~2000 tokens, kept ~750.]')).toBe(true)
+    expect(
+      must(res).value.startsWith(
+        '[Truncated for context: $, ~2000 tokens, kept ~750.]',
+      ),
+    ).toBe(true)
     expect(stash.size).toBe(0)
     const ev = must(res).event
     expect(ev.type === 'projected' && ev.ref).toBeUndefined()
@@ -136,8 +147,15 @@ describe('truncateValue golden markers', () => {
     const barely = 'x'.repeat(6004) // ~1501 tokens
     const res = truncateValue({
       raw: barely,
-      projection: { truncate: 'drop_with_ref', aboveTokens: 1500, maxTokens: 750, retrievable: true },
-      fieldPath: 'a-very-long-field-path-that-would-blow-up-the-marker'.repeat(200),
+      projection: {
+        truncate: 'drop_with_ref',
+        aboveTokens: 1500,
+        maxTokens: 750,
+        retrievable: true,
+      },
+      fieldPath: 'a-very-long-field-path-that-would-blow-up-the-marker'.repeat(
+        200,
+      ),
       toolName: 't',
       toolCallId: 'c',
       stash,
@@ -221,14 +239,19 @@ describe('projectToolResult', () => {
     })
     expect(events).toHaveLength(1)
     expect(typeof content).toBe('string')
-    expect((content as string).startsWith('[Truncated for context: $,')).toBe(true)
+    expect((content as string).startsWith('[Truncated for context: $,')).toBe(
+      true,
+    )
   })
 
   it('opaque content parts pass through after the preview', () => {
     const parts: Array<ContentPart> = [
       { type: 'text', content: big },
       // oxlint-disable-next-line eslint-js/no-restricted-syntax -- opaque image part stub for the pass-through test
-      { type: 'image', source: { type: 'url', url: 'https://x/y.png' } } as unknown as ContentPart,
+      {
+        type: 'image',
+        source: { type: 'url', url: 'https://x/y.png' },
+      } as unknown as ContentPart,
     ]
     const policy = resultPolicy({ $: HEAD_TAIL })
     const { content, events } = projectToolResult({
@@ -244,7 +267,9 @@ describe('projectToolResult', () => {
     const arr = content as Array<ContentPart>
     expect(arr).toHaveLength(2)
     expect(at(arr, 0).type).toBe('text')
-    expect((arr[0] as { content: string }).content.startsWith('[Truncated')).toBe(true)
+    expect(
+      (arr[0] as { content: string }).content.startsWith('[Truncated'),
+    ).toBe(true)
     expect(at(arr, 1).type).toBe('image')
   })
 
@@ -282,7 +307,16 @@ describe('projectToolCallArgs', () => {
       toolName: 'write_file',
       toolCallId: 'c',
       args,
-      policy: { fields: { content: { truncate: 'drop_with_ref', aboveTokens: 1500, maxTokens: 750, retrievable: true } } },
+      policy: {
+        fields: {
+          content: {
+            truncate: 'drop_with_ref',
+            aboveTokens: 1500,
+            maxTokens: 750,
+            retrievable: true,
+          },
+        },
+      },
       stash: createStash(),
     })
     expect(events).toHaveLength(1)

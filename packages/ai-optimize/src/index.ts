@@ -12,13 +12,22 @@ export { PolicyResolver } from './policies'
 export type { PolicyTool } from './policies'
 
 // Pure projection engine (exported for testing + advanced reuse).
-export { projectToolResult, projectToolCallArgs, truncateValue } from './project'
+export {
+  projectToolResult,
+  projectToolCallArgs,
+  truncateValue,
+} from './project'
 export type { ToolResultState } from './project'
 
 export { createStash, makeRef } from './stash'
 export type { Stash, StashEntry } from './stash'
 
-export { estimateTokens, estimateChars, TEXT_DIVISOR, JSON_DIVISOR } from './estimate'
+export {
+  estimateTokens,
+  estimateChars,
+  TEXT_DIVISOR,
+  JSON_DIVISOR,
+} from './estimate'
 
 export { OPTIMIZE_RECORD_TYPE, optimizeRecord } from './record'
 export type { OptimizeRecord } from './record'
