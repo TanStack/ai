@@ -2,6 +2,25 @@ import { test, expect } from './fixtures'
 
 // The mock protocol is described at `bedrockConverseCacheMount` in global-setup.ts.
 test.describe('bedrock-converse — prompt cache checkpoints', () => {
+  test('preserves request metadata and service tier alongside cache points', async ({
+    request,
+  }) => {
+    const res = await request.post(
+      '/api/bedrock-converse-cache?request-options',
+    )
+    expect(res.ok()).toBe(true)
+    expect(await res.json()).toMatchObject({
+      ok: true,
+      observed: {
+        requestMetadata: { application: 'my-app', environment: 'production' },
+        serviceTier: { type: 'default' },
+        tools: true,
+        system: true,
+        lastMessage: true,
+      },
+    })
+  })
+
   test('cachePoint blocks reach the request and cache counts reach usage', async ({
     request,
   }) => {
