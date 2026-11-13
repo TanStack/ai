@@ -945,6 +945,30 @@ export class GeminiTextAdapter<
     >()
     let nextToolIndex = 0
 
+    const emitToolCallEnds = function* (): Generator<AdapterYieldChunk> {
+      for (const [toolCallId, toolCallData] of toolCallMap.entries()) {
+        // Malformed JSON sends no `input`, so core reports the error from
+        // the raw `args`.
+        let parsedInput: unknown
+        try {
+          const parsed = JSON.parse(toolCallData.args)
+          parsedInput = parsed && typeof parsed === 'object' ? parsed : {}
+        } catch {
+          // Keep `parsedInput` undefined for the tool error.
+        }
+
+        yield {
+          type: EventType.TOOL_CALL_END,
+          toolCallId,
+          toolCallName: toolCallData.name,
+          model,
+          timestamp: Date.now(),
+          args: toolCallData.args,
+          ...(parsedInput !== undefined && { input: parsedInput }),
+        }
+      }
+    }
+
     // AG-UI lifecycle tracking
     const runId = options.runId ?? generateId(this.name)
     const threadId = options.threadId
@@ -1233,27 +1257,7 @@ export class GeminiTextAdapter<
         // Emit TOOL_CALL_END for all tracked tool calls. functionCall parts on
         // this chunk (including UNEXPECTED_TOOL_CALL finishes) were already
         // registered and started by the per-part loop above.
-        for (const [toolCallId, toolCallData] of toolCallMap.entries()) {
-          // Malformed JSON sends no `input`, so core reports the error from
-          // the raw `args`.
-          let parsedInput: unknown
-          try {
-            const parsed = JSON.parse(toolCallData.args)
-            parsedInput = parsed && typeof parsed === 'object' ? parsed : {}
-          } catch {
-            // Keep `parsedInput` undefined for the tool error.
-          }
-
-          yield {
-            type: EventType.TOOL_CALL_END,
-            toolCallId,
-            toolCallName: toolCallData.name,
-            model,
-            timestamp: Date.now(),
-            args: toolCallData.args,
-            ...(parsedInput !== undefined && { input: parsedInput }),
-          }
-        }
+        yield* emitToolCallEnds()
 
         // Reset so a new TEXT_MESSAGE_START is emitted if text follows tool calls
         if (toolCallMap.size > 0) {
@@ -1336,6 +1340,49 @@ export class GeminiTextAdapter<
     }
 
     yield* emitGroundingToolCall()
+
+    // The body ended with no finishReason and no blockReason, so the answer
+    // is cut off. An abort also ends the body, but that is not an error.
+    if (!sawFinishReason && !blockReason && !options.request?.signal?.aborted) {
+      // Close the open blocks first, as openai-base does (#1604).
+      yield* emitToolCallEnds()
+      if (reasoningMessageId && !hasClosedReasoning) {
+        hasClosedReasoning = true
+        yield {
+          type: EventType.REASONING_MESSAGE_END,
+          messageId: reasoningMessageId,
+          model,
+          timestamp: Date.now(),
+        }
+        yield {
+          type: EventType.REASONING_END,
+          messageId: reasoningMessageId,
+          model,
+          timestamp: Date.now(),
+        }
+      }
+      if (hasEmittedTextMessageStart) {
+        yield {
+          type: EventType.TEXT_MESSAGE_END,
+          messageId,
+          model,
+          timestamp: Date.now(),
+        }
+      }
+      const message = 'Gemini stream ended without a finishReason'
+      const usage = buildGeminiUsage(seen.usageMetadata)
+      seen.reported = true
+      yield {
+        type: EventType.RUN_ERROR,
+        runId,
+        model,
+        timestamp: Date.now(),
+        message,
+        code: 'truncated-stream',
+        error: { message, code: 'truncated-stream' },
+        ...(usage && { usage }),
+      }
+    }
 
     // A blocked prompt gets no candidates, so no finishReason ends the run.
     if (blockReason && !sawFinishReason) {

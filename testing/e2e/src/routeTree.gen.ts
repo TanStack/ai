@@ -216,6 +216,7 @@ import { Route as ApiWebMcpPageToolsRouteImport } from './routes/api.web-mcp-pag
 import { Route as ApiWorldRouteImport } from './routes/api.world'
 import { Route as ApiWrapFetchWireRouteImport } from './routes/api.wrap-fetch-wire'
 import { Route as ApiAudioStreamRouteImport } from './routes/api.audio.stream'
+import { Route as ApiGeminiIncompleteStreamSplatRouteImport } from './routes/api.gemini-incomplete-stream.$'
 import { Route as ApiHarnessHandoffSplatRouteImport } from './routes/api.harness-handoff.$'
 import { Route as ApiHarnessObservabilitySplatRouteImport } from './routes/api.harness-observability.$'
 import { Route as ApiHarnessProtocolSplatRouteImport } from './routes/api.harness-protocol.$'
@@ -1312,6 +1313,12 @@ const ApiAudioStreamRoute = ApiAudioStreamRouteImport.update({
   path: '/stream',
   getParentRoute: () => ApiAudioRoute,
 } as any)
+const ApiGeminiIncompleteStreamSplatRoute =
+  ApiGeminiIncompleteStreamSplatRouteImport.update({
+    id: '/api/gemini-incomplete-stream/$',
+    path: '/api/gemini-incomplete-stream/$',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiHarnessHandoffSplatRoute = ApiHarnessHandoffSplatRouteImport.update({
   id: '/api/harness-handoff/$',
   path: '/api/harness-handoff/$',
@@ -1568,6 +1575,7 @@ export interface FileRoutesByFullPath {
   '/api/wrap-fetch-wire': typeof ApiWrapFetchWireRoute
   '/$provider/': typeof ProviderIndexRoute
   '/api/audio/stream': typeof ApiAudioStreamRoute
+  '/api/gemini-incomplete-stream/$': typeof ApiGeminiIncompleteStreamSplatRoute
   '/api/harness-handoff/$': typeof ApiHarnessHandoffSplatRoute
   '/api/harness-observability/$': typeof ApiHarnessObservabilitySplatRoute
   '/api/harness-protocol/$': typeof ApiHarnessProtocolSplatRoute
@@ -1786,6 +1794,7 @@ export interface FileRoutesByTo {
   '/api/wrap-fetch-wire': typeof ApiWrapFetchWireRoute
   '/$provider': typeof ProviderIndexRoute
   '/api/audio/stream': typeof ApiAudioStreamRoute
+  '/api/gemini-incomplete-stream/$': typeof ApiGeminiIncompleteStreamSplatRoute
   '/api/harness-handoff/$': typeof ApiHarnessHandoffSplatRoute
   '/api/harness-observability/$': typeof ApiHarnessObservabilitySplatRoute
   '/api/harness-protocol/$': typeof ApiHarnessProtocolSplatRoute
@@ -2005,6 +2014,7 @@ export interface FileRoutesById {
   '/api/wrap-fetch-wire': typeof ApiWrapFetchWireRoute
   '/$provider/': typeof ProviderIndexRoute
   '/api/audio/stream': typeof ApiAudioStreamRoute
+  '/api/gemini-incomplete-stream/$': typeof ApiGeminiIncompleteStreamSplatRoute
   '/api/harness-handoff/$': typeof ApiHarnessHandoffSplatRoute
   '/api/harness-observability/$': typeof ApiHarnessObservabilitySplatRoute
   '/api/harness-protocol/$': typeof ApiHarnessProtocolSplatRoute
@@ -2225,6 +2235,7 @@ export interface FileRouteTypes {
     | '/api/wrap-fetch-wire'
     | '/$provider/'
     | '/api/audio/stream'
+    | '/api/gemini-incomplete-stream/$'
     | '/api/harness-handoff/$'
     | '/api/harness-observability/$'
     | '/api/harness-protocol/$'
@@ -2443,6 +2454,7 @@ export interface FileRouteTypes {
     | '/api/wrap-fetch-wire'
     | '/$provider'
     | '/api/audio/stream'
+    | '/api/gemini-incomplete-stream/$'
     | '/api/harness-handoff/$'
     | '/api/harness-observability/$'
     | '/api/harness-protocol/$'
@@ -2661,6 +2673,7 @@ export interface FileRouteTypes {
     | '/api/wrap-fetch-wire'
     | '/$provider/'
     | '/api/audio/stream'
+    | '/api/gemini-incomplete-stream/$'
     | '/api/harness-handoff/$'
     | '/api/harness-observability/$'
     | '/api/harness-protocol/$'
@@ -2879,6 +2892,7 @@ export interface RootRouteChildren {
   ApiWorldRoute: typeof ApiWorldRoute
   ApiWrapFetchWireRoute: typeof ApiWrapFetchWireRoute
   ProviderIndexRoute: typeof ProviderIndexRoute
+  ApiGeminiIncompleteStreamSplatRoute: typeof ApiGeminiIncompleteStreamSplatRoute
   ApiHarnessHandoffSplatRoute: typeof ApiHarnessHandoffSplatRoute
   ApiHarnessObservabilitySplatRoute: typeof ApiHarnessObservabilitySplatRoute
   ApiHarnessProtocolSplatRoute: typeof ApiHarnessProtocolSplatRoute
@@ -4337,6 +4351,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiAudioStreamRouteImport
       parentRoute: typeof ApiAudioRoute
     }
+    '/api/gemini-incomplete-stream/$': {
+      id: '/api/gemini-incomplete-stream/$'
+      path: '/api/gemini-incomplete-stream/$'
+      fullPath: '/api/gemini-incomplete-stream/$'
+      preLoaderRoute: typeof ApiGeminiIncompleteStreamSplatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/harness-handoff/$': {
       id: '/api/harness-handoff/$'
       path: '/api/harness-handoff/$'
@@ -4674,6 +4695,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiWorldRoute: ApiWorldRoute,
   ApiWrapFetchWireRoute: ApiWrapFetchWireRoute,
   ProviderIndexRoute: ProviderIndexRoute,
+  ApiGeminiIncompleteStreamSplatRoute: ApiGeminiIncompleteStreamSplatRoute,
   ApiHarnessHandoffSplatRoute: ApiHarnessHandoffSplatRoute,
   ApiHarnessObservabilitySplatRoute: ApiHarnessObservabilitySplatRoute,
   ApiHarnessProtocolSplatRoute: ApiHarnessProtocolSplatRoute,
