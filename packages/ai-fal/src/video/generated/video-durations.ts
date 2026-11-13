@@ -1747,6 +1747,18 @@ export const FAL_VIDEO_DURATIONS = {
   'moonvalley/marey/i2v': { kind: 'discrete', values: ['5s', '10s'] },
   'moonvalley/marey/t2v': { kind: 'discrete', values: ['5s', '10s'] },
   'pixelcut/looping-video': { kind: 'range', min: 5, max: 15, unit: 'seconds' },
+  'pixverse/v6/max/image-to-video': {
+    kind: 'range',
+    min: 1,
+    max: 15,
+    unit: 'seconds',
+  },
+  'pixverse/v6/max/text-to-video': {
+    kind: 'range',
+    min: 1,
+    max: 15,
+    unit: 'seconds',
+  },
   'sonilo/v1.1/video-to-video': {
     kind: 'range',
     min: 1,
