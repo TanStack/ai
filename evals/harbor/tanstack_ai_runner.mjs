@@ -143,6 +143,9 @@ export async function runTask(task, { arm, model }) {
   const adapter = await resolveAdapter(model)
 
   let finalText = ''
+  // Wall-clock: total time, and time-to-first-token (round-trip latency floor).
+  const startedAt = performance.now()
+  let firstTokenMs
   const stream = chat({
     adapter,
     model,
@@ -159,6 +162,8 @@ export async function runTask(task, { arm, model }) {
   let runError
   try {
     for await (const chunk of stream) {
+      if (firstTokenMs === undefined)
+        firstTokenMs = performance.now() - startedAt
       // Grade only the LAST assistant message: reset at each new text message so
       // an answer mentioned before a tool call doesn't count as the final answer.
       if (chunk.type === 'TEXT_MESSAGE_START') finalText = ''
@@ -171,6 +176,7 @@ export async function runTask(task, { arm, model }) {
   } catch (err) {
     runError = err
   }
+  const durationMs = performance.now() - startedAt
 
   const { solved, failureClass } = runError
     ? { solved: false, failureClass: 'runner-error' }
@@ -197,6 +203,13 @@ export async function runTask(task, { arm, model }) {
       cache_write: usage.cacheWrite,
       steps: usage.steps,
       cache_hit_rate: Number(cacheHitRate.toFixed(4)),
+    },
+    timing: {
+      duration_ms: Math.round(durationMs),
+      first_token_ms:
+        firstTokenMs === undefined ? null : Math.round(firstTokenMs),
+      ms_per_step:
+        usage.steps > 0 ? Math.round(durationMs / usage.steps) : null,
     },
     truncation: {
       projections: events.filter((e) => e.type === 'projected').length,
