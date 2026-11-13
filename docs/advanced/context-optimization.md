@@ -48,8 +48,11 @@ Optimization is a cost pass over behavior you have already proven, not something
 
 Mark the field that gets large with a `context` policy on the tool definition. Here, a file reader keeps the `path` whole and truncates only `content` when it runs long:
 
-```typescript
+You build every projection with a combinator. The type is branded, so a bare object literal does not type-check, there is one way to write it and no shape to get wrong.
+
+```ts
 import { toolDefinition } from '@tanstack/ai'
+import { truncateHeadTail, aboveTokens } from '@tanstack/ai-optimize'
 import { z } from 'zod'
 
 const readFile = toolDefinition({
@@ -60,9 +63,8 @@ const readFile = toolDefinition({
   context: {
     result: {
       fields: {
-        // Keep the first 60% and last 40% of a ~750-token preview,
-        // only when content is over ~1500 tokens.
-        content: { truncate: 'head_tail', aboveTokens: 1500, maxTokens: 750 },
+        // Over ~1500 tokens, keep a ~750-token head+tail preview.
+        content: aboveTokens(1500, truncateHeadTail({ maxTokens: 750 })),
       },
     },
   },
@@ -85,40 +87,41 @@ chat({
 })
 ```
 
-The four strategies are all deterministic. No model call, no summarization:
+The combinators are all deterministic. No model call, no summarization:
 
-| Strategy         | Keeps                                                   |
-| ---------------- | ------------------------------------------------------- |
-| `head`           | The first `maxTokens` of the field.                     |
-| `tail`           | The last `maxTokens` of the field.                      |
-| `head_tail`      | 60% from the front, 40% from the end, middle elided.    |
-| `drop_with_ref`  | Nothing. A one-line marker with a retrieval ref.        |
+| Combinator                  | Keeps                                                   |
+| --------------------------- | ------------------------------------------------------- |
+| `truncateHead({ maxTokens })`     | The first `maxTokens` of the field.               |
+| `truncateTail({ maxTokens })`     | The last `maxTokens` of the field.                |
+| `truncateHeadTail({ maxTokens })` | 60% from the front, 40% from the end, middle elided. |
+| `dropWithRef()`             | Nothing. A one-line marker with a retrieval ref.        |
+| `aboveTokens(n, strategy)`  | Wraps any of the above; applies it only over `n` tokens. |
 
-Summarization is a separate concern and belongs to [Compaction](./compaction). This feature never calls a model.
+Pass `{ retrievable: false }` to any strategy to drop the retrieval ref. Summarization is a separate concern and belongs to [Compaction](./compaction). This feature never calls a model.
 
 ## Wrap tools you do not own (MCP)
 
 You cannot add a `context` field to a tool that an MCP server defines. `optimize()` attaches policy from the outside. It wraps copies of the tools, never your originals, and appends `retrieve_context` when any rule is retrievable.
 
 ```ts
-import { optimize } from '@tanstack/ai-optimize'
+import { optimize, truncateHeadTail, dropWithRef, aboveTokens } from '@tanstack/ai-optimize'
 
 declare const mcpTools: Parameters<typeof optimize>[0]
 
 const opt = optimize(mcpTools, {
   // Applies to every tool's result fields.
   defaults: {
-    truncate: { strategy: 'head_tail', aboveTokens: 1500, maxTokens: 750 },
+    projection: aboveTokens(1500, truncateHeadTail({ maxTokens: 750 })),
     mode: 'leaves',
   },
   // Per-tool rules. These win over defaults; a field the author adorned wins over these.
   tools: {
     fetch_page: {
-      result: { fields: { body: { truncate: { strategy: 'head_tail', maxTokens: 1000 } } } },
+      result: { fields: { body: truncateHeadTail({ maxTokens: 1000 }) } },
     },
     write_file: {
       // Argument projection is optimize()-only, and only for completed calls.
-      args: { fields: { content: { truncate: 'drop_with_ref' } } },
+      args: { fields: { content: dropWithRef() } },
     },
   },
   // Never touch this tool's results.
@@ -142,12 +145,12 @@ chat({ adapter, messages, tools: opt.tools, middleware: [opt.middleware] })
 
 Trimming is not only for results. The **arguments** a tool was called with sit in history too, and some are large: the full file body passed to `write_file`, the whole program passed to a code interpreter. Once the call has run, the model rarely needs those arguments again, the result is what matters.
 
-`optimize()` can drop them. `drop_with_ref` on an argument field replaces it in history with a one-line marker:
+`optimize()` can drop them. `dropWithRef()` on an argument field replaces it in history with a one-line marker:
 
 ```ts ignore
 write_file: {
   // The file is on disk now; the content argument no longer earns its place in history.
-  args: { fields: { content: { truncate: 'drop_with_ref' } } },
+  args: { fields: { content: dropWithRef() } },
 },
 ```
 
@@ -171,7 +174,7 @@ Adorn `execute_typescript` the same way you adorn any tool: drop the completed p
 import { chat } from '@tanstack/ai'
 import { createCodeMode } from '@tanstack/ai-code-mode'
 import { createQuickJSIsolateDriver } from '@tanstack/ai-isolate-quickjs'
-import { optimize } from '@tanstack/ai-optimize'
+import { optimize, truncateHeadTail, dropWithRef, aboveTokens } from '@tanstack/ai-optimize'
 
 const { tools, systemPrompt } = createCodeMode({
   driver: createQuickJSIsolateDriver(),
@@ -182,9 +185,9 @@ const opt = optimize(tools, {
   tools: {
     execute_typescript: {
       // The program already ran; drop its source from the completed call.
-      args: { fields: { typescriptCode: { truncate: 'drop_with_ref' } } },
+      args: { fields: { typescriptCode: dropWithRef() } },
       // Debug logs are disposable; the returned result stays whole.
-      result: { fields: { logs: { truncate: { strategy: 'head_tail', aboveTokens: 1500, maxTokens: 750 } } } },
+      result: { fields: { logs: aboveTokens(1500, truncateHeadTail({ maxTokens: 750 })) } },
     },
   },
 })
@@ -207,7 +210,7 @@ If you use [code-mode snippets](../code-mode/code-mode-with-snippets), the agent
 ```ts ignore
 register_snippet: {
   // The code is in the snippet store now; drop it from the call in history.
-  args: { fields: { code: { truncate: 'drop_with_ref' } } },
+  args: { fields: { code: dropWithRef() } },
 },
 ```
 
@@ -221,7 +224,7 @@ A failed tool result (`state === 'error'`) is never truncated. A model needs the
 context: {
   result: {
     includeErrors: true,
-    fields: { content: { truncate: 'tail' } },
+    fields: { content: truncateTail() },
   },
 }
 ```
@@ -250,15 +253,15 @@ The stash that backs retrieval is scoped to a single run. Within the run that tr
 
 Trimming is not a free win. Whether it saves tokens or costs them depends on one thing: **is the field disposable, or load-bearing?** A build log the agent reads once is disposable. A file the agent is still editing is load-bearing. Truncate the first and you save almost all of it for free. Truncate the second and the model calls `retrieve_context` to pull it back, or works around the gap, and you spend *more* than you saved.
 
-In our evals the same `head_tail` rule cut input ~96% on disposable shell logs and *raised* it ~99% on load-bearing file edits. Pick by the field, not by size.
+In our evals the same `truncateHeadTail()` rule cut input ~96% on disposable shell logs and *raised* it ~99% on load-bearing file edits. Pick by the field, not by size.
 
 | Field | Nature | What to do | Risk |
 | --- | --- | --- | --- |
-| Shell / command `stdout`, build & test logs | Disposable, answer usually in the tail | `result` `head_tail`, keep the tail | Low |
-| Code-mode `logs` (debug prints) | Disposable | `result` `head_tail` | Low |
-| `write_file.content`, the **last** write of that file | Redundant once on disk | `args` `drop_with_ref` | Low |
-| `register_snippet.code` | Lives in the snippet store | `args` `drop_with_ref` | Low |
-| A web page or fetch body read once | Usually disposable | `result` `head_tail` | Medium, the needle may be mid-page |
+| Shell / command `stdout`, build & test logs | Disposable, answer usually in the tail | `result` `truncateHeadTail()`, keep the tail | Low |
+| Code-mode `logs` (debug prints) | Disposable | `result` `truncateHeadTail()` | Low |
+| `write_file.content`, the **last** write of that file | Redundant once on disk | `args` `dropWithRef()` | Low |
+| `register_snippet.code` | Lives in the snippet store | `args` `dropWithRef()` | Low |
+| A web page or fetch body read once | Usually disposable | `result` `truncateHeadTail()` | Medium, the needle may be mid-page |
 | `write_file.content` **mid-session**, more edits follow | The agent re-checks its own writes | Leave whole, or drop only the final write | High, dropping it backfires |
 | `read_file.content` while editing | Load-bearing | Keep whole (pin a high `aboveTokens`) | Truncating forces retrievals |
 | Short id / status / count fields | Load-bearing and already small | Nothing, `leaves` mode passes them through | Low |

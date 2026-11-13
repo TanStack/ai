@@ -56,28 +56,14 @@ export interface ResolvedArgsPolicy {
 }
 
 // ---- Consumer-facing `optimize()` config (§5.5) -------------------------
-
-/** A field rule as written in `optimize()`: a bare strategy, or an object with
- *  per-field overrides. (Author adornment uses the flat {@link FieldProjection}
- *  from core instead.) */
-export interface OptimizeFieldRule {
-  truncate:
-    | TruncateStrategy
-    | {
-        strategy: TruncateStrategy
-        aboveTokens?: number
-        maxTokens?: number
-        retrievable?: boolean
-      }
-}
+//
+// Every projection — author adornment and `optimize()` config alike — is a
+// {@link FieldProjection} built with the combinators (`truncateHeadTail`,
+// `dropWithRef`, `aboveTokens`, ...). There is one shape, not two.
 
 export interface OptimizeDefaults {
-  truncate: {
-    strategy: TruncateStrategy
-    aboveTokens?: number
-    maxTokens?: number
-    retrievable?: boolean
-  }
+  /** Projection applied to un-ruled content. */
+  projection: FieldProjection
   /** `'leaves'` (default): each oversized string leaf truncated independently.
    *  `'flatten'`: the whole result serialized and truncated as one string. */
   mode?: 'leaves' | 'flatten'
@@ -85,13 +71,13 @@ export interface OptimizeDefaults {
 
 export interface OptimizeToolOverride {
   result?: {
-    fields?: Record<string, OptimizeFieldRule>
+    fields?: Record<string, FieldProjection>
     includeErrors?: boolean
   }
   /** Args rules exist ONLY here (D3): never author-declared, never universal.
    *  Forbidden on `needsApproval` tools (enforced in `policies.ts`). */
   args?: {
-    fields?: Record<string, OptimizeFieldRule>
+    fields?: Record<string, FieldProjection>
   }
 }
 

@@ -1,5 +1,15 @@
 // Public API — deterministic, adornment-driven tool-result context projection.
 
+// Projection combinators — the only way to build a FieldProjection.
+export {
+  truncateHead,
+  truncateTail,
+  truncateHeadTail,
+  dropWithRef,
+  aboveTokens,
+} from './builders'
+export type { StrategyOptions } from './builders'
+
 export { optimize } from './optimize'
 export type { OptimizeResult } from './optimize'
 
@@ -37,7 +47,6 @@ export type {
   OptimizeConfig,
   OptimizeDefaults,
   OptimizeToolOverride,
-  OptimizeFieldRule,
   ResolvedFieldProjection,
   ResolvedResultPolicy,
   ResolvedArgsPolicy,

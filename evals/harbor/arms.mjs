@@ -2,7 +2,13 @@
 // optimize() config (or none). System prompt and turn limits are held constant
 // by the runner; only the mode + middleware change between arms.
 
-const HEAD_TAIL = { strategy: 'head_tail', aboveTokens: 1500, maxTokens: 750 }
+import {
+  truncateHeadTail,
+  dropWithRef,
+  aboveTokens,
+} from '@tanstack/ai-optimize'
+
+const HEAD_TAIL = aboveTokens(1500, truncateHeadTail({ maxTokens: 750 }))
 
 // --- tool-call arms ---------------------------------------------------------
 // Author-adorned rules for the runner's own file tools:
@@ -12,15 +18,14 @@ const HEAD_TAIL = { strategy: 'head_tail', aboveTokens: 1500, maxTokens: 750 }
 //  - run_shell.stdout is a log -> safe to clip.
 //  - read_file.content is load-bearing while editing -> keep it WHOLE. Pin an
 //    effectively-infinite threshold so the leaves-mode default can never clip it.
-const KEEP_WHOLE = {
-  strategy: 'head_tail',
-  aboveTokens: 1_000_000_000,
-  maxTokens: 750,
-}
+const KEEP_WHOLE = aboveTokens(
+  1_000_000_000,
+  truncateHeadTail({ maxTokens: 750 }),
+)
 const ADORNED_TOOL_RULES = {
-  write_file: { args: { fields: { content: { truncate: 'drop_with_ref' } } } },
-  run_shell: { result: { fields: { stdout: { truncate: HEAD_TAIL } } } },
-  read_file: { result: { fields: { content: { truncate: KEEP_WHOLE } } } },
+  write_file: { args: { fields: { content: dropWithRef() } } },
+  run_shell: { result: { fields: { stdout: HEAD_TAIL } } },
+  read_file: { result: { fields: { content: KEEP_WHOLE } } },
 }
 
 // --- code-mode arms ---------------------------------------------------------
@@ -31,8 +36,8 @@ const ADORNED_TOOL_RULES = {
 // thesis: every bundled program evaporates from history once it has run.
 const CODE_MODE_ADORNED_RULES = {
   execute_typescript: {
-    args: { fields: { typescriptCode: { truncate: 'drop_with_ref' } } },
-    result: { fields: { logs: { truncate: HEAD_TAIL } } },
+    args: { fields: { typescriptCode: dropWithRef() } },
+    result: { fields: { logs: HEAD_TAIL } },
   },
 }
 
@@ -42,25 +47,25 @@ const ARM_SPECS = {
   // Strands replica: flatten every result, 1500/750 head_tail, errors exempt.
   global: {
     codeMode: false,
-    config: { defaults: { truncate: HEAD_TAIL, mode: 'flatten' } },
+    config: { defaults: { projection: HEAD_TAIL, mode: 'flatten' } },
   },
   adorned: {
     codeMode: false,
     config: {
-      defaults: { truncate: HEAD_TAIL, mode: 'leaves' },
+      defaults: { projection: HEAD_TAIL, mode: 'leaves' },
       tools: ADORNED_TOOL_RULES,
     },
   },
   universal: {
     codeMode: false,
-    config: { defaults: { truncate: HEAD_TAIL, mode: 'leaves' } },
+    config: { defaults: { projection: HEAD_TAIL, mode: 'leaves' } },
   },
   // Code-mode arms: same workload, run via execute_typescript.
   'cm-baseline': { codeMode: true, config: null },
   'cm-adorned': { codeMode: true, config: { tools: CODE_MODE_ADORNED_RULES } },
   'cm-global': {
     codeMode: true,
-    config: { defaults: { truncate: HEAD_TAIL, mode: 'flatten' } },
+    config: { defaults: { projection: HEAD_TAIL, mode: 'flatten' } },
   },
 }
 
