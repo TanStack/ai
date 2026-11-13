@@ -23752,13 +23752,33 @@ export type InputFalAiKandinsky6VsrUpscaleFactorEnumKey =
 
 export type InputFalAiKandinsky6Vsr = {
   /**
+   * @description If `True`, the media will be returned as a data URI and the output data won't be available in the request history.
+   * @default false
+   * @type boolean | undefined
+   */
+  sync_mode?: boolean
+  /**
+   * @description The number of denoising steps used for each tile. Billable units equal output megapixels * output frames * (0.63 + 0.0455 * num_inference_steps) / (0.63 + 0.0455 * 5), rounded to 4 decimal places. One megapixel is 1,000,000 pixels.
+   * @minimum 2
+   * @maximum 50
+   * @default 5
+   * @type integer | undefined
+   */
+  num_inference_steps?: number
+  /**
    * @description Total upscale factor applied to the input resolution. One of 2, 2.25 or 4.
    * @default 2.25
    * @type number | undefined
    */
   upscale_factor?: InputFalAiKandinsky6VsrUpscaleFactorEnumKey
   /**
-   * @description The input video to upscale. Clips are resampled to 24fps and capped at 121 frames (~5s). For 2x and 4x upscaling, width and height must be multiples of 16.
+   * @description Authorized callers may set false to request relaxed screening.
+   * @default true
+   * @type boolean | undefined
+   */
+  enable_safety_checker?: boolean
+  /**
+   * @description The input video to upscale. Output is limited to 121 frames (~5s at 24fps). After resampling toward 24fps, inputs above 128 frames are rejected with a 422; 122-128 frames are accepted and trimmed to 121. Shorter clips are trimmed to 1 + 8k frames. For 2x and 4x upscaling, width and height must be multiples of 16.
    * @example https://storage.googleapis.com/falserverless/example_inputs/seedvr-input.mp4
    * @type string
    */
@@ -23767,26 +23787,6 @@ export type InputFalAiKandinsky6Vsr = {
    * @description The random seed used for the generation process.
    */
   seed?: number | null
-  /**
-   * @description The number of denoising steps used for each tile.
-   * @minimum 2
-   * @maximum 50
-   * @default 5
-   * @type integer | undefined
-   */
-  num_inference_steps?: number
-  /**
-   * @description If `True`, the media will be returned as a data URI and the output data won't be available in the request history.
-   * @default false
-   * @type boolean | undefined
-   */
-  sync_mode?: boolean
-  /**
-   * @description Authorized callers may set false to request relaxed screening.
-   * @default true
-   * @type boolean | undefined
-   */
-  enable_safety_checker?: boolean
 }
 
 export type FileBd6Dbe4A = {
@@ -23837,13 +23837,33 @@ export type InputFalAiKandinsky6VsrLiteUpscaleFactorEnumKey =
 
 export type InputFalAiKandinsky6VsrLite = {
   /**
+   * @description If `True`, the media will be returned as a data URI and the output data won't be available in the request history.
+   * @default false
+   * @type boolean | undefined
+   */
+  sync_mode?: boolean
+  /**
+   * @description The number of denoising steps used for each tile. Billable units equal output megapixels * output frames * (0.63 + 0.0455 * num_inference_steps) / (0.63 + 0.0455 * 5), rounded to 4 decimal places. One megapixel is 1,000,000 pixels.
+   * @minimum 2
+   * @maximum 50
+   * @default 5
+   * @type integer | undefined
+   */
+  num_inference_steps?: number
+  /**
    * @description Total upscale factor applied to the input resolution. One of 2, 2.25 or 4.
    * @default 2.25
    * @type number | undefined
    */
   upscale_factor?: InputFalAiKandinsky6VsrLiteUpscaleFactorEnumKey
   /**
-   * @description The input video to upscale. Clips are resampled to 24fps and capped at 121 frames (~5s). For 2x and 4x upscaling, width and height must be multiples of 16.
+   * @description Authorized callers may set false to request relaxed screening.
+   * @default true
+   * @type boolean | undefined
+   */
+  enable_safety_checker?: boolean
+  /**
+   * @description The input video to upscale. Output is limited to 121 frames (~5s at 24fps). After resampling toward 24fps, inputs above 128 frames are rejected with a 422; 122-128 frames are accepted and trimmed to 121. Shorter clips are trimmed to 1 + 8k frames. For 2x and 4x upscaling, width and height must be multiples of 16.
    * @example https://storage.googleapis.com/falserverless/example_inputs/seedvr-input.mp4
    * @type string
    */
@@ -23852,26 +23872,6 @@ export type InputFalAiKandinsky6VsrLite = {
    * @description The random seed used for the generation process.
    */
   seed?: number | null
-  /**
-   * @description The number of denoising steps used for each tile.
-   * @minimum 2
-   * @maximum 50
-   * @default 5
-   * @type integer | undefined
-   */
-  num_inference_steps?: number
-  /**
-   * @description If `True`, the media will be returned as a data URI and the output data won't be available in the request history.
-   * @default false
-   * @type boolean | undefined
-   */
-  sync_mode?: boolean
-  /**
-   * @description Authorized callers may set false to request relaxed screening.
-   * @default true
-   * @type boolean | undefined
-   */
-  enable_safety_checker?: boolean
 }
 
 export type FileAee937E1 = {
@@ -95173,6 +95173,282 @@ export type OutputPixverseMusicVideoVibemv = {
   video: File7E308E23
 }
 
+export const inputPixverseV6MaxImageToVideoStyle = {
+  anime: 'anime',
+  '3d_animation': '3d_animation',
+  clay: 'clay',
+  comic: 'comic',
+  cyberpunk: 'cyberpunk',
+} as const
+
+export type InputPixverseV6MaxImageToVideoStyleKey =
+  (typeof inputPixverseV6MaxImageToVideoStyle)[keyof typeof inputPixverseV6MaxImageToVideoStyle]
+
+export const inputPixverseV6MaxImageToVideoResolutionEnum = {
+  '360p': '360p',
+  '540p': '540p',
+  '720p': '720p',
+  '1080p': '1080p',
+} as const
+
+export type InputPixverseV6MaxImageToVideoResolutionEnumKey =
+  (typeof inputPixverseV6MaxImageToVideoResolutionEnum)[keyof typeof inputPixverseV6MaxImageToVideoResolutionEnum]
+
+export const inputPixverseV6MaxImageToVideoThinkingType = {
+  enabled: 'enabled',
+  disabled: 'disabled',
+  auto: 'auto',
+} as const
+
+export type InputPixverseV6MaxImageToVideoThinkingTypeKey =
+  (typeof inputPixverseV6MaxImageToVideoThinkingType)[keyof typeof inputPixverseV6MaxImageToVideoThinkingType]
+
+export type InputPixverseV6MaxImageToVideo = {
+  /**
+   * @description The style of the generated video
+   */
+  style?: InputPixverseV6MaxImageToVideoStyleKey | null
+  /**
+   * @description Text prompt for the video generation. Limited to 2048 UTF-8 encoded bytes. Because the limit counts bytes rather than characters, emoji and non-Latin or accented characters (which use multiple bytes each) can push a visually short prompt over the cap.
+   * @example A woman warrior with her hammer walking with his glacier wolf.
+   * @type string
+   */
+  prompt: string
+  /**
+   * @description The duration of the generated video in seconds. v6 supports values from 1 to 15 seconds
+   * @minimum 1
+   * @maximum 15
+   * @default 5
+   * @type integer | undefined
+   */
+  duration?: number
+  /**
+   * @description The resolution of the generated video
+   * @default '720p'
+   * @type string | undefined
+   */
+  resolution?: InputPixverseV6MaxImageToVideoResolutionEnumKey
+  /**
+   * @description Prompt optimization mode: 'enabled' to optimize, 'disabled' to turn off, 'auto' for model decision
+   */
+  thinking_type?: InputPixverseV6MaxImageToVideoThinkingTypeKey | null
+  /**
+   * @description URL of the image to use as the first frame
+   * @example https://v3.fal.media/files/zebra/qL93Je8ezvzQgDOEzTjKF_KhGKZTEebZcDw6T5rwQPK_output.png
+   * @type string
+   */
+  image_url: string
+  /**
+   * @description Enable audio generation (BGM, SFX, dialogue)
+   * @default false
+   * @type boolean | undefined
+   */
+  generate_audio_switch?: boolean
+  /**
+   * @description
+   *             The same seed and the same prompt given to the same version of the model
+   *             will output the same video every time.
+   *
+   */
+  seed?: number | null
+  /**
+   * @description Negative prompt to be used for the generation. Limited to 2048 UTF-8 encoded bytes. Because the limit counts bytes rather than characters, emoji and non-Latin or accented characters (which use multiple bytes each) can push a visually short prompt over the cap.
+   * @default ''
+   * @example blurry, low quality, low resolution, pixelated, noisy, grainy, out of focus, poorly lit, poorly exposed, poorly composed, poorly framed, poorly cropped, poorly color corrected, poorly color graded
+   * @type string | undefined
+   */
+  negative_prompt?: string
+  /**
+   * @description Authorized callers may set false to request relaxed screening.
+   * @default true
+   * @type boolean | undefined
+   */
+  enable_safety_checker?: boolean
+  /**
+   * @description Enable multi-clip generation with dynamic camera changes
+   * @default false
+   * @type boolean | undefined
+   */
+  generate_multi_clip_switch?: boolean
+}
+
+export type File22F9Be2D = {
+  /**
+   * @description The size of the file in bytes.
+   * @example 4404019
+   */
+  file_size?: number | null
+  /**
+   * @description The mime type of the file.
+   * @example image/png
+   */
+  content_type?: string | null
+  /**
+   * @description The name of the file. It will be auto-generated if not provided.
+   * @example z9RV14K95DvU.png
+   */
+  file_name?: string | null
+  /**
+   * @description The URL where the file can be downloaded from.
+   * @type string
+   */
+  url: string
+}
+
+export type OutputPixverseV6MaxImageToVideo = {
+  /**
+   * @description The generated video
+   * @example {"file_size":6420765,"content_type":"video/mp4","file_name":"output.mp4","url":"https://storage.googleapis.com/falserverless/model_tests/video_models/output-3.mp4"}
+   * @type object
+   */
+  video: File22F9Be2D
+}
+
+export const inputPixverseV6MaxTextToVideoStyle = {
+  anime: 'anime',
+  '3d_animation': '3d_animation',
+  clay: 'clay',
+  comic: 'comic',
+  cyberpunk: 'cyberpunk',
+} as const
+
+export type InputPixverseV6MaxTextToVideoStyleKey =
+  (typeof inputPixverseV6MaxTextToVideoStyle)[keyof typeof inputPixverseV6MaxTextToVideoStyle]
+
+export const inputPixverseV6MaxTextToVideoResolutionEnum = {
+  '360p': '360p',
+  '540p': '540p',
+  '720p': '720p',
+  '1080p': '1080p',
+} as const
+
+export type InputPixverseV6MaxTextToVideoResolutionEnumKey =
+  (typeof inputPixverseV6MaxTextToVideoResolutionEnum)[keyof typeof inputPixverseV6MaxTextToVideoResolutionEnum]
+
+export const inputPixverseV6MaxTextToVideoAspectRatioEnum = {
+  '16:9': '16:9',
+  '4:3': '4:3',
+  '1:1': '1:1',
+  '3:4': '3:4',
+  '9:16': '9:16',
+  '2:3': '2:3',
+  '3:2': '3:2',
+  '21:9': '21:9',
+} as const
+
+export type InputPixverseV6MaxTextToVideoAspectRatioEnumKey =
+  (typeof inputPixverseV6MaxTextToVideoAspectRatioEnum)[keyof typeof inputPixverseV6MaxTextToVideoAspectRatioEnum]
+
+export const inputPixverseV6MaxTextToVideoThinkingType = {
+  enabled: 'enabled',
+  disabled: 'disabled',
+  auto: 'auto',
+} as const
+
+export type InputPixverseV6MaxTextToVideoThinkingTypeKey =
+  (typeof inputPixverseV6MaxTextToVideoThinkingType)[keyof typeof inputPixverseV6MaxTextToVideoThinkingType]
+
+export type InputPixverseV6MaxTextToVideo = {
+  /**
+   * @description The style of the generated video
+   */
+  style?: InputPixverseV6MaxTextToVideoStyleKey | null
+  /**
+   * @description Text prompt for the video generation. Limited to 2048 UTF-8 encoded bytes. Because the limit counts bytes rather than characters, emoji and non-Latin or accented characters (which use multiple bytes each) can push a visually short prompt over the cap.
+   * @example Epic low-cut camera capture of a girl clad in ultraviolet threads, Peter Max art style depiction, luminous diamond skin glistening under a vast moon's radiance, embodied in a superhuman flight among mystical ruins, symbolizing a deity's ritual ascent, hyper-detailed
+   * @type string
+   */
+  prompt: string
+  /**
+   * @description The duration of the generated video in seconds. v6 supports values from 1 to 15 seconds
+   * @minimum 1
+   * @maximum 15
+   * @default 5
+   * @type integer | undefined
+   */
+  duration?: number
+  /**
+   * @description The resolution of the generated video
+   * @default '720p'
+   * @type string | undefined
+   */
+  resolution?: InputPixverseV6MaxTextToVideoResolutionEnumKey
+  /**
+   * @description The aspect ratio of the generated video
+   * @default '16:9'
+   * @type string | undefined
+   */
+  aspect_ratio?: InputPixverseV6MaxTextToVideoAspectRatioEnumKey
+  /**
+   * @description Prompt optimization mode: 'enabled' to optimize, 'disabled' to turn off, 'auto' for model decision
+   */
+  thinking_type?: InputPixverseV6MaxTextToVideoThinkingTypeKey | null
+  /**
+   * @description Enable audio generation (BGM, SFX, dialogue)
+   * @default false
+   * @type boolean | undefined
+   */
+  generate_audio_switch?: boolean
+  /**
+   * @description
+   *             The same seed and the same prompt given to the same version of the model
+   *             will output the same video every time.
+   *
+   */
+  seed?: number | null
+  /**
+   * @description Negative prompt to be used for the generation. Limited to 2048 UTF-8 encoded bytes. Because the limit counts bytes rather than characters, emoji and non-Latin or accented characters (which use multiple bytes each) can push a visually short prompt over the cap.
+   * @default ''
+   * @example blurry, low quality, low resolution, pixelated, noisy, grainy, out of focus, poorly lit, poorly exposed, poorly composed, poorly framed, poorly cropped, poorly color corrected, poorly color graded
+   * @type string | undefined
+   */
+  negative_prompt?: string
+  /**
+   * @description Authorized callers may set false to request relaxed screening.
+   * @default true
+   * @type boolean | undefined
+   */
+  enable_safety_checker?: boolean
+  /**
+   * @description Enable multi-clip generation with dynamic camera changes
+   * @default false
+   * @type boolean | undefined
+   */
+  generate_multi_clip_switch?: boolean
+}
+
+export type File8030Df29 = {
+  /**
+   * @description The size of the file in bytes.
+   * @example 4404019
+   */
+  file_size?: number | null
+  /**
+   * @description The mime type of the file.
+   * @example image/png
+   */
+  content_type?: string | null
+  /**
+   * @description The name of the file. It will be auto-generated if not provided.
+   * @example z9RV14K95DvU.png
+   */
+  file_name?: string | null
+  /**
+   * @description The URL where the file can be downloaded from.
+   * @type string
+   */
+  url: string
+}
+
+export type OutputPixverseV6MaxTextToVideo = {
+  /**
+   * @description The generated video
+   * @example {"file_size":5485412,"content_type":"video/mp4","file_name":"output.mp4","url":"https://storage.googleapis.com/falserverless/model_tests/video_models/output-4.mp4"}
+   * @type object
+   */
+  video: File8030Df29
+}
+
 export type InputSoniloV11VideoToVideo = {
   /**
    * @description Optional. Start scoring from this offset (seconds) into the video. Requires Start Offset + Duration <= Video Duration.
@@ -103214,6 +103490,14 @@ export type FalVideoEndpoints = {
     input: InputPixverseMusicVideoVibemv
     output: OutputPixverseMusicVideoVibemv
   }
+  'pixverse/v6/max/image-to-video': {
+    input: InputPixverseV6MaxImageToVideo
+    output: OutputPixverseV6MaxImageToVideo
+  }
+  'pixverse/v6/max/text-to-video': {
+    input: InputPixverseV6MaxTextToVideo
+    output: OutputPixverseV6MaxTextToVideo
+  }
   'sonilo/v1.1/video-to-video': {
     input: InputSoniloV11VideoToVideo
     output: OutputSoniloV11VideoToVideo
@@ -104351,6 +104635,8 @@ export const falPostEndpointIdEndpointId = {
   'pixelcut/looping-video': 'pixelcut/looping-video',
   'pixelcut/video-background-removal': 'pixelcut/video-background-removal',
   'pixverse/music-video/vibemv': 'pixverse/music-video/vibemv',
+  'pixverse/v6/max/image-to-video': 'pixverse/v6/max/image-to-video',
+  'pixverse/v6/max/text-to-video': 'pixverse/v6/max/text-to-video',
   'sonilo/v1.1/video-to-video': 'sonilo/v1.1/video-to-video',
   'sonilo/v1.1/video-to-video-music': 'sonilo/v1.1/video-to-video-music',
   'sonilo/v1.1/video-to-video-sound-effects':
@@ -105044,6 +105330,8 @@ export type FalPostEndpointIdBody =
   | InputPixelcutLoopingVideo
   | InputPixelcutVideoBackgroundRemoval
   | InputPixverseMusicVideoVibemv
+  | InputPixverseV6MaxImageToVideo
+  | InputPixverseV6MaxTextToVideo
   | InputSoniloV11VideoToVideo
   | InputSoniloV11VideoToVideoMusic
   | InputSoniloV11VideoToVideoSoundEffects
@@ -105998,6 +106286,8 @@ export const falGetEndpointIdRequestsRequestIdEndpointId = {
   'pixelcut/looping-video': 'pixelcut/looping-video',
   'pixelcut/video-background-removal': 'pixelcut/video-background-removal',
   'pixverse/music-video/vibemv': 'pixverse/music-video/vibemv',
+  'pixverse/v6/max/image-to-video': 'pixverse/v6/max/image-to-video',
+  'pixverse/v6/max/text-to-video': 'pixverse/v6/max/text-to-video',
   'sonilo/v1.1/video-to-video': 'sonilo/v1.1/video-to-video',
   'sonilo/v1.1/video-to-video-music': 'sonilo/v1.1/video-to-video-music',
   'sonilo/v1.1/video-to-video-sound-effects':
@@ -106690,6 +106980,8 @@ export type FalGetEndpointIdRequestsRequestIdStatus200 =
   | OutputPixelcutLoopingVideo
   | OutputPixelcutVideoBackgroundRemoval
   | OutputPixverseMusicVideoVibemv
+  | OutputPixverseV6MaxImageToVideo
+  | OutputPixverseV6MaxTextToVideo
   | OutputSoniloV11VideoToVideo
   | OutputSoniloV11VideoToVideoMusic
   | OutputSoniloV11VideoToVideoSoundEffects

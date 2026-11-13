@@ -3,6 +3,15 @@
  * Do not edit manually.
  */
 
+export const audioResponseFormatDeliveryEnum = {
+  DELIVERY_UNSPECIFIED: 'DELIVERY_UNSPECIFIED',
+  INLINE: 'INLINE',
+  URI: 'URI',
+} as const
+
+export type AudioResponseFormatDeliveryEnumKey =
+  (typeof audioResponseFormatDeliveryEnum)[keyof typeof audioResponseFormatDeliveryEnum]
+
 export const audioResponseFormatMimeTypeEnum = {
   MIME_TYPE_UNSPECIFIED: 'MIME_TYPE_UNSPECIFIED',
   AUDIO_MP3: 'AUDIO_MP3',
@@ -16,30 +25,11 @@ export const audioResponseFormatMimeTypeEnum = {
 export type AudioResponseFormatMimeTypeEnumKey =
   (typeof audioResponseFormatMimeTypeEnum)[keyof typeof audioResponseFormatMimeTypeEnum]
 
-export const audioResponseFormatDeliveryEnum = {
-  DELIVERY_UNSPECIFIED: 'DELIVERY_UNSPECIFIED',
-  INLINE: 'INLINE',
-  URI: 'URI',
-} as const
-
-export type AudioResponseFormatDeliveryEnumKey =
-  (typeof audioResponseFormatDeliveryEnum)[keyof typeof audioResponseFormatDeliveryEnum]
-
 /**
  * @description Configuration for audio output format.
  * @type object
  */
 export type AudioResponseFormat = {
-  /**
-   * @description Optional. The MIME type of the audio output.
-   * @type string | undefined
-   */
-  mimeType?: AudioResponseFormatMimeTypeEnumKey
-  /**
-   * @description Optional. The delivery mode for the audio output.
-   * @type string | undefined
-   */
-  delivery?: AudioResponseFormatDeliveryEnumKey
   /**
    * @description Optional. Sample rate in Hz.
    *
@@ -48,12 +38,22 @@ export type AudioResponseFormat = {
    */
   sampleRate?: number
   /**
+   * @description Optional. The delivery mode for the audio output.
+   * @type string | undefined
+   */
+  delivery?: AudioResponseFormatDeliveryEnumKey
+  /**
    * @description Optional. Bit rate in bits per second (bps). Only applicable for compressed formats (MP3, Opus).
    *
    * Format: `int32`
    * @type integer | undefined
    */
   bitRate?: number
+  /**
+   * @description Optional. The MIME type of the audio output.
+   * @type string | undefined
+   */
+  mimeType?: AudioResponseFormatMimeTypeEnumKey
 }
 
 /**
@@ -93,16 +93,22 @@ export type AudioTranscription = {
    */
   speakerLabel?: string
   /**
-   * @description Optional. Detailed word-level transcriptions and timing details. Present when word_timestamp is set.
-   * @type array | undefined
-   */
-  words?: WordInfo[]
-  /**
    * @description Required. The transcription text of this audio segment.
    * @type string | undefined
    */
   text?: string
+  /**
+   * @description Optional. Detailed word-level transcriptions and timing details. Present when word_timestamp is set.
+   * @type array | undefined
+   */
+  words?: WordInfo[]
 }
+
+/**
+ * @description Indicates the language of the audio should be automatically detected.
+ * @type object
+ */
+export type LanguageAuto = object
 
 /**
  * @description Provides hints to the model about possible languages present in the audio.
@@ -115,12 +121,6 @@ export type LanguageHints = {
    */
   languageCodes?: string[]
 }
-
-/**
- * @description Indicates the language of the audio should be automatically detected.
- * @type object
- */
-export type LanguageAuto = object
 
 export const audioTranscriptionConfigModeEnum = {
   MODE_UNSPECIFIED: 'MODE_UNSPECIFIED',
@@ -137,40 +137,20 @@ export type AudioTranscriptionConfigModeEnumKey =
  */
 export type AudioTranscriptionConfig = {
   /**
-   * @description Optional. The source text to be edited or rewritten via voice instructions. When provided in `SMART` mode, the model evaluates the audio input against this text and emits the complete replacement text in the candidate response rather than appending to it.
-   * @type string | undefined
-   */
-  sourceText?: string
-  /**
-   * @description Optional. Configures word-level timestamp generation.
-   * @type boolean | undefined
-   */
-  wordTimestamp?: boolean
-  /**
-   * @description Optional. Configures speaker diarization.
-   * @type boolean | undefined
-   */
-  diarization?: boolean
-  /**
-   * @description Optional. A list of phrases used for speech adaptation, which biases the ASR model to improve recognition of these specific terms.
-   * @type array | undefined
-   */
-  adaptationPhrases?: string[]
-  /**
    * @description Optional. BCP-47 language codes providing hints about the languages present in the audio. If omitted or empty, defaults to automatic language detection.
    * @type array | undefined
    */
   languageCodes?: string[]
   /**
-   * @description Optional. A list of custom vocabulary phrases to bias the speech recognition model toward recognizing specific terms (product names, proper nouns, jargon).
-   * @type array | undefined
+   * @description Optional. The source text to be edited or rewritten via voice instructions. When provided in `SMART` mode, the model evaluates the audio input against this text and emits the complete replacement text in the candidate response rather than appending to it.
+   * @type string | undefined
    */
-  customVocabulary?: string[]
+  sourceText?: string
   /**
-   * @description Provides hints to the model about possible languages present in the audio.
-   * @type object | undefined
+   * @description Optional. Configures speaker diarization.
+   * @type boolean | undefined
    */
-  languageHints?: LanguageHints
+  diarization?: boolean
   /**
    * @description Indicates the language of the audio should be automatically detected.
    * @type object | undefined
@@ -181,6 +161,26 @@ export type AudioTranscriptionConfig = {
    * @type string | undefined
    */
   mode?: AudioTranscriptionConfigModeEnumKey
+  /**
+   * @description Optional. Configures word-level timestamp generation.
+   * @type boolean | undefined
+   */
+  wordTimestamp?: boolean
+  /**
+   * @description Optional. A list of phrases used for speech adaptation, which biases the ASR model to improve recognition of these specific terms.
+   * @type array | undefined
+   */
+  adaptationPhrases?: string[]
+  /**
+   * @description Provides hints to the model about possible languages present in the audio.
+   * @type object | undefined
+   */
+  languageHints?: LanguageHints
+  /**
+   * @description Optional. A list of custom vocabulary phrases to bias the speech recognition model toward recognizing specific terms (product names, proper nouns, jargon).
+   * @type array | undefined
+   */
+  customVocabulary?: string[]
 }
 
 /**
@@ -227,21 +227,31 @@ export type CodeExecutionResultOutcomeEnumKey =
  */
 export type CodeExecutionResult = {
   /**
-   * @description Optional. Contains stdout when code execution is successful, stderr or other description otherwise.
-   * @type string | undefined
-   */
-  output?: string
-  /**
    * @description Required. Outcome of the code execution.
    * @type string | undefined
    */
   outcome?: CodeExecutionResultOutcomeEnumKey
+  /**
+   * @description Optional. Contains stdout when code execution is successful, stderr or other description otherwise.
+   * @type string | undefined
+   */
+  output?: string
   /**
    * @description Optional. The identifier of the `ExecutableCode` part this result is for. Only populated if the corresponding `ExecutableCode` has an id.
    * @type string | undefined
    */
   id?: string
 }
+
+export const computerUseEnvironmentEnum = {
+  ENVIRONMENT_UNSPECIFIED: 'ENVIRONMENT_UNSPECIFIED',
+  ENVIRONMENT_BROWSER: 'ENVIRONMENT_BROWSER',
+  ENVIRONMENT_MOBILE: 'ENVIRONMENT_MOBILE',
+  ENVIRONMENT_DESKTOP: 'ENVIRONMENT_DESKTOP',
+} as const
+
+export type ComputerUseEnvironmentEnumKey =
+  (typeof computerUseEnvironmentEnum)[keyof typeof computerUseEnvironmentEnum]
 
 export const computerUseDisabledSafetyPoliciesEnum = {
   SAFETY_POLICY_UNSPECIFIED: 'SAFETY_POLICY_UNSPECIFIED',
@@ -257,31 +267,11 @@ export const computerUseDisabledSafetyPoliciesEnum = {
 export type ComputerUseDisabledSafetyPoliciesEnumKey =
   (typeof computerUseDisabledSafetyPoliciesEnum)[keyof typeof computerUseDisabledSafetyPoliciesEnum]
 
-export const computerUseEnvironmentEnum = {
-  ENVIRONMENT_UNSPECIFIED: 'ENVIRONMENT_UNSPECIFIED',
-  ENVIRONMENT_BROWSER: 'ENVIRONMENT_BROWSER',
-  ENVIRONMENT_MOBILE: 'ENVIRONMENT_MOBILE',
-  ENVIRONMENT_DESKTOP: 'ENVIRONMENT_DESKTOP',
-} as const
-
-export type ComputerUseEnvironmentEnumKey =
-  (typeof computerUseEnvironmentEnum)[keyof typeof computerUseEnvironmentEnum]
-
 /**
  * @description Computer Use tool type.
  * @type object
  */
 export type ComputerUse = {
-  /**
-   * @description Optional. Whether enable the prompt injection detection check on computer-use request.
-   * @type boolean | undefined
-   */
-  enablePromptInjectionDetection?: boolean
-  /**
-   * @description Optional. Disabled safety policies for computer use.
-   * @type array | undefined
-   */
-  disabledSafetyPolicies?: ComputerUseDisabledSafetyPoliciesEnumKey[]
   /**
    * @description Required. The environment being operated.
    * @type string | undefined
@@ -292,6 +282,140 @@ export type ComputerUse = {
    * @type array | undefined
    */
   excludedPredefinedFunctions?: string[]
+  /**
+   * @description Optional. Whether enable the prompt injection detection check on computer-use request.
+   * @type boolean | undefined
+   */
+  enablePromptInjectionDetection?: boolean
+  /**
+   * @description Optional. Disabled safety policies for computer use.
+   * @type array | undefined
+   */
+  disabledSafetyPolicies?: ComputerUseDisabledSafetyPoliciesEnumKey[]
+}
+
+/**
+ * @description Raw media bytes for function response. Text should not be sent as raw bytes, use the 'FunctionResponse.response' field.
+ * @type object
+ */
+export type FunctionResponseBlob = {
+  /**
+   * @description The IANA standard MIME type of the source data. Examples: - image/png - image/jpeg If an unsupported MIME type is provided, an error will be returned. For a complete list of supported types, see [Supported file formats](https://aistudio.google.com/docs/file-input-methods#supported-content-types).
+   * @type string | undefined
+   */
+  mimeType?: string
+  /**
+   * @description Optional. Display name of the blob. Used to provide a label or filename to distinguish blobs, and to reference the blob from `FunctionResponse.response` (for example, via `{"$ref": "DISPLAY_NAME"}`).
+   * @type string | undefined
+   */
+  displayName?: string
+  /**
+   * @description Raw bytes for media formats.
+   * @type string | undefined
+   */
+  data?: string
+}
+
+/**
+ * @description URI based data for function response.
+ * @type object
+ */
+export type FunctionResponseFileData = {
+  /**
+   * @description Required. URI.
+   * @type string | undefined
+   */
+  fileUri?: string
+  /**
+   * @description Optional. Display name of the file. Used to provide a label or filename to distinguish file data, and to reference the file from `FunctionResponse.response` (for example, via `{"$ref": "DISPLAY_NAME"}`).
+   * @type string | undefined
+   */
+  displayName?: string
+  /**
+   * @description The IANA standard MIME type of the source data. If an unsupported MIME type is provided, an error will be returned. For a complete list of supported types, see [Multimodal function responses](https://aistudio.google.com/docs/function-calling#multimodal) and [Supported file formats](https://aistudio.google.com/docs/file-input-methods#supported-content-types).
+   * @type string | undefined
+   */
+  mimeType?: string
+}
+
+export const functionResponsePartMediaProcessingEnum = {
+  MEDIA_PROCESSING_UNSPECIFIED: 'MEDIA_PROCESSING_UNSPECIFIED',
+  STATIC: 'STATIC',
+  AGENTIC: 'AGENTIC',
+} as const
+
+export type FunctionResponsePartMediaProcessingEnumKey =
+  (typeof functionResponsePartMediaProcessingEnum)[keyof typeof functionResponsePartMediaProcessingEnum]
+
+/**
+ * @description A datatype containing media that is part of a `FunctionResponse` message. A `FunctionResponsePart` consists of data which has an associated datatype. A `FunctionResponsePart` can only contain one of the accepted types in `FunctionResponsePart.data`. Media can be passed as raw bytes (`inline_data`) or by URI (`file_data`) with an IANA MIME type identifying the type and subtype of the media.
+ * @type object
+ */
+export type FunctionResponsePart = {
+  /**
+   * @description Optional. How the model processes this part's media for understanding. Only meaningful for video parts (`inline_data` or `file_data` with video mime). Non-video parts ignore this field.
+   * @type string | undefined
+   */
+  mediaProcessing?: FunctionResponsePartMediaProcessingEnumKey
+  /**
+   * @description Raw media bytes for function response. Text should not be sent as raw bytes, use the 'FunctionResponse.response' field.
+   * @type object | undefined
+   */
+  inlineData?: FunctionResponseBlob
+  /**
+   * @description URI based data for function response.
+   * @type object | undefined
+   */
+  fileData?: FunctionResponseFileData
+}
+
+export const functionResponseSchedulingEnum = {
+  SCHEDULING_UNSPECIFIED: 'SCHEDULING_UNSPECIFIED',
+  SILENT: 'SILENT',
+  WHEN_IDLE: 'WHEN_IDLE',
+  INTERRUPT: 'INTERRUPT',
+} as const
+
+export type FunctionResponseSchedulingEnumKey =
+  (typeof functionResponseSchedulingEnum)[keyof typeof functionResponseSchedulingEnum]
+
+/**
+ * @description The result output from a `FunctionCall` that contains a string representing the `FunctionDeclaration.name` and a structured JSON object containing any output from the function is used as context to the model. This should contain the result of a`FunctionCall` made based on model prediction.
+ * @type object
+ */
+export type FunctionResponse = {
+  /**
+   * @description Optional. Signals that function call continues, and more responses will be returned, turning the function call into a generator. Is only applicable to NON_BLOCKING function calls, is ignored otherwise. If set to false, future responses will not be considered. It is allowed to return empty `response` with `will_continue=False` to signal that the function call is finished. This may still trigger the model generation. To avoid triggering the generation and finish the function call, additionally set `scheduling` to `SILENT`.
+   * @type boolean | undefined
+   */
+  willContinue?: boolean
+  /**
+   * @description Required. The function response in JSON object format. Callers can use any keys of their choice that fit the function's syntax to return the function output, e.g. "output", "result", etc. In particular, if the function call failed to execute, the response can have an "error" key to return error details to the model. Multimedia can be included by using a subobject containing a single "$ref" key whose value is the `inline_data.display_name` or `file_data.display_name` of a `FunctionResponsePart` holding the multimedia. See [Multimodal function responses](https://aistudio.google.com/docs/function-calling#multimodal).
+   * @type object | undefined
+   */
+  response?: {
+    [key: string]: unknown
+  }
+  /**
+   * @description Optional. Specifies how the response should be scheduled in the conversation. Only applicable to NON_BLOCKING function calls, is ignored otherwise. Defaults to WHEN_IDLE.
+   * @type string | undefined
+   */
+  scheduling?: FunctionResponseSchedulingEnumKey
+  /**
+   * @description Optional. Ordered `Parts` that constitute a function response. Parts may have different IANA MIME types.
+   * @type array | undefined
+   */
+  parts?: FunctionResponsePart[]
+  /**
+   * @description Optional. The identifier of the function call this response is for. Populated by the client to match the corresponding function call `id`.
+   * @type string | undefined
+   */
+  id?: string
+  /**
+   * @description Required. The name of the function to call. Must be a-z, A-Z, 0-9, or contain underscores and dashes, with a maximum length of 128.
+   * @type string | undefined
+   */
+  name?: string
 }
 
 /**
@@ -300,19 +424,19 @@ export type ComputerUse = {
  */
 export type VideoMetadata = {
   /**
-   * @description Optional. The end offset of the video.
-   *
-   * Format: `google-duration`
-   * @type string | undefined
-   */
-  endOffset?: string
-  /**
    * @description Optional. The start offset of the video.
    *
    * Format: `google-duration`
    * @type string | undefined
    */
   startOffset?: string
+  /**
+   * @description Optional. The end offset of the video.
+   *
+   * Format: `google-duration`
+   * @type string | undefined
+   */
+  endOffset?: string
   /**
    * @description Optional. The frame rate of the video sent to the model. If not specified, the default value will be 1.0. The fps range is (0.0, 24.0].
    *
@@ -323,20 +447,27 @@ export type VideoMetadata = {
 }
 
 /**
- * @description Speech metadata for `text` parts.
+ * @description A predicted `FunctionCall` returned from the model that contains a string representing the `FunctionDeclaration.name` with the arguments and their values.
  * @type object
  */
-export type SpeechMetadata = {
+export type FunctionCall = {
   /**
-   * @description Optional. Optional style instruction for the speech synthesis.
+   * @description Required. The name of the function to call. Must be a-z, A-Z, 0-9, or contain underscores and dashes, with a maximum length of 128.
    * @type string | undefined
    */
-  style?: string
+  name?: string
   /**
-   * @description Optional. Optional speaker name for multi-speaker synthesis.
+   * @description Optional. The function parameters and values in JSON object format.
+   * @type object | undefined
+   */
+  args?: {
+    [key: string]: unknown
+  }
+  /**
+   * @description Optional. Unique identifier of the function call. If populated, the client to execute the `function_call` and return the response with the matching `id`.
    * @type string | undefined
    */
-  speaker?: string
+  id?: string
 }
 
 export const executableCodeLanguageEnum = {
@@ -353,11 +484,6 @@ export type ExecutableCodeLanguageEnumKey =
  */
 export type ExecutableCode = {
   /**
-   * @description Required. Programming language of the `code`.
-   * @type string | undefined
-   */
-  language?: ExecutableCodeLanguageEnumKey
-  /**
    * @description Required. The code to be executed.
    * @type string | undefined
    */
@@ -367,6 +493,73 @@ export type ExecutableCode = {
    * @type string | undefined
    */
   id?: string
+  /**
+   * @description Required. Programming language of the `code`.
+   * @type string | undefined
+   */
+  language?: ExecutableCodeLanguageEnumKey
+}
+
+/**
+ * @description Speech metadata for `text` parts.
+ * @type object
+ */
+export type SpeechMetadata = {
+  /**
+   * @description Optional. Optional speaker name for multi-speaker synthesis.
+   * @type string | undefined
+   */
+  speaker?: string
+  /**
+   * @description Optional. Optional style instruction for the speech synthesis.
+   * @type string | undefined
+   */
+  style?: string
+}
+
+export const V1MainMediaResolutionLevelEnum = {
+  MEDIA_RESOLUTION_UNSPECIFIED: 'MEDIA_RESOLUTION_UNSPECIFIED',
+  MEDIA_RESOLUTION_LOW: 'MEDIA_RESOLUTION_LOW',
+  MEDIA_RESOLUTION_MEDIUM: 'MEDIA_RESOLUTION_MEDIUM',
+  MEDIA_RESOLUTION_HIGH: 'MEDIA_RESOLUTION_HIGH',
+  MEDIA_RESOLUTION_ULTRA_HIGH: 'MEDIA_RESOLUTION_ULTRA_HIGH',
+} as const
+
+export type V1MainMediaResolutionLevelEnumKey =
+  (typeof V1MainMediaResolutionLevelEnum)[keyof typeof V1MainMediaResolutionLevelEnum]
+
+/**
+ * @description Media resolution for tokenization.
+ * @type object
+ */
+export type V1MainMediaResolution = {
+  /**
+   * @description The tokenization quality used for given media. for Gemini API support .
+   * @type string | undefined
+   */
+  level?: V1MainMediaResolutionLevelEnumKey
+}
+
+/**
+ * @description URI based data.
+ * @type object
+ */
+export type FileData = {
+  /**
+   * @description Optional. The IANA standard MIME type of the source data.
+   * @type string | undefined
+   */
+  mimeType?: string
+  /**
+   * @description Required. URI.
+   * @type string | undefined
+   */
+  fileUri?: string
+  /**
+   * @description Optional. Specifies the name used to refer to this file to the model (e.g. "my_file.pdf"). Used as the file reference identifier when `verbalization_mode` is set to `REFERENCE_ONLY`.
+   * @type string | undefined
+   */
+  displayName?: string
 }
 
 export const toolCallToolTypeEnum = {
@@ -388,6 +581,11 @@ export type ToolCallToolTypeEnumKey =
  */
 export type ToolCall = {
   /**
+   * @description Optional. Unique identifier of the tool call. The server returns the tool response with the matching `id`.
+   * @type string | undefined
+   */
+  id?: string
+  /**
    * @description Optional. The tool call arguments. Example: {"arg1" : "value1", "arg2" : "value2" , ...}
    * @type object | undefined
    */
@@ -395,20 +593,15 @@ export type ToolCall = {
     [key: string]: unknown
   }
   /**
-   * @description Optional. Unique identifier of the tool call. The server returns the tool response with the matching `id`.
+   * @description Required. The type of tool that was called.
    * @type string | undefined
    */
-  id?: string
+  toolType?: ToolCallToolTypeEnumKey
   /**
    * @description Optional. The name of the tool that was called.
    * @type string | undefined
    */
   toolName?: string
-  /**
-   * @description Required. The type of tool that was called.
-   * @type string | undefined
-   */
-  toolType?: ToolCallToolTypeEnumKey
 }
 
 export const toolResponseToolTypeEnum = {
@@ -435,210 +628,17 @@ export type ToolResponse = {
    */
   id?: string
   /**
-   * @description Required. The type of tool that was called, matching the `tool_type` in the corresponding `ToolCall`.
-   * @type string | undefined
-   */
-  toolType?: ToolResponseToolTypeEnumKey
-  /**
    * @description Optional. The tool response.
    * @type object | undefined
    */
   response?: {
     [key: string]: unknown
   }
-}
-
-/**
- * @description A predicted `FunctionCall` returned from the model that contains a string representing the `FunctionDeclaration.name` with the arguments and their values.
- * @type object
- */
-export type FunctionCall = {
   /**
-   * @description Optional. Unique identifier of the function call. If populated, the client to execute the `function_call` and return the response with the matching `id`.
+   * @description Required. The type of tool that was called, matching the `tool_type` in the corresponding `ToolCall`.
    * @type string | undefined
    */
-  id?: string
-  /**
-   * @description Optional. The function parameters and values in JSON object format.
-   * @type object | undefined
-   */
-  args?: {
-    [key: string]: unknown
-  }
-  /**
-   * @description Required. The name of the function to call. Must be a-z, A-Z, 0-9, or contain underscores and dashes, with a maximum length of 128.
-   * @type string | undefined
-   */
-  name?: string
-}
-
-/**
- * @description URI based data.
- * @type object
- */
-export type FileData = {
-  /**
-   * @description Optional. Specifies the name used to refer to this file to the model (e.g. "my_file.pdf"). Used as the file reference identifier when `verbalization_mode` is set to `REFERENCE_ONLY`.
-   * @type string | undefined
-   */
-  displayName?: string
-  /**
-   * @description Required. URI.
-   * @type string | undefined
-   */
-  fileUri?: string
-  /**
-   * @description Optional. The IANA standard MIME type of the source data.
-   * @type string | undefined
-   */
-  mimeType?: string
-}
-
-/**
- * @description URI based data for function response.
- * @type object
- */
-export type FunctionResponseFileData = {
-  /**
-   * @description The IANA standard MIME type of the source data. If an unsupported MIME type is provided, an error will be returned. For a complete list of supported types, see [Multimodal function responses](https://aistudio.google.com/docs/function-calling#multimodal) and [Supported file formats](https://aistudio.google.com/docs/file-input-methods#supported-content-types).
-   * @type string | undefined
-   */
-  mimeType?: string
-  /**
-   * @description Required. URI.
-   * @type string | undefined
-   */
-  fileUri?: string
-  /**
-   * @description Optional. Display name of the file. Used to provide a label or filename to distinguish file data, and to reference the file from `FunctionResponse.response` (for example, via `{"$ref": "DISPLAY_NAME"}`).
-   * @type string | undefined
-   */
-  displayName?: string
-}
-
-/**
- * @description Raw media bytes for function response. Text should not be sent as raw bytes, use the 'FunctionResponse.response' field.
- * @type object
- */
-export type FunctionResponseBlob = {
-  /**
-   * @description The IANA standard MIME type of the source data. Examples: - image/png - image/jpeg If an unsupported MIME type is provided, an error will be returned. For a complete list of supported types, see [Supported file formats](https://aistudio.google.com/docs/file-input-methods#supported-content-types).
-   * @type string | undefined
-   */
-  mimeType?: string
-  /**
-   * @description Optional. Display name of the blob. Used to provide a label or filename to distinguish blobs, and to reference the blob from `FunctionResponse.response` (for example, via `{"$ref": "DISPLAY_NAME"}`).
-   * @type string | undefined
-   */
-  displayName?: string
-  /**
-   * @description Raw bytes for media formats.
-   * @type string | undefined
-   */
-  data?: string
-}
-
-export const functionResponsePartMediaProcessingEnum = {
-  MEDIA_PROCESSING_UNSPECIFIED: 'MEDIA_PROCESSING_UNSPECIFIED',
-  STATIC: 'STATIC',
-  AGENTIC: 'AGENTIC',
-} as const
-
-export type FunctionResponsePartMediaProcessingEnumKey =
-  (typeof functionResponsePartMediaProcessingEnum)[keyof typeof functionResponsePartMediaProcessingEnum]
-
-/**
- * @description A datatype containing media that is part of a `FunctionResponse` message. A `FunctionResponsePart` consists of data which has an associated datatype. A `FunctionResponsePart` can only contain one of the accepted types in `FunctionResponsePart.data`. Media can be passed as raw bytes (`inline_data`) or by URI (`file_data`) with an IANA MIME type identifying the type and subtype of the media.
- * @type object
- */
-export type FunctionResponsePart = {
-  /**
-   * @description URI based data for function response.
-   * @type object | undefined
-   */
-  fileData?: FunctionResponseFileData
-  /**
-   * @description Raw media bytes for function response. Text should not be sent as raw bytes, use the 'FunctionResponse.response' field.
-   * @type object | undefined
-   */
-  inlineData?: FunctionResponseBlob
-  /**
-   * @description Optional. How the model processes this part's media for understanding. Only meaningful for video parts (`inline_data` or `file_data` with video mime). Non-video parts ignore this field.
-   * @type string | undefined
-   */
-  mediaProcessing?: FunctionResponsePartMediaProcessingEnumKey
-}
-
-export const functionResponseSchedulingEnum = {
-  SCHEDULING_UNSPECIFIED: 'SCHEDULING_UNSPECIFIED',
-  SILENT: 'SILENT',
-  WHEN_IDLE: 'WHEN_IDLE',
-  INTERRUPT: 'INTERRUPT',
-} as const
-
-export type FunctionResponseSchedulingEnumKey =
-  (typeof functionResponseSchedulingEnum)[keyof typeof functionResponseSchedulingEnum]
-
-/**
- * @description The result output from a `FunctionCall` that contains a string representing the `FunctionDeclaration.name` and a structured JSON object containing any output from the function is used as context to the model. This should contain the result of a`FunctionCall` made based on model prediction.
- * @type object
- */
-export type FunctionResponse = {
-  /**
-   * @description Required. The name of the function to call. Must be a-z, A-Z, 0-9, or contain underscores and dashes, with a maximum length of 128.
-   * @type string | undefined
-   */
-  name?: string
-  /**
-   * @description Optional. Specifies how the response should be scheduled in the conversation. Only applicable to NON_BLOCKING function calls, is ignored otherwise. Defaults to WHEN_IDLE.
-   * @type string | undefined
-   */
-  scheduling?: FunctionResponseSchedulingEnumKey
-  /**
-   * @description Required. The function response in JSON object format. Callers can use any keys of their choice that fit the function's syntax to return the function output, e.g. "output", "result", etc. In particular, if the function call failed to execute, the response can have an "error" key to return error details to the model. Multimedia can be included by using a subobject containing a single "$ref" key whose value is the `inline_data.display_name` or `file_data.display_name` of a `FunctionResponsePart` holding the multimedia. See [Multimodal function responses](https://aistudio.google.com/docs/function-calling#multimodal).
-   * @type object | undefined
-   */
-  response?: {
-    [key: string]: unknown
-  }
-  /**
-   * @description Optional. Ordered `Parts` that constitute a function response. Parts may have different IANA MIME types.
-   * @type array | undefined
-   */
-  parts?: FunctionResponsePart[]
-  /**
-   * @description Optional. Signals that function call continues, and more responses will be returned, turning the function call into a generator. Is only applicable to NON_BLOCKING function calls, is ignored otherwise. If set to false, future responses will not be considered. It is allowed to return empty `response` with `will_continue=False` to signal that the function call is finished. This may still trigger the model generation. To avoid triggering the generation and finish the function call, additionally set `scheduling` to `SILENT`.
-   * @type boolean | undefined
-   */
-  willContinue?: boolean
-  /**
-   * @description Optional. The identifier of the function call this response is for. Populated by the client to match the corresponding function call `id`.
-   * @type string | undefined
-   */
-  id?: string
-}
-
-export const V1MainMediaResolutionLevelEnum = {
-  MEDIA_RESOLUTION_UNSPECIFIED: 'MEDIA_RESOLUTION_UNSPECIFIED',
-  MEDIA_RESOLUTION_LOW: 'MEDIA_RESOLUTION_LOW',
-  MEDIA_RESOLUTION_MEDIUM: 'MEDIA_RESOLUTION_MEDIUM',
-  MEDIA_RESOLUTION_HIGH: 'MEDIA_RESOLUTION_HIGH',
-  MEDIA_RESOLUTION_ULTRA_HIGH: 'MEDIA_RESOLUTION_ULTRA_HIGH',
-} as const
-
-export type V1MainMediaResolutionLevelEnumKey =
-  (typeof V1MainMediaResolutionLevelEnum)[keyof typeof V1MainMediaResolutionLevelEnum]
-
-/**
- * @description Media resolution for tokenization.
- * @type object
- */
-export type V1MainMediaResolution = {
-  /**
-   * @description The tokenization quality used for given media. for Gemini API support .
-   * @type string | undefined
-   */
-  level?: V1MainMediaResolutionLevelEnumKey
+  toolType?: ToolResponseToolTypeEnumKey
 }
 
 export const partMediaProcessingEnum = {
@@ -656,10 +656,70 @@ export type PartMediaProcessingEnumKey =
  */
 export type Part = {
   /**
+   * @description The result output from a `FunctionCall` that contains a string representing the `FunctionDeclaration.name` and a structured JSON object containing any output from the function is used as context to the model. This should contain the result of a`FunctionCall` made based on model prediction.
+   * @type object | undefined
+   */
+  functionResponse?: FunctionResponse
+  /**
    * @description Metadata describes the input video content. Set this in `Part.video_metadata` or `FunctionResponsePart.video_metadata` when `inline_data` or `file_data` contains video to configure static video preprocessing (such as time clipping, frame rate, maximum frame count, or extracted content layers).
    * @type object | undefined
    */
   videoMetadata?: VideoMetadata
+  /**
+   * @description Optional. Indicates if the part is thought from the model.
+   * @type boolean | undefined
+   */
+  thought?: boolean
+  /**
+   * @description Raw media bytes. Text should not be sent as raw bytes, use the 'text' field.
+   * @type object | undefined
+   */
+  inlineData?: Blob
+  /**
+   * @description A predicted `FunctionCall` returned from the model that contains a string representing the `FunctionDeclaration.name` with the arguments and their values.
+   * @type object | undefined
+   */
+  functionCall?: FunctionCall
+  /**
+   * @description Optional. How the model processes this part's media for understanding. Only meaningful for video parts (`inline_data` or `file_data` with video mime). Non-video parts ignore this field.
+   * @type string | undefined
+   */
+  mediaProcessing?: PartMediaProcessingEnumKey
+  /**
+   * @description Code generated by the model that is meant to be executed, and the result returned to the model. Only generated when using the `CodeExecution` tool, in which the code will be automatically executed, and a corresponding `CodeExecutionResult` will also be generated.
+   * @type object | undefined
+   */
+  executableCode?: ExecutableCode
+  /**
+   * @description Speech metadata for `text` parts.
+   * @type object | undefined
+   */
+  speechMetadata?: SpeechMetadata
+  /**
+   * @description Inline text.
+   * @type string | undefined
+   */
+  text?: string
+  /**
+   * @description Media resolution for tokenization.
+   * @type object | undefined
+   */
+  mediaResolution?: V1MainMediaResolution
+  /**
+   * @description URI based data.
+   * @type object | undefined
+   */
+  fileData?: FileData
+  /**
+   * @description Result of executing the `ExecutableCode`. Generated only when the `CodeExecution` tool is used.
+   * @type object | undefined
+   */
+  codeExecutionResult?: CodeExecutionResult
+  /**
+   * @description A predicted server-side `ToolCall` returned from the model. This message contains information about a tool that the model wants to invoke. The client is NOT expected to execute this `ToolCall`. Instead, the client should pass this `ToolCall` back to the API in a subsequent turn within a `Content` message, along with the corresponding `ToolResponse`.
+   * @type object | undefined
+   */
+  toolCall?: ToolCall
   /**
    * @description Custom metadata associated with the Part. Agents using genai.Part as content representation may need to keep track of the additional information. For example it can be name of a file/source from which the Part originates or a way to multiplex multiple Part streams.
    * @type object | undefined
@@ -668,80 +728,20 @@ export type Part = {
     [key: string]: unknown
   }
   /**
-   * @description Speech metadata for `text` parts.
-   * @type object | undefined
-   */
-  speechMetadata?: SpeechMetadata
-  /**
-   * @description Result of executing the `ExecutableCode`. Generated only when the `CodeExecution` tool is used.
-   * @type object | undefined
-   */
-  codeExecutionResult?: CodeExecutionResult
-  /**
-   * @description Raw media bytes. Text should not be sent as raw bytes, use the 'text' field.
-   * @type object | undefined
-   */
-  inlineData?: Blob
-  /**
-   * @description Inline text.
+   * @description Optional. An opaque signature for the thought so it can be reused in subsequent requests.
    * @type string | undefined
    */
-  text?: string
-  /**
-   * @description Code generated by the model that is meant to be executed, and the result returned to the model. Only generated when using the `CodeExecution` tool, in which the code will be automatically executed, and a corresponding `CodeExecutionResult` will also be generated.
-   * @type object | undefined
-   */
-  executableCode?: ExecutableCode
-  /**
-   * @description Optional. Indicates if the part is thought from the model.
-   * @type boolean | undefined
-   */
-  thought?: boolean
-  /**
-   * @description Optional. How the model processes this part's media for understanding. Only meaningful for video parts (`inline_data` or `file_data` with video mime). Non-video parts ignore this field.
-   * @type string | undefined
-   */
-  mediaProcessing?: PartMediaProcessingEnumKey
-  /**
-   * @description A predicted server-side `ToolCall` returned from the model. This message contains information about a tool that the model wants to invoke. The client is NOT expected to execute this `ToolCall`. Instead, the client should pass this `ToolCall` back to the API in a subsequent turn within a `Content` message, along with the corresponding `ToolResponse`.
-   * @type object | undefined
-   */
-  toolCall?: ToolCall
+  thoughtSignature?: string
   /**
    * @description The output from a server-side `ToolCall` execution. This message contains the results of a tool invocation that was initiated by a `ToolCall` from the model. The client should pass this `ToolResponse` back to the API in a subsequent turn within a `Content` message, along with the corresponding `ToolCall`.
    * @type object | undefined
    */
   toolResponse?: ToolResponse
   /**
-   * @description A predicted `FunctionCall` returned from the model that contains a string representing the `FunctionDeclaration.name` with the arguments and their values.
-   * @type object | undefined
-   */
-  functionCall?: FunctionCall
-  /**
    * @description The transcription of an audio part. For multi-speaker audio, each speaker segment is a separate Part with its own AudioTranscription carrying the speaker_label.
    * @type object | undefined
    */
   audioTranscription?: AudioTranscription
-  /**
-   * @description URI based data.
-   * @type object | undefined
-   */
-  fileData?: FileData
-  /**
-   * @description The result output from a `FunctionCall` that contains a string representing the `FunctionDeclaration.name` and a structured JSON object containing any output from the function is used as context to the model. This should contain the result of a`FunctionCall` made based on model prediction.
-   * @type object | undefined
-   */
-  functionResponse?: FunctionResponse
-  /**
-   * @description Media resolution for tokenization.
-   * @type object | undefined
-   */
-  mediaResolution?: V1MainMediaResolution
-  /**
-   * @description Optional. An opaque signature for the thought so it can be reused in subsequent requests.
-   * @type string | undefined
-   */
-  thoughtSignature?: string
 }
 
 /**
@@ -750,15 +750,15 @@ export type Part = {
  */
 export type Content = {
   /**
-   * @description Optional. The producer of the content. Must be either 'user' or 'model'. Useful to set for multi-turn conversations, otherwise can be left blank or unset.
-   * @type string | undefined
-   */
-  role?: string
-  /**
    * @description Ordered `Parts` that constitute a single message. Parts may have different MIME types.
    * @type array | undefined
    */
   parts?: Part[]
+  /**
+   * @description Optional. The producer of the content. Must be either 'user' or 'model'. Useful to set for multi-turn conversations, otherwise can be left blank or unset.
+   * @type string | undefined
+   */
+  role?: string
 }
 
 export const dynamicRetrievalConfigModeEnum = {
@@ -794,6 +794,11 @@ export type DynamicRetrievalConfig = {
  */
 export type FileSearch = {
   /**
+   * @description Required. The names of the file_search_stores to retrieve from. Example: `fileSearchStores/my-file-search-store-123`
+   * @type array | undefined
+   */
+  fileSearchStoreNames?: string[]
+  /**
    * @description Optional. Metadata filter to apply to the semantic retrieval documents and chunks.
    * @type string | undefined
    */
@@ -805,11 +810,6 @@ export type FileSearch = {
    * @type integer | undefined
    */
   topK?: number
-  /**
-   * @description Required. The names of the file_search_stores to retrieve from. Example: `fileSearchStores/my-file-search-store-123`
-   * @type array | undefined
-   */
-  fileSearchStoreNames?: string[]
 }
 
 export const functionCallingConfigModeEnum = {
@@ -829,15 +829,15 @@ export type FunctionCallingConfigModeEnumKey =
  */
 export type FunctionCallingConfig = {
   /**
-   * @description Optional. Specifies the mode in which function calling should execute. If unspecified, the default value will be set to AUTO.
-   * @type string | undefined
-   */
-  mode?: FunctionCallingConfigModeEnumKey
-  /**
    * @description Optional. A set of function names that, when provided, limits the functions the model will call. This should only be set when the Mode is ANY or VALIDATED. Function names should match [FunctionDeclaration.name]. When set, model will predict a function call from only allowed function names.
    * @type array | undefined
    */
   allowedFunctionNames?: string[]
+  /**
+   * @description Optional. Specifies the mode in which function calling should execute. If unspecified, the default value will be set to AUTO.
+   * @type string | undefined
+   */
+  mode?: FunctionCallingConfigModeEnumKey
 }
 
 export const schemaTypeEnum = {
@@ -860,55 +860,6 @@ export type SchemaTypeEnumKey =
  */
 export type Schema = {
   /**
-   * @description Optional. The format of the data. Any value is allowed, but most do not trigger any special functionality.
-   * @type string | undefined
-   */
-  format?: string
-  /**
-   * @description The `Schema` object allows the definition of input and output data types. These types can be objects, but also primitives and arrays. Represents a select subset of an [OpenAPI 3.0 schema object](https://spec.openapis.org/oas/v3.0.3#schema).
-   * @type object | undefined
-   */
-  items?: Schema
-  /**
-   * @description Optional. Possible values of the element of Type.STRING with enum format. For example we can define an Enum Direction as : {type:STRING, format:enum, enum:["EAST", NORTH", "SOUTH", "WEST"]}
-   * @type array | undefined
-   */
-  enum?: string[]
-  /**
-   * @description Optional. Required properties of Type.OBJECT.
-   * @type array | undefined
-   */
-  required?: string[]
-  /**
-   * @description Optional. The value should be validated against any (one or more) of the subschemas in the list.
-   * @type array | undefined
-   */
-  anyOf?: Schema[]
-  /**
-   * @description Optional. Minimum number of the properties for Type.OBJECT.
-   *
-   * Format: `int64`
-   * @type string | undefined
-   */
-  minProperties?: string
-  /**
-   * @description Optional. Maximum number of the properties for Type.OBJECT.
-   *
-   * Format: `int64`
-   * @type string | undefined
-   */
-  maxProperties?: string
-  /**
-   * @description Optional. Indicates if the value may be null.
-   * @type boolean | undefined
-   */
-  nullable?: boolean
-  /**
-   * @description Optional. A brief description of the parameter. This could contain examples of use. Parameter description may be formatted as Markdown.
-   * @type string | undefined
-   */
-  description?: string
-  /**
    * @description Optional. Maximum length of the Type.STRING
    *
    * Format: `int64`
@@ -916,19 +867,20 @@ export type Schema = {
    */
   maxLength?: string
   /**
-   * @description Optional. SCHEMA FIELDS FOR TYPE STRING Minimum length of the Type.STRING
-   *
-   * Format: `int64`
+   * @description Optional. Pattern of the Type.STRING to restrict a string to a regular expression.
    * @type string | undefined
    */
-  minLength?: string
+  pattern?: string
   /**
-   * @description Optional. Properties of Type.OBJECT.
-   * @type object | undefined
+   * @description Optional. The value should be validated against any (one or more) of the subschemas in the list.
+   * @type array | undefined
    */
-  properties?: {
-    [key: string]: Schema
-  }
+  anyOf?: Schema[]
+  /**
+   * @description Required. Data type.
+   * @type string | undefined
+   */
+  type?: SchemaTypeEnumKey
   /**
    * @description Optional. Maximum number of the elements for Type.ARRAY.
    *
@@ -937,21 +889,6 @@ export type Schema = {
    */
   maxItems?: string
   /**
-   * @description Optional. Pattern of the Type.STRING to restrict a string to a regular expression.
-   * @type string | undefined
-   */
-  pattern?: string
-  /**
-   * @description Optional. The order of the properties. Not a standard field in open api spec. Used to determine the order of the properties in the response.
-   * @type array | undefined
-   */
-  propertyOrdering?: string[]
-  /**
-   * @description Optional. Example of the object. Will only populated when the object is the root.
-   * @type unknown | undefined
-   */
-  example?: unknown
-  /**
    * @description Optional. Minimum number of the elements for Type.ARRAY.
    *
    * Format: `int64`
@@ -959,22 +896,17 @@ export type Schema = {
    */
   minItems?: string
   /**
-   * @description Required. Data type.
+   * @description Optional. SCHEMA FIELDS FOR TYPE STRING Minimum length of the Type.STRING
+   *
+   * Format: `int64`
    * @type string | undefined
    */
-  type?: SchemaTypeEnumKey
+  minLength?: string
   /**
-   * @description Optional. Default value of the field. Per JSON Schema, this field is intended for documentation generators and doesn't affect validation. Thus it's included here and ignored so that developers who send schemas with a `default` field don't get unknown-field errors.
-   * @type unknown | undefined
+   * @description Optional. The title of the schema.
+   * @type string | undefined
    */
-  default?: unknown
-  /**
-   * @description Optional. Maximum value of the Type.INTEGER and Type.NUMBER
-   *
-   * Format: `double`
-   * @type number | undefined
-   */
-  maximum?: number
+  title?: string
   /**
    * @description Optional. SCHEMA FIELDS FOR TYPE INTEGER and NUMBER Minimum value of the Type.INTEGER and Type.NUMBER
    *
@@ -983,10 +915,78 @@ export type Schema = {
    */
   minimum?: number
   /**
-   * @description Optional. The title of the schema.
+   * @description The `Schema` object allows the definition of input and output data types. These types can be objects, but also primitives and arrays. Represents a select subset of an [OpenAPI 3.0 schema object](https://spec.openapis.org/oas/v3.0.3#schema).
+   * @type object | undefined
+   */
+  items?: Schema
+  /**
+   * @description Optional. Default value of the field. Per JSON Schema, this field is intended for documentation generators and doesn't affect validation. Thus it's included here and ignored so that developers who send schemas with a `default` field don't get unknown-field errors.
+   * @type unknown | undefined
+   */
+  default?: unknown
+  /**
+   * @description Optional. A brief description of the parameter. This could contain examples of use. Parameter description may be formatted as Markdown.
    * @type string | undefined
    */
-  title?: string
+  description?: string
+  /**
+   * @description Optional. Maximum number of the properties for Type.OBJECT.
+   *
+   * Format: `int64`
+   * @type string | undefined
+   */
+  maxProperties?: string
+  /**
+   * @description Optional. Example of the object. Will only populated when the object is the root.
+   * @type unknown | undefined
+   */
+  example?: unknown
+  /**
+   * @description Optional. Minimum number of the properties for Type.OBJECT.
+   *
+   * Format: `int64`
+   * @type string | undefined
+   */
+  minProperties?: string
+  /**
+   * @description Optional. The order of the properties. Not a standard field in open api spec. Used to determine the order of the properties in the response.
+   * @type array | undefined
+   */
+  propertyOrdering?: string[]
+  /**
+   * @description Optional. The format of the data. Any value is allowed, but most do not trigger any special functionality.
+   * @type string | undefined
+   */
+  format?: string
+  /**
+   * @description Optional. Required properties of Type.OBJECT.
+   * @type array | undefined
+   */
+  required?: string[]
+  /**
+   * @description Optional. Maximum value of the Type.INTEGER and Type.NUMBER
+   *
+   * Format: `double`
+   * @type number | undefined
+   */
+  maximum?: number
+  /**
+   * @description Optional. Properties of Type.OBJECT.
+   * @type object | undefined
+   */
+  properties?: {
+    [key: string]: Schema
+  }
+  /**
+   * @description Optional. Possible values of the element of Type.STRING with enum format. For example we can define an Enum Direction as : {type:STRING, format:enum, enum:["EAST", NORTH", "SOUTH", "WEST"]}
+   * @type array | undefined
+   */
+  enum?: string[]
+  /**
+   * @description Optional. Indicates if the value may be null.
+   * @type boolean | undefined
+   */
+  nullable?: boolean
 }
 
 export const functionDeclarationBehaviorEnum = {
@@ -1004,30 +1004,30 @@ export type FunctionDeclarationBehaviorEnumKey =
  */
 export type FunctionDeclaration = {
   /**
-   * @description Required. A brief description of the function.
+   * @description Required. The name of the function. Must be a-z, A-Z, 0-9, or contain underscores, colons, dots, and dashes, with a maximum length of 128.
    * @type string | undefined
    */
-  description?: string
+  name?: string
   /**
    * @description Optional. Specifies the function Behavior. Currently only supported by the BidiGenerateContent method.
    * @type string | undefined
    */
   behavior?: FunctionDeclarationBehaviorEnumKey
   /**
-   * @description Required. The name of the function. Must be a-z, A-Z, 0-9, or contain underscores, colons, dots, and dashes, with a maximum length of 128.
-   * @type string | undefined
-   */
-  name?: string
-  /**
-   * @description The `Schema` object allows the definition of input and output data types. These types can be objects, but also primitives and arrays. Represents a select subset of an [OpenAPI 3.0 schema object](https://spec.openapis.org/oas/v3.0.3#schema).
-   * @type object | undefined
-   */
-  parameters?: Schema
-  /**
    * @description Optional. Describes the output from this function in JSON Schema format. The value specified by the schema is the response value of the function. This field is mutually exclusive with `response`.
    * @type unknown | undefined
    */
   responseJsonSchema?: unknown
+  /**
+   * @description Required. A brief description of the function.
+   * @type string | undefined
+   */
+  description?: string
+  /**
+   * @description The `Schema` object allows the definition of input and output data types. These types can be objects, but also primitives and arrays. Represents a select subset of an [OpenAPI 3.0 schema object](https://spec.openapis.org/oas/v3.0.3#schema).
+   * @type object | undefined
+   */
+  response?: Schema
   /**
    * @description Optional. Describes the parameters to the function in JSON Schema format. The schema must describe an object where the properties are the parameters to the function. For example: ``` { "type": "object", "properties": { "name": { "type": "string" }, "age": { "type": "integer" } }, "additionalProperties": false, "required": ["name", "age"], "propertyOrdering": ["name", "age"] } ``` This field is mutually exclusive with `parameters`.
    * @type unknown | undefined
@@ -1037,7 +1037,24 @@ export type FunctionDeclaration = {
    * @description The `Schema` object allows the definition of input and output data types. These types can be objects, but also primitives and arrays. Represents a select subset of an [OpenAPI 3.0 schema object](https://spec.openapis.org/oas/v3.0.3#schema).
    * @type object | undefined
    */
-  response?: Schema
+  parameters?: Schema
+}
+
+/**
+ * @description Config for image generation features.
+ * @type object
+ */
+export type ImageConfig = {
+  /**
+   * @description Optional. Specifies the size of generated images. Supported values are `512`, `1K`, `2K`, `4K`. If not specified, the model will use default value `1K`.
+   * @type string | undefined
+   */
+  imageSize?: string
+  /**
+   * @description Optional. The aspect ratio of the image to generate. Supported aspect ratios: `1:1`, `1:4`, `4:1`, `1:8`, `8:1`, `2:3`, `3:2`, `3:4`, `4:3`, `4:5`, `5:4`, `9:16`, `16:9`, or `21:9`. If not specified, the model will choose a default aspect ratio based on any reference images provided.
+   * @type string | undefined
+   */
+  aspectRatio?: string
 }
 
 /**
@@ -1058,15 +1075,15 @@ export type PrebuiltVoiceConfig = {
  */
 export type VoiceConfig = {
   /**
-   * @description Optional. The speaker identifier for synthesis. Supported formats: * Speaker name for prebuilt voices (for example, `Orus` or `Kore`). * Voice ID for stored voices (for example, `voice_xxx`). * Voice replication key (for example, `voicekey_xxx`).
-   * @type string | undefined
-   */
-  voice?: string
-  /**
    * @description The configuration for the prebuilt speaker to use.
    * @type object | undefined
    */
   prebuiltVoiceConfig?: PrebuiltVoiceConfig
+  /**
+   * @description Optional. The speaker identifier for synthesis. Supported formats: * Speaker name for prebuilt voices (for example, `Orus` or `Kore`). * Voice ID for stored voices (for example, `voice_xxx`). * Voice replication key (for example, `voicekey_xxx`).
+   * @type string | undefined
+   */
+  voice?: string
 }
 
 /**
@@ -1075,15 +1092,15 @@ export type VoiceConfig = {
  */
 export type SpeakerVoiceConfig = {
   /**
-   * @description Required. The name of the speaker to use. Should be the same as in the prompt.
-   * @type string | undefined
-   */
-  speaker?: string
-  /**
    * @description The configuration for the voice to use.
    * @type object | undefined
    */
   voiceConfig?: VoiceConfig
+  /**
+   * @description Required. The name of the speaker to use. Should be the same as in the prompt.
+   * @type string | undefined
+   */
+  speaker?: string
 }
 
 /**
@@ -1109,15 +1126,15 @@ export type SpeechConfig = {
    */
   multiSpeakerVoiceConfig?: MultiSpeakerVoiceConfig
   /**
-   * @description The configuration for the voice to use.
-   * @type object | undefined
-   */
-  voiceConfig?: VoiceConfig
-  /**
    * @description Optional. The IETF [BCP-47](https://www.rfc-editor.org/rfc/bcp/bcp47.txt) language code that the user configured the app to use. Used for speech recognition and synthesis. Valid values are: `de-DE`, `en-AU`, `en-GB`, `en-IN`, `en-US`, `es-US`, `fr-FR`, `hi-IN`, `pt-BR`, `ar-XA`, `es-ES`, `fr-CA`, `id-ID`, `it-IT`, `ja-JP`, `tr-TR`, `vi-VN`, `bn-IN`, `gu-IN`, `kn-IN`, `ml-IN`, `mr-IN`, `ta-IN`, `te-IN`, `nl-NL`, `ko-KR`, `cmn-CN`, `pl-PL`, `ru-RU`, and `th-TH`.
    * @type string | undefined
    */
   languageCode?: string
+  /**
+   * @description The configuration for the voice to use.
+   * @type object | undefined
+   */
+  voiceConfig?: VoiceConfig
 }
 
 /**
@@ -1137,29 +1154,13 @@ export type TranslationConfig = {
   targetLanguageCode?: string
 }
 
-/**
- * @description Config for image generation features.
- * @type object
- */
-export type ImageConfig = {
-  /**
-   * @description Optional. Specifies the size of generated images. Supported values are `512`, `1K`, `2K`, `4K`. If not specified, the model will use default value `1K`.
-   * @type string | undefined
-   */
-  imageSize?: string
-  /**
-   * @description Optional. The aspect ratio of the image to generate. Supported aspect ratios: `1:1`, `1:4`, `4:1`, `1:8`, `8:1`, `2:3`, `3:2`, `3:4`, `4:3`, `4:5`, `5:4`, `9:16`, `16:9`, or `21:9`. If not specified, the model will choose a default aspect ratio based on any reference images provided.
-   * @type string | undefined
-   */
-  aspectRatio?: string
-}
-
 export const thinkingConfigThinkingLevelEnum = {
   THINKING_LEVEL_UNSPECIFIED: 'THINKING_LEVEL_UNSPECIFIED',
   MINIMAL: 'MINIMAL',
   LOW: 'LOW',
   MEDIUM: 'MEDIUM',
   HIGH: 'HIGH',
+  XHIGH: 'XHIGH',
 } as const
 
 export type ThinkingConfigThinkingLevelEnumKey =
@@ -1171,6 +1172,13 @@ export type ThinkingConfigThinkingLevelEnumKey =
  */
 export type ThinkingConfig = {
   /**
+   * @description The number of thoughts tokens that the model should generate.
+   *
+   * Format: `int32`
+   * @type integer | undefined
+   */
+  thinkingBudget?: number
+  /**
    * @description Indicates whether to include thoughts in the response. If true, thoughts are returned only when available.
    * @type boolean | undefined
    */
@@ -1180,89 +1188,6 @@ export type ThinkingConfig = {
    * @type string | undefined
    */
   thinkingLevel?: ThinkingConfigThinkingLevelEnumKey
-  /**
-   * @description The number of thoughts tokens that the model should generate.
-   *
-   * Format: `int32`
-   * @type integer | undefined
-   */
-  thinkingBudget?: number
-}
-
-export const imageResponseFormatMimeTypeEnum = {
-  MIME_TYPE_UNSPECIFIED: 'MIME_TYPE_UNSPECIFIED',
-  IMAGE_JPEG: 'IMAGE_JPEG',
-} as const
-
-export type ImageResponseFormatMimeTypeEnumKey =
-  (typeof imageResponseFormatMimeTypeEnum)[keyof typeof imageResponseFormatMimeTypeEnum]
-
-export const imageResponseFormatAspectRatioEnum = {
-  ASPECT_RATIO_UNSPECIFIED: 'ASPECT_RATIO_UNSPECIFIED',
-  ASPECT_RATIO_ONE_BY_ONE: 'ASPECT_RATIO_ONE_BY_ONE',
-  ASPECT_RATIO_TWO_BY_THREE: 'ASPECT_RATIO_TWO_BY_THREE',
-  ASPECT_RATIO_THREE_BY_TWO: 'ASPECT_RATIO_THREE_BY_TWO',
-  ASPECT_RATIO_THREE_BY_FOUR: 'ASPECT_RATIO_THREE_BY_FOUR',
-  ASPECT_RATIO_FOUR_BY_THREE: 'ASPECT_RATIO_FOUR_BY_THREE',
-  ASPECT_RATIO_FOUR_BY_FIVE: 'ASPECT_RATIO_FOUR_BY_FIVE',
-  ASPECT_RATIO_FIVE_BY_FOUR: 'ASPECT_RATIO_FIVE_BY_FOUR',
-  ASPECT_RATIO_NINE_BY_SIXTEEN: 'ASPECT_RATIO_NINE_BY_SIXTEEN',
-  ASPECT_RATIO_SIXTEEN_BY_NINE: 'ASPECT_RATIO_SIXTEEN_BY_NINE',
-  ASPECT_RATIO_TWENTY_ONE_BY_NINE: 'ASPECT_RATIO_TWENTY_ONE_BY_NINE',
-  ASPECT_RATIO_ONE_BY_EIGHT: 'ASPECT_RATIO_ONE_BY_EIGHT',
-  ASPECT_RATIO_EIGHT_BY_ONE: 'ASPECT_RATIO_EIGHT_BY_ONE',
-  ASPECT_RATIO_ONE_BY_FOUR: 'ASPECT_RATIO_ONE_BY_FOUR',
-  ASPECT_RATIO_FOUR_BY_ONE: 'ASPECT_RATIO_FOUR_BY_ONE',
-} as const
-
-export type ImageResponseFormatAspectRatioEnumKey =
-  (typeof imageResponseFormatAspectRatioEnum)[keyof typeof imageResponseFormatAspectRatioEnum]
-
-export const imageResponseFormatImageSizeEnum = {
-  IMAGE_SIZE_UNSPECIFIED: 'IMAGE_SIZE_UNSPECIFIED',
-  IMAGE_SIZE_FIVE_TWELVE: 'IMAGE_SIZE_FIVE_TWELVE',
-  IMAGE_SIZE_ONE_K: 'IMAGE_SIZE_ONE_K',
-  IMAGE_SIZE_TWO_K: 'IMAGE_SIZE_TWO_K',
-  IMAGE_SIZE_FOUR_K: 'IMAGE_SIZE_FOUR_K',
-} as const
-
-export type ImageResponseFormatImageSizeEnumKey =
-  (typeof imageResponseFormatImageSizeEnum)[keyof typeof imageResponseFormatImageSizeEnum]
-
-export const imageResponseFormatDeliveryEnum = {
-  DELIVERY_UNSPECIFIED: 'DELIVERY_UNSPECIFIED',
-  INLINE: 'INLINE',
-  URI: 'URI',
-} as const
-
-export type ImageResponseFormatDeliveryEnumKey =
-  (typeof imageResponseFormatDeliveryEnum)[keyof typeof imageResponseFormatDeliveryEnum]
-
-/**
- * @description Configuration for image output format.
- * @type object
- */
-export type ImageResponseFormat = {
-  /**
-   * @description Optional. The MIME type of the image output.
-   * @type string | undefined
-   */
-  mimeType?: ImageResponseFormatMimeTypeEnumKey
-  /**
-   * @description Optional. The aspect ratio for the image output.
-   * @type string | undefined
-   */
-  aspectRatio?: ImageResponseFormatAspectRatioEnumKey
-  /**
-   * @description Optional. The size of the image output.
-   * @type string | undefined
-   */
-  imageSize?: ImageResponseFormatImageSizeEnumKey
-  /**
-   * @description Optional. The delivery mode for the image output.
-   * @type string | undefined
-   */
-  delivery?: ImageResponseFormatDeliveryEnumKey
 }
 
 export const textResponseFormatMimeTypeEnum = {
@@ -1291,16 +1216,87 @@ export type TextResponseFormat = {
   schema?: unknown
 }
 
+export const imageResponseFormatMimeTypeEnum = {
+  MIME_TYPE_UNSPECIFIED: 'MIME_TYPE_UNSPECIFIED',
+  IMAGE_JPEG: 'IMAGE_JPEG',
+} as const
+
+export type ImageResponseFormatMimeTypeEnumKey =
+  (typeof imageResponseFormatMimeTypeEnum)[keyof typeof imageResponseFormatMimeTypeEnum]
+
+export const imageResponseFormatDeliveryEnum = {
+  DELIVERY_UNSPECIFIED: 'DELIVERY_UNSPECIFIED',
+  INLINE: 'INLINE',
+  URI: 'URI',
+} as const
+
+export type ImageResponseFormatDeliveryEnumKey =
+  (typeof imageResponseFormatDeliveryEnum)[keyof typeof imageResponseFormatDeliveryEnum]
+
+export const imageResponseFormatImageSizeEnum = {
+  IMAGE_SIZE_UNSPECIFIED: 'IMAGE_SIZE_UNSPECIFIED',
+  IMAGE_SIZE_FIVE_TWELVE: 'IMAGE_SIZE_FIVE_TWELVE',
+  IMAGE_SIZE_ONE_K: 'IMAGE_SIZE_ONE_K',
+  IMAGE_SIZE_TWO_K: 'IMAGE_SIZE_TWO_K',
+  IMAGE_SIZE_FOUR_K: 'IMAGE_SIZE_FOUR_K',
+} as const
+
+export type ImageResponseFormatImageSizeEnumKey =
+  (typeof imageResponseFormatImageSizeEnum)[keyof typeof imageResponseFormatImageSizeEnum]
+
+export const imageResponseFormatAspectRatioEnum = {
+  ASPECT_RATIO_UNSPECIFIED: 'ASPECT_RATIO_UNSPECIFIED',
+  ASPECT_RATIO_ONE_BY_ONE: 'ASPECT_RATIO_ONE_BY_ONE',
+  ASPECT_RATIO_TWO_BY_THREE: 'ASPECT_RATIO_TWO_BY_THREE',
+  ASPECT_RATIO_THREE_BY_TWO: 'ASPECT_RATIO_THREE_BY_TWO',
+  ASPECT_RATIO_THREE_BY_FOUR: 'ASPECT_RATIO_THREE_BY_FOUR',
+  ASPECT_RATIO_FOUR_BY_THREE: 'ASPECT_RATIO_FOUR_BY_THREE',
+  ASPECT_RATIO_FOUR_BY_FIVE: 'ASPECT_RATIO_FOUR_BY_FIVE',
+  ASPECT_RATIO_FIVE_BY_FOUR: 'ASPECT_RATIO_FIVE_BY_FOUR',
+  ASPECT_RATIO_NINE_BY_SIXTEEN: 'ASPECT_RATIO_NINE_BY_SIXTEEN',
+  ASPECT_RATIO_SIXTEEN_BY_NINE: 'ASPECT_RATIO_SIXTEEN_BY_NINE',
+  ASPECT_RATIO_TWENTY_ONE_BY_NINE: 'ASPECT_RATIO_TWENTY_ONE_BY_NINE',
+  ASPECT_RATIO_ONE_BY_EIGHT: 'ASPECT_RATIO_ONE_BY_EIGHT',
+  ASPECT_RATIO_EIGHT_BY_ONE: 'ASPECT_RATIO_EIGHT_BY_ONE',
+  ASPECT_RATIO_ONE_BY_FOUR: 'ASPECT_RATIO_ONE_BY_FOUR',
+  ASPECT_RATIO_FOUR_BY_ONE: 'ASPECT_RATIO_FOUR_BY_ONE',
+} as const
+
+export type ImageResponseFormatAspectRatioEnumKey =
+  (typeof imageResponseFormatAspectRatioEnum)[keyof typeof imageResponseFormatAspectRatioEnum]
+
+/**
+ * @description Configuration for image output format.
+ * @type object
+ */
+export type ImageResponseFormat = {
+  /**
+   * @description Optional. The MIME type of the image output.
+   * @type string | undefined
+   */
+  mimeType?: ImageResponseFormatMimeTypeEnumKey
+  /**
+   * @description Optional. The delivery mode for the image output.
+   * @type string | undefined
+   */
+  delivery?: ImageResponseFormatDeliveryEnumKey
+  /**
+   * @description Optional. The size of the image output.
+   * @type string | undefined
+   */
+  imageSize?: ImageResponseFormatImageSizeEnumKey
+  /**
+   * @description Optional. The aspect ratio for the image output.
+   * @type string | undefined
+   */
+  aspectRatio?: ImageResponseFormatAspectRatioEnumKey
+}
+
 /**
  * @description Configuration for the response output format. This is a flat object where each optional sub-field configures a specific output modality.
  * @type object
  */
 export type ResponseFormatConfig = {
-  /**
-   * @description Configuration for image output format.
-   * @type object | undefined
-   */
-  image?: ImageResponseFormat
   /**
    * @description Configuration for text output format.
    * @type object | undefined
@@ -1311,17 +1307,12 @@ export type ResponseFormatConfig = {
    * @type object | undefined
    */
   audio?: AudioResponseFormat
+  /**
+   * @description Configuration for image output format.
+   * @type object | undefined
+   */
+  image?: ImageResponseFormat
 }
-
-export const generationConfigResponseModalitiesEnum = {
-  MODALITY_UNSPECIFIED: 'MODALITY_UNSPECIFIED',
-  TEXT: 'TEXT',
-  IMAGE: 'IMAGE',
-  AUDIO: 'AUDIO',
-} as const
-
-export type GenerationConfigResponseModalitiesEnumKey =
-  (typeof generationConfigResponseModalitiesEnum)[keyof typeof generationConfigResponseModalitiesEnum]
 
 export const generationConfigMediaResolutionEnum = {
   MEDIA_RESOLUTION_UNSPECIFIED: 'MEDIA_RESOLUTION_UNSPECIFIED',
@@ -1333,52 +1324,38 @@ export const generationConfigMediaResolutionEnum = {
 export type GenerationConfigMediaResolutionEnumKey =
   (typeof generationConfigMediaResolutionEnum)[keyof typeof generationConfigMediaResolutionEnum]
 
+export const generationConfigResponseModalitiesEnum = {
+  MODALITY_UNSPECIFIED: 'MODALITY_UNSPECIFIED',
+  TEXT: 'TEXT',
+  IMAGE: 'IMAGE',
+  AUDIO: 'AUDIO',
+} as const
+
+export type GenerationConfigResponseModalitiesEnumKey =
+  (typeof generationConfigResponseModalitiesEnum)[keyof typeof generationConfigResponseModalitiesEnum]
+
 /**
  * @description Configuration options for model generation and outputs. Not all parameters are configurable for every model.
  * @type object
  */
 export type GenerationConfig = {
   /**
-   * @description Config for speech generation and transcription.
+   * @description Optional. The set of character sequences (up to 5) that will stop output generation. If specified, the API will stop at the first appearance of a `stop_sequence`. The stop sequence will not be included as part of the response.
+   * @type array | undefined
+   */
+  stopSequences?: string[]
+  /**
+   * @description The audio transcription configuration.
    * @type object | undefined
    */
-  speechConfig?: SpeechConfig
+  audioTranscriptionConfig?: AudioTranscriptionConfig
   /**
-   * @description Optional. The maximum cumulative probability of tokens to consider when sampling. The model uses combined Top-k and Top-p (nucleus) sampling. Tokens are sorted based on their assigned probabilities so that only the most likely tokens are considered. Top-k sampling directly limits the maximum number of tokens to consider, while Nucleus sampling limits the number of tokens based on the cumulative probability. Note: The default value varies by `Model` and is specified by the`Model.top_p` attribute returned from the `getModel` function. An empty `top_k` attribute indicates that the model doesn't apply top-k sampling and doesn't allow setting `top_k` on requests. This field is no longer supported and is silently ignored on Gemini 3.6 Flash and newer models.
-   *
-   * Format: `float`
-   * @type number | undefined
-   */
-  topP?: number
-  /**
-   * @description Optional. Frequency penalty applied to the next token's logprobs, multiplied by the number of times each token has been seen in the respponse so far. A positive penalty will discourage the use of tokens that have already been used, proportional to the number of times the token has been used: The more a token is used, the more difficult it is for the model to use that token again increasing the vocabulary of responses. Caution: A _negative_ penalty will encourage the model to reuse tokens proportional to the number of times the token has been used. Small negative values will reduce the vocabulary of a response. Larger negative values will cause the model to start repeating a common token until it hits the max_output_tokens limit.
-   *
-   * Format: `float`
-   * @type number | undefined
-   */
-  frequencyPenalty?: number
-  /**
-   * @description Optional. The maximum number of tokens to consider when sampling. Gemini models use Top-p (nucleus) sampling or a combination of Top-k and nucleus sampling. Top-k sampling considers the set of `top_k` most probable tokens. Models running with nucleus sampling don't allow top_k setting. Note: The default value varies by `Model` and is specified by the`Model.top_p` attribute returned from the `getModel` function. An empty `top_k` attribute indicates that the model doesn't apply top-k sampling and doesn't allow setting `top_k` on requests. This field is no longer supported and is silently ignored on Gemini 3.6 Flash and newer models.
+   * @description Optional. Number of generated responses to return. If unset, this will default to 1. Please note that this doesn't work for previous generation models (Gemini 1.0 family)
    *
    * Format: `int32`
    * @type integer | undefined
    */
-  topK?: number
-  /**
-   * @description Config for translation features.
-   * @type object | undefined
-   */
-  translationConfig?: TranslationConfig
-  /**
-   * @description Config for image generation features.
-   * @type object | undefined
-   */
-  imageConfig?: ImageConfig
-  /**
-   * @description Optional. The requested modalities of the response. Represents the set of modalities that the model can return, and should be expected in the response. This is an exact match to the modalities of the response. A model may have multiple combinations of supported modalities. If the requested modalities do not match any of the supported combinations, an error will be returned. An empty list is equivalent to requesting only text.
-   * @type array | undefined
-   */
-  responseModalities?: GenerationConfigResponseModalitiesEnumKey[]
+  candidateCount?: number
   /**
    * @description The `Schema` object allows the definition of input and output data types. These types can be objects, but also primitives and arrays. Represents a select subset of an [OpenAPI 3.0 schema object](https://spec.openapis.org/oas/v3.0.3#schema).
    * @type object | undefined
@@ -1392,42 +1369,93 @@ export type GenerationConfig = {
    */
   maxOutputTokens?: number
   /**
-   * @description Optional. The set of character sequences (up to 5) that will stop output generation. If specified, the API will stop at the first appearance of a `stop_sequence`. The stop sequence will not be included as part of the response.
-   * @type array | undefined
+   * @description Config for image generation features.
+   * @type object | undefined
    */
-  stopSequences?: string[]
+  imageConfig?: ImageConfig
+  /**
+   * @description Config for speech generation and transcription.
+   * @type object | undefined
+   */
+  speechConfig?: SpeechConfig
+  /**
+   * @description Optional. If true, export the logprobs results in response.
+   * @type boolean | undefined
+   */
+  responseLogprobs?: boolean
+  /**
+   * @description Config for translation features.
+   * @type object | undefined
+   */
+  translationConfig?: TranslationConfig
+  /**
+   * @description Optional. The maximum number of tokens to consider when sampling. Gemini models use Top-p (nucleus) sampling or a combination of Top-k and nucleus sampling. Top-k sampling considers the set of `top_k` most probable tokens. Models running with nucleus sampling don't allow top_k setting. Note: The default value varies by `Model` and is specified by the`Model.top_p` attribute returned from the `getModel` function. An empty `top_k` attribute indicates that the model doesn't apply top-k sampling and doesn't allow setting `top_k` on requests. This field is no longer supported and is silently ignored on Gemini 3.6 Flash and newer models.
+   *
+   * Format: `int32`
+   * @type integer | undefined
+   */
+  topK?: number
+  /**
+   * @description Optional. The maximum cumulative probability of tokens to consider when sampling. The model uses combined Top-k and Top-p (nucleus) sampling. Tokens are sorted based on their assigned probabilities so that only the most likely tokens are considered. Top-k sampling directly limits the maximum number of tokens to consider, while Nucleus sampling limits the number of tokens based on the cumulative probability. Note: The default value varies by `Model` and is specified by the`Model.top_p` attribute returned from the `getModel` function. An empty `top_k` attribute indicates that the model doesn't apply top-k sampling and doesn't allow setting `top_k` on requests. This field is no longer supported and is silently ignored on Gemini 3.6 Flash and newer models.
+   *
+   * Format: `float`
+   * @type number | undefined
+   */
+  topP?: number
   /**
    * @description Optional. Enables enhanced civic answers. It may not be available for all models.
    * @type boolean | undefined
    */
   enableEnhancedCivicAnswers?: boolean
   /**
+   * @description Optional. An internal detail. Use `responseJsonSchema` rather than this field.
+   * @type unknown | undefined
+   */
+  responseJsonSchema?: unknown
+  /**
+   * @description Optional. Frequency penalty applied to the next token's logprobs, multiplied by the number of times each token has been seen in the respponse so far. A positive penalty will discourage the use of tokens that have already been used, proportional to the number of times the token has been used: The more a token is used, the more difficult it is for the model to use that token again increasing the vocabulary of responses. Caution: A _negative_ penalty will encourage the model to reuse tokens proportional to the number of times the token has been used. Small negative values will reduce the vocabulary of a response. Larger negative values will cause the model to start repeating a common token until it hits the max_output_tokens limit.
+   *
+   * Format: `float`
+   * @type number | undefined
+   */
+  frequencyPenalty?: number
+  /**
+   * @description Optional. Controls the randomness of the output. Note: The default value varies by model, see the `Model.temperature` attribute of the `Model` returned from the `getModel` function. Values can range from [0.0, 2.0]. This field is no longer supported and is silently ignored on Gemini 3.6 Flash and newer models.
+   *
+   * Format: `float`
+   * @type number | undefined
+   */
+  temperature?: number
+  /**
+   * @description Config for thinking features.
+   * @type object | undefined
+   */
+  thinkingConfig?: ThinkingConfig
+  /**
    * @description Optional. MIME type of the generated candidate text. Supported MIME types are: `text/plain`: (default) Text output. `application/json`: JSON response in the response candidates. `text/x.enum`: ENUM as a string response in the response candidates. Refer to the [docs](https://aistudio.google.com/docs/file-input-methods#text-file-types) for a list of all supported text MIME types.
    * @type string | undefined
    */
   responseMimeType?: string
   /**
-   * @description Optional. Number of generated responses to return. If unset, this will default to 1. Please note that this doesn't work for previous generation models (Gemini 1.0 family)
-   *
-   * Format: `int32`
-   * @type integer | undefined
+   * @description Optional. If specified, the media resolution specified will be used.
+   * @type string | undefined
    */
-  candidateCount?: number
-  /**
-   * @description The audio transcription configuration.
-   * @type object | undefined
-   */
-  audioTranscriptionConfig?: AudioTranscriptionConfig
+  mediaResolution?: GenerationConfigMediaResolutionEnumKey
   /**
    * @description Optional. Output schema of the generated response. This is an alternative to `response_schema` that accepts [JSON Schema](https://json-schema.org/). If set, `response_schema` must be omitted, but `response_mime_type` is required. While the full JSON Schema may be sent, not all features are supported. Specifically, only the following properties are supported: - `$id` - `$defs` - `$ref` - `$anchor` - `type` - `format` - `title` - `description` - `enum` (for strings and numbers) - `items` - `prefixItems` - `minItems` - `maxItems` - `minimum` - `maximum` - `anyOf` - `oneOf` (interpreted the same as `anyOf`) - `properties` - `additionalProperties` - `required` The non-standard `propertyOrdering` property may also be set. Cyclic references are unrolled to a limited degree and, as such, may only be used within non-required properties. (Nullable properties are not sufficient.) If `$ref` is set on a sub-schema, no other properties, except for than those starting as a `$`, may be set. Deprecated. Use `response_format` instead.
    * @type unknown | undefined
    */
   _responseJsonSchema?: unknown
   /**
-   * @description Optional. If specified, the media resolution specified will be used.
-   * @type string | undefined
+   * @description Optional. If enabled, the model will detect emotions and adapt its responses accordingly.
+   * @type boolean | undefined
    */
-  mediaResolution?: GenerationConfigMediaResolutionEnumKey
+  enableAffectiveDialog?: boolean
+  /**
+   * @description Optional. The requested modalities of the response. Represents the set of modalities that the model can return, and should be expected in the response. This is an exact match to the modalities of the response. A model may have multiple combinations of supported modalities. If the requested modalities do not match any of the supported combinations, an error will be returned. An empty list is equivalent to requesting only text.
+   * @type array | undefined
+   */
+  responseModalities?: GenerationConfigResponseModalitiesEnumKey[]
   /**
    * @description Optional. Only valid if response_logprobs=True. This sets the number of top logprobs, including the chosen candidate, to return at each decoding step in the Candidate.logprobs_result. The number must be in the range of [0, 20].
    *
@@ -1443,44 +1471,17 @@ export type GenerationConfig = {
    */
   seed?: number
   /**
+   * @description Configuration for the response output format. This is a flat object where each optional sub-field configures a specific output modality.
+   * @type object | undefined
+   */
+  responseFormat?: ResponseFormatConfig
+  /**
    * @description Optional. Presence penalty applied to the next token's logprobs if the token has already been seen in the response. This penalty is binary on/off and not dependant on the number of times the token is used (after the first). Use frequency_penalty for a penalty that increases with each use. A positive penalty will discourage the use of tokens that have already been used in the response, increasing the vocabulary. A negative penalty will encourage the use of tokens that have already been used in the response, decreasing the vocabulary.
    *
    * Format: `float`
    * @type number | undefined
    */
   presencePenalty?: number
-  /**
-   * @description Optional. If true, export the logprobs results in response.
-   * @type boolean | undefined
-   */
-  responseLogprobs?: boolean
-  /**
-   * @description Optional. If enabled, the model will detect emotions and adapt its responses accordingly.
-   * @type boolean | undefined
-   */
-  enableAffectiveDialog?: boolean
-  /**
-   * @description Optional. An internal detail. Use `responseJsonSchema` rather than this field.
-   * @type unknown | undefined
-   */
-  responseJsonSchema?: unknown
-  /**
-   * @description Optional. Controls the randomness of the output. Note: The default value varies by model, see the `Model.temperature` attribute of the `Model` returned from the `getModel` function. Values can range from [0.0, 2.0]. This field is no longer supported and is silently ignored on Gemini 3.6 Flash and newer models.
-   *
-   * Format: `float`
-   * @type number | undefined
-   */
-  temperature?: number
-  /**
-   * @description Config for thinking features.
-   * @type object | undefined
-   */
-  thinkingConfig?: ThinkingConfig
-  /**
-   * @description Configuration for the response output format. This is a flat object where each optional sub-field configures a specific output modality.
-   * @type object | undefined
-   */
-  responseFormat?: ResponseFormatConfig
 }
 
 /**
@@ -1501,19 +1502,19 @@ export type GoogleMaps = {
  */
 export type Interval = {
   /**
-   * @description Optional. Inclusive start of the interval. If specified, a Timestamp matching this interval will have to be the same or after the start.
-   *
-   * Format: `google-datetime`
-   * @type string | undefined
-   */
-  startTime?: string
-  /**
    * @description Optional. Exclusive end of the interval. If specified, a Timestamp matching this interval will have to be before the end.
    *
    * Format: `google-datetime`
    * @type string | undefined
    */
   endTime?: string
+  /**
+   * @description Optional. Inclusive start of the interval. If specified, a Timestamp matching this interval will have to be the same or after the start.
+   *
+   * Format: `google-datetime`
+   * @type string | undefined
+   */
+  startTime?: string
 }
 
 /**
@@ -1580,19 +1581,19 @@ export type GoogleSearchRetrieval = {
  */
 export type LatLng = {
   /**
-   * @description The longitude in degrees. It must be in the range [-180.0, +180.0].
-   *
-   * Format: `double`
-   * @type number | undefined
-   */
-  longitude?: number
-  /**
    * @description The latitude in degrees. It must be in the range [-90.0, +90.0].
    *
    * Format: `double`
    * @type number | undefined
    */
   latitude?: number
+  /**
+   * @description The longitude in degrees. It must be in the range [-180.0, +180.0].
+   *
+   * Format: `double`
+   * @type number | undefined
+   */
+  longitude?: number
 }
 
 /**
@@ -1601,22 +1602,17 @@ export type LatLng = {
  */
 export type StreamableHttpTransport = {
   /**
-   * @description The full URL for the MCPServer endpoint. Example: "https://api.example.com/mcp"
-   * @type string | undefined
-   */
-  url?: string
-  /**
    * @description Whether to close the client session when the transport closes.
    * @type boolean | undefined
    */
   terminateOnClose?: boolean
   /**
-   * @description Optional: Fields for authentication headers, timeouts, etc., if needed.
-   * @type object | undefined
+   * @description HTTP timeout for regular operations.
+   *
+   * Format: `google-duration`
+   * @type string | undefined
    */
-  headers?: {
-    [key: string]: string
-  }
+  timeout?: string
   /**
    * @description Timeout for SSE read operations.
    *
@@ -1625,12 +1621,17 @@ export type StreamableHttpTransport = {
    */
   sseReadTimeout?: string
   /**
-   * @description HTTP timeout for regular operations.
-   *
-   * Format: `google-duration`
+   * @description The full URL for the MCPServer endpoint. Example: "https://api.example.com/mcp"
    * @type string | undefined
    */
-  timeout?: string
+  url?: string
+  /**
+   * @description Optional: Fields for authentication headers, timeouts, etc., if needed.
+   * @type object | undefined
+   */
+  headers?: {
+    [key: string]: string
+  }
 }
 
 /**
@@ -1639,15 +1640,15 @@ export type StreamableHttpTransport = {
  */
 export type McpServer = {
   /**
-   * @description The name of the MCPServer.
-   * @type string | undefined
-   */
-  name?: string
-  /**
    * @description A transport that can stream HTTP requests and responses.
    * @type object | undefined
    */
   streamableHttpTransport?: StreamableHttpTransport
+  /**
+   * @description The name of the MCPServer.
+   * @type string | undefined
+   */
+  name?: string
 }
 
 /**
@@ -1656,16 +1657,28 @@ export type McpServer = {
  */
 export type RetrievalConfig = {
   /**
-   * @description An object that represents a latitude/longitude pair. This is expressed as a pair of doubles to represent degrees latitude and degrees longitude. Unless specified otherwise, this object must conform to the WGS84 standard. Values must be within normalized ranges.
-   * @type object | undefined
-   */
-  latLng?: LatLng
-  /**
    * @description Optional. The language code of the user. Language code for content. Use language tags defined by [BCP47](https://www.rfc-editor.org/rfc/bcp/bcp47.txt).
    * @type string | undefined
    */
   languageCode?: string
+  /**
+   * @description An object that represents a latitude/longitude pair. This is expressed as a pair of doubles to represent degrees latitude and degrees longitude. Unless specified otherwise, this object must conform to the WGS84 standard. Values must be within normalized ranges.
+   * @type object | undefined
+   */
+  latLng?: LatLng
 }
+
+export const safetySettingThresholdEnum = {
+  HARM_BLOCK_THRESHOLD_UNSPECIFIED: 'HARM_BLOCK_THRESHOLD_UNSPECIFIED',
+  BLOCK_LOW_AND_ABOVE: 'BLOCK_LOW_AND_ABOVE',
+  BLOCK_MEDIUM_AND_ABOVE: 'BLOCK_MEDIUM_AND_ABOVE',
+  BLOCK_ONLY_HIGH: 'BLOCK_ONLY_HIGH',
+  BLOCK_NONE: 'BLOCK_NONE',
+  OFF: 'OFF',
+} as const
+
+export type SafetySettingThresholdEnumKey =
+  (typeof safetySettingThresholdEnum)[keyof typeof safetySettingThresholdEnum]
 
 export const safetySettingCategoryEnum = {
   HARM_CATEGORY_UNSPECIFIED: 'HARM_CATEGORY_UNSPECIFIED',
@@ -1686,33 +1699,21 @@ export const safetySettingCategoryEnum = {
 export type SafetySettingCategoryEnumKey =
   (typeof safetySettingCategoryEnum)[keyof typeof safetySettingCategoryEnum]
 
-export const safetySettingThresholdEnum = {
-  HARM_BLOCK_THRESHOLD_UNSPECIFIED: 'HARM_BLOCK_THRESHOLD_UNSPECIFIED',
-  BLOCK_LOW_AND_ABOVE: 'BLOCK_LOW_AND_ABOVE',
-  BLOCK_MEDIUM_AND_ABOVE: 'BLOCK_MEDIUM_AND_ABOVE',
-  BLOCK_ONLY_HIGH: 'BLOCK_ONLY_HIGH',
-  BLOCK_NONE: 'BLOCK_NONE',
-  OFF: 'OFF',
-} as const
-
-export type SafetySettingThresholdEnumKey =
-  (typeof safetySettingThresholdEnum)[keyof typeof safetySettingThresholdEnum]
-
 /**
  * @description Safety setting, affecting the safety-blocking behavior. Passing a safety setting for a category changes the allowed probability that content is blocked.
  * @type object
  */
 export type SafetySetting = {
   /**
-   * @description Required. The category for this setting.
-   * @type string | undefined
-   */
-  category?: SafetySettingCategoryEnumKey
-  /**
    * @description Required. Controls the probability threshold at which harm is blocked.
    * @type string | undefined
    */
   threshold?: SafetySettingThresholdEnumKey
+  /**
+   * @description Required. The category for this setting.
+   * @type string | undefined
+   */
+  category?: SafetySettingCategoryEnumKey
 }
 
 /**
@@ -1727,45 +1728,45 @@ export type UrlContext = object
  */
 export type Tool = {
   /**
-   * @description GoogleSearch tool type. Tool to support Google Search in Model. Powered by Google.
-   * @type object | undefined
-   */
-  googleSearch?: GoogleSearch
-  /**
    * @description Tool that executes code generated by the model, and automatically returns the result to the model. See also `ExecutableCode` and `CodeExecutionResult` which are only generated when using this tool.
    * @type object | undefined
    */
   codeExecution?: CodeExecution
+  /**
+   * @description Tool to support URL context retrieval.
+   * @type object | undefined
+   */
+  urlContext?: UrlContext
   /**
    * @description Computer Use tool type.
    * @type object | undefined
    */
   computerUse?: ComputerUse
   /**
-   * @description Optional. MCP Servers to connect to.
-   * @type array | undefined
-   */
-  mcpServers?: McpServer[]
-  /**
    * @description Tool to retrieve public web data for grounding, powered by Google.
    * @type object | undefined
    */
   googleSearchRetrieval?: GoogleSearchRetrieval
   /**
-   * @description The FileSearch tool that retrieves knowledge from Semantic Retrieval corpora. Files are imported to Semantic Retrieval corpora using the ImportFile API.
-   * @type object | undefined
+   * @description Optional. MCP Servers to connect to.
+   * @type array | undefined
    */
-  fileSearch?: FileSearch
+  mcpServers?: McpServer[]
   /**
    * @description The GoogleMaps Tool that provides geospatial context for the user's query.
    * @type object | undefined
    */
   googleMaps?: GoogleMaps
   /**
-   * @description Tool to support URL context retrieval.
+   * @description GoogleSearch tool type. Tool to support Google Search in Model. Powered by Google.
    * @type object | undefined
    */
-  urlContext?: UrlContext
+  googleSearch?: GoogleSearch
+  /**
+   * @description The FileSearch tool that retrieves knowledge from Semantic Retrieval corpora. Files are imported to Semantic Retrieval corpora using the ImportFile API.
+   * @type object | undefined
+   */
+  fileSearch?: FileSearch
   /**
    * @description Optional. A list of `FunctionDeclarations` available to the model that can be used for function calling. The model or system does not execute the function. Instead the defined function may be returned as a FunctionCall with arguments to the client side for execution. The model may decide to call a subset of these functions by populating FunctionCall in the response. The next conversation turn may contain a FunctionResponse with the Content.role "function" generation context for the next model turn.
    * @type array | undefined
@@ -1846,6 +1847,482 @@ export type AttributionSourceId = {
    * @type object | undefined
    */
   groundingPassage?: GroundingPassageId
+}
+
+/**
+ * @description The transcription of an audio part. For multi-speaker audio, each speaker segment is a separate Part with its own AudioTranscription carrying the speaker_label.
+ * @type object
+ */
+export type AudioTranscriptionAc0Aef55 = {
+  /**
+   * @description Optional. A label identifying the speaker of this audio segment (e.g. "spk_1", "spk_2"). Present when diarization is set.
+   * @type string | undefined
+   */
+  speakerLabel?: string
+  /**
+   * @description Optional. Detailed word-level transcriptions and timing details. Present when word_timestamp is set.
+   * @type array | undefined
+   */
+  words?: WordInfo[]
+  /**
+   * @description Required. The transcription text of this audio segment.
+   * @type string | undefined
+   */
+  text?: string
+}
+
+/**
+ * @description Metadata describes the input video content. Set this in `Part.video_metadata` or `FunctionResponsePart.video_metadata` when `inline_data` or `file_data` contains video to configure static video preprocessing (such as time clipping, frame rate, maximum frame count, or extracted content layers).
+ * @type object
+ */
+export type VideoMetadata909868E7 = {
+  /**
+   * @description Optional. The end offset of the video.
+   *
+   * Format: `google-duration`
+   * @type string | undefined
+   */
+  endOffset?: string
+  /**
+   * @description Optional. The start offset of the video.
+   *
+   * Format: `google-duration`
+   * @type string | undefined
+   */
+  startOffset?: string
+  /**
+   * @description Optional. The frame rate of the video sent to the model. If not specified, the default value will be 1.0. The fps range is (0.0, 24.0].
+   *
+   * Format: `double`
+   * @type number | undefined
+   */
+  fps?: number
+}
+
+/**
+ * @description Speech metadata for `text` parts.
+ * @type object
+ */
+export type SpeechMetadataEfe8Ac36 = {
+  /**
+   * @description Optional. Optional style instruction for the speech synthesis.
+   * @type string | undefined
+   */
+  style?: string
+  /**
+   * @description Optional. Optional speaker name for multi-speaker synthesis.
+   * @type string | undefined
+   */
+  speaker?: string
+}
+
+export const codeExecutionResult409C8A7DOutcomeEnum = {
+  OUTCOME_UNSPECIFIED: 'OUTCOME_UNSPECIFIED',
+  OUTCOME_OK: 'OUTCOME_OK',
+  OUTCOME_FAILED: 'OUTCOME_FAILED',
+  OUTCOME_DEADLINE_EXCEEDED: 'OUTCOME_DEADLINE_EXCEEDED',
+} as const
+
+export type CodeExecutionResult409C8A7DOutcomeEnumKey =
+  (typeof codeExecutionResult409C8A7DOutcomeEnum)[keyof typeof codeExecutionResult409C8A7DOutcomeEnum]
+
+/**
+ * @description Result of executing the `ExecutableCode`. Generated only when the `CodeExecution` tool is used.
+ * @type object
+ */
+export type CodeExecutionResult409C8A7D = {
+  /**
+   * @description Optional. Contains stdout when code execution is successful, stderr or other description otherwise.
+   * @type string | undefined
+   */
+  output?: string
+  /**
+   * @description Required. Outcome of the code execution.
+   * @type string | undefined
+   */
+  outcome?: CodeExecutionResult409C8A7DOutcomeEnumKey
+  /**
+   * @description Optional. The identifier of the `ExecutableCode` part this result is for. Only populated if the corresponding `ExecutableCode` has an id.
+   * @type string | undefined
+   */
+  id?: string
+}
+
+export const executableCode98F6EadcLanguageEnum = {
+  LANGUAGE_UNSPECIFIED: 'LANGUAGE_UNSPECIFIED',
+  PYTHON: 'PYTHON',
+} as const
+
+export type ExecutableCode98F6EadcLanguageEnumKey =
+  (typeof executableCode98F6EadcLanguageEnum)[keyof typeof executableCode98F6EadcLanguageEnum]
+
+/**
+ * @description Code generated by the model that is meant to be executed, and the result returned to the model. Only generated when using the `CodeExecution` tool, in which the code will be automatically executed, and a corresponding `CodeExecutionResult` will also be generated.
+ * @type object
+ */
+export type ExecutableCode98F6Eadc = {
+  /**
+   * @description Required. Programming language of the `code`.
+   * @type string | undefined
+   */
+  language?: ExecutableCode98F6EadcLanguageEnumKey
+  /**
+   * @description Required. The code to be executed.
+   * @type string | undefined
+   */
+  code?: string
+  /**
+   * @description Optional. Unique identifier of the `ExecutableCode` part. The server returns the `CodeExecutionResult` with the matching `id`.
+   * @type string | undefined
+   */
+  id?: string
+}
+
+export const toolCallE9212051ToolTypeEnum = {
+  TOOL_TYPE_UNSPECIFIED: 'TOOL_TYPE_UNSPECIFIED',
+  GOOGLE_SEARCH_WEB: 'GOOGLE_SEARCH_WEB',
+  GOOGLE_SEARCH_IMAGE: 'GOOGLE_SEARCH_IMAGE',
+  URL_CONTEXT: 'URL_CONTEXT',
+  GOOGLE_MAPS: 'GOOGLE_MAPS',
+  FILE_SEARCH: 'FILE_SEARCH',
+  MEDIA_PROCESSING: 'MEDIA_PROCESSING',
+} as const
+
+export type ToolCallE9212051ToolTypeEnumKey =
+  (typeof toolCallE9212051ToolTypeEnum)[keyof typeof toolCallE9212051ToolTypeEnum]
+
+/**
+ * @description A predicted server-side `ToolCall` returned from the model. This message contains information about a tool that the model wants to invoke. The client is NOT expected to execute this `ToolCall`. Instead, the client should pass this `ToolCall` back to the API in a subsequent turn within a `Content` message, along with the corresponding `ToolResponse`.
+ * @type object
+ */
+export type ToolCallE9212051 = {
+  /**
+   * @description Optional. The tool call arguments. Example: {"arg1" : "value1", "arg2" : "value2" , ...}
+   * @type object | undefined
+   */
+  args?: {
+    [key: string]: unknown
+  }
+  /**
+   * @description Optional. Unique identifier of the tool call. The server returns the tool response with the matching `id`.
+   * @type string | undefined
+   */
+  id?: string
+  /**
+   * @description Optional. The name of the tool that was called.
+   * @type string | undefined
+   */
+  toolName?: string
+  /**
+   * @description Required. The type of tool that was called.
+   * @type string | undefined
+   */
+  toolType?: ToolCallE9212051ToolTypeEnumKey
+}
+
+export const toolResponse7E356Be4ToolTypeEnum = {
+  TOOL_TYPE_UNSPECIFIED: 'TOOL_TYPE_UNSPECIFIED',
+  GOOGLE_SEARCH_WEB: 'GOOGLE_SEARCH_WEB',
+  GOOGLE_SEARCH_IMAGE: 'GOOGLE_SEARCH_IMAGE',
+  URL_CONTEXT: 'URL_CONTEXT',
+  GOOGLE_MAPS: 'GOOGLE_MAPS',
+  FILE_SEARCH: 'FILE_SEARCH',
+  MEDIA_PROCESSING: 'MEDIA_PROCESSING',
+} as const
+
+export type ToolResponse7E356Be4ToolTypeEnumKey =
+  (typeof toolResponse7E356Be4ToolTypeEnum)[keyof typeof toolResponse7E356Be4ToolTypeEnum]
+
+/**
+ * @description The output from a server-side `ToolCall` execution. This message contains the results of a tool invocation that was initiated by a `ToolCall` from the model. The client should pass this `ToolResponse` back to the API in a subsequent turn within a `Content` message, along with the corresponding `ToolCall`.
+ * @type object
+ */
+export type ToolResponse7E356Be4 = {
+  /**
+   * @description Optional. The identifier of the tool call this response is for.
+   * @type string | undefined
+   */
+  id?: string
+  /**
+   * @description Required. The type of tool that was called, matching the `tool_type` in the corresponding `ToolCall`.
+   * @type string | undefined
+   */
+  toolType?: ToolResponse7E356Be4ToolTypeEnumKey
+  /**
+   * @description Optional. The tool response.
+   * @type object | undefined
+   */
+  response?: {
+    [key: string]: unknown
+  }
+}
+
+/**
+ * @description A predicted `FunctionCall` returned from the model that contains a string representing the `FunctionDeclaration.name` with the arguments and their values.
+ * @type object
+ */
+export type FunctionCall312Cadc3 = {
+  /**
+   * @description Optional. Unique identifier of the function call. If populated, the client to execute the `function_call` and return the response with the matching `id`.
+   * @type string | undefined
+   */
+  id?: string
+  /**
+   * @description Optional. The function parameters and values in JSON object format.
+   * @type object | undefined
+   */
+  args?: {
+    [key: string]: unknown
+  }
+  /**
+   * @description Required. The name of the function to call. Must be a-z, A-Z, 0-9, or contain underscores and dashes, with a maximum length of 128.
+   * @type string | undefined
+   */
+  name?: string
+}
+
+/**
+ * @description URI based data.
+ * @type object
+ */
+export type FileData08C6A65D = {
+  /**
+   * @description Optional. Specifies the name used to refer to this file to the model (e.g. "my_file.pdf"). Used as the file reference identifier when `verbalization_mode` is set to `REFERENCE_ONLY`.
+   * @type string | undefined
+   */
+  displayName?: string
+  /**
+   * @description Required. URI.
+   * @type string | undefined
+   */
+  fileUri?: string
+  /**
+   * @description Optional. The IANA standard MIME type of the source data.
+   * @type string | undefined
+   */
+  mimeType?: string
+}
+
+/**
+ * @description URI based data for function response.
+ * @type object
+ */
+export type FunctionResponseFileData8A95F30C = {
+  /**
+   * @description The IANA standard MIME type of the source data. If an unsupported MIME type is provided, an error will be returned. For a complete list of supported types, see [Multimodal function responses](https://aistudio.google.com/docs/function-calling#multimodal) and [Supported file formats](https://aistudio.google.com/docs/file-input-methods#supported-content-types).
+   * @type string | undefined
+   */
+  mimeType?: string
+  /**
+   * @description Required. URI.
+   * @type string | undefined
+   */
+  fileUri?: string
+  /**
+   * @description Optional. Display name of the file. Used to provide a label or filename to distinguish file data, and to reference the file from `FunctionResponse.response` (for example, via `{"$ref": "DISPLAY_NAME"}`).
+   * @type string | undefined
+   */
+  displayName?: string
+}
+
+export const functionResponsePartC1Cc0Da5MediaProcessingEnum = {
+  MEDIA_PROCESSING_UNSPECIFIED: 'MEDIA_PROCESSING_UNSPECIFIED',
+  STATIC: 'STATIC',
+  AGENTIC: 'AGENTIC',
+} as const
+
+export type FunctionResponsePartC1Cc0Da5MediaProcessingEnumKey =
+  (typeof functionResponsePartC1Cc0Da5MediaProcessingEnum)[keyof typeof functionResponsePartC1Cc0Da5MediaProcessingEnum]
+
+/**
+ * @description A datatype containing media that is part of a `FunctionResponse` message. A `FunctionResponsePart` consists of data which has an associated datatype. A `FunctionResponsePart` can only contain one of the accepted types in `FunctionResponsePart.data`. Media can be passed as raw bytes (`inline_data`) or by URI (`file_data`) with an IANA MIME type identifying the type and subtype of the media.
+ * @type object
+ */
+export type FunctionResponsePartC1Cc0Da5 = {
+  /**
+   * @description URI based data for function response.
+   * @type object | undefined
+   */
+  fileData?: FunctionResponseFileData8A95F30C
+  /**
+   * @description Raw media bytes for function response. Text should not be sent as raw bytes, use the 'FunctionResponse.response' field.
+   * @type object | undefined
+   */
+  inlineData?: FunctionResponseBlob
+  /**
+   * @description Optional. How the model processes this part's media for understanding. Only meaningful for video parts (`inline_data` or `file_data` with video mime). Non-video parts ignore this field.
+   * @type string | undefined
+   */
+  mediaProcessing?: FunctionResponsePartC1Cc0Da5MediaProcessingEnumKey
+}
+
+export const functionResponse0E7A931ESchedulingEnum = {
+  SCHEDULING_UNSPECIFIED: 'SCHEDULING_UNSPECIFIED',
+  SILENT: 'SILENT',
+  WHEN_IDLE: 'WHEN_IDLE',
+  INTERRUPT: 'INTERRUPT',
+} as const
+
+export type FunctionResponse0E7A931ESchedulingEnumKey =
+  (typeof functionResponse0E7A931ESchedulingEnum)[keyof typeof functionResponse0E7A931ESchedulingEnum]
+
+/**
+ * @description The result output from a `FunctionCall` that contains a string representing the `FunctionDeclaration.name` and a structured JSON object containing any output from the function is used as context to the model. This should contain the result of a`FunctionCall` made based on model prediction.
+ * @type object
+ */
+export type FunctionResponse0E7A931E = {
+  /**
+   * @description Required. The name of the function to call. Must be a-z, A-Z, 0-9, or contain underscores and dashes, with a maximum length of 128.
+   * @type string | undefined
+   */
+  name?: string
+  /**
+   * @description Optional. Specifies how the response should be scheduled in the conversation. Only applicable to NON_BLOCKING function calls, is ignored otherwise. Defaults to WHEN_IDLE.
+   * @type string | undefined
+   */
+  scheduling?: FunctionResponse0E7A931ESchedulingEnumKey
+  /**
+   * @description Required. The function response in JSON object format. Callers can use any keys of their choice that fit the function's syntax to return the function output, e.g. "output", "result", etc. In particular, if the function call failed to execute, the response can have an "error" key to return error details to the model. Multimedia can be included by using a subobject containing a single "$ref" key whose value is the `inline_data.display_name` or `file_data.display_name` of a `FunctionResponsePart` holding the multimedia. See [Multimodal function responses](https://aistudio.google.com/docs/function-calling#multimodal).
+   * @type object | undefined
+   */
+  response?: {
+    [key: string]: unknown
+  }
+  /**
+   * @description Optional. Ordered `Parts` that constitute a function response. Parts may have different IANA MIME types.
+   * @type array | undefined
+   */
+  parts?: FunctionResponsePartC1Cc0Da5[]
+  /**
+   * @description Optional. Signals that function call continues, and more responses will be returned, turning the function call into a generator. Is only applicable to NON_BLOCKING function calls, is ignored otherwise. If set to false, future responses will not be considered. It is allowed to return empty `response` with `will_continue=False` to signal that the function call is finished. This may still trigger the model generation. To avoid triggering the generation and finish the function call, additionally set `scheduling` to `SILENT`.
+   * @type boolean | undefined
+   */
+  willContinue?: boolean
+  /**
+   * @description Optional. The identifier of the function call this response is for. Populated by the client to match the corresponding function call `id`.
+   * @type string | undefined
+   */
+  id?: string
+}
+
+export const part95268964MediaProcessingEnum = {
+  MEDIA_PROCESSING_UNSPECIFIED: 'MEDIA_PROCESSING_UNSPECIFIED',
+  STATIC: 'STATIC',
+  AGENTIC: 'AGENTIC',
+} as const
+
+export type Part95268964MediaProcessingEnumKey =
+  (typeof part95268964MediaProcessingEnum)[keyof typeof part95268964MediaProcessingEnum]
+
+/**
+ * @description A datatype containing media that is part of a multi-part `Content` message. A `Part` consists of data which has an associated datatype. A `Part` can only contain one of the accepted types in `Part.data`. A `Part` must have a fixed IANA MIME type identifying the type and subtype of the media if the `inline_data` field is filled with raw bytes.
+ * @type object
+ */
+export type Part95268964 = {
+  /**
+   * @description Metadata describes the input video content. Set this in `Part.video_metadata` or `FunctionResponsePart.video_metadata` when `inline_data` or `file_data` contains video to configure static video preprocessing (such as time clipping, frame rate, maximum frame count, or extracted content layers).
+   * @type object | undefined
+   */
+  videoMetadata?: VideoMetadata909868E7
+  /**
+   * @description Custom metadata associated with the Part. Agents using genai.Part as content representation may need to keep track of the additional information. For example it can be name of a file/source from which the Part originates or a way to multiplex multiple Part streams.
+   * @type object | undefined
+   */
+  partMetadata?: {
+    [key: string]: unknown
+  }
+  /**
+   * @description Speech metadata for `text` parts.
+   * @type object | undefined
+   */
+  speechMetadata?: SpeechMetadataEfe8Ac36
+  /**
+   * @description Result of executing the `ExecutableCode`. Generated only when the `CodeExecution` tool is used.
+   * @type object | undefined
+   */
+  codeExecutionResult?: CodeExecutionResult409C8A7D
+  /**
+   * @description Raw media bytes. Text should not be sent as raw bytes, use the 'text' field.
+   * @type object | undefined
+   */
+  inlineData?: Blob
+  /**
+   * @description Inline text.
+   * @type string | undefined
+   */
+  text?: string
+  /**
+   * @description Code generated by the model that is meant to be executed, and the result returned to the model. Only generated when using the `CodeExecution` tool, in which the code will be automatically executed, and a corresponding `CodeExecutionResult` will also be generated.
+   * @type object | undefined
+   */
+  executableCode?: ExecutableCode98F6Eadc
+  /**
+   * @description Optional. Indicates if the part is thought from the model.
+   * @type boolean | undefined
+   */
+  thought?: boolean
+  /**
+   * @description Optional. How the model processes this part's media for understanding. Only meaningful for video parts (`inline_data` or `file_data` with video mime). Non-video parts ignore this field.
+   * @type string | undefined
+   */
+  mediaProcessing?: Part95268964MediaProcessingEnumKey
+  /**
+   * @description A predicted server-side `ToolCall` returned from the model. This message contains information about a tool that the model wants to invoke. The client is NOT expected to execute this `ToolCall`. Instead, the client should pass this `ToolCall` back to the API in a subsequent turn within a `Content` message, along with the corresponding `ToolResponse`.
+   * @type object | undefined
+   */
+  toolCall?: ToolCallE9212051
+  /**
+   * @description The output from a server-side `ToolCall` execution. This message contains the results of a tool invocation that was initiated by a `ToolCall` from the model. The client should pass this `ToolResponse` back to the API in a subsequent turn within a `Content` message, along with the corresponding `ToolCall`.
+   * @type object | undefined
+   */
+  toolResponse?: ToolResponse7E356Be4
+  /**
+   * @description A predicted `FunctionCall` returned from the model that contains a string representing the `FunctionDeclaration.name` with the arguments and their values.
+   * @type object | undefined
+   */
+  functionCall?: FunctionCall312Cadc3
+  /**
+   * @description The transcription of an audio part. For multi-speaker audio, each speaker segment is a separate Part with its own AudioTranscription carrying the speaker_label.
+   * @type object | undefined
+   */
+  audioTranscription?: AudioTranscriptionAc0Aef55
+  /**
+   * @description URI based data.
+   * @type object | undefined
+   */
+  fileData?: FileData08C6A65D
+  /**
+   * @description The result output from a `FunctionCall` that contains a string representing the `FunctionDeclaration.name` and a structured JSON object containing any output from the function is used as context to the model. This should contain the result of a`FunctionCall` made based on model prediction.
+   * @type object | undefined
+   */
+  functionResponse?: FunctionResponse0E7A931E
+  /**
+   * @description Media resolution for tokenization.
+   * @type object | undefined
+   */
+  mediaResolution?: V1MainMediaResolution
+  /**
+   * @description Optional. An opaque signature for the thought so it can be reused in subsequent requests.
+   * @type string | undefined
+   */
+  thoughtSignature?: string
+}
+
+/**
+ * @description The base structured datatype containing multi-part content of a message. A `Content` includes a `role` field designating the producer of the `Content` and a `parts` field containing multi-part data that contains the content of the message turn.
+ * @type object
+ */
+export type Content6852096E = {
+  /**
+   * @description Optional. The producer of the content. Must be either 'user' or 'model'. Useful to set for multi-turn conversations, otherwise can be left blank or unset.
+   * @type string | undefined
+   */
+  role?: string
+  /**
+   * @description Ordered `Parts` that constitute a single message. Parts may have different MIME types.
+   * @type array | undefined
+   */
+  parts?: Part95268964[]
 }
 
 /**
@@ -2352,7 +2829,7 @@ export type GroundingAttribution = {
    * @description The base structured datatype containing multi-part content of a message. A `Content` includes a `role` field designating the producer of the `Content` and a `parts` field containing multi-part data that contains the content of the message turn.
    * @type object | undefined
    */
-  content?: Content
+  content?: Content6852096E
 }
 
 /**
@@ -2455,7 +2932,7 @@ export type Candidate = {
    * @description The base structured datatype containing multi-part content of a message. A `Content` includes a `role` field designating the producer of the `Content` and a `parts` field containing multi-part data that contains the content of the message turn.
    * @type object | undefined
    */
-  content?: Content
+  content?: Content6852096E
   /**
    * @description Metadata returned to client when grounding is enabled.
    * @type object | undefined
@@ -2706,6 +3183,1082 @@ export type UsageMetadata = {
   thoughtsTokenCount?: number
 }
 
+/**
+ * @description The transcription of an audio part. For multi-speaker audio, each speaker segment is a separate Part with its own AudioTranscription carrying the speaker_label.
+ * @type object
+ */
+export type AudioTranscription09C71486 = {
+  /**
+   * @description Optional. A label identifying the speaker of this audio segment (e.g. "spk_1", "spk_2"). Present when diarization is set.
+   * @type string | undefined
+   */
+  speakerLabel?: string
+  /**
+   * @description Optional. Detailed word-level transcriptions and timing details. Present when word_timestamp is set.
+   * @type array | undefined
+   */
+  words?: WordInfo[]
+  /**
+   * @description Required. The transcription text of this audio segment.
+   * @type string | undefined
+   */
+  text?: string
+}
+
+/**
+ * @description Metadata describes the input video content. Set this in `Part.video_metadata` or `FunctionResponsePart.video_metadata` when `inline_data` or `file_data` contains video to configure static video preprocessing (such as time clipping, frame rate, maximum frame count, or extracted content layers).
+ * @type object
+ */
+export type VideoMetadataDb9121C4 = {
+  /**
+   * @description Optional. The end offset of the video.
+   *
+   * Format: `google-duration`
+   * @type string | undefined
+   */
+  endOffset?: string
+  /**
+   * @description Optional. The start offset of the video.
+   *
+   * Format: `google-duration`
+   * @type string | undefined
+   */
+  startOffset?: string
+  /**
+   * @description Optional. The frame rate of the video sent to the model. If not specified, the default value will be 1.0. The fps range is (0.0, 24.0].
+   *
+   * Format: `double`
+   * @type number | undefined
+   */
+  fps?: number
+}
+
+/**
+ * @description Speech metadata for `text` parts.
+ * @type object
+ */
+export type SpeechMetadata2F5B8Ed3 = {
+  /**
+   * @description Optional. Optional style instruction for the speech synthesis.
+   * @type string | undefined
+   */
+  style?: string
+  /**
+   * @description Optional. Optional speaker name for multi-speaker synthesis.
+   * @type string | undefined
+   */
+  speaker?: string
+}
+
+export const codeExecutionResult211F393EOutcomeEnum = {
+  OUTCOME_UNSPECIFIED: 'OUTCOME_UNSPECIFIED',
+  OUTCOME_OK: 'OUTCOME_OK',
+  OUTCOME_FAILED: 'OUTCOME_FAILED',
+  OUTCOME_DEADLINE_EXCEEDED: 'OUTCOME_DEADLINE_EXCEEDED',
+} as const
+
+export type CodeExecutionResult211F393EOutcomeEnumKey =
+  (typeof codeExecutionResult211F393EOutcomeEnum)[keyof typeof codeExecutionResult211F393EOutcomeEnum]
+
+/**
+ * @description Result of executing the `ExecutableCode`. Generated only when the `CodeExecution` tool is used.
+ * @type object
+ */
+export type CodeExecutionResult211F393E = {
+  /**
+   * @description Optional. Contains stdout when code execution is successful, stderr or other description otherwise.
+   * @type string | undefined
+   */
+  output?: string
+  /**
+   * @description Required. Outcome of the code execution.
+   * @type string | undefined
+   */
+  outcome?: CodeExecutionResult211F393EOutcomeEnumKey
+  /**
+   * @description Optional. The identifier of the `ExecutableCode` part this result is for. Only populated if the corresponding `ExecutableCode` has an id.
+   * @type string | undefined
+   */
+  id?: string
+}
+
+export const executableCode650A5C4DLanguageEnum = {
+  LANGUAGE_UNSPECIFIED: 'LANGUAGE_UNSPECIFIED',
+  PYTHON: 'PYTHON',
+} as const
+
+export type ExecutableCode650A5C4DLanguageEnumKey =
+  (typeof executableCode650A5C4DLanguageEnum)[keyof typeof executableCode650A5C4DLanguageEnum]
+
+/**
+ * @description Code generated by the model that is meant to be executed, and the result returned to the model. Only generated when using the `CodeExecution` tool, in which the code will be automatically executed, and a corresponding `CodeExecutionResult` will also be generated.
+ * @type object
+ */
+export type ExecutableCode650A5C4D = {
+  /**
+   * @description Required. Programming language of the `code`.
+   * @type string | undefined
+   */
+  language?: ExecutableCode650A5C4DLanguageEnumKey
+  /**
+   * @description Required. The code to be executed.
+   * @type string | undefined
+   */
+  code?: string
+  /**
+   * @description Optional. Unique identifier of the `ExecutableCode` part. The server returns the `CodeExecutionResult` with the matching `id`.
+   * @type string | undefined
+   */
+  id?: string
+}
+
+export const toolCall086D4A4AToolTypeEnum = {
+  TOOL_TYPE_UNSPECIFIED: 'TOOL_TYPE_UNSPECIFIED',
+  GOOGLE_SEARCH_WEB: 'GOOGLE_SEARCH_WEB',
+  GOOGLE_SEARCH_IMAGE: 'GOOGLE_SEARCH_IMAGE',
+  URL_CONTEXT: 'URL_CONTEXT',
+  GOOGLE_MAPS: 'GOOGLE_MAPS',
+  FILE_SEARCH: 'FILE_SEARCH',
+  MEDIA_PROCESSING: 'MEDIA_PROCESSING',
+} as const
+
+export type ToolCall086D4A4AToolTypeEnumKey =
+  (typeof toolCall086D4A4AToolTypeEnum)[keyof typeof toolCall086D4A4AToolTypeEnum]
+
+/**
+ * @description A predicted server-side `ToolCall` returned from the model. This message contains information about a tool that the model wants to invoke. The client is NOT expected to execute this `ToolCall`. Instead, the client should pass this `ToolCall` back to the API in a subsequent turn within a `Content` message, along with the corresponding `ToolResponse`.
+ * @type object
+ */
+export type ToolCall086D4A4A = {
+  /**
+   * @description Optional. The tool call arguments. Example: {"arg1" : "value1", "arg2" : "value2" , ...}
+   * @type object | undefined
+   */
+  args?: {
+    [key: string]: unknown
+  }
+  /**
+   * @description Optional. Unique identifier of the tool call. The server returns the tool response with the matching `id`.
+   * @type string | undefined
+   */
+  id?: string
+  /**
+   * @description Optional. The name of the tool that was called.
+   * @type string | undefined
+   */
+  toolName?: string
+  /**
+   * @description Required. The type of tool that was called.
+   * @type string | undefined
+   */
+  toolType?: ToolCall086D4A4AToolTypeEnumKey
+}
+
+export const toolResponse5Bc0A185ToolTypeEnum = {
+  TOOL_TYPE_UNSPECIFIED: 'TOOL_TYPE_UNSPECIFIED',
+  GOOGLE_SEARCH_WEB: 'GOOGLE_SEARCH_WEB',
+  GOOGLE_SEARCH_IMAGE: 'GOOGLE_SEARCH_IMAGE',
+  URL_CONTEXT: 'URL_CONTEXT',
+  GOOGLE_MAPS: 'GOOGLE_MAPS',
+  FILE_SEARCH: 'FILE_SEARCH',
+  MEDIA_PROCESSING: 'MEDIA_PROCESSING',
+} as const
+
+export type ToolResponse5Bc0A185ToolTypeEnumKey =
+  (typeof toolResponse5Bc0A185ToolTypeEnum)[keyof typeof toolResponse5Bc0A185ToolTypeEnum]
+
+/**
+ * @description The output from a server-side `ToolCall` execution. This message contains the results of a tool invocation that was initiated by a `ToolCall` from the model. The client should pass this `ToolResponse` back to the API in a subsequent turn within a `Content` message, along with the corresponding `ToolCall`.
+ * @type object
+ */
+export type ToolResponse5Bc0A185 = {
+  /**
+   * @description Optional. The identifier of the tool call this response is for.
+   * @type string | undefined
+   */
+  id?: string
+  /**
+   * @description Required. The type of tool that was called, matching the `tool_type` in the corresponding `ToolCall`.
+   * @type string | undefined
+   */
+  toolType?: ToolResponse5Bc0A185ToolTypeEnumKey
+  /**
+   * @description Optional. The tool response.
+   * @type object | undefined
+   */
+  response?: {
+    [key: string]: unknown
+  }
+}
+
+/**
+ * @description A predicted `FunctionCall` returned from the model that contains a string representing the `FunctionDeclaration.name` with the arguments and their values.
+ * @type object
+ */
+export type FunctionCall8371E818 = {
+  /**
+   * @description Optional. Unique identifier of the function call. If populated, the client to execute the `function_call` and return the response with the matching `id`.
+   * @type string | undefined
+   */
+  id?: string
+  /**
+   * @description Optional. The function parameters and values in JSON object format.
+   * @type object | undefined
+   */
+  args?: {
+    [key: string]: unknown
+  }
+  /**
+   * @description Required. The name of the function to call. Must be a-z, A-Z, 0-9, or contain underscores and dashes, with a maximum length of 128.
+   * @type string | undefined
+   */
+  name?: string
+}
+
+/**
+ * @description URI based data.
+ * @type object
+ */
+export type FileData27Deba5E = {
+  /**
+   * @description Optional. Specifies the name used to refer to this file to the model (e.g. "my_file.pdf"). Used as the file reference identifier when `verbalization_mode` is set to `REFERENCE_ONLY`.
+   * @type string | undefined
+   */
+  displayName?: string
+  /**
+   * @description Required. URI.
+   * @type string | undefined
+   */
+  fileUri?: string
+  /**
+   * @description Optional. The IANA standard MIME type of the source data.
+   * @type string | undefined
+   */
+  mimeType?: string
+}
+
+/**
+ * @description URI based data for function response.
+ * @type object
+ */
+export type FunctionResponseFileDataC8Ce68Dd = {
+  /**
+   * @description The IANA standard MIME type of the source data. If an unsupported MIME type is provided, an error will be returned. For a complete list of supported types, see [Multimodal function responses](https://aistudio.google.com/docs/function-calling#multimodal) and [Supported file formats](https://aistudio.google.com/docs/file-input-methods#supported-content-types).
+   * @type string | undefined
+   */
+  mimeType?: string
+  /**
+   * @description Required. URI.
+   * @type string | undefined
+   */
+  fileUri?: string
+  /**
+   * @description Optional. Display name of the file. Used to provide a label or filename to distinguish file data, and to reference the file from `FunctionResponse.response` (for example, via `{"$ref": "DISPLAY_NAME"}`).
+   * @type string | undefined
+   */
+  displayName?: string
+}
+
+export const functionResponsePartE64D4Bf6MediaProcessingEnum = {
+  MEDIA_PROCESSING_UNSPECIFIED: 'MEDIA_PROCESSING_UNSPECIFIED',
+  STATIC: 'STATIC',
+  AGENTIC: 'AGENTIC',
+} as const
+
+export type FunctionResponsePartE64D4Bf6MediaProcessingEnumKey =
+  (typeof functionResponsePartE64D4Bf6MediaProcessingEnum)[keyof typeof functionResponsePartE64D4Bf6MediaProcessingEnum]
+
+/**
+ * @description A datatype containing media that is part of a `FunctionResponse` message. A `FunctionResponsePart` consists of data which has an associated datatype. A `FunctionResponsePart` can only contain one of the accepted types in `FunctionResponsePart.data`. Media can be passed as raw bytes (`inline_data`) or by URI (`file_data`) with an IANA MIME type identifying the type and subtype of the media.
+ * @type object
+ */
+export type FunctionResponsePartE64D4Bf6 = {
+  /**
+   * @description URI based data for function response.
+   * @type object | undefined
+   */
+  fileData?: FunctionResponseFileDataC8Ce68Dd
+  /**
+   * @description Raw media bytes for function response. Text should not be sent as raw bytes, use the 'FunctionResponse.response' field.
+   * @type object | undefined
+   */
+  inlineData?: FunctionResponseBlob
+  /**
+   * @description Optional. How the model processes this part's media for understanding. Only meaningful for video parts (`inline_data` or `file_data` with video mime). Non-video parts ignore this field.
+   * @type string | undefined
+   */
+  mediaProcessing?: FunctionResponsePartE64D4Bf6MediaProcessingEnumKey
+}
+
+export const functionResponse6412536BSchedulingEnum = {
+  SCHEDULING_UNSPECIFIED: 'SCHEDULING_UNSPECIFIED',
+  SILENT: 'SILENT',
+  WHEN_IDLE: 'WHEN_IDLE',
+  INTERRUPT: 'INTERRUPT',
+} as const
+
+export type FunctionResponse6412536BSchedulingEnumKey =
+  (typeof functionResponse6412536BSchedulingEnum)[keyof typeof functionResponse6412536BSchedulingEnum]
+
+/**
+ * @description The result output from a `FunctionCall` that contains a string representing the `FunctionDeclaration.name` and a structured JSON object containing any output from the function is used as context to the model. This should contain the result of a`FunctionCall` made based on model prediction.
+ * @type object
+ */
+export type FunctionResponse6412536B = {
+  /**
+   * @description Required. The name of the function to call. Must be a-z, A-Z, 0-9, or contain underscores and dashes, with a maximum length of 128.
+   * @type string | undefined
+   */
+  name?: string
+  /**
+   * @description Optional. Specifies how the response should be scheduled in the conversation. Only applicable to NON_BLOCKING function calls, is ignored otherwise. Defaults to WHEN_IDLE.
+   * @type string | undefined
+   */
+  scheduling?: FunctionResponse6412536BSchedulingEnumKey
+  /**
+   * @description Required. The function response in JSON object format. Callers can use any keys of their choice that fit the function's syntax to return the function output, e.g. "output", "result", etc. In particular, if the function call failed to execute, the response can have an "error" key to return error details to the model. Multimedia can be included by using a subobject containing a single "$ref" key whose value is the `inline_data.display_name` or `file_data.display_name` of a `FunctionResponsePart` holding the multimedia. See [Multimodal function responses](https://aistudio.google.com/docs/function-calling#multimodal).
+   * @type object | undefined
+   */
+  response?: {
+    [key: string]: unknown
+  }
+  /**
+   * @description Optional. Ordered `Parts` that constitute a function response. Parts may have different IANA MIME types.
+   * @type array | undefined
+   */
+  parts?: FunctionResponsePartE64D4Bf6[]
+  /**
+   * @description Optional. Signals that function call continues, and more responses will be returned, turning the function call into a generator. Is only applicable to NON_BLOCKING function calls, is ignored otherwise. If set to false, future responses will not be considered. It is allowed to return empty `response` with `will_continue=False` to signal that the function call is finished. This may still trigger the model generation. To avoid triggering the generation and finish the function call, additionally set `scheduling` to `SILENT`.
+   * @type boolean | undefined
+   */
+  willContinue?: boolean
+  /**
+   * @description Optional. The identifier of the function call this response is for. Populated by the client to match the corresponding function call `id`.
+   * @type string | undefined
+   */
+  id?: string
+}
+
+export const partCff10605MediaProcessingEnum = {
+  MEDIA_PROCESSING_UNSPECIFIED: 'MEDIA_PROCESSING_UNSPECIFIED',
+  STATIC: 'STATIC',
+  AGENTIC: 'AGENTIC',
+} as const
+
+export type PartCff10605MediaProcessingEnumKey =
+  (typeof partCff10605MediaProcessingEnum)[keyof typeof partCff10605MediaProcessingEnum]
+
+/**
+ * @description A datatype containing media that is part of a multi-part `Content` message. A `Part` consists of data which has an associated datatype. A `Part` can only contain one of the accepted types in `Part.data`. A `Part` must have a fixed IANA MIME type identifying the type and subtype of the media if the `inline_data` field is filled with raw bytes.
+ * @type object
+ */
+export type PartCff10605 = {
+  /**
+   * @description Metadata describes the input video content. Set this in `Part.video_metadata` or `FunctionResponsePart.video_metadata` when `inline_data` or `file_data` contains video to configure static video preprocessing (such as time clipping, frame rate, maximum frame count, or extracted content layers).
+   * @type object | undefined
+   */
+  videoMetadata?: VideoMetadataDb9121C4
+  /**
+   * @description Custom metadata associated with the Part. Agents using genai.Part as content representation may need to keep track of the additional information. For example it can be name of a file/source from which the Part originates or a way to multiplex multiple Part streams.
+   * @type object | undefined
+   */
+  partMetadata?: {
+    [key: string]: unknown
+  }
+  /**
+   * @description Speech metadata for `text` parts.
+   * @type object | undefined
+   */
+  speechMetadata?: SpeechMetadata2F5B8Ed3
+  /**
+   * @description Result of executing the `ExecutableCode`. Generated only when the `CodeExecution` tool is used.
+   * @type object | undefined
+   */
+  codeExecutionResult?: CodeExecutionResult211F393E
+  /**
+   * @description Raw media bytes. Text should not be sent as raw bytes, use the 'text' field.
+   * @type object | undefined
+   */
+  inlineData?: Blob
+  /**
+   * @description Inline text.
+   * @type string | undefined
+   */
+  text?: string
+  /**
+   * @description Code generated by the model that is meant to be executed, and the result returned to the model. Only generated when using the `CodeExecution` tool, in which the code will be automatically executed, and a corresponding `CodeExecutionResult` will also be generated.
+   * @type object | undefined
+   */
+  executableCode?: ExecutableCode650A5C4D
+  /**
+   * @description Optional. Indicates if the part is thought from the model.
+   * @type boolean | undefined
+   */
+  thought?: boolean
+  /**
+   * @description Optional. How the model processes this part's media for understanding. Only meaningful for video parts (`inline_data` or `file_data` with video mime). Non-video parts ignore this field.
+   * @type string | undefined
+   */
+  mediaProcessing?: PartCff10605MediaProcessingEnumKey
+  /**
+   * @description A predicted server-side `ToolCall` returned from the model. This message contains information about a tool that the model wants to invoke. The client is NOT expected to execute this `ToolCall`. Instead, the client should pass this `ToolCall` back to the API in a subsequent turn within a `Content` message, along with the corresponding `ToolResponse`.
+   * @type object | undefined
+   */
+  toolCall?: ToolCall086D4A4A
+  /**
+   * @description The output from a server-side `ToolCall` execution. This message contains the results of a tool invocation that was initiated by a `ToolCall` from the model. The client should pass this `ToolResponse` back to the API in a subsequent turn within a `Content` message, along with the corresponding `ToolCall`.
+   * @type object | undefined
+   */
+  toolResponse?: ToolResponse5Bc0A185
+  /**
+   * @description A predicted `FunctionCall` returned from the model that contains a string representing the `FunctionDeclaration.name` with the arguments and their values.
+   * @type object | undefined
+   */
+  functionCall?: FunctionCall8371E818
+  /**
+   * @description The transcription of an audio part. For multi-speaker audio, each speaker segment is a separate Part with its own AudioTranscription carrying the speaker_label.
+   * @type object | undefined
+   */
+  audioTranscription?: AudioTranscription09C71486
+  /**
+   * @description URI based data.
+   * @type object | undefined
+   */
+  fileData?: FileData27Deba5E
+  /**
+   * @description The result output from a `FunctionCall` that contains a string representing the `FunctionDeclaration.name` and a structured JSON object containing any output from the function is used as context to the model. This should contain the result of a`FunctionCall` made based on model prediction.
+   * @type object | undefined
+   */
+  functionResponse?: FunctionResponse6412536B
+  /**
+   * @description Media resolution for tokenization.
+   * @type object | undefined
+   */
+  mediaResolution?: V1MainMediaResolution
+  /**
+   * @description Optional. An opaque signature for the thought so it can be reused in subsequent requests.
+   * @type string | undefined
+   */
+  thoughtSignature?: string
+}
+
+/**
+ * @description The base structured datatype containing multi-part content of a message. A `Content` includes a `role` field designating the producer of the `Content` and a `parts` field containing multi-part data that contains the content of the message turn.
+ * @type object
+ */
+export type Content86B5645B = {
+  /**
+   * @description Optional. The producer of the content. Must be either 'user' or 'model'. Useful to set for multi-turn conversations, otherwise can be left blank or unset.
+   * @type string | undefined
+   */
+  role?: string
+  /**
+   * @description Ordered `Parts` that constitute a single message. Parts may have different MIME types.
+   * @type array | undefined
+   */
+  parts?: PartCff10605[]
+}
+
+/**
+ * @description Attribution for a source that contributed to an answer.
+ * @type object
+ */
+export type GroundingAttributionC08D79Fe = {
+  /**
+   * @description Identifier for the source contributing to this attribution.
+   * @type object | undefined
+   */
+  sourceId?: AttributionSourceId
+  /**
+   * @description The base structured datatype containing multi-part content of a message. A `Content` includes a `role` field designating the producer of the `Content` and a `parts` field containing multi-part data that contains the content of the message turn.
+   * @type object | undefined
+   */
+  content?: Content86B5645B
+}
+
+export const candidateC8Cd3123FinishReasonEnum = {
+  FINISH_REASON_UNSPECIFIED: 'FINISH_REASON_UNSPECIFIED',
+  STOP: 'STOP',
+  MAX_TOKENS: 'MAX_TOKENS',
+  SAFETY: 'SAFETY',
+  RECITATION: 'RECITATION',
+  LANGUAGE: 'LANGUAGE',
+  OTHER: 'OTHER',
+  BLOCKLIST: 'BLOCKLIST',
+  PROHIBITED_CONTENT: 'PROHIBITED_CONTENT',
+  SPII: 'SPII',
+  MALFORMED_FUNCTION_CALL: 'MALFORMED_FUNCTION_CALL',
+  IMAGE_SAFETY: 'IMAGE_SAFETY',
+  IMAGE_PROHIBITED_CONTENT: 'IMAGE_PROHIBITED_CONTENT',
+  IMAGE_OTHER: 'IMAGE_OTHER',
+  NO_IMAGE: 'NO_IMAGE',
+  IMAGE_RECITATION: 'IMAGE_RECITATION',
+  UNEXPECTED_TOOL_CALL: 'UNEXPECTED_TOOL_CALL',
+  TOO_MANY_TOOL_CALLS: 'TOO_MANY_TOOL_CALLS',
+  MISSING_THOUGHT_SIGNATURE: 'MISSING_THOUGHT_SIGNATURE',
+  MALFORMED_RESPONSE: 'MALFORMED_RESPONSE',
+  ESCALATION: 'ESCALATION',
+  PUP_LIMITED_DISABLED: 'PUP_LIMITED_DISABLED',
+  CONTINUATION: 'CONTINUATION',
+} as const
+
+export type CandidateC8Cd3123FinishReasonEnumKey =
+  (typeof candidateC8Cd3123FinishReasonEnum)[keyof typeof candidateC8Cd3123FinishReasonEnum]
+
+/**
+ * @description A response candidate generated from the model.
+ * @type object
+ */
+export type CandidateC8Cd3123 = {
+  /**
+   * @description The base structured datatype containing multi-part content of a message. A `Content` includes a `role` field designating the producer of the `Content` and a `parts` field containing multi-part data that contains the content of the message turn.
+   * @type object | undefined
+   */
+  content?: Content86B5645B
+  /**
+   * @description Metadata returned to client when grounding is enabled.
+   * @type object | undefined
+   */
+  groundingMetadata?: GroundingMetadata
+  /**
+   * @description Output only. Index of the candidate in the list of response candidates.
+   *
+   * Format: `int32`
+   * @type integer | undefined
+   */
+  index?: number
+  /**
+   * @description Optional. Output only. The reason why the model stopped generating tokens. If empty, the model has not stopped generating tokens.
+   * @type string | undefined
+   */
+  finishReason?: CandidateC8Cd3123FinishReasonEnumKey
+  /**
+   * @description Output only. Token count for this candidate.
+   *
+   * Format: `int32`
+   * @type integer | undefined
+   */
+  tokenCount?: number
+  /**
+   * @description Output only. Average log probability score of the candidate.
+   *
+   * Format: `double`
+   * @type number | undefined
+   */
+  avgLogprobs?: number
+  /**
+   * @description List of ratings for the safety of a response candidate. There is at most one rating per category.
+   * @type array | undefined
+   */
+  safetyRatings?: SafetyRating[]
+  /**
+   * @description Optional. Output only. Details the reason why the model stopped generating tokens. This is populated only when `finish_reason` is set.
+   * @type string | undefined
+   */
+  finishMessage?: string
+  /**
+   * @description Metadata related to url context retrieval tool.
+   * @type object | undefined
+   */
+  urlContextMetadata?: UrlContextMetadata
+  /**
+   * @description A collection of source attributions for a piece of content.
+   * @type object | undefined
+   */
+  citationMetadata?: CitationMetadata
+  /**
+   * @description An optional opaque continuation token returned when `finish_reason` is `CONTINUATION`. Clients can pass this token in a subsequent `GenerateContentRequest` to continue generation.
+   * @type string | undefined
+   */
+  continuationToken?: string
+  /**
+   * @description Output only. Attribution information for sources that contributed to a grounded answer. This field is populated for `GenerateAnswer` calls.
+   * @type array | undefined
+   */
+  groundingAttributions?: GroundingAttributionC08D79Fe[]
+  /**
+   * @description Logprobs Result
+   * @type object | undefined
+   */
+  logprobsResult?: LogprobsResult
+}
+
+/**
+ * @description The transcription of an audio part. For multi-speaker audio, each speaker segment is a separate Part with its own AudioTranscription carrying the speaker_label.
+ * @type object
+ */
+export type AudioTranscription25410F58 = {
+  /**
+   * @description Optional. A label identifying the speaker of this audio segment (e.g. "spk_1", "spk_2"). Present when diarization is set.
+   * @type string | undefined
+   */
+  speakerLabel?: string
+  /**
+   * @description Optional. Detailed word-level transcriptions and timing details. Present when word_timestamp is set.
+   * @type array | undefined
+   */
+  words?: WordInfo[]
+  /**
+   * @description Required. The transcription text of this audio segment.
+   * @type string | undefined
+   */
+  text?: string
+}
+
+export const codeExecutionResult53575300OutcomeEnum = {
+  OUTCOME_UNSPECIFIED: 'OUTCOME_UNSPECIFIED',
+  OUTCOME_OK: 'OUTCOME_OK',
+  OUTCOME_FAILED: 'OUTCOME_FAILED',
+  OUTCOME_DEADLINE_EXCEEDED: 'OUTCOME_DEADLINE_EXCEEDED',
+} as const
+
+export type CodeExecutionResult53575300OutcomeEnumKey =
+  (typeof codeExecutionResult53575300OutcomeEnum)[keyof typeof codeExecutionResult53575300OutcomeEnum]
+
+/**
+ * @description Result of executing the `ExecutableCode`. Generated only when the `CodeExecution` tool is used.
+ * @type object
+ */
+export type CodeExecutionResult53575300 = {
+  /**
+   * @description Optional. Contains stdout when code execution is successful, stderr or other description otherwise.
+   * @type string | undefined
+   */
+  output?: string
+  /**
+   * @description Required. Outcome of the code execution.
+   * @type string | undefined
+   */
+  outcome?: CodeExecutionResult53575300OutcomeEnumKey
+  /**
+   * @description Optional. The identifier of the `ExecutableCode` part this result is for. Only populated if the corresponding `ExecutableCode` has an id.
+   * @type string | undefined
+   */
+  id?: string
+}
+
+/**
+ * @description Metadata describes the input video content. Set this in `Part.video_metadata` or `FunctionResponsePart.video_metadata` when `inline_data` or `file_data` contains video to configure static video preprocessing (such as time clipping, frame rate, maximum frame count, or extracted content layers).
+ * @type object
+ */
+export type VideoMetadata2Be6312E = {
+  /**
+   * @description Optional. The end offset of the video.
+   *
+   * Format: `google-duration`
+   * @type string | undefined
+   */
+  endOffset?: string
+  /**
+   * @description Optional. The start offset of the video.
+   *
+   * Format: `google-duration`
+   * @type string | undefined
+   */
+  startOffset?: string
+  /**
+   * @description Optional. The frame rate of the video sent to the model. If not specified, the default value will be 1.0. The fps range is (0.0, 24.0].
+   *
+   * Format: `double`
+   * @type number | undefined
+   */
+  fps?: number
+}
+
+/**
+ * @description Speech metadata for `text` parts.
+ * @type object
+ */
+export type SpeechMetadata9Aa79E05 = {
+  /**
+   * @description Optional. Optional style instruction for the speech synthesis.
+   * @type string | undefined
+   */
+  style?: string
+  /**
+   * @description Optional. Optional speaker name for multi-speaker synthesis.
+   * @type string | undefined
+   */
+  speaker?: string
+}
+
+export const executableCode914418D7LanguageEnum = {
+  LANGUAGE_UNSPECIFIED: 'LANGUAGE_UNSPECIFIED',
+  PYTHON: 'PYTHON',
+} as const
+
+export type ExecutableCode914418D7LanguageEnumKey =
+  (typeof executableCode914418D7LanguageEnum)[keyof typeof executableCode914418D7LanguageEnum]
+
+/**
+ * @description Code generated by the model that is meant to be executed, and the result returned to the model. Only generated when using the `CodeExecution` tool, in which the code will be automatically executed, and a corresponding `CodeExecutionResult` will also be generated.
+ * @type object
+ */
+export type ExecutableCode914418D7 = {
+  /**
+   * @description Required. Programming language of the `code`.
+   * @type string | undefined
+   */
+  language?: ExecutableCode914418D7LanguageEnumKey
+  /**
+   * @description Required. The code to be executed.
+   * @type string | undefined
+   */
+  code?: string
+  /**
+   * @description Optional. Unique identifier of the `ExecutableCode` part. The server returns the `CodeExecutionResult` with the matching `id`.
+   * @type string | undefined
+   */
+  id?: string
+}
+
+export const toolCall59C7F294ToolTypeEnum = {
+  TOOL_TYPE_UNSPECIFIED: 'TOOL_TYPE_UNSPECIFIED',
+  GOOGLE_SEARCH_WEB: 'GOOGLE_SEARCH_WEB',
+  GOOGLE_SEARCH_IMAGE: 'GOOGLE_SEARCH_IMAGE',
+  URL_CONTEXT: 'URL_CONTEXT',
+  GOOGLE_MAPS: 'GOOGLE_MAPS',
+  FILE_SEARCH: 'FILE_SEARCH',
+  MEDIA_PROCESSING: 'MEDIA_PROCESSING',
+} as const
+
+export type ToolCall59C7F294ToolTypeEnumKey =
+  (typeof toolCall59C7F294ToolTypeEnum)[keyof typeof toolCall59C7F294ToolTypeEnum]
+
+/**
+ * @description A predicted server-side `ToolCall` returned from the model. This message contains information about a tool that the model wants to invoke. The client is NOT expected to execute this `ToolCall`. Instead, the client should pass this `ToolCall` back to the API in a subsequent turn within a `Content` message, along with the corresponding `ToolResponse`.
+ * @type object
+ */
+export type ToolCall59C7F294 = {
+  /**
+   * @description Optional. The tool call arguments. Example: {"arg1" : "value1", "arg2" : "value2" , ...}
+   * @type object | undefined
+   */
+  args?: {
+    [key: string]: unknown
+  }
+  /**
+   * @description Optional. Unique identifier of the tool call. The server returns the tool response with the matching `id`.
+   * @type string | undefined
+   */
+  id?: string
+  /**
+   * @description Optional. The name of the tool that was called.
+   * @type string | undefined
+   */
+  toolName?: string
+  /**
+   * @description Required. The type of tool that was called.
+   * @type string | undefined
+   */
+  toolType?: ToolCall59C7F294ToolTypeEnumKey
+}
+
+export const toolResponse22C5F5FfToolTypeEnum = {
+  TOOL_TYPE_UNSPECIFIED: 'TOOL_TYPE_UNSPECIFIED',
+  GOOGLE_SEARCH_WEB: 'GOOGLE_SEARCH_WEB',
+  GOOGLE_SEARCH_IMAGE: 'GOOGLE_SEARCH_IMAGE',
+  URL_CONTEXT: 'URL_CONTEXT',
+  GOOGLE_MAPS: 'GOOGLE_MAPS',
+  FILE_SEARCH: 'FILE_SEARCH',
+  MEDIA_PROCESSING: 'MEDIA_PROCESSING',
+} as const
+
+export type ToolResponse22C5F5FfToolTypeEnumKey =
+  (typeof toolResponse22C5F5FfToolTypeEnum)[keyof typeof toolResponse22C5F5FfToolTypeEnum]
+
+/**
+ * @description The output from a server-side `ToolCall` execution. This message contains the results of a tool invocation that was initiated by a `ToolCall` from the model. The client should pass this `ToolResponse` back to the API in a subsequent turn within a `Content` message, along with the corresponding `ToolCall`.
+ * @type object
+ */
+export type ToolResponse22C5F5Ff = {
+  /**
+   * @description Optional. The identifier of the tool call this response is for.
+   * @type string | undefined
+   */
+  id?: string
+  /**
+   * @description Required. The type of tool that was called, matching the `tool_type` in the corresponding `ToolCall`.
+   * @type string | undefined
+   */
+  toolType?: ToolResponse22C5F5FfToolTypeEnumKey
+  /**
+   * @description Optional. The tool response.
+   * @type object | undefined
+   */
+  response?: {
+    [key: string]: unknown
+  }
+}
+
+/**
+ * @description A predicted `FunctionCall` returned from the model that contains a string representing the `FunctionDeclaration.name` with the arguments and their values.
+ * @type object
+ */
+export type FunctionCall9B5929Ba = {
+  /**
+   * @description Optional. Unique identifier of the function call. If populated, the client to execute the `function_call` and return the response with the matching `id`.
+   * @type string | undefined
+   */
+  id?: string
+  /**
+   * @description Optional. The function parameters and values in JSON object format.
+   * @type object | undefined
+   */
+  args?: {
+    [key: string]: unknown
+  }
+  /**
+   * @description Required. The name of the function to call. Must be a-z, A-Z, 0-9, or contain underscores and dashes, with a maximum length of 128.
+   * @type string | undefined
+   */
+  name?: string
+}
+
+/**
+ * @description URI based data.
+ * @type object
+ */
+export type FileData033E9860 = {
+  /**
+   * @description Optional. Specifies the name used to refer to this file to the model (e.g. "my_file.pdf"). Used as the file reference identifier when `verbalization_mode` is set to `REFERENCE_ONLY`.
+   * @type string | undefined
+   */
+  displayName?: string
+  /**
+   * @description Required. URI.
+   * @type string | undefined
+   */
+  fileUri?: string
+  /**
+   * @description Optional. The IANA standard MIME type of the source data.
+   * @type string | undefined
+   */
+  mimeType?: string
+}
+
+/**
+ * @description URI based data for function response.
+ * @type object
+ */
+export type FunctionResponseFileData3944Bb27 = {
+  /**
+   * @description The IANA standard MIME type of the source data. If an unsupported MIME type is provided, an error will be returned. For a complete list of supported types, see [Multimodal function responses](https://aistudio.google.com/docs/function-calling#multimodal) and [Supported file formats](https://aistudio.google.com/docs/file-input-methods#supported-content-types).
+   * @type string | undefined
+   */
+  mimeType?: string
+  /**
+   * @description Required. URI.
+   * @type string | undefined
+   */
+  fileUri?: string
+  /**
+   * @description Optional. Display name of the file. Used to provide a label or filename to distinguish file data, and to reference the file from `FunctionResponse.response` (for example, via `{"$ref": "DISPLAY_NAME"}`).
+   * @type string | undefined
+   */
+  displayName?: string
+}
+
+export const functionResponsePart7B42F808MediaProcessingEnum = {
+  MEDIA_PROCESSING_UNSPECIFIED: 'MEDIA_PROCESSING_UNSPECIFIED',
+  STATIC: 'STATIC',
+  AGENTIC: 'AGENTIC',
+} as const
+
+export type FunctionResponsePart7B42F808MediaProcessingEnumKey =
+  (typeof functionResponsePart7B42F808MediaProcessingEnum)[keyof typeof functionResponsePart7B42F808MediaProcessingEnum]
+
+/**
+ * @description A datatype containing media that is part of a `FunctionResponse` message. A `FunctionResponsePart` consists of data which has an associated datatype. A `FunctionResponsePart` can only contain one of the accepted types in `FunctionResponsePart.data`. Media can be passed as raw bytes (`inline_data`) or by URI (`file_data`) with an IANA MIME type identifying the type and subtype of the media.
+ * @type object
+ */
+export type FunctionResponsePart7B42F808 = {
+  /**
+   * @description URI based data for function response.
+   * @type object | undefined
+   */
+  fileData?: FunctionResponseFileData3944Bb27
+  /**
+   * @description Raw media bytes for function response. Text should not be sent as raw bytes, use the 'FunctionResponse.response' field.
+   * @type object | undefined
+   */
+  inlineData?: FunctionResponseBlob
+  /**
+   * @description Optional. How the model processes this part's media for understanding. Only meaningful for video parts (`inline_data` or `file_data` with video mime). Non-video parts ignore this field.
+   * @type string | undefined
+   */
+  mediaProcessing?: FunctionResponsePart7B42F808MediaProcessingEnumKey
+}
+
+export const functionResponse481Af9CdSchedulingEnum = {
+  SCHEDULING_UNSPECIFIED: 'SCHEDULING_UNSPECIFIED',
+  SILENT: 'SILENT',
+  WHEN_IDLE: 'WHEN_IDLE',
+  INTERRUPT: 'INTERRUPT',
+} as const
+
+export type FunctionResponse481Af9CdSchedulingEnumKey =
+  (typeof functionResponse481Af9CdSchedulingEnum)[keyof typeof functionResponse481Af9CdSchedulingEnum]
+
+/**
+ * @description The result output from a `FunctionCall` that contains a string representing the `FunctionDeclaration.name` and a structured JSON object containing any output from the function is used as context to the model. This should contain the result of a`FunctionCall` made based on model prediction.
+ * @type object
+ */
+export type FunctionResponse481Af9Cd = {
+  /**
+   * @description Required. The name of the function to call. Must be a-z, A-Z, 0-9, or contain underscores and dashes, with a maximum length of 128.
+   * @type string | undefined
+   */
+  name?: string
+  /**
+   * @description Optional. Specifies how the response should be scheduled in the conversation. Only applicable to NON_BLOCKING function calls, is ignored otherwise. Defaults to WHEN_IDLE.
+   * @type string | undefined
+   */
+  scheduling?: FunctionResponse481Af9CdSchedulingEnumKey
+  /**
+   * @description Required. The function response in JSON object format. Callers can use any keys of their choice that fit the function's syntax to return the function output, e.g. "output", "result", etc. In particular, if the function call failed to execute, the response can have an "error" key to return error details to the model. Multimedia can be included by using a subobject containing a single "$ref" key whose value is the `inline_data.display_name` or `file_data.display_name` of a `FunctionResponsePart` holding the multimedia. See [Multimodal function responses](https://aistudio.google.com/docs/function-calling#multimodal).
+   * @type object | undefined
+   */
+  response?: {
+    [key: string]: unknown
+  }
+  /**
+   * @description Optional. Ordered `Parts` that constitute a function response. Parts may have different IANA MIME types.
+   * @type array | undefined
+   */
+  parts?: FunctionResponsePart7B42F808[]
+  /**
+   * @description Optional. Signals that function call continues, and more responses will be returned, turning the function call into a generator. Is only applicable to NON_BLOCKING function calls, is ignored otherwise. If set to false, future responses will not be considered. It is allowed to return empty `response` with `will_continue=False` to signal that the function call is finished. This may still trigger the model generation. To avoid triggering the generation and finish the function call, additionally set `scheduling` to `SILENT`.
+   * @type boolean | undefined
+   */
+  willContinue?: boolean
+  /**
+   * @description Optional. The identifier of the function call this response is for. Populated by the client to match the corresponding function call `id`.
+   * @type string | undefined
+   */
+  id?: string
+}
+
+export const partD414Ae7FMediaProcessingEnum = {
+  MEDIA_PROCESSING_UNSPECIFIED: 'MEDIA_PROCESSING_UNSPECIFIED',
+  STATIC: 'STATIC',
+  AGENTIC: 'AGENTIC',
+} as const
+
+export type PartD414Ae7FMediaProcessingEnumKey =
+  (typeof partD414Ae7FMediaProcessingEnum)[keyof typeof partD414Ae7FMediaProcessingEnum]
+
+/**
+ * @description A datatype containing media that is part of a multi-part `Content` message. A `Part` consists of data which has an associated datatype. A `Part` can only contain one of the accepted types in `Part.data`. A `Part` must have a fixed IANA MIME type identifying the type and subtype of the media if the `inline_data` field is filled with raw bytes.
+ * @type object
+ */
+export type PartD414Ae7F = {
+  /**
+   * @description Metadata describes the input video content. Set this in `Part.video_metadata` or `FunctionResponsePart.video_metadata` when `inline_data` or `file_data` contains video to configure static video preprocessing (such as time clipping, frame rate, maximum frame count, or extracted content layers).
+   * @type object | undefined
+   */
+  videoMetadata?: VideoMetadata2Be6312E
+  /**
+   * @description Custom metadata associated with the Part. Agents using genai.Part as content representation may need to keep track of the additional information. For example it can be name of a file/source from which the Part originates or a way to multiplex multiple Part streams.
+   * @type object | undefined
+   */
+  partMetadata?: {
+    [key: string]: unknown
+  }
+  /**
+   * @description Speech metadata for `text` parts.
+   * @type object | undefined
+   */
+  speechMetadata?: SpeechMetadata9Aa79E05
+  /**
+   * @description Result of executing the `ExecutableCode`. Generated only when the `CodeExecution` tool is used.
+   * @type object | undefined
+   */
+  codeExecutionResult?: CodeExecutionResult53575300
+  /**
+   * @description Raw media bytes. Text should not be sent as raw bytes, use the 'text' field.
+   * @type object | undefined
+   */
+  inlineData?: Blob
+  /**
+   * @description Inline text.
+   * @type string | undefined
+   */
+  text?: string
+  /**
+   * @description Code generated by the model that is meant to be executed, and the result returned to the model. Only generated when using the `CodeExecution` tool, in which the code will be automatically executed, and a corresponding `CodeExecutionResult` will also be generated.
+   * @type object | undefined
+   */
+  executableCode?: ExecutableCode914418D7
+  /**
+   * @description Optional. Indicates if the part is thought from the model.
+   * @type boolean | undefined
+   */
+  thought?: boolean
+  /**
+   * @description Optional. How the model processes this part's media for understanding. Only meaningful for video parts (`inline_data` or `file_data` with video mime). Non-video parts ignore this field.
+   * @type string | undefined
+   */
+  mediaProcessing?: PartD414Ae7FMediaProcessingEnumKey
+  /**
+   * @description A predicted server-side `ToolCall` returned from the model. This message contains information about a tool that the model wants to invoke. The client is NOT expected to execute this `ToolCall`. Instead, the client should pass this `ToolCall` back to the API in a subsequent turn within a `Content` message, along with the corresponding `ToolResponse`.
+   * @type object | undefined
+   */
+  toolCall?: ToolCall59C7F294
+  /**
+   * @description The output from a server-side `ToolCall` execution. This message contains the results of a tool invocation that was initiated by a `ToolCall` from the model. The client should pass this `ToolResponse` back to the API in a subsequent turn within a `Content` message, along with the corresponding `ToolCall`.
+   * @type object | undefined
+   */
+  toolResponse?: ToolResponse22C5F5Ff
+  /**
+   * @description A predicted `FunctionCall` returned from the model that contains a string representing the `FunctionDeclaration.name` with the arguments and their values.
+   * @type object | undefined
+   */
+  functionCall?: FunctionCall9B5929Ba
+  /**
+   * @description The transcription of an audio part. For multi-speaker audio, each speaker segment is a separate Part with its own AudioTranscription carrying the speaker_label.
+   * @type object | undefined
+   */
+  audioTranscription?: AudioTranscription25410F58
+  /**
+   * @description URI based data.
+   * @type object | undefined
+   */
+  fileData?: FileData033E9860
+  /**
+   * @description The result output from a `FunctionCall` that contains a string representing the `FunctionDeclaration.name` and a structured JSON object containing any output from the function is used as context to the model. This should contain the result of a`FunctionCall` made based on model prediction.
+   * @type object | undefined
+   */
+  functionResponse?: FunctionResponse481Af9Cd
+  /**
+   * @description Media resolution for tokenization.
+   * @type object | undefined
+   */
+  mediaResolution?: V1MainMediaResolution
+  /**
+   * @description Optional. An opaque signature for the thought so it can be reused in subsequent requests.
+   * @type string | undefined
+   */
+  thoughtSignature?: string
+}
+
+/**
+ * @description The base structured datatype containing multi-part content of a message. A `Content` includes a `role` field designating the producer of the `Content` and a `parts` field containing multi-part data that contains the content of the message turn.
+ * @type object
+ */
+export type Content705Bb0Bd = {
+  /**
+   * @description Optional. The producer of the content. Must be either 'user' or 'model'. Useful to set for multi-turn conversations, otherwise can be left blank or unset.
+   * @type string | undefined
+   */
+  role?: string
+  /**
+   * @description Ordered `Parts` that constitute a single message. Parts may have different MIME types.
+   * @type array | undefined
+   */
+  parts?: PartD414Ae7F[]
+}
+
 export const embedContentConfigTaskTypeEnum = {
   TASK_TYPE_UNSPECIFIED: 'TASK_TYPE_UNSPECIFIED',
   RETRIEVAL_QUERY: 'RETRIEVAL_QUERY',
@@ -2811,7 +4364,7 @@ export type EmbedContentRequest = {
    * @description The base structured datatype containing multi-part content of a message. A `Content` includes a `role` field designating the producer of the `Content` and a `parts` field containing multi-part data that contains the content of the message turn.
    * @type object | undefined
    */
-  content?: Content
+  content?: Content705Bb0Bd
 }
 
 /**
@@ -3042,21 +4595,6 @@ export type GenerateContentRequestServiceTierEnumKey =
  */
 export type GenerateContentRequest = {
   /**
-   * @description Optional. A list of `Tools` the `Model` may use to generate the next response. A `Tool` is a piece of code that enables the system to interact with external systems to perform an action, or set of actions, outside of knowledge and scope of the `Model`. Supported `Tool`s are `Function` and `code_execution`. Refer to the [Function calling](https://aistudio.google.com/docs/function-calling) and the [Code execution](https://aistudio.google.com/docs/code-execution) guides to learn more.
-   * @type array | undefined
-   */
-  tools?: Tool[]
-  /**
-   * @description The Tool configuration containing parameters for specifying `Tool` use in the request.
-   * @type object | undefined
-   */
-  toolConfig?: ToolConfig
-  /**
-   * @description Required. The name of the `Model` to use for generating the completion. Format: `models/{model}`.
-   * @type string | undefined
-   */
-  model?: string
-  /**
    * @description Optional. Labels with user-defined metadata for the request. Optional. Labels must follow standard unified Cloud label requirements: - Label keys must start with a letter. - Label keys and values can be no longer than 63 characters (Unicode codepoints) and can only contain lowercase letters, numeric characters, underscores, and dashes. - International characters are allowed. Usage: - Safety identifiers from aggregators: Use the key `safety_identifier` (e.g. `{"safety_identifier": "user_session_123"}`)
    * @type object | undefined
    */
@@ -3064,40 +4602,55 @@ export type GenerateContentRequest = {
     [key: string]: string
   }
   /**
+   * @description Optional. A list of `Tools` the `Model` may use to generate the next response. A `Tool` is a piece of code that enables the system to interact with external systems to perform an action, or set of actions, outside of knowledge and scope of the `Model`. Supported `Tool`s are `Function` and `code_execution`. Refer to the [Function calling](https://aistudio.google.com/docs/function-calling) and the [Code execution](https://aistudio.google.com/docs/code-execution) guides to learn more.
+   * @type array | undefined
+   */
+  tools?: Tool[]
+  /**
    * @description Optional. An opaque continuation token used to resume generation from a previous `GenerateContent` or `StreamGenerateContent` response that stopped with `finish_reason` set to `CONTINUATION`. Note that `contents` is mandatory and must identically replicate the prompt and conversation history from the initial request when continuation token is provided in a request.
    * @type string | undefined
    */
   continuationToken?: string
   /**
-   * @description Configuration options for model generation and outputs. Not all parameters are configurable for every model.
+   * @description The Tool configuration containing parameters for specifying `Tool` use in the request.
    * @type object | undefined
    */
-  generationConfig?: GenerationConfig
-  /**
-   * @description The base structured datatype containing multi-part content of a message. A `Content` includes a `role` field designating the producer of the `Content` and a `parts` field containing multi-part data that contains the content of the message turn.
-   * @type object | undefined
-   */
-  systemInstruction?: Content
-  /**
-   * @description Optional. Configures the logging behavior for a given request. If set, it takes precedence over the project-level logging config.
-   * @type boolean | undefined
-   */
-  store?: boolean
-  /**
-   * @description Optional. A list of unique `SafetySetting` instances for blocking unsafe content. This will be enforced on the `GenerateContentRequest.contents` and `GenerateContentResponse.candidates`. There should not be more than one setting for each `SafetyCategory` type. The API will block any contents and responses that fail to meet the thresholds set by these settings. This list overrides the default settings for each `SafetyCategory` specified in the safety_settings. If there is no `SafetySetting` for a given `SafetyCategory` provided in the list, the API will use the default safety setting for that category. Harm categories HARM_CATEGORY_HATE_SPEECH, HARM_CATEGORY_SEXUALLY_EXPLICIT, HARM_CATEGORY_DANGEROUS_CONTENT, HARM_CATEGORY_HARASSMENT, HARM_CATEGORY_CIVIC_INTEGRITY, HARM_CATEGORY_JAILBREAK are supported. Refer to the [guide](https://aistudio.google.com/docs/safety-settings) for detailed information on available safety settings. Also refer to the [Safety guidance](https://aistudio.google.com/docs/safety-guidance) to learn how to incorporate safety considerations in your AI applications.
-   * @type array | undefined
-   */
-  safetySettings?: SafetySetting[]
+  toolConfig?: ToolConfig
   /**
    * @description Required. The content of the current conversation with the model. For single-turn queries, this is a single instance. For multi-turn queries like [chat](https://aistudio.google.com/docs/text-generation#multi-turn-conversations), this is a repeated field that contains the conversation history and the latest request.
    * @type array | undefined
    */
   contents?: Content[]
   /**
+   * @description Configuration options for model generation and outputs. Not all parameters are configurable for every model.
+   * @type object | undefined
+   */
+  generationConfig?: GenerationConfig
+  /**
+   * @description Optional. Configures the logging behavior for a given request. If set, it takes precedence over the project-level logging config.
+   * @type boolean | undefined
+   */
+  store?: boolean
+  /**
    * @description Optional. The name of the content [cached](https://aistudio.google.com/docs/caching) to use as context to serve the prediction. Format: `cachedContents/{cachedContent}`
    * @type string | undefined
    */
   cachedContent?: string
+  /**
+   * @description Required. The name of the `Model` to use for generating the completion. Format: `models/{model}`.
+   * @type string | undefined
+   */
+  model?: string
+  /**
+   * @description Optional. A list of unique `SafetySetting` instances for blocking unsafe content. This will be enforced on the `GenerateContentRequest.contents` and `GenerateContentResponse.candidates`. There should not be more than one setting for each `SafetyCategory` type. The API will block any contents and responses that fail to meet the thresholds set by these settings. This list overrides the default settings for each `SafetyCategory` specified in the safety_settings. If there is no `SafetySetting` for a given `SafetyCategory` provided in the list, the API will use the default safety setting for that category. Harm categories HARM_CATEGORY_HATE_SPEECH, HARM_CATEGORY_SEXUALLY_EXPLICIT, HARM_CATEGORY_DANGEROUS_CONTENT, HARM_CATEGORY_HARASSMENT, HARM_CATEGORY_CIVIC_INTEGRITY, HARM_CATEGORY_JAILBREAK are supported. Refer to the [guide](https://aistudio.google.com/docs/safety-settings) for detailed information on available safety settings. Also refer to the [Safety guidance](https://aistudio.google.com/docs/safety-guidance) to learn how to incorporate safety considerations in your AI applications.
+   * @type array | undefined
+   */
+  safetySettings?: SafetySetting[]
+  /**
+   * @description The base structured datatype containing multi-part content of a message. A `Content` includes a `role` field designating the producer of the `Content` and a `parts` field containing multi-part data that contains the content of the message turn.
+   * @type object | undefined
+   */
+  systemInstruction?: Content
   /**
    * @description Optional. The service tier of the request.
    * @type string | undefined
@@ -3134,6 +4687,482 @@ export type ModalityTokenCountD02Ff80A = {
    * @type string | undefined
    */
   modality?: ModalityTokenCountD02Ff80AModalityEnumKey
+}
+
+/**
+ * @description The transcription of an audio part. For multi-speaker audio, each speaker segment is a separate Part with its own AudioTranscription carrying the speaker_label.
+ * @type object
+ */
+export type AudioTranscription5Cd194A3 = {
+  /**
+   * @description Optional. A label identifying the speaker of this audio segment (e.g. "spk_1", "spk_2"). Present when diarization is set.
+   * @type string | undefined
+   */
+  speakerLabel?: string
+  /**
+   * @description Optional. Detailed word-level transcriptions and timing details. Present when word_timestamp is set.
+   * @type array | undefined
+   */
+  words?: WordInfo[]
+  /**
+   * @description Required. The transcription text of this audio segment.
+   * @type string | undefined
+   */
+  text?: string
+}
+
+export const codeExecutionResult23Ca22BbOutcomeEnum = {
+  OUTCOME_UNSPECIFIED: 'OUTCOME_UNSPECIFIED',
+  OUTCOME_OK: 'OUTCOME_OK',
+  OUTCOME_FAILED: 'OUTCOME_FAILED',
+  OUTCOME_DEADLINE_EXCEEDED: 'OUTCOME_DEADLINE_EXCEEDED',
+} as const
+
+export type CodeExecutionResult23Ca22BbOutcomeEnumKey =
+  (typeof codeExecutionResult23Ca22BbOutcomeEnum)[keyof typeof codeExecutionResult23Ca22BbOutcomeEnum]
+
+/**
+ * @description Result of executing the `ExecutableCode`. Generated only when the `CodeExecution` tool is used.
+ * @type object
+ */
+export type CodeExecutionResult23Ca22Bb = {
+  /**
+   * @description Optional. Contains stdout when code execution is successful, stderr or other description otherwise.
+   * @type string | undefined
+   */
+  output?: string
+  /**
+   * @description Required. Outcome of the code execution.
+   * @type string | undefined
+   */
+  outcome?: CodeExecutionResult23Ca22BbOutcomeEnumKey
+  /**
+   * @description Optional. The identifier of the `ExecutableCode` part this result is for. Only populated if the corresponding `ExecutableCode` has an id.
+   * @type string | undefined
+   */
+  id?: string
+}
+
+/**
+ * @description Metadata describes the input video content. Set this in `Part.video_metadata` or `FunctionResponsePart.video_metadata` when `inline_data` or `file_data` contains video to configure static video preprocessing (such as time clipping, frame rate, maximum frame count, or extracted content layers).
+ * @type object
+ */
+export type VideoMetadataD2A4F115 = {
+  /**
+   * @description Optional. The end offset of the video.
+   *
+   * Format: `google-duration`
+   * @type string | undefined
+   */
+  endOffset?: string
+  /**
+   * @description Optional. The start offset of the video.
+   *
+   * Format: `google-duration`
+   * @type string | undefined
+   */
+  startOffset?: string
+  /**
+   * @description Optional. The frame rate of the video sent to the model. If not specified, the default value will be 1.0. The fps range is (0.0, 24.0].
+   *
+   * Format: `double`
+   * @type number | undefined
+   */
+  fps?: number
+}
+
+/**
+ * @description Speech metadata for `text` parts.
+ * @type object
+ */
+export type SpeechMetadata3Af85356 = {
+  /**
+   * @description Optional. Optional style instruction for the speech synthesis.
+   * @type string | undefined
+   */
+  style?: string
+  /**
+   * @description Optional. Optional speaker name for multi-speaker synthesis.
+   * @type string | undefined
+   */
+  speaker?: string
+}
+
+export const executableCode331D0604LanguageEnum = {
+  LANGUAGE_UNSPECIFIED: 'LANGUAGE_UNSPECIFIED',
+  PYTHON: 'PYTHON',
+} as const
+
+export type ExecutableCode331D0604LanguageEnumKey =
+  (typeof executableCode331D0604LanguageEnum)[keyof typeof executableCode331D0604LanguageEnum]
+
+/**
+ * @description Code generated by the model that is meant to be executed, and the result returned to the model. Only generated when using the `CodeExecution` tool, in which the code will be automatically executed, and a corresponding `CodeExecutionResult` will also be generated.
+ * @type object
+ */
+export type ExecutableCode331D0604 = {
+  /**
+   * @description Required. Programming language of the `code`.
+   * @type string | undefined
+   */
+  language?: ExecutableCode331D0604LanguageEnumKey
+  /**
+   * @description Required. The code to be executed.
+   * @type string | undefined
+   */
+  code?: string
+  /**
+   * @description Optional. Unique identifier of the `ExecutableCode` part. The server returns the `CodeExecutionResult` with the matching `id`.
+   * @type string | undefined
+   */
+  id?: string
+}
+
+export const toolCall829Be9C7ToolTypeEnum = {
+  TOOL_TYPE_UNSPECIFIED: 'TOOL_TYPE_UNSPECIFIED',
+  GOOGLE_SEARCH_WEB: 'GOOGLE_SEARCH_WEB',
+  GOOGLE_SEARCH_IMAGE: 'GOOGLE_SEARCH_IMAGE',
+  URL_CONTEXT: 'URL_CONTEXT',
+  GOOGLE_MAPS: 'GOOGLE_MAPS',
+  FILE_SEARCH: 'FILE_SEARCH',
+  MEDIA_PROCESSING: 'MEDIA_PROCESSING',
+} as const
+
+export type ToolCall829Be9C7ToolTypeEnumKey =
+  (typeof toolCall829Be9C7ToolTypeEnum)[keyof typeof toolCall829Be9C7ToolTypeEnum]
+
+/**
+ * @description A predicted server-side `ToolCall` returned from the model. This message contains information about a tool that the model wants to invoke. The client is NOT expected to execute this `ToolCall`. Instead, the client should pass this `ToolCall` back to the API in a subsequent turn within a `Content` message, along with the corresponding `ToolResponse`.
+ * @type object
+ */
+export type ToolCall829Be9C7 = {
+  /**
+   * @description Optional. The tool call arguments. Example: {"arg1" : "value1", "arg2" : "value2" , ...}
+   * @type object | undefined
+   */
+  args?: {
+    [key: string]: unknown
+  }
+  /**
+   * @description Optional. Unique identifier of the tool call. The server returns the tool response with the matching `id`.
+   * @type string | undefined
+   */
+  id?: string
+  /**
+   * @description Optional. The name of the tool that was called.
+   * @type string | undefined
+   */
+  toolName?: string
+  /**
+   * @description Required. The type of tool that was called.
+   * @type string | undefined
+   */
+  toolType?: ToolCall829Be9C7ToolTypeEnumKey
+}
+
+export const toolResponse9767A0BcToolTypeEnum = {
+  TOOL_TYPE_UNSPECIFIED: 'TOOL_TYPE_UNSPECIFIED',
+  GOOGLE_SEARCH_WEB: 'GOOGLE_SEARCH_WEB',
+  GOOGLE_SEARCH_IMAGE: 'GOOGLE_SEARCH_IMAGE',
+  URL_CONTEXT: 'URL_CONTEXT',
+  GOOGLE_MAPS: 'GOOGLE_MAPS',
+  FILE_SEARCH: 'FILE_SEARCH',
+  MEDIA_PROCESSING: 'MEDIA_PROCESSING',
+} as const
+
+export type ToolResponse9767A0BcToolTypeEnumKey =
+  (typeof toolResponse9767A0BcToolTypeEnum)[keyof typeof toolResponse9767A0BcToolTypeEnum]
+
+/**
+ * @description The output from a server-side `ToolCall` execution. This message contains the results of a tool invocation that was initiated by a `ToolCall` from the model. The client should pass this `ToolResponse` back to the API in a subsequent turn within a `Content` message, along with the corresponding `ToolCall`.
+ * @type object
+ */
+export type ToolResponse9767A0Bc = {
+  /**
+   * @description Optional. The identifier of the tool call this response is for.
+   * @type string | undefined
+   */
+  id?: string
+  /**
+   * @description Required. The type of tool that was called, matching the `tool_type` in the corresponding `ToolCall`.
+   * @type string | undefined
+   */
+  toolType?: ToolResponse9767A0BcToolTypeEnumKey
+  /**
+   * @description Optional. The tool response.
+   * @type object | undefined
+   */
+  response?: {
+    [key: string]: unknown
+  }
+}
+
+/**
+ * @description A predicted `FunctionCall` returned from the model that contains a string representing the `FunctionDeclaration.name` with the arguments and their values.
+ * @type object
+ */
+export type FunctionCall3A099089 = {
+  /**
+   * @description Optional. Unique identifier of the function call. If populated, the client to execute the `function_call` and return the response with the matching `id`.
+   * @type string | undefined
+   */
+  id?: string
+  /**
+   * @description Optional. The function parameters and values in JSON object format.
+   * @type object | undefined
+   */
+  args?: {
+    [key: string]: unknown
+  }
+  /**
+   * @description Required. The name of the function to call. Must be a-z, A-Z, 0-9, or contain underscores and dashes, with a maximum length of 128.
+   * @type string | undefined
+   */
+  name?: string
+}
+
+/**
+ * @description URI based data.
+ * @type object
+ */
+export type FileData750A2E5B = {
+  /**
+   * @description Optional. Specifies the name used to refer to this file to the model (e.g. "my_file.pdf"). Used as the file reference identifier when `verbalization_mode` is set to `REFERENCE_ONLY`.
+   * @type string | undefined
+   */
+  displayName?: string
+  /**
+   * @description Required. URI.
+   * @type string | undefined
+   */
+  fileUri?: string
+  /**
+   * @description Optional. The IANA standard MIME type of the source data.
+   * @type string | undefined
+   */
+  mimeType?: string
+}
+
+/**
+ * @description URI based data for function response.
+ * @type object
+ */
+export type FunctionResponseFileData6D6D27D4 = {
+  /**
+   * @description The IANA standard MIME type of the source data. If an unsupported MIME type is provided, an error will be returned. For a complete list of supported types, see [Multimodal function responses](https://aistudio.google.com/docs/function-calling#multimodal) and [Supported file formats](https://aistudio.google.com/docs/file-input-methods#supported-content-types).
+   * @type string | undefined
+   */
+  mimeType?: string
+  /**
+   * @description Required. URI.
+   * @type string | undefined
+   */
+  fileUri?: string
+  /**
+   * @description Optional. Display name of the file. Used to provide a label or filename to distinguish file data, and to reference the file from `FunctionResponse.response` (for example, via `{"$ref": "DISPLAY_NAME"}`).
+   * @type string | undefined
+   */
+  displayName?: string
+}
+
+export const functionResponsePart4E247C13MediaProcessingEnum = {
+  MEDIA_PROCESSING_UNSPECIFIED: 'MEDIA_PROCESSING_UNSPECIFIED',
+  STATIC: 'STATIC',
+  AGENTIC: 'AGENTIC',
+} as const
+
+export type FunctionResponsePart4E247C13MediaProcessingEnumKey =
+  (typeof functionResponsePart4E247C13MediaProcessingEnum)[keyof typeof functionResponsePart4E247C13MediaProcessingEnum]
+
+/**
+ * @description A datatype containing media that is part of a `FunctionResponse` message. A `FunctionResponsePart` consists of data which has an associated datatype. A `FunctionResponsePart` can only contain one of the accepted types in `FunctionResponsePart.data`. Media can be passed as raw bytes (`inline_data`) or by URI (`file_data`) with an IANA MIME type identifying the type and subtype of the media.
+ * @type object
+ */
+export type FunctionResponsePart4E247C13 = {
+  /**
+   * @description URI based data for function response.
+   * @type object | undefined
+   */
+  fileData?: FunctionResponseFileData6D6D27D4
+  /**
+   * @description Raw media bytes for function response. Text should not be sent as raw bytes, use the 'FunctionResponse.response' field.
+   * @type object | undefined
+   */
+  inlineData?: FunctionResponseBlob
+  /**
+   * @description Optional. How the model processes this part's media for understanding. Only meaningful for video parts (`inline_data` or `file_data` with video mime). Non-video parts ignore this field.
+   * @type string | undefined
+   */
+  mediaProcessing?: FunctionResponsePart4E247C13MediaProcessingEnumKey
+}
+
+export const functionResponse3C71Bc0ESchedulingEnum = {
+  SCHEDULING_UNSPECIFIED: 'SCHEDULING_UNSPECIFIED',
+  SILENT: 'SILENT',
+  WHEN_IDLE: 'WHEN_IDLE',
+  INTERRUPT: 'INTERRUPT',
+} as const
+
+export type FunctionResponse3C71Bc0ESchedulingEnumKey =
+  (typeof functionResponse3C71Bc0ESchedulingEnum)[keyof typeof functionResponse3C71Bc0ESchedulingEnum]
+
+/**
+ * @description The result output from a `FunctionCall` that contains a string representing the `FunctionDeclaration.name` and a structured JSON object containing any output from the function is used as context to the model. This should contain the result of a`FunctionCall` made based on model prediction.
+ * @type object
+ */
+export type FunctionResponse3C71Bc0E = {
+  /**
+   * @description Required. The name of the function to call. Must be a-z, A-Z, 0-9, or contain underscores and dashes, with a maximum length of 128.
+   * @type string | undefined
+   */
+  name?: string
+  /**
+   * @description Optional. Specifies how the response should be scheduled in the conversation. Only applicable to NON_BLOCKING function calls, is ignored otherwise. Defaults to WHEN_IDLE.
+   * @type string | undefined
+   */
+  scheduling?: FunctionResponse3C71Bc0ESchedulingEnumKey
+  /**
+   * @description Required. The function response in JSON object format. Callers can use any keys of their choice that fit the function's syntax to return the function output, e.g. "output", "result", etc. In particular, if the function call failed to execute, the response can have an "error" key to return error details to the model. Multimedia can be included by using a subobject containing a single "$ref" key whose value is the `inline_data.display_name` or `file_data.display_name` of a `FunctionResponsePart` holding the multimedia. See [Multimodal function responses](https://aistudio.google.com/docs/function-calling#multimodal).
+   * @type object | undefined
+   */
+  response?: {
+    [key: string]: unknown
+  }
+  /**
+   * @description Optional. Ordered `Parts` that constitute a function response. Parts may have different IANA MIME types.
+   * @type array | undefined
+   */
+  parts?: FunctionResponsePart4E247C13[]
+  /**
+   * @description Optional. Signals that function call continues, and more responses will be returned, turning the function call into a generator. Is only applicable to NON_BLOCKING function calls, is ignored otherwise. If set to false, future responses will not be considered. It is allowed to return empty `response` with `will_continue=False` to signal that the function call is finished. This may still trigger the model generation. To avoid triggering the generation and finish the function call, additionally set `scheduling` to `SILENT`.
+   * @type boolean | undefined
+   */
+  willContinue?: boolean
+  /**
+   * @description Optional. The identifier of the function call this response is for. Populated by the client to match the corresponding function call `id`.
+   * @type string | undefined
+   */
+  id?: string
+}
+
+export const partFfb4613CMediaProcessingEnum = {
+  MEDIA_PROCESSING_UNSPECIFIED: 'MEDIA_PROCESSING_UNSPECIFIED',
+  STATIC: 'STATIC',
+  AGENTIC: 'AGENTIC',
+} as const
+
+export type PartFfb4613CMediaProcessingEnumKey =
+  (typeof partFfb4613CMediaProcessingEnum)[keyof typeof partFfb4613CMediaProcessingEnum]
+
+/**
+ * @description A datatype containing media that is part of a multi-part `Content` message. A `Part` consists of data which has an associated datatype. A `Part` can only contain one of the accepted types in `Part.data`. A `Part` must have a fixed IANA MIME type identifying the type and subtype of the media if the `inline_data` field is filled with raw bytes.
+ * @type object
+ */
+export type PartFfb4613C = {
+  /**
+   * @description Metadata describes the input video content. Set this in `Part.video_metadata` or `FunctionResponsePart.video_metadata` when `inline_data` or `file_data` contains video to configure static video preprocessing (such as time clipping, frame rate, maximum frame count, or extracted content layers).
+   * @type object | undefined
+   */
+  videoMetadata?: VideoMetadataD2A4F115
+  /**
+   * @description Custom metadata associated with the Part. Agents using genai.Part as content representation may need to keep track of the additional information. For example it can be name of a file/source from which the Part originates or a way to multiplex multiple Part streams.
+   * @type object | undefined
+   */
+  partMetadata?: {
+    [key: string]: unknown
+  }
+  /**
+   * @description Speech metadata for `text` parts.
+   * @type object | undefined
+   */
+  speechMetadata?: SpeechMetadata3Af85356
+  /**
+   * @description Result of executing the `ExecutableCode`. Generated only when the `CodeExecution` tool is used.
+   * @type object | undefined
+   */
+  codeExecutionResult?: CodeExecutionResult23Ca22Bb
+  /**
+   * @description Raw media bytes. Text should not be sent as raw bytes, use the 'text' field.
+   * @type object | undefined
+   */
+  inlineData?: Blob
+  /**
+   * @description Inline text.
+   * @type string | undefined
+   */
+  text?: string
+  /**
+   * @description Code generated by the model that is meant to be executed, and the result returned to the model. Only generated when using the `CodeExecution` tool, in which the code will be automatically executed, and a corresponding `CodeExecutionResult` will also be generated.
+   * @type object | undefined
+   */
+  executableCode?: ExecutableCode331D0604
+  /**
+   * @description Optional. Indicates if the part is thought from the model.
+   * @type boolean | undefined
+   */
+  thought?: boolean
+  /**
+   * @description Optional. How the model processes this part's media for understanding. Only meaningful for video parts (`inline_data` or `file_data` with video mime). Non-video parts ignore this field.
+   * @type string | undefined
+   */
+  mediaProcessing?: PartFfb4613CMediaProcessingEnumKey
+  /**
+   * @description A predicted server-side `ToolCall` returned from the model. This message contains information about a tool that the model wants to invoke. The client is NOT expected to execute this `ToolCall`. Instead, the client should pass this `ToolCall` back to the API in a subsequent turn within a `Content` message, along with the corresponding `ToolResponse`.
+   * @type object | undefined
+   */
+  toolCall?: ToolCall829Be9C7
+  /**
+   * @description The output from a server-side `ToolCall` execution. This message contains the results of a tool invocation that was initiated by a `ToolCall` from the model. The client should pass this `ToolResponse` back to the API in a subsequent turn within a `Content` message, along with the corresponding `ToolCall`.
+   * @type object | undefined
+   */
+  toolResponse?: ToolResponse9767A0Bc
+  /**
+   * @description A predicted `FunctionCall` returned from the model that contains a string representing the `FunctionDeclaration.name` with the arguments and their values.
+   * @type object | undefined
+   */
+  functionCall?: FunctionCall3A099089
+  /**
+   * @description The transcription of an audio part. For multi-speaker audio, each speaker segment is a separate Part with its own AudioTranscription carrying the speaker_label.
+   * @type object | undefined
+   */
+  audioTranscription?: AudioTranscription5Cd194A3
+  /**
+   * @description URI based data.
+   * @type object | undefined
+   */
+  fileData?: FileData750A2E5B
+  /**
+   * @description The result output from a `FunctionCall` that contains a string representing the `FunctionDeclaration.name` and a structured JSON object containing any output from the function is used as context to the model. This should contain the result of a`FunctionCall` made based on model prediction.
+   * @type object | undefined
+   */
+  functionResponse?: FunctionResponse3C71Bc0E
+  /**
+   * @description Media resolution for tokenization.
+   * @type object | undefined
+   */
+  mediaResolution?: V1MainMediaResolution
+  /**
+   * @description Optional. An opaque signature for the thought so it can be reused in subsequent requests.
+   * @type string | undefined
+   */
+  thoughtSignature?: string
+}
+
+/**
+ * @description The base structured datatype containing multi-part content of a message. A `Content` includes a `role` field designating the producer of the `Content` and a `parts` field containing multi-part data that contains the content of the message turn.
+ * @type object
+ */
+export type Content6E2Efbfe = {
+  /**
+   * @description Optional. The producer of the content. Must be either 'user' or 'model'. Useful to set for multi-turn conversations, otherwise can be left blank or unset.
+   * @type string | undefined
+   */
+  role?: string
+  /**
+   * @description Ordered `Parts` that constitute a single message. Parts may have different MIME types.
+   * @type array | undefined
+   */
+  parts?: PartFfb4613C[]
 }
 
 export const modalityTokenCountC6Aa6738ModalityEnum = {
@@ -3186,6 +5215,60 @@ export type EmbeddingUsageMetadata6B789706 = {
   promptTokenDetails?: ModalityTokenCountC6Aa6738[]
 }
 
+/**
+ * @description The transcription of an audio part. For multi-speaker audio, each speaker segment is a separate Part with its own AudioTranscription carrying the speaker_label.
+ * @type object
+ */
+export type AudioTranscription4D322D71 = {
+  /**
+   * @description Optional. A label identifying the speaker of this audio segment (e.g. "spk_1", "spk_2"). Present when diarization is set.
+   * @type string | undefined
+   */
+  speakerLabel?: string
+  /**
+   * @description Optional. Detailed word-level transcriptions and timing details. Present when word_timestamp is set.
+   * @type array | undefined
+   */
+  words?: WordInfo[]
+  /**
+   * @description Required. The transcription text of this audio segment.
+   * @type string | undefined
+   */
+  text?: string
+}
+
+export const codeExecutionResultA33D7839OutcomeEnum = {
+  OUTCOME_UNSPECIFIED: 'OUTCOME_UNSPECIFIED',
+  OUTCOME_OK: 'OUTCOME_OK',
+  OUTCOME_FAILED: 'OUTCOME_FAILED',
+  OUTCOME_DEADLINE_EXCEEDED: 'OUTCOME_DEADLINE_EXCEEDED',
+} as const
+
+export type CodeExecutionResultA33D7839OutcomeEnumKey =
+  (typeof codeExecutionResultA33D7839OutcomeEnum)[keyof typeof codeExecutionResultA33D7839OutcomeEnum]
+
+/**
+ * @description Result of executing the `ExecutableCode`. Generated only when the `CodeExecution` tool is used.
+ * @type object
+ */
+export type CodeExecutionResultA33D7839 = {
+  /**
+   * @description Optional. Contains stdout when code execution is successful, stderr or other description otherwise.
+   * @type string | undefined
+   */
+  output?: string
+  /**
+   * @description Required. Outcome of the code execution.
+   * @type string | undefined
+   */
+  outcome?: CodeExecutionResultA33D7839OutcomeEnumKey
+  /**
+   * @description Optional. The identifier of the `ExecutableCode` part this result is for. Only populated if the corresponding `ExecutableCode` has an id.
+   * @type string | undefined
+   */
+  id?: string
+}
+
 export const conditionOperationEnum = {
   OPERATOR_UNSPECIFIED: 'OPERATOR_UNSPECIFIED',
   LESS: 'LESS',
@@ -3226,6 +5309,428 @@ export type Condition = {
 }
 
 /**
+ * @description Metadata describes the input video content. Set this in `Part.video_metadata` or `FunctionResponsePart.video_metadata` when `inline_data` or `file_data` contains video to configure static video preprocessing (such as time clipping, frame rate, maximum frame count, or extracted content layers).
+ * @type object
+ */
+export type VideoMetadata13A7B003 = {
+  /**
+   * @description Optional. The end offset of the video.
+   *
+   * Format: `google-duration`
+   * @type string | undefined
+   */
+  endOffset?: string
+  /**
+   * @description Optional. The start offset of the video.
+   *
+   * Format: `google-duration`
+   * @type string | undefined
+   */
+  startOffset?: string
+  /**
+   * @description Optional. The frame rate of the video sent to the model. If not specified, the default value will be 1.0. The fps range is (0.0, 24.0].
+   *
+   * Format: `double`
+   * @type number | undefined
+   */
+  fps?: number
+}
+
+/**
+ * @description Speech metadata for `text` parts.
+ * @type object
+ */
+export type SpeechMetadata326C493C = {
+  /**
+   * @description Optional. Optional style instruction for the speech synthesis.
+   * @type string | undefined
+   */
+  style?: string
+  /**
+   * @description Optional. Optional speaker name for multi-speaker synthesis.
+   * @type string | undefined
+   */
+  speaker?: string
+}
+
+export const executableCode51Fe8B2ALanguageEnum = {
+  LANGUAGE_UNSPECIFIED: 'LANGUAGE_UNSPECIFIED',
+  PYTHON: 'PYTHON',
+} as const
+
+export type ExecutableCode51Fe8B2ALanguageEnumKey =
+  (typeof executableCode51Fe8B2ALanguageEnum)[keyof typeof executableCode51Fe8B2ALanguageEnum]
+
+/**
+ * @description Code generated by the model that is meant to be executed, and the result returned to the model. Only generated when using the `CodeExecution` tool, in which the code will be automatically executed, and a corresponding `CodeExecutionResult` will also be generated.
+ * @type object
+ */
+export type ExecutableCode51Fe8B2A = {
+  /**
+   * @description Required. Programming language of the `code`.
+   * @type string | undefined
+   */
+  language?: ExecutableCode51Fe8B2ALanguageEnumKey
+  /**
+   * @description Required. The code to be executed.
+   * @type string | undefined
+   */
+  code?: string
+  /**
+   * @description Optional. Unique identifier of the `ExecutableCode` part. The server returns the `CodeExecutionResult` with the matching `id`.
+   * @type string | undefined
+   */
+  id?: string
+}
+
+export const toolCall4Aadbc35ToolTypeEnum = {
+  TOOL_TYPE_UNSPECIFIED: 'TOOL_TYPE_UNSPECIFIED',
+  GOOGLE_SEARCH_WEB: 'GOOGLE_SEARCH_WEB',
+  GOOGLE_SEARCH_IMAGE: 'GOOGLE_SEARCH_IMAGE',
+  URL_CONTEXT: 'URL_CONTEXT',
+  GOOGLE_MAPS: 'GOOGLE_MAPS',
+  FILE_SEARCH: 'FILE_SEARCH',
+  MEDIA_PROCESSING: 'MEDIA_PROCESSING',
+} as const
+
+export type ToolCall4Aadbc35ToolTypeEnumKey =
+  (typeof toolCall4Aadbc35ToolTypeEnum)[keyof typeof toolCall4Aadbc35ToolTypeEnum]
+
+/**
+ * @description A predicted server-side `ToolCall` returned from the model. This message contains information about a tool that the model wants to invoke. The client is NOT expected to execute this `ToolCall`. Instead, the client should pass this `ToolCall` back to the API in a subsequent turn within a `Content` message, along with the corresponding `ToolResponse`.
+ * @type object
+ */
+export type ToolCall4Aadbc35 = {
+  /**
+   * @description Optional. The tool call arguments. Example: {"arg1" : "value1", "arg2" : "value2" , ...}
+   * @type object | undefined
+   */
+  args?: {
+    [key: string]: unknown
+  }
+  /**
+   * @description Optional. Unique identifier of the tool call. The server returns the tool response with the matching `id`.
+   * @type string | undefined
+   */
+  id?: string
+  /**
+   * @description Optional. The name of the tool that was called.
+   * @type string | undefined
+   */
+  toolName?: string
+  /**
+   * @description Required. The type of tool that was called.
+   * @type string | undefined
+   */
+  toolType?: ToolCall4Aadbc35ToolTypeEnumKey
+}
+
+export const toolResponseD0157Ed2ToolTypeEnum = {
+  TOOL_TYPE_UNSPECIFIED: 'TOOL_TYPE_UNSPECIFIED',
+  GOOGLE_SEARCH_WEB: 'GOOGLE_SEARCH_WEB',
+  GOOGLE_SEARCH_IMAGE: 'GOOGLE_SEARCH_IMAGE',
+  URL_CONTEXT: 'URL_CONTEXT',
+  GOOGLE_MAPS: 'GOOGLE_MAPS',
+  FILE_SEARCH: 'FILE_SEARCH',
+  MEDIA_PROCESSING: 'MEDIA_PROCESSING',
+} as const
+
+export type ToolResponseD0157Ed2ToolTypeEnumKey =
+  (typeof toolResponseD0157Ed2ToolTypeEnum)[keyof typeof toolResponseD0157Ed2ToolTypeEnum]
+
+/**
+ * @description The output from a server-side `ToolCall` execution. This message contains the results of a tool invocation that was initiated by a `ToolCall` from the model. The client should pass this `ToolResponse` back to the API in a subsequent turn within a `Content` message, along with the corresponding `ToolCall`.
+ * @type object
+ */
+export type ToolResponseD0157Ed2 = {
+  /**
+   * @description Optional. The identifier of the tool call this response is for.
+   * @type string | undefined
+   */
+  id?: string
+  /**
+   * @description Required. The type of tool that was called, matching the `tool_type` in the corresponding `ToolCall`.
+   * @type string | undefined
+   */
+  toolType?: ToolResponseD0157Ed2ToolTypeEnumKey
+  /**
+   * @description Optional. The tool response.
+   * @type object | undefined
+   */
+  response?: {
+    [key: string]: unknown
+  }
+}
+
+/**
+ * @description A predicted `FunctionCall` returned from the model that contains a string representing the `FunctionDeclaration.name` with the arguments and their values.
+ * @type object
+ */
+export type FunctionCall73Af82B7 = {
+  /**
+   * @description Optional. Unique identifier of the function call. If populated, the client to execute the `function_call` and return the response with the matching `id`.
+   * @type string | undefined
+   */
+  id?: string
+  /**
+   * @description Optional. The function parameters and values in JSON object format.
+   * @type object | undefined
+   */
+  args?: {
+    [key: string]: unknown
+  }
+  /**
+   * @description Required. The name of the function to call. Must be a-z, A-Z, 0-9, or contain underscores and dashes, with a maximum length of 128.
+   * @type string | undefined
+   */
+  name?: string
+}
+
+/**
+ * @description URI based data.
+ * @type object
+ */
+export type FileData7Bf0E799 = {
+  /**
+   * @description Optional. Specifies the name used to refer to this file to the model (e.g. "my_file.pdf"). Used as the file reference identifier when `verbalization_mode` is set to `REFERENCE_ONLY`.
+   * @type string | undefined
+   */
+  displayName?: string
+  /**
+   * @description Required. URI.
+   * @type string | undefined
+   */
+  fileUri?: string
+  /**
+   * @description Optional. The IANA standard MIME type of the source data.
+   * @type string | undefined
+   */
+  mimeType?: string
+}
+
+/**
+ * @description URI based data for function response.
+ * @type object
+ */
+export type FunctionResponseFileData1A3Cc75A = {
+  /**
+   * @description The IANA standard MIME type of the source data. If an unsupported MIME type is provided, an error will be returned. For a complete list of supported types, see [Multimodal function responses](https://aistudio.google.com/docs/function-calling#multimodal) and [Supported file formats](https://aistudio.google.com/docs/file-input-methods#supported-content-types).
+   * @type string | undefined
+   */
+  mimeType?: string
+  /**
+   * @description Required. URI.
+   * @type string | undefined
+   */
+  fileUri?: string
+  /**
+   * @description Optional. Display name of the file. Used to provide a label or filename to distinguish file data, and to reference the file from `FunctionResponse.response` (for example, via `{"$ref": "DISPLAY_NAME"}`).
+   * @type string | undefined
+   */
+  displayName?: string
+}
+
+export const functionResponsePart2010C541MediaProcessingEnum = {
+  MEDIA_PROCESSING_UNSPECIFIED: 'MEDIA_PROCESSING_UNSPECIFIED',
+  STATIC: 'STATIC',
+  AGENTIC: 'AGENTIC',
+} as const
+
+export type FunctionResponsePart2010C541MediaProcessingEnumKey =
+  (typeof functionResponsePart2010C541MediaProcessingEnum)[keyof typeof functionResponsePart2010C541MediaProcessingEnum]
+
+/**
+ * @description A datatype containing media that is part of a `FunctionResponse` message. A `FunctionResponsePart` consists of data which has an associated datatype. A `FunctionResponsePart` can only contain one of the accepted types in `FunctionResponsePart.data`. Media can be passed as raw bytes (`inline_data`) or by URI (`file_data`) with an IANA MIME type identifying the type and subtype of the media.
+ * @type object
+ */
+export type FunctionResponsePart2010C541 = {
+  /**
+   * @description URI based data for function response.
+   * @type object | undefined
+   */
+  fileData?: FunctionResponseFileData1A3Cc75A
+  /**
+   * @description Raw media bytes for function response. Text should not be sent as raw bytes, use the 'FunctionResponse.response' field.
+   * @type object | undefined
+   */
+  inlineData?: FunctionResponseBlob
+  /**
+   * @description Optional. How the model processes this part's media for understanding. Only meaningful for video parts (`inline_data` or `file_data` with video mime). Non-video parts ignore this field.
+   * @type string | undefined
+   */
+  mediaProcessing?: FunctionResponsePart2010C541MediaProcessingEnumKey
+}
+
+export const functionResponse878C4C24SchedulingEnum = {
+  SCHEDULING_UNSPECIFIED: 'SCHEDULING_UNSPECIFIED',
+  SILENT: 'SILENT',
+  WHEN_IDLE: 'WHEN_IDLE',
+  INTERRUPT: 'INTERRUPT',
+} as const
+
+export type FunctionResponse878C4C24SchedulingEnumKey =
+  (typeof functionResponse878C4C24SchedulingEnum)[keyof typeof functionResponse878C4C24SchedulingEnum]
+
+/**
+ * @description The result output from a `FunctionCall` that contains a string representing the `FunctionDeclaration.name` and a structured JSON object containing any output from the function is used as context to the model. This should contain the result of a`FunctionCall` made based on model prediction.
+ * @type object
+ */
+export type FunctionResponse878C4C24 = {
+  /**
+   * @description Required. The name of the function to call. Must be a-z, A-Z, 0-9, or contain underscores and dashes, with a maximum length of 128.
+   * @type string | undefined
+   */
+  name?: string
+  /**
+   * @description Optional. Specifies how the response should be scheduled in the conversation. Only applicable to NON_BLOCKING function calls, is ignored otherwise. Defaults to WHEN_IDLE.
+   * @type string | undefined
+   */
+  scheduling?: FunctionResponse878C4C24SchedulingEnumKey
+  /**
+   * @description Required. The function response in JSON object format. Callers can use any keys of their choice that fit the function's syntax to return the function output, e.g. "output", "result", etc. In particular, if the function call failed to execute, the response can have an "error" key to return error details to the model. Multimedia can be included by using a subobject containing a single "$ref" key whose value is the `inline_data.display_name` or `file_data.display_name` of a `FunctionResponsePart` holding the multimedia. See [Multimodal function responses](https://aistudio.google.com/docs/function-calling#multimodal).
+   * @type object | undefined
+   */
+  response?: {
+    [key: string]: unknown
+  }
+  /**
+   * @description Optional. Ordered `Parts` that constitute a function response. Parts may have different IANA MIME types.
+   * @type array | undefined
+   */
+  parts?: FunctionResponsePart2010C541[]
+  /**
+   * @description Optional. Signals that function call continues, and more responses will be returned, turning the function call into a generator. Is only applicable to NON_BLOCKING function calls, is ignored otherwise. If set to false, future responses will not be considered. It is allowed to return empty `response` with `will_continue=False` to signal that the function call is finished. This may still trigger the model generation. To avoid triggering the generation and finish the function call, additionally set `scheduling` to `SILENT`.
+   * @type boolean | undefined
+   */
+  willContinue?: boolean
+  /**
+   * @description Optional. The identifier of the function call this response is for. Populated by the client to match the corresponding function call `id`.
+   * @type string | undefined
+   */
+  id?: string
+}
+
+export const part49432752MediaProcessingEnum = {
+  MEDIA_PROCESSING_UNSPECIFIED: 'MEDIA_PROCESSING_UNSPECIFIED',
+  STATIC: 'STATIC',
+  AGENTIC: 'AGENTIC',
+} as const
+
+export type Part49432752MediaProcessingEnumKey =
+  (typeof part49432752MediaProcessingEnum)[keyof typeof part49432752MediaProcessingEnum]
+
+/**
+ * @description A datatype containing media that is part of a multi-part `Content` message. A `Part` consists of data which has an associated datatype. A `Part` can only contain one of the accepted types in `Part.data`. A `Part` must have a fixed IANA MIME type identifying the type and subtype of the media if the `inline_data` field is filled with raw bytes.
+ * @type object
+ */
+export type Part49432752 = {
+  /**
+   * @description Metadata describes the input video content. Set this in `Part.video_metadata` or `FunctionResponsePart.video_metadata` when `inline_data` or `file_data` contains video to configure static video preprocessing (such as time clipping, frame rate, maximum frame count, or extracted content layers).
+   * @type object | undefined
+   */
+  videoMetadata?: VideoMetadata13A7B003
+  /**
+   * @description Custom metadata associated with the Part. Agents using genai.Part as content representation may need to keep track of the additional information. For example it can be name of a file/source from which the Part originates or a way to multiplex multiple Part streams.
+   * @type object | undefined
+   */
+  partMetadata?: {
+    [key: string]: unknown
+  }
+  /**
+   * @description Speech metadata for `text` parts.
+   * @type object | undefined
+   */
+  speechMetadata?: SpeechMetadata326C493C
+  /**
+   * @description Result of executing the `ExecutableCode`. Generated only when the `CodeExecution` tool is used.
+   * @type object | undefined
+   */
+  codeExecutionResult?: CodeExecutionResultA33D7839
+  /**
+   * @description Raw media bytes. Text should not be sent as raw bytes, use the 'text' field.
+   * @type object | undefined
+   */
+  inlineData?: Blob
+  /**
+   * @description Inline text.
+   * @type string | undefined
+   */
+  text?: string
+  /**
+   * @description Code generated by the model that is meant to be executed, and the result returned to the model. Only generated when using the `CodeExecution` tool, in which the code will be automatically executed, and a corresponding `CodeExecutionResult` will also be generated.
+   * @type object | undefined
+   */
+  executableCode?: ExecutableCode51Fe8B2A
+  /**
+   * @description Optional. Indicates if the part is thought from the model.
+   * @type boolean | undefined
+   */
+  thought?: boolean
+  /**
+   * @description Optional. How the model processes this part's media for understanding. Only meaningful for video parts (`inline_data` or `file_data` with video mime). Non-video parts ignore this field.
+   * @type string | undefined
+   */
+  mediaProcessing?: Part49432752MediaProcessingEnumKey
+  /**
+   * @description A predicted server-side `ToolCall` returned from the model. This message contains information about a tool that the model wants to invoke. The client is NOT expected to execute this `ToolCall`. Instead, the client should pass this `ToolCall` back to the API in a subsequent turn within a `Content` message, along with the corresponding `ToolResponse`.
+   * @type object | undefined
+   */
+  toolCall?: ToolCall4Aadbc35
+  /**
+   * @description The output from a server-side `ToolCall` execution. This message contains the results of a tool invocation that was initiated by a `ToolCall` from the model. The client should pass this `ToolResponse` back to the API in a subsequent turn within a `Content` message, along with the corresponding `ToolCall`.
+   * @type object | undefined
+   */
+  toolResponse?: ToolResponseD0157Ed2
+  /**
+   * @description A predicted `FunctionCall` returned from the model that contains a string representing the `FunctionDeclaration.name` with the arguments and their values.
+   * @type object | undefined
+   */
+  functionCall?: FunctionCall73Af82B7
+  /**
+   * @description The transcription of an audio part. For multi-speaker audio, each speaker segment is a separate Part with its own AudioTranscription carrying the speaker_label.
+   * @type object | undefined
+   */
+  audioTranscription?: AudioTranscription4D322D71
+  /**
+   * @description URI based data.
+   * @type object | undefined
+   */
+  fileData?: FileData7Bf0E799
+  /**
+   * @description The result output from a `FunctionCall` that contains a string representing the `FunctionDeclaration.name` and a structured JSON object containing any output from the function is used as context to the model. This should contain the result of a`FunctionCall` made based on model prediction.
+   * @type object | undefined
+   */
+  functionResponse?: FunctionResponse878C4C24
+  /**
+   * @description Media resolution for tokenization.
+   * @type object | undefined
+   */
+  mediaResolution?: V1MainMediaResolution
+  /**
+   * @description Optional. An opaque signature for the thought so it can be reused in subsequent requests.
+   * @type string | undefined
+   */
+  thoughtSignature?: string
+}
+
+/**
+ * @description The base structured datatype containing multi-part content of a message. A `Content` includes a `role` field designating the producer of the `Content` and a `parts` field containing multi-part data that contains the content of the message turn.
+ * @type object
+ */
+export type ContentDd551534 = {
+  /**
+   * @description Optional. The producer of the content. Must be either 'user' or 'model'. Useful to set for multi-turn conversations, otherwise can be left blank or unset.
+   * @type string | undefined
+   */
+  role?: string
+  /**
+   * @description Ordered `Parts` that constitute a single message. Parts may have different MIME types.
+   * @type array | undefined
+   */
+  parts?: Part49432752[]
+}
+
+/**
  * @description Passage included inline with a grounding configuration.
  * @type object
  */
@@ -3234,7 +5739,7 @@ export type GroundingPassage = {
    * @description The base structured datatype containing multi-part content of a message. A `Content` includes a `role` field designating the producer of the `Content` and a `parts` field containing multi-part data that contains the content of the message turn.
    * @type object | undefined
    */
-  content?: Content
+  content?: ContentDd551534
   /**
    * @description Identifier for the passage for attributing this passage in grounded answers.
    * @type string | undefined
@@ -3271,6 +5776,54 @@ export type MetadataFilter = {
   conditions?: Condition[]
 }
 
+export const safetySetting695F0817CategoryEnum = {
+  HARM_CATEGORY_UNSPECIFIED: 'HARM_CATEGORY_UNSPECIFIED',
+  HARM_CATEGORY_DEROGATORY: 'HARM_CATEGORY_DEROGATORY',
+  HARM_CATEGORY_TOXICITY: 'HARM_CATEGORY_TOXICITY',
+  HARM_CATEGORY_VIOLENCE: 'HARM_CATEGORY_VIOLENCE',
+  HARM_CATEGORY_SEXUAL: 'HARM_CATEGORY_SEXUAL',
+  HARM_CATEGORY_MEDICAL: 'HARM_CATEGORY_MEDICAL',
+  HARM_CATEGORY_DANGEROUS: 'HARM_CATEGORY_DANGEROUS',
+  HARM_CATEGORY_HARASSMENT: 'HARM_CATEGORY_HARASSMENT',
+  HARM_CATEGORY_HATE_SPEECH: 'HARM_CATEGORY_HATE_SPEECH',
+  HARM_CATEGORY_SEXUALLY_EXPLICIT: 'HARM_CATEGORY_SEXUALLY_EXPLICIT',
+  HARM_CATEGORY_DANGEROUS_CONTENT: 'HARM_CATEGORY_DANGEROUS_CONTENT',
+  HARM_CATEGORY_CIVIC_INTEGRITY: 'HARM_CATEGORY_CIVIC_INTEGRITY',
+  HARM_CATEGORY_JAILBREAK: 'HARM_CATEGORY_JAILBREAK',
+} as const
+
+export type SafetySetting695F0817CategoryEnumKey =
+  (typeof safetySetting695F0817CategoryEnum)[keyof typeof safetySetting695F0817CategoryEnum]
+
+export const safetySetting695F0817ThresholdEnum = {
+  HARM_BLOCK_THRESHOLD_UNSPECIFIED: 'HARM_BLOCK_THRESHOLD_UNSPECIFIED',
+  BLOCK_LOW_AND_ABOVE: 'BLOCK_LOW_AND_ABOVE',
+  BLOCK_MEDIUM_AND_ABOVE: 'BLOCK_MEDIUM_AND_ABOVE',
+  BLOCK_ONLY_HIGH: 'BLOCK_ONLY_HIGH',
+  BLOCK_NONE: 'BLOCK_NONE',
+  OFF: 'OFF',
+} as const
+
+export type SafetySetting695F0817ThresholdEnumKey =
+  (typeof safetySetting695F0817ThresholdEnum)[keyof typeof safetySetting695F0817ThresholdEnum]
+
+/**
+ * @description Safety setting, affecting the safety-blocking behavior. Passing a safety setting for a category changes the allowed probability that content is blocked.
+ * @type object
+ */
+export type SafetySetting695F0817 = {
+  /**
+   * @description Required. The category for this setting.
+   * @type string | undefined
+   */
+  category?: SafetySetting695F0817CategoryEnumKey
+  /**
+   * @description Required. Controls the probability threshold at which harm is blocked.
+   * @type string | undefined
+   */
+  threshold?: SafetySetting695F0817ThresholdEnumKey
+}
+
 /**
  * @description Configuration for retrieving grounding content from a `Corpus` or `Document` created using the Semantic Retriever API.
  * @type object
@@ -3285,7 +5838,7 @@ export type SemanticRetrieverConfig = {
    * @description The base structured datatype containing multi-part content of a message. A `Content` includes a `role` field designating the producer of the `Content` and a `parts` field containing multi-part data that contains the content of the message turn.
    * @type object | undefined
    */
-  query?: Content
+  query?: ContentDd551534
   /**
    * @description Optional. Filters for selecting `Document`s and/or `Chunk`s from the resource.
    * @type array | undefined
@@ -3305,6 +5858,606 @@ export type SemanticRetrieverConfig = {
    * @type number | undefined
    */
   minimumRelevanceScore?: number
+}
+
+/**
+ * @description The transcription of an audio part. For multi-speaker audio, each speaker segment is a separate Part with its own AudioTranscription carrying the speaker_label.
+ * @type object
+ */
+export type AudioTranscriptionE1C349E8 = {
+  /**
+   * @description Optional. A label identifying the speaker of this audio segment (e.g. "spk_1", "spk_2"). Present when diarization is set.
+   * @type string | undefined
+   */
+  speakerLabel?: string
+  /**
+   * @description Optional. Detailed word-level transcriptions and timing details. Present when word_timestamp is set.
+   * @type array | undefined
+   */
+  words?: WordInfo[]
+  /**
+   * @description Required. The transcription text of this audio segment.
+   * @type string | undefined
+   */
+  text?: string
+}
+
+/**
+ * @description Metadata describes the input video content. Set this in `Part.video_metadata` or `FunctionResponsePart.video_metadata` when `inline_data` or `file_data` contains video to configure static video preprocessing (such as time clipping, frame rate, maximum frame count, or extracted content layers).
+ * @type object
+ */
+export type VideoMetadata392D534E = {
+  /**
+   * @description Optional. The end offset of the video.
+   *
+   * Format: `google-duration`
+   * @type string | undefined
+   */
+  endOffset?: string
+  /**
+   * @description Optional. The start offset of the video.
+   *
+   * Format: `google-duration`
+   * @type string | undefined
+   */
+  startOffset?: string
+  /**
+   * @description Optional. The frame rate of the video sent to the model. If not specified, the default value will be 1.0. The fps range is (0.0, 24.0].
+   *
+   * Format: `double`
+   * @type number | undefined
+   */
+  fps?: number
+}
+
+/**
+ * @description Speech metadata for `text` parts.
+ * @type object
+ */
+export type SpeechMetadataCbdda107 = {
+  /**
+   * @description Optional. Optional style instruction for the speech synthesis.
+   * @type string | undefined
+   */
+  style?: string
+  /**
+   * @description Optional. Optional speaker name for multi-speaker synthesis.
+   * @type string | undefined
+   */
+  speaker?: string
+}
+
+export const codeExecutionResult9E2Cb000OutcomeEnum = {
+  OUTCOME_UNSPECIFIED: 'OUTCOME_UNSPECIFIED',
+  OUTCOME_OK: 'OUTCOME_OK',
+  OUTCOME_FAILED: 'OUTCOME_FAILED',
+  OUTCOME_DEADLINE_EXCEEDED: 'OUTCOME_DEADLINE_EXCEEDED',
+} as const
+
+export type CodeExecutionResult9E2Cb000OutcomeEnumKey =
+  (typeof codeExecutionResult9E2Cb000OutcomeEnum)[keyof typeof codeExecutionResult9E2Cb000OutcomeEnum]
+
+/**
+ * @description Result of executing the `ExecutableCode`. Generated only when the `CodeExecution` tool is used.
+ * @type object
+ */
+export type CodeExecutionResult9E2Cb000 = {
+  /**
+   * @description Optional. Contains stdout when code execution is successful, stderr or other description otherwise.
+   * @type string | undefined
+   */
+  output?: string
+  /**
+   * @description Required. Outcome of the code execution.
+   * @type string | undefined
+   */
+  outcome?: CodeExecutionResult9E2Cb000OutcomeEnumKey
+  /**
+   * @description Optional. The identifier of the `ExecutableCode` part this result is for. Only populated if the corresponding `ExecutableCode` has an id.
+   * @type string | undefined
+   */
+  id?: string
+}
+
+export const executableCodeA1148119LanguageEnum = {
+  LANGUAGE_UNSPECIFIED: 'LANGUAGE_UNSPECIFIED',
+  PYTHON: 'PYTHON',
+} as const
+
+export type ExecutableCodeA1148119LanguageEnumKey =
+  (typeof executableCodeA1148119LanguageEnum)[keyof typeof executableCodeA1148119LanguageEnum]
+
+/**
+ * @description Code generated by the model that is meant to be executed, and the result returned to the model. Only generated when using the `CodeExecution` tool, in which the code will be automatically executed, and a corresponding `CodeExecutionResult` will also be generated.
+ * @type object
+ */
+export type ExecutableCodeA1148119 = {
+  /**
+   * @description Required. Programming language of the `code`.
+   * @type string | undefined
+   */
+  language?: ExecutableCodeA1148119LanguageEnumKey
+  /**
+   * @description Required. The code to be executed.
+   * @type string | undefined
+   */
+  code?: string
+  /**
+   * @description Optional. Unique identifier of the `ExecutableCode` part. The server returns the `CodeExecutionResult` with the matching `id`.
+   * @type string | undefined
+   */
+  id?: string
+}
+
+export const toolCall258E08DcToolTypeEnum = {
+  TOOL_TYPE_UNSPECIFIED: 'TOOL_TYPE_UNSPECIFIED',
+  GOOGLE_SEARCH_WEB: 'GOOGLE_SEARCH_WEB',
+  GOOGLE_SEARCH_IMAGE: 'GOOGLE_SEARCH_IMAGE',
+  URL_CONTEXT: 'URL_CONTEXT',
+  GOOGLE_MAPS: 'GOOGLE_MAPS',
+  FILE_SEARCH: 'FILE_SEARCH',
+  MEDIA_PROCESSING: 'MEDIA_PROCESSING',
+} as const
+
+export type ToolCall258E08DcToolTypeEnumKey =
+  (typeof toolCall258E08DcToolTypeEnum)[keyof typeof toolCall258E08DcToolTypeEnum]
+
+/**
+ * @description A predicted server-side `ToolCall` returned from the model. This message contains information about a tool that the model wants to invoke. The client is NOT expected to execute this `ToolCall`. Instead, the client should pass this `ToolCall` back to the API in a subsequent turn within a `Content` message, along with the corresponding `ToolResponse`.
+ * @type object
+ */
+export type ToolCall258E08Dc = {
+  /**
+   * @description Optional. The tool call arguments. Example: {"arg1" : "value1", "arg2" : "value2" , ...}
+   * @type object | undefined
+   */
+  args?: {
+    [key: string]: unknown
+  }
+  /**
+   * @description Optional. Unique identifier of the tool call. The server returns the tool response with the matching `id`.
+   * @type string | undefined
+   */
+  id?: string
+  /**
+   * @description Optional. The name of the tool that was called.
+   * @type string | undefined
+   */
+  toolName?: string
+  /**
+   * @description Required. The type of tool that was called.
+   * @type string | undefined
+   */
+  toolType?: ToolCall258E08DcToolTypeEnumKey
+}
+
+export const toolResponse29B5E2D1ToolTypeEnum = {
+  TOOL_TYPE_UNSPECIFIED: 'TOOL_TYPE_UNSPECIFIED',
+  GOOGLE_SEARCH_WEB: 'GOOGLE_SEARCH_WEB',
+  GOOGLE_SEARCH_IMAGE: 'GOOGLE_SEARCH_IMAGE',
+  URL_CONTEXT: 'URL_CONTEXT',
+  GOOGLE_MAPS: 'GOOGLE_MAPS',
+  FILE_SEARCH: 'FILE_SEARCH',
+  MEDIA_PROCESSING: 'MEDIA_PROCESSING',
+} as const
+
+export type ToolResponse29B5E2D1ToolTypeEnumKey =
+  (typeof toolResponse29B5E2D1ToolTypeEnum)[keyof typeof toolResponse29B5E2D1ToolTypeEnum]
+
+/**
+ * @description The output from a server-side `ToolCall` execution. This message contains the results of a tool invocation that was initiated by a `ToolCall` from the model. The client should pass this `ToolResponse` back to the API in a subsequent turn within a `Content` message, along with the corresponding `ToolCall`.
+ * @type object
+ */
+export type ToolResponse29B5E2D1 = {
+  /**
+   * @description Optional. The identifier of the tool call this response is for.
+   * @type string | undefined
+   */
+  id?: string
+  /**
+   * @description Required. The type of tool that was called, matching the `tool_type` in the corresponding `ToolCall`.
+   * @type string | undefined
+   */
+  toolType?: ToolResponse29B5E2D1ToolTypeEnumKey
+  /**
+   * @description Optional. The tool response.
+   * @type object | undefined
+   */
+  response?: {
+    [key: string]: unknown
+  }
+}
+
+/**
+ * @description A predicted `FunctionCall` returned from the model that contains a string representing the `FunctionDeclaration.name` with the arguments and their values.
+ * @type object
+ */
+export type FunctionCall3D7474C2 = {
+  /**
+   * @description Optional. Unique identifier of the function call. If populated, the client to execute the `function_call` and return the response with the matching `id`.
+   * @type string | undefined
+   */
+  id?: string
+  /**
+   * @description Optional. The function parameters and values in JSON object format.
+   * @type object | undefined
+   */
+  args?: {
+    [key: string]: unknown
+  }
+  /**
+   * @description Required. The name of the function to call. Must be a-z, A-Z, 0-9, or contain underscores and dashes, with a maximum length of 128.
+   * @type string | undefined
+   */
+  name?: string
+}
+
+/**
+ * @description URI based data.
+ * @type object
+ */
+export type FileData83963A20 = {
+  /**
+   * @description Optional. Specifies the name used to refer to this file to the model (e.g. "my_file.pdf"). Used as the file reference identifier when `verbalization_mode` is set to `REFERENCE_ONLY`.
+   * @type string | undefined
+   */
+  displayName?: string
+  /**
+   * @description Required. URI.
+   * @type string | undefined
+   */
+  fileUri?: string
+  /**
+   * @description Optional. The IANA standard MIME type of the source data.
+   * @type string | undefined
+   */
+  mimeType?: string
+}
+
+/**
+ * @description URI based data for function response.
+ * @type object
+ */
+export type FunctionResponseFileDataDee472C9 = {
+  /**
+   * @description The IANA standard MIME type of the source data. If an unsupported MIME type is provided, an error will be returned. For a complete list of supported types, see [Multimodal function responses](https://aistudio.google.com/docs/function-calling#multimodal) and [Supported file formats](https://aistudio.google.com/docs/file-input-methods#supported-content-types).
+   * @type string | undefined
+   */
+  mimeType?: string
+  /**
+   * @description Required. URI.
+   * @type string | undefined
+   */
+  fileUri?: string
+  /**
+   * @description Optional. Display name of the file. Used to provide a label or filename to distinguish file data, and to reference the file from `FunctionResponse.response` (for example, via `{"$ref": "DISPLAY_NAME"}`).
+   * @type string | undefined
+   */
+  displayName?: string
+}
+
+export const functionResponsePartD3879038MediaProcessingEnum = {
+  MEDIA_PROCESSING_UNSPECIFIED: 'MEDIA_PROCESSING_UNSPECIFIED',
+  STATIC: 'STATIC',
+  AGENTIC: 'AGENTIC',
+} as const
+
+export type FunctionResponsePartD3879038MediaProcessingEnumKey =
+  (typeof functionResponsePartD3879038MediaProcessingEnum)[keyof typeof functionResponsePartD3879038MediaProcessingEnum]
+
+/**
+ * @description A datatype containing media that is part of a `FunctionResponse` message. A `FunctionResponsePart` consists of data which has an associated datatype. A `FunctionResponsePart` can only contain one of the accepted types in `FunctionResponsePart.data`. Media can be passed as raw bytes (`inline_data`) or by URI (`file_data`) with an IANA MIME type identifying the type and subtype of the media.
+ * @type object
+ */
+export type FunctionResponsePartD3879038 = {
+  /**
+   * @description URI based data for function response.
+   * @type object | undefined
+   */
+  fileData?: FunctionResponseFileDataDee472C9
+  /**
+   * @description Raw media bytes for function response. Text should not be sent as raw bytes, use the 'FunctionResponse.response' field.
+   * @type object | undefined
+   */
+  inlineData?: FunctionResponseBlob
+  /**
+   * @description Optional. How the model processes this part's media for understanding. Only meaningful for video parts (`inline_data` or `file_data` with video mime). Non-video parts ignore this field.
+   * @type string | undefined
+   */
+  mediaProcessing?: FunctionResponsePartD3879038MediaProcessingEnumKey
+}
+
+export const functionResponse4042501FSchedulingEnum = {
+  SCHEDULING_UNSPECIFIED: 'SCHEDULING_UNSPECIFIED',
+  SILENT: 'SILENT',
+  WHEN_IDLE: 'WHEN_IDLE',
+  INTERRUPT: 'INTERRUPT',
+} as const
+
+export type FunctionResponse4042501FSchedulingEnumKey =
+  (typeof functionResponse4042501FSchedulingEnum)[keyof typeof functionResponse4042501FSchedulingEnum]
+
+/**
+ * @description The result output from a `FunctionCall` that contains a string representing the `FunctionDeclaration.name` and a structured JSON object containing any output from the function is used as context to the model. This should contain the result of a`FunctionCall` made based on model prediction.
+ * @type object
+ */
+export type FunctionResponse4042501F = {
+  /**
+   * @description Required. The name of the function to call. Must be a-z, A-Z, 0-9, or contain underscores and dashes, with a maximum length of 128.
+   * @type string | undefined
+   */
+  name?: string
+  /**
+   * @description Optional. Specifies how the response should be scheduled in the conversation. Only applicable to NON_BLOCKING function calls, is ignored otherwise. Defaults to WHEN_IDLE.
+   * @type string | undefined
+   */
+  scheduling?: FunctionResponse4042501FSchedulingEnumKey
+  /**
+   * @description Required. The function response in JSON object format. Callers can use any keys of their choice that fit the function's syntax to return the function output, e.g. "output", "result", etc. In particular, if the function call failed to execute, the response can have an "error" key to return error details to the model. Multimedia can be included by using a subobject containing a single "$ref" key whose value is the `inline_data.display_name` or `file_data.display_name` of a `FunctionResponsePart` holding the multimedia. See [Multimodal function responses](https://aistudio.google.com/docs/function-calling#multimodal).
+   * @type object | undefined
+   */
+  response?: {
+    [key: string]: unknown
+  }
+  /**
+   * @description Optional. Ordered `Parts` that constitute a function response. Parts may have different IANA MIME types.
+   * @type array | undefined
+   */
+  parts?: FunctionResponsePartD3879038[]
+  /**
+   * @description Optional. Signals that function call continues, and more responses will be returned, turning the function call into a generator. Is only applicable to NON_BLOCKING function calls, is ignored otherwise. If set to false, future responses will not be considered. It is allowed to return empty `response` with `will_continue=False` to signal that the function call is finished. This may still trigger the model generation. To avoid triggering the generation and finish the function call, additionally set `scheduling` to `SILENT`.
+   * @type boolean | undefined
+   */
+  willContinue?: boolean
+  /**
+   * @description Optional. The identifier of the function call this response is for. Populated by the client to match the corresponding function call `id`.
+   * @type string | undefined
+   */
+  id?: string
+}
+
+export const part9Edaf051MediaProcessingEnum = {
+  MEDIA_PROCESSING_UNSPECIFIED: 'MEDIA_PROCESSING_UNSPECIFIED',
+  STATIC: 'STATIC',
+  AGENTIC: 'AGENTIC',
+} as const
+
+export type Part9Edaf051MediaProcessingEnumKey =
+  (typeof part9Edaf051MediaProcessingEnum)[keyof typeof part9Edaf051MediaProcessingEnum]
+
+/**
+ * @description A datatype containing media that is part of a multi-part `Content` message. A `Part` consists of data which has an associated datatype. A `Part` can only contain one of the accepted types in `Part.data`. A `Part` must have a fixed IANA MIME type identifying the type and subtype of the media if the `inline_data` field is filled with raw bytes.
+ * @type object
+ */
+export type Part9Edaf051 = {
+  /**
+   * @description Metadata describes the input video content. Set this in `Part.video_metadata` or `FunctionResponsePart.video_metadata` when `inline_data` or `file_data` contains video to configure static video preprocessing (such as time clipping, frame rate, maximum frame count, or extracted content layers).
+   * @type object | undefined
+   */
+  videoMetadata?: VideoMetadata392D534E
+  /**
+   * @description Custom metadata associated with the Part. Agents using genai.Part as content representation may need to keep track of the additional information. For example it can be name of a file/source from which the Part originates or a way to multiplex multiple Part streams.
+   * @type object | undefined
+   */
+  partMetadata?: {
+    [key: string]: unknown
+  }
+  /**
+   * @description Speech metadata for `text` parts.
+   * @type object | undefined
+   */
+  speechMetadata?: SpeechMetadataCbdda107
+  /**
+   * @description Result of executing the `ExecutableCode`. Generated only when the `CodeExecution` tool is used.
+   * @type object | undefined
+   */
+  codeExecutionResult?: CodeExecutionResult9E2Cb000
+  /**
+   * @description Raw media bytes. Text should not be sent as raw bytes, use the 'text' field.
+   * @type object | undefined
+   */
+  inlineData?: Blob
+  /**
+   * @description Inline text.
+   * @type string | undefined
+   */
+  text?: string
+  /**
+   * @description Code generated by the model that is meant to be executed, and the result returned to the model. Only generated when using the `CodeExecution` tool, in which the code will be automatically executed, and a corresponding `CodeExecutionResult` will also be generated.
+   * @type object | undefined
+   */
+  executableCode?: ExecutableCodeA1148119
+  /**
+   * @description Optional. Indicates if the part is thought from the model.
+   * @type boolean | undefined
+   */
+  thought?: boolean
+  /**
+   * @description Optional. How the model processes this part's media for understanding. Only meaningful for video parts (`inline_data` or `file_data` with video mime). Non-video parts ignore this field.
+   * @type string | undefined
+   */
+  mediaProcessing?: Part9Edaf051MediaProcessingEnumKey
+  /**
+   * @description A predicted server-side `ToolCall` returned from the model. This message contains information about a tool that the model wants to invoke. The client is NOT expected to execute this `ToolCall`. Instead, the client should pass this `ToolCall` back to the API in a subsequent turn within a `Content` message, along with the corresponding `ToolResponse`.
+   * @type object | undefined
+   */
+  toolCall?: ToolCall258E08Dc
+  /**
+   * @description The output from a server-side `ToolCall` execution. This message contains the results of a tool invocation that was initiated by a `ToolCall` from the model. The client should pass this `ToolResponse` back to the API in a subsequent turn within a `Content` message, along with the corresponding `ToolCall`.
+   * @type object | undefined
+   */
+  toolResponse?: ToolResponse29B5E2D1
+  /**
+   * @description A predicted `FunctionCall` returned from the model that contains a string representing the `FunctionDeclaration.name` with the arguments and their values.
+   * @type object | undefined
+   */
+  functionCall?: FunctionCall3D7474C2
+  /**
+   * @description The transcription of an audio part. For multi-speaker audio, each speaker segment is a separate Part with its own AudioTranscription carrying the speaker_label.
+   * @type object | undefined
+   */
+  audioTranscription?: AudioTranscriptionE1C349E8
+  /**
+   * @description URI based data.
+   * @type object | undefined
+   */
+  fileData?: FileData83963A20
+  /**
+   * @description The result output from a `FunctionCall` that contains a string representing the `FunctionDeclaration.name` and a structured JSON object containing any output from the function is used as context to the model. This should contain the result of a`FunctionCall` made based on model prediction.
+   * @type object | undefined
+   */
+  functionResponse?: FunctionResponse4042501F
+  /**
+   * @description Media resolution for tokenization.
+   * @type object | undefined
+   */
+  mediaResolution?: V1MainMediaResolution
+  /**
+   * @description Optional. An opaque signature for the thought so it can be reused in subsequent requests.
+   * @type string | undefined
+   */
+  thoughtSignature?: string
+}
+
+/**
+ * @description The base structured datatype containing multi-part content of a message. A `Content` includes a `role` field designating the producer of the `Content` and a `parts` field containing multi-part data that contains the content of the message turn.
+ * @type object
+ */
+export type Content44Ca966F = {
+  /**
+   * @description Optional. The producer of the content. Must be either 'user' or 'model'. Useful to set for multi-turn conversations, otherwise can be left blank or unset.
+   * @type string | undefined
+   */
+  role?: string
+  /**
+   * @description Ordered `Parts` that constitute a single message. Parts may have different MIME types.
+   * @type array | undefined
+   */
+  parts?: Part9Edaf051[]
+}
+
+/**
+ * @description Attribution for a source that contributed to an answer.
+ * @type object
+ */
+export type GroundingAttribution6B491Ec0 = {
+  /**
+   * @description Identifier for the source contributing to this attribution.
+   * @type object | undefined
+   */
+  sourceId?: AttributionSourceId
+  /**
+   * @description The base structured datatype containing multi-part content of a message. A `Content` includes a `role` field designating the producer of the `Content` and a `parts` field containing multi-part data that contains the content of the message turn.
+   * @type object | undefined
+   */
+  content?: Content44Ca966F
+}
+
+export const candidate1Bea1437FinishReasonEnum = {
+  FINISH_REASON_UNSPECIFIED: 'FINISH_REASON_UNSPECIFIED',
+  STOP: 'STOP',
+  MAX_TOKENS: 'MAX_TOKENS',
+  SAFETY: 'SAFETY',
+  RECITATION: 'RECITATION',
+  LANGUAGE: 'LANGUAGE',
+  OTHER: 'OTHER',
+  BLOCKLIST: 'BLOCKLIST',
+  PROHIBITED_CONTENT: 'PROHIBITED_CONTENT',
+  SPII: 'SPII',
+  MALFORMED_FUNCTION_CALL: 'MALFORMED_FUNCTION_CALL',
+  IMAGE_SAFETY: 'IMAGE_SAFETY',
+  IMAGE_PROHIBITED_CONTENT: 'IMAGE_PROHIBITED_CONTENT',
+  IMAGE_OTHER: 'IMAGE_OTHER',
+  NO_IMAGE: 'NO_IMAGE',
+  IMAGE_RECITATION: 'IMAGE_RECITATION',
+  UNEXPECTED_TOOL_CALL: 'UNEXPECTED_TOOL_CALL',
+  TOO_MANY_TOOL_CALLS: 'TOO_MANY_TOOL_CALLS',
+  MISSING_THOUGHT_SIGNATURE: 'MISSING_THOUGHT_SIGNATURE',
+  MALFORMED_RESPONSE: 'MALFORMED_RESPONSE',
+  ESCALATION: 'ESCALATION',
+  PUP_LIMITED_DISABLED: 'PUP_LIMITED_DISABLED',
+  CONTINUATION: 'CONTINUATION',
+} as const
+
+export type Candidate1Bea1437FinishReasonEnumKey =
+  (typeof candidate1Bea1437FinishReasonEnum)[keyof typeof candidate1Bea1437FinishReasonEnum]
+
+/**
+ * @description A response candidate generated from the model.
+ * @type object
+ */
+export type Candidate1Bea1437 = {
+  /**
+   * @description The base structured datatype containing multi-part content of a message. A `Content` includes a `role` field designating the producer of the `Content` and a `parts` field containing multi-part data that contains the content of the message turn.
+   * @type object | undefined
+   */
+  content?: Content44Ca966F
+  /**
+   * @description Metadata returned to client when grounding is enabled.
+   * @type object | undefined
+   */
+  groundingMetadata?: GroundingMetadata
+  /**
+   * @description Output only. Index of the candidate in the list of response candidates.
+   *
+   * Format: `int32`
+   * @type integer | undefined
+   */
+  index?: number
+  /**
+   * @description Optional. Output only. The reason why the model stopped generating tokens. If empty, the model has not stopped generating tokens.
+   * @type string | undefined
+   */
+  finishReason?: Candidate1Bea1437FinishReasonEnumKey
+  /**
+   * @description Output only. Token count for this candidate.
+   *
+   * Format: `int32`
+   * @type integer | undefined
+   */
+  tokenCount?: number
+  /**
+   * @description Output only. Average log probability score of the candidate.
+   *
+   * Format: `double`
+   * @type number | undefined
+   */
+  avgLogprobs?: number
+  /**
+   * @description List of ratings for the safety of a response candidate. There is at most one rating per category.
+   * @type array | undefined
+   */
+  safetyRatings?: SafetyRating[]
+  /**
+   * @description Optional. Output only. Details the reason why the model stopped generating tokens. This is populated only when `finish_reason` is set.
+   * @type string | undefined
+   */
+  finishMessage?: string
+  /**
+   * @description Metadata related to url context retrieval tool.
+   * @type object | undefined
+   */
+  urlContextMetadata?: UrlContextMetadata
+  /**
+   * @description A collection of source attributions for a piece of content.
+   * @type object | undefined
+   */
+  citationMetadata?: CitationMetadata
+  /**
+   * @description An optional opaque continuation token returned when `finish_reason` is `CONTINUATION`. Clients can pass this token in a subsequent `GenerateContentRequest` to continue generation.
+   * @type string | undefined
+   */
+  continuationToken?: string
+  /**
+   * @description Output only. Attribution information for sources that contributed to a grounded answer. This field is populated for `GenerateAnswer` calls.
+   * @type array | undefined
+   */
+  groundingAttributions?: GroundingAttribution6B491Ec0[]
+  /**
+   * @description Logprobs Result
+   * @type object | undefined
+   */
+  logprobsResult?: LogprobsResult
 }
 
 export const inputFeedbackBlockReasonEnum = {
@@ -3528,59 +6681,11 @@ export type MessageA5Ae2Bcf = {
   citationMetadata?: CitationMetadata2Bd91786
 }
 
-export const safetySetting46E68Be6ThresholdEnum = {
-  HARM_BLOCK_THRESHOLD_UNSPECIFIED: 'HARM_BLOCK_THRESHOLD_UNSPECIFIED',
-  BLOCK_LOW_AND_ABOVE: 'BLOCK_LOW_AND_ABOVE',
-  BLOCK_MEDIUM_AND_ABOVE: 'BLOCK_MEDIUM_AND_ABOVE',
-  BLOCK_ONLY_HIGH: 'BLOCK_ONLY_HIGH',
-  BLOCK_NONE: 'BLOCK_NONE',
-  OFF: 'OFF',
-} as const
-
-export type SafetySetting46E68Be6ThresholdEnumKey =
-  (typeof safetySetting46E68Be6ThresholdEnum)[keyof typeof safetySetting46E68Be6ThresholdEnum]
-
-export const safetySetting46E68Be6CategoryEnum = {
-  HARM_CATEGORY_UNSPECIFIED: 'HARM_CATEGORY_UNSPECIFIED',
-  HARM_CATEGORY_DEROGATORY: 'HARM_CATEGORY_DEROGATORY',
-  HARM_CATEGORY_TOXICITY: 'HARM_CATEGORY_TOXICITY',
-  HARM_CATEGORY_VIOLENCE: 'HARM_CATEGORY_VIOLENCE',
-  HARM_CATEGORY_SEXUAL: 'HARM_CATEGORY_SEXUAL',
-  HARM_CATEGORY_MEDICAL: 'HARM_CATEGORY_MEDICAL',
-  HARM_CATEGORY_DANGEROUS: 'HARM_CATEGORY_DANGEROUS',
-  HARM_CATEGORY_HARASSMENT: 'HARM_CATEGORY_HARASSMENT',
-  HARM_CATEGORY_HATE_SPEECH: 'HARM_CATEGORY_HATE_SPEECH',
-  HARM_CATEGORY_SEXUALLY_EXPLICIT: 'HARM_CATEGORY_SEXUALLY_EXPLICIT',
-  HARM_CATEGORY_DANGEROUS_CONTENT: 'HARM_CATEGORY_DANGEROUS_CONTENT',
-  HARM_CATEGORY_CIVIC_INTEGRITY: 'HARM_CATEGORY_CIVIC_INTEGRITY',
-  HARM_CATEGORY_JAILBREAK: 'HARM_CATEGORY_JAILBREAK',
-} as const
-
-export type SafetySetting46E68Be6CategoryEnumKey =
-  (typeof safetySetting46E68Be6CategoryEnum)[keyof typeof safetySetting46E68Be6CategoryEnum]
-
-/**
- * @description Safety setting, affecting the safety-blocking behavior. Passing a safety setting for a category changes the allowed probability that content is blocked.
- * @type object
- */
-export type SafetySetting46E68Be6 = {
-  /**
-   * @description Required. Controls the probability threshold at which harm is blocked.
-   * @type string | undefined
-   */
-  threshold?: SafetySetting46E68Be6ThresholdEnumKey
-  /**
-   * @description Required. The category for this setting.
-   * @type string | undefined
-   */
-  category?: SafetySetting46E68Be6CategoryEnumKey
-}
-
 /**
  * @description A citation to a source for a portion of a specific response.
  * @type object
  */
-export type CitationSource721F71E4 = {
+export type CitationSource93A72032 = {
   /**
    * @description Optional. Start of segment of the response that is attributed to this source. Index indicates the start of the segment, measured in bytes.
    *
@@ -3611,28 +6716,28 @@ export type CitationSource721F71E4 = {
  * @description A collection of source attributions for a piece of content.
  * @type object
  */
-export type CitationMetadata8B521C14 = {
+export type CitationMetadataF3Eaee22 = {
   /**
    * @description Citations to sources for a specific response.
    * @type array | undefined
    */
-  citationSources?: CitationSource721F71E4[]
+  citationSources?: CitationSource93A72032[]
 }
 
-export const contentFilterFeb8CeebReasonEnum = {
+export const contentFilter6E50A105ReasonEnum = {
   BLOCKED_REASON_UNSPECIFIED: 'BLOCKED_REASON_UNSPECIFIED',
   SAFETY: 'SAFETY',
   OTHER: 'OTHER',
 } as const
 
-export type ContentFilterFeb8CeebReasonEnumKey =
-  (typeof contentFilterFeb8CeebReasonEnum)[keyof typeof contentFilterFeb8CeebReasonEnum]
+export type ContentFilter6E50A105ReasonEnumKey =
+  (typeof contentFilter6E50A105ReasonEnum)[keyof typeof contentFilter6E50A105ReasonEnum]
 
 /**
  * @description Content filtering metadata associated with processing a single request. ContentFilter contains a reason and an optional supporting string. The reason may be unspecified.
  * @type object
  */
-export type ContentFilterFeb8Ceeb = {
+export type ContentFilter6E50A105 = {
   /**
    * @description A string that describes the filtering behavior in more detail.
    * @type string | undefined
@@ -3642,10 +6747,10 @@ export type ContentFilterFeb8Ceeb = {
    * @description The reason content was blocked during request processing.
    * @type string | undefined
    */
-  reason?: ContentFilterFeb8CeebReasonEnumKey
+  reason?: ContentFilter6E50A105ReasonEnumKey
 }
 
-export const safetyRating4695Fab1CategoryEnum = {
+export const safetyRating442Ea627CategoryEnum = {
   HARM_CATEGORY_UNSPECIFIED: 'HARM_CATEGORY_UNSPECIFIED',
   HARM_CATEGORY_DEROGATORY: 'HARM_CATEGORY_DEROGATORY',
   HARM_CATEGORY_TOXICITY: 'HARM_CATEGORY_TOXICITY',
@@ -3661,10 +6766,10 @@ export const safetyRating4695Fab1CategoryEnum = {
   HARM_CATEGORY_JAILBREAK: 'HARM_CATEGORY_JAILBREAK',
 } as const
 
-export type SafetyRating4695Fab1CategoryEnumKey =
-  (typeof safetyRating4695Fab1CategoryEnum)[keyof typeof safetyRating4695Fab1CategoryEnum]
+export type SafetyRating442Ea627CategoryEnumKey =
+  (typeof safetyRating442Ea627CategoryEnum)[keyof typeof safetyRating442Ea627CategoryEnum]
 
-export const safetyRating4695Fab1ProbabilityEnum = {
+export const safetyRating442Ea627ProbabilityEnum = {
   HARM_PROBABILITY_UNSPECIFIED: 'HARM_PROBABILITY_UNSPECIFIED',
   NEGLIGIBLE: 'NEGLIGIBLE',
   LOW: 'LOW',
@@ -3672,77 +6777,29 @@ export const safetyRating4695Fab1ProbabilityEnum = {
   HIGH: 'HIGH',
 } as const
 
-export type SafetyRating4695Fab1ProbabilityEnumKey =
-  (typeof safetyRating4695Fab1ProbabilityEnum)[keyof typeof safetyRating4695Fab1ProbabilityEnum]
+export type SafetyRating442Ea627ProbabilityEnumKey =
+  (typeof safetyRating442Ea627ProbabilityEnum)[keyof typeof safetyRating442Ea627ProbabilityEnum]
 
 /**
  * @description Safety rating for a piece of content. The safety rating contains the category of harm and the harm probability level in that category for a piece of content. Content is classified for safety across a number of harm categories and the probability of the harm classification is included here.
  * @type object
  */
-export type SafetyRating4695Fab1 = {
+export type SafetyRating442Ea627 = {
   /**
    * @description Required. The category for this rating.
    * @type string | undefined
    */
-  category?: SafetyRating4695Fab1CategoryEnumKey
+  category?: SafetyRating442Ea627CategoryEnumKey
   /**
    * @description Required. The probability of harm for this content.
    * @type string | undefined
    */
-  probability?: SafetyRating4695Fab1ProbabilityEnumKey
+  probability?: SafetyRating442Ea627ProbabilityEnumKey
   /**
    * @description Was this content blocked because of this rating?
    * @type boolean | undefined
    */
   blocked?: boolean
-}
-
-export const safetySetting5D7A9F80ThresholdEnum = {
-  HARM_BLOCK_THRESHOLD_UNSPECIFIED: 'HARM_BLOCK_THRESHOLD_UNSPECIFIED',
-  BLOCK_LOW_AND_ABOVE: 'BLOCK_LOW_AND_ABOVE',
-  BLOCK_MEDIUM_AND_ABOVE: 'BLOCK_MEDIUM_AND_ABOVE',
-  BLOCK_ONLY_HIGH: 'BLOCK_ONLY_HIGH',
-  BLOCK_NONE: 'BLOCK_NONE',
-  OFF: 'OFF',
-} as const
-
-export type SafetySetting5D7A9F80ThresholdEnumKey =
-  (typeof safetySetting5D7A9F80ThresholdEnum)[keyof typeof safetySetting5D7A9F80ThresholdEnum]
-
-export const safetySetting5D7A9F80CategoryEnum = {
-  HARM_CATEGORY_UNSPECIFIED: 'HARM_CATEGORY_UNSPECIFIED',
-  HARM_CATEGORY_DEROGATORY: 'HARM_CATEGORY_DEROGATORY',
-  HARM_CATEGORY_TOXICITY: 'HARM_CATEGORY_TOXICITY',
-  HARM_CATEGORY_VIOLENCE: 'HARM_CATEGORY_VIOLENCE',
-  HARM_CATEGORY_SEXUAL: 'HARM_CATEGORY_SEXUAL',
-  HARM_CATEGORY_MEDICAL: 'HARM_CATEGORY_MEDICAL',
-  HARM_CATEGORY_DANGEROUS: 'HARM_CATEGORY_DANGEROUS',
-  HARM_CATEGORY_HARASSMENT: 'HARM_CATEGORY_HARASSMENT',
-  HARM_CATEGORY_HATE_SPEECH: 'HARM_CATEGORY_HATE_SPEECH',
-  HARM_CATEGORY_SEXUALLY_EXPLICIT: 'HARM_CATEGORY_SEXUALLY_EXPLICIT',
-  HARM_CATEGORY_DANGEROUS_CONTENT: 'HARM_CATEGORY_DANGEROUS_CONTENT',
-  HARM_CATEGORY_CIVIC_INTEGRITY: 'HARM_CATEGORY_CIVIC_INTEGRITY',
-  HARM_CATEGORY_JAILBREAK: 'HARM_CATEGORY_JAILBREAK',
-} as const
-
-export type SafetySetting5D7A9F80CategoryEnumKey =
-  (typeof safetySetting5D7A9F80CategoryEnum)[keyof typeof safetySetting5D7A9F80CategoryEnum]
-
-/**
- * @description Safety setting, affecting the safety-blocking behavior. Passing a safety setting for a category changes the allowed probability that content is blocked.
- * @type object
- */
-export type SafetySetting5D7A9F80 = {
-  /**
-   * @description Required. Controls the probability threshold at which harm is blocked.
-   * @type string | undefined
-   */
-  threshold?: SafetySetting5D7A9F80ThresholdEnumKey
-  /**
-   * @description Required. The category for this setting.
-   * @type string | undefined
-   */
-  category?: SafetySetting5D7A9F80CategoryEnumKey
 }
 
 /**
@@ -3754,12 +6811,12 @@ export type SafetyFeedback = {
    * @description Safety rating for a piece of content. The safety rating contains the category of harm and the harm probability level in that category for a piece of content. Content is classified for safety across a number of harm categories and the probability of the harm classification is included here.
    * @type object | undefined
    */
-  rating?: SafetyRating4695Fab1
+  rating?: SafetyRating442Ea627
   /**
    * @description Safety setting, affecting the safety-blocking behavior. Passing a safety setting for a category changes the allowed probability that content is blocked.
    * @type object | undefined
    */
-  setting?: SafetySetting5D7A9F80
+  setting?: SafetySetting
 }
 
 /**
@@ -3771,7 +6828,7 @@ export type TextCompletion = {
    * @description A collection of source attributions for a piece of content.
    * @type object | undefined
    */
-  citationMetadata?: CitationMetadata8B521C14
+  citationMetadata?: CitationMetadataF3Eaee22
   /**
    * @description Output only. The generated text returned from the model.
    * @type string | undefined
@@ -3781,7 +6838,7 @@ export type TextCompletion = {
    * @description Ratings for the safety of a response. There is at most one rating per category.
    * @type array | undefined
    */
-  safetyRatings?: SafetyRating4695Fab1[]
+  safetyRatings?: SafetyRating442Ea627[]
 }
 
 /**
@@ -3814,7 +6871,7 @@ export type Status = {
  * @description A citation to a source for a portion of a specific response.
  * @type object
  */
-export type CitationSourceD38A370A = {
+export type CitationSource098B3538 = {
   /**
    * @description Optional. Start of segment of the response that is attributed to this source. Index indicates the start of the segment, measured in bytes.
    *
@@ -3845,28 +6902,28 @@ export type CitationSourceD38A370A = {
  * @description A collection of source attributions for a piece of content.
  * @type object
  */
-export type CitationMetadata85B92A3A = {
+export type CitationMetadata66804368 = {
   /**
    * @description Citations to sources for a specific response.
    * @type array | undefined
    */
-  citationSources?: CitationSourceD38A370A[]
+  citationSources?: CitationSource098B3538[]
 }
 
-export const contentFilterBe7A9899ReasonEnum = {
+export const contentFilter82Ff6FbfReasonEnum = {
   BLOCKED_REASON_UNSPECIFIED: 'BLOCKED_REASON_UNSPECIFIED',
   SAFETY: 'SAFETY',
   OTHER: 'OTHER',
 } as const
 
-export type ContentFilterBe7A9899ReasonEnumKey =
-  (typeof contentFilterBe7A9899ReasonEnum)[keyof typeof contentFilterBe7A9899ReasonEnum]
+export type ContentFilter82Ff6FbfReasonEnumKey =
+  (typeof contentFilter82Ff6FbfReasonEnum)[keyof typeof contentFilter82Ff6FbfReasonEnum]
 
 /**
  * @description Content filtering metadata associated with processing a single request. ContentFilter contains a reason and an optional supporting string. The reason may be unspecified.
  * @type object
  */
-export type ContentFilterBe7A9899 = {
+export type ContentFilter82Ff6Fbf = {
   /**
    * @description A string that describes the filtering behavior in more detail.
    * @type string | undefined
@@ -3876,10 +6933,10 @@ export type ContentFilterBe7A9899 = {
    * @description The reason content was blocked during request processing.
    * @type string | undefined
    */
-  reason?: ContentFilterBe7A9899ReasonEnumKey
+  reason?: ContentFilter82Ff6FbfReasonEnumKey
 }
 
-export const safetyRatingA244De6FCategoryEnum = {
+export const safetyRating6581Ee49CategoryEnum = {
   HARM_CATEGORY_UNSPECIFIED: 'HARM_CATEGORY_UNSPECIFIED',
   HARM_CATEGORY_DEROGATORY: 'HARM_CATEGORY_DEROGATORY',
   HARM_CATEGORY_TOXICITY: 'HARM_CATEGORY_TOXICITY',
@@ -3895,10 +6952,10 @@ export const safetyRatingA244De6FCategoryEnum = {
   HARM_CATEGORY_JAILBREAK: 'HARM_CATEGORY_JAILBREAK',
 } as const
 
-export type SafetyRatingA244De6FCategoryEnumKey =
-  (typeof safetyRatingA244De6FCategoryEnum)[keyof typeof safetyRatingA244De6FCategoryEnum]
+export type SafetyRating6581Ee49CategoryEnumKey =
+  (typeof safetyRating6581Ee49CategoryEnum)[keyof typeof safetyRating6581Ee49CategoryEnum]
 
-export const safetyRatingA244De6FProbabilityEnum = {
+export const safetyRating6581Ee49ProbabilityEnum = {
   HARM_PROBABILITY_UNSPECIFIED: 'HARM_PROBABILITY_UNSPECIFIED',
   NEGLIGIBLE: 'NEGLIGIBLE',
   LOW: 'LOW',
@@ -3906,24 +6963,24 @@ export const safetyRatingA244De6FProbabilityEnum = {
   HIGH: 'HIGH',
 } as const
 
-export type SafetyRatingA244De6FProbabilityEnumKey =
-  (typeof safetyRatingA244De6FProbabilityEnum)[keyof typeof safetyRatingA244De6FProbabilityEnum]
+export type SafetyRating6581Ee49ProbabilityEnumKey =
+  (typeof safetyRating6581Ee49ProbabilityEnum)[keyof typeof safetyRating6581Ee49ProbabilityEnum]
 
 /**
  * @description Safety rating for a piece of content. The safety rating contains the category of harm and the harm probability level in that category for a piece of content. Content is classified for safety across a number of harm categories and the probability of the harm classification is included here.
  * @type object
  */
-export type SafetyRatingA244De6F = {
+export type SafetyRating6581Ee49 = {
   /**
    * @description Required. The category for this rating.
    * @type string | undefined
    */
-  category?: SafetyRatingA244De6FCategoryEnumKey
+  category?: SafetyRating6581Ee49CategoryEnumKey
   /**
    * @description Required. The probability of harm for this content.
    * @type string | undefined
    */
-  probability?: SafetyRatingA244De6FProbabilityEnumKey
+  probability?: SafetyRating6581Ee49ProbabilityEnumKey
   /**
    * @description Was this content blocked because of this rating?
    * @type boolean | undefined
@@ -3931,81 +6988,33 @@ export type SafetyRatingA244De6F = {
   blocked?: boolean
 }
 
-export const safetySetting5A8B93BeThresholdEnum = {
-  HARM_BLOCK_THRESHOLD_UNSPECIFIED: 'HARM_BLOCK_THRESHOLD_UNSPECIFIED',
-  BLOCK_LOW_AND_ABOVE: 'BLOCK_LOW_AND_ABOVE',
-  BLOCK_MEDIUM_AND_ABOVE: 'BLOCK_MEDIUM_AND_ABOVE',
-  BLOCK_ONLY_HIGH: 'BLOCK_ONLY_HIGH',
-  BLOCK_NONE: 'BLOCK_NONE',
-  OFF: 'OFF',
-} as const
-
-export type SafetySetting5A8B93BeThresholdEnumKey =
-  (typeof safetySetting5A8B93BeThresholdEnum)[keyof typeof safetySetting5A8B93BeThresholdEnum]
-
-export const safetySetting5A8B93BeCategoryEnum = {
-  HARM_CATEGORY_UNSPECIFIED: 'HARM_CATEGORY_UNSPECIFIED',
-  HARM_CATEGORY_DEROGATORY: 'HARM_CATEGORY_DEROGATORY',
-  HARM_CATEGORY_TOXICITY: 'HARM_CATEGORY_TOXICITY',
-  HARM_CATEGORY_VIOLENCE: 'HARM_CATEGORY_VIOLENCE',
-  HARM_CATEGORY_SEXUAL: 'HARM_CATEGORY_SEXUAL',
-  HARM_CATEGORY_MEDICAL: 'HARM_CATEGORY_MEDICAL',
-  HARM_CATEGORY_DANGEROUS: 'HARM_CATEGORY_DANGEROUS',
-  HARM_CATEGORY_HARASSMENT: 'HARM_CATEGORY_HARASSMENT',
-  HARM_CATEGORY_HATE_SPEECH: 'HARM_CATEGORY_HATE_SPEECH',
-  HARM_CATEGORY_SEXUALLY_EXPLICIT: 'HARM_CATEGORY_SEXUALLY_EXPLICIT',
-  HARM_CATEGORY_DANGEROUS_CONTENT: 'HARM_CATEGORY_DANGEROUS_CONTENT',
-  HARM_CATEGORY_CIVIC_INTEGRITY: 'HARM_CATEGORY_CIVIC_INTEGRITY',
-  HARM_CATEGORY_JAILBREAK: 'HARM_CATEGORY_JAILBREAK',
-} as const
-
-export type SafetySetting5A8B93BeCategoryEnumKey =
-  (typeof safetySetting5A8B93BeCategoryEnum)[keyof typeof safetySetting5A8B93BeCategoryEnum]
-
-/**
- * @description Safety setting, affecting the safety-blocking behavior. Passing a safety setting for a category changes the allowed probability that content is blocked.
- * @type object
- */
-export type SafetySetting5A8B93Be = {
-  /**
-   * @description Required. Controls the probability threshold at which harm is blocked.
-   * @type string | undefined
-   */
-  threshold?: SafetySetting5A8B93BeThresholdEnumKey
-  /**
-   * @description Required. The category for this setting.
-   * @type string | undefined
-   */
-  category?: SafetySetting5A8B93BeCategoryEnumKey
-}
-
 /**
  * @description Safety feedback for an entire request. This field is populated if content in the input and/or response is blocked due to safety settings. SafetyFeedback may not exist for every HarmCategory. Each SafetyFeedback will return the safety settings used by the request as well as the lowest HarmProbability that should be allowed in order to return a result.
  * @type object
  */
-export type SafetyFeedback430202B9 = {
+export type SafetyFeedbackCc09F9Df = {
   /**
    * @description Safety rating for a piece of content. The safety rating contains the category of harm and the harm probability level in that category for a piece of content. Content is classified for safety across a number of harm categories and the probability of the harm classification is included here.
    * @type object | undefined
    */
-  rating?: SafetyRatingA244De6F
+  rating?: SafetyRating6581Ee49
   /**
    * @description Safety setting, affecting the safety-blocking behavior. Passing a safety setting for a category changes the allowed probability that content is blocked.
    * @type object | undefined
    */
-  setting?: SafetySetting5A8B93Be
+  setting?: SafetySetting
 }
 
 /**
  * @description Output text returned from a model.
  * @type object
  */
-export type TextCompletionBdb7C419 = {
+export type TextCompletionFa92Bb3F = {
   /**
    * @description A collection of source attributions for a piece of content.
    * @type object | undefined
    */
-  citationMetadata?: CitationMetadata85B92A3A
+  citationMetadata?: CitationMetadata66804368
   /**
    * @description Output only. The generated text returned from the model.
    * @type string | undefined
@@ -4015,7 +7024,7 @@ export type TextCompletionBdb7C419 = {
    * @description Ratings for the safety of a response. There is at most one rating per category.
    * @type array | undefined
    */
-  safetyRatings?: SafetyRatingA244De6F[]
+  safetyRatings?: SafetyRating6581Ee49[]
 }
 
 export type GeminiPostV1BetaDynamicDynamicidGeneratecontentPath = {
@@ -4107,6 +7116,7 @@ export const geminiPostV1BetaDynamicDynamicidGeneratecontentRequestModelEnum = {
   'gemini-3-pro-image-preview': 'gemini-3-pro-image-preview',
   'gemini-4-argon': 'gemini-4-argon',
   'gemini-4-carbon': 'gemini-4-carbon',
+  'gemini-4-hydrogen': 'gemini-4-hydrogen',
   'gemini-decision-1': 'gemini-decision-1',
   'gemini-embedding-001': 'gemini-embedding-001',
   'gemini-embedding-2': 'gemini-embedding-2',
@@ -4150,21 +7160,6 @@ export type GeminiPostV1BetaDynamicDynamicidGeneratecontentRequestServiceTierEnu
  */
 export type GeminiPostV1BetaDynamicDynamicidGeneratecontentBody = {
   /**
-   * @description Optional. A list of `Tools` the `Model` may use to generate the next response. A `Tool` is a piece of code that enables the system to interact with external systems to perform an action, or set of actions, outside of knowledge and scope of the `Model`. Supported `Tool`s are `Function` and `code_execution`. Refer to the [Function calling](https://aistudio.google.com/docs/function-calling) and the [Code execution](https://aistudio.google.com/docs/code-execution) guides to learn more.
-   * @type array | undefined
-   */
-  tools?: Tool[]
-  /**
-   * @description The Tool configuration containing parameters for specifying `Tool` use in the request.
-   * @type object | undefined
-   */
-  toolConfig?: ToolConfig
-  /**
-   * @description Required. The name of the `Model` to use for generating the completion. Format: `models/{model}`.
-   * @type string | undefined
-   */
-  model?: GeminiPostV1BetaDynamicDynamicidGeneratecontentRequestModelEnumKey
-  /**
    * @description Optional. Labels with user-defined metadata for the request. Optional. Labels must follow standard unified Cloud label requirements: - Label keys must start with a letter. - Label keys and values can be no longer than 63 characters (Unicode codepoints) and can only contain lowercase letters, numeric characters, underscores, and dashes. - International characters are allowed. Usage: - Safety identifiers from aggregators: Use the key `safety_identifier` (e.g. `{"safety_identifier": "user_session_123"}`)
    * @type object | undefined
    */
@@ -4172,40 +7167,55 @@ export type GeminiPostV1BetaDynamicDynamicidGeneratecontentBody = {
     [key: string]: string
   }
   /**
+   * @description Optional. A list of `Tools` the `Model` may use to generate the next response. A `Tool` is a piece of code that enables the system to interact with external systems to perform an action, or set of actions, outside of knowledge and scope of the `Model`. Supported `Tool`s are `Function` and `code_execution`. Refer to the [Function calling](https://aistudio.google.com/docs/function-calling) and the [Code execution](https://aistudio.google.com/docs/code-execution) guides to learn more.
+   * @type array | undefined
+   */
+  tools?: Tool[]
+  /**
    * @description Optional. An opaque continuation token used to resume generation from a previous `GenerateContent` or `StreamGenerateContent` response that stopped with `finish_reason` set to `CONTINUATION`. Note that `contents` is mandatory and must identically replicate the prompt and conversation history from the initial request when continuation token is provided in a request.
    * @type string | undefined
    */
   continuationToken?: string
   /**
-   * @description Configuration options for model generation and outputs. Not all parameters are configurable for every model.
+   * @description The Tool configuration containing parameters for specifying `Tool` use in the request.
    * @type object | undefined
    */
-  generationConfig?: GenerationConfig
-  /**
-   * @description The base structured datatype containing multi-part content of a message. A `Content` includes a `role` field designating the producer of the `Content` and a `parts` field containing multi-part data that contains the content of the message turn.
-   * @type object | undefined
-   */
-  systemInstruction?: Content
-  /**
-   * @description Optional. Configures the logging behavior for a given request. If set, it takes precedence over the project-level logging config.
-   * @type boolean | undefined
-   */
-  store?: boolean
-  /**
-   * @description Optional. A list of unique `SafetySetting` instances for blocking unsafe content. This will be enforced on the `GenerateContentRequest.contents` and `GenerateContentResponse.candidates`. There should not be more than one setting for each `SafetyCategory` type. The API will block any contents and responses that fail to meet the thresholds set by these settings. This list overrides the default settings for each `SafetyCategory` specified in the safety_settings. If there is no `SafetySetting` for a given `SafetyCategory` provided in the list, the API will use the default safety setting for that category. Harm categories HARM_CATEGORY_HATE_SPEECH, HARM_CATEGORY_SEXUALLY_EXPLICIT, HARM_CATEGORY_DANGEROUS_CONTENT, HARM_CATEGORY_HARASSMENT, HARM_CATEGORY_CIVIC_INTEGRITY, HARM_CATEGORY_JAILBREAK are supported. Refer to the [guide](https://aistudio.google.com/docs/safety-settings) for detailed information on available safety settings. Also refer to the [Safety guidance](https://aistudio.google.com/docs/safety-guidance) to learn how to incorporate safety considerations in your AI applications.
-   * @type array | undefined
-   */
-  safetySettings?: SafetySetting[]
+  toolConfig?: ToolConfig
   /**
    * @description Required. The content of the current conversation with the model. For single-turn queries, this is a single instance. For multi-turn queries like [chat](https://aistudio.google.com/docs/text-generation#multi-turn-conversations), this is a repeated field that contains the conversation history and the latest request.
    * @type array | undefined
    */
   contents?: Content[]
   /**
+   * @description Configuration options for model generation and outputs. Not all parameters are configurable for every model.
+   * @type object | undefined
+   */
+  generationConfig?: GenerationConfig
+  /**
+   * @description Optional. Configures the logging behavior for a given request. If set, it takes precedence over the project-level logging config.
+   * @type boolean | undefined
+   */
+  store?: boolean
+  /**
    * @description Optional. The name of the content [cached](https://aistudio.google.com/docs/caching) to use as context to serve the prediction. Format: `cachedContents/{cachedContent}`
    * @type string | undefined
    */
   cachedContent?: string
+  /**
+   * @description Required. The name of the `Model` to use for generating the completion. Format: `models/{model}`.
+   * @type string | undefined
+   */
+  model?: GeminiPostV1BetaDynamicDynamicidGeneratecontentRequestModelEnumKey
+  /**
+   * @description Optional. A list of unique `SafetySetting` instances for blocking unsafe content. This will be enforced on the `GenerateContentRequest.contents` and `GenerateContentResponse.candidates`. There should not be more than one setting for each `SafetyCategory` type. The API will block any contents and responses that fail to meet the thresholds set by these settings. This list overrides the default settings for each `SafetyCategory` specified in the safety_settings. If there is no `SafetySetting` for a given `SafetyCategory` provided in the list, the API will use the default safety setting for that category. Harm categories HARM_CATEGORY_HATE_SPEECH, HARM_CATEGORY_SEXUALLY_EXPLICIT, HARM_CATEGORY_DANGEROUS_CONTENT, HARM_CATEGORY_HARASSMENT, HARM_CATEGORY_CIVIC_INTEGRITY, HARM_CATEGORY_JAILBREAK are supported. Refer to the [guide](https://aistudio.google.com/docs/safety-settings) for detailed information on available safety settings. Also refer to the [Safety guidance](https://aistudio.google.com/docs/safety-guidance) to learn how to incorporate safety considerations in your AI applications.
+   * @type array | undefined
+   */
+  safetySettings?: SafetySetting[]
+  /**
+   * @description The base structured datatype containing multi-part content of a message. A `Content` includes a `role` field designating the producer of the `Content` and a `parts` field containing multi-part data that contains the content of the message turn.
+   * @type object | undefined
+   */
+  systemInstruction?: Content
   /**
    * @description Optional. The service tier of the request.
    * @type string | undefined
@@ -4263,7 +7273,7 @@ export type GeminiPostV1BetaDynamicDynamicidStreamgeneratecontentStatus200 = {
    * @description Candidate responses from the model.
    * @type array | undefined
    */
-  candidates?: Candidate[]
+  candidates?: CandidateC8Cd3123[]
   /**
    * @description A set of the feedback metadata the prompt specified in `GenerateContentRequest.content`.
    * @type object | undefined
@@ -4320,6 +7330,7 @@ export const geminiPostV1BetaDynamicDynamicidStreamgeneratecontentRequestModelEn
     'gemini-3-pro-image-preview': 'gemini-3-pro-image-preview',
     'gemini-4-argon': 'gemini-4-argon',
     'gemini-4-carbon': 'gemini-4-carbon',
+    'gemini-4-hydrogen': 'gemini-4-hydrogen',
     'gemini-decision-1': 'gemini-decision-1',
     'gemini-embedding-001': 'gemini-embedding-001',
     'gemini-embedding-2': 'gemini-embedding-2',
@@ -4363,21 +7374,6 @@ export type GeminiPostV1BetaDynamicDynamicidStreamgeneratecontentRequestServiceT
  */
 export type GeminiPostV1BetaDynamicDynamicidStreamgeneratecontentBody = {
   /**
-   * @description Optional. A list of `Tools` the `Model` may use to generate the next response. A `Tool` is a piece of code that enables the system to interact with external systems to perform an action, or set of actions, outside of knowledge and scope of the `Model`. Supported `Tool`s are `Function` and `code_execution`. Refer to the [Function calling](https://aistudio.google.com/docs/function-calling) and the [Code execution](https://aistudio.google.com/docs/code-execution) guides to learn more.
-   * @type array | undefined
-   */
-  tools?: Tool[]
-  /**
-   * @description The Tool configuration containing parameters for specifying `Tool` use in the request.
-   * @type object | undefined
-   */
-  toolConfig?: ToolConfig
-  /**
-   * @description Required. The name of the `Model` to use for generating the completion. Format: `models/{model}`.
-   * @type string | undefined
-   */
-  model?: GeminiPostV1BetaDynamicDynamicidStreamgeneratecontentRequestModelEnumKey
-  /**
    * @description Optional. Labels with user-defined metadata for the request. Optional. Labels must follow standard unified Cloud label requirements: - Label keys must start with a letter. - Label keys and values can be no longer than 63 characters (Unicode codepoints) and can only contain lowercase letters, numeric characters, underscores, and dashes. - International characters are allowed. Usage: - Safety identifiers from aggregators: Use the key `safety_identifier` (e.g. `{"safety_identifier": "user_session_123"}`)
    * @type object | undefined
    */
@@ -4385,40 +7381,55 @@ export type GeminiPostV1BetaDynamicDynamicidStreamgeneratecontentBody = {
     [key: string]: string
   }
   /**
+   * @description Optional. A list of `Tools` the `Model` may use to generate the next response. A `Tool` is a piece of code that enables the system to interact with external systems to perform an action, or set of actions, outside of knowledge and scope of the `Model`. Supported `Tool`s are `Function` and `code_execution`. Refer to the [Function calling](https://aistudio.google.com/docs/function-calling) and the [Code execution](https://aistudio.google.com/docs/code-execution) guides to learn more.
+   * @type array | undefined
+   */
+  tools?: Tool[]
+  /**
    * @description Optional. An opaque continuation token used to resume generation from a previous `GenerateContent` or `StreamGenerateContent` response that stopped with `finish_reason` set to `CONTINUATION`. Note that `contents` is mandatory and must identically replicate the prompt and conversation history from the initial request when continuation token is provided in a request.
    * @type string | undefined
    */
   continuationToken?: string
   /**
-   * @description Configuration options for model generation and outputs. Not all parameters are configurable for every model.
+   * @description The Tool configuration containing parameters for specifying `Tool` use in the request.
    * @type object | undefined
    */
-  generationConfig?: GenerationConfig
-  /**
-   * @description The base structured datatype containing multi-part content of a message. A `Content` includes a `role` field designating the producer of the `Content` and a `parts` field containing multi-part data that contains the content of the message turn.
-   * @type object | undefined
-   */
-  systemInstruction?: Content
-  /**
-   * @description Optional. Configures the logging behavior for a given request. If set, it takes precedence over the project-level logging config.
-   * @type boolean | undefined
-   */
-  store?: boolean
-  /**
-   * @description Optional. A list of unique `SafetySetting` instances for blocking unsafe content. This will be enforced on the `GenerateContentRequest.contents` and `GenerateContentResponse.candidates`. There should not be more than one setting for each `SafetyCategory` type. The API will block any contents and responses that fail to meet the thresholds set by these settings. This list overrides the default settings for each `SafetyCategory` specified in the safety_settings. If there is no `SafetySetting` for a given `SafetyCategory` provided in the list, the API will use the default safety setting for that category. Harm categories HARM_CATEGORY_HATE_SPEECH, HARM_CATEGORY_SEXUALLY_EXPLICIT, HARM_CATEGORY_DANGEROUS_CONTENT, HARM_CATEGORY_HARASSMENT, HARM_CATEGORY_CIVIC_INTEGRITY, HARM_CATEGORY_JAILBREAK are supported. Refer to the [guide](https://aistudio.google.com/docs/safety-settings) for detailed information on available safety settings. Also refer to the [Safety guidance](https://aistudio.google.com/docs/safety-guidance) to learn how to incorporate safety considerations in your AI applications.
-   * @type array | undefined
-   */
-  safetySettings?: SafetySetting[]
+  toolConfig?: ToolConfig
   /**
    * @description Required. The content of the current conversation with the model. For single-turn queries, this is a single instance. For multi-turn queries like [chat](https://aistudio.google.com/docs/text-generation#multi-turn-conversations), this is a repeated field that contains the conversation history and the latest request.
    * @type array | undefined
    */
   contents?: Content[]
   /**
+   * @description Configuration options for model generation and outputs. Not all parameters are configurable for every model.
+   * @type object | undefined
+   */
+  generationConfig?: GenerationConfig
+  /**
+   * @description Optional. Configures the logging behavior for a given request. If set, it takes precedence over the project-level logging config.
+   * @type boolean | undefined
+   */
+  store?: boolean
+  /**
    * @description Optional. The name of the content [cached](https://aistudio.google.com/docs/caching) to use as context to serve the prediction. Format: `cachedContents/{cachedContent}`
    * @type string | undefined
    */
   cachedContent?: string
+  /**
+   * @description Required. The name of the `Model` to use for generating the completion. Format: `models/{model}`.
+   * @type string | undefined
+   */
+  model?: GeminiPostV1BetaDynamicDynamicidStreamgeneratecontentRequestModelEnumKey
+  /**
+   * @description Optional. A list of unique `SafetySetting` instances for blocking unsafe content. This will be enforced on the `GenerateContentRequest.contents` and `GenerateContentResponse.candidates`. There should not be more than one setting for each `SafetyCategory` type. The API will block any contents and responses that fail to meet the thresholds set by these settings. This list overrides the default settings for each `SafetyCategory` specified in the safety_settings. If there is no `SafetySetting` for a given `SafetyCategory` provided in the list, the API will use the default safety setting for that category. Harm categories HARM_CATEGORY_HATE_SPEECH, HARM_CATEGORY_SEXUALLY_EXPLICIT, HARM_CATEGORY_DANGEROUS_CONTENT, HARM_CATEGORY_HARASSMENT, HARM_CATEGORY_CIVIC_INTEGRITY, HARM_CATEGORY_JAILBREAK are supported. Refer to the [guide](https://aistudio.google.com/docs/safety-settings) for detailed information on available safety settings. Also refer to the [Safety guidance](https://aistudio.google.com/docs/safety-guidance) to learn how to incorporate safety considerations in your AI applications.
+   * @type array | undefined
+   */
+  safetySettings?: SafetySetting[]
+  /**
+   * @description The base structured datatype containing multi-part content of a message. A `Content` includes a `role` field designating the producer of the `Content` and a `parts` field containing multi-part data that contains the content of the message turn.
+   * @type object | undefined
+   */
+  systemInstruction?: Content
   /**
    * @description Optional. The service tier of the request.
    * @type string | undefined
@@ -4790,6 +7801,7 @@ export const geminiPostV1BetaModelsModelsidEmbedcontentRequestModelEnum = {
   'gemini-3-pro-image-preview': 'gemini-3-pro-image-preview',
   'gemini-4-argon': 'gemini-4-argon',
   'gemini-4-carbon': 'gemini-4-carbon',
+  'gemini-4-hydrogen': 'gemini-4-hydrogen',
   'gemini-decision-1': 'gemini-decision-1',
   'gemini-embedding-001': 'gemini-embedding-001',
   'gemini-embedding-2': 'gemini-embedding-2',
@@ -4852,7 +7864,7 @@ export type GeminiPostV1BetaModelsModelsidEmbedcontentBody = {
    * @description The base structured datatype containing multi-part content of a message. A `Content` includes a `role` field designating the producer of the `Content` and a `parts` field containing multi-part data that contains the content of the message turn.
    * @type object | undefined
    */
-  content?: Content
+  content?: Content6E2Efbfe
 }
 
 export type GeminiPostV1BetaModelsModelsidEmbedcontentOptions = {
@@ -4936,6 +7948,7 @@ export const geminiPostV1BetaModelsModelsidEmbedtextRequestModelEnum = {
   'gemini-3-pro-image-preview': 'gemini-3-pro-image-preview',
   'gemini-4-argon': 'gemini-4-argon',
   'gemini-4-carbon': 'gemini-4-carbon',
+  'gemini-4-hydrogen': 'gemini-4-hydrogen',
   'gemini-decision-1': 'gemini-decision-1',
   'gemini-embedding-001': 'gemini-embedding-001',
   'gemini-embedding-2': 'gemini-embedding-2',
@@ -5009,7 +8022,7 @@ export type GeminiPostV1BetaModelsModelsidGenerateanswerStatus200 = {
    * @description A response candidate generated from the model.
    * @type object | undefined
    */
-  answer?: Candidate
+  answer?: Candidate1Bea1437
   /**
    * @description Feedback related to the input data used to answer the question, as opposed to the model-generated response to the question.
    * @type object | undefined
@@ -5051,7 +8064,7 @@ export type GeminiPostV1BetaModelsModelsidGenerateanswerBody = {
    * @description Optional. A list of unique `SafetySetting` instances for blocking unsafe content. This will be enforced on the `GenerateAnswerRequest.contents` and `GenerateAnswerResponse.candidate`. There should not be more than one setting for each `SafetyCategory` type. The API will block any contents and responses that fail to meet the thresholds set by these settings. This list overrides the default settings for each `SafetyCategory` specified in the safety_settings. If there is no `SafetySetting` for a given `SafetyCategory` provided in the list, the API will use the default safety setting for that category. Harm categories HARM_CATEGORY_HATE_SPEECH, HARM_CATEGORY_SEXUALLY_EXPLICIT, HARM_CATEGORY_DANGEROUS_CONTENT, HARM_CATEGORY_HARASSMENT are supported. Refer to the [guide](https://aistudio.google.com/docs/safety-settings) for detailed information on available safety settings. Also refer to the [Safety guidance](https://aistudio.google.com/docs/safety-guidance) to learn how to incorporate safety considerations in your AI applications.
    * @type array | undefined
    */
-  safetySettings?: SafetySetting[]
+  safetySettings?: SafetySetting695F0817[]
   /**
    * @description Configuration for retrieving grounding content from a `Corpus` or `Document` created using the Semantic Retriever API.
    * @type object | undefined
@@ -5066,7 +8079,7 @@ export type GeminiPostV1BetaModelsModelsidGenerateanswerBody = {
    * @description Required. The content of the current conversation with the `Model`. For single-turn queries, this is a single question to answer. For multi-turn queries, this is a repeated field that contains conversation history and the last `Content` in the list containing the question. Note: `GenerateAnswer` only supports queries in English.
    * @type array | undefined
    */
-  contents?: Content[]
+  contents?: ContentDd551534[]
   /**
    * @description Required. Style in which answers should be returned.
    * @type string | undefined
@@ -5124,7 +8137,7 @@ export type GeminiPostV1BetaModelsModelsidGeneratecontentStatus200 = {
    * @description Candidate responses from the model.
    * @type array | undefined
    */
-  candidates?: Candidate[]
+  candidates?: CandidateC8Cd3123[]
   /**
    * @description A set of the feedback metadata the prompt specified in `GenerateContentRequest.content`.
    * @type object | undefined
@@ -5180,6 +8193,7 @@ export const geminiPostV1BetaModelsModelsidGeneratecontentRequestModelEnum = {
   'gemini-3-pro-image-preview': 'gemini-3-pro-image-preview',
   'gemini-4-argon': 'gemini-4-argon',
   'gemini-4-carbon': 'gemini-4-carbon',
+  'gemini-4-hydrogen': 'gemini-4-hydrogen',
   'gemini-decision-1': 'gemini-decision-1',
   'gemini-embedding-001': 'gemini-embedding-001',
   'gemini-embedding-2': 'gemini-embedding-2',
@@ -5223,21 +8237,6 @@ export type GeminiPostV1BetaModelsModelsidGeneratecontentRequestServiceTierEnumK
  */
 export type GeminiPostV1BetaModelsModelsidGeneratecontentBody = {
   /**
-   * @description Optional. A list of `Tools` the `Model` may use to generate the next response. A `Tool` is a piece of code that enables the system to interact with external systems to perform an action, or set of actions, outside of knowledge and scope of the `Model`. Supported `Tool`s are `Function` and `code_execution`. Refer to the [Function calling](https://aistudio.google.com/docs/function-calling) and the [Code execution](https://aistudio.google.com/docs/code-execution) guides to learn more.
-   * @type array | undefined
-   */
-  tools?: Tool[]
-  /**
-   * @description The Tool configuration containing parameters for specifying `Tool` use in the request.
-   * @type object | undefined
-   */
-  toolConfig?: ToolConfig
-  /**
-   * @description Required. The name of the `Model` to use for generating the completion. Format: `models/{model}`.
-   * @type string | undefined
-   */
-  model?: GeminiPostV1BetaModelsModelsidGeneratecontentRequestModelEnumKey
-  /**
    * @description Optional. Labels with user-defined metadata for the request. Optional. Labels must follow standard unified Cloud label requirements: - Label keys must start with a letter. - Label keys and values can be no longer than 63 characters (Unicode codepoints) and can only contain lowercase letters, numeric characters, underscores, and dashes. - International characters are allowed. Usage: - Safety identifiers from aggregators: Use the key `safety_identifier` (e.g. `{"safety_identifier": "user_session_123"}`)
    * @type object | undefined
    */
@@ -5245,40 +8244,55 @@ export type GeminiPostV1BetaModelsModelsidGeneratecontentBody = {
     [key: string]: string
   }
   /**
+   * @description Optional. A list of `Tools` the `Model` may use to generate the next response. A `Tool` is a piece of code that enables the system to interact with external systems to perform an action, or set of actions, outside of knowledge and scope of the `Model`. Supported `Tool`s are `Function` and `code_execution`. Refer to the [Function calling](https://aistudio.google.com/docs/function-calling) and the [Code execution](https://aistudio.google.com/docs/code-execution) guides to learn more.
+   * @type array | undefined
+   */
+  tools?: Tool[]
+  /**
    * @description Optional. An opaque continuation token used to resume generation from a previous `GenerateContent` or `StreamGenerateContent` response that stopped with `finish_reason` set to `CONTINUATION`. Note that `contents` is mandatory and must identically replicate the prompt and conversation history from the initial request when continuation token is provided in a request.
    * @type string | undefined
    */
   continuationToken?: string
   /**
-   * @description Configuration options for model generation and outputs. Not all parameters are configurable for every model.
+   * @description The Tool configuration containing parameters for specifying `Tool` use in the request.
    * @type object | undefined
    */
-  generationConfig?: GenerationConfig
-  /**
-   * @description The base structured datatype containing multi-part content of a message. A `Content` includes a `role` field designating the producer of the `Content` and a `parts` field containing multi-part data that contains the content of the message turn.
-   * @type object | undefined
-   */
-  systemInstruction?: Content
-  /**
-   * @description Optional. Configures the logging behavior for a given request. If set, it takes precedence over the project-level logging config.
-   * @type boolean | undefined
-   */
-  store?: boolean
-  /**
-   * @description Optional. A list of unique `SafetySetting` instances for blocking unsafe content. This will be enforced on the `GenerateContentRequest.contents` and `GenerateContentResponse.candidates`. There should not be more than one setting for each `SafetyCategory` type. The API will block any contents and responses that fail to meet the thresholds set by these settings. This list overrides the default settings for each `SafetyCategory` specified in the safety_settings. If there is no `SafetySetting` for a given `SafetyCategory` provided in the list, the API will use the default safety setting for that category. Harm categories HARM_CATEGORY_HATE_SPEECH, HARM_CATEGORY_SEXUALLY_EXPLICIT, HARM_CATEGORY_DANGEROUS_CONTENT, HARM_CATEGORY_HARASSMENT, HARM_CATEGORY_CIVIC_INTEGRITY, HARM_CATEGORY_JAILBREAK are supported. Refer to the [guide](https://aistudio.google.com/docs/safety-settings) for detailed information on available safety settings. Also refer to the [Safety guidance](https://aistudio.google.com/docs/safety-guidance) to learn how to incorporate safety considerations in your AI applications.
-   * @type array | undefined
-   */
-  safetySettings?: SafetySetting[]
+  toolConfig?: ToolConfig
   /**
    * @description Required. The content of the current conversation with the model. For single-turn queries, this is a single instance. For multi-turn queries like [chat](https://aistudio.google.com/docs/text-generation#multi-turn-conversations), this is a repeated field that contains the conversation history and the latest request.
    * @type array | undefined
    */
   contents?: Content[]
   /**
+   * @description Configuration options for model generation and outputs. Not all parameters are configurable for every model.
+   * @type object | undefined
+   */
+  generationConfig?: GenerationConfig
+  /**
+   * @description Optional. Configures the logging behavior for a given request. If set, it takes precedence over the project-level logging config.
+   * @type boolean | undefined
+   */
+  store?: boolean
+  /**
    * @description Optional. The name of the content [cached](https://aistudio.google.com/docs/caching) to use as context to serve the prediction. Format: `cachedContents/{cachedContent}`
    * @type string | undefined
    */
   cachedContent?: string
+  /**
+   * @description Required. The name of the `Model` to use for generating the completion. Format: `models/{model}`.
+   * @type string | undefined
+   */
+  model?: GeminiPostV1BetaModelsModelsidGeneratecontentRequestModelEnumKey
+  /**
+   * @description Optional. A list of unique `SafetySetting` instances for blocking unsafe content. This will be enforced on the `GenerateContentRequest.contents` and `GenerateContentResponse.candidates`. There should not be more than one setting for each `SafetyCategory` type. The API will block any contents and responses that fail to meet the thresholds set by these settings. This list overrides the default settings for each `SafetyCategory` specified in the safety_settings. If there is no `SafetySetting` for a given `SafetyCategory` provided in the list, the API will use the default safety setting for that category. Harm categories HARM_CATEGORY_HATE_SPEECH, HARM_CATEGORY_SEXUALLY_EXPLICIT, HARM_CATEGORY_DANGEROUS_CONTENT, HARM_CATEGORY_HARASSMENT, HARM_CATEGORY_CIVIC_INTEGRITY, HARM_CATEGORY_JAILBREAK are supported. Refer to the [guide](https://aistudio.google.com/docs/safety-settings) for detailed information on available safety settings. Also refer to the [Safety guidance](https://aistudio.google.com/docs/safety-guidance) to learn how to incorporate safety considerations in your AI applications.
+   * @type array | undefined
+   */
+  safetySettings?: SafetySetting[]
+  /**
+   * @description The base structured datatype containing multi-part content of a message. A `Content` includes a `role` field designating the producer of the `Content` and a `parts` field containing multi-part data that contains the content of the message turn.
+   * @type object | undefined
+   */
+  systemInstruction?: Content
   /**
    * @description Optional. The service tier of the request.
    * @type string | undefined
@@ -5409,7 +8423,7 @@ export type GeminiPostV1BetaModelsModelsidGeneratetextStatus200 = {
    * @description A set of content filtering metadata for the prompt and response text. This indicates which `SafetyCategory`(s) blocked a candidate from this response, the lowest `HarmProbability` that triggered a block, and the HarmThreshold setting for that category. This indicates the smallest change to the `SafetySettings` that would be necessary to unblock at least 1 response. The blocking is configured by the `SafetySettings` in the request (or the default `SafetySettings` of the API).
    * @type array | undefined
    */
-  filters?: ContentFilterFeb8Ceeb[]
+  filters?: ContentFilter6E50A105[]
 }
 
 /**
@@ -5428,7 +8442,7 @@ export type GeminiPostV1BetaModelsModelsidGeneratetextBody = {
    * @description Optional. A list of unique `SafetySetting` instances for blocking unsafe content. that will be enforced on the `GenerateTextRequest.prompt` and `GenerateTextResponse.candidates`. There should not be more than one setting for each `SafetyCategory` type. The API will block any prompts and responses that fail to meet the thresholds set by these settings. This list overrides the default settings for each `SafetyCategory` specified in the safety_settings. If there is no `SafetySetting` for a given `SafetyCategory` provided in the list, the API will use the default safety setting for that category. Harm categories HARM_CATEGORY_DEROGATORY, HARM_CATEGORY_TOXICITY, HARM_CATEGORY_VIOLENCE, HARM_CATEGORY_SEXUAL, HARM_CATEGORY_MEDICAL, HARM_CATEGORY_DANGEROUS are supported in text service.
    * @type array | undefined
    */
-  safetySettings?: SafetySetting46E68Be6[]
+  safetySettings?: SafetySetting[]
   /**
    * @description The set of character sequences (up to 5) that will stop output generation. If specified, the API will stop at the first appearance of a stop sequence. The stop sequence will not be included as part of the response.
    * @type array | undefined
@@ -5657,7 +8671,7 @@ export type GeminiPostV1BetaModelsModelsidStreamgeneratecontentStatus200 = {
    * @description Candidate responses from the model.
    * @type array | undefined
    */
-  candidates?: Candidate[]
+  candidates?: CandidateC8Cd3123[]
   /**
    * @description A set of the feedback metadata the prompt specified in `GenerateContentRequest.content`.
    * @type object | undefined
@@ -5714,6 +8728,7 @@ export const geminiPostV1BetaModelsModelsidStreamgeneratecontentRequestModelEnum
     'gemini-3-pro-image-preview': 'gemini-3-pro-image-preview',
     'gemini-4-argon': 'gemini-4-argon',
     'gemini-4-carbon': 'gemini-4-carbon',
+    'gemini-4-hydrogen': 'gemini-4-hydrogen',
     'gemini-decision-1': 'gemini-decision-1',
     'gemini-embedding-001': 'gemini-embedding-001',
     'gemini-embedding-2': 'gemini-embedding-2',
@@ -5757,21 +8772,6 @@ export type GeminiPostV1BetaModelsModelsidStreamgeneratecontentRequestServiceTie
  */
 export type GeminiPostV1BetaModelsModelsidStreamgeneratecontentBody = {
   /**
-   * @description Optional. A list of `Tools` the `Model` may use to generate the next response. A `Tool` is a piece of code that enables the system to interact with external systems to perform an action, or set of actions, outside of knowledge and scope of the `Model`. Supported `Tool`s are `Function` and `code_execution`. Refer to the [Function calling](https://aistudio.google.com/docs/function-calling) and the [Code execution](https://aistudio.google.com/docs/code-execution) guides to learn more.
-   * @type array | undefined
-   */
-  tools?: Tool[]
-  /**
-   * @description The Tool configuration containing parameters for specifying `Tool` use in the request.
-   * @type object | undefined
-   */
-  toolConfig?: ToolConfig
-  /**
-   * @description Required. The name of the `Model` to use for generating the completion. Format: `models/{model}`.
-   * @type string | undefined
-   */
-  model?: GeminiPostV1BetaModelsModelsidStreamgeneratecontentRequestModelEnumKey
-  /**
    * @description Optional. Labels with user-defined metadata for the request. Optional. Labels must follow standard unified Cloud label requirements: - Label keys must start with a letter. - Label keys and values can be no longer than 63 characters (Unicode codepoints) and can only contain lowercase letters, numeric characters, underscores, and dashes. - International characters are allowed. Usage: - Safety identifiers from aggregators: Use the key `safety_identifier` (e.g. `{"safety_identifier": "user_session_123"}`)
    * @type object | undefined
    */
@@ -5779,40 +8779,55 @@ export type GeminiPostV1BetaModelsModelsidStreamgeneratecontentBody = {
     [key: string]: string
   }
   /**
+   * @description Optional. A list of `Tools` the `Model` may use to generate the next response. A `Tool` is a piece of code that enables the system to interact with external systems to perform an action, or set of actions, outside of knowledge and scope of the `Model`. Supported `Tool`s are `Function` and `code_execution`. Refer to the [Function calling](https://aistudio.google.com/docs/function-calling) and the [Code execution](https://aistudio.google.com/docs/code-execution) guides to learn more.
+   * @type array | undefined
+   */
+  tools?: Tool[]
+  /**
    * @description Optional. An opaque continuation token used to resume generation from a previous `GenerateContent` or `StreamGenerateContent` response that stopped with `finish_reason` set to `CONTINUATION`. Note that `contents` is mandatory and must identically replicate the prompt and conversation history from the initial request when continuation token is provided in a request.
    * @type string | undefined
    */
   continuationToken?: string
   /**
-   * @description Configuration options for model generation and outputs. Not all parameters are configurable for every model.
+   * @description The Tool configuration containing parameters for specifying `Tool` use in the request.
    * @type object | undefined
    */
-  generationConfig?: GenerationConfig
-  /**
-   * @description The base structured datatype containing multi-part content of a message. A `Content` includes a `role` field designating the producer of the `Content` and a `parts` field containing multi-part data that contains the content of the message turn.
-   * @type object | undefined
-   */
-  systemInstruction?: Content
-  /**
-   * @description Optional. Configures the logging behavior for a given request. If set, it takes precedence over the project-level logging config.
-   * @type boolean | undefined
-   */
-  store?: boolean
-  /**
-   * @description Optional. A list of unique `SafetySetting` instances for blocking unsafe content. This will be enforced on the `GenerateContentRequest.contents` and `GenerateContentResponse.candidates`. There should not be more than one setting for each `SafetyCategory` type. The API will block any contents and responses that fail to meet the thresholds set by these settings. This list overrides the default settings for each `SafetyCategory` specified in the safety_settings. If there is no `SafetySetting` for a given `SafetyCategory` provided in the list, the API will use the default safety setting for that category. Harm categories HARM_CATEGORY_HATE_SPEECH, HARM_CATEGORY_SEXUALLY_EXPLICIT, HARM_CATEGORY_DANGEROUS_CONTENT, HARM_CATEGORY_HARASSMENT, HARM_CATEGORY_CIVIC_INTEGRITY, HARM_CATEGORY_JAILBREAK are supported. Refer to the [guide](https://aistudio.google.com/docs/safety-settings) for detailed information on available safety settings. Also refer to the [Safety guidance](https://aistudio.google.com/docs/safety-guidance) to learn how to incorporate safety considerations in your AI applications.
-   * @type array | undefined
-   */
-  safetySettings?: SafetySetting[]
+  toolConfig?: ToolConfig
   /**
    * @description Required. The content of the current conversation with the model. For single-turn queries, this is a single instance. For multi-turn queries like [chat](https://aistudio.google.com/docs/text-generation#multi-turn-conversations), this is a repeated field that contains the conversation history and the latest request.
    * @type array | undefined
    */
   contents?: Content[]
   /**
+   * @description Configuration options for model generation and outputs. Not all parameters are configurable for every model.
+   * @type object | undefined
+   */
+  generationConfig?: GenerationConfig
+  /**
+   * @description Optional. Configures the logging behavior for a given request. If set, it takes precedence over the project-level logging config.
+   * @type boolean | undefined
+   */
+  store?: boolean
+  /**
    * @description Optional. The name of the content [cached](https://aistudio.google.com/docs/caching) to use as context to serve the prediction. Format: `cachedContents/{cachedContent}`
    * @type string | undefined
    */
   cachedContent?: string
+  /**
+   * @description Required. The name of the `Model` to use for generating the completion. Format: `models/{model}`.
+   * @type string | undefined
+   */
+  model?: GeminiPostV1BetaModelsModelsidStreamgeneratecontentRequestModelEnumKey
+  /**
+   * @description Optional. A list of unique `SafetySetting` instances for blocking unsafe content. This will be enforced on the `GenerateContentRequest.contents` and `GenerateContentResponse.candidates`. There should not be more than one setting for each `SafetyCategory` type. The API will block any contents and responses that fail to meet the thresholds set by these settings. This list overrides the default settings for each `SafetyCategory` specified in the safety_settings. If there is no `SafetySetting` for a given `SafetyCategory` provided in the list, the API will use the default safety setting for that category. Harm categories HARM_CATEGORY_HATE_SPEECH, HARM_CATEGORY_SEXUALLY_EXPLICIT, HARM_CATEGORY_DANGEROUS_CONTENT, HARM_CATEGORY_HARASSMENT, HARM_CATEGORY_CIVIC_INTEGRITY, HARM_CATEGORY_JAILBREAK are supported. Refer to the [guide](https://aistudio.google.com/docs/safety-settings) for detailed information on available safety settings. Also refer to the [Safety guidance](https://aistudio.google.com/docs/safety-guidance) to learn how to incorporate safety considerations in your AI applications.
+   * @type array | undefined
+   */
+  safetySettings?: SafetySetting[]
+  /**
+   * @description The base structured datatype containing multi-part content of a message. A `Content` includes a `role` field designating the producer of the `Content` and a `parts` field containing multi-part data that contains the content of the message turn.
+   * @type object | undefined
+   */
+  systemInstruction?: Content
   /**
    * @description Optional. The service tier of the request.
    * @type string | undefined
@@ -5870,7 +8885,7 @@ export type GeminiPostV1BetaTunedmodelsTunedmodelsidGeneratecontentStatus200 = {
    * @description Candidate responses from the model.
    * @type array | undefined
    */
-  candidates?: Candidate[]
+  candidates?: CandidateC8Cd3123[]
   /**
    * @description A set of the feedback metadata the prompt specified in `GenerateContentRequest.content`.
    * @type object | undefined
@@ -5927,6 +8942,7 @@ export const geminiPostV1BetaTunedmodelsTunedmodelsidGeneratecontentRequestModel
     'gemini-3-pro-image-preview': 'gemini-3-pro-image-preview',
     'gemini-4-argon': 'gemini-4-argon',
     'gemini-4-carbon': 'gemini-4-carbon',
+    'gemini-4-hydrogen': 'gemini-4-hydrogen',
     'gemini-decision-1': 'gemini-decision-1',
     'gemini-embedding-001': 'gemini-embedding-001',
     'gemini-embedding-2': 'gemini-embedding-2',
@@ -5970,21 +8986,6 @@ export type GeminiPostV1BetaTunedmodelsTunedmodelsidGeneratecontentRequestServic
  */
 export type GeminiPostV1BetaTunedmodelsTunedmodelsidGeneratecontentBody = {
   /**
-   * @description Optional. A list of `Tools` the `Model` may use to generate the next response. A `Tool` is a piece of code that enables the system to interact with external systems to perform an action, or set of actions, outside of knowledge and scope of the `Model`. Supported `Tool`s are `Function` and `code_execution`. Refer to the [Function calling](https://aistudio.google.com/docs/function-calling) and the [Code execution](https://aistudio.google.com/docs/code-execution) guides to learn more.
-   * @type array | undefined
-   */
-  tools?: Tool[]
-  /**
-   * @description The Tool configuration containing parameters for specifying `Tool` use in the request.
-   * @type object | undefined
-   */
-  toolConfig?: ToolConfig
-  /**
-   * @description Required. The name of the `Model` to use for generating the completion. Format: `models/{model}`.
-   * @type string | undefined
-   */
-  model?: GeminiPostV1BetaTunedmodelsTunedmodelsidGeneratecontentRequestModelEnumKey
-  /**
    * @description Optional. Labels with user-defined metadata for the request. Optional. Labels must follow standard unified Cloud label requirements: - Label keys must start with a letter. - Label keys and values can be no longer than 63 characters (Unicode codepoints) and can only contain lowercase letters, numeric characters, underscores, and dashes. - International characters are allowed. Usage: - Safety identifiers from aggregators: Use the key `safety_identifier` (e.g. `{"safety_identifier": "user_session_123"}`)
    * @type object | undefined
    */
@@ -5992,40 +8993,55 @@ export type GeminiPostV1BetaTunedmodelsTunedmodelsidGeneratecontentBody = {
     [key: string]: string
   }
   /**
+   * @description Optional. A list of `Tools` the `Model` may use to generate the next response. A `Tool` is a piece of code that enables the system to interact with external systems to perform an action, or set of actions, outside of knowledge and scope of the `Model`. Supported `Tool`s are `Function` and `code_execution`. Refer to the [Function calling](https://aistudio.google.com/docs/function-calling) and the [Code execution](https://aistudio.google.com/docs/code-execution) guides to learn more.
+   * @type array | undefined
+   */
+  tools?: Tool[]
+  /**
    * @description Optional. An opaque continuation token used to resume generation from a previous `GenerateContent` or `StreamGenerateContent` response that stopped with `finish_reason` set to `CONTINUATION`. Note that `contents` is mandatory and must identically replicate the prompt and conversation history from the initial request when continuation token is provided in a request.
    * @type string | undefined
    */
   continuationToken?: string
   /**
-   * @description Configuration options for model generation and outputs. Not all parameters are configurable for every model.
+   * @description The Tool configuration containing parameters for specifying `Tool` use in the request.
    * @type object | undefined
    */
-  generationConfig?: GenerationConfig
-  /**
-   * @description The base structured datatype containing multi-part content of a message. A `Content` includes a `role` field designating the producer of the `Content` and a `parts` field containing multi-part data that contains the content of the message turn.
-   * @type object | undefined
-   */
-  systemInstruction?: Content
-  /**
-   * @description Optional. Configures the logging behavior for a given request. If set, it takes precedence over the project-level logging config.
-   * @type boolean | undefined
-   */
-  store?: boolean
-  /**
-   * @description Optional. A list of unique `SafetySetting` instances for blocking unsafe content. This will be enforced on the `GenerateContentRequest.contents` and `GenerateContentResponse.candidates`. There should not be more than one setting for each `SafetyCategory` type. The API will block any contents and responses that fail to meet the thresholds set by these settings. This list overrides the default settings for each `SafetyCategory` specified in the safety_settings. If there is no `SafetySetting` for a given `SafetyCategory` provided in the list, the API will use the default safety setting for that category. Harm categories HARM_CATEGORY_HATE_SPEECH, HARM_CATEGORY_SEXUALLY_EXPLICIT, HARM_CATEGORY_DANGEROUS_CONTENT, HARM_CATEGORY_HARASSMENT, HARM_CATEGORY_CIVIC_INTEGRITY, HARM_CATEGORY_JAILBREAK are supported. Refer to the [guide](https://aistudio.google.com/docs/safety-settings) for detailed information on available safety settings. Also refer to the [Safety guidance](https://aistudio.google.com/docs/safety-guidance) to learn how to incorporate safety considerations in your AI applications.
-   * @type array | undefined
-   */
-  safetySettings?: SafetySetting[]
+  toolConfig?: ToolConfig
   /**
    * @description Required. The content of the current conversation with the model. For single-turn queries, this is a single instance. For multi-turn queries like [chat](https://aistudio.google.com/docs/text-generation#multi-turn-conversations), this is a repeated field that contains the conversation history and the latest request.
    * @type array | undefined
    */
   contents?: Content[]
   /**
+   * @description Configuration options for model generation and outputs. Not all parameters are configurable for every model.
+   * @type object | undefined
+   */
+  generationConfig?: GenerationConfig
+  /**
+   * @description Optional. Configures the logging behavior for a given request. If set, it takes precedence over the project-level logging config.
+   * @type boolean | undefined
+   */
+  store?: boolean
+  /**
    * @description Optional. The name of the content [cached](https://aistudio.google.com/docs/caching) to use as context to serve the prediction. Format: `cachedContents/{cachedContent}`
    * @type string | undefined
    */
   cachedContent?: string
+  /**
+   * @description Required. The name of the `Model` to use for generating the completion. Format: `models/{model}`.
+   * @type string | undefined
+   */
+  model?: GeminiPostV1BetaTunedmodelsTunedmodelsidGeneratecontentRequestModelEnumKey
+  /**
+   * @description Optional. A list of unique `SafetySetting` instances for blocking unsafe content. This will be enforced on the `GenerateContentRequest.contents` and `GenerateContentResponse.candidates`. There should not be more than one setting for each `SafetyCategory` type. The API will block any contents and responses that fail to meet the thresholds set by these settings. This list overrides the default settings for each `SafetyCategory` specified in the safety_settings. If there is no `SafetySetting` for a given `SafetyCategory` provided in the list, the API will use the default safety setting for that category. Harm categories HARM_CATEGORY_HATE_SPEECH, HARM_CATEGORY_SEXUALLY_EXPLICIT, HARM_CATEGORY_DANGEROUS_CONTENT, HARM_CATEGORY_HARASSMENT, HARM_CATEGORY_CIVIC_INTEGRITY, HARM_CATEGORY_JAILBREAK are supported. Refer to the [guide](https://aistudio.google.com/docs/safety-settings) for detailed information on available safety settings. Also refer to the [Safety guidance](https://aistudio.google.com/docs/safety-guidance) to learn how to incorporate safety considerations in your AI applications.
+   * @type array | undefined
+   */
+  safetySettings?: SafetySetting[]
+  /**
+   * @description The base structured datatype containing multi-part content of a message. A `Content` includes a `role` field designating the producer of the `Content` and a `parts` field containing multi-part data that contains the content of the message turn.
+   * @type object | undefined
+   */
+  systemInstruction?: Content
   /**
    * @description Optional. The service tier of the request.
    * @type string | undefined
@@ -6063,17 +9079,17 @@ export type GeminiPostV1BetaTunedmodelsTunedmodelsidGeneratetextStatus200 = {
    * @description Candidate responses from the model.
    * @type array | undefined
    */
-  candidates?: TextCompletionBdb7C419[]
+  candidates?: TextCompletionFa92Bb3F[]
   /**
    * @description Returns any safety feedback related to content filtering.
    * @type array | undefined
    */
-  safetyFeedback?: SafetyFeedback430202B9[]
+  safetyFeedback?: SafetyFeedbackCc09F9Df[]
   /**
    * @description A set of content filtering metadata for the prompt and response text. This indicates which `SafetyCategory`(s) blocked a candidate from this response, the lowest `HarmProbability` that triggered a block, and the HarmThreshold setting for that category. This indicates the smallest change to the `SafetySettings` that would be necessary to unblock at least 1 response. The blocking is configured by the `SafetySettings` in the request (or the default `SafetySettings` of the API).
    * @type array | undefined
    */
-  filters?: ContentFilterBe7A9899[]
+  filters?: ContentFilter82Ff6Fbf[]
 }
 
 /**
@@ -6092,7 +9108,7 @@ export type GeminiPostV1BetaTunedmodelsTunedmodelsidGeneratetextBody = {
    * @description Optional. A list of unique `SafetySetting` instances for blocking unsafe content. that will be enforced on the `GenerateTextRequest.prompt` and `GenerateTextResponse.candidates`. There should not be more than one setting for each `SafetyCategory` type. The API will block any prompts and responses that fail to meet the thresholds set by these settings. This list overrides the default settings for each `SafetyCategory` specified in the safety_settings. If there is no `SafetySetting` for a given `SafetyCategory` provided in the list, the API will use the default safety setting for that category. Harm categories HARM_CATEGORY_DEROGATORY, HARM_CATEGORY_TOXICITY, HARM_CATEGORY_VIOLENCE, HARM_CATEGORY_SEXUAL, HARM_CATEGORY_MEDICAL, HARM_CATEGORY_DANGEROUS are supported in text service.
    * @type array | undefined
    */
-  safetySettings?: SafetySetting46E68Be6[]
+  safetySettings?: SafetySetting[]
   /**
    * @description The set of character sequences (up to 5) that will stop output generation. If specified, the API will stop at the first appearance of a stop sequence. The stop sequence will not be included as part of the response.
    * @type array | undefined
@@ -6185,7 +9201,7 @@ export type GeminiPostV1BetaTunedmodelsTunedmodelsidStreamgeneratecontentStatus2
      * @description Candidate responses from the model.
      * @type array | undefined
      */
-    candidates?: Candidate[]
+    candidates?: CandidateC8Cd3123[]
     /**
      * @description A set of the feedback metadata the prompt specified in `GenerateContentRequest.content`.
      * @type object | undefined
@@ -6242,6 +9258,7 @@ export const geminiPostV1BetaTunedmodelsTunedmodelsidStreamgeneratecontentReques
     'gemini-3-pro-image-preview': 'gemini-3-pro-image-preview',
     'gemini-4-argon': 'gemini-4-argon',
     'gemini-4-carbon': 'gemini-4-carbon',
+    'gemini-4-hydrogen': 'gemini-4-hydrogen',
     'gemini-decision-1': 'gemini-decision-1',
     'gemini-embedding-001': 'gemini-embedding-001',
     'gemini-embedding-2': 'gemini-embedding-2',
@@ -6286,21 +9303,6 @@ export type GeminiPostV1BetaTunedmodelsTunedmodelsidStreamgeneratecontentRequest
 export type GeminiPostV1BetaTunedmodelsTunedmodelsidStreamgeneratecontentBody =
   {
     /**
-     * @description Optional. A list of `Tools` the `Model` may use to generate the next response. A `Tool` is a piece of code that enables the system to interact with external systems to perform an action, or set of actions, outside of knowledge and scope of the `Model`. Supported `Tool`s are `Function` and `code_execution`. Refer to the [Function calling](https://aistudio.google.com/docs/function-calling) and the [Code execution](https://aistudio.google.com/docs/code-execution) guides to learn more.
-     * @type array | undefined
-     */
-    tools?: Tool[]
-    /**
-     * @description The Tool configuration containing parameters for specifying `Tool` use in the request.
-     * @type object | undefined
-     */
-    toolConfig?: ToolConfig
-    /**
-     * @description Required. The name of the `Model` to use for generating the completion. Format: `models/{model}`.
-     * @type string | undefined
-     */
-    model?: GeminiPostV1BetaTunedmodelsTunedmodelsidStreamgeneratecontentRequestModelEnumKey
-    /**
      * @description Optional. Labels with user-defined metadata for the request. Optional. Labels must follow standard unified Cloud label requirements: - Label keys must start with a letter. - Label keys and values can be no longer than 63 characters (Unicode codepoints) and can only contain lowercase letters, numeric characters, underscores, and dashes. - International characters are allowed. Usage: - Safety identifiers from aggregators: Use the key `safety_identifier` (e.g. `{"safety_identifier": "user_session_123"}`)
      * @type object | undefined
      */
@@ -6308,40 +9310,55 @@ export type GeminiPostV1BetaTunedmodelsTunedmodelsidStreamgeneratecontentBody =
       [key: string]: string
     }
     /**
+     * @description Optional. A list of `Tools` the `Model` may use to generate the next response. A `Tool` is a piece of code that enables the system to interact with external systems to perform an action, or set of actions, outside of knowledge and scope of the `Model`. Supported `Tool`s are `Function` and `code_execution`. Refer to the [Function calling](https://aistudio.google.com/docs/function-calling) and the [Code execution](https://aistudio.google.com/docs/code-execution) guides to learn more.
+     * @type array | undefined
+     */
+    tools?: Tool[]
+    /**
      * @description Optional. An opaque continuation token used to resume generation from a previous `GenerateContent` or `StreamGenerateContent` response that stopped with `finish_reason` set to `CONTINUATION`. Note that `contents` is mandatory and must identically replicate the prompt and conversation history from the initial request when continuation token is provided in a request.
      * @type string | undefined
      */
     continuationToken?: string
     /**
-     * @description Configuration options for model generation and outputs. Not all parameters are configurable for every model.
+     * @description The Tool configuration containing parameters for specifying `Tool` use in the request.
      * @type object | undefined
      */
-    generationConfig?: GenerationConfig
-    /**
-     * @description The base structured datatype containing multi-part content of a message. A `Content` includes a `role` field designating the producer of the `Content` and a `parts` field containing multi-part data that contains the content of the message turn.
-     * @type object | undefined
-     */
-    systemInstruction?: Content
-    /**
-     * @description Optional. Configures the logging behavior for a given request. If set, it takes precedence over the project-level logging config.
-     * @type boolean | undefined
-     */
-    store?: boolean
-    /**
-     * @description Optional. A list of unique `SafetySetting` instances for blocking unsafe content. This will be enforced on the `GenerateContentRequest.contents` and `GenerateContentResponse.candidates`. There should not be more than one setting for each `SafetyCategory` type. The API will block any contents and responses that fail to meet the thresholds set by these settings. This list overrides the default settings for each `SafetyCategory` specified in the safety_settings. If there is no `SafetySetting` for a given `SafetyCategory` provided in the list, the API will use the default safety setting for that category. Harm categories HARM_CATEGORY_HATE_SPEECH, HARM_CATEGORY_SEXUALLY_EXPLICIT, HARM_CATEGORY_DANGEROUS_CONTENT, HARM_CATEGORY_HARASSMENT, HARM_CATEGORY_CIVIC_INTEGRITY, HARM_CATEGORY_JAILBREAK are supported. Refer to the [guide](https://aistudio.google.com/docs/safety-settings) for detailed information on available safety settings. Also refer to the [Safety guidance](https://aistudio.google.com/docs/safety-guidance) to learn how to incorporate safety considerations in your AI applications.
-     * @type array | undefined
-     */
-    safetySettings?: SafetySetting[]
+    toolConfig?: ToolConfig
     /**
      * @description Required. The content of the current conversation with the model. For single-turn queries, this is a single instance. For multi-turn queries like [chat](https://aistudio.google.com/docs/text-generation#multi-turn-conversations), this is a repeated field that contains the conversation history and the latest request.
      * @type array | undefined
      */
     contents?: Content[]
     /**
+     * @description Configuration options for model generation and outputs. Not all parameters are configurable for every model.
+     * @type object | undefined
+     */
+    generationConfig?: GenerationConfig
+    /**
+     * @description Optional. Configures the logging behavior for a given request. If set, it takes precedence over the project-level logging config.
+     * @type boolean | undefined
+     */
+    store?: boolean
+    /**
      * @description Optional. The name of the content [cached](https://aistudio.google.com/docs/caching) to use as context to serve the prediction. Format: `cachedContents/{cachedContent}`
      * @type string | undefined
      */
     cachedContent?: string
+    /**
+     * @description Required. The name of the `Model` to use for generating the completion. Format: `models/{model}`.
+     * @type string | undefined
+     */
+    model?: GeminiPostV1BetaTunedmodelsTunedmodelsidStreamgeneratecontentRequestModelEnumKey
+    /**
+     * @description Optional. A list of unique `SafetySetting` instances for blocking unsafe content. This will be enforced on the `GenerateContentRequest.contents` and `GenerateContentResponse.candidates`. There should not be more than one setting for each `SafetyCategory` type. The API will block any contents and responses that fail to meet the thresholds set by these settings. This list overrides the default settings for each `SafetyCategory` specified in the safety_settings. If there is no `SafetySetting` for a given `SafetyCategory` provided in the list, the API will use the default safety setting for that category. Harm categories HARM_CATEGORY_HATE_SPEECH, HARM_CATEGORY_SEXUALLY_EXPLICIT, HARM_CATEGORY_DANGEROUS_CONTENT, HARM_CATEGORY_HARASSMENT, HARM_CATEGORY_CIVIC_INTEGRITY, HARM_CATEGORY_JAILBREAK are supported. Refer to the [guide](https://aistudio.google.com/docs/safety-settings) for detailed information on available safety settings. Also refer to the [Safety guidance](https://aistudio.google.com/docs/safety-guidance) to learn how to incorporate safety considerations in your AI applications.
+     * @type array | undefined
+     */
+    safetySettings?: SafetySetting[]
+    /**
+     * @description The base structured datatype containing multi-part content of a message. A `Content` includes a `role` field designating the producer of the `Content` and a `parts` field containing multi-part data that contains the content of the message turn.
+     * @type object | undefined
+     */
+    systemInstruction?: Content
     /**
      * @description Optional. The service tier of the request.
      * @type string | undefined

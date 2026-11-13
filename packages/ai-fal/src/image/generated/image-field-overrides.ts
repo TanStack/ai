@@ -981,6 +981,7 @@ export const FAL_IMAGE_FIELD_OVERRIDES = {
   },
   'pixelcut/looping-video': { start: 'image_url' },
   'pixverse/music-video/vibemv': { start: 'image_url' },
+  'pixverse/v6/max/image-to-video': { start: 'image_url' },
   'recraft/v4/style/pro/text-to-image': {
     single: 'image_urls',
     reference: 'image_urls',

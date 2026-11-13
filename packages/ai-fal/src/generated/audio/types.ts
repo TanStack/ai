@@ -4147,6 +4147,31 @@ export type OutputFalAiElevenlabsTextToDialogueElevenV3 = {
   audio: FileF186370E
 }
 
+export const inputFalAiElevenlabsTtsElevenV3OutputFormatEnum = {
+  mp3_22050_32: 'mp3_22050_32',
+  mp3_44100_32: 'mp3_44100_32',
+  mp3_44100_64: 'mp3_44100_64',
+  mp3_44100_96: 'mp3_44100_96',
+  mp3_44100_128: 'mp3_44100_128',
+  mp3_44100_192: 'mp3_44100_192',
+  pcm_8000: 'pcm_8000',
+  pcm_16000: 'pcm_16000',
+  pcm_22050: 'pcm_22050',
+  pcm_24000: 'pcm_24000',
+  pcm_44100: 'pcm_44100',
+  pcm_48000: 'pcm_48000',
+  ulaw_8000: 'ulaw_8000',
+  alaw_8000: 'alaw_8000',
+  opus_48000_32: 'opus_48000_32',
+  opus_48000_64: 'opus_48000_64',
+  opus_48000_96: 'opus_48000_96',
+  opus_48000_128: 'opus_48000_128',
+  opus_48000_192: 'opus_48000_192',
+} as const
+
+export type InputFalAiElevenlabsTtsElevenV3OutputFormatEnumKey =
+  (typeof inputFalAiElevenlabsTtsElevenV3OutputFormatEnum)[keyof typeof inputFalAiElevenlabsTtsElevenV3OutputFormatEnum]
+
 export const inputFalAiElevenlabsTtsElevenV3ApplyTextNormalizationEnum = {
   auto: 'auto',
   on: 'on',
@@ -4161,6 +4186,42 @@ export type InputFalAiElevenlabsTtsElevenV3ApplyTextNormalizationEnumKey =
  * @type object
  */
 export type InputFalAiElevenlabsTtsElevenV3 = {
+  /**
+   * @description Check input content for safety. Disabling requires account authorization.
+   * @default true
+   * @type boolean | undefined
+   */
+  enable_safety_checker?: boolean
+  /**
+   * @description Whether to return timestamps for each word in the generated speech
+   * @default false
+   * @type boolean | undefined
+   */
+  timestamps?: boolean
+  /**
+   * @description Output audio format (codec_sample_rate_bitrate). PCM is raw signed 16-bit little-endian audio, without a WAV header. PCM at 44.1 kHz requires an ElevenLabs Pro plan or above; MP3 at 192 kbps requires Creator or above.
+   * @default 'mp3_44100_128'
+   * @type string | undefined
+   */
+  output_format?: InputFalAiElevenlabsTtsElevenV3OutputFormatEnumKey
+  /**
+   * @description Language code (ISO 639-1) used to enforce a language for the model.
+   */
+  language_code?: string | null
+  /**
+   * @description This parameter controls text normalization with three modes: 'auto', 'on', and 'off'. When set to 'auto', the system will automatically decide whether to apply text normalization (e.g., spelling out numbers). With 'on', text normalization will always be applied, while with 'off', it will be skipped.
+   * @default 'auto'
+   * @type string | undefined
+   */
+  apply_text_normalization?: InputFalAiElevenlabsTtsElevenV3ApplyTextNormalizationEnumKey
+  /**
+   * @description The text to convert to speech
+   * @minLength 1
+   * @maxLength 5000
+   * @example Hello! This is a test of the text to speech system, powered by ElevenLabs. How does it sound?
+   * @type string
+   */
+  text: string
   /**
    * @description The voice to use for speech generation
    * @default 'Rachel'
@@ -4187,36 +4248,6 @@ export type InputFalAiElevenlabsTtsElevenV3 = {
    * @type string | undefined
    */
   voice?: string
-  /**
-   * @description Check input content for safety. Disabling requires account authorization.
-   * @default true
-   * @type boolean | undefined
-   */
-  enable_safety_checker?: boolean
-  /**
-   * @description Whether to return timestamps for each word in the generated speech
-   * @default false
-   * @type boolean | undefined
-   */
-  timestamps?: boolean
-  /**
-   * @description The text to convert to speech
-   * @minLength 1
-   * @maxLength 5000
-   * @example Hello! This is a test of the text to speech system, powered by ElevenLabs. How does it sound?
-   * @type string
-   */
-  text: string
-  /**
-   * @description Language code (ISO 639-1) used to enforce a language for the model.
-   */
-  language_code?: string | null
-  /**
-   * @description This parameter controls text normalization with three modes: 'auto', 'on', and 'off'. When set to 'auto', the system will automatically decide whether to apply text normalization (e.g., spelling out numbers). With 'on', text normalization will always be applied, while with 'off', it will be skipped.
-   * @default 'auto'
-   * @type string | undefined
-   */
-  apply_text_normalization?: InputFalAiElevenlabsTtsElevenV3ApplyTextNormalizationEnumKey
   /**
    * @description Voice stability (0-1)
    * @minimum 0
@@ -4574,7 +4605,40 @@ export const inputFalAiElevenlabsVoiceChangerOutputFormatEnum = {
 export type InputFalAiElevenlabsVoiceChangerOutputFormatEnumKey =
   (typeof inputFalAiElevenlabsVoiceChangerOutputFormatEnum)[keyof typeof inputFalAiElevenlabsVoiceChangerOutputFormatEnum]
 
+export const inputFalAiElevenlabsVoiceChangerModelIdEnum = {
+  eleven_multilingual_sts_v2: 'eleven_multilingual_sts_v2',
+  eleven_english_sts_v2: 'eleven_english_sts_v2',
+} as const
+
+export type InputFalAiElevenlabsVoiceChangerModelIdEnumKey =
+  (typeof inputFalAiElevenlabsVoiceChangerModelIdEnum)[keyof typeof inputFalAiElevenlabsVoiceChangerModelIdEnum]
+
 export type InputFalAiElevenlabsVoiceChanger = {
+  /**
+   * @description Random seed for reproducibility.
+   * @type integer | undefined
+   */
+  seed?: number
+  /**
+   * @description Style exaggeration (0-1). Nonzero values may increase latency. If omitted, uses the voice's stored setting.
+   */
+  style?: number | null
+  /**
+   * @description Output format of the generated audio. Formatted as codec_sample_rate_bitrate.
+   * @default 'mp3_44100_128'
+   * @type string | undefined
+   */
+  output_format?: InputFalAiElevenlabsVoiceChangerOutputFormatEnumKey
+  /**
+   * @description Speech-to-speech model. Multilingual v2 supports 29 languages; English v2 supports English only. Both models have the same price.
+   * @default 'eleven_multilingual_sts_v2'
+   * @type string | undefined
+   */
+  model_id?: InputFalAiElevenlabsVoiceChangerModelIdEnumKey
+  /**
+   * @description Boost similarity to the original speaker, at the cost of increased latency. If omitted, uses the voice's stored setting.
+   */
+  use_speaker_boost?: boolean | null
   /**
    * @description If set, will remove the background noise from your audio input using our audio isolation model.
    * @default false
@@ -4582,11 +4646,15 @@ export type InputFalAiElevenlabsVoiceChanger = {
    */
   remove_background_noise?: boolean
   /**
-   * @description Output format of the generated audio. Formatted as codec_sample_rate_bitrate.
-   * @default 'mp3_44100_128'
-   * @type string | undefined
+   * @description The input audio file
+   * @example https://storage.googleapis.com/falserverless/example_inputs/elevenlabs/voice_change_in.mp3
+   * @type string
    */
-  output_format?: InputFalAiElevenlabsVoiceChangerOutputFormatEnumKey
+  audio_url: string
+  /**
+   * @description Voice stability (0-1). Lower values allow more emotional variation; higher values make delivery more consistent. If omitted, uses the voice's stored setting.
+   */
+  stability?: number | null
   /**
    * @description The voice to use for speech generation
    * @default 'Rachel'
@@ -4614,16 +4682,9 @@ export type InputFalAiElevenlabsVoiceChanger = {
    */
   voice?: string
   /**
-   * @description Random seed for reproducibility.
-   * @type integer | undefined
+   * @description How closely to match the original voice (0-1). If omitted, uses the voice's stored setting.
    */
-  seed?: number
-  /**
-   * @description The input audio file
-   * @example https://storage.googleapis.com/falserverless/example_inputs/elevenlabs/voice_change_in.mp3
-   * @type string
-   */
-  audio_url: string
+  similarity_boost?: number | null
 }
 
 export type File4A2232A5 = {

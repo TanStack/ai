@@ -86044,24 +86044,18 @@ export type OutputFalAiStableDiffusionV3MediumImageToImage = {
   prompt: string
 }
 
-export type ImageSizeD97Bba59 = {
+export type ControlNet4199F4Eb = {
   /**
-   * @description The width of the generated image.
-   * @maximum 14142
-   * @default 512
-   * @type integer | undefined
+   * @description
+   *             The scale of the control net weight. This is used to scale the control net weight
+   *             before merging it with the base model.
+   *
+   * @minimum 0
+   * @maximum 2
+   * @default 1
+   * @type number | undefined
    */
-  width?: number
-  /**
-   * @description The height of the generated image.
-   * @maximum 14142
-   * @default 512
-   * @type integer | undefined
-   */
-  height?: number
-}
-
-export type ControlNetD72Da04F = {
+  conditioning_scale?: number
   /**
    * @description
    *             The percentage of the image to start applying the controlnet in terms of the total timesteps.
@@ -86083,29 +86077,18 @@ export type ControlNetD72Da04F = {
    */
   end_percentage?: number
   /**
-   * @description URL of the image to be used as the control image.
-   * @type string
-   */
-  control_image_url: string
-  /**
    * @description URL or the path to the control net weights.
    * @type string
    */
   path: string
   /**
-   * @description
-   *             The scale of the control net weight. This is used to scale the control net weight
-   *             before merging it with the base model.
-   *
-   * @minimum 0
-   * @maximum 2
-   * @default 1
-   * @type number | undefined
+   * @description URL of the image to be used as the control image.
+   * @type string
    */
-  conditioning_scale?: number
+  control_image_url: string
 }
 
-export type LoraWeight60C152A3 = {
+export type LoraWeightE9E30B27 = {
   /**
    * @description
    *             The scale of the LoRA weight. This is used to scale the LoRA weight
@@ -86124,16 +86107,33 @@ export type LoraWeight60C152A3 = {
   path: string
 }
 
-export type IPAdapterD7672179 = {
+export type ImageSizeFa2A5Ec5 = {
   /**
-   * @description Name of the image encoder.
+   * @description The height of the generated image.
+   * @maximum 14142
+   * @default 512
+   * @type integer | undefined
    */
-  image_encoder_weight_name?: string | null
+  height?: number
   /**
-   * @description URL of Image for IP-Adapter conditioning.
-   * @type string
+   * @description The width of the generated image.
+   * @maximum 14142
+   * @default 512
+   * @type integer | undefined
    */
-  image_url: string
+  width?: number
+}
+
+export type IPAdapter749C2A65 = {
+  /**
+   * @description Exact file containing content-valid safetensors IP-Adapter weights. Pickle .bin adapters require safe offline conversion to safetensors.
+   */
+  weight_name?: string | null
+  /**
+   * @description Scale for ip adapter.
+   * @type number
+   */
+  scale: number
   /**
    * @description Threshold for mask.
    * @minimum 0.01
@@ -86143,37 +86143,46 @@ export type IPAdapterD7672179 = {
    */
   mask_threshold?: number
   /**
-   * @description Subfolder in which the image encoder weights exist.
+   * @description Subfolder in which the ip_adapter weights exist
    */
-  image_encoder_subfolder?: string | null
+  subfolder?: string | null
   /**
    * @description HTTPS URL or Hugging Face repository for content-valid safetensors IP-Adapter weights. Convert .bin adapters to safetensors offline before uploading.
    * @type string
    */
   path: string
   /**
-   * @description URL of the mask for the control image.
+   * @description URL of Image for IP-Adapter conditioning.
+   * @type string
    */
-  mask_image_url?: string | null
+  image_url: string
   /**
-   * @description Subfolder in which the ip_adapter weights exist
+   * @description Deprecated: custom image encoder files are not supported.
    */
-  subfolder?: string | null
+  image_encoder_weight_name?: string | null
   /**
-   * @description Scale for ip adapter.
-   * @type number
+   * @description Deprecated: custom image encoder files are not supported.
    */
-  scale: number
+  image_encoder_subfolder?: string | null
   /**
-   * @description Path to the Image Encoder for the IP-Adapter, for example 'openai/clip-vit-large-patch14'
+   * @description Hugging Face repository of the IP-Adapter image encoder. Only 'google/siglip-so400m-patch14-384' is supported.
+   * @example google/siglip-so400m-patch14-384
    * @type string
    */
   image_encoder_path: string
   /**
-   * @description Exact file containing content-valid safetensors IP-Adapter weights. Pickle .bin adapters require safe offline conversion to safetensors.
+   * @description URL of the mask for the control image.
    */
-  weight_name?: string | null
+  mask_image_url?: string | null
 }
+
+export const inputFalAiStableDiffusionV35LargeOutputFormatEnum = {
+  jpeg: 'jpeg',
+  png: 'png',
+} as const
+
+export type InputFalAiStableDiffusionV35LargeOutputFormatEnumKey =
+  (typeof inputFalAiStableDiffusionV35LargeOutputFormatEnum)[keyof typeof inputFalAiStableDiffusionV35LargeOutputFormatEnum]
 
 export const inputFalAiStableDiffusionV35LargeImageSize = {
   square_hd: 'square_hd',
@@ -86187,69 +86196,7 @@ export const inputFalAiStableDiffusionV35LargeImageSize = {
 export type InputFalAiStableDiffusionV35LargeImageSizeKey =
   (typeof inputFalAiStableDiffusionV35LargeImageSize)[keyof typeof inputFalAiStableDiffusionV35LargeImageSize]
 
-export const inputFalAiStableDiffusionV35LargeOutputFormatEnum = {
-  jpeg: 'jpeg',
-  png: 'png',
-} as const
-
-export type InputFalAiStableDiffusionV35LargeOutputFormatEnumKey =
-  (typeof inputFalAiStableDiffusionV35LargeOutputFormatEnum)[keyof typeof inputFalAiStableDiffusionV35LargeOutputFormatEnum]
-
 export type InputFalAiStableDiffusionV35Large = {
-  /**
-   * @description The number of inference steps to perform.
-   * @minimum 1
-   * @maximum 50
-   * @default 28
-   * @type integer | undefined
-   */
-  num_inference_steps?: number
-  /**
-   * @description The size of the generated image. Defaults to landscape_4_3 if no controlnet has been passed, otherwise defaults to the size of the controlnet conditioning image.
-   */
-  image_size?:
-    | ImageSizeD97Bba59
-    | InputFalAiStableDiffusionV35LargeImageSizeKey
-    | null
-  /**
-   * @description
-   *             ControlNet for inference.
-   *
-   * @type object | undefined
-   */
-  controlnet?: ControlNetD72Da04F
-  /**
-   * @description
-   *             The same seed and the same prompt given to the same version of the model
-   *             will output the same image every time.
-   *
-   */
-  seed?: number | null
-  /**
-   * @description The number of images to generate.
-   * @minimum 1
-   * @maximum 4
-   * @default 1
-   * @type integer | undefined
-   */
-  num_images?: number
-  /**
-   * @description If set to true, the safety checker will be enabled. Disabling it requires account authorization; unauthorized requests are always checked, and images flagged as unsafe are returned as black images.
-   * @default true
-   * @type boolean | undefined
-   */
-  enable_safety_checker?: boolean
-  /**
-   * @description
-   *             The negative prompt to use. Use it to address details that you don't want
-   *             in the image. This could be colors, objects, scenery and even the small details
-   *             (e.g. moustache, blurry, low resolution).
-   *
-   * @default ''
-   * @example
-   * @type string | undefined
-   */
-  negative_prompt?: string
   /**
    * @description
    *             The CFG (Classifier Free Guidance) scale is a measure of how close you want
@@ -86262,23 +86209,38 @@ export type InputFalAiStableDiffusionV35Large = {
    */
   guidance_scale?: number
   /**
-   * @description If `True`, the media will be returned as a data URI and the output data won't be available in the request history.
-   * @default false
-   * @type boolean | undefined
-   */
-  sync_mode?: boolean
-  /**
    * @description The format of the generated image.
    * @default 'jpeg'
    * @type string | undefined
    */
   output_format?: InputFalAiStableDiffusionV35LargeOutputFormatEnumKey
   /**
+   * @description
+   *             ControlNet for inference.
+   *
+   * @type object | undefined
+   */
+  controlnet?: ControlNet4199F4Eb
+  /**
+   * @description If `True`, the media will be returned as a data URI and the output data won't be available in the request history.
+   * @default false
+   * @type boolean | undefined
+   */
+  sync_mode?: boolean
+  /**
    * @description The prompt to generate an image from.
    * @example A dreamlike Japanese garden in perpetual twilight, bathed in bioluminescent cherry blossoms that emit a soft pink-purple glow. Floating paper lanterns drift lazily through the scene, their warm light creating dancing reflections in a mirror-like koi pond. Ethereal mist weaves between ancient stone pathways lined with glowing mushrooms in pastel blues and purples. A traditional wooden bridge arches gracefully over the water, dusted with fallen petals that sparkle like stardust. The scene is captured through a cinematic lens with perfect bokeh, creating an otherworldly atmosphere. In the background, a crescent moon hangs impossibly large in the sky, surrounded by a sea of stars and auroral wisps in teal and violet. Crystal formations emerge from the ground, refracting the ambient light into rainbow prisms. The entire composition follows the golden ratio, with moody film-like color grading reminiscent of Studio Ghibli, enhanced by volumetric god rays filtering through the luminous foliage. 8K resolution, masterful photography, hyperdetailed, magical realism.
    * @type string
    */
   prompt: string
+  /**
+   * @description The number of inference steps to perform.
+   * @minimum 1
+   * @maximum 50
+   * @default 28
+   * @type integer | undefined
+   */
+  num_inference_steps?: number
   /**
    * @description
    *             The LoRAs to use for the image generation. You can use any number of LoRAs
@@ -86287,13 +86249,52 @@ export type InputFalAiStableDiffusionV35Large = {
    * @default []
    * @type array | undefined
    */
-  loras?: LoraWeight60C152A3[]
+  loras?: LoraWeightE9E30B27[]
+  /**
+   * @description The size of the generated image. Defaults to landscape_4_3 if no controlnet has been passed, otherwise defaults to the size of the controlnet conditioning image.
+   */
+  image_size?:
+    | ImageSizeFa2A5Ec5
+    | InputFalAiStableDiffusionV35LargeImageSizeKey
+    | null
   /**
    * @description
    *             IP-Adapter to use during inference.
    *
    */
-  ip_adapter?: IPAdapterD7672179 | null
+  ip_adapter?: IPAdapter749C2A65 | null
+  /**
+   * @description The number of images to generate.
+   * @minimum 1
+   * @maximum 4
+   * @default 1
+   * @type integer | undefined
+   */
+  num_images?: number
+  /**
+   * @description
+   *             The same seed and the same prompt given to the same version of the model
+   *             will output the same image every time.
+   *
+   */
+  seed?: number | null
+  /**
+   * @description
+   *             The negative prompt to use. Use it to address details that you don't want
+   *             in the image. This could be colors, objects, scenery and even the small details
+   *             (e.g. moustache, blurry, low resolution).
+   *
+   * @default ''
+   * @example
+   * @type string | undefined
+   */
+  negative_prompt?: string
+  /**
+   * @description If set to true, the safety checker will be enabled. Disabling it requires account authorization; unauthorized requests are always checked, and images flagged as unsafe are returned as black images.
+   * @default true
+   * @type boolean | undefined
+   */
+  enable_safety_checker?: boolean
 }
 
 export type ImageF0E013Ea = {
