@@ -475,7 +475,12 @@
           "label": "Solid",
           "to": "ui/solid",
           "addedAt": "2026-08-26",
-          "updatedAt": "2026-10-22"
+          "updatedAt": "2026-11-12"
+        },
+        {
+          "label": "Solid 2",
+          "to": "framework/solid2",
+          "addedAt": "2026-11-12"
         },
         {
           "label": "Vue",

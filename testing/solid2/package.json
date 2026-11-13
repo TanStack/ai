@@ -1,0 +1,25 @@
+{
+  "name": "@tanstack/ai-solid2-e2e",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 127.0.0.1 --port 3012 --strictPort",
+    "build": "vite build",
+    "preview": "vite preview --host 127.0.0.1 --port 3012 --strictPort",
+    "test:types": "tsc --noEmit",
+    "test:e2e": "pnpm --filter @tanstack/ai-solid2... build && playwright test"
+  },
+  "dependencies": {
+    "@solidjs/web": "^2.0.0-rc.21",
+    "@tanstack/ai": "workspace:*",
+    "@tanstack/ai-solid2": "workspace:*",
+    "solid-js": "^2.0.0-rc.21"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.57.0",
+    "@solidjs/vite-plugin": "3.0.0-next.57",
+    "@types/node": "^24.10.1",
+    "typescript": "5.9.3",
+    "vite": "^8.2.1"
+  }
+}
