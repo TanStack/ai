@@ -67,6 +67,9 @@ export const matrix: Record<Feature, Set<Provider>> = {
   // pre-July-2025 `response.reasoning.delta` event name that OpenAI-compatible
   // endpoints frozen on the older spec still emit (see providers.ts), pinning
   // openai-base's legacy-event mapping end-to-end. Reasoning-only on purpose.
+  // `vercel-gateway` (Chat Completions) streams thinking on `delta.reasoning`,
+  // so its factory re-keys aimock's `delta.reasoning_content` to that field
+  // (see providers.ts) and the adapter's `extractReasoning` runs end-to-end.
   reasoning: new Set([
     'openai',
     'anthropic',
@@ -77,6 +80,7 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'llmgateway',
     'cloudflare',
     'openai-compatible-legacy',
+    'vercel-gateway',
     'neon',
     'neon-anthropic',
   ]),
