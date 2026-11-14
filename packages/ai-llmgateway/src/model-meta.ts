@@ -13,6 +13,7 @@ export const LLMGATEWAY_CHAT_MODELS = [
   'auto',
   'claude-fable-5',
   'claude-fable-5-1',
+  'claude-fable-5-2',
   'claude-haiku-4-5',
   'claude-haiku-4-5-20251001',
   'claude-haiku-5-5',
@@ -36,6 +37,8 @@ export const LLMGATEWAY_CHAT_MODELS = [
   'deepseek-v4.1-flash',
   'deepseek-v4.1-flash-1017',
   'deepseek-v4.1-flash-cyber',
+  'deepseek-v4.1-flash-latest',
+  'deepseek-v4.1-flash-uncensored',
   'devstral-2512',
   'fugu-max',
   'fugu-ultra',
@@ -57,6 +60,8 @@ export const LLMGATEWAY_CHAT_MODELS = [
   'gemini-3.7-flash',
   'gemini-3.8-flash',
   'gemini-4-argon',
+  'gemini-4-carbon',
+  'gemini-4-hydrogen',
   'gemini-nano-banana-2.1',
   'gemini-pro-latest',
   'gemma-4-26b-a4b-it',
@@ -177,6 +182,7 @@ export const LLMGATEWAY_CHAT_MODELS = [
   'mistral-medium-3-5',
   'mistral-small-2506',
   'mistral-small-2603',
+  'muse-ember-1.0',
   'muse-glimmer-30b',
   'muse-spark-1.1',
   'muse-spark-1.2',
@@ -214,16 +220,12 @@ export const LLMGATEWAY_CHAT_MODELS = [
   'qwen3.7-plus',
   'qwen3.8-2.4t-a95b',
   'qwen3.8-27b',
-  'Qwen3.8-27B',
   'qwen3.8-flash',
   'qwen3.8-max',
   'qwen3.8-omni-flash',
   'qwen35-397b-a17b',
   'reka-edge-2603',
-  'seed-1-6-250615',
-  'seed-1-6-250915',
-  'seed-1-6-flash-250715',
-  'seed-1-8-251228',
+  'scribe-v3-live',
   'seed-2-0-code-preview-260328',
   'seed-2-0-lite-260428',
   'seed-2-0-mini-260428',
@@ -237,6 +239,8 @@ export const LLMGATEWAY_CHAT_MODELS = [
   'sonar',
   'step-3.7-flash',
   'step-5-preview',
+  'wan-2-7-image',
+  'wan-2-7-image-pro',
 ] as const
 
 export type LLMGatewayChatModels = (typeof LLMGATEWAY_CHAT_MODELS)[number]
@@ -251,6 +255,7 @@ export type LLMGatewayModelInputModalitiesByName = {
   auto: readonly ['text', 'image']
   'claude-fable-5': readonly ['text', 'image']
   'claude-fable-5-1': readonly ['text', 'image']
+  'claude-fable-5-2': readonly ['text', 'image']
   'claude-haiku-4-5': readonly ['text', 'image']
   'claude-haiku-4-5-20251001': readonly ['text', 'image']
   'claude-haiku-5-5': readonly ['text', 'image']
@@ -274,6 +279,8 @@ export type LLMGatewayModelInputModalitiesByName = {
   'deepseek-v4.1-flash': readonly ['text', 'image']
   'deepseek-v4.1-flash-1017': readonly ['text', 'image']
   'deepseek-v4.1-flash-cyber': readonly ['text', 'image']
+  'deepseek-v4.1-flash-latest': readonly ['text', 'image']
+  'deepseek-v4.1-flash-uncensored': readonly ['text', 'image']
   'devstral-2512': readonly ['text']
   'fugu-max': readonly ['text', 'image']
   'fugu-ultra': readonly ['text', 'image']
@@ -295,6 +302,8 @@ export type LLMGatewayModelInputModalitiesByName = {
   'gemini-3.7-flash': readonly ['text', 'image', 'audio']
   'gemini-3.8-flash': readonly ['text', 'image', 'audio']
   'gemini-4-argon': readonly ['text', 'image', 'audio']
+  'gemini-4-carbon': readonly ['text', 'image', 'audio']
+  'gemini-4-hydrogen': readonly ['text', 'image', 'audio']
   'gemini-nano-banana-2.1': readonly ['text', 'image']
   'gemini-pro-latest': readonly ['text', 'image', 'audio']
   'gemma-4-26b-a4b-it': readonly ['text']
@@ -415,6 +424,7 @@ export type LLMGatewayModelInputModalitiesByName = {
   'mistral-medium-3-5': readonly ['text', 'image']
   'mistral-small-2506': readonly ['text', 'image']
   'mistral-small-2603': readonly ['text', 'image']
+  'muse-ember-1.0': readonly ['text', 'image']
   'muse-glimmer-30b': readonly ['text', 'image']
   'muse-spark-1.1': readonly ['text', 'image']
   'muse-spark-1.2': readonly ['text', 'image']
@@ -452,16 +462,12 @@ export type LLMGatewayModelInputModalitiesByName = {
   'qwen3.7-plus': readonly ['text', 'image']
   'qwen3.8-2.4t-a95b': readonly ['text']
   'qwen3.8-27b': readonly ['text', 'image']
-  'Qwen3.8-27B': readonly ['text', 'image']
   'qwen3.8-flash': readonly ['text', 'image']
   'qwen3.8-max': readonly ['text', 'image']
   'qwen3.8-omni-flash': readonly ['text', 'image', 'audio']
   'qwen35-397b-a17b': readonly ['text', 'image']
   'reka-edge-2603': readonly ['text', 'image']
-  'seed-1-6-250615': readonly ['text', 'image']
-  'seed-1-6-250915': readonly ['text', 'image']
-  'seed-1-6-flash-250715': readonly ['text', 'image']
-  'seed-1-8-251228': readonly ['text', 'image']
+  'scribe-v3-live': readonly ['text', 'audio']
   'seed-2-0-code-preview-260328': readonly ['text', 'image']
   'seed-2-0-lite-260428': readonly ['text', 'image']
   'seed-2-0-mini-260428': readonly ['text', 'image']
@@ -475,6 +481,8 @@ export type LLMGatewayModelInputModalitiesByName = {
   sonar: readonly ['text']
   'step-3.7-flash': readonly ['text', 'image']
   'step-5-preview': readonly ['text', 'image']
+  'wan-2-7-image': readonly ['text', 'image']
+  'wan-2-7-image-pro': readonly ['text', 'image']
 }
 
 export const LLMGATEWAY_MODEL_INPUT_MODALITIES: Readonly<
@@ -483,6 +491,7 @@ export const LLMGATEWAY_MODEL_INPUT_MODALITIES: Readonly<
   auto: ['text', 'image'] as const,
   'claude-fable-5': ['text', 'image'] as const,
   'claude-fable-5-1': ['text', 'image'] as const,
+  'claude-fable-5-2': ['text', 'image'] as const,
   'claude-haiku-4-5': ['text', 'image'] as const,
   'claude-haiku-4-5-20251001': ['text', 'image'] as const,
   'claude-haiku-5-5': ['text', 'image'] as const,
@@ -506,6 +515,8 @@ export const LLMGATEWAY_MODEL_INPUT_MODALITIES: Readonly<
   'deepseek-v4.1-flash': ['text', 'image'] as const,
   'deepseek-v4.1-flash-1017': ['text', 'image'] as const,
   'deepseek-v4.1-flash-cyber': ['text', 'image'] as const,
+  'deepseek-v4.1-flash-latest': ['text', 'image'] as const,
+  'deepseek-v4.1-flash-uncensored': ['text', 'image'] as const,
   'devstral-2512': ['text'] as const,
   'fugu-max': ['text', 'image'] as const,
   'fugu-ultra': ['text', 'image'] as const,
@@ -527,6 +538,8 @@ export const LLMGATEWAY_MODEL_INPUT_MODALITIES: Readonly<
   'gemini-3.7-flash': ['text', 'image', 'audio'] as const,
   'gemini-3.8-flash': ['text', 'image', 'audio'] as const,
   'gemini-4-argon': ['text', 'image', 'audio'] as const,
+  'gemini-4-carbon': ['text', 'image', 'audio'] as const,
+  'gemini-4-hydrogen': ['text', 'image', 'audio'] as const,
   'gemini-nano-banana-2.1': ['text', 'image'] as const,
   'gemini-pro-latest': ['text', 'image', 'audio'] as const,
   'gemma-4-26b-a4b-it': ['text'] as const,
@@ -647,6 +660,7 @@ export const LLMGATEWAY_MODEL_INPUT_MODALITIES: Readonly<
   'mistral-medium-3-5': ['text', 'image'] as const,
   'mistral-small-2506': ['text', 'image'] as const,
   'mistral-small-2603': ['text', 'image'] as const,
+  'muse-ember-1.0': ['text', 'image'] as const,
   'muse-glimmer-30b': ['text', 'image'] as const,
   'muse-spark-1.1': ['text', 'image'] as const,
   'muse-spark-1.2': ['text', 'image'] as const,
@@ -684,16 +698,12 @@ export const LLMGATEWAY_MODEL_INPUT_MODALITIES: Readonly<
   'qwen3.7-plus': ['text', 'image'] as const,
   'qwen3.8-2.4t-a95b': ['text'] as const,
   'qwen3.8-27b': ['text', 'image'] as const,
-  'Qwen3.8-27B': ['text', 'image'] as const,
   'qwen3.8-flash': ['text', 'image'] as const,
   'qwen3.8-max': ['text', 'image'] as const,
   'qwen3.8-omni-flash': ['text', 'image', 'audio'] as const,
   'qwen35-397b-a17b': ['text', 'image'] as const,
   'reka-edge-2603': ['text', 'image'] as const,
-  'seed-1-6-250615': ['text', 'image'] as const,
-  'seed-1-6-250915': ['text', 'image'] as const,
-  'seed-1-6-flash-250715': ['text', 'image'] as const,
-  'seed-1-8-251228': ['text', 'image'] as const,
+  'scribe-v3-live': ['text', 'audio'] as const,
   'seed-2-0-code-preview-260328': ['text', 'image'] as const,
   'seed-2-0-lite-260428': ['text', 'image'] as const,
   'seed-2-0-mini-260428': ['text', 'image'] as const,
@@ -707,6 +717,8 @@ export const LLMGATEWAY_MODEL_INPUT_MODALITIES: Readonly<
   sonar: ['text'] as const,
   'step-3.7-flash': ['text', 'image'] as const,
   'step-5-preview': ['text', 'image'] as const,
+  'wan-2-7-image': ['text', 'image'] as const,
+  'wan-2-7-image-pro': ['text', 'image'] as const,
 } satisfies LLMGatewayModelInputModalitiesByName
 
 export type LLMGatewayChatModelProviderOptionsByName = {
@@ -733,8 +745,8 @@ const EFFORT_HIGH_TO_MAX = {
   levels: { high: 'high', xhigh: 'xhigh', max: 'max' },
   budget: false,
 } as const
-const EFFORT_LOW_MEDIUM_XHIGH = {
-  levels: { low: 'low', medium: 'medium', xhigh: 'xhigh' },
+const EFFORT_LOW_HIGH_TO_MAX = {
+  levels: { low: 'low', high: 'high', xhigh: 'xhigh', max: 'max' },
   budget: false,
 } as const
 const EFFORT_LOW_TO_HIGH = {
@@ -753,6 +765,10 @@ const EFFORT_LOW_TO_MAX = {
 } as const
 const EFFORT_LOW_TO_XHIGH = {
   levels: { low: 'low', medium: 'medium', high: 'high', xhigh: 'xhigh' },
+  budget: false,
+} as const
+const EFFORT_MEDIUM_HIGH = {
+  levels: { medium: 'medium', high: 'high' },
   budget: false,
 } as const
 const EFFORT_MEDIUM_TO_XHIGH = {
@@ -865,6 +881,7 @@ const EFFORT_XHIGH_MAX = {
 const LLMGATEWAY_REASONING = {
   'claude-fable-5': EFFORT_LOW_TO_MAX,
   'claude-fable-5-1': EFFORT_LOW_TO_MAX,
+  'claude-fable-5-2': EFFORT_LOW_TO_MAX,
   'claude-haiku-4-5': EFFORT_LOW_TO_MAX,
   'claude-haiku-4-5-20251001': EFFORT_LOW_TO_MAX,
   'claude-haiku-5-5': EFFORT_NONE_LOW_TO_MAX,
@@ -880,10 +897,13 @@ const LLMGATEWAY_REASONING = {
   'claude-sonnet-5': EFFORT_NONE_LOW_TO_MAX,
   'claude-sonnet-5-5': EFFORT_LOW_TO_MAX,
   'deepseek-v4-flash': EFFORT_NONE_LOW_HIGH_MAX,
+  'deepseek-v4-flash-0731': EFFORT_NONE_MINIMAL_TO_MAX,
   'deepseek-v4-pro': EFFORT_NONE_HIGH_MAX,
   'deepseek-v4.1-flash': EFFORT_NONE_MINIMAL_TO_MAX,
   'deepseek-v4.1-flash-1017': EFFORT_NONE_MINIMAL_TO_MAX,
   'deepseek-v4.1-flash-cyber': EFFORT_NONE_LOW_HIGH_TO_MAX,
+  'deepseek-v4.1-flash-latest': EFFORT_NONE_MINIMAL_TO_MAX,
+  'deepseek-v4.1-flash-uncensored': EFFORT_LOW_HIGH_TO_MAX,
   'fugu-max': EFFORT_HIGH_TO_MAX,
   'fugu-ultra': EFFORT_HIGH_TO_MAX,
   'fugu-ultra-v2.0': EFFORT_HIGH_TO_MAX,
@@ -897,6 +917,8 @@ const LLMGATEWAY_REASONING = {
   'gemini-3.7-flash': EFFORT_LOW_TO_HIGH,
   'gemini-3.8-flash': EFFORT_LOW_TO_HIGH,
   'gemini-4-argon': EFFORT_HIGH,
+  'gemini-4-carbon': EFFORT_MEDIUM_HIGH,
+  'gemini-4-hydrogen': EFFORT_LOW_TO_XHIGH,
   'gemini-pro-latest': EFFORT_LOW_TO_HIGH,
   'gemma-4-31b-it': EFFORT_NONE_LOW_TO_HIGH,
   'glm-5': EFFORT_NONE_MINIMAL_TO_XHIGH,
@@ -961,6 +983,7 @@ const LLMGATEWAY_REASONING = {
   'minimax-m2.7-highspeed': EFFORT_LOW_TO_MAX,
   'minimax-m3': EFFORT_NONE_MINIMAL_TO_MAX,
   'minimax-m3.1-flash': EFFORT_LOW_TO_MAX,
+  'muse-ember-1.0': EFFORT_MINIMAL_TO_MAX,
   'muse-glimmer-30b': EFFORT_MINIMAL_TO_MAX,
   'muse-spark-1.1': EFFORT_MINIMAL_TO_XHIGH,
   'muse-spark-1.2': EFFORT_MINIMAL_TO_XHIGH,
@@ -979,14 +1002,9 @@ const LLMGATEWAY_REASONING = {
   'qwen3.7-plus': EFFORT_NONE_MINIMAL_TO_MAX,
   'qwen3.8-2.4t-a95b': EFFORT_NONE_LOW_MEDIUM_XHIGH,
   'qwen3.8-27b': EFFORT_NONE_LOW_TO_HIGH,
-  'Qwen3.8-27B': EFFORT_LOW_MEDIUM_XHIGH,
   'qwen3.8-flash': EFFORT_NONE_MINIMAL_TO_MAX,
   'qwen3.8-omni-flash': EFFORT_NONE_MINIMAL_TO_MAX,
   'qwen35-397b-a17b': EFFORT_NONE_MINIMAL_TO_MAX,
-  'seed-1-6-250615': EFFORT_MINIMAL_TO_HIGH,
-  'seed-1-6-250915': EFFORT_MINIMAL_TO_HIGH,
-  'seed-1-6-flash-250715': EFFORT_MINIMAL_TO_HIGH,
-  'seed-1-8-251228': EFFORT_MINIMAL_TO_HIGH,
   'seed-2-0-code-preview-260328': EFFORT_MINIMAL_TO_HIGH,
   'seed-2-0-lite-260428': EFFORT_MINIMAL_TO_HIGH,
   'seed-2-0-mini-260428': EFFORT_MINIMAL_TO_HIGH,

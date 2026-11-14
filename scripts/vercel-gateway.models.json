@@ -753,6 +753,56 @@
     }
   },
   {
+    "id": "alibaba/qwen3.6-35b-a3b",
+    "object": "model",
+    "created": 1755815280,
+    "released": 1777248000,
+    "owned_by": "alibaba",
+    "name": "Qwen 3.6 35B A3B",
+    "description": "Qwen 3.6 35B A3B is a mixture-of-experts model with 35 billion total parameters and 3 billion active parameters, built for coding, reasoning, and tool-based workflows.",
+    "context_window": 262144,
+    "max_tokens": 65536,
+    "type": "language",
+    "zdr": "all",
+    "no_training": "all",
+    "tags": [
+      "reasoning",
+      "structured-output",
+      "tool-use",
+      "video-input",
+      "vision",
+      "open-weights",
+      "implicit-caching"
+    ],
+    "supported_specifications": ["v2", "v3", "v4"],
+    "modalities": {
+      "input": ["text", "image", "video"],
+      "output": ["text"]
+    },
+    "supported_parameters": [
+      "max_tokens",
+      "temperature",
+      "stop",
+      "tools",
+      "tool_choice",
+      "reasoning",
+      "include_reasoning",
+      "response_format",
+      "structured_outputs"
+    ],
+    "temperature": true,
+    "reasoning_options": [
+      {
+        "type": "toggle"
+      }
+    ],
+    "pricing": {
+      "input": "0.000000375",
+      "output": "0.00000225",
+      "varies_by_provider": true
+    }
+  },
+  {
     "id": "alibaba/qwen3.6-plus",
     "object": "model",
     "created": 1755815280,
@@ -1148,12 +1198,12 @@
     "id": "alibaba/qwen3.8-2.4t-a95b",
     "object": "model",
     "created": 1755815280,
-    "released": 1785628800,
+    "released": 1785715200,
     "owned_by": "alibaba",
     "name": "Qwen3.8 2.4T A95B",
-    "description": "Qwen 3.8 Max is a 2.4-trillion-parameter MoE model delivering a comprehensive leap in coding and professional work. Autonomously codes and delivers complete projects spanning 10+ days. Handles hundreds of specialized tasks across legal, financial, design, and other professional domains, producing production-grade results end-to-end in a single conversation. Native visual understanding runs through the full cycle of planning, execution, and verification, enabling deep semantic analysis of ultra-long documents and extended video content. In long-horizon tasks, plans autonomously, iterates through closed feedback loops, and continuously evolves.",
+    "description": "Open-weights release of the Qwen3.8 flagship (2.4T MoE, ~95B active); thinking always on with reasoning_effort low/medium/xhigh. The hosted Qwen 3.8 Max (vision, non-thinking, 1M default context) is Alibaba-only.",
     "context_window": 262144,
-    "max_tokens": 128000,
+    "max_tokens": 131072,
     "type": "language",
     "zdr": "some",
     "no_training": "some",
@@ -1161,9 +1211,9 @@
       "reasoning",
       "tool-use",
       "implicit-caching",
-      "structured-output",
+      "vision",
       "open-weights",
-      "vision"
+      "structured-output"
     ],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
@@ -1191,8 +1241,7 @@
     "pricing": {
       "input": "0.000002",
       "output": "0.000006",
-      "input_cache_read": "0.00000025",
-      "varies_by_provider": true
+      "input_cache_read": "0.00000025"
     }
   },
   {
@@ -1244,7 +1293,7 @@
     ],
     "pricing": {
       "input": "0.00000006",
-      "output": "0.0000023",
+      "output": "0.0000022",
       "input_cache_read": "0.000000059",
       "varies_by_provider": true
     }
@@ -1324,7 +1373,7 @@
     "owned_by": "alibaba",
     "name": "Qwen 3.8 Max",
     "description": "Qwen 3.8 Max is a 2.4-trillion-parameter MoE model delivering a comprehensive leap in coding and professional work. Autonomously codes and delivers complete projects spanning 10+ days. Handles hundreds of specialized tasks across legal, financial, design, and other professional domains, producing production-grade results end-to-end in a single conversation. Native visual understanding runs through the full cycle of planning, execution, and verification, enabling deep semantic analysis of ultra-long documents and extended video content. In long-horizon tasks, plans autonomously, iterates through closed feedback loops, and continuously evolves.",
-    "context_window": 262144,
+    "context_window": 1000000,
     "max_tokens": 128000,
     "type": "language",
     "zdr": "all",
@@ -1373,6 +1422,7 @@
       "input": "0.000002",
       "output": "0.000006",
       "input_cache_read": "0.00000025",
+      "input_cache_write": "0.0000025",
       "regional": {
         "us": {
           "input": "0.000002",
@@ -2067,6 +2117,7 @@
         2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21,
         22, 23, 24, 25, 26, 27, 28, 29, 30
       ],
+      "generate_audio": true,
       "supported_fps": [30],
       "max_sample_count": 1,
       "input_limits": {
@@ -2161,6 +2212,7 @@
         2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21,
         22, 23, 24, 25, 26, 27, 28, 29, 30
       ],
+      "generate_audio": true,
       "supported_fps": [30],
       "max_sample_count": 1,
       "input_limits": {
@@ -2256,11 +2308,8 @@
     "temperature": true,
     "reasoning_options": [
       {
-        "type": "toggle"
-      },
-      {
         "type": "effort",
-        "values": ["none", "low", "medium", "high"]
+        "values": ["low", "medium"]
       }
     ],
     "knowledge": "2024-10",
@@ -2660,6 +2709,190 @@
       "output": "0.000025",
       "input_cache_read": "0.000000125",
       "input_cache_write": "0.00000625"
+    }
+  },
+  {
+    "id": "anthropic/claude-fable-5.2",
+    "object": "model",
+    "created": 1755815280,
+    "released": 1794182400,
+    "owned_by": "anthropic",
+    "name": "Claude Fable 5.2",
+    "description": "Claude Fable 5.2 supports agentic coding, knowledge work, and research with always-on adaptive thinking and adjustable reasoning effort from low through max.",
+    "context_window": 1000000,
+    "max_tokens": 128000,
+    "type": "language",
+    "zdr": "none",
+    "no_training": "all",
+    "tags": [
+      "explicit-caching",
+      "fast",
+      "file-input",
+      "reasoning",
+      "structured-output",
+      "tool-use",
+      "vision"
+    ],
+    "regions": ["us"],
+    "supported_specifications": ["v2", "v3", "v4"],
+    "modalities": {
+      "input": ["text", "image", "pdf"],
+      "output": ["text"]
+    },
+    "supported_parameters": [
+      "max_tokens",
+      "stop",
+      "tools",
+      "tool_choice",
+      "reasoning",
+      "include_reasoning",
+      "response_format",
+      "structured_outputs"
+    ],
+    "temperature": false,
+    "reasoning_options": [
+      {
+        "type": "effort",
+        "values": ["low", "medium", "high", "xhigh", "max"]
+      }
+    ],
+    "pricing": {
+      "input": "0.000008",
+      "output": "0.00004",
+      "input_cache_read": "0.0000002",
+      "input_cache_write": "0.00001",
+      "web_search": "10",
+      "fast": {
+        "input": "0.000016",
+        "output": "0.00008",
+        "input_cache_read": "0.0000004",
+        "input_cache_write": "0.00002"
+      },
+      "regional": {
+        "us": {
+          "input": "0.0000088",
+          "output": "0.000044",
+          "input_cache_read": "0.00000022",
+          "input_cache_write": "0.000011",
+          "fast": {
+            "input": "0.0000176",
+            "output": "0.000088",
+            "input_cache_read": "0.00000044",
+            "input_cache_write": "0.000022"
+          }
+        }
+      }
+    }
+  },
+  {
+    "id": "anthropic/claude-fable-5.2-batch",
+    "object": "model",
+    "created": 1755815280,
+    "released": 1794182400,
+    "owned_by": "anthropic",
+    "name": "Claude Fable 5.2 (Batch)",
+    "description": "Claude Fable 5.2 supports agentic coding, knowledge work, and research with always-on adaptive thinking and adjustable reasoning effort from low through max.",
+    "context_window": 1000000,
+    "max_tokens": 128000,
+    "type": "language",
+    "zdr": "none",
+    "no_training": "all",
+    "tags": [
+      "explicit-caching",
+      "file-input",
+      "reasoning",
+      "structured-output",
+      "tool-use",
+      "vision"
+    ],
+    "supported_specifications": ["v4"],
+    "modalities": {
+      "input": ["text", "image", "pdf"],
+      "output": ["text"]
+    },
+    "supported_parameters": [
+      "max_tokens",
+      "stop",
+      "tools",
+      "tool_choice",
+      "reasoning",
+      "include_reasoning",
+      "response_format",
+      "structured_outputs"
+    ],
+    "temperature": false,
+    "reasoning_options": [
+      {
+        "type": "effort",
+        "values": ["low", "medium", "high", "xhigh", "max"]
+      }
+    ],
+    "pricing": {
+      "input": "0.000004",
+      "output": "0.00002",
+      "input_cache_read": "0.0000001",
+      "input_cache_write": "0.000005"
+    }
+  },
+  {
+    "id": "anthropic/claude-fable-5.2-fast",
+    "object": "model",
+    "created": 1755815280,
+    "released": 1794182400,
+    "owned_by": "anthropic",
+    "name": "Claude Fable 5.2 (Fast)",
+    "description": "Claude Fable 5.2 supports agentic coding, knowledge work, and research with always-on adaptive thinking and adjustable reasoning effort from low through max.",
+    "context_window": 1000000,
+    "max_tokens": 128000,
+    "type": "language",
+    "zdr": "none",
+    "no_training": "all",
+    "tags": [
+      "explicit-caching",
+      "fast",
+      "file-input",
+      "reasoning",
+      "structured-output",
+      "tool-use",
+      "vision"
+    ],
+    "regions": ["us"],
+    "supported_specifications": ["v2", "v3", "v4"],
+    "modalities": {
+      "input": ["text", "image", "pdf"],
+      "output": ["text"]
+    },
+    "supported_parameters": [
+      "max_tokens",
+      "stop",
+      "tools",
+      "tool_choice",
+      "reasoning",
+      "include_reasoning",
+      "response_format",
+      "structured_outputs"
+    ],
+    "temperature": false,
+    "reasoning_options": [
+      {
+        "type": "effort",
+        "values": ["low", "medium", "high", "xhigh", "max"]
+      }
+    ],
+    "pricing": {
+      "input": "0.000016",
+      "output": "0.00008",
+      "input_cache_read": "0.0000004",
+      "input_cache_write": "0.00002",
+      "web_search": "10",
+      "regional": {
+        "us": {
+          "input": "0.0000176",
+          "output": "0.000088",
+          "input_cache_read": "0.00000044",
+          "input_cache_write": "0.000022"
+        }
+      }
     }
   },
   {
@@ -3513,9 +3746,6 @@
       {
         "type": "effort",
         "values": ["none", "low", "medium", "high", "xhigh", "max"]
-      },
-      {
-        "type": "budget_tokens"
       }
     ],
     "knowledge": "2026-01-31",
@@ -3592,9 +3822,6 @@
       {
         "type": "effort",
         "values": ["none", "low", "medium", "high", "xhigh", "max"]
-      },
-      {
-        "type": "budget_tokens"
       }
     ],
     "knowledge": "2026-01-31",
@@ -3653,9 +3880,6 @@
       {
         "type": "effort",
         "values": ["none", "low", "medium", "high", "xhigh", "max"]
-      },
-      {
-        "type": "budget_tokens"
       }
     ],
     "knowledge": "2026-01",
@@ -3738,9 +3962,6 @@
       {
         "type": "effort",
         "values": ["none", "low", "medium", "high", "xhigh", "max"]
-      },
-      {
-        "type": "budget_tokens"
       }
     ],
     "knowledge": "2026-01",
@@ -3799,9 +4020,6 @@
       {
         "type": "effort",
         "values": ["none", "low", "medium", "high", "xhigh", "max"]
-      },
-      {
-        "type": "budget_tokens"
       }
     ],
     "knowledge": "2026-01",
@@ -3868,9 +4086,6 @@
       {
         "type": "effort",
         "values": ["none", "low", "medium", "high", "xhigh", "max"]
-      },
-      {
-        "type": "budget_tokens"
       }
     ],
     "knowledge": "2026-05",
@@ -3958,9 +4173,6 @@
       {
         "type": "effort",
         "values": ["none", "low", "medium", "high", "xhigh", "max"]
-      },
-      {
-        "type": "budget_tokens"
       }
     ],
     "knowledge": "2026-05",
@@ -4018,9 +4230,6 @@
       {
         "type": "effort",
         "values": ["none", "low", "medium", "high", "xhigh", "max"]
-      },
-      {
-        "type": "budget_tokens"
       }
     ],
     "knowledge": "2026-05",
@@ -4731,9 +4940,6 @@
       {
         "type": "effort",
         "values": ["none", "low", "medium", "high", "xhigh", "max"]
-      },
-      {
-        "type": "budget_tokens"
       }
     ],
     "knowledge": "2026-01-31",
@@ -4809,9 +5015,6 @@
       {
         "type": "effort",
         "values": ["none", "low", "medium", "high", "xhigh", "max"]
-      },
-      {
-        "type": "budget_tokens"
       }
     ],
     "knowledge": "2026-01-31",
@@ -5402,136 +5605,6 @@
     }
   },
   {
-    "id": "bytedance/seed-1.6",
-    "object": "model",
-    "created": 1755815280,
-    "released": 1756684800,
-    "owned_by": "bytedance",
-    "name": "Seed 1.6",
-    "description": "ByteDance's new multimodal deep-thinking model, supporting both text and visual inputs with enhanced reasoning capabilities.",
-    "context_window": 256000,
-    "max_tokens": 32000,
-    "type": "language",
-    "zdr": "none",
-    "no_training": "all",
-    "tags": ["reasoning", "tool-use", "vision"],
-    "supported_specifications": ["v2", "v3", "v4"],
-    "modalities": {
-      "input": ["text", "image"],
-      "output": ["text"]
-    },
-    "supported_parameters": [
-      "max_tokens",
-      "temperature",
-      "stop",
-      "tools",
-      "tool_choice",
-      "reasoning",
-      "include_reasoning"
-    ],
-    "temperature": true,
-    "reasoning_options": [
-      {
-        "type": "toggle"
-      }
-    ],
-    "knowledge": "2024-10",
-    "pricing": {
-      "input": "0.00000025",
-      "input_tiers": [
-        {
-          "cost": "0.00000025",
-          "min": 0,
-          "max": 128001
-        },
-        {
-          "cost": "0.0000005",
-          "min": 128001
-        }
-      ],
-      "output": "0.000002",
-      "output_tiers": [
-        {
-          "cost": "0.000002",
-          "min": 0,
-          "max": 128001
-        },
-        {
-          "cost": "0.000004",
-          "min": 128001
-        }
-      ],
-      "input_cache_read": "0.00000005"
-    }
-  },
-  {
-    "id": "bytedance/seed-1.8",
-    "object": "model",
-    "created": 1755815280,
-    "released": 1756684800,
-    "owned_by": "bytedance",
-    "name": "Bytedance Seed 1.8",
-    "description": "Bytedance Seed 1.8 features stronger multimodal understanding and agent capabilities. The model delivers superior performance across a wide range of complex real-world tasks, helping enterprises create greater value.",
-    "context_window": 256000,
-    "max_tokens": 64000,
-    "type": "language",
-    "zdr": "none",
-    "no_training": "all",
-    "tags": ["reasoning", "tool-use", "vision"],
-    "supported_specifications": ["v2", "v3", "v4"],
-    "modalities": {
-      "input": ["text", "image"],
-      "output": ["text"]
-    },
-    "supported_parameters": [
-      "max_tokens",
-      "temperature",
-      "stop",
-      "tools",
-      "tool_choice",
-      "reasoning",
-      "include_reasoning"
-    ],
-    "temperature": true,
-    "reasoning_options": [
-      {
-        "type": "toggle"
-      },
-      {
-        "type": "effort",
-        "values": ["minimal", "low", "medium", "high"]
-      }
-    ],
-    "knowledge": "2024-10",
-    "pricing": {
-      "input": "0.00000025",
-      "input_tiers": [
-        {
-          "cost": "0.00000025",
-          "min": 0,
-          "max": 128001
-        },
-        {
-          "cost": "0.0000005",
-          "min": 128001
-        }
-      ],
-      "output": "0.000002",
-      "output_tiers": [
-        {
-          "cost": "0.000002",
-          "min": 0,
-          "max": 128001
-        },
-        {
-          "cost": "0.000004",
-          "min": 128001
-        }
-      ],
-      "input_cache_read": "0.00000005"
-    }
-  },
-  {
     "id": "bytedance/seed-2.1-turbo",
     "object": "model",
     "created": 1755815280,
@@ -5587,7 +5660,7 @@
     "max_tokens": 0,
     "type": "video",
     "zdr": "none",
-    "no_training": "all",
+    "no_training": "some",
     "tags": ["video-generation", "vision"],
     "supported_specifications": ["v3", "v4"],
     "modalities": {
@@ -5866,10 +5939,11 @@
     "max_tokens": 0,
     "type": "video",
     "zdr": "none",
-    "no_training": "all",
+    "no_training": "some",
+    "tags": ["video-generation", "vision"],
     "supported_specifications": ["v3", "v4"],
     "modalities": {
-      "input": ["text"],
+      "input": ["text", "image"],
       "output": ["video"]
     },
     "video_capabilities": {
@@ -6084,93 +6158,6 @@
         {
           "resolution": "1080p",
           "cost_per_second": "0.049"
-        }
-      ]
-    }
-  },
-  {
-    "id": "bytedance/seedance-v1.5-pro",
-    "object": "model",
-    "created": 1755815280,
-    "released": 1765843200,
-    "owned_by": "bytedance",
-    "name": "Seedance v1.5 Pro",
-    "description": "ByteDance's Seedance 1.5 Pro is a professional video model using V2A native generation for integrated, synced audio-visual output, enhancing efficiency of professional video creation.",
-    "context_window": 0,
-    "max_tokens": 0,
-    "type": "video",
-    "zdr": "none",
-    "no_training": "all",
-    "tags": ["video-generation"],
-    "supported_specifications": ["v3", "v4"],
-    "modalities": {
-      "input": ["text"],
-      "output": ["video"]
-    },
-    "video_capabilities": {
-      "supported_operations": [
-        "text-to-video",
-        "image-to-video",
-        "first-last-frame"
-      ],
-      "supported_resolutions": ["480p", "720p", "1080p"],
-      "supported_aspect_ratios": ["16:9", "4:3", "1:1", "3:4", "9:16", "21:9"],
-      "supported_durations_seconds": [4, 5, 6, 7, 8, 9, 10, 11, 12],
-      "generate_audio": true,
-      "supported_fps": [24],
-      "input_limits": {
-        "image": {
-          "max_count": 2,
-          "max_file_size_mb": 30,
-          "supported_formats": [
-            "jpeg",
-            "png",
-            "webp",
-            "bmp",
-            "tiff",
-            "gif",
-            "heic",
-            "heif"
-          ],
-          "supported_sources": ["url"],
-          "min_dimension_pixels": 300,
-          "max_dimension_pixels": 6000,
-          "min_aspect_ratio": "2:5",
-          "max_aspect_ratio": "5:2"
-        }
-      }
-    },
-    "pricing": {
-      "video_duration_pricing": [
-        {
-          "resolution": "480p",
-          "audio": false,
-          "cost_per_second": "0.0121"
-        },
-        {
-          "resolution": "480p",
-          "audio": true,
-          "cost_per_second": "0.0241"
-        },
-        {
-          "resolution": "720p",
-          "audio": false,
-          "cost_per_second": "0.0259"
-        },
-        {
-          "resolution": "720p",
-          "audio": true,
-          "cost_per_second": "0.0518"
-        },
-        {
-          "resolution": "1080p",
-          "audio": false,
-          "cost_per_second": "0.0583"
-        },
-        {
-          "resolution": "1080p",
-          "audio": true,
-          "cost_per_second": "0.1166"
         }
       ]
     }
@@ -6576,15 +6563,6 @@
       "include_reasoning"
     ],
     "temperature": true,
-    "reasoning_options": [
-      {
-        "type": "toggle"
-      },
-      {
-        "type": "effort",
-        "values": ["none", "low", "medium", "high"]
-      }
-    ],
     "knowledge": "2024-07",
     "pricing": {
       "input": "0.00000135",
@@ -6779,6 +6757,9 @@
       {
         "type": "effort",
         "values": ["none", "low", "medium", "high"]
+      },
+      {
+        "type": "budget_tokens"
       }
     ],
     "knowledge": "2025-05",
@@ -6870,7 +6851,7 @@
     "max_tokens": 1048576,
     "type": "language",
     "zdr": "none",
-    "no_training": "some",
+    "no_training": "all",
     "tags": [
       "reasoning",
       "tool-use",
@@ -6908,8 +6889,7 @@
     "pricing": {
       "input": "0.0000002156",
       "output": "0.0000006468",
-      "input_cache_read": "0.0000000068",
-      "varies_by_provider": true
+      "input_cache_read": "0.0000000068"
     }
   },
   {
@@ -7051,9 +7031,9 @@
     "released": 1788825600,
     "owned_by": "deepseek",
     "name": "DeepSeek V4.1 Flash",
-    "description": "DeepSeek V4.1 Flash is an AI model from DeepSeek designed for fast, efficient multimodal interactions. It combines native multimodal capabilities with a new architecture focused on stronger performance, faster responses, and lower computational cost.",
+    "description": "DeepSeek V4.1 Flash served by DigitalOcean for multimodal reasoning, tool calling, and structured output.",
     "context_window": 1048576,
-    "max_tokens": 32768,
+    "max_tokens": 1048576,
     "type": "language",
     "zdr": "some",
     "no_training": "some",
@@ -7096,7 +7076,7 @@
     "pricing": {
       "input": "0.0000003",
       "output": "0.0000012",
-      "input_cache_read": "0.000000007",
+      "input_cache_read": "0.000000006",
       "varies_by_provider": true,
       "fast": {
         "input": "0.0000006",
@@ -7131,12 +7111,13 @@
       "structured-output",
       "tool-use",
       "vision",
-      "open-weights"
+      "open-weights",
+      "file-input"
     ],
-    "regions": ["us"],
+    "regions": ["eu", "us"],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
-      "input": ["text", "image"],
+      "input": ["text", "image", "pdf"],
       "output": ["text"]
     },
     "supported_parameters": [
@@ -7171,6 +7152,11 @@
         "input_cache_read": "0.000000014"
       },
       "regional": {
+        "eu": {
+          "input": "0.00000024",
+          "output": "0.00000096",
+          "input_cache_read": "0.0000000048"
+        },
         "us": {
           "input": "0.0000003",
           "output": "0.0000012",
@@ -7224,7 +7210,7 @@
       },
       {
         "type": "effort",
-        "values": ["none", "low", "medium", "high"]
+        "values": ["none", "low", "high", "max"]
       }
     ],
     "pricing": {
@@ -7238,6 +7224,59 @@
           "input_cache_read": "0.000000014"
         }
       }
+    }
+  },
+  {
+    "id": "deepseek/deepseek-v4.1-flash-1017-ultrafast",
+    "object": "model",
+    "created": 1755815280,
+    "released": 1793923200,
+    "owned_by": "deepseek",
+    "name": "DeepSeek V4.1 Flash 1017 Ultrafast",
+    "description": "DeepSeek V4.1 Flash 1017 Ultrafast serves the October 17, 2026 update of DeepSeek V4.1 Flash through Fireworks' accelerated serverless endpoint. It supports text and image input, configurable reasoning, tool calling, structured outputs, and automatic prefix caching. Available in public preview without a waitroom or session time limit.",
+    "context_window": 1048576,
+    "max_tokens": 1048576,
+    "type": "language",
+    "zdr": "all",
+    "no_training": "all",
+    "tags": [
+      "implicit-caching",
+      "reasoning",
+      "structured-output",
+      "tool-use",
+      "vision",
+      "open-weights"
+    ],
+    "supported_specifications": ["v2", "v3", "v4"],
+    "modalities": {
+      "input": ["text", "image"],
+      "output": ["text"]
+    },
+    "supported_parameters": [
+      "max_tokens",
+      "temperature",
+      "stop",
+      "tools",
+      "tool_choice",
+      "reasoning",
+      "include_reasoning",
+      "response_format",
+      "structured_outputs"
+    ],
+    "temperature": true,
+    "reasoning_options": [
+      {
+        "type": "toggle"
+      },
+      {
+        "type": "effort",
+        "values": ["none", "low", "high", "max"]
+      }
+    ],
+    "pricing": {
+      "input": "0.0000024",
+      "output": "0.0000096",
+      "input_cache_read": "0.000000048"
     }
   },
   {
@@ -7319,8 +7358,8 @@
       "output": ["audio"]
     },
     "pricing": {
-      "input": "0.00002",
-      "speech_input_character_cost": "0.00002"
+      "input": "0.00004",
+      "speech_input_character_cost": "0.00004"
     }
   },
   {
@@ -7341,8 +7380,8 @@
       "output": ["audio"]
     },
     "pricing": {
-      "input": "0.00002",
-      "speech_input_character_cost": "0.00002"
+      "input": "0.00004",
+      "speech_input_character_cost": "0.00004"
     }
   },
   {
@@ -7363,8 +7402,8 @@
       "output": ["audio"]
     },
     "pricing": {
-      "input": "0.00004",
-      "speech_input_character_cost": "0.00004"
+      "input": "0.00008",
+      "speech_input_character_cost": "0.00008"
     }
   },
   {
@@ -7388,10 +7427,10 @@
     "supported_parameters": ["max_tokens", "temperature", "stop"],
     "temperature": true,
     "pricing": {
-      "input": "0.0000009",
-      "output": "0.0000045",
-      "input_cache_read": "0.00000009",
-      "realtime_session_duration_cost_per_second": "0.0006667"
+      "input": "0.0000018",
+      "output": "0.000009",
+      "input_cache_read": "0.00000018",
+      "realtime_session_duration_cost_per_second": "0.0013334"
     }
   },
   {
@@ -7415,10 +7454,10 @@
     "supported_parameters": ["max_tokens", "temperature", "stop"],
     "temperature": true,
     "pricing": {
-      "input": "0.0000001",
-      "output": "0.000003",
-      "input_cache_read": "0.00000001",
-      "realtime_session_duration_cost_per_second": "0.0006667"
+      "input": "0.0000002",
+      "output": "0.000006",
+      "input_cache_read": "0.00000002",
+      "realtime_session_duration_cost_per_second": "0.0013334"
     }
   },
   {
@@ -7439,8 +7478,8 @@
       "output": ["audio"]
     },
     "pricing": {
-      "input": "0.00004",
-      "speech_input_character_cost": "0.00004"
+      "input": "0.00008",
+      "speech_input_character_cost": "0.00008"
     }
   },
   {
@@ -7461,8 +7500,8 @@
       "output": ["audio"]
     },
     "pricing": {
-      "input": "0.00002",
-      "speech_input_character_cost": "0.00002"
+      "input": "0.00004",
+      "speech_input_character_cost": "0.00004"
     }
   },
   {
@@ -7483,8 +7522,8 @@
       "output": ["audio"]
     },
     "pricing": {
-      "input": "0.00004",
-      "speech_input_character_cost": "0.00004"
+      "input": "0.00008",
+      "speech_input_character_cost": "0.00008"
     }
   },
   {
@@ -7505,8 +7544,8 @@
       "output": ["audio"]
     },
     "pricing": {
-      "input": "0.00002",
-      "speech_input_character_cost": "0.00002"
+      "input": "0.00004",
+      "speech_input_character_cost": "0.00004"
     }
   },
   {
@@ -7527,7 +7566,7 @@
       "output": ["audio"]
     },
     "pricing": {
-      "speech_output_cost_per_second": "0.00125"
+      "speech_output_cost_per_second": "0.0025"
     }
   },
   {
@@ -7548,7 +7587,7 @@
       "output": ["audio"]
     },
     "pricing": {
-      "speech_output_cost_per_second": "0.00125"
+      "speech_output_cost_per_second": "0.0025"
     }
   },
   {
@@ -7569,7 +7608,7 @@
     },
     "pricing": {
       "input": "0",
-      "transcription_duration_cost_per_second": "0.000030556"
+      "transcription_duration_cost_per_second": "0.000061112"
     }
   },
   {
@@ -7609,7 +7648,7 @@
       "output": ["audio"]
     },
     "pricing": {
-      "speech_output_cost_per_second": "0.001"
+      "speech_output_cost_per_second": "0.002"
     }
   },
   {
@@ -8066,7 +8105,8 @@
         "values": ["none", "low", "medium", "high"]
       },
       {
-        "type": "budget_tokens"
+        "type": "budget_tokens",
+        "min": 512
       }
     ],
     "knowledge": "2025-01",
@@ -8148,7 +8188,8 @@
         "values": ["none", "low", "medium", "high"]
       },
       {
-        "type": "budget_tokens"
+        "type": "budget_tokens",
+        "min": 512
       }
     ],
     "knowledge": "2025-01",
@@ -8200,14 +8241,12 @@
     "temperature": true,
     "reasoning_options": [
       {
-        "type": "toggle"
-      },
-      {
         "type": "effort",
-        "values": ["none", "low", "medium", "high"]
+        "values": ["low", "medium", "high"]
       },
       {
-        "type": "budget_tokens"
+        "type": "budget_tokens",
+        "min": 128
       }
     ],
     "knowledge": "2025-01",
@@ -8392,14 +8431,12 @@
     "temperature": true,
     "reasoning_options": [
       {
-        "type": "toggle"
-      },
-      {
         "type": "effort",
-        "values": ["none", "low", "medium", "high"]
+        "values": ["low", "medium", "high"]
       },
       {
-        "type": "budget_tokens"
+        "type": "budget_tokens",
+        "min": 128
       }
     ],
     "knowledge": "2025-01",
@@ -8483,8 +8520,11 @@
     "temperature": true,
     "reasoning_options": [
       {
+        "type": "toggle"
+      },
+      {
         "type": "effort",
-        "values": ["low", "high"]
+        "values": ["minimal", "low", "medium", "high"]
       }
     ],
     "knowledge": "2025-03",
@@ -8580,8 +8620,11 @@
     "temperature": true,
     "reasoning_options": [
       {
+        "type": "toggle"
+      },
+      {
         "type": "effort",
-        "values": ["low", "high"]
+        "values": ["minimal", "low", "medium", "high"]
       }
     ],
     "knowledge": "2025-03",
@@ -8662,7 +8705,7 @@
     "reasoning_options": [
       {
         "type": "effort",
-        "values": ["low", "high"]
+        "values": ["low", "medium", "high"]
       }
     ],
     "knowledge": "2025-01",
@@ -8736,8 +8779,11 @@
     "temperature": true,
     "reasoning_options": [
       {
+        "type": "toggle"
+      },
+      {
         "type": "effort",
-        "values": ["low", "high"]
+        "values": ["minimal", "high"]
       }
     ],
     "knowledge": "2025-01",
@@ -8813,8 +8859,11 @@
     "temperature": true,
     "reasoning_options": [
       {
+        "type": "toggle"
+      },
+      {
         "type": "effort",
-        "values": ["low", "high"]
+        "values": ["minimal", "low", "medium", "high"]
       }
     ],
     "knowledge": "2025-01",
@@ -8890,8 +8939,11 @@
     "temperature": true,
     "reasoning_options": [
       {
+        "type": "toggle"
+      },
+      {
         "type": "effort",
-        "values": ["low", "high"]
+        "values": ["minimal", "low", "medium", "high"]
       }
     ],
     "knowledge": "2025-01",
@@ -8936,8 +8988,11 @@
     "temperature": true,
     "reasoning_options": [
       {
+        "type": "toggle"
+      },
+      {
         "type": "effort",
-        "values": ["low", "high"]
+        "values": ["minimal", "high"]
       }
     ],
     "knowledge": "2025-01",
@@ -9001,7 +9056,7 @@
     "reasoning_options": [
       {
         "type": "effort",
-        "values": ["low", "high"]
+        "values": ["low", "medium", "high"]
       }
     ],
     "knowledge": "2025-01",
@@ -9109,7 +9164,7 @@
     "reasoning_options": [
       {
         "type": "effort",
-        "values": ["low", "high"]
+        "values": ["low", "medium", "high"]
       }
     ],
     "knowledge": "2025-01",
@@ -9199,7 +9254,7 @@
       },
       {
         "type": "effort",
-        "values": ["none", "low", "medium", "high"]
+        "values": ["minimal", "low", "medium", "high"]
       }
     ],
     "knowledge": "2025-01",
@@ -9279,7 +9334,7 @@
     "reasoning_options": [
       {
         "type": "effort",
-        "values": ["low", "high"]
+        "values": ["minimal", "low", "medium", "high"]
       }
     ],
     "knowledge": "2026-03",
@@ -9357,7 +9412,7 @@
     "reasoning_options": [
       {
         "type": "effort",
-        "values": ["low", "high"]
+        "values": ["minimal", "low", "medium", "high"]
       }
     ],
     "knowledge": "2026-03",
@@ -9386,7 +9441,7 @@
     "reasoning_options": [
       {
         "type": "effort",
-        "values": ["low", "high"]
+        "values": ["low", "medium", "high"]
       }
     ],
     "pricing": {
@@ -9415,7 +9470,7 @@
     "reasoning_options": [
       {
         "type": "effort",
-        "values": ["low", "high"]
+        "values": ["low", "medium", "high"]
       }
     ],
     "pricing": {
@@ -9466,8 +9521,11 @@
     "temperature": true,
     "reasoning_options": [
       {
+        "type": "toggle"
+      },
+      {
         "type": "effort",
-        "values": ["low", "high"]
+        "values": ["minimal", "low", "medium", "high"]
       }
     ],
     "knowledge": "2026-03",
@@ -9544,8 +9602,11 @@
     "temperature": true,
     "reasoning_options": [
       {
+        "type": "toggle"
+      },
+      {
         "type": "effort",
-        "values": ["low", "high"]
+        "values": ["minimal", "low", "medium", "high"]
       }
     ],
     "knowledge": "2026-03",
@@ -9598,11 +9659,8 @@
     "temperature": true,
     "reasoning_options": [
       {
-        "type": "toggle"
-      },
-      {
         "type": "effort",
-        "values": ["none", "low", "medium", "high"]
+        "values": ["low", "medium", "high"]
       }
     ],
     "knowledge": "2026-03",
@@ -9683,7 +9741,7 @@
     "reasoning_options": [
       {
         "type": "effort",
-        "values": ["low", "high"]
+        "values": ["low", "medium", "high"]
       }
     ],
     "pricing": {
@@ -9737,7 +9795,7 @@
     "reasoning_options": [
       {
         "type": "effort",
-        "values": ["low", "high"]
+        "values": ["low", "medium", "high"]
       }
     ],
     "pricing": {
@@ -9765,7 +9823,7 @@
     "reasoning_options": [
       {
         "type": "effort",
-        "values": ["low", "high"]
+        "values": ["low", "medium", "high"]
       }
     ],
     "pricing": {
@@ -9804,7 +9862,7 @@
     "reasoning_options": [
       {
         "type": "effort",
-        "values": ["low", "high"]
+        "values": ["low", "medium", "high"]
       }
     ],
     "pricing": {
@@ -9844,7 +9902,7 @@
     "reasoning_options": [
       {
         "type": "effort",
-        "values": ["low", "high"]
+        "values": ["low", "medium", "high"]
       }
     ],
     "pricing": {
@@ -9912,11 +9970,6 @@
           "input": "0.0000036",
           "output": "0.000018",
           "input_cache_read": "0.00000018"
-        },
-        "flex": {
-          "input": "0.000001",
-          "output": "0.000005",
-          "input_cache_read": "0.00000005"
         }
       },
       "regional": {
@@ -9931,6 +9984,184 @@
           "input_cache_read": "0.00000011"
         }
       }
+    }
+  },
+  {
+    "id": "google/gemini-4-carbon",
+    "object": "model",
+    "created": 1755815280,
+    "released": 1794268800,
+    "owned_by": "google",
+    "name": "Gemini 4 Carbon",
+    "description": "Gemini 4 Carbon is Google’s reasoning model for complex software engineering, sustained agentic workflows, and cybersecurity defense. It combines a 1M-token context window with multimodal understanding, tool calling, and structured outputs for working across large codebases and documents. Carbon emphasizes reliable execution of multi-step plans, clearer handling of uncertainty, and identifying, validating, and remediating security vulnerabilities.",
+    "context_window": 1000000,
+    "max_tokens": 1000000,
+    "type": "language",
+    "zdr": "some",
+    "no_training": "all",
+    "tags": [
+      "reasoning",
+      "file-input",
+      "vision",
+      "tool-use",
+      "web-search",
+      "implicit-caching",
+      "video-input",
+      "structured-output"
+    ],
+    "regions": ["eu", "us"],
+    "supported_specifications": ["v2", "v3", "v4"],
+    "modalities": {
+      "input": ["text", "image", "pdf", "video"],
+      "output": ["text"]
+    },
+    "supported_parameters": [
+      "max_tokens",
+      "temperature",
+      "stop",
+      "tools",
+      "tool_choice",
+      "reasoning",
+      "include_reasoning",
+      "response_format",
+      "structured_outputs"
+    ],
+    "temperature": true,
+    "reasoning_options": [
+      {
+        "type": "effort",
+        "values": ["low", "medium", "high"]
+      }
+    ],
+    "pricing": {
+      "input": "0.000002",
+      "output": "0.00001",
+      "input_cache_read": "0.0000001",
+      "web_search": "14",
+      "maps_search": "14",
+      "service_tiers": {
+        "priority": {
+          "input": "0.0000036",
+          "output": "0.000018",
+          "input_cache_read": "0.00000018"
+        }
+      },
+      "regional": {
+        "eu": {
+          "input": "0.0000022",
+          "output": "0.000011",
+          "input_cache_read": "0.00000011"
+        },
+        "us": {
+          "input": "0.0000022",
+          "output": "0.000011",
+          "input_cache_read": "0.00000011"
+        }
+      }
+    }
+  },
+  {
+    "id": "google/gemini-4-hydrogen",
+    "object": "model",
+    "created": 1755815280,
+    "released": 1794441600,
+    "owned_by": "google",
+    "name": "Gemini 4 Hydrogen",
+    "description": "Gemini 4 Hydrogen is Google's fast multimodal model for reasoning, coding, and agentic workflows. It supports understanding text, images, video, and documents, with tool calling and structured outputs for building responsive applications.",
+    "context_window": 1000000,
+    "max_tokens": 1000000,
+    "type": "language",
+    "zdr": "some",
+    "no_training": "all",
+    "tags": [
+      "reasoning",
+      "file-input",
+      "vision",
+      "tool-use",
+      "web-search",
+      "implicit-caching",
+      "video-input",
+      "structured-output"
+    ],
+    "regions": ["eu", "us"],
+    "supported_specifications": ["v2", "v3", "v4"],
+    "modalities": {
+      "input": ["text", "image", "pdf", "video"],
+      "output": ["text"]
+    },
+    "supported_parameters": [
+      "max_tokens",
+      "temperature",
+      "stop",
+      "tools",
+      "tool_choice",
+      "reasoning",
+      "include_reasoning",
+      "response_format",
+      "structured_outputs"
+    ],
+    "temperature": true,
+    "reasoning_options": [
+      {
+        "type": "effort",
+        "values": ["low", "medium", "high", "xhigh"]
+      }
+    ],
+    "pricing": {
+      "input": "0.0000015",
+      "output": "0.0000075",
+      "input_cache_read": "0.000000075",
+      "web_search": "14",
+      "maps_search": "14",
+      "service_tiers": {
+        "priority": {
+          "input": "0.0000027",
+          "output": "0.0000135",
+          "input_cache_read": "0.000000135"
+        }
+      },
+      "regional": {
+        "eu": {
+          "input": "0.00000165",
+          "output": "0.00000825",
+          "input_cache_read": "0.0000000825"
+        },
+        "us": {
+          "input": "0.00000165",
+          "output": "0.00000825",
+          "input_cache_read": "0.0000000825"
+        }
+      }
+    }
+  },
+  {
+    "id": "google/gemini-decision-1",
+    "object": "model",
+    "created": 1755815280,
+    "released": 1794355200,
+    "owned_by": "google",
+    "name": "Gemini Decision 1",
+    "description": "Gemini Decisions is Google's evaluation model for classification, routing, and scoring. It answers structured questions with Boolean probabilities, choices, and scores, returning confidence values and probability distributions to help applications interpret the results. Developers can use it to triage support requests, categorize content, and evaluate inputs against defined criteria.",
+    "context_window": 262144,
+    "max_tokens": 0,
+    "type": "evaluation",
+    "zdr": "none",
+    "no_training": "all",
+    "tags": ["vision", "file-input"],
+    "supported_specifications": ["v4"],
+    "modalities": {
+      "input": ["text", "image", "pdf"],
+      "output": ["text"]
+    },
+    "reasoning_options": [
+      {
+        "type": "effort",
+        "values": ["low", "medium", "high"]
+      }
+    ],
+    "pricing": {
+      "input": "0.0000001",
+      "output": "0"
     }
   },
   {
@@ -10090,15 +10321,6 @@
       "include_reasoning"
     ],
     "temperature": true,
-    "reasoning_options": [
-      {
-        "type": "toggle"
-      },
-      {
-        "type": "effort",
-        "values": ["none", "low", "medium", "high"]
-      }
-    ],
     "pricing": {
       "input": "0.0000015",
       "output": "0.000009"
@@ -10140,15 +10362,6 @@
       "structured_outputs"
     ],
     "temperature": true,
-    "reasoning_options": [
-      {
-        "type": "toggle"
-      },
-      {
-        "type": "effort",
-        "values": ["none", "low", "medium", "high"]
-      }
-    ],
     "pricing": {
       "input": "0.0000015",
       "output": "0.000009",
@@ -10474,6 +10687,7 @@
       "supported_resolutions": ["720p", "1080p"],
       "supported_aspect_ratios": ["9:16", "16:9"],
       "supported_durations_seconds": [4, 6, 8],
+      "generate_audio": true,
       "supported_fps": [24],
       "max_sample_count": 4,
       "input_limits": {
@@ -10676,6 +10890,46 @@
     }
   },
   {
+    "id": "humansand/ampersand-v0.1",
+    "object": "model",
+    "created": 1755815280,
+    "released": 1793923200,
+    "owned_by": "humansand",
+    "name": "Ampersand v0.1",
+    "description": "Ampersand v0.1 is a collaborator model from Humans& for shared goals, group conversations, and long-running collaboration. Its Responses API supports text, reasoning, client-side function tools, and implicit prompt caching.",
+    "context_window": 1000000,
+    "max_tokens": 32768,
+    "type": "language",
+    "zdr": "none",
+    "no_training": "none",
+    "tags": ["implicit-caching", "reasoning", "tool-use"],
+    "supported_specifications": ["v2", "v3", "v4"],
+    "modalities": {
+      "input": ["text"],
+      "output": ["text"]
+    },
+    "supported_parameters": [
+      "max_tokens",
+      "temperature",
+      "stop",
+      "tools",
+      "tool_choice",
+      "reasoning",
+      "include_reasoning"
+    ],
+    "temperature": true,
+    "reasoning_options": [
+      {
+        "type": "effort",
+        "values": ["low", "medium", "high", "max"]
+      }
+    ],
+    "pricing": {
+      "input": "0",
+      "output": "0"
+    }
+  },
+  {
     "id": "inception/mercury-2",
     "object": "model",
     "created": 1755815280,
@@ -10800,6 +11054,7 @@
         "values": ["instant", "low", "medium", "high"]
       }
     ],
+    "deprecated_at": 1798434300000,
     "pricing": {
       "input": "0.0000001",
       "output": "0.00000035",
@@ -10893,14 +11148,8 @@
     "max_tokens": 32000,
     "type": "language",
     "zdr": "none",
-    "no_training": "some",
-    "tags": [
-      "implicit-caching",
-      "reasoning",
-      "tool-use",
-      "structured-output",
-      "open-weights"
-    ],
+    "no_training": "none",
+    "tags": ["reasoning", "tool-use", "open-weights"],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
       "input": ["text"],
@@ -10913,9 +11162,7 @@
       "tools",
       "tool_choice",
       "reasoning",
-      "include_reasoning",
-      "response_format",
-      "structured_outputs"
+      "include_reasoning"
     ],
     "temperature": true,
     "reasoning_options": [
@@ -10926,8 +11173,7 @@
     "pricing": {
       "input": "0.000000075",
       "output": "0.00000022",
-      "input_cache_read": "0.000000015",
-      "varies_by_provider": true
+      "input_cache_read": "0.000000015"
     }
   },
   {
@@ -11839,10 +12085,6 @@
     "reasoning_options": [
       {
         "type": "toggle"
-      },
-      {
-        "type": "effort",
-        "values": ["none", "low", "medium", "high"]
       }
     ],
     "pricing": {
@@ -11875,20 +12117,9 @@
       "temperature",
       "stop",
       "tools",
-      "tool_choice",
-      "reasoning",
-      "include_reasoning"
+      "tool_choice"
     ],
     "temperature": true,
-    "reasoning_options": [
-      {
-        "type": "toggle"
-      },
-      {
-        "type": "effort",
-        "values": ["none", "low", "medium", "high"]
-      }
-    ],
     "knowledge": "2023-12",
     "pricing": {
       "input": "0.00000072",
@@ -11920,21 +12151,10 @@
       "stop",
       "tools",
       "tool_choice",
-      "reasoning",
-      "include_reasoning",
       "response_format",
       "structured_outputs"
     ],
     "temperature": true,
-    "reasoning_options": [
-      {
-        "type": "toggle"
-      },
-      {
-        "type": "effort",
-        "values": ["none", "low", "medium", "high"]
-      }
-    ],
     "knowledge": "2023-12",
     "pricing": {
       "input": "0.00000022",
@@ -11966,20 +12186,9 @@
       "temperature",
       "stop",
       "tools",
-      "tool_choice",
-      "reasoning",
-      "include_reasoning"
+      "tool_choice"
     ],
     "temperature": true,
-    "reasoning_options": [
-      {
-        "type": "toggle"
-      },
-      {
-        "type": "effort",
-        "values": ["none", "low", "medium", "high"]
-      }
-    ],
     "knowledge": "2023-12",
     "pricing": {
       "input": "0.00000072",
@@ -12010,20 +12219,9 @@
       "temperature",
       "stop",
       "tools",
-      "tool_choice",
-      "reasoning",
-      "include_reasoning"
+      "tool_choice"
     ],
     "temperature": true,
-    "reasoning_options": [
-      {
-        "type": "toggle"
-      },
-      {
-        "type": "effort",
-        "values": ["none", "low", "medium", "high"]
-      }
-    ],
     "knowledge": "2024-08",
     "pricing": {
       "input": "0.00000024",
@@ -12055,6 +12253,49 @@
       "stop",
       "tools",
       "tool_choice",
+      "response_format",
+      "structured_outputs"
+    ],
+    "temperature": true,
+    "knowledge": "2024-08",
+    "pricing": {
+      "input": "0.00000017",
+      "output": "0.00000066",
+      "varies_by_provider": true
+    }
+  },
+  {
+    "id": "meta/muse-ember",
+    "object": "model",
+    "created": 1755815280,
+    "released": 1794182400,
+    "owned_by": "meta",
+    "name": "Muse Ember",
+    "description": "Muse Ember is Meta’s multimodal language model for conversational, reasoning, and agentic applications. It supports text and image understanding, tool calling, structured outputs, and document input, with a 1,048,576-token context window for working with large prompts and extended conversations. Implicit prompt caching supports reuse of shared input across requests.",
+    "context_window": 1048576,
+    "max_tokens": 1048576,
+    "type": "language",
+    "zdr": "all",
+    "no_training": "all",
+    "tags": [
+      "reasoning",
+      "tool-use",
+      "implicit-caching",
+      "file-input",
+      "vision",
+      "structured-output"
+    ],
+    "supported_specifications": ["v2", "v3", "v4"],
+    "modalities": {
+      "input": ["text", "image", "pdf"],
+      "output": ["text"]
+    },
+    "supported_parameters": [
+      "max_tokens",
+      "temperature",
+      "stop",
+      "tools",
+      "tool_choice",
       "reasoning",
       "include_reasoning",
       "response_format",
@@ -12063,18 +12304,14 @@
     "temperature": true,
     "reasoning_options": [
       {
-        "type": "toggle"
-      },
-      {
         "type": "effort",
-        "values": ["none", "low", "medium", "high"]
+        "values": ["minimal", "low", "medium", "high", "xhigh", "max"]
       }
     ],
-    "knowledge": "2024-08",
     "pricing": {
-      "input": "0.00000017",
-      "output": "0.00000066",
-      "varies_by_provider": true
+      "input": "0.0000001",
+      "output": "0.0000005",
+      "input_cache_read": "0.000000004"
     }
   },
   {
@@ -12809,6 +13046,64 @@
     }
   },
   {
+    "id": "minimax/minimax-h3-image",
+    "object": "model",
+    "created": 1755815280,
+    "released": 1794268800,
+    "owned_by": "minimax",
+    "name": "MiniMax H3 Image",
+    "description": "MiniMax H3 Image generates images from text and edits images using up to 16 reference images. It supports custom dimensions and aspect ratios, outputs up to 20 megapixels, and JPEG, PNG, and WebP formats.",
+    "context_window": 0,
+    "max_tokens": 0,
+    "type": "image",
+    "zdr": "none",
+    "no_training": "none",
+    "tags": ["image-generation", "vision", "open-weights"],
+    "supported_specifications": ["v3", "v4"],
+    "modalities": {
+      "input": ["text", "image"],
+      "output": ["image"]
+    },
+    "reasoning_options": [
+      {
+        "type": "budget_tokens"
+      }
+    ],
+    "pricing": {
+      "input": "0.0000023",
+      "output": "0.0000038"
+    }
+  },
+  {
+    "id": "minimax/minimax-h3-image-highspeed",
+    "object": "model",
+    "created": 1755815280,
+    "released": 1794268800,
+    "owned_by": "minimax",
+    "name": "MiniMax H3 Image Highspeed",
+    "description": "MiniMax H3 Image Highspeed is the faster variant of MiniMax H3 Image for text-to-image generation and image editing. It supports up to 16 reference images, custom dimensions and aspect ratios, outputs up to 20 megapixels, and JPEG, PNG, and WebP formats.",
+    "context_window": 0,
+    "max_tokens": 0,
+    "type": "image",
+    "zdr": "none",
+    "no_training": "none",
+    "tags": ["image-generation", "vision", "open-weights"],
+    "supported_specifications": ["v3", "v4"],
+    "modalities": {
+      "input": ["text", "image"],
+      "output": ["image"]
+    },
+    "reasoning_options": [
+      {
+        "type": "budget_tokens"
+      }
+    ],
+    "pricing": {
+      "input": "0.0000023",
+      "output": "0.0000076"
+    }
+  },
+  {
     "id": "minimax/minimax-h3-max",
     "object": "model",
     "created": 1755815280,
@@ -12841,6 +13136,7 @@
       "supported_resolutions": ["480p", "768p"],
       "supported_aspect_ratios": ["21:9", "16:9", "4:3", "1:1", "3:4", "9:16"],
       "supported_durations_seconds": [5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
+      "generate_audio": true,
       "supported_fps": [24],
       "max_sample_count": 1,
       "input_limits": {
@@ -13251,8 +13547,8 @@
     "owned_by": "minimax",
     "name": "MiniMax M3",
     "description": "MiniMax-M3 is a frontier-class foundation model that unites the three capabilities defining today's frontier: a 1M-token context window, frontier coding and agentic performance, and native multimodality — the first open-weight model to deliver all three in a single system.",
-    "context_window": 512000,
-    "max_tokens": 512000,
+    "context_window": 1000000,
+    "max_tokens": 1000000,
     "type": "language",
     "zdr": "some",
     "no_training": "some",
@@ -13284,13 +13580,49 @@
     "temperature": true,
     "reasoning_options": [
       {
+        "type": "toggle"
+      },
+      {
         "type": "budget_tokens"
       }
     ],
     "pricing": {
       "input": "0.0000003",
+      "input_tiers": [
+        {
+          "cost": "0.0000003",
+          "min": 0,
+          "max": 512000
+        },
+        {
+          "cost": "0.0000012",
+          "min": 512000
+        }
+      ],
       "output": "0.0000012",
+      "output_tiers": [
+        {
+          "cost": "0.0000012",
+          "min": 0,
+          "max": 512000
+        },
+        {
+          "cost": "0.0000048",
+          "min": 512000
+        }
+      ],
       "input_cache_read": "0.00000006",
+      "input_cache_read_tiers": [
+        {
+          "cost": "0.00000006",
+          "min": 0,
+          "max": 512000
+        },
+        {
+          "cost": "0.00000024",
+          "min": 512000
+        }
+      ],
       "varies_by_provider": true
     }
   },
@@ -13301,9 +13633,9 @@
     "released": 1792368000,
     "owned_by": "minimax",
     "name": "MiniMax-M3.1-Flash",
-    "description": "MiniMax-M3.1-Flash is MiniMax’s multimodal M-series model for agent reasoning, tool use, coding, and long-context tasks. Fireworks serves the final weights with hybrid MXFP8 and NVFP4 expert precision, text and image inputs, structured outputs, and implicit prompt caching.",
-    "context_window": 1048576,
-    "max_tokens": 1048576,
+    "description": "MiniMax-M3.1-Flash is MiniMax's M-series language model for agent reasoning, tool use, coding, and long-context tasks, with a 1,000,000-token context window. Compared with MiniMax-M3, it adds always-on reasoning and adjustable reasoning effort, allowing developers to tune reasoning effort for different tasks.",
+    "context_window": 1000000,
+    "max_tokens": 524288,
     "type": "language",
     "zdr": "some",
     "no_training": "some",
@@ -14143,9 +14475,9 @@
       "input_cache_read": "0.0000003",
       "varies_by_provider": true,
       "fast": {
-        "input": "0.0000045",
+        "input": "0.000006",
         "output": "0.0000225",
-        "input_cache_read": "0.00000045"
+        "input_cache_read": "0.0000006"
       },
       "regional": {
         "us": {
@@ -14165,7 +14497,7 @@
     "name": "Kimi K3 Fast",
     "description": "Fast version of Kimi’s flagship model for long-horizon coding and end-to-end knowledge work, with a 1M-token context window.",
     "context_window": 1000000,
-    "max_tokens": 131072,
+    "max_tokens": 1000000,
     "type": "language",
     "zdr": "all",
     "no_training": "all",
@@ -14204,9 +14536,9 @@
       }
     ],
     "pricing": {
-      "input": "0.0000045",
+      "input": "0.000006",
       "output": "0.0000225",
-      "input_cache_read": "0.00000045",
+      "input_cache_read": "0.0000006",
       "varies_by_provider": true
     }
   },
@@ -14276,13 +14608,14 @@
     "released": 1792713600,
     "owned_by": "moonshotai",
     "name": "Kimi K3.1 Pro Highspeed",
-    "description": "Kimi K3.1 Pro Highspeed is the high-speed variant of Moonshot AI’s frontier Kimi K3.1 Pro model for complex reasoning, coding, and agentic workflows, with vision, tool use, structured outputs, and long-context support.",
+    "description": "Kimi K3.1 Pro Highspeed is Moonshot AI's most capable open-weight model, combining native vision with a 1-million-token context window for long-running coding and knowledge workflows that sustain context across large repositories, documents, and images.",
     "context_window": 1048576,
     "max_tokens": 1048576,
     "type": "language",
     "zdr": "all",
     "no_training": "all",
     "tags": [
+      "explicit-caching",
       "implicit-caching",
       "reasoning",
       "structured-output",
@@ -14290,6 +14623,7 @@
       "vision",
       "open-weights"
     ],
+    "regions": ["us"],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
       "input": ["text", "image"],
@@ -14317,7 +14651,16 @@
       "input": "0.000004",
       "output": "0.00002",
       "input_cache_read": "0.0000002",
-      "input_cache_write": "0.000004"
+      "input_cache_write": "0.000005",
+      "varies_by_provider": true,
+      "regional": {
+        "us": {
+          "input": "0.0000044",
+          "output": "0.000022",
+          "input_cache_read": "0.00000022",
+          "input_cache_write": "0.0000055"
+        }
+      }
     }
   },
   {
@@ -14383,47 +14726,93 @@
     }
   },
   {
-    "id": "nvidia/nemotron-3-nano-30b-a3b",
+    "id": "nace-ai/drex-max-finance",
     "object": "model",
     "created": 1755815280,
-    "released": 1765756800,
-    "owned_by": "nvidia",
-    "name": "Nemotron 3 Nano 30B A3B",
-    "description": "NVIDIA Nemotron 3 Nano is an open reasoning model optimized for fast, cost-efficient inference. Built with a hybrid MoE and Mamba architecture and trained on NVIDIA-curated synthetic reasoning data, it delivers strong multi-step reasoning with stable latency and predictable performance for agentic and production workloads.",
+    "released": 1794182400,
+    "owned_by": "nace-ai",
+    "name": "Drex Max Finance",
+    "description": "Drex Max Finance is Nace AI's multimodal evaluation model for financial workflows. It answers boolean, choice, and score questions over text and images with calibrated probabilities. Its 262,144-token limit covers the whole request, including shared state, images, questions, formatting, and decision markers.",
     "context_window": 262144,
-    "max_tokens": 262144,
-    "type": "language",
+    "max_tokens": 0,
+    "type": "evaluation",
     "zdr": "none",
-    "no_training": "all",
-    "tags": ["reasoning", "tool-use", "open-weights"],
-    "supported_specifications": ["v2", "v3", "v4"],
+    "no_training": "none",
+    "tags": ["vision", "open-weights"],
+    "regions": ["us"],
+    "supported_specifications": ["v4"],
+    "modalities": {
+      "input": ["text", "image"],
+      "output": ["text"]
+    },
+    "pricing": {
+      "input": "0.00000003",
+      "output": "0",
+      "regional": {
+        "us": {
+          "input": "0.00000003"
+        }
+      }
+    }
+  },
+  {
+    "id": "nace-ai/drex-max-v1.1",
+    "object": "model",
+    "created": 1755815280,
+    "released": 1794182400,
+    "owned_by": "nace-ai",
+    "name": "Drex Max v1.1",
+    "description": "Drex Max v1.1 is Nace AI's multimodal evaluation model for boolean, choice, and score questions over text and images. It returns structured answers and probability distributions. Its 262,144-token limit applies to the whole packed request, including shared state, images, all questions, formatting, and decision markers.",
+    "context_window": 262144,
+    "max_tokens": 0,
+    "type": "evaluation",
+    "zdr": "none",
+    "no_training": "none",
+    "tags": ["vision", "open-weights"],
+    "regions": ["us"],
+    "supported_specifications": ["v4"],
+    "modalities": {
+      "input": ["text", "image"],
+      "output": ["text"]
+    },
+    "pricing": {
+      "input": "0.00000003",
+      "output": "0",
+      "regional": {
+        "us": {
+          "input": "0.00000003"
+        }
+      }
+    }
+  },
+  {
+    "id": "nace-ai/drex-v2.0",
+    "object": "model",
+    "created": 1755815280,
+    "released": 1794182400,
+    "owned_by": "nace-ai",
+    "name": "Drex 2.0",
+    "description": "Drex 2.0 is Nace AI's text evaluation model for boolean, choice, and score questions over shared text or JSON state. It returns calibrated probabilities for routing, classification, and scoring, with a 131,072-token state limit and a 262,144-token limit for the state plus the longest question.",
+    "context_window": 262144,
+    "max_tokens": 0,
+    "type": "evaluation",
+    "zdr": "none",
+    "no_training": "none",
+    "tags": ["open-weights"],
+    "regions": ["us"],
+    "supported_specifications": ["v4"],
     "modalities": {
       "input": ["text"],
       "output": ["text"]
     },
-    "supported_parameters": [
-      "max_tokens",
-      "temperature",
-      "stop",
-      "tools",
-      "tool_choice",
-      "reasoning",
-      "include_reasoning"
-    ],
-    "temperature": true,
-    "reasoning_options": [
-      {
-        "type": "toggle"
-      },
-      {
-        "type": "effort",
-        "values": ["none", "low", "medium", "high"]
-      }
-    ],
     "pricing": {
-      "input": "0.00000005",
-      "output": "0.0000002",
-      "input_cache_read": "0.000000025"
+      "input": "0.00000003",
+      "output": "0",
+      "regional": {
+        "us": {
+          "input": "0.00000003"
+        }
+      }
     }
   },
   {
@@ -14457,15 +14846,6 @@
       "structured_outputs"
     ],
     "temperature": true,
-    "reasoning_options": [
-      {
-        "type": "toggle"
-      },
-      {
-        "type": "effort",
-        "values": ["none", "low", "medium", "high"]
-      }
-    ],
     "pricing": {
       "input": "0.00000015",
       "output": "0.00000065"
@@ -14539,11 +14919,11 @@
     "released": 1786406400,
     "owned_by": "nvidia",
     "name": "Nemotron 3.5 Lightning 30B",
-    "description": "NVIDIA-Nemotron-3.5-Lightning-30B-A3B-NVFP4 is a large language model (LLM) trained by NVIDIA.\n\nThe model employs a hybrid Mixture-of-Experts architecture, utilizing interleaved Mamba-2 and MoE layers, along with select Attention layers. The Lightning 3.5 model is released alongside a number of speculative decoding methods for faster text generation. The model has 3B active parameters and 30B parameters in total.",
+    "description": "NVIDIA Nemotron 3.5 Lightning is NVIDIA's fastest open model for always-on agents and high-volume specialized tasks. It delivers a substantial leap in agentic capability over its predecessor Nemotron 3 Nano, with up to 4x higher throughput on a 1M-token context.",
     "context_window": 262144,
     "max_tokens": 131072,
     "type": "language",
-    "zdr": "some",
+    "zdr": "none",
     "no_training": "some",
     "tags": [
       "reasoning",
@@ -14579,9 +14959,9 @@
       }
     ],
     "pricing": {
-      "input": "0.00000005",
-      "output": "0.0000002",
-      "input_cache_read": "0.00000001",
+      "input": "0.00000006",
+      "output": "0.00000016",
+      "input_cache_read": "0.00000003",
       "varies_by_provider": true
     }
   },
@@ -14728,15 +15108,6 @@
       "include_reasoning"
     ],
     "temperature": true,
-    "reasoning_options": [
-      {
-        "type": "toggle"
-      },
-      {
-        "type": "effort",
-        "values": ["none", "low", "medium", "high"]
-      }
-    ],
     "pricing": {
       "input": "0.0000002",
       "output": "0.0000006"
@@ -14771,15 +15142,6 @@
       "include_reasoning"
     ],
     "temperature": true,
-    "reasoning_options": [
-      {
-        "type": "toggle"
-      },
-      {
-        "type": "effort",
-        "values": ["none", "low", "medium", "high"]
-      }
-    ],
     "pricing": {
       "input": "0.00000006",
       "output": "0.00000023"
@@ -16139,11 +16501,8 @@
     "temperature": true,
     "reasoning_options": [
       {
-        "type": "toggle"
-      },
-      {
         "type": "effort",
-        "values": ["none", "low", "medium", "high"]
+        "values": ["low", "medium", "high"]
       }
     ],
     "knowledge": "2024-09-30",
@@ -16195,11 +16554,8 @@
     "temperature": true,
     "reasoning_options": [
       {
-        "type": "toggle"
-      },
-      {
         "type": "effort",
-        "values": ["none", "low", "medium", "high"]
+        "values": ["low", "medium", "high", "xhigh"]
       }
     ],
     "knowledge": "2024-09-30",
@@ -16251,11 +16607,8 @@
     "temperature": true,
     "reasoning_options": [
       {
-        "type": "toggle"
-      },
-      {
         "type": "effort",
-        "values": ["none", "low", "medium", "high"]
+        "values": ["low", "medium", "high"]
       }
     ],
     "knowledge": "2024-09-30",
@@ -16312,7 +16665,7 @@
       },
       {
         "type": "effort",
-        "values": ["none", "minimal", "low", "medium", "high", "xhigh"]
+        "values": ["none", "low", "medium", "high"]
       }
     ],
     "knowledge": "2024-09-30",
@@ -16387,7 +16740,7 @@
       },
       {
         "type": "effort",
-        "values": ["none", "minimal", "low", "medium", "high", "xhigh"]
+        "values": ["none", "low", "medium", "high"]
       }
     ],
     "knowledge": "2024-09-30",
@@ -16445,7 +16798,7 @@
       },
       {
         "type": "effort",
-        "values": ["none", "minimal", "low", "medium", "high", "xhigh"]
+        "values": ["none", "low", "medium", "high", "xhigh"]
       }
     ],
     "knowledge": "2025-08-31",
@@ -16518,7 +16871,7 @@
       },
       {
         "type": "effort",
-        "values": ["none", "minimal", "low", "medium", "high", "xhigh"]
+        "values": ["none", "low", "medium", "high", "xhigh"]
       }
     ],
     "knowledge": "2025-08-31",
@@ -16569,11 +16922,8 @@
     "temperature": true,
     "reasoning_options": [
       {
-        "type": "toggle"
-      },
-      {
         "type": "effort",
-        "values": ["none", "low", "medium", "high"]
+        "values": ["low", "medium", "high", "xhigh"]
       }
     ],
     "knowledge": "2025-08-31",
@@ -16631,7 +16981,7 @@
       },
       {
         "type": "effort",
-        "values": ["none", "minimal", "low", "medium", "high", "xhigh"]
+        "values": ["none", "low", "medium", "high", "xhigh"]
       }
     ],
     "knowledge": "2025-08-31",
@@ -16740,7 +17090,7 @@
       },
       {
         "type": "effort",
-        "values": ["none", "minimal", "low", "medium", "high", "xhigh"]
+        "values": ["none", "low", "medium", "high", "xhigh"]
       }
     ],
     "knowledge": "2025-08-31",
@@ -16810,7 +17160,7 @@
       },
       {
         "type": "effort",
-        "values": ["none", "minimal", "low", "medium", "high", "xhigh"]
+        "values": ["none", "low", "medium", "high", "xhigh"]
       }
     ],
     "knowledge": "2025-08-31",
@@ -16869,7 +17219,7 @@
       },
       {
         "type": "effort",
-        "values": ["none", "minimal", "low", "medium", "high", "xhigh"]
+        "values": ["none", "low", "medium", "high", "xhigh"]
       }
     ],
     "knowledge": "2025-08-31",
@@ -17025,7 +17375,7 @@
       },
       {
         "type": "effort",
-        "values": ["none", "minimal", "low", "medium", "high", "xhigh"]
+        "values": ["none", "low", "medium", "high", "xhigh"]
       }
     ],
     "knowledge": "2025-08-31",
@@ -17116,7 +17466,7 @@
       },
       {
         "type": "effort",
-        "values": ["none", "minimal", "low", "medium", "high", "xhigh"]
+        "values": ["none", "low", "medium", "high", "xhigh"]
       }
     ],
     "knowledge": "2025-08-31",
@@ -17182,7 +17532,7 @@
       },
       {
         "type": "effort",
-        "values": ["none", "minimal", "low", "medium", "high", "xhigh"]
+        "values": ["none", "low", "medium", "high", "xhigh"]
       }
     ],
     "knowledge": "2025-08-31",
@@ -17266,7 +17616,7 @@
       },
       {
         "type": "effort",
-        "values": ["none", "minimal", "low", "medium", "high", "xhigh"]
+        "values": ["none", "low", "medium", "high", "xhigh"]
       }
     ],
     "knowledge": "2025-08-31",
@@ -17324,7 +17674,7 @@
       },
       {
         "type": "effort",
-        "values": ["none", "minimal", "low", "medium", "high", "xhigh"]
+        "values": ["none", "low", "medium", "high", "xhigh"]
       }
     ],
     "knowledge": "2025-08-31",
@@ -17389,7 +17739,7 @@
       },
       {
         "type": "effort",
-        "values": ["none", "minimal", "low", "medium", "high", "xhigh"]
+        "values": ["none", "low", "medium", "high", "xhigh"]
       }
     ],
     "knowledge": "2025-08-31",
@@ -17458,7 +17808,7 @@
       },
       {
         "type": "effort",
-        "values": ["none", "minimal", "low", "medium", "high", "xhigh"]
+        "values": ["none", "low", "medium", "high", "xhigh"]
       }
     ],
     "knowledge": "2025-08-31",
@@ -17509,11 +17859,8 @@
     "temperature": true,
     "reasoning_options": [
       {
-        "type": "toggle"
-      },
-      {
         "type": "effort",
-        "values": ["none", "minimal", "low", "medium", "high", "xhigh"]
+        "values": ["medium", "high", "xhigh"]
       }
     ],
     "knowledge": "2025-08-31",
@@ -17632,7 +17979,7 @@
       },
       {
         "type": "effort",
-        "values": ["none", "minimal", "low", "medium", "high", "xhigh"]
+        "values": ["none", "low", "medium", "high", "xhigh"]
       }
     ],
     "knowledge": "2025-12-01",
@@ -17789,7 +18136,7 @@
       },
       {
         "type": "effort",
-        "values": ["none", "minimal", "low", "medium", "high", "xhigh"]
+        "values": ["none", "low", "medium", "high", "xhigh"]
       }
     ],
     "knowledge": "2025-12-01",
@@ -17879,7 +18226,7 @@
       },
       {
         "type": "effort",
-        "values": ["none", "minimal", "low", "medium", "high", "xhigh"]
+        "values": ["none", "low", "medium", "high", "xhigh"]
       }
     ],
     "knowledge": "2025-12-01",
@@ -18759,7 +19106,7 @@
       },
       {
         "type": "effort",
-        "values": ["none", "minimal", "low", "medium", "high", "xhigh", "max"]
+        "values": ["none", "low", "medium", "high", "xhigh", "max"]
       }
     ],
     "knowledge": "2026-02-16",
@@ -19087,7 +19434,7 @@
       },
       {
         "type": "effort",
-        "values": ["none", "minimal", "low", "medium", "high", "xhigh", "max"]
+        "values": ["none", "low", "medium", "high", "xhigh", "max"]
       }
     ],
     "knowledge": "2026-02-16",
@@ -19190,7 +19537,7 @@
       },
       {
         "type": "effort",
-        "values": ["none", "minimal", "low", "medium", "high", "xhigh", "max"]
+        "values": ["none", "low", "medium", "high", "xhigh", "max"]
       }
     ],
     "knowledge": "2026-02-16",
@@ -19397,7 +19744,7 @@
       },
       {
         "type": "effort",
-        "values": ["none", "minimal", "low", "medium", "high", "xhigh", "max"]
+        "values": ["none", "low", "medium", "high", "xhigh", "max"]
       }
     ],
     "knowledge": "2026-02-16",
@@ -19724,7 +20071,7 @@
       },
       {
         "type": "effort",
-        "values": ["none", "minimal", "low", "medium", "high", "xhigh", "max"]
+        "values": ["none", "low", "medium", "high", "xhigh", "max"]
       }
     ],
     "knowledge": "2026-02-16",
@@ -19827,7 +20174,7 @@
       },
       {
         "type": "effort",
-        "values": ["none", "minimal", "low", "medium", "high", "xhigh", "max"]
+        "values": ["none", "low", "medium", "high", "xhigh", "max"]
       }
     ],
     "knowledge": "2026-02-16",
@@ -24315,6 +24662,82 @@
     }
   },
   {
+    "id": "paperinstruments/ultramarine-1-flash",
+    "object": "model",
+    "created": 1755815280,
+    "released": 1794441600,
+    "owned_by": "paperinstruments",
+    "name": "Ultramarine 1 Flash",
+    "description": "Ultramarine 1 Flash is an open-weight multimodal reasoning model from Paper Instruments, post-trained from GLM-5.3 Flash for knowledge work in enterprise operations, finance, law, and consulting. It supports long-context document analysis and agentic workflows.",
+    "context_window": 1048576,
+    "max_tokens": 131000,
+    "type": "language",
+    "zdr": "all",
+    "no_training": "all",
+    "tags": [
+      "implicit-caching",
+      "reasoning",
+      "structured-output",
+      "tool-use",
+      "vision",
+      "open-weights"
+    ],
+    "supported_specifications": ["v2", "v3", "v4"],
+    "modalities": {
+      "input": ["text", "image"],
+      "output": ["text"]
+    },
+    "supported_parameters": [
+      "max_tokens",
+      "temperature",
+      "stop",
+      "tools",
+      "tool_choice",
+      "reasoning",
+      "include_reasoning",
+      "response_format",
+      "structured_outputs"
+    ],
+    "temperature": true,
+    "reasoning_options": [
+      {
+        "type": "effort",
+        "values": ["low", "high", "max"]
+      },
+      {
+        "type": "budget_tokens",
+        "min": 1024
+      }
+    ],
+    "pricing": {
+      "input": "0.00000015",
+      "output": "0.0000005",
+      "input_cache_read": "0.00000003"
+    }
+  },
+  {
+    "id": "parallel/parallel-decisions-fast",
+    "object": "model",
+    "created": 1755815280,
+    "released": 1794528000,
+    "owned_by": "parallel",
+    "name": "Decisions Fast",
+    "description": "Decisions Fast is Parallel AI’s evaluation model for fast classification and scoring grounded in live web evidence. It answers yes/no, multiple-choice, and ordered scoring questions with probabilities and citations. Each request supports up to 100 related questions sharing the same context and retrieved evidence, with flat per-request pricing.",
+    "context_window": 32000,
+    "max_tokens": 0,
+    "type": "evaluation",
+    "zdr": "none",
+    "no_training": "all",
+    "supported_specifications": ["v4"],
+    "modalities": {
+      "input": ["text"],
+      "output": ["text"]
+    },
+    "pricing": {
+      "request": "0"
+    }
+  },
+  {
     "id": "particle/particle-1",
     "object": "model",
     "created": 1755815280,
@@ -24396,7 +24819,33 @@
     },
     "pricing": {
       "input": "0.00000001",
-      "output": "0"
+      "output": "0",
+      "web_search": "1"
+    }
+  },
+  {
+    "id": "perplexity/pplx-decider-flash-v1.3",
+    "object": "model",
+    "created": 1755815280,
+    "released": 1794441600,
+    "owned_by": "perplexity",
+    "name": "Decider Flash V1.3",
+    "description": "Perplexity Decider Flash V1.3 is a multimodal decision model for high-volume classification, routing, labeling, and filtering. It evaluates text, structured JSON, and images against yes/no questions, custom choices, and ordered rubrics, returning typed answers with probabilities. It supports a 256K context window.",
+    "context_window": 262144,
+    "max_tokens": 0,
+    "type": "evaluation",
+    "zdr": "none",
+    "no_training": "all",
+    "tags": ["vision", "open-weights"],
+    "supported_specifications": ["v4"],
+    "modalities": {
+      "input": ["text", "image"],
+      "output": ["text"]
+    },
+    "pricing": {
+      "input": "0.00000001",
+      "output": "0",
+      "web_search": "1"
     }
   },
   {
@@ -24420,7 +24869,33 @@
     },
     "pricing": {
       "input": "0.00000002",
-      "output": "0"
+      "output": "0",
+      "web_search": "1"
+    }
+  },
+  {
+    "id": "perplexity/pplx-decider-v1.3",
+    "object": "model",
+    "created": 1755815280,
+    "released": 1794441600,
+    "owned_by": "perplexity",
+    "name": "Decider V1.3",
+    "description": "Perplexity Decider V1.3 is a multimodal decision model for classification, routing, and scoring. It evaluates text, structured JSON, and images against yes/no questions, custom choices, and ordered rubrics, returning typed answers with probabilities. It supports multiple questions over shared content and a 256K context window.",
+    "context_window": 262144,
+    "max_tokens": 0,
+    "type": "evaluation",
+    "zdr": "none",
+    "no_training": "all",
+    "tags": ["vision", "open-weights"],
+    "supported_specifications": ["v4"],
+    "modalities": {
+      "input": ["text", "image"],
+      "output": ["text"]
+    },
+    "pricing": {
+      "input": "0.00000002",
+      "output": "0",
+      "web_search": "1"
     }
   },
   {
@@ -24510,47 +24985,6 @@
       "output": "0.0000025",
       "input_cache_write": "0.0000000625",
       "web_search": "2.5"
-    }
-  },
-  {
-    "id": "poolside/laguna-s-2.1",
-    "object": "model",
-    "created": 1755815280,
-    "released": 1784505600,
-    "owned_by": "poolside",
-    "name": "Laguna S 2.1",
-    "description": "Laguna S 2.1 is Poolside's new open-weight model for agentic coding and long-horizon work.",
-    "context_window": 1000000,
-    "max_tokens": 131072,
-    "type": "language",
-    "zdr": "none",
-    "no_training": "none",
-    "tags": ["reasoning", "tool-use", "open-weights"],
-    "supported_specifications": ["v2", "v3", "v4"],
-    "modalities": {
-      "input": ["text"],
-      "output": ["text"]
-    },
-    "supported_parameters": [
-      "max_tokens",
-      "temperature",
-      "stop",
-      "tools",
-      "tool_choice",
-      "reasoning",
-      "include_reasoning"
-    ],
-    "temperature": true,
-    "reasoning_options": [
-      {
-        "type": "toggle"
-      }
-    ],
-    "deprecated_at": 1794528000000,
-    "pricing": {
-      "input": "0.00000009",
-      "output": "0.00000018",
-      "input_cache_read": "0.000000009"
     }
   },
   {
@@ -25412,11 +25846,8 @@
     "temperature": true,
     "reasoning_options": [
       {
-        "type": "toggle"
-      },
-      {
         "type": "effort",
-        "values": ["none", "low", "medium", "high"]
+        "values": ["low", "medium", "high"]
       }
     ],
     "pricing": {
@@ -25512,11 +25943,8 @@
     "temperature": true,
     "reasoning_options": [
       {
-        "type": "toggle"
-      },
-      {
         "type": "effort",
-        "values": ["none", "low", "medium", "high"]
+        "values": ["low", "medium", "high"]
       }
     ],
     "pricing": {
@@ -25599,11 +26027,8 @@
     "temperature": true,
     "reasoning_options": [
       {
-        "type": "toggle"
-      },
-      {
         "type": "effort",
-        "values": ["none", "low", "medium", "high"]
+        "values": ["low", "medium", "high"]
       }
     ],
     "pricing": {
@@ -25678,21 +26103,10 @@
       "stop",
       "tools",
       "tool_choice",
-      "reasoning",
-      "include_reasoning",
       "response_format",
       "structured_outputs"
     ],
     "temperature": true,
-    "reasoning_options": [
-      {
-        "type": "toggle"
-      },
-      {
-        "type": "effort",
-        "values": ["none", "low", "medium", "high"]
-      }
-    ],
     "pricing": {
       "input": "0.00000125",
       "input_tiers": [
@@ -25778,21 +26192,10 @@
       "stop",
       "tools",
       "tool_choice",
-      "reasoning",
-      "include_reasoning",
       "response_format",
       "structured_outputs"
     ],
     "temperature": true,
-    "reasoning_options": [
-      {
-        "type": "toggle"
-      },
-      {
-        "type": "effort",
-        "values": ["none", "low", "medium", "high"]
-      }
-    ],
     "pricing": {
       "input": "0.000001",
       "input_tiers": [
@@ -25864,21 +26267,10 @@
       "stop",
       "tools",
       "tool_choice",
-      "reasoning",
-      "include_reasoning",
       "response_format",
       "structured_outputs"
     ],
     "temperature": true,
-    "reasoning_options": [
-      {
-        "type": "toggle"
-      },
-      {
-        "type": "effort",
-        "values": ["none", "low", "medium", "high"]
-      }
-    ],
     "pricing": {
       "input": "0.00000125",
       "input_tiers": [
@@ -25953,15 +26345,6 @@
       "structured_outputs"
     ],
     "temperature": true,
-    "reasoning_options": [
-      {
-        "type": "toggle"
-      },
-      {
-        "type": "effort",
-        "values": ["none", "low", "medium", "high"]
-      }
-    ],
     "pricing": {
       "input": "0.00000125",
       "input_tiers": [
@@ -26054,15 +26437,6 @@
       "structured_outputs"
     ],
     "temperature": true,
-    "reasoning_options": [
-      {
-        "type": "toggle"
-      },
-      {
-        "type": "effort",
-        "values": ["none", "low", "medium", "high"]
-      }
-    ],
     "pricing": {
       "input": "0.000001",
       "input_tiers": [
@@ -26141,15 +26515,6 @@
       "structured_outputs"
     ],
     "temperature": true,
-    "reasoning_options": [
-      {
-        "type": "toggle"
-      },
-      {
-        "type": "effort",
-        "values": ["none", "low", "medium", "high"]
-      }
-    ],
     "pricing": {
       "input": "0.00000125",
       "input_tiers": [
@@ -26783,15 +27148,6 @@
       "structured_outputs"
     ],
     "temperature": true,
-    "reasoning_options": [
-      {
-        "type": "toggle"
-      },
-      {
-        "type": "effort",
-        "values": ["none", "low", "medium", "high"]
-      }
-    ],
     "pricing": {
       "input": "0.000001",
       "input_tiers": [
@@ -26864,15 +27220,6 @@
       "input": ["text"],
       "output": ["image"]
     },
-    "reasoning_options": [
-      {
-        "type": "toggle"
-      },
-      {
-        "type": "effort",
-        "values": ["none", "low", "medium", "high"]
-      }
-    ],
     "pricing": {
       "image": "0.02"
     }
@@ -26896,15 +27243,6 @@
       "input": ["text"],
       "output": ["image"]
     },
-    "reasoning_options": [
-      {
-        "type": "toggle"
-      },
-      {
-        "type": "effort",
-        "values": ["none", "low", "medium", "high"]
-      }
-    ],
     "pricing": {
       "image": "0.06",
       "image_dimension_quality_pricing": [
@@ -26942,15 +27280,6 @@
       "input": ["text"],
       "output": ["video"]
     },
-    "reasoning_options": [
-      {
-        "type": "toggle"
-      },
-      {
-        "type": "effort",
-        "values": ["none", "low", "medium", "high"]
-      }
-    ],
     "video_capabilities": {
       "supported_operations": [
         "text-to-video",
@@ -26972,7 +27301,7 @@
       "supported_durations_seconds": [
         1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15
       ],
-      "generate_audio": false,
+      "generate_audio": true,
       "supported_fps": [24],
       "input_limits": {
         "image": {
@@ -27019,15 +27348,6 @@
       "input": ["text"],
       "output": ["video"]
     },
-    "reasoning_options": [
-      {
-        "type": "toggle"
-      },
-      {
-        "type": "effort",
-        "values": ["none", "low", "medium", "high"]
-      }
-    ],
     "video_capabilities": {
       "supported_operations": [
         "image-to-video",
@@ -27094,15 +27414,6 @@
       "input": ["text"],
       "output": ["video"]
     },
-    "reasoning_options": [
-      {
-        "type": "toggle"
-      },
-      {
-        "type": "effort",
-        "values": ["none", "low", "medium", "high"]
-      }
-    ],
     "video_capabilities": {
       "supported_operations": ["text-to-video", "image-to-video"],
       "supported_resolutions": ["480p", "720p", "1080p"],
@@ -27164,15 +27475,6 @@
       "input": ["audio"],
       "output": ["text"]
     },
-    "reasoning_options": [
-      {
-        "type": "toggle"
-      },
-      {
-        "type": "effort",
-        "values": ["none", "low", "medium", "high"]
-      }
-    ],
     "pricing": {
       "input": "0",
       "transcription_duration_cost_per_second": "0.000028"
@@ -27194,15 +27496,6 @@
       "input": ["text"],
       "output": ["audio"]
     },
-    "reasoning_options": [
-      {
-        "type": "toggle"
-      },
-      {
-        "type": "effort",
-        "values": ["none", "low", "medium", "high"]
-      }
-    ],
     "pricing": {
       "input": "0.000015",
       "speech_input_character_cost": "0.000015"
@@ -27237,15 +27530,6 @@
       "include_reasoning"
     ],
     "temperature": true,
-    "reasoning_options": [
-      {
-        "type": "toggle"
-      },
-      {
-        "type": "effort",
-        "values": ["none", "low", "medium", "high"]
-      }
-    ],
     "pricing": {
       "realtime_client_message_cost": "0.004",
       "realtime_session_duration_cost_per_second": "0.001334"
@@ -27350,23 +27634,22 @@
     "owned_by": "stepfun",
     "name": "Step 5 Preview",
     "description": "Step 5 Preview is StepFun’s flagship AI model for agentic coding, professional knowledge work, and financial analysis. Built on a sparse Mixture-of-Experts architecture with 600B total parameters and 27B active per token, it combines a 1M-token context window with vision input. From building interactive applications and debugging code to conducting research and producing analytical reports, it supports complex workflows that require sustained reasoning, tool use, and iterative refinement.",
-    "context_window": 1048576,
-    "max_tokens": 1048576,
+    "context_window": 1000000,
+    "max_tokens": 1000000,
     "type": "language",
     "zdr": "none",
-    "no_training": "some",
+    "no_training": "none",
     "tags": [
       "implicit-caching",
-      "reasoning",
-      "structured-output",
-      "tool-use",
-      "video-input",
       "vision",
-      "open-weights"
+      "structured-output",
+      "open-weights",
+      "reasoning",
+      "tool-use"
     ],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
-      "input": ["text", "image", "video"],
+      "input": ["text", "image"],
       "output": ["text"]
     },
     "supported_parameters": [
@@ -27678,6 +27961,60 @@
       "input": "0.000001",
       "output": "0.00000405",
       "input_cache_read": "0.00000017",
+      "varies_by_provider": true
+    }
+  },
+  {
+    "id": "thinkingmachines/inkling-2-small",
+    "object": "model",
+    "created": 1755815280,
+    "released": 1794441600,
+    "owned_by": "thinkingmachines",
+    "name": "Inkling 2 Small",
+    "description": "Inkling 2 Small is Thinking Machines Lab’s second-generation multimodal Mixture-of-Experts model, with 594 billion total parameters and 17 billion active per token. It combines text and image understanding with controllable reasoning for coding, tool use, and professional knowledge work.",
+    "context_window": 1048576,
+    "max_tokens": 262144,
+    "type": "language",
+    "zdr": "some",
+    "no_training": "all",
+    "tags": [
+      "implicit-caching",
+      "reasoning",
+      "structured-output",
+      "tool-use",
+      "vision",
+      "open-weights"
+    ],
+    "supported_specifications": ["v2", "v3", "v4"],
+    "modalities": {
+      "input": ["text", "image"],
+      "output": ["text"]
+    },
+    "supported_parameters": [
+      "max_tokens",
+      "temperature",
+      "stop",
+      "tools",
+      "tool_choice",
+      "reasoning",
+      "include_reasoning",
+      "response_format",
+      "structured_outputs"
+    ],
+    "temperature": true,
+    "reasoning_options": [
+      {
+        "type": "toggle"
+      },
+      {
+        "type": "effort",
+        "values": ["none", "low", "medium", "high"]
+      }
+    ],
+    "pricing": {
+      "input": "0.0000003",
+      "output": "0.000001",
+      "input_cache_read": "0.00000003",
       "varies_by_provider": true
     }
   },
@@ -28973,6 +29310,9 @@
       {
         "type": "effort",
         "values": ["none", "low", "medium", "high"]
+      },
+      {
+        "type": "budget_tokens"
       }
     ],
     "pricing": {
