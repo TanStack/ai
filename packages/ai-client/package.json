@@ -72,12 +72,12 @@
     "@tanstack/ai": "workspace:^",
     "@tanstack/ai-event-client": "workspace:^",
     "@tanstack/ai-utils": "workspace:^",
-    "@tanstack/store": "^0.11.1"
+    "@tanstack/store": "^0.11.2"
   },
   "devDependencies": {
     "@standard-schema/spec": "^1.1.0",
     "@vitest/coverage-v8": "4.1.10",
     "vite": "^8.2.1",
-    "zod": "^4.2.0"
+    "zod": "^4.6.7"
   }
 }

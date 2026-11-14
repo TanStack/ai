@@ -62,7 +62,7 @@
     }
   },
   "devDependencies": {
-    "@electric-sql/pglite": "^0.5.11",
+    "@electric-sql/pglite": "^0.5.16",
     "@tanstack/ai": "workspace:*",
     "@types/pg": "^8.23.1",
     "@vitest/coverage-v8": "4.1.10",

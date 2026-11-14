@@ -44,7 +44,7 @@
     "test:types": "tsc"
   },
   "dependencies": {
-    "@upstash/box": "^0.7.1"
+    "@upstash/box": "^0.8.0"
   },
   "peerDependencies": {
     "@tanstack/ai-sandbox": "workspace:^"

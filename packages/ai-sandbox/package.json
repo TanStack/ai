@@ -83,7 +83,7 @@
     }
   },
   "dependencies": {
-    "@modelcontextprotocol/server": "^2.0.0",
+    "@modelcontextprotocol/server": "^2.4.0",
     "@tanstack/ai-skills": "workspace:^",
     "@tanstack/ai-utils": "workspace:^"
   },
@@ -109,8 +109,8 @@
     }
   },
   "devDependencies": {
-    "@modelcontextprotocol/client": "^2.0.0",
-    "@ngrok/ngrok": "^1.7.0",
+    "@modelcontextprotocol/client": "^2.4.0",
+    "@ngrok/ngrok": "^1.8.0",
     "@tanstack/ai": "workspace:*",
     "@tanstack/ai-harness": "workspace:*",
     "@tanstack/ai-persistence": "workspace:*",

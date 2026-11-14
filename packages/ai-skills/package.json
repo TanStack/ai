@@ -95,6 +95,6 @@
     "@tanstack/ai-harness": "workspace:*",
     "@vitest/coverage-v8": "4.1.10",
     "vitest": "^4.1.10",
-    "zod": "^4.2.0"
+    "zod": "^4.6.7"
   }
 }

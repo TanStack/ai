@@ -83,10 +83,10 @@
     "test:types": "tsc"
   },
   "dependencies": {
-    "@modelcontextprotocol/client": "^2.0.0",
-    "@modelcontextprotocol/server": "^2.0.0",
+    "@modelcontextprotocol/client": "^2.4.0",
+    "@modelcontextprotocol/server": "^2.4.0",
     "@tanstack/ai": "workspace:^",
-    "jose": "^6.2.12"
+    "jose": "^6.2.17"
   },
   "peerDependencies": {
     "@tanstack/ai-harness": "workspace:^"
@@ -100,10 +100,10 @@
     "@tanstack/ai-harness": "workspace:*",
     "@tanstack/ai-persistence": "workspace:*",
     "@vitest/coverage-v8": "4.1.10",
-    "jiti": "^2.4.2",
+    "jiti": "^2.7.0",
     "json-schema-to-typescript": "^16.0.0",
     "tsup": "^8.5.1",
     "vite": "^8.2.1",
-    "zod": "^4.2.0"
+    "zod": "^4.6.7"
   }
 }
