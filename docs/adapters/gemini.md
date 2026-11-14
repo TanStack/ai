@@ -313,7 +313,7 @@ console.log(result.meta.usage);
 
 - `gemini-decision-1` is the Decisions model.
 - An object `state` goes to Gemini as the request `input`.
-- `boolean()` questions work. The adapter adds the meaning of true and false to the instructions.
+- `boolean()` questions work. The adapter maps the `true` and `false` criteria to Gemini's `true_description` and `false_description` fields.
 
 See the [Evaluate guide](../evaluate/evaluate) for the question helpers, the result shape, abort, and middleware.
 

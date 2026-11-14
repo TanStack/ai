@@ -116,8 +116,8 @@ describe('GeminiEvaluateAdapter', () => {
           type: 'noul',
           instructions: 'Does this message convey urgency?',
           criteria: {
-            true: 'Explicitly time-sensitive',
-            false: 'No urgency expressed',
+            true_description: 'Explicitly time-sensitive',
+            false_description: 'No urgency expressed',
           },
         },
         department: {
@@ -183,6 +183,48 @@ describe('GeminiEvaluateAdapter', () => {
 
     const { url } = await capturedRequest()
     expect(url).toBe('https://gateway.example.com/v1beta/decisions')
+  })
+
+  it('maps null choice descriptions to "" and drops absent boolean criteria', async () => {
+    fetchMock.mockResolvedValue(
+      jsonResponse({
+        model: 'gemini-decision-1',
+        answers: {
+          team: {
+            type: 'choice',
+            choice: 'billing',
+            probabilities: { billing: 0.7, tech: 0.3 },
+            confidence: 0.7,
+          },
+          pick: { type: 'noul', noul: 0.5 },
+        },
+        usage: {
+          total_input_tokens: 1,
+          total_output_tokens: 0,
+          total_tokens: 1,
+        },
+      }),
+    )
+
+    await decide({
+      adapter: adapter(),
+      state,
+      questions: {
+        team: choice({
+          instructions: 'Which team?',
+          options: { billing: null, tech: null },
+        }),
+        pick: boolean({ instructions: 'Yes or no?' }),
+      },
+    })
+
+    const { body } = await capturedRequest()
+    expect(body.questions.team.criteria).toEqual({ billing: '', tech: '' })
+    // A boolean with no criteria sends no criteria field.
+    expect(body.questions.pick).toEqual({
+      type: 'noul',
+      instructions: 'Yes or no?',
+    })
   })
 
   it('throws with status on a non-OK response', async () => {

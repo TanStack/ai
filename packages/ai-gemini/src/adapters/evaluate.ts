@@ -2,7 +2,11 @@ import { buildBaseUsage } from '@tanstack/ai'
 import { BaseEvaluateAdapter } from '@tanstack/ai/adapters'
 import { toRunErrorPayload } from '@tanstack/ai/adapter-internals'
 import { getGeminiApiKeyFromEnv } from '../utils'
-import type { EvaluateOptions, WireAnswer } from '@tanstack/ai/adapters'
+import type {
+  EvaluateOptions,
+  WireAnswer,
+  WireQuestion,
+} from '@tanstack/ai/adapters'
 import type {
   GeminiEvaluateModel,
   GeminiEvaluateProviderOptions,
@@ -128,6 +132,52 @@ function mapUsage(usage: unknown) {
 }
 
 /**
+ * Translates the shared wire questions to the field names the Gemini Decisions
+ * API expects. Two shapes differ from the core wire format:
+ *
+ * - `choice` criteria take string descriptions; Gemini uses `""` for an option
+ *   with no description, so a `null` from `choice({ options: { yes: null } })`
+ *   becomes `""`.
+ * - `noul` (boolean) criteria use `true_description` / `false_description`, not
+ *   the core `true` / `false` keys.
+ *
+ * `score` questions pass through unchanged. `instructions` must be a string or
+ * text-content; a structured-object instruction is forwarded as-is.
+ */
+function toGeminiQuestions(
+  questions: Record<string, WireQuestion>,
+): Record<string, unknown> {
+  const out: Record<string, unknown> = {}
+  for (const [key, question] of Object.entries(questions)) {
+    if (question.type === 'choice') {
+      const criteria: Record<string, string> = {}
+      for (const [option, description] of Object.entries(question.criteria)) {
+        criteria[option] = description ?? ''
+      }
+      out[key] = { ...question, criteria }
+    } else if (question.type === 'noul') {
+      const { criteria, ...rest } = question
+      out[key] = {
+        ...rest,
+        ...(criteria && {
+          criteria: {
+            ...(criteria.true !== undefined && {
+              true_description: criteria.true,
+            }),
+            ...(criteria.false !== undefined && {
+              false_description: criteria.false,
+            }),
+          },
+        }),
+      }
+    } else {
+      out[key] = question
+    }
+  }
+  return out
+}
+
+/**
  * Gemini evaluate adapter.
  *
  * Asks typed questions about a shared `state` through Gemini's
@@ -175,7 +225,11 @@ export class GeminiEvaluateAdapter<
           'Content-Type': 'application/json',
           ...this.clientConfig.defaultHeaders,
         },
-        body: JSON.stringify({ model, input: state, questions }),
+        body: JSON.stringify({
+          model,
+          input: state,
+          questions: toGeminiQuestions(questions),
+        }),
         ...(abortSignal ? { signal: abortSignal } : {}),
       })
 
