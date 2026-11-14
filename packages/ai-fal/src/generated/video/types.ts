@@ -14078,18 +14078,32 @@ export type Keyframe = {
    */
   timestamp: number
   /**
-   * @description The duration in milliseconds of this keyframe
-   * @type number
-   */
-  duration: number
-  /**
    * @description The URL where this keyframe's media file can be accessed
    * @type string
    */
   url: string
+  /**
+   * @description The duration in milliseconds of this keyframe
+   * @type number
+   */
+  duration: number
 }
 
+export const trackTypeEnum = {
+  video: 'video',
+  audio: 'audio',
+  image: 'image',
+} as const
+
+export type TrackTypeEnumKey =
+  (typeof trackTypeEnum)[keyof typeof trackTypeEnum]
+
 export type Track = {
+  /**
+   * @description List of keyframes that make up this track
+   * @type array
+   */
+  keyframes: Keyframe[]
   /**
    * @description Unique identifier for the track
    * @type string
@@ -14099,12 +14113,7 @@ export type Track = {
    * @description Type of track ('video', 'audio', or 'image')
    * @type string
    */
-  type: string
-  /**
-   * @description List of keyframes that make up this track
-   * @type array
-   */
-  keyframes: Keyframe[]
+  type: TrackTypeEnumKey
 }
 
 export type InputFalAiFfmpegApiCompose = {

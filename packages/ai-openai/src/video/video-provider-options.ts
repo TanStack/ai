@@ -5,6 +5,7 @@
  */
 
 import { durationToSeconds } from '@tanstack/ai/adapters'
+import { OPENAI_VIDEO_DURATIONS } from './generated/video-durations'
 import type { DurationOptions, VideoDurationSpell } from '@tanstack/ai/adapters'
 
 /**
@@ -70,23 +71,6 @@ export type OpenAIVideoModelSizeByName = {
 export type OpenAIVideoModelDurationByName = {
   'sora-2': OpenAIVideoDuration
   'sora-2-pro': OpenAIVideoDuration
-}
-
-const SORA_SECONDS = [
-  '4',
-  '8',
-  '12',
-] as const satisfies ReadonlyArray<OpenAIVideoSeconds>
-
-/**
- * Runtime duration table backing `availableDurations()` / `snapDuration()`.
- * `snapDuration` returns the API string (`'4' | '8' | '12'`).
- */
-export const OPENAI_VIDEO_DURATIONS = {
-  'sora-2': { kind: 'discrete', values: SORA_SECONDS },
-  'sora-2-pro': { kind: 'discrete', values: SORA_SECONDS },
-} as const satisfies {
-  [Model in keyof OpenAIVideoModelDurationByName]: DurationOptions<OpenAIVideoSeconds>
 }
 
 /**
