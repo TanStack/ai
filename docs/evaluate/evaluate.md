@@ -151,6 +151,7 @@ const refund = boolean({
 | [Vercel AI Gateway](../adapters/vercel-gateway) | `vercelGatewayDecider('typesafe-ai/jev')` (`@tanstack/ai-vercel-gateway`) | `AI_GATEWAY_API_KEY` (or `VERCEL_OIDC_TOKEN`) |
 | [Cloudflare](../adapters/cloudflare) | `cloudflareDecider('typesafe/jev')` (`@tanstack/ai-cloudflare`) | A Worker binding, or `CLOUDFLARE_ACCOUNT_ID` and `CLOUDFLARE_API_TOKEN` |
 | [OpenAI](../adapters/openai#evaluate) | `openaiDecider('gpt-6-luna')` (`@tanstack/ai-openai`) | `OPENAI_API_KEY`                                     |
+| [Gemini](../adapters/gemini#evaluate) | `geminiDecider('gemini-decision-1')` (`@tanstack/ai-gemini`) | `GOOGLE_API_KEY` or `GEMINI_API_KEY`         |
 
 You only need the key for the adapter you pick. To use OpenRouter, install `@tanstack/ai-openrouter` and swap the adapter:
 

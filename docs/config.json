@@ -1006,7 +1006,7 @@
           "label": "Evaluate",
           "to": "evaluate/evaluate",
           "addedAt": "2026-09-18",
-          "updatedAt": "2026-11-02"
+          "updatedAt": "2026-11-13"
         }
       ],
       "tab": "guides"
@@ -1751,7 +1751,7 @@
           "label": "Google Gemini",
           "to": "adapters/gemini",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-11-09"
+          "updatedAt": "2026-11-13"
         },
         {
           "label": "Google Gemini: Advanced",

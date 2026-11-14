@@ -268,6 +268,55 @@ Tools that act:
 
 Each tool, with a full sample, is on [Gemini: Advanced](./gemini-advanced#provider-tools). For which models take which tool, see [Provider Tools](../tools/provider-tools.md).
 
+## Evaluate
+
+Sometimes you need an answer your code can branch on, not chat text: a queue name, an urgency level, or a yes or no. Use `geminiDecider` with `decide()` to ask typed questions about one shared `state`. The adapter calls the Gemini Decisions API (`/v1beta/decisions`):
+
+```typescript
+import { decide, choice, score, boolean } from "@tanstack/ai";
+import { geminiDecider } from "@tanstack/ai-gemini";
+
+const ticket = {
+  subject: "Charged twice for the same invoice",
+  body: "Please refund the extra payment.",
+};
+
+const result = await decide({
+  adapter: geminiDecider("gemini-decision-1"),
+  state: ticket,
+  questions: {
+    queue: choice({
+      instructions: "Which team should handle this ticket?",
+      options: {
+        billing: "Payments, invoices, refunds",
+        tech: "Bugs, outages, integrations",
+        sales: "Pricing, upgrades, new accounts",
+      },
+    }),
+    urgency: score({
+      instructions: "How urgent is this ticket?",
+      levels: ["low", "medium", "high"],
+    }),
+    refund: boolean({
+      instructions: "Is the customer asking for a refund?",
+    }),
+  },
+});
+
+console.log(result.queue.value); // "billing"
+console.log(result.urgency.value); // "medium"
+console.log(result.refund.value); // true
+console.log(result.meta.usage);
+```
+
+`geminiDecider` reads `GOOGLE_API_KEY` or `GEMINI_API_KEY`. To pass a key yourself, use `createGeminiDecider("gemini-decision-1", "AIza...")`.
+
+- `gemini-decision-1` is the Decisions model.
+- An object `state` goes to Gemini as the request `input`.
+- `boolean()` questions work. The adapter maps the `true` and `false` criteria to Gemini's `true_description` and `false_description` fields.
+
+See the [Evaluate guide](../evaluate/evaluate) for the question helpers, the result shape, abort, and middleware.
+
 ## Models and options
 
 ### Model options
@@ -383,6 +432,7 @@ Newest first. The package exports the full lists, for example `GeminiTextModels`
 | Music | `geminiAudio` | `lyria-3-pro-preview`, `lyria-3-clip-preview` |
 | Video | `geminiVideo` | `veo-3.1-generate-preview`, `veo-3.1-fast-generate-preview`, `veo-3.1-lite-generate-preview`, `gemini-omni-1.2-flash`, `gemini-omni-1.1-flash` |
 | Embeddings | `geminiEmbedding` | `gemini-embedding-001` |
+| Evaluate | `geminiDecider` | `gemini-decision-1` |
 
 `adapter.inputModalities` lists the input kinds of the selected model. See [Check what a model accepts](../advanced/extend-adapter#check-what-a-model-accepts).
 
