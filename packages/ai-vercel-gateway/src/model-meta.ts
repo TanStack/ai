@@ -30,6 +30,7 @@ export const VERCEL_GATEWAY_CHAT_MODELS = [
   'alibaba/qwen3.5-flash',
   'alibaba/qwen3.5-plus',
   'alibaba/qwen3.6-27b',
+  'alibaba/qwen3.6-35b-a3b',
   'alibaba/qwen3.6-plus',
   'alibaba/qwen3.7-flash',
   'alibaba/qwen3.7-max',
@@ -49,6 +50,9 @@ export const VERCEL_GATEWAY_CHAT_MODELS = [
   'anthropic/claude-fable-5-batch',
   'anthropic/claude-fable-5.1',
   'anthropic/claude-fable-5.1-batch',
+  'anthropic/claude-fable-5.2',
+  'anthropic/claude-fable-5.2-batch',
+  'anthropic/claude-fable-5.2-fast',
   'anthropic/claude-haiku-4.5',
   'anthropic/claude-haiku-4.5-batch',
   'anthropic/claude-haiku-5.5',
@@ -79,8 +83,6 @@ export const VERCEL_GATEWAY_CHAT_MODELS = [
   'baseten/elephant-1',
   'baseten/joey-1',
   'baseten/mammoth-1',
-  'bytedance/seed-1.6',
-  'bytedance/seed-1.8',
   'bytedance/seed-2.1-turbo',
   'callstack/apex',
   'cohere/command-a',
@@ -97,6 +99,7 @@ export const VERCEL_GATEWAY_CHAT_MODELS = [
   'deepseek/deepseek-v4.1-flash',
   'deepseek/deepseek-v4.1-flash-1017',
   'deepseek/deepseek-v4.1-flash-1017-fast',
+  'deepseek/deepseek-v4.1-flash-1017-ultrafast',
   'deepseek/deepseek-v4.1-flash-fast',
   'elevenlabs/eleven-flash-v2',
   'elevenlabs/eleven-flash-v2.5',
@@ -149,11 +152,15 @@ export const VERCEL_GATEWAY_CHAT_MODELS = [
   'google/gemini-3.8-live',
   'google/gemini-3.8-live-extended-thinking',
   'google/gemini-4-argon',
+  'google/gemini-4-carbon',
+  'google/gemini-4-hydrogen',
+  'google/gemini-decision-1',
   'google/gemini-nano-banana-2.1',
   'google/gemini-omni-1.2-flash',
   'google/gemini-omni-flash-preview',
   'google/gemma-4-26b-a4b-it',
   'google/gemma-4-31b-it',
+  'humansand/ampersand-v0.1',
   'inception/mercury-2',
   'inception/mercury-2.5',
   'inception/mercury-3',
@@ -176,6 +183,7 @@ export const VERCEL_GATEWAY_CHAT_MODELS = [
   'meta/llama-3.3-70b',
   'meta/llama-4-maverick',
   'meta/llama-4-scout',
+  'meta/muse-ember',
   'meta/muse-glimmer-30b',
   'meta/muse-spark-1.1',
   'meta/muse-spark-1.2',
@@ -224,7 +232,9 @@ export const VERCEL_GATEWAY_CHAT_MODELS = [
   'moonshotai/kimi-k3.1-pro-highspeed',
   'morph/morph-v3-fast',
   'morph/morph-v3-large',
-  'nvidia/nemotron-3-nano-30b-a3b',
+  'nace-ai/drex-max-finance',
+  'nace-ai/drex-max-v1.1',
+  'nace-ai/drex-v2.0',
   'nvidia/nemotron-3-super-120b-a12b',
   'nvidia/nemotron-3-ultra-550b-a55b',
   'nvidia/nemotron-3.5-lightning',
@@ -329,11 +339,14 @@ export const VERCEL_GATEWAY_CHAT_MODELS = [
   'openai/tts-1',
   'openai/tts-1-hd',
   'openai/whisper-1',
+  'paperinstruments/ultramarine-1-flash',
+  'parallel/parallel-decisions-fast',
   'particle/particle-1',
   'perplexity/pplx-decider-flash-v1.2',
+  'perplexity/pplx-decider-flash-v1.3',
   'perplexity/pplx-decider-v1.2',
+  'perplexity/pplx-decider-v1.3',
   'perplexity/sonar',
-  'poolside/laguna-s-2.1',
   'quiverai/arrow-2',
   'quiverai/arrow-2-telos',
   'reflection/beam',
@@ -373,6 +386,7 @@ export const VERCEL_GATEWAY_CHAT_MODELS = [
   'tencent/hy4',
   'tencent/hy4-preview',
   'thinkingmachines/inkling',
+  'thinkingmachines/inkling-2-small',
   'thinkingmachines/inkling-small',
   'typesafe-ai/jev',
   'typesafe-ai/jev-1.13.0',
@@ -419,6 +433,7 @@ export const VERCEL_GATEWAY_PROVIDERS = [
   'fish-audio',
   'google',
   'heygen',
+  'humansand',
   'inception',
   'inclusionai',
   'inference-net',
@@ -433,11 +448,13 @@ export const VERCEL_GATEWAY_PROVIDERS = [
   'mixedbread',
   'moonshotai',
   'morph',
+  'nace-ai',
   'nvidia',
   'openai',
+  'paperinstruments',
+  'parallel',
   'particle',
   'perplexity',
-  'poolside',
   'prodia',
   'quiverai',
   'recraft',
@@ -537,6 +554,8 @@ export const VERCEL_GATEWAY_IMAGE_MODELS = [
   'meta/muse-image-1.0',
   'microsoft/mai-image-2.6',
   'microsoft/mai-image-2.6-flash',
+  'minimax/minimax-h3-image',
+  'minimax/minimax-h3-image-highspeed',
   'openai/gpt-image-1-mini',
   'openai/gpt-image-1.5',
   'openai/gpt-image-2',
@@ -682,6 +701,16 @@ export type VercelGatewayChatModelProviderOptionsByName = {
     Pick<
       VercelGatewayBaseOptions,
       'max_tokens' | 'max_output_tokens' | 'temperature' | 'stop'
+    >
+  'alibaba/qwen3.6-35b-a3b': VercelGatewayCommonOptions &
+    Pick<
+      VercelGatewayBaseOptions,
+      | 'max_tokens'
+      | 'max_output_tokens'
+      | 'temperature'
+      | 'stop'
+      | 'response_format'
+      | 'structured_outputs'
     >
   'alibaba/qwen3.6-plus': VercelGatewayCommonOptions &
     Pick<
@@ -857,6 +886,33 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'max_tokens'
       | 'max_output_tokens'
       | 'temperature'
+      | 'stop'
+      | 'response_format'
+      | 'structured_outputs'
+    >
+  'anthropic/claude-fable-5.2': VercelGatewayCommonOptions &
+    Pick<
+      VercelGatewayBaseOptions,
+      | 'max_tokens'
+      | 'max_output_tokens'
+      | 'stop'
+      | 'response_format'
+      | 'structured_outputs'
+    >
+  'anthropic/claude-fable-5.2-batch': VercelGatewayCommonOptions &
+    Pick<
+      VercelGatewayBaseOptions,
+      | 'max_tokens'
+      | 'max_output_tokens'
+      | 'stop'
+      | 'response_format'
+      | 'structured_outputs'
+    >
+  'anthropic/claude-fable-5.2-fast': VercelGatewayCommonOptions &
+    Pick<
+      VercelGatewayBaseOptions,
+      | 'max_tokens'
+      | 'max_output_tokens'
       | 'stop'
       | 'response_format'
       | 'structured_outputs'
@@ -1122,16 +1178,6 @@ export type VercelGatewayChatModelProviderOptionsByName = {
   'baseten/elephant-1': VercelGatewayCommonOptions
   'baseten/joey-1': VercelGatewayCommonOptions
   'baseten/mammoth-1': VercelGatewayCommonOptions
-  'bytedance/seed-1.6': VercelGatewayCommonOptions &
-    Pick<
-      VercelGatewayBaseOptions,
-      'max_tokens' | 'max_output_tokens' | 'temperature' | 'stop'
-    >
-  'bytedance/seed-1.8': VercelGatewayCommonOptions &
-    Pick<
-      VercelGatewayBaseOptions,
-      'max_tokens' | 'max_output_tokens' | 'temperature' | 'stop'
-    >
   'bytedance/seed-2.1-turbo': VercelGatewayCommonOptions &
     Pick<
       VercelGatewayBaseOptions,
@@ -1249,6 +1295,16 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'structured_outputs'
     >
   'deepseek/deepseek-v4.1-flash-1017-fast': VercelGatewayCommonOptions &
+    Pick<
+      VercelGatewayBaseOptions,
+      | 'max_tokens'
+      | 'max_output_tokens'
+      | 'temperature'
+      | 'stop'
+      | 'response_format'
+      | 'structured_outputs'
+    >
+  'deepseek/deepseek-v4.1-flash-1017-ultrafast': VercelGatewayCommonOptions &
     Pick<
       VercelGatewayBaseOptions,
       | 'max_tokens'
@@ -1549,6 +1605,27 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'response_format'
       | 'structured_outputs'
     >
+  'google/gemini-4-carbon': VercelGatewayCommonOptions &
+    Pick<
+      VercelGatewayBaseOptions,
+      | 'max_tokens'
+      | 'max_output_tokens'
+      | 'temperature'
+      | 'stop'
+      | 'response_format'
+      | 'structured_outputs'
+    >
+  'google/gemini-4-hydrogen': VercelGatewayCommonOptions &
+    Pick<
+      VercelGatewayBaseOptions,
+      | 'max_tokens'
+      | 'max_output_tokens'
+      | 'temperature'
+      | 'stop'
+      | 'response_format'
+      | 'structured_outputs'
+    >
+  'google/gemini-decision-1': VercelGatewayCommonOptions
   'google/gemini-nano-banana-2.1': VercelGatewayCommonOptions &
     Pick<
       VercelGatewayBaseOptions,
@@ -1593,6 +1670,11 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'stop'
       | 'response_format'
       | 'structured_outputs'
+    >
+  'humansand/ampersand-v0.1': VercelGatewayCommonOptions &
+    Pick<
+      VercelGatewayBaseOptions,
+      'max_tokens' | 'max_output_tokens' | 'temperature' | 'stop'
     >
   'inception/mercury-2': VercelGatewayCommonOptions &
     Pick<
@@ -1642,12 +1724,7 @@ export type VercelGatewayChatModelProviderOptionsByName = {
   'inclusionai/ling-3.0-flash-fin': VercelGatewayCommonOptions &
     Pick<
       VercelGatewayBaseOptions,
-      | 'max_tokens'
-      | 'max_output_tokens'
-      | 'temperature'
-      | 'stop'
-      | 'response_format'
-      | 'structured_outputs'
+      'max_tokens' | 'max_output_tokens' | 'temperature' | 'stop'
     >
   'inclusionai/ling-3.0-flash-sante': VercelGatewayCommonOptions &
     Pick<
@@ -1747,6 +1824,16 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       'max_tokens' | 'max_output_tokens' | 'temperature' | 'stop'
     >
   'meta/llama-4-scout': VercelGatewayCommonOptions &
+    Pick<
+      VercelGatewayBaseOptions,
+      | 'max_tokens'
+      | 'max_output_tokens'
+      | 'temperature'
+      | 'stop'
+      | 'response_format'
+      | 'structured_outputs'
+    >
+  'meta/muse-ember': VercelGatewayCommonOptions &
     Pick<
       VercelGatewayBaseOptions,
       | 'max_tokens'
@@ -2132,11 +2219,9 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'response_format'
       | 'structured_outputs'
     >
-  'nvidia/nemotron-3-nano-30b-a3b': VercelGatewayCommonOptions &
-    Pick<
-      VercelGatewayBaseOptions,
-      'max_tokens' | 'max_output_tokens' | 'temperature' | 'stop'
-    >
+  'nace-ai/drex-max-finance': VercelGatewayCommonOptions
+  'nace-ai/drex-max-v1.1': VercelGatewayCommonOptions
+  'nace-ai/drex-v2.0': VercelGatewayCommonOptions
   'nvidia/nemotron-3-super-120b-a12b': VercelGatewayCommonOptions &
     Pick<
       VercelGatewayBaseOptions,
@@ -3030,14 +3115,7 @@ export type VercelGatewayChatModelProviderOptionsByName = {
   'openai/tts-1': VercelGatewayCommonOptions
   'openai/tts-1-hd': VercelGatewayCommonOptions
   'openai/whisper-1': VercelGatewayCommonOptions
-  'particle/particle-1': VercelGatewayCommonOptions &
-    Pick<
-      VercelGatewayBaseOptions,
-      'max_tokens' | 'max_output_tokens' | 'temperature' | 'stop'
-    >
-  'perplexity/pplx-decider-flash-v1.2': VercelGatewayCommonOptions
-  'perplexity/pplx-decider-v1.2': VercelGatewayCommonOptions
-  'perplexity/sonar': VercelGatewayCommonOptions &
+  'paperinstruments/ultramarine-1-flash': VercelGatewayCommonOptions &
     Pick<
       VercelGatewayBaseOptions,
       | 'max_tokens'
@@ -3047,10 +3125,25 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'response_format'
       | 'structured_outputs'
     >
-  'poolside/laguna-s-2.1': VercelGatewayCommonOptions &
+  'parallel/parallel-decisions-fast': VercelGatewayCommonOptions
+  'particle/particle-1': VercelGatewayCommonOptions &
     Pick<
       VercelGatewayBaseOptions,
       'max_tokens' | 'max_output_tokens' | 'temperature' | 'stop'
+    >
+  'perplexity/pplx-decider-flash-v1.2': VercelGatewayCommonOptions
+  'perplexity/pplx-decider-flash-v1.3': VercelGatewayCommonOptions
+  'perplexity/pplx-decider-v1.2': VercelGatewayCommonOptions
+  'perplexity/pplx-decider-v1.3': VercelGatewayCommonOptions
+  'perplexity/sonar': VercelGatewayCommonOptions &
+    Pick<
+      VercelGatewayBaseOptions,
+      | 'max_tokens'
+      | 'max_output_tokens'
+      | 'temperature'
+      | 'stop'
+      | 'response_format'
+      | 'structured_outputs'
     >
   'quiverai/arrow-2': VercelGatewayCommonOptions &
     Pick<
@@ -3380,6 +3473,16 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'response_format'
       | 'structured_outputs'
     >
+  'thinkingmachines/inkling-2-small': VercelGatewayCommonOptions &
+    Pick<
+      VercelGatewayBaseOptions,
+      | 'max_tokens'
+      | 'max_output_tokens'
+      | 'temperature'
+      | 'stop'
+      | 'response_format'
+      | 'structured_outputs'
+    >
   'thinkingmachines/inkling-small': VercelGatewayCommonOptions &
     Pick<
       VercelGatewayBaseOptions,
@@ -3610,6 +3713,7 @@ export type VercelGatewayModelInputModalitiesByName = {
   'alibaba/qwen3.5-flash': readonly ['text', 'image', 'document']
   'alibaba/qwen3.5-plus': readonly ['text', 'image', 'document']
   'alibaba/qwen3.6-27b': readonly ['text', 'image', 'document']
+  'alibaba/qwen3.6-35b-a3b': readonly ['text', 'image', 'video']
   'alibaba/qwen3.6-plus': readonly ['text', 'image', 'document']
   'alibaba/qwen3.7-flash': readonly ['text', 'image', 'document']
   'alibaba/qwen3.7-max': readonly ['text']
@@ -3629,6 +3733,9 @@ export type VercelGatewayModelInputModalitiesByName = {
   'anthropic/claude-fable-5-batch': readonly ['text', 'image', 'document']
   'anthropic/claude-fable-5.1': readonly ['text', 'image', 'document']
   'anthropic/claude-fable-5.1-batch': readonly ['text', 'image', 'document']
+  'anthropic/claude-fable-5.2': readonly ['text', 'image', 'document']
+  'anthropic/claude-fable-5.2-batch': readonly ['text', 'image', 'document']
+  'anthropic/claude-fable-5.2-fast': readonly ['text', 'image', 'document']
   'anthropic/claude-haiku-4.5': readonly ['text', 'image', 'document']
   'anthropic/claude-haiku-4.5-batch': readonly ['text', 'image', 'document']
   'anthropic/claude-haiku-5.5': readonly ['text', 'image', 'document']
@@ -3659,8 +3766,6 @@ export type VercelGatewayModelInputModalitiesByName = {
   'baseten/elephant-1': readonly ['text']
   'baseten/joey-1': readonly ['text']
   'baseten/mammoth-1': readonly ['text']
-  'bytedance/seed-1.6': readonly ['text', 'image']
-  'bytedance/seed-1.8': readonly ['text', 'image']
   'bytedance/seed-2.1-turbo': readonly ['text', 'image', 'video']
   'callstack/apex': readonly ['text', 'image']
   'cohere/command-a': readonly ['text']
@@ -3675,8 +3780,9 @@ export type VercelGatewayModelInputModalitiesByName = {
   'deepseek/deepseek-v4-pro': readonly ['text']
   'deepseek/deepseek-v4-pro-0813': readonly ['text']
   'deepseek/deepseek-v4.1-flash': readonly ['text', 'image', 'document']
-  'deepseek/deepseek-v4.1-flash-1017': readonly ['text', 'image']
+  'deepseek/deepseek-v4.1-flash-1017': readonly ['text', 'image', 'document']
   'deepseek/deepseek-v4.1-flash-1017-fast': readonly ['text', 'image']
+  'deepseek/deepseek-v4.1-flash-1017-ultrafast': readonly ['text', 'image']
   'deepseek/deepseek-v4.1-flash-fast': readonly ['text', 'image']
   'elevenlabs/eleven-flash-v2': readonly ['text']
   'elevenlabs/eleven-flash-v2.5': readonly ['text']
@@ -3744,6 +3850,9 @@ export type VercelGatewayModelInputModalitiesByName = {
   'google/gemini-3.8-live': readonly ['text', 'audio']
   'google/gemini-3.8-live-extended-thinking': readonly ['text', 'audio']
   'google/gemini-4-argon': readonly ['text', 'image', 'document', 'video']
+  'google/gemini-4-carbon': readonly ['text', 'image', 'document', 'video']
+  'google/gemini-4-hydrogen': readonly ['text', 'image', 'document', 'video']
+  'google/gemini-decision-1': readonly ['text', 'image', 'document']
   'google/gemini-nano-banana-2.1': readonly ['text', 'image']
   'google/gemini-omni-1.2-flash': readonly [
     'text',
@@ -3759,6 +3868,7 @@ export type VercelGatewayModelInputModalitiesByName = {
   ]
   'google/gemma-4-26b-a4b-it': readonly ['text', 'image', 'document']
   'google/gemma-4-31b-it': readonly ['text', 'image', 'document']
+  'humansand/ampersand-v0.1': readonly ['text']
   'inception/mercury-2': readonly ['text']
   'inception/mercury-2.5': readonly ['text']
   'inception/mercury-3': readonly ['text']
@@ -3781,6 +3891,7 @@ export type VercelGatewayModelInputModalitiesByName = {
   'meta/llama-3.3-70b': readonly ['text']
   'meta/llama-4-maverick': readonly ['text', 'image']
   'meta/llama-4-scout': readonly ['text', 'image']
+  'meta/muse-ember': readonly ['text', 'image', 'document']
   'meta/muse-glimmer-30b': readonly ['text', 'image']
   'meta/muse-spark-1.1': readonly ['text', 'image', 'document']
   'meta/muse-spark-1.2': readonly ['text', 'image', 'document']
@@ -3834,7 +3945,9 @@ export type VercelGatewayModelInputModalitiesByName = {
   'moonshotai/kimi-k3.1-pro-highspeed': readonly ['text', 'image']
   'morph/morph-v3-fast': readonly ['text']
   'morph/morph-v3-large': readonly ['text']
-  'nvidia/nemotron-3-nano-30b-a3b': readonly ['text']
+  'nace-ai/drex-max-finance': readonly ['text', 'image']
+  'nace-ai/drex-max-v1.1': readonly ['text', 'image']
+  'nace-ai/drex-v2.0': readonly ['text']
   'nvidia/nemotron-3-super-120b-a12b': readonly ['text']
   'nvidia/nemotron-3-ultra-550b-a55b': readonly ['text']
   'nvidia/nemotron-3.5-lightning': readonly ['text']
@@ -3939,11 +4052,14 @@ export type VercelGatewayModelInputModalitiesByName = {
   'openai/tts-1': readonly ['text']
   'openai/tts-1-hd': readonly ['text']
   'openai/whisper-1': readonly ['text', 'audio']
+  'paperinstruments/ultramarine-1-flash': readonly ['text', 'image']
+  'parallel/parallel-decisions-fast': readonly ['text']
   'particle/particle-1': readonly ['text', 'image']
   'perplexity/pplx-decider-flash-v1.2': readonly ['text', 'image']
+  'perplexity/pplx-decider-flash-v1.3': readonly ['text', 'image']
   'perplexity/pplx-decider-v1.2': readonly ['text', 'image']
+  'perplexity/pplx-decider-v1.3': readonly ['text', 'image']
   'perplexity/sonar': readonly ['text', 'image']
-  'poolside/laguna-s-2.1': readonly ['text']
   'quiverai/arrow-2': readonly ['text', 'image']
   'quiverai/arrow-2-telos': readonly ['text', 'image']
   'reflection/beam': readonly ['text']
@@ -3983,7 +4099,7 @@ export type VercelGatewayModelInputModalitiesByName = {
   'spacexai/grok-voice-3.0': readonly ['text', 'audio']
   'stealth/glyph-cluster': readonly ['text']
   'stepfun/step-3.7-flash': readonly ['text', 'image']
-  'stepfun/step-5-preview': readonly ['text', 'image', 'video']
+  'stepfun/step-5-preview': readonly ['text', 'image']
   'tencent/hy-mt2-lite': readonly ['text']
   'tencent/hy-mt2-plus': readonly ['text']
   'tencent/hy-mt2-pro': readonly ['text']
@@ -3991,6 +4107,7 @@ export type VercelGatewayModelInputModalitiesByName = {
   'tencent/hy4': readonly ['text', 'image']
   'tencent/hy4-preview': readonly ['text']
   'thinkingmachines/inkling': readonly ['text', 'image', 'document']
+  'thinkingmachines/inkling-2-small': readonly ['text', 'image']
   'thinkingmachines/inkling-small': readonly ['text', 'image', 'document']
   'typesafe-ai/jev': readonly ['text']
   'typesafe-ai/jev-1.13.0': readonly ['text', 'image']
@@ -4309,8 +4426,6 @@ const VERCEL_GATEWAY_REASONING = {
   'anthropic/claude-sonnet-4.6': BUDGET_NONE_LOW_TO_HIGH_MAX,
   'anthropic/claude-sonnet-5': BUDGET_NONE_LOW_TO_MAX,
   'anthropic/claude-sonnet-5.5': EFFORT_LOW_TO_MAX,
-  'bytedance/seed-1.6': EFFORT_OFF_HIGH,
-  'bytedance/seed-1.8': EFFORT_NONE_MINIMAL_TO_HIGH,
   'bytedance/seed-2.1-turbo': EFFORT_NONE_LOW_TO_HIGH,
   'deepseek/deepseek-r1': EFFORT_MINIMAL_TO_HIGH,
   'deepseek/deepseek-v3.1': EFFORT_NONE_LOW_TO_HIGH,
@@ -4367,7 +4482,6 @@ const VERCEL_GATEWAY_REASONING = {
   'moonshotai/kimi-k2.7-code-highspeed': EFFORT_NONE_LOW_TO_HIGH,
   'moonshotai/kimi-k3': EFFORT_NONE_LOW_HIGH_MAX,
   'moonshotai/kimi-k3-fast': EFFORT_NONE_LOW_TO_HIGH_MAX,
-  'nvidia/nemotron-3-nano-30b-a3b': EFFORT_OFF_HIGH,
   'nvidia/nemotron-3-super-120b-a12b': EFFORT_NONE_LOW_HIGH,
   'nvidia/nemotron-3-ultra-550b-a55b': EFFORT_NONE_MEDIUM_HIGH,
   'nvidia/nemotron-3.5-lightning': BUDGET_OFF_HIGH,
@@ -4425,7 +4539,6 @@ const VERCEL_GATEWAY_REASONING = {
   'openai/o3-mini': EFFORT_LOW_TO_HIGH,
   'openai/o3-pro': EFFORT_LOW_TO_HIGH,
   'openai/o4-mini': EFFORT_LOW_TO_HIGH,
-  'poolside/laguna-s-2.1': EFFORT_OFF_HIGH,
   'quiverai/arrow-2': EFFORT_LOW_TO_XHIGH,
   'quiverai/arrow-2-telos': EFFORT_LOW_TO_XHIGH,
   'sakana/fugu-max': EFFORT_HIGH_XHIGH,

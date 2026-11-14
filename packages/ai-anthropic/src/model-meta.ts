@@ -758,7 +758,49 @@ const CLAUDE_HAIKU_5_5 = {
     AnthropicMaxTokensOptions
 >
 
+const CLAUDE_FABLE_5_2 = {
+  name: 'claude-fable-5-2',
+  id: 'claude-fable-5-2',
+  context_window: 1_000_000,
+  max_output_tokens: 128_000,
+  supports: {
+    input: ['text', 'image', 'document'],
+    extended_thinking: false,
+    adaptive_thinking: true,
+    priority_tier: true,
+    tools: [
+      'web_search',
+      'web_fetch',
+      'code_execution',
+      'computer',
+      'computer_toolset',
+      'bash',
+      'text_editor',
+      'memory',
+    ],
+  },
+  pricing: {
+    input: {
+      normal: 8,
+      cached: 0.2,
+    },
+    output: {
+      normal: 40,
+    },
+  },
+} as const satisfies ModelMeta<
+  AnthropicCacheControlOptions &
+    AnthropicContainerOptions &
+    AnthropicContextManagementOptions &
+    AnthropicMCPOptions &
+    AnthropicServiceTierOptions &
+    AnthropicStopSequencesOptions &
+    AnthropicToolChoiceOptions &
+    AnthropicMaxTokensOptions
+>
+
 export const ANTHROPIC_MODELS = [
+  CLAUDE_FABLE_5_2.id,
   CLAUDE_HAIKU_5_5.id,
   CLAUDE_SONNET_5_5.id,
   CLAUDE_OPUS_5_5.id,
@@ -837,6 +879,7 @@ const ANTHROPIC_MODEL_MAX_OUTPUT_TOKENS: Record<string, number> = {
   [CLAUDE_OPUS_5_5.id]: CLAUDE_OPUS_5_5.max_output_tokens,
   [CLAUDE_SONNET_5_5.id]: CLAUDE_SONNET_5_5.max_output_tokens,
   [CLAUDE_HAIKU_5_5.id]: CLAUDE_HAIKU_5_5.max_output_tokens,
+  [CLAUDE_FABLE_5_2.id]: CLAUDE_FABLE_5_2.max_output_tokens,
 }
 
 /**
@@ -885,6 +928,7 @@ export function getAnthropicDefaultMaxTokens(
  * in `structuredOutput`.
  */
 export const ANTHROPIC_COMBINED_TOOLS_AND_SCHEMA_MODELS = new Set<string>([
+  CLAUDE_FABLE_5_2.id,
   CLAUDE_HAIKU_5_5.id,
   CLAUDE_SONNET_5_5.id,
   CLAUDE_OPUS_4_5.id,
@@ -1059,6 +1103,14 @@ export type AnthropicChatModelProviderOptionsByName = {
     AnthropicStopSequencesOptions &
     AnthropicToolChoiceOptions &
     AnthropicMaxTokensOptions
+  [CLAUDE_FABLE_5_2.id]: AnthropicCacheControlOptions &
+    AnthropicContainerOptions &
+    AnthropicContextManagementOptions &
+    AnthropicMCPOptions &
+    AnthropicServiceTierOptions &
+    AnthropicStopSequencesOptions &
+    AnthropicToolChoiceOptions &
+    AnthropicMaxTokensOptions
 }
 
 export type AnthropicChatModelToolCapabilitiesByName = {
@@ -1076,6 +1128,7 @@ export type AnthropicChatModelToolCapabilitiesByName = {
   [CLAUDE_OPUS_5_5.id]: typeof CLAUDE_OPUS_5_5.supports.tools
   [CLAUDE_SONNET_5_5.id]: typeof CLAUDE_SONNET_5_5.supports.tools
   [CLAUDE_HAIKU_5_5.id]: typeof CLAUDE_HAIKU_5_5.supports.tools
+  [CLAUDE_FABLE_5_2.id]: typeof CLAUDE_FABLE_5_2.supports.tools
 }
 
 /**
@@ -1128,6 +1181,7 @@ export type AnthropicModelInputModalitiesByName = {
   [CLAUDE_OPUS_5_5.id]: typeof CLAUDE_OPUS_5_5.supports.input
   [CLAUDE_SONNET_5_5.id]: typeof CLAUDE_SONNET_5_5.supports.input
   [CLAUDE_HAIKU_5_5.id]: typeof CLAUDE_HAIKU_5_5.supports.input
+  [CLAUDE_FABLE_5_2.id]: typeof CLAUDE_FABLE_5_2.supports.input
 }
 
 /**
@@ -1152,6 +1206,7 @@ export const ANTHROPIC_MODEL_INPUT_MODALITIES: Readonly<
   [CLAUDE_OPUS_5_5.id]: CLAUDE_OPUS_5_5.supports.input,
   [CLAUDE_SONNET_5_5.id]: CLAUDE_SONNET_5_5.supports.input,
   [CLAUDE_HAIKU_5_5.id]: CLAUDE_HAIKU_5_5.supports.input,
+  [CLAUDE_FABLE_5_2.id]: CLAUDE_FABLE_5_2.supports.input,
 } satisfies AnthropicModelInputModalitiesByName
 
 /**
