@@ -7,7 +7,8 @@ import {
 } from '../utils/client'
 import { createElevenLabsClient } from '../client/index'
 import type { ElevenLabs } from '@elevenlabs/elevenlabs-js'
-import type { ElevenLabsClient } from '../client/index'
+import type { ElevenLabsClient, ElevenLabsQuery } from '../client/index'
+import type { VoiceSettingsResponseModel } from '../generated/client/types'
 import type {
   CatalogVoice,
   ListVoicesOptions,
@@ -148,14 +149,18 @@ export class ElevenLabsSpeechAdapter<
         arrayBufferToBase64(wrapAsWav ? wrapPcmAsWav(buffer) : buffer)
       const encodeAudioBase64 = (audioBase64: string) =>
         wrapAsWav ? encodeAudio(base64ToArrayBuffer(audioBase64)) : audioBase64
-      const base = {
-        modelId: this.model,
+      const query: ElevenLabsQuery = {
         ...(effectiveOutputFormat
-          ? { outputFormat: effectiveOutputFormat }
+          ? { output_format: effectiveOutputFormat }
           : {}),
-        ...(languageCode ? { languageCode } : {}),
+      }
+      const base = {
+        model_id: this.model,
+        ...(languageCode ? { language_code: languageCode } : {}),
         ...(seed != null ? { seed } : {}),
-        ...(applyTextNormalization ? { applyTextNormalization } : {}),
+        ...(applyTextNormalization
+          ? { apply_text_normalization: applyTextNormalization }
+          : {}),
       }
 
       // Four endpoints, picked by (turns?, timestamps?). The dialogue pair
@@ -164,7 +169,7 @@ export class ElevenLabsSpeechAdapter<
       if (options.turns) {
         const inputs = options.turns.map((turn) => ({
           text: turn.text,
-          voiceId: turn.voice,
+          voice_id: turn.voice,
         }))
         const dialogue = {
           ...base,
@@ -178,6 +183,7 @@ export class ElevenLabsSpeechAdapter<
           const response =
             await this.client.textToDialogue.convertWithTimestamps(
               dialogue,
+              query,
               requestOptions,
             )
           return {
@@ -192,6 +198,7 @@ export class ElevenLabsSpeechAdapter<
 
         const stream = await this.client.textToDialogue.convert(
           dialogue,
+          query,
           requestOptions,
         )
         return {
@@ -213,24 +220,32 @@ export class ElevenLabsSpeechAdapter<
         ...base,
         text: options.text,
         ...(voiceSettings
-          ? { voiceSettings: mapVoiceSettings(voiceSettings, options.speed) }
+          ? { voice_settings: mapVoiceSettings(voiceSettings, options.speed) }
           : options.speed != null
-            ? { voiceSettings: { speed: options.speed } }
+            ? { voice_settings: { speed: options.speed } }
             : {}),
-        ...(previousText ? { previousText } : {}),
-        ...(nextText ? { nextText } : {}),
-        ...(previousRequestIds ? { previousRequestIds } : {}),
-        ...(nextRequestIds ? { nextRequestIds } : {}),
-        ...(applyLanguageTextNormalization != null
-          ? { applyLanguageTextNormalization }
+        ...(previousText ? { previous_text: previousText } : {}),
+        ...(nextText ? { next_text: nextText } : {}),
+        ...(previousRequestIds
+          ? { previous_request_ids: previousRequestIds }
           : {}),
-        ...(enableLogging != null ? { enableLogging } : {}),
+        ...(nextRequestIds ? { next_request_ids: nextRequestIds } : {}),
+        ...(applyLanguageTextNormalization != null
+          ? {
+              apply_language_text_normalization: applyLanguageTextNormalization,
+            }
+          : {}),
+      }
+      const singleQuery: ElevenLabsQuery = {
+        ...query,
+        ...(enableLogging != null ? { enable_logging: enableLogging } : {}),
       }
 
       if (options.timestamps) {
         const response = await this.client.textToSpeech.convertWithTimestamps(
           voiceId,
           single,
+          singleQuery,
           requestOptions,
         )
         return {
@@ -245,10 +260,11 @@ export class ElevenLabsSpeechAdapter<
 
       const stream = await this.client.textToSpeech.convert(
         voiceId,
+        single,
         {
-          ...single,
+          ...singleQuery,
           ...(optimizeStreamingLatency != null
-            ? { optimizeStreamingLatency }
+            ? { optimize_streaming_latency: optimizeStreamingLatency }
             : {}),
         },
         requestOptions,
@@ -340,11 +356,11 @@ function toAlignmentFields(
 function mapVoiceSettings(
   settings: ElevenLabsVoiceSettings,
   speedOverride: number | undefined,
-): Record<string, unknown> {
+): VoiceSettingsResponseModel {
   return {
     ...(settings.stability != null ? { stability: settings.stability } : {}),
     ...(settings.similarityBoost != null
-      ? { similarityBoost: settings.similarityBoost }
+      ? { similarity_boost: settings.similarityBoost }
       : {}),
     ...(settings.style != null ? { style: settings.style } : {}),
     ...(speedOverride != null
@@ -353,7 +369,7 @@ function mapVoiceSettings(
         ? { speed: settings.speed }
         : {}),
     ...(settings.useSpeakerBoost != null
-      ? { useSpeakerBoost: settings.useSpeakerBoost }
+      ? { use_speaker_boost: settings.useSpeakerBoost }
       : {}),
   }
 }

@@ -3,6 +3,7 @@
 // first video call, so the text adapters do not bundle it.
 import { pick, rejectVertexOnly, tBytes } from './convert'
 import type { WireObject } from './convert'
+import type { GeminiPostV1BetaModelsModelsidPredictlongrunningBody } from '../generated/client/types'
 import type {
   GenerateVideosOperation,
   GenerateVideosParameters,
@@ -59,7 +60,7 @@ export function generateVideosToWire(params: GenerateVideosParameters) {
       'Source and prompt/image/video are mutually exclusive. Please only use source.',
     )
   }
-  const body: WireObject = {}
+  const body: GeminiPostV1BetaModelsModelsidPredictlongrunningBody = {}
   const instance: WireObject = {}
   const parameters: WireObject = {}
   const inputs = [
@@ -108,7 +109,10 @@ export function generateVideosToWire(params: GenerateVideosParameters) {
       instance.referenceImages =
         config.referenceImages.map(referenceImageToWire)
     }
-    if (config.webhookConfig != null) body.webhookConfig = config.webhookConfig
+    if (config.webhookConfig != null) {
+      // @ts-expect-error modelschemas gap: PredictLongRunningRequest has no webhookConfig, the SDK sends it to the Gemini API
+      body.webhookConfig = config.webhookConfig
+    }
   }
   if (Object.keys(instance).length > 0) body.instances = [instance]
   if (Object.keys(parameters).length > 0) body.parameters = parameters

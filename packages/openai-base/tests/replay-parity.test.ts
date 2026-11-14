@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
-import OpenAI from 'openai'
+import { createOpenAIClient } from '../src/client'
+import type { OpenAIClientLike } from '../src/client'
 import { chat, EventType } from '@tanstack/ai'
 import type {
   AdapterYieldChunk,
@@ -17,7 +18,7 @@ const logger = resolveDebugOption(false)
 const model = 'gpt-5.5'
 
 class Completions extends OpenAIBaseChatCompletionsTextAdapter<string> {
-  constructor(client: OpenAI, images = true) {
+  constructor(client: OpenAIClientLike, images = true) {
     super(model, 'openai', client)
     this.inputModalities = images ? ['text', 'image'] : ['text']
   }
@@ -25,7 +26,7 @@ class Completions extends OpenAIBaseChatCompletionsTextAdapter<string> {
 }
 
 class Responses extends OpenAIBaseResponsesTextAdapter<string> {
-  constructor(client: OpenAI) {
+  constructor(client: OpenAIClientLike) {
     super(model, 'openai', client)
   }
 }
@@ -53,7 +54,7 @@ function sdk(events: Array<unknown>, responses = false, firstOnly = false) {
       },
     )
   }
-  const client = new OpenAI({ apiKey: 'test-key', fetch: fetcher })
+  const client = createOpenAIClient({ apiKey: 'test-key', fetch: fetcher })
   const completionsCreate = vi.spyOn(client.chat.completions, 'create')
   const responsesCreate = vi.spyOn(client.responses, 'create')
   return { client, bodies, requests, completionsCreate, responsesCreate }
@@ -587,7 +588,7 @@ describe('OpenAI replay parity', () => {
       const fetcher: typeof fetch = async () => {
         throw new Error('failed')
       }
-      const client = new OpenAI({
+      const client = createOpenAIClient({
         apiKey: 'test-key',
         fetch: fetcher,
         maxRetries: 0,

@@ -9,8 +9,10 @@ import type {
   EmbeddingResult,
   TokenUsage,
 } from '@tanstack/ai'
-import type OpenAI_SDK from 'openai'
-import type { OpenAIClientLike } from '@tanstack/openai-base'
+import type {
+  OpenAIClientLike,
+  OpenaiPostEmbeddingsBody,
+} from '@tanstack/openai-base'
 import type { NeonEmbeddingModel } from '../model-meta'
 import type { NeonClientConfig } from '../utils/client'
 
@@ -52,7 +54,7 @@ export class NeonEmbeddingAdapter<
     const texts = requireTextOnlyEmbeddingInput(options.input, this.name, model)
 
     try {
-      const request: OpenAI_SDK.EmbeddingCreateParams = {
+      const request: OpenaiPostEmbeddingsBody = {
         ...options.modelOptions,
         model,
         input: texts,

@@ -65,9 +65,11 @@ Your adapter talks to a thinking model. You want `chat({ reasoning: 'high' })` t
 On an adapter that extends `@tanstack/openai-base`, that is all. The base sends `reasoning_effort` on Chat Completions, or `reasoning: { effort, summary }` on Responses:
 
 ```typescript
-import OpenAI from 'openai'
 import { chat } from '@tanstack/ai'
-import { OpenAIBaseChatCompletionsTextAdapter } from '@tanstack/openai-base'
+import {
+  OpenAIBaseChatCompletionsTextAdapter,
+  createOpenAIClient,
+} from '@tanstack/openai-base'
 import type {
   DefaultMessageMetadataByModality,
   Modality,
@@ -117,7 +119,7 @@ class MyTextAdapter<TModel extends MyModel> extends OpenAIBaseChatCompletionsTex
 const adapter = new MyTextAdapter(
   'my-model',
   'my-provider',
-  new OpenAI({ apiKey: 'my-key', baseURL: 'https://api.example.com/v1' }),
+  createOpenAIClient({ apiKey: 'my-key', baseURL: 'https://api.example.com/v1' }),
 )
 
 chat({ adapter, messages: [{ role: 'user', content: 'Hi' }], reasoning: 'high', threadId: 'thread-1' })

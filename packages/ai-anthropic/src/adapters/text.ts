@@ -115,7 +115,8 @@ import type {
   AnthropicMessagesClient,
 } from '../utils/client'
 import type { ComputerUseSingleToolConfig } from '../tools/computer-use-tool'
-import type { AnthropicClient } from '../client/index'
+import type { AnthropicClient, MessageCreateParams } from '../client/index'
+import type { AnthropicPostV1MessagesBetaTrueBody } from '../generated/client/types'
 
 /**
  * The block type carried by an Anthropic provider-executed (server) tool's
@@ -220,6 +221,34 @@ function toAnthropicToolChoice(
   if (choice === 'auto' || !canForceTool) return { type: 'auto' as const }
   if (choice === 'required') return { type: 'any' as const }
   return { type: 'tool' as const, name: choice.name }
+}
+
+/**
+ * The request as the generated Messages body. Each marked field is where the
+ * SDK-typed request and the generated document differ.
+ */
+function messagesBody({
+  messages,
+  tools,
+  temperature,
+  top_k,
+  top_p,
+  ...rest
+}: InternalTextProviderOptions): AnthropicPostV1MessagesBetaTrueBody {
+  const sampling: Partial<AnthropicPostV1MessagesBetaTrueBody> = {
+    // @ts-expect-error modelschemas gap: the Messages body has no temperature, top_k or top_p
+    temperature,
+    top_k,
+    top_p,
+  }
+  return {
+    ...rest,
+    ...sampling,
+    // @ts-expect-error public type mismatch: BetaMessageParam vs BetaInputMessageUnion, messages
+    messages,
+    // @ts-expect-error public type mismatch: BetaTool vs BetaToolUnion, tools
+    tools,
+  }
 }
 
 /** Models already warned that `chat({ reasoning })` does nothing for them. */
@@ -330,7 +359,7 @@ export function computeAnthropicBetas(
   modelOptions:
     | {
         thinking?: {
-          type?: 'enabled' | 'disabled' | 'adaptive'
+          type?: string
           budget_tokens?: number
         }
         context_management?: unknown | null
@@ -503,22 +532,39 @@ type ResolveToolCapabilities<TModel extends string> =
     ? NonNullable<AnthropicChatModelToolCapabilitiesByName[TModel]>
     : readonly []
 
-type SdkAnthropicMessagesClient = {
+type CreateOptions = Parameters<
+  AnthropicClient['beta']['messages']['create']
+>[1]
+
+/** The client's `create`, typed against the generated request body. */
+type AnthropicMessagesCreateClient = {
   beta: {
-    messages: Pick<Anthropic_SDK['beta']['messages'], 'create'>
+    messages: {
+      create: {
+        (
+          params: MessageCreateParams & { stream: true },
+          options?: CreateOptions,
+        ): Promise<AsyncIterable<Anthropic_SDK.Beta.BetaRawMessageStreamEvent>>
+        (
+          params: MessageCreateParams & { stream?: false },
+          options?: CreateOptions,
+        ): Promise<Anthropic_SDK.Beta.BetaMessage>
+      }
+    }
   }
 }
 
 /**
- * Restore the package SDK's precise overloads at the adapter boundary.
- * Alternative clients may use a separate Anthropic 0.x SDK whose declarations
- * drift while implementing the same Messages protocol at runtime.
+ * Restore the stream and non-stream overloads at the adapter boundary. The
+ * public client type erases them, because alternative clients may use a
+ * separate Anthropic 0.x SDK whose declarations drift while implementing the
+ * same Messages protocol at runtime.
  */
 function asSdkAnthropicMessagesClient(
-  client: AnthropicMessagesClient,
-): SdkAnthropicMessagesClient {
-  // oxlint-disable-next-line eslint-js/no-restricted-syntax -- The public callable deliberately erases version-specific SDK overloads; restore this package's SDK type at the internal boundary.
-  return client as unknown as SdkAnthropicMessagesClient
+  client: AnthropicMessagesClient | AnthropicClient,
+): AnthropicMessagesCreateClient {
+  // oxlint-disable-next-line eslint-js/no-restricted-syntax -- The public callable deliberately erases the overloads; restore them at the internal boundary.
+  return client as unknown as AnthropicMessagesCreateClient
 }
 
 // ===========================
@@ -564,7 +610,7 @@ export class AnthropicTextAdapter<
     | MidConversationChannels
     | undefined = undefined
 
-  private readonly client: SdkAnthropicMessagesClient
+  private readonly client: AnthropicMessagesCreateClient
   private readonly allowEmptySignature: boolean
   /**
    * With `auth: 'oauth'`: add the Claude Code identity system block, the CLI
@@ -1157,7 +1203,9 @@ export class AnthropicTextAdapter<
     // Last step: the merged messages decide which message is last.
     return {
       ...toolChoiceField,
-      ...applyAnthropicPromptCache(requestParams, options.promptCache),
+      ...messagesBody(
+        applyAnthropicPromptCache(requestParams, options.promptCache),
+      ),
     }
   }
 

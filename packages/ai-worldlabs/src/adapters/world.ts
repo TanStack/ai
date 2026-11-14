@@ -1,8 +1,8 @@
 import { BaseWorldAdapter } from '@tanstack/ai/adapters'
 import {
-  generateWorldMarbleV1WorldsGeneratePost,
-  getOperationMarbleV1OperationsOperationIdGet,
-} from '../generated/sdk.gen'
+  worldlabsPostMarbleV1OperationsOperationId,
+  worldlabsPostMarbleV1WorldsGenerate,
+} from '../generated/client/sdk'
 import {
   createWorldLabsClient,
   getWorldLabsApiKeyFromEnv,
@@ -12,13 +12,13 @@ import type {
   WorldGenerationOptions,
   WorldGenerationResult,
 } from '@tanstack/ai'
-import type { Client } from '../generated/client'
+import type { ClientInstance } from '@tanstack/ai-utils/kubb'
 import type {
-  GenerateWorldResponse,
-  GetOperationResponseUnionWorldPanoDepthToRgbResultExportWorldResult,
   World,
-  WorldsGenerateRequest,
-} from '../generated/types.gen'
+  WorldlabsPostMarbleV1OperationsOperationIdResponse,
+  WorldlabsPostMarbleV1WorldsGenerateBody,
+  WorldlabsPostMarbleV1WorldsGenerateResponse,
+} from '../generated/client/types'
 import type {
   WorldLabsMediaRef,
   WorldLabsWorldModel,
@@ -28,9 +28,10 @@ import type { WorldLabsClientConfig } from '../utils/client'
 
 export type { WorldLabsClientConfig }
 
+type GenerateWorldResponse = WorldlabsPostMarbleV1WorldsGenerateResponse
 type WorldOperation =
   | GenerateWorldResponse
-  | GetOperationResponseUnionWorldPanoDepthToRgbResultExportWorldResult
+  | WorldlabsPostMarbleV1OperationsOperationIdResponse
 
 const DEFAULT_POLL_INTERVAL_MS = 2_000
 
@@ -54,11 +55,11 @@ export class WorldLabsWorldAdapter<
   TModel extends WorldLabsWorldModel,
 > extends BaseWorldAdapter<TModel, WorldLabsWorldProviderOptions> {
   readonly name = 'worldlabs' as const
-  private readonly client: Client
+  private readonly client: (prefix: string) => ClientInstance
 
   constructor(model: TModel, config: WorldLabsClientConfig = {}) {
     super(model, {})
-    this.client = createWorldLabsClient(config).client
+    this.client = createWorldLabsClient(config)
   }
 
   async createWorld(
@@ -133,7 +134,7 @@ export class WorldLabsWorldAdapter<
     modelOptions?: WorldLabsWorldProviderOptions
     abortSignal?: AbortSignal
   }): Promise<GenerateWorldResponse> {
-    const body: WorldsGenerateRequest = {
+    const body: WorldlabsPostMarbleV1WorldsGenerateBody = {
       model: this.model,
       world_prompt: buildWorldPrompt(args.prompt, args.modelOptions),
     }
@@ -150,21 +151,12 @@ export class WorldLabsWorldAdapter<
       body.permission = args.modelOptions.permission
     }
 
-    const result = await generateWorldMarbleV1WorldsGeneratePost({
-      client: this.client,
+    const { response } = await worldlabsPostMarbleV1WorldsGenerate({
+      client: this.client('World Labs generate request failed'),
       body,
-      ...(args.abortSignal ? { signal: args.abortSignal } : {}),
+      signal: args.abortSignal,
     })
-
-    if (result.error || !result.data) {
-      throw worldLabsRequestError(
-        'World Labs generate request failed',
-        result.response,
-        result.error,
-      )
-    }
-
-    return result.data
+    return readJson(response)
   }
 
   private async pollUntilDone(args: {
@@ -179,28 +171,27 @@ export class WorldLabsWorldAdapter<
 
     for (;;) {
       await sleep(interval, args.abortSignal)
-      const result = await getOperationMarbleV1OperationsOperationIdGet({
-        client: this.client,
+      const { response } = await worldlabsPostMarbleV1OperationsOperationId({
+        client: this.client('World Labs operation poll failed'),
+        // modelschemas gap: the document makes every Marble operation a POST,
+        // but the API polls an operation with a GET and no body.
+        method: 'GET',
         path: { operation_id: args.operationId },
-        ...(args.abortSignal ? { signal: args.abortSignal } : {}),
+        // @ts-expect-error modelschemas gap: the API polls with GET and no body, the document wants a POST body `{ operation_id }`
+        body: undefined,
+        signal: args.abortSignal,
       })
+      const data: WorldlabsPostMarbleV1OperationsOperationIdResponse =
+        await readJson(response)
 
-      if (result.error || !result.data) {
-        throw worldLabsRequestError(
-          'World Labs operation poll failed',
-          result.response,
-          result.error,
-        )
-      }
-
-      if (typeof result.data.done !== 'boolean') {
+      if (typeof data.done !== 'boolean') {
         throw new Error(
           `World Labs operation ${args.operationId} returned an invalid poll payload.`,
         )
       }
 
-      if (result.data.done) {
-        return result.data
+      if (data.done) {
+        return data
       }
     }
   }
@@ -232,7 +223,7 @@ export function createWorldLabsWorld<TModel extends WorldLabsWorldModel>(
 function buildWorldPrompt(
   prompt: string,
   options?: WorldLabsWorldProviderOptions,
-): WorldsGenerateRequest['world_prompt'] {
+): WorldlabsPostMarbleV1WorldsGenerateBody['world_prompt'] {
   if (
     [options?.image, options?.images, options?.video].filter(Boolean).length > 1
   ) {
@@ -474,37 +465,10 @@ function expiresAtMs(value: string | null | undefined): number | undefined {
   return Number.isFinite(parsed) ? parsed : undefined
 }
 
-function worldLabsRequestError(
-  prefix: string,
-  response: Response | undefined,
-  error: unknown,
-): Error {
-  const status = response
-    ? `${response.status}${response.statusText ? ` ${response.statusText}` : ''}`
-    : undefined
-  const detail = errorDetail(error)
-  return new Error(
-    `${prefix}${status ? ` (${status})` : ''}${detail ? `: ${detail}` : ''}`,
-  )
-}
-
-function errorDetail(error: unknown): string | undefined {
-  if (typeof error === 'string' && error.length > 0) return error
-  if (typeof error === 'object' && error !== null) {
-    const record = error as { detail?: unknown; message?: unknown }
-    if (typeof record.detail === 'string' && record.detail.length > 0) {
-      return record.detail
-    }
-    if (typeof record.message === 'string' && record.message.length > 0) {
-      return record.message
-    }
-    try {
-      return JSON.stringify(error)
-    } catch {
-      return undefined
-    }
-  }
-  return undefined
+// The JSON body, or `{}` for an empty body, like the hey-api client.
+async function readJson(response: Response) {
+  const text = await response.text()
+  return JSON.parse(text || '{}')
 }
 
 function sleep(ms: number, signal?: AbortSignal): Promise<void> {

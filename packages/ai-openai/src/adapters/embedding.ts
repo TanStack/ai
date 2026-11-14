@@ -1,5 +1,8 @@
 import { createOpenAIClient } from '@tanstack/openai-base'
-import type { OpenAIClientLike } from '@tanstack/openai-base'
+import type {
+  OpenAIClientLike,
+  OpenaiPostEmbeddingsBody,
+} from '@tanstack/openai-base'
 import { BaseEmbeddingAdapter } from '@tanstack/ai/adapters'
 import { toRunErrorPayload } from '@tanstack/ai/adapter-internals'
 import { generateId } from '@tanstack/ai-utils'
@@ -10,7 +13,6 @@ import type {
   EmbeddingResult,
   TokenUsage,
 } from '@tanstack/ai'
-import type OpenAI_SDK from 'openai'
 import type {
   OpenAIEmbeddingModel,
   OpenAIEmbeddingModelInputModalitiesByName,
@@ -95,7 +97,7 @@ export class OpenAIEmbeddingAdapter<
         start < texts.length;
         start += OPENAI_MAX_BATCH_SIZE
       ) {
-        const request: OpenAI_SDK.EmbeddingCreateParams = {
+        const request: OpenaiPostEmbeddingsBody = {
           ...baseRequest,
           ...dimensions,
           input: texts.slice(start, start + OPENAI_MAX_BATCH_SIZE),

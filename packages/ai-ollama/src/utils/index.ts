@@ -1,5 +1,7 @@
 export {
   createOllamaClient,
+  createOllamaFetchClient,
+  readChatStream,
   estimateTokens,
   generateId,
   getOllamaHostFromEnv,

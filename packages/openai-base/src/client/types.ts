@@ -3,40 +3,23 @@ import type { AzureClientOptions } from 'openai/azure'
 import type {
   ChatCompletion,
   ChatCompletionChunk,
-  ChatCompletionCreateParamsBase,
-  ChatCompletionCreateParamsNonStreaming,
-  ChatCompletionCreateParamsStreaming,
 } from 'openai/resources/chat/completions/completions'
 import type {
   CompactedResponse,
   Response as OpenAIResponse,
-  ResponseCompactParams,
-  ResponseCreateParamsBase,
-  ResponseCreateParamsNonStreaming,
-  ResponseCreateParamsStreaming,
   ResponseStreamEvent,
 } from 'openai/resources/responses/responses'
 import type {
   CreateEmbeddingResponse,
   Embedding,
-  EmbeddingCreateParams,
 } from 'openai/resources/embeddings'
 import type {
-  ImageEditParamsBase,
-  ImageEditParamsNonStreaming,
-  ImageEditParamsStreaming,
   ImageEditStreamEvent,
   ImageGenStreamEvent,
-  ImageGenerateParamsBase,
-  ImageGenerateParamsNonStreaming,
-  ImageGenerateParamsStreaming,
   ImagesResponse,
 } from 'openai/resources/images'
-import type { SpeechCreateParams } from 'openai/resources/audio/speech'
 import type {
   Transcription,
-  TranscriptionCreateParamsNonStreaming,
-  TranscriptionCreateParamsStreaming,
   TranscriptionCreateResponse,
   TranscriptionStreamEvent,
   TranscriptionVerbose,
@@ -46,12 +29,34 @@ import type {
   FileDeleted,
   FileObject,
 } from 'openai/resources/files'
-import type {
-  Video,
-  VideoCreateParams,
-  VideoDownloadContentParams,
-} from 'openai/resources/videos'
+import type { Video, VideoDownloadContentParams } from 'openai/resources/videos'
 import type { Decision, DecisionCreateParams } from 'openai/resources/decisions'
+import type {
+  AudioResponseFormatKey,
+  OpenaiPostAudioSpeechBody,
+  OpenaiPostAudioTranscriptionsBody,
+  OpenaiPostChatCompletionsBody,
+  OpenaiPostEmbeddingsBody,
+  OpenaiPostImagesEditsBody,
+  OpenaiPostImagesGenerationsBody,
+  OpenaiPostResponsesBody,
+  OpenaiPostResponsesCompactBody,
+  OpenaiPostVideosBody,
+} from '../generated/client/types'
+
+/**
+ * Request bodies are the generated modelschemas types, so every call the
+ * adapters build is checked against the OpenAI document. Results are still
+ * the SDK types.
+ */
+type ChatBody = OpenaiPostChatCompletionsBody
+type ResponsesBody = OpenaiPostResponsesBody
+type TranscriptionBody<Format = AudioResponseFormatKey | undefined> = Omit<
+  OpenaiPostAudioTranscriptionsBody,
+  'response_format'
+> & { response_format?: Format }
+type NonStreaming<Body> = Body & { stream?: false | null }
+type Streaming<Body> = Body & { stream: true }
 
 /** The SDK result of `embeddings.create` with `encoding_format: 'base64'`. */
 export type Base64EmbeddingResponse = Omit<CreateEmbeddingResponse, 'data'> & {
@@ -65,11 +70,10 @@ export type RequestOptions = NonNullable<
 
 /**
  * The part of the OpenAI SDK client that TanStack AI adapters call. The
- * method names, arguments, and results match the SDK. A stream is an
+ * method names and results match the SDK. The request bodies are the
+ * generated modelschemas types, so a real `new OpenAI()` (or `AzureOpenAI`)
+ * does not fit this type: use `createOpenAIClient()`. A stream is an
  * `AsyncIterable` of the SDK event type.
- *
- * Both `createOpenAIClient()` and a real `new OpenAI()` (or `AzureOpenAI`)
- * fit this type.
  *
  * The call signatures copy the SDK overloads, so a call with `stream: true`
  * gives a stream type and a call without it gives the response type.
@@ -81,15 +85,15 @@ export interface OpenAIClientLike {
     readonly completions: {
       readonly create: {
         (
-          body: ChatCompletionCreateParamsNonStreaming,
+          body: NonStreaming<ChatBody>,
           options?: RequestOptions,
         ): Promise<ChatCompletion>
         (
-          body: ChatCompletionCreateParamsStreaming,
+          body: Streaming<ChatBody>,
           options?: RequestOptions,
         ): Promise<AsyncIterable<ChatCompletionChunk>>
         (
-          body: ChatCompletionCreateParamsBase,
+          body: ChatBody,
           options?: RequestOptions,
         ): Promise<AsyncIterable<ChatCompletionChunk> | ChatCompletion>
       }
@@ -98,31 +102,31 @@ export interface OpenAIClientLike {
   readonly responses: {
     readonly create: {
       (
-        body: ResponseCreateParamsNonStreaming,
+        body: NonStreaming<ResponsesBody>,
         options?: RequestOptions,
       ): Promise<OpenAIResponse>
       (
-        body: ResponseCreateParamsStreaming,
+        body: Streaming<ResponsesBody>,
         options?: RequestOptions,
       ): Promise<AsyncIterable<ResponseStreamEvent>>
       (
-        body: ResponseCreateParamsBase,
+        body: ResponsesBody,
         options?: RequestOptions,
       ): Promise<AsyncIterable<ResponseStreamEvent> | OpenAIResponse>
     }
     readonly compact: (
-      body: ResponseCompactParams,
+      body: OpenaiPostResponsesCompactBody,
       options?: RequestOptions,
     ) => Promise<CompactedResponse>
   }
   readonly embeddings: {
     readonly create: {
       (
-        body: EmbeddingCreateParams & { encoding_format: 'base64' },
+        body: OpenaiPostEmbeddingsBody & { encoding_format: 'base64' },
         options?: RequestOptions,
       ): Promise<Base64EmbeddingResponse>
       (
-        body: EmbeddingCreateParams,
+        body: OpenaiPostEmbeddingsBody,
         options?: RequestOptions,
       ): Promise<CreateEmbeddingResponse>
     }
@@ -130,29 +134,29 @@ export interface OpenAIClientLike {
   readonly images: {
     readonly generate: {
       (
-        body: ImageGenerateParamsNonStreaming,
+        body: NonStreaming<OpenaiPostImagesGenerationsBody>,
         options?: RequestOptions,
       ): Promise<ImagesResponse>
       (
-        body: ImageGenerateParamsStreaming,
+        body: Streaming<OpenaiPostImagesGenerationsBody>,
         options?: RequestOptions,
       ): Promise<AsyncIterable<ImageGenStreamEvent>>
       (
-        body: ImageGenerateParamsBase,
+        body: OpenaiPostImagesGenerationsBody,
         options?: RequestOptions,
       ): Promise<AsyncIterable<ImageGenStreamEvent> | ImagesResponse>
     }
     readonly edit: {
       (
-        body: ImageEditParamsNonStreaming,
+        body: NonStreaming<OpenaiPostImagesEditsBody>,
         options?: RequestOptions,
       ): Promise<ImagesResponse>
       (
-        body: ImageEditParamsStreaming,
+        body: Streaming<OpenaiPostImagesEditsBody>,
         options?: RequestOptions,
       ): Promise<AsyncIterable<ImageEditStreamEvent>>
       (
-        body: ImageEditParamsBase,
+        body: OpenaiPostImagesEditsBody,
         options?: RequestOptions,
       ): Promise<AsyncIterable<ImageEditStreamEvent> | ImagesResponse>
     }
@@ -161,34 +165,34 @@ export interface OpenAIClientLike {
     readonly speech: {
       /** Resolves to the raw `Response`. Read it with `.arrayBuffer()`. */
       readonly create: (
-        body: SpeechCreateParams,
+        body: OpenaiPostAudioSpeechBody,
         options?: RequestOptions,
       ) => Promise<Response>
     }
     readonly transcriptions: {
       readonly create: {
         (
-          body: TranscriptionCreateParamsNonStreaming<'json' | undefined>,
+          body: NonStreaming<TranscriptionBody<'json' | undefined>>,
           options?: RequestOptions,
         ): Promise<Transcription>
         (
-          body: TranscriptionCreateParamsNonStreaming<'verbose_json'>,
+          body: NonStreaming<TranscriptionBody<'verbose_json'>>,
           options?: RequestOptions,
         ): Promise<TranscriptionVerbose>
         (
-          body: TranscriptionCreateParamsNonStreaming<'srt' | 'vtt' | 'text'>,
+          body: NonStreaming<TranscriptionBody<'srt' | 'vtt' | 'text'>>,
           options?: RequestOptions,
         ): Promise<string>
         (
-          body: TranscriptionCreateParamsNonStreaming,
+          body: NonStreaming<TranscriptionBody>,
           options?: RequestOptions,
         ): Promise<Transcription>
         (
-          body: TranscriptionCreateParamsStreaming,
+          body: Streaming<TranscriptionBody>,
           options?: RequestOptions,
         ): Promise<AsyncIterable<TranscriptionStreamEvent>>
         (
-          body: TranscriptionCreateParamsStreaming,
+          body: Streaming<TranscriptionBody>,
           options?: RequestOptions,
         ): Promise<
           | TranscriptionCreateResponse
@@ -214,7 +218,7 @@ export interface OpenAIClientLike {
   }
   readonly videos: {
     readonly create: (
-      body: VideoCreateParams,
+      body: OpenaiPostVideosBody,
       options?: RequestOptions,
     ) => Promise<Video>
     readonly retrieve: (

@@ -13,8 +13,10 @@ import type {
   EmbeddingResult,
   TokenUsage,
 } from '@tanstack/ai'
-import type OpenAI_SDK from 'openai'
-import type { OpenAIClientLike } from '@tanstack/openai-base'
+import type {
+  OpenAIClientLike,
+  OpenaiPostEmbeddingsBody,
+} from '@tanstack/openai-base'
 import type {
   VercelGatewayEmbeddingModel,
   VercelGatewayEmbeddingModelInputModalitiesByName,
@@ -57,7 +59,7 @@ export class VercelGatewayEmbeddingAdapter<
     )
 
     try {
-      const request: OpenAI_SDK.EmbeddingCreateParams = {
+      const request: OpenaiPostEmbeddingsBody = {
         ...mapped,
         model,
         input: texts,

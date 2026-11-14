@@ -9,7 +9,7 @@ import type {
   TokenUsage,
 } from '@tanstack/ai'
 import type { MistralClient } from '../client/index'
-import type { EmbeddingRequest } from '@mistralai/mistralai/models/components'
+import type { MistralPostV1EmbeddingsBody } from '../generated/client/types'
 import type {
   MistralEmbeddingModel,
   MistralEmbeddingModelInputModalitiesByName,
@@ -65,16 +65,14 @@ export class MistralEmbeddingAdapter<
     }
 
     try {
-      // Spread modelOptions first so it can never override the validated
-      // fields (server routes often pass modelOptions through from untyped
-      // client input).
-      const request: EmbeddingRequest = {
-        ...modelOptions,
+      // Only the known modelOptions field goes out (server routes often pass
+      // modelOptions through from untyped client input).
+      const request: MistralPostV1EmbeddingsBody = {
+        // @ts-expect-error modelschemas gap: EmbeddingRequest.model is a closed enum, the API takes any model id
         model,
-        inputs: texts,
-      }
-      if (options.dimensions !== undefined) {
-        request.outputDimension = options.dimensions
+        input: texts,
+        output_dtype: modelOptions?.outputDtype,
+        output_dimension: options.dimensions,
       }
 
       logger.request(

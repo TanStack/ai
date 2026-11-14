@@ -1,10 +1,18 @@
 import type {
   FalClient as SdkFalClient,
   QueueClient,
+  Result,
   StorageClient,
   StorageSettings,
   ValidationErrorInfo,
 } from '@fal-ai/client'
+import type { FalModel, FalModelInput, FalModelOutput } from '../model-meta'
+import { sendWith } from '@tanstack/ai-utils/kubb'
+import {
+  falGetEndpointIdRequestsRequestId,
+  falPostEndpointId,
+} from '../generated/client/sdk'
+import type { ClientInstance } from '@tanstack/ai-utils/kubb'
 
 /**
  * Config for {@link createFalClient}. These are the `@fal-ai/client` config
@@ -18,12 +26,34 @@ export interface FalClientOptions {
   proxyUrl?: string
 }
 
+/** `Omit` that keeps each member of a union (the SDK queue mode options). */
+type OmitEach<T, K extends PropertyKey> = T extends unknown ? Omit<T, K> : never
+
+/** An SDK options type with `input` typed by the generated endpoint map. */
+type WithInput<Options, Id extends string> = OmitEach<Options, 'input'> & {
+  input?: FalModelInput<Id>
+}
+
 /**
- * The part of the `@fal-ai/client` client that the adapters call. A real SDK
- * client also fits this type.
+ * The part of the `@fal-ai/client` client that the adapters call, with the
+ * SDK option and result shapes. Each endpoint's input and output come from
+ * the modelschemas types in `model-meta.ts`.
  */
-export type FalClient = Pick<SdkFalClient, 'subscribe'> & {
-  queue: Pick<QueueClient, 'submit' | 'status' | 'result' | 'cancel'>
+export interface FalClient {
+  subscribe: <Id extends FalModel>(
+    endpointId: Id,
+    options: WithInput<Parameters<SdkFalClient['subscribe']>[1], Id>,
+  ) => Promise<Result<FalModelOutput<Id>>>
+  queue: Pick<QueueClient, 'status' | 'cancel'> & {
+    submit: <Id extends FalModel>(
+      endpointId: Id,
+      options: WithInput<Parameters<QueueClient['submit']>[1], Id>,
+    ) => ReturnType<QueueClient['submit']>
+    result: <Id extends FalModel>(
+      endpointId: Id,
+      options: Parameters<QueueClient['result']>[1],
+    ) => Promise<Result<FalModelOutput<Id>>>
+  }
   storage: Pick<StorageClient, 'upload'>
 }
 
@@ -128,6 +158,7 @@ const NETWORK_ERROR_CODES = new Set([
   'UND_ERR_SOCKET',
 ])
 
+const QUEUE_HOST = 'https://queue.fal.run'
 const POLL_INTERVAL_MS = 500
 const MULTIPART_THRESHOLD_BYTES = 90 * 1024 * 1024
 const UPLOAD_INITIATE_URL =
@@ -142,6 +173,20 @@ const EXPIRATION_SECONDS: Record<string, number | undefined> = {
   '30d': 2592000,
   '1y': 31536000,
 }
+
+/**
+ * The one cast between the client arguments and the types of the generated
+ * client. Its endpoint ids are an enum of the catalog models, and its body is
+ * `object`. Both describe the same request.
+ */
+const wire = <T>(value: unknown) => value as T
+
+/**
+ * Endpoint ids keep their slashes: `fal-ai/flux/dev` is three path segments.
+ * The default path serializer would send `fal-ai%2Fflux%2Fdev`, and the
+ * runtime does not apply `allowReserved` to path params.
+ */
+const rawPath = { path: ({ value }: { value: unknown }) => String(value) }
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 
@@ -254,7 +299,7 @@ function queueUrl(id: string, path = '', query?: Record<string, string>) {
   if (isFalUrl(id)) {
     return `${id.endsWith('/') ? id : `${id}/`}${cleanPath}${search}`
   }
-  const url = `https://queue.fal.run/${normalizeEndpointId(id)}/${cleanPath}`
+  const url = `${QUEUE_HOST}/${normalizeEndpointId(id)}/${cleanPath}`
   return `${url.replace(/\/$/, '')}${search}`
 }
 
@@ -281,7 +326,10 @@ function uploadFileName(file: Blob, contentType: string) {
 }
 
 interface SendOptions {
-  body?: unknown
+  /** The serialized body. */
+  body?: BodyInit
+  /** The headers of a generated body (its content type). `headers` win. */
+  bodyHeaders?: Record<string, string>
   headers?: Record<string, string>
   signal?: AbortSignal
   retry?: RetryPolicy
@@ -309,7 +357,13 @@ export function createFalClient(options: FalClientOptions) {
   async function send(
     method: 'GET' | 'POST' | 'PUT',
     url: string,
-    { body, headers, signal, retry = DEFAULT_RETRY }: SendOptions = {},
+    {
+      body,
+      bodyHeaders,
+      headers,
+      signal,
+      retry = DEFAULT_RETRY,
+    }: SendOptions = {},
   ) {
     // Same as the SDK proxy middleware: without a `when` rule it only
     // proxies in a browser.
@@ -322,11 +376,12 @@ export function createFalClient(options: FalClientOptions) {
             ...(credentials ? { Authorization: `Key ${credentials}` } : {}),
             Accept: 'application/json',
             'Content-Type': 'application/json',
+            ...bodyHeaders,
             ...headers,
             ...(useProxy ? { 'x-fal-target-url': url } : {}),
           },
           signal,
-          body: method !== 'GET' && body ? JSON.stringify(body) : undefined,
+          body,
         })
         return { response, data: await parseResponse(response) }
       } catch (error) {
@@ -338,6 +393,30 @@ export function createFalClient(options: FalClientOptions) {
         await sleep(backoffDelay(attempt, retry.maxDelay))
       }
     }
+  }
+
+  // A generated queue operation: it builds the path and the body, and `send`
+  // sends it to the queue host with the auth, proxy, retries, and errors.
+  async function generated(
+    method: 'GET' | 'POST',
+    operation: (client: ClientInstance) => Promise<unknown>,
+    sendOptions: SendOptions,
+  ) {
+    let result: Awaited<ReturnType<typeof send>> | undefined
+    await operation(
+      sendWith(async (built) => {
+        result = await send(method, `${QUEUE_HOST}${built.path}`, {
+          ...sendOptions,
+          body: built.body,
+          bodyHeaders: built.headers,
+        })
+        return result.response
+      }),
+    )
+    // ponytail: `send` already read the body (errors and retries need it), so
+    // the parsed result comes from here, not from the generated call.
+    if (!result) throw new Error('The generated fal operation sent no request')
+    return result
   }
 
   async function transformInput(input: unknown): Promise<unknown> {
@@ -370,10 +449,10 @@ export function createFalClient(options: FalClientOptions) {
       const contentType = file.type || 'application/octet-stream'
       const lifecycle = lifecycleConfig(uploadOptions?.lifecycle)
       const { data } = await send('POST', UPLOAD_INITIATE_URL, {
-        body: {
+        body: JSON.stringify({
           content_type: contentType,
           file_name: uploadFileName(file, contentType),
-        },
+        }),
         headers: lifecycle
           ? { 'X-Fal-Object-Lifecycle': JSON.stringify(lifecycle) }
           : {},
@@ -391,12 +470,30 @@ export function createFalClient(options: FalClientOptions) {
   const queue: FalClient['queue'] = {
     async submit(endpointId, { input, abortSignal }) {
       const body = input ? await transformInput(input) : undefined
-      const { data } = await send('POST', queueUrl(endpointId), {
-        body,
+      const sendOptions = {
         headers: { 'x-fal-queue-priority': 'normal' },
         signal: abortSignal,
         retry: QUEUE_RETRY,
-      })
+      }
+      // A full fal URL is not the queue host shape of the document.
+      if (isFalUrl(endpointId)) {
+        const { data } = await send('POST', queueUrl(endpointId), {
+          ...sendOptions,
+          body: body ? JSON.stringify(body) : undefined,
+        })
+        return data
+      }
+      const { data } = await generated(
+        'POST',
+        (client) =>
+          falPostEndpointId({
+            client,
+            serializer: rawPath,
+            path: { endpoint_id: wire(normalizeEndpointId(endpointId)) },
+            body: wire(body),
+          }),
+        sendOptions,
+      )
       return data
     },
     async status(endpointId, { requestId, logs = false, abortSignal }) {
@@ -412,11 +509,24 @@ export function createFalClient(options: FalClientOptions) {
       return data
     },
     async result(endpointId, { requestId, abortSignal }) {
-      const url = queueUrl(queueAppId(endpointId), `/requests/${requestId}`)
-      const { response, data } = await send('GET', url, {
-        signal: abortSignal,
-        retry: QUEUE_RETRY,
-      })
+      const appId = queueAppId(endpointId)
+      const sendOptions = { signal: abortSignal, retry: QUEUE_RETRY }
+      const { response, data } = isFalUrl(appId)
+        ? await send(
+            'GET',
+            queueUrl(appId, `/requests/${requestId}`),
+            sendOptions,
+          )
+        : await generated(
+            'GET',
+            (client) =>
+              falGetEndpointIdRequestsRequestId({
+                client,
+                serializer: rawPath,
+                path: { endpoint_id: wire(appId), request_id: requestId },
+              }),
+            sendOptions,
+          )
       return {
         data,
         requestId: response.headers.get('x-fal-request-id') || '',

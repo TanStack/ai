@@ -1,13 +1,29 @@
 /**
- * Re-export fal.ai's comprehensive type system for full model support.
- * The fal.ai SDK provides types for 600+ models through EndpointTypeMap.
- * These types give you full autocomplete and type safety for any model.
+ * fal endpoint types, generated from the modelschemas fal activity
+ * documents (`pnpm generate:provider-clients`). Each activity has its own
+ * map of endpoint id to `{ input, output }`.
  */
-import type { EndpointTypeMap } from '@fal-ai/client/endpoints'
 import type { MediaPromptModality } from '@tanstack/ai'
+import type { FalAudioEndpoints } from './generated/audio/types'
+import type { FalChatEndpoints } from './generated/chat/types'
+import type { FalImageEndpoints } from './generated/image/types'
+import type { FalVideoEndpoints } from './generated/video/types'
 import type { FalImageFieldName } from './image/generated/image-field-overrides'
 
-export type { EndpointTypeMap } from '@fal-ai/client/endpoints'
+export type {
+  FalAudioEndpoints,
+  FalChatEndpoints,
+  FalImageEndpoints,
+  FalVideoEndpoints,
+}
+
+/** Every fal endpoint id to its `{ input, output }`, across activities. */
+export interface EndpointTypeMap
+  extends
+    FalImageEndpoints,
+    FalVideoEndpoints,
+    FalAudioEndpoints,
+    FalChatEndpoints {}
 
 /**
  * All known fal.ai model IDs with autocomplete support.
@@ -24,8 +40,27 @@ export type FalModel = keyof EndpointTypeMap | (string & {})
  */
 export type FalModelInput<TModel extends string> =
   TModel extends keyof EndpointTypeMap
-    ? EndpointTypeMap[TModel]['input']
+    ? WithUploads<EndpointTypeMap[TModel]['input']>
     : Record<string, unknown>
+
+/** A URL string, or a file that the fal client uploads first. */
+type Uploadable<V> = V extends string
+  ? V | Blob
+  : V extends Array<infer U>
+    ? Array<Uploadable<U>>
+    : V
+
+/**
+ * Lets each `*_url` / `*_urls` field take a `Blob` (or `File`), which the
+ * fal client uploads and replaces with its URL. The schemas have no file
+ * marker, so this keys on the field name, as `@fal-ai/client` does.
+ * ponytail: top-level fields only; nest it if a model takes files deeper.
+ */
+type WithUploads<T> = {
+  [K in keyof T]: K extends `${string}_url` | `${string}_urls`
+    ? Uploadable<T[K]>
+    : T[K]
+}
 
 /**
  * Utility type to extract the output type for a specific fal model.
@@ -36,8 +71,11 @@ export type FalModelInput<TModel extends string> =
  */
 export type FalModelOutput<TModel extends string> =
   TModel extends keyof EndpointTypeMap
-    ? EndpointTypeMap[TModel]['output']
-    : unknown
+    ? // A schema that leaves the output untyped still returns a JSON object.
+      unknown extends EndpointTypeMap[TModel]['output']
+      ? Record<string, unknown>
+      : EndpointTypeMap[TModel]['output']
+    : Record<string, unknown>
 
 /**
  * Extract the image_size type supported by a specific fal model.
@@ -50,7 +88,7 @@ export type FalModelOutput<TModel extends string> =
 export type FalModelImageSize<TModel extends string> =
   TModel extends keyof EndpointTypeMap
     ? 'image_size' extends keyof EndpointTypeMap[TModel]['input']
-      ? NonNullable<Exclude<FalModelInput<TModel>['image_size'], object>>
+      ? Extract<NonNullable<FalModelInput<TModel>['image_size']>, string>
       : 'aspect_ratio' extends keyof EndpointTypeMap[TModel]['input']
         ? 'resolution' extends keyof EndpointTypeMap[TModel]['input']
           ? `${Extract<NonNullable<FalModelInput<TModel>['aspect_ratio']>, string>}_${Extract<NonNullable<FalModelInput<TModel>['resolution']>, string>}`

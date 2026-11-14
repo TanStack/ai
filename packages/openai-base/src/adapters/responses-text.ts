@@ -50,6 +50,7 @@ import {
 import type { OpenAIUserToolName } from './responses-user-tools'
 import type OpenAI from 'openai'
 import type { OpenAIClientLike } from '../client/index'
+import type { OpenaiPostResponsesBody } from '../generated/client/types'
 import type {
   StructuredOutputOptions,
   StructuredOutputResult,
@@ -589,18 +590,17 @@ export abstract class OpenAIBaseResponsesTextAdapter<
         `activity=chat provider=${this.name} model=${this.model} messages=${options.messages.length} tools=${options.tools?.length ?? 0} stream=true`,
         { provider: this.name, model: this.model },
       )
+      // @ts-expect-error public type mismatch: ResponseCreateParams vs OpenaiPostResponsesBody, input, tools, tool_choice and top_logprobs
+      const body: OpenaiPostResponsesBody & { stream: true } = {
+        ...requestParams,
+        stream: true,
+      }
       const response = await clientFor(
         this.client,
         options,
         this.baseFetch,
         (fetch) => this.withFetch(fetch),
-      ).responses.create(
-        {
-          ...requestParams,
-          stream: true,
-        },
-        extractRequestOptions(options.request),
-      )
+      ).responses.create(body, extractRequestOptions(options.request))
 
       yield* this.processStreamChunks(
         response,
@@ -694,32 +694,27 @@ export abstract class OpenAIBaseResponsesTextAdapter<
       // Strip streaming-only fields a subclass override of mapOptionsToRequest
       // might have returned (parallel to chat-completions's structuredOutput
       // cleanup) — sending stream_options to a non-streaming call is a 4xx.
-      const {
-        stream: _stream,
-        stream_options: _streamOptions,
-        ...cleanParams
-      } = requestParams as Record<string, unknown>
-      void _stream
+      // `stream: false` below also wins over a `stream` from an override.
+      const { stream_options: _streamOptions, ...cleanParams } = requestParams
       void _streamOptions
       chatOptions.logger.request(
         `activity=structuredOutput provider=${this.name} model=${this.model} messages=${chatOptions.messages.length}`,
         { provider: this.name, model: this.model },
       )
+      // @ts-expect-error public type mismatch: ResponseCreateParams vs OpenaiPostResponsesBody, input, tools, tool_choice and top_logprobs
+      const body: OpenaiPostResponsesBody & { stream: false } = {
+        ...cleanParams,
+        stream: false,
+        text: {
+          format: textFormat,
+        },
+      }
       const response = await clientFor(
         this.client,
         chatOptions,
         this.baseFetch,
         (fetch) => this.withFetch(fetch),
-      ).responses.create(
-        {
-          ...(cleanParams as Omit<ResponseCreateParams, 'stream'>),
-          stream: false,
-          text: {
-            format: textFormat,
-          },
-        },
-        extractRequestOptions(chatOptions.request),
-      )
+      ).responses.create(body, extractRequestOptions(chatOptions.request))
 
       // Extract text content from the response. `stream: false` narrows the
       // SDK return type to `Response`, but the explicit annotation makes
@@ -884,20 +879,19 @@ export abstract class OpenAIBaseResponsesTextAdapter<
         { provider: this.name, model: this.model },
       )
 
+      // @ts-expect-error public type mismatch: ResponseCreateParams vs OpenaiPostResponsesBody, input, tools, tool_choice and top_logprobs
+      const body: OpenaiPostResponsesBody & { stream: true } = {
+        ...cleanParams,
+        stream: true,
+        text: {
+          format: textFormat,
+        },
+      }
       const stream: AsyncIterable<
         ResponseStreamEvent | LegacyReasoningDeltaEvent
       > = await clientFor(this.client, chatOptions, this.baseFetch, (fetch) =>
         this.withFetch(fetch),
-      ).responses.create(
-        {
-          ...cleanParams,
-          stream: true,
-          text: {
-            format: textFormat,
-          },
-        },
-        extractRequestOptions(chatOptions.request),
-      )
+      ).responses.create(body, extractRequestOptions(chatOptions.request))
 
       for await (const chunk of drainResponsesStream(stream)) {
         chatOptions.logger.provider(
@@ -1247,6 +1241,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
     ).responses.compact(
       {
         model: options.model,
+        // @ts-expect-error public type mismatch: ResponseInput (convertMessagesToInput) vs InputItem[], item_reference, additional_tools, mcp_list_tools and tool_search items
         input: this.convertMessagesToInput(options.messages, options.model),
         ...(prompts.length > 0 && {
           instructions: prompts.map((p) => p.content).join('\n'),

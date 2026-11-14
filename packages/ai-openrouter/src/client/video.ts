@@ -1,5 +1,6 @@
-import { createCaller, readJSON } from './http'
-import { remap } from './remap'
+import { openrouterPostVideos } from '../generated/client/sdk'
+import { callGenerated, createCaller, readJSON } from './http'
+import { toWire } from './remap'
 import {
   OBJECTS,
   VideoGenerationRequest,
@@ -16,8 +17,9 @@ async function readJob(exchange: Exchange) {
 }
 
 /**
- * The SDK `videoGeneration` methods over fetch: `POST /videos`,
- * `GET /videos/{jobId}`, and `GET /videos/{jobId}/content`.
+ * The SDK `videoGeneration` methods over fetch: the generated `POST /videos`,
+ * and the hand-written `GET /videos/{jobId}` and `GET /videos/{jobId}/content`
+ * (the OpenAPI document does not have them).
  *
  * @example
  * const { videoGeneration } = createOpenRouterVideoClient({ apiKey: 'sk-or-...' })
@@ -28,15 +30,24 @@ export function createOpenRouterVideoClient(config: OpenRouterClientOptions) {
   const client: Pick<OpenRouterClient, 'videoGeneration'> = {
     videoGeneration: {
       async generate(request, requestOptions) {
-        const exchange = await call(
+        const body = toWire(
+          request.videoGenerationRequest,
+          VideoGenerationRequest,
+          OBJECTS,
+        )
+        const exchange = await callGenerated(
+          call,
+          (http) =>
+            openrouterPostVideos({
+              client: http,
+              body: {
+                ...body,
+                // @ts-expect-error modelschemas gap: Videos `model` is a closed enum of known slugs, the API takes any model id
+                model: body.model,
+              },
+            }),
           {
             method: 'POST',
-            path: 'videos',
-            body: remap(
-              request.videoGenerationRequest,
-              VideoGenerationRequest,
-              OBJECTS,
-            ),
             accept: 'application/json',
             headers: request,
             okStatus: 202,

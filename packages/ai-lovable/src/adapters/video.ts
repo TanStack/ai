@@ -23,7 +23,10 @@ import type {
   VideoUrlResult,
 } from '@tanstack/ai'
 import type OpenAI_SDK from 'openai'
-import type { OpenAIClientLike } from '@tanstack/openai-base'
+import type {
+  OpenAIClientLike,
+  OpenaiPostVideosBody,
+} from '@tanstack/openai-base'
 import type {
   LovableVideoModel,
   LovableVideoModelDurationByName,
@@ -106,7 +109,7 @@ export class LovableVideoAdapter<
       )
     }
 
-    const request: OpenAI_SDK.Videos.VideoCreateParams = {
+    const request: OpenaiPostVideosBody = {
       model,
       prompt: resolved.text,
     }
@@ -120,14 +123,14 @@ export class LovableVideoAdapter<
       )
     }
     if (resolvedSize) {
-      // Gateway Veo sizes include 1080p and 4K, which are not in the OpenAI SDK union.
-      request.size = resolvedSize as OpenAI_SDK.Videos.VideoSize
+      // Gateway Veo sizes include 1080p and 4K, which are not in the OpenAI union.
+      request.size = resolvedSize as OpenaiPostVideosBody['size']
     }
     if (seconds !== undefined) {
       const apiSeconds = toApiSeconds(seconds)
       if (apiSeconds !== undefined) {
-        // Gateway Veo clips can be 6 seconds. The OpenAI SDK union is 4/8/12.
-        request.seconds = apiSeconds as OpenAI_SDK.Videos.VideoSeconds
+        // Gateway Veo clips can be 6 seconds. The OpenAI union is 4/8/12.
+        request.seconds = apiSeconds as OpenaiPostVideosBody['seconds']
       }
     }
 

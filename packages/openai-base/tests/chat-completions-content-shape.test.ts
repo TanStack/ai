@@ -1,6 +1,6 @@
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect } from 'vitest'
 import { OpenAIBaseChatCompletionsTextAdapter } from '../src/adapters/chat-completions-text'
-import OpenAI from 'openai'
+import { stubClient } from './stub-client'
 import { EventType } from '@tanstack/ai'
 import { resolveDebugOption } from '@tanstack/ai/adapter-internals'
 import type { AdapterYieldChunk } from '@tanstack/ai'
@@ -9,12 +9,13 @@ const testLogger = resolveDebugOption(false)
 
 class TestAdapter extends OpenAIBaseChatCompletionsTextAdapter<string> {
   constructor(chunks: Array<Record<string, unknown>>) {
-    const client = new OpenAI({ apiKey: 'test-api-key' })
-    client.chat.completions.create = vi.fn(async () => ({
-      async *[Symbol.asyncIterator]() {
-        yield* chunks
-      },
-    })) as unknown as typeof client.chat.completions.create
+    const client = stubClient({
+      completions: async () => ({
+        async *[Symbol.asyncIterator]() {
+          yield* chunks
+        },
+      }),
+    })
     super('test-model', 'openai-base', client)
   }
 }

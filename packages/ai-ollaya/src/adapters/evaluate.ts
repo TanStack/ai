@@ -1,4 +1,6 @@
 import { BaseEvaluateAdapter } from '@tanstack/ai/adapters'
+import { sendWith } from '@tanstack/ai-utils/kubb'
+import { ollayaPostV1Systemone } from '../generated/client/sdk'
 import type { EvaluateOptions } from '@tanstack/ai/adapters'
 import type { TokenUsage, WireAnswer } from '@tanstack/ai'
 import { resolveOllayaTransport } from '../utils/client'
@@ -67,7 +69,6 @@ export class OllayaEvaluateAdapter<
    */
   async evaluate(options: EvaluateOptions) {
     const { model, state, questions, abortSignal, logger } = options
-    const body = { model, state, questions }
     const fetchFn = this.fetchFn ?? globalThis.fetch
 
     logger.request(`activity=evaluate provider=${this.name} model=${model}`, {
@@ -77,35 +78,44 @@ export class OllayaEvaluateAdapter<
 
     let response: Response
     try {
-      response = await fetchFn(`${this.baseUrl}/v1/systemone`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          // ponytail: local Ollaya needs no key; only send auth behind a proxy
-          ...(this.apiKey ? { Authorization: `Bearer ${this.apiKey}` } : {}),
-          ...this.headers,
+      ;({ response } = await ollayaPostV1Systemone({
+        client: sendWith(async (request) => {
+          const res = await fetchFn(`${this.baseUrl}${request.path}`, {
+            method: request.method,
+            headers: {
+              'Content-Type': 'application/json',
+              // ponytail: local Ollaya needs no key; only send auth behind a proxy
+              ...(this.apiKey
+                ? { Authorization: `Bearer ${this.apiKey}` }
+                : {}),
+              ...this.headers,
+            },
+            body: request.body,
+            ...(request.signal ? { signal: request.signal } : {}),
+          })
+          if (!res.ok) {
+            const detail = await res.text().catch(() => '')
+            throw Object.assign(
+              new Error(
+                `Ollaya evaluate request failed: ${res.status} ${res.statusText}${
+                  detail ? ` — ${detail}` : ''
+                }`,
+              ),
+              { status: res.status },
+            )
+          }
+          return res
+        }),
+        body: {
+          model,
+          // @ts-expect-error public type mismatch: EvaluateJsonValue uses `object`, the document an index-signature record
+          state,
+          // @ts-expect-error public type mismatch: WireQuestion instructions take EvaluateJsonValue (`object`), the document an index-signature record
+          questions,
         },
-        body: JSON.stringify(body),
-        ...(abortSignal ? { signal: abortSignal } : {}),
-      })
+        signal: abortSignal,
+      }))
     } catch (error) {
-      logger.errors(`${this.name}.evaluate fatal`, {
-        error,
-        source: `${this.name}.evaluate`,
-      })
-      throw error
-    }
-
-    if (!response.ok) {
-      const detail = await response.text().catch(() => '')
-      const error = Object.assign(
-        new Error(
-          `Ollaya evaluate request failed: ${response.status} ${response.statusText}${
-            detail ? ` — ${detail}` : ''
-          }`,
-        ),
-        { status: response.status },
-      )
       logger.errors(`${this.name}.evaluate fatal`, {
         error,
         source: `${this.name}.evaluate`,

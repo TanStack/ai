@@ -11,15 +11,12 @@ import type { ClientOptions } from 'openai'
 import type { AzureClientOptions } from 'openai/azure'
 import type { OpenAIClientLike } from '../src/client'
 
-// The mini client must fit where a real SDK client fits, and the other way.
-const sdkFits: OpenAIClientLike = new OpenAI({ apiKey: 'x' })
-const azureFits: OpenAIClientLike = new AzureOpenAI({
-  apiKey: 'x',
-  apiVersion: 'v1',
-  endpoint: 'https://res.openai.azure.com',
-})
-void sdkFits
-void azureFits
+/**
+ * The SDK client as an `OpenAIClientLike`. Its method types take the SDK
+ * request params, ours take the generated bodies, but the runtime calls are
+ * identical, which is what these tests compare.
+ */
+const sdkClient = (client: OpenAI) => client as unknown as OpenAIClientLike
 
 type Fetch = NonNullable<ClientOptions['fetch']>
 type Reply = () => Response
@@ -172,7 +169,7 @@ const BASE = {
 }
 
 const openaiPair = (options: Partial<ClientOptions> = {}): Pair => ({
-  sdk: (fetch) => new OpenAI({ ...BASE, ...options, fetch }),
+  sdk: (fetch) => sdkClient(new OpenAI({ ...BASE, ...options, fetch })),
   ours: (fetch) => createOpenAIClient({ ...BASE, ...options, fetch }),
 })
 
@@ -184,7 +181,7 @@ const AZURE = {
 }
 
 const azurePair = (options: Partial<AzureClientOptions> = {}): Pair => ({
-  sdk: (fetch) => new AzureOpenAI({ ...AZURE, ...options, fetch }),
+  sdk: (fetch) => sdkClient(new AzureOpenAI({ ...AZURE, ...options, fetch })),
   ours: (fetch) => createAzureOpenAIClient({ ...AZURE, ...options, fetch }),
 })
 

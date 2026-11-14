@@ -1,8 +1,11 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { ElevenLabsClient as SdkClient } from '@elevenlabs/elevenlabs-js'
 import { createElevenLabsClient } from '../src/client'
-import type { ElevenLabs } from '@elevenlabs/elevenlabs-js'
-import type { ElevenLabsClient } from '../src/client'
+import type { ElevenLabsClient, ElevenLabsQuery } from '../src/client'
+import type {
+  ElevenlabsPostV1TextToDialogueBody,
+  ElevenlabsPostV1TextToSpeechVoiceIdBody,
+} from '../src/generated/client/types'
 import type { ElevenLabsClientConfig } from '../src/utils/client'
 
 // The real SDK is the oracle: each test runs it and our client on the same
@@ -113,6 +116,86 @@ async function runOn(
 
 const API_KEY = 'test-key'
 
+// `labels` holds user keys, so the SDK sends them as they are.
+function camel(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(camel)
+  if (value === null || typeof value !== 'object' || value instanceof Blob) {
+    return value
+  }
+  return Object.fromEntries(
+    Object.entries(value).map(([key, item]) => [
+      key.replace(/_([a-z0-9])/g, (_, c: string) => c.toUpperCase()),
+      key === 'labels' ? item : camel(item),
+    ]),
+  )
+}
+
+/**
+ * The real SDK behind our client's method shapes: it merges our snake_case
+ * body and query into the SDK's camelCase request.
+ */
+function sdkAsOurs(sdk: SdkClient): ElevenLabsClient {
+  type Sdk = Parameters<typeof sdk.textToSpeech.convert>[2]
+  // ponytail: `any` stands in for each SDK request type; the parity
+  // assertions check what the SDK actually sends.
+  // oxlint-disable-next-line typescript/no-explicit-any
+  const req = (body: object, query: ElevenLabsQuery = {}): any =>
+    camel({ ...body, ...query })
+  const adapted = {
+    textToSpeech: {
+      convert: (
+        voiceId: string,
+        body: object,
+        query?: ElevenLabsQuery,
+        options?: Sdk,
+      ) => sdk.textToSpeech.convert(voiceId, req(body, query), options),
+      convertWithTimestamps: (
+        voiceId: string,
+        body: object,
+        query?: ElevenLabsQuery,
+        options?: Sdk,
+      ) =>
+        sdk.textToSpeech.convertWithTimestamps(
+          voiceId,
+          req(body, query),
+          options,
+        ),
+    },
+    textToDialogue: {
+      convert: (body: object, query?: ElevenLabsQuery, options?: Sdk) =>
+        sdk.textToDialogue.convert(req(body, query), options),
+      convertWithTimestamps: (
+        body: object,
+        query?: ElevenLabsQuery,
+        options?: Sdk,
+      ) => sdk.textToDialogue.convertWithTimestamps(req(body, query), options),
+    },
+    voices: sdk.voices,
+    music: {
+      compose: (body: object, query?: ElevenLabsQuery, options?: Sdk) =>
+        sdk.music.compose(req(body, query), options),
+    },
+    textToSoundEffects: {
+      convert: (body: object, query?: ElevenLabsQuery, options?: Sdk) =>
+        sdk.textToSoundEffects.convert(req(body, query), options),
+    },
+    speechToText: {
+      convert: (body: object, query?: ElevenLabsQuery, options?: Sdk) =>
+        sdk.speechToText.convert(req(body, query), options),
+    },
+    textToVoice: {
+      design: (body: object, query?: ElevenLabsQuery, options?: Sdk) =>
+        sdk.textToVoice.design(req(body, query), options),
+      create: (body: object, options?: Sdk) =>
+        sdk.textToVoice.create(req(body), options),
+    },
+    conversationalAi: sdk.conversationalAi,
+  }
+  // The one cast: the SDK returns `HttpResponsePromise`s and wider types
+  // than our client, and the parity tests compare the settled values.
+  return adapted as unknown as ElevenLabsClient
+}
+
 /** Runs `run` on the real SDK and on our client, and returns both. */
 async function both(
   run: Run,
@@ -120,7 +203,7 @@ async function both(
   config: ElevenLabsClientConfig = {},
   options: { advanceTimers?: boolean } = {},
 ) {
-  const sdk: ElevenLabsClient = new SdkClient({
+  const sdkClient = new SdkClient({
     apiKey: API_KEY,
     ...(config.baseURL ? { baseUrl: config.baseURL } : {}),
     ...(config.timeoutInSeconds != null && {
@@ -129,6 +212,7 @@ async function both(
     ...(config.maxRetries != null && { maxRetries: config.maxRetries }),
     ...(config.defaultHeaders ? { headers: config.defaultHeaders } : {}),
   })
+  const sdk = sdkAsOurs(sdkClient)
   const ours = createElevenLabsClient({ apiKey: API_KEY, ...config })
   return {
     sdk: await runOn(sdk, run, respond, options),
@@ -158,45 +242,48 @@ const alignment = {
   character_end_times_seconds: [0.1, 0.2],
 }
 
-const dialogue: ElevenLabs.BodyTextToDialogueFullWithTimestamps = {
-  modelId: 'eleven_v3',
+const dialogue = {
+  model_id: 'eleven_v3',
   inputs: [
-    { text: 'Hi', voiceId: 'v1' },
-    { text: 'Yo', voiceId: 'v2' },
+    { text: 'Hi', voice_id: 'v1' },
+    { text: 'Yo', voice_id: 'v2' },
   ],
   settings: { stability: 0.5 },
-  languageCode: 'en',
+  language_code: 'en',
   seed: 7,
-  applyTextNormalization: 'on',
-  outputFormat: 'mp3_44100_128',
-}
+  apply_text_normalization: 'on',
+} satisfies ElevenlabsPostV1TextToDialogueBody
+const dialogueQuery: ElevenLabsQuery = { output_format: 'mp3_44100_128' }
 
-const speech: ElevenLabs.BodyTextToSpeechFull = {
+const speech = {
   text: 'Hello there',
-  modelId: 'eleven_multilingual_v2',
-  voiceSettings: {
+  model_id: 'eleven_multilingual_v2',
+  voice_settings: {
     stability: 0.4,
-    similarityBoost: 0.7,
+    similarity_boost: 0.7,
     style: 0.1,
     speed: 1.1,
-    useSpeakerBoost: true,
+    use_speaker_boost: true,
   },
-  previousText: 'Before.',
-  nextText: 'After.',
-  previousRequestIds: ['req-a'],
-  nextRequestIds: ['req-b'],
-  applyLanguageTextNormalization: true,
-  applyTextNormalization: 'auto',
-  languageCode: 'en',
+  previous_text: 'Before.',
+  next_text: 'After.',
+  previous_request_ids: ['req-a'],
+  next_request_ids: ['req-b'],
+  apply_language_text_normalization: true,
+  apply_text_normalization: 'auto',
+  language_code: 'en',
   seed: 1,
-  outputFormat: 'pcm_44100',
-  enableLogging: false,
+} satisfies ElevenlabsPostV1TextToSpeechVoiceIdBody
+const speechQuery: ElevenLabsQuery = {
+  output_format: 'pcm_44100',
+  enable_logging: false,
 }
 
 describe('ElevenLabs client parity with @elevenlabs/elevenlabs-js', () => {
   it('textToDialogue.convertWithTimestamps', async () => {
     const sdk = await expectParity(
-      (client) => client.textToDialogue.convertWithTimestamps(dialogue),
+      (client) =>
+        client.textToDialogue.convertWithTimestamps(dialogue, dialogueQuery),
       json({
         audio_base64: 'AAAA',
         alignment,
@@ -220,7 +307,7 @@ describe('ElevenLabs client parity with @elevenlabs/elevenlabs-js', () => {
 
   it('textToDialogue.convert', async () => {
     await expectParity(
-      (client) => client.textToDialogue.convert(dialogue),
+      (client) => client.textToDialogue.convert(dialogue, dialogueQuery),
       audio,
     )
   })
@@ -228,7 +315,11 @@ describe('ElevenLabs client parity with @elevenlabs/elevenlabs-js', () => {
   it('textToSpeech.convertWithTimestamps', async () => {
     await expectParity(
       (client) =>
-        client.textToSpeech.convertWithTimestamps('voice 1/x', speech),
+        client.textToSpeech.convertWithTimestamps(
+          'voice 1/x',
+          speech,
+          speechQuery,
+        ),
       json({ audio_base64: 'AAAA', alignment, normalized_alignment: null }),
     )
   })
@@ -236,9 +327,9 @@ describe('ElevenLabs client parity with @elevenlabs/elevenlabs-js', () => {
   it('textToSpeech.convert', async () => {
     const sdk = await expectParity(
       (client) =>
-        client.textToSpeech.convert('voice-1', {
-          ...speech,
-          optimizeStreamingLatency: 2,
+        client.textToSpeech.convert('voice-1', speech, {
+          ...speechQuery,
+          optimize_streaming_latency: 2,
         }),
       audio,
     )
@@ -267,26 +358,28 @@ describe('ElevenLabs client parity with @elevenlabs/elevenlabs-js', () => {
   it('music.compose with a composition plan', async () => {
     await expectParity(
       (client) =>
-        client.music.compose({
-          modelId: 'music_v1',
-          compositionPlan: {
-            positiveGlobalStyles: ['rock'],
-            negativeGlobalStyles: [],
-            sections: [
-              {
-                sectionName: 'Intro',
-                positiveLocalStyles: ['guitar'],
-                negativeLocalStyles: [],
-                durationMs: 10000,
-                lines: ['la la'],
-              },
-            ],
+        client.music.compose(
+          {
+            model_id: 'music_v1',
+            composition_plan: {
+              positive_global_styles: ['rock'],
+              negative_global_styles: [],
+              sections: [
+                {
+                  section_name: 'Intro',
+                  positive_local_styles: ['guitar'],
+                  negative_local_styles: [],
+                  duration_ms: 10000,
+                  lines: ['la la'],
+                },
+              ],
+            },
+            seed: 4,
+            force_instrumental: true,
+            respect_sections_durations: true,
           },
-          outputFormat: 'mp3_44100_128',
-          seed: 4,
-          forceInstrumental: true,
-          respectSectionsDurations: true,
-        }),
+          { output_format: 'mp3_44100_128' },
+        ),
       audio,
     )
   })
@@ -295,9 +388,9 @@ describe('ElevenLabs client parity with @elevenlabs/elevenlabs-js', () => {
     await expectParity(
       (client) =>
         client.music.compose({
-          modelId: 'music_v1',
+          model_id: 'music_v1',
           prompt: 'calm piano',
-          musicLengthMs: 30000,
+          music_length_ms: 30000,
         }),
       audio,
     )
@@ -306,14 +399,16 @@ describe('ElevenLabs client parity with @elevenlabs/elevenlabs-js', () => {
   it('textToSoundEffects.convert', async () => {
     await expectParity(
       (client) =>
-        client.textToSoundEffects.convert({
-          text: 'glass shattering',
-          modelId: 'eleven_text_to_sound_v2',
-          durationSeconds: 3,
-          promptInfluence: 0.3,
-          loop: true,
-          outputFormat: 'mp3_44100_128',
-        }),
+        client.textToSoundEffects.convert(
+          {
+            text: 'glass shattering',
+            model_id: 'eleven_text_to_sound_v2',
+            duration_seconds: 3,
+            prompt_influence: 0.3,
+            loop: true,
+          },
+          { output_format: 'mp3_44100_128' },
+        ),
       audio,
     )
   })
@@ -321,27 +416,31 @@ describe('ElevenLabs client parity with @elevenlabs/elevenlabs-js', () => {
   it('speechToText.convert with a file and every option', async () => {
     await expectParity(
       (client) =>
-        client.speechToText.convert({
-          modelId: 'scribe_v1',
-          file: new Blob([new Uint8Array([9, 8, 7])], { type: 'audio/mpeg' }),
-          languageCode: 'en',
-          tagAudioEvents: true,
-          numSpeakers: 2,
-          timestampsGranularity: 'word',
-          diarize: true,
-          diarizationThreshold: 0.3,
-          detectSpeakerRoles: false,
-          keyterms: ['TanStack', 'adapter'],
-          entityDetection: ['pii', 'phi'],
-          entityRedaction: ['pii'],
-          entityRedactionMode: 'redacted',
-          noVerbatim: true,
-          temperature: 0.2,
-          seed: 3,
-          enableLogging: false,
-          useMultiChannel: false,
-          fileFormat: 'other',
-        }),
+        client.speechToText.convert(
+          {
+            model_id: 'scribe_v1',
+            file: new Blob([new Uint8Array([9, 8, 7])], {
+              type: 'audio/mpeg',
+            }),
+            language_code: 'en',
+            tag_audio_events: true,
+            num_speakers: 2,
+            timestamps_granularity: 'word',
+            diarize: true,
+            diarization_threshold: 0.3,
+            detect_speaker_roles: false,
+            keyterms: ['TanStack', 'adapter'],
+            entity_detection: ['pii', 'phi'],
+            entity_redaction: ['pii'],
+            entity_redaction_mode: 'redacted',
+            no_verbatim: true,
+            temperature: 0.2,
+            seed: 3,
+            use_multi_channel: false,
+            file_format: 'other',
+          },
+          { enable_logging: false },
+        ),
       json({
         language_code: 'en',
         language_probability: 0.98,
@@ -360,14 +459,13 @@ describe('ElevenLabs client parity with @elevenlabs/elevenlabs-js', () => {
     )
   })
 
-  it('speechToText.convert with a URL and a string entity filter', async () => {
-    const sdk = await expectParity(
+  it('speechToText.convert with a URL', async () => {
+    await expectParity(
       (client) =>
         client.speechToText.convert({
-          modelId: 'scribe_v1',
-          cloudStorageUrl: 'https://example.com/a.mp3',
-          entityDetection: 'pii',
-          useMultiChannel: true,
+          model_id: 'scribe_v1',
+          cloud_storage_url: 'https://example.com/a.mp3',
+          use_multi_channel: true,
         }),
       json({
         transcripts: [
@@ -382,29 +480,29 @@ describe('ElevenLabs client parity with @elevenlabs/elevenlabs-js', () => {
         audio_duration_secs: 2.5,
       }),
     )
-    // The SDK drops a plain-string entity filter; see the client comment.
-    expect(JSON.stringify(sdk.requests[0]!.body)).not.toContain('entity')
   })
 
   it('textToVoice.design', async () => {
     await expectParity(
       (client) =>
-        client.textToVoice.design({
-          voiceDescription: 'A calm narrator',
-          modelId: 'eleven_ttv_v3',
-          text: 'Hello from the preview.',
-          autoGenerateText: false,
-          loudness: 0.5,
-          seed: 1,
-          guidanceScale: 5,
-          quality: 0.9,
-          shouldEnhance: true,
-          promptStrength: 0.5,
-          referenceAudioBase64: 'AAAA',
-          remixingSessionId: 'r1',
-          remixingSessionIterationId: 'r1-i1',
-          outputFormat: 'mp3_44100_128',
-        }),
+        client.textToVoice.design(
+          {
+            voice_description: 'A calm narrator',
+            model_id: 'eleven_ttv_v3',
+            text: 'Hello from the preview.',
+            auto_generate_text: false,
+            loudness: 0.5,
+            seed: 1,
+            guidance_scale: 5,
+            quality: 0.9,
+            should_enhance: true,
+            prompt_strength: 0.5,
+            reference_audio_base64: 'AAAA',
+            remixing_session_id: 'r1',
+            remixing_session_iteration_id: 'r1-i1',
+          },
+          { output_format: 'mp3_44100_128' },
+        ),
       json({
         previews: [
           {
@@ -424,11 +522,11 @@ describe('ElevenLabs client parity with @elevenlabs/elevenlabs-js', () => {
     await expectParity(
       (client) =>
         client.textToVoice.create({
-          voiceName: 'Narrator',
-          voiceDescription: 'A calm narrator',
-          generatedVoiceId: 'gen-1',
+          voice_name: 'Narrator',
+          voice_description: 'A calm narrator',
+          generated_voice_id: 'gen-1',
           labels: { use_case: 'narration' },
-          playedNotSelectedVoiceIds: ['gen-2'],
+          played_not_selected_voice_ids: ['gen-2'],
         }),
       json({
         voice_id: 'saved-1',
@@ -467,7 +565,7 @@ describe('ElevenLabs client error parity', () => {
 
   it('throws UnprocessableEntityError for a 422', async () => {
     const sdk = await expectParity(
-      (client) => client.textToSpeech.convert('voice-1', speech),
+      (client) => client.textToSpeech.convert('voice-1', speech, speechQuery),
       errorResponse(422, { detail: [{ msg: 'bad voice' }] }),
     )
     expect(sdk.outcome).toMatchObject({

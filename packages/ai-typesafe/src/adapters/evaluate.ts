@@ -1,4 +1,6 @@
 import { BaseEvaluateAdapter } from '@tanstack/ai/adapters'
+import { sendWith } from '@tanstack/ai-utils/kubb'
+import { typesafePostV1Systemone } from '../generated/client/sdk'
 import type { EvaluateOptions } from '@tanstack/ai/adapters'
 import type { TokenUsage, WireAnswer } from '@tanstack/ai'
 import {
@@ -69,7 +71,6 @@ export class TypesafeEvaluateAdapter<
    */
   async evaluate(options: EvaluateOptions) {
     const { model, state, questions, abortSignal, logger } = options
-    const body = { model, state, questions }
     const fetchFn = this.fetchFn ?? globalThis.fetch
 
     logger.request(`activity=evaluate provider=${this.name} model=${model}`, {
@@ -79,34 +80,41 @@ export class TypesafeEvaluateAdapter<
 
     let response: Response
     try {
-      response = await fetchFn(`${this.baseUrl}/v1/systemone`, {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${this.apiKey}`,
-          'Content-Type': 'application/json',
-          ...this.headers,
+      ;({ response } = await typesafePostV1Systemone({
+        client: sendWith(async (request) => {
+          const res = await fetchFn(`${this.baseUrl}${request.path}`, {
+            method: request.method,
+            headers: {
+              Authorization: `Bearer ${this.apiKey}`,
+              'Content-Type': 'application/json',
+              ...this.headers,
+            },
+            body: request.body,
+            ...(request.signal ? { signal: request.signal } : {}),
+          })
+          if (!res.ok) {
+            const detail = await res.text().catch(() => '')
+            throw Object.assign(
+              new Error(
+                `TypeSafe evaluate request failed: ${res.status} ${res.statusText}${
+                  detail ? ` — ${detail}` : ''
+                }`,
+              ),
+              { status: res.status },
+            )
+          }
+          return res
+        }),
+        body: {
+          model,
+          // @ts-expect-error public type mismatch: EvaluateJsonValue uses `object`, the document an index-signature record
+          state,
+          // @ts-expect-error public type mismatch: WireQuestion instructions take EvaluateJsonValue (`object`), the document an index-signature record
+          questions,
         },
-        body: JSON.stringify(body),
-        ...(abortSignal ? { signal: abortSignal } : {}),
-      })
+        signal: abortSignal,
+      }))
     } catch (error) {
-      logger.errors(`${this.name}.evaluate fatal`, {
-        error,
-        source: `${this.name}.evaluate`,
-      })
-      throw error
-    }
-
-    if (!response.ok) {
-      const detail = await response.text().catch(() => '')
-      const error = Object.assign(
-        new Error(
-          `TypeSafe evaluate request failed: ${response.status} ${response.statusText}${
-            detail ? ` — ${detail}` : ''
-          }`,
-        ),
-        { status: response.status },
-      )
       logger.errors(`${this.name}.evaluate fatal`, {
         error,
         source: `${this.name}.evaluate`,

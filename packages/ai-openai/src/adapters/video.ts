@@ -1,5 +1,8 @@
 import { createOpenAIClient } from '@tanstack/openai-base'
-import type { OpenAIClientLike } from '@tanstack/openai-base'
+import type {
+  OpenAIClientLike,
+  OpenaiPostVideosBody,
+} from '@tanstack/openai-base'
 import { resolveMediaPrompt } from '@tanstack/ai'
 import { BaseVideoAdapter, snapToDurationOption } from '@tanstack/ai/adapters'
 import { toRunErrorPayload } from '@tanstack/ai/adapter-internals'
@@ -19,7 +22,6 @@ import type {
   VideoStreamResult,
   VideoUrlResult,
 } from '@tanstack/ai'
-import type OpenAI_SDK from 'openai'
 import type { OpenAIVideoModel } from '../model-meta'
 import type {
   OpenAIVideoModelDurationByName,
@@ -116,7 +118,7 @@ export class OpenAIVideoAdapter<
       )
     }
 
-    const request: OpenAI_SDK.Videos.VideoCreateParams = {
+    const request: OpenaiPostVideosBody = {
       model,
       prompt: resolved.text,
     }
@@ -131,7 +133,7 @@ export class OpenAIVideoAdapter<
         options.abortSignal,
       )
     }
-    // `VideoCreateParams.size` is `size?: VideoSize` (no `| undefined`), so we
+    // `OpenaiPostVideosBody.size` has no `| undefined`, so we
     // narrow before assignment instead of casting from a `T | undefined` source.
     if (resolvedSize) {
       request.size = resolvedSize
