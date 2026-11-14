@@ -54,8 +54,8 @@
     "@aws-crypto/sha256-js": "^5.2.0",
     "@aws-sdk/client-bedrock-runtime": "^3.1057.0",
     "@aws-sdk/credential-providers": "^3.1057.0",
-    "@smithy/signature-v4": "^5.4.5",
-    "@smithy/types": "^4.14.2",
+    "@smithy/signature-v4": "^5.7.5",
+    "@smithy/types": "^4.20.0",
     "@vitest/coverage-v8": "4.1.10",
     "vite": "^8.2.1"
   },

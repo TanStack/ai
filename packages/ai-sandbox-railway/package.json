@@ -43,7 +43,7 @@
     "test:types": "tsc"
   },
   "dependencies": {
-    "railway": "^3.13.0"
+    "railway": "^3.17.0"
   },
   "peerDependencies": {
     "@tanstack/ai-sandbox": "workspace:^"

@@ -50,7 +50,7 @@
     "test:types": "tsc"
   },
   "dependencies": {
-    "@opencode-ai/sdk": "^1.17.4"
+    "@opencode-ai/sdk": "^1.19.5"
   },
   "peerDependencies": {
     "@tanstack/ai": "workspace:^",

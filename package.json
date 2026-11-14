@@ -5,10 +5,10 @@
     "type": "git",
     "url": "git+https://github.com/TanStack/ai.git"
   },
-  "packageManager": "pnpm@11.9.0",
+  "packageManager": "pnpm@11.28.11",
   "type": "module",
   "engines": {
-    "pnpm": ">=11.9.0"
+    "pnpm": ">=11.28.11"
   },
   "scripts": {
     "clean": "pnpm --filter \"./packages/**\" run clean",
@@ -70,8 +70,8 @@
   "devDependencies": {
     "@aws-sdk/client-bedrock": "^3.1057.0",
     "@changesets/changelog-github": "^1.0.1",
-    "@changesets/cli": "^2.30.0",
-    "@faker-js/faker": "^10.1.0",
+    "@changesets/cli": "^2.31.1",
+    "@faker-js/faker": "^10.6.0",
     "@stylistic/eslint-plugin": "^5.10.0",
     "@tanstack/ai": "workspace:*",
     "@tanstack/ai-grok-build": "workspace:*",
@@ -81,9 +81,9 @@
     "@tanstack/vite-config": "0.6.0",
     "@types/node": "^24.10.1",
     "@typescript/typescript6": "6.0.2",
-    "eslint-plugin-unused-imports": "^4.3.0",
+    "eslint-plugin-unused-imports": "^4.4.1",
     "happy-dom": "^20.11.2",
-    "kiira": "0.6.0",
+    "kiira": "0.7.1",
     "knip": "^6.26.0",
     "markdown-link-extractor": "^4.0.3",
     "nx": "23.1.1",

@@ -56,7 +56,7 @@
     "@tanstack/ai": "workspace:*",
     "@tanstack/ai-code-mode": "workspace:*",
     "@vitest/coverage-v8": "4.1.10",
-    "e2b": "^2.46.1",
-    "zod": "^4.2.0"
+    "e2b": "^2.63.0",
+    "zod": "^4.6.7"
   }
 }

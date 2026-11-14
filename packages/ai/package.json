@@ -101,8 +101,8 @@
     "tanstack-intent"
   ],
   "dependencies": {
-    "@ag-ui/core": "1.0.0",
-    "@cfworker/json-schema": "^4.1.1",
+    "@ag-ui/core": "1.0.4",
+    "@cfworker/json-schema": "^4.1.6",
     "@standard-schema/spec": "^1.1.0",
     "@tanstack/ai-event-client": "workspace:^",
     "@tanstack/ai-utils": "workspace:^",
@@ -120,7 +120,7 @@
   "devDependencies": {
     "@opentelemetry/api": "^1.9.0",
     "@vitest/coverage-v8": "4.1.10",
-    "arktype": "^2.1.28",
-    "zod": "^4.2.0"
+    "arktype": "^2.2.9",
+    "zod": "^4.6.7"
   }
 }

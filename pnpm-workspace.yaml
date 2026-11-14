@@ -90,7 +90,7 @@ overrides:
   abbrev: ^5.0.0
   # @angular/build@22.2.4 pulls @inquirer/core@12.0.6, which depends on
   # @inquirer/type@4.2.1. That version is not on npm (latest is 4.2.0).
-  '@inquirer/type': 4.2.0
+  '@inquirer/type': 4.3.0
 
 # TypeScript 7's `typescript` package no longer ships the JS Compiler API
 # (`ts.sys`, `ts.createProgram`, etc.). These framework tools embed that API,
