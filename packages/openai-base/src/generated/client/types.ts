@@ -7407,6 +7407,17 @@ export type Embedding = {
   object: 'embedding'
 }
 
+export const imagesApiOutputFormat = {
+  png: 'png',
+  webp: 'webp',
+  jpeg: 'jpeg',
+  gif: 'gif',
+  svg: 'svg',
+} as const
+
+export type ImagesApiOutputFormatKey =
+  (typeof imagesApiOutputFormat)[keyof typeof imagesApiOutputFormat]
+
 export type PartialImages = number | null
 
 export const complexity = {
@@ -7499,7 +7510,7 @@ export type ImageGenOutputTokensDetails = {
 }
 
 /**
- * @description For `gpt-image-1` only, the token usage information for the image generation.
+ * @description Token usage information for image generation with GPT Image models.
  * @type object
  */
 export type ImageGenUsage = {
@@ -7768,7 +7779,7 @@ export type ImageEditPartialImageEvent = {
 }
 
 /**
- * @description Selects the model and reasoning effort used to author SVG output. Requires output_format=svg and access to SVG model selection. When model selection is enabled, supply svg.model. When model selection is disabled, omit this object. The top-level model selects the image model that creates the reference image. SVG generation requires n=1 and does not support streaming, partial images, prompt_rewriter, or output_compression. SVG edits are not supported.
+ * @description Selects the model and reasoning effort used to author SVG output. Requires output_format=svg and access to SVG model selection. When model selection is enabled, supply svg.model. When model selection is disabled, omit this object. The top-level model selects the image model that creates the reference image. SVG generation requires n=1 and does not support streaming, partial images, prompt_rewriter, or output_compression.
  * @type object
  */
 export type Svg = {
@@ -21771,21 +21782,21 @@ export type Error2 = {
    * @type string
    */
   code: string
+  type?: string | null
+  param?: string | null
   /**
    * @description A human-readable description of the error that was returned.
    * @type string
    */
   message: string
   /**
-   * @description The Retry-After and Retry-After-Ms headers returned with the original error, if any.
+   * @description Headers returned with the original error. These can include Retry-After, Retry-After-Ms, and, on opted-in deployments, x-openai-inference-capacity-reason.
    * @type object | undefined
    */
   headers?: {
     [key: string]: string
   }
   misalignment?: MisalignmentErrorDetailsResource
-  param?: string | null
-  type?: string | null
 }
 
 export const videoStatus = {
@@ -23767,17 +23778,6 @@ export const openaiPostImagesEditsStatus200BackgroundEnum = {
 export type OpenaiPostImagesEditsStatus200BackgroundEnumKey =
   (typeof openaiPostImagesEditsStatus200BackgroundEnum)[keyof typeof openaiPostImagesEditsStatus200BackgroundEnum]
 
-export const openaiPostImagesEditsStatus200OutputFormatEnum = {
-  png: 'png',
-  webp: 'webp',
-  jpeg: 'jpeg',
-  gif: 'gif',
-  svg: 'svg',
-} as const
-
-export type OpenaiPostImagesEditsStatus200OutputFormatEnumKey =
-  (typeof openaiPostImagesEditsStatus200OutputFormatEnum)[keyof typeof openaiPostImagesEditsStatus200OutputFormatEnum]
-
 export const openaiPostImagesEditsStatus200Size = {
   '1024x1024': '1024x1024',
   '1024x1536': '1024x1536',
@@ -23804,17 +23804,6 @@ export type OpenaiPostImagesEditsStatus200QualityEnumKey =
  */
 export type OpenaiPostImagesEditsStatus200Json = {
   /**
-   * @description Token usage for the model that authored the SVG, separate from image rendering usage.
-   * @type object | undefined
-   */
-  svg_usage?: {
-    model: string
-    input_tokens: number
-    output_tokens: number
-    total_tokens: number
-    reasoning_tokens: number
-  }
-  /**
    * @description The effective safety identifier used for safety monitoring and abuse detection. This is the non-empty `safety_identifier` from the request, or the deprecated `user` value when `safety_identifier` is omitted, null, or empty.
    * @type string | undefined
    */
@@ -23837,10 +23826,10 @@ export type OpenaiPostImagesEditsStatus200Json = {
    */
   background?: OpenaiPostImagesEditsStatus200BackgroundEnumKey
   /**
-   * @description The output format of the generated image.
+   * @description The output format of the generated or edited image.
    * @type string | undefined
    */
-  output_format?: OpenaiPostImagesEditsStatus200OutputFormatEnumKey
+  output_format?: ImagesApiOutputFormatKey
   /**
    * @description The image dimensions as a `WIDTHxHEIGHT` string, for example `1536x864`.
    */
@@ -23851,10 +23840,15 @@ export type OpenaiPostImagesEditsStatus200Json = {
    */
   quality?: OpenaiPostImagesEditsStatus200QualityEnumKey
   /**
-   * @description For `gpt-image-1` only, the token usage information for the image generation.
+   * @description Token usage information for image generation with GPT Image models.
    * @type object | undefined
    */
   usage?: ImageGenUsage
+  /**
+   * @description Token usage for SVG authoring, separate from image rendering usage.
+   * @type object | undefined
+   */
+  svg_usage?: SvgUsage
 }
 
 export type OpenaiPostImagesEditsStatus200EventStream =
@@ -23912,16 +23906,6 @@ export const openaiPostImagesEditsRequestResponseFormatEnum = {
 
 export type OpenaiPostImagesEditsRequestResponseFormatEnumKey =
   (typeof openaiPostImagesEditsRequestResponseFormatEnum)[keyof typeof openaiPostImagesEditsRequestResponseFormatEnum]
-
-export const openaiPostImagesEditsRequestOutputFormat = {
-  png: 'png',
-  jpeg: 'jpeg',
-  webp: 'webp',
-  gif: 'gif',
-} as const
-
-export type OpenaiPostImagesEditsRequestOutputFormatKey =
-  (typeof openaiPostImagesEditsRequestOutputFormat)[keyof typeof openaiPostImagesEditsRequestOutputFormat]
 
 export const openaiPostImagesEditsRequestQuality = {
   low: 'low',
@@ -24041,11 +24025,16 @@ export type OpenaiPostImagesEditsBody = {
    * @description The format in which the generated images are returned. This parameter is
    * only supported for the GPT image models.
    * The default value is `png`.
+   * SVG output requires a supported image model and project access.
    *
    * @default png
    * @example png
    */
-  output_format?: OpenaiPostImagesEditsRequestOutputFormatKey | null
+  output_format?: ImagesApiOutputFormatKey | null
+  /**
+   * @description Selects the author model and reasoning effort for `output_format=svg`. Supply `svg.model` when SVG model selection is enabled. Otherwise, omit this object. SVG output requires `n=1` and cannot use streaming, partial images, or output compression. Use multipart fields such as `svg[model]`.
+   */
+  svg?: SvgParam | null
   /**
    * @description The compression level (0-100%) for the generated images. This parameter
    * is only supported for the GPT image models with the `webp` or `jpeg` output
@@ -24122,17 +24111,6 @@ export const openaiPostImagesGenerationsStatus200BackgroundEnum = {
 export type OpenaiPostImagesGenerationsStatus200BackgroundEnumKey =
   (typeof openaiPostImagesGenerationsStatus200BackgroundEnum)[keyof typeof openaiPostImagesGenerationsStatus200BackgroundEnum]
 
-export const openaiPostImagesGenerationsStatus200OutputFormatEnum = {
-  png: 'png',
-  webp: 'webp',
-  jpeg: 'jpeg',
-  gif: 'gif',
-  svg: 'svg',
-} as const
-
-export type OpenaiPostImagesGenerationsStatus200OutputFormatEnumKey =
-  (typeof openaiPostImagesGenerationsStatus200OutputFormatEnum)[keyof typeof openaiPostImagesGenerationsStatus200OutputFormatEnum]
-
 export const openaiPostImagesGenerationsStatus200Size = {
   '1024x1024': '1024x1024',
   '1024x1536': '1024x1536',
@@ -24159,17 +24137,6 @@ export type OpenaiPostImagesGenerationsStatus200QualityEnumKey =
  */
 export type OpenaiPostImagesGenerationsStatus200Json = {
   /**
-   * @description Token usage for the model that authored the SVG, separate from image rendering usage.
-   * @type object | undefined
-   */
-  svg_usage?: {
-    model: string
-    input_tokens: number
-    output_tokens: number
-    total_tokens: number
-    reasoning_tokens: number
-  }
-  /**
    * @description The effective safety identifier used for safety monitoring and abuse detection. This is the non-empty `safety_identifier` from the request, or the deprecated `user` value when `safety_identifier` is omitted, null, or empty.
    * @type string | undefined
    */
@@ -24192,10 +24159,10 @@ export type OpenaiPostImagesGenerationsStatus200Json = {
    */
   background?: OpenaiPostImagesGenerationsStatus200BackgroundEnumKey
   /**
-   * @description The output format of the generated image.
+   * @description The output format of the generated or edited image.
    * @type string | undefined
    */
-  output_format?: OpenaiPostImagesGenerationsStatus200OutputFormatEnumKey
+  output_format?: ImagesApiOutputFormatKey
   /**
    * @description The image dimensions as a `WIDTHxHEIGHT` string, for example `1536x864`.
    */
@@ -24206,10 +24173,15 @@ export type OpenaiPostImagesGenerationsStatus200Json = {
    */
   quality?: OpenaiPostImagesGenerationsStatus200QualityEnumKey
   /**
-   * @description For `gpt-image-1` only, the token usage information for the image generation.
+   * @description Token usage information for image generation with GPT Image models.
    * @type object | undefined
    */
   usage?: ImageGenUsage
+  /**
+   * @description Token usage for SVG authoring, separate from image rendering usage.
+   * @type object | undefined
+   */
+  svg_usage?: SvgUsage
 }
 
 export type OpenaiPostImagesGenerationsStatus200EventStream =
@@ -24261,17 +24233,6 @@ export const openaiPostImagesGenerationsRequestResponseFormatEnum = {
 
 export type OpenaiPostImagesGenerationsRequestResponseFormatEnumKey =
   (typeof openaiPostImagesGenerationsRequestResponseFormatEnum)[keyof typeof openaiPostImagesGenerationsRequestResponseFormatEnum]
-
-export const openaiPostImagesGenerationsRequestOutputFormat = {
-  png: 'png',
-  jpeg: 'jpeg',
-  webp: 'webp',
-  gif: 'gif',
-  svg: 'svg',
-} as const
-
-export type OpenaiPostImagesGenerationsRequestOutputFormatKey =
-  (typeof openaiPostImagesGenerationsRequestOutputFormat)[keyof typeof openaiPostImagesGenerationsRequestOutputFormat]
 
 export const openaiPostImagesGenerationsRequestSize = {
   auto: 'auto',
@@ -24332,7 +24293,7 @@ export type OpenaiPostImagesGenerationsBody = {
    */
   complexity?: ComplexityKey | null
   /**
-   * @description Selects the model and reasoning effort used to author SVG output. Requires output_format=svg and access to SVG model selection. When model selection is enabled, supply svg.model. When model selection is disabled, omit this object. The top-level model selects the image model that creates the reference image. SVG generation requires n=1 and does not support streaming, partial images, prompt_rewriter, or output_compression. SVG edits are not supported.
+   * @description Selects the model and reasoning effort used to author SVG output. Requires output_format=svg and access to SVG model selection. When model selection is enabled, supply svg.model. When model selection is disabled, omit this object. The top-level model selects the image model that creates the reference image. SVG generation requires n=1 and does not support streaming, partial images, prompt_rewriter, or output_compression.
    * @type object | undefined
    */
   svg?: Svg | null
@@ -24389,7 +24350,7 @@ export type OpenaiPostImagesGenerationsBody = {
    * @default png
    * @example png
    */
-  output_format?: OpenaiPostImagesGenerationsRequestOutputFormatKey | null
+  output_format?: ImagesApiOutputFormatKey | null
   /**
    * @description The compression level (0-100%) for the generated images. This parameter is only supported for the GPT image models with the `webp` or `jpeg` output formats, and defaults to 100.
    * @default 100
@@ -24491,17 +24452,6 @@ export const openaiPostImagesVariationsStatus200BackgroundEnum = {
 export type OpenaiPostImagesVariationsStatus200BackgroundEnumKey =
   (typeof openaiPostImagesVariationsStatus200BackgroundEnum)[keyof typeof openaiPostImagesVariationsStatus200BackgroundEnum]
 
-export const openaiPostImagesVariationsStatus200OutputFormatEnum = {
-  png: 'png',
-  webp: 'webp',
-  jpeg: 'jpeg',
-  gif: 'gif',
-  svg: 'svg',
-} as const
-
-export type OpenaiPostImagesVariationsStatus200OutputFormatEnumKey =
-  (typeof openaiPostImagesVariationsStatus200OutputFormatEnum)[keyof typeof openaiPostImagesVariationsStatus200OutputFormatEnum]
-
 export const openaiPostImagesVariationsStatus200Size = {
   '1024x1024': '1024x1024',
   '1024x1536': '1024x1536',
@@ -24528,17 +24478,6 @@ export type OpenaiPostImagesVariationsStatus200QualityEnumKey =
  */
 export type OpenaiPostImagesVariationsStatus200 = {
   /**
-   * @description Token usage for the model that authored the SVG, separate from image rendering usage.
-   * @type object | undefined
-   */
-  svg_usage?: {
-    model: string
-    input_tokens: number
-    output_tokens: number
-    total_tokens: number
-    reasoning_tokens: number
-  }
-  /**
    * @description The effective safety identifier used for safety monitoring and abuse detection. This is the non-empty `safety_identifier` from the request, or the deprecated `user` value when `safety_identifier` is omitted, null, or empty.
    * @type string | undefined
    */
@@ -24561,10 +24500,10 @@ export type OpenaiPostImagesVariationsStatus200 = {
    */
   background?: OpenaiPostImagesVariationsStatus200BackgroundEnumKey
   /**
-   * @description The output format of the generated image.
+   * @description The output format of the generated or edited image.
    * @type string | undefined
    */
-  output_format?: OpenaiPostImagesVariationsStatus200OutputFormatEnumKey
+  output_format?: ImagesApiOutputFormatKey
   /**
    * @description The image dimensions as a `WIDTHxHEIGHT` string, for example `1536x864`.
    */
@@ -24575,10 +24514,15 @@ export type OpenaiPostImagesVariationsStatus200 = {
    */
   quality?: OpenaiPostImagesVariationsStatus200QualityEnumKey
   /**
-   * @description For `gpt-image-1` only, the token usage information for the image generation.
+   * @description Token usage information for image generation with GPT Image models.
    * @type object | undefined
    */
   usage?: ImageGenUsage
+  /**
+   * @description Token usage for SVG authoring, separate from image rendering usage.
+   * @type object | undefined
+   */
+  svg_usage?: SvgUsage
 }
 
 export const openaiPostImagesVariationsRequestResponseFormatEnum = {
@@ -26697,7 +26641,9 @@ export type OpenaiPostResponsesInputTokensBody = {
   text?: ResponseTextParam | null
   reasoning?: Reasoning | null
   /**
-   * @description The truncation strategy to use for the model response. - `auto`: If the input to this Response exceeds the model's context window size, the model will truncate the response to fit the context window by dropping items from the beginning of the conversation. - `disabled` (default): If the input size will exceed the context window size for a model, the request will fail with a 400 error.
+   * @description The truncation strategy to use for the model response.
+   * - `auto`: If the input to this Response exceeds the model's context window size, the model will truncate the response to fit the context window by dropping items from the beginning of the conversation. On some models, trimming can begin earlier because the API subtracts the model's maximum output allowance from its input limit before counting tokens.
+   * - `disabled` (default): If the input size will exceed the context window size for a model, the request will fail with a 400 error.
    * @deprecated
    * @type string | undefined
    */
@@ -26750,7 +26696,9 @@ export type OpenaiPostResponsesInputTokensBetaTrueBody = {
   text?: BetaResponseTextParam | null
   reasoning?: BetaReasoning | null
   /**
-   * @description The truncation strategy to use for the model response. - `auto`: If the input to this Response exceeds the model's context window size, the model will truncate the response to fit the context window by dropping items from the beginning of the conversation. - `disabled` (default): If the input size will exceed the context window size for a model, the request will fail with a 400 error.
+   * @description The truncation strategy to use for the model response.
+   * - `auto`: If the input to this Response exceeds the model's context window size, the model will truncate the response to fit the context window by dropping items from the beginning of the conversation. On some models, trimming can begin earlier because the API subtracts the model's maximum output allowance from its input limit before counting tokens.
+   * - `disabled` (default): If the input size will exceed the context window size for a model, the request will fail with a 400 error.
    * @deprecated
    * @type string | undefined
    */

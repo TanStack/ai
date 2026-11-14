@@ -6,8 +6,11 @@
  * under the same section).
  */
 
+import { GROK_VIDEO_DURATIONS } from './generated/video-durations'
 import type { DurationOptions } from '@tanstack/ai/adapters'
 import type { GrokVideoModel } from '../model-meta'
+
+export { GROK_VIDEO_DURATIONS }
 
 /**
  * Aspect ratios accepted by the grok-imagine video models.
@@ -65,12 +68,6 @@ const GROK_VIDEO_ASPECT_RATIOS: ReadonlyArray<string> = [
 ]
 
 const GROK_VIDEO_RESOLUTIONS: ReadonlyArray<string> = ['480p', '720p', '1080p']
-
-/**
- * Video duration limits enforced by the Imagine API (seconds).
- */
-export const GROK_VIDEO_MIN_DURATION = 1
-export const GROK_VIDEO_MAX_DURATION = 15
 
 /**
  * Parses a grok video size string into its components.
@@ -137,32 +134,6 @@ export function validateVideoSize(
 export type GrokVideoModelDurationByName = {
   'grok-imagine-video': number
   'grok-imagine-video-1.5': number
-}
-
-/**
- * Runtime duration table backing `availableDurations()` / `snapDuration()`.
- * Both grok-imagine video models accept the same continuous 1–15 integer-second
- * range.
- */
-export const GROK_VIDEO_DURATIONS: {
-  readonly [TModel in GrokVideoModel]: DurationOptions<
-    GrokVideoModelDurationByName[TModel]
-  >
-} = {
-  'grok-imagine-video': {
-    kind: 'range',
-    min: GROK_VIDEO_MIN_DURATION,
-    max: GROK_VIDEO_MAX_DURATION,
-    step: 1,
-    unit: 'seconds',
-  },
-  'grok-imagine-video-1.5': {
-    kind: 'range',
-    min: GROK_VIDEO_MIN_DURATION,
-    max: GROK_VIDEO_MAX_DURATION,
-    step: 1,
-    unit: 'seconds',
-  },
 }
 
 /**

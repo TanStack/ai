@@ -17713,14 +17713,7 @@ export type OutputFalAiFastLightningSdxlInpainting = {
   prompt: string
 }
 
-export type ImageSizeF230Ca9C = {
-  /**
-   * @description The height of the generated image.
-   * @maximum 14142
-   * @default 512
-   * @type integer | undefined
-   */
-  height?: number
+export type ImageSizeBc879208 = {
   /**
    * @description The width of the generated image.
    * @maximum 14142
@@ -17728,9 +17721,43 @@ export type ImageSizeF230Ca9C = {
    * @type integer | undefined
    */
   width?: number
+  /**
+   * @description The height of the generated image.
+   * @maximum 14142
+   * @default 512
+   * @type integer | undefined
+   */
+  height?: number
 }
 
-export type Embedding7Aa215B3 = {
+export type LoraWeight681864Da = {
+  /**
+   * @description
+   *             The scale of the LoRA weight. This is used to scale the LoRA weight
+   *             before merging it with the base model.
+   *
+   * @minimum 0
+   * @maximum 1
+   * @default 1
+   * @type number | undefined
+   */
+  scale?: number
+  /**
+   * @description Deprecated. Accepted for backward compatibility and ignored.
+   * @default false
+   * @type boolean | undefined
+   */
+  force?: boolean
+  /**
+   * @description URL or path to a LoRA safetensors file. Or HF model name that resolves to safetensors weights.
+   * @example https://huggingface.co/nerijs/pixel-art-xl/resolve/8bf4a4d9ea283e00a51fafda8e0539f8248ea037/pixel-art-xl.safetensors
+   * @example https://filebin.net/3chfqasxpqu21y8n/my-custom-lora-v1.safetensors
+   * @type string
+   */
+  path: string
+}
+
+export type Embedding8377Ad23 = {
   /**
    * @description
    *             The list of tokens to use for the embedding. When omitted, tokens
@@ -17747,33 +17774,6 @@ export type Embedding7Aa215B3 = {
    * @type string
    */
   path: string
-}
-
-export type LoraWeightF794A5F2 = {
-  /**
-   * @description URL or path to a LoRA safetensors file. Or HF model name that resolves to safetensors weights.
-   * @example https://huggingface.co/nerijs/pixel-art-xl/resolve/8bf4a4d9ea283e00a51fafda8e0539f8248ea037/pixel-art-xl.safetensors
-   * @example https://filebin.net/3chfqasxpqu21y8n/my-custom-lora-v1.safetensors
-   * @type string
-   */
-  path: string
-  /**
-   * @description If set to true, the embedding will be forced to be used.
-   * @default false
-   * @type boolean | undefined
-   */
-  force?: boolean
-  /**
-   * @description
-   *             The scale of the LoRA weight. This is used to scale the LoRA weight
-   *             before merging it with the base model.
-   *
-   * @minimum 0
-   * @maximum 1
-   * @default 1
-   * @type number | undefined
-   */
-  scale?: number
 }
 
 export const inputFalAiFastSdxlImageSize = {
@@ -17806,35 +17806,30 @@ export type InputFalAiFastSdxlFormatEnumKey =
 
 export type InputFalAiFastSdxl = {
   /**
-   * @description
-   *             The same seed and the same prompt given to the same version of Stable Diffusion
-   *             will output the same image every time.
-   *
-   * @default null
+   * @description If `True`, the media will be returned as a data URI and the output data won't be available in the request history.
+   * @default false
+   * @type boolean | undefined
    */
-  seed?: number | null
+  sync_mode?: boolean
   /**
    * @description The size of the generated image.
    * @default square_hd
    */
-  image_size?: ImageSizeF230Ca9C | InputFalAiFastSdxlImageSizeKey
+  image_size?: ImageSizeBc879208 | InputFalAiFastSdxlImageSizeKey
   /**
-   * @description The version of the safety checker to use. v1 is the default CompVis safety checker. v2 uses a custom ViT model.
-   * @default 'v1'
-   * @type string | undefined
+   * @description If set to true, the safety checker will be enabled.
+   * @default true
+   * @type boolean | undefined
    */
-  safety_checker_version?: InputFalAiFastSdxlSafetyCheckerVersionEnumKey
+  enable_safety_checker?: boolean
   /**
-   * @description
-   *             The CFG (Classifier Free Guidance) scale is a measure of how close you want
-   *             the model to stick to your prompt when looking for a related image to show you.
-   *
-   * @minimum 0
-   * @maximum 20
-   * @default 7.5
-   * @type number | undefined
+   * @description The number of images to generate.
+   * @minimum 1
+   * @maximum 8
+   * @default 1
+   * @type integer | undefined
    */
-  guidance_scale?: number
+  num_images?: number
   /**
    * @description
    *             An id bound to a request, can be used with response to identify the request
@@ -17845,11 +17840,11 @@ export type InputFalAiFastSdxl = {
    */
   request_id?: string
   /**
-   * @description The format of the generated image.
-   * @default 'jpeg'
-   * @type string | undefined
+   * @description If set to true, the prompt will be expanded with additional prompts.
+   * @default false
+   * @type boolean | undefined
    */
-  format?: InputFalAiFastSdxlFormatEnumKey
+  enable_prompt_expansion?: boolean
   /**
    * @description
    *             The negative prompt to use. Use it to address details that you don't want
@@ -17863,6 +17858,38 @@ export type InputFalAiFastSdxl = {
    */
   negative_prompt?: string
   /**
+   * @description The version of the safety checker to use. v1 is the default CompVis safety checker. v2 uses a custom ViT model.
+   * @default 'v1'
+   * @type string | undefined
+   */
+  safety_checker_version?: InputFalAiFastSdxlSafetyCheckerVersionEnumKey
+  /**
+   * @description
+   *             The same seed and the same prompt given to the same version of Stable Diffusion
+   *             will output the same image every time.
+   *
+   * @default null
+   */
+  seed?: number | null
+  /**
+   * @description The list of LoRA weights to use.
+   * @default []
+   * @type array | undefined
+   */
+  loras?: LoraWeight681864Da[]
+  /**
+   * @description The format of the generated image.
+   * @default 'jpeg'
+   * @type string | undefined
+   */
+  format?: InputFalAiFastSdxlFormatEnumKey
+  /**
+   * @description The list of embeddings to use.
+   * @default []
+   * @type array | undefined
+   */
+  embeddings?: Embedding8377Ad23[]
+  /**
    * @description The number of inference steps to perform.
    * @minimum 1
    * @maximum 50
@@ -17871,43 +17898,16 @@ export type InputFalAiFastSdxl = {
    */
   num_inference_steps?: number
   /**
-   * @description If set to true, the safety checker will be enabled.
-   * @default true
-   * @type boolean | undefined
+   * @description
+   *             The CFG (Classifier Free Guidance) scale is a measure of how close you want
+   *             the model to stick to your prompt when looking for a related image to show you.
+   *
+   * @minimum 0
+   * @maximum 20
+   * @default 7.5
+   * @type number | undefined
    */
-  enable_safety_checker?: boolean
-  /**
-   * @description The list of embeddings to use.
-   * @default []
-   * @type array | undefined
-   */
-  embeddings?: Embedding7Aa215B3[]
-  /**
-   * @description The list of LoRA weights to use.
-   * @default []
-   * @type array | undefined
-   */
-  loras?: LoraWeightF794A5F2[]
-  /**
-   * @description The number of images to generate.
-   * @minimum 1
-   * @maximum 8
-   * @default 1
-   * @type integer | undefined
-   */
-  num_images?: number
-  /**
-   * @description If set to true, the prompt will be expanded with additional prompts.
-   * @default false
-   * @type boolean | undefined
-   */
-  enable_prompt_expansion?: boolean
-  /**
-   * @description If `True`, the media will be returned as a data URI and the output data won't be available in the request history.
-   * @default false
-   * @type boolean | undefined
-   */
-  sync_mode?: boolean
+  guidance_scale?: number
   /**
    * @description The prompt to use for generating the image. Be as descriptive as possible for best results.
    * @example photo of a rhino dressed suit and tie sitting at a table in a bar with a bar stools, award winning photography, Elke vogelsang
@@ -18791,14 +18791,7 @@ export type OutputFalAiFastSdxlControlnetCannyInpainting = {
   seed: number
 }
 
-export type ImageSizeA93Ddf16 = {
-  /**
-   * @description The height of the generated image.
-   * @maximum 14142
-   * @default 512
-   * @type integer | undefined
-   */
-  height?: number
+export type ImageSizeE21De822 = {
   /**
    * @description The width of the generated image.
    * @maximum 14142
@@ -18806,9 +18799,43 @@ export type ImageSizeA93Ddf16 = {
    * @type integer | undefined
    */
   width?: number
+  /**
+   * @description The height of the generated image.
+   * @maximum 14142
+   * @default 512
+   * @type integer | undefined
+   */
+  height?: number
 }
 
-export type Embedding52906Df7 = {
+export type LoraWeight8Db7Eda0 = {
+  /**
+   * @description
+   *             The scale of the LoRA weight. This is used to scale the LoRA weight
+   *             before merging it with the base model.
+   *
+   * @minimum 0
+   * @maximum 1
+   * @default 1
+   * @type number | undefined
+   */
+  scale?: number
+  /**
+   * @description Deprecated. Accepted for backward compatibility and ignored.
+   * @default false
+   * @type boolean | undefined
+   */
+  force?: boolean
+  /**
+   * @description URL or path to a LoRA safetensors file. Or HF model name that resolves to safetensors weights.
+   * @example https://huggingface.co/nerijs/pixel-art-xl/resolve/8bf4a4d9ea283e00a51fafda8e0539f8248ea037/pixel-art-xl.safetensors
+   * @example https://filebin.net/3chfqasxpqu21y8n/my-custom-lora-v1.safetensors
+   * @type string
+   */
+  path: string
+}
+
+export type EmbeddingA6Ce96C7 = {
   /**
    * @description
    *             The list of tokens to use for the embedding. When omitted, tokens
@@ -18825,33 +18852,6 @@ export type Embedding52906Df7 = {
    * @type string
    */
   path: string
-}
-
-export type LoraWeight940346A8 = {
-  /**
-   * @description URL or path to a LoRA safetensors file. Or HF model name that resolves to safetensors weights.
-   * @example https://huggingface.co/nerijs/pixel-art-xl/resolve/8bf4a4d9ea283e00a51fafda8e0539f8248ea037/pixel-art-xl.safetensors
-   * @example https://filebin.net/3chfqasxpqu21y8n/my-custom-lora-v1.safetensors
-   * @type string
-   */
-  path: string
-  /**
-   * @description If set to true, the embedding will be forced to be used.
-   * @default false
-   * @type boolean | undefined
-   */
-  force?: boolean
-  /**
-   * @description
-   *             The scale of the LoRA weight. This is used to scale the LoRA weight
-   *             before merging it with the base model.
-   *
-   * @minimum 0
-   * @maximum 1
-   * @default 1
-   * @type number | undefined
-   */
-  scale?: number
 }
 
 export const inputFalAiFastSdxlImageToImageImageSize = {
@@ -18884,129 +18884,22 @@ export type InputFalAiFastSdxlImageToImageFormatEnumKey =
 
 export type InputFalAiFastSdxlImageToImage = {
   /**
-   * @description
-   *             The same seed and the same prompt given to the same version of Stable Diffusion
-   *             will output the same image every time.
-   *
-   * @default null
+   * @description If `True`, the media will be returned as a data URI and the output data won't be available in the request history.
+   * @default false
+   * @type boolean | undefined
    */
-  seed?: number | null
+  sync_mode?: boolean
   /**
    * @description The size of the generated image.
    * @default square_hd
    */
-  image_size?: ImageSizeA93Ddf16 | InputFalAiFastSdxlImageToImageImageSizeKey
-  /**
-   * @description The version of the safety checker to use. v1 is the default CompVis safety checker. v2 uses a custom ViT model.
-   * @default 'v1'
-   * @type string | undefined
-   */
-  safety_checker_version?: InputFalAiFastSdxlImageToImageSafetyCheckerVersionEnumKey
-  /**
-   * @description
-   *             The CFG (Classifier Free Guidance) scale is a measure of how close you want
-   *             the model to stick to your prompt when looking for a related image to show you.
-   *
-   * @minimum 0
-   * @maximum 20
-   * @default 7.5
-   * @type number | undefined
-   */
-  guidance_scale?: number
-  /**
-   * @description
-   *             An id bound to a request, can be used with response to identify the request
-   *             itself.
-   *
-   * @default ''
-   * @type string | undefined
-   */
-  request_id?: string
-  /**
-   * @description determines how much the generated image resembles the initial image
-   * @minimum 0.05
-   * @maximum 1
-   * @default 0.95
-   * @type number | undefined
-   */
-  strength?: number
-  /**
-   * @description
-   *         If set to true, the output cropped to the proper aspect ratio after generating.
-   *
-   * @default false
-   * @type boolean | undefined
-   */
-  crop_output?: boolean
-  /**
-   * @description The format of the generated image.
-   * @default 'jpeg'
-   * @type string | undefined
-   */
-  format?: InputFalAiFastSdxlImageToImageFormatEnumKey
-  /**
-   * @description The URL of the image to use as a starting point for the generation.
-   * @example https://fal-cdn.batuhan-941.workers.dev/files/tiger/IExuP-WICqaIesLZAZPur.jpeg
-   * @type string
-   */
-  image_url: string
-  /**
-   * @description The number of inference steps to perform.
-   * @minimum 1
-   * @maximum 65
-   * @default 25
-   * @type integer | undefined
-   */
-  num_inference_steps?: number
-  /**
-   * @description
-   *             The negative prompt to use.Use it to address details that you don't want
-   *             in the image. This could be colors, objects, scenery and even the small details
-   *             (e.g. moustache, blurry, low resolution).
-   *
-   * @default ''
-   * @example cartoon, illustration, animation. face. male, female
-   * @type string | undefined
-   */
-  negative_prompt?: string
-  /**
-   * @description If set to true, the prompt will be expanded with additional prompts.
-   * @default false
-   * @type boolean | undefined
-   */
-  enable_prompt_expansion?: boolean
-  /**
-   * @description The list of embeddings to use.
-   * @default []
-   * @type array | undefined
-   */
-  embeddings?: Embedding52906Df7[]
-  /**
-   * @description The list of LoRA weights to use.
-   * @default []
-   * @type array | undefined
-   */
-  loras?: LoraWeight940346A8[]
-  /**
-   * @description The number of images to generate.
-   * @minimum 1
-   * @maximum 8
-   * @default 1
-   * @type integer | undefined
-   */
-  num_images?: number
+  image_size?: ImageSizeE21De822 | InputFalAiFastSdxlImageToImageImageSizeKey
   /**
    * @description If set to true, the safety checker will be enabled.
    * @default true
    * @type boolean | undefined
    */
   enable_safety_checker?: boolean
-  /**
-   * @description If `True`, the media will be returned as a data URI and the output data won't be available in the request history.
-   * @default false
-   * @type boolean | undefined
-   */
-  sync_mode?: boolean
   /**
    * @description The prompt to use for generating the image. Be as descriptive as possible for best results.
    * @example an island near sea, with seagulls, moon shining over the sea, light house, boats int he background, fish flying over the sea
@@ -19026,6 +18919,113 @@ export type InputFalAiFastSdxlImageToImage = {
    * @type boolean | undefined
    */
   preserve_aspect_ratio?: boolean
+  /**
+   * @description
+   *             An id bound to a request, can be used with response to identify the request
+   *             itself.
+   *
+   * @default ''
+   * @type string | undefined
+   */
+  request_id?: string
+  /**
+   * @description If set to true, the prompt will be expanded with additional prompts.
+   * @default false
+   * @type boolean | undefined
+   */
+  enable_prompt_expansion?: boolean
+  /**
+   * @description determines how much the generated image resembles the initial image
+   * @minimum 0.05
+   * @maximum 1
+   * @default 0.95
+   * @type number | undefined
+   */
+  strength?: number
+  /**
+   * @description The version of the safety checker to use. v1 is the default CompVis safety checker. v2 uses a custom ViT model.
+   * @default 'v1'
+   * @type string | undefined
+   */
+  safety_checker_version?: InputFalAiFastSdxlImageToImageSafetyCheckerVersionEnumKey
+  /**
+   * @description
+   *             The same seed and the same prompt given to the same version of Stable Diffusion
+   *             will output the same image every time.
+   *
+   * @default null
+   */
+  seed?: number | null
+  /**
+   * @description The URL of the image to use as a starting point for the generation.
+   * @example https://fal-cdn.batuhan-941.workers.dev/files/tiger/IExuP-WICqaIesLZAZPur.jpeg
+   * @type string
+   */
+  image_url: string
+  /**
+   * @description
+   *             The negative prompt to use.Use it to address details that you don't want
+   *             in the image. This could be colors, objects, scenery and even the small details
+   *             (e.g. moustache, blurry, low resolution).
+   *
+   * @default ''
+   * @example cartoon, illustration, animation. face. male, female
+   * @type string | undefined
+   */
+  negative_prompt?: string
+  /**
+   * @description The format of the generated image.
+   * @default 'jpeg'
+   * @type string | undefined
+   */
+  format?: InputFalAiFastSdxlImageToImageFormatEnumKey
+  /**
+   * @description The list of LoRA weights to use.
+   * @default []
+   * @type array | undefined
+   */
+  loras?: LoraWeight8Db7Eda0[]
+  /**
+   * @description
+   *         If set to true, the output cropped to the proper aspect ratio after generating.
+   *
+   * @default false
+   * @type boolean | undefined
+   */
+  crop_output?: boolean
+  /**
+   * @description The list of embeddings to use.
+   * @default []
+   * @type array | undefined
+   */
+  embeddings?: EmbeddingA6Ce96C7[]
+  /**
+   * @description The number of inference steps to perform.
+   * @minimum 1
+   * @maximum 65
+   * @default 25
+   * @type integer | undefined
+   */
+  num_inference_steps?: number
+  /**
+   * @description
+   *             The CFG (Classifier Free Guidance) scale is a measure of how close you want
+   *             the model to stick to your prompt when looking for a related image to show you.
+   *
+   * @minimum 0
+   * @maximum 20
+   * @default 7.5
+   * @type number | undefined
+   */
+  guidance_scale?: number
+  /**
+   * @description The number of images to generate.
+   * @minimum 1
+   * @maximum 8
+   * @default 1
+   * @type integer | undefined
+   */
+  num_images?: number
 }
 
 export type Image1Ffbdd9A = {
@@ -19067,14 +19067,7 @@ export type OutputFalAiFastSdxlImageToImage = {
   prompt: string
 }
 
-export type ImageSize3E64Dc98 = {
-  /**
-   * @description The height of the generated image.
-   * @maximum 14142
-   * @default 512
-   * @type integer | undefined
-   */
-  height?: number
+export type ImageSize54A85B0C = {
   /**
    * @description The width of the generated image.
    * @maximum 14142
@@ -19082,9 +19075,43 @@ export type ImageSize3E64Dc98 = {
    * @type integer | undefined
    */
   width?: number
+  /**
+   * @description The height of the generated image.
+   * @maximum 14142
+   * @default 512
+   * @type integer | undefined
+   */
+  height?: number
 }
 
-export type EmbeddingFcfe06Dd = {
+export type LoraWeight63268B2E = {
+  /**
+   * @description
+   *             The scale of the LoRA weight. This is used to scale the LoRA weight
+   *             before merging it with the base model.
+   *
+   * @minimum 0
+   * @maximum 1
+   * @default 1
+   * @type number | undefined
+   */
+  scale?: number
+  /**
+   * @description Deprecated. Accepted for backward compatibility and ignored.
+   * @default false
+   * @type boolean | undefined
+   */
+  force?: boolean
+  /**
+   * @description URL or path to a LoRA safetensors file. Or HF model name that resolves to safetensors weights.
+   * @example https://huggingface.co/nerijs/pixel-art-xl/resolve/8bf4a4d9ea283e00a51fafda8e0539f8248ea037/pixel-art-xl.safetensors
+   * @example https://filebin.net/3chfqasxpqu21y8n/my-custom-lora-v1.safetensors
+   * @type string
+   */
+  path: string
+}
+
+export type Embedding6C99F28D = {
   /**
    * @description
    *             The list of tokens to use for the embedding. When omitted, tokens
@@ -19101,33 +19128,6 @@ export type EmbeddingFcfe06Dd = {
    * @type string
    */
   path: string
-}
-
-export type LoraWeight9Debcd26 = {
-  /**
-   * @description URL or path to a LoRA safetensors file. Or HF model name that resolves to safetensors weights.
-   * @example https://huggingface.co/nerijs/pixel-art-xl/resolve/8bf4a4d9ea283e00a51fafda8e0539f8248ea037/pixel-art-xl.safetensors
-   * @example https://filebin.net/3chfqasxpqu21y8n/my-custom-lora-v1.safetensors
-   * @type string
-   */
-  path: string
-  /**
-   * @description If set to true, the embedding will be forced to be used.
-   * @default false
-   * @type boolean | undefined
-   */
-  force?: boolean
-  /**
-   * @description
-   *             The scale of the LoRA weight. This is used to scale the LoRA weight
-   *             before merging it with the base model.
-   *
-   * @minimum 0
-   * @maximum 1
-   * @default 1
-   * @type number | undefined
-   */
-  scale?: number
 }
 
 export const inputFalAiFastSdxlInpaintingImageSize = {
@@ -19160,35 +19160,34 @@ export type InputFalAiFastSdxlInpaintingFormatEnumKey =
 
 export type InputFalAiFastSdxlInpainting = {
   /**
-   * @description
-   *             The same seed and the same prompt given to the same version of Stable Diffusion
-   *             will output the same image every time.
-   *
-   * @default null
+   * @description If `True`, the media will be returned as a data URI and the output data won't be available in the request history.
+   * @default false
+   * @type boolean | undefined
    */
-  seed?: number | null
+  sync_mode?: boolean
   /**
    * @description The size of the generated image.
    * @default square_hd
    */
-  image_size?: ImageSize3E64Dc98 | InputFalAiFastSdxlInpaintingImageSizeKey
+  image_size?: ImageSize54A85B0C | InputFalAiFastSdxlInpaintingImageSizeKey
   /**
-   * @description The version of the safety checker to use. v1 is the default CompVis safety checker. v2 uses a custom ViT model.
-   * @default 'v1'
-   * @type string | undefined
+   * @description If set to true, the safety checker will be enabled.
+   * @default true
+   * @type boolean | undefined
    */
-  safety_checker_version?: InputFalAiFastSdxlInpaintingSafetyCheckerVersionEnumKey
+  enable_safety_checker?: boolean
   /**
-   * @description
-   *             The CFG (Classifier Free Guidance) scale is a measure of how close you want
-   *             the model to stick to your prompt when looking for a related image to show you.
-   *
-   * @minimum 0
-   * @maximum 20
-   * @default 7.5
-   * @type number | undefined
+   * @description The prompt to use for generating the image. Be as descriptive as possible for best results.
+   * @example a tiger sitting on a park bench
+   * @type string
    */
-  guidance_scale?: number
+  prompt: string
+  /**
+   * @description The URL of the mask to use for inpainting.
+   * @example https://raw.githubusercontent.com/CompVis/latent-diffusion/main/data/inpainting_examples/overture-creations-5sI6fQgYIuo_mask.png
+   * @type string
+   */
+  mask_url: string
   /**
    * @description
    *             An id bound to a request, can be used with response to identify the request
@@ -19199,6 +19198,12 @@ export type InputFalAiFastSdxlInpainting = {
    */
   request_id?: string
   /**
+   * @description If set to true, the prompt will be expanded with additional prompts.
+   * @default false
+   * @type boolean | undefined
+   */
+  enable_prompt_expansion?: boolean
+  /**
    * @description determines how much the generated image resembles the initial image
    * @minimum 0.01
    * @maximum 1
@@ -19207,23 +19212,19 @@ export type InputFalAiFastSdxlInpainting = {
    */
   strength?: number
   /**
-   * @description The format of the generated image.
-   * @default 'jpeg'
+   * @description The version of the safety checker to use. v1 is the default CompVis safety checker. v2 uses a custom ViT model.
+   * @default 'v1'
    * @type string | undefined
    */
-  format?: InputFalAiFastSdxlInpaintingFormatEnumKey
+  safety_checker_version?: InputFalAiFastSdxlInpaintingSafetyCheckerVersionEnumKey
   /**
-   * @description The URL of the image to use as a starting point for the generation.
-   * @example https://raw.githubusercontent.com/CompVis/latent-diffusion/main/data/inpainting_examples/overture-creations-5sI6fQgYIuo.png
-   * @type string
+   * @description
+   *             The same seed and the same prompt given to the same version of Stable Diffusion
+   *             will output the same image every time.
+   *
+   * @default null
    */
-  image_url: string
-  /**
-   * @description The URL of the mask to use for inpainting.
-   * @example https://raw.githubusercontent.com/CompVis/latent-diffusion/main/data/inpainting_examples/overture-creations-5sI6fQgYIuo_mask.png
-   * @type string
-   */
-  mask_url: string
+  seed?: number | null
   /**
    * @description
    *             The negative prompt to use.Use it to address details that you don't want
@@ -19236,6 +19237,30 @@ export type InputFalAiFastSdxlInpainting = {
    */
   negative_prompt?: string
   /**
+   * @description The URL of the image to use as a starting point for the generation.
+   * @example https://raw.githubusercontent.com/CompVis/latent-diffusion/main/data/inpainting_examples/overture-creations-5sI6fQgYIuo.png
+   * @type string
+   */
+  image_url: string
+  /**
+   * @description The format of the generated image.
+   * @default 'jpeg'
+   * @type string | undefined
+   */
+  format?: InputFalAiFastSdxlInpaintingFormatEnumKey
+  /**
+   * @description The list of LoRA weights to use.
+   * @default []
+   * @type array | undefined
+   */
+  loras?: LoraWeight63268B2E[]
+  /**
+   * @description The list of embeddings to use.
+   * @default []
+   * @type array | undefined
+   */
+  embeddings?: Embedding6C99F28D[]
+  /**
    * @description The number of inference steps to perform.
    * @minimum 1
    * @maximum 65
@@ -19244,23 +19269,16 @@ export type InputFalAiFastSdxlInpainting = {
    */
   num_inference_steps?: number
   /**
-   * @description If set to true, the prompt will be expanded with additional prompts.
-   * @default false
-   * @type boolean | undefined
+   * @description
+   *             The CFG (Classifier Free Guidance) scale is a measure of how close you want
+   *             the model to stick to your prompt when looking for a related image to show you.
+   *
+   * @minimum 0
+   * @maximum 20
+   * @default 7.5
+   * @type number | undefined
    */
-  enable_prompt_expansion?: boolean
-  /**
-   * @description The list of embeddings to use.
-   * @default []
-   * @type array | undefined
-   */
-  embeddings?: EmbeddingFcfe06Dd[]
-  /**
-   * @description The list of LoRA weights to use.
-   * @default []
-   * @type array | undefined
-   */
-  loras?: LoraWeight9Debcd26[]
+  guidance_scale?: number
   /**
    * @description The number of images to generate.
    * @minimum 1
@@ -19269,24 +19287,6 @@ export type InputFalAiFastSdxlInpainting = {
    * @type integer | undefined
    */
   num_images?: number
-  /**
-   * @description If set to true, the safety checker will be enabled.
-   * @default true
-   * @type boolean | undefined
-   */
-  enable_safety_checker?: boolean
-  /**
-   * @description If `True`, the media will be returned as a data URI and the output data won't be available in the request history.
-   * @default false
-   * @type boolean | undefined
-   */
-  sync_mode?: boolean
-  /**
-   * @description The prompt to use for generating the image. Be as descriptive as possible for best results.
-   * @example a tiger sitting on a park bench
-   * @type string
-   */
-  prompt: string
 }
 
 export type Image47A0E734 = {

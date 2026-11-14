@@ -15,8 +15,10 @@
  *    per-model schemas (Fal) gets a types-only `src/generated/{activity}`
  *    holding a `{Provider}{Activity}Endpoints` map of model id to
  *    `{ input, output }`.
- * 5. Run Kubb into a scratch directory, then oxfmt.
- * 6. Write the result into the packages, or with `--check` compare it with
+ * 5. Write the video duration tables: fal per endpoint, and the providers in
+ *    `VIDEO_DURATIONS` per model of their create operation.
+ * 6. Run Kubb into a scratch directory, then oxfmt.
+ * 7. Write the result into the packages, or with `--check` compare it with
  *    the committed files.
  */
 import { execFileSync } from 'node:child_process'
@@ -28,9 +30,14 @@ import {
   falImageFieldOverrides,
   falVideoDurations,
   renderFalImageFieldOverrides,
-  renderFalVideoDurations,
 } from './fal.ts'
 import type { ActivityDoc } from './fal.ts'
+import {
+  VIDEO_DURATIONS,
+  operationVideoDurations,
+  renderVideoDurations,
+} from './video-durations.ts'
+import type { Duration } from './video-durations.ts'
 import {
   diffFiles,
   docSkipReason,
@@ -90,6 +97,7 @@ async function main() {
     await mkdir(docs, { recursive: true })
     const generated: typeof PROVIDER_CLIENTS = []
     const falActivityDocs = new Map<string, ActivityDoc>()
+    const videoDocs = new Map<string, ActivityDoc>()
     const activityTypes: Array<
       (typeof PROVIDER_CLIENTS)[number] & { activity: string }
     > = []
@@ -112,6 +120,7 @@ async function main() {
         if ('skip' in doc) continue
         const parsed = parseDoc(doc.text)
         if (provider.id === 'fal') falActivityDocs.set(activity, parsed)
+        if (activity === 'video') videoDocs.set(provider.id, parsed)
         const mapped = withEndpointMap(
           parsed,
           `${pascal(provider.id)}${pascal(activity)}Endpoints`,
@@ -151,8 +160,6 @@ async function main() {
     // ponytail: fal-only step. Generalise when a second provider needs
     // derived files from its activity documents.
     const falFields = join(out, '_fal-image-fields')
-    const falDurations = join(out, '_fal-video-durations')
-    const falVideo = falActivityDocs.get('video')
     if (falActivityDocs.size > 0) {
       await mkdir(falFields, { recursive: true })
       await writeFile(
@@ -162,11 +169,33 @@ async function main() {
         ),
       )
     }
+    // Each video duration table, by the directory it is written to.
+    const durationTables = new Map<string, [string, Map<string, Duration>]>()
+    const falVideo = falActivityDocs.get('video')
     if (falVideo) {
-      await mkdir(falDurations, { recursive: true })
+      durationTables.set('packages/ai-fal/src/video/generated', [
+        'fal',
+        falVideoDurations(falVideo),
+      ])
+    }
+    for (const { id, path, outDir } of VIDEO_DURATIONS) {
+      let doc = videoDocs.get(id)
+      if (!doc) {
+        const fetched = await fetchDoc(id, 'video')
+        if ('skip' in fetched) {
+          console.warn(`skip ${id} video durations: ${fetched.skip}`)
+          continue
+        }
+        doc = parseDoc(fetched.text)
+      }
+      durationTables.set(outDir, [id, operationVideoDurations(doc, path)])
+    }
+    for (const [i, [id, durations]] of [...durationTables.values()].entries()) {
+      const dir = join(out, `_video-durations-${i}`)
+      await mkdir(dir, { recursive: true })
       await writeFile(
-        join(falDurations, 'video-durations.ts'),
-        renderFalVideoDurations(falVideoDurations(falVideo)),
+        join(dir, 'video-durations.ts'),
+        renderVideoDurations(id, durations),
       )
     }
     execFileSync(
@@ -195,11 +224,8 @@ async function main() {
         await readTree(falFields),
       )
     }
-    if (falVideo) {
-      targets.set(
-        'packages/ai-fal/src/video/generated',
-        await readTree(falDurations),
-      )
+    for (const [i, outDir] of [...durationTables.keys()].entries()) {
+      targets.set(outDir, await readTree(join(out, `_video-durations-${i}`)))
     }
     // Each runtime file is the same in every run, so the union is the runtime.
     const runtime: Record<string, string> = {}
