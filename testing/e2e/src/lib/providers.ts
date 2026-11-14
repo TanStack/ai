@@ -35,53 +35,72 @@ export const LLMOCK_DEFAULT_BASE =
 const DUMMY_KEY = 'sk-e2e-test-dummy-key'
 
 /**
+ * Builds a `fetch` that passes every SSE frame of a streamed response through
+ * `rewriteFrame`. Non-streaming responses are returned untouched. aimock
+ * authors everything else about the stream.
+ */
+const sseRewriteFetch =
+  (rewriteFrame: (frame: string) => string): typeof fetch =>
+  async (input, init) => {
+    const response = await fetch(input, init)
+    if (
+      !response.body ||
+      !response.headers.get('content-type')?.includes('text/event-stream')
+    ) {
+      return response
+    }
+    const decoder = new TextDecoder()
+    const encoder = new TextEncoder()
+    let buffer = ''
+    const rewritten = response.body.pipeThrough(
+      new TransformStream<Uint8Array, Uint8Array>({
+        transform(chunk, controller) {
+          buffer += decoder.decode(chunk, { stream: true })
+          const frames = buffer.split(/\r?\n\r?\n/)
+          buffer = frames.pop() ?? ''
+          for (const frame of frames) {
+            controller.enqueue(encoder.encode(rewriteFrame(frame) + '\n\n'))
+          }
+        },
+        flush(controller) {
+          if (buffer) controller.enqueue(encoder.encode(rewriteFrame(buffer)))
+        },
+      }),
+    )
+    return new Response(rewritten, {
+      status: response.status,
+      statusText: response.statusText,
+      headers: response.headers,
+    })
+  }
+
+/**
  * Re-keys aimock's reasoning frames to the pre-July-2025
  * `response.reasoning.delta` event name that Mantle-served Bedrock models
  * still emit, so openai-base's legacy-event mapping is exercised over a real
- * wire. aimock authors everything else about the stream.
+ * wire.
  */
-const legacyReasoningFetch: typeof fetch = async (input, init) => {
-  const response = await fetch(input, init)
-  if (
-    !response.body ||
-    !response.headers.get('content-type')?.includes('text/event-stream')
-  ) {
-    return response
-  }
-  const decoder = new TextDecoder()
-  const encoder = new TextEncoder()
-  const rewriteFrame = (frame: string) =>
-    frame
-      .replace(
-        'event: response.reasoning_summary_text.delta',
-        'event: response.reasoning.delta',
-      )
-      .replace(
-        '"type":"response.reasoning_summary_text.delta"',
-        '"type":"response.reasoning.delta"',
-      )
-  let buffer = ''
-  const rewritten = response.body.pipeThrough(
-    new TransformStream<Uint8Array, Uint8Array>({
-      transform(chunk, controller) {
-        buffer += decoder.decode(chunk, { stream: true })
-        const frames = buffer.split(/\r?\n\r?\n/)
-        buffer = frames.pop() ?? ''
-        for (const frame of frames) {
-          controller.enqueue(encoder.encode(rewriteFrame(frame) + '\n\n'))
-        }
-      },
-      flush(controller) {
-        if (buffer) controller.enqueue(encoder.encode(rewriteFrame(buffer)))
-      },
-    }),
-  )
-  return new Response(rewritten, {
-    status: response.status,
-    statusText: response.statusText,
-    headers: response.headers,
-  })
-}
+const legacyReasoningFetch = sseRewriteFetch((frame) =>
+  frame
+    .replace(
+      'event: response.reasoning_summary_text.delta',
+      'event: response.reasoning.delta',
+    )
+    .replace(
+      '"type":"response.reasoning_summary_text.delta"',
+      '"type":"response.reasoning.delta"',
+    ),
+)
+
+/**
+ * Re-keys aimock's Chat Completions reasoning deltas from
+ * `delta.reasoning_content` to `delta.reasoning`, the field Vercel AI Gateway
+ * streams thinking text on, so the gateway chat adapter's `extractReasoning`
+ * is exercised over a real wire.
+ */
+const gatewayReasoningFetch = sseRewriteFetch((frame) =>
+  frame.replaceAll('"reasoning_content":', '"reasoning":'),
+)
 
 const defaultModels: Record<Provider, string> = {
   openai: 'gpt-4o',
@@ -334,6 +353,7 @@ export function createTextAdapter(
           api: 'chat',
           baseURL: openaiUrl,
           defaultHeaders: testHeaders,
+          fetch: gatewayReasoningFetch,
         }),
       }),
     'vercel-gateway-responses': () =>
