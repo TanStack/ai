@@ -3,7 +3,9 @@ import { chat } from '@tanstack/ai'
 import { createGeminiChat } from '@tanstack/ai-gemini'
 import { createAnthropicChat } from '@tanstack/ai-anthropic'
 import { createOpenaiChat } from '@tanstack/ai-openai'
+import { OpenAICompatibleChatAdapter } from '@tanstack/ai-openai/compatible'
 import { grokVertexText } from '@tanstack/ai-grok/vertex'
+import { createOpenAIClient } from '@tanstack/openai-base'
 import { vertexE2eAuthClient } from '@/lib/vertex-e2e'
 import type {
   AnyTextAdapter,
@@ -25,6 +27,11 @@ const geminiReasoning: ReasoningRequest = {
 // grok-4.20-reasoning always thinks and has no levels, so even `off` sends
 // no reasoning field.
 const grokReasoning: ReasoningRequest = { level: 'off', summary: true }
+// The OpenAI-compatible adapter gets its levels from the `reasoning` option.
+const compatibleLevels = {
+  levels: { low: 'low', medium: 'medium', high: 'high' },
+  budget: false,
+} as const
 const messages = [
   {
     role: 'user' as const,
@@ -78,10 +85,21 @@ export const Route = createFileRoute('/api/reasoning-wire')({
                     authClient: vertexE2eAuthClient(),
                     defaultHeaders: headers,
                   })
-                : createOpenaiChat('o3', DUMMY_KEY, {
-                    baseURL: `${LLMOCK_DEFAULT_BASE}/v1`,
-                    defaultHeaders: headers,
-                  })
+                : provider === 'openai-compatible'
+                  ? new OpenAICompatibleChatAdapter(
+                      createOpenAIClient({
+                        apiKey: DUMMY_KEY,
+                        baseURL: `${LLMOCK_DEFAULT_BASE}/v1`,
+                        defaultHeaders: headers,
+                      }),
+                      'deepseek-reasoner',
+                      'openai-compatible',
+                      { reasoning: compatibleLevels },
+                    )
+                  : createOpenaiChat('o3', DUMMY_KEY, {
+                      baseURL: `${LLMOCK_DEFAULT_BASE}/v1`,
+                      defaultHeaders: headers,
+                    })
 
         let text = ''
         try {

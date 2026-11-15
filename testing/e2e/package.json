@@ -47,6 +47,7 @@
     "@tanstack/ai-neon": "workspace:*",
     "@tanstack/ai-ollama": "workspace:*",
     "@tanstack/ai-openai": "workspace:*",
+    "@tanstack/openai-base": "workspace:*",
     "@tanstack/ai-openrouter": "workspace:*",
     "@tanstack/ai-persistence": "workspace:*",
     "@tanstack/ai-react": "workspace:*",
