@@ -2,8 +2,11 @@ import { describe, expect, it, vi } from 'vitest'
 import OpenAI from 'openai'
 import { EventType } from '@tanstack/ai'
 import { resolveDebugOption } from '@tanstack/ai/adapter-internals'
-import { OpenAICompatibleChatAdapter } from '../src/compatible/adapter'
-import type { AdapterYieldChunk } from '@tanstack/ai'
+import {
+  OpenAICompatibleChatAdapter,
+  OpenAICompatibleResponsesAdapter,
+} from '../src/compatible/adapter'
+import type { AdapterYieldChunk, ReasoningRequest } from '@tanstack/ai'
 
 const testLogger = resolveDebugOption(false)
 
@@ -139,5 +142,80 @@ describe('OpenAICompatibleChatAdapter reasoning', () => {
         usage: { totalTokens: 4 },
       },
     )
+  })
+})
+
+/**
+ * `chat({ reasoning })` on the compatible adapters: the `reasoning`
+ * constructor option gives the model's levels, and the base sends the level's
+ * value as `reasoning_effort` (Chat Completions) or `reasoning.effort`
+ * (Responses).
+ */
+describe('OpenAI-compatible adapters send chat({ reasoning })', () => {
+  const REASONING = {
+    levels: { low: 'low', high: 'high' },
+    budget: false,
+  } as const
+
+  async function sentRequest(
+    api: 'chat' | 'responses',
+    reasoning: ReasoningRequest | undefined,
+    options?: { reasoning?: typeof REASONING },
+  ) {
+    const client = new OpenAI({ apiKey: 'test-api-key' })
+    const create = vi.fn().mockResolvedValue(createAsyncIterable([]))
+    if (api === 'chat') {
+      client.chat.completions.create =
+        create as typeof client.chat.completions.create
+    } else {
+      client.responses.create = create as typeof client.responses.create
+    }
+    const Adapter =
+      api === 'chat'
+        ? OpenAICompatibleChatAdapter
+        : OpenAICompatibleResponsesAdapter
+    const adapter = new Adapter(client, 'model', 'provider', options)
+    for await (const _ of adapter.chatStream({
+      threadId: 'thread-1',
+      logger: testLogger,
+      model: 'model',
+      messages: [{ role: 'user', content: 'Hi' }],
+      reasoning,
+    })) {
+      // drain
+    }
+    return create.mock.calls[0]![0] as Record<string, unknown>
+  }
+
+  it('sends the level as reasoning_effort on Chat Completions', async () => {
+    const request = await sentRequest(
+      'chat',
+      { level: 'high', summary: true },
+      { reasoning: REASONING },
+    )
+    expect(request.reasoning_effort).toBe('high')
+  })
+
+  it('moves a level the model does not have to the nearest one', async () => {
+    const request = await sentRequest(
+      'chat',
+      { level: 'medium', summary: true },
+      { reasoning: REASONING },
+    )
+    expect(request.reasoning_effort).toBe('high')
+  })
+
+  it('sends reasoning.effort and a summary on Responses', async () => {
+    const request = await sentRequest(
+      'responses',
+      { level: 'low', summary: true },
+      { reasoning: REASONING },
+    )
+    expect(request.reasoning).toEqual({ effort: 'low', summary: 'auto' })
+  })
+
+  it('sends nothing without the reasoning option', async () => {
+    const request = await sentRequest('chat', { level: 'high', summary: true })
+    expect(request).not.toHaveProperty('reasoning_effort')
   })
 })
