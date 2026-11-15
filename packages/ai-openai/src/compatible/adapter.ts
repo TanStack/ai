@@ -4,12 +4,26 @@ import {
 } from '@tanstack/openai-base'
 import type OpenAI from 'openai'
 import type { ClientOptions } from 'openai'
-import type { Modality } from '@tanstack/ai'
+import type {
+  Modality,
+  ModelReasoning,
+  ReasoningCapability,
+} from '@tanstack/ai'
 import type { OpenAIMessageMetadataByModality } from '../message-types'
 import type {
   OpenAIBaseTextAdapterOptions,
   OpenAIClientLike,
 } from '@tanstack/openai-base'
+
+/** Constructor options of the OpenAI-compatible adapters. */
+export interface OpenAICompatibleAdapterOptions
+  extends OpenAIBaseTextAdapterOptions, Pick<ClientOptions, 'fetch'> {
+  /**
+   * The model's reasoning levels for `chat({ reasoning })`: the provider
+   * value to send for each level. Without it, no reasoning field is sent.
+   */
+  reasoning?: ModelReasoning
+}
 
 /**
  * Generic OpenAI-compatible adapter over the Chat Completions API
@@ -21,23 +35,32 @@ export class OpenAICompatibleChatAdapter<
   TProviderOptions extends Record<string, any> = Record<string, any>,
   TInputModalities extends ReadonlyArray<Modality> = ReadonlyArray<Modality>,
   TToolCapabilities extends ReadonlyArray<string> = ReadonlyArray<string>,
+  TReasoning extends ReasoningCapability = never,
 > extends OpenAIBaseChatCompletionsTextAdapter<
   TModel,
   TProviderOptions,
   TInputModalities,
   OpenAIMessageMetadataByModality,
-  TToolCapabilities
+  TToolCapabilities,
+  TReasoning
 > {
   override readonly kind = 'text' as const
   readonly maxTokensKey = 'max_tokens'
+  private readonly reasoning: ModelReasoning | undefined
 
   constructor(
     client: OpenAIClientLike,
     model: TModel,
     name: string,
-    options?: OpenAIBaseTextAdapterOptions & Pick<ClientOptions, 'fetch'>,
+    options?: OpenAICompatibleAdapterOptions,
   ) {
     super(model, name, client, options)
+    this.reasoning = options?.reasoning
+  }
+
+  /** `chat({ reasoning })` goes out as `reasoning_effort`. */
+  protected override modelReasoning(_model: string) {
+    return this.reasoning
   }
 
   /**
@@ -78,22 +101,31 @@ export class OpenAICompatibleResponsesAdapter<
   TProviderOptions extends Record<string, any> = Record<string, any>,
   TInputModalities extends ReadonlyArray<Modality> = ReadonlyArray<Modality>,
   TToolCapabilities extends ReadonlyArray<string> = ReadonlyArray<string>,
+  TReasoning extends ReasoningCapability = never,
 > extends OpenAIBaseResponsesTextAdapter<
   TModel,
   TProviderOptions,
   TInputModalities,
   OpenAIMessageMetadataByModality,
-  TToolCapabilities
+  TToolCapabilities,
+  TReasoning
 > {
   override readonly kind = 'text' as const
   readonly maxTokensKey = 'max_output_tokens'
+  private readonly reasoning: ModelReasoning | undefined
 
   constructor(
     client: OpenAIClientLike,
     model: TModel,
     name: string,
-    options?: OpenAIBaseTextAdapterOptions & Pick<ClientOptions, 'fetch'>,
+    options?: OpenAICompatibleAdapterOptions,
   ) {
     super(model, name, client, options)
+    this.reasoning = options?.reasoning
+  }
+
+  /** `chat({ reasoning })` goes out as `reasoning: { effort, summary }`. */
+  protected override modelReasoning(_model: string) {
+    return this.reasoning
   }
 }
