@@ -174,5 +174,6 @@ export function useQueuedChat() {
 ### When the queue sends and when it empties
 
 - **Send.** The queue sends its items only after a stream ends with success. This includes the end of tool continuations.
+- **Wait for a paused run.** A run can end paused on an interrupt, for example a tool approval. Then the queue waits. It sends after the run that answers the interrupt ends with success.
 - **Empty without sending.** The queue empties when the active run fails or stops (`stop()` or a real stream error). It also empties on `clear()`, `unsubscribe()`, and `reload()`.
 - **`interrupt` keeps the queue.** Items that already wait stay in the queue. They send after the interrupting turn succeeds.

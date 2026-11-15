@@ -1,5 +1,5 @@
-import Anthropic_SDK from '@anthropic-ai/sdk'
 import { generateId as _generateId } from '@tanstack/ai-utils'
+import { createAnthropicClient as createClient } from '../client/index'
 import type { ClientOptions } from '@anthropic-ai/sdk'
 
 /**
@@ -54,17 +54,15 @@ export interface AnthropicMessagesClient {
 }
 
 /**
- * Creates an Anthropic SDK client instance. It reads no credential from the
- * environment.
+ * Creates the Anthropic client of the adapters. It reads no credential from
+ * the environment.
  */
-export function createAnthropicClient(
-  config: AnthropicClientConfig,
-): Anthropic_SDK {
+export function createAnthropicClient(config: AnthropicClientConfig) {
   const { auth: _auth, apiKey, ...options } = config
   const token = resolveAnthropicAuth(config) !== 'api-key'
-  // Explicit nulls stop the SDK from reading `ANTHROPIC_API_KEY` and
+  // Explicit nulls stop the client from reading `ANTHROPIC_API_KEY` and
   // `ANTHROPIC_AUTH_TOKEN` on its own.
-  return new Anthropic_SDK({
+  return createClient({
     ...options,
     apiKey: token ? null : apiKey,
     authToken: token ? apiKey : null,

@@ -4,11 +4,12 @@ import { resolveDebugOption } from '@tanstack/ai/adapter-internals'
 const composeMock = vi.fn()
 const sfxConvertMock = vi.fn()
 
-vi.mock('@elevenlabs/elevenlabs-js', () => ({
-  ElevenLabsClient: class {
-    music = { compose: composeMock }
-    textToSoundEffects = { convert: sfxConvertMock }
-  },
+// The adapters build their client with `createElevenLabsClient`.
+vi.mock('../src/client', () => ({
+  createElevenLabsClient: () => ({
+    music: { compose: composeMock },
+    textToSoundEffects: { convert: sfxConvertMock },
+  }),
 }))
 
 import { elevenlabsAudio } from '../src/adapters/audio'

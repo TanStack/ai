@@ -48,7 +48,7 @@ const createProviderAdapters = (
   anthropic: () =>
     createChatOptions({
       adapter: anthropicText(
-        (model || 'claude-sonnet-4-5') as 'claude-sonnet-4-5',
+        (model || 'claude-sonnet-4-6') as 'claude-sonnet-4-6',
       ),
     }),
   openrouter: () =>

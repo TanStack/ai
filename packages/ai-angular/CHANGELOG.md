@@ -1,5 +1,11 @@
 # @tanstack/ai-angular
 
+## 1.1.0
+
+### Minor Changes
+
+- [#2047](https://github.com/TanStack/ai/pull/2047) [`2641779`](https://github.com/TanStack/ai/commit/26417799c614d12de26e74c2fed5dd0add341d16) - Raise the Angular peer range to `>=22.0.0 <23`. The package is built with Angular 22 and TypeScript 6.0.2.
+
 ## 1.0.1
 
 ### Patch Changes

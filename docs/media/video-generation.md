@@ -144,7 +144,7 @@ const stream = generateVideo({
 })
 ```
 
-`stop()` on the hook only closes the stream in the browser. The provider job can continue to run.
+`stop()` on the hook only closes the stream in the browser. The provider job can continue to run. To cancel the job on fal.ai or BytePlus too, see [Cancel the provider job](./video-generation-advanced#cancel-the-provider-job).
 
 The `jobId`, `videoStatus`, `onJobCreated`, and `onStatusUpdate` hook values are listed in [Generation Hooks](./generation-hooks#usegeneratevideo). The other transports (a server function that returns JSON, or one that returns an SSE `Response`) are in [Generations](./generations#transports-in-full).
 
@@ -157,7 +157,7 @@ Swap the adapter in step 3 to use another provider. Each adapter reads its key f
 | Provider | Adapter | Newest models | Key |
 | --- | --- | --- | --- |
 | OpenAI | `openaiVideo` from `@tanstack/ai-openai` | `sora-2`, `sora-2-pro` | `OPENAI_API_KEY` |
-| Google Gemini | `geminiVideo` from `@tanstack/ai-gemini` | `veo-3.1-generate-preview`, `gemini-omni-1.1-flash` | `GOOGLE_API_KEY` or `GEMINI_API_KEY` |
+| Google Gemini | `geminiVideo` from `@tanstack/ai-gemini` | `veo-3.1-generate-preview`, `gemini-omni-1.2-flash` | `GOOGLE_API_KEY` or `GEMINI_API_KEY` |
 | xAI Grok | `grokVideo` from `@tanstack/ai-grok` | `grok-imagine-video-1.5`, `grok-imagine-video` | `XAI_API_KEY` |
 | BytePlus | `byteplusVideo` from `@tanstack/ai-byteplus` | `dreamina-seedance-2-5-260628` | `ARK_API_KEY` or `BYTEPLUS_API_KEY` |
 | OpenRouter | `openRouterVideo` from `@tanstack/ai-openrouter` | `bytedance/seedance-2.5`, `google/veo-3.1`, and more | `OPENROUTER_API_KEY` |

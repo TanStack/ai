@@ -10,15 +10,16 @@ const mocks = vi.hoisted(() => ({
   interactionsCreate: vi.fn(),
 }))
 
-vi.mock('@google/genai', async () => {
-  const actual = await vi.importActual<any>('@google/genai')
+vi.mock('../src/client', () => {
   class MockGoogleGenAI {
     models = { generateContentStream: mocks.generateContentStream }
     get interactions() {
       return { create: mocks.interactionsCreate }
     }
   }
-  return { ...actual, GoogleGenAI: MockGoogleGenAI }
+  return {
+    createGoogleGenAI: () => new MockGoogleGenAI(),
+  }
 })
 
 const logger = resolveDebugOption(false)

@@ -452,6 +452,53 @@ describe('translateSdkStream', () => {
     })
   })
 
+  it.each([
+    'error_during_execution',
+    'error_max_budget_usd',
+    'error_max_structured_output_retries',
+  ] as const)('carries usage and cost on the %s RUN_ERROR', async (subtype) => {
+    const chunks = await collect([
+      init,
+      { type: 'result', subtype, usage, total_cost_usd: 0.5, errors: ['x'] },
+    ])
+    expect(chunks.at(-1)).toMatchObject({
+      type: 'RUN_ERROR',
+      usage: {
+        promptTokens: 115,
+        completionTokens: 50,
+        totalTokens: 165,
+        cost: 0.5,
+        providerUsageDetails: { totalCostUsd: 0.5 },
+      },
+    })
+  })
+
+  it('maps total_cost_usd to usage.cost and keeps modelUsage in providerUsageDetails', async () => {
+    const modelUsage = {
+      'claude-opus-4-6': {
+        inputTokens: 100,
+        outputTokens: 50,
+        cacheReadInputTokens: 10,
+        cacheCreationInputTokens: 5,
+        webSearchRequests: 0,
+        costUSD: 0.12,
+        contextWindow: 200000,
+        maxOutputTokens: 32000,
+      },
+    }
+    const chunks = await collect([
+      init,
+      assistantText('hi'),
+      { ...resultSuccess, modelUsage },
+    ])
+    expect(chunks.find((c) => c.type === 'RUN_FINISHED')).toMatchObject({
+      usage: {
+        cost: 0.12,
+        providerUsageDetails: { totalCostUsd: 0.12, modelUsage },
+      },
+    })
+  })
+
   it('skips subagent messages (parent_tool_use_id set)', async () => {
     const chunks = await collect([
       init,

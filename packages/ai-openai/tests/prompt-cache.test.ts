@@ -56,9 +56,9 @@ async function sendResponses(
   modelOptions?: OpenAITextProviderOptions,
 ) {
   const adapter = new ResponsesAdapter({ apiKey: 'test' }, model)
-  // The SDK `create` returns an APIPromise, which a mock cannot build.
-  const create = vi.fn().mockResolvedValue(noEvents())
-  adapter.sdk.responses.create = create as typeof adapter.sdk.responses.create
+  const create = vi
+    .spyOn(adapter.sdk.responses, 'create')
+    .mockResolvedValue(noEvents())
   await drain(
     adapter.chatStream({
       threadId: 'thread-1',
@@ -69,7 +69,7 @@ async function sendResponses(
       ...(modelOptions ? { modelOptions } : {}),
     }),
   )
-  return promptCacheFieldsOf(create.mock.calls[0]?.[0])
+  return promptCacheFieldsOf(create.mock.calls[0]![0])
 }
 
 /** Run one Chat Completions call and return the cache fields it sent. */
@@ -84,10 +84,9 @@ async function sendChat(
     },
     'gpt-4.1',
   )
-  // The SDK `create` returns an APIPromise, which a mock cannot build.
-  const create = vi.fn().mockResolvedValue(noEvents())
-  adapter.sdk.chat.completions.create =
-    create as typeof adapter.sdk.chat.completions.create
+  const create = vi
+    .spyOn(adapter.sdk.chat.completions, 'create')
+    .mockResolvedValue(noEvents())
   await drain(
     adapter.chatStream({
       threadId: 'thread-1',
@@ -98,7 +97,7 @@ async function sendChat(
       ...(options.modelOptions ? { modelOptions: options.modelOptions } : {}),
     }),
   )
-  return promptCacheFieldsOf(create.mock.calls[0]?.[0])
+  return promptCacheFieldsOf(create.mock.calls[0]![0])
 }
 
 describe('clampPromptCacheKey', () => {

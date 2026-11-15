@@ -394,6 +394,8 @@ Set `strategyKey` for custom strategies, custom estimators, or custom marker fun
 
 With `durable: true` on a host with a session log, compaction writes its result into the log instead. See the next section.
 
+A checkpoint and a durable record need the full transcript. An earlier middleware can set `providerMessages`. For example, `withSandbox` removes recorded harness tool calls from it. Then compaction works on that list again on each request and saves nothing. Put `withCompaction` first: `middleware: [withCompaction(...), withSandbox(...)]`.
+
 ## Keep compaction in a session log
 
 Some hosts keep a durable log for each thread. They rebuild the model context from it when a session opens again. A metadata checkpoint can miss on that rebuild. Set `durable: true` so that the compaction goes into the log, and the rebuilt session sees the same context.

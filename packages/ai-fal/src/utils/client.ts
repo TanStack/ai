@@ -1,5 +1,5 @@
-import { fal } from '@fal-ai/client'
 import { generateId as _generateId, getApiKeyFromEnv } from '@tanstack/ai-utils'
+import { createFalClient } from '../client/index'
 import { createBillingFetch } from './billing'
 
 export interface FalClientConfig {
@@ -18,16 +18,24 @@ export function getFalApiKeyFromEnv(): string {
   return getApiKeyFromEnv('FAL_KEY')
 }
 
-export function configureFalClient(config?: FalClientConfig): void {
+export function toFalClientOptions(config?: FalClientConfig) {
   const apiKey = config?.apiKey ?? getFalApiKeyFromEnv()
-  fal.config({
+  return {
     credentials: apiKey,
     // Wrap the (optionally overridden) fetch to read fal's
     // `x-fal-billable-units` header off every response so adapters can surface
     // the billed quantity as `result.usage`. See ./billing.ts.
     fetch: createBillingFetch(config?.fetch),
     ...(config?.proxyUrl ? { proxyUrl: config.proxyUrl } : {}),
-  })
+  }
+}
+
+/**
+ * Create the fal client for one adapter. Each adapter has its own client, so
+ * two adapters with different API keys do not change each other.
+ */
+export function createAdapterFalClient(config?: FalClientConfig) {
+  return createFalClient(toFalClientOptions(config))
 }
 
 export function generateId(prefix: string): string {

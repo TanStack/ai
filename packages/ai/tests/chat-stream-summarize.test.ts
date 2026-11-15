@@ -202,6 +202,35 @@ describe('ChatStreamSummarizeAdapter — spec stream chunks', () => {
     })
   })
 
+  it('puts the usage of a RUN_ERROR on the thrown error', async () => {
+    const usage = { promptTokens: 900, completionTokens: 64, totalTokens: 964 }
+    const adapter = new ChatStreamSummarizeAdapter(
+      textAdapter([
+        specRunStarted('options-model'),
+        specDelta('cut'),
+        {
+          type: EventType.RUN_ERROR,
+          timestamp: 1,
+          message: 'max_tokens',
+          code: 'max_tokens',
+          usage,
+        },
+      ]),
+      'options-model',
+      'anthropic',
+    )
+
+    await expect(
+      adapter.summarize({
+        threadId: 'thread-1',
+        model: 'options-model',
+        text: 'long text',
+        maxLength: 64,
+        logger,
+      }),
+    ).rejects.toMatchObject({ code: 'max_tokens', usage })
+  })
+
   it('puts model on generation:result value, not as a CUSTOM extra', async () => {
     const adapter = new ChatStreamSummarizeAdapter(
       textAdapter([

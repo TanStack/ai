@@ -9,3 +9,4 @@ export {
   base64ToUint8Array,
 } from './base64'
 export { jsonModeSystemPrompt } from './json-mode'
+export { drainAfterTerminal } from './drain-after-terminal'

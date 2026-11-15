@@ -65,7 +65,7 @@ const sandbox = defineSandbox({
     region: 'us-west2',
     idleTimeoutMinutes: 30,
   }),
-  workspace: defineWorkspace({/* … */}),
+  workspace: defineWorkspace({ source: { type: 'none' } }),
 })
 
 // Then pass `withSandbox(sandbox)` as chat() middleware.
@@ -152,6 +152,8 @@ destroyed. Prune `tsai-*` checkpoints you no longer reference:
 
 ```ts
 import { Sandbox } from 'railway'
+
+declare function stillReferenced(key: string): boolean
 
 for (const checkpoint of await Sandbox.checkpoints()) {
   if (checkpoint.key.startsWith('tsai-') && !stillReferenced(checkpoint.key)) {

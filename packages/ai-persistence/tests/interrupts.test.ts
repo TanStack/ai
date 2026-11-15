@@ -11,6 +11,7 @@ import type {
   StreamChunk,
   TokenUsage,
   Tool,
+  ToolExecutionContext,
 } from '@tanstack/ai'
 import { memoryPersistence } from '../src/memory'
 import { withPersistence } from '../src/middleware'
@@ -228,6 +229,142 @@ const approvalClientTool = (name: string): Tool => ({
 })
 
 describe('interrupt persistence', () => {
+  it.each([
+    { statuses: ['resolved'] },
+    { statuses: ['cancelled'] },
+    { statuses: ['resolved', 'resolved', 'cancelled'] },
+  ] as const)(
+    'passes durable MCP input responses $statuses to their pending server tools',
+    async ({ statuses }) => {
+      const persistence = memoryPersistence()
+      const callIds = statuses.map((_, index) => `tool-call-${index + 1}`)
+      const execute = vi.fn((_args: unknown, ctx?: ToolExecutionContext) => {
+        if (ctx?.inputResponse) return ctx.inputResponse
+        throw {
+          name: 'MCPInputRequiredError',
+          kind: 'form',
+          request: { message: 'Which city?' },
+        }
+      })
+      const tools: Array<Tool> = [{ ...clientTool('clientSearch'), execute }]
+      const first = await collect(
+        chat({
+          adapter: mockAdapter([
+            [
+              runStarted(),
+              ...callIds.flatMap((toolCallId) => [
+                { ...toolStart(), toolCallId },
+                { ...toolArgs(), toolCallId },
+              ]),
+              toolCallFinished(),
+            ],
+          ]).adapter,
+          messages: [{ role: 'user', content: 'Ask for a city' }],
+          tools,
+          threadId: 't1',
+          runId: 'r1',
+          middleware: [withPersistence(persistence)],
+          debug: false,
+        }),
+      )
+      expect(first.at(-1)).toMatchObject({
+        type: EventType.RUN_FINISHED,
+        outcome: {
+          type: 'interrupt',
+          interrupts: callIds.map((id) => ({ id: `mcp_input_${id}` })),
+        },
+      })
+      expect(
+        await persistence.stores.interrupts!.listPending('t1'),
+      ).toHaveLength(callIds.length)
+      const responses = statuses.map((status, index) =>
+        status === 'resolved'
+          ? { status, payload: { value: index === 0 ? 'Paris' : 'London' } }
+          : { status },
+      )
+      const resumed = mockAdapter([
+        [runStarted(), text('complete'), runFinished('r2')],
+      ])
+      const chunks = await collect(
+        chat({
+          adapter: resumed.adapter,
+          messages: [],
+          tools,
+          threadId: 't1',
+          runId: 'r2',
+          parentRunId: 'r1',
+          resume: responses.map((response, index) => ({
+            interruptId: `mcp_input_${callIds[index]}`,
+            ...response,
+          })),
+          middleware: [withPersistence(persistence)],
+          debug: false,
+        }),
+      )
+
+      expect(execute).toHaveBeenCalledTimes(callIds.length * 2)
+      for (const [index, toolCallId] of callIds.entries()) {
+        const resumedCall = execute.mock.calls
+          .slice(callIds.length)
+          .find((call) => call[1]?.toolCallId === toolCallId)
+        expect(resumedCall?.[1]?.inputResponse).toEqual(responses[index])
+        expect(
+          (await persistence.stores.interrupts!.get(`mcp_input_${toolCallId}`))
+            ?.status,
+        ).toBe(statuses[index])
+      }
+      expect(chunks.some((chunk) => chunk.type === EventType.RUN_ERROR)).toBe(
+        false,
+      )
+      expect(chunks.some(isInterruptTerminal)).toBe(false)
+      expect(chunks.at(-1)).toMatchObject({ type: EventType.RUN_FINISHED })
+      expect((await persistence.stores.runs!.get('r2'))?.status).toBe(
+        'completed',
+      )
+      expect(resumed.calls).toHaveLength(1)
+      expect(await persistence.stores.interrupts!.listPending('t1')).toEqual([])
+    },
+  )
+
+  it('rejects a durable MCP answer for a different tool call', async () => {
+    const persistence = memoryPersistence()
+    const execute = vi.fn(() => {
+      throw {
+        name: 'MCPInputRequiredError',
+        kind: 'form',
+        request: { message: 'Which city?' },
+      }
+    })
+    const tools: Array<Tool> = [{ ...clientTool('clientSearch'), execute }]
+    await persistClientToolTurn(persistence, tools)
+    const resumed = mockAdapter([[runStarted(), runFinished('r2')]])
+    const chunks = await collect(
+      chat({
+        adapter: resumed.adapter,
+        threadId: 't1',
+        runId: 'r2',
+        parentRunId: 'r1',
+        messages: [],
+        tools,
+        resume: [
+          {
+            interruptId: 'mcp_input_unknown',
+            status: 'resolved',
+            payload: 'Paris',
+          },
+        ],
+        middleware: [withPersistence(persistence)],
+        debug: false,
+      }),
+    )
+    expectResumeError(chunks, 'mcp_input_tool-call-1')
+    expect(execute).toHaveBeenCalledTimes(1)
+    expect(resumed.calls).toHaveLength(0)
+    expect(await persistence.stores.interrupts!.listPending('t1')).toHaveLength(
+      1,
+    )
+  })
+
   it('persists RUN_FINISHED interrupt outcomes as pending interrupt records', async () => {
     const persistence = memoryPersistence()
     const { adapter } = mockAdapter([[runStarted(), interruptFinished()]])

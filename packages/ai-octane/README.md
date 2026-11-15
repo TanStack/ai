@@ -31,7 +31,9 @@ import:
 ```ts
 // before
 import { useChat } from '@tanstack/ai-react'
+```
 
+```ts
 // after
 import { useChat } from '@tanstack/ai-octane'
 ```
@@ -57,37 +59,42 @@ pnpm add @tanstack/ai-octane @tanstack/ai @tanstack/ai-client octane
 ```tsx
 import { useState } from 'octane'
 import { useChat } from '@tanstack/ai-octane'
+import type { ChatFetcher } from '@tanstack/ai-octane'
 
-export function Chat() @{
+declare const myFetcher: ChatFetcher
+
+export function Chat() {
   const [input, setInput] = useState('')
   const chat = useChat({
     fetcher: myFetcher,
     threadId: 'support-42',
   })
 
-  <div>
-    @for (const message of chat.messages; key message.id) {
-      <p>
-        {message.role}:
-        {message.parts
-          .filter((part) => part.type === 'text')
-          .map((part) => part.content)
-          .join('')}
-      </p>
-    }
-    <input
-      value={input}
-      onInput={(event) => setInput(event.currentTarget.value)}
-    />
-    <button
-      onClick={() => {
-        void chat.sendMessage(input)
-        setInput('')
-      }}
-    >
-      Send
-    </button>
-  </div>
+  return (
+    <div>
+      {chat.messages.map((message) => (
+        <p key={message.id}>
+          {message.role}:
+          {message.parts
+            .filter((part) => part.type === 'text')
+            .map((part) => part.content)
+            .join('')}
+        </p>
+      ))}
+      <input
+        value={input}
+        onInput={(event) => setInput(event.currentTarget.value)}
+      />
+      <button
+        onClick={() => {
+          void chat.sendMessage(input)
+          setInput('')
+        }}
+      >
+        Send
+      </button>
+    </div>
+  )
 }
 ```
 

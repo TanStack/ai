@@ -391,6 +391,54 @@ describe('Cohere Embedding Adapter', () => {
       expect(init.signal).toBeInstanceOf(AbortSignal)
     })
 
+    it('splits more than 96 inputs into batches of at most 96 and merges the results', async () => {
+      // Cohere v2/embed rejects requests with more than 96 inputs, so 200
+      // texts must go out as 96 + 96 + 8 and come back as one ordered result.
+      const texts = Array.from({ length: 200 }, (_, i) => `text ${i}`)
+      fetchMock.mockImplementation(async (_url: string, init: any) => {
+        const body = JSON.parse(init.body)
+        const inputs = body.inputs as Array<{
+          content: Array<{ text: string }>
+        }>
+        if (inputs.length > 96) {
+          return new Response(
+            JSON.stringify({
+              message: 'invalid request: too many texts, max 96 per call',
+            }),
+            { status: 400 },
+          )
+        }
+        return embedResponse({
+          vectors: inputs.map((input) => [
+            Number(input.content[0]!.text.replace('text ', '')),
+          ]),
+          inputTokens: inputs.length,
+        })
+      })
+      const adapter = createCohereEmbedding('embed-v4.0', 'test-key')
+
+      const result = await adapter.createEmbeddings({
+        model: 'embed-v4.0',
+        input: texts,
+        modelOptions: { inputType: 'search_document' },
+        logger: testLogger,
+      })
+
+      expect(fetchMock).toHaveBeenCalledTimes(3)
+      expect(
+        fetchMock.mock.calls.map((c) => JSON.parse(c[1].body).inputs.length),
+      ).toEqual([96, 96, 8])
+      expect(result.embeddings).toHaveLength(200)
+      expect(result.embeddings[0]).toEqual({ vector: [0], index: 0 })
+      expect(result.embeddings[96]).toEqual({ vector: [96], index: 96 })
+      expect(result.embeddings[199]).toEqual({ vector: [199], index: 199 })
+      expect(result.usage).toEqual({
+        promptTokens: 200,
+        completionTokens: 0,
+        totalTokens: 200,
+      })
+    })
+
     it('omits usage when billed_units.input_tokens is absent', async () => {
       fetchMock.mockResolvedValue(embedResponse({ vectors: [[0.1]] }))
       const adapter = createCohereEmbedding('embed-v4.0', 'test-key')

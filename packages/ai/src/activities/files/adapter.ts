@@ -71,13 +71,25 @@ export interface FileHandle<TProvider extends string = string> {
  * `TName` is the provider name literal (`'openai'`, `'gemini'`, ...); concrete
  * adapters bind it so the handles they issue carry their provenance in the
  * type system.
+ *
+ * Each method takes an optional `{ abortSignal }`. Adapters should forward it
+ * to the provider request when supported.
  */
 export interface FilesAdapter<TName extends string = string> {
   readonly kind: 'files'
   readonly name: TName
-  upload: (input: FileUploadInput) => Promise<FileHandle<TName>>
-  get?: (id: string) => Promise<FileHandle<TName>>
-  delete?: (id: string) => Promise<void>
+  upload: (
+    input: FileUploadInput,
+    options?: { abortSignal?: AbortSignal },
+  ) => Promise<FileHandle<TName>>
+  get?: (
+    id: string,
+    options?: { abortSignal?: AbortSignal },
+  ) => Promise<FileHandle<TName>>
+  delete?: (
+    id: string,
+    options?: { abortSignal?: AbortSignal },
+  ) => Promise<void>
 }
 
 export type AnyFilesAdapter = FilesAdapter<string>
@@ -116,5 +128,8 @@ export abstract class BaseFilesAdapter<
   readonly kind = 'files' as const
   abstract readonly name: TName
 
-  abstract upload(input: FileUploadInput): Promise<FileHandle<TName>>
+  abstract upload(
+    input: FileUploadInput,
+    options?: { abortSignal?: AbortSignal },
+  ): Promise<FileHandle<TName>>
 }

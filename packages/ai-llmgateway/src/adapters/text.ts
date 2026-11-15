@@ -1,5 +1,7 @@
-import OpenAI from 'openai'
-import { OpenAIBaseChatCompletionsTextAdapter } from '@tanstack/openai-base'
+import {
+  OpenAIBaseChatCompletionsTextAdapter,
+  createOpenAIClient,
+} from '@tanstack/openai-base'
 import {
   LLMGATEWAY_MODEL_INPUT_MODALITIES,
   LLMGATEWAY_MODEL_REASONING,
@@ -19,6 +21,7 @@ import type {
 import type { LLMGatewayMessageMetadataByModality } from '../message-types'
 import type { LLMGatewayClientConfig } from '../utils/client'
 import type { OpenAIBaseTextAdapterOptions } from '@tanstack/openai-base'
+import type OpenAI from 'openai'
 
 /**
  * The reasoning levels of a model, for `chat({ reasoning })`. This API has
@@ -55,8 +58,8 @@ export type { ExternalTextProviderOptions as LLMGatewayTextProviderOptions } fro
  * Tree-shakeable adapter for LLM Gateway chat/text completion. LLM Gateway
  * exposes one OpenAI-compatible Chat Completions endpoint that routes to
  * hundreds of models across many providers, so the adapter drives it with
- * the OpenAI SDK via a `baseURL` override (the same pattern as `ai-grok`
- * and `ai-groq`).
+ * an OpenAI-compatible client via a `baseURL` override (the same pattern as
+ * `ai-grok` and `ai-groq`).
  *
  * Model ids are open-ended: catalog ids get per-model type metadata, and
  * any other id works with text-only defaults. A `provider/model` id
@@ -87,7 +90,7 @@ export class LLMGatewayTextAdapter<
     super(
       model,
       'llmgateway',
-      new OpenAI(withLLMGatewayDefaults(config)),
+      createOpenAIClient(withLLMGatewayDefaults(config)),
       config,
     )
   }

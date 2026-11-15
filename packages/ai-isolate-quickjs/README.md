@@ -33,6 +33,9 @@ pnpm add @tanstack/ai-isolate-quickjs
 ```typescript
 import { createQuickJSIsolateDriver } from '@tanstack/ai-isolate-quickjs'
 import { createCodeModeTool } from '@tanstack/ai-code-mode'
+import type { CodeModeTool } from '@tanstack/ai-code-mode'
+
+declare const myTool: CodeModeTool
 
 const driver = createQuickJSIsolateDriver({
   timeout: 30000, // execution timeout in ms (default: 30000)
@@ -59,6 +62,8 @@ const executeTypescript = createCodeModeTool({
 Use `wasmLocation` when your runtime requires the QuickJS WASM binary to be served from a public directory or CDN:
 
 ```typescript
+import { createQuickJSIsolateDriver } from '@tanstack/ai-isolate-quickjs'
+
 const driver = createQuickJSIsolateDriver({
   wasmLocation: 'https://cdn.example.com/quickjs/emscripten-module.wasm',
 })

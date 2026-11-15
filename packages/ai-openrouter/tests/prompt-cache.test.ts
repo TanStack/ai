@@ -11,17 +11,14 @@ import type {
   Tool,
 } from '@tanstack/ai'
 
-// The SDK is the network boundary. The tests read the request it gets.
+// The fetch client is the network boundary. The tests read the request it gets.
 const mockSend = vi.hoisted(() =>
   vi.fn<(params: { chatRequest: ChatRequest }) => Promise<Array<never>>>(),
 )
 
-vi.mock('@openrouter/sdk', () => {
-  function OpenRouter(this: { chat: { send: typeof mockSend } }) {
-    this.chat = { send: mockSend }
-  }
-  return { OpenRouter }
-})
+vi.mock('../src/client', () => ({
+  createOpenRouterChatClient: () => ({ chat: { send: mockSend } }),
+}))
 
 const testLogger = resolveDebugOption(false)
 

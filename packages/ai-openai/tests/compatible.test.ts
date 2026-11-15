@@ -1,13 +1,14 @@
 import { describe, expect, it, vi } from 'vitest'
 
 const ctor = vi.fn()
-vi.mock('openai', () => ({
-  default: class {
-    constructor(opts: unknown) {
-      ctor(opts)
+vi.mock('@tanstack/openai-base', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@tanstack/openai-base')>()),
+  createOpenAIClient: (opts: unknown) => {
+    ctor(opts)
+    return {
+      chat: { completions: { create: vi.fn() } },
+      responses: { create: vi.fn() },
     }
-    chat = { completions: { create: vi.fn() } }
-    responses = { create: vi.fn() }
   },
 }))
 

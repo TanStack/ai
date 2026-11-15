@@ -9,14 +9,16 @@ import {
 
 const mockGenerateContent = vi.fn()
 
-vi.mock('@google/genai', () => {
+vi.mock('../src/client', () => {
   class GoogleGenAI {
     models = {
       generateContent: (...args: Array<unknown>) =>
         mockGenerateContent(...args),
     }
   }
-  return { GoogleGenAI }
+  return {
+    createGoogleGenAI: () => new GoogleGenAI(),
+  }
 })
 
 describe('Gemini Audio (Lyria) Adapter', () => {

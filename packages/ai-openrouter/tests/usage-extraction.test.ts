@@ -24,21 +24,14 @@ function tokenUsageOf(chunk: unknown): TokenUsage | undefined {
 
 let mockSend: Mock
 
-// Mock the SDK using a constructor function rather than a `class`.
-// `useDefineForClassFields: true` emits real ES2022 class fields, and vitest's
-// mock-hoister mis-rewrites a field named `chat` because that identifier is
-// also a named import on line 2 (`import { chat } from '@tanstack/ai'`). A plain
-// constructor function with `this.*` assignments sidesteps the collision.
-vi.mock('@openrouter/sdk', () => {
-  function OpenRouter(this: {
-    chat: { send: (...args: Array<unknown>) => unknown }
-  }) {
-    this.chat = {
+// Mock the OpenRouter fetch client.
+vi.mock('../src/client', () => ({
+  createOpenRouterChatClient: () => ({
+    chat: {
       send: (...args: Array<unknown>) => mockSend(...args),
-    }
-  }
-  return { OpenRouter }
-})
+    },
+  }),
+}))
 
 const createAdapter = () =>
   createOpenRouterText('openai/gpt-4o-mini', 'test-key')

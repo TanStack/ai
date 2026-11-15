@@ -357,6 +357,83 @@ describe('ACP v2 agent', () => {
     await host.close()
   })
 
+  it('cancels the form elicitation of a question that another client answered', async () => {
+    const greet = durableTool(
+      toolDefinition({
+        name: 'greet',
+        description: 'Ask the user for a name',
+        inputSchema: { type: 'object', properties: {} },
+      }),
+      async (_args, { step }) => {
+        const answer = await step.ask({
+          name: 'name',
+          message: 'Name?',
+          schema: {
+            type: 'object',
+            properties: { name: { type: 'string' } },
+            required: ['name'],
+          },
+        })
+        return { greeted: answer }
+      },
+    )
+    const harness = defineHarness({
+      name: 'test/acp-answered-elsewhere',
+      adapter: scripted([toolTurn('greet', '{}'), textTurn('Greeted.')]),
+      tools: [greet],
+    })
+    const host = createHarnessHost({ persistence: memoryPersistence() })
+    const updates: Array<SessionUpdate> = []
+    let asked = false
+    // An editor that answers the question only when the agent cancels it.
+    const editor = client()
+      .onNotification('session/update', ({ params }) => {
+        updates.push(params.update)
+      })
+      .onRequest('elicitation/create', ({ signal }) => {
+        asked = true
+        return new Promise((resolve) => {
+          signal.addEventListener(
+            'abort',
+            () => resolve({ action: 'cancel' }),
+            { once: true },
+          )
+        })
+      })
+
+    await editor.connectWith(createAcpAgent({ host, harness }), async (ctx) => {
+      await ctx.request('initialize', {
+        protocolVersion: 2,
+        info: { name: 'test-editor', version: '1.0.0' },
+        capabilities: { elicitation: { form: {} } },
+      })
+      const { sessionId } = await ctx.request('session/new', {
+        cwd: '/tmp',
+        mcpServers: [],
+      })
+      await ctx.request('session/prompt', {
+        sessionId,
+        prompt: [{ type: 'text', text: 'greet me' }],
+      })
+      await waitFor(() => expect(asked).toBe(true))
+      // Another client of the thread answers the question.
+      const other = await host.open(harness, { threadId: sessionId })
+      const question = other
+        .snapshot()
+        .pendingWaits.find((wait) => wait.kind === 'question')
+      if (!question) throw new Error('No question waits')
+      await other.answer({
+        questionId: question.waitId,
+        value: { name: 'Ada' },
+      })
+      await waitFor(() => expect(isIdle(updates)).toBe(true))
+      await other.close()
+    })
+
+    expect(agentText(updates)).toContain('Greeted.')
+    await host.close()
+  })
+
   it('refuses a second connection to one app, and keeps the first', async () => {
     const greet = durableTool(
       toolDefinition({

@@ -1,7 +1,6 @@
-import { fal } from '@fal-ai/client'
 import { BaseTranscriptionAdapter } from '@tanstack/ai/adapters'
 import {
-  configureFalClient,
+  createAdapterFalClient,
   dataUrlToBlob,
   generateId as utilGenerateId,
 } from '../utils/client'
@@ -13,6 +12,7 @@ import type {
   TranscriptionSegment,
 } from '@tanstack/ai'
 import type { FalClientConfig } from '../utils/client'
+import type { FalClient } from '../client/index'
 import type { FalModel, FalModelInput } from '../model-meta'
 
 /**
@@ -51,10 +51,11 @@ export class FalTranscriptionAdapter<
   FalTranscriptionProviderOptions<TModel>
 > {
   readonly name = 'fal' as const
+  private readonly client: FalClient
 
   constructor(model: TModel, config?: FalClientConfig) {
     super(model, {})
-    configureFalClient(config)
+    this.client = createAdapterFalClient(config)
   }
 
   async transcribe(
@@ -68,15 +69,24 @@ export class FalTranscriptionAdapter<
         model: this.model,
       },
     )
+    let requestId: string | undefined
     try {
       const input = this.buildInput(options)
-      // Request-specific abortSignal only — not fal.config() (global).
-      const result = await fal.subscribe(this.model, {
+      // Pass the abortSignal per request, not in the client config.
+      const result = await this.client.subscribe(this.model, {
         input,
         ...(options.abortSignal ? { abortSignal: options.abortSignal } : {}),
+        onEnqueue: (id) => {
+          requestId = id
+        },
       })
       return this.transformResponse(result)
     } catch (error) {
+      // The SDK stops waiting on abort but leaves the queued job running.
+      // Cancel it so it stops billing.
+      if (requestId && options.abortSignal?.aborted) {
+        this.client.queue.cancel(this.model, { requestId }).catch(() => {})
+      }
       logger.errors('fal.generateTranscription fatal', {
         error,
         source: 'fal.generateTranscription',
@@ -88,7 +98,7 @@ export class FalTranscriptionAdapter<
   private buildInput(
     options: TranscriptionOptions<FalTranscriptionProviderOptions<TModel>>,
   ): FalModelInput<TModel> {
-    // fal-client auto-uploads Blob/File inputs via fal.storage.upload, but
+    // The fal client auto-uploads Blob/File inputs via storage.upload, but
     // passes strings through unchanged — so a `data:` URL would reach fal's
     // API and get rejected with a 422 "Unsupported data URL". Decode data
     // URLs to a Blob up front so the auto-upload path handles them.

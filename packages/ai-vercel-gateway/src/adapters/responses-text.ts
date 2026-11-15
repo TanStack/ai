@@ -1,11 +1,14 @@
-import { OpenAIBaseResponsesTextAdapter } from '@tanstack/openai-base'
+import {
+  OpenAIBaseResponsesTextAdapter,
+  createOpenAIClient,
+} from '@tanstack/openai-base'
 import {
   getVercelGatewayApiKeyFromEnv,
   withVercelGatewayDefaults,
 } from '../utils/client'
 import { withGatewayCost } from '../utils/gateway-cost'
 import { mapGatewayModelOptions } from '../utils/map-gateway-options'
-import OpenAI from 'openai'
+import type OpenAI from 'openai'
 import { VERCEL_GATEWAY_MODEL_REASONING } from '../model-meta'
 import type { Modality, TextOptions, TokenUsage } from '@tanstack/ai'
 import type { ResponseCreateParams } from 'openai/resources/responses/responses'
@@ -73,7 +76,7 @@ export class VercelGatewayResponsesTextAdapter<
     super(
       model,
       'vercel-gateway',
-      new OpenAI(withVercelGatewayDefaults(config)),
+      createOpenAIClient(withVercelGatewayDefaults(config)),
       config,
     )
   }

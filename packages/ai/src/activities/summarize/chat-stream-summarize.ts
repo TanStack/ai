@@ -50,6 +50,9 @@ function throwRunError(
   if (typeof chunk.code === 'string') {
     ;(err as Error & { code?: string }).code = chunk.code
   }
+  // A run cut off at `maxLength` still bills its tokens.
+  const usage = rebuildTokenUsage(chunk.usage, tanstackMetadata(chunk)?.usage)
+  if (usage) Object.assign(err, { usage })
   throw err
 }
 
@@ -407,6 +410,11 @@ export class ChatStreamSummarizeAdapter<
       // `runId` absent when unset, under `exactOptionalPropertyTypes`.
       ...(options.runId !== undefined ? { runId: options.runId } : {}),
       threadId: options.threadId,
+      // Without this, a cancel or timeout rejects summarize() but the wrapped
+      // provider request keeps running.
+      ...(options.abortSignal
+        ? { request: { signal: options.abortSignal } }
+        : {}),
     }
   }
 

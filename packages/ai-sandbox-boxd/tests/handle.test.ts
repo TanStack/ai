@@ -467,3 +467,108 @@ describe('BoxdHandle.ports / snapshot / fork / destroy', () => {
     expect(handle.workspaceRoot).toBe('/home/boxd/workspace')
   })
 })
+
+describe('BoxdHandle snapshot and fork signal', () => {
+  it('snapshot() stops polling when the signal aborts', async () => {
+    const { handle, raw } = makeHandle({
+      snapshotStatuses: ['pending', 'pending', 'pending', 'ready'],
+    })
+    const controller = new AbortController()
+    const pending = handle.snapshot('s', { signal: controller.signal })
+    await vi.waitFor(() => expect(raw.snapshots.get).toHaveBeenCalledOnce())
+    controller.abort(new Error('stopped'))
+    await expect(pending).rejects.toThrow('stopped')
+    expect(raw.snapshots.get).toHaveBeenCalledOnce()
+  })
+
+  it('fork() stops waiting for the fork and deletes it when the signal aborts', async () => {
+    const { handle, raw } = makeHandle()
+    raw.machines.waitUntilReady.mockImplementation(() => new Promise(() => {}))
+    const controller = new AbortController()
+    const pending = handle.fork({ signal: controller.signal })
+    await vi.waitFor(() =>
+      expect(raw.machines.waitUntilReady).toHaveBeenCalledOnce(),
+    )
+    controller.abort(new Error('stopped'))
+    await expect(pending).rejects.toThrow('stopped')
+    expect(raw.machines.delete).toHaveBeenCalledWith('vm-fork')
+  })
+
+  it('fork() rejects on abort without waiting for the fork delete', async () => {
+    const { handle, raw } = makeHandle()
+    raw.machines.waitUntilReady.mockImplementation(() => new Promise(() => {}))
+    raw.machines.delete.mockImplementation(() => new Promise(() => {}))
+    const controller = new AbortController()
+    const pending = handle.fork({ signal: controller.signal })
+    await vi.waitFor(() =>
+      expect(raw.machines.waitUntilReady).toHaveBeenCalledOnce(),
+    )
+    controller.abort(new Error('stopped'))
+    await expect(pending).rejects.toThrow('stopped')
+    expect(raw.machines.delete).toHaveBeenCalledWith('vm-fork')
+  })
+
+  it('fork() stops waiting for the delete of a failed fork when the signal aborts', async () => {
+    const { handle, raw } = makeHandle()
+    raw.machines.waitUntilReady.mockRejectedValueOnce(new Error('not ready'))
+    raw.machines.delete.mockImplementation(() => new Promise(() => {}))
+    const controller = new AbortController()
+    const pending = handle.fork({ signal: controller.signal })
+    await vi.waitFor(() =>
+      expect(raw.machines.delete).toHaveBeenCalledWith('vm-fork'),
+    )
+    controller.abort(new Error('stopped'))
+    // The readiness error is the reason the fork failed.
+    await expect(pending).rejects.toThrow('not ready')
+  })
+
+  it('snapshot() stops waiting while a snapshot request hangs', async () => {
+    const { handle, raw } = makeHandle()
+    raw.snapshots.get.mockImplementation(() => new Promise(() => {}))
+    const controller = new AbortController()
+    const pending = handle.snapshot('s', { signal: controller.signal })
+    await vi.waitFor(() => expect(raw.snapshots.get).toHaveBeenCalledOnce())
+    controller.abort(new Error('stopped'))
+    await expect(pending).rejects.toThrow('stopped')
+  })
+
+  it('snapshot() starts no capture when the signal is already aborted', async () => {
+    const { handle, raw } = makeHandle()
+    await expect(
+      handle.snapshot('s', { signal: AbortSignal.abort() }),
+    ).rejects.toThrow()
+    expect(raw.snapshots.create).not.toHaveBeenCalled()
+  })
+
+  it('fork() makes no fork when the signal is already aborted', async () => {
+    const { handle, raw } = makeHandle()
+    await expect(handle.fork({ signal: AbortSignal.abort() })).rejects.toThrow()
+    expect(raw.machines.fork).not.toHaveBeenCalled()
+  })
+
+  it('fork() stops waiting while the fork is made, and deletes it later', async () => {
+    const { handle, raw } = makeHandle()
+    let deliver = () => {}
+    raw.machines.fork.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          deliver = () =>
+            resolve({
+              id: 'vm-late',
+              name: 'late',
+              access: { url: 'https://late.boxd.sh' },
+            })
+        }),
+    )
+    const controller = new AbortController()
+    const pending = handle.fork({ signal: controller.signal })
+    await vi.waitFor(() => expect(raw.machines.fork).toHaveBeenCalledOnce())
+    controller.abort(new Error('stopped'))
+
+    await expect(pending).rejects.toThrow('stopped')
+    deliver()
+    await vi.waitFor(() =>
+      expect(raw.machines.delete).toHaveBeenCalledWith('vm-late'),
+    )
+  })
+})

@@ -5,7 +5,7 @@ import {
   Modality,
   StartSensitivity,
   TurnCoverage,
-} from '@google/genai'
+} from '../client/enums'
 import type {
   ContextWindowCompressionConfig,
   FunctionDeclaration,

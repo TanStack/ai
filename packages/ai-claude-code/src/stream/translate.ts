@@ -8,6 +8,7 @@ import type { AdapterYieldChunk, TokenUsage } from '@tanstack/ai'
 import type {
   AgentSdkMessage,
   SdkAssistantMessage,
+  SdkModelUsage,
   SdkPartialAssistantMessage,
   SdkResultMessage,
   SdkToolResultContent,
@@ -34,6 +35,8 @@ export const SYNTHETIC_STRUCTURED_OUTPUT_TOOL = 'StructuredOutput'
 export type ClaudeCodeProviderUsageDetails = {
   /** Total cost of the harness run in USD, as reported by Claude Code. */
   totalCostUsd?: number
+  /** Per-model usage breakdown, as reported by Claude Code. */
+  modelUsage?: Record<string, SdkModelUsage>
 }
 
 export interface TranslateContext {
@@ -87,6 +90,7 @@ function stringifyToolResultContent(
 function buildUsage(
   usage: SdkUsage | undefined,
   totalCostUsd: number | undefined,
+  modelUsage: Record<string, SdkModelUsage> | undefined,
 ): TokenUsage<ClaudeCodeProviderUsageDetails> | undefined {
   if (!usage) return undefined
   const cacheWrite = usage.cache_creation_input_tokens ?? 0
@@ -108,7 +112,13 @@ function buildUsage(
     result.promptTokensDetails = promptTokensDetails
   }
   if (totalCostUsd !== undefined) {
-    result.providerUsageDetails = { totalCostUsd }
+    result.cost = totalCostUsd
+  }
+  if (totalCostUsd !== undefined || modelUsage !== undefined) {
+    result.providerUsageDetails = {
+      ...(totalCostUsd !== undefined && { totalCostUsd }),
+      ...(modelUsage !== undefined && { modelUsage }),
+    }
   }
   return result
 }
@@ -432,7 +442,11 @@ export async function* translateSdkStream(
     yield* closePartialToolUses()
     yield* synthesizeUnresolvedResults()
 
-    const usage = buildUsage(message.usage, message.total_cost_usd)
+    const usage = buildUsage(
+      message.usage,
+      message.total_cost_usd,
+      message.modelUsage,
+    )
     if (ctx.expectStructuredOutput === true) {
       const fromResult = isUsefulStructuredObject(message.structured_output)
         ? message.structured_output
@@ -488,6 +502,7 @@ export async function* translateSdkStream(
         message: errorMessage,
         code: message.subtype,
         error: { message: errorMessage, code: message.subtype },
+        ...(usage !== undefined && { usage }),
       }
     }
   }

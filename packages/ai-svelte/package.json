@@ -75,7 +75,7 @@
   },
   "devDependencies": {
     "@standard-schema/spec": "^1.1.0",
-    "@sveltejs/package": "^2.3.10",
+    "@sveltejs/package": "^3.0.2",
     "@sveltejs/vite-plugin-svelte": "^7.3.0",
     "@tanstack/ai": "workspace:*",
     "@types/node": "^24.10.1",

@@ -14,6 +14,7 @@ keywords:
   - onDiscoveryError
   - toolFilter
   - needsApproval
+  - requestMeta
 ---
 
 Pass MCP clients to `chat()` in the `mcp` option. `chat()` loads their tools and closes the clients when the run ends.
@@ -67,7 +68,7 @@ That is all. There is no `try/finally`. Your `useChat` code does not change.
 
 ## How it works
 
-- Before the first model call, `chat()` calls `tools()` on each client at the same time and merges the results into one tool set.
+- Before the first model call, `chat()` calls `tools()` on each client at the same time and merges the results into one tool set. When you pass `abortController` to `chat()`, each `tools()` call gets its signal as `signal`.
 - Tools from `mcp.clients` merge with any tools that you pass in `tools`. You can use both in one call.
 - `connection: 'close'` (the default) closes each client when the run ends: on success, on error, and on abort.
 - `connection: 'keep-alive'` never closes the clients. You own them.
@@ -170,6 +171,82 @@ A `toolFilter` list is strict. If the server has no tool with a listed name, or 
 
 > [!WARNING]
 > The hints come from the server, and a compromised server can send false hints. For the trust rules and the list form, see [Limit and Gate Tools](./mcp-advanced#limit-and-gate-tools).
+
+## Send request context to MCP servers
+
+Set `requestMeta` on `chat({ mcp })`. `chat()` sends its result as `_meta` with each MCP tool call and each MCP Apps `ui://` read in this run.
+
+Often the MCP server must know who calls: the tenant, the user, or the trace. A shared pool connects once, so its headers are the same for all requests. `_meta` goes with each request, on every transport.
+
+```ts
+import {
+  chat,
+  chatParamsFromRequest,
+  toServerSentEventsResponse,
+} from '@tanstack/ai'
+import { openaiText } from '@tanstack/ai-openai'
+import { createMCPClients } from '@tanstack/ai-mcp'
+
+// Made once when the module loads. All requests share it.
+const sharedPool = await createMCPClients({
+  internal: { transport: { type: 'http', url: process.env.INTERNAL_MCP_URL! } },
+  github: { transport: { type: 'http', url: process.env.GITHUB_MCP_URL! } },
+})
+
+export async function POST(request: Request) {
+  const { messages, threadId, runId } = await chatParamsFromRequest(request)
+  // Your auth gateway sets these headers after it checks the user.
+  const tenantId = request.headers.get('x-tenant-id')
+  const traceId = request.headers.get('x-trace-id')
+
+  const stream = chat({
+    adapter: openaiText('gpt-6.1-sol'),
+    messages,
+    threadId,
+    runId,
+    mcp: {
+      clients: [sharedPool],
+      connection: 'keep-alive',
+      // Send the context to the internal server only
+      requestMeta: ({ serverId }) =>
+        serverId === 'internal'
+          ? { 'acme.com/tenantId': tenantId, 'acme.com/traceId': traceId }
+          : undefined,
+    },
+  })
+
+  return toServerSentEventsResponse(stream)
+}
+```
+
+Your `useChat` code does not change. For why the pool is made once, see [Keep connections warm](#keep-connections-warm).
+
+How the hook works:
+
+- It runs once for each MCP request, when the request starts. Tool discovery does not call it.
+- It gets `method` and `serverId`. A `tools/call` also has `toolName` and `args`. A `resources/read` has `uri`. In a `createMCPClients` pool, `serverId` is the config key.
+- Return `undefined` to send no `_meta`.
+- The client removes the keys that MCP reserves: `progressToken`, and keys with a prefix like `io.modelcontextprotocol/` or `mcp.dev/`.
+- If the hook throws, only that request fails. A tool call goes to the model as a tool error. A `ui://` read fails, and the message has no widget.
+
+On the server, an MCP SDK request handler finds the object in `request.params._meta`.
+
+`_meta` is not part of the [`toolCacheMiddleware`](../advanced/built-in-middleware#toolcachemiddleware) key. A cache hit sends no request, so the hook does not run. If tenants share one cache storage, put the tenant in `keyFn`:
+
+```ts
+import {
+  toolCacheMiddleware,
+  type ToolCacheStorage,
+} from '@tanstack/ai/middlewares'
+
+// Make the middleware in the route, with the tenant of the request
+export function tenantToolCache(tenantId: string, storage: ToolCacheStorage) {
+  return toolCacheMiddleware({
+    storage,
+    keyFn: (toolName, args) => JSON.stringify([tenantId, toolName, args]),
+  })
+}
+```
 
 ## Keep connections warm
 

@@ -58,6 +58,7 @@ import {
   updateToolCallPart,
   updateToolCallWithOutput,
   updateToolResultPart,
+  withoutStaleToolResultOutcome,
 } from './message-updaters'
 import { ImmediateStrategy } from './strategies'
 import { INTERRUPT_BINDING_METADATA_KEY } from '../../../interrupt-resume'
@@ -279,6 +280,10 @@ export class StreamProcessor {
   // Tool calls started since a RUN_STARTED that found no other run active, in
   // order. A success RUN_FINISHED hands the unanswered ones to the client.
   private runToolCallIds: Array<string> = []
+  // The last run ended with finishReason 'tool_calls'. chat() starts a new
+  // run after it, but a custom server can close the stream there. Then the
+  // stream end hands the unanswered calls to the client.
+  private handOverAtStreamEnd = false
   // Tool calls that an interrupt already handed to onToolCall since that same
   // reset, so the success path does not run them twice.
   private readonly toolCallsSentToClient = new Set<string>()
@@ -2091,11 +2096,16 @@ export class StreamProcessor {
     // restore metadata the snapshot cannot re-emit. Duplicate ids resolve
     // last-write-wins: the same tool call can appear in multiple messages
     // across reconnects, and the most recent part carries the freshest state.
+    // Snapshot rows may omit metadata from previously streamed tool results.
+    // Index both part types by id so we can restore only the missing metadata.
     const prevToolCalls = new Map<string, ToolCallPart>()
+    const prevToolResults = new Map<string, ToolResultPart>()
     for (const msg of prevMessages) {
       for (const part of msg.parts) {
         if (part.type === 'tool-call') {
           prevToolCalls.set(part.id, part)
+        } else if (part.type === 'tool-result') {
+          prevToolResults.set(part.toolCallId, part)
         }
       }
     }
@@ -2112,20 +2122,36 @@ export class StreamProcessor {
 
     const reconciled: Array<UIMessage> = []
     for (const msg of snapshot) {
-      const toolResultParts = msg.parts.filter(
+      let restoredToolResultMetadata = false
+      const snapshotParts = msg.parts.map((part) => {
+        if (part.type !== 'tool-result' || part.metadata != null) return part
+        const previous = prevToolResults.get(part.toolCallId)
+        if (previous?.metadata == null) return part
+        const metadata =
+          part.state === 'complete' && part.outcome === undefined
+            ? withoutStaleToolResultOutcome(previous.metadata)
+            : previous.metadata
+        if (metadata == null) return part
+        restoredToolResultMetadata = true
+        return { ...part, metadata }
+      })
+      const snapshotMessage = restoredToolResultMetadata
+        ? { ...msg, parts: snapshotParts }
+        : msg
+      const toolResultParts = snapshotParts.filter(
         (part): part is ToolResultPart => part.type === 'tool-result',
       )
       const toolResultPart =
         msg.role === 'assistant' &&
         toolResultParts.length === 1 &&
-        msg.parts.every(
+        snapshotParts.every(
           (part) => part.type === 'tool-result' || part.type === 'ui-resource',
         )
           ? toolResultParts[0]
           : undefined
 
       if (!toolResultPart) {
-        reconciled.push(msg)
+        reconciled.push(snapshotMessage)
         continue
       }
 
@@ -2153,7 +2179,7 @@ export class StreamProcessor {
             `[StreamProcessor] MESSAGES_SNAPSHOT contains a tool-result for "${toolResultPart.toolCallId}" but no matching tool-call exists in the snapshot, and there is no assistant message to anchor into; addToolResult("${toolResultPart.toolCallId}") will not be able to locate this call`,
           )
         }
-        reconciled.push(msg)
+        reconciled.push(snapshotMessage)
         continue
       }
 
@@ -2179,7 +2205,7 @@ export class StreamProcessor {
           )
         }
       }
-      parts.push(...msg.parts)
+      parts.push(...snapshotParts)
       // Replace rather than push into `target.parts`: a snapshot message that
       // arrived already carrying `parts` (TanStack server echoing UIMessages)
       // shares its array with the incoming chunk, and mutating it in place
@@ -2643,6 +2669,7 @@ export class StreamProcessor {
       resultState,
       resultState === 'error' ? toolResultErrorText(output) : undefined,
       toolResultOutcome,
+      chunk.metadata,
     )
     this.emitMessagesChange()
   }
@@ -2660,6 +2687,7 @@ export class StreamProcessor {
     if (this.activeRuns.size === 0) {
       this.runToolCallIds = []
       this.toolCallsSentToClient.clear()
+      this.handOverAtStreamEnd = false
       // A new run owes its own stream end. A client that only watches never
       // resets between runs, so without this only its first run would end.
       this.streamEndEmitted = false
@@ -2718,11 +2746,15 @@ export class StreamProcessor {
       this.completeAllToolCalls()
       const isIntermediateToolTurn =
         this.finishReason === 'tool_calls' &&
-        chunk.outcome?.type !== 'interrupt'
+        chunk.outcome?.type !== 'interrupt' &&
+        tanstackMetadata(chunk)?.loopStopped !== true
       if (isIntermediateToolTurn) {
         // The next model call is a new assistant message. Leave this
         // call's messages closed so its reasoning cannot land here.
         for (const id of ids) this.sealedMessageIds.add(id)
+        // Only the top-level stream can end here. A subagent run comes from
+        // chat(), which goes on with its next run itself.
+        this.handOverAtStreamEnd = this.subagentRunId === undefined
         return
       }
       if (!chunk.outcome || chunk.outcome.type === 'success') {
@@ -3444,6 +3476,10 @@ export class StreamProcessor {
    * @see docs/chat-architecture.md#single-shot-text-response — Finalization step
    */
   finalizeStream(): void {
+    if (this.handOverAtStreamEnd) {
+      this.handOverAtStreamEnd = false
+      if (!this.hasError) this.handlePendingToolCalls()
+    }
     this.isDone = true
     for (const event of this.closeChunk()) this.dispatchChunk(event)
     this.closeChildChunkLanes()
@@ -3632,6 +3668,7 @@ export class StreamProcessor {
     this.thinkingOwners.clear()
     this.openChunk = null
     this.finishReason = null
+    this.handOverAtStreamEnd = false
     this.hasError = false
     this.isDone = false
     this.streamEndEmitted = false

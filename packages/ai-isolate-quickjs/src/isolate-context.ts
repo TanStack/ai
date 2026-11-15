@@ -27,6 +27,8 @@ export interface ExecState {
 /** Grace window for cancellation continuations after a timeout. */
 const CANCEL_GRACE_MS = 100
 
+const ABORT_ERROR = 'AbortError'
+
 /**
  * Await the guest program's promise, but give up at `deadline`. Host tool
  * calls are bridged as QuickJS promises, so a guest program that is stuck
@@ -40,18 +42,29 @@ const CANCEL_GRACE_MS = 100
 function awaitWithDeadline(
   promise: Promise<VmCallResult<QuickJSHandle>>,
   deadline: number,
+  signal: AbortSignal | undefined,
 ): Promise<VmCallResult<QuickJSHandle>> {
   return new Promise((resolve, reject) => {
     let timedOut = false
+    // An abort gives up early, the same way as the deadline.
+    const giveUp = (error: Error) => {
+      timedOut = true
+      clearTimeout(timer)
+      signal?.removeEventListener('abort', onAbort)
+      reject(error)
+    }
+    const onAbort = () => giveUp(abortError(signal))
     const timer = setTimeout(
       () => {
-        timedOut = true
         const timeoutError = new Error('Code execution timed out')
         timeoutError.name = TIMEOUT_ERROR
-        reject(timeoutError)
+        giveUp(timeoutError)
       },
       Math.max(0, deadline - Date.now()),
     )
+    // The first job pump can run a tool that aborts before this point.
+    if (signal?.aborted) onAbort()
+    else signal?.addEventListener('abort', onAbort, { once: true })
 
     promise.then(
       (result) => {
@@ -68,15 +81,27 @@ function awaitWithDeadline(
           return
         }
         clearTimeout(timer)
+        signal?.removeEventListener('abort', onAbort)
         resolve(result)
       },
       (error) => {
         if (timedOut) return
         clearTimeout(timer)
+        signal?.removeEventListener('abort', onAbort)
         reject(error)
       },
     )
   })
+}
+
+/** The error of a run stopped by its abort signal. */
+function abortError(signal: AbortSignal | undefined): Error {
+  const reason: unknown = signal?.reason
+  const error = new Error(
+    reason instanceof Error ? reason.message : 'Execution was aborted',
+  )
+  error.name = ABORT_ERROR
+  return error
 }
 
 /**
@@ -104,7 +129,22 @@ export class QuickJSIsolateContext implements IsolateContext {
     this.execState = execState
   }
 
-  async execute<T = unknown>(code: string): Promise<ExecutionResult<T>> {
+  /**
+   * Run `code`. When `options.signal` aborts, the run stops like a timeout:
+   * the result is an `AbortError` and this context is disposed.
+   */
+  async execute<T = unknown>(
+    code: string,
+    options?: { signal?: AbortSignal },
+  ): Promise<ExecutionResult<T>> {
+    const signal = options?.signal
+    if (signal?.aborted) {
+      return {
+        success: false,
+        error: normalizeError(abortError(signal)),
+        logs: [],
+      }
+    }
     if (this.disposed) {
       return {
         success: false,
@@ -136,6 +176,15 @@ export class QuickJSIsolateContext implements IsolateContext {
           name: 'DisposedError',
           message: 'Context has been disposed',
         },
+        logs: [],
+      }
+    }
+    // The signal can abort while this call waits for an earlier one.
+    if (signal?.aborted) {
+      resolve()
+      return {
+        success: false,
+        error: normalizeError(abortError(signal)),
         logs: [],
       }
     }
@@ -197,7 +246,12 @@ export class QuickJSIsolateContext implements IsolateContext {
       cleanup: 'reusable' | 'terminal' = 'reusable',
     ) => {
       const normalized = normalizeError(error)
-      if (normalized.name === TIMEOUT_ERROR) {
+      // Guest code can throw its own AbortError. Only an abort of this
+      // run's signal is terminal.
+      if (
+        normalized.name === TIMEOUT_ERROR ||
+        (normalized.name === ABORT_ERROR && signal?.aborted)
+      ) {
         await releaseAfterUnsettledExecution()
       } else if (isFatalQuickJSLimitError(normalized)) {
         // Memory/stack limits leave the heap in an unknown state.
@@ -248,6 +302,7 @@ export class QuickJSIsolateContext implements IsolateContext {
           const resolvedResult = await awaitWithDeadline(
             nativePromise,
             deadline,
+            signal,
           )
 
           const valueHandle = this.vm.unwrapResult(resolvedResult)

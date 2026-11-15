@@ -1,4 +1,10 @@
 import { describe, expect, it, vi } from 'vitest'
+import { z } from 'zod'
+import {
+  McpServer,
+  WebStandardStreamableHTTPServerTransport,
+} from '@modelcontextprotocol/server'
+import { connectTransport } from '../src/client'
 import { askForInput, elicitFor, trackCaller } from '../src/harness-plugin'
 import type { AnyTool } from '@tanstack/ai'
 import type { PluginSessionApi, RunContext } from '@tanstack/ai-harness'
@@ -125,5 +131,70 @@ describe('an MCP elicitation is a live wait of the run that calls', () => {
     await expect(onElicit(form as never)).resolves.toEqual({
       action: 'decline',
     })
+  })
+})
+
+describe('a spec 2025 elicitation that the server cancels', () => {
+  it('gives the request signal to the answer', async () => {
+    // A server whose tool gives up on its question after 50 ms.
+    const server = new McpServer({ name: 'trips', version: '1.0.0' })
+    server.registerTool(
+      'book',
+      { description: 'Book a trip', inputSchema: z.object({}) },
+      async (_args, ctx) => {
+        await ctx.mcpReq
+          .elicitInput(form as never, { timeout: 50 })
+          .catch(() => undefined)
+        return { content: [{ type: 'text', text: 'gave up' }] }
+      },
+    )
+    const transport = new WebStandardStreamableHTTPServerTransport({
+      sessionIdGenerator: () => crypto.randomUUID(),
+    })
+    await server.connect(transport)
+    let elicitSignal: AbortSignal | undefined
+    const client = await connectTransport(
+      {
+        transport: {
+          type: 'http',
+          url: 'http://mcp.test/mcp',
+          fetch: async (input, init) =>
+            transport.handleRequest(new Request(input, init)),
+        },
+      },
+      (_params, signal) => {
+        elicitSignal = signal
+        return new Promise((resolve) => {
+          signal?.addEventListener(
+            'abort',
+            () => resolve({ action: 'cancel' }),
+            { once: true },
+          )
+        })
+      },
+    )
+    try {
+      await client.callTool('book', {})
+      await vi.waitFor(() => expect(elicitSignal?.aborted).toBe(true))
+    } finally {
+      await client.close()
+      await server.close()
+    }
+  })
+
+  it('stops the question when the signal aborts', async () => {
+    const { session, ask } = askingSession({ city: 'Paris' })
+    const calling: Parameters<typeof trackCaller>[2] = []
+    const onElicit = elicitFor(calling)
+    const run = runOf('op-agent-1')
+    const { signal } = new AbortController()
+    const [tool] = trackCaller(
+      [toolWith(() => onElicit(form as never, signal))],
+      session,
+      calling,
+    )
+
+    await tool?.execute?.({}, { context: { run } } as never)
+    expect(ask).toHaveBeenCalledWith(expect.objectContaining({ signal }))
   })
 })

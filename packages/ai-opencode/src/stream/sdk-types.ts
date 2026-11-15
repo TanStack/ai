@@ -79,6 +79,15 @@ export type OpencodePart =
       tool: string
       state: OpencodeToolState
     }
+  | {
+      id: string
+      sessionID?: string
+      messageID: string
+      type: 'step-finish'
+      reason?: string
+      cost?: number
+      tokens?: OpencodeTokens
+    }
   | { id: string; sessionID?: string; messageID: string; type: string }
 
 /**

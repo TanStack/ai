@@ -51,7 +51,7 @@ function getAdapter(provider: Provider, model?: string): AnyTextAdapter {
     case 'anthropic':
     default:
       return anthropicText(
-        (model || 'claude-sonnet-4-5') as 'claude-sonnet-4-5',
+        (model || 'claude-sonnet-4-6') as 'claude-sonnet-4-6',
       )
   }
 }

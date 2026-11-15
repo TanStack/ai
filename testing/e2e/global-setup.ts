@@ -3,6 +3,7 @@ import fs from 'fs'
 import http from 'http'
 import path from 'path'
 import { fileURLToPath } from 'url'
+import { isDeepStrictEqual } from 'node:util'
 import { EventStreamCodec } from '@smithy/eventstream-codec'
 import type { Mountable } from '@copilotkit/aimock'
 
@@ -178,6 +179,7 @@ export default async function globalSetup() {
   // which request sections ended with a `cachePoint` block and answers with
   // Bedrock's cache usage counters; the companion spec asserts both.
   mock.mount('/bedrock-converse-cache', bedrockConverseCacheMount())
+  mock.mount('/bedrock-rerank', bedrockRerankMount())
 
   // decide() usage on a failed answer mapping. aimock has no OpenAI Decisions
   // endpoint, so this mount hand-crafts a `/v1/decisions` response with valid
@@ -189,6 +191,11 @@ export default async function globalSetup() {
   // Gateway adapter keeps only the origin of its baseURL, so that mount sits on
   // the real evaluate path. Both answer only requests carrying the
   // `x-evaluate-http-status` header and fall through otherwise.
+  // embed() abort: `/v1/embeddings` never answers, and `/status` reports
+  // whether the client closed the request. The embedding-abort spec checks
+  // that `embed({ timeout })` cancels the real HTTP request.
+  mock.mount('/embedding-abort', embeddingAbortMount())
+
   mock.mount('/evaluate-http-status', evaluateHttpStatusMount())
   mock.mount('/v4/ai/evaluation-model', evaluateHttpStatusMount())
 
@@ -1061,7 +1068,7 @@ function geminiOmniVideoMount(): Mountable {
             id: JOB_ID,
             object: 'interaction',
             status: 'in_progress',
-            model: 'gemini-omni-1.1-flash',
+            model: 'gemini-omni-1.2-flash',
           }),
         )
         return true
@@ -1076,7 +1083,7 @@ function geminiOmniVideoMount(): Mountable {
             id: pollMatch[1],
             object: 'interaction',
             status: 'completed',
-            model: 'gemini-omni-1.1-flash',
+            model: 'gemini-omni-1.2-flash',
             usage: {
               total_input_tokens: 12,
               total_output_tokens: 57920,
@@ -2354,6 +2361,46 @@ function evaluateHttpStatusMount(): Mountable {
 }
 
 /**
+ * Never answers `POST /v1/embeddings`, and records per `X-Test-Id` whether the
+ * client closed that request before a reply. `GET /status?testId=` reads it.
+ */
+function embeddingAbortMount(): Mountable {
+  const closedByClient = new Map<string, boolean>()
+  return {
+    async handleRequest(
+      req: http.IncomingMessage,
+      res: http.ServerResponse,
+      pathname: string,
+    ): Promise<boolean> {
+      if (req.method === 'GET' && pathname === '/status') {
+        const testId = new URL(req.url ?? '', 'http://x').searchParams.get(
+          'testId',
+        )
+        res.setHeader('Content-Type', 'application/json')
+        res.end(
+          JSON.stringify({
+            closedByClient: closedByClient.get(testId ?? '') ?? false,
+          }),
+        )
+        return true
+      }
+      if (req.method !== 'POST' || pathname !== '/v1/embeddings') return false
+      const testId = String(req.headers['x-test-id'] ?? '')
+      closedByClient.set(testId, false)
+      await drainBody(req)
+      res.on('close', () => {
+        if (!res.writableEnded) closedByClient.set(testId, true)
+      })
+      // Safety net so a broken client cannot hold the socket forever.
+      setTimeout(() => {
+        if (!res.writableEnded) res.end()
+      }, 30_000).unref()
+      return true
+    },
+  }
+}
+
+/**
  * Mounts the OpenAI Decisions `/v1/decisions` response with a `refusal` answer
  * and billed usage. The OpenAI evaluate adapter turns it into an
  * `EvaluateError` with code `refusal`.
@@ -2596,6 +2643,96 @@ function bedrockConverseCacheMount(): Mountable {
         }),
       )
       res.end()
+      return true
+    },
+  }
+}
+
+/** Validate the Bedrock Rerank wire format before serving stateless result pages. */
+function bedrockRerankMount(): Mountable {
+  return {
+    async handleRequest(req, res, pathname) {
+      if (req.method !== 'POST' || pathname !== '/rerank') return false
+      const body = await readJsonRequestBody(req)
+      const config = asRecord(
+        asRecord(body?.rerankingConfiguration)?.bedrockRerankingConfiguration,
+      )
+      const modelArn = asRecord(config?.modelConfiguration)?.modelArn
+      const count = config?.numberOfResults
+      const token = body?.nextToken
+      const authorization = req.headers.authorization ?? ''
+      const modelAllowed =
+        modelArn ===
+          'arn:aws:bedrock:us-west-2::foundation-model/cohere.rerank-v3-5:0' ||
+        modelArn ===
+          'arn:aws:bedrock:us-west-2::foundation-model/amazon.rerank-v1:0'
+      const expectedBody = {
+        queries: [{ type: 'TEXT', textQuery: { text: 'talk about rain' } }],
+        sources: [
+          '{"id":"sun","text":"sunny day at the beach"}',
+          '{"id":"rain","text":"rainy afternoon in the city"}',
+          '{"id":"snow","text":"snow in the mountains"}',
+        ].map((text) => ({
+          type: 'INLINE',
+          inlineDocumentSource: { type: 'TEXT', textDocument: { text } },
+        })),
+        rerankingConfiguration: {
+          type: 'BEDROCK_RERANKING_MODEL',
+          bedrockRerankingConfiguration: {
+            modelConfiguration: { modelArn },
+            numberOfResults: count,
+          },
+        },
+        ...(token === undefined ? {} : { nextToken: token }),
+      }
+      res.setHeader('Content-Type', 'application/json')
+      if (
+        !modelAllowed ||
+        (count !== 1 && count !== 3) ||
+        (token !== undefined &&
+          ((token !== 'rain-page-2' && token !== 'rain-page-3') ||
+            count !== 3)) ||
+        !isDeepStrictEqual(body, expectedBody) ||
+        !authorization.startsWith(
+          'AWS4-HMAC-SHA256 Credential=AKIA_BEDROCK_E2E/',
+        ) ||
+        !authorization.includes('/us-west-2/bedrock/aws4_request') ||
+        !authorization.includes('x-test-id') ||
+        !req.headers['x-test-id'] ||
+        !/^[a-f0-9]{64}$/.test(String(req.headers['x-amz-content-sha256'])) ||
+        req.headers['content-type'] !== 'application/json'
+      ) {
+        res.statusCode = 400
+        res.end(
+          JSON.stringify({
+            message: 'Invalid Bedrock rerank request or signing scope',
+          }),
+        )
+        return true
+      }
+      res.setHeader(
+        'x-amzn-requestid',
+        token ? token.replace('rain-', 'rerank-') : 'rerank-page-1',
+      )
+      if (token === 'rain-page-2') {
+        res.end(JSON.stringify({ results: [], nextToken: 'rain-page-3' }))
+        return true
+      }
+      res.end(
+        JSON.stringify(
+          token
+            ? {
+                results: [
+                  { index: 2, relevanceScore: 0.3 },
+                  { index: 0, relevanceScore: 0.1 },
+                ],
+              }
+            : {
+                results: [{ index: 1, relevanceScore: 0.98 }],
+                ...(count === 3 ? { nextToken: 'rain-page-2' } : {}),
+              },
+        ),
+      )
       return true
     },
   }

@@ -336,6 +336,26 @@ const chat = useChat(chatOptions);
 
 Does the server also need a value from the client? Send it with `forwardedProps`, check it in your route, and put it in the server `chat({ context })`. See [Runtime Context](../advanced/runtime-context).
 
+### Stop a client tool when the chat stops
+
+The second argument also has `abortSignal`. It aborts when you call `stop()` on the chat. Pass it to `fetch` and other long work:
+
+```typescript
+import { toolDefinition } from "@tanstack/ai";
+import { z } from "zod";
+
+const searchDocs = toolDefinition({
+  name: "search_docs",
+  description: "Search the docs index of the app",
+  inputSchema: z.object({ query: z.string() }),
+}).client(async ({ query }, ctx) => {
+  const response = await fetch(`/api/search?q=${encodeURIComponent(query)}`, {
+    signal: ctx?.abortSignal,
+  });
+  return { results: await response.text() };
+});
+```
+
 ### One definition, two implementations
 
 A definition can have a `.server()` and a `.client()` implementation. The tool that you pass to `chat()` decides where it runs:
@@ -402,11 +422,18 @@ The AG-UI spec ends such a run with `RUN_FINISHED` and a success outcome. The to
 - If the server names the calls in `outcome.pendingToolCallIds`, the client runs only those of them that this run started.
 - The next request carries each result as a `role: "tool"` message.
 
+Some servers end the run with `finishReason: "tool_calls"` instead, then close the stream. The client does the same steps when the stream closes.
+
 These calls do not run:
 
 - A call with a name that no client tool has.
 - A call with arguments that are not complete JSON.
-- A call to a client tool with `needsApproval: true`, because the server did not ask for approval.
+
+A call to a client tool with `needsApproval: true` waits for the user. It comes in `interrupts` as a `tool-approval` item, the same as with `chat()`. Show it as in [Tool Approval](./tool-approval):
+
+- On approve, the client runs the tool with the arguments, or with the edited arguments. Then it starts the next run with the result.
+- On deny, the client sends a denied result, `{ error: 'User declined tool execution' }`, and starts the next run.
+- The approval exists only in the browser. A page reload loses it.
 
 ### Expose client tools through WebMCP
 

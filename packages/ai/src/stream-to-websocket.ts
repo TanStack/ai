@@ -272,6 +272,8 @@ export function toWebSocketStream<TOffset extends string = string>(
         }
       } else {
         for await (const chunk of init.onRun(ctx)) {
+          // Ends the onRun stream (iterator.return()) even if it ignores ctx.signal.
+          if (turnAbort.signal.aborted) break
           socket.send(encodeWsFrame(chunk, undefined))
         }
       }

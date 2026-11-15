@@ -12,27 +12,24 @@ import { createOpenRouterResponsesText } from '../src/adapters/responses-text'
 import { createOpenRouterText } from '../src/adapters/text'
 import type { AdapterYieldChunk, Tool } from '@tanstack/ai'
 
-// Mock the SDK with a constructor function, not a class. A class field named
-// `chat` collides with the `chat` import when vitest hoists this mock.
+// Mock the OpenRouter fetch client.
 let mockChatSend = vi.fn()
 let mockResponsesSend = vi.fn()
 
-vi.mock('@openrouter/sdk', () => {
-  function OpenRouter(this: {
-    chat: { send: (...args: Array<unknown>) => unknown }
-    beta: { responses: { send: (...args: Array<unknown>) => unknown } }
-  }) {
-    this.chat = {
+vi.mock('../src/client', () => ({
+  createOpenRouterChatClient: () => ({
+    chat: {
       send: (...args: Array<unknown>) => mockChatSend(...args),
-    }
-    this.beta = {
+    },
+  }),
+  createOpenRouterResponsesClient: () => ({
+    beta: {
       responses: {
         send: (...args: Array<unknown>) => mockResponsesSend(...args),
       },
-    }
-  }
-  return { OpenRouter }
-})
+    },
+  }),
+}))
 
 const AnswerSchema = z.object({ answer: z.string() })
 

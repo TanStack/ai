@@ -6,6 +6,7 @@ import { createCodeMode } from '@tanstack/ai-code-mode'
 import { anthropicText } from '@tanstack/ai-anthropic'
 import { openaiText } from '@tanstack/ai-openai'
 import { geminiText } from '@tanstack/ai-gemini'
+import { museText } from '@tanstack/ai-muse'
 import { zaiText } from '@tanstack/ai-zai'
 import {
   createAlwaysTrustedStrategy,
@@ -19,7 +20,7 @@ import type { AnyServerTool, AnyTextAdapter, StreamChunk } from '@tanstack/ai'
 import type { IsolateDriver } from '@tanstack/ai-code-mode'
 import { productTools } from '@/lib/tools/product-tools'
 
-type Provider = 'anthropic' | 'openai' | 'gemini' | 'zai'
+type Provider = 'anthropic' | 'openai' | 'gemini' | 'muse' | 'zai'
 
 function getAdapter(provider: Provider, model?: string): AnyTextAdapter {
   switch (provider) {
@@ -27,6 +28,8 @@ function getAdapter(provider: Provider, model?: string): AnyTextAdapter {
       return openaiText((model || 'gpt-4o') as 'gpt-4o')
     case 'gemini':
       return geminiText((model || 'gemini-2.5-flash') as 'gemini-2.5-flash')
+    case 'muse':
+      return museText((model || 'muse-ember-1.0') as 'muse-ember-1.0')
     case 'zai':
       return zaiText((model || 'glm-4.7') as 'glm-4.7')
     case 'anthropic':

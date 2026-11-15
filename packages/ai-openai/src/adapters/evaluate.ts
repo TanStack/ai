@@ -1,4 +1,5 @@
-import OpenAI from 'openai'
+import { createOpenAIClient } from '@tanstack/openai-base'
+import type { OpenAIClientLike } from '@tanstack/openai-base'
 import { buildBaseUsage } from '@tanstack/ai'
 import {
   BaseEvaluateAdapter,
@@ -117,11 +118,11 @@ export class OpenAIEvaluateAdapter<
 > extends BaseEvaluateAdapter<TModel> {
   readonly name = 'openai' as const
 
-  protected client: OpenAI
+  protected client: OpenAIClientLike
 
   constructor(config: OpenAIEvaluateConfig, model: TModel) {
     super({}, model)
-    this.client = new OpenAI(config)
+    this.client = createOpenAIClient(config)
   }
 
   async evaluate(options: EvaluateOptions) {
@@ -165,6 +166,23 @@ export class OpenAIEvaluateAdapter<
         completionTokens: decision.usage.output_tokens,
         totalTokens: decision.usage.total_tokens,
       })
+      // Only include the details the response reports (zero means none).
+      // The SDK types mark the details as required, but a response can omit
+      // them.
+      const cachedTokens = decision.usage.input_tokens_details?.cached_tokens
+      const cacheWriteTokens =
+        decision.usage.input_tokens_details?.cache_write_tokens
+      if (cachedTokens || cacheWriteTokens) {
+        usage.promptTokensDetails = {
+          ...(cachedTokens && { cachedTokens }),
+          ...(cacheWriteTokens && { cacheWriteTokens }),
+        }
+      }
+      const reasoningTokens =
+        decision.usage.output_tokens_details?.reasoning_tokens
+      if (reasoningTokens) {
+        usage.completionTokensDetails = { reasoningTokens }
+      }
 
       if (refused.length > 0) {
         throw new EvaluateError({

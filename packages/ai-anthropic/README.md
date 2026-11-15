@@ -103,6 +103,9 @@ export async function POST(request: Request) {
 Set how hard Claude thinks with `reasoning` on `chat()`. The adapter sends the right thinking fields for the model:
 
 ```typescript
+import { chat } from '@tanstack/ai'
+import { anthropicText } from '@tanstack/ai-anthropic'
+
 const stream = chat({
   adapter: anthropicText('claude-sonnet-5'),
   messages: [{ role: 'user', content: 'Plan a database migration.' }],
@@ -119,6 +122,9 @@ Models that think with a token budget, such as Claude Haiku 4.5, also take `reas
 Mark a content part with `cache_control` to cache it:
 
 ```typescript
+import { chat } from '@tanstack/ai'
+import { anthropicText } from '@tanstack/ai-anthropic'
+
 const stream = chat({
   adapter: anthropicText('claude-sonnet-4-6'),
   messages: [

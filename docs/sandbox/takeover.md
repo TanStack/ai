@@ -317,7 +317,7 @@ export async function POST(request: Request) {
 
 `requestRunCancel` writes no status. Only the driver knows when the agent is dead and the sandbox is gone, so only the driver writes `'aborted'`.
 
-2. Make the Stop button call the endpoint. `chat.stop()` alone sends the server nothing, and a durable run keeps working, because that looks like a refresh.
+2. Set `cancelUrl` on the connection. Then `chat.stop()` also posts `{ runId, threadId }` to the endpoint. Without it, `chat.stop()` sends the server nothing, and a durable run keeps working, because that looks like a refresh.
 
 ```tsx
 import { fetchServerSentEvents, useChat } from '@tanstack/ai-react'
@@ -325,21 +325,12 @@ import { fetchServerSentEvents, useChat } from '@tanstack/ai-react'
 export function StoppableChat({ threadId }: { threadId: string }) {
   const chat = useChat({
     threadId,
-    connection: fetchServerSentEvents('/api/chat'),
+    connection: fetchServerSentEvents('/api/chat', {
+      cancelUrl: '/api/chat/cancel',
+    }),
   })
 
-  async function stopRun(): Promise<void> {
-    // Local: stop rendering the stream now.
-    chat.stop()
-    // Remote: tell the server that this is a cancel, not a lost connection.
-    await fetch('/api/chat/cancel', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ threadId }),
-    })
-  }
-
-  return <button onClick={() => void stopRun()}>Stop</button>
+  return <button onClick={() => chat.stop()}>Stop</button>
 }
 ```
 

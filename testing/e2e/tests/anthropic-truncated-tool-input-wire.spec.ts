@@ -2,13 +2,13 @@ import { test, expect } from './fixtures'
 
 /**
  * Issue #1582: a stream that stops mid tool call leaves partial JSON in the
- * call's arguments. Replaying that call sent the raw string as
- * `tool_use.input`, and Anthropic rejected every later turn with
- * "Input should be an object". `/api/anthropic-truncated-tool-input-wire`
- * runs both turns and returns what went over the wire.
+ * call's arguments. That stream now ends with `incomplete-stream`, so the
+ * call must not reach the next turn. `/api/anthropic-truncated-tool-input-wire`
+ * runs both turns and returns what went over the wire. The `{}` input
+ * conversion for partial arguments is covered in `anthropic-adapter.test.ts`.
  */
 test.describe('anthropic — truncated tool call replay', () => {
-  test('a replayed tool call with partial arguments sends an object input', async ({
+  test('a stream cut mid tool call does not replay the partial call', async ({
     request,
   }) => {
     const response = await request.post(
@@ -34,13 +34,8 @@ test.describe('anthropic — truncated tool call replay', () => {
         : [],
     )
 
-    // Guards the premise: the truncated call is replayed at all.
-    expect(toolUses).toHaveLength(1)
-    expect(toolUses[0]).toEqual({
-      type: 'tool_use',
-      id: 'toolu_truncated',
-      name: 'lookup_weather',
-      input: {},
-    })
+    // The first stream ends before a stop reason, so the adapter reports
+    // incomplete-stream and turn 2 does not replay the truncated call.
+    expect(toolUses).toHaveLength(0)
   })
 })

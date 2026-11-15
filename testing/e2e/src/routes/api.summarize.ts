@@ -192,6 +192,7 @@ export const Route = createFileRoute('/api/summarize')({
           testId,
           aimockPort,
           maxLength,
+          timeout,
         } = data as {
           text: string
           provider: Provider
@@ -199,6 +200,7 @@ export const Route = createFileRoute('/api/summarize')({
           testId?: string
           aimockPort?: number
           maxLength?: number
+          timeout?: number
         }
 
         try {
@@ -222,6 +224,7 @@ export const Route = createFileRoute('/api/summarize')({
               adapter,
               text,
               maxLength,
+              timeout,
               stream: false,
             })
             return new Response(JSON.stringify({ summary }), {
@@ -233,6 +236,7 @@ export const Route = createFileRoute('/api/summarize')({
             adapter,
             text,
             maxLength,
+            timeout,
             stream: true,
           })
           return toServerSentEventsResponse(stream)

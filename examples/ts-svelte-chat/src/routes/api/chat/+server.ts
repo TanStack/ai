@@ -36,7 +36,7 @@ if (env.ZAI_API_KEY) process.env.ZAI_API_KEY = env.ZAI_API_KEY
 const adapterConfig = {
   anthropic: () =>
     createChatOptions({
-      adapter: anthropicText('claude-sonnet-4-5'),
+      adapter: anthropicText('claude-sonnet-4-6'),
     }),
   gemini: () =>
     createChatOptions({

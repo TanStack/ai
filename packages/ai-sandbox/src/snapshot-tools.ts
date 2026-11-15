@@ -92,13 +92,14 @@ export function createSnapshotTools(
       required: ['checkpointId', 'label', 'threadId'],
       additionalProperties: false,
     },
-  }).server(async (input) => {
+  }).server(async (input, context) => {
     const label = requiredString(input, 'label')
     const checkpoint = await snapshots.save({
       threadId,
       runId,
       label,
       ...(tenant === undefined ? {} : { tenant }),
+      ...(context?.abortSignal ? { signal: context.abortSignal } : {}),
     })
     return {
       checkpointId: checkpoint.id,

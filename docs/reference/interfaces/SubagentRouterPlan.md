@@ -3,7 +3,7 @@ id: SubagentRouterPlan
 title: SubagentRouterPlan
 ---
 
-Defined in: packages/ai/src/activities/chat/agents/spawn.ts:71
+Defined in: [packages/ai/src/activities/chat/agents/spawn.ts:87](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/agents/spawn.ts#L87)
 
 ## Properties
 
@@ -13,7 +13,7 @@ Defined in: packages/ai/src/activities/chat/agents/spawn.ts:71
 names: readonly SubagentPick[];
 ```
 
-Defined in: packages/ai/src/activities/chat/agents/spawn.ts:72
+Defined in: [packages/ai/src/activities/chat/agents/spawn.ts:88](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/agents/spawn.ts#L88)
 
 ***
 
@@ -23,6 +23,6 @@ Defined in: packages/ai/src/activities/chat/agents/spawn.ts:72
 optional order?: SubagentOrder;
 ```
 
-Defined in: packages/ai/src/activities/chat/agents/spawn.ts:74
+Defined in: [packages/ai/src/activities/chat/agents/spawn.ts:90](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/agents/spawn.ts#L90)
 
 Overrides `subagents.order` for this turn.

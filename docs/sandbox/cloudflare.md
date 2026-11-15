@@ -11,6 +11,8 @@ The Cloudflare sandbox runs the agent loop, the run history, and the container i
 
 For the provider-neutral basics (workspace, tools, policy, lifecycle), start at the [Overview](./overview).
 
+If your own Durable Object already starts the container, use [Your Own Cloudflare Container](./cloudflare-container). Your Durable Object then keeps egress, secrets, and instance limits.
+
 ## Deploy an agent at the edge
 
 1. Install the packages.

@@ -3,7 +3,7 @@ id: TextCompactOptions
 title: TextCompactOptions
 ---
 
-Defined in: packages/ai/src/types.ts:1530
+Defined in: [packages/ai/src/types.ts:1585](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1585)
 
 What `TextAdapter.compact` receives.
 
@@ -18,7 +18,7 @@ messages: ModelMessage<
   | null>[];
 ```
 
-Defined in: packages/ai/src/types.ts:1532
+Defined in: [packages/ai/src/types.ts:1587](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1587)
 
 The history to compact.
 
@@ -30,7 +30,7 @@ The history to compact.
 model: string;
 ```
 
-Defined in: packages/ai/src/types.ts:1533
+Defined in: [packages/ai/src/types.ts:1588](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1588)
 
 ***
 
@@ -40,7 +40,7 @@ Defined in: packages/ai/src/types.ts:1533
 optional signal?: AbortSignal;
 ```
 
-Defined in: packages/ai/src/types.ts:1534
+Defined in: [packages/ai/src/types.ts:1589](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1589)
 
 ***
 
@@ -50,7 +50,7 @@ Defined in: packages/ai/src/types.ts:1534
 optional systemPrompts?: SystemPrompt[];
 ```
 
-Defined in: packages/ai/src/types.ts:1538
+Defined in: [packages/ai/src/types.ts:1593](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1593)
 
 The system prompts of the chat call.
 
@@ -62,6 +62,6 @@ The system prompts of the chat call.
 optional wrapFetch?: FetchWrapper;
 ```
 
-Defined in: packages/ai/src/types.ts:1536
+Defined in: [packages/ai/src/types.ts:1591](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1591)
 
 Wraps the fetch of the compaction request.

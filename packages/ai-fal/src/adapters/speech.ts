@@ -1,8 +1,7 @@
-import { fal } from '@fal-ai/client'
 import { BaseTTSAdapter } from '@tanstack/ai/adapters'
 import {
   arrayBufferToBase64,
-  configureFalClient,
+  createAdapterFalClient,
   extractUrlExtension,
   generateId as utilGenerateId,
 } from '../utils/client'
@@ -10,6 +9,7 @@ import { buildFalUsage, takeBillableUnits } from '../utils/billing'
 import type { OutputType, Result } from '@fal-ai/client'
 import type { TTSOptions, TTSResult } from '@tanstack/ai'
 import type { FalClientConfig } from '../utils/client'
+import type { FalClient } from '../client/index'
 import type { FalModel, FalModelInput } from '../model-meta'
 
 /**
@@ -40,10 +40,11 @@ export class FalSpeechAdapter<TModel extends FalModel> extends BaseTTSAdapter<
   FalSpeechProviderOptions<TModel>
 > {
   readonly name = 'fal' as const
+  private readonly client: FalClient
 
   constructor(model: TModel, config?: FalClientConfig) {
     super(model, {})
-    configureFalClient(config)
+    this.client = createAdapterFalClient(config)
   }
 
   async generateSpeech(
@@ -54,15 +55,24 @@ export class FalSpeechAdapter<TModel extends FalModel> extends BaseTTSAdapter<
       provider: 'fal',
       model: this.model,
     })
+    let requestId: string | undefined
     try {
       const input = this.buildInput(options)
-      // Request-specific abortSignal only — not fal.config() (global).
-      const result = await fal.subscribe(this.model, {
+      // Pass the abortSignal per request, not in the client config.
+      const result = await this.client.subscribe(this.model, {
         input,
         ...(options.abortSignal ? { abortSignal: options.abortSignal } : {}),
+        onEnqueue: (id) => {
+          requestId = id
+        },
       })
-      return await this.transformResponse(result)
+      return await this.transformResponse(result, options.abortSignal)
     } catch (error) {
+      // The SDK stops waiting on abort but leaves the queued job running.
+      // Cancel it so it stops billing.
+      if (requestId && options.abortSignal?.aborted) {
+        this.client.queue.cancel(this.model, { requestId }).catch(() => {})
+      }
       logger.errors('fal.generateSpeech fatal', {
         error,
         source: 'fal.generateSpeech',
@@ -91,6 +101,7 @@ export class FalSpeechAdapter<TModel extends FalModel> extends BaseTTSAdapter<
 
   private async transformResponse(
     response: Result<OutputType<TModel>>,
+    abortSignal: AbortSignal | undefined,
   ): Promise<TTSResult> {
     const data = response.data as Record<string, unknown>
 
@@ -117,7 +128,10 @@ export class FalSpeechAdapter<TModel extends FalModel> extends BaseTTSAdapter<
     // Fetch the audio and convert to base64 to match TTSResult contract.
     // Using a chunked helper here — spreading Uint8Array into btoa exceeds
     // V8's argument limit (~65k) for any realistic TTS clip.
-    const audioResponse = await fetch(audioUrl)
+    const audioResponse = await fetch(
+      audioUrl,
+      abortSignal ? { signal: abortSignal } : undefined,
+    )
     if (!audioResponse.ok) {
       throw new Error(
         `Failed to fetch audio from ${audioUrl}: ${audioResponse.status} ${audioResponse.statusText}`,
