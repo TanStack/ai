@@ -49,7 +49,7 @@ ZAI_API_KEY=...
 ```ts
 import { createZAIText } from '@tanstack/ai-zai'
 
-const adapter = createZAIText('glm-5.3', apiKey)
+const adapter = createZAIText('glm-5.3', process.env.ZAI_API_KEY!)
 ```
 
 ## Usage
@@ -88,24 +88,32 @@ GLM-5.3, GLM-5.3 Flash, and GLM-5.2 accept a reasoning effort. Pass a level to
 sends it as `reasoning_effort`.
 
 ```ts
+import { chat } from '@tanstack/ai'
+import { zaiText } from '@tanstack/ai-zai'
+
 const stream = chat({
   adapter: zaiText('glm-5.3'),
-  messages,
+  messages: [{ role: 'user', content: 'Hello!' }],
+  threadId: 'thread-1',
   reasoning: 'high',
 })
 ```
 
-| Model                                | `reasoning_effort` values                              |
-| ------------------------------------ | ------------------------------------------------------ |
-| `glm-5.2`                            | `off`, `minimal`, `low`, `medium`, `high`, `xhigh`, `max` |
-| `glm-5.3`, `glm-5.3-flash`           | `low`, `high`, `max`                                   |
+| Model                      | `reasoning_effort` values                                 |
+| -------------------------- | --------------------------------------------------------- |
+| `glm-5.2`                  | `off`, `minimal`, `low`, `medium`, `high`, `xhigh`, `max` |
+| `glm-5.3`, `glm-5.3-flash` | `low`, `high`, `max`                                      |
 
 For GLM-4.7 and GLM-4.6, turn thinking on with the provider option instead:
 
 ```ts
+import { chat } from '@tanstack/ai'
+import { zaiText } from '@tanstack/ai-zai'
+
 const stream = chat({
   adapter: zaiText('glm-4.7'),
-  messages,
+  messages: [{ role: 'user', content: 'Hello!' }],
+  threadId: 'thread-1',
   modelOptions: { thinking: { type: 'enabled', clear_thinking: false } },
 })
 ```
@@ -118,6 +126,8 @@ reply against your schema. Without `stream: true`, `chat()` resolves to the
 parsed object, so await it.
 
 ```ts
+import { chat } from '@tanstack/ai'
+import { zaiText } from '@tanstack/ai-zai'
 import { z } from 'zod'
 
 const orderSchema = z.object({
@@ -127,7 +137,8 @@ const orderSchema = z.object({
 
 const order = await chat({
   adapter: zaiText('glm-5.3'),
-  messages,
+  messages: [{ role: 'user', content: 'Summarize my open orders' }],
+  threadId: 'thread-1',
   outputSchema: orderSchema,
 })
 ```
@@ -139,11 +150,13 @@ Function tools and Z.AI's built-in web search both work. Z.AI accepts a
 or a named tool warns once and falls back to `auto`.
 
 ```ts
+import { chat } from '@tanstack/ai'
 import { zaiText, zaiWebSearchTool } from '@tanstack/ai-zai'
 
 const stream = chat({
   adapter: zaiText('glm-5.3'),
-  messages,
+  messages: [{ role: 'user', content: 'Hello!' }],
+  threadId: 'thread-1',
   tools: [zaiWebSearchTool({ search_result: true })],
 })
 ```
@@ -153,6 +166,9 @@ const stream = chat({
 Vision models take `image` and `video` content parts:
 
 ```ts
+import { chat } from '@tanstack/ai'
+import { zaiText } from '@tanstack/ai-zai'
+
 const stream = chat({
   adapter: zaiText('glm-5.3-flash'),
   messages: [
@@ -160,10 +176,14 @@ const stream = chat({
       role: 'user',
       content: [
         { type: 'text', content: 'What is in this image?' },
-        { type: 'image', source: { type: 'url', value: imageUrl } },
+        {
+          type: 'image',
+          source: { type: 'url', value: 'https://example.com/guitar.jpg' },
+        },
       ],
     },
   ],
+  threadId: 'thread-1',
 })
 ```
 
@@ -179,7 +199,7 @@ import { zaiSummarize } from '@tanstack/ai-zai'
 
 const result = await summarize({
   adapter: zaiSummarize('glm-5.3'),
-  text: longText,
+  text: 'Your long text to summarize...',
   threadId: 'article-summary',
   style: 'bullet-points',
   maxLength: 500,
@@ -191,6 +211,8 @@ const result = await summarize({
 A coding-plan key talks to a different host. Pass `coding: true`:
 
 ```ts
+import { zaiText } from '@tanstack/ai-zai'
+
 const adapter = zaiText('glm-5.3', { coding: true })
 ```
 
@@ -202,7 +224,7 @@ you set yourself wins.
 `@tanstack/ai-zai/byok` exports a BYOK descriptor. Add it to your store so the
 key dialog shows a Z.AI field:
 
-```ts
+```ts group=byok
 import { defaultByokStorage, defineByok } from '@tanstack/ai-react/byok'
 import { zaiByok } from '@tanstack/ai-zai/byok'
 
@@ -215,9 +237,11 @@ export const byok = defineByok({
 Pass the store to `useChat` and set `forwardedProps.provider` to `'zai'`, so the
 send carries that key and nothing else:
 
-```tsx
+```tsx group=byok
+import { fetchServerSentEvents, useChat } from '@tanstack/ai-react'
+
 const { messages, sendMessage } = useChat({
-  connection,
+  connection: fetchServerSentEvents('/api/chat'),
   threadId: 'zai-chat',
   byok,
   forwardedProps: { provider: 'zai' },
