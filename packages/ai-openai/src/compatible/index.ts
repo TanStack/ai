@@ -16,6 +16,7 @@ import type {
 export {
   OpenAICompatibleChatAdapter,
   OpenAICompatibleResponsesAdapter,
+  type OpenAICompatibleAdapterOptions,
 } from './adapter'
 export type {
   CompatibleApi,

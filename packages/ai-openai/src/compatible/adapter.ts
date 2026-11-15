@@ -52,10 +52,10 @@ export class OpenAICompatibleChatAdapter<
     client: OpenAIClientLike,
     model: TModel,
     name: string,
-    options?: OpenAICompatibleAdapterOptions,
+    { reasoning, ...options }: OpenAICompatibleAdapterOptions = {},
   ) {
     super(model, name, client, options)
-    this.reasoning = options?.reasoning
+    this.reasoning = reasoning
   }
 
   /** `chat({ reasoning })` goes out as `reasoning_effort`. */
@@ -118,10 +118,10 @@ export class OpenAICompatibleResponsesAdapter<
     client: OpenAIClientLike,
     model: TModel,
     name: string,
-    options?: OpenAICompatibleAdapterOptions,
+    { reasoning, ...options }: OpenAICompatibleAdapterOptions = {},
   ) {
     super(model, name, client, options)
-    this.reasoning = options?.reasoning
+    this.reasoning = reasoning
   }
 
   /** `chat({ reasoning })` goes out as `reasoning: { effort, summary }`. */
