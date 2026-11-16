@@ -3925,23 +3925,28 @@ class TextEngine<
     this.middlewareCtx.messages = this.messages
   }
 
-  private buildMessagesSnapshotChunk(): StreamChunk {
-    const withIds = this.messages.map((message, index) => ({
+  private assignSnapshotMessageIds(): void {
+    // Store the ids the snapshot gives, so a reload of the stored messages
+    // names each message as the live chat does. Persistence saves on the
+    // interrupt RUN_FINISHED and skips onFinish, so these ids must exist
+    // before that terminal reaches onChunk.
+    this.messages = this.messages.map((message, index) => ({
       ...message,
       id:
         message.id ||
         `snapshot_${this.runIdOverride ?? this.requestId}_${index}`,
     }))
-    // Store the ids the snapshot gives, so a reload of the stored messages
-    // names each message as the live chat does.
-    this.messages = withIds
     this.middlewareCtx.messages = this.messages
+  }
+
+  private buildMessagesSnapshotChunk(): StreamChunk {
+    this.assignSnapshotMessageIds()
     return {
       type: EventType.MESSAGES_SNAPSHOT,
       timestamp: Date.now(),
       messages: uiMessagesToWire(
         interleaveActivityRecords(
-          modelMessagesToUIMessages(withIds),
+          modelMessagesToUIMessages(this.messages),
           this.activities,
         ),
         {
@@ -4083,6 +4088,7 @@ class TextEngine<
         childInterrupts,
       ),
     )
+    this.assignSnapshotMessageIds()
     let terminalOutputs: Array<StreamChunk>
     try {
       terminalOutputs = [
@@ -4403,11 +4409,12 @@ class TextEngine<
           return false
         }
         if (typeof m.content !== 'string') return false
-        try {
-          return JSON.parse(m.content)?.pendingExecution === true
-        } catch {
-          return false
-        }
+        const parsed = parseToolOutput(m.content, m.metadata)
+        return (
+          typeof parsed === 'object' &&
+          parsed !== null &&
+          (parsed as { pendingExecution?: unknown }).pendingExecution === true
+        )
       })
       const isDeniedResult = result.outcome === 'denied'
       const existingToolResultIdx =
@@ -4498,13 +4505,13 @@ class TextEngine<
         // Check if this is an approval response with pendingExecution marker
         let hasPendingExecution = false
         if (typeof message.content === 'string') {
-          try {
-            const parsed = JSON.parse(message.content)
-            if (parsed.pendingExecution === true) {
-              hasPendingExecution = true
-            }
-          } catch {
-            // Not JSON, treat as regular tool result
+          const parsed = parseToolOutput(message.content, message.metadata)
+          if (
+            typeof parsed === 'object' &&
+            parsed !== null &&
+            (parsed as { pendingExecution?: unknown }).pendingExecution === true
+          ) {
+            hasPendingExecution = true
           }
         }
 

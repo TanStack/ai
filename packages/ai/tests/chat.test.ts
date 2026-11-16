@@ -876,13 +876,15 @@ describe('chat()', () => {
         iterations: [
           [
             ev.runStarted(),
+            ev.toolStart('call_server', 'lookup'),
+            ev.toolArgs('call_server', '{}'),
             ev.toolStart('call_1', 'clientSearch'),
             ev.toolArgs('call_1', '{"query":"test"}'),
             ev.runFinished('tool_calls'),
           ],
         ],
       })
-      let stored: ReadonlyArray<ModelMessage> = []
+      let storedOnInterrupt: ReadonlyArray<ModelMessage> = []
 
       const chunks = await collectChunks(
         chat({
@@ -890,12 +892,20 @@ describe('chat()', () => {
           adapter,
           runId: 'interrupt-run',
           messages: [{ role: 'user', content: 'Search' }],
-          tools: [clientTool('clientSearch')],
+          tools: [
+            serverTool('lookup', () => ({ ok: true })),
+            clientTool('clientSearch'),
+          ],
           middleware: [
             defineChatMiddleware({
               name: 'test-stored-messages',
-              onChunk(ctx) {
-                stored = ctx.messages
+              onChunk(ctx, chunk) {
+                if (
+                  chunk.type === EventType.RUN_FINISHED &&
+                  chunk.outcome?.type === 'interrupt'
+                ) {
+                  storedOnInterrupt = ctx.messages
+                }
               },
             }),
           ],
@@ -905,9 +915,14 @@ describe('chat()', () => {
       const snapshot = chunks.find(
         (chunk) => chunk.type === EventType.MESSAGES_SNAPSHOT,
       )
-      expect(stored.map((message) => message.id)).toEqual(
+      expect(storedOnInterrupt.map((message) => message.id)).toEqual(
         snapshot?.messages.map((message) => message.id),
       )
+      expect(
+        storedOnInterrupt.some(
+          (message) => message.role === 'tool' && message.id != null,
+        ),
+      ).toBe(true)
     })
 
     it('preserves structured-output leftover on the interrupt MESSAGES_SNAPSHOT', async () => {
@@ -2926,6 +2941,53 @@ describe('chat()', () => {
       await collectChunks(stream as AsyncIterable<StreamChunk>)
 
       // Tool should NOT have been executed again
+      expect(executeSpy).not.toHaveBeenCalled()
+      expect(calls).toHaveLength(1)
+    })
+
+    it('does not treat a marked JSON-text string as pendingExecution', async () => {
+      const executeSpy = vi.fn().mockReturnValue({ ok: true })
+
+      const { adapter, calls } = createMockAdapter({
+        iterations: [
+          [
+            ev.runStarted(),
+            ev.textStart(),
+            ev.textContent('Already answered.'),
+            ev.textEnd(),
+            ev.runFinished('stop'),
+          ],
+        ],
+      })
+
+      await collectChunks(
+        chat({
+          threadId: 'thread-1',
+          adapter,
+          messages: [
+            { role: 'user', content: 'Look it up' },
+            {
+              role: 'assistant',
+              content: 'Let me check.',
+              toolCalls: [
+                {
+                  id: 'call_1',
+                  type: 'function' as const,
+                  function: { name: 'lookup', arguments: '{}' },
+                },
+              ],
+            },
+            {
+              role: 'tool',
+              content: '{"pendingExecution":true}',
+              toolCallId: 'call_1',
+              metadata: { tanstack: { toolResultKind: 'text' } },
+            },
+          ],
+          tools: [serverTool('lookup', executeSpy)],
+        }) as AsyncIterable<StreamChunk>,
+      )
+
       expect(executeSpy).not.toHaveBeenCalled()
       expect(calls).toHaveLength(1)
     })
