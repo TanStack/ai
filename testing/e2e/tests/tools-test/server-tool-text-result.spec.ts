@@ -21,12 +21,12 @@ test.describe('Server Tool Text Result', () => {
     await waitForTestComplete(page, 15000, 1)
 
     const parts = (await getMessages(page)).flatMap((message) => message.parts)
-    const call = parts.find(
-      (part) => part.type === 'tool-call' && part.name === 'read_code',
-    )
-    const result = parts.find(
-      (part) => part.type === 'tool-result' && part.toolCallId === call?.id,
-    )
+    const call = parts
+      .filter((part) => part.type === 'tool-call')
+      .find((part) => part.name === 'read_code')
+    const result = parts
+      .filter((part) => part.type === 'tool-result')
+      .find((part) => part.toolCallId === call?.id)
 
     expect(call).toMatchObject({ state: 'complete', output: '42' })
     expect(result).toMatchObject({ content: '42', state: 'complete' })
