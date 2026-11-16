@@ -52,6 +52,6 @@
   "devDependencies": {
     "@tanstack/ai-sandbox": "workspace:*",
     "@types/dockerode": "^4.0.2",
-    "@vitest/coverage-v8": "4.1.10"
+    "@vitest/coverage-v8": "4.1.12"
   }
 }
