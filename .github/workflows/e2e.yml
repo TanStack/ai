@@ -59,6 +59,10 @@ jobs:
           SHARD: ${{ matrix.shard }}
         run: pnpm --filter @tanstack/ai-e2e test:e2e --shard="$SHARD/4"
 
+      - name: Run Solid 2 Consumer Tests
+        if: matrix.shard == 1
+        run: pnpm --filter @tanstack/ai-solid2-e2e test:e2e
+
       - name: Upload Video Recordings
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always()
