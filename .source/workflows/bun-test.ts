@@ -22,6 +22,8 @@ export default defineWorkflow('bun-test', {
   // and the Playwright CDNs when the locked Playwright changes.
   egress: [
     'registry.npmjs.org',
+    // The pinned @tanstack/oracles tarball in pnpm-lock.yaml.
+    'pkg.pr.new',
     'nodejs.org',
     'cdn.playwright.dev',
     'playwright.download.prss.microsoft.com',

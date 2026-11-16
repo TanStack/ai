@@ -24,6 +24,8 @@ export default defineWorkflow('pr', {
     // and the Playwright CDNs when the locked Playwright changes.
     egress: [
       'registry.npmjs.org',
+      // The pinned @tanstack/oracles tarball in pnpm-lock.yaml.
+      'pkg.pr.new',
       'nodejs.org',
       'cdn.playwright.dev',
       'playwright.download.prss.microsoft.com',
@@ -42,6 +44,8 @@ export default defineWorkflow('pr', {
     env: { NX_NO_CLOUD: 'true' },
     egress: [
       'registry.npmjs.org',
+      // The pinned @tanstack/oracles tarball in pnpm-lock.yaml.
+      'pkg.pr.new',
       'nodejs.org',
       'cdn.playwright.dev',
       'playwright.download.prss.microsoft.com',
