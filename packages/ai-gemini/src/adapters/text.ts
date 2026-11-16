@@ -994,6 +994,35 @@ export class GeminiTextAdapter<
     let textSinceCall = false
     const adapterName = this.name
 
+    const closeReasoning = function* (): Generator<AdapterYieldChunk> {
+      if (!reasoningMessageId || hasClosedReasoning) return
+      hasClosedReasoning = true
+      yield {
+        type: EventType.REASONING_MESSAGE_END,
+        messageId: reasoningMessageId,
+        model,
+        timestamp: Date.now(),
+      }
+      yield {
+        type: EventType.REASONING_END,
+        messageId: reasoningMessageId,
+        model,
+        timestamp: Date.now(),
+      }
+    }
+
+    const closeOpenMessages = function* (): Generator<AdapterYieldChunk> {
+      yield* closeReasoning()
+      if (hasEmittedTextMessageStart) {
+        yield {
+          type: EventType.TEXT_MESSAGE_END,
+          messageId,
+          model,
+          timestamp: Date.now(),
+        }
+      }
+    }
+
     const emitGroundingToolCall = function* (): Generator<AdapterYieldChunk> {
       if (groundingCallEmitted) return
       const sources = groundingMetadata
@@ -1125,21 +1154,7 @@ export class GeminiTextAdapter<
               }
             } else if (part.text.trim()) {
               // Close reasoning before text starts
-              if (reasoningMessageId && !hasClosedReasoning) {
-                hasClosedReasoning = true
-                yield {
-                  type: EventType.REASONING_MESSAGE_END,
-                  messageId: reasoningMessageId,
-                  model,
-                  timestamp: Date.now(),
-                }
-                yield {
-                  type: EventType.REASONING_END,
-                  messageId: reasoningMessageId,
-                  model,
-                  timestamp: Date.now(),
-                }
-              }
+              yield* closeReasoning()
 
               // Skip whitespace-only text parts (e.g. "\n" during auto-continuation)
               // Emit TEXT_MESSAGE_START on first text content
@@ -1264,32 +1279,8 @@ export class GeminiTextAdapter<
           hasEmittedTextMessageStart = false
         }
 
-        // Close reasoning events if still open
-        if (reasoningMessageId && !hasClosedReasoning) {
-          hasClosedReasoning = true
-          yield {
-            type: EventType.REASONING_MESSAGE_END,
-            messageId: reasoningMessageId,
-            model,
-            timestamp: Date.now(),
-          }
-          yield {
-            type: EventType.REASONING_END,
-            messageId: reasoningMessageId,
-            model,
-            timestamp: Date.now(),
-          }
-        }
-
-        // Emit TEXT_MESSAGE_END if we had text content
-        if (hasEmittedTextMessageStart) {
-          yield {
-            type: EventType.TEXT_MESSAGE_END,
-            messageId,
-            model,
-            timestamp: Date.now(),
-          }
-        }
+        // Close reasoning, and text if we had text content
+        yield* closeOpenMessages()
 
         if (finishReason === FinishReason.MAX_TOKENS) {
           // RUN_ERROR ends the run (as in the Anthropic adapter), so it
@@ -1346,29 +1337,7 @@ export class GeminiTextAdapter<
     if (!sawFinishReason && !blockReason && !options.request?.signal?.aborted) {
       // Close the open blocks first, as openai-base does (#1604).
       yield* emitToolCallEnds()
-      if (reasoningMessageId && !hasClosedReasoning) {
-        hasClosedReasoning = true
-        yield {
-          type: EventType.REASONING_MESSAGE_END,
-          messageId: reasoningMessageId,
-          model,
-          timestamp: Date.now(),
-        }
-        yield {
-          type: EventType.REASONING_END,
-          messageId: reasoningMessageId,
-          model,
-          timestamp: Date.now(),
-        }
-      }
-      if (hasEmittedTextMessageStart) {
-        yield {
-          type: EventType.TEXT_MESSAGE_END,
-          messageId,
-          model,
-          timestamp: Date.now(),
-        }
-      }
+      yield* closeOpenMessages()
       const message = 'Gemini stream ended without a finishReason'
       const usage = buildGeminiUsage(seen.usageMetadata)
       seen.reported = true
