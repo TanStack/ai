@@ -882,7 +882,7 @@ describe('chat()', () => {
           ],
         ],
       })
-      let stored: Array<ModelMessage> = []
+      let stored: ReadonlyArray<ModelMessage> = []
 
       const chunks = await collectChunks(
         chat({
