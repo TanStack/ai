@@ -2620,10 +2620,23 @@ class TextEngine<
       .find((candidate) => candidate.id === chunk.toolCallId)
     if (!toolCall) return
 
+    // Adapter output-error content is a wire string. Parse { error: string }
+    // JSON so it is not text-marked; live StreamProcessor then shows the
+    // same error text as a reload.
+    const recorded =
+      typeof chunk.content === 'string'
+        ? parseToolOutput(chunk.content, chunk.metadata)
+        : chunk.content
     this.streamedToolErrorResults.set(chunk.toolCallId, {
       toolCallId: chunk.toolCallId,
       toolName: toolCall.function.name,
-      result: chunk.content,
+      result:
+        typeof recorded === 'object' &&
+        recorded !== null &&
+        'error' in recorded &&
+        typeof recorded.error === 'string'
+          ? recorded
+          : chunk.content,
       state: 'output-error',
     })
   }
@@ -4440,7 +4453,10 @@ class TextEngine<
       const parsedError = parseToolOutput(wireContent)
       const errorField = result.state === 'output-error' && {
         error: toolResultErrorText(
-          typeof parsedError === 'object' && parsedError !== null
+          typeof parsedError === 'object' &&
+            parsedError !== null &&
+            'error' in parsedError &&
+            typeof parsedError.error === 'string'
             ? parsedError
             : result.result,
         ),

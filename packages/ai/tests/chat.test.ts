@@ -656,6 +656,63 @@ describe('chat()', () => {
         }),
       )
     })
+
+    it('matches live StreamProcessor error text after reload for an adapter JSON tool error', async () => {
+      let saved: ReadonlyArray<ModelMessage> = []
+      const { adapter } = createMockAdapter({
+        iterations: [
+          [
+            ev.runStarted(),
+            ev.toolStart('call_1', 'checkStatus'),
+            ev.toolArgs('call_1', '{}'),
+            chunk(EventType.TOOL_CALL_END, {
+              toolCallId: 'call_1',
+              state: 'output-error',
+              result: '{"error":"Rate limited"}',
+            }),
+            ev.runFinished('tool_calls'),
+          ],
+          [
+            ev.runStarted(),
+            ev.textStart(),
+            ev.textContent('Done.'),
+            ev.textEnd(),
+            ev.runFinished('stop'),
+          ],
+        ],
+      })
+      const chunks = await collectChunks(
+        chat({
+          threadId: 'thread-1',
+          adapter,
+          messages: [{ role: 'user', content: 'Check it' }],
+          tools: [serverTool('checkStatus', () => ({ ok: true }))],
+          middleware: [
+            defineChatMiddleware({
+              name: 'capture-message-history',
+              onFinish(ctx) {
+                saved = ctx.messages
+              },
+            }),
+          ],
+        }) as AsyncIterable<StreamChunk>,
+      )
+      const processor = new StreamProcessor()
+      for (const item of chunks) processor.processChunk(item)
+      const liveError = processor
+        .getMessages()
+        .flatMap((message) => message.parts)
+        .find(
+          (part) => part.type === 'tool-result' && part.toolCallId === 'call_1',
+        )?.error
+      const reloadedError = modelMessagesToUIMessages([...saved])
+        .flatMap((message) => message.parts)
+        .find(
+          (part) => part.type === 'tool-result' && part.toolCallId === 'call_1',
+        )?.error
+      expect(liveError).toBe('Rate limited')
+      expect(reloadedError).toBe(liveError)
+    })
   })
 
   // ==========================================================================
