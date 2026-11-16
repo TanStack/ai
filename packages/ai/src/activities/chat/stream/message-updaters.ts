@@ -130,6 +130,23 @@ export function withoutStaleToolResultOutcome(
   return Object.keys(nextMetadata).length > 0 ? nextMetadata : undefined
 }
 
+/** Drop a text-result mark left on metadata after a non-string replacement. */
+export function withoutStaleToolResultKind(
+  metadata: Record<string, unknown> | undefined,
+): Record<string, unknown> | undefined {
+  if (metadata == null) return undefined
+  const tanstack = tanstackMetadata({ metadata })
+  if (tanstack?.toolResultKind === undefined) return metadata
+  const { toolResultKind: _staleKind, ...restTanstack } = tanstack
+  const nextMetadata = { ...metadata }
+  if (Object.keys(restTanstack).length > 0) {
+    nextMetadata.tanstack = restTanstack
+  } else {
+    delete nextMetadata.tanstack
+  }
+  return Object.keys(nextMetadata).length > 0 ? nextMetadata : undefined
+}
+
 /**
  * Update or add a tool result part to a message.
  */
@@ -173,6 +190,13 @@ export function updateToolResultPart(
       !hasIncomingToolResultOutcome
     ) {
       mergedMetadata = withoutStaleToolResultOutcome(mergedMetadata)
+    }
+
+    // A non-string replacement does not re-supply toolResultKind: 'text'.
+    // Do not keep a previous text mark, or persist/reload treats object JSON
+    // as a string.
+    if (tanstackMetadata({ metadata })?.toolResultKind !== 'text') {
+      mergedMetadata = withoutStaleToolResultKind(mergedMetadata)
     }
 
     const toolResultPart: ToolResultPart = {

@@ -1858,6 +1858,22 @@ describe('StreamProcessor', () => {
       expect(toolResultPart.content).toBe('plain string output')
     })
 
+    it('clears a stale text marker when addToolResult replaces a string with an object', () => {
+      const processor = new StreamProcessor()
+      processor.prepareAssistantMessage()
+
+      processor.processChunk(ev.toolStart('tc-1', 'getText'))
+      processor.processChunk(ev.toolEnd('tc-1', 'getText', { input: {} }))
+      processor.addToolResult('tc-1', '42')
+      processor.addToolResult('tc-1', { value: 42 })
+
+      const toolResultPart = processor
+        .getMessages()[0]!
+        .parts.find((p) => p.type === 'tool-result') as ToolResultPart
+      expect(toolResultPart.content).toBe('{"value":42}')
+      expect(toolResultPart.metadata).toBeUndefined()
+    })
+
     it('addToolResult with error should set error state', () => {
       const processor = new StreamProcessor()
       processor.prepareAssistantMessage()
@@ -6549,6 +6565,38 @@ describe('StreamProcessor', () => {
   // TOOL_CALL_RESULT event
   // ==========================================================================
   describe('TOOL_CALL_RESULT event', () => {
+    it('clears a stale text marker when a streamed object replaces a string result', () => {
+      const processor = new StreamProcessor()
+
+      processor.processChunk(ev.runStarted())
+      processor.processChunk(ev.textStart())
+      processor.processChunk(ev.toolStart('tc-1', 'get_weather'))
+      processor.processChunk(ev.toolEnd('tc-1', 'get_weather'))
+      processor.processChunk(
+        chunk(EventType.TOOL_CALL_RESULT, {
+          messageId: 'tool-result-1',
+          toolCallId: 'tc-1',
+          content: '42',
+          role: 'tool',
+          metadata: { tanstack: { toolResultKind: 'text' } },
+        }),
+      )
+      processor.processChunk(
+        chunk(EventType.TOOL_CALL_RESULT, {
+          messageId: 'tool-result-1',
+          toolCallId: 'tc-1',
+          content: '{"value":42}',
+          role: 'tool',
+        }),
+      )
+
+      const toolResultPart = processor
+        .getMessages()[0]
+        ?.parts.find((p) => p.type === 'tool-result') as ToolResultPart
+      expect(toolResultPart.content).toBe('{"value":42}')
+      expect(toolResultPart.metadata).toBeUndefined()
+    })
+
     it('should create tool-result part and update tool-call output', () => {
       const events = spyEvents()
       const processor = new StreamProcessor({ events })

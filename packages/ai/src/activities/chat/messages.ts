@@ -1367,7 +1367,12 @@ function applySnapshotMetadata(source: object, ui: UIMessage): UIMessage {
     if (raw != null && typeof raw === 'object' && !Array.isArray(raw)) {
       metadata = raw as NonNullable<UIMessage['metadata']>
       const kept = withoutWireRowFields(metadata)
-      if (kept !== undefined) next = { ...next, metadata: kept }
+      if (kept !== undefined) {
+        next = { ...next, metadata: kept }
+      } else {
+        const { metadata: _dropped, ...rest } = next
+        next = rest
+      }
     }
   }
 
@@ -1553,7 +1558,9 @@ export function modelMessagesToUIMessages(
 
   return uiMessages.filter(
     (message) =>
-      message.role !== 'assistant' || !isWhitespaceOnlyMessage(message),
+      message.role !== 'assistant' ||
+      !isWhitespaceOnlyMessage(message) ||
+      tanstackMetadata(message)?.stopReason === 'error',
   )
 }
 

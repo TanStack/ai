@@ -96,6 +96,33 @@ describe('onAfterToolCall replaceResult', () => {
     })
   })
 
+  it('stores a replaced string error result as that string', async () => {
+    const { resultChunk, toolMessage } = await runToolCall(
+      serverTool('lookup', () => {
+        throw new Error('disk full while writing /var/log/huge.log')
+      }),
+      [
+        {
+          name: 'short-errors',
+          onAfterToolCall: (_ctx, info) =>
+            info.ok ? undefined : { type: 'replaceResult', result: '42' },
+        },
+      ],
+    )
+
+    expect(resultChunk).toMatchObject({
+      content: '42',
+      metadata: {
+        tanstack: { state: 'output-error', toolResultKind: 'text' },
+      },
+    })
+    expect(toolMessage).toMatchObject({
+      content: '42',
+      error: '42',
+      metadata: { tanstack: { toolResultKind: 'text' } },
+    })
+  })
+
   it('keeps the result when a hook returns another truthy value', async () => {
     // A hook written before `replaceResult` existed can return anything.
     const legacyHook = (() => ({

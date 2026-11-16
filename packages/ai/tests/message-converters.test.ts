@@ -1503,6 +1503,23 @@ describe('Message Converters', () => {
       expect(reloaded.map((message) => message.role)).toEqual(['user'])
     })
 
+    it('keeps a whitespace-only assistant answer that stopped with an error', () => {
+      const reloaded = modelMessagesToUIMessages([
+        { role: 'user', content: 'hi' },
+        {
+          role: 'assistant',
+          content: '\n',
+          metadata: { tanstack: { stopReason: 'error' } },
+        },
+      ])
+
+      expect(reloaded).toHaveLength(2)
+      expect(reloaded[1]).toMatchObject({
+        role: 'assistant',
+        metadata: { tanstack: { stopReason: 'error' } },
+      })
+    })
+
     it('preserves per-tool identity and metadata across a multi-tool round-trip', () => {
       const original: Array<ModelMessage> = [
         {

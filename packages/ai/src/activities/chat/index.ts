@@ -4429,7 +4429,7 @@ class TextEngine<
           ? this.messages[existingToolResultIdx]
           : undefined
       const errorField = result.state === 'output-error' && {
-        error: toolResultErrorText(parseToolOutput(wireContent)),
+        error: toolResultErrorText(result.result),
       }
       const replacementMessage: ModelMessage =
         existingToolMessage?.role === 'tool'

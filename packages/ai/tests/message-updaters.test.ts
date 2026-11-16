@@ -465,6 +465,35 @@ describe('message-updaters', () => {
       })
     })
 
+    it('clears a stale text marker when a non-string result replaces a string', () => {
+      const messages = [
+        createMessage('msg-1', 'assistant', [
+          {
+            type: 'tool-result',
+            toolCallId: 'call-1',
+            content: '42',
+            state: 'complete',
+            metadata: { tanstack: { toolResultKind: 'text' } },
+          },
+        ]),
+      ]
+
+      const result = updateToolResultPart(
+        messages,
+        'msg-1',
+        'call-1',
+        '{"value":42}',
+        'complete',
+      )
+
+      expect(result[0]?.parts[0]).toEqual({
+        type: 'tool-result',
+        toolCallId: 'call-1',
+        content: '{"value":42}',
+        state: 'complete',
+      })
+    })
+
     it('should clear stale tool result outcome metadata on a successful update', () => {
       const messages = [
         createMessage('msg-1', 'assistant', [
