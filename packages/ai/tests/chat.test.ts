@@ -871,6 +871,45 @@ describe('chat()', () => {
       })
     })
 
+    it('stores the ids that the interrupt MESSAGES_SNAPSHOT gives', async () => {
+      const { adapter } = createMockAdapter({
+        iterations: [
+          [
+            ev.runStarted(),
+            ev.toolStart('call_1', 'clientSearch'),
+            ev.toolArgs('call_1', '{"query":"test"}'),
+            ev.runFinished('tool_calls'),
+          ],
+        ],
+      })
+      let stored: Array<ModelMessage> = []
+
+      const chunks = await collectChunks(
+        chat({
+          threadId: 'thread-1',
+          adapter,
+          runId: 'interrupt-run',
+          messages: [{ role: 'user', content: 'Search' }],
+          tools: [clientTool('clientSearch')],
+          middleware: [
+            defineChatMiddleware({
+              name: 'test-stored-messages',
+              onChunk(ctx) {
+                stored = ctx.messages
+              },
+            }),
+          ],
+        }) as AsyncIterable<StreamChunk>,
+      )
+
+      const snapshot = chunks.find(
+        (chunk) => chunk.type === EventType.MESSAGES_SNAPSHOT,
+      )
+      expect(stored.map((message) => message.id)).toEqual(
+        snapshot?.messages.map((message) => message.id),
+      )
+    })
+
     it('preserves structured-output leftover on the interrupt MESSAGES_SNAPSHOT', async () => {
       const structuredOutput = {
         type: 'structured-output' as const,

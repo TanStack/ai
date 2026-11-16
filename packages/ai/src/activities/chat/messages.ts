@@ -1333,7 +1333,6 @@ export function aguiSnapshotMessageToUIMessage(
   }
 }
 
-/** Copy snapshot metadata when it is a record. Rebuild createdAt from tanstack.createdAt. */
 /**
  * A wire row's metadata without the fields that describe the row:
  * `createdAt` becomes the message's `createdAt`, and `toolCallMetadata`
@@ -1352,6 +1351,7 @@ function withoutWireRowFields(
   return Object.keys(kept).length > 0 ? kept : undefined
 }
 
+/** Copy snapshot metadata when it is a record. Rebuild createdAt from tanstack.createdAt. */
 function applySnapshotMetadata(source: object, ui: UIMessage): UIMessage {
   const normalizedParts = ui.parts.map((part) => normalizeMessagePart(part))
   if (normalizedParts !== ui.parts) ui = { ...ui, parts: normalizedParts }
@@ -1450,8 +1450,7 @@ export function aguiContentToContentParts(
 /**
  * An assistant message with only whitespace text: no tool calls, results,
  * or thinking. `StreamProcessor` drops one at the end of a stream (some
- * models, such as Gemini, answer just "
-" during auto-continuation), so the
+ * models, such as Gemini, answer only a newline during auto-continuation), so the
  * reload drops it too.
  */
 export function isWhitespaceOnlyMessage(message: UIMessage): boolean {
