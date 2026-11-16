@@ -3815,6 +3815,25 @@ importers:
         specifier: 4.1.12
         version: 4.1.12(vitest@4.1.12)
 
+  packages/ai-secure-mcp:
+    dependencies:
+      '@modelcontextprotocol/server':
+        specifier: ^2.0.0
+        version: 2.1.0
+      '@tanstack/ai-mcp':
+        specifier: workspace:^
+        version: link:../ai-mcp
+    devDependencies:
+      '@tanstack/ai':
+        specifier: workspace:*
+        version: link:../ai
+      '@vitest/coverage-v8':
+        specifier: 4.1.10
+        version: 4.1.10(vitest@4.1.11)
+      zod:
+        specifier: ^4.2.0
+        version: 4.6.5
+
   packages/ai-skills:
     dependencies:
       '@tanstack/ai':

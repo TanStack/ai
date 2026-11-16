@@ -1,0 +1,73 @@
+{
+  "name": "@tanstack/ai-secure-mcp",
+  "version": "1.1.0",
+  "description": "Security envelope for self-hosting a TanStack AI MCP server: hashed-token auth, scopes, deny-by-default egress, rate limits, redacted audit, a tripwire notifier, and two-phase approval.",
+  "author": "Tanner Linsley",
+  "license": "MIT",
+  "homepage": "https://tanstack.com/ai",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/TanStack/ai.git",
+    "directory": "packages/ai-secure-mcp"
+  },
+  "bugs": {
+    "url": "https://github.com/TanStack/ai/issues"
+  },
+  "funding": {
+    "type": "github",
+    "url": "https://github.com/sponsors/tannerlinsley"
+  },
+  "type": "module",
+  "module": "./dist/esm/index.js",
+  "types": "./dist/esm/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/esm/index.d.ts",
+      "import": "./dist/esm/index.js"
+    }
+  },
+  "sideEffects": false,
+  "engines": {
+    "node": ">=18"
+  },
+  "files": [
+    "dist",
+    "src"
+  ],
+  "scripts": {
+    "build": "vite build",
+    "clean": "premove ./build ./dist",
+    "lint:fix": "oxlint src --type-aware --fix",
+    "test:build": "publint --strict",
+    "test:oxlint": "oxlint src --type-aware",
+    "test:coverage": "vitest run --passWithNoTests --coverage --coverage.include='src/**' --coverage.reporter=text-summary --coverage.reporter=json-summary",
+    "test:lib": "vitest --passWithNoTests",
+    "test:lib:dev": "pnpm test:lib --watch",
+    "test:types": "tsc"
+  },
+  "keywords": [
+    "ai",
+    "ai-sdk",
+    "typescript",
+    "tanstack",
+    "mcp",
+    "security",
+    "self-hosted",
+    "auth",
+    "egress",
+    "audit"
+  ],
+  "dependencies": {
+    "@modelcontextprotocol/server": "^2.0.0",
+    "@tanstack/ai-mcp": "workspace:^"
+  },
+  "peerDependencies": {
+    "@tanstack/ai": "workspace:^",
+    "zod": "^3.0.0 || ^4.0.0"
+  },
+  "devDependencies": {
+    "@tanstack/ai": "workspace:*",
+    "@vitest/coverage-v8": "4.1.10",
+    "zod": "^4.2.0"
+  }
+}
