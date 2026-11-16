@@ -55,7 +55,7 @@
     "svelte": "^5.0.0"
   },
   "devDependencies": {
-    "svelte": "^5.56.9",
+    "svelte": "^5.57.3",
     "vite": "^8.2.1"
   },
   "keywords": [
