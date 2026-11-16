@@ -274,6 +274,7 @@ These topics are on [OpenAI-Compatible: Advanced](./openai-compatible-advanced):
 
 - Configuration: headers, query parameters, and `wrapFetch`.
 - The Responses API (`api: "responses"`).
+- Reasoning levels for `chat({ reasoning })`.
 - Azure OpenAI.
 - GitHub Copilot: let users pay with their Copilot plan.
 - ChatGPT plan: let users pay with their ChatGPT plan.
