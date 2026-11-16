@@ -1,0 +1,80 @@
+{
+  "name": "@tanstack/ai-mcp-sandbox",
+  "version": "0.1.0",
+  "description": "Per-tool sandboxing for @tanstack/ai-mcp: run untrusted snippet-backed MCP tools inside a Code Mode isolate, capability-scoped per caller via a signed manifest.",
+  "author": "Tanner Linsley",
+  "license": "MIT",
+  "homepage": "https://tanstack.com/ai",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/TanStack/ai.git",
+    "directory": "packages/ai-mcp-sandbox"
+  },
+  "bugs": {
+    "url": "https://github.com/TanStack/ai/issues"
+  },
+  "funding": {
+    "type": "github",
+    "url": "https://github.com/sponsors/tannerlinsley"
+  },
+  "type": "module",
+  "module": "./dist/esm/index.js",
+  "types": "./dist/esm/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/esm/index.d.ts",
+      "import": "./dist/esm/index.js"
+    },
+    "./importer": {
+      "types": "./dist/esm/importer.d.ts",
+      "import": "./dist/esm/importer.js"
+    }
+  },
+  "bin": {
+    "tanstack-ai-sandbox-import": "./dist/esm/bin/import.js"
+  },
+  "sideEffects": false,
+  "engines": {
+    "node": ">=18"
+  },
+  "files": [
+    "dist",
+    "src"
+  ],
+  "scripts": {
+    "build": "vite build",
+    "clean": "premove ./build ./dist",
+    "lint:fix": "oxlint src --type-aware --fix",
+    "test:build": "publint --strict",
+    "test:oxlint": "oxlint src --type-aware",
+    "test:coverage": "vitest run --coverage --coverage.include='src/**' --coverage.reporter=text-summary --coverage.reporter=json-summary",
+    "test:lib": "vitest",
+    "test:lib:dev": "pnpm test:lib --watch",
+    "test:types": "tsc"
+  },
+  "keywords": [
+    "ai",
+    "ai-sdk",
+    "typescript",
+    "tanstack",
+    "mcp",
+    "sandbox",
+    "isolate",
+    "code-mode",
+    "security",
+    "tool-calling",
+    "manifest"
+  ],
+  "peerDependencies": {
+    "@tanstack/ai": "workspace:^",
+    "@tanstack/ai-code-mode": "workspace:^",
+    "@tanstack/ai-mcp": "workspace:^"
+  },
+  "devDependencies": {
+    "@tanstack/ai": "workspace:*",
+    "@tanstack/ai-code-mode": "workspace:*",
+    "@tanstack/ai-isolate-quickjs": "workspace:*",
+    "@tanstack/ai-mcp": "workspace:*",
+    "@vitest/coverage-v8": "4.1.12"
+  }
+}

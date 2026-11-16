@@ -198,6 +198,7 @@ Pick the one you need:
 
 - Serve documents and prompts: [Serve Resources and Prompts](./server-content).
 - Let only signed-in users call the tools: [MCP Server Auth](./server-auth).
+- Serve a tool whose code you do not fully trust: [Sandboxed Tools](./server-sandboxed-tools).
 - Ask the user a question from a tool: [Ask for Input](./server-input).
 - Run a long tool in the background: [MCP Server Tasks](./server-tasks).
 - Let a desktop host start your server as a local process: [MCP Server on stdio](./server-stdio).

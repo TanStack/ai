@@ -3226,6 +3226,24 @@ importers:
         specifier: ^4.2.0
         version: 4.3.6
 
+  packages/ai-mcp-sandbox:
+    devDependencies:
+      '@tanstack/ai':
+        specifier: workspace:*
+        version: link:../ai
+      '@tanstack/ai-code-mode':
+        specifier: workspace:*
+        version: link:../ai-code-mode
+      '@tanstack/ai-isolate-quickjs':
+        specifier: workspace:*
+        version: link:../ai-isolate-quickjs
+      '@tanstack/ai-mcp':
+        specifier: workspace:*
+        version: link:../ai-mcp
+      '@vitest/coverage-v8':
+        specifier: 4.1.12
+        version: 4.1.12(vitest@4.1.12)
+
   packages/ai-memory:
     dependencies:
       '@tanstack/ai-event-client':
@@ -22469,7 +22487,7 @@ snapshots:
   '@blaxel/core@0.3.11(@cfworker/json-schema@4.1.1)(@hey-api/openapi-ts@0.99.0(magicast@0.5.2)(typescript@7.0.2))':
     dependencies:
       '@hey-api/client-fetch': 0.10.2(@hey-api/openapi-ts@0.99.0(magicast@0.5.2)(typescript@7.0.2))
-      '@modelcontextprotocol/sdk': 1.29.0(@cfworker/json-schema@4.1.1)(zod@4.3.6)
+      '@modelcontextprotocol/sdk': 1.29.0(@cfworker/json-schema@4.1.1)(zod@4.6.5)
       archiver: 7.0.1
       axios: 1.18.1(supports-color@7.2.0)
       dockerfile-ast: 0.7.1
@@ -22480,7 +22498,7 @@ snapshots:
       uuid: 11.1.1
       ws: 8.21.0
       yaml: 2.9.0
-      zod: 4.3.6
+      zod: 4.6.5
     transitivePeerDependencies:
       - '@cfworker/json-schema'
       - '@hey-api/openapi-ts'
@@ -24301,8 +24319,8 @@ snapshots:
   '@mistralai/mistralai@2.2.0':
     dependencies:
       ws: 8.21.0
-      zod: 4.3.6
-      zod-to-json-schema: 3.25.2(zod@4.3.6)
+      zod: 4.6.5
+      zod-to-json-schema: 3.25.2(zod@4.6.5)
     transitivePeerDependencies:
       - bufferutil
       - utf-8-validate
@@ -24427,7 +24445,6 @@ snapshots:
       '@cfworker/json-schema': 4.1.1
     transitivePeerDependencies:
       - supports-color
-    optional: true
 
   '@modelcontextprotocol/server@2.1.0':
     dependencies:
@@ -24705,7 +24722,7 @@ snapshots:
 
   '@openrouter/sdk@0.13.20':
     dependencies:
-      zod: 4.3.6
+      zod: 4.6.5
 
   '@opentelemetry/api-logs@0.217.0':
     dependencies:
@@ -30282,7 +30299,7 @@ snapshots:
       tar-stream: 3.1.7
       undici: 7.28.0
       xdg-app-paths: 5.1.0
-      zod: 4.3.6
+      zod: 4.6.5
     transitivePeerDependencies:
       - bare-abort-controller
       - react-native-b4a
@@ -40240,7 +40257,6 @@ snapshots:
   zod-to-json-schema@3.25.2(zod@4.6.5):
     dependencies:
       zod: 4.6.5
-    optional: true
 
   zod@3.25.76: {}
 
