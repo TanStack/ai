@@ -23,14 +23,14 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
-      - name: Setup Tools
-        uses: TanStack/config/.github/setup@190f659075ff0845850e330883eb26d7ffd0671f # main
+      - name: Setup Vite+
+        uses: voidzero-dev/setup-vp@cab1ab9eaff52d4857875f4f2c016e36af8f2c76 # v1.22.0
       - name: Get base and head commits for `nx affected`
         uses: nrwl/nx-set-shas@3e9ad7370203c1e93d109be57f3b72eb0eb511b1 # v4.4.0
         with:
           main-branch-name: main
       - name: Run Checks
-        run: pnpm run test:pr
+        run: vp run test:pr
   coverage:
     name: Coverage
     runs-on: ubuntu-latest
@@ -48,8 +48,8 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
-      - name: Setup Tools
-        uses: TanStack/config/.github/setup@190f659075ff0845850e330883eb26d7ffd0671f # main
+      - name: Setup Vite+
+        uses: voidzero-dev/setup-vp@cab1ab9eaff52d4857875f4f2c016e36af8f2c76 # v1.22.0
       - name: Get base and head commits for `nx affected`
         uses: nrwl/nx-set-shas@3e9ad7370203c1e93d109be57f3b72eb0eb511b1 # v4.4.0
         with:
@@ -69,7 +69,7 @@ jobs:
       - name: Resolve affected packages
         id: affected
         run: |
-          list=$(pnpm exec nx show projects --affected --with-target=test:coverage --exclude='examples/**,testing/**' --json | jq -r 'sort | join(",")')
+          list=$(vpx nx show projects --affected --with-target=test:coverage --exclude='examples/**,testing/**' --json | jq -r 'sort | join(",")')
           echo "list=$list" >> "$GITHUB_OUTPUT"
           echo "Measuring: ${list:-<none>}"
       - name: Coverage for this PR
@@ -81,7 +81,7 @@ jobs:
         run: |
           rm -rf packages/*/coverage
           set +e
-          pnpm exec nx run-many --targets=test:coverage --projects="$PROJECTS" --outputStyle=static -- --coverage.reporter=json-summary --coverage.include='src/**'
+          vpx nx run-many --targets=test:coverage --projects="$PROJECTS" --outputStyle=static -- --coverage.reporter=json-summary --coverage.include='src/**'
           status=$?
           set -e
           if [ "$status" -ne 0 ]; then
@@ -103,11 +103,11 @@ jobs:
           # place — without this the base collection silently re-reads head's
           # numbers and every delta comes out as 0.00.
           rm -rf packages/*/coverage
-          pnpm install --frozen-lockfile
+          vp install --frozen-lockfile
           # Intersect with projects that have test:coverage on the base commit
           # (added packages, or packages that gained the script in this PR).
           printf '%s\n' "$PROJECTS" | tr ',' '\n' | sort > /tmp/wanted
-          pnpm exec nx show projects --with-target=test:coverage --json | jq -r '.[]' | sort > /tmp/available
+          vpx nx show projects --with-target=test:coverage --json | jq -r '.[]' | sort > /tmp/available
           base_list=$(comm -12 /tmp/wanted /tmp/available | paste -sd, -)
           if [ -z "$base_list" ]; then
             echo "No affected package has test:coverage on the base commit; treating all as new."
@@ -117,7 +117,7 @@ jobs:
           # Extra reporters/include so a merge-base whose scripts are still
           # `vitest run --coverage` still writes coverage-summary.json.
           set +e
-          pnpm exec nx run-many --targets=test:coverage --projects="$base_list" --outputStyle=static -- --coverage.reporter=json-summary --coverage.include='src/**'
+          vpx nx run-many --targets=test:coverage --projects="$base_list" --outputStyle=static -- --coverage.reporter=json-summary --coverage.include='src/**'
           status=$?
           set -e
           if [ "$status" -ne 0 ]; then
@@ -163,9 +163,9 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - name: Setup Tools
-        uses: TanStack/config/.github/setup@190f659075ff0845850e330883eb26d7ffd0671f # main
+      - name: Setup Vite+
+        uses: voidzero-dev/setup-vp@cab1ab9eaff52d4857875f4f2c016e36af8f2c76 # v1.22.0
       - name: Build Packages
-        run: pnpm run build:all
+        run: vp run build:all
       - name: Publish Previews
-        run: pnpx pkg-pr-new publish --pnpm './packages/*'
+        run: vpx pkg-pr-new publish --pnpm './packages/*'

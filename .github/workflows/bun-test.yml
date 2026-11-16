@@ -14,9 +14,9 @@ name: Bun Tests
 on:
   pull_request:
     paths:
-      - 'packages/ai-isolate-quickjs-bun/**'
-      - 'packages/ai-code-mode/**'
-      - '.github/workflows/bun-test.yml'
+      - "packages/ai-isolate-quickjs-bun/**"
+      - "packages/ai-code-mode/**"
+      - ".github/workflows/bun-test.yml"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.number || github.ref }}
@@ -37,8 +37,8 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - name: Setup Tools
-        uses: TanStack/config/.github/setup@190f659075ff0845850e330883eb26d7ffd0671f # main
+      - name: Setup Vite+
+        uses: voidzero-dev/setup-vp@cab1ab9eaff52d4857875f4f2c016e36af8f2c76 # v1.22.0
       - name: Setup Bun
         uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
         with:
@@ -49,6 +49,6 @@ jobs:
         # imported at runtime (`wrapCode`) by the driver, so it must be built to
         # `dist/` before the Bun tests can import it. nx builds the dependency
         # graph first via `^build`.
-        run: pnpm exec nx build @tanstack/ai-isolate-quickjs-bun
+        run: vpx nx build @tanstack/ai-isolate-quickjs-bun
       - name: Run Bun test suite
-        run: pnpm --filter @tanstack/ai-isolate-quickjs-bun run test:bun
+        run: vp run --filter @tanstack/ai-isolate-quickjs-bun run test:bun

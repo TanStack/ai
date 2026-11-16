@@ -2,7 +2,7 @@ name: Sync Model Metadata
 
 on:
   schedule:
-    - cron: '0 6 * * *'
+    - cron: "0 6 * * *"
   workflow_dispatch:
 
 concurrency:
@@ -25,33 +25,33 @@ jobs:
           fetch-depth: 0
           persist-credentials: true # sync job pushes generated model updates
 
-      - name: Setup Tools
-        uses: TanStack/config/.github/setup@190f659075ff0845850e330883eb26d7ffd0671f # main
+      - name: Setup Vite+
+        uses: voidzero-dev/setup-vp@cab1ab9eaff52d4857875f4f2c016e36af8f2c76 # v1.22.0
 
       # Each sync runs as its own step so one provider failing does not block
       # the others. Whatever succeeded is still committed, then the job fails.
       - name: Fetch gateway models
         id: fetch
         continue-on-error: true
-        run: pnpm generate:models:fetch
+        run: vp run generate:models:fetch
 
       - name: Convert gateway models
         id: convert
         continue-on-error: true
-        run: pnpm regenerate:models
+        run: vp run regenerate:models
 
       - name: Sync ElevenLabs models
         id: elevenlabs
         continue-on-error: true
-        run: pnpm generate:models:elevenlabs
+        run: vp run generate:models:elevenlabs
 
       - name: Sync provider models
         id: provider
         continue-on-error: true
-        run: pnpm exec tsx scripts/sync-provider-models.ts
+        run: vpx tsx scripts/sync-provider-models.ts
 
       - name: Format
-        run: pnpm format
+        run: vp run format
 
       - name: Check for package changes
         id: changes
@@ -74,12 +74,12 @@ jobs:
           # Actions tab or push an empty commit to automated/sync-models.
           git push --force origin HEAD:automated/sync-models
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
 
       - name: Create or update PR
         if: steps.changes.outputs.changed == 'true'
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
         shell: bash
         run: |
           BRANCH="automated/sync-models"
@@ -120,7 +120,7 @@ jobs:
       - name: Open or update failure issue
         if: failure()
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
           OUTCOMES: >-
             fetch=${{ steps.fetch.outcome }},
