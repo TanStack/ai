@@ -4,6 +4,7 @@ import {
   StreamProcessor,
   cloneAndDeepFreezeJson,
   convertSchemaToJsonSchema,
+  copyThinkingStepOf,
   generateMessageId,
   hashSchemaInput,
   isStandardSchema,
@@ -462,14 +463,18 @@ function thawMessages(messages: ReadonlyArray<UIMessage>): Array<UIMessage> {
     ...message,
     parts: message.parts.map((part) => {
       if (!Object.isFrozen(part)) return part
-      if (part.type !== 'subagent') return { ...part }
-      return {
-        ...part,
-        subagent: {
-          ...part.subagent,
-          messages: thawMessages(part.subagent.messages),
-        },
+      if (part.type === 'subagent') {
+        return {
+          ...part,
+          subagent: {
+            ...part.subagent,
+            messages: thawMessages(part.subagent.messages),
+          },
+        }
       }
+      const next = { ...part }
+      if (part.type === 'thinking') copyThinkingStepOf(part, next)
+      return next
     }),
   }))
 }

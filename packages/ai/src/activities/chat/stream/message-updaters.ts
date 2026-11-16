@@ -516,6 +516,19 @@ export function errorStructuredOutputPart(
 const thinkingStepOf = new WeakMap<ThinkingPart, string>()
 
 /**
+ * Carry the live reasoning-step key from `source` onto `clone`.
+ * Freeze/thaw and other shallow copies drop the WeakMap entry, so a later
+ * step would otherwise treat the copy as hydrated and overwrite step 1.
+ */
+export function copyThinkingStepOf(
+  source: ThinkingPart,
+  clone: ThinkingPart,
+): void {
+  const stepId = thinkingStepOf.get(source)
+  if (stepId !== undefined) thinkingStepOf.set(clone, stepId)
+}
+
+/**
  * Update or add a thinking part to a message, keyed by stepId.
  * Each distinct stepId produces its own ThinkingPart.
  */

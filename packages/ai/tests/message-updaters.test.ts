@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   appendStructuredOutputDelta,
   completeStructuredOutputPart,
+  copyThinkingStepOf,
   errorStructuredOutputPart,
   updateTextPart,
   updateThinkingPart,
@@ -14,6 +15,7 @@ import {
 } from '../src/activities/chat/stream/message-updaters'
 import type {
   StructuredOutputPart,
+  ThinkingPart,
   ToolCallPart,
   UIMessage,
 } from '../src/types'
@@ -1113,6 +1115,43 @@ describe('message-updaters', () => {
       expect(again[0]?.parts).toEqual([
         { type: 'thinking', content: 'one!' },
         { type: 'thinking', content: 'two' },
+      ])
+    })
+
+    it('does not overwrite step 1 after a frozen snapshot is thawed then step 2 streams', () => {
+      const withTwoSteps = updateThinkingPart(
+        live('step-1', 'First'),
+        'msg-1',
+        'step-2',
+        'Second',
+      )
+      const sourceParts = withTwoSteps[0]!.parts.filter(
+        (part): part is ThinkingPart => part.type === 'thinking',
+      )
+      const frozenParts = sourceParts.map((part) => {
+        const frozen = Object.freeze({ ...part })
+        copyThinkingStepOf(part, frozen)
+        return frozen
+      })
+      const thawedParts = frozenParts.map((part) => {
+        const thawed = { ...part }
+        copyThinkingStepOf(part, thawed)
+        return thawed
+      })
+      const restored = withTwoSteps.map((message) => ({
+        ...message,
+        parts: thawedParts,
+      }))
+      const result = updateThinkingPart(
+        restored,
+        'msg-1',
+        'step-2',
+        'Second more',
+      )
+
+      expect(result[0]?.parts).toEqual([
+        { type: 'thinking', content: 'First' },
+        { type: 'thinking', content: 'Second more' },
       ])
     })
 
