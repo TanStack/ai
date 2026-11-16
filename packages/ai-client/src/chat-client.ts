@@ -472,8 +472,9 @@ function thawMessages(messages: ReadonlyArray<UIMessage>): Array<UIMessage> {
           },
         }
       }
+      if (part.type !== 'thinking') return { ...part }
       const next = { ...part }
-      if (part.type === 'thinking') copyThinkingStepOf(part, next)
+      copyThinkingStepOf(part, next)
       return next
     }),
   }))

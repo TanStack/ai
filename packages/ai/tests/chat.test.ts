@@ -702,14 +702,12 @@ describe('chat()', () => {
       const liveError = processor
         .getMessages()
         .flatMap((message) => message.parts)
-        .find(
-          (part) => part.type === 'tool-result' && part.toolCallId === 'call_1',
-        )?.error
+        .filter((part) => part.type === 'tool-result')
+        .find((part) => part.toolCallId === 'call_1')?.error
       const reloadedError = modelMessagesToUIMessages([...saved])
         .flatMap((message) => message.parts)
-        .find(
-          (part) => part.type === 'tool-result' && part.toolCallId === 'call_1',
-        )?.error
+        .filter((part) => part.type === 'tool-result')
+        .find((part) => part.toolCallId === 'call_1')?.error
       expect(liveError).toBe('Rate limited')
       expect(reloadedError).toBe(liveError)
     })
