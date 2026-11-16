@@ -513,17 +513,14 @@ export function errorStructuredOutputPart(
 // The reasoning step that wrote each live thinking part. The step id is the
 // processor's key; it is not on the part, so stored and wire forms have no
 // field for it. A part from storage or the wire has no entry.
-const thinkingStepOf = new WeakMap<ThinkingPart, string>()
+const thinkingStepOf = new WeakMap<object, string>()
 
 /**
  * Carry the live reasoning-step key from `source` onto `clone`.
  * Freeze/thaw and other shallow copies drop the WeakMap entry, so a later
  * step would otherwise treat the copy as hydrated and overwrite step 1.
  */
-export function copyThinkingStepOf(
-  source: ThinkingPart,
-  clone: ThinkingPart,
-): void {
+export function copyThinkingStepOf(source: object, clone: object): void {
   const stepId = thinkingStepOf.get(source)
   if (stepId !== undefined) thinkingStepOf.set(clone, stepId)
 }

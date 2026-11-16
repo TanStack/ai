@@ -1,4 +1,4 @@
-import { copyThinkingStepOf, type ThinkingPart } from '@tanstack/ai/client'
+import { copyThinkingStepOf } from '@tanstack/ai/client'
 import type { Atom } from '@tanstack/store'
 
 export { createAtom } from '@tanstack/store'
@@ -107,10 +107,7 @@ export function freezeSnapshotPart<TPart extends object>(
   }
   const frozen = Object.freeze(copy) as TPart
   if (record.type === 'thinking') {
-    copyThinkingStepOf(
-      part as unknown as ThinkingPart,
-      frozen as unknown as ThinkingPart,
-    )
+    copyThinkingStepOf(part, frozen)
   }
   return frozen
 }
