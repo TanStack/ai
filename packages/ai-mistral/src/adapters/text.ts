@@ -791,13 +791,16 @@ export class MistralTextAdapter<
                 continue
               }
 
-              // A call cut at the token limit has incomplete arguments, so
-              // skip the parse (it would throw) and end it with the raw args
-              // and no `input`.
-              const cutAtLimit = finishReason === 'length'
-              const parsedInput = cutAtLimit
-                ? undefined
-                : parseToolCallInput(toolCall, normalizeToolInput)
+              // Complete JSON is normalized. Incomplete JSON throws, except
+              // on `length`, where the raw args stay and `input` is omitted.
+              let parsedInput: unknown
+              let parsed = false
+              try {
+                parsedInput = parseToolCallInput(toolCall, normalizeToolInput)
+                parsed = true
+              } catch (error) {
+                if (finishReason !== 'length') throw error
+              }
 
               toolCall.ended = true
               hasEmittedToolCall = true
@@ -808,7 +811,7 @@ export class MistralTextAdapter<
                 model: chunkModel,
                 timestamp,
                 args: toolCall.arguments,
-                ...(cutAtLimit ? {} : { input: parsedInput }),
+                ...(parsed ? { input: parsedInput } : {}),
               })
             }
           }

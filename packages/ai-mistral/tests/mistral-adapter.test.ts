@@ -275,6 +275,7 @@ describe('Mistral adapters', () => {
 async function runToolCallStream(
   finishReason: string,
   args: string,
+  tools: Array<Tool> = [weatherTool],
 ): Promise<Array<AdapterYieldChunk>> {
   setupMockStream([
     {
@@ -288,7 +289,7 @@ async function runToolCallStream(
               {
                 index: 0,
                 id: 'tc_1',
-                function: { name: 'lookup_weather', arguments: args },
+                function: { name: tools[0]?.name, arguments: args },
               },
             ],
           },
@@ -309,7 +310,7 @@ async function runToolCallStream(
     chatOpts({
       model: 'mistral-large-latest',
       messages: [{ role: 'user', content: 'Weather in Berlin?' }],
-      tools: [weatherTool],
+      tools,
     }),
   )) {
     chunks.push(chunk)
@@ -1016,6 +1017,43 @@ describe('Mistral AG-UI event emission', () => {
       ])
     },
   )
+
+  it('normalizes complete arguments when the finish reason is length', async () => {
+    const askUser: Tool = {
+      name: 'ask_user',
+      description: 'Ask the user to choose an option',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          mode: { type: 'string', enum: ['canary'] },
+          question: { type: 'string' },
+          nullableNote: {
+            anyOf: [{ type: 'string' }, { type: 'null' }],
+          },
+        },
+        required: ['question', 'nullableNote'],
+        additionalProperties: false,
+      },
+    }
+    const args = JSON.stringify({
+      mode: null,
+      question: 'Which option?',
+      nullableNote: null,
+    })
+    const chunks = await runToolCallStream('length', args, [askUser])
+
+    expect(chunks.filter((chunk) => chunk.type === 'TOOL_CALL_END')).toEqual([
+      expect.objectContaining({
+        toolCallId: 'tc_1',
+        toolCallName: 'ask_user',
+        args,
+        input: { question: 'Which option?', nullableNote: null },
+      }),
+    ])
+    expect(chunks.filter((chunk) => chunk.type === 'RUN_FINISHED')).toEqual([
+      expect.objectContaining({ finishReason: 'length' }),
+    ])
+  })
 
   it('ends a tool call cut by length with its raw args and no input, without throwing', async () => {
     const chunks = await runToolCallStream('length', '{"location":')
