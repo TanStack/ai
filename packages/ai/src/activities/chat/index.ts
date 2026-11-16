@@ -4428,8 +4428,15 @@ class TextEngine<
         existingToolResultIdx >= 0
           ? this.messages[existingToolResultIdx]
           : undefined
+      // An `{ error }` object, also as JSON text, gives its message. Any other
+      // result gives itself, so a string error '42' stays '42'.
+      const parsedError = parseToolOutput(wireContent)
       const errorField = result.state === 'output-error' && {
-        error: toolResultErrorText(result.result),
+        error: toolResultErrorText(
+          typeof parsedError === 'object' && parsedError !== null
+            ? parsedError
+            : result.result,
+        ),
       }
       const replacementMessage: ModelMessage =
         existingToolMessage?.role === 'tool'
