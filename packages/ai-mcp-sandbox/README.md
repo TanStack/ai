@@ -90,7 +90,12 @@ const fetchLength = sandboxedTool({
     tier: 1,
     scope: 'web:read',
     inject: ['http.get'],
-    limits: { wallClockMs: 5000, memoryMb: 64, maxInjectedCalls: 3, resultBytes: 16384 },
+    limits: {
+      wallClockMs: 5000,
+      memoryMb: 64,
+      maxInjectedCalls: 3,
+      resultBytes: 16384,
+    },
     truncatable: [],
     inputSchema: { type: 'object', properties: { url: { type: 'string' } } },
     description: 'Fetch a URL and return its length',
