@@ -96,7 +96,7 @@
     "@tanstack/devtools-ui": "^0.5.1",
     "@tanstack/devtools-utils": "^0.7.0",
     "goober": "^2.1.18",
-    "solid-js": "^1.9.10"
+    "solid-js": "^1.9.19"
   },
   "devDependencies": {
     "@vitest/coverage-v8": "4.1.10",
