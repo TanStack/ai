@@ -486,6 +486,11 @@ export function errorStructuredOutputPart(
   })
 }
 
+// The reasoning step that wrote each live thinking part. The step id is the
+// processor's key; it is not on the part, so stored and wire forms have no
+// field for it. A part from storage or the wire has no entry.
+const thinkingStepOf = new WeakMap<ThinkingPart, string>()
+
 /**
  * Update or add a thinking part to a message, keyed by stepId.
  * Each distinct stepId produces its own ThinkingPart.
@@ -504,21 +509,19 @@ export function updateThinkingPart(
 
     const parts = [...msg.parts]
     let thinkingPartIndex = parts.findIndex(
-      (p) => p.type === 'thinking' && p.stepId === stepId,
+      (p) => p.type === 'thinking' && thinkingStepOf.get(p) === stepId,
     )
 
-    // A hydrated message carries its thinking without a stepId: the stored form
-    // has no field for one, so `modelMessageToUIMessage` cannot put it back.
-    // When a run is rejoined mid-stream the replayed reasoning is keyed by
-    // stepId, matches nothing, and gets appended -- leaving a second thinking
-    // part sitting after the answer text. Adopt the first stepId-less thinking
-    // part instead, so the replay lands on the part it belongs to. Live
-    // streaming always writes a stepId, so the only parts this can match are
-    // hydrated ones.
+    // A hydrated message's thinking parts belong to no step. When a run is
+    // rejoined mid-stream the replayed reasoning matches nothing and would be
+    // appended -- leaving a second thinking part sitting after the answer
+    // text. Adopt the first thinking part with no step instead, so the replay
+    // lands on the part it belongs to. Live streaming always records a step,
+    // so the only parts this can match are hydrated ones.
     let adopted: ThinkingPart | undefined
     if (thinkingPartIndex < 0) {
       thinkingPartIndex = parts.findIndex(
-        (p) => p.type === 'thinking' && p.stepId === undefined,
+        (p) => p.type === 'thinking' && !thinkingStepOf.has(p),
       )
       const candidate = parts[thinkingPartIndex]
       if (candidate?.type === 'thinking') adopted = candidate
@@ -535,10 +538,10 @@ export function updateThinkingPart(
     const thinkingPart: ThinkingPart = {
       type: 'thinking',
       content,
-      stepId,
       ...(nextSignature && { signature: nextSignature }),
       ...(redacted && { redacted: true }),
     }
+    thinkingStepOf.set(thinkingPart, stepId)
 
     if (thinkingPartIndex >= 0) {
       // Update existing thinking part for this step

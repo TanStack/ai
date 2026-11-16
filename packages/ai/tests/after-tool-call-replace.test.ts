@@ -110,7 +110,7 @@ describe('onAfterToolCall replaceResult', () => {
     expect(toolMessage).toMatchObject({ content: '{"rows":500}' })
   })
 
-  it('gives the hook the parsed skip result and replaces it', async () => {
+  it('gives the hook the skip result and replaces it', async () => {
     let seen: unknown
     const { resultChunk } = await runToolCall(
       serverTool('lookup', () => 'not called'),
@@ -129,7 +129,7 @@ describe('onAfterToolCall replaceResult', () => {
       ],
     )
 
-    expect(seen).toEqual({ rows: 3 })
+    expect(seen).toBe('{"rows":3}')
     expect(resultChunk).toMatchObject({ content: 'from cache' })
   })
 })

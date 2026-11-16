@@ -49,6 +49,7 @@ import type { ChatResult } from '../../stream-to-response.js'
 import {
   normalizeToolResult,
   parseToolOutput,
+  textToolResultMark,
   toolResultErrorText,
 } from '../../utilities/tool-result'
 import { isProviderExecutedToolCall } from '../../utilities/provider-executed'
@@ -3938,6 +3939,10 @@ class TextEngine<
         message.id ||
         `snapshot_${this.runIdOverride ?? this.requestId}_${index}`,
     }))
+    // Store the ids the snapshot gives, so a reload of the stored messages
+    // names each message as the live chat does.
+    this.messages = withIds
+    this.middlewareCtx.messages = this.messages
     return {
       type: EventType.MESSAGES_SNAPSHOT,
       timestamp: Date.now(),
@@ -4376,15 +4381,21 @@ class TextEngine<
         content: wireContent,
         role: 'tool' as const,
       }
-      // An outcome always comes with output-error.
+      // An outcome always comes with output-error. A string result says so,
+      // or the client would parse '42' into 42.
+      const textMark = textToolResultMark(result.result)
+      const resultMetadata = {
+        ...(result.state === 'output-error' && {
+          state: result.state,
+          ...(result.outcome !== undefined && {
+            toolResultOutcome: result.outcome,
+          }),
+        }),
+        ...textMark,
+      }
       chunks.push(
-        (result.state === 'output-error'
-          ? withTanstackMetadata(resultChunk, {
-              state: result.state,
-              ...(result.outcome !== undefined && {
-                toolResultOutcome: result.outcome,
-              }),
-            })
+        (Object.keys(resultMetadata).length > 0
+          ? withTanstackMetadata(resultChunk, resultMetadata)
           : resultChunk) as StreamChunk,
       )
 
@@ -4441,11 +4452,15 @@ class TextEngine<
               toolCallId: result.toolCallId,
               ...errorField,
             }
+      const messageMetadata = {
+        ...(result.outcome !== undefined && {
+          toolResultOutcome: result.outcome,
+        }),
+        ...textMark,
+      }
       const newToolMessage: ModelMessage =
-        result.outcome !== undefined
-          ? withTanstackMetadata(replacementMessage, {
-              toolResultOutcome: result.outcome,
-            })
+        Object.keys(messageMetadata).length > 0
+          ? withTanstackMetadata(replacementMessage, messageMetadata)
           : replacementMessage
 
       if (resultMessageIdx >= 0) {

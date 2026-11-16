@@ -3187,6 +3187,7 @@ describe('chat()', () => {
           toolCallId: 'call_1',
           content: DEFAULT_TEXT,
           error: DEFAULT_TEXT,
+          metadata: { tanstack: { toolResultKind: 'text' } },
         },
       ])
       expect(chunks).toContainEqual(
@@ -3257,6 +3258,7 @@ describe('chat()', () => {
         toolCallId: 'call_1',
         content: text,
         error: text,
+        metadata: { tanstack: { toolResultKind: 'text' } },
       })
       expect(chunks).toContainEqual(
         expect.objectContaining({
@@ -3315,6 +3317,7 @@ describe('chat()', () => {
           toolCallId,
           content: DEFAULT_TEXT,
           error: DEFAULT_TEXT,
+          metadata: { tanstack: { toolResultKind: 'text' } },
         })),
       )
       expect(
@@ -3429,6 +3432,7 @@ describe('chat()', () => {
           toolCallId: 'call_1',
           content: DEFAULT_TEXT,
           error: DEFAULT_TEXT,
+          metadata: { tanstack: { toolResultKind: 'text' } },
         },
       ])
     })

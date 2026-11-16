@@ -1004,71 +1004,51 @@ describe('message-updaters', () => {
   })
 
   describe('updateThinkingPart', () => {
-    it('should add a new thinking part', () => {
-      const messages = [createMessage('msg-1')]
-      const result = updateThinkingPart(
-        messages,
-        'msg-1',
-        'step-1',
-        'Let me think...',
-      )
+    // A live part belongs to the step that wrote it.
+    const live = (stepId: string, content: string) =>
+      updateThinkingPart([createMessage('msg-1')], 'msg-1', stepId, content)
 
-      expect(result[0]?.parts).toHaveLength(1)
-      expect(result[0]?.parts[0]).toEqual({
-        type: 'thinking',
-        content: 'Let me think...',
-        stepId: 'step-1',
-      })
+    it('should add a new thinking part', () => {
+      const result = live('step-1', 'Let me think...')
+
+      expect(result[0]?.parts).toEqual([
+        { type: 'thinking', content: 'Let me think...' },
+      ])
     })
 
-    it('should update existing thinking part by stepId', () => {
-      const messages = [
-        createMessage('msg-1', 'assistant', [
-          { type: 'thinking', content: 'Let me think', stepId: 'step-1' },
-        ]),
-      ]
+    it('should update the thinking part of the same step', () => {
       const result = updateThinkingPart(
-        messages,
+        live('step-1', 'Let me think'),
         'msg-1',
         'step-1',
         'Let me think about this',
       )
 
-      expect(result[0]?.parts).toHaveLength(1)
-      expect(result[0]?.parts[0]).toEqual({
-        type: 'thinking',
-        content: 'Let me think about this',
-        stepId: 'step-1',
-      })
+      expect(result[0]?.parts).toEqual([
+        { type: 'thinking', content: 'Let me think about this' },
+      ])
     })
 
-    it('should create separate parts for different stepIds', () => {
-      const messages = [
-        createMessage('msg-1', 'assistant', [
-          { type: 'thinking', content: 'First', stepId: 'step-1' },
-          { type: 'text', content: 'Some text' },
-        ]),
-      ]
+    it('should create separate parts for different steps', () => {
+      const first = live('step-1', 'First')
+      const messages = first.map((m) => ({
+        ...m,
+        parts: [...m.parts, { type: 'text' as const, content: 'Some text' }],
+      }))
       const result = updateThinkingPart(messages, 'msg-1', 'step-2', 'Second')
 
-      expect(result[0]?.parts).toHaveLength(3)
-      expect(result[0]?.parts[0]).toEqual({
-        type: 'thinking',
-        content: 'First',
-        stepId: 'step-1',
-      })
-      expect(result[0]?.parts[2]).toEqual({
-        type: 'thinking',
-        content: 'Second',
-        stepId: 'step-2',
-      })
+      expect(result[0]?.parts).toEqual([
+        { type: 'thinking', content: 'First' },
+        { type: 'text', content: 'Some text' },
+        { type: 'thinking', content: 'Second' },
+      ])
     })
 
-    // #1344: a hydrated message has no stepId on its thinking part, because the
-    // stored form has nowhere to keep one. Rejoining a run mid-stream replays
-    // the reasoning keyed by stepId, so without a fallback match the replay is
-    // appended and the message ends up as [thinking, text, thinking].
-    it('should adopt a hydrated thinking part that has no stepId', () => {
+    // #1344: a hydrated message's thinking part belongs to no step. Rejoining
+    // a run mid-stream replays the reasoning by step, so without a fallback
+    // match the replay is appended and the message ends up as
+    // [thinking, text, thinking].
+    it('should adopt a hydrated thinking part', () => {
       const messages = [
         createMessage('msg-1', 'assistant', [
           { type: 'thinking', content: '', signature: 'encrypted-blob' },
@@ -1077,21 +1057,14 @@ describe('message-updaters', () => {
       ]
       const result = updateThinkingPart(messages, 'msg-1', 'openai-step-1', '')
 
-      expect(result[0]?.parts).toHaveLength(2)
-      expect(result[0]?.parts[0]).toEqual({
-        type: 'thinking',
-        content: '',
-        stepId: 'openai-step-1',
+      expect(result[0]?.parts).toEqual([
         // the provider's encrypted reasoning must survive the adoption
-        signature: 'encrypted-blob',
-      })
-      expect(result[0]?.parts[1]).toEqual({
-        type: 'text',
-        content: 'ASO = App Store Optimization.',
-      })
+        { type: 'thinking', content: '', signature: 'encrypted-blob' },
+        { type: 'text', content: 'ASO = App Store Optimization.' },
+      ])
     })
 
-    it('should adopt each stepId-less thinking part only once', () => {
+    it('should adopt each hydrated thinking part only once', () => {
       const messages = [
         createMessage('msg-1', 'assistant', [
           { type: 'thinking', content: 'first' },
@@ -1106,24 +1079,25 @@ describe('message-updaters', () => {
         'step-2',
         'two',
       )
+      const again = updateThinkingPart(afterSecond, 'msg-1', 'step-1', 'one!')
 
-      expect(afterSecond[0]?.parts).toEqual([
-        { type: 'thinking', content: 'one', stepId: 'step-1' },
-        { type: 'thinking', content: 'two', stepId: 'step-2' },
+      expect(again[0]?.parts).toEqual([
+        { type: 'thinking', content: 'one!' },
+        { type: 'thinking', content: 'two' },
       ])
     })
 
     it('should not adopt a thinking part that already belongs to another step', () => {
-      const messages = [
-        createMessage('msg-1', 'assistant', [
-          { type: 'thinking', content: 'First', stepId: 'step-1' },
-        ]),
-      ]
-      const result = updateThinkingPart(messages, 'msg-1', 'step-2', 'Second')
+      const result = updateThinkingPart(
+        live('step-1', 'First'),
+        'msg-1',
+        'step-2',
+        'Second',
+      )
 
       expect(result[0]?.parts).toEqual([
-        { type: 'thinking', content: 'First', stepId: 'step-1' },
-        { type: 'thinking', content: 'Second', stepId: 'step-2' },
+        { type: 'thinking', content: 'First' },
+        { type: 'thinking', content: 'Second' },
       ])
     })
 
