@@ -66,19 +66,23 @@ import { chat } from "@tanstack/ai";
 import { OpenAICompatibleChatAdapter } from "@tanstack/ai-openai/compatible";
 import { createOpenAIClient } from "@tanstack/openai-base";
 
+// gpt-oss on a vLLM server
 const client = createOpenAIClient({
-  baseURL: "https://api.deepseek.com/v1",
-  apiKey: process.env.DEEPSEEK_API_KEY!,
+  baseURL: "http://localhost:8000/v1",
+  apiKey: "not-needed",
 });
 
 const adapter = new OpenAICompatibleChatAdapter<
-  "deepseek-reasoner",
+  "openai/gpt-oss-120b",
   Record<string, unknown>,
   readonly ["text"],
   readonly [],
-  { levels: "low" | "high"; budget: false }
->(client, "deepseek-reasoner", "deepseek", {
-  reasoning: { levels: { low: "low", high: "high" }, budget: false },
+  { levels: "low" | "medium" | "high"; budget: false }
+>(client, "openai/gpt-oss-120b", "vllm", {
+  reasoning: {
+    levels: { low: "low", medium: "medium", high: "high" },
+    budget: false,
+  },
 });
 
 const stream = chat({
