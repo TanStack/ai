@@ -2271,16 +2271,9 @@ export class StreamProcessor {
 
         // Apply sibling tool-result when the call still has no output.
         if (result && next.output === undefined) {
-          let output: unknown
-          if (Array.isArray(result.content)) {
-            output = result.content
-          } else {
-            try {
-              output = JSON.parse(result.content)
-            } catch {
-              output = result.content
-            }
-          }
+          const output: unknown = Array.isArray(result.content)
+            ? result.content
+            : parseToolOutput(result.content, result.metadata)
           const errorText =
             result.state === 'error' ? toolResultErrorText(output) : undefined
           next = {

@@ -4468,6 +4468,48 @@ describe('StreamProcessor', () => {
       })
     })
 
+    it('keeps a JSON-text string tool result as a string on MESSAGES_SNAPSHOT', () => {
+      // A snapshot that is the first source of a result (reconnect / snapshot-only
+      // hydrate) must honor metadata.tanstack.toolResultKind: 'text', matching
+      // live TOOL_CALL_RESULT and modelMessagesToUIMessages.
+      const processor = new StreamProcessor()
+
+      processor.processChunk({
+        type: EventType.MESSAGES_SNAPSHOT,
+        messages: [
+          { id: 'u1', role: 'user', content: 'read the code' },
+          {
+            id: 'a1',
+            role: 'assistant',
+            content: 'Reading.',
+            toolCalls: [
+              {
+                id: 'tc-1',
+                type: 'function',
+                function: { name: 'read_code', arguments: '{}' },
+              },
+            ],
+          },
+          {
+            id: 't1',
+            role: 'tool',
+            content: '42',
+            toolCallId: 'tc-1',
+            metadata: { tanstack: { toolResultKind: 'text' } },
+          },
+        ],
+        timestamp: Date.now(),
+      } as unknown as StreamChunk)
+
+      const call = processor
+        .getMessages()
+        .flatMap((m) => m.parts)
+        .find(
+          (p): p is ToolCallPart => p.type === 'tool-call' && p.id === 'tc-1',
+        )
+      expect(call?.output).toBe('42')
+    })
+
     it('should warn when a snapshot tool-result has no recoverable tool-call', () => {
       const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
       const processor = new StreamProcessor()

@@ -3689,16 +3689,9 @@ class TextEngine<
         // Parse content back to original output (was stringified by
         // uiMessageToModelMessages). Multimodal results carry an
         // Array<ContentPart> directly — pass it through without parsing.
-        let output: unknown
-        if (Array.isArray(message.content)) {
-          output = message.content
-        } else {
-          try {
-            output = JSON.parse(message.content as string)
-          } catch {
-            output = message.content
-          }
-        }
+        const output: unknown = Array.isArray(message.content)
+          ? message.content
+          : parseToolOutput(message.content as string, message.metadata)
         // Skip approval response messages (they have pendingExecution marker)
         // These are NOT real client tool results — they are synthetic tool messages
         // created by uiMessageToModelMessages for approved-but-not-yet-executed tools.
