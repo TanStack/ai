@@ -67,7 +67,7 @@
     "code-execution"
   ],
   "dependencies": {
-    "@tanstack/ai-code-mode": "workspace:^"
+    "@tanstack/ai-isolate": "workspace:^"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20260317.1",

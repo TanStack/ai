@@ -11,7 +11,7 @@ import { basename, join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { createE2BIsolateDriver } from '../src/index'
 import type { ChildProcess } from 'node:child_process'
-import type { ToolBinding } from '@tanstack/ai-code-mode'
+import type { ToolBinding } from '@tanstack/ai-isolate'
 import type { E2BCommandHandleLike, E2BSandboxLike } from '../src/index'
 
 interface FakeOptions {

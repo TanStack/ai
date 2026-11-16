@@ -65,6 +65,7 @@
     "tanstack-intent"
   ],
   "dependencies": {
+    "@tanstack/ai-isolate": "workspace:^",
     "sucrase": "^3.35.0"
   },
   "peerDependencies": {

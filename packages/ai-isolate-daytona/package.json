@@ -50,11 +50,11 @@
     "code-execution"
   ],
   "peerDependencies": {
-    "@tanstack/ai-code-mode": "workspace:^"
+    "@tanstack/ai-isolate": "workspace:^"
   },
   "devDependencies": {
     "@daytona/sdk": "^0.192.0",
-    "@tanstack/ai-code-mode": "workspace:*",
+    "@tanstack/ai-isolate": "workspace:*",
     "@vitest/coverage-v8": "4.1.12"
   }
 }

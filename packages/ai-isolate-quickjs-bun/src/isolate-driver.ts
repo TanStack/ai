@@ -9,7 +9,7 @@ import type {
   IsolateConfig,
   IsolateContext,
   IsolateDriver,
-} from '@tanstack/ai-code-mode'
+} from '@tanstack/ai-isolate'
 import type { QuickJS } from 'quickjs-bun'
 import type { QuickJSBunModule } from './isolate-context'
 

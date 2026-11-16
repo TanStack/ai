@@ -58,7 +58,7 @@
     "quickjs-emscripten": "^0.31.0"
   },
   "peerDependencies": {
-    "@tanstack/ai-code-mode": "workspace:^"
+    "@tanstack/ai-isolate": "workspace:^"
   },
   "devDependencies": {
     "@vitest/coverage-v8": "4.1.12"

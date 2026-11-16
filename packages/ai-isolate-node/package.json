@@ -61,7 +61,7 @@
     "isolated-vm": "^7.0.2"
   },
   "peerDependencies": {
-    "@tanstack/ai-code-mode": "workspace:^"
+    "@tanstack/ai-isolate": "workspace:^"
   },
   "devDependencies": {
     "@vitest/coverage-v8": "4.1.12"
