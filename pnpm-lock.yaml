@@ -1938,7 +1938,7 @@ importers:
         version: link:../../packages/ai-remix
       remix:
         specifier: ^3.0.0-rc.1
-        version: 3.0.0-rc.1(@emnapi/core@1.11.1)(@emnapi/runtime@1.11.3)(mysql2@3.15.3)(pg@8.23.1)
+        version: 3.0.0-rc.1(@emnapi/core@1.11.1)(@emnapi/runtime@1.11.3)(mysql2@3.15.3)(pg@8.23.1)(playwright@1.65.1)
       zod:
         specifier: ^4.2.0
         version: 4.3.6
@@ -3494,7 +3494,7 @@ importers:
         version: 20.11.2
       remix:
         specifier: ^3.0.0-rc.1
-        version: 3.0.0-rc.1(@emnapi/core@1.11.1)(@emnapi/runtime@1.11.3)(mysql2@3.15.3)(pg@8.23.1)
+        version: 3.0.0-rc.1(@emnapi/core@1.11.1)(@emnapi/runtime@1.11.3)(mysql2@3.15.3)(pg@8.23.1)(playwright@1.65.1)
       vite:
         specifier: ^8.2.1
         version: 8.2.1(@types/node@24.10.3)(esbuild@0.28.1)(jiti@2.7.0)(less@4.6.6)(sass-embedded@1.107.1)(sass@1.107.1)(terser@5.44.1)(tsx@4.23.12)(yaml@2.9.0)
@@ -4265,8 +4265,8 @@ importers:
         version: 4.3.6
     devDependencies:
       '@playwright/test':
-        specifier: ^1.57.0
-        version: 1.57.0
+        specifier: ^1.65.1
+        version: 1.65.1
       '@smithy/eventstream-codec':
         specifier: ^4.3.7
         version: 4.3.7
@@ -9226,6 +9226,11 @@ packages:
     engines: {node: '>=18'}
     hasBin: true
 
+  '@playwright/test@1.65.1':
+    resolution: {integrity: sha512-y+NCIRm2LvY4slUVWvGh1nujJ8RF/hEisIsq2mtUPgdQC4L701bq5hZGMhrpeXjACvwvO9tj5dJqhvM6TP9lbw==}
+    engines: {node: '>=20'}
+    hasBin: true
+
   '@polka/url@1.0.0-next.29':
     resolution: {integrity: sha512-wwQAWhWSuHaag8c4q/KN/vCoeOJYshAIvMQwD4GpSb3OiZklFfvAgmj0VCBBImRpuF/aFgIRzllXlVX93Jevww==}
 
@@ -11081,9 +11086,7 @@ packages:
   '@smithy/core@3.26.0':
     resolution: {integrity: sha512-mLUktFAn+Pa2agl1J7VgtYNFWCX8/b4GMJSK1hCu4YCvtBfM6F8Os3EP4ry+DFFlXOf3wyvlgXhuUdFoy52D3g==}
     engines: {node: '>=18.0.0'}
-    deprecated: |-
-      Deprecated due to a bug in custom logger data redaction. Upgrade to the latest version. If you used a custom logger with this
-        version, review your logs and rotate any credentials or other secrets. See https://github.com/aws/aws-sdk-js-v3/issues/8393.
+    deprecated: Deprecated due to a bug in custom logger data redaction. See https://github.com/aws/aws-sdk-js-v3/issues/8393.
 
   '@smithy/credential-provider-imds@4.4.2':
     resolution: {integrity: sha512-18UMDMyrAbDcpmL1gLUA7ww0fRTcdCrSjSJOi2Sbld+tVjwD/pW+OAwjlScFLR7vvBnhZrIPQ7kVuTf1mnJLug==}
@@ -17399,9 +17402,19 @@ packages:
     engines: {node: '>=18'}
     hasBin: true
 
+  playwright-core@1.65.1:
+    resolution: {integrity: sha512-hqPpz7blSMPxWVdoeE1yiBSzXsKiVOd2k+kjCvmUywD2GPO2Dd9HfcWnq9NN0GHbNZDFgZ9JfBFr+X5/BLo0qw==}
+    engines: {node: '>=20'}
+    hasBin: true
+
   playwright@1.57.0:
     resolution: {integrity: sha512-ilYQj1s8sr2ppEJ2YVadYBN0Mb3mdo9J0wQ+UuDhzYqURwSoW4n1Xs5vs7ORwgDGmyEh33tRMeS8KhdkMoLXQw==}
     engines: {node: '>=18'}
+    hasBin: true
+
+  playwright@1.65.1:
+    resolution: {integrity: sha512-vJ1FuoOrNwOKHUIVEvSt3jT1L+wjjDpwhwIstKtfvTh8XIG4FG4bIFuvNdMxi81LGfAhUgUZleVFaOLY4RIUUw==}
+    engines: {node: '>=20'}
     hasBin: true
 
   plist@3.1.1:
@@ -25678,6 +25691,10 @@ snapshots:
     dependencies:
       playwright: 1.57.0
 
+  '@playwright/test@1.65.1':
+    dependencies:
+      playwright: 1.65.1
+
   '@polka/url@1.0.0-next.29': {}
 
   '@poppinss/colors@4.1.6':
@@ -27655,7 +27672,7 @@ snapshots:
       '@remix-run/fetch-router': 0.21.0
       '@remix-run/session': 0.4.2
 
-  '@remix-run/cli@0.6.0(@emnapi/core@1.11.1)(@emnapi/runtime@1.11.3)(mysql2@3.15.3)(pg@8.23.1)':
+  '@remix-run/cli@0.6.0(@emnapi/core@1.11.1)(@emnapi/runtime@1.11.3)(mysql2@3.15.3)(pg@8.23.1)(playwright@1.65.1)':
     dependencies:
       '@remix-run/assets': 0.6.0(@emnapi/core@1.11.1)(@emnapi/runtime@1.11.3)
       '@remix-run/data-table': 0.5.0
@@ -27663,7 +27680,7 @@ snapshots:
       '@remix-run/data-table-postgres': 0.5.1(pg@8.23.1)
       '@remix-run/data-table-sqlite': 0.6.1
       '@remix-run/terminal': 0.1.1
-      '@remix-run/test': 0.6.0(@emnapi/core@1.11.1)(@emnapi/runtime@1.11.3)
+      '@remix-run/test': 0.6.0(@emnapi/core@1.11.1)(@emnapi/runtime@1.11.3)(playwright@1.65.1)
       jsonc-parser: 3.3.1
       semver: 7.8.5
     transitivePeerDependencies:
@@ -27849,7 +27866,7 @@ snapshots:
 
   '@remix-run/terminal@0.1.1': {}
 
-  '@remix-run/test@0.6.0(@emnapi/core@1.11.1)(@emnapi/runtime@1.11.3)':
+  '@remix-run/test@0.6.0(@emnapi/core@1.11.1)(@emnapi/runtime@1.11.3)(playwright@1.65.1)':
     dependencies:
       '@remix-run/node-tsx': 0.1.1(@emnapi/core@1.11.1)(@emnapi/runtime@1.11.3)
       '@remix-run/terminal': 0.1.1
@@ -27863,6 +27880,8 @@ snapshots:
       oxc-resolver: 11.21.3
       source-map-js: 1.2.1
       v8-to-istanbul: 9.3.0
+    optionalDependencies:
+      playwright: 1.65.1
     transitivePeerDependencies:
       - '@emnapi/core'
       - '@emnapi/runtime'
@@ -36948,11 +36967,17 @@ snapshots:
 
   playwright-core@1.57.0: {}
 
+  playwright-core@1.65.1: {}
+
   playwright@1.57.0:
     dependencies:
       playwright-core: 1.57.0
     optionalDependencies:
       fsevents: 2.3.2
+
+  playwright@1.65.1:
+    dependencies:
+      playwright-core: 1.65.1
 
   plist@3.1.1:
     dependencies:
@@ -37874,14 +37899,14 @@ snapshots:
   remeda@2.33.4:
     optional: true
 
-  remix@3.0.0-rc.1(@emnapi/core@1.11.1)(@emnapi/runtime@1.11.3)(mysql2@3.15.3)(pg@8.23.1):
+  remix@3.0.0-rc.1(@emnapi/core@1.11.1)(@emnapi/runtime@1.11.3)(mysql2@3.15.3)(pg@8.23.1)(playwright@1.65.1):
     dependencies:
       '@remix-run/assert': 0.3.0
       '@remix-run/assets': 0.6.0(@emnapi/core@1.11.1)(@emnapi/runtime@1.11.3)
       '@remix-run/async-context-middleware': 0.3.5
       '@remix-run/auth': 0.3.0
       '@remix-run/auth-middleware': 0.2.5
-      '@remix-run/cli': 0.6.0(@emnapi/core@1.11.1)(@emnapi/runtime@1.11.3)(mysql2@3.15.3)(pg@8.23.1)
+      '@remix-run/cli': 0.6.0(@emnapi/core@1.11.1)(@emnapi/runtime@1.11.3)(mysql2@3.15.3)(pg@8.23.1)(playwright@1.65.1)
       '@remix-run/compression-middleware': 0.1.13
       '@remix-run/cookie': 0.6.0
       '@remix-run/cop-middleware': 0.1.8
@@ -37920,12 +37945,13 @@ snapshots:
       '@remix-run/static-middleware': 0.4.14
       '@remix-run/tar-parser': 0.7.1
       '@remix-run/terminal': 0.1.1
-      '@remix-run/test': 0.6.0(@emnapi/core@1.11.1)(@emnapi/runtime@1.11.3)
+      '@remix-run/test': 0.6.0(@emnapi/core@1.11.1)(@emnapi/runtime@1.11.3)(playwright@1.65.1)
       '@remix-run/ui': 0.8.0
       '@remix-run/ui-hmr': 0.1.0(@emnapi/core@1.11.1)(@emnapi/runtime@1.11.3)
     optionalDependencies:
       mysql2: 3.15.3
       pg: 8.23.1
+      playwright: 1.65.1
     transitivePeerDependencies:
       - '@emnapi/core'
       - '@emnapi/runtime'
