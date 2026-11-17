@@ -196,6 +196,7 @@ import { Route as ApiResponsesAnswerItemsWireRouteImport } from './routes/api.re
 import { Route as ApiRetryAfterRouteImport } from './routes/api.retry-after'
 import { Route as ApiSandboxDurabilityRouteImport } from './routes/api.sandbox-durability'
 import { Route as ApiSandboxFilePersistenceRouteImport } from './routes/api.sandbox-file-persistence'
+import { Route as ApiSandboxLocalProcessExecRouteImport } from './routes/api.sandbox-local-process-exec'
 import { Route as ApiSandboxToolHistoryRouteImport } from './routes/api.sandbox-tool-history'
 import { Route as ApiServerToolStoreWireRouteImport } from './routes/api.server-tool-store-wire'
 import { Route as ApiStructuredOutputLengthWireRouteImport } from './routes/api.structured-output-length-wire'
@@ -1210,6 +1211,12 @@ const ApiSandboxFilePersistenceRoute =
     path: '/api/sandbox-file-persistence',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiSandboxLocalProcessExecRoute =
+  ApiSandboxLocalProcessExecRouteImport.update({
+    id: '/api/sandbox-local-process-exec',
+    path: '/api/sandbox-local-process-exec',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiSandboxToolHistoryRoute = ApiSandboxToolHistoryRouteImport.update({
   id: '/api/sandbox-tool-history',
   path: '/api/sandbox-tool-history',
@@ -1547,6 +1554,7 @@ export interface FileRoutesByFullPath {
   '/api/retry-after': typeof ApiRetryAfterRoute
   '/api/sandbox-durability': typeof ApiSandboxDurabilityRoute
   '/api/sandbox-file-persistence': typeof ApiSandboxFilePersistenceRoute
+  '/api/sandbox-local-process-exec': typeof ApiSandboxLocalProcessExecRoute
   '/api/sandbox-tool-history': typeof ApiSandboxToolHistoryRoute
   '/api/server-tool-store-wire': typeof ApiServerToolStoreWireRoute
   '/api/structured-output-length-wire': typeof ApiStructuredOutputLengthWireRoute
@@ -1765,6 +1773,7 @@ export interface FileRoutesByTo {
   '/api/retry-after': typeof ApiRetryAfterRoute
   '/api/sandbox-durability': typeof ApiSandboxDurabilityRoute
   '/api/sandbox-file-persistence': typeof ApiSandboxFilePersistenceRoute
+  '/api/sandbox-local-process-exec': typeof ApiSandboxLocalProcessExecRoute
   '/api/sandbox-tool-history': typeof ApiSandboxToolHistoryRoute
   '/api/server-tool-store-wire': typeof ApiServerToolStoreWireRoute
   '/api/structured-output-length-wire': typeof ApiStructuredOutputLengthWireRoute
@@ -1984,6 +1993,7 @@ export interface FileRoutesById {
   '/api/retry-after': typeof ApiRetryAfterRoute
   '/api/sandbox-durability': typeof ApiSandboxDurabilityRoute
   '/api/sandbox-file-persistence': typeof ApiSandboxFilePersistenceRoute
+  '/api/sandbox-local-process-exec': typeof ApiSandboxLocalProcessExecRoute
   '/api/sandbox-tool-history': typeof ApiSandboxToolHistoryRoute
   '/api/server-tool-store-wire': typeof ApiServerToolStoreWireRoute
   '/api/structured-output-length-wire': typeof ApiStructuredOutputLengthWireRoute
@@ -2204,6 +2214,7 @@ export interface FileRouteTypes {
     | '/api/retry-after'
     | '/api/sandbox-durability'
     | '/api/sandbox-file-persistence'
+    | '/api/sandbox-local-process-exec'
     | '/api/sandbox-tool-history'
     | '/api/server-tool-store-wire'
     | '/api/structured-output-length-wire'
@@ -2422,6 +2433,7 @@ export interface FileRouteTypes {
     | '/api/retry-after'
     | '/api/sandbox-durability'
     | '/api/sandbox-file-persistence'
+    | '/api/sandbox-local-process-exec'
     | '/api/sandbox-tool-history'
     | '/api/server-tool-store-wire'
     | '/api/structured-output-length-wire'
@@ -2640,6 +2652,7 @@ export interface FileRouteTypes {
     | '/api/retry-after'
     | '/api/sandbox-durability'
     | '/api/sandbox-file-persistence'
+    | '/api/sandbox-local-process-exec'
     | '/api/sandbox-tool-history'
     | '/api/server-tool-store-wire'
     | '/api/structured-output-length-wire'
@@ -2859,6 +2872,7 @@ export interface RootRouteChildren {
   ApiRetryAfterRoute: typeof ApiRetryAfterRoute
   ApiSandboxDurabilityRoute: typeof ApiSandboxDurabilityRoute
   ApiSandboxFilePersistenceRoute: typeof ApiSandboxFilePersistenceRoute
+  ApiSandboxLocalProcessExecRoute: typeof ApiSandboxLocalProcessExecRoute
   ApiSandboxToolHistoryRoute: typeof ApiSandboxToolHistoryRoute
   ApiServerToolStoreWireRoute: typeof ApiServerToolStoreWireRoute
   ApiStructuredOutputLengthWireRoute: typeof ApiStructuredOutputLengthWireRoute
@@ -4197,6 +4211,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiSandboxFilePersistenceRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/sandbox-local-process-exec': {
+      id: '/api/sandbox-local-process-exec'
+      path: '/api/sandbox-local-process-exec'
+      fullPath: '/api/sandbox-local-process-exec'
+      preLoaderRoute: typeof ApiSandboxLocalProcessExecRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/sandbox-tool-history': {
       id: '/api/sandbox-tool-history'
       path: '/api/sandbox-tool-history'
@@ -4654,6 +4675,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiRetryAfterRoute: ApiRetryAfterRoute,
   ApiSandboxDurabilityRoute: ApiSandboxDurabilityRoute,
   ApiSandboxFilePersistenceRoute: ApiSandboxFilePersistenceRoute,
+  ApiSandboxLocalProcessExecRoute: ApiSandboxLocalProcessExecRoute,
   ApiSandboxToolHistoryRoute: ApiSandboxToolHistoryRoute,
   ApiServerToolStoreWireRoute: ApiServerToolStoreWireRoute,
   ApiStructuredOutputLengthWireRoute: ApiStructuredOutputLengthWireRoute,
