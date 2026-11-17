@@ -1,13 +1,15 @@
 import { BaseTTSAdapter } from '@tanstack/ai/adapters'
 import { arrayBufferToBase64 } from '@tanstack/ai-utils'
-import { CartesiaClient } from './client'
+import { createCartesiaClient } from './client'
+import type { Cartesia } from '@cartesia/cartesia-js'
 import type { TTSOptions, TTSResult } from '@tanstack/ai'
 import type { CartesiaConfig } from './client'
 import type { CartesiaTTSModel } from './model-meta'
 
-export interface CartesiaSpeechOptions {
-  language?: string
-  normalization?: string
+export interface CartesiaSpeechOptions extends Pick<
+  Cartesia.TTSGenerateParams,
+  'language' | 'normalization'
+> {
   pronunciationDictId?: string
   volume?: number
 }
@@ -17,12 +19,12 @@ export class CartesiaSpeechAdapter<
   TModel extends CartesiaTTSModel,
 > extends BaseTTSAdapter<TModel, CartesiaSpeechOptions> {
   readonly name = 'cartesia' as const
-  private readonly client: CartesiaClient
+  private readonly client: Cartesia
 
   /** Configure the model and API connection for speech generation. */
   constructor(model: TModel, config?: CartesiaConfig) {
     super(model)
-    this.client = new CartesiaClient(config)
+    this.client = createCartesiaClient(config)
   }
 
   /** Generate audio for text using the requested voice and format. */
@@ -60,7 +62,7 @@ export class CartesiaSpeechAdapter<
           `Cartesia speech volume must be from 0.5 to 2 (received ${modelOptions.volume})`,
         )
       }
-      const outputFormat =
+      const outputFormat: Cartesia.TTSGenerateParams['output_format'] =
         format === 'mp3'
           ? { container: 'mp3', sample_rate: 44100, bit_rate: 128000 }
           : {
@@ -68,34 +70,25 @@ export class CartesiaSpeechAdapter<
               encoding: 'pcm_s16le',
               sample_rate: 44100,
             }
-      const response = await this.client.post(
-        '/tts/bytes',
-        JSON.stringify({
+      const response = await this.client.tts.generate(
+        {
           model_id: this.model,
           transcript: options.text,
           voice: options.voice,
           output_format: outputFormat,
-          ...(modelOptions?.language
-            ? { language: modelOptions.language }
-            : {}),
-          ...(modelOptions?.normalization
-            ? { normalization: modelOptions.normalization }
-            : {}),
-          ...(modelOptions?.pronunciationDictId
-            ? { pronunciation_dict_id: modelOptions.pronunciationDictId }
-            : {}),
+          language: modelOptions?.language,
+          normalization: modelOptions?.normalization,
+          pronunciation_dict_id: modelOptions?.pronunciationDictId,
           ...(options.speed != null || modelOptions?.volume != null
             ? {
                 generation_config: {
-                  ...(options.speed != null ? { speed: options.speed } : {}),
-                  ...(modelOptions?.volume != null
-                    ? { volume: modelOptions.volume }
-                    : {}),
+                  speed: options.speed,
+                  volume: modelOptions?.volume,
                 },
               }
             : {}),
-        }),
-        options.abortSignal,
+        },
+        { signal: options.abortSignal },
       )
       const bytes = await response.arrayBuffer()
       if (bytes.byteLength === 0) {

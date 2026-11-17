@@ -1,28 +1,21 @@
 import { BaseTranscriptionAdapter } from '@tanstack/ai/adapters'
-import { CartesiaClient, toAudioFile } from './client'
+import { createCartesiaClient, toAudioFile } from './client'
+import type { Cartesia } from '@cartesia/cartesia-js'
 import type { TranscriptionOptions, TranscriptionResult } from '@tanstack/ai'
 import type { CartesiaConfig } from './client'
 import type { CartesiaTranscriptionModel } from './model-meta'
-
-interface CartesiaTranscript {
-  text: string
-  request_id?: string
-  language?: string
-  duration?: number
-  words?: Array<{ word: string; start: number; end: number }>
-}
 
 /** Transcribe recorded audio with a Cartesia model. */
 export class CartesiaTranscriptionAdapter<
   TModel extends CartesiaTranscriptionModel,
 > extends BaseTranscriptionAdapter<TModel> {
   readonly name = 'cartesia' as const
-  private readonly client: CartesiaClient
+  private readonly client: Cartesia
 
   /** Configure the model and API connection for transcription. */
   constructor(model: TModel, config?: CartesiaConfig) {
     super(model)
-    this.client = new CartesiaClient(config)
+    this.client = createCartesiaClient(config)
   }
 
   /** Transcribe audio and return text and available word timings. */
@@ -49,14 +42,19 @@ export class CartesiaTranscriptionAdapter<
           `Cartesia batch transcription does not support responseFormat '${options.responseFormat}'`,
         )
       }
-      const form = new FormData()
-      form.append('file', toAudioFile(options.audio))
-      form.append('model', this.model)
-      if (options.language) form.append('language', options.language)
-      if (options.responseFormat === 'verbose_json')
-        form.append('timestamp_granularities[]', 'word')
-      const response = await this.client.post('/stt', form, options.abortSignal)
-      const result = (await response.json()) as CartesiaTranscript
+      const result = await this.client.stt.transcribe(
+        {
+          file: toAudioFile(options.audio),
+          model: this.model,
+          // The core option is a plain string. Cartesia rejects a code that
+          // it does not know.
+          language:
+            options.language as Cartesia.STTTranscribeParams['language'],
+          timestamp_granularities:
+            options.responseFormat === 'verbose_json' ? ['word'] : undefined,
+        },
+        { signal: options.abortSignal },
+      )
       if (typeof result.text !== 'string') {
         throw new Error('Cartesia transcription response has no text')
       }

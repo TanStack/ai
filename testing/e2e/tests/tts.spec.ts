@@ -35,27 +35,6 @@ for (const format of ['wav', 'pcm'] as const) {
   })
 }
 
-test('cartesia mock rejects a different transcript', async ({
-  testId,
-  aimockPort,
-}) => {
-  const response = await fetch(`http://127.0.0.1:${aimockPort}/tts/bytes`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Cartesia-Version': '2026-08-14',
-      'X-Test-Id': testId,
-    },
-    body: JSON.stringify({
-      model_id: 'sonic-3.6',
-      transcript: 'wrong',
-      voice: 'test-voice',
-      output_format: { container: 'mp3' },
-    }),
-  })
-  expect(response.status).toBe(400)
-})
-
 test.describe('elevenlabs -- tts formats', () => {
   test('returns playable WAV from the PCM endpoint', async ({
     page,

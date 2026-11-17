@@ -2629,6 +2629,9 @@ importers:
 
   packages/ai-cartesia:
     dependencies:
+      '@cartesia/cartesia-js':
+        specifier: ^4.2.0
+        version: 4.2.0(ws@8.21.3)
       '@tanstack/ai-utils':
         specifier: workspace:^
         version: link:../ai-utils
@@ -5987,6 +5990,14 @@ packages:
 
   '@bufbuild/protobuf@2.15.0':
     resolution: {integrity: sha512-DAheWUkVr/SJTWCc+lg9dhY0eN4SaWlf4+bG1KzHeXbnqt0AfB/NX0Z+VunGlM1ki1B4zVvye27MpKh/svySUA==}
+
+  '@cartesia/cartesia-js@4.2.0':
+    resolution: {integrity: sha512-v5djlNl226LSYg9Q/TecHd7ClK8He6CeXtp3uCxdiK500WMgPXkOSdd5AxokWypQDkFdiGj54455oKFNFeq5jw==}
+    peerDependencies:
+      ws: ^8.18.0
+    peerDependenciesMeta:
+      ws:
+        optional: true
 
   '@cfworker/json-schema@4.1.1':
     resolution: {integrity: sha512-gAmrUZSGtKc3AiBL71iNWxDsyUC5uMaKKGdvzYsBoTW/xi42JQHl7eKV2OYzCUqvc+D2RCcf7EXY2iCyFIk6og==}
@@ -22755,6 +22766,10 @@ snapshots:
   '@bufbuild/protobuf@1.10.1': {}
 
   '@bufbuild/protobuf@2.15.0': {}
+
+  '@cartesia/cartesia-js@4.2.0(ws@8.21.3)':
+    optionalDependencies:
+      ws: 8.21.3
 
   '@cfworker/json-schema@4.1.1': {}
 

@@ -1,11 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { resolveDebugOption } from '@tanstack/ai/adapter-internals'
 import { createCartesiaSpeech, createCartesiaTranscription } from '../src/index'
-import {
-  CartesiaClient,
-  getCartesiaApiKeyFromEnv,
-  toAudioFile,
-} from '../src/client'
+import { getCartesiaApiKeyFromEnv, toAudioFile } from '../src/client'
 
 const logger = resolveDebugOption(false)
 
@@ -19,12 +15,10 @@ describe('Cartesia adapters', () => {
           headers: { 'x-request-id': 'speech-1' },
         }),
     )
-    vi.stubGlobal('fetch', fetchMock)
 
-    const result = await createCartesiaSpeech(
-      'sonic-3.6',
-      'test-key',
-    ).generateSpeech({
+    const result = await createCartesiaSpeech('sonic-3.6', 'test-key', {
+      fetch: fetchMock,
+    }).generateSpeech({
       model: 'sonic-3.6',
       text: 'hello',
       voice: 'voice-1',
@@ -61,11 +55,9 @@ describe('Cartesia adapters', () => {
       async (_input: RequestInfo | URL, _init?: RequestInit) =>
         new Response(new Uint8Array([1, 2, 3])),
     )
-    vi.stubGlobal('fetch', fetchMock)
-    const result = await createCartesiaSpeech(
-      'sonic-3.6',
-      'test-key',
-    ).generateSpeech({
+    const result = await createCartesiaSpeech('sonic-3.6', 'test-key', {
+      fetch: fetchMock,
+    }).generateSpeech({
       model: 'sonic-3.6',
       text: 'hello',
       voice: 'voice-1',
@@ -86,32 +78,6 @@ describe('Cartesia adapters', () => {
     })
   })
 
-  it('uses the required headers for JSON and multipart requests', async () => {
-    const fetchMock = vi.fn(
-      async (_input: RequestInfo | URL, _init?: RequestInit) => new Response(),
-    )
-    vi.stubGlobal('fetch', fetchMock)
-    const client = new CartesiaClient({
-      apiKey: 'key',
-      defaultHeaders: {
-        authorization: 'wrong',
-        'content-type': 'wrong',
-        'cartesia-version': 'wrong',
-        'x-test-id': 'test',
-      },
-    })
-    await client.post('/tts/bytes', '{}')
-    await client.post('/stt', new FormData())
-    const jsonHeaders = new Headers(fetchMock.mock.calls[0]?.[1]?.headers)
-    const formHeaders = new Headers(fetchMock.mock.calls[1]?.[1]?.headers)
-    expect(jsonHeaders.get('authorization')).toBe('Bearer key')
-    expect(jsonHeaders.get('content-type')).toBe('application/json')
-    expect(jsonHeaders.get('cartesia-version')).toBe('2026-08-14')
-    expect(formHeaders.get('authorization')).toBe('Bearer key')
-    expect(formHeaders.has('content-type')).toBe(false)
-    expect(formHeaders.get('x-test-id')).toBe('test')
-  })
-
   it('reports a missing key when process is unavailable', () => {
     vi.stubGlobal('process', undefined)
     expect(() => getCartesiaApiKeyFromEnv()).toThrow(
@@ -126,6 +92,9 @@ describe('Cartesia adapters', () => {
     const fallback = toAudioFile('AQID')
     expect(fallback.type).toBe('audio/mpeg')
     expect([...new Uint8Array(await fallback.arrayBuffer())]).toEqual([1, 2, 3])
+    expect(() => toAudioFile('data:audio/wav,abc')).toThrow(
+      'Cartesia transcription needs a base64 data URL',
+    )
   })
 
   it('sends Ink Whisper audio and maps word timings', async () => {
@@ -139,11 +108,13 @@ describe('Cartesia adapters', () => {
           words: [{ word: 'hello', start: 0, end: 1.5 }],
         }),
     )
-    vi.stubGlobal('fetch', fetchMock)
 
     const result = await createCartesiaTranscription(
       'ink-whisper',
       'test-key',
+      {
+        fetch: fetchMock,
+      },
     ).transcribe({
       model: 'ink-whisper',
       audio: new File([new Uint8Array([1, 2])], 'voice.wav', {
@@ -154,7 +125,9 @@ describe('Cartesia adapters', () => {
       logger,
     })
 
-    const [url, init] = fetchMock.mock.calls[0]!
+    // The SDK first calls a custom fetch with 'data:,' to find its Response
+    // class. The upload is the last call.
+    const [url, init] = fetchMock.mock.calls.at(-1)!
     expect(url).toBe('https://api.cartesia.ai/stt')
     expect(init?.body).toBeInstanceOf(FormData)
     const form = init?.body as FormData
@@ -166,24 +139,23 @@ describe('Cartesia adapters', () => {
   })
 
   it('throws the Cartesia status and body on a non-OK response', async () => {
-    vi.stubGlobal(
-      'fetch',
-      vi.fn(async () => new Response('nope', { status: 400 })),
-    )
     await expect(
-      createCartesiaSpeech('sonic-3.6', 'test-key').generateSpeech({
+      createCartesiaSpeech('sonic-3.6', 'test-key', {
+        fetch: async () => new Response('nope', { status: 400 }),
+      }).generateSpeech({
         model: 'sonic-3.6',
         text: 'hello',
         voice: 'voice-1',
         logger,
       }),
-    ).rejects.toThrow('Cartesia API error 400: nope')
+    ).rejects.toThrow('400 nope')
   })
 
   it('rejects speed and volume outside the Cartesia range before fetch', async () => {
     const fetchMock = vi.fn(async () => new Response(new Uint8Array([1])))
-    vi.stubGlobal('fetch', fetchMock)
-    const speech = createCartesiaSpeech('sonic-3.6', 'test-key')
+    const speech = createCartesiaSpeech('sonic-3.6', 'test-key', {
+      fetch: fetchMock,
+    })
     await expect(
       speech.generateSpeech({
         model: 'sonic-3.6',
@@ -206,12 +178,10 @@ describe('Cartesia adapters', () => {
   })
 
   it('rejects empty speech audio', async () => {
-    vi.stubGlobal(
-      'fetch',
-      vi.fn(async () => new Response(new Uint8Array())),
-    )
     await expect(
-      createCartesiaSpeech('sonic-3.6', 'test-key').generateSpeech({
+      createCartesiaSpeech('sonic-3.6', 'test-key', {
+        fetch: async () => new Response(new Uint8Array()),
+      }).generateSpeech({
         model: 'sonic-3.6',
         text: 'hello',
         voice: 'voice-1',
@@ -221,12 +191,10 @@ describe('Cartesia adapters', () => {
   })
 
   it('rejects a transcript response with no text', async () => {
-    vi.stubGlobal(
-      'fetch',
-      vi.fn(async () => Response.json({ type: 'transcript' })),
-    )
     await expect(
-      createCartesiaTranscription('ink-whisper', 'test-key').transcribe({
+      createCartesiaTranscription('ink-whisper', 'test-key', {
+        fetch: async () => Response.json({ type: 'transcript' }),
+      }).transcribe({
         model: 'ink-whisper',
         audio: new File([new Uint8Array([1])], 'a.mp3', { type: 'audio/mpeg' }),
         logger,

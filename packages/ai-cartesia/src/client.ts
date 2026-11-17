@@ -1,10 +1,12 @@
+import { Cartesia } from '@cartesia/cartesia-js'
 import { base64ToArrayBuffer } from '@tanstack/ai-utils'
+import type { ClientOptions } from '@cartesia/cartesia-js'
 
-export interface CartesiaConfig {
-  apiKey?: string
-  baseURL?: string
-  defaultHeaders?: Record<string, string>
-}
+/** The Cartesia SDK client options that the adapters accept. */
+export type CartesiaConfig = Pick<
+  ClientOptions,
+  'apiKey' | 'baseURL' | 'defaultHeaders' | 'fetch'
+>
 
 /** Read the Cartesia API key from the server environment. */
 export function getCartesiaApiKeyFromEnv(): string {
@@ -14,46 +16,12 @@ export function getCartesiaApiKeyFromEnv(): string {
   return key
 }
 
-/** Send authenticated requests to the Cartesia API. */
-export class CartesiaClient {
-  private readonly apiKey: string
-  private readonly baseURL: string
-  private readonly headers: Record<string, string>
-
-  /** Configure the API key, endpoint, and additional request headers. */
-  constructor(config: CartesiaConfig = {}) {
-    this.apiKey = config.apiKey ?? getCartesiaApiKeyFromEnv()
-    this.baseURL = (config.baseURL ?? 'https://api.cartesia.ai').replace(
-      /\/$/,
-      '',
-    )
-    this.headers = config.defaultHeaders ?? {}
-  }
-
-  /** Send a JSON or multipart POST request to Cartesia. */
-  async post(
-    path: string,
-    body: BodyInit,
-    signal?: AbortSignal,
-  ): Promise<Response> {
-    const headers = new Headers(this.headers)
-    headers.set('Authorization', `Bearer ${this.apiKey}`)
-    headers.set('Cartesia-Version', '2026-08-14')
-    if (typeof body === 'string')
-      headers.set('Content-Type', 'application/json')
-    else headers.delete('Content-Type')
-    const response = await fetch(`${this.baseURL}${path}`, {
-      method: 'POST',
-      headers,
-      body,
-      signal,
-    })
-    if (!response.ok) {
-      const message = await response.text()
-      throw new Error(`Cartesia API error ${response.status}: ${message}`)
-    }
-    return response
-  }
+/** Create the Cartesia SDK client for an adapter. */
+export function createCartesiaClient(config: CartesiaConfig = {}): Cartesia {
+  return new Cartesia({
+    ...config,
+    apiKey: config.apiKey ?? getCartesiaApiKeyFromEnv(),
+  })
 }
 
 /** Convert an audio input to a file for multipart transcription. */
@@ -66,6 +34,9 @@ export function toAudioFile(audio: string | File | Blob | ArrayBuffer): File {
     return new File([audio], 'audio.mp3', { type: 'audio/mpeg' })
   }
   const match = /^data:([^;,]+)(?:;[^;,]+)*;base64,(.*)$/is.exec(audio)
+  if (!match && audio.startsWith('data:')) {
+    throw new Error('Cartesia transcription needs a base64 data URL')
+  }
   const mimeType = match?.[1] ?? 'audio/mpeg'
   const data = match?.[2] ?? audio
   return new File([base64ToArrayBuffer(data)], 'audio', { type: mimeType })

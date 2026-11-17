@@ -5,8 +5,8 @@ description: >
   activity-specific adapters: generateImage() with openaiImage/geminiImage/byteplusImage,
   generateAudio() with geminiAudio/falAudio, generateVideo() with async
   polling (openaiVideo/geminiVideo/grokVideo/falVideo/byteplusVideo/openRouterVideo,
-  per-model typed durations), generateSpeech() with openaiSpeech/byteplusSpeech/elevenlabsSpeech,
-  generateTranscription() with openaiTranscription/byteplusTranscription,
+  per-model typed durations), generateSpeech() with openaiSpeech/byteplusSpeech/elevenlabsSpeech/cartesiaSpeech,
+  generateTranscription() with openaiTranscription/byteplusTranscription/cartesiaTranscription,
   generateVoice() with elevenlabsVoiceDesign (create a voice, then speak with it).
   React hooks:
   useGenerateImage, useGenerateAudio,
@@ -404,7 +404,11 @@ const { generate, result, isLoading } = useGenerateAudio({
 ### 3. Text-to-Speech
 
 Adapters include `openaiSpeech` (tts-1, tts-1-hd, gpt-4o-mini-tts),
-`byteplusSpeech` (`seed-audio-1.0`), and `elevenlabsSpeech` (`eleven_v4`).
+`byteplusSpeech` (`seed-audio-1.0`), `elevenlabsSpeech` (`eleven_v4`), and
+`cartesiaSpeech` (`sonic-3.6`).
+
+`cartesiaSpeech` requires a Cartesia voice id as `voice`. It accepts
+`format: 'mp3' | 'wav' | 'pcm'`. `speed` must be from 0.6 to 1.5.
 
 `elevenlabsSpeech` accepts `format: 'mp3' | 'pcm' | 'opus' | 'wav'`.
 WAV output contains 44.1 kHz, 16-bit mono PCM with a RIFF header.
