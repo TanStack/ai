@@ -1,0 +1,41 @@
+{
+  "fixtures": [
+    {
+      "match": {
+        "userMessage": "[lazy-tool-discovery-offered] run test",
+        "sequenceIndex": 0
+      },
+      "response": {
+        "toolCalls": [
+          {
+            "name": "__lazy__tool__discovery__",
+            "arguments": "{\"toolNames\":[\"get_weather\"]}"
+          }
+        ]
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[lazy-tool-discovery-offered] run test",
+        "sequenceIndex": 1
+      },
+      "response": {
+        "toolCalls": [
+          {
+            "name": "get_weather",
+            "arguments": "{\"city\":\"Paris\"}"
+          }
+        ]
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[lazy-tool-discovery-offered] run test",
+        "sequenceIndex": 2
+      },
+      "response": {
+        "content": "It is sunny in Paris."
+      }
+    }
+  ]
+}

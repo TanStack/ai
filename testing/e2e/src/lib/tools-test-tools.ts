@@ -275,6 +275,11 @@ export const SCENARIO_LIST = [
     label: 'Lazy Tool Discovery',
     category: 'basic',
   },
+  {
+    id: 'lazy-tool-discovery-offered',
+    label: 'Lazy Discovery of an Offered Tool',
+    category: 'basic',
+  },
   { id: 'custom-events', label: 'Custom Event Emitting', category: 'basic' },
   {
     id: 'server-context',
@@ -460,6 +465,7 @@ export function getToolsForScenario(scenario: string) {
       return [serverTools.get_weather]
 
     case 'lazy-tool-discovery':
+    case 'lazy-tool-discovery-offered':
       return [serverTools.get_weather, searchInventory]
 
     case 'custom-events':

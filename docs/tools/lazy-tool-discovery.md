@@ -143,6 +143,8 @@ The model can ask for one tool or for many in one call:
 __lazy__tool__discovery__({ toolNames: ["compareProducts", "calculateFinancing"] })
 ```
 
+The model can also ask for a tool that it can already call: an eager tool, a tool it found before, or a tool that a middleware added. The discovery tool returns the definition of that tool too, so the model calls it. Any other name, such as an eager tool that a middleware removed, gets an `Unknown tool` error.
+
 ## When to make a tool lazy
 
 Make a tool lazy when:
