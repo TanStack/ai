@@ -103,7 +103,7 @@ export const tools = workspaceTools({
       checkpointEveryMinute(handle, run.threadId)
       return {
         ...sandboxWorkspaceBackend(handle, { owned: true }),
-        root: handle.workspaceRoot,
+        root: handle.workspaceRoot ?? '/workspace',
       }
     },
   },
