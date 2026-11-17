@@ -52,6 +52,7 @@ test.describe('chat({ reasoning }) — wire format', () => {
     expect(bodies[0]?.['thinking']).toEqual({
       type: 'enabled',
       budget_tokens: 8192,
+      block_binding: { prefix_mismatch_behavior: 'drop_block' },
     })
     expect(bodies[0]?.['max_tokens']).toBeGreaterThan(8192)
   })
@@ -65,6 +66,7 @@ test.describe('chat({ reasoning }) — wire format', () => {
     expect(bodies[0]?.['thinking']).toEqual({
       type: 'adaptive',
       display: 'summarized',
+      block_binding: { prefix_mismatch_behavior: 'drop_block' },
     })
     expect(bodies[0]?.['output_config']).toEqual({ effort: 'medium' })
     expect(bodies[0]).not.toHaveProperty('effort')

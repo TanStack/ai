@@ -30,7 +30,10 @@ import {
   readCodeExecutionSkills,
 } from '../tools/code-execution-tool'
 import { validateTextProviderOptions } from '../text/text-provider-options'
-import { anthropicThinking } from '../text/reasoning'
+import {
+  ANTHROPIC_THINKING_BINDING_BETA,
+  anthropicThinking,
+} from '../text/reasoning'
 import {
   ANTHROPIC_DEFERRED_TOOL_PLACEHOLDER_NAME,
   applyAnthropicPromptCache,
@@ -315,6 +318,8 @@ const COMPUTER_USE_BETAS = {
 /**
  * Computes the `betas` array for a Messages request. Unions:
  * - `interleaved-thinking-2025-05-14` when interleaved thinking is enabled,
+ * - `thinking-binding-controls-2026-08-01` when thinking is on, so a
+ *   rewritten prefix drops signed thinking blocks instead of failing,
  * - `code-execution-2025-08-25` when a `code_execution` tool is present,
  * - `skills-2025-10-02` when that tool carries skills,
  * - the `computer-use-*` beta of a single `computer` tool version (the
@@ -353,6 +358,12 @@ export function computeAnthropicBetas(
     typeof modelOptions.thinking.budget_tokens === 'number' &&
     modelOptions.thinking.budget_tokens > 0
   if (useInterleavedThinking) betas.add('interleaved-thinking-2025-05-14')
+  if (
+    modelOptions?.thinking?.type === 'enabled' ||
+    modelOptions?.thinking?.type === 'adaptive'
+  ) {
+    betas.add(ANTHROPIC_THINKING_BINDING_BETA)
+  }
 
   // Context editing requires the beta header; the body field alone is not
   // enough (issue #1074). `null` is a typed "unset" — do not enable the beta.

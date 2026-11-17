@@ -66,6 +66,12 @@ const on = (level: ReasoningRequest['level']): ReasoningRequest => ({
   summary: true,
 })
 
+const dropBlock = {
+  prefix_mismatch_behavior: 'drop_block',
+} as const
+
+const BINDING_BETA = 'thinking-binding-controls-2026-08-01'
+
 describe('Anthropic chat({ reasoning }) request shape', () => {
   it('sends no thinking fields without a reasoning request', async () => {
     const body = await send('claude-opus-5-5', undefined)
@@ -76,8 +82,13 @@ describe('Anthropic chat({ reasoning }) request shape', () => {
 
   it('adaptive models: adaptive thinking with output_config.effort', async () => {
     const body = await send('claude-opus-5-5', on('xhigh'))
-    expect(body.thinking).toEqual({ type: 'adaptive', display: 'summarized' })
+    expect(body.thinking).toEqual({
+      type: 'adaptive',
+      display: 'summarized',
+      block_binding: dropBlock,
+    })
     expect(body.output_config).toEqual({ effort: 'xhigh' })
+    expect(body.betas).toEqual([BINDING_BETA])
     expect(body).not.toHaveProperty('effort')
   })
 
@@ -86,14 +97,22 @@ describe('Anthropic chat({ reasoning }) request shape', () => {
       level: 'high',
       summary: false,
     })
-    expect(body.thinking).toEqual({ type: 'adaptive', display: 'omitted' })
+    expect(body.thinking).toEqual({
+      type: 'adaptive',
+      display: 'omitted',
+      block_binding: dropBlock,
+    })
   })
 
   it.each(['claude-opus-4-6', 'claude-sonnet-4-6'] as const)(
     '%s: adaptive thinking with output_config.effort',
     async (model) => {
       const body = await send(model, on('low'))
-      expect(body.thinking).toEqual({ type: 'adaptive', display: 'summarized' })
+      expect(body.thinking).toEqual({
+        type: 'adaptive',
+        display: 'summarized',
+        block_binding: dropBlock,
+      })
       expect(body.output_config).toEqual({ effort: 'low' })
       expect(body).not.toHaveProperty('effort')
     },
@@ -105,13 +124,21 @@ describe('Anthropic chat({ reasoning }) request shape', () => {
       summary: true,
       budgetTokens: 5000,
     })
-    expect(body.thinking).toEqual({ type: 'enabled', budget_tokens: 5000 })
+    expect(body.thinking).toEqual({
+      type: 'enabled',
+      budget_tokens: 5000,
+      block_binding: dropBlock,
+    })
     expect(body).not.toHaveProperty('effort')
   })
 
   it('Claude Opus 4.5: effort levels but no adaptive thinking, so a budget', async () => {
     const body = await send('claude-opus-4-5', on('medium'))
-    expect(body.thinking).toEqual({ type: 'enabled', budget_tokens: 8192 })
+    expect(body.thinking).toEqual({
+      type: 'enabled',
+      budget_tokens: 8192,
+      block_binding: dropBlock,
+    })
     expect(body).not.toHaveProperty('output_config')
   })
 
@@ -119,25 +146,41 @@ describe('Anthropic chat({ reasoning }) request shape', () => {
     const body = await send('claude-haiku-4-5', on('medium'), {
       modelOptions: { max_tokens: 4000 },
     })
-    expect(body.thinking).toEqual({ type: 'enabled', budget_tokens: 8192 })
+    expect(body.thinking).toEqual({
+      type: 'enabled',
+      budget_tokens: 8192,
+      block_binding: dropBlock,
+    })
     expect(body.max_tokens).toBe(8193)
   })
 
   it('budget thinking with tools turns on the interleaved-thinking beta', async () => {
     const body = await send('claude-haiku-4-5', on('low'), { tools: [lookup] })
-    expect(body.thinking).toEqual({ type: 'enabled', budget_tokens: 2048 })
-    expect(body.betas).toContain('interleaved-thinking-2025-05-14')
+    expect(body.thinking).toEqual({
+      type: 'enabled',
+      budget_tokens: 2048,
+      block_binding: dropBlock,
+    })
+    expect(body.betas).toEqual([
+      'interleaved-thinking-2025-05-14',
+      BINDING_BETA,
+    ])
   })
 
   it('off disables thinking', async () => {
     const body = await send('claude-sonnet-5', on('off'))
     expect(body.thinking).toEqual({ type: 'disabled' })
     expect(body).not.toHaveProperty('output_config')
+    expect(body.betas ?? []).not.toContain(BINDING_BETA)
   })
 
   it('Claude Haiku 5.5: adaptive thinking up to xhigh, and off disables it', async () => {
     const xhigh = await send('claude-haiku-5-5', on('xhigh'))
-    expect(xhigh.thinking).toEqual({ type: 'adaptive', display: 'summarized' })
+    expect(xhigh.thinking).toEqual({
+      type: 'adaptive',
+      display: 'summarized',
+      block_binding: dropBlock,
+    })
     expect(xhigh.output_config).toEqual({ effort: 'xhigh' })
     const off = await send('claude-haiku-5-5', on('off'))
     expect(off.thinking).toEqual({ type: 'disabled' })
@@ -150,7 +193,11 @@ describe('Anthropic chat({ reasoning }) request shape', () => {
     expect(minimal.output_config).toEqual({ effort: 'low' })
     // claude-fable-5 cannot stop thinking: `off` clamps up to `low`.
     const off = await send('claude-fable-5', on('off'))
-    expect(off.thinking).toEqual({ type: 'adaptive', display: 'summarized' })
+    expect(off.thinking).toEqual({
+      type: 'adaptive',
+      display: 'summarized',
+      block_binding: dropBlock,
+    })
     expect(off.output_config).toEqual({ effort: 'low' })
   })
 

@@ -1389,7 +1389,10 @@ describe('Anthropic adapter option mapping', () => {
     expect(mocks.betaMessagesCreate).toHaveBeenCalledTimes(1)
     const [payload] = mocks.betaMessagesCreate.mock.calls[0]!
 
-    expect(payload.betas).toEqual(['interleaved-thinking-2025-05-14'])
+    expect(payload.betas).toEqual([
+      'interleaved-thinking-2025-05-14',
+      'thinking-binding-controls-2026-08-01',
+    ])
     expect(payload.messages[1].content).toEqual([
       {
         type: 'thinking',
