@@ -60,4 +60,66 @@ describe('Lovable TTS adapter', () => {
     expect(result.format).toBe('mp3')
     expect(result.contentType).toBe('audio/mpeg')
   })
+
+  it('defaults the voice and format, and sends speed', async () => {
+    const adapter = new TestLovableTTSAdapter(
+      { apiKey: 'test-api-key' },
+      'openai/gpt-4o-mini-tts',
+    )
+    const mockCreate = adapter
+      .spyOnSpeechCreate()
+      .mockResolvedValueOnce(new Response(new Uint8Array([1])))
+
+    const result = await adapter.generateSpeech({
+      model: 'openai/gpt-4o-mini-tts',
+      text: 'Hello',
+      speed: 1.5,
+      logger: testLogger,
+    })
+
+    expect(mockCreate.mock.calls[0]?.[0]).toEqual({
+      model: 'openai/gpt-4o-mini-tts',
+      input: 'Hello',
+      voice: 'alloy',
+      response_format: undefined,
+      speed: 1.5,
+    })
+    expect(result.format).toBe('mp3')
+    expect(result.contentType).toBe('audio/mpeg')
+  })
+
+  it('maps a wav format to its content type', async () => {
+    const adapter = new TestLovableTTSAdapter(
+      { apiKey: 'test-api-key' },
+      'openai/gpt-4o-mini-tts',
+    )
+    adapter
+      .spyOnSpeechCreate()
+      .mockResolvedValueOnce(new Response(new Uint8Array([1])))
+
+    const result = await adapter.generateSpeech({
+      model: 'openai/gpt-4o-mini-tts',
+      text: 'Hello',
+      format: 'wav',
+      logger: testLogger,
+    })
+
+    expect(result.contentType).toBe('audio/wav')
+  })
+
+  it('rethrows a failed request', async () => {
+    const adapter = new TestLovableTTSAdapter(
+      { apiKey: 'test-api-key' },
+      'openai/gpt-4o-mini-tts',
+    )
+    adapter.spyOnSpeechCreate().mockRejectedValueOnce(new Error('boom'))
+
+    await expect(
+      adapter.generateSpeech({
+        model: 'openai/gpt-4o-mini-tts',
+        text: 'Hello',
+        logger: testLogger,
+      }),
+    ).rejects.toThrow('boom')
+  })
 })
