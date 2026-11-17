@@ -1,5 +1,11 @@
 # @tanstack/ai
 
+## 1.4.1
+
+### Patch Changes
+
+- [#2098](https://github.com/TanStack/ai/pull/2098) [`1888233`](https://github.com/TanStack/ai/commit/1888233ddb501d14b17aa9a5f3497373a0e9242e) - A `chat()` consumer that stops iterating (`break` or `return()`) now runs the middleware `onAbort` hook, so every run gets exactly one terminal hook. Stopping at a client-tool or approval pause's `RUN_FINISHED` chunk runs `onFinish`, as a drained pause does, so the paused state (such as a `withSandbox` sandbox) is kept. Stopping at a `RUN_ERROR` chunk runs `onError`.
+
 ## 1.4.0
 
 ### Minor Changes
