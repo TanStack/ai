@@ -19,7 +19,10 @@ export function canonicalize(value: unknown): string {
 function sortKeys(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(sortKeys)
   if (value && typeof value === 'object') {
-    const out: Record<string, unknown> = {}
+    // Null-proto accumulator: `out[key] = ...` sets an own property even when
+    // key is "__proto__", so a manifest with that key is covered by the
+    // signature instead of silently dropped from the signing bytes.
+    const out: Record<string, unknown> = Object.create(null)
     for (const key of Object.keys(value as Record<string, unknown>).sort()) {
       out[key] = sortKeys((value as Record<string, unknown>)[key])
     }

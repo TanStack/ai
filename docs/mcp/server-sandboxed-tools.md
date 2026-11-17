@@ -53,7 +53,12 @@ export const facades = {
       }
       const url = new URL(String(args.url))
       if (!ALLOWED.has(url.origin)) throw new Error('origin not allowed')
-      const response = await fetch(url, { signal: AbortSignal.timeout(3000) })
+      // redirect: 'error' stops an allowed origin from bouncing the request to
+      // an internal address. Without it, fetch follows the redirect for you.
+      const response = await fetch(url, {
+        redirect: 'error',
+        signal: AbortSignal.timeout(3000),
+      })
       return response.text()
     },
   },
@@ -184,7 +189,7 @@ sandboxedTool({
 Turn a plain [Code Mode](../code-mode/code-mode) snippet into a starting manifest with the CLI:
 
 ```sh
-npx tanstack-ai-sandbox-import ./my-snippet.js
+npx --package=@tanstack/ai-mcp-sandbox tanstack-ai-sandbox-import ./my-snippet.js
 ```
 
 It writes a deny-by-default manifest: no facades, the tightest limits, and an `unreviewed` flag. `sandboxedTool()` refuses to serve it until you fill in the scope, facades, and limits, then remove the flag. This keeps an unreviewed tool from running by accident.

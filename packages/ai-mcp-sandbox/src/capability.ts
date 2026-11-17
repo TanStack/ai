@@ -91,6 +91,11 @@ export function buildPrelude(
       `${path}[${JSON.stringify(parts[parts.length - 1])}] = ${safeName(dotted)};`,
     )
   }
-  lines.push(`const input = ${JSON.stringify(input ?? {})};`)
+  // Parse the input as JSON inside the isolate instead of inlining an object
+  // literal: JSON.parse keeps a "__proto__" key as an own property, whereas an
+  // object literal would run the prototype setter and drop it.
+  lines.push(
+    `const input = JSON.parse(${JSON.stringify(JSON.stringify(input ?? {}))});`,
+  )
   return lines.join('\n')
 }

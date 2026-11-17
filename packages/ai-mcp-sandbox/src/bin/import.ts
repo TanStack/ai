@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { basename, extname } from 'node:path'
+import { basename, extname, resolve } from 'node:path'
 import { readFileSync, writeFileSync } from 'node:fs'
 import { importSnippet } from '../importer'
 
@@ -19,9 +19,20 @@ function main(argv: Array<string>): void {
     process.exit(1)
   }
   const snippet = readFileSync(snippetPath, 'utf8')
-  const name = basename(snippetPath, extname(snippetPath))
+  const ext = extname(snippetPath)
+  const name = basename(snippetPath, ext)
   const manifest = importSnippet(snippet, { name })
-  const target = outPath ?? snippetPath.replace(/\.[^.]+$/, '.manifest.json')
+  // Append rather than replace when the snippet has no extension, so we never
+  // write the manifest back over the snippet.
+  const target =
+    outPath ??
+    (ext
+      ? snippetPath.replace(/\.[^.]+$/, '.manifest.json')
+      : `${snippetPath}.manifest.json`)
+  if (resolve(target) === resolve(snippetPath)) {
+    console.error(`Refusing to overwrite the snippet at ${snippetPath}.`)
+    process.exit(1)
+  }
   writeFileSync(target, `${JSON.stringify(manifest, null, 2)}\n`)
   console.error(
     `Wrote ${target} (unreviewed). Fill scope/inject/limits and drop "unreviewed" before serving.`,

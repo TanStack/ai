@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { createQuickJSIsolateDriver } from '@tanstack/ai-isolate-quickjs'
 import {
   ProposalExpiredError,
+  canonicalize,
   createApprovalStore,
   generateManifestKeyPair,
   hashSnippet,
@@ -242,7 +243,82 @@ describe('limits + result shaping', () => {
   })
 })
 
+describe('prototype-key safety', () => {
+  it('signs a __proto__ schema key so tampering is caught', () => {
+    const { publicKey, privateKey } = generateManifestKeyPair()
+    // Own "__proto__" key, created via JSON.parse (not an object literal).
+    const asString = JSON.parse(
+      '{"properties":{"__proto__":{"type":"string"}}}',
+    )
+    const base: Manifest = { ...manifestFor(SNIPPET), inputSchema: asString }
+    const signed: Manifest = {
+      ...base,
+      signature: signManifest(base, privateKey),
+    }
+    expect(verifyManifest(signed, publicKey)).toBe(true)
+
+    const asNumber = JSON.parse(
+      '{"properties":{"__proto__":{"type":"number"}}}',
+    )
+    const tampered: Manifest = { ...signed, inputSchema: asNumber }
+    // Before the null-proto fix, the __proto__ schema fell out of the signing
+    // bytes and this changed manifest still verified. Now it does not.
+    expect(verifyManifest(tampered, publicKey)).toBe(false)
+  })
+
+  it('keeps a __proto__ key in the canonical bytes', () => {
+    expect(canonicalize(JSON.parse('{"__proto__":1}'))).toContain('__proto__')
+  })
+
+  it('passes a __proto__ input key as an own property, not the prototype', async () => {
+    const snippet = `return Object.getOwnPropertyNames(input)`
+    const tool = sandboxedTool({
+      manifest: manifestFor(snippet, { inject: [] }),
+      snippet,
+      facades,
+      driver,
+    })
+    const out = await tool.execute!(
+      JSON.parse('{"__proto__":{"x":1},"a":2}'),
+      ctx(authInfo(['demo:read'])),
+    )
+    expect(out).toContain('__proto__')
+    expect(out).toContain('a')
+  })
+})
+
+describe('audit outcomes', () => {
+  it('audits an injected-call overrun as a limit, not an error', async () => {
+    const loop = `
+      for (let i = 0; i < 3; i++) { await host.demo.echo({ value: i }); }
+      return 'done';
+    `
+    const audits: Array<AuditEntry> = []
+    const tool = sandboxedTool({
+      manifest: manifestFor(loop, {
+        limits: { ...LIMITS, maxInjectedCalls: 1 },
+      }),
+      snippet: loop,
+      facades,
+      driver,
+      onAudit: (e) => audits.push(e),
+    })
+    await expect(
+      tool.execute!({}, ctx(authInfo(['demo:read']))),
+    ).rejects.toThrow()
+    expect(audits.at(-1)).toMatchObject({ outcome: 'limit' })
+  })
+})
+
 describe('two-phase approval', () => {
+  it('binds the proposal to a snapshot, not the caller object', () => {
+    const store = createApprovalStore()
+    const action = { amount: 1 }
+    const { proposalId } = store.propose('c1', action)
+    action.amount = 1000 // mutate after proposing
+    expect(store.consume('c1', proposalId)).toEqual({ amount: 1 })
+  })
+
   it('consumes a valid proposal exactly once', () => {
     const store = createApprovalStore()
     const { proposalId } = store.propose('c1', { set: 'on' })

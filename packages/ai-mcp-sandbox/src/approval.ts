@@ -43,14 +43,31 @@ export function createApprovalStore(ttlMs: number = TTL_MS): ApprovalStore {
   const pending = new Map<string, Proposal>()
   const now = () => Date.now()
 
+  const prune = () => {
+    const t = now()
+    for (const [id, p] of pending) {
+      if (p.expiresAtMs < t) pending.delete(id)
+    }
+  }
+
   return {
     propose(clientId, action) {
+      prune() // bound the map: expired proposals never linger
+      // Snapshot the action so a later mutation of the caller's object cannot
+      // change what phase 2 runs. The hash describes this snapshot.
+      const snapshot = structuredClone(action)
       const id = randomBytes(18).toString('hex')
       const actionHash = createHash('sha256')
-        .update(canonicalize({ clientId, action }), 'utf8')
+        .update(canonicalize({ clientId, action: snapshot }), 'utf8')
         .digest('hex')
       const expiresAtMs = now() + ttlMs
-      pending.set(id, { id, clientId, action, actionHash, expiresAtMs })
+      pending.set(id, {
+        id,
+        clientId,
+        action: snapshot,
+        actionHash,
+        expiresAtMs,
+      })
       return { proposalId: id, actionHash, expiresAtMs }
     },
     consume(clientId, proposalId) {

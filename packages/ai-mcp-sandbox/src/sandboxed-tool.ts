@@ -3,8 +3,24 @@ import { buildBindings, buildPrelude, resolveAllowed } from './capability'
 import { hashSnippet, verifyManifest } from './manifest'
 import { intersectLimits, makeCallCounter } from './limits'
 import { byteLength, shapeResult } from './result'
+import type { IsolateContext } from '@tanstack/ai-code-mode'
 import type { MCPToolContext } from '@tanstack/ai-mcp/server'
 import type { AuditEntry, Manifest, SandboxedToolConfig, Tier } from './types'
+
+/**
+ * Classify a failed run for the audit outcome. `overCallBudget` comes from the
+ * host counter, which is authoritative for the injected-call limit; wall-clock
+ * and memory trips are matched by the driver's error text.
+ */
+function classifyFailure(
+  message: string,
+  overCallBudget: boolean,
+): AuditEntry['outcome'] {
+  if (overCallBudget) return 'limit'
+  return /timed out|out of memory|memory limit|stack/i.test(message)
+    ? 'limit'
+    : 'error'
+}
 
 export class UnauthorizedError extends Error {
   constructor() {
@@ -126,24 +142,29 @@ export function sandboxedTool(config: SandboxedToolConfig) {
       throw new ScopeDeniedError(manifest.scope)
     }
 
-    // 2. Capability set: declared facades ∩ per-client policy.
-    const allowed = resolveAllowed(manifest.inject, facades, authInfo, policy)
+    // Everything past the scope gate runs under one audit boundary: exactly
+    // one record is emitted whether setup, execution, or shaping fails.
     const counter = makeCallCounter(limits.maxInjectedCalls)
-    const bindings = buildBindings({
-      allowed,
-      facades,
-      authInfo,
-      signal,
-      tick: counter.tick,
-    })
-
-    // 3. Run the snippet with only those bindings, under the merged limits.
-    const ctx = await driver.createContext({
-      bindings,
-      timeout: limits.wallClockMs,
-      memoryLimit: limits.memoryMb,
-    })
+    let audited = false
+    let ctx: IsolateContext | undefined
     try {
+      // 2. Capability set: declared facades ∩ per-client policy.
+      const allowed = resolveAllowed(manifest.inject, facades, authInfo, policy)
+      const bindings = buildBindings({
+        allowed,
+        facades,
+        authInfo,
+        signal,
+        tick: counter.tick,
+      })
+
+      // 3. Run the snippet with only those bindings, under the merged limits.
+      ctx = await driver.createContext({
+        bindings,
+        timeout: limits.wallClockMs,
+        memoryLimit: limits.memoryMb,
+      })
+
       // Raw function-body code: top-level return/await. The driver wraps it
       // (async IIFE + JSON round-trip), so we must NOT wrap it ourselves.
       const code = `${buildPrelude(allowed, args)}\n${snippet}`
@@ -151,8 +172,9 @@ export function sandboxedTool(config: SandboxedToolConfig) {
 
       if (!result.success) {
         const message = result.error?.message ?? 'execution failed'
-        const limitHit = /timed out|memory|stack/i.test(message)
-        audit(limitHit ? 'limit' : 'error', counter.count, 0, message)
+        const overBudget = counter.count > limits.maxInjectedCalls
+        audit(classifyFailure(message, overBudget), counter.count, 0, message)
+        audited = true
         throw new Error(message)
       }
 
@@ -163,14 +185,20 @@ export function sandboxedTool(config: SandboxedToolConfig) {
         limits.resultBytes,
       )
       audit('ok', counter.count, byteLength(shaped))
+      audited = true
       return shaped
     } catch (error) {
-      if (error instanceof Error && error.name === 'ResultTooLargeError') {
-        audit('limit', counter.count, 0, error.message)
+      if (!audited) {
+        const message = error instanceof Error ? error.message : String(error)
+        const outcome =
+          error instanceof Error && error.name === 'ResultTooLargeError'
+            ? 'limit'
+            : 'error'
+        audit(outcome, counter.count, 0, message)
       }
       throw error
     } finally {
-      await ctx.dispose()
+      if (ctx) await ctx.dispose()
     }
   })
 }

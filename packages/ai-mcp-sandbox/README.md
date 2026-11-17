@@ -65,6 +65,7 @@ import { createQuickJSIsolateDriver } from '@tanstack/ai-isolate-quickjs'
 const driver = createQuickJSIsolateDriver()
 
 // Host-side facade: secrets and backend URLs live here, never in the isolate.
+const ALLOWED = new Set(['https://api.example.com'])
 const facades = {
   'http.get': {
     description: 'GET an allowlisted URL',
@@ -72,7 +73,9 @@ const facades = {
       if (typeof args !== 'object' || args === null || !('url' in args)) {
         throw new Error('url is required')
       }
-      return (await fetch(String(args.url))).text()
+      const url = new URL(String(args.url))
+      if (!ALLOWED.has(url.origin)) throw new Error('origin not allowed')
+      return (await fetch(url, { redirect: 'error' })).text()
     },
   },
 }
