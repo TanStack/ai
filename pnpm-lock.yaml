@@ -2640,11 +2640,11 @@ importers:
         specifier: workspace:*
         version: link:../ai
       '@vitest/coverage-v8':
-        specifier: 4.1.10
-        version: 4.1.10(vitest@4.1.11)
+        specifier: 4.1.12
+        version: 4.1.12(vitest@4.1.12)
       vite:
-        specifier: ^8.2.1
-        version: 8.3.0(@types/node@24.13.6)(esbuild@0.28.2)(jiti@2.7.0)(less@4.6.6)(sass-embedded@1.107.1)(sass@1.107.1)(terser@5.44.1)(tsx@4.23.12)(yaml@2.9.0)
+        specifier: ^8.3.8
+        version: 8.3.8(@types/node@24.13.6)(esbuild@0.28.2)(jiti@2.7.0)(less@4.6.6)(sass-embedded@1.108.2)(sass@1.108.2)(terser@5.44.1)(tsx@4.23.15)(yaml@2.9.0)
 
   packages/ai-claude-code:
     devDependencies:
