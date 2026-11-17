@@ -1,4 +1,8 @@
-import { isFileSource, unsupportedFileSourceError } from '@tanstack/ai'
+import {
+  CONTEXT_OVERFLOW_CODE,
+  isFileSource,
+  unsupportedFileSourceError,
+} from '@tanstack/ai'
 import { BaseTextAdapter } from '@tanstack/ai/adapters'
 import { undoNullWidening } from '@tanstack/ai-utils'
 import { convertToolsToProviderFormat } from '../tools/tool-converter'
@@ -503,6 +507,7 @@ export class MistralTextAdapter<
         new Error(
           'mistral.structuredOutput: the response was cut off because the model reached the end of its context window (finish_reason=model_length); shorten the prompt or use a model with a larger context window',
         ),
+        { code: CONTEXT_OVERFLOW_CODE },
         usage && { usage },
       )
     }
@@ -788,6 +793,15 @@ export class MistralTextAdapter<
         }
 
         const finishReason = choice.finish_reason
+        if (finishReason === 'model_length') {
+          // Not max_tokens. code context_overflow is what withCompaction retries.
+          throw Object.assign(
+            new Error(
+              'The response was cut off because the model reached the end of its context window.',
+            ),
+            { code: CONTEXT_OVERFLOW_CODE },
+          )
+        }
         if (finishReason) {
           if (finishReason === 'tool_calls' || toolCallsInProgress.size > 0) {
             for (const [, toolCall] of toolCallsInProgress) {
@@ -822,7 +836,7 @@ export class MistralTextAdapter<
           const computedFinishReason =
             finishReason === 'tool_calls' || hasEmittedToolCall
               ? 'tool_calls'
-              : finishReason === 'length' || finishReason === 'model_length'
+              : finishReason === 'length'
                 ? 'length'
                 : 'stop'
 

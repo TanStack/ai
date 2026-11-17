@@ -15,8 +15,13 @@ vi.mock('../src/client', () => ({
 import type { AdapterYieldChunk, TextOptions, Tool } from '@tanstack/ai'
 import type { MistralTextProviderOptions } from '../src/adapters/text'
 
-const { chat, createChatOptions, maxIterations, toolDefinition } =
-  await import('@tanstack/ai')
+const {
+  CONTEXT_OVERFLOW_CODE,
+  chat,
+  createChatOptions,
+  maxIterations,
+  toolDefinition,
+} = await import('@tanstack/ai')
 const { createMistralText, mistralText } = await import('../src/adapters/text')
 
 /**
@@ -247,7 +252,12 @@ describe('Mistral adapters', () => {
             properties: { value: { type: 'string' } },
           },
         }),
-      ).rejects.toThrow(/end of its context window.*finish_reason=model_length/)
+      ).rejects.toMatchObject({
+        code: CONTEXT_OVERFLOW_CODE,
+        message: expect.stringMatching(
+          /end of its context window.*finish_reason=model_length/,
+        ),
+      })
     })
 
     it('reports a length stop as truncation in structured output', async () => {
@@ -498,7 +508,7 @@ describe('Mistral AG-UI event emission', () => {
     }
   })
 
-  it("reports Mistral's 'model_length' stop as a length finish", async () => {
+  it("reports Mistral's 'model_length' stop as a context overflow", async () => {
     setupMockStream([
       {
         id: 'cmpl-123',
@@ -516,17 +526,66 @@ describe('Mistral AG-UI event emission', () => {
     const adapter = createMistralText('mistral-large-latest', 'test-api-key')
     const chunks: Array<AdapterYieldChunk> = []
 
-    for await (const chunk of adapter.chatStream(
-      chatOpts({
-        model: 'mistral-large-latest',
-        messages: [{ role: 'user', content: 'Hello' }],
-      }),
-    )) {
-      chunks.push(chunk)
-    }
+    await expect(async () => {
+      for await (const chunk of adapter.chatStream(
+        chatOpts({
+          model: 'mistral-large-latest',
+          messages: [{ role: 'user', content: 'Hello' }],
+        }),
+      )) {
+        chunks.push(chunk)
+      }
+    }).rejects.toMatchObject({ code: CONTEXT_OVERFLOW_CODE })
 
-    const runFinishedChunk = chunks.find((c) => c.type === 'RUN_FINISHED')
-    expect(runFinishedChunk).toMatchObject({ finishReason: 'length' })
+    expect(chunks.find((c) => c.type === 'RUN_FINISHED')).toBeUndefined()
+    expect(chunks.find((c) => c.type === 'RUN_ERROR')).toMatchObject({
+      code: CONTEXT_OVERFLOW_CODE,
+    })
+  })
+
+  it("reports 'model_length' after a tool call as a context overflow", async () => {
+    setupMockStream([
+      {
+        id: 'cmpl-123',
+        model: 'mistral-large-latest',
+        choices: [
+          {
+            index: 0,
+            delta: {
+              toolCalls: [
+                {
+                  index: 0,
+                  id: 'call_abc123',
+                  type: 'function',
+                  function: { name: 'lookup_weather', arguments: '{}' },
+                },
+              ],
+            },
+            finishReason: 'model_length',
+          },
+        ],
+      },
+    ])
+    const adapter = createMistralText('mistral-large-latest', 'test-api-key')
+    const chunks: Array<AdapterYieldChunk> = []
+
+    await expect(async () => {
+      for await (const chunk of adapter.chatStream(
+        chatOpts({
+          model: 'mistral-large-latest',
+          messages: [{ role: 'user', content: 'Weather?' }],
+          tools: [weatherTool],
+        }),
+      )) {
+        chunks.push(chunk)
+      }
+    }).rejects.toMatchObject({ code: CONTEXT_OVERFLOW_CODE })
+
+    expect(chunks.find((c) => c.type === 'TOOL_CALL_START')).toBeDefined()
+    expect(chunks.find((c) => c.type === 'RUN_FINISHED')).toBeUndefined()
+    expect(chunks.find((c) => c.type === 'RUN_ERROR')).toMatchObject({
+      code: CONTEXT_OVERFLOW_CODE,
+    })
   })
 
   it('emits AG-UI tool call events', async () => {
