@@ -24,20 +24,26 @@ export function createCartesiaClient(config: CartesiaConfig = {}): Cartesia {
   })
 }
 
+/** Name the upload `audio.<ext>` from its MIME type, as speech APIs expect. */
+function audioFile(data: BlobPart, type: string): File {
+  const ext =
+    type === 'audio/mpeg'
+      ? 'mp3'
+      : (type.split(/[/;]/)[1]?.replace(/^x-/, '') ?? 'mp3')
+  return new File([data], `audio.${ext}`, { type })
+}
+
 /** Convert an audio input to a file for multipart transcription. */
 export function toAudioFile(audio: string | File | Blob | ArrayBuffer): File {
   if (audio instanceof File) return audio
-  if (audio instanceof Blob) {
-    return new File([audio], 'audio', { type: audio.type || 'audio/mpeg' })
-  }
-  if (audio instanceof ArrayBuffer) {
-    return new File([audio], 'audio.mp3', { type: 'audio/mpeg' })
-  }
+  if (audio instanceof Blob) return audioFile(audio, audio.type || 'audio/mpeg')
+  if (audio instanceof ArrayBuffer) return audioFile(audio, 'audio/mpeg')
   const match = /^data:([^;,]+)(?:;[^;,]+)*;base64,(.*)$/is.exec(audio)
   if (!match && audio.startsWith('data:')) {
     throw new Error('Cartesia transcription needs a base64 data URL')
   }
-  const mimeType = match?.[1] ?? 'audio/mpeg'
-  const data = match?.[2] ?? audio
-  return new File([base64ToArrayBuffer(data)], 'audio', { type: mimeType })
+  return audioFile(
+    base64ToArrayBuffer(match?.[2] ?? audio),
+    match?.[1] ?? 'audio/mpeg',
+  )
 }

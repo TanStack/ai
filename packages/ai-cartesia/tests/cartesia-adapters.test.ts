@@ -88,9 +88,17 @@ describe('Cartesia adapters', () => {
   it('decodes data URLs with MIME parameters and plain base64', async () => {
     const file = toAudioFile('data:audio/wav;codec=pcm;rate=24000;base64,AQID')
     expect(file.type).toBe('audio/wav')
+    expect(file.name).toBe('audio.wav')
     expect([...new Uint8Array(await file.arrayBuffer())]).toEqual([1, 2, 3])
     const fallback = toAudioFile('AQID')
     expect(fallback.type).toBe('audio/mpeg')
+    expect(fallback.name).toBe('audio.mp3')
+    expect(
+      toAudioFile(new Blob(['a'], { type: 'audio/webm;codecs=opus' })).name,
+    ).toBe('audio.webm')
+    expect(toAudioFile(new Blob(['a'], { type: 'audio/x-wav' })).name).toBe(
+      'audio.wav',
+    )
     expect([...new Uint8Array(await fallback.arrayBuffer())]).toEqual([1, 2, 3])
     expect(() => toAudioFile('data:audio/wav,abc')).toThrow(
       'Cartesia transcription needs a base64 data URL',
