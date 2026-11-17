@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest'
-import { createElement } from 'remix/ui'
+import { createElement } from 'remix/component'
 import { createChatHook } from '../src/chat-ui/create-chat-hook.ts'
 import { createChatUI } from '../src/chat-ui/create-ui.tsx'
 import type {
@@ -8,7 +8,7 @@ import type {
   LayoutProps,
   MessageProps,
 } from '../src/chat-ui/create-ui.tsx'
-import type { Handle, RemixNode } from 'remix/ui'
+import type { Handle, RemixNode } from 'remix/component'
 import type { UIMessage } from '../src/types.ts'
 
 const weatherMessage: UIMessage = {
@@ -95,7 +95,7 @@ describe('createChatUI', () => {
       | ((node: RemixNode) => { container: HTMLElement; cleanup: () => void })
       | undefined
     try {
-      ;({ render } = await import('remix/ui/test'))
+      ;({ render } = await import('remix/component/test'))
     } catch {
       render = undefined
     }

@@ -18,7 +18,7 @@ export interface AcpByteTransport {
   kill: () => Promise<void>
 }
 
-/** Parsed JSON-RPC object streams passed to {@link ClientSideConnection}. */
+/** Parsed JSON-RPC object streams passed to the ACP client app's `connect`. */
 export type AcpJsonRpcStream = ReturnType<typeof ndJsonStream>
 
 export type AcpSessionTransport =

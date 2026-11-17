@@ -37,7 +37,7 @@ const stream = chat({
 
 `auth` takes one of three values:
 
-- `"api-key"`: sends the `x-api-key` header. This is the default.
+- `"api-key"`: sends the API key as `Authorization: Bearer <key>`. This is the default.
 - `"bearer"`: sends `Authorization: Bearer <token>` and no `x-api-key` header.
 - `"oauth"`: sends the token like `"bearer"`, plus the Claude Code extras below.
 

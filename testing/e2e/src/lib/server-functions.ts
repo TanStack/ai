@@ -22,7 +22,7 @@ import {
 } from '@/lib/media-providers'
 
 export const generateImageFn = createServerFn({ method: 'POST' })
-  .inputValidator(
+  .validator(
     (data: {
       prompt: MediaPrompt
       provider: Provider
@@ -55,7 +55,7 @@ export const generateImageFn = createServerFn({ method: 'POST' })
   })
 
 export const generateSpeechFn = createServerFn({ method: 'POST' })
-  .inputValidator(
+  .validator(
     (data: {
       text?: string
       turns?: Array<TTSTurn>
@@ -98,7 +98,7 @@ export const generateSpeechFn = createServerFn({ method: 'POST' })
   })
 
 export const generateTranscriptionFn = createServerFn({ method: 'POST' })
-  .inputValidator(
+  .validator(
     (data: {
       audio: string
       language?: string
@@ -136,7 +136,7 @@ export const generateTranscriptionFn = createServerFn({ method: 'POST' })
   })
 
 export const generateAudioFn = createServerFn({ method: 'POST' })
-  .inputValidator(
+  .validator(
     (data: {
       prompt: string
       provider: Provider
@@ -167,7 +167,7 @@ export const generateAudioFn = createServerFn({ method: 'POST' })
   })
 
 export const generateVideoFn = createServerFn({ method: 'POST' })
-  .inputValidator(
+  .validator(
     (data: {
       prompt: MediaPrompt
       provider: Provider

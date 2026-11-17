@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { Menu, X, Home, Guitar } from 'lucide-svelte'
+  import { Menu, X, Home, Guitar } from '@lucide/svelte'
 
   let isOpen = $state(false)
 </script>

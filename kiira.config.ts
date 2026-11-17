@@ -74,14 +74,14 @@ export default defineConfig({
     // Octane is a peer of @tanstack/ai-octane, not a root workspace dep.
     octane: '^0.1.17',
     // Remix 3 is a peer of @tanstack/ai-remix, not a root workspace dep.
-    remix: '^3.0.0-rc.1',
+    remix: '^3.2.0',
     // TextPart highlighter examples. Not a workspace dependency.
     // Subpath exports are mapped in tsconfig.docs.json because kiira
     // does not read package.json exports.
     '@tanstack/highlight': '^0.1.0',
-    // remix/ui re-exports this. Kiira's paths["*"] does not read the
+    // remix/component re-exports this. Kiira's paths["*"] does not read the
     // package.json exports field, so the jsx-runtime file must exist on disk.
-    '@remix-run/ui': '^0.8.0',
+    '@remix-run/component': '^1.2.0',
   },
   overrides: [
     // React (and anything not overridden below) uses the automatic JSX
@@ -132,15 +132,17 @@ export default defineConfig({
       jsx: 'react-jsx',
       jsxImportSource: 'octane/dist',
     },
-    // Remix snippets compile JSX through remix/ui. `remix/ui/jsx-runtime`
+    // Remix snippets compile JSX through remix/component.
+    // `remix/component/jsx-runtime`
     // is types-only via package.json exports; kiira's paths["*"] does not
-    // read exports, so `remix/dist/ui` points at dist/ui/jsx-runtime.d.ts,
-    // which exists on disk. Subpath imports (`remix/ui`, `remix/router`)
+    // read exports, so `remix/dist/component` points at
+    // dist/component/jsx-runtime.d.ts,
+    // which exists on disk. Subpath imports (`remix/component`, `remix/router`)
     // are mapped in tsconfig.docs.json for the same reason.
     {
       include: ['docs/api/ai-remix.md', 'docs/ui/remix.md'],
       jsx: 'react-jsx',
-      jsxImportSource: 'remix/dist/ui',
+      jsxImportSource: 'remix/dist/component',
     },
   ],
 })

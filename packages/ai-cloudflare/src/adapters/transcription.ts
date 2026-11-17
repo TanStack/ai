@@ -173,14 +173,12 @@ export class CloudflareTranscriptionAdapter<
       text: output.text,
       language: output.transcription_info?.language,
       duration: output.transcription_info?.duration,
-      segments: output.segments?.map(
-        (segment, id): TranscriptionSegment => ({
-          id,
-          start: segment.start,
-          end: segment.end,
-          text: segment.text.trim(),
-        }),
-      ),
+      segments: output.segments?.map((segment, id): TranscriptionSegment => ({
+        id,
+        start: segment.start,
+        end: segment.end,
+        text: segment.text.trim(),
+      })),
       words: toWords(output.words),
     }
   }

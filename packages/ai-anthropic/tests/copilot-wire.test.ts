@@ -53,9 +53,7 @@ describe('anthropic on GitHub Copilot', () => {
       // drain
     }
 
-    expect(sent?.url).toBe(
-      'https://api.githubcopilot.com/v1/messages?beta=true',
-    )
+    expect(sent?.url).toBe('https://api.githubcopilot.com/v1/messages')
     expect(sent?.headers.get('authorization')).toBe('Bearer copilot-token')
     expect(sent?.headers.get('x-api-key')).toBe(null)
     expect(sent?.headers.get('user-agent')).toBe('my-app/1.0.0')

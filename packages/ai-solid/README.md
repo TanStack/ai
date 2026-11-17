@@ -128,10 +128,29 @@ const chat = useChat({
 
 ## Tool approval
 
-Mark a tool `needsApproval: true` on the server. When the run pauses, the approval appears in `interrupts()`. Resolve it on the item with `resolveInterrupt`:
+Mark a tool `needsApproval: true`. Share the definition between the server and the client:
+
+```ts
+// tools/transfer.ts
+import { toolDefinition } from '@tanstack/ai'
+import { z } from 'zod'
+
+export const transferTool = toolDefinition({
+  name: 'transfer',
+  description: 'Transfer funds to a recipient',
+  needsApproval: true,
+  inputSchema: z.object({
+    amount: z.number().positive(),
+    recipient: z.string().min(1),
+  }),
+  outputSchema: z.object({ receiptId: z.string() }),
+})
+```
+
+When the run pauses, the approval appears in `interrupts()`. Resolve it on the item with `resolveInterrupt`:
 
 ```tsx
-import { For, Show } from 'solid-js'
+import { For } from 'solid-js'
 import { fetchServerSentEvents, useChat } from '@tanstack/ai-solid'
 import { transferTool } from '../tools/transfer'
 
@@ -144,27 +163,29 @@ export function TransferApprovals() {
 
   return (
     <For each={interrupts()}>
-      {(interrupt) => (
-        <Show
-          when={
-            interrupt.kind === 'tool-approval' &&
-            interrupt.toolName === 'transfer'
-          }
-        >
-          <button
-            disabled={!interrupt.canResolve || resuming()}
-            onClick={() => interrupt.resolveInterrupt(true)}
-          >
-            Approve
-          </button>
-          <button
-            disabled={!interrupt.canResolve || resuming()}
-            onClick={() => interrupt.resolveInterrupt(false)}
-          >
-            Reject
-          </button>
-        </Show>
-      )}
+      {(interrupt) =>
+        interrupt.kind === 'tool-approval' &&
+        interrupt.toolName === 'transfer' ? (
+          <div>
+            <p>
+              Send {interrupt.originalArgs.amount} to{' '}
+              {interrupt.originalArgs.recipient}?
+            </p>
+            <button
+              disabled={!interrupt.canResolve || resuming()}
+              onClick={() => interrupt.resolveInterrupt(true)}
+            >
+              Approve
+            </button>
+            <button
+              disabled={!interrupt.canResolve || resuming()}
+              onClick={() => interrupt.resolveInterrupt(false)}
+            >
+              Reject
+            </button>
+          </div>
+        ) : null
+      }
     </For>
   )
 }

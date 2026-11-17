@@ -397,14 +397,14 @@
   NDJSON, reusing the same delivery-durability seam.
 
   On the server, `@tanstack/ai` adds `toWebSocketStream(socket, request, { onRun,
-durability, batch, heartbeatMs, idleTimeoutMs, debug })` — a portable core that
+  durability, batch, heartbeatMs, idleTimeoutMs, debug })` — a portable core that
   pumps a conversation over an already-accepted WHATWG `WebSocketLike` server
   socket (Node via `ws`, Bun, etc.), and `toWebSocketResponse(request, { onRun,
-… })`, a thin wrapper that upgrades via `WebSocketPair` and returns a 101
+  … })`, a thin wrapper that upgrades via `WebSocketPair` and returns a 101
   `Response` on Cloudflare Workers/Durable Objects (it throws elsewhere, pointing
   you at `toWebSocketStream`). Because one socket outlives many `chat()` turns
   (client-tool resubmits, follow-up user messages), you pass an `onRun(ctx) =>
-AsyncIterable<StreamChunk>` factory instead of a prebuilt stream — the helper
+  AsyncIterable<StreamChunk>` factory instead of a prebuilt stream — the helper
   calls it per inbound `RunAgentInput` frame. The socket is conversation-scoped:
   it stays open across turns and closes on client close or the idle timeout
   (which never fires while a turn is still streaming), with a periodic

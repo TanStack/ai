@@ -7,7 +7,6 @@ export {
   createMockConnectionAdapter,
   createTextChunks,
   createToolCallChunks,
-  type MockConnectionAdapterOptions,
 } from '../../ai-client/tests/test-utils'
 
 export function createInterruptResumeSnapshot() {

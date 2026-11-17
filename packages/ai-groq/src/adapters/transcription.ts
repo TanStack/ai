@@ -152,15 +152,13 @@ export class GroqTranscriptionAdapter<
         // `TranscriptionResult` declares optional fields without `| undefined`,
         // so under exactOptionalPropertyTypes we must omit absent fields rather
         // than assigning `undefined`.
-        const segments = data.segments?.map(
-          (seg): TranscriptionSegment => ({
-            id: seg.id,
-            start: seg.start,
-            end: seg.end,
-            text: seg.text,
-            confidence: Math.exp(seg.avg_logprob),
-          }),
-        )
+        const segments = data.segments?.map((seg): TranscriptionSegment => ({
+          id: seg.id,
+          start: seg.start,
+          end: seg.end,
+          text: seg.text,
+          confidence: Math.exp(seg.avg_logprob),
+        }))
         const words = data.words?.map((w) => ({
           word: w.word,
           start: w.start,

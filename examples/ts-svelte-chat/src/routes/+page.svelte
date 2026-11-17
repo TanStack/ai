@@ -4,20 +4,20 @@
     fetchServerSentEvents,
     clientTools,
   } from '@tanstack/ai-svelte'
-  import Messages from '$lib/components/Messages.svelte'
-  import ChatInput from '$lib/components/ChatInput.svelte'
+  import Messages from '#lib/components/Messages.svelte'
+  import ChatInput from '#lib/components/ChatInput.svelte'
   import {
     addToCartToolDef,
     addToWishListToolDef,
     getPersonalGuitarPreferenceToolDef,
     recommendGuitarToolDef,
-  } from '$lib/guitar-tools'
+  } from '#lib/guitar-tools.ts'
   import {
     MODEL_OPTIONS,
     getDefaultModelOption,
     setStoredModelPreference,
     type ModelOption,
-  } from '$lib/model-selection'
+  } from '#lib/model-selection.ts'
   import { onMount } from 'svelte'
 
   let selectedModel = $state<ModelOption>(MODEL_OPTIONS[0])

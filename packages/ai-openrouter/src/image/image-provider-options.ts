@@ -24,7 +24,9 @@ export interface OpenRouterImageProviderOptions {
  * All models currently support the same base options
  */
 export type OpenRouterImageModelProviderOptionsByName = {
-  [K in (typeof OPENROUTER_IMAGE_MODELS)[number]]: OpenRouterImageProviderOptions
+  [
+    K in (typeof OPENROUTER_IMAGE_MODELS)[number]
+  ]: OpenRouterImageProviderOptions
 }
 
 /**

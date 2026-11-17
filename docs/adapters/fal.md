@@ -405,7 +405,7 @@ Named sizes change by model.
 | `fal-ai/ltx-2.3/{text,image}-to-video` (and `/fast`) | `"6"`, `"8"`, or `"10"` | discrete |
 | `fal-ai/luma-dream-machine/ray-2` | `"5s"` or `"9s"` | discrete |
 | `fal-ai/veo3.1`, `fal-ai/veo3.1/fast` (and `/image-to-video`), `fal-ai/veo3` (and `/image-to-video`) | `"4s"`, `"6s"`, or `"8s"` | discrete |
-| `fal-ai/wan-25-preview/text-to-video` | `"2"` to `"15"` | discrete |
+| `fal-ai/wan-25-preview/text-to-video` | `"5"` or `"10"` | discrete |
 | `fal-ai/minimax/video-01` | not accepted | `{ kind: "none" }` |
 | `fal-ai/hunyuan-video-v1.5/text-to-video` | not accepted (uses `num_frames`) | `{ kind: "none" }` |
 

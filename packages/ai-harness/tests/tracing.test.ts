@@ -98,14 +98,13 @@ function fakeTracer() {
 const answerWithUsage =
   (content: string): Reply =>
   () =>
-    text(content).map(
-      (chunk): StreamChunk =>
-        chunk.type === EventType.RUN_FINISHED
-          ? {
-              ...chunk,
-              usage: { promptTokens: 7, completionTokens: 3, totalTokens: 10 },
-            }
-          : chunk,
+    text(content).map((chunk): StreamChunk =>
+      chunk.type === EventType.RUN_FINISHED
+        ? {
+            ...chunk,
+            usage: { promptTokens: 7, completionTokens: 3, totalTokens: 10 },
+          }
+        : chunk,
     )
 
 const helper = defineAgent({

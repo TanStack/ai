@@ -497,10 +497,4 @@ export function createSpeechOptions<
 }
 
 // Re-export adapter types
-export type {
-  TTSAdapter,
-  TTSAdapterConfig,
-  TTSCapabilities,
-  AnyTTSAdapter,
-} from './adapter'
-export { BaseTTSAdapter } from './adapter'
+export type { TTSAdapter } from './adapter'

@@ -144,17 +144,17 @@ function authOf(request: { headers: Headers }) {
 }
 
 describe('createAnthropicChat', () => {
-  it('sends the explicit key as x-api-key and ignores the environment', async () => {
+  it('sends the explicit key as a bearer token and ignores the environment', async () => {
     vi.stubEnv('ANTHROPIC_AUTH_TOKEN', 'environment-token')
     vi.stubEnv('ANTHROPIC_OAUTH_TOKEN', 'environment-oauth')
     vi.stubEnv('ANTHROPIC_API_KEY', 'environment-key')
     const request = await send((fetch) =>
       createAnthropicChat('claude-sonnet-5', 'explicit-key', { fetch }),
     )
-    expect(request.url).toBe('https://api.anthropic.com/v1/messages?beta=true')
+    expect(request.url).toBe('https://api.anthropic.com/v1/messages')
     expect(authOf(request)).toEqual({
-      authorization: null,
-      xApiKey: 'explicit-key',
+      authorization: 'Bearer explicit-key',
+      xApiKey: null,
       xApp: null,
       anthropicBeta: null,
     })
@@ -172,20 +172,15 @@ describe('createAnthropicChat', () => {
   it('does not fall back to the environment for an empty credential', async () => {
     vi.stubEnv('ANTHROPIC_AUTH_TOKEN', 'environment-token')
     vi.stubEnv('ANTHROPIC_API_KEY', 'environment-key')
-    const { fetch, requests } = captureTransport()
-    await expect(
-      createAnthropicChat('claude-sonnet-5', '', { fetch }).structuredOutput({
-        chatOptions: {
-          threadId: 'thread-1',
-          model: 'claude-sonnet-5',
-          messages: [{ role: 'user', content: 'Hello' }],
-          modelOptions: { max_tokens: 128 },
-          logger: createSilentLogger(),
-        },
-        outputSchema: { type: 'object' },
-      }),
-    ).rejects.toThrow('Could not resolve authentication method')
-    expect(requests).toHaveLength(0)
+    // Like the SDK, the empty key goes out as `Bearer`, and the server
+    // refuses it. `Request` trims the trailing space.
+    const request = await send((fetch) =>
+      createAnthropicChat('claude-sonnet-5', '', { fetch }),
+    )
+    expect(authOf(request)).toMatchObject({
+      authorization: 'Bearer',
+      xApiKey: null,
+    })
   })
 
   it("sends auth: 'bearer' as Authorization: Bearer without the Claude Code extras", async () => {
@@ -328,7 +323,11 @@ describe('anthropicText', () => {
     [
       'ANTHROPIC_API_KEY as api-key',
       { ANTHROPIC_API_KEY: 'environment-key' },
-      { authorization: null, xApiKey: 'environment-key', xApp: null },
+      {
+        authorization: 'Bearer environment-key',
+        xApiKey: null,
+        xApp: null,
+      },
     ],
   ])('reads %s', async (_name, env, expected) => {
     for (const [name, value] of Object.entries(env)) vi.stubEnv(name, value)
@@ -358,8 +357,8 @@ describe('anthropicText', () => {
       anthropicText('claude-sonnet-5', { fetch }),
     )
     expect(authOf(request)).toMatchObject({
-      authorization: null,
-      xApiKey: 'window-key',
+      authorization: 'Bearer window-key',
+      xApiKey: null,
     })
   })
 
@@ -407,8 +406,8 @@ describe('summarize factories', () => {
       logger: createSilentLogger(),
     })
     expect(authOf(requests[0]!)).toMatchObject({
-      authorization: null,
-      xApiKey: 'summarize-key',
+      authorization: 'Bearer summarize-key',
+      xApiKey: null,
     })
     expect(requests[0]!.body).toEqual({
       model: 'claude-sonnet-5',
@@ -461,9 +460,7 @@ describe('files factories', () => {
       auth: 'bearer',
       fetch,
     }).get('file_1')
-    expect(requests[0]!.url).toBe(
-      'https://api.anthropic.com/v1/files/file_1?beta=true',
-    )
+    expect(requests[0]!.url).toBe('https://api.anthropic.com/v1/files/file_1')
     expect(authOf(requests[0]!)).toMatchObject({
       authorization: 'Bearer files-token',
       xApiKey: null,
@@ -471,13 +468,13 @@ describe('files factories', () => {
     expect(file).toEqual(FILE)
   })
 
-  it('anthropicFiles sends ANTHROPIC_API_KEY as x-api-key', async () => {
+  it('anthropicFiles sends ANTHROPIC_API_KEY as a bearer token', async () => {
     vi.stubEnv('ANTHROPIC_API_KEY', 'files-key')
     const { fetch, requests } = captureTransport()
     const file = await anthropicFiles({ fetch }).get('file_1')
     expect(authOf(requests[0]!)).toEqual({
-      authorization: null,
-      xApiKey: 'files-key',
+      authorization: 'Bearer files-key',
+      xApiKey: null,
       xApp: null,
       anthropicBeta: 'files-api-2025-04-14',
     })

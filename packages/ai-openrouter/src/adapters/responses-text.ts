@@ -43,6 +43,7 @@ import type { SDKOptions } from '@openrouter/sdk'
 import type { ResponsesFunctionTool } from '../internal/responses-tool-converter'
 import type {
   ContentPartAddedEventPart,
+  EasyInputMessageContentUnion1,
   FunctionCallOutputItemOutputUnion1,
   InputsUnion,
   OpenResponsesResult,
@@ -85,7 +86,7 @@ import type {
  *  union so a TS rename surfaces here. */
 type InputsItem = Extract<InputsUnion, ReadonlyArray<unknown>>[number]
 /** ResponsesRequest input content part shape (per-content-part discriminated union). */
-type ResponsesInputContent = unknown
+type ResponsesInputContent = EasyInputMessageContentUnion1
 
 interface StreamedFunctionCallMetadata {
   callId: string

@@ -478,11 +478,11 @@ See the [Octane API](../api/ai-octane).
 
 Call `createChat(handle, options)` from `@tanstack/ai-remix` inside a `clientEntry` island. Put `connection` and `tools` in setup. They are not serializable `clientEntry` props.
 
-`@tanstack/ai-remix` publishes uncompiled source. Remix compiles JSX through `jsxImportSource` `remix/ui`. Bind the form with the Remix `on` mixin.
+`@tanstack/ai-remix` publishes uncompiled source. Remix compiles JSX through `jsxImportSource` `remix/component`. Bind the form with the Remix `on` mixin.
 
 ```tsx ignore
 import { createChat, fetchServerSentEvents } from "@tanstack/ai-remix";
-import { clientEntry, on, type Handle } from "remix/ui";
+import { clientEntry, on, type Handle } from "remix/component";
 
 export const Chat = clientEntry(
   import.meta.url,

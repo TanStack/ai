@@ -29,19 +29,18 @@ export const turnInterrupts = ({ pendingWaits }: SessionSnapshot) =>
 export const questionsOf = ({
   pendingWaits,
 }: SessionSnapshot): Array<PendingQuestion> =>
-  pendingWaits.flatMap(
-    ({ turn, kind, waitId, message, schema, secret, url }) =>
-      turn || kind !== 'question'
-        ? []
-        : [
-            {
-              questionId: waitId,
-              message: message ?? '',
-              ...(schema !== undefined ? { schema } : {}),
-              ...(secret ? { secret } : {}),
-              ...(url ? { url } : {}),
-            },
-          ],
+  pendingWaits.flatMap(({ turn, kind, waitId, message, schema, secret, url }) =>
+    turn || kind !== 'question'
+      ? []
+      : [
+          {
+            questionId: waitId,
+            message: message ?? '',
+            ...(schema !== undefined ? { schema } : {}),
+            ...(secret ? { secret } : {}),
+            ...(url ? { url } : {}),
+          },
+        ],
   )
 
 /**

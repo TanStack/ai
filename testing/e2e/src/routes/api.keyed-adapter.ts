@@ -44,7 +44,7 @@ async function many(request: Request, testId: string | undefined) {
       createAnthropicChat('claude-haiku-4-5', key, {
         baseURL: LLMOCK_DEFAULT_BASE,
         defaultHeaders,
-        fetch: record('anthropic', 'x-api-key'),
+        fetch: record('anthropic', 'authorization'),
       }),
   })
   const adapter = keyedAdapterFromRequest(request, models)

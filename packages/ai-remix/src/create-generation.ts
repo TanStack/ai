@@ -1,6 +1,6 @@
 import { GenerationClient } from '@tanstack/ai-client'
 import { createGenerationDevtoolsBridge } from '@tanstack/ai-client/devtools'
-import type { Handle } from 'remix/ui'
+import type { Handle } from 'remix/component'
 import type { StreamChunk } from '@tanstack/ai'
 import type {
   AIDevtoolsDisplayOptions,
@@ -147,7 +147,7 @@ export interface CreateGenerationReturn<
  * ```tsx
  * import { createGeneration } from '@tanstack/ai-remix'
  * import { fetchServerSentEvents } from '@tanstack/ai-client'
- * import type { Handle } from 'remix/ui'
+ * import type { Handle } from 'remix/component'
  *
  * function CustomGenerator(handle: Handle) {
  *   const gen = createGeneration(handle, {

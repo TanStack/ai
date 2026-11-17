@@ -19,7 +19,7 @@ Durable-Object sibling, running Claude Code, Codex, or Grok Build).
 1. The browser's `useChat` POSTs `{ messages, data: { threadId } }` to
    `/api/run` (the run id rides the `X-Run-Id` header, minted by the client).
 2. The route runs `chat({ adapter, middleware: [withPersistence, withLocks,
-withSandbox(sandbox, { runs, durability })], … })` — see
+   withSandbox(sandbox, { runs, durability })], … })` — see
    [`src/run-durable.ts`](./src/run-durable.ts) for the one shared assembly.
 3. `withSandbox` resumes-or-creates the thread's sandbox; the `claude` CLI runs
    inside it and streams its events back out through the journal.

@@ -1,16 +1,15 @@
 import { Component } from '@angular/core'
 import { TestBed, getTestBed } from '@angular/core/testing'
 import {
-  BrowserDynamicTestingModule,
-  platformBrowserDynamicTesting,
-} from '@angular/platform-browser-dynamic/testing'
+  BrowserTestingModule,
+  platformBrowserTesting,
+} from '@angular/platform-browser/testing'
 import { injectChat } from '../src/inject-chat'
 import type { InjectChatOptions, InjectChatResult } from '../src/types'
 
 export {
   createMockConnectionAdapter,
   createTextChunks,
-  createToolCallChunks,
 } from '../../ai-client/tests/test-utils'
 
 export function createInterruptResumeSnapshot() {
@@ -59,8 +58,8 @@ if (
   testBedInstance._compiler === undefined
 ) {
   getTestBed().initTestEnvironment(
-    BrowserDynamicTestingModule,
-    platformBrowserDynamicTesting(),
+    BrowserTestingModule,
+    platformBrowserTesting(),
   )
 }
 

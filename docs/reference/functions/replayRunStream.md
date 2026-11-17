@@ -22,7 +22,7 @@ async function* joinImageRun({ data: runId }: { data: string }) {
 }
 
 // Serve it from a server function whose handler is the generator above
-// (`createServerFn({ method: 'GET' }).inputValidator(...)`).
+// (`createServerFn({ method: 'GET' }).validator(...)`).
 ```
 
 NOTE: the example deliberately declares the generator separately instead of

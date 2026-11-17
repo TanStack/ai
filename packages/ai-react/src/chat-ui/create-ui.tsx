@@ -100,9 +100,9 @@ export type SubagentPartsProps<
     ChatUISubagentOptions<TOptions, TName>
   >
   toolsComponents?: {
-    [K in ChatUIToolName<
-      ChatUISubagentOptions<TOptions, TName>
-    >]?: ComponentType<ToolProps<ChatUISubagentOptions<TOptions, TName>, K>>
+    [
+      K in ChatUIToolName<ChatUISubagentOptions<TOptions, TName>>
+    ]?: ComponentType<ToolProps<ChatUISubagentOptions<TOptions, TName>, K>>
   }
 }
 

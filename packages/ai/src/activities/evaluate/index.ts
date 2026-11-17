@@ -135,9 +135,9 @@ export type InferEvaluateAnswer<TQuestion> = TQuestion extends {
  * `meta` holds the resolved model id and usage.
  */
 export type EvaluateResult<TQuestions extends Record<string, WireQuestion>> = {
-  [K in keyof TQuestions as K extends typeof RESERVED_QUESTION_KEY
-    ? never
-    : K]: InferEvaluateAnswer<TQuestions[K]>
+  [
+    K in keyof TQuestions as K extends typeof RESERVED_QUESTION_KEY ? never : K
+  ]: InferEvaluateAnswer<TQuestions[K]>
 } & {
   meta: EvaluateResultMeta
 }
@@ -656,20 +656,8 @@ export async function decide<
 // Re-export adapter types
 export type {
   EvaluateAdapter,
-  EvaluateAdapterConfig,
-  AnyEvaluateAdapter,
-  EvaluateOptions,
-  EvaluateAdapterResult,
   EvaluateState,
   EvaluateInstructions,
-  EvaluateJsonValue,
   WireQuestion,
   WireAnswer,
-  WireChoiceQuestion,
-  WireScoreQuestion,
-  WireNoulQuestion,
-  WireChoiceAnswer,
-  WireScoreAnswer,
-  WireNoulAnswer,
 } from './adapter'
-export { BaseEvaluateAdapter } from './adapter'

@@ -314,27 +314,25 @@ describe('a durable host with only a log', () => {
           threadId: 't',
           timestamp: now,
         },
-        ...['charge', 'mail'].flatMap(
-          (name): Array<StreamChunk> => [
-            {
-              type: EventType.TOOL_CALL_START,
-              toolCallId: `call-${name}`,
-              toolCallName: name,
-              timestamp: now,
-            },
-            {
-              type: EventType.TOOL_CALL_ARGS,
-              toolCallId: `call-${name}`,
-              delta: '{}',
-              timestamp: now,
-            },
-            {
-              type: EventType.TOOL_CALL_END,
-              toolCallId: `call-${name}`,
-              timestamp: now,
-            },
-          ],
-        ),
+        ...['charge', 'mail'].flatMap((name): Array<StreamChunk> => [
+          {
+            type: EventType.TOOL_CALL_START,
+            toolCallId: `call-${name}`,
+            toolCallName: name,
+            timestamp: now,
+          },
+          {
+            type: EventType.TOOL_CALL_ARGS,
+            toolCallId: `call-${name}`,
+            delta: '{}',
+            timestamp: now,
+          },
+          {
+            type: EventType.TOOL_CALL_END,
+            toolCallId: `call-${name}`,
+            timestamp: now,
+          },
+        ]),
         {
           type: EventType.RUN_FINISHED,
           runId: 'r',

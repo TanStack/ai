@@ -151,7 +151,7 @@ export class GeminiImageAdapter<
     const thinking = modelOptions?.thinkingConfig
     if (thinking?.thinkingBudget !== undefined) {
       throw new Error(
-        `${this.name}: thinkingConfig.thinkingBudget is not supported on the Interactions image API. Set thinkingConfig.thinkingLevel ('minimal' | 'low' | 'medium' | 'high') instead.`,
+        `${this.name}: thinkingConfig.thinkingBudget is not supported on the Interactions image API. Set thinkingConfig.thinkingLevel ('minimal' | 'low' | 'medium' | 'high' | 'xhigh') instead.`,
       )
     }
 
@@ -413,7 +413,7 @@ function interactionImageSize(
 
 function interactionThinkingLevel(
   level: ThinkingConfig['thinkingLevel'],
-): 'minimal' | 'low' | 'medium' | 'high' | undefined {
+): 'minimal' | 'low' | 'medium' | 'high' | 'xhigh' | undefined {
   switch (level) {
     case ThinkingLevel.MINIMAL:
       return 'minimal'
@@ -423,6 +423,8 @@ function interactionThinkingLevel(
       return 'medium'
     case ThinkingLevel.HIGH:
       return 'high'
+    case ThinkingLevel.XHIGH:
+      return 'xhigh'
     case ThinkingLevel.THINKING_LEVEL_UNSPECIFIED:
     case undefined:
       return undefined

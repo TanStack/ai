@@ -40,7 +40,7 @@ Use polling or a small JSON state endpoint when the data changes outside this pa
 Use `clientEntry` to mark a component for client-side hydration. In source-served apps, prefer the source module's `import.meta.url` as the entry ID and let server rendering map it to the public asset URL:
 
 ```tsx
-import { clientEntry, on, type Handle } from 'remix/ui'
+import { clientEntry, on, type Handle } from 'remix/component'
 
 export const Counter = clientEntry(
   import.meta.url,
@@ -89,7 +89,7 @@ The resolved `preloads` array contains browser module hrefs. During server rende
 Use `run` to start the client runtime. It scans the document for client entry markers, loads modules, and hydrates each one:
 
 ```tsx
-import { run } from 'remix/ui'
+import { run } from 'remix/component'
 
 const app = run({
   async loadModule(moduleUrl, exportName) {
@@ -148,7 +148,7 @@ if (import.meta.hot) {
 A `<Frame>` renders server content into the page. Frames stream after the initial HTML, nest inside other frames, contain client entries, and can be reloaded without full page navigation.
 
 ```tsx
-import { Frame } from 'remix/ui'
+import { Frame } from 'remix/component'
 
 function App() {
   return () => (
@@ -227,7 +227,7 @@ The middleware seeds frame URLs from the request, resolves nested and targeted f
 Use this low-level API when replacing the standard response pipeline. It renders a component tree to a `ReadableStream<Uint8Array>`, sends initial HTML immediately, and streams frame content as it resolves:
 
 ```tsx
-import { renderToStream } from 'remix/ui/server'
+import { renderToStream } from 'remix/component/server'
 
 let stream = renderToStream(<App />, {
   frameSrc: request.url,
@@ -257,7 +257,7 @@ Options:
 Renders a component tree to a complete HTML string. Use for static pages or embedding HTML:
 
 ```tsx
-import { renderToString } from 'remix/ui/server'
+import { renderToString } from 'remix/component/server'
 let html = await renderToString(<App />)
 ```
 
@@ -273,7 +273,7 @@ Use real anchors for normal document navigation. For app-driven navigation:
 - `link(href, options?)` mixin — makes any element behave like a navigation link
 
 ```tsx
-import { navigate } from 'remix/ui'
+import { navigate } from 'remix/component'
 navigate('/dashboard', { history: 'replace' })
 ```
 

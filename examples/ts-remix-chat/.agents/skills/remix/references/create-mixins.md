@@ -13,7 +13,7 @@ For the built-in mixins most code should use, see `mixins-styling-events.md`.
 
 Use `createMixin` from `remix/ui` to author reusable host-element behavior.
 
-Most app code should use built-in core mixins (`on`, `css`, `ref`, `link`, `attrs`) and animation mixins from `remix/ui/animation`. Create custom mixins when combining multiple low-level events into one semantic event, or when the pattern is reused across components.
+Most app code should use built-in core mixins (`on`, `css`, `ref`, `link`, `attrs`) and animation mixins from `remix/component/animation`. Create custom mixins when combining multiple low-level events into one semantic event, or when the pattern is reused across components.
 
 ## Core Semantics
 
@@ -24,7 +24,7 @@ Most app code should use built-in core mixins (`on`, `css`, `ref`, `link`, `attr
 5. Mixin render functions should stay pure; side effects belong in `insert`, `remove`, or queued work.
 
 ```tsx
-import { createMixin } from 'remix/ui'
+import { createMixin } from 'remix/component'
 
 let myMixin = createMixin<HTMLElement>((handle) => {
   handle.addEventListener('insert', (event) => {
@@ -77,7 +77,7 @@ Create event mixins when you combine multiple low-level events into one semantic
 4. Dispatch from the host node inside the mixin.
 
 ```tsx
-import { createMixin, on } from 'remix/ui'
+import { createMixin, on } from 'remix/component'
 
 export let dragReleaseType = 'myapp:drag-release' as const
 

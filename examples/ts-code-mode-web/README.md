@@ -7,7 +7,7 @@ TanStack AI Code Mode web example using React and TanStack Start.
 ### Prerequisites
 
 - Node.js: the Node 24 version in the repo `.nvmrc`
-- pnpm@11.9.0
+- pnpm@12.18.0
 - Xcode Command Line Tools (macOS)
 
 ### Installation

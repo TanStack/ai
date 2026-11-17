@@ -1,6 +1,6 @@
 import { createMcpAppBridge as createClientMcpAppBridge } from '@tanstack/ai-client'
 import type { CreateMcpAppBridgeOptions } from '@tanstack/ai-client'
-import type { Handle } from 'remix/ui'
+import type { Handle } from 'remix/component'
 
 export type { CreateMcpAppBridgeOptions }
 

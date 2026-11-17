@@ -1,4 +1,7 @@
-import { EventClient } from '@tanstack/devtools-event-client'
+// `/production` is the real client in every environment. The root entry is
+// a no-op unless NODE_ENV is "development", which would drop the events
+// that tests, servers, and the devtools bridge read.
+import { EventClient } from '@tanstack/devtools-event-client/production'
 import type {
   AIDevtoolsEventSource,
   AIDevtoolsEventVisibility,

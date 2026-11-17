@@ -1,6 +1,6 @@
 import { toolDefinition } from '@tanstack/ai'
 import { z } from 'zod'
-import guitars from '$data/example-guitars'
+import guitars from '#data/example-guitars.ts'
 
 // Tool definition for getting guitars
 export const getGuitarsToolDef = toolDefinition({

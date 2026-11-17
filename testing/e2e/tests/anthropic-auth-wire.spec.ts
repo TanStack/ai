@@ -32,13 +32,14 @@ async function run(
  * Anthropic SDK sends to aimock. The credentials are fake.
  */
 test.describe('anthropic — auth on the wire', () => {
-  test("auth: 'api-key' sends x-api-key and no Authorization", async ({
+  // SDK 1.x sends an API key as a bearer token too.
+  test("auth: 'api-key' sends the key as Authorization: Bearer", async ({
     request,
   }) => {
     const wire = await run(request, 'api-key')
     expect(wire).toMatchObject({
-      authorization: null,
-      xApiKey: 'sk-ant-e2e-test-dummy-key',
+      authorization: 'Bearer sk-ant-e2e-test-dummy-key',
+      xApiKey: null,
       anthropicBeta: null,
       xApp: null,
     })

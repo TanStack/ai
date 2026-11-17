@@ -1185,9 +1185,4 @@ export function createVideoOptions<
 }
 
 // Re-export adapter types
-export type {
-  VideoAdapter,
-  VideoAdapterConfig,
-  AnyVideoAdapter,
-} from './adapter'
-export { BaseVideoAdapter } from './adapter'
+export type { VideoAdapter } from './adapter'

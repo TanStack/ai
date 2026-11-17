@@ -52,7 +52,7 @@ Steps:
 2. For each `(feature, provider)` in `providers_without`:
    - Check if `feature-support.ts` has an inline comment immediately above
      the feature's `Set` that excludes this provider (e.g., `// Gemini
-excluded: …`). If yes → **tested gap**, surface in "Out-of-scope" with
+     excluded: …`). If yes → **tested gap**, surface in "Out-of-scope" with
      line-number citation.
    - Otherwise, WebFetch the provider's API reference and search for the
      capability. Map TanStack feature → upstream capability using the table

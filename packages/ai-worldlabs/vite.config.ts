@@ -17,7 +17,7 @@ const config = defineConfig({
         'node_modules/',
         'dist/',
         'tests/',
-        'src/generated/',
+        'src/generated/**',
         '**/*.test.ts',
         '**/*.config.ts',
         '**/types.ts',

@@ -326,9 +326,4 @@ export function createAudioOptions<
 }
 
 // Re-export adapter types
-export type {
-  AudioAdapter,
-  AudioAdapterConfig,
-  AnyAudioAdapter,
-} from './adapter'
-export { BaseAudioAdapter } from './adapter'
+export type { AudioAdapter } from './adapter'

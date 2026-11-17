@@ -24,7 +24,9 @@ import type {
 import type { SandboxHandle } from '@tanstack/ai-sandbox'
 
 const require = createRequire(import.meta.url)
-const SDK_URL = pathToFileURL(require.resolve('@agentclientprotocol/sdk')).href
+const SDK_URL = pathToFileURL(
+  require.resolve('@agentclientprotocol/sdk/unstable'),
+).href
 
 /**
  * A minimal ACP agent that replies "pong", records the `initialize` and `prompt`
@@ -37,7 +39,7 @@ function fakeAcpAgent(
   promptResultExpr = "{ stopReason: 'end_turn' }",
 ): string {
   return `
-import { AgentSideConnection, ndJsonStream, PROTOCOL_VERSION } from ${JSON.stringify(SDK_URL)}
+import { agent, methods, ndJsonStream, PROTOCOL_VERSION } from ${JSON.stringify(SDK_URL)}
 import { Readable, Writable } from 'node:stream'
 import { writeFileSync } from 'node:fs'
 
@@ -47,27 +49,23 @@ const input = Readable.toWeb(process.stdin)
 const output = Writable.toWeb(process.stdout)
 const stream = ndJsonStream(output, input)
 
-new AgentSideConnection((conn) => ({
-  async initialize(params) {
+agent()
+  .onRequest(methods.agent.initialize, ({ params }) => {
     writeFileSync('acp-init.txt', JSON.stringify(params))
     return { protocolVersion: ${protocolVersionExpr}, agentCapabilities: { loadSession: true }, authMethods: [] }
-  },
-  async newSession() {
-    return { sessionId: 'sess-1' }
-  },
-  async loadSession() {
-    return {}
-  },
-  async prompt(params) {
+  })
+  .onRequest(methods.agent.session.new, () => ({ sessionId: 'sess-1' }))
+  .onRequest(methods.agent.session.load, () => ({}))
+  .onRequest(methods.agent.session.prompt, async ({ params, client }) => {
     writeFileSync('acp-prompt.txt', JSON.stringify(params))
-    await conn.sessionUpdate({
+    await client.notify(methods.client.session.update, {
       sessionId: params.sessionId,
       update: { sessionUpdate: 'agent_message_chunk', content: { type: 'text', text: ${JSON.stringify(reply)} } },
     })
     return ${promptResultExpr}
-  },
-  async cancel() {},
-}), stream)
+  })
+  .onNotification(methods.agent.session.cancel, () => {})
+  .connect(stream)
 `
 }
 

@@ -128,32 +128,26 @@ function mapImagePartsToVideoFields(
   }
 
   const frameImages: Array<FrameImage> = [
-    ...starts.map(
-      (url): FrameImage => ({
-        type: 'image_url',
-        imageUrl: { url },
-        frameType: 'first_frame',
-      }),
-    ),
-    ...ends.map(
-      (url): FrameImage => ({
-        type: 'image_url',
-        imageUrl: { url },
-        frameType: 'last_frame',
-      }),
-    ),
+    ...starts.map((url): FrameImage => ({
+      type: 'image_url',
+      imageUrl: { url },
+      frameType: 'first_frame',
+    })),
+    ...ends.map((url): FrameImage => ({
+      type: 'image_url',
+      imageUrl: { url },
+      frameType: 'last_frame',
+    })),
   ]
 
   return {
     ...(frameImages.length > 0 ? { frameImages } : {}),
     ...(references.length > 0
       ? {
-          inputReferences: references.map(
-            (url): ContentPartImage => ({
-              type: 'image_url',
-              imageUrl: { url },
-            }),
-          ),
+          inputReferences: references.map((url): ContentPartImage => ({
+            type: 'image_url',
+            imageUrl: { url },
+          })),
         }
       : {}),
   }

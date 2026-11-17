@@ -151,8 +151,9 @@ const ev = {
 
 /** Events object with vi.fn() mocks for assertions. */
 type MockedEvents = {
-  [K in keyof Required<StreamProcessorEvents>]: Required<StreamProcessorEvents>[K] &
-    Mock
+  [
+    K in keyof Required<StreamProcessorEvents>
+  ]: Required<StreamProcessorEvents>[K] & Mock
 }
 
 /** Create a spy-laden events object for assertions. */

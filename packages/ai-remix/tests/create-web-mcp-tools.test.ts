@@ -1,5 +1,5 @@
 import { toolDefinition } from '@tanstack/ai/client'
-import type { Handle } from 'remix/ui'
+import type { Handle } from 'remix/component'
 import { afterEach, describe, expect, expectTypeOf, it, vi } from 'vitest'
 import { createPageWebMCPTools, createRegisterWebMCPTools } from '../src/index'
 import type { CreateRegisterWebMCPToolsOptions } from '../src/index'

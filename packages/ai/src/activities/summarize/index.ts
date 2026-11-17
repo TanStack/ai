@@ -605,14 +605,4 @@ export function createSummarizeOptions<
 }
 
 // Re-export adapter types
-export type {
-  SummarizeAdapter,
-  SummarizeAdapterConfig,
-  AnySummarizeAdapter,
-} from './adapter'
-export { BaseSummarizeAdapter } from './adapter'
-export {
-  ChatStreamSummarizeAdapter,
-  type ChatStreamCapable,
-  type InferTextProviderOptions,
-} from './chat-stream-summarize'
+export type { SummarizeAdapter } from './adapter'

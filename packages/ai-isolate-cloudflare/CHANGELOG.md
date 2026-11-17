@@ -394,7 +394,7 @@
   [[unsafe.bindings]]
   name = "UNSAFE_EVAL"
   type = "unsafe_eval"
-
+  
   # after
   [[worker_loaders]]
   binding = "LOADER"

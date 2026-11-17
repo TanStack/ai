@@ -1,6 +1,6 @@
 import { createGeneration } from './create-generation.ts'
 import { reconstructImageResult } from '@tanstack/ai-client'
-import type { Handle } from 'remix/ui'
+import type { Handle } from 'remix/component'
 import type { ImageGenerationResult } from '@tanstack/ai'
 import type { ImageGenerateInput } from '@tanstack/ai-client'
 import type {
@@ -44,7 +44,7 @@ export type CreateGenerateImageReturn<TOutput = ImageGenerationResult> =
  * ```tsx
  * import { createGenerateImage } from '@tanstack/ai-remix'
  * import { fetchServerSentEvents } from '@tanstack/ai-client'
- * import type { Handle } from 'remix/ui'
+ * import type { Handle } from 'remix/component'
  *
  * function ImageGenerator(handle: Handle) {
  *   const image = createGenerateImage(handle, {

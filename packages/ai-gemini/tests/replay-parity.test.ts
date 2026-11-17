@@ -192,13 +192,11 @@ describe('Gemini replay parity', () => {
           function: { name: 'check', arguments: '{}' },
         })),
       },
-      ...['a|b', 'a/b'].map(
-        (toolCallId): ModelMessage => ({
-          role: 'tool',
-          toolCallId,
-          content: 'ok',
-        }),
-      ),
+      ...['a|b', 'a/b'].map((toolCallId): ModelMessage => ({
+        role: 'tool',
+        toolCallId,
+        content: 'ok',
+      })),
     ]
     await collect(
       new GeminiTextAdapter({ apiKey: 'key' }, 'gemini-3.7-flash').chatStream(

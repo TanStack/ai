@@ -11,6 +11,7 @@ test.describe('foreign interrupts', () => {
     page,
   }) => {
     await page.goto('/foreign-interrupt')
+    await page.getByTestId('send').click()
 
     await expect(page.getByTestId('interrupt-count')).toHaveText('2')
 
@@ -34,6 +35,7 @@ test.describe('foreign interrupts', () => {
     page,
   }) => {
     await page.goto('/foreign-interrupt')
+    await page.getByTestId('send').click()
 
     await expect(page.getByTestId('resolve-ours')).toBeVisible()
     await page.getByTestId('resolve-ours').click()
