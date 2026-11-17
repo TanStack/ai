@@ -791,10 +791,16 @@ export class MistralTextAdapter<
                 continue
               }
 
-              const parsedInput = parseToolCallInput(
-                toolCall,
-                normalizeToolInput,
-              )
+              // Complete JSON is normalized. Incomplete JSON throws, except
+              // on `length`, where the raw args stay and `input` is omitted.
+              let parsedInput: unknown
+              let parsed = false
+              try {
+                parsedInput = parseToolCallInput(toolCall, normalizeToolInput)
+                parsed = true
+              } catch (error) {
+                if (finishReason !== 'length') throw error
+              }
 
               toolCall.ended = true
               hasEmittedToolCall = true
@@ -805,16 +811,16 @@ export class MistralTextAdapter<
                 model: chunkModel,
                 timestamp,
                 args: toolCall.arguments,
-                input: parsedInput,
+                ...(parsed ? { input: parsedInput } : {}),
               })
             }
           }
 
           const computedFinishReason =
-            finishReason === 'tool_calls' || hasEmittedToolCall
-              ? 'tool_calls'
-              : finishReason === 'length'
-                ? 'length'
+            finishReason === 'length'
+              ? 'length'
+              : finishReason === 'tool_calls' || hasEmittedToolCall
+                ? 'tool_calls'
                 : 'stop'
 
           // If the run finished while reasoning was still open (no text or

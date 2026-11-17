@@ -272,6 +272,52 @@ describe('Mistral adapters', () => {
   })
 })
 
+async function runToolCallStream(
+  finishReason: string,
+  args: string,
+  tools: Array<Tool> = [weatherTool],
+): Promise<Array<AdapterYieldChunk>> {
+  setupMockStream([
+    {
+      id: 'cmpl-tool-finish',
+      model: 'mistral-large-latest',
+      choices: [
+        {
+          index: 0,
+          delta: {
+            toolCalls: [
+              {
+                index: 0,
+                id: 'tc_1',
+                function: { name: tools[0]?.name, arguments: args },
+              },
+            ],
+          },
+          finishReason: null,
+        },
+      ],
+    },
+    {
+      id: 'cmpl-tool-finish',
+      model: 'mistral-large-latest',
+      choices: [{ index: 0, delta: {}, finishReason }],
+    },
+  ])
+
+  const adapter = createMistralText('mistral-large-latest', 'test-api-key')
+  const chunks: Array<AdapterYieldChunk> = []
+  for await (const chunk of adapter.chatStream(
+    chatOpts({
+      model: 'mistral-large-latest',
+      messages: [{ role: 'user', content: 'Weather in Berlin?' }],
+      tools,
+    }),
+  )) {
+    chunks.push(chunk)
+  }
+  return chunks
+}
+
 describe('Mistral AG-UI event emission', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -949,6 +995,83 @@ describe('Mistral AG-UI event emission', () => {
     expect(types.indexOf('TEXT_MESSAGE_END')).toBeLessThan(
       types.indexOf('RUN_FINISHED'),
     )
+  })
+
+  it.each([
+    ['tool_calls', '{"location":"Berlin"}', 'tool_calls'],
+    ['stop', '{"location":"Berlin"}', 'tool_calls'],
+  ])(
+    'maps finish reason %s to %s after a streamed tool call',
+    async (finishReason, args, expectedFinishReason) => {
+      const chunks = await runToolCallStream(finishReason, args)
+
+      expect(chunks.filter((chunk) => chunk.type === 'TOOL_CALL_END')).toEqual([
+        expect.objectContaining({
+          toolCallId: 'tc_1',
+          args,
+          input: { location: 'Berlin' },
+        }),
+      ])
+      expect(chunks.filter((chunk) => chunk.type === 'RUN_FINISHED')).toEqual([
+        expect.objectContaining({ finishReason: expectedFinishReason }),
+      ])
+    },
+  )
+
+  it('normalizes complete arguments when the finish reason is length', async () => {
+    const askUser: Tool = {
+      name: 'ask_user',
+      description: 'Ask the user to choose an option',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          mode: { type: 'string', enum: ['canary'] },
+          question: { type: 'string' },
+          nullableNote: {
+            anyOf: [{ type: 'string' }, { type: 'null' }],
+          },
+        },
+        required: ['question', 'nullableNote'],
+        additionalProperties: false,
+      },
+    }
+    const args = JSON.stringify({
+      mode: null,
+      question: 'Which option?',
+      nullableNote: null,
+    })
+    const chunks = await runToolCallStream('length', args, [askUser])
+
+    expect(chunks.filter((chunk) => chunk.type === 'TOOL_CALL_END')).toEqual([
+      expect.objectContaining({
+        toolCallId: 'tc_1',
+        toolCallName: 'ask_user',
+        args,
+        input: { question: 'Which option?', nullableNote: null },
+      }),
+    ])
+    expect(chunks.filter((chunk) => chunk.type === 'RUN_FINISHED')).toEqual([
+      expect.objectContaining({ finishReason: 'length' }),
+    ])
+  })
+
+  it('ends a tool call cut by length with its raw args and no input, without throwing', async () => {
+    const chunks = await runToolCallStream('length', '{"location":')
+
+    const ends = chunks.filter((chunk) => chunk.type === 'TOOL_CALL_END')
+    expect(ends).toHaveLength(1)
+    expect(ends[0]).toMatchObject({ toolCallId: 'tc_1', args: '{"location":' })
+    expect(ends[0]).not.toHaveProperty('input')
+    expect(chunks.filter((chunk) => chunk.type === 'RUN_FINISHED')).toEqual([
+      expect.objectContaining({ finishReason: 'length' }),
+    ])
+    expect(chunks.some((chunk) => chunk.type === 'RUN_ERROR')).toBe(false)
+  })
+
+  it('still fails on malformed tool-call args when the finish reason is tool_calls', async () => {
+    await expect(
+      runToolCallStream('tool_calls', '{"location":'),
+    ).rejects.toThrow(/Failed to parse tool call arguments/)
   })
 
   it('replays buffered tool-call args when arguments arrive before id and name', async () => {
