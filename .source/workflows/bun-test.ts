@@ -26,6 +26,8 @@ export default defineWorkflow('bun-test', {
     'pkg.pr.new',
     'nodejs.org',
     'cdn.playwright.dev',
+    // cdn.playwright.dev redirects the Chrome download of Playwright 1.65 here.
+    'storage.googleapis.com',
     'playwright.download.prss.microsoft.com',
   ],
   steps: [
