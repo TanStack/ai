@@ -3374,6 +3374,45 @@ describe('withCompaction native', () => {
       systemPrompts: ['Be brief.'],
     })
   })
+
+  it('passes the chat tools, model options, reasoning, and addUsage', async () => {
+    const compact = vi.fn((options: TextCompactOptions) => {
+      options.addUsage?.({
+        promptTokens: 3,
+        completionTokens: 1,
+        totalTokens: 4,
+      })
+      return Promise.resolve([text('user', 'kept')])
+    })
+    const echo = {
+      name: 'echo',
+      description: 'Echo',
+      inputSchema: { type: 'object' as const, properties: {} },
+    }
+    const recorded = recordingContext('beforeModel', { model: 'gpt-5.5' })
+    await withCompaction({ maxTokens: 50, native: { compact } }).onConfig?.(
+      recorded.ctx,
+      {
+        messages: [big('user'), big('assistant'), big('user')],
+        systemPrompts: ['Be brief.'],
+        tools: [echo],
+        modelOptions: { max_tokens: 4096 },
+        reasoning: { level: 'low', summary: false },
+      },
+    )
+
+    expect(compact.mock.calls[0]?.[0]).toMatchObject({
+      tools: [echo],
+      modelOptions: { max_tokens: 4096 },
+      reasoning: { level: 'low', summary: false },
+    })
+    const ended = recorded.events.find(
+      (event) => event.name === COMPACTION_ENDED_EVENT,
+    )
+    expect(ended?.value).toMatchObject({
+      usage: { promptTokens: 3, completionTokens: 1, totalTokens: 4 },
+    })
+  })
 })
 
 describe('limits as functions of the model', () => {
