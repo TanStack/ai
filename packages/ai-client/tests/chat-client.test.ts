@@ -3774,8 +3774,10 @@ describe('ChatClient', () => {
         ([eventName]) => eventName === 'text:chunk:thinking',
       )
 
-      // Should have thinking events
-      expect(thinkingCalls.length).toBeGreaterThan(0)
+      // The event carries the thinking text, not the reasoning step id.
+      expect(thinkingCalls.at(-1)?.[1]).toMatchObject({
+        content: 'Let me think...',
+      })
     })
   })
 
