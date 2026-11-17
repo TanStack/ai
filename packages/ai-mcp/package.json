@@ -86,7 +86,7 @@
     "@modelcontextprotocol/client": "^2.4.0",
     "@modelcontextprotocol/server": "^2.4.0",
     "@tanstack/ai": "workspace:^",
-    "jose": "^6.2.15"
+    "jose": "^6.2.17"
   },
   "peerDependencies": {
     "@tanstack/ai-harness": "workspace:^"

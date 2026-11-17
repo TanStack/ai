@@ -52,8 +52,8 @@
   ],
   "devDependencies": {
     "@aws-crypto/sha256-js": "^5.2.0",
-    "@aws-sdk/client-bedrock-runtime": "^3.1162.0",
-    "@aws-sdk/credential-providers": "^3.1162.0",
+    "@aws-sdk/client-bedrock-runtime": "^3.1169.0",
+    "@aws-sdk/credential-providers": "^3.1169.0",
     "@smithy/signature-v4": "^5.7.5",
     "@smithy/types": "^4.20.0",
     "@vitest/coverage-v8": "5.1.0",
@@ -78,6 +78,6 @@
   },
   "dependencies": {
     "@tanstack/openai-base": "workspace:^",
-    "openai": "^7.51.0"
+    "openai": "^7.57.0"
   }
 }

@@ -10,18 +10,18 @@
     "test:types": "tsc"
   },
   "dependencies": {
-    "@tailwindcss/vite": "^4.3.4",
+    "@tailwindcss/vite": "^4.3.5",
     "@tanstack/ai": "workspace:*",
     "@tanstack/ai-cohere": "workspace:*",
     "@tanstack/ai-openrouter": "workspace:*",
     "@tanstack/react-router": "^1.170.46",
-    "@tanstack/react-start": "^1.169.4",
-    "@tanstack/router-plugin": "^1.168.48",
-    "lucide-react": "^1.68.0",
+    "@tanstack/react-start": "^1.169.5",
+    "@tanstack/router-plugin": "^1.169.0",
+    "lucide-react": "^1.73.0",
     "nitro": "3.0.261103-rc",
     "react": "^19.3.1",
     "react-dom": "^19.3.1",
-    "tailwindcss": "^4.3.4"
+    "tailwindcss": "^4.3.5"
   },
   "devDependencies": {
     "@types/node": "^24.10.1",

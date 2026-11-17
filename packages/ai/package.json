@@ -101,7 +101,7 @@
     "tanstack-intent"
   ],
   "dependencies": {
-    "@ag-ui/core": "1.0.3",
+    "@ag-ui/core": "1.0.4",
     "@cfworker/json-schema": "^4.1.6",
     "@standard-schema/spec": "^1.1.0",
     "@tanstack/ai-event-client": "workspace:^",

@@ -5,7 +5,7 @@
     "type": "git",
     "url": "git+https://github.com/TanStack/ai.git"
   },
-  "packageManager": "pnpm@12.18.0",
+  "packageManager": "pnpm@12.21.0",
   "type": "module",
   "engines": {
     "pnpm": ">=12.18.0"
@@ -68,11 +68,11 @@
     ]
   },
   "devDependencies": {
-    "@aws-sdk/client-bedrock": "^3.1162.0",
+    "@aws-sdk/client-bedrock": "^3.1169.0",
     "@changesets/changelog-github": "^1.0.1",
     "@changesets/cli": "^3.0.3",
     "@faker-js/faker": "^10.6.0",
-    "@stylistic/eslint-plugin": "^5.10.0",
+    "@stylistic/eslint-plugin": "^6.0.1",
     "@tanstack/ai": "workspace:*",
     "@tanstack/ai-grok-build": "workspace:*",
     "@tanstack/ai-sandbox": "workspace:*",
@@ -84,13 +84,13 @@
     "eslint-plugin-unused-imports": "^4.4.1",
     "happy-dom": "^21.0.4",
     "kiira": "0.7.1",
-    "knip": "^6.44.1",
+    "knip": "^6.45.1",
     "markdown-link-extractor": "^4.0.4",
-    "nx": "24.0.4",
-    "oxfmt": "^0.76.0",
-    "oxlint": "^1.91.0",
-    "oxlint-plugin-eslint": "^1.91.0",
-    "oxlint-tsgolint": "^7.0.2005",
+    "nx": "24.0.6",
+    "oxfmt": "^0.78.0",
+    "oxlint": "^1.93.0",
+    "oxlint-plugin-eslint": "^1.93.0",
+    "oxlint-tsgolint": "^7.0.2007",
     "premove": "^4.0.0",
     "publint": "^0.3.25",
     "sherif": "^1.13.0",

@@ -48,7 +48,7 @@
     "test:types": "tsc"
   },
   "dependencies": {
-    "@agentclientprotocol/sdk": "~2.4.0"
+    "@agentclientprotocol/sdk": "~2.7.0"
   },
   "peerDependencies": {
     "@tanstack/ai": "workspace:^",

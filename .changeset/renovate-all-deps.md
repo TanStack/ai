@@ -34,6 +34,7 @@
 '@tanstack/ai-sandbox': patch
 '@tanstack/ai-sandbox-blaxel': patch
 '@tanstack/ai-sandbox-boxd': patch
+'@tanstack/ai-sandbox-cloudflare': patch
 '@tanstack/ai-sandbox-daytona': patch
 '@tanstack/ai-sandbox-e2b': patch
 '@tanstack/ai-sandbox-railway': patch
@@ -53,7 +54,8 @@ Update dependencies to their latest versions.
 - `@tanstack/ai-mistral` uses `@mistralai/mistralai` 3.x and sends `resource` and `resource_link` content chunks.
 - `@tanstack/ai-openrouter` uses `@openrouter/sdk` 1.x.
 - `@tanstack/ai-acp` uses `@agentclientprotocol/sdk` 2.x.
-- `@tanstack/ai-gemini` uses `@google/genai` 2.32.
+- `@tanstack/ai-fal` uses `@fal-ai/client` 1.11. `fal-ai/wan-25-preview/text-to-video` now accepts a duration of `"5"` or `"10"` only, which matches the fal schema.
+- `@tanstack/ai-gemini` uses `@google/genai` 3.x. The Interactions image API now accepts `thinkingLevel: 'xhigh'`.
 - Peer ranges now also accept `vitest` 5, `google-auth-library` 11, and `@cloudflare/workers-types` 5.
 - `@tanstack/ai-remix` needs stable `remix` 3 (`^3.0.0`) and imports from `remix/component`.
 - `@tanstack/ai-devtools-core` depends on `@tanstack/devtools` directly, so its type declarations resolve.

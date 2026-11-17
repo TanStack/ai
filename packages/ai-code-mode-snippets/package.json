@@ -85,8 +85,8 @@
     "@tanstack/ai-isolate-node": "workspace:*",
     "@tanstack/ai-openai": "workspace:*",
     "@vitest/coverage-v8": "5.1.0",
-    "commander": "^15.0.0",
-    "dotenv": "^18.0.9",
+    "commander": "^15.1.0",
+    "dotenv": "^18.0.10",
     "tsx": "^4.23.15",
     "zod": "^4.6.7"
   }
