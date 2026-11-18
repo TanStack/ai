@@ -3,12 +3,12 @@ import {
   contentSourceToFalUrl,
   mapImageInputsToFalFields,
 } from '../image/image-inputs'
-import {
-  FAL_IMAGE_FIELD_OVERRIDES,
-  type FalImageFieldName,
-  type FalImageFieldOverride,
-} from '../image/generated/image-field-overrides'
+import { FAL_IMAGE_FIELD_OVERRIDES } from '../image/generated/image-field-overrides'
 import { FAL_MESH_FIELD_MAP } from './generated/mesh-field-overrides'
+import type {
+  FalImageFieldName,
+  FalImageFieldOverride,
+} from '../image/generated/image-field-overrides'
 import type {
   ImagePart,
   MediaInputMetadata,
