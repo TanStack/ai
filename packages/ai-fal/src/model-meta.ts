@@ -6,6 +6,10 @@
 import type { EndpointTypeMap } from '@fal-ai/client/endpoints'
 import type { MediaPromptModality } from '@tanstack/ai'
 import type { FalImageFieldName } from './image/generated/image-field-overrides'
+import type {
+  FAL_MESH_FIELD_MAP,
+  FalMeshFieldName,
+} from './model3d/generated/mesh-field-overrides'
 
 export type { EndpointTypeMap } from '@fal-ai/client/endpoints'
 
@@ -251,3 +255,100 @@ export type FalAudioProviderOptions<TModel extends string> = Omit<
   FalModelInput<TModel>,
   'prompt'
 >
+
+/**
+ * The fal 3D endpoints that `fal3DModel()` knows. Each id is a key of the
+ * installed SDK's `EndpointTypeMap`, and each endpoint returns a mesh file.
+ *
+ * @experimental 3D model generation is experimental and may change.
+ */
+export type Fal3DKnownModel =
+  | 'fal-ai/hunyuan3d/v2'
+  | 'fal-ai/hunyuan3d/v2/turbo'
+  | 'fal-ai/hunyuan3d/v2/mini'
+  | 'fal-ai/hunyuan3d/v2/mini/turbo'
+  | 'fal-ai/hunyuan3d/v2/multi-view'
+  | 'fal-ai/hunyuan3d/v2/multi-view/turbo'
+  | 'fal-ai/hunyuan3d-v3/image-to-3d'
+  | 'fal-ai/hunyuan3d-v3/text-to-3d'
+  | 'fal-ai/hunyuan-3d/v3.1/pro/image-to-3d'
+  | 'fal-ai/hunyuan-3d/v3.1/pro/text-to-3d'
+  | 'fal-ai/hunyuan-3d/v3.1/rapid/image-to-3d'
+  | 'fal-ai/hunyuan-3d/v3.1/rapid/text-to-3d'
+  | 'fal-ai/hyper3d/rodin'
+  | 'fal-ai/hyper3d/rodin/v2'
+  | 'fal-ai/meshy/v5/multi-image-to-3d'
+  | 'fal-ai/meshy/v6/image-to-3d'
+  | 'fal-ai/meshy/v6/text-to-3d'
+  | 'fal-ai/meshy/v6-preview/text-to-3d'
+  | 'fal-ai/trellis'
+  | 'fal-ai/trellis/multi'
+  | 'fal-ai/trellis-2'
+  | 'fal-ai/trellis-2/retexture'
+  | 'tripo3d/tripo/v2.5/image-to-3d'
+  | 'tripo3d/tripo/v2.5/multiview-to-3d'
+  | 'fal-ai/sam-3/3d-objects'
+  | 'fal-ai/sam-3/3d-body'
+
+/**
+ * A fal 3D endpoint id. The known ids autocomplete. Any other string also
+ * works, without typed options, so a new fal endpoint is usable at once.
+ *
+ * @experimental 3D model generation is experimental and may change.
+ */
+export type Fal3DModel = Fal3DKnownModel | (string & {})
+
+/**
+ * The input field that takes the text of a 3D prompt.
+ */
+export type Fal3DTextFieldName = 'prompt'
+
+/**
+ * Input fields that take the image parts of a 3D prompt: the fields of the
+ * generated image field map.
+ */
+export type Fal3DImageFieldName = FalImageFieldName
+
+/** Input fields that the 3D adapter fills from the prompt. */
+type Fal3DPromptFieldName =
+  | Fal3DTextFieldName
+  | Fal3DImageFieldName
+  | FalMeshFieldName
+
+/**
+ * Provider options for 3D model generation: the endpoint input without the
+ * fields that the adapter fills from the prompt (the text field, the image
+ * fields, and the mesh field). Endpoints that the installed SDK does not know
+ * take any options.
+ *
+ * @example
+ * type Options = Fal3DModelProviderOptions<'fal-ai/hunyuan3d-v3/image-to-3d'>
+ * // { face_count?: number; generate_type?: 'Normal' | 'LowPoly' | 'Geometry'; ... }
+ *
+ * @experimental 3D model generation is experimental and may change.
+ */
+export type Fal3DModelProviderOptions<TModel extends string> =
+  TModel extends keyof EndpointTypeMap
+    ? Omit<FalModelInput<TModel>, Fal3DPromptFieldName>
+    : Record<string, unknown>
+
+/**
+ * Prompt input modalities for a fal 3D endpoint. An endpoint takes image
+ * parts when its input has one of the {@link Fal3DImageFieldName} fields. It
+ * takes a `model3d` part when the generated mesh field map lists it.
+ * Endpoints that the installed SDK does not know are unconstrained.
+ *
+ * @experimental 3D model generation is experimental and may change.
+ */
+export type Fal3DPromptModalitiesFor<TModel extends string> =
+  TModel extends keyof EndpointTypeMap
+    ? ReadonlyArray<
+        | (Extract<
+            keyof FalModelInput<TModel>,
+            Fal3DImageFieldName
+          > extends never
+            ? never
+            : 'image')
+        | (TModel extends keyof typeof FAL_MESH_FIELD_MAP ? 'model3d' : never)
+      >
+    : ReadonlyArray<MediaPromptModality>

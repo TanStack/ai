@@ -51,6 +51,7 @@ import { Route as WebMcpToolsRouteImport } from './routes/web-mcp-tools'
 import { Route as WebsocketAdapterRouteImport } from './routes/websocket-adapter'
 import { Route as ProviderIndexRouteImport } from './routes/$provider/index'
 import { Route as ProviderFeatureRouteImport } from './routes/$provider/$feature'
+import { Route as Api3dModelRouteImport } from './routes/api.3d-model'
 import { Route as ApiActivityTestRouteImport } from './routes/api.activity-test'
 import { Route as ApiAdapterInputModalitiesRouteImport } from './routes/api.adapter-input-modalities'
 import { Route as ApiAnthropicAuthWireRouteImport } from './routes/api.anthropic-auth-wire'
@@ -439,6 +440,11 @@ const ProviderIndexRoute = ProviderIndexRouteImport.update({
 const ProviderFeatureRoute = ProviderFeatureRouteImport.update({
   id: '/$provider/$feature',
   path: '/$provider/$feature',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const Api3dModelRoute = Api3dModelRouteImport.update({
+  id: '/api/3d-model',
+  path: '/api/3d-model',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiActivityTestRoute = ApiActivityTestRouteImport.update({
@@ -1416,6 +1422,7 @@ export interface FileRoutesByFullPath {
   '/web-mcp-tools': typeof WebMcpToolsRoute
   '/websocket-adapter': typeof WebsocketAdapterRoute
   '/$provider/$feature': typeof ProviderFeatureRoute
+  '/api/3d-model': typeof Api3dModelRoute
   '/api/activity-test': typeof ApiActivityTestRoute
   '/api/adapter-input-modalities': typeof ApiAdapterInputModalitiesRoute
   '/api/anthropic-auth-wire': typeof ApiAnthropicAuthWireRoute
@@ -1636,6 +1643,7 @@ export interface FileRoutesByTo {
   '/web-mcp-tools': typeof WebMcpToolsRoute
   '/websocket-adapter': typeof WebsocketAdapterRoute
   '/$provider/$feature': typeof ProviderFeatureRoute
+  '/api/3d-model': typeof Api3dModelRoute
   '/api/activity-test': typeof ApiActivityTestRoute
   '/api/adapter-input-modalities': typeof ApiAdapterInputModalitiesRoute
   '/api/anthropic-auth-wire': typeof ApiAnthropicAuthWireRoute
@@ -1857,6 +1865,7 @@ export interface FileRoutesById {
   '/web-mcp-tools': typeof WebMcpToolsRoute
   '/websocket-adapter': typeof WebsocketAdapterRoute
   '/$provider/$feature': typeof ProviderFeatureRoute
+  '/api/3d-model': typeof Api3dModelRoute
   '/api/activity-test': typeof ApiActivityTestRoute
   '/api/adapter-input-modalities': typeof ApiAdapterInputModalitiesRoute
   '/api/anthropic-auth-wire': typeof ApiAnthropicAuthWireRoute
@@ -2079,6 +2088,7 @@ export interface FileRouteTypes {
     | '/web-mcp-tools'
     | '/websocket-adapter'
     | '/$provider/$feature'
+    | '/api/3d-model'
     | '/api/activity-test'
     | '/api/adapter-input-modalities'
     | '/api/anthropic-auth-wire'
@@ -2299,6 +2309,7 @@ export interface FileRouteTypes {
     | '/web-mcp-tools'
     | '/websocket-adapter'
     | '/$provider/$feature'
+    | '/api/3d-model'
     | '/api/activity-test'
     | '/api/adapter-input-modalities'
     | '/api/anthropic-auth-wire'
@@ -2519,6 +2530,7 @@ export interface FileRouteTypes {
     | '/web-mcp-tools'
     | '/websocket-adapter'
     | '/$provider/$feature'
+    | '/api/3d-model'
     | '/api/activity-test'
     | '/api/adapter-input-modalities'
     | '/api/anthropic-auth-wire'
@@ -2740,6 +2752,7 @@ export interface RootRouteChildren {
   WebMcpToolsRoute: typeof WebMcpToolsRoute
   WebsocketAdapterRoute: typeof WebsocketAdapterRoute
   ProviderFeatureRoute: typeof ProviderFeatureRoute
+  Api3dModelRoute: typeof Api3dModelRoute
   ApiActivityTestRoute: typeof ApiActivityTestRoute
   ApiAdapterInputModalitiesRoute: typeof ApiAdapterInputModalitiesRoute
   ApiAnthropicAuthWireRoute: typeof ApiAnthropicAuthWireRoute
@@ -3208,6 +3221,13 @@ declare module '@tanstack/react-router' {
       path: '/$provider/$feature'
       fullPath: '/$provider/$feature'
       preLoaderRoute: typeof ProviderFeatureRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/3d-model': {
+      id: '/api/3d-model'
+      path: '/api/3d-model'
+      fullPath: '/api/3d-model'
+      preLoaderRoute: typeof Api3dModelRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/activity-test': {
@@ -4545,6 +4565,7 @@ const rootRouteChildren: RootRouteChildren = {
   WebMcpToolsRoute: WebMcpToolsRoute,
   WebsocketAdapterRoute: WebsocketAdapterRoute,
   ProviderFeatureRoute: ProviderFeatureRoute,
+  Api3dModelRoute: Api3dModelRoute,
   ApiActivityTestRoute: ApiActivityTestRoute,
   ApiAdapterInputModalitiesRoute: ApiAdapterInputModalitiesRoute,
   ApiAnthropicAuthWireRoute: ApiAnthropicAuthWireRoute,

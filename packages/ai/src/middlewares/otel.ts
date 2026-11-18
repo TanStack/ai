@@ -77,6 +77,7 @@ const OPERATION_NAME: Record<GenerationActivity, string> = {
   chat: 'chat',
   image: 'image_generation',
   video: 'video_generation',
+  '3dModel': '3d_model_generation',
   audio: 'audio_generation',
   tts: 'text_to_speech',
   voice: 'voice_generation',

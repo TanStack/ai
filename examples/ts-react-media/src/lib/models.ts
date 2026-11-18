@@ -218,6 +218,85 @@ export const VIDEO_MODELS = [
   },
 ] as const
 
+/**
+ * fal image-to-3D endpoints for the 3D tab. `takesText` marks the endpoints
+ * that also read a text prompt. The other endpoints reject text.
+ */
+export const MODEL3D_MODELS = [
+  {
+    id: 'fal-ai/hunyuan-3d/v3.1/rapid/image-to-3d',
+    name: 'Hunyuan3D 3.1 Rapid',
+    note: 'fast',
+    takesText: false,
+  },
+  {
+    id: 'fal-ai/hunyuan3d-v3/image-to-3d',
+    name: 'Hunyuan3D 3',
+    note: 'PBR, face count control',
+    takesText: false,
+  },
+  {
+    id: 'fal-ai/trellis-2',
+    name: 'TRELLIS 2',
+    note: 'high detail, open weights',
+    takesText: false,
+  },
+  {
+    id: 'fal-ai/hyper3d/rodin/v2',
+    name: 'Rodin Gen-2',
+    note: 'PBR, optional text hint',
+    takesText: true,
+  },
+  {
+    id: 'tripo3d/tripo/v2.5/image-to-3d',
+    name: 'Tripo 2.5',
+    note: 'PBR, quad mesh',
+    takesText: false,
+  },
+  {
+    id: 'fal-ai/meshy/v6/image-to-3d',
+    name: 'Meshy 6',
+    note: 'PBR, rigging',
+    takesText: false,
+  },
+] as const
+
+/**
+ * fal endpoints that take an existing mesh (a `model3d` prompt part) and
+ * return a changed mesh.
+ */
+export const MESH_TOOL_MODELS = {
+  retexture: {
+    id: 'fal-ai/trellis-2/retexture',
+    name: 'TRELLIS 2 Retexture',
+    note: 'new textures from a reference image',
+  },
+} as const
+
+export type Model3DModel = (typeof MODEL3D_MODELS)[number]
+type MeshTool = keyof typeof MESH_TOOL_MODELS
+export type Model3DModelId =
+  | Model3DModel['id']
+  | (typeof MESH_TOOL_MODELS)[MeshTool]['id']
+
+const MESH_TOOL_IDS: ReadonlyArray<string> = Object.values(
+  MESH_TOOL_MODELS,
+).map((tool) => tool.id)
+
+const MODEL3D_IDS: ReadonlyArray<string> = [
+  ...MODEL3D_MODELS.map((model) => model.id),
+  ...MESH_TOOL_IDS,
+]
+
+export function isModel3DModelId(value: string): value is Model3DModelId {
+  return MODEL3D_IDS.includes(value)
+}
+
+/** True for the endpoints that take a mesh instead of an image. */
+export function isMeshToolModelId(value: string) {
+  return MESH_TOOL_IDS.includes(value)
+}
+
 export type ImageModel = (typeof IMAGE_MODELS)[number]
 export type VideoModel = (typeof VIDEO_MODELS)[number]
 export type VideoMode = 'text-to-video' | 'image-to-video'
