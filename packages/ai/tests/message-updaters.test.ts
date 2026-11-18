@@ -608,9 +608,7 @@ describe('message-updaters', () => {
           tanstack: { existing: true, state: 'complete' },
         },
       })
-      expect(result[0]?.parts[0]).not.toHaveProperty(
-        'metadata.displayType',
-      )
+      expect(result[0]?.parts[0]).not.toHaveProperty('metadata.displayType')
     })
 
     it('should include error when provided', () => {
