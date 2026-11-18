@@ -354,13 +354,18 @@
           "label": "Server Tools",
           "to": "tools/server-tools",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-10-22"
+          "updatedAt": "2026-11-18"
         },
         {
           "label": "Server Tools: Advanced",
           "to": "tools/server-tools-advanced",
           "addedAt": "2026-10-21",
           "updatedAt": "2026-10-22"
+        },
+        {
+          "label": "Tool Result Metadata",
+          "to": "tools/tool-result-metadata",
+          "addedAt": "2026-11-18"
         },
         {
           "label": "Client Tools",
@@ -426,7 +431,7 @@
           "label": "Middleware: Advanced",
           "to": "advanced/middleware-advanced",
           "addedAt": "2026-10-21",
-          "updatedAt": "2026-11-11"
+          "updatedAt": "2026-11-18"
         },
         {
           "label": "Built-in Middleware",
@@ -636,7 +641,7 @@
           "label": "Managed MCP with chat()",
           "to": "tools/mcp-managed",
           "addedAt": "2026-06-05",
-          "updatedAt": "2026-11-09"
+          "updatedAt": "2026-11-18"
         },
         {
           "label": "Manual MCP",
@@ -853,7 +858,7 @@
           "label": "Build a Chat Adapter",
           "to": "persistence/build-your-own-chat-adapter",
           "addedAt": "2026-08-04",
-          "updatedAt": "2026-10-22"
+          "updatedAt": "2026-11-18"
         },
         {
           "label": "Build a Generation Adapter",
@@ -871,7 +876,7 @@
           "label": "Store Reference",
           "to": "persistence/store-reference",
           "addedAt": "2026-08-04",
-          "updatedAt": "2026-10-22"
+          "updatedAt": "2026-11-18"
         },
         {
           "label": "How Persistence Works",

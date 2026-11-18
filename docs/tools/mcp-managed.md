@@ -15,6 +15,7 @@ keywords:
   - toolFilter
   - needsApproval
   - requestMeta
+  - result metadata
 ---
 
 Pass MCP clients to `chat()` in the `mcp` option. `chat()` loads their tools and closes the clients when the run ends.
@@ -247,6 +248,45 @@ export function tenantToolCache(tenantId: string, storage: ToolCacheStorage) {
   })
 }
 ```
+
+## Read the result `_meta`
+
+An MCP server can send `_meta` on a tool result, for example record ids or links for your UI. The model must not see that data. `chat()` copies the `_meta` keys into the [result metadata](./tool-result-metadata) of the tool call. Your UI reads them in `part.resultMetadata`, and the model never gets them.
+
+- All `_meta` keys are copied, including keys with the `io.modelcontextprotocol/` prefix.
+- A `tanstack` key is dropped, because that key is reserved.
+- If `_meta` is missing or is not an object, the call has no result metadata.
+- If the server returns `isError: true`, the error result keeps the `_meta`.
+
+Tools that `chat()` finds from `mcp.clients` have no schema. Nothing checks their `_meta`, and it has no type. To type and check it, add `resultMetadataSchema` to a definition, and pass the definition to `client.tools([...])`:
+
+```ts
+import { toolDefinition } from '@tanstack/ai'
+import { createMCPClient } from '@tanstack/ai-mcp'
+import { z } from 'zod'
+
+// The `name` must match the tool name on the MCP server.
+export const searchDef = toolDefinition({
+  name: 'search',
+  description: 'Search for records',
+  inputSchema: z.object({ query: z.string() }),
+  resultMetadataSchema: z.object({
+    recordIds: z.array(z.string()),
+  }),
+})
+
+const mcpClient = await createMCPClient({
+  transport: { type: 'http', url: process.env.MCP_URL! },
+})
+
+// Spread these into chat({ tools }). You close this client yourself.
+export const searchTools = await mcpClient.tools([searchDef])
+```
+
+- After each call, `chat()` checks the `_meta` against the schema. A mismatch makes the tool call fail, and the metadata is dropped.
+- Pass `searchDef` to `useChat` in your client. Then `part.resultMetadata` is typed as `{ recordIds: string[] }`.
+
+To close the client, see [Manual MCP](./mcp-manual).
 
 ## Keep connections warm
 
