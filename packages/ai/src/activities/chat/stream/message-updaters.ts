@@ -261,6 +261,7 @@ export function updateToolCallState(
 /**
  * Update a tool call part with output.
  * Searches all messages to find the tool call by ID.
+ * `resultMetadata` holds only the app keys of the result metadata.
  */
 export function updateToolCallWithOutput(
   messages: Array<UIMessage>,
@@ -268,6 +269,7 @@ export function updateToolCallWithOutput(
   output: any,
   state?: ToolCallState,
   errorText?: string,
+  resultMetadata?: Record<string, unknown>,
 ): Array<UIMessage> {
   return messages.map((msg) => {
     const parts = [...msg.parts]
@@ -277,10 +279,13 @@ export function updateToolCallWithOutput(
 
     if (toolCallPart) {
       const index = parts.indexOf(toolCallPart)
+      // A new result replaces the old result metadata, also when it has none.
+      const { resultMetadata: _previous, ...rest } = toolCallPart
       parts[index] = {
-        ...toolCallPart,
+        ...rest,
         output: errorText ? { error: errorText } : output,
         state: state ?? (errorText ? 'error' : 'complete'),
+        ...(resultMetadata !== undefined && { resultMetadata }),
       }
     }
 

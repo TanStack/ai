@@ -36,6 +36,7 @@ import {
 import { readErrorUsage, rebuildTokenUsage } from '../../utilities/ag-ui-usage'
 import { uiMessagesToWire } from '../../utilities/ag-ui-wire'
 import {
+  mergeMetadata,
   tanstackMetadata,
   withTanstackMetadata,
 } from '../../utilities/merge-metadata'
@@ -4375,6 +4376,10 @@ class TextEngine<
         toolCallId: result.toolCallId,
         content: wireContent,
         role: 'tool' as const,
+        // App result metadata. The error state below goes under `tanstack`.
+        ...(result.metadata !== undefined && {
+          metadata: { ...result.metadata },
+        }),
       }
       // An outcome always comes with output-error.
       chunks.push(
@@ -4427,6 +4432,11 @@ class TextEngine<
       const errorField = result.state === 'output-error' && {
         error: toolResultErrorText(parseToolOutput(wireContent)),
       }
+      // The app result metadata goes on the tool message for the app and
+      // persistence. Adapters send only `content` to the model.
+      const metadataField = result.metadata !== undefined && {
+        metadata: mergeMetadata(existingToolMessage?.metadata, result.metadata),
+      }
       const replacementMessage: ModelMessage =
         existingToolMessage?.role === 'tool'
           ? {
@@ -4434,12 +4444,14 @@ class TextEngine<
               content,
               toolCallId: result.toolCallId,
               ...errorField,
+              ...metadataField,
             }
           : {
               role: 'tool',
               content,
               toolCallId: result.toolCallId,
               ...errorField,
+              ...metadataField,
             }
       const newToolMessage: ModelMessage =
         result.outcome !== undefined

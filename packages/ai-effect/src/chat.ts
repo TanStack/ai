@@ -16,7 +16,7 @@ import type { Context } from 'effect'
 import { toEffect, toStream } from './lift'
 import type { AIError } from './lift'
 
-type AnyToolDefinition = ToolDefinition<any, any, string, boolean, any>
+type AnyToolDefinition = ToolDefinition<any, any, string, boolean, any, any>
 
 /**
  * A server tool whose `execute` returns an Effect. Make it with

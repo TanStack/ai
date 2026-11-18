@@ -193,6 +193,7 @@ export {
   type InferToolInput,
   type InferToolName,
   type InferToolOutput,
+  type InferToolResultMetadata,
   type ApprovalCapabilityOf,
   type ApprovalSchemaConfig,
   type ApprovalSchemaOf,

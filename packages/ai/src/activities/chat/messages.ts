@@ -8,6 +8,7 @@ import {
   normalizeToolResult,
 } from '../../utilities/tool-result'
 import {
+  appMetadata,
   mergeMetadata,
   tanstackMetadata,
   withTanstackMetadata,
@@ -1475,6 +1476,11 @@ export function modelMessagesToUIMessages(
               ? parseToolResultContent(content)
               : content
           toolCallPart.state = resultState
+          // Only the app keys. The tool-result part keeps the full metadata.
+          const resultMetadata = appMetadata(msg.metadata)
+          if (resultMetadata !== undefined) {
+            toolCallPart.resultMetadata = resultMetadata
+          }
         }
 
         currentAssistantMessage.parts.push({
