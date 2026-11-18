@@ -5,7 +5,6 @@ import {
   uiMessagesToWire,
   withTanstackMetadata,
 } from '@tanstack/ai/client'
-import { tanstackOnlyMetadata } from '@tanstack/ai/adapter-internals'
 import { ByokMissingError, isByokMissingBody } from '@tanstack/ai/byok'
 import {
   createResponseStreamTextDecoder,
@@ -1515,11 +1514,13 @@ function buildRunAgentInputBody(
   // The server owns the app metadata of a tool result. A tool row sends back
   // only the reserved `tanstack` key. Server snapshots also use
   // uiMessagesToWire and keep all the metadata, so the strip is done here.
+  // ponytail: inline, because the React Native client graph may import only
+  // @tanstack/ai/client, which does not export the metadata helpers.
   const wireMessages = uiMessagesToWire(messages).map((row) => {
     if (row.role !== 'tool') return row
     const { metadata, ...rest } = row
-    const tanstackOnly = tanstackOnlyMetadata(metadata)
-    return tanstackOnly ? { ...rest, metadata: tanstackOnly } : rest
+    const tanstack = metadata?.tanstack
+    return tanstack === undefined ? rest : { ...rest, metadata: { tanstack } }
   })
   const forwardedProps = {
     ...options.body,
