@@ -97,7 +97,7 @@ const stream = chat({
 - A level that the model does not have at run time moves to the nearest level that it has.
 - `OpenAICompatibleResponsesAdapter` takes the same option. It sends `reasoning: { effort, summary }`.
 - Without the `reasoning` option, the adapter sends no reasoning field.
-- Make the client with `createOpenAIClient` from `@tanstack/openai-base`. The type of this client always matches the adapter.
+- Make the client with `createOpenAIClient` from `@tanstack/openai-base`. The type of this client always matches the adapter. Install `@tanstack/openai-base` in your app. A strict package manager, such as pnpm, does not let you import a package that you did not install.
 
 ### A provider with its own field
 
