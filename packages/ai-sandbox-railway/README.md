@@ -60,8 +60,8 @@ import { railwaySandbox } from '@tanstack/ai-sandbox-railway'
 const sandbox = defineSandbox({
   id: 'agent',
   provider: railwaySandbox({
-    environmentId: process.env.RAILWAY_ENVIRONMENT_ID,
-    // The SDK resolves RAILWAY_TOKEN / RAILWAY_API_TOKEN.
+    // The SDK reads RAILWAY_TOKEN, a project token, and uses its environment.
+    // With RAILWAY_API_TOKEN, also set RAILWAY_ENVIRONMENT_ID.
     region: 'us-west2',
     idleTimeoutMinutes: 30,
   }),
@@ -111,7 +111,7 @@ To run a harness agent on Railway, pick **Railway** in the
 | -------------------- | ------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
 | `token`              | `RAILWAY_TOKEN` / `RAILWAY_API_TOKEN` | Explicit token. Defaults to bearer auth.                                                                                                      |
 | `authType`           | `bearer` for an explicit token        | Set `'project-token'` when `token` is a project token. Ambient `RAILWAY_TOKEN` selects it automatically.                                      |
-| `environmentId`      | `RAILWAY_ENVIRONMENT_ID`              | Environment that owns sandboxes, checkpoints, and forks. Required with either kind of token.                                                  |
+| `environmentId`      | `RAILWAY_ENVIRONMENT_ID`              | Environment that owns sandboxes, checkpoints, and forks. A project token supplies it. Required with an account or workspace token.            |
 | `endpoint`           | Railway public API                    | GraphQL endpoint override. Must be `https` (plain `http` only for localhost).                                                                 |
 | `region`             | platform default                      | Fresh sandboxes only. Checkpoint and template boots and forks run where their data lives, so it is not sent for them.                         |
 | `idleTimeoutMinutes` | plan default                          | Railway destroys the sandbox after this much inactivity. `0` disables idle destruction where the plan allows it. Resume resets the countdown. |

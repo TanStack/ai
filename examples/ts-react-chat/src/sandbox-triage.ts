@@ -333,14 +333,14 @@ export const PROVIDERS: Record<ProviderName, ProviderSpec> = {
       railwaySandbox(
         ports.length ? { ports, networkIsolation: 'PRIVATE' } : {},
       ),
-    // Either a project token (RAILWAY_TOKEN) or an account/workspace token
-    // (RAILWAY_API_TOKEN), plus the environment the sandboxes run in.
+    // A project token (RAILWAY_TOKEN) carries its environment. An
+    // account/workspace token (RAILWAY_API_TOKEN) also needs the environment.
     requiredEnv: ['RAILWAY_API_TOKEN', 'RAILWAY_ENVIRONMENT_ID'],
     envCheck: () => [
       ...(!process.env.RAILWAY_TOKEN && !process.env.RAILWAY_API_TOKEN
-        ? ['RAILWAY_API_TOKEN (or RAILWAY_TOKEN)']
+        ? ['RAILWAY_TOKEN (or RAILWAY_API_TOKEN)']
         : []),
-      ...(!process.env.RAILWAY_ENVIRONMENT_ID
+      ...(!process.env.RAILWAY_TOKEN && !process.env.RAILWAY_ENVIRONMENT_ID
         ? ['RAILWAY_ENVIRONMENT_ID']
         : []),
     ],

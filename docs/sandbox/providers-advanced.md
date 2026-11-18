@@ -321,7 +321,6 @@ const e2b = e2bSandbox({ apiKey: process.env.E2B_API_KEY })
 import { railwaySandbox } from '@tanstack/ai-sandbox-railway'
 
 const railway = railwaySandbox({
-  environmentId: process.env.RAILWAY_ENVIRONMENT_ID,
   region: 'us-west2',
   idleTimeoutMinutes: 30,
   resources: { cpu: 2, memoryGB: 4 },
@@ -332,7 +331,7 @@ const railway = railwaySandbox({
 ```
 
 - **Isolation:** a managed [Railway](https://railway.com) sandbox in a Railway environment, on a VM that you do not run. Boot from the base image, a named `checkpoint`, or a `Sandbox.template()` recipe (`template`).
-- **Auth:** the SDK reads `RAILWAY_TOKEN` (a project token) or `RAILWAY_API_TOKEN` (an account or workspace token). An explicit `token` uses bearer auth by default. Pass `authType: 'project-token'` for a project token. The scope is the environment (`environmentId` or `RAILWAY_ENVIRONMENT_ID`), fixed for each provider.
+- **Auth:** the SDK reads `RAILWAY_TOKEN` (a project token) or `RAILWAY_API_TOKEN` (an account or workspace token). An explicit `token` uses bearer auth by default. Pass `authType: 'project-token'` for a project token. The scope is the environment, fixed for each provider. A project token is scoped to one environment, which the SDK looks up, so `RAILWAY_TOKEN` alone is enough. An account or workspace token needs `environmentId` or `RAILWAY_ENVIRONMENT_ID`.
 - **Secrets:** harness credentials are [workspace secrets](./provisioning). At create and restore they go in as the runtime `env` of the sandbox. Env for each command travels in the exec init frame. No value goes into a command string.
 - **Private networking:** with `networkIsolation: 'PRIVATE'`, the sandbox joins the private network of the environment. The agent can then reach your other Railway services (databases, internal APIs) by their private hostnames. The default, `ISOLATED`, has no private network access.
 - **Lifetime:** Railway destroys a sandbox after `idleTimeoutMinutes` with no activity. If you omit it, the plan default applies. `0` turns off idle destruction where the plan allows it. Resume resets the idle countdown. `SandboxCreateInput` has no lifecycle hint, so set the timeout here.
