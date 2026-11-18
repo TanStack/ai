@@ -152,7 +152,9 @@ export default function Model3DGenerator() {
       const reference = toImagePart(await readMediaFile(styleFile))
       const modelOptions = {
         texture_size: '2048',
-      } satisfies Fal3DModelProviderOptions<typeof MESH_TOOL_MODELS.retexture.id>
+      } satisfies Fal3DModelProviderOptions<
+        typeof MESH_TOOL_MODELS.retexture.id
+      >
       run({
         step: 'retexture',
         model: MESH_TOOL_MODELS.retexture.id,

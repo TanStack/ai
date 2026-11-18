@@ -26,9 +26,7 @@ export interface UseGenerate3DModelOptions<
   TOutput = Model3DResult,
 > extends Pick<
   UseGenerationOptions<Model3DGenerateInput, Model3DResult, TOutput>,
-  | 'threadId'
-  | 'byok'
-  | 'byokProvider'
+  'threadId' | 'byok' | 'byokProvider'
 > {
   /** Connect-based adapter for streaming transport (SSE, HTTP stream, custom) */
   connection?: ConnectConnectionAdapter
