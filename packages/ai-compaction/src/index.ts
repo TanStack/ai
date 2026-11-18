@@ -810,6 +810,17 @@ export function withCompaction(
   const native = options.native
   const nativeCompact = native?.compact?.bind(native)
   /**
+   * The chat fields of the last `onConfig`, so a compact after the turn
+   * (no config argument) still sends the tools and the system prompts.
+   */
+  const nativeInputs = new Map<
+    string,
+    Pick<
+      ChatMiddlewareConfig,
+      'systemPrompts' | 'tools' | 'modelOptions' | 'reasoning' | 'wrapFetch'
+    >
+  >()
+  /**
    * The strategy of a call: the adapter's `compact` when `native` has it.
    * When `compact` fails, the configured strategy runs, and `spent.error`
    * gets the failure. An adapter can get `compact` from a shared base and
@@ -825,14 +836,23 @@ export function withCompaction(
           if (failedNative.get(native)?.has(ctx.model)) {
             return configured(messages, compaction)
           }
+          const input = config ?? nativeInputs.get(ctx.threadId)
+          const systemPrompts = input?.systemPrompts ?? ctx.systemPrompts
+          const modelOptions = input?.modelOptions ?? ctx.modelOptions
           try {
             return await nativeCompact({
               messages: [...messages],
               model: ctx.model,
               // A background summary has no signal, so the run does not stop it.
               ...(compaction.signal ? { signal: compaction.signal } : {}),
-              ...(config?.wrapFetch ? { wrapFetch: config.wrapFetch } : {}),
-              ...(config ? { systemPrompts: config.systemPrompts } : {}),
+              ...(input?.wrapFetch ? { wrapFetch: input.wrapFetch } : {}),
+              ...(systemPrompts ? { systemPrompts } : {}),
+              ...(input?.tools && input.tools.length > 0
+                ? { tools: input.tools }
+                : {}),
+              ...(modelOptions ? { modelOptions } : {}),
+              ...(input?.reasoning ? { reasoning: input.reasoning } : {}),
+              addUsage: compaction.addUsage,
             })
           } catch (error) {
             if (compaction.signal?.aborted) throw error
@@ -1107,6 +1127,15 @@ export function withCompaction(
       ctx.retry()
     },
     async onConfig(ctx, config) {
+      nativeInputs.set(ctx.threadId, {
+        systemPrompts: config.systemPrompts,
+        tools: config.tools,
+        ...(config.modelOptions !== undefined && {
+          modelOptions: config.modelOptions,
+        }),
+        ...(config.reasoning !== undefined && { reasoning: config.reasoning }),
+        ...(config.wrapFetch !== undefined && { wrapFetch: config.wrapFetch }),
+      })
       // init is discarded by the engine rebuild and can run before persistence
       // hydrates the thread. Compact only on model-bound phases.
       if (ctx.phase === 'init') return

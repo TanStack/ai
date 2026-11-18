@@ -81,6 +81,7 @@ import { Route as ApiCallOwnershipWireRouteImport } from './routes/api.call-owne
 import { Route as ApiChatRouteImport } from './routes/api.chat'
 import { Route as ApiChatCallerAbortRouteImport } from './routes/api.chat-caller-abort'
 import { Route as ApiChatCompletionsIncompleteStreamRouteImport } from './routes/api.chat-completions-incomplete-stream'
+import { Route as ApiChatConsumerStopRouteImport } from './routes/api.chat-consumer-stop'
 import { Route as ApiClientToolResumeStoreRouteImport } from './routes/api.client-tool-resume-store'
 import { Route as ApiCloudflareBindingHeadersWireRouteImport } from './routes/api.cloudflare-binding-headers-wire'
 import { Route as ApiCloudflareBindingWireRouteImport } from './routes/api.cloudflare-binding-wire'
@@ -157,6 +158,7 @@ import { Route as ApiMessageIdsRouteImport } from './routes/api.message-ids'
 import { Route as ApiMidConversationChangesWireRouteImport } from './routes/api.mid-conversation-changes-wire'
 import { Route as ApiMiddlewareTestRouteImport } from './routes/api.middleware-test'
 import { Route as ApiMistralStrictToolNullWireRouteImport } from './routes/api.mistral-strict-tool-null-wire'
+import { Route as ApiMistralTruncatedToolCallRouteImport } from './routes/api.mistral-truncated-tool-call'
 import { Route as ApiMoonshotUsageDetailsRouteImport } from './routes/api.moonshot-usage-details'
 import { Route as ApiMultimodalToolResultWireRouteImport } from './routes/api.multimodal-tool-result-wire'
 import { Route as ApiNeonWireRouteImport } from './routes/api.neon-wire'
@@ -215,6 +217,7 @@ import { Route as ApiWebMcpPageToolsRouteImport } from './routes/api.web-mcp-pag
 import { Route as ApiWorldRouteImport } from './routes/api.world'
 import { Route as ApiWrapFetchWireRouteImport } from './routes/api.wrap-fetch-wire'
 import { Route as ApiAudioStreamRouteImport } from './routes/api.audio.stream'
+import { Route as ApiGeminiIncompleteStreamSplatRouteImport } from './routes/api.gemini-incomplete-stream.$'
 import { Route as ApiHarnessHandoffSplatRouteImport } from './routes/api.harness-handoff.$'
 import { Route as ApiHarnessObservabilitySplatRouteImport } from './routes/api.harness-observability.$'
 import { Route as ApiHarnessProtocolSplatRouteImport } from './routes/api.harness-protocol.$'
@@ -603,6 +606,11 @@ const ApiChatCompletionsIncompleteStreamRoute =
     path: '/api/chat-completions-incomplete-stream',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiChatConsumerStopRoute = ApiChatConsumerStopRouteImport.update({
+  id: '/api/chat-consumer-stop',
+  path: '/api/chat-consumer-stop',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiClientToolResumeStoreRoute =
   ApiClientToolResumeStoreRouteImport.update({
     id: '/api/client-tool-resume-store',
@@ -995,6 +1003,12 @@ const ApiMistralStrictToolNullWireRoute =
     path: '/api/mistral-strict-tool-null-wire',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiMistralTruncatedToolCallRoute =
+  ApiMistralTruncatedToolCallRouteImport.update({
+    id: '/api/mistral-truncated-tool-call',
+    path: '/api/mistral-truncated-tool-call',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiMoonshotUsageDetailsRoute = ApiMoonshotUsageDetailsRouteImport.update({
   id: '/api/moonshot-usage-details',
   path: '/api/moonshot-usage-details',
@@ -1306,6 +1320,12 @@ const ApiAudioStreamRoute = ApiAudioStreamRouteImport.update({
   path: '/stream',
   getParentRoute: () => ApiAudioRoute,
 } as any)
+const ApiGeminiIncompleteStreamSplatRoute =
+  ApiGeminiIncompleteStreamSplatRouteImport.update({
+    id: '/api/gemini-incomplete-stream/$',
+    path: '/api/gemini-incomplete-stream/$',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiHarnessHandoffSplatRoute = ApiHarnessHandoffSplatRouteImport.update({
   id: '/api/harness-handoff/$',
   path: '/api/harness-handoff/$',
@@ -1426,6 +1446,7 @@ export interface FileRoutesByFullPath {
   '/api/chat': typeof ApiChatRoute
   '/api/chat-caller-abort': typeof ApiChatCallerAbortRoute
   '/api/chat-completions-incomplete-stream': typeof ApiChatCompletionsIncompleteStreamRoute
+  '/api/chat-consumer-stop': typeof ApiChatConsumerStopRoute
   '/api/client-tool-resume-store': typeof ApiClientToolResumeStoreRoute
   '/api/cloudflare-binding-headers-wire': typeof ApiCloudflareBindingHeadersWireRoute
   '/api/cloudflare-binding-wire': typeof ApiCloudflareBindingWireRoute
@@ -1502,6 +1523,7 @@ export interface FileRoutesByFullPath {
   '/api/mid-conversation-changes-wire': typeof ApiMidConversationChangesWireRoute
   '/api/middleware-test': typeof ApiMiddlewareTestRoute
   '/api/mistral-strict-tool-null-wire': typeof ApiMistralStrictToolNullWireRoute
+  '/api/mistral-truncated-tool-call': typeof ApiMistralTruncatedToolCallRoute
   '/api/moonshot-usage-details': typeof ApiMoonshotUsageDetailsRoute
   '/api/multimodal-tool-result-wire': typeof ApiMultimodalToolResultWireRoute
   '/api/neon-wire': typeof ApiNeonWireRoute
@@ -1561,6 +1583,7 @@ export interface FileRoutesByFullPath {
   '/api/wrap-fetch-wire': typeof ApiWrapFetchWireRoute
   '/$provider/': typeof ProviderIndexRoute
   '/api/audio/stream': typeof ApiAudioStreamRoute
+  '/api/gemini-incomplete-stream/$': typeof ApiGeminiIncompleteStreamSplatRoute
   '/api/harness-handoff/$': typeof ApiHarnessHandoffSplatRoute
   '/api/harness-observability/$': typeof ApiHarnessObservabilitySplatRoute
   '/api/harness-protocol/$': typeof ApiHarnessProtocolSplatRoute
@@ -1643,6 +1666,7 @@ export interface FileRoutesByTo {
   '/api/chat': typeof ApiChatRoute
   '/api/chat-caller-abort': typeof ApiChatCallerAbortRoute
   '/api/chat-completions-incomplete-stream': typeof ApiChatCompletionsIncompleteStreamRoute
+  '/api/chat-consumer-stop': typeof ApiChatConsumerStopRoute
   '/api/client-tool-resume-store': typeof ApiClientToolResumeStoreRoute
   '/api/cloudflare-binding-headers-wire': typeof ApiCloudflareBindingHeadersWireRoute
   '/api/cloudflare-binding-wire': typeof ApiCloudflareBindingWireRoute
@@ -1719,6 +1743,7 @@ export interface FileRoutesByTo {
   '/api/mid-conversation-changes-wire': typeof ApiMidConversationChangesWireRoute
   '/api/middleware-test': typeof ApiMiddlewareTestRoute
   '/api/mistral-strict-tool-null-wire': typeof ApiMistralStrictToolNullWireRoute
+  '/api/mistral-truncated-tool-call': typeof ApiMistralTruncatedToolCallRoute
   '/api/moonshot-usage-details': typeof ApiMoonshotUsageDetailsRoute
   '/api/multimodal-tool-result-wire': typeof ApiMultimodalToolResultWireRoute
   '/api/neon-wire': typeof ApiNeonWireRoute
@@ -1778,6 +1803,7 @@ export interface FileRoutesByTo {
   '/api/wrap-fetch-wire': typeof ApiWrapFetchWireRoute
   '/$provider': typeof ProviderIndexRoute
   '/api/audio/stream': typeof ApiAudioStreamRoute
+  '/api/gemini-incomplete-stream/$': typeof ApiGeminiIncompleteStreamSplatRoute
   '/api/harness-handoff/$': typeof ApiHarnessHandoffSplatRoute
   '/api/harness-observability/$': typeof ApiHarnessObservabilitySplatRoute
   '/api/harness-protocol/$': typeof ApiHarnessProtocolSplatRoute
@@ -1861,6 +1887,7 @@ export interface FileRoutesById {
   '/api/chat': typeof ApiChatRoute
   '/api/chat-caller-abort': typeof ApiChatCallerAbortRoute
   '/api/chat-completions-incomplete-stream': typeof ApiChatCompletionsIncompleteStreamRoute
+  '/api/chat-consumer-stop': typeof ApiChatConsumerStopRoute
   '/api/client-tool-resume-store': typeof ApiClientToolResumeStoreRoute
   '/api/cloudflare-binding-headers-wire': typeof ApiCloudflareBindingHeadersWireRoute
   '/api/cloudflare-binding-wire': typeof ApiCloudflareBindingWireRoute
@@ -1937,6 +1964,7 @@ export interface FileRoutesById {
   '/api/mid-conversation-changes-wire': typeof ApiMidConversationChangesWireRoute
   '/api/middleware-test': typeof ApiMiddlewareTestRoute
   '/api/mistral-strict-tool-null-wire': typeof ApiMistralStrictToolNullWireRoute
+  '/api/mistral-truncated-tool-call': typeof ApiMistralTruncatedToolCallRoute
   '/api/moonshot-usage-details': typeof ApiMoonshotUsageDetailsRoute
   '/api/multimodal-tool-result-wire': typeof ApiMultimodalToolResultWireRoute
   '/api/neon-wire': typeof ApiNeonWireRoute
@@ -1996,6 +2024,7 @@ export interface FileRoutesById {
   '/api/wrap-fetch-wire': typeof ApiWrapFetchWireRoute
   '/$provider/': typeof ProviderIndexRoute
   '/api/audio/stream': typeof ApiAudioStreamRoute
+  '/api/gemini-incomplete-stream/$': typeof ApiGeminiIncompleteStreamSplatRoute
   '/api/harness-handoff/$': typeof ApiHarnessHandoffSplatRoute
   '/api/harness-observability/$': typeof ApiHarnessObservabilitySplatRoute
   '/api/harness-protocol/$': typeof ApiHarnessProtocolSplatRoute
@@ -2080,6 +2109,7 @@ export interface FileRouteTypes {
     | '/api/chat'
     | '/api/chat-caller-abort'
     | '/api/chat-completions-incomplete-stream'
+    | '/api/chat-consumer-stop'
     | '/api/client-tool-resume-store'
     | '/api/cloudflare-binding-headers-wire'
     | '/api/cloudflare-binding-wire'
@@ -2156,6 +2186,7 @@ export interface FileRouteTypes {
     | '/api/mid-conversation-changes-wire'
     | '/api/middleware-test'
     | '/api/mistral-strict-tool-null-wire'
+    | '/api/mistral-truncated-tool-call'
     | '/api/moonshot-usage-details'
     | '/api/multimodal-tool-result-wire'
     | '/api/neon-wire'
@@ -2215,6 +2246,7 @@ export interface FileRouteTypes {
     | '/api/wrap-fetch-wire'
     | '/$provider/'
     | '/api/audio/stream'
+    | '/api/gemini-incomplete-stream/$'
     | '/api/harness-handoff/$'
     | '/api/harness-observability/$'
     | '/api/harness-protocol/$'
@@ -2297,6 +2329,7 @@ export interface FileRouteTypes {
     | '/api/chat'
     | '/api/chat-caller-abort'
     | '/api/chat-completions-incomplete-stream'
+    | '/api/chat-consumer-stop'
     | '/api/client-tool-resume-store'
     | '/api/cloudflare-binding-headers-wire'
     | '/api/cloudflare-binding-wire'
@@ -2373,6 +2406,7 @@ export interface FileRouteTypes {
     | '/api/mid-conversation-changes-wire'
     | '/api/middleware-test'
     | '/api/mistral-strict-tool-null-wire'
+    | '/api/mistral-truncated-tool-call'
     | '/api/moonshot-usage-details'
     | '/api/multimodal-tool-result-wire'
     | '/api/neon-wire'
@@ -2432,6 +2466,7 @@ export interface FileRouteTypes {
     | '/api/wrap-fetch-wire'
     | '/$provider'
     | '/api/audio/stream'
+    | '/api/gemini-incomplete-stream/$'
     | '/api/harness-handoff/$'
     | '/api/harness-observability/$'
     | '/api/harness-protocol/$'
@@ -2514,6 +2549,7 @@ export interface FileRouteTypes {
     | '/api/chat'
     | '/api/chat-caller-abort'
     | '/api/chat-completions-incomplete-stream'
+    | '/api/chat-consumer-stop'
     | '/api/client-tool-resume-store'
     | '/api/cloudflare-binding-headers-wire'
     | '/api/cloudflare-binding-wire'
@@ -2590,6 +2626,7 @@ export interface FileRouteTypes {
     | '/api/mid-conversation-changes-wire'
     | '/api/middleware-test'
     | '/api/mistral-strict-tool-null-wire'
+    | '/api/mistral-truncated-tool-call'
     | '/api/moonshot-usage-details'
     | '/api/multimodal-tool-result-wire'
     | '/api/neon-wire'
@@ -2649,6 +2686,7 @@ export interface FileRouteTypes {
     | '/api/wrap-fetch-wire'
     | '/$provider/'
     | '/api/audio/stream'
+    | '/api/gemini-incomplete-stream/$'
     | '/api/harness-handoff/$'
     | '/api/harness-observability/$'
     | '/api/harness-protocol/$'
@@ -2732,6 +2770,7 @@ export interface RootRouteChildren {
   ApiChatRoute: typeof ApiChatRoute
   ApiChatCallerAbortRoute: typeof ApiChatCallerAbortRoute
   ApiChatCompletionsIncompleteStreamRoute: typeof ApiChatCompletionsIncompleteStreamRoute
+  ApiChatConsumerStopRoute: typeof ApiChatConsumerStopRoute
   ApiClientToolResumeStoreRoute: typeof ApiClientToolResumeStoreRoute
   ApiCloudflareBindingHeadersWireRoute: typeof ApiCloudflareBindingHeadersWireRoute
   ApiCloudflareBindingWireRoute: typeof ApiCloudflareBindingWireRoute
@@ -2808,6 +2847,7 @@ export interface RootRouteChildren {
   ApiMidConversationChangesWireRoute: typeof ApiMidConversationChangesWireRoute
   ApiMiddlewareTestRoute: typeof ApiMiddlewareTestRoute
   ApiMistralStrictToolNullWireRoute: typeof ApiMistralStrictToolNullWireRoute
+  ApiMistralTruncatedToolCallRoute: typeof ApiMistralTruncatedToolCallRoute
   ApiMoonshotUsageDetailsRoute: typeof ApiMoonshotUsageDetailsRoute
   ApiMultimodalToolResultWireRoute: typeof ApiMultimodalToolResultWireRoute
   ApiNeonWireRoute: typeof ApiNeonWireRoute
@@ -2866,6 +2906,7 @@ export interface RootRouteChildren {
   ApiWorldRoute: typeof ApiWorldRoute
   ApiWrapFetchWireRoute: typeof ApiWrapFetchWireRoute
   ProviderIndexRoute: typeof ProviderIndexRoute
+  ApiGeminiIncompleteStreamSplatRoute: typeof ApiGeminiIncompleteStreamSplatRoute
   ApiHarnessHandoffSplatRoute: typeof ApiHarnessHandoffSplatRoute
   ApiHarnessObservabilitySplatRoute: typeof ApiHarnessObservabilitySplatRoute
   ApiHarnessProtocolSplatRoute: typeof ApiHarnessProtocolSplatRoute
@@ -3377,6 +3418,13 @@ declare module '@tanstack/react-router' {
       path: '/api/chat-completions-incomplete-stream'
       fullPath: '/api/chat-completions-incomplete-stream'
       preLoaderRoute: typeof ApiChatCompletionsIncompleteStreamRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/chat-consumer-stop': {
+      id: '/api/chat-consumer-stop'
+      path: '/api/chat-consumer-stop'
+      fullPath: '/api/chat-consumer-stop'
+      preLoaderRoute: typeof ApiChatConsumerStopRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/client-tool-resume-store': {
@@ -3911,6 +3959,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiMistralStrictToolNullWireRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/mistral-truncated-tool-call': {
+      id: '/api/mistral-truncated-tool-call'
+      path: '/api/mistral-truncated-tool-call'
+      fullPath: '/api/mistral-truncated-tool-call'
+      preLoaderRoute: typeof ApiMistralTruncatedToolCallRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/moonshot-usage-details': {
       id: '/api/moonshot-usage-details'
       path: '/api/moonshot-usage-details'
@@ -4317,6 +4372,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiAudioStreamRouteImport
       parentRoute: typeof ApiAudioRoute
     }
+    '/api/gemini-incomplete-stream/$': {
+      id: '/api/gemini-incomplete-stream/$'
+      path: '/api/gemini-incomplete-stream/$'
+      fullPath: '/api/gemini-incomplete-stream/$'
+      preLoaderRoute: typeof ApiGeminiIncompleteStreamSplatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/harness-handoff/$': {
       id: '/api/harness-handoff/$'
       path: '/api/harness-handoff/$'
@@ -4518,6 +4580,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiChatCallerAbortRoute: ApiChatCallerAbortRoute,
   ApiChatCompletionsIncompleteStreamRoute:
     ApiChatCompletionsIncompleteStreamRoute,
+  ApiChatConsumerStopRoute: ApiChatConsumerStopRoute,
   ApiClientToolResumeStoreRoute: ApiClientToolResumeStoreRoute,
   ApiCloudflareBindingHeadersWireRoute: ApiCloudflareBindingHeadersWireRoute,
   ApiCloudflareBindingWireRoute: ApiCloudflareBindingWireRoute,
@@ -4594,6 +4657,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiMidConversationChangesWireRoute: ApiMidConversationChangesWireRoute,
   ApiMiddlewareTestRoute: ApiMiddlewareTestRoute,
   ApiMistralStrictToolNullWireRoute: ApiMistralStrictToolNullWireRoute,
+  ApiMistralTruncatedToolCallRoute: ApiMistralTruncatedToolCallRoute,
   ApiMoonshotUsageDetailsRoute: ApiMoonshotUsageDetailsRoute,
   ApiMultimodalToolResultWireRoute: ApiMultimodalToolResultWireRoute,
   ApiNeonWireRoute: ApiNeonWireRoute,
@@ -4653,6 +4717,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiWorldRoute: ApiWorldRoute,
   ApiWrapFetchWireRoute: ApiWrapFetchWireRoute,
   ProviderIndexRoute: ProviderIndexRoute,
+  ApiGeminiIncompleteStreamSplatRoute: ApiGeminiIncompleteStreamSplatRoute,
   ApiHarnessHandoffSplatRoute: ApiHarnessHandoffSplatRoute,
   ApiHarnessObservabilitySplatRoute: ApiHarnessObservabilitySplatRoute,
   ApiHarnessProtocolSplatRoute: ApiHarnessProtocolSplatRoute,

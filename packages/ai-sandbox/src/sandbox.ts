@@ -9,8 +9,10 @@
 import { bootstrapWorkspace } from './bootstrap'
 import { resolveAllSecrets } from './secrets'
 import { computeSandboxKey } from './key'
+import { deleteSnapshotQuietly } from './snapshot-cleanup'
 import { InMemoryLockStore } from '@tanstack/ai/locks'
 import type { LockStore } from '@tanstack/ai/locks'
+import type { InternalLogger } from '@tanstack/ai/adapter-internals'
 import type { SandboxFileHookEvent } from '@tanstack/ai'
 import { InMemorySandboxInstanceStore } from './instance-store'
 import type { SandboxInstanceStore } from './instance-store'
@@ -78,6 +80,11 @@ export interface SandboxEnsureContext {
   signal?: AbortSignal
   /** Harness adapter name (`grok-build`, `claude-code`, `codex`, `opencode`). Optional. */
   adapterName?: string
+  /**
+   * Receives non-fatal anomalies (a failed snapshot delete). `withSandbox`
+   * passes the chat runtime's logger.
+   */
+  logger?: InternalLogger
 }
 
 export interface SandboxDefinition {
@@ -184,6 +191,19 @@ const DESTROY_TIMEOUT_MS = 60 * 1000
 // ensures for the same key serialize even without an injected store/lock.
 const fallbackStore = new InMemorySandboxInstanceStore()
 const fallbackLocks = new InMemoryLockStore()
+
+/**
+ * Run `fn` under the per-key lock `ensure()` and `ensureExisting()` hold for
+ * their read-then-write of the instance record, so another writer of that
+ * record cannot interleave with them.
+ */
+export function withSandboxKeyLock<T>(
+  locks: LockStore | undefined,
+  key: string,
+  fn: () => Promise<T>,
+): Promise<T> {
+  return (locks ?? fallbackLocks).withLock(`sandbox:${key}`, fn)
+}
 
 /**
  * Put workspace secrets onto a live handle. Resume and snapshot restore skip
@@ -328,6 +348,16 @@ export function defineSandbox(config: SandboxConfig): SandboxDefinition {
         latestRunId: ctx.runId,
         updatedAt: Date.now(),
       })
+      // The re-create replaced the record, so a snapshot it pointed at (a
+      // `snapshotMaxAge` expiry, or a provider that could not restore it) is
+      // now unreferenced. Some providers reuse a deterministic snapshot name,
+      // so an id equal to the new one is the new snapshot, not a stale one.
+      if (existing?.latestSnapshotId !== latestSnapshotId)
+        await deleteSnapshotQuietly(
+          config.provider,
+          existing?.latestSnapshotId,
+          { logger: ctx.logger, meta: { runId: ctx.runId } },
+        )
       return { handle: created, outcome: 'created' }
     })
   }
@@ -377,34 +407,50 @@ export function defineSandbox(config: SandboxConfig): SandboxDefinition {
   const destroy = async (ctx: SandboxEnsureContext): Promise<void> => {
     const store = ctx.store ?? fallbackStore
     const key = computeSandboxKey(keyInputFor(ctx))
-    const existing = await store.get(key)
-    if (!existing) return
-    /*
-     * TEARDOWN IS DELIBERATELY NOT FENCED BY `ctx.signal`.
-     *
-     * `destroy` runs on every teardown path INCLUDING the one caused by that
-     * very signal aborting, so forwarding it hands the provider a signal that is
-     * already aborted: a provider that honors it does nothing and returns
-     * successfully, and `store.delete` below then removes the only pointer to a
-     * live, billed sandbox. `SandboxInstanceStore` has no `list` (see the note
-     * at the top of `reclaim.ts`), so that sandbox is unreachable from then on.
-     *
-     * Same reasoning as `close()` never being fenced by the run claim (see
-     * `fenceDurability` in `claim.ts`): cleanup must outlive whatever cancelled
-     * the work. A fresh controller with its own bounded timeout keeps the call
-     * from hanging forever without letting the caller's abort cancel it.
-     */
-    const teardown = new AbortController()
-    const timer = setTimeout(() => teardown.abort(), DESTROY_TIMEOUT_MS)
-    try {
-      await config.provider.destroy({
-        id: existing.providerSandboxId,
-        signal: teardown.signal,
-      })
-    } finally {
-      clearTimeout(timer)
+    // Returns the snapshot the deleted record named, if any.
+    const teardownRecord = async (): Promise<string | undefined> => {
+      const existing = await store.get(key)
+      if (!existing) return undefined
+      /*
+       * TEARDOWN IS DELIBERATELY NOT FENCED BY `ctx.signal`.
+       *
+       * `destroy` runs on every teardown path INCLUDING the one caused by that
+       * very signal aborting, so forwarding it hands the provider a signal that is
+       * already aborted: a provider that honors it does nothing and returns
+       * successfully, and `store.delete` below then removes the only pointer to a
+       * live, billed sandbox. `SandboxInstanceStore` has no `list` (see the note
+       * at the top of `reclaim.ts`), so that sandbox is unreachable from then on.
+       *
+       * Same reasoning as `close()` never being fenced by the run claim (see
+       * `fenceDurability` in `claim.ts`): cleanup must outlive whatever cancelled
+       * the work. A fresh controller with its own bounded timeout keeps the call
+       * from hanging forever without letting the caller's abort cancel it.
+       */
+      const teardown = new AbortController()
+      const timer = setTimeout(() => teardown.abort(), DESTROY_TIMEOUT_MS)
+      try {
+        await config.provider.destroy({
+          id: existing.providerSandboxId,
+          signal: teardown.signal,
+        })
+      } finally {
+        clearTimeout(timer)
+      }
+      await store.delete(key)
+      return existing.latestSnapshotId
     }
-    await store.delete(key)
+    // A provider that deletes snapshots needs the ensure lock here: an
+    // overlapping `ensure()` writes back the record it read, which could
+    // re-create a record naming the snapshot deleted below.
+    const snapshotId = config.provider.deleteSnapshot
+      ? await withSandboxKeyLock(ctx.locks, key, teardownRecord)
+      : await teardownRecord()
+    // The record was the only reference to its snapshot. Deleted after the
+    // record so a failed `store.delete` never leaves it pointing at nothing.
+    await deleteSnapshotQuietly(config.provider, snapshotId, {
+      logger: ctx.logger,
+      meta: { runId: ctx.runId },
+    })
   }
 
   const definition: SandboxDefinition = {

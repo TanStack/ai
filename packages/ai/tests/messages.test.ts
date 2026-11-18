@@ -158,6 +158,40 @@ describe('convertMessagesToModelMessages — AG-UI dedup pre-pass', () => {
     ).toEqual([expect.objectContaining({ role: 'user', content: 'hi' })])
   })
 
+  it('keeps the wire row fields out of snapshot message metadata', () => {
+    const ui = aguiSnapshotMessageToUIMessage({
+      id: 'a1',
+      role: 'assistant',
+      parts: [{ type: 'text', content: 'hi' }],
+      metadata: {
+        tanstack: {
+          createdAt: '2026-01-01T00:00:00.000Z',
+          toolCallMetadata: {},
+          model: 'm',
+        },
+      },
+    })
+
+    expect(ui.metadata).toEqual({ tanstack: { model: 'm' } })
+  })
+
+  it('removes snapshot metadata when only wire-row fields remain', () => {
+    const ui = aguiSnapshotMessageToUIMessage({
+      id: 'a1',
+      role: 'assistant',
+      parts: [{ type: 'text', content: 'hi' }],
+      metadata: {
+        tanstack: {
+          createdAt: '2026-01-01T00:00:00.000Z',
+          toolCallMetadata: {},
+        },
+      },
+    })
+
+    expect(ui.metadata).toBeUndefined()
+    expect(ui.createdAt).toEqual(new Date('2026-01-01T00:00:00.000Z'))
+  })
+
   it('maps AG-UI activity snapshot messages to activity UIMessages', () => {
     const ui = aguiSnapshotMessageToUIMessage({
       id: 'act-1',

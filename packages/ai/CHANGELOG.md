@@ -1,5 +1,17 @@
 # @tanstack/ai
 
+## 1.5.0
+
+### Minor Changes
+
+- [#2107](https://github.com/TanStack/ai/pull/2107) [`fde4e09`](https://github.com/TanStack/ai/commit/fde4e09b0170017394ff2874847d416777920b2e) - `withCompaction({ native })` now passes the tools, the model options, and the reasoning of the chat call into `compact`. The Anthropic text adapter implements `compact` as an on-demand Messages request (`compaction: { type: "summarize" }`, beta `compact-2026-09-04`). The signed compaction block stays on the assistant message and goes back on later requests to the same model. A result with no signed block uses the configured strategy.
+
+## 1.4.1
+
+### Patch Changes
+
+- [#2098](https://github.com/TanStack/ai/pull/2098) [`1888233`](https://github.com/TanStack/ai/commit/1888233ddb501d14b17aa9a5f3497373a0e9242e) - A `chat()` consumer that stops iterating (`break` or `return()`) now runs the middleware `onAbort` hook, so every run gets exactly one terminal hook. Stopping at a client-tool or approval pause's `RUN_FINISHED` chunk runs `onFinish`, as a drained pause does, so the paused state (such as a `withSandbox` sandbox) is kept. Stopping at a `RUN_ERROR` chunk runs `onError`.
+
 ## 1.4.0
 
 ### Minor Changes

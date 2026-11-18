@@ -182,11 +182,13 @@ function isRunning(pid: number) {
   } catch {
     return false
   }
-  // ponytail: Linux only. Without /proc (macOS), signal 0 decides.
+  // A zombie still answers `kill(pid, 0)`. In a CI container whose PID 1
+  // never reaps it (TanStack Source), a killed child stays a zombie, so read
+  // its state on Linux. With no /proc, the process counts as running.
   try {
     const stat = readFileSync(`/proc/${pid}/stat`, 'utf8')
     // The state comes after the name, which is in parentheses.
-    return stat[stat.lastIndexOf(')') + 2] !== 'Z'
+    return !stat.slice(stat.lastIndexOf(')') + 2).startsWith('Z')
   } catch {
     return true
   }

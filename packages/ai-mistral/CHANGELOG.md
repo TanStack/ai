@@ -1,5 +1,16 @@
 # @tanstack/ai-mistral
 
+## 1.1.2
+
+### Patch Changes
+
+- [#2111](https://github.com/TanStack/ai/pull/2111) [`6484f08`](https://github.com/TanStack/ai/commit/6484f0864f3b6c4476aad0bbf2a79ef5e4e6a9e8) - A Mistral response that stops with `finish_reason` `model_length` (the model's context window is exhausted) is now a `RUN_ERROR` with code `context_overflow`. `structuredOutput` throws the same code. Before, a streamed `model_length` stop was reported as a normal `stop`, and `structuredOutput` surfaced a JSON parse error.
+
+- [#2101](https://github.com/TanStack/ai/pull/2101) [`ece31b9`](https://github.com/TanStack/ai/commit/ece31b911634cb5d5cb1c22260e62626539d2934) - A Mistral chat stream that hits the token limit during a tool call reports `finishReason: 'length'`. Complete arguments are normalized onto `input`. Incomplete arguments keep the raw `args` and omit `input`, and the stream does not throw. A `tool_calls` finish with malformed arguments still throws.
+
+- Updated dependencies [[`1888233`](https://github.com/TanStack/ai/commit/1888233ddb501d14b17aa9a5f3497373a0e9242e)]:
+  - @tanstack/ai@1.4.1
+
 ## 1.1.1
 
 ### Patch Changes
