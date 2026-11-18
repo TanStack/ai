@@ -407,37 +407,47 @@ export function defineSandbox(config: SandboxConfig): SandboxDefinition {
   const destroy = async (ctx: SandboxEnsureContext): Promise<void> => {
     const store = ctx.store ?? fallbackStore
     const key = computeSandboxKey(keyInputFor(ctx))
-    const existing = await store.get(key)
-    if (!existing) return
-    /*
-     * TEARDOWN IS DELIBERATELY NOT FENCED BY `ctx.signal`.
-     *
-     * `destroy` runs on every teardown path INCLUDING the one caused by that
-     * very signal aborting, so forwarding it hands the provider a signal that is
-     * already aborted: a provider that honors it does nothing and returns
-     * successfully, and `store.delete` below then removes the only pointer to a
-     * live, billed sandbox. `SandboxInstanceStore` has no `list` (see the note
-     * at the top of `reclaim.ts`), so that sandbox is unreachable from then on.
-     *
-     * Same reasoning as `close()` never being fenced by the run claim (see
-     * `fenceDurability` in `claim.ts`): cleanup must outlive whatever cancelled
-     * the work. A fresh controller with its own bounded timeout keeps the call
-     * from hanging forever without letting the caller's abort cancel it.
-     */
-    const teardown = new AbortController()
-    const timer = setTimeout(() => teardown.abort(), DESTROY_TIMEOUT_MS)
-    try {
-      await config.provider.destroy({
-        id: existing.providerSandboxId,
-        signal: teardown.signal,
-      })
-    } finally {
-      clearTimeout(timer)
+    // Returns the snapshot the deleted record named, if any.
+    const teardownRecord = async (): Promise<string | undefined> => {
+      const existing = await store.get(key)
+      if (!existing) return undefined
+      /*
+       * TEARDOWN IS DELIBERATELY NOT FENCED BY `ctx.signal`.
+       *
+       * `destroy` runs on every teardown path INCLUDING the one caused by that
+       * very signal aborting, so forwarding it hands the provider a signal that is
+       * already aborted: a provider that honors it does nothing and returns
+       * successfully, and `store.delete` below then removes the only pointer to a
+       * live, billed sandbox. `SandboxInstanceStore` has no `list` (see the note
+       * at the top of `reclaim.ts`), so that sandbox is unreachable from then on.
+       *
+       * Same reasoning as `close()` never being fenced by the run claim (see
+       * `fenceDurability` in `claim.ts`): cleanup must outlive whatever cancelled
+       * the work. A fresh controller with its own bounded timeout keeps the call
+       * from hanging forever without letting the caller's abort cancel it.
+       */
+      const teardown = new AbortController()
+      const timer = setTimeout(() => teardown.abort(), DESTROY_TIMEOUT_MS)
+      try {
+        await config.provider.destroy({
+          id: existing.providerSandboxId,
+          signal: teardown.signal,
+        })
+      } finally {
+        clearTimeout(timer)
+      }
+      await store.delete(key)
+      return existing.latestSnapshotId
     }
-    await store.delete(key)
+    // A provider that deletes snapshots needs the ensure lock here: an
+    // overlapping `ensure()` writes back the record it read, which could
+    // re-create a record naming the snapshot deleted below.
+    const snapshotId = config.provider.deleteSnapshot
+      ? await withSandboxKeyLock(ctx.locks, key, teardownRecord)
+      : await teardownRecord()
     // The record was the only reference to its snapshot. Deleted after the
     // record so a failed `store.delete` never leaves it pointing at nothing.
-    await deleteSnapshotQuietly(config.provider, existing.latestSnapshotId, {
+    await deleteSnapshotQuietly(config.provider, snapshotId, {
       logger: ctx.logger,
       meta: { runId: ctx.runId },
     })

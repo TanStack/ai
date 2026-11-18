@@ -319,6 +319,39 @@ describe('snapshot cleanup on destroy', () => {
     expect(await ctx.store.get(def.key(ctx))).toBeNull()
   })
 
+  it('waits for the ensure lock when the provider deletes snapshots', async () => {
+    const provider = cleanupProvider()
+    const { def, ctx } = setup(provider)
+    await def.ensure(ctx)
+
+    // Stand in for an overlapping ensure() holding the key lock.
+    let release: () => void = () => undefined
+    const held = ctx.locks.withLock(
+      `sandbox:${def.key(ctx)}`,
+      () => new Promise<void>((resolve) => (release = resolve)),
+    )
+    const destroyed = def.destroy(ctx)
+    await new Promise((resolve) => setTimeout(resolve, 10))
+    expect(provider.calls.destroy).toBe(0)
+
+    release()
+    await held
+    await destroyed
+    expect(provider.calls.destroy).toBe(1)
+    expect(provider.deleted).toEqual(['snap-1'])
+  })
+
+  it('does not take the ensure lock for a provider without deleteSnapshot', async () => {
+    const provider = cleanupProvider({ withDelete: false })
+    const { def, ctx } = setup(provider)
+    await def.ensure(ctx)
+
+    await ctx.locks.withLock(`sandbox:${def.key(ctx)}`, () => def.destroy(ctx))
+
+    expect(provider.calls.destroy).toBe(1)
+    expect(await ctx.store.get(def.key(ctx))).toBeNull()
+  })
+
   it('swallows a failed delete and still removes the record', async () => {
     const provider = cleanupProvider({ deleteError: new Error('api down') })
     const { def, ctx, logs } = setup(provider)
@@ -404,5 +437,43 @@ describe('snapshot cleanup on destroy', () => {
     expect(outcome).toBe('destroyed')
     expect(provider.deleted).toEqual(['snap-old'])
     expect(await instances.get('k1')).toBeNull()
+  })
+
+  it('reclaimSandbox waits for the ensure lock it is given', async () => {
+    const provider = cleanupProvider()
+    const instances = new InMemorySandboxInstanceStore()
+    const locks = new InMemoryLockStore()
+    await instances.upsert({
+      key: 'k1',
+      provider: 'fake',
+      providerSandboxId: 'sbx-1',
+      latestSnapshotId: 'snap-old',
+      threadId: 't1',
+      updatedAt: 1,
+    })
+
+    let release: () => void = () => undefined
+    const held = locks.withLock(
+      'sandbox:k1',
+      () => new Promise<void>((resolve) => (release = resolve)),
+    )
+    const reclaimed = reclaimSandbox(
+      {
+        runId: 'r1',
+        threadId: 't1',
+        status: 'completed',
+        startedAt: 1,
+        finishedAt: 2,
+        sandboxKey: 'k1',
+      },
+      { provider, instances, locks },
+    )
+    await new Promise((resolve) => setTimeout(resolve, 10))
+    expect(provider.calls.destroy).toBe(0)
+
+    release()
+    await held
+    expect(await reclaimed).toBe('destroyed')
+    expect(provider.deleted).toEqual(['snap-old'])
   })
 })
