@@ -7,6 +7,7 @@ import {
   OpenAICompatibleResponsesAdapter,
 } from '../src/compatible/adapter'
 import type { AdapterYieldChunk, ReasoningRequest } from '@tanstack/ai'
+import type { ModelReasoningCapability } from '@tanstack/ai/adapter-internals'
 
 const testLogger = resolveDebugOption(false)
 
@@ -156,11 +157,12 @@ describe('OpenAI-compatible adapters send chat({ reasoning })', () => {
     levels: { low: 'low', high: 'high' },
     budget: false,
   } as const
+  type Levels = ModelReasoningCapability<typeof REASONING>
 
   async function sentRequest(
     api: 'chat' | 'responses',
     reasoning: ReasoningRequest | undefined,
-    options?: { reasoning?: typeof REASONING },
+    withLevels = true,
   ) {
     const client = new OpenAI({ apiKey: 'test-api-key' })
     const create = vi.fn().mockResolvedValue(createAsyncIterable([]))
@@ -170,11 +172,23 @@ describe('OpenAI-compatible adapters send chat({ reasoning })', () => {
     } else {
       client.responses.create = create as typeof client.responses.create
     }
-    const Adapter =
-      api === 'chat'
-        ? OpenAICompatibleChatAdapter
-        : OpenAICompatibleResponsesAdapter
-    const adapter = new Adapter(client, 'model', 'provider', options)
+    const adapter = !withLevels
+      ? new OpenAICompatibleChatAdapter(client, 'model', 'provider')
+      : api === 'chat'
+        ? new OpenAICompatibleChatAdapter<
+            'model',
+            Record<string, unknown>,
+            readonly ['text'],
+            readonly [],
+            Levels
+          >(client, 'model', 'provider', { reasoning: REASONING })
+        : new OpenAICompatibleResponsesAdapter<
+            'model',
+            Record<string, unknown>,
+            readonly ['text'],
+            readonly [],
+            Levels
+          >(client, 'model', 'provider', { reasoning: REASONING })
     for await (const _ of adapter.chatStream({
       threadId: 'thread-1',
       logger: testLogger,
@@ -188,34 +202,32 @@ describe('OpenAI-compatible adapters send chat({ reasoning })', () => {
   }
 
   it('sends the level as reasoning_effort on Chat Completions', async () => {
-    const request = await sentRequest(
-      'chat',
-      { level: 'high', summary: true },
-      { reasoning: REASONING },
-    )
+    const request = await sentRequest('chat', { level: 'high', summary: true })
     expect(request.reasoning_effort).toBe('high')
   })
 
   it('moves a level the model does not have to the nearest one', async () => {
-    const request = await sentRequest(
-      'chat',
-      { level: 'medium', summary: true },
-      { reasoning: REASONING },
-    )
+    const request = await sentRequest('chat', {
+      level: 'medium',
+      summary: true,
+    })
     expect(request.reasoning_effort).toBe('high')
   })
 
   it('sends reasoning.effort and a summary on Responses', async () => {
-    const request = await sentRequest(
-      'responses',
-      { level: 'low', summary: true },
-      { reasoning: REASONING },
-    )
+    const request = await sentRequest('responses', {
+      level: 'low',
+      summary: true,
+    })
     expect(request.reasoning).toEqual({ effort: 'low', summary: 'auto' })
   })
 
   it('sends nothing without the reasoning option', async () => {
-    const request = await sentRequest('chat', { level: 'high', summary: true })
+    const request = await sentRequest(
+      'chat',
+      { level: 'high', summary: true },
+      false,
+    )
     expect(request).not.toHaveProperty('reasoning_effort')
   })
 })

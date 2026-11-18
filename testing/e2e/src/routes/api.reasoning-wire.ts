@@ -86,7 +86,13 @@ export const Route = createFileRoute('/api/reasoning-wire')({
                     defaultHeaders: headers,
                   })
                 : provider === 'openai-compatible'
-                  ? new OpenAICompatibleChatAdapter(
+                  ? new OpenAICompatibleChatAdapter<
+                      'deepseek-reasoner',
+                      Record<string, unknown>,
+                      readonly ['text'],
+                      readonly [],
+                      { levels: 'low' | 'medium' | 'high'; budget: false }
+                    >(
                       createOpenAIClient({
                         apiKey: DUMMY_KEY,
                         baseURL: `${LLMOCK_DEFAULT_BASE}/v1`,

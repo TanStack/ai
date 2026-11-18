@@ -94,6 +94,7 @@ const stream = chat({
 ```
 
 - `levels` maps each level to the value that the provider takes. The last type parameter gives the same levels to the types, so `chat()` rejects a level that the model does not have.
+- The option and the type parameter must have the same levels. If the option is missing, or its levels are different, TypeScript shows an error.
 - A level that the model does not have at run time moves to the nearest level that it has.
 - `OpenAICompatibleResponsesAdapter` takes the same option. It sends `reasoning: { effort, summary }`.
 - Without the `reasoning` option, the adapter sends no reasoning field.

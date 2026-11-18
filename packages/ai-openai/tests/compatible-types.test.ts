@@ -3,6 +3,7 @@ import OpenAI from 'openai'
 import { chat, createModel } from '@tanstack/ai'
 import {
   OpenAICompatibleChatAdapter,
+  OpenAICompatibleResponsesAdapter,
   openaiCompatible,
   openaiCompatibleText,
 } from '../src/compatible/index'
@@ -82,6 +83,44 @@ test('chat({ reasoning }) takes the levels of the TReasoning generic', () => {
     threadId: 't',
     // @ts-expect-error this model takes no thinking budget
     reasoning: { level: 'high', budgetTokens: 1000 },
+  })
+})
+
+test('the reasoning option must match the TReasoning generic', () => {
+  const client = new OpenAI({ apiKey: 'k' })
+  type Levels = ModelReasoningCapability<typeof REASONING>
+  const ChatWithLevels = OpenAICompatibleChatAdapter<
+    'm',
+    Record<string, unknown>,
+    readonly ['text'],
+    readonly [],
+    Levels
+  >
+  const ResponsesWithLevels = OpenAICompatibleResponsesAdapter<
+    'm',
+    Record<string, unknown>,
+    readonly ['text'],
+    readonly [],
+    Levels
+  >
+
+  new ChatWithLevels(client, 'm', 'p', { reasoning: REASONING })
+  new ResponsesWithLevels(client, 'm', 'p', { reasoning: REASONING })
+
+  // @ts-expect-error the generic is set, so the reasoning option is required
+  new ChatWithLevels(client, 'm', 'p')
+  // @ts-expect-error the generic is set, so the reasoning option is required
+  new ResponsesWithLevels(client, 'm', 'p', {})
+  new ChatWithLevels(client, 'm', 'p', {
+    reasoning: {
+      // @ts-expect-error 'high' is a level of the generic, so it must be here
+      levels: { low: 'low' },
+      budget: false,
+    },
+  })
+  new OpenAICompatibleChatAdapter(client, 'm', 'p', {
+    // @ts-expect-error without the generic, chat() takes no reasoning
+    reasoning: REASONING,
   })
 })
 
