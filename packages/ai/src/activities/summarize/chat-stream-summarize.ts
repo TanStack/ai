@@ -70,12 +70,6 @@ function throwRunError(
 export interface ChatStreamCapable {
   /** Native token-limit option for adapters whose provider name is user-defined. */
   readonly maxTokensKey?: string
-  /**
-   * When `false`, summarize skips the default `temperature: 0.3`.
-   * `undefined` / `true` keep today's default. Use for models that reject
-   * non-default sampling parameters (e.g. Anthropic Claude Sonnet 5.5).
-   */
-  readonly supportsSamplingTemperature?: boolean
   chatStream: (options: TextOptions<any>) => AsyncIterable<AdapterYieldChunk>
 }
 
@@ -381,9 +375,7 @@ export class ChatStreamSummarizeAdapter<
     let working: Record<string, unknown> = {
       ...(options.modelOptions as Record<string, unknown> | undefined),
     }
-    if (this.textAdapter.supportsSamplingTemperature !== false) {
-      working = applyDefaultTemperature(this.name, 0.3, working)
-    }
+    working = applyDefaultTemperature(this.name, 0.3, working)
     // `maxLength` must reach the wire under the provider-native token key (it
     // differs per provider, and no adapter reads a generic `maxTokens`).
     // Prefer the wrapped adapter's explicit key, then this wrapper's name,
