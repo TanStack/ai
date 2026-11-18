@@ -2,7 +2,7 @@
 
 You want a game-ready 3D model from one line of text, and a second skin for the same mesh. This app runs 4 fal steps, and you check the result of each step before you pay for the next one:
 
-1. Concept art from your text (`fal-ai/flux-2`).
+1. Concept art from your text (`fal-ai/flux-2`), or an image that you upload.
 2. A low-poly mesh with quad faces and PBR textures (Meshy v6).
 3. A new skin for the same object (`fal-ai/flux-2/edit`).
 4. The mesh from step 2, painted with the new skin (TRELLIS-2 Retexture).

@@ -20,7 +20,7 @@ Your game needs many props: chests, barrels, crates, lamps. Each prop also needs
 
 This tutorial builds an app that does it from text. You type one line and get a low-poly GLB with PBR textures. Then you type a second line and get the same mesh with a new skin. The app runs 4 fal steps, and you look at the result of each step before you pay for the next one:
 
-1. **Concept art.** `fal-ai/flux-2` draws the object on a plain background.
+1. **Concept art.** `fal-ai/flux-2` draws the object on a plain background. You can also upload your own image.
 2. **Mesh.** Meshy v6 makes a low-poly mesh with quad faces and PBR textures.
 3. **Skin.** `fal-ai/flux-2/edit` draws the same object with a new look.
 4. **Retexture.** TRELLIS-2 paints the mesh from step 2 with the new skin.
@@ -334,7 +334,7 @@ What the route does:
 
 Replace `src/routes/index.tsx` with this file. It has two small components:
 
-- `ImageStep` is a text field and a button. It uses `useGenerateImage`.
+- `ImageStep` is a text field and a button. It uses `useGenerateImage`. In step 1, it also has a file field for your own image.
 - `ModelStep` is a button, the job status, a preview, and a download link. It uses `useGenerate3DModel`.
 
 When a step finishes, its `onImage` or `onModel` callback gives the URL to the page, and the next card unlocks.
@@ -373,24 +373,39 @@ interface ImageStepProps {
   // Turns the text into a prompt. null until the earlier steps are done.
   toPrompt: (text: string) => MediaPrompt | null
   onImage: (url: string) => void
+  // Show a file field, so the user can use an image of their own.
+  allowUpload?: boolean
 }
 
 // One image step: a text field, a button, and the image.
 function ImageStep(props: ImageStepProps) {
   const { id, title, label, initialText, action, toPrompt, onImage } = props
   const [text, setText] = useState(initialText)
+  // The image on screen: the last drawn or uploaded image.
+  const [url, setUrl] = useState<string | null>(null)
   const prompt = text.trim() ? toPrompt(text.trim()) : null
+  const showImage = (next: string) => {
+    setUrl(next)
+    onImage(next)
+  }
   // POST to /api/concept over SSE. The result holds the image URL.
-  const { generate, result, isLoading, error } = useGenerateImage({
+  const { generate, isLoading, error } = useGenerateImage({
     connection: fetchServerSentEvents('/api/concept'),
     threadId: `asset-${id}`,
     byok,
     onResult: (image) => {
-      const url = image.images[0]?.url
-      if (url) onImage(url)
+      const next = image.images[0]?.url
+      if (next) showImage(next)
     },
   })
-  const url = result?.images[0]?.url
+  // An uploaded image becomes a data: URL. fal reads it like any URL.
+  const upload = (file: File) => {
+    const reader = new FileReader()
+    reader.onload = () => {
+      if (typeof reader.result === 'string') showImage(reader.result)
+    }
+    reader.readAsDataURL(file)
+  }
 
   return (
     <section className={card}>
@@ -415,11 +430,26 @@ function ImageStep(props: ImageStepProps) {
           {isLoading ? 'Drawing...' : action}
         </button>
       </div>
+      {props.allowUpload ? (
+        <label className="mt-3 block text-sm text-gray-300">
+          Or upload your own image
+          <input
+            type="file"
+            accept="image/png,image/jpeg,image/webp"
+            disabled={isLoading}
+            onChange={(event) => {
+              const file = event.target.files?.[0]
+              if (file) upload(file)
+            }}
+            className="mt-1 block text-sm text-gray-300"
+          />
+        </label>
+      ) : null}
       {error ? (
         <p className="mt-3 text-sm text-red-400">{error.message}</p>
       ) : null}
       {url ? (
-        <img src={url} alt={text} className="mt-3 max-h-64 rounded-lg" />
+        <img src={url} alt={title} className="mt-3 max-h-64 rounded-lg" />
       ) : null}
     </section>
   )
@@ -520,6 +550,7 @@ function PipelinePage() {
           action="Draw"
           toPrompt={(text) => text}
           onImage={setConceptUrl}
+          allowUpload
         />
         <ModelStep
           step="mesh"
@@ -561,11 +592,12 @@ export const Route = createFileRoute('/')({
 
 What the page does:
 
+- An uploaded image becomes a `data:` URL. fal reads it the same as an image URL, so the upload needs no route.
 - `onProgress` gets the fal job state on each poll: `pending`, `processing`, or `completed`. fal gives no percent, so the card shows the state.
 - `stop()` closes the stream on the page. The fal job can still finish, and fal bills it.
 - Each card keeps its result. If a result looks wrong, run that step again before you go to the next step.
 
-Run the app, paste your fal key, and click the 4 buttons in order. You can draw the skin while the mesh job runs.
+Run the app, paste your fal key, and click the 4 buttons in order. For your own character or prop, upload an image of one object on a plain background instead of clicking Draw. You can draw the skin while the mesh job runs.
 
 <!-- ::client-example library=ai framework=react slug=game-asset-pipeline -->
 

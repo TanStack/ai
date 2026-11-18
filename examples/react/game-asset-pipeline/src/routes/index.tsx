@@ -31,24 +31,39 @@ interface ImageStepProps {
   // Turns the text into a prompt. null until the earlier steps are done.
   toPrompt: (text: string) => MediaPrompt | null
   onImage: (url: string) => void
+  // Show a file field, so the user can use an image of their own.
+  allowUpload?: boolean
 }
 
 // One image step: a text field, a button, and the image.
 function ImageStep(props: ImageStepProps) {
   const { id, title, label, initialText, action, toPrompt, onImage } = props
   const [text, setText] = useState(initialText)
+  // The image on screen: the last drawn or uploaded image.
+  const [url, setUrl] = useState<string | null>(null)
   const prompt = text.trim() ? toPrompt(text.trim()) : null
+  const showImage = (next: string) => {
+    setUrl(next)
+    onImage(next)
+  }
   // POST to /api/concept over SSE. The result holds the image URL.
-  const { generate, result, isLoading, error } = useGenerateImage({
+  const { generate, isLoading, error } = useGenerateImage({
     connection: fetchServerSentEvents('/api/concept'),
     threadId: `asset-${id}`,
     byok,
     onResult: (image) => {
-      const url = image.images[0]?.url
-      if (url) onImage(url)
+      const next = image.images[0]?.url
+      if (next) showImage(next)
     },
   })
-  const url = result?.images[0]?.url
+  // An uploaded image becomes a data: URL. fal reads it like any URL.
+  const upload = (file: File) => {
+    const reader = new FileReader()
+    reader.onload = () => {
+      if (typeof reader.result === 'string') showImage(reader.result)
+    }
+    reader.readAsDataURL(file)
+  }
 
   return (
     <section className={card}>
@@ -73,11 +88,26 @@ function ImageStep(props: ImageStepProps) {
           {isLoading ? 'Drawing...' : action}
         </button>
       </div>
+      {props.allowUpload ? (
+        <label className="mt-3 block text-sm text-gray-300">
+          Or upload your own image
+          <input
+            type="file"
+            accept="image/png,image/jpeg,image/webp"
+            disabled={isLoading}
+            onChange={(event) => {
+              const file = event.target.files?.[0]
+              if (file) upload(file)
+            }}
+            className="mt-1 block text-sm text-gray-300"
+          />
+        </label>
+      ) : null}
       {error ? (
         <p className="mt-3 text-sm text-red-400">{error.message}</p>
       ) : null}
       {url ? (
-        <img src={url} alt={text} className="mt-3 max-h-64 rounded-lg" />
+        <img src={url} alt={title} className="mt-3 max-h-64 rounded-lg" />
       ) : null}
     </section>
   )
@@ -178,6 +208,7 @@ function PipelinePage() {
           action="Draw"
           toPrompt={(text) => text}
           onImage={setConceptUrl}
+          allowUpload
         />
         <ModelStep
           step="mesh"
