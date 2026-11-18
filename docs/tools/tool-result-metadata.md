@@ -82,9 +82,10 @@ const articles = [
 
 export const searchDocs = searchDocsDef.server(async ({ query }, context) => {
   const words = query.toLowerCase().split(" ");
-  const hits = articles.filter((article) =>
-    words.some((word) => article.text.toLowerCase().includes(word)),
-  );
+  const hits = articles.filter((article) => {
+    const searchable = `${article.title} ${article.text}`.toLowerCase();
+    return words.some((word) => searchable.includes(word));
+  });
 
   // The app gets this. The model does not.
   context?.setResultMetadata?.({
@@ -208,7 +209,12 @@ In TanStack devtools, the tool result shows the value under **Result metadata**.
 
 ## Keep the sources after a reload
 
-When the user reloads the page, the client gets the thread again from the server. The client never sends result metadata to the server, and `chatParamsFromRequest` removes app keys from the tool rows of a request, so the server does not trust a changed client. Without persistence, the server has no copy, so the sources of earlier turns are lost.
+When the user reloads the page, the client gets the thread again from the server. The server owns the result metadata:
+
+- The client never sends result metadata to the server. This is true with a `connection` and with a `fetcher`.
+- `chatParamsFromRequest` removes app keys from the tool rows of a request, so a changed client cannot set them.
+
+Without persistence, the server has no copy, so the sources of earlier turns are lost.
 
 With `withPersistence`, the server stores the metadata on the tool message. A reload then fills `part.resultMetadata` again.
 
@@ -247,6 +253,7 @@ export async function POST(request: Request) {
   return toServerSentEventsResponse(stream);
 }
 
+// A single-user demo. In a multi-user app, pass `authorize` (see below).
 export function GET(request: Request): Promise<Response> {
   return reconstructChat(persistence, request);
 }
@@ -268,7 +275,31 @@ export function useSupportChat() {
 }
 ```
 
-Ask a question, then reload the page. The links are still under the answer. For a production store, see [Chat persistence](../persistence/chat-persistence).
+Ask a question, then reload the page. The links are still under the answer.
+
+The `GET` route above is for a single-user demo. Any caller that knows a thread id can read that thread. In a multi-user app, pass `authorize` so that a user can load only their own threads:
+
+```typescript
+import { memoryPersistence, reconstructChat } from "@tanstack/ai-persistence";
+
+const persistence = memoryPersistence();
+
+// Replace this function with your session and ownership check.
+// It returns false, so it blocks every load until you replace it.
+async function ownsThread(request: Request, threadId: string) {
+  void request;
+  void threadId;
+  return false;
+}
+
+export function GET(request: Request): Promise<Response> {
+  return reconstructChat(persistence, request, {
+    authorize: (threadId, req) => ownsThread(req, threadId),
+  });
+}
+```
+
+A denied request gets a `403` response. For a production store, see [Chat persistence](../persistence/chat-persistence).
 
 ## How `setResultMetadata` merges
 
@@ -299,14 +330,21 @@ export const defineWord = toolDefinition({
 ## When the metadata fails
 
 - **The value is not JSON**: a `BigInt`, or an object that contains itself, makes the tool call fail with an error.
-- **The value does not fit `resultMetadataSchema`**: `chat()` checks the merged value once, after the tool returns. A mismatch makes the tool call fail, and the metadata is dropped.
-- **The tool throws**: the metadata that the tool set before the throw stays on the error result.
+- **The value does not fit `resultMetadataSchema`**: `chat()` checks the merged value after the tool returns. A mismatch makes the tool call fail, and the metadata is dropped.
+- **The tool throws**: `chat()` checks the metadata that the tool set before the throw. Only metadata that passes the check stays on the error result.
 
-The check needs a Standard Schema, such as Zod. A JSON Schema in `resultMetadataSchema` is not checked, and the type is `Record<string, unknown>`. A tool with no `resultMetadataSchema` has the same type.
+When the check fails, the model gets only the error `Result metadata validation failed for tool search_docs`. The validator details go to the server log, so the model does not see your metadata values.
+
+The check needs a Standard Schema, such as Zod. An async Standard Schema also works, because `chat()` waits for the check. A JSON Schema in `resultMetadataSchema` is not checked, and the type is `Record<string, unknown>`. A tool with no `resultMetadataSchema` has the same type.
 
 ## Client tools cannot set it
 
-Result metadata works only in server tools. In a `.client()` tool or a WebMCP tool, `setResultMetadata` throws:
+Result metadata works only in server tools.
+
+- In a `.client()` tool, a call to `setResultMetadata` is a type error. If the code runs anyway, the call throws.
+- In a WebMCP tool, the call throws.
+
+The error is:
 
 ```text
 setResultMetadata works only in server tools. A client tool can return the data in its output or keep it in app state.

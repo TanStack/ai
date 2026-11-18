@@ -283,8 +283,49 @@ const mcpClient = await createMCPClient({
 export const searchTools = await mcpClient.tools([searchDef])
 ```
 
-- After each call, `chat()` checks the `_meta` against the schema. A mismatch makes the tool call fail, and the metadata is dropped.
-- Pass `searchDef` to `useChat` in your client. Then `part.resultMetadata` is typed as `{ recordIds: string[] }`.
+- When the server returns `_meta`, `chat()` checks it against the schema. A mismatch makes the tool call fail, and the metadata is dropped.
+- When the check fails, the model gets only a short error. The validator details go to the server log.
+
+In your client, pass `searchDef` to `useChat`. Then `part.resultMetadata` is typed as `{ recordIds: string[] }`:
+
+```tsx
+import { useChat, fetchServerSentEvents } from '@tanstack/ai-react'
+import { toolDefinition } from '@tanstack/ai'
+import { z } from 'zod'
+
+// The same definition as on the server. In your app, import it from a
+// shared file that does not create the MCP client.
+const searchDef = toolDefinition({
+  name: 'search',
+  description: 'Search for records',
+  inputSchema: z.object({ query: z.string() }),
+  resultMetadataSchema: z.object({
+    recordIds: z.array(z.string()),
+  }),
+})
+
+export function SearchResults() {
+  const { messages } = useChat({
+    connection: fetchServerSentEvents('/api/chat'),
+    threadId: 'search-chat',
+    tools: [searchDef],
+  })
+
+  return (
+    <ul>
+      {messages.flatMap((message) =>
+        message.parts.map((part) => {
+          if (part.type !== 'tool-call' || part.name !== 'search') return null
+          // part.resultMetadata is { recordIds: string[] } | undefined
+          return (
+            <li key={part.id}>{part.resultMetadata?.recordIds.join(', ')}</li>
+          )
+        }),
+      )}
+    </ul>
+  )
+}
+```
 
 To close the client, see [Manual MCP](./mcp-manual).
 

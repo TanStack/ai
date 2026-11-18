@@ -18,7 +18,7 @@ const FIRST_PROMPT = '[tool-result-metadata] find the lighthouse docs'
 const SECOND_PROMPT = '[tool-result-metadata] thanks'
 const SOURCE_TITLES = ['Lighthouse guide', 'Keeper log']
 // Text that only the result metadata holds.
-const SOURCE_HOST = 'docs.example.com'
+const SOURCE_TEXT = ['docs.example.com', 'src-keeper', ...SOURCE_TITLES]
 // Text that only the tool output holds. The model must get it.
 const TOOL_OUTPUT = 'LIGHTHOUSE_ANSWER'
 
@@ -42,6 +42,13 @@ function trackChatPosts(page: Page) {
     }
   })
   return bodies
+}
+
+/** Fails when the body has any text that only the result metadata holds. */
+function expectNoSources(body: string) {
+  for (const text of SOURCE_TEXT) {
+    expect(body).not.toContain(text)
+  }
 }
 
 /** The metadata keys of a wire row, without the reserved `tanstack` key. */
@@ -77,7 +84,7 @@ test.describe('tool result metadata', () => {
     )
     expect(toolRows).toHaveLength(1)
     expect(toolRows.map(appKeys)).toEqual([[]])
-    expect(JSON.stringify(chatPosts[1])).not.toContain(SOURCE_HOST)
+    expectNoSources(JSON.stringify(chatPosts[1]))
 
     // Both model requests with the tool row (the turn 1 follow-up and turn 2)
     // have the tool output and no sources.
@@ -96,7 +103,7 @@ test.describe('tool result metadata', () => {
     expect(modelBodies).toHaveLength(2)
     for (const body of modelBodies) {
       expect(body).toContain(TOOL_OUTPUT)
-      expect(body).not.toContain(SOURCE_HOST)
+      expectNoSources(body)
     }
 
     // The server transcript kept the metadata, so a reload shows it again.

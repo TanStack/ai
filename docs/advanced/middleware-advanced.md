@@ -706,7 +706,7 @@ Good to know:
 
 #### Change the result metadata
 
-A server tool can set [result metadata](../tools/tool-result-metadata) for your app, such as the sources of a search. Read it in `info.metadata`. To change it, add `metadata` to `replaceResult`. This middleware removes a `debug` key before the client gets it:
+A server tool can set [result metadata](../tools/tool-result-metadata) for your app, such as the sources of a search. Read it in `info.metadata`. To change it, add `metadata` to `replaceResult`. This middleware removes a `debug` key from successful calls before the client gets it:
 
 ```typescript
 import { type ChatMiddleware } from "@tanstack/ai";
@@ -727,8 +727,9 @@ The `metadata` field:
 - `{}`: removes all the result metadata.
 - The next middleware gets your value as `info.metadata`.
 - The `resultMetadataSchema` of the tool does not check your value. A `tanstack` key is dropped, because that key is reserved.
+- A value that is not JSON, such as a `BigInt`, is dropped with a warning in the server log. The result stays.
 
-A `skip` decision from `onBeforeToolCall` or `onGuardToolCall` can also have `metadata`: `{ type: 'skip', result, metadata }`. The tool does not run, so this is the only result metadata of the call.
+A `skip` decision from `onBeforeToolCall` or `onGuardToolCall` can also have `metadata`: `{ type: 'skip', result, metadata }`. The tool does not run, so this is the first result metadata of the call. An `onAfterToolCall` hook can still replace it.
 
 `toolCacheMiddleware` keeps the result metadata with the result. A cache hit gives the metadata back, so your UI shows the same data. If you write your own `ToolCacheStorage`, store the optional `metadata` field of `ToolCacheEntry` too. Entries without it still work.
 
