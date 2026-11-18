@@ -9,8 +9,10 @@
 import { bootstrapWorkspace } from './bootstrap'
 import { resolveAllSecrets } from './secrets'
 import { computeSandboxKey } from './key'
+import { deleteSnapshotQuietly } from './snapshot-cleanup'
 import { InMemoryLockStore } from '@tanstack/ai/locks'
 import type { LockStore } from '@tanstack/ai/locks'
+import type { InternalLogger } from '@tanstack/ai/adapter-internals'
 import type { SandboxFileHookEvent } from '@tanstack/ai'
 import { InMemorySandboxInstanceStore } from './instance-store'
 import type { SandboxInstanceStore } from './instance-store'
@@ -78,6 +80,11 @@ export interface SandboxEnsureContext {
   signal?: AbortSignal
   /** Harness adapter name (`grok-build`, `claude-code`, `codex`, `opencode`). Optional. */
   adapterName?: string
+  /**
+   * Receives non-fatal anomalies (a failed snapshot delete). `withSandbox`
+   * passes the chat runtime's logger.
+   */
+  logger?: InternalLogger
 }
 
 export interface SandboxDefinition {
@@ -184,6 +191,19 @@ const DESTROY_TIMEOUT_MS = 60 * 1000
 // ensures for the same key serialize even without an injected store/lock.
 const fallbackStore = new InMemorySandboxInstanceStore()
 const fallbackLocks = new InMemoryLockStore()
+
+/**
+ * Run `fn` under the per-key lock `ensure()` and `ensureExisting()` hold for
+ * their read-then-write of the instance record, so another writer of that
+ * record cannot interleave with them.
+ */
+export function withSandboxKeyLock<T>(
+  locks: LockStore | undefined,
+  key: string,
+  fn: () => Promise<T>,
+): Promise<T> {
+  return (locks ?? fallbackLocks).withLock(`sandbox:${key}`, fn)
+}
 
 /**
  * Put workspace secrets onto a live handle. Resume and snapshot restore skip
@@ -328,6 +348,16 @@ export function defineSandbox(config: SandboxConfig): SandboxDefinition {
         latestRunId: ctx.runId,
         updatedAt: Date.now(),
       })
+      // The re-create replaced the record, so a snapshot it pointed at (a
+      // `snapshotMaxAge` expiry, or a provider that could not restore it) is
+      // now unreferenced. Some providers reuse a deterministic snapshot name,
+      // so an id equal to the new one is the new snapshot, not a stale one.
+      if (existing?.latestSnapshotId !== latestSnapshotId)
+        await deleteSnapshotQuietly(
+          config.provider,
+          existing?.latestSnapshotId,
+          { logger: ctx.logger, meta: { runId: ctx.runId } },
+        )
       return { handle: created, outcome: 'created' }
     })
   }
@@ -405,6 +435,12 @@ export function defineSandbox(config: SandboxConfig): SandboxDefinition {
       clearTimeout(timer)
     }
     await store.delete(key)
+    // The record was the only reference to its snapshot. Deleted after the
+    // record so a failed `store.delete` never leaves it pointing at nothing.
+    await deleteSnapshotQuietly(config.provider, existing.latestSnapshotId, {
+      logger: ctx.logger,
+      meta: { runId: ctx.runId },
+    })
   }
 
   const definition: SandboxDefinition = {
