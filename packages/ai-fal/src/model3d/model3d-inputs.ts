@@ -99,15 +99,19 @@ const LIST_IMAGE_FIELDS = new Set([
 
 /**
  * Known single-image 3D endpoints override only `single`. The shared image
- * mapper then sends extra unroled images to the default `image_urls` field,
- * which those endpoints do not read. Reject that case before submit.
+ * mapper then sends extra primary sources (unroled, `start_frame`, and
+ * `end_frame` images) to the default `image_urls` field, which those
+ * endpoints do not read. Reject that case before submit.
  */
 function rejectExtraUnroledImages(
   model: string,
   images: ReadonlyArray<ImagePart<MediaInputMetadata>>,
 ) {
-  const unroled = images.filter((part) => part.metadata?.role == null)
-  if (unroled.length <= 1) return
+  const primary = images.filter((part) => {
+    const role = part.metadata?.role
+    return role == null || role === 'start_frame' || role === 'end_frame'
+  })
+  if (primary.length <= 1) return
   const override = (
     FAL_IMAGE_FIELD_OVERRIDES as Record<
       string,
@@ -120,7 +124,7 @@ function rejectExtraUnroledImages(
     (override?.multi !== undefined && LIST_IMAGE_FIELDS.has(override.multi))
   if (allowsList) return
   throw new Error(
-    `fal: model ${model} accepts a single source image via '${singleField}' (received ${unroled.length}).`,
+    `fal: model ${model} accepts a single source image via '${singleField}' (received ${primary.length}).`,
   )
 }
 

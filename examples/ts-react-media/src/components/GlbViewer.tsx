@@ -87,7 +87,10 @@ export function GlbViewer({
       }
       draw()
 
+      let released = false
       release = () => {
+        if (released) return
+        released = true
         cancelAnimationFrame(frame)
         resizeObserver.disconnect()
         controls.dispose()
@@ -134,6 +137,7 @@ export function GlbViewer({
       setLoading(false)
     })().catch((caught: unknown) => {
       if (cancelled) return
+      release?.()
       setLoading(false)
       setError(caught instanceof Error ? caught.message : String(caught))
     })

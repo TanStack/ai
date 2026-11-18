@@ -37,6 +37,7 @@ export async function POST({ request }: { request: Request }) {
       stream: true,
       threadId,
       runId,
+      abortSignal: request.signal,
     })
     return toServerSentEventsResponse(stream)
   }
@@ -50,6 +51,7 @@ export async function POST({ request }: { request: Request }) {
       stream: true,
       threadId,
       runId,
+      abortSignal: request.signal,
     })
     return toServerSentEventsResponse(stream)
   }

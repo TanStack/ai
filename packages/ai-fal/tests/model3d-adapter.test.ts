@@ -177,6 +177,19 @@ describe('fal3DModel create3DModelJob', () => {
       /fal-ai\/hunyuan3d-v3\/image-to-3d accepts a single source image/,
     ],
     [
+      'an unroled image and a start_frame image to a single-image endpoint',
+      'fal-ai/hunyuan3d-v3/image-to-3d',
+      [
+        image(IMAGE_URL),
+        {
+          type: 'image',
+          source: { type: 'url', value: 'https://example.com/start.png' },
+          metadata: { role: 'start_frame' },
+        },
+      ],
+      /fal-ai\/hunyuan3d-v3\/image-to-3d accepts a single source image/,
+    ],
+    [
       'an image to an endpoint that takes no image parts',
       'fal-ai/hunyuan3d-v3/text-to-3d',
       [image(IMAGE_URL)],
