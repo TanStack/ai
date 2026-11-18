@@ -293,7 +293,7 @@ export function toUIMessageStream(
               type: 'tool-input-error',
               toolCallId: event.toolCallId,
               toolName: tool.name,
-              input: tool.args,
+              input: raw,
               errorText: 'The tool call arguments are not valid JSON.',
               ...toolCallFields(tool),
             }

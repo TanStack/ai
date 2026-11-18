@@ -114,6 +114,28 @@ describe('TanStack server, AI SDK client: errors', () => {
     expect(chunks.some((c) => c.type === 'tool-input-available')).toBe(false)
   })
 
+  it('sends the broken arguments of TOOL_CALL_END as the input error input', async () => {
+    const chunks = await chunksOf(
+      toUIMessageStream(
+        (async function* (): AsyncGenerator<StreamChunk> {
+          yield {
+            type: EventType.TOOL_CALL_START,
+            toolCallId: 'c-1',
+            toolCallName: 'ask',
+          }
+          yield {
+            type: EventType.TOOL_CALL_END,
+            toolCallId: 'c-1',
+            metadata: { tanstack: { args: '{"q":' } },
+          }
+        })(),
+      ),
+    )
+    expect(chunks).toContainEqual(
+      expect.objectContaining({ type: 'tool-input-error', input: '{"q":' }),
+    )
+  })
+
   it('uses the input on TOOL_CALL_END when no argument deltas arrived', async () => {
     const chunks = await chunksOf(
       toUIMessageStream(
