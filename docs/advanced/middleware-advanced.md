@@ -727,7 +727,8 @@ The `metadata` field:
 - `{}`: removes all the result metadata.
 - The next middleware gets your value as `info.metadata`.
 - The `resultMetadataSchema` of the tool does not check your value. A `tanstack` key is dropped, because that key is reserved.
-- A value that is not JSON, such as a `BigInt`, is dropped with a warning in the server log. The result stays.
+- Your value becomes JSON. A `Date` becomes a string, and `NaN` becomes `null`. You get no warning for these changes.
+- If your value cannot become JSON, for example because it has a `BigInt`, the call keeps no result metadata. A warning goes to the server log, and the result stays. Change such fields to strings or numbers before you return them.
 
 A `skip` decision from `onBeforeToolCall` or `onGuardToolCall` can also have `metadata`: `{ type: 'skip', result, metadata }`. The tool does not run, so this is the first result metadata of the call. An `onAfterToolCall` hook can still replace it.
 

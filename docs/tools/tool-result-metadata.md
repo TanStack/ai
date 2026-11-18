@@ -81,7 +81,11 @@ const articles = [
 ];
 
 export const searchDocs = searchDocsDef.server(async ({ query }, context) => {
-  const words = query.toLowerCase().split(" ");
+  // Drop empty words, so that extra spaces do not match every article.
+  const words = query
+    .toLowerCase()
+    .split(/\s+/)
+    .filter((word) => word.length > 0);
   const hits = articles.filter((article) => {
     const searchable = `${article.title} ${article.text}`.toLowerCase();
     return words.some((word) => searchable.includes(word));
@@ -253,7 +257,7 @@ export async function POST(request: Request) {
   return toServerSentEventsResponse(stream);
 }
 
-// A single-user demo. In a multi-user app, pass `authorize` (see below).
+// A single-user demo. For a multi-user app, see below.
 export function GET(request: Request): Promise<Response> {
   return reconstructChat(persistence, request);
 }
@@ -277,19 +281,56 @@ export function useSupportChat() {
 
 Ask a question, then reload the page. The links are still under the answer.
 
-The `GET` route above is for a single-user demo. Any caller that knows a thread id can read that thread. In a multi-user app, pass `authorize` so that a user can load only their own threads:
+The routes above are for a single-user demo. Any caller that knows a thread id can read that thread and write to it. In a multi-user app, check that the user owns the thread in both routes:
+
+- `POST`: check the thread before `chat()` reads or writes it.
+- `GET`: pass `authorize` to `reconstructChat`.
+
+Here is `api/chat.ts` with both checks. The two routes use the same `persistence`:
 
 ```typescript
-import { memoryPersistence, reconstructChat } from "@tanstack/ai-persistence";
+// api/chat.ts
+import {
+  chat,
+  chatParamsFromRequest,
+  toServerSentEventsResponse,
+} from "@tanstack/ai";
+import { openaiText } from "@tanstack/ai-openai";
+import {
+  memoryPersistence,
+  reconstructChat,
+  withPersistence,
+} from "@tanstack/ai-persistence";
+import { searchDocs } from "../tools/search-docs.server";
 
 const persistence = memoryPersistence();
 
 // Replace this function with your session and ownership check.
-// It returns false, so it blocks every load until you replace it.
+// Get the user from your server session, not from the request body.
+// It returns false, so it blocks every request until you replace it.
 async function ownsThread(request: Request, threadId: string) {
   void request;
   void threadId;
   return false;
+}
+
+export async function POST(request: Request) {
+  const params = await chatParamsFromRequest(request);
+  if (!(await ownsThread(request, params.threadId))) {
+    return new Response("Forbidden", { status: 403 });
+  }
+
+  const stream = chat({
+    adapter: openaiText("gpt-6.1-sol"),
+    messages: params.messages,
+    threadId: params.threadId,
+    runId: params.runId,
+    ...(params.resume ? { resume: params.resume } : {}),
+    tools: [searchDocs],
+    middleware: [withPersistence(persistence)],
+  });
+
+  return toServerSentEventsResponse(stream);
 }
 
 export function GET(request: Request): Promise<Response> {
@@ -330,10 +371,15 @@ export const defineWord = toolDefinition({
 ## When the metadata fails
 
 - **The value is not JSON**: a `BigInt`, or an object that contains itself, makes the tool call fail with an error.
-- **The value does not fit `resultMetadataSchema`**: `chat()` checks the merged value after the tool returns. A mismatch makes the tool call fail, and the metadata is dropped.
+- **The value does not fit `resultMetadataSchema`**: `chat()` checks the merged value after the tool returns. A mismatch makes the tool call fail, and the metadata is dropped. If the tool does not set metadata, `chat()` does not check the schema, and the call does not fail.
 - **The tool throws**: `chat()` checks the metadata that the tool set before the throw. Only metadata that passes the check stays on the error result.
 
-When the check fails, the model gets only the error `Result metadata validation failed for tool search_docs`. The validator details go to the server log, so the model does not see your metadata values.
+The model gets a short error with only the tool name:
+
+- Not JSON: `Result metadata for tool search_docs is not JSON`.
+- Schema mismatch: `Result metadata validation failed for tool search_docs`.
+
+The details go to the server log, so the model does not see your metadata values.
 
 The check needs a Standard Schema, such as Zod. An async Standard Schema also works, because `chat()` waits for the check. A JSON Schema in `resultMetadataSchema` is not checked, and the type is `Record<string, unknown>`. A tool with no `resultMetadataSchema` has the same type.
 
