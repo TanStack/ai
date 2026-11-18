@@ -25,8 +25,12 @@ export default defineWorkflow('e2e', {
     // The tests talk to aimock on 127.0.0.1 only, so they need no provider host and no API key.
     egress: [
       'registry.npmjs.org',
+      // The pinned @tanstack/oracles tarball in pnpm-lock.yaml.
+      'pkg.pr.new',
       'nodejs.org',
       'cdn.playwright.dev',
+      // cdn.playwright.dev redirects the Chrome download of Playwright 1.65 here.
+      'storage.googleapis.com',
       'playwright.download.prss.microsoft.com',
     ],
     steps: [

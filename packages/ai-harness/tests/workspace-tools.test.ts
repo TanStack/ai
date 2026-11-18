@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs'
 import { mkdtemp, readFile, realpath, rm, symlink } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import * as nodePath from 'node:path'
@@ -173,9 +174,17 @@ const toolNames = (call: { tools: Array<{ name: string }> }) =>
 function isRunning(pid: number) {
   try {
     process.kill(pid, 0)
-    return true
   } catch {
     return false
+  }
+  // A zombie still answers `kill(pid, 0)`. In a CI container whose PID 1
+  // never reaps it (TanStack Source), a killed child stays a zombie, so read
+  // its state on Linux. With no /proc, the process counts as running.
+  try {
+    const stat = readFileSync(`/proc/${pid}/stat`, 'utf8')
+    return !stat.slice(stat.lastIndexOf(')') + 2).startsWith('Z')
+  } catch {
+    return true
   }
 }
 

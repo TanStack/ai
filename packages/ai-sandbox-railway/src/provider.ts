@@ -5,7 +5,12 @@ import {
   SandboxNotFoundError,
   SandboxTimeoutError,
 } from 'railway'
-import { DEFAULT_WORKDIR, RailwayHandle, railwayCapabilities } from './handle'
+import {
+  DEFAULT_WORKDIR,
+  RailwayHandle,
+  SNAPSHOT_PREFIX,
+  railwayCapabilities,
+} from './handle'
 import type { RailwayForkConfig } from './handle'
 import type {
   ConnectOptions,
@@ -17,6 +22,7 @@ import type {
 import type {
   SandboxCapabilities,
   SandboxCreateInput,
+  SandboxDeleteSnapshotInput,
   SandboxDestroyInput,
   SandboxHandle,
   SandboxPolicy,
@@ -150,6 +156,26 @@ function assertNoNetworkDeny(policy: SandboxPolicy | undefined): void {
       'networkPolicy',
       "Railway sandboxes always have public internet egress (ISOLATED only removes private-network access); policy.capabilities.network: 'deny' cannot be enforced.",
     )
+  }
+}
+
+/**
+ * `client` with a `fetch` that also aborts on `signal`, so cancelling a call
+ * stops its in-flight requests instead of leaving them running. The SDK's
+ * checkpoint calls take no signal of their own.
+ */
+function withRequestSignal(
+  client: ConnectOptions,
+  signal: AbortSignal | undefined,
+): ConnectOptions {
+  if (!signal) return client
+  return {
+    ...client,
+    fetch: (url, init) =>
+      (client.fetch ?? globalThis.fetch)(url, {
+        ...init,
+        signal: init?.signal ? AbortSignal.any([init.signal, signal]) : signal,
+      }),
   }
 }
 
@@ -366,6 +392,38 @@ class RailwayProvider implements SandboxProvider {
       this.client,
     )
     return this.prepare(sandbox, input.env, input.signal)
+  }
+
+  /**
+   * Delete a checkpoint this provider captured. Checkpoints are
+   * environment-scoped and outlive their sandbox, so `ensure()`/`destroy()`
+   * call this once a checkpoint is no longer referenced.
+   *
+   * `snapshotId` is the checkpoint NAME (`key`), which is what restore boots
+   * from; the delete mutation takes the checkpoint's opaque id, so the name is
+   * resolved through the environment's checkpoint list first. A name that is
+   * not listed is already gone, which is success.
+   */
+  async deleteSnapshot(input: SandboxDeleteSnapshotInput): Promise<void> {
+    input.signal?.throwIfAborted()
+    // Only names this provider minted. A configured base `checkpoint` (or any
+    // checkpoint the app manages itself) must never be deleted from here.
+    if (!input.snapshotId.startsWith(SNAPSHOT_PREFIX)) return
+    const client = withRequestSignal(this.client, input.signal)
+    const listed = async (): Promise<Array<string>> =>
+      (await Sandbox.checkpoints(client))
+        .filter((checkpoint) => checkpoint.key === input.snapshotId)
+        .map((checkpoint) => checkpoint.id)
+    for (const id of await listed()) {
+      input.signal?.throwIfAborted()
+      try {
+        await Sandbox.deleteCheckpoint(id, client)
+      } catch (error) {
+        // The SDK has no typed not-found for checkpoints. Re-list to tell a
+        // concurrent delete (nothing left to do) from a real failure.
+        if ((await listed()).includes(id)) throw error
+      }
+    }
   }
 
   async resume(input: SandboxResumeInput): Promise<SandboxHandle | null> {
