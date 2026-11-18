@@ -51,7 +51,12 @@ import {
 import { watchWorkspace } from './watch'
 import { DEFAULT_WORKSPACE_ROOT } from './bootstrap'
 import { resolveHarnessCwd } from './harness-cwd'
-import { ensureSandboxWithOutcome, hasEnsureOutcome } from './sandbox'
+import {
+  ensureSandboxWithOutcome,
+  hasEnsureOutcome,
+  withSandboxKeyLock,
+} from './sandbox'
+import { deleteSnapshotQuietly } from './snapshot-cleanup'
 import {
   restoreSandboxFiles,
   captureSandboxFiles,
@@ -575,6 +580,7 @@ function buildEnsureCtx(
     tenant: tenantFrom(ctx.context),
     signal: ctx.signal,
     adapterName: ctx.provider,
+    logger: getSandboxRuntime(ctx, { optional: true })?.logger,
   }
 }
 
@@ -1199,14 +1205,27 @@ export function withSandbox<TOffset extends string = string>(
           const store = ensureCtx.store
           if (store) {
             const key = definition.key(ensureCtx)
-            const existing = await store.get(key)
-            if (existing) {
+            const record = async () => {
+              const existing = await store.get(key)
+              if (!existing) return undefined
               await store.upsert({
                 ...existing,
                 latestSnapshotId: snapshot.id,
                 updatedAt: Date.now(),
               })
+              return existing.latestSnapshotId
             }
+            // A provider that deletes replaced snapshots needs the ensure lock
+            // here: an overlapping `ensure()` writes back the record it read,
+            // which could restore the snapshot id deleted below.
+            const replaced = definition.provider.deleteSnapshot
+              ? await withSandboxKeyLock(ensureCtx.locks, key, record)
+              : await record()
+            if (replaced !== snapshot.id)
+              await deleteSnapshotQuietly(definition.provider, replaced, {
+                logger: state.logger,
+                meta: { runId: ctx.runId, phase: 'finish' },
+              })
           }
         }
 

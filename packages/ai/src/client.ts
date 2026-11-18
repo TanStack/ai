@@ -237,6 +237,7 @@ export {
 export {
   BatchStrategy,
   CompositeStrategy,
+  copyThinkingStepOf,
   defaultJSONParser,
   ImmediateStrategy,
   parsePartialJSON,

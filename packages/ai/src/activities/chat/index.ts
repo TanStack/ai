@@ -50,6 +50,7 @@ import type { ChatResult } from '../../stream-to-response.js'
 import {
   normalizeToolResult,
   parseToolOutput,
+  textToolResultMark,
   toolResultErrorText,
 } from '../../utilities/tool-result'
 import { isProviderExecutedToolCall } from '../../utilities/provider-executed'
@@ -2621,10 +2622,23 @@ class TextEngine<
       .find((candidate) => candidate.id === chunk.toolCallId)
     if (!toolCall) return
 
+    // Adapter output-error content is a wire string. Parse { error: string }
+    // JSON so it is not text-marked; live StreamProcessor then shows the
+    // same error text as a reload.
+    const recorded =
+      typeof chunk.content === 'string'
+        ? parseToolOutput(chunk.content, chunk.metadata)
+        : chunk.content
     this.streamedToolErrorResults.set(chunk.toolCallId, {
       toolCallId: chunk.toolCallId,
       toolName: toolCall.function.name,
-      result: chunk.content,
+      result:
+        typeof recorded === 'object' &&
+        recorded !== null &&
+        'error' in recorded &&
+        typeof recorded.error === 'string'
+          ? recorded
+          : chunk.content,
       state: 'output-error',
     })
   }
@@ -3694,16 +3708,9 @@ class TextEngine<
         // Parse content back to original output (was stringified by
         // uiMessageToModelMessages). Multimodal results carry an
         // Array<ContentPart> directly — pass it through without parsing.
-        let output: unknown
-        if (Array.isArray(message.content)) {
-          output = message.content
-        } else {
-          try {
-            output = JSON.parse(message.content as string)
-          } catch {
-            output = message.content
-          }
-        }
+        const output: unknown = Array.isArray(message.content)
+          ? message.content
+          : parseToolOutput(message.content as string, message.metadata)
         // Skip approval response messages (they have pendingExecution marker)
         // These are NOT real client tool results — they are synthetic tool messages
         // created by uiMessageToModelMessages for approved-but-not-yet-executed tools.
@@ -3937,19 +3944,28 @@ class TextEngine<
     this.middlewareCtx.messages = this.messages
   }
 
-  private buildMessagesSnapshotChunk(): StreamChunk {
-    const withIds = this.messages.map((message, index) => ({
+  private assignSnapshotMessageIds(): void {
+    // Store the ids the snapshot gives, so a reload of the stored messages
+    // names each message as the live chat does. Persistence saves on the
+    // interrupt RUN_FINISHED and skips onFinish, so these ids must exist
+    // before that terminal reaches onChunk.
+    this.messages = this.messages.map((message, index) => ({
       ...message,
       id:
         message.id ||
         `snapshot_${this.runIdOverride ?? this.requestId}_${index}`,
     }))
+    this.middlewareCtx.messages = this.messages
+  }
+
+  private buildMessagesSnapshotChunk(): StreamChunk {
+    this.assignSnapshotMessageIds()
     return {
       type: EventType.MESSAGES_SNAPSHOT,
       timestamp: Date.now(),
       messages: uiMessagesToWire(
         interleaveActivityRecords(
-          modelMessagesToUIMessages(withIds),
+          modelMessagesToUIMessages(this.messages),
           this.activities,
         ),
         {
@@ -4091,6 +4107,7 @@ class TextEngine<
         childInterrupts,
       ),
     )
+    this.assignSnapshotMessageIds()
     let terminalOutputs: Array<StreamChunk>
     try {
       terminalOutputs = [
@@ -4386,15 +4403,21 @@ class TextEngine<
           metadata: { ...result.metadata },
         }),
       }
-      // An outcome always comes with output-error.
+      // An outcome always comes with output-error. A string result says so,
+      // or the client would parse '42' into 42.
+      const textMark = textToolResultMark(result.result)
+      const resultMetadata = {
+        ...(result.state === 'output-error' && {
+          state: result.state,
+          ...(result.outcome !== undefined && {
+            toolResultOutcome: result.outcome,
+          }),
+        }),
+        ...textMark,
+      }
       chunks.push(
-        (result.state === 'output-error'
-          ? withTanstackMetadata(resultChunk, {
-              state: result.state,
-              ...(result.outcome !== undefined && {
-                toolResultOutcome: result.outcome,
-              }),
-            })
+        (Object.keys(resultMetadata).length > 0
+          ? withTanstackMetadata(resultChunk, resultMetadata)
           : resultChunk) as StreamChunk,
       )
 
@@ -4409,11 +4432,12 @@ class TextEngine<
           return false
         }
         if (typeof m.content !== 'string') return false
-        try {
-          return JSON.parse(m.content)?.pendingExecution === true
-        } catch {
-          return false
-        }
+        const parsed = parseToolOutput(m.content, m.metadata)
+        return (
+          typeof parsed === 'object' &&
+          parsed !== null &&
+          (parsed as { pendingExecution?: unknown }).pendingExecution === true
+        )
       })
       const isDeniedResult = result.outcome === 'denied'
       const existingToolResultIdx =
@@ -4434,8 +4458,11 @@ class TextEngine<
         existingToolResultIdx >= 0
           ? this.messages[existingToolResultIdx]
           : undefined
+      // Stored error uses the original result, so a text-marked JSON string
+      // stays that string live and after reload. Adapter { error } JSON is
+      // already an object when recorded, so this still extracts the message.
       const errorField = result.state === 'output-error' && {
-        error: toolResultErrorText(parseToolOutput(wireContent)),
+        error: toolResultErrorText(result.result),
       }
       // The app result metadata goes on the tool message for the app and
       // persistence. Adapters send only `content` to the model.
@@ -4458,11 +4485,15 @@ class TextEngine<
               ...errorField,
               ...metadataField,
             }
+      const messageMetadata = {
+        ...(result.outcome !== undefined && {
+          toolResultOutcome: result.outcome,
+        }),
+        ...textMark,
+      }
       const newToolMessage: ModelMessage =
-        result.outcome !== undefined
-          ? withTanstackMetadata(replacementMessage, {
-              toolResultOutcome: result.outcome,
-            })
+        Object.keys(messageMetadata).length > 0
+          ? withTanstackMetadata(replacementMessage, messageMetadata)
           : replacementMessage
 
       if (resultMessageIdx >= 0) {
@@ -4500,13 +4531,13 @@ class TextEngine<
         // Check if this is an approval response with pendingExecution marker
         let hasPendingExecution = false
         if (typeof message.content === 'string') {
-          try {
-            const parsed = JSON.parse(message.content)
-            if (parsed.pendingExecution === true) {
-              hasPendingExecution = true
-            }
-          } catch {
-            // Not JSON, treat as regular tool result
+          const parsed = parseToolOutput(message.content, message.metadata)
+          if (
+            typeof parsed === 'object' &&
+            parsed !== null &&
+            (parsed as { pendingExecution?: unknown }).pendingExecution === true
+          ) {
+            hasPendingExecution = true
           }
         }
 

@@ -22,6 +22,7 @@ import {
   aguiSnapshotMessageToUIMessage,
   coerceCreatedAt,
   generateMessageId,
+  isWhitespaceOnlyMessage,
   uiMessageToModelMessages,
 } from '../messages.js'
 import { runErrorEventToError } from '../../../utilities/errors'
@@ -45,6 +46,8 @@ import {
   isContentPartArray,
   isToolResultOutcome,
   normalizeToolResult,
+  parseToolOutput,
+  textToolResultMark,
   toolResultErrorText,
 } from '../../../utilities/tool-result'
 import { defaultJSONParser } from './json-parser'
@@ -481,6 +484,7 @@ export class StreamProcessor {
     const content = normalizeToolResult(output)
     const toolResultState: ToolResultState = error ? 'error' : 'complete'
 
+    const textMark = textToolResultMark(output)
     updatedMessages = updateToolResultPart(
       updatedMessages,
       messageWithToolCall.id,
@@ -488,6 +492,8 @@ export class StreamProcessor {
       content,
       toolResultState,
       error,
+      undefined,
+      textMark && { tanstack: textMark },
     )
 
     this.messages = updatedMessages
@@ -2276,16 +2282,9 @@ export class StreamProcessor {
 
         // Apply sibling tool-result when the call still has no output.
         if (result && next.output === undefined) {
-          let output: unknown
-          if (Array.isArray(result.content)) {
-            output = result.content
-          } else {
-            try {
-              output = JSON.parse(result.content)
-            } catch {
-              output = result.content
-            }
-          }
+          const output: unknown = Array.isArray(result.content)
+            ? result.content
+            : parseToolOutput(result.content, result.metadata)
           const errorText =
             result.state === 'error' ? toolResultErrorText(output) : undefined
           next = {
@@ -2650,15 +2649,10 @@ export class StreamProcessor {
       toolResultOutcome !== undefined
 
     // Step 1: Update the tool-call part's output field
-    let output: unknown
-    try {
-      output =
-        typeof chunk.content === 'string'
-          ? JSON.parse(chunk.content)
-          : chunk.content
-    } catch {
-      output = chunk.content
-    }
+    const output: unknown =
+      typeof chunk.content === 'string'
+        ? parseToolOutput(chunk.content, chunk.metadata)
+        : chunk.content
     // The tool-call part gets only the app keys. The tool-result part below
     // keeps the full metadata, with the reserved `tanstack` key.
     this.messages = updateToolCallWithOutput(
@@ -3551,7 +3545,7 @@ export class StreamProcessor {
     // that sometimes return just "\n" during auto-continuation).
     // Preserve the message on errors so the UI can show error state.
     if (lastAssistantMessage && !this.hasError) {
-      if (this.isWhitespaceOnlyMessage(lastAssistantMessage)) {
+      if (isWhitespaceOnlyMessage(lastAssistantMessage)) {
         this.messages = this.messages.filter(
           (m) => m.id !== lastAssistantMessage.id,
         )
@@ -3698,17 +3692,6 @@ export class StreamProcessor {
     this.messages = []
     this.childProcessors.clear()
     this.childToolCalls.clear()
-  }
-
-  /**
-   * Check if a message contains only whitespace text and no other meaningful parts
-   * (no tool calls, tool results, thinking, etc.)
-   */
-  private isWhitespaceOnlyMessage(message: UIMessage): boolean {
-    if (message.parts.length === 0) return false
-    return message.parts.every(
-      (part) => part.type === 'text' && part.content.trim() === '',
-    )
   }
 
   /**
