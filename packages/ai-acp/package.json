@@ -1,6 +1,6 @@
 {
   "name": "@tanstack/ai-acp",
-  "version": "1.0.0",
+  "version": "1.0.2",
   "description": "Shared Agent Client Protocol (ACP) transport, session, and AG-UI translation for TanStack AI harness adapters.",
   "author": "",
   "license": "MIT",
@@ -66,6 +66,6 @@
     "@tanstack/ai-persistence": "workspace:*",
     "@tanstack/ai-sandbox": "workspace:*",
     "@tanstack/ai-sandbox-local-process": "workspace:*",
-    "@vitest/coverage-v8": "4.1.10"
+    "@vitest/coverage-v8": "4.1.12"
   }
 }

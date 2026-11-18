@@ -4,10 +4,11 @@ import { resolveDebugOption } from '@tanstack/ai/adapter-internals'
 const designMock = vi.fn()
 const createMock = vi.fn()
 
-vi.mock('@elevenlabs/elevenlabs-js', () => ({
-  ElevenLabsClient: class {
-    textToVoice = { design: designMock, create: createMock }
-  },
+// The adapters build their client with `createElevenLabsClient`.
+vi.mock('../src/client', () => ({
+  createElevenLabsClient: () => ({
+    textToVoice: { design: designMock, create: createMock },
+  }),
 }))
 
 import { elevenlabsVoiceDesign } from '../src/adapters/voice'

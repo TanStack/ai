@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import OpenAI from 'openai'
+import { createOpenAIClient } from '../src/client'
 import { resolveDebugOption } from '@tanstack/ai/adapter-internals'
 import { OpenAIBaseChatCompletionsTextAdapter } from '../src/adapters/chat-completions-text'
 import { OpenAIBaseResponsesTextAdapter } from '../src/adapters/responses-text'
@@ -41,7 +41,7 @@ const apis = [
   {
     api: 'Chat Completions',
     adapter: (fetch: Fetch) =>
-      new Completions(model, 'openai', new OpenAI({ apiKey, fetch }), {
+      new Completions(model, 'openai', createOpenAIClient({ apiKey, fetch }), {
         fetch,
       }),
     sse: `data: ${JSON.stringify(completionsDone)}\n\ndata: [DONE]\n\n`,
@@ -49,7 +49,9 @@ const apis = [
   {
     api: 'Responses',
     adapter: (fetch: Fetch) =>
-      new Responses(model, 'openai', new OpenAI({ apiKey, fetch }), { fetch }),
+      new Responses(model, 'openai', createOpenAIClient({ apiKey, fetch }), {
+        fetch,
+      }),
     sse: `data: ${JSON.stringify(responsesDone)}\n\n`,
   },
 ]

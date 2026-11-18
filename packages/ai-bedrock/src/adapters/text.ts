@@ -1,5 +1,7 @@
-import OpenAI from 'openai'
-import { OpenAIBaseChatCompletionsTextAdapter } from '@tanstack/openai-base'
+import {
+  OpenAIBaseChatCompletionsTextAdapter,
+  createOpenAIClient,
+} from '@tanstack/openai-base'
 import {
   isBedrockOpenAIContextOverflow,
   withBedrockDefaults,
@@ -38,7 +40,7 @@ type ResolveToolCapabilities<TModel extends string> =
 
 /**
  * Bedrock Chat Completions adapter. Drives Bedrock's OpenAI-compatible
- * `/chat/completions` endpoint via the OpenAI SDK with a baseURL override
+ * `/chat/completions` endpoint via the OpenAI-compatible client with a baseURL override
  * (same pattern as ai-groq). Tool conversion, streaming, structured output,
  * and the agent loop come from the base.
  */
@@ -72,7 +74,7 @@ export class BedrockTextAdapter<
   constructor(config: BedrockTextConfig, model: TModel) {
     // No `forced` -> honors config.endpoint ('runtime' default, 'mantle' allowed).
     const options = withBedrockDefaults(config, undefined, model)
-    super(model, 'bedrock', new OpenAI(options), {
+    super(model, 'bedrock', createOpenAIClient(options), {
       ...config,
       fetch: options.fetch,
     })

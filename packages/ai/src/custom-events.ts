@@ -22,6 +22,7 @@ export const CUSTOM_EVENT = {
   APPROVAL_REQUESTED: 'approval.requested',
   APPROVAL_RESOLVED: 'approval.resolved',
   ARTIFACT_CREATED: 'artifact.created',
+  SANDBOX_STARTING: 'sandbox.starting',
   SANDBOX_CREATED: 'sandbox.created',
   SANDBOX_RESUMED: 'sandbox.resumed',
 } as const
@@ -73,6 +74,14 @@ export interface ArtifactCreatedPayload {
   size: number
 }
 
+/**
+ * Sent before the sandbox is created or resumed. The sandbox id is not known
+ * yet, so the payload has only the provider name.
+ */
+export interface SandboxStartingPayload {
+  provider: string
+}
+
 export interface SandboxLifecyclePayload {
   sandboxId: string
   provider: string
@@ -87,6 +96,7 @@ export interface CustomEventPayloads {
   [CUSTOM_EVENT.APPROVAL_REQUESTED]: ApprovalRequestedPayload
   [CUSTOM_EVENT.APPROVAL_RESOLVED]: ApprovalResolvedPayload
   [CUSTOM_EVENT.ARTIFACT_CREATED]: ArtifactCreatedPayload
+  [CUSTOM_EVENT.SANDBOX_STARTING]: SandboxStartingPayload
   [CUSTOM_EVENT.SANDBOX_CREATED]: SandboxLifecyclePayload
   [CUSTOM_EVENT.SANDBOX_RESUMED]: SandboxLifecyclePayload
 }

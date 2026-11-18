@@ -153,7 +153,16 @@ export const Route = createFileRoute('/api/sandbox-durability')({
             withSandbox(sandbox, { instances: instanceStore }),
           ],
         })
-        for await (const _ of stream) void _
+        // Lifecycle events and RUN_STARTED, in stream order.
+        const events: Array<string> = []
+        for await (const chunk of stream) {
+          if (chunk.type === EventType.RUN_STARTED) events.push('RUN_STARTED')
+          else if (
+            chunk.type === EventType.CUSTOM &&
+            chunk.name.startsWith('sandbox.')
+          )
+            events.push(chunk.name)
+        }
 
         const key = sandbox.key({ threadId, runId })
         const record = await instanceStore.get(key)
@@ -163,6 +172,7 @@ export const Route = createFileRoute('/api/sandbox-durability')({
           resume: resumeCountByKey.get(countKey) ?? 0,
           providerSandboxId: record?.providerSandboxId ?? null,
           latestRunId: record?.latestRunId ?? null,
+          events,
         })
       },
     },

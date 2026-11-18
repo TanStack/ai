@@ -292,6 +292,43 @@ describe('withCompaction', () => {
     expect(appended).toHaveLength(5)
   })
 
+  it('reuses a persisted checkpoint when the store gives keys back in another order', async () => {
+    const store = memoryStore()
+    const summarize = vi.fn(async () => 'the gist')
+    const messages = [
+      big('user'),
+      big('assistant'),
+      big('user'),
+      big('assistant'),
+    ]
+    const options = {
+      maxTokens: 100,
+      strategy: summarizeOldest({ summarize, keepRecentTokens: 50 }),
+      strategyKey: 'summary-v1',
+    }
+
+    await runOnConfig(
+      withCompaction(options),
+      messages,
+      checkpointContext(store),
+    )
+    // As PostgreSQL jsonb gives them back: equal messages, keys reordered.
+    const loaded = messages.map(
+      ({ role, content, ...rest }): ModelMessage => ({
+        content,
+        ...rest,
+        role,
+      }),
+    )
+    await runOnConfig(
+      withCompaction(options),
+      [...loaded, text('user', 'new')],
+      checkpointContext(store),
+    )
+
+    expect(summarize).toHaveBeenCalledOnce()
+  })
+
   it('rejects a checkpoint when the canonical prefix changes', async () => {
     const store = memoryStore()
     const summarize = vi.fn(async () => 'the gist')
@@ -3335,6 +3372,45 @@ describe('withCompaction native', () => {
 
     expect(compact.mock.calls[0]?.[0]).toMatchObject({
       systemPrompts: ['Be brief.'],
+    })
+  })
+
+  it('passes the chat tools, model options, reasoning, and addUsage', async () => {
+    const compact = vi.fn((options: TextCompactOptions) => {
+      options.addUsage?.({
+        promptTokens: 3,
+        completionTokens: 1,
+        totalTokens: 4,
+      })
+      return Promise.resolve([text('user', 'kept')])
+    })
+    const echo = {
+      name: 'echo',
+      description: 'Echo',
+      inputSchema: { type: 'object' as const, properties: {} },
+    }
+    const recorded = recordingContext('beforeModel', { model: 'gpt-5.5' })
+    await withCompaction({ maxTokens: 50, native: { compact } }).onConfig?.(
+      recorded.ctx,
+      {
+        messages: [big('user'), big('assistant'), big('user')],
+        systemPrompts: ['Be brief.'],
+        tools: [echo],
+        modelOptions: { max_tokens: 4096 },
+        reasoning: { level: 'low', summary: false },
+      },
+    )
+
+    expect(compact.mock.calls[0]?.[0]).toMatchObject({
+      tools: [echo],
+      modelOptions: { max_tokens: 4096 },
+      reasoning: { level: 'low', summary: false },
+    })
+    const ended = recorded.events.find(
+      (event) => event.name === COMPACTION_ENDED_EVENT,
+    )
+    expect(ended?.value).toMatchObject({
+      usage: { promptTokens: 3, completionTokens: 1, totalTokens: 4 },
     })
   })
 })

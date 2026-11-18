@@ -1,4 +1,6 @@
-import { OpenAI, toFile } from 'openai'
+import { toFile } from 'openai/core/uploads'
+import { createOpenAIClient } from '@tanstack/openai-base'
+import type { OpenAIClientLike } from '@tanstack/openai-base'
 import {
   BaseFilesAdapter,
   normalizeFileUploadInput,
@@ -25,13 +27,13 @@ export interface OpenAIFilesConfig extends OpenAIClientConfig {
  */
 export class OpenAIFilesAdapter extends BaseFilesAdapter<'openai'> {
   readonly name = 'openai' as const
-  protected client: OpenAI
+  protected client: OpenAIClientLike
   private readonly purpose: FilePurpose
 
   constructor(config: OpenAIFilesConfig) {
     super()
     const { purpose, ...clientOptions } = config
-    this.client = new OpenAI(clientOptions)
+    this.client = createOpenAIClient(clientOptions)
     this.purpose = purpose ?? 'user_data'
   }
 

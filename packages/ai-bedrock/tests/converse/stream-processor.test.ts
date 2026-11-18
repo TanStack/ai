@@ -150,6 +150,7 @@ describe('processConverseStream', () => {
       ['tool_use', 'tool_calls'],
       ['max_tokens', 'length'],
       ['content_filtered', 'content_filter'],
+      ['guardrail_intervened', 'content_filter'],
       ['end_turn', 'stop'],
       ['some_unknown_reason', 'stop'],
     ]

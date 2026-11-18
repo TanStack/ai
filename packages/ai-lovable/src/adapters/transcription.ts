@@ -1,4 +1,4 @@
-import OpenAI from 'openai'
+import { createOpenAIClient } from '@tanstack/openai-base'
 import { BaseTranscriptionAdapter } from '@tanstack/ai/adapters'
 import { toRunErrorPayload } from '@tanstack/ai/adapter-internals'
 import { base64ToArrayBuffer, generateId } from '@tanstack/ai-utils'
@@ -14,6 +14,7 @@ import type {
   TranscriptionResult,
 } from '@tanstack/ai'
 import type OpenAI_SDK from 'openai'
+import type { OpenAIClientLike } from '@tanstack/openai-base'
 import type { LovableTranscriptionModel } from '../model-meta'
 import type { LovableTranscriptionProviderOptions } from '../audio/transcription-provider-options'
 import type { LovableClientConfig } from '../utils/client'
@@ -73,11 +74,11 @@ export class LovableTranscriptionAdapter<
 > {
   readonly name = 'lovable' as const
 
-  protected client: OpenAI
+  protected client: OpenAIClientLike
 
   constructor(config: LovableTranscriptionConfig, model: TModel) {
     super(model, {})
-    this.client = new OpenAI(withLovableDefaults(config))
+    this.client = createOpenAIClient(withLovableDefaults(config))
   }
 
   async transcribe(

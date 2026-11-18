@@ -1,17 +1,18 @@
 import { BaseAudioAdapter } from '@tanstack/ai/adapters'
 import {
   arrayBufferToBase64,
-  createElevenLabsClient,
   generateId,
   parseOutputFormat,
   readStreamToArrayBuffer,
 } from '../utils/client'
+import { createElevenLabsClient } from '../client/index'
 import {
   ELEVENLABS_AUDIO_MODELS,
   isElevenLabsMusicModel,
   isElevenLabsSoundEffectsModel,
 } from '../model-meta'
-import type { ElevenLabs, ElevenLabsClient } from '@elevenlabs/elevenlabs-js'
+import type { ElevenLabs } from '@elevenlabs/elevenlabs-js'
+import type { ElevenLabsClient } from '../client/index'
 import type {
   AudioGenerationOptions,
   AudioGenerationResult,

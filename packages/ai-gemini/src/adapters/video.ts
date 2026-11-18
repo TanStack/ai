@@ -1,8 +1,4 @@
 import {
-  GenerateVideosOperation,
-  VideoGenerationReferenceType,
-} from '@google/genai'
-import {
   fileReferenceFor,
   isFileSource,
   resolveMediaPrompt,
@@ -10,6 +6,7 @@ import {
 } from '@tanstack/ai'
 import { BaseVideoAdapter } from '@tanstack/ai/adapters'
 import { arrayBufferToBase64 } from '@tanstack/ai-utils'
+import { VideoGenerationReferenceType } from '../client/enums'
 import {
   createGeminiClient,
   getGeminiApiKeyFromEnv,
@@ -33,7 +30,6 @@ import type {
 } from '@tanstack/ai'
 import type {
   GenerateVideosConfig,
-  GoogleGenAI,
   Image,
   Interactions,
   VideoGenerationReferenceImage,
@@ -48,6 +44,7 @@ import type {
   GeminiVideoProviderOptions,
 } from '../video/video-provider-options'
 import type { GeminiClientConfig } from '../utils/client'
+import type { GeminiClient, GeminiVideosOperation } from '../client/index'
 
 type Interaction = Interactions.Interaction
 type InteractionContent = Interactions.Content
@@ -252,7 +249,7 @@ function interactionUsageToTokenUsage(
  * requires the API key (`x-goog-api-key` header or `?key=` query
  * parameter) to download.
  *
- * **Gemini Omni Flash** (`gemini-omni-1.1-flash`) only serves the Interactions API:
+ * **Gemini Omni Flash** (`gemini-omni-1.2-flash`, `gemini-omni-1.1-flash`) only serves the Interactions API:
  * `createVideoJob` creates a background interaction with
  * `response_modalities: ['video']`, `getVideoStatus` polls it by id, and
  * `getVideo` returns the inline base64 MP4 as a `data:` URL (or the
@@ -280,7 +277,7 @@ export class GeminiVideoAdapter<
   // `uri`s; the Veo path still rejects them (raw bytes / gs:// only).
   override readonly supportsFileSources = true
 
-  protected client: GoogleGenAI
+  protected client: GeminiClient
   private readonly allowUrlFetch: boolean
   private readonly timeoutMs: number | undefined
 
@@ -700,19 +697,14 @@ export class GeminiVideoAdapter<
   }
 
   /**
-   * Fetch the long-running operation by name. The SDK's
-   * `operations.getVideosOperation` needs a real `GenerateVideosOperation`
-   * instance (it calls `_fromAPIResponse` on it), so reconstruct one from
-   * the job ID rather than passing an object literal.
+   * Fetch the long-running operation by name.
    */
   private async getOperation(
     jobId: string,
     signal?: AbortSignal,
-  ): Promise<GenerateVideosOperation> {
-    const operation = new GenerateVideosOperation()
-    operation.name = jobId
+  ): Promise<GeminiVideosOperation> {
     return await this.client.operations.getVideosOperation({
-      operation,
+      operation: { name: jobId },
       ...(signal && { config: { abortSignal: signal } }),
     })
   }

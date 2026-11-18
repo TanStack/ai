@@ -1,4 +1,4 @@
-import { FileState } from '@google/genai'
+import { FileState } from '../client/enums'
 import { createGeminiClient, getGeminiApiKeyFromEnv } from '../utils'
 import type { GeminiVideoMetadata } from '../message-types'
 import type { VideoPart } from '@tanstack/ai'

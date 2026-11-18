@@ -8,17 +8,14 @@ const mocks = vi.hoisted(() => {
   return { responsesCreate }
 })
 
-vi.mock('openai', () => {
-  const { responsesCreate } = mocks
-
-  function MockOpenAI(this: { responses: { create: typeof responsesCreate } }) {
-    this.responses = {
-      create: responsesCreate,
-    }
-  }
-
-  return { default: MockOpenAI }
-})
+vi.mock('@tanstack/openai-base', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@tanstack/openai-base')>()),
+  createOpenAIClient: () => ({
+    responses: {
+      create: mocks.responsesCreate,
+    },
+  }),
+}))
 
 const createAdapter = () =>
   new GrokTextAdapter({ apiKey: 'test-key' }, 'grok-4.3')

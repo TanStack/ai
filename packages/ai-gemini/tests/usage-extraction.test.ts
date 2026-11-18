@@ -29,10 +29,8 @@ const mocks = vi.hoisted(() => {
   }
 })
 
-vi.mock('@google/genai', async () => {
+vi.mock('../src/client', () => {
   const { constructorSpy, generateContentStreamSpy } = mocks
-
-  const actual = await vi.importActual('@google/genai')
   class MockGoogleGenAI {
     public models = {
       generateContentStream: generateContentStreamSpy,
@@ -44,9 +42,9 @@ vi.mock('@google/genai', async () => {
   }
 
   return {
-    GoogleGenAI: MockGoogleGenAI,
-    Type: actual.Type,
-    FinishReason: actual.FinishReason,
+    createGoogleGenAI: (
+      options: ConstructorParameters<typeof MockGoogleGenAI>[0],
+    ) => new MockGoogleGenAI(options),
   }
 })
 

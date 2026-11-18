@@ -104,6 +104,11 @@
           "label": "Subscribe to MCP Events",
           "to": "tutorials/mcp-events",
           "addedAt": "2026-10-17"
+        },
+        {
+          "label": "Effect Chat",
+          "to": "tutorials/effect-chat",
+          "addedAt": "2026-11-06"
         }
       ]
     },
@@ -155,6 +160,11 @@
           "label": "MCP Events",
           "to": "framework/react/examples/mcp-events",
           "addedAt": "2026-10-17"
+        },
+        {
+          "label": "Effect Chat",
+          "to": "framework/react/examples/effect-chat",
+          "addedAt": "2026-11-06"
         }
       ]
     },
@@ -182,7 +192,7 @@
           "label": "Streaming",
           "to": "chat/streaming",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-10-22"
+          "updatedAt": "2026-11-09"
         },
         {
           "label": "Stream Events",
@@ -206,7 +216,7 @@
           "label": "Agentic Cycle",
           "to": "chat/agentic-cycle",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-10-22"
+          "updatedAt": "2026-11-05"
         },
         {
           "label": "Thinking & Reasoning",
@@ -416,7 +426,7 @@
           "label": "Middleware: Advanced",
           "to": "advanced/middleware-advanced",
           "addedAt": "2026-10-21",
-          "updatedAt": "2026-11-02"
+          "updatedAt": "2026-11-11"
         },
         {
           "label": "Built-in Middleware",
@@ -440,13 +450,13 @@
           "label": "Compaction",
           "to": "advanced/compaction",
           "addedAt": "2026-08-24",
-          "updatedAt": "2026-10-22"
+          "updatedAt": "2026-11-09"
         },
         {
           "label": "Compaction: Advanced",
           "to": "advanced/compaction-advanced",
           "addedAt": "2026-10-21",
-          "updatedAt": "2026-10-22"
+          "updatedAt": "2026-11-09"
         }
       ],
       "tab": "guides"
@@ -626,13 +636,13 @@
           "label": "Managed MCP with chat()",
           "to": "tools/mcp-managed",
           "addedAt": "2026-06-05",
-          "updatedAt": "2026-11-02"
+          "updatedAt": "2026-11-09"
         },
         {
           "label": "Manual MCP",
           "to": "tools/mcp-manual",
           "addedAt": "2026-06-05",
-          "updatedAt": "2026-11-02"
+          "updatedAt": "2026-11-09"
         },
         {
           "label": "MCP Type Generation",
@@ -660,7 +670,7 @@
           "label": "MCP Apps",
           "to": "mcp/apps",
           "addedAt": "2026-06-24",
-          "updatedAt": "2026-11-02"
+          "updatedAt": "2026-11-09"
         },
         {
           "label": "Serve Tools over HTTP",
@@ -936,13 +946,13 @@
           "label": "Video Generation",
           "to": "media/video-generation",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-11-02"
+          "updatedAt": "2026-11-06"
         },
         {
           "label": "Video Generation: Advanced",
           "to": "media/video-generation-advanced",
           "addedAt": "2026-10-21",
-          "updatedAt": "2026-11-02"
+          "updatedAt": "2026-11-06"
         },
         {
           "label": "Live Generation",
@@ -984,7 +994,7 @@
           "label": "Reranking",
           "to": "rerank/rerank",
           "addedAt": "2026-06-25",
-          "updatedAt": "2026-11-02"
+          "updatedAt": "2026-11-09"
         }
       ],
       "tab": "guides"
@@ -1123,7 +1133,7 @@
           "label": "Send inputs safely",
           "to": "harness/inputs",
           "addedAt": "2026-10-13",
-          "updatedAt": "2026-10-22"
+          "updatedAt": "2026-11-05"
         },
         {
           "label": "Run a tool without a model",
@@ -1403,19 +1413,19 @@
           "label": "Portable Snapshots",
           "to": "sandbox/portable-snapshots",
           "addedAt": "2026-08-14",
-          "updatedAt": "2026-10-22"
+          "updatedAt": "2026-11-11"
         },
         {
           "label": "Keep Files After Reload",
           "to": "sandbox/portable-snapshots-configure",
           "addedAt": "2026-08-14",
-          "updatedAt": "2026-10-22"
+          "updatedAt": "2026-11-11"
         },
         {
           "label": "Save a Named Version",
           "to": "sandbox/portable-snapshots-save",
           "addedAt": "2026-08-14",
-          "updatedAt": "2026-10-22"
+          "updatedAt": "2026-11-11"
         },
         {
           "label": "Branch From a Version",
@@ -1439,13 +1449,23 @@
           "label": "Pick Which Files to Keep",
           "to": "sandbox/portable-snapshots-files",
           "addedAt": "2026-08-18",
-          "updatedAt": "2026-10-22"
+          "updatedAt": "2026-11-11"
         },
         {
           "label": "What a Snapshot Stores",
           "to": "sandbox/portable-snapshots-safety",
           "addedAt": "2026-08-14",
-          "updatedAt": "2026-10-22"
+          "updatedAt": "2026-11-11"
+        },
+        {
+          "label": "Checkpoint at Any Time",
+          "to": "sandbox/portable-snapshots-checkpoints",
+          "addedAt": "2026-11-11"
+        },
+        {
+          "label": "Store Checkpoints",
+          "to": "sandbox/portable-snapshots-storage",
+          "addedAt": "2026-11-11"
         },
         {
           "label": "Instance Durability",
@@ -1463,7 +1483,7 @@
           "label": "Events",
           "to": "sandbox/events",
           "addedAt": "2026-06-29",
-          "updatedAt": "2026-10-22"
+          "updatedAt": "2026-11-04"
         }
       ]
     },
@@ -1528,7 +1548,12 @@
           "label": "Cloudflare (Edge)",
           "to": "sandbox/cloudflare",
           "addedAt": "2026-06-29",
-          "updatedAt": "2026-10-22"
+          "updatedAt": "2026-11-11"
+        },
+        {
+          "label": "Your Own Cloudflare Container",
+          "to": "sandbox/cloudflare-container",
+          "addedAt": "2026-11-11"
         },
         {
           "label": "Cloudflare Edge Details",
@@ -1628,7 +1653,7 @@
           "label": "Tree-Shaking",
           "to": "advanced/tree-shaking",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-10-22"
+          "updatedAt": "2026-11-02"
         },
         {
           "label": "Extend Adapter",
@@ -1675,13 +1700,34 @@
       "tab": "guides"
     },
     {
+      "label": "Effect",
+      "tab": "guides",
+      "children": [
+        {
+          "label": "Stream a Chat",
+          "to": "effect/index",
+          "addedAt": "2026-11-06"
+        },
+        {
+          "label": "Tools",
+          "to": "effect/tools",
+          "addedAt": "2026-11-06"
+        },
+        {
+          "label": "Activities",
+          "to": "effect/activities",
+          "addedAt": "2026-11-06"
+        }
+      ]
+    },
+    {
       "label": "Adapters",
       "children": [
         {
           "label": "OpenAI",
           "to": "adapters/openai",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-10-22"
+          "updatedAt": "2026-11-11"
         },
         {
           "label": "OpenAI: Advanced",
@@ -1693,19 +1739,19 @@
           "label": "Anthropic",
           "to": "adapters/anthropic",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-10-22"
+          "updatedAt": "2026-11-09"
         },
         {
           "label": "Anthropic: Advanced",
           "to": "adapters/anthropic-advanced",
           "addedAt": "2026-10-21",
-          "updatedAt": "2026-11-02"
+          "updatedAt": "2026-11-09"
         },
         {
           "label": "Google Gemini",
           "to": "adapters/gemini",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-10-22"
+          "updatedAt": "2026-11-09"
         },
         {
           "label": "Google Gemini: Advanced",
@@ -1819,12 +1865,13 @@
           "label": "OpenAI-Compatible",
           "to": "adapters/openai-compatible",
           "addedAt": "2026-06-01",
-          "updatedAt": "2026-10-22"
+          "updatedAt": "2026-11-18"
         },
         {
           "label": "OpenAI-Compatible: Advanced",
           "to": "adapters/openai-compatible-advanced",
-          "addedAt": "2026-10-21"
+          "addedAt": "2026-10-21",
+          "updatedAt": "2026-11-18"
         },
         {
           "label": "LLM Gateway",
@@ -1836,7 +1883,7 @@
           "label": "Cloudflare",
           "to": "adapters/cloudflare",
           "addedAt": "2026-09-03",
-          "updatedAt": "2026-10-22"
+          "updatedAt": "2026-11-02"
         },
         {
           "label": "Neon AI Gateway",
@@ -1877,7 +1924,7 @@
           "label": "Amazon Bedrock",
           "to": "adapters/bedrock",
           "addedAt": "2026-06-25",
-          "updatedAt": "2026-10-22"
+          "updatedAt": "2026-11-09"
         },
         {
           "label": "BytePlus",
@@ -2023,7 +2070,7 @@
           "label": "@tanstack/ai",
           "to": "api/ai",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-11-02"
+          "updatedAt": "2026-11-05"
         },
         {
           "label": "@tanstack/ai-client",
@@ -2078,6 +2125,11 @@
           "to": "api/ai-remix",
           "addedAt": "2026-09-01",
           "updatedAt": "2026-10-21"
+        },
+        {
+          "label": "@tanstack/ai-effect",
+          "to": "api/ai-effect",
+          "addedAt": "2026-11-06"
         }
       ]
     },
@@ -2094,7 +2146,7 @@
           "label": "Custom Events Reference",
           "to": "protocol/custom-events",
           "addedAt": "2026-07-03",
-          "updatedAt": "2026-10-22"
+          "updatedAt": "2026-11-04"
         }
       ],
       "tab": "api"

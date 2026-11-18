@@ -7,16 +7,14 @@ const testLogger = resolveDebugOption(false)
 // Declare mockSend at module level
 let mockSend: any
 
-// Mock the OpenRouter SDK
-vi.mock('@openrouter/sdk', () => {
-  return {
-    OpenRouter: class {
-      chat = {
-        send: (...args: Array<unknown>) => mockSend(...args),
-      }
+// Mock the OpenRouter fetch client
+vi.mock('../src/client', () => ({
+  createOpenRouterChatClient: () => ({
+    chat: {
+      send: (...args: Array<unknown>) => mockSend(...args),
     },
-  }
-})
+  }),
+}))
 
 const createAdapter = () =>
   createOpenRouterImage('google/gemini-2.5-flash-image', 'test-key')

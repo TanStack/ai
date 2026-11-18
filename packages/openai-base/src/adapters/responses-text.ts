@@ -19,6 +19,7 @@ import {
   transformMessagesForReplay,
 } from '@tanstack/ai/adapter-internals'
 import { drainAfterTerminal, generateId } from '@tanstack/ai-utils'
+import { APIUserAbortError } from 'openai/core/error'
 import { Stream } from 'openai/streaming'
 import { clientFor, extractRequestOptions } from '../utils/request-options'
 import type { Fetch } from '../utils/request-options'
@@ -48,6 +49,7 @@ import {
 } from './responses-user-tools'
 import type { OpenAIUserToolName } from './responses-user-tools'
 import type OpenAI from 'openai'
+import type { OpenAIClientLike } from '../client/index'
 import type {
   StructuredOutputOptions,
   StructuredOutputResult,
@@ -173,10 +175,28 @@ function answerItems(
 ): ResponseInput | undefined {
   const items: TanStackMessageMetadata['responseItems'] =
     message.metadata?.tanstack?.responseItems
-  const texts = orderedAssistantBlocks(message)?.flatMap((block) =>
+  let texts = orderedAssistantBlocks(message)?.flatMap((block) =>
     block.type === 'text' ? [block.text] : [],
   ) ?? [text]
-  if (!items || items.length !== texts.length) return undefined
+  if (!items) return undefined
+  // Core and UI conversion can change text boundaries, even when counts match.
+  const lengths = items.map((item) => item.textLength)
+  if (
+    lengths.every(
+      (length): length is number =>
+        typeof length === 'number' && Number.isInteger(length) && length >= 0,
+    ) &&
+    lengths.reduce((sum, length) => sum + length, 0) === text.length
+  ) {
+    let offset = 0
+    texts = lengths.map((length) => {
+      const start = offset
+      offset += length
+      return text.slice(start, offset)
+    })
+  } else if (items.length !== texts.length) {
+    return undefined
+  }
   return items.map((item, index) => ({
     type: 'message',
     role: 'assistant',
@@ -476,7 +496,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
   override readonly kind = 'text' as const
   override readonly api: string = 'openai-responses'
   readonly name: string
-  protected client: OpenAI
+  protected client: OpenAIClientLike
 
   /**
    * Token usage for a Responses result. `source` is the response that carried
@@ -514,7 +534,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
   constructor(
     model: TModel,
     name: string,
-    client: OpenAI,
+    client: OpenAIClientLike,
     options: OpenAIBaseTextAdapterOptions & { fetch?: Fetch | undefined } = {},
   ) {
     super({}, model)
@@ -526,9 +546,9 @@ export abstract class OpenAIBaseResponsesTextAdapter<
 
   /**
    * A copy of the client that sends its requests through `fetch`. Override it
-   * when the SDK copy loses an option of your client.
+   * when the copy loses an option of your client.
    */
-  protected withFetch(fetch: Fetch): OpenAI {
+  protected withFetch(fetch: Fetch): OpenAIClientLike {
     return this.client.withOptions({ fetch })
   }
 
@@ -598,6 +618,15 @@ export abstract class OpenAIBaseResponsesTextAdapter<
       const rawEvent = toRunErrorRawEvent(error)
       const retryAfterMs = toRetryAfterMs(error)
 
+      // Log before yielding: a consumer that stops at RUN_ERROR closes this
+      // generator at the yield.
+      if (!this.isAbortError(error)) {
+        options.logger.errors(`${this.name}.chatStream fatal`, {
+          error: errorPayload,
+          source: `${this.name}.chatStream`,
+        })
+      }
+
       // Emit RUN_STARTED if not yet emitted
       if (!aguiState.hasEmittedRunStarted) {
         aguiState.hasEmittedRunStarted = true
@@ -636,11 +665,6 @@ export abstract class OpenAIBaseResponsesTextAdapter<
           code: errorPayload.code,
         },
       }
-
-      options.logger.errors(`${this.name}.chatStream fatal`, {
-        error: errorPayload,
-        source: `${this.name}.chatStream`,
-      })
     }
   }
 
@@ -753,10 +777,15 @@ export abstract class OpenAIBaseResponsesTextAdapter<
     } catch (error: unknown) {
       // Narrow before logging: raw SDK errors can carry request metadata
       // (including auth headers) which we must never surface to user loggers.
-      chatOptions.logger.errors(`${this.name}.structuredOutput fatal`, {
-        error: toRunErrorPayload(error, `${this.name}.structuredOutput failed`),
-        source: `${this.name}.structuredOutput`,
-      })
+      if (!this.isAbortError(error)) {
+        chatOptions.logger.errors(`${this.name}.structuredOutput fatal`, {
+          error: toRunErrorPayload(
+            error,
+            `${this.name}.structuredOutput failed`,
+          ),
+          source: `${this.name}.structuredOutput`,
+        })
+      }
       throw error
     }
   }
@@ -1176,6 +1205,13 @@ export abstract class OpenAIBaseResponsesTextAdapter<
       // `exactOptionalPropertyTypes` (see chatStream catch).
       const resolvedCode = isAbort ? 'aborted' : errorPayload.code
       const rawEvent = isAbort ? undefined : toRunErrorRawEvent(error)
+      // Log before RUN_ERROR: chat() closes this generator at that yield.
+      if (!isAbort) {
+        chatOptions.logger.errors(`${this.name}.structuredOutputStream fatal`, {
+          error: errorPayload,
+          source: `${this.name}.structuredOutputStream`,
+        })
+      }
       yield {
         type: EventType.RUN_ERROR,
         metadata: this.sourceMetadata(
@@ -1193,11 +1229,6 @@ export abstract class OpenAIBaseResponsesTextAdapter<
           ...(resolvedCode !== undefined && { code: resolvedCode }),
         },
       }
-
-      chatOptions.logger.errors(`${this.name}.structuredOutputStream fatal`, {
-        error: errorPayload,
-        source: `${this.name}.structuredOutputStream`,
-      })
     }
   }
 
@@ -1246,6 +1277,9 @@ export abstract class OpenAIBaseResponsesTextAdapter<
     error: unknown,
     fallbackMessage: string,
   ): { message: string; code: string | undefined } {
+    if (this.isAbortError(error)) {
+      return { message: 'Request aborted', code: 'aborted' }
+    }
     const payload = toRunErrorPayload(error, fallbackMessage)
     return this.isContextOverflow(payload)
       ? { ...payload, code: CONTEXT_OVERFLOW_CODE }
@@ -1270,8 +1304,16 @@ export abstract class OpenAIBaseResponsesTextAdapter<
    */
   protected isAbortError(error: unknown): boolean {
     if (!error || typeof error !== 'object') return false
-    const e = error as { name?: unknown; code?: unknown }
+    const e = error as {
+      name?: unknown
+      code?: unknown
+      constructor?: { name?: unknown }
+    }
     return (
+      // The openai client's APIUserAbortError leaves `name` as 'Error'.
+      error instanceof APIUserAbortError ||
+      // An injected client from another copy of `openai` has its own class.
+      e.constructor?.name === 'APIUserAbortError' ||
       e.name === 'APIUserAbortError' ||
       e.name === 'AbortError' ||
       e.code === 'ERR_CANCELED'
@@ -2598,7 +2640,18 @@ export abstract class OpenAIBaseResponsesTextAdapter<
           // keeps the plain-text replay.
           const answers = responseOutput.flatMap((item) =>
             item.type === 'message' && item.id
-              ? [{ id: item.id, ...(item.phase ? { phase: item.phase } : {}) }]
+              ? [
+                  {
+                    id: item.id,
+                    ...(item.phase ? { phase: item.phase } : {}),
+                    textLength: item.content.reduce(
+                      (length, part) =>
+                        length +
+                        (part.type === 'output_text' ? part.text.length : 0),
+                      0,
+                    ),
+                  },
+                ]
               : [],
           )
           const responseItems = answers.some((item) => item.phase)
@@ -2706,10 +2759,13 @@ export abstract class OpenAIBaseResponsesTextAdapter<
         error,
         `${this.name}.processStreamChunks failed`,
       )
-      options.logger.errors(`${this.name}.processStreamChunks fatal`, {
-        error: errorPayload,
-        source: `${this.name}.processStreamChunks`,
-      })
+      // A caller abort is not a failure, so it stays off the errors channel.
+      if (!this.isAbortError(error)) {
+        options.logger.errors(`${this.name}.processStreamChunks fatal`, {
+          error: errorPayload,
+          source: `${this.name}.processStreamChunks`,
+        })
+      }
       // A held refusal wins over a later stream error. A caller abort stays
       // an abort.
       if (pendingRunError && !this.isAbortError(error)) {

@@ -17,11 +17,10 @@ const mocks = vi.hoisted(() => {
   return { signals, hang }
 })
 
-vi.mock('@fal-ai/client', () => ({
-  fal: {
+vi.mock('../src/client', () => ({
+  createFalClient: () => ({
     queue: { status: mocks.hang, result: mocks.hang, cancel: mocks.hang },
-    config: () => {},
-  },
+  }),
 }))
 
 describe('fal video forwards abortSignal to the queue', () => {

@@ -64,6 +64,7 @@ function makeCtx(): ChatMiddlewareContext {
     runId: 'r-diff-int',
     capabilities: { markProvided: () => undefined },
     getOptional: () => undefined,
+    emitCustomEvent: () => undefined,
   } as unknown as ChatMiddlewareContext
 }
 

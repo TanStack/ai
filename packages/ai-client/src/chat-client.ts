@@ -4,6 +4,7 @@ import {
   StreamProcessor,
   cloneAndDeepFreezeJson,
   convertSchemaToJsonSchema,
+  copyThinkingStepOf,
   generateMessageId,
   hashSchemaInput,
   isStandardSchema,
@@ -220,6 +221,8 @@ function connectionDrainsOnSend(connection: ConnectionAdapter): boolean {
 function isIntermediateToolTurn(chunk: StreamChunk): boolean {
   if (chunk.type !== 'RUN_FINISHED') return false
   if (chunk.outcome?.type === 'interrupt') return false
+  // A loop stop keeps finishReason tool_calls. That event ends the stream.
+  if (tanstackMetadata(chunk)?.loopStopped === true) return false
   const extra = chunk as StreamChunk & { finishReason?: unknown }
   if (extra.finishReason !== undefined) {
     return extra.finishReason === 'tool_calls'
@@ -460,14 +463,19 @@ function thawMessages(messages: ReadonlyArray<UIMessage>): Array<UIMessage> {
     ...message,
     parts: message.parts.map((part) => {
       if (!Object.isFrozen(part)) return part
-      if (part.type !== 'subagent') return { ...part }
-      return {
-        ...part,
-        subagent: {
-          ...part.subagent,
-          messages: thawMessages(part.subagent.messages),
-        },
+      if (part.type === 'subagent') {
+        return {
+          ...part,
+          subagent: {
+            ...part.subagent,
+            messages: thawMessages(part.subagent.messages),
+          },
+        }
       }
+      if (part.type !== 'thinking') return { ...part }
+      const next = { ...part }
+      copyThinkingStepOf(part, next)
+      return next
     }),
   }))
 }
@@ -935,7 +943,11 @@ export class ChatClient<
             this.events.textUpdated(this.currentStreamId, messageId, content)
           }
         },
-        onThinkingUpdate: (messageId: string, content: string) => {
+        onThinkingUpdate: (
+          messageId: string,
+          _stepId: string,
+          content: string,
+        ) => {
           // Emit thinking update to devtools
           if (this.currentStreamId) {
             this.events.thinkingUpdated(

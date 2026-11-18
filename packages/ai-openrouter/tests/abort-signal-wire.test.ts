@@ -37,15 +37,13 @@ function hangingFetch(): Wire {
 }
 
 /**
- * Replaces one OpenRouter SDK method with a call that never answers. The SDK
- * sends `request.clone()`, and after a GC the signal of the clone stops
- * following the caller signal. So a fake `fetch` cannot show the abort
- * reliably. This check reads the signal that the adapter gives to the SDK.
+ * Replaces one method of the adapter's OpenRouter client with a call that
+ * never answers. This check reads the signal that the adapter gives to it.
  */
 function hangingSdkCall(resource: object, method: string): Wire {
   const signals: Array<AbortSignal> = []
   const fetch = vi
-    .spyOn(Object.getPrototypeOf(resource), method)
+    .spyOn(resource as Record<string, () => unknown>, method)
     .mockImplementation((...args: Array<unknown>) => {
       const options = args[1] as
         | {

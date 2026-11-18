@@ -1,10 +1,7 @@
 import { BaseTranscriptionAdapter } from '@tanstack/ai/adapters'
-import {
-  createElevenLabsClient,
-  dataUrlToBlob,
-  generateId,
-} from '../utils/client'
-import type { ElevenLabsClient } from '@elevenlabs/elevenlabs-js'
+import { dataUrlToBlob, generateId } from '../utils/client'
+import { createElevenLabsClient } from '../client/index'
+import type { ElevenLabsClient } from '../client/index'
 import type {
   TranscriptionOptions,
   TranscriptionResult,

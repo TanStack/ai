@@ -1,4 +1,4 @@
-import { toFile } from '@anthropic-ai/sdk'
+import { toFile } from '@anthropic-ai/sdk/core/uploads'
 import {
   BaseFilesAdapter,
   normalizeFileUploadInput,
@@ -7,10 +7,10 @@ import {
   createAnthropicClient,
   getAnthropicCredentialFromEnv,
 } from '../utils/client'
-import type Anthropic_SDK from '@anthropic-ai/sdk'
 import type { BetaFileMetadata } from '@anthropic-ai/sdk/resources/beta/files'
 import type { FileHandle, FileUploadInput } from '@tanstack/ai/adapters'
 import type { AnthropicClientConfig } from '../utils/client'
+import type { AnthropicClient } from '../client/index'
 
 /** Beta header required for the Anthropic Files API. */
 const FILES_API_BETA = 'files-api-2025-04-14'
@@ -24,7 +24,7 @@ export interface AnthropicFilesConfig extends AnthropicClientConfig {}
  */
 export class AnthropicFilesAdapter extends BaseFilesAdapter<'anthropic'> {
   readonly name = 'anthropic' as const
-  private readonly client: Anthropic_SDK
+  private readonly client: AnthropicClient
 
   constructor(config: AnthropicFilesConfig) {
     super()

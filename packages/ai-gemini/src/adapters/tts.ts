@@ -8,7 +8,8 @@ import { GEMINI_TTS_VOICES } from '../model-meta'
 import { buildGeminiUsage } from '../usage'
 import type { GEMINI_TTS_MODELS, GeminiTTSVoice } from '../model-meta'
 import type { TTSCapabilities, TTSOptions, TTSResult } from '@tanstack/ai'
-import type { GoogleGenAI, SpeechConfig } from '@google/genai'
+import type { SpeechConfig } from '@google/genai'
+import type { GeminiClient } from '../client/index'
 import type { GeminiClientConfig } from '../utils/client'
 
 /**
@@ -127,7 +128,7 @@ export class GeminiTTSAdapter<
    */
   override readonly capabilities: TTSCapabilities = { maxSpeakers: 2 }
 
-  private readonly client: GoogleGenAI
+  private readonly client: GeminiClient
 
   constructor(config: GeminiTTSConfig, model: TModel) {
     super(model, config)

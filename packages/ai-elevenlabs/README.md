@@ -60,13 +60,13 @@ await client.connect()
 
 ### With React
 
-```typescript
+```tsx
 import { useRealtimeChat } from '@tanstack/ai-react'
 import { elevenlabsRealtime } from '@tanstack/ai-elevenlabs'
 
 function VoiceChat() {
   const { status, mode, messages, connect, disconnect } = useRealtimeChat({
-    getToken: () => fetch('/api/realtime-token').then(r => r.json()),
+    getToken: () => fetch('/api/realtime-token').then((r) => r.json()),
     adapter: elevenlabsRealtime(),
   })
 

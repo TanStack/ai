@@ -13,6 +13,7 @@ import type {
 import type {
   AnyServerTool,
   ContentPart,
+  MCPRequestMeta,
   ToolInputResponse,
 } from '@tanstack/ai'
 import {
@@ -27,6 +28,7 @@ interface ConvertOptions {
   lazy?: boolean
   needsApproval?: (tool: McpToolDef) => boolean
   requestOptions?: MCPClientOptions['requestOptions']
+  requestMeta?: MCPRequestMeta
 }
 
 /** Reads the MCP Apps `_meta.ui.resourceUri` link from a tool def, if present. */
@@ -145,6 +147,8 @@ export function mcpContentToTanstack(
  *   reads its `x-mcp-header` fields to send the `Mcp-Param-*` headers.
  * @param askInput - Asks the user for each elicitation round on spec 2026.
  *   The harness sets it. Without it, a call answers one round.
+ * @param meta - Sent as the request `_meta` on each tools/call of this call.
+ *   Reserved MCP keys are dropped.
  */
 export async function callMcpTool(
   client: Client,
@@ -156,6 +160,7 @@ export async function callMcpTool(
   requestOptions?: MCPClientOptions['requestOptions'],
   inputSchema?: McpToolDef['inputSchema'],
   askInput?: AskInput,
+  meta?: Record<string, unknown>,
 ) {
   signal?.throwIfAborted()
   const isModern = client.getProtocolEra() === 'modern'
@@ -163,7 +168,7 @@ export async function callMcpTool(
     const raw = await sdkRequest(
       client,
       'tools/call',
-      { name: mcpName, arguments: args, task: {} },
+      { name: mcpName, arguments: args, task: {}, ...requestMetaParams(meta) },
       signal,
       requestOptions,
     )
@@ -180,7 +185,11 @@ export async function callMcpTool(
       ? { toolDefinition: { name: mcpName, inputSchema } }
       : {}),
   }
-  const params = { name: mcpName, arguments: args }
+  const params = {
+    name: mcpName,
+    arguments: args,
+    ...requestMetaParams(meta),
+  }
   let result = await client.callTool(params, options)
   // ponytail: the answer is sent on the second call, so the server state never
   // travels through the browser. The cost is one extra tools/call.
@@ -415,6 +424,34 @@ export function sdkRequestOptions(
   }
 }
 
+/**
+ * The `_meta` request params for a per-call `meta`. It drops the keys the MCP
+ * spec reserves: `progressToken`, and a key whose prefix has an `mcp` or
+ * `modelcontextprotocol` label next to another label (`io.modelcontextprotocol/x`,
+ * `mcp.dev/x`).
+ * It gives `{}` when `meta` is not a plain object or has no keys left, so no
+ * `_meta` is sent.
+ *
+ * @param meta - The caller's meta. A hook can return any value at runtime.
+ */
+export function requestMetaParams(meta: unknown) {
+  if (!isRecord(meta)) return {}
+  const kept = Object.entries(meta).filter(([key]) => !isReservedMetaKey(key))
+  return kept.length === 0 ? {} : { _meta: Object.fromEntries(kept) }
+}
+
+function isReservedMetaKey(key: string) {
+  if (key === 'progressToken') return true
+  const slash = key.indexOf('/')
+  if (slash < 0) return false
+  const labels = key.slice(0, slash).split('.')
+  // A one-label prefix such as `mcp/x` is not reserved.
+  return (
+    labels.length > 1 &&
+    labels.some((label) => label === 'mcp' || label === 'modelcontextprotocol')
+  )
+}
+
 async function sdkRequest(
   client: Client,
   method: string,
@@ -570,6 +607,8 @@ function isRecord(value: unknown): value is Record<string, unknown> {
  *   a JSON-in-text blob. Otherwise normalize `content[]` → string | ContentPart[].
  * @param requestOptions - The client `requestOptions`, sent with each call
  * @param inputSchema - The listed tool's input schema, for the Mcp-Param-* headers
+ * @param call - The `requestMeta` hook and the server id it gets. The hook
+ *   runs before each call. A hook error fails the call.
  */
 export function makeMcpExecute(
   client: Client,
@@ -578,6 +617,7 @@ export function makeMcpExecute(
   taskRequired = false,
   requestOptions?: MCPClientOptions['requestOptions'],
   inputSchema?: McpToolDef['inputSchema'],
+  call?: { requestMeta?: MCPRequestMeta; serverId?: string },
 ) {
   return async (
     args: unknown,
@@ -587,16 +627,24 @@ export function makeMcpExecute(
       askInput?: AskInput
     },
   ) => {
+    const callArgs = isRecord(args) ? args : {}
+    const meta = await call?.requestMeta?.({
+      method: 'tools/call',
+      serverId: call.serverId,
+      toolName: mcpName,
+      args: callArgs,
+    })
     const result = await callMcpTool(
       client,
       mcpName,
-      isRecord(args) ? args : {},
+      callArgs,
       taskRequired,
       ctx?.abortSignal,
       ctx?.inputResponse,
       requestOptions,
       inputSchema,
       ctx?.askInput,
+      meta,
     )
     if (result.isError) {
       const text = Array.isArray(result.content)
@@ -676,6 +724,7 @@ export function toServerTools(
           requiresTaskExecution(def),
           options.requestOptions,
           def.inputSchema,
+          { requestMeta: options.requestMeta, serverId: options.prefix },
         ),
       }
       if (options.needsApproval?.(def)) {

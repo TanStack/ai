@@ -31,7 +31,7 @@ TanStack AI is a type-safe, provider-agnostic AI SDK for building AI-powered app
   that still need the pre-7 JS Compiler API (svelte-package, svelte-check,
   vue-tsc, knip, typedoc) run against the `@typescript/typescript6` (6.0.2)
   shim via `pnpm-workspace.yaml` packageExtensions. Angular cannot run on TS7,
-  so it pins `typescript@5.9.3` instead. kiira 0.6.0 is TS7-native and does
+  so the Angular packages pin `typescript@6.0.2` (Angular 22 requires `>=6.0 <6.1`). kiira 0.6.0 is TS7-native and does
   not need a shim. See that file's comments.
 - **Testing**: Vitest for unit tests
 - **Linting**: oxlint (incl. type-aware rules via `oxlint-tsgolint`); a few

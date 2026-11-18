@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import OpenAI from 'openai'
+import { createOpenAIClient } from '../src/client'
 import { chat } from '@tanstack/ai'
 import { OpenAIBaseChatCompletionsTextAdapter } from '../src/adapters/chat-completions-text'
 import type { StreamChunk } from '@tanstack/ai'
@@ -25,7 +25,7 @@ class SSEAdapter extends OpenAIBaseChatCompletionsTextAdapter<string> {
     super(
       'test-model',
       'test-provider',
-      new OpenAI({
+      createOpenAIClient({
         apiKey: 'test-placeholder',
         maxRetries: 0,
         fetch: async () =>
@@ -50,7 +50,7 @@ class SSEAdapter extends OpenAIBaseChatCompletionsTextAdapter<string> {
 }
 
 /**
- * Runs SSE chunks through the real OpenAI SDK and chat() to observe completion.
+ * Runs SSE chunks through our OpenAI client and chat() to observe completion.
  * `done` appends the protocol's [DONE] marker. `cancel` aborts after the first
  * text delta so tests can distinguish caller cancellation from incomplete EOF.
  *

@@ -9,22 +9,16 @@ const mocks = vi.hoisted(() => {
   }
 })
 
-vi.mock('openai', () => {
-  class MockOpenAI {
-    files = {
+vi.mock('@tanstack/openai-base', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@tanstack/openai-base')>()),
+  createOpenAIClient: () => ({
+    files: {
       create: mocks.filesCreate,
       retrieve: mocks.filesRetrieve,
       delete: mocks.filesDelete,
-    }
-
-    constructor(_options: { apiKey: string }) {}
-  }
-  return {
-    OpenAI: MockOpenAI,
-    default: MockOpenAI,
-    toFile: vi.fn(async (blob: Blob, name?: string) => ({ blob, name })),
-  }
-})
+    },
+  }),
+}))
 
 const FILE_OBJECT = {
   id: 'file-abc',

@@ -1,11 +1,12 @@
-import OpenAI from 'openai'
 import { BaseTTSAdapter } from '@tanstack/ai/adapters'
 import { toRunErrorPayload } from '@tanstack/ai/adapter-internals'
 import { arrayBufferToBase64, generateId } from '@tanstack/ai-utils'
+import { createOpenAIClient } from '@tanstack/openai-base'
 import { getGroqApiKeyFromEnv, withGroqDefaults } from '../utils/client'
 import { validateAudioInput } from '../audio/audio-provider-options'
 import type { TTSOptions, TTSResult } from '@tanstack/ai'
 import type OpenAI_SDK from 'openai'
+import type { OpenAIClientLike } from '@tanstack/openai-base'
 import type { GroqTTSModel } from '../model-meta'
 import type { GroqTTSProviderOptions } from '../audio/tts-provider-options'
 import type { GroqClientConfig } from '../utils/client'
@@ -20,8 +21,8 @@ export interface GroqTTSConfig extends GroqClientConfig {}
  *
  * Tree-shakeable adapter for Groq TTS functionality. Groq exposes an
  * OpenAI-compatible `/audio/speech` endpoint, so the adapter drives it with
- * the OpenAI SDK via a `baseURL` override (the same pattern as the Groq text
- * adapter).
+ * an OpenAI-compatible client via a `baseURL` override (the same pattern as
+ * the Groq text adapter).
  *
  * Supports `canopylabs/orpheus-v1-english` and
  * `canopylabs/orpheus-arabic-saudi`.
@@ -39,11 +40,11 @@ export class GroqTTSAdapter<TModel extends GroqTTSModel> extends BaseTTSAdapter<
 > {
   readonly name = 'groq' as const
 
-  protected client: OpenAI
+  protected client: OpenAIClientLike
 
   constructor(config: GroqTTSConfig, model: TModel) {
     super(model, {})
-    this.client = new OpenAI(withGroqDefaults(config))
+    this.client = createOpenAIClient(withGroqDefaults(config))
   }
 
   async generateSpeech(

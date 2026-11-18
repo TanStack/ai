@@ -26,8 +26,8 @@ const PROVIDER_MODELS: Record<
     { value: 'gpt-5.2', label: 'GPT-5.2 (frontier)' },
     { value: 'gpt-5.2-pro', label: 'GPT-5.2 Pro' },
     { value: 'gpt-5.1', label: 'GPT-5.1' },
-    { value: 'gpt-5', label: 'GPT-5' },
-    { value: 'gpt-5-mini', label: 'GPT-5 Mini' },
+    { value: 'gpt-5.6-sol', label: 'GPT-5.6 Sol' },
+    { value: 'gpt-5.6-terra', label: 'GPT-5.6 Terra' },
     { value: 'gpt-4o', label: 'GPT-4o' },
   ],
   // OpenAI Chat Completions: same model surface, older `/v1/chat/completions`
@@ -36,8 +36,8 @@ const PROVIDER_MODELS: Record<
   // is still doing it under the hood.
   'openai-chat': [
     { value: 'gpt-4o', label: 'GPT-4o' },
-    { value: 'gpt-5-mini', label: 'GPT-5 Mini' },
-    { value: 'gpt-5', label: 'GPT-5' },
+    { value: 'gpt-5.6-terra', label: 'GPT-5.6 Terra' },
+    { value: 'gpt-5.6-sol', label: 'GPT-5.6 Sol' },
     { value: 'gpt-5.1', label: 'GPT-5.1' },
     { value: 'gpt-5.2', label: 'GPT-5.2 (frontier)' },
   ],
@@ -56,7 +56,6 @@ const PROVIDER_MODELS: Record<
     { value: 'claude-sonnet-5', label: 'Claude Sonnet 5' },
     { value: 'claude-fable-5', label: 'Claude Fable 5' },
     { value: 'claude-opus-4-8', label: 'Claude Opus 4.8' },
-    { value: 'claude-sonnet-4-5', label: 'Claude Sonnet 4.5' },
     { value: 'claude-sonnet-4-6', label: 'Claude Sonnet 4.6' },
     { value: 'claude-opus-4-5', label: 'Claude Opus 4.5' },
     { value: 'claude-opus-4-6', label: 'Claude Opus 4.6' },

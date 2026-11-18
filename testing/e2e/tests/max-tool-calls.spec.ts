@@ -40,8 +40,12 @@ test.describe('chat() tool-call budget middleware (#964)', () => {
     expect(skipped.length).toBe(5)
 
     // max: 5 — after the fat turn toolCallCount=8 (>= 5), so no further
-    // model turn runs. executeCount stays at 3 either way.
+    // model turn runs. The second RUN_FINISHED is the loop stop, not a
+    // second model call. executeCount stays at 3 either way.
     const runFinished = body.chunks.filter((c) => c.type === 'RUN_FINISHED')
-    expect(runFinished.length).toBe(1)
+    expect(runFinished).toHaveLength(2)
+    expect(runFinished[1]).toMatchObject({
+      metadata: { tanstack: { loopStopped: true } },
+    })
   })
 })

@@ -147,4 +147,83 @@ test.describe('withCompaction — wire format', () => {
     expect(wire).not.toContain('SECRET_ALPHA_ONE')
     expect(wire).not.toContain('SEALED_E2E')
   })
+
+  test('anthropic native compaction posts a summarize request and replays the block', async ({
+    request,
+  }) => {
+    const response = await request.post(
+      '/api/compaction-wire?strategy=anthropic-native',
+    )
+    expect(response.ok()).toBe(true)
+    const result = (await response.json()) as {
+      ok: boolean
+      error?: string
+      firstRequestBody: unknown
+      secondRequestBody: unknown
+      compactRequestBodies: Array<unknown>
+      compactBetas: Array<string | null>
+      requestBetas: Array<string | null>
+      compactionCount: number
+    }
+    if (!result.ok) throw new Error(`Route failed: ${result.error}`)
+
+    expect(result.compactRequestBodies).toHaveLength(1)
+    expect(result.compactRequestBodies[0]).toMatchObject({
+      compaction: { type: 'summarize' },
+      stream: false,
+    })
+    expect(JSON.stringify(result.compactRequestBodies[0])).toContain(
+      'SECRET_ALPHA_ONE',
+    )
+    expect(result.compactBetas[0]).toContain('compact-2026-09-04')
+    expect(result.firstRequestBody).toMatchObject({
+      messages: [
+        {
+          role: 'assistant',
+          content: [
+            {
+              type: 'compaction',
+              content: 'Kept the last turn.',
+              signature: 'SIG_E2E',
+              encrypted_content: 'SEALED_E2E',
+            },
+          ],
+        },
+      ],
+    })
+    expect(JSON.stringify(result.firstRequestBody)).not.toContain(
+      'SECRET_ALPHA_ONE',
+    )
+    expect(result.requestBetas[0]).toContain('compact-2026-09-04')
+    expect(JSON.stringify(result.secondRequestBody)).toContain('SEALED_E2E')
+    expect(result.compactionCount).toBe(1)
+  })
+
+  test('anthropic native compaction with no compaction block falls back', async ({
+    request,
+  }) => {
+    const response = await request.post(
+      '/api/compaction-wire?strategy=anthropic-native-empty',
+    )
+    expect(response.ok()).toBe(true)
+    const result = (await response.json()) as {
+      ok: boolean
+      error?: string
+      firstRequestBody: unknown
+      compactRequestBodies: Array<unknown>
+      compactionErrors: Array<string>
+    }
+    if (!result.ok) throw new Error(`Route failed: ${result.error}`)
+
+    expect(result.compactRequestBodies).toHaveLength(2)
+    expect(result.compactionErrors).toEqual([
+      'The compact result has no compaction block.',
+      'The compact result has no compaction block.',
+    ])
+    const wire = JSON.stringify(result.firstRequestBody)
+    expect(wire).toContain('omitted to save context')
+    expect(wire).toContain('KEEP_ME_LAST')
+    expect(wire).not.toContain('SECRET_ALPHA_ONE')
+    expect(wire).not.toContain('SEALED_E2E')
+  })
 })

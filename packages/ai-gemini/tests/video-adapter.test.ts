@@ -681,6 +681,18 @@ describe('Gemini Omni Flash Video Adapter (Interactions API)', () => {
       expect(adapter.snapDuration(60)).toBe(10)
     })
 
+    it('reports the 3-15 second range for Omni 1.2', () => {
+      const adapter = createGeminiVideo('gemini-omni-1.2-flash', 'test-key')
+      expect(adapter.availableDurations()).toEqual({
+        kind: 'range',
+        min: 3,
+        max: 15,
+        unit: 'seconds',
+      })
+      expect(adapter.snapDuration(12)).toBe(12)
+      expect(adapter.snapDuration(60)).toBe(15)
+    })
+
     it('types duration as number (continuous range) at compile time', () => {
       const omni = createGeminiVideo('gemini-omni-1.1-flash', 'test-key')
       expectTypeOf(omni.snapDuration).returns.toEqualTypeOf<

@@ -1,5 +1,7 @@
-import OpenAI from 'openai'
-import { OpenAIBaseChatCompletionsTextAdapter } from '@tanstack/openai-base'
+import {
+  OpenAIBaseChatCompletionsTextAdapter,
+  createOpenAIClient,
+} from '@tanstack/openai-base'
 import {
   NEON_MODELS_REJECTING_SAMPLING,
   NEON_MODELS_REJECTING_STREAM_OPTIONS,
@@ -20,6 +22,7 @@ import type {
 import type { NeonTextProviderOptions } from '../text/text-provider-options'
 import type { NeonClientConfig } from '../utils/client'
 import type { OpenAIBaseTextAdapterOptions } from '@tanstack/openai-base'
+import type OpenAI from 'openai'
 
 /** The reasoning levels of a model, for `chat({ reasoning })`. `never`: none. */
 export type ResolveReasoning<TModel extends string> =
@@ -88,7 +91,7 @@ export class NeonTextAdapter<
     const options = withNeonDefaults(config, 'chat')
     // The base wraps `options.fetch` for `wrapFetch`, so it must be the
     // normalizing fetch the client uses.
-    super(model, 'neon', new OpenAI(options), {
+    super(model, 'neon', createOpenAIClient(options), {
       ...config,
       fetch: options.fetch,
     })

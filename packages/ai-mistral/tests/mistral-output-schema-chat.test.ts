@@ -4,18 +4,13 @@ const { mockComplete } = vi.hoisted(() => ({
   mockComplete: vi.fn<(...args: Array<unknown>) => unknown>(),
 }))
 
-vi.mock('@mistralai/mistralai', () => {
-  return {
-    Mistral: class {
-      chat = {
-        complete: (...args: Array<unknown>) => mockComplete(...args),
-      }
+vi.mock('../src/client', () => ({
+  createMistralClient: () => ({
+    chat: {
+      complete: (...args: Array<unknown>) => mockComplete(...args),
     },
-    HTTPClient: class {
-      addHook() {}
-    },
-  }
-})
+  }),
+}))
 
 const { chat } = await import('@tanstack/ai')
 const { createMistralText } = await import('../src/adapters/text')

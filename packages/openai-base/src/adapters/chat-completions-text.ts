@@ -17,6 +17,7 @@ import {
   transformMessagesForReplay,
 } from '@tanstack/ai/adapter-internals'
 import { generateId } from '@tanstack/ai-utils'
+import { APIUserAbortError } from 'openai/core/error'
 import { clientFor, extractRequestOptions } from '../utils/request-options'
 import type { Fetch } from '../utils/request-options'
 import {
@@ -36,6 +37,7 @@ import {
 import { toChatCompletionsToolChoice } from '../tools/tool-choice'
 import { convertToolsToChatCompletionsFormat } from './chat-completions-tool-converter'
 import type OpenAI from 'openai'
+import type { OpenAIClientLike } from '../client/index'
 import type {
   StructuredOutputOptions,
   StructuredOutputResult,
@@ -92,7 +94,7 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
   override readonly kind = 'text' as const
   override readonly api: string = 'openai-completions'
   readonly name: string
-  protected client: OpenAI
+  protected client: OpenAIClientLike
 
   private sourceMetadata(
     model: string,
@@ -134,7 +136,7 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
   constructor(
     model: TModel,
     name: string,
-    client: OpenAI,
+    client: OpenAIClientLike,
     options: OpenAIBaseTextAdapterOptions & { fetch?: Fetch | undefined } = {},
   ) {
     super({}, model)
@@ -270,10 +272,13 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
       return
     }
 
-    options.logger.errors(`${this.name}.${source} fatal`, {
-      error: errorPayload,
-      source: `${this.name}.${source}`,
-    })
+    // A caller abort is not a failure, so it stays off the errors channel.
+    if (!this.isAbortError(error)) {
+      options.logger.errors(`${this.name}.${source} fatal`, {
+        error: errorPayload,
+        source: `${this.name}.${source}`,
+      })
+    }
 
     yield {
       type: EventType.RUN_ERROR,
@@ -426,10 +431,15 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
     } catch (error: unknown) {
       // Narrow before logging: raw SDK errors can carry request metadata
       // (including auth headers) which we must never surface to user loggers.
-      chatOptions.logger.errors(`${this.name}.structuredOutput fatal`, {
-        error: toRunErrorPayload(error, `${this.name}.structuredOutput failed`),
-        source: `${this.name}.structuredOutput`,
-      })
+      if (!this.isAbortError(error)) {
+        chatOptions.logger.errors(`${this.name}.structuredOutput fatal`, {
+          error: toRunErrorPayload(
+            error,
+            `${this.name}.structuredOutput failed`,
+          ),
+          source: `${this.name}.structuredOutput`,
+        })
+      }
       throw error
     }
   }
@@ -741,6 +751,13 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
       // (absent vs explicit `undefined` matter).
       const resolvedCode = isAbort ? 'aborted' : errorPayload.code
       const rawEvent = isAbort ? undefined : toRunErrorRawEvent(error)
+      // Log before RUN_ERROR: chat() closes this generator at that yield.
+      if (!isAbort) {
+        chatOptions.logger.errors(`${this.name}.structuredOutputStream fatal`, {
+          error: errorPayload,
+          source: `${this.name}.structuredOutputStream`,
+        })
+      }
       yield {
         type: EventType.RUN_ERROR,
         metadata: this.sourceMetadata(
@@ -759,11 +776,6 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
         },
         ...(lastUsage && { usage: lastUsage }),
       }
-
-      chatOptions.logger.errors(`${this.name}.structuredOutputStream fatal`, {
-        error: errorPayload,
-        source: `${this.name}.structuredOutputStream`,
-      })
     }
   }
 
@@ -775,6 +787,9 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
     error: unknown,
     fallbackMessage: string,
   ): { message: string; code: string | undefined } {
+    if (this.isAbortError(error)) {
+      return { message: 'Request aborted', code: 'aborted' }
+    }
     const payload = toRunErrorPayload(error, fallbackMessage)
     return this.isContextOverflow(payload)
       ? { ...payload, code: CONTEXT_OVERFLOW_CODE }
@@ -801,8 +816,16 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
    */
   protected isAbortError(error: unknown): boolean {
     if (!error || typeof error !== 'object') return false
-    const e = error as { name?: unknown; code?: unknown }
+    const e = error as {
+      name?: unknown
+      code?: unknown
+      constructor?: { name?: unknown }
+    }
     return (
+      // The openai client's APIUserAbortError leaves `name` as 'Error'.
+      error instanceof APIUserAbortError ||
+      // An injected client from another copy of `openai` has its own class.
+      e.constructor?.name === 'APIUserAbortError' ||
       e.name === 'APIUserAbortError' ||
       e.name === 'AbortError' ||
       e.code === 'ERR_CANCELED'

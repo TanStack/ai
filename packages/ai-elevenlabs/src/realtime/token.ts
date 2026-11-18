@@ -1,14 +1,12 @@
-import {
-  createElevenLabsClient,
-  getElevenLabsAgentIdFromEnv,
-} from '../utils/client'
+import { createElevenLabsClient } from '../client/index'
+import { getElevenLabsAgentIdFromEnv } from '../utils/client'
 import type { RealtimeToken, RealtimeTokenAdapter } from '@tanstack/ai'
 import type { ElevenLabsRealtimeTokenOptions } from './types'
 
 /**
  * Creates an ElevenLabs realtime token adapter.
  *
- * Uses the official `@elevenlabs/elevenlabs-js` SDK to request a signed URL
+ * Requests a signed URL from the ElevenLabs API
  * for client-side conversation connections. The signed URL is valid for
  * 30 minutes.
  *

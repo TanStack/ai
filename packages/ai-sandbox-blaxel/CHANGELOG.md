@@ -1,5 +1,16 @@
 # @tanstack/ai-sandbox-blaxel
 
+## 1.1.0
+
+### Minor Changes
+
+- [#1978](https://github.com/TanStack/ai/pull/1978) [`4caefd7`](https://github.com/TanStack/ai/commit/4caefd7cb6783766fb2bdb9d34d65b367624dd32) - Pass the `git.push` and `git.pull` signal to the git command.
+
+### Patch Changes
+
+- Updated dependencies [[`5f62940`](https://github.com/TanStack/ai/commit/5f62940bb15c871a205de70e4e6b58fbe5016960), [`4caefd7`](https://github.com/TanStack/ai/commit/4caefd7cb6783766fb2bdb9d34d65b367624dd32), [`4caefd7`](https://github.com/TanStack/ai/commit/4caefd7cb6783766fb2bdb9d34d65b367624dd32)]:
+  - @tanstack/ai-sandbox@1.1.0
+
 ## 1.0.0
 
 ### Major Changes

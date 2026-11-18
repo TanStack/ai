@@ -25,3 +25,8 @@ export {
   convertToolsToResponsesFormat,
   type ResponsesFunctionTool,
 } from './adapters/responses-tool-converter'
+export {
+  createAzureOpenAIClient,
+  createOpenAIClient,
+  type OpenAIClientLike,
+} from './client/index'

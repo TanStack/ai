@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { readFileSync } from 'node:fs'
 import type { SandboxHandle, SandboxFsStat } from '../src/contracts'
-import type { SandboxSnapshotEntry } from '../src/checkpoint-store'
 import type { ArtifactRecord, ArtifactStore } from '@tanstack/ai-persistence'
 import {
   captureSandboxFiles,
@@ -15,6 +14,27 @@ type Entry = {
   type: 'file' | 'dir' | 'symlink' | 'other'
   mode: number
   bytes?: Uint8Array
+  target?: string
+}
+
+// Splits a command made with shellQuote into commands of plain words.
+function shellCommands(command: string): Array<Array<string>> {
+  const commands: Array<Array<string>> = [[]]
+  for (const match of command.matchAll(/'((?:[^']|'\\'')*)'|(\S+)/g)) {
+    const quoted = match[1]
+    if (quoted === undefined && match[2] === '&&') commands.push([])
+    else
+      commands.at(-1)!.push(quoted?.replaceAll(`'\\''`, `'`) ?? match[2] ?? '')
+  }
+  return commands
+}
+
+function link(target: string): Entry {
+  return { type: 'symlink', mode: 0o777, target }
+}
+
+function file(text: string, mode = 0o644): Entry {
+  return { type: 'file', mode, bytes: new TextEncoder().encode(text) }
 }
 
 function artifactStore(
@@ -149,7 +169,29 @@ function fakeHandle(entries: Record<string, Entry>): SandboxHandle {
       branch: async () => '',
     },
     process: {
-      exec: async () => ({ stdout: '', stderr: '', exitCode: 0 }),
+      // Acts like readlink, `ln -s` and chmod on the fake files.
+      exec: async (command, options) => {
+        const at = (name: string) => normalize(`${options?.cwd}/${name}`)
+        const fail = (stderr: string) => ({ stdout: '', stderr, exitCode: 1 })
+        let stdout = ''
+        for (const [name, ...args] of shellCommands(command)) {
+          const operands = args.filter((arg) => arg !== '--' && arg !== '-s')
+          if (name === 'readlink') {
+            const entry = entries[at(operands[0]!)]
+            if (entry?.type !== 'symlink') return fail('not a link')
+            stdout += `${entry.target}\n`
+          } else if (name === 'ln') {
+            const [target, path] = operands
+            if (entries[at(path!)]) return fail('File exists')
+            entries[at(path!)] = link(target!)
+          } else if (name === 'chmod') {
+            const [mode, ...paths] = operands
+            for (const path of paths)
+              entries[at(path)]!.mode = parseInt(mode!, 8)
+          } else return fail(`unknown command ${name}`)
+        }
+        return { stdout, stderr: '', exitCode: 0 }
+      },
       spawn: async () => {
         throw new Error('unsupported')
       },
@@ -234,6 +276,16 @@ function fsMutationLog(handle: SandboxHandle) {
     await mkdir(path)
   }
   return { writes, removes, mkdirs }
+}
+
+function execLog(handle: SandboxHandle) {
+  const commands: Array<string> = []
+  const exec = handle.process.exec
+  handle.process.exec = async (command, options) => {
+    commands.push(command)
+    return exec(command, options)
+  }
+  return commands
 }
 
 async function putSnapshotBlob(
@@ -1210,37 +1262,166 @@ describe('portable sandbox snapshots', () => {
     )
   })
 
-  it('rejects a user-created symlink during capture', async () => {
+  it('captures a user symlink inside the workspace with its target text', async () => {
+    const handle = fakeHandle({
+      '/workspace/target.txt': file('t'),
+      '/workspace/dir/relative': link('../target.txt'),
+      '/workspace/absolute': link('/workspace/target.txt'),
+      '/workspace/climbs-back': link('a/../target.txt'),
+      '/workspace/dangling': link('missing.txt'),
+    })
+    const snapshot = await captureSandboxFiles(handle, { blobs: blobs() })
+    expect(snapshot.files.filter((entry) => entry.kind === 'symlink')).toEqual([
+      { path: 'absolute', kind: 'symlink', target: '/workspace/target.txt' },
+      { path: 'climbs-back', kind: 'symlink', target: 'a/../target.txt' },
+      { path: 'dangling', kind: 'symlink', target: 'missing.txt' },
+      { path: 'dir/relative', kind: 'symlink', target: '../target.txt' },
+    ])
+  })
+
+  it.each(['/etc/passwd', 'a/../../outside', '../outside'])(
+    'fails the capture for a link to %j outside the workspace',
+    async (target) => {
+      await expect(
+        captureSandboxFiles(fakeHandle({ '/workspace/out': link(target) }), {
+          blobs: blobs(),
+        }),
+      ).rejects.toMatchObject({
+        code: 'SANDBOX_SNAPSHOT_UNSUPPORTED_ENTRY',
+        message: expect.stringContaining("'out'"),
+      })
+    },
+  )
+
+  it('does not fail on excluded links, executables, or special entries', async () => {
+    const handle = fakeHandle({
+      '/workspace/keep.txt': file('k'),
+      '/workspace/out': link('/etc'),
+      '/workspace/pipe': { type: 'other', mode: 0o644 },
+      '/workspace/tool.sh': file('#!/bin/sh', 0o755),
+    })
+    const commands = execLog(handle)
+    const snapshot = await captureSandboxFiles(
+      handle,
+      { blobs: blobs() },
+      { exclude: (path) => path !== 'keep.txt' },
+    )
+    expect(snapshot.files.map((entry) => entry.path)).toEqual(['keep.txt'])
+    expect(commands).toEqual([])
+  })
+
+  it('does not read a link that include leaves out', async () => {
+    const handle = fakeHandle({
+      '/workspace/a.ts': file('a'),
+      '/workspace/out': link('/etc'),
+    })
+    const snapshot = await captureSandboxFiles(
+      handle,
+      { blobs: blobs() },
+      { include: (path) => path.endsWith('.ts') },
+    )
+    expect(snapshot.files.map((entry) => entry.path)).toEqual(['a.ts'])
+  })
+
+  it('rejects a special entry such as a fifo', async () => {
     await expect(
       captureSandboxFiles(
-        fakeHandle({
-          '/workspace/user-link': { type: 'symlink', mode: 0o777 },
-        }),
+        fakeHandle({ '/workspace/bad': { type: 'other', mode: 0o644 } }),
         { blobs: blobs() },
+        defaultSandboxSnapshotPolicy(),
       ),
     ).rejects.toMatchObject({ code: 'SANDBOX_SNAPSHOT_UNSUPPORTED_ENTRY' })
   })
 
-  const unsupportedEntries: Array<{ kind: string; entry: Entry }> = [
-    { kind: 'other', entry: { type: 'other', mode: 0o644 } },
-    {
-      kind: 'executable',
-      entry: { type: 'file', mode: 0o755, bytes: new Uint8Array([1]) },
-    },
-  ]
+  it('keeps file modes and links through capture and restore', async () => {
+    const bundle = { blobs: blobs() }
+    const snapshot = await captureSandboxFiles(
+      fakeHandle({
+        '/workspace/bin/tool.sh': file('#!/bin/sh', 0o755),
+        '/workspace/bin/run.sh': file('#!/bin/sh', 0o755),
+        '/workspace/notes.txt': file('n', 0o600),
+        '/workspace/latest': link('bin/tool.sh'),
+        '/workspace/bin/abs': link('/workspace/notes.txt'),
+      }),
+      bundle,
+    )
+    expect(snapshot.files).toContainEqual(
+      expect.objectContaining({ path: 'bin/tool.sh', mode: 0o755 }),
+    )
+    const restored: Record<string, Entry> = {}
+    const target = fakeHandle(restored)
+    const commands = execLog(target)
+    await restoreSandboxFiles(target, bundle, snapshot)
+    expect(commands).toEqual([
+      `ln -s -- '/workspace/notes.txt' 'bin/abs' && ln -s -- 'bin/tool.sh' 'latest'`,
+      `chmod 755 -- 'bin/run.sh' 'bin/tool.sh' && chmod 600 -- 'notes.txt'`,
+    ])
+    expect(restored['/workspace/bin/tool.sh']?.mode).toBe(0o755)
+    expect(restored['/workspace/notes.txt']?.mode).toBe(0o600)
+    expect(restored['/workspace/latest']).toEqual(link('bin/tool.sh'))
+    expect(restored['/workspace/bin/abs']).toEqual(link('/workspace/notes.txt'))
+  })
 
-  it.each(unsupportedEntries)(
-    'rejects unsupported %s entries',
-    async ({ entry }) => {
-      await expect(
-        captureSandboxFiles(
-          fakeHandle({ '/workspace/bad': entry }),
-          { blobs: blobs() },
-          defaultSandboxSnapshotPolicy(),
-        ),
-      ).rejects.toMatchObject({ code: 'SANDBOX_SNAPSHOT_UNSUPPORTED_ENTRY' })
-    },
-  )
+  it('restores an old manifest without modes and runs no command', async () => {
+    const bundle = { blobs: blobs() }
+    const blobKey = await putSnapshotBlob(bundle.blobs, new Uint8Array([1]))
+    const restored: Record<string, Entry> = {}
+    const target = fakeHandle(restored)
+    const commands = execLog(target)
+    await restoreSandboxFiles(target, bundle, {
+      files: [
+        { path: 'a', kind: 'file', blobKey, size: 1 },
+        { path: 'empty', kind: 'dir' },
+      ],
+    })
+    expect(commands).toEqual([])
+    expect(restored['/workspace/a']).toEqual({
+      type: 'file',
+      mode: 0o644,
+      bytes: new Uint8Array([1]),
+    })
+    expect(restored['/workspace/empty']?.type).toBe('dir')
+  })
+
+  it('replaces a current file at a link path and a link with an old target', async () => {
+    const restored: Record<string, Entry> = {
+      '/workspace/was-file': file('old'),
+      '/workspace/moved': link('old-target'),
+    }
+    await restoreSandboxFiles(
+      fakeHandle(restored),
+      { blobs: blobs() },
+      {
+        files: [
+          { path: 'moved', kind: 'symlink', target: 'new-target' },
+          { path: 'was-file', kind: 'symlink', target: 'moved' },
+        ],
+      },
+    )
+    expect(restored['/workspace/was-file']).toEqual(link('moved'))
+    expect(restored['/workspace/moved']).toEqual(link('new-target'))
+  })
+
+  it('throws with the shell error when a restore command fails', async () => {
+    const target = fakeHandle({})
+    target.process.exec = async () => ({
+      stdout: '',
+      stderr: 'Operation not permitted\n',
+      exitCode: 1,
+    })
+    await expect(
+      restoreSandboxFiles(
+        target,
+        { blobs: blobs() },
+        {
+          files: [{ path: 'l', kind: 'symlink', target: 'x' }],
+        },
+      ),
+    ).rejects.toMatchObject({
+      code: 'SANDBOX_SNAPSHOT_INVALID_WORKSPACE',
+      message: expect.stringContaining('Operation not permitted'),
+    })
+  })
 
   it('restores after preflighting every blob and removes stale entries', async () => {
     const bundle = { blobs: blobs() }
@@ -1417,37 +1598,25 @@ describe('portable sandbox snapshots', () => {
     expect(await target.fs.exists('/workspace/stale')).toBe(true)
   })
 
-  it.each(['ancestor', 'final'])(
-    'rejects a %s symlink before writing',
-    async (position) => {
-      const target = fakeHandle({
-        '/workspace/a': { type: 'symlink', mode: 0o777 },
-      })
+  it.each([
+    { position: 'ancestor', path: 'a/b', linkBecomes: 'dir' },
+    { position: 'final', path: 'a', linkBecomes: 'file' },
+  ])(
+    'removes a current $position symlink before writing the file',
+    async ({ path, linkBecomes }) => {
+      const restored: Record<string, Entry> = {
+        '/workspace/a': link('/etc'),
+      }
+      const target = fakeHandle(restored)
+      const mutations = fsMutationLog(target)
       const bundle = { blobs: blobs() }
       const blobKey = await putSnapshotBlob(bundle.blobs, new Uint8Array([1]))
-      const manifest: { files: SandboxSnapshotEntry[] } =
-        position === 'ancestor'
-          ? {
-              files: [
-                {
-                  path: 'a/b',
-                  kind: 'file',
-                  blobKey,
-                  size: 1,
-                },
-              ],
-            }
-          : {
-              files: [{ path: 'a', kind: 'file', blobKey, size: 1 }],
-            }
-      await expect(
-        restoreSandboxFiles(target, bundle, manifest),
-      ).rejects.toMatchObject({
-        code: 'SANDBOX_SNAPSHOT_UNSUPPORTED_ENTRY',
+      await restoreSandboxFiles(target, bundle, {
+        files: [{ path, kind: 'file', blobKey, size: 1 }],
       })
-      expect(await target.fs.lstat!('/workspace/a')).toMatchObject({
-        type: 'symlink',
-      })
+      expect(mutations.removes).toEqual(['/workspace/a'])
+      expect(restored['/workspace/a']?.type).toBe(linkBecomes)
+      expect(restored[`/workspace/${path}`]?.bytes).toEqual(new Uint8Array([1]))
     },
   )
 

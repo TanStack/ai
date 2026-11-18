@@ -1,8 +1,7 @@
-import { fal } from '@fal-ai/client'
 import { resolveMediaPrompt } from '@tanstack/ai'
 import { BaseVideoAdapter } from '@tanstack/ai/adapters'
 import {
-  configureFalClient,
+  createAdapterFalClient,
   generateId as utilGenerateId,
 } from '../utils/client'
 import { buildFalUsage, takeBillableUnits } from '../utils/billing'
@@ -33,6 +32,7 @@ import type {
   FalVideoProviderOptions,
 } from '../model-meta'
 import type { FalClientConfig } from '../utils/client'
+import type { FalClient } from '../client/index'
 
 /**
  * Map video conditioning inputs onto fal field names.
@@ -138,12 +138,13 @@ export class FalVideoAdapter<TModel extends FalModel> extends BaseVideoAdapter<
 > {
   override readonly kind = 'video' as const
   readonly name = 'fal' as const
+  private readonly client: FalClient
   // Consumes fal storage URLs uploaded via falFiles().
   override readonly supportsFileSources = true
 
   constructor(model: TModel, config?: FalClientConfig) {
     super({}, model)
-    configureFalClient(config)
+    this.client = createAdapterFalClient(config)
   }
 
   async createVideoJob(
@@ -184,9 +185,9 @@ export class FalVideoAdapter<TModel extends FalModel> extends BaseVideoAdapter<
         ...(duration !== undefined ? { duration } : {}),
       } as FalModelInput<TModel>
 
-      // Submit to queue and get request ID. Request-specific abortSignal only —
-      // never via fal.config() (global; would cancel concurrent jobs).
-      const { request_id } = await fal.queue.submit(this.model, {
+      // Submit to the queue and get the request ID. Pass the abortSignal per
+      // request, not in the client config, so it cannot cancel other jobs.
+      const { request_id } = await this.client.queue.submit(this.model, {
         input,
         ...(options.abortSignal ? { abortSignal: options.abortSignal } : {}),
       })
@@ -211,14 +212,14 @@ export class FalVideoAdapter<TModel extends FalModel> extends BaseVideoAdapter<
   }
 
   /**
-   * Cancels a queued request with `fal.queue.cancel`. fal can refuse when the
+   * Cancels a queued request with the fal queue cancel endpoint. fal can refuse when the
    * request already runs, and then this rejects.
    */
   async cancelVideoJob(
     jobId: string,
     options?: { abortSignal?: AbortSignal },
   ): Promise<void> {
-    await fal.queue.cancel(this.model, {
+    await this.client.queue.cancel(this.model, {
       requestId: jobId,
       ...(options?.abortSignal ? { abortSignal: options.abortSignal } : {}),
     })
@@ -228,7 +229,7 @@ export class FalVideoAdapter<TModel extends FalModel> extends BaseVideoAdapter<
     jobId: string,
     options?: { abortSignal?: AbortSignal },
   ): Promise<VideoStatusResult> {
-    const statusResponse = (await fal.queue.status(this.model, {
+    const statusResponse = (await this.client.queue.status(this.model, {
       requestId: jobId,
       logs: true,
       ...(options?.abortSignal ? { abortSignal: options.abortSignal } : {}),
@@ -251,7 +252,7 @@ export class FalVideoAdapter<TModel extends FalModel> extends BaseVideoAdapter<
   ): Promise<VideoUrlResult> {
     let result
     try {
-      result = await fal.queue.result(this.model, {
+      result = await this.client.queue.result(this.model, {
         requestId: jobId,
         ...(options?.abortSignal ? { abortSignal: options.abortSignal } : {}),
       })

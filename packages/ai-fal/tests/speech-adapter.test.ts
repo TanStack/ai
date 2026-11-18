@@ -20,11 +20,13 @@ let mockSubscribe: any
 let mockConfig: any
 
 // Mock the fal.ai client
-vi.mock('@fal-ai/client', () => {
+vi.mock('../src/client', () => {
   return {
-    fal: {
-      subscribe: (...args: Array<unknown>) => mockSubscribe(...args),
-      config: (...args: Array<unknown>) => mockConfig(...args),
+    createFalClient: (...args: Array<unknown>) => {
+      mockConfig(...args)
+      return {
+        subscribe: (...args: Array<unknown>) => mockSubscribe(...args),
+      }
     },
   }
 })

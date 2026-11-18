@@ -76,6 +76,43 @@ describe('Gemini Embedding Adapter', () => {
       expect(result.usage).toBeUndefined()
     })
 
+    it('splits inputs over the 100-per-request limit into sequential requests', async () => {
+      const adapter = new TestGeminiEmbeddingAdapter(
+        { apiKey: 'test' },
+        'gemini-embedding-001',
+      )
+      const spy = adapter.spyOnEmbedContent()
+      // Like the Gemini API, reject any request with more than 100 contents.
+      spy.mockImplementation(({ contents }) => {
+        const items = Array.isArray(contents) ? contents : [contents]
+        if (items.length > 100) {
+          return Promise.reject(new Error('at most 100 requests per batch'))
+        }
+        return Promise.resolve(
+          mockResponse(items.map((text) => [Number(String(text).slice(1))])),
+        )
+      })
+
+      const input = Array.from({ length: 201 }, (_, i) => `t${i}`)
+      const result = await adapter.createEmbeddings({
+        model: 'gemini-embedding-001',
+        input,
+        logger: testLogger,
+      })
+
+      expect(spy).toHaveBeenCalledTimes(3)
+      expect(
+        spy.mock.calls.map(([args]) => (args.contents as Array<string>).length),
+      ).toEqual([100, 100, 1])
+      expect(result.embeddings).toHaveLength(201)
+      expect(result.embeddings.map((e) => e.index)).toEqual(
+        input.map((_, i) => i),
+      )
+      expect(result.embeddings.map((e) => e.vector[0])).toEqual(
+        input.map((_, i) => i),
+      )
+    })
+
     it('maps the top-level dimensions option to outputDimensionality', async () => {
       const adapter = new TestGeminiEmbeddingAdapter(
         { apiKey: 'test' },

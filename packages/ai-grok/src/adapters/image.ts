@@ -1,4 +1,3 @@
-import OpenAI from 'openai'
 import {
   isFileSource,
   resolveMediaPrompt,
@@ -6,7 +5,7 @@ import {
 } from '@tanstack/ai'
 import { BaseImageAdapter } from '@tanstack/ai/adapters'
 import { toRunErrorPayload } from '@tanstack/ai/adapter-internals'
-import { buildImagesUsage } from '@tanstack/openai-base'
+import { buildImagesUsage, createOpenAIClient } from '@tanstack/openai-base'
 import { generateId } from '@tanstack/ai-utils'
 import { getGrokApiKeyFromEnv, withGrokDefaults } from '../utils/client'
 import {
@@ -25,6 +24,7 @@ import type {
   ResolvedMediaPrompt,
 } from '@tanstack/ai'
 import type OpenAI_SDK from 'openai'
+import type { OpenAIClientLike } from '@tanstack/openai-base'
 import type { GrokImageModel } from '../model-meta'
 import type {
   GrokImageModelInputModalitiesByName,
@@ -104,13 +104,13 @@ export class GrokImageAdapter<
   override readonly kind = 'image' as const
   readonly name = 'grok' as const
 
-  protected client: OpenAI
+  protected client: OpenAIClientLike
   private readonly clientConfig: GrokImageConfig
 
   constructor(config: GrokImageConfig, model: TModel) {
     super(model, {})
     this.clientConfig = withGrokDefaults(config)
-    this.client = new OpenAI(this.clientConfig)
+    this.client = createOpenAIClient(this.clientConfig)
   }
 
   async generateImages(

@@ -50,13 +50,13 @@ afterEach(() => {
 describe('Vercel AI Gateway adapters abort the provider request', () => {
   it('image generate', async () => {
     const wire = hangingFetch()
-    const adapter = createVercelGatewayImage('openai/gpt-image-1', 'test-key', {
+    const adapter = createVercelGatewayImage('openai/gpt-image-2', 'test-key', {
       fetch: wire.fetch,
       maxRetries: 0,
     })
     await expectAbortReachesFetch(wire, (abortSignal) =>
       adapter.generateImages({
-        model: 'openai/gpt-image-1',
+        model: 'openai/gpt-image-2',
         prompt: 'a cat',
         abortSignal,
         logger,

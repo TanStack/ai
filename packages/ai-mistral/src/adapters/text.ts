@@ -1,12 +1,13 @@
-import { isFileSource, unsupportedFileSourceError } from '@tanstack/ai'
+import {
+  CONTEXT_OVERFLOW_CODE,
+  isFileSource,
+  unsupportedFileSourceError,
+} from '@tanstack/ai'
 import { BaseTextAdapter } from '@tanstack/ai/adapters'
 import { undoNullWidening } from '@tanstack/ai-utils'
 import { convertToolsToProviderFormat } from '../tools/tool-converter'
-import {
-  createMistralClient,
-  generateId,
-  getMistralApiKeyFromEnv,
-} from '../utils/client'
+import { createMistralClient } from '../client/index'
+import { generateId, getMistralApiKeyFromEnv } from '../utils/client'
 import { makeMistralStructuredOutputCompatibleWithMap } from '../utils/schema-converter'
 import { createToolInputNormalizer } from '../utils/tool-input-normalizer'
 import {
@@ -43,7 +44,6 @@ import type {
   StructuredOutputOptions,
   StructuredOutputResult,
 } from '@tanstack/ai/adapters'
-import type { Mistral } from '@mistralai/mistralai'
 import type {
   AssistantMessage,
   ChatCompletionStreamRequest,
@@ -59,6 +59,7 @@ import type {
   MistralImageMetadata,
   MistralMessageMetadataByModality,
 } from '../message-types'
+import type { MistralClient } from '../client/index'
 import type { MistralClientConfig } from '../utils/client'
 import type { ToolInputNormalizer } from '../utils/tool-input-normalizer'
 
@@ -315,14 +316,14 @@ export class MistralTextAdapter<
   override readonly provider: string
   override readonly inputModalities = MISTRAL_MODEL_INPUT_MODALITIES[this.model]
 
-  private readonly client: Mistral
+  private readonly client: MistralClient
   private readonly rawConfig: MistralClientConfig
 
   constructor(config: MistralTextConfig, model: TModel) {
     super(config, model)
-    // The SDK client is retained for `structuredOutput` (non-streaming). The
-    // streaming path bypasses the SDK and uses `fetchRawMistralStream` because
-    // the SDK's Zod schemas reject partial tool-call argument deltas.
+    // The client serves `structuredOutput` (non-streaming). The streaming
+    // path uses `fetchRawMistralStream`, which reads partial tool-call
+    // argument deltas as they come.
     this.client = createMistralClient(config)
     this.rawConfig = config
     this.provider =
@@ -500,7 +501,17 @@ export class MistralTextAdapter<
     // A response cut off at the output cap is a truncated JSON document;
     // report it before the parse error (issue #1426). The errors carry the
     // usage, because the provider already billed the tokens.
-    if (response.choices[0]?.finishReason === 'length') {
+    const structuredFinishReason = response.choices[0]?.finishReason
+    if (structuredFinishReason === 'model_length') {
+      throw Object.assign(
+        new Error(
+          'mistral.structuredOutput: the response was cut off because the model reached the end of its context window (finish_reason=model_length); shorten the prompt or use a model with a larger context window',
+        ),
+        { code: CONTEXT_OVERFLOW_CODE },
+        usage && { usage },
+      )
+    }
+    if (structuredFinishReason === 'length') {
       throw Object.assign(
         new Error(
           'mistral.structuredOutput: the response was cut off because the maximum token limit was reached (finish_reason=length); raise modelOptions.max_tokens',
@@ -782,7 +793,22 @@ export class MistralTextAdapter<
         }
 
         const finishReason = choice.finish_reason
+        if (finishReason === 'model_length') {
+          // Not max_tokens. code context_overflow is what withCompaction retries.
+          throw Object.assign(
+            new Error(
+              'The response was cut off because the model reached the end of its context window.',
+            ),
+            { code: CONTEXT_OVERFLOW_CODE },
+          )
+        }
         if (finishReason) {
+          // Mistral reports a failed generation as finish_reason 'error'. It
+          // must not end the run as a success; the catch below closes open
+          // lifecycle events and chatStream emits the RUN_ERROR.
+          if (finishReason === 'error') {
+            throw new Error(`Provider finish_reason: ${finishReason}`)
+          }
           if (finishReason === 'tool_calls' || toolCallsInProgress.size > 0) {
             for (const [, toolCall] of toolCallsInProgress) {
               if (
@@ -794,10 +820,16 @@ export class MistralTextAdapter<
                 continue
               }
 
-              const parsedInput = parseToolCallInput(
-                toolCall,
-                normalizeToolInput,
-              )
+              // Complete JSON is normalized. Incomplete JSON throws, except
+              // on `length`, where the raw args stay and `input` is omitted.
+              let parsedInput: unknown
+              let parsed = false
+              try {
+                parsedInput = parseToolCallInput(toolCall, normalizeToolInput)
+                parsed = true
+              } catch (error) {
+                if (finishReason !== 'length') throw error
+              }
 
               toolCall.ended = true
               hasEmittedToolCall = true
@@ -808,16 +840,16 @@ export class MistralTextAdapter<
                 model: chunkModel,
                 timestamp,
                 args: toolCall.arguments,
-                input: parsedInput,
+                ...(parsed ? { input: parsedInput } : {}),
               })
             }
           }
 
           const computedFinishReason =
-            finishReason === 'tool_calls' || hasEmittedToolCall
-              ? 'tool_calls'
-              : finishReason === 'length'
-                ? 'length'
+            finishReason === 'length'
+              ? 'length'
+              : finishReason === 'tool_calls' || hasEmittedToolCall
+                ? 'tool_calls'
                 : 'stop'
 
           // If the run finished while reasoning was still open (no text or

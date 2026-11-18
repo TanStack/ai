@@ -9,9 +9,9 @@ import type {
   OpenRouterConfig,
 } from '../src/adapters/text'
 
-// Drive the REAL @openrouter/sdk retry loop against a stubbed fetch, so the
-// test proves a configured `retryCodes` actually changes SDK behaviour rather
-// than only reaching a mocked `chat.send`.
+// Drive the real client retry loop (the SDK's Speakeasy rules) against a
+// stubbed fetch, so the test proves a configured `retryCodes` actually changes
+// the retry behaviour rather than only reaching a mocked `chat.send`.
 const fetchMock = vi.fn<typeof fetch>()
 
 beforeEach(() => {
