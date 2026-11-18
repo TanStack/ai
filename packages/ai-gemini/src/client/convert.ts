@@ -10,6 +10,7 @@ import type {
   ContentListUnion,
   ContentUnion,
   EmbedContentParameters,
+  FunctionDeclaration,
   GenerateContentConfig,
   GenerateContentParameters,
   GenerateContentResponse,
@@ -25,6 +26,24 @@ import type {
   ToolConfig,
   ToolUnion,
 } from '@google/genai'
+import { schemaTypeEnum } from '../generated/client/types'
+import type {
+  Content as WireContent,
+  EmbedContentRequest,
+  FunctionDeclaration as WireFunctionDeclaration,
+  GeminiPostV1BetaModelsModelsidBatchembedcontentsBody,
+  GeminiPostV1BetaModelsModelsidGeneratecontentBody,
+  GenerationConfig,
+  GoogleMaps as WireGoogleMaps,
+  GoogleSearch as WireGoogleSearch,
+  ImageConfig as WireImageConfig,
+  Part as WirePart,
+  SafetySetting as WireSafetySetting,
+  Schema as WireSchema,
+  SchemaTypeEnumKey,
+  Tool as WireTool,
+  ToolConfig as WireToolConfig,
+} from '../generated/client/types'
 
 /** A JSON object for the request body. */
 export type WireObject = Record<string, unknown>
@@ -161,26 +180,14 @@ export function tContents(origin: ContentListUnion | null | undefined) {
   return result
 }
 
-const SCHEMA_TYPES = [
-  'TYPE_UNSPECIFIED',
-  'STRING',
-  'NUMBER',
-  'INTEGER',
-  'BOOLEAN',
-  'ARRAY',
-  'OBJECT',
-  'NULL',
-]
-
-const toSchemaType = (type: string) =>
-  SCHEMA_TYPES.includes(type.toUpperCase())
-    ? type.toUpperCase()
-    : 'TYPE_UNSPECIFIED'
+const toSchemaType = (type: string): SchemaTypeEnumKey =>
+  Object.values(schemaTypeEnum).find((name) => name === type.toUpperCase()) ??
+  'TYPE_UNSPECIFIED'
 
 // Port of the SDK `processJsonSchema`: JSON Schema to the Gemini `Schema`.
-export function tSchema(input: unknown): WireObject {
+export function tSchema(input: unknown): WireSchema {
   let schema = isObject(input) ? input : {}
-  const result: WireObject = {}
+  const result: WireSchema = {}
   if (schema.type && schema.anyOf) {
     throw new Error('type and anyOf cannot be both populated.')
   }
@@ -215,7 +222,7 @@ export function tSchema(input: unknown): WireObject {
     } else if (name === 'items') {
       result.items = tSchema(value)
     } else if (name === 'anyOf') {
-      const list: Array<WireObject> = []
+      const list: Array<WireSchema> = []
       for (const item of Array.isArray(value) ? value : []) {
         if (isObject(item) && item.type === 'null') {
           result.nullable = true
@@ -232,7 +239,8 @@ export function tSchema(input: unknown): WireObject {
         ]),
       )
     } else if (name !== 'additionalProperties') {
-      result[name] = value
+      // The SDK copies every other JSON Schema keyword as it is.
+      Object.assign(result, { [name]: value })
     }
   }
   return result
@@ -249,33 +257,22 @@ function tSpeechConfig(speechConfig: SpeechConfigUnion): SpeechConfig {
 const hasJsonSchemaKey = (value: unknown) =>
   isObject(value) && Object.keys(value).includes('$schema')
 
-// Port of `tTool`. The SDK changes the caller's tool in place; this returns
-// a copy instead.
-function tTool(tool: Tool): Tool {
-  if (!tool.functionDeclarations) return tool
-  return {
-    ...tool,
-    functionDeclarations: tool.functionDeclarations.map((input) => {
-      const declaration = { ...input }
-      if (declaration.parameters) {
-        if (!hasJsonSchemaKey(declaration.parameters)) {
-          declaration.parameters = tSchema(declaration.parameters)
-        } else if (!declaration.parametersJsonSchema) {
-          declaration.parametersJsonSchema = declaration.parameters
-          delete declaration.parameters
-        }
-      }
-      if (declaration.response) {
-        if (!hasJsonSchemaKey(declaration.response)) {
-          declaration.response = tSchema(declaration.response)
-        } else if (!declaration.responseJsonSchema) {
-          declaration.responseJsonSchema = declaration.response
-          delete declaration.response
-        }
-      }
-      return declaration
-    }),
+// Port of `tTool` for one declaration. The SDK changes the caller's tool in
+// place; this returns a copy instead.
+function functionDeclarationToWire(input: FunctionDeclaration) {
+  const { parameters, response, ...rest } = input
+  const to: WireFunctionDeclaration = rest
+  if (parameters) {
+    if (!hasJsonSchemaKey(parameters)) to.parameters = tSchema(parameters)
+    else if (!to.parametersJsonSchema) to.parametersJsonSchema = parameters
+    else to.parameters = parameters
   }
+  if (response) {
+    if (!hasJsonSchemaKey(response)) to.response = tSchema(response)
+    else if (!to.responseJsonSchema) to.responseJsonSchema = response
+    else to.response = response
+  }
+  return to
 }
 
 function tTools(tools: ReadonlyArray<ToolUnion> | null | undefined) {
@@ -324,17 +321,13 @@ export function tBytes(bytes: unknown) {
 }
 
 function partToWire(part: Part) {
-  const to: WireObject = pick(part, [
+  const to: WirePart = pick(part, [
     'mediaResolution',
     'codeExecutionResult',
     'executableCode',
-    'fileData',
     'functionCall',
-    'functionResponse',
-    'inlineData',
     'text',
     'thought',
-    'thoughtSignature',
     'videoMetadata',
     'toolCall',
     'toolResponse',
@@ -348,15 +341,24 @@ function partToWire(part: Part) {
     rejectVertexOnly(part.functionCall, ['partialArgs', 'willContinue'])
     to.functionCall = pick(part.functionCall, ['id', 'args', 'name'])
   }
+  if (part.functionResponse != null) {
+    to.functionResponse = part.functionResponse
+  }
+  if (part.thoughtSignature != null) {
+    to.thoughtSignature = part.thoughtSignature
+  }
   if (part.inlineData != null) {
     rejectVertexOnly(part.inlineData, ['displayName'])
-    to.inlineData = pick(part.inlineData, ['data', 'mimeType'])
+    to.inlineData = pick(part.inlineData, ['mimeType'])
+    if (part.inlineData.data != null) {
+      to.inlineData.data = part.inlineData.data
+    }
   }
   return to
 }
 
 export function contentToWire(content: Content) {
-  const to: WireObject = {}
+  const to: WireContent = {}
   if (content.parts != null) to.parts = content.parts.map(partToWire)
   if (content.role != null) to.role = content.role
   return to
@@ -364,16 +366,22 @@ export function contentToWire(content: Content) {
 
 export function safetySettingToWire(setting: SafetySetting) {
   rejectVertexOnly(setting, ['method'])
-  return pick(setting, ['category', 'threshold'])
+  const to: WireSafetySetting = pick(setting, ['threshold'])
+  if (setting.category != null) {
+    // @ts-expect-error public type mismatch: HarmCategory vs SafetySettingCategoryEnumKey, category (HARM_CATEGORY_IMAGE_* are Vertex AI only)
+    to.category = setting.category
+  }
+  return to
 }
 
 function googleSearchToWire(search: GoogleSearch) {
   rejectVertexOnly(search, ['blockingConfidence', 'excludeDomains'])
-  return pick(search, ['searchTypes', 'timeRangeFilter'])
+  const to: WireGoogleSearch = pick(search, ['searchTypes', 'timeRangeFilter'])
+  return to
 }
 
 function googleMapsToWire(maps: GoogleMaps) {
-  const to: WireObject = pick(maps, ['authConfig', 'enableWidget'])
+  const to: WireGoogleMaps = pick(maps, ['enableWidget'])
   if (maps.authConfig != null) {
     rejectVertexOnly(maps.authConfig, [
       'apiKeyConfig',
@@ -383,6 +391,7 @@ function googleMapsToWire(maps: GoogleMaps) {
       'oauthConfig',
       'oidcConfig',
     ])
+    // @ts-expect-error modelschemas gap: GoogleMaps has no authConfig, the SDK sends authConfig.apiKey to the Gemini API
     to.authConfig = pick(maps.authConfig, ['apiKey'])
   }
   return to
@@ -394,17 +403,19 @@ function toolToWire(tool: Tool) {
     'enterpriseWebSearch',
     'parallelAiSearch',
   ])
-  const to: WireObject = pick(tool, [
+  const to: WireTool = pick(tool, [
     'computerUse',
     'fileSearch',
-    'googleSearch',
-    'googleMaps',
     'codeExecution',
-    'functionDeclarations',
     'googleSearchRetrieval',
     'urlContext',
     'mcpServers',
   ])
+  if (tool.functionDeclarations != null) {
+    to.functionDeclarations = tool.functionDeclarations.map(
+      functionDeclarationToWire,
+    )
+  }
   if (tool.googleSearch != null) {
     to.googleSearch = googleSearchToWire(tool.googleSearch)
   }
@@ -413,12 +424,11 @@ function toolToWire(tool: Tool) {
 }
 
 export const toolsToWire = (tools: ReadonlyArray<ToolUnion>) =>
-  tTools(tools).map((tool) => toolToWire(tTool(tool)))
+  tTools(tools).map(toolToWire)
 
 function toolConfigToWire(toolConfig: ToolConfig) {
-  const to: WireObject = pick(toolConfig, [
+  const to: WireToolConfig = pick(toolConfig, [
     'retrievalConfig',
-    'functionCallingConfig',
     'includeServerSideToolInvocations',
   ])
   const { functionCallingConfig } = toolConfig
@@ -440,7 +450,8 @@ function imageConfigToWire(imageConfig: ImageConfig) {
     'outputCompressionQuality',
     'imageOutputOptions',
   ])
-  return pick(imageConfig, ['aspectRatio', 'imageSize'])
+  const to: WireImageConfig = pick(imageConfig, ['aspectRatio', 'imageSize'])
+  return to
 }
 
 // Port of `maybeMoveToResponseJsonSchema`, without changing the caller's
@@ -457,7 +468,7 @@ function moveJsonSchema(config: GenerateContentConfig) {
 
 function generateContentConfigToWire(
   input: GenerateContentConfig,
-  body: WireObject,
+  body: GeminiPostV1BetaModelsModelsidGeneratecontentBody,
 ) {
   const config = moveJsonSchema(input)
   rejectVertexOnly(config, [
@@ -481,7 +492,7 @@ function generateContentConfigToWire(
     body.cachedContent = tCachedContentName(config.cachedContent)
   }
   if (config.serviceTier != null) body.serviceTier = config.serviceTier
-  const generationConfig: WireObject = pick(config, [
+  const generationConfig: GenerationConfig = pick(config, [
     'temperature',
     'topP',
     'topK',
@@ -494,15 +505,15 @@ function generateContentConfigToWire(
     'frequencyPenalty',
     'seed',
     'responseMimeType',
-    'responseSchema',
     'responseJsonSchema',
-    'responseModalities',
     'mediaResolution',
-    'speechConfig',
     'thinkingConfig',
-    'imageConfig',
     'enableEnhancedCivicAnswers',
   ])
+  if (config.responseModalities != null) {
+    // @ts-expect-error public type mismatch: Array<string> vs Array<GenerationConfigResponseModalitiesEnumKey>, responseModalities
+    generationConfig.responseModalities = config.responseModalities
+  }
   if (config.responseSchema != null) {
     generationConfig.responseSchema = tSchema(config.responseSchema)
   }
@@ -517,7 +528,7 @@ function generateContentConfigToWire(
 
 /** Port of `generateContentParametersToMldev`, without the `_url` part. */
 export function generateContentToWire(params: GenerateContentParameters) {
-  const body: WireObject = {}
+  const body: GeminiPostV1BetaModelsModelsidGeneratecontentBody = {}
   if (params.contents != null) {
     body.contents = tContents(params.contents).map(contentToWire)
   }
@@ -596,12 +607,21 @@ export function embedContentToWire(params: EmbedContentParameters) {
     'documentOcr',
     'audioTrackExtraction',
   ])
-  const fields = pick(config, ['taskType', 'title', 'outputDimensionality'])
-  return {
-    requests: tContentsForEmbed(contents).map((content) => ({
-      content,
-      ...fields,
-      model,
-    })),
+  const body: GeminiPostV1BetaModelsModelsidBatchembedcontentsBody = {
+    requests: tContentsForEmbed(contents).map((content) => {
+      const request: EmbedContentRequest = {}
+      request.content = content
+      if (config.taskType != null) {
+        // @ts-expect-error public type mismatch: string vs EmbedContentRequestTaskTypeEnumKey, EmbedContentConfig.taskType
+        request.taskType = config.taskType
+      }
+      if (config.title != null) request.title = config.title
+      if (config.outputDimensionality != null) {
+        request.outputDimensionality = config.outputDimensionality
+      }
+      request.model = model
+      return request
+    }),
   }
+  return body
 }

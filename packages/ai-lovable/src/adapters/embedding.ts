@@ -9,8 +9,10 @@ import type {
   EmbeddingResult,
   TokenUsage,
 } from '@tanstack/ai'
-import type OpenAI_SDK from 'openai'
-import type { OpenAIClientLike } from '@tanstack/openai-base'
+import type {
+  OpenAIClientLike,
+  OpenaiPostEmbeddingsBody,
+} from '@tanstack/openai-base'
 import type {
   LovableEmbeddingModel,
   LovableEmbeddingModelInputModalitiesByName,
@@ -45,7 +47,7 @@ export class LovableEmbeddingAdapter<
     const texts = requireTextOnlyEmbeddingInput(options.input, this.name, model)
 
     try {
-      const request: OpenAI_SDK.EmbeddingCreateParams = {
+      const request: OpenaiPostEmbeddingsBody = {
         ...modelOptions,
         model,
         input: texts,

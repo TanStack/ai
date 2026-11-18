@@ -2,6 +2,15 @@
 // adapters call. Same method names, arguments, and results. Vertex AI,
 // Gemini Enterprise, Google auth (no API key), and a file path upload load
 // the real SDK on first use.
+import { sendWith } from '@tanstack/ai-utils/kubb'
+import {
+  geminiPostV1BetaModelsModelsidBatchembedcontents,
+  geminiPostV1BetaModelsModelsidGeneratecontent,
+  geminiPostV1BetaModelsModelsidPredictlongrunning,
+  geminiPostV1BetaModelsModelsidStreamgeneratecontent,
+  geminiPostV1BetaTunedmodelsTunedmodelsidGeneratecontent,
+  geminiPostV1BetaTunedmodelsTunedmodelsidStreamgeneratecontent,
+} from '../generated/client/sdk'
 import {
   createApiClient,
   headerRecord,
@@ -15,6 +24,7 @@ import {
   tFileName,
   tModel,
 } from './convert'
+import type { ClientInstance } from '@tanstack/ai-utils/kubb'
 import type { ApiRequest } from './api'
 import type { GeminiAuthTokenConfig } from './auth-tokens'
 import type {
@@ -164,8 +174,12 @@ function createSdkClient(options: GoogleGenAIOptions, vertexai: boolean) {
   return client
 }
 
-function createFetchClient(options: GoogleGenAIOptions, apiKey: string) {
-  const api = createApiClient({ ...options, apiKey })
+function createFetchClient(
+  options: GoogleGenAIOptions,
+  apiKey: string,
+  fetchFn: typeof fetch | undefined,
+) {
+  const api = createApiClient({ ...options, apiKey }, fetchFn)
   const load = lazySdk(options)
   // The text adapters call only `models.generateContent*`, so the other
   // calls load their code on first use. This keeps the text bundle small.
@@ -191,13 +205,88 @@ function createFetchClient(options: GoogleGenAIOptions, apiKey: string) {
       abortSignal: config?.abortSignal,
     })
 
-  const generateContent = (params: GenerateContentParameters, method: string) =>
-    send(
-      'POST',
-      `${tModel(params.model)}:${method}`,
-      generateContentToWire(params),
-      params.config,
+  type Config = Pick<ApiRequest, 'httpOptions' | 'abortSignal'> | undefined
+
+  // A generated operation: Kubb builds the path and the JSON body, and
+  // `api.request` sends it with the client headers, retries, and errors.
+  const generated = async (
+    operation: (http: ClientInstance) => Promise<{ response: Response }>,
+    config: Config,
+  ) => {
+    const { response } = await operation(
+      sendWith((built) =>
+        api.request({
+          // `api.request` adds the base URL and the API version (v1beta).
+          path: built.path.replace(/^\/v1beta\//, ''),
+          method: 'POST',
+          ...(typeof built.body === 'string' && { body: built.body }),
+          bodyHeaders: built.headers,
+          httpOptions: config?.httpOptions,
+          abortSignal: config?.abortSignal,
+        }),
+      ),
     )
+    return response
+  }
+
+  // The model of a request that the OpenAPI document has, else undefined.
+  // The document paths are fixed to /v1beta, so another API version keeps
+  // the hand-written path. A nested name would not match the path template.
+  const documentModel = (model: string, config: Config) => {
+    const apiVersion =
+      config?.httpOptions?.apiVersion ?? api.httpOptions.apiVersion
+    if (apiVersion !== 'v1beta') return undefined
+    const [, kind, id] =
+      /^(models|tunedModels)\/([^/]+)$/.exec(tModel(model)) ?? []
+    return kind && id ? { tuned: kind === 'tunedModels', id } : undefined
+  }
+
+  const generateContent = (
+    params: GenerateContentParameters,
+    method: 'generateContent' | 'streamGenerateContent',
+  ) => {
+    const body = generateContentToWire(params)
+    const target = documentModel(params.model, params.config)
+    // `api.request` adds `alt=sse` to a stream request on both paths.
+    if (!target) {
+      return send(
+        'POST',
+        `${tModel(params.model)}:${method}`,
+        body,
+        params.config,
+      )
+    }
+    const { tuned, id } = target
+    const stream = method === 'streamGenerateContent'
+    return generated((http) => {
+      if (tuned) {
+        const path = { tunedModelsId: id }
+        return stream
+          ? geminiPostV1BetaTunedmodelsTunedmodelsidStreamgeneratecontent({
+              client: http,
+              path,
+              body,
+            })
+          : geminiPostV1BetaTunedmodelsTunedmodelsidGeneratecontent({
+              client: http,
+              path,
+              body,
+            })
+      }
+      const path = { modelsId: id }
+      return stream
+        ? geminiPostV1BetaModelsModelsidStreamgeneratecontent({
+            client: http,
+            path,
+            body,
+          })
+        : geminiPostV1BetaModelsModelsidGeneratecontent({
+            client: http,
+            path,
+            body,
+          })
+    }, params.config)
+  }
 
   const client: GeminiClient = {
     vertexai: false,
@@ -211,10 +300,7 @@ function createFetchClient(options: GoogleGenAIOptions, apiKey: string) {
         })
       },
       async generateContentStream(params) {
-        const response = await generateContent(
-          params,
-          'streamGenerateContent?alt=sse',
-        )
+        const response = await generateContent(params, 'streamGenerateContent')
         const headers = headerRecord(response)
         return (async function* () {
           for await (const chunk of readSdkStream(response)) {
@@ -227,12 +313,26 @@ function createFetchClient(options: GoogleGenAIOptions, apiKey: string) {
         })()
       },
       async embedContent(params) {
-        const response = await send(
-          'POST',
-          `${tModel(params.model)}:batchEmbedContents`,
-          embedContentToWire(params),
-          params.config,
-        )
+        const request = embedContentToWire(params)
+        const target = documentModel(params.model, params.config)
+        // The document has no tuned-model embed operation.
+        const response =
+          target && !target.tuned
+            ? await generated(
+                (http) =>
+                  geminiPostV1BetaModelsModelsidBatchembedcontents({
+                    client: http,
+                    path: { modelsId: target.id },
+                    body: request,
+                  }),
+                params.config,
+              )
+            : await send(
+                'POST',
+                `${tModel(params.model)}:batchEmbedContents`,
+                request,
+                params.config,
+              )
         const body: EmbedContentResponse = await response.json()
         const result: WithHttpHeaders<EmbedContentResponse> = {
           sdkHttpResponse: { headers: headerRecord(response) },
@@ -244,12 +344,25 @@ function createFetchClient(options: GoogleGenAIOptions, apiKey: string) {
       async generateVideos(params) {
         const { generateVideosToWire, videosOperationFromWire } =
           await import('./videos')
-        const response = await send(
-          'POST',
-          `${tModel(params.model)}:predictLongRunning`,
-          generateVideosToWire(params),
-          params.config,
-        )
+        const request = generateVideosToWire(params)
+        const target = documentModel(params.model, params.config)
+        const response =
+          target && !target.tuned
+            ? await generated(
+                (http) =>
+                  geminiPostV1BetaModelsModelsidPredictlongrunning({
+                    client: http,
+                    path: { modelsId: target.id },
+                    body: request,
+                  }),
+                params.config,
+              )
+            : await send(
+                'POST',
+                `${tModel(params.model)}:predictLongRunning`,
+                request,
+                params.config,
+              )
         const body: WireVideosOperation = await response.json()
         return videosOperationFromWire(body)
       },
@@ -327,11 +440,16 @@ function createFetchClient(options: GoogleGenAIOptions, apiKey: string) {
  * sends every call through a real `GoogleGenAI`.
  *
  * @param options - The `GoogleGenAI` constructor options.
+ * @param fetchFn - The `fetch` of the API key client. Defaults to the global
+ * `fetch`.
  * @example
  * const client = createGoogleGenAI({ apiKey })
  * const result = await client.models.generateContent({ model, contents })
  */
-export function createGoogleGenAI(options: GoogleGenAIOptions) {
+export function createGoogleGenAI(
+  options: GoogleGenAIOptions,
+  fetchFn?: typeof fetch,
+) {
   if ((options.project || options.location) && options.apiKey) {
     throw new Error(
       'Project/location and API key are mutually exclusive in the client initializer.',
@@ -339,5 +457,5 @@ export function createGoogleGenAI(options: GoogleGenAIOptions) {
   }
   const vertexai = usesVertexAI(options)
   if (vertexai || !options.apiKey) return createSdkClient(options, vertexai)
-  return createFetchClient(options, options.apiKey)
+  return createFetchClient(options, options.apiKey, fetchFn)
 }

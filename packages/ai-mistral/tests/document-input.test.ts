@@ -3,8 +3,7 @@ import { createMistralText } from '../src/adapters/text'
 import type { DocumentPart } from '@tanstack/ai'
 
 // `convertContentPartToMistral` is private; reach it directly so the test
-// exercises the document mapping without standing up an HTTP mock. The
-// `messageToWire` step then snake-cases `documentUrl` -> `document_url`.
+// exercises the document mapping without standing up an HTTP mock.
 const convertContentPart = (
   adapter: ReturnType<typeof createMistralText>,
   part: DocumentPart,
@@ -26,7 +25,7 @@ describe('mistral document content parts', () => {
 
     expect(convertContentPart(adapter, part)).toEqual({
       type: 'document_url',
-      documentUrl: 'https://example.com/contract.pdf',
+      document_url: 'https://example.com/contract.pdf',
     })
   })
 
@@ -42,7 +41,7 @@ describe('mistral document content parts', () => {
 
     expect(convertContentPart(adapter, part)).toEqual({
       type: 'document_url',
-      documentUrl: 'data:application/pdf;base64,JVBERi0xLjQ=',
+      document_url: 'data:application/pdf;base64,JVBERi0xLjQ=',
     })
   })
 
@@ -58,7 +57,7 @@ describe('mistral document content parts', () => {
 
     expect(convertContentPart(adapter, part)).toEqual({
       type: 'document_url',
-      documentUrl: 'data:application/pdf;base64,JVBERi0xLjQ=',
+      document_url: 'data:application/pdf;base64,JVBERi0xLjQ=',
     })
   })
 })

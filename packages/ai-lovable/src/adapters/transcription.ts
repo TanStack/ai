@@ -14,7 +14,10 @@ import type {
   TranscriptionResult,
 } from '@tanstack/ai'
 import type OpenAI_SDK from 'openai'
-import type { OpenAIClientLike } from '@tanstack/openai-base'
+import type {
+  OpenAIClientLike,
+  OpenaiPostAudioTranscriptionsBody,
+} from '@tanstack/openai-base'
 import type { LovableTranscriptionModel } from '../model-meta'
 import type { LovableTranscriptionProviderOptions } from '../audio/transcription-provider-options'
 import type { LovableClientConfig } from '../utils/client'
@@ -121,7 +124,7 @@ export class LovableTranscriptionAdapter<
 
   private buildTranscriptionRequest(
     options: TranscriptionOptions<LovableTranscriptionProviderOptions>,
-  ): OpenAI_SDK.Audio.TranscriptionCreateParamsNonStreaming {
+  ): OpenaiPostAudioTranscriptionsBody & { stream?: false | null } {
     const { model, audio, language, prompt, responseFormat, modelOptions } =
       options
     const file = this.prepareAudioFile(audio)
@@ -148,7 +151,9 @@ export class LovableTranscriptionAdapter<
       )
     }
 
-    const request: OpenAI_SDK.Audio.TranscriptionCreateParamsNonStreaming = {
+    const request: OpenaiPostAudioTranscriptionsBody & {
+      stream?: false | null
+    } = {
       ...modelOptions,
       model,
       file,

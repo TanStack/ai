@@ -1,4 +1,7 @@
 import { getApiKeyFromEnv } from '@tanstack/ai-utils'
+import { sendWith } from '@tanstack/ai-utils/kubb'
+import { createSessionToken } from '../generated/client/sdk'
+import type { CreateSessionTokenResponse } from '../generated/client/types'
 
 export const DEFAULT_REACTOR_API_URL = 'https://api.reactor.inc'
 
@@ -20,10 +23,7 @@ export function resolveReactorApiUrl(config?: ReactorClientConfig): string {
   return (config?.baseUrl ?? DEFAULT_REACTOR_API_URL).replace(/\/+$/, '')
 }
 
-export interface ReactorTokenResponse {
-  jwt: string
-  expires_at: number
-}
+export type ReactorTokenResponse = CreateSessionTokenResponse
 
 export async function mintReactorSessionToken(args: {
   apiKey: string
@@ -39,31 +39,35 @@ export async function mintReactorSessionToken(args: {
     )
   }
 
-  const response = await fetchImpl(`${args.apiUrl}/tokens`, {
-    method: 'POST',
-    headers: {
-      'Reactor-API-Key': args.apiKey,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
+  const { response } = await createSessionToken({
+    client: sendWith(async (request) => {
+      const res = await fetchImpl(`${args.apiUrl}${request.path}`, {
+        method: request.method,
+        headers: { ...request.headers, 'Content-Type': 'application/json' },
+        body: request.body,
+        ...(request.signal ? { signal: request.signal } : {}),
+      })
+      if (!res.ok) {
+        const detail = await res.text().catch(() => '')
+        throw new Error(
+          `Reactor token request failed (${res.status}${
+            res.statusText ? ` ${res.statusText}` : ''
+          })${detail ? `: ${detail}` : ''}`,
+        )
+      }
+      return res
+    }),
+    headers: { 'Reactor-API-Key': args.apiKey },
+    body: {
       authorization_details: [
         {
           type: 'session',
           resources: { models: { match: [args.modelSlug] } },
         },
       ],
-    }),
-    ...(args.abortSignal ? { signal: args.abortSignal } : {}),
+    },
+    signal: args.abortSignal,
   })
-
-  if (!response.ok) {
-    const detail = await response.text().catch(() => '')
-    throw new Error(
-      `Reactor token request failed (${response.status}${
-        response.statusText ? ` ${response.statusText}` : ''
-      })${detail ? `: ${detail}` : ''}`,
-    )
-  }
 
   const body = (await response.json()) as {
     jwt?: unknown

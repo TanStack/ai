@@ -1,3 +1,5 @@
+import type { Unrecognized } from '@openrouter/sdk/types'
+
 /**
  * One node of the generated rename tables (`tables/*.ts`):
  *
@@ -198,4 +200,47 @@ function remapDiscriminated(
   const out = remap(value, option, objects)
   if (outKey !== key && isPlainObject(out)) out[outKey] = discriminator
   return out
+}
+
+/** `autoName` of a camelCase key, as a type. */
+type SnakeCase<S extends string> = S extends `${infer H}${infer R}`
+  ? `${H extends Lowercase<H> ? H : `_${Lowercase<H>}`}${SnakeCase<R>}`
+  : S
+
+/**
+ * The type of `remap(value, node)` for an SDK request type `T`: keys in
+ * snake_case, `additionalProperties` spread away. ponytail: it follows
+ * `autoName` only; the few table renames (`m`) are not modelled. The SDK
+ * forward-compatibility branches (`Unrecognized` open-enum values and the
+ * `isUnknown` union fallback) map to `never`: they exist for responses.
+ */
+export type Wire<T> = T extends Unrecognized<unknown> | { isUnknown: true }
+  ? never
+  : T extends string | number | boolean | bigint | symbol | null | undefined
+    ? T
+    : T extends ReadonlyArray<infer U>
+      ? Array<Wire<U>>
+      : T extends object
+        ? {
+            [K in keyof T as K extends 'additionalProperties'
+              ? never
+              : K extends string
+                ? SnakeCase<K>
+                : K]: Wire<T[K]>
+          }
+        : T
+
+/**
+ * `remap` for a request: the SDK request `value` renamed to the wire, typed
+ * as {@link Wire}, so the generated client checks the body. The type is the
+ * one trusted step; `tests/remap-oracle.test.ts` checks the runtime against
+ * the SDK zod schemas.
+ */
+export function toWire<T>(
+  value: T,
+  node: RemapNode,
+  objects: RemapObjects,
+): Wire<T>
+export function toWire(value: unknown, node: RemapNode, objects: RemapObjects) {
+  return remap(value, node, objects)
 }

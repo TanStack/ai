@@ -38,6 +38,7 @@ import { toChatCompletionsToolChoice } from '../tools/tool-choice'
 import { convertToolsToChatCompletionsFormat } from './chat-completions-tool-converter'
 import type OpenAI from 'openai'
 import type { OpenAIClientLike } from '../client/index'
+import type { OpenaiPostChatCompletionsBody } from '../generated/client/types'
 import type {
   StructuredOutputOptions,
   StructuredOutputResult,
@@ -178,18 +179,17 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
         { provider: this.name, model: this.model },
       )
       const streamOptions = this.streamOptions(options.model)
+      // @ts-expect-error public type mismatch: ChatCompletionCreateParamsStreaming vs OpenaiPostChatCompletionsBody, seed (number vs bigint) and top_logprobs (null)
+      const body: OpenaiPostChatCompletionsBody & { stream: true } = {
+        ...requestParams,
+        stream: true,
+        ...(streamOptions && { stream_options: streamOptions }),
+      }
       const stream = await clientFor(
         this.client,
         options,
         this.baseFetch,
-      ).chat.completions.create(
-        {
-          ...requestParams,
-          stream: true,
-          ...(streamOptions && { stream_options: streamOptions }),
-        },
-        extractRequestOptions(options.request),
-      )
+      ).chat.completions.create(body, extractRequestOptions(options.request))
 
       yield* this.processStreamChunks(stream, options, aguiState)
     } catch (error: unknown) {
@@ -348,25 +348,23 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
 
     try {
       // Strip stream_options which is only valid for streaming calls
-      const {
-        stream_options: _,
-        stream: __,
-        ...cleanParams
-      } = requestParams as any
+      const { stream_options: _, stream: __, ...cleanParams } = requestParams
       chatOptions.logger.request(
         `activity=structuredOutput provider=${this.name} model=${this.model} messages=${chatOptions.messages.length}`,
         { provider: this.name, model: this.model },
       )
+      // @ts-expect-error public type mismatch: ChatCompletionCreateParamsStreaming vs OpenaiPostChatCompletionsBody, seed (number vs bigint) and top_logprobs (null)
+      const body: OpenaiPostChatCompletionsBody & { stream: false } = {
+        ...cleanParams,
+        stream: false,
+        response_format: responseFormat,
+      }
       const response = await clientFor(
         this.client,
         chatOptions,
         this.baseFetch,
       ).chat.completions.create(
-        {
-          ...cleanParams,
-          stream: false,
-          response_format: responseFormat,
-        },
+        body,
         extractRequestOptions(chatOptions.request),
       )
 
@@ -522,17 +520,19 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
       )
 
       const streamOptions = this.streamOptions(chatOptions.model)
+      // @ts-expect-error public type mismatch: ChatCompletionCreateParamsStreaming vs OpenaiPostChatCompletionsBody, seed (number vs bigint) and top_logprobs (null)
+      const body: OpenaiPostChatCompletionsBody & { stream: true } = {
+        ...cleanParams,
+        stream: true,
+        ...(streamOptions && { stream_options: streamOptions }),
+        response_format: responseFormat,
+      }
       const stream = await clientFor(
         this.client,
         chatOptions,
         this.baseFetch,
       ).chat.completions.create(
-        {
-          ...cleanParams,
-          stream: true,
-          ...(streamOptions && { stream_options: streamOptions }),
-          response_format: responseFormat,
-        },
+        body,
         extractRequestOptions(chatOptions.request),
       )
 

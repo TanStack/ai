@@ -34,7 +34,8 @@ const clients = [
   },
   {
     client: 'new OpenAI()',
-    make: () =>
+    make: (): OpenAIClientLike =>
+      // @ts-expect-error public type mismatch: an OpenAI SDK instance no longer type-checks as OpenAIClientLike, but still works at runtime
       new OpenAI({ apiKey: 'test-key', maxRetries: 0, fetch: hangingFetch }),
   },
 ]

@@ -3,7 +3,10 @@
   "ignoreDependencies": [
     "@faker-js/faker",
     "@aws-sdk/client-bedrock",
-    "@typescript/typescript6"
+    "@typescript/typescript6",
+    "@kubb/plugin-client",
+    "@kubb/plugin-fetch",
+    "@kubb/plugin-ts"
   ],
   "ignoreBinaries": ["taskkill", "ps"],
   "ignoreWorkspaces": [
@@ -26,7 +29,10 @@
     "packages/ai-openai/src/audio/audio-provider-options.ts",
     "packages/ai-devtools/src/production.ts",
     "codemods/**/__testfixtures__/**",
-    "packages/ai-persistence/skills-test/stubs/**"
+    "packages/ai-persistence/skills-test/stubs/**",
+    "packages/*/src/generated/client/sdk.ts",
+    "packages/*/src/generated/*/types.ts",
+    "packages/ai-utils/src/generated/kubb/**"
   ],
   "ignoreExportsUsedInFile": true,
   "workspaces": {

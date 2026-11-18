@@ -27,6 +27,8 @@ export interface ApiRequest {
   /** Per-call options. They are merged over the client options. */
   httpOptions?: HttpOptions
   abortSignal?: AbortSignal
+  /** The headers of a generated body (its content type). Others win. */
+  bodyHeaders?: Record<string, string>
 }
 
 const DEFAULT_BASE_URL = 'https://generativelanguage.googleapis.com/'
@@ -170,8 +172,15 @@ const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
  *
  * @param options - The SDK client options. `apiKey` is required here; the
  * caller sends Vertex AI and Google auth to the real SDK.
+ * @param fetchFn - The `fetch` to send with. Defaults to the global `fetch`.
  */
-export function createApiClient(options: GoogleGenAIOptions) {
+export function createApiClient(
+  options: GoogleGenAIOptions,
+  fetchFn?: typeof fetch,
+) {
+  // Looks up the global `fetch` on each call when none is given.
+  const send = (url: string, init: RequestInit) =>
+    fetchFn ? fetchFn(url, init) : fetch(url, init)
   const { apiKey } = options
   const baseUrl =
     options.httpOptions?.baseUrl ?? readEnv('GOOGLE_GEMINI_BASE_URL')
@@ -188,9 +197,7 @@ export function createApiClient(options: GoogleGenAIOptions) {
   // `retryOptions`, with the p-retry backoff (1 s, 2 s, 4 s, ...).
   const apiCall = async (url: string, init: RequestInit) => {
     const { retryOptions } = clientHttpOptions
-    // ponytail: the client fetch only. Add a per-call fetch when a caller
-    // needs one.
-    const fetchFn = clientHttpOptions.fetch ?? fetch
+    const fetchFn = clientHttpOptions.fetch ?? send
     if (!retryOptions) return fetchFn(url, init)
     const retries = (retryOptions.attempts ?? 5) - 1
     for (let attempt = 0; ; attempt++) {
@@ -257,6 +264,9 @@ export function createApiClient(options: GoogleGenAIOptions) {
     const headers = new Headers()
     for (const [name, value] of Object.entries(httpOptions.headers ?? {})) {
       headers.append(name, value)
+    }
+    for (const [name, value] of Object.entries(req.bodyHeaders ?? {})) {
+      if (!headers.has(name)) headers.set(name, value)
     }
     if (timeout > 0) {
       headers.append('X-Server-Timeout', String(Math.ceil(timeout / 1000)))

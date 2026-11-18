@@ -21,7 +21,9 @@ export function createOpenRouterRerankClient(config: OpenRouterClientOptions) {
           {
             method: 'POST',
             path: 'rerank',
-            body: remap(request.requestBody, RerankRequest, OBJECTS),
+            body: JSON.stringify(
+              remap(request.requestBody, RerankRequest, OBJECTS),
+            ),
             accept: 'application/json;q=1, text/event-stream;q=0',
             headers: request,
             okStatus: 200,

@@ -5,6 +5,7 @@ import {
   createOllamaEmbedding,
   ollamaEmbedding,
 } from '../src/adapters/embedding'
+import { Ollama } from 'ollama'
 import type { Mock } from 'vitest'
 
 const testLogger = resolveDebugOption(false)
@@ -96,7 +97,7 @@ describe('OllamaEmbeddingAdapter.createEmbeddings', () => {
       ),
     )
 
-    const adapter = createOllamaEmbedding('nomic-embed-text')
+    const adapter = new OllamaEmbeddingAdapter(new Ollama(), 'nomic-embed-text')
     const result = await adapter.createEmbeddings({
       model: 'nomic-embed-text',
       input: ['a red guitar', { type: 'text', content: 'a blue drum kit' }],
@@ -119,7 +120,7 @@ describe('OllamaEmbeddingAdapter.createEmbeddings', () => {
   it('maps provider options to the SDK request (keepAlive -> keep_alive)', async () => {
     embedMock.mockResolvedValueOnce(mockResponse([[0.1]], 3))
 
-    const adapter = createOllamaEmbedding('nomic-embed-text')
+    const adapter = new OllamaEmbeddingAdapter(new Ollama(), 'nomic-embed-text')
     await adapter.createEmbeddings({
       model: 'nomic-embed-text',
       input: ['hello'],
@@ -143,7 +144,7 @@ describe('OllamaEmbeddingAdapter.createEmbeddings', () => {
   it('omits unset provider options from the request entirely', async () => {
     embedMock.mockResolvedValueOnce(mockResponse([[0.1]], 3))
 
-    const adapter = createOllamaEmbedding('nomic-embed-text')
+    const adapter = new OllamaEmbeddingAdapter(new Ollama(), 'nomic-embed-text')
     await adapter.createEmbeddings({
       model: 'nomic-embed-text',
       input: ['hello'],
@@ -157,7 +158,7 @@ describe('OllamaEmbeddingAdapter.createEmbeddings', () => {
   })
 
   it('throws a clear error when dimensions is requested', async () => {
-    const adapter = createOllamaEmbedding('nomic-embed-text')
+    const adapter = new OllamaEmbeddingAdapter(new Ollama(), 'nomic-embed-text')
 
     await expect(
       adapter.createEmbeddings({
@@ -173,7 +174,7 @@ describe('OllamaEmbeddingAdapter.createEmbeddings', () => {
   it('includes usage when prompt_eval_count is present', async () => {
     embedMock.mockResolvedValueOnce(mockResponse([[0.1]], 9))
 
-    const adapter = createOllamaEmbedding('nomic-embed-text')
+    const adapter = new OllamaEmbeddingAdapter(new Ollama(), 'nomic-embed-text')
     const result = await adapter.createEmbeddings({
       model: 'nomic-embed-text',
       input: ['hello'],
@@ -190,7 +191,7 @@ describe('OllamaEmbeddingAdapter.createEmbeddings', () => {
   it('omits usage when prompt_eval_count is absent', async () => {
     embedMock.mockResolvedValueOnce(mockResponse([[0.1]]))
 
-    const adapter = createOllamaEmbedding('nomic-embed-text')
+    const adapter = new OllamaEmbeddingAdapter(new Ollama(), 'nomic-embed-text')
     const result = await adapter.createEmbeddings({
       model: 'nomic-embed-text',
       input: ['hello'],
@@ -202,7 +203,7 @@ describe('OllamaEmbeddingAdapter.createEmbeddings', () => {
   })
 
   it('throws a clear error for image input without calling the client', async () => {
-    const adapter = createOllamaEmbedding('nomic-embed-text')
+    const adapter = new OllamaEmbeddingAdapter(new Ollama(), 'nomic-embed-text')
 
     await expect(
       adapter.createEmbeddings({

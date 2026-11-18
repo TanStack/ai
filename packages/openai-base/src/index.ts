@@ -30,3 +30,12 @@ export {
   createOpenAIClient,
   type OpenAIClientLike,
 } from './client/index'
+/** The generated modelschemas request bodies that `OpenAIClientLike` takes. */
+export type {
+  OpenaiPostAudioSpeechBody,
+  OpenaiPostAudioTranscriptionsBody,
+  OpenaiPostEmbeddingsBody,
+  OpenaiPostImagesEditsBody,
+  OpenaiPostImagesGenerationsBody,
+  OpenaiPostVideosBody,
+} from './generated/client/types'

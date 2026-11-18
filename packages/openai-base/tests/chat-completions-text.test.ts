@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest'
 import { OpenAIBaseChatCompletionsTextAdapter } from '../src/adapters/chat-completions-text'
 import OpenAI from 'openai'
+import { stubClient } from './stub-client'
 import { EventType } from '@tanstack/ai'
 import type { AdapterYieldChunk, Tool } from '@tanstack/ai'
 import { resolveDebugOption } from '@tanstack/ai/adapter-internals'
@@ -24,25 +25,11 @@ type MockChatCompletionCreate = (
 // Declare mockCreate at module level
 let mockCreate: ReturnType<typeof vi.fn<MockChatCompletionCreate>>
 
-/**
- * Build a real `OpenAI` SDK client and monkey-patch its
- * `chat.completions.create` to forward to the module-level `mockCreate`.
- * Going through a real `new OpenAI(...)` instance keeps the field type
- * exactly `OpenAI` — no `as unknown as OpenAI` cast — and still lets tests
- * reassign `mockCreate` between cases because the patched method looks it
- * up at call time.
- */
-function makeStubClient(): OpenAI {
-  const client = new OpenAI({ apiKey: 'test-api-key' })
-  // Monkey-patch the overloaded `create` method. The SDK's overload
-  // union makes a plain function assignment incompatible, so we pin the
-  // patched function to the inherited method's exact type — narrowing,
-  // not widening, and no `any` involved.
-  client.chat.completions.create = ((
-    params: OpenAI.Chat.Completions.ChatCompletionCreateParams,
-    options?: OpenAI.RequestOptions,
-  ) => mockCreate(params, options)) as typeof client.chat.completions.create
-  return client
+/** Our client with `chat.completions.create` routed to `mockCreate`. */
+function makeStubClient() {
+  return stubClient({
+    completions: (params, options) => mockCreate(params, options),
+  })
 }
 
 /**

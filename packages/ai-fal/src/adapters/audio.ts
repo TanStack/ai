@@ -5,14 +5,14 @@ import {
   generateId as utilGenerateId,
 } from '../utils/client'
 import { buildFalUsage, takeBillableUnits } from '../utils/billing'
-import type { OutputType, Result } from '@fal-ai/client'
+import type { Result } from '@fal-ai/client'
 import type {
   AudioGenerationOptions,
   AudioGenerationResult,
 } from '@tanstack/ai'
 import type { FalClientConfig } from '../utils/client'
 import type { FalClient } from '../client/index'
-import type { FalModel, FalModelInput } from '../model-meta'
+import type { FalModel, FalModelInput, FalModelOutput } from '../model-meta'
 
 /**
  * Provider options for audio generation, excluding fields TanStack AI handles.
@@ -124,7 +124,7 @@ export class FalAudioAdapter<TModel extends FalModel> extends BaseAudioAdapter<
   }
 
   private transformResponse(
-    response: Result<OutputType<TModel>>,
+    response: Result<FalModelOutput<TModel>>,
   ): AudioGenerationResult {
     const data = response.data as Record<string, unknown>
 

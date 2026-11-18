@@ -1,5 +1,8 @@
 import { createOpenAIClient } from '@tanstack/openai-base'
-import type { OpenAIClientLike } from '@tanstack/openai-base'
+import type {
+  OpenAIClientLike,
+  OpenaiPostAudioTranscriptionsBody,
+} from '@tanstack/openai-base'
 import { BaseTranscriptionAdapter } from '@tanstack/ai/adapters'
 import { toRunErrorPayload } from '@tanstack/ai/adapter-internals'
 import { base64ToArrayBuffer, generateId } from '@tanstack/ai-utils'
@@ -25,7 +28,7 @@ type DiarizeModel = (typeof DIARIZE_MODELS)[number]
 type OpenAITranscriptionResponseMode = 'diarized' | 'verbose' | 'plain'
 
 interface OpenAITranscriptionRequestPlan {
-  request: OpenAI_SDK.Audio.TranscriptionCreateParamsNonStreaming
+  request: OpenaiPostAudioTranscriptionsBody & { stream?: false | null }
   responseMode: OpenAITranscriptionResponseMode
 }
 
@@ -325,7 +328,7 @@ export class OpenAITranscriptionAdapter<
     // Spread modelOptions first so it can never override the validated
     // `model`/`file` fields (server routes often pass modelOptions through
     // from untyped client input).
-    const request: OpenAI_SDK.Audio.TranscriptionCreateParamsNonStreaming = {
+    const request: OpenAITranscriptionRequestPlan['request'] = {
       ...modelOptions,
       model,
       file,

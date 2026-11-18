@@ -100,52 +100,54 @@ export class ElevenLabsTranscriptionAdapter<
 
       const response = await this.client.speechToText.convert(
         {
-          modelId: this.model,
+          model_id: this.model,
           ...(audioInput.kind === 'file'
             ? { file: audioInput.value }
-            : { cloudStorageUrl: audioInput.value }),
-          ...(options.language ? { languageCode: options.language } : {}),
+            : { cloud_storage_url: audioInput.value }),
+          ...(options.language ? { language_code: options.language } : {}),
           ...(modelOpts.tagAudioEvents != null
-            ? { tagAudioEvents: modelOpts.tagAudioEvents }
+            ? { tag_audio_events: modelOpts.tagAudioEvents }
             : {}),
           ...(modelOpts.numSpeakers != null
-            ? { numSpeakers: modelOpts.numSpeakers }
+            ? { num_speakers: modelOpts.numSpeakers }
             : {}),
           ...(modelOpts.timestampsGranularity
-            ? { timestampsGranularity: modelOpts.timestampsGranularity }
+            ? { timestamps_granularity: modelOpts.timestampsGranularity }
             : {}),
           ...(modelOpts.diarize != null ? { diarize: modelOpts.diarize } : {}),
           ...(modelOpts.diarizationThreshold != null
-            ? { diarizationThreshold: modelOpts.diarizationThreshold }
+            ? { diarization_threshold: modelOpts.diarizationThreshold }
             : {}),
           ...(modelOpts.detectSpeakerRoles != null
-            ? { detectSpeakerRoles: modelOpts.detectSpeakerRoles }
+            ? { detect_speaker_roles: modelOpts.detectSpeakerRoles }
             : {}),
           ...(modelOpts.keyterms ? { keyterms: modelOpts.keyterms } : {}),
           ...(modelOpts.entityDetection
-            ? { entityDetection: modelOpts.entityDetection }
+            ? { entity_detection: modelOpts.entityDetection }
             : {}),
           ...(modelOpts.entityRedaction
-            ? { entityRedaction: modelOpts.entityRedaction }
+            ? { entity_redaction: modelOpts.entityRedaction }
             : {}),
           ...(modelOpts.entityRedactionMode
-            ? { entityRedactionMode: modelOpts.entityRedactionMode }
+            ? { entity_redaction_mode: modelOpts.entityRedactionMode }
             : {}),
           ...(modelOpts.noVerbatim != null
-            ? { noVerbatim: modelOpts.noVerbatim }
+            ? { no_verbatim: modelOpts.noVerbatim }
             : {}),
           ...(modelOpts.temperature != null
             ? { temperature: modelOpts.temperature }
             : {}),
           ...(modelOpts.seed != null ? { seed: modelOpts.seed } : {}),
-          ...(modelOpts.enableLogging != null
-            ? { enableLogging: modelOpts.enableLogging }
-            : {}),
           ...(modelOpts.useMultiChannel != null
-            ? { useMultiChannel: modelOpts.useMultiChannel }
+            ? { use_multi_channel: modelOpts.useMultiChannel }
             : {}),
-          ...(modelOpts.fileFormat ? { fileFormat: modelOpts.fileFormat } : {}),
-        } as Parameters<ElevenLabsClient['speechToText']['convert']>[0],
+          ...(modelOpts.fileFormat
+            ? { file_format: modelOpts.fileFormat }
+            : {}),
+        },
+        modelOpts.enableLogging != null
+          ? { enable_logging: modelOpts.enableLogging }
+          : {},
         options.abortSignal ? { abortSignal: options.abortSignal } : {},
       )
 

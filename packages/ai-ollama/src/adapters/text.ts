@@ -12,7 +12,18 @@ import {
 } from '@tanstack/ai/adapter-internals'
 import { BaseTextAdapter } from '@tanstack/ai/adapters'
 import { buildOllamaUsage } from '../usage'
-import { createOllamaClient, generateId, getOllamaHostFromEnv } from '../utils'
+import {
+  createOllamaFetchClient,
+  generateId,
+  getOllamaHostFromEnv,
+  readChatStream,
+} from '../utils'
+import { ollamaPostApiChat } from '../generated/client/sdk'
+import type {
+  ChatMessage,
+  OllamaPostApiChatBody,
+  ToolCall as ToolCallBody,
+} from '../generated/client/types'
 import { convertToolsToProviderFormat } from '../tools/tool-converter'
 import { OLLAMA_MODEL_REASONING, OLLAMA_TEXT_MODELS } from '../model-meta'
 import type { OllamaClientConfig } from '../utils/client'
@@ -27,10 +38,8 @@ import type {
 } from '@tanstack/ai/adapters'
 import type { InternalLogger } from '@tanstack/ai/adapter-internals'
 import type {
-  AbortableAsyncIterator,
   ChatRequest,
   ChatResponse,
-  Message,
   Ollama,
   Tool as OllamaTool,
   ToolCall,
@@ -138,9 +147,9 @@ export class OllamaTextAdapter<TModel extends string> extends BaseTextAdapter<
   readonly name = 'ollama' as const
   override readonly api = 'ollama' as const
 
-  private readonly client: Ollama
-  /** The config of the adapter's own client. An injected client has none. */
-  private readonly clientConfig: OllamaClientConfig | undefined
+  /** An injected `ollama` client. Without one, the generated client sends. */
+  private readonly client: Ollama | undefined
+  private readonly clientConfig: OllamaClientConfig = {}
 
   constructor(
     hostOrClientOrConfig: string | Ollama | OllamaClientConfig | undefined,
@@ -152,31 +161,27 @@ export class OllamaTextAdapter<TModel extends string> extends BaseTextAdapter<
       hostOrClientOrConfig === undefined
     ) {
       this.clientConfig = { host: hostOrClientOrConfig }
-      this.client = createOllamaClient(this.clientConfig)
     } else if ('chat' in hostOrClientOrConfig) {
       // Ollama client instance (has a chat method)
       this.client = hostOrClientOrConfig
     } else {
       // OllamaClientConfig object
       this.clientConfig = hostOrClientOrConfig
-      this.client = createOllamaClient(hostOrClientOrConfig)
     }
   }
 
-  /**
-   * Use a client for one call whose fetch carries the caller's abort signal
-   * and goes through `wrapFetch`. `ollama` takes no per-call signal, and its
-   * own stream signal only backs `abort()`, which this adapter never calls.
-   */
-  private clientFor(options: TextOptions) {
+  /** Sends one chat request with the generated client. */
+  private async postChat(options: TextOptions, body: OllamaPostApiChatBody) {
     const { wrapFetch } = options
-    const signal = options.request?.signal ?? undefined
-    if (!this.clientConfig || (!wrapFetch && !signal)) return this.client
-    const send = wrapFetch ? wrapFetch(fetch) : fetch
-    return createOllamaClient(
-      this.clientConfig,
-      signal ? (input, init) => send(input, { ...init, signal }) : send,
-    )
+    const { response } = await ollamaPostApiChat({
+      client: createOllamaFetchClient(
+        this.clientConfig,
+        wrapFetch && wrapFetch(fetch),
+      ),
+      body,
+      signal: options.request?.signal ?? undefined,
+    })
+    return response
   }
 
   async *chatStream(
@@ -190,20 +195,22 @@ export class OllamaTextAdapter<TModel extends string> extends BaseTextAdapter<
         `activity=chat provider=ollama model=${this.model} messages=${options.messages.length} tools=${options.tools?.length ?? 0} stream=true`,
         { provider: 'ollama', model: this.model },
       )
-      const response = await this.clientFor(options).chat({
-        ...mappedOptions,
-        stream: true,
-      })
+      const body: OllamaPostApiChatBody = { ...mappedOptions, stream: true }
+      const injected =
+        // @ts-expect-error public type mismatch: an injected `ollama` client takes the SDK ChatRequest; same JSON
+        this.client && (await this.client.chat({ ...body, stream: true }))
+      const stream =
+        injected || readChatStream(await this.postChat(options, body))
       // ponytail: an injected client has no per-call signal, so stop this
       // stream with its own abort(). It cannot cancel before the headers.
-      const signal = this.clientConfig ? undefined : options.request?.signal
-      const onAbort = () => response.abort()
+      const signal = injected ? options.request?.signal : undefined
+      const onAbort = () => injected && injected.abort()
       if (signal?.aborted) onAbort()
       else signal?.addEventListener('abort', onAbort, { once: true })
       let ended = false
       try {
         for await (const chunk of this.processOllamaStreamChunks(
-          response,
+          stream,
           options,
           logger,
         )) {
@@ -222,7 +229,7 @@ export class OllamaTextAdapter<TModel extends string> extends BaseTextAdapter<
           signal.removeEventListener('abort', onAbort)
           // A consumer that stops early does not abort the request in
           // `ollama`, and the listener is gone now, so stop it here.
-          if (!ended) response.abort()
+          if (!ended) onAbort()
         }
       }
     } catch (error: unknown) {
@@ -271,11 +278,15 @@ export class OllamaTextAdapter<TModel extends string> extends BaseTextAdapter<
         { provider: 'ollama', model: this.model },
       )
       // Make non-streaming request with JSON format
-      const response = await this.clientFor(chatOptions).chat({
+      const body: OllamaPostApiChatBody = {
         ...mappedOptions,
         stream: false,
         format: outputSchema,
-      })
+      }
+      const response: ChatResponse = this.client
+        ? // @ts-expect-error public type mismatch: an injected `ollama` client takes the SDK ChatRequest; same JSON
+          await this.client.chat({ ...body, stream: false })
+        : await (await this.postChat(chatOptions, body)).json()
       usage = buildOllamaUsage(response)
 
       // A response cut off at the output cap is a truncated JSON document;
@@ -320,7 +331,7 @@ export class OllamaTextAdapter<TModel extends string> extends BaseTextAdapter<
   }
 
   private async *processOllamaStreamChunks(
-    stream: AbortableAsyncIterator<ChatResponse>,
+    stream: AsyncIterable<ChatResponse>,
     options: TextOptions,
     logger: InternalLogger,
   ): AsyncIterable<AdapterYieldChunk> {
@@ -558,8 +569,10 @@ export class OllamaTextAdapter<TModel extends string> extends BaseTextAdapter<
     return convertToolsToProviderFormat(tools)
   }
 
-  private formatMessages(messages: TextOptions['messages']): Array<Message> {
-    return messages.map((msg) => {
+  private formatMessages(
+    messages: TextOptions['messages'],
+  ): Array<ChatMessage> {
+    return messages.map((msg): ChatMessage => {
       let textContent = ''
       const images: Array<string> = []
 
@@ -591,7 +604,7 @@ export class OllamaTextAdapter<TModel extends string> extends BaseTextAdapter<
         msg.toolCalls &&
         msg.toolCalls.length > 0
           ? {
-              tool_calls: msg.toolCalls.map((toolCall) => {
+              tool_calls: msg.toolCalls.map((toolCall): ToolCallBody => {
                 let parsedArguments: Record<string, unknown> = {}
                 if (typeof toolCall.function.arguments === 'string') {
                   try {
@@ -610,6 +623,7 @@ export class OllamaTextAdapter<TModel extends string> extends BaseTextAdapter<
                 }
 
                 return {
+                  // @ts-expect-error modelschemas gap: ToolCall has no `id` (Ollama api/types.go ToolCall.ID); `type` is extra, as the SDK sent it
                   id: toolCall.id,
                   type: toolCall.type,
                   function: {
@@ -626,7 +640,7 @@ export class OllamaTextAdapter<TModel extends string> extends BaseTextAdapter<
 
   private mapCommonOptionsToOllama(
     options: TextOptions<ResolveModelOptions<TModel>>,
-  ): ChatRequest {
+  ): OllamaPostApiChatBody {
     const model = options.model
     const modelOptions = options.modelOptions
 
@@ -642,7 +656,7 @@ export class OllamaTextAdapter<TModel extends string> extends BaseTextAdapter<
 
     const convertedTools = this.convertToolsToOllamaFormat(options.tools)
 
-    return {
+    const body: OllamaPostApiChatBody = {
       model,
       messages: formattedMessages,
       // Sampling and runner params (temperature, top_p, num_predict, top_k,
@@ -650,26 +664,32 @@ export class OllamaTextAdapter<TModel extends string> extends BaseTextAdapter<
       // shape the Ollama SDK's ChatRequest.options expects. Spreading a fresh
       // object avoids aliasing the caller's modelOptions.options.
       options: { ...modelOptions?.options },
-      // Request-level fields the nested modelOptions surface exposes
-      // (OllamaChatRequest): format / keep_alive / logprobs / top_logprobs.
-      // Read structurally and only forwarded when present. `stream` is set by
-      // the call sites (chatStream / structuredOutput), so it is not forwarded.
-      // `think` comes from `chat({ reasoning })`.
-      ...(modelOptions?.format !== undefined && {
-        format: modelOptions.format,
-      }),
-      ...(modelOptions?.keep_alive !== undefined && {
-        keep_alive: modelOptions.keep_alive,
-      }),
-      ...(modelOptions?.logprobs !== undefined && {
-        logprobs: modelOptions.logprobs,
-      }),
-      ...(modelOptions?.top_logprobs !== undefined && {
-        top_logprobs: modelOptions.top_logprobs,
-      }),
-      ...ollamaThink(options.reasoning, model),
-      ...(convertedTools !== undefined && { tools: convertedTools }),
     }
+    // Request-level fields the nested modelOptions surface exposes
+    // (OllamaChatRequest): format / keep_alive / logprobs / top_logprobs.
+    // Read structurally and only forwarded when present. `stream` is set by
+    // the call sites (chatStream / structuredOutput), so it is not forwarded.
+    // `think` comes from `chat({ reasoning })`.
+    if (modelOptions?.format !== undefined) {
+      // @ts-expect-error public type mismatch: the SDK `format` is any string; the API takes 'json' or a schema
+      body.format = modelOptions.format
+    }
+    if (modelOptions?.keep_alive !== undefined) {
+      body.keep_alive = modelOptions.keep_alive
+    }
+    if (modelOptions?.logprobs !== undefined) {
+      body.logprobs = modelOptions.logprobs
+    }
+    if (modelOptions?.top_logprobs !== undefined) {
+      body.top_logprobs = modelOptions.top_logprobs
+    }
+    const { think } = ollamaThink(options.reasoning, model)
+    if (think !== undefined) body.think = think
+    if (convertedTools !== undefined) {
+      // @ts-expect-error public type mismatch: the exported converter returns the SDK `Tool` (`type: string`, optional name/parameters)
+      body.tools = convertedTools
+    }
+    return body
   }
 }
 

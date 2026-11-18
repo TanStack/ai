@@ -59,5 +59,8 @@
     "@tanstack/ai": "workspace:*",
     "@vitest/coverage-v8": "4.1.12",
     "vite": "^8.3.8"
+  },
+  "dependencies": {
+    "@tanstack/ai-utils": "workspace:^"
   }
 }

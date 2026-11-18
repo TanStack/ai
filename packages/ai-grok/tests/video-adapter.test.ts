@@ -1354,14 +1354,12 @@ describe('Grok Video Adapter', () => {
         kind: 'range',
         min: 1,
         max: 15,
-        step: 1,
         unit: 'seconds',
       })
       expect(getGrokVideoDurationOptions('grok-imagine-video-1.5')).toEqual({
         kind: 'range',
         min: 1,
         max: 15,
-        step: 1,
         unit: 'seconds',
       })
     })
@@ -1372,7 +1370,6 @@ describe('Grok Video Adapter', () => {
         kind: 'range',
         min: 1,
         max: 15,
-        step: 1,
         unit: 'seconds',
       })
       expect(adapter.snapDuration(0)).toBe(1)

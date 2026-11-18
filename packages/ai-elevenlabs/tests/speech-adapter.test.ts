@@ -68,7 +68,7 @@ describe('elevenlabsSpeech adapter', () => {
     expect(voiceId).toBe('voice-1')
     expect(body).toMatchObject({
       text: 'Hello there',
-      modelId: 'eleven_multilingual_v2',
+      model_id: 'eleven_multilingual_v2',
     })
     expect(result).toMatchObject({
       model: 'eleven_multilingual_v2',
@@ -134,7 +134,7 @@ describe('elevenlabsSpeech adapter', () => {
       logger: makeLogger(),
     })
 
-    expect(convertMock.mock.calls[0]![1].outputFormat).toBe('pcm_44100')
+    expect(convertMock.mock.calls[0]![2].output_format).toBe('pcm_44100')
     expect(result.format).toBe('pcm')
     expect(result.contentType).toBe('audio/pcm')
   })
@@ -154,9 +154,9 @@ describe('elevenlabsSpeech adapter', () => {
       logger: makeLogger(),
     })
 
-    expect(convertMock.mock.calls[0]![1].voiceSettings).toEqual({
+    expect(convertMock.mock.calls[0]![1].voice_settings).toEqual({
       stability: 0.4,
-      similarityBoost: 0.6,
+      similarity_boost: 0.6,
       speed: 1.25,
     })
   })
@@ -181,7 +181,7 @@ describe('elevenlabsSpeech adapter', () => {
       logger: makeLogger(),
     })
 
-    expect(convertMock.mock.calls[0]![1].outputFormat).toBe('pcm_44100')
+    expect(convertMock.mock.calls[0]![2].output_format).toBe('pcm_44100')
     expect(result).toMatchObject({ format: 'wav', contentType: 'audio/wav' })
     const wav = Buffer.from(result.audio, 'base64')
     expect(wav.length).toBe(44 + samples.length)
@@ -236,7 +236,7 @@ describe('elevenlabsSpeech adapter', () => {
         modelOptions: { outputFormat: 'mp3_22050_32' },
         logger: makeLogger(),
       })
-      expect(convertMock.mock.calls[0]![1].outputFormat).toBe('mp3_22050_32')
+      expect(convertMock.mock.calls[0]![2].output_format).toBe('mp3_22050_32')
       expect(result).toMatchObject({
         format: 'mp3',
         contentType: 'audio/mpeg',
@@ -283,10 +283,10 @@ describe('elevenlabsSpeech adapter', () => {
 
       expect(convertMock).not.toHaveBeenCalled()
       expect(dialogueConvertMock.mock.calls[0]![0]).toMatchObject({
-        modelId: 'eleven_v3',
+        model_id: 'eleven_v3',
         inputs: [
-          { text: 'Knock knock', voiceId: 'voice-a' },
-          { text: 'Who is there?', voiceId: 'voice-b' },
+          { text: 'Knock knock', voice_id: 'voice-a' },
+          { text: 'Who is there?', voice_id: 'voice-b' },
         ],
       })
       expect(result.audio).toBe(Buffer.from([7]).toString('base64'))
@@ -379,7 +379,7 @@ describe('elevenlabsSpeech adapter', () => {
       expect(convertMock).not.toHaveBeenCalled()
       const [voiceId, body] = convertWithTimestampsMock.mock.calls[0]!
       expect(voiceId).toBe('voice-a')
-      expect(body).toMatchObject({ text: 'hi', modelId: 'eleven_v3' })
+      expect(body).toMatchObject({ text: 'hi', model_id: 'eleven_v3' })
       expect(result.alignment?.unit).toBe('character')
       // Only the dialogue endpoint reports voice segments.
       expect(result.segments).toBeUndefined()
@@ -400,7 +400,7 @@ describe('elevenlabsSpeech adapter', () => {
         logger: makeLogger(),
       })
 
-      expect(convertWithTimestampsMock.mock.calls[0]![1].outputFormat).toBe(
+      expect(convertWithTimestampsMock.mock.calls[0]![2].output_format).toBe(
         'pcm_44100',
       )
       const bytes = Buffer.from(result.audio, 'base64')

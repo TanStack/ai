@@ -6,15 +6,23 @@ import {
   RequestTimeoutError,
   UnexpectedClientError,
 } from '@mistralai/mistralai/models/errors/httpclienterrors.js'
+import { sendWith } from '@tanstack/ai-utils/kubb'
+import {
+  mistralPostV1ChatCompletions,
+  mistralPostV1Embeddings,
+} from '../generated/client/sdk'
+import type { ClientInstance, GeneratedRequest } from '@tanstack/ai-utils/kubb'
+import type {
+  MistralPostV1ChatCompletionsBody,
+  MistralPostV1EmbeddingsBody,
+} from '../generated/client/types'
 import type {
   AssistantMessage,
   AssistantMessage$Outbound,
   ChatCompletionChoice,
-  ChatCompletionRequest,
   ChatCompletionResponse,
   ContentChunk,
   ContentChunk$Outbound,
-  EmbeddingRequest,
   EmbeddingResponse,
   EmbeddingResponseData,
   ImageURLChunk,
@@ -28,19 +36,19 @@ import type {
 import type { MistralClientConfig } from '../utils/client'
 
 /**
- * The part of the Mistral SDK client that the adapters call. A real
- * `Mistral` instance fits this type.
+ * The Mistral client the adapters call. Requests are the generated wire
+ * bodies; responses are the SDK types.
  */
 export interface MistralClient {
   chat: {
     complete: (
-      request: ChatCompletionRequest,
+      body: MistralPostV1ChatCompletionsBody,
       options?: MistralRequestOptions,
     ) => Promise<ChatCompletionResponse>
   }
   embeddings: {
     create: (
-      request: EmbeddingRequest,
+      body: MistralPostV1EmbeddingsBody,
       options?: MistralRequestOptions,
     ) => Promise<EmbeddingResponse>
   }
@@ -56,149 +64,6 @@ export interface MistralRequestOptions {
 }
 
 type Fetcher = (url: string, init: RequestInit) => Promise<Response>
-
-// ===========================
-// Outbound: SDK camelCase -> wire snake_case (the SDK `$outboundSchema`s)
-// ===========================
-
-function chunkToWire(chunk: ContentChunk) {
-  switch (chunk.type) {
-    case 'image_url':
-      return { type: chunk.type, image_url: chunk.imageUrl }
-    case 'document_url':
-      return {
-        type: chunk.type,
-        document_url: chunk.documentUrl,
-        document_name: chunk.documentName,
-      }
-    case 'text':
-      return { type: chunk.type, text: chunk.text }
-    case 'reference':
-      return { type: chunk.type, reference_ids: chunk.referenceIds }
-    case 'file':
-      return { type: chunk.type, file_id: chunk.fileId }
-    case 'thinking':
-      return thinkChunkToWire(chunk)
-    case 'input_audio':
-      return { type: chunk.type, input_audio: chunk.inputAudio }
-    case 'UNKNOWN':
-      // An unknown chunk read from a response. Send what came in.
-      return chunk.raw
-  }
-}
-
-function thinkChunkToWire(chunk: ThinkChunk) {
-  return {
-    type: 'thinking',
-    thinking: chunk.thinking.map((part) => {
-      if ('referenceIds' in part) {
-        return { type: 'reference', reference_ids: part.referenceIds }
-      }
-      if ('title' in part) {
-        const { tool, title, url, favicon, description } = part
-        return {
-          type: 'tool_reference',
-          tool,
-          title,
-          url,
-          favicon,
-          description,
-        }
-      }
-      return { type: 'text', text: part.text }
-    }),
-    closed: chunk.closed,
-  }
-}
-
-function contentToWire(
-  content: string | Array<ContentChunk> | null | undefined,
-) {
-  return Array.isArray(content) ? content.map(chunkToWire) : content
-}
-
-function messageToWire(message: ChatCompletionRequest['messages'][number]) {
-  switch (message.role) {
-    case 'assistant':
-      return {
-        role: message.role,
-        content: contentToWire(message.content),
-        tool_calls: message.toolCalls?.map((call) => ({
-          id: call.id ?? 'null',
-          type: call.type,
-          function: call.function,
-          index: call.index ?? 0,
-        })),
-        prefix: message.prefix ?? false,
-      }
-    case 'system':
-      return { role: message.role, content: contentToWire(message.content) }
-    case 'tool':
-      return {
-        role: message.role,
-        content: contentToWire(message.content),
-        tool_call_id: message.toolCallId,
-        name: message.name,
-      }
-    case 'user':
-      return { role: message.role, content: contentToWire(message.content) }
-  }
-}
-
-/** The JSON body the SDK sends for `chat.complete`. */
-export function chatCompletionRequestToWire(request: ChatCompletionRequest) {
-  const { responseFormat, prediction } = request
-  const jsonSchema = responseFormat?.jsonSchema
-  return {
-    model: request.model,
-    temperature: request.temperature,
-    top_p: request.topP,
-    max_tokens: request.maxTokens,
-    stream: request.stream ?? false,
-    stop: request.stop,
-    random_seed: request.randomSeed,
-    metadata: request.metadata,
-    messages: request.messages.map(messageToWire),
-    response_format: responseFormat && {
-      type: responseFormat.type,
-      json_schema: jsonSchema && {
-        name: jsonSchema.name,
-        description: jsonSchema.description,
-        schema: jsonSchema.schemaDefinition,
-        strict: jsonSchema.strict,
-      },
-    },
-    // ponytail: function tools and tool choice need no renames. Built-in
-    // connector tools and `guardrails` go out as given; the adapters never
-    // send them. Port their rename tables when an adapter does.
-    tools: request.tools,
-    tool_choice: request.toolChoice,
-    presence_penalty: request.presencePenalty,
-    frequency_penalty: request.frequencyPenalty,
-    n: request.n,
-    prediction: prediction && {
-      type: prediction.type ?? 'content',
-      content: prediction.content ?? '',
-    },
-    parallel_tool_calls: request.parallelToolCalls,
-    reasoning_effort: request.reasoningEffort,
-    prompt_mode: request.promptMode,
-    guardrails: request.guardrails,
-    safe_prompt: request.safePrompt,
-  }
-}
-
-/** The JSON body the SDK sends for `embeddings.create`. */
-export function embeddingRequestToWire(request: EmbeddingRequest) {
-  return {
-    model: request.model,
-    metadata: request.metadata,
-    input: request.inputs,
-    output_dimension: request.outputDimension,
-    output_dtype: request.outputDtype,
-    encoding_format: request.encodingFormat,
-  }
-}
 
 // ===========================
 // Inbound: wire snake_case -> SDK camelCase (the SDK `$inboundSchema`s)
@@ -331,15 +196,15 @@ function assistantFromWire(message: WireAssistant): AssistantMessage {
 
 /** The SDK `ChatCompletionResponse` for a wire response. */
 export function chatCompletionResponseFromWire(
-  wire: WireChatCompletion,
+  body: WireChatCompletion,
 ): ChatCompletionResponse {
   return {
-    id: wire.id,
-    object: wire.object,
-    model: wire.model,
-    usage: usageFromWire(wire.usage),
-    created: wire.created,
-    choices: wire.choices.map((choice) => ({
+    id: body.id,
+    object: body.object,
+    model: body.model,
+    usage: usageFromWire(body.usage),
+    created: body.created,
+    choices: body.choices.map((choice) => ({
       index: choice.index,
       message: choice.message && assistantFromWire(choice.message),
       messages: choice.messages?.map(assistantFromWire),
@@ -350,14 +215,14 @@ export function chatCompletionResponseFromWire(
 
 /** The SDK `EmbeddingResponse` for a wire response. */
 export function embeddingResponseFromWire(
-  wire: WireEmbedding,
+  body: WireEmbedding,
 ): EmbeddingResponse {
   return {
-    id: wire.id,
-    object: wire.object,
-    model: wire.model,
-    usage: usageFromWire(wire.usage),
-    data: wire.data.map((item) => ({
+    id: body.id,
+    object: body.object,
+    model: body.model,
+    usage: usageFromWire(body.usage),
+    data: body.data.map((item) => ({
       object: item.object,
       embedding: item.embedding,
       index: item.index,
@@ -468,15 +333,20 @@ export function createMistralClient(
   baseURL.pathname = `${baseURL.pathname.replace(/\/+$/, '')}/`
   const timeoutMs = config.timeoutMs || 30000
 
-  async function post(
-    path: string,
-    body: unknown,
+  // Sends one generated request. It resolves to a 200 JSON response, else
+  // throws the SDK error.
+  async function send(
+    built: GeneratedRequest,
     requestOptions?: MistralRequestOptions,
   ) {
-    const url = new URL(path, baseURL)
+    // The generated path starts with `/v1/`. Relative to `baseURL`, it keeps a
+    // path prefix of a custom base URL.
+    const url = new URL(built.path.replace(/^\/+/, ''), baseURL)
     url.hash = ''
+    // The generated body headers (its content type) go first, so the client
+    // headers win.
     const headers = new Headers({
-      'Content-Type': 'application/json',
+      ...built.headers,
       Accept: 'application/json',
     })
     if (apiKey) {
@@ -484,15 +354,15 @@ export function createMistralClient(
       headers.set('Authorization', isBearer ? apiKey : `Bearer ${apiKey}`)
     }
     const init: RequestInit = {
-      method: 'POST',
+      method: built.method,
       headers,
-      body: JSON.stringify(body),
+      body: built.body,
       signal:
         requestOptions?.signal ??
         requestOptions?.fetchOptions?.signal ??
         (timeoutMs > 0 ? AbortSignal.timeout(timeoutMs) : undefined),
     }
-    const send =
+    const doFetch =
       fetcher ??
       ((input: string, options: RequestInit) => fetch(input, options))
 
@@ -507,25 +377,16 @@ export function createMistralClient(
       if (getAccessToken !== undefined) {
         headers.set('Authorization', `Bearer ${await getAccessToken()}`)
       }
-      response = await send(requestURL, init)
+      response = await doFetch(requestURL, init)
     } catch (err) {
       throw toClientError(err)
     }
 
     const isJSON = isJSONResponse(response)
-    if (response.status === 200 && isJSON) {
-      const wire = JSON.parse(await response.text())
-      const deprecation = response.headers.get('x-model-deprecation-timestamp')
-      if (deprecation !== null) {
-        console.warn(
-          `WARNING: The model ${wire.model} is deprecated and will be removed on ${deprecation}. Please refer to https://docs.mistral.ai/getting-started/models/#api-versioning for more information.`,
-        )
-      }
-      return wire
-    }
+    if (response.status === 200 && isJSON) return response
 
     const request = new Request(requestURL, {
-      method: 'POST',
+      method: built.method,
       headers,
       body: init.body,
     })
@@ -567,21 +428,49 @@ export function createMistralClient(
     })
   }
 
+  // Runs a generated operation through `send` and parses the JSON body.
+  async function post(
+    operation: (client: ClientInstance) => Promise<{ response: Response }>,
+    requestOptions?: MistralRequestOptions,
+  ) {
+    const { response } = await operation(
+      sendWith((built) => send(built, requestOptions)),
+    )
+    const body = JSON.parse(await response.text())
+    const deprecation = response.headers.get('x-model-deprecation-timestamp')
+    if (deprecation !== null) {
+      console.warn(
+        `WARNING: The model ${body.model} is deprecated and will be removed on ${deprecation}. Please refer to https://docs.mistral.ai/getting-started/models/#api-versioning for more information.`,
+      )
+    }
+    return body
+  }
+
   return {
     chat: {
-      complete: async (request, options) =>
+      complete: async (body, options) =>
         chatCompletionResponseFromWire(
           await post(
-            'v1/chat/completions',
-            chatCompletionRequestToWire(request),
+            (client) =>
+              mistralPostV1ChatCompletions({
+                client,
+                body,
+              }),
             options,
           ),
         ),
     },
     embeddings: {
-      create: async (request, options) =>
+      create: async (body, options) =>
         embeddingResponseFromWire(
-          await post('v1/embeddings', embeddingRequestToWire(request), options),
+          await post(
+            (client) =>
+              mistralPostV1Embeddings({
+                client,
+                body,
+              }),
+            options,
+          ),
         ),
     },
   }

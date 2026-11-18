@@ -10,6 +10,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { OpenAIBaseResponsesTextAdapter } from '../src/adapters/responses-text'
 import OpenAI from 'openai'
+import { stubClient } from './stub-client'
 import type { AdapterYieldChunk, JSONSchema } from '@tanstack/ai'
 import { resolveDebugOption, type Logger } from '@tanstack/ai/adapter-internals'
 
@@ -27,13 +28,10 @@ type MockResponsesCreate = (
 
 let mockCreate: ReturnType<typeof vi.fn<MockResponsesCreate>>
 
-function makeStubClient(): OpenAI {
-  const client = new OpenAI({ apiKey: 'test-api-key' })
-  client.responses.create = ((
-    params: OpenAI.Responses.ResponseCreateParams,
-    options?: OpenAI.RequestOptions,
-  ) => mockCreate(params, options)) as typeof client.responses.create
-  return client
+function makeStubClient() {
+  return stubClient({
+    responses: (params, options) => mockCreate(params, options),
+  })
 }
 
 class TestAdapter extends OpenAIBaseResponsesTextAdapter<string> {

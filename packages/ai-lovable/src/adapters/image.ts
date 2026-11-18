@@ -16,8 +16,11 @@ import type {
   ImagePart,
   MediaInputMetadata,
 } from '@tanstack/ai'
-import type OpenAI_SDK from 'openai'
-import type { OpenAIClientLike } from '@tanstack/openai-base'
+import type {
+  OpenAIClientLike,
+  OpenaiPostImagesEditsBody,
+  OpenaiPostImagesGenerationsBody,
+} from '@tanstack/openai-base'
 import type {
   LovableImageModel,
   LovableImageModelInputModalitiesByName,
@@ -130,7 +133,7 @@ export class LovableImageAdapter<
       })
     }
 
-    const request: OpenAI_SDK.Images.ImageGenerateParams = {
+    const request: OpenaiPostImagesGenerationsBody = {
       model,
       prompt,
       n: numberOfImages ?? 1,
@@ -237,7 +240,7 @@ export class LovableImageAdapter<
         )
       : undefined
 
-    const request: OpenAI_SDK.Images.ImageEditParamsNonStreaming = {
+    const request: OpenaiPostImagesEditsBody & { stream: false } = {
       model,
       prompt,
       image:
@@ -246,8 +249,7 @@ export class LovableImageAdapter<
           : sourceFiles,
       n: numberOfImages ?? 1,
       stream: false,
-      ...((modelOptions ??
-        {}) as Partial<OpenAI_SDK.Images.ImageEditParamsNonStreaming>),
+      ...modelOptions,
     }
     if (size !== undefined) {
       request.size = size

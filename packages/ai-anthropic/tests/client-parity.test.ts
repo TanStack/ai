@@ -97,8 +97,9 @@ async function onBoth(
   call: (client: AnthropicClient) => Promise<unknown>,
 ) {
   const makers = [
-    (clientOptions: ClientOptions): AnthropicClient =>
-      new Anthropic(clientOptions),
+    // The SDK declares its own request types; the runtime calls are the same.
+    (clientOptions: ClientOptions) =>
+      new Anthropic(clientOptions) as AnthropicClient,
     createAnthropicClient,
   ]
   return Promise.all(

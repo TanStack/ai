@@ -11,6 +11,8 @@ import {
   parseSSE,
   toFormData,
 } from '@tanstack/ai-utils/http'
+import { sendWith } from '@tanstack/ai-utils/kubb'
+import { anthropicPostV1MessagesBetaTrue } from '../generated/client/sdk'
 import type Anthropic from '@anthropic-ai/sdk'
 import type { ClientOptions } from '@anthropic-ai/sdk'
 import type { ErrorType } from '@anthropic-ai/sdk/resources/shared'
@@ -19,6 +21,7 @@ import type {
   BetaRawMessageStreamEvent,
   MessageCreateParamsBase,
 } from '@anthropic-ai/sdk/resources/beta/messages/messages'
+import type { AnthropicPostV1MessagesBetaTrueBody } from '../generated/client/types'
 import type { HeadersLike, HttpRequest } from '@tanstack/ai-utils/http'
 import type {
   BetaDeletedFile,
@@ -34,6 +37,13 @@ type RequestOptions = NonNullable<
 >
 
 /**
+ * A Messages request: the generated body, plus the SDK fields that go out as
+ * headers.
+ */
+export type MessageCreateParams = AnthropicPostV1MessagesBetaTrueBody &
+  BetaParams
+
+/**
  * The part of the Anthropic SDK client that this package calls. Both the
  * fetch client and the lazy SDK client fit it.
  */
@@ -42,7 +52,7 @@ export interface AnthropicClient {
     readonly messages: {
       /** `stream: true` gives the raw stream events, else the message. */
       create: (
-        params: MessageCreateParamsBase,
+        params: MessageCreateParams,
         options?: RequestOptions,
       ) => Promise<AsyncIterable<BetaRawMessageStreamEvent> | BetaMessage>
     }
@@ -277,7 +287,7 @@ function assertAuth(sources: Array<HeadersLike>) {
 }
 
 /** The SDK `transformOutputFormat`: `output_format` moves to `output_config.format`. */
-function transformOutputFormat(params: MessageCreateParamsBase) {
+function transformOutputFormat(params: MessageCreateParams) {
   if (!params.output_format) return params
   if (params.output_config?.format) {
     throw new AnthropicError(
@@ -307,7 +317,7 @@ function nonStreamingTimeout(maxTokens: number, model: string) {
   return DEFAULT_TIMEOUT
 }
 
-function warnDeprecatedModel(params: MessageCreateParamsBase) {
+function warnDeprecatedModel(params: MessageCreateParams) {
   const endOfLife = DEPRECATED_MODELS[params.model]
   if (endOfLife) {
     console.warn(
@@ -331,8 +341,13 @@ function createSdkClient(load: () => Promise<Anthropic>): AnthropicClient {
   return {
     beta: {
       messages: {
+        // The same JSON body: only the declared types differ (the generated
+        // document against the SDK's own param types).
         create: async (params, options) =>
-          (await sdk()).beta.messages.create(params, options),
+          (await sdk()).beta.messages.create(
+            params as MessageCreateParamsBase,
+            options,
+          ),
       },
       files: {
         upload: async (params, options) =>
@@ -398,13 +413,19 @@ function createFetchClient(options: ClientOptions): AnthropicClient {
     makeAbortError: () => new APIUserAbortError(),
   })
 
-  /** Sends one beta call. `request.timeout` wins over the call options. */
+  /**
+   * Sends one beta call. `request.timeout` wins over the call options.
+   * `bodyHeaders` (the content type of a generated body) come first, so every
+   * other header wins over them, like the JSON content type before.
+   */
   const send = (
     request: Omit<HttpRequest, 'headers'>,
     params: BetaParams,
     requestOptions: RequestOptions = {},
+    bodyHeaders?: Record<string, string>,
   ) => {
     const headers = [
+      bodyHeaders,
       ...clientHeaders,
       betaHeaders(params),
       requestOptions.headers,
@@ -436,11 +457,25 @@ function createFetchClient(options: ClientOptions): AnthropicClient {
             options.timeout ??
             (body.stream ? DEFAULT_TIMEOUT : undefined) ??
             nonStreamingTimeout(body.max_tokens, body.model)
-          const response = await send(
-            { method: 'post', path: '/v1/messages?beta=true', body, timeout },
-            transformed,
-            requestOptions,
-          )
+          // The generated operation builds the path and the body; `send`
+          // adds the client headers, retries, and errors.
+          const { response } = await anthropicPostV1MessagesBetaTrue({
+            client: sendWith((built) =>
+              send(
+                {
+                  method: 'post',
+                  path: built.path,
+                  body: built.body,
+                  timeout,
+                },
+                transformed,
+                requestOptions,
+                built.headers,
+              ),
+            ),
+            body,
+            headers: { 'anthropic-version': '2023-06-01' },
+          })
           if (body.stream) {
             return messageEvents(response, requestOptions?.signal)
           }

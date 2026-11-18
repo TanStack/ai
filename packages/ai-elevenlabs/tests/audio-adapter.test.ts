@@ -53,7 +53,7 @@ describe('elevenlabsAudio adapter — music', () => {
       })
 
       expect(sfxConvertMock).not.toHaveBeenCalled()
-      expect(composeMock.mock.calls[0]![0]).toMatchObject({ modelId: model })
+      expect(composeMock.mock.calls[0]![0]).toMatchObject({ model_id: model })
     },
   )
 
@@ -71,9 +71,9 @@ describe('elevenlabsAudio adapter — music', () => {
     expect(sfxConvertMock).not.toHaveBeenCalled()
     expect(composeMock).toHaveBeenCalledTimes(1)
     expect(composeMock.mock.calls[0]![0]).toMatchObject({
-      modelId: 'music_v1',
+      model_id: 'music_v1',
       prompt: 'jazz trio',
-      musicLengthMs: 15000,
+      music_length_ms: 15000,
     })
     expect(result.audio.b64Json).toBe(Buffer.from([1, 2]).toString('base64'))
   })
@@ -103,13 +103,13 @@ describe('elevenlabsAudio adapter — music', () => {
 
     const body = composeMock.mock.calls[0]![0]
     expect(body.prompt).toBeUndefined()
-    expect(body.musicLengthMs).toBeUndefined()
-    expect(body.compositionPlan).toMatchObject({
-      positiveGlobalStyles: ['jazz'],
+    expect(body.music_length_ms).toBeUndefined()
+    expect(body.composition_plan).toMatchObject({
+      positive_global_styles: ['jazz'],
       sections: [
         expect.objectContaining({
-          sectionName: 'verse',
-          durationMs: 8000,
+          section_name: 'verse',
+          duration_ms: 8000,
           lines: ['hello'],
         }),
       ],
@@ -141,9 +141,9 @@ describe('elevenlabsAudio adapter — sound effects', () => {
     expect(sfxConvertMock).toHaveBeenCalledTimes(1)
     expect(sfxConvertMock.mock.calls[0]![0]).toMatchObject({
       text: 'glass breaking',
-      modelId: 'eleven_text_to_sound_v2',
-      durationSeconds: 3,
-      promptInfluence: 0.7,
+      model_id: 'eleven_text_to_sound_v2',
+      duration_seconds: 3,
+      prompt_influence: 0.7,
       loop: true,
     })
     expect(result.audio.b64Json).toBe(Buffer.from([9]).toString('base64'))

@@ -28,6 +28,10 @@
     "./http": {
       "types": "./dist/esm/http/index.d.ts",
       "import": "./dist/esm/http/index.js"
+    },
+    "./kubb": {
+      "types": "./dist/esm/kubb.d.ts",
+      "import": "./dist/esm/kubb.js"
     }
   },
   "sideEffects": false,

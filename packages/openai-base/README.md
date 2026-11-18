@@ -73,13 +73,15 @@ subclass override or a hook.
 
 ## How providers extend the bases
 
-The base constructor takes a pre-built `OpenAI` client. Subclasses
-construct the SDK with their own `baseURL` (and any other client
-options) and pass it to `super`:
+The base constructor takes an `OpenAIClientLike` client. Subclasses
+build one with `createOpenAIClient`, passing their own `baseURL` (and any
+other client options), and pass it to `super`:
 
 ```ts
-import OpenAI from 'openai'
-import { OpenAIBaseResponsesTextAdapter } from '@tanstack/openai-base'
+import {
+  OpenAIBaseResponsesTextAdapter,
+  createOpenAIClient,
+} from '@tanstack/openai-base'
 import type { GrokTextConfig } from '@tanstack/ai-grok'
 
 declare function withGrokDefaults(config: GrokTextConfig): GrokTextConfig
@@ -89,7 +91,9 @@ class GrokTextAdapter<
 > extends OpenAIBaseResponsesTextAdapter<TModel> {
   constructor(config: GrokTextConfig, model: TModel) {
     const options = withGrokDefaults(config)
-    super(model, 'grok', new OpenAI(options), { fetch: options.fetch })
+    super(model, 'grok', createOpenAIClient(options), {
+      fetch: options.fetch,
+    })
   }
 }
 ```
