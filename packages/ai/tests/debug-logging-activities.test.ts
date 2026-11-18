@@ -37,6 +37,31 @@ describe('debug logging — non-chat activities', () => {
     logger = makeSpyLogger()
   })
 
+  it('does not log an aborted request as an error', async () => {
+    const adapter = {
+      kind: 'tts' as const,
+      name: 'mock',
+      model: 'mock-tts-model',
+      generateSpeech: (options: { abortSignal?: AbortSignal }) =>
+        new Promise<never>((_, reject) => {
+          options.abortSignal?.addEventListener('abort', () =>
+            reject(new DOMException('cancelled', 'AbortError')),
+          )
+        }),
+    }
+    const controller = new AbortController()
+    const run = generateSpeech({
+      threadId: 'thread-1',
+      adapter: adapter as any,
+      text: 'hi',
+      abortSignal: controller.signal,
+      debug: { logger: logger as unknown as Logger },
+    })
+    controller.abort()
+    await expect(run).rejects.toMatchObject({ name: 'AbortError' })
+    expect(logger.error).not.toHaveBeenCalled()
+  })
+
   it('summarize emits request and output categories', async () => {
     const adapter = {
       kind: 'summarize' as const,
