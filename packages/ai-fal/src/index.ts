@@ -5,7 +5,7 @@
 export { FalImageAdapter, falImage } from './adapters/image'
 
 // ============================================================================
-// Video Adapter (Experimental)
+// Video Adapter
 // ============================================================================
 
 export { FalVideoAdapter, falVideo } from './adapters/video'
@@ -83,7 +83,7 @@ export {
 
 export {
   getFalApiKeyFromEnv,
-  configureFalClient,
   generateId,
   type FalClientConfig,
 } from './utils/client'
+export { configureFalClient } from './utils/configure'

@@ -43,6 +43,37 @@ describe('chat({ retry })', () => {
     expect(chunks).toContainEqual(expect.objectContaining({ delta: 'hello' }))
   })
 
+  it('reports the usage of a rate-limited call once, when it retries', async () => {
+    const usage = { promptTokens: 7, completionTokens: 0, totalTokens: 7 }
+    const { adapter } = createMockAdapter({
+      iterations: [
+        [
+          ev.runStarted(),
+          { ...ev.runError('rate limited'), retryAfterMs: 5, usage },
+        ],
+        answer,
+      ],
+    })
+    const reported: Array<unknown> = []
+    await collectChunks(
+      chat({
+        threadId: 'thread-1',
+        adapter,
+        messages,
+        retry: { maxRetries: 2 },
+        middleware: [
+          defineChatMiddleware({
+            name: 'usage',
+            onUsage(_ctx, u) {
+              reported.push(u)
+            },
+          }),
+        ],
+      }),
+    )
+    expect(reported).toEqual([usage])
+  })
+
   it('sends RUN_STARTED before an error from a call that sent no start', async () => {
     const { adapter } = createMockAdapter({
       iterations: [[ev.runError('boom')]],
@@ -303,6 +334,30 @@ describe('ctx.retry() in onModelError', () => {
       types(chunks).filter((t) => t === EventType.RUN_STARTED),
     ).toHaveLength(1)
     expect(chunks).toContainEqual(expect.objectContaining({ delta: 'hello' }))
+  })
+
+  it('reports the billed usage of the call that ctx.retry() drops', async () => {
+    const usage = { promptTokens: 900, completionTokens: 0, totalTokens: 900 }
+    const { adapter } = createMockAdapter({
+      iterations: [
+        [ev.runStarted(), { ...ev.runError('refused'), usage }],
+        answer,
+      ],
+    })
+    const reported: Array<unknown> = []
+    const retrier = defineChatMiddleware({
+      name: 'retrier',
+      onModelError(ctx) {
+        ctx.retry()
+      },
+      onUsage(_ctx, u) {
+        reported.push(u)
+      },
+    })
+    await collectChunks(
+      chat({ threadId: 'thread-1', adapter, messages, middleware: [retrier] }),
+    )
+    expect(reported[0]).toEqual(usage)
   })
 
   it('passes the error on when no middleware calls ctx.retry()', async () => {

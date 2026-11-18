@@ -13,6 +13,12 @@ with the app's own `prisma migrate`.
 Do not create a package, a second client, a datasource block, a generator, or a
 hand-written SQL migration. The app has those.
 
+**Always write all four models and all four stores: thread, run, interrupt,
+metadata.** The docs call `interrupts` and `metadata` optional for a
+hand-rolled adapter; this recipe is not that case. `withPersistence` needs
+all four to type-check as `ChatPersistence`, and the conformance suite fails
+without them. Do not stop at a thread table and a run table.
+
 Read the **Store Reference**
 (`docs/persistence/store-reference.md`) for the store contracts and
 invariants, and **ai-persistence/stores** for the shape rules. Every
@@ -126,7 +132,9 @@ if the app targets SQLite or if it is multi-provider.
 Two conversions the SQL backends do not need: `BigInt` timestamps in and out,
 and JSON as strings. Everything else is the shared invariant set.
 
-```ts ignore
+<!-- fence: prisma-chat-persistence -->
+
+```ts
 import { defineAIPersistence } from '@tanstack/ai-persistence'
 import type {
   ChatInterrupt,
@@ -504,15 +512,15 @@ import { runPersistenceConformance } from '@tanstack/ai-persistence/testkit'
 import { chatPersistence } from '../src/lib/chat-persistence'
 
 runPersistenceConformance('app-prisma', () => chatPersistence, {
-  skip: ['generationRuns', 'artifacts', 'blobs'],
+  skip: ['activities', 'generationRuns', 'artifacts', 'blobs'],
 })
 ```
 
 Point the client at a throwaway database with the migration applied (a scratch
 SQLite file is enough) and reset it between runs. All four state stores are
-provided; the suite also covers the three generation stores, so declare those as
-skipped until you add them. `skip` never accepts `'locks'`, which is not a
-store.
+provided; the suite also covers the optional `activities` store and the three
+generation stores, so declare those as skipped until you add them. `skip`
+never accepts `'locks'`, which is not a store.
 
 If your recipe leaves `listByThread` or `listReclaimable` unimplemented,
 declare it with `skipMethods`, for example

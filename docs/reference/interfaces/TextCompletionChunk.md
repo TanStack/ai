@@ -3,7 +3,7 @@ id: TextCompletionChunk
 title: TextCompletionChunk
 ---
 
-Defined in: packages/ai/src/types.ts:2129
+Defined in: [packages/ai/src/types.ts:2220](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2220)
 
 ## Properties
 
@@ -13,7 +13,7 @@ Defined in: packages/ai/src/types.ts:2129
 content: string;
 ```
 
-Defined in: packages/ai/src/types.ts:2132
+Defined in: [packages/ai/src/types.ts:2223](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2223)
 
 ***
 
@@ -23,7 +23,7 @@ Defined in: packages/ai/src/types.ts:2132
 optional finishReason?: "length" | "stop" | "content_filter" | null;
 ```
 
-Defined in: packages/ai/src/types.ts:2134
+Defined in: [packages/ai/src/types.ts:2225](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2225)
 
 ***
 
@@ -33,7 +33,7 @@ Defined in: packages/ai/src/types.ts:2134
 id: string;
 ```
 
-Defined in: packages/ai/src/types.ts:2130
+Defined in: [packages/ai/src/types.ts:2221](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2221)
 
 ***
 
@@ -43,7 +43,7 @@ Defined in: packages/ai/src/types.ts:2130
 model: string;
 ```
 
-Defined in: packages/ai/src/types.ts:2131
+Defined in: [packages/ai/src/types.ts:2222](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2222)
 
 ***
 
@@ -53,7 +53,7 @@ Defined in: packages/ai/src/types.ts:2131
 optional role?: "assistant";
 ```
 
-Defined in: packages/ai/src/types.ts:2133
+Defined in: [packages/ai/src/types.ts:2224](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2224)
 
 ***
 
@@ -63,4 +63,4 @@ Defined in: packages/ai/src/types.ts:2133
 optional usage?: TokenUsage<ProviderUsageDetails>;
 ```
 
-Defined in: packages/ai/src/types.ts:2135
+Defined in: [packages/ai/src/types.ts:2226](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2226)

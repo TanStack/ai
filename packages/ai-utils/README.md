@@ -58,6 +58,8 @@ const apiKey = getApiKeyFromEnv('OPENAI_API_KEY') // throws if unset
 ```typescript
 import { arrayBufferToBase64, base64ToUint8Array } from '@tanstack/ai-utils'
 
+declare const file: File
+
 const encoded = arrayBufferToBase64(await file.arrayBuffer())
 const bytes = base64ToUint8Array(encoded)
 ```

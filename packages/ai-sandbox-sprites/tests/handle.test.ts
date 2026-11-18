@@ -279,3 +279,16 @@ describe('SpritesHandle lifecycle + capabilities', () => {
     await expect(proc.stdin.write('x')).rejects.toThrow(/not writable/)
   })
 })
+
+describe('SpritesHandle snapshot signal', () => {
+  it('passes the signal to createCheckpoint, and none without it', async () => {
+    const { handle, createCheckpoint } = makeHandle({ newVersion: 'v4' })
+    const signal = new AbortController().signal
+    await handle.snapshot('a', { signal })
+    await handle.snapshot('b')
+    expect(createCheckpoint.mock.calls).toEqual([
+      ['my-sprite', { comment: 'a', signal }],
+      ['my-sprite', { comment: 'b' }],
+    ])
+  })
+})

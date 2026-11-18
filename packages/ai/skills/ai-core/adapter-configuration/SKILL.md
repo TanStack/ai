@@ -91,6 +91,7 @@ The text adapter is the primary one for chat/completions:
 | BytePlus          | `@tanstack/ai-byteplus`          | `byteplusText`                              | `ARK_API_KEY` (falls back to `BYTEPLUS_API_KEY`)                                       |
 | OpenAI-compatible | `@tanstack/ai-openai/compatible` | `openaiCompatible` / `openaiCompatibleText` | provider-specific (passed via `apiKey`)                                                |
 | Cloudflare        | `@tanstack/ai-cloudflare`        | `cloudflareText`                            | `CLOUDFLARE_ACCOUNT_ID` + `CLOUDFLARE_API_TOKEN`, or `{ binding: env.AI }` in a Worker |
+| Neon AI Gateway   | `@tanstack/ai-neon`              | `neonText`                                  | `NEON_AI_GATEWAY_TOKEN` + `NEON_AI_GATEWAY_BASE_URL` (branch host)                     |
 
 > **BytePlus uses two keys.** `byteplusText` / `byteplusVideo` /
 > `byteplusImage` read `ARK_API_KEY` (ModelArk, `Authorization: Bearer`), but

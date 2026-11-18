@@ -16,6 +16,7 @@ import { createCloudflareSummarize } from '@tanstack/ai-cloudflare'
 import { createOpenRouterSummarize } from '@tanstack/ai-openrouter'
 import { createVercelGatewaySummarize } from '@tanstack/ai-vercel-gateway'
 import { createLovableSummarize } from '@tanstack/ai-lovable'
+import { createNeonSummarize } from '@tanstack/ai-neon'
 import { HTTPClient } from '@openrouter/sdk'
 import type { Provider } from '@/lib/types'
 
@@ -148,6 +149,25 @@ function createSummarizeAdapter(
         baseURL: openaiUrl(aimockPort),
         defaultHeaders: headers,
       }),
+    // Neon's baseURL is the bare host; the adapter appends `/v1`.
+    neon: () =>
+      createNeonSummarize('gemini-3-8-flash', DUMMY_KEY, {
+        baseURL: llmockBase(aimockPort),
+        defaultHeaders: headers,
+      }),
+    'neon-anthropic': () =>
+      createNeonSummarize('claude-opus-5-5', DUMMY_KEY, {
+        baseURL: llmockBase(aimockPort),
+        defaultHeaders: headers,
+        fetch: (input, init) =>
+          fetch(String(input).replace('/anthropic/v1/', '/v1/'), init),
+      }),
+    'neon-responses': () =>
+      createNeonSummarize('gpt-6-1-sol', DUMMY_KEY, {
+        api: 'responses',
+        baseURL: llmockBase(aimockPort),
+        defaultHeaders: headers,
+      }),
   }
   return factories[provider]?.()
 }
@@ -166,6 +186,7 @@ export const Route = createFileRoute('/api/summarize')({
           testId,
           aimockPort,
           maxLength,
+          timeout,
         } = data as {
           text: string
           provider: Provider
@@ -173,6 +194,7 @@ export const Route = createFileRoute('/api/summarize')({
           testId?: string
           aimockPort?: number
           maxLength?: number
+          timeout?: number
         }
 
         try {
@@ -196,6 +218,7 @@ export const Route = createFileRoute('/api/summarize')({
               adapter,
               text,
               maxLength,
+              timeout,
               stream: false,
             })
             return new Response(JSON.stringify({ summary }), {
@@ -207,6 +230,7 @@ export const Route = createFileRoute('/api/summarize')({
             adapter,
             text,
             maxLength,
+            timeout,
             stream: true,
           })
           return toServerSentEventsResponse(stream)

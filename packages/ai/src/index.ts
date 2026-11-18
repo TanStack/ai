@@ -84,7 +84,13 @@ export type {
 export { BaseRerankAdapter } from './activities/rerank/adapter'
 
 // Evaluate adapter base + types
-export { BaseEvaluateAdapter } from './activities/evaluate/adapter'
+export {
+  BaseEvaluateAdapter,
+  EvaluateError,
+  EVALUATE_REFUSAL_CODE,
+  isEvaluateError,
+} from './activities/evaluate/adapter'
+export type { EvaluateErrorInit } from './activities/evaluate/adapter'
 
 export {
   defineAgent,
@@ -166,6 +172,7 @@ export {
   cloneAndDeepFreezeJson,
   digestInterruptJson,
 } from './interrupt-serialization'
+export { stableJson } from './utilities/stable-json'
 export {
   INTERRUPT_BINDING_METADATA_KEY,
   InterruptResumeValidationError,
@@ -183,6 +190,8 @@ export {
 // MCP chat option types
 export type {
   MCPToolSource,
+  MCPRequestMeta,
+  MCPRequestMetaInput,
   ChatMCPOptions,
   MCPConnectionPolicy,
 } from './activities/chat/mcp/types'
@@ -461,6 +470,7 @@ export type {
   ApprovalRequestedPayload,
   ApprovalResolvedPayload,
   ArtifactCreatedPayload,
+  SandboxStartingPayload,
   SandboxLifecyclePayload,
 } from './custom-events'
 

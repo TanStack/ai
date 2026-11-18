@@ -930,7 +930,26 @@ export class SessionImpl<THarness extends AnyHarness = AnyHarness>
     const runs = this.runStore
     const maxAttempts = this.harness.durability?.maxAttempts ?? 10
     const logged = [...writer.state.inputs.values()]
+    // An input with no user does not take this session's user. A host
+    // with access refuses it. The same check runs in the loop below.
+    const refuseAnonymous = async (input: InputState) => {
+      if (!this.hasAccess || input.user) return false
+      if (input.status !== 'pending' && input.status !== 'applied') return true
+      if (isTaken(input)) return true
+      if (input.status === 'pending') {
+        this.reject(input.inputId, 'no_user')
+      } else {
+        await this.settle({
+          inputId: input.inputId,
+          ...(input.operationId ? { operationId: input.operationId } : {}),
+          outcome: 'failed',
+          error: { message: 'This input has no user.' },
+        })
+      }
+      return true
+    }
     for (const input of logged) {
+      if (await refuseAnonymous(input)) continue
       const isControl =
         input.status === 'pending' && CONTROL_OPS.has(input.input.op)
       if (isControl && !isTaken(input)) await this.recoverControl(writer, input)
@@ -938,6 +957,7 @@ export class SessionImpl<THarness extends AnyHarness = AnyHarness>
     // Read again: the pass above changed the inputs it applied to.
     const inputs = [...writer.state.inputs.values()]
     for (const input of inputs) {
+      if (await refuseAnonymous(input)) continue
       // A reset that did not settle applies now. Its marker goes in once.
       if (input.input.op === 'reset') {
         const isOpen =

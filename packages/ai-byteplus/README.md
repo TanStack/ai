@@ -136,15 +136,17 @@ the resulting chunk stream to your transport:
 import { generateVideo, toServerSentEventsResponse } from '@tanstack/ai'
 import { byteplusVideo } from '@tanstack/ai-byteplus'
 
-const stream = generateVideo({
-  adapter: byteplusVideo('seedance-1-5-pro-251215'),
-  threadId: 'thread-1',
-  prompt: 'a guitar being played in a store',
-  stream: true,
-  pollingInterval: 5000,
-})
+export function POST() {
+  const stream = generateVideo({
+    adapter: byteplusVideo('seedance-1-5-pro-251215'),
+    threadId: 'thread-1',
+    prompt: 'a guitar being played in a store',
+    stream: true,
+    pollingInterval: 5000,
+  })
 
-return toServerSentEventsResponse(stream)
+  return toServerSentEventsResponse(stream)
+}
 ```
 
 **Generated video URLs expire after 24 hours** (the task record itself is kept

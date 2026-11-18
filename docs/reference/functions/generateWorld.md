@@ -7,7 +7,7 @@ title: generateWorld
 function generateWorld<TAdapter, TStream>(options): WorldActivityResult<TStream>;
 ```
 
-Defined in: packages/ai/src/activities/generateWorld/index.ts:157
+Defined in: [packages/ai/src/activities/generateWorld/index.ts:157](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/generateWorld/index.ts#L157)
 
 **`Experimental`**
 

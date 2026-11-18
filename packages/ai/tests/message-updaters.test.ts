@@ -386,6 +386,28 @@ describe('message-updaters', () => {
       })
     })
 
+    it('should include metadata on a new tool result', () => {
+      const messages = [createMessage('msg-1')]
+      const metadata = { displayType: 'account-assets', accountId: 'A001' }
+
+      const result = updateToolResultPart(
+        messages,
+        'msg-1',
+        'call-1',
+        '{"totalAssets":1000000}',
+        'complete',
+        undefined,
+        undefined,
+        metadata,
+      )
+
+      expect(result[0]?.parts[0]).toMatchObject({
+        type: 'tool-result',
+        toolCallId: 'call-1',
+        metadata,
+      })
+    })
+
     it('should update an existing tool result by toolCallId', () => {
       const messages = [
         createMessage('msg-1', 'assistant', [
@@ -411,6 +433,150 @@ describe('message-updaters', () => {
         toolCallId: 'call-1',
         content: '{"temperature":20}',
         state: 'complete',
+      })
+    })
+
+    it('should preserve existing metadata when an update omits metadata', () => {
+      const metadata = { displayType: 'account-assets' }
+      const messages = [
+        createMessage('msg-1', 'assistant', [
+          {
+            type: 'tool-result',
+            toolCallId: 'call-1',
+            content: '{"temperature":',
+            state: 'streaming',
+            metadata,
+          },
+        ]),
+      ]
+
+      const result = updateToolResultPart(
+        messages,
+        'msg-1',
+        'call-1',
+        '{"temperature":20}',
+        'complete',
+      )
+
+      expect(result[0]?.parts[0]).toMatchObject({
+        content: '{"temperature":20}',
+        state: 'complete',
+        metadata,
+      })
+    })
+
+    it('should clear stale tool result outcome metadata on a successful update', () => {
+      const messages = [
+        createMessage('msg-1', 'assistant', [
+          {
+            type: 'tool-result',
+            toolCallId: 'call-1',
+            content: '{"error":"User declined"}',
+            state: 'error',
+            metadata: {
+              displayType: 'account-assets',
+              accountId: 'A001',
+              tanstack: {
+                toolResultOutcome: 'denied',
+                retained: true,
+              },
+            },
+          },
+        ]),
+      ]
+
+      const result = updateToolResultPart(
+        messages,
+        'msg-1',
+        'call-1',
+        '{"ok":true}',
+        'complete',
+      )
+
+      expect(result[0]?.parts[0]).toEqual({
+        type: 'tool-result',
+        toolCallId: 'call-1',
+        content: '{"ok":true}',
+        state: 'complete',
+        metadata: {
+          displayType: 'account-assets',
+          accountId: 'A001',
+          tanstack: { retained: true },
+        },
+      })
+    })
+
+    it('should preserve outcome metadata explicitly supplied by an update', () => {
+      const incomingMetadata = {
+        displayType: 'account-assets',
+        tanstack: { toolResultOutcome: 'cancelled' },
+      }
+      const messages = [
+        createMessage('msg-1', 'assistant', [
+          {
+            type: 'tool-result',
+            toolCallId: 'call-1',
+            content: '{"error":"User declined"}',
+            state: 'error',
+            metadata: { tanstack: { toolResultOutcome: 'denied' } },
+          },
+        ]),
+      ]
+
+      const result = updateToolResultPart(
+        messages,
+        'msg-1',
+        'call-1',
+        '{"ok":true}',
+        'complete',
+        undefined,
+        undefined,
+        incomingMetadata,
+      )
+
+      expect(result[0]?.parts[0]).toMatchObject({
+        content: '{"ok":true}',
+        state: 'complete',
+        metadata: incomingMetadata,
+      })
+    })
+
+    it('should merge incoming metadata with existing metadata', () => {
+      const messages = [
+        createMessage('msg-1', 'assistant', [
+          {
+            type: 'tool-result',
+            toolCallId: 'call-1',
+            content: '{"temperature":',
+            state: 'streaming',
+            metadata: {
+              displayType: 'account-assets',
+              tanstack: { existing: true, state: 'streaming' },
+            },
+          },
+        ]),
+      ]
+
+      const result = updateToolResultPart(
+        messages,
+        'msg-1',
+        'call-1',
+        '{"temperature":20}',
+        'complete',
+        undefined,
+        undefined,
+        {
+          accountId: 'A001',
+          tanstack: { state: 'complete' },
+        },
+      )
+
+      expect(result[0]?.parts[0]).toMatchObject({
+        metadata: {
+          displayType: 'account-assets',
+          accountId: 'A001',
+          tanstack: { existing: true, state: 'complete' },
+        },
       })
     })
 

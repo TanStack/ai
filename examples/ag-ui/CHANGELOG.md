@@ -1,5 +1,37 @@
 # ag-ui
 
+## 0.0.44
+
+### Patch Changes
+
+- Updated dependencies [[`0fb44da`](https://github.com/TanStack/ai/commit/0fb44da5bb25ab8fb76802f46c9815360e510173)]:
+  - @tanstack/ai-client@1.1.1
+  - @tanstack/ai-react@1.0.2
+
+## 0.0.43
+
+### Patch Changes
+
+- Updated dependencies [[`4caefd7`](https://github.com/TanStack/ai/commit/4caefd7cb6783766fb2bdb9d34d65b367624dd32), [`9ac67f3`](https://github.com/TanStack/ai/commit/9ac67f3acbcecee88714503b205d602560fdc8c6), [`9ac67f3`](https://github.com/TanStack/ai/commit/9ac67f3acbcecee88714503b205d602560fdc8c6), [`07d2e42`](https://github.com/TanStack/ai/commit/07d2e429c456a31d35748fecf7d8f8c0795eff31), [`07d2e42`](https://github.com/TanStack/ai/commit/07d2e429c456a31d35748fecf7d8f8c0795eff31), [`1e13e87`](https://github.com/TanStack/ai/commit/1e13e87b26ccd2734455fc4a958c0690ef3ead06), [`450950d`](https://github.com/TanStack/ai/commit/450950da860d58047c654c1497ddb48d651f9076), [`f33f72a`](https://github.com/TanStack/ai/commit/f33f72ab6da9a0f95bd912e29d2cabc2eab17f27), [`68d0b60`](https://github.com/TanStack/ai/commit/68d0b60d53fa39c2f41f3bcd0548e84c982f37cd)]:
+  - @tanstack/ai-client@1.1.0
+  - @tanstack/ai-react@1.0.2
+
+## 0.0.42
+
+### Patch Changes
+
+- Updated dependencies [[`f085015`](https://github.com/TanStack/ai/commit/f085015da1b77aee3cf95ca74a2e86ed9dbc1c29)]:
+  - @tanstack/ai-client@1.0.1
+  - @tanstack/ai-react@1.0.1
+
+## 0.0.41
+
+### Patch Changes
+
+- Updated dependencies [[`9f5a18a`](https://github.com/TanStack/ai/commit/9f5a18a1837d54cc5dcb009837e23c16b4f55787), [`39c1c79`](https://github.com/TanStack/ai/commit/39c1c79dc9b6c21329f659d9b4ba6968e9496983), [`f1b3f65`](https://github.com/TanStack/ai/commit/f1b3f65a59fb75116bd52abbb162cab8c763d10e)]:
+  - @tanstack/ai-client@1.0.0
+  - @tanstack/ai-react@1.0.0
+
 ## 0.0.40
 
 ### Patch Changes

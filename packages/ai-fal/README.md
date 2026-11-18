@@ -62,7 +62,7 @@ console.log(result.images)
 
 Model ids are string literals with full type safety, so `size` and `modelOptions` are checked against the model you picked.
 
-### Video generation (experimental)
+### Video generation
 
 Video runs as a job: submit, then poll.
 
@@ -156,7 +156,6 @@ console.log(music.audio.url)
 ## Limitations
 
 - No text/chat, tools, or summarization — use a text adapter for `chat()` and `summarize()`
-- Video generation is experimental and its API may change
 
 ## Documentation
 

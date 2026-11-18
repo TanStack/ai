@@ -138,18 +138,12 @@ export type LovableImageModelInputModalitiesByName = {
   [K in LovableImageModel]: readonly ['image']
 }
 
-/**
- * @experimental Video generation is an experimental feature and may change.
- */
 export const LOVABLE_VIDEO_MODELS = [
   'google/veo-3.1-lite',
   'google/veo-3.1-fast',
   'google/veo-3.1',
 ] as const
 
-/**
- * @experimental Video generation is an experimental feature and may change.
- */
 export type LovableVideoModel = (typeof LOVABLE_VIDEO_MODELS)[number]
 
 export type LovableVideoModelProviderOptionsByName = {

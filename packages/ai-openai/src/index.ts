@@ -47,9 +47,6 @@ export type {
 } from './image/image-provider-options'
 
 // Video adapter - for video generation (experimental)
-/**
- * @experimental Video generation is an experimental feature and may change.
- */
 export {
   OpenAIVideoAdapter,
   createOpenaiVideo,

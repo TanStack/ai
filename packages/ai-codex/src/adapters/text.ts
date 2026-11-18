@@ -353,7 +353,9 @@ export class CodexTextAdapter<
           emitCustomEvent: channel.emitCustomEvent,
           ...(options.abortController?.signal
             ? { signal: options.abortController.signal }
-            : {}),
+            : options.request?.signal
+              ? { signal: options.request.signal }
+              : {}),
         })
       }
 

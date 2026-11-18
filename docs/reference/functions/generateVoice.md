@@ -7,7 +7,7 @@ title: generateVoice
 function generateVoice<TAdapter, TStream>(options): VoiceActivityResult<TStream>;
 ```
 
-Defined in: packages/ai/src/activities/generateVoice/index.ts:188
+Defined in: [packages/ai/src/activities/generateVoice/index.ts:188](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/generateVoice/index.ts#L188)
 
 Voice activity - creates a reusable voice.
 

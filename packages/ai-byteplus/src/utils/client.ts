@@ -151,48 +151,14 @@ export function withBytePlusVoiceDefaults<TConfig extends BytePlusVoiceConfig>(
 }
 
 /**
- * Normalizes the OpenAI-shaped `defaultHeaders` config field (which accepts a
- * `Headers` instance, an entry list, or a record with nullable values) into
- * the plain record the header builders below take. Non-string values are
- * dropped rather than serialized.
+ * Turns the OpenAI-shaped `defaultHeaders` config field (a `Headers`
+ * instance, an entry list, or a record with nullable values) into the plain
+ * record the header builders below take. A `null` value removes the header,
+ * and an array value is dropped.
  *
- * Shared by every fetch-based adapter (image, video, speech): they all read
- * `defaultHeaders` off a config typed by the OpenAI SDK but issue plain JSON
- * requests.
+ * Shared by every fetch-based adapter (image, video, speech).
  */
-export function toHeaderRecord(
-  headers: BytePlusArkConfig['defaultHeaders'],
-): Record<string, string> {
-  const record: Record<string, string> = {}
-  if (!headers) return record
-
-  if (headers instanceof Headers) {
-    headers.forEach((value, key) => {
-      record[key] = value
-    })
-    return record
-  }
-
-  // The entry-list form is typed as arrays of nullable values rather than
-  // strict [name, value] tuples, so both halves are checked.
-  if (Array.isArray(headers)) {
-    for (const [key, value] of headers) {
-      if (typeof key === 'string' && typeof value === 'string') {
-        record[key] = value
-      }
-    }
-    return record
-  }
-
-  // Record form. A value may be null/undefined (openai's "unset this header"
-  // signal) or an array for a repeated header; neither maps onto a single
-  // string, so both are dropped.
-  for (const [key, value] of Object.entries(headers)) {
-    if (typeof value === 'string') record[key] = value
-  }
-
-  return record
-}
+export { toHeaderRecord } from '@tanstack/ai-utils/http'
 
 /**
  * Drops any caller-supplied header whose name case-insensitively collides with
@@ -232,13 +198,21 @@ function applyReservedHeaders(
  *
  * `maxRetries` has no equivalent here and stays SDK-path-only; it is
  * documented as such on {@link BytePlusArkConfig}.
+ *
+ * The caller's `abortSignal`, when given, is combined with the timeout, so an
+ * abort cancels the request too.
  */
 export function bytePlusTimeoutSignal(
   timeout: number | undefined,
+  abortSignal?: AbortSignal,
 ): AbortSignal | undefined {
-  return typeof timeout === 'number' && timeout > 0
-    ? AbortSignal.timeout(timeout)
-    : undefined
+  const timeoutSignal =
+    typeof timeout === 'number' && timeout > 0
+      ? AbortSignal.timeout(timeout)
+      : undefined
+  return timeoutSignal && abortSignal
+    ? AbortSignal.any([timeoutSignal, abortSignal])
+    : (timeoutSignal ?? abortSignal)
 }
 
 /**

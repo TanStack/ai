@@ -12,7 +12,7 @@ function runAgentStream(
 binding?): AsyncIterable<AGUIEvent>;
 ```
 
-Defined in: packages/ai/src/activities/chat/agents/spawn.ts:732
+Defined in: [packages/ai/src/activities/chat/agents/spawn.ts:752](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/agents/spawn.ts#L752)
 
 Run one agent and stream its chunks, from `SUBAGENT_STARTED` to
 `SUBAGENT_FINISHED` or `SUBAGENT_ERROR`. The package root exports this

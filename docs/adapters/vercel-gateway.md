@@ -270,6 +270,27 @@ console.log(result.refund.value); // true
 
 See the [Evaluate guide](../evaluate/evaluate) for the question helpers, the result shape, abort, and middleware.
 
+When the Gateway sends an error response, the thrown error has the HTTP status code in `status`. A rate limit (429) needs a retry, but a bad key (401) does not:
+
+```typescript
+import { decide, boolean } from "@tanstack/ai";
+import { vercelGatewayDecider } from "@tanstack/ai-vercel-gateway";
+
+try {
+  await decide({
+    adapter: vercelGatewayDecider("typesafe-ai/jev"),
+    state: { body: "Please refund the extra payment." },
+    questions: {
+      refund: boolean({ instructions: "Is the customer asking for a refund?" }),
+    },
+  });
+} catch (error) {
+  if (error instanceof Error && "status" in error && error.status === 429) {
+    // Rate limited. Wait, then call decide() again.
+  }
+}
+```
+
 ## Not in this package
 
 This package does not do video, speech, transcription, or rerank. Use a dedicated adapter for these.

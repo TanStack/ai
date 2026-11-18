@@ -1,0 +1,12 @@
+{
+  "fixtures": [
+    {
+      "match": {
+        "userMessage": "[cloudflare-binding-headers-wire] affinity check"
+      },
+      "response": {
+        "content": "Affinity checked."
+      }
+    }
+  ]
+}

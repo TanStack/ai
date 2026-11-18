@@ -3,7 +3,7 @@ id: ProviderExecutedToolSource
 title: ProviderExecutedToolSource
 ---
 
-Defined in: packages/ai/src/types.ts:205
+Defined in: [packages/ai/src/types.ts:208](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L208)
 
 One source link from a provider-executed web search.
 
@@ -15,7 +15,7 @@ One source link from a provider-executed web search.
 optional pageAge?: string;
 ```
 
-Defined in: packages/ai/src/types.ts:208
+Defined in: [packages/ai/src/types.ts:211](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L211)
 
 ***
 
@@ -25,7 +25,7 @@ Defined in: packages/ai/src/types.ts:208
 optional title?: string;
 ```
 
-Defined in: packages/ai/src/types.ts:207
+Defined in: [packages/ai/src/types.ts:210](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L210)
 
 ***
 
@@ -35,4 +35,4 @@ Defined in: packages/ai/src/types.ts:207
 url: string;
 ```
 
-Defined in: packages/ai/src/types.ts:206
+Defined in: [packages/ai/src/types.ts:209](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L209)

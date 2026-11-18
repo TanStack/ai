@@ -91,7 +91,7 @@ These rules apply when you pass `native` (see [Let the provider compact](./compa
 - When `compact` fails, `strategy` runs in its place. `onCompact` and `compaction:ended` get the failure in `error`. Some providers on the OpenAI Responses base have no compaction endpoint.
 - After a 404, 405, or 501 (the provider has no compaction endpoint), that adapter object and model use `strategy` until the process restarts. Create the adapter once, outside the request handler, so that no more compaction calls go out.
 - After any other failure, such as a 400, a 429, or a network error, the next compaction tries `compact` again.
-- The compaction call gets the system prompts of the `chat()` call. It does not get the tools, because the compaction endpoint does not accept them.
+- The compaction call gets the system prompts, the tools, the model options, and the reasoning of the `chat()` call.
 - The compacted messages can hold an encrypted provider item. The adapter sends it back unchanged to the same model. Another model does not get it.
 
 ## Give the retry something to cut
@@ -393,6 +393,8 @@ These strategies get a strategy key automatically:
 Set `strategyKey` for custom strategies, custom estimators, or custom marker functions. When your `summarize` function can change, change `strategyKey` too. Without a metadata store or a safe key, compaction stays stateless.
 
 With `durable: true` on a host with a session log, compaction writes its result into the log instead. See the next section.
+
+A checkpoint and a durable record need the full transcript. An earlier middleware can set `providerMessages`. For example, `withSandbox` removes recorded harness tool calls from it. Then compaction works on that list again on each request and saves nothing. Put `withCompaction` first: `middleware: [withCompaction(...), withSandbox(...)]`.
 
 ## Keep compaction in a session log
 

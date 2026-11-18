@@ -137,22 +137,27 @@ describe('TypesafeEvaluateAdapter', () => {
     })
   })
 
-  it('throws on 401', async () => {
+  it('throws with status on 401', async () => {
     await expectStatus(401, 'Unauthorized', 'invalid api key')
   })
 
-  it('throws on 422', async () => {
+  it('throws with status on 422', async () => {
     await expectStatus(422, 'Unprocessable Entity', 'malformed question')
   })
 
-  it('throws on 429', async () => {
+  it('throws with status on 429', async () => {
     await expectStatus(429, 'Too Many Requests', 'rate limited')
   })
 })
 
 async function expectStatus(status: number, statusText: string, body: string) {
   fetchMock.mockResolvedValue(new Response(body, { status, statusText }))
-  await expect(adapter().evaluate(evaluateOptions())).rejects.toThrow(
-    String(status),
-  )
+  await expect(adapter().evaluate(evaluateOptions())).rejects.toMatchObject({
+    status,
+    message: expect.stringMatching(
+      new RegExp(
+        `^TypeSafe evaluate request failed: ${status} ${statusText} .+ ${body}$`,
+      ),
+    ),
+  })
 }

@@ -28,6 +28,7 @@ If a dedicated adapter exists, use it, because it has curated metadata for each 
 - [OpenAI](./openai), [Grok](./grok), [Groq](./groq), and [OpenRouter](./openrouter).
 - Vercel AI Gateway: `vercelGatewayText` from `@tanstack/ai-vercel-gateway`. See [Vercel AI Gateway](./vercel-gateway.md).
 - Lovable AI Gateway: `lovableText` (plus image, video, embeddings, and speech factories) from `@tanstack/ai-lovable`. See [Lovable AI Gateway](./lovable.md).
+- Neon AI Gateway: `neonText` from `@tanstack/ai-neon`. See [Neon AI Gateway](./neon.md).
 
 Perplexity Sonar chat uses this adapter. [`@tanstack/ai-perplexity`](./perplexity.md) is for search and grounding only. To send the `X-Pplx-Integration` attribution header of Perplexity, pass `defaultHeaders: getPerplexityIntegrationHeaders()` from that package.
 

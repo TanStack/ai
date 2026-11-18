@@ -374,6 +374,8 @@ OpenAI gives each answer item an `id` and a `phase`: `commentary` for text befor
 
 When the same model gets that message again, for example on the next turn, the adapter sends each item back with its `id` and `phase`. Another model gets the plain text.
 
+Each saved item also has a `textLength`. Valid lengths restore the original item boundaries on replay, even when the current text block count matches the item count. Records without valid lengths use their existing text blocks when the counts match.
+
 When the model call also sent a reasoning item, the adapter sets `metadata.tanstack.reasoningItem`. If a stored message lost that reasoning item, the adapter sends the text and tool calls without their item ids. OpenAI refuses a `msg_` or `fc_` item without the reasoning item that made it.
 
 ## Transcription options
@@ -839,7 +841,7 @@ Each factory pair has the same shape. The short factory (`openaiText`, `openaiIm
 | `openaiSpeech(model, config?)` / `createOpenaiSpeech(model, apiKey, config?)` | Text-to-speech adapter |
 | `openaiTranscription(model, config?)` / `createOpenaiTranscription(model, apiKey, config?)` | Transcription adapter (Whisper, GPT-4o transcription, and GPT-4o diarized transcription) |
 | `openaiEmbedding(model, config?)` / `createOpenaiEmbedding(model, apiKey, config?)` | Embedding adapter |
-| `openaiVideo(model, config?)` / `createOpenaiVideo(model, apiKey, config?)` | Video adapter (Sora). Experimental |
+| `openaiVideo(model, config?)` / `createOpenaiVideo(model, apiKey, config?)` | Video adapter (Sora) |
 | `openaiDecider(model, config?)` / `createOpenaiDecider(model, apiKey, config?)` | Evaluate adapter for `decide()`. See [Evaluate](./openai#evaluate) |
 | `openaiFiles` / `createOpenaiFiles` | Files API adapter. See [Files API](../advanced/files-api) |
 | `openaiRealtime(...)` / `openaiRealtimeToken(...)` | Realtime voice adapters. See [Realtime Voice Chat](../media/realtime-chat) |

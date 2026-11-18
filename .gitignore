@@ -78,6 +78,7 @@ docs/superpowers
 solo.yml
 
 # Agent scratch output (gap-analysis reports, triage notes — generated locally)
+packages/ai-persistence/skills-test/.generated
 .agent/gap-analysis/
 .agent/triage/
 .agent/pr-sweep/

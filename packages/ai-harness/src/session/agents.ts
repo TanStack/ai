@@ -245,7 +245,7 @@ export abstract class SessionAgents<
     if (runInputId === undefined) {
       return { inputId, status: 'rejected', reason: 'not_running' }
     }
-    const user = options.user ?? this.user
+    const user = this.actor(options.user)
     return this.admitting(async () => {
       const { admission, input } = await this.accept(
         inputId,
@@ -688,7 +688,10 @@ export abstract class SessionAgents<
     // The agent runs for the user who starts it, also after the turn that
     // starts it ends. A child of agent code runs for its parent run's user.
     // Without either, it runs for the user that opened the session.
-    const user = options.user ?? (parent ? parent.current.user : this.user)
+    const user = this.actor(
+      options.user,
+      parent ? parent.current.user : this.user,
+    )
     const sender = user ? { user } : {}
     const fromParent = parent
       ? {
@@ -2448,7 +2451,7 @@ export abstract class SessionAgents<
       const connector = opened && signInOf(interruptOf(opened))?.connector
       if (!connector) continue
       // Another user's credential never answers this sign-in.
-      const user = wait.user ?? this.user
+      const user = wait.user
       if (!(await this.credentialsOf(user).get(connector))) continue
       await this.resolve({
         resume: [

@@ -1,5 +1,138 @@
 # @tanstack/ai-gemini
 
+## 1.2.3
+
+### Patch Changes
+
+- [#2124](https://github.com/TanStack/ai/pull/2124) [`3d40cc4`](https://github.com/TanStack/ai/commit/3d40cc433313b1c808409010ac53130889241d85) - Report `truncated-stream` when a Gemini chat stream ends without a `finishReason`. Before, the run had no terminal event and `onFinish` got the partial text as a success. The adapter now closes the open tool calls, reasoning, and text, then emits `RUN_ERROR`. Structured output already reported this case. An abort is not reported.
+
+- Updated dependencies [[`1888233`](https://github.com/TanStack/ai/commit/1888233ddb501d14b17aa9a5f3497373a0e9242e)]:
+  - @tanstack/ai@1.4.1
+
+## 1.2.2
+
+### Patch Changes
+
+- [#2113](https://github.com/TanStack/ai/pull/2113) [`c1c22e7`](https://github.com/TanStack/ai/commit/c1c22e74e7767d4ff17a806011cc5eea4eae74f9) - Send Gemini API requests through `httpOptions.fetch` again when the client has an `apiKey`. Since 1.1.1 the adapters called the global `fetch` and ignored a custom one, also for image generation through the Interactions API. The `httpOptions.fetch` type is in `@google/genai` 2.23.0 and later.
+
+## 1.2.1
+
+### Patch Changes
+
+- [#2083](https://github.com/TanStack/ai/pull/2083) [`548ec42`](https://github.com/TanStack/ai/commit/548ec42d8f552a8cd7443b37cb7a665baa1cdf9f) - Gemini Live (realtime) `usage` events now include `thoughtsTokenCount` in `completionTokens`, matching how the text adapters report usage.
+
+- [#2053](https://github.com/TanStack/ai/pull/2053) [`925a505`](https://github.com/TanStack/ai/commit/925a50536ee4ea43f8446d271eede7df8dd032fc) - Send a multimodal tool result's parts to Gemini once, inside its `functionResponse`. Before, the adapter also put them beside the `functionResponse` in the same turn, so each image was sent and billed twice.
+
+- [#2088](https://github.com/TanStack/ai/pull/2088) [`9bcdd41`](https://github.com/TanStack/ai/commit/9bcdd4115eaf80ceca78edd99d71aec02bb77f09) - Report Gemini content filter stops (SAFETY, RECITATION, BLOCKLIST, PROHIBITED_CONTENT, SPII, IMAGE_SAFETY, IMAGE_PROHIBITED_CONTENT, IMAGE_RECITATION) as `finishReason: "content_filter"` on chat streams, and as a `content_filter` error from `structuredOutput` and `structuredOutputStream`.
+
+- Updated dependencies [[`e8546f9`](https://github.com/TanStack/ai/commit/e8546f90834ace0129c4e2b5491909ea87e07f20), [`5fd5355`](https://github.com/TanStack/ai/commit/5fd535501784df0102880470835913ceec3a8e1e), [`9393839`](https://github.com/TanStack/ai/commit/9393839d380dde91fa91e81b5e92448610e9782a), [`215e339`](https://github.com/TanStack/ai/commit/215e3396eb907054baddbf3423da8bc3e90ecf50), [`7157ef3`](https://github.com/TanStack/ai/commit/7157ef3e8556ac23c350822ba0f3c4bbf0abb118)]:
+  - @tanstack/ai@1.3.0
+
+## 1.2.0
+
+### Minor Changes
+
+- [#2066](https://github.com/TanStack/ai/pull/2066) [`5dc23d5`](https://github.com/TanStack/ai/commit/5dc23d5d78f7109023207ebd7b84652f31b50b33) - Add Gemini Omni 1.2 Flash (`gemini-omni-1.2-flash`) as an Interactions video model. Clips are 3 to 15 seconds (default 10). `generation_config.video_config.task: 'extend'` appends 3 to 10 seconds per turn, up to 30 seconds total. `gemini-omni-1.1-flash` stays until 2026-12-03, then Google routes it to 1.2.
+
+### Patch Changes
+
+- [#2055](https://github.com/TanStack/ai/pull/2055) [`af23e5d`](https://github.com/TanStack/ai/commit/af23e5d12042a989ed8a931207f05992b8a81279) - Update model metadata from OpenRouter API
+
+## 1.1.1
+
+### Patch Changes
+
+- [#2037](https://github.com/TanStack/ai/pull/2037) [`ac406f1`](https://github.com/TanStack/ai/commit/ac406f1d73126f977d193215b79bda140a1a2fca) - `embed()` with the Gemini adapter now sends inputs in requests of at most 100 texts, one after the other, instead of one request for the whole array. Vectors keep input order and indexes, and Vertex billable characters are summed across requests. Calls with 100 or fewer inputs are unchanged.
+
+- [#1973](https://github.com/TanStack/ai/pull/1973) [`374fb69`](https://github.com/TanStack/ai/commit/374fb69a534de7e200421056acf3a677fd833bce) - The adapters now call the provider HTTP API with `fetch` and do not load the provider SDK at runtime, except for the options below. With a bundler that splits chunks, the startup bundle is smaller. The SDK stays a dependency for its TypeScript types and for those options. Errors keep the same `name`, `status`, `message`, and body fields. If your code checks an error with `instanceof` against an error class of `@google/genai`, check `error.name` instead.
+
+  These options still load `@google/genai` on first use: `vertexai: true`, `enterprise: true`, no `apiKey`, and a file path string as the upload.
+
+- Updated dependencies [[`48cbc66`](https://github.com/TanStack/ai/commit/48cbc66d677896e75d242e9c52be67f7da259fd9), [`374fb69`](https://github.com/TanStack/ai/commit/374fb69a534de7e200421056acf3a677fd833bce)]:
+  - @tanstack/ai@1.2.0
+  - @tanstack/ai-utils@1.1.0
+
+## 1.1.0
+
+### Minor Changes
+
+- [#1977](https://github.com/TanStack/ai/pull/1977) [`9ac67f3`](https://github.com/TanStack/ai/commit/9ac67f3acbcecee88714503b205d602560fdc8c6) - Forward the new optional `abortSignal` in embeddings, Veo and Omni video status and download, files `get` and `delete`, and the realtime token request. `uploadGeminiFile()` takes `abortSignal`: it cancels the status requests and the wait between polls.
+
+### Patch Changes
+
+- [#1975](https://github.com/TanStack/ai/pull/1975) [`c7f8dfd`](https://github.com/TanStack/ai/commit/c7f8dfd58129c5538090fc9ab8c91cd93c6125ab) - Aborting a call now cancels the Gemini request for Lyria audio, speech, Veo and Omni video creation, the Veo input image download, and chat with agentic video. Before, the request kept running and was billed.
+
+- [#1970](https://github.com/TanStack/ai/pull/1970) [`649f026`](https://github.com/TanStack/ai/commit/649f026e3f24c0f6da829877051a2f7829a919b5) - Count thinking tokens in `completionTokens`. Gemini reports `thoughtsTokenCount` separately from `candidatesTokenCount` but bills both as output, so `completionTokens` was lower than `totalTokens - promptTokens` for thinking models. `completionTokensDetails.reasoningTokens` is unchanged.
+
+- [#1928](https://github.com/TanStack/ai/pull/1928) [`a4007b4`](https://github.com/TanStack/ai/commit/a4007b4a8b5457ce799d3545baa76b5c93e50594) - Native Gemini image generation no longer throws `image interaction returned no id.` when `modelOptions.store` is `false`. Gemini leaves the interaction id out of an unstored interaction, so the result gets a local id, which cannot be passed as `previous_interaction_id`. A stored interaction without an id still throws.
+
+- [#1974](https://github.com/TanStack/ai/pull/1974) [`09dde65`](https://github.com/TanStack/ai/commit/09dde65b9fdcc312fd0459c98328c23abd1406cb) - Report token usage for every call that the provider billed, also when the call fails.
+  - Adapters put the usage that they received on `RUN_ERROR`: a cut-off response, a refusal, a parse failure, an empty response, or a stream that fails after usage arrived. Before, many of these paths dropped it.
+  - A non-streaming `structuredOutput()`, image, or speech call that fails after the response throws an error with a `usage` field. `chat()`, `generateImage()`, `generateSpeech()`, and `summarize()` report it.
+  - The `onUsage` middleware hook now also runs for a `RUN_ERROR` with usage. A structured output value that fails the schema check still reports the usage of its call.
+  - Media streams carry `usage` on `RUN_FINISHED` and `RUN_ERROR`. Devtools now gets the `summarize:usage` and `transcription:usage` events, and `text:usage` for a chat `RUN_ERROR` with usage. A call that `onModelError` or a rate-limit retry drops still reports its usage.
+  - Provider fields that were dropped are mapped: Anthropic thinking tokens, Claude Code `total_cost_usd` as `usage.cost`, OpenRouter Responses reasoning tokens, opencode cost and cache writes, ACP and Bedrock cache writes, OpenAI evaluate token details, Gemini Vertex embedding tokens, and audio duration as billed seconds for Whisper, Groq, Cloudflare, and Lovable transcription.
+  - opencode adds up the usage of every agent step in a turn. Before, it counted only the last step.
+  - Gemini Interactions usage (text, agentic video, and images) counts thought tokens in `completionTokens`, the same as `generateContent`.
+
+- Updated dependencies [[`9ac67f3`](https://github.com/TanStack/ai/commit/9ac67f3acbcecee88714503b205d602560fdc8c6), [`9ac67f3`](https://github.com/TanStack/ai/commit/9ac67f3acbcecee88714503b205d602560fdc8c6), [`e17cae7`](https://github.com/TanStack/ai/commit/e17cae7aa40ce5ebe0e78496931d49c793bdaf41), [`d6ead13`](https://github.com/TanStack/ai/commit/d6ead13def85f91782e20d6c1b8755fdf1c836c2), [`450950d`](https://github.com/TanStack/ai/commit/450950da860d58047c654c1497ddb48d651f9076), [`07d2e42`](https://github.com/TanStack/ai/commit/07d2e429c456a31d35748fecf7d8f8c0795eff31), [`13b1ca9`](https://github.com/TanStack/ai/commit/13b1ca918a0ac36761db2a6226973c5330d4221d), [`09dde65`](https://github.com/TanStack/ai/commit/09dde65b9fdcc312fd0459c98328c23abd1406cb)]:
+  - @tanstack/ai@1.1.0
+  - @tanstack/ai-utils@1.0.1
+
+## 1.0.1
+
+### Patch Changes
+
+- [#1897](https://github.com/TanStack/ai/pull/1897) [`8731d75`](https://github.com/TanStack/ai/commit/8731d75d5fe969869824e17e2f4877bb89b8bdcb) - Let Gemini 3 use a built-in tool (`googleSearchTool`, `urlContextTool`, `googleMapsTool`, `fileSearchTool`, `codeExecutionTool`) beside function tools in one `chat()` run. On the Gemini API, the adapter now sets `toolConfig.includeServerSideToolInvocations`, which Gemini needs for this mix. A request without it failed with a 400. The adapter also keeps the signed `toolCall`, `toolResponse`, `executableCode` and `codeExecutionResult` parts of a step on its provider-executed tool call (`metadata.gemini.serverParts`) and sends them back in place on the next request. Without them, the next agent-loop step failed with "Function call is missing a thought_signature". Vertex AI does not get the flag, because `@google/genai` rejects it there. A follow-up that must send `toolCall` or `toolResponse` parts throws. Code execution parts are sent back.
+
+- [#1904](https://github.com/TanStack/ai/pull/1904) [`f085015`](https://github.com/TanStack/ai/commit/f085015da1b77aee3cf95ca74a2e86ed9dbc1c29) - Show each package's own npm download count and npm version. The bundle-size badge uses bundlejs. Partner logos use image URLs that load.
+
+- [#1912](https://github.com/TanStack/ai/pull/1912) [`ae97655`](https://github.com/TanStack/ai/commit/ae976552710726b13b524c307c1b5bbe78478eb0) - Video generation is no longer marked experimental. The `@experimental` tags are gone from `generateVideo()`, the video adapters, and their types, and the docs no longer say the API can change.
+
+- Updated dependencies [[`f085015`](https://github.com/TanStack/ai/commit/f085015da1b77aee3cf95ca74a2e86ed9dbc1c29), [`ae97655`](https://github.com/TanStack/ai/commit/ae976552710726b13b524c307c1b5bbe78478eb0)]:
+  - @tanstack/ai@1.0.1
+
+## 1.0.0
+
+### Major Changes
+
+- [#1840](https://github.com/TanStack/ai/pull/1840) [`f1b3f65`](https://github.com/TanStack/ai/commit/f1b3f65a59fb75116bd52abbb162cab8c763d10e) - TanStack AI 1.0.0. This release removes every API that was deprecated in 0.x. Read the upgrade guide before you upgrade: https://tanstack.com/ai/latest/docs/migration/v1
+  - Removed all `@deprecated` exports, options, fields, and type aliases. Each one has a replacement that already shipped in 0.x.
+  - Removed `addToolApprovalResponse()` from `ChatClient` and every chat hook. Resolve the bound `tool-approval` interrupt with `resolveInterrupt` instead. The devtools event `tools:approval:responded` is also removed.
+  - Removed the old wire formats: the CUSTOM `approval-requested` and `tool-input-available` events, the `[DONE]` SSE line, the `data` copy of `forwardedProps`, pre-binding interrupt descriptors and their `approval_required` and `client_tool_input` reasons, and the STEP events that adapters sent next to `REASONING_*` events. Use a 1.0 client with a 1.0 server.
+  - Removed the `toolName` alias from `TOOL_CALL_START` chunks. Read `toolCallName` instead.
+  - `threadId` is now required on `useChat` and every other chat hook, `ChatClient`, the generation hooks and clients, `chat()`, `summarize()`, the generation functions, `codeModeWithSnippets()`, `selectRelevantSnippets()`, `CompactionContext`, and `SummarizeInput`. TanStack AI no longer makes a thread id for you. Pass a stable id for each conversation. `createChatHook` factory options no longer take `threadId`: pass it on each hook call. Octane generation hooks take `threadId` instead of `id`. `@tanstack/ai-sandbox` removes `resolveDurableThreadId` and `DurableThreadIdRequiredError`.
+  - The published `@tanstack/ai-octane/ui` types are now strict. `UI.Messages`, `UI.Message`, `UI.Part`, and `UI.Interrupts` type their render children. `ToolProps` types `part.input` and `part.output` for the named tool. `toolsComponents` and `interruptsComponents` are required when the chat options declare tools or named interrupts. Code that relied on the old loose types can fail to compile.
+  - A connection adapter's `connect()` and `send()` need the run context (with `threadId`) as their fourth argument. `ChatClient` and the generation clients pass it.
+  - `@tanstack/ai-sandbox`: `createToolBridgeCore()`, `startHostToolBridge()`, a `ToolBridgeProvisioner`, and `executeHostTool()` take a required `threadId`. Bridged tools get it in their context.
+  - `@tanstack/ai-sandbox`: the harness tool bridge and `executeHostTool()` refuse a tool with `needsApproval`. Before, the tool ran with no approval. Remove `needsApproval`, or run the tool with an HTTP adapter.
+  - `stream()` and `rpcStream()` pass the AG-UI `RunAgentInput` for the run as the fourth factory argument, the same body the HTTP adapters send. Read it on the server with `chatParamsFromRequestBody()` or `generationParamsFromBody()`, so `threadId`, `runId`, and interrupt `resume` reach a server function. `RunAgentInput` is exported from `@tanstack/ai/client`.
+  - A generation `fetcher` gets `threadId` and `runId` in its second argument, next to `signal` and `headers`. Pass them to the server generation call.
+  - `generationParamsFromBody()` and `generationParamsFromRequest()` read the generation input from `forwardedProps`. A server that reads `body.data` gets `undefined`. Read `body.forwardedProps` instead. They also require `threadId` and `runId` and return them as strings, the same as `chatParamsFromRequestBody()` and the AG-UI `RunAgentInput`. A body that holds only the input is rejected.
+  - Removed the readers for data saved in old 0.x formats (old Cloudflare run-log records, a bare `UIMessage[]` from client persistence, artifact records without `blobKey`).
+  - Removed provider models that are shut down.
+  - `@tanstack/ai-react-ui`, `@tanstack/ai-solid-ui`, and `@tanstack/ai-vue-ui` get no 1.0 release. Import from `@tanstack/ai-react/ui`, `@tanstack/ai-solid/ui`, or `@tanstack/ai-vue/ui`.
+
+### Patch Changes
+
+- [#1868](https://github.com/TanStack/ai/pull/1868) [`fe83aa0`](https://github.com/TanStack/ai/commit/fe83aa05fe2346c50693664d4a4896d4fc1fea5a) - Remove model ids that providers have retired. Each one now fails on the provider's API, so the types no longer accept it.
+  - Groq: `llama-3.3-70b-versatile`, `llama-3.1-8b-instant`, `meta-llama/llama-4-maverick-17b-128e-instruct`, `meta-llama/llama-4-scout-17b-16e-instruct`, `meta-llama/llama-guard-4-12b`, `moonshotai/kimi-k2-instruct-0905`, `qwen/qwen3-32b`. Adds `qwen/qwen3.8-27b`.
+  - Mistral: `pixtral-large-latest`, `pixtral-12b-2409`, `open-mistral-nemo`.
+  - OpenAI: `chatgpt-4o-latest`, `codex-mini-latest`, `gpt-4o-audio`, `gpt-4o-mini-audio`, `gpt-5.6`, `dall-e-2`, `dall-e-3`, `computer-use-preview`. The speech model `gpt-4o-audio-preview` is replaced by `gpt-4o-mini-tts`.
+  - Anthropic: `claude-opus-4-1`, `claude-opus-5-fast`.
+  - Gemini: `imagen-4.0-generate-001`, `imagen-4.0-ultra-generate-001`, `imagen-4.0-fast-generate-001`.
+
+  Types and helpers that only served those models are removed:
+  - `@tanstack/ai-gemini`: `GeminiImageProviderOptions`, `GeminiAnyImageProviderOptions`, `GeminiAspectRatio`, `PersonGeneration`, `SafetyFilterLevel`, `ImagePromptLanguage`, `GEMINI_NATIVE_IMAGE_MODELS`, `isGeminiNativeImageModel`. Every Gemini image model uses `GeminiNativeImageProviderOptions`.
+  - `@tanstack/openai-base`: `OpenAIComputerToolName`. `resolveComputerUseTool(tool)` no longer takes a model.
+  - `@tanstack/ai-openai`: the dall-e option and size types.
+
+- [#1882](https://github.com/TanStack/ai/pull/1882) [`456bdc4`](https://github.com/TanStack/ai/commit/456bdc4fa5dba2d01889d5073ffe2c418078ea07) - Update model metadata from OpenRouter API
+
+- Updated dependencies [[`fcbd199`](https://github.com/TanStack/ai/commit/fcbd199a66b553acef0b81bc76c4b4acd7fde6a9), [`39c1c79`](https://github.com/TanStack/ai/commit/39c1c79dc9b6c21329f659d9b4ba6968e9496983), [`959f43e`](https://github.com/TanStack/ai/commit/959f43e4b11112f2c097f642bdec34d8d0f83e27), [`39c1c79`](https://github.com/TanStack/ai/commit/39c1c79dc9b6c21329f659d9b4ba6968e9496983), [`fa2a291`](https://github.com/TanStack/ai/commit/fa2a291f5526f6dec9a91fe5b71de15dfaf59ec7), [`f7e7cce`](https://github.com/TanStack/ai/commit/f7e7cce8f2d543a7480b626b7985417e054bfd8d), [`7a0a48b`](https://github.com/TanStack/ai/commit/7a0a48bac8b531a90e768c87cb645da2fc8d3f31), [`468063c`](https://github.com/TanStack/ai/commit/468063c07cd904be97b154b415163c23510834b2), [`fe83aa0`](https://github.com/TanStack/ai/commit/fe83aa05fe2346c50693664d4a4896d4fc1fea5a), [`781a3a8`](https://github.com/TanStack/ai/commit/781a3a82c870e246deff23c7aca32094e9aaaf2f), [`39abb7e`](https://github.com/TanStack/ai/commit/39abb7ed172b4357bc04a39fc6cf7c3577f77cf3), [`f1b3f65`](https://github.com/TanStack/ai/commit/f1b3f65a59fb75116bd52abbb162cab8c763d10e)]:
+  - @tanstack/ai@1.0.0
+  - @tanstack/ai-utils@1.0.0
+
 ## 0.38.2
 
 ### Patch Changes

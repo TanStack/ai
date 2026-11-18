@@ -171,7 +171,7 @@ describe('OllayaEvaluateAdapter', () => {
     ).toBe('Bearer proxy-token')
   })
 
-  it('throws with the response body detail on a non-OK status', async () => {
+  it('throws with status and the response body detail on a non-OK status', async () => {
     fetchMock.mockResolvedValue(
       new Response('model not found', {
         status: 404,
@@ -181,7 +181,12 @@ describe('OllayaEvaluateAdapter', () => {
 
     await expect(
       ollayaDecider('laya:latest').evaluate(evaluateOptions()),
-    ).rejects.toThrow('404')
+    ).rejects.toMatchObject({
+      status: 404,
+      message: expect.stringMatching(
+        /^Ollaya evaluate request failed: 404 Not Found .+ model not found$/,
+      ),
+    })
   })
 
   it('throws when the response shape is unexpected', async () => {

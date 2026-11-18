@@ -41,7 +41,7 @@ const adapter = createGeminiChat("gemini-3.8-flash", process.env.GEMINI_API_KEY!
 ```
 
 - `baseURL` sets `httpOptions.baseUrl`, and `defaultHeaders` sets `httpOptions.headers`. If you set both forms, `baseURL` and `defaultHeaders` win.
-- This adapter ignores [`wrapFetch`](../advanced/middleware#change-the-http-requests-of-a-call), because the `@google/genai` SDK does not take a custom fetch.
+- This adapter ignores [`wrapFetch`](../advanced/middleware#change-the-http-requests-of-a-call). To send the requests through your own `fetch`, set `httpOptions.fetch`. This option needs `@google/genai` 2.23.0 or later.
 
 ## Video understanding options
 
@@ -415,6 +415,37 @@ Gemini has tools of its own, next to the function tools that you define. Import 
 
 For the concept, a comparison table, and type gating, see [Provider Tools](../tools/provider-tools.md).
 
+### Provider tools beside your own tools
+
+On Gemini 3, put provider tools and your function tools in one `tools` array. The model can search the web and call your tool in the same step.
+
+```typescript
+import { chat, toolDefinition } from "@tanstack/ai";
+import { geminiText } from "@tanstack/ai-gemini";
+import { googleSearchTool } from "@tanstack/ai-gemini/tools";
+import { z } from "zod";
+
+const getOrder = toolDefinition({
+  name: "get_order",
+  description: "Get an order by its id",
+  inputSchema: z.object({ id: z.string() }),
+}).server(async ({ id }) => ({ id, status: "shipped" }));
+
+const stream = chat({
+  adapter: geminiText("gemini-3.8-flash"),
+  messages: [
+    { role: "user", content: "Where is order 42, and does the carrier report delays today?" },
+  ],
+  threadId: "thread-1",
+  tools: [googleSearchTool(), getOrder],
+});
+```
+
+The adapter does two things for this mix:
+
+- **The flag.** On the Gemini API, it sets `toolConfig.includeServerSideToolInvocations`, which Gemini needs to mix the two kinds of tools. The SDK rejects this flag on Vertex AI, so the adapter does not set it there. A `toolConfig` in `modelOptions` wins key by key.
+- **The signed parts.** Gemini returns each run of a provider tool as signed parts. The adapter keeps them on a provider-executed tool call, in `metadata.gemini.serverParts`, and sends them back on the next request. If you store messages, keep that metadata. On Vertex AI, a next step that must send `toolCall` or `toolResponse` parts throws. `executableCode` and `codeExecutionResult` parts are sent back.
+
 ### `codeExecutionTool`
 
 Gemini runs Python code in a sandbox and returns the results inline. It takes no arguments. Add it to the `tools` array.
@@ -578,7 +609,7 @@ Each factory pair has the same shape. The short factory (`geminiText`, `geminiIm
 | `geminiImage(model, config?)` / `createGeminiImage(model, apiKey, config?)` | Image adapter. See [Images](#images) |
 | `geminiSpeech(model, config?)` / `createGeminiSpeech(model, apiKey, config?)` | Text-to-speech adapter. Experimental |
 | `geminiAudio(model, config?)` / `createGeminiAudio(model, apiKey, config?)` | Lyria music adapter. Experimental |
-| `geminiVideo(model, config?)` / `createGeminiVideo(model, apiKey, config?)` | Video adapter. Experimental |
+| `geminiVideo(model, config?)` / `createGeminiVideo(model, apiKey, config?)` | Video adapter |
 | `geminiEmbedding(model, config?)` / `createGeminiEmbedding(model, apiKey, config?)` | Embedding adapter |
 | `geminiFiles` / `createGeminiFiles` | Files API adapter. See [Files API](../advanced/files-api) |
 

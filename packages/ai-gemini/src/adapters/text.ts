@@ -1,4 +1,4 @@
-import { FinishReason, FunctionCallingConfigMode } from '@google/genai'
+import { FinishReason, FunctionCallingConfigMode } from '../client/enums'
 import {
   CONTEXT_OVERFLOW_CODE,
   EventType,
@@ -15,13 +15,15 @@ import {
 } from '@tanstack/ai/adapter-internals'
 import { BaseTextAdapter } from '@tanstack/ai/adapters'
 import { convertToolsToProviderFormat } from '../tools/tool-converter'
-import { buildGeminiUsage } from '../usage'
+import { getGeminiProviderToolKind } from '../tools/gemini-provider-tool'
+import { buildGeminiInteractionsUsage, buildGeminiUsage } from '../usage'
 import { geminiThinkingConfig } from '../text/reasoning'
 import {
   createGeminiClient,
   generateId,
   getGeminiApiKeyFromEnv,
   isGeminiContextOverflow,
+  withHttpTimeout,
 } from '../utils'
 import {
   GEMINI_COMBINED_TOOLS_AND_SCHEMA_MODELS,
@@ -44,12 +46,12 @@ import type {
   Content,
   FunctionCallingConfig,
   GenerateContentParameters,
-  GenerateContentResponse,
-  GoogleGenAI,
+  GenerateContentResponseUsageMetadata,
   GroundingMetadata,
   Part,
   VideoMetadata,
 } from '@google/genai'
+import type { GeminiClient, GeminiContentResponse } from '../client/index'
 import type {
   ContentPart,
   Modality,
@@ -59,6 +61,7 @@ import type {
   AdapterYieldChunk,
   ProviderExecutedToolSource,
   TextOptions,
+  TokenUsage,
   ToolChoice,
 } from '@tanstack/ai'
 import type { ExternalTextProviderOptions } from '../text/text-provider-options'
@@ -115,6 +118,20 @@ export function withGeminiSource(
   }
 }
 
+// Finish reasons where Gemini withheld or cut the answer for a content filter.
+// A filtered stop is a normal finish with `content_filter`; only MAX_TOKENS
+// ends the run as an error.
+const CONTENT_FILTER_REASONS = new Set<FinishReason>([
+  FinishReason.SAFETY,
+  FinishReason.RECITATION,
+  FinishReason.BLOCKLIST,
+  FinishReason.PROHIBITED_CONTENT,
+  FinishReason.SPII,
+  FinishReason.IMAGE_SAFETY,
+  FinishReason.IMAGE_PROHIBITED_CONTENT,
+  FinishReason.IMAGE_RECITATION,
+])
+
 const DEFAULT_MEDIA_MIME_TYPES = {
   image: 'image/jpeg',
   audio: 'audio/mp3',
@@ -140,6 +157,24 @@ function getGroundingSources(
     })
   }
   return [...sources.values()]
+}
+
+/** A part of a built-in tool run, which Gemini needs back unchanged. */
+function isServerPart(part: Part): boolean {
+  return Boolean(
+    part.toolCall ||
+    part.toolResponse ||
+    part.executableCode ||
+    part.codeExecutionResult,
+  )
+}
+
+/** The tool name of a built-in tool part, when the part names its tool. */
+function serverToolName(part: Part): string | undefined {
+  if (part.executableCode || part.codeExecutionResult) return 'code_execution'
+  const type = (part.toolCall ?? part.toolResponse)?.toolType
+  if (!type || type === 'TOOL_TYPE_UNSPECIFIED') return undefined
+  return type.startsWith('GOOGLE_SEARCH') ? 'google_search' : type.toLowerCase()
 }
 
 /** Maps `chat({ toolChoice })` to the Gemini function calling config. */
@@ -432,7 +467,8 @@ export class GeminiTextAdapter<
   override readonly supportsFileSources = true
   override readonly inputModalities = GEMINI_MODEL_INPUT_MODALITIES[this.model]
 
-  private readonly client: GoogleGenAI
+  private readonly client: GeminiClient
+  private readonly timeoutMs: number | undefined
 
   constructor(config: GeminiTextConfig, model: TModel) {
     super({}, model)
@@ -445,6 +481,7 @@ export class GeminiTextAdapter<
         ? 'google-vertex'
         : 'google-generative-ai'
     this.client = createGeminiClient(config)
+    this.timeoutMs = config.httpOptions?.timeout
   }
 
   async *chatStream(
@@ -471,6 +508,7 @@ export class GeminiTextAdapter<
 
     const mappedOptions = this.mapCommonOptionsToGemini(options)
     const { logger } = options
+    const seen: StreamUsageSeen = {}
 
     try {
       logger.request(
@@ -480,10 +518,14 @@ export class GeminiTextAdapter<
       const result =
         await this.client.models.generateContentStream(mappedOptions)
 
-      yield* this.processStreamChunks(result, options, logger)
+      yield* this.processStreamChunks(result, options, logger, seen)
     } catch (error) {
       const overflow = isGeminiContextOverflow(error)
       const rawEvent = toRunErrorRawEvent(error)
+      // A RUN_FINISHED that was already sent reported this usage.
+      const usage = seen.reported
+        ? undefined
+        : buildGeminiUsage(seen.usageMetadata)
       logger.errors('gemini.chatStream fatal', {
         error,
         source: 'gemini.chatStream',
@@ -500,6 +542,7 @@ export class GeminiTextAdapter<
         // Forward the provider's structured error body when present (see
         // toRunErrorRawEvent); omitted otherwise.
         ...(rawEvent !== undefined && { rawEvent }),
+        ...(usage && { usage }),
         error: {
           message:
             error instanceof Error
@@ -551,15 +594,19 @@ export class GeminiTextAdapter<
       // The installed @google/genai (2.10.0) Interactions `VideoContent` type
       // predates the `processing` field, so the structurally-built input is
       // cast at the call boundary. The SDK forwards it to the wire unchanged.
-      const interaction = await this.client.interactions.create({
-        model,
-        ...(systemInstruction !== undefined && {
-          system_instruction: systemInstruction,
-        }),
-        input: input as never,
-      })
+      const interaction = await this.client.interactions.create(
+        {
+          model,
+          ...(systemInstruction !== undefined && {
+            system_instruction: systemInstruction,
+          }),
+          input: input as never,
+        },
+        { signal: withHttpTimeout(options.request?.signal, this.timeoutMs) },
+      )
 
       const text = interaction.output_text ?? ''
+      const usage = buildGeminiInteractionsUsage(interaction.usage)
       const responseMetadata = {
         tanstack: {
           ...(interaction.id && { responseId: interaction.id }),
@@ -607,6 +654,7 @@ export class GeminiTextAdapter<
         model,
         timestamp: Date.now(),
         finishReason: 'stop',
+        ...(usage && { usage }),
       }
     } catch (error) {
       const overflow = isGeminiContextOverflow(error)
@@ -648,6 +696,7 @@ export class GeminiTextAdapter<
     const { logger } = chatOptions
 
     const mappedOptions = this.mapCommonOptionsToGemini(chatOptions)
+    let usage: TokenUsage | undefined
 
     try {
       logger.request(
@@ -663,12 +712,21 @@ export class GeminiTextAdapter<
           responseSchema: outputSchema,
         },
       })
+      usage = buildGeminiUsage(result.usageMetadata)
 
       // A response cut off at the output cap is a truncated JSON document;
       // report it before the parse error (issue #1426).
-      if (result.candidates?.[0]?.finishReason === FinishReason.MAX_TOKENS) {
+      const finishReason = result.candidates?.[0]?.finishReason
+      if (finishReason === FinishReason.MAX_TOKENS) {
         throw new Error(
           'gemini.structuredOutput: the response was cut off because the maximum token limit was reached (finishReason=MAX_TOKENS); raise modelOptions.maxOutputTokens',
+        )
+      }
+      // A filtered candidate has no usable JSON; report the filter before
+      // the parse error.
+      if (finishReason && CONTENT_FILTER_REASONS.has(finishReason)) {
+        throw new Error(
+          `gemini.structuredOutput: the response was stopped by a content filter (finishReason=${finishReason})`,
         )
       }
 
@@ -688,19 +746,21 @@ export class GeminiTextAdapter<
         rawText,
         ...(result.responseId && { responseId: result.responseId }),
         ...(result.modelVersion && { model: result.modelVersion }),
-        usage: result.usageMetadata
-          ? buildGeminiUsage(result.usageMetadata)
-          : undefined,
+        usage,
       }
     } catch (error) {
       logger.errors('gemini.structuredOutput fatal', {
         error,
         source: 'gemini.structuredOutput',
       })
-      throw new Error(
-        error instanceof Error
-          ? error.message
-          : 'An unknown error occurred during structured output generation.',
+      // The provider already billed the tokens, so the caller still gets them.
+      throw Object.assign(
+        new Error(
+          error instanceof Error
+            ? error.message
+            : 'An unknown error occurred during structured output generation.',
+        ),
+        usage && { usage },
       )
     }
   }
@@ -733,6 +793,9 @@ export class GeminiTextAdapter<
       runId: requestedChatOptions.runId ?? generateId(this.name),
     }
     const mappedOptions = this.mapCommonOptionsToGemini(chatOptions)
+    const seen: StreamUsageSeen = {}
+    // Set once a RUN_ERROR went out. It carried the usage already.
+    let failed = false
 
     try {
       chatOptions.logger.request(
@@ -752,11 +815,11 @@ export class GeminiTextAdapter<
       let finished:
         | Extract<AdapterYieldChunk, { type: typeof EventType.RUN_FINISHED }>
         | undefined
-      let failed = false
       for await (const chunk of this.processStreamChunks(
         result,
         chatOptions,
         chatOptions.logger,
+        seen,
       )) {
         if (chunk.type === EventType.TEXT_MESSAGE_CONTENT) {
           rawText += chunk.delta
@@ -775,6 +838,16 @@ export class GeminiTextAdapter<
           chatOptions,
           'Gemini structured-output stream ended without a terminal event',
           'truncated-stream',
+          buildGeminiUsage(seen.usageMetadata),
+        )
+        return
+      }
+      if (finished.finishReason === 'content_filter') {
+        yield structuredStreamError(
+          chatOptions,
+          'Gemini structured-output stream was stopped by a content filter',
+          'content_filter',
+          finished.usage,
         )
         return
       }
@@ -783,6 +856,7 @@ export class GeminiTextAdapter<
           chatOptions,
           'Gemini structured-output stream contained no content',
           'empty-response',
+          finished.usage,
         )
         return
       }
@@ -795,6 +869,7 @@ export class GeminiTextAdapter<
           chatOptions,
           jsonContentParseError(rawText, 'Gemini structured-output stream'),
           'parse-error',
+          finished.usage,
         )
         return
       }
@@ -818,7 +893,12 @@ export class GeminiTextAdapter<
         source: 'gemini.structuredOutputStream',
       })
       yield {
-        ...structuredStreamError(chatOptions, message, 'provider-error'),
+        ...structuredStreamError(
+          chatOptions,
+          message,
+          'provider-error',
+          failed ? undefined : buildGeminiUsage(seen.usageMetadata),
+        ),
         ...(rawEvent !== undefined && { rawEvent }),
       }
     }
@@ -827,7 +907,7 @@ export class GeminiTextAdapter<
   /**
    * Extract text content from a non-streaming response
    */
-  private extractTextFromResponse(response: GenerateContentResponse): string {
+  private extractTextFromResponse(response: GeminiContentResponse): string {
     let textContent = ''
 
     if (response.candidates?.[0]?.content?.parts) {
@@ -842,12 +922,15 @@ export class GeminiTextAdapter<
   }
 
   private async *processStreamChunks(
-    result: AsyncGenerator<GenerateContentResponse, unknown, unknown>,
+    result: AsyncGenerator<GeminiContentResponse, unknown, unknown>,
     options: TextOptions<GeminiTextProviderOptions>,
     logger: InternalLogger,
+    seen: StreamUsageSeen = {},
   ): AsyncIterable<AdapterYieldChunk> {
     const model = options.model
     let responseId: string | undefined
+    let blockReason: string | undefined
+    let sawFinishReason = false
     let reportedModel: string | undefined
     let accumulatedContent = ''
     const toolCallMap = new Map<
@@ -862,6 +945,30 @@ export class GeminiTextAdapter<
     >()
     let nextToolIndex = 0
 
+    const emitToolCallEnds = function* (): Generator<AdapterYieldChunk> {
+      for (const [toolCallId, toolCallData] of toolCallMap.entries()) {
+        // Malformed JSON sends no `input`, so core reports the error from
+        // the raw `args`.
+        let parsedInput: unknown
+        try {
+          const parsed = JSON.parse(toolCallData.args)
+          parsedInput = parsed && typeof parsed === 'object' ? parsed : {}
+        } catch {
+          // Keep `parsedInput` undefined for the tool error.
+        }
+
+        yield {
+          type: EventType.TOOL_CALL_END,
+          toolCallId,
+          toolCallName: toolCallData.name,
+          model,
+          timestamp: Date.now(),
+          args: toolCallData.args,
+          ...(parsedInput !== undefined && { input: parsedInput }),
+        }
+      }
+    }
+
     // AG-UI lifecycle tracking
     const runId = options.runId ?? generateId(this.name)
     const threadId = options.threadId
@@ -872,28 +979,84 @@ export class GeminiTextAdapter<
     let hasEmittedTextMessageStart = false
     let groundingMetadata: GroundingMetadata | undefined
     let groundingCallEmitted = false
+    // Gemini needs a step's built-in tool parts back only when the step can
+    // also call a function tool.
+    const keepServerParts =
+      options.tools?.some(
+        (tool) => getGeminiProviderToolKind(tool) === undefined,
+      ) ?? false
+    const serverParts: Array<{
+      part: Part
+      afterCallId?: string
+      afterText?: true
+    }> = []
+    let lastCallId: string | undefined
+    let textSinceCall = false
     const adapterName = this.name
 
+    const closeReasoning = function* (): Generator<AdapterYieldChunk> {
+      if (!reasoningMessageId || hasClosedReasoning) return
+      hasClosedReasoning = true
+      yield {
+        type: EventType.REASONING_MESSAGE_END,
+        messageId: reasoningMessageId,
+        model,
+        timestamp: Date.now(),
+      }
+      yield {
+        type: EventType.REASONING_END,
+        messageId: reasoningMessageId,
+        model,
+        timestamp: Date.now(),
+      }
+    }
+
+    const closeOpenMessages = function* (): Generator<AdapterYieldChunk> {
+      yield* closeReasoning()
+      if (hasEmittedTextMessageStart) {
+        yield {
+          type: EventType.TEXT_MESSAGE_END,
+          messageId,
+          model,
+          timestamp: Date.now(),
+        }
+      }
+    }
+
     const emitGroundingToolCall = function* (): Generator<AdapterYieldChunk> {
-      if (!groundingMetadata || groundingCallEmitted) return
-      const sources = getGroundingSources(groundingMetadata)
+      if (groundingCallEmitted) return
+      const sources = groundingMetadata
+        ? getGroundingSources(groundingMetadata)
+        : []
       const hasGoogleSearchEvidence =
         sources.length > 0 ||
-        (groundingMetadata.webSearchQueries?.length ?? 0) > 0 ||
-        groundingMetadata.searchEntryPoint !== undefined
-      if (!hasGoogleSearchEvidence) return
+        (groundingMetadata?.webSearchQueries?.length ?? 0) > 0 ||
+        groundingMetadata?.searchEntryPoint !== undefined
+      if (!hasGoogleSearchEvidence && serverParts.length === 0) return
 
       groundingCallEmitted = true
       const toolCallId = generateId(adapterName)
+      const toolCallName =
+        (!hasGoogleSearchEvidence &&
+          (serverParts
+            .map(({ part }) => serverToolName(part))
+            .find((name) => name !== undefined) ??
+            options.tools?.find(
+              (tool) => getGeminiProviderToolKind(tool) !== undefined,
+            )?.name)) ||
+        'google_search'
       const metadata: GeminiToolCallMetadata = {
         providerExecuted: true,
         sources,
-        gemini: { groundingMetadata },
+        gemini: {
+          ...(groundingMetadata && { groundingMetadata }),
+          ...(serverParts.length > 0 && { serverParts }),
+        },
       }
       yield {
         type: EventType.TOOL_CALL_START,
         toolCallId,
-        toolCallName: 'google_search',
+        toolCallName,
         parentMessageId: messageId,
         model,
         timestamp: Date.now(),
@@ -903,11 +1066,11 @@ export class GeminiTextAdapter<
       yield {
         type: EventType.TOOL_CALL_END,
         toolCallId,
-        toolCallName: 'google_search',
+        toolCallName,
         model,
         timestamp: Date.now(),
         input: {
-          ...(groundingMetadata.webSearchQueries && {
+          ...(groundingMetadata?.webSearchQueries && {
             queries: groundingMetadata.webSearchQueries,
           }),
         },
@@ -917,6 +1080,11 @@ export class GeminiTextAdapter<
     for await (const chunk of result) {
       if (chunk.responseId) responseId = chunk.responseId
       if (chunk.modelVersion) reportedModel = chunk.modelVersion
+      // usageMetadata is cumulative, so the last one is the billed total.
+      if (chunk.usageMetadata) seen.usageMetadata = chunk.usageMetadata
+      if (chunk.promptFeedback?.blockReason) {
+        blockReason = chunk.promptFeedback.blockReason
+      }
       logger.provider(`provider=gemini`, { chunk })
       // Emit RUN_STARTED on first chunk
       if (!hasEmittedRunStarted) {
@@ -945,6 +1113,15 @@ export class GeminiTextAdapter<
         const parts = chunk.candidates[0].content.parts
 
         for (const part of parts) {
+          if (keepServerParts && isServerPart(part)) {
+            serverParts.push({
+              part,
+              ...(lastCallId !== undefined && { afterCallId: lastCallId }),
+              ...(textSinceCall && { afterText: true }),
+            })
+          }
+          if (part.text?.trim() && !part.thought) textSinceCall = true
+
           if (part.text) {
             if (part.thought) {
               // Emit REASONING start events on first thinking content
@@ -977,21 +1154,7 @@ export class GeminiTextAdapter<
               }
             } else if (part.text.trim()) {
               // Close reasoning before text starts
-              if (reasoningMessageId && !hasClosedReasoning) {
-                hasClosedReasoning = true
-                yield {
-                  type: EventType.REASONING_MESSAGE_END,
-                  messageId: reasoningMessageId,
-                  model,
-                  timestamp: Date.now(),
-                }
-                yield {
-                  type: EventType.REASONING_END,
-                  messageId: reasoningMessageId,
-                  model,
-                  timestamp: Date.now(),
-                }
-              }
+              yield* closeReasoning()
 
               // Skip whitespace-only text parts (e.g. "\n" during auto-continuation)
               // Emit TEXT_MESSAGE_START on first text content
@@ -1024,6 +1187,8 @@ export class GeminiTextAdapter<
               functionCall.id ||
               `${functionCall.name}_${Date.now()}_${nextToolIndex}`
             const functionArgs = functionCall.args || {}
+            lastCallId = toolCallId
+            textSinceCall = false
 
             // Gemini emits thoughtSignature as a Part-level sibling of
             // functionCall (per @google/genai Part type), not nested inside
@@ -1097,66 +1262,31 @@ export class GeminiTextAdapter<
             }
           }
         }
-      } else if (chunk.data && chunk.data.trim()) {
-        // Skip whitespace-only data (e.g. "\n" during auto-continuation)
-        // Emit TEXT_MESSAGE_START on first text content
-        if (!hasEmittedTextMessageStart) {
-          hasEmittedTextMessageStart = true
-          yield {
-            type: EventType.TEXT_MESSAGE_START,
-            messageId,
-            model,
-            timestamp: Date.now(),
-            role: 'assistant',
-          }
-        }
-
-        accumulatedContent += chunk.data
-        yield {
-          type: EventType.TEXT_MESSAGE_CONTENT,
-          messageId,
-          model,
-          timestamp: Date.now(),
-          delta: chunk.data,
-          content: accumulatedContent,
-        }
       }
 
       if (chunk.candidates?.[0]?.finishReason) {
+        sawFinishReason = true
         yield* emitGroundingToolCall()
         const finishReason = chunk.candidates[0].finishReason
 
         // Emit TOOL_CALL_END for all tracked tool calls. functionCall parts on
         // this chunk (including UNEXPECTED_TOOL_CALL finishes) were already
         // registered and started by the per-part loop above.
-        for (const [toolCallId, toolCallData] of toolCallMap.entries()) {
-          // Malformed JSON sends no `input`, so core reports the error from
-          // the raw `args`.
-          let parsedInput: unknown
-          try {
-            const parsed = JSON.parse(toolCallData.args)
-            parsedInput = parsed && typeof parsed === 'object' ? parsed : {}
-          } catch {
-            // Keep `parsedInput` undefined for the tool error.
-          }
-
-          yield {
-            type: EventType.TOOL_CALL_END,
-            toolCallId,
-            toolCallName: toolCallData.name,
-            model,
-            timestamp: Date.now(),
-            args: toolCallData.args,
-            ...(parsedInput !== undefined && { input: parsedInput }),
-          }
-        }
+        yield* emitToolCallEnds()
 
         // Reset so a new TEXT_MESSAGE_START is emitted if text follows tool calls
         if (toolCallMap.size > 0) {
           hasEmittedTextMessageStart = false
         }
 
+        // Close reasoning, and text if we had text content
+        yield* closeOpenMessages()
+
         if (finishReason === FinishReason.MAX_TOKENS) {
+          // RUN_ERROR ends the run (as in the Anthropic adapter), so it
+          // carries the usage and no RUN_FINISHED follows.
+          const usage = buildGeminiUsage(seen.usageMetadata)
+          seen.reported = true
           yield {
             type: EventType.RUN_ERROR,
             runId,
@@ -1170,36 +1300,14 @@ export class GeminiTextAdapter<
                 'The response was cut off because the maximum token limit was reached.',
               code: 'max_tokens',
             },
+            ...(usage && { usage }),
           }
+          continue
         }
 
-        // Close reasoning events if still open
-        if (reasoningMessageId && !hasClosedReasoning) {
-          hasClosedReasoning = true
-          yield {
-            type: EventType.REASONING_MESSAGE_END,
-            messageId: reasoningMessageId,
-            model,
-            timestamp: Date.now(),
-          }
-          yield {
-            type: EventType.REASONING_END,
-            messageId: reasoningMessageId,
-            model,
-            timestamp: Date.now(),
-          }
-        }
-
-        // Emit TEXT_MESSAGE_END if we had text content
-        if (hasEmittedTextMessageStart) {
-          yield {
-            type: EventType.TEXT_MESSAGE_END,
-            messageId,
-            model,
-            timestamp: Date.now(),
-          }
-        }
-
+        // The last usageMetadata seen, in case the finish chunk has none.
+        const usage = buildGeminiUsage(seen.usageMetadata)
+        seen.reported = true
         yield {
           type: EventType.RUN_FINISHED,
           metadata: {
@@ -1212,18 +1320,54 @@ export class GeminiTextAdapter<
           threadId,
           model,
           timestamp: Date.now(),
-          finishReason: toolCallMap.size > 0 ? 'tool_calls' : 'stop',
-          // RunFinishedEvent.usage is `usage?: {...}` (no `| undefined`) under
-          // exactOptionalPropertyTypes; only include it when usageMetadata is
-          // present rather than assigning an explicit `undefined`.
-          ...(chunk.usageMetadata && {
-            usage: buildGeminiUsage(chunk.usageMetadata),
-          }),
+          finishReason: CONTENT_FILTER_REASONS.has(finishReason)
+            ? 'content_filter'
+            : toolCallMap.size > 0
+              ? 'tool_calls'
+              : 'stop',
+          ...(usage && { usage }),
         }
       }
     }
 
     yield* emitGroundingToolCall()
+
+    // The body ended with no finishReason and no blockReason, so the answer
+    // is cut off. An abort also ends the body, but that is not an error.
+    if (!sawFinishReason && !blockReason && !options.request?.signal?.aborted) {
+      // Close the open blocks first, as openai-base does (#1604).
+      yield* emitToolCallEnds()
+      yield* closeOpenMessages()
+      const message = 'Gemini stream ended without a finishReason'
+      const usage = buildGeminiUsage(seen.usageMetadata)
+      seen.reported = true
+      yield {
+        type: EventType.RUN_ERROR,
+        runId,
+        model,
+        timestamp: Date.now(),
+        message,
+        code: 'truncated-stream',
+        error: { message, code: 'truncated-stream' },
+        ...(usage && { usage }),
+      }
+    }
+
+    // A blocked prompt gets no candidates, so no finishReason ends the run.
+    if (blockReason && !sawFinishReason) {
+      const message = `Gemini blocked the prompt (blockReason=${blockReason}).`
+      const usage = buildGeminiUsage(seen.usageMetadata)
+      yield {
+        type: EventType.RUN_ERROR,
+        runId,
+        model,
+        timestamp: Date.now(),
+        message,
+        code: blockReason,
+        error: { message, code: blockReason },
+        ...(usage && { usage }),
+      }
+    }
   }
 
   private convertContentPartToGemini(part: ContentPart): Part {
@@ -1305,12 +1449,15 @@ export class GeminiTextAdapter<
       const role: 'user' | 'model' = msg.role === 'assistant' ? 'model' : 'user'
       const parts: Array<Part> = []
 
-      if (Array.isArray(msg.content)) {
-        for (const contentPart of msg.content) {
-          parts.push(this.convertContentPartToGemini(contentPart))
+      // A tool message's content goes only in its functionResponse, below.
+      if (msg.role !== 'tool') {
+        if (Array.isArray(msg.content)) {
+          for (const contentPart of msg.content) {
+            parts.push(this.convertContentPartToGemini(contentPart))
+          }
+        } else if (msg.content) {
+          parts.push({ text: msg.content })
         }
-      } else if (msg.content && msg.role !== 'tool') {
-        parts.push({ text: msg.content })
       }
 
       if (msg.role === 'assistant' && msg.toolCalls?.length) {
@@ -1441,6 +1588,70 @@ export class GeminiTextAdapter<
               .map(thoughtPart),
           )
         }
+
+        // Built-in tool parts go back after the function call they followed,
+        // or after the text that came between. Gemini rejects a step that
+        // drops them. Vertex AI rejects toolCall and toolResponse parts, so
+        // those throw here instead of going out missing.
+        const storedServerParts = (msg.toolCalls ?? []).flatMap(
+          (toolCall) =>
+            (toolCall.metadata as GeminiToolCallMetadata | undefined)?.gemini
+              ?.serverParts ?? [],
+        )
+        if (
+          this.client.vertexai &&
+          storedServerParts.some(
+            ({ part }) => part.toolCall || part.toolResponse,
+          )
+        ) {
+          throw new Error(
+            'Vertex AI cannot send built-in toolCall or toolResponse parts. Use the Gemini API to mix those tools with function tools.',
+          )
+        }
+        const serverParts = storedServerParts
+        if (serverParts.length > 0) {
+          const lastText = new Map<string | undefined, number>()
+          let segment: string | undefined
+          parts.forEach((part, index) => {
+            if (part.functionCall) segment = part.functionCall.id
+            else if (part.text && !part.thought) lastText.set(segment, index)
+          })
+          const after = (id: string | undefined, text: boolean) =>
+            serverParts
+              .filter(
+                ({ afterCallId, afterText }) =>
+                  afterCallId === id &&
+                  (afterText === true && lastText.has(id)) === text,
+              )
+              .map(({ part }) => part)
+          const callIds = new Set(
+            parts.flatMap((part) => part.functionCall?.id ?? []),
+          )
+          const first = parts.findIndex((part) => !part.thought)
+          segment = undefined
+          const withServerParts = parts.flatMap((part, index) => {
+            if (part.functionCall) segment = part.functionCall.id
+            return [
+              ...(index === first ? after(undefined, false) : []),
+              part,
+              ...(part.functionCall?.id !== undefined
+                ? after(part.functionCall.id, false)
+                : []),
+              ...(lastText.get(segment) === index ? after(segment, true) : []),
+            ]
+          })
+          if (first === -1) withServerParts.push(...after(undefined, false))
+          // A part whose call is not in this message goes last, not lost.
+          withServerParts.push(
+            ...serverParts
+              .filter(
+                ({ afterCallId }) =>
+                  afterCallId !== undefined && !callIds.has(afterCallId),
+              )
+              .map(({ part }) => part),
+          )
+          parts.splice(0, parts.length, ...withServerParts)
+        }
       }
       return {
         role,
@@ -1553,11 +1764,20 @@ export class GeminiTextAdapter<
     // them. A `toolConfig` in modelOptions wins key by key, so its own
     // `functionCallingConfig` wins, and a `retrievalConfig` alone keeps this one.
     const tools = convertToolsToProviderFormat(options.tools)
+    const hasFunctions = tools.some((tool) => 'functionDeclarations' in tool)
+    // The Gemini API needs this flag to mix built-in tools with function
+    // declarations, and rejects AUTO mode with it. The SDK throws on it for
+    // Vertex AI.
+    const includeServerSideToolInvocations =
+      !this.client.vertexai &&
+      hasFunctions &&
+      tools.some((tool) => !('functionDeclarations' in tool))
     const functionCallingConfig =
-      options.toolChoice !== undefined &&
-      tools.some((tool) => 'functionDeclarations' in tool)
-        ? toGeminiFunctionCallingConfig(options.toolChoice)
-        : undefined
+      options.toolChoice === 'auto' && includeServerSideToolInvocations
+        ? { mode: FunctionCallingConfigMode.VALIDATED }
+        : options.toolChoice !== undefined && hasFunctions
+          ? toGeminiFunctionCallingConfig(options.toolChoice)
+          : undefined
 
     // Vendor `GenerateContentConfig` fields are `field?: T` (no `| undefined`)
     // under EOPT, so spread each common option only when present rather than
@@ -1573,9 +1793,15 @@ export class GeminiTextAdapter<
       ),
       config: {
         ...modelOpts,
-        ...(functionCallingConfig !== undefined && {
+        ...((functionCallingConfig !== undefined ||
+          includeServerSideToolInvocations) && {
           toolConfig: {
-            functionCallingConfig,
+            ...(functionCallingConfig !== undefined && {
+              functionCallingConfig,
+            }),
+            ...(includeServerSideToolInvocations && {
+              includeServerSideToolInvocations,
+            }),
             ...options.modelOptions?.toolConfig,
           },
         }),
@@ -1613,10 +1839,21 @@ function jsonContentParseError(rawText: string, label: string) {
   return `Failed to parse ${label} as JSON. Content: ${snippet}${ellipsis}`
 }
 
+/** The last usageMetadata a stream reported, read by the error paths. */
+interface StreamUsageSeen {
+  usageMetadata?: GenerateContentResponseUsageMetadata
+  /** A terminal event already carried the usage. */
+  reported?: boolean
+}
+
 function structuredStreamError(
   options: TextOptions<GeminiTextProviderOptions>,
   message: string,
   code: string,
+  usage?: Extract<
+    AdapterYieldChunk,
+    { type: typeof EventType.RUN_ERROR }
+  >['usage'],
 ): Extract<AdapterYieldChunk, { type: typeof EventType.RUN_ERROR }> {
   return {
     type: EventType.RUN_ERROR,
@@ -1626,6 +1863,7 @@ function structuredStreamError(
     message,
     code,
     error: { message, code },
+    ...(usage && { usage }),
   }
 }
 

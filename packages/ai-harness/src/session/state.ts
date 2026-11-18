@@ -1,6 +1,7 @@
 import {
   INTERRUPT_BINDING_METADATA_KEY,
   convertSchemaToJsonSchema,
+  stableJson,
   validateJsonSchema,
   validateWithStandardSchema,
 } from '@tanstack/ai'
@@ -11,7 +12,7 @@ import { transcriptText } from '../first-party/session-tools'
 import { LogOwnedElsewhereError } from '../ownership'
 import { isRecord } from '../utils'
 import { changedEntry } from '../session-entry'
-import { messageIdsOfUser, stableJson, visibleMessages } from '../log'
+import { messageIdsOfUser, visibleMessages } from '../log'
 import { agentRunThread, isHumanTarget } from '../log-records'
 import { mediaIdOf, mediaOfMessage, mediaPart } from '../media-ref'
 import {
@@ -605,10 +606,11 @@ export abstract class SessionState<
     user?: HarnessUser
     controlId?: string
   }): Promise<Receipt> {
+    const sender = this.actor(user)
     const { admission, input } = await this.accept(
       inputId,
       { op: 'config', key: sent.key, value: sent.value },
-      user,
+      sender,
     )
     if (admission !== 'new') return this.duplicateReceipt(inputId, admission)
     // `acceptInput` can change the input.
@@ -630,7 +632,7 @@ export abstract class SessionState<
         key,
         value: checked,
         inputId,
-        ...storedUser(user ?? this.user),
+        ...storedUser(sender),
       },
     ])
     this.feed.publish(
@@ -666,7 +668,7 @@ export abstract class SessionState<
     options: ConfigureOptions & { user?: HarnessUser },
   ): Promise<Receipt> {
     const inputId = options.inputId ?? createInputId()
-    const user = options.user ?? this.user
+    const user = this.actor(options.user)
     const { admission, input } = await this.accept(
       inputId,
       { op: 'configure', settings: options.settings },
@@ -1132,7 +1134,7 @@ export abstract class SessionState<
     const isSecret = asked?.secret ?? (!logged || logged.secret === true)
     const isHidden = ref !== undefined || isSecret
     if (asked?.secret) this.redactor.add(sent)
-    const sender = user ?? this.user
+    const sender = this.actor(user)
     let accepted
     try {
       accepted = await this.accept(
@@ -1142,7 +1144,7 @@ export abstract class SessionState<
           questionId: asking,
           value: isHidden ? SECRET_ANSWER : sent,
         },
-        user,
+        sender,
         isHidden && ref === undefined
           ? {
               offer: () =>
@@ -2089,10 +2091,13 @@ export abstract class SessionState<
             previous.handoff
               ? { handoff: previous.handoff }
               : {}),
+            // An older interrupted record has no sender. The input of that
+            // run still has one. A record that names no user, and an input
+            // that names no user, stay with no user.
             ...storedUser(
-              previous !== undefined && previous.runId === runId
+              (previous !== undefined && previous.runId === runId
                 ? previous.user
-                : savedInput?.user,
+                : undefined) ?? savedInput?.user,
             ),
             ...(context !== undefined ? { context } : {}),
           }

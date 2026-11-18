@@ -1,4 +1,4 @@
-import OpenAI from 'openai'
+import { createOpenAIClient } from '@tanstack/openai-base'
 import { resolveMediaPrompt } from '@tanstack/ai'
 import { BaseVideoAdapter } from '@tanstack/ai/adapters'
 import { toRunErrorPayload } from '@tanstack/ai/adapter-internals'
@@ -23,6 +23,7 @@ import type {
   VideoUrlResult,
 } from '@tanstack/ai'
 import type OpenAI_SDK from 'openai'
+import type { OpenAIClientLike } from '@tanstack/openai-base'
 import type {
   LovableVideoModel,
   LovableVideoModelDurationByName,
@@ -40,9 +41,6 @@ const VIDEO_DURATIONS = [
   4, 6, 8,
 ] as const satisfies ReadonlyArray<LovableVideoDuration>
 
-/**
- * @experimental Video generation is an experimental feature and may change.
- */
 export interface LovableVideoConfig extends LovableClientConfig {
   /**
    * Opt into fetching HTTP(S) image URL inputs for `input_reference`.
@@ -53,9 +51,6 @@ export interface LovableVideoConfig extends LovableClientConfig {
   allowUrlFetch?: boolean
 }
 
-/**
- * @experimental Video generation is an experimental feature and may change.
- */
 export class LovableVideoAdapter<
   TModel extends LovableVideoModel,
 > extends BaseVideoAdapter<
@@ -68,14 +63,14 @@ export class LovableVideoAdapter<
 > {
   readonly name = 'lovable' as const
 
-  protected client: OpenAI
+  protected client: OpenAIClientLike
   protected clientConfig: LovableVideoConfig
 
   constructor(config: LovableVideoConfig, model: TModel) {
     super({}, model)
     this.clientConfig = config
     const { allowUrlFetch: _allowUrlFetch, ...clientOptions } = config
-    this.client = new OpenAI(withLovableDefaults(clientOptions))
+    this.client = createOpenAIClient(withLovableDefaults(clientOptions))
   }
 
   async createVideoJob(
@@ -155,9 +150,15 @@ export class LovableVideoAdapter<
     }
   }
 
-  async getVideoStatus(jobId: string): Promise<VideoStatusResult> {
+  async getVideoStatus(
+    jobId: string,
+    options?: { abortSignal?: AbortSignal },
+  ): Promise<VideoStatusResult> {
+    const requestOptions = options?.abortSignal && {
+      signal: options.abortSignal,
+    }
     try {
-      const response = await this.client.videos.retrieve(jobId)
+      const response = await this.client.videos.retrieve(jobId, requestOptions)
       return {
         jobId,
         status: this.mapStatus(response.status),
@@ -176,9 +177,13 @@ export class LovableVideoAdapter<
 
   override async getVideo(
     jobId: string,
+    options?: { abortSignal?: AbortSignal },
   ): Promise<VideoUrlResult | VideoStreamResult> {
+    const requestOptions = options?.abortSignal && {
+      signal: options.abortSignal,
+    }
     try {
-      const videoInfo = await this.client.videos.retrieve(jobId)
+      const videoInfo = await this.client.videos.retrieve(jobId, requestOptions)
       const directUrl = videoResourceUrl(videoInfo)
       if (directUrl) {
         return {
@@ -192,7 +197,12 @@ export class LovableVideoAdapter<
 
       // No URL: hand the download stream to generation middleware instead of
       // buffering the whole video.
-      const response = await this.client.videos.downloadContent(jobId)
+      // The second argument is the query, so the options go third.
+      const response = await this.client.videos.downloadContent(
+        jobId,
+        undefined,
+        requestOptions,
+      )
       if (!response.body) throw new Error('Video download returned no body')
       return {
         jobId,
@@ -256,9 +266,6 @@ function isHttpStatus(error: unknown, status: number): boolean {
   )
 }
 
-/**
- * @experimental Video generation is an experimental feature and may change.
- */
 export function createLovableVideo<TModel extends LovableVideoModel>(
   model: TModel,
   apiKey: string,
@@ -267,9 +274,6 @@ export function createLovableVideo<TModel extends LovableVideoModel>(
   return new LovableVideoAdapter({ apiKey, ...config }, model)
 }
 
-/**
- * @experimental Video generation is an experimental feature and may change.
- */
 export function lovableVideo<TModel extends LovableVideoModel>(
   model: TModel,
   config?: Omit<LovableVideoConfig, 'apiKey'>,

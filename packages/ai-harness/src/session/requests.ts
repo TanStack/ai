@@ -90,7 +90,9 @@ export abstract class SessionRequests<
    * `user` is who sent the message. Default: the user that opened
    * the session. The log keeps it, and the turn runs with its credentials
    * and provider keys. A steer that joins the running turn runs with the
-   * credentials of that turn's sender.
+   * credentials of that turn's sender. An input the log stored with no
+   * user runs with no user. It does not take the user of the session
+   * that owns the thread. A host with access refuses that input.
    *
    * `context` is JSON data from the client, stored with the input. Tools
    * get it in their context (see `HarnessConfig.context`). Do not trust it.
@@ -196,7 +198,7 @@ export abstract class SessionRequests<
     const systemPreamble = options?.systemPreamble
     const ephemeral = options?.ephemeral
     const outputSchema = options?.outputSchema
-    const user = options?.user ?? this.user
+    const user = this.actor(options?.user)
     const wake = options?.wake === true
     const stored: typeof input =
       input.op === 'followUp' && wake ? { ...input, wake: true } : input
@@ -381,7 +383,7 @@ export abstract class SessionRequests<
     user?: HarnessUser
   }): Operation<ChatTurnResult> {
     const inputId = options.inputId ?? createInputId()
-    const user = options.user ?? this.user
+    const user = this.actor(options.user)
     const input = {
       op: 'tool' as const,
       name: options.name,
@@ -469,7 +471,7 @@ export abstract class SessionRequests<
     ephemeral?: ReadonlyArray<ModelMessage>
   }): Operation<ChatTurnResult> {
     const inputId = options?.inputId ?? createInputId()
-    const user = options?.user ?? this.user
+    const user = this.actor(options?.user)
     const sent = options?.context
     const input = {
       op: 'continue' as const,
@@ -546,7 +548,7 @@ export abstract class SessionRequests<
     return this.admitting(async () => {
       const note = options?.note
       const inputId = options?.inputId ?? createInputId()
-      const user = options?.user ?? this.user
+      const user = this.actor(options?.user)
       // An empty note is no note: the model never gets an empty message.
       const sent = note?.trim() ? note : undefined
       const { admission, input } = await this.accept(
@@ -624,7 +626,7 @@ export abstract class SessionRequests<
     }
     return this.admitting(async () => {
       const inputId = options.inputId ?? createInputId()
-      const user = options.user ?? this.user
+      const user = this.actor(options.user)
       const runId = options.runId
       const { admission, input } = await this.accept(
         inputId,
@@ -784,7 +786,7 @@ export abstract class SessionRequests<
     const { admission, input } = await this.accept(
       inputId,
       { op: 'cancel', operationId: options?.operationId },
-      options?.user,
+      this.actor(options?.user),
     )
     if (admission !== 'new') return this.duplicateReceipt(inputId, admission)
     // `acceptInput` can change the input.
@@ -933,7 +935,7 @@ export abstract class SessionRequests<
     const { admission, input } = await this.accept(
       inputId,
       { op: 'cancelInput', inputId: sent },
-      user,
+      this.actor(user),
     )
     if (admission !== 'new') return this.duplicateReceipt(inputId, admission)
     // `acceptInput` can change the input.
@@ -998,7 +1000,7 @@ export abstract class SessionRequests<
     const { admission, input: accepted } = await this.accept(
       inputId,
       { op: 'setDelivery', inputId: sent.inputId, delivery: sent.delivery },
-      user,
+      this.actor(user),
     )
     if (admission !== 'new') return this.duplicateReceipt(inputId, admission)
     // `acceptInput` can change the input.
@@ -1037,7 +1039,7 @@ export abstract class SessionRequests<
     const connectors = waiting.map(signInConnector)
     if (waiting.length === 0) return
     // Another user's credential never answers this sign-in.
-    const user = stopped?.user ?? this.user
+    const user = stopped?.user
     const credentials = this.credentialsOf(user)
     for (const connector of connectors) {
       if (!connector || !(await credentials.get(connector))) return
@@ -1083,7 +1085,7 @@ export abstract class SessionRequests<
       this.checkIdle()
       return
     }
-    const user = stopped.user ?? this.user
+    const user = stopped.user
     await this.resolve({
       resume,
       inputId: `expired:${interrupts.map((item) => item.id).join(',')}`,

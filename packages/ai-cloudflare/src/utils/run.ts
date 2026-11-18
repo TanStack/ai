@@ -41,10 +41,16 @@ export async function runModel(
           },
         }
       : inputs
+    const { gateway, defaultHeaders } = config
     return await run(
       model,
       bindingInputs,
-      config.gateway ? { gateway: config.gateway } : undefined,
+      gateway || defaultHeaders
+        ? {
+            ...(gateway && { gateway }),
+            ...(defaultHeaders && { extraHeaders: defaultHeaders }),
+          }
+        : undefined,
     )
   }
 

@@ -4,8 +4,6 @@
  * Based on https://docs.x.ai/developers/model-capabilities/video/generation
  * (plus the image-to-video, reference-to-video, editing, and extension pages
  * under the same section).
- *
- * @experimental Video generation is an experimental feature and may change.
  */
 
 import type { DurationOptions } from '@tanstack/ai/adapters'
@@ -17,8 +15,6 @@ import type { GrokVideoModel } from '../model-meta'
  * Note: this is a narrower set than the grok-imagine image models — the
  * video endpoint rejects the phone-screen ratios ('9:19.5', '9:20', …) and
  * 'auto'.
- *
- * @experimental Video generation is an experimental feature and may change.
  */
 export type GrokVideoAspectRatio =
   | '1:1'
@@ -31,16 +27,12 @@ export type GrokVideoAspectRatio =
 
 /**
  * Resolution tiers for the grok-imagine video models.
- *
- * @experimental Video generation is an experimental feature and may change.
  */
 export type GrokVideoResolution = '480p' | '720p' | '1080p'
 
 /**
  * Resolutions accepted by grok-imagine-video (v1.0). Native 1080p is a
  * grok-imagine-video-1.5 generation feature.
- *
- * @experimental Video generation is an experimental feature and may change.
  */
 export type GrokVideoResolutionV1 = '480p' | '720p'
 
@@ -50,8 +42,6 @@ export type GrokVideoResolutionV1 = '480p' | '720p'
  * image models, the generic `size` option uses an
  * `aspectRatio_resolution` template ("16:9_720p") — the resolution suffix
  * is optional ("16:9" uses the API default).
- *
- * @experimental Video generation is an experimental feature and may change.
  */
 export type GrokVideoSize =
   | GrokVideoAspectRatio
@@ -59,8 +49,6 @@ export type GrokVideoSize =
 
 /**
  * Size strings for grok-imagine-video (v1.0) — 1080p is not in the type.
- *
- * @experimental Video generation is an experimental feature and may change.
  */
 export type GrokVideoSizeV1 =
   | GrokVideoAspectRatio
@@ -102,8 +90,6 @@ export function parseGrokVideoSize(
 /**
  * Models that accept native 1080p on text-to-video and image-to-video.
  * Reference-to-video stays capped at 720p even on these models.
- *
- * @experimental Video generation is an experimental feature and may change.
  */
 export function isGrokVideoNative1080pModel(model: string): boolean {
   return model === 'grok-imagine-video-1.5'
@@ -111,8 +97,6 @@ export function isGrokVideoNative1080pModel(model: string): boolean {
 
 /**
  * Validate the `size` template for a given grok video model.
- *
- * @experimental Video generation is an experimental feature and may change.
  */
 export function validateVideoSize(
   model: string,
@@ -149,8 +133,6 @@ export function validateVideoSize(
  * 1–15 range, so this is a continuous range expressed as `number` (a literal
  * union can't represent it). `snapDuration()` coerces a raw seconds value into
  * the valid range at runtime.
- *
- * @experimental Video generation is an experimental feature and may change.
  */
 export type GrokVideoModelDurationByName = {
   'grok-imagine-video': number
@@ -161,8 +143,6 @@ export type GrokVideoModelDurationByName = {
  * Runtime duration table backing `availableDurations()` / `snapDuration()`.
  * Both grok-imagine video models accept the same continuous 1–15 integer-second
  * range.
- *
- * @experimental Video generation is an experimental feature and may change.
  */
 export const GROK_VIDEO_DURATIONS: {
   readonly [TModel in GrokVideoModel]: DurationOptions<
@@ -187,8 +167,6 @@ export const GROK_VIDEO_DURATIONS: {
 
 /**
  * Look up the duration options for a grok video model.
- *
- * @experimental Video generation is an experimental feature and may change.
  */
 export function getGrokVideoDurationOptions<TModel extends GrokVideoModel>(
   model: TModel,
@@ -208,8 +186,6 @@ export function getGrokVideoDurationOptions<TModel extends GrokVideoModel>(
  * clip in both modes, capped at 720p, and edit outputs also inherit the
  * source length — the adapter rejects `size`, `aspect_ratio`, `resolution`,
  * and (in edit mode) `duration` rather than sending fields the API ignores.
- *
- * @experimental Video generation is an experimental feature and may change.
  */
 export type GrokVideoMode = 'edit' | 'extend'
 
@@ -217,8 +193,6 @@ export type GrokVideoMode = 'edit' | 'extend'
  * Provider options shared by both grok-imagine video models. These map
  * directly onto the Imagine API request body and take precedence over the
  * generic `size` / `duration` options when both are provided.
- *
- * @experimental Video generation is an experimental feature and may change.
  */
 export interface GrokVideoBaseProviderOptions {
   /**
@@ -246,8 +220,6 @@ export interface GrokVideoBaseProviderOptions {
 /**
  * Provider options for grok-imagine-video (v1.0), which is the only model
  * that accepts a source-video edit / extend job.
- *
- * @experimental Video generation is an experimental feature and may change.
  */
 export interface GrokVideoSourceProviderOptions extends GrokVideoBaseProviderOptions {
   /**
@@ -262,8 +234,6 @@ export interface GrokVideoSourceProviderOptions extends GrokVideoBaseProviderOpt
 /**
  * Provider options for grok-imagine-video-1.5, which adds the
  * reference-to-video inputs on top of the shared options.
- *
- * @experimental Video generation is an experimental feature and may change.
  */
 export interface GrokVideoProviderOptions extends GrokVideoBaseProviderOptions {
   /**
@@ -290,8 +260,6 @@ export interface GrokVideoProviderOptions extends GrokVideoBaseProviderOptions {
  * Widest option surface. Used when `modelOptions` arrives as deserialized
  * JSON and the adapter must validate fields the per-model map already
  * hides at compile time.
- *
- * @experimental Video generation is an experimental feature and may change.
  */
 export type GrokVideoRuntimeOptions = GrokVideoSourceProviderOptions &
   GrokVideoProviderOptions
@@ -324,16 +292,12 @@ type GrokVideoReferenceModel = {
  * from other models at compile time; this backs the runtime gate for
  * untyped callers (e.g. deserialized JSON) so they get a clear error
  * instead of a raw API 400.
- *
- * @experimental Video generation is an experimental feature and may change.
  */
 const GROK_VIDEO_REFERENCE_MODELS: ReadonlySet<string> =
   new Set<GrokVideoReferenceModel>(['grok-imagine-video-1.5'])
 
 /**
  * True when the model accepts reference-to-video inputs.
- *
- * @experimental Video generation is an experimental feature and may change.
  */
 export function isGrokVideoReferenceModel(model: string): boolean {
   return GROK_VIDEO_REFERENCE_MODELS.has(model)
@@ -353,16 +317,12 @@ type GrokVideoSourceModel = {
  * Models that accept a source-video prompt part for `/v1/videos/edits`
  * and `/v1/videos/extensions`. xAI lists video input only on
  * grok-imagine-video (v1.0).
- *
- * @experimental Video generation is an experimental feature and may change.
  */
 const GROK_VIDEO_SOURCE_MODELS: ReadonlySet<string> =
   new Set<GrokVideoSourceModel>(['grok-imagine-video'])
 
 /**
  * True when the model accepts edit / extend source-video jobs.
- *
- * @experimental Video generation is an experimental feature and may change.
  */
 export function isGrokVideoSourceModel(model: string): boolean {
   return GROK_VIDEO_SOURCE_MODELS.has(model)
@@ -372,8 +332,6 @@ export function isGrokVideoSourceModel(model: string): boolean {
  * Type-only map from model name to its specific provider options. Only
  * grok-imagine-video-1.5 exposes the reference-to-video fields. Only
  * grok-imagine-video (v1.0) exposes `mode` for edit / extend.
- *
- * @experimental Video generation is an experimental feature and may change.
  */
 export type GrokVideoModelProviderOptionsByName = {
   'grok-imagine-video': GrokVideoSourceProviderOptions
@@ -382,8 +340,6 @@ export type GrokVideoModelProviderOptionsByName = {
 
 /**
  * Type-only map from model name to its supported `size` strings.
- *
- * @experimental Video generation is an experimental feature and may change.
  */
 export type GrokVideoModelSizeByName = {
   'grok-imagine-video': GrokVideoSizeV1
@@ -399,8 +355,6 @@ export type GrokVideoModelSizeByName = {
  * first frame while the reference images steer subjects and style.
  * A `video` prompt part carries the source clip for edit / extension mode
  * on grok-imagine-video only (`modelOptions.mode: 'edit' | 'extend'`).
- *
- * @experimental Video generation is an experimental feature and may change.
  */
 export type GrokVideoModelInputModalitiesByName = {
   'grok-imagine-video': readonly ['image', 'video']

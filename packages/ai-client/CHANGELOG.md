@@ -1,5 +1,104 @@
 # @tanstack/ai-client
 
+## 1.1.1
+
+### Patch Changes
+
+- [#2164](https://github.com/TanStack/ai/pull/2164) [`0fb44da`](https://github.com/TanStack/ai/commit/0fb44da5bb25ab8fb76802f46c9815360e510173) - Devtools now gets the thinking text in `text:chunk:thinking`. Before, it got the id of the reasoning step as the text.
+
+- Updated dependencies [[`fde4e09`](https://github.com/TanStack/ai/commit/fde4e09b0170017394ff2874847d416777920b2e)]:
+  - @tanstack/ai@1.5.0
+
+## 1.1.0
+
+### Minor Changes
+
+- [#1978](https://github.com/TanStack/ai/pull/1978) [`4caefd7`](https://github.com/TanStack/ai/commit/4caefd7cb6783766fb2bdb9d34d65b367624dd32) - `createMcpAppBridge().callTool(input, { signal })` passes the signal to the call request.
+
+- [#1977](https://github.com/TanStack/ai/pull/1977) [`9ac67f3`](https://github.com/TanStack/ai/commit/9ac67f3acbcecee88714503b205d602560fdc8c6) - A client tool now gets `abortSignal` in its execute context. It aborts when you call `stop()` on the `ChatClient`.
+
+- [#1977](https://github.com/TanStack/ai/pull/1977) [`9ac67f3`](https://github.com/TanStack/ai/commit/9ac67f3acbcecee88714503b205d602560fdc8c6) - New optional cancel features. Old code works the same.
+  - `fetchServerSentEvents` and `fetchHttpStream` take an optional `cancelUrl`. With it, `ChatClient.stop()` sends `POST cancelUrl` with `{ runId, threadId }`, so the server can cancel a durable run. Only `stop()` sends it, not an unmount or a reload.
+  - Connection adapters can have an optional `cancelRun({ runId, threadId })` method. `stop()` calls it.
+  - `RealtimeClient` passes an `abortSignal` to `adapter.connect()`. A `disconnect()` during `connect()` aborts the setup, and the status goes to `idle`, not `error`.
+
+### Patch Changes
+
+- [#1979](https://github.com/TanStack/ai/pull/1979) [`07d2e42`](https://github.com/TanStack/ai/commit/07d2e429c456a31d35748fecf7d8f8c0795eff31) - `stop()` no longer waits for a client tool that never settles. Fetch and XHR connection adapters now abort on the client's signal and on your own `options.signal`. `stream()` and `rpcStream()` end on abort even if the source ignores the signal. `RealtimeClient.disconnect()` during `connect()` or a token refresh no longer leaves a connection or a token refresh timer behind.
+
+- [#1979](https://github.com/TanStack/ai/pull/1979) [`07d2e42`](https://github.com/TanStack/ai/commit/07d2e429c456a31d35748fecf7d8f8c0795eff31) - A cancel now stops the request. `stop()` and an abort of the connection `options.signal` reach the fetch, XHR, `stream()`, and `rpcStream()` requests. A realtime `disconnect()` during `connect()` does not stop a pending `getToken()` or `adapter.connect()` call: it drops the late result and closes the connection that comes back. An abort of `options.signal` now ends the chat like `stop()`, not as a finished run. A realtime connection that a later `connect()` replaced no longer changes the status of the live session.
+
+- [#1969](https://github.com/TanStack/ai/pull/1969) [`1e13e87`](https://github.com/TanStack/ai/commit/1e13e87b26ccd2734455fc4a958c0690ef3ead06) - Ask for approval of a `needsApproval` client tool when the server does not ask for it, for example a custom AG-UI server or a connection adapter with no TanStack server. Before, the client logged a warning and the tool never ran. Now the call comes in `interrupts` as a `tool-approval` item, the same as with `chat()`. On approve, the client runs the tool and continues the loop. On deny, it sends a denied result and continues.
+
+- [#1968](https://github.com/TanStack/ai/pull/1968) [`450950d`](https://github.com/TanStack/ai/commit/450950da860d58047c654c1497ddb48d651f9076) - Run client tools when a custom AG-UI server ends a run with `finishReason: 'tool_calls'` and closes the stream. Before, the client waited for a next run that never came, so the tool did not run and the agent loop stopped. The client now runs the unanswered calls when the stream ends. A tool that needs approval asks the user first, the same as for a success outcome.
+
+- [#1972](https://github.com/TanStack/ai/pull/1972) [`f33f72a`](https://github.com/TanStack/ai/commit/f33f72ab6da9a0f95bd912e29d2cabc2eab17f27) - Keep queued messages in the queue while a run is paused on an interrupt, for example a tool approval. Before, the queue sent the next message as soon as the paused run ended, so a new run started while the tool call was still unanswered. Now the queue sends after the run that answers the interrupt ends with success.
+
+- Updated dependencies [[`9ac67f3`](https://github.com/TanStack/ai/commit/9ac67f3acbcecee88714503b205d602560fdc8c6), [`9ac67f3`](https://github.com/TanStack/ai/commit/9ac67f3acbcecee88714503b205d602560fdc8c6), [`e17cae7`](https://github.com/TanStack/ai/commit/e17cae7aa40ce5ebe0e78496931d49c793bdaf41), [`d6ead13`](https://github.com/TanStack/ai/commit/d6ead13def85f91782e20d6c1b8755fdf1c836c2), [`450950d`](https://github.com/TanStack/ai/commit/450950da860d58047c654c1497ddb48d651f9076), [`07d2e42`](https://github.com/TanStack/ai/commit/07d2e429c456a31d35748fecf7d8f8c0795eff31), [`13b1ca9`](https://github.com/TanStack/ai/commit/13b1ca918a0ac36761db2a6226973c5330d4221d), [`09dde65`](https://github.com/TanStack/ai/commit/09dde65b9fdcc312fd0459c98328c23abd1406cb)]:
+  - @tanstack/ai@1.1.0
+  - @tanstack/ai-utils@1.0.1
+  - @tanstack/ai-event-client@1.0.1
+
+## 1.0.1
+
+### Patch Changes
+
+- [#1904](https://github.com/TanStack/ai/pull/1904) [`f085015`](https://github.com/TanStack/ai/commit/f085015da1b77aee3cf95ca74a2e86ed9dbc1c29) - Show each package's own npm download count and npm version. The bundle-size badge uses bundlejs. Partner logos use image URLs that load.
+
+- Updated dependencies [[`f085015`](https://github.com/TanStack/ai/commit/f085015da1b77aee3cf95ca74a2e86ed9dbc1c29), [`ae97655`](https://github.com/TanStack/ai/commit/ae976552710726b13b524c307c1b5bbe78478eb0)]:
+  - @tanstack/ai@1.0.1
+
+## 1.0.0
+
+### Major Changes
+
+- [#1840](https://github.com/TanStack/ai/pull/1840) [`f1b3f65`](https://github.com/TanStack/ai/commit/f1b3f65a59fb75116bd52abbb162cab8c763d10e) - TanStack AI 1.0.0. This release removes every API that was deprecated in 0.x. Read the upgrade guide before you upgrade: https://tanstack.com/ai/latest/docs/migration/v1
+  - Removed all `@deprecated` exports, options, fields, and type aliases. Each one has a replacement that already shipped in 0.x.
+  - Removed `addToolApprovalResponse()` from `ChatClient` and every chat hook. Resolve the bound `tool-approval` interrupt with `resolveInterrupt` instead. The devtools event `tools:approval:responded` is also removed.
+  - Removed the old wire formats: the CUSTOM `approval-requested` and `tool-input-available` events, the `[DONE]` SSE line, the `data` copy of `forwardedProps`, pre-binding interrupt descriptors and their `approval_required` and `client_tool_input` reasons, and the STEP events that adapters sent next to `REASONING_*` events. Use a 1.0 client with a 1.0 server.
+  - Removed the `toolName` alias from `TOOL_CALL_START` chunks. Read `toolCallName` instead.
+  - `threadId` is now required on `useChat` and every other chat hook, `ChatClient`, the generation hooks and clients, `chat()`, `summarize()`, the generation functions, `codeModeWithSnippets()`, `selectRelevantSnippets()`, `CompactionContext`, and `SummarizeInput`. TanStack AI no longer makes a thread id for you. Pass a stable id for each conversation. `createChatHook` factory options no longer take `threadId`: pass it on each hook call. Octane generation hooks take `threadId` instead of `id`. `@tanstack/ai-sandbox` removes `resolveDurableThreadId` and `DurableThreadIdRequiredError`.
+  - The published `@tanstack/ai-octane/ui` types are now strict. `UI.Messages`, `UI.Message`, `UI.Part`, and `UI.Interrupts` type their render children. `ToolProps` types `part.input` and `part.output` for the named tool. `toolsComponents` and `interruptsComponents` are required when the chat options declare tools or named interrupts. Code that relied on the old loose types can fail to compile.
+  - A connection adapter's `connect()` and `send()` need the run context (with `threadId`) as their fourth argument. `ChatClient` and the generation clients pass it.
+  - `@tanstack/ai-sandbox`: `createToolBridgeCore()`, `startHostToolBridge()`, a `ToolBridgeProvisioner`, and `executeHostTool()` take a required `threadId`. Bridged tools get it in their context.
+  - `@tanstack/ai-sandbox`: the harness tool bridge and `executeHostTool()` refuse a tool with `needsApproval`. Before, the tool ran with no approval. Remove `needsApproval`, or run the tool with an HTTP adapter.
+  - `stream()` and `rpcStream()` pass the AG-UI `RunAgentInput` for the run as the fourth factory argument, the same body the HTTP adapters send. Read it on the server with `chatParamsFromRequestBody()` or `generationParamsFromBody()`, so `threadId`, `runId`, and interrupt `resume` reach a server function. `RunAgentInput` is exported from `@tanstack/ai/client`.
+  - A generation `fetcher` gets `threadId` and `runId` in its second argument, next to `signal` and `headers`. Pass them to the server generation call.
+  - `generationParamsFromBody()` and `generationParamsFromRequest()` read the generation input from `forwardedProps`. A server that reads `body.data` gets `undefined`. Read `body.forwardedProps` instead. They also require `threadId` and `runId` and return them as strings, the same as `chatParamsFromRequestBody()` and the AG-UI `RunAgentInput`. A body that holds only the input is rejected.
+  - Removed the readers for data saved in old 0.x formats (old Cloudflare run-log records, a bare `UIMessage[]` from client persistence, artifact records without `blobKey`).
+  - Removed provider models that are shut down.
+  - `@tanstack/ai-react-ui`, `@tanstack/ai-solid-ui`, and `@tanstack/ai-vue-ui` get no 1.0 release. Import from `@tanstack/ai-react/ui`, `@tanstack/ai-solid/ui`, or `@tanstack/ai-vue/ui`.
+
+### Minor Changes
+
+- [#1881](https://github.com/TanStack/ai/pull/1881) [`9f5a18a`](https://github.com/TanStack/ai/commit/9f5a18a1837d54cc5dcb009837e23c16b4f55787) - Reconnects of a durable run can ride out a server restart. The wait between reconnects now doubles from `initialDelayMs` (default 250) up to `maxDelayMs` (default 5000), with jitter. Set `budgetMs` to keep reconnecting for a total time instead of a fixed number of attempts. A reconnect answered 408, 429, 502, 503, or 504 is retried, and a `Retry-After` header sets the wait. `delayMs` still works as the old name of `initialDelayMs`.
+
+### Patch Changes
+
+- [#1755](https://github.com/TanStack/ai/pull/1755) [`39c1c79`](https://github.com/TanStack/ai/commit/39c1c79dc9b6c21329f659d9b4ba6968e9496983) - Fix recovery, cancel, steer, and provider bugs, and fill small harness gaps.
+  - Recovery: a resolve that another host recovers runs its continuation. Before, it settled `completed` with no answer.
+  - Approvals: a tool that a middleware adds in `onConfig` can now be approved. `chat()` checks a durable resume after the whole `onConfig` chain.
+  - Cancel: a cancelled turn keeps the text it streamed, and ends with `TEXT_MESSAGE_END` and `RUN_FINISHED` (`outcome: cancelled`). A turn that times out ends with `RUN_ERROR` (`code: 'timeout'`).
+  - Steer: a steer from another sender gets a `queued` receipt with its own operation. `host.events()` shows `idle` after a turn that a steer joined.
+  - The duplicate-input check no longer depends on the key order of the stored input.
+  - `TurnInfo` has `model`, `attempt`, and `sender`. The log keeps the sender's `name`. `harness.input.accepted` carries the message. The chat hydration has `pendingWaits`. `ObservedSession.settled()` reads a settlement with no open session. Another host's `snapshot().plugins` shows the saved plugin state.
+  - New options: `subagents.background: false`, `media.urlTtlMs`, `conversationSummarizer({ middleware })`, and the `beforeWrite` workspace hook, which can refuse a write.
+  - Plugin model calls (`ctx.model.chat`) run the harness middleware.
+  - Exports: `SHUTDOWN_REASON`, `BUDGET_REASON`, and `RUN_CANCEL_REASON` from `@tanstack/ai-harness`, `HARNESS_EVENTS` from `@tanstack/ai-harness/client`, and `ChatHydrateOptions` and `ChatHydrationResult` from `@tanstack/ai-client`.
+  - Compaction drops a background summary that another model prepared.
+  - Sandbox file calls take an optional `{ signal }`.
+  - Anthropic: `outputSchema` moves keywords that Anthropic rejects into `description`, usage reports 1-hour cache writes as `cacheWrite1hTokens` again, and `reasoning` on a model with no reasoning entry warns once.
+  - OpenAI Responses: a message whose model call sent a reasoning item is marked with `metadata.tanstack.reasoningItem`. A replay of that message without its reasoning item no longer sends its `msg_` and `fc_` ids.
+  - Cloudflare: a `data:` line with no `choices` no longer throws, and the SSE fix-up accepts `data:` with no space, CRLF line ends, and any case in the content type.
+  - Structured output: a schema failure carries `rawText`, and a parse failure has the code `structured-output-parse-failed`.
+  - `ChatClient.addToolResult` answers the interrupt when the tool's schemas differ, so the result is sent.
+  - The persistence conformance suite no longer fails a correct store on a slow runner.
+
+- Updated dependencies [[`fcbd199`](https://github.com/TanStack/ai/commit/fcbd199a66b553acef0b81bc76c4b4acd7fde6a9), [`39c1c79`](https://github.com/TanStack/ai/commit/39c1c79dc9b6c21329f659d9b4ba6968e9496983), [`959f43e`](https://github.com/TanStack/ai/commit/959f43e4b11112f2c097f642bdec34d8d0f83e27), [`39c1c79`](https://github.com/TanStack/ai/commit/39c1c79dc9b6c21329f659d9b4ba6968e9496983), [`fa2a291`](https://github.com/TanStack/ai/commit/fa2a291f5526f6dec9a91fe5b71de15dfaf59ec7), [`f7e7cce`](https://github.com/TanStack/ai/commit/f7e7cce8f2d543a7480b626b7985417e054bfd8d), [`7a0a48b`](https://github.com/TanStack/ai/commit/7a0a48bac8b531a90e768c87cb645da2fc8d3f31), [`468063c`](https://github.com/TanStack/ai/commit/468063c07cd904be97b154b415163c23510834b2), [`fe83aa0`](https://github.com/TanStack/ai/commit/fe83aa05fe2346c50693664d4a4896d4fc1fea5a), [`781a3a8`](https://github.com/TanStack/ai/commit/781a3a82c870e246deff23c7aca32094e9aaaf2f), [`39abb7e`](https://github.com/TanStack/ai/commit/39abb7ed172b4357bc04a39fc6cf7c3577f77cf3), [`f1b3f65`](https://github.com/TanStack/ai/commit/f1b3f65a59fb75116bd52abbb162cab8c763d10e)]:
+  - @tanstack/ai@1.0.0
+  - @tanstack/ai-utils@1.0.0
+  - @tanstack/ai-event-client@1.0.0
+
 ## 0.40.1
 
 ### Patch Changes

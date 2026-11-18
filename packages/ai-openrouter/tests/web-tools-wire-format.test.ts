@@ -28,17 +28,13 @@ import type { AdapterYieldChunk } from '@tanstack/ai'
 
 let mockSend: any
 
-// eslint-disable-next-line @typescript-eslint/require-await
-vi.mock('@openrouter/sdk', async () => {
-  function OpenRouter(this: {
-    chat: { send: (...args: Array<unknown>) => unknown }
-  }) {
-    this.chat = {
+vi.mock('../src/client', () => ({
+  createOpenRouterChatClient: () => ({
+    chat: {
       send: (...args: Array<unknown>) => mockSend(...args),
-    }
-  }
-  return { OpenRouter }
-})
+    },
+  }),
+}))
 
 function createAsyncIterable<T>(chunks: Array<T>): AsyncIterable<T> {
   return {

@@ -41,7 +41,10 @@ pnpm add @daytona/sdk
 ```typescript
 import { Daytona } from '@daytona/sdk'
 import { createCodeMode } from '@tanstack/ai-code-mode'
+import type { CodeModeTool } from '@tanstack/ai-code-mode'
 import { createDaytonaIsolateDriver } from '@tanstack/ai-isolate-daytona'
+
+declare const myServerTool: CodeModeTool
 
 const daytona = new Daytona()
 const sandbox = await daytona.create({ language: 'typescript' })

@@ -3,6 +3,7 @@ import fs from 'fs'
 import http from 'http'
 import path from 'path'
 import { fileURLToPath } from 'url'
+import { isDeepStrictEqual } from 'node:util'
 import { EventStreamCodec } from '@smithy/eventstream-codec'
 import type { Mountable } from '@copilotkit/aimock'
 
@@ -167,6 +168,10 @@ export default async function globalSetup() {
   mock.mount('/openai-responses-usage', openaiResponsesUsageMount())
   mock.mount('/provider-search-openai', openaiProviderSearchMount())
   mock.mount('/provider-search-gemini', geminiProviderSearchMount())
+  // Google Search beside a function tool on Gemini 3. Answers like the
+  // Gemini API: the flag is required, and the second step must send the
+  // signed toolCall/toolResponse parts back around the function call.
+  mock.mount('/gemini-server-tools', geminiServerToolsMount())
 
   // Bedrock Converse prompt caching. aimock cannot replay the Converse
   // `vnd.amazon.eventstream` protocol, so this mount encodes the frames itself
@@ -174,12 +179,29 @@ export default async function globalSetup() {
   // which request sections ended with a `cachePoint` block and answers with
   // Bedrock's cache usage counters; the companion spec asserts both.
   mock.mount('/bedrock-converse-cache', bedrockConverseCacheMount())
+  mock.mount('/bedrock-rerank', bedrockRerankMount())
 
   // decide() usage on a failed answer mapping. aimock has no OpenAI Decisions
   // endpoint, so this mount hand-crafts a `/v1/decisions` response with valid
   // usage and a choice with no entry in `probabilities`. The companion spec
   // asserts `decide()` rejects and still reports that usage.
   mock.mount('/evaluate-usage-on-failure', evaluateUsageOnFailureMount())
+
+  // Failed evaluate requests. TypeSafe takes a path prefix, but the Vercel
+  // Gateway adapter keeps only the origin of its baseURL, so that mount sits on
+  // the real evaluate path. Both answer only requests carrying the
+  // `x-evaluate-http-status` header and fall through otherwise.
+  // embed() abort: `/v1/embeddings` never answers, and `/status` reports
+  // whether the client closed the request. The embedding-abort spec checks
+  // that `embed({ timeout })` cancels the real HTTP request.
+  mock.mount('/embedding-abort', embeddingAbortMount())
+
+  mock.mount('/evaluate-http-status', evaluateHttpStatusMount())
+  mock.mount('/v4/ai/evaluation-model', evaluateHttpStatusMount())
+
+  // aimock has no OpenAI Decisions API route, so this mount answers
+  // `/v1/decisions` with a refusal plus usage for the evaluate-refusal spec.
+  mock.mount('/evaluate-refusal', evaluateRefusalMount())
 
   // BytePlus. Ark (chat, Seedream image, Seedance video) serves its whole data
   // plane under /api/v3, and Seed Speech (TTS/ASR) mounts its own endpoints at
@@ -714,10 +736,7 @@ const TINY_PNG_BASE64 =
  * status } }`) so a validation failure surfaces as the actual missing/extra
  * field in the adapter's thrown error message, not a generic 500.
  */
-function rejectGeminiImageRequest(
-  res: http.ServerResponse,
-  message: string,
-): true {
+function rejectGeminiRequest(res: http.ServerResponse, message: string): true {
   res.statusCode = 400
   res.setHeader('Content-Type', 'application/json')
   res.end(
@@ -800,32 +819,29 @@ function geminiNativeImageMount(): Mountable {
 
       const body = await readJsonRequestBody(req)
       if (!body) {
-        return rejectGeminiImageRequest(res, 'Malformed JSON body.')
+        return rejectGeminiRequest(res, 'Malformed JSON body.')
       }
 
       const model = body.model
       if (typeof model !== 'string' || !NATIVE_IMAGE_MODELS.has(model)) {
-        return rejectGeminiImageRequest(
+        return rejectGeminiRequest(
           res,
           `Unexpected image model ${JSON.stringify(model)}.`,
         )
       }
 
       if (body.stream !== false) {
-        return rejectGeminiImageRequest(res, 'stream must be false.')
+        return rejectGeminiRequest(res, 'stream must be false.')
       }
 
       const format = asRecord(body.response_format)
       if (!format || format.type !== 'image') {
-        return rejectGeminiImageRequest(
-          res,
-          'response_format.type must be "image".',
-        )
+        return rejectGeminiRequest(res, 'response_format.type must be "image".')
       }
 
       const leaked = ROOT_FORBIDDEN.find((name) => name in body)
       if (leaked) {
-        return rejectGeminiImageRequest(
+        return rejectGeminiRequest(
           res,
           `Field "${leaked}" reached the Interactions image request.`,
         )
@@ -836,7 +852,7 @@ function geminiNativeImageMount(): Mountable {
         ? GENERATION_FORBIDDEN.find((name) => name in generationConfig)
         : undefined
       if (leakedGeneration) {
-        return rejectGeminiImageRequest(
+        return rejectGeminiRequest(
           res,
           `Field "${leakedGeneration}" reached generation_config.`,
         )
@@ -849,7 +865,7 @@ function geminiNativeImageMount(): Mountable {
 
       if (isEdit) {
         if (inputHasImage(body.input)) {
-          return rejectGeminiImageRequest(
+          return rejectGeminiRequest(
             res,
             'A chained edit must not resend an image block.',
           )
@@ -864,13 +880,13 @@ function geminiNativeImageMount(): Mountable {
           setting.type !== 'dangerous_content' ||
           setting.threshold !== 'block_only_high'
         ) {
-          return rejectGeminiImageRequest(
+          return rejectGeminiRequest(
             res,
             'safety_settings must be [{ type: "dangerous_content", threshold: "block_only_high" }].',
           )
         }
         if (generationConfig?.thinking_level !== 'low') {
-          return rejectGeminiImageRequest(
+          return rejectGeminiRequest(
             res,
             'generation_config.thinking_level must be "low".',
           )
@@ -879,13 +895,13 @@ function geminiNativeImageMount(): Mountable {
         const aspectRatio = format.aspect_ratio
         const imageSize = format.image_size
         if (aspectRatio !== EXPECTED_ASPECT_RATIO) {
-          return rejectGeminiImageRequest(
+          return rejectGeminiRequest(
             res,
             `${model}: response_format.aspect_ratio must be "${EXPECTED_ASPECT_RATIO}", got ${JSON.stringify(aspectRatio)}.`,
           )
         }
         if (imageSize !== EXPECTED_FLASH_IMAGE_SIZE) {
-          return rejectGeminiImageRequest(
+          return rejectGeminiRequest(
             res,
             `${model}: response_format.image_size must be "${EXPECTED_FLASH_IMAGE_SIZE}", got ${JSON.stringify(imageSize)}.`,
           )
@@ -1052,7 +1068,7 @@ function geminiOmniVideoMount(): Mountable {
             id: JOB_ID,
             object: 'interaction',
             status: 'in_progress',
-            model: 'gemini-omni-1.1-flash',
+            model: 'gemini-omni-1.2-flash',
           }),
         )
         return true
@@ -1067,7 +1083,7 @@ function geminiOmniVideoMount(): Mountable {
             id: pollMatch[1],
             object: 'interaction',
             status: 'completed',
-            model: 'gemini-omni-1.1-flash',
+            model: 'gemini-omni-1.2-flash',
             usage: {
               total_input_tokens: 12,
               total_output_tokens: 57920,
@@ -2180,6 +2196,101 @@ function geminiProviderSearchMount(): Mountable {
   }
 }
 
+function geminiServerToolsMount(): Mountable {
+  const toolCall = {
+    toolCall: {
+      id: 'search_1',
+      toolType: 'GOOGLE_SEARCH_WEB',
+      args: { queries: ['caucus news'] },
+    },
+    thoughtSignature: 'c2lnLXNlYXJjaA==',
+  }
+  const functionCall = {
+    functionCall: {
+      id: 'call_1',
+      name: 'lookup_caucus',
+      args: { county: 'Salt Lake' },
+    },
+  }
+  const toolResponse = {
+    toolResponse: {
+      id: 'search_1',
+      toolType: 'GOOGLE_SEARCH_WEB',
+      response: { results: ['Caucus night is Tuesday'] },
+    },
+    thoughtSignature: 'c2lnLXJlc3BvbnNl',
+  }
+  return {
+    async handleRequest(
+      req: http.IncomingMessage,
+      res: http.ServerResponse,
+      pathname: string,
+    ): Promise<boolean> {
+      if (
+        req.method !== 'POST' ||
+        !pathname.endsWith(':streamGenerateContent')
+      ) {
+        return false
+      }
+      const body = await readJsonRequestBody(req)
+      if (
+        asRecord(body?.toolConfig)?.includeServerSideToolInvocations !== true
+      ) {
+        return rejectGeminiRequest(
+          res,
+          'Please enable tool_config.include_server_side_tool_invocations to use Built-in tools with Function calling.',
+        )
+      }
+      const contents = Array.isArray(body?.contents) ? body.contents : []
+      const modelTurn = contents
+        .map(asRecord)
+        .find((content) => content?.role === 'model')
+      const sent = Array.isArray(modelTurn?.parts)
+        ? modelTurn.parts.map(asRecord)
+        : []
+      let parts: Array<unknown>
+      if (!modelTurn) {
+        parts = [toolCall, functionCall, toolResponse]
+      } else if (
+        sent.length !== 3 ||
+        !sent[0]?.toolCall ||
+        sent[0].thoughtSignature !== toolCall.thoughtSignature ||
+        !sent[1]?.functionCall ||
+        !sent[2]?.toolResponse ||
+        sent[2].thoughtSignature !== toolResponse.thoughtSignature
+      ) {
+        return rejectGeminiRequest(
+          res,
+          'Function call is missing a thought_signature in functionCall parts.',
+        )
+      } else {
+        parts = [{ text: 'Caucus night is Tuesday at the library.' }]
+      }
+
+      res.statusCode = 200
+      res.setHeader('Content-Type', 'text/event-stream')
+      res.setHeader('Cache-Control', 'no-cache')
+      res.end(
+        `data: ${JSON.stringify({
+          candidates: [
+            {
+              content: { role: 'model', parts },
+              finishReason: 'STOP',
+              index: 0,
+            },
+          ],
+          usageMetadata: {
+            promptTokenCount: 1,
+            candidatesTokenCount: 1,
+            totalTokenCount: 2,
+          },
+        })}\n\n`,
+      )
+      return true
+    },
+  }
+}
+
 /**
  * Mounts the OpenAI Decisions `/v1/decisions` response for the
  * `evaluate-usage-on-failure` spec: valid usage, but a `queue` answer whose
@@ -2218,6 +2329,105 @@ function evaluateUsageOnFailureMount(): Mountable {
             input_tokens: 42,
             output_tokens: 7,
             total_tokens: 49,
+          },
+        }),
+      )
+      return true
+    },
+  }
+}
+
+/**
+ * Answers an evaluate request with the HTTP status named in its
+ * `x-evaluate-http-status` header and a small JSON error body.
+ */
+function evaluateHttpStatusMount(): Mountable {
+  return {
+    async handleRequest(
+      req: http.IncomingMessage,
+      res: http.ServerResponse,
+    ): Promise<boolean> {
+      const status = Number(req.headers['x-evaluate-http-status'])
+      if (req.method !== 'POST' || !(status >= 400 && status <= 599)) {
+        return false
+      }
+      await drainBody(req)
+      res.statusCode = status
+      res.setHeader('Content-Type', 'application/json')
+      res.end(JSON.stringify({ error: 'rejected' }))
+      return true
+    },
+  }
+}
+
+/**
+ * Never answers `POST /v1/embeddings`, and records per `X-Test-Id` whether the
+ * client closed that request before a reply. `GET /status?testId=` reads it.
+ */
+function embeddingAbortMount(): Mountable {
+  const closedByClient = new Map<string, boolean>()
+  return {
+    async handleRequest(
+      req: http.IncomingMessage,
+      res: http.ServerResponse,
+      pathname: string,
+    ): Promise<boolean> {
+      if (req.method === 'GET' && pathname === '/status') {
+        const testId = new URL(req.url ?? '', 'http://x').searchParams.get(
+          'testId',
+        )
+        res.setHeader('Content-Type', 'application/json')
+        res.end(
+          JSON.stringify({
+            closedByClient: closedByClient.get(testId ?? '') ?? false,
+          }),
+        )
+        return true
+      }
+      if (req.method !== 'POST' || pathname !== '/v1/embeddings') return false
+      const testId = String(req.headers['x-test-id'] ?? '')
+      closedByClient.set(testId, false)
+      await drainBody(req)
+      res.on('close', () => {
+        if (!res.writableEnded) closedByClient.set(testId, true)
+      })
+      // Safety net so a broken client cannot hold the socket forever.
+      setTimeout(() => {
+        if (!res.writableEnded) res.end()
+      }, 30_000).unref()
+      return true
+    },
+  }
+}
+
+/**
+ * Mounts the OpenAI Decisions `/v1/decisions` response with a `refusal` answer
+ * and billed usage. The OpenAI evaluate adapter turns it into an
+ * `EvaluateError` with code `refusal`.
+ */
+function evaluateRefusalMount(): Mountable {
+  return {
+    async handleRequest(
+      req: http.IncomingMessage,
+      res: http.ServerResponse,
+      pathname: string,
+    ): Promise<boolean> {
+      if (req.method !== 'POST' || pathname !== '/v1/decisions') {
+        return false
+      }
+      await drainBody(req)
+      res.statusCode = 200
+      res.setHeader('Content-Type', 'application/json')
+      res.end(
+        JSON.stringify({
+          model: 'gpt-6-luna',
+          answers: [{ type: 'refusal', name: 'refund' }],
+          usage: {
+            input_tokens: 40,
+            input_tokens_details: { cached_tokens: 0, cache_write_tokens: 0 },
+            output_tokens: 5,
+            output_tokens_details: { reasoning_tokens: 0 },
+            total_tokens: 45,
           },
         }),
       )
@@ -2401,6 +2611,8 @@ function bedrockConverseCacheMount(): Mountable {
       const toolConfig = body.toolConfig as { tools?: unknown } | undefined
       const messages = body.messages as Array<{ content?: unknown }> | undefined
       const observed = {
+        requestMetadata: body.requestMetadata,
+        serviceTier: body.serviceTier,
         tools: endsWithCachePoint(toolConfig?.tools),
         system: endsWithCachePoint(body.system),
         lastMessage: endsWithCachePoint(
@@ -2433,6 +2645,96 @@ function bedrockConverseCacheMount(): Mountable {
         }),
       )
       res.end()
+      return true
+    },
+  }
+}
+
+/** Validate the Bedrock Rerank wire format before serving stateless result pages. */
+function bedrockRerankMount(): Mountable {
+  return {
+    async handleRequest(req, res, pathname) {
+      if (req.method !== 'POST' || pathname !== '/rerank') return false
+      const body = await readJsonRequestBody(req)
+      const config = asRecord(
+        asRecord(body?.rerankingConfiguration)?.bedrockRerankingConfiguration,
+      )
+      const modelArn = asRecord(config?.modelConfiguration)?.modelArn
+      const count = config?.numberOfResults
+      const token = body?.nextToken
+      const authorization = req.headers.authorization ?? ''
+      const modelAllowed =
+        modelArn ===
+          'arn:aws:bedrock:us-west-2::foundation-model/cohere.rerank-v3-5:0' ||
+        modelArn ===
+          'arn:aws:bedrock:us-west-2::foundation-model/amazon.rerank-v1:0'
+      const expectedBody = {
+        queries: [{ type: 'TEXT', textQuery: { text: 'talk about rain' } }],
+        sources: [
+          '{"id":"sun","text":"sunny day at the beach"}',
+          '{"id":"rain","text":"rainy afternoon in the city"}',
+          '{"id":"snow","text":"snow in the mountains"}',
+        ].map((text) => ({
+          type: 'INLINE',
+          inlineDocumentSource: { type: 'TEXT', textDocument: { text } },
+        })),
+        rerankingConfiguration: {
+          type: 'BEDROCK_RERANKING_MODEL',
+          bedrockRerankingConfiguration: {
+            modelConfiguration: { modelArn },
+            numberOfResults: count,
+          },
+        },
+        ...(token === undefined ? {} : { nextToken: token }),
+      }
+      res.setHeader('Content-Type', 'application/json')
+      if (
+        !modelAllowed ||
+        (count !== 1 && count !== 3) ||
+        (token !== undefined &&
+          ((token !== 'rain-page-2' && token !== 'rain-page-3') ||
+            count !== 3)) ||
+        !isDeepStrictEqual(body, expectedBody) ||
+        !authorization.startsWith(
+          'AWS4-HMAC-SHA256 Credential=AKIA_BEDROCK_E2E/',
+        ) ||
+        !authorization.includes('/us-west-2/bedrock/aws4_request') ||
+        !authorization.includes('x-test-id') ||
+        !req.headers['x-test-id'] ||
+        !/^[a-f0-9]{64}$/.test(String(req.headers['x-amz-content-sha256'])) ||
+        req.headers['content-type'] !== 'application/json'
+      ) {
+        res.statusCode = 400
+        res.end(
+          JSON.stringify({
+            message: 'Invalid Bedrock rerank request or signing scope',
+          }),
+        )
+        return true
+      }
+      res.setHeader(
+        'x-amzn-requestid',
+        token ? token.replace('rain-', 'rerank-') : 'rerank-page-1',
+      )
+      if (token === 'rain-page-2') {
+        res.end(JSON.stringify({ results: [], nextToken: 'rain-page-3' }))
+        return true
+      }
+      res.end(
+        JSON.stringify(
+          token
+            ? {
+                results: [
+                  { index: 2, relevanceScore: 0.3 },
+                  { index: 0, relevanceScore: 0.1 },
+                ],
+              }
+            : {
+                results: [{ index: 1, relevanceScore: 0.98 }],
+                ...(count === 3 ? { nextToken: 'rain-page-2' } : {}),
+              },
+        ),
+      )
       return true
     },
   }

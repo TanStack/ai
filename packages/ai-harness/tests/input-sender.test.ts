@@ -4,15 +4,18 @@ import { z } from 'zod'
 import { defineAgent, keyedAdapter, toolDefinition } from '@tanstack/ai'
 import {
   NO_OWNER_EPOCH,
+  memoryLogState,
   memoryLogStore,
   memoryPersistence,
 } from '@tanstack/ai-persistence'
 import {
+  InputRejectedError,
   createHarnessHost,
   defineCommand,
   defineHarness,
   definePlugin,
   logIdOf,
+  membersOnly,
 } from '../src'
 import { credentialsFor } from '../src/auth'
 import { after, gate, mockAdapter, stoppedRun, text, toolCall } from './helpers'
@@ -107,6 +110,117 @@ describe('the sender of each input', () => {
       ['in-default', { id: 'alice' }],
     ])
     await host.close()
+  })
+
+  it("does not run an offered input that has no user as the owner's user", async () => {
+    const seen: Array<{ user: string | undefined; key: string }> = []
+    const tool = toolDefinition({
+      name: 'whoami',
+      description: 'Who runs this?',
+      inputSchema: z.object({}),
+    }).server<HarnessRunContext>(async (_input, toolContext) => {
+      const credential = await toolContext.context.run.credentials.get('acme')
+      seen.push({
+        user: toolContext.context.run.user?.id,
+        key: credential?.type === 'api_key' ? credential.value : 'none',
+      })
+      return {}
+    })
+    const release = gate()
+    const state = memoryLogState()
+    const credentials = memoryCredentialStore()
+    await credentials.set({
+      scope: { threadId: THREAD, userId: 'alice' },
+      id: 'acme',
+      credential: { type: 'api_key', value: 'alice-key' },
+    })
+    const harness = defineHarness({
+      name: 'test/sender-anon',
+      adapter: mockAdapter([
+        after(release.opened, 'hold'),
+        () => toolCall('whoami', {}, 'c1'),
+        () => text('ok'),
+      ]).adapter,
+      tools: [tool],
+    })
+    const owner = createHarnessHost({
+      persistence: { stores: { log: memoryLogStore({ state }) } },
+      credentials,
+    })
+    const other = createHarnessHost({
+      persistence: { stores: { log: memoryLogStore({ state }) } },
+      credentials,
+    })
+    const ownerSession = await owner.open(harness, {
+      threadId: THREAD,
+      user: alice,
+    })
+    const otherSession = await other.open(harness, { threadId: THREAD })
+    const holding = ownerSession.send('Hold.')
+    await holding.receipt
+    const receipt = await otherSession.send('Who?', { inputId: 'in-anon' })
+      .receipt
+    expect(receipt.status).toBe('queued')
+    release.open()
+    await holding
+    expect(await otherSession.settled({ inputId: 'in-anon' })).toMatchObject({
+      outcome: 'completed',
+    })
+    expect(seen).toEqual([{ user: undefined, key: 'none' }])
+    const inputs = (await memoryLogStore({ state }).read({ logId: LOG }))
+      .map((entry) => entry.record)
+      .filter((record) => record.type === 'harness.input')
+      .map((record) => [record['inputId'], record['user']])
+    expect(inputs).toContainEqual(['in-anon', undefined])
+    await owner.close()
+    await other.close()
+  })
+
+  it('refuses an offered input that has no user when the owner has access', async () => {
+    const release = gate()
+    const state = memoryLogState()
+    const sessions = memoryPersistence().stores.sessions
+    const harness = defineHarness({
+      name: 'test/sender-access',
+      adapter: mockAdapter([after(release.opened, 'hold')]).adapter,
+    })
+    const owner = createHarnessHost({
+      persistence: {
+        stores: { log: memoryLogStore({ state }), sessions },
+      },
+      access: { getUser: () => null, rules: membersOnly() },
+    })
+    const other = createHarnessHost({
+      persistence: {
+        stores: { log: memoryLogStore({ state }), sessions },
+      },
+    })
+    const ownerSession = await owner.open(harness, {
+      threadId: THREAD,
+      user: alice,
+    })
+    const holding = ownerSession.send('Hold.')
+    await holding.receipt
+    const otherSession = await other.open(harness, { threadId: THREAD })
+    const sent = otherSession.send('Who?', { inputId: 'in-anon' })
+    sent.then(
+      () => {},
+      () => {},
+    )
+    expect((await sent.receipt).status).toBe('queued')
+    await expect(
+      otherSession.settled({ inputId: 'in-anon' }),
+    ).rejects.toMatchObject({
+      name: 'InputRejectedError',
+      receipt: { reason: 'no_user' },
+    })
+    await expect(Promise.resolve(sent)).rejects.toBeInstanceOf(
+      InputRejectedError,
+    )
+    release.open()
+    await holding
+    await owner.close()
+    await other.close()
   })
 
   it("builds the model call of bob's input with bob's key", async () => {

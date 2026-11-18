@@ -19,6 +19,19 @@ The OpenAI adapter calls GPT for chat, and it calls image, speech, transcription
 
 Does your provider speak the OpenAI API, for example DeepSeek, Kimi, or a local vLLM server? Use the [OpenAI-Compatible adapter](./openai-compatible).
 
+## Models retiring on December 11, 2026
+
+Update calls that use the original GPT-5 or o3 models before December 11, 2026. OpenAI recommends these replacements:
+
+- `gpt-5` and `o3`: `gpt-5.6-sol`.
+- `gpt-5-mini`: `gpt-5.6-terra`.
+- `gpt-5-nano`: `gpt-5.6-luna`.
+- `gpt-5-pro` and `o3-pro`: `gpt-5.6-sol` with OpenAI's pro reasoning mode.
+
+The same deadline applies to their dated snapshots and fine-tuned versions. See [OpenAI's deprecation notice](https://developers.openai.com/api/docs/deprecations#2026-06-11-gpt-5-and-o3-model-deprecations) for the full list.
+
+The adapter keeps the old model IDs for compatibility before shutdown. The example pickers use supported replacements.
+
 ## 1. Install
 
 <!-- ::start:tabs variant="package-manager" mode="install" -->
@@ -227,7 +240,7 @@ console.log(result.summary);
 
 ## Video
 
-`openaiVideo` makes Sora videos with `sora-2` and `sora-2-pro`. Video generation is experimental. See [Video Generation](../media/video-generation).
+`openaiVideo` makes Sora videos with `sora-2` and `sora-2-pro`. See [Video Generation](../media/video-generation).
 
 ## Realtime voice
 
@@ -282,7 +295,7 @@ console.log(result.meta.usage);
 
 - `gpt-6-luna` is the only Decisions model.
 - An object `state` goes to OpenAI as JSON text.
-- If OpenAI refuses to answer a question, `decide()` throws an error with the name of that question.
+- If OpenAI refuses to answer a question, `decide()` throws an `EvaluateError` with `code: EVALUATE_REFUSAL_CODE`. The message names the question. The error also has the usage and the raw answers that came back, for example `{ type: 'noul', noul: 0.9 }` for a `boolean()` question. Narrow it with `isEvaluateError(error)`. See [Refused questions](../evaluate/evaluate#refused-questions).
 - `boolean()` questions work. The adapter adds the meaning of true and false to the instructions.
 
 See the [Evaluate guide](../evaluate/evaluate) for the question helpers, the result shape, abort, and middleware.

@@ -169,6 +169,32 @@ describe('text adapter (binding)', () => {
     expect(finished.usage).toMatchObject({ promptTokens: 41, totalTokens: 45 })
   })
 
+  it('sends defaultHeaders as extraHeaders next to the gateway', async () => {
+    const { binding, run } = fakeBinding(() => sse(chatStreamEvents))
+    const adapter = createCloudflareText('@cf/test', {
+      binding,
+      gateway: { id: 'g1' },
+      defaultHeaders: { 'x-session-affinity': 'ses_abc' },
+    })
+
+    await collect(
+      adapter.chatStream({
+        threadId: 'thread-1',
+        model: '@cf/test',
+        messages: [{ role: 'user', content: 'Hi' }],
+        logger,
+      }),
+    )
+
+    // Only the configured headers: none of the OpenAI SDK's own headers
+    // (authorization, user-agent, x-stainless-*) reach the binding.
+    expect(run.mock.calls[0]![2]).toEqual({
+      returnRawResponse: true,
+      gateway: { id: 'g1' },
+      extraHeaders: { 'x-session-affinity': 'ses_abc' },
+    })
+  })
+
   const plainSse = sse(chatStreamEvents)
   it.each([
     [
@@ -412,6 +438,61 @@ describe('embedding adapter', () => {
     ])
   })
 
+  it('splits more than 100 inputs into requests of at most 100', async () => {
+    const { binding, run } = fakeBinding((_model, inputs) => {
+      const text = (inputs as { text: Array<string> }).text
+      if (text.length > 100) throw new Error('too many: maxItems is 100')
+      return { data: text.map((t) => [Number(t)]) }
+    })
+    const adapter = createCloudflareEmbedding('@cf/baai/bge-m3', { binding })
+    const input = Array.from({ length: 250 }, (_, i) => String(i))
+    const result = await adapter.createEmbeddings({
+      model: '@cf/baai/bge-m3',
+      input,
+      logger,
+    })
+    expect(
+      run.mock.calls.map((c) => (c[1] as { text: Array<string> }).text.length),
+    ).toEqual([100, 100, 50])
+    expect(result.embeddings).toHaveLength(250)
+    expect(result.embeddings[0]).toEqual({ vector: [0], index: 0 })
+    expect(result.embeddings[249]).toEqual({ vector: [249], index: 249 })
+  })
+
+  it('stops sending batches once the signal aborts', async () => {
+    const controller = new AbortController()
+    const { binding, run } = fakeBinding((_model, inputs) => {
+      controller.abort(new Error('stop'))
+      return { data: (inputs as { text: Array<string> }).text.map(() => [0]) }
+    })
+    const adapter = createCloudflareEmbedding('@cf/baai/bge-m3', { binding })
+    await expect(
+      adapter.createEmbeddings({
+        model: '@cf/baai/bge-m3',
+        input: Array.from({ length: 250 }, (_, i) => String(i)),
+        abortSignal: controller.signal,
+        logger,
+      }),
+    ).rejects.toThrow('stop')
+    expect(run).toHaveBeenCalledTimes(1)
+  })
+
+  it('sends defaultHeaders as extraHeaders', async () => {
+    const { binding, run } = fakeBinding(() => ({ data: [[0.1]] }))
+    const adapter = createCloudflareEmbedding('@cf/baai/bge-m3', {
+      binding,
+      defaultHeaders: { 'x-session-affinity': 'ses_abc' },
+    })
+    await adapter.createEmbeddings({
+      model: '@cf/baai/bge-m3',
+      input: ['a'],
+      logger,
+    })
+    expect(run.mock.calls[0]![2]).toEqual({
+      extraHeaders: { 'x-session-affinity': 'ses_abc' },
+    })
+  })
+
   it('rejects dimensions and a mismatched output shape', async () => {
     const { binding } = fakeBinding(() => ({ response: 'wrong shape' }))
     const adapter = createCloudflareEmbedding('@cf/baai/bge-m3', { binding })
@@ -549,6 +630,28 @@ describe('transcription adapter', () => {
       duration: 1.05,
       segments: [{ id: 0, start: 0, end: 0.78, text: 'Hello there.' }],
       words: [{ word: 'Hello', start: 0, end: 0.6 }],
+    })
+  })
+
+  it('reports the audio duration as billed seconds', async () => {
+    const { binding } = fakeBinding(() => ({
+      text: 'Hello there.',
+      transcription_info: { language: 'en', duration: 1.05 },
+    }))
+    const adapter = createCloudflareTranscription(
+      '@cf/openai/whisper-large-v3-turbo',
+      { binding },
+    )
+    const result = await adapter.transcribe({
+      model: '@cf/openai/whisper-large-v3-turbo',
+      audio: new Uint8Array([65]).buffer,
+      logger,
+    })
+    expect(result.usage).toEqual({
+      promptTokens: 0,
+      completionTokens: 0,
+      totalTokens: 0,
+      billed: { quantity: 1.05, unit: 'seconds' },
     })
   })
 

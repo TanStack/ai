@@ -3,7 +3,8 @@ import {
   normalizeFileUploadInput,
 } from '@tanstack/ai/adapters'
 import { createGeminiClient, getGeminiApiKeyFromEnv } from '../utils/client'
-import type { File as GeminiFile, GoogleGenAI } from '@google/genai'
+import type { File as GeminiFile } from '@google/genai'
+import type { GeminiClient } from '../client/index'
 import type { FileHandle, FileUploadInput } from '@tanstack/ai/adapters'
 import type { GeminiClientConfig } from '../utils/client'
 
@@ -17,28 +18,47 @@ export interface GeminiFilesConfig extends GeminiClientConfig {}
  */
 export class GeminiFilesAdapter extends BaseFilesAdapter<'gemini'> {
   readonly name = 'gemini' as const
-  private readonly client: GoogleGenAI
+  private readonly client: GeminiClient
 
   constructor(config: GeminiFilesConfig) {
     super()
     this.client = createGeminiClient(config)
   }
 
-  async upload(input: FileUploadInput): Promise<FileHandle<'gemini'>> {
+  async upload(
+    input: FileUploadInput,
+    options?: { abortSignal?: AbortSignal },
+  ): Promise<FileHandle<'gemini'>> {
     const { blob, mimeType } = normalizeFileUploadInput(input)
+    const abortSignal = options?.abortSignal
     const file = await this.client.files.upload({
       file: blob,
-      ...(mimeType ? { config: { mimeType } } : {}),
+      ...(mimeType || abortSignal
+        ? {
+            config: {
+              ...(mimeType ? { mimeType } : {}),
+              ...(abortSignal ? { abortSignal } : {}),
+            },
+          }
+        : {}),
     })
     return toFileHandle(file)
   }
 
-  async get(id: string): Promise<FileHandle<'gemini'>> {
-    return toFileHandle(await this.client.files.get({ name: id }))
+  async get(
+    id: string,
+    options?: { abortSignal?: AbortSignal },
+  ): Promise<FileHandle<'gemini'>> {
+    return toFileHandle(
+      await this.client.files.get({ name: id, ...signalConfig(options) }),
+    )
   }
 
-  async delete(id: string): Promise<void> {
-    await this.client.files.delete({ name: id })
+  async delete(
+    id: string,
+    options?: { abortSignal?: AbortSignal },
+  ): Promise<void> {
+    await this.client.files.delete({ name: id, ...signalConfig(options) })
   }
 }
 
@@ -81,4 +101,11 @@ export function geminiFiles(
   config?: Omit<GeminiFilesConfig, 'apiKey'>,
 ): GeminiFilesAdapter {
   return createGeminiFiles(getGeminiApiKeyFromEnv(), config)
+}
+
+/** SDK config that carries the caller's abort signal, if any. */
+function signalConfig(options?: { abortSignal?: AbortSignal }) {
+  return options?.abortSignal
+    ? { config: { abortSignal: options.abortSignal } }
+    : {}
 }

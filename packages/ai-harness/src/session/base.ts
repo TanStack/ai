@@ -397,6 +397,11 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
   /** The open skipped recovery: another host owned the thread then. */
   protected recoveryDeferred = false
   /**
+   * The call stack is applying an offered input whose record has no user.
+   * Entry points then keep that absence. They do not use `this.user`.
+   */
+  protected anonymousOffer = false
+  /**
    * Agent runs that another host runs for an input that this host offered.
    * They wait for the log, so they do not keep the thread busy here.
    */
@@ -902,12 +907,27 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
   }
 
   /**
-   * Who sent the input of the running turn, else the user that opened
+   * Who sent the input of the running turn. While a turn runs, that is
+   * `turnUser`, also when the input has no user. Else the user that opened
    * the session. Turns run one at a time, so one value is enough. It never
    * picks credentials or keys: those come from the run context of each run.
    */
   protected sender(): HarnessUser | undefined {
-    return this.turnUser ?? this.user
+    if (this.activeTurn) return this.turnUser
+    return this.user
+  }
+
+  /**
+   * The user an input runs as. While `anonymousOffer` is set, the input
+   * has no user. Else `user` when the caller passed one, else `fallback`
+   * (the user that opened the session).
+   */
+  protected actor(
+    user: HarnessUser | undefined,
+    fallback: HarnessUser | undefined = this.user,
+  ): HarnessUser | undefined {
+    if (this.anonymousOffer) return undefined
+    return user ?? fallback
   }
 
   /**

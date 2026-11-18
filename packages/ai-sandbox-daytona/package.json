@@ -1,6 +1,6 @@
 {
   "name": "@tanstack/ai-sandbox-daytona",
-  "version": "0.3.5",
+  "version": "1.0.1",
   "description": "Daytona sandbox provider for TanStack AI — run harness adapters inside isolated Daytona cloud sandboxes through the uniform SandboxHandle.",
   "author": "",
   "license": "MIT",
@@ -50,6 +50,6 @@
   },
   "devDependencies": {
     "@tanstack/ai-sandbox": "workspace:*",
-    "@vitest/coverage-v8": "4.1.10"
+    "@vitest/coverage-v8": "4.1.12"
   }
 }

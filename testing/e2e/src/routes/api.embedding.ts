@@ -6,6 +6,7 @@ import { createMistralEmbedding } from '@tanstack/ai-mistral'
 import { createOllamaEmbedding } from '@tanstack/ai-ollama'
 import { createVercelGatewayEmbedding } from '@tanstack/ai-vercel-gateway'
 import { createLovableEmbedding } from '@tanstack/ai-lovable'
+import { createNeonEmbedding } from '@tanstack/ai-neon'
 import type { Provider } from '@/lib/types'
 
 const LLMOCK_BASE = process.env.LLMOCK_URL || 'http://127.0.0.1:4010'
@@ -75,6 +76,12 @@ function createEmbeddingAdapter(
     lovable: () =>
       createLovableEmbedding('openai/text-embedding-3-small', DUMMY_KEY, {
         baseURL: openaiUrl(aimockPort),
+        defaultHeaders: headers,
+      }),
+    // Neon's baseURL is the bare host; the adapter appends `/v1`.
+    neon: () =>
+      createNeonEmbedding('qwen3-embedding-0-6b', DUMMY_KEY, {
+        baseURL: llmockBase(aimockPort),
         defaultHeaders: headers,
       }),
   }

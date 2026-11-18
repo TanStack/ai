@@ -1,6 +1,6 @@
 {
   "name": "@tanstack/ai-elevenlabs",
-  "version": "0.6.14",
+  "version": "1.1.1",
   "description": "ElevenLabs adapter for TanStack AI realtime voice, text-to-speech, transcription, music, and sound effects.",
   "author": "Tanner Linsley",
   "license": "MIT",
@@ -47,6 +47,7 @@
       "import": "./dist/esm/byok.js"
     }
   },
+  "sideEffects": false,
   "files": [
     "dist",
     "src"
@@ -72,6 +73,6 @@
   },
   "devDependencies": {
     "@tanstack/ai": "workspace:*",
-    "@vitest/coverage-v8": "4.1.10"
+    "@vitest/coverage-v8": "4.1.12"
   }
 }

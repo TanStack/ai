@@ -1,4 +1,5 @@
-import OpenAI from 'openai'
+import { createOpenAIClient } from '@tanstack/openai-base'
+import type { OpenAIClientLike } from '@tanstack/openai-base'
 import { BaseEmbeddingAdapter } from '@tanstack/ai/adapters'
 import { toRunErrorPayload } from '@tanstack/ai/adapter-internals'
 import { generateId } from '@tanstack/ai-utils'
@@ -24,13 +25,22 @@ import type { OpenAIClientConfig } from '../utils/client'
 export interface OpenAIEmbeddingConfig extends OpenAIClientConfig {}
 
 /**
+ * The embeddings endpoint rejects requests with more than 2048 inputs, so
+ * larger arrays are sent as several sequential requests.
+ */
+// ponytail: splits by input count only. OpenAI also caps a request at 300k
+// tokens summed across inputs, so 2048 long texts can still 400. Add a
+// token-budget split if that bites (needs a tokeniser or char estimate).
+const OPENAI_MAX_BATCH_SIZE = 2048
+
+/**
  * OpenAI Embedding Adapter
  *
  * Tree-shakeable adapter for OpenAI text embeddings.
  * Supports text-embedding-3-small and text-embedding-3-large.
  *
  * Features:
- * - Batch embedding (one request for the whole input array)
+ * - Batch embedding (sequential requests of at most 2048 inputs each; usage is summed)
  * - Matryoshka dimension reduction via the top-level `dimensions` option
  */
 export class OpenAIEmbeddingAdapter<
@@ -43,11 +53,11 @@ export class OpenAIEmbeddingAdapter<
 > {
   readonly name = 'openai' as const
 
-  protected client: OpenAI
+  protected client: OpenAIClientLike
 
   constructor(config: OpenAIEmbeddingConfig, model: TModel) {
     super(model, {})
-    this.client = new OpenAI(config)
+    this.client = createOpenAIClient(config)
   }
 
   async createEmbeddings(
@@ -61,36 +71,59 @@ export class OpenAIEmbeddingAdapter<
       // fields (server routes often pass modelOptions through from untyped
       // client input). encoding_format is pinned to float so vectors are
       // always number[].
-      const request: OpenAI_SDK.EmbeddingCreateParams = {
+      const baseRequest = {
         ...modelOptions,
         model,
-        input: texts,
         encoding_format: 'float',
-      }
-      if (options.dimensions !== undefined) {
-        request.dimensions = options.dimensions
-      }
+      } as const
+      const dimensions =
+        options.dimensions !== undefined
+          ? { dimensions: options.dimensions }
+          : {}
 
       logger.request(
         `activity=embed provider=${this.name} model=${model} inputs=${texts.length}`,
         { provider: this.name, model },
       )
 
-      const response = await this.client.embeddings.create(request)
+      const embeddings: EmbeddingResult['embeddings'] = []
+      let promptTokens = 0
+      let totalTokens = 0
+
+      for (
+        let start = 0;
+        start < texts.length;
+        start += OPENAI_MAX_BATCH_SIZE
+      ) {
+        const request: OpenAI_SDK.EmbeddingCreateParams = {
+          ...baseRequest,
+          ...dimensions,
+          input: texts.slice(start, start + OPENAI_MAX_BATCH_SIZE),
+        }
+
+        const response = options.abortSignal
+          ? await this.client.embeddings.create(request, {
+              signal: options.abortSignal,
+            })
+          : await this.client.embeddings.create(request)
+
+        for (const item of response.data) {
+          embeddings.push({ vector: item.embedding, index: start + item.index })
+        }
+        promptTokens += response.usage.prompt_tokens
+        totalTokens += response.usage.total_tokens
+      }
 
       const usage: TokenUsage = {
-        promptTokens: response.usage.prompt_tokens,
+        promptTokens,
         completionTokens: 0,
-        totalTokens: response.usage.total_tokens,
+        totalTokens,
       }
 
       return {
         id: generateId(this.name),
         model,
-        embeddings: response.data.map((item) => ({
-          vector: item.embedding,
-          index: item.index,
-        })),
+        embeddings,
         usage,
       }
     } catch (error: unknown) {

@@ -25,8 +25,7 @@ const mocks = vi.hoisted(() => {
   }
 })
 
-vi.mock('@google/genai', async () => {
-  const actual = await vi.importActual<any>('@google/genai')
+vi.mock('../src/client', () => {
   const { constructorSpy, interactionsCreateSpy } = mocks
   class MockGoogleGenAI {
     get interactions() {
@@ -38,8 +37,9 @@ vi.mock('@google/genai', async () => {
   }
 
   return {
-    ...actual,
-    GoogleGenAI: MockGoogleGenAI,
+    createGoogleGenAI: (
+      options: ConstructorParameters<typeof MockGoogleGenAI>[0],
+    ) => new MockGoogleGenAI(options),
   }
 })
 
@@ -2106,5 +2106,116 @@ describe('GeminiTextInteractionsAdapter', () => {
 
     const secondPayload = mocks.interactionsCreateSpy.mock.calls[1]![0]
     expect(secondPayload.previous_interaction_id).toBeUndefined()
+  })
+})
+
+describe('GeminiTextInteractionsAdapter usage', () => {
+  beforeEach(() => {
+    mocks.interactionsCreateSpy.mockReset()
+  })
+
+  const usage = {
+    total_input_tokens: 10,
+    total_output_tokens: 4,
+    total_cached_tokens: 6,
+    total_thought_tokens: 3,
+    input_tokens_by_modality: [{ modality: 'image', tokens: 8 }],
+  }
+  const expectedUsage = {
+    promptTokens: 10,
+    // Output plus thought tokens.
+    completionTokens: 7,
+    totalTokens: 17,
+    promptTokensDetails: { imageTokens: 8, cachedTokens: 6 },
+    completionTokensDetails: { reasoningTokens: 3 },
+  }
+  const chatOptions = {
+    threadId: 'thread-1',
+    model: 'gemini-2.5-flash' as const,
+    messages: [{ role: 'user' as const, content: 'Give JSON' }],
+    logger: testLogger,
+  }
+  const completed = (status: string, text?: string) =>
+    mkStream([
+      {
+        event_type: 'interaction.created',
+        interaction: { id: 'int_u', status: 'in_progress' },
+      },
+      ...(text
+        ? [
+            {
+              event_type: 'step.delta',
+              index: 0,
+              delta: { type: 'text', text },
+            },
+          ]
+        : []),
+      {
+        event_type: 'interaction.completed',
+        interaction: { id: 'int_u', status, usage },
+      },
+    ])
+
+  it('maps the full usage onto RUN_FINISHED', async () => {
+    mocks.interactionsCreateSpy.mockResolvedValue(completed('completed', 'hi'))
+    const chunks = await collectChunks(createAdapter().chatStream(chatOptions))
+    const finished = chunks.find((c) => c.type === EventType.RUN_FINISHED)
+    expect(finished?.type === EventType.RUN_FINISHED && finished.usage).toEqual(
+      expectedUsage,
+    )
+  })
+
+  it('keeps the usage on a failed interaction RUN_ERROR', async () => {
+    mocks.interactionsCreateSpy.mockResolvedValue(completed('failed'))
+    const chunks = await collectChunks(createAdapter().chatStream(chatOptions))
+    expect(runErrorEvent(chunks)).toMatchObject({
+      code: 'failed',
+      usage: expectedUsage,
+    })
+  })
+
+  it('keeps the usage on empty-response and parse-error structured stream errors', async () => {
+    for (const [text, code] of [
+      [undefined, 'empty-response'],
+      ['{not json', 'parse-error'],
+    ] as const) {
+      mocks.interactionsCreateSpy.mockResolvedValueOnce(
+        completed('completed', text),
+      )
+      const events = await collectChunks(
+        createAdapter().structuredOutputStream({
+          chatOptions,
+          outputSchema: fooJsonSchema,
+        }),
+      )
+      expect(runErrorEvent(events)).toMatchObject({
+        code,
+        usage: expectedUsage,
+      })
+    }
+  })
+
+  it('returns the usage from structuredOutput and keeps it on a parse error', async () => {
+    const interaction = (text: string) => ({
+      id: 'int_u',
+      status: 'completed',
+      steps: [{ type: 'model_output', content: [{ type: 'text', text }] }],
+      usage,
+    })
+    mocks.interactionsCreateSpy.mockResolvedValueOnce(
+      interaction('{"foo":"bar"}'),
+    )
+    const result = await createAdapter().structuredOutput({
+      chatOptions,
+      outputSchema: fooJsonSchema,
+    })
+    expect(result.usage).toEqual(expectedUsage)
+
+    mocks.interactionsCreateSpy.mockResolvedValueOnce(interaction('{not json'))
+    const error = await createAdapter()
+      .structuredOutput({ chatOptions, outputSchema: fooJsonSchema })
+      .catch((e: unknown) => e)
+    expect(error).toBeInstanceOf(Error)
+    expect(error).toMatchObject({ usage: expectedUsage })
   })
 })

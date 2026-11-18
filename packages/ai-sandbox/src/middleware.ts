@@ -12,11 +12,12 @@
  * - `onFinish`/`onAbort`/`onError`: stop the watcher, snapshot (`after-run`)
  *   and/or destroy per lifecycle.
  *
- * NOTE: streamed sandbox lifecycle events (sandbox.created, workspace.setup.*)
- * are emitted by the harness adapter's chatStream (which can yield CUSTOM
- * chunks), not from here — middleware setup runs before streaming begins.
+ * NOTE: `setup` sends the `sandbox.starting`, `sandbox.created`, and
+ * `sandbox.resumed` events through `ctx.emitCustomEvent`. Core streams custom
+ * events that `setup` emits live, so the client sees them during the wait.
  */
 import {
+  CUSTOM_EVENT,
   defineChatMiddleware,
   isTerminalRunStatus,
   provideDetachableRun,
@@ -50,7 +51,7 @@ import {
 import { watchWorkspace } from './watch'
 import { DEFAULT_WORKSPACE_ROOT } from './bootstrap'
 import { resolveHarnessCwd } from './harness-cwd'
-import { ensureSandboxWithOutcome } from './sandbox'
+import { ensureSandboxWithOutcome, hasEnsureOutcome } from './sandbox'
 import {
   restoreSandboxFiles,
   captureSandboxFiles,
@@ -243,6 +244,130 @@ function canPublishPortableSnapshot(
     !state.snapshotCleaned &&
     state.snapshotLease === lease
   )
+}
+
+/**
+ * Write one portable checkpoint (`checkpoint-${runId}`) of the sandbox files,
+ * the conversation, and the artifacts. Every await re-checks
+ * `canPublishPortableSnapshot`, so a lost lease or a closed run publishes
+ * nothing.
+ *
+ * Only `'finish'` waits for `waitForRunCompletion`. On `'error'` and `'abort'`
+ * that promise rejects with the run's own failure, or never settles for a
+ * detachable abort, so waiting there would skip the checkpoint or hang. The
+ * wait is also not needed there: core runs the terminal hooks one by one in
+ * middleware order, and `withPersistence` must come before `withSandbox`, so
+ * its `onError`/`onAbort` has already finished when this runs.
+ */
+async function capturePortableCheckpoint(
+  definition: SandboxDefinition,
+  state: SandboxRunState,
+  ctx: ChatMiddlewareContext,
+  phase: 'finish' | 'abort' | 'error',
+) {
+  const handle = state.handle
+  const task = Promise.resolve().then(async (): Promise<void> => {
+    const config = state.snapshotConfig
+    const runtime = state.snapshotRuntime
+    const lease = state.snapshotLease
+    if (!config || !runtime || !handle || !lease) {
+      if (state.snapshotLost) throw state.snapshotLost
+      return
+    }
+    if (!canPublishPortableSnapshot(state, lease)) return
+
+    if (phase === 'finish') {
+      await runtime.completion.waitForRunCompletion()
+      if (!canPublishPortableSnapshot(state, lease)) return
+    }
+
+    const conversation = await runtime.persistence.stores.messages.loadThread(
+      ctx.threadId,
+    )
+    if (!canPublishPortableSnapshot(state, lease)) return
+
+    const secrets =
+      definition.workspace?.secrets !== undefined
+        ? resolveAllSecrets(definition.workspace.secrets)
+        : {}
+    const files = await captureSandboxFiles(
+      handle,
+      {
+        blobs: config.persistence.stores.blobs,
+        workspaceRoot: definition.workspace?.root ?? DEFAULT_WORKSPACE_ROOT,
+      },
+      state.snapshotPolicy,
+      secrets,
+    )
+    if (!canPublishPortableSnapshot(state, lease)) return
+
+    const artifacts = await captureSandboxArtifacts(
+      {
+        blobs: config.persistence.stores.blobs,
+        artifacts: config.persistence.stores.artifacts,
+      },
+      ctx.threadId,
+      secrets,
+    )
+    if (!canPublishPortableSnapshot(state, lease)) return
+
+    const parentCheckpointId = await config.checkpoints.getHead(ctx.threadId)
+    if (!canPublishPortableSnapshot(state, lease)) return
+
+    try {
+      await config.checkpoints.append({
+        checkpoint: {
+          id: `checkpoint-${ctx.runId}`,
+          threadId: ctx.threadId,
+          parentCheckpointId,
+          createdAt: Date.now(),
+          reason: 'automatic',
+          sourceRunId: ctx.runId,
+          files: files.files,
+          conversation,
+          artifacts,
+        },
+        expectedHeadId: parentCheckpointId,
+        writer: lease,
+      })
+    } catch (error) {
+      if (state.snapshotLost) throw state.snapshotLost
+      throw error
+    }
+    if (state.snapshotLost) throw state.snapshotLost
+  })
+  // `stopSnapshotLease` awaits this task, so the lease is not released while
+  // an append is still in flight.
+  state.snapshotCaptureTask = task
+  try {
+    await task
+  } finally {
+    if (state.snapshotCaptureTask === task)
+      state.snapshotCaptureTask = undefined
+  }
+}
+
+/**
+ * Best-effort checkpoint for a run that failed or was aborted. A failed capture
+ * is logged and never thrown, so it cannot hide the run's own error. A run that
+ * paused at an interrupt is not done, so it gets no checkpoint.
+ */
+async function checkpointFailedRun(
+  definition: SandboxDefinition,
+  state: SandboxRunState,
+  ctx: ChatMiddlewareContext,
+  phase: 'abort' | 'error',
+) {
+  if (state.interrupted) return
+  try {
+    await capturePortableCheckpoint(definition, state, ctx, phase)
+  } catch (error) {
+    state.logger?.warn(`sandbox checkpoint on ${phase} failed`, {
+      runId: ctx.runId,
+      phase,
+      error,
+    })
+  }
 }
 
 /**
@@ -495,17 +620,18 @@ export function withSandbox<TOffset extends string = string>(
 ): DefinedChatMiddleware<
   unknown,
   readonly [],
-  readonly [typeof SandboxCapability, typeof ProjectionCapability]
+  | readonly [typeof SandboxCapability, typeof ProjectionCapability]
+  | readonly [typeof SandboxCapability]
 > {
   return defineChatMiddleware({
     name: 'sandbox',
-    provides: [SandboxCapability, ProjectionCapability],
-    // SandboxPolicyCapability is provided conditionally (only when the
-    // definition has a policy), so it is intentionally NOT declared here —
-    // consumers read it via `getOptional`. SandboxDurabilityCapability and
-    // DetachableRunCapability are conditional for the same reason (only when
-    // `runs` + `durability` are both wired), so they are intentionally NOT
-    // declared here either.
+    // Listed only when setup will call provide(). chat() checks `requires`
+    // against this array before setup. Policy, durability, and detach stay
+    // off the list: they depend on other options and are read optionally.
+    provides:
+      definition.workspace !== undefined
+        ? [SandboxCapability, ProjectionCapability]
+        : [SandboxCapability],
     optionalRequires: [SandboxInstanceStoreCapability, LocksCapability],
 
     async setup(ctx) {
@@ -780,10 +906,20 @@ export function withSandbox<TOffset extends string = string>(
         })
       }
 
+      // Only a `defineSandbox()` definition can tell created from resumed. A
+      // hand-built definition sends no lifecycle events. An attach sends none
+      // either: the log already holds the first run's events, and new ones would
+      // land in the middle of the replayed stream and break its alignment.
+      const lifecycleEvents =
+        hasEnsureOutcome(definition) && durability?.attach !== true
+      if (lifecycleEvents)
+        ctx.emitCustomEvent(CUSTOM_EVENT.SANDBOX_STARTING, {
+          provider: definition.provider.name,
+        })
       let outcome: 'resumed' | 'native-restored' | 'created' = 'created'
       let handle: SandboxHandle
       try {
-        if (snapshotConfig)
+        if (snapshotConfig || lifecycleEvents)
           ({ handle, outcome } = await ensureSandboxWithOutcome(
             definition,
             ensureCtx,
@@ -972,6 +1108,18 @@ export function withSandbox<TOffset extends string = string>(
         // teardown path a different object than the watcher writes into.
         // `pendingDiffs` needs no copying — it IS `state.pendingDiffs`.
         if (watcher) state.watcher = watcher
+        // Sent last, so the sandbox is ready to use (after `onReady` and the
+        // watcher) and a later setup failure cannot follow it.
+        if (lifecycleEvents) {
+          const isResumed =
+            outcome === 'resumed' || outcome === 'native-restored'
+          ctx.emitCustomEvent(
+            isResumed
+              ? CUSTOM_EVENT.SANDBOX_RESUMED
+              : CUSTOM_EVENT.SANDBOX_CREATED,
+            { sandboxId: handle.id, provider: handle.provider },
+          )
+        }
       } catch (error) {
         await drainWatcher(state, 'error')
         await stopSnapshotLease(state).catch(() => {})
@@ -984,12 +1132,14 @@ export function withSandbox<TOffset extends string = string>(
     // Keep the recorded tool history OUT of the request to the model. It is stored
     // history for the next turn, it names tools the provider was never given, and one
     // triage-sized run is hundreds of kilobytes — so replaying it is wasteful at best
-    // and rejected at worst. `ctx.messages` keeps it (that is what gets stored and
-    // rendered); only `config.messages` loses it.
+    // and rejected at worst. Only `providerMessages` loses it. Returning `messages`
+    // would replace the engine's transcript, so persistence would save each run
+    // without the tool calls of earlier runs.
     onConfig(_ctx, config) {
-      const messages = stripObservedToolCalls(config.messages)
-      if (messages.length === config.messages.length) return
-      return { messages }
+      const outgoing = config.providerMessages ?? config.messages
+      const providerMessages = stripObservedToolCalls(outgoing)
+      if (providerMessages.length === outgoing.length) return
+      return { providerMessages }
     },
 
     // The engine re-syncs `middlewareCtx.messages` from its own array once per agent
@@ -1034,85 +1184,7 @@ export function withSandbox<TOffset extends string = string>(
 
       let primaryError: unknown
       try {
-        const snapshotCaptureTask = Promise.resolve().then(
-          async (): Promise<void> => {
-            const config = state.snapshotConfig
-            const runtime = state.snapshotRuntime
-            const lease = state.snapshotLease
-            if (!config || !runtime || !handle || !lease) {
-              if (state.snapshotLost) throw state.snapshotLost
-              return
-            }
-            if (!canPublishPortableSnapshot(state, lease)) return
-
-            await runtime.completion.waitForRunCompletion()
-            if (!canPublishPortableSnapshot(state, lease)) return
-
-            const conversation =
-              await runtime.persistence.stores.messages.loadThread(ctx.threadId)
-            if (!canPublishPortableSnapshot(state, lease)) return
-
-            const files = await captureSandboxFiles(
-              handle,
-              {
-                blobs: config.persistence.stores.blobs,
-                workspaceRoot:
-                  definition.workspace?.root ?? DEFAULT_WORKSPACE_ROOT,
-              },
-              state.snapshotPolicy,
-              definition.workspace?.secrets !== undefined
-                ? resolveAllSecrets(definition.workspace.secrets)
-                : {},
-            )
-            if (!canPublishPortableSnapshot(state, lease)) return
-
-            const artifacts = await captureSandboxArtifacts(
-              {
-                blobs: config.persistence.stores.blobs,
-                artifacts: config.persistence.stores.artifacts,
-              },
-              ctx.threadId,
-              definition.workspace?.secrets !== undefined
-                ? resolveAllSecrets(definition.workspace.secrets)
-                : {},
-            )
-            if (!canPublishPortableSnapshot(state, lease)) return
-
-            const parentCheckpointId = await config.checkpoints.getHead(
-              ctx.threadId,
-            )
-            if (!canPublishPortableSnapshot(state, lease)) return
-
-            try {
-              await config.checkpoints.append({
-                checkpoint: {
-                  id: `checkpoint-${ctx.runId}`,
-                  threadId: ctx.threadId,
-                  parentCheckpointId,
-                  createdAt: Date.now(),
-                  reason: 'automatic',
-                  sourceRunId: ctx.runId,
-                  files: files.files,
-                  conversation,
-                  artifacts,
-                },
-                expectedHeadId: parentCheckpointId,
-                writer: lease,
-              })
-            } catch (error) {
-              if (state.snapshotLost) throw state.snapshotLost
-              throw error
-            }
-            if (state.snapshotLost) throw state.snapshotLost
-          },
-        )
-        state.snapshotCaptureTask = snapshotCaptureTask
-        try {
-          await snapshotCaptureTask
-        } finally {
-          if (state.snapshotCaptureTask === snapshotCaptureTask)
-            state.snapshotCaptureTask = undefined
-        }
+        await capturePortableCheckpoint(definition, state, ctx, 'finish')
 
         const lifecycle = definition.lifecycle
 
@@ -1187,6 +1259,8 @@ export function withSandbox<TOffset extends string = string>(
       // the sandbox is about to be destroyed or merely detached, or the final
       // file's diff is dropped.
       await drainWatcher(state, 'abort')
+      // Before the lease stops and before any destroy, while the files exist.
+      await checkpointFailedRun(definition, state, ctx, 'abort')
       let releaseError: unknown
       try {
         await stopSnapshotLease(state, { closePortable: true })
@@ -1246,6 +1320,8 @@ export function withSandbox<TOffset extends string = string>(
       if (!state) return
 
       await drainWatcher(state, 'error')
+      // Before the lease stops and before any destroy, while the files exist.
+      await checkpointFailedRun(definition, state, ctx, 'error')
       let releaseError: unknown
       try {
         await stopSnapshotLease(state)

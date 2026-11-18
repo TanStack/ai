@@ -225,7 +225,7 @@ For a React and TanStack Start walkthrough with `useGenerateImage`, see [Generat
 
 ## Video
 
-`openRouterVideo` makes videos with Seedance, Veo 3.1, Wan, Kling, and more, through the async video API of OpenRouter (`POST /api/v1/videos`). Video generation is experimental. For the full server and client code, see [OpenRouter: Advanced](./openrouter-advanced#video-generation).
+`openRouterVideo` makes videos with Seedance, Veo 3.1, Wan, Kling, and more, through the async video API of OpenRouter (`POST /api/v1/videos`). For the full server and client code, see [OpenRouter: Advanced](./openrouter-advanced#video-generation).
 
 ## Reranking
 
@@ -293,6 +293,27 @@ console.log(result.meta.usage);
 - `result.meta.provider`: the upstream provider that served the request.
 
 Known ids: `~typesafe/jev-latest`, `typesafe/jev-1.13`, `typesafe/jev-1.13.0`. See the [Evaluate guide](../evaluate/evaluate).
+
+When OpenRouter sends an error response, the thrown error has the HTTP status code in `status`. A rate limit (429) needs a retry, but a bad key (401) does not:
+
+```typescript
+import { decide, boolean } from "@tanstack/ai";
+import { openRouterDecider } from "@tanstack/ai-openrouter";
+
+try {
+  await decide({
+    adapter: openRouterDecider("~typesafe/jev-latest"),
+    state: { body: "Please refund the extra payment." },
+    questions: {
+      refund: boolean({ instructions: "Is the customer asking for a refund?" }),
+    },
+  });
+} catch (error) {
+  if (error instanceof Error && "status" in error && error.status === 429) {
+    // Rate limited. Wait, then call decide() again.
+  }
+}
+```
 
 ## Summarization
 

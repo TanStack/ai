@@ -302,10 +302,13 @@ export class VercelGatewayEvaluateAdapter<
 
       if (!response.ok) {
         const detail = await response.text().catch(() => '')
-        throw new Error(
-          `Vercel Gateway evaluate request failed: ${response.status} ${response.statusText}${
-            detail ? ` — ${detail}` : ''
-          }`,
+        throw Object.assign(
+          new Error(
+            `Vercel Gateway evaluate request failed: ${response.status} ${response.statusText}${
+              detail ? ` — ${detail}` : ''
+            }`,
+          ),
+          { status: response.status },
         )
       }
 

@@ -1,4 +1,5 @@
-import { OpenRouter } from '@openrouter/sdk'
+import { createOpenRouterVideoClient } from '../client/index'
+import type { OpenRouterClient } from '../client/index'
 import {
   buildBaseUsage,
   isFileSource,
@@ -44,8 +45,6 @@ import type { OpenRouterClientConfig } from '../utils/client'
 
 /**
  * Configuration for the OpenRouter video adapter.
- *
- * @experimental Video generation is an experimental feature and may change.
  */
 export interface OpenRouterVideoConfig extends OpenRouterClientConfig {}
 
@@ -210,8 +209,6 @@ function buildVideoUsage(
  * through one gateway. Uses a jobs/polling architecture: submit a job, poll
  * `GET /api/v1/videos/{jobId}` until completed, then download from the
  * job's unsigned URLs.
- *
- * @experimental Video generation is an experimental feature and may change.
  */
 export class OpenRouterVideoAdapter<
   TModel extends OpenRouterVideoModel,
@@ -226,11 +223,11 @@ export class OpenRouterVideoAdapter<
   override readonly kind = 'video' as const
   readonly name = 'openrouter' as const
 
-  private readonly client: OpenRouter
+  private readonly client: Pick<OpenRouterClient, 'videoGeneration'>
 
   constructor(config: OpenRouterVideoConfig, model: TModel) {
     super({}, model)
-    this.client = new OpenRouter({
+    this.client = createOpenRouterVideoClient({
       ...config,
       apiKey: config.apiKey,
       serverURL: config.baseURL,
@@ -296,9 +293,10 @@ export class OpenRouterVideoAdapter<
         `activity=video.create provider=${this.name} model=${this.model} size=${size ?? 'default'} duration=${duration ?? 'default'}`,
         { provider: this.name, model: this.model },
       )
-      const response = await this.client.videoGeneration.generate({
-        videoGenerationRequest: request,
-      })
+      const response = await this.client.videoGeneration.generate(
+        { videoGenerationRequest: request },
+        { signal: options.abortSignal },
+      )
       return { jobId: response.id, model: this.model }
     } catch (error) {
       logger.errors(`${this.name}.createVideoJob fatal`, {
@@ -315,8 +313,14 @@ export class OpenRouterVideoAdapter<
     return getVideoDurationOptions(this.model)
   }
 
-  async getVideoStatus(jobId: string): Promise<VideoStatusResult> {
-    const response = await this.client.videoGeneration.getGeneration({ jobId })
+  async getVideoStatus(
+    jobId: string,
+    options?: { abortSignal?: AbortSignal },
+  ): Promise<VideoStatusResult> {
+    const response = await this.client.videoGeneration.getGeneration(
+      { jobId },
+      ...requestArgs(options?.abortSignal),
+    )
     return {
       jobId,
       status: mapStatus(response.status),
@@ -326,8 +330,13 @@ export class OpenRouterVideoAdapter<
 
   override async getVideo(
     jobId: string,
+    options?: { abortSignal?: AbortSignal },
   ): Promise<VideoUrlResult | VideoStreamResult> {
-    const response = await this.client.videoGeneration.getGeneration({ jobId })
+    const reqArgs = requestArgs(options?.abortSignal)
+    const response = await this.client.videoGeneration.getGeneration(
+      { jobId },
+      ...reqArgs,
+    )
     const status = mapStatus(response.status)
     if (status === 'failed') {
       throw new Error(
@@ -348,7 +357,10 @@ export class OpenRouterVideoAdapter<
     // accepts `video/mp4` and streams the bytes.
     let stream: ReadableStream<Uint8Array>
     try {
-      stream = await this.client.videoGeneration.getVideoContent({ jobId })
+      stream = await this.client.videoGeneration.getVideoContent(
+        { jobId },
+        ...reqArgs,
+      )
     } catch (error) {
       const detail = error instanceof Error ? error.message : String(error)
       throw new Error(
@@ -368,7 +380,6 @@ export class OpenRouterVideoAdapter<
 /**
  * Creates an OpenRouter video adapter with an explicit API key.
  *
- * @experimental Video generation is an experimental feature and may change.
  *
  * @example
  * ```typescript
@@ -392,7 +403,6 @@ export function createOpenRouterVideo<TModel extends OpenRouterVideoModel>(
  * Creates an OpenRouter video adapter using the `OPENROUTER_API_KEY`
  * environment variable.
  *
- * @experimental Video generation is an experimental feature and may change.
  *
  * @example
  * ```typescript
@@ -412,4 +422,14 @@ export function openRouterVideo<TModel extends OpenRouterVideoModel>(
 ): OpenRouterVideoAdapter<TModel> {
   const apiKey = getOpenRouterApiKeyFromEnv()
   return createOpenRouterVideo(model, apiKey, config)
+}
+
+/**
+ * SDK request options that carry the caller's abort signal. Empty without a
+ * signal, so the SDK call keeps its one-argument form.
+ */
+function requestArgs(
+  signal: AbortSignal | undefined,
+): [] | [{ fetchOptions: { signal: AbortSignal } }] {
+  return signal ? [{ fetchOptions: { signal } }] : []
 }

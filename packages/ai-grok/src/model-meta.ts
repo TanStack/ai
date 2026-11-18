@@ -338,8 +338,6 @@ export const GROK_IMAGE_MODELS = [
 
 /**
  * Grok Video Generation Models (xAI Imagine API)
- *
- * @experimental Video generation is an experimental feature and may change.
  */
 export const GROK_VIDEO_MODELS = [
   GROK_IMAGINE_VIDEO.name,

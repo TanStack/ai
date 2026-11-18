@@ -1,4 +1,4 @@
-import { GoogleGenAI } from '@google/genai'
+import { createGoogleGenAI } from '../client/index'
 import { getGeminiApiKeyFromEnv } from '../utils'
 import type { RealtimeToken, RealtimeTokenAdapter } from '@tanstack/ai'
 import type { GeminiRealtimeTokenOptions } from './types'
@@ -31,13 +31,15 @@ export function geminiRealtimeToken(
 ): RealtimeTokenAdapter {
   const apiKey = getGeminiApiKeyFromEnv()
 
-  const client = new GoogleGenAI({
+  const client = createGoogleGenAI({
     apiKey,
   })
 
   return {
     provider: 'gemini',
-    async generateToken(): Promise<RealtimeToken> {
+    async generateToken(request?: {
+      abortSignal?: AbortSignal
+    }): Promise<RealtimeToken> {
       // Computed per call so a reused adapter doesn't mint tokens with a
       // fixed (and eventually past) expiry. Defaults to 30 minutes.
       const expireTime = options.expiresAt ?? Date.now() + 30 * 60 * 1000
@@ -50,6 +52,7 @@ export function geminiRealtimeToken(
           httpOptions: {
             apiVersion: 'v1alpha',
           },
+          ...(request?.abortSignal && { abortSignal: request.abortSignal }),
         },
       })
 

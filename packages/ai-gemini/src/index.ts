@@ -59,7 +59,7 @@ export type {
 // These SDK enums are values, so they cannot travel through `export type`.
 // Re-exported here so `safetySettings` and `thinkingConfig.thinkingLevel`
 // are usable with only `@tanstack/ai-gemini` installed.
-export { HarmBlockThreshold, HarmCategory, ThinkingLevel } from '@google/genai'
+export { HarmBlockThreshold, HarmCategory, ThinkingLevel } from './client/enums'
 
 // Files API helpers — upload + poll a file (e.g. video) until it is ACTIVE
 export {
@@ -103,10 +103,7 @@ export {
   type GeminiAudioProviderOptions,
 } from './adapters/audio'
 
-// Video generation adapter — Veo + Gemini Omni Flash (experimental)
-/**
- * @experimental Video generation is an experimental feature and may change.
- */
+// Video generation adapter — Veo + Gemini Omni Flash
 export {
   GeminiVideoAdapter,
   createGeminiVideo,

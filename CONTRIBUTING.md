@@ -14,7 +14,7 @@ Thanks for contributing! This guide covers everything you need to get from a fre
 
 - **pnpm**: 11.9.0 or newer. Use the version pinned in `packageManager` (`pnpm@11.9.0`).
   - Recommended: install via [Corepack](https://nodejs.org/api/corepack.html). Run `corepack enable` once and pnpm is managed automatically.
-- **Node**: 24.8.0, the version in `.nvmrc`. On Node 22, Nx fails to load the workspace plugin.
+- **Node**: the Node 24 version in `.nvmrc`. On Node 22, Nx fails to load the workspace plugin.
 - **Git**.
 
 ## Initial setup
@@ -53,8 +53,8 @@ For deeper architecture details (adapter system, isomorphic tools, framework int
 
 `pnpm generate:models` is the maintainer command behind the daily **Sync Model Metadata** workflow (branch `automated/sync-models`). It:
 
-1. Fetches OpenRouter, Vercel AI Gateway, and Lovable AI Gateway catalogs.
-2. Regenerates `packages/ai-openrouter/src/model-meta.ts` and the Vercel Gateway model list.
+1. Fetches OpenRouter, Vercel AI Gateway, Lovable AI Gateway, and Neon AI Gateway catalogs.
+2. Regenerates `packages/ai-openrouter/src/model-meta.ts` and the Vercel Gateway and Neon model lists.
 3. Inserts **new** native-provider models into `packages/ai-openai`, `ai-anthropic`, `ai-gemini`, and `ai-grok`.
 4. Inserts **new** ElevenLabs text-to-speech, music, sound-effect, and voice-design ids from [modelschemas](https://modelschemas.com/v1/schemas/elevenlabs) into `packages/ai-elevenlabs/src/model-meta.ts`. Transcription ids stay hand-maintained.
 5. Writes a patch changeset for the packages that changed.

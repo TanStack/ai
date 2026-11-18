@@ -10,7 +10,7 @@ import {
   type SafetySetting,
 } from '@google/genai'
 import { GeminiTextAdapter } from '../src/adapters/text'
-import { googleSearchTool } from '../src/tools'
+import { codeExecutionTool, googleSearchTool } from '../src/tools'
 import { createGeminiSummarize } from '../src/adapters/summarize'
 import type { GeminiTextProviderOptions } from '../src/adapters/text'
 import type { Schema } from '@google/genai'
@@ -24,15 +24,13 @@ const mocks = vi.hoisted(() => {
   }
 })
 
-vi.mock('@google/genai', async () => {
+vi.mock('../src/client', () => {
   const {
     constructorSpy,
     generateContentSpy,
     generateContentStreamSpy,
     getGenerativeModelSpy,
   } = mocks
-
-  const actual = await vi.importActual<any>('@google/genai')
   class MockGoogleGenAI {
     public models = {
       generateContent: generateContentSpy,
@@ -41,15 +39,18 @@ vi.mock('@google/genai', async () => {
 
     public getGenerativeModel = getGenerativeModelSpy
 
-    constructor(options: { apiKey: string }) {
+    public vertexai: boolean
+
+    constructor(options: { apiKey: string; vertexai?: boolean }) {
       constructorSpy(options)
+      this.vertexai = options.vertexai === true
     }
   }
 
   return {
-    GoogleGenAI: MockGoogleGenAI,
-    Type: actual.Type,
-    FinishReason: actual.FinishReason,
+    createGoogleGenAI: (
+      options: ConstructorParameters<typeof MockGoogleGenAI>[0],
+    ) => new MockGoogleGenAI(options),
   }
 })
 
@@ -238,7 +239,12 @@ describe('GeminiAdapter through AI', () => {
 
     expect(mocks.generateContentStreamSpy).toHaveBeenCalledTimes(1)
     const [payload] = mocks.generateContentStreamSpy.mock.calls[0]!
-    expect(payload.config.abortSignal).toBe(abortController.signal)
+    // chat() links the caller signal with middleware ctx.abort(), so the SDK
+    // gets a linked signal that aborts with the caller.
+    const sdkSignal: AbortSignal = payload.config.abortSignal
+    expect(sdkSignal.aborted).toBe(false)
+    abortController.abort()
+    expect(sdkSignal.aborted).toBe(true)
   })
 
   it('omits config.abortSignal when no abort controller is supplied', async () => {
@@ -433,6 +439,120 @@ describe('GeminiAdapter through AI', () => {
       thinkingBudget: 128,
     })
     expect(config.imageConfig).toEqual(providerOptions?.imageConfig)
+  })
+
+  it('reports content_filter over tool_calls when a filter stops a tool call', async () => {
+    mocks.generateContentStreamSpy.mockResolvedValueOnce(
+      createStream([
+        {
+          candidates: [
+            {
+              content: {
+                parts: [
+                  {
+                    functionCall: {
+                      id: 'call_1',
+                      name: 'lookup_weather',
+                      args: { location: 'Berlin' },
+                    },
+                  },
+                ],
+              },
+              finishReason: 'SAFETY',
+            },
+          ],
+        },
+      ]),
+    )
+
+    const chunks = await collectChunks(
+      createTextAdapter().chatStream({
+        threadId: 'filtered-thread',
+        model: 'gemini-2.5-pro',
+        logger: testLogger,
+        messages: [{ role: 'user', content: 'Weather?' }],
+      }),
+    )
+
+    expect(
+      chunks.filter((chunk) => chunk.type === 'TOOL_CALL_END'),
+    ).toHaveLength(1)
+    expect(
+      chunks.filter((chunk) => chunk.type === 'TEXT_MESSAGE_START'),
+    ).toHaveLength(0)
+    expect(chunks.filter((chunk) => chunk.type === 'RUN_FINISHED')).toEqual([
+      expect.objectContaining({ finishReason: 'content_filter' }),
+    ])
+  })
+
+  it('keeps OTHER as a normal stop', async () => {
+    mocks.generateContentStreamSpy.mockResolvedValueOnce(
+      createStream([
+        { candidates: [{ content: { parts: [] }, finishReason: 'OTHER' }] },
+      ]),
+    )
+
+    const chunks = await collectChunks(
+      createTextAdapter().chatStream({
+        threadId: 'other-thread',
+        model: 'gemini-2.5-pro',
+        logger: testLogger,
+        messages: [{ role: 'user', content: 'Hi' }],
+      }),
+    )
+
+    expect(chunks.filter((chunk) => chunk.type === 'RUN_FINISHED')).toEqual([
+      expect.objectContaining({ finishReason: 'stop' }),
+    ])
+  })
+
+  it.each([
+    'SAFETY',
+    'RECITATION',
+    'BLOCKLIST',
+    'PROHIBITED_CONTENT',
+    'SPII',
+    'IMAGE_SAFETY',
+    'IMAGE_PROHIBITED_CONTENT',
+    'IMAGE_RECITATION',
+  ])('reports %s as content_filter', async (finishReason) => {
+    mocks.generateContentStreamSpy.mockResolvedValueOnce(
+      createStream([
+        { candidates: [{ content: { parts: [{ text: 'Partial' }] } }] },
+        {
+          candidates: [{ content: { parts: [] }, finishReason }],
+          usageMetadata: {
+            promptTokenCount: 4,
+            candidatesTokenCount: 2,
+            totalTokenCount: 6,
+          },
+        },
+      ]),
+    )
+
+    const chunks = await collectChunks(
+      createTextAdapter().chatStream({
+        threadId: 'filtered-thread',
+        model: 'gemini-2.5-pro',
+        logger: testLogger,
+        messages: [{ role: 'user', content: 'Continue' }],
+      }),
+    )
+
+    expect(chunks.filter((chunk) => chunk.type === 'RUN_ERROR')).toHaveLength(0)
+    expect(chunks.filter((chunk) => chunk.type === 'RUN_FINISHED')).toEqual([
+      expect.objectContaining({
+        finishReason: 'content_filter',
+        usage: expect.objectContaining({
+          promptTokens: 4,
+          completionTokens: 2,
+          totalTokens: 6,
+        }),
+      }),
+    ])
+    expect(
+      chunks.findIndex((chunk) => chunk.type === 'TEXT_MESSAGE_END'),
+    ).toBeLessThan(chunks.findIndex((chunk) => chunk.type === 'RUN_FINISHED'))
   })
 
   it('streams chat chunks using mapped provider config', async () => {
@@ -799,6 +919,360 @@ describe('GeminiAdapter through AI', () => {
           chunk.toolCallName === 'google_search',
       ),
     ).toHaveLength(0)
+  })
+
+  describe('built-in tools beside function tools', () => {
+    const toolCallPart = {
+      toolCall: {
+        id: 'search_1',
+        toolType: 'GOOGLE_SEARCH_WEB',
+        args: { queries: ['utah news'] },
+      },
+      thoughtSignature: 'sig-search',
+    }
+    const toolResponsePart = {
+      toolResponse: {
+        id: 'search_1',
+        toolType: 'GOOGLE_SEARCH_WEB',
+        response: { search_suggestions: '<div></div>' },
+      },
+      thoughtSignature: 'sig-response',
+    }
+    const lookupTool: Tool = {
+      name: 'lookup_caucus',
+      description: 'Look up a caucus location',
+      execute: async () => ({ location: 'Library' }),
+    }
+    const textStream = () =>
+      createStream([
+        {
+          candidates: [
+            { content: { parts: [{ text: 'Done' }] }, finishReason: 'STOP' },
+          ],
+        },
+      ])
+
+    it('sets the flag and sends the built-in tool parts back in place', async () => {
+      mocks.generateContentStreamSpy
+        .mockResolvedValueOnce(
+          createStream([
+            {
+              candidates: [
+                {
+                  content: {
+                    parts: [
+                      toolCallPart,
+                      {
+                        functionCall: {
+                          id: 'call_1',
+                          name: 'lookup_caucus',
+                          args: { county: 'Salt Lake' },
+                        },
+                      },
+                      toolResponsePart,
+                    ],
+                  },
+                  finishReason: 'STOP',
+                },
+              ],
+            },
+          ]),
+        )
+        .mockResolvedValueOnce(textStream())
+
+      const received: Array<AdapterYieldChunk> = []
+      for await (const chunk of chat({
+        threadId: 'thread-1',
+        adapter: new GeminiTextAdapter(
+          { apiKey: 'test-key' },
+          'gemini-3.6-flash',
+        ),
+        tools: [googleSearchTool(), lookupTool],
+        messages: [{ role: 'user', content: 'Search and look up.' }],
+      })) {
+        received.push(chunk)
+      }
+
+      expect(mocks.generateContentStreamSpy).toHaveBeenCalledTimes(2)
+      const [firstPayload] = mocks.generateContentStreamSpy.mock.calls[0]!
+      expect(firstPayload.config.toolConfig).toEqual({
+        includeServerSideToolInvocations: true,
+      })
+      expect(
+        received.find(
+          (chunk) =>
+            chunk.type === 'TOOL_CALL_START' &&
+            chunk.toolCallName === 'google_search',
+        ),
+      ).toMatchObject({ metadata: { providerExecuted: true } })
+
+      const [secondPayload] = mocks.generateContentStreamSpy.mock.calls[1]!
+      const modelTurn = secondPayload.contents.find(
+        (content: any) => content.role === 'model',
+      )
+      expect(modelTurn.parts).toEqual([
+        toolCallPart,
+        {
+          functionCall: {
+            id: 'call_1',
+            name: 'lookup_caucus',
+            args: { county: 'Salt Lake' },
+          },
+        },
+        toolResponsePart,
+      ])
+    })
+
+    const functionCallPart = (id: string) => ({
+      functionCall: { id, name: 'lookup_caucus', args: { county: 'Utah' } },
+    })
+
+    it.each([
+      {
+        label: 'at the start',
+        parts: [
+          { text: 'Searching first.' },
+          toolCallPart,
+          toolResponsePart,
+          functionCallPart('call_1'),
+        ],
+      },
+      {
+        label: 'after a function call',
+        parts: [
+          functionCallPart('call_1'),
+          { text: 'Searching next.' },
+          toolCallPart,
+          toolResponsePart,
+          functionCallPart('call_2'),
+        ],
+      },
+    ])(
+      'sends built-in tool parts back after text $label',
+      async ({ parts }) => {
+        mocks.generateContentStreamSpy
+          .mockResolvedValueOnce(
+            createStream([
+              {
+                candidates: [{ content: { parts }, finishReason: 'STOP' }],
+              },
+            ]),
+          )
+          .mockResolvedValueOnce(textStream())
+
+        for await (const _ of chat({
+          threadId: 'thread-1',
+          adapter: new GeminiTextAdapter(
+            { apiKey: 'test-key' },
+            'gemini-3.6-flash',
+          ),
+          tools: [googleSearchTool(), lookupTool],
+          messages: [{ role: 'user', content: 'Search and look up.' }],
+        })) {
+          // consume
+        }
+
+        const [secondPayload] = mocks.generateContentStreamSpy.mock.calls[1]!
+        const modelTurn = secondPayload.contents.find(
+          (content: any) => content.role === 'model',
+        )
+        expect(modelTurn.parts).toEqual(parts)
+      },
+    )
+
+    it('sends code execution parts back beside a function tool', async () => {
+      const codePart = {
+        executableCode: { code: 'print(2**40)' },
+        thoughtSignature: 'sig-code',
+      }
+      const resultPart = {
+        codeExecutionResult: { output: '1099511627776' },
+        thoughtSignature: 'sig-result',
+      }
+      const callPart = {
+        functionCall: {
+          id: 'call_1',
+          name: 'lookup_caucus',
+          args: { county: 'Salt Lake' },
+        },
+      }
+      mocks.generateContentStreamSpy
+        .mockResolvedValueOnce(
+          createStream([
+            {
+              candidates: [
+                {
+                  content: { parts: [codePart, callPart, resultPart] },
+                  finishReason: 'STOP',
+                },
+              ],
+            },
+          ]),
+        )
+        .mockResolvedValueOnce(textStream())
+
+      for await (const _ of chat({
+        threadId: 'thread-1',
+        adapter: new GeminiTextAdapter(
+          { apiKey: 'test-key' },
+          'gemini-3.6-flash',
+        ),
+        tools: [codeExecutionTool(), lookupTool],
+        messages: [{ role: 'user', content: 'Compute and look up.' }],
+      })) {
+        // consume
+      }
+
+      const [secondPayload] = mocks.generateContentStreamSpy.mock.calls[1]!
+      const modelTurn = secondPayload.contents.find(
+        (content: any) => content.role === 'model',
+      )
+      expect(modelTurn.parts).toEqual([codePart, callPart, resultPart])
+    })
+
+    it('emits no provider call for a code run without function tools', async () => {
+      mocks.generateContentStreamSpy.mockResolvedValueOnce(
+        createStream([
+          {
+            candidates: [
+              {
+                content: {
+                  parts: [
+                    { executableCode: { code: 'print(2**40)' } },
+                    { codeExecutionResult: { output: '1099511627776' } },
+                    { text: '1099511627776' },
+                  ],
+                },
+                finishReason: 'STOP',
+              },
+            ],
+          },
+        ]),
+      )
+
+      const received: Array<AdapterYieldChunk> = []
+      for await (const chunk of chat({
+        threadId: 'thread-1',
+        adapter: new GeminiTextAdapter(
+          { apiKey: 'test-key' },
+          'gemini-3.6-flash',
+        ),
+        tools: [codeExecutionTool()],
+        messages: [{ role: 'user', content: 'Compute 2**40.' }],
+      })) {
+        received.push(chunk)
+      }
+
+      expect(
+        received.filter((chunk) => chunk.type === 'TOOL_CALL_START'),
+      ).toHaveLength(0)
+    })
+
+    it('does not set the flag on Vertex AI, where the SDK rejects it', async () => {
+      mocks.generateContentStreamSpy.mockResolvedValueOnce(textStream())
+
+      for await (const _ of chat({
+        threadId: 'thread-1',
+        adapter: new GeminiTextAdapter(
+          { vertexai: true, project: 'p', location: 'us-central1' },
+          'gemini-3.6-flash',
+        ),
+        tools: [googleSearchTool(), lookupTool],
+        messages: [{ role: 'user', content: 'Search and look up.' }],
+      })) {
+        // consume
+      }
+
+      const [payload] = mocks.generateContentStreamSpy.mock.calls[0]!
+      expect(payload.config.toolConfig).toBeUndefined()
+    })
+
+    it('throws on Vertex AI when the next step must send toolCall parts', async () => {
+      mocks.generateContentStreamSpy.mockResolvedValueOnce(
+        createStream([
+          {
+            candidates: [
+              {
+                content: {
+                  parts: [
+                    toolCallPart,
+                    {
+                      functionCall: {
+                        id: 'call_1',
+                        name: 'lookup_caucus',
+                        args: { county: 'Salt Lake' },
+                      },
+                    },
+                    toolResponsePart,
+                  ],
+                },
+                finishReason: 'STOP',
+              },
+            ],
+          },
+        ]),
+      )
+
+      await expect(async () => {
+        for await (const _ of chat({
+          threadId: 'thread-1',
+          adapter: new GeminiTextAdapter(
+            { vertexai: true, project: 'p', location: 'us-central1' },
+            'gemini-3.6-flash',
+          ),
+          tools: [googleSearchTool(), lookupTool],
+          messages: [{ role: 'user', content: 'Search and look up.' }],
+        })) {
+          // consume
+        }
+      }).rejects.toThrow(/toolCall or toolResponse/)
+      expect(mocks.generateContentStreamSpy).toHaveBeenCalledTimes(1)
+    })
+
+    it('sends code execution parts back on Vertex AI', async () => {
+      const codePart = { executableCode: { code: 'print(1)' } }
+      const resultPart = { codeExecutionResult: { output: '1' } }
+      const callPart = {
+        functionCall: {
+          id: 'call_1',
+          name: 'lookup_caucus',
+          args: { county: 'Salt Lake' },
+        },
+      }
+      mocks.generateContentStreamSpy
+        .mockResolvedValueOnce(
+          createStream([
+            {
+              candidates: [
+                {
+                  content: { parts: [codePart, callPart, resultPart] },
+                  finishReason: 'STOP',
+                },
+              ],
+            },
+          ]),
+        )
+        .mockResolvedValueOnce(textStream())
+
+      for await (const _ of chat({
+        threadId: 'thread-1',
+        adapter: new GeminiTextAdapter(
+          { vertexai: true, project: 'p', location: 'us-central1' },
+          'gemini-3.6-flash',
+        ),
+        tools: [codeExecutionTool(), lookupTool],
+        messages: [{ role: 'user', content: 'Compute and look up.' }],
+      })) {
+        // consume
+      }
+
+      const [secondPayload] = mocks.generateContentStreamSpy.mock.calls[1]!
+      const modelTurn = secondPayload.contents.find(
+        (content: any) => content.role === 'model',
+      )
+      expect(modelTurn.parts).toEqual([codePart, callPart, resultPart])
+      expect(secondPayload.config.toolConfig).toBeUndefined()
+    })
   })
 
   it('emits parentMessageId on tool-first tool calls matching the assistant message id', async () => {
@@ -1520,6 +1994,66 @@ describe('GeminiAdapter through AI', () => {
     ).rejects.toThrow(/maximum token limit was reached/)
   })
 
+  it('reports a SAFETY stop as content_filter in structuredOutput', async () => {
+    mocks.generateContentSpy.mockResolvedValue({
+      candidates: [{ content: { parts: [] }, finishReason: 'SAFETY' }],
+    })
+
+    await expect(
+      createTextAdapter().structuredOutput({
+        chatOptions: {
+          threadId: 'thread-1',
+          model: 'gemini-2.5-pro',
+          messages: [{ role: 'user', content: 'Return a city' }],
+          logger: testLogger,
+        },
+        outputSchema: cityJsonSchema,
+      }),
+    ).rejects.toThrow(/content filter \(finishReason=SAFETY\)/)
+  })
+
+  it('emits content_filter when a filter stops the structured stream', async () => {
+    mocks.generateContentStreamSpy.mockResolvedValue(
+      createStream([
+        {
+          candidates: [
+            {
+              content: { parts: [{ text: '{"city":' }] },
+              finishReason: 'SAFETY',
+            },
+          ],
+          usageMetadata: {
+            promptTokenCount: 4,
+            candidatesTokenCount: 2,
+            totalTokenCount: 6,
+          },
+        },
+      ]),
+    )
+
+    const events = await collectChunks(
+      createTextAdapter().structuredOutputStream({
+        chatOptions: {
+          threadId: 'thread-1',
+          model: 'gemini-2.5-pro',
+          messages: [{ role: 'user', content: 'Return a city' }],
+          logger: testLogger,
+        },
+        outputSchema: cityJsonSchema,
+      }),
+    )
+
+    expect(events.filter((event) => event.type === 'RUN_ERROR')).toEqual([
+      expect.objectContaining({
+        code: 'content_filter',
+        usage: expect.objectContaining({ totalTokens: 6 }),
+      }),
+    ])
+    expect(
+      events.filter((event) => event.type === 'RUN_FINISHED'),
+    ).toHaveLength(0)
+  })
+
   it('emits empty-response when the structured stream has no text', async () => {
     mocks.generateContentStreamSpy.mockResolvedValue(
       createStream([
@@ -1759,5 +2293,322 @@ describe('Gemini adapter error handling', () => {
   it('does not set it on another bad request', async () => {
     const runError = await runErrorFor(400, 'Invalid JSON payload received.')
     expect(runError).not.toHaveProperty('code')
+  })
+})
+
+describe('Gemini adapter usage on error paths', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  const usageMetadata = {
+    promptTokenCount: 5,
+    candidatesTokenCount: 3,
+    totalTokenCount: 8,
+  }
+  const expectedUsage = { promptTokens: 5, completionTokens: 3, totalTokens: 8 }
+  const chatOptions = {
+    threadId: 'thread-1',
+    model: 'gemini-2.5-pro' as const,
+    messages: [{ role: 'user' as const, content: 'hi' }],
+    logger: testLogger,
+  }
+
+  it('puts usage on the max_tokens RUN_ERROR and sends no RUN_FINISHED after it', async () => {
+    mocks.generateContentStreamSpy.mockResolvedValue(
+      createStream([
+        {
+          candidates: [
+            {
+              content: { parts: [{ text: 'cut' }] },
+              finishReason: 'MAX_TOKENS',
+            },
+          ],
+          usageMetadata,
+        },
+      ]),
+    )
+
+    const chunks = await collectChunks(
+      createTextAdapter().chatStream(chatOptions),
+    )
+
+    expect(runErrorEvent(chunks)).toMatchObject({
+      code: 'max_tokens',
+      usage: expectedUsage,
+    })
+    expect(chunks.some((c) => c.type === EventType.RUN_FINISHED)).toBe(false)
+  })
+
+  it('ends a blocked prompt with a RUN_ERROR that carries usage', async () => {
+    mocks.generateContentStreamSpy.mockResolvedValue(
+      createStream([
+        { promptFeedback: { blockReason: 'SAFETY' }, usageMetadata },
+      ]),
+    )
+
+    const chunks = await collectChunks(
+      createTextAdapter().chatStream(chatOptions),
+    )
+
+    const runError = runErrorEvent(chunks)
+    expect(runError).toMatchObject({ code: 'SAFETY', usage: expectedUsage })
+    expect(runError?.type === EventType.RUN_ERROR && runError.message).toMatch(
+      /blocked the prompt/,
+    )
+  })
+
+  it('keeps the usage seen before a mid-stream throw on the RUN_ERROR', async () => {
+    mocks.generateContentStreamSpy.mockResolvedValue(
+      (async function* () {
+        yield {
+          candidates: [{ content: { parts: [{ text: 'partial' }] } }],
+          usageMetadata,
+        }
+        throw new Error('socket closed')
+      })(),
+    )
+
+    const chunks = await collectChunks(
+      createTextAdapter().chatStream(chatOptions),
+    )
+
+    expect(runErrorEvent(chunks)).toMatchObject({
+      message: 'socket closed',
+      usage: expectedUsage,
+    })
+  })
+
+  it('does not report the usage again when the stream throws after RUN_FINISHED', async () => {
+    mocks.generateContentStreamSpy.mockResolvedValue(
+      (async function* () {
+        yield {
+          candidates: [
+            { content: { parts: [{ text: 'done' }] }, finishReason: 'STOP' },
+          ],
+          usageMetadata,
+        }
+        throw new Error('socket closed')
+      })(),
+    )
+
+    const chunks = await collectChunks(
+      createTextAdapter().chatStream(chatOptions),
+    )
+
+    const finished = chunks.find((c) => c.type === 'RUN_FINISHED')
+    expect(finished).toMatchObject({ usage: expectedUsage })
+    expect(runErrorEvent(chunks)).not.toHaveProperty('usage')
+  })
+
+  it('reports the last usage seen when the finish chunk has none', async () => {
+    mocks.generateContentStreamSpy.mockResolvedValue(
+      createStream([
+        {
+          candidates: [{ content: { parts: [{ text: 'partial' }] } }],
+          usageMetadata,
+        },
+        {
+          candidates: [
+            { content: { parts: [{ text: ' end' }] }, finishReason: 'STOP' },
+          ],
+        },
+      ]),
+    )
+
+    const chunks = await collectChunks(
+      createTextAdapter().chatStream(chatOptions),
+    )
+
+    expect(chunks.find((c) => c.type === 'RUN_FINISHED')).toMatchObject({
+      usage: expectedUsage,
+    })
+  })
+
+  it('reports the structured stream usage once when the stream throws after MAX_TOKENS', async () => {
+    mocks.generateContentStreamSpy.mockResolvedValue(
+      (async function* () {
+        yield {
+          candidates: [
+            {
+              content: { parts: [{ text: '{"name":' }] },
+              finishReason: 'MAX_TOKENS',
+            },
+          ],
+          usageMetadata,
+        }
+        throw new Error('socket closed')
+      })(),
+    )
+
+    const events = await collectChunks(
+      createTextAdapter().structuredOutputStream({
+        chatOptions,
+        outputSchema: cityJsonSchema,
+      }),
+    )
+
+    const withUsage = events.filter(
+      (c) => c.type === 'RUN_ERROR' && 'usage' in c && c.usage,
+    )
+    expect(withUsage).toHaveLength(1)
+    expect(withUsage[0]).toMatchObject({ code: 'max_tokens' })
+  })
+
+  it('keeps the usage on empty-response and parse-error structured stream errors', async () => {
+    for (const [text, code] of [
+      ['', 'empty-response'],
+      ['{not json', 'parse-error'],
+    ] as const) {
+      mocks.generateContentStreamSpy.mockResolvedValueOnce(
+        createStream([
+          {
+            candidates: [
+              {
+                content: { parts: text ? [{ text }] : [] },
+                finishReason: 'STOP',
+              },
+            ],
+            usageMetadata,
+          },
+        ]),
+      )
+      const events = await collectChunks(
+        createTextAdapter().structuredOutputStream({
+          chatOptions,
+          outputSchema: cityJsonSchema,
+        }),
+      )
+      expect(runErrorEvent(events)).toMatchObject({
+        code,
+        usage: expectedUsage,
+      })
+    }
+  })
+
+  it('attaches usage to the errors structuredOutput throws after a response', async () => {
+    for (const [text, finishReason] of [
+      ['{"city":', 'MAX_TOKENS'],
+      ['{not json', 'STOP'],
+    ]) {
+      mocks.generateContentSpy.mockResolvedValueOnce({
+        candidates: [{ content: { parts: [{ text }] }, finishReason }],
+        usageMetadata,
+      })
+      const error = await createTextAdapter()
+        .structuredOutput({ chatOptions, outputSchema: cityJsonSchema })
+        .catch((e: unknown) => e)
+      expect(error).toBeInstanceOf(Error)
+      expect(error).toMatchObject({ usage: expectedUsage })
+    }
+  })
+})
+
+describe('Gemini stream that ends without a finishReason', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  const usageMetadata = {
+    promptTokenCount: 5,
+    candidatesTokenCount: 3,
+    totalTokenCount: 8,
+  }
+  const chatOptions = {
+    threadId: 'thread-1',
+    model: 'gemini-2.5-pro' as const,
+    messages: [{ role: 'user' as const, content: 'hi' }],
+    logger: testLogger,
+  }
+  const cutStream = (parts: Array<Record<string, unknown>>) =>
+    createStream([{ candidates: [{ content: { parts } }], usageMetadata }])
+
+  it('closes the text, then ends the run with a truncated-stream RUN_ERROR', async () => {
+    mocks.generateContentStreamSpy.mockResolvedValue(
+      cutStream([{ text: 'Hel' }]),
+    )
+
+    const chunks = await collectChunks(
+      createTextAdapter().chatStream(chatOptions),
+    )
+
+    expect(chunks.map((c) => c.type)).toEqual([
+      EventType.RUN_STARTED,
+      EventType.TEXT_MESSAGE_START,
+      EventType.TEXT_MESSAGE_CONTENT,
+      EventType.TEXT_MESSAGE_END,
+      EventType.RUN_ERROR,
+    ])
+    expect(chunks.at(-1)).toMatchObject({
+      code: 'truncated-stream',
+      usage: { promptTokens: 5, completionTokens: 3, totalTokens: 8 },
+    })
+  })
+
+  it('ends started tool calls and reasoning once, before the RUN_ERROR', async () => {
+    mocks.generateContentStreamSpy.mockResolvedValue(
+      cutStream([
+        { text: 'thinking', thought: true },
+        { functionCall: { id: 'call-1', name: 'lookup', args: { q: 'x' } } },
+      ]),
+    )
+
+    const chunks = await collectChunks(
+      createTextAdapter().chatStream(chatOptions),
+    )
+
+    expect(chunks.map((c) => c.type)).toEqual([
+      EventType.RUN_STARTED,
+      EventType.REASONING_START,
+      EventType.REASONING_MESSAGE_START,
+      EventType.REASONING_MESSAGE_CONTENT,
+      EventType.TOOL_CALL_START,
+      EventType.TOOL_CALL_ARGS,
+      EventType.TOOL_CALL_END,
+      EventType.REASONING_MESSAGE_END,
+      EventType.REASONING_END,
+      EventType.RUN_ERROR,
+    ])
+  })
+
+  it('calls onError, not onFinish, through chat()', async () => {
+    mocks.generateContentStreamSpy.mockResolvedValue(
+      cutStream([{ text: 'Hel' }]),
+    )
+    const calls = { finish: 0, error: 0 }
+
+    for await (const _ of chat({
+      threadId: 'thread-1',
+      adapter: createTextAdapter(),
+      messages: [{ role: 'user', content: 'hi' }],
+      middleware: [
+        {
+          name: 'observe',
+          onFinish: () => void calls.finish++,
+          onError: () => void calls.error++,
+        },
+      ],
+    })) {
+      /* consume stream */
+    }
+
+    expect(calls).toEqual({ finish: 0, error: 1 })
+  })
+
+  it('does not report an aborted request as truncated', async () => {
+    mocks.generateContentStreamSpy.mockResolvedValue(
+      cutStream([{ text: 'Hel' }]),
+    )
+    const abortController = new AbortController()
+    abortController.abort()
+
+    const chunks = await collectChunks(
+      createTextAdapter().chatStream({
+        ...chatOptions,
+        request: { signal: abortController.signal },
+      }),
+    )
+
+    expect(runErrorEvent(chunks)).toBeUndefined()
   })
 })

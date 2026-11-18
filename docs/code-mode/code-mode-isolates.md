@@ -388,7 +388,10 @@ interface IsolateConfig {
 }
 
 interface IsolateContext {
-  execute<T = unknown>(code: string): Promise<ExecutionResult<T>>
+  execute<T = unknown>(
+    code: string,
+    options?: { signal?: AbortSignal },
+  ): Promise<ExecutionResult<T>>
   dispose(): Promise<void>
 }
 
@@ -399,3 +402,9 @@ interface ExecutionResult<T = unknown> {
   error?: NormalizedError
 }
 ```
+
+Code Mode passes the abort signal of the tool call as `options.signal`. When it aborts, stop the run and return a failure. The built-in drivers do this:
+
+- The Node, Cloudflare, E2B, and QuickJS drivers stop the run at once. After an abort, the Node and QuickJS contexts are disposed, the same as after a timeout.
+- The QuickJS on Bun driver stops the run between jobs. The context stays usable.
+- The Daytona driver returns at once and starts no more tool rounds. The Daytona SDK cannot cancel a `codeRun`, so a run that started continues in the sandbox until its `timeout`.

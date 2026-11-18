@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import OpenAI from 'openai'
+import { createOpenAIClient } from '../src/client'
 import { chat } from '@tanstack/ai'
 import { OpenAIBaseChatCompletionsTextAdapter } from '../src/adapters/chat-completions-text'
 import type { StreamChunk } from '@tanstack/ai'
@@ -25,7 +25,7 @@ class SSEAdapter extends OpenAIBaseChatCompletionsTextAdapter<string> {
     super(
       'test-model',
       'test-provider',
-      new OpenAI({
+      createOpenAIClient({
         apiKey: 'test-placeholder',
         maxRetries: 0,
         fetch: async () =>
@@ -50,7 +50,7 @@ class SSEAdapter extends OpenAIBaseChatCompletionsTextAdapter<string> {
 }
 
 /**
- * Runs SSE chunks through the real OpenAI SDK and chat() to observe completion.
+ * Runs SSE chunks through our OpenAI client and chat() to observe completion.
  * `done` appends the protocol's [DONE] marker. `cancel` aborts after the first
  * text delta so tests can distinguish caller cancellation from incomplete EOF.
  *
@@ -212,6 +212,27 @@ describe('Chat Completions completion policy with the real SDK', () => {
     )
     expect(result.onError).toHaveBeenCalledTimes(1)
     expect(result.onFinish).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    ['incomplete stream', [{ ...textChunk, usage }]],
+    [
+      'unknown finish_reason',
+      [
+        textChunk,
+        {
+          ...envelope,
+          choices: [{ index: 0, delta: {}, finish_reason: 'error' }],
+        },
+        usageChunk,
+      ],
+    ],
+  ])('keeps received usage on the RUN_ERROR (%s)', async (_name, chunks) => {
+    const result = await observe(chunks)
+    expect(result.events.at(-1)).toMatchObject({
+      type: 'RUN_ERROR',
+      usage: { promptTokens: 10, completionTokens: 2, totalTokens: 12 },
+    })
   })
 
   it('keeps content_filter as a finished run', async () => {

@@ -25,6 +25,10 @@ export type Provider =
   | 'elevenlabs'
   | 'llmgateway'
   | 'cloudflare'
+  | 'neon'
+  | 'neon-anthropic'
+  | 'neon-responses'
+  | 'muse'
 
 export type Feature =
   | 'chat'
@@ -87,6 +91,10 @@ export const ALL_PROVIDERS: Provider[] = [
   'elevenlabs',
   'llmgateway',
   'cloudflare',
+  'neon',
+  'neon-anthropic',
+  'neon-responses',
+  'muse',
 ]
 
 export const ALL_FEATURES: Feature[] = [

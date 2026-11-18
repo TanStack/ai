@@ -151,10 +151,13 @@ export class OpenRouterEvaluateAdapter<
 
       if (!response.ok) {
         const detail = await response.text().catch(() => '')
-        throw new Error(
-          `OpenRouter evaluate request failed: ${response.status} ${response.statusText}${
-            detail ? ` — ${detail}` : ''
-          }`,
+        throw Object.assign(
+          new Error(
+            `OpenRouter evaluate request failed: ${response.status} ${response.statusText}${
+              detail ? ` — ${detail}` : ''
+            }`,
+          ),
+          { status: response.status },
         )
       }
 

@@ -17,8 +17,8 @@ However, the rapid advancement of AI also raises significant concerns. Issues of
 const MODELS: Array<{ value: string; label: string }> = [
   { value: 'gpt-4o-mini', label: 'GPT-4o Mini (fast, cheap)' },
   { value: 'gpt-4o', label: 'GPT-4o' },
-  { value: 'gpt-5-mini', label: 'GPT-5 Mini' },
-  { value: 'gpt-5', label: 'GPT-5' },
+  { value: 'gpt-5.6-terra', label: 'GPT-5.6 Terra' },
+  { value: 'gpt-5.6-sol', label: 'GPT-5.6 Sol' },
   { value: 'gpt-5.1', label: 'GPT-5.1' },
   { value: 'gpt-5.2', label: 'GPT-5.2 (frontier)' },
 ]

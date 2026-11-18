@@ -15,8 +15,6 @@ import type {
  * Tagged union so the same shape can express discrete enums (OpenAI Sora,
  * Veo), continuous ranges, mixed shapes, and models with no duration field.
  * Consumed by `VideoAdapter.availableDurations()`.
- *
- * @experimental Video generation is an experimental feature and may change.
  */
 export type DurationOptions<T extends string | number | undefined> =
   | { kind: 'discrete'; values: ReadonlyArray<NonNullable<T>> }
@@ -36,8 +34,6 @@ export type VideoDurationSpell<N extends number> = N | `${N}` | `${N}s`
 
 /**
  * Configuration for video adapter instances
- *
- * @experimental Video generation is an experimental feature and may change.
  */
 export interface VideoAdapterConfig {
   apiKey?: string
@@ -53,7 +49,6 @@ export interface VideoAdapterConfig {
  * An adapter is created by a provider function: `provider('model')` → `adapter`
  * All type resolution happens at the provider call site, not in this interface.
  *
- * @experimental Video generation is an experimental feature and may change.
  *
  * Generic parameters:
  * - TModel: The specific model name (e.g., 'sora-2')
@@ -117,16 +112,35 @@ export interface VideoAdapter<
   ) => Promise<VideoJobResult>
 
   /**
-   * Get the current status of a video generation job.
+   * Get the current status of a video generation job. Adapters should forward
+   * `options.abortSignal` to the provider request when supported.
    */
-  getVideoStatus: (jobId: string) => Promise<VideoStatusResult>
+  getVideoStatus: (
+    jobId: string,
+    options?: { abortSignal?: AbortSignal },
+  ) => Promise<VideoStatusResult>
 
   /**
    * Get the finished video: a public URL when the provider has one, or the
    * download stream for generation middleware to host. Call only after
-   * status is 'completed'.
+   * status is 'completed'. Adapters should forward `options.abortSignal` to
+   * the provider request (and the download) when supported.
    */
-  getVideo: (jobId: string) => Promise<VideoUrlResult | VideoStreamResult>
+  getVideo: (
+    jobId: string,
+    options?: { abortSignal?: AbortSignal },
+  ) => Promise<VideoUrlResult | VideoStreamResult>
+
+  /**
+   * Optional. Ask the provider to stop a job that is not finished. Implement
+   * it only when the provider has a real cancel API. Streaming
+   * `generateVideo()` calls it (best effort) when its `abortSignal` or
+   * `timeout` aborts after the job exists. A rejection is logged, not thrown.
+   */
+  cancelVideoJob?: (
+    jobId: string,
+    options?: { abortSignal?: AbortSignal },
+  ) => Promise<void>
 
   /**
    * Describe the durations this adapter's model accepts. Returns a tagged
@@ -187,7 +201,6 @@ export type AnyVideoAdapter = VideoAdapter<any, any, any, any, any, any>
  * Abstract base class for video generation adapters.
  * Extend this class to implement a video adapter for a specific provider.
  *
- * @experimental Video generation is an experimental feature and may change.
  *
  * Generic parameters match VideoAdapter - all pre-resolved by the provider function.
  */
@@ -240,10 +253,16 @@ export abstract class BaseVideoAdapter<
     >,
   ): Promise<VideoJobResult>
 
-  abstract getVideoStatus(jobId: string): Promise<VideoStatusResult>
+  abstract getVideoStatus(
+    jobId: string,
+    options?: { abortSignal?: AbortSignal },
+  ): Promise<VideoStatusResult>
 
   /** See {@link VideoAdapter.getVideo}. */
-  abstract getVideo(jobId: string): Promise<VideoUrlResult | VideoStreamResult>
+  abstract getVideo(
+    jobId: string,
+    options?: { abortSignal?: AbortSignal },
+  ): Promise<VideoUrlResult | VideoStreamResult>
 
   /**
    * Default implementation returns `{ kind: 'none' }`. Adapters that have

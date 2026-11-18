@@ -147,7 +147,7 @@ it('POSTs to /v4/ai/evaluation-model and maps boolean/choice/score answers', asy
   })
 })
 
-it('throws when the evaluate request is not OK', async () => {
+it('throws with status when the evaluate request is not OK', async () => {
   fetchMock.mockResolvedValue(
     new Response('gateway down', {
       status: 503,
@@ -157,7 +157,9 @@ it('throws when the evaluate request is not OK', async () => {
 
   const adapter = createVercelGatewayDecider('typesafe-ai/jev', 'gw_test_key')
 
-  await expect(adapter.evaluate(evaluateOptions())).rejects.toThrow(
-    'Vercel Gateway evaluate request failed: 503 Service Unavailable — gateway down',
-  )
+  await expect(adapter.evaluate(evaluateOptions())).rejects.toMatchObject({
+    status: 503,
+    message:
+      'Vercel Gateway evaluate request failed: 503 Service Unavailable — gateway down',
+  })
 })

@@ -25,6 +25,7 @@
         "packages/ai-llmgateway",
         "packages/ai-lovable",
         "packages/ai-mistral",
+        "packages/ai-neon",
         "packages/ai-ollaya",
         "packages/ai-openrouter",
         "packages/ai-perplexity",
@@ -133,6 +134,11 @@
       "talksTo": ["core"]
     },
     {
+      "id": "effect",
+      "owns": ["packages/ai-effect"],
+      "talksTo": ["core"]
+    },
+    {
       "id": "e2e",
       "owns": ["testing/e2e"],
       "talksTo": [
@@ -140,6 +146,7 @@
         "code-mode",
         "computer-use",
         "core",
+        "effect",
         "harness",
         "middleware",
         "persistence",

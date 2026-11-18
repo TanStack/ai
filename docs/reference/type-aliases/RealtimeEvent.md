@@ -17,6 +17,6 @@ type RealtimeEvent =
   | "usage";
 ```
 
-Defined in: packages/ai/src/realtime/types.ts:243
+Defined in: [packages/ai/src/realtime/types.ts:252](https://github.com/TanStack/ai/blob/main/packages/ai/src/realtime/types.ts#L252)
 
 Events emitted by the realtime connection

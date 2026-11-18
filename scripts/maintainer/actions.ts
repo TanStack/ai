@@ -4,7 +4,7 @@
  * through the REST API.
  */
 
-import type { GitHubClient } from './github'
+import type { GitHubClient } from './github.ts'
 
 export const MANAGED_LABELS: Array<{
   name: string

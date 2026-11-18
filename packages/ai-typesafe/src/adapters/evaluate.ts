@@ -63,6 +63,9 @@ export class TypesafeEvaluateAdapter<
   /**
    * POST `{ model, state, questions }` to TypeSafe and return wire answers
    * plus mapped token usage. Does not invent unified `.value` fields.
+   *
+   * @throws An `Error` with a numeric `status` (the HTTP status code) when
+   * TypeSafe answers with a non-OK response.
    */
   async evaluate(options: EvaluateOptions) {
     const { model, state, questions, abortSignal, logger } = options
@@ -96,10 +99,13 @@ export class TypesafeEvaluateAdapter<
 
     if (!response.ok) {
       const detail = await response.text().catch(() => '')
-      const error = new Error(
-        `TypeSafe evaluate request failed: ${response.status} ${response.statusText}${
-          detail ? ` — ${detail}` : ''
-        }`,
+      const error = Object.assign(
+        new Error(
+          `TypeSafe evaluate request failed: ${response.status} ${response.statusText}${
+            detail ? ` — ${detail}` : ''
+          }`,
+        ),
+        { status: response.status },
       )
       logger.errors(`${this.name}.evaluate fatal`, {
         error,

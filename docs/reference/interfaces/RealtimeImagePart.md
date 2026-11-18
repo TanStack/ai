@@ -3,7 +3,7 @@ id: RealtimeImagePart
 title: RealtimeImagePart
 ---
 
-Defined in: packages/ai/src/realtime/types.ts:141
+Defined in: [packages/ai/src/realtime/types.ts:150](https://github.com/TanStack/ai/blob/main/packages/ai/src/realtime/types.ts#L150)
 
 Image content part in a realtime message
 
@@ -15,7 +15,7 @@ Image content part in a realtime message
 data: string;
 ```
 
-Defined in: packages/ai/src/realtime/types.ts:144
+Defined in: [packages/ai/src/realtime/types.ts:153](https://github.com/TanStack/ai/blob/main/packages/ai/src/realtime/types.ts#L153)
 
 Base64-encoded image data or a URL
 
@@ -27,7 +27,7 @@ Base64-encoded image data or a URL
 mimeType: string;
 ```
 
-Defined in: packages/ai/src/realtime/types.ts:146
+Defined in: [packages/ai/src/realtime/types.ts:155](https://github.com/TanStack/ai/blob/main/packages/ai/src/realtime/types.ts#L155)
 
 MIME type of the image (e.g., 'image/png', 'image/jpeg')
 
@@ -39,4 +39,4 @@ MIME type of the image (e.g., 'image/png', 'image/jpeg')
 type: "image";
 ```
 
-Defined in: packages/ai/src/realtime/types.ts:142
+Defined in: [packages/ai/src/realtime/types.ts:151](https://github.com/TanStack/ai/blob/main/packages/ai/src/realtime/types.ts#L151)

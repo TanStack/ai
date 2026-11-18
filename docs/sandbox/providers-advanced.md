@@ -136,7 +136,7 @@ const daytona = daytonaSandbox({
 - **Idle stop:** Daytona stops an idle sandbox after 15 minutes by default. Set `autoStopInterval` in minutes to change that. Pass `0` to turn auto-stop off. Set `ephemeral: true` to delete the sandbox when it stops.
 - **Network:** `policy.capabilities.network: 'deny'` blocks all outbound network at create.
 - **Working directory:** the portable root `/workspace` maps to `/home/daytona/workspace` by default. Set `workdir` on `daytonaSandbox()` for another path.
-- **Stdin:** spawned processes accept host stdin (`writableStdin: true`).
+- **Stdin:** spawned processes do not get host stdin (`writableStdin: false`). Daytona cannot close stdin, so a harness gets its prompt from a file.
 - **Privileges:** the Daytona user is not root. Package installs in `setup` must use `sudo -n` (for example `sudo -n apt-get install ...`). Do not put `sudo *` in a [policy](./policy) deny list for this provider.
 - **Bridge:** the sandbox is remote, so a [bridged tool](./tools) call cannot reach your laptop's `localhost`. In local dev, tunnel the bridge. A deployed orchestrator needs no tunnel.
 
@@ -361,10 +361,29 @@ Processes on Railway:
 - Blocking `exec` runs without a durable session. If the connection drops, the command dies.
 - `kill()` and an aborted `exec` send `TERM` to the process group, then `KILL` after 2 s. An aborted `spawn` sends `KILL` at once. All of them finish only on the confirmed remote exit. An aborted `exec` resolves with the exit code of the signal.
 
+## Cloudflare
+
+```ts
+import { cloudflareSandbox } from '@tanstack/ai-sandbox-cloudflare'
+import type { SandboxAgentEnv } from '@tanstack/ai-sandbox-cloudflare/agent'
+
+export function provider(env: SandboxAgentEnv) {
+  return cloudflareSandbox({ binding: env.Sandbox })
+}
+```
+
+- **Isolation:** a [Cloudflare Container](https://developers.cloudflare.com/containers/) behind a `Sandbox` Durable Object. The provider runs inside your Worker, not on a laptop or a server that you run.
+- **Auth:** the runtime, not a credential. The `binding` comes from `wrangler.jsonc`. There is no API key to set.
+- **Bridge:** the Worker that owns the sandbox also runs the tool bridge, so no tunnel is needed.
+- **No snapshots, no durable disk, no fork:** `snapshots`, `durableFilesystem`, and `fork` are `false`. To keep work, use [Portable Snapshots](./portable-snapshots).
+- **Network:** `networkPolicy` is `false`.
+
+The agent coordinator, durable runs, live previews through a quick tunnel, callback hosts, and the Durable Object run log are on [Cloudflare](./cloudflare) and [Cloudflare Edge Details](./cloudflare-advanced).
+
 ## `writableStdin` per provider
 
-- `true`: local process, Docker container, Daytona, Upstash Box, E2B, boxd, and Railway.
-- `false`: Docker Sandboxes (`sbx`), Vercel, Sprites, Blaxel, and Cloudflare.
+- `true`: local process, Docker container, Upstash Box, E2B, boxd, and Railway.
+- `false`: Docker Sandboxes (`sbx`), Daytona, Vercel, Sprites, Blaxel, and Cloudflare. Daytona can write to stdin, but it cannot close stdin, so a process that reads to EOF never starts.
 
 When the value is `false`, a harness that reads its prompt from stdin gets the prompt from a file. The shell redirects that file into the process.
 

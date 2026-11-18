@@ -61,6 +61,9 @@ export class OllayaEvaluateAdapter<
   /**
    * POST `{ model, state, questions }` to Ollaya and return wire answers plus
    * mapped token usage. Does not invent unified `.value` fields.
+   *
+   * @throws An `Error` with a numeric `status` (the HTTP status code) when
+   * Ollaya answers with a non-OK response.
    */
   async evaluate(options: EvaluateOptions) {
     const { model, state, questions, abortSignal, logger } = options
@@ -95,10 +98,13 @@ export class OllayaEvaluateAdapter<
 
     if (!response.ok) {
       const detail = await response.text().catch(() => '')
-      const error = new Error(
-        `Ollaya evaluate request failed: ${response.status} ${response.statusText}${
-          detail ? ` — ${detail}` : ''
-        }`,
+      const error = Object.assign(
+        new Error(
+          `Ollaya evaluate request failed: ${response.status} ${response.statusText}${
+            detail ? ` — ${detail}` : ''
+          }`,
+        ),
+        { status: response.status },
       )
       logger.errors(`${this.name}.evaluate fatal`, {
         error,

@@ -358,6 +358,58 @@ test.describe('computer use with a Playwright page', () => {
     })
   })
 
+  test('a stopped run ends a wait action at once and runs no later action', async ({
+    page,
+  }) => {
+    const { button } = await openForm(page)
+    const computerUse = computerUseFor(page)
+    const model = mockModel([
+      openaiStream('resp_cu_stop', [
+        {
+          type: 'computer_call',
+          id: 'cu_stop',
+          call_id: 'call_cu_stop',
+          status: 'completed',
+          // The OpenAI `wait` takes 2 seconds. The click comes after it.
+          actions: [
+            { type: 'wait' },
+            { type: 'click', button: 'left', ...button },
+          ],
+          pending_safety_checks: [],
+        },
+      ]),
+      openaiStream('resp_cu_stop_2', [OPENAI_ANSWER]),
+    ])
+    const abort = new AbortController()
+    const started = Date.now()
+
+    // Stop the run when the model asked for the actions.
+    const stream = chat({
+      adapter: openaiAdapter(model),
+      messages: [USER_MESSAGE],
+      threadId: 'thread-stop',
+      tools: computerUse.tools,
+      middleware: [computerUse.middleware],
+      interrupts: [computerUse.interrupt],
+      abortController: abort,
+    })
+    try {
+      for await (const chunk of stream) {
+        if (chunk.type === EventType.TOOL_CALL_END) {
+          setTimeout(() => abort.abort(), 50)
+        }
+      }
+    } catch (error) {
+      // An aborted run can end with an error. Any other error fails the test.
+      if (!abort.signal.aborted) throw error
+    }
+
+    // The stop really happened, so the timing check below tests it.
+    expect(abort.signal.aborted).toBe(true)
+    expect(Date.now() - started).toBeLessThan(1500)
+    await expect(page.locator('#status')).toHaveText('idle')
+  })
+
   test('anthropic computer toolset runs each call on the page', async ({
     page,
   }) => {

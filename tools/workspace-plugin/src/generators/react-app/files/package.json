@@ -41,6 +41,7 @@
     "@tanstack/ai-mcp": "workspace:*",
     "@tanstack/ai-memory": "workspace:*",
     "@tanstack/ai-mistral": "workspace:*",
+    "@tanstack/ai-neon": "workspace:*",
     "@tanstack/ai-ollama": "workspace:*",
     "@tanstack/ai-openai": "workspace:*",
     "@tanstack/ai-opencode": "workspace:*",
@@ -77,8 +78,8 @@
     "@types/node": "^24.10.1",
     "@types/react": "^19.2.7",
     "@types/react-dom": "^19.2.3",
-    "@vitejs/plugin-react": "^5.2.0",
+    "@vitejs/plugin-react": "^6.3.0",
     "typescript": "5.9.3",
-    "vite": "^8.2.1"
+    "vite": "^8.3.8"
   }
 }

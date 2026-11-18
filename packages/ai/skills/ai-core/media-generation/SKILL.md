@@ -671,7 +671,7 @@ const { generate, result, isLoading } = useTranscription({
 // Trigger: generate({ audio: dataUrl, language: 'en' })
 ```
 
-### 6. Video Generation (Experimental -- async polling)
+### 6. Video Generation (async polling)
 
 Video generation uses a jobs/polling architecture. The server creates a job,
 polls for status, and streams updates to the client. Adapters: `openaiVideo`

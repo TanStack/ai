@@ -185,6 +185,24 @@ console.log(rerankedDocuments[0]) // 'rainy afternoon in the city'
 
 `openRouterRerank` reads `OPENROUTER_API_KEY` from the environment.
 
+## Use Amazon Bedrock
+
+Use `bedrockRerank()` with AWS credentials, not a Bedrock API key. See the [Bedrock setup](../adapters/bedrock#reranking) for installation and permissions.
+
+```typescript
+import { rerank } from '@tanstack/ai'
+import { bedrockRerank } from '@tanstack/ai-bedrock'
+
+const { rerankedDocuments } = await rerank({
+  adapter: bedrockRerank('cohere.rerank-v3-5:0'),
+  query: 'talk about rain',
+  documents: ['sunny day at the beach', 'rainy afternoon in the city'],
+  topN: 2,
+})
+
+console.log(rerankedDocuments[0]) // 'rainy afternoon in the city'
+```
+
 ## Try the example
 
 `examples/ts-react-rerank` is a small TanStack Start app. It shows a list of support articles, a query box, and the original order next to the reranked order with scores. A dropdown switches between the Cohere and OpenRouter adapters.
@@ -207,6 +225,7 @@ pnpm dev
 | `documents`    | `Array<string \| object>`     | The candidate documents. Required.                                      |
 | `topN`         | `number`                      | Return only the top N results                                           |
 | `abortSignal`  | `AbortSignal`                 | Cancel the request                                                      |
+| `timeout`      | `number`                      | Stop the request after this many milliseconds                           |
 | `modelOptions` | provider options              | Provider-specific options (see below)                                   |
 | `middleware`   | `Array<GenerationMiddleware>` | Observe-only lifecycle hooks (usage, finish, error, abort)              |
 
@@ -262,7 +281,7 @@ interface RerankResult<TDocument = string> {
 
 ### Cancel a request
 
-Pass an `abortSignal`:
+Pass an `abortSignal`. To stop after a fixed time, pass `timeout` in milliseconds instead. A timeout rejects with a `TimeoutError`.
 
 ```typescript
 import { rerank } from '@tanstack/ai'

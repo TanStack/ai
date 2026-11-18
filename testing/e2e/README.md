@@ -4,7 +4,7 @@ End-to-end tests for TanStack AI using Playwright and [aimock](https://github.co
 
 **Architecture:** Playwright drives a TanStack Start app (`testing/e2e/`) which routes requests through provider adapters pointing at aimock. Fixtures define mock responses. No real API keys needed. All scenarios (including tool execution flows) use aimock fixtures. Tests run in parallel with per-test `X-Test-Id` isolation.
 
-**Providers tested in CI:** openai, anthropic, gemini, vertex, vertex-grok, vertex-mistral, ollama, groq, grok, openrouter, openrouter-responses, vercel-gateway, vercel-gateway-responses, lovable, lovable-responses, bedrock, bedrock-responses, openai-compatible, openai-compatible-legacy, mistral, byteplus, elevenlabs, llmgateway, cloudflare
+**Providers tested in CI:** openai, anthropic, gemini, vertex, vertex-grok, vertex-mistral, ollama, groq, grok, openrouter, openrouter-responses, vercel-gateway, vercel-gateway-responses, lovable, lovable-responses, bedrock, bedrock-responses, openai-compatible, openai-compatible-legacy, mistral, byteplus, elevenlabs, llmgateway, cloudflare, neon, neon-anthropic, neon-responses
 
 **Local `pnpm test:e2e`** runs openai, anthropic, and gemini. If none of those providers support a feature, the feature still runs on the providers that do. An explicit `E2E_PROVIDERS` list runs only those providers. Use `E2E_PROVIDERS=*` for the full matrix, or `E2E_PROVIDERS=grok` (comma-separated) to pick providers. Playwright does not retry or record video locally; CI retries twice and keeps the video of a failed test.
 
@@ -98,6 +98,7 @@ Notes:
 | `tests/delivery-durability.spec.ts`    | Transport layer: offset-tagged log, `Last-Event-ID` reconnect, second-tab join, SSE + NDJSON                                                                |
 | `tests/persistence-durability.spec.ts` | Client layer: a browser refresh restores the conversation and any pending interrupt                                                                         |
 | `tests/join-run-client-tool.spec.ts`   | Mid-run reload: `joinRun` replay that ends on a client tool drains the continuation (issue #1058)                                                           |
+| `tests/use-chat-hidden-view.spec.ts`   | Client layer: a chat that `<Activity>` hides mid-reply loads the thread and joins the run when it shows again                                               |
 | `tests/sandbox-durability.spec.ts`     | Sandbox instances: a second run resumes the persisted sandbox                                                                                               |
 | `tests/durable-takeover.spec.ts`       | Takeover with log alignment, detach-on-disconnect, out-of-band cancel in both bands, cancel-vs-disconnect divergence, and the superseded-driver epoch fence |
 

@@ -1,0 +1,14 @@
+{
+  "fixtures": [
+    {
+      "match": { "userMessage": "[stream-failure-usage] count to thirty" },
+      "response": {
+        "content": "One, two, three, four, five, six, seven, eight, nine, ten",
+        "usage": { "input_tokens": 18, "output_tokens": 1 }
+      },
+      "chunkSize": 4,
+      "latency": 20,
+      "truncateAfterChunks": 4
+    }
+  ]
+}

@@ -72,8 +72,45 @@ describe('Gemini Embedding Adapter', () => {
         { vector: [0.3, 0.4], index: 1 },
       ])
       expect(result.model).toBe('gemini-embedding-001')
-      // The Gemini embedding API does not report token usage.
+      // The Gemini Developer API does not report embedding token usage.
       expect(result.usage).toBeUndefined()
+    })
+
+    it('splits inputs over the 100-per-request limit into sequential requests', async () => {
+      const adapter = new TestGeminiEmbeddingAdapter(
+        { apiKey: 'test' },
+        'gemini-embedding-001',
+      )
+      const spy = adapter.spyOnEmbedContent()
+      // Like the Gemini API, reject any request with more than 100 contents.
+      spy.mockImplementation(({ contents }) => {
+        const items = Array.isArray(contents) ? contents : [contents]
+        if (items.length > 100) {
+          return Promise.reject(new Error('at most 100 requests per batch'))
+        }
+        return Promise.resolve(
+          mockResponse(items.map((text) => [Number(String(text).slice(1))])),
+        )
+      })
+
+      const input = Array.from({ length: 201 }, (_, i) => `t${i}`)
+      const result = await adapter.createEmbeddings({
+        model: 'gemini-embedding-001',
+        input,
+        logger: testLogger,
+      })
+
+      expect(spy).toHaveBeenCalledTimes(3)
+      expect(
+        spy.mock.calls.map(([args]) => (args.contents as Array<string>).length),
+      ).toEqual([100, 100, 1])
+      expect(result.embeddings).toHaveLength(201)
+      expect(result.embeddings.map((e) => e.index)).toEqual(
+        input.map((_, i) => i),
+      )
+      expect(result.embeddings.map((e) => e.vector[0])).toEqual(
+        input.map((_, i) => i),
+      )
     })
 
     it('maps the top-level dimensions option to outputDimensionality', async () => {
@@ -124,6 +161,33 @@ describe('Gemini Embedding Adapter', () => {
           },
         }),
       )
+    })
+
+    it('reports Vertex token statistics and billable characters as usage', async () => {
+      const adapter = new TestGeminiEmbeddingAdapter(
+        { apiKey: 'test' },
+        'gemini-embedding-001',
+      )
+      adapter.spyOnEmbedContent().mockResolvedValue({
+        embeddings: [
+          { values: [0.1], statistics: { tokenCount: 3 } },
+          { values: [0.2], statistics: { tokenCount: 4 } },
+        ],
+        metadata: { billableCharacterCount: 25 },
+      })
+
+      const result = await adapter.createEmbeddings({
+        model: 'gemini-embedding-001',
+        input: ['a red guitar', 'a blue drum kit'],
+        logger: testLogger,
+      })
+
+      expect(result.usage).toEqual({
+        promptTokens: 7,
+        completionTokens: 0,
+        totalTokens: 7,
+        billed: { quantity: 25, unit: 'characters' },
+      })
     })
 
     it('throws a clear error when the response has no embeddings', async () => {

@@ -4,6 +4,7 @@ import { arrayBufferToBase64, generateId } from '@tanstack/ai-utils'
 import { isBindingConfig, resolveConfigFromEnv } from '../utils/config'
 import { runModel } from '../utils/run'
 import type {
+  TokenUsage,
   TranscriptionOptions,
   TranscriptionResult,
   TranscriptionSegment,
@@ -121,7 +122,23 @@ export class CloudflareTranscriptionAdapter<
             { language, prompt, ...options.modelOptions },
             options.abortSignal,
           )
-      return { id: generateId(this.name), model, ...output }
+      // Workers AI speech-to-text is billed by audio duration and returns no
+      // token counts, so surface the duration as the billed quantity.
+      const usage: TokenUsage | undefined =
+        output.duration !== undefined && output.duration > 0
+          ? {
+              promptTokens: 0,
+              completionTokens: 0,
+              totalTokens: 0,
+              billed: { quantity: output.duration, unit: 'seconds' },
+            }
+          : undefined
+      return {
+        id: generateId(this.name),
+        model,
+        ...output,
+        ...(usage !== undefined && { usage }),
+      }
     } catch (error: unknown) {
       logger.errors(`${this.name}.transcribe fatal`, {
         error: toRunErrorPayload(error, `${this.name}.transcribe failed`),

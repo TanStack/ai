@@ -411,7 +411,7 @@ Each factory pair has the same shape. The short factory reads the key from the e
 | Factories | Creates | Key |
 | --- | --- | --- |
 | `byteplusText(model, config?)` / `createBytePlusText(model, apiKey, config?)` | Chat adapter | `ARK_API_KEY` or `BYTEPLUS_API_KEY` |
-| `byteplusVideo(model, config?)` / `createBytePlusVideo(model, apiKey, config?)` | Seedance video adapter (experimental) | `ARK_API_KEY` |
+| `byteplusVideo(model, config?)` / `createBytePlusVideo(model, apiKey, config?)` | Seedance video adapter | `ARK_API_KEY` |
 | `byteplusImage(model, config?)` / `createBytePlusImage(model, apiKey, config?)` | Seedream image adapter | `ARK_API_KEY` |
 | `byteplusSpeech(model, config?)` / `createBytePlusSpeech(model, apiKey, config?)` | Seed Speech text-to-speech adapter | `BYTEPLUS_VOICE_API_KEY` |
 | `byteplusTranscription(model, config?)` / `createBytePlusTranscription(model, apiKey, config?)` | Seed Speech transcription adapter | `BYTEPLUS_VOICE_API_KEY` |

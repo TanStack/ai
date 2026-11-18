@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { resolveDebugOption } from '@tanstack/ai/adapter-internals'
+import { EVALUATE_REFUSAL_CODE, EvaluateError } from '@tanstack/ai/adapters'
 import { OpenAIEvaluateAdapter } from '../src/adapters/evaluate'
 import type { EvaluateOptions, WireQuestion } from '@tanstack/ai/adapters'
 import type { Decision } from 'openai/resources/decisions'
@@ -185,6 +186,43 @@ describe('OpenAI evaluate adapter', () => {
     })
   })
 
+  it('maps cache and reasoning token details when present', async () => {
+    const { adapter } = setup({
+      ...allAnswers,
+      usage: {
+        input_tokens: 40,
+        input_tokens_details: { cache_write_tokens: 6, cached_tokens: 12 },
+        output_tokens: 9,
+        output_tokens_details: { reasoning_tokens: 7 },
+        total_tokens: 49,
+      },
+    })
+    const result = await run(adapter)
+    expect(result.usage).toEqual({
+      promptTokens: 40,
+      completionTokens: 9,
+      totalTokens: 49,
+      promptTokensDetails: { cachedTokens: 12, cacheWriteTokens: 6 },
+      completionTokensDetails: { reasoningTokens: 7 },
+    })
+  })
+
+  it('maps the usage when the response has no token details', async () => {
+    // The SDK types mark the details as required, but responses can omit them.
+    const usage: unknown = {
+      input_tokens: 40,
+      output_tokens: 9,
+      total_tokens: 49,
+    }
+    const { adapter } = setup({ ...allAnswers, usage } as typeof allAnswers)
+    const result = await run(adapter)
+    expect(result.usage).toEqual({
+      promptTokens: 40,
+      completionTokens: 9,
+      totalTokens: 49,
+    })
+  })
+
   it('keeps an answer for a question named __proto__ as an own key', async () => {
     const { adapter } = setup(
       decision([{ type: 'predicate', name: '__proto__', probability: 0.5 }]),
@@ -193,9 +231,44 @@ describe('OpenAI evaluate adapter', () => {
     expect(Object.keys(result.answers)).toEqual(['__proto__'])
   })
 
-  it('throws when a question is refused', async () => {
-    const { adapter } = setup(decision([{ type: 'refusal', name: 'refund' }]))
-    await expect(run(adapter)).rejects.toThrow('"refund"')
+  it('throws an EvaluateError with usage and the other answers when a question is refused', async () => {
+    const { adapter } = setup(
+      decision([
+        ...allAnswers.answers.slice(0, 2),
+        { type: 'refusal', name: 'refund' },
+      ]),
+    )
+    const error = await run(adapter).catch((e: unknown) => e)
+    expect(error).toBeInstanceOf(EvaluateError)
+    if (!(error instanceof EvaluateError)) return
+    expect(error.code).toBe(EVALUATE_REFUSAL_CODE)
+    expect(error.message).toBe('OpenAI declined to answer question "refund"')
+    expect(error.model).toBe('gpt-6-luna')
+    expect(error.usage).toEqual({
+      promptTokens: 40,
+      completionTokens: 0,
+      totalTokens: 40,
+    })
+    expect(Object.keys(error.answers ?? {})).toEqual(['queue', 'urgency'])
+    expect(error.answers?.queue).toMatchObject({
+      type: 'choice',
+      choice: 'billing',
+    })
+  })
+
+  it('names the first refused question and leaves out every refused key', async () => {
+    const { adapter } = setup(
+      decision([
+        { type: 'refusal', name: 'queue' },
+        allAnswers.answers[1]!,
+        { type: 'refusal', name: 'refund' },
+      ]),
+    )
+    const error = await run(adapter).catch((e: unknown) => e)
+    expect(error).toBeInstanceOf(EvaluateError)
+    if (!(error instanceof EvaluateError)) return
+    expect(error.message).toBe('OpenAI declined to answer question "queue"')
+    expect(Object.keys(error.answers ?? {})).toEqual(['urgency'])
   })
 
   it('rethrows SDK errors', async () => {

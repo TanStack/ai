@@ -2,7 +2,7 @@
 title: Embeddings
 id: embeddings
 order: 1
-description: "Turn text and images into vectors with embed(). Use them for semantic search, RAG, and clustering with OpenAI, Cohere, Gemini, Mistral, Amazon Bedrock, Ollama, or Vercel AI Gateway."
+description: "Turn text and images into vectors with embed(). Use them for semantic search, RAG, and clustering with OpenAI, Cohere, Gemini, Mistral, Amazon Bedrock, Ollama, Vercel AI Gateway, or Neon AI Gateway."
 keywords:
   - tanstack ai
   - embeddings
@@ -18,6 +18,7 @@ keywords:
   - bedrock
   - ollama
   - vercel ai gateway
+  - neon ai gateway
 ---
 
 `embed()` turns text into a vector. Search, RAG, and clustering then compare those vectors.
@@ -83,6 +84,7 @@ You now have one `number[]` vector per input string. Store them in your vector d
 | Amazon Bedrock    | `bedrockEmbedding` (`@tanstack/ai-bedrock`) | Titan Text Embeddings V2 (text), Titan Multimodal Embeddings G1 (text + image), Cohere Embed v3 (text) | text, or text + image |
 | Ollama            | `ollamaEmbedding` (`@tanstack/ai-ollama`) | `nomic-embed-text`, `mxbai-embed-large`, and any local embedding model                                  | text         |
 | Vercel AI Gateway | `vercelGatewayEmbedding` (`@tanstack/ai-vercel-gateway`) | OpenAI-compatible models such as `openai/text-embedding-3-small`                         | text         |
+| Neon AI Gateway   | `neonEmbedding` (`@tanstack/ai-neon`) | `qwen3-embedding-0-6b`, `gte-large-en`, `bge-large-en` (1024 dimensions)                                | text         |
 
 Vercel AI Gateway takes a `creator/model` id:
 
@@ -92,6 +94,18 @@ import { vercelGatewayEmbedding } from "@tanstack/ai-vercel-gateway";
 
 const result = await embed({
   adapter: vercelGatewayEmbedding("openai/text-embedding-3-small"),
+  input: "a red guitar",
+});
+```
+
+Neon AI Gateway uses the same call. The vectors fit a `vector(1024)` pgvector column in your Neon branch:
+
+```typescript
+import { embed } from "@tanstack/ai";
+import { neonEmbedding } from "@tanstack/ai-neon";
+
+const result = await embed({
+  adapter: neonEmbedding("qwen3-embedding-0-6b"),
   input: "a red guitar",
 });
 ```
@@ -262,6 +276,27 @@ const result = await embed({
 
 console.log(result.usage?.promptTokens);
 ```
+
+### Cancel or time out
+
+Pass `abortSignal` to cancel the call, or `timeout` in milliseconds to stop it after a fixed time. The adapter cancels the provider request, and `embed()` rejects. A timeout rejects with a `TimeoutError`.
+
+```typescript
+import { embed } from "@tanstack/ai";
+import { openaiEmbedding } from "@tanstack/ai-openai";
+
+export async function POST(request: Request) {
+  const result = await embed({
+    adapter: openaiEmbedding("text-embedding-3-small"),
+    input: "a red guitar",
+    abortSignal: request.signal,
+    timeout: 10_000,
+  });
+  return Response.json(result.embeddings[0]?.vector);
+}
+```
+
+When you pass both, the first one to fire wins. Middleware gets `onAbort`, not `onError`.
 
 ### Errors
 

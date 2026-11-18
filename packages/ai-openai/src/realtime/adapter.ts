@@ -48,6 +48,7 @@ export function openaiRealtime(
     async connect(
       token: RealtimeToken,
       _clientTools?: ReadonlyArray<AnyClientTool>,
+      options?: { abortSignal?: AbortSignal },
     ): Promise<RealtimeConnection> {
       const model = token.config.model ?? 'gpt-realtime-2.1'
       logger.request(`activity=realtime provider=openai model=${model}`, {
@@ -56,7 +57,7 @@ export function openaiRealtime(
       })
 
       if (connectionMode === 'webrtc') {
-        return createWebRTCConnection(token, logger)
+        return createWebRTCConnection(token, logger, options?.abortSignal)
       }
       const error = new Error('WebSocket connection mode not yet implemented')
       logger.errors('openai.realtime fatal', {
@@ -74,6 +75,7 @@ export function openaiRealtime(
 async function createWebRTCConnection(
   token: RealtimeToken,
   logger: InternalLogger,
+  abortSignal?: AbortSignal,
 ): Promise<RealtimeConnection> {
   const eventHandlers = new Map<RealtimeEvent, Set<RealtimeEventHandler<any>>>()
 
@@ -163,59 +165,74 @@ async function createWebRTCConnection(
     }
   }
 
-  // IMPORTANT: Request microphone access and add audio track BEFORE creating offer
-  // OpenAI's Realtime API requires an audio track in the SDP offer
+  // A failed or aborted setup releases the microphone and the peer
+  // connection. Without this, the mic indicator stays on after disconnect().
   try {
-    localStream = await navigator.mediaDevices.getUserMedia({
-      audio: {
-        echoCancellation: true,
-        noiseSuppression: true,
-        sampleRate: 24000,
-      },
-    })
+    // A disconnect during the token fetch already aborted the signal. Do not
+    // ask for the microphone in that case.
+    abortSignal?.throwIfAborted()
+    // IMPORTANT: Request microphone access and add audio track BEFORE creating offer
+    // OpenAI's Realtime API requires an audio track in the SDP offer
+    try {
+      localStream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          sampleRate: 24000,
+        },
+      })
 
-    // Add audio track to peer connection
-    for (const track of localStream.getAudioTracks()) {
-      pc.addTrack(track, localStream)
+      // Add audio track to peer connection
+      for (const track of localStream.getAudioTracks()) {
+        pc.addTrack(track, localStream)
+      }
+    } catch (error) {
+      throw new Error(
+        `Microphone access required for realtime voice: ${error instanceof Error ? error.message : error}`,
+      )
     }
-  } catch (error) {
-    throw new Error(
-      `Microphone access required for realtime voice: ${error instanceof Error ? error.message : error}`,
-    )
-  }
 
-  // Create and set local description (now includes audio track)
-  const offer = await pc.createOffer()
-  await pc.setLocalDescription(offer)
+    // Create and set local description (now includes audio track)
+    const offer = await pc.createOffer()
+    await pc.setLocalDescription(offer)
 
-  // Send SDP to OpenAI's GA `/calls` endpoint and get the answer. The model
-  // is bound to the ephemeral token (minted via `/v1/realtime/client_secrets`),
-  // so it must NOT be passed as a query param — GA rejects `?model=` with a
-  // 400. `offer.sdp` is `string | undefined` per the WebRTC type definitions;
-  // coerce to `null`, which `RequestInit.body` accepts.
-  const sdpResponse = await fetch(`${OPENAI_REALTIME_URL}/calls`, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${token.token}`,
-      'Content-Type': 'application/sdp',
-    },
-    body: offer.sdp ?? null,
-  })
-
-  if (!sdpResponse.ok) {
-    const errorText = await sdpResponse.text()
-    const error = new Error(
-      `Failed to establish WebRTC connection: ${sdpResponse.status} - ${errorText}`,
-    )
-    logger.errors('openai.realtime fatal', {
-      error,
-      source: 'openai.realtime',
+    // Send SDP to OpenAI's GA `/calls` endpoint and get the answer. The model
+    // is bound to the ephemeral token (minted via `/v1/realtime/client_secrets`),
+    // so it must NOT be passed as a query param — GA rejects `?model=` with a
+    // 400. `offer.sdp` is `string | undefined` per the WebRTC type definitions;
+    // coerce to `null`, which `RequestInit.body` accepts.
+    const sdpResponse = await fetch(`${OPENAI_REALTIME_URL}/calls`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token.token}`,
+        'Content-Type': 'application/sdp',
+      },
+      body: offer.sdp ?? null,
+      ...(abortSignal && { signal: abortSignal }),
     })
+
+    if (!sdpResponse.ok) {
+      const errorText = await sdpResponse.text()
+      const error = new Error(
+        `Failed to establish WebRTC connection: ${sdpResponse.status} - ${errorText}`,
+      )
+      logger.errors('openai.realtime fatal', {
+        error,
+        source: 'openai.realtime',
+      })
+      throw error
+    }
+
+    const answerSdp = await sdpResponse.text()
+    await pc.setRemoteDescription({ type: 'answer', sdp: answerSdp })
+  } catch (error) {
+    for (const track of localStream?.getTracks() ?? []) track.stop()
+    localStream = null
+    channel.close()
+    dataChannel = null
+    pc.close()
     throw error
   }
-
-  const answerSdp = await sdpResponse.text()
-  await pc.setRemoteDescription({ type: 'answer', sdp: answerSdp })
 
   // Set up input audio analysis now that we have the stream
   setupInputAudioAnalysis(localStream)
@@ -708,7 +725,31 @@ async function createWebRTCConnection(
 
   // Wait for the data channel to be open before returning the connection.
   // This ensures session.update (tools, instructions, etc.) can be sent immediately.
-  await dataChannelReady
+  // An abort during this wait releases the mic, the peer connection, and the
+  // audio context, and rejects, so connect() does not stay pending.
+  try {
+    await waitUnlessAborted(dataChannelReady, abortSignal)
+  } catch (error) {
+    await connection.disconnect()
+    throw error
+  }
 
   return connection
+}
+
+/** Resolve with `promise`, or reject with the abort reason when `signal` aborts first. */
+function waitUnlessAborted(
+  promise: Promise<void>,
+  signal: AbortSignal | undefined,
+): Promise<void> {
+  if (!signal) return promise
+  return new Promise((resolve, reject) => {
+    const onAbort = () => reject(signal.reason)
+    if (signal.aborted) return onAbort()
+    signal.addEventListener('abort', onAbort, { once: true })
+    void promise.then(() => {
+      signal.removeEventListener('abort', onAbort)
+      resolve()
+    })
+  })
 }

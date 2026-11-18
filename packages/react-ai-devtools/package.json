@@ -1,6 +1,6 @@
 {
   "name": "@tanstack/react-ai-devtools",
-  "version": "0.2.71",
+  "version": "1.0.1",
   "description": "React Devtools plugin for inspecting TanStack AI chat messages, tool calls, streams, and errors.",
   "author": "tannerlinsley",
   "license": "MIT",
@@ -59,7 +59,7 @@
   "devDependencies": {
     "@types/react": "^19.2.7",
     "react": "^19.2.3",
-    "vite": "^8.2.1"
+    "vite": "^8.3.8"
   },
   "keywords": [
     "ai",

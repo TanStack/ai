@@ -3,7 +3,7 @@ id: LiveVideoGenerationOptions
 title: LiveVideoGenerationOptions
 ---
 
-Defined in: packages/ai/src/types.ts:2766
+Defined in: [packages/ai/src/types.ts:2847](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2847)
 
 **`Experimental`**
 
@@ -25,7 +25,7 @@ Options for live generation (prompt-steerable video sessions).
 optional abortSignal?: AbortSignal;
 ```
 
-Defined in: packages/ai/src/types.ts:2789
+Defined in: [packages/ai/src/types.ts:2870](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2870)
 
 **`Experimental`**
 
@@ -41,7 +41,7 @@ supported. Request-specific — never store on a global client config.
 logger: InternalLogger;
 ```
 
-Defined in: packages/ai/src/types.ts:2783
+Defined in: [packages/ai/src/types.ts:2864](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2864)
 
 **`Experimental`**
 
@@ -57,7 +57,7 @@ catch blocks.
 model: string;
 ```
 
-Defined in: packages/ai/src/types.ts:2770
+Defined in: [packages/ai/src/types.ts:2851](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2851)
 
 **`Experimental`**
 
@@ -71,7 +71,7 @@ The model to use for live generation
 optional modelOptions?: TProviderOptions;
 ```
 
-Defined in: packages/ai/src/types.ts:2777
+Defined in: [packages/ai/src/types.ts:2858](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2858)
 
 **`Experimental`**
 
@@ -86,7 +86,7 @@ resolution/seed/audio are browser `sendCommand` fields.
 prompt: string;
 ```
 
-Defined in: packages/ai/src/types.ts:2772
+Defined in: [packages/ai/src/types.ts:2853](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2853)
 
 **`Experimental`**
 
