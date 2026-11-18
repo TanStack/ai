@@ -44,6 +44,7 @@ import { Route as SubagentsTestRouteImport } from './routes/subagents-test'
 import { Route as SubagentsUiTestRouteImport } from './routes/subagents-ui-test'
 import { Route as TextFirstToolRouteImport } from './routes/text-first-tool'
 import { Route as ToolFirstTextRouteImport } from './routes/tool-first-text'
+import { Route as ToolResultMetadataRouteImport } from './routes/tool-result-metadata'
 import { Route as ToolsTestRouteImport } from './routes/tools-test'
 import { Route as UseChatHiddenViewRouteImport } from './routes/use-chat-hidden-view'
 import { Route as WebMcpPageToolsRouteImport } from './routes/web-mcp-page-tools'
@@ -146,6 +147,7 @@ import { Route as ApiMcpMetaServerRouteImport } from './routes/api.mcp-meta-serv
 import { Route as ApiMcpNoTasksServerRouteImport } from './routes/api.mcp-no-tasks-server'
 import { Route as ApiMcpPolicyTestRouteImport } from './routes/api.mcp-policy-test'
 import { Route as ApiMcpRequestMetaWireRouteImport } from './routes/api.mcp-request-meta-wire'
+import { Route as ApiMcpResultMetaWireRouteImport } from './routes/api.mcp-result-meta-wire'
 import { Route as ApiMcpServerRouteImport } from './routes/api.mcp-server'
 import { Route as ApiMcpStatusTestRouteImport } from './routes/api.mcp-status-test'
 import { Route as ApiMcpTaskErrorsRouteImport } from './routes/api.mcp-task-errors'
@@ -206,6 +208,7 @@ import { Route as ApiTextFirstToolWireRouteImport } from './routes/api.text-firs
 import { Route as ApiToolCallLifecycleWireRouteImport } from './routes/api.tool-call-lifecycle-wire'
 import { Route as ApiToolChoiceWireRouteImport } from './routes/api.tool-choice-wire'
 import { Route as ApiToolFirstTextWireRouteImport } from './routes/api.tool-first-text-wire'
+import { Route as ApiToolResultMetadataRouteImport } from './routes/api.tool-result-metadata'
 import { Route as ApiToolsTestRouteImport } from './routes/api.tools-test'
 import { Route as ApiTranscriptionRouteImport } from './routes/api.transcription'
 import { Route as ApiTtsRouteImport } from './routes/api.tts'
@@ -404,6 +407,11 @@ const TextFirstToolRoute = TextFirstToolRouteImport.update({
 const ToolFirstTextRoute = ToolFirstTextRouteImport.update({
   id: '/tool-first-text',
   path: '/tool-first-text',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ToolResultMetadataRoute = ToolResultMetadataRouteImport.update({
+  id: '/tool-result-metadata',
+  path: '/tool-result-metadata',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ToolsTestRoute = ToolsTestRouteImport.update({
@@ -941,6 +949,11 @@ const ApiMcpRequestMetaWireRoute = ApiMcpRequestMetaWireRouteImport.update({
   path: '/api/mcp-request-meta-wire',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiMcpResultMetaWireRoute = ApiMcpResultMetaWireRouteImport.update({
+  id: '/api/mcp-result-meta-wire',
+  path: '/api/mcp-result-meta-wire',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiMcpServerRoute = ApiMcpServerRouteImport.update({
   id: '/api/mcp-server',
   path: '/api/mcp-server',
@@ -1265,6 +1278,11 @@ const ApiToolFirstTextWireRoute = ApiToolFirstTextWireRouteImport.update({
   path: '/api/tool-first-text-wire',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiToolResultMetadataRoute = ApiToolResultMetadataRouteImport.update({
+  id: '/api/tool-result-metadata',
+  path: '/api/tool-result-metadata',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiToolsTestRoute = ApiToolsTestRouteImport.update({
   id: '/api/tools-test',
   path: '/api/tools-test',
@@ -1410,6 +1428,7 @@ export interface FileRoutesByFullPath {
   '/subagents-ui-test': typeof SubagentsUiTestRoute
   '/text-first-tool': typeof TextFirstToolRoute
   '/tool-first-text': typeof ToolFirstTextRoute
+  '/tool-result-metadata': typeof ToolResultMetadataRoute
   '/tools-test': typeof ToolsTestRoute
   '/use-chat-hidden-view': typeof UseChatHiddenViewRoute
   '/web-mcp-page-tools': typeof WebMcpPageToolsRoute
@@ -1511,6 +1530,7 @@ export interface FileRoutesByFullPath {
   '/api/mcp-no-tasks-server': typeof ApiMcpNoTasksServerRoute
   '/api/mcp-policy-test': typeof ApiMcpPolicyTestRoute
   '/api/mcp-request-meta-wire': typeof ApiMcpRequestMetaWireRoute
+  '/api/mcp-result-meta-wire': typeof ApiMcpResultMetaWireRoute
   '/api/mcp-server': typeof ApiMcpServerRoute
   '/api/mcp-status-test': typeof ApiMcpStatusTestRoute
   '/api/mcp-task-errors': typeof ApiMcpTaskErrorsRoute
@@ -1571,6 +1591,7 @@ export interface FileRoutesByFullPath {
   '/api/tool-call-lifecycle-wire': typeof ApiToolCallLifecycleWireRoute
   '/api/tool-choice-wire': typeof ApiToolChoiceWireRoute
   '/api/tool-first-text-wire': typeof ApiToolFirstTextWireRoute
+  '/api/tool-result-metadata': typeof ApiToolResultMetadataRoute
   '/api/tools-test': typeof ApiToolsTestRoute
   '/api/transcription': typeof ApiTranscriptionRouteWithChildren
   '/api/tts': typeof ApiTtsRouteWithChildren
@@ -1630,6 +1651,7 @@ export interface FileRoutesByTo {
   '/subagents-ui-test': typeof SubagentsUiTestRoute
   '/text-first-tool': typeof TextFirstToolRoute
   '/tool-first-text': typeof ToolFirstTextRoute
+  '/tool-result-metadata': typeof ToolResultMetadataRoute
   '/tools-test': typeof ToolsTestRoute
   '/use-chat-hidden-view': typeof UseChatHiddenViewRoute
   '/web-mcp-page-tools': typeof WebMcpPageToolsRoute
@@ -1731,6 +1753,7 @@ export interface FileRoutesByTo {
   '/api/mcp-no-tasks-server': typeof ApiMcpNoTasksServerRoute
   '/api/mcp-policy-test': typeof ApiMcpPolicyTestRoute
   '/api/mcp-request-meta-wire': typeof ApiMcpRequestMetaWireRoute
+  '/api/mcp-result-meta-wire': typeof ApiMcpResultMetaWireRoute
   '/api/mcp-server': typeof ApiMcpServerRoute
   '/api/mcp-status-test': typeof ApiMcpStatusTestRoute
   '/api/mcp-task-errors': typeof ApiMcpTaskErrorsRoute
@@ -1791,6 +1814,7 @@ export interface FileRoutesByTo {
   '/api/tool-call-lifecycle-wire': typeof ApiToolCallLifecycleWireRoute
   '/api/tool-choice-wire': typeof ApiToolChoiceWireRoute
   '/api/tool-first-text-wire': typeof ApiToolFirstTextWireRoute
+  '/api/tool-result-metadata': typeof ApiToolResultMetadataRoute
   '/api/tools-test': typeof ApiToolsTestRoute
   '/api/transcription': typeof ApiTranscriptionRouteWithChildren
   '/api/tts': typeof ApiTtsRouteWithChildren
@@ -1851,6 +1875,7 @@ export interface FileRoutesById {
   '/subagents-ui-test': typeof SubagentsUiTestRoute
   '/text-first-tool': typeof TextFirstToolRoute
   '/tool-first-text': typeof ToolFirstTextRoute
+  '/tool-result-metadata': typeof ToolResultMetadataRoute
   '/tools-test': typeof ToolsTestRoute
   '/use-chat-hidden-view': typeof UseChatHiddenViewRoute
   '/web-mcp-page-tools': typeof WebMcpPageToolsRoute
@@ -1952,6 +1977,7 @@ export interface FileRoutesById {
   '/api/mcp-no-tasks-server': typeof ApiMcpNoTasksServerRoute
   '/api/mcp-policy-test': typeof ApiMcpPolicyTestRoute
   '/api/mcp-request-meta-wire': typeof ApiMcpRequestMetaWireRoute
+  '/api/mcp-result-meta-wire': typeof ApiMcpResultMetaWireRoute
   '/api/mcp-server': typeof ApiMcpServerRoute
   '/api/mcp-status-test': typeof ApiMcpStatusTestRoute
   '/api/mcp-task-errors': typeof ApiMcpTaskErrorsRoute
@@ -2012,6 +2038,7 @@ export interface FileRoutesById {
   '/api/tool-call-lifecycle-wire': typeof ApiToolCallLifecycleWireRoute
   '/api/tool-choice-wire': typeof ApiToolChoiceWireRoute
   '/api/tool-first-text-wire': typeof ApiToolFirstTextWireRoute
+  '/api/tool-result-metadata': typeof ApiToolResultMetadataRoute
   '/api/tools-test': typeof ApiToolsTestRoute
   '/api/transcription': typeof ApiTranscriptionRouteWithChildren
   '/api/tts': typeof ApiTtsRouteWithChildren
@@ -2073,6 +2100,7 @@ export interface FileRouteTypes {
     | '/subagents-ui-test'
     | '/text-first-tool'
     | '/tool-first-text'
+    | '/tool-result-metadata'
     | '/tools-test'
     | '/use-chat-hidden-view'
     | '/web-mcp-page-tools'
@@ -2174,6 +2202,7 @@ export interface FileRouteTypes {
     | '/api/mcp-no-tasks-server'
     | '/api/mcp-policy-test'
     | '/api/mcp-request-meta-wire'
+    | '/api/mcp-result-meta-wire'
     | '/api/mcp-server'
     | '/api/mcp-status-test'
     | '/api/mcp-task-errors'
@@ -2234,6 +2263,7 @@ export interface FileRouteTypes {
     | '/api/tool-call-lifecycle-wire'
     | '/api/tool-choice-wire'
     | '/api/tool-first-text-wire'
+    | '/api/tool-result-metadata'
     | '/api/tools-test'
     | '/api/transcription'
     | '/api/tts'
@@ -2293,6 +2323,7 @@ export interface FileRouteTypes {
     | '/subagents-ui-test'
     | '/text-first-tool'
     | '/tool-first-text'
+    | '/tool-result-metadata'
     | '/tools-test'
     | '/use-chat-hidden-view'
     | '/web-mcp-page-tools'
@@ -2394,6 +2425,7 @@ export interface FileRouteTypes {
     | '/api/mcp-no-tasks-server'
     | '/api/mcp-policy-test'
     | '/api/mcp-request-meta-wire'
+    | '/api/mcp-result-meta-wire'
     | '/api/mcp-server'
     | '/api/mcp-status-test'
     | '/api/mcp-task-errors'
@@ -2454,6 +2486,7 @@ export interface FileRouteTypes {
     | '/api/tool-call-lifecycle-wire'
     | '/api/tool-choice-wire'
     | '/api/tool-first-text-wire'
+    | '/api/tool-result-metadata'
     | '/api/tools-test'
     | '/api/transcription'
     | '/api/tts'
@@ -2513,6 +2546,7 @@ export interface FileRouteTypes {
     | '/subagents-ui-test'
     | '/text-first-tool'
     | '/tool-first-text'
+    | '/tool-result-metadata'
     | '/tools-test'
     | '/use-chat-hidden-view'
     | '/web-mcp-page-tools'
@@ -2614,6 +2648,7 @@ export interface FileRouteTypes {
     | '/api/mcp-no-tasks-server'
     | '/api/mcp-policy-test'
     | '/api/mcp-request-meta-wire'
+    | '/api/mcp-result-meta-wire'
     | '/api/mcp-server'
     | '/api/mcp-status-test'
     | '/api/mcp-task-errors'
@@ -2674,6 +2709,7 @@ export interface FileRouteTypes {
     | '/api/tool-call-lifecycle-wire'
     | '/api/tool-choice-wire'
     | '/api/tool-first-text-wire'
+    | '/api/tool-result-metadata'
     | '/api/tools-test'
     | '/api/transcription'
     | '/api/tts'
@@ -2734,6 +2770,7 @@ export interface RootRouteChildren {
   SubagentsUiTestRoute: typeof SubagentsUiTestRoute
   TextFirstToolRoute: typeof TextFirstToolRoute
   ToolFirstTextRoute: typeof ToolFirstTextRoute
+  ToolResultMetadataRoute: typeof ToolResultMetadataRoute
   ToolsTestRoute: typeof ToolsTestRoute
   UseChatHiddenViewRoute: typeof UseChatHiddenViewRoute
   WebMcpPageToolsRoute: typeof WebMcpPageToolsRoute
@@ -2835,6 +2872,7 @@ export interface RootRouteChildren {
   ApiMcpNoTasksServerRoute: typeof ApiMcpNoTasksServerRoute
   ApiMcpPolicyTestRoute: typeof ApiMcpPolicyTestRoute
   ApiMcpRequestMetaWireRoute: typeof ApiMcpRequestMetaWireRoute
+  ApiMcpResultMetaWireRoute: typeof ApiMcpResultMetaWireRoute
   ApiMcpServerRoute: typeof ApiMcpServerRoute
   ApiMcpStatusTestRoute: typeof ApiMcpStatusTestRoute
   ApiMcpTaskErrorsRoute: typeof ApiMcpTaskErrorsRoute
@@ -2895,6 +2933,7 @@ export interface RootRouteChildren {
   ApiToolCallLifecycleWireRoute: typeof ApiToolCallLifecycleWireRoute
   ApiToolChoiceWireRoute: typeof ApiToolChoiceWireRoute
   ApiToolFirstTextWireRoute: typeof ApiToolFirstTextWireRoute
+  ApiToolResultMetadataRoute: typeof ApiToolResultMetadataRoute
   ApiToolsTestRoute: typeof ApiToolsTestRoute
   ApiTranscriptionRoute: typeof ApiTranscriptionRouteWithChildren
   ApiTtsRoute: typeof ApiTtsRouteWithChildren
@@ -3159,6 +3198,13 @@ declare module '@tanstack/react-router' {
       path: '/tool-first-text'
       fullPath: '/tool-first-text'
       preLoaderRoute: typeof ToolFirstTextRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/tool-result-metadata': {
+      id: '/tool-result-metadata'
+      path: '/tool-result-metadata'
+      fullPath: '/tool-result-metadata'
+      preLoaderRoute: typeof ToolResultMetadataRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/tools-test': {
@@ -3875,6 +3921,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiMcpRequestMetaWireRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/mcp-result-meta-wire': {
+      id: '/api/mcp-result-meta-wire'
+      path: '/api/mcp-result-meta-wire'
+      fullPath: '/api/mcp-result-meta-wire'
+      preLoaderRoute: typeof ApiMcpResultMetaWireRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/mcp-server': {
       id: '/api/mcp-server'
       path: '/api/mcp-server'
@@ -4295,6 +4348,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiToolFirstTextWireRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/tool-result-metadata': {
+      id: '/api/tool-result-metadata'
+      path: '/api/tool-result-metadata'
+      fullPath: '/api/tool-result-metadata'
+      preLoaderRoute: typeof ApiToolResultMetadataRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/tools-test': {
       id: '/api/tools-test'
       path: '/api/tools-test'
@@ -4539,6 +4599,7 @@ const rootRouteChildren: RootRouteChildren = {
   SubagentsUiTestRoute: SubagentsUiTestRoute,
   TextFirstToolRoute: TextFirstToolRoute,
   ToolFirstTextRoute: ToolFirstTextRoute,
+  ToolResultMetadataRoute: ToolResultMetadataRoute,
   ToolsTestRoute: ToolsTestRoute,
   UseChatHiddenViewRoute: UseChatHiddenViewRoute,
   WebMcpPageToolsRoute: WebMcpPageToolsRoute,
@@ -4645,6 +4706,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiMcpNoTasksServerRoute: ApiMcpNoTasksServerRoute,
   ApiMcpPolicyTestRoute: ApiMcpPolicyTestRoute,
   ApiMcpRequestMetaWireRoute: ApiMcpRequestMetaWireRoute,
+  ApiMcpResultMetaWireRoute: ApiMcpResultMetaWireRoute,
   ApiMcpServerRoute: ApiMcpServerRoute,
   ApiMcpStatusTestRoute: ApiMcpStatusTestRoute,
   ApiMcpTaskErrorsRoute: ApiMcpTaskErrorsRoute,
@@ -4706,6 +4768,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiToolCallLifecycleWireRoute: ApiToolCallLifecycleWireRoute,
   ApiToolChoiceWireRoute: ApiToolChoiceWireRoute,
   ApiToolFirstTextWireRoute: ApiToolFirstTextWireRoute,
+  ApiToolResultMetadataRoute: ApiToolResultMetadataRoute,
   ApiToolsTestRoute: ApiToolsTestRoute,
   ApiTranscriptionRoute: ApiTranscriptionRouteWithChildren,
   ApiTtsRoute: ApiTtsRouteWithChildren,
