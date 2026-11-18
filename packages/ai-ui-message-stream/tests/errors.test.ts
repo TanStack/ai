@@ -114,6 +114,174 @@ describe('TanStack server, AI SDK client: errors', () => {
     expect(chunks.some((c) => c.type === 'tool-input-available')).toBe(false)
   })
 
+  it('uses the input on TOOL_CALL_END when no argument deltas arrived', async () => {
+    const chunks = await chunksOf(
+      toUIMessageStream(
+        (async function* (): AsyncGenerator<StreamChunk> {
+          yield {
+            type: EventType.TOOL_CALL_START,
+            toolCallId: 'c-1',
+            toolCallName: 'weather',
+          }
+          yield {
+            type: EventType.TOOL_CALL_END,
+            toolCallId: 'c-1',
+            input: { city: 'NYC' },
+          }
+          yield {
+            type: EventType.RUN_FINISHED,
+            threadId: 't',
+            runId: 'r',
+            outcome: { type: 'success' },
+          }
+        })(),
+      ),
+    )
+    expect(chunks).toContainEqual(
+      expect.objectContaining({
+        type: 'tool-input-available',
+        toolCallId: 'c-1',
+        input: { city: 'NYC' },
+      }),
+    )
+  })
+
+  it('keeps a reasoning signature that arrives after the reasoning end', async () => {
+    const chunks = await chunksOf(
+      toUIMessageStream(
+        (async function* (): AsyncGenerator<StreamChunk> {
+          yield {
+            type: EventType.REASONING_MESSAGE_START,
+            messageId: 'think-1',
+            role: 'reasoning',
+          }
+          yield {
+            type: EventType.REASONING_MESSAGE_CONTENT,
+            messageId: 'think-1',
+            delta: 'Plan.',
+          }
+          yield { type: EventType.REASONING_MESSAGE_END, messageId: 'think-1' }
+          yield {
+            type: EventType.REASONING_ENCRYPTED_VALUE,
+            subtype: 'message',
+            entityId: 'think-1',
+            encryptedValue: 'sig-late',
+          }
+          yield {
+            type: EventType.RUN_FINISHED,
+            threadId: 't',
+            runId: 'r',
+            outcome: { type: 'success' },
+          }
+        })(),
+      ),
+    )
+    expect(chunks).toContainEqual({
+      type: 'reasoning-end',
+      id: 'think-1',
+      providerMetadata: { tanstack: { signature: 'sig-late' } },
+    })
+    const end = chunks.findIndex((chunk) => chunk.type === 'reasoning-end')
+    const step = chunks.findIndex((chunk) => chunk.type === 'finish-step')
+    expect(end).toBeGreaterThan(-1)
+    expect(end).toBeLessThan(step)
+  })
+
+  it('closes reasoning before the step when no signature arrives', async () => {
+    const chunks = await chunksOf(
+      toUIMessageStream(
+        (async function* (): AsyncGenerator<StreamChunk> {
+          yield {
+            type: EventType.REASONING_MESSAGE_START,
+            messageId: 'think-1',
+            role: 'reasoning',
+          }
+          yield { type: EventType.REASONING_MESSAGE_END, messageId: 'think-1' }
+          yield {
+            type: EventType.RUN_FINISHED,
+            threadId: 't',
+            runId: 'r',
+            outcome: { type: 'success' },
+          }
+        })(),
+      ),
+    )
+    const end = chunks.findIndex((chunk) => chunk.type === 'reasoning-end')
+    const step = chunks.findIndex((chunk) => chunk.type === 'finish-step')
+    expect(chunks[end]).toEqual({ type: 'reasoning-end', id: 'think-1' })
+    expect(end).toBeLessThan(step)
+    expect(chunks.at(-1)).toEqual({ type: 'finish' })
+  })
+
+  it('sends an error when a generic interrupt has no AI SDK chunk', async () => {
+    const chunks = await chunksOf(
+      toUIMessageStream(
+        (async function* (): AsyncGenerator<StreamChunk> {
+          yield {
+            type: EventType.TEXT_MESSAGE_CONTENT,
+            messageId: 'm',
+            delta: 'Wait.',
+          }
+          yield {
+            type: EventType.RUN_FINISHED,
+            threadId: 't',
+            runId: 'r',
+            outcome: {
+              type: 'interrupt',
+              interrupts: [
+                {
+                  id: 'g-1',
+                  reason: 'confirm',
+                  metadata: { kind: 'generic' },
+                },
+              ],
+            },
+          }
+        })(),
+      ),
+    )
+    expect(chunks.at(-1)).toMatchObject({ type: 'error' })
+    expect(chunks.some((c) => c.type === 'finish')).toBe(false)
+  })
+
+  it('sends abort when the run is cancelled', async () => {
+    const chunks = await chunksOf(
+      toUIMessageStream(
+        (async function* (): AsyncGenerator<StreamChunk> {
+          yield {
+            type: EventType.TEXT_MESSAGE_CONTENT,
+            messageId: 'm',
+            delta: 'Partial',
+          }
+          yield {
+            type: EventType.RUN_FINISHED,
+            threadId: 't',
+            runId: 'r',
+            outcome: { type: 'cancelled' },
+          }
+        })(),
+      ),
+    )
+    expect(chunks.at(-1)).toEqual({ type: 'abort' })
+    expect(chunks.some((c) => c.type === 'finish')).toBe(false)
+  })
+
+  it('sends abort when the event stream ends with no terminal event', async () => {
+    const chunks = await chunksOf(
+      toUIMessageStream(
+        (async function* (): AsyncGenerator<StreamChunk> {
+          yield {
+            type: EventType.TEXT_MESSAGE_CONTENT,
+            messageId: 'm',
+            delta: 'Partial',
+          }
+        })(),
+      ),
+    )
+    expect(chunks.at(-1)).toEqual({ type: 'abort' })
+    expect(chunks.some((c) => c.type === 'finish')).toBe(false)
+  })
+
   it('stops chat() when the AI SDK client goes away', async () => {
     let closed = false
     async function* endless(): AsyncGenerator<StreamChunk> {

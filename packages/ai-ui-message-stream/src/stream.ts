@@ -123,9 +123,12 @@ export function toUIMessageStream(
     let finishReason: FinishReason | undefined
     const tools = new Map<string, ToolCallState>()
     const signatures = new Map<string, string>()
+    // `reasoning-end` waits here until its signature arrives, or the stream ends.
+    const openReasoning = new Set<string>()
     const dataParts = new DataParts()
     // Each model call of chat() is one AI SDK step. It ends at RUN_FINISHED.
     let inStep = false
+    let finished = false
     const usage: Array<NonNullable<RunFinishedEvent['usage']>> = []
 
     // No message id: the AI SDK client keeps its own. A chat() message id
@@ -146,6 +149,29 @@ export function toUIMessageStream(
       if (!inStep) return
       inStep = false
       yield { type: 'finish-step' }
+    }
+
+    function* closeReasoning(id: string): Generator<UIMessageChunk> {
+      openReasoning.delete(id)
+      const signature = signatures.get(id)
+      const providerMetadata: ProviderMetadata | undefined =
+        signature === undefined
+          ? undefined
+          : {
+              tanstack: {
+                signature,
+                ...(id.startsWith(REDACTED_PREFIX) && { redacted: true }),
+              },
+            }
+      yield {
+        type: 'reasoning-end',
+        id,
+        ...(providerMetadata && { providerMetadata }),
+      }
+    }
+
+    function* closeOpenReasoning(): Generator<UIMessageChunk> {
+      for (const id of [...openReasoning]) yield* closeReasoning(id)
     }
 
     for await (const event of stream) {
@@ -186,11 +212,12 @@ export function toUIMessageStream(
           }
           break
         case EventType.REASONING_ENCRYPTED_VALUE:
-          // ponytail: only a signature sent before REASONING_MESSAGE_END is
-          // kept, which is the order the TanStack adapters use. Buffer the
-          // reasoning-end if an adapter ever sends it later.
           if (event.subtype === 'message') {
             signatures.set(event.entityId, event.encryptedValue)
+            // Responses sends the signature after REASONING_MESSAGE_END.
+            if (openReasoning.has(event.entityId)) {
+              yield* closeReasoning(event.entityId)
+            }
           }
           // A tool call's signature (Gemini `thoughtSignature`) joins its
           // metadata, as the TanStack client stores it. It goes out on
@@ -205,26 +232,15 @@ export function toUIMessageStream(
             }
           }
           break
-        case EventType.REASONING_MESSAGE_END: {
-          const signature = signatures.get(event.messageId)
-          const providerMetadata: ProviderMetadata | undefined =
-            signature === undefined
-              ? undefined
-              : {
-                  tanstack: {
-                    signature,
-                    ...(event.messageId.startsWith(REDACTED_PREFIX) && {
-                      redacted: true,
-                    }),
-                  },
-                }
-          yield {
-            type: 'reasoning-end',
-            id: event.messageId,
-            ...(providerMetadata && { providerMetadata }),
+        case EventType.REASONING_MESSAGE_END:
+          // A signature that is already here closes the part now. One that
+          // arrives later closes it in REASONING_ENCRYPTED_VALUE.
+          if (signatures.has(event.messageId)) {
+            yield* closeReasoning(event.messageId)
+          } else {
+            openReasoning.add(event.messageId)
           }
           break
-        }
 
         case EventType.TOOL_CALL_START: {
           yield* start()
@@ -256,9 +272,21 @@ export function toUIMessageStream(
         case EventType.TOOL_CALL_END: {
           const tool = tools.get(event.toolCallId)
           if (!tool) break
+          // `chat()` puts the parsed input on the end event. Argument deltas
+          // are empty when the provider sends the call only at the end.
+          const declared = event.input ?? tanstackField(event.metadata, 'input')
+          const endArgs =
+            ('args' in event && typeof event.args === 'string'
+              ? event.args
+              : undefined) ?? tanstackField(event.metadata, 'args')
+          const raw =
+            typeof endArgs === 'string' && endArgs !== '' ? endArgs : tool.args
           const input =
-            tanstackField(event.metadata, 'input') ??
-            (tool.args === '' ? {} : parseJson(tool.args))
+            declared !== null && typeof declared === 'object'
+              ? declared
+              : raw === ''
+                ? {}
+                : parseJson(raw)
           // The AI SDK client must not run a call with broken arguments.
           if (input === undefined) {
             yield {
@@ -345,6 +373,15 @@ export function toUIMessageStream(
           break
 
         case EventType.RUN_FINISHED: {
+          if (event.outcome?.type === 'cancelled') {
+            yield* closeOpenReasoning()
+            yield* finishStep()
+            yield { type: 'abort' }
+            return
+          }
+          finished = true
+          // A signature that never arrived still closes the part before the step.
+          yield* closeOpenReasoning()
           yield* finishStep()
           // The model call's metadata (model, source, response ids) goes on
           // the message, as the TanStack client keeps it. AI SDK merges each
@@ -375,33 +412,50 @@ export function toUIMessageStream(
           // tool call is not in this message (the AI SDK client throws on an
           // unknown one), so its approval shows on the subagent card only.
           if (event.outcome?.type === 'interrupt') {
+            let unanswered = false
             for (const interrupt of event.outcome.interrupts) {
+              if (interrupt.subagentRunId !== undefined) continue
+              const kind = interrupt.metadata?.kind
+              if (kind === 'client_tool') continue
               if (
-                interrupt.metadata?.kind !== 'approval' ||
-                interrupt.toolCallId === undefined ||
-                !tools.has(interrupt.toolCallId)
-              )
-                continue
-              yield* start()
-              yield {
-                type: 'tool-approval-request',
-                approvalId: interrupt.id,
-                toolCallId: interrupt.toolCallId,
-              }
-              // The binding names the paused run. The event `runId` can be
-              // the adapter's own id.
-              const runId = readInterruptBinding(interrupt)?.interruptedRunId
-              if (runId !== undefined) {
+                kind === 'approval' &&
+                interrupt.toolCallId !== undefined &&
+                tools.has(interrupt.toolCallId)
+              ) {
+                yield* start()
                 yield {
-                  type: 'message-metadata',
-                  messageMetadata: { tanstack: { runId } },
+                  type: 'tool-approval-request',
+                  approvalId: interrupt.id,
+                  toolCallId: interrupt.toolCallId,
                 }
+                // The binding names the paused run. The event `runId` can be
+                // the adapter's own id.
+                const runId = readInterruptBinding(interrupt)?.interruptedRunId
+                if (runId !== undefined) {
+                  yield {
+                    type: 'message-metadata',
+                    messageMetadata: { tanstack: { runId } },
+                  }
+                }
+                continue
               }
+              unanswered = true
+            }
+            // A generic pause has no AI SDK chunk. `finish` would look done.
+            if (unanswered) {
+              errored = true
+              yield {
+                type: 'error',
+                errorText:
+                  'The run is paused on an interrupt this client cannot answer.',
+              }
+              return
             }
           }
           break
         }
         case EventType.RUN_ERROR:
+          yield* closeOpenReasoning()
           errored = true
           yield { type: 'error', errorText: event.message }
           break
@@ -411,7 +465,13 @@ export function toUIMessageStream(
       }
     }
 
+    yield* closeOpenReasoning()
     if (errored) return
+    // `chat()` returns with no terminal event when the run is cancelled.
+    if (!finished) {
+      yield { type: 'abort' }
+      return
+    }
     yield* start()
     yield* finishStep()
     yield finishReason === undefined

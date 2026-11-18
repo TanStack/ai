@@ -229,6 +229,27 @@ describe('TanStack server, AI SDK client', () => {
     ])
   })
 
+  it('does not replay a provider-executed tool result', () => {
+    const [message] = fromAISDKMessages([
+      {
+        id: 'a-1',
+        role: 'assistant',
+        parts: [
+          {
+            type: 'dynamic-tool',
+            toolName: 'web_search',
+            toolCallId: 'ws-1',
+            state: 'output-available',
+            input: { query: 'tanstack' },
+            output: { results: [] },
+            providerExecuted: true,
+          },
+        ],
+      },
+    ])
+    expect(message?.parts.map((part) => part.type)).toEqual(['tool-call'])
+  })
+
   it('sends an AI SDK tool error back as an error result', () => {
     const [assistant] = convertMessagesToModelMessages(
       fromAISDKMessages([

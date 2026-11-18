@@ -63,11 +63,17 @@ function toolParts(
           : part.state === 'output-error' || part.state === 'output-denied'
             ? 'error'
             : 'input-complete',
-    // `toUIMessageStream` sends the TanStack tool-call metadata (Gemini
-    // `thoughtSignature`, `providerExecuted`) as `providerMetadata.tanstack`.
-    ...(part.callProviderMetadata?.tanstack !== undefined && {
-      metadata: part.callProviderMetadata.tanstack,
-    }),
+  }
+  // The part flag is what an AI SDK history carries. `tanstack` metadata is
+  // what this bridge wrote on an earlier turn.
+  const tanstackMeta = part.callProviderMetadata?.tanstack
+  if (part.providerExecuted === true) {
+    call.metadata = {
+      ...(isRecord(tanstackMeta) ? tanstackMeta : {}),
+      providerExecuted: true,
+    }
+  } else if (tanstackMeta !== undefined) {
+    call.metadata = tanstackMeta
   }
   // The provider ran the call and replays its result from the metadata, so
   // it has no tool result.
