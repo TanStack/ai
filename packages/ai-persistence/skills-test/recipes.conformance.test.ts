@@ -1,4 +1,5 @@
 import type { AIPersistenceStores } from '../src/types'
+import type { PersistenceConformanceOptions } from '../src/testkit/conformance'
 import { runPersistenceConformance } from '../src/testkit/conformance'
 import { pool } from './harness/custom-pg'
 import { db as pgDb } from './harness/pg'
@@ -21,6 +22,11 @@ const drizzleSqlite = await loadDrizzleRecipe('drizzle-sqlite')
 const drizzlePg = await loadDrizzleRecipe('drizzle-pg')
 const customPg = await loadCustomRecipe()
 
-runPersistenceConformance('drizzle-sqlite', () => drizzleSqlite, { skip })
-runPersistenceConformance('drizzle-pg', () => drizzlePg, { skip })
-runPersistenceConformance('custom-pg', () => customPg, { skip })
+const options: PersistenceConformanceOptions = {
+  skip,
+  checks: ['messages.metadata'],
+}
+
+runPersistenceConformance('drizzle-sqlite', () => drizzleSqlite, options)
+runPersistenceConformance('drizzle-pg', () => drizzlePg, options)
+runPersistenceConformance('custom-pg', () => customPg, options)
