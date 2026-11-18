@@ -1865,12 +1865,13 @@
           "label": "OpenAI-Compatible",
           "to": "adapters/openai-compatible",
           "addedAt": "2026-06-01",
-          "updatedAt": "2026-10-22"
+          "updatedAt": "2026-11-18"
         },
         {
           "label": "OpenAI-Compatible: Advanced",
           "to": "adapters/openai-compatible-advanced",
-          "addedAt": "2026-10-21"
+          "addedAt": "2026-10-21",
+          "updatedAt": "2026-11-18"
         },
         {
           "label": "LLM Gateway",
