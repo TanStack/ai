@@ -374,8 +374,10 @@ export function runPersistenceConformance(
           },
         ]
 
+        // Copy first, so a store that changes the saved array cannot pass.
+        const expected = structuredClone(withMetadata)
         await store.saveThread('thread-metadata', withMetadata)
-        expect(await store.loadThread('thread-metadata')).toEqual(withMetadata)
+        expect(await store.loadThread('thread-metadata')).toEqual(expected)
       })
     })
 

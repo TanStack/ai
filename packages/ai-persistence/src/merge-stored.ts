@@ -63,13 +63,19 @@ export function mergeStoredMessages(
     // A resumed run posts stored tool results under the interrupt snapshot's
     // ids, which the store never saw. Match tool results by toolCallId.
     if (message.role === 'tool' && message.toolCallId !== undefined) {
-      const storedIndex = prefix.findIndex(
-        (stored) =>
-          stored.role === 'tool' && stored.toolCallId === message.toolCallId,
-      )
-      const stored = prefix[storedIndex]
-      if (stored) {
-        merged[storedIndex] = keepStoredRecord(message, stored)
+      const isSameToolResult = (row: ModelMessage) =>
+        row.role === 'tool' && row.toolCallId === message.toolCallId
+      const storedIndex = prefix.findIndex(isSameToolResult)
+      const prefixRow = prefix[storedIndex]
+      if (prefixRow) {
+        merged[storedIndex] = keepStoredRecord(message, prefixRow)
+        continue
+      }
+      // With no later message, the stored tool result is past the cutoff. It
+      // is not in the prefix, so keep its app metadata when one row matches.
+      const [match, ...others] = stored.filter(isSameToolResult)
+      if (match && others.length === 0) {
+        merged.push(keepStoredAppMetadata(message, match))
         continue
       }
     }
@@ -100,7 +106,12 @@ function keepStoredRecord(incoming: ModelMessage, stored: ModelMessage) {
     incoming.midConversationChange || !stored.midConversationChange
       ? incoming
       : { ...incoming, midConversationChange: stored.midConversationChange }
-  return stored.role === 'tool' ? keepStoredAppMetadata(record, stored) : record
+  // Copy app metadata only onto the result of the same tool call.
+  const isSameToolResult =
+    incoming.role === 'tool' &&
+    stored.role === 'tool' &&
+    incoming.toolCallId === stored.toolCallId
+  return isSameToolResult ? keepStoredAppMetadata(record, stored) : record
 }
 
 // The server owns the app keys of tool result metadata. The client removes

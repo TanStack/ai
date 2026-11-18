@@ -101,6 +101,40 @@ describe('mergeStoredMessages: tool result metadata', () => {
     ])
   })
 
+  it('keeps the stored app keys for a resumed result past the cutoff', () => {
+    // No follow-up message, so the stored tool result is outside the prefix.
+    const clientResult: ModelMessage = {
+      id: 'c1',
+      role: 'tool',
+      toolCallId: 'call_2',
+      content: 'client',
+    }
+    const merged = mergeStoredMessages(
+      [user, assistant, result('old', 't1', { sources })],
+      [user, assistant, result('new', 'snapshot_r1_2'), clientResult],
+    )
+    expect(merged).toEqual([
+      user,
+      assistant,
+      result('new', 'snapshot_r1_2', { sources }),
+      clientResult,
+    ])
+  })
+
+  it('does not copy stored app keys onto a row with another toolCallId', () => {
+    const otherCall: ModelMessage = {
+      id: 't1',
+      role: 'tool',
+      toolCallId: 'call_2',
+      content: 'new',
+    }
+    const merged = mergeStoredMessages(
+      [user, assistant, result('old', 't1', { sources })],
+      [user, assistant, otherCall],
+    )
+    expect(merged).toEqual([user, assistant, otherCall])
+  })
+
   it('drops incoming app keys when the stored result has none', () => {
     const merged = mergeStoredMessages(
       [user, assistant, result('old', 't1')],
