@@ -20,6 +20,17 @@ afterEach(() => {
   vi.restoreAllMocks()
 })
 
+/** The error that `finalizeResultMetadata` rejects with, and the server log. */
+async function finalizeFailure(tool: AnyTool, value: Record<string, unknown>) {
+  const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+  const error = await finalizeResultMetadata(tool, value).catch(
+    (reason: unknown) => reason,
+  )
+  return { error, warn }
+}
+
+const notJsonError = new Error('Result metadata for tool lookup is not JSON')
+
 describe('createResultMetadataCollector', () => {
   it('merges top-level keys and the later key wins', () => {
     const collector = createResultMetadataCollector()
@@ -47,12 +58,29 @@ describe('createResultMetadataCollector', () => {
 })
 
 describe('finalizeResultMetadata', () => {
-  it('throws when the value cannot become JSON', async () => {
+  it('throws a short error and logs the reason when the value cannot become JSON', async () => {
     const circular: Record<string, unknown> = {}
     circular.self = circular
-    await expect(
-      finalizeResultMetadata(createTool(), circular),
-    ).rejects.toThrow('Result metadata for tool lookup is not JSON: ')
+
+    const { error, warn } = await finalizeFailure(createTool(), circular)
+
+    expect(error).toEqual(notJsonError)
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining('circular'))
+  })
+
+  it('keeps the thrown reason of toJSON out of the error', async () => {
+    const value = {
+      toJSON: () => {
+        throw new Error('secret-token-123')
+      },
+    }
+
+    const { error, warn } = await finalizeFailure(createTool(), value)
+
+    expect(error).toEqual(notJsonError)
+    expect(warn).toHaveBeenCalledWith(
+      expect.stringContaining('secret-token-123'),
+    )
   })
 
   it('returns a JSON copy of the value', async () => {
@@ -70,12 +98,9 @@ describe('finalizeResultMetadata', () => {
   })
 
   it('throws a short error and logs the details when the value does not match the schema', async () => {
-    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
     const tool = createTool(z.object({ count: z.number() }))
 
-    const error = await finalizeResultMetadata(tool, { count: 'two' }).catch(
-      (reason: unknown) => reason,
-    )
+    const { error, warn } = await finalizeFailure(tool, { count: 'two' })
 
     expect(error).toEqual(
       new Error('Result metadata validation failed for tool lookup'),
@@ -98,9 +123,8 @@ describe('finalizeResultMetadata', () => {
         count: BigInt(count),
       })),
     )
-    await expect(finalizeResultMetadata(tool, { count: 2 })).rejects.toThrow(
-      'Result metadata for tool lookup is not JSON: ',
-    )
+    const { error } = await finalizeFailure(tool, { count: 2 })
+    expect(error).toEqual(notJsonError)
   })
 
   it('drops a tanstack key that a schema transform adds', async () => {

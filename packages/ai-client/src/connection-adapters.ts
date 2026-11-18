@@ -1535,6 +1535,17 @@ function isUIMessageList(
   return messages.every((message) => 'parts' in message)
 }
 
+/** The messages that a `stream()` or `rpcStream()` callback gets, without app result metadata. */
+function withoutAppMessageMetadata(
+  messages: Array<UIMessage> | Array<ModelMessage>,
+) {
+  return isUIMessageList(messages)
+    ? withoutAppResultMetadata(messages)
+    : messages.map((row) =>
+        row.role === 'tool' ? withReservedMetadataOnly(row) : row,
+      )
+}
+
 function buildRunAgentInputBody(
   messages: Array<UIMessage> | Array<ModelMessage>,
   data: Record<string, any> | undefined,
@@ -3045,9 +3056,7 @@ export function stream(
       // Pass UIMessages with parts. Server-side chat() converts them to
       // ModelMessages. The server owns result metadata, so it is not sent.
       const source = streamFactory(
-        isUIMessageList(messages)
-          ? withoutAppResultMetadata(messages)
-          : messages,
+        withoutAppMessageMetadata(messages),
         data,
         abortSignal,
         buildRunAgentInputBody(messages, data, runContext, {}),
@@ -3187,10 +3196,9 @@ export function rpcStream(
 ): ConnectConnectionAdapter {
   return {
     async *connect(messages, data, abortSignal, runContext) {
-      // Pass messages as-is (UIMessages with parts preserved)
-      // Server-side chat() handles conversion to ModelMessages
+      // Same messages as stream(): the server owns result metadata.
       const source = rpcCall(
-        messages,
+        withoutAppMessageMetadata(messages),
         data,
         abortSignal,
         buildRunAgentInputBody(messages, data, runContext, {}),

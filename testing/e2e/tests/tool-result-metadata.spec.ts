@@ -18,7 +18,12 @@ const FIRST_PROMPT = '[tool-result-metadata] find the lighthouse docs'
 const SECOND_PROMPT = '[tool-result-metadata] thanks'
 const SOURCE_TITLES = ['Lighthouse guide', 'Keeper log']
 // Text that only the result metadata holds.
-const SOURCE_TEXT = ['docs.example.com', 'src-keeper', ...SOURCE_TITLES]
+const SOURCE_TEXT = [
+  'docs.example.com',
+  'src-lighthouse',
+  'src-keeper',
+  ...SOURCE_TITLES,
+]
 // Text that only the tool output holds. The model must get it.
 const TOOL_OUTPUT = 'LIGHTHOUSE_ANSWER'
 

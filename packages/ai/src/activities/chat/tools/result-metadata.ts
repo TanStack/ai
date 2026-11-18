@@ -33,14 +33,18 @@ function reasonOf(error: unknown) {
   return errorMessage(error) ?? String(error)
 }
 
-/** A plain JSON copy of `value`. Throws when it cannot become JSON. */
+/**
+ * A plain JSON copy of `value`. When it cannot become JSON, logs the reason
+ * and throws an error with only the tool name, because the model can see it.
+ */
 function jsonCopy(toolName: string, value: unknown) {
   try {
     return JSON.parse(JSON.stringify(value))
   } catch (error) {
-    throw new Error(
+    console.warn(
       `Result metadata for tool ${toolName} is not JSON: ${reasonOf(error)}`,
     )
+    throw new Error(`Result metadata for tool ${toolName} is not JSON`)
   }
 }
 
@@ -53,8 +57,8 @@ function jsonCopy(toolName: string, value: unknown) {
  * checked at runtime, the same as `outputSchema`.
  *
  * Throws an `Error` when the value cannot become JSON or the schema check
- * fails. On a failed check the error has only the tool name, because the
- * model sees it. The details go to the server log.
+ * fails. The error has only the tool name, because the model sees it. The
+ * details go to the server log.
  */
 export async function finalizeResultMetadata(
   tool: AnyTool,
@@ -97,8 +101,8 @@ export function middlewareResultMetadata(
   if (value === undefined) return undefined
   try {
     return appMetadata(jsonCopy(toolName, value))
-  } catch (error) {
-    console.warn(`Dropped middleware result metadata: ${reasonOf(error)}`)
+  } catch {
+    // jsonCopy logged the reason.
     return undefined
   }
 }

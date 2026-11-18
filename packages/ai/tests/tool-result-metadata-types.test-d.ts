@@ -36,6 +36,14 @@ withSchema.client((_args, context) => {
   return null
 })
 
+// The same rule holds when an app sets `execute` on a client tool.
+const searchClient = withSchema.client()
+searchClient.execute = (_args, context) => {
+  // @ts-expect-error a client tool cannot set result metadata
+  context?.setResultMetadata?.({ source: 'cache' })
+  return null
+}
+
 withoutSchema.server((_args, context) => {
   // Without a schema, any record is accepted.
   context?.setResultMetadata?.({ anything: 1, nested: { a: true } })

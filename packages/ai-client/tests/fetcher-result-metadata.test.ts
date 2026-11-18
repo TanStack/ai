@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
-import { ChatClient, stream } from '../src'
+import { ChatClient, rpcStream, stream } from '../src'
 import { createTextChunks } from './test-utils'
+import type { ModelMessage } from '@tanstack/ai/client'
 import type { ChatFetcher, UIMessage } from '../src/types'
 
 const assistantWithToolResult: UIMessage = {
@@ -68,22 +69,67 @@ describe('ChatClient fetcher: tool result metadata', () => {
   })
 })
 
-describe('stream() adapter: tool result metadata', () => {
-  it('sends no app metadata of a tool result to the stream factory', async () => {
-    let sent: unknown
-    const factory: Parameters<typeof stream>[0] = async function* (messages) {
-      sent = messages
+const toolRow: ModelMessage = {
+  role: 'tool',
+  toolCallId: 'call-1',
+  content: 'done',
+  metadata: {
+    sources: [{ url: 'https://example.com' }],
+    tanstack: { toolResultOutcome: 'denied' },
+  },
+}
+
+describe.each([
+  ['stream', stream],
+  ['rpcStream', rpcStream],
+])('%s() adapter: tool result metadata', (_name, createAdapter) => {
+  function recordingAdapter() {
+    const sent: { messages?: unknown } = {}
+    const adapter = createAdapter(async function* (messages) {
+      sent.messages = messages
       yield* createTextChunks('ok', 'msg-2')
-    }
+    })
+    return { adapter, sent }
+  }
+
+  it('sends no app metadata of a tool result to the callback', async () => {
+    const { adapter, sent } = recordingAdapter()
     const client = new ChatClient({
       threadId: 'thread-1',
-      connection: stream(factory),
+      connection: adapter,
       initialMessages: [assistantWithToolResult],
     })
 
     await client.sendMessage('next')
 
-    expect(JSON.stringify(sent)).not.toContain('example.com')
-    expect(JSON.stringify(sent)).toContain('"toolResultOutcome":"denied"')
+    expect(JSON.stringify(sent.messages)).not.toContain('example.com')
+    expect(JSON.stringify(sent.messages)).toContain(
+      '"toolResultOutcome":"denied"',
+    )
+  })
+
+  it('sends only the reserved metadata of a model tool row to the callback', async () => {
+    const { adapter, sent } = recordingAdapter()
+
+    for await (const _chunk of adapter.connect(
+      [toolRow],
+      undefined,
+      undefined,
+      {
+        threadId: 'thread-1',
+        runId: 'run-1',
+      },
+    )) {
+      // Consume the stream.
+    }
+
+    expect(sent.messages).toEqual([
+      {
+        role: 'tool',
+        toolCallId: 'call-1',
+        content: 'done',
+        metadata: { tanstack: { toolResultOutcome: 'denied' } },
+      },
+    ])
   })
 })

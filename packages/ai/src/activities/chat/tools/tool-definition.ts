@@ -141,12 +141,9 @@ export interface ClientTool<
   replay?: 'safe' | 'never'
   metadata?: Record<string, unknown>
   resultMetadataSchema?: TResultMetadataSchema
-  execute?: ToolExecuteFunction<
-    TInput,
-    TOutput,
-    TContext,
-    TResultMetadataSchema
-  >
+  // `never`: a client tool cannot set result metadata. The schema above
+  // still types the metadata that the client reads.
+  execute?: ToolExecuteFunction<TInput, TOutput, TContext, never>
 }
 
 /** Broad server-tool shape for heterogeneous internal collections. */
