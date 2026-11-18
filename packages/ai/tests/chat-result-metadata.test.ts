@@ -151,10 +151,15 @@ describe('chat() tool result metadata', () => {
     })
 
     expect(resultChunk).toMatchObject({ content: 'Cut off. Send it again.' })
-    expect(resultChunk?.metadata).toEqual({
+    // Other reserved `tanstack` keys can be present. Check ours only.
+    expect(resultChunk?.metadata).toMatchObject({
       retry: true,
       tanstack: { state: 'output-error' },
     })
+    expect(Object.keys(resultChunk?.metadata ?? {}).sort()).toEqual([
+      'retry',
+      'tanstack',
+    ])
   })
 
   it('emits the metadata for an approved tool on the continuation path', async () => {
