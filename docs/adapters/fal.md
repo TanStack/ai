@@ -372,7 +372,8 @@ fal has hundreds of models. These are popular picks. Any fal model id works.
 | Hunyuan3D 3.1 | `fal-ai/hunyuan-3d/v3.1/pro/image-to-3d`, `.../pro/text-to-3d`, `.../rapid/image-to-3d`, `.../rapid/text-to-3d` | One image, or text |
 | Hunyuan3D 3 | `fal-ai/hunyuan3d-v3/image-to-3d`, `.../text-to-3d` | One image, or text |
 | Hunyuan3D 2 | `fal-ai/hunyuan3d/v2` (also `/turbo`, `/mini`, `/mini/turbo`, `/multi-view`, `/multi-view/turbo`) | One image. Multi-view takes its views in `modelOptions`. |
-| Meshy | `fal-ai/meshy/v6/image-to-3d`, `fal-ai/meshy/v6/text-to-3d`, `fal-ai/meshy/v6-preview/text-to-3d`, `fal-ai/meshy/v5/multi-image-to-3d` | Image, images, or text |
+| Meshy 7.1 | `meshy/v7.1/image-to-3d`, `meshy/v7.1/multi-image-to-3d`, `meshy/v7.1/text-to-3d` | Image, images, or text |
+| Meshy 6 | `fal-ai/meshy/v6/image-to-3d`, `fal-ai/meshy/v6/text-to-3d`, `fal-ai/meshy/v6-preview/text-to-3d` | Image, or text |
 | TRELLIS | `fal-ai/trellis`, `fal-ai/trellis/multi`, `fal-ai/trellis-2` | One or more images |
 | Tripo | `tripo3d/tripo/v2.5/image-to-3d`, `tripo3d/tripo/v2.5/multiview-to-3d` | One image. Multi-view takes its views in `modelOptions`. |
 | Rodin | `fal-ai/hyper3d/rodin`, `fal-ai/hyper3d/rodin/v2` | Images and text |
@@ -380,13 +381,15 @@ fal has hundreds of models. These are popular picks. Any fal model id works.
 
 #### Mesh input models
 
-This model takes an existing mesh. Send the mesh as one `model3d` part. The adapter puts its URL in the mesh field:
+These models take an existing mesh. Send the mesh as one `model3d` part. The adapter puts its URL in the mesh field:
 
 | Model | What it does | Mesh field | Other prompt parts |
 |-------|--------------|------------|--------------------|
+| `meshy/v7/retexture` | New textures from a style image or text, up to 8k | `model_url` | One image (`image_style_url`), or text (`text_style_prompt`) |
 | `fal-ai/trellis-2/retexture` | New textures from a reference image | `mesh_url` | One image |
+| `tripo3d/tripo/remesh` | A new mesh with fewer faces, with the textures baked on | `mesh_url` | None. Set `face_limit` in `modelOptions`. |
 
-For a low-poly mesh with quad faces, set `topology: 'quad'` and `target_polycount` in the `modelOptions` of `fal-ai/meshy/v6/image-to-3d`.
+For a low-poly mesh with quad faces, set `topology: 'quad'` and `target_polycount` in the `modelOptions` of `meshy/v7.1/image-to-3d`.
 
 ### Live models
 
@@ -460,13 +463,14 @@ Named sizes change by model.
 | --- | --- | --- |
 | `fal-ai/kling-video/v1.6/{standard,pro}/text-to-video`, `fal-ai/kling-video/v2.6/pro/{text,image}-to-video` | `"5"` or `"10"` | discrete |
 | `fal-ai/kling-video/v3/pro/{text,image}-to-video` | `"3"` to `"15"` | discrete |
-| `fal-ai/pika/v2.2/text-to-video` | `"5"` or `"10"` | discrete |
-| `fal-ai/ltx-2.3/{text,image}-to-video` (and `/fast`) | `"6"`, `"8"`, or `"10"` | discrete |
-| `fal-ai/luma-dream-machine/ray-2` | `"5s"` or `"9s"` | discrete |
+| `fal-ai/ltx-2.3/{text,image}-to-video` | `6`, `8`, or `10` | discrete |
+| `fal-ai/ltx-2.3/{text,image}-to-video/fast` | `6` to `20`, in steps of 2 | discrete |
 | `fal-ai/veo3.1`, `fal-ai/veo3.1/fast` (and `/image-to-video`), `fal-ai/veo3` (and `/image-to-video`) | `"4s"`, `"6s"`, or `"8s"` | discrete |
-| `fal-ai/wan-25-preview/text-to-video` | `"2"` to `"15"` | discrete |
+| `fal-ai/wan-25-preview/text-to-video` | `"5"` or `"10"` | discrete |
 | `fal-ai/minimax/video-01` | not accepted | `{ kind: "none" }` |
 | `fal-ai/hunyuan-video-v1.5/text-to-video` | not accepted (uses `num_frames`) | `{ kind: "none" }` |
+
+`@fal-ai/client` has no types for Veo and Kling 1.6. For these models, `duration` takes any value. Use `snapDuration()` to get a valid one.
 
 ```typescript
 import { generateVideo } from "@tanstack/ai";

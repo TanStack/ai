@@ -49,9 +49,9 @@ console.log(model.url, model.format) // 'https://...glb', 'glb'
 This function makes a low-poly treasure chest from one line of text, and then a second skin for the same mesh. It runs four fal jobs, one after the other:
 
 1. **Concept art.** `fal-ai/flux-2` draws the chest.
-2. **Mesh.** Meshy v6 makes a low-poly mesh with quad faces and PBR textures.
+2. **Mesh.** Meshy 7.1 makes a low-poly mesh with quad faces and PBR textures.
 3. **Skin.** `fal-ai/flux-2/edit` draws the same chest in gold.
-4. **Retexture.** TRELLIS-2 paints the mesh from step 2 with the gold skin.
+4. **Retexture.** Meshy 7 Retexture paints the mesh from step 2 with the gold skin.
 
 ```typescript
 import { generate3DModel, generateImage } from '@tanstack/ai'
@@ -76,7 +76,7 @@ export async function buildTreasureChest(threadId: string) {
 
   // 2. A low-poly mesh with quad faces and PBR textures
   const mesh = await generate3DModel({
-    adapter: fal3DModel('fal-ai/meshy/v6/image-to-3d'),
+    adapter: fal3DModel('meshy/v7.1/image-to-3d'),
     prompt: [{ type: 'image', source: { type: 'url', value: conceptUrl } }],
     threadId,
     wait: true,
@@ -98,14 +98,14 @@ export async function buildTreasureChest(threadId: string) {
 
   // 4. Paint the same mesh with the new skin
   const golden = await generate3DModel({
-    adapter: fal3DModel('fal-ai/trellis-2/retexture'),
+    adapter: fal3DModel('meshy/v7/retexture'),
     prompt: [
       { type: 'model3d', source: { type: 'url', value: mesh.url } },
       { type: 'image', source: { type: 'url', value: firstImageUrl(skin) } },
     ],
     threadId,
     wait: true,
-    modelOptions: { texture_size: '2048' },
+    modelOptions: { enable_pbr: true, texture_resolution: '2k' },
   })
 
   return { wooden: mesh, golden }
@@ -116,19 +116,20 @@ Call `buildTreasureChest('chest-1')`. After about 10 minutes, it returns two `Mo
 
 How the parts reach fal:
 
-- An image part goes to the image field of the model, for example `image_url` on Meshy v6.
+- An image part goes to the image field of the model, for example `image_url` on Meshy 7.1.
 - A `model3d` part goes to the mesh field of the model. The fal adapter lists the field for each model in [Mesh input models](../adapters/fal#mesh-input-models).
-- On TRELLIS-2 retexture, the image part is the reference for the new textures.
+- On Meshy 7 Retexture, the image part goes to `image_style_url`, the style of the new textures. A text part goes to `text_style_prompt`. With both, Meshy uses the image.
 
 Some changes to try:
 
 - Set `target_polycount` higher for a hero asset that the camera sees close up.
+- Set `texture_resolution` to `'4k'` or `'8k'` on step 4 for sharper textures.
 - Set `enable_rigging: true` on step 2 for a character. See [Rig and animate a character](#rig-and-animate-a-character).
 - Repeat steps 3 and 4 with other text to make more skins for one mesh.
 
 ## Rig and animate a character
 
-Meshy v6 can rig a humanoid character and add animations in the same job:
+Meshy 7.1 can rig a humanoid character and add animations in the same job:
 
 ```typescript
 import { generate3DModel } from '@tanstack/ai'
@@ -137,7 +138,7 @@ import { fal3DModel } from '@tanstack/ai-fal'
 const characterUrl = 'https://example.com/concept/knight.png'
 
 const knight = await generate3DModel({
-  adapter: fal3DModel('fal-ai/meshy/v6/image-to-3d'),
+  adapter: fal3DModel('meshy/v7.1/image-to-3d'),
   prompt: [{ type: 'image', source: { type: 'url', value: characterUrl } }],
   threadId: 'knight',
   wait: true,

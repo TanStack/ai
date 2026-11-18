@@ -12,7 +12,6 @@ keywords:
   - useGenerate3DModel
   - fal
   - meshy
-  - trellis
   - tanstack start
 ---
 
@@ -21,11 +20,11 @@ Your game needs many props: chests, barrels, crates, lamps. Each prop also needs
 This tutorial builds an app that does it from text. You type one line and get a low-poly GLB with PBR textures. Then you type a second line and get the same mesh with a new skin. The app runs 4 fal steps, and you look at the result of each step before you pay for the next one:
 
 1. **Concept art.** `fal-ai/flux-2` draws the object on a plain background. You can also upload your own image.
-2. **Mesh.** Meshy v6 makes a low-poly mesh with quad faces and PBR textures.
+2. **Mesh.** Meshy Smart Topology makes a low-poly mesh with clean triangles and PBR textures.
 3. **Skin.** `fal-ai/flux-2/edit` draws the same object with a new look.
-4. **Retexture.** TRELLIS-2 paints the mesh from step 2 with the new skin.
+4. **Retexture.** Meshy 7 Retexture paints the mesh from step 2 with the new skin.
 
-It takes about 20 minutes to build. One full run takes about 10 minutes, and fal bills each step.
+It takes about 20 minutes to build. One full run takes 10 to 20 minutes, and fal bills each step.
 
 > [!WARNING]
 > 3D model generation is experimental. The API can change in a minor release.
@@ -245,8 +244,8 @@ Create `src/routes/api.model3d.ts`. One route runs both 3D steps. The `step` que
 
 | `step` | fal model | Input | What it does |
 | --- | --- | --- | --- |
-| `mesh` | `fal-ai/meshy/v6/image-to-3d` | The concept image | Makes a mesh with about 10,000 quad faces and PBR textures |
-| `retexture` | `fal-ai/trellis-2/retexture` | The mesh and the skin image | Paints the mesh with the skin |
+| `mesh` | `meshy/t2.5/image-to-3d` | The concept image | Makes a mesh with about 10,000 triangles and PBR textures |
+| `retexture` | `meshy/v7/retexture` | The mesh and the skin image | Paints the mesh with the skin, and keeps its UVs |
 
 The page sends earlier results as prompt parts. An `image` part carries an image URL. A `model3d` part carries a mesh URL. The fal adapter sends each part to the correct input field of the model.
 
@@ -261,6 +260,10 @@ import {
 import { fal3DModel } from '@tanstack/ai-fal'
 import { falByok } from '@tanstack/ai-fal/byok'
 import { byokMissing, getByokKey } from '@tanstack/ai/byok/server'
+
+// A Meshy job can take more than the default 10 minutes when the fal queue
+// is busy.
+const timeout = 20 * 60_000
 
 export async function POST({ request }: { request: Request }) {
   // ?step=mesh or ?step=retexture
@@ -277,30 +280,30 @@ export async function POST({ request }: { request: Request }) {
   const image = images.at(0)
   const mesh = models3d.at(0)
 
-  // Step 2: the concept image to a low-poly mesh with quad faces and PBR.
+  // Step 2: the concept image to a low-poly mesh with PBR textures. Meshy
+  // Smart Topology keeps to the triangle budget. @fal-ai/client has no types
+  // for this model, so modelOptions is not typed here.
   if (step === 'mesh' && image) {
     const stream = generate3DModel({
-      adapter: fal3DModel('fal-ai/meshy/v6/image-to-3d', { apiKey }),
+      adapter: fal3DModel('meshy/t2.5/image-to-3d', { apiKey }),
       prompt: [image],
-      modelOptions: {
-        topology: 'quad',
-        target_polycount: 10_000,
-        enable_pbr: true,
-      },
+      modelOptions: { target_polycount: 10_000, enable_pbr: true },
       stream: true,
+      timeout,
       threadId,
       runId,
     })
     return toServerSentEventsResponse(stream)
   }
 
-  // Step 4: paint the same mesh with the skin image.
+  // Step 4: paint the same mesh with the skin image. The UVs stay the same.
   if (step === 'retexture' && mesh && image) {
     const stream = generate3DModel({
-      adapter: fal3DModel('fal-ai/trellis-2/retexture', { apiKey }),
+      adapter: fal3DModel('meshy/v7/retexture', { apiKey }),
       prompt: [mesh, image],
-      modelOptions: { texture_size: '2048' },
+      modelOptions: { enable_pbr: true, texture_resolution: '2k' },
       stream: true,
+      timeout,
       threadId,
       runId,
     })
@@ -328,7 +331,9 @@ What the route does:
 
 - The route passes on only the parts that the step needs.
 - `stream: true` makes `generate3DModel` submit the fal job, poll it every 2 seconds, and stream each status to the page.
-- `modelOptions` is typed for each model. For example, `target_polycount` only exists on Meshy.
+- `timeout` gives each 3D job 20 minutes. The default is 10 minutes, and a Meshy job can take longer when the fal queue is busy.
+- `modelOptions` is typed for each model that `@fal-ai/client` has types for. It has no types for `meshy/t2.5` yet, so the [model page](https://fal.ai/models/meshy/t2.5/image-to-3d/api) lists its options. `target_polycount` sets the triangle budget, up to 30,000.
+- Do you need quad faces? Use `meshy/v7.1/image-to-3d` with `topology: 'quad'`. It has typed options, but it makes about twice as many triangles for the same budget.
 
 ## 6. Add the page
 

@@ -255,7 +255,7 @@ Swap the id in `fal3DModel()`. The adapter reads `FAL_KEY` from the environment.
 | --- | --- | --- |
 | `fal-ai/hunyuan-3d/v3.1/pro/image-to-3d` | One image | Detailed props and scenery from concept art, with PBR materials |
 | `fal-ai/hunyuan3d-v3/image-to-3d` | One image | Low-poly meshes (`generate_type: 'LowPoly'`) |
-| `fal-ai/meshy/v6/image-to-3d` | One image | Characters: quad topology, rigging, and animation |
+| `meshy/v7.1/image-to-3d` | One image | Game props and characters: quad topology, rigging, and animation |
 | `tripo3d/tripo/v2.5/image-to-3d` | One image | Clean meshes with a face limit |
 | `fal-ai/hunyuan-3d/v3.1/pro/text-to-3d` | Text | A model when you have no concept image |
 
@@ -288,7 +288,7 @@ const model = await generate3DModel({
 More options for popular models:
 
 - **Hunyuan3D v3**: `generate_type` (`'Normal'`, `'LowPoly'`, or `'Geometry'`), `face_count`, `enable_pbr`, and `polygon_type` (only with `'LowPoly'`).
-- **Meshy v6**: `topology` (`'quad'` or `'triangle'`), `target_polycount`, `should_remesh`, and `enable_pbr`. The rigging options are in [Rig and animate a character](./3d-model-generation-advanced#rig-and-animate-a-character).
+- **Meshy 7.1**: `topology` (`'quad'` or `'triangle'`), `target_polycount`, `should_remesh`, `enable_pbr`, and `texture_image_url` (an image that guides the textures). The rigging options are in [Rig and animate a character](./3d-model-generation-advanced#rig-and-animate-a-character).
 - **Tripo v2.5**: `face_limit`, `quad`, `pbr`, and `texture` (`'no'`, `'standard'`, or `'HD'`).
 
 The options of `generate3DModel()`:
