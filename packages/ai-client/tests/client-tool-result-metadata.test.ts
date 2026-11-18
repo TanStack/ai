@@ -12,6 +12,7 @@ const metadataTool = toolDefinition({
   name: 'metadata_tool',
   description: 'Sets result metadata',
 }).client((_input, context) => {
+  // @ts-expect-error A client tool cannot set result metadata. The test checks the runtime throw for untyped callers.
   context?.setResultMetadata?.({})
   return 'ok'
 })
