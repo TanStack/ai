@@ -308,6 +308,39 @@ Bedrock has three chat APIs. Set `api` on the factory:
 
 Use Converse unless you need the OpenAI wire format. For which models work with which API, see the [AWS API compatibility matrix](https://docs.aws.amazon.com/bedrock/latest/userguide/models-api-compatibility.html). Samples for `'chat'` and `'responses'` are in [Advanced](#chat-completions-api).
 
+### Request metadata and service tiers
+
+Use `modelOptions` on `chat()` to add request metadata or choose a Converse service tier:
+
+```typescript
+import { chat } from "@tanstack/ai";
+import { bedrockText } from "@tanstack/ai-bedrock";
+
+const stream = chat({
+  adapter: bedrockText("openai.gpt-oss-20b-1:0"),
+  messages: [{ role: "user", content: "Summarize the report." }],
+  threadId: "thread-1",
+  modelOptions: {
+    requestMetadata: {
+      application: "my-app",
+      environment: "production",
+    },
+    serviceTier: "priority",
+  },
+});
+```
+
+| Option | Value | Purpose |
+| --- | --- | --- |
+| `requestMetadata` | `Record<string, string>` | Attach metadata for filtering Bedrock model invocation logs. |
+| `serviceTier` | `'priority' \| 'default' \| 'flex' \| 'reserved'` | Select the inference tier. The adapter sends the name as `serviceTier.type`. |
+
+Both options work with Converse and ConverseStream, including structured output. The adapter sends only the options you set.
+
+To save the metadata in logs, [enable model invocation logging](https://docs.aws.amazon.com/bedrock/latest/userguide/model-invocation-logging.html) in the AWS Region used by your request.
+
+If you omit `serviceTier`, Bedrock uses Standard. Bedrock rejects tiers that your model does not support. See [AWS service tiers](https://docs.aws.amazon.com/bedrock/latest/userguide/service-tiers-inference.html) for pricing and capacity requirements.
+
 ### Reasoning
 
 Set `reasoning` on `chat()`. What goes to Bedrock depends on the API:
