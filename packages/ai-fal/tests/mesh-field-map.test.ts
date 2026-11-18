@@ -22,7 +22,8 @@ describe('generated mesh-field-overrides artifact', () => {
   })
 
   it.each([
-    ['fal-ai/meshy/v5/retexture', 'model_url'],
+    ['meshy/v7/retexture', 'model_url'],
+    ['tripo3d/tripo/remesh', 'mesh_url'],
     ['fal-ai/trellis-2/retexture', 'mesh_url'],
     ['fal-ai/hunyuan-3d/v3.1/smart-topology', 'input_file_url'],
     ['fal-ai/hunyuan-3d/v3.1/part', 'input_file_url'],

@@ -2,7 +2,7 @@
 // ---------------------------------------------------------------------------
 // AUTO-GENERATED. Do not edit by hand.
 //
-// Generated from @fal-ai/client@1.10.1 EndpointTypeMap by
+// Generated from @fal-ai/client@1.11.0 EndpointTypeMap by
 // scripts/generate-fal-image-field-map.ts. Regenerate after bumping
 // @fal-ai/client:
 //
@@ -18,7 +18,7 @@ import type { EndpointTypeMap } from '@fal-ai/client/endpoints'
 
 /** sha256 of the endpoints.d.ts this file was generated from. */
 export const FAL_MESH_ENDPOINTS_DTS_SHA256 =
-  'a071f97905b8a1068f924c74108b881362f20c9054620b70359c200404e23b4e'
+  'be36a2f9a11b0c7d011036915e1615f80e60bfc341ec6b770e897770c63cb511'
 
 /** Every input field name that fal 3D endpoints use for an input mesh. */
 export type FalMeshFieldName = 'model_url' | 'mesh_url' | 'input_file_url'
@@ -27,9 +27,17 @@ export type FalMeshFieldName = 'model_url' | 'mesh_url' | 'input_file_url'
 export const FAL_MESH_FIELD_MAP = {
   'fal-ai/hunyuan-3d/v3.1/part': 'input_file_url',
   'fal-ai/hunyuan-3d/v3.1/smart-topology': 'input_file_url',
-  'fal-ai/meshy/v5/retexture': 'model_url',
+  'fal-ai/meshy/rigging': 'model_url',
+  'fal-ai/meshy/rigging/multi-animation': 'model_url',
   'fal-ai/trellis-2/retexture': 'mesh_url',
-  'fal-ai/ultrashape': 'model_url',
+  'hitem3d/hi3d/multicolor': 'mesh_url',
+  'hitem3d/hi3d/split': 'mesh_url',
+  'hitem3d/hi3d/texture': 'mesh_url',
+  'meshy/v6-lite/retexture': 'model_url',
+  'meshy/v6/retexture': 'model_url',
+  'meshy/v7/retexture': 'model_url',
+  'tripo3d/tripo/remesh': 'mesh_url',
+  'tripo3d/tripo/segment': 'mesh_url',
 } as const satisfies {
   [K in keyof EndpointTypeMap]?: Extract<
     keyof EndpointTypeMap[K]['input'],

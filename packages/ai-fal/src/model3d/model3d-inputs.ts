@@ -29,17 +29,22 @@ import type {
  * - `text`: the input field for the prompt text, or `null` when the endpoint
  *   takes no text.
  * - `image`: `'mapped'` when the generated image field map routes the image
- *   parts, or `null` when the endpoint takes no image parts (for example multi-view endpoints,
- *   which take their views through `modelOptions`).
+ *   parts, `'image_style_url'` for Meshy retexture (one style image), or
+ *   `null` when the endpoint takes no image parts (for example multi-view
+ *   endpoints, which take their views through `modelOptions`).
  */
 type Fal3DPromptFields<TInput> = {
   text: Extract<keyof TInput, Fal3DTextFieldName> extends never
     ? null
     : Extract<keyof TInput, Fal3DTextFieldName>
   image: Extract<keyof TInput, FalImageFieldName> extends never
-    ? null
+    ? Extract<keyof TInput, 'image_style_url'> extends never
+      ? null
+      : 'image_style_url'
     : 'mapped'
 }
+
+type Fal3DImageRouting = 'mapped' | 'image_style_url' | null
 
 /**
  * The prompt fields of every known 3D endpoint. The `satisfies` clause checks
@@ -61,16 +66,23 @@ const FAL_3D_PROMPT_FIELDS = {
   'fal-ai/hunyuan-3d/v3.1/rapid/text-to-3d': { text: 'prompt', image: null },
   'fal-ai/hyper3d/rodin': { text: 'prompt', image: 'mapped' },
   'fal-ai/hyper3d/rodin/v2': { text: 'prompt', image: 'mapped' },
-  'fal-ai/meshy/v5/multi-image-to-3d': { text: null, image: 'mapped' },
   'fal-ai/meshy/v6/image-to-3d': { text: null, image: 'mapped' },
   'fal-ai/meshy/v6/text-to-3d': { text: 'prompt', image: null },
   'fal-ai/meshy/v6-preview/text-to-3d': { text: 'prompt', image: null },
+  'meshy/v7.1/image-to-3d': { text: null, image: 'mapped' },
+  'meshy/v7.1/multi-image-to-3d': { text: null, image: 'mapped' },
+  'meshy/v7.1/text-to-3d': { text: 'prompt', image: null },
+  'meshy/v7/retexture': {
+    text: 'text_style_prompt',
+    image: 'image_style_url',
+  },
   'fal-ai/trellis': { text: null, image: 'mapped' },
   'fal-ai/trellis/multi': { text: null, image: 'mapped' },
   'fal-ai/trellis-2': { text: null, image: 'mapped' },
   'fal-ai/trellis-2/retexture': { text: null, image: 'mapped' },
   'tripo3d/tripo/v2.5/image-to-3d': { text: null, image: 'mapped' },
   'tripo3d/tripo/v2.5/multiview-to-3d': { text: null, image: null },
+  'tripo3d/tripo/remesh': { text: null, image: null },
   'fal-ai/sam-3/3d-objects': { text: 'prompt', image: 'mapped' },
   'fal-ai/sam-3/3d-body': { text: null, image: 'mapped' },
 } as const satisfies {
@@ -83,7 +95,7 @@ const PROMPT_FIELDS_BY_ENDPOINT: Partial<
     string,
     {
       text: Fal3DTextFieldName | null
-      image: 'mapped' | null
+      image: Fal3DImageRouting
     }
   >
 > = FAL_3D_PROMPT_FIELDS
@@ -154,6 +166,15 @@ function mapImagesToFalFields(
       if (known) rejectExtraUnroledImages(model, images)
       return mapImageInputsToFalFields(model, images)
     }
+    case 'image_style_url': {
+      const [image, ...rest] = images
+      if (!image || rest.length > 0) {
+        throw new Error(
+          `fal: model ${model} takes one style image (received ${images.length}).`,
+        )
+      }
+      return { image_style_url: contentSourceToFalUrl(image.source) }
+    }
     case null:
       throw new Error(
         `fal: model ${model} takes no image prompt parts. Pass its image fields through modelOptions.`,
@@ -185,11 +206,13 @@ function mapMeshToFalField(model: string, meshes: ReadonlyArray<Model3DPart>) {
 /**
  * Map a 3D prompt onto the input fields of a fal 3D endpoint.
  *
- * - Text goes to the `prompt` field. It throws when the endpoint is known and takes no
+ * - Text goes to the `prompt` field (`text_style_prompt` for Meshy
+ *   retexture). It throws when the endpoint is known and takes no
  *   text, so the text is never dropped without a warning. An endpoint that
  *   is not known gets `prompt`.
  * - Image parts go through the generated image field map (for example
- *   `input_image_url` for Hunyuan3D v3, `image_urls` for TRELLIS multi). It throws when the endpoint is known and takes no image parts.
+ *   `input_image_url` for Hunyuan3D v3, `image_urls` for TRELLIS multi).
+ *   Meshy retexture takes one image in `image_style_url`. It throws when the endpoint is known and takes no image parts.
  * - One `model3d` part goes to the mesh field from the generated mesh field
  *   map (`model_url`, `mesh_url`, or `input_file_url`). It throws for a second
  *   mesh, and for an endpoint that has no mesh field.

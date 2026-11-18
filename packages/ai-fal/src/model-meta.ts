@@ -277,16 +277,20 @@ export type Fal3DKnownModel =
   | 'fal-ai/hunyuan-3d/v3.1/rapid/text-to-3d'
   | 'fal-ai/hyper3d/rodin'
   | 'fal-ai/hyper3d/rodin/v2'
-  | 'fal-ai/meshy/v5/multi-image-to-3d'
   | 'fal-ai/meshy/v6/image-to-3d'
   | 'fal-ai/meshy/v6/text-to-3d'
   | 'fal-ai/meshy/v6-preview/text-to-3d'
+  | 'meshy/v7.1/image-to-3d'
+  | 'meshy/v7.1/multi-image-to-3d'
+  | 'meshy/v7.1/text-to-3d'
+  | 'meshy/v7/retexture'
   | 'fal-ai/trellis'
   | 'fal-ai/trellis/multi'
   | 'fal-ai/trellis-2'
   | 'fal-ai/trellis-2/retexture'
   | 'tripo3d/tripo/v2.5/image-to-3d'
   | 'tripo3d/tripo/v2.5/multiview-to-3d'
+  | 'tripo3d/tripo/remesh'
   | 'fal-ai/sam-3/3d-objects'
   | 'fal-ai/sam-3/3d-body'
 
@@ -299,15 +303,16 @@ export type Fal3DKnownModel =
 export type Fal3DModel = Fal3DKnownModel | (string & {})
 
 /**
- * The input field that takes the text of a 3D prompt.
+ * Input fields that take the text of a 3D prompt: `prompt`, or
+ * `text_style_prompt` for Meshy retexture.
  */
-export type Fal3DTextFieldName = 'prompt'
+export type Fal3DTextFieldName = 'prompt' | 'text_style_prompt'
 
 /**
  * Input fields that take the image parts of a 3D prompt: the fields of the
- * generated image field map.
+ * generated image field map, and `image_style_url` for Meshy retexture.
  */
-export type Fal3DImageFieldName = FalImageFieldName
+export type Fal3DImageFieldName = FalImageFieldName | 'image_style_url'
 
 /** Input fields that the 3D adapter fills from the prompt. */
 type Fal3DPromptFieldName =

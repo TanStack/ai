@@ -254,8 +254,8 @@ export const MODEL3D_MODELS = [
     takesText: false,
   },
   {
-    id: 'fal-ai/meshy/v6/image-to-3d',
-    name: 'Meshy 6',
+    id: 'meshy/v7.1/image-to-3d',
+    name: 'Meshy 7.1',
     note: 'PBR, rigging',
     takesText: false,
   },
@@ -267,8 +267,8 @@ export const MODEL3D_MODELS = [
  */
 export const MESH_TOOL_MODELS = {
   retexture: {
-    id: 'fal-ai/trellis-2/retexture',
-    name: 'TRELLIS 2 Retexture',
+    id: 'meshy/v7/retexture',
+    name: 'Meshy 7 Retexture',
     note: 'new textures from a reference image',
   },
 } as const

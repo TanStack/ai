@@ -104,6 +104,9 @@ describe('fal3DModel types', () => {
     expectTypeOf<
       Fal3DPromptModalitiesFor<'fal-ai/trellis-2/retexture'>
     >().toEqualTypeOf<ReadonlyArray<'image' | 'model3d'>>()
+    expectTypeOf<
+      Fal3DPromptModalitiesFor<'meshy/v7/retexture'>
+    >().toEqualTypeOf<ReadonlyArray<'image' | 'model3d'>>()
   })
 })
 
@@ -127,6 +130,20 @@ describe('fal3DModel create3DModelJob', () => {
       image(IMAGE_URL),
     ])
     expect(input).toEqual({ mesh_url: MESH_URL, image_url: IMAGE_URL })
+  })
+
+  it('sends the mesh, style image, and style text to Meshy 7 retexture', async () => {
+    const input = await submittedInput(
+      'meshy/v7/retexture',
+      [mesh(MESH_URL), image(IMAGE_URL), { type: 'text', content: 'gold' }],
+      { enable_pbr: true },
+    )
+    expect(input).toEqual({
+      model_url: MESH_URL,
+      image_style_url: IMAGE_URL,
+      text_style_prompt: 'gold',
+      enable_pbr: true,
+    })
   })
 
   it.each([
@@ -188,6 +205,12 @@ describe('fal3DModel create3DModelJob', () => {
         },
       ],
       /fal-ai\/hunyuan3d-v3\/image-to-3d accepts a single source image/,
+    ],
+    [
+      'two style images to Meshy 7 retexture',
+      'meshy/v7/retexture',
+      [mesh(MESH_URL), image(IMAGE_URL), image(IMAGE_URL)],
+      /meshy\/v7\/retexture takes one style image \(received 2\)/,
     ],
     [
       'an image to an endpoint that takes no image parts',

@@ -151,7 +151,8 @@ export default function Model3DGenerator() {
     try {
       const reference = toImagePart(await readMediaFile(styleFile))
       const modelOptions = {
-        texture_size: '2048',
+        enable_pbr: true,
+        texture_resolution: '2k',
       } satisfies Fal3DModelProviderOptions<
         typeof MESH_TOOL_MODELS.retexture.id
       >
