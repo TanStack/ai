@@ -151,6 +151,30 @@ describe('generate3DModel', () => {
     expect(adapter.cancelled).toEqual(['job-1'])
   })
 
+  it('cancels a job whose id arrives after abort during create', async () => {
+    const adapter = new FakeModel3DAdapter([{ status: 'processing' }])
+    let started = false
+    let finishCreate!: (value: { jobId: string; model: string }) => void
+    adapter.create3DModelJob = () => {
+      started = true
+      return new Promise((resolve) => {
+        finishCreate = resolve
+      })
+    }
+    const controller = new AbortController()
+    const result = waitFor(adapter, { abortSignal: controller.signal })
+    await vi.waitFor(() => {
+      expect(started).toBe(true)
+    })
+    controller.abort(new Error('user stopped'))
+    await expect(result).rejects.toThrow('user stopped')
+    expect(adapter.cancelled).toEqual([])
+    finishCreate({ jobId: 'job-late', model: adapter.model })
+    await vi.waitFor(() => {
+      expect(adapter.cancelled).toEqual(['job-late'])
+    })
+  })
+
   it('cancels the job and leaves no timers when aborted during the poll sleep', async () => {
     vi.useFakeTimers()
     const adapter = new FakeModel3DAdapter([{ status: 'processing' }])

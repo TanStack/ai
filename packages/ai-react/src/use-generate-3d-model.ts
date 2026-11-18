@@ -33,35 +33,13 @@ export interface UseGenerate3DModelOptions<TOutput = Model3DResult> {
   /** Display options for TanStack AI Devtools. */
   devtools?: AIDevtoolsDisplayOptions
   /**
-   * How this generation persists across reloads.
-   * - Omit / `false`: ephemeral, in-memory only.
-   * - `true`: server-driven. On mount the client hydrates the last generation
-   *   for its `threadId` from the server (needs a connection with a
-   *   `hydrateGeneration` handler) and repaints it. It never auto-starts a run.
-   */
-  persistence?: boolean
-  /**
    * The **scope** this generation belongs to: a stable, app-chosen name for the
    * slot successive runs fill. It is not a link to a chat conversation.
    *
-   * Each run gets its own `runId`, but all runs belong to one scope.
-   * Persistence keys on this, so keep it identical across reloads (e.g.
-   * `` `asset-${assetId}-model` ``). It is also sent as the AG-UI thread id on
-   * the wire.
+   * Each run gets its own `runId`, but all runs belong to one scope. It is
+   * also sent as the AG-UI thread id on the wire.
    */
   threadId: string
-  /**
-   * Server-driven hydration handler for `persistence: true` when the
-   * connection doesn't carry one. The connection's own handler takes
-   * precedence.
-   */
-  hydrateGeneration?: ConnectConnectionAdapter['hydrateGeneration']
-  /**
-   * Re-attach handler that replays a run still generating to completion on
-   * mount, when the connection doesn't carry one. The connection's own
-   * handler takes precedence.
-   */
-  joinRun?: ConnectConnectionAdapter['joinRun']
   /**
    * Callback when the 3D model is ready. Can optionally return a transformed value.
    *

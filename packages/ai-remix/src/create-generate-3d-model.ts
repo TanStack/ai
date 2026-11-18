@@ -19,7 +19,11 @@ import type {
  */
 export type CreateGenerate3DModelOptions<TOutput = Model3DResult> = Omit<
   CreateGenerationOptions<Model3DGenerateInput, Model3DResult, TOutput>,
-  'onResult' | 'reconstructResult'
+  | 'onResult'
+  | 'reconstructResult'
+  | 'persistence'
+  | 'hydrateGeneration'
+  | 'joinRun'
 > & {
   onResult?: (result: Model3DResult) => TOutput | null | void
 }

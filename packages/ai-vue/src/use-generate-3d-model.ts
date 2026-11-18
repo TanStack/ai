@@ -26,10 +26,7 @@ export interface UseGenerate3DModelOptions<
   TOutput = Model3DResult,
 > extends Pick<
   UseGenerationOptions<Model3DGenerateInput, Model3DResult, TOutput>,
-  | 'persistence'
   | 'threadId'
-  | 'hydrateGeneration'
-  | 'joinRun'
   | 'byok'
   | 'byokProvider'
 > {

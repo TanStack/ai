@@ -171,6 +171,12 @@ describe('fal3DModel create3DModelJob', () => {
       /takes one model3d prompt part \(received 2\)/,
     ],
     [
+      'two unroled images to a single-image endpoint',
+      'fal-ai/hunyuan3d-v3/image-to-3d',
+      [image(IMAGE_URL), image(IMAGE_URL)],
+      /fal-ai\/hunyuan3d-v3\/image-to-3d accepts a single source image/,
+    ],
+    [
       'an image to an endpoint that takes no image parts',
       'fal-ai/hunyuan3d-v3/text-to-3d',
       [image(IMAGE_URL)],
@@ -191,6 +197,16 @@ describe('fal3DModel create3DModelJob', () => {
       expect(queue.submitted).toEqual([])
     },
   )
+
+  it('sends two images as image_urls to TRELLIS multi', async () => {
+    const input = await submittedInput('fal-ai/trellis/multi', [
+      image(IMAGE_URL),
+      image('https://example.com/chair-2.png'),
+    ])
+    expect(input).toEqual({
+      image_urls: [IMAGE_URL, 'https://example.com/chair-2.png'],
+    })
+  })
 })
 
 describe('fal3DModel get3DModelStatus', () => {

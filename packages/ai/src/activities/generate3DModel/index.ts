@@ -304,16 +304,26 @@ function createJob(
     provider: adapter.name,
     model: adapter.model,
   })
-  return raceWithAbort(
-    adapter.create3DModelJob({
-      model: adapter.model,
-      prompt: options.prompt,
-      modelOptions: options.modelOptions,
-      logger,
-      ...(signal ? { abortSignal: signal } : {}),
-    }),
-    signal,
-  )
+  const submission = adapter.create3DModelJob({
+    model: adapter.model,
+    prompt: options.prompt,
+    modelOptions: options.modelOptions,
+    logger,
+    ...(signal ? { abortSignal: signal } : {}),
+  })
+  return raceWithAbort(submission, signal).catch((error: unknown) => {
+    // Abort can win before the adapter returns an id. fal may still accept
+    // the job. Keep watching the original promise and cancel that late id.
+    if (isActivityAbortError(error, signal)) {
+      void submission.then(
+        (job) => {
+          if (job.jobId) cancelJob(adapter, job.jobId, logger)
+        },
+        () => undefined,
+      )
+    }
+    throw error
+  })
 }
 
 /** Fire `onAbort` for a caller abort or timeout, else `onError`. */

@@ -74,9 +74,13 @@ export default function Model3DGenerator() {
   const [styleFiles, setStyleFiles] = useState<Array<File>>([])
   const [step, setStep] = useState<Step>('base')
   const [progress, setProgress] = useState<Progress | null>(null)
-  // The hook builds its client once, so the fetcher reads the endpoint of
-  // each run from this ref and not from a captured value.
-  const runModelRef = useRef<string>(MODEL3D_MODELS[0].id)
+  // Guard Generate and Retexture from file read through generation so a
+  // second click cannot overwrite the accepted run.
+  const inFlightRef = useRef(false)
+  // The hook builds its client once. Each run stores its endpoint on this
+  // map, keyed by the generate input object, so the fetcher does not read a
+  // shared current-endpoint ref after BYOK.
+  const endpointByInput = useRef(new WeakMap<object, string>())
   const modelSelectId = useId()
   const textHintId = useId()
   const resultHeadingId = useId()
@@ -93,7 +97,7 @@ export default function Model3DGenerator() {
       callWithByok(
         generate3DModelFn({
           data: {
-            model: runModelRef.current,
+            model: endpointByInput.current.get(input) ?? MODEL3D_MODELS[0].id,
             prompt: input.prompt,
             ...(input.modelOptions ? { modelOptions: input.modelOptions } : {}),
           },
@@ -105,26 +109,34 @@ export default function Model3DGenerator() {
   })
 
   const run = (next: Run) => {
-    runModelRef.current = next.model
-    setStep(next.step)
-    setProgress(null)
-    void generate({
+    const input = {
       prompt: next.prompt,
       ...(next.modelOptions ? { modelOptions: next.modelOptions } : {}),
+    }
+    endpointByInput.current.set(input, next.model)
+    setStep(next.step)
+    setProgress(null)
+    void generate(input).finally(() => {
+      inFlightRef.current = false
     })
   }
 
   const handleGenerate = async () => {
     const file = files[0]
-    if (!file || isLoading) return
-    const image = toImagePart(await readMediaFile(file))
-    const text = textHint.trim()
-    const sendText = selected.takesText && text.length > 0
-    run({
-      step: 'base',
-      model: selected.id,
-      prompt: sendText ? [{ type: 'text', content: text }, image] : [image],
-    })
+    if (!file || isLoading || inFlightRef.current) return
+    inFlightRef.current = true
+    try {
+      const image = toImagePart(await readMediaFile(file))
+      const text = textHint.trim()
+      const sendText = selected.takesText && text.length > 0
+      run({
+        step: 'base',
+        model: selected.id,
+        prompt: sendText ? [{ type: 'text', content: text }, image] : [image],
+      })
+    } catch {
+      inFlightRef.current = false
+    }
   }
 
   // A failed run keeps the previous model on the hook. Hide it under the
@@ -134,17 +146,22 @@ export default function Model3DGenerator() {
 
   const handleRetexture = async () => {
     const styleFile = styleFiles[0]
-    if (!shown || !styleFile) return
-    const reference = toImagePart(await readMediaFile(styleFile))
-    const modelOptions = {
-      texture_size: '2048',
-    } satisfies Fal3DModelProviderOptions<typeof MESH_TOOL_MODELS.retexture.id>
-    run({
-      step: 'retexture',
-      model: MESH_TOOL_MODELS.retexture.id,
-      prompt: [meshPart(shown.url), reference],
-      modelOptions,
-    })
+    if (!shown || !styleFile || isLoading || inFlightRef.current) return
+    inFlightRef.current = true
+    try {
+      const reference = toImagePart(await readMediaFile(styleFile))
+      const modelOptions = {
+        texture_size: '2048',
+      } satisfies Fal3DModelProviderOptions<typeof MESH_TOOL_MODELS.retexture.id>
+      run({
+        step: 'retexture',
+        model: MESH_TOOL_MODELS.retexture.id,
+        prompt: [meshPart(shown.url), reference],
+        modelOptions,
+      })
+    } catch {
+      inFlightRef.current = false
+    }
   }
 
   const statusText = isLoading

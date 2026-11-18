@@ -3,6 +3,11 @@ import {
   contentSourceToFalUrl,
   mapImageInputsToFalFields,
 } from '../image/image-inputs'
+import {
+  FAL_IMAGE_FIELD_OVERRIDES,
+  type FalImageFieldName,
+  type FalImageFieldOverride,
+} from '../image/generated/image-field-overrides'
 import { FAL_MESH_FIELD_MAP } from './generated/mesh-field-overrides'
 import type {
   ImagePart,
@@ -11,7 +16,6 @@ import type {
   Model3DPart,
 } from '@tanstack/ai'
 import type { EndpointTypeMap } from '@fal-ai/client/endpoints'
-import type { FalImageFieldName } from '../image/generated/image-field-overrides'
 import type { FalMeshFieldName } from './generated/mesh-field-overrides'
 import type {
   Fal3DKnownModel,
@@ -86,6 +90,40 @@ const PROMPT_FIELDS_BY_ENDPOINT: Partial<
 const MESH_FIELD_BY_ENDPOINT: Partial<Record<string, FalMeshFieldName>> =
   FAL_MESH_FIELD_MAP
 
+const LIST_IMAGE_FIELDS = new Set([
+  'image_urls',
+  'input_image_urls',
+  'ref_image_urls',
+  'reference_image_urls',
+])
+
+/**
+ * Known single-image 3D endpoints override only `single`. The shared image
+ * mapper then sends extra unroled images to the default `image_urls` field,
+ * which those endpoints do not read. Reject that case before submit.
+ */
+function rejectExtraUnroledImages(
+  model: string,
+  images: ReadonlyArray<ImagePart<MediaInputMetadata>>,
+) {
+  const unroled = images.filter((part) => part.metadata?.role == null)
+  if (unroled.length <= 1) return
+  const override = (
+    FAL_IMAGE_FIELD_OVERRIDES as Record<
+      string,
+      FalImageFieldOverride | undefined
+    >
+  )[model]
+  const singleField = override?.single ?? 'image_url'
+  const allowsList =
+    LIST_IMAGE_FIELDS.has(singleField) ||
+    (override?.multi !== undefined && LIST_IMAGE_FIELDS.has(override.multi))
+  if (allowsList) return
+  throw new Error(
+    `fal: model ${model} accepts a single source image via '${singleField}' (received ${unroled.length}).`,
+  )
+}
+
 function mapTextToFalField(model: string, text: string) {
   if (!text) return {}
   const known = PROMPT_FIELDS_BY_ENDPOINT[model]
@@ -108,8 +146,10 @@ function mapImagesToFalFields(
   // An endpoint that the table does not know uses the generated image map.
   const imageRouting = known ? known.image : 'mapped'
   switch (imageRouting) {
-    case 'mapped':
+    case 'mapped': {
+      if (known) rejectExtraUnroledImages(model, images)
       return mapImageInputsToFalFields(model, images)
+    }
     case null:
       throw new Error(
         `fal: model ${model} takes no image prompt parts. Pass its image fields through modelOptions.`,

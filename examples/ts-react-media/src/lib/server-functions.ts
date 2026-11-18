@@ -745,6 +745,7 @@ export const generate3DModelFn = createServerFn({ method: 'POST' })
     // Images are uploaded once to fal storage, so the request carries a
     // storage URL and not a large base64 string. A mesh part already holds
     // the URL of an earlier result.
+    const abortSignal = getRequest().signal
     const parts = typeof data.prompt === 'string' ? [] : data.prompt
     const meshes = parts.filter((part) => part.type === 'model3d')
     if (meshes.length > 0 && !isMeshToolModelId(data.model)) {
@@ -758,6 +759,7 @@ export const generate3DModelFn = createServerFn({ method: 'POST' })
       ),
       falF(),
     )
+    abortSignal.throwIfAborted()
     const prompt = typeof others === 'string' ? others : [...meshes, ...others]
     return toServerSentEventsResponse(
       generate3DModel({
@@ -766,6 +768,7 @@ export const generate3DModelFn = createServerFn({ method: 'POST' })
         modelOptions: data.modelOptions,
         threadId: 'media-3d',
         stream: true,
+        abortSignal,
       }),
     )
   })
