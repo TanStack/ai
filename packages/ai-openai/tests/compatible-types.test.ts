@@ -135,3 +135,40 @@ test('chat({ reasoning }) stays a type error without the generic', () => {
     reasoning: 'high',
   })
 })
+
+test('the factories type chat({ reasoning }) from the levels of the model', () => {
+  const base = {
+    messages: [{ role: 'user' as const, content: 'Hi' }],
+    threadId: 't',
+  }
+  const provider = openaiCompatible({
+    baseURL: 'https://x/v1',
+    apiKey: 'k',
+    models: [
+      'plain',
+      createModel('reasoner', { input: ['text'], reasoning: REASONING }),
+    ] as const,
+  })
+
+  chat({ ...base, adapter: provider('reasoner'), reasoning: 'high' })
+  // @ts-expect-error 'medium' is not a level of this model
+  chat({ ...base, adapter: provider('reasoner'), reasoning: 'medium' })
+  // @ts-expect-error a model without levels takes no reasoning option
+  chat({ ...base, adapter: provider('plain'), reasoning: 'high' })
+
+  const single = openaiCompatibleText('reasoner', {
+    baseURL: 'https://x/v1',
+    apiKey: 'k',
+    reasoning: REASONING,
+  })
+  chat({ ...base, adapter: single, reasoning: 'low' })
+  // @ts-expect-error 'medium' is not a level of this model
+  chat({ ...base, adapter: single, reasoning: 'medium' })
+
+  const plain = openaiCompatibleText('plain', {
+    baseURL: 'https://x/v1',
+    apiKey: 'k',
+  })
+  // @ts-expect-error a model without levels takes no reasoning option
+  chat({ ...base, adapter: plain, reasoning: 'high' })
+})

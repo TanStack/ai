@@ -3,9 +3,8 @@ import { chat } from '@tanstack/ai'
 import { createGeminiChat } from '@tanstack/ai-gemini'
 import { createAnthropicChat } from '@tanstack/ai-anthropic'
 import { createOpenaiChat } from '@tanstack/ai-openai'
-import { OpenAICompatibleChatAdapter } from '@tanstack/ai-openai/compatible'
+import { openaiCompatibleText } from '@tanstack/ai-openai/compatible'
 import { grokVertexText } from '@tanstack/ai-grok/vertex'
-import { createOpenAIClient } from '@tanstack/openai-base'
 import { vertexE2eAuthClient } from '@/lib/vertex-e2e'
 import type {
   AnyTextAdapter,
@@ -27,7 +26,7 @@ const geminiReasoning: ReasoningRequest = {
 // grok-4.20-reasoning always thinks and has no levels, so even `off` sends
 // no reasoning field.
 const grokReasoning: ReasoningRequest = { level: 'off', summary: true }
-// The OpenAI-compatible adapter gets its levels from the `reasoning` option.
+// The OpenAI-compatible adapter gets its levels from its `reasoning` config.
 const compatibleLevels = {
   levels: { low: 'low', medium: 'medium', high: 'high' },
   budget: false,
@@ -86,22 +85,12 @@ export const Route = createFileRoute('/api/reasoning-wire')({
                     defaultHeaders: headers,
                   })
                 : provider === 'openai-compatible'
-                  ? new OpenAICompatibleChatAdapter<
-                      'deepseek-reasoner',
-                      Record<string, unknown>,
-                      readonly ['text'],
-                      readonly [],
-                      { levels: 'low' | 'medium' | 'high'; budget: false }
-                    >(
-                      createOpenAIClient({
-                        apiKey: DUMMY_KEY,
-                        baseURL: `${LLMOCK_DEFAULT_BASE}/v1`,
-                        defaultHeaders: headers,
-                      }),
-                      'deepseek-reasoner',
-                      'openai-compatible',
-                      { reasoning: compatibleLevels },
-                    )
+                  ? openaiCompatibleText('deepseek-reasoner', {
+                      apiKey: DUMMY_KEY,
+                      baseURL: `${LLMOCK_DEFAULT_BASE}/v1`,
+                      defaultHeaders: headers,
+                      reasoning: compatibleLevels,
+                    })
                   : createOpenaiChat('o3', DUMMY_KEY, {
                       baseURL: `${LLMOCK_DEFAULT_BASE}/v1`,
                       defaultHeaders: headers,

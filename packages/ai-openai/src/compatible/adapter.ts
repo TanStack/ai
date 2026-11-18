@@ -36,9 +36,9 @@ export type OpenAICompatibleAdapterOptions<
       })
 
 /** The options argument: optional without `TReasoning`, required with it. */
-type OptionsArg<TReasoning extends ReasoningCapability> = [TReasoning] extends [
-  never,
-]
+export type OptionsArg<TReasoning extends ReasoningCapability> = [
+  TReasoning,
+] extends [never]
   ? [options?: OpenAICompatibleAdapterOptions]
   : [options: OpenAICompatibleAdapterOptions<TReasoning>]
 

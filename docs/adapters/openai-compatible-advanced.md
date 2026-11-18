@@ -59,50 +59,64 @@ Reasoning deltas stream as thinking content. Endpoints on the OpenAI spec from b
 
 ## Reasoning levels
 
-Pass the levels of the model in the `reasoning` option of `OpenAICompatibleChatAdapter`. Then `chat({ reasoning })` sends the level as `reasoning_effort`:
+`chat({ reasoning })` must know which levels your model takes. Add the levels to the `createModel` definition of the model. Then `chat({ reasoning })` sends the level as `reasoning_effort`:
 
 ```typescript
-import { chat } from "@tanstack/ai";
-import { OpenAICompatibleChatAdapter } from "@tanstack/ai-openai/compatible";
-import { createOpenAIClient } from "@tanstack/openai-base";
+import { chat, createModel } from "@tanstack/ai";
+import { openaiCompatible } from "@tanstack/ai-openai/compatible";
 
 // gpt-oss on a vLLM server
-const client = createOpenAIClient({
+const vllm = openaiCompatible({
+  name: "vllm",
   baseURL: "http://localhost:8000/v1",
   apiKey: "not-needed",
-});
-
-const adapter = new OpenAICompatibleChatAdapter<
-  "openai/gpt-oss-120b",
-  Record<string, unknown>,
-  readonly ["text"],
-  readonly [],
-  { levels: "low" | "medium" | "high"; budget: false }
->(client, "openai/gpt-oss-120b", "vllm", {
-  reasoning: {
-    levels: { low: "low", medium: "medium", high: "high" },
-    budget: false,
-  },
+  models: [
+    createModel("openai/gpt-oss-120b", {
+      input: ["text"],
+      reasoning: {
+        levels: { low: "low", medium: "medium", high: "high" },
+        budget: false,
+      },
+    }),
+  ],
 });
 
 const stream = chat({
-  adapter,
+  adapter: vllm("openai/gpt-oss-120b"),
   messages: [{ role: "user", content: "Is 1013 a prime number?" }],
   threadId: "thread-1",
   reasoning: "high",
 });
 ```
 
-- `levels` maps each level to the value that the provider takes. The last type parameter gives the same levels to the types, so `chat()` rejects a level that the model does not have.
-- The option and the type parameter must have the same levels. If the option is missing, or its levels are different, TypeScript shows an error.
+- `levels` maps each level to the value that the provider takes. `chat()` accepts only these levels. Any other level is a type error.
 - A level that the model does not have at run time moves to the nearest level that it has.
-- `OpenAICompatibleResponsesAdapter` takes the same option. It sends `reasoning: { effort, summary }`.
-- Without the `reasoning` option, the adapter sends no reasoning field.
-- Make the client with `createOpenAIClient` from `@tanstack/openai-base`. The type of this client always matches the adapter. Install `@tanstack/openai-base` in your app. A strict package manager, such as pnpm, does not let you import a package that you did not install.
+- With `api: "responses"`, the adapter sends `reasoning: { effort, summary }`.
+- A model without `reasoning` sends no reasoning field. For that model, `chat({ reasoning })` is a type error.
+
+For a single model, give the same `reasoning` field to `openaiCompatibleText`:
+
+```typescript
+import { openaiCompatibleText } from "@tanstack/ai-openai/compatible";
+
+const adapter = openaiCompatibleText("openai/gpt-oss-120b", {
+  baseURL: "http://localhost:8000/v1",
+  apiKey: "not-needed",
+  reasoning: {
+    levels: { low: "low", medium: "medium", high: "high" },
+    budget: false,
+  },
+});
+```
 
 ### A provider with its own field
 
-Some providers do not take `reasoning_effort`. For example, Qwen turns thinking on and off with `enable_thinking`. Extend the adapter, and set the field in `mapOptionsToRequest`:
+Some providers do not take `reasoning_effort`. For example, Qwen turns thinking on and off with `enable_thinking`. Extend `OpenAICompatibleChatAdapter`, and set the field in `mapOptionsToRequest`:
+
+- The last type parameter gives the levels to the types.
+- The `reasoning` option gives the same levels to the adapter. If the option is missing, or its levels are different, TypeScript shows an error.
+- Make the client with `createOpenAIClient` from `@tanstack/openai-base`. Install `@tanstack/openai-base` in your app. A strict package manager, such as pnpm, does not let you import a package that you did not install.
+
 
 ```typescript
 import { chat } from "@tanstack/ai";

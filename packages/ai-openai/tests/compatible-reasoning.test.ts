@@ -1,11 +1,12 @@
 import { describe, expect, it, vi } from 'vitest'
 import OpenAI from 'openai'
-import { EventType } from '@tanstack/ai'
+import { EventType, createModel } from '@tanstack/ai'
 import { resolveDebugOption } from '@tanstack/ai/adapter-internals'
 import {
   OpenAICompatibleChatAdapter,
   OpenAICompatibleResponsesAdapter,
 } from '../src/compatible/adapter'
+import { openaiCompatible, openaiCompatibleText } from '../src/compatible/index'
 import type { AdapterYieldChunk, ReasoningRequest } from '@tanstack/ai'
 import type { ModelReasoningCapability } from '@tanstack/ai/adapter-internals'
 
@@ -229,5 +230,73 @@ describe('OpenAI-compatible adapters send chat({ reasoning })', () => {
       false,
     )
     expect(request).not.toHaveProperty('reasoning_effort')
+  })
+})
+
+describe('the OpenAI-compatible factories send the levels of the model', () => {
+  const REASONING = {
+    levels: { low: 'low', high: 'high' },
+    budget: false,
+  } as const
+
+  /** A fetch that keeps the request body, then fails the request. */
+  function capture() {
+    const bodies: Array<Record<string, unknown>> = []
+    const fetch: typeof globalThis.fetch = (_input, init) => {
+      bodies.push(JSON.parse(String(init?.body)) as Record<string, unknown>)
+      return Promise.reject(new Error('request captured'))
+    }
+    return {
+      bodies,
+      fetch,
+      baseURL: 'https://x/v1',
+      apiKey: 'k',
+      maxRetries: 0,
+    }
+  }
+
+  async function send(adapter: {
+    chatStream: OpenAICompatibleChatAdapter<string>['chatStream']
+  }) {
+    try {
+      for await (const _ of adapter.chatStream({
+        threadId: 'thread-1',
+        logger: testLogger,
+        model: 'm',
+        messages: [{ role: 'user', content: 'Hi' }],
+        reasoning: { level: 'high', summary: true },
+      })) {
+        // drain
+      }
+    } catch {
+      // The captured request fails on purpose.
+    }
+  }
+
+  it('openaiCompatible sends the levels of a createModel def', async () => {
+    const { bodies, ...config } = capture()
+    const provider = openaiCompatible({
+      ...config,
+      models: [
+        'plain',
+        createModel('reasoner', { input: ['text'], reasoning: REASONING }),
+      ] as const,
+    })
+
+    await send(provider('reasoner'))
+    await send(provider('plain'))
+
+    expect(bodies[0]?.reasoning_effort).toBe('high')
+    expect(bodies[1]).not.toHaveProperty('reasoning_effort')
+  })
+
+  it('openaiCompatibleText sends the levels of its reasoning config', async () => {
+    const { bodies, ...config } = capture()
+
+    await send(
+      openaiCompatibleText('reasoner', { ...config, reasoning: REASONING }),
+    )
+
+    expect(bodies[0]?.reasoning_effort).toBe('high')
   })
 })
