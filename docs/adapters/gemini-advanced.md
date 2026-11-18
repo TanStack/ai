@@ -395,7 +395,7 @@ import { generateSpeech } from "@tanstack/ai";
 import { geminiSpeech } from "@tanstack/ai-gemini";
 
 const result = await generateSpeech({
-  adapter: geminiSpeech("gemini-3.1-flash-tts-preview"),
+  adapter: geminiSpeech("gemini-3.8-flash-tts"),
   turns: [
     { text: "Hey, how is it going?", voice: "Puck" },
     { text: "Not bad, you?", voice: "Kore" },

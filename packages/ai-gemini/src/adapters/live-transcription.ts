@@ -49,8 +49,8 @@ const DEFAULT_URL =
 
 /**
  * Gemini Live transcription adapter for `transcriptionSession()`.
- * Takes 16 kHz linear16 PCM. Other formats, such as μ-law phone audio, are
- * converted by the session.
+ * Takes linear16 PCM at 16 or 24 kHz. Other formats, such as μ-law phone
+ * audio, are converted by the session.
  *
  * Gemini Live sessions last up to 10 minutes.
  *
@@ -72,7 +72,7 @@ export function geminiLiveTranscription<
     kind: 'liveTranscription',
     name: 'gemini',
     model,
-    audioInputs: [{ encoding: 'linear16', sampleRates: [16000] }],
+    audioInputs: [{ encoding: 'linear16', sampleRates: [16000, 24000] }],
     '~types': {} as never,
     connect: async (options) => {
       const apiKey = config.apiKey ?? getGeminiApiKeyFromEnv()

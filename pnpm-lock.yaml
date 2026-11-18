@@ -735,6 +735,9 @@ importers:
       '@tanstack/ai-client':
         specifier: workspace:*
         version: link:../../../packages/ai-client
+      '@tanstack/ai-elevenlabs':
+        specifier: workspace:*
+        version: link:../../../packages/ai-elevenlabs
       '@tanstack/ai-gemini':
         specifier: workspace:*
         version: link:../../../packages/ai-gemini

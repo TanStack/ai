@@ -146,15 +146,36 @@ export function elevenlabsLiveTranscription<
         },
       })
 
-      const chunk = (audio: string, commit: boolean) => ({
+      const chunk = (audio: Uint8Array, commit: boolean) => ({
         message_type: 'input_audio_chunk',
-        audio_base_64: audio,
+        audio_base_64: bytesToBase64(audio),
         commit,
         sample_rate: sampleRate,
       })
+      // Scribe closes the socket with `queue_overflow` when chunks arrive too
+      // often, and callers send whatever their source gives them: 5 ms from an
+      // AudioWorklet, 20 ms from Twilio. Gather up to 250 ms per message.
+      const batchBytes = (sampleRate / 4) * (encoding === 'mulaw' ? 1 : 2)
+      let pending: Array<Uint8Array> = []
+      let pendingBytes = 0
+      const drain = () => {
+        const out = new Uint8Array(pendingBytes)
+        let offset = 0
+        for (const part of pending) {
+          out.set(part, offset)
+          offset += part.length
+        }
+        pending = []
+        pendingBytes = 0
+        return out
+      }
       return {
-        send: (audio) => live.sendJson(chunk(bytesToBase64(audio), false)),
-        close: () => live.finish(chunk('', true)),
+        send: (audio) => {
+          pending.push(audio)
+          pendingBytes += audio.length
+          if (pendingBytes >= batchBytes) live.sendJson(chunk(drain(), false))
+        },
+        close: () => live.finish(chunk(drain(), true)),
       }
     },
   }

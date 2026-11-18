@@ -180,7 +180,7 @@ import { generateSpeech } from "@tanstack/ai";
 import { geminiSpeech } from "@tanstack/ai-gemini";
 
 const result = await generateSpeech({
-  adapter: geminiSpeech("gemini-3.1-flash-tts-preview"),
+  adapter: geminiSpeech("gemini-3.8-flash-tts"),
   text: "Hello from Gemini TTS!",
   threadId: "thread-1",
 });
@@ -372,7 +372,7 @@ Newest first. The package exports the full lists, for example `GeminiTextModels`
 | --- | --- | --- |
 | Chat | `geminiText` | `gemini-3.8-flash`, `gemini-3.7-flash`, `gemini-3.6-flash`, `gemini-3.5-flash`, `gemini-3.5-flash-lite`, `gemini-3.1-pro-preview`, `gemini-3-flash-preview`, `gemini-3.1-flash-lite`, `gemini-3.1-flash-lite-preview`, `gemini-2.5-pro`, `gemini-2.5-flash`, `gemini-2.5-flash-lite` |
 | Images | `geminiImage` | `gemini-nano-banana-2.1`, `gemini-3.1-flash-image`, `gemini-3.1-flash-lite-image`, `gemini-3-pro-image` |
-| Speech | `geminiSpeech` | `gemini-3.1-flash-tts-preview`, `gemini-2.5-flash-preview-tts`, `gemini-2.5-pro-preview-tts` |
+| Speech | `geminiSpeech` | `gemini-3.8-flash-tts`, `gemini-3.8-flash-lite-tts`, `gemini-3.1-flash-tts-preview`, `gemini-2.5-flash-preview-tts`, `gemini-2.5-pro-preview-tts` |
 | Music | `geminiAudio` | `lyria-3-pro-preview`, `lyria-3-clip-preview` |
 | Video | `geminiVideo` | `veo-3.1-generate-preview`, `veo-3.1-fast-generate-preview`, `veo-3.1-lite-generate-preview`, `gemini-omni-1.1-flash` |
 | Embeddings | `geminiEmbedding` | `gemini-embedding-001` |

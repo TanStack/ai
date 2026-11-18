@@ -55,6 +55,30 @@ describe('geminiLiveTranscription', () => {
     ])
   })
 
+  it('passes 24 kHz PCM through with the rate in the mime type', async () => {
+    const ws = fakeWebSocket()
+    const opening = transcriptionSession({
+      adapter: geminiLiveTranscription('gemini-3.5-transcribe-live', {
+        apiKey: 'g-key',
+        WebSocket: ws.WebSocket,
+      }),
+      audio: { encoding: 'linear16', sampleRate: 24000 },
+    })
+    const socket = ws.sockets[0]!
+    socket.open()
+    socket.receive({ setupComplete: {} })
+    const session = await opening
+    session.send(new Uint8Array([1, 0, 2, 0]))
+    expect(socket.json().at(-1)).toEqual({
+      realtimeInput: {
+        audio: { data: 'AQACAA==', mimeType: 'audio/pcm;rate=24000' },
+      },
+    })
+    const closing = session.close()
+    socket.receive({ serverContent: { inputTranscription: { text: 'hi' } } })
+    await closing
+  })
+
   it('waits for the transcript of audio sent just before close', async () => {
     const ws = fakeWebSocket()
     const opening = transcriptionSession({

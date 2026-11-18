@@ -47,6 +47,7 @@ When the adapter does not take your format, the session decodes G.711 to PCM. It
 | ---------------- | ---------------- | ---------------- |
 | `mulaw`, 8 kHz   | PCM, 16 kHz      | `mulaw`, 8 kHz   |
 | `linear16`, 16 kHz | PCM, 16 kHz    | PCM, 24 kHz      |
+| `linear16`, 24 kHz | PCM, 24 kHz    | PCM, 24 kHz      |
 
 To convert audio yourself, for example before you record it, use `createAudioConverter()`. Keep one converter per stream, because it carries state between chunks:
 

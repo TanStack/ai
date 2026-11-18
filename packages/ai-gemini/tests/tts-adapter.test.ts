@@ -167,6 +167,38 @@ describe('Gemini TTS Adapter', () => {
     expect(args.config.speechConfig.voiceConfig).toBeUndefined()
   })
 
+  it('sends style and speakers as speechMetadata on Gemini 3.8 TTS', async () => {
+    mockGenerateContent.mockResolvedValueOnce({
+      candidates: [
+        {
+          content: {
+            parts: [{ inlineData: { mimeType: 'audio/wav', data: 'B' } }],
+          },
+        },
+      ],
+    })
+
+    await generateSpeech({
+      threadId: 'thread-1',
+      adapter: createGeminiSpeech('gemini-3.8-flash-tts', 'key'),
+      turns: [
+        { voice: 'Puck', text: 'hello' },
+        { voice: 'Kore', text: 'hi' },
+      ],
+      modelOptions: { systemInstruction: 'whispering' },
+    })
+
+    const args = mockGenerateContent.mock.calls[0]![0]
+    expect(args.contents[0].parts).toEqual([
+      {
+        text: 'hello',
+        speechMetadata: { speaker: 'Puck', style: 'whispering' },
+      },
+      { text: 'hi', speechMetadata: { speaker: 'Kore', style: 'whispering' } },
+    ])
+    expect(args.config.systemInstruction).toBeUndefined()
+  })
+
   it('honors TTSOptions.voice as a fallback for the prebuilt voice', async () => {
     // Regression: the adapter used to ignore `options.voice` and hard-code
     // 'Kore' even when the caller asked for something else.

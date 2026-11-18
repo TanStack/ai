@@ -46,22 +46,31 @@ describe('elevenlabsLiveTranscription', () => {
     const reading = (async () => {
       for await (const e of session) events.push(e)
     })()
-    session.send(new Uint8Array([0xff, 0x7f]))
+    // Small frames gather into one 250 ms message (2000 bytes of ulaw_8000).
+    session.send(new Uint8Array(1999).fill(0xff))
+    expect(socket.json()).toHaveLength(0)
+    session.send(new Uint8Array([0x7f]))
+    expect(socket.json()).toHaveLength(1)
     expect(socket.json()[0]).toEqual({
       message_type: 'input_audio_chunk',
-      audio_base_64: '/38=',
+      audio_base_64: Buffer.concat([
+        Buffer.alloc(1999, 0xff),
+        Buffer.from([0x7f]),
+      ]).toString('base64'),
       commit: false,
       sample_rate: 8000,
     })
+    session.send(new Uint8Array([0xff, 0x7f]))
 
     socket.receive({ message_type: 'partial_transcript', text: 'Hi' })
     socket.receive({ message_type: 'partial_transcript', text: 'Hi' }) // keepalive repeat
     socket.receive({ message_type: 'committed_transcript', text: 'Hi there.' })
     socket.receive({ message_type: 'quota_exceeded', error: 'out of credit' })
     const closing = session.close()
+    // The remainder flushes with the commit.
     expect(socket.json().at(-1)).toMatchObject({
       commit: true,
-      audio_base_64: '',
+      audio_base_64: '/38=',
     })
     socket.receive({ message_type: 'committed_transcript', text: '' })
     await closing
