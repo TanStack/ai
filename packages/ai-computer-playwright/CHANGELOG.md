@@ -1,5 +1,14 @@
 # @tanstack/ai-computer-playwright
 
+## 1.1.1
+
+### Patch Changes
+
+- [#2166](https://github.com/TanStack/ai/pull/2166) [`1bdd690`](https://github.com/TanStack/ai/commit/1bdd690aa41ac17e059625bdc26a1d43f243fabd) - Develop against `playwright-core` 1.65.1. The peer range stays `^1.40.0`.
+
+- Updated dependencies []:
+  - @tanstack/ai-computer-use@1.1.1
+
 ## 1.1.0
 
 ### Minor Changes
