@@ -4,6 +4,7 @@ import type {
   AnyTextAdapter,
   DefinedAgent,
   InferSchemaType,
+  InferToolResultMetadata,
   InterruptDefinition,
   SchemaInput,
   StandardJSONSchemaV1,
@@ -27,7 +28,7 @@ export interface EffectServerTool<TDef extends AnyToolDefinition, R> {
   readonly def: TDef
   readonly execute: (
     input: InferSchemaType<TDef['inputSchema']>,
-    ctx: ToolExecutionContext,
+    ctx: ToolExecutionContext<unknown, InferToolResultMetadata<TDef>>,
   ) => Effect.Effect<InferSchemaType<TDef['outputSchema']>, unknown, R>
 }
 
@@ -49,7 +50,7 @@ export const serverTool = <TDef extends AnyToolDefinition, E, R>(
   def: TDef,
   execute: (
     input: InferSchemaType<TDef['inputSchema']>,
-    ctx: ToolExecutionContext,
+    ctx: ToolExecutionContext<unknown, InferToolResultMetadata<TDef>>,
   ) => Effect.Effect<InferSchemaType<TDef['outputSchema']>, E, R>,
 ) => {
   const tool: EffectServerTool<TDef, R> = {

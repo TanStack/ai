@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
 import { toolDefinition } from '../src'
 import {
@@ -7,6 +7,7 @@ import {
 } from '../src/activities/chat/tools/tool-calls'
 import { ev } from './test-utils'
 import type { ToolExecutionMiddlewareHooks } from '../src/activities/chat/tools/tool-calls'
+import type { StandardSchemaV1 } from '@standard-schema/spec'
 import type { AnyTool, ToolCall } from '../src/types'
 
 function call(id: string, name: string, args: unknown = {}): ToolCall {
@@ -45,6 +46,28 @@ const tagTool = toolDefinition({
 }).server((_input, ctx) => {
   ctx?.setResultMetadata?.({ a: 1 })
   return 'ok'
+})
+
+/** A tool that sets `{ count: 2 }` and checks it with `validate`. */
+function asyncCheckedTool(
+  validate: (value: unknown) => Promise<StandardSchemaV1.Result<unknown>>,
+) {
+  const resultMetadataSchema: StandardSchemaV1 = {
+    '~standard': { version: 1, vendor: 'test', validate },
+  }
+  return toolDefinition({
+    name: 'checked',
+    description: 'Set metadata that an async schema checks',
+    inputSchema: z.object({}),
+    resultMetadataSchema,
+  }).server((_input, ctx) => {
+    ctx?.setResultMetadata?.({ count: 2 })
+    return 'ok'
+  })
+}
+
+afterEach(() => {
+  vi.restoreAllMocks()
 })
 
 describe('executeToolCalls result metadata', () => {
@@ -90,13 +113,40 @@ describe('executeToolCalls result metadata', () => {
       return 'ok'
     })
 
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
     const results = await run([call('tc-1', 'typed')], [tool])
 
     expect(results[0]?.state).toBe('output-error')
-    expect(results[0]?.result.error).toContain(
-      'Result metadata validation failed for tool typed',
-    )
+    // The model sees no validator details.
+    expect(results[0]?.result).toEqual({
+      error: 'Result metadata validation failed for tool typed',
+    })
     expect(results[0]?.metadata).toBeUndefined()
+  })
+
+  it('keeps metadata that an async schema accepts', async () => {
+    const tool = asyncCheckedTool(async (value) => ({ value }))
+
+    const results = await run([call('tc-1', 'checked')], [tool])
+
+    expect(results[0]).toMatchObject({ result: 'ok', metadata: { count: 2 } })
+  })
+
+  it('fails the call once when an async schema rejects', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const validate = vi.fn(() => Promise.reject(new Error('service down')))
+    const tool = asyncCheckedTool(validate)
+
+    const results = await run([call('tc-1', 'checked')], [tool])
+
+    expect(results[0]).toEqual(
+      expect.objectContaining({
+        result: { error: 'Result metadata validation failed for tool checked' },
+        state: 'output-error',
+        metadata: undefined,
+      }),
+    )
+    expect(validate).toHaveBeenCalledOnce()
   })
 
   it('keeps the metadata of parallel calls apart', async () => {
@@ -134,10 +184,36 @@ describe('executeToolCalls result metadata', () => {
       }),
     })
 
-    expect(results[0]).toMatchObject({
-      result: 'short',
-      metadata: { trimmed: true },
+    expect(results[0]?.result).toBe('short')
+    expect(results[0]?.metadata).toEqual({ trimmed: true })
+  })
+
+  it('drops replaceResult metadata that cannot become JSON and keeps the result', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const results = await run([call('tc-1', 'tag')], [tagTool], {
+      onAfterToolCall: async () => ({
+        type: 'replaceResult',
+        result: 'short',
+        metadata: { id: 1n },
+      }),
     })
+
+    expect(results[0]?.result).toBe('short')
+    expect(results[0]?.metadata).toBeUndefined()
+  })
+
+  it('drops skip metadata that cannot become JSON and keeps the result', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const results = await run([call('tc-1', 'tag')], [tagTool], {
+      onBeforeToolCall: async () => ({
+        type: 'skip',
+        result: 'cached',
+        metadata: { id: 1n },
+      }),
+    })
+
+    expect(results[0]?.result).toBe('cached')
+    expect(results[0]?.metadata).toBeUndefined()
   })
 
   it('removes the metadata when replaceResult metadata is empty', async () => {
@@ -168,17 +244,32 @@ describe('executeToolCalls result metadata', () => {
   })
 })
 
+/** Run `tagTool` through a ToolCallManager and return the tool messages. */
+async function runManager(...contextArgs: [] | [Record<string, never>]) {
+  const manager = new ToolCallManager([tagTool])
+  manager.addToolCallStartEvent(ev.toolStart('tc-1', 'tag'))
+  manager.addToolCallArgsEvent(ev.toolArgs('tc-1', '{}'))
+
+  const generator = manager.executeTools(
+    ev.runFinished('tool_calls'),
+    ...contextArgs,
+  )
+  let next = await generator.next()
+  while (!next.done) next = await generator.next()
+  return next.value
+}
+
 describe('ToolCallManager.executeTools result metadata', () => {
   it('puts the metadata on the tool message', async () => {
-    const manager = new ToolCallManager<Record<string, never>>([tagTool])
-    manager.addToolCallStartEvent(ev.toolStart('tc-1', 'tag'))
-    manager.addToolCallArgsEvent(ev.toolArgs('tc-1', '{}'))
+    expect((await runManager({}))[0]).toMatchObject({
+      role: 'tool',
+      toolCallId: 'tc-1',
+      metadata: { a: 1 },
+    })
+  })
 
-    const generator = manager.executeTools(ev.runFinished('tool_calls'), {})
-    let next = await generator.next()
-    while (!next.done) next = await generator.next()
-
-    expect(next.value[0]).toMatchObject({
+  it('gives the tool the setter when no context is passed', async () => {
+    expect((await runManager())[0]).toMatchObject({
       role: 'tool',
       toolCallId: 'tc-1',
       metadata: { a: 1 },

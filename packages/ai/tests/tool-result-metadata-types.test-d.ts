@@ -30,6 +30,12 @@ const searchServer = withSchema.server((_args, context) => {
   return null
 })
 
+withSchema.client((_args, context) => {
+  // @ts-expect-error a client tool cannot set result metadata
+  context?.setResultMetadata?.({ source: 'cache' })
+  return null
+})
+
 withoutSchema.server((_args, context) => {
   // Without a schema, any record is accepted.
   context?.setResultMetadata?.({ anything: 1, nested: { a: true } })

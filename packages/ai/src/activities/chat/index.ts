@@ -62,6 +62,7 @@ import { normalizeSystemPrompts } from '../../system-prompts'
 import { transformMessagesForReplay } from '../../utilities/replay-messages'
 import { LazyToolManager } from './tools/lazy-tool-manager'
 import { assertUniqueToolNames } from './tools/unique-tool-names'
+import { middlewareResultMetadata } from './tools/result-metadata'
 import type { DefinedAgent } from './agents/define-agent'
 import { providerKeys } from '../../byok/env-keys'
 import {
@@ -2977,6 +2978,10 @@ class TextEngine<
           toolName: call.function.name,
           result: decision ? decision.result : stored.content,
           state: 'output-error',
+          metadata: middlewareResultMetadata(
+            call.function.name,
+            decision?.metadata,
+          ),
         })
       }
       // This also stores the results, so the loop decision reads them.

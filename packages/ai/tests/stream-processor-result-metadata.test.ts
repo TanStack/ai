@@ -43,7 +43,17 @@ function streamToolResult(metadata: ToolCallResultEvent['metadata']) {
   return processor.getMessages()[0]!
 }
 
-function reloadToolResult(metadata: ModelMessage['metadata']) {
+function toolRow(metadata: ModelMessage['metadata']): ModelMessage {
+  return {
+    role: 'tool',
+    toolCallId: 'tc-1',
+    content: '{"answer":42}',
+    ...(metadata !== undefined && { metadata }),
+  }
+}
+
+/** Convert an assistant call `tc-1` and the tool rows for it. */
+function reloadToolRows(...rows: Array<ModelMessage>) {
   const messages: Array<ModelMessage> = [
     {
       role: 'assistant',
@@ -56,14 +66,13 @@ function reloadToolResult(metadata: ModelMessage['metadata']) {
         },
       ],
     },
-    {
-      role: 'tool',
-      toolCallId: 'tc-1',
-      content: '{"answer":42}',
-      ...(metadata !== undefined && { metadata }),
-    },
+    ...rows,
   ]
   return modelMessagesToUIMessages(messages)[0]!
+}
+
+function reloadToolResult(metadata: ModelMessage['metadata']) {
+  return reloadToolRows(toolRow(metadata))
 }
 
 function toolCallPart(message: UIMessage) {
@@ -197,5 +206,13 @@ describe('a second tool result', () => {
     processor.processChunk(toolResultChunk(undefined))
     const call = toolCallPart(processor.getMessages()[0]!)
     expect(call).not.toHaveProperty('resultMetadata')
+  })
+
+  it('replaces the old resultMetadata on reload, also when it has none', () => {
+    const message = reloadToolRows(
+      toolRow(fullMetadata),
+      toolRow({ tanstack: { state: 'output-available' } }),
+    )
+    expect(toolCallPart(message)).not.toHaveProperty('resultMetadata')
   })
 })

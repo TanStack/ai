@@ -314,12 +314,9 @@ export interface ToolDefinition<
    * tool so the tool-call part's `approval` field stays gated on it.
    */
   client: <TContext = unknown>(
-    execute?: ToolExecuteFunction<
-      TInput,
-      TOutput,
-      TContext,
-      TResultMetadataSchema
-    >,
+    // `never`: a client tool cannot set result metadata. The setter throws
+    // at runtime, so a call to it is a type error.
+    execute?: ToolExecuteFunction<TInput, TOutput, TContext, never>,
   ) => ClientTool<
     TInput,
     TOutput,
@@ -468,12 +465,7 @@ export function toolDefinition<
     },
 
     client<TContext = unknown>(
-      execute?: ToolExecuteFunction<
-        TInput,
-        TOutput,
-        TContext,
-        TResultMetadataSchema
-      >,
+      execute?: ToolExecuteFunction<TInput, TOutput, TContext, never>,
     ): ClientTool<
       TInput,
       TOutput,

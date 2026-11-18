@@ -5,6 +5,7 @@ import { chat } from '../src/activities/chat/index'
 import { defineChatMiddleware } from '../src/activities/chat/middleware/define'
 import { EventType } from '../src/types'
 import { collectChunks, createMockAdapter, ev } from './test-utils'
+import type { ChatMiddleware } from '../src/activities/chat/middleware/types'
 import type { ModelMessage, StreamChunk, UIMessage } from '../src/types'
 
 /** A server tool that sets app result metadata, then returns `{ temp: 20 }`. */
@@ -41,6 +42,7 @@ async function runChat(options: {
   iterations: Array<Array<StreamChunk>>
   messages: Array<ModelMessage> | Array<UIMessage>
   tools: Parameters<typeof chat>[0]['tools']
+  onAfterToolCall?: ChatMiddleware['onAfterToolCall']
 }) {
   const { adapter, calls } = createMockAdapter({
     iterations: options.iterations,
@@ -54,6 +56,7 @@ async function runChat(options: {
       tools: options.tools,
       middleware: [
         defineChatMiddleware({
+          onAfterToolCall: options.onAfterToolCall,
           onFinish(ctx) {
             transcript = [...ctx.messages]
           },
@@ -125,6 +128,32 @@ describe('chat() tool result metadata', () => {
     expect(toolMessage(transcript)).toMatchObject({
       error: 'disk full',
       metadata: { attempt: 2 },
+    })
+  })
+
+  it('puts replaceResult metadata on a call that the output limit cut', async () => {
+    const { resultChunk } = await runChat({
+      iterations: [
+        [
+          ev.runStarted(),
+          ev.toolStart('call_1', 'weather'),
+          ev.toolArgs('call_1', '{"q":'),
+          ev.runFinished('length'),
+        ],
+      ],
+      messages: [{ role: 'user', content: 'Weather?' }],
+      tools: [weatherTool],
+      onAfterToolCall: () => ({
+        type: 'replaceResult',
+        result: 'Cut off. Send it again.',
+        metadata: { retry: true, tanstack: { state: 'x' } },
+      }),
+    })
+
+    expect(resultChunk).toMatchObject({ content: 'Cut off. Send it again.' })
+    expect(resultChunk?.metadata).toEqual({
+      retry: true,
+      tanstack: { state: 'output-error' },
     })
   })
 

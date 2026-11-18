@@ -1,6 +1,10 @@
 import { appMetadata } from '../../../utilities/merge-metadata'
 import { errorMessage } from '../../../utilities/errors'
-import { isStandardSchema, parseWithStandardSchema } from './schema-converter'
+import {
+  StandardSchemaValidationError,
+  isStandardSchema,
+  validateWithStandardSchema,
+} from './schema-converter'
 import type { AnyTool } from '../../../types'
 
 /**
@@ -29,37 +33,72 @@ function reasonOf(error: unknown) {
   return errorMessage(error) ?? String(error)
 }
 
+/** A plain JSON copy of `value`. Throws when it cannot become JSON. */
+function jsonCopy(toolName: string, value: unknown) {
+  try {
+    return JSON.parse(JSON.stringify(value))
+  } catch (error) {
+    throw new Error(
+      `Result metadata for tool ${toolName} is not JSON: ${reasonOf(error)}`,
+    )
+  }
+}
+
 /**
  * Check the result metadata of a tool call before it leaves the engine.
  *
- * Returns a plain JSON copy of `value`. When the tool has a Standard Schema
- * `resultMetadataSchema`, returns the parsed value. A JSON Schema is not
+ * Returns a plain JSON copy of `value` without the reserved `tanstack` key.
+ * When the tool has a Standard Schema `resultMetadataSchema`, returns the
+ * parsed value. A sync or an async schema works. A JSON Schema is not
  * checked at runtime, the same as `outputSchema`.
  *
- * Throws an `Error` when the value cannot become JSON or the schema check fails.
+ * Throws an `Error` when the value cannot become JSON or the schema check
+ * fails. On a failed check the error has only the tool name, because the
+ * model sees it. The details go to the server log.
  */
-export function finalizeResultMetadata(
+export async function finalizeResultMetadata(
   tool: AnyTool,
   value: Record<string, unknown> | undefined,
 ) {
   if (value === undefined) return undefined
-  let json: Record<string, unknown>
+  const json = jsonCopy(tool.name, value)
+  if (!isStandardSchema(tool.resultMetadataSchema)) return appMetadata(json)
+  let parsed: unknown
   try {
-    json = JSON.parse(JSON.stringify(value))
-  } catch (error) {
-    throw new Error(
-      `Result metadata for tool ${tool.name} is not JSON: ${reasonOf(error)}`,
-    )
-  }
-  if (!isStandardSchema(tool.resultMetadataSchema)) return json
-  try {
-    return parseWithStandardSchema<Record<string, unknown>>(
+    const validation = await validateWithStandardSchema<unknown>(
       tool.resultMetadataSchema,
       json,
     )
+    if (!validation.success) {
+      throw new StandardSchemaValidationError(validation.issues)
+    }
+    parsed = validation.data
   } catch (error) {
-    throw new Error(
+    console.warn(
       `Result metadata validation failed for tool ${tool.name}: ${reasonOf(error)}`,
     )
+    throw new Error(`Result metadata validation failed for tool ${tool.name}`)
+  }
+  // A schema transform can return a value that is not JSON, or that has
+  // the reserved `tanstack` key again.
+  return appMetadata(jsonCopy(tool.name, parsed))
+}
+
+/**
+ * Check the result metadata of a middleware decision (`skip` or
+ * `replaceResult`). Returns a plain JSON copy without the reserved
+ * `tanstack` key. Metadata that cannot become JSON is dropped with a
+ * warning, so the result stays.
+ */
+export function middlewareResultMetadata(
+  toolName: string,
+  value: Record<string, unknown> | undefined,
+) {
+  if (value === undefined) return undefined
+  try {
+    return appMetadata(jsonCopy(toolName, value))
+  } catch (error) {
+    console.warn(`Dropped middleware result metadata: ${reasonOf(error)}`)
+    return undefined
   }
 }

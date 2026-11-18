@@ -1480,6 +1480,8 @@ export function modelMessagesToUIMessages(
           const resultMetadata = appMetadata(msg.metadata)
           if (resultMetadata !== undefined) {
             toolCallPart.resultMetadata = resultMetadata
+          } else {
+            delete toolCallPart.resultMetadata
           }
         }
 

@@ -1,15 +1,13 @@
 import { finishToolCallArguments } from '../../../utilities/tool-call-arguments'
 import { normalizeToolResult } from '../../../utilities/tool-result'
-import {
-  appMetadata,
-  tanstackMetadata,
-} from '../../../utilities/merge-metadata'
+import { tanstackMetadata } from '../../../utilities/merge-metadata'
 import { isProviderExecutedToolCall } from '../../../utilities/provider-executed'
 import { mergeStreams } from '../../../utilities/merge-streams'
 import { validateToolInput } from './input-validation'
 import {
   createResultMetadataCollector,
   finalizeResultMetadata,
+  middlewareResultMetadata,
 } from './result-metadata'
 import type { AdapterYieldChunk } from '../../../utilities/adapter-yield-chunk'
 import {
@@ -57,12 +55,12 @@ import type {
  * The result metadata of a failed tool call. Metadata that fails the check
  * is dropped, so the result keeps the tool error and not the check error.
  */
-function errorResultMetadata(
+async function errorResultMetadata(
   tool: AnyTool,
   value: Record<string, unknown> | undefined,
 ) {
   try {
-    return finalizeResultMetadata(tool, value)
+    return await finalizeResultMetadata(tool, value)
   } catch {
     return undefined
   }
@@ -421,7 +419,6 @@ export class ToolCallManager<
   ): AsyncGenerator<AdapterYieldChunk, Array<ModelMessage>, void> {
     const toolCallsArray = this.getToolCalls()
     const toolResults: Array<ModelMessage> = []
-    const hasRuntimeContext = contextArgs.length > 0
     const userContext = contextArgs[0]
 
     for (const toolCall of toolCallsArray) {
@@ -436,6 +433,9 @@ export class ToolCallManager<
       // App-only metadata for the tool message. The model never sees it.
       let toolResultMetadata: Record<string, unknown> | undefined
       const resultMetadata = createResultMetadataCollector()
+      // Set when the success path checked the metadata, so a failed check
+      // does not run again in the catch.
+      let metadataChecked = false
       if (tool?.execute) {
         try {
           // Parse arguments (normalize null/non-object to {} for empty tool_use blocks)
@@ -460,9 +460,7 @@ export class ToolCallManager<
             emitCustomEvent: () => {},
             setResultMetadata: resultMetadata.set,
           } as ToolExecutionContext<TContext>
-          let result = hasRuntimeContext
-            ? await tool.execute(args, executionContext)
-            : await tool.execute(args)
+          let result = await tool.execute(args, executionContext)
 
           // Validate output against outputSchema if provided (for Standard
           // Schema compliant schemas). Unlike the previous implementation we
@@ -483,7 +481,8 @@ export class ToolCallManager<
             }
           }
 
-          toolResultMetadata = finalizeResultMetadata(
+          metadataChecked = true
+          toolResultMetadata = await finalizeResultMetadata(
             tool,
             resultMetadata.get(),
           )
@@ -495,7 +494,12 @@ export class ToolCallManager<
             error instanceof Error ? error.message : 'Unknown error'
           toolResultContent = `Error executing tool: ${message}`
           toolResultState = 'output-error'
-          toolResultMetadata = errorResultMetadata(tool, resultMetadata.get())
+          if (!metadataChecked) {
+            toolResultMetadata = await errorResultMetadata(
+              tool,
+              resultMetadata.get(),
+            )
+          }
         }
       } else {
         // Tool doesn't have execute function, add placeholder
@@ -738,7 +742,7 @@ async function pushResultAndRunAfterHook(
   if (decision?.type !== 'replaceResult') return
   entry.result = decision.result
   if (decision.metadata !== undefined) {
-    entry.metadata = appMetadata(decision.metadata)
+    entry.metadata = middlewareResultMetadata(entry.toolName, decision.metadata)
   }
 }
 
@@ -807,7 +811,7 @@ async function applyToolCallDecision(
         toolName,
         result: skipResult,
         duration: 0,
-        metadata: appMetadata(decision.metadata),
+        metadata: middlewareResultMetadata(toolName, decision.metadata),
       },
       {
         toolCall,
@@ -847,6 +851,10 @@ export async function* executeServerTool<TContext = unknown>(
   getResultMetadata?: () => Record<string, unknown> | undefined,
 ): AsyncGenerator<CustomEvent | StreamChunk, void, void> {
   const startTime = Date.now()
+  // Set when the success path checked the metadata, so a failed check does
+  // not run again in the catch.
+  let metadataChecked = false
+  let metadata: Record<string, unknown> | undefined
   try {
     if (!tool.execute) {
       throw new Error(`Tool ${toolName} has no execute() implementation`)
@@ -927,7 +935,8 @@ export async function* executeServerTool<TContext = unknown>(
       result = parseWithStandardSchema(tool.outputSchema, result)
     }
     // A failed check makes the call an error result with no metadata.
-    const metadata = finalizeResultMetadata(tool, getResultMetadata?.())
+    metadataChecked = true
+    metadata = await finalizeResultMetadata(tool, getResultMetadata?.())
 
     const finalResult =
       typeof result === 'string' ? safeJsonParse(result) : (result ?? null)
@@ -992,7 +1001,9 @@ export async function* executeServerTool<TContext = unknown>(
         state: 'output-error',
         duration,
         // Metadata that the tool set before it threw stays on the error.
-        metadata: errorResultMetadata(tool, getResultMetadata?.()),
+        metadata: metadataChecked
+          ? metadata
+          : await errorResultMetadata(tool, getResultMetadata?.()),
       },
       {
         toolCall,
